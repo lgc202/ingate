@@ -9,6 +9,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/workqueue"
 
 	appoptions "github.com/lgc202/ingate/cmd/controller-manager/app/options"
 	"github.com/lgc202/ingate/cmd/controller-manager/names"
@@ -63,7 +64,8 @@ func Run(ctx context.Context, out io.Writer, opts appoptions.CompletedOptions) e
 	}
 
 	informerFactory := newInformerFactory(client, cfg.Options)
-	runtimeContext := controllerruntime.NewContext(client, informerFactory, controllerindex.New(), shared.NewGatewayQueue())
+	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[shared.ObjectKey]())
+	runtimeContext := controllerruntime.NewContext(client, informerFactory, controllerindex.New(), queue)
 	resolvedGatewayController := resolvedgateway.NewController(runtimeContext)
 	controllers := []controllerRegistration{
 		controllergateway.NewController(runtimeContext),

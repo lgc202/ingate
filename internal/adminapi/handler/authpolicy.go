@@ -5,16 +5,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/convert"
 	"github.com/lgc202/ingate/internal/adminapi/handler/dto"
+	"github.com/lgc202/ingate/internal/adminapi/store"
 )
 
 type AuthPolicyHandler struct {
-	service *biz.AuthPolicyService
+	store *store.APIServerStore
 }
 
-func NewAuthPolicyHandler(service *biz.AuthPolicyService) *AuthPolicyHandler {
-	return &AuthPolicyHandler{service: service}
+func NewAuthPolicyHandler(store *store.APIServerStore) *AuthPolicyHandler {
+	return &AuthPolicyHandler{store: store}
 }
 
 func (h *AuthPolicyHandler) Create(c *gin.Context) {
@@ -24,12 +25,12 @@ func (h *AuthPolicyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.Create(c.Request.Context(), req)
+	created, err := h.store.CreateAuthPolicy(c.Request.Context(), convert.AuthPolicyFromCreateRequest(req))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, convert.AuthPolicyToResponse(created))
 }
 
 func (h *AuthPolicyHandler) Update(c *gin.Context) {
@@ -39,16 +40,24 @@ func (h *AuthPolicyHandler) Update(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.Update(c.Request.Context(), c.Param("name"), req)
+	current, err := h.store.GetAuthPolicy(c.Request.Context(), c.Param("name"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	updated := convert.AuthPolicyFromUpdateRequest(c.Param("name"), req)
+	updated.ObjectMeta = current.ObjectMeta
+	updated.Status = current.Status
+	result, err := h.store.UpdateAuthPolicy(c.Request.Context(), updated)
+	if err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, convert.AuthPolicyToResponse(result))
 }
 
 func (h *AuthPolicyHandler) Delete(c *gin.Context) {
-	if err := h.service.Delete(c.Request.Context(), c.Param("name")); err != nil {
+	if err := h.store.DeleteAuthPolicy(c.Request.Context(), c.Param("name")); err != nil {
 		writeStoreError(c, err)
 		return
 	}
@@ -56,19 +65,19 @@ func (h *AuthPolicyHandler) Delete(c *gin.Context) {
 }
 
 func (h *AuthPolicyHandler) Get(c *gin.Context) {
-	resp, err := h.service.Get(c.Request.Context(), c.Param("name"))
+	policy, err := h.store.GetAuthPolicy(c.Request.Context(), c.Param("name"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, convert.AuthPolicyToResponse(policy))
 }
 
 func (h *AuthPolicyHandler) List(c *gin.Context) {
-	resp, err := h.service.List(c.Request.Context())
+	list, err := h.store.ListAuthPolicies(c.Request.Context())
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, convert.AuthPolicyListToResponse(list))
 }

@@ -30,12 +30,12 @@ func New(cfg adminconfig.Config) (*Server, error) {
 	gin.SetMode(gin.ReleaseMode)
 	router := newRouter(handlers{
 		health:        handler.NewHealthHandler(),
-		gateway:       handler.NewGatewayHandler(biz.NewGatewayService(apiStore)),
-		backend:       handler.NewBackendHandler(biz.NewBackendService(apiStore)),
-		route:         handler.NewRouteHandler(biz.NewRouteService(apiStore)),
+		gateway:       handler.NewGatewayHandler(apiStore),
+		backend:       handler.NewBackendHandler(apiStore),
+		route:         handler.NewRouteHandler(apiStore),
 		certificate:   handler.NewCertificateHandler(biz.NewCertificateService(apiStore)),
-		authPolicy:    handler.NewAuthPolicyHandler(biz.NewAuthPolicyService(apiStore)),
-		trafficPolicy: handler.NewTrafficPolicyHandler(biz.NewTrafficPolicyService(apiStore)),
+		authPolicy:    handler.NewAuthPolicyHandler(apiStore),
+		trafficPolicy: handler.NewTrafficPolicyHandler(apiStore),
 		overview:      handler.NewOverviewHandler(biz.NewOverviewService(apiStore)),
 		topology:      handler.NewTopologyHandler(biz.NewTopologyService(apiStore)),
 		event:         handler.NewEventHandler(biz.NewEventService(apiStore)),

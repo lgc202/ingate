@@ -8,6 +8,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
 
 	controllerruntime "github.com/lgc202/ingate/internal/controlplane/controller/runtime"
 	"github.com/lgc202/ingate/internal/controlplane/controller/shared"
@@ -16,11 +17,10 @@ import (
 )
 
 type Controller struct {
-	client    clientset.Interface
-	queue     *shared.GatewayQueue
-	loader    *Loader
-	persister *Persister
-	status    *controllerstatus.Updater
+	client clientset.Interface
+	queue  workqueue.TypedRateLimitingInterface[shared.ObjectKey]
+	loader *Loader
+	status *controllerstatus.Updater
 }
 
 func NewController(ctx *controllerruntime.Context) *Controller {
@@ -28,11 +28,10 @@ func NewController(ctx *controllerruntime.Context) *Controller {
 		return &Controller{}
 	}
 	return &Controller{
-		client:    ctx.Clientset,
-		queue:     ctx.GatewayQueue,
-		loader:    NewLoader(ctx),
-		persister: NewPersister(ctx.Clientset),
-		status:    controllerstatus.NewUpdater(ctx.Clientset),
+		client: ctx.Clientset,
+		queue:  ctx.GatewayQueue,
+		loader: NewLoader(ctx),
+		status: controllerstatus.NewUpdater(ctx.Clientset),
 	}
 }
 
@@ -61,7 +60,7 @@ func (c *Controller) processNext(ctx context.Context) bool {
 
 	if err := c.Reconcile(ctx, key); err != nil {
 		if shouldRequeue(err) {
-			c.queue.Requeue(key)
+			c.queue.AddRateLimited(key)
 		} else {
 			c.queue.Forget(key)
 		}

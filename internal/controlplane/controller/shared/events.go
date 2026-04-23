@@ -2,11 +2,12 @@ package shared
 
 import (
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 )
 
 type GatewayKeyResolver func(obj interface{}) []ObjectKey
 
-func NewGatewayEventHandler(resolver GatewayKeyResolver, queue *GatewayQueue) cache.ResourceEventHandlerFuncs {
+func NewGatewayEventHandler(resolver GatewayKeyResolver, queue workqueue.TypedRateLimitingInterface[ObjectKey]) cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			enqueueResolvedGatewayKeys(resolver, queue, obj)
@@ -22,11 +23,11 @@ func NewGatewayEventHandler(resolver GatewayKeyResolver, queue *GatewayQueue) ca
 	}
 }
 
-func enqueueResolvedGatewayKeys(resolver GatewayKeyResolver, queue *GatewayQueue, obj interface{}) {
+func enqueueResolvedGatewayKeys(resolver GatewayKeyResolver, queue workqueue.TypedRateLimitingInterface[ObjectKey], obj interface{}) {
 	enqueueResolvedGatewayKeysWithSeen(resolver, queue, obj, nil)
 }
 
-func enqueueResolvedGatewayKeysWithSeen(resolver GatewayKeyResolver, queue *GatewayQueue, obj interface{}, seen map[string]struct{}) {
+func enqueueResolvedGatewayKeysWithSeen(resolver GatewayKeyResolver, queue workqueue.TypedRateLimitingInterface[ObjectKey], obj interface{}, seen map[string]struct{}) {
 	if resolver == nil || queue == nil {
 		return
 	}
@@ -47,7 +48,7 @@ func enqueueResolvedGatewayKeysWithSeen(resolver GatewayKeyResolver, queue *Gate
 			}
 			seen[serialized] = struct{}{}
 		}
-		queue.Enqueue(key)
+		queue.Add(key)
 	}
 }
 
