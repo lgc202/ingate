@@ -1,0 +1,9 @@
+.git
+_output/*
+!_output/compose
+!_output/compose/*
+.DS_Store
+node_modules
+docs
+deploy/compose/.env
+deploy/compose/README.md
