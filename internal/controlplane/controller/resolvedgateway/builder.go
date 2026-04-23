@@ -28,26 +28,51 @@ func Build(bundle *ResourceBundle) (*gatewayv1alpha1.ResolvedGateway, error) {
 		return nil, fmt.Errorf("resource bundle must include a gateway")
 	}
 
-	gateway := bundle.Gateway
-	certificates := make(map[string]*gatewayv1alpha1.Certificate, len(bundle.Certificates))
+	resolved := &gatewayv1alpha1.ResolvedGateway{}
+	resolved.Name = bundle.Gateway.Name
+	resolved.Spec.GatewayRef = gatewayv1alpha1.LocalObjectReference{Name: bundle.Gateway.Name}
+	resolved.Spec.Version = bundle.Gateway.ResourceVersion
+	resolved.Spec.Extensions = []gatewayv1alpha1.ResolvedGatewayExtension{}
+
+	certificateMap := make(map[string]*gatewayv1alpha1.Certificate, len(bundle.Certificates))
 	for _, certificate := range bundle.Certificates {
 		if certificate == nil || certificate.Name == "" {
 			continue
 		}
-		certificates[shared.NewObjectKey(certificate.Namespace, certificate.Name).String()] = certificate
+		certificateMap[objectKeyOf(certificate).String()] = certificate
 	}
 
-	resolved := &gatewayv1alpha1.ResolvedGateway{}
-	resolved.Name = gateway.Name
-	resolved.Spec.GatewayRef = gatewayv1alpha1.LocalObjectReference{Name: gateway.Name}
-	resolved.Spec.Version = gateway.ResourceVersion
+	resolved.Spec.Listeners = buildListeners(bundle.Gateway, certificateMap)
+
+	routes, routeIndexes := buildRoutes(bundle.Routes)
+	backends, backendIndexes := buildBackends(bundle.Backends)
+
 	resolved.Spec.GatewayAuthSummary = buildAuthSummary(bundle.GatewayAuthPolicies)
 	resolved.Spec.GatewayTrafficSummary = buildTrafficSummary(bundle.GatewayTrafficPolicies)
 
-	resolved.Spec.Listeners = buildListeners(gateway, certificates)
-	resolved.Spec.Routes = buildRoutes(bundle)
-	resolved.Spec.Backends = buildBackends(bundle)
-	resolved.Spec.Extensions = []gatewayv1alpha1.ResolvedGatewayExtension{}
+	for routeKey, policies := range bundle.RouteAuthPolicies {
+		if index, ok := routeIndexes[routeKey]; ok {
+			routes[index].AuthSummary = buildAuthSummary(policies)
+		}
+	}
+	for routeKey, policies := range bundle.RouteTrafficPolicies {
+		if index, ok := routeIndexes[routeKey]; ok {
+			routes[index].TrafficSummary = buildTrafficSummary(policies)
+		}
+	}
+	for backendKey, policies := range bundle.BackendAuthPolicies {
+		if index, ok := backendIndexes[backendKey]; ok {
+			backends[index].AuthSummary = buildAuthSummary(policies)
+		}
+	}
+	for backendKey, policies := range bundle.BackendTrafficPolicies {
+		if index, ok := backendIndexes[backendKey]; ok {
+			backends[index].TrafficSummary = buildTrafficSummary(policies)
+		}
+	}
+
+	resolved.Spec.Routes = routes
+	resolved.Spec.Backends = backends
 
 	return resolved, nil
 }
@@ -83,26 +108,22 @@ func buildListeners(gateway *gatewayv1alpha1.Gateway, certificates map[string]*g
 	return listeners
 }
 
-func buildRoutes(bundle *ResourceBundle) []gatewayv1alpha1.ResolvedGatewayRoute {
-	if bundle == nil {
-		return nil
-	}
-	items := make([]gatewayv1alpha1.ResolvedGatewayRoute, 0, len(bundle.Routes))
-	for _, route := range bundle.Routes {
+func buildRoutes(routes []*gatewayv1alpha1.Route) ([]gatewayv1alpha1.ResolvedGatewayRoute, map[string]int) {
+	items := make([]gatewayv1alpha1.ResolvedGatewayRoute, 0, len(routes))
+	indexes := make(map[string]int, len(routes))
+	for _, route := range routes {
 		if route == nil {
 			continue
 		}
-		routeKey := objectKeyOf(route).String()
 		resolved := gatewayv1alpha1.ResolvedGatewayRoute{
-			Name:           route.Name,
-			Hostnames:      append([]string(nil), route.Spec.Hostnames...),
-			Rules:          buildRouteRules(route.Spec.Rules),
-			AuthSummary:    buildAuthSummary(bundle.RouteAuthPolicies[routeKey]),
-			TrafficSummary: buildTrafficSummary(bundle.RouteTrafficPolicies[routeKey]),
+			Name:      route.Name,
+			Hostnames: append([]string(nil), route.Spec.Hostnames...),
+			Rules:     buildRouteRules(route.Spec.Rules),
 		}
+		indexes[objectKeyOf(route).String()] = len(items)
 		items = append(items, resolved)
 	}
-	return items
+	return items, indexes
 }
 
 func buildRouteRules(rules []gatewayv1alpha1.RouteRule) []gatewayv1alpha1.ResolvedGatewayRouteRule {
@@ -133,22 +154,17 @@ func buildRouteRules(rules []gatewayv1alpha1.RouteRule) []gatewayv1alpha1.Resolv
 	return items
 }
 
-func buildBackends(bundle *ResourceBundle) []gatewayv1alpha1.ResolvedGatewayBackend {
-	if bundle == nil {
-		return nil
-	}
-	items := make([]gatewayv1alpha1.ResolvedGatewayBackend, 0, len(bundle.Backends))
-	for _, backend := range bundle.Backends {
+func buildBackends(backends []*gatewayv1alpha1.Backend) ([]gatewayv1alpha1.ResolvedGatewayBackend, map[string]int) {
+	items := make([]gatewayv1alpha1.ResolvedGatewayBackend, 0, len(backends))
+	indexes := make(map[string]int, len(backends))
+	for _, backend := range backends {
 		if backend == nil {
 			continue
 		}
-		backendKey := objectKeyOf(backend).String()
 		resolved := gatewayv1alpha1.ResolvedGatewayBackend{
-			Name:           backend.Name,
-			Protocol:       backend.Spec.Protocol,
-			DefaultPort:    backend.Spec.DefaultPort,
-			AuthSummary:    buildAuthSummary(bundle.BackendAuthPolicies[backendKey]),
-			TrafficSummary: buildTrafficSummary(bundle.BackendTrafficPolicies[backendKey]),
+			Name:        backend.Name,
+			Protocol:    backend.Spec.Protocol,
+			DefaultPort: backend.Spec.DefaultPort,
 		}
 		if backend.Spec.LoadBalance != nil {
 			loadBalance := *backend.Spec.LoadBalance
@@ -160,9 +176,10 @@ func buildBackends(bundle *ResourceBundle) []gatewayv1alpha1.ResolvedGatewayBack
 		if len(resolved.Endpoints) == 0 {
 			resolved.Endpoints = append([]gatewayv1alpha1.BackendEndpoint(nil), backend.Status.Endpoints...)
 		}
+		indexes[objectKeyOf(backend).String()] = len(items)
 		items = append(items, resolved)
 	}
-	return items
+	return items, indexes
 }
 
 func buildAuthSummary(policies []*policyv1alpha1.AuthPolicy) *gatewayv1alpha1.ResolvedGatewayAuthSummary {
