@@ -1,0 +1,89 @@
+syntax = "proto3";
+
+package ingate.configsync.v1;
+
+option go_package = "github.com/lgc202/ingate/pkg/generated/proto/ingate/configsync/v1;configsyncv1";
+
+message EffectiveConfig {
+  string version = 1;
+  repeated Listener listeners = 2;
+  repeated Route routes = 3;
+  repeated Backend backends = 4;
+}
+
+message Listener {
+  string name = 1;
+  string protocol = 2;
+  uint32 port = 3;
+  repeated string hostnames = 4;
+}
+
+message Route {
+  string name = 1;
+  repeated string hostnames = 2;
+  repeated string path_prefixes = 3;
+  repeated BackendRef backends = 4;
+}
+
+message BackendRef {
+  string name = 1;
+  uint32 port = 2;
+  uint32 weight = 3;
+}
+
+message Backend {
+  string name = 1;
+  string type = 2;
+  uint32 default_port = 3;
+  repeated Endpoint endpoints = 4;
+}
+
+message Endpoint {
+  string address = 1;
+  uint32 port = 2;
+  uint32 weight = 3;
+  bool healthy = 4;
+}
+
+message PublishConfigRequest {
+  string config_version = 1;
+  EffectiveConfig config = 2;
+}
+
+message PublishConfigResponse {
+  bool accepted = 1;
+  string publish_version = 2;
+  string result_code = 3;
+  string message = 4;
+}
+
+message GetConfigRequest {
+  string gateway_key = 1;
+}
+
+message GetConfigResponse {
+  string gateway_key = 1;
+  string source_version = 2;
+  string publish_version = 3;
+  string updated_at = 4;
+  EffectiveConfig config = 5;
+}
+
+message PublishedConfig {
+  string gateway_key = 1;
+  string source_version = 2;
+  string publish_version = 3;
+  string updated_at = 4;
+}
+
+message ListConfigsRequest {}
+
+message ListConfigsResponse {
+  repeated PublishedConfig items = 1;
+}
+
+service ConfigSyncService {
+  rpc PublishConfig(PublishConfigRequest) returns (PublishConfigResponse);
+  rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+  rpc ListConfigs(ListConfigsRequest) returns (ListConfigsResponse);
+}
