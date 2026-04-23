@@ -9,10 +9,10 @@ import (
 )
 
 type AuthPolicyService struct {
-	store store.Store
+	store *store.APIServerStore
 }
 
-func NewAuthPolicyService(store store.Store) *AuthPolicyService {
+func NewAuthPolicyService(store *store.APIServerStore) *AuthPolicyService {
 	return &AuthPolicyService{store: store}
 }
 

@@ -9,10 +9,10 @@ import (
 )
 
 type GatewayService struct {
-	store store.Store
+	store *store.APIServerStore
 }
 
-func NewGatewayService(store store.Store) *GatewayService {
+func NewGatewayService(store *store.APIServerStore) *GatewayService {
 	return &GatewayService{store: store}
 }
 

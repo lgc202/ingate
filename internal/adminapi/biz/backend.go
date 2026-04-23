@@ -9,10 +9,10 @@ import (
 )
 
 type BackendService struct {
-	store store.Store
+	store *store.APIServerStore
 }
 
-func NewBackendService(store store.Store) *BackendService {
+func NewBackendService(store *store.APIServerStore) *BackendService {
 	return &BackendService{store: store}
 }
 

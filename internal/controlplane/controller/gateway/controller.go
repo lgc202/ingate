@@ -13,7 +13,7 @@ import (
 type Controller struct {
 	informer cache.SharedIndexInformer
 	index    *controllerindex.Index
-	queue    shared.GatewayQueue
+	queue    *shared.GatewayQueue
 }
 
 func NewController(ctx *controllerruntime.Context) *Controller {

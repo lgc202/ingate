@@ -10,10 +10,10 @@ import (
 )
 
 type OverviewService struct {
-	store store.Store
+	store *store.APIServerStore
 }
 
-func NewOverviewService(store store.Store) *OverviewService {
+func NewOverviewService(store *store.APIServerStore) *OverviewService {
 	return &OverviewService{store: store}
 }
 

@@ -13,10 +13,10 @@ type Context struct {
 	Clientset       clientset.Interface
 	InformerFactory externalversions.SharedInformerFactory
 	Index           *index.Index
-	GatewayQueue    shared.GatewayQueue
+	GatewayQueue    *shared.GatewayQueue
 }
 
-func NewContext(client clientset.Interface, factory externalversions.SharedInformerFactory, idx *index.Index, queue shared.GatewayQueue) *Context {
+func NewContext(client clientset.Interface, factory externalversions.SharedInformerFactory, idx *index.Index, queue *shared.GatewayQueue) *Context {
 	return &Context{
 		Clientset:       client,
 		InformerFactory: factory,

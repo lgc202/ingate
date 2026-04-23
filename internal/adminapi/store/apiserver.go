@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
 
 	adminconfig "github.com/lgc202/ingate/internal/adminapi/config"
@@ -16,6 +17,14 @@ const (
 	defaultUserAgent = "ingate-admin-api"
 	defaultQPS       = 20
 	defaultBurst     = 40
+)
+
+var (
+	createOptions = metav1.CreateOptions{}
+	updateOptions = metav1.UpdateOptions{}
+	deleteOptions = metav1.DeleteOptions{}
+	getOptions    = metav1.GetOptions{}
+	listOptions   = metav1.ListOptions{}
 )
 
 type APIServerStore struct {

@@ -4,26 +4,17 @@ import (
 	"k8s.io/client-go/util/workqueue"
 )
 
-type GatewayQueue interface {
-	Enqueue(ObjectKey)
-	Requeue(ObjectKey)
-	Get() (ObjectKey, bool)
-	Done(ObjectKey)
-	Forget(ObjectKey)
-	ShutDown()
-}
-
-type gatewayQueue struct {
+type GatewayQueue struct {
 	queue workqueue.TypedRateLimitingInterface[ObjectKey]
 }
 
-func NewGatewayQueue() GatewayQueue {
-	return &gatewayQueue{
+func NewGatewayQueue() *GatewayQueue {
+	return &GatewayQueue{
 		queue: workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[ObjectKey]()),
 	}
 }
 
-func (q *gatewayQueue) Enqueue(key ObjectKey) {
+func (q *GatewayQueue) Enqueue(key ObjectKey) {
 	if q == nil || q.queue == nil {
 		return
 	}
@@ -33,7 +24,7 @@ func (q *gatewayQueue) Enqueue(key ObjectKey) {
 	q.queue.Add(key)
 }
 
-func (q *gatewayQueue) Requeue(key ObjectKey) {
+func (q *GatewayQueue) Requeue(key ObjectKey) {
 	if q == nil || q.queue == nil {
 		return
 	}
@@ -43,7 +34,7 @@ func (q *gatewayQueue) Requeue(key ObjectKey) {
 	q.queue.AddRateLimited(key)
 }
 
-func (q *gatewayQueue) Get() (ObjectKey, bool) {
+func (q *GatewayQueue) Get() (ObjectKey, bool) {
 	if q == nil || q.queue == nil {
 		return ObjectKey{}, true
 	}
@@ -55,21 +46,21 @@ func (q *gatewayQueue) Get() (ObjectKey, bool) {
 	return item, false
 }
 
-func (q *gatewayQueue) Done(key ObjectKey) {
+func (q *GatewayQueue) Done(key ObjectKey) {
 	if q == nil || q.queue == nil || key.Name == "" {
 		return
 	}
 	q.queue.Done(key)
 }
 
-func (q *gatewayQueue) Forget(key ObjectKey) {
+func (q *GatewayQueue) Forget(key ObjectKey) {
 	if q == nil || q.queue == nil || key.Name == "" {
 		return
 	}
 	q.queue.Forget(key)
 }
 
-func (q *gatewayQueue) ShutDown() {
+func (q *GatewayQueue) ShutDown() {
 	if q == nil || q.queue == nil {
 		return
 	}
