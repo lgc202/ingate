@@ -5,16 +5,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/convert"
 	"github.com/lgc202/ingate/internal/adminapi/handler/dto"
+	"github.com/lgc202/ingate/internal/adminapi/store"
 )
 
 type GatewayHandler struct {
-	service *biz.GatewayService
+	store *store.APIServerStore
 }
 
-func NewGatewayHandler(service *biz.GatewayService) *GatewayHandler {
-	return &GatewayHandler{service: service}
+func NewGatewayHandler(store *store.APIServerStore) *GatewayHandler {
+	return &GatewayHandler{store: store}
 }
 
 func (h *GatewayHandler) Create(c *gin.Context) {
@@ -24,12 +25,12 @@ func (h *GatewayHandler) Create(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.Create(c.Request.Context(), req)
+	created, err := h.store.CreateGateway(c.Request.Context(), convert.GatewayFromCreateRequest(req))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, convert.GatewayToResponse(created))
 }
 
 func (h *GatewayHandler) Update(c *gin.Context) {
@@ -39,16 +40,24 @@ func (h *GatewayHandler) Update(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.Update(c.Request.Context(), c.Param("name"), req)
+	current, err := h.store.GetGateway(c.Request.Context(), c.Param("name"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	updated := convert.GatewayFromUpdateRequest(c.Param("name"), req)
+	updated.ObjectMeta = current.ObjectMeta
+	updated.Status = current.Status
+	result, err := h.store.UpdateGateway(c.Request.Context(), updated)
+	if err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, convert.GatewayToResponse(result))
 }
 
 func (h *GatewayHandler) Delete(c *gin.Context) {
-	if err := h.service.Delete(c.Request.Context(), c.Param("name")); err != nil {
+	if err := h.store.DeleteGateway(c.Request.Context(), c.Param("name")); err != nil {
 		writeStoreError(c, err)
 		return
 	}
@@ -56,19 +65,19 @@ func (h *GatewayHandler) Delete(c *gin.Context) {
 }
 
 func (h *GatewayHandler) Get(c *gin.Context) {
-	resp, err := h.service.Get(c.Request.Context(), c.Param("name"))
+	gateway, err := h.store.GetGateway(c.Request.Context(), c.Param("name"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, convert.GatewayToResponse(gateway))
 }
 
 func (h *GatewayHandler) List(c *gin.Context) {
-	resp, err := h.service.List(c.Request.Context())
+	list, err := h.store.ListGateways(c.Request.Context())
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, convert.GatewayListToResponse(list))
 }

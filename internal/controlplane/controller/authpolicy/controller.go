@@ -3,6 +3,7 @@ package authpolicy
 import (
 	policyv1alpha1 "github.com/lgc202/ingate/pkg/apis/policy/v1alpha1"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/util/workqueue"
 
 	"github.com/lgc202/ingate/cmd/controller-manager/names"
 	controllerindex "github.com/lgc202/ingate/internal/controlplane/controller/index"
@@ -13,7 +14,7 @@ import (
 type Controller struct {
 	informer cache.SharedIndexInformer
 	index    *controllerindex.Index
-	queue    *shared.GatewayQueue
+	queue    workqueue.TypedRateLimitingInterface[shared.ObjectKey]
 }
 
 func NewController(ctx *controllerruntime.Context) *Controller {
@@ -90,7 +91,7 @@ func (c *Controller) enqueue(keys []shared.ObjectKey) {
 			continue
 		}
 		seen[key.String()] = struct{}{}
-		c.queue.Enqueue(key)
+		c.queue.Add(key)
 	}
 }
 

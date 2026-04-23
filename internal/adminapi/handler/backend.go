@@ -5,16 +5,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/convert"
 	"github.com/lgc202/ingate/internal/adminapi/handler/dto"
+	"github.com/lgc202/ingate/internal/adminapi/store"
 )
 
 type BackendHandler struct {
-	service *biz.BackendService
+	store *store.APIServerStore
 }
 
-func NewBackendHandler(service *biz.BackendService) *BackendHandler {
-	return &BackendHandler{service: service}
+func NewBackendHandler(store *store.APIServerStore) *BackendHandler {
+	return &BackendHandler{store: store}
 }
 
 func (h *BackendHandler) Create(c *gin.Context) {
@@ -24,12 +25,12 @@ func (h *BackendHandler) Create(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.Create(c.Request.Context(), req)
+	created, err := h.store.CreateBackend(c.Request.Context(), convert.BackendFromCreateRequest(req))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, convert.BackendToResponse(created))
 }
 
 func (h *BackendHandler) Update(c *gin.Context) {
@@ -39,16 +40,24 @@ func (h *BackendHandler) Update(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.Update(c.Request.Context(), c.Param("name"), req)
+	current, err := h.store.GetBackend(c.Request.Context(), c.Param("name"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	updated := convert.BackendFromUpdateRequest(c.Param("name"), req)
+	updated.ObjectMeta = current.ObjectMeta
+	updated.Status = current.Status
+	result, err := h.store.UpdateBackend(c.Request.Context(), updated)
+	if err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, convert.BackendToResponse(result))
 }
 
 func (h *BackendHandler) Delete(c *gin.Context) {
-	if err := h.service.Delete(c.Request.Context(), c.Param("name")); err != nil {
+	if err := h.store.DeleteBackend(c.Request.Context(), c.Param("name")); err != nil {
 		writeStoreError(c, err)
 		return
 	}
@@ -56,19 +65,19 @@ func (h *BackendHandler) Delete(c *gin.Context) {
 }
 
 func (h *BackendHandler) Get(c *gin.Context) {
-	resp, err := h.service.Get(c.Request.Context(), c.Param("name"))
+	backend, err := h.store.GetBackend(c.Request.Context(), c.Param("name"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, convert.BackendToResponse(backend))
 }
 
 func (h *BackendHandler) List(c *gin.Context) {
-	resp, err := h.service.List(c.Request.Context())
+	list, err := h.store.ListBackends(c.Request.Context())
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, convert.BackendListToResponse(list))
 }
