@@ -9,10 +9,10 @@ import (
 )
 
 type TrafficPolicyService struct {
-	store store.Store
+	store *store.APIServerStore
 }
 
-func NewTrafficPolicyService(store store.Store) *TrafficPolicyService {
+func NewTrafficPolicyService(store *store.APIServerStore) *TrafficPolicyService {
 	return &TrafficPolicyService{store: store}
 }
 

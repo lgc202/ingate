@@ -26,10 +26,10 @@ const (
 )
 
 type TopologyService struct {
-	store store.Store
+	store *store.APIServerStore
 }
 
-func NewTopologyService(store store.Store) *TopologyService {
+func NewTopologyService(store *store.APIServerStore) *TopologyService {
 	return &TopologyService{store: store}
 }
 

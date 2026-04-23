@@ -20,10 +20,10 @@ import (
 )
 
 type CertificateService struct {
-	store store.Store
+	store *store.APIServerStore
 }
 
-func NewCertificateService(store store.Store) *CertificateService {
+func NewCertificateService(store *store.APIServerStore) *CertificateService {
 	return &CertificateService{store: store}
 }
 

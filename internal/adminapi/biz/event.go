@@ -19,7 +19,7 @@ import (
 const eventTimeLayout = "2006-01-02 15:04"
 
 type EventService struct {
-	store store.Store
+	store *store.APIServerStore
 }
 
 type synthesizedEvent struct {
@@ -30,7 +30,7 @@ type synthesizedEvent struct {
 	at       time.Time
 }
 
-func NewEventService(store store.Store) *EventService {
+func NewEventService(store *store.APIServerStore) *EventService {
 	return &EventService{store: store}
 }
 
