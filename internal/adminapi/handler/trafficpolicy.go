@@ -5,16 +5,17 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/convert"
 	"github.com/lgc202/ingate/internal/adminapi/handler/dto"
+	"github.com/lgc202/ingate/internal/adminapi/store"
 )
 
 type TrafficPolicyHandler struct {
-	service *biz.TrafficPolicyService
+	store *store.APIServerStore
 }
 
-func NewTrafficPolicyHandler(service *biz.TrafficPolicyService) *TrafficPolicyHandler {
-	return &TrafficPolicyHandler{service: service}
+func NewTrafficPolicyHandler(store *store.APIServerStore) *TrafficPolicyHandler {
+	return &TrafficPolicyHandler{store: store}
 }
 
 func (h *TrafficPolicyHandler) Create(c *gin.Context) {
@@ -24,12 +25,12 @@ func (h *TrafficPolicyHandler) Create(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.Create(c.Request.Context(), req)
+	created, err := h.store.CreateTrafficPolicy(c.Request.Context(), convert.TrafficPolicyFromCreateRequest(req))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, resp)
+	c.JSON(http.StatusCreated, convert.TrafficPolicyToResponse(created))
 }
 
 func (h *TrafficPolicyHandler) Update(c *gin.Context) {
@@ -39,16 +40,24 @@ func (h *TrafficPolicyHandler) Update(c *gin.Context) {
 		return
 	}
 
-	resp, err := h.service.Update(c.Request.Context(), c.Param("name"), req)
+	current, err := h.store.GetTrafficPolicy(c.Request.Context(), c.Param("name"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	updated := convert.TrafficPolicyFromUpdateRequest(c.Param("name"), req)
+	updated.ObjectMeta = current.ObjectMeta
+	updated.Status = current.Status
+	result, err := h.store.UpdateTrafficPolicy(c.Request.Context(), updated)
+	if err != nil {
+		writeStoreError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, convert.TrafficPolicyToResponse(result))
 }
 
 func (h *TrafficPolicyHandler) Delete(c *gin.Context) {
-	if err := h.service.Delete(c.Request.Context(), c.Param("name")); err != nil {
+	if err := h.store.DeleteTrafficPolicy(c.Request.Context(), c.Param("name")); err != nil {
 		writeStoreError(c, err)
 		return
 	}
@@ -56,19 +65,19 @@ func (h *TrafficPolicyHandler) Delete(c *gin.Context) {
 }
 
 func (h *TrafficPolicyHandler) Get(c *gin.Context) {
-	resp, err := h.service.Get(c.Request.Context(), c.Param("name"))
+	policy, err := h.store.GetTrafficPolicy(c.Request.Context(), c.Param("name"))
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, convert.TrafficPolicyToResponse(policy))
 }
 
 func (h *TrafficPolicyHandler) List(c *gin.Context) {
-	resp, err := h.service.List(c.Request.Context())
+	list, err := h.store.ListTrafficPolicies(c.Request.Context())
 	if err != nil {
 		writeStoreError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, resp)
+	c.JSON(http.StatusOK, convert.TrafficPolicyListToResponse(list))
 }
