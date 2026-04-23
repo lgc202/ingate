@@ -9,10 +9,10 @@ import (
 )
 
 type RouteService struct {
-	store store.Store
+	store *store.APIServerStore
 }
 
-func NewRouteService(store store.Store) *RouteService {
+func NewRouteService(store *store.APIServerStore) *RouteService {
 	return &RouteService{store: store}
 }
 

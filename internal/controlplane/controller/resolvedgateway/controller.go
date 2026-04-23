@@ -12,55 +12,27 @@ import (
 	controllerruntime "github.com/lgc202/ingate/internal/controlplane/controller/runtime"
 	"github.com/lgc202/ingate/internal/controlplane/controller/shared"
 	controllerstatus "github.com/lgc202/ingate/internal/controlplane/controller/status"
-	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
-	policyv1alpha1 "github.com/lgc202/ingate/pkg/apis/policy/v1alpha1"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
-type BundleLoader interface {
-	Load(gatewayKey shared.ObjectKey) (*ResourceBundle, error)
-}
-
-type ResolvedGatewayPersister interface {
-	Upsert(ctx context.Context, resolvedGateway *gatewayv1alpha1.ResolvedGateway) (*gatewayv1alpha1.ResolvedGateway, error)
-}
-
-type StatusWriter interface {
-	MarkSuccess(
-		ctx context.Context,
-		gateway *gatewayv1alpha1.Gateway,
-		routes []*gatewayv1alpha1.Route,
-		backends []*gatewayv1alpha1.Backend,
-		certificates []*gatewayv1alpha1.Certificate,
-		authPolicies []*policyv1alpha1.AuthPolicy,
-		trafficPolicies []*policyv1alpha1.TrafficPolicy,
-		rg *gatewayv1alpha1.ResolvedGateway,
-	) error
-	MarkFailure(ctx context.Context, key shared.ObjectKey, err error) error
-}
-
 type Controller struct {
 	client    clientset.Interface
-	queue     shared.GatewayQueue
-	loader    BundleLoader
-	persister ResolvedGatewayPersister
-	status    StatusWriter
+	queue     *shared.GatewayQueue
+	loader    *Loader
+	persister *Persister
+	status    *controllerstatus.Updater
 }
 
 func NewController(ctx *controllerruntime.Context) *Controller {
 	if ctx == nil {
 		return &Controller{}
 	}
-	return NewControllerWithDependencies(ctx.Clientset, ctx.GatewayQueue, NewLoader(ctx))
-}
-
-func NewControllerWithDependencies(client clientset.Interface, queue shared.GatewayQueue, loader BundleLoader) *Controller {
 	return &Controller{
-		client:    client,
-		queue:     queue,
-		loader:    loader,
-		persister: NewPersister(client),
-		status:    controllerstatus.NewUpdater(client),
+		client:    ctx.Clientset,
+		queue:     ctx.GatewayQueue,
+		loader:    NewLoader(ctx),
+		persister: NewPersister(ctx.Clientset),
+		status:    controllerstatus.NewUpdater(ctx.Clientset),
 	}
 }
 
