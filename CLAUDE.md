@@ -12,72 +12,88 @@ Ingate 是一个用 Go 实现的网关控制面仓库，主要产出 5 个二进
 - `ingate-admin-api`：面向控制台的 Gin REST API
 - `ingatectl`：用于查看 xDS/configsync 状态的运维 CLI
 
-核心运行链路是：
+理解这个仓库时，优先抓这条主线，而不是单个资源的 CRUD：
 
 1. 资源先写入 `ingate-apiserver`
 2. `ingate-controller-manager` 监听 `Gateway`、`Route`、`Backend`、`Certificate`、`AuthPolicy`、`TrafficPolicy`
-3. resolvedgateway controller 聚合这些资源，生成并持久化 `ResolvedGateway`
-4. `ingate-xds-server` 监听 `ResolvedGateway`，翻译成运行时配置后通过 configsync/discovery/ADS 发布
-5. `ingate-admin-api` 再把底层资源包装成控制台可直接使用的 REST API
+3. 各资源 controller 负责把受影响的 gateway 入队，并维护依赖索引
+4. `resolvedgateway` controller 拉全量依赖，生成并持久化 `ResolvedGateway`
+5. `ingate-xds-server` 监听 `ResolvedGateway`，翻译成运行时配置并通过 configsync/discovery/ADS 发布
+6. `ingate-admin-api` 再把底层资源包装成控制台可直接使用的 REST API
 
-理解这个仓库时，最重要的主线不是“单个资源怎么存”，而是“资源如何收敛到 `ResolvedGateway`，再如何发布到数据面”。
+`ResolvedGateway` 是 controller 与 xDS 之间的核心交接对象，排查大多数链路问题时都应该先看它。
 
 ## 常用命令
 
+### 查看可用目标
+
+- `make help`
+
 ### 工具与代码生成
 
-- `make check-tools`：检查本地依赖工具是否齐全，包含 `go`、`etcd`、`protoc`、`protoc-gen-go`、`protoc-gen-go-grpc` 和 Kubernetes codegen helper
-- `make generate`：生成 API helper、client/informer/lister、protobuf 产物
-- `make verify-generated`：重新生成并校验仓库中的生成文件是否过期
+- `make check-tools`：检查本地依赖工具
+- `make generate`：生成全部代码产物
+- `make generate-apis`：生成 API helper，如 `DeepCopy`
+- `make generate-clients`：生成 clientset、informer、lister
+- `make generate-proto`：生成 protobuf 相关产物
+- `make verify-generated`：校验生成产物是否最新
 
 ### 构建
 
 - `make build`：构建全部二进制到 `_output/<os>_<arch>`
+- `make build BINS="ingate-apiserver ingatectl"`：只构建指定二进制
 - `make build-apiserver`
 - `make build-admin-api`
 - `make build-controller-manager`
 - `make build-xds-server`
 - `make build-ingatectl`
-- `make version`：输出 `ingate-apiserver` 的构建版本信息
+- `make version`
 
 ### 本地运行
 
-- `make run-apiserver`：基于当前配置的 etcd 启动本地 apiserver
-- `make run-admin-api`：连接本地 `ingate-apiserver` 启动 admin API
-- `make write-apiserver-kubeconfig`：生成访问本地 apiserver 的 kubeconfig
+- `make run-apiserver`
+- `make run-admin-api`
+- `make write-apiserver-kubeconfig`
 
 ### 验证与测试
 
-这个仓库更依赖 `make verify-*` 脚本来覆盖多进程联调，而不是只靠一个总入口 `go test ./...`。
+这个仓库更依赖 `make verify-*` 脚本覆盖多进程联调，而不是只靠 `go test ./...`。
 
-- `make verify-apiserver`：验证 apiserver 的 health/discovery/OpenAPI
-- `make verify-apiserver-auth`：验证 public/admin/viewer 的认证鉴权行为
-- `make verify-apiserver-admission`：验证 reserved metadata admission
-- `make verify-apiserver-table`：验证自定义 Table 输出
-- `make verify-apiserver-kubectl`：验证通过 kubeconfig 使用 kubectl 访问 apiserver
-- `make verify-admin-api`：联动 apiserver + admin-api，验证 gateway/backend/route 产品 API
-- `make verify-controller-manager`：验证 `ResolvedGateway` 调谐与状态更新
-- `make verify-xds-server`：验证 xDS/config 发布与 discovery RPC
-- `make verify-envoy`：验证真实 Envoy 在本地控制面下完成转发
+- `make verify-apiserver`
+- `make verify-apiserver-auth`
+- `make verify-apiserver-admission`
+- `make verify-apiserver-table`
+- `make verify-apiserver-kubectl`
+- `make verify-admin-api`
+- `make verify-controller-manager`
+- `make verify-xds-server`
+- `make verify-envoy`
+- `make verify-compose`
 
-如果只想跑单个包或单个测试，用标准 Go 命令：
+包级或单个测试用标准 Go 命令：
 
 - `go test ./...`
 - `go test ./internal/controlplane/controller/resolvedgateway/...`
 - `go test ./pkg/apis/gateway/validation/...`
 - `go test ./cmd/controller-manager/... -run TestName`
+- `go test ./internal/adminapi/convert -run TestBackend`
+
+### Lint / 格式化
+
+- 当前 `Makefile` 没有暴露独立的 `make lint` 或 `make fmt` 目标，不要假设它们存在
+- 修改生成相关输入后，补跑 `make verify-generated`
 
 ## Docker Compose 演示环境
 
 `deploy/compose/` 可以一键拉起完整本地环境：`etcd`、`apiserver`、`controller-manager`、`xds-server`、`admin-api`、console、Envoy、sample backend。
 
-- `make compose-build`：构建 compose 使用的本地镜像
-- `make compose-up`：后台启动整套 compose
-- `make compose-up COMPOSE_ENV_FILE=deploy/compose/.env`：使用自定义 env 文件启动
+- `make compose-build`
+- `make compose-up`
+- `make compose-up COMPOSE_ENV_FILE=deploy/compose/.env`
 - `make compose-ps`
 - `make compose-logs`
 - `make compose-down`
-- `make verify-compose`：构建、启动、验证 Envoy 转发，然后清理
+- `make verify-compose`
 
 如果需要修改环境配置，先复制：
 
@@ -87,87 +103,70 @@ compose 中的 console 镜像直接复用相邻仓库 `../ingate-console/dist`�
 
 ## 架构速览
 
-### API 定义与生成代码
+### 改 API 类型、校验或生成产物时先看哪里
 
-`pkg/apis/` 定义了仓库的 API 面：
-
-- `pkg/apis/gateway/v1alpha1/`：网关侧资源，如 `Gateway`、`Route`、`Backend`、`Certificate`、`Secret`、`ResolvedGateway`
-- `pkg/apis/policy/v1alpha1/`：策略资源，如 `AuthPolicy`、`TrafficPolicy`
+- `pkg/apis/gateway/v1alpha1/`：网关侧资源定义，如 `Gateway`、`Route`、`Backend`、`Certificate`、`Secret`、`ResolvedGateway`
+- `pkg/apis/policy/v1alpha1/`：策略资源定义，如 `AuthPolicy`、`TrafficPolicy`
 - `pkg/apis/*/validation/`：校验逻辑
-- `pkg/scheme/`：汇总注册 scheme
+- `pkg/apis/scheme/`：scheme 注册
+- `pkg/generated/`：生成产物；不要手改，改输入后走 `make generate`
 
-`pkg/generated/` 下都是生成产物。只要修改了 API type、defaulting、protobuf 或客户端相关输入，通常都要执行 `make generate`，然后再跑 `make verify-generated`。
+### 改资源存储、REST 语义、认证鉴权、准入时先看哪里
 
-### apiserver
+`ingate-apiserver` 基于 Kubernetes generic apiserver，而不是普通 Gin 服务。
 
-`ingate-apiserver` 不是普通的 Gin 服务，而是基于 Kubernetes generic apiserver 体系搭出来的。
-
-关键目录：
-
-- `cmd/apiserver/`：Cobra 启动入口与参数装配
-- `internal/controlplane/apiserver/`：generic apiserver 配置与 API 安装
-- `internal/controlplane/apiserver/registry/`：各资源的 REST storage 与 strategy
+- `cmd/apiserver/app/server.go`：CLI 入口，组装 options 并启动 apiserver
+- `internal/controlplane/apiserver/`：apiserver 配置与 API 安装
+- `internal/controlplane/apiserver/registry/`：各资源 REST storage 与 strategy
 - `internal/controlplane/apiserver/auth/`：认证、鉴权与策略辅助逻辑
-- `internal/controlplane/apiserver/admission/`：admission plugin，如 reserved metadata
+- `internal/controlplane/apiserver/admission/`：admission plugin
 
-凡是涉及资源持久化、REST 语义、表格输出、认证鉴权、准入控制的改动，通常不会只落在一个文件里，而会分散在 `options`、`registry`、`auth`、`admission` 这几层。
+这类改动通常不会只落在一个文件里，而会跨 `registry`、`auth`、`admission` 等层一起改。
 
-### controller-manager
+### 改控制器收敛逻辑、状态更新、依赖关系时先看哪里
 
-`ingate-controller-manager` 是典型 informer + queue 驱动结构。
+真正的多资源收敛逻辑集中在 `resolvedgateway` controller，其它资源 controller 更像触发器和索引维护者。
 
-关键目录：
+- `cmd/controller-manager/app/run.go`：创建 shared informer factory、依赖索引和共享 gateway work queue，并注册所有 controller
+- `internal/controlplane/controller/{gateway,route,backend,certificate,authpolicy,trafficpolicy}`：把受影响 gateway 入队
+- `internal/controlplane/controller/index/`：维护依赖索引
+- `internal/controlplane/controller/resolvedgateway/`：构建并写回 `ResolvedGateway`
+- `internal/controlplane/controller/status/`：写入 Accepted/Resolved 等状态
 
-- `cmd/controller-manager/app/run.go`：创建共享 informer factory 和共享 gateway work queue
-- `internal/controlplane/controller/{gateway,route,backend,certificate,authpolicy,trafficpolicy}`：各资源 controller，职责主要是把受影响的 gateway 入队
-- `internal/controlplane/controller/index/`：维护资源关系索引，用于从依赖资源反查 gateway
-- `internal/controlplane/controller/resolvedgateway/`：加载完整资源 bundle，构建 `ResolvedGateway`，写回存储并更新状态
-- `internal/controlplane/controller/status/`：负责 Accepted/Resolved 等状态写入
+如果表现为“某个依赖资源变了但网关没重算”，先看资源 controller 与 `index/`；如果表现为“重算了但结果不对”，先看 `resolvedgateway/`。
 
-这里最重要的设计点是：各资源 controller 更多像“触发器”和“索引维护者”，真正的多资源收敛逻辑集中在 `resolvedgateway` controller。
+### 改 xDS 翻译、发布或排查数据面问题时先看哪里
 
-### xDS 发布链路
+`ingate-xds-server` 消费的是 `ResolvedGateway`，不是原始资源。
 
-`ingate-xds-server` 消费的是 `ResolvedGateway`，不是直接消费原始 Gateway/Route/Backend 资源。
-
-关键目录：
-
-- `cmd/xds-server/app/server.go`：启动 `ResolvedGateway` informer、runtime cache、publisher 和 health server
-- `internal/controlplane/xds/watch/`：监听 `ResolvedGateway` 变化并触发重新发布
-- `internal/controlplane/xds/translate/`：把 `ResolvedGateway` 翻译成运行时配置结构
+- `cmd/xds-server/app/server.go`：启动 watcher、runtime cache、publisher 和 health server
+- `internal/controlplane/xds/watch/`：监听 `ResolvedGateway`
+- `internal/controlplane/xds/translate/`：翻译为运行时配置
 - `internal/controlplane/xds/cache/`：缓存已发布配置
-- `internal/controlplane/xds/publish/`：通过 configsync/discovery/ADS 暴露 gRPC 服务
-- `internal/controlplane/xds/ads/`：ADS 资源类型和打包辅助逻辑
+- `internal/controlplane/xds/publish/`：通过 configsync/discovery/ADS 发布
+- `internal/controlplane/xds/ads/`：ADS 资源打包辅助逻辑
 
-调试 xDS 行为时，优先顺序通常应该是：
+调试顺序通常是：先看 `ResolvedGateway`，再看 `translate/`，最后看 cache/publish。
 
-1. 先看 `ResolvedGateway` 是否正确
-2. 再看 `translate/` 是否把它翻对了
-3. 最后看 cache/publish 是否把结果按预期发布出去
+### 改控制台接口或产品语义时先看哪里
 
-### admin-api
-
-`ingate-admin-api` 是单独的 Gin 服务，面向控制台和产品接口，不等同于底层 apiserver。
-
-关键目录：
+`ingate-admin-api` 是面向控制台的语义层，不等同于底层 apiserver。
 
 - `internal/adminapi/server/routes.go`：`/admin/v1` 路由面
 - `internal/adminapi/handler/`：HTTP handler 与 DTO
-- `internal/adminapi/biz/`：按领域划分的业务逻辑
-- `internal/adminapi/convert/`：API 对象与 HTTP DTO 的转换
-- `internal/adminapi/store/`：admin-api 访问底层资源的存储抽象
+- `internal/adminapi/biz/`：业务逻辑
+- `internal/adminapi/convert/`：底层对象与 HTTP DTO 转换
+- `internal/adminapi/store/`：访问底层资源的存储抽象
 
-如果一个需求同时影响“控制台展示/交互语义”和“底层控制面资源语义”，通常需要同时修改 `internal/adminapi/*` 和底层 API/controller 相关代码。
+如果一个需求同时影响控制台语义和底层资源语义，通常需要同时修改 `internal/adminapi/*` 和底层 API/controller 代码。
 
-### ingatectl
+### 排查发布结果而不是读代码时先用什么
 
-`ingatectl` 主要用于本地排查 `ingate-xds-server` 的发布状态，而不是普通资源管理。
+`ingatectl` 主要用于排查 `ingate-xds-server` 的发布状态。
 
-常见子命令：
-
-- `ingatectl xds list|config|summary|check`：查看已发布 configsync 状态
-- `ingatectl xds resolve`：查询后端 endpoint 发现结果
-- `ingatectl xds ads`：抓取某个 gateway key 的原始 ADS 资源
+- `ingatectl xds list|config|summary|check`
+- `ingatectl xds resolve`
+- `ingatectl xds ads`
 
 排查发布链路时，优先用 `ingatectl` 看实际输出，通常比直接翻 gRPC 代码路径更快。
 
@@ -175,5 +174,4 @@ compose 中的 console 镜像直接复用相邻仓库 `../ingate-console/dist`�
 
 - 优先使用现成的 `make verify-*` 目标，它们已经编码了这个项目需要的多进程启动顺序和联调方式
 - 把 `ResolvedGateway` 当成 controller 与 xDS 之间的核心交接对象来理解和排查问题
-- 非必要不要手改 `pkg/generated/`，这类改动通常应该通过 `make generate` 产出
-- 当前工作目录不是一个 git repo，因此某些依赖 `git diff` 的校验脚本在这里可能只执行生成，不执行基于 git 的差异校验
+- 非必要不要手改 `pkg/generated/`
