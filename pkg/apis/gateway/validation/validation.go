@@ -127,62 +127,6 @@ func ValidateGatewayUpdate(update, old *gatewayv1alpha1.Gateway) field.ErrorList
 	return ValidateGateway(update)
 }
 
-func ValidateResolvedGateway(resolvedGateway *gatewayv1alpha1.ResolvedGateway) field.ErrorList {
-	var allErrs field.ErrorList
-
-	if resolvedGateway.Spec.GatewayRef.Name == "" {
-		allErrs = append(allErrs, field.Required(field.NewPath("spec", "gatewayRef", "name"), "gatewayRef.name is required"))
-	}
-
-	seenNames := map[string]struct{}{}
-	for i, listener := range resolvedGateway.Spec.Listeners {
-		fldPath := field.NewPath("spec", "listeners").Index(i)
-		if listener.Name == "" {
-			allErrs = append(allErrs, field.Required(fldPath.Child("name"), "listener name is required"))
-			continue
-		}
-		if _, exists := seenNames[listener.Name]; exists {
-			allErrs = append(allErrs, field.Duplicate(fldPath.Child("name"), listener.Name))
-			continue
-		}
-		seenNames[listener.Name] = struct{}{}
-	}
-
-	seenNames = map[string]struct{}{}
-	for i, route := range resolvedGateway.Spec.Routes {
-		fldPath := field.NewPath("spec", "routes").Index(i)
-		if route.Name == "" {
-			allErrs = append(allErrs, field.Required(fldPath.Child("name"), "route name is required"))
-			continue
-		}
-		if _, exists := seenNames[route.Name]; exists {
-			allErrs = append(allErrs, field.Duplicate(fldPath.Child("name"), route.Name))
-			continue
-		}
-		seenNames[route.Name] = struct{}{}
-	}
-
-	seenNames = map[string]struct{}{}
-	for i, backend := range resolvedGateway.Spec.Backends {
-		fldPath := field.NewPath("spec", "backends").Index(i)
-		if backend.Name == "" {
-			allErrs = append(allErrs, field.Required(fldPath.Child("name"), "backend name is required"))
-			continue
-		}
-		if _, exists := seenNames[backend.Name]; exists {
-			allErrs = append(allErrs, field.Duplicate(fldPath.Child("name"), backend.Name))
-			continue
-		}
-		seenNames[backend.Name] = struct{}{}
-	}
-
-	return allErrs
-}
-
-func ValidateResolvedGatewayUpdate(update, old *gatewayv1alpha1.ResolvedGateway) field.ErrorList {
-	return ValidateResolvedGateway(update)
-}
-
 func ValidateCertificate(certificate *gatewayv1alpha1.Certificate) field.ErrorList {
 	var allErrs field.ErrorList
 

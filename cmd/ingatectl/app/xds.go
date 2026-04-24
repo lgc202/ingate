@@ -185,7 +185,7 @@ func newConfigCommand() *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&opts.serverAddress, "server", opts.serverAddress, "xds-server gRPC address")
-	flags.StringVar(&opts.gatewayKey, "gateway", "", "resolvedgateway object key (<namespace>/<name> or <name>)")
+	flags.StringVar(&opts.gatewayKey, "gateway", "", "gateway object key (<namespace>/<name> or <name>)")
 	flags.StringVar(&opts.output, "output", "json", "config output format: json or text")
 	flags.DurationVar(&opts.timeout, "timeout", opts.timeout, "RPC timeout")
 	_ = cmd.MarkFlagRequired("gateway")
@@ -231,7 +231,7 @@ func newSummaryCommand() *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&opts.serverAddress, "server", opts.serverAddress, "xds-server gRPC address")
-	flags.StringVar(&opts.gatewayKey, "gateway", "", "resolvedgateway object key (<namespace>/<name> or <name>)")
+	flags.StringVar(&opts.gatewayKey, "gateway", "", "gateway object key (<namespace>/<name> or <name>)")
 	flags.StringVar(&opts.output, "output", "json", "summary output format: json or text")
 	flags.DurationVar(&opts.timeout, "timeout", opts.timeout, "RPC timeout")
 	_ = cmd.MarkFlagRequired("gateway")
@@ -255,7 +255,7 @@ func newCheckCommand() *cobra.Command {
 
 	flags := cmd.Flags()
 	flags.StringVar(&opts.serverAddress, "server", opts.serverAddress, "xds-server gRPC address")
-	flags.StringVar(&opts.gatewayKey, "gateway", "", "resolvedgateway object key (<namespace>/<name> or <name>)")
+	flags.StringVar(&opts.gatewayKey, "gateway", "", "gateway object key (<namespace>/<name> or <name>)")
 	flags.StringVar(&opts.backendName, "backend", "", "backend name to resolve")
 	flags.StringVar(&opts.backendType, "backend-type", "", "optional backend type filter")
 	flags.StringVar(&opts.output, "output", "json", "check output format: json or text")

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	compilerir "github.com/lgc202/ingate/internal/controlplane/compiler/ir"
 	"github.com/lgc202/ingate/internal/controlplane/controller/shared"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 )
@@ -131,51 +132,44 @@ type RuntimeTrafficPolicyRef struct {
 	RateLimitScope    string
 }
 
-func FromResolvedGateway(rg *gatewayv1alpha1.ResolvedGateway) (*RuntimeConfig, error) {
-	if rg == nil {
-		return nil, fmt.Errorf("resolvedgateway must not be nil")
+func FromLogicalGateway(gateway *compilerir.LogicalGateway) (*RuntimeConfig, error) {
+	if gateway == nil {
+		return nil, fmt.Errorf("logical gateway must not be nil")
 	}
-	if strings.TrimSpace(rg.Name) == "" {
-		return nil, fmt.Errorf("resolvedgateway name must not be empty")
-	}
-	if strings.TrimSpace(rg.Spec.GatewayRef.Name) == "" {
-		return nil, fmt.Errorf("resolvedgateway %q is missing spec.gatewayRef.name", rg.Name)
+	if strings.TrimSpace(gateway.Meta.Name) == "" {
+		return nil, fmt.Errorf("logical gateway name must not be empty")
 	}
 
-	version := strings.TrimSpace(rg.Spec.Version)
+	version := strings.TrimSpace(gateway.Meta.Version)
 	if version == "" {
-		version = strings.TrimSpace(rg.ResourceVersion)
-	}
-	if version == "" {
-		version = fmt.Sprintf("generation-%d", rg.Generation)
+		version = fmt.Sprintf("logical-%s", gateway.Meta.Name)
 	}
 
 	out := &RuntimeConfig{
-		Key:                   shared.NewObjectKey(rg.Namespace, rg.Name),
-		GatewayName:           rg.Spec.GatewayRef.Name,
+		Key:                   shared.NewObjectKey(gateway.Meta.Namespace, gateway.Meta.Name),
+		GatewayName:           gateway.Meta.Name,
 		Version:               version,
-		ObservedGeneration:    rg.Generation,
-		GatewayAuthSummary:    authSummaryFromResolved(rg.Spec.GatewayAuthSummary),
-		GatewayTrafficSummary: trafficSummaryFromResolved(rg.Spec.GatewayTrafficSummary),
-		Listeners:             make([]RuntimeListener, 0, len(rg.Spec.Listeners)),
-		Routes:                make([]RuntimeRoute, 0, len(rg.Spec.Routes)),
-		Backends:              make([]RuntimeBackend, 0, len(rg.Spec.Backends)),
+		GatewayAuthSummary:    authSummaryFromLogical(gateway.Policies.GatewayAuth),
+		GatewayTrafficSummary: trafficSummaryFromLogical(gateway.Policies.GatewayTraffic),
+		Listeners:             make([]RuntimeListener, 0, len(gateway.Listeners)),
+		Routes:                make([]RuntimeRoute, 0, len(gateway.Routes)),
+		Backends:              make([]RuntimeBackend, 0, len(gateway.Backends)),
 	}
 
-	for _, listener := range rg.Spec.Listeners {
-		out.Listeners = append(out.Listeners, listenerFromResolved(listener))
+	for _, listener := range gateway.Listeners {
+		out.Listeners = append(out.Listeners, listenerFromLogical(listener))
 	}
-	for _, route := range rg.Spec.Routes {
-		out.Routes = append(out.Routes, routeFromResolved(route))
+	for _, route := range gateway.Routes {
+		out.Routes = append(out.Routes, routeFromLogical(route))
 	}
-	for _, backend := range rg.Spec.Backends {
-		out.Backends = append(out.Backends, backendFromResolved(backend))
+	for _, backend := range gateway.Backends {
+		out.Backends = append(out.Backends, backendFromLogical(backend))
 	}
 
 	return out, nil
 }
 
-func listenerFromResolved(listener gatewayv1alpha1.ResolvedGatewayListener) RuntimeListener {
+func listenerFromLogical(listener compilerir.Listener) RuntimeListener {
 	out := RuntimeListener{
 		Name:      listener.Name,
 		Protocol:  listener.Protocol,
@@ -184,34 +178,30 @@ func listenerFromResolved(listener gatewayv1alpha1.ResolvedGatewayListener) Runt
 	}
 	if listener.TLS != nil {
 		out.TLS = &RuntimeListenerTLS{
-			Mode:    listener.TLS.Mode,
-			Domains: cloneStrings(listener.TLS.Domains),
-		}
-		if listener.TLS.CertificateRef != nil {
-			out.TLS.CertificateName = listener.TLS.CertificateRef.Name
-		}
-		if listener.TLS.SecretRef != nil {
-			out.TLS.SecretName = listener.TLS.SecretRef.Name
+			Mode:            listener.TLS.Mode,
+			CertificateName: listener.TLS.CertificateName,
+			SecretName:      listener.TLS.SecretName,
+			Domains:         cloneStrings(listener.TLS.Domains),
 		}
 	}
 	return out
 }
 
-func routeFromResolved(route gatewayv1alpha1.ResolvedGatewayRoute) RuntimeRoute {
+func routeFromLogical(route compilerir.Route) RuntimeRoute {
 	out := RuntimeRoute{
 		Name:           route.Name,
 		Hostnames:      cloneStrings(route.Hostnames),
 		Rules:          make([]RuntimeRouteRule, 0, len(route.Rules)),
-		AuthSummary:    authSummaryFromResolved(route.AuthSummary),
-		TrafficSummary: trafficSummaryFromResolved(route.TrafficSummary),
+		AuthSummary:    authSummaryFromLogical(route.AuthSummary),
+		TrafficSummary: trafficSummaryFromLogical(route.TrafficSummary),
 	}
 	for _, rule := range route.Rules {
-		out.Rules = append(out.Rules, routeRuleFromResolved(rule))
+		out.Rules = append(out.Rules, routeRuleFromLogical(rule))
 	}
 	return out
 }
 
-func routeRuleFromResolved(rule gatewayv1alpha1.ResolvedGatewayRouteRule) RuntimeRouteRule {
+func routeRuleFromLogical(rule compilerir.RouteRule) RuntimeRouteRule {
 	out := RuntimeRouteRule{
 		Matches:     make([]RuntimeRouteMatch, 0, len(rule.Matches)),
 		BackendRefs: make([]RuntimeBackendRef, 0, len(rule.BackendRefs)),
@@ -273,14 +263,14 @@ func headerOpsFromResolved(filter *gatewayv1alpha1.HTTPHeaderFilter) *RuntimeHea
 	return out
 }
 
-func backendFromResolved(backend gatewayv1alpha1.ResolvedGatewayBackend) RuntimeBackend {
+func backendFromLogical(backend compilerir.Backend) RuntimeBackend {
 	out := RuntimeBackend{
 		Name:           backend.Name,
 		Protocol:       backend.Protocol,
 		DefaultPort:    toUint32(backend.DefaultPort),
 		Endpoints:      make([]RuntimeEndpoint, 0, len(backend.Endpoints)),
-		AuthSummary:    authSummaryFromResolved(backend.AuthSummary),
-		TrafficSummary: trafficSummaryFromResolved(backend.TrafficSummary),
+		AuthSummary:    authSummaryFromLogical(backend.AuthSummary),
+		TrafficSummary: trafficSummaryFromLogical(backend.TrafficSummary),
 	}
 	if backend.LoadBalance != nil {
 		out.LoadBalancing = backend.LoadBalance.Policy
@@ -296,7 +286,7 @@ func backendFromResolved(backend gatewayv1alpha1.ResolvedGatewayBackend) Runtime
 	return out
 }
 
-func authSummaryFromResolved(summary *gatewayv1alpha1.ResolvedGatewayAuthSummary) *RuntimeAuthSummary {
+func authSummaryFromLogical(summary *compilerir.AuthSummary) *RuntimeAuthSummary {
 	if summary == nil {
 		return nil
 	}
@@ -311,7 +301,7 @@ func authSummaryFromResolved(summary *gatewayv1alpha1.ResolvedGatewayAuthSummary
 	return out
 }
 
-func trafficSummaryFromResolved(summary *gatewayv1alpha1.ResolvedGatewayTrafficSummary) *RuntimeTrafficSummary {
+func trafficSummaryFromLogical(summary *compilerir.TrafficSummary) *RuntimeTrafficSummary {
 	if summary == nil {
 		return nil
 	}

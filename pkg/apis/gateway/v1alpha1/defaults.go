@@ -60,8 +60,3 @@ func SetDefaults_Backend(obj *Backend) {
 	}
 }
 
-func SetDefaults_ResolvedGateway(obj *ResolvedGateway) {
-	if obj == nil {
-		return
-	}
-}

@@ -17,10 +17,14 @@ import (
 	appoptions "github.com/lgc202/ingate/cmd/xds-server/app/options"
 	xdscache "github.com/lgc202/ingate/internal/controlplane/xds/cache"
 	xdsconfig "github.com/lgc202/ingate/internal/controlplane/xds/config"
+	controllerindex "github.com/lgc202/ingate/internal/controlplane/controller/index"
+	controllerruntime "github.com/lgc202/ingate/internal/controlplane/controller/runtime"
+	"github.com/lgc202/ingate/internal/controlplane/controller/shared"
 	"github.com/lgc202/ingate/internal/controlplane/xds/publish"
 	xdswatch "github.com/lgc202/ingate/internal/controlplane/xds/watch"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 	externalversions "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
+	"k8s.io/client-go/util/workqueue"
 )
 
 const (
@@ -93,14 +97,23 @@ func Run(ctx context.Context, out io.Writer, opts appoptions.CompletedOptions) e
 	informerFactory := newInformerFactory(client, cfg.Options)
 	runtimeCache := xdscache.New()
 	publisher := publish.NewServer(cfg.Options.GRPCBindAddress, runtimeCache, client)
-	watcher := xdswatch.NewResolvedGatewayWatcher(ctx, informerFactory.Gateway().V1alpha1().ResolvedGateways(), publisher)
+	runtimeContext := controllerruntime.NewContext(client, informerFactory, controllerindex.New(), workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[shared.ObjectKey]()))
+	watcher := xdswatch.NewGatewayWatcher(ctx, runtimeContext, publisher)
 	if err := watcher.Register(); err != nil {
 		return err
 	}
 
 	go informerFactory.Start(ctx.Done())
-	if !cache.WaitForCacheSync(ctx.Done(), watcher.HasSynced) {
-		return fmt.Errorf("timed out waiting for resolvedgateway informer cache to sync")
+	if !cache.WaitForCacheSync(
+		ctx.Done(),
+		watcher.HasSynced,
+		informerFactory.Gateway().V1alpha1().Routes().Informer().HasSynced,
+		informerFactory.Gateway().V1alpha1().Backends().Informer().HasSynced,
+		informerFactory.Gateway().V1alpha1().Certificates().Informer().HasSynced,
+		informerFactory.Policy().V1alpha1().AuthPolicies().Informer().HasSynced,
+		informerFactory.Policy().V1alpha1().TrafficPolicies().Informer().HasSynced,
+	) {
+		return fmt.Errorf("timed out waiting for xds informer caches to sync")
 	}
 
 	errCh := make(chan error, 2)

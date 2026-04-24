@@ -31,8 +31,6 @@ func RegisterDefaults(scheme *runtime.Scheme) error {
 	scheme.AddTypeDefaultingFunc(&BackendList{}, func(obj interface{}) { SetObjectDefaults_BackendList(obj.(*BackendList)) })
 	scheme.AddTypeDefaultingFunc(&Gateway{}, func(obj interface{}) { SetObjectDefaults_Gateway(obj.(*Gateway)) })
 	scheme.AddTypeDefaultingFunc(&GatewayList{}, func(obj interface{}) { SetObjectDefaults_GatewayList(obj.(*GatewayList)) })
-	scheme.AddTypeDefaultingFunc(&ResolvedGateway{}, func(obj interface{}) { SetObjectDefaults_ResolvedGateway(obj.(*ResolvedGateway)) })
-	scheme.AddTypeDefaultingFunc(&ResolvedGatewayList{}, func(obj interface{}) { SetObjectDefaults_ResolvedGatewayList(obj.(*ResolvedGatewayList)) })
 	scheme.AddTypeDefaultingFunc(&Route{}, func(obj interface{}) { SetObjectDefaults_Route(obj.(*Route)) })
 	scheme.AddTypeDefaultingFunc(&RouteList{}, func(obj interface{}) { SetObjectDefaults_RouteList(obj.(*RouteList)) })
 	return nil
@@ -57,17 +55,6 @@ func SetObjectDefaults_GatewayList(in *GatewayList) {
 	for i := range in.Items {
 		a := &in.Items[i]
 		SetObjectDefaults_Gateway(a)
-	}
-}
-
-func SetObjectDefaults_ResolvedGateway(in *ResolvedGateway) {
-	SetDefaults_ResolvedGateway(in)
-}
-
-func SetObjectDefaults_ResolvedGatewayList(in *ResolvedGatewayList) {
-	for i := range in.Items {
-		a := &in.Items[i]
-		SetObjectDefaults_ResolvedGateway(a)
 	}
 }
 

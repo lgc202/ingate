@@ -22,8 +22,6 @@ type CertificateExpansion interface{}
 
 type GatewayExpansion interface{}
 
-type ResolvedGatewayExpansion interface{}
-
 type RouteExpansion interface{}
 
 type SecretExpansion interface{}
