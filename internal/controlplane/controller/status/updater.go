@@ -43,13 +43,12 @@ func (u *Updater) MarkSuccess(
 	certificates []*gatewayv1alpha1.Certificate,
 	authPolicies []*policyv1alpha1.AuthPolicy,
 	trafficPolicies []*policyv1alpha1.TrafficPolicy,
-	rg *gatewayv1alpha1.ResolvedGateway,
 ) error {
 	if u == nil || u.client == nil {
 		return fmt.Errorf("status updater is not initialized")
 	}
-	if gateway == nil || rg == nil {
-		return fmt.Errorf("success status update requires gateway and resolvedgateway")
+	if gateway == nil {
+		return fmt.Errorf("success status update requires gateway")
 	}
 
 	if err := u.updateGatewayStatus(ctx, gateway, metav1.ConditionTrue, successMessageAccepted, metav1.ConditionTrue, successMessageResolved); err != nil {
@@ -95,7 +94,7 @@ func (u *Updater) MarkSuccess(
 			return err
 		}
 	}
-	return u.updateResolvedGatewayStatus(ctx, rg, gateway.Generation, metav1.ConditionTrue, successMessageAccepted, metav1.ConditionTrue, successMessageResolved)
+	return nil
 }
 
 func (u *Updater) MarkFailure(ctx context.Context, key shared.ObjectKey, err error) error {
@@ -144,25 +143,6 @@ func (u *Updater) MarkFailure(ctx context.Context, key shared.ObjectKey, err err
 		}
 	}
 
-	rg, getErr := u.findResolvedGateway(ctx, key.Name)
-	if getErr != nil {
-		statusErrs = append(statusErrs, fmt.Errorf("find resolvedgateway %q: %w", key.Name, getErr))
-	}
-	if rg == nil && getErr == nil {
-		rg = &gatewayv1alpha1.ResolvedGateway{ObjectMeta: metav1.ObjectMeta{Name: key.Name, Namespace: key.Namespace}}
-		created, createErr := u.client.GatewayV1alpha1().ResolvedGateways().Create(ctx, rg, metav1.CreateOptions{})
-		if createErr != nil && !apierrors.IsAlreadyExists(createErr) {
-			statusErrs = append(statusErrs, fmt.Errorf("create resolvedgateway %q: %w", key.Name, createErr))
-		}
-		if createErr == nil {
-			rg = created
-		}
-	}
-	if rg != nil {
-		if updateErr := u.updateResolvedGatewayStatus(ctx, rg, 0, metav1.ConditionFalse, message, metav1.ConditionFalse, message); updateErr != nil {
-			statusErrs = append(statusErrs, fmt.Errorf("update resolvedgateway %q status: %w", rg.Name, updateErr))
-		}
-	}
 	return utilerrors.NewAggregate(statusErrs)
 }
 
@@ -183,26 +163,6 @@ func (u *Updater) findGateway(ctx context.Context, name string) (*gatewayv1alpha
 		return nil, err
 	}
 	items, listErr := u.client.GatewayV1alpha1().Gateways().List(ctx, metav1.ListOptions{})
-	if listErr != nil {
-		return nil, listErr
-	}
-	for i := range items.Items {
-		if items.Items[i].Name == name {
-			return items.Items[i].DeepCopy(), nil
-		}
-	}
-	return nil, nil
-}
-
-func (u *Updater) findResolvedGateway(ctx context.Context, name string) (*gatewayv1alpha1.ResolvedGateway, error) {
-	rg, err := u.client.GatewayV1alpha1().ResolvedGateways().Get(ctx, name, metav1.GetOptions{})
-	if err == nil {
-		return rg, nil
-	}
-	if !apierrors.IsNotFound(err) {
-		return nil, err
-	}
-	items, listErr := u.client.GatewayV1alpha1().ResolvedGateways().List(ctx, metav1.ListOptions{})
 	if listErr != nil {
 		return nil, listErr
 	}
@@ -392,18 +352,6 @@ func (u *Updater) updateTrafficPolicyStatus(ctx context.Context, policy *policyv
 	_, err := u.client.PolicyV1alpha1().TrafficPolicies().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) {
 		_, err = u.client.PolicyV1alpha1().TrafficPolicies().Update(ctx, updated, metav1.UpdateOptions{})
-	}
-	return err
-}
-
-func (u *Updater) updateResolvedGatewayStatus(ctx context.Context, rg *gatewayv1alpha1.ResolvedGateway, observedGeneration int64, acceptedStatus metav1.ConditionStatus, acceptedMessage string, resolvedStatus metav1.ConditionStatus, resolvedMessage string) error {
-	updated := rg.DeepCopy()
-	updated.Status.ObservedGeneration = observedGeneration
-	setCondition(&updated.Status.Conditions, ConditionAccepted, acceptedStatus, conditionReason(acceptedStatus), acceptedMessage, u.now())
-	setCondition(&updated.Status.Conditions, ConditionResolved, resolvedStatus, conditionReason(resolvedStatus), resolvedMessage, u.now())
-	_, err := u.client.GatewayV1alpha1().ResolvedGateways().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
-	if apierrors.IsNotFound(err) {
-		_, err = u.client.GatewayV1alpha1().ResolvedGateways().Update(ctx, updated, metav1.UpdateOptions{})
 	}
 	return err
 }

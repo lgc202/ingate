@@ -56,6 +56,3 @@ func ApplyBackendDefaults(backend *gatewayv1alpha1.Backend) {
 	}
 }
 
-func ApplyResolvedGatewayDefaults(resolvedGateway *gatewayv1alpha1.ResolvedGateway) {
-	gatewayv1alpha1.SetDefaults_ResolvedGateway(resolvedGateway)
-}

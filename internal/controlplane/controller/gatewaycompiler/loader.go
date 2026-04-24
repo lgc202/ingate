@@ -1,4 +1,4 @@
-package resolvedgateway
+package gatewaycompiler
 
 import (
 	"fmt"
@@ -41,7 +41,7 @@ func NewLoader(ctx *controllerruntime.Context) *Loader {
 
 func (l *Loader) Load(gatewayKey shared.ObjectKey) (*ResourceBundle, error) {
 	if l == nil || l.gateways == nil {
-		return nil, fmt.Errorf("resolvedgateway loader is not initialized")
+		return nil, fmt.Errorf("gateway compiler loader is not initialized")
 	}
 	gateway, err := l.gateways.Get(gatewayKey.Name)
 	if err != nil {

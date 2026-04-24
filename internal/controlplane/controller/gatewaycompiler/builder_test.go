@@ -1,4 +1,4 @@
-package resolvedgateway
+package gatewaycompiler
 
 import (
 	"testing"
@@ -9,8 +9,45 @@ import (
 	policyv1alpha1 "github.com/lgc202/ingate/pkg/apis/policy/v1alpha1"
 )
 
-func TestBuildResolvedGatewayMergesRouteBackendAndPolicies(t *testing.T) {
-	bundle := &ResourceBundle{
+func TestBuildLogicalGatewayMergesRouteBackendAndPolicies(t *testing.T) {
+	bundle := testResourceBundle()
+
+	logical, err := BuildLogicalGateway(bundle)
+	if err != nil {
+		t.Fatalf("BuildLogicalGateway() error = %v", err)
+	}
+	if logical.Meta.Name != "public-edge" {
+		t.Fatalf("unexpected logical gateway name: %q", logical.Meta.Name)
+	}
+	if len(logical.Routes) != 1 {
+		t.Fatalf("expected 1 logical route, got %d", len(logical.Routes))
+	}
+	if len(logical.Backends) != 1 {
+		t.Fatalf("expected 1 logical backend, got %d", len(logical.Backends))
+	}
+	if logical.Trace == nil || len(logical.Trace.Sources) == 0 {
+		t.Fatalf("expected trace sources, got %#v", logical.Trace)
+	}
+
+	if len(logical.Listeners) != 1 {
+		t.Fatalf("expected 1 logical listener, got %d", len(logical.Listeners))
+	}
+	if got := logical.Policies.GatewayAuth; got == nil || len(got.Policies) != 1 {
+		t.Fatalf("expected gateway auth summary, got %#v", got)
+	}
+	if got := logical.Routes[0].AuthSummary; got == nil || len(got.Policies) != 1 {
+		t.Fatalf("expected route auth summary, got %#v", got)
+	}
+	if got := logical.Backends[0].TrafficSummary; got == nil || len(got.Policies) != 1 {
+		t.Fatalf("expected backend traffic summary, got %#v", got)
+	}
+	if got := logical.Listeners[0].TLS; got == nil || got.CertificateName != "cert-a" || got.SecretName != "secret-a" {
+		t.Fatalf("expected listener tls refs, got %#v", got)
+	}
+}
+
+func testResourceBundle() *ResourceBundle {
+	return &ResourceBundle{
 		Gateway: gateway("public-edge"),
 		Routes: []*gatewayv1alpha1.Route{
 			route("catalog-route", "public-edge", "catalog-backend"),
@@ -34,36 +71,6 @@ func TestBuildResolvedGatewayMergesRouteBackendAndPolicies(t *testing.T) {
 				trafficPolicy("backend-traffic", "Backend", "catalog-backend"),
 			},
 		},
-	}
-
-	rg, err := Build(bundle)
-	if err != nil {
-		t.Fatalf("Build() error = %v", err)
-	}
-
-	if rg.Spec.GatewayRef.Name != "public-edge" {
-		t.Fatalf("unexpected gateway ref: %#v", rg.Spec.GatewayRef)
-	}
-	if len(rg.Spec.Listeners) != 1 {
-		t.Fatalf("expected 1 resolved listener, got %d", len(rg.Spec.Listeners))
-	}
-	if len(rg.Spec.Routes) != 1 {
-		t.Fatalf("expected 1 resolved route, got %d", len(rg.Spec.Routes))
-	}
-	if len(rg.Spec.Backends) != 1 {
-		t.Fatalf("expected 1 resolved backend, got %d", len(rg.Spec.Backends))
-	}
-	if got := rg.Spec.GatewayAuthSummary; got == nil || len(got.Policies) != 1 {
-		t.Fatalf("expected gateway auth summary, got %#v", got)
-	}
-	if got := rg.Spec.Routes[0].AuthSummary; got == nil || len(got.Policies) != 1 {
-		t.Fatalf("expected route auth summary, got %#v", got)
-	}
-	if got := rg.Spec.Backends[0].TrafficSummary; got == nil || len(got.Policies) != 1 {
-		t.Fatalf("expected backend traffic summary, got %#v", got)
-	}
-	if len(rg.Spec.Extensions) != 0 {
-		t.Fatalf("expected no extensions, got %#v", rg.Spec.Extensions)
 	}
 }
 

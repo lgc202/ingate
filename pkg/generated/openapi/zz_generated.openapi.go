@@ -31,128 +31,114 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		v1alpha1.AllowedRoutesSpec{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_AllowedRoutesSpec(ref),
-		v1alpha1.Backend{}.OpenAPIModelName():                       schema_pkg_apis_gateway_v1alpha1_Backend(ref),
-		v1alpha1.BackendEndpoint{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_BackendEndpoint(ref),
-		v1alpha1.BackendList{}.OpenAPIModelName():                   schema_pkg_apis_gateway_v1alpha1_BackendList(ref),
-		v1alpha1.BackendRef{}.OpenAPIModelName():                    schema_pkg_apis_gateway_v1alpha1_BackendRef(ref),
-		v1alpha1.BackendSpec{}.OpenAPIModelName():                   schema_pkg_apis_gateway_v1alpha1_BackendSpec(ref),
-		v1alpha1.BackendStatus{}.OpenAPIModelName():                 schema_pkg_apis_gateway_v1alpha1_BackendStatus(ref),
-		v1alpha1.Certificate{}.OpenAPIModelName():                   schema_pkg_apis_gateway_v1alpha1_Certificate(ref),
-		v1alpha1.CertificateList{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_CertificateList(ref),
-		v1alpha1.CertificateSpec{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_CertificateSpec(ref),
-		v1alpha1.CertificateStatus{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_CertificateStatus(ref),
-		v1alpha1.DNSBackendSpec{}.OpenAPIModelName():                schema_pkg_apis_gateway_v1alpha1_DNSBackendSpec(ref),
-		v1alpha1.Gateway{}.OpenAPIModelName():                       schema_pkg_apis_gateway_v1alpha1_Gateway(ref),
-		v1alpha1.GatewayList{}.OpenAPIModelName():                   schema_pkg_apis_gateway_v1alpha1_GatewayList(ref),
-		v1alpha1.GatewayListener{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_GatewayListener(ref),
-		v1alpha1.GatewayListenerStatus{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_GatewayListenerStatus(ref),
-		v1alpha1.GatewaySpec{}.OpenAPIModelName():                   schema_pkg_apis_gateway_v1alpha1_GatewaySpec(ref),
-		v1alpha1.GatewayStatus{}.OpenAPIModelName():                 schema_pkg_apis_gateway_v1alpha1_GatewayStatus(ref),
-		v1alpha1.GatewayTLSConfig{}.OpenAPIModelName():              schema_pkg_apis_gateway_v1alpha1_GatewayTLSConfig(ref),
-		v1alpha1.HTTPHeader{}.OpenAPIModelName():                    schema_pkg_apis_gateway_v1alpha1_HTTPHeader(ref),
-		v1alpha1.HTTPHeaderFilter{}.OpenAPIModelName():              schema_pkg_apis_gateway_v1alpha1_HTTPHeaderFilter(ref),
-		v1alpha1.HTTPHeaderMatch{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_HTTPHeaderMatch(ref),
-		v1alpha1.HTTPPathMatch{}.OpenAPIModelName():                 schema_pkg_apis_gateway_v1alpha1_HTTPPathMatch(ref),
-		v1alpha1.HTTPPathModifier{}.OpenAPIModelName():              schema_pkg_apis_gateway_v1alpha1_HTTPPathModifier(ref),
-		v1alpha1.HTTPRouteFilter{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_HTTPRouteFilter(ref),
-		v1alpha1.HTTPRouteMatch{}.OpenAPIModelName():                schema_pkg_apis_gateway_v1alpha1_HTTPRouteMatch(ref),
-		v1alpha1.HTTPURLRewriteFilter{}.OpenAPIModelName():          schema_pkg_apis_gateway_v1alpha1_HTTPURLRewriteFilter(ref),
-		v1alpha1.LoadBalanceSpec{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_LoadBalanceSpec(ref),
-		v1alpha1.LocalObjectReference{}.OpenAPIModelName():          schema_pkg_apis_gateway_v1alpha1_LocalObjectReference(ref),
-		v1alpha1.ParentReference{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_ParentReference(ref),
-		v1alpha1.ResolvedGateway{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_ResolvedGateway(ref),
-		v1alpha1.ResolvedGatewayAuthSummary{}.OpenAPIModelName():    schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayAuthSummary(ref),
-		v1alpha1.ResolvedGatewayBackend{}.OpenAPIModelName():        schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayBackend(ref),
-		v1alpha1.ResolvedGatewayExtension{}.OpenAPIModelName():      schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayExtension(ref),
-		v1alpha1.ResolvedGatewayList{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayList(ref),
-		v1alpha1.ResolvedGatewayListener{}.OpenAPIModelName():       schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayListener(ref),
-		v1alpha1.ResolvedGatewayListenerTLS{}.OpenAPIModelName():    schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayListenerTLS(ref),
-		v1alpha1.ResolvedGatewayRoute{}.OpenAPIModelName():          schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayRoute(ref),
-		v1alpha1.ResolvedGatewayRouteRule{}.OpenAPIModelName():      schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayRouteRule(ref),
-		v1alpha1.ResolvedGatewaySpec{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_ResolvedGatewaySpec(ref),
-		v1alpha1.ResolvedGatewayStatus{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayStatus(ref),
-		v1alpha1.ResolvedGatewayTrafficSummary{}.OpenAPIModelName(): schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayTrafficSummary(ref),
-		v1alpha1.ResolvedPolicyRef{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_ResolvedPolicyRef(ref),
-		v1alpha1.ResolvedTrafficPolicyRef{}.OpenAPIModelName():      schema_pkg_apis_gateway_v1alpha1_ResolvedTrafficPolicyRef(ref),
-		v1alpha1.Route{}.OpenAPIModelName():                         schema_pkg_apis_gateway_v1alpha1_Route(ref),
-		v1alpha1.RouteList{}.OpenAPIModelName():                     schema_pkg_apis_gateway_v1alpha1_RouteList(ref),
-		v1alpha1.RouteParentStatus{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_RouteParentStatus(ref),
-		v1alpha1.RouteRule{}.OpenAPIModelName():                     schema_pkg_apis_gateway_v1alpha1_RouteRule(ref),
-		v1alpha1.RouteSpec{}.OpenAPIModelName():                     schema_pkg_apis_gateway_v1alpha1_RouteSpec(ref),
-		v1alpha1.RouteStatus{}.OpenAPIModelName():                   schema_pkg_apis_gateway_v1alpha1_RouteStatus(ref),
-		v1alpha1.Secret{}.OpenAPIModelName():                        schema_pkg_apis_gateway_v1alpha1_Secret(ref),
-		v1alpha1.SecretList{}.OpenAPIModelName():                    schema_pkg_apis_gateway_v1alpha1_SecretList(ref),
-		v1alpha1.SecretSpec{}.OpenAPIModelName():                    schema_pkg_apis_gateway_v1alpha1_SecretSpec(ref),
-		v1alpha1.StaticBackendSpec{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_StaticBackendSpec(ref),
-		policyv1alpha1.APIKeyAuthSpec{}.OpenAPIModelName():          schema_pkg_apis_policy_v1alpha1_APIKeyAuthSpec(ref),
-		policyv1alpha1.AuthPolicy{}.OpenAPIModelName():              schema_pkg_apis_policy_v1alpha1_AuthPolicy(ref),
-		policyv1alpha1.AuthPolicyList{}.OpenAPIModelName():          schema_pkg_apis_policy_v1alpha1_AuthPolicyList(ref),
-		policyv1alpha1.AuthPolicySpec{}.OpenAPIModelName():          schema_pkg_apis_policy_v1alpha1_AuthPolicySpec(ref),
-		policyv1alpha1.AuthPolicyStatus{}.OpenAPIModelName():        schema_pkg_apis_policy_v1alpha1_AuthPolicyStatus(ref),
-		policyv1alpha1.HeaderSourceSpec{}.OpenAPIModelName():        schema_pkg_apis_policy_v1alpha1_HeaderSourceSpec(ref),
-		policyv1alpha1.JWTAuthSpec{}.OpenAPIModelName():             schema_pkg_apis_policy_v1alpha1_JWTAuthSpec(ref),
-		policyv1alpha1.RateLimitSpec{}.OpenAPIModelName():           schema_pkg_apis_policy_v1alpha1_RateLimitSpec(ref),
-		policyv1alpha1.RetrySpec{}.OpenAPIModelName():               schema_pkg_apis_policy_v1alpha1_RetrySpec(ref),
-		policyv1alpha1.TargetReference{}.OpenAPIModelName():         schema_pkg_apis_policy_v1alpha1_TargetReference(ref),
-		policyv1alpha1.TimeoutSpec{}.OpenAPIModelName():             schema_pkg_apis_policy_v1alpha1_TimeoutSpec(ref),
-		policyv1alpha1.TrafficPolicy{}.OpenAPIModelName():           schema_pkg_apis_policy_v1alpha1_TrafficPolicy(ref),
-		policyv1alpha1.TrafficPolicyList{}.OpenAPIModelName():       schema_pkg_apis_policy_v1alpha1_TrafficPolicyList(ref),
-		policyv1alpha1.TrafficPolicySpec{}.OpenAPIModelName():       schema_pkg_apis_policy_v1alpha1_TrafficPolicySpec(ref),
-		policyv1alpha1.TrafficPolicyStatus{}.OpenAPIModelName():     schema_pkg_apis_policy_v1alpha1_TrafficPolicyStatus(ref),
-		v1.APIGroup{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_APIGroup(ref),
-		v1.APIGroupList{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_APIGroupList(ref),
-		v1.APIResource{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_APIResource(ref),
-		v1.APIResourceList{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_APIResourceList(ref),
-		v1.APIVersions{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_APIVersions(ref),
-		v1.ApplyOptions{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_ApplyOptions(ref),
-		v1.Condition{}.OpenAPIModelName():                           schema_pkg_apis_meta_v1_Condition(ref),
-		v1.CreateOptions{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_CreateOptions(ref),
-		v1.DeleteOptions{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_DeleteOptions(ref),
-		v1.Duration{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_Duration(ref),
-		v1.FieldSelectorRequirement{}.OpenAPIModelName():            schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref),
-		v1.FieldsV1{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_FieldsV1(ref),
-		v1.GetOptions{}.OpenAPIModelName():                          schema_pkg_apis_meta_v1_GetOptions(ref),
-		v1.GroupKind{}.OpenAPIModelName():                           schema_pkg_apis_meta_v1_GroupKind(ref),
-		v1.GroupResource{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_GroupResource(ref),
-		v1.GroupVersion{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_GroupVersion(ref),
-		v1.GroupVersionForDiscovery{}.OpenAPIModelName():            schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
-		v1.GroupVersionKind{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_GroupVersionKind(ref),
-		v1.GroupVersionResource{}.OpenAPIModelName():                schema_pkg_apis_meta_v1_GroupVersionResource(ref),
-		v1.InternalEvent{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_InternalEvent(ref),
-		v1.LabelSelector{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_LabelSelector(ref),
-		v1.LabelSelectorRequirement{}.OpenAPIModelName():            schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
-		v1.List{}.OpenAPIModelName():                                schema_pkg_apis_meta_v1_List(ref),
-		v1.ListMeta{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_ListMeta(ref),
-		v1.ListOptions{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_ListOptions(ref),
-		v1.ManagedFieldsEntry{}.OpenAPIModelName():                  schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
-		v1.MicroTime{}.OpenAPIModelName():                           schema_pkg_apis_meta_v1_MicroTime(ref),
-		v1.ObjectMeta{}.OpenAPIModelName():                          schema_pkg_apis_meta_v1_ObjectMeta(ref),
-		v1.OwnerReference{}.OpenAPIModelName():                      schema_pkg_apis_meta_v1_OwnerReference(ref),
-		v1.PartialObjectMetadata{}.OpenAPIModelName():               schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
-		v1.PartialObjectMetadataList{}.OpenAPIModelName():           schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
-		v1.Patch{}.OpenAPIModelName():                               schema_pkg_apis_meta_v1_Patch(ref),
-		v1.PatchOptions{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_PatchOptions(ref),
-		v1.Preconditions{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_Preconditions(ref),
-		v1.RootPaths{}.OpenAPIModelName():                           schema_pkg_apis_meta_v1_RootPaths(ref),
-		v1.ServerAddressByClientCIDR{}.OpenAPIModelName():           schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
-		v1.Status{}.OpenAPIModelName():                              schema_pkg_apis_meta_v1_Status(ref),
-		v1.StatusCause{}.OpenAPIModelName():                         schema_pkg_apis_meta_v1_StatusCause(ref),
-		v1.StatusDetails{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_StatusDetails(ref),
-		v1.Table{}.OpenAPIModelName():                               schema_pkg_apis_meta_v1_Table(ref),
-		v1.TableColumnDefinition{}.OpenAPIModelName():               schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
-		v1.TableOptions{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_TableOptions(ref),
-		v1.TableRow{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_TableRow(ref),
-		v1.TableRowCondition{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_TableRowCondition(ref),
-		v1.Time{}.OpenAPIModelName():                                schema_pkg_apis_meta_v1_Time(ref),
-		v1.Timestamp{}.OpenAPIModelName():                           schema_pkg_apis_meta_v1_Timestamp(ref),
-		v1.TypeMeta{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_TypeMeta(ref),
-		v1.UpdateOptions{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_UpdateOptions(ref),
-		v1.WatchEvent{}.OpenAPIModelName():                          schema_pkg_apis_meta_v1_WatchEvent(ref),
-		runtime.RawExtension{}.OpenAPIModelName():                   schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
-		runtime.TypeMeta{}.OpenAPIModelName():                       schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
-		runtime.Unknown{}.OpenAPIModelName():                        schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
-		version.Info{}.OpenAPIModelName():                           schema_k8sio_apimachinery_pkg_version_Info(ref),
+		v1alpha1.AllowedRoutesSpec{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_AllowedRoutesSpec(ref),
+		v1alpha1.Backend{}.OpenAPIModelName():                   schema_pkg_apis_gateway_v1alpha1_Backend(ref),
+		v1alpha1.BackendEndpoint{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_BackendEndpoint(ref),
+		v1alpha1.BackendList{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_BackendList(ref),
+		v1alpha1.BackendRef{}.OpenAPIModelName():                schema_pkg_apis_gateway_v1alpha1_BackendRef(ref),
+		v1alpha1.BackendSpec{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_BackendSpec(ref),
+		v1alpha1.BackendStatus{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_BackendStatus(ref),
+		v1alpha1.Certificate{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_Certificate(ref),
+		v1alpha1.CertificateList{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_CertificateList(ref),
+		v1alpha1.CertificateSpec{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_CertificateSpec(ref),
+		v1alpha1.CertificateStatus{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_CertificateStatus(ref),
+		v1alpha1.DNSBackendSpec{}.OpenAPIModelName():            schema_pkg_apis_gateway_v1alpha1_DNSBackendSpec(ref),
+		v1alpha1.Gateway{}.OpenAPIModelName():                   schema_pkg_apis_gateway_v1alpha1_Gateway(ref),
+		v1alpha1.GatewayList{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_GatewayList(ref),
+		v1alpha1.GatewayListener{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_GatewayListener(ref),
+		v1alpha1.GatewayListenerStatus{}.OpenAPIModelName():     schema_pkg_apis_gateway_v1alpha1_GatewayListenerStatus(ref),
+		v1alpha1.GatewaySpec{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_GatewaySpec(ref),
+		v1alpha1.GatewayStatus{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_GatewayStatus(ref),
+		v1alpha1.GatewayTLSConfig{}.OpenAPIModelName():          schema_pkg_apis_gateway_v1alpha1_GatewayTLSConfig(ref),
+		v1alpha1.HTTPHeader{}.OpenAPIModelName():                schema_pkg_apis_gateway_v1alpha1_HTTPHeader(ref),
+		v1alpha1.HTTPHeaderFilter{}.OpenAPIModelName():          schema_pkg_apis_gateway_v1alpha1_HTTPHeaderFilter(ref),
+		v1alpha1.HTTPHeaderMatch{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_HTTPHeaderMatch(ref),
+		v1alpha1.HTTPPathMatch{}.OpenAPIModelName():             schema_pkg_apis_gateway_v1alpha1_HTTPPathMatch(ref),
+		v1alpha1.HTTPPathModifier{}.OpenAPIModelName():          schema_pkg_apis_gateway_v1alpha1_HTTPPathModifier(ref),
+		v1alpha1.HTTPRouteFilter{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_HTTPRouteFilter(ref),
+		v1alpha1.HTTPRouteMatch{}.OpenAPIModelName():            schema_pkg_apis_gateway_v1alpha1_HTTPRouteMatch(ref),
+		v1alpha1.HTTPURLRewriteFilter{}.OpenAPIModelName():      schema_pkg_apis_gateway_v1alpha1_HTTPURLRewriteFilter(ref),
+		v1alpha1.LoadBalanceSpec{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_LoadBalanceSpec(ref),
+		v1alpha1.LocalObjectReference{}.OpenAPIModelName():      schema_pkg_apis_gateway_v1alpha1_LocalObjectReference(ref),
+		v1alpha1.ParentReference{}.OpenAPIModelName():           schema_pkg_apis_gateway_v1alpha1_ParentReference(ref),
+		v1alpha1.Route{}.OpenAPIModelName():                     schema_pkg_apis_gateway_v1alpha1_Route(ref),
+		v1alpha1.RouteList{}.OpenAPIModelName():                 schema_pkg_apis_gateway_v1alpha1_RouteList(ref),
+		v1alpha1.RouteParentStatus{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_RouteParentStatus(ref),
+		v1alpha1.RouteRule{}.OpenAPIModelName():                 schema_pkg_apis_gateway_v1alpha1_RouteRule(ref),
+		v1alpha1.RouteSpec{}.OpenAPIModelName():                 schema_pkg_apis_gateway_v1alpha1_RouteSpec(ref),
+		v1alpha1.RouteStatus{}.OpenAPIModelName():               schema_pkg_apis_gateway_v1alpha1_RouteStatus(ref),
+		v1alpha1.Secret{}.OpenAPIModelName():                    schema_pkg_apis_gateway_v1alpha1_Secret(ref),
+		v1alpha1.SecretList{}.OpenAPIModelName():                schema_pkg_apis_gateway_v1alpha1_SecretList(ref),
+		v1alpha1.SecretSpec{}.OpenAPIModelName():                schema_pkg_apis_gateway_v1alpha1_SecretSpec(ref),
+		v1alpha1.StaticBackendSpec{}.OpenAPIModelName():         schema_pkg_apis_gateway_v1alpha1_StaticBackendSpec(ref),
+		policyv1alpha1.APIKeyAuthSpec{}.OpenAPIModelName():      schema_pkg_apis_policy_v1alpha1_APIKeyAuthSpec(ref),
+		policyv1alpha1.AuthPolicy{}.OpenAPIModelName():          schema_pkg_apis_policy_v1alpha1_AuthPolicy(ref),
+		policyv1alpha1.AuthPolicyList{}.OpenAPIModelName():      schema_pkg_apis_policy_v1alpha1_AuthPolicyList(ref),
+		policyv1alpha1.AuthPolicySpec{}.OpenAPIModelName():      schema_pkg_apis_policy_v1alpha1_AuthPolicySpec(ref),
+		policyv1alpha1.AuthPolicyStatus{}.OpenAPIModelName():    schema_pkg_apis_policy_v1alpha1_AuthPolicyStatus(ref),
+		policyv1alpha1.HeaderSourceSpec{}.OpenAPIModelName():    schema_pkg_apis_policy_v1alpha1_HeaderSourceSpec(ref),
+		policyv1alpha1.JWTAuthSpec{}.OpenAPIModelName():         schema_pkg_apis_policy_v1alpha1_JWTAuthSpec(ref),
+		policyv1alpha1.RateLimitSpec{}.OpenAPIModelName():       schema_pkg_apis_policy_v1alpha1_RateLimitSpec(ref),
+		policyv1alpha1.RetrySpec{}.OpenAPIModelName():           schema_pkg_apis_policy_v1alpha1_RetrySpec(ref),
+		policyv1alpha1.TargetReference{}.OpenAPIModelName():     schema_pkg_apis_policy_v1alpha1_TargetReference(ref),
+		policyv1alpha1.TimeoutSpec{}.OpenAPIModelName():         schema_pkg_apis_policy_v1alpha1_TimeoutSpec(ref),
+		policyv1alpha1.TrafficPolicy{}.OpenAPIModelName():       schema_pkg_apis_policy_v1alpha1_TrafficPolicy(ref),
+		policyv1alpha1.TrafficPolicyList{}.OpenAPIModelName():   schema_pkg_apis_policy_v1alpha1_TrafficPolicyList(ref),
+		policyv1alpha1.TrafficPolicySpec{}.OpenAPIModelName():   schema_pkg_apis_policy_v1alpha1_TrafficPolicySpec(ref),
+		policyv1alpha1.TrafficPolicyStatus{}.OpenAPIModelName(): schema_pkg_apis_policy_v1alpha1_TrafficPolicyStatus(ref),
+		v1.APIGroup{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_APIGroup(ref),
+		v1.APIGroupList{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_APIGroupList(ref),
+		v1.APIResource{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_APIResource(ref),
+		v1.APIResourceList{}.OpenAPIModelName():                 schema_pkg_apis_meta_v1_APIResourceList(ref),
+		v1.APIVersions{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_APIVersions(ref),
+		v1.ApplyOptions{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_ApplyOptions(ref),
+		v1.Condition{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_Condition(ref),
+		v1.CreateOptions{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_CreateOptions(ref),
+		v1.DeleteOptions{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_DeleteOptions(ref),
+		v1.Duration{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_Duration(ref),
+		v1.FieldSelectorRequirement{}.OpenAPIModelName():        schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref),
+		v1.FieldsV1{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_FieldsV1(ref),
+		v1.GetOptions{}.OpenAPIModelName():                      schema_pkg_apis_meta_v1_GetOptions(ref),
+		v1.GroupKind{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_GroupKind(ref),
+		v1.GroupResource{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_GroupResource(ref),
+		v1.GroupVersion{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_GroupVersion(ref),
+		v1.GroupVersionForDiscovery{}.OpenAPIModelName():        schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
+		v1.GroupVersionKind{}.OpenAPIModelName():                schema_pkg_apis_meta_v1_GroupVersionKind(ref),
+		v1.GroupVersionResource{}.OpenAPIModelName():            schema_pkg_apis_meta_v1_GroupVersionResource(ref),
+		v1.InternalEvent{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_InternalEvent(ref),
+		v1.LabelSelector{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_LabelSelector(ref),
+		v1.LabelSelectorRequirement{}.OpenAPIModelName():        schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
+		v1.List{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_List(ref),
+		v1.ListMeta{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_ListMeta(ref),
+		v1.ListOptions{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_ListOptions(ref),
+		v1.ManagedFieldsEntry{}.OpenAPIModelName():              schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
+		v1.MicroTime{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_MicroTime(ref),
+		v1.ObjectMeta{}.OpenAPIModelName():                      schema_pkg_apis_meta_v1_ObjectMeta(ref),
+		v1.OwnerReference{}.OpenAPIModelName():                  schema_pkg_apis_meta_v1_OwnerReference(ref),
+		v1.PartialObjectMetadata{}.OpenAPIModelName():           schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
+		v1.PartialObjectMetadataList{}.OpenAPIModelName():       schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
+		v1.Patch{}.OpenAPIModelName():                           schema_pkg_apis_meta_v1_Patch(ref),
+		v1.PatchOptions{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_PatchOptions(ref),
+		v1.Preconditions{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_Preconditions(ref),
+		v1.RootPaths{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_RootPaths(ref),
+		v1.ServerAddressByClientCIDR{}.OpenAPIModelName():       schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
+		v1.Status{}.OpenAPIModelName():                          schema_pkg_apis_meta_v1_Status(ref),
+		v1.StatusCause{}.OpenAPIModelName():                     schema_pkg_apis_meta_v1_StatusCause(ref),
+		v1.StatusDetails{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_StatusDetails(ref),
+		v1.Table{}.OpenAPIModelName():                           schema_pkg_apis_meta_v1_Table(ref),
+		v1.TableColumnDefinition{}.OpenAPIModelName():           schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
+		v1.TableOptions{}.OpenAPIModelName():                    schema_pkg_apis_meta_v1_TableOptions(ref),
+		v1.TableRow{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_TableRow(ref),
+		v1.TableRowCondition{}.OpenAPIModelName():               schema_pkg_apis_meta_v1_TableRowCondition(ref),
+		v1.Time{}.OpenAPIModelName():                            schema_pkg_apis_meta_v1_Time(ref),
+		v1.Timestamp{}.OpenAPIModelName():                       schema_pkg_apis_meta_v1_Timestamp(ref),
+		v1.TypeMeta{}.OpenAPIModelName():                        schema_pkg_apis_meta_v1_TypeMeta(ref),
+		v1.UpdateOptions{}.OpenAPIModelName():                   schema_pkg_apis_meta_v1_UpdateOptions(ref),
+		v1.WatchEvent{}.OpenAPIModelName():                      schema_pkg_apis_meta_v1_WatchEvent(ref),
+		runtime.RawExtension{}.OpenAPIModelName():               schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
+		runtime.TypeMeta{}.OpenAPIModelName():                   schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
+		runtime.Unknown{}.OpenAPIModelName():                    schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
+		version.Info{}.OpenAPIModelName():                       schema_k8sio_apimachinery_pkg_version_Info(ref),
 	}
 }
 
@@ -1295,757 +1281,6 @@ func schema_pkg_apis_gateway_v1alpha1_ParentReference(ref common.ReferenceCallba
 				Type: []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGateway(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1.ObjectMeta{}.OpenAPIModelName()),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1alpha1.ResolvedGatewaySpec{}.OpenAPIModelName()),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1alpha1.ResolvedGatewayStatus{}.OpenAPIModelName()),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.ResolvedGatewaySpec{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayStatus{}.OpenAPIModelName(), v1.ObjectMeta{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayAuthSummary(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"policies": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-map-keys": []interface{}{
-									"name",
-								},
-								"x-kubernetes-list-type": "map",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.ResolvedPolicyRef{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.ResolvedPolicyRef{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayBackend(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"protocol": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"defaultPort": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"loadBalance": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.LoadBalanceSpec{}.OpenAPIModelName()),
-						},
-					},
-					"endpoints": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.BackendEndpoint{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-					"authSummary": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.ResolvedGatewayAuthSummary{}.OpenAPIModelName()),
-						},
-					},
-					"trafficSummary": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.ResolvedGatewayTrafficSummary{}.OpenAPIModelName()),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.BackendEndpoint{}.OpenAPIModelName(), v1alpha1.LoadBalanceSpec{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayAuthSummary{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayTrafficSummary{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayExtension(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1.ListMeta{}.OpenAPIModelName()),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.ResolvedGateway{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.ResolvedGateway{}.OpenAPIModelName(), v1.ListMeta{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayListener(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"protocol": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"port": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"hostnames": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "set",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-					"tls": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.ResolvedGatewayListenerTLS{}.OpenAPIModelName()),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.ResolvedGatewayListenerTLS{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayListenerTLS(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"mode": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"certificateRef": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.LocalObjectReference{}.OpenAPIModelName()),
-						},
-					},
-					"secretRef": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.LocalObjectReference{}.OpenAPIModelName()),
-						},
-					},
-					"domains": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "set",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.LocalObjectReference{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayRoute(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"hostnames": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "set",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-					"rules": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.ResolvedGatewayRouteRule{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-					"authSummary": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.ResolvedGatewayAuthSummary{}.OpenAPIModelName()),
-						},
-					},
-					"trafficSummary": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.ResolvedGatewayTrafficSummary{}.OpenAPIModelName()),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.ResolvedGatewayAuthSummary{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayRouteRule{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayTrafficSummary{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayRouteRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"matches": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.HTTPRouteMatch{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-					"backendRefs": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.BackendRef{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-					"filters": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.HTTPRouteFilter{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.BackendRef{}.OpenAPIModelName(), v1alpha1.HTTPRouteFilter{}.OpenAPIModelName(), v1alpha1.HTTPRouteMatch{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewaySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"gatewayRef": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref(v1alpha1.LocalObjectReference{}.OpenAPIModelName()),
-						},
-					},
-					"version": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"gatewayAuthSummary": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.ResolvedGatewayAuthSummary{}.OpenAPIModelName()),
-						},
-					},
-					"gatewayTrafficSummary": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref(v1alpha1.ResolvedGatewayTrafficSummary{}.OpenAPIModelName()),
-						},
-					},
-					"listeners": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-map-keys": []interface{}{
-									"name",
-								},
-								"x-kubernetes-list-type": "map",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.ResolvedGatewayListener{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-					"routes": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-map-keys": []interface{}{
-									"name",
-								},
-								"x-kubernetes-list-type": "map",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.ResolvedGatewayRoute{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-					"backends": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-map-keys": []interface{}{
-									"name",
-								},
-								"x-kubernetes-list-type": "map",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.ResolvedGatewayBackend{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-					"extensions": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-map-keys": []interface{}{
-									"name",
-								},
-								"x-kubernetes-list-type": "map",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.ResolvedGatewayExtension{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.LocalObjectReference{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayAuthSummary{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayBackend{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayExtension{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayListener{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayRoute{}.OpenAPIModelName(), v1alpha1.ResolvedGatewayTrafficSummary{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"observedGeneration": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int64",
-						},
-					},
-					"conditions": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-map-keys": []interface{}{
-									"type",
-								},
-								"x-kubernetes-list-type": "map",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1.Condition{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1.Condition{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedGatewayTrafficSummary(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"policies": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-map-keys": []interface{}{
-									"name",
-								},
-								"x-kubernetes-list-type": "map",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref(v1alpha1.ResolvedTrafficPolicyRef{}.OpenAPIModelName()),
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			v1alpha1.ResolvedTrafficPolicyRef{}.OpenAPIModelName()},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedPolicyRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1alpha1_ResolvedTrafficPolicyRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Type: []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"timeoutDuration": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"retryAttempts": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"retryConditions": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "set",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-					"rateLimitRequests": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"rateLimitUnit": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"rateLimitScope": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
 							Format: "",

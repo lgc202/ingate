@@ -8,11 +8,6 @@ const (
 	GatewayStatusSubresource = "status"
 	GatewayShortName         = "gw"
 
-	ResolvedGatewayResource          = "resolvedgateways"
-	ResolvedGatewaySingularResource  = "resolvedgateway"
-	ResolvedGatewayStatusSubresource = "status"
-	ResolvedGatewayShortName         = "rgw"
-
 	RouteResource          = "routes"
 	RouteSingularResource  = "route"
 	RouteStatusSubresource = "status"

@@ -102,20 +102,20 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 }
 
-func (s *Server) Publish(ctx context.Context, rg *gatewayv1alpha1.ResolvedGateway, runtimeConfig *translate.RuntimeConfig) error {
+func (s *Server) Publish(ctx context.Context, gateway *gatewayv1alpha1.Gateway, runtimeConfig *translate.RuntimeConfig) error {
 	if s == nil || s.cache == nil {
 		return fmt.Errorf("publish server is not initialized")
 	}
-	if rg == nil {
-		return fmt.Errorf("resolvedgateway must not be nil")
+	if gateway == nil {
+		return fmt.Errorf("gateway must not be nil")
 	}
 	if runtimeConfig == nil {
 		return fmt.Errorf("runtime config must not be nil")
 	}
 
 	s.cache.Upsert(xdscache.Snapshot{
-		Key:             shared.NewObjectKey(rg.Namespace, rg.Name),
-		SourceVersion:   rg.Spec.Version,
+		Key:             shared.NewObjectKey(gateway.Namespace, gateway.Name),
+		SourceVersion:   gateway.ResourceVersion,
 		PublishVersion:  runtimeConfig.Version,
 		Runtime:         runtimeConfig,
 		EffectiveConfig: effectiveConfigFromRuntime(runtimeConfig),
@@ -127,10 +127,10 @@ func (s *Server) Publish(ctx context.Context, rg *gatewayv1alpha1.ResolvedGatewa
 
 	return s.updateProgrammedCondition(
 		ctx,
-		rg,
+		gateway,
 		metav1.ConditionTrue,
 		reasonProgrammed,
-		fmt.Sprintf("published resolvedgateway version %s", runtimeConfig.Version),
+		fmt.Sprintf("published gateway version %s", runtimeConfig.Version),
 	)
 }
 
@@ -142,35 +142,35 @@ func (s *Server) Delete(_ context.Context, key shared.ObjectKey) error {
 	return nil
 }
 
-func (s *Server) PublishFailure(ctx context.Context, rg *gatewayv1alpha1.ResolvedGateway, publishErr error) error {
+func (s *Server) PublishFailure(ctx context.Context, gateway *gatewayv1alpha1.Gateway, publishErr error) error {
 	if s == nil {
 		return fmt.Errorf("publish server is not initialized")
 	}
-	if rg == nil {
+	if gateway == nil {
 		return nil
 	}
 	if s.client == nil {
 		return publishErr
 	}
 
-	message := "failed to publish resolvedgateway"
+	message := "failed to publish gateway"
 	if publishErr != nil {
 		message = publishErr.Error()
 	}
-	return s.updateProgrammedCondition(ctx, rg, metav1.ConditionFalse, reasonPublishFailed, message)
+	return s.updateProgrammedCondition(ctx, gateway, metav1.ConditionFalse, reasonPublishFailed, message)
 }
 
-func (s *Server) updateProgrammedCondition(ctx context.Context, rg *gatewayv1alpha1.ResolvedGateway, status metav1.ConditionStatus, reason, message string) error {
-	existing := apiutil.FindStatusCondition(rg.Status.Conditions, ConditionProgrammed)
+func (s *Server) updateProgrammedCondition(ctx context.Context, gateway *gatewayv1alpha1.Gateway, status metav1.ConditionStatus, reason, message string) error {
+	existing := apiutil.FindStatusCondition(gateway.Status.Conditions, ConditionProgrammed)
 	if existing != nil &&
 		existing.Status == status &&
 		existing.Reason == reason &&
 		existing.Message == message &&
-		rg.Status.ObservedGeneration == rg.Generation {
+		gateway.Status.ObservedGeneration == gateway.Generation {
 		return nil
 	}
 
-	updated := rg.DeepCopy()
+	updated := gateway.DeepCopy()
 	updated.Status.ObservedGeneration = updated.Generation
 	apiutil.SetStatusCondition(&updated.Status.Conditions, metav1.Condition{
 		Type:               ConditionProgrammed,
@@ -180,9 +180,9 @@ func (s *Server) updateProgrammedCondition(ctx context.Context, rg *gatewayv1alp
 		LastTransitionTime: s.now(),
 	})
 
-	_, err := s.client.GatewayV1alpha1().ResolvedGateways().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
+	_, err := s.client.GatewayV1alpha1().Gateways().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) {
-		_, err = s.client.GatewayV1alpha1().ResolvedGateways().Update(ctx, updated, metav1.UpdateOptions{})
+		_, err = s.client.GatewayV1alpha1().Gateways().Update(ctx, updated, metav1.UpdateOptions{})
 	}
 	return err
 }

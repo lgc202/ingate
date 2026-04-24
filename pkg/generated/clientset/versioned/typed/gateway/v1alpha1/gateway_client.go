@@ -29,7 +29,6 @@ type GatewayV1alpha1Interface interface {
 	BackendsGetter
 	CertificatesGetter
 	GatewaysGetter
-	ResolvedGatewaysGetter
 	RoutesGetter
 	SecretsGetter
 }
@@ -49,10 +48,6 @@ func (c *GatewayV1alpha1Client) Certificates() CertificateInterface {
 
 func (c *GatewayV1alpha1Client) Gateways() GatewayInterface {
 	return newGateways(c)
-}
-
-func (c *GatewayV1alpha1Client) ResolvedGateways() ResolvedGatewayInterface {
-	return newResolvedGateways(c)
 }
 
 func (c *GatewayV1alpha1Client) Routes() RouteInterface {

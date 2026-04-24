@@ -1,4 +1,4 @@
-package resolvedgateway
+package gatewaycompiler
 
 import (
 	"context"

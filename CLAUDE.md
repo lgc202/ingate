@@ -73,7 +73,7 @@ Ingate 是一个用 Go 实现的网关控制面仓库，主要产出 5 个二进
 包级或单个测试用标准 Go 命令：
 
 - `go test ./...`
-- `go test ./internal/controlplane/controller/resolvedgateway/...`
+- `go test ./internal/controlplane/controller/gatewaycompiler/...`
 - `go test ./pkg/apis/gateway/validation/...`
 - `go test ./cmd/controller-manager/... -run TestName`
 - `go test ./internal/adminapi/convert -run TestBackend`
@@ -105,7 +105,7 @@ compose 中的 console 镜像直接复用相邻仓库 `../ingate-console/dist`�
 
 ### 改 API 类型、校验或生成产物时先看哪里
 
-- `pkg/apis/gateway/v1alpha1/`：网关侧资源定义，如 `Gateway`、`Route`、`Backend`、`Certificate`、`Secret`、`ResolvedGateway`
+- `pkg/apis/gateway/v1alpha1/`：网关侧资源定义，如 `Gateway`、`Route`、`Backend`、`Certificate`、`Secret`
 - `pkg/apis/policy/v1alpha1/`：策略资源定义，如 `AuthPolicy`、`TrafficPolicy`
 - `pkg/apis/*/validation/`：校验逻辑
 - `pkg/apis/scheme/`：scheme 注册
@@ -125,22 +125,22 @@ compose 中的 console 镜像直接复用相邻仓库 `../ingate-console/dist`�
 
 ### 改控制器收敛逻辑、状态更新、依赖关系时先看哪里
 
-真正的多资源收敛逻辑集中在 `resolvedgateway` controller，其它资源 controller 更像触发器和索引维护者。
+真正的多资源收敛逻辑集中在 `gatewaycompiler` controller，其它资源 controller 更像触发器和索引维护者。
 
 - `cmd/controller-manager/app/run.go`：创建 shared informer factory、依赖索引和共享 gateway work queue，并注册所有 controller
 - `internal/controlplane/controller/{gateway,route,backend,certificate,authpolicy,trafficpolicy}`：把受影响 gateway 入队
 - `internal/controlplane/controller/index/`：维护依赖索引
-- `internal/controlplane/controller/resolvedgateway/`：构建并写回 `ResolvedGateway`
+- `internal/controlplane/controller/gatewaycompiler/`：拉取网关依赖并构建 `LogicalGateway`
 - `internal/controlplane/controller/status/`：写入 Accepted/Resolved 等状态
 
-如果表现为“某个依赖资源变了但网关没重算”，先看资源 controller 与 `index/`；如果表现为“重算了但结果不对”，先看 `resolvedgateway/`。
+如果表现为“某个依赖资源变了但网关没重算”，先看资源 controller 与 `index/`；如果表现为“重算了但结果不对”，先看 `gatewaycompiler/`。
 
 ### 改 xDS 翻译、发布或排查数据面问题时先看哪里
 
-`ingate-xds-server` 消费的是 `ResolvedGateway`，不是原始资源。
+`ingate-xds-server` 现在消费的是由 `Gateway` 事件触发重建出来的 `LogicalGateway`，不是中间 CRD 资源。
 
 - `cmd/xds-server/app/server.go`：启动 watcher、runtime cache、publisher 和 health server
-- `internal/controlplane/xds/watch/`：监听 `ResolvedGateway`
+- `internal/controlplane/xds/watch/`：监听 `Gateway` 并重建 `LogicalGateway`
 - `internal/controlplane/xds/translate/`：翻译为运行时配置
 - `internal/controlplane/xds/cache/`：缓存已发布配置
 - `internal/controlplane/xds/publish/`：通过 configsync/discovery/ADS 发布

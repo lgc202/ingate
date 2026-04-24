@@ -1,20 +1,16 @@
-package resolvedgateway
+package gatewaycompiler
 
 import (
 	"context"
 	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/lgc202/ingate/internal/controlplane/controller/shared"
-	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
 	policyv1alpha1 "github.com/lgc202/ingate/pkg/apis/policy/v1alpha1"
 )
 
 func (c *Controller) Reconcile(ctx context.Context, key shared.ObjectKey) error {
 	if c == nil || c.client == nil || c.loader == nil || c.status == nil {
-		return fmt.Errorf("resolvedgateway controller is not fully initialized")
+		return fmt.Errorf("gateway compiler controller is not fully initialized")
 	}
 
 	bundle, err := c.loader.Load(key)
@@ -23,14 +19,7 @@ func (c *Controller) Reconcile(ctx context.Context, key shared.ObjectKey) error 
 		return err
 	}
 
-	resolvedGateway, err := Build(bundle)
-	if err != nil {
-		_ = c.status.MarkFailure(ctx, key, err)
-		return err
-	}
-
-	persisted, err := c.upsertResolvedGateway(ctx, resolvedGateway)
-	if err != nil {
+	if _, err := BuildLogicalGateway(bundle); err != nil {
 		_ = c.status.MarkFailure(ctx, key, err)
 		return err
 	}
@@ -43,29 +32,10 @@ func (c *Controller) Reconcile(ctx context.Context, key shared.ObjectKey) error 
 		bundle.Certificates,
 		collectAuthPolicies(bundle),
 		collectTrafficPolicies(bundle),
-		persisted,
 	); err != nil {
 		return err
 	}
 	return nil
-}
-
-func (c *Controller) upsertResolvedGateway(ctx context.Context, resolvedGateway *gatewayv1alpha1.ResolvedGateway) (*gatewayv1alpha1.ResolvedGateway, error) {
-	if resolvedGateway == nil {
-		return nil, fmt.Errorf("resolvedgateway must not be nil")
-	}
-
-	current, err := c.client.GatewayV1alpha1().ResolvedGateways().Get(ctx, resolvedGateway.Name, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		return c.client.GatewayV1alpha1().ResolvedGateways().Create(ctx, resolvedGateway, metav1.CreateOptions{})
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	updated := resolvedGateway.DeepCopy()
-	updated.ResourceVersion = current.ResourceVersion
-	return c.client.GatewayV1alpha1().ResolvedGateways().Update(ctx, updated, metav1.UpdateOptions{})
 }
 
 func collectAuthPolicies(bundle *ResourceBundle) []*policyv1alpha1.AuthPolicy {

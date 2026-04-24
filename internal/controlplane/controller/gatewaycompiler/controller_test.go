@@ -1,4 +1,4 @@
-package resolvedgateway
+package gatewaycompiler
 
 import (
 	"errors"
@@ -9,7 +9,7 @@ import (
 )
 
 func TestShouldRequeueOnlyRetryableErrors(t *testing.T) {
-	resource := schema.GroupResource{Group: "gateway.ingate.io", Resource: "resolvedgateways"}
+	resource := schema.GroupResource{Group: "gateway.ingate.io", Resource: "gateways"}
 	tests := []struct {
 		name string
 		err  error
