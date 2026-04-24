@@ -19,7 +19,7 @@ import (
 	controllerconfig "github.com/lgc202/ingate/internal/controlplane/controller/config"
 	controllergateway "github.com/lgc202/ingate/internal/controlplane/controller/gateway"
 	controllerindex "github.com/lgc202/ingate/internal/controlplane/controller/index"
-	"github.com/lgc202/ingate/internal/controlplane/controller/resolvedgateway"
+	gatewaycompiler "github.com/lgc202/ingate/internal/controlplane/controller/gatewaycompiler"
 	"github.com/lgc202/ingate/internal/controlplane/controller/route"
 	controllerruntime "github.com/lgc202/ingate/internal/controlplane/controller/runtime"
 	"github.com/lgc202/ingate/internal/controlplane/controller/shared"
@@ -66,7 +66,7 @@ func Run(ctx context.Context, out io.Writer, opts appoptions.CompletedOptions) e
 	informerFactory := newInformerFactory(client, cfg.Options)
 	queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[shared.ObjectKey]())
 	runtimeContext := controllerruntime.NewContext(client, informerFactory, controllerindex.New(), queue)
-	resolvedGatewayController := resolvedgateway.NewController(runtimeContext)
+	gatewayCompilerController := gatewaycompiler.NewController(runtimeContext)
 	controllers := []controllerRegistration{
 		controllergateway.NewController(runtimeContext),
 		route.NewController(runtimeContext),
@@ -81,7 +81,7 @@ func Run(ctx context.Context, out io.Writer, opts appoptions.CompletedOptions) e
 		}
 		fmt.Fprintf(out, "  registered-controller: %s\n", controller.Name())
 	}
-	fmt.Fprintf(out, "  registered-controller: %s\n", names.ResolvedGatewayControllerName)
+	fmt.Fprintf(out, "  registered-controller: %s\n", names.GatewayCompilerControllerName)
 
 	go informerFactory.Start(ctx.Done())
 	if !cache.WaitForCacheSync(
@@ -95,7 +95,7 @@ func Run(ctx context.Context, out io.Writer, opts appoptions.CompletedOptions) e
 	) {
 		return fmt.Errorf("timed out waiting for controller-manager informer caches to sync")
 	}
-	go resolvedGatewayController.Run(ctx, cfg.Options.Workers)
+	go gatewayCompilerController.Run(ctx, cfg.Options.Workers)
 	go func() {
 		<-ctx.Done()
 		runtimeContext.GatewayQueue.ShutDown()

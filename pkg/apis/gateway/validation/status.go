@@ -33,15 +33,6 @@ func ValidateGatewayStatusUpdate(update, old *gatewayv1alpha1.Gateway) field.Err
 	return allErrs
 }
 
-func ValidateResolvedGatewayStatusUpdate(update, old *gatewayv1alpha1.ResolvedGateway) field.ErrorList {
-	var allErrs field.ErrorList
-
-	allErrs = append(allErrs, validateObservedGeneration(update.Status.ObservedGeneration, old.Generation, field.NewPath("status", "observedGeneration"))...)
-	allErrs = append(allErrs, metav1validation.ValidateConditions(update.Status.Conditions, field.NewPath("status", "conditions"))...)
-
-	return allErrs
-}
-
 func ValidateRouteStatusUpdate(update, old *gatewayv1alpha1.Route) field.ErrorList {
 	var allErrs field.ErrorList
 

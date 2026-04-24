@@ -9,7 +9,6 @@ import (
 	backendstorage "github.com/lgc202/ingate/internal/controlplane/apiserver/registry/gateway/backend/storage"
 	certificatestorage "github.com/lgc202/ingate/internal/controlplane/apiserver/registry/gateway/certificate/storage"
 	gatewaystorage "github.com/lgc202/ingate/internal/controlplane/apiserver/registry/gateway/gateway/storage"
-	resolvedgatewaystorage "github.com/lgc202/ingate/internal/controlplane/apiserver/registry/gateway/resolvedgateway/storage"
 	routestorage "github.com/lgc202/ingate/internal/controlplane/apiserver/registry/gateway/route/storage"
 	secretstorage "github.com/lgc202/ingate/internal/controlplane/apiserver/registry/gateway/secret/storage"
 	gatewayv1alpha1 "github.com/lgc202/ingate/pkg/apis/gateway/v1alpha1"
@@ -45,15 +44,6 @@ func (p RESTStorageProvider) v1alpha1Storage(apiResourceConfigSource serverstora
 		}
 		storageMap[resource] = gatewayStorage.Gateway
 		storageMap[resource+"/"+gatewayv1alpha1.GatewayStatusSubresource] = gatewayStorage.Status
-	}
-
-	if resource := gatewayv1alpha1.ResolvedGatewayResource; apiResourceConfigSource.ResourceEnabled(gatewayv1alpha1.SchemeGroupVersion.WithResource(resource)) {
-		resolvedGatewayStorage, err := resolvedgatewaystorage.NewStorage(restOptionsGetter)
-		if err != nil {
-			return storageMap, err
-		}
-		storageMap[resource] = resolvedGatewayStorage.ResolvedGateway
-		storageMap[resource+"/"+gatewayv1alpha1.ResolvedGatewayStatusSubresource] = resolvedGatewayStorage.Status
 	}
 
 	if resource := gatewayv1alpha1.RouteResource; apiResourceConfigSource.ResourceEnabled(gatewayv1alpha1.SchemeGroupVersion.WithResource(resource)) {

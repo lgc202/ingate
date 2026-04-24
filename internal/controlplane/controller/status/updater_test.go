@@ -121,9 +121,6 @@ func newStatusTestClient(
 		"certificates":    &gatewayv1alpha1.CertificateList{Items: []gatewayv1alpha1.Certificate{*certificate.DeepCopy()}},
 		"authpolicies":    &policyv1alpha1.AuthPolicyList{Items: []policyv1alpha1.AuthPolicy{*authPolicy.DeepCopy()}},
 		"trafficpolicies": &policyv1alpha1.TrafficPolicyList{Items: []policyv1alpha1.TrafficPolicy{*trafficPolicy.DeepCopy()}},
-		"resolvedgateways": &gatewayv1alpha1.ResolvedGatewayList{
-			Items: []gatewayv1alpha1.ResolvedGateway{},
-		},
 	}
 
 	client.PrependReactor("get", "*", func(action k8stesting.Action) (bool, runtime.Object, error) {

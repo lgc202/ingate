@@ -10,24 +10,24 @@ type GatewayKeyResolver func(obj interface{}) []ObjectKey
 func NewGatewayEventHandler(resolver GatewayKeyResolver, queue workqueue.TypedRateLimitingInterface[ObjectKey]) cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			enqueueResolvedGatewayKeys(resolver, queue, obj)
+			enqueueGatewayKeys(resolver, queue, obj)
 		},
 		UpdateFunc: func(oldObj, newObj interface{}) {
 			seen := make(map[string]struct{})
-			enqueueResolvedGatewayKeysWithSeen(resolver, queue, oldObj, seen)
-			enqueueResolvedGatewayKeysWithSeen(resolver, queue, newObj, seen)
+			enqueueGatewayKeysWithSeen(resolver, queue, oldObj, seen)
+			enqueueGatewayKeysWithSeen(resolver, queue, newObj, seen)
 		},
 		DeleteFunc: func(obj interface{}) {
-			enqueueResolvedGatewayKeys(resolver, queue, obj)
+			enqueueGatewayKeys(resolver, queue, obj)
 		},
 	}
 }
 
-func enqueueResolvedGatewayKeys(resolver GatewayKeyResolver, queue workqueue.TypedRateLimitingInterface[ObjectKey], obj interface{}) {
-	enqueueResolvedGatewayKeysWithSeen(resolver, queue, obj, nil)
+func enqueueGatewayKeys(resolver GatewayKeyResolver, queue workqueue.TypedRateLimitingInterface[ObjectKey], obj interface{}) {
+	enqueueGatewayKeysWithSeen(resolver, queue, obj, nil)
 }
 
-func enqueueResolvedGatewayKeysWithSeen(resolver GatewayKeyResolver, queue workqueue.TypedRateLimitingInterface[ObjectKey], obj interface{}, seen map[string]struct{}) {
+func enqueueGatewayKeysWithSeen(resolver GatewayKeyResolver, queue workqueue.TypedRateLimitingInterface[ObjectKey], obj interface{}, seen map[string]struct{}) {
 	if resolver == nil || queue == nil {
 		return
 	}

@@ -38,10 +38,6 @@ func (c *FakeGatewayV1alpha1) Gateways() v1alpha1.GatewayInterface {
 	return newFakeGateways(c)
 }
 
-func (c *FakeGatewayV1alpha1) ResolvedGateways() v1alpha1.ResolvedGatewayInterface {
-	return newFakeResolvedGateways(c)
-}
-
 func (c *FakeGatewayV1alpha1) Routes() v1alpha1.RouteInterface {
 	return newFakeRoutes(c)
 }

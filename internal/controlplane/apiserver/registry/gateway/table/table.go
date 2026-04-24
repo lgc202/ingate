@@ -44,14 +44,6 @@ var (
 		{Name: "Domains", Type: "string", Description: "Certificate domains."},
 		{Name: "Age", Type: "string", Description: "Time since creation."},
 	}
-	resolvedGatewayColumns = []metav1.TableColumnDefinition{
-		{Name: "Name", Type: "string", Format: "name", Description: "ResolvedGateway name."},
-		{Name: "Gateway", Type: "string", Description: "Referenced gateway name."},
-		{Name: "Listeners", Type: "integer", Description: "Resolved listener count."},
-		{Name: "Routes", Type: "integer", Description: "Resolved route count."},
-		{Name: "Backends", Type: "integer", Description: "Resolved backend count."},
-		{Name: "Age", Type: "string", Description: "Time since creation."},
-	}
 )
 
 func GatewayCells(obj runtime.Object) ([]interface{}, error) {
@@ -121,21 +113,6 @@ func CertificateCells(obj runtime.Object) ([]interface{}, error) {
 	}, nil
 }
 
-func ResolvedGatewayCells(obj runtime.Object) ([]interface{}, error) {
-	resolvedGateway, ok := obj.(*gatewayv1alpha1.ResolvedGateway)
-	if !ok {
-		return nil, fmt.Errorf("expected ResolvedGateway, got %T", obj)
-	}
-	return []interface{}{
-		resolvedGateway.Name,
-		resolvedGateway.Spec.GatewayRef.Name,
-		len(resolvedGateway.Spec.Listeners),
-		len(resolvedGateway.Spec.Routes),
-		len(resolvedGateway.Spec.Backends),
-		commonregistry.FormatTimestampAge(resolvedGateway.CreationTimestamp),
-	}, nil
-}
-
 func GatewayColumns() []metav1.TableColumnDefinition { return gatewayColumns }
 func RouteColumns() []metav1.TableColumnDefinition   { return routeColumns }
 func BackendColumns() []metav1.TableColumnDefinition { return backendColumns }
@@ -143,7 +120,6 @@ func SecretColumns() []metav1.TableColumnDefinition  { return secretColumns }
 func CertificateColumns() []metav1.TableColumnDefinition {
 	return certificateColumns
 }
-func ResolvedGatewayColumns() []metav1.TableColumnDefinition { return resolvedGatewayColumns }
 
 func joinGatewayHostnames(listeners []gatewayv1alpha1.GatewayListener) string {
 	hostnames := make([]string, 0, len(listeners))

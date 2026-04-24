@@ -10,7 +10,7 @@ const (
 	CertificateControllerName     = "certificate"
 	AuthPolicyControllerName      = "authpolicy"
 	TrafficPolicyControllerName   = "trafficpolicy"
-	ResolvedGatewayControllerName = "resolvedgateway"
+	GatewayCompilerControllerName = "gateway-compiler"
 )
 
 var TriggerControllerNames = []string{

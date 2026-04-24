@@ -28,8 +28,6 @@ type Interface interface {
 	Certificates() CertificateInformer
 	// Gateways returns a GatewayInformer.
 	Gateways() GatewayInformer
-	// ResolvedGateways returns a ResolvedGatewayInformer.
-	ResolvedGateways() ResolvedGatewayInformer
 	// Routes returns a RouteInformer.
 	Routes() RouteInformer
 	// Secrets returns a SecretInformer.
@@ -60,11 +58,6 @@ func (v *version) Certificates() CertificateInformer {
 // Gateways returns a GatewayInformer.
 func (v *version) Gateways() GatewayInformer {
 	return &gatewayInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// ResolvedGateways returns a ResolvedGatewayInformer.
-func (v *version) ResolvedGateways() ResolvedGatewayInformer {
-	return &resolvedGatewayInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Routes returns a RouteInformer.

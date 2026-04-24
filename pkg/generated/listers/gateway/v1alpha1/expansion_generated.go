@@ -28,10 +28,6 @@ type CertificateListerExpansion interface{}
 // GatewayLister.
 type GatewayListerExpansion interface{}
 
-// ResolvedGatewayListerExpansion allows custom methods to be added to
-// ResolvedGatewayLister.
-type ResolvedGatewayListerExpansion interface{}
-
 // RouteListerExpansion allows custom methods to be added to
 // RouteLister.
 type RouteListerExpansion interface{}
