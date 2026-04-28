@@ -18,6 +18,11 @@ type strategy struct {
 	names.NameGenerator
 }
 
+// statusStrategy 定义 Gateway status 子资源更新规则
+type statusStrategy struct {
+	strategy
+}
+
 func newStrategy(typer runtime.ObjectTyper) strategy {
 	return strategy{
 		ObjectTyper:   typer,
@@ -79,4 +84,27 @@ func (strategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) [
 
 func (strategy) AllowUnconditionalUpdate() bool {
 	return false
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
+}
+
+func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
+	return map[fieldpath.APIVersion]*fieldpath.Set{
+		fieldpath.APIVersion(gatewayv1.SchemeGroupVersion.String()): fieldpath.NewSet(
+			fieldpath.MakePathOrDie("spec"),
+		),
+	}
+}
+
+func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+	newGateway := obj.(*gatewayv1.Gateway)
+	oldGateway := old.(*gatewayv1.Gateway)
+
+	newGateway.Spec = oldGateway.Spec
+}
+
+func (statusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+	return nil
 }

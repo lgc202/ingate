@@ -1,10 +1,14 @@
 package gateway
 
 import (
+	"context"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/registry/generic"
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
+	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
 	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 )
@@ -14,8 +18,13 @@ type REST struct {
 	*genericregistry.Store
 }
 
+// StatusREST 实现 Gateway status 子资源存储
+type StatusREST struct {
+	store *genericregistry.Store
+}
+
 // NewREST 创建 Gateway 资源存储
-func NewREST(optsGetter generic.RESTOptionsGetter, typer runtime.ObjectTyper) (*REST, error) {
+func NewREST(optsGetter generic.RESTOptionsGetter, typer runtime.ObjectTyper) (*REST, *StatusREST, error) {
 	strategy := newStrategy(typer)
 	store := &genericregistry.Store{
 		NewFunc:                   func() runtime.Object { return &gatewayv1.Gateway{} },
@@ -31,7 +40,42 @@ func NewREST(optsGetter generic.RESTOptionsGetter, typer runtime.ObjectTyper) (*
 		TableConvertor: rest.NewDefaultTableConvertor(gatewayv1.Resource(gatewayv1.ResourceGateways)),
 	}
 	if err := store.CompleteWithOptions(&generic.StoreOptions{RESTOptions: optsGetter}); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &REST{Store: store}, nil
+
+	statusStore := *store
+	statusStrategy := newStatusStrategy(typer)
+	statusStore.UpdateStrategy = statusStrategy
+	statusStore.ResetFieldsStrategy = statusStrategy
+
+	return &REST{Store: store}, &StatusREST{store: &statusStore}, nil
+}
+
+// New 创建 Gateway 对象
+func (r *StatusREST) New() runtime.Object {
+	return &gatewayv1.Gateway{}
+}
+
+// Destroy 清理底层资源
+func (r *StatusREST) Destroy() {
+}
+
+// Get 获取 Gateway 对象，Patch status 时需要读取旧对象
+func (r *StatusREST) Get(ctx context.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
+	return r.store.Get(ctx, name, options)
+}
+
+// Update 更新 Gateway status 子资源
+func (r *StatusREST) Update(ctx context.Context, name string, objInfo rest.UpdatedObjectInfo, createValidation rest.ValidateObjectFunc, updateValidation rest.ValidateObjectUpdateFunc, forceAllowCreate bool, options *metav1.UpdateOptions) (runtime.Object, bool, error) {
+	return r.store.Update(ctx, name, objInfo, createValidation, updateValidation, false, options)
+}
+
+// GetResetFields 返回 status 子资源会重置的字段
+func (r *StatusREST) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
+	return r.store.GetResetFields()
+}
+
+// ConvertToTable 转换 Gateway 表格输出
+func (r *StatusREST) ConvertToTable(ctx context.Context, object runtime.Object, tableOptions runtime.Object) (*metav1.Table, error) {
+	return r.store.ConvertToTable(ctx, object, tableOptions)
 }

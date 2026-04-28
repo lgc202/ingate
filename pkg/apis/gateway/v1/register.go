@@ -21,6 +21,8 @@ const (
 	ResourceGateway ResourceName = "gateway"
 	// ResourceGateways 表示 Gateway 复数资源名
 	ResourceGateways ResourceName = "gateways"
+	// ResourceGatewaysStatus 表示 Gateway status 子资源名
+	ResourceGatewaysStatus ResourceName = "gateways/status"
 )
 
 // SchemeGroupVersion 表示 Ingate API 组版本

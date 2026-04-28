@@ -64,12 +64,19 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	if storage == nil {
 		storage = map[string]rest.Storage{}
 	}
-	if _, ok := storage[string(gatewayv1.ResourceGateways)]; !ok {
-		gatewayREST, err := gatewaystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	_, hasGateway := storage[string(gatewayv1.ResourceGateways)]
+	_, hasGatewayStatus := storage[string(gatewayv1.ResourceGatewaysStatus)]
+	if !hasGateway || !hasGatewayStatus {
+		gatewayREST, gatewayStatusREST, err := gatewaystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
 		if err != nil {
 			return nil, err
 		}
-		storage[string(gatewayv1.ResourceGateways)] = gatewayREST
+		if !hasGateway {
+			storage[string(gatewayv1.ResourceGateways)] = gatewayREST
+		}
+		if !hasGatewayStatus {
+			storage[string(gatewayv1.ResourceGatewaysStatus)] = gatewayStatusREST
+		}
 	}
 	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage
 
