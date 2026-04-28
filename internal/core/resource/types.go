@@ -1,6 +1,18 @@
 // Package resource 定义声明式控制面资源
 package resource
 
+// Kind 表示声明式资源类型
+type Kind string
+
+const (
+	// KindGateway 表示 Gateway 资源类型
+	KindGateway Kind = "Gateway"
+	// KindRoute 表示 Route 资源类型
+	KindRoute Kind = "Route"
+	// KindUpstream 表示 Upstream 资源类型
+	KindUpstream Kind = "Upstream"
+)
+
 // Bundle 表示一次内存编译所需的资源集合
 type Bundle struct {
 	Gateways       []Gateway       `json:"gateways"`
@@ -8,15 +20,6 @@ type Bundle struct {
 	Upstreams      []Upstream      `json:"upstreams"`
 	PolicyBindings []PolicyBinding `json:"policyBindings"`
 }
-
-const (
-	// ResourceKindGateway 表示 Gateway 资源类型
-	ResourceKindGateway = "Gateway"
-	// ResourceKindRoute 表示 Route 资源类型
-	ResourceKindRoute = "Route"
-	// ResourceKindUpstream 表示 Upstream 资源类型
-	ResourceKindUpstream = "Upstream"
-)
 
 // Metadata 标识一个声明式资源
 type Metadata struct {
@@ -107,7 +110,7 @@ type PolicyBindingSpec struct {
 
 // PolicyTargetRef 表示策略绑定目标资源
 type PolicyTargetRef struct {
-	Kind string `json:"kind"`
+	Kind Kind   `json:"kind"`
 	Name string `json:"name"`
 }
 

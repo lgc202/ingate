@@ -54,7 +54,7 @@ func TestTranslatorTranslate(t *testing.T) {
 			{
 				Name: "app-auth",
 				Target: ir.LogicalPolicyTarget{
-					Kind: resource.ResourceKindRoute,
+					Kind: resource.KindRoute,
 					Name: "app",
 				},
 				Policies: []ir.LogicalPolicyRef{
@@ -118,7 +118,7 @@ func TestTranslatorTranslate(t *testing.T) {
 			{
 				Name: "app-auth",
 				Target: debug.PolicyTarget{
-					Kind: resource.ResourceKindRoute,
+					Kind: resource.KindRoute,
 					Name: "app",
 				},
 				Policies: []debug.PolicyRef{
