@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/spf13/pflag"
+	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	"github.com/lgc202/ingate-next/internal/apiserver/server"
 )
@@ -45,5 +46,14 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	return fmt.Errorf("ingate-apiserver runtime is not implemented yet")
+	config, err := options.Config()
+	if err != nil {
+		return err
+	}
+	apiServer, err := config.Complete().New(genericapiserver.NewEmptyDelegate())
+	if err != nil {
+		return err
+	}
+
+	return apiServer.Run(genericapiserver.SetupSignalContext())
 }
