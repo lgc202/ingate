@@ -38,7 +38,7 @@ Publishing is a later phase.
 
 Target-specific data belongs behind translator implementations and inside `RuntimeSnapshot`.
 
-### AI Is A Future Domain, Not A Backend Hack
+### AI Is A Future Domain, Not An Upstream Hack
 
 The MVP does not implement AI resources.
 
@@ -70,14 +70,14 @@ The MVP resource set is:
 
 - `Gateway`
 - `Route`
-- `Backend`
+- `Upstream`
 
 These are enough to prove the compilation path:
 
 ```text
 Gateway
   -> Route
-    -> Backend
+    -> Upstream
 ```
 
 ### Metadata
@@ -113,7 +113,7 @@ type Listener struct {
 
 ### Route
 
-`Route` connects request matches to backend references.
+`Route` connects request matches to upstream references.
 
 MVP fields:
 
@@ -126,23 +126,23 @@ type RouteSpec struct {
 
 type RouteRule struct {
     PathPrefix  string
-    BackendRefs []BackendRef
+    UpstreamRefs []UpstreamRef
 }
 
-type BackendRef struct {
+type UpstreamRef struct {
     Name   string
     Weight int
 }
 ```
 
-### Backend
+### Upstream
 
-`Backend` represents upstream endpoints.
+`Upstream` represents a logical upstream service and its endpoints.
 
 MVP fields:
 
 ```go
-type BackendSpec struct {
+type UpstreamSpec struct {
     Endpoints []Endpoint
 }
 
@@ -165,14 +165,14 @@ type LogicalGateway struct {
     Name      string
     Listeners []LogicalListener
     Routes    []LogicalRoute
-    Backends  []LogicalBackend
+    Upstreams []LogicalUpstream
 }
 ```
 
 The compiler should resolve references before producing IR:
 
 - `Route.ParentRefs` must reference an existing `Gateway`.
-- `Route.BackendRefs` must reference existing `Backend` objects.
+- `Route.UpstreamRefs` must reference existing `Upstream` objects.
 - Only routes attached to the selected gateway appear in that gateway's logical IR.
 
 ## 6. RuntimeSnapshot
@@ -208,7 +208,7 @@ The compiler consumes an in-memory bundle:
 type Bundle struct {
     Gateways []Gateway
     Routes   []Route
-    Backends []Backend
+    Upstreams []Upstream
 }
 ```
 
@@ -222,7 +222,7 @@ Compiler responsibilities:
 
 - find the selected gateway
 - select attached routes
-- validate backend references
+- validate upstream references
 - build `LogicalGateway`
 - return clear errors for missing references
 
@@ -257,7 +257,7 @@ The `debug` translator should preserve enough information to verify the pipeline
 
 - listener names and ports
 - route names and path prefixes
-- backend names and endpoints
+- upstream names and endpoints
 
 ## 9. First Directory Structure
 
@@ -300,10 +300,10 @@ Reasoning:
 
 The first implementation is complete when:
 
-1. A test can declare one gateway, one route, and one backend in memory.
+1. A test can declare one gateway, one route, and one upstream in memory.
 2. The compiler turns them into one `LogicalGateway`.
 3. Missing gateway references return a clear error.
-4. Missing backend references return a clear error.
+4. Missing upstream references return a clear error.
 5. The debug translator turns `LogicalGateway` into `RuntimeSnapshot`.
 6. `make test` passes.
 7. `make build` passes.
@@ -318,4 +318,3 @@ After this MVP, continue in this order:
 4. Add data-plane model: `DataPlane` and `DataPlaneNode`.
 5. Add plugin model: `Plugin` and `PluginBinding`.
 6. Add AI model: `AIProvider`, `AIRoute`, and `AIPolicy`.
-
