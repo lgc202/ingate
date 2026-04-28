@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
-	"github.com/lgc202/ingate-next/internal/core/resource"
 	"github.com/lgc202/ingate-next/internal/core/target"
 	"github.com/lgc202/ingate-next/internal/core/target/debug"
+	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 )
 
 func TestTranslatorImplementsTargetTranslator(t *testing.T) {

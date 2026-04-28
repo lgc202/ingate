@@ -11,4 +11,4 @@ source "${codegen_pkg}/kube_codegen.sh"
 
 kube::codegen::gen_helpers \
   --boilerplate "${repo_root}/hack/boilerplate.go.txt" \
-  "${repo_root}/internal/core/resource"
+  "${repo_root}/pkg/apis"

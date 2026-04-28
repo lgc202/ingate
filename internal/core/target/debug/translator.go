@@ -7,8 +7,8 @@ import (
 	"slices"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
-	"github.com/lgc202/ingate-next/internal/core/resource"
 	"github.com/lgc202/ingate-next/internal/core/runtime"
+	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 )
 
 const (
