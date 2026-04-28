@@ -6,12 +6,13 @@ import (
 	"slices"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
+	"github.com/lgc202/ingate-next/internal/core/resource"
 	"github.com/lgc202/ingate-next/internal/core/runtime"
 )
 
 const (
-	targetName    = "debug"
-	versionPrefix = "debug/%s"
+	targetName    string = "debug"
+	versionPrefix string = "debug/%s"
 )
 
 // Translator 负责生成 debug target 的配置快照
@@ -82,8 +83,8 @@ type PolicyBinding struct {
 
 // PolicyTarget 表示 debug 配置中的策略绑定目标
 type PolicyTarget struct {
-	Kind string `json:"kind"`
-	Name string `json:"name"`
+	Kind resource.Kind `json:"kind"`
+	Name string        `json:"name"`
 }
 
 // PolicyRef 表示 debug 配置中的策略引用

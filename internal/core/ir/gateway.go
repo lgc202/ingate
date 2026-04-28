@@ -1,6 +1,8 @@
 // Package ir 定义运行时无关的网关编译结果
 package ir
 
+import "github.com/lgc202/ingate-next/internal/core/resource"
+
 // LogicalGateway 表示一个 Gateway 编译后的运行时无关模型
 type LogicalGateway struct {
 	Name           string
@@ -67,7 +69,7 @@ type LogicalPolicyBinding struct {
 
 // LogicalPolicyTarget 表示策略绑定目标
 type LogicalPolicyTarget struct {
-	Kind string
+	Kind resource.Kind
 	Name string
 }
 

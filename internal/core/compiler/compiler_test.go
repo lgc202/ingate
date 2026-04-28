@@ -59,7 +59,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 				Metadata: resource.Metadata{Name: "app-auth"},
 				Spec: resource.PolicyBindingSpec{
 					TargetRef: resource.PolicyTargetRef{
-						Kind: resource.ResourceKindRoute,
+						Kind: resource.KindRoute,
 						Name: "app",
 					},
 					Policies: []resource.PolicyRef{
@@ -111,7 +111,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 			{
 				Name: "app-auth",
 				Target: ir.LogicalPolicyTarget{
-					Kind: resource.ResourceKindRoute,
+					Kind: resource.KindRoute,
 					Name: "app",
 				},
 				Policies: []ir.LogicalPolicyRef{
@@ -136,7 +136,7 @@ func TestCompilerCompileGatewayMissingPolicyBindingTarget(t *testing.T) {
 				Metadata: resource.Metadata{Name: "app-auth"},
 				Spec: resource.PolicyBindingSpec{
 					TargetRef: resource.PolicyTargetRef{
-						Kind: resource.ResourceKindRoute,
+						Kind: resource.KindRoute,
 						Name: "missing",
 					},
 				},

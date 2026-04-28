@@ -12,6 +12,17 @@ import (
 // Compiler 负责把声明式资源编译成逻辑网关模型
 type Compiler struct{}
 
+type gatewayCompiler struct {
+	bundle      resource.Bundle
+	gatewayName string
+	gateway     resource.Gateway
+
+	gatewaysByName       map[string]resource.Gateway
+	routesByName         map[string]bool
+	upstreamsByName      map[string]resource.Upstream
+	policyBindingsByName map[string]bool
+}
+
 // CompileGateway 从内存资源集合中编译指定 Gateway
 func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.LogicalGateway, error) {
 	c := gatewayCompiler{
@@ -24,17 +35,6 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 	}
 
 	return c.compile()
-}
-
-type gatewayCompiler struct {
-	bundle      resource.Bundle
-	gatewayName string
-	gateway     resource.Gateway
-
-	gatewaysByName       map[string]resource.Gateway
-	routesByName         map[string]bool
-	upstreamsByName      map[string]resource.Upstream
-	policyBindingsByName map[string]bool
 }
 
 func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
@@ -118,15 +118,15 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 
 		target := binding.Spec.TargetRef
 		switch target.Kind {
-		case resource.ResourceKindGateway:
+		case resource.KindGateway:
 			if _, ok := c.gatewaysByName[target.Name]; !ok {
 				return fmt.Errorf("policy binding %q references gateway %q", binding.Metadata.Name, target.Name)
 			}
-		case resource.ResourceKindRoute:
+		case resource.KindRoute:
 			if !c.routesByName[target.Name] {
 				return fmt.Errorf("policy binding %q references route %q", binding.Metadata.Name, target.Name)
 			}
-		case resource.ResourceKindUpstream:
+		case resource.KindUpstream:
 			if _, ok := c.upstreamsByName[target.Name]; !ok {
 				return fmt.Errorf("policy binding %q references upstream %q", binding.Metadata.Name, target.Name)
 			}
@@ -236,13 +236,13 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstream
 	bindings := make([]ir.LogicalPolicyBinding, 0, len(c.bundle.PolicyBindings))
 	for _, binding := range c.bundle.PolicyBindings {
 		target := binding.Spec.TargetRef
-		if target.Kind == resource.ResourceKindGateway && target.Name != c.gatewayName {
+		if target.Kind == resource.KindGateway && target.Name != c.gatewayName {
 			continue
 		}
-		if target.Kind == resource.ResourceKindRoute && !routeNames[target.Name] {
+		if target.Kind == resource.KindRoute && !routeNames[target.Name] {
 			continue
 		}
-		if target.Kind == resource.ResourceKindUpstream && !upstreamNames[target.Name] {
+		if target.Kind == resource.KindUpstream && !upstreamNames[target.Name] {
 			continue
 		}
 
