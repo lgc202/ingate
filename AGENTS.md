@@ -52,6 +52,14 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
   - 需要隔离可测试的领域逻辑。
 - 调用跳转层级尽量浅，读一条主流程时不应频繁跳 4-5 层才能理解业务含义。
 
+### 标准库与依赖使用
+
+- 可以使用新版本 Go 标准库能力来简化代码，例如 `slices.Contains`、`slices.IndexFunc`、`maps.Clone` 等。
+- 可以使用 `github.com/samber/lo` 简化集合转换、过滤、查找等样板代码。
+- 使用 `lo` 的前提是让代码更短、更清楚；不要为了函数式写法牺牲直接可读性。
+- 简单 `for` 循环如果更直观，就保留 `for` 循环。
+- 引入新依赖前要确认它解决的是重复样板或明显可读性问题，不要为了单个很小用法增加依赖。
+
 ### 函数与 receiver
 
 - 不要写太多游离函数。
@@ -82,9 +90,15 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 - 不要为了让测试好 mock 而污染生产代码设计。
 - 能直接构造具体类型测试时，不要引入 mock 或接口。
 
+### 注释
+
+- 代码注释使用中文，包括 package comment、导出类型注释、导出函数注释和必要的实现说明。
+- 注释要解释领域含义、设计约束或不明显的原因，不要复述代码本身。
+- 英文专有名词可以保留英文，例如 Envoy、xDS、Gateway、Route、Upstream、RuntimeSnapshot。
+- 对外协议字段、错误文本、CLI 输出等用户可见字符串，按实际产品语境决定中英文，不受代码注释语言限制。
+
 ## Git 规则
 
 - 提交要聚焦，一个提交只做一类事情。
 - 不要从这个仓库修改旧项目 `../ingate`。
 - 不要提交 `_output/`、`.gocache/`、`.gomodcache/` 或其它本地构建产物。
-
