@@ -29,6 +29,12 @@ const (
 	ResourceRoutes ResourceName = "routes"
 	// ResourceRoutesStatus 表示 Route status 子资源名
 	ResourceRoutesStatus ResourceName = "routes/status"
+	// ResourceUpstream 表示 Upstream 单数资源名
+	ResourceUpstream ResourceName = "upstream"
+	// ResourceUpstreams 表示 Upstream 复数资源名
+	ResourceUpstreams ResourceName = "upstreams"
+	// ResourceUpstreamsStatus 表示 Upstream status 子资源名
+	ResourceUpstreamsStatus ResourceName = "upstreams/status"
 )
 
 // SchemeGroupVersion 表示 Ingate API 组版本
