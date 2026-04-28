@@ -11,6 +11,16 @@ const (
 	KindRoute Kind = "Route"
 	// KindUpstream 表示 Upstream 资源类型
 	KindUpstream Kind = "Upstream"
+	// KindAuthPolicy 表示 AuthPolicy 资源类型
+	KindAuthPolicy Kind = "AuthPolicy"
+)
+
+// AuthType 表示认证策略类型
+type AuthType string
+
+const (
+	// AuthTypeAPIKey 表示 API Key 认证
+	AuthTypeAPIKey AuthType = "APIKey"
 )
 
 // Bundle 表示一次内存编译所需的资源集合
@@ -18,6 +28,7 @@ type Bundle struct {
 	Gateways       []Gateway       `json:"gateways"`
 	Routes         []Route         `json:"routes"`
 	Upstreams      []Upstream      `json:"upstreams"`
+	AuthPolicies   []AuthPolicy    `json:"authPolicies"`
 	PolicyBindings []PolicyBinding `json:"policyBindings"`
 }
 
@@ -96,6 +107,24 @@ type Endpoint struct {
 	Port    int    `json:"port"`
 }
 
+// AuthPolicy 声明认证策略
+type AuthPolicy struct {
+	Metadata Metadata       `json:"metadata"`
+	Spec     AuthPolicySpec `json:"spec"`
+}
+
+// AuthPolicySpec 定义认证策略配置
+type AuthPolicySpec struct {
+	Type   AuthType   `json:"type"`
+	APIKey APIKeyAuth `json:"apiKey"`
+}
+
+// APIKeyAuth 定义 API Key 提取位置
+type APIKeyAuth struct {
+	Header string `json:"header"`
+	Query  string `json:"query"`
+}
+
 // PolicyBinding 声明一组策略绑定到哪个资源
 type PolicyBinding struct {
 	Metadata Metadata          `json:"metadata"`
@@ -116,6 +145,6 @@ type PolicyTargetRef struct {
 
 // PolicyRef 表示被绑定的策略资源引用
 type PolicyRef struct {
-	Kind string `json:"kind"`
+	Kind Kind   `json:"kind"`
 	Name string `json:"name"`
 }

@@ -20,6 +20,7 @@ type gatewayCompiler struct {
 	gatewaysByName       map[string]resource.Gateway
 	routesByName         map[string]bool
 	upstreamsByName      map[string]resource.Upstream
+	authPoliciesByName   map[string]resource.AuthPolicy
 	policyBindingsByName map[string]bool
 }
 
@@ -31,6 +32,7 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 		gatewaysByName:       make(map[string]resource.Gateway, len(bundle.Gateways)),
 		routesByName:         make(map[string]bool, len(bundle.Routes)),
 		upstreamsByName:      make(map[string]resource.Upstream, len(bundle.Upstreams)),
+		authPoliciesByName:   make(map[string]resource.AuthPolicy, len(bundle.AuthPolicies)),
 		policyBindingsByName: make(map[string]bool, len(bundle.PolicyBindings)),
 	}
 
@@ -47,6 +49,9 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexUpstreams(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	if err := c.indexAuthPolicies(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
 	if err := c.indexPolicyBindings(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
@@ -55,13 +60,15 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	policyBindings := c.buildPolicyBindings(routes, upstreamOrder)
 
 	return ir.LogicalGateway{
 		Name:           c.gateway.Metadata.Name,
 		Listeners:      c.buildListeners(),
 		Routes:         routes,
 		Upstreams:      c.buildUsedUpstreams(upstreamOrder),
-		PolicyBindings: c.buildPolicyBindings(routes, upstreamOrder),
+		AuthPolicies:   c.buildAuthPolicies(policyBindings),
+		PolicyBindings: policyBindings,
 	}, nil
 }
 
@@ -109,6 +116,17 @@ func (c *gatewayCompiler) indexUpstreams() error {
 	return nil
 }
 
+func (c *gatewayCompiler) indexAuthPolicies() error {
+	for _, policy := range c.bundle.AuthPolicies {
+		if _, ok := c.authPoliciesByName[policy.Metadata.Name]; ok {
+			return fmt.Errorf("duplicate auth policy %q", policy.Metadata.Name)
+		}
+		c.authPoliciesByName[policy.Metadata.Name] = policy
+	}
+
+	return nil
+}
+
 func (c *gatewayCompiler) indexPolicyBindings() error {
 	for _, binding := range c.bundle.PolicyBindings {
 		if c.policyBindingsByName[binding.Metadata.Name] {
@@ -132,6 +150,17 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 			}
 		default:
 			return fmt.Errorf("policy binding %q references unsupported kind %q", binding.Metadata.Name, target.Kind)
+		}
+
+		for _, policy := range binding.Spec.Policies {
+			switch policy.Kind {
+			case resource.KindAuthPolicy:
+				if _, ok := c.authPoliciesByName[policy.Name]; !ok {
+					return fmt.Errorf("policy binding %q references auth policy %q", binding.Metadata.Name, policy.Name)
+				}
+			default:
+				return fmt.Errorf("policy binding %q references unsupported policy kind %q", binding.Metadata.Name, policy.Kind)
+			}
 		}
 	}
 
@@ -221,6 +250,36 @@ func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.Logica
 	}
 
 	return upstreams
+}
+
+func (c *gatewayCompiler) buildAuthPolicies(bindings []ir.LogicalPolicyBinding) []ir.LogicalAuthPolicy {
+	usedPolicies := make(map[string]bool)
+	var policyOrder []string
+
+	for _, binding := range bindings {
+		for _, policy := range binding.Policies {
+			if policy.Kind != resource.KindAuthPolicy || usedPolicies[policy.Name] {
+				continue
+			}
+			usedPolicies[policy.Name] = true
+			policyOrder = append(policyOrder, policy.Name)
+		}
+	}
+
+	policies := make([]ir.LogicalAuthPolicy, 0, len(policyOrder))
+	for _, name := range policyOrder {
+		policy := c.authPoliciesByName[name]
+		policies = append(policies, ir.LogicalAuthPolicy{
+			Name: policy.Metadata.Name,
+			Type: policy.Spec.Type,
+			APIKey: ir.LogicalAPIKeyAuth{
+				Header: policy.Spec.APIKey.Header,
+				Query:  policy.Spec.APIKey.Query,
+			},
+		})
+	}
+
+	return policies
 }
 
 func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstreamOrder []string) []ir.LogicalPolicyBinding {

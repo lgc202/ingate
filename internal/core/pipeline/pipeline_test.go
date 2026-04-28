@@ -94,6 +94,7 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 				},
 			},
 		},
+		AuthPolicies:   []debug.AuthPolicy{},
 		PolicyBindings: []debug.PolicyBinding{},
 	}
 	if !reflect.DeepEqual(got, want) {
