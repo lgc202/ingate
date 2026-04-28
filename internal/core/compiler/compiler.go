@@ -1,17 +1,18 @@
-// Package compiler turns declared resources into runtime-neutral IR.
+// Package compiler 将声明式资源编译成运行时无关的 IR
 package compiler
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
 	"github.com/lgc202/ingate-next/internal/core/resource"
 )
 
-// Compiler compiles declared resources into logical gateway intent.
+// Compiler 负责把声明式资源编译成逻辑网关模型
 type Compiler struct{}
 
-// CompileGateway compiles one gateway from an in-memory resource bundle.
+// CompileGateway 从内存资源集合中编译指定 Gateway
 func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.LogicalGateway, error) {
 	var gateway resource.Gateway
 	foundGateway := false
@@ -47,20 +48,13 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 	usedUpstreams := make(map[string]bool)
 	var upstreamOrder []string
 	for _, route := range bundle.Routes {
-		attached := false
-		for _, parentRef := range route.Spec.ParentRefs {
-			if parentRef == gatewayName {
-				attached = true
-				break
-			}
-		}
-		if !attached {
+		if !slices.Contains(route.Spec.ParentRefs, gatewayName) {
 			continue
 		}
 
 		logicalRoute := ir.LogicalRoute{
 			Name:      route.Metadata.Name,
-			Hostnames: append([]string(nil), route.Spec.Hostnames...),
+			Hostnames: slices.Clone(route.Spec.Hostnames),
 			Rules:     make([]ir.LogicalRouteRule, 0, len(route.Spec.Rules)),
 		}
 		for _, rule := range route.Spec.Rules {
