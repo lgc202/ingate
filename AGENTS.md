@@ -1,35 +1,90 @@
-# Ingate Next Agent Instructions
+# Ingate Next Agent 工作约定
 
-This repository is a clean rewrite of Ingate.
+这个仓库是 Ingate 的全新重写，不应默认沿用旧 `../ingate` 的命名、目录结构或实现习惯。
 
-## Project Direction
+## 项目方向
 
-- Build a declarative control plane for API gateways, AI gateways, and multi-target traffic runtimes.
-- Do not copy old Ingate naming or structure by default.
-- Prefer precise gateway-domain names. For example, use `Upstream`, not `Backend`.
-- Keep Envoy xDS as one target, not the core abstraction.
+- 构建一个面向 API 网关、AI 网关和多运行时 target 的声明式控制面。
+- 核心抽象优先表达网关领域语义，而不是某个具体数据面实现。
+- Envoy xDS 只是第一个 target，不是核心模型本身。
+- 命名要按新设计重新判断，不要被旧项目影响。例如使用 `Upstream`，不要使用 `Backend`。
 
-## Current Scope
+## 当前范围
 
-The first implementation milestone is:
+第一个实现里程碑只做：
 
 ```text
 Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 ```
 
-Do not add apiserver, etcd, Envoy xDS, plugins, AI runtime, agent, or Kubernetes operator until the core MVP is implemented and reviewed.
+在核心 MVP 实现并评审前，不要加入：
 
-## Development Rules
+- apiserver
+- etcd
+- Envoy xDS server
+- plugin system
+- AI runtime
+- data-plane agent
+- Kubernetes operator
 
-- Use Go 1.26.
-- Keep packages small and purpose-specific.
-- Prefer clear concrete types before introducing interfaces.
-- Add tests with each behavior change.
-- Run `make test` and `make build` before claiming work is complete.
+## Go 版本
 
-## Git Rules
+- 使用 Go 1.26。
+- 完成改动前运行 `make test` 和 `make build`。
 
-- Keep commits focused.
-- Do not modify the old `../ingate` project from this repository.
-- Do not commit generated build outputs or local caches.
+## 编码规范
+
+### 保持代码直接
+
+- 优先写清楚、直接、可读的代码。
+- 不要为了“看起来健壮”写大量没有实际意义的防御性编程。
+- 对外部输入、跨进程边界、持久化数据、网络返回、配置解析等边界必须校验。
+- 对包内刚构造出来、语义已确定的值，不要层层判空或重复校验。
+
+### 控制抽象层级
+
+- 不要封装太多没有明显收益的子函数。
+- 如果一段逻辑只有一个调用点，而且放在当前位置更容易理解，就保持内联。
+- 只有在下面情况才拆函数：
+  - 逻辑本身形成清晰步骤；
+  - 能显著降低当前函数复杂度；
+  - 有真实复用；
+  - 需要隔离可测试的领域逻辑。
+- 调用跳转层级尽量浅，读一条主流程时不应频繁跳 4-5 层才能理解业务含义。
+
+### 函数与 receiver
+
+- 不要写太多游离函数。
+- 如果函数天然属于某个类型的行为，优先收成 method receiver。
+- 只有在下面情况使用游离函数：
+  - 它是纯转换、纯构造、纯校验，并且不属于某个稳定对象；
+  - 它会被多个类型或包共同使用；
+  - 它作为小型 helper 能让调用点更清楚。
+- receiver 名称保持简短、稳定，避免 `this`、`self` 这类命名。
+
+### 接口使用
+
+- 不要提前定义接口。
+- 不允许只为了测试而定义生产代码接口。
+- 接口必须来自真实协作边界，例如：
+  - 多个生产实现；
+  - 外部系统边界；
+  - package 之间需要反转依赖；
+  - 调用方只需要一个很小的能力集合。
+- 接口尽量定义在消费者侧，而不是实现侧。
+- 接口要小，避免胖接口。
+- 生产代码优先返回具体类型，除非隐藏实现细节确实有价值。
+
+### 测试
+
+- 行为变更必须配套测试。
+- 测试优先覆盖领域行为，而不是为了覆盖率测试无意义的转发函数。
+- 不要为了让测试好 mock 而污染生产代码设计。
+- 能直接构造具体类型测试时，不要引入 mock 或接口。
+
+## Git 规则
+
+- 提交要聚焦，一个提交只做一类事情。
+- 不要从这个仓库修改旧项目 `../ingate`。
+- 不要提交 `_output/`、`.gocache/`、`.gomodcache/` 或其它本地构建产物。
 
