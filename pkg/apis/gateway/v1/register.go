@@ -13,6 +13,16 @@ const (
 	Version = "v1"
 )
 
+// ResourceName 表示 gateway.ingate.io 下的资源名
+type ResourceName string
+
+const (
+	// ResourceGateway 表示 Gateway 单数资源名
+	ResourceGateway ResourceName = "gateway"
+	// ResourceGateways 表示 Gateway 复数资源名
+	ResourceGateways ResourceName = "gateways"
+)
+
 // SchemeGroupVersion 表示 Ingate API 组版本
 var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: Version}
 
@@ -21,6 +31,11 @@ var SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 
 // AddToScheme 将 Ingate API 类型注册到 Scheme
 var AddToScheme = SchemeBuilder.AddToScheme
+
+// Resource 返回 gateway.ingate.io 资源名
+func Resource(name ResourceName) schema.GroupResource {
+	return SchemeGroupVersion.WithResource(string(name)).GroupResource()
+}
 
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,

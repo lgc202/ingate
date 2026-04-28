@@ -5,6 +5,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
+	gatewaystorage "github.com/lgc202/ingate-next/internal/apiserver/registry/gateway"
 	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 )
 
@@ -60,9 +61,18 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	)
 
 	storage := c.ExtraConfig.Storage
-	if len(storage) > 0 {
-		apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage
+	if storage == nil {
+		storage = map[string]rest.Storage{}
 	}
+	if _, ok := storage[string(gatewayv1.ResourceGateways)]; !ok {
+		gatewayREST, err := gatewaystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		storage[string(gatewayv1.ResourceGateways)] = gatewayREST
+	}
+	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage
+
 	if err := server.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
 		return nil, err
 	}
