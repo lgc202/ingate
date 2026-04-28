@@ -8,7 +8,9 @@ type LogicalGateway struct {
 	Name              string
 	Listeners         []LogicalListener
 	Routes            []LogicalRoute
+	AIRoutes          []LogicalAIRoute
 	Upstreams         []LogicalUpstream
+	AIProviders       []LogicalAIProvider
 	Plugins           []LogicalPlugin
 	AuthPolicies      []LogicalAuthPolicy
 	RateLimitPolicies []LogicalRateLimitPolicy
@@ -52,6 +54,20 @@ type LogicalUpstreamRef struct {
 	Weight int
 }
 
+// LogicalAIRoute 表示编译后的 AI 路由
+type LogicalAIRoute struct {
+	Name       string
+	PathPrefix string
+	Model      string
+	Providers  []LogicalAIProviderRef
+}
+
+// LogicalAIProviderRef 表示已解析的 AIProvider 引用
+type LogicalAIProviderRef struct {
+	Name   string
+	Weight int
+}
+
 // LogicalUpstream 表示挂载路由实际使用到的编译后 Upstream
 type LogicalUpstream struct {
 	Name      string
@@ -62,6 +78,14 @@ type LogicalUpstream struct {
 type LogicalEndpoint struct {
 	Address string
 	Port    int
+}
+
+// LogicalAIProvider 表示编译后的 AI 模型供应商
+type LogicalAIProvider struct {
+	Name     string
+	Type     resource.AIProviderType
+	Endpoint string
+	Models   []string
 }
 
 // LogicalPlugin 表示编译后的插件声明

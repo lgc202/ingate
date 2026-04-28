@@ -17,6 +17,18 @@ const (
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
 	// KindPlugin 表示 Plugin 资源类型
 	KindPlugin Kind = "Plugin"
+	// KindAIProvider 表示 AIProvider 资源类型
+	KindAIProvider Kind = "AIProvider"
+	// KindAIRoute 表示 AIRoute 资源类型
+	KindAIRoute Kind = "AIRoute"
+)
+
+// AIProviderType 表示 AI 供应商协议类型
+type AIProviderType string
+
+const (
+	// AIProviderTypeOpenAICompatible 表示 OpenAI 兼容协议
+	AIProviderTypeOpenAICompatible AIProviderType = "OpenAICompatible"
 )
 
 // PluginRuntime 表示插件运行时类型
@@ -51,7 +63,9 @@ const (
 type Bundle struct {
 	Gateways          []Gateway         `json:"gateways"`
 	Routes            []Route           `json:"routes"`
+	AIRoutes          []AIRoute         `json:"aiRoutes"`
 	Upstreams         []Upstream        `json:"upstreams"`
+	AIProviders       []AIProvider      `json:"aiProviders"`
 	Plugins           []Plugin          `json:"plugins"`
 	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
@@ -117,6 +131,26 @@ type UpstreamRef struct {
 	Weight int    `json:"weight"`
 }
 
+// AIRoute 声明 AI 请求匹配规则和模型供应商引用
+type AIRoute struct {
+	Metadata Metadata    `json:"metadata"`
+	Spec     AIRouteSpec `json:"spec"`
+}
+
+// AIRouteSpec 定义 AI 路由如何挂载到 Gateway
+type AIRouteSpec struct {
+	ParentRefs   []string        `json:"parentRefs"`
+	PathPrefix   string          `json:"pathPrefix"`
+	Model        string          `json:"model"`
+	ProviderRefs []AIProviderRef `json:"providerRefs"`
+}
+
+// AIProviderRef 表示 AIRoute 中的 AIProvider 引用
+type AIProviderRef struct {
+	Name   string `json:"name"`
+	Weight int    `json:"weight"`
+}
+
 // Upstream 声明一个逻辑上游服务
 type Upstream struct {
 	Metadata Metadata     `json:"metadata"`
@@ -132,6 +166,19 @@ type UpstreamSpec struct {
 type Endpoint struct {
 	Address string `json:"address"`
 	Port    int    `json:"port"`
+}
+
+// AIProvider 声明一个 AI 模型供应商
+type AIProvider struct {
+	Metadata Metadata       `json:"metadata"`
+	Spec     AIProviderSpec `json:"spec"`
+}
+
+// AIProviderSpec 定义 AI 模型供应商入口
+type AIProviderSpec struct {
+	Type     AIProviderType `json:"type"`
+	Endpoint string         `json:"endpoint"`
+	Models   []string       `json:"models"`
 }
 
 // Plugin 声明一个可绑定到网关资源的插件

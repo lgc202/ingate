@@ -86,6 +86,7 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 				},
 			},
 		},
+		AIRoutes: []debug.AIRoute{},
 		Upstreams: []debug.Upstream{
 			{
 				Name: "app",
@@ -94,6 +95,7 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 				},
 			},
 		},
+		AIProviders:       []debug.AIProvider{},
 		Plugins:           []debug.Plugin{},
 		AuthPolicies:      []debug.AuthPolicy{},
 		RateLimitPolicies: []debug.RateLimitPolicy{},
