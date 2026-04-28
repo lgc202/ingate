@@ -48,7 +48,15 @@ type RouteSpec struct {
 // RouteRule 声明一条路由匹配规则和加权 Upstream 集合
 type RouteRule struct {
 	PathPrefix   string        `json:"pathPrefix"`
+	Methods      []string      `json:"methods"`
+	Headers      []HeaderMatch `json:"headers"`
 	UpstreamRefs []UpstreamRef `json:"upstreamRefs"`
+}
+
+// HeaderMatch 表示 HTTP header 精确匹配条件
+type HeaderMatch struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // UpstreamRef 表示 RouteRule 中的 Upstream 引用

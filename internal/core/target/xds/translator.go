@@ -50,7 +50,15 @@ type Route struct {
 
 // RouteMatch 表示 Envoy route match 的内部模型
 type RouteMatch struct {
-	PathPrefix string `json:"pathPrefix"`
+	PathPrefix string        `json:"pathPrefix"`
+	Methods    []string      `json:"methods"`
+	Headers    []HeaderMatch `json:"headers"`
+}
+
+// HeaderMatch 表示 Envoy header matcher 的内部模型
+type HeaderMatch struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // WeightedCluster 表示 Envoy weighted cluster 的内部模型
@@ -109,8 +117,18 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 					Name: route.Name,
 					Match: RouteMatch{
 						PathPrefix: rule.PathPrefix,
+						Methods:    slices.Clone(rule.Methods),
 					},
 					WeightedClusters: make([]WeightedCluster, 0, len(rule.Upstreams)),
+				}
+				if len(rule.Headers) > 0 {
+					xdsRoute.Match.Headers = make([]HeaderMatch, 0, len(rule.Headers))
+					for _, header := range rule.Headers {
+						xdsRoute.Match.Headers = append(xdsRoute.Match.Headers, HeaderMatch{
+							Name:  header.Name,
+							Value: header.Value,
+						})
+					}
 				}
 				for _, upstream := range rule.Upstreams {
 					xdsRoute.WeightedClusters = append(xdsRoute.WeightedClusters, WeightedCluster{

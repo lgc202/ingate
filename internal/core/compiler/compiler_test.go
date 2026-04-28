@@ -31,6 +31,10 @@ func TestCompilerCompileGateway(t *testing.T) {
 					Rules: []resource.RouteRule{
 						{
 							PathPrefix: "/app",
+							Methods:    []string{"GET", "POST"},
+							Headers: []resource.HeaderMatch{
+								{Name: "x-tenant", Value: "acme"},
+							},
 							UpstreamRefs: []resource.UpstreamRef{
 								{Name: "app", Weight: 100},
 							},
@@ -68,6 +72,10 @@ func TestCompilerCompileGateway(t *testing.T) {
 				Rules: []ir.LogicalRouteRule{
 					{
 						PathPrefix: "/app",
+						Methods:    []string{"GET", "POST"},
+						Headers: []ir.LogicalHeaderMatch{
+							{Name: "x-tenant", Value: "acme"},
+						},
 						Upstreams: []ir.LogicalUpstreamRef{
 							{Name: "app", Weight: 100},
 						},
