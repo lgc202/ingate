@@ -54,6 +54,16 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
+		Plugins: []resource.Plugin{
+			{
+				Metadata: resource.Metadata{Name: "audit-log"},
+				Spec: resource.PluginSpec{
+					Runtime:  resource.PluginRuntimeExternal,
+					Version:  "v1",
+					Endpoint: "dns:///audit-plugin:9000",
+				},
+			},
+		},
 		AuthPolicies: []resource.AuthPolicy{
 			{
 				Metadata: resource.Metadata{Name: "required"},
@@ -73,6 +83,25 @@ func TestCompilerCompileGateway(t *testing.T) {
 					WindowSeconds: 60,
 					KeyBy:         resource.RateLimitKeyHeader,
 					Header:        "x-consumer-id",
+				},
+			},
+		},
+		PluginBindings: []resource.PluginBinding{
+			{
+				Metadata: resource.Metadata{Name: "app-audit"},
+				Spec: resource.PluginBindingSpec{
+					TargetRef: resource.PluginTargetRef{
+						Kind: resource.KindRoute,
+						Name: "app",
+					},
+					Plugins: []resource.PluginRef{
+						{
+							Name: "audit-log",
+							Config: map[string]any{
+								"mode": "audit",
+							},
+						},
+					},
 				},
 			},
 		},
@@ -130,6 +159,14 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
+		Plugins: []ir.LogicalPlugin{
+			{
+				Name:     "audit-log",
+				Runtime:  resource.PluginRuntimeExternal,
+				Version:  "v1",
+				Endpoint: "dns:///audit-plugin:9000",
+			},
+		},
 		AuthPolicies: []ir.LogicalAuthPolicy{
 			{
 				Name: "required",
@@ -146,6 +183,23 @@ func TestCompilerCompileGateway(t *testing.T) {
 				WindowSeconds: 60,
 				KeyBy:         resource.RateLimitKeyHeader,
 				Header:        "x-consumer-id",
+			},
+		},
+		PluginBindings: []ir.LogicalPluginBinding{
+			{
+				Name: "app-audit",
+				Target: ir.LogicalPluginTarget{
+					Kind: resource.KindRoute,
+					Name: "app",
+				},
+				Plugins: []ir.LogicalPluginRef{
+					{
+						Name: "audit-log",
+						Config: map[string]any{
+							"mode": "audit",
+						},
+					},
+				},
 			},
 		},
 		PolicyBindings: []ir.LogicalPolicyBinding{
@@ -165,6 +219,44 @@ func TestCompilerCompileGateway(t *testing.T) {
 
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("CompileGateway() = %#v, want %#v", got, want)
+	}
+}
+
+func TestCompilerCompileGatewayMissingPluginRef(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{Metadata: resource.Metadata{Name: "public"}},
+		},
+		Routes: []resource.Route{
+			{
+				Metadata: resource.Metadata{Name: "app"},
+				Spec: resource.RouteSpec{
+					ParentRefs: []string{"public"},
+				},
+			},
+		},
+		PluginBindings: []resource.PluginBinding{
+			{
+				Metadata: resource.Metadata{Name: "app-audit"},
+				Spec: resource.PluginBindingSpec{
+					TargetRef: resource.PluginTargetRef{
+						Kind: resource.KindRoute,
+						Name: "app",
+					},
+					Plugins: []resource.PluginRef{
+						{Name: "missing"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `plugin binding "app-audit" references plugin "missing"`) {
+		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }
 

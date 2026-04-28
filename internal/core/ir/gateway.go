@@ -9,9 +9,11 @@ type LogicalGateway struct {
 	Listeners         []LogicalListener
 	Routes            []LogicalRoute
 	Upstreams         []LogicalUpstream
+	Plugins           []LogicalPlugin
 	AuthPolicies      []LogicalAuthPolicy
 	RateLimitPolicies []LogicalRateLimitPolicy
 	PolicyBindings    []LogicalPolicyBinding
+	PluginBindings    []LogicalPluginBinding
 }
 
 // LogicalListener 表示编译后的 Gateway 监听器
@@ -62,6 +64,15 @@ type LogicalEndpoint struct {
 	Port    int
 }
 
+// LogicalPlugin 表示编译后的插件声明
+type LogicalPlugin struct {
+	Name     string
+	Runtime  resource.PluginRuntime
+	Version  string
+	Endpoint string
+	Image    string
+}
+
 // LogicalAuthPolicy 表示编译后的认证策略
 type LogicalAuthPolicy struct {
 	Name   string
@@ -101,4 +112,23 @@ type LogicalPolicyTarget struct {
 type LogicalPolicyRef struct {
 	Kind resource.Kind
 	Name string
+}
+
+// LogicalPluginBinding 表示编译后的插件绑定关系
+type LogicalPluginBinding struct {
+	Name    string
+	Target  LogicalPluginTarget
+	Plugins []LogicalPluginRef
+}
+
+// LogicalPluginTarget 表示插件绑定目标
+type LogicalPluginTarget struct {
+	Kind resource.Kind
+	Name string
+}
+
+// LogicalPluginRef 表示被绑定的插件引用
+type LogicalPluginRef struct {
+	Name   string
+	Config map[string]any
 }

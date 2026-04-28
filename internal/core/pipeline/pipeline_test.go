@@ -94,9 +94,11 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 				},
 			},
 		},
+		Plugins:           []debug.Plugin{},
 		AuthPolicies:      []debug.AuthPolicy{},
 		RateLimitPolicies: []debug.RateLimitPolicy{},
 		PolicyBindings:    []debug.PolicyBinding{},
+		PluginBindings:    []debug.PluginBinding{},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Config = %#v, want %#v", got, want)

@@ -3,6 +3,7 @@ package compiler
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
@@ -20,9 +21,11 @@ type gatewayCompiler struct {
 	gatewaysByName          map[string]resource.Gateway
 	routesByName            map[string]bool
 	upstreamsByName         map[string]resource.Upstream
+	pluginsByName           map[string]resource.Plugin
 	authPoliciesByName      map[string]resource.AuthPolicy
 	rateLimitPoliciesByName map[string]resource.RateLimitPolicy
 	policyBindingsByName    map[string]bool
+	pluginBindingsByName    map[string]bool
 }
 
 // CompileGateway 从内存资源集合中编译指定 Gateway
@@ -33,9 +36,11 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 		gatewaysByName:          make(map[string]resource.Gateway, len(bundle.Gateways)),
 		routesByName:            make(map[string]bool, len(bundle.Routes)),
 		upstreamsByName:         make(map[string]resource.Upstream, len(bundle.Upstreams)),
+		pluginsByName:           make(map[string]resource.Plugin, len(bundle.Plugins)),
 		authPoliciesByName:      make(map[string]resource.AuthPolicy, len(bundle.AuthPolicies)),
 		rateLimitPoliciesByName: make(map[string]resource.RateLimitPolicy, len(bundle.RateLimitPolicies)),
 		policyBindingsByName:    make(map[string]bool, len(bundle.PolicyBindings)),
+		pluginBindingsByName:    make(map[string]bool, len(bundle.PluginBindings)),
 	}
 
 	return c.compile()
@@ -51,6 +56,9 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexUpstreams(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	if err := c.indexPlugins(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
 	if err := c.indexAuthPolicies(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
@@ -60,21 +68,27 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexPolicyBindings(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	if err := c.indexPluginBindings(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
 
 	routes, upstreamOrder, err := c.buildAttachedRoutes()
 	if err != nil {
 		return ir.LogicalGateway{}, err
 	}
 	policyBindings := c.buildPolicyBindings(routes, upstreamOrder)
+	pluginBindings := c.buildPluginBindings(routes, upstreamOrder)
 
 	return ir.LogicalGateway{
 		Name:              c.gateway.Metadata.Name,
 		Listeners:         c.buildListeners(),
 		Routes:            routes,
 		Upstreams:         c.buildUsedUpstreams(upstreamOrder),
+		Plugins:           c.buildPlugins(pluginBindings),
 		AuthPolicies:      c.buildAuthPolicies(policyBindings),
 		RateLimitPolicies: c.buildRateLimitPolicies(policyBindings),
 		PolicyBindings:    policyBindings,
+		PluginBindings:    pluginBindings,
 	}, nil
 }
 
@@ -117,6 +131,17 @@ func (c *gatewayCompiler) indexUpstreams() error {
 			return fmt.Errorf("duplicate upstream %q", upstream.Metadata.Name)
 		}
 		c.upstreamsByName[upstream.Metadata.Name] = upstream
+	}
+
+	return nil
+}
+
+func (c *gatewayCompiler) indexPlugins() error {
+	for _, plugin := range c.bundle.Plugins {
+		if _, ok := c.pluginsByName[plugin.Metadata.Name]; ok {
+			return fmt.Errorf("duplicate plugin %q", plugin.Metadata.Name)
+		}
+		c.pluginsByName[plugin.Metadata.Name] = plugin
 	}
 
 	return nil
@@ -181,6 +206,41 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 				}
 			default:
 				return fmt.Errorf("policy binding %q references unsupported policy kind %q", binding.Metadata.Name, policy.Kind)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (c *gatewayCompiler) indexPluginBindings() error {
+	for _, binding := range c.bundle.PluginBindings {
+		if c.pluginBindingsByName[binding.Metadata.Name] {
+			return fmt.Errorf("duplicate plugin binding %q", binding.Metadata.Name)
+		}
+		c.pluginBindingsByName[binding.Metadata.Name] = true
+
+		target := binding.Spec.TargetRef
+		switch target.Kind {
+		case resource.KindGateway:
+			if _, ok := c.gatewaysByName[target.Name]; !ok {
+				return fmt.Errorf("plugin binding %q references gateway %q", binding.Metadata.Name, target.Name)
+			}
+		case resource.KindRoute:
+			if !c.routesByName[target.Name] {
+				return fmt.Errorf("plugin binding %q references route %q", binding.Metadata.Name, target.Name)
+			}
+		case resource.KindUpstream:
+			if _, ok := c.upstreamsByName[target.Name]; !ok {
+				return fmt.Errorf("plugin binding %q references upstream %q", binding.Metadata.Name, target.Name)
+			}
+		default:
+			return fmt.Errorf("plugin binding %q references unsupported kind %q", binding.Metadata.Name, target.Kind)
+		}
+
+		for _, plugin := range binding.Spec.Plugins {
+			if _, ok := c.pluginsByName[plugin.Name]; !ok {
+				return fmt.Errorf("plugin binding %q references plugin %q", binding.Metadata.Name, plugin.Name)
 			}
 		}
 	}
@@ -271,6 +331,35 @@ func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.Logica
 	}
 
 	return upstreams
+}
+
+func (c *gatewayCompiler) buildPlugins(bindings []ir.LogicalPluginBinding) []ir.LogicalPlugin {
+	usedPlugins := make(map[string]bool)
+	var pluginOrder []string
+
+	for _, binding := range bindings {
+		for _, plugin := range binding.Plugins {
+			if usedPlugins[plugin.Name] {
+				continue
+			}
+			usedPlugins[plugin.Name] = true
+			pluginOrder = append(pluginOrder, plugin.Name)
+		}
+	}
+
+	plugins := make([]ir.LogicalPlugin, 0, len(pluginOrder))
+	for _, name := range pluginOrder {
+		plugin := c.pluginsByName[name]
+		plugins = append(plugins, ir.LogicalPlugin{
+			Name:     plugin.Metadata.Name,
+			Runtime:  plugin.Spec.Runtime,
+			Version:  plugin.Spec.Version,
+			Endpoint: plugin.Spec.Endpoint,
+			Image:    plugin.Spec.Image,
+		})
+	}
+
+	return plugins
 }
 
 func (c *gatewayCompiler) buildAuthPolicies(bindings []ir.LogicalPolicyBinding) []ir.LogicalAuthPolicy {
@@ -367,6 +456,49 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstream
 			logicalBinding.Policies = append(logicalBinding.Policies, ir.LogicalPolicyRef{
 				Kind: policy.Kind,
 				Name: policy.Name,
+			})
+		}
+		bindings = append(bindings, logicalBinding)
+	}
+
+	return bindings
+}
+
+func (c *gatewayCompiler) buildPluginBindings(routes []ir.LogicalRoute, upstreamOrder []string) []ir.LogicalPluginBinding {
+	routeNames := make(map[string]bool, len(routes))
+	for _, route := range routes {
+		routeNames[route.Name] = true
+	}
+	upstreamNames := make(map[string]bool, len(upstreamOrder))
+	for _, upstreamName := range upstreamOrder {
+		upstreamNames[upstreamName] = true
+	}
+
+	bindings := make([]ir.LogicalPluginBinding, 0, len(c.bundle.PluginBindings))
+	for _, binding := range c.bundle.PluginBindings {
+		target := binding.Spec.TargetRef
+		if target.Kind == resource.KindGateway && target.Name != c.gatewayName {
+			continue
+		}
+		if target.Kind == resource.KindRoute && !routeNames[target.Name] {
+			continue
+		}
+		if target.Kind == resource.KindUpstream && !upstreamNames[target.Name] {
+			continue
+		}
+
+		logicalBinding := ir.LogicalPluginBinding{
+			Name: binding.Metadata.Name,
+			Target: ir.LogicalPluginTarget{
+				Kind: target.Kind,
+				Name: target.Name,
+			},
+			Plugins: make([]ir.LogicalPluginRef, 0, len(binding.Spec.Plugins)),
+		}
+		for _, plugin := range binding.Spec.Plugins {
+			logicalBinding.Plugins = append(logicalBinding.Plugins, ir.LogicalPluginRef{
+				Name:   plugin.Name,
+				Config: maps.Clone(plugin.Config),
 			})
 		}
 		bindings = append(bindings, logicalBinding)
