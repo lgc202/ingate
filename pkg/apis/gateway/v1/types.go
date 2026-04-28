@@ -82,8 +82,11 @@ type ResourceStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
-// Gateway 声明一个流量入口
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +genclient
+// +genclient:nonNamespaced
+
+// Gateway 声明一个流量入口
 type Gateway struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -114,8 +117,11 @@ type Listener struct {
 	Hostname string `json:"hostname"`
 }
 
-// Route 声明请求匹配规则和 Upstream 引用
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +genclient
+// +genclient:nonNamespaced
+
+// Route 声明请求匹配规则和 Upstream 引用
 type Route struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -194,8 +200,11 @@ type AIProviderRef struct {
 	Weight int    `json:"weight"`
 }
 
-// Upstream 声明一个逻辑上游服务
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +genclient
+// +genclient:nonNamespaced
+
+// Upstream 声明一个逻辑上游服务
 type Upstream struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
