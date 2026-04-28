@@ -23,7 +23,9 @@ type Translator struct{}
 type Config struct {
 	Listeners         []Listener        `json:"listeners"`
 	Routes            []Route           `json:"routes"`
+	AIRoutes          []AIRoute         `json:"aiRoutes"`
 	Upstreams         []Upstream        `json:"upstreams"`
+	AIProviders       []AIProvider      `json:"aiProviders"`
 	Plugins           []Plugin          `json:"plugins"`
 	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
@@ -67,6 +69,20 @@ type UpstreamRef struct {
 	Weight int    `json:"weight"`
 }
 
+// AIRoute 表示 debug 配置中的 AI 路由
+type AIRoute struct {
+	Name       string          `json:"name"`
+	PathPrefix string          `json:"pathPrefix"`
+	Model      string          `json:"model"`
+	Providers  []AIProviderRef `json:"providers"`
+}
+
+// AIProviderRef 表示 debug 配置中的 AIProvider 引用
+type AIProviderRef struct {
+	Name   string `json:"name"`
+	Weight int    `json:"weight"`
+}
+
 // Upstream 表示 debug 配置中的上游服务
 type Upstream struct {
 	Name      string     `json:"name"`
@@ -77,6 +93,14 @@ type Upstream struct {
 type Endpoint struct {
 	Address string `json:"address"`
 	Port    int    `json:"port"`
+}
+
+// AIProvider 表示 debug 配置中的 AI 模型供应商
+type AIProvider struct {
+	Name     string                  `json:"name"`
+	Type     resource.AIProviderType `json:"type"`
+	Endpoint string                  `json:"endpoint"`
+	Models   []string                `json:"models"`
 }
 
 // Plugin 表示 debug 配置中的插件声明
@@ -158,7 +182,9 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 	config := Config{
 		Listeners:         make([]Listener, 0, len(logical.Listeners)),
 		Routes:            make([]Route, 0, len(logical.Routes)),
+		AIRoutes:          make([]AIRoute, 0, len(logical.AIRoutes)),
 		Upstreams:         make([]Upstream, 0, len(logical.Upstreams)),
+		AIProviders:       make([]AIProvider, 0, len(logical.AIProviders)),
 		Plugins:           make([]Plugin, 0, len(logical.Plugins)),
 		AuthPolicies:      make([]AuthPolicy, 0, len(logical.AuthPolicies)),
 		RateLimitPolicies: make([]RateLimitPolicy, 0, len(logical.RateLimitPolicies)),
@@ -206,6 +232,21 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		}
 		config.Routes = append(config.Routes, debugRoute)
 	}
+	for _, route := range logical.AIRoutes {
+		debugRoute := AIRoute{
+			Name:       route.Name,
+			PathPrefix: route.PathPrefix,
+			Model:      route.Model,
+			Providers:  make([]AIProviderRef, 0, len(route.Providers)),
+		}
+		for _, provider := range route.Providers {
+			debugRoute.Providers = append(debugRoute.Providers, AIProviderRef{
+				Name:   provider.Name,
+				Weight: provider.Weight,
+			})
+		}
+		config.AIRoutes = append(config.AIRoutes, debugRoute)
+	}
 	for _, upstream := range logical.Upstreams {
 		debugUpstream := Upstream{
 			Name:      upstream.Name,
@@ -218,6 +259,14 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			})
 		}
 		config.Upstreams = append(config.Upstreams, debugUpstream)
+	}
+	for _, provider := range logical.AIProviders {
+		config.AIProviders = append(config.AIProviders, AIProvider{
+			Name:     provider.Name,
+			Type:     provider.Type,
+			Endpoint: provider.Endpoint,
+			Models:   slices.Clone(provider.Models),
+		})
 	}
 	for _, plugin := range logical.Plugins {
 		config.Plugins = append(config.Plugins, Plugin{

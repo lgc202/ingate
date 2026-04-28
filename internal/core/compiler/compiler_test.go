@@ -44,6 +44,19 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
+		AIRoutes: []resource.AIRoute{
+			{
+				Metadata: resource.Metadata{Name: "chat"},
+				Spec: resource.AIRouteSpec{
+					ParentRefs: []string{"public"},
+					PathPrefix: "/v1/chat/completions",
+					Model:      "gpt-4.1-mini",
+					ProviderRefs: []resource.AIProviderRef{
+						{Name: "openai", Weight: 100},
+					},
+				},
+			},
+		},
 		Upstreams: []resource.Upstream{
 			{
 				Metadata: resource.Metadata{Name: "app"},
@@ -51,6 +64,16 @@ func TestCompilerCompileGateway(t *testing.T) {
 					Endpoints: []resource.Endpoint{
 						{Address: "10.0.0.10", Port: 8080},
 					},
+				},
+			},
+		},
+		AIProviders: []resource.AIProvider{
+			{
+				Metadata: resource.Metadata{Name: "openai"},
+				Spec: resource.AIProviderSpec{
+					Type:     resource.AIProviderTypeOpenAICompatible,
+					Endpoint: "https://api.openai.com/v1",
+					Models:   []string{"gpt-4.1-mini"},
 				},
 			},
 		},
@@ -151,12 +174,30 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
+		AIRoutes: []ir.LogicalAIRoute{
+			{
+				Name:       "chat",
+				PathPrefix: "/v1/chat/completions",
+				Model:      "gpt-4.1-mini",
+				Providers: []ir.LogicalAIProviderRef{
+					{Name: "openai", Weight: 100},
+				},
+			},
+		},
 		Upstreams: []ir.LogicalUpstream{
 			{
 				Name: "app",
 				Endpoints: []ir.LogicalEndpoint{
 					{Address: "10.0.0.10", Port: 8080},
 				},
+			},
+		},
+		AIProviders: []ir.LogicalAIProvider{
+			{
+				Name:     "openai",
+				Type:     resource.AIProviderTypeOpenAICompatible,
+				Endpoint: "https://api.openai.com/v1",
+				Models:   []string{"gpt-4.1-mini"},
 			},
 		},
 		Plugins: []ir.LogicalPlugin{
@@ -219,6 +260,35 @@ func TestCompilerCompileGateway(t *testing.T) {
 
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("CompileGateway() = %#v, want %#v", got, want)
+	}
+}
+
+func TestCompilerCompileGatewayMissingAIProvider(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{Metadata: resource.Metadata{Name: "public"}},
+		},
+		AIRoutes: []resource.AIRoute{
+			{
+				Metadata: resource.Metadata{Name: "chat"},
+				Spec: resource.AIRouteSpec{
+					ParentRefs: []string{"public"},
+					PathPrefix: "/v1/chat/completions",
+					Model:      "gpt-4.1-mini",
+					ProviderRefs: []resource.AIProviderRef{
+						{Name: "missing", Weight: 100},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `ai route "chat" references ai provider "missing"`) {
+		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }
 

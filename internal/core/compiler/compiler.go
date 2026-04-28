@@ -20,7 +20,9 @@ type gatewayCompiler struct {
 
 	gatewaysByName          map[string]resource.Gateway
 	routesByName            map[string]bool
+	aiRoutesByName          map[string]bool
 	upstreamsByName         map[string]resource.Upstream
+	aiProvidersByName       map[string]resource.AIProvider
 	pluginsByName           map[string]resource.Plugin
 	authPoliciesByName      map[string]resource.AuthPolicy
 	rateLimitPoliciesByName map[string]resource.RateLimitPolicy
@@ -35,7 +37,9 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 		gatewayName:             gatewayName,
 		gatewaysByName:          make(map[string]resource.Gateway, len(bundle.Gateways)),
 		routesByName:            make(map[string]bool, len(bundle.Routes)),
+		aiRoutesByName:          make(map[string]bool, len(bundle.AIRoutes)),
 		upstreamsByName:         make(map[string]resource.Upstream, len(bundle.Upstreams)),
+		aiProvidersByName:       make(map[string]resource.AIProvider, len(bundle.AIProviders)),
 		pluginsByName:           make(map[string]resource.Plugin, len(bundle.Plugins)),
 		authPoliciesByName:      make(map[string]resource.AuthPolicy, len(bundle.AuthPolicies)),
 		rateLimitPoliciesByName: make(map[string]resource.RateLimitPolicy, len(bundle.RateLimitPolicies)),
@@ -53,7 +57,13 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexRoutes(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	if err := c.indexAIRoutes(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
 	if err := c.indexUpstreams(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
+	if err := c.indexAIProviders(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
 	if err := c.indexPlugins(); err != nil {
@@ -76,6 +86,10 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	aiRoutes, aiProviderOrder, err := c.buildAttachedAIRoutes()
+	if err != nil {
+		return ir.LogicalGateway{}, err
+	}
 	policyBindings := c.buildPolicyBindings(routes, upstreamOrder)
 	pluginBindings := c.buildPluginBindings(routes, upstreamOrder)
 
@@ -83,7 +97,9 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 		Name:              c.gateway.Metadata.Name,
 		Listeners:         c.buildListeners(),
 		Routes:            routes,
+		AIRoutes:          aiRoutes,
 		Upstreams:         c.buildUsedUpstreams(upstreamOrder),
+		AIProviders:       c.buildUsedAIProviders(aiProviderOrder),
 		Plugins:           c.buildPlugins(pluginBindings),
 		AuthPolicies:      c.buildAuthPolicies(policyBindings),
 		RateLimitPolicies: c.buildRateLimitPolicies(policyBindings),
@@ -125,12 +141,39 @@ func (c *gatewayCompiler) indexRoutes() error {
 	return nil
 }
 
+func (c *gatewayCompiler) indexAIRoutes() error {
+	for _, route := range c.bundle.AIRoutes {
+		if c.aiRoutesByName[route.Metadata.Name] {
+			return fmt.Errorf("duplicate ai route %q", route.Metadata.Name)
+		}
+		c.aiRoutesByName[route.Metadata.Name] = true
+		for _, parentRef := range route.Spec.ParentRefs {
+			if _, ok := c.gatewaysByName[parentRef]; !ok {
+				return fmt.Errorf("ai route %q references gateway %q", route.Metadata.Name, parentRef)
+			}
+		}
+	}
+
+	return nil
+}
+
 func (c *gatewayCompiler) indexUpstreams() error {
 	for _, upstream := range c.bundle.Upstreams {
 		if _, ok := c.upstreamsByName[upstream.Metadata.Name]; ok {
 			return fmt.Errorf("duplicate upstream %q", upstream.Metadata.Name)
 		}
 		c.upstreamsByName[upstream.Metadata.Name] = upstream
+	}
+
+	return nil
+}
+
+func (c *gatewayCompiler) indexAIProviders() error {
+	for _, provider := range c.bundle.AIProviders {
+		if _, ok := c.aiProvidersByName[provider.Metadata.Name]; ok {
+			return fmt.Errorf("duplicate ai provider %q", provider.Metadata.Name)
+		}
+		c.aiProvidersByName[provider.Metadata.Name] = provider
 	}
 
 	return nil
@@ -313,6 +356,41 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 	return routes, upstreamOrder, nil
 }
 
+func (c *gatewayCompiler) buildAttachedAIRoutes() ([]ir.LogicalAIRoute, []string, error) {
+	routes := make([]ir.LogicalAIRoute, 0, len(c.bundle.AIRoutes))
+	usedProviders := make(map[string]bool)
+	var providerOrder []string
+
+	for _, route := range c.bundle.AIRoutes {
+		if !slices.Contains(route.Spec.ParentRefs, c.gatewayName) {
+			continue
+		}
+
+		logicalRoute := ir.LogicalAIRoute{
+			Name:       route.Metadata.Name,
+			PathPrefix: route.Spec.PathPrefix,
+			Model:      route.Spec.Model,
+			Providers:  make([]ir.LogicalAIProviderRef, 0, len(route.Spec.ProviderRefs)),
+		}
+		for _, providerRef := range route.Spec.ProviderRefs {
+			if _, ok := c.aiProvidersByName[providerRef.Name]; !ok {
+				return nil, nil, fmt.Errorf("ai route %q references ai provider %q", route.Metadata.Name, providerRef.Name)
+			}
+			logicalRoute.Providers = append(logicalRoute.Providers, ir.LogicalAIProviderRef{
+				Name:   providerRef.Name,
+				Weight: providerRef.Weight,
+			})
+			if !usedProviders[providerRef.Name] {
+				usedProviders[providerRef.Name] = true
+				providerOrder = append(providerOrder, providerRef.Name)
+			}
+		}
+		routes = append(routes, logicalRoute)
+	}
+
+	return routes, providerOrder, nil
+}
+
 func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.LogicalUpstream {
 	upstreams := make([]ir.LogicalUpstream, 0, len(upstreamOrder))
 	for _, name := range upstreamOrder {
@@ -331,6 +409,21 @@ func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.Logica
 	}
 
 	return upstreams
+}
+
+func (c *gatewayCompiler) buildUsedAIProviders(providerOrder []string) []ir.LogicalAIProvider {
+	providers := make([]ir.LogicalAIProvider, 0, len(providerOrder))
+	for _, name := range providerOrder {
+		provider := c.aiProvidersByName[name]
+		providers = append(providers, ir.LogicalAIProvider{
+			Name:     provider.Metadata.Name,
+			Type:     provider.Spec.Type,
+			Endpoint: provider.Spec.Endpoint,
+			Models:   slices.Clone(provider.Spec.Models),
+		})
+	}
+
+	return providers
 }
 
 func (c *gatewayCompiler) buildPlugins(bindings []ir.LogicalPluginBinding) []ir.LogicalPlugin {

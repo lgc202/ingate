@@ -42,12 +42,30 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
+		AIRoutes: []ir.LogicalAIRoute{
+			{
+				Name:       "chat",
+				PathPrefix: "/v1/chat/completions",
+				Model:      "gpt-4.1-mini",
+				Providers: []ir.LogicalAIProviderRef{
+					{Name: "openai", Weight: 100},
+				},
+			},
+		},
 		Upstreams: []ir.LogicalUpstream{
 			{
 				Name: "app",
 				Endpoints: []ir.LogicalEndpoint{
 					{Address: "10.0.0.10", Port: 8080},
 				},
+			},
+		},
+		AIProviders: []ir.LogicalAIProvider{
+			{
+				Name:     "openai",
+				Type:     resource.AIProviderTypeOpenAICompatible,
+				Endpoint: "https://api.openai.com/v1",
+				Models:   []string{"gpt-4.1-mini"},
 			},
 		},
 		Plugins: []ir.LogicalPlugin{
@@ -150,12 +168,30 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
+		AIRoutes: []debug.AIRoute{
+			{
+				Name:       "chat",
+				PathPrefix: "/v1/chat/completions",
+				Model:      "gpt-4.1-mini",
+				Providers: []debug.AIProviderRef{
+					{Name: "openai", Weight: 100},
+				},
+			},
+		},
 		Upstreams: []debug.Upstream{
 			{
 				Name: "app",
 				Endpoints: []debug.Endpoint{
 					{Address: "10.0.0.10", Port: 8080},
 				},
+			},
+		},
+		AIProviders: []debug.AIProvider{
+			{
+				Name:     "openai",
+				Type:     resource.AIProviderTypeOpenAICompatible,
+				Endpoint: "https://api.openai.com/v1",
+				Models:   []string{"gpt-4.1-mini"},
 			},
 		},
 		Plugins: []debug.Plugin{
