@@ -174,6 +174,52 @@ func TestPipelineBuildGatewaySnapshotForTarget(t *testing.T) {
 	}
 }
 
+func TestPipelineBuildGatewaySnapshotsForTarget(t *testing.T) {
+	registry, err := target.NewRegistry(debug.Translator{})
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{
+				Metadata: resource.Metadata{Name: "public"},
+				Spec: resource.GatewaySpec{
+					Listeners: []resource.Listener{
+						{Name: "http", Protocol: "HTTP", Port: 80},
+					},
+				},
+			},
+			{
+				Metadata: resource.Metadata{Name: "admin"},
+				Spec: resource.GatewaySpec{
+					Listeners: []resource.Listener{
+						{Name: "http", Protocol: "HTTP", Port: 8080},
+					},
+				},
+			},
+		},
+	}
+
+	snapshots, err := (pipeline.Pipeline{Registry: registry}).BuildGatewaySnapshotsForTarget(bundle, "debug")
+	if err != nil {
+		t.Fatalf("BuildGatewaySnapshotsForTarget() error = %v", err)
+	}
+
+	wantGateways := []string{"public", "admin"}
+	if len(snapshots) != len(wantGateways) {
+		t.Fatalf("BuildGatewaySnapshotsForTarget() len = %d, want %d", len(snapshots), len(wantGateways))
+	}
+	for i, wantGateway := range wantGateways {
+		if snapshots[i].Gateway != wantGateway {
+			t.Fatalf("BuildGatewaySnapshotsForTarget()[%d].Gateway = %q, want %q", i, snapshots[i].Gateway, wantGateway)
+		}
+		if snapshots[i].Target != "debug" {
+			t.Fatalf("BuildGatewaySnapshotsForTarget()[%d].Target = %q, want debug", i, snapshots[i].Target)
+		}
+	}
+}
+
 func TestPipelineBuildGatewaySnapshotForTargetMissingTarget(t *testing.T) {
 	registry, err := target.NewRegistry(debug.Translator{})
 	if err != nil {
