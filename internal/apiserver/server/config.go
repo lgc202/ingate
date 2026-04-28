@@ -6,6 +6,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	gatewaystorage "github.com/lgc202/ingate-next/internal/apiserver/registry/gateway"
+	routestorage "github.com/lgc202/ingate-next/internal/apiserver/registry/route"
 	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 )
 
@@ -76,6 +77,20 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		}
 		if !hasGatewayStatus {
 			storage[string(gatewayv1.ResourceGatewaysStatus)] = gatewayStatusREST
+		}
+	}
+	_, hasRoute := storage[string(gatewayv1.ResourceRoutes)]
+	_, hasRouteStatus := storage[string(gatewayv1.ResourceRoutesStatus)]
+	if !hasRoute || !hasRouteStatus {
+		routeREST, routeStatusREST, err := routestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasRoute {
+			storage[string(gatewayv1.ResourceRoutes)] = routeREST
+		}
+		if !hasRouteStatus {
+			storage[string(gatewayv1.ResourceRoutesStatus)] = routeStatusREST
 		}
 	}
 	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage
