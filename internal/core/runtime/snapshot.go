@@ -3,8 +3,8 @@ package runtime
 
 // RuntimeSnapshot 表示一个运行时 target 可消费的编译配置快照
 type RuntimeSnapshot struct {
-	Target  string
-	Gateway string
-	Version string
-	Config  any
+	Target  string `json:"target"`
+	Gateway string `json:"gateway"`
+	Version string `json:"version"`
+	Config  any    `json:"config"`
 }
