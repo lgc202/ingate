@@ -5,8 +5,16 @@ import (
 	"testing"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
+	"github.com/lgc202/ingate-next/internal/core/target"
 	"github.com/lgc202/ingate-next/internal/core/target/debug"
 )
+
+func TestTranslatorImplementsTargetTranslator(t *testing.T) {
+	var translator target.Translator = debug.Translator{}
+	if translator.Target() != "debug" {
+		t.Fatalf("Target() = %q, want debug", translator.Target())
+	}
+}
 
 func TestTranslatorTranslate(t *testing.T) {
 	logical := ir.LogicalGateway{
@@ -38,7 +46,10 @@ func TestTranslatorTranslate(t *testing.T) {
 		},
 	}
 
-	snapshot := (debug.Translator{}).Translate(logical)
+	snapshot, err := (debug.Translator{}).Translate(logical)
+	if err != nil {
+		t.Fatalf("Translate() error = %v", err)
+	}
 	if snapshot.Target != "debug" {
 		t.Fatalf("Target = %q, want debug", snapshot.Target)
 	}

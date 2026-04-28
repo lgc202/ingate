@@ -100,6 +100,30 @@ func TestCompilerCompileGatewayMissingGateway(t *testing.T) {
 	}
 }
 
+func TestCompilerCompileGatewayMissingRouteParent(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{Metadata: resource.Metadata{Name: "public"}},
+		},
+		Routes: []resource.Route{
+			{
+				Metadata: resource.Metadata{Name: "app"},
+				Spec: resource.RouteSpec{
+					ParentRefs: []string{"missing"},
+				},
+			},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `route "app" references gateway "missing"`) {
+		t.Fatalf("CompileGateway() error = %v", err)
+	}
+}
+
 func TestCompilerCompileGatewayMissingUpstream(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{

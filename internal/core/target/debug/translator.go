@@ -58,8 +58,13 @@ type Endpoint struct {
 	Port    int
 }
 
+// Target 返回运行时 target 名称
+func (Translator) Target() string {
+	return "debug"
+}
+
 // Translate 将逻辑网关模型转换成 debug 运行时快照
-func (Translator) Translate(logical ir.LogicalGateway) runtime.RuntimeSnapshot {
+func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapshot, error) {
 	config := Config{
 		Listeners: make([]Listener, 0, len(logical.Listeners)),
 		Routes:    make([]Route, 0, len(logical.Routes)),
@@ -110,9 +115,9 @@ func (Translator) Translate(logical ir.LogicalGateway) runtime.RuntimeSnapshot {
 	}
 
 	return runtime.RuntimeSnapshot{
-		Target:  "debug",
+		Target:  t.Target(),
 		Gateway: logical.Name,
 		Version: fmt.Sprintf("debug/%s", logical.Name),
 		Config:  config,
-	}
+	}, nil
 }

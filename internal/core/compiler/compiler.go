@@ -27,6 +27,18 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 		return ir.LogicalGateway{}, fmt.Errorf("gateway %q not found", gatewayName)
 	}
 
+	gatewaysByName := make(map[string]bool, len(bundle.Gateways))
+	for _, item := range bundle.Gateways {
+		gatewaysByName[item.Metadata.Name] = true
+	}
+	for _, route := range bundle.Routes {
+		for _, parentRef := range route.Spec.ParentRefs {
+			if !gatewaysByName[parentRef] {
+				return ir.LogicalGateway{}, fmt.Errorf("route %q references gateway %q", route.Metadata.Name, parentRef)
+			}
+		}
+	}
+
 	upstreamsByName := make(map[string]resource.Upstream, len(bundle.Upstreams))
 	for _, upstream := range bundle.Upstreams {
 		upstreamsByName[upstream.Metadata.Name] = upstream
