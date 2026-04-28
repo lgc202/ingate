@@ -14,48 +14,48 @@ type Translator struct{}
 
 // Config 表示 debug target 的配置载荷
 type Config struct {
-	Listeners []Listener
-	Routes    []Route
-	Upstreams []Upstream
+	Listeners []Listener `json:"listeners"`
+	Routes    []Route    `json:"routes"`
+	Upstreams []Upstream `json:"upstreams"`
 }
 
 // Listener 表示 debug 配置中的监听器
 type Listener struct {
-	Name     string
-	Protocol string
-	Port     int
-	Hostname string
+	Name     string `json:"name"`
+	Protocol string `json:"protocol"`
+	Port     int    `json:"port"`
+	Hostname string `json:"hostname"`
 }
 
 // Route 表示 debug 配置中的路由
 type Route struct {
-	Name      string
-	Hostnames []string
-	Rules     []RouteRule
+	Name      string      `json:"name"`
+	Hostnames []string    `json:"hostnames"`
+	Rules     []RouteRule `json:"rules"`
 }
 
 // RouteRule 表示 debug 配置中的路由规则
 type RouteRule struct {
-	PathPrefix string
-	Upstreams  []UpstreamRef
+	PathPrefix string        `json:"pathPrefix"`
+	Upstreams  []UpstreamRef `json:"upstreams"`
 }
 
 // UpstreamRef 表示 debug 配置中的 Upstream 引用
 type UpstreamRef struct {
-	Name   string
-	Weight int
+	Name   string `json:"name"`
+	Weight int    `json:"weight"`
 }
 
 // Upstream 表示 debug 配置中的上游服务
 type Upstream struct {
-	Name      string
-	Endpoints []Endpoint
+	Name      string     `json:"name"`
+	Endpoints []Endpoint `json:"endpoints"`
 }
 
 // Endpoint 表示 debug 配置中的上游端点
 type Endpoint struct {
-	Address string
-	Port    int
+	Address string `json:"address"`
+	Port    int    `json:"port"`
 }
 
 // Target 返回运行时 target 名称

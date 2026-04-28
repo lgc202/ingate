@@ -14,61 +14,61 @@ type Translator struct{}
 
 // Config 表示 xDS target 的内部配置载荷
 type Config struct {
-	Listeners    []Listener
-	RouteConfigs []RouteConfig
-	Clusters     []Cluster
+	Listeners    []Listener    `json:"listeners"`
+	RouteConfigs []RouteConfig `json:"routeConfigs"`
+	Clusters     []Cluster     `json:"clusters"`
 }
 
 // Listener 表示 Envoy listener 的内部模型
 type Listener struct {
-	Name            string
-	Protocol        string
-	Port            int
-	Hostname        string
-	RouteConfigName string
+	Name            string `json:"name"`
+	Protocol        string `json:"protocol"`
+	Port            int    `json:"port"`
+	Hostname        string `json:"hostname"`
+	RouteConfigName string `json:"routeConfigName"`
 }
 
 // RouteConfig 表示 Envoy route configuration 的内部模型
 type RouteConfig struct {
-	Name         string
-	VirtualHosts []VirtualHost
+	Name         string        `json:"name"`
+	VirtualHosts []VirtualHost `json:"virtualHosts"`
 }
 
 // VirtualHost 表示 Envoy virtual host 的内部模型
 type VirtualHost struct {
-	Name    string
-	Domains []string
-	Routes  []Route
+	Name    string   `json:"name"`
+	Domains []string `json:"domains"`
+	Routes  []Route  `json:"routes"`
 }
 
 // Route 表示 Envoy route 的内部模型
 type Route struct {
-	Name             string
-	Match            RouteMatch
-	WeightedClusters []WeightedCluster
+	Name             string            `json:"name"`
+	Match            RouteMatch        `json:"match"`
+	WeightedClusters []WeightedCluster `json:"weightedClusters"`
 }
 
 // RouteMatch 表示 Envoy route match 的内部模型
 type RouteMatch struct {
-	PathPrefix string
+	PathPrefix string `json:"pathPrefix"`
 }
 
 // WeightedCluster 表示 Envoy weighted cluster 的内部模型
 type WeightedCluster struct {
-	Name   string
-	Weight int
+	Name   string `json:"name"`
+	Weight int    `json:"weight"`
 }
 
 // Cluster 表示 Envoy cluster 的内部模型
 type Cluster struct {
-	Name      string
-	Endpoints []Endpoint
+	Name      string     `json:"name"`
+	Endpoints []Endpoint `json:"endpoints"`
 }
 
 // Endpoint 表示 Envoy endpoint 的内部模型
 type Endpoint struct {
-	Address string
-	Port    int
+	Address string `json:"address"`
+	Port    int    `json:"port"`
 }
 
 // Target 返回运行时 target 名称
