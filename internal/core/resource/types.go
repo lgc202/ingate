@@ -1,7 +1,9 @@
-// Package resource 定义声明式控制面资源
 package resource
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+)
 
 // Kind 表示声明式资源类型
 type Kind string
@@ -81,12 +83,22 @@ type ResourceStatus struct {
 }
 
 // Gateway 声明一个流量入口
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Gateway struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   GatewaySpec    `json:"spec,omitempty"`
 	Status ResourceStatus `json:"status,omitempty"`
+}
+
+// GatewayList 表示 Gateway 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type GatewayList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Gateway `json:"items"`
 }
 
 // GatewaySpec 定义 Gateway 的监听器
@@ -103,12 +115,22 @@ type Listener struct {
 }
 
 // Route 声明请求匹配规则和 Upstream 引用
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Route struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   RouteSpec      `json:"spec,omitempty"`
 	Status ResourceStatus `json:"status,omitempty"`
+}
+
+// RouteList 表示 Route 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type RouteList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Route `json:"items"`
 }
 
 // RouteSpec 定义 Route 如何挂载到 Gateway
@@ -140,12 +162,22 @@ type UpstreamRef struct {
 }
 
 // AIRoute 声明 AI 请求匹配规则和模型供应商引用
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type AIRoute struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   AIRouteSpec    `json:"spec,omitempty"`
 	Status ResourceStatus `json:"status,omitempty"`
+}
+
+// AIRouteList 表示 AIRoute 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type AIRouteList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []AIRoute `json:"items"`
 }
 
 // AIRouteSpec 定义 AI 路由如何挂载到 Gateway
@@ -163,12 +195,22 @@ type AIProviderRef struct {
 }
 
 // Upstream 声明一个逻辑上游服务
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Upstream struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   UpstreamSpec   `json:"spec,omitempty"`
 	Status ResourceStatus `json:"status,omitempty"`
+}
+
+// UpstreamList 表示 Upstream 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type UpstreamList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Upstream `json:"items"`
 }
 
 // UpstreamSpec 定义 Upstream 的端点集合
@@ -183,12 +225,22 @@ type Endpoint struct {
 }
 
 // AIProvider 声明一个 AI 模型供应商
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type AIProvider struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   AIProviderSpec `json:"spec,omitempty"`
 	Status ResourceStatus `json:"status,omitempty"`
+}
+
+// AIProviderList 表示 AIProvider 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type AIProviderList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []AIProvider `json:"items"`
 }
 
 // AIProviderSpec 定义 AI 模型供应商入口
@@ -199,12 +251,22 @@ type AIProviderSpec struct {
 }
 
 // Plugin 声明一个可绑定到网关资源的插件
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type Plugin struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   PluginSpec     `json:"spec,omitempty"`
 	Status ResourceStatus `json:"status,omitempty"`
+}
+
+// PluginList 表示 Plugin 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type PluginList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []Plugin `json:"items"`
 }
 
 // PluginSpec 定义插件运行时和入口
@@ -216,12 +278,22 @@ type PluginSpec struct {
 }
 
 // AuthPolicy 声明认证策略
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type AuthPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   AuthPolicySpec `json:"spec,omitempty"`
 	Status ResourceStatus `json:"status,omitempty"`
+}
+
+// AuthPolicyList 表示 AuthPolicy 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type AuthPolicyList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []AuthPolicy `json:"items"`
 }
 
 // AuthPolicySpec 定义认证策略配置
@@ -237,12 +309,22 @@ type APIKeyAuth struct {
 }
 
 // RateLimitPolicy 声明限流策略
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type RateLimitPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   RateLimitPolicySpec `json:"spec,omitempty"`
 	Status ResourceStatus      `json:"status,omitempty"`
+}
+
+// RateLimitPolicyList 表示 RateLimitPolicy 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type RateLimitPolicyList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []RateLimitPolicy `json:"items"`
 }
 
 // RateLimitPolicySpec 定义限流策略配置
@@ -254,12 +336,22 @@ type RateLimitPolicySpec struct {
 }
 
 // PluginBinding 声明一组插件绑定到哪个资源
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PluginBinding struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   PluginBindingSpec `json:"spec,omitempty"`
 	Status ResourceStatus    `json:"status,omitempty"`
+}
+
+// PluginBindingList 表示 PluginBinding 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type PluginBindingList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []PluginBinding `json:"items"`
 }
 
 // PluginBindingSpec 定义插件绑定目标和插件引用
@@ -276,17 +368,27 @@ type PluginTargetRef struct {
 
 // PluginRef 表示被绑定的插件引用
 type PluginRef struct {
-	Name   string         `json:"name"`
-	Config map[string]any `json:"config"`
+	Name   string               `json:"name"`
+	Config runtime.RawExtension `json:"config,omitempty"`
 }
 
 // PolicyBinding 声明一组策略绑定到哪个资源
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type PolicyBinding struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   PolicyBindingSpec `json:"spec,omitempty"`
 	Status ResourceStatus    `json:"status,omitempty"`
+}
+
+// PolicyBindingList 表示 PolicyBinding 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type PolicyBindingList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []PolicyBinding `json:"items"`
 }
 
 // PolicyBindingSpec 定义策略绑定目标和策略引用

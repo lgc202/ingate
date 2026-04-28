@@ -1,7 +1,11 @@
 // Package ir 定义运行时无关的网关编译结果
 package ir
 
-import "github.com/lgc202/ingate-next/internal/core/resource"
+import (
+	"encoding/json"
+
+	"github.com/lgc202/ingate-next/internal/core/resource"
+)
 
 // LogicalGateway 表示一个 Gateway 编译后的运行时无关模型
 type LogicalGateway struct {
@@ -154,5 +158,5 @@ type LogicalPluginTarget struct {
 // LogicalPluginRef 表示被绑定的插件引用
 type LogicalPluginRef struct {
 	Name   string
-	Config map[string]any
+	Config json.RawMessage
 }

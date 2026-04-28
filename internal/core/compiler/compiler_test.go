@@ -1,6 +1,7 @@
 package compiler_test
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/lgc202/ingate-next/internal/core/ir"
 	"github.com/lgc202/ingate-next/internal/core/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func TestCompilerCompileGateway(t *testing.T) {
@@ -120,10 +122,8 @@ func TestCompilerCompileGateway(t *testing.T) {
 					},
 					Plugins: []resource.PluginRef{
 						{
-							Name: "audit-log",
-							Config: map[string]any{
-								"mode": "audit",
-							},
+							Name:   "audit-log",
+							Config: runtime.RawExtension{Raw: []byte(`{"mode":"audit"}`)},
 						},
 					},
 				},
@@ -236,10 +236,8 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 				Plugins: []ir.LogicalPluginRef{
 					{
-						Name: "audit-log",
-						Config: map[string]any{
-							"mode": "audit",
-						},
+						Name:   "audit-log",
+						Config: json.RawMessage(`{"mode":"audit"}`),
 					},
 				},
 			},
