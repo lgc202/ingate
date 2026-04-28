@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
+	"github.com/lgc202/ingate-next/internal/core/resource"
 	"github.com/lgc202/ingate-next/internal/core/target"
 	"github.com/lgc202/ingate-next/internal/core/target/debug"
 )
@@ -46,6 +47,18 @@ func TestTranslatorTranslate(t *testing.T) {
 				Name: "app",
 				Endpoints: []ir.LogicalEndpoint{
 					{Address: "10.0.0.10", Port: 8080},
+				},
+			},
+		},
+		PolicyBindings: []ir.LogicalPolicyBinding{
+			{
+				Name: "app-auth",
+				Target: ir.LogicalPolicyTarget{
+					Kind: resource.ResourceKindRoute,
+					Name: "app",
+				},
+				Policies: []ir.LogicalPolicyRef{
+					{Kind: "AuthPolicy", Name: "required"},
 				},
 			},
 		},
@@ -98,6 +111,18 @@ func TestTranslatorTranslate(t *testing.T) {
 				Name: "app",
 				Endpoints: []debug.Endpoint{
 					{Address: "10.0.0.10", Port: 8080},
+				},
+			},
+		},
+		PolicyBindings: []debug.PolicyBinding{
+			{
+				Name: "app-auth",
+				Target: debug.PolicyTarget{
+					Kind: resource.ResourceKindRoute,
+					Name: "app",
+				},
+				Policies: []debug.PolicyRef{
+					{Kind: "AuthPolicy", Name: "required"},
 				},
 			},
 		},

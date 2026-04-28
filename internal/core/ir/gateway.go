@@ -3,10 +3,11 @@ package ir
 
 // LogicalGateway 表示一个 Gateway 编译后的运行时无关模型
 type LogicalGateway struct {
-	Name      string
-	Listeners []LogicalListener
-	Routes    []LogicalRoute
-	Upstreams []LogicalUpstream
+	Name           string
+	Listeners      []LogicalListener
+	Routes         []LogicalRoute
+	Upstreams      []LogicalUpstream
+	PolicyBindings []LogicalPolicyBinding
 }
 
 // LogicalListener 表示编译后的 Gateway 监听器
@@ -55,4 +56,23 @@ type LogicalUpstream struct {
 type LogicalEndpoint struct {
 	Address string
 	Port    int
+}
+
+// LogicalPolicyBinding 表示编译后的策略绑定关系
+type LogicalPolicyBinding struct {
+	Name     string
+	Target   LogicalPolicyTarget
+	Policies []LogicalPolicyRef
+}
+
+// LogicalPolicyTarget 表示策略绑定目标
+type LogicalPolicyTarget struct {
+	Kind string
+	Name string
+}
+
+// LogicalPolicyRef 表示被绑定的策略引用
+type LogicalPolicyRef struct {
+	Kind string
+	Name string
 }
