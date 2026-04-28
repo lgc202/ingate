@@ -32,6 +32,25 @@ func (p Pipeline) BuildGatewaySnapshotForTarget(bundle resource.Bundle, gatewayN
 	return p.buildGatewaySnapshot(bundle, gatewayName, translator)
 }
 
+// BuildGatewaySnapshotsForTarget 按 target 名称构建所有 Gateway 的运行时快照
+func (p Pipeline) BuildGatewaySnapshotsForTarget(bundle resource.Bundle, targetName string) ([]runtime.RuntimeSnapshot, error) {
+	translator, ok := p.Registry.Get(targetName)
+	if !ok {
+		return nil, fmt.Errorf("target %q not registered", targetName)
+	}
+
+	snapshots := make([]runtime.RuntimeSnapshot, 0, len(bundle.Gateways))
+	for _, gateway := range bundle.Gateways {
+		snapshot, err := p.buildGatewaySnapshot(bundle, gateway.Metadata.Name, translator)
+		if err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+
+	return snapshots, nil
+}
+
 func (p Pipeline) buildGatewaySnapshot(bundle resource.Bundle, gatewayName string, translator target.Translator) (runtime.RuntimeSnapshot, error) {
 	logical, err := p.Compiler.CompileGateway(bundle, gatewayName)
 	if err != nil {
