@@ -11,18 +11,26 @@
 
 ## 当前范围
 
-第一个实现里程碑只做：
+第一个实现里程碑已经完成核心编译链路：
 
 ```text
 Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 ```
 
-在核心 MVP 实现并评审前，不要加入：
+当前阶段开始划分长期服务边界，但只做必要入口，不提前实现临时 store、复杂 controller、真实 xDS 协议或 AI runtime。
 
-- apiserver
+第一批服务边界：
+
+- `ingate`：CLI 和本地调试入口
+- `ingate-admin-api`：前端管理 API
+- `ingate-apiserver`：声明式资源 API
+- `ingate-controller`：资源状态收敛
+- `ingate-xds`：Envoy xDS 配置服务
+
+暂时不加入：
+
 - etcd
-- Envoy xDS server
-- plugin system
+- plugin runtime
 - AI runtime
 - data-plane agent
 - Kubernetes operator
