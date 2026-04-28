@@ -2,8 +2,8 @@
 package debug
 
 import (
+	"encoding/json"
 	"fmt"
-	"maps"
 	"slices"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
@@ -168,8 +168,8 @@ type PluginTarget struct {
 
 // PluginRef 表示 debug 配置中的插件引用
 type PluginRef struct {
-	Name   string         `json:"name"`
-	Config map[string]any `json:"config"`
+	Name   string          `json:"name"`
+	Config json.RawMessage `json:"config,omitempty"`
 }
 
 // Target 返回运行时 target 名称
@@ -325,7 +325,7 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		for _, plugin := range binding.Plugins {
 			debugBinding.Plugins = append(debugBinding.Plugins, PluginRef{
 				Name:   plugin.Name,
-				Config: maps.Clone(plugin.Config),
+				Config: slices.Clone(plugin.Config),
 			})
 		}
 		config.PluginBindings = append(config.PluginBindings, debugBinding)

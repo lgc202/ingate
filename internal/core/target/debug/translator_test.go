@@ -1,6 +1,7 @@
 package debug_test
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -103,10 +104,8 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 				Plugins: []ir.LogicalPluginRef{
 					{
-						Name: "audit-log",
-						Config: map[string]any{
-							"mode": "audit",
-						},
+						Name:   "audit-log",
+						Config: json.RawMessage(`{"mode":"audit"}`),
 					},
 				},
 			},
@@ -229,10 +228,8 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 				Plugins: []debug.PluginRef{
 					{
-						Name: "audit-log",
-						Config: map[string]any{
-							"mode": "audit",
-						},
+						Name:   "audit-log",
+						Config: json.RawMessage(`{"mode":"audit"}`),
 					},
 				},
 			},

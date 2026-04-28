@@ -3,7 +3,6 @@ package compiler
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
@@ -597,7 +596,7 @@ func (c *gatewayCompiler) buildPluginBindings(routes []ir.LogicalRoute, upstream
 		for _, plugin := range binding.Spec.Plugins {
 			logicalBinding.Plugins = append(logicalBinding.Plugins, ir.LogicalPluginRef{
 				Name:   plugin.Name,
-				Config: maps.Clone(plugin.Config),
+				Config: slices.Clone(plugin.Config.Raw),
 			})
 		}
 		bindings = append(bindings, logicalBinding)
