@@ -133,9 +133,10 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 		}
 		for _, rule := range route.Spec.Rules {
 			logicalRule := ir.LogicalRouteRule{
-				PathPrefix: rule.PathPrefix,
-				Methods:    slices.Clone(rule.Methods),
-				Upstreams:  make([]ir.LogicalUpstreamRef, 0, len(rule.UpstreamRefs)),
+				PathPrefix:    rule.PathPrefix,
+				Methods:       slices.Clone(rule.Methods),
+				TimeoutMillis: rule.TimeoutMillis,
+				Upstreams:     make([]ir.LogicalUpstreamRef, 0, len(rule.UpstreamRefs)),
 			}
 			if len(rule.Headers) > 0 {
 				logicalRule.Headers = make([]ir.LogicalHeaderMatch, 0, len(rule.Headers))

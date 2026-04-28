@@ -46,6 +46,7 @@ type VirtualHost struct {
 type Route struct {
 	Name             string            `json:"name"`
 	Match            RouteMatch        `json:"match"`
+	TimeoutMillis    int               `json:"timeoutMillis"`
 	WeightedClusters []WeightedCluster `json:"weightedClusters"`
 }
 
@@ -126,6 +127,7 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 						PathPrefix: rule.PathPrefix,
 						Methods:    slices.Clone(rule.Methods),
 					},
+					TimeoutMillis:    rule.TimeoutMillis,
 					WeightedClusters: make([]WeightedCluster, 0, len(rule.Upstreams)),
 				}
 				if len(rule.Headers) > 0 {

@@ -30,8 +30,9 @@ func TestCompilerCompileGateway(t *testing.T) {
 					Hostnames:  []string{"example.com"},
 					Rules: []resource.RouteRule{
 						{
-							PathPrefix: "/app",
-							Methods:    []string{"GET", "POST"},
+							PathPrefix:    "/app",
+							Methods:       []string{"GET", "POST"},
+							TimeoutMillis: 3000,
 							Headers: []resource.HeaderMatch{
 								{Name: "x-tenant", Value: "acme"},
 							},
@@ -71,8 +72,9 @@ func TestCompilerCompileGateway(t *testing.T) {
 				Hostnames: []string{"example.com"},
 				Rules: []ir.LogicalRouteRule{
 					{
-						PathPrefix: "/app",
-						Methods:    []string{"GET", "POST"},
+						PathPrefix:    "/app",
+						Methods:       []string{"GET", "POST"},
+						TimeoutMillis: 3000,
 						Headers: []ir.LogicalHeaderMatch{
 							{Name: "x-tenant", Value: "acme"},
 						},
