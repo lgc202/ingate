@@ -1,6 +1,8 @@
 // Package resource 定义声明式控制面资源
 package resource
 
+import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 // Kind 表示声明式资源类型
 type Kind string
 
@@ -59,7 +61,7 @@ const (
 	RateLimitKeyHeader RateLimitKey = "Header"
 )
 
-// Bundle 表示一次内存编译所需的资源集合
+// Bundle 表示一次编译所需的资源集合
 type Bundle struct {
 	Gateways          []Gateway         `json:"gateways"`
 	Routes            []Route           `json:"routes"`
@@ -73,15 +75,18 @@ type Bundle struct {
 	PluginBindings    []PluginBinding   `json:"pluginBindings"`
 }
 
-// Metadata 标识一个声明式资源
-type Metadata struct {
-	Name string `json:"name"`
+// ResourceStatus 表示声明式资源状态
+type ResourceStatus struct {
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // Gateway 声明一个流量入口
 type Gateway struct {
-	Metadata Metadata    `json:"metadata"`
-	Spec     GatewaySpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   GatewaySpec    `json:"spec,omitempty"`
+	Status ResourceStatus `json:"status,omitempty"`
 }
 
 // GatewaySpec 定义 Gateway 的监听器
@@ -99,8 +104,11 @@ type Listener struct {
 
 // Route 声明请求匹配规则和 Upstream 引用
 type Route struct {
-	Metadata Metadata  `json:"metadata"`
-	Spec     RouteSpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   RouteSpec      `json:"spec,omitempty"`
+	Status ResourceStatus `json:"status,omitempty"`
 }
 
 // RouteSpec 定义 Route 如何挂载到 Gateway
@@ -133,8 +141,11 @@ type UpstreamRef struct {
 
 // AIRoute 声明 AI 请求匹配规则和模型供应商引用
 type AIRoute struct {
-	Metadata Metadata    `json:"metadata"`
-	Spec     AIRouteSpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   AIRouteSpec    `json:"spec,omitempty"`
+	Status ResourceStatus `json:"status,omitempty"`
 }
 
 // AIRouteSpec 定义 AI 路由如何挂载到 Gateway
@@ -153,8 +164,11 @@ type AIProviderRef struct {
 
 // Upstream 声明一个逻辑上游服务
 type Upstream struct {
-	Metadata Metadata     `json:"metadata"`
-	Spec     UpstreamSpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   UpstreamSpec   `json:"spec,omitempty"`
+	Status ResourceStatus `json:"status,omitempty"`
 }
 
 // UpstreamSpec 定义 Upstream 的端点集合
@@ -170,8 +184,11 @@ type Endpoint struct {
 
 // AIProvider 声明一个 AI 模型供应商
 type AIProvider struct {
-	Metadata Metadata       `json:"metadata"`
-	Spec     AIProviderSpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   AIProviderSpec `json:"spec,omitempty"`
+	Status ResourceStatus `json:"status,omitempty"`
 }
 
 // AIProviderSpec 定义 AI 模型供应商入口
@@ -183,8 +200,11 @@ type AIProviderSpec struct {
 
 // Plugin 声明一个可绑定到网关资源的插件
 type Plugin struct {
-	Metadata Metadata   `json:"metadata"`
-	Spec     PluginSpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   PluginSpec     `json:"spec,omitempty"`
+	Status ResourceStatus `json:"status,omitempty"`
 }
 
 // PluginSpec 定义插件运行时和入口
@@ -197,8 +217,11 @@ type PluginSpec struct {
 
 // AuthPolicy 声明认证策略
 type AuthPolicy struct {
-	Metadata Metadata       `json:"metadata"`
-	Spec     AuthPolicySpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   AuthPolicySpec `json:"spec,omitempty"`
+	Status ResourceStatus `json:"status,omitempty"`
 }
 
 // AuthPolicySpec 定义认证策略配置
@@ -215,8 +238,11 @@ type APIKeyAuth struct {
 
 // RateLimitPolicy 声明限流策略
 type RateLimitPolicy struct {
-	Metadata Metadata            `json:"metadata"`
-	Spec     RateLimitPolicySpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   RateLimitPolicySpec `json:"spec,omitempty"`
+	Status ResourceStatus      `json:"status,omitempty"`
 }
 
 // RateLimitPolicySpec 定义限流策略配置
@@ -229,8 +255,11 @@ type RateLimitPolicySpec struct {
 
 // PluginBinding 声明一组插件绑定到哪个资源
 type PluginBinding struct {
-	Metadata Metadata          `json:"metadata"`
-	Spec     PluginBindingSpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   PluginBindingSpec `json:"spec,omitempty"`
+	Status ResourceStatus    `json:"status,omitempty"`
 }
 
 // PluginBindingSpec 定义插件绑定目标和插件引用
@@ -253,8 +282,11 @@ type PluginRef struct {
 
 // PolicyBinding 声明一组策略绑定到哪个资源
 type PolicyBinding struct {
-	Metadata Metadata          `json:"metadata"`
-	Spec     PolicyBindingSpec `json:"spec"`
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   PolicyBindingSpec `json:"spec,omitempty"`
+	Status ResourceStatus    `json:"status,omitempty"`
 }
 
 // PolicyBindingSpec 定义策略绑定目标和策略引用
