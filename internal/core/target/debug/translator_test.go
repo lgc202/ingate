@@ -28,8 +28,9 @@ func TestTranslatorTranslate(t *testing.T) {
 				Hostnames: []string{"example.com"},
 				Rules: []ir.LogicalRouteRule{
 					{
-						PathPrefix: "/app",
-						Methods:    []string{"GET", "POST"},
+						PathPrefix:    "/app",
+						Methods:       []string{"GET", "POST"},
+						TimeoutMillis: 3000,
 						Headers: []ir.LogicalHeaderMatch{
 							{Name: "x-tenant", Value: "acme"},
 						},
@@ -79,8 +80,9 @@ func TestTranslatorTranslate(t *testing.T) {
 				Hostnames: []string{"example.com"},
 				Rules: []debug.RouteRule{
 					{
-						PathPrefix: "/app",
-						Methods:    []string{"GET", "POST"},
+						PathPrefix:    "/app",
+						Methods:       []string{"GET", "POST"},
+						TimeoutMillis: 3000,
 						Headers: []debug.HeaderMatch{
 							{Name: "x-tenant", Value: "acme"},
 						},

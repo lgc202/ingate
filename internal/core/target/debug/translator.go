@@ -36,10 +36,11 @@ type Route struct {
 
 // RouteRule 表示 debug 配置中的路由规则
 type RouteRule struct {
-	PathPrefix string        `json:"pathPrefix"`
-	Methods    []string      `json:"methods"`
-	Headers    []HeaderMatch `json:"headers"`
-	Upstreams  []UpstreamRef `json:"upstreams"`
+	PathPrefix    string        `json:"pathPrefix"`
+	Methods       []string      `json:"methods"`
+	TimeoutMillis int           `json:"timeoutMillis"`
+	Headers       []HeaderMatch `json:"headers"`
+	Upstreams     []UpstreamRef `json:"upstreams"`
 }
 
 // HeaderMatch 表示 debug 配置中的 HTTP header 精确匹配条件
@@ -95,9 +96,10 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		}
 		for _, rule := range route.Rules {
 			debugRule := RouteRule{
-				PathPrefix: rule.PathPrefix,
-				Methods:    slices.Clone(rule.Methods),
-				Upstreams:  make([]UpstreamRef, 0, len(rule.Upstreams)),
+				PathPrefix:    rule.PathPrefix,
+				Methods:       slices.Clone(rule.Methods),
+				TimeoutMillis: rule.TimeoutMillis,
+				Upstreams:     make([]UpstreamRef, 0, len(rule.Upstreams)),
 			}
 			if len(rule.Headers) > 0 {
 				debugRule.Headers = make([]HeaderMatch, 0, len(rule.Headers))
