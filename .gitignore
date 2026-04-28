@@ -1,0 +1,6 @@
+/_output/
+/.gocache/
+/.gomodcache/
+/ingate
+.DS_Store
+*.log
