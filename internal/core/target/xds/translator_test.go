@@ -107,6 +107,11 @@ func TestTranslatorTranslate(t *testing.T) {
 		Clusters: []xds.Cluster{
 			{
 				Name: "app",
+			},
+		},
+		EndpointAssignments: []xds.EndpointAssignment{
+			{
+				ClusterName: "app",
 				Endpoints: []xds.Endpoint{
 					{Address: "10.0.0.10", Port: 8080},
 				},

@@ -14,9 +14,10 @@ type Translator struct{}
 
 // Config 表示 xDS target 的内部配置载荷
 type Config struct {
-	Listeners    []Listener    `json:"listeners"`
-	RouteConfigs []RouteConfig `json:"routeConfigs"`
-	Clusters     []Cluster     `json:"clusters"`
+	Listeners           []Listener           `json:"listeners"`
+	RouteConfigs        []RouteConfig        `json:"routeConfigs"`
+	Clusters            []Cluster            `json:"clusters"`
+	EndpointAssignments []EndpointAssignment `json:"endpointAssignments"`
 }
 
 // Listener 表示 Envoy listener 的内部模型
@@ -69,8 +70,13 @@ type WeightedCluster struct {
 
 // Cluster 表示 Envoy cluster 的内部模型
 type Cluster struct {
-	Name      string     `json:"name"`
-	Endpoints []Endpoint `json:"endpoints"`
+	Name string `json:"name"`
+}
+
+// EndpointAssignment 表示 Envoy endpoint assignment 的内部模型
+type EndpointAssignment struct {
+	ClusterName string     `json:"clusterName"`
+	Endpoints   []Endpoint `json:"endpoints"`
 }
 
 // Endpoint 表示 Envoy endpoint 的内部模型
@@ -87,9 +93,10 @@ func (Translator) Target() string {
 // Translate 将逻辑网关模型转换成 xDS 运行时快照
 func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapshot, error) {
 	config := Config{
-		Listeners:    make([]Listener, 0, len(logical.Listeners)),
-		RouteConfigs: make([]RouteConfig, 0, len(logical.Listeners)),
-		Clusters:     make([]Cluster, 0, len(logical.Upstreams)),
+		Listeners:           make([]Listener, 0, len(logical.Listeners)),
+		RouteConfigs:        make([]RouteConfig, 0, len(logical.Listeners)),
+		Clusters:            make([]Cluster, 0, len(logical.Upstreams)),
+		EndpointAssignments: make([]EndpointAssignment, 0, len(logical.Upstreams)),
 	}
 
 	for _, listener := range logical.Listeners {
@@ -144,17 +151,21 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 	}
 
 	for _, upstream := range logical.Upstreams {
-		cluster := Cluster{
-			Name:      upstream.Name,
-			Endpoints: make([]Endpoint, 0, len(upstream.Endpoints)),
+		config.Clusters = append(config.Clusters, Cluster{
+			Name: upstream.Name,
+		})
+
+		assignment := EndpointAssignment{
+			ClusterName: upstream.Name,
+			Endpoints:   make([]Endpoint, 0, len(upstream.Endpoints)),
 		}
 		for _, endpoint := range upstream.Endpoints {
-			cluster.Endpoints = append(cluster.Endpoints, Endpoint{
+			assignment.Endpoints = append(assignment.Endpoints, Endpoint{
 				Address: endpoint.Address,
 				Port:    endpoint.Port,
 			})
 		}
-		config.Clusters = append(config.Clusters, cluster)
+		config.EndpointAssignments = append(config.EndpointAssignments, assignment)
 	}
 
 	return runtime.RuntimeSnapshot{
