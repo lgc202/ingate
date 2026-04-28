@@ -31,7 +31,12 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 		return ir.LogicalGateway{}, fmt.Errorf("gateway %q not found", gatewayName)
 	}
 
+	routesByName := make(map[string]bool, len(bundle.Routes))
 	for _, route := range bundle.Routes {
+		if routesByName[route.Metadata.Name] {
+			return ir.LogicalGateway{}, fmt.Errorf("duplicate route %q", route.Metadata.Name)
+		}
+		routesByName[route.Metadata.Name] = true
 		for _, parentRef := range route.Spec.ParentRefs {
 			if !gatewaysByName[parentRef] {
 				return ir.LogicalGateway{}, fmt.Errorf("route %q references gateway %q", route.Metadata.Name, parentRef)

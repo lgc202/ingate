@@ -141,6 +141,26 @@ func TestCompilerCompileGatewayMissingRouteParent(t *testing.T) {
 	}
 }
 
+func TestCompilerCompileGatewayDuplicateRoute(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{Metadata: resource.Metadata{Name: "public"}},
+		},
+		Routes: []resource.Route{
+			{Metadata: resource.Metadata{Name: "app"}},
+			{Metadata: resource.Metadata{Name: "app"}},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `duplicate route "app"`) {
+		t.Fatalf("CompileGateway() error = %v", err)
+	}
+}
+
 func TestCompilerCompileGatewayDuplicateUpstream(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
