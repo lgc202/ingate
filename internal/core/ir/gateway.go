@@ -1,7 +1,7 @@
-// Package ir defines runtime-neutral compiled gateway intent.
+// Package ir 定义运行时无关的网关编译结果
 package ir
 
-// LogicalGateway is the runtime-neutral result of compiling one gateway.
+// LogicalGateway 表示一个 Gateway 编译后的运行时无关模型
 type LogicalGateway struct {
 	Name      string
 	Listeners []LogicalListener
@@ -9,7 +9,7 @@ type LogicalGateway struct {
 	Upstreams []LogicalUpstream
 }
 
-// LogicalListener is a compiled gateway listener.
+// LogicalListener 表示编译后的 Gateway 监听器
 type LogicalListener struct {
 	Name     string
 	Protocol string
@@ -17,32 +17,32 @@ type LogicalListener struct {
 	Hostname string
 }
 
-// LogicalRoute is a compiled route attached to a gateway.
+// LogicalRoute 表示挂载到 Gateway 的编译后路由
 type LogicalRoute struct {
 	Name      string
 	Hostnames []string
 	Rules     []LogicalRouteRule
 }
 
-// LogicalRouteRule is a compiled route rule.
+// LogicalRouteRule 表示编译后的路由规则
 type LogicalRouteRule struct {
 	PathPrefix string
 	Upstreams  []LogicalUpstreamRef
 }
 
-// LogicalUpstreamRef is a resolved upstream reference.
+// LogicalUpstreamRef 表示已解析的 Upstream 引用
 type LogicalUpstreamRef struct {
 	Name   string
 	Weight int
 }
 
-// LogicalUpstream is a compiled upstream used by attached routes.
+// LogicalUpstream 表示挂载路由实际使用到的编译后 Upstream
 type LogicalUpstream struct {
 	Name      string
 	Endpoints []LogicalEndpoint
 }
 
-// LogicalEndpoint is a compiled upstream endpoint.
+// LogicalEndpoint 表示编译后的 Upstream 端点
 type LogicalEndpoint struct {
 	Address string
 	Port    int

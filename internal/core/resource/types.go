@@ -1,30 +1,30 @@
-// Package resource defines declared control-plane resources.
+// Package resource 定义声明式控制面资源
 package resource
 
-// Bundle groups resources for one in-memory compilation run.
+// Bundle 表示一次内存编译所需的资源集合
 type Bundle struct {
 	Gateways  []Gateway
 	Routes    []Route
 	Upstreams []Upstream
 }
 
-// Metadata identifies a declared resource.
+// Metadata 标识一个声明式资源
 type Metadata struct {
 	Name string
 }
 
-// Gateway declares a traffic entry point.
+// Gateway 声明一个流量入口
 type Gateway struct {
 	Metadata Metadata
 	Spec     GatewaySpec
 }
 
-// GatewaySpec defines gateway listeners.
+// GatewaySpec 定义 Gateway 的监听器
 type GatewaySpec struct {
 	Listeners []Listener
 }
 
-// Listener declares one gateway listening socket.
+// Listener 声明一个 Gateway 监听端口
 type Listener struct {
 	Name     string
 	Protocol string
@@ -32,43 +32,43 @@ type Listener struct {
 	Hostname string
 }
 
-// Route declares request matches and upstream references.
+// Route 声明请求匹配规则和 Upstream 引用
 type Route struct {
 	Metadata Metadata
 	Spec     RouteSpec
 }
 
-// RouteSpec defines how a route attaches to gateways.
+// RouteSpec 定义 Route 如何挂载到 Gateway
 type RouteSpec struct {
 	ParentRefs []string
 	Hostnames  []string
 	Rules      []RouteRule
 }
 
-// RouteRule declares one route match and weighted upstream set.
+// RouteRule 声明一条路由匹配规则和加权 Upstream 集合
 type RouteRule struct {
 	PathPrefix   string
 	UpstreamRefs []UpstreamRef
 }
 
-// UpstreamRef references an upstream from a route rule.
+// UpstreamRef 表示 RouteRule 中的 Upstream 引用
 type UpstreamRef struct {
 	Name   string
 	Weight int
 }
 
-// Upstream declares a logical upstream service.
+// Upstream 声明一个逻辑上游服务
 type Upstream struct {
 	Metadata Metadata
 	Spec     UpstreamSpec
 }
 
-// UpstreamSpec defines upstream endpoints.
+// UpstreamSpec 定义 Upstream 的端点集合
 type UpstreamSpec struct {
 	Endpoints []Endpoint
 }
 
-// Endpoint declares one upstream endpoint.
+// Endpoint 声明一个上游端点
 type Endpoint struct {
 	Address string
 	Port    int

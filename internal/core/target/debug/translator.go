@@ -1,24 +1,25 @@
-// Package debug translates logical gateway intent into inspectable snapshots.
+// Package debug 将逻辑网关模型翻译成便于检查的快照
 package debug
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
 	"github.com/lgc202/ingate-next/internal/core/runtime"
 )
 
-// Translator translates logical gateway intent for the debug target.
+// Translator 负责生成 debug target 的配置快照
 type Translator struct{}
 
-// Config is the debug target configuration payload.
+// Config 表示 debug target 的配置载荷
 type Config struct {
 	Listeners []Listener
 	Routes    []Route
 	Upstreams []Upstream
 }
 
-// Listener is a debug listener payload.
+// Listener 表示 debug 配置中的监听器
 type Listener struct {
 	Name     string
 	Protocol string
@@ -26,38 +27,38 @@ type Listener struct {
 	Hostname string
 }
 
-// Route is a debug route payload.
+// Route 表示 debug 配置中的路由
 type Route struct {
 	Name      string
 	Hostnames []string
 	Rules     []RouteRule
 }
 
-// RouteRule is a debug route rule payload.
+// RouteRule 表示 debug 配置中的路由规则
 type RouteRule struct {
 	PathPrefix string
 	Upstreams  []UpstreamRef
 }
 
-// UpstreamRef is a debug upstream reference payload.
+// UpstreamRef 表示 debug 配置中的 Upstream 引用
 type UpstreamRef struct {
 	Name   string
 	Weight int
 }
 
-// Upstream is a debug upstream payload.
+// Upstream 表示 debug 配置中的上游服务
 type Upstream struct {
 	Name      string
 	Endpoints []Endpoint
 }
 
-// Endpoint is a debug endpoint payload.
+// Endpoint 表示 debug 配置中的上游端点
 type Endpoint struct {
 	Address string
 	Port    int
 }
 
-// Translate converts logical gateway intent into a debug runtime snapshot.
+// Translate 将逻辑网关模型转换成 debug 运行时快照
 func (Translator) Translate(logical ir.LogicalGateway) runtime.RuntimeSnapshot {
 	config := Config{
 		Listeners: make([]Listener, 0, len(logical.Listeners)),
@@ -76,7 +77,7 @@ func (Translator) Translate(logical ir.LogicalGateway) runtime.RuntimeSnapshot {
 	for _, route := range logical.Routes {
 		debugRoute := Route{
 			Name:      route.Name,
-			Hostnames: append([]string(nil), route.Hostnames...),
+			Hostnames: slices.Clone(route.Hostnames),
 			Rules:     make([]RouteRule, 0, len(route.Rules)),
 		}
 		for _, rule := range route.Rules {
