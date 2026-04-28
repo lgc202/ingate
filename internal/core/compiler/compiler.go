@@ -94,7 +94,7 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	pluginBindings := c.buildPluginBindings(routes, upstreamOrder)
 
 	return ir.LogicalGateway{
-		Name:              c.gateway.Metadata.Name,
+		Name:              c.gateway.Name,
 		Listeners:         c.buildListeners(),
 		Routes:            routes,
 		AIRoutes:          aiRoutes,
@@ -110,10 +110,10 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 
 func (c *gatewayCompiler) indexGateways() error {
 	for _, gateway := range c.bundle.Gateways {
-		if _, ok := c.gatewaysByName[gateway.Metadata.Name]; ok {
-			return fmt.Errorf("duplicate gateway %q", gateway.Metadata.Name)
+		if _, ok := c.gatewaysByName[gateway.Name]; ok {
+			return fmt.Errorf("duplicate gateway %q", gateway.Name)
 		}
-		c.gatewaysByName[gateway.Metadata.Name] = gateway
+		c.gatewaysByName[gateway.Name] = gateway
 	}
 
 	gateway, ok := c.gatewaysByName[c.gatewayName]
@@ -127,13 +127,13 @@ func (c *gatewayCompiler) indexGateways() error {
 
 func (c *gatewayCompiler) indexRoutes() error {
 	for _, route := range c.bundle.Routes {
-		if c.routesByName[route.Metadata.Name] {
-			return fmt.Errorf("duplicate route %q", route.Metadata.Name)
+		if c.routesByName[route.Name] {
+			return fmt.Errorf("duplicate route %q", route.Name)
 		}
-		c.routesByName[route.Metadata.Name] = true
+		c.routesByName[route.Name] = true
 		for _, parentRef := range route.Spec.ParentRefs {
 			if _, ok := c.gatewaysByName[parentRef]; !ok {
-				return fmt.Errorf("route %q references gateway %q", route.Metadata.Name, parentRef)
+				return fmt.Errorf("route %q references gateway %q", route.Name, parentRef)
 			}
 		}
 	}
@@ -143,13 +143,13 @@ func (c *gatewayCompiler) indexRoutes() error {
 
 func (c *gatewayCompiler) indexAIRoutes() error {
 	for _, route := range c.bundle.AIRoutes {
-		if c.aiRoutesByName[route.Metadata.Name] {
-			return fmt.Errorf("duplicate ai route %q", route.Metadata.Name)
+		if c.aiRoutesByName[route.Name] {
+			return fmt.Errorf("duplicate ai route %q", route.Name)
 		}
-		c.aiRoutesByName[route.Metadata.Name] = true
+		c.aiRoutesByName[route.Name] = true
 		for _, parentRef := range route.Spec.ParentRefs {
 			if _, ok := c.gatewaysByName[parentRef]; !ok {
-				return fmt.Errorf("ai route %q references gateway %q", route.Metadata.Name, parentRef)
+				return fmt.Errorf("ai route %q references gateway %q", route.Name, parentRef)
 			}
 		}
 	}
@@ -159,10 +159,10 @@ func (c *gatewayCompiler) indexAIRoutes() error {
 
 func (c *gatewayCompiler) indexUpstreams() error {
 	for _, upstream := range c.bundle.Upstreams {
-		if _, ok := c.upstreamsByName[upstream.Metadata.Name]; ok {
-			return fmt.Errorf("duplicate upstream %q", upstream.Metadata.Name)
+		if _, ok := c.upstreamsByName[upstream.Name]; ok {
+			return fmt.Errorf("duplicate upstream %q", upstream.Name)
 		}
-		c.upstreamsByName[upstream.Metadata.Name] = upstream
+		c.upstreamsByName[upstream.Name] = upstream
 	}
 
 	return nil
@@ -170,10 +170,10 @@ func (c *gatewayCompiler) indexUpstreams() error {
 
 func (c *gatewayCompiler) indexAIProviders() error {
 	for _, provider := range c.bundle.AIProviders {
-		if _, ok := c.aiProvidersByName[provider.Metadata.Name]; ok {
-			return fmt.Errorf("duplicate ai provider %q", provider.Metadata.Name)
+		if _, ok := c.aiProvidersByName[provider.Name]; ok {
+			return fmt.Errorf("duplicate ai provider %q", provider.Name)
 		}
-		c.aiProvidersByName[provider.Metadata.Name] = provider
+		c.aiProvidersByName[provider.Name] = provider
 	}
 
 	return nil
@@ -181,10 +181,10 @@ func (c *gatewayCompiler) indexAIProviders() error {
 
 func (c *gatewayCompiler) indexPlugins() error {
 	for _, plugin := range c.bundle.Plugins {
-		if _, ok := c.pluginsByName[plugin.Metadata.Name]; ok {
-			return fmt.Errorf("duplicate plugin %q", plugin.Metadata.Name)
+		if _, ok := c.pluginsByName[plugin.Name]; ok {
+			return fmt.Errorf("duplicate plugin %q", plugin.Name)
 		}
-		c.pluginsByName[plugin.Metadata.Name] = plugin
+		c.pluginsByName[plugin.Name] = plugin
 	}
 
 	return nil
@@ -192,10 +192,10 @@ func (c *gatewayCompiler) indexPlugins() error {
 
 func (c *gatewayCompiler) indexAuthPolicies() error {
 	for _, policy := range c.bundle.AuthPolicies {
-		if _, ok := c.authPoliciesByName[policy.Metadata.Name]; ok {
-			return fmt.Errorf("duplicate auth policy %q", policy.Metadata.Name)
+		if _, ok := c.authPoliciesByName[policy.Name]; ok {
+			return fmt.Errorf("duplicate auth policy %q", policy.Name)
 		}
-		c.authPoliciesByName[policy.Metadata.Name] = policy
+		c.authPoliciesByName[policy.Name] = policy
 	}
 
 	return nil
@@ -203,10 +203,10 @@ func (c *gatewayCompiler) indexAuthPolicies() error {
 
 func (c *gatewayCompiler) indexRateLimitPolicies() error {
 	for _, policy := range c.bundle.RateLimitPolicies {
-		if _, ok := c.rateLimitPoliciesByName[policy.Metadata.Name]; ok {
-			return fmt.Errorf("duplicate rate limit policy %q", policy.Metadata.Name)
+		if _, ok := c.rateLimitPoliciesByName[policy.Name]; ok {
+			return fmt.Errorf("duplicate rate limit policy %q", policy.Name)
 		}
-		c.rateLimitPoliciesByName[policy.Metadata.Name] = policy
+		c.rateLimitPoliciesByName[policy.Name] = policy
 	}
 
 	return nil
@@ -214,41 +214,41 @@ func (c *gatewayCompiler) indexRateLimitPolicies() error {
 
 func (c *gatewayCompiler) indexPolicyBindings() error {
 	for _, binding := range c.bundle.PolicyBindings {
-		if c.policyBindingsByName[binding.Metadata.Name] {
-			return fmt.Errorf("duplicate policy binding %q", binding.Metadata.Name)
+		if c.policyBindingsByName[binding.Name] {
+			return fmt.Errorf("duplicate policy binding %q", binding.Name)
 		}
-		c.policyBindingsByName[binding.Metadata.Name] = true
+		c.policyBindingsByName[binding.Name] = true
 
 		target := binding.Spec.TargetRef
 		switch target.Kind {
 		case resource.KindGateway:
 			if _, ok := c.gatewaysByName[target.Name]; !ok {
-				return fmt.Errorf("policy binding %q references gateway %q", binding.Metadata.Name, target.Name)
+				return fmt.Errorf("policy binding %q references gateway %q", binding.Name, target.Name)
 			}
 		case resource.KindRoute:
 			if !c.routesByName[target.Name] {
-				return fmt.Errorf("policy binding %q references route %q", binding.Metadata.Name, target.Name)
+				return fmt.Errorf("policy binding %q references route %q", binding.Name, target.Name)
 			}
 		case resource.KindUpstream:
 			if _, ok := c.upstreamsByName[target.Name]; !ok {
-				return fmt.Errorf("policy binding %q references upstream %q", binding.Metadata.Name, target.Name)
+				return fmt.Errorf("policy binding %q references upstream %q", binding.Name, target.Name)
 			}
 		default:
-			return fmt.Errorf("policy binding %q references unsupported kind %q", binding.Metadata.Name, target.Kind)
+			return fmt.Errorf("policy binding %q references unsupported kind %q", binding.Name, target.Kind)
 		}
 
 		for _, policy := range binding.Spec.Policies {
 			switch policy.Kind {
 			case resource.KindAuthPolicy:
 				if _, ok := c.authPoliciesByName[policy.Name]; !ok {
-					return fmt.Errorf("policy binding %q references auth policy %q", binding.Metadata.Name, policy.Name)
+					return fmt.Errorf("policy binding %q references auth policy %q", binding.Name, policy.Name)
 				}
 			case resource.KindRateLimitPolicy:
 				if _, ok := c.rateLimitPoliciesByName[policy.Name]; !ok {
-					return fmt.Errorf("policy binding %q references rate limit policy %q", binding.Metadata.Name, policy.Name)
+					return fmt.Errorf("policy binding %q references rate limit policy %q", binding.Name, policy.Name)
 				}
 			default:
-				return fmt.Errorf("policy binding %q references unsupported policy kind %q", binding.Metadata.Name, policy.Kind)
+				return fmt.Errorf("policy binding %q references unsupported policy kind %q", binding.Name, policy.Kind)
 			}
 		}
 	}
@@ -258,32 +258,32 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 
 func (c *gatewayCompiler) indexPluginBindings() error {
 	for _, binding := range c.bundle.PluginBindings {
-		if c.pluginBindingsByName[binding.Metadata.Name] {
-			return fmt.Errorf("duplicate plugin binding %q", binding.Metadata.Name)
+		if c.pluginBindingsByName[binding.Name] {
+			return fmt.Errorf("duplicate plugin binding %q", binding.Name)
 		}
-		c.pluginBindingsByName[binding.Metadata.Name] = true
+		c.pluginBindingsByName[binding.Name] = true
 
 		target := binding.Spec.TargetRef
 		switch target.Kind {
 		case resource.KindGateway:
 			if _, ok := c.gatewaysByName[target.Name]; !ok {
-				return fmt.Errorf("plugin binding %q references gateway %q", binding.Metadata.Name, target.Name)
+				return fmt.Errorf("plugin binding %q references gateway %q", binding.Name, target.Name)
 			}
 		case resource.KindRoute:
 			if !c.routesByName[target.Name] {
-				return fmt.Errorf("plugin binding %q references route %q", binding.Metadata.Name, target.Name)
+				return fmt.Errorf("plugin binding %q references route %q", binding.Name, target.Name)
 			}
 		case resource.KindUpstream:
 			if _, ok := c.upstreamsByName[target.Name]; !ok {
-				return fmt.Errorf("plugin binding %q references upstream %q", binding.Metadata.Name, target.Name)
+				return fmt.Errorf("plugin binding %q references upstream %q", binding.Name, target.Name)
 			}
 		default:
-			return fmt.Errorf("plugin binding %q references unsupported kind %q", binding.Metadata.Name, target.Kind)
+			return fmt.Errorf("plugin binding %q references unsupported kind %q", binding.Name, target.Kind)
 		}
 
 		for _, plugin := range binding.Spec.Plugins {
 			if _, ok := c.pluginsByName[plugin.Name]; !ok {
-				return fmt.Errorf("plugin binding %q references plugin %q", binding.Metadata.Name, plugin.Name)
+				return fmt.Errorf("plugin binding %q references plugin %q", binding.Name, plugin.Name)
 			}
 		}
 	}
@@ -315,7 +315,7 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 		}
 
 		logicalRoute := ir.LogicalRoute{
-			Name:      route.Metadata.Name,
+			Name:      route.Name,
 			Hostnames: slices.Clone(route.Spec.Hostnames),
 			Rules:     make([]ir.LogicalRouteRule, 0, len(route.Spec.Rules)),
 		}
@@ -337,7 +337,7 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 			}
 			for _, upstreamRef := range rule.UpstreamRefs {
 				if _, ok := c.upstreamsByName[upstreamRef.Name]; !ok {
-					return nil, nil, fmt.Errorf("route %q references upstream %q", route.Metadata.Name, upstreamRef.Name)
+					return nil, nil, fmt.Errorf("route %q references upstream %q", route.Name, upstreamRef.Name)
 				}
 				logicalRule.Upstreams = append(logicalRule.Upstreams, ir.LogicalUpstreamRef{
 					Name:   upstreamRef.Name,
@@ -366,21 +366,21 @@ func (c *gatewayCompiler) buildAttachedAIRoutes() ([]ir.LogicalAIRoute, []string
 			continue
 		}
 		if len(route.Spec.ProviderRefs) == 0 {
-			return nil, nil, fmt.Errorf("ai route %q has no ai providers", route.Metadata.Name)
+			return nil, nil, fmt.Errorf("ai route %q has no ai providers", route.Name)
 		}
 
 		logicalRoute := ir.LogicalAIRoute{
-			Name:       route.Metadata.Name,
+			Name:       route.Name,
 			PathPrefix: route.Spec.PathPrefix,
 			Model:      route.Spec.Model,
 			Providers:  make([]ir.LogicalAIProviderRef, 0, len(route.Spec.ProviderRefs)),
 		}
 		for _, providerRef := range route.Spec.ProviderRefs {
 			if providerRef.Weight <= 0 {
-				return nil, nil, fmt.Errorf("ai route %q provider %q has invalid weight %d", route.Metadata.Name, providerRef.Name, providerRef.Weight)
+				return nil, nil, fmt.Errorf("ai route %q provider %q has invalid weight %d", route.Name, providerRef.Name, providerRef.Weight)
 			}
 			if _, ok := c.aiProvidersByName[providerRef.Name]; !ok {
-				return nil, nil, fmt.Errorf("ai route %q references ai provider %q", route.Metadata.Name, providerRef.Name)
+				return nil, nil, fmt.Errorf("ai route %q references ai provider %q", route.Name, providerRef.Name)
 			}
 			logicalRoute.Providers = append(logicalRoute.Providers, ir.LogicalAIProviderRef{
 				Name:   providerRef.Name,
@@ -402,7 +402,7 @@ func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.Logica
 	for _, name := range upstreamOrder {
 		upstream := c.upstreamsByName[name]
 		logicalUpstream := ir.LogicalUpstream{
-			Name:      upstream.Metadata.Name,
+			Name:      upstream.Name,
 			Endpoints: make([]ir.LogicalEndpoint, 0, len(upstream.Spec.Endpoints)),
 		}
 		for _, endpoint := range upstream.Spec.Endpoints {
@@ -422,7 +422,7 @@ func (c *gatewayCompiler) buildUsedAIProviders(providerOrder []string) []ir.Logi
 	for _, name := range providerOrder {
 		provider := c.aiProvidersByName[name]
 		providers = append(providers, ir.LogicalAIProvider{
-			Name:     provider.Metadata.Name,
+			Name:     provider.Name,
 			Type:     provider.Spec.Type,
 			Endpoint: provider.Spec.Endpoint,
 			Models:   slices.Clone(provider.Spec.Models),
@@ -450,7 +450,7 @@ func (c *gatewayCompiler) buildPlugins(bindings []ir.LogicalPluginBinding) []ir.
 	for _, name := range pluginOrder {
 		plugin := c.pluginsByName[name]
 		plugins = append(plugins, ir.LogicalPlugin{
-			Name:     plugin.Metadata.Name,
+			Name:     plugin.Name,
 			Runtime:  plugin.Spec.Runtime,
 			Version:  plugin.Spec.Version,
 			Endpoint: plugin.Spec.Endpoint,
@@ -479,7 +479,7 @@ func (c *gatewayCompiler) buildAuthPolicies(bindings []ir.LogicalPolicyBinding) 
 	for _, name := range policyOrder {
 		policy := c.authPoliciesByName[name]
 		policies = append(policies, ir.LogicalAuthPolicy{
-			Name: policy.Metadata.Name,
+			Name: policy.Name,
 			Type: policy.Spec.Type,
 			APIKey: ir.LogicalAPIKeyAuth{
 				Header: policy.Spec.APIKey.Header,
@@ -509,7 +509,7 @@ func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBind
 	for _, name := range policyOrder {
 		policy := c.rateLimitPoliciesByName[name]
 		policies = append(policies, ir.LogicalRateLimitPolicy{
-			Name:          policy.Metadata.Name,
+			Name:          policy.Name,
 			Requests:      policy.Spec.Requests,
 			WindowSeconds: policy.Spec.WindowSeconds,
 			KeyBy:         policy.Spec.KeyBy,
@@ -544,7 +544,7 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstream
 		}
 
 		logicalBinding := ir.LogicalPolicyBinding{
-			Name: binding.Metadata.Name,
+			Name: binding.Name,
 			Target: ir.LogicalPolicyTarget{
 				Kind: target.Kind,
 				Name: target.Name,
@@ -587,7 +587,7 @@ func (c *gatewayCompiler) buildPluginBindings(routes []ir.LogicalRoute, upstream
 		}
 
 		logicalBinding := ir.LogicalPluginBinding{
-			Name: binding.Metadata.Name,
+			Name: binding.Name,
 			Target: ir.LogicalPluginTarget{
 				Kind: target.Kind,
 				Name: target.Name,

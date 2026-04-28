@@ -8,13 +8,14 @@ import (
 	"github.com/lgc202/ingate-next/internal/core/compiler"
 	"github.com/lgc202/ingate-next/internal/core/ir"
 	"github.com/lgc202/ingate-next/internal/core/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestCompilerCompileGateway(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
 			{
-				Metadata: resource.Metadata{Name: "public"},
+				ObjectMeta: metav1.ObjectMeta{Name: "public"},
 				Spec: resource.GatewaySpec{
 					Listeners: []resource.Listener{
 						{Name: "http", Protocol: "HTTP", Port: 80, Hostname: "example.com"},
@@ -24,7 +25,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		Routes: []resource.Route{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 					Hostnames:  []string{"example.com"},
@@ -46,7 +47,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		AIRoutes: []resource.AIRoute{
 			{
-				Metadata: resource.Metadata{Name: "chat"},
+				ObjectMeta: metav1.ObjectMeta{Name: "chat"},
 				Spec: resource.AIRouteSpec{
 					ParentRefs: []string{"public"},
 					PathPrefix: "/v1/chat/completions",
@@ -59,7 +60,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		Upstreams: []resource.Upstream{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.UpstreamSpec{
 					Endpoints: []resource.Endpoint{
 						{Address: "10.0.0.10", Port: 8080},
@@ -69,7 +70,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		AIProviders: []resource.AIProvider{
 			{
-				Metadata: resource.Metadata{Name: "openai"},
+				ObjectMeta: metav1.ObjectMeta{Name: "openai"},
 				Spec: resource.AIProviderSpec{
 					Type:     resource.AIProviderTypeOpenAICompatible,
 					Endpoint: "https://api.openai.com/v1",
@@ -79,7 +80,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		Plugins: []resource.Plugin{
 			{
-				Metadata: resource.Metadata{Name: "audit-log"},
+				ObjectMeta: metav1.ObjectMeta{Name: "audit-log"},
 				Spec: resource.PluginSpec{
 					Runtime:  resource.PluginRuntimeExternal,
 					Version:  "v1",
@@ -89,7 +90,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		AuthPolicies: []resource.AuthPolicy{
 			{
-				Metadata: resource.Metadata{Name: "required"},
+				ObjectMeta: metav1.ObjectMeta{Name: "required"},
 				Spec: resource.AuthPolicySpec{
 					Type: resource.AuthTypeAPIKey,
 					APIKey: resource.APIKeyAuth{
@@ -100,7 +101,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		RateLimitPolicies: []resource.RateLimitPolicy{
 			{
-				Metadata: resource.Metadata{Name: "app-quota"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app-quota"},
 				Spec: resource.RateLimitPolicySpec{
 					Requests:      100,
 					WindowSeconds: 60,
@@ -111,7 +112,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		PluginBindings: []resource.PluginBinding{
 			{
-				Metadata: resource.Metadata{Name: "app-audit"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app-audit"},
 				Spec: resource.PluginBindingSpec{
 					TargetRef: resource.PluginTargetRef{
 						Kind: resource.KindRoute,
@@ -130,7 +131,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		PolicyBindings: []resource.PolicyBinding{
 			{
-				Metadata: resource.Metadata{Name: "app-auth"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app-auth"},
 				Spec: resource.PolicyBindingSpec{
 					TargetRef: resource.PolicyTargetRef{
 						Kind: resource.KindRoute,
@@ -266,11 +267,11 @@ func TestCompilerCompileGateway(t *testing.T) {
 func TestCompilerCompileGatewayMissingAIProvider(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		AIRoutes: []resource.AIRoute{
 			{
-				Metadata: resource.Metadata{Name: "chat"},
+				ObjectMeta: metav1.ObjectMeta{Name: "chat"},
 				Spec: resource.AIRouteSpec{
 					ParentRefs: []string{"public"},
 					PathPrefix: "/v1/chat/completions",
@@ -295,11 +296,11 @@ func TestCompilerCompileGatewayMissingAIProvider(t *testing.T) {
 func TestCompilerCompileGatewayAIRouteWithoutProvider(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		AIRoutes: []resource.AIRoute{
 			{
-				Metadata: resource.Metadata{Name: "chat"},
+				ObjectMeta: metav1.ObjectMeta{Name: "chat"},
 				Spec: resource.AIRouteSpec{
 					ParentRefs: []string{"public"},
 					PathPrefix: "/v1/chat/completions",
@@ -321,14 +322,14 @@ func TestCompilerCompileGatewayAIRouteWithoutProvider(t *testing.T) {
 func TestCompilerCompileGatewayAIRouteInvalidProviderWeight(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		AIProviders: []resource.AIProvider{
-			{Metadata: resource.Metadata{Name: "openai"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "openai"}},
 		},
 		AIRoutes: []resource.AIRoute{
 			{
-				Metadata: resource.Metadata{Name: "chat"},
+				ObjectMeta: metav1.ObjectMeta{Name: "chat"},
 				Spec: resource.AIRouteSpec{
 					ParentRefs: []string{"public"},
 					PathPrefix: "/v1/chat/completions",
@@ -353,11 +354,11 @@ func TestCompilerCompileGatewayAIRouteInvalidProviderWeight(t *testing.T) {
 func TestCompilerCompileGatewayMissingPluginRef(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		Routes: []resource.Route{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 				},
@@ -365,7 +366,7 @@ func TestCompilerCompileGatewayMissingPluginRef(t *testing.T) {
 		},
 		PluginBindings: []resource.PluginBinding{
 			{
-				Metadata: resource.Metadata{Name: "app-audit"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app-audit"},
 				Spec: resource.PluginBindingSpec{
 					TargetRef: resource.PluginTargetRef{
 						Kind: resource.KindRoute,
@@ -391,11 +392,11 @@ func TestCompilerCompileGatewayMissingPluginRef(t *testing.T) {
 func TestCompilerCompileGatewayMissingRateLimitPolicyRef(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		Routes: []resource.Route{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 				},
@@ -403,7 +404,7 @@ func TestCompilerCompileGatewayMissingRateLimitPolicyRef(t *testing.T) {
 		},
 		PolicyBindings: []resource.PolicyBinding{
 			{
-				Metadata: resource.Metadata{Name: "app-quota"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app-quota"},
 				Spec: resource.PolicyBindingSpec{
 					TargetRef: resource.PolicyTargetRef{
 						Kind: resource.KindRoute,
@@ -429,11 +430,11 @@ func TestCompilerCompileGatewayMissingRateLimitPolicyRef(t *testing.T) {
 func TestCompilerCompileGatewayMissingPolicyRef(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		Routes: []resource.Route{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 				},
@@ -441,7 +442,7 @@ func TestCompilerCompileGatewayMissingPolicyRef(t *testing.T) {
 		},
 		PolicyBindings: []resource.PolicyBinding{
 			{
-				Metadata: resource.Metadata{Name: "app-auth"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app-auth"},
 				Spec: resource.PolicyBindingSpec{
 					TargetRef: resource.PolicyTargetRef{
 						Kind: resource.KindRoute,
@@ -467,11 +468,11 @@ func TestCompilerCompileGatewayMissingPolicyRef(t *testing.T) {
 func TestCompilerCompileGatewayMissingPolicyBindingTarget(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		PolicyBindings: []resource.PolicyBinding{
 			{
-				Metadata: resource.Metadata{Name: "app-auth"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app-auth"},
 				Spec: resource.PolicyBindingSpec{
 					TargetRef: resource.PolicyTargetRef{
 						Kind: resource.KindRoute,
@@ -504,8 +505,8 @@ func TestCompilerCompileGatewayMissingGateway(t *testing.T) {
 func TestCompilerCompileGatewayDuplicateGateway(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 	}
 
@@ -521,11 +522,11 @@ func TestCompilerCompileGatewayDuplicateGateway(t *testing.T) {
 func TestCompilerCompileGatewayMissingRouteParent(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		Routes: []resource.Route{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"missing"},
 				},
@@ -545,11 +546,11 @@ func TestCompilerCompileGatewayMissingRouteParent(t *testing.T) {
 func TestCompilerCompileGatewayDuplicateRoute(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		Routes: []resource.Route{
-			{Metadata: resource.Metadata{Name: "app"}},
-			{Metadata: resource.Metadata{Name: "app"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "app"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "app"}},
 		},
 	}
 
@@ -565,11 +566,11 @@ func TestCompilerCompileGatewayDuplicateRoute(t *testing.T) {
 func TestCompilerCompileGatewayDuplicateUpstream(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		Upstreams: []resource.Upstream{
-			{Metadata: resource.Metadata{Name: "app"}},
-			{Metadata: resource.Metadata{Name: "app"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "app"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "app"}},
 		},
 	}
 
@@ -585,11 +586,11 @@ func TestCompilerCompileGatewayDuplicateUpstream(t *testing.T) {
 func TestCompilerCompileGatewayMissingUpstream(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{Metadata: resource.Metadata{Name: "public"}},
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		Routes: []resource.Route{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 					Rules: []resource.RouteRule{

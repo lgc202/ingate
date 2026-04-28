@@ -10,13 +10,14 @@ import (
 	"github.com/lgc202/ingate-next/internal/core/target"
 	"github.com/lgc202/ingate-next/internal/core/target/debug"
 	"github.com/lgc202/ingate-next/internal/core/target/xds"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
 			{
-				Metadata: resource.Metadata{Name: "public"},
+				ObjectMeta: metav1.ObjectMeta{Name: "public"},
 				Spec: resource.GatewaySpec{
 					Listeners: []resource.Listener{
 						{Name: "http", Protocol: "HTTP", Port: 80, Hostname: "example.com"},
@@ -26,7 +27,7 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 		},
 		Routes: []resource.Route{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 					Hostnames:  []string{"example.com"},
@@ -43,7 +44,7 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 		},
 		Upstreams: []resource.Upstream{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.UpstreamSpec{
 					Endpoints: []resource.Endpoint{
 						{Address: "10.0.0.10", Port: 8080},
@@ -126,7 +127,7 @@ func TestPipelineBuildGatewaySnapshotForTarget(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
 			{
-				Metadata: resource.Metadata{Name: "public"},
+				ObjectMeta: metav1.ObjectMeta{Name: "public"},
 				Spec: resource.GatewaySpec{
 					Listeners: []resource.Listener{
 						{Name: "http", Protocol: "HTTP", Port: 80, Hostname: "example.com"},
@@ -136,7 +137,7 @@ func TestPipelineBuildGatewaySnapshotForTarget(t *testing.T) {
 		},
 		Routes: []resource.Route{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 					Rules: []resource.RouteRule{
@@ -152,7 +153,7 @@ func TestPipelineBuildGatewaySnapshotForTarget(t *testing.T) {
 		},
 		Upstreams: []resource.Upstream{
 			{
-				Metadata: resource.Metadata{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.UpstreamSpec{
 					Endpoints: []resource.Endpoint{
 						{Address: "10.0.0.10", Port: 8080},
@@ -183,7 +184,7 @@ func TestPipelineBuildGatewaySnapshotsForTarget(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
 			{
-				Metadata: resource.Metadata{Name: "public"},
+				ObjectMeta: metav1.ObjectMeta{Name: "public"},
 				Spec: resource.GatewaySpec{
 					Listeners: []resource.Listener{
 						{Name: "http", Protocol: "HTTP", Port: 80},
@@ -191,7 +192,7 @@ func TestPipelineBuildGatewaySnapshotsForTarget(t *testing.T) {
 				},
 			},
 			{
-				Metadata: resource.Metadata{Name: "admin"},
+				ObjectMeta: metav1.ObjectMeta{Name: "admin"},
 				Spec: resource.GatewaySpec{
 					Listeners: []resource.Listener{
 						{Name: "http", Protocol: "HTTP", Port: 8080},
