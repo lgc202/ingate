@@ -2,9 +2,13 @@
 package app
 
 import (
-	"flag"
+	"errors"
 	"fmt"
 	"io"
+
+	"github.com/spf13/pflag"
+
+	"github.com/lgc202/ingate-next/internal/apiserver/server"
 )
 
 const usage = `ingate-apiserver 是声明式资源 API
@@ -17,15 +21,27 @@ const usage = `ingate-apiserver 是声明式资源 API
 
 // Run 执行 ingate-apiserver 服务
 func Run(args []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("ingate-apiserver", flag.ContinueOnError)
+	flags := pflag.NewFlagSet("ingate-apiserver", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
+	options := server.NewOptions(stdout, stderr)
+	options.AddFlags(flags)
 	flags.Usage = func() {
 		fmt.Fprint(stdout, usage)
+		fmt.Fprintln(stdout)
+		flags.SetOutput(stdout)
+		flags.PrintDefaults()
+		flags.SetOutput(stderr)
 	}
 	if err := flags.Parse(args); err != nil {
-		if err == flag.ErrHelp {
+		if errors.Is(err, pflag.ErrHelp) {
 			return nil
 		}
+		return err
+	}
+	if err := options.Complete(); err != nil {
+		return err
+	}
+	if err := options.Validate(); err != nil {
 		return err
 	}
 
