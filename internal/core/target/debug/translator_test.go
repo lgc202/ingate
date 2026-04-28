@@ -50,6 +50,15 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
+		AuthPolicies: []ir.LogicalAuthPolicy{
+			{
+				Name: "required",
+				Type: resource.AuthTypeAPIKey,
+				APIKey: ir.LogicalAPIKeyAuth{
+					Header: "x-api-key",
+				},
+			},
+		},
 		PolicyBindings: []ir.LogicalPolicyBinding{
 			{
 				Name: "app-auth",
@@ -58,7 +67,7 @@ func TestTranslatorTranslate(t *testing.T) {
 					Name: "app",
 				},
 				Policies: []ir.LogicalPolicyRef{
-					{Kind: "AuthPolicy", Name: "required"},
+					{Kind: resource.KindAuthPolicy, Name: "required"},
 				},
 			},
 		},
@@ -114,6 +123,15 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
+		AuthPolicies: []debug.AuthPolicy{
+			{
+				Name: "required",
+				Type: resource.AuthTypeAPIKey,
+				APIKey: debug.APIKeyAuth{
+					Header: "x-api-key",
+				},
+			},
+		},
 		PolicyBindings: []debug.PolicyBinding{
 			{
 				Name: "app-auth",
@@ -122,7 +140,7 @@ func TestTranslatorTranslate(t *testing.T) {
 					Name: "app",
 				},
 				Policies: []debug.PolicyRef{
-					{Kind: "AuthPolicy", Name: "required"},
+					{Kind: resource.KindAuthPolicy, Name: "required"},
 				},
 			},
 		},

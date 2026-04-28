@@ -9,6 +9,7 @@ type LogicalGateway struct {
 	Listeners      []LogicalListener
 	Routes         []LogicalRoute
 	Upstreams      []LogicalUpstream
+	AuthPolicies   []LogicalAuthPolicy
 	PolicyBindings []LogicalPolicyBinding
 }
 
@@ -60,6 +61,19 @@ type LogicalEndpoint struct {
 	Port    int
 }
 
+// LogicalAuthPolicy 表示编译后的认证策略
+type LogicalAuthPolicy struct {
+	Name   string
+	Type   resource.AuthType
+	APIKey LogicalAPIKeyAuth
+}
+
+// LogicalAPIKeyAuth 表示编译后的 API Key 认证配置
+type LogicalAPIKeyAuth struct {
+	Header string
+	Query  string
+}
+
 // LogicalPolicyBinding 表示编译后的策略绑定关系
 type LogicalPolicyBinding struct {
 	Name     string
@@ -75,6 +89,6 @@ type LogicalPolicyTarget struct {
 
 // LogicalPolicyRef 表示被绑定的策略引用
 type LogicalPolicyRef struct {
-	Kind string
+	Kind resource.Kind
 	Name string
 }
