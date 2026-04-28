@@ -365,6 +365,9 @@ func (c *gatewayCompiler) buildAttachedAIRoutes() ([]ir.LogicalAIRoute, []string
 		if !slices.Contains(route.Spec.ParentRefs, c.gatewayName) {
 			continue
 		}
+		if len(route.Spec.ProviderRefs) == 0 {
+			return nil, nil, fmt.Errorf("ai route %q has no ai providers", route.Metadata.Name)
+		}
 
 		logicalRoute := ir.LogicalAIRoute{
 			Name:       route.Metadata.Name,
@@ -373,6 +376,9 @@ func (c *gatewayCompiler) buildAttachedAIRoutes() ([]ir.LogicalAIRoute, []string
 			Providers:  make([]ir.LogicalAIProviderRef, 0, len(route.Spec.ProviderRefs)),
 		}
 		for _, providerRef := range route.Spec.ProviderRefs {
+			if providerRef.Weight <= 0 {
+				return nil, nil, fmt.Errorf("ai route %q provider %q has invalid weight %d", route.Metadata.Name, providerRef.Name, providerRef.Weight)
+			}
 			if _, ok := c.aiProvidersByName[providerRef.Name]; !ok {
 				return nil, nil, fmt.Errorf("ai route %q references ai provider %q", route.Metadata.Name, providerRef.Name)
 			}

@@ -292,6 +292,64 @@ func TestCompilerCompileGatewayMissingAIProvider(t *testing.T) {
 	}
 }
 
+func TestCompilerCompileGatewayAIRouteWithoutProvider(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{Metadata: resource.Metadata{Name: "public"}},
+		},
+		AIRoutes: []resource.AIRoute{
+			{
+				Metadata: resource.Metadata{Name: "chat"},
+				Spec: resource.AIRouteSpec{
+					ParentRefs: []string{"public"},
+					PathPrefix: "/v1/chat/completions",
+					Model:      "gpt-4.1-mini",
+				},
+			},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `ai route "chat" has no ai providers`) {
+		t.Fatalf("CompileGateway() error = %v", err)
+	}
+}
+
+func TestCompilerCompileGatewayAIRouteInvalidProviderWeight(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{Metadata: resource.Metadata{Name: "public"}},
+		},
+		AIProviders: []resource.AIProvider{
+			{Metadata: resource.Metadata{Name: "openai"}},
+		},
+		AIRoutes: []resource.AIRoute{
+			{
+				Metadata: resource.Metadata{Name: "chat"},
+				Spec: resource.AIRouteSpec{
+					ParentRefs: []string{"public"},
+					PathPrefix: "/v1/chat/completions",
+					Model:      "gpt-4.1-mini",
+					ProviderRefs: []resource.AIProviderRef{
+						{Name: "openai"},
+					},
+				},
+			},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `ai route "chat" provider "openai" has invalid weight 0`) {
+		t.Fatalf("CompileGateway() error = %v", err)
+	}
+}
+
 func TestCompilerCompileGatewayMissingPluginRef(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
