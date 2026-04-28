@@ -100,6 +100,23 @@ func TestCompilerCompileGatewayMissingGateway(t *testing.T) {
 	}
 }
 
+func TestCompilerCompileGatewayDuplicateGateway(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{Metadata: resource.Metadata{Name: "public"}},
+			{Metadata: resource.Metadata{Name: "public"}},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `duplicate gateway "public"`) {
+		t.Fatalf("CompileGateway() error = %v", err)
+	}
+}
+
 func TestCompilerCompileGatewayMissingRouteParent(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
@@ -120,6 +137,26 @@ func TestCompilerCompileGatewayMissingRouteParent(t *testing.T) {
 		t.Fatal("CompileGateway() error = nil")
 	}
 	if !strings.Contains(err.Error(), `route "app" references gateway "missing"`) {
+		t.Fatalf("CompileGateway() error = %v", err)
+	}
+}
+
+func TestCompilerCompileGatewayDuplicateUpstream(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{Metadata: resource.Metadata{Name: "public"}},
+		},
+		Upstreams: []resource.Upstream{
+			{Metadata: resource.Metadata{Name: "app"}},
+			{Metadata: resource.Metadata{Name: "app"}},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `duplicate upstream "app"`) {
 		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }

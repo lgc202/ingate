@@ -16,21 +16,21 @@ type Compiler struct{}
 func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.LogicalGateway, error) {
 	var gateway resource.Gateway
 	foundGateway := false
+	gatewaysByName := make(map[string]bool, len(bundle.Gateways))
 	for _, item := range bundle.Gateways {
+		if gatewaysByName[item.Metadata.Name] {
+			return ir.LogicalGateway{}, fmt.Errorf("duplicate gateway %q", item.Metadata.Name)
+		}
+		gatewaysByName[item.Metadata.Name] = true
 		if item.Metadata.Name == gatewayName {
 			gateway = item
 			foundGateway = true
-			break
 		}
 	}
 	if !foundGateway {
 		return ir.LogicalGateway{}, fmt.Errorf("gateway %q not found", gatewayName)
 	}
 
-	gatewaysByName := make(map[string]bool, len(bundle.Gateways))
-	for _, item := range bundle.Gateways {
-		gatewaysByName[item.Metadata.Name] = true
-	}
 	for _, route := range bundle.Routes {
 		for _, parentRef := range route.Spec.ParentRefs {
 			if !gatewaysByName[parentRef] {
@@ -41,6 +41,9 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 
 	upstreamsByName := make(map[string]resource.Upstream, len(bundle.Upstreams))
 	for _, upstream := range bundle.Upstreams {
+		if _, ok := upstreamsByName[upstream.Metadata.Name]; ok {
+			return ir.LogicalGateway{}, fmt.Errorf("duplicate upstream %q", upstream.Metadata.Name)
+		}
 		upstreamsByName[upstream.Metadata.Name] = upstream
 	}
 
