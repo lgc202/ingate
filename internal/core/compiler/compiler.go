@@ -15,11 +15,12 @@ type Compiler struct{}
 // CompileGateway 从内存资源集合中编译指定 Gateway
 func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.LogicalGateway, error) {
 	c := gatewayCompiler{
-		bundle:          bundle,
-		gatewayName:     gatewayName,
-		gatewaysByName:  make(map[string]resource.Gateway, len(bundle.Gateways)),
-		routesByName:    make(map[string]bool, len(bundle.Routes)),
-		upstreamsByName: make(map[string]resource.Upstream, len(bundle.Upstreams)),
+		bundle:               bundle,
+		gatewayName:          gatewayName,
+		gatewaysByName:       make(map[string]resource.Gateway, len(bundle.Gateways)),
+		routesByName:         make(map[string]bool, len(bundle.Routes)),
+		upstreamsByName:      make(map[string]resource.Upstream, len(bundle.Upstreams)),
+		policyBindingsByName: make(map[string]bool, len(bundle.PolicyBindings)),
 	}
 
 	return c.compile()
@@ -30,9 +31,10 @@ type gatewayCompiler struct {
 	gatewayName string
 	gateway     resource.Gateway
 
-	gatewaysByName  map[string]resource.Gateway
-	routesByName    map[string]bool
-	upstreamsByName map[string]resource.Upstream
+	gatewaysByName       map[string]resource.Gateway
+	routesByName         map[string]bool
+	upstreamsByName      map[string]resource.Upstream
+	policyBindingsByName map[string]bool
 }
 
 func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
@@ -45,6 +47,9 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexUpstreams(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	if err := c.indexPolicyBindings(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
 
 	routes, upstreamOrder, err := c.buildAttachedRoutes()
 	if err != nil {
@@ -52,10 +57,11 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	}
 
 	return ir.LogicalGateway{
-		Name:      c.gateway.Metadata.Name,
-		Listeners: c.buildListeners(),
-		Routes:    routes,
-		Upstreams: c.buildUsedUpstreams(upstreamOrder),
+		Name:           c.gateway.Metadata.Name,
+		Listeners:      c.buildListeners(),
+		Routes:         routes,
+		Upstreams:      c.buildUsedUpstreams(upstreamOrder),
+		PolicyBindings: c.buildPolicyBindings(routes, upstreamOrder),
 	}, nil
 }
 
@@ -98,6 +104,35 @@ func (c *gatewayCompiler) indexUpstreams() error {
 			return fmt.Errorf("duplicate upstream %q", upstream.Metadata.Name)
 		}
 		c.upstreamsByName[upstream.Metadata.Name] = upstream
+	}
+
+	return nil
+}
+
+func (c *gatewayCompiler) indexPolicyBindings() error {
+	for _, binding := range c.bundle.PolicyBindings {
+		if c.policyBindingsByName[binding.Metadata.Name] {
+			return fmt.Errorf("duplicate policy binding %q", binding.Metadata.Name)
+		}
+		c.policyBindingsByName[binding.Metadata.Name] = true
+
+		target := binding.Spec.TargetRef
+		switch target.Kind {
+		case resource.ResourceKindGateway:
+			if _, ok := c.gatewaysByName[target.Name]; !ok {
+				return fmt.Errorf("policy binding %q references gateway %q", binding.Metadata.Name, target.Name)
+			}
+		case resource.ResourceKindRoute:
+			if !c.routesByName[target.Name] {
+				return fmt.Errorf("policy binding %q references route %q", binding.Metadata.Name, target.Name)
+			}
+		case resource.ResourceKindUpstream:
+			if _, ok := c.upstreamsByName[target.Name]; !ok {
+				return fmt.Errorf("policy binding %q references upstream %q", binding.Metadata.Name, target.Name)
+			}
+		default:
+			return fmt.Errorf("policy binding %q references unsupported kind %q", binding.Metadata.Name, target.Kind)
+		}
 	}
 
 	return nil
@@ -186,4 +221,47 @@ func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.Logica
 	}
 
 	return upstreams
+}
+
+func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstreamOrder []string) []ir.LogicalPolicyBinding {
+	routeNames := make(map[string]bool, len(routes))
+	for _, route := range routes {
+		routeNames[route.Name] = true
+	}
+	upstreamNames := make(map[string]bool, len(upstreamOrder))
+	for _, upstreamName := range upstreamOrder {
+		upstreamNames[upstreamName] = true
+	}
+
+	bindings := make([]ir.LogicalPolicyBinding, 0, len(c.bundle.PolicyBindings))
+	for _, binding := range c.bundle.PolicyBindings {
+		target := binding.Spec.TargetRef
+		if target.Kind == resource.ResourceKindGateway && target.Name != c.gatewayName {
+			continue
+		}
+		if target.Kind == resource.ResourceKindRoute && !routeNames[target.Name] {
+			continue
+		}
+		if target.Kind == resource.ResourceKindUpstream && !upstreamNames[target.Name] {
+			continue
+		}
+
+		logicalBinding := ir.LogicalPolicyBinding{
+			Name: binding.Metadata.Name,
+			Target: ir.LogicalPolicyTarget{
+				Kind: target.Kind,
+				Name: target.Name,
+			},
+			Policies: make([]ir.LogicalPolicyRef, 0, len(binding.Spec.Policies)),
+		}
+		for _, policy := range binding.Spec.Policies {
+			logicalBinding.Policies = append(logicalBinding.Policies, ir.LogicalPolicyRef{
+				Kind: policy.Kind,
+				Name: policy.Name,
+			})
+		}
+		bindings = append(bindings, logicalBinding)
+	}
+
+	return bindings
 }

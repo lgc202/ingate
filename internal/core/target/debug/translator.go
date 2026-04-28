@@ -9,14 +9,20 @@ import (
 	"github.com/lgc202/ingate-next/internal/core/runtime"
 )
 
+const (
+	targetName    = "debug"
+	versionPrefix = "debug/%s"
+)
+
 // Translator 负责生成 debug target 的配置快照
 type Translator struct{}
 
 // Config 表示 debug target 的配置载荷
 type Config struct {
-	Listeners []Listener `json:"listeners"`
-	Routes    []Route    `json:"routes"`
-	Upstreams []Upstream `json:"upstreams"`
+	Listeners      []Listener      `json:"listeners"`
+	Routes         []Route         `json:"routes"`
+	Upstreams      []Upstream      `json:"upstreams"`
+	PolicyBindings []PolicyBinding `json:"policyBindings"`
 }
 
 // Listener 表示 debug 配置中的监听器
@@ -67,17 +73,37 @@ type Endpoint struct {
 	Port    int    `json:"port"`
 }
 
+// PolicyBinding 表示 debug 配置中的策略绑定
+type PolicyBinding struct {
+	Name     string       `json:"name"`
+	Target   PolicyTarget `json:"target"`
+	Policies []PolicyRef  `json:"policies"`
+}
+
+// PolicyTarget 表示 debug 配置中的策略绑定目标
+type PolicyTarget struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
+// PolicyRef 表示 debug 配置中的策略引用
+type PolicyRef struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
 // Target 返回运行时 target 名称
 func (Translator) Target() string {
-	return "debug"
+	return targetName
 }
 
 // Translate 将逻辑网关模型转换成 debug 运行时快照
 func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapshot, error) {
 	config := Config{
-		Listeners: make([]Listener, 0, len(logical.Listeners)),
-		Routes:    make([]Route, 0, len(logical.Routes)),
-		Upstreams: make([]Upstream, 0, len(logical.Upstreams)),
+		Listeners:      make([]Listener, 0, len(logical.Listeners)),
+		Routes:         make([]Route, 0, len(logical.Routes)),
+		Upstreams:      make([]Upstream, 0, len(logical.Upstreams)),
+		PolicyBindings: make([]PolicyBinding, 0, len(logical.PolicyBindings)),
 	}
 
 	for _, listener := range logical.Listeners {
@@ -133,11 +159,28 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		}
 		config.Upstreams = append(config.Upstreams, debugUpstream)
 	}
+	for _, binding := range logical.PolicyBindings {
+		debugBinding := PolicyBinding{
+			Name: binding.Name,
+			Target: PolicyTarget{
+				Kind: binding.Target.Kind,
+				Name: binding.Target.Name,
+			},
+			Policies: make([]PolicyRef, 0, len(binding.Policies)),
+		}
+		for _, policy := range binding.Policies {
+			debugBinding.Policies = append(debugBinding.Policies, PolicyRef{
+				Kind: policy.Kind,
+				Name: policy.Name,
+			})
+		}
+		config.PolicyBindings = append(config.PolicyBindings, debugBinding)
+	}
 
 	return runtime.RuntimeSnapshot{
 		Target:  t.Target(),
 		Gateway: logical.Name,
-		Version: fmt.Sprintf("debug/%s", logical.Name),
+		Version: fmt.Sprintf(versionPrefix, logical.Name),
 		Config:  config,
 	}, nil
 }

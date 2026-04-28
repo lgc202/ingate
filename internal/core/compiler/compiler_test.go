@@ -54,6 +54,20 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
+		PolicyBindings: []resource.PolicyBinding{
+			{
+				Metadata: resource.Metadata{Name: "app-auth"},
+				Spec: resource.PolicyBindingSpec{
+					TargetRef: resource.PolicyTargetRef{
+						Kind: resource.ResourceKindRoute,
+						Name: "app",
+					},
+					Policies: []resource.PolicyRef{
+						{Kind: "AuthPolicy", Name: "required"},
+					},
+				},
+			},
+		},
 	}
 
 	got, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
@@ -93,10 +107,49 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
+		PolicyBindings: []ir.LogicalPolicyBinding{
+			{
+				Name: "app-auth",
+				Target: ir.LogicalPolicyTarget{
+					Kind: resource.ResourceKindRoute,
+					Name: "app",
+				},
+				Policies: []ir.LogicalPolicyRef{
+					{Kind: "AuthPolicy", Name: "required"},
+				},
+			},
+		},
 	}
 
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("CompileGateway() = %#v, want %#v", got, want)
+	}
+}
+
+func TestCompilerCompileGatewayMissingPolicyBindingTarget(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{Metadata: resource.Metadata{Name: "public"}},
+		},
+		PolicyBindings: []resource.PolicyBinding{
+			{
+				Metadata: resource.Metadata{Name: "app-auth"},
+				Spec: resource.PolicyBindingSpec{
+					TargetRef: resource.PolicyTargetRef{
+						Kind: resource.ResourceKindRoute,
+						Name: "missing",
+					},
+				},
+			},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `policy binding "app-auth" references route "missing"`) {
+		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }
 

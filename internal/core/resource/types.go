@@ -3,10 +3,20 @@ package resource
 
 // Bundle 表示一次内存编译所需的资源集合
 type Bundle struct {
-	Gateways  []Gateway  `json:"gateways"`
-	Routes    []Route    `json:"routes"`
-	Upstreams []Upstream `json:"upstreams"`
+	Gateways       []Gateway       `json:"gateways"`
+	Routes         []Route         `json:"routes"`
+	Upstreams      []Upstream      `json:"upstreams"`
+	PolicyBindings []PolicyBinding `json:"policyBindings"`
 }
+
+const (
+	// ResourceKindGateway 表示 Gateway 资源类型
+	ResourceKindGateway = "Gateway"
+	// ResourceKindRoute 表示 Route 资源类型
+	ResourceKindRoute = "Route"
+	// ResourceKindUpstream 表示 Upstream 资源类型
+	ResourceKindUpstream = "Upstream"
+)
 
 // Metadata 标识一个声明式资源
 type Metadata struct {
@@ -81,4 +91,28 @@ type UpstreamSpec struct {
 type Endpoint struct {
 	Address string `json:"address"`
 	Port    int    `json:"port"`
+}
+
+// PolicyBinding 声明一组策略绑定到哪个资源
+type PolicyBinding struct {
+	Metadata Metadata          `json:"metadata"`
+	Spec     PolicyBindingSpec `json:"spec"`
+}
+
+// PolicyBindingSpec 定义策略绑定目标和策略引用
+type PolicyBindingSpec struct {
+	TargetRef PolicyTargetRef `json:"targetRef"`
+	Policies  []PolicyRef     `json:"policies"`
+}
+
+// PolicyTargetRef 表示策略绑定目标资源
+type PolicyTargetRef struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
+}
+
+// PolicyRef 表示被绑定的策略资源引用
+type PolicyRef struct {
+	Kind string `json:"kind"`
+	Name string `json:"name"`
 }
