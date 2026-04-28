@@ -9,8 +9,8 @@ import (
 	"os"
 
 	"github.com/lgc202/ingate-next/internal/core/pipeline"
-	"github.com/lgc202/ingate-next/internal/core/resource"
 	"github.com/lgc202/ingate-next/internal/core/target/builtin"
+	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 )
 
 // Run 执行 ingate 命令

@@ -4,7 +4,7 @@ package ir
 import (
 	"encoding/json"
 
-	"github.com/lgc202/ingate-next/internal/core/resource"
+	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 )
 
 // LogicalGateway 表示一个 Gateway 编译后的运行时无关模型

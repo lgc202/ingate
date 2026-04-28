@@ -6,7 +6,7 @@ import (
 	"slices"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
-	"github.com/lgc202/ingate-next/internal/core/resource"
+	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 )
 
 // Compiler 负责把声明式资源编译成逻辑网关模型

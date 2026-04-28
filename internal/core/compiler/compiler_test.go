@@ -8,7 +8,7 @@ import (
 
 	"github.com/lgc202/ingate-next/internal/core/compiler"
 	"github.com/lgc202/ingate-next/internal/core/ir"
-	"github.com/lgc202/ingate-next/internal/core/resource"
+	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
