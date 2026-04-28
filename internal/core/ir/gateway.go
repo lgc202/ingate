@@ -27,7 +27,15 @@ type LogicalRoute struct {
 // LogicalRouteRule 表示编译后的路由规则
 type LogicalRouteRule struct {
 	PathPrefix string
+	Methods    []string
+	Headers    []LogicalHeaderMatch
 	Upstreams  []LogicalUpstreamRef
+}
+
+// LogicalHeaderMatch 表示编译后的 HTTP header 精确匹配条件
+type LogicalHeaderMatch struct {
+	Name  string
+	Value string
 }
 
 // LogicalUpstreamRef 表示已解析的 Upstream 引用

@@ -29,6 +29,10 @@ func TestTranslatorTranslate(t *testing.T) {
 				Rules: []ir.LogicalRouteRule{
 					{
 						PathPrefix: "/app",
+						Methods:    []string{"GET", "POST"},
+						Headers: []ir.LogicalHeaderMatch{
+							{Name: "x-tenant", Value: "acme"},
+						},
 						Upstreams: []ir.LogicalUpstreamRef{
 							{Name: "app", Weight: 100},
 						},
@@ -86,6 +90,10 @@ func TestTranslatorTranslate(t *testing.T) {
 								Name: "app",
 								Match: xds.RouteMatch{
 									PathPrefix: "/app",
+									Methods:    []string{"GET", "POST"},
+									Headers: []xds.HeaderMatch{
+										{Name: "x-tenant", Value: "acme"},
+									},
 								},
 								WeightedClusters: []xds.WeightedCluster{
 									{Name: "app", Weight: 100},
