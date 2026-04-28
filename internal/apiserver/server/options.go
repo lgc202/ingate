@@ -57,15 +57,17 @@ func (o *Options) Complete() error {
 	return o.ServerRunOptions.Complete()
 }
 
-// Config 创建 Kubernetes generic apiserver 推荐配置
-func (o *Options) Config() (*genericapiserver.RecommendedConfig, error) {
-	config := genericapiserver.NewRecommendedConfig(Codecs)
-	if err := o.ServerRunOptions.ApplyTo(&config.Config); err != nil {
+// Config 创建 ingate-apiserver 配置
+func (o *Options) Config() (*Config, error) {
+	genericConfig := genericapiserver.NewRecommendedConfig(Codecs)
+	if err := o.ServerRunOptions.ApplyTo(&genericConfig.Config); err != nil {
 		return nil, err
 	}
-	if err := o.RecommendedOptions.ApplyTo(config); err != nil {
+	if err := o.RecommendedOptions.ApplyTo(genericConfig); err != nil {
 		return nil, err
 	}
 
-	return config, nil
+	return &Config{
+		GenericConfig: genericConfig,
+	}, nil
 }
