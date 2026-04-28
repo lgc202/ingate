@@ -3,6 +3,7 @@ package debug
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/lgc202/ingate-next/internal/core/ir"
@@ -23,9 +24,11 @@ type Config struct {
 	Listeners         []Listener        `json:"listeners"`
 	Routes            []Route           `json:"routes"`
 	Upstreams         []Upstream        `json:"upstreams"`
+	Plugins           []Plugin          `json:"plugins"`
 	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
 	PolicyBindings    []PolicyBinding   `json:"policyBindings"`
+	PluginBindings    []PluginBinding   `json:"pluginBindings"`
 }
 
 // Listener 表示 debug 配置中的监听器
@@ -76,6 +79,15 @@ type Endpoint struct {
 	Port    int    `json:"port"`
 }
 
+// Plugin 表示 debug 配置中的插件声明
+type Plugin struct {
+	Name     string                 `json:"name"`
+	Runtime  resource.PluginRuntime `json:"runtime"`
+	Version  string                 `json:"version"`
+	Endpoint string                 `json:"endpoint"`
+	Image    string                 `json:"image"`
+}
+
 // AuthPolicy 表示 debug 配置中的认证策略
 type AuthPolicy struct {
 	Name   string            `json:"name"`
@@ -117,6 +129,25 @@ type PolicyRef struct {
 	Name string        `json:"name"`
 }
 
+// PluginBinding 表示 debug 配置中的插件绑定
+type PluginBinding struct {
+	Name    string       `json:"name"`
+	Target  PluginTarget `json:"target"`
+	Plugins []PluginRef  `json:"plugins"`
+}
+
+// PluginTarget 表示 debug 配置中的插件绑定目标
+type PluginTarget struct {
+	Kind resource.Kind `json:"kind"`
+	Name string        `json:"name"`
+}
+
+// PluginRef 表示 debug 配置中的插件引用
+type PluginRef struct {
+	Name   string         `json:"name"`
+	Config map[string]any `json:"config"`
+}
+
 // Target 返回运行时 target 名称
 func (Translator) Target() string {
 	return targetName
@@ -128,9 +159,11 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		Listeners:         make([]Listener, 0, len(logical.Listeners)),
 		Routes:            make([]Route, 0, len(logical.Routes)),
 		Upstreams:         make([]Upstream, 0, len(logical.Upstreams)),
+		Plugins:           make([]Plugin, 0, len(logical.Plugins)),
 		AuthPolicies:      make([]AuthPolicy, 0, len(logical.AuthPolicies)),
 		RateLimitPolicies: make([]RateLimitPolicy, 0, len(logical.RateLimitPolicies)),
 		PolicyBindings:    make([]PolicyBinding, 0, len(logical.PolicyBindings)),
+		PluginBindings:    make([]PluginBinding, 0, len(logical.PluginBindings)),
 	}
 
 	for _, listener := range logical.Listeners {
@@ -186,6 +219,15 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		}
 		config.Upstreams = append(config.Upstreams, debugUpstream)
 	}
+	for _, plugin := range logical.Plugins {
+		config.Plugins = append(config.Plugins, Plugin{
+			Name:     plugin.Name,
+			Runtime:  plugin.Runtime,
+			Version:  plugin.Version,
+			Endpoint: plugin.Endpoint,
+			Image:    plugin.Image,
+		})
+	}
 	for _, policy := range logical.AuthPolicies {
 		config.AuthPolicies = append(config.AuthPolicies, AuthPolicy{
 			Name: policy.Name,
@@ -221,6 +263,23 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			})
 		}
 		config.PolicyBindings = append(config.PolicyBindings, debugBinding)
+	}
+	for _, binding := range logical.PluginBindings {
+		debugBinding := PluginBinding{
+			Name: binding.Name,
+			Target: PluginTarget{
+				Kind: binding.Target.Kind,
+				Name: binding.Target.Name,
+			},
+			Plugins: make([]PluginRef, 0, len(binding.Plugins)),
+		}
+		for _, plugin := range binding.Plugins {
+			debugBinding.Plugins = append(debugBinding.Plugins, PluginRef{
+				Name:   plugin.Name,
+				Config: maps.Clone(plugin.Config),
+			})
+		}
+		config.PluginBindings = append(config.PluginBindings, debugBinding)
 	}
 
 	return runtime.RuntimeSnapshot{

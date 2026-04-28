@@ -50,6 +50,14 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
+		Plugins: []ir.LogicalPlugin{
+			{
+				Name:     "audit-log",
+				Runtime:  resource.PluginRuntimeExternal,
+				Version:  "v1",
+				Endpoint: "dns:///audit-plugin:9000",
+			},
+		},
 		AuthPolicies: []ir.LogicalAuthPolicy{
 			{
 				Name: "required",
@@ -66,6 +74,23 @@ func TestTranslatorTranslate(t *testing.T) {
 				WindowSeconds: 60,
 				KeyBy:         resource.RateLimitKeyHeader,
 				Header:        "x-consumer-id",
+			},
+		},
+		PluginBindings: []ir.LogicalPluginBinding{
+			{
+				Name: "app-audit",
+				Target: ir.LogicalPluginTarget{
+					Kind: resource.KindRoute,
+					Name: "app",
+				},
+				Plugins: []ir.LogicalPluginRef{
+					{
+						Name: "audit-log",
+						Config: map[string]any{
+							"mode": "audit",
+						},
+					},
+				},
 			},
 		},
 		PolicyBindings: []ir.LogicalPolicyBinding{
@@ -133,6 +158,14 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
+		Plugins: []debug.Plugin{
+			{
+				Name:     "audit-log",
+				Runtime:  resource.PluginRuntimeExternal,
+				Version:  "v1",
+				Endpoint: "dns:///audit-plugin:9000",
+			},
+		},
 		AuthPolicies: []debug.AuthPolicy{
 			{
 				Name: "required",
@@ -149,6 +182,23 @@ func TestTranslatorTranslate(t *testing.T) {
 				WindowSeconds: 60,
 				KeyBy:         resource.RateLimitKeyHeader,
 				Header:        "x-consumer-id",
+			},
+		},
+		PluginBindings: []debug.PluginBinding{
+			{
+				Name: "app-audit",
+				Target: debug.PluginTarget{
+					Kind: resource.KindRoute,
+					Name: "app",
+				},
+				Plugins: []debug.PluginRef{
+					{
+						Name: "audit-log",
+						Config: map[string]any{
+							"mode": "audit",
+						},
+					},
+				},
 			},
 		},
 		PolicyBindings: []debug.PolicyBinding{

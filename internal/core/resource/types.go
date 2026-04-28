@@ -15,6 +15,18 @@ const (
 	KindAuthPolicy Kind = "AuthPolicy"
 	// KindRateLimitPolicy 表示 RateLimitPolicy 资源类型
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
+	// KindPlugin 表示 Plugin 资源类型
+	KindPlugin Kind = "Plugin"
+)
+
+// PluginRuntime 表示插件运行时类型
+type PluginRuntime string
+
+const (
+	// PluginRuntimeExternal 表示外部进程插件
+	PluginRuntimeExternal PluginRuntime = "External"
+	// PluginRuntimeWASM 表示 WASM 插件
+	PluginRuntimeWASM PluginRuntime = "WASM"
 )
 
 // AuthType 表示认证策略类型
@@ -40,9 +52,11 @@ type Bundle struct {
 	Gateways          []Gateway         `json:"gateways"`
 	Routes            []Route           `json:"routes"`
 	Upstreams         []Upstream        `json:"upstreams"`
+	Plugins           []Plugin          `json:"plugins"`
 	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
 	PolicyBindings    []PolicyBinding   `json:"policyBindings"`
+	PluginBindings    []PluginBinding   `json:"pluginBindings"`
 }
 
 // Metadata 标识一个声明式资源
@@ -120,6 +134,20 @@ type Endpoint struct {
 	Port    int    `json:"port"`
 }
 
+// Plugin 声明一个可绑定到网关资源的插件
+type Plugin struct {
+	Metadata Metadata   `json:"metadata"`
+	Spec     PluginSpec `json:"spec"`
+}
+
+// PluginSpec 定义插件运行时和入口
+type PluginSpec struct {
+	Runtime  PluginRuntime `json:"runtime"`
+	Version  string        `json:"version"`
+	Endpoint string        `json:"endpoint"`
+	Image    string        `json:"image"`
+}
+
 // AuthPolicy 声明认证策略
 type AuthPolicy struct {
 	Metadata Metadata       `json:"metadata"`
@@ -150,6 +178,30 @@ type RateLimitPolicySpec struct {
 	WindowSeconds int          `json:"windowSeconds"`
 	KeyBy         RateLimitKey `json:"keyBy"`
 	Header        string       `json:"header"`
+}
+
+// PluginBinding 声明一组插件绑定到哪个资源
+type PluginBinding struct {
+	Metadata Metadata          `json:"metadata"`
+	Spec     PluginBindingSpec `json:"spec"`
+}
+
+// PluginBindingSpec 定义插件绑定目标和插件引用
+type PluginBindingSpec struct {
+	TargetRef PluginTargetRef `json:"targetRef"`
+	Plugins   []PluginRef     `json:"plugins"`
+}
+
+// PluginTargetRef 表示插件绑定目标资源
+type PluginTargetRef struct {
+	Kind Kind   `json:"kind"`
+	Name string `json:"name"`
+}
+
+// PluginRef 表示被绑定的插件引用
+type PluginRef struct {
+	Name   string         `json:"name"`
+	Config map[string]any `json:"config"`
 }
 
 // PolicyBinding 声明一组策略绑定到哪个资源
