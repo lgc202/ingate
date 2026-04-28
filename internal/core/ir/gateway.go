@@ -5,12 +5,13 @@ import "github.com/lgc202/ingate-next/internal/core/resource"
 
 // LogicalGateway 表示一个 Gateway 编译后的运行时无关模型
 type LogicalGateway struct {
-	Name           string
-	Listeners      []LogicalListener
-	Routes         []LogicalRoute
-	Upstreams      []LogicalUpstream
-	AuthPolicies   []LogicalAuthPolicy
-	PolicyBindings []LogicalPolicyBinding
+	Name              string
+	Listeners         []LogicalListener
+	Routes            []LogicalRoute
+	Upstreams         []LogicalUpstream
+	AuthPolicies      []LogicalAuthPolicy
+	RateLimitPolicies []LogicalRateLimitPolicy
+	PolicyBindings    []LogicalPolicyBinding
 }
 
 // LogicalListener 表示编译后的 Gateway 监听器
@@ -72,6 +73,15 @@ type LogicalAuthPolicy struct {
 type LogicalAPIKeyAuth struct {
 	Header string
 	Query  string
+}
+
+// LogicalRateLimitPolicy 表示编译后的限流策略
+type LogicalRateLimitPolicy struct {
+	Name          string
+	Requests      int
+	WindowSeconds int
+	KeyBy         resource.RateLimitKey
+	Header        string
 }
 
 // LogicalPolicyBinding 表示编译后的策略绑定关系

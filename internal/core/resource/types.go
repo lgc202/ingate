@@ -13,6 +13,8 @@ const (
 	KindUpstream Kind = "Upstream"
 	// KindAuthPolicy 表示 AuthPolicy 资源类型
 	KindAuthPolicy Kind = "AuthPolicy"
+	// KindRateLimitPolicy 表示 RateLimitPolicy 资源类型
+	KindRateLimitPolicy Kind = "RateLimitPolicy"
 )
 
 // AuthType 表示认证策略类型
@@ -23,13 +25,24 @@ const (
 	AuthTypeAPIKey AuthType = "APIKey"
 )
 
+// RateLimitKey 表示限流计数维度
+type RateLimitKey string
+
+const (
+	// RateLimitKeyIP 表示按客户端 IP 限流
+	RateLimitKeyIP RateLimitKey = "IP"
+	// RateLimitKeyHeader 表示按请求 header 限流
+	RateLimitKeyHeader RateLimitKey = "Header"
+)
+
 // Bundle 表示一次内存编译所需的资源集合
 type Bundle struct {
-	Gateways       []Gateway       `json:"gateways"`
-	Routes         []Route         `json:"routes"`
-	Upstreams      []Upstream      `json:"upstreams"`
-	AuthPolicies   []AuthPolicy    `json:"authPolicies"`
-	PolicyBindings []PolicyBinding `json:"policyBindings"`
+	Gateways          []Gateway         `json:"gateways"`
+	Routes            []Route           `json:"routes"`
+	Upstreams         []Upstream        `json:"upstreams"`
+	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
+	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
+	PolicyBindings    []PolicyBinding   `json:"policyBindings"`
 }
 
 // Metadata 标识一个声明式资源
@@ -123,6 +136,20 @@ type AuthPolicySpec struct {
 type APIKeyAuth struct {
 	Header string `json:"header"`
 	Query  string `json:"query"`
+}
+
+// RateLimitPolicy 声明限流策略
+type RateLimitPolicy struct {
+	Metadata Metadata            `json:"metadata"`
+	Spec     RateLimitPolicySpec `json:"spec"`
+}
+
+// RateLimitPolicySpec 定义限流策略配置
+type RateLimitPolicySpec struct {
+	Requests      int          `json:"requests"`
+	WindowSeconds int          `json:"windowSeconds"`
+	KeyBy         RateLimitKey `json:"keyBy"`
+	Header        string       `json:"header"`
 }
 
 // PolicyBinding 声明一组策略绑定到哪个资源

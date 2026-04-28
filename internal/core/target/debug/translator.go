@@ -20,11 +20,12 @@ type Translator struct{}
 
 // Config 表示 debug target 的配置载荷
 type Config struct {
-	Listeners      []Listener      `json:"listeners"`
-	Routes         []Route         `json:"routes"`
-	Upstreams      []Upstream      `json:"upstreams"`
-	AuthPolicies   []AuthPolicy    `json:"authPolicies"`
-	PolicyBindings []PolicyBinding `json:"policyBindings"`
+	Listeners         []Listener        `json:"listeners"`
+	Routes            []Route           `json:"routes"`
+	Upstreams         []Upstream        `json:"upstreams"`
+	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
+	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
+	PolicyBindings    []PolicyBinding   `json:"policyBindings"`
 }
 
 // Listener 表示 debug 配置中的监听器
@@ -88,6 +89,15 @@ type APIKeyAuth struct {
 	Query  string `json:"query"`
 }
 
+// RateLimitPolicy 表示 debug 配置中的限流策略
+type RateLimitPolicy struct {
+	Name          string                `json:"name"`
+	Requests      int                   `json:"requests"`
+	WindowSeconds int                   `json:"windowSeconds"`
+	KeyBy         resource.RateLimitKey `json:"keyBy"`
+	Header        string                `json:"header"`
+}
+
 // PolicyBinding 表示 debug 配置中的策略绑定
 type PolicyBinding struct {
 	Name     string       `json:"name"`
@@ -115,11 +125,12 @@ func (Translator) Target() string {
 // Translate 将逻辑网关模型转换成 debug 运行时快照
 func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapshot, error) {
 	config := Config{
-		Listeners:      make([]Listener, 0, len(logical.Listeners)),
-		Routes:         make([]Route, 0, len(logical.Routes)),
-		Upstreams:      make([]Upstream, 0, len(logical.Upstreams)),
-		AuthPolicies:   make([]AuthPolicy, 0, len(logical.AuthPolicies)),
-		PolicyBindings: make([]PolicyBinding, 0, len(logical.PolicyBindings)),
+		Listeners:         make([]Listener, 0, len(logical.Listeners)),
+		Routes:            make([]Route, 0, len(logical.Routes)),
+		Upstreams:         make([]Upstream, 0, len(logical.Upstreams)),
+		AuthPolicies:      make([]AuthPolicy, 0, len(logical.AuthPolicies)),
+		RateLimitPolicies: make([]RateLimitPolicy, 0, len(logical.RateLimitPolicies)),
+		PolicyBindings:    make([]PolicyBinding, 0, len(logical.PolicyBindings)),
 	}
 
 	for _, listener := range logical.Listeners {
@@ -183,6 +194,15 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 				Header: policy.APIKey.Header,
 				Query:  policy.APIKey.Query,
 			},
+		})
+	}
+	for _, policy := range logical.RateLimitPolicies {
+		config.RateLimitPolicies = append(config.RateLimitPolicies, RateLimitPolicy{
+			Name:          policy.Name,
+			Requests:      policy.Requests,
+			WindowSeconds: policy.WindowSeconds,
+			KeyBy:         policy.KeyBy,
+			Header:        policy.Header,
 		})
 	}
 	for _, binding := range logical.PolicyBindings {
