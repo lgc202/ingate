@@ -12,3 +12,10 @@ source "${codegen_pkg}/kube_codegen.sh"
 kube::codegen::gen_helpers \
   --boilerplate "${repo_root}/hack/boilerplate.go.txt" \
   "${repo_root}/pkg/apis"
+
+kube::codegen::gen_client \
+  --with-watch \
+  --output-dir "${repo_root}/pkg/generated" \
+  --output-pkg "github.com/lgc202/ingate-next/pkg/generated" \
+  --boilerplate "${repo_root}/hack/boilerplate.go.txt" \
+  "${repo_root}/pkg/apis"
