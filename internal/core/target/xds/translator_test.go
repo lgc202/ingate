@@ -125,3 +125,39 @@ func TestTranslatorTranslate(t *testing.T) {
 		t.Fatalf("Config = %#v, want %#v", got, want)
 	}
 }
+
+func TestTranslatorTranslateRouteWithoutHostnameUsesWildcardDomain(t *testing.T) {
+	logical := ir.LogicalGateway{
+		Name: "public",
+		Listeners: []ir.LogicalListener{
+			{Name: "http", Protocol: "HTTP", Port: 80},
+		},
+		Routes: []ir.LogicalRoute{
+			{
+				Name: "app",
+				Rules: []ir.LogicalRouteRule{
+					{
+						PathPrefix: "/app",
+						Upstreams: []ir.LogicalUpstreamRef{
+							{Name: "app", Weight: 100},
+						},
+					},
+				},
+			},
+		},
+		Upstreams: []ir.LogicalUpstream{
+			{Name: "app"},
+		},
+	}
+
+	snapshot, err := (xds.Translator{}).Translate(logical)
+	if err != nil {
+		t.Fatalf("Translate() error = %v", err)
+	}
+	got := snapshot.Config.(xds.Config)
+	want := []string{"*"}
+
+	if !reflect.DeepEqual(got.RouteConfigs[0].VirtualHosts[0].Domains, want) {
+		t.Fatalf("Domains = %#v, want %#v", got.RouteConfigs[0].VirtualHosts[0].Domains, want)
+	}
+}
