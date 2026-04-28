@@ -9,6 +9,8 @@ import (
 	"github.com/lgc202/ingate-next/internal/core/runtime"
 )
 
+const wildcardDomain = "*"
+
 // Translator 负责生成 xDS target 的配置快照
 type Translator struct{}
 
@@ -115,9 +117,13 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			VirtualHosts: make([]VirtualHost, 0, len(logical.Routes)),
 		}
 		for _, route := range logical.Routes {
+			domains := slices.Clone(route.Hostnames)
+			if len(domains) == 0 {
+				domains = []string{wildcardDomain}
+			}
 			virtualHost := VirtualHost{
 				Name:    route.Name,
-				Domains: slices.Clone(route.Hostnames),
+				Domains: domains,
 				Routes:  make([]Route, 0, len(route.Rules)),
 			}
 			for _, rule := range route.Rules {
