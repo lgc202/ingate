@@ -17,23 +17,25 @@ type gatewayCompiler struct {
 	gatewayName string
 	gateway     resource.Gateway
 
-	gatewaysByName       map[string]resource.Gateway
-	routesByName         map[string]bool
-	upstreamsByName      map[string]resource.Upstream
-	authPoliciesByName   map[string]resource.AuthPolicy
-	policyBindingsByName map[string]bool
+	gatewaysByName          map[string]resource.Gateway
+	routesByName            map[string]bool
+	upstreamsByName         map[string]resource.Upstream
+	authPoliciesByName      map[string]resource.AuthPolicy
+	rateLimitPoliciesByName map[string]resource.RateLimitPolicy
+	policyBindingsByName    map[string]bool
 }
 
 // CompileGateway 从内存资源集合中编译指定 Gateway
 func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.LogicalGateway, error) {
 	c := gatewayCompiler{
-		bundle:               bundle,
-		gatewayName:          gatewayName,
-		gatewaysByName:       make(map[string]resource.Gateway, len(bundle.Gateways)),
-		routesByName:         make(map[string]bool, len(bundle.Routes)),
-		upstreamsByName:      make(map[string]resource.Upstream, len(bundle.Upstreams)),
-		authPoliciesByName:   make(map[string]resource.AuthPolicy, len(bundle.AuthPolicies)),
-		policyBindingsByName: make(map[string]bool, len(bundle.PolicyBindings)),
+		bundle:                  bundle,
+		gatewayName:             gatewayName,
+		gatewaysByName:          make(map[string]resource.Gateway, len(bundle.Gateways)),
+		routesByName:            make(map[string]bool, len(bundle.Routes)),
+		upstreamsByName:         make(map[string]resource.Upstream, len(bundle.Upstreams)),
+		authPoliciesByName:      make(map[string]resource.AuthPolicy, len(bundle.AuthPolicies)),
+		rateLimitPoliciesByName: make(map[string]resource.RateLimitPolicy, len(bundle.RateLimitPolicies)),
+		policyBindingsByName:    make(map[string]bool, len(bundle.PolicyBindings)),
 	}
 
 	return c.compile()
@@ -52,6 +54,9 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexAuthPolicies(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	if err := c.indexRateLimitPolicies(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
 	if err := c.indexPolicyBindings(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
@@ -63,12 +68,13 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	policyBindings := c.buildPolicyBindings(routes, upstreamOrder)
 
 	return ir.LogicalGateway{
-		Name:           c.gateway.Metadata.Name,
-		Listeners:      c.buildListeners(),
-		Routes:         routes,
-		Upstreams:      c.buildUsedUpstreams(upstreamOrder),
-		AuthPolicies:   c.buildAuthPolicies(policyBindings),
-		PolicyBindings: policyBindings,
+		Name:              c.gateway.Metadata.Name,
+		Listeners:         c.buildListeners(),
+		Routes:            routes,
+		Upstreams:         c.buildUsedUpstreams(upstreamOrder),
+		AuthPolicies:      c.buildAuthPolicies(policyBindings),
+		RateLimitPolicies: c.buildRateLimitPolicies(policyBindings),
+		PolicyBindings:    policyBindings,
 	}, nil
 }
 
@@ -127,6 +133,17 @@ func (c *gatewayCompiler) indexAuthPolicies() error {
 	return nil
 }
 
+func (c *gatewayCompiler) indexRateLimitPolicies() error {
+	for _, policy := range c.bundle.RateLimitPolicies {
+		if _, ok := c.rateLimitPoliciesByName[policy.Metadata.Name]; ok {
+			return fmt.Errorf("duplicate rate limit policy %q", policy.Metadata.Name)
+		}
+		c.rateLimitPoliciesByName[policy.Metadata.Name] = policy
+	}
+
+	return nil
+}
+
 func (c *gatewayCompiler) indexPolicyBindings() error {
 	for _, binding := range c.bundle.PolicyBindings {
 		if c.policyBindingsByName[binding.Metadata.Name] {
@@ -157,6 +174,10 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 			case resource.KindAuthPolicy:
 				if _, ok := c.authPoliciesByName[policy.Name]; !ok {
 					return fmt.Errorf("policy binding %q references auth policy %q", binding.Metadata.Name, policy.Name)
+				}
+			case resource.KindRateLimitPolicy:
+				if _, ok := c.rateLimitPoliciesByName[policy.Name]; !ok {
+					return fmt.Errorf("policy binding %q references rate limit policy %q", binding.Metadata.Name, policy.Name)
 				}
 			default:
 				return fmt.Errorf("policy binding %q references unsupported policy kind %q", binding.Metadata.Name, policy.Kind)
@@ -276,6 +297,35 @@ func (c *gatewayCompiler) buildAuthPolicies(bindings []ir.LogicalPolicyBinding) 
 				Header: policy.Spec.APIKey.Header,
 				Query:  policy.Spec.APIKey.Query,
 			},
+		})
+	}
+
+	return policies
+}
+
+func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBinding) []ir.LogicalRateLimitPolicy {
+	usedPolicies := make(map[string]bool)
+	var policyOrder []string
+
+	for _, binding := range bindings {
+		for _, policy := range binding.Policies {
+			if policy.Kind != resource.KindRateLimitPolicy || usedPolicies[policy.Name] {
+				continue
+			}
+			usedPolicies[policy.Name] = true
+			policyOrder = append(policyOrder, policy.Name)
+		}
+	}
+
+	policies := make([]ir.LogicalRateLimitPolicy, 0, len(policyOrder))
+	for _, name := range policyOrder {
+		policy := c.rateLimitPoliciesByName[name]
+		policies = append(policies, ir.LogicalRateLimitPolicy{
+			Name:          policy.Metadata.Name,
+			Requests:      policy.Spec.Requests,
+			WindowSeconds: policy.Spec.WindowSeconds,
+			KeyBy:         policy.Spec.KeyBy,
+			Header:        policy.Spec.Header,
 		})
 	}
 

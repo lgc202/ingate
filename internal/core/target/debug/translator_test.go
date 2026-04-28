@@ -59,6 +59,15 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
+		RateLimitPolicies: []ir.LogicalRateLimitPolicy{
+			{
+				Name:          "app-quota",
+				Requests:      100,
+				WindowSeconds: 60,
+				KeyBy:         resource.RateLimitKeyHeader,
+				Header:        "x-consumer-id",
+			},
+		},
 		PolicyBindings: []ir.LogicalPolicyBinding{
 			{
 				Name: "app-auth",
@@ -68,6 +77,7 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 				Policies: []ir.LogicalPolicyRef{
 					{Kind: resource.KindAuthPolicy, Name: "required"},
+					{Kind: resource.KindRateLimitPolicy, Name: "app-quota"},
 				},
 			},
 		},
@@ -132,6 +142,15 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
+		RateLimitPolicies: []debug.RateLimitPolicy{
+			{
+				Name:          "app-quota",
+				Requests:      100,
+				WindowSeconds: 60,
+				KeyBy:         resource.RateLimitKeyHeader,
+				Header:        "x-consumer-id",
+			},
+		},
 		PolicyBindings: []debug.PolicyBinding{
 			{
 				Name: "app-auth",
@@ -141,6 +160,7 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 				Policies: []debug.PolicyRef{
 					{Kind: resource.KindAuthPolicy, Name: "required"},
+					{Kind: resource.KindRateLimitPolicy, Name: "app-quota"},
 				},
 			},
 		},
