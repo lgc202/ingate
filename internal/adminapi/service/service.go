@@ -19,7 +19,7 @@ type Service struct {
 // New 创建 service 聚合入口
 func New(store *store.Store) *Service {
 	return &Service{
-		Gateway:  gatewayservice.New(store.Gateway),
+		Gateway:  gatewayservice.New(store.Gateway, store.Route, store.Runtime, store.Upstream),
 		Route:    routeservice.New(store.Route),
 		Runtime:  runtimeservice.New(store.Runtime),
 		Upstream: upstreamservice.New(store.Upstream),
