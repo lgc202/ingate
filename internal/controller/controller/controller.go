@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"slices"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -22,14 +21,20 @@ import (
 	gatewaylisters "github.com/lgc202/ingate-next/pkg/generated/listers/gateway/v1"
 )
 
-const gatewayQueueName = "gateway"
+type routeIndexName string
+
+const (
+	gatewayQueueName                     = "gateway"
+	routeIndexParentRef   routeIndexName = "parentRef"
+	routeIndexUpstreamRef routeIndexName = "upstreamRef"
+)
 
 // Controller 监听声明式资源变化并触发编译
 type Controller struct {
 	factory        informers.SharedInformerFactory
 	gatewayLister  gatewaylisters.GatewayLister
-	routeLister    gatewaylisters.RouteLister
 	upstreamLister gatewaylisters.UpstreamLister
+	routeIndexer   cache.Indexer
 	pipeline       pipeline.Pipeline
 	target         string
 	queue          workqueue.TypedRateLimitingInterface[string]
@@ -45,12 +50,19 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 
 	factory := informers.NewSharedInformerFactory(client, resyncPeriod)
 	gatewayInformers := factory.Gateway().V1()
+	routeInformer := gatewayInformers.Routes().Informer()
+	if err := routeInformer.AddIndexers(cache.Indexers{
+		string(routeIndexParentRef):   routeParentRefIndex,
+		string(routeIndexUpstreamRef): routeUpstreamRefIndex,
+	}); err != nil {
+		return nil, err
+	}
 
 	return &Controller{
 		factory:        factory,
 		gatewayLister:  gatewayInformers.Gateways().Lister(),
-		routeLister:    gatewayInformers.Routes().Lister(),
 		upstreamLister: gatewayInformers.Upstreams().Lister(),
+		routeIndexer:   routeInformer.GetIndexer(),
 		pipeline: pipeline.Pipeline{
 			Compiler: compiler.Compiler{},
 			Registry: registry,
@@ -196,15 +208,13 @@ func (c *Controller) enqueueUpstreamObject(obj any) {
 		return
 	}
 
-	routes, err := c.routeLister.List(labels.Everything())
+	routes, err := c.routesByIndex(routeIndexUpstreamRef, upstream.Name)
 	if err != nil {
 		return
 	}
 	for _, route := range routes {
-		if routeUsesUpstream(route, upstream.Name) {
-			for _, parentRef := range route.Spec.ParentRefs {
-				c.enqueueGateway(parentRef)
-			}
+		for _, parentRef := range route.Spec.ParentRefs {
+			c.enqueueGateway(parentRef)
 		}
 	}
 }
@@ -267,11 +277,7 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 	if err != nil {
 		return resource.Bundle{}, false, err
 	}
-	routes, err := c.routeLister.List(labels.Everything())
-	if err != nil {
-		return resource.Bundle{}, false, err
-	}
-	upstreams, err := c.upstreamLister.List(labels.Everything())
+	routes, err := c.routesByIndex(routeIndexParentRef, gatewayName)
 	if err != nil {
 		return resource.Bundle{}, false, err
 	}
@@ -286,9 +292,6 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 
 	usedUpstreams := map[string]bool{}
 	for _, route := range routes {
-		if !routeAttachedToGateway(route, gatewayName) {
-			continue
-		}
 		bundle.Routes = append(bundle.Routes, *route)
 		for _, rule := range route.Spec.Rules {
 			for _, upstreamRef := range rule.UpstreamRefs {
@@ -298,13 +301,34 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 	}
 
 	bundle.Upstreams = make([]resource.Upstream, 0, len(usedUpstreams))
-	for _, upstream := range upstreams {
-		if !usedUpstreams[upstream.Name] {
-			continue
+	for upstreamName := range usedUpstreams {
+		upstream, err := c.upstreamLister.Get(upstreamName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return resource.Bundle{}, false, err
 		}
 		bundle.Upstreams = append(bundle.Upstreams, *upstream)
 	}
 	return bundle, true, nil
+}
+
+func (c *Controller) routesByIndex(index routeIndexName, value string) ([]*resource.Route, error) {
+	items, err := c.routeIndexer.ByIndex(string(index), value)
+	if err != nil {
+		return nil, err
+	}
+
+	routes := make([]*resource.Route, 0, len(items))
+	for _, item := range items {
+		route, ok := item.(*resource.Route)
+		if !ok {
+			continue
+		}
+		routes = append(routes, route)
+	}
+	return routes, nil
 }
 
 func objectAs[T any](obj any) (T, bool) {
@@ -316,17 +340,38 @@ func objectAs[T any](obj any) (T, bool) {
 	return value, ok
 }
 
-func routeAttachedToGateway(route *resource.Route, gatewayName string) bool {
-	return slices.Contains(route.Spec.ParentRefs, gatewayName)
+func routeParentRefIndex(obj any) ([]string, error) {
+	route, ok := obj.(*resource.Route)
+	if !ok {
+		return nil, nil
+	}
+	return uniqueStrings(route.Spec.ParentRefs), nil
 }
 
-func routeUsesUpstream(route *resource.Route, upstreamName string) bool {
+func routeUpstreamRefIndex(obj any) ([]string, error) {
+	route, ok := obj.(*resource.Route)
+	if !ok {
+		return nil, nil
+	}
+
+	upstreamNames := make([]string, 0)
 	for _, rule := range route.Spec.Rules {
 		for _, upstreamRef := range rule.UpstreamRefs {
-			if upstreamRef.Name == upstreamName {
-				return true
-			}
+			upstreamNames = append(upstreamNames, upstreamRef.Name)
 		}
 	}
-	return false
+	return uniqueStrings(upstreamNames), nil
+}
+
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]bool, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		result = append(result, value)
+	}
+	return result
 }
