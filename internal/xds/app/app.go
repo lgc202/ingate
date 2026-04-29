@@ -49,7 +49,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	xdsServer := NewServer(client, options.Target, options.ResyncPeriod, stdout)
+	xdsServer := NewServer(client, options.ListenAddress, options.Target, options.ResyncPeriod, stdout)
 
 	return xdsServer.Run(server.SetupSignalContext())
 }
