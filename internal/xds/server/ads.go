@@ -24,7 +24,6 @@ func newADSServer(store *snapshotStore, stdout io.Writer) discoveryv3.Aggregated
 
 // StreamAggregatedResources 处理 Envoy ADS 的 State-of-the-World 流
 // Envoy 会在同一个双向流里按 type_url 订阅 LDS/CDS/RDS/EDS 等资源，并用后续请求 ACK/NACK 上一次响应
-// 当前阶段只接收并记录请求，不下发资源
 func (s *adsServer) StreamAggregatedResources(stream discoveryv3.AggregatedDiscoveryService_StreamAggregatedResourcesServer) error {
 	for {
 		request, err := stream.Recv()
@@ -35,6 +34,7 @@ func (s *adsServer) StreamAggregatedResources(stream discoveryv3.AggregatedDisco
 			return err
 		}
 		s.logRequest("stream", request)
+		s.logAcknowledgement(request)
 		response, ok, err := s.responses.Build(request)
 		if err != nil {
 			fmt.Fprintf(s.stdout, "ads response skipped type=%s error=%v\n", request.GetTypeUrl(), err)
@@ -70,6 +70,30 @@ func (s *adsServer) logRequest(streamType string, request *discoveryv3.Discovery
 		request.GetResponseNonce(),
 		len(request.GetResourceNames()),
 		s.store.Count(),
+	)
+}
+
+func (s *adsServer) logAcknowledgement(request *discoveryv3.DiscoveryRequest) {
+	if request.GetResponseNonce() == "" {
+		return
+	}
+
+	errorDetail := request.GetErrorDetail()
+	if errorDetail == nil {
+		fmt.Fprintf(s.stdout, "ads ack type=%s version=%s nonce=%s\n",
+			request.GetTypeUrl(),
+			request.GetVersionInfo(),
+			request.GetResponseNonce(),
+		)
+		return
+	}
+
+	fmt.Fprintf(s.stdout, "ads nack type=%s version=%s nonce=%s code=%d message=%q\n",
+		request.GetTypeUrl(),
+		request.GetVersionInfo(),
+		request.GetResponseNonce(),
+		errorDetail.GetCode(),
+		errorDetail.GetMessage(),
 	)
 }
 
