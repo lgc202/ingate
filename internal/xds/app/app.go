@@ -6,9 +6,10 @@ import (
 	"io"
 
 	"github.com/spf13/pflag"
-	"k8s.io/apiserver/pkg/server"
+	genericserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/tools/clientcmd"
 
+	xdsserver "github.com/lgc202/ingate-next/internal/xds/server"
 	clientset "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned"
 )
 
@@ -49,7 +50,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	xdsServer := NewServer(client, options.ListenAddress, options.Target, options.ResyncPeriod, stdout)
+	xdsServer := xdsserver.New(client, options.ListenAddress, options.Target, options.ResyncPeriod, stdout)
 
-	return xdsServer.Run(server.SetupSignalContext())
+	return xdsServer.Run(genericserver.SetupSignalContext())
 }

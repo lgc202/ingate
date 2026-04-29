@@ -3,12 +3,19 @@ module github.com/lgc202/ingate-next
 go 1.26
 
 require (
+	github.com/envoyproxy/go-control-plane/envoy v1.32.4
 	github.com/spf13/pflag v1.0.6
 	k8s.io/apimachinery v0.34.2
 	k8s.io/apiserver v0.34.2
 	k8s.io/client-go v0.34.2
 	k8s.io/code-generator v0.34.2
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0
+)
+
+require (
+	github.com/cncf/xds/go v0.0.0-20250121191232-2f005788dc42 // indirect
+	github.com/envoyproxy/protoc-gen-validate v1.2.1 // indirect
+	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 )
 
 require (

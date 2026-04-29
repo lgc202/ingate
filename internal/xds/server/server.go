@@ -1,4 +1,4 @@
-package app
+package server
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"google.golang.org/grpc"
 	"k8s.io/client-go/tools/cache"
 
@@ -24,15 +25,18 @@ type Server struct {
 	stdout        io.Writer
 }
 
-// NewServer 创建 xDS 配置观察服务
-func NewServer(client clientset.Interface, listenAddress, target string, resyncPeriod time.Duration, stdout io.Writer) *Server {
-	return &Server{
+// New 创建 xDS 配置观察服务
+func New(client clientset.Interface, listenAddress, target string, resyncPeriod time.Duration, stdout io.Writer) *Server {
+	store := newSnapshotStore(target)
+	server := &Server{
 		factory:       informers.NewSharedInformerFactory(client, resyncPeriod),
 		grpcServer:    grpc.NewServer(),
 		listenAddress: listenAddress,
-		store:         newSnapshotStore(target),
+		store:         store,
 		stdout:        stdout,
 	}
+	discoveryv3.RegisterAggregatedDiscoveryServiceServer(server.grpcServer, newADSServer(store))
+	return server
 }
 
 // Run 启动 RuntimeSnapshot watch 主循环
