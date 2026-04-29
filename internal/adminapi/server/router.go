@@ -19,6 +19,7 @@ func (s *Server) router() *gin.Engine {
 
 	api := router.Group("/api")
 	api.GET("/gateways", handler.Gateway.List)
+	api.GET("/gateways/:name/overview", handler.Gateway.Overview)
 	api.GET("/gateways/:name", handler.Gateway.Get)
 	api.GET("/routes", handler.Route.List)
 	api.GET("/routes/:name", handler.Route.Get)

@@ -28,3 +28,9 @@ func (h *Handler) Get(ctx *gin.Context) {
 	item, err := h.service.Get(ctx.Request.Context(), ctx.Param("name"))
 	response.WriteResult(ctx, item, err)
 }
+
+// Overview 返回 Gateway 详情页聚合视图
+func (h *Handler) Overview(ctx *gin.Context) {
+	item, err := h.service.Overview(ctx.Request.Context(), ctx.Param("name"))
+	response.WriteResult(ctx, item, err)
+}
