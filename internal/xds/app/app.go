@@ -2,9 +2,14 @@
 package app
 
 import (
-	"flag"
 	"fmt"
 	"io"
+
+	"github.com/spf13/pflag"
+	"k8s.io/apiserver/pkg/server"
+	"k8s.io/client-go/tools/clientcmd"
+
+	clientset "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned"
 )
 
 const usage = `ingate-xds 是面向 Envoy 的 xDS 配置服务
@@ -17,17 +22,34 @@ const usage = `ingate-xds 是面向 Envoy 的 xDS 配置服务
 
 // Run 执行 ingate-xds 服务
 func Run(args []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("ingate-xds", flag.ContinueOnError)
+	flags := pflag.NewFlagSet("ingate-xds", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
+
+	options := NewOptions()
+	options.AddFlags(flags)
 	flags.Usage = func() {
 		fmt.Fprint(stdout, usage)
+		fmt.Fprintln(stdout)
+		flags.SetOutput(stdout)
+		flags.PrintDefaults()
+		flags.SetOutput(stderr)
 	}
 	if err := flags.Parse(args); err != nil {
-		if err == flag.ErrHelp {
+		if err == pflag.ErrHelp {
 			return nil
 		}
 		return err
 	}
 
-	return fmt.Errorf("ingate-xds runtime is not implemented yet")
+	config, err := clientcmd.BuildConfigFromFlags(options.Master, options.Kubeconfig)
+	if err != nil {
+		return err
+	}
+	client, err := clientset.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+	xdsServer := NewServer(client, options.Target, options.ResyncPeriod, stdout)
+
+	return xdsServer.Run(server.SetupSignalContext())
 }
