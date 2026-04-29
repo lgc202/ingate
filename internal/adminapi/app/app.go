@@ -2,9 +2,15 @@
 package app
 
 import (
-	"flag"
 	"fmt"
 	"io"
+
+	"github.com/spf13/pflag"
+	genericserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/client-go/tools/clientcmd"
+
+	adminserver "github.com/lgc202/ingate/internal/adminapi/server"
+	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
 const usage = `ingate-admin-api 是面向前端控制台的管理 API
@@ -17,17 +23,34 @@ const usage = `ingate-admin-api 是面向前端控制台的管理 API
 
 // Run 执行 ingate-admin-api 服务
 func Run(args []string, stdout, stderr io.Writer) error {
-	flags := flag.NewFlagSet("ingate-admin-api", flag.ContinueOnError)
+	flags := pflag.NewFlagSet("ingate-admin-api", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
+
+	options := NewOptions()
+	options.AddFlags(flags)
 	flags.Usage = func() {
 		fmt.Fprint(stdout, usage)
+		fmt.Fprintln(stdout)
+		flags.SetOutput(stdout)
+		flags.PrintDefaults()
+		flags.SetOutput(stderr)
 	}
 	if err := flags.Parse(args); err != nil {
-		if err == flag.ErrHelp {
+		if err == pflag.ErrHelp {
 			return nil
 		}
 		return err
 	}
 
-	return fmt.Errorf("ingate-admin-api runtime is not implemented yet")
+	config, err := clientcmd.BuildConfigFromFlags(options.Master, options.Kubeconfig)
+	if err != nil {
+		return err
+	}
+	client, err := clientset.NewForConfig(config)
+	if err != nil {
+		return err
+	}
+	server := adminserver.New(client, options.ListenAddress, stdout)
+
+	return server.Run(genericserver.SetupSignalContext())
 }
