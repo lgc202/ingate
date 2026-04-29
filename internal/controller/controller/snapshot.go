@@ -49,6 +49,15 @@ func (c *Controller) upsertRuntimeSnapshot(ctx context.Context, snapshot corerun
 	return err
 }
 
+func (c *Controller) deleteRuntimeSnapshot(ctx context.Context, target, gateway string) error {
+	name := runtimeSnapshotName(target, gateway)
+	err := c.client.GatewayV1().RuntimeSnapshots().Delete(ctx, name, metav1.DeleteOptions{})
+	if apierrors.IsNotFound(err) {
+		return nil
+	}
+	return err
+}
+
 func runtimeSnapshotName(target, gateway string) string {
 	return fmt.Sprintf("%s-%s", target, gateway)
 }

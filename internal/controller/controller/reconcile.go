@@ -15,7 +15,10 @@ func (c *Controller) reconcileGateway(gatewayName string) error {
 		return err
 	}
 	if !found {
-		fmt.Fprintf(c.stdout, "skipped target=%s gateway=%s reason=not-found\n", c.target, gatewayName)
+		if err := c.deleteRuntimeSnapshot(context.Background(), c.target, gatewayName); err != nil {
+			return err
+		}
+		fmt.Fprintf(c.stdout, "deleted target=%s gateway=%s reason=gateway-not-found\n", c.target, gatewayName)
 		return nil
 	}
 
