@@ -1,0 +1,67 @@
+package server
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+
+	"github.com/lgc202/ingate/internal/adminapi/handler"
+	"github.com/lgc202/ingate/internal/adminapi/service"
+	"github.com/lgc202/ingate/internal/adminapi/store"
+	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+)
+
+// Server 提供面向控制台的管理 API 服务生命周期
+type Server struct {
+	client        clientset.Interface
+	listenAddress string
+	stdout        io.Writer
+}
+
+// New 创建管理 API 服务
+func New(client clientset.Interface, listenAddress string, stdout io.Writer) *Server {
+	return &Server{client: client, listenAddress: listenAddress, stdout: stdout}
+}
+
+// Run 启动 HTTP 服务
+func (s *Server) Run(ctx context.Context) error {
+	listener, err := net.Listen("tcp", s.listenAddress)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+
+	httpServer := &http.Server{Handler: s.router()}
+	serverErr := make(chan error, 1)
+	go func() {
+		fmt.Fprintf(s.stdout, "ingate-admin-api serving http=%s\n", listener.Addr().String())
+		serverErr <- httpServer.Serve(listener)
+	}()
+
+	select {
+	case <-ctx.Done():
+		if err := httpServer.Shutdown(context.Background()); err != nil {
+			return err
+		}
+		return ctx.Err()
+	case err := <-serverErr:
+		if err == http.ErrServerClosed {
+			return nil
+		}
+		return err
+	}
+}
+
+func (s *Server) newHandler() *handler.Handler {
+	resourceStore := store.New(s.client)
+	resourceService := service.New(resourceStore)
+	return handler.New(resourceService)
+}
+
+func init() {
+	gin.SetMode(gin.ReleaseMode)
+}
