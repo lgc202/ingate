@@ -13,12 +13,13 @@ import (
 // adsServer 是 Envoy ADS 协议入口，后续会从 snapshotStore 读取配置响应 Envoy
 type adsServer struct {
 	discoveryv3.UnimplementedAggregatedDiscoveryServiceServer
-	store  *snapshotStore
-	stdout io.Writer
+	responses responseBuilder
+	store     *snapshotStore
+	stdout    io.Writer
 }
 
 func newADSServer(store *snapshotStore, stdout io.Writer) discoveryv3.AggregatedDiscoveryServiceServer {
-	return &adsServer{store: store, stdout: stdout}
+	return &adsServer{responses: newResponseBuilder(store), store: store, stdout: stdout}
 }
 
 // StreamAggregatedResources 处理 Envoy ADS 的 State-of-the-World 流
@@ -34,6 +35,18 @@ func (s *adsServer) StreamAggregatedResources(stream discoveryv3.AggregatedDisco
 			return err
 		}
 		s.logRequest("stream", request)
+		response, ok, err := s.responses.Build(request)
+		if err != nil {
+			fmt.Fprintf(s.stdout, "ads response skipped type=%s error=%v\n", request.GetTypeUrl(), err)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		if err := stream.Send(response); err != nil {
+			return err
+		}
+		fmt.Fprintf(s.stdout, "ads response sent type=%s version=%s nonce=%s resources=%d\n", response.GetTypeUrl(), response.GetVersionInfo(), response.GetNonce(), len(response.GetResources()))
 	}
 }
 
