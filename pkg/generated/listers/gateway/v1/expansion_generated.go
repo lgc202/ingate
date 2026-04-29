@@ -12,6 +12,10 @@ type GatewayListerExpansion interface{}
 // RouteLister.
 type RouteListerExpansion interface{}
 
+// RuntimeSnapshotListerExpansion allows custom methods to be added to
+// RuntimeSnapshotLister.
+type RuntimeSnapshotListerExpansion interface{}
+
 // UpstreamListerExpansion allows custom methods to be added to
 // UpstreamLister.
 type UpstreamListerExpansion interface{}

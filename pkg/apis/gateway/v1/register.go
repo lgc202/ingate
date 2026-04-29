@@ -35,6 +35,10 @@ const (
 	ResourceUpstreams ResourceName = "upstreams"
 	// ResourceUpstreamsStatus 表示 Upstream status 子资源名
 	ResourceUpstreamsStatus ResourceName = "upstreams/status"
+	// ResourceRuntimeSnapshot 表示 RuntimeSnapshot 单数资源名
+	ResourceRuntimeSnapshot ResourceName = "runtimesnapshot"
+	// ResourceRuntimeSnapshots 表示 RuntimeSnapshot 复数资源名
+	ResourceRuntimeSnapshots ResourceName = "runtimesnapshots"
 )
 
 // SchemeGroupVersion 表示 Ingate API 组版本
@@ -73,6 +77,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PolicyBindingList{},
 		&PluginBinding{},
 		&PluginBindingList{},
+		&RuntimeSnapshot{},
+		&RuntimeSnapshotList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

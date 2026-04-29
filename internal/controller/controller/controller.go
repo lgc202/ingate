@@ -3,17 +3,21 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"time"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
 	"github.com/lgc202/ingate-next/internal/core/compiler"
 	"github.com/lgc202/ingate-next/internal/core/pipeline"
+	coreruntime "github.com/lgc202/ingate-next/internal/core/runtime"
 	"github.com/lgc202/ingate-next/internal/core/target/builtin"
 	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 	clientset "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned"
@@ -31,6 +35,7 @@ const (
 
 // Controller 监听声明式资源变化并触发编译
 type Controller struct {
+	client         clientset.Interface
 	factory        informers.SharedInformerFactory
 	gatewayLister  gatewaylisters.GatewayLister
 	upstreamLister gatewaylisters.UpstreamLister
@@ -59,6 +64,7 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 	}
 
 	return &Controller{
+		client:         client,
 		factory:        factory,
 		gatewayLister:  gatewayInformers.Gateways().Lister(),
 		upstreamLister: gatewayInformers.Upstreams().Lister(),
@@ -255,6 +261,9 @@ func (c *Controller) reconcileGateway(gatewayName string) error {
 	if err != nil {
 		return err
 	}
+	if err := c.upsertRuntimeSnapshot(context.Background(), snapshot); err != nil {
+		return err
+	}
 	fmt.Fprintf(c.stdout, "reconciled target=%s gateway=%s routes=%d upstreams=%d snapshot=%s\n",
 		c.target,
 		snapshot.Gateway,
@@ -306,6 +315,46 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 		bundle.Upstreams = append(bundle.Upstreams, *upstream)
 	}
 	return bundle, true, nil
+}
+
+func (c *Controller) upsertRuntimeSnapshot(ctx context.Context, snapshot coreruntime.RuntimeSnapshot) error {
+	config, err := json.Marshal(snapshot.Config)
+	if err != nil {
+		return fmt.Errorf("marshal runtime snapshot config: %w", err)
+	}
+
+	name := runtimeSnapshotName(snapshot.Target, snapshot.Gateway)
+	runtimeSnapshots := c.client.GatewayV1().RuntimeSnapshots()
+	existing, err := runtimeSnapshots.Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+		_, err = runtimeSnapshots.Create(ctx, &resource.RuntimeSnapshot{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Spec: resource.RuntimeSnapshotSpec{
+				Target:  snapshot.Target,
+				Gateway: snapshot.Gateway,
+				Version: snapshot.Version,
+				Config:  runtime.RawExtension{Raw: config},
+			},
+		}, metav1.CreateOptions{})
+		return err
+	}
+
+	updated := existing.DeepCopy()
+	updated.Spec = resource.RuntimeSnapshotSpec{
+		Target:  snapshot.Target,
+		Gateway: snapshot.Gateway,
+		Version: snapshot.Version,
+		Config:  runtime.RawExtension{Raw: config},
+	}
+	_, err = runtimeSnapshots.Update(ctx, updated, metav1.UpdateOptions{})
+	return err
+}
+
+func runtimeSnapshotName(target, gateway string) string {
+	return fmt.Sprintf("%s-%s", target, gateway)
 }
 
 func (c *Controller) routesByIndex(index routeIndexName, value string) ([]*resource.Route, error) {

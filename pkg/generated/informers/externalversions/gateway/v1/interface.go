@@ -14,6 +14,8 @@ type Interface interface {
 	Gateways() GatewayInformer
 	// Routes returns a RouteInformer.
 	Routes() RouteInformer
+	// RuntimeSnapshots returns a RuntimeSnapshotInformer.
+	RuntimeSnapshots() RuntimeSnapshotInformer
 	// Upstreams returns a UpstreamInformer.
 	Upstreams() UpstreamInformer
 }
@@ -37,6 +39,11 @@ func (v *version) Gateways() GatewayInformer {
 // Routes returns a RouteInformer.
 func (v *version) Routes() RouteInformer {
 	return &routeInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// RuntimeSnapshots returns a RuntimeSnapshotInformer.
+func (v *version) RuntimeSnapshots() RuntimeSnapshotInformer {
+	return &runtimeSnapshotInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Upstreams returns a UpstreamInformer.
