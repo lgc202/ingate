@@ -6,7 +6,7 @@ import (
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 // REST 实现 RuntimeSnapshot 资源的 apiserver RESTStorage

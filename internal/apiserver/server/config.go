@@ -5,11 +5,11 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
-	gatewaystorage "github.com/lgc202/ingate-next/internal/apiserver/registry/gateway"
-	routestorage "github.com/lgc202/ingate-next/internal/apiserver/registry/route"
-	runtimesnapshotstorage "github.com/lgc202/ingate-next/internal/apiserver/registry/runtimesnapshot"
-	upstreamstorage "github.com/lgc202/ingate-next/internal/apiserver/registry/upstream"
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
+	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
+	runtimesnapshotstorage "github.com/lgc202/ingate/internal/apiserver/registry/runtimesnapshot"
+	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 const serverName = "ingate-apiserver"

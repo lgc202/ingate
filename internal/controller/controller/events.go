@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 
-	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 func (c *Controller) registerEventHandlers() error {

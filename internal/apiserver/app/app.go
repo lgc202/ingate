@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/pflag"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
-	"github.com/lgc202/ingate-next/internal/apiserver/server"
+	"github.com/lgc202/ingate/internal/apiserver/server"
 )
 
 const usage = `ingate-apiserver 是声明式资源 API

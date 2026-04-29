@@ -7,8 +7,8 @@ package v1
 import (
 	http "net/http"
 
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
-	scheme "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned/scheme"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	scheme "github.com/lgc202/ingate/pkg/generated/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 

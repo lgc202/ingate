@@ -9,8 +9,8 @@ import (
 	genericserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/tools/clientcmd"
 
-	xdsserver "github.com/lgc202/ingate-next/internal/xds/server"
-	clientset "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned"
+	xdsserver "github.com/lgc202/ingate/internal/xds/server"
+	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
 const usage = `ingate-xds 是面向 Envoy 的 xDS 配置服务

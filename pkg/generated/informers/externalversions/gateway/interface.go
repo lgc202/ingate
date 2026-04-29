@@ -5,8 +5,8 @@
 package gateway
 
 import (
-	v1 "github.com/lgc202/ingate-next/pkg/generated/informers/externalversions/gateway/v1"
-	internalinterfaces "github.com/lgc202/ingate-next/pkg/generated/informers/externalversions/internalinterfaces"
+	v1 "github.com/lgc202/ingate/pkg/generated/informers/externalversions/gateway/v1"
+	internalinterfaces "github.com/lgc202/ingate/pkg/generated/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to each of this group's versions.

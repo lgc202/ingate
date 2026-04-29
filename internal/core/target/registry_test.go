@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lgc202/ingate-next/internal/core/ir"
-	"github.com/lgc202/ingate-next/internal/core/runtime"
-	"github.com/lgc202/ingate-next/internal/core/target"
-	"github.com/lgc202/ingate-next/internal/core/target/debug"
-	"github.com/lgc202/ingate-next/internal/core/target/xds"
+	"github.com/lgc202/ingate/internal/core/ir"
+	"github.com/lgc202/ingate/internal/core/runtime"
+	"github.com/lgc202/ingate/internal/core/target"
+	"github.com/lgc202/ingate/internal/core/target/debug"
+	"github.com/lgc202/ingate/internal/core/target/xds"
 )
 
 func TestRegistryGet(t *testing.T) {

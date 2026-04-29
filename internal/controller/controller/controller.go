@@ -9,12 +9,12 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/lgc202/ingate-next/internal/core/compiler"
-	"github.com/lgc202/ingate-next/internal/core/pipeline"
-	"github.com/lgc202/ingate-next/internal/core/target/builtin"
-	clientset "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned"
-	informers "github.com/lgc202/ingate-next/pkg/generated/informers/externalversions"
-	gatewaylisters "github.com/lgc202/ingate-next/pkg/generated/listers/gateway/v1"
+	"github.com/lgc202/ingate/internal/core/compiler"
+	"github.com/lgc202/ingate/internal/core/pipeline"
+	"github.com/lgc202/ingate/internal/core/target/builtin"
+	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	informers "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
+	gatewaylisters "github.com/lgc202/ingate/pkg/generated/listers/gateway/v1"
 )
 
 type routeIndexName string

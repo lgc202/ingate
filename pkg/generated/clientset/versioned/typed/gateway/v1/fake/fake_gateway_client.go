@@ -5,7 +5,7 @@
 package fake
 
 import (
-	v1 "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned/typed/gateway/v1"
+	v1 "github.com/lgc202/ingate/pkg/generated/clientset/versioned/typed/gateway/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )

@@ -8,7 +8,7 @@ import (
 	fmt "fmt"
 	http "net/http"
 
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned/typed/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/pkg/generated/clientset/versioned/typed/gateway/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"

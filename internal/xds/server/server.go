@@ -10,9 +10,9 @@ import (
 	"google.golang.org/grpc"
 	"k8s.io/client-go/tools/cache"
 
-	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
-	clientset "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned"
-	informers "github.com/lgc202/ingate-next/pkg/generated/informers/externalversions"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	informers "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
 )
 
 // Server 维护 RuntimeSnapshot 观察状态，后续在此基础上提供 xDS 协议
