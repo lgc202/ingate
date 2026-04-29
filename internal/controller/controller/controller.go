@@ -266,28 +266,22 @@ func (c *Controller) reconcileGateway(gatewayName string) error {
 }
 
 func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool, error) {
-	if _, err := c.gatewayLister.Get(gatewayName); err != nil {
+	gateway, err := c.gatewayLister.Get(gatewayName)
+	if err != nil {
 		if apierrors.IsNotFound(err) {
 			return resource.Bundle{}, false, nil
 		}
 		return resource.Bundle{}, false, err
 	}
 
-	gateways, err := c.gatewayLister.List(labels.Everything())
-	if err != nil {
-		return resource.Bundle{}, false, err
-	}
 	routes, err := c.routesByIndex(routeIndexParentRef, gatewayName)
 	if err != nil {
 		return resource.Bundle{}, false, err
 	}
 
 	bundle := resource.Bundle{
-		Gateways: make([]resource.Gateway, 0, len(gateways)),
+		Gateways: []resource.Gateway{*gateway},
 		Routes:   make([]resource.Route, 0, len(routes)),
-	}
-	for _, gateway := range gateways {
-		bundle.Gateways = append(bundle.Gateways, *gateway)
 	}
 
 	usedUpstreams := map[string]bool{}
