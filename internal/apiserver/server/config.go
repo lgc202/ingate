@@ -7,6 +7,7 @@ import (
 
 	gatewaystorage "github.com/lgc202/ingate-next/internal/apiserver/registry/gateway"
 	routestorage "github.com/lgc202/ingate-next/internal/apiserver/registry/route"
+	runtimesnapshotstorage "github.com/lgc202/ingate-next/internal/apiserver/registry/runtimesnapshot"
 	upstreamstorage "github.com/lgc202/ingate-next/internal/apiserver/registry/upstream"
 	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
 )
@@ -107,6 +108,14 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		if !hasUpstreamStatus {
 			storage[string(gatewayv1.ResourceUpstreamsStatus)] = upstreamStatusREST
 		}
+	}
+	_, hasRuntimeSnapshot := storage[string(gatewayv1.ResourceRuntimeSnapshots)]
+	if !hasRuntimeSnapshot {
+		runtimeSnapshotREST, err := runtimesnapshotstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		storage[string(gatewayv1.ResourceRuntimeSnapshots)] = runtimeSnapshotREST
 	}
 	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage
 

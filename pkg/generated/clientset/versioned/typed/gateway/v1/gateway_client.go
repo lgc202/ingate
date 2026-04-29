@@ -16,6 +16,7 @@ type GatewayV1Interface interface {
 	RESTClient() rest.Interface
 	GatewaysGetter
 	RoutesGetter
+	RuntimeSnapshotsGetter
 	UpstreamsGetter
 }
 
@@ -30,6 +31,10 @@ func (c *GatewayV1Client) Gateways() GatewayInterface {
 
 func (c *GatewayV1Client) Routes() RouteInterface {
 	return newRoutes(c)
+}
+
+func (c *GatewayV1Client) RuntimeSnapshots() RuntimeSnapshotInterface {
+	return newRuntimeSnapshots(c)
 }
 
 func (c *GatewayV1Client) Upstreams() UpstreamInterface {

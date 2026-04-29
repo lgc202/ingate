@@ -8,4 +8,6 @@ type GatewayExpansion interface{}
 
 type RouteExpansion interface{}
 
+type RuntimeSnapshotExpansion interface{}
+
 type UpstreamExpansion interface{}
