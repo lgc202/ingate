@@ -130,11 +130,6 @@ func (c *gatewayCompiler) indexRoutes() error {
 			return fmt.Errorf("duplicate route %q", route.Name)
 		}
 		c.routesByName[route.Name] = true
-		for _, parentRef := range route.Spec.ParentRefs {
-			if _, ok := c.gatewaysByName[parentRef]; !ok {
-				return fmt.Errorf("route %q references gateway %q", route.Name, parentRef)
-			}
-		}
 	}
 
 	return nil
@@ -146,11 +141,6 @@ func (c *gatewayCompiler) indexAIRoutes() error {
 			return fmt.Errorf("duplicate ai route %q", route.Name)
 		}
 		c.aiRoutesByName[route.Name] = true
-		for _, parentRef := range route.Spec.ParentRefs {
-			if _, ok := c.gatewaysByName[parentRef]; !ok {
-				return fmt.Errorf("ai route %q references gateway %q", route.Name, parentRef)
-			}
-		}
 	}
 
 	return nil
