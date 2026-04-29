@@ -3,7 +3,7 @@ package server
 import (
 	"sync"
 
-	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 // snapshotStore 保存指定 target 的 RuntimeSnapshot，供后续 xDS 协议层读取

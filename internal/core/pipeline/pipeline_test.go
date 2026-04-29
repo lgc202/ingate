@@ -5,11 +5,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lgc202/ingate-next/internal/core/pipeline"
-	"github.com/lgc202/ingate-next/internal/core/target"
-	"github.com/lgc202/ingate-next/internal/core/target/debug"
-	"github.com/lgc202/ingate-next/internal/core/target/xds"
-	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/core/pipeline"
+	"github.com/lgc202/ingate/internal/core/target"
+	"github.com/lgc202/ingate/internal/core/target/debug"
+	"github.com/lgc202/ingate/internal/core/target/xds"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

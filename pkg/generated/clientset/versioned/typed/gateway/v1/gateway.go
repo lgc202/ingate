@@ -7,8 +7,8 @@ package v1
 import (
 	context "context"
 
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
-	scheme "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned/scheme"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	scheme "github.com/lgc202/ingate/pkg/generated/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"

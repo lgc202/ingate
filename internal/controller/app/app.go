@@ -10,8 +10,8 @@ import (
 	"k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/lgc202/ingate-next/internal/controller/controller"
-	clientset "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned"
+	"github.com/lgc202/ingate/internal/controller/controller"
+	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
 const (

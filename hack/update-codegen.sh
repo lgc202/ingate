@@ -16,6 +16,6 @@ kube::codegen::gen_helpers \
 kube::codegen::gen_client \
   --with-watch \
   --output-dir "${repo_root}/pkg/generated" \
-  --output-pkg "github.com/lgc202/ingate-next/pkg/generated" \
+  --output-pkg "github.com/lgc202/ingate/pkg/generated" \
   --boilerplate "${repo_root}/hack/boilerplate.go.txt" \
   "${repo_root}/pkg/apis"

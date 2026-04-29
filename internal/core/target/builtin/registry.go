@@ -2,9 +2,9 @@
 package builtin
 
 import (
-	"github.com/lgc202/ingate-next/internal/core/target"
-	"github.com/lgc202/ingate-next/internal/core/target/debug"
-	"github.com/lgc202/ingate-next/internal/core/target/xds"
+	"github.com/lgc202/ingate/internal/core/target"
+	"github.com/lgc202/ingate/internal/core/target/debug"
+	"github.com/lgc202/ingate/internal/core/target/xds"
 )
 
 // NewRegistry 创建包含内置 target 的注册表

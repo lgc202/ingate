@@ -9,9 +9,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned"
-	gateway "github.com/lgc202/ingate-next/pkg/generated/informers/externalversions/gateway"
-	internalinterfaces "github.com/lgc202/ingate-next/pkg/generated/informers/externalversions/internalinterfaces"
+	versioned "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	gateway "github.com/lgc202/ingate/pkg/generated/informers/externalversions/gateway"
+	internalinterfaces "github.com/lgc202/ingate/pkg/generated/informers/externalversions/internalinterfaces"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

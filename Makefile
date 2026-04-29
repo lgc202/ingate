@@ -1,6 +1,6 @@
 .PHONY: build generate test
 
-GO_CACHE_DIR ?= /tmp/ingate-next-gocache
+GO_CACHE_DIR ?= /tmp/ingate-gocache
 
 build:
 	mkdir -p _output

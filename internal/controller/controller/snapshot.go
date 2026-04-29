@@ -9,8 +9,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 
-	coreruntime "github.com/lgc202/ingate-next/internal/core/runtime"
-	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	coreruntime "github.com/lgc202/ingate/internal/core/runtime"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 func (c *Controller) upsertRuntimeSnapshot(ctx context.Context, snapshot coreruntime.RuntimeSnapshot) error {

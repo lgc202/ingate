@@ -1,4 +1,4 @@
-module github.com/lgc202/ingate-next
+module github.com/lgc202/ingate
 
 go 1.26
 

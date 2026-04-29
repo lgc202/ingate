@@ -5,7 +5,7 @@ import (
 	"time"
 
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	targetxds "github.com/lgc202/ingate-next/internal/core/target/xds"
+	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"

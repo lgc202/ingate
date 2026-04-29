@@ -8,7 +8,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
 
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 const (

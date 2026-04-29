@@ -5,9 +5,9 @@
 package fake
 
 import (
-	clientset "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned"
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned/typed/gateway/v1"
-	fakegatewayv1 "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned/typed/gateway/v1/fake"
+	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	gatewayv1 "github.com/lgc202/ingate/pkg/generated/clientset/versioned/typed/gateway/v1"
+	fakegatewayv1 "github.com/lgc202/ingate/pkg/generated/clientset/versioned/typed/gateway/v1/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"

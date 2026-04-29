@@ -5,8 +5,8 @@
 package fake
 
 import (
-	v1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/generated/clientset/versioned/typed/gateway/v1"
+	v1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/pkg/generated/clientset/versioned/typed/gateway/v1"
 	gentype "k8s.io/client-go/gentype"
 )
 

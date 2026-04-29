@@ -5,7 +5,7 @@
 package fake
 
 import (
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

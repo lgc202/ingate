@@ -5,7 +5,7 @@
 package v1
 
 import (
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	listers "k8s.io/client-go/listers"
 	cache "k8s.io/client-go/tools/cache"

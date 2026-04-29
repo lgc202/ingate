@@ -6,7 +6,7 @@ import (
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
-	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 func (c *Controller) reconcileGateway(gatewayName string) error {

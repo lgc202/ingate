@@ -9,7 +9,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	gatewayv1 "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 // strategy 定义 RuntimeSnapshot 资源在 apiserver 存储前后的处理规则

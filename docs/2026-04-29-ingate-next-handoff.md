@@ -3,7 +3,7 @@
 本文档用于给后续 AI 对话快速恢复上下文。当前仓库路径：
 
 ```text
-/Users/lgc202/workspace/source/lgc202/ingate-next
+/Users/guangcaili/workplace/code/lgc202/ingate
 ```
 
 ## 项目目标
@@ -43,24 +43,28 @@ ingate-controller watch / workqueue / reconcile
         |
         v
 compiler / pipeline / xDS target translator
+        |
+        v
+RuntimeSnapshot API Resource
+        |
+        v
+ingate-xds watch / snapshotStore / Envoy ADS
 ```
 
 最近关键提交：
 
 ```text
-885e8b9 feat: index routes for gateway reconcile
-c62383c feat: reconcile gateways by queue key
-e624d76 feat: add controller informer loop
-6b53f4b feat: generate gateway clients
-ade13b3 feat: add upstream rest storage
-b55734d feat: add route rest storage
-3da7724 feat: add gateway status storage
-9fbecfc feat: run ingate apiserver
-6bc212d feat: add gateway rest storage
-9128626 feat: add apiserver config skeleton
+dd8ce61 feat: push ads updates on snapshot changes
+977e536 feat: skip unchanged ads responses
+cb45e1d feat: log ads acknowledgements
+eb2d3e7 feat: build xds discovery resources
+e12946a feat: add initial ads response handling
+e8de4c3 feat: log ads stream requests
+83ef4cd feat: add xds ads server skeleton
+79d4794 feat: start xds grpc server
 ```
 
-当前工作区在生成本文档前是干净的。
+当前工作区还有一组待 review 的整理改动：把 `adsStreamState` 从 `ads.go` 拆到 `ads_stream_state.go`，行为不变，只整理 ADS stream 状态边界。
 
 ## 已完成能力
 
@@ -102,7 +106,7 @@ Resource Bundle -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapsho
 - `ingate`：本地 CLI 和调试入口
 - `ingate-apiserver`：声明式资源 API
 - `ingate-controller`：watch 资源并做状态收敛
-- `ingate-xds`：后续给 Envoy 提供 xDS
+- `ingate-xds`：给 Envoy 提供 xDS ADS 服务
 - `ingate-admin-api`：后续给前端管理端使用
 
 ### API 类型
@@ -220,10 +224,48 @@ controller 当前做了：
 - `Route` 事件：根据 `spec.parentRefs` 入队相关 Gateway
 - `Upstream` 事件：根据 `upstreamRef` 索引找到相关 Route，再入队相关 Gateway
 - `reconcileGateway(name)` 当前会构造当前 Gateway 相关 Bundle 并走 pipeline 编译 snapshot
+- reconcile 成功后 create/update 对应 `RuntimeSnapshot`
+- Gateway 删除后删除对应 `RuntimeSnapshot`
 
 现在不是全量 reconcile 所有 Gateway，而是按 Gateway key reconcile。
 
 当前仍会读取全量 Gateway 列表，原因是现有 compiler 会校验 Route 的全部 `ParentRefs` 是否存在。后续可以继续把 compiler 改成真正的单 Gateway 编译，去掉这个全量 Gateway 读取。
+
+### RuntimeSnapshot
+
+`RuntimeSnapshot` 已作为 controller 输出资源接入主链路：
+
+- API 类型在 `pkg/apis/gateway/v1`
+- apiserver storage 在 `internal/apiserver/registry/runtimesnapshot`
+- generated client / informer / lister 已更新
+- 当前作为非命名空间资源处理
+- `spec.target` 用于区分运行时 target
+- `spec.gateway` 表示该 snapshot 属于哪个 Gateway
+- `spec.version` 当前由 xDS target translator 生成
+- `spec.config` 使用 `runtime.RawExtension` 保存 target-specific 配置
+
+### xDS 服务
+
+`ingate-xds` 当前已经从“观察 snapshot”推进到“可响应 Envoy ADS”：
+
+- `internal/xds/app` 只保留 CLI/app wiring
+- `internal/xds/server` 承载 RuntimeSnapshot watch、snapshotStore、gRPC server、ADS 逻辑
+- `snapshotStore` 只缓存当前 target 的 `RuntimeSnapshot`，按 Gateway 覆盖，不按版本追加
+- ADS 支持 State-of-the-World `StreamAggregatedResources`
+- Delta ADS 仍明确返回 `Unimplemented`
+- 已支持构建 LDS/RDS/CDS/EDS 响应
+- ADS request 会记录 type、version、nonce、resource count、snapshot count
+- ADS ACK/NACK 会记录确认或拒绝原因
+- 同一 stream 内对已 ACK 且未变化的响应会跳过重复发送
+- RuntimeSnapshot 更新或删除后，会通知已连接 ADS stream 主动推送已订阅类型的新响应
+
+当前使用 Envoy 官方 generated proto：
+
+```text
+github.com/envoyproxy/go-control-plane/envoy
+```
+
+暂时不引入 Ingate 自有 proto。Envoy xDS 协议直接使用官方 proto；Ingate 自有 proto 等 Admin/Agent/Plugin RPC 边界明确后再设计。
 
 ## 设计取舍
 
@@ -329,45 +371,40 @@ make build
 
 ## 下一步建议
 
-优先继续打通输出链路，不要继续盲目增加更多资源类型。
+当前主链路已经推进到：
+
+```text
+声明式输入资源 -> controller 编译 -> RuntimeSnapshot 输出 -> xDS ADS 消费
+```
 
 推荐顺序：
 
-1. 让 compiler 支持真正的单 Gateway 编译
+1. 提交待 review 的 ADS stream 状态拆分
+   - 当前只是文件边界整理
+   - 行为不变
+   - 已验证 `make test` 和 `make build`
+
+2. 补最小可运行示例文档
+   - 说明如何启动 `ingate-apiserver / ingate-controller / ingate-xds`
+   - 给出 Gateway/Route/Upstream 示例资源
+   - 给出 Envoy ADS bootstrap 示例
+   - 目标是让当前链路可手动跑通，不先做 e2e 自动化
+
+3. 让 compiler 支持真正的单 Gateway 编译
    - 目标：`reconcileGateway(name)` 不再需要读取全量 Gateway
    - 当前原因：compiler 会校验 Route 的全部 `ParentRefs`
 
-2. 新增 `RuntimeSnapshot` API 资源
-   - 这是 controller 的输出资源，不是用户声明式输入资源
-   - 建议先做非命名空间资源
-   - 字段大致包括：
-     - `spec.target`
-     - `spec.gateway`
-     - `spec.version`
-     - `spec.config runtime.RawExtension`
-   - 先不一定需要 `/status`
+4. 梳理 ADS stream 代码后续边界
+   - 保持 `app` 层薄
+   - `ads.go` 只放 gRPC 主流程
+   - response 构建继续由 `responseBuilder` 和各资源文件负责
+   - 不再引入大量游离 helper
 
-3. 给 `RuntimeSnapshot` 接入 apiserver REST storage
-   - 类似 `Gateway / Route / Upstream`
-   - 需要更新 `pkg/apis/gateway/v1/register.go`
-   - 需要更新 `internal/apiserver/server/config.go`
-   - 需要更新 codegen 注解并重新 `make generate`
-
-4. controller reconcile 后 create/update `RuntimeSnapshot`
-   - name 可以先用稳定格式，例如 `<target>-<gateway>`
-   - 后续再决定是否加入 workspace/tenant 前缀
-   - update 时注意 resourceVersion 语义
-
-5. `ingate-xds` watch `RuntimeSnapshot`
-   - 先 watch target=`xds` 的 snapshot
-   - 不急着实现完整 Envoy xDS 协议
-   - 可以先把 watch 到的 snapshot 保存在 xDS 服务内部状态
-
-6. 做最小 e2e
+5. 再考虑最小 e2e
    - 启动 apiserver
    - apply Gateway/Route/Upstream
    - controller 生成 RuntimeSnapshot
-   - xDS 观察到 RuntimeSnapshot
+   - xDS 响应 Envoy ADS
 
 ## 不建议马上做的事
 
@@ -395,10 +432,11 @@ make build
 可以直接使用下面这段作为下一轮对话起点：
 
 ```text
-你在 /Users/lgc202/workspace/source/lgc202/ingate-next 仓库继续开发。
-先阅读 AGENTS.md 和 docs/2026-04-29-ingate-next-handoff.md。
+你在 /Users/guangcaili/workplace/code/lgc202/ingate 仓库继续开发。
+先阅读 AGENTS.md 和 docs/2026-04-29-ingate-handoff.md。
 当前项目是 Ingate 的全新重写，不要参考旧 ../ingate。
-已经完成 Gateway/Route/Upstream 的 apiserver REST storage、generated client/informer/lister、controller informer watch 和按 Gateway key reconcile。
-下一步优先让 compiler 支持真正的单 Gateway 编译，然后新增 RuntimeSnapshot API 资源并让 controller 写入，供 ingate-xds watch。
+已经完成 Gateway/Route/Upstream/RuntimeSnapshot 的 apiserver REST storage、generated client/informer/lister、controller informer watch、按 Gateway key reconcile、RuntimeSnapshot 写入，以及 ingate-xds watch RuntimeSnapshot 并响应 Envoy ADS。
+当前待 review 改动是把 adsStreamState 从 ads.go 拆到 ads_stream_state.go，行为不变。
+下一步优先补最小可运行示例文档，说明 apiserver/controller/xds/Envoy ADS 如何联动；之后再做真正的单 Gateway 编译。
 开发前先 git status，完成后运行 make test 和 make build。不要自动提交，除非用户明确说提交。
 ```

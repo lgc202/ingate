@@ -4,9 +4,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/lgc202/ingate-next/internal/core/ir"
-	"github.com/lgc202/ingate-next/internal/core/target"
-	"github.com/lgc202/ingate-next/internal/core/target/xds"
+	"github.com/lgc202/ingate/internal/core/ir"
+	"github.com/lgc202/ingate/internal/core/target"
+	"github.com/lgc202/ingate/internal/core/target/xds"
 )
 
 func TestTranslatorImplementsTargetTranslator(t *testing.T) {

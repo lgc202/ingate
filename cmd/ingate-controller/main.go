@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lgc202/ingate-next/internal/controller/app"
+	"github.com/lgc202/ingate/internal/controller/app"
 )
 
 func main() {

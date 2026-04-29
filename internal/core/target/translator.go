@@ -2,8 +2,8 @@
 package target
 
 import (
-	"github.com/lgc202/ingate-next/internal/core/ir"
-	"github.com/lgc202/ingate-next/internal/core/runtime"
+	"github.com/lgc202/ingate/internal/core/ir"
+	"github.com/lgc202/ingate/internal/core/runtime"
 )
 
 // Translator 表示一个运行时 target 的翻译器

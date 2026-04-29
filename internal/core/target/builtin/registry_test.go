@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/lgc202/ingate-next/internal/core/target/builtin"
+	"github.com/lgc202/ingate/internal/core/target/builtin"
 )
 
 func TestNewRegistry(t *testing.T) {
