@@ -62,3 +62,10 @@ func (s *snapshotStore) List() []*resource.RuntimeSnapshot {
 	}
 	return snapshots
 }
+
+func (s *snapshotStore) Count() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return len(s.snapshots)
+}

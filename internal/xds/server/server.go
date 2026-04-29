@@ -7,7 +7,6 @@ import (
 	"net"
 	"time"
 
-	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"google.golang.org/grpc"
 	"k8s.io/client-go/tools/cache"
 
@@ -35,7 +34,7 @@ func New(client clientset.Interface, listenAddress, target string, resyncPeriod 
 		store:         store,
 		stdout:        stdout,
 	}
-	discoveryv3.RegisterAggregatedDiscoveryServiceServer(server.grpcServer, newADSServer(store))
+	registerADSServer(server.grpcServer, store, stdout)
 	return server
 }
 
