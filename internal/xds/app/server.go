@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"time"
 
+	"google.golang.org/grpc"
 	"k8s.io/client-go/tools/cache"
 
 	resource "github.com/lgc202/ingate-next/pkg/apis/gateway/v1"
@@ -15,17 +17,21 @@ import (
 
 // Server 维护 RuntimeSnapshot 观察状态，后续在此基础上提供 xDS 协议
 type Server struct {
-	factory informers.SharedInformerFactory
-	store   *snapshotStore
-	stdout  io.Writer
+	factory       informers.SharedInformerFactory
+	grpcServer    *grpc.Server
+	listenAddress string
+	store         *snapshotStore
+	stdout        io.Writer
 }
 
 // NewServer 创建 xDS 配置观察服务
-func NewServer(client clientset.Interface, target string, resyncPeriod time.Duration, stdout io.Writer) *Server {
+func NewServer(client clientset.Interface, listenAddress, target string, resyncPeriod time.Duration, stdout io.Writer) *Server {
 	return &Server{
-		factory: informers.NewSharedInformerFactory(client, resyncPeriod),
-		store:   newSnapshotStore(target),
-		stdout:  stdout,
+		factory:       informers.NewSharedInformerFactory(client, resyncPeriod),
+		grpcServer:    grpc.NewServer(),
+		listenAddress: listenAddress,
+		store:         newSnapshotStore(target),
+		stdout:        stdout,
 	}
 }
 
@@ -34,6 +40,7 @@ func (s *Server) Run(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer func() {
 		cancel()
+		s.grpcServer.GracefulStop()
 		s.factory.Shutdown()
 	}()
 
@@ -46,8 +53,24 @@ func (s *Server) Run(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(s.stdout, "ingate-xds watching target=%s\n", s.store.target)
-	<-runCtx.Done()
-	return runCtx.Err()
+	listener, err := net.Listen("tcp", s.listenAddress)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+
+	serverErr := make(chan error, 1)
+	go func() {
+		fmt.Fprintf(s.stdout, "ingate-xds serving grpc=%s\n", listener.Addr().String())
+		serverErr <- s.grpcServer.Serve(listener)
+	}()
+
+	select {
+	case <-runCtx.Done():
+		return runCtx.Err()
+	case err := <-serverErr:
+		return err
+	}
 }
 
 func (s *Server) registerEventHandlers() error {
