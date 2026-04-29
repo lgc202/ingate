@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
@@ -16,20 +15,17 @@ import (
 
 // Server 维护 RuntimeSnapshot 观察状态，后续在此基础上提供 xDS 协议
 type Server struct {
-	factory   informers.SharedInformerFactory
-	target    string
-	snapshots map[string]*resource.RuntimeSnapshot
-	stdout    io.Writer
-	mu        sync.RWMutex
+	factory informers.SharedInformerFactory
+	store   *snapshotStore
+	stdout  io.Writer
 }
 
 // NewServer 创建 xDS 配置观察服务
 func NewServer(client clientset.Interface, target string, resyncPeriod time.Duration, stdout io.Writer) *Server {
 	return &Server{
-		factory:   informers.NewSharedInformerFactory(client, resyncPeriod),
-		target:    target,
-		snapshots: map[string]*resource.RuntimeSnapshot{},
-		stdout:    stdout,
+		factory: informers.NewSharedInformerFactory(client, resyncPeriod),
+		store:   newSnapshotStore(target),
+		stdout:  stdout,
 	}
 }
 
@@ -49,7 +45,7 @@ func (s *Server) Run(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprintf(s.stdout, "ingate-xds watching target=%s\n", s.target)
+	fmt.Fprintf(s.stdout, "ingate-xds watching target=%s\n", s.store.target)
 	<-runCtx.Done()
 	return runCtx.Err()
 }
@@ -85,26 +81,18 @@ func (s *Server) waitForCacheSync(ctx context.Context) error {
 
 func (s *Server) applySnapshotObject(obj any) {
 	snapshot, ok := objectAs[*resource.RuntimeSnapshot](obj)
-	if !ok || snapshot.Spec.Target != s.target {
+	if !ok || !s.store.Apply(snapshot) {
 		return
 	}
-
-	s.mu.Lock()
-	s.snapshots[snapshot.Spec.Gateway] = snapshot.DeepCopy()
-	s.mu.Unlock()
 
 	fmt.Fprintf(s.stdout, "snapshot updated target=%s gateway=%s version=%s\n", snapshot.Spec.Target, snapshot.Spec.Gateway, snapshot.Spec.Version)
 }
 
 func (s *Server) deleteSnapshotObject(obj any) {
 	snapshot, ok := objectAs[*resource.RuntimeSnapshot](obj)
-	if !ok || snapshot.Spec.Target != s.target {
+	if !ok || !s.store.Delete(snapshot) {
 		return
 	}
-
-	s.mu.Lock()
-	delete(s.snapshots, snapshot.Spec.Gateway)
-	s.mu.Unlock()
 
 	fmt.Fprintf(s.stdout, "snapshot removed target=%s gateway=%s\n", snapshot.Spec.Target, snapshot.Spec.Gateway)
 }
