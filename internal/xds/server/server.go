@@ -20,6 +20,7 @@ type Server struct {
 	factory       informers.SharedInformerFactory
 	grpcServer    *grpc.Server
 	listenAddress string
+	ads           *adsServer
 	store         *snapshotStore
 	stdout        io.Writer
 }
@@ -34,7 +35,7 @@ func New(client clientset.Interface, listenAddress, target string, resyncPeriod 
 		store:         store,
 		stdout:        stdout,
 	}
-	registerADSServer(server.grpcServer, store, stdout)
+	server.ads = registerADSServer(server.grpcServer, store, stdout)
 	return server
 }
 
@@ -112,6 +113,7 @@ func (s *Server) applySnapshotObject(obj any) {
 	}
 
 	fmt.Fprintf(s.stdout, "snapshot updated target=%s gateway=%s version=%s\n", snapshot.Spec.Target, snapshot.Spec.Gateway, snapshot.Spec.Version)
+	s.ads.NotifySnapshotsChanged()
 }
 
 func (s *Server) deleteSnapshotObject(obj any) {
@@ -121,6 +123,7 @@ func (s *Server) deleteSnapshotObject(obj any) {
 	}
 
 	fmt.Fprintf(s.stdout, "snapshot removed target=%s gateway=%s\n", snapshot.Spec.Target, snapshot.Spec.Gateway)
+	s.ads.NotifySnapshotsChanged()
 }
 
 func objectAs[T any](obj any) (T, bool) {
