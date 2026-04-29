@@ -251,6 +251,18 @@ apiserver resource -> informer watch -> controller reconcile -> RuntimeSnapshot 
 
 不要再加临时文件 store、内存状态服务或 file bridge。
 
+### 为什么 xDS Listener 默认绑定 `0.0.0.0`
+
+当前内部 xDS target 的 `Listener` 只表达网关监听端口和对应的 `RouteConfig`，还没有把 bind address 设计成 Gateway API 的领域字段。
+
+Envoy `Listener` 又必须有明确监听地址，所以当前生成 LDS 时使用 `0.0.0.0` 作为默认 bind address：
+
+- 符合 API Gateway 默认对外接收流量的语义
+- 本地开发、容器和常见 VM 部署都可以直接工作
+- 比 `127.0.0.1` 更接近真实网关部署形态
+
+代码中使用 `defaultBindAddress` 常量，是因为这是明确的运行时默认值，不应散落成魔法字符串。后续如果 Gateway API 增加 `spec.listeners[].address` 或类似字段，再把该默认值下沉为“用户未配置时的默认值”。
+
 ### 为什么当前资源是非命名空间
 
 当前内部模型没有租户、工作空间、RBAC、配额等完整隔离设计。直接使用 Kubernetes Namespace 会过早绑定 K8s 语义。
