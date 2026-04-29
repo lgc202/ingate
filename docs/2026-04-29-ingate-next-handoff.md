@@ -54,17 +54,16 @@ ingate-xds watch / snapshotStore / Envoy ADS
 最近关键提交：
 
 ```text
+136e459 feat: add gateway overview api
+23868f5 feat: add admin api read server
+fc2e0a3 chore: rename module to ingate
+e73af3c chore: remove ingate cli
+dea1fd9 refactor: split ads stream state
 dd8ce61 feat: push ads updates on snapshot changes
-977e536 feat: skip unchanged ads responses
-cb45e1d feat: log ads acknowledgements
 eb2d3e7 feat: build xds discovery resources
-e12946a feat: add initial ads response handling
-e8de4c3 feat: log ads stream requests
-83ef4cd feat: add xds ads server skeleton
-79d4794 feat: start xds grpc server
 ```
 
-当前工作区还有一组待 review 的整理改动：把 `adsStreamState` 从 `ads.go` 拆到 `ads_stream_state.go`，行为不变，只整理 ADS stream 状态边界。
+当前工作区准备更新本文档并提交。
 
 ## 已完成能力
 
@@ -95,7 +94,6 @@ Resource Bundle -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapsho
 
 已经有第一批长期服务入口：
 
-- `cmd/ingate`
 - `cmd/ingate-admin-api`
 - `cmd/ingate-apiserver`
 - `cmd/ingate-controller`
@@ -103,11 +101,12 @@ Resource Bundle -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapsho
 
 其中：
 
-- `ingate`：本地 CLI 和调试入口
+- `ingate-admin-api`：前端管理 API，当前使用 Gin 并按 `app/server/handler/service/store/pkg` 分层
 - `ingate-apiserver`：声明式资源 API
 - `ingate-controller`：watch 资源并做状态收敛
 - `ingate-xds`：给 Envoy 提供 xDS ADS 服务
-- `ingate-admin-api`：后续给前端管理端使用
+
+早期本地调试 CLI `cmd/ingate` 已删除，避免维护非主线入口。
 
 ### API 类型
 
@@ -267,6 +266,28 @@ github.com/envoyproxy/go-control-plane/envoy
 
 暂时不引入 Ingate 自有 proto。Envoy xDS 协议直接使用官方 proto；Ingate 自有 proto 等 Admin/Agent/Plugin RPC 边界明确后再设计。
 
+### admin-api
+
+`ingate-admin-api` 已从占位入口推进到可运行的 Gin HTTP 服务：
+
+- `internal/adminapi/app`：启动参数、apiserver client 初始化、server 组装
+- `internal/adminapi/server`：HTTP 生命周期和 Gin 路由注册
+- `internal/adminapi/handler`：按资源子目录组织 HTTP handler
+- `internal/adminapi/service`：按资源子目录组织业务用例
+- `internal/adminapi/store`：按资源子目录封装 generated client 访问
+- `internal/adminapi/pkg`：admin-api 内部公共能力，例如 response、requestid、middleware
+
+当前已接入：
+
+- `GET /healthz`
+- `GET /api/gateways` / `GET /api/gateways/:name`
+- `GET /api/routes` / `GET /api/routes/:name`
+- `GET /api/upstreams` / `GET /api/upstreams/:name`
+- `GET /api/runtime-snapshots` / `GET /api/runtime-snapshots/:name`
+- `GET /api/gateways/:name/overview`
+
+当前这个 Admin API 只是让服务跑起来并验证分层，不应作为最终前端契约。后续需要先设计前端信息架构和页面流程，再反推 Admin API 的 DTO、CRUD 语义和聚合接口。前端不应该直接依赖 Kubernetes 风格资源对象；`Gateway / Route / Upstream / RuntimeSnapshot` 可以作为内部资源模型，但 Admin API 应返回面向页面和用户操作的产品 DTO。
+
 ## 设计取舍
 
 ### 为什么不直接依赖 Kubernetes CRD
@@ -377,34 +398,36 @@ make build
 声明式输入资源 -> controller 编译 -> RuntimeSnapshot 输出 -> xDS ADS 消费
 ```
 
-推荐顺序：
+接下来不建议继续盲目补 Admin API CRUD。更合理的顺序是先设计前端，再反推后端契约：
 
-1. 提交待 review 的 ADS stream 状态拆分
-   - 当前只是文件边界整理
-   - 行为不变
-   - 已验证 `make test` 和 `make build`
+1. 先做前端信息架构和页面草图
+   - Gateway 列表页需要哪些摘要字段
+   - Gateway 详情页如何展示 Listener、Route、Upstream、RuntimeSnapshot
+   - Route / Upstream 的创建和编辑流程如何组织
+   - 哪些操作是页面级动作，哪些只是内部资源字段
 
-2. 补最小可运行示例文档
-   - 说明如何启动 `ingate-apiserver / ingate-controller / ingate-xds`
+2. 基于前端设计重新定义 Admin API DTO
+   - 不直接把 Kubernetes 风格资源对象暴露给前端
+   - list 接口返回页面摘要 DTO
+   - detail 接口返回详情 DTO
+   - form 接口或 schema 明确创建/编辑需要的字段
+   - overview 接口只保留页面真正需要的聚合信息
+
+3. 再补 Admin API CRUD
+   - Gateway create/update/delete
+   - Route create/update/delete
+   - Upstream create/update/delete
+   - 先通过 generated client 写入 ingate-apiserver
+   - handler 只处理 HTTP，service 承载产品语义，store 封装资源读写
+
+4. 之后补最小可运行示例文档
+   - 说明如何启动 `ingate-apiserver / ingate-controller / ingate-xds / ingate-admin-api`
    - 给出 Gateway/Route/Upstream 示例资源
    - 给出 Envoy ADS bootstrap 示例
-   - 目标是让当前链路可手动跑通，不先做 e2e 自动化
 
-3. 让 compiler 支持真正的单 Gateway 编译
+5. 再让 compiler 支持真正的单 Gateway 编译
    - 目标：`reconcileGateway(name)` 不再需要读取全量 Gateway
    - 当前原因：compiler 会校验 Route 的全部 `ParentRefs`
-
-4. 梳理 ADS stream 代码后续边界
-   - 保持 `app` 层薄
-   - `ads.go` 只放 gRPC 主流程
-   - response 构建继续由 `responseBuilder` 和各资源文件负责
-   - 不再引入大量游离 helper
-
-5. 再考虑最小 e2e
-   - 启动 apiserver
-   - apply Gateway/Route/Upstream
-   - controller 生成 RuntimeSnapshot
-   - xDS 响应 Envoy ADS
 
 ## 不建议马上做的事
 
@@ -412,7 +435,6 @@ make build
 
 - 大量补 `AIRoute / AIProvider / Plugin / Policy` storage
 - 复杂多租户模型
-- Admin API 前端接口
 - Envoy ADS 完整协议
 - K8s operator
 - VM agent
@@ -433,10 +455,10 @@ make build
 
 ```text
 你在 /Users/guangcaili/workplace/code/lgc202/ingate 仓库继续开发。
-先阅读 AGENTS.md 和 docs/2026-04-29-ingate-handoff.md。
+先阅读 AGENTS.md 和 docs/2026-04-29-ingate-next-handoff.md。
 当前项目是 Ingate 的全新重写，不要参考旧 ../ingate。
 已经完成 Gateway/Route/Upstream/RuntimeSnapshot 的 apiserver REST storage、generated client/informer/lister、controller informer watch、按 Gateway key reconcile、RuntimeSnapshot 写入，以及 ingate-xds watch RuntimeSnapshot 并响应 Envoy ADS。
-当前待 review 改动是把 adsStreamState 从 ads.go 拆到 ads_stream_state.go，行为不变。
-下一步优先补最小可运行示例文档，说明 apiserver/controller/xds/Envoy ADS 如何联动；之后再做真正的单 Gateway 编译。
+ingate-admin-api 已接入 Gin，并按 app/server/handler/service/store/pkg 分层，当前提供只读资源接口和 Gateway overview。
+下一步优先设计前端信息架构和页面流程，再反推 Admin API DTO 与 CRUD 契约；不要直接把 Kubernetes 风格资源对象作为最终前端 API。
 开发前先 git status，完成后运行 make test 和 make build。不要自动提交，除非用户明确说提交。
 ```
