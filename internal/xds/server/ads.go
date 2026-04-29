@@ -18,6 +18,15 @@ type adsServer struct {
 	stdout    io.Writer
 }
 
+type adsStreamState struct {
+	sent map[string]adsSentResponse
+}
+
+type adsSentResponse struct {
+	Version string
+	Nonce   string
+}
+
 func newADSServer(store *snapshotStore, stdout io.Writer) discoveryv3.AggregatedDiscoveryServiceServer {
 	return &adsServer{responses: newResponseBuilder(store), store: store, stdout: stdout}
 }
@@ -25,6 +34,7 @@ func newADSServer(store *snapshotStore, stdout io.Writer) discoveryv3.Aggregated
 // StreamAggregatedResources 处理 Envoy ADS 的 State-of-the-World 流
 // Envoy 会在同一个双向流里按 type_url 订阅 LDS/CDS/RDS/EDS 等资源，并用后续请求 ACK/NACK 上一次响应
 func (s *adsServer) StreamAggregatedResources(stream discoveryv3.AggregatedDiscoveryService_StreamAggregatedResourcesServer) error {
+	state := adsStreamState{sent: make(map[string]adsSentResponse)}
 	for {
 		request, err := stream.Recv()
 		if err != nil {
@@ -43,9 +53,14 @@ func (s *adsServer) StreamAggregatedResources(stream discoveryv3.AggregatedDisco
 		if !ok {
 			continue
 		}
+		if state.isAcknowledged(request, response) {
+			fmt.Fprintf(s.stdout, "ads response unchanged type=%s version=%s nonce=%s\n", response.GetTypeUrl(), response.GetVersionInfo(), response.GetNonce())
+			continue
+		}
 		if err := stream.Send(response); err != nil {
 			return err
 		}
+		state.record(response)
 		fmt.Fprintf(s.stdout, "ads response sent type=%s version=%s nonce=%s resources=%d\n", response.GetTypeUrl(), response.GetVersionInfo(), response.GetNonce(), len(response.GetResources()))
 	}
 }
@@ -95,6 +110,22 @@ func (s *adsServer) logAcknowledgement(request *discoveryv3.DiscoveryRequest) {
 		errorDetail.GetCode(),
 		errorDetail.GetMessage(),
 	)
+}
+
+func (s adsStreamState) isAcknowledged(request *discoveryv3.DiscoveryRequest, response *discoveryv3.DiscoveryResponse) bool {
+	if request.GetResponseNonce() == "" || request.GetErrorDetail() != nil {
+		return false
+	}
+
+	sent, ok := s.sent[response.GetTypeUrl()]
+	return ok && sent.Version == response.GetVersionInfo() && sent.Nonce == request.GetResponseNonce()
+}
+
+func (s adsStreamState) record(response *discoveryv3.DiscoveryResponse) {
+	s.sent[response.GetTypeUrl()] = adsSentResponse{
+		Version: response.GetVersionInfo(),
+		Nonce:   response.GetNonce(),
+	}
 }
 
 func registerADSServer(grpcServer *grpc.Server, store *snapshotStore, stdout io.Writer) {
