@@ -52,11 +52,14 @@ func TestCompilerCompileGateway(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "chat"},
 				Spec: resource.AIRouteSpec{
 					ParentRefs: []string{"public"},
+					Hostnames:  []string{"api.example.com"},
+					Path:       "/v1/chat/completions",
 					PathPrefix: "/v1/chat/completions",
 					Model:      "gpt-4.1-mini",
-					ProviderRefs: []resource.AIProviderRef{
-						{Name: "openai", Weight: 100},
+					Models: []resource.AIModelRef{
+						{Name: "chat-fast", Weight: 100},
 					},
+					PolicyRefs: []string{"ai-default"},
 				},
 			},
 		},
@@ -77,6 +80,35 @@ func TestCompilerCompileGateway(t *testing.T) {
 					Type:     resource.AIProviderTypeOpenAICompatible,
 					Endpoint: "https://api.openai.com/v1",
 					Models:   []string{"gpt-4.1-mini"},
+				},
+			},
+		},
+		AIModels: []resource.AIModel{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "chat-fast"},
+				Spec: resource.AIModelSpec{
+					ProviderRef:   "openai",
+					ProviderModel: "gpt-4.1-mini",
+					Capabilities:  []string{"chat", "stream"},
+				},
+			},
+		},
+		AIPolicies: []resource.AIPolicy{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "ai-default"},
+				Spec: resource.AIPolicySpec{
+					ExecutionTarget: resource.AIExecutionTargetTypeWasm,
+					TimeoutMillis:   30000,
+					Retry: resource.AIRetryPolicy{
+						Attempts: 2,
+					},
+					Fallback: resource.AIFallbackPolicy{
+						Enabled: true,
+						Models:  []string{"chat-backup"},
+					},
+					Usage: resource.AIUsagePolicy{
+						Enabled: true,
+					},
 				},
 			},
 		},
@@ -117,9 +149,12 @@ func TestCompilerCompileGateway(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "app-audit"},
 				Spec: resource.PluginBindingSpec{
 					TargetRef: resource.PluginTargetRef{
-						Kind: resource.KindRoute,
-						Name: "app",
+						Kind: resource.KindAIRoute,
+						Name: "chat",
 					},
+					Phase:         resource.PluginPhaseBeforeProviderCall,
+					Priority:      100,
+					FailurePolicy: resource.PluginFailurePolicyFailClose,
 					Plugins: []resource.PluginRef{
 						{
 							Name:   "audit-log",
@@ -178,11 +213,15 @@ func TestCompilerCompileGateway(t *testing.T) {
 		AIRoutes: []ir.LogicalAIRoute{
 			{
 				Name:       "chat",
+				Hostnames:  []string{"api.example.com"},
+				Path:       "/v1/chat/completions",
 				PathPrefix: "/v1/chat/completions",
 				Model:      "gpt-4.1-mini",
-				Providers: []ir.LogicalAIProviderRef{
-					{Name: "openai", Weight: 100},
+				Models: []ir.LogicalAIModelRef{
+					{Name: "chat-fast", Weight: 100},
 				},
+				Providers:  []ir.LogicalAIProviderRef{},
+				PolicyRefs: []string{"ai-default"},
 			},
 		},
 		Upstreams: []ir.LogicalUpstream{
@@ -199,6 +238,25 @@ func TestCompilerCompileGateway(t *testing.T) {
 				Type:     resource.AIProviderTypeOpenAICompatible,
 				Endpoint: "https://api.openai.com/v1",
 				Models:   []string{"gpt-4.1-mini"},
+			},
+		},
+		AIModels: []ir.LogicalAIModel{
+			{
+				Name:          "chat-fast",
+				ProviderRef:   "openai",
+				ProviderModel: "gpt-4.1-mini",
+				Capabilities:  []string{"chat", "stream"},
+			},
+		},
+		AIPolicies: []ir.LogicalAIPolicy{
+			{
+				Name:            "ai-default",
+				ExecutionTarget: resource.AIExecutionTargetTypeWasm,
+				TimeoutMillis:   30000,
+				RetryAttempts:   2,
+				FallbackEnabled: true,
+				FallbackModels:  []string{"chat-backup"},
+				UsageEnabled:    true,
 			},
 		},
 		Plugins: []ir.LogicalPlugin{
@@ -231,9 +289,12 @@ func TestCompilerCompileGateway(t *testing.T) {
 			{
 				Name: "app-audit",
 				Target: ir.LogicalPluginTarget{
-					Kind: resource.KindRoute,
-					Name: "app",
+					Kind: resource.KindAIRoute,
+					Name: "chat",
 				},
+				Phase:         resource.PluginPhaseBeforeProviderCall,
+				Priority:      100,
+				FailurePolicy: resource.PluginFailurePolicyFailClose,
 				Plugins: []ir.LogicalPluginRef{
 					{
 						Name:   "audit-log",
@@ -312,7 +373,7 @@ func TestCompilerCompileGatewayAIRouteWithoutProvider(t *testing.T) {
 	if err == nil {
 		t.Fatal("CompileGateway() error = nil")
 	}
-	if !strings.Contains(err.Error(), `ai route "chat" has no ai providers`) {
+	if !strings.Contains(err.Error(), `ai route "chat" has no ai models or ai providers`) {
 		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }

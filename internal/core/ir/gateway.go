@@ -15,6 +15,8 @@ type LogicalGateway struct {
 	AIRoutes          []LogicalAIRoute
 	Upstreams         []LogicalUpstream
 	AIProviders       []LogicalAIProvider
+	AIModels          []LogicalAIModel
+	AIPolicies        []LogicalAIPolicy
 	Plugins           []LogicalPlugin
 	AuthPolicies      []LogicalAuthPolicy
 	RateLimitPolicies []LogicalRateLimitPolicy
@@ -61,9 +63,19 @@ type LogicalUpstreamRef struct {
 // LogicalAIRoute 表示编译后的 AI 路由
 type LogicalAIRoute struct {
 	Name       string
+	Hostnames  []string
+	Path       string
 	PathPrefix string
 	Model      string
+	Models     []LogicalAIModelRef
 	Providers  []LogicalAIProviderRef
+	PolicyRefs []string
+}
+
+// LogicalAIModelRef 表示已解析的 AIModel 引用
+type LogicalAIModelRef struct {
+	Name   string
+	Weight int
 }
 
 // LogicalAIProviderRef 表示已解析的 AIProvider 引用
@@ -90,6 +102,25 @@ type LogicalAIProvider struct {
 	Type     resource.AIProviderType
 	Endpoint string
 	Models   []string
+}
+
+// LogicalAIModel 表示编译后的 AI 模型映射
+type LogicalAIModel struct {
+	Name          string
+	ProviderRef   string
+	ProviderModel string
+	Capabilities  []string
+}
+
+// LogicalAIPolicy 表示编译后的 AI 请求策略
+type LogicalAIPolicy struct {
+	Name            string
+	ExecutionTarget resource.AIExecutionTargetType
+	TimeoutMillis   int
+	RetryAttempts   int
+	FallbackEnabled bool
+	FallbackModels  []string
+	UsageEnabled    bool
 }
 
 // LogicalPlugin 表示编译后的插件声明
@@ -144,9 +175,12 @@ type LogicalPolicyRef struct {
 
 // LogicalPluginBinding 表示编译后的插件绑定关系
 type LogicalPluginBinding struct {
-	Name    string
-	Target  LogicalPluginTarget
-	Plugins []LogicalPluginRef
+	Name          string
+	Target        LogicalPluginTarget
+	Phase         resource.PluginPhase
+	Priority      int
+	FailurePolicy resource.PluginFailurePolicy
+	Plugins       []LogicalPluginRef
 }
 
 // LogicalPluginTarget 表示插件绑定目标

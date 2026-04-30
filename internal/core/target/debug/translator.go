@@ -26,6 +26,8 @@ type Config struct {
 	AIRoutes          []AIRoute         `json:"aiRoutes"`
 	Upstreams         []Upstream        `json:"upstreams"`
 	AIProviders       []AIProvider      `json:"aiProviders"`
+	AIModels          []AIModel         `json:"aiModels"`
+	AIPolicies        []AIPolicy        `json:"aiPolicies"`
 	Plugins           []Plugin          `json:"plugins"`
 	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
@@ -72,9 +74,19 @@ type UpstreamRef struct {
 // AIRoute 表示 debug 配置中的 AI 路由
 type AIRoute struct {
 	Name       string          `json:"name"`
+	Hostnames  []string        `json:"hostnames"`
+	Path       string          `json:"path"`
 	PathPrefix string          `json:"pathPrefix"`
 	Model      string          `json:"model"`
+	Models     []AIModelRef    `json:"models"`
 	Providers  []AIProviderRef `json:"providers"`
+	PolicyRefs []string        `json:"policyRefs"`
+}
+
+// AIModelRef 表示 debug 配置中的 AIModel 引用
+type AIModelRef struct {
+	Name   string `json:"name"`
+	Weight int    `json:"weight"`
 }
 
 // AIProviderRef 表示 debug 配置中的 AIProvider 引用
@@ -101,6 +113,25 @@ type AIProvider struct {
 	Type     resource.AIProviderType `json:"type"`
 	Endpoint string                  `json:"endpoint"`
 	Models   []string                `json:"models"`
+}
+
+// AIModel 表示 debug 配置中的 AI 模型映射
+type AIModel struct {
+	Name          string   `json:"name"`
+	ProviderRef   string   `json:"providerRef"`
+	ProviderModel string   `json:"providerModel"`
+	Capabilities  []string `json:"capabilities"`
+}
+
+// AIPolicy 表示 debug 配置中的 AI 请求策略
+type AIPolicy struct {
+	Name            string                         `json:"name"`
+	ExecutionTarget resource.AIExecutionTargetType `json:"executionTarget"`
+	TimeoutMillis   int                            `json:"timeoutMillis"`
+	RetryAttempts   int                            `json:"retryAttempts"`
+	FallbackEnabled bool                           `json:"fallbackEnabled"`
+	FallbackModels  []string                       `json:"fallbackModels"`
+	UsageEnabled    bool                           `json:"usageEnabled"`
 }
 
 // Plugin 表示 debug 配置中的插件声明
@@ -155,9 +186,12 @@ type PolicyRef struct {
 
 // PluginBinding 表示 debug 配置中的插件绑定
 type PluginBinding struct {
-	Name    string       `json:"name"`
-	Target  PluginTarget `json:"target"`
-	Plugins []PluginRef  `json:"plugins"`
+	Name          string                       `json:"name"`
+	Target        PluginTarget                 `json:"target"`
+	Phase         resource.PluginPhase         `json:"phase"`
+	Priority      int                          `json:"priority"`
+	FailurePolicy resource.PluginFailurePolicy `json:"failurePolicy"`
+	Plugins       []PluginRef                  `json:"plugins"`
 }
 
 // PluginTarget 表示 debug 配置中的插件绑定目标
@@ -185,6 +219,8 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		AIRoutes:          make([]AIRoute, 0, len(logical.AIRoutes)),
 		Upstreams:         make([]Upstream, 0, len(logical.Upstreams)),
 		AIProviders:       make([]AIProvider, 0, len(logical.AIProviders)),
+		AIModels:          make([]AIModel, 0, len(logical.AIModels)),
+		AIPolicies:        make([]AIPolicy, 0, len(logical.AIPolicies)),
 		Plugins:           make([]Plugin, 0, len(logical.Plugins)),
 		AuthPolicies:      make([]AuthPolicy, 0, len(logical.AuthPolicies)),
 		RateLimitPolicies: make([]RateLimitPolicy, 0, len(logical.RateLimitPolicies)),
@@ -235,9 +271,19 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 	for _, route := range logical.AIRoutes {
 		debugRoute := AIRoute{
 			Name:       route.Name,
+			Hostnames:  slices.Clone(route.Hostnames),
+			Path:       route.Path,
 			PathPrefix: route.PathPrefix,
 			Model:      route.Model,
+			Models:     make([]AIModelRef, 0, len(route.Models)),
 			Providers:  make([]AIProviderRef, 0, len(route.Providers)),
+			PolicyRefs: slices.Clone(route.PolicyRefs),
+		}
+		for _, model := range route.Models {
+			debugRoute.Models = append(debugRoute.Models, AIModelRef{
+				Name:   model.Name,
+				Weight: model.Weight,
+			})
 		}
 		for _, provider := range route.Providers {
 			debugRoute.Providers = append(debugRoute.Providers, AIProviderRef{
@@ -266,6 +312,25 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			Type:     provider.Type,
 			Endpoint: provider.Endpoint,
 			Models:   slices.Clone(provider.Models),
+		})
+	}
+	for _, model := range logical.AIModels {
+		config.AIModels = append(config.AIModels, AIModel{
+			Name:          model.Name,
+			ProviderRef:   model.ProviderRef,
+			ProviderModel: model.ProviderModel,
+			Capabilities:  slices.Clone(model.Capabilities),
+		})
+	}
+	for _, policy := range logical.AIPolicies {
+		config.AIPolicies = append(config.AIPolicies, AIPolicy{
+			Name:            policy.Name,
+			ExecutionTarget: policy.ExecutionTarget,
+			TimeoutMillis:   policy.TimeoutMillis,
+			RetryAttempts:   policy.RetryAttempts,
+			FallbackEnabled: policy.FallbackEnabled,
+			FallbackModels:  slices.Clone(policy.FallbackModels),
+			UsageEnabled:    policy.UsageEnabled,
 		})
 	}
 	for _, plugin := range logical.Plugins {
@@ -320,7 +385,10 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 				Kind: binding.Target.Kind,
 				Name: binding.Target.Name,
 			},
-			Plugins: make([]PluginRef, 0, len(binding.Plugins)),
+			Phase:         binding.Phase,
+			Priority:      binding.Priority,
+			FailurePolicy: binding.FailurePolicy,
+			Plugins:       make([]PluginRef, 0, len(binding.Plugins)),
 		}
 		for _, plugin := range binding.Plugins {
 			debugBinding.Plugins = append(debugBinding.Plugins, PluginRef{

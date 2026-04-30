@@ -97,6 +97,8 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 			},
 		},
 		AIProviders:       []debug.AIProvider{},
+		AIModels:          []debug.AIModel{},
+		AIPolicies:        []debug.AIPolicy{},
 		Plugins:           []debug.Plugin{},
 		AuthPolicies:      []debug.AuthPolicy{},
 		RateLimitPolicies: []debug.RateLimitPolicy{},
