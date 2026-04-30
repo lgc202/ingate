@@ -144,6 +144,28 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 
 	usedPluginBindings := map[string]bool{}
 	usedPlugins := map[string]bool{}
+	usedAuthPolicies := map[string]bool{}
+	usedRateLimitPolicies := map[string]bool{}
+	addPolicyBindings := func(kind resource.Kind, name string) error {
+		// PolicyBinding 通过 Gateway/Route/Upstream 生效
+		// 这里补进 bundle 后，compiler 会按绑定关系生成 AuthPolicy 和 RateLimitPolicy 的逻辑配置
+		bindings, err := c.policyBindingsByIndex(policyBindingIndexTargetRef, targetIndexValue(kind, name))
+		if err != nil {
+			return err
+		}
+		for _, binding := range bindings {
+			bundle.PolicyBindings = append(bundle.PolicyBindings, *binding)
+			for _, policyRef := range binding.Spec.Policies {
+				switch policyRef.Kind {
+				case resource.KindAuthPolicy:
+					usedAuthPolicies[policyRef.Name] = true
+				case resource.KindRateLimitPolicy:
+					usedRateLimitPolicies[policyRef.Name] = true
+				}
+			}
+		}
+		return nil
+	}
 	addPluginBindings := func(kind resource.Kind, name string) error {
 		// PluginBinding 通过目标资源间接作用到 Gateway
 		// 例如 AIRoute 绑定 ai-proxy 后，xDS translator 会把它合并成 Gateway 级 Wasm filter 配置
@@ -166,13 +188,22 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 	if err := addPluginBindings(resource.KindGateway, gateway.Name); err != nil {
 		return resource.Bundle{}, false, err
 	}
+	if err := addPolicyBindings(resource.KindGateway, gateway.Name); err != nil {
+		return resource.Bundle{}, false, err
+	}
 	for _, route := range bundle.Routes {
 		if err := addPluginBindings(resource.KindRoute, route.Name); err != nil {
+			return resource.Bundle{}, false, err
+		}
+		if err := addPolicyBindings(resource.KindRoute, route.Name); err != nil {
 			return resource.Bundle{}, false, err
 		}
 	}
 	for _, upstream := range bundle.Upstreams {
 		if err := addPluginBindings(resource.KindUpstream, upstream.Name); err != nil {
+			return resource.Bundle{}, false, err
+		}
+		if err := addPolicyBindings(resource.KindUpstream, upstream.Name); err != nil {
 			return resource.Bundle{}, false, err
 		}
 	}
@@ -202,6 +233,28 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 			return resource.Bundle{}, false, err
 		}
 		bundle.Plugins = append(bundle.Plugins, *plugin)
+	}
+	bundle.AuthPolicies = make([]resource.AuthPolicy, 0, len(usedAuthPolicies))
+	for _, policyName := range slices.Sorted(maps.Keys(usedAuthPolicies)) {
+		policy, err := c.authPolicyLister.Get(policyName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return resource.Bundle{}, false, err
+		}
+		bundle.AuthPolicies = append(bundle.AuthPolicies, *policy)
+	}
+	bundle.RateLimitPolicies = make([]resource.RateLimitPolicy, 0, len(usedRateLimitPolicies))
+	for _, policyName := range slices.Sorted(maps.Keys(usedRateLimitPolicies)) {
+		policy, err := c.rateLimitLister.Get(policyName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return resource.Bundle{}, false, err
+		}
+		bundle.RateLimitPolicies = append(bundle.RateLimitPolicies, *policy)
 	}
 	return bundle, true, nil
 }

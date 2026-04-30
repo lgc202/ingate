@@ -18,9 +18,12 @@ type GatewayV1Interface interface {
 	AIPoliciesGetter
 	AIProvidersGetter
 	AIRoutesGetter
+	AuthPoliciesGetter
 	GatewaysGetter
 	PluginsGetter
 	PluginBindingsGetter
+	PolicyBindingsGetter
+	RateLimitPoliciesGetter
 	RoutesGetter
 	RuntimeSnapshotsGetter
 	UpstreamsGetter
@@ -47,6 +50,10 @@ func (c *GatewayV1Client) AIRoutes() AIRouteInterface {
 	return newAIRoutes(c)
 }
 
+func (c *GatewayV1Client) AuthPolicies() AuthPolicyInterface {
+	return newAuthPolicies(c)
+}
+
 func (c *GatewayV1Client) Gateways() GatewayInterface {
 	return newGateways(c)
 }
@@ -57,6 +64,14 @@ func (c *GatewayV1Client) Plugins() PluginInterface {
 
 func (c *GatewayV1Client) PluginBindings() PluginBindingInterface {
 	return newPluginBindings(c)
+}
+
+func (c *GatewayV1Client) PolicyBindings() PolicyBindingInterface {
+	return newPolicyBindings(c)
+}
+
+func (c *GatewayV1Client) RateLimitPolicies() RateLimitPolicyInterface {
+	return newRateLimitPolicies(c)
 }
 
 func (c *GatewayV1Client) Routes() RouteInterface {

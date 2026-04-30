@@ -12,11 +12,17 @@ type AIProviderExpansion interface{}
 
 type AIRouteExpansion interface{}
 
+type AuthPolicyExpansion interface{}
+
 type GatewayExpansion interface{}
 
 type PluginExpansion interface{}
 
 type PluginBindingExpansion interface{}
+
+type PolicyBindingExpansion interface{}
+
+type RateLimitPolicyExpansion interface{}
 
 type RouteExpansion interface{}
 

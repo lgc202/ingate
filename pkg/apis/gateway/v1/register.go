@@ -75,6 +75,24 @@ const (
 	ResourcePluginBindings ResourceName = "pluginbindings"
 	// ResourcePluginBindingsStatus 表示 PluginBinding status 子资源名
 	ResourcePluginBindingsStatus ResourceName = "pluginbindings/status"
+	// ResourceAuthPolicy 表示 AuthPolicy 单数资源名
+	ResourceAuthPolicy ResourceName = "authpolicy"
+	// ResourceAuthPolicies 表示 AuthPolicy 复数资源名
+	ResourceAuthPolicies ResourceName = "authpolicies"
+	// ResourceAuthPoliciesStatus 表示 AuthPolicy status 子资源名
+	ResourceAuthPoliciesStatus ResourceName = "authpolicies/status"
+	// ResourceRateLimitPolicy 表示 RateLimitPolicy 单数资源名
+	ResourceRateLimitPolicy ResourceName = "ratelimitpolicy"
+	// ResourceRateLimitPolicies 表示 RateLimitPolicy 复数资源名
+	ResourceRateLimitPolicies ResourceName = "ratelimitpolicies"
+	// ResourceRateLimitPoliciesStatus 表示 RateLimitPolicy status 子资源名
+	ResourceRateLimitPoliciesStatus ResourceName = "ratelimitpolicies/status"
+	// ResourcePolicyBinding 表示 PolicyBinding 单数资源名
+	ResourcePolicyBinding ResourceName = "policybinding"
+	// ResourcePolicyBindings 表示 PolicyBinding 复数资源名
+	ResourcePolicyBindings ResourceName = "policybindings"
+	// ResourcePolicyBindingsStatus 表示 PolicyBinding status 子资源名
+	ResourcePolicyBindingsStatus ResourceName = "policybindings/status"
 )
 
 // SchemeGroupVersion 表示 Ingate API 组版本

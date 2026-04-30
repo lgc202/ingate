@@ -29,6 +29,8 @@ const (
 	aiRouteIndexModel           routeIndexName = "aiModelRef"
 	aiRouteIndexPolicy          routeIndexName = "aiPolicyRef"
 	aiModelIndexProvider        routeIndexName = "aiModelProviderRef"
+	policyBindingIndexTargetRef routeIndexName = "policyBindingTargetRef"
+	policyBindingIndexPolicy    routeIndexName = "policyBindingPolicyRef"
 	pluginBindingIndexTargetRef routeIndexName = "pluginBindingTargetRef"
 	pluginBindingIndexPlugin    routeIndexName = "pluginBindingPluginRef"
 )
@@ -44,10 +46,13 @@ type Controller struct {
 	aiProviderLister     gatewaylisters.AIProviderLister
 	aiModelLister        gatewaylisters.AIModelLister
 	aiPolicyLister       gatewaylisters.AIPolicyLister
+	authPolicyLister     gatewaylisters.AuthPolicyLister
+	rateLimitLister      gatewaylisters.RateLimitPolicyLister
 	pluginLister         gatewaylisters.PluginLister
 	routeIndexer         cache.Indexer
 	aiRouteIndexer       cache.Indexer
 	aiModelIndexer       cache.Indexer
+	policyBindingIndexer cache.Indexer
 	pluginBindingIndexer cache.Indexer
 	pipeline             pipeline.Pipeline
 	target               string
@@ -67,6 +72,7 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 	routeInformer := gatewayInformers.Routes().Informer()
 	aiRouteInformer := gatewayInformers.AIRoutes().Informer()
 	aiModelInformer := gatewayInformers.AIModels().Informer()
+	policyBindingInformer := gatewayInformers.PolicyBindings().Informer()
 	pluginBindingInformer := gatewayInformers.PluginBindings().Informer()
 	if err := routeInformer.AddIndexers(cache.Indexers{
 		string(routeIndexParentRef):   routeParentRefIndex,
@@ -87,6 +93,12 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 	}); err != nil {
 		return nil, err
 	}
+	if err := policyBindingInformer.AddIndexers(cache.Indexers{
+		string(policyBindingIndexTargetRef): policyBindingTargetRefIndex,
+		string(policyBindingIndexPolicy):    policyBindingPolicyRefIndex,
+	}); err != nil {
+		return nil, err
+	}
 	if err := pluginBindingInformer.AddIndexers(cache.Indexers{
 		string(pluginBindingIndexTargetRef): pluginBindingTargetRefIndex,
 		string(pluginBindingIndexPlugin):    pluginBindingPluginRefIndex,
@@ -104,10 +116,13 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 		aiProviderLister:     gatewayInformers.AIProviders().Lister(),
 		aiModelLister:        gatewayInformers.AIModels().Lister(),
 		aiPolicyLister:       gatewayInformers.AIPolicies().Lister(),
+		authPolicyLister:     gatewayInformers.AuthPolicies().Lister(),
+		rateLimitLister:      gatewayInformers.RateLimitPolicies().Lister(),
 		pluginLister:         gatewayInformers.Plugins().Lister(),
 		routeIndexer:         routeInformer.GetIndexer(),
 		aiRouteIndexer:       aiRouteInformer.GetIndexer(),
 		aiModelIndexer:       aiModelInformer.GetIndexer(),
+		policyBindingIndexer: policyBindingInformer.GetIndexer(),
 		pluginBindingIndexer: pluginBindingInformer.GetIndexer(),
 		pipeline: pipeline.Pipeline{
 			Compiler: compiler.Compiler{},

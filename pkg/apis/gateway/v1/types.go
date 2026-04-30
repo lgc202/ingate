@@ -481,8 +481,11 @@ type PluginSpec struct {
 	FailurePolicy PluginFailurePolicy `json:"failurePolicy,omitempty"`
 }
 
-// AuthPolicy 声明认证策略
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +genclient
+// +genclient:nonNamespaced
+
+// AuthPolicy 声明认证策略
 type AuthPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -512,8 +515,11 @@ type APIKeyAuth struct {
 	Query  string `json:"query"`
 }
 
-// RateLimitPolicy 声明限流策略
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +genclient
+// +genclient:nonNamespaced
+
+// RateLimitPolicy 声明限流策略
 type RateLimitPolicy struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -582,8 +588,11 @@ type PluginRef struct {
 	Config runtime.RawExtension `json:"config,omitempty"`
 }
 
-// PolicyBinding 声明一组策略绑定到哪个资源
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +genclient
+// +genclient:nonNamespaced
+
+// PolicyBinding 声明一组策略绑定到哪个资源
 type PolicyBinding struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -47,12 +47,18 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().AIProviders().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("airoutes"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().AIRoutes().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("authpolicies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().AuthPolicies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("gateways"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Gateways().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("plugins"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Plugins().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("pluginbindings"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().PluginBindings().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("policybindings"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().PolicyBindings().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("ratelimitpolicies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().RateLimitPolicies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("routes"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Routes().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("runtimesnapshots"):

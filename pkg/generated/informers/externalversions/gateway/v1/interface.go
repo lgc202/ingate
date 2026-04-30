@@ -18,12 +18,18 @@ type Interface interface {
 	AIProviders() AIProviderInformer
 	// AIRoutes returns a AIRouteInformer.
 	AIRoutes() AIRouteInformer
+	// AuthPolicies returns a AuthPolicyInformer.
+	AuthPolicies() AuthPolicyInformer
 	// Gateways returns a GatewayInformer.
 	Gateways() GatewayInformer
 	// Plugins returns a PluginInformer.
 	Plugins() PluginInformer
 	// PluginBindings returns a PluginBindingInformer.
 	PluginBindings() PluginBindingInformer
+	// PolicyBindings returns a PolicyBindingInformer.
+	PolicyBindings() PolicyBindingInformer
+	// RateLimitPolicies returns a RateLimitPolicyInformer.
+	RateLimitPolicies() RateLimitPolicyInformer
 	// Routes returns a RouteInformer.
 	Routes() RouteInformer
 	// RuntimeSnapshots returns a RuntimeSnapshotInformer.
@@ -63,6 +69,11 @@ func (v *version) AIRoutes() AIRouteInformer {
 	return &aIRouteInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
+// AuthPolicies returns a AuthPolicyInformer.
+func (v *version) AuthPolicies() AuthPolicyInformer {
+	return &authPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
 // Gateways returns a GatewayInformer.
 func (v *version) Gateways() GatewayInformer {
 	return &gatewayInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
@@ -76,6 +87,16 @@ func (v *version) Plugins() PluginInformer {
 // PluginBindings returns a PluginBindingInformer.
 func (v *version) PluginBindings() PluginBindingInformer {
 	return &pluginBindingInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// PolicyBindings returns a PolicyBindingInformer.
+func (v *version) PolicyBindings() PolicyBindingInformer {
+	return &policyBindingInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// RateLimitPolicies returns a RateLimitPolicyInformer.
+func (v *version) RateLimitPolicies() RateLimitPolicyInformer {
+	return &rateLimitPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Routes returns a RouteInformer.

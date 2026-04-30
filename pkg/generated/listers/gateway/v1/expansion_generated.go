@@ -20,6 +20,10 @@ type AIProviderListerExpansion interface{}
 // AIRouteLister.
 type AIRouteListerExpansion interface{}
 
+// AuthPolicyListerExpansion allows custom methods to be added to
+// AuthPolicyLister.
+type AuthPolicyListerExpansion interface{}
+
 // GatewayListerExpansion allows custom methods to be added to
 // GatewayLister.
 type GatewayListerExpansion interface{}
@@ -31,6 +35,14 @@ type PluginListerExpansion interface{}
 // PluginBindingListerExpansion allows custom methods to be added to
 // PluginBindingLister.
 type PluginBindingListerExpansion interface{}
+
+// PolicyBindingListerExpansion allows custom methods to be added to
+// PolicyBindingLister.
+type PolicyBindingListerExpansion interface{}
+
+// RateLimitPolicyListerExpansion allows custom methods to be added to
+// RateLimitPolicyLister.
+type RateLimitPolicyListerExpansion interface{}
 
 // RouteListerExpansion allows custom methods to be added to
 // RouteLister.

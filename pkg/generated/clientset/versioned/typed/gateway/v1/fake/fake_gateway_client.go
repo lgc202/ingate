@@ -30,6 +30,10 @@ func (c *FakeGatewayV1) AIRoutes() v1.AIRouteInterface {
 	return newFakeAIRoutes(c)
 }
 
+func (c *FakeGatewayV1) AuthPolicies() v1.AuthPolicyInterface {
+	return newFakeAuthPolicies(c)
+}
+
 func (c *FakeGatewayV1) Gateways() v1.GatewayInterface {
 	return newFakeGateways(c)
 }
@@ -40,6 +44,14 @@ func (c *FakeGatewayV1) Plugins() v1.PluginInterface {
 
 func (c *FakeGatewayV1) PluginBindings() v1.PluginBindingInterface {
 	return newFakePluginBindings(c)
+}
+
+func (c *FakeGatewayV1) PolicyBindings() v1.PolicyBindingInterface {
+	return newFakePolicyBindings(c)
+}
+
+func (c *FakeGatewayV1) RateLimitPolicies() v1.RateLimitPolicyInterface {
+	return newFakeRateLimitPolicies(c)
 }
 
 func (c *FakeGatewayV1) Routes() v1.RouteInterface {
