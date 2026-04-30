@@ -76,181 +76,103 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	if storage == nil {
 		storage = map[string]rest.Storage{}
 	}
-	_, hasGateway := storage[string(gatewayv1.ResourceGateways)]
-	_, hasGatewayStatus := storage[string(gatewayv1.ResourceGatewaysStatus)]
-	if !hasGateway || !hasGatewayStatus {
-		gatewayREST, gatewayStatusREST, err := gatewaystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+
+	// ExtraConfig.Storage 允许测试或上层调用方预置 storage
+	// 这里只补齐缺失项，避免覆盖外部传入的自定义实现
+	installStorage := func(resourceName gatewayv1.ResourceName, factory func() (rest.Storage, error)) error {
+		if _, ok := storage[string(resourceName)]; ok {
+			return nil
+		}
+		resourceStorage, err := factory()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if !hasGateway {
-			storage[string(gatewayv1.ResourceGateways)] = gatewayREST
-		}
-		if !hasGatewayStatus {
-			storage[string(gatewayv1.ResourceGatewaysStatus)] = gatewayStatusREST
-		}
+		storage[string(resourceName)] = resourceStorage
+		return nil
 	}
-	_, hasRoute := storage[string(gatewayv1.ResourceRoutes)]
-	_, hasRouteStatus := storage[string(gatewayv1.ResourceRoutesStatus)]
-	if !hasRoute || !hasRouteStatus {
-		routeREST, routeStatusREST, err := routestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	installStatusStorage := func(resourceName, statusResourceName gatewayv1.ResourceName, factory func() (rest.Storage, rest.Storage, error)) error {
+		_, hasResource := storage[string(resourceName)]
+		_, hasStatus := storage[string(statusResourceName)]
+		if hasResource && hasStatus {
+			return nil
+		}
+		resourceStorage, statusStorage, err := factory()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if !hasRoute {
-			storage[string(gatewayv1.ResourceRoutes)] = routeREST
+		if !hasResource {
+			storage[string(resourceName)] = resourceStorage
 		}
-		if !hasRouteStatus {
-			storage[string(gatewayv1.ResourceRoutesStatus)] = routeStatusREST
+		if !hasStatus {
+			storage[string(statusResourceName)] = statusStorage
 		}
+		return nil
 	}
-	_, hasUpstream := storage[string(gatewayv1.ResourceUpstreams)]
-	_, hasUpstreamStatus := storage[string(gatewayv1.ResourceUpstreamsStatus)]
-	if !hasUpstream || !hasUpstreamStatus {
-		upstreamREST, upstreamStatusREST, err := upstreamstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasUpstream {
-			storage[string(gatewayv1.ResourceUpstreams)] = upstreamREST
-		}
-		if !hasUpstreamStatus {
-			storage[string(gatewayv1.ResourceUpstreamsStatus)] = upstreamStatusREST
-		}
+
+	if err := installStatusStorage(gatewayv1.ResourceGateways, gatewayv1.ResourceGatewaysStatus, func() (rest.Storage, rest.Storage, error) {
+		return gatewaystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasRuntimeSnapshot := storage[string(gatewayv1.ResourceRuntimeSnapshots)]
-	if !hasRuntimeSnapshot {
-		runtimeSnapshotREST, err := runtimesnapshotstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		storage[string(gatewayv1.ResourceRuntimeSnapshots)] = runtimeSnapshotREST
+	if err := installStatusStorage(gatewayv1.ResourceRoutes, gatewayv1.ResourceRoutesStatus, func() (rest.Storage, rest.Storage, error) {
+		return routestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasAIProvider := storage[string(gatewayv1.ResourceAIProviders)]
-	_, hasAIProviderStatus := storage[string(gatewayv1.ResourceAIProvidersStatus)]
-	if !hasAIProvider || !hasAIProviderStatus {
-		aiProviderREST, aiProviderStatusREST, err := aiproviderstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasAIProvider {
-			storage[string(gatewayv1.ResourceAIProviders)] = aiProviderREST
-		}
-		if !hasAIProviderStatus {
-			storage[string(gatewayv1.ResourceAIProvidersStatus)] = aiProviderStatusREST
-		}
+	if err := installStatusStorage(gatewayv1.ResourceUpstreams, gatewayv1.ResourceUpstreamsStatus, func() (rest.Storage, rest.Storage, error) {
+		return upstreamstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasAIModel := storage[string(gatewayv1.ResourceAIModels)]
-	_, hasAIModelStatus := storage[string(gatewayv1.ResourceAIModelsStatus)]
-	if !hasAIModel || !hasAIModelStatus {
-		aiModelREST, aiModelStatusREST, err := aimodelstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasAIModel {
-			storage[string(gatewayv1.ResourceAIModels)] = aiModelREST
-		}
-		if !hasAIModelStatus {
-			storage[string(gatewayv1.ResourceAIModelsStatus)] = aiModelStatusREST
-		}
+	if err := installStorage(gatewayv1.ResourceRuntimeSnapshots, func() (rest.Storage, error) {
+		return runtimesnapshotstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasAIRoute := storage[string(gatewayv1.ResourceAIRoutes)]
-	_, hasAIRouteStatus := storage[string(gatewayv1.ResourceAIRoutesStatus)]
-	if !hasAIRoute || !hasAIRouteStatus {
-		aiRouteREST, aiRouteStatusREST, err := airoutestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasAIRoute {
-			storage[string(gatewayv1.ResourceAIRoutes)] = aiRouteREST
-		}
-		if !hasAIRouteStatus {
-			storage[string(gatewayv1.ResourceAIRoutesStatus)] = aiRouteStatusREST
-		}
+	if err := installStatusStorage(gatewayv1.ResourceAIProviders, gatewayv1.ResourceAIProvidersStatus, func() (rest.Storage, rest.Storage, error) {
+		return aiproviderstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasAIPolicy := storage[string(gatewayv1.ResourceAIPolicies)]
-	_, hasAIPolicyStatus := storage[string(gatewayv1.ResourceAIPoliciesStatus)]
-	if !hasAIPolicy || !hasAIPolicyStatus {
-		aiPolicyREST, aiPolicyStatusREST, err := aipolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasAIPolicy {
-			storage[string(gatewayv1.ResourceAIPolicies)] = aiPolicyREST
-		}
-		if !hasAIPolicyStatus {
-			storage[string(gatewayv1.ResourceAIPoliciesStatus)] = aiPolicyStatusREST
-		}
+	if err := installStatusStorage(gatewayv1.ResourceAIModels, gatewayv1.ResourceAIModelsStatus, func() (rest.Storage, rest.Storage, error) {
+		return aimodelstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasPlugin := storage[string(gatewayv1.ResourcePlugins)]
-	_, hasPluginStatus := storage[string(gatewayv1.ResourcePluginsStatus)]
-	if !hasPlugin || !hasPluginStatus {
-		pluginREST, pluginStatusREST, err := pluginstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasPlugin {
-			storage[string(gatewayv1.ResourcePlugins)] = pluginREST
-		}
-		if !hasPluginStatus {
-			storage[string(gatewayv1.ResourcePluginsStatus)] = pluginStatusREST
-		}
+	if err := installStatusStorage(gatewayv1.ResourceAIRoutes, gatewayv1.ResourceAIRoutesStatus, func() (rest.Storage, rest.Storage, error) {
+		return airoutestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasPluginBinding := storage[string(gatewayv1.ResourcePluginBindings)]
-	_, hasPluginBindingStatus := storage[string(gatewayv1.ResourcePluginBindingsStatus)]
-	if !hasPluginBinding || !hasPluginBindingStatus {
-		pluginBindingREST, pluginBindingStatusREST, err := pluginbindingstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasPluginBinding {
-			storage[string(gatewayv1.ResourcePluginBindings)] = pluginBindingREST
-		}
-		if !hasPluginBindingStatus {
-			storage[string(gatewayv1.ResourcePluginBindingsStatus)] = pluginBindingStatusREST
-		}
+	if err := installStatusStorage(gatewayv1.ResourceAIPolicies, gatewayv1.ResourceAIPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
+		return aipolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasAuthPolicy := storage[string(gatewayv1.ResourceAuthPolicies)]
-	_, hasAuthPolicyStatus := storage[string(gatewayv1.ResourceAuthPoliciesStatus)]
-	if !hasAuthPolicy || !hasAuthPolicyStatus {
-		authPolicyREST, authPolicyStatusREST, err := authpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasAuthPolicy {
-			storage[string(gatewayv1.ResourceAuthPolicies)] = authPolicyREST
-		}
-		if !hasAuthPolicyStatus {
-			storage[string(gatewayv1.ResourceAuthPoliciesStatus)] = authPolicyStatusREST
-		}
+	if err := installStatusStorage(gatewayv1.ResourcePlugins, gatewayv1.ResourcePluginsStatus, func() (rest.Storage, rest.Storage, error) {
+		return pluginstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasRateLimitPolicy := storage[string(gatewayv1.ResourceRateLimitPolicies)]
-	_, hasRateLimitPolicyStatus := storage[string(gatewayv1.ResourceRateLimitPoliciesStatus)]
-	if !hasRateLimitPolicy || !hasRateLimitPolicyStatus {
-		rateLimitPolicyREST, rateLimitPolicyStatusREST, err := ratelimitpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasRateLimitPolicy {
-			storage[string(gatewayv1.ResourceRateLimitPolicies)] = rateLimitPolicyREST
-		}
-		if !hasRateLimitPolicyStatus {
-			storage[string(gatewayv1.ResourceRateLimitPoliciesStatus)] = rateLimitPolicyStatusREST
-		}
+	if err := installStatusStorage(gatewayv1.ResourcePluginBindings, gatewayv1.ResourcePluginBindingsStatus, func() (rest.Storage, rest.Storage, error) {
+		return pluginbindingstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
-	_, hasPolicyBinding := storage[string(gatewayv1.ResourcePolicyBindings)]
-	_, hasPolicyBindingStatus := storage[string(gatewayv1.ResourcePolicyBindingsStatus)]
-	if !hasPolicyBinding || !hasPolicyBindingStatus {
-		policyBindingREST, policyBindingStatusREST, err := policybindingstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-		if err != nil {
-			return nil, err
-		}
-		if !hasPolicyBinding {
-			storage[string(gatewayv1.ResourcePolicyBindings)] = policyBindingREST
-		}
-		if !hasPolicyBindingStatus {
-			storage[string(gatewayv1.ResourcePolicyBindingsStatus)] = policyBindingStatusREST
-		}
+	if err := installStatusStorage(gatewayv1.ResourceAuthPolicies, gatewayv1.ResourceAuthPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
+		return authpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
+	}
+	if err := installStatusStorage(gatewayv1.ResourceRateLimitPolicies, gatewayv1.ResourceRateLimitPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
+		return ratelimitpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
+	}
+	if err := installStatusStorage(gatewayv1.ResourcePolicyBindings, gatewayv1.ResourcePolicyBindingsStatus, func() (rest.Storage, rest.Storage, error) {
+		return policybindingstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
 	}
 	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage
 
