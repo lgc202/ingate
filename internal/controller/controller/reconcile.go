@@ -29,11 +29,13 @@ func (c *Controller) reconcileGateway(gatewayName string) error {
 	if err := c.upsertRuntimeSnapshot(context.Background(), snapshot); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.stdout, "reconciled target=%s gateway=%s routes=%d upstreams=%d snapshot=%s\n",
+	fmt.Fprintf(c.stdout, "reconciled target=%s gateway=%s routes=%d aiRoutes=%d upstreams=%d aiProviders=%d snapshot=%s\n",
 		c.target,
 		snapshot.Gateway,
 		len(bundle.Routes),
+		len(bundle.AIRoutes),
 		len(bundle.Upstreams),
+		len(bundle.AIProviders),
 		snapshot.Version,
 	)
 	return nil
@@ -52,10 +54,15 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 	if err != nil {
 		return resource.Bundle{}, false, err
 	}
+	aiRoutes, err := c.aiRoutesByIndex(aiRouteIndexParentRef, gatewayName)
+	if err != nil {
+		return resource.Bundle{}, false, err
+	}
 
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{*gateway},
 		Routes:   make([]resource.Route, 0, len(routes)),
+		AIRoutes: make([]resource.AIRoute, 0, len(aiRoutes)),
 	}
 
 	usedUpstreams := map[string]bool{}
@@ -65,6 +72,13 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 			for _, upstreamRef := range rule.UpstreamRefs {
 				usedUpstreams[upstreamRef.Name] = true
 			}
+		}
+	}
+	usedAIProviders := map[string]bool{}
+	for _, route := range aiRoutes {
+		bundle.AIRoutes = append(bundle.AIRoutes, *route)
+		for _, providerRef := range route.Spec.ProviderRefs {
+			usedAIProviders[providerRef.Name] = true
 		}
 	}
 
@@ -78,6 +92,17 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 			return resource.Bundle{}, false, err
 		}
 		bundle.Upstreams = append(bundle.Upstreams, *upstream)
+	}
+	bundle.AIProviders = make([]resource.AIProvider, 0, len(usedAIProviders))
+	for providerName := range usedAIProviders {
+		provider, err := c.aiProviderLister.Get(providerName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return resource.Bundle{}, false, err
+		}
+		bundle.AIProviders = append(bundle.AIProviders, *provider)
 	}
 	return bundle, true, nil
 }
