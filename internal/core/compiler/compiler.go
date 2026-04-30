@@ -22,11 +22,20 @@ type gatewayCompiler struct {
 	aiRoutesByName          map[string]bool
 	upstreamsByName         map[string]resource.Upstream
 	aiProvidersByName       map[string]resource.AIProvider
+	aiModelsByName          map[string]resource.AIModel
+	aiPoliciesByName        map[string]resource.AIPolicy
 	pluginsByName           map[string]resource.Plugin
 	authPoliciesByName      map[string]resource.AuthPolicy
 	rateLimitPoliciesByName map[string]resource.RateLimitPolicy
 	policyBindingsByName    map[string]bool
 	pluginBindingsByName    map[string]bool
+}
+
+type attachedAIRoutes struct {
+	routes        []ir.LogicalAIRoute
+	modelOrder    []string
+	providerOrder []string
+	policyOrder   []string
 }
 
 // CompileGateway 从内存资源集合中编译指定 Gateway
@@ -39,6 +48,8 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 		aiRoutesByName:          make(map[string]bool, len(bundle.AIRoutes)),
 		upstreamsByName:         make(map[string]resource.Upstream, len(bundle.Upstreams)),
 		aiProvidersByName:       make(map[string]resource.AIProvider, len(bundle.AIProviders)),
+		aiModelsByName:          make(map[string]resource.AIModel, len(bundle.AIModels)),
+		aiPoliciesByName:        make(map[string]resource.AIPolicy, len(bundle.AIPolicies)),
 		pluginsByName:           make(map[string]resource.Plugin, len(bundle.Plugins)),
 		authPoliciesByName:      make(map[string]resource.AuthPolicy, len(bundle.AuthPolicies)),
 		rateLimitPoliciesByName: make(map[string]resource.RateLimitPolicy, len(bundle.RateLimitPolicies)),
@@ -65,6 +76,12 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexAIProviders(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	if err := c.indexAIModels(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
+	if err := c.indexAIPolicies(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
 	if err := c.indexPlugins(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
@@ -85,20 +102,22 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err != nil {
 		return ir.LogicalGateway{}, err
 	}
-	aiRoutes, aiProviderOrder, err := c.buildAttachedAIRoutes()
+	aiRoutes, err := c.buildAttachedAIRoutes()
 	if err != nil {
 		return ir.LogicalGateway{}, err
 	}
 	policyBindings := c.buildPolicyBindings(routes, upstreamOrder)
-	pluginBindings := c.buildPluginBindings(routes, upstreamOrder)
+	pluginBindings := c.buildPluginBindings(routes, upstreamOrder, aiRoutes)
 
 	return ir.LogicalGateway{
 		Name:              c.gateway.Name,
 		Listeners:         c.buildListeners(),
 		Routes:            routes,
-		AIRoutes:          aiRoutes,
+		AIRoutes:          aiRoutes.routes,
 		Upstreams:         c.buildUsedUpstreams(upstreamOrder),
-		AIProviders:       c.buildUsedAIProviders(aiProviderOrder),
+		AIProviders:       c.buildUsedAIProviders(aiRoutes.providerOrder),
+		AIModels:          c.buildUsedAIModels(aiRoutes.modelOrder),
+		AIPolicies:        c.buildUsedAIPolicies(aiRoutes.policyOrder),
 		Plugins:           c.buildPlugins(pluginBindings),
 		AuthPolicies:      c.buildAuthPolicies(policyBindings),
 		RateLimitPolicies: c.buildRateLimitPolicies(policyBindings),
@@ -163,6 +182,28 @@ func (c *gatewayCompiler) indexAIProviders() error {
 			return fmt.Errorf("duplicate ai provider %q", provider.Name)
 		}
 		c.aiProvidersByName[provider.Name] = provider
+	}
+
+	return nil
+}
+
+func (c *gatewayCompiler) indexAIModels() error {
+	for _, model := range c.bundle.AIModels {
+		if _, ok := c.aiModelsByName[model.Name]; ok {
+			return fmt.Errorf("duplicate ai model %q", model.Name)
+		}
+		c.aiModelsByName[model.Name] = model
+	}
+
+	return nil
+}
+
+func (c *gatewayCompiler) indexAIPolicies() error {
+	for _, policy := range c.bundle.AIPolicies {
+		if _, ok := c.aiPoliciesByName[policy.Name]; ok {
+			return fmt.Errorf("duplicate ai policy %q", policy.Name)
+		}
+		c.aiPoliciesByName[policy.Name] = policy
 	}
 
 	return nil
@@ -266,6 +307,18 @@ func (c *gatewayCompiler) indexPluginBindings() error {
 			if _, ok := c.upstreamsByName[target.Name]; !ok {
 				return fmt.Errorf("plugin binding %q references upstream %q", binding.Name, target.Name)
 			}
+		case resource.KindAIRoute:
+			if !c.aiRoutesByName[target.Name] {
+				return fmt.Errorf("plugin binding %q references ai route %q", binding.Name, target.Name)
+			}
+		case resource.KindAIProvider:
+			if _, ok := c.aiProvidersByName[target.Name]; !ok {
+				return fmt.Errorf("plugin binding %q references ai provider %q", binding.Name, target.Name)
+			}
+		case resource.KindAIModel:
+			if _, ok := c.aiModelsByName[target.Name]; !ok {
+				return fmt.Errorf("plugin binding %q references ai model %q", binding.Name, target.Name)
+			}
 		default:
 			return fmt.Errorf("plugin binding %q references unsupported kind %q", binding.Name, target.Kind)
 		}
@@ -345,31 +398,64 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 	return routes, upstreamOrder, nil
 }
 
-func (c *gatewayCompiler) buildAttachedAIRoutes() ([]ir.LogicalAIRoute, []string, error) {
-	routes := make([]ir.LogicalAIRoute, 0, len(c.bundle.AIRoutes))
+func (c *gatewayCompiler) buildAttachedAIRoutes() (attachedAIRoutes, error) {
+	result := attachedAIRoutes{
+		routes: make([]ir.LogicalAIRoute, 0, len(c.bundle.AIRoutes)),
+	}
+	usedModels := make(map[string]bool)
 	usedProviders := make(map[string]bool)
-	var providerOrder []string
+	usedPolicies := make(map[string]bool)
 
 	for _, route := range c.bundle.AIRoutes {
 		if !slices.Contains(route.Spec.ParentRefs, c.gatewayName) {
 			continue
 		}
-		if len(route.Spec.ProviderRefs) == 0 {
-			return nil, nil, fmt.Errorf("ai route %q has no ai providers", route.Name)
+		if len(route.Spec.Models) == 0 && len(route.Spec.ProviderRefs) == 0 {
+			return attachedAIRoutes{}, fmt.Errorf("ai route %q has no ai models or ai providers", route.Name)
 		}
 
 		logicalRoute := ir.LogicalAIRoute{
 			Name:       route.Name,
+			Hostnames:  slices.Clone(route.Spec.Hostnames),
+			Path:       route.Spec.Path,
 			PathPrefix: route.Spec.PathPrefix,
 			Model:      route.Spec.Model,
+			Models:     make([]ir.LogicalAIModelRef, 0, len(route.Spec.Models)),
 			Providers:  make([]ir.LogicalAIProviderRef, 0, len(route.Spec.ProviderRefs)),
+			PolicyRefs: slices.Clone(route.Spec.PolicyRefs),
 		}
+
+		for _, modelRef := range route.Spec.Models {
+			if modelRef.Weight <= 0 {
+				return attachedAIRoutes{}, fmt.Errorf("ai route %q model %q has invalid weight %d", route.Name, modelRef.Name, modelRef.Weight)
+			}
+			model, ok := c.aiModelsByName[modelRef.Name]
+			if !ok {
+				return attachedAIRoutes{}, fmt.Errorf("ai route %q references ai model %q", route.Name, modelRef.Name)
+			}
+			if _, ok := c.aiProvidersByName[model.Spec.ProviderRef]; !ok {
+				return attachedAIRoutes{}, fmt.Errorf("ai model %q references ai provider %q", model.Name, model.Spec.ProviderRef)
+			}
+			logicalRoute.Models = append(logicalRoute.Models, ir.LogicalAIModelRef{
+				Name:   modelRef.Name,
+				Weight: modelRef.Weight,
+			})
+			if !usedModels[modelRef.Name] {
+				usedModels[modelRef.Name] = true
+				result.modelOrder = append(result.modelOrder, modelRef.Name)
+			}
+			if !usedProviders[model.Spec.ProviderRef] {
+				usedProviders[model.Spec.ProviderRef] = true
+				result.providerOrder = append(result.providerOrder, model.Spec.ProviderRef)
+			}
+		}
+
 		for _, providerRef := range route.Spec.ProviderRefs {
 			if providerRef.Weight <= 0 {
-				return nil, nil, fmt.Errorf("ai route %q provider %q has invalid weight %d", route.Name, providerRef.Name, providerRef.Weight)
+				return attachedAIRoutes{}, fmt.Errorf("ai route %q provider %q has invalid weight %d", route.Name, providerRef.Name, providerRef.Weight)
 			}
 			if _, ok := c.aiProvidersByName[providerRef.Name]; !ok {
-				return nil, nil, fmt.Errorf("ai route %q references ai provider %q", route.Name, providerRef.Name)
+				return attachedAIRoutes{}, fmt.Errorf("ai route %q references ai provider %q", route.Name, providerRef.Name)
 			}
 			logicalRoute.Providers = append(logicalRoute.Providers, ir.LogicalAIProviderRef{
 				Name:   providerRef.Name,
@@ -377,13 +463,23 @@ func (c *gatewayCompiler) buildAttachedAIRoutes() ([]ir.LogicalAIRoute, []string
 			})
 			if !usedProviders[providerRef.Name] {
 				usedProviders[providerRef.Name] = true
-				providerOrder = append(providerOrder, providerRef.Name)
+				result.providerOrder = append(result.providerOrder, providerRef.Name)
 			}
 		}
-		routes = append(routes, logicalRoute)
+
+		for _, policyRef := range route.Spec.PolicyRefs {
+			if _, ok := c.aiPoliciesByName[policyRef]; !ok {
+				return attachedAIRoutes{}, fmt.Errorf("ai route %q references ai policy %q", route.Name, policyRef)
+			}
+			if !usedPolicies[policyRef] {
+				usedPolicies[policyRef] = true
+				result.policyOrder = append(result.policyOrder, policyRef)
+			}
+		}
+		result.routes = append(result.routes, logicalRoute)
 	}
 
-	return routes, providerOrder, nil
+	return result, nil
 }
 
 func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.LogicalUpstream {
@@ -419,6 +515,39 @@ func (c *gatewayCompiler) buildUsedAIProviders(providerOrder []string) []ir.Logi
 	}
 
 	return providers
+}
+
+func (c *gatewayCompiler) buildUsedAIModels(modelOrder []string) []ir.LogicalAIModel {
+	models := make([]ir.LogicalAIModel, 0, len(modelOrder))
+	for _, name := range modelOrder {
+		model := c.aiModelsByName[name]
+		models = append(models, ir.LogicalAIModel{
+			Name:          model.Name,
+			ProviderRef:   model.Spec.ProviderRef,
+			ProviderModel: model.Spec.ProviderModel,
+			Capabilities:  slices.Clone(model.Spec.Capabilities),
+		})
+	}
+
+	return models
+}
+
+func (c *gatewayCompiler) buildUsedAIPolicies(policyOrder []string) []ir.LogicalAIPolicy {
+	policies := make([]ir.LogicalAIPolicy, 0, len(policyOrder))
+	for _, name := range policyOrder {
+		policy := c.aiPoliciesByName[name]
+		policies = append(policies, ir.LogicalAIPolicy{
+			Name:            policy.Name,
+			ExecutionTarget: policy.Spec.ExecutionTarget,
+			TimeoutMillis:   policy.Spec.TimeoutMillis,
+			RetryAttempts:   policy.Spec.Retry.Attempts,
+			FallbackEnabled: policy.Spec.Fallback.Enabled,
+			FallbackModels:  slices.Clone(policy.Spec.Fallback.Models),
+			UsageEnabled:    policy.Spec.Usage.Enabled,
+		})
+	}
+
+	return policies
 }
 
 func (c *gatewayCompiler) buildPlugins(bindings []ir.LogicalPluginBinding) []ir.LogicalPlugin {
@@ -552,7 +681,7 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstream
 	return bindings
 }
 
-func (c *gatewayCompiler) buildPluginBindings(routes []ir.LogicalRoute, upstreamOrder []string) []ir.LogicalPluginBinding {
+func (c *gatewayCompiler) buildPluginBindings(routes []ir.LogicalRoute, upstreamOrder []string, aiRoutes attachedAIRoutes) []ir.LogicalPluginBinding {
 	routeNames := make(map[string]bool, len(routes))
 	for _, route := range routes {
 		routeNames[route.Name] = true
@@ -560,6 +689,18 @@ func (c *gatewayCompiler) buildPluginBindings(routes []ir.LogicalRoute, upstream
 	upstreamNames := make(map[string]bool, len(upstreamOrder))
 	for _, upstreamName := range upstreamOrder {
 		upstreamNames[upstreamName] = true
+	}
+	aiRouteNames := make(map[string]bool, len(aiRoutes.routes))
+	for _, route := range aiRoutes.routes {
+		aiRouteNames[route.Name] = true
+	}
+	aiProviderNames := make(map[string]bool, len(aiRoutes.providerOrder))
+	for _, providerName := range aiRoutes.providerOrder {
+		aiProviderNames[providerName] = true
+	}
+	aiModelNames := make(map[string]bool, len(aiRoutes.modelOrder))
+	for _, modelName := range aiRoutes.modelOrder {
+		aiModelNames[modelName] = true
 	}
 
 	bindings := make([]ir.LogicalPluginBinding, 0, len(c.bundle.PluginBindings))
@@ -574,6 +715,15 @@ func (c *gatewayCompiler) buildPluginBindings(routes []ir.LogicalRoute, upstream
 		if target.Kind == resource.KindUpstream && !upstreamNames[target.Name] {
 			continue
 		}
+		if target.Kind == resource.KindAIRoute && !aiRouteNames[target.Name] {
+			continue
+		}
+		if target.Kind == resource.KindAIProvider && !aiProviderNames[target.Name] {
+			continue
+		}
+		if target.Kind == resource.KindAIModel && !aiModelNames[target.Name] {
+			continue
+		}
 
 		logicalBinding := ir.LogicalPluginBinding{
 			Name: binding.Name,
@@ -581,7 +731,10 @@ func (c *gatewayCompiler) buildPluginBindings(routes []ir.LogicalRoute, upstream
 				Kind: target.Kind,
 				Name: target.Name,
 			},
-			Plugins: make([]ir.LogicalPluginRef, 0, len(binding.Spec.Plugins)),
+			Phase:         binding.Spec.Phase,
+			Priority:      binding.Spec.Priority,
+			FailurePolicy: binding.Spec.FailurePolicy,
+			Plugins:       make([]ir.LogicalPluginRef, 0, len(binding.Spec.Plugins)),
 		}
 		for _, plugin := range binding.Spec.Plugins {
 			logicalBinding.Plugins = append(logicalBinding.Plugins, ir.LogicalPluginRef{

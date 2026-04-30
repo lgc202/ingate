@@ -46,11 +46,15 @@ func TestTranslatorTranslate(t *testing.T) {
 		AIRoutes: []ir.LogicalAIRoute{
 			{
 				Name:       "chat",
+				Hostnames:  []string{"api.example.com"},
+				Path:       "/v1/chat/completions",
 				PathPrefix: "/v1/chat/completions",
 				Model:      "gpt-4.1-mini",
-				Providers: []ir.LogicalAIProviderRef{
-					{Name: "openai", Weight: 100},
+				Models: []ir.LogicalAIModelRef{
+					{Name: "chat-fast", Weight: 100},
 				},
+				Providers:  []ir.LogicalAIProviderRef{},
+				PolicyRefs: []string{"ai-default"},
 			},
 		},
 		Upstreams: []ir.LogicalUpstream{
@@ -67,6 +71,25 @@ func TestTranslatorTranslate(t *testing.T) {
 				Type:     resource.AIProviderTypeOpenAICompatible,
 				Endpoint: "https://api.openai.com/v1",
 				Models:   []string{"gpt-4.1-mini"},
+			},
+		},
+		AIModels: []ir.LogicalAIModel{
+			{
+				Name:          "chat-fast",
+				ProviderRef:   "openai",
+				ProviderModel: "gpt-4.1-mini",
+				Capabilities:  []string{"chat", "stream"},
+			},
+		},
+		AIPolicies: []ir.LogicalAIPolicy{
+			{
+				Name:            "ai-default",
+				ExecutionTarget: resource.AIExecutionTargetTypeWasm,
+				TimeoutMillis:   30000,
+				RetryAttempts:   2,
+				FallbackEnabled: true,
+				FallbackModels:  []string{"chat-backup"},
+				UsageEnabled:    true,
 			},
 		},
 		Plugins: []ir.LogicalPlugin{
@@ -99,9 +122,12 @@ func TestTranslatorTranslate(t *testing.T) {
 			{
 				Name: "app-audit",
 				Target: ir.LogicalPluginTarget{
-					Kind: resource.KindRoute,
-					Name: "app",
+					Kind: resource.KindAIRoute,
+					Name: "chat",
 				},
+				Phase:         resource.PluginPhaseBeforeProviderCall,
+				Priority:      100,
+				FailurePolicy: resource.PluginFailurePolicyFailClose,
 				Plugins: []ir.LogicalPluginRef{
 					{
 						Name:   "audit-log",
@@ -170,11 +196,15 @@ func TestTranslatorTranslate(t *testing.T) {
 		AIRoutes: []debug.AIRoute{
 			{
 				Name:       "chat",
+				Hostnames:  []string{"api.example.com"},
+				Path:       "/v1/chat/completions",
 				PathPrefix: "/v1/chat/completions",
 				Model:      "gpt-4.1-mini",
-				Providers: []debug.AIProviderRef{
-					{Name: "openai", Weight: 100},
+				Models: []debug.AIModelRef{
+					{Name: "chat-fast", Weight: 100},
 				},
+				Providers:  []debug.AIProviderRef{},
+				PolicyRefs: []string{"ai-default"},
 			},
 		},
 		Upstreams: []debug.Upstream{
@@ -191,6 +221,25 @@ func TestTranslatorTranslate(t *testing.T) {
 				Type:     resource.AIProviderTypeOpenAICompatible,
 				Endpoint: "https://api.openai.com/v1",
 				Models:   []string{"gpt-4.1-mini"},
+			},
+		},
+		AIModels: []debug.AIModel{
+			{
+				Name:          "chat-fast",
+				ProviderRef:   "openai",
+				ProviderModel: "gpt-4.1-mini",
+				Capabilities:  []string{"chat", "stream"},
+			},
+		},
+		AIPolicies: []debug.AIPolicy{
+			{
+				Name:            "ai-default",
+				ExecutionTarget: resource.AIExecutionTargetTypeWasm,
+				TimeoutMillis:   30000,
+				RetryAttempts:   2,
+				FallbackEnabled: true,
+				FallbackModels:  []string{"chat-backup"},
+				UsageEnabled:    true,
 			},
 		},
 		Plugins: []debug.Plugin{
@@ -223,9 +272,12 @@ func TestTranslatorTranslate(t *testing.T) {
 			{
 				Name: "app-audit",
 				Target: debug.PluginTarget{
-					Kind: resource.KindRoute,
-					Name: "app",
+					Kind: resource.KindAIRoute,
+					Name: "chat",
 				},
+				Phase:         resource.PluginPhaseBeforeProviderCall,
+				Priority:      100,
+				FailurePolicy: resource.PluginFailurePolicyFailClose,
 				Plugins: []debug.PluginRef{
 					{
 						Name:   "audit-log",
