@@ -4,7 +4,19 @@
 
 package v1
 
+type AIModelExpansion interface{}
+
+type AIPolicyExpansion interface{}
+
+type AIProviderExpansion interface{}
+
+type AIRouteExpansion interface{}
+
 type GatewayExpansion interface{}
+
+type PluginExpansion interface{}
+
+type PluginBindingExpansion interface{}
 
 type RouteExpansion interface{}
 

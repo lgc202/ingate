@@ -14,8 +14,32 @@ type FakeGatewayV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeGatewayV1) AIModels() v1.AIModelInterface {
+	return newFakeAIModels(c)
+}
+
+func (c *FakeGatewayV1) AIPolicies() v1.AIPolicyInterface {
+	return newFakeAIPolicies(c)
+}
+
+func (c *FakeGatewayV1) AIProviders() v1.AIProviderInterface {
+	return newFakeAIProviders(c)
+}
+
+func (c *FakeGatewayV1) AIRoutes() v1.AIRouteInterface {
+	return newFakeAIRoutes(c)
+}
+
 func (c *FakeGatewayV1) Gateways() v1.GatewayInterface {
 	return newFakeGateways(c)
+}
+
+func (c *FakeGatewayV1) Plugins() v1.PluginInterface {
+	return newFakePlugins(c)
+}
+
+func (c *FakeGatewayV1) PluginBindings() v1.PluginBindingInterface {
+	return newFakePluginBindings(c)
 }
 
 func (c *FakeGatewayV1) Routes() v1.RouteInterface {
