@@ -9,9 +9,12 @@ import (
 	aipolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/aipolicy"
 	aiproviderstorage "github.com/lgc202/ingate/internal/apiserver/registry/aiprovider"
 	airoutestorage "github.com/lgc202/ingate/internal/apiserver/registry/airoute"
+	authpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/authpolicy"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
 	pluginstorage "github.com/lgc202/ingate/internal/apiserver/registry/plugin"
 	pluginbindingstorage "github.com/lgc202/ingate/internal/apiserver/registry/pluginbinding"
+	policybindingstorage "github.com/lgc202/ingate/internal/apiserver/registry/policybinding"
+	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
 	runtimesnapshotstorage "github.com/lgc202/ingate/internal/apiserver/registry/runtimesnapshot"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
@@ -205,6 +208,48 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		}
 		if !hasPluginBindingStatus {
 			storage[string(gatewayv1.ResourcePluginBindingsStatus)] = pluginBindingStatusREST
+		}
+	}
+	_, hasAuthPolicy := storage[string(gatewayv1.ResourceAuthPolicies)]
+	_, hasAuthPolicyStatus := storage[string(gatewayv1.ResourceAuthPoliciesStatus)]
+	if !hasAuthPolicy || !hasAuthPolicyStatus {
+		authPolicyREST, authPolicyStatusREST, err := authpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasAuthPolicy {
+			storage[string(gatewayv1.ResourceAuthPolicies)] = authPolicyREST
+		}
+		if !hasAuthPolicyStatus {
+			storage[string(gatewayv1.ResourceAuthPoliciesStatus)] = authPolicyStatusREST
+		}
+	}
+	_, hasRateLimitPolicy := storage[string(gatewayv1.ResourceRateLimitPolicies)]
+	_, hasRateLimitPolicyStatus := storage[string(gatewayv1.ResourceRateLimitPoliciesStatus)]
+	if !hasRateLimitPolicy || !hasRateLimitPolicyStatus {
+		rateLimitPolicyREST, rateLimitPolicyStatusREST, err := ratelimitpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasRateLimitPolicy {
+			storage[string(gatewayv1.ResourceRateLimitPolicies)] = rateLimitPolicyREST
+		}
+		if !hasRateLimitPolicyStatus {
+			storage[string(gatewayv1.ResourceRateLimitPoliciesStatus)] = rateLimitPolicyStatusREST
+		}
+	}
+	_, hasPolicyBinding := storage[string(gatewayv1.ResourcePolicyBindings)]
+	_, hasPolicyBindingStatus := storage[string(gatewayv1.ResourcePolicyBindingsStatus)]
+	if !hasPolicyBinding || !hasPolicyBindingStatus {
+		policyBindingREST, policyBindingStatusREST, err := policybindingstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasPolicyBinding {
+			storage[string(gatewayv1.ResourcePolicyBindings)] = policyBindingREST
+		}
+		if !hasPolicyBindingStatus {
+			storage[string(gatewayv1.ResourcePolicyBindingsStatus)] = policyBindingStatusREST
 		}
 	}
 	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage

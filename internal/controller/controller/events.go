@@ -95,6 +95,42 @@ func (c *Controller) registerEventHandlers() error {
 			c.enqueueAIPolicyObject(obj)
 		},
 	}
+	authPolicyHandler := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			c.enqueuePolicyObject(resource.KindAuthPolicy, obj)
+		},
+		UpdateFunc: func(oldObj, newObj any) {
+			c.enqueuePolicyObject(resource.KindAuthPolicy, oldObj)
+			c.enqueuePolicyObject(resource.KindAuthPolicy, newObj)
+		},
+		DeleteFunc: func(obj any) {
+			c.enqueuePolicyObject(resource.KindAuthPolicy, obj)
+		},
+	}
+	rateLimitPolicyHandler := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			c.enqueuePolicyObject(resource.KindRateLimitPolicy, obj)
+		},
+		UpdateFunc: func(oldObj, newObj any) {
+			c.enqueuePolicyObject(resource.KindRateLimitPolicy, oldObj)
+			c.enqueuePolicyObject(resource.KindRateLimitPolicy, newObj)
+		},
+		DeleteFunc: func(obj any) {
+			c.enqueuePolicyObject(resource.KindRateLimitPolicy, obj)
+		},
+	}
+	policyBindingHandler := cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj any) {
+			c.enqueuePolicyBindingObject(obj)
+		},
+		UpdateFunc: func(oldObj, newObj any) {
+			c.enqueuePolicyBindingObject(oldObj)
+			c.enqueuePolicyBindingObject(newObj)
+		},
+		DeleteFunc: func(obj any) {
+			c.enqueuePolicyBindingObject(obj)
+		},
+	}
 	pluginHandler := cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj any) {
 			c.enqueuePluginObject(obj)
@@ -140,6 +176,15 @@ func (c *Controller) registerEventHandlers() error {
 		return err
 	}
 	if _, err := gatewayInformers.AIPolicies().Informer().AddEventHandler(aiPolicyHandler); err != nil {
+		return err
+	}
+	if _, err := gatewayInformers.AuthPolicies().Informer().AddEventHandler(authPolicyHandler); err != nil {
+		return err
+	}
+	if _, err := gatewayInformers.RateLimitPolicies().Informer().AddEventHandler(rateLimitPolicyHandler); err != nil {
+		return err
+	}
+	if _, err := gatewayInformers.PolicyBindings().Informer().AddEventHandler(policyBindingHandler); err != nil {
 		return err
 	}
 	if _, err := gatewayInformers.Plugins().Informer().AddEventHandler(pluginHandler); err != nil {
@@ -289,6 +334,58 @@ func (c *Controller) enqueueAIPolicyObject(obj any) {
 	}
 }
 
+func (c *Controller) enqueuePolicyObject(kind resource.Kind, obj any) {
+	name, ok := policyObjectName(obj)
+	if !ok {
+		return
+	}
+
+	bindings, err := c.policyBindingsByIndex(policyBindingIndexPolicy, targetIndexValue(kind, name))
+	if err != nil {
+		return
+	}
+	for _, binding := range bindings {
+		c.enqueuePolicyBinding(binding)
+	}
+}
+
+func (c *Controller) enqueuePolicyBindingObject(obj any) {
+	binding, ok := objectAs[*resource.PolicyBinding](obj)
+	if !ok {
+		return
+	}
+
+	c.enqueuePolicyBinding(binding)
+}
+
+func (c *Controller) enqueuePolicyBinding(binding *resource.PolicyBinding) {
+	// PolicyBinding 只影响 Gateway、Route、Upstream 这条通用 API 网关链路
+	// AI 专属策略先由 AIPolicy 通过 AIRoute 引用，避免两套策略语义混在一起
+	target := binding.Spec.TargetRef
+	switch target.Kind {
+	case resource.KindGateway:
+		c.enqueueGateway(target.Name)
+	case resource.KindRoute:
+		route, err := c.routeLister.Get(target.Name)
+		if err != nil {
+			return
+		}
+		for _, parentRef := range route.Spec.ParentRefs {
+			c.enqueueGateway(parentRef)
+		}
+	case resource.KindUpstream:
+		routes, err := c.routesByIndex(routeIndexUpstreamRef, target.Name)
+		if err != nil {
+			return
+		}
+		for _, route := range routes {
+			for _, parentRef := range route.Spec.ParentRefs {
+				c.enqueueGateway(parentRef)
+			}
+		}
+	}
+}
+
 func (c *Controller) enqueuePluginObject(obj any) {
 	plugin, ok := objectAs[*resource.Plugin](obj)
 	if !ok {
@@ -430,6 +527,23 @@ func (c *Controller) pluginBindingsByIndex(index routeIndexName, value string) (
 	return bindings, nil
 }
 
+func (c *Controller) policyBindingsByIndex(index routeIndexName, value string) ([]*resource.PolicyBinding, error) {
+	items, err := c.policyBindingIndexer.ByIndex(string(index), value)
+	if err != nil {
+		return nil, err
+	}
+
+	bindings := make([]*resource.PolicyBinding, 0, len(items))
+	for _, item := range items {
+		binding, ok := item.(*resource.PolicyBinding)
+		if !ok {
+			continue
+		}
+		bindings = append(bindings, binding)
+	}
+	return bindings, nil
+}
+
 func objectAs[T any](obj any) (T, bool) {
 	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
 		obj = tombstone.Obj
@@ -437,6 +551,21 @@ func objectAs[T any](obj any) (T, bool) {
 
 	value, ok := obj.(T)
 	return value, ok
+}
+
+func policyObjectName(obj any) (string, bool) {
+	if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = tombstone.Obj
+	}
+
+	switch policy := obj.(type) {
+	case *resource.AuthPolicy:
+		return policy.Name, true
+	case *resource.RateLimitPolicy:
+		return policy.Name, true
+	default:
+		return "", false
+	}
 }
 
 func routeParentRefIndex(obj any) ([]string, error) {
@@ -531,6 +660,27 @@ func pluginBindingPluginRefIndex(obj any) ([]string, error) {
 		pluginNames = append(pluginNames, pluginRef.Name)
 	}
 	return uniqueStrings(pluginNames), nil
+}
+
+func policyBindingTargetRefIndex(obj any) ([]string, error) {
+	binding, ok := obj.(*resource.PolicyBinding)
+	if !ok {
+		return nil, nil
+	}
+	return uniqueStrings([]string{targetIndexValue(binding.Spec.TargetRef.Kind, binding.Spec.TargetRef.Name)}), nil
+}
+
+func policyBindingPolicyRefIndex(obj any) ([]string, error) {
+	binding, ok := obj.(*resource.PolicyBinding)
+	if !ok {
+		return nil, nil
+	}
+
+	policyNames := make([]string, 0, len(binding.Spec.Policies))
+	for _, policyRef := range binding.Spec.Policies {
+		policyNames = append(policyNames, targetIndexValue(policyRef.Kind, policyRef.Name))
+	}
+	return uniqueStrings(policyNames), nil
 }
 
 func targetIndexValue(kind resource.Kind, name string) string {
