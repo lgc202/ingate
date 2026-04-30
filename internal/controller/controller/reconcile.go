@@ -3,6 +3,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
@@ -74,16 +76,7 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 			}
 		}
 	}
-	usedAIProviders := map[string]bool{}
-	for _, route := range aiRoutes {
-		bundle.AIRoutes = append(bundle.AIRoutes, *route)
-		for _, providerRef := range route.Spec.ProviderRefs {
-			usedAIProviders[providerRef.Name] = true
-		}
-	}
-
-	bundle.Upstreams = make([]resource.Upstream, 0, len(usedUpstreams))
-	for upstreamName := range usedUpstreams {
+	for _, upstreamName := range slices.Sorted(maps.Keys(usedUpstreams)) {
 		upstream, err := c.upstreamLister.Get(upstreamName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -93,8 +86,41 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 		}
 		bundle.Upstreams = append(bundle.Upstreams, *upstream)
 	}
+
+	usedAIModels := map[string]bool{}
+	usedAIProviders := map[string]bool{}
+	usedAIPolicies := map[string]bool{}
+	for _, route := range aiRoutes {
+		// AIRoute 只声明 AI 请求入口，真正的供应商、模型映射和策略仍然来自一等资源
+		// 这里把引用资源补进 bundle，后续 compiler/xDS translator 才能生成 provider cluster 和 Wasm _rules_
+		bundle.AIRoutes = append(bundle.AIRoutes, *route)
+		for _, modelRef := range route.Spec.Models {
+			usedAIModels[modelRef.Name] = true
+		}
+		for _, providerRef := range route.Spec.ProviderRefs {
+			usedAIProviders[providerRef.Name] = true
+		}
+		for _, policyRef := range route.Spec.PolicyRefs {
+			usedAIPolicies[policyRef] = true
+		}
+	}
+
+	bundle.AIModels = make([]resource.AIModel, 0, len(usedAIModels))
+	for _, modelName := range slices.Sorted(maps.Keys(usedAIModels)) {
+		model, err := c.aiModelLister.Get(modelName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return resource.Bundle{}, false, err
+		}
+		bundle.AIModels = append(bundle.AIModels, *model)
+		if model.Spec.ProviderRef != "" {
+			usedAIProviders[model.Spec.ProviderRef] = true
+		}
+	}
 	bundle.AIProviders = make([]resource.AIProvider, 0, len(usedAIProviders))
-	for providerName := range usedAIProviders {
+	for _, providerName := range slices.Sorted(maps.Keys(usedAIProviders)) {
 		provider, err := c.aiProviderLister.Get(providerName)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
@@ -103,6 +129,79 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 			return resource.Bundle{}, false, err
 		}
 		bundle.AIProviders = append(bundle.AIProviders, *provider)
+	}
+	bundle.AIPolicies = make([]resource.AIPolicy, 0, len(usedAIPolicies))
+	for _, policyName := range slices.Sorted(maps.Keys(usedAIPolicies)) {
+		policy, err := c.aiPolicyLister.Get(policyName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return resource.Bundle{}, false, err
+		}
+		bundle.AIPolicies = append(bundle.AIPolicies, *policy)
+	}
+
+	usedPluginBindings := map[string]bool{}
+	usedPlugins := map[string]bool{}
+	addPluginBindings := func(kind resource.Kind, name string) error {
+		// PluginBinding 通过目标资源间接作用到 Gateway
+		// 例如 AIRoute 绑定 ai-proxy 后，xDS translator 会把它合并成 Gateway 级 Wasm filter 配置
+		bindings, err := c.pluginBindingsByIndex(pluginBindingIndexTargetRef, targetIndexValue(kind, name))
+		if err != nil {
+			return err
+		}
+		for _, binding := range bindings {
+			if usedPluginBindings[binding.Name] {
+				continue
+			}
+			usedPluginBindings[binding.Name] = true
+			bundle.PluginBindings = append(bundle.PluginBindings, *binding)
+			for _, pluginRef := range binding.Spec.Plugins {
+				usedPlugins[pluginRef.Name] = true
+			}
+		}
+		return nil
+	}
+	if err := addPluginBindings(resource.KindGateway, gateway.Name); err != nil {
+		return resource.Bundle{}, false, err
+	}
+	for _, route := range bundle.Routes {
+		if err := addPluginBindings(resource.KindRoute, route.Name); err != nil {
+			return resource.Bundle{}, false, err
+		}
+	}
+	for _, upstream := range bundle.Upstreams {
+		if err := addPluginBindings(resource.KindUpstream, upstream.Name); err != nil {
+			return resource.Bundle{}, false, err
+		}
+	}
+	for _, route := range bundle.AIRoutes {
+		if err := addPluginBindings(resource.KindAIRoute, route.Name); err != nil {
+			return resource.Bundle{}, false, err
+		}
+	}
+	for _, provider := range bundle.AIProviders {
+		if err := addPluginBindings(resource.KindAIProvider, provider.Name); err != nil {
+			return resource.Bundle{}, false, err
+		}
+	}
+	for _, model := range bundle.AIModels {
+		if err := addPluginBindings(resource.KindAIModel, model.Name); err != nil {
+			return resource.Bundle{}, false, err
+		}
+	}
+
+	bundle.Plugins = make([]resource.Plugin, 0, len(usedPlugins))
+	for _, pluginName := range slices.Sorted(maps.Keys(usedPlugins)) {
+		plugin, err := c.pluginLister.Get(pluginName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return resource.Bundle{}, false, err
+		}
+		bundle.Plugins = append(bundle.Plugins, *plugin)
 	}
 	return bundle, true, nil
 }
