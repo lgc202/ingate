@@ -5,7 +5,13 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
+	aimodelstorage "github.com/lgc202/ingate/internal/apiserver/registry/aimodel"
+	aipolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/aipolicy"
+	aiproviderstorage "github.com/lgc202/ingate/internal/apiserver/registry/aiprovider"
+	airoutestorage "github.com/lgc202/ingate/internal/apiserver/registry/airoute"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
+	pluginstorage "github.com/lgc202/ingate/internal/apiserver/registry/plugin"
+	pluginbindingstorage "github.com/lgc202/ingate/internal/apiserver/registry/pluginbinding"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
 	runtimesnapshotstorage "github.com/lgc202/ingate/internal/apiserver/registry/runtimesnapshot"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
@@ -116,6 +122,90 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			return nil, err
 		}
 		storage[string(gatewayv1.ResourceRuntimeSnapshots)] = runtimeSnapshotREST
+	}
+	_, hasAIProvider := storage[string(gatewayv1.ResourceAIProviders)]
+	_, hasAIProviderStatus := storage[string(gatewayv1.ResourceAIProvidersStatus)]
+	if !hasAIProvider || !hasAIProviderStatus {
+		aiProviderREST, aiProviderStatusREST, err := aiproviderstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasAIProvider {
+			storage[string(gatewayv1.ResourceAIProviders)] = aiProviderREST
+		}
+		if !hasAIProviderStatus {
+			storage[string(gatewayv1.ResourceAIProvidersStatus)] = aiProviderStatusREST
+		}
+	}
+	_, hasAIModel := storage[string(gatewayv1.ResourceAIModels)]
+	_, hasAIModelStatus := storage[string(gatewayv1.ResourceAIModelsStatus)]
+	if !hasAIModel || !hasAIModelStatus {
+		aiModelREST, aiModelStatusREST, err := aimodelstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasAIModel {
+			storage[string(gatewayv1.ResourceAIModels)] = aiModelREST
+		}
+		if !hasAIModelStatus {
+			storage[string(gatewayv1.ResourceAIModelsStatus)] = aiModelStatusREST
+		}
+	}
+	_, hasAIRoute := storage[string(gatewayv1.ResourceAIRoutes)]
+	_, hasAIRouteStatus := storage[string(gatewayv1.ResourceAIRoutesStatus)]
+	if !hasAIRoute || !hasAIRouteStatus {
+		aiRouteREST, aiRouteStatusREST, err := airoutestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasAIRoute {
+			storage[string(gatewayv1.ResourceAIRoutes)] = aiRouteREST
+		}
+		if !hasAIRouteStatus {
+			storage[string(gatewayv1.ResourceAIRoutesStatus)] = aiRouteStatusREST
+		}
+	}
+	_, hasAIPolicy := storage[string(gatewayv1.ResourceAIPolicies)]
+	_, hasAIPolicyStatus := storage[string(gatewayv1.ResourceAIPoliciesStatus)]
+	if !hasAIPolicy || !hasAIPolicyStatus {
+		aiPolicyREST, aiPolicyStatusREST, err := aipolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasAIPolicy {
+			storage[string(gatewayv1.ResourceAIPolicies)] = aiPolicyREST
+		}
+		if !hasAIPolicyStatus {
+			storage[string(gatewayv1.ResourceAIPoliciesStatus)] = aiPolicyStatusREST
+		}
+	}
+	_, hasPlugin := storage[string(gatewayv1.ResourcePlugins)]
+	_, hasPluginStatus := storage[string(gatewayv1.ResourcePluginsStatus)]
+	if !hasPlugin || !hasPluginStatus {
+		pluginREST, pluginStatusREST, err := pluginstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasPlugin {
+			storage[string(gatewayv1.ResourcePlugins)] = pluginREST
+		}
+		if !hasPluginStatus {
+			storage[string(gatewayv1.ResourcePluginsStatus)] = pluginStatusREST
+		}
+	}
+	_, hasPluginBinding := storage[string(gatewayv1.ResourcePluginBindings)]
+	_, hasPluginBindingStatus := storage[string(gatewayv1.ResourcePluginBindingsStatus)]
+	if !hasPluginBinding || !hasPluginBindingStatus {
+		pluginBindingREST, pluginBindingStatusREST, err := pluginbindingstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		if err != nil {
+			return nil, err
+		}
+		if !hasPluginBinding {
+			storage[string(gatewayv1.ResourcePluginBindings)] = pluginBindingREST
+		}
+		if !hasPluginBindingStatus {
+			storage[string(gatewayv1.ResourcePluginBindingsStatus)] = pluginBindingStatusREST
+		}
 	}
 	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage
 
