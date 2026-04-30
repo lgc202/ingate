@@ -12,9 +12,21 @@ import (
 )
 
 const (
-	targetName     string = "xds"
-	versionPrefix  string = "xds/%s"
-	wildcardDomain string = "*"
+	targetName            string = "xds"
+	versionPrefix         string = "xds/%s"
+	wildcardDomain        string = "*"
+	wildcardModel         string = "*"
+	pluginConfigRulesKey  string = "_rules_"
+	pluginMatchRouteKey   string = "_match_route_"
+	pluginMatchDomainKey  string = "_match_domain_"
+	pluginProviderKey     string = "provider"
+	pluginModelKey        string = "model"
+	pluginModelsKey       string = "models"
+	pluginPolicyRefsKey   string = "policyRefs"
+	pluginProviderNameKey string = "name"
+	pluginProviderTypeKey string = "type"
+	pluginProviderURLKey  string = "endpoint"
+	pluginModelMappingKey string = "modelMapping"
 )
 
 // Translator 负责生成 xDS target 的配置快照
@@ -102,12 +114,13 @@ type Endpoint struct {
 
 // AIRoute 表示 AI 路由的 xDS 内部模型
 type AIRoute struct {
-	Name       string       `json:"name"`
-	Domains    []string     `json:"domains"`
-	Match      AIRouteMatch `json:"match"`
-	Model      string       `json:"model"`
-	Models     []AIModelRef `json:"models"`
-	PolicyRefs []string     `json:"policyRefs"`
+	Name       string          `json:"name"`
+	Domains    []string        `json:"domains"`
+	Match      AIRouteMatch    `json:"match"`
+	Model      string          `json:"model"`
+	Models     []AIModelRef    `json:"models"`
+	Providers  []AIProviderRef `json:"providers"`
+	PolicyRefs []string        `json:"policyRefs"`
 }
 
 // AIRouteMatch 表示 AI 路由匹配条件
@@ -118,6 +131,12 @@ type AIRouteMatch struct {
 
 // AIModelRef 表示 AI 路由中的模型权重
 type AIModelRef struct {
+	Name   string `json:"name"`
+	Weight int    `json:"weight"`
+}
+
+// AIProviderRef 表示 AI 路由中的供应商权重
+type AIProviderRef struct {
 	Name   string `json:"name"`
 	Weight int    `json:"weight"`
 }
@@ -178,6 +197,19 @@ type PluginTarget struct {
 type PluginRef struct {
 	Name   string          `json:"name"`
 	Config json.RawMessage `json:"config,omitempty"`
+}
+
+type pluginBindingGroupKey struct {
+	pluginName    string
+	phase         resource.PluginPhase
+	priority      int
+	failurePolicy resource.PluginFailurePolicy
+}
+
+type pluginBindingGroup struct {
+	pluginName string
+	binding    PluginBinding
+	rules      []map[string]any
 }
 
 // Target 返回运行时 target 名称
@@ -288,12 +320,19 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			},
 			Model:      route.Model,
 			Models:     make([]AIModelRef, 0, len(route.Models)),
+			Providers:  make([]AIProviderRef, 0, len(route.Providers)),
 			PolicyRefs: slices.Clone(route.PolicyRefs),
 		}
 		for _, model := range route.Models {
 			xdsRoute.Models = append(xdsRoute.Models, AIModelRef{
 				Name:   model.Name,
 				Weight: model.Weight,
+			})
+		}
+		for _, provider := range route.Providers {
+			xdsRoute.Providers = append(xdsRoute.Providers, AIProviderRef{
+				Name:   provider.Name,
+				Weight: provider.Weight,
 			})
 		}
 		config.AIRoutes = append(config.AIRoutes, xdsRoute)
@@ -339,26 +378,11 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		})
 	}
 
-	for _, binding := range logical.PluginBindings {
-		xdsBinding := PluginBinding{
-			Name: binding.Name,
-			Target: PluginTarget{
-				Kind: binding.Target.Kind,
-				Name: binding.Target.Name,
-			},
-			Phase:         binding.Phase,
-			Priority:      binding.Priority,
-			FailurePolicy: binding.FailurePolicy,
-			Plugins:       make([]PluginRef, 0, len(binding.Plugins)),
-		}
-		for _, plugin := range binding.Plugins {
-			xdsBinding.Plugins = append(xdsBinding.Plugins, PluginRef{
-				Name:   plugin.Name,
-				Config: slices.Clone(plugin.Config),
-			})
-		}
-		config.PluginBindings = append(config.PluginBindings, xdsBinding)
+	pluginBindings, err := t.translatePluginBindings(logical, config)
+	if err != nil {
+		return runtime.RuntimeSnapshot{}, err
 	}
+	config.PluginBindings = pluginBindings
 
 	return runtime.RuntimeSnapshot{
 		Target:  t.Target(),
@@ -366,4 +390,188 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		Version: fmt.Sprintf(versionPrefix, logical.Name),
 		Config:  config,
 	}, nil
+}
+
+func (t Translator) translatePluginBindings(logical ir.LogicalGateway, config Config) ([]PluginBinding, error) {
+	aiRoutesByName := t.aiRoutesByName(config.AIRoutes)
+	aiProvidersByName := t.aiProvidersByName(config.AIProviders)
+	aiModelsByName := t.aiModelsByName(config.AIModels)
+
+	bindings := make([]PluginBinding, 0, len(logical.PluginBindings))
+	groups := make(map[pluginBindingGroupKey]int)
+	var aiGroups []pluginBindingGroup
+	for _, binding := range logical.PluginBindings {
+		if binding.Target.Kind != resource.KindAIRoute {
+			bindings = append(bindings, t.directPluginBinding(binding))
+			continue
+		}
+
+		aiRoute, ok := aiRoutesByName[binding.Target.Name]
+		if !ok {
+			continue
+		}
+		for _, plugin := range binding.Plugins {
+			key := pluginBindingGroupKey{
+				pluginName:    plugin.Name,
+				phase:         binding.Phase,
+				priority:      binding.Priority,
+				failurePolicy: binding.FailurePolicy,
+			}
+			index, ok := groups[key]
+			if !ok {
+				index = len(aiGroups)
+				groups[key] = index
+				aiGroups = append(aiGroups, pluginBindingGroup{
+					pluginName: plugin.Name,
+					binding: PluginBinding{
+						Name: binding.Name,
+						Target: PluginTarget{
+							Kind: resource.KindGateway,
+							Name: logical.Name,
+						},
+						Phase:         binding.Phase,
+						Priority:      binding.Priority,
+						FailurePolicy: binding.FailurePolicy,
+					},
+				})
+			}
+
+			rule, err := t.buildAIPluginRule(aiRoute, plugin, aiProvidersByName, aiModelsByName)
+			if err != nil {
+				return nil, err
+			}
+			aiGroups[index].rules = append(aiGroups[index].rules, rule)
+		}
+	}
+
+	for _, group := range aiGroups {
+		config, err := json.Marshal(map[string]any{
+			pluginConfigRulesKey: group.rules,
+		})
+		if err != nil {
+			return nil, err
+		}
+		group.binding.Plugins = []PluginRef{
+			{
+				Name:   group.pluginName,
+				Config: config,
+			},
+		}
+		bindings = append(bindings, group.binding)
+	}
+	return bindings, nil
+}
+
+func (t Translator) directPluginBinding(binding ir.LogicalPluginBinding) PluginBinding {
+	xdsBinding := PluginBinding{
+		Name: binding.Name,
+		Target: PluginTarget{
+			Kind: binding.Target.Kind,
+			Name: binding.Target.Name,
+		},
+		Phase:         binding.Phase,
+		Priority:      binding.Priority,
+		FailurePolicy: binding.FailurePolicy,
+		Plugins:       make([]PluginRef, 0, len(binding.Plugins)),
+	}
+	for _, plugin := range binding.Plugins {
+		xdsBinding.Plugins = append(xdsBinding.Plugins, PluginRef{
+			Name:   plugin.Name,
+			Config: slices.Clone(plugin.Config),
+		})
+	}
+	return xdsBinding
+}
+
+func (t Translator) buildAIPluginRule(
+	route AIRoute,
+	plugin ir.LogicalPluginRef,
+	providers map[string]AIProvider,
+	models map[string]AIModel,
+) (map[string]any, error) {
+	rule := make(map[string]any)
+	if len(plugin.Config) > 0 {
+		if err := json.Unmarshal(plugin.Config, &rule); err != nil {
+			return nil, fmt.Errorf("decode plugin %q config for ai route %q: %w", plugin.Name, route.Name, err)
+		}
+	}
+
+	rule[pluginMatchRouteKey] = []string{route.Name}
+	if len(route.Domains) > 0 {
+		rule[pluginMatchDomainKey] = slices.Clone(route.Domains)
+	}
+	if route.Model != "" {
+		rule[pluginModelKey] = route.Model
+	}
+	if len(route.Models) > 0 {
+		rule[pluginModelsKey] = slices.Clone(route.Models)
+	}
+	if len(route.PolicyRefs) > 0 {
+		rule[pluginPolicyRefsKey] = slices.Clone(route.PolicyRefs)
+	}
+	if provider, ok := t.aiPluginProviderConfig(route, providers, models); ok {
+		rule[pluginProviderKey] = provider
+	}
+	return rule, nil
+}
+
+func (t Translator) aiPluginProviderConfig(route AIRoute, providers map[string]AIProvider, models map[string]AIModel) (map[string]any, bool) {
+	if len(route.Models) > 0 {
+		model, ok := models[route.Models[0].Name]
+		if !ok {
+			return nil, false
+		}
+		provider, ok := providers[model.ProviderRef]
+		if !ok {
+			return nil, false
+		}
+		config := t.providerConfig(provider)
+		if model.ProviderModel != "" {
+			config[pluginModelMappingKey] = map[string]string{
+				wildcardModel: model.ProviderModel,
+			}
+		}
+		return config, true
+	}
+
+	if len(route.Providers) == 0 {
+		return nil, false
+	}
+	provider, ok := providers[route.Providers[0].Name]
+	if !ok {
+		return nil, false
+	}
+	return t.providerConfig(provider), true
+}
+
+func (t Translator) providerConfig(provider AIProvider) map[string]any {
+	return map[string]any{
+		pluginProviderNameKey: provider.Name,
+		pluginProviderTypeKey: provider.Type,
+		pluginProviderURLKey:  provider.Endpoint,
+	}
+}
+
+func (t Translator) aiRoutesByName(routes []AIRoute) map[string]AIRoute {
+	routesByName := make(map[string]AIRoute, len(routes))
+	for _, route := range routes {
+		routesByName[route.Name] = route
+	}
+	return routesByName
+}
+
+func (t Translator) aiProvidersByName(providers []AIProvider) map[string]AIProvider {
+	providersByName := make(map[string]AIProvider, len(providers))
+	for _, provider := range providers {
+		providersByName[provider.Name] = provider
+	}
+	return providersByName
+}
+
+func (t Translator) aiModelsByName(models []AIModel) map[string]AIModel {
+	modelsByName := make(map[string]AIModel, len(models))
+	for _, model := range models {
+		modelsByName[model.Name] = model
+	}
+	return modelsByName
 }

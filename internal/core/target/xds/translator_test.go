@@ -111,8 +111,7 @@ func TestTranslatorTranslate(t *testing.T) {
 				FailurePolicy: resource.PluginFailurePolicyFailClose,
 				Plugins: []ir.LogicalPluginRef{
 					{
-						Name:   "ai-proxy",
-						Config: json.RawMessage(`{"provider":"openai"}`),
+						Name: "ai-proxy",
 					},
 				},
 			},
@@ -199,6 +198,7 @@ func TestTranslatorTranslate(t *testing.T) {
 				Models: []xds.AIModelRef{
 					{Name: "chat-fast", Weight: 100},
 				},
+				Providers:  []xds.AIProviderRef{},
 				PolicyRefs: []string{"ai-default"},
 			},
 		},
@@ -241,8 +241,8 @@ func TestTranslatorTranslate(t *testing.T) {
 			{
 				Name: "chat-ai-proxy",
 				Target: xds.PluginTarget{
-					Kind: resource.KindAIRoute,
-					Name: "chat",
+					Kind: resource.KindGateway,
+					Name: "public",
 				},
 				Phase:         resource.PluginPhaseBeforeProviderCall,
 				Priority:      100,
@@ -250,7 +250,7 @@ func TestTranslatorTranslate(t *testing.T) {
 				Plugins: []xds.PluginRef{
 					{
 						Name:   "ai-proxy",
-						Config: json.RawMessage(`{"provider":"openai"}`),
+						Config: json.RawMessage(`{"_rules_":[{"_match_domain_":["api.example.com"],"_match_route_":["chat"],"model":"gpt-4.1-mini","models":[{"name":"chat-fast","weight":100}],"policyRefs":["ai-default"],"provider":{"endpoint":"https://api.openai.com/v1","modelMapping":{"*":"gpt-4.1-mini"},"name":"openai","type":"OpenAICompatible"}}]}`),
 					},
 				},
 			},
