@@ -105,16 +105,23 @@ func (b responseBuilder) buildRoute(route targetxds.Route, method string) (*rout
 		action.Timeout = durationpb.New(time.Duration(route.TimeoutMillis) * time.Millisecond)
 	}
 
+	routeMatch := &routev3.RouteMatch{
+		PathSpecifier: &routev3.RouteMatch_Prefix{Prefix: prefix},
+		Headers:       headers,
+	}
+	if route.Match.Path != "" {
+		// AI 接口通常是固定 API path，例如 /v1/chat/completions
+		// exact path 避免被更宽的 prefix route 抢走
+		routeMatch.PathSpecifier = &routev3.RouteMatch_Path{Path: route.Match.Path}
+	}
+
 	name := route.Name
 	if method != "" {
 		name = fmt.Sprintf("%s/%s", route.Name, method)
 	}
 	return &routev3.Route{
-		Name: name,
-		Match: &routev3.RouteMatch{
-			PathSpecifier: &routev3.RouteMatch_Prefix{Prefix: prefix},
-			Headers:       headers,
-		},
+		Name:   name,
+		Match:  routeMatch,
 		Action: &routev3.Route_Route{Route: action},
 	}, nil
 }

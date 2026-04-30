@@ -4,7 +4,9 @@ package xds
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"slices"
+	"strconv"
 
 	"github.com/lgc202/ingate/internal/core/ir"
 	"github.com/lgc202/ingate/internal/core/runtime"
@@ -12,21 +14,36 @@ import (
 )
 
 const (
-	targetName            string = "xds"
-	versionPrefix         string = "xds/%s"
-	wildcardDomain        string = "*"
-	wildcardModel         string = "*"
-	pluginConfigRulesKey  string = "_rules_"
-	pluginMatchRouteKey   string = "_match_route_"
-	pluginMatchDomainKey  string = "_match_domain_"
-	pluginProviderKey     string = "provider"
-	pluginModelKey        string = "model"
-	pluginModelsKey       string = "models"
-	pluginPolicyRefsKey   string = "policyRefs"
-	pluginProviderNameKey string = "name"
-	pluginProviderTypeKey string = "type"
-	pluginProviderURLKey  string = "endpoint"
-	pluginModelMappingKey string = "modelMapping"
+	targetName                  string = "xds"
+	versionPrefix               string = "xds/%s"
+	wildcardDomain              string = "*"
+	wildcardModel               string = "*"
+	aiProviderClusterNameFormat string = "ai-provider/%s"
+	httpScheme                  string = "http"
+	httpsScheme                 string = "https"
+	pluginConfigRulesKey        string = "_rules_"
+	pluginMatchRouteKey         string = "_match_route_"
+	pluginMatchDomainKey        string = "_match_domain_"
+	pluginProviderKey           string = "provider"
+	pluginModelKey              string = "model"
+	pluginModelsKey             string = "models"
+	pluginPolicyRefsKey         string = "policyRefs"
+	pluginProviderNameKey       string = "name"
+	pluginProviderTypeKey       string = "type"
+	pluginProviderURLKey        string = "endpoint"
+	pluginModelMappingKey       string = "modelMapping"
+	defaultHTTPPort             int    = 80
+	defaultHTTPSPort            int    = 443
+)
+
+// ClusterDiscoveryType 表示 Envoy cluster 服务发现方式
+type ClusterDiscoveryType string
+
+const (
+	// ClusterDiscoveryTypeEDS 表示通过 EDS 获取端点
+	ClusterDiscoveryTypeEDS ClusterDiscoveryType = "EDS"
+	// ClusterDiscoveryTypeLogicalDNS 表示通过 DNS 解析上游地址
+	ClusterDiscoveryTypeLogicalDNS ClusterDiscoveryType = "LOGICAL_DNS"
 )
 
 // Translator 负责生成 xDS target 的配置快照
@@ -78,6 +95,7 @@ type Route struct {
 
 // RouteMatch 表示 Envoy route match 的内部模型
 type RouteMatch struct {
+	Path       string        `json:"path"`
 	PathPrefix string        `json:"pathPrefix"`
 	Methods    []string      `json:"methods"`
 	Headers    []HeaderMatch `json:"headers"`
@@ -97,7 +115,11 @@ type WeightedCluster struct {
 
 // Cluster 表示 Envoy cluster 的内部模型
 type Cluster struct {
-	Name string `json:"name"`
+	Name          string               `json:"name"`
+	DiscoveryType ClusterDiscoveryType `json:"discoveryType,omitempty"`
+	Address       string               `json:"address,omitempty"`
+	Port          int                  `json:"port,omitempty"`
+	TLS           bool                 `json:"tls,omitempty"`
 }
 
 // EndpointAssignment 表示 Envoy endpoint assignment 的内部模型
@@ -290,7 +312,8 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 
 	for _, upstream := range logical.Upstreams {
 		config.Clusters = append(config.Clusters, Cluster{
-			Name: upstream.Name,
+			Name:          upstream.Name,
+			DiscoveryType: ClusterDiscoveryTypeEDS,
 		})
 
 		assignment := EndpointAssignment{
@@ -368,6 +391,13 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		})
 	}
 
+	// 普通 Route 只需要生成 RDS route，并指向用户声明的 Upstream
+	// AIRoute 额外需要把 AIProvider endpoint 变成真实 Envoy cluster
+	// 这样请求路径在数据面上是真实可达的，而不是只停留在插件配置里
+	if err := t.appendAIRouteRuntime(&config); err != nil {
+		return runtime.RuntimeSnapshot{}, err
+	}
+
 	for _, plugin := range logical.Plugins {
 		config.Plugins = append(config.Plugins, Plugin{
 			Name:     plugin.Name,
@@ -378,6 +408,8 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		})
 	}
 
+	// AIRoute 的模型、供应商和策略不会直接进入 Listener
+	// 它们会被编译进 Wasm 插件的 _rules_，插件按 route/domain 匹配后读取这些配置
 	pluginBindings, err := t.translatePluginBindings(logical, config)
 	if err != nil {
 		return runtime.RuntimeSnapshot{}, err
@@ -390,6 +422,58 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		Version: fmt.Sprintf(versionPrefix, logical.Name),
 		Config:  config,
 	}, nil
+}
+
+func (t Translator) appendAIRouteRuntime(config *Config) error {
+	aiProvidersByName := t.aiProvidersByName(config.AIProviders)
+	aiModelsByName := t.aiModelsByName(config.AIModels)
+	clustersByName := make(map[string]bool, len(config.Clusters))
+	for _, cluster := range config.Clusters {
+		clustersByName[cluster.Name] = true
+	}
+
+	for _, aiRoute := range config.AIRoutes {
+		// 第一阶段只选一个执行目标：优先取 AIRoute 的第一个 AIModel，再取直接 ProviderRef
+		// 后续做模型权重、fallback、多 provider 时，再把这里扩展成更完整的 provider router
+		provider, ok := t.aiRouteProvider(aiRoute, aiProvidersByName, aiModelsByName)
+		if !ok {
+			continue
+		}
+		clusterName := fmt.Sprintf(aiProviderClusterNameFormat, provider.Name)
+		if !clustersByName[clusterName] {
+			cluster, err := t.aiProviderCluster(provider)
+			if err != nil {
+				return err
+			}
+			config.Clusters = append(config.Clusters, cluster)
+			clustersByName[clusterName] = true
+		}
+		t.appendAIRouteToRouteConfigs(config, aiRoute, clusterName)
+	}
+	return nil
+}
+
+func (t Translator) appendAIRouteToRouteConfigs(config *Config, aiRoute AIRoute, clusterName string) {
+	for i := range config.RouteConfigs {
+		// AI route 作为独立 virtual host 追加到每个 listener 的 RDS 配置
+		// Envoy 负责按 host/path 把请求送到 provider cluster，Wasm 插件负责改写协议、注入模型和处理策略
+		config.RouteConfigs[i].VirtualHosts = append(config.RouteConfigs[i].VirtualHosts, VirtualHost{
+			Name:    aiRoute.Name,
+			Domains: slices.Clone(aiRoute.Domains),
+			Routes: []Route{
+				{
+					Name: aiRoute.Name,
+					Match: RouteMatch{
+						Path:       aiRoute.Match.Path,
+						PathPrefix: aiRoute.Match.PathPrefix,
+					},
+					WeightedClusters: []WeightedCluster{
+						{Name: clusterName, Weight: 100},
+					},
+				},
+			},
+		})
+	}
 }
 
 func (t Translator) translatePluginBindings(logical ir.LogicalGateway, config Config) ([]PluginBinding, error) {
@@ -406,6 +490,9 @@ func (t Translator) translatePluginBindings(logical ir.LogicalGateway, config Co
 			continue
 		}
 
+		// Higress-like 做法：AIRoute 绑定不会变成一个路由专属 Envoy filter
+		// 同一个 Wasm 插件只在 HTTP filter chain 加载一次，多个 AIRoute 合并成 _rules_
+		// 插件运行时根据 _match_route_ / _match_domain_ 判断当前请求是否应用某条规则
 		aiRoute, ok := aiRoutesByName[binding.Target.Name]
 		if !ok {
 			continue
@@ -491,6 +578,8 @@ func (t Translator) buildAIPluginRule(
 ) (map[string]any, error) {
 	rule := make(map[string]any)
 	if len(plugin.Config) > 0 {
+		// PluginRef.Config 只作为补充配置进入 rule
+		// provider/model/policy 仍然由 AIProvider、AIModel、AIPolicy 这些一等资源生成，避免用户手写大块 JSON
 		if err := json.Unmarshal(plugin.Config, &rule); err != nil {
 			return nil, fmt.Errorf("decode plugin %q config for ai route %q: %w", plugin.Name, route.Name, err)
 		}
@@ -510,22 +599,24 @@ func (t Translator) buildAIPluginRule(
 		rule[pluginPolicyRefsKey] = slices.Clone(route.PolicyRefs)
 	}
 	if provider, ok := t.aiPluginProviderConfig(route, providers, models); ok {
+		// provider 字段是 ai-proxy 插件真正读取的上游模型供应商配置
+		// RDS/CDS 决定请求发到哪里，provider 配置决定插件如何改写请求、选择模型和供应商协议
 		rule[pluginProviderKey] = provider
 	}
 	return rule, nil
 }
 
 func (t Translator) aiPluginProviderConfig(route AIRoute, providers map[string]AIProvider, models map[string]AIModel) (map[string]any, bool) {
+	provider, ok := t.aiRouteProvider(route, providers, models)
+	if !ok {
+		return nil, false
+	}
+	config := t.providerConfig(provider)
 	if len(route.Models) > 0 {
 		model, ok := models[route.Models[0].Name]
 		if !ok {
 			return nil, false
 		}
-		provider, ok := providers[model.ProviderRef]
-		if !ok {
-			return nil, false
-		}
-		config := t.providerConfig(provider)
 		if model.ProviderModel != "" {
 			config[pluginModelMappingKey] = map[string]string{
 				wildcardModel: model.ProviderModel,
@@ -533,23 +624,72 @@ func (t Translator) aiPluginProviderConfig(route AIRoute, providers map[string]A
 		}
 		return config, true
 	}
+	return config, true
+}
 
+func (t Translator) aiRouteProvider(route AIRoute, providers map[string]AIProvider, models map[string]AIModel) (AIProvider, bool) {
+	if len(route.Models) > 0 {
+		model, ok := models[route.Models[0].Name]
+		if !ok {
+			return AIProvider{}, false
+		}
+		provider, ok := providers[model.ProviderRef]
+		return provider, ok
+	}
 	if len(route.Providers) == 0 {
-		return nil, false
+		return AIProvider{}, false
 	}
+
 	provider, ok := providers[route.Providers[0].Name]
-	if !ok {
-		return nil, false
+	return provider, ok
+}
+
+func (t Translator) aiProviderCluster(provider AIProvider) (Cluster, error) {
+	endpoint, err := url.Parse(provider.Endpoint)
+	if err != nil {
+		return Cluster{}, fmt.Errorf("parse ai provider %q endpoint: %w", provider.Name, err)
 	}
-	return t.providerConfig(provider), true
+	address := endpoint.Hostname()
+	port, err := t.endpointPort(endpoint)
+	if err != nil {
+		return Cluster{}, fmt.Errorf("parse ai provider %q endpoint port: %w", provider.Name, err)
+	}
+
+	// AIProvider endpoint 是外部模型服务地址，不走 EDS
+	// 这里转成 LOGICAL_DNS cluster，让 Envoy 运行时解析供应商域名
+	return Cluster{
+		Name:          fmt.Sprintf(aiProviderClusterNameFormat, provider.Name),
+		DiscoveryType: ClusterDiscoveryTypeLogicalDNS,
+		Address:       address,
+		Port:          port,
+		TLS:           endpoint.Scheme == httpsScheme,
+	}, nil
+}
+
+func (t Translator) endpointPort(endpoint *url.URL) (int, error) {
+	if endpoint.Port() != "" {
+		return strconv.Atoi(endpoint.Port())
+	}
+	switch endpoint.Scheme {
+	case httpScheme:
+		return defaultHTTPPort, nil
+	case httpsScheme:
+		return defaultHTTPSPort, nil
+	default:
+		return 0, fmt.Errorf("unsupported scheme %q", endpoint.Scheme)
+	}
 }
 
 func (t Translator) providerConfig(provider AIProvider) map[string]any {
-	return map[string]any{
+	config := map[string]any{
 		pluginProviderNameKey: provider.Name,
 		pluginProviderTypeKey: provider.Type,
 		pluginProviderURLKey:  provider.Endpoint,
 	}
+	if provider.Endpoint == "" {
+		delete(config, pluginProviderURLKey)
+	}
+	return config
 }
 
 func (t Translator) aiRoutesByName(routes []AIRoute) map[string]AIRoute {

@@ -118,6 +118,8 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 
 - 代码注释使用中文，包括 package comment、导出类型注释、导出函数注释和必要的实现说明。
 - 注释要解释领域含义、设计约束或不明显的原因，不要复述代码本身。
+- 涉及核心链路、跨层转换、协议适配、AI 网关配置生效逻辑等关键或难懂的地方，要主动补充说明性注释。
+- 注释要讲清楚“为什么这样做”和“配置如何生效”，尤其要说明普通网关配置与 AI 网关配置的差异。
 - 注释不需要以句号结尾，保持简洁即可。
 - 英文专有名词可以保留英文，例如 Envoy、xDS、Gateway、Route、Upstream、RuntimeSnapshot。
 - 对外协议字段、错误文本、CLI 输出等用户可见字符串，按实际产品语境决定中英文，不受代码注释语言限制。

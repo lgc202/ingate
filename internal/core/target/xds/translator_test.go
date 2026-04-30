@@ -170,12 +170,36 @@ func TestTranslatorTranslate(t *testing.T) {
 							},
 						},
 					},
+					{
+						Name:    "chat",
+						Domains: []string{"api.example.com"},
+						Routes: []xds.Route{
+							{
+								Name: "chat",
+								Match: xds.RouteMatch{
+									Path:       "/v1/chat/completions",
+									PathPrefix: "/v1/chat",
+								},
+								WeightedClusters: []xds.WeightedCluster{
+									{Name: "ai-provider/openai", Weight: 100},
+								},
+							},
+						},
+					},
 				},
 			},
 		},
 		Clusters: []xds.Cluster{
 			{
-				Name: "app",
+				Name:          "app",
+				DiscoveryType: xds.ClusterDiscoveryTypeEDS,
+			},
+			{
+				Name:          "ai-provider/openai",
+				DiscoveryType: xds.ClusterDiscoveryTypeLogicalDNS,
+				Address:       "api.openai.com",
+				Port:          443,
+				TLS:           true,
 			},
 		},
 		EndpointAssignments: []xds.EndpointAssignment{
