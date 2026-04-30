@@ -10,190 +10,55 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
+type eventRegistration struct {
+	informer cache.SharedIndexInformer
+	handler  cache.ResourceEventHandlerFuncs
+}
+
 func (c *Controller) registerEventHandlers() error {
-	gatewayHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueueGatewayObject(obj)
+	gatewayInformers := c.factory.Gateway().V1()
+	registrations := []eventRegistration{
+		{informer: gatewayInformers.Gateways().Informer(), handler: c.eventHandler(c.enqueueGatewayObject)},
+		{informer: gatewayInformers.Routes().Informer(), handler: c.eventHandler(c.enqueueRouteObject)},
+		{informer: gatewayInformers.Upstreams().Informer(), handler: c.eventHandler(c.enqueueUpstreamObject)},
+		{informer: gatewayInformers.AIRoutes().Informer(), handler: c.eventHandler(c.enqueueAIRouteObject)},
+		{informer: gatewayInformers.AIProviders().Informer(), handler: c.eventHandler(c.enqueueAIProviderObject)},
+		{informer: gatewayInformers.AIModels().Informer(), handler: c.eventHandler(c.enqueueAIModelObject)},
+		{informer: gatewayInformers.AIPolicies().Informer(), handler: c.eventHandler(c.enqueueAIPolicyObject)},
+		{
+			informer: gatewayInformers.AuthPolicies().Informer(),
+			handler: c.eventHandler(func(obj any) {
+				c.enqueuePolicyObject(resource.KindAuthPolicy, obj)
+			}),
 		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueueGatewayObject(oldObj)
-			c.enqueueGatewayObject(newObj)
+		{
+			informer: gatewayInformers.RateLimitPolicies().Informer(),
+			handler: c.eventHandler(func(obj any) {
+				c.enqueuePolicyObject(resource.KindRateLimitPolicy, obj)
+			}),
 		},
-		DeleteFunc: func(obj any) {
-			c.enqueueGatewayObject(obj)
-		},
-	}
-	routeHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueueRouteObject(obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueueRouteObject(oldObj)
-			c.enqueueRouteObject(newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueueRouteObject(obj)
-		},
-	}
-	upstreamHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueueUpstreamObject(obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueueUpstreamObject(oldObj)
-			c.enqueueUpstreamObject(newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueueUpstreamObject(obj)
-		},
-	}
-	aiRouteHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueueAIRouteObject(obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueueAIRouteObject(oldObj)
-			c.enqueueAIRouteObject(newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueueAIRouteObject(obj)
-		},
-	}
-	aiProviderHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueueAIProviderObject(obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueueAIProviderObject(oldObj)
-			c.enqueueAIProviderObject(newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueueAIProviderObject(obj)
-		},
-	}
-	aiModelHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueueAIModelObject(obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueueAIModelObject(oldObj)
-			c.enqueueAIModelObject(newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueueAIModelObject(obj)
-		},
-	}
-	aiPolicyHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueueAIPolicyObject(obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueueAIPolicyObject(oldObj)
-			c.enqueueAIPolicyObject(newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueueAIPolicyObject(obj)
-		},
-	}
-	authPolicyHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueuePolicyObject(resource.KindAuthPolicy, obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueuePolicyObject(resource.KindAuthPolicy, oldObj)
-			c.enqueuePolicyObject(resource.KindAuthPolicy, newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueuePolicyObject(resource.KindAuthPolicy, obj)
-		},
-	}
-	rateLimitPolicyHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueuePolicyObject(resource.KindRateLimitPolicy, obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueuePolicyObject(resource.KindRateLimitPolicy, oldObj)
-			c.enqueuePolicyObject(resource.KindRateLimitPolicy, newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueuePolicyObject(resource.KindRateLimitPolicy, obj)
-		},
-	}
-	policyBindingHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueuePolicyBindingObject(obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueuePolicyBindingObject(oldObj)
-			c.enqueuePolicyBindingObject(newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueuePolicyBindingObject(obj)
-		},
-	}
-	pluginHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueuePluginObject(obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueuePluginObject(oldObj)
-			c.enqueuePluginObject(newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueuePluginObject(obj)
-		},
-	}
-	pluginBindingHandler := cache.ResourceEventHandlerFuncs{
-		AddFunc: func(obj any) {
-			c.enqueuePluginBindingObject(obj)
-		},
-		UpdateFunc: func(oldObj, newObj any) {
-			c.enqueuePluginBindingObject(oldObj)
-			c.enqueuePluginBindingObject(newObj)
-		},
-		DeleteFunc: func(obj any) {
-			c.enqueuePluginBindingObject(obj)
-		},
+		{informer: gatewayInformers.PolicyBindings().Informer(), handler: c.eventHandler(c.enqueuePolicyBindingObject)},
+		{informer: gatewayInformers.Plugins().Informer(), handler: c.eventHandler(c.enqueuePluginObject)},
+		{informer: gatewayInformers.PluginBindings().Informer(), handler: c.eventHandler(c.enqueuePluginBindingObject)},
 	}
 
-	gatewayInformers := c.factory.Gateway().V1()
-	if _, err := gatewayInformers.Gateways().Informer().AddEventHandler(gatewayHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.Routes().Informer().AddEventHandler(routeHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.Upstreams().Informer().AddEventHandler(upstreamHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.AIRoutes().Informer().AddEventHandler(aiRouteHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.AIProviders().Informer().AddEventHandler(aiProviderHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.AIModels().Informer().AddEventHandler(aiModelHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.AIPolicies().Informer().AddEventHandler(aiPolicyHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.AuthPolicies().Informer().AddEventHandler(authPolicyHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.RateLimitPolicies().Informer().AddEventHandler(rateLimitPolicyHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.PolicyBindings().Informer().AddEventHandler(policyBindingHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.Plugins().Informer().AddEventHandler(pluginHandler); err != nil {
-		return err
-	}
-	if _, err := gatewayInformers.PluginBindings().Informer().AddEventHandler(pluginBindingHandler); err != nil {
-		return err
+	for _, registration := range registrations {
+		if _, err := registration.informer.AddEventHandler(registration.handler); err != nil {
+			return err
+		}
 	}
 	return nil
+}
+
+func (c *Controller) eventHandler(enqueue func(any)) cache.ResourceEventHandlerFuncs {
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: enqueue,
+		UpdateFunc: func(oldObj, newObj any) {
+			enqueue(oldObj)
+			enqueue(newObj)
+		},
+		DeleteFunc: enqueue,
+	}
 }
 
 func (c *Controller) waitForCacheSync(ctx context.Context) error {
@@ -361,29 +226,7 @@ func (c *Controller) enqueuePolicyBindingObject(obj any) {
 func (c *Controller) enqueuePolicyBinding(binding *resource.PolicyBinding) {
 	// PolicyBinding 只影响 Gateway、Route、Upstream 这条通用 API 网关链路
 	// AI 专属策略先由 AIPolicy 通过 AIRoute 引用，避免两套策略语义混在一起
-	target := binding.Spec.TargetRef
-	switch target.Kind {
-	case resource.KindGateway:
-		c.enqueueGateway(target.Name)
-	case resource.KindRoute:
-		route, err := c.routeLister.Get(target.Name)
-		if err != nil {
-			return
-		}
-		for _, parentRef := range route.Spec.ParentRefs {
-			c.enqueueGateway(parentRef)
-		}
-	case resource.KindUpstream:
-		routes, err := c.routesByIndex(routeIndexUpstreamRef, target.Name)
-		if err != nil {
-			return
-		}
-		for _, route := range routes {
-			for _, parentRef := range route.Spec.ParentRefs {
-				c.enqueueGateway(parentRef)
-			}
-		}
-	}
+	c.enqueueGatewayByTarget(binding.Spec.TargetRef.Kind, binding.Spec.TargetRef.Name)
 }
 
 func (c *Controller) enqueuePluginObject(obj any) {
@@ -418,25 +261,11 @@ func (c *Controller) enqueuePluginBinding(binding *resource.PluginBinding) {
 	target := binding.Spec.TargetRef
 	switch target.Kind {
 	case resource.KindGateway:
-		c.enqueueGateway(target.Name)
+		c.enqueueGatewayByTarget(target.Kind, target.Name)
 	case resource.KindRoute:
-		route, err := c.routeLister.Get(target.Name)
-		if err != nil {
-			return
-		}
-		for _, parentRef := range route.Spec.ParentRefs {
-			c.enqueueGateway(parentRef)
-		}
+		c.enqueueGatewayByTarget(target.Kind, target.Name)
 	case resource.KindUpstream:
-		routes, err := c.routesByIndex(routeIndexUpstreamRef, target.Name)
-		if err != nil {
-			return
-		}
-		for _, route := range routes {
-			for _, parentRef := range route.Spec.ParentRefs {
-				c.enqueueGateway(parentRef)
-			}
-		}
+		c.enqueueGatewayByTarget(target.Kind, target.Name)
 	case resource.KindAIRoute:
 		route, err := c.aiRouteLister.Get(target.Name)
 		if err != nil {
@@ -449,6 +278,31 @@ func (c *Controller) enqueuePluginBinding(binding *resource.PluginBinding) {
 		c.enqueueAIProvider(target.Name)
 	case resource.KindAIModel:
 		c.enqueueAIModel(target.Name)
+	}
+}
+
+func (c *Controller) enqueueGatewayByTarget(kind resource.Kind, name string) {
+	switch kind {
+	case resource.KindGateway:
+		c.enqueueGateway(name)
+	case resource.KindRoute:
+		route, err := c.routeLister.Get(name)
+		if err != nil {
+			return
+		}
+		for _, parentRef := range route.Spec.ParentRefs {
+			c.enqueueGateway(parentRef)
+		}
+	case resource.KindUpstream:
+		routes, err := c.routesByIndex(routeIndexUpstreamRef, name)
+		if err != nil {
+			return
+		}
+		for _, route := range routes {
+			for _, parentRef := range route.Spec.ParentRefs {
+				c.enqueueGateway(parentRef)
+			}
+		}
 	}
 }
 
