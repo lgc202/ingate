@@ -1,21 +1,50 @@
-<svg width="1600" height="1000" viewBox="0 0 1600 1000" xmlns="http://www.w3.org/2000/svg">
-  <rect width="1600" height="1000" fill="#f5f7fa"/>
-  <rect x="0" y="0" width="250" height="1000" fill="#111827"/>
-  <text x="32" y="56" fill="#fff" font-family="PingFang SC, sans-serif" font-size="26" font-weight="700">Ingate</text>
-  <text x="32" y="86" fill="#9ca3af" font-family="PingFang SC, sans-serif" font-size="14">AI Gateway Console</text>
-  <text x="54" y="160" fill="#d1d5db" font-family="PingFang SC, sans-serif" font-size="18" font-weight="500">首页</text>
-  <text x="54" y="220" fill="#d1d5db" font-family="PingFang SC, sans-serif" font-size="18" font-weight="500">网关</text>
-  <text x="54" y="280" fill="#d1d5db" font-family="PingFang SC, sans-serif" font-size="18" font-weight="500">路由</text>
-  <text x="54" y="340" fill="#d1d5db" font-family="PingFang SC, sans-serif" font-size="18" font-weight="500">后端服务</text>
-  <text x="54" y="400" fill="#d1d5db" font-family="PingFang SC, sans-serif" font-size="18" font-weight="500">证书</text>
-  <text x="54" y="460" fill="#d1d5db" font-family="PingFang SC, sans-serif" font-size="18" font-weight="500">插件</text>
-  <text x="54" y="520" fill="#d1d5db" font-family="PingFang SC, sans-serif" font-size="18" font-weight="500">监控</text>
-  <text x="54" y="580" fill="#d1d5db" font-family="PingFang SC, sans-serif" font-size="18" font-weight="500">系统设置</text>
-  <rect x="290" y="110" width="1240" height="120" rx="16" fill="#fff" stroke="#e5e7eb"/>
-  <text x="322" y="160" fill="#111827" font-family="PingFang SC, sans-serif" font-size="22" font-weight="700">首页</text>
-  <text x="322" y="196" fill="#6b7280" font-family="PingFang SC, sans-serif" font-size="14">资源汇总 / 运行概览 / 状态概览 / 最近变化</text>
-  <rect x="290" y="260" width="1240" height="640" rx="16" fill="#fff" stroke="#e5e7eb"/>
-  <text x="322" y="314" fill="#111827" font-family="PingFang SC, sans-serif" font-size="20" font-weight="700">产品信息架构</text>
-  <text x="322" y="352" fill="#374151" font-family="PingFang SC, sans-serif" font-size="16">网关 -> 路由 -> 后端服务 -> 插件</text>
-  <text x="322" y="388" fill="#374151" font-family="PingFang SC, sans-serif" font-size="16">证书是独立资源，系统设置是平台配置</text>
+<svg width="1600" height="1000" viewBox="0 0 1600 1000" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .page{fill:#f5f7fa}.sidebar{fill:#101827}.sidebar-active{fill:#2563eb}.topbar{fill:#fff;stroke:#e5e7eb}
+      .card{fill:#fff;stroke:#e5e7eb;stroke-width:1.2}.panel{fill:#f8fafc;stroke:#e5e7eb;stroke-width:1.1}.input{fill:#fff;stroke:#cbd5e1;stroke-width:1.2}
+      .ghost{fill:#fff;stroke:#cbd5e1;stroke-width:1.2}.button{fill:#2563eb}.table-head{fill:#f8fafc}.line{stroke:#e5e7eb}.strong-line{stroke:#93c5fd;stroke-width:2.4}
+      .brand{font:800 26px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#fff}
+      .title{font:700 30px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#0f172a}
+      .section{font:700 20px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#0f172a}
+      .label{font:500 15px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#64748b}
+      .body{font:400 16px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#334155}
+      .body-strong{font:600 16px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#0f172a}
+      .small{font:400 13px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#64748b}
+      .metric{font:800 30px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#0f172a}
+      .sidebar-text{font:500 18px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#cbd5e1}
+      .sidebar-active-text{font:700 18px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#fff}
+      .sidebar-muted{font:400 14px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#94a3b8}
+      .button-text{font:700 16px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#fff}
+      .placeholder{font:400 15px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#94a3b8}
+      .required{fill:#ef4444}.help{fill:#2563eb}
+      .chip-blue{fill:#dbeafe}.chip-green{fill:#dcfce7}.chip-orange{fill:#ffedd5}.chip-purple{fill:#ede9fe}.chip-gray{fill:#f1f5f9}.chip-red{fill:#fee2e2}
+      .chip-text-blue{font:700 13px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#1d4ed8}
+      .chip-text-green{font:700 13px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#15803d}
+      .chip-text-orange{font:700 13px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#c2410c}
+      .chip-text-purple{font:700 13px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#6d28d9}
+      .chip-text-gray{font:700 13px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#475569}
+      .chip-text-red{font:700 13px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;fill:#b91c1c}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="1600" height="1000" rx="0" class="page"/>
+
+    <rect x="0" y="0" width="250" height="1000" rx="0" class="sidebar"/>
+    <text x="32" y="55" class="brand" >Ingate</text>
+    <text x="32" y="84" class="sidebar-muted" >AI Gateway Console</text>
+    <rect x="18" y="119" width="214" height="44" rx="10" class="sidebar-active"/><text x="54" y="147" class="sidebar-active-text" >首页</text><text x="54" y="203" class="sidebar-text" >网关</text><text x="54" y="259" class="sidebar-text" >路由</text><text x="54" y="315" class="sidebar-text" >后端服务</text><text x="54" y="371" class="sidebar-text" >证书</text><text x="54" y="427" class="sidebar-text" >插件</text><text x="54" y="483" class="sidebar-text" >监控</text><text x="54" y="539" class="sidebar-text" >系统设置</text>
+    <text x="32" y="914" class="sidebar-muted" >当前环境</text>
+    <text x="32" y="944" class="sidebar-text" >生产环境</text>
+
+  <rect x="250" y="0" width="1350" height="78" rx="0" class="topbar"/>
+  <text x="290" y="49" class="title" >首页</text>
+
+  <rect x="290" y="110" width="294" height="108" rx="10" class="card"/><text x="314" y="148" class="label" >网关</text><text x="314" y="188" class="metric" >4</text><text x="408" y="186" class="small" >个入口</text><rect x="608" y="110" width="294" height="108" rx="10" class="card"/><text x="632" y="148" class="label" >路由</text><text x="632" y="188" class="metric" >128</text><text x="726" y="186" class="small" >条规则</text><rect x="926" y="110" width="294" height="108" rx="10" class="card"/><text x="950" y="148" class="label" >后端服务</text><text x="950" y="188" class="metric" >36</text><text x="1044" y="186" class="small" >含模型和 MCP</text><rect x="1244" y="110" width="294" height="108" rx="10" class="card"/><text x="1268" y="148" class="label" >插件</text><text x="1268" y="188" class="metric" >18</text><text x="1362" y="186" class="small" >个能力</text>
+    <rect x="290" y="260" width="812" height="288" rx="10" class="card"/><text x="318" y="300" class="section" >运行概览</text><text x="318" y="328" class="small" >只展示汇总态势，不承载复杂配置</text>
+    <text x="330" y="350" class="label" >今日请求</text><text x="330" y="394" class="metric" >128.4k</text><text x="540" y="350" class="label" >错误率</text><text x="540" y="394" class="metric" >0.42%</text><text x="730" y="350" class="label" >P95 延迟</text><text x="730" y="394" class="metric" >386ms</text><text x="910" y="350" class="label" >AI Token</text><text x="910" y="394" class="metric" >18.6M</text>
+    <path d="M330 488 C420 460 500 510 590 472 C700 426 770 500 864 454 C930 420 1000 436 1060 404" stroke="#2563eb" stroke-width="4" fill="none"/>
+    <rect x="1130" y="260" width="414" height="288" rx="10" class="card"/><text x="1158" y="300" class="section" >最近变化</text>
+    <rect x="1158" y="334" width="358" height="48" rx="8" class="panel"/><text x="1176" y="365" class="body-strong" >14:20:35</text><text x="1412" y="365" class="small" >路由 chat-completions 更新策略</text><rect x="1158" y="392" width="358" height="48" rx="8" class="panel"/><text x="1176" y="423" class="body-strong" >13:42:18</text><text x="1412" y="423" class="small" >插件 ai-token-meter 部署成功</text><rect x="1158" y="450" width="358" height="48" rx="8" class="panel"/><text x="1176" y="481" class="body-strong" >12:58:06</text><text x="1412" y="481" class="small" >证书 api-example-cert 校验通过</text>
+    <rect x="290" y="586" width="1254" height="252" rx="10" class="card"/><text x="318" y="626" class="section" >资源关系</text><text x="318" y="654" class="small" >首页只放关键关系和异常入口</text>
+    <rect x="318" y="660" width="1168" height="48" rx="8" class="panel"/><text x="336" y="691" class="body-strong" >public-gateway</text><text x="572" y="691" class="small" >42 条路由 / 4 个实例</text><rect x="318" y="716" width="1168" height="48" rx="8" class="panel"/><text x="336" y="747" class="body-strong" >chat-completions</text><text x="572" y="747" class="small" >模型服务 qwen-plus / 3 个策略</text><rect x="318" y="772" width="1168" height="48" rx="8" class="panel"/><text x="336" y="803" class="body-strong" >legacy-gateway</text><text x="572" y="803" class="small" >1 个证书即将过期</text>
 </svg>
