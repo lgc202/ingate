@@ -93,9 +93,7 @@ func (r GatewayRequest) Validate() error {
 }
 
 func validHostname(hostname string) bool {
-	if strings.HasPrefix(hostname, "*.") {
-		hostname = strings.TrimPrefix(hostname, "*.")
-	}
+	hostname = strings.TrimPrefix(hostname, "*.")
 	return len(validation.IsDNS1123Subdomain(hostname)) == 0
 }
 
