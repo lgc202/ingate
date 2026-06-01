@@ -12,6 +12,7 @@ import (
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/util/retry"
 )
 
 // Service 承载 Gateway 查询用例
@@ -79,26 +80,32 @@ func (s *Service) Update(ctx context.Context, name string, gateway *resource.Gat
 	if err != nil {
 		return err
 	}
-	prepareGatewayForUpdate(gateway, current)
-	_, err = s.store.Update(ctx, gateway)
+	if err := validateVersion(resource.ResourceGateways, name, gateway.ResourceVersion, current.ResourceVersion); err != nil {
+		return err
+	}
+	next := current.DeepCopy()
+	applyGatewayUpdate(next, gateway)
+	_, err = s.store.Update(ctx, next)
 	return err
 }
 
 // SetEnabled 更新 Gateway 启停状态
 func (s *Service) SetEnabled(ctx context.Context, name string, enabled bool) error {
-	current, err := s.store.Get(ctx, name)
-	if err != nil {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := s.store.Get(ctx, name)
+		if err != nil {
+			return err
+		}
+
+		next := current.DeepCopy()
+		if next.Annotations == nil {
+			next.Annotations = map[string]string{}
+		}
+		next.Annotations[resource.AnnotationGatewayEnabled] = strconv.FormatBool(enabled)
+
+		_, err = s.store.Update(ctx, next)
 		return err
-	}
-
-	next := current.DeepCopy()
-	if next.Annotations == nil {
-		next.Annotations = map[string]string{}
-	}
-	next.Annotations[resource.AnnotationGatewayEnabled] = strconv.FormatBool(enabled)
-
-	_, err = s.store.Update(ctx, next)
-	return err
+	})
 }
 
 // Delete 删除 Gateway，仍有关联路由时拒绝删除
@@ -171,19 +178,36 @@ func (s *Service) Overview(ctx context.Context, name string) (*DetailResult, err
 	}, nil
 }
 
-func prepareGatewayForUpdate(gateway *resource.Gateway, current *resource.Gateway) {
-	gateway.ResourceVersion = current.ResourceVersion
-	if gateway.Annotations == nil {
-		gateway.Annotations = map[string]string{}
+func applyGatewayUpdate(next *resource.Gateway, submitted *resource.Gateway) {
+	next.Spec = submitted.Spec
+	if next.Annotations == nil {
+		next.Annotations = map[string]string{}
 	}
-	for key, value := range current.Annotations {
-		if key == resource.AnnotationGatewayDescription || key == resource.AnnotationGatewayEnabled || key == resource.AnnotationGatewayHostnames {
-			continue
-		}
-		if _, ok := gateway.Annotations[key]; !ok {
-			gateway.Annotations[key] = value
+	for _, key := range []string{
+		resource.AnnotationGatewayDescription,
+		resource.AnnotationGatewayEnabled,
+		resource.AnnotationGatewayHostnames,
+	} {
+		delete(next.Annotations, key)
+	}
+	for key, value := range submitted.Annotations {
+		if key == resource.AnnotationGatewayDescription ||
+			key == resource.AnnotationGatewayEnabled ||
+			key == resource.AnnotationGatewayHostnames {
+			next.Annotations[key] = value
 		}
 	}
+}
+
+func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {
+	if submittedVersion == "" || submittedVersion == currentVersion {
+		return nil
+	}
+	return apierrors.NewConflict(
+		resource.Resource(resourceName),
+		name,
+		fmt.Errorf("resource version changed, current version is %s", currentVersion),
+	)
 }
 
 func (s *Service) gatewayResult(ctx context.Context, gateway *resource.Gateway) (*GatewayResult, error) {
