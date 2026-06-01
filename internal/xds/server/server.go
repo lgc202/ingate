@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"time"
 
@@ -22,20 +23,23 @@ type Server struct {
 	listenAddress string
 	ads           *adsServer
 	store         *snapshotStore
-	stdout        io.Writer
+	logger        *slog.Logger
 }
 
 // New 创建 xDS 配置观察服务
-func New(client clientset.Interface, listenAddress, target string, resyncPeriod time.Duration, stdout io.Writer) *Server {
+func New(client clientset.Interface, listenAddress, target string, resyncPeriod time.Duration, logger *slog.Logger) *Server {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
 	store := newSnapshotStore(target)
 	server := &Server{
 		factory:       informers.NewSharedInformerFactory(client, resyncPeriod),
 		grpcServer:    grpc.NewServer(),
 		listenAddress: listenAddress,
 		store:         store,
-		stdout:        stdout,
+		logger:        logger,
 	}
-	server.ads = registerADSServer(server.grpcServer, store, stdout)
+	server.ads = registerADSServer(server.grpcServer, store, logger)
 	return server
 }
 
@@ -56,7 +60,7 @@ func (s *Server) Run(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprintf(s.stdout, "ingate-xds watching target=%s\n", s.store.target)
+	s.logger.Info("runtime snapshot watch started", "target", s.store.target)
 	listener, err := net.Listen("tcp", s.listenAddress)
 	if err != nil {
 		return err
@@ -65,7 +69,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 	serverErr := make(chan error, 1)
 	go func() {
-		fmt.Fprintf(s.stdout, "ingate-xds serving grpc=%s\n", listener.Addr().String())
+		s.logger.Info("xds grpc server started", "addr", listener.Addr().String())
 		serverErr <- s.grpcServer.Serve(listener)
 	}()
 
@@ -112,7 +116,11 @@ func (s *Server) applySnapshotObject(obj any) {
 		return
 	}
 
-	fmt.Fprintf(s.stdout, "snapshot updated target=%s gateway=%s version=%s\n", snapshot.Spec.Target, snapshot.Spec.Gateway, snapshot.Spec.Version)
+	s.logger.Info("runtime snapshot updated",
+		"target", snapshot.Spec.Target,
+		"gateway", snapshot.Spec.Gateway,
+		"version", snapshot.Spec.Version,
+	)
 	s.ads.NotifySnapshotsChanged()
 }
 
@@ -122,7 +130,10 @@ func (s *Server) deleteSnapshotObject(obj any) {
 		return
 	}
 
-	fmt.Fprintf(s.stdout, "snapshot removed target=%s gateway=%s\n", snapshot.Spec.Target, snapshot.Spec.Gateway)
+	s.logger.Info("runtime snapshot removed",
+		"target", snapshot.Spec.Target,
+		"gateway", snapshot.Spec.Gateway,
+	)
 	s.ads.NotifySnapshotsChanged()
 }
 

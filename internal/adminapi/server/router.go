@@ -27,7 +27,7 @@ func (s *Server) router() *gin.Engine {
 	router.Use(
 		middleware.RequestID(),
 		middleware.CORS(),
-		middleware.Recovery(s.stdout),
+		middleware.Recovery(s.logger),
 	)
 
 	handler := s.newHandler()
