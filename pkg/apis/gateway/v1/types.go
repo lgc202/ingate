@@ -196,6 +196,22 @@ type GatewaySpec struct {
 	Listeners []Listener `json:"listeners"`
 }
 
+const (
+	// ListenerProtocolHTTP 表示普通 HTTP 监听器
+	ListenerProtocolHTTP = "HTTP"
+	// ListenerProtocolHTTPS 表示 HTTPS 监听器
+	ListenerProtocolHTTPS = "HTTPS"
+)
+
+const (
+	// AnnotationGatewayDescription 保存控制台填写的 Gateway 描述
+	AnnotationGatewayDescription = "gateway.ingate.io/description"
+	// AnnotationGatewayEnabled 保存控制台维护的 Gateway 启停状态
+	AnnotationGatewayEnabled = "gateway.ingate.io/enabled"
+	// AnnotationGatewayHostnames 保存控制台维护的 Gateway Host 入口过滤列表
+	AnnotationGatewayHostnames = "gateway.ingate.io/hostnames"
+)
+
 // Listener 声明一个 Gateway 监听端口
 type Listener struct {
 	Name     string `json:"name"`
