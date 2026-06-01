@@ -19,6 +19,18 @@ func WriteResult(ctx *gin.Context, value any, err error) {
 		WriteError(ctx, http.StatusNotFound, "resource not found")
 		return
 	}
+	if apierrors.IsBadRequest(err) {
+		WriteError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	if apierrors.IsAlreadyExists(err) {
+		WriteError(ctx, http.StatusConflict, err.Error())
+		return
+	}
+	if apierrors.IsConflict(err) {
+		WriteError(ctx, http.StatusConflict, err.Error())
+		return
+	}
 	WriteError(ctx, http.StatusInternalServerError, err.Error())
 }
 
