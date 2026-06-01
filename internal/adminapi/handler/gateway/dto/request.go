@@ -38,8 +38,9 @@ func (r GatewayRequest) Resource() (*resource.Gateway, error) {
 			Kind:       string(resource.KindGateway),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:        strings.TrimSpace(r.Name),
-			Annotations: annotations,
+			Name:            strings.TrimSpace(r.Name),
+			ResourceVersion: strings.TrimSpace(r.Version),
+			Annotations:     annotations,
 		},
 		Spec: resource.GatewaySpec{
 			Listeners: r.listeners(hostnames),

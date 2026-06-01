@@ -58,6 +58,7 @@ func gatewayFromResource(gateway *resource.Gateway, routes []resource.Route, ups
 
 	return Gateway{
 		ID:                    gateway.Name,
+		Version:               gateway.ResourceVersion,
 		Name:                  gateway.Name,
 		Description:           annotation(gateway.Annotations, resource.AnnotationGatewayDescription),
 		RuntimeGroupID:        defaultRuntimeGroupID,

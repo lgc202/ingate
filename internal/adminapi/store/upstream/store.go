@@ -28,3 +28,18 @@ func (s *Store) List(ctx context.Context) (*resource.UpstreamList, error) {
 func (s *Store) Get(ctx context.Context, name string) (*resource.Upstream, error) {
 	return s.client.GatewayV1().Upstreams().Get(ctx, name, metav1.GetOptions{})
 }
+
+// Create 创建 Upstream
+func (s *Store) Create(ctx context.Context, upstream *resource.Upstream) (*resource.Upstream, error) {
+	return s.client.GatewayV1().Upstreams().Create(ctx, upstream, metav1.CreateOptions{})
+}
+
+// Update 更新 Upstream
+func (s *Store) Update(ctx context.Context, upstream *resource.Upstream) (*resource.Upstream, error) {
+	return s.client.GatewayV1().Upstreams().Update(ctx, upstream, metav1.UpdateOptions{})
+}
+
+// Delete 删除 Upstream
+func (s *Store) Delete(ctx context.Context, name string) error {
+	return s.client.GatewayV1().Upstreams().Delete(ctx, name, metav1.DeleteOptions{})
+}

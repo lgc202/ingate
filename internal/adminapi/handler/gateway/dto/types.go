@@ -3,6 +3,7 @@ package dto
 // Gateway 是 admin-api 面向控制台返回的网关对象，不直接暴露 CR 结构。
 type Gateway struct {
 	ID                    string     `json:"id"`
+	Version               string     `json:"version,omitempty"`
 	Name                  string     `json:"name"`
 	Description           string     `json:"description"`
 	RuntimeGroupID        string     `json:"runtimeGroupId"`
@@ -82,6 +83,7 @@ type RuntimeStatus struct {
 // GatewayRequest 是控制台创建或编辑 Gateway 的请求体。
 type GatewayRequest struct {
 	ID               string            `json:"id,omitempty"`
+	Version          string            `json:"version,omitempty"`
 	Name             string            `json:"name"`
 	Description      string            `json:"description"`
 	RuntimeGroupID   string            `json:"runtimeGroupId"`

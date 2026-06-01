@@ -249,6 +249,13 @@ type RouteSpec struct {
 	Rules      []RouteRule `json:"rules"`
 }
 
+const (
+	// AnnotationRouteEnabled 保存控制台维护的 Route 启停状态
+	AnnotationRouteEnabled = "route.ingate.io/enabled"
+	// AnnotationRoutePolicyBindings 保存控制台维护的路由级策略参数
+	AnnotationRoutePolicyBindings = "route.ingate.io/policy-bindings"
+)
+
 // RouteRule 声明一条路由匹配规则和加权 Upstream 集合
 type RouteRule struct {
 	PathPrefix    string        `json:"pathPrefix"`
@@ -342,6 +349,17 @@ type UpstreamList struct {
 type UpstreamSpec struct {
 	Endpoints []Endpoint `json:"endpoints"`
 }
+
+const (
+	// AnnotationUpstreamServiceType 保存控制台展示的服务类型
+	AnnotationUpstreamServiceType = "upstream.ingate.io/service-type"
+	// AnnotationUpstreamLoadBalancePolicy 保存控制台维护的负载均衡策略
+	AnnotationUpstreamLoadBalancePolicy = "upstream.ingate.io/load-balance-policy"
+	// AnnotationUpstreamEndpoints 保存控制台维护的端点启停和权重信息
+	AnnotationUpstreamEndpoints = "upstream.ingate.io/endpoints"
+	// AnnotationUpstreamHealthCheck 保存控制台维护的健康检查配置
+	AnnotationUpstreamHealthCheck = "upstream.ingate.io/health-check"
+)
 
 // Endpoint 声明一个上游端点
 type Endpoint struct {

@@ -3,8 +3,10 @@ package route
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/lgc202/ingate/internal/adminapi/handler/route/dto"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // Handler 处理 Route HTTP 请求
@@ -19,12 +21,87 @@ func New(service *routeservice.Service) *Handler {
 
 // List 返回 Route 列表
 func (h *Handler) List(ctx *gin.Context) {
-	items, err := h.service.List(ctx.Request.Context())
-	response.WriteResult(ctx, items, err)
+	result, err := h.service.List(ctx.Request.Context())
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
+		return
+	}
+	response.WriteResult(ctx, dto.FromWorkspaceResult(result), nil)
 }
 
 // Get 返回单个 Route
 func (h *Handler) Get(ctx *gin.Context) {
-	item, err := h.service.Get(ctx.Request.Context(), ctx.Param("name"))
-	response.WriteResult(ctx, item, err)
+	result, err := h.service.Get(ctx.Request.Context(), ctx.Param("name"))
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
+		return
+	}
+	response.WriteResult(ctx, dto.FromRouteResult(result), nil)
+}
+
+// Create 创建 Route
+func (h *Handler) Create(ctx *gin.Context) {
+	request, ok := h.routeRequest(ctx)
+	if !ok {
+		return
+	}
+	route, err := request.Resource()
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
+		return
+	}
+
+	err = h.service.Create(ctx.Request.Context(), route)
+	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
+}
+
+// Update 更新 Route
+func (h *Handler) Update(ctx *gin.Context) {
+	request, ok := h.routeRequest(ctx)
+	if !ok {
+		return
+	}
+	route, err := request.Resource()
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
+		return
+	}
+
+	err = h.service.Update(ctx.Request.Context(), ctx.Param("name"), route)
+	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
+}
+
+// SetEnabled 更新 Route 启停状态
+func (h *Handler) SetEnabled(ctx *gin.Context) {
+	request := dto.EnabledRequest{}
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		response.WriteResult(ctx, nil, apierrors.NewBadRequest("invalid route enabled request body"))
+		return
+	}
+	if err := request.Validate(); err != nil {
+		response.WriteResult(ctx, nil, err)
+		return
+	}
+
+	err := h.service.SetEnabled(ctx.Request.Context(), ctx.Param("name"), request.Value())
+	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
+}
+
+// Delete 删除 Route
+func (h *Handler) Delete(ctx *gin.Context) {
+	err := h.service.Delete(ctx.Request.Context(), ctx.Param("name"))
+	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
+}
+
+func (h *Handler) routeRequest(ctx *gin.Context) (dto.RouteRequest, bool) {
+	request := dto.RouteRequest{}
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		response.WriteResult(ctx, nil, apierrors.NewBadRequest("invalid route request body"))
+		return dto.RouteRequest{}, false
+	}
+	if err := request.Validate(); err != nil {
+		response.WriteResult(ctx, nil, err)
+		return dto.RouteRequest{}, false
+	}
+	return request, true
 }
