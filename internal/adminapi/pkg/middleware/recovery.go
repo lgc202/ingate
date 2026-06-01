@@ -1,8 +1,7 @@
 package middleware
 
 import (
-	"fmt"
-	"io"
+	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,12 +10,12 @@ import (
 )
 
 // Recovery 捕获 panic，避免单个请求击穿管理 API 进程
-func Recovery(stdout io.Writer) gin.HandlerFunc {
+func Recovery(logger *slog.Logger) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				id := ctx.GetString(requestid.Header)
-				fmt.Fprintf(stdout, "admin-api panic requestID=%s error=%v\n", id, recovered)
+				logger.Error("admin api panic recovered", "request_id", id, "err", recovered)
 				ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "internal server error", "requestID": id})
 			}
 		}()

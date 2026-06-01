@@ -2,8 +2,8 @@ package server
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 
@@ -19,12 +19,15 @@ import (
 type Server struct {
 	client        clientset.Interface
 	listenAddress string
-	stdout        io.Writer
+	logger        *slog.Logger
 }
 
 // New 创建管理 API 服务
-func New(client clientset.Interface, listenAddress string, stdout io.Writer) *Server {
-	return &Server{client: client, listenAddress: listenAddress, stdout: stdout}
+func New(client clientset.Interface, listenAddress string, logger *slog.Logger) *Server {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	return &Server{client: client, listenAddress: listenAddress, logger: logger}
 }
 
 // Run 启动 HTTP 服务
@@ -38,7 +41,7 @@ func (s *Server) Run(ctx context.Context) error {
 	httpServer := &http.Server{Handler: s.router()}
 	serverErr := make(chan error, 1)
 	go func() {
-		fmt.Fprintf(s.stdout, "ingate-admin-api serving http=%s\n", listener.Addr().String())
+		s.logger.Info("admin api http server started", "addr", listener.Addr().String())
 		serverErr <- httpServer.Serve(listener)
 	}()
 

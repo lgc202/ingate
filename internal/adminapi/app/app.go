@@ -11,6 +11,7 @@ import (
 
 	adminserver "github.com/lgc202/ingate/internal/adminapi/server"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	"github.com/lgc202/ingate/pkg/logx"
 )
 
 const usage = `ingate-admin-api 是面向前端控制台的管理 API
@@ -50,7 +51,25 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	server := adminserver.New(client, options.ListenAddress, stdout)
+	logger, err := logx.New(logx.Options{
+		Output: logOutput(options.LogStdout, stdout),
+		Format: options.LogFormat,
+		Level:  options.LogLevel,
+		File:   options.LogFile,
+	})
+	if err != nil {
+		return err
+	}
+	defer logger.Close()
+
+	server := adminserver.New(client, options.ListenAddress, logger.With("component", "ingate-admin-api"))
 
 	return server.Run(genericserver.SetupSignalContext())
+}
+
+func logOutput(enabled bool, stdout io.Writer) io.Writer {
+	if !enabled {
+		return nil
+	}
+	return stdout
 }

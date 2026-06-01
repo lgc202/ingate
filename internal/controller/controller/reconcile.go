@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"maps"
 	"slices"
 
@@ -20,7 +19,11 @@ func (c *Controller) reconcileGateway(gatewayName string) error {
 		if err := c.deleteRuntimeSnapshot(context.Background(), c.target, gatewayName); err != nil {
 			return err
 		}
-		fmt.Fprintf(c.stdout, "deleted target=%s gateway=%s reason=gateway-not-found\n", c.target, gatewayName)
+		c.logger.Info("runtime snapshot deleted",
+			"target", c.target,
+			"gateway", gatewayName,
+			"reason", "gateway_not_found",
+		)
 		return nil
 	}
 
@@ -31,14 +34,14 @@ func (c *Controller) reconcileGateway(gatewayName string) error {
 	if err := c.upsertRuntimeSnapshot(context.Background(), snapshot); err != nil {
 		return err
 	}
-	fmt.Fprintf(c.stdout, "reconciled target=%s gateway=%s routes=%d aiRoutes=%d upstreams=%d aiProviders=%d snapshot=%s\n",
-		c.target,
-		snapshot.Gateway,
-		len(bundle.Routes),
-		len(bundle.AIRoutes),
-		len(bundle.Upstreams),
-		len(bundle.AIProviders),
-		snapshot.Version,
+	c.logger.Info("gateway reconciled",
+		"target", c.target,
+		"gateway", snapshot.Gateway,
+		"routes", len(bundle.Routes),
+		"ai_routes", len(bundle.AIRoutes),
+		"upstreams", len(bundle.Upstreams),
+		"ai_providers", len(bundle.AIProviders),
+		"snapshot", snapshot.Version,
 	)
 	return nil
 }

@@ -4,6 +4,7 @@ package controller
 import (
 	"context"
 	"io"
+	"log/slog"
 	"time"
 
 	"k8s.io/client-go/tools/cache"
@@ -57,11 +58,14 @@ type Controller struct {
 	pipeline             pipeline.Pipeline
 	target               string
 	queue                workqueue.TypedRateLimitingInterface[string]
-	stdout               io.Writer
+	logger               *slog.Logger
 }
 
 // New 创建 controller 实例
-func New(client clientset.Interface, target string, resyncPeriod time.Duration, stdout io.Writer) (*Controller, error) {
+func New(client clientset.Interface, target string, resyncPeriod time.Duration, logger *slog.Logger) (*Controller, error) {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
 	registry, err := builtin.NewRegistry()
 	if err != nil {
 		return nil, err
@@ -133,7 +137,7 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{Name: gatewayQueueName},
 		),
-		stdout: stdout,
+		logger: logger,
 	}, nil
 }
 

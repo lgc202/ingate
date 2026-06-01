@@ -1,8 +1,8 @@
 package server
 
 import (
-	"fmt"
 	"io"
+	"log/slog"
 
 	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	"google.golang.org/grpc"
@@ -16,11 +16,11 @@ type adsServer struct {
 	responses responseBuilder
 	store     *snapshotStore
 	updates   *adsUpdateNotifier
-	stdout    io.Writer
+	logger    *slog.Logger
 }
 
-func newADSServer(store *snapshotStore, stdout io.Writer) *adsServer {
-	return &adsServer{responses: newResponseBuilder(store), store: store, updates: newADSUpdateNotifier(), stdout: stdout}
+func newADSServer(store *snapshotStore, logger *slog.Logger) *adsServer {
+	return &adsServer{responses: newResponseBuilder(store), store: store, updates: newADSUpdateNotifier(), logger: logger}
 }
 
 // StreamAggregatedResources 处理 Envoy ADS 的 State-of-the-World 流
@@ -81,14 +81,21 @@ func (s *adsServer) handleStreamRequest(stream discoveryv3.AggregatedDiscoverySe
 
 	response, ok, err := s.responses.Build(request)
 	if err != nil {
-		fmt.Fprintf(s.stdout, "ads response skipped type=%s error=%v\n", request.GetTypeUrl(), err)
+		s.logger.Warn("ads response skipped",
+			"type_url", request.GetTypeUrl(),
+			"err", err,
+		)
 		return nil
 	}
 	if !ok {
 		return nil
 	}
 	if state.isAcknowledged(request, response) {
-		fmt.Fprintf(s.stdout, "ads response unchanged type=%s version=%s nonce=%s\n", response.GetTypeUrl(), response.GetVersionInfo(), response.GetNonce())
+		s.logger.Debug("ads response unchanged",
+			"type_url", response.GetTypeUrl(),
+			"version", response.GetVersionInfo(),
+			"nonce", response.GetNonce(),
+		)
 		return nil
 	}
 	return s.sendResponse(stream, state, response)
@@ -99,7 +106,10 @@ func (s *adsServer) pushSubscribedResponses(stream discoveryv3.AggregatedDiscove
 		request := state.requests[typeURL]
 		response, ok, err := s.responses.Build(request)
 		if err != nil {
-			fmt.Fprintf(s.stdout, "ads push skipped type=%s error=%v\n", request.GetTypeUrl(), err)
+			s.logger.Warn("ads push skipped",
+				"type_url", request.GetTypeUrl(),
+				"err", err,
+			)
 			continue
 		}
 		if !ok || state.hasSent(response) {
@@ -117,7 +127,12 @@ func (s *adsServer) sendResponse(stream discoveryv3.AggregatedDiscoveryService_S
 		return err
 	}
 	state.record(response)
-	fmt.Fprintf(s.stdout, "ads response sent type=%s version=%s nonce=%s resources=%d\n", response.GetTypeUrl(), response.GetVersionInfo(), response.GetNonce(), len(response.GetResources()))
+	s.logger.Info("ads response sent",
+		"type_url", response.GetTypeUrl(),
+		"version", response.GetVersionInfo(),
+		"nonce", response.GetNonce(),
+		"resources", len(response.GetResources()),
+	)
 	return nil
 }
 
@@ -127,14 +142,14 @@ func (s *adsServer) logRequest(streamType string, request *discoveryv3.Discovery
 		nodeID = request.GetNode().GetId()
 	}
 
-	fmt.Fprintf(s.stdout, "ads request stream=%s node=%s type=%s version=%s nonce=%s resources=%d snapshots=%d\n",
-		streamType,
-		nodeID,
-		request.GetTypeUrl(),
-		request.GetVersionInfo(),
-		request.GetResponseNonce(),
-		len(request.GetResourceNames()),
-		s.store.Count(),
+	s.logger.Debug("ads request received",
+		"stream", streamType,
+		"node_id", nodeID,
+		"type_url", request.GetTypeUrl(),
+		"version", request.GetVersionInfo(),
+		"nonce", request.GetResponseNonce(),
+		"resources", len(request.GetResourceNames()),
+		"snapshots", s.store.Count(),
 	)
 }
 
@@ -145,25 +160,25 @@ func (s *adsServer) logAcknowledgement(request *discoveryv3.DiscoveryRequest) {
 
 	errorDetail := request.GetErrorDetail()
 	if errorDetail == nil {
-		fmt.Fprintf(s.stdout, "ads ack type=%s version=%s nonce=%s\n",
-			request.GetTypeUrl(),
-			request.GetVersionInfo(),
-			request.GetResponseNonce(),
+		s.logger.Debug("ads ack received",
+			"type_url", request.GetTypeUrl(),
+			"version", request.GetVersionInfo(),
+			"nonce", request.GetResponseNonce(),
 		)
 		return
 	}
 
-	fmt.Fprintf(s.stdout, "ads nack type=%s version=%s nonce=%s code=%d message=%q\n",
-		request.GetTypeUrl(),
-		request.GetVersionInfo(),
-		request.GetResponseNonce(),
-		errorDetail.GetCode(),
-		errorDetail.GetMessage(),
+	s.logger.Warn("ads nack received",
+		"type_url", request.GetTypeUrl(),
+		"version", request.GetVersionInfo(),
+		"nonce", request.GetResponseNonce(),
+		"code", errorDetail.GetCode(),
+		"message", errorDetail.GetMessage(),
 	)
 }
 
-func registerADSServer(grpcServer *grpc.Server, store *snapshotStore, stdout io.Writer) *adsServer {
-	server := newADSServer(store, stdout)
+func registerADSServer(grpcServer *grpc.Server, store *snapshotStore, logger *slog.Logger) *adsServer {
+	server := newADSServer(store, logger)
 	discoveryv3.RegisterAggregatedDiscoveryServiceServer(grpcServer, server)
 	return server
 }
