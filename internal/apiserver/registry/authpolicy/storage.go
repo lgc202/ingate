@@ -10,7 +10,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
 // REST 实现 AuthPolicy 资源的 apiserver RESTStorage
@@ -27,17 +27,17 @@ type StatusREST struct {
 func NewREST(optsGetter generic.RESTOptionsGetter, typer runtime.ObjectTyper) (*REST, *StatusREST, error) {
 	strategy := newStrategy(typer)
 	store := &genericregistry.Store{
-		NewFunc:                   func() runtime.Object { return &gatewayv1.AuthPolicy{} },
-		NewListFunc:               func() runtime.Object { return &gatewayv1.AuthPolicyList{} },
-		DefaultQualifiedResource:  gatewayv1.Resource(gatewayv1.ResourceAuthPolicies),
-		SingularQualifiedResource: gatewayv1.Resource(gatewayv1.ResourceAuthPolicy),
+		NewFunc:                   func() runtime.Object { return &resource.AuthPolicy{} },
+		NewListFunc:               func() runtime.Object { return &resource.AuthPolicyList{} },
+		DefaultQualifiedResource:  resource.Resource(resource.ResourceAuthPolicies),
+		SingularQualifiedResource: resource.Resource(resource.ResourceAuthPolicy),
 
 		CreateStrategy:      strategy,
 		UpdateStrategy:      strategy,
 		DeleteStrategy:      strategy,
 		ResetFieldsStrategy: strategy,
 
-		TableConvertor: rest.NewDefaultTableConvertor(gatewayv1.Resource(gatewayv1.ResourceAuthPolicies)),
+		TableConvertor: rest.NewDefaultTableConvertor(resource.Resource(resource.ResourceAuthPolicies)),
 	}
 	if err := store.CompleteWithOptions(&generic.StoreOptions{RESTOptions: optsGetter}); err != nil {
 		return nil, nil, err
@@ -53,7 +53,7 @@ func NewREST(optsGetter generic.RESTOptionsGetter, typer runtime.ObjectTyper) (*
 
 // New 创建 AuthPolicy 对象
 func (r *StatusREST) New() runtime.Object {
-	return &gatewayv1.AuthPolicy{}
+	return &resource.AuthPolicy{}
 }
 
 // Destroy 清理底层资源

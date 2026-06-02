@@ -9,8 +9,10 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
+
+const gatewayAPIVersion = "gateway.ingate.io/v1"
 
 // strategy 定义 AIRoute 资源在 apiserver 存储前后的处理规则
 type strategy struct {
@@ -36,15 +38,15 @@ func (strategy) NamespaceScoped() bool {
 
 func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayv1.SchemeGroupVersion.String()): fieldpath.NewSet(
+		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("status"),
 		),
 	}
 }
 
 func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
-	route := obj.(*gatewayv1.AIRoute)
-	route.Status = gatewayv1.ResourceStatus{}
+	route := obj.(*resource.AIRoute)
+	route.Status = resource.ResourceStatus{}
 	route.Generation = 1
 }
 
@@ -64,8 +66,8 @@ func (strategy) AllowCreateOnUpdate() bool {
 }
 
 func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	newRoute := obj.(*gatewayv1.AIRoute)
-	oldRoute := old.(*gatewayv1.AIRoute)
+	newRoute := obj.(*resource.AIRoute)
+	oldRoute := old.(*resource.AIRoute)
 
 	newRoute.Status = oldRoute.Status
 	newRoute.Generation = oldRoute.Generation
@@ -92,15 +94,15 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayv1.SchemeGroupVersion.String()): fieldpath.NewSet(
+		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("spec"),
 		),
 	}
 }
 
 func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	newRoute := obj.(*gatewayv1.AIRoute)
-	oldRoute := old.(*gatewayv1.AIRoute)
+	newRoute := obj.(*resource.AIRoute)
+	oldRoute := old.(*resource.AIRoute)
 
 	newRoute.Spec = oldRoute.Spec
 }

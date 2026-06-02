@@ -9,8 +9,10 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
+
+const gatewayAPIVersion = "gateway.ingate.io/v1"
 
 // strategy 定义 AIProvider 资源在 apiserver 存储前后的处理规则
 type strategy struct {
@@ -36,15 +38,15 @@ func (strategy) NamespaceScoped() bool {
 
 func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayv1.SchemeGroupVersion.String()): fieldpath.NewSet(
+		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("status"),
 		),
 	}
 }
 
 func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
-	provider := obj.(*gatewayv1.AIProvider)
-	provider.Status = gatewayv1.ResourceStatus{}
+	provider := obj.(*resource.AIProvider)
+	provider.Status = resource.ResourceStatus{}
 	provider.Generation = 1
 }
 
@@ -64,8 +66,8 @@ func (strategy) AllowCreateOnUpdate() bool {
 }
 
 func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	newProvider := obj.(*gatewayv1.AIProvider)
-	oldProvider := old.(*gatewayv1.AIProvider)
+	newProvider := obj.(*resource.AIProvider)
+	oldProvider := old.(*resource.AIProvider)
 
 	newProvider.Status = oldProvider.Status
 	newProvider.Generation = oldProvider.Generation
@@ -92,15 +94,15 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayv1.SchemeGroupVersion.String()): fieldpath.NewSet(
+		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("spec"),
 		),
 	}
 }
 
 func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	newProvider := obj.(*gatewayv1.AIProvider)
-	oldProvider := old.(*gatewayv1.AIProvider)
+	newProvider := obj.(*resource.AIProvider)
+	oldProvider := old.(*resource.AIProvider)
 
 	newProvider.Spec = oldProvider.Spec
 }
