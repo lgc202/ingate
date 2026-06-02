@@ -17,46 +17,18 @@ import { buildServicePayload, createServiceDraft, createServiceEndpoint, validat
 const loadServices = () => consoleRepository.listServices();
 type ServicePanelMode = 'list' | 'detail' | 'create' | 'edit';
 
-function mergeServices(baseServices: ServiceResource[], savedServices: Record<string, ServiceResource>) {
-  const merged = baseServices.map((service) => savedServices[service.id] ?? service);
-  const existingIds = new Set(merged.map((service) => service.id));
-  const created = Object.values(savedServices).filter((service) => !existingIds.has(service.id));
-
-  return [...created, ...merged];
-}
-
-function buildServiceFromPayload(payload: ReturnType<typeof buildServicePayload>, original: ServiceResource | null): ServiceResource {
-  const id = payload.id ?? payload.name;
-
-  return {
-    id,
-    version: undefined,
-    name: payload.name,
-    type: payload.type,
-    endpoint: payload.endpoint,
-    instances: payload.instances || original?.instances || '-',
-    healthStatus: original?.healthStatus ?? 'unknown',
-    runtimeStatus: 'syncing',
-    referencedRoutes: original?.referencedRoutes ?? 0,
-    traffic: original?.traffic ?? '-',
-    successRate: original?.successRate ?? '-',
-    lastUpdatedAt: '刚刚',
-    endpoints: payload.endpoints,
-  };
-}
-
 export function ServicePage() {
   const services = useResource(loadServices);
-  const [selectedServiceId, setSelectedServiceId] = useState('order-svc');
+  const [selectedServiceId, setSelectedServiceId] = useState('');
   const [panelMode, setPanelMode] = useState<ServicePanelMode>('list');
   const [query, setQuery] = useState('');
   const [healthFilter, setHealthFilter] = useState<'all' | HealthStatus>('all');
-  const [savedServices, setSavedServices] = useState<Record<string, ServiceResource>>({});
-  const [hiddenServiceIds, setHiddenServiceIds] = useState<string[]>([]);
   const [draftState, setDraftState] = useState<ServiceFormDraft | null>(null);
   const [serverValidation, setServerValidation] = useState<ServiceValidationReport | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<ServiceResource | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (services.loading) {
     return (
@@ -74,8 +46,7 @@ export function ServicePage() {
     );
   }
 
-  const allServices = mergeServices(services.data.services, savedServices);
-  const availableServices = allServices.filter((service) => !hiddenServiceIds.includes(service.id));
+  const availableServices = services.data.services;
   const selectedService = availableServices.find((service) => service.id === selectedServiceId) ?? availableServices[0] ?? null;
   const visibleServices = availableServices.filter((service) => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -95,6 +66,7 @@ export function ServicePage() {
     setDraftState(createServiceDraft(null));
     setServerValidation(null);
     setNotice(null);
+    setSubmitting(false);
   };
 
   const openEdit = (service: ServiceResource) => {
@@ -103,6 +75,7 @@ export function ServicePage() {
     setDraftState(createServiceDraft(service));
     setServerValidation(null);
     setNotice(null);
+    setSubmitting(false);
   };
 
   const deleteService = (service: ServiceResource) => {
@@ -118,15 +91,17 @@ export function ServicePage() {
       return;
     }
 
+    setDeleting(true);
     try {
       await consoleRepository.deleteService(deleteCandidate.id);
+      await services.reload();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '删除服务失败');
       setDeleteCandidate(null);
+      setDeleting(false);
       return;
     }
 
-    setHiddenServiceIds((ids) => [...ids, deleteCandidate.id]);
     setSelectedServiceId((current) => {
       if (current !== deleteCandidate.id) {
         return current;
@@ -136,6 +111,7 @@ export function ServicePage() {
     });
     setNotice(`已删除服务：${deleteCandidate.name}`);
     setDeleteCandidate(null);
+    setDeleting(false);
   };
 
   const updateDraft = (patch: Partial<ServiceFormDraft>) => {
@@ -151,21 +127,18 @@ export function ServicePage() {
       return;
     }
 
+    setSubmitting(true);
     try {
-      await consoleRepository.saveServiceDraft(payload);
+      const result = await consoleRepository.saveServiceDraft(payload);
+      await services.reload();
+      setSelectedServiceId(payload.id ?? payload.name);
+      setNotice(result.message);
+      setPanelMode('list');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '保存服务失败');
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    const originalService = panelMode === 'edit' ? selectedService : null;
-    const savedService = buildServiceFromPayload(payload, originalService);
-
-    setSavedServices((current) => ({ ...current, [savedService.id]: savedService }));
-    setHiddenServiceIds((ids) => ids.filter((id) => id !== savedService.id));
-    setSelectedServiceId(savedService.id);
-    setNotice(`服务已保存：${payload.name}`);
-    setPanelMode('list');
   };
 
   if (panelMode === 'detail') {
@@ -182,23 +155,38 @@ export function ServicePage() {
     );
   }
 
+  const closeEditor = () => {
+    setPanelMode('list');
+    setDraftState(null);
+    setServerValidation(null);
+    setSubmitting(false);
+  };
+
   if (panelMode !== 'list') {
     return (
       <PageFrame
         title={panelMode === 'create' ? '新建服务' : '编辑服务'}
-        subtitle="配置路由可代理的后端服务和健康检查"
-        actions={<Button variant="soft" onClick={() => setPanelMode('list')}>返回列表</Button>}
+        subtitle={panelMode === 'create' ? '创建路由可以选择的后端服务' : '调整服务端点、负载均衡和健康检查'}
+        actions={<Button variant="soft" onClick={closeEditor} disabled={submitting}>返回列表</Button>}
       >
         <section className="editor-layout">
           <ServiceFormPanel
             mode={panelMode}
             draft={draft}
             validation={activeValidation}
+            submitting={submitting}
             onDraftChange={updateDraft}
             onSubmit={handleServiceSubmit}
-            onCancel={() => setPanelMode('list')}
+            onCancel={closeEditor}
           />
         </section>
+        {notice ? (
+          <div className="page-notice" role="status">
+            <span />
+            {notice}
+            <button type="button" onClick={() => setNotice(null)} aria-label="关闭提示">×</button>
+          </div>
+        ) : null}
       </PageFrame>
     );
   }
@@ -309,7 +297,11 @@ export function ServicePage() {
           </div>
         ) : null}
         {deleteCandidate ? (
-          <div className="confirm-overlay" role="presentation" onMouseDown={() => setDeleteCandidate(null)}>
+          <div className="confirm-overlay" role="presentation" onMouseDown={() => {
+            if (!deleting) {
+              setDeleteCandidate(null);
+            }
+          }}>
             <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-service-title" onMouseDown={(event) => event.stopPropagation()}>
               <h3 id="delete-service-title">删除服务</h3>
               <p>确定删除 {deleteCandidate.name}？删除后引用该服务的路由将无法选择它作为目标。</p>
@@ -318,8 +310,8 @@ export function ServicePage() {
                 <span>关联路由</span><strong>{deleteCandidate.referencedRoutes} 条</strong>
               </div>
               <div className="confirm-actions">
-                <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button>
-                <Button variant="primary" onClick={confirmDeleteService}>确认删除</Button>
+                <Button variant="ghost" onClick={() => setDeleteCandidate(null)} disabled={deleting}>取消</Button>
+                <Button variant="primary" onClick={confirmDeleteService} disabled={deleting}>{deleting ? '删除中...' : '确认删除'}</Button>
               </div>
             </div>
           </div>
@@ -332,6 +324,7 @@ function ServiceFormPanel({
   mode,
   draft,
   validation,
+  submitting,
   onDraftChange,
   onSubmit,
   onCancel,
@@ -339,6 +332,7 @@ function ServiceFormPanel({
   mode: ServicePanelMode;
   draft: ServiceFormDraft;
   validation: ServiceValidationReport;
+  submitting: boolean;
   onDraftChange: (patch: Partial<ServiceFormDraft>) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -346,7 +340,7 @@ function ServiceFormPanel({
   const fieldErrors = serviceFieldErrors(validation);
 
   return (
-    <Panel title={mode === 'create' ? '新建服务' : '编辑服务'} subtitle={draft.name}>
+    <Panel title={mode === 'create' ? '新建服务' : '编辑服务'} subtitle={mode === 'create' ? '填写基础信息和服务端点' : draft.name}>
       <div className="editor-grid form-only">
         <div className="editor-main-stack">
           <section className="form-section">
@@ -355,7 +349,7 @@ function ServiceFormPanel({
               <p>服务是路由的目标对象，可以是应用、模型、Agent 或 MCP 服务。</p>
             </div>
             <div className="field-grid">
-              <InputField label="服务名称" value={draft.name} error={fieldErrors.name} onChange={(value) => onDraftChange({ name: value })} />
+              <InputField label="服务名称" value={draft.name} error={fieldErrors.name} disabled={mode === 'edit'} onChange={(value) => onDraftChange({ name: value })} />
               <SelectField
                 label="服务类型"
                 value={draft.type}
@@ -397,8 +391,8 @@ function ServiceFormPanel({
           </section>
         </div>
         <div className="form-actions">
-          <Button variant="primary" disabled={!validation.valid} onClick={onSubmit}>保存服务</Button>
-          <Button variant="ghost" onClick={onCancel}>取消</Button>
+          <Button variant="primary" disabled={!validation.valid || submitting} onClick={onSubmit}>{submitting ? '保存中...' : '保存服务'}</Button>
+          <Button variant="ghost" disabled={submitting} onClick={onCancel}>取消</Button>
         </div>
       </div>
     </Panel>
@@ -525,11 +519,23 @@ function HealthCheckEditor({
   );
 }
 
-function InputField({ label, value, error, onChange }: { label: string; value: string; error?: string; onChange: (value: string) => void }) {
+function InputField({
+  label,
+  value,
+  error,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  error?: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+}) {
   return (
     <div className={`field ${error ? 'invalid' : ''}`.trim()}>
       <label>{label}</label>
-      <input value={value} onChange={(event) => onChange(event.target.value)} />
+      <input value={value} disabled={disabled} onChange={(event) => onChange(event.target.value)} />
       {error ? <div className="form-error">{error}</div> : null}
     </div>
   );

@@ -26,7 +26,7 @@ export function createServiceDraft(service?: ServiceResource | null): ServiceFor
   return {
     id: service?.id,
     version: service?.version,
-    name: service?.name ?? 'new-service',
+    name: service?.name ?? '',
     type: service?.type ?? 'application',
     endpoints: createEndpointsFromService(service),
     loadBalancePolicy: 'round_robin',
@@ -129,7 +129,7 @@ export function formatInstanceSummary(endpoints: ServiceEndpointPayload[]) {
 
 function createEndpointsFromService(service?: ServiceResource | null): ServiceEndpointPayload[] {
   if (!service) {
-    return [{ ...createServiceEndpoint(), address: 'new-service.cluster.local' }];
+    return [createServiceEndpoint()];
   }
 
   if (service.endpoints && service.endpoints.length > 0) {
