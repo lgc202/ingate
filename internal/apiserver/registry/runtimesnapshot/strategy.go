@@ -9,7 +9,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
 // strategy 定义 RuntimeSnapshot 资源在 apiserver 存储前后的处理规则
@@ -34,7 +34,7 @@ func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 }
 
 func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
-	snapshot := obj.(*gatewayv1.RuntimeSnapshot)
+	snapshot := obj.(*resource.RuntimeSnapshot)
 	snapshot.Generation = 1
 }
 
@@ -54,8 +54,8 @@ func (strategy) AllowCreateOnUpdate() bool {
 }
 
 func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	newSnapshot := obj.(*gatewayv1.RuntimeSnapshot)
-	oldSnapshot := old.(*gatewayv1.RuntimeSnapshot)
+	newSnapshot := obj.(*resource.RuntimeSnapshot)
+	oldSnapshot := old.(*resource.RuntimeSnapshot)
 
 	newSnapshot.Generation = oldSnapshot.Generation
 	if !apiequality.Semantic.DeepEqual(oldSnapshot.Spec, newSnapshot.Spec) {

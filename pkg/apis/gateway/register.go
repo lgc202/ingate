@@ -1,7 +1,6 @@
-package v1
+package gateway
 
 import (
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
@@ -9,8 +8,6 @@ import (
 const (
 	// GroupName 表示 Ingate API 资源组名
 	GroupName = "gateway.ingate.io"
-	// Version 表示 Ingate API 版本
-	Version = "v1"
 )
 
 // ResourceName 表示 gateway.ingate.io 下的资源名
@@ -95,20 +92,14 @@ const (
 	ResourcePolicyBindingsStatus ResourceName = "policybindings/status"
 )
 
-// SchemeGroupVersion 表示 Ingate API 组版本
-var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: Version}
+// SchemeGroupVersion 表示 Ingate API internal 组版本
+var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: runtime.APIVersionInternal}
 
-// SchemeBuilder 注册 Ingate API 类型
-var SchemeBuilder runtime.SchemeBuilder
+// SchemeBuilder 注册 Ingate internal API 类型
+var SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 
-var localSchemeBuilder = &SchemeBuilder
-
-// AddToScheme 将 Ingate API 类型注册到 Scheme
-var AddToScheme = localSchemeBuilder.AddToScheme
-
-func init() {
-	localSchemeBuilder.Register(addKnownTypes, addConversionFuncs)
-}
+// AddToScheme 将 Ingate internal API 类型注册到 Scheme
+var AddToScheme = SchemeBuilder.AddToScheme
 
 // Resource 返回 gateway.ingate.io 资源名
 func Resource(name ResourceName) schema.GroupResource {
@@ -144,6 +135,5 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RuntimeSnapshot{},
 		&RuntimeSnapshotList{},
 	)
-	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
 }

@@ -6,7 +6,7 @@ import (
 	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
 // REST 实现 RuntimeSnapshot 资源的 apiserver RESTStorage
@@ -18,17 +18,17 @@ type REST struct {
 func NewREST(optsGetter generic.RESTOptionsGetter, typer runtime.ObjectTyper) (*REST, error) {
 	strategy := newStrategy(typer)
 	store := &genericregistry.Store{
-		NewFunc:                   func() runtime.Object { return &gatewayv1.RuntimeSnapshot{} },
-		NewListFunc:               func() runtime.Object { return &gatewayv1.RuntimeSnapshotList{} },
-		DefaultQualifiedResource:  gatewayv1.Resource(gatewayv1.ResourceRuntimeSnapshots),
-		SingularQualifiedResource: gatewayv1.Resource(gatewayv1.ResourceRuntimeSnapshot),
+		NewFunc:                   func() runtime.Object { return &resource.RuntimeSnapshot{} },
+		NewListFunc:               func() runtime.Object { return &resource.RuntimeSnapshotList{} },
+		DefaultQualifiedResource:  resource.Resource(resource.ResourceRuntimeSnapshots),
+		SingularQualifiedResource: resource.Resource(resource.ResourceRuntimeSnapshot),
 
 		CreateStrategy:      strategy,
 		UpdateStrategy:      strategy,
 		DeleteStrategy:      strategy,
 		ResetFieldsStrategy: strategy,
 
-		TableConvertor: rest.NewDefaultTableConvertor(gatewayv1.Resource(gatewayv1.ResourceRuntimeSnapshots)),
+		TableConvertor: rest.NewDefaultTableConvertor(resource.Resource(resource.ResourceRuntimeSnapshots)),
 	}
 	if err := store.CompleteWithOptions(&generic.StoreOptions{RESTOptions: optsGetter}); err != nil {
 		return nil, err

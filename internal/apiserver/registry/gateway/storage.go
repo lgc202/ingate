@@ -10,7 +10,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
 // REST 实现 Gateway 资源的 apiserver RESTStorage
@@ -27,17 +27,17 @@ type StatusREST struct {
 func NewREST(optsGetter generic.RESTOptionsGetter, typer runtime.ObjectTyper) (*REST, *StatusREST, error) {
 	strategy := newStrategy(typer)
 	store := &genericregistry.Store{
-		NewFunc:                   func() runtime.Object { return &gatewayv1.Gateway{} },
-		NewListFunc:               func() runtime.Object { return &gatewayv1.GatewayList{} },
-		DefaultQualifiedResource:  gatewayv1.Resource(gatewayv1.ResourceGateways),
-		SingularQualifiedResource: gatewayv1.Resource(gatewayv1.ResourceGateway),
+		NewFunc:                   func() runtime.Object { return &resource.Gateway{} },
+		NewListFunc:               func() runtime.Object { return &resource.GatewayList{} },
+		DefaultQualifiedResource:  resource.Resource(resource.ResourceGateways),
+		SingularQualifiedResource: resource.Resource(resource.ResourceGateway),
 
 		CreateStrategy:      strategy,
 		UpdateStrategy:      strategy,
 		DeleteStrategy:      strategy,
 		ResetFieldsStrategy: strategy,
 
-		TableConvertor: rest.NewDefaultTableConvertor(gatewayv1.Resource(gatewayv1.ResourceGateways)),
+		TableConvertor: rest.NewDefaultTableConvertor(resource.Resource(resource.ResourceGateways)),
 	}
 	if err := store.CompleteWithOptions(&generic.StoreOptions{RESTOptions: optsGetter}); err != nil {
 		return nil, nil, err
@@ -53,7 +53,7 @@ func NewREST(optsGetter generic.RESTOptionsGetter, typer runtime.ObjectTyper) (*
 
 // New 创建 Gateway 对象
 func (r *StatusREST) New() runtime.Object {
-	return &gatewayv1.Gateway{}
+	return &resource.Gateway{}
 }
 
 // Destroy 清理底层资源

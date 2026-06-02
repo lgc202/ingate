@@ -9,8 +9,10 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
+
+const gatewayAPIVersion = "gateway.ingate.io/v1"
 
 // strategy 定义 Upstream 资源在 apiserver 存储前后的处理规则
 type strategy struct {
@@ -36,15 +38,15 @@ func (strategy) NamespaceScoped() bool {
 
 func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayv1.SchemeGroupVersion.String()): fieldpath.NewSet(
+		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("status"),
 		),
 	}
 }
 
 func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
-	upstream := obj.(*gatewayv1.Upstream)
-	upstream.Status = gatewayv1.ResourceStatus{}
+	upstream := obj.(*resource.Upstream)
+	upstream.Status = resource.ResourceStatus{}
 	upstream.Generation = 1
 }
 
@@ -64,8 +66,8 @@ func (strategy) AllowCreateOnUpdate() bool {
 }
 
 func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	newUpstream := obj.(*gatewayv1.Upstream)
-	oldUpstream := old.(*gatewayv1.Upstream)
+	newUpstream := obj.(*resource.Upstream)
+	oldUpstream := old.(*resource.Upstream)
 
 	newUpstream.Status = oldUpstream.Status
 	newUpstream.Generation = oldUpstream.Generation
@@ -92,15 +94,15 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayv1.SchemeGroupVersion.String()): fieldpath.NewSet(
+		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("spec"),
 		),
 	}
 }
 
 func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
-	newUpstream := obj.(*gatewayv1.Upstream)
-	oldUpstream := old.(*gatewayv1.Upstream)
+	newUpstream := obj.(*resource.Upstream)
+	oldUpstream := old.(*resource.Upstream)
 
 	newUpstream.Spec = oldUpstream.Spec
 }
