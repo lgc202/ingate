@@ -36,21 +36,23 @@ func FromRouteResult(result *routeservice.RouteResult) *Route {
 
 func routeFromResource(route *resource.Route) Route {
 	rule := firstRule(route)
+	policyBindings := policyBindings(route.Annotations)
 
 	return Route{
-		ID:            route.Name,
-		Version:       route.ResourceVersion,
-		Methods:       methods(rule.Methods),
-		Path:          rule.PathPrefix,
-		GatewayNames:  route.Spec.ParentRefs,
-		Hostnames:     route.Spec.Hostnames,
-		ServiceName:   firstUpstreamName(rule),
-		PolicyCount:   policyCount(route.Annotations),
-		Traffic:       "-",
-		SuccessRate:   "-",
-		Enabled:       enabled(route.Annotations),
-		RuntimeStatus: runtimeStatus(),
-		LastChangedAt: lastChangedAt(route.ObjectMeta),
+		ID:             route.Name,
+		Version:        route.ResourceVersion,
+		Methods:        methods(rule.Methods),
+		Path:           rule.PathPrefix,
+		GatewayNames:   route.Spec.ParentRefs,
+		Hostnames:      route.Spec.Hostnames,
+		ServiceName:    firstUpstreamName(rule),
+		PolicyCount:    len(policyBindings),
+		PolicyBindings: policyBindings,
+		Traffic:        "-",
+		SuccessRate:    "-",
+		Enabled:        enabled(route.Annotations),
+		RuntimeStatus:  runtimeStatus(),
+		LastChangedAt:  lastChangedAt(route.ObjectMeta),
 	}
 }
 
@@ -139,16 +141,16 @@ func firstUpstreamName(rule resource.RouteRule) string {
 	return rule.UpstreamRefs[0].Name
 }
 
-func policyCount(annotations map[string]string) int {
+func policyBindings(annotations map[string]string) []PolicyBindingRequest {
 	value := annotation(annotations, resource.AnnotationRoutePolicyBindings)
 	if value == "" {
-		return 0
+		return []PolicyBindingRequest{}
 	}
 	items := []PolicyBindingRequest{}
 	if err := json.Unmarshal([]byte(value), &items); err != nil {
-		return 0
+		return []PolicyBindingRequest{}
 	}
-	return len(items)
+	return items
 }
 
 func enabled(annotations map[string]string) bool {

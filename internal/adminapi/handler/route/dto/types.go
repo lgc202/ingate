@@ -26,19 +26,20 @@ type WorkspaceResponse struct {
 
 // Route 是 admin-api 面向控制台返回的路由对象，不直接暴露 CR 结构
 type Route struct {
-	ID            string       `json:"id"`
-	Version       string       `json:"version,omitempty"`
-	Methods       []HTTPMethod `json:"methods"`
-	Path          string       `json:"path"`
-	GatewayNames  []string     `json:"gatewayNames"`
-	Hostnames     []string     `json:"hostnames"`
-	ServiceName   string       `json:"serviceName"`
-	PolicyCount   int          `json:"policyCount"`
-	Traffic       string       `json:"traffic"`
-	SuccessRate   string       `json:"successRate"`
-	Enabled       bool         `json:"enabled"`
-	RuntimeStatus string       `json:"runtimeStatus"`
-	LastChangedAt string       `json:"lastChangedAt"`
+	ID             string                 `json:"id"`
+	Version        string                 `json:"version,omitempty"`
+	Methods        []HTTPMethod           `json:"methods"`
+	Path           string                 `json:"path"`
+	GatewayNames   []string               `json:"gatewayNames"`
+	Hostnames      []string               `json:"hostnames"`
+	ServiceName    string                 `json:"serviceName"`
+	PolicyCount    int                    `json:"policyCount"`
+	PolicyBindings []PolicyBindingRequest `json:"policyBindings,omitempty"`
+	Traffic        string                 `json:"traffic"`
+	SuccessRate    string                 `json:"successRate"`
+	Enabled        bool                   `json:"enabled"`
+	RuntimeStatus  string                 `json:"runtimeStatus"`
+	LastChangedAt  string                 `json:"lastChangedAt"`
 }
 
 // Composer 是创建或编辑路由所需的候选数据

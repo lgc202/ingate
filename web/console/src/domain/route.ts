@@ -11,6 +11,7 @@ export interface RouteResource {
   hostnames: string[];
   serviceName: string;
   policyCount: number;
+  policyBindings?: RoutePolicyBindingPayload[];
   traffic: string;
   successRate: string;
   enabled: boolean;
