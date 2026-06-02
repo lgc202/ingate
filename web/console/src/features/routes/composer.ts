@@ -15,6 +15,7 @@ export interface RouteComposerDraft {
   gatewayNames: string[];
   hostnames: string[];
   serviceName: string;
+  enabled: boolean;
   rateLimit: string;
   timeout: string;
   selectedTargetName: string;
@@ -31,6 +32,7 @@ export function createRouteComposerDraft(template: RouteComposerPreview): RouteC
     gatewayNames: template.gatewayNames,
     hostnames: normalizeHostnames(template.hostnames),
     serviceName: template.serviceName,
+    enabled: true,
     rateLimit: template.rateLimit,
     timeout: '30s',
     selectedTargetName: template.serviceName,
@@ -105,7 +107,7 @@ export function buildRoutePublishPayload(draft: RouteComposerDraft): RoutePublis
     gatewayNames: draft.gatewayNames,
     hostnames: normalizeHostnames(draft.hostnames),
     serviceName: draft.serviceName,
-    enabled: true,
+    enabled: draft.enabled,
     policyBindings: draft.enabledPolicyNames.map((policyName) => ({
       policyName,
       source: 'route',

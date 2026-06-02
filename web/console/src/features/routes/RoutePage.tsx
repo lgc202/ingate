@@ -40,51 +40,23 @@ const emptyRouteFilters: RouteFilters = {
   enabled: 'all',
 };
 
-function mergeRoutes(baseRoutes: RouteResource[], savedRoutes: Record<string, RouteResource>) {
-  const merged = baseRoutes.map((route) => savedRoutes[route.id] ?? route);
-  const existingIds = new Set(merged.map((route) => route.id));
-  const created = Object.values(savedRoutes).filter((route) => !existingIds.has(route.id));
-
-  return [...created, ...merged];
-}
-
-function buildRouteFromDraft(payload: ReturnType<typeof buildRoutePublishPayload>, original: RouteResource | null): RouteResource {
-  const id = payload.id ?? `${payload.serviceName}-${payload.path.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').toLowerCase() || 'root'}`;
-
-  return {
-    id,
-    version: undefined,
-    methods: payload.methods,
-    path: payload.path || '/',
-    gatewayNames: payload.gatewayNames,
-    hostnames: payload.hostnames,
-    serviceName: payload.serviceName,
-    policyCount: payload.policyBindings.length,
-    traffic: original?.traffic ?? '-',
-    successRate: original?.successRate ?? '-',
-    enabled: original?.enabled ?? payload.enabled,
-    runtimeStatus: 'syncing',
-    lastChangedAt: '刚刚',
-  };
-}
-
 const httpMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
 export function RoutePage() {
   const [mode, setMode] = useState<'list' | 'detail' | 'composer'>('list');
   const [step, setStep] = useState(1);
   const [tab, setTab] = useState('overview');
-  const [selectedRouteId, setSelectedRouteId] = useState('orders-create');
+  const [selectedRouteId, setSelectedRouteId] = useState('');
   const [filterDraft, setFilterDraft] = useState<RouteFilters>(emptyRouteFilters);
   const [filters, setFilters] = useState<RouteFilters>(emptyRouteFilters);
-  const [savedRoutes, setSavedRoutes] = useState<Record<string, RouteResource>>({});
-  const [hiddenRouteIds, setHiddenRouteIds] = useState<string[]>([]);
-  const [enabledOverrides, setEnabledOverrides] = useState<Record<string, boolean>>({});
   const [draftState, setDraftState] = useState<RouteComposerDraft | null>(null);
   const [serverValidation, setServerValidation] = useState<RouteValidationReport | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<RouteResource | null>(null);
   const [disableCandidate, setDisableCandidate] = useState<RouteResource | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [toggling, setToggling] = useState(false);
   const workspace = useResource(loadRouteWorkspace);
 
   if (workspace.loading) {
@@ -104,13 +76,12 @@ export function RoutePage() {
   }
 
   const routeWorkspace = workspace.data;
-  const allRoutes = mergeRoutes(routeWorkspace.routes, savedRoutes);
-  const availableRoutes = allRoutes.filter((route) => !hiddenRouteIds.includes(route.id));
+  const availableRoutes = routeWorkspace.routes;
   const selectedRoute = availableRoutes.find((route) => route.id === selectedRouteId) ?? availableRoutes[0];
-  const routeEnabled = (route: RouteResource) => enabledOverrides[route.id] ?? route.enabled;
+  const routeEnabled = (route: RouteResource) => route.enabled;
   const selectedRouteView = selectedRoute ? { ...selectedRoute, enabled: routeEnabled(selectedRoute) } : undefined;
   const gatewayOptions = Array.from(new Set([...routeWorkspace.composer.gatewayNames, ...availableRoutes.flatMap((route) => route.gatewayNames)])).sort();
-  const serviceOptions = Array.from(new Set(availableRoutes.map((route) => route.serviceName))).sort();
+  const serviceOptions = Array.from(new Set([...routeWorkspace.composer.targets.map((target) => target.name), ...availableRoutes.map((route) => route.serviceName)])).sort();
   const visibleRoutes = availableRoutes.filter((route) => {
     const keyword = filters.keyword.trim().toLowerCase();
     const matchedKeyword = !keyword || [route.path, route.serviceName, ...route.gatewayNames, ...route.hostnames].some((value) => value.toLowerCase().includes(keyword));
@@ -145,6 +116,8 @@ export function RoutePage() {
     setStep(1);
     setDraftState(createRouteComposerDraft(routeWorkspace.composer));
     setServerValidation(null);
+    setNotice(null);
+    setSubmitting(false);
   };
 
   const openEdit = (route: RouteResource) => {
@@ -160,9 +133,14 @@ export function RoutePage() {
       gatewayNames: route.gatewayNames,
       hostnames: route.hostnames,
       serviceName: route.serviceName,
+      enabled: route.enabled,
       selectedTargetName: route.serviceName,
+      enabledPolicyNames: route.policyBindings?.map((binding) => binding.policyName) ?? [],
+      policySettings: policySettingsFromBindings(route.policyBindings ?? []),
     });
     setServerValidation(null);
+    setNotice(null);
+    setSubmitting(false);
   };
 
   const deleteRoute = (route: RouteResource) => {
@@ -174,15 +152,17 @@ export function RoutePage() {
       return;
     }
 
+    setDeleting(true);
     try {
       await consoleRepository.deleteRoute(deleteCandidate.id);
+      await workspace.reload();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '删除路由失败');
       setDeleteCandidate(null);
+      setDeleting(false);
       return;
     }
 
-    setHiddenRouteIds((ids) => [...ids, deleteCandidate.id]);
     setSelectedRouteId((current) => {
       if (current !== deleteCandidate.id) {
         return current;
@@ -192,6 +172,7 @@ export function RoutePage() {
     });
     setNotice(`已删除路由：${formatRouteMatch(deleteCandidate)}`);
     setDeleteCandidate(null);
+    setDeleting(false);
   };
 
   const toggleRouteEnabled = async (route: RouteResource) => {
@@ -200,15 +181,18 @@ export function RoutePage() {
       return;
     }
 
+    setToggling(true);
     try {
       await consoleRepository.setRouteEnabled(route.id, true);
+      await workspace.reload();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '启用路由失败');
+      setToggling(false);
       return;
     }
 
-    setEnabledOverrides((current) => ({ ...current, [route.id]: true }));
     setNotice(`已启用路由：${formatRouteMatch(route)}`);
+    setToggling(false);
   };
 
   const confirmDisableRoute = async () => {
@@ -216,17 +200,20 @@ export function RoutePage() {
       return;
     }
 
+    setToggling(true);
     try {
       await consoleRepository.setRouteEnabled(disableCandidate.id, false);
+      await workspace.reload();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '停用路由失败');
       setDisableCandidate(null);
+      setToggling(false);
       return;
     }
 
-    setEnabledOverrides((current) => ({ ...current, [disableCandidate.id]: false }));
     setNotice(`已停用路由：${formatRouteMatch(disableCandidate)}`);
     setDisableCandidate(null);
+    setToggling(false);
   };
 
   const saveRoute = async () => {
@@ -237,21 +224,18 @@ export function RoutePage() {
       return;
     }
 
+    setSubmitting(true);
     try {
-      await consoleRepository.saveRouteDraft(publishPayload);
+      const result = await consoleRepository.saveRouteDraft(publishPayload);
+      await workspace.reload();
+      setSelectedRouteId(routeIdFromPayload(publishPayload));
+      setNotice(result.message);
+      setMode('list');
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '保存路由失败');
-      return;
+    } finally {
+      setSubmitting(false);
     }
-
-    const originalRoute = draft.id ? selectedRouteView ?? null : null;
-    const savedRoute = buildRouteFromDraft(publishPayload, originalRoute);
-
-    setSavedRoutes((current) => ({ ...current, [savedRoute.id]: savedRoute }));
-    setHiddenRouteIds((ids) => ids.filter((id) => id !== savedRoute.id));
-    setSelectedRouteId(savedRoute.id);
-    setNotice(`路由已保存：${formatRouteMatch(savedRoute)}`);
-    setMode('list');
   };
 
   if (mode === 'detail') {
@@ -283,7 +267,7 @@ export function RoutePage() {
           ? (
             <Button variant="primary" onClick={openCreate}>新建路由</Button>
           )
-          : <Button variant="soft" onClick={() => setMode('list')}>返回列表</Button>
+          : <Button variant="soft" disabled={submitting} onClick={() => setMode('list')}>返回列表</Button>
       }
     >
       {mode === 'composer' ? (
@@ -294,7 +278,7 @@ export function RoutePage() {
               <p>配置请求匹配条件、目标服务和路由级策略参数；保存后系统自动生效。</p>
             </div>
             <div className="toolbar">
-              <Button variant="primary" disabled={!activeValidation.valid} onClick={saveRoute}>保存路由</Button>
+              <Button variant="primary" disabled={!activeValidation.valid || submitting} onClick={saveRoute}>{submitting ? '保存中...' : '保存路由'}</Button>
             </div>
           </div>
           <RouteStepRail step={step} setStep={setStep} />
@@ -310,13 +294,13 @@ export function RoutePage() {
             />
           </div>
           <div className="route-workbench-actions">
-            <Button variant="ghost" onClick={() => setMode('list')}>取消</Button>
+            <Button variant="ghost" disabled={submitting} onClick={() => setMode('list')}>取消</Button>
             <div className="toolbar">
-              <Button variant="soft" disabled={step === 1} onClick={() => setStep(Math.max(1, step - 1))}>上一步</Button>
+              <Button variant="soft" disabled={step === 1 || submitting} onClick={() => setStep(Math.max(1, step - 1))}>上一步</Button>
               {step < steps.length ? (
-                <Button variant="primary" onClick={() => setStep(Math.min(steps.length, step + 1))}>下一步</Button>
+                <Button variant="primary" disabled={submitting} onClick={() => setStep(Math.min(steps.length, step + 1))}>下一步</Button>
               ) : (
-                <Button variant="primary" disabled={!activeValidation.valid} onClick={saveRoute}>保存路由</Button>
+                <Button variant="primary" disabled={!activeValidation.valid || submitting} onClick={saveRoute}>{submitting ? '保存中...' : '保存路由'}</Button>
               )}
             </div>
           </div>
@@ -369,6 +353,7 @@ export function RoutePage() {
               selectedRouteView?.id,
               routeEnabled,
               toggleRouteEnabled,
+              toggling,
               setSelectedRouteId,
               (route) => {
                 setSelectedRouteId(route.id);
@@ -394,7 +379,11 @@ export function RoutePage() {
             </div>
           ) : null}
           {deleteCandidate ? (
-            <div className="confirm-overlay" role="presentation" onMouseDown={() => setDeleteCandidate(null)}>
+            <div className="confirm-overlay" role="presentation" onMouseDown={() => {
+              if (!deleting) {
+                setDeleteCandidate(null);
+              }
+            }}>
               <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-route-title" onMouseDown={(event) => event.stopPropagation()}>
                 <h3 id="delete-route-title">删除路由</h3>
                 <p>确定删除 {formatRouteMatch(deleteCandidate)}？删除后这条匹配规则不会再进入目标服务。</p>
@@ -403,14 +392,18 @@ export function RoutePage() {
                   <span>目标服务</span><strong>{deleteCandidate.serviceName}</strong>
                 </div>
                 <div className="confirm-actions">
-                  <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button>
-                  <Button variant="primary" onClick={confirmDeleteRoute}>确认删除</Button>
+                  <Button variant="ghost" disabled={deleting} onClick={() => setDeleteCandidate(null)}>取消</Button>
+                  <Button variant="primary" disabled={deleting} onClick={confirmDeleteRoute}>{deleting ? '删除中...' : '确认删除'}</Button>
                 </div>
               </div>
             </div>
           ) : null}
           {disableCandidate ? (
-            <div className="confirm-overlay" role="presentation" onMouseDown={() => setDisableCandidate(null)}>
+            <div className="confirm-overlay" role="presentation" onMouseDown={() => {
+              if (!toggling) {
+                setDisableCandidate(null);
+              }
+            }}>
               <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="disable-route-title" onMouseDown={(event) => event.stopPropagation()}>
                 <h3 id="disable-route-title">停用路由</h3>
                 <p>停用 {formatRouteMatch(disableCandidate)} 后，命中该规则的请求将不再转发到目标服务。</p>
@@ -419,8 +412,8 @@ export function RoutePage() {
                   <span>目标服务</span><strong>{disableCandidate.serviceName}</strong>
                 </div>
                 <div className="confirm-actions">
-                  <Button variant="ghost" onClick={() => setDisableCandidate(null)}>取消</Button>
-                  <Button variant="primary" onClick={confirmDisableRoute}>确认停用</Button>
+                  <Button variant="ghost" disabled={toggling} onClick={() => setDisableCandidate(null)}>取消</Button>
+                  <Button variant="primary" disabled={toggling} onClick={confirmDisableRoute}>{toggling ? '停用中...' : '确认停用'}</Button>
                 </div>
               </div>
             </div>
@@ -482,6 +475,7 @@ function renderRouteTable(
   selectedRouteId: string | undefined,
   routeEnabled: (route: RouteResource) => boolean,
   onToggleEnabled: (route: RouteResource) => void,
+  toggling: boolean,
   onSelect: (id: string) => void,
   onDetail: (route: RouteResource) => void,
   onEdit: (route: RouteResource) => void,
@@ -526,6 +520,7 @@ function renderRouteTable(
                     className="gateway-switch"
                     type="button"
                     role="switch"
+                    disabled={toggling}
                     aria-checked={routeEnabled(route)}
                     aria-label={`${formatRouteMatch(route)} ${routeEnabled(route) ? '已启用' : '已停用'}`}
                     onClick={(event) => {
@@ -916,6 +911,33 @@ function formatRouteMatch(route: Pick<RouteResource, 'methods' | 'path'>) {
   return `${formatMethods(route.methods)} ${route.path}`;
 }
 
+function routeIdFromPayload(payload: ReturnType<typeof buildRoutePublishPayload>) {
+  if (payload.id) {
+    return payload.id;
+  }
+
+  const method = payload.methods[0] ?? 'any';
+  const value = `${payload.serviceName}-${method}-${payload.path}`
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 63)
+    .replace(/-+$/g, '');
+
+  return value || 'route';
+}
+
+function policySettingsFromBindings(bindings: NonNullable<RouteResource['policyBindings']>): RouteComposerDraft['policySettings'] {
+  return Object.fromEntries(bindings.map((binding) => [
+    binding.policyName,
+    Object.fromEntries(Object.entries(binding.parameters).map(([key, value]) => [
+      key,
+      Array.isArray(value) ? value.map(String).join(',') : String(value),
+    ])),
+  ]));
+}
+
 function RoutePolicyBindings({
   policies,
   selectedTarget,
@@ -948,10 +970,7 @@ function RoutePolicyBindings({
   const selectedSettings = selectedPolicy ? settings[selectedPolicy.name] ?? {} : {};
   const selectedPolicyErrors = selectedPolicy ? validatePolicySettings(selectedPolicy, selectedSettings) : {};
   const selectedPolicyValid = Object.keys(selectedPolicyErrors).length === 0;
-  const inheritedRows = [
-    { source: '网关', name: 'JWT 认证', type: '访问控制', summary: 'Authorization · 继承自 gw-prod', status: '启用' },
-    { source: '全局', name: '访问日志采集', type: '观测', summary: '采集请求日志和响应状态', status: '启用' },
-  ];
+  const inheritedRows: { source: string; name: string; summary: string; status: string }[] = [];
   const currentRows = enabledPolicyNames
     .map((policyName) => policies.find((policy) => policy.name === policyName))
     .filter((policy): policy is RouteComposerPreview['policies'][number] => Boolean(policy));
@@ -1013,22 +1032,24 @@ function RoutePolicyBindings({
         </div>
       )}
 
-      <details className="inherited-policy-panel">
-        <summary>
-          <span>已继承 {inheritedRows.length} 个策略</span>
-          <strong>{inheritedRows.map((row) => row.name).join('、')}</strong>
-        </summary>
-        <div className="inherited-policy-list">
-          {inheritedRows.map((row) => (
-            <div key={`${row.source}-${row.name}`} className="inherited-policy-row">
-              <Badge tone="neutral">{row.source}</Badge>
-              <strong>{row.name}</strong>
-              <span>{row.summary}</span>
-              <em>{row.status} · 只读</em>
-            </div>
-          ))}
-        </div>
-      </details>
+      {inheritedRows.length > 0 ? (
+        <details className="inherited-policy-panel">
+          <summary>
+            <span>已继承 {inheritedRows.length} 个策略</span>
+            <strong>{inheritedRows.map((row) => row.name).join('、')}</strong>
+          </summary>
+          <div className="inherited-policy-list">
+            {inheritedRows.map((row) => (
+              <div key={`${row.source}-${row.name}`} className="inherited-policy-row">
+                <Badge tone="neutral">{row.source}</Badge>
+                <strong>{row.name}</strong>
+                <span>{row.summary}</span>
+                <em>{row.status} · 只读</em>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
 
       {drawerMode ? (
         <div className="policy-drawer-overlay" role="presentation" onMouseDown={() => setDrawerMode(null)}>
