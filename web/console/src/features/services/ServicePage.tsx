@@ -124,6 +124,7 @@ export function ServicePage() {
     setServerValidation(validation);
 
     if (!validation.valid) {
+      setNotice(validation.summary);
       return;
     }
 
@@ -391,7 +392,7 @@ function ServiceFormPanel({
           </section>
         </div>
         <div className="form-actions">
-          <Button variant="primary" disabled={!validation.valid || submitting} onClick={onSubmit}>{submitting ? '保存中...' : '保存服务'}</Button>
+          <Button variant="primary" disabled={submitting} onClick={onSubmit}>{submitting ? '保存中...' : '保存服务'}</Button>
           <Button variant="ghost" disabled={submitting} onClick={onCancel}>取消</Button>
         </div>
       </div>
