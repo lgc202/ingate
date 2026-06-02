@@ -79,6 +79,7 @@ ingate-xds
 ingate-admin-api
 Envoy
 Console
+go-httpbin 示例服务
 ```
 
 ## 网关入口模型
@@ -108,6 +109,17 @@ curl -sSf -D - http://127.0.0.1:8080/ -o /dev/null
 ```text
 server: envoy
 ```
+
+all-in-one 内置 `go-httpbin`，监听容器内 `127.0.0.1:19090`，用于验证网关代理链路。可以在控制台创建一个服务指向 `127.0.0.1:19090`，再创建路由后访问：
+
+```bash
+curl -sSf http://127.0.0.1:8080/get
+curl -sSf -X POST http://127.0.0.1:8080/post -H 'Content-Type: application/json' -d '{"hello":"ingate"}'
+curl -sS -D - http://127.0.0.1:8080/status/500 -o /dev/null
+curl -sSf http://127.0.0.1:8080/delay/1
+```
+
+这些接口来自 go-httpbin，适合验证方法匹配、请求体转发、状态码、延迟和请求头等场景。
 
 ## 本地数据
 
