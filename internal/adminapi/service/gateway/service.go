@@ -2,9 +2,11 @@ package gateway
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
@@ -66,6 +68,9 @@ func (s *Service) Get(ctx context.Context, name string) (*GatewayResult, error) 
 
 // Create 创建 Gateway
 func (s *Service) Create(ctx context.Context, gateway *resource.Gateway) error {
+	if err := s.validateDefaultGateway(ctx, gateway, ""); err != nil {
+		return err
+	}
 	_, err := s.store.Create(ctx, gateway)
 	return err
 }
@@ -85,6 +90,9 @@ func (s *Service) Update(ctx context.Context, name string, gateway *resource.Gat
 	}
 	next := current.DeepCopy()
 	applyGatewayUpdate(next, gateway)
+	if err := s.validateDefaultGateway(ctx, next, name); err != nil {
+		return err
+	}
 	_, err = s.store.Update(ctx, next)
 	return err
 }
@@ -102,6 +110,9 @@ func (s *Service) SetEnabled(ctx context.Context, name string, enabled bool) err
 			next.Annotations = map[string]string{}
 		}
 		next.Annotations[resource.AnnotationGatewayEnabled] = strconv.FormatBool(enabled)
+		if err := s.validateDefaultGateway(ctx, next, name); err != nil {
+			return err
+		}
 
 		_, err = s.store.Update(ctx, next)
 		return err
@@ -197,6 +208,87 @@ func applyGatewayUpdate(next *resource.Gateway, submitted *resource.Gateway) {
 			next.Annotations[key] = value
 		}
 	}
+}
+
+func (s *Service) validateDefaultGateway(ctx context.Context, gateway *resource.Gateway, excludeName string) error {
+	if !gatewayEnabled(gateway) || len(gatewayHostnames(gateway)) > 0 {
+		return nil
+	}
+
+	gateways, err := s.store.List(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, current := range gateways.Items {
+		if current.Name == excludeName || !gatewayEnabled(&current) || len(gatewayHostnames(&current)) > 0 {
+			continue
+		}
+		if protocol, port, ok := sharedListener(gateway.Spec.Listeners, current.Spec.Listeners); ok {
+			return apierrors.NewBadRequest(fmt.Sprintf("only one hostless gateway can be enabled on listener %s:%d; %q is already enabled", protocol, port, current.Name))
+		}
+	}
+	return nil
+}
+
+func gatewayEnabled(gateway *resource.Gateway) bool {
+	value := strings.TrimSpace(gateway.Annotations[resource.AnnotationGatewayEnabled])
+	return value != "false"
+}
+
+func gatewayHostnames(gateway *resource.Gateway) []string {
+	value := strings.TrimSpace(gateway.Annotations[resource.AnnotationGatewayHostnames])
+	if value != "" {
+		hostnames := []string{}
+		if err := json.Unmarshal([]byte(value), &hostnames); err == nil {
+			return normalizedHostnames(hostnames)
+		}
+	}
+
+	hostnames := make([]string, 0)
+	for _, listener := range gateway.Spec.Listeners {
+		hostname := strings.TrimSpace(listener.Hostname)
+		if hostname != "" {
+			hostnames = append(hostnames, hostname)
+		}
+	}
+	return normalizedHostnames(hostnames)
+}
+
+func normalizedHostnames(hostnames []string) []string {
+	seen := map[string]struct{}{}
+	normalized := make([]string, 0, len(hostnames))
+	for _, hostname := range hostnames {
+		hostname = strings.TrimSpace(strings.ToLower(hostname))
+		if hostname == "" {
+			continue
+		}
+		if _, ok := seen[hostname]; ok {
+			continue
+		}
+		seen[hostname] = struct{}{}
+		normalized = append(normalized, hostname)
+	}
+	return normalized
+}
+
+func sharedListener(a, b []resource.Listener) (string, int, bool) {
+	type listenerKey struct {
+		protocol string
+		port     int
+	}
+
+	keys := make(map[listenerKey]struct{}, len(a))
+	for _, listener := range a {
+		keys[listenerKey{protocol: listener.Protocol, port: listener.Port}] = struct{}{}
+	}
+	for _, listener := range b {
+		key := listenerKey{protocol: listener.Protocol, port: listener.Port}
+		if _, ok := keys[key]; ok {
+			return key.protocol, key.port, true
+		}
+	}
+	return "", 0, false
 }
 
 func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {

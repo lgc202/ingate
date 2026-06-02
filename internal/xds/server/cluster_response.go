@@ -16,8 +16,13 @@ const upstreamTLSTransportSocketName = "envoy.transport_sockets.tls"
 
 func (b responseBuilder) buildClusters(configs []snapshotConfig) ([]*anypb.Any, error) {
 	resources := make([]*anypb.Any, 0)
+	seen := map[string]struct{}{}
 	for _, config := range configs {
 		for _, cluster := range config.Config.Clusters {
+			if _, ok := seen[cluster.Name]; ok {
+				continue
+			}
+			seen[cluster.Name] = struct{}{}
 			envoyCluster, err := b.buildCluster(cluster)
 			if err != nil {
 				return nil, err

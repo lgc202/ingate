@@ -87,7 +87,6 @@ func (s *Server) registerEventHandlers() error {
 			s.applySnapshotObject(obj)
 		},
 		UpdateFunc: func(oldObj, newObj any) {
-			s.deleteSnapshotObject(oldObj)
 			s.applySnapshotObject(newObj)
 		},
 		DeleteFunc: func(obj any) {

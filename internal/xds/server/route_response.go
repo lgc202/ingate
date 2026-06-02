@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
@@ -15,32 +16,65 @@ const defaultRoutePrefix = "/"
 
 func (b responseBuilder) buildRouteConfigs(configs []snapshotConfig) ([]*anypb.Any, error) {
 	resources := make([]*anypb.Any, 0)
-	for _, config := range configs {
-		for _, routeConfig := range config.Config.RouteConfigs {
-			virtualHosts := make([]*routev3.VirtualHost, 0, len(routeConfig.VirtualHosts))
-			for _, virtualHost := range routeConfig.VirtualHosts {
-				routes, err := b.buildRoutes(virtualHost.Routes)
-				if err != nil {
-					return nil, err
-				}
-				virtualHosts = append(virtualHosts, &routev3.VirtualHost{
-					Name:    virtualHost.Name,
-					Domains: virtualHost.Domains,
-					Routes:  routes,
-				})
-			}
+	groups := map[listenerGroupKey][]targetxds.VirtualHost{}
+	unlinked := map[string][]targetxds.VirtualHost{}
 
-			resource, err := anypb.New(&routev3.RouteConfiguration{
-				Name:         routeConfig.Name,
-				VirtualHosts: virtualHosts,
-			})
-			if err != nil {
-				return nil, err
+	for _, config := range configs {
+		listenerKeys := routeConfigListenerKeys(config.Config)
+		for _, routeConfig := range config.Config.RouteConfigs {
+			if key, ok := listenerKeys[routeConfig.Name]; ok {
+				groups[key] = append(groups[key], routeConfig.VirtualHosts...)
+				continue
 			}
-			resources = append(resources, resource)
+			unlinked[routeConfig.Name] = append(unlinked[routeConfig.Name], routeConfig.VirtualHosts...)
 		}
 	}
+
+	keys := map[listenerGroupKey]struct{}{}
+	for key := range groups {
+		keys[key] = struct{}{}
+	}
+	for _, key := range sortedListenerKeys(keys) {
+		resource, err := b.buildRouteConfig(listenerRouteConfigName(key), groups[key])
+		if err != nil {
+			return nil, err
+		}
+		resources = append(resources, resource)
+	}
+
+	names := make([]string, 0, len(unlinked))
+	for name := range unlinked {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		resource, err := b.buildRouteConfig(name, unlinked[name])
+		if err != nil {
+			return nil, err
+		}
+		resources = append(resources, resource)
+	}
 	return resources, nil
+}
+
+func (b responseBuilder) buildRouteConfig(name string, virtualHosts []targetxds.VirtualHost) (*anypb.Any, error) {
+	resources := make([]*routev3.VirtualHost, 0, len(virtualHosts))
+	for _, virtualHost := range virtualHosts {
+		routes, err := b.buildRoutes(virtualHost.Routes)
+		if err != nil {
+			return nil, err
+		}
+		resources = append(resources, &routev3.VirtualHost{
+			Name:    virtualHost.Name,
+			Domains: virtualHost.Domains,
+			Routes:  routes,
+		})
+	}
+
+	return anypb.New(&routev3.RouteConfiguration{
+		Name:         name,
+		VirtualHosts: resources,
+	})
 }
 
 func (b responseBuilder) buildRoutes(routes []targetxds.Route) ([]*routev3.Route, error) {

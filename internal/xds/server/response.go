@@ -29,9 +29,15 @@ type responseBuilder struct {
 }
 
 type snapshotConfig struct {
-	Gateway string
-	Version string
-	Config  targetxds.Config
+	Gateway         string
+	Version         string
+	ResourceVersion string
+	Config          targetxds.Config
+}
+
+type listenerGroupKey struct {
+	protocol string
+	port     int
 }
 
 func newResponseBuilder(store *snapshotStore) responseBuilder {
@@ -85,9 +91,10 @@ func (b responseBuilder) snapshotConfigs() ([]snapshotConfig, error) {
 			return nil, fmt.Errorf("decode runtime snapshot %q config: %w", snapshot.Name, err)
 		}
 		configs = append(configs, snapshotConfig{
-			Gateway: snapshot.Spec.Gateway,
-			Version: snapshot.Spec.Version,
-			Config:  config,
+			Gateway:         snapshot.Spec.Gateway,
+			Version:         snapshot.Spec.Version,
+			ResourceVersion: snapshot.ResourceVersion,
+			Config:          config,
 		})
 	}
 	return configs, nil
@@ -100,9 +107,57 @@ func (b responseBuilder) responseVersion(configs []snapshotConfig) string {
 
 	versions := make([]string, 0, len(configs))
 	for _, config := range configs {
-		versions = append(versions, fmt.Sprintf("%s=%s", config.Gateway, config.Version))
+		versions = append(versions, fmt.Sprintf("%s=%s", config.Gateway, config.version()))
 	}
 	return strings.Join(versions, ",")
+}
+
+func (c snapshotConfig) version() string {
+	if c.ResourceVersion == "" {
+		return c.Version
+	}
+	return fmt.Sprintf("%s@%s", c.Version, c.ResourceVersion)
+}
+
+func listenerKey(listener targetxds.Listener) listenerGroupKey {
+	return listenerGroupKey{
+		protocol: listener.Protocol,
+		port:     listener.Port,
+	}
+}
+
+func listenerGroupName(key listenerGroupKey) string {
+	protocol := strings.ToLower(strings.TrimSpace(key.protocol))
+	if protocol == "" {
+		protocol = "http"
+	}
+	return fmt.Sprintf("ingate/%s-%d", protocol, key.port)
+}
+
+func listenerRouteConfigName(key listenerGroupKey) string {
+	return fmt.Sprintf("%s/routes", listenerGroupName(key))
+}
+
+func routeConfigListenerKeys(config targetxds.Config) map[string]listenerGroupKey {
+	keys := make(map[string]listenerGroupKey, len(config.Listeners))
+	for _, listener := range config.Listeners {
+		keys[listener.RouteConfigName] = listenerKey(listener)
+	}
+	return keys
+}
+
+func sortedListenerKeys(keys map[listenerGroupKey]struct{}) []listenerGroupKey {
+	sorted := make([]listenerGroupKey, 0, len(keys))
+	for key := range keys {
+		sorted = append(sorted, key)
+	}
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].port != sorted[j].port {
+			return sorted[i].port < sorted[j].port
+		}
+		return sorted[i].protocol < sorted[j].protocol
+	})
+	return sorted
 }
 
 func (b responseBuilder) filterResources(resources []*anypb.Any, names []string) []*anypb.Any {

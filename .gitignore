@@ -2,5 +2,9 @@
 /.gocache/
 /.gomodcache/
 /ingate
+/ingate-dev/
+/web/console/node_modules/
+/web/console/dist/
+/web/console/*.tsbuildinfo
 .DS_Store
 *.log

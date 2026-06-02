@@ -1,6 +1,10 @@
 package server
 
 import (
+	"net/http"
+	"path/filepath"
+	"strings"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/middleware"
@@ -50,5 +54,22 @@ func (s *Server) router() *gin.Engine {
 		}
 	}
 
+	s.mountConsole(router)
+
 	return router
+}
+
+func (s *Server) mountConsole(router *gin.Engine) {
+	if s.consoleDir == "" {
+		return
+	}
+
+	router.StaticFS("/assets", http.Dir(filepath.Join(s.consoleDir, "assets")))
+	router.NoRoute(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.JSON(http.StatusNotFound, gin.H{"message": "api not found"})
+			return
+		}
+		c.File(filepath.Join(s.consoleDir, "index.html"))
+	})
 }

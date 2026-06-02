@@ -1,0 +1,10 @@
+.git
+.gocache
+.gomodcache
+ingate
+ingate-dev
+docs/images
+web/console/node_modules
+_output/*
+!_output/all-in-one
+!_output/all-in-one/**
