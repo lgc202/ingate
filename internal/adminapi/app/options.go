@@ -16,6 +16,7 @@ type Options struct {
 	ListenAddress string
 	Master        string
 	Kubeconfig    string
+	ConsoleDir    string
 	LogFormat     logx.Format
 	LogLevel      logx.Level
 	LogFile       logx.FileOptions
@@ -37,6 +38,7 @@ func (o *Options) AddFlags(flags *pflag.FlagSet) {
 	flags.StringVar(&o.ListenAddress, "listen-address", o.ListenAddress, "管理 API HTTP 监听地址")
 	flags.StringVar(&o.Master, "master", o.Master, "ingate-apiserver 地址")
 	flags.StringVar(&o.Kubeconfig, "kubeconfig", o.Kubeconfig, "连接 ingate-apiserver 的 kubeconfig 路径")
+	flags.StringVar(&o.ConsoleDir, "console-dir", o.ConsoleDir, "控制台静态资源目录，留空时只提供管理 API")
 	flags.Var((*logx.FormatValue)(&o.LogFormat), "log-format", "日志输出格式：text 或 json")
 	flags.Var((*logx.LevelValue)(&o.LogLevel), "log-level", "日志级别：debug、info、warn 或 error")
 	flags.BoolVar(&o.LogStdout, "log-stdout", o.LogStdout, "是否输出日志到 stdout")

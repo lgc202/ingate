@@ -19,15 +19,21 @@ import (
 type Server struct {
 	client        clientset.Interface
 	listenAddress string
+	consoleDir    string
 	logger        *slog.Logger
 }
 
 // New 创建管理 API 服务
-func New(client clientset.Interface, listenAddress string, logger *slog.Logger) *Server {
+func New(client clientset.Interface, listenAddress, consoleDir string, logger *slog.Logger) *Server {
 	if logger == nil {
 		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
 	}
-	return &Server{client: client, listenAddress: listenAddress, logger: logger}
+	return &Server{
+		client:        client,
+		listenAddress: listenAddress,
+		consoleDir:    consoleDir,
+		logger:        logger,
+	}
 }
 
 // Run 启动 HTTP 服务

@@ -112,3 +112,54 @@ func TestResponseBuilderBuildListenersWithWasmPlugin(t *testing.T) {
 		t.Fatalf("Plugin configuration = %q, want provider config", pluginJSON.Value)
 	}
 }
+
+func TestResponseBuilderBuildListenersGroupsGatewaysByRuntimeEntry(t *testing.T) {
+	configs := []snapshotConfig{
+		{
+			Gateway: "api",
+			Version: "xds/api",
+			Config: targetxds.Config{
+				Listeners: []targetxds.Listener{
+					{Name: "api/http", Protocol: "HTTP", Port: 8080, RouteConfigName: "api/http/routes"},
+				},
+			},
+		},
+		{
+			Gateway: "ai",
+			Version: "xds/ai",
+			Config: targetxds.Config{
+				Listeners: []targetxds.Listener{
+					{Name: "ai/http", Protocol: "HTTP", Port: 8080, RouteConfigName: "ai/http/routes"},
+				},
+			},
+		},
+	}
+
+	resources, err := (responseBuilder{}).buildListeners(configs)
+	if err != nil {
+		t.Fatalf("buildListeners() error = %v", err)
+	}
+	if len(resources) != 1 {
+		t.Fatalf("len(resources) = %d, want 1 shared listener", len(resources))
+	}
+
+	var listener listenerv3.Listener
+	if err := resources[0].UnmarshalTo(&listener); err != nil {
+		t.Fatalf("UnmarshalTo(listener) error = %v", err)
+	}
+	if listener.Name != "ingate/http-8080" {
+		t.Fatalf("Listener name = %q, want shared runtime entry", listener.Name)
+	}
+	if listener.GetAddress().GetSocketAddress().GetPortValue() != 8080 {
+		t.Fatalf("Listener port = %d, want 8080", listener.GetAddress().GetSocketAddress().GetPortValue())
+	}
+
+	var hcm hcmv3.HttpConnectionManager
+	filter := listener.FilterChains[0].Filters[0]
+	if err := filter.GetTypedConfig().UnmarshalTo(&hcm); err != nil {
+		t.Fatalf("UnmarshalTo(hcm) error = %v", err)
+	}
+	if hcm.GetRds().GetRouteConfigName() != "ingate/http-8080/routes" {
+		t.Fatalf("RouteConfigName = %q, want shared route config", hcm.GetRds().GetRouteConfigName())
+	}
+}

@@ -121,22 +121,35 @@ const (
 
 // Bundle 表示一次编译所需的资源集合
 type Bundle struct {
-	Gateways          []Gateway         `json:"gateways"`
-	Routes            []Route           `json:"routes"`
-	AIRoutes          []AIRoute         `json:"aiRoutes"`
-	Upstreams         []Upstream        `json:"upstreams"`
-	AIProviders       []AIProvider      `json:"aiProviders"`
-	AIModels          []AIModel         `json:"aiModels"`
-	AIPolicies        []AIPolicy        `json:"aiPolicies"`
-	Plugins           []Plugin          `json:"plugins"`
-	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
+	// +listType=atomic
+	Gateways []Gateway `json:"gateways"`
+	// +listType=atomic
+	Routes []Route `json:"routes"`
+	// +listType=atomic
+	AIRoutes []AIRoute `json:"aiRoutes"`
+	// +listType=atomic
+	Upstreams []Upstream `json:"upstreams"`
+	// +listType=atomic
+	AIProviders []AIProvider `json:"aiProviders"`
+	// +listType=atomic
+	AIModels []AIModel `json:"aiModels"`
+	// +listType=atomic
+	AIPolicies []AIPolicy `json:"aiPolicies"`
+	// +listType=atomic
+	Plugins []Plugin `json:"plugins"`
+	// +listType=atomic
+	AuthPolicies []AuthPolicy `json:"authPolicies"`
+	// +listType=atomic
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
-	PolicyBindings    []PolicyBinding   `json:"policyBindings"`
-	PluginBindings    []PluginBinding   `json:"pluginBindings"`
+	// +listType=atomic
+	PolicyBindings []PolicyBinding `json:"policyBindings"`
+	// +listType=atomic
+	PluginBindings []PluginBinding `json:"pluginBindings"`
 }
 
 // ResourceStatus 表示声明式资源状态
 type ResourceStatus struct {
+	// +listType=atomic
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
@@ -193,6 +206,7 @@ type GatewayList struct {
 
 // GatewaySpec 定义 Gateway 的监听器
 type GatewaySpec struct {
+	// +listType=atomic
 	Listeners []Listener `json:"listeners"`
 }
 
@@ -244,9 +258,12 @@ type RouteList struct {
 
 // RouteSpec 定义 Route 如何挂载到 Gateway
 type RouteSpec struct {
-	ParentRefs []string    `json:"parentRefs"`
-	Hostnames  []string    `json:"hostnames"`
-	Rules      []RouteRule `json:"rules"`
+	// +listType=atomic
+	ParentRefs []string `json:"parentRefs"`
+	// +listType=atomic
+	Hostnames []string `json:"hostnames"`
+	// +listType=atomic
+	Rules []RouteRule `json:"rules"`
 }
 
 const (
@@ -258,11 +275,14 @@ const (
 
 // RouteRule 声明一条路由匹配规则和加权 Upstream 集合
 type RouteRule struct {
-	PathPrefix    string        `json:"pathPrefix"`
-	Methods       []string      `json:"methods"`
-	TimeoutMillis int           `json:"timeoutMillis"`
-	Headers       []HeaderMatch `json:"headers"`
-	UpstreamRefs  []UpstreamRef `json:"upstreamRefs"`
+	PathPrefix string `json:"pathPrefix"`
+	// +listType=atomic
+	Methods       []string `json:"methods"`
+	TimeoutMillis int      `json:"timeoutMillis"`
+	// +listType=atomic
+	Headers []HeaderMatch `json:"headers"`
+	// +listType=atomic
+	UpstreamRefs []UpstreamRef `json:"upstreamRefs"`
 }
 
 // HeaderMatch 表示 HTTP header 精确匹配条件
@@ -301,14 +321,19 @@ type AIRouteList struct {
 
 // AIRouteSpec 定义 AI 路由如何挂载到 Gateway
 type AIRouteSpec struct {
-	ParentRefs   []string        `json:"parentRefs"`
-	Hostnames    []string        `json:"hostnames,omitempty"`
-	Path         string          `json:"path,omitempty"`
-	PathPrefix   string          `json:"pathPrefix"`
-	Model        string          `json:"model"`
-	Models       []AIModelRef    `json:"models,omitempty"`
+	// +listType=atomic
+	ParentRefs []string `json:"parentRefs"`
+	// +listType=atomic
+	Hostnames  []string `json:"hostnames,omitempty"`
+	Path       string   `json:"path,omitempty"`
+	PathPrefix string   `json:"pathPrefix"`
+	Model      string   `json:"model"`
+	// +listType=atomic
+	Models []AIModelRef `json:"models,omitempty"`
+	// +listType=atomic
 	ProviderRefs []AIProviderRef `json:"providerRefs"`
-	PolicyRefs   []string        `json:"policyRefs,omitempty"`
+	// +listType=atomic
+	PolicyRefs []string `json:"policyRefs,omitempty"`
 }
 
 // AIModelRef 表示 AIRoute 中的 AIModel 引用
@@ -347,6 +372,7 @@ type UpstreamList struct {
 
 // UpstreamSpec 定义 Upstream 的端点集合
 type UpstreamSpec struct {
+	// +listType=atomic
 	Endpoints []Endpoint `json:"endpoints"`
 }
 
@@ -393,9 +419,11 @@ type AIProviderList struct {
 type AIProviderSpec struct {
 	Type     AIProviderType `json:"type"`
 	Endpoint string         `json:"endpoint"`
-	Models   []string       `json:"models"`
+	// +listType=atomic
+	Models []string `json:"models"`
 	// CredentialRef 引用后续 Credential/Secret 资源
-	CredentialRef string       `json:"credentialRef,omitempty"`
+	CredentialRef string `json:"credentialRef,omitempty"`
+	// +listType=atomic
 	Headers       []HeaderPair `json:"headers,omitempty"`
 	TimeoutMillis int          `json:"timeoutMillis,omitempty"`
 }
@@ -430,9 +458,10 @@ type AIModelList struct {
 
 // AIModelSpec 定义对外模型和供应商模型的映射
 type AIModelSpec struct {
-	ProviderRef   string   `json:"providerRef"`
-	ProviderModel string   `json:"providerModel"`
-	Capabilities  []string `json:"capabilities,omitempty"`
+	ProviderRef   string `json:"providerRef"`
+	ProviderModel string `json:"providerModel"`
+	// +listType=atomic
+	Capabilities []string `json:"capabilities,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -473,8 +502,9 @@ type AIRetryPolicy struct {
 
 // AIFallbackPolicy 定义 AI 请求 fallback 策略
 type AIFallbackPolicy struct {
-	Enabled bool     `json:"enabled,omitempty"`
-	Models  []string `json:"models,omitempty"`
+	Enabled bool `json:"enabled,omitempty"`
+	// +listType=atomic
+	Models []string `json:"models,omitempty"`
 }
 
 // AIUsagePolicy 定义 AI 用量采集策略
@@ -506,11 +536,13 @@ type PluginList struct {
 
 // PluginSpec 定义插件运行时和入口
 type PluginSpec struct {
-	Runtime       PluginRuntime       `json:"runtime"`
-	Version       string              `json:"version"`
-	Endpoint      string              `json:"endpoint"`
-	Image         string              `json:"image"`
-	Phases        []PluginPhase       `json:"phases,omitempty"`
+	Runtime  PluginRuntime `json:"runtime"`
+	Version  string        `json:"version"`
+	Endpoint string        `json:"endpoint"`
+	Image    string        `json:"image"`
+	// +listType=atomic
+	Phases []PluginPhase `json:"phases,omitempty"`
+	// +listType=atomic
 	TargetKinds   []Kind              `json:"targetKinds,omitempty"`
 	FailurePolicy PluginFailurePolicy `json:"failurePolicy,omitempty"`
 }
@@ -607,7 +639,8 @@ type PluginBindingSpec struct {
 	Phase         PluginPhase         `json:"phase,omitempty"`
 	Priority      int                 `json:"priority,omitempty"`
 	FailurePolicy PluginFailurePolicy `json:"failurePolicy,omitempty"`
-	Plugins       []PluginRef         `json:"plugins"`
+	// +listType=atomic
+	Plugins []PluginRef `json:"plugins"`
 }
 
 // PluginTargetRef 表示插件绑定目标资源
@@ -647,7 +680,8 @@ type PolicyBindingList struct {
 // PolicyBindingSpec 定义策略绑定目标和策略引用
 type PolicyBindingSpec struct {
 	TargetRef PolicyTargetRef `json:"targetRef"`
-	Policies  []PolicyRef     `json:"policies"`
+	// +listType=atomic
+	Policies []PolicyRef `json:"policies"`
 }
 
 // PolicyTargetRef 表示策略绑定目标资源

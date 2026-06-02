@@ -62,7 +62,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	}
 	defer logger.Close()
 
-	server := adminserver.New(client, options.ListenAddress, logger.With("component", "ingate-admin-api"))
+	server := adminserver.New(client, options.ListenAddress, options.ConsoleDir, logger.With("component", "ingate-admin-api"))
 
 	return server.Run(genericserver.SetupSignalContext())
 }

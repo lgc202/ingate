@@ -27,51 +27,86 @@ const (
 
 func (b responseBuilder) buildListeners(configs []snapshotConfig) ([]*anypb.Any, error) {
 	resources := make([]*anypb.Any, 0)
-	for _, config := range configs {
-		for _, listener := range config.Config.Listeners {
-			httpFilters, err := b.buildHTTPFilters(config.Config)
-			if err != nil {
-				return nil, err
-			}
+	groups := b.listenerGroups(configs)
+	for _, key := range sortedListenerKeys(groups.keys) {
+		config := groups.config(key)
+		httpFilters, err := b.buildHTTPFilters(config)
+		if err != nil {
+			return nil, err
+		}
 
-			hcm, err := anypb.New(&hcmv3.HttpConnectionManager{
-				CodecType:  hcmv3.HttpConnectionManager_AUTO,
-				StatPrefix: listener.Name,
-				RouteSpecifier: &hcmv3.HttpConnectionManager_Rds{
-					Rds: &hcmv3.Rds{
-						ConfigSource:    b.adsConfigSource(),
-						RouteConfigName: listener.RouteConfigName,
-					},
+		listenerName := listenerGroupName(key)
+		hcm, err := anypb.New(&hcmv3.HttpConnectionManager{
+			CodecType:  hcmv3.HttpConnectionManager_AUTO,
+			StatPrefix: listenerName,
+			RouteSpecifier: &hcmv3.HttpConnectionManager_Rds{
+				Rds: &hcmv3.Rds{
+					ConfigSource:    b.adsConfigSource(),
+					RouteConfigName: listenerRouteConfigName(key),
 				},
-				HttpFilters: httpFilters,
-			})
-			if err != nil {
-				return nil, err
-			}
+			},
+			HttpFilters: httpFilters,
+		})
+		if err != nil {
+			return nil, err
+		}
 
-			resource, err := anypb.New(&listenerv3.Listener{
-				Name:    listener.Name,
-				Address: b.socketAddress(defaultBindAddress, listener.Port),
-				FilterChains: []*listenerv3.FilterChain{
-					{
-						Filters: []*listenerv3.Filter{
-							{
-								Name: httpConnectionManagerFilterName,
-								ConfigType: &listenerv3.Filter_TypedConfig{
-									TypedConfig: hcm,
-								},
+		resource, err := anypb.New(&listenerv3.Listener{
+			Name:    listenerName,
+			Address: b.socketAddress(defaultBindAddress, key.port),
+			FilterChains: []*listenerv3.FilterChain{
+				{
+					Filters: []*listenerv3.Filter{
+						{
+							Name: httpConnectionManagerFilterName,
+							ConfigType: &listenerv3.Filter_TypedConfig{
+								TypedConfig: hcm,
 							},
 						},
 					},
 				},
-			})
-			if err != nil {
-				return nil, err
-			}
-			resources = append(resources, resource)
+			},
+		})
+		if err != nil {
+			return nil, err
 		}
+		resources = append(resources, resource)
 	}
 	return resources, nil
+}
+
+type listenerGroups struct {
+	keys    map[listenerGroupKey]struct{}
+	configs map[listenerGroupKey]targetxds.Config
+}
+
+func (b responseBuilder) listenerGroups(configs []snapshotConfig) listenerGroups {
+	groups := listenerGroups{
+		keys:    map[listenerGroupKey]struct{}{},
+		configs: map[listenerGroupKey]targetxds.Config{},
+	}
+
+	for _, snapshot := range configs {
+		seen := map[listenerGroupKey]struct{}{}
+		for _, listener := range snapshot.Config.Listeners {
+			key := listenerKey(listener)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			groups.keys[key] = struct{}{}
+
+			config := groups.configs[key]
+			config.Plugins = append(config.Plugins, snapshot.Config.Plugins...)
+			config.PluginBindings = append(config.PluginBindings, snapshot.Config.PluginBindings...)
+			groups.configs[key] = config
+		}
+	}
+	return groups
+}
+
+func (g listenerGroups) config(key listenerGroupKey) targetxds.Config {
+	return g.configs[key]
 }
 
 func (b responseBuilder) buildHTTPFilters(config targetxds.Config) ([]*hcmv3.HttpFilter, error) {
