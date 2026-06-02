@@ -11,6 +11,7 @@ import {
   createGatewayListener,
   formatHostnames,
   formatListeners,
+  gatewayEntryPort,
   normalizeHostnames,
   parseHostnames,
   validateGatewayDraft,
@@ -77,13 +78,14 @@ export function GatewayPage() {
   const [enabledOverrides, setEnabledOverrides] = useState<Record<string, boolean>>({});
   const [draftState, setDraftState] = useState<GatewayFormDraft | null>(null);
   const [serverValidation, setServerValidation] = useState<GatewayValidationReport | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Gateway | null>(null);
   const [disableCandidate, setDisableCandidate] = useState<Gateway | null>(null);
 
   if (gateways.loading) {
     return (
-      <PageFrame title="流量 / 网关" subtitle="管理流量入口、监听器和 Host 策略">
+      <PageFrame title="流量 / 网关" subtitle="管理流量入口、运行入口和 Host 策略">
         <ResourceStatePanel title="加载网关数据" message="正在读取网关列表。" />
       </PageFrame>
     );
@@ -91,7 +93,7 @@ export function GatewayPage() {
 
   if (gateways.error || !gateways.data) {
     return (
-      <PageFrame title="流量 / 网关" subtitle="管理流量入口、监听器和 Host 策略">
+      <PageFrame title="流量 / 网关" subtitle="管理流量入口、运行入口和 Host 策略">
         <ResourceStatePanel title="网关数据加载失败" message={gateways.error?.message ?? '请稍后重试。'} />
       </PageFrame>
     );
@@ -101,6 +103,7 @@ export function GatewayPage() {
   const availableGateways = allGateways.filter((gateway) => !hiddenGatewayIds.includes(gateway.id));
   const selectedGateway = availableGateways.find((gateway) => gateway.id === selectedGatewayId) ?? availableGateways[0] ?? null;
   const gatewayEnabled = (gateway: Gateway) => enabledOverrides[gateway.id] ?? gateway.enabled;
+  const availableGatewayViews = availableGateways.map((gateway) => ({ ...gateway, enabled: gatewayEnabled(gateway) }));
   const selectedGatewayView = selectedGateway ? { ...selectedGateway, enabled: gatewayEnabled(selectedGateway) } : null;
   const visibleGateways = availableGateways.filter((gateway) => {
     const keyword = filters.keyword.trim().toLowerCase();
@@ -113,13 +116,14 @@ export function GatewayPage() {
   });
   const hasActiveFilters = Boolean(filters.keyword.trim() || filters.host.trim() || filters.enabled !== 'all');
   const draft = draftState ?? createGatewayDraft(panelMode === 'edit' ? selectedGateway : null);
-  const clientValidation = validateGatewayDraft(draft);
+  const clientValidation = validateGatewayDraft(draft, availableGatewayViews, panelMode === 'edit' ? selectedGateway?.id : undefined);
   const activeValidation = serverValidation ?? clientValidation;
   const payload = buildGatewayPayload(draft);
   const openCreate = () => {
     setPanelMode('create');
     setDraftState(createGatewayDraft(null));
     setServerValidation(null);
+    setSubmitError(null);
     setNotice(null);
   };
 
@@ -128,6 +132,7 @@ export function GatewayPage() {
     setPanelMode('edit');
     setDraftState(createGatewayDraft(gateway));
     setServerValidation(null);
+    setSubmitError(null);
     setNotice(null);
   };
 
@@ -203,9 +208,17 @@ export function GatewayPage() {
   const updateDraft = (patch: Partial<GatewayFormDraft>) => {
     setDraftState({ ...draft, ...patch });
     setServerValidation(null);
+    setSubmitError(null);
   };
 
   const handleGatewaySubmit = async () => {
+    setSubmitError(null);
+    setServerValidation(clientValidation);
+
+    if (!clientValidation.valid) {
+      return;
+    }
+
     const validation = await consoleRepository.validateGatewayDraft(payload);
     setServerValidation(validation);
 
@@ -224,7 +237,7 @@ export function GatewayPage() {
       setNotice(`网关已保存：${payload.name}`);
       setPanelMode('list');
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '保存网关失败');
+      setSubmitError(error instanceof Error ? error.message : '保存网关失败');
     }
   };
 
@@ -246,7 +259,7 @@ export function GatewayPage() {
     return (
       <PageFrame
         title={panelMode === 'create' ? '新建网关' : '编辑网关'}
-        subtitle="配置流量入口、监听端口和 Host 匹配策略"
+        subtitle="配置流量入口、运行入口和 Host 匹配策略"
         actions={<Button variant="soft" onClick={() => setPanelMode('list')}>返回列表</Button>}
       >
         <section className="editor-layout">
@@ -256,6 +269,7 @@ export function GatewayPage() {
             validation={activeValidation}
             originalGateway={panelMode === 'edit' ? selectedGateway : null}
             certificates={gateways.data.certificates}
+            submitError={submitError}
             onDraftChange={updateDraft}
             onSubmit={handleGatewaySubmit}
             onCancel={() => setPanelMode('list')}
@@ -268,7 +282,7 @@ export function GatewayPage() {
   return (
     <PageFrame
       title="流量 / 网关"
-      subtitle="管理流量入口、监听器和 Host 策略"
+      subtitle="管理流量入口、运行入口和 Host 策略"
       actions={
         <Button variant="primary" onClick={openCreate}>新建网关</Button>
       }
@@ -303,7 +317,7 @@ export function GatewayPage() {
               <thead>
                 <tr>
                   <th>网关名称</th>
-                  <th>监听器</th>
+                  <th>运行入口</th>
                   <th>Host 策略</th>
                   <th>路由数</th>
                   <th>服务数</th>
@@ -402,7 +416,7 @@ export function GatewayPage() {
               <h3 id="delete-gateway-title">删除网关</h3>
               <p>确定删除 {deleteCandidate.name}？如果后续接入真实后端，仍有关联路由时会拒绝删除。</p>
               <div className="confirm-meta">
-                <span>监听器</span><strong>{deleteCandidate.listeners}</strong>
+                <span>运行入口</span><strong>{deleteCandidate.listeners}</strong>
                 <span>关联路由</span><strong>{deleteCandidate.routeCount} 条</strong>
               </div>
               <div className="confirm-actions">
@@ -418,7 +432,7 @@ export function GatewayPage() {
               <h3 id="disable-gateway-title">停用网关</h3>
               <p>停用 {disableCandidate.name} 后，关联入口将不再承载流量。请确认关联路由和服务已迁移或可以暂停访问。</p>
               <div className="confirm-meta">
-                <span>监听器</span><strong>{disableCandidate.listeners}</strong>
+                <span>运行入口</span><strong>{disableCandidate.listeners}</strong>
                 <span>关联路由</span><strong>{disableCandidate.routeCount} 条</strong>
                 <span>关联服务</span><strong>{disableCandidate.serviceCount} 个</strong>
               </div>
@@ -439,6 +453,7 @@ function GatewayFormPanel({
   validation,
   originalGateway,
   certificates,
+  submitError,
   onDraftChange,
   onSubmit,
   onCancel,
@@ -448,6 +463,7 @@ function GatewayFormPanel({
   validation: GatewayValidationReport;
   originalGateway: Gateway | null;
   certificates: GatewayCertificateOption[];
+  submitError: string | null;
   onDraftChange: (patch: Partial<GatewayFormDraft>) => void;
   onSubmit: () => void;
   onCancel: () => void;
@@ -455,7 +471,7 @@ function GatewayFormPanel({
   const fieldErrors = gatewayFieldErrors(validation);
 
   return (
-    <Panel title={mode === 'create' ? '新建网关' : '编辑网关'} subtitle={draft.name}>
+    <Panel title={mode === 'create' ? '新建网关' : '编辑网关'} subtitle={mode === 'edit' ? draft.name : undefined}>
       <div className="editor-grid form-only">
         <div className="editor-main-stack">
           <section className="form-section">
@@ -471,8 +487,8 @@ function GatewayFormPanel({
 
           <section className="form-section">
             <div className="form-section-title">
-              <h3>监听器</h3>
-              <p>配置入口协议、端口和 HTTPS 证书。</p>
+              <h3>运行入口</h3>
+              <p>选择这个网关承载的入口协议，端口由当前 all-in-one 运行入口固定。</p>
             </div>
             <GatewayListenerEditor
               value={draft.listeners}
@@ -498,6 +514,7 @@ function GatewayFormPanel({
           </section>
         </div>
         <div className="form-actions">
+          {submitError ? <div className="form-error submit-error" role="alert">{submitError}</div> : null}
           <Button variant="primary" disabled={!validation.valid} onClick={onSubmit}>保存网关</Button>
           <Button variant="ghost" onClick={onCancel}>取消</Button>
         </div>
@@ -509,7 +526,7 @@ function GatewayFormPanel({
 function gatewayFieldErrors(validation: GatewayValidationReport) {
   return {
     name: validation.items.find((item) => item.label === '网关名称' && item.status === 'critical')?.message,
-    listeners: validation.items.find((item) => item.label === '监听器' && item.status === 'critical')?.message,
+    listeners: validation.items.find((item) => item.label === '运行入口' && item.status === 'critical')?.message,
     certificate: validation.items.find((item) => item.label === 'HTTPS 证书' && item.status === 'critical')?.message,
     host: validation.items.find((item) => item.label === 'Host 策略' && item.status === 'critical')?.message,
   };
@@ -531,6 +548,8 @@ function GatewayListenerEditor({
   const updateListener = (listenerId: string, patch: Partial<GatewayListener>) => {
     onChange(value.map((listener) => listener.id === listenerId ? { ...listener, ...patch } : listener));
   };
+  const enabledProtocols = new Set(value.map((listener) => listener.protocol));
+  const missingProtocols = (['HTTP', 'HTTPS'] as GatewayListener['protocol'][]).filter((protocol) => !enabledProtocols.has(protocol));
 
   const removeListener = (listenerId: string) => {
     onChange(value.filter((listener) => listener.id !== listenerId));
@@ -540,7 +559,7 @@ function GatewayListenerEditor({
     <div className="listener-editor">
       <div className="listener-grid listener-grid-head">
         <span>协议</span>
-        <span>端口</span>
+        <span>运行入口</span>
         <span>证书</span>
         <span>操作</span>
       </div>
@@ -552,15 +571,19 @@ function GatewayListenerEditor({
               const protocol = event.target.value as GatewayListener['protocol'];
               updateListener(listener.id, {
                 protocol,
+                port: gatewayEntryPort(protocol),
                 certificateId: protocol === 'HTTPS' ? listener.certificateId : undefined,
                 certificateName: protocol === 'HTTPS' ? listener.certificateName : undefined,
               });
             }}
           >
-            <option value="HTTP">HTTP</option>
-            <option value="HTTPS">HTTPS</option>
+            <option value="HTTP" disabled={listener.protocol !== 'HTTP' && enabledProtocols.has('HTTP')}>HTTP</option>
+            <option value="HTTPS" disabled={listener.protocol !== 'HTTPS' && enabledProtocols.has('HTTPS')}>HTTPS</option>
           </select>
-          <input className={!listener.port.trim() || listenerError ? 'invalid-control' : ''} value={listener.port} onChange={(event) => updateListener(listener.id, { port: event.target.value })} />
+          <div className="fixed-entry-port">
+            <strong>{gatewayEntryPort(listener.protocol)}</strong>
+            <span>{listener.protocol === 'HTTPS' ? 'Gateway HTTPS' : 'Gateway HTTP'}</span>
+          </div>
           <select
             value={listener.certificateId ?? ''}
             disabled={listener.protocol !== 'HTTPS'}
@@ -579,14 +602,18 @@ function GatewayListenerEditor({
             className="link-button danger"
             type="button"
             disabled={value.length <= 1}
-            title={value.length <= 1 ? '至少保留一个监听器' : undefined}
+            title={value.length <= 1 ? '至少保留一个运行入口' : undefined}
             onClick={() => removeListener(listener.id)}
           >删除</button>
         </div>
       ))}
       {listenerError ? <div className="form-error">{listenerError}</div> : null}
       {certificateError ? <div className="form-error">{certificateError}</div> : null}
-      <button className="link-button" type="button" onClick={() => onChange([...value, createGatewayListener('HTTP', '')])}>添加监听器</button>
+      {missingProtocols.length > 0 ? (
+        <button className="link-button" type="button" onClick={() => onChange([...value, createGatewayListener(missingProtocols[0])])}>
+          启用{missingProtocols[0]}入口
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -656,7 +683,10 @@ function GatewayHostnameEditor({
           {error ? <div className="form-error">{error}</div> : null}
         </>
       ) : (
-        <span className="host-empty">当前不校验请求 Host，直接进入路由匹配。</span>
+        <>
+          <span className="host-empty">当前不校验请求 Host，直接进入路由匹配。</span>
+          {error ? <div className="form-error">{error}</div> : null}
+        </>
       )}
     </div>
   );
@@ -709,7 +739,7 @@ function GatewayDetail({ gateway }: { gateway: Gateway }) {
         </div>
       </div>
       <div className="detail-card">
-        <h4>监听器</h4>
+        <h4>运行入口</h4>
         <div className="drawer-list">
           {gateway.listenerItems.map((listener) => (
             <div className="legend-row" key={listener.id}>
