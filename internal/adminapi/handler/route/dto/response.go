@@ -71,8 +71,8 @@ func composerFromResources(gateways []resource.Gateway, upstreams []resource.Ups
 		selectedGateways = []string{gatewayNames[0]}
 	}
 
-	return Composer{
-		Methods:      []HTTPMethod{HTTPMethodGET},
+	composer := Composer{
+		Methods:      []HTTPMethod{},
 		Path:         "/",
 		GatewayNames: selectedGateways,
 		Hostnames:    []string{},
@@ -83,6 +83,19 @@ func composerFromResources(gateways []resource.Gateway, upstreams []resource.Ups
 		Targets:      targets,
 		Policies:     []PolicyOption{},
 	}
+
+	if len(routes) == 0 {
+		return composer
+	}
+
+	route := routeFromResource(&routes[0])
+	composer.Methods = route.Methods
+	composer.Path = route.Path
+	composer.GatewayNames = route.GatewayNames
+	composer.Hostnames = route.Hostnames
+	composer.ServiceName = route.ServiceName
+	composer.PolicyCount = route.PolicyCount
+	return composer
 }
 
 func targetOptions(upstreams []resource.Upstream, routes []resource.Route) []TargetOption {
