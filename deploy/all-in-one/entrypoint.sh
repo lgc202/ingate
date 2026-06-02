@@ -14,6 +14,7 @@ APISERVER_ADDR="${INGATE_APISERVER_ADDR:-127.0.0.1:18443}"
 ETCD_ADDR="${INGATE_ETCD_ADDR:-127.0.0.1:2379}"
 XDS_ADDR="${INGATE_XDS_ADDR:-127.0.0.1:18000}"
 CONSOLE_ADDR="${INGATE_CONSOLE_ADDR:-0.0.0.0:8001}"
+HTTPBIN_ADDR="${INGATE_HTTPBIN_ADDR:-127.0.0.1:19090}"
 KUBECONFIG_FILE="/etc/ingate/kubeconfig"
 
 pids=()
@@ -98,6 +99,15 @@ start_bg ingate-xds ingate-xds \
 	--target xds
 
 wait_tcp ingate-xds 127.0.0.1 18000
+
+HTTPBIN_HOST="${HTTPBIN_ADDR%:*}"
+HTTPBIN_PORT="${HTTPBIN_ADDR##*:}"
+start_bg ingate-httpbin ingate-httpbin \
+	-host "$HTTPBIN_HOST" \
+	-port "$HTTPBIN_PORT" \
+	-log-format json
+
+wait_tcp ingate-httpbin "$HTTPBIN_HOST" "$HTTPBIN_PORT"
 
 start_bg envoy envoy \
 	-c /etc/ingate/envoy/bootstrap.yaml

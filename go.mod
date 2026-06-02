@@ -5,6 +5,7 @@ go 1.26
 require (
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4
 	github.com/gin-gonic/gin v1.12.0
+	github.com/mccutchen/go-httpbin/v2 v2.23.0
 	github.com/spf13/pflag v1.0.6
 	k8s.io/apimachinery v0.34.2
 	k8s.io/apiserver v0.34.2
