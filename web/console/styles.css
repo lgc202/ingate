@@ -1792,6 +1792,11 @@ html, body {
   margin-top: 5px;
 }
 
+.submit-error {
+  flex-basis: 100%;
+  margin: 0 0 2px;
+}
+
 .gateway-host-editor {
   display: grid;
   gap: 10px;
@@ -1960,10 +1965,10 @@ html, body {
 
 .listener-grid {
   display: grid;
-  grid-template-columns: 132px 132px minmax(220px, 320px) 72px;
+  grid-template-columns: 132px 160px minmax(220px, 320px) 72px;
   gap: 10px;
   align-items: center;
-  width: min(100%, 686px);
+  width: min(100%, 714px);
   min-width: 0;
 }
 
@@ -1999,6 +2004,33 @@ html, body {
 .listener-grid select:disabled {
   color: #98a19b;
   background: #f7f9f7;
+}
+
+.fixed-entry-port {
+  min-height: 36px;
+  border: 1px solid #dfe6e1;
+  border-radius: 6px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 0 10px;
+  background: #f7f9f7;
+}
+
+.fixed-entry-port strong {
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.fixed-entry-port span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 750;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .field input,

@@ -68,6 +68,12 @@ func (s *Service) Get(ctx context.Context, name string) (*GatewayResult, error) 
 
 // Create 创建 Gateway
 func (s *Service) Create(ctx context.Context, gateway *resource.Gateway) error {
+	if _, err := s.store.Get(ctx, gateway.Name); err == nil {
+		return apierrors.NewAlreadyExists(resource.Resource(resource.ResourceGateways), gateway.Name)
+	} else if !apierrors.IsNotFound(err) {
+		return err
+	}
+
 	if err := s.validateDefaultGateway(ctx, gateway, ""); err != nil {
 		return err
 	}
@@ -225,7 +231,7 @@ func (s *Service) validateDefaultGateway(ctx context.Context, gateway *resource.
 			continue
 		}
 		if protocol, port, ok := sharedListener(gateway.Spec.Listeners, current.Spec.Listeners); ok {
-			return apierrors.NewBadRequest(fmt.Sprintf("only one hostless gateway can be enabled on listener %s:%d; %q is already enabled", protocol, port, current.Name))
+			return apierrors.NewBadRequest(fmt.Sprintf("运行入口 %s:%d 已有不限制 Host 的网关 %q；请指定 Host，或先停用/删除该网关", protocol, port, current.Name))
 		}
 	}
 	return nil
