@@ -14,6 +14,26 @@ import (
 
 const defaultRouteTimeoutMillis = 30000
 
+const (
+	routePolicySourceRoute              = "route"
+	routePolicyRequestHeaderRewriteName = "请求 Header 改写"
+	routePolicyTimeoutName              = "超时控制"
+	routePolicyRetryName                = "失败重试"
+
+	paramSetHeadersOn        = "setHeadersOn"
+	paramHeaderValue         = "value"
+	paramRemoveHeadersOn     = "removeHeadersOn"
+	paramTimeoutMillis       = "timeoutMillis"
+	paramRetryAttempts       = "attempts"
+	paramPerTryTimeoutMillis = "perTryTimeoutMillis"
+	minRouteTimeoutMillis    = 100
+	maxRouteTimeoutMillis    = 300000
+	minRetryAttempts         = 1
+	maxRetryAttempts         = 5
+	minPerTryTimeoutMillis   = 100
+	maxPerTryTimeoutMillis   = 60000
+)
+
 // Resource 将已校验的控制台请求体转换为后端声明式 Route 资源
 func (r RouteRequest) Resource() (*resource.Route, error) {
 	policyBindings, err := json.Marshal(r.PolicyBindings)
@@ -88,7 +108,154 @@ func (r RouteRequest) Validate() error {
 			return apierrors.NewBadRequest("route hostname is invalid")
 		}
 	}
+	if err := r.validatePolicyBindings(); err != nil {
+		return err
+	}
 	return nil
+}
+
+func (r RouteRequest) validatePolicyBindings() error {
+	totalTimeoutMillis := defaultRouteTimeoutMillis
+	perTryTimeoutMillis := 0
+
+	for _, binding := range r.PolicyBindings {
+		if binding.Source != "" && binding.Source != routePolicySourceRoute {
+			return apierrors.NewBadRequest("route policy source is invalid")
+		}
+
+		switch binding.PolicyName {
+		case routePolicyRequestHeaderRewriteName:
+			if err := binding.validateHeaderRewrite(); err != nil {
+				return err
+			}
+		case routePolicyTimeoutName:
+			timeoutMillis, err := binding.intParameter(paramTimeoutMillis, minRouteTimeoutMillis, maxRouteTimeoutMillis)
+			if err != nil {
+				return err
+			}
+			totalTimeoutMillis = timeoutMillis
+		case routePolicyRetryName:
+			if _, err := binding.intParameter(paramRetryAttempts, minRetryAttempts, maxRetryAttempts); err != nil {
+				return err
+			}
+			value, err := binding.intParameter(paramPerTryTimeoutMillis, minPerTryTimeoutMillis, maxPerTryTimeoutMillis)
+			if err != nil {
+				return err
+			}
+			perTryTimeoutMillis = value
+		default:
+			return apierrors.NewBadRequest("route policy is unsupported")
+		}
+	}
+
+	if perTryTimeoutMillis > totalTimeoutMillis {
+		return apierrors.NewBadRequest("retry per-try timeout must be less than or equal to route total timeout")
+	}
+	return nil
+}
+
+func (b PolicyBindingRequest) validateHeaderRewrite() error {
+	setHeaders, err := b.stringListParameter(paramSetHeadersOn)
+	if err != nil {
+		return err
+	}
+	removeHeaders, err := b.stringListParameter(paramRemoveHeadersOn)
+	if err != nil {
+		return err
+	}
+	if len(setHeaders) == 0 && len(removeHeaders) == 0 {
+		return apierrors.NewBadRequest("at least one header rewrite action is required")
+	}
+	if len(setHeaders) > 0 && strings.TrimSpace(b.stringParameter(paramHeaderValue)) == "" {
+		return apierrors.NewBadRequest("header value is required")
+	}
+	if len(setHeaders) == 0 && strings.TrimSpace(b.stringParameter(paramHeaderValue)) != "" {
+		return apierrors.NewBadRequest("header name is required")
+	}
+	return nil
+}
+
+func (b PolicyBindingRequest) intParameter(key string, minValue int, maxValue int) (int, error) {
+	value, ok := b.Parameters[key]
+	if !ok {
+		return 0, apierrors.NewBadRequest("route policy parameter is required")
+	}
+
+	var text string
+	switch item := value.(type) {
+	case string:
+		text = strings.TrimSpace(item)
+	case float64:
+		text = strconv.FormatInt(int64(item), 10)
+	default:
+		return 0, apierrors.NewBadRequest("route policy parameter must be a number")
+	}
+	if text == "" {
+		return 0, apierrors.NewBadRequest("route policy parameter is required")
+	}
+
+	number, err := strconv.Atoi(text)
+	if err != nil {
+		return 0, apierrors.NewBadRequest("route policy parameter must be a number")
+	}
+	if number < minValue || number > maxValue {
+		return 0, apierrors.NewBadRequest("route policy parameter is out of range")
+	}
+	return number, nil
+}
+
+func (b PolicyBindingRequest) stringParameter(key string) string {
+	value, ok := b.Parameters[key]
+	if !ok {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+func (b PolicyBindingRequest) stringListParameter(key string) ([]string, error) {
+	value, ok := b.Parameters[key]
+	if !ok {
+		return nil, nil
+	}
+
+	switch items := value.(type) {
+	case []string:
+		return nonEmptyStrings(items), nil
+	case []any:
+		values := make([]string, 0, len(items))
+		for _, item := range items {
+			text, ok := item.(string)
+			if !ok {
+				return nil, apierrors.NewBadRequest("route policy parameter must be a string list")
+			}
+			values = append(values, text)
+		}
+		return nonEmptyStrings(values), nil
+	case string:
+		if strings.TrimSpace(items) == "" {
+			return nil, nil
+		}
+		return nonEmptyStrings(strings.FieldsFunc(items, func(r rune) bool {
+			return r == ',' || r == '，' || r == '、'
+		})), nil
+	default:
+		return nil, apierrors.NewBadRequest("route policy parameter must be a string list")
+	}
+}
+
+func nonEmptyStrings(items []string) []string {
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		item = strings.TrimSpace(strings.ToLower(item))
+		if item != "" {
+			values = append(values, item)
+		}
+	}
+	return values
 }
 
 func validHTTPMethod(method HTTPMethod) bool {

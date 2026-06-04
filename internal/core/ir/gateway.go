@@ -41,17 +41,32 @@ type LogicalRoute struct {
 
 // LogicalRouteRule 表示编译后的路由规则
 type LogicalRouteRule struct {
-	PathPrefix    string
-	Methods       []string
-	TimeoutMillis int
-	Headers       []LogicalHeaderMatch
-	Upstreams     []LogicalUpstreamRef
+	PathPrefix             string
+	Methods                []string
+	TimeoutMillis          int
+	Headers                []LogicalHeaderMatch
+	RequestHeadersToAdd    []LogicalHeaderValue
+	RequestHeadersToRemove []string
+	Retry                  LogicalRetryPolicy
+	Upstreams              []LogicalUpstreamRef
 }
 
 // LogicalHeaderMatch 表示编译后的 HTTP header 精确匹配条件
 type LogicalHeaderMatch struct {
 	Name  string
 	Value string
+}
+
+// LogicalHeaderValue 表示编译后的 HTTP header 写入动作
+type LogicalHeaderValue struct {
+	Name  string
+	Value string
+}
+
+// LogicalRetryPolicy 表示编译后的路由失败重试策略
+type LogicalRetryPolicy struct {
+	Attempts            int
+	PerTryTimeoutMillis int
 }
 
 // LogicalUpstreamRef 表示已解析的 Upstream 引用

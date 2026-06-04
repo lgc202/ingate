@@ -36,6 +36,14 @@ func TestTranslatorTranslate(t *testing.T) {
 						Headers: []ir.LogicalHeaderMatch{
 							{Name: "x-tenant", Value: "acme"},
 						},
+						RequestHeadersToAdd: []ir.LogicalHeaderValue{
+							{Name: "x-ingate-tenant", Value: "acme"},
+						},
+						RequestHeadersToRemove: []string{"x-debug-token"},
+						Retry: ir.LogicalRetryPolicy{
+							Attempts:            2,
+							PerTryTimeoutMillis: 500,
+						},
 						Upstreams: []ir.LogicalUpstreamRef{
 							{Name: "app", Weight: 100},
 						},
@@ -164,6 +172,14 @@ func TestTranslatorTranslate(t *testing.T) {
 									},
 								},
 								TimeoutMillis: 3000,
+								RequestHeadersToAdd: []xds.HeaderValue{
+									{Name: "x-ingate-tenant", Value: "acme"},
+								},
+								RequestHeadersToRemove: []string{"x-debug-token"},
+								RetryPolicy: &xds.RetryPolicy{
+									Attempts:            2,
+									PerTryTimeoutMillis: 500,
+								},
 								WeightedClusters: []xds.WeightedCluster{
 									{Name: "app", Weight: 100},
 								},

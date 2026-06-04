@@ -10,7 +10,6 @@ import (
 const (
 	defaultListenAddress = ":18000"
 	defaultTarget        = "xds"
-	defaultResyncPeriod  = 30 * time.Second
 	defaultLogFormat     = logx.FormatText
 	defaultLogLevel      = logx.LevelInfo
 )
@@ -33,7 +32,7 @@ func NewOptions() *Options {
 	return &Options{
 		ListenAddress: defaultListenAddress,
 		Target:        defaultTarget,
-		ResyncPeriod:  defaultResyncPeriod,
+		ResyncPeriod:  0,
 		LogFormat:     defaultLogFormat,
 		LogLevel:      defaultLogLevel,
 		LogStdout:     true,

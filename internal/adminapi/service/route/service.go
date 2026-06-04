@@ -26,24 +26,12 @@ func New(store *routestore.Store, gateways *gatewaystore.Store, upstream *upstre
 }
 
 // List 查询 Route 列表
-func (s *Service) List(ctx context.Context) (*WorkspaceResult, error) {
+func (s *Service) List(ctx context.Context) (*ListResult, error) {
 	routes, err := s.store.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	gateways, err := s.gateways.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	upstreams, err := s.upstream.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return &WorkspaceResult{
-		Routes:    routes.Items,
-		Gateways:  gateways.Items,
-		Upstreams: upstreams.Items,
-	}, nil
+	return &ListResult{Routes: routes.Items}, nil
 }
 
 // Get 查询单个 Route

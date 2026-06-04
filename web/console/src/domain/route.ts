@@ -1,4 +1,4 @@
-import type { HealthStatus, KeyValue, RuntimeSyncStatus } from './common';
+import type { HealthStatus, RuntimeSyncStatus } from './common';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -32,6 +32,10 @@ export interface RouteComposerPreview {
   policies: RoutePolicyOption[];
 }
 
+export interface RouteListView {
+  routes: RouteResource[];
+}
+
 export interface RouteTargetOption {
   name: string;
   type: string;
@@ -46,6 +50,10 @@ export interface RoutePolicyOption {
   meta: string;
   enabled: boolean;
   params: RoutePolicyParam[];
+}
+
+export interface RoutePolicyCapabilities {
+  policies: RoutePolicyOption[];
 }
 
 export interface RoutePolicyParam {
@@ -70,16 +78,9 @@ export interface RoutePublishPreview {
   }[];
 }
 
-export interface RouteDetailView {
-  title: string;
-  tabs: Record<string, KeyValue[]>;
-}
-
 export interface RoutePageView {
   routes: RouteResource[];
   composer: RouteComposerPreview;
-  publishPreview: RoutePublishPreview;
-  detail: RouteDetailView;
 }
 
 export interface RouteMutationPayload {

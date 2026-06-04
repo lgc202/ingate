@@ -16,10 +16,9 @@ import (
 )
 
 const (
-	defaultResyncPeriod = 30 * time.Second
-	defaultTarget       = "xds"
-	defaultLogFormat    = logx.FormatText
-	defaultLogLevel     = logx.LevelInfo
+	defaultTarget    = "xds"
+	defaultLogFormat = logx.FormatText
+	defaultLogLevel  = logx.LevelInfo
 )
 
 const usage = `ingate-controller 负责声明式资源的状态收敛
@@ -94,7 +93,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 func NewOptions() *Options {
 	return &Options{
 		Target:       defaultTarget,
-		ResyncPeriod: defaultResyncPeriod,
+		ResyncPeriod: 0,
 		LogFormat:    defaultLogFormat,
 		LogLevel:     defaultLogLevel,
 		LogStdout:    true,

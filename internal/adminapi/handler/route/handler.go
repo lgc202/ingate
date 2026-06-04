@@ -26,7 +26,12 @@ func (h *Handler) List(ctx *gin.Context) {
 		response.WriteResult(ctx, nil, err)
 		return
 	}
-	response.WriteResult(ctx, dto.FromWorkspaceResult(result), nil)
+	response.WriteResult(ctx, dto.FromListResult(result), nil)
+}
+
+// PolicyCapabilities 返回当前后端支持的路由策略能力
+func (h *Handler) PolicyCapabilities(ctx *gin.Context) {
+	response.WriteResult(ctx, dto.PolicyCapabilities(), nil)
 }
 
 // Get 返回单个 Route

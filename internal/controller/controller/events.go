@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 
@@ -54,11 +55,26 @@ func (c *Controller) eventHandler(enqueue func(any)) cache.ResourceEventHandlerF
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: enqueue,
 		UpdateFunc: func(oldObj, newObj any) {
-			enqueue(oldObj)
+			if sameResourceVersion(oldObj, newObj) {
+				return
+			}
 			enqueue(newObj)
 		},
 		DeleteFunc: enqueue,
 	}
+}
+
+func sameResourceVersion(oldObj, newObj any) bool {
+	oldMeta, err := meta.Accessor(oldObj)
+	if err != nil {
+		return false
+	}
+	newMeta, err := meta.Accessor(newObj)
+	if err != nil {
+		return false
+	}
+	oldResourceVersion := oldMeta.GetResourceVersion()
+	return oldResourceVersion != "" && oldResourceVersion == newMeta.GetResourceVersion()
 }
 
 func (c *Controller) waitForCacheSync(ctx context.Context) error {

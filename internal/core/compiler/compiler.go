@@ -390,6 +390,9 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 					upstreamOrder = append(upstreamOrder, upstreamRef.Name)
 				}
 			}
+			if err := c.applyRoutePolicies(route, &logicalRule); err != nil {
+				return nil, nil, err
+			}
 			logicalRoute.Rules = append(logicalRoute.Rules, logicalRule)
 		}
 		routes = append(routes, logicalRoute)

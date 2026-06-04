@@ -2,9 +2,6 @@ package dto
 
 import (
 	"encoding/json"
-	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
@@ -12,20 +9,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// FromWorkspaceResult 转换 Route 工作区用例结果为控制台响应
-func FromWorkspaceResult(result *routeservice.WorkspaceResult) *WorkspaceResponse {
+// FromListResult 转换 Route 列表用例结果为控制台响应
+func FromListResult(result *routeservice.ListResult) *ListResponse {
 	routes := make([]Route, 0, len(result.Routes))
 	for i := range result.Routes {
 		routes = append(routes, routeFromResource(&result.Routes[i]))
 	}
+	return &ListResponse{Routes: routes}
+}
 
-	composer := composerFromResources(result.Gateways, result.Upstreams, result.Routes)
-	return &WorkspaceResponse{
-		Routes:         routes,
-		Composer:       composer,
-		PublishPreview: defaultPublishPreview(composer),
-		Detail:         defaultDetail(),
-	}
+// PolicyCapabilities 返回当前后端支持的路由策略能力
+func PolicyCapabilities() *PolicyCapabilitiesResponse {
+	return &PolicyCapabilitiesResponse{Policies: builtinPolicyOptions()}
 }
 
 // FromRouteResult 转换单个 Route 用例结果为控制台响应
@@ -56,67 +51,36 @@ func routeFromResource(route *resource.Route) Route {
 	}
 }
 
-func composerFromResources(gateways []resource.Gateway, upstreams []resource.Upstream, routes []resource.Route) Composer {
-	gatewayNames := make([]string, 0, len(gateways))
-	for _, gateway := range gateways {
-		gatewayNames = append(gatewayNames, gateway.Name)
+func builtinPolicyOptions() []PolicyOption {
+	return []PolicyOption{
+		{
+			Name:    routePolicyRequestHeaderRewriteName,
+			Meta:    "在转发到上游前设置、追加或删除请求 Header，常用于租户标识、灰度标记和上游兼容",
+			Enabled: false,
+			Params: []PolicyParam{
+				{Key: paramSetHeadersOn, Label: "写入 Header 名称", InputType: "text", DefaultValue: "", Placeholder: "多个名称用逗号分隔", Required: true},
+				{Key: paramHeaderValue, Label: "Header 值", InputType: "text", DefaultValue: "", Placeholder: "请输入要写入的 Header 值", Required: true},
+				{Key: paramRemoveHeadersOn, Label: "删除 Header 名称", InputType: "text", DefaultValue: "", Placeholder: "多个名称用逗号分隔"},
+			},
+		},
+		{
+			Name:    routePolicyTimeoutName,
+			Meta:    "设置当前路由从进入网关到返回响应的最长时间，包含失败重试过程",
+			Enabled: false,
+			Params: []PolicyParam{
+				{Key: paramTimeoutMillis, Label: "请求总超时", InputType: "number", DefaultValue: "30000", Required: true, Unit: "ms", Min: minRouteTimeoutMillis, Max: maxRouteTimeoutMillis},
+			},
+		},
+		{
+			Name:    routePolicyRetryName,
+			Meta:    "针对 5xx、连接失败等上游异常进行有限重试；单次尝试超时不能超过请求总超时",
+			Enabled: false,
+			Params: []PolicyParam{
+				{Key: paramRetryAttempts, Label: "重试次数", InputType: "number", DefaultValue: "2", Required: true, Unit: "次", Min: minRetryAttempts, Max: maxRetryAttempts},
+				{Key: paramPerTryTimeoutMillis, Label: "单次尝试超时", InputType: "number", DefaultValue: "1000", Required: true, Unit: "ms", Min: minPerTryTimeoutMillis, Max: maxPerTryTimeoutMillis},
+			},
+		},
 	}
-	sort.Strings(gatewayNames)
-
-	targets := targetOptions(upstreams, routes)
-	serviceName := ""
-	if len(targets) > 0 {
-		serviceName = targets[0].Name
-	}
-	selectedGateways := []string{}
-	if len(gatewayNames) > 0 {
-		selectedGateways = []string{gatewayNames[0]}
-	}
-
-	composer := Composer{
-		Methods:      []HTTPMethod{},
-		Path:         "/",
-		GatewayNames: selectedGateways,
-		Hostnames:    []string{},
-		ServiceName:  serviceName,
-		PolicyCount:  0,
-		RateLimit:    "",
-		Validations:  []string{},
-		Targets:      targets,
-		Policies:     []PolicyOption{},
-	}
-
-	if len(routes) == 0 {
-		return composer
-	}
-
-	route := routeFromResource(&routes[0])
-	composer.Methods = route.Methods
-	composer.Path = route.Path
-	composer.GatewayNames = route.GatewayNames
-	composer.Hostnames = route.Hostnames
-	composer.ServiceName = route.ServiceName
-	composer.PolicyCount = route.PolicyCount
-	return composer
-}
-
-func targetOptions(upstreams []resource.Upstream, routes []resource.Route) []TargetOption {
-	targets := make([]TargetOption, 0, len(upstreams))
-	for i := range upstreams {
-		upstream := upstreams[i]
-		targets = append(targets, TargetOption{
-			Name:             upstream.Name,
-			Type:             serviceType(upstream.Annotations),
-			Endpoint:         upstreamEndpoint(upstream),
-			Meta:             upstreamMeta(upstream),
-			HealthStatus:     healthStatus(upstream.Status),
-			ReferencedRoutes: referencedRoutes(upstream.Name, routes),
-		})
-	}
-	sort.Slice(targets, func(i, j int) bool {
-		return targets[i].Name < targets[j].Name
-	})
-	return targets
 }
 
 func firstRule(route *resource.Route) resource.RouteRule {
@@ -164,99 +128,6 @@ func enabled(annotations map[string]string) bool {
 func runtimeStatus() string {
 	// Route 是否生效需要运行时回执确认，当前管理面只展示 unknown
 	return "unknown"
-}
-
-func serviceType(annotations map[string]string) string {
-	value := annotation(annotations, resource.AnnotationUpstreamServiceType)
-	if value == "" {
-		return "application"
-	}
-	return value
-}
-
-func upstreamEndpoint(upstream resource.Upstream) string {
-	if len(upstream.Spec.Endpoints) == 0 {
-		return ""
-	}
-	endpoint := upstream.Spec.Endpoints[0]
-	summary := fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port)
-	if len(upstream.Spec.Endpoints) > 1 {
-		summary = fmt.Sprintf("%s 等 %d 个端点", summary, len(upstream.Spec.Endpoints))
-	}
-	return summary
-}
-
-func upstreamMeta(upstream resource.Upstream) string {
-	count := len(upstream.Spec.Endpoints)
-	if count == 0 {
-		return "未配置端点"
-	}
-	return fmt.Sprintf("%d 个端点", count)
-}
-
-func healthStatus(status resource.ResourceStatus) string {
-	for _, condition := range status.Conditions {
-		if condition.Type == "Ready" && condition.Status == metav1.ConditionFalse {
-			return "critical"
-		}
-		if condition.Type == "Ready" && condition.Status == metav1.ConditionTrue {
-			return "healthy"
-		}
-	}
-	return "unknown"
-}
-
-func referencedRoutes(upstreamName string, routes []resource.Route) int {
-	count := 0
-	for _, route := range routes {
-		matched := false
-		for _, rule := range route.Spec.Rules {
-			for _, ref := range rule.UpstreamRefs {
-				if ref.Name == upstreamName {
-					matched = true
-					break
-				}
-			}
-			if matched {
-				break
-			}
-		}
-		if matched {
-			count++
-		}
-	}
-	return count
-}
-
-func defaultPublishPreview(composer Composer) PublishPreview {
-	return PublishPreview{
-		Title:    fmt.Sprintf("%s %s", formatMethods(composer.Methods), composer.Path),
-		Subtitle: fmt.Sprintf("目标服务 %s", composer.ServiceName),
-		Diffs:    []Diff{},
-	}
-}
-
-func defaultDetail() Detail {
-	return Detail{
-		Title: "路由详情",
-		Tabs: map[string][]KeyValue{
-			"overview": []KeyValue{},
-			"match":    []KeyValue{},
-			"target":   []KeyValue{},
-			"events":   []KeyValue{},
-		},
-	}
-}
-
-func formatMethods(methods []HTTPMethod) string {
-	if len(methods) == 0 {
-		return "全部方法"
-	}
-	values := make([]string, 0, len(methods))
-	for _, method := range methods {
-		values = append(values, string(method))
-	}
-	return strings.Join(values, "、")
 }
 
 func annotation(annotations map[string]string, key string) string {

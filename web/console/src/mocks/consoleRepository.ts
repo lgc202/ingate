@@ -21,6 +21,10 @@ import type {
 import { serviceLoadBalancePolicyLabel, serviceTypeLabel } from '@/domain/service';
 import type { SettingsWorkspace } from '@/domain/settings';
 
+const routePolicyTimeoutName = '超时控制';
+const routePolicyRetryName = '失败重试';
+const defaultRouteTimeoutMillis = 30000;
+
 const homeDashboard: HomeDashboard = {
   context: {
     environment: '生产环境',
@@ -240,10 +244,10 @@ const gatewayList: GatewayListView = {
 
 const routeWorkspace: RoutePageView = {
   routes: [
-    { id: 'users-list', methods: ['GET'], path: '/v1/users', gatewayNames: ['gw-prod'], hostnames: ['api.ingate.io', 'open.ingate.io'], serviceName: 'user-svc', policyCount: 3, traffic: '12.4k', successRate: '98.7%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '5 分钟前' },
-    { id: 'orders-create', methods: ['POST'], path: '/v1/orders', gatewayNames: ['gw-prod', 'gw-partner'], hostnames: ['api.ingate.io', 'shop.ingate.io'], serviceName: 'order-svc', policyCount: 3, traffic: '3.2k', successRate: '99.3%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '18 分钟前' },
-    { id: 'products-list', methods: ['GET'], path: '/v1/products', gatewayNames: ['gw-prod'], hostnames: ['api.ingate.io'], serviceName: 'catalog-svc', policyCount: 2, traffic: '1.8k', successRate: '97.1%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '34 分钟前' },
-    { id: 'inventory-list', methods: [], path: '/v1/inventory', gatewayNames: ['gw-staging'], hostnames: ['staging-api.ingate.io'], serviceName: 'inventory-svc', policyCount: 1, traffic: '356', successRate: '92.4%', enabled: false, runtimeStatus: 'failed', lastChangedAt: '1 小时前' },
+    { id: 'users-list', methods: ['GET'], path: '/v1/users', gatewayNames: ['gw-prod'], hostnames: ['api.ingate.io', 'open.ingate.io'], serviceName: 'user-svc', policyCount: 0, traffic: '12.4k', successRate: '98.7%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '5 分钟前' },
+    { id: 'orders-create', methods: ['POST'], path: '/v1/orders', gatewayNames: ['gw-prod', 'gw-partner'], hostnames: ['api.ingate.io', 'shop.ingate.io'], serviceName: 'order-svc', policyCount: 0, traffic: '3.2k', successRate: '99.3%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '18 分钟前' },
+    { id: 'products-list', methods: ['GET'], path: '/v1/products', gatewayNames: ['gw-prod'], hostnames: ['api.ingate.io'], serviceName: 'catalog-svc', policyCount: 0, traffic: '1.8k', successRate: '97.1%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '34 分钟前' },
+    { id: 'inventory-list', methods: [], path: '/v1/inventory', gatewayNames: ['gw-staging'], hostnames: ['staging-api.ingate.io'], serviceName: 'inventory-svc', policyCount: 0, traffic: '356', successRate: '92.4%', enabled: false, runtimeStatus: 'failed', lastChangedAt: '1 小时前' },
   ],
   composer: {
     methods: ['POST'],
@@ -251,7 +255,7 @@ const routeWorkspace: RoutePageView = {
     gatewayNames: ['gw-prod'],
     hostnames: ['api.ingate.io', 'shop.ingate.io'],
     serviceName: 'order-svc',
-    policyCount: 3,
+    policyCount: 0,
     rateLimit: '100 req/s per user',
     validations: ['匹配规则生效', '目标服务可用', '策略配置正确', '无冲突'],
     targets: [
@@ -261,98 +265,33 @@ const routeWorkspace: RoutePageView = {
     ],
     policies: [
       {
-        name: '身份认证',
-        meta: '按请求头、Cookie 或 JWT 识别调用方',
-        enabled: true,
-        params: [
-          { key: 'mode', label: '认证方式', defaultValue: 'JWT', required: true, options: ['JWT', 'API Key', 'Cookie'] },
-          { key: 'identityHeader', label: '身份字段', defaultValue: 'Authorization', options: ['Authorization', 'X-API-Key', 'Cookie'] },
-        ],
-      },
-      {
-        name: '限流',
-        meta: '按用户、IP 或全局维度限制请求频率',
-        enabled: true,
-        params: [
-          { key: 'limit', label: '限制值', defaultValue: '100', inputType: 'number', unit: 'req/s', min: 1, max: 100000, required: true },
-          { key: 'scope', label: '限流维度', defaultValue: '用户', inputType: 'select', required: true, options: ['用户', '账号', '应用', '源 IP', '全局'] },
-        ],
-      },
-      {
-        name: '请求校验',
-        meta: '校验路径参数、请求头和 JSON Body',
-        enabled: true,
-        params: [
-          { key: 'schemaMode', label: '校验模式', defaultValue: '严格模式', options: ['严格模式', '宽松模式'] },
-          { key: 'failureAction', label: '失败处理', defaultValue: '拒绝请求', options: ['拒绝请求', '仅记录'] },
-        ],
-      },
-      {
-        name: '配额',
-        meta: '控制租户、账号或应用的周期调用总量',
+        name: '请求 Header 改写',
+        meta: '向后端服务写入或删除请求 Header',
         enabled: false,
         params: [
-          { key: 'quotaScope', label: '配额对象', defaultValue: '用户', options: ['用户', '账号', '应用', '租户'] },
-          { key: 'quotaLimit', label: '配额值', defaultValue: '10000', inputType: 'number', unit: '次/天', min: 1, max: 100000000 },
+          { key: 'setHeadersOn', label: '写入 Header 名称', defaultValue: '', placeholder: '多个名称用逗号分隔', required: true },
+          { key: 'value', label: 'Header 值', defaultValue: '', placeholder: '请输入要写入的 Header 值', required: true },
+          { key: 'removeHeadersOn', label: '删除 Header 名称', defaultValue: '', placeholder: '多个名称用逗号分隔' },
         ],
       },
       {
-        name: '超时重试',
-        meta: '设置请求超时、重试次数和重试条件',
+        name: '超时控制',
+        meta: '设置请求从进入网关到返回响应的最长时间，包含失败重试过程',
         enabled: false,
         params: [
-          { key: 'timeout', label: '超时时间', defaultValue: '3', inputType: 'number', unit: '秒', min: 1, max: 300 },
-          { key: 'retry', label: '重试次数', defaultValue: '2 次', options: ['不重试', '1 次', '2 次', '3 次'] },
-          { key: 'retryOn', label: '重试条件', defaultValue: '5xx,连接超时', inputType: 'multiselect', required: true, options: ['5xx', '连接超时', '网关错误'] },
+          { key: 'timeoutMillis', label: '请求总超时', defaultValue: '30000', inputType: 'number', unit: 'ms', min: 100, max: 300000, required: true },
         ],
       },
       {
-        name: 'Header 改写',
-        meta: '向后端服务追加、修改或删除请求头',
+        name: '失败重试',
+        meta: '后端连接失败或返回异常状态时自动重试；单次尝试超时不能超过请求总超时',
         enabled: false,
         params: [
-          { key: 'headerName', label: 'Header 名称', defaultValue: 'X-Forwarded-For', options: ['X-Forwarded-For', 'X-Request-Id', 'X-Route-Name'] },
-          { key: 'headerValue', label: 'Header 值', defaultValue: '$client_ip', options: ['$client_ip', '$request_id', '$route_name'] },
-        ],
-      },
-      {
-        name: '内容安全',
-        meta: '检测异常内容、注入攻击和敏感信息',
-        enabled: false,
-        params: [
-          { key: 'profile', label: '检测类型', defaultValue: '通用防护', options: ['通用防护', 'OWASP', '敏感信息'] },
-          { key: 'action', label: '处理动作', defaultValue: '拦截', options: ['拦截', '仅记录'] },
-        ],
-      },
-      {
-        name: 'Token 配额',
-        meta: '限制模型服务的 Token 消耗',
-        enabled: false,
-        params: [
-          { key: 'tokenWindow', label: '时间窗口', defaultValue: '1 天', options: ['1 小时', '1 天', '7 天', '30 天'] },
-          { key: 'tokenLimit', label: 'Token 上限', defaultValue: '50000', inputType: 'number', unit: 'tokens', min: 1, max: 100000000 },
+          { key: 'attempts', label: '重试次数', defaultValue: '2', inputType: 'number', unit: '次', min: 1, max: 5, required: true },
+          { key: 'perTryTimeoutMillis', label: '单次尝试超时', defaultValue: '1000', inputType: 'number', unit: 'ms', min: 100, max: 60000, required: true },
         ],
       },
     ],
-  },
-  publishPreview: {
-    title: 'POST /v1/orders',
-    subtitle: '目标服务 order-svc · 策略 3 个 · 2 个域名',
-    diffs: [
-      { before: 'rate_limit: 50 req/s per user', after: 'rate_limit: 100 req/s per user' },
-      { before: 'timeout: 15s', after: 'timeout: 30s' },
-      { before: 'hostnames: api.ingate.io', after: 'hostnames: api.ingate.io, shop.ingate.io' },
-    ],
-  },
-  detail: {
-    title: 'POST /v1/orders',
-    tabs: {
-      overview: [['方法', 'POST'], ['路径', '/v1/orders'], ['目标服务', 'order-svc'], ['策略数', '3']].map(([label, value]) => ({ label, value })),
-      match: [['方法', 'POST'], ['路径', '/v1/orders'], ['域名', 'api.ingate.io、shop.ingate.io'], ['请求头', 'Content-Type = application/json']].map(([label, value]) => ({ label, value })),
-      target: [['目标服务', 'order-svc'], ['地址', 'http://order-svc.cluster.local'], ['健康状态', '健康'], ['请求量', '3.2k req/s']].map(([label, value]) => ({ label, value })),
-      policy: [['身份认证', '必选'], ['限流', '100 req/s per user'], ['请求校验', '严格模式'], ['内容安全', '启用']].map(([label, value]) => ({ label, value })),
-      events: [['5 分钟前', '自动生效成功'], ['18 分钟前', '策略更新'], ['1 小时前', '目标服务探活恢复']].map(([label, value]) => ({ label, value })),
-    },
   },
 };
 
@@ -659,6 +598,7 @@ function clone<T>(data: T): T {
 
 function validateRoutePayload(payload: RoutePublishPayload): RouteValidationReport {
   const invalidHostnames = payload.hostnames.filter((hostname) => !isValidHostname(hostname));
+  const policyValidationMessage = validateRoutePolicyRelationship(payload);
   const items: RouteValidationReport['items'] = [
     {
       label: '匹配规则',
@@ -686,8 +626,8 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
     },
     {
       label: '策略',
-      status: payload.policyBindings.length > 0 ? 'healthy' : 'warning',
-      message: payload.policyBindings.length > 0 ? `已绑定 ${payload.policyBindings.length} 个当前路由策略` : '未绑定当前路由策略',
+      status: policyValidationMessage ? 'critical' : payload.policyBindings.length > 0 ? 'healthy' : 'warning',
+      message: policyValidationMessage || (payload.policyBindings.length > 0 ? `已绑定 ${payload.policyBindings.length} 个路由策略` : '未绑定路由策略'),
     },
   ];
   const valid = items.every((item) => item.status !== 'critical');
@@ -697,6 +637,22 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
     summary: valid ? '服务端校验通过，配置可以保存。' : '服务端校验发现未完成项。',
     items,
   };
+}
+
+function validateRoutePolicyRelationship(payload: RoutePublishPayload) {
+  const retryPolicy = payload.policyBindings.find((binding) => binding.policyName === routePolicyRetryName);
+  if (!retryPolicy) {
+    return '';
+  }
+
+  const timeoutPolicy = payload.policyBindings.find((binding) => binding.policyName === routePolicyTimeoutName);
+  const totalTimeoutMillis = Number(timeoutPolicy?.parameters.timeoutMillis ?? defaultRouteTimeoutMillis);
+  const perTryTimeoutMillis = Number(retryPolicy.parameters.perTryTimeoutMillis ?? 0);
+  if (Number.isFinite(perTryTimeoutMillis) && Number.isFinite(totalTimeoutMillis) && perTryTimeoutMillis > totalTimeoutMillis) {
+    return `单次尝试超时不能大于请求总超时 ${totalTimeoutMillis}ms`;
+  }
+
+  return '';
 }
 
 function previewRoutePayload(payload: RoutePublishPayload): RoutePublishPreview {
