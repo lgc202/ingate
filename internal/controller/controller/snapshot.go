@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -18,6 +19,12 @@ func (c *Controller) upsertRuntimeSnapshot(ctx context.Context, snapshot corerun
 	if err != nil {
 		return fmt.Errorf("marshal runtime snapshot config: %w", err)
 	}
+	spec := resource.RuntimeSnapshotSpec{
+		Target:  snapshot.Target,
+		Gateway: snapshot.Gateway,
+		Version: snapshot.Version,
+		Config:  runtime.RawExtension{Raw: config},
+	}
 
 	name := runtimeSnapshotName(snapshot.Target, snapshot.Gateway)
 	runtimeSnapshots := c.client.GatewayV1().RuntimeSnapshots()
@@ -28,23 +35,19 @@ func (c *Controller) upsertRuntimeSnapshot(ctx context.Context, snapshot corerun
 		}
 		_, err = runtimeSnapshots.Create(ctx, &resource.RuntimeSnapshot{
 			ObjectMeta: metav1.ObjectMeta{Name: name},
-			Spec: resource.RuntimeSnapshotSpec{
-				Target:  snapshot.Target,
-				Gateway: snapshot.Gateway,
-				Version: snapshot.Version,
-				Config:  runtime.RawExtension{Raw: config},
-			},
+			Spec:       spec,
 		}, metav1.CreateOptions{})
 		return err
 	}
+	if existing.Spec.Target == spec.Target &&
+		existing.Spec.Gateway == spec.Gateway &&
+		existing.Spec.Version == spec.Version &&
+		bytes.Equal(existing.Spec.Config.Raw, spec.Config.Raw) {
+		return nil
+	}
 
 	updated := existing.DeepCopy()
-	updated.Spec = resource.RuntimeSnapshotSpec{
-		Target:  snapshot.Target,
-		Gateway: snapshot.Gateway,
-		Version: snapshot.Version,
-		Config:  runtime.RawExtension{Raw: config},
-	}
+	updated.Spec = spec
 	_, err = runtimeSnapshots.Update(ctx, updated, metav1.UpdateOptions{})
 	return err
 }

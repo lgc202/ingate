@@ -87,10 +87,13 @@ type VirtualHost struct {
 
 // Route 表示 Envoy route 的内部模型
 type Route struct {
-	Name             string            `json:"name"`
-	Match            RouteMatch        `json:"match"`
-	TimeoutMillis    int               `json:"timeoutMillis"`
-	WeightedClusters []WeightedCluster `json:"weightedClusters"`
+	Name                   string            `json:"name"`
+	Match                  RouteMatch        `json:"match"`
+	TimeoutMillis          int               `json:"timeoutMillis"`
+	RequestHeadersToAdd    []HeaderValue     `json:"requestHeadersToAdd,omitempty"`
+	RequestHeadersToRemove []string          `json:"requestHeadersToRemove,omitempty"`
+	RetryPolicy            *RetryPolicy      `json:"retryPolicy,omitempty"`
+	WeightedClusters       []WeightedCluster `json:"weightedClusters"`
 }
 
 // RouteMatch 表示 Envoy route match 的内部模型
@@ -105,6 +108,18 @@ type RouteMatch struct {
 type HeaderMatch struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
+}
+
+// HeaderValue 表示 Envoy 请求 header 写入动作的内部模型
+type HeaderValue struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// RetryPolicy 表示 Envoy route retry policy 的内部模型
+type RetryPolicy struct {
+	Attempts            int `json:"attempts,omitempty"`
+	PerTryTimeoutMillis int `json:"perTryTimeoutMillis,omitempty"`
 }
 
 // WeightedCluster 表示 Envoy weighted cluster 的内部模型
@@ -295,6 +310,22 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 							Name:  header.Name,
 							Value: header.Value,
 						})
+					}
+				}
+				if len(rule.RequestHeadersToAdd) > 0 {
+					xdsRoute.RequestHeadersToAdd = make([]HeaderValue, 0, len(rule.RequestHeadersToAdd))
+					for _, header := range rule.RequestHeadersToAdd {
+						xdsRoute.RequestHeadersToAdd = append(xdsRoute.RequestHeadersToAdd, HeaderValue{
+							Name:  header.Name,
+							Value: header.Value,
+						})
+					}
+				}
+				xdsRoute.RequestHeadersToRemove = slices.Clone(rule.RequestHeadersToRemove)
+				if rule.Retry.Attempts > 0 {
+					xdsRoute.RetryPolicy = &RetryPolicy{
+						Attempts:            rule.Retry.Attempts,
+						PerTryTimeoutMillis: rule.Retry.PerTryTimeoutMillis,
 					}
 				}
 				for _, upstream := range rule.Upstreams {

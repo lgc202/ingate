@@ -5,6 +5,7 @@ import (
 	"sort"
 	"time"
 
+	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -12,7 +13,10 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-const defaultRoutePrefix = "/"
+const (
+	defaultRoutePrefix       = "/"
+	retryOnUpstreamTransient = "connect-failure,refused-stream,reset,5xx"
+)
 
 func (b responseBuilder) buildRouteConfigs(configs []snapshotConfig) ([]*anypb.Any, error) {
 	resources := make([]*anypb.Any, 0)
@@ -138,6 +142,15 @@ func (b responseBuilder) buildRoute(route targetxds.Route, method string) (*rout
 	if route.TimeoutMillis > 0 {
 		action.Timeout = durationpb.New(time.Duration(route.TimeoutMillis) * time.Millisecond)
 	}
+	if route.RetryPolicy != nil && route.RetryPolicy.Attempts > 0 {
+		action.RetryPolicy = &routev3.RetryPolicy{
+			RetryOn:    retryOnUpstreamTransient,
+			NumRetries: wrapperspb.UInt32(uint32(route.RetryPolicy.Attempts)),
+		}
+		if route.RetryPolicy.PerTryTimeoutMillis > 0 {
+			action.RetryPolicy.PerTryTimeout = durationpb.New(time.Duration(route.RetryPolicy.PerTryTimeoutMillis) * time.Millisecond)
+		}
+	}
 
 	routeMatch := &routev3.RouteMatch{
 		PathSpecifier: &routev3.RouteMatch_Prefix{Prefix: prefix},
@@ -154,8 +167,24 @@ func (b responseBuilder) buildRoute(route targetxds.Route, method string) (*rout
 		name = fmt.Sprintf("%s/%s", route.Name, method)
 	}
 	return &routev3.Route{
-		Name:   name,
-		Match:  routeMatch,
-		Action: &routev3.Route_Route{Route: action},
+		Name:                   name,
+		Match:                  routeMatch,
+		Action:                 &routev3.Route_Route{Route: action},
+		RequestHeadersToAdd:    b.requestHeadersToAdd(route.RequestHeadersToAdd),
+		RequestHeadersToRemove: route.RequestHeadersToRemove,
 	}, nil
+}
+
+func (b responseBuilder) requestHeadersToAdd(headers []targetxds.HeaderValue) []*corev3.HeaderValueOption {
+	result := make([]*corev3.HeaderValueOption, 0, len(headers))
+	for _, header := range headers {
+		result = append(result, &corev3.HeaderValueOption{
+			Header: &corev3.HeaderValue{
+				Key:   header.Name,
+				Value: header.Value,
+			},
+			AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
+		})
+	}
+	return result
 }

@@ -1,6 +1,6 @@
 import type { ConsoleRepository } from './contracts';
 import type { GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayValidationReport } from '@/domain/gateway';
-import type { HttpMethod, RouteActionResult, RoutePageView, RoutePublishPayload, RouteValidationReport } from '@/domain/route';
+import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteTargetOption, RouteValidationReport } from '@/domain/route';
 import type { ServiceListView, ServiceMutationPayload, ServiceMutationResult, ServiceValidationReport } from '@/domain/service';
 import { serviceLoadBalancePolicyLabel } from '@/domain/service';
 
@@ -17,6 +17,9 @@ interface RouteMutationResponse {
 }
 
 const apiBaseUrl = (import.meta.env.VITE_INGATE_API_BASE_URL as string | undefined) ?? '/api/v1';
+const routePolicyTimeoutName = '超时控制';
+const routePolicyRetryName = '失败重试';
+const defaultRouteTimeoutMillis = 30000;
 
 export const liveConsoleRepository: ConsoleRepository = {
   async getHomeDashboard() {
@@ -71,7 +74,14 @@ export const liveConsoleRepository: ConsoleRepository = {
   },
 
   async getRouteWorkspace() {
-    return request<RoutePageView>('/routes');
+    const [routeList, gatewayList, serviceList, policyCapabilities] = await Promise.all([
+      request<RouteListView>('/routes'),
+      request<GatewayListView>('/gateways'),
+      request<ServiceListView>('/upstreams'),
+      request<RoutePolicyCapabilities>('/route-policy-capabilities'),
+    ]);
+
+    return routePageView(routeList, gatewayList, serviceList, policyCapabilities);
   },
 
   async saveRouteDraft(payload) {
@@ -219,6 +229,58 @@ function routeMutationResult(route: string): RouteActionResult {
   };
 }
 
+function routePageView(
+  routeList: RouteListView,
+  gatewayList: GatewayListView,
+  serviceList: ServiceListView,
+  policyCapabilities: RoutePolicyCapabilities,
+): RoutePageView {
+  return {
+    routes: routeList.routes,
+    composer: routeComposer(routeList, gatewayList, serviceList, policyCapabilities),
+  };
+}
+
+function routeComposer(
+  routeList: RouteListView,
+  gatewayList: GatewayListView,
+  serviceList: ServiceListView,
+  policyCapabilities: RoutePolicyCapabilities,
+): RouteComposerPreview {
+  const gatewayNames = gatewayList.gateways.map((gateway) => gateway.name || gateway.id).sort();
+  const targets = routeTargets(routeList, serviceList);
+
+  return {
+    methods: [],
+    path: '/',
+    gatewayNames: gatewayNames[0] ? [gatewayNames[0]] : [],
+    hostnames: [],
+    serviceName: targets[0]?.name ?? '',
+    policyCount: 0,
+    rateLimit: '',
+    validations: [],
+    targets,
+    policies: policyCapabilities.policies,
+  };
+}
+
+function routeTargets(routeList: RouteListView, serviceList: ServiceListView): RouteTargetOption[] {
+  return serviceList.services
+    .map((service) => ({
+      name: service.name || service.id,
+      type: service.type,
+      endpoint: service.endpoint,
+      meta: service.instances,
+      healthStatus: service.healthStatus,
+      referencedRoutes: referencedRoutes(routeList, service.name || service.id),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function referencedRoutes(routeList: RouteListView, serviceName: string): number {
+  return routeList.routes.filter((route) => route.serviceName === serviceName).length;
+}
+
 function routeName(serviceName: string, method: string, path: string) {
   const value = `${serviceName}-${method}-${path}`
     .trim()
@@ -280,6 +342,7 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
 }
 
 function validateRoutePayload(payload: RoutePublishPayload): RouteValidationReport {
+  const policyValidationMessage = validateRoutePolicyRelationship(payload);
   const items: RouteValidationReport['items'] = [
     {
       label: '所属网关',
@@ -308,8 +371,8 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
     },
     {
       label: '策略参数',
-      status: payload.policyBindings.every((binding) => Object.values(binding.parameters).every(hasPolicyValue)) ? 'healthy' : 'critical',
-      message: payload.policyBindings.length > 0 ? `已配置 ${payload.policyBindings.length} 个策略` : '未绑定策略',
+      status: policyValidationMessage ? 'critical' : 'healthy',
+      message: policyValidationMessage || (payload.policyBindings.length > 0 ? `已配置 ${payload.policyBindings.length} 个策略` : '未绑定策略'),
     },
   ];
   const valid = items.every((item) => item.status === 'healthy');
@@ -319,6 +382,26 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
     summary: valid ? '路由配置通过校验，可以保存。' : '路由配置还存在未完成项。',
     items,
   };
+}
+
+function validateRoutePolicyRelationship(payload: RoutePublishPayload) {
+  if (!payload.policyBindings.every((binding) => Object.values(binding.parameters).some(hasPolicyValue))) {
+    return '策略参数未填写完整';
+  }
+
+  const retryPolicy = payload.policyBindings.find((binding) => binding.policyName === routePolicyRetryName);
+  if (!retryPolicy) {
+    return '';
+  }
+
+  const timeoutPolicy = payload.policyBindings.find((binding) => binding.policyName === routePolicyTimeoutName);
+  const totalTimeoutMillis = Number(timeoutPolicy?.parameters.timeoutMillis ?? defaultRouteTimeoutMillis);
+  const perTryTimeoutMillis = Number(retryPolicy.parameters.perTryTimeoutMillis ?? 0);
+  if (Number.isFinite(perTryTimeoutMillis) && Number.isFinite(totalTimeoutMillis) && perTryTimeoutMillis > totalTimeoutMillis) {
+    return `单次尝试超时不能大于请求总超时 ${totalTimeoutMillis}ms`;
+  }
+
+  return '';
 }
 
 function validateServicePayload(payload: ServiceMutationPayload): ServiceValidationReport {
@@ -369,7 +452,7 @@ function areValidMethods(methods: HttpMethod[]): boolean {
 
 function hasPolicyValue(value: string | string[]): boolean {
   if (Array.isArray(value)) {
-    return value.every((item) => item.trim().length > 0);
+    return value.some((item) => item.trim().length > 0);
   }
 
   return value.trim().length > 0;

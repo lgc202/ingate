@@ -3,6 +3,7 @@ package server
 import (
 	"testing"
 
+	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
 )
@@ -57,6 +58,81 @@ func TestResponseBuilderBuildRouteConfigsWithExactPath(t *testing.T) {
 	clusterName := route.GetRoute().GetWeightedClusters().GetClusters()[0].GetName()
 	if clusterName != "ai-provider/openai" {
 		t.Fatalf("Route cluster = %q, want ai-provider/openai", clusterName)
+	}
+}
+
+func TestResponseBuilderBuildRouteConfigsWithRoutePolicies(t *testing.T) {
+	configs := []snapshotConfig{
+		{
+			Gateway: "public",
+			Version: "xds/public",
+			Config: targetxds.Config{
+				RouteConfigs: []targetxds.RouteConfig{
+					{
+						Name: "public/http/routes",
+						VirtualHosts: []targetxds.VirtualHost{
+							{
+								Name:    "app",
+								Domains: []string{"example.com"},
+								Routes: []targetxds.Route{
+									{
+										Name: "app",
+										Match: targetxds.RouteMatch{
+											PathPrefix: "/app",
+										},
+										TimeoutMillis: 1500,
+										RequestHeadersToAdd: []targetxds.HeaderValue{
+											{Name: "x-ingate-tenant", Value: "acme"},
+										},
+										RequestHeadersToRemove: []string{"x-debug-token"},
+										RetryPolicy: &targetxds.RetryPolicy{
+											Attempts:            2,
+											PerTryTimeoutMillis: 500,
+										},
+										WeightedClusters: []targetxds.WeightedCluster{
+											{Name: "app", Weight: 100},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resources, err := (responseBuilder{}).buildRouteConfigs(configs)
+	if err != nil {
+		t.Fatalf("buildRouteConfigs() error = %v", err)
+	}
+
+	var routeConfig routev3.RouteConfiguration
+	if err := resources[0].UnmarshalTo(&routeConfig); err != nil {
+		t.Fatalf("UnmarshalTo(routeConfig) error = %v", err)
+	}
+
+	route := routeConfig.VirtualHosts[0].Routes[0]
+	header := route.GetRequestHeadersToAdd()[0]
+	if header.GetHeader().GetKey() != "x-ingate-tenant" || header.GetHeader().GetValue() != "acme" {
+		t.Fatalf("RequestHeadersToAdd[0] = %v, want x-ingate-tenant=acme", header.GetHeader())
+	}
+	if header.GetAppendAction() != corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD {
+		t.Fatalf("AppendAction = %v, want overwrite", header.GetAppendAction())
+	}
+	if route.GetRequestHeadersToRemove()[0] != "x-debug-token" {
+		t.Fatalf("RequestHeadersToRemove[0] = %q, want x-debug-token", route.GetRequestHeadersToRemove()[0])
+	}
+
+	action := route.GetRoute()
+	if action.GetTimeout().AsDuration().Milliseconds() != 1500 {
+		t.Fatalf("Timeout = %s, want 1500ms", action.GetTimeout().AsDuration())
+	}
+	if action.GetRetryPolicy().GetNumRetries().GetValue() != 2 {
+		t.Fatalf("NumRetries = %d, want 2", action.GetRetryPolicy().GetNumRetries().GetValue())
+	}
+	if action.GetRetryPolicy().GetPerTryTimeout().AsDuration().Milliseconds() != 500 {
+		t.Fatalf("PerTryTimeout = %s, want 500ms", action.GetRetryPolicy().GetPerTryTimeout().AsDuration())
 	}
 }
 

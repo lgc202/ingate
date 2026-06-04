@@ -27,7 +27,12 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		Routes: []resource.Route{
 			{
-				ObjectMeta: metav1.ObjectMeta{Name: "app"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "app",
+					Annotations: map[string]string{
+						resource.AnnotationRoutePolicyBindings: `[{"policyName":"请求 Header 改写","source":"route","parameters":{"setHeadersOn":["x-ingate-tenant"],"value":"acme","removeHeadersOn":["x-debug-token"]}},{"policyName":"超时控制","source":"route","parameters":{"timeoutMillis":"1500"}},{"policyName":"失败重试","source":"route","parameters":{"attempts":"2","perTryTimeoutMillis":"500"}}]`,
+					},
+				},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 					Hostnames:  []string{"example.com"},
@@ -199,9 +204,17 @@ func TestCompilerCompileGateway(t *testing.T) {
 					{
 						PathPrefix:    "/app",
 						Methods:       []string{"GET", "POST"},
-						TimeoutMillis: 3000,
+						TimeoutMillis: 1500,
 						Headers: []ir.LogicalHeaderMatch{
 							{Name: "x-tenant", Value: "acme"},
+						},
+						RequestHeadersToAdd: []ir.LogicalHeaderValue{
+							{Name: "x-ingate-tenant", Value: "acme"},
+						},
+						RequestHeadersToRemove: []string{"x-debug-token"},
+						Retry: ir.LogicalRetryPolicy{
+							Attempts:            2,
+							PerTryTimeoutMillis: 500,
 						},
 						Upstreams: []ir.LogicalUpstreamRef{
 							{Name: "app", Weight: 100},
@@ -348,6 +361,46 @@ func TestCompilerCompileGatewayMissingAIProvider(t *testing.T) {
 		t.Fatal("CompileGateway() error = nil")
 	}
 	if !strings.Contains(err.Error(), `ai route "chat" references ai provider "missing"`) {
+		t.Fatalf("CompileGateway() error = %v", err)
+	}
+}
+
+func TestCompilerCompileGatewayUnsupportedRoutePolicy(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+		},
+		Routes: []resource.Route{
+			{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "app",
+					Annotations: map[string]string{
+						resource.AnnotationRoutePolicyBindings: `[{"policyName":"不存在的策略","source":"route","parameters":{}}]`,
+					},
+				},
+				Spec: resource.RouteSpec{
+					ParentRefs: []string{"public"},
+					Rules: []resource.RouteRule{
+						{
+							PathPrefix: "/app",
+							UpstreamRefs: []resource.UpstreamRef{
+								{Name: "app", Weight: 100},
+							},
+						},
+					},
+				},
+			},
+		},
+		Upstreams: []resource.Upstream{
+			{ObjectMeta: metav1.ObjectMeta{Name: "app"}},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `route "app" has unsupported policy "不存在的策略"`) {
 		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }
