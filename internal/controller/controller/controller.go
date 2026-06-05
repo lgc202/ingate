@@ -3,7 +3,6 @@ package controller
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"time"
 
@@ -63,9 +62,6 @@ type Controller struct {
 
 // New 创建 controller 实例
 func New(client clientset.Interface, target string, resyncPeriod time.Duration, logger *slog.Logger) (*Controller, error) {
-	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
 	registry, err := builtin.NewRegistry()
 	if err != nil {
 		return nil, err

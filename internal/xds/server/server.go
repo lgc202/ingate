@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"io"
 	"log/slog"
 	"net"
 	"time"
@@ -28,9 +27,6 @@ type Server struct {
 
 // New 创建 xDS 配置观察服务
 func New(client clientset.Interface, listenAddress, target string, resyncPeriod time.Duration, logger *slog.Logger) *Server {
-	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
 	store := newSnapshotStore(target)
 	server := &Server{
 		factory:       informers.NewSharedInformerFactory(client, resyncPeriod),

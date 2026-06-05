@@ -1,10 +1,10 @@
 import type { ConsoleRepository } from '@/api/contracts';
 import type {
-  GatewayFormOptions,
   GatewayListView,
   GatewayMutationPayload,
   GatewayMutationPreview,
   GatewayMutationResult,
+  GatewayRuntimeGroupOption,
   GatewayValidationReport,
 } from '@/domain/gateway';
 import type { HomeDashboard } from '@/domain/home';
@@ -234,16 +234,9 @@ const gatewayList: GatewayListView = {
   ],
 };
 
-const gatewayFormOptions: GatewayFormOptions = {
-  runtimeGroups: [
-    { id: 'default', name: '默认运行组' },
-  ],
-  certificates: [
-    { id: 'cert-api-ingate', name: 'api-ingate-io', domains: ['api.ingate.io', '*.api.ingate.io'], expiresAt: '2026-08-20', status: 'healthy' },
-    { id: 'cert-partner', name: 'partner-ingate-local', domains: ['partner.ingate.local'], expiresAt: '2026-07-12', status: 'healthy' },
-    { id: 'cert-legacy', name: 'legacy-ingate-local', domains: ['legacy.ingate.local'], expiresAt: '2026-06-08', status: 'warning' },
-  ],
-};
+const gatewayRuntimeGroups: GatewayRuntimeGroupOption[] = [
+  { id: 'default', name: '默认运行组' },
+];
 
 const routeWorkspace: RoutePageView = {
   routes: [
@@ -936,8 +929,8 @@ export const mockConsoleRepository: ConsoleRepository = {
   async listGateways() {
     return clone(gatewayList);
   },
-  async getGatewayFormOptions() {
-    return clone(gatewayFormOptions);
+  async listRuntimeGroups() {
+    return clone(gatewayRuntimeGroups);
   },
   async saveGatewayDraft(payload) {
     return gatewayAction(`网关草稿已保存：${payload.displayName}`, payload.id ?? crypto.randomUUID());

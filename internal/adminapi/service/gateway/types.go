@@ -2,43 +2,14 @@ package gateway
 
 import resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 
-const (
-	// DefaultRuntimeGroupID 是第一阶段内置的数据面运行组标识
-	DefaultRuntimeGroupID   = "default"
-	defaultRuntimeGroupName = "默认运行组"
-)
-
 // ListResult 是 Gateway 列表用例结果
 type ListResult struct {
-	Gateways      []resource.Gateway
-	RuntimeGroups []RuntimeGroupOption
+	Gateways []resource.Gateway
 }
 
 // GatewayResult 是单个 Gateway 用例结果
 type GatewayResult struct {
-	Gateway       *resource.Gateway
-	RuntimeGroups []RuntimeGroupOption
-}
-
-// FormOptionsResult 是 Gateway 表单选项用例结果
-type FormOptionsResult struct {
-	RuntimeGroups []RuntimeGroupOption
-	Certificates  []CertificateOption
-}
-
-// RuntimeGroupOption 表示可选择的数据面运行组
-type RuntimeGroupOption struct {
-	ID   string
-	Name string
-}
-
-// CertificateOption 表示可选择的证书资源
-type CertificateOption struct {
-	ID        string
-	Name      string
-	Domains   []string
-	ExpiresAt string
-	Status    string
+	Gateway *resource.Gateway
 }
 
 // CreateGatewayParams 是创建 Gateway 用例参数

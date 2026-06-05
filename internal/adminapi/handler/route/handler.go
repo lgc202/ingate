@@ -2,7 +2,6 @@ package route
 
 import (
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 
@@ -23,9 +22,6 @@ type Handler struct {
 
 // New 创建 Route handler
 func New(service *routeservice.Service, logger *slog.Logger) *Handler {
-	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
 	return &Handler{service: service, logger: logger}
 }
 

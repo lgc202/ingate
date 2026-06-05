@@ -19,6 +19,7 @@ func TestSchemeRegistersInternalGatewayTypes(t *testing.T) {
 		want runtime.Object
 	}{
 		{kind: string(resource.KindGateway), want: &resource.Gateway{}},
+		{kind: string(resource.KindRuntimeGroup), want: &resource.RuntimeGroup{}},
 		{kind: string(resource.KindRoute), want: &resource.Route{}},
 		{kind: string(resource.KindUpstream), want: &resource.Upstream{}},
 		{kind: "RuntimeSnapshot", want: &resource.RuntimeSnapshot{}},
@@ -60,6 +61,7 @@ func TestSchemeConvertsGatewayResourcesBetweenExternalAndInternalVersions(t *tes
 
 	tests := []runtime.Object{
 		&gatewayv1.Gateway{},
+		&gatewayv1.RuntimeGroup{},
 		&gatewayv1.Route{},
 		&gatewayv1.Upstream{},
 		&gatewayv1.RuntimeSnapshot{},

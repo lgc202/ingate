@@ -23,6 +23,12 @@ const (
 	ResourceGateways ResourceName = "gateways"
 	// ResourceGatewaysStatus 表示 Gateway status 子资源名
 	ResourceGatewaysStatus ResourceName = "gateways/status"
+	// ResourceRuntimeGroup 表示 RuntimeGroup 单数资源名
+	ResourceRuntimeGroup ResourceName = "runtimegroup"
+	// ResourceRuntimeGroups 表示 RuntimeGroup 复数资源名
+	ResourceRuntimeGroups ResourceName = "runtimegroups"
+	// ResourceRuntimeGroupsStatus 表示 RuntimeGroup status 子资源名
+	ResourceRuntimeGroupsStatus ResourceName = "runtimegroups/status"
 	// ResourceRoute 表示 Route 单数资源名
 	ResourceRoute ResourceName = "route"
 	// ResourceRoutes 表示 Route 复数资源名
@@ -119,6 +125,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Gateway{},
 		&GatewayList{},
+		&RuntimeGroup{},
+		&RuntimeGroupList{},
 		&Route{},
 		&RouteList{},
 		&AIRoute{},

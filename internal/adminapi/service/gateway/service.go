@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
+	runtimegroupsvc "github.com/lgc202/ingate/internal/adminapi/service/runtimegroup"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
@@ -14,15 +15,18 @@ import (
 	"k8s.io/client-go/util/retry"
 )
 
+const noExcludedGatewayID = ""
+
 // Service 承载 Gateway 管理用例
 type Service struct {
-	store  *gatewaystore.Store
-	routes *routestore.Store
+	store        *gatewaystore.Store
+	routes       *routestore.Store
+	runtimeGroup *runtimegroupsvc.Service
 }
 
 // New 创建 Gateway service
-func New(store *gatewaystore.Store, routes *routestore.Store) *Service {
-	return &Service{store: store, routes: routes}
+func New(store *gatewaystore.Store, routes *routestore.Store, runtimeGroup *runtimegroupsvc.Service) *Service {
+	return &Service{store: store, routes: routes, runtimeGroup: runtimeGroup}
 }
 
 // List 查询 Gateway 列表
@@ -31,66 +35,69 @@ func (s *Service) List(ctx context.Context) (*ListResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ListResult{
-		Gateways:      gateways.Items,
-		RuntimeGroups: runtimeGroupOptions(),
-	}, nil
+	return &ListResult{Gateways: gateways.Items}, nil
 }
 
 // Get 查询单个 Gateway
-func (s *Service) Get(ctx context.Context, name string) (*GatewayResult, error) {
-	gateway, err := s.store.Get(ctx, name)
+func (s *Service) Get(ctx context.Context, gatewayID string) (*GatewayResult, error) {
+	gateway, err := s.store.Get(ctx, gatewayID)
 	if err != nil {
 		return nil, err
 	}
 	return &GatewayResult{
-		Gateway:       gateway,
-		RuntimeGroups: runtimeGroupOptions(),
-	}, nil
-}
-
-// FormOptions 查询 Gateway 表单选项
-func (s *Service) FormOptions(ctx context.Context) (*FormOptionsResult, error) {
-	return &FormOptionsResult{
-		RuntimeGroups: runtimeGroupOptions(),
-		Certificates:  []CertificateOption{},
+		Gateway: gateway,
 	}, nil
 }
 
 // Create 创建 Gateway
 func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (string, error) {
-	if err := s.validateDisplayNameUnique(ctx, params.DisplayName, ""); err != nil {
+	if err := s.validateDisplayNameUnique(ctx, params.DisplayName, noExcludedGatewayID); err != nil {
+		return "", err
+	}
+	if err := s.runtimeGroup.ValidateEnabled(ctx, params.RuntimeGroup); err != nil {
 		return "", err
 	}
 
-	id := uuid.NewString()
-	gateway := gatewayResource(id, "", params.DisplayName, params.Description, params.RuntimeGroup, true, params.Listeners, params.HostBindings)
-	if err := s.validateDefaultGateway(ctx, gateway, ""); err != nil {
+	gateway := &resource.Gateway{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindGateway),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: uuid.NewString(),
+		},
+		Spec: gatewaySpec(params.DisplayName, params.Description, params.RuntimeGroup, true, params.Listeners, params.HostBindings),
+	}
+	if err := s.validateGateway(ctx, gateway, noExcludedGatewayID); err != nil {
 		return "", err
 	}
-	_, err := s.store.Create(ctx, gateway)
+
+	created, err := s.store.Create(ctx, gateway)
 	if err != nil {
 		return "", err
 	}
-	return id, nil
+	return created.Name, nil
 }
 
 // Update 更新 Gateway
-func (s *Service) Update(ctx context.Context, name string, params UpdateGatewayParams) error {
-	current, err := s.store.Get(ctx, name)
+func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGatewayParams) error {
+	current, err := s.store.Get(ctx, gatewayID)
 	if err != nil {
 		return err
 	}
-	if err := validateVersion(resource.ResourceGateways, name, params.Version, current.ResourceVersion); err != nil {
+	if params.Version != "" && params.Version != current.ResourceVersion {
+		return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resource.ResourceGateways, gatewayID))
+	}
+	if err := s.validateDisplayNameUnique(ctx, params.DisplayName, gatewayID); err != nil {
 		return err
 	}
-	if err := s.validateDisplayNameUnique(ctx, params.DisplayName, name); err != nil {
+	if err := s.runtimeGroup.ValidateEnabled(ctx, params.RuntimeGroup); err != nil {
 		return err
 	}
 
 	next := current.DeepCopy()
 	next.Spec = gatewaySpec(params.DisplayName, params.Description, params.RuntimeGroup, current.Spec.Enabled, params.Listeners, params.HostBindings)
-	if err := s.validateDefaultGateway(ctx, next, name); err != nil {
+	if err := s.validateGateway(ctx, next, gatewayID); err != nil {
 		return err
 	}
 	_, err = s.store.Update(ctx, next)
@@ -98,16 +105,16 @@ func (s *Service) Update(ctx context.Context, name string, params UpdateGatewayP
 }
 
 // SetEnabled 更新 Gateway 启停状态
-func (s *Service) SetEnabled(ctx context.Context, name string, enabled bool) error {
+func (s *Service) SetEnabled(ctx context.Context, gatewayID string, enabled bool) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.store.Get(ctx, name)
+		current, err := s.store.Get(ctx, gatewayID)
 		if err != nil {
 			return err
 		}
 
 		next := current.DeepCopy()
 		next.Spec.Enabled = enabled
-		if err := s.validateDefaultGateway(ctx, next, name); err != nil {
+		if err := s.validateGateway(ctx, next, gatewayID); err != nil {
 			return err
 		}
 
@@ -117,8 +124,8 @@ func (s *Service) SetEnabled(ctx context.Context, name string, enabled bool) err
 }
 
 // Delete 删除 Gateway，仍有关联路由时拒绝删除
-func (s *Service) Delete(ctx context.Context, name string) error {
-	current, err := s.store.Get(ctx, name)
+func (s *Service) Delete(ctx context.Context, gatewayID string) error {
+	current, err := s.store.Get(ctx, gatewayID)
 	if err != nil {
 		return err
 	}
@@ -127,45 +134,57 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 		return err
 	}
 	for _, route := range routes.Items {
-		if slices.Contains(route.Spec.ParentRefs, name) {
-			return xerrors.NewUserError(fmt.Sprintf("网关 %q 仍有关联路由", displayNameOrID(name, current.Spec.DisplayName)))
+		if slices.Contains(route.Spec.ParentRefs, gatewayID) {
+			return xerrors.NewUserError(fmt.Sprintf("网关 %q 仍有关联路由", current.Spec.DisplayName))
 		}
 	}
-	return s.store.Delete(ctx, name)
-}
-
-func gatewayResource(name, version, displayName, description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) *resource.Gateway {
-	return &resource.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindGateway),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			ResourceVersion: version,
-		},
-		Spec: gatewaySpec(displayName, description, runtimeGroup, enabled, listeners, bindings),
-	}
+	return s.store.Delete(ctx, gatewayID)
 }
 
 func gatewaySpec(displayName, description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) resource.GatewaySpec {
+	runtimeGroupID := runtimeGroup
+	if runtimeGroupID == "" {
+		runtimeGroupID = runtimegroupsvc.DefaultID
+	}
+
+	resourceListeners := make([]resource.Listener, 0, len(listeners))
+	for _, listener := range listeners {
+		resourceListeners = append(resourceListeners, resource.Listener{
+			Name:     listener.Name,
+			Protocol: listener.Protocol,
+			Port:     listener.Port,
+		})
+	}
+
+	resourceHostBindings := make([]resource.HostBinding, 0, len(bindings))
+	for _, item := range bindings {
+		binding := resource.HostBinding{
+			Hostname:     item.Hostname,
+			ListenerRefs: append([]string(nil), item.ListenerRefs...),
+		}
+		if item.CertificateRef != "" {
+			binding.TLS = &resource.GatewayTLS{CertificateRef: item.CertificateRef}
+		}
+		resourceHostBindings = append(resourceHostBindings, binding)
+	}
+
 	return resource.GatewaySpec{
 		DisplayName:     displayName,
 		Description:     description,
 		Enabled:         enabled,
-		RuntimeGroupRef: resource.RuntimeGroupRef{Name: runtimeGroupName(runtimeGroup)},
-		Listeners:       resourceListeners(listeners),
-		HostBindings:    resourceHostBindings(bindings),
+		RuntimeGroupRef: resource.RuntimeGroupRef{Name: runtimeGroupID},
+		Listeners:       resourceListeners,
+		HostBindings:    resourceHostBindings,
 	}
 }
 
-func (s *Service) validateDisplayNameUnique(ctx context.Context, displayName, excludeName string) error {
+func (s *Service) validateDisplayNameUnique(ctx context.Context, displayName, excludeID string) error {
 	gateways, err := s.store.List(ctx)
 	if err != nil {
 		return err
 	}
 	for _, gateway := range gateways.Items {
-		if gateway.Name == excludeName {
+		if gateway.Name == excludeID {
 			continue
 		}
 		if gateway.Spec.DisplayName == displayName {
@@ -175,34 +194,7 @@ func (s *Service) validateDisplayNameUnique(ctx context.Context, displayName, ex
 	return nil
 }
 
-func resourceListeners(items []ListenerParams) []resource.Listener {
-	listeners := make([]resource.Listener, 0, len(items))
-	for _, item := range items {
-		listeners = append(listeners, resource.Listener{
-			Name:     item.Name,
-			Protocol: item.Protocol,
-			Port:     item.Port,
-		})
-	}
-	return listeners
-}
-
-func resourceHostBindings(items []HostBindingParams) []resource.HostBinding {
-	bindings := make([]resource.HostBinding, 0, len(items))
-	for _, item := range items {
-		binding := resource.HostBinding{
-			Hostname:     item.Hostname,
-			ListenerRefs: append([]string(nil), item.ListenerRefs...),
-		}
-		if item.CertificateRef != "" {
-			binding.TLS = &resource.GatewayTLS{CertificateRef: item.CertificateRef}
-		}
-		bindings = append(bindings, binding)
-	}
-	return bindings
-}
-
-func (s *Service) validateDefaultGateway(ctx context.Context, gateway *resource.Gateway, excludeName string) error {
+func (s *Service) validateGateway(ctx context.Context, gateway *resource.Gateway, excludeID string) error {
 	if !gateway.Spec.Enabled || !gatewayHasCatchAllHost(gateway) {
 		return nil
 	}
@@ -213,11 +205,11 @@ func (s *Service) validateDefaultGateway(ctx context.Context, gateway *resource.
 	}
 
 	for _, current := range gateways.Items {
-		if current.Name == excludeName || !current.Spec.Enabled || !gatewayHasCatchAllHost(&current) {
+		if current.Name == excludeID || !current.Spec.Enabled || !gatewayHasCatchAllHost(&current) {
 			continue
 		}
 		if protocol, port, ok := sharedListener(gateway.Spec.Listeners, current.Spec.Listeners); ok {
-			return xerrors.NewUserError(fmt.Sprintf("运行入口 %s:%d 已有不限制 Host 的网关 %q；请指定 Host，或先停用/删除该网关", protocol, port, displayNameOrID(current.Name, current.Spec.DisplayName)))
+			return xerrors.NewUserError(fmt.Sprintf("运行入口 %s:%d 已有不限制 Host 的网关 %q；请指定 Host，或先停用/删除该网关", protocol, port, current.Spec.DisplayName))
 		}
 	}
 	return nil
@@ -252,34 +244,4 @@ func sharedListener(a, b []resource.Listener) (string, int, bool) {
 		}
 	}
 	return "", 0, false
-}
-
-func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {
-	if submittedVersion == "" || submittedVersion == currentVersion {
-		return nil
-	}
-	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))
-}
-
-func runtimeGroupOptions() []RuntimeGroupOption {
-	return []RuntimeGroupOption{
-		{
-			ID:   DefaultRuntimeGroupID,
-			Name: defaultRuntimeGroupName,
-		},
-	}
-}
-
-func runtimeGroupName(runtimeGroup string) string {
-	if runtimeGroup == "" {
-		return DefaultRuntimeGroupID
-	}
-	return runtimeGroup
-}
-
-func displayNameOrID(id, displayName string) string {
-	if displayName != "" {
-		return displayName
-	}
-	return id
 }

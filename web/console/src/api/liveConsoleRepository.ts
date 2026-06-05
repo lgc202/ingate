@@ -1,5 +1,5 @@
 import type { ConsoleRepository } from './contracts';
-import type { GatewayFormOptions, GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayValidationReport } from '@/domain/gateway';
+import type { Gateway, GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayRuntimeGroupOption, GatewayValidationReport } from '@/domain/gateway';
 import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRetry,
@@ -11,6 +11,24 @@ import { serviceLoadBalancePolicyLabel } from '@/domain/service';
 interface GatewayMutationResponse {
   success: boolean;
   id?: string;
+}
+
+type GatewayResource = Omit<Gateway, 'runtimeGroupName'>;
+
+interface GatewayListResponse {
+  gateways: GatewayResource[];
+}
+
+interface RuntimeGroupListResponse {
+  runtimeGroups: RuntimeGroupSummary[];
+}
+
+interface RuntimeGroupSummary {
+  id: string;
+  displayName: string;
+  description: string;
+  enabled: boolean;
+  target: string;
 }
 
 interface UpstreamMutationResponse {
@@ -30,11 +48,15 @@ export const liveConsoleRepository: ConsoleRepository = {
   },
 
   async listGateways() {
-    return request<GatewayListView>('/gateways');
+    const [gatewayList, runtimeGroups] = await Promise.all([
+      request<GatewayListResponse>('/gateways'),
+      listRuntimeGroupOptions(),
+    ]);
+    return gatewayListView(gatewayList, runtimeGroups);
   },
 
-  async getGatewayFormOptions() {
-    return request<GatewayFormOptions>('/gateway-form-options');
+  async listRuntimeGroups() {
+    return listRuntimeGroupOptions();
   },
 
   async saveGatewayDraft(payload) {
@@ -81,13 +103,15 @@ export const liveConsoleRepository: ConsoleRepository = {
   },
 
   async getRouteWorkspace() {
-    const [routeList, gatewayList, serviceList, policyCapabilities] = await Promise.all([
+    const [routeList, gatewayListResponse, runtimeGroups, serviceList, policyCapabilities] = await Promise.all([
       request<RouteListView>('/routes'),
-      request<GatewayListView>('/gateways'),
+      request<GatewayListResponse>('/gateways'),
+      listRuntimeGroupOptions(),
       request<ServiceListView>('/upstreams'),
       request<RoutePolicyCapabilities>('/route-policy-capabilities'),
     ]);
 
+    const gatewayList = gatewayListView(gatewayListResponse, runtimeGroups);
     return routePageView(routeList, gatewayList, serviceList, policyCapabilities);
   },
 
@@ -223,6 +247,27 @@ function mutationResult(gatewayName: string, id?: string): GatewayMutationResult
     message: `网关已保存：${gatewayName}`,
     changeId: id,
   };
+}
+
+async function listRuntimeGroupOptions(): Promise<GatewayRuntimeGroupOption[]> {
+  const response = await request<RuntimeGroupListResponse>('/runtime-groups');
+  return response.runtimeGroups.map((runtimeGroup) => ({
+    id: runtimeGroup.id,
+    name: runtimeGroup.displayName,
+  }));
+}
+
+function gatewayListView(response: GatewayListResponse, runtimeGroups: GatewayRuntimeGroupOption[]): GatewayListView {
+  return {
+    gateways: response.gateways.map((gateway) => ({
+      ...gateway,
+      runtimeGroupName: runtimeGroupName(gateway.runtimeGroup, runtimeGroups),
+    })),
+  };
+}
+
+function runtimeGroupName(id: string, runtimeGroups: GatewayRuntimeGroupOption[]) {
+  return runtimeGroups.find((runtimeGroup) => runtimeGroup.id === id)?.name ?? id;
 }
 
 function serviceMutationResult(serviceName: string): ServiceMutationResult {

@@ -8,6 +8,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
+	runtimegroupsvc "github.com/lgc202/ingate/internal/adminapi/service/runtimegroup"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -15,7 +16,7 @@ import (
 func NewListGatewaysResp(result *gatewayservice.ListResult) ListGatewaysResp {
 	gateways := make([]GatewaySummary, 0, len(result.Gateways))
 	for i := range result.Gateways {
-		gateways = append(gateways, gatewaySummary(&result.Gateways[i], result.RuntimeGroups))
+		gateways = append(gateways, gatewaySummary(&result.Gateways[i]))
 	}
 	return ListGatewaysResp{Gateways: gateways}
 }
@@ -23,43 +24,17 @@ func NewListGatewaysResp(result *gatewayservice.ListResult) ListGatewaysResp {
 // NewGetGatewayResp 转换单个 Gateway 用例结果为 HTTP 响应
 func NewGetGatewayResp(result *gatewayservice.GatewayResult) GetGatewayResp {
 	return GetGatewayResp{
-		Gateway: gatewayDetail(result.Gateway, result.RuntimeGroups),
+		Gateway: gatewayDetail(result.Gateway),
 	}
 }
 
-// NewGetGatewayFormOptionsResp 转换 Gateway 表单选项用例结果为 HTTP 响应
-func NewGetGatewayFormOptionsResp(result *gatewayservice.FormOptionsResult) GetGatewayFormOptionsResp {
-	runtimeGroups := make([]RuntimeGroupOption, 0, len(result.RuntimeGroups))
-	for _, runtimeGroup := range result.RuntimeGroups {
-		runtimeGroups = append(runtimeGroups, RuntimeGroupOption{
-			ID:   runtimeGroup.ID,
-			Name: runtimeGroup.Name,
-		})
-	}
-	certificates := make([]CertificateOption, 0, len(result.Certificates))
-	for _, certificate := range result.Certificates {
-		certificates = append(certificates, CertificateOption{
-			ID:        certificate.ID,
-			Name:      certificate.Name,
-			Domains:   append([]string(nil), certificate.Domains...),
-			ExpiresAt: certificate.ExpiresAt,
-			Status:    certificate.Status,
-		})
-	}
-	return GetGatewayFormOptionsResp{
-		RuntimeGroups: runtimeGroups,
-		Certificates:  certificates,
-	}
-}
-
-func gatewaySummary(gateway *resource.Gateway, runtimeGroups []gatewayservice.RuntimeGroupOption) GatewaySummary {
+func gatewaySummary(gateway *resource.Gateway) GatewaySummary {
 	return GatewaySummary{
 		ID:                 gateway.Name,
 		Version:            gateway.ResourceVersion,
-		DisplayName:        displayNameOrID(gateway.Name, gateway.Spec.DisplayName),
+		DisplayName:        gateway.Spec.DisplayName,
 		Description:        gateway.Spec.Description,
 		RuntimeGroup:       runtimeGroup(gateway),
-		RuntimeGroupName:   runtimeGroupName(gateway, runtimeGroups),
 		ListenerSummary:    listenerSummary(gateway.Spec.Listeners),
 		HostBindingSummary: hostBindingSummary(gateway.Spec.HostBindings),
 		Listeners:          listeners(gateway.Spec.Listeners),
@@ -70,44 +45,26 @@ func gatewaySummary(gateway *resource.Gateway, runtimeGroups []gatewayservice.Ru
 	}
 }
 
-func gatewayDetail(gateway *resource.Gateway, runtimeGroups []gatewayservice.RuntimeGroupOption) GatewayDetail {
+func gatewayDetail(gateway *resource.Gateway) GatewayDetail {
 	return GatewayDetail{
-		ID:               gateway.Name,
-		Version:          gateway.ResourceVersion,
-		DisplayName:      displayNameOrID(gateway.Name, gateway.Spec.DisplayName),
-		Description:      gateway.Spec.Description,
-		RuntimeGroup:     runtimeGroup(gateway),
-		RuntimeGroupName: runtimeGroupName(gateway, runtimeGroups),
-		Listeners:        listeners(gateway.Spec.Listeners),
-		HostBindings:     hostBindings(gateway.Spec.HostBindings),
-		Enabled:          gateway.Spec.Enabled,
-		HealthStatus:     healthStatus(gateway.Status),
-		LastChangedAt:    lastChangedAt(gateway.ObjectMeta),
+		ID:            gateway.Name,
+		Version:       gateway.ResourceVersion,
+		DisplayName:   gateway.Spec.DisplayName,
+		Description:   gateway.Spec.Description,
+		RuntimeGroup:  runtimeGroup(gateway),
+		Listeners:     listeners(gateway.Spec.Listeners),
+		HostBindings:  hostBindings(gateway.Spec.HostBindings),
+		Enabled:       gateway.Spec.Enabled,
+		HealthStatus:  healthStatus(gateway.Status),
+		LastChangedAt: lastChangedAt(gateway.ObjectMeta),
 	}
 }
 
 func runtimeGroup(gateway *resource.Gateway) string {
 	if gateway.Spec.RuntimeGroupRef.Name == "" {
-		return gatewayservice.DefaultRuntimeGroupID
+		return runtimegroupsvc.DefaultID
 	}
 	return gateway.Spec.RuntimeGroupRef.Name
-}
-
-func displayNameOrID(id, displayName string) string {
-	if displayName != "" {
-		return displayName
-	}
-	return id
-}
-
-func runtimeGroupName(gateway *resource.Gateway, runtimeGroups []gatewayservice.RuntimeGroupOption) string {
-	id := runtimeGroup(gateway)
-	for _, runtimeGroup := range runtimeGroups {
-		if runtimeGroup.ID == id {
-			return runtimeGroup.Name
-		}
-	}
-	return id
 }
 
 func listeners(items []resource.Listener) []GatewayListener {
