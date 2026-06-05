@@ -4,7 +4,12 @@ import { useResource } from '@/api/useResource';
 import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Tabs } from '@/components/ui';
 import type { KeyValue } from '@/domain/common';
 import { healthLabel, runtimeSyncStatusLabel, statusTone } from '@/domain/common';
-import type { RouteComposerPreview, RoutePageView, RouteResource, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
+import type { RouteComposerPreview, RoutePageView, RoutePolicyCapability, RouteResource, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
+import {
+  routePolicyCapabilityRequestHeaderModifier,
+  routePolicyCapabilityRetry,
+  routePolicyCapabilityTimeout,
+} from '@/domain/route';
 import { serviceTypeLabel } from '@/domain/service';
 import type { RouteComposerDraft } from './composer';
 import {
@@ -42,8 +47,6 @@ const emptyRouteFilters: RouteFilters = {
 };
 
 const httpMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
-const routePolicyTimeoutName = '超时控制';
-const routePolicyRetryName = '失败重试';
 const defaultRouteTimeoutMillis = 30000;
 
 export function RoutePage() {
@@ -142,7 +145,7 @@ export function RoutePage() {
       serviceName: primaryTargetName,
       targetServices,
       enabled: route.enabled,
-      enabledPolicyNames: route.policyBindings?.map((binding) => binding.policyName) ?? [],
+      enabledPolicyCapabilities: route.policyBindings?.map((binding) => binding.capability) ?? [],
       policySettings: policySettingsFromBindings(route.policyBindings ?? []),
     });
     setServerValidation(null);
@@ -292,7 +295,7 @@ export function RoutePage() {
             </div>
             <div className="route-workbench-meta">
               <Badge tone={draft.enabled ? 'green' : 'neutral'}>{draft.enabled ? '启用' : '停用'}</Badge>
-              <span>{draft.enabledPolicyNames.length > 0 ? `${draft.enabledPolicyNames.length} 个策略` : '未绑定策略'}</span>
+              <span>{draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 个策略` : '未绑定策略'}</span>
             </div>
           </div>
           <RouteMatchHeader draft={draft} />
@@ -437,7 +440,7 @@ function RouteMatchHeader({ draft }: { draft: RouteComposerDraft }) {
     { label: '入口网关', value: formatGatewayNames(draft.gatewayNames), meta: `${draft.gatewayNames.length || 0} 个网关` },
     { label: '匹配请求', value: `${formatMethods(draft.methods)} ${draft.path || '/'}`, meta: formatHostnames(draft.hostnames) },
     { label: '转发服务', value: targetSummary, meta: `${draft.targetServices.length} 个目标 / 总权重 ${targetWeightSum(draft.targetServices)}` },
-    { label: '治理策略', value: draft.enabledPolicyNames.length > 0 ? `${draft.enabledPolicyNames.length} 个策略` : '未绑定策略', meta: draft.enabled ? '保存后自动生效' : '当前停用' },
+    { label: '治理策略', value: draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 个策略` : '未绑定策略', meta: draft.enabled ? '保存后自动生效' : '当前停用' },
   ];
 
   return (
@@ -466,9 +469,10 @@ function RouteMatchHeader({ draft }: { draft: RouteComposerDraft }) {
 }
 
 function findPolicyValidationMessage(composer: RouteComposerPreview, draft: RouteComposerDraft) {
-  const errors = validateEnabledPolicySettings(composer.policies, draft.enabledPolicyNames, draft.policySettings);
-  const invalidPolicyName = draft.enabledPolicyNames.find((policyName) => Object.keys(errors[policyName] ?? {}).length > 0);
-  return invalidPolicyName ? `请补齐策略参数：${invalidPolicyName}` : '';
+  const errors = validateEnabledPolicySettings(composer.policies, draft.enabledPolicyCapabilities, draft.policySettings);
+  const invalidCapability = draft.enabledPolicyCapabilities.find((capability) => Object.keys(errors[capability] ?? {}).length > 0);
+  const invalidPolicy = composer.policies.find((policy) => policy.capability === invalidCapability);
+  return invalidPolicy ? `请补齐策略参数：${invalidPolicy.displayName}` : '';
 }
 
 function renderRouteTable(
@@ -660,21 +664,21 @@ function RouteComposer({
           <RoutePolicyBindings
             policies={composer.policies}
             selectedTarget={selectedTarget}
-            enabledPolicyNames={draft.enabledPolicyNames}
+            enabledPolicyCapabilities={draft.enabledPolicyCapabilities}
             settings={draft.policySettings}
-            onAddPolicy={(policyName) => {
-              if (draft.enabledPolicyNames.includes(policyName)) {
+            onAddPolicy={(capability) => {
+              if (draft.enabledPolicyCapabilities.includes(capability)) {
                 return;
               }
 
-              updateDraft({ enabledPolicyNames: [...draft.enabledPolicyNames, policyName] });
+              updateDraft({ enabledPolicyCapabilities: [...draft.enabledPolicyCapabilities, capability] });
             }}
-            onRemovePolicy={(policyName) => updateDraft({ enabledPolicyNames: draft.enabledPolicyNames.filter((name) => name !== policyName) })}
-            onSettingChange={(policyName, key, value) => updateDraft({
+            onRemovePolicy={(capability) => updateDraft({ enabledPolicyCapabilities: draft.enabledPolicyCapabilities.filter((item) => item !== capability) })}
+            onSettingChange={(capability, key, value) => updateDraft({
               policySettings: {
                 ...draft.policySettings,
-                [policyName]: {
-                  ...(draft.policySettings[policyName] ?? {}),
+                [capability]: {
+                  ...(draft.policySettings[capability] ?? {}),
                   [key]: value,
                 },
               },
@@ -1075,7 +1079,7 @@ function routeIdFromPayload(payload: ReturnType<typeof buildRoutePublishPayload>
 
 function policySettingsFromBindings(bindings: NonNullable<RouteResource['policyBindings']>): RouteComposerDraft['policySettings'] {
   return Object.fromEntries(bindings.map((binding) => [
-    binding.policyName,
+    binding.capability,
     Object.fromEntries(Object.entries(binding.parameters).map(([key, value]) => [
       key,
       Array.isArray(value) ? value.map(String).join(',') : String(value),
@@ -1086,7 +1090,7 @@ function policySettingsFromBindings(bindings: NonNullable<RouteResource['policyB
 function RoutePolicyBindings({
   policies,
   selectedTarget,
-  enabledPolicyNames,
+  enabledPolicyCapabilities,
   settings,
   onAddPolicy,
   onRemovePolicy,
@@ -1094,24 +1098,24 @@ function RoutePolicyBindings({
 }: {
   policies: RouteComposerPreview['policies'];
   selectedTarget?: RouteComposerPreview['targets'][number];
-  enabledPolicyNames: string[];
+  enabledPolicyCapabilities: RoutePolicyCapability[];
   settings: Record<string, Record<string, string>>;
-  onAddPolicy: (policyName: string) => void;
-  onRemovePolicy: (policyName: string) => void;
-  onSettingChange: (policyName: string, key: string, value: string) => void;
+  onAddPolicy: (capability: RoutePolicyCapability) => void;
+  onRemovePolicy: (capability: RoutePolicyCapability) => void;
+  onSettingChange: (capability: RoutePolicyCapability, key: string, value: string) => void;
 }) {
-  const applicablePolicies = policies.filter((policy) => policyAppliesToTarget(policy.name, selectedTarget));
-  const enabledPolicySet = new Set(enabledPolicyNames);
-  const enabledCount = applicablePolicies.filter((policy) => enabledPolicySet.has(policy.name)).length;
-  const policyErrors = validateEnabledPolicySettings(applicablePolicies, enabledPolicyNames, settings);
+  const applicablePolicies = policies.filter((policy) => policyAppliesToTarget(policy, selectedTarget));
+  const enabledPolicySet = new Set(enabledPolicyCapabilities);
+  const enabledCount = applicablePolicies.filter((policy) => enabledPolicySet.has(policy.capability)).length;
+  const policyErrors = validateEnabledPolicySettings(applicablePolicies, enabledPolicyCapabilities, settings);
 
-  const togglePolicy = (policyName: string) => {
-    if (enabledPolicySet.has(policyName)) {
-      onRemovePolicy(policyName);
+  const togglePolicy = (capability: RoutePolicyCapability) => {
+    if (enabledPolicySet.has(capability)) {
+      onRemovePolicy(capability);
       return;
     }
 
-    onAddPolicy(policyName);
+    onAddPolicy(capability);
   };
 
   return (
@@ -1127,21 +1131,21 @@ function RoutePolicyBindings({
       {applicablePolicies.length > 0 ? (
         <div className="route-policy-capability-list">
           {applicablePolicies.map((policy) => {
-            const enabled = enabledPolicySet.has(policy.name);
-            const policySettings = settings[policy.name] ?? {};
-            const errors = enabled ? policyErrors[policy.name] ?? {} : {};
+            const enabled = enabledPolicySet.has(policy.capability);
+            const policySettings = settings[policy.capability] ?? {};
+            const errors = enabled ? policyErrors[policy.capability] ?? {} : {};
 
             return (
-              <article key={policy.name} className={`route-policy-capability ${enabled ? 'enabled' : ''}`.trim()}>
+              <article key={policy.capability} className={`route-policy-capability ${enabled ? 'enabled' : ''}`.trim()}>
                 <div className="route-policy-capability-head">
-                  <button className="route-policy-toggle" type="button" onClick={() => togglePolicy(policy.name)}>
+                  <button className="route-policy-toggle" type="button" onClick={() => togglePolicy(policy.capability)}>
                     <span className={`switch ${enabled ? 'on' : ''}`} aria-hidden="true" />
                     <span>
-                      <strong>{policy.name}</strong>
+                      <strong>{policy.displayName}</strong>
                       <small>{policy.meta}</small>
                     </span>
                   </button>
-                  <Badge tone={isAiPolicy(policy.name) ? 'amber' : 'neutral'}>{policyCategory(policy.name)}</Badge>
+                  <Badge tone="neutral">{policyCategory(policy.capability)}</Badge>
                 </div>
                 {enabled ? (
                   <>
@@ -1153,7 +1157,7 @@ function RoutePolicyBindings({
                           param={param}
                           value={policySettings[param.key] ?? param.defaultValue}
                           error={errors[param.key]}
-                          onChange={(value) => onSettingChange(policy.name, param.key, value)}
+                          onChange={(value) => onSettingChange(policy.capability, param.key, value)}
                         />
                       ))}
                     </div>
@@ -1229,7 +1233,7 @@ function PolicyParamField({
 function validatePolicySettings(policy: RouteComposerPreview['policies'][number], settings: Record<string, string>): Record<string, string> {
   const errors: Record<string, string> = {};
 
-  if (policy.name.includes('Header')) {
+  if (policy.capability === routePolicyCapabilityRequestHeaderModifier) {
     const setHeaderNames = (settings.setHeadersOn ?? '').trim();
     const headerValue = (settings.value ?? '').trim();
     const removeHeaderNames = (settings.removeHeadersOn ?? '').trim();
@@ -1289,26 +1293,26 @@ function validatePolicySettings(policy: RouteComposerPreview['policies'][number]
 
 function validateEnabledPolicySettings(
   policies: RouteComposerPreview['policies'],
-  enabledPolicyNames: string[],
+  enabledPolicyCapabilities: RoutePolicyCapability[],
   settings: RouteComposerDraft['policySettings'],
 ): Record<string, Record<string, string>> {
   const errors: Record<string, Record<string, string>> = {};
 
-  enabledPolicyNames.forEach((policyName) => {
-    const policy = policies.find((item) => item.name === policyName);
+  enabledPolicyCapabilities.forEach((capability) => {
+    const policy = policies.find((item) => item.capability === capability);
     if (!policy) {
       return;
     }
-    errors[policyName] = validatePolicySettings(policy, settings[policyName] ?? {});
+    errors[capability] = validatePolicySettings(policy, settings[capability] ?? {});
   });
 
-  const retryErrors = errors[routePolicyRetryName];
-  if (!retryErrors || !enabledPolicyNames.includes(routePolicyRetryName)) {
+  const retryErrors = errors[routePolicyCapabilityRetry];
+  if (!retryErrors || !enabledPolicyCapabilities.includes(routePolicyCapabilityRetry)) {
     return errors;
   }
 
-  const totalTimeoutMillis = numericPolicySetting(settings[routePolicyTimeoutName], 'timeoutMillis', defaultRouteTimeoutMillis);
-  const perTryTimeoutMillis = numericPolicySetting(settings[routePolicyRetryName], 'perTryTimeoutMillis', 0);
+  const totalTimeoutMillis = numericPolicySetting(settings[routePolicyCapabilityTimeout], 'timeoutMillis', defaultRouteTimeoutMillis);
+  const perTryTimeoutMillis = numericPolicySetting(settings[routePolicyCapabilityRetry], 'perTryTimeoutMillis', 0);
   if (perTryTimeoutMillis > 0 && perTryTimeoutMillis > totalTimeoutMillis) {
     retryErrors.perTryTimeoutMillis = `单次尝试超时不能大于请求总超时 ${totalTimeoutMillis}ms`;
   }
@@ -1376,34 +1380,28 @@ function policyParamSummary(policy: RouteComposerPreview['policies'][number], se
   return summary || '-';
 }
 
-function policyCategory(policyName: string): string {
-  if (policyName.includes('认证')) {
-    return '访问控制';
-  }
-  if (policyName.includes('限流') || policyName.includes('配额') || policyName.includes('Token')) {
-    return '流量控制';
-  }
-  if (policyName.includes('校验') || policyName.includes('安全')) {
-    return '安全防护';
-  }
-  if (policyName.includes('Header')) {
+function policyCategory(capability: RoutePolicyCapability): string {
+  if (capability === routePolicyCapabilityRequestHeaderModifier) {
     return '请求处理';
   }
-  if (policyName.includes('超时') || policyName.includes('重试')) {
+  if (capability === routePolicyCapabilityTimeout || capability === routePolicyCapabilityRetry) {
     return '可靠性';
   }
 
   return '通用策略';
 }
 
-function policyAppliesToTarget(policyName: string, target?: RouteComposerPreview['targets'][number]): boolean {
-  return !isAiPolicy(policyName) || isAiTarget(target);
+function policyAppliesToTarget(policy: RouteComposerPreview['policies'][number], target?: RouteComposerPreview['targets'][number]): boolean {
+  if (!isAiPolicy(policy)) {
+    return true;
+  }
+  return isAiTarget(target);
 }
 
 function isAiTarget(target?: RouteComposerPreview['targets'][number]): boolean {
   return Boolean(target?.type.includes('模型') || target?.type.includes('Agent') || target?.type.includes('MCP'));
 }
 
-function isAiPolicy(policyName: string): boolean {
-  return policyName.includes('Token') || policyName.includes('Prompt') || policyName.includes('模型');
+function isAiPolicy(policy: RouteComposerPreview['policies'][number]): boolean {
+  return policy.displayName.includes('Token') || policy.displayName.includes('Prompt') || policy.displayName.includes('模型');
 }

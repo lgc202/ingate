@@ -1,6 +1,10 @@
 import type { ConsoleRepository } from './contracts';
 import type { GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayValidationReport } from '@/domain/gateway';
 import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
+import {
+  routePolicyCapabilityRetry,
+  routePolicyCapabilityTimeout,
+} from '@/domain/route';
 import type { ServiceListView, ServiceMutationPayload, ServiceMutationResult, ServiceValidationReport } from '@/domain/service';
 import { serviceLoadBalancePolicyLabel } from '@/domain/service';
 
@@ -17,8 +21,6 @@ interface RouteMutationResponse {
 }
 
 const apiBaseUrl = (import.meta.env.VITE_INGATE_API_BASE_URL as string | undefined) ?? '/api/v1';
-const routePolicyTimeoutName = '超时控制';
-const routePolicyRetryName = '失败重试';
 const defaultRouteTimeoutMillis = 30000;
 
 export const liveConsoleRepository: ConsoleRepository = {
@@ -429,12 +431,12 @@ function validateRoutePolicyRelationship(payload: RoutePublishPayload) {
     return '策略参数未填写完整';
   }
 
-  const retryPolicy = payload.policyBindings.find((binding) => binding.policyName === routePolicyRetryName);
+  const retryPolicy = payload.policyBindings.find((binding) => binding.capability === routePolicyCapabilityRetry);
   if (!retryPolicy) {
     return '';
   }
 
-  const timeoutPolicy = payload.policyBindings.find((binding) => binding.policyName === routePolicyTimeoutName);
+  const timeoutPolicy = payload.policyBindings.find((binding) => binding.capability === routePolicyCapabilityTimeout);
   const totalTimeoutMillis = Number(timeoutPolicy?.parameters.timeoutMillis ?? defaultRouteTimeoutMillis);
   const perTryTimeoutMillis = Number(retryPolicy.parameters.perTryTimeoutMillis ?? 0);
   if (Number.isFinite(perTryTimeoutMillis) && Number.isFinite(totalTimeoutMillis) && perTryTimeoutMillis > totalTimeoutMillis) {

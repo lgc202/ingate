@@ -1,6 +1,12 @@
 import type { HealthStatus, RuntimeSyncStatus } from './common';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+export type RoutePolicyCapability = 'RequestHeaderModifier' | 'Timeout' | 'Retry';
+export type RoutePolicySource = 'RouteNative';
+
+export const routePolicyCapabilityRequestHeaderModifier: RoutePolicyCapability = 'RequestHeaderModifier';
+export const routePolicyCapabilityTimeout: RoutePolicyCapability = 'Timeout';
+export const routePolicyCapabilityRetry: RoutePolicyCapability = 'Retry';
 
 export interface RouteResource {
   id: string;
@@ -47,7 +53,8 @@ export interface RouteTargetOption {
 }
 
 export interface RoutePolicyOption {
-  name: string;
+  capability: RoutePolicyCapability;
+  displayName: string;
   meta: string;
   enabled: boolean;
   params: RoutePolicyParam[];
@@ -103,8 +110,8 @@ export interface RouteTargetPayload {
 }
 
 export interface RoutePolicyBindingPayload {
-  policyName: string;
-  source: 'route';
+  capability: RoutePolicyCapability;
+  source: RoutePolicySource;
   parameters: Record<string, string | string[]>;
 }
 

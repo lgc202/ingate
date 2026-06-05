@@ -293,6 +293,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*HeaderModifier)(nil), (*gateway.HeaderModifier)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_HeaderModifier_To_gateway_HeaderModifier(a.(*HeaderModifier), b.(*gateway.HeaderModifier), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.HeaderModifier)(nil), (*HeaderModifier)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_HeaderModifier_To_v1_HeaderModifier(a.(*gateway.HeaderModifier), b.(*HeaderModifier), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*HeaderPair)(nil), (*gateway.HeaderPair)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_HeaderPair_To_gateway_HeaderPair(a.(*HeaderPair), b.(*gateway.HeaderPair), scope)
 	}); err != nil {
@@ -300,6 +310,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.HeaderPair)(nil), (*HeaderPair)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_HeaderPair_To_v1_HeaderPair(a.(*gateway.HeaderPair), b.(*HeaderPair), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*HeaderValue)(nil), (*gateway.HeaderValue)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_HeaderValue_To_gateway_HeaderValue(a.(*HeaderValue), b.(*gateway.HeaderValue), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.HeaderValue)(nil), (*HeaderValue)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_HeaderValue_To_v1_HeaderValue(a.(*gateway.HeaderValue), b.(*HeaderValue), scope)
 	}); err != nil {
 		return err
 	}
@@ -493,6 +513,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*RouteFilter)(nil), (*gateway.RouteFilter)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RouteFilter_To_gateway_RouteFilter(a.(*RouteFilter), b.(*gateway.RouteFilter), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RouteFilter)(nil), (*RouteFilter)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RouteFilter_To_v1_RouteFilter(a.(*gateway.RouteFilter), b.(*RouteFilter), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*RouteList)(nil), (*gateway.RouteList)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_RouteList_To_gateway_RouteList(a.(*RouteList), b.(*gateway.RouteList), scope)
 	}); err != nil {
@@ -500,6 +530,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.RouteList)(nil), (*RouteList)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_RouteList_To_v1_RouteList(a.(*gateway.RouteList), b.(*RouteList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*RouteRetry)(nil), (*gateway.RouteRetry)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RouteRetry_To_gateway_RouteRetry(a.(*RouteRetry), b.(*gateway.RouteRetry), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RouteRetry)(nil), (*RouteRetry)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RouteRetry_To_v1_RouteRetry(a.(*gateway.RouteRetry), b.(*RouteRetry), scope)
 	}); err != nil {
 		return err
 	}
@@ -520,6 +560,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.RouteSpec)(nil), (*RouteSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_RouteSpec_To_v1_RouteSpec(a.(*gateway.RouteSpec), b.(*RouteSpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*RouteTimeout)(nil), (*gateway.RouteTimeout)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RouteTimeout_To_gateway_RouteTimeout(a.(*RouteTimeout), b.(*gateway.RouteTimeout), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RouteTimeout)(nil), (*RouteTimeout)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RouteTimeout_To_v1_RouteTimeout(a.(*gateway.RouteTimeout), b.(*RouteTimeout), scope)
 	}); err != nil {
 		return err
 	}
@@ -1308,6 +1358,30 @@ func Convert_gateway_HeaderMatch_To_v1_HeaderMatch(in *gateway.HeaderMatch, out 
 	return autoConvert_gateway_HeaderMatch_To_v1_HeaderMatch(in, out, s)
 }
 
+func autoConvert_v1_HeaderModifier_To_gateway_HeaderModifier(in *HeaderModifier, out *gateway.HeaderModifier, s conversion.Scope) error {
+	out.Set = *(*[]gateway.HeaderValue)(unsafe.Pointer(&in.Set))
+	out.Add = *(*[]gateway.HeaderValue)(unsafe.Pointer(&in.Add))
+	out.Remove = *(*[]string)(unsafe.Pointer(&in.Remove))
+	return nil
+}
+
+// Convert_v1_HeaderModifier_To_gateway_HeaderModifier is an autogenerated conversion function.
+func Convert_v1_HeaderModifier_To_gateway_HeaderModifier(in *HeaderModifier, out *gateway.HeaderModifier, s conversion.Scope) error {
+	return autoConvert_v1_HeaderModifier_To_gateway_HeaderModifier(in, out, s)
+}
+
+func autoConvert_gateway_HeaderModifier_To_v1_HeaderModifier(in *gateway.HeaderModifier, out *HeaderModifier, s conversion.Scope) error {
+	out.Set = *(*[]HeaderValue)(unsafe.Pointer(&in.Set))
+	out.Add = *(*[]HeaderValue)(unsafe.Pointer(&in.Add))
+	out.Remove = *(*[]string)(unsafe.Pointer(&in.Remove))
+	return nil
+}
+
+// Convert_gateway_HeaderModifier_To_v1_HeaderModifier is an autogenerated conversion function.
+func Convert_gateway_HeaderModifier_To_v1_HeaderModifier(in *gateway.HeaderModifier, out *HeaderModifier, s conversion.Scope) error {
+	return autoConvert_gateway_HeaderModifier_To_v1_HeaderModifier(in, out, s)
+}
+
 func autoConvert_v1_HeaderPair_To_gateway_HeaderPair(in *HeaderPair, out *gateway.HeaderPair, s conversion.Scope) error {
 	out.Name = in.Name
 	out.Value = in.Value
@@ -1328,6 +1402,28 @@ func autoConvert_gateway_HeaderPair_To_v1_HeaderPair(in *gateway.HeaderPair, out
 // Convert_gateway_HeaderPair_To_v1_HeaderPair is an autogenerated conversion function.
 func Convert_gateway_HeaderPair_To_v1_HeaderPair(in *gateway.HeaderPair, out *HeaderPair, s conversion.Scope) error {
 	return autoConvert_gateway_HeaderPair_To_v1_HeaderPair(in, out, s)
+}
+
+func autoConvert_v1_HeaderValue_To_gateway_HeaderValue(in *HeaderValue, out *gateway.HeaderValue, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Value = in.Value
+	return nil
+}
+
+// Convert_v1_HeaderValue_To_gateway_HeaderValue is an autogenerated conversion function.
+func Convert_v1_HeaderValue_To_gateway_HeaderValue(in *HeaderValue, out *gateway.HeaderValue, s conversion.Scope) error {
+	return autoConvert_v1_HeaderValue_To_gateway_HeaderValue(in, out, s)
+}
+
+func autoConvert_gateway_HeaderValue_To_v1_HeaderValue(in *gateway.HeaderValue, out *HeaderValue, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Value = in.Value
+	return nil
+}
+
+// Convert_gateway_HeaderValue_To_v1_HeaderValue is an autogenerated conversion function.
+func Convert_gateway_HeaderValue_To_v1_HeaderValue(in *gateway.HeaderValue, out *HeaderValue, s conversion.Scope) error {
+	return autoConvert_gateway_HeaderValue_To_v1_HeaderValue(in, out, s)
 }
 
 func autoConvert_v1_Listener_To_gateway_Listener(in *Listener, out *gateway.Listener, s conversion.Scope) error {
@@ -1828,6 +1924,30 @@ func Convert_gateway_Route_To_v1_Route(in *gateway.Route, out *Route, s conversi
 	return autoConvert_gateway_Route_To_v1_Route(in, out, s)
 }
 
+func autoConvert_v1_RouteFilter_To_gateway_RouteFilter(in *RouteFilter, out *gateway.RouteFilter, s conversion.Scope) error {
+	out.Type = gateway.RouteFilterType(in.Type)
+	out.RequestHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
+	out.ResponseHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
+	return nil
+}
+
+// Convert_v1_RouteFilter_To_gateway_RouteFilter is an autogenerated conversion function.
+func Convert_v1_RouteFilter_To_gateway_RouteFilter(in *RouteFilter, out *gateway.RouteFilter, s conversion.Scope) error {
+	return autoConvert_v1_RouteFilter_To_gateway_RouteFilter(in, out, s)
+}
+
+func autoConvert_gateway_RouteFilter_To_v1_RouteFilter(in *gateway.RouteFilter, out *RouteFilter, s conversion.Scope) error {
+	out.Type = RouteFilterType(in.Type)
+	out.RequestHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
+	out.ResponseHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
+	return nil
+}
+
+// Convert_gateway_RouteFilter_To_v1_RouteFilter is an autogenerated conversion function.
+func Convert_gateway_RouteFilter_To_v1_RouteFilter(in *gateway.RouteFilter, out *RouteFilter, s conversion.Scope) error {
+	return autoConvert_gateway_RouteFilter_To_v1_RouteFilter(in, out, s)
+}
+
 func autoConvert_v1_RouteList_To_gateway_RouteList(in *RouteList, out *gateway.RouteList, s conversion.Scope) error {
 	out.ListMeta = in.ListMeta
 	out.Items = *(*[]gateway.Route)(unsafe.Pointer(&in.Items))
@@ -1850,11 +1970,37 @@ func Convert_gateway_RouteList_To_v1_RouteList(in *gateway.RouteList, out *Route
 	return autoConvert_gateway_RouteList_To_v1_RouteList(in, out, s)
 }
 
+func autoConvert_v1_RouteRetry_To_gateway_RouteRetry(in *RouteRetry, out *gateway.RouteRetry, s conversion.Scope) error {
+	out.Attempts = in.Attempts
+	out.PerTryTimeoutMillis = in.PerTryTimeoutMillis
+	out.RetryOn = *(*[]string)(unsafe.Pointer(&in.RetryOn))
+	return nil
+}
+
+// Convert_v1_RouteRetry_To_gateway_RouteRetry is an autogenerated conversion function.
+func Convert_v1_RouteRetry_To_gateway_RouteRetry(in *RouteRetry, out *gateway.RouteRetry, s conversion.Scope) error {
+	return autoConvert_v1_RouteRetry_To_gateway_RouteRetry(in, out, s)
+}
+
+func autoConvert_gateway_RouteRetry_To_v1_RouteRetry(in *gateway.RouteRetry, out *RouteRetry, s conversion.Scope) error {
+	out.Attempts = in.Attempts
+	out.PerTryTimeoutMillis = in.PerTryTimeoutMillis
+	out.RetryOn = *(*[]string)(unsafe.Pointer(&in.RetryOn))
+	return nil
+}
+
+// Convert_gateway_RouteRetry_To_v1_RouteRetry is an autogenerated conversion function.
+func Convert_gateway_RouteRetry_To_v1_RouteRetry(in *gateway.RouteRetry, out *RouteRetry, s conversion.Scope) error {
+	return autoConvert_gateway_RouteRetry_To_v1_RouteRetry(in, out, s)
+}
+
 func autoConvert_v1_RouteRule_To_gateway_RouteRule(in *RouteRule, out *gateway.RouteRule, s conversion.Scope) error {
 	out.PathPrefix = in.PathPrefix
 	out.Methods = *(*[]string)(unsafe.Pointer(&in.Methods))
-	out.TimeoutMillis = in.TimeoutMillis
 	out.Headers = *(*[]gateway.HeaderMatch)(unsafe.Pointer(&in.Headers))
+	out.Filters = *(*[]gateway.RouteFilter)(unsafe.Pointer(&in.Filters))
+	out.Timeout = (*gateway.RouteTimeout)(unsafe.Pointer(in.Timeout))
+	out.Retry = (*gateway.RouteRetry)(unsafe.Pointer(in.Retry))
 	out.UpstreamRefs = *(*[]gateway.UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
 	return nil
 }
@@ -1867,8 +2013,10 @@ func Convert_v1_RouteRule_To_gateway_RouteRule(in *RouteRule, out *gateway.Route
 func autoConvert_gateway_RouteRule_To_v1_RouteRule(in *gateway.RouteRule, out *RouteRule, s conversion.Scope) error {
 	out.PathPrefix = in.PathPrefix
 	out.Methods = *(*[]string)(unsafe.Pointer(&in.Methods))
-	out.TimeoutMillis = in.TimeoutMillis
 	out.Headers = *(*[]HeaderMatch)(unsafe.Pointer(&in.Headers))
+	out.Filters = *(*[]RouteFilter)(unsafe.Pointer(&in.Filters))
+	out.Timeout = (*RouteTimeout)(unsafe.Pointer(in.Timeout))
+	out.Retry = (*RouteRetry)(unsafe.Pointer(in.Retry))
 	out.UpstreamRefs = *(*[]UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
 	return nil
 }
@@ -1900,6 +2048,26 @@ func autoConvert_gateway_RouteSpec_To_v1_RouteSpec(in *gateway.RouteSpec, out *R
 // Convert_gateway_RouteSpec_To_v1_RouteSpec is an autogenerated conversion function.
 func Convert_gateway_RouteSpec_To_v1_RouteSpec(in *gateway.RouteSpec, out *RouteSpec, s conversion.Scope) error {
 	return autoConvert_gateway_RouteSpec_To_v1_RouteSpec(in, out, s)
+}
+
+func autoConvert_v1_RouteTimeout_To_gateway_RouteTimeout(in *RouteTimeout, out *gateway.RouteTimeout, s conversion.Scope) error {
+	out.RequestMillis = in.RequestMillis
+	return nil
+}
+
+// Convert_v1_RouteTimeout_To_gateway_RouteTimeout is an autogenerated conversion function.
+func Convert_v1_RouteTimeout_To_gateway_RouteTimeout(in *RouteTimeout, out *gateway.RouteTimeout, s conversion.Scope) error {
+	return autoConvert_v1_RouteTimeout_To_gateway_RouteTimeout(in, out, s)
+}
+
+func autoConvert_gateway_RouteTimeout_To_v1_RouteTimeout(in *gateway.RouteTimeout, out *RouteTimeout, s conversion.Scope) error {
+	out.RequestMillis = in.RequestMillis
+	return nil
+}
+
+// Convert_gateway_RouteTimeout_To_v1_RouteTimeout is an autogenerated conversion function.
+func Convert_gateway_RouteTimeout_To_v1_RouteTimeout(in *gateway.RouteTimeout, out *RouteTimeout, s conversion.Scope) error {
+	return autoConvert_gateway_RouteTimeout_To_v1_RouteTimeout(in, out, s)
 }
 
 func autoConvert_v1_RuntimeSnapshot_To_gateway_RuntimeSnapshot(in *RuntimeSnapshot, out *gateway.RuntimeSnapshot, s conversion.Scope) error {

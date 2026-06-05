@@ -363,10 +363,18 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 		}
 		for _, rule := range route.Spec.Rules {
 			logicalRule := ir.LogicalRouteRule{
-				PathPrefix:    rule.PathPrefix,
-				Methods:       slices.Clone(rule.Methods),
-				TimeoutMillis: rule.TimeoutMillis,
-				Upstreams:     make([]ir.LogicalUpstreamRef, 0, len(rule.UpstreamRefs)),
+				PathPrefix: rule.PathPrefix,
+				Methods:    slices.Clone(rule.Methods),
+				Upstreams:  make([]ir.LogicalUpstreamRef, 0, len(rule.UpstreamRefs)),
+			}
+			if rule.Timeout != nil {
+				logicalRule.TimeoutMillis = rule.Timeout.RequestMillis
+			}
+			if rule.Retry != nil {
+				logicalRule.Retry = ir.LogicalRetryPolicy{
+					Attempts:            rule.Retry.Attempts,
+					PerTryTimeoutMillis: rule.Retry.PerTryTimeoutMillis,
+				}
 			}
 			if len(rule.Headers) > 0 {
 				logicalRule.Headers = make([]ir.LogicalHeaderMatch, 0, len(rule.Headers))
@@ -390,7 +398,7 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 					upstreamOrder = append(upstreamOrder, upstreamRef.Name)
 				}
 			}
-			if err := c.applyRoutePolicies(route, &logicalRule); err != nil {
+			if err := c.applyRouteFilters(route.Name, rule.Filters, &logicalRule); err != nil {
 				return nil, nil, err
 			}
 			logicalRoute.Rules = append(logicalRoute.Rules, logicalRule)
@@ -399,6 +407,33 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 	}
 
 	return routes, upstreamOrder, nil
+}
+
+func (c *gatewayCompiler) applyRouteFilters(routeName string, filters []resource.RouteFilter, logicalRule *ir.LogicalRouteRule) error {
+	for _, filter := range filters {
+		switch filter.Type {
+		case resource.RouteFilterRequestHeaderModifier:
+			if filter.RequestHeaderModifier == nil {
+				return fmt.Errorf("route %q request header modifier is empty", routeName)
+			}
+			for _, header := range filter.RequestHeaderModifier.Set {
+				logicalRule.RequestHeadersToAdd = append(logicalRule.RequestHeadersToAdd, ir.LogicalHeaderValue{
+					Name:  header.Name,
+					Value: header.Value,
+				})
+			}
+			for _, header := range filter.RequestHeaderModifier.Add {
+				logicalRule.RequestHeadersToAdd = append(logicalRule.RequestHeadersToAdd, ir.LogicalHeaderValue{
+					Name:  header.Name,
+					Value: header.Value,
+				})
+			}
+			logicalRule.RequestHeadersToRemove = append(logicalRule.RequestHeadersToRemove, filter.RequestHeaderModifier.Remove...)
+		default:
+			return fmt.Errorf("route %q has unsupported route filter %q", routeName, filter.Type)
+		}
+	}
+	return nil
 }
 
 func (c *gatewayCompiler) buildAttachedAIRoutes() (attachedAIRoutes, error) {
@@ -684,7 +719,11 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstream
 	return bindings
 }
 
-func (c *gatewayCompiler) buildPluginBindings(routes []ir.LogicalRoute, upstreamOrder []string, aiRoutes attachedAIRoutes) []ir.LogicalPluginBinding {
+func (c *gatewayCompiler) buildPluginBindings(
+	routes []ir.LogicalRoute,
+	upstreamOrder []string,
+	aiRoutes attachedAIRoutes,
+) []ir.LogicalPluginBinding {
 	routeNames := make(map[string]bool, len(routes))
 	for _, route := range routes {
 		routeNames[route.Name] = true

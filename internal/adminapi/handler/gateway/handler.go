@@ -41,8 +41,9 @@ func (h *Handler) Get(ctx *gin.Context) {
 
 // Create 创建 Gateway
 func (h *Handler) Create(ctx *gin.Context) {
-	request, ok := h.gatewayRequest(ctx)
-	if !ok {
+	request, err := h.gatewayRequest(ctx)
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
 		return
 	}
 	gateway, err := request.Resource()
@@ -57,8 +58,9 @@ func (h *Handler) Create(ctx *gin.Context) {
 
 // Update 更新 Gateway
 func (h *Handler) Update(ctx *gin.Context) {
-	request, ok := h.gatewayRequest(ctx)
-	if !ok {
+	request, err := h.gatewayRequest(ctx)
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
 		return
 	}
 	gateway, err := request.Resource()
@@ -103,15 +105,13 @@ func (h *Handler) Overview(ctx *gin.Context) {
 	response.WriteResult(ctx, dto.FromDetailResult(result), nil)
 }
 
-func (h *Handler) gatewayRequest(ctx *gin.Context) (dto.GatewayRequest, bool) {
+func (h *Handler) gatewayRequest(ctx *gin.Context) (dto.GatewayRequest, error) {
 	request := dto.GatewayRequest{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
-		response.WriteResult(ctx, nil, apierrors.NewBadRequest("invalid gateway request body"))
-		return dto.GatewayRequest{}, false
+		return dto.GatewayRequest{}, apierrors.NewBadRequest("invalid gateway request body")
 	}
 	if err := request.Validate(); err != nil {
-		response.WriteResult(ctx, nil, err)
-		return dto.GatewayRequest{}, false
+		return dto.GatewayRequest{}, err
 	}
-	return request, true
+	return request, nil
 }

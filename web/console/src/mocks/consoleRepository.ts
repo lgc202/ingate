@@ -11,6 +11,11 @@ import type { ObservabilityOverview } from '@/domain/observability';
 import type { PluginListView } from '@/domain/plugin';
 import type { PolicyListView } from '@/domain/policy';
 import type { RouteActionResult, RoutePageView, RoutePublishPayload, RoutePublishPreview, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
+import {
+  routePolicyCapabilityRequestHeaderModifier,
+  routePolicyCapabilityRetry,
+  routePolicyCapabilityTimeout,
+} from '@/domain/route';
 import type {
   ServiceListView,
   ServiceMutationPayload,
@@ -21,8 +26,6 @@ import type {
 import { serviceLoadBalancePolicyLabel, serviceTypeLabel } from '@/domain/service';
 import type { SettingsWorkspace } from '@/domain/settings';
 
-const routePolicyTimeoutName = '超时控制';
-const routePolicyRetryName = '失败重试';
 const defaultRouteTimeoutMillis = 30000;
 
 const homeDashboard: HomeDashboard = {
@@ -265,7 +268,8 @@ const routeWorkspace: RoutePageView = {
     ],
     policies: [
       {
-        name: '请求 Header 改写',
+        capability: routePolicyCapabilityRequestHeaderModifier,
+        displayName: '请求 Header 改写',
         meta: '向后端服务写入或删除请求 Header',
         enabled: false,
         params: [
@@ -275,7 +279,8 @@ const routeWorkspace: RoutePageView = {
         ],
       },
       {
-        name: '超时控制',
+        capability: routePolicyCapabilityTimeout,
+        displayName: '超时控制',
         meta: '设置请求从进入网关到返回响应的最长时间，包含失败重试过程',
         enabled: false,
         params: [
@@ -283,7 +288,8 @@ const routeWorkspace: RoutePageView = {
         ],
       },
       {
-        name: '失败重试',
+        capability: routePolicyCapabilityRetry,
+        displayName: '失败重试',
         meta: '后端连接失败或返回异常状态时自动重试；单次尝试超时不能超过请求总超时',
         enabled: false,
         params: [
@@ -642,12 +648,12 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
 }
 
 function validateRoutePolicyRelationship(payload: RoutePublishPayload) {
-  const retryPolicy = payload.policyBindings.find((binding) => binding.policyName === routePolicyRetryName);
+  const retryPolicy = payload.policyBindings.find((binding) => binding.capability === routePolicyCapabilityRetry);
   if (!retryPolicy) {
     return '';
   }
 
-  const timeoutPolicy = payload.policyBindings.find((binding) => binding.policyName === routePolicyTimeoutName);
+  const timeoutPolicy = payload.policyBindings.find((binding) => binding.capability === routePolicyCapabilityTimeout);
   const totalTimeoutMillis = Number(timeoutPolicy?.parameters.timeoutMillis ?? defaultRouteTimeoutMillis);
   const perTryTimeoutMillis = Number(retryPolicy.parameters.perTryTimeoutMillis ?? 0);
   if (Number.isFinite(perTryTimeoutMillis) && Number.isFinite(totalTimeoutMillis) && perTryTimeoutMillis > totalTimeoutMillis) {

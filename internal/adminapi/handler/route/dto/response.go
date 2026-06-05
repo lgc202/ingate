@@ -1,7 +1,7 @@
 package dto
 
 import (
-	"encoding/json"
+	"strconv"
 	"time"
 
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
@@ -31,7 +31,7 @@ func FromRouteResult(result *routeservice.RouteResult) *Route {
 
 func routeFromResource(route *resource.Route) Route {
 	rule := firstRule(route)
-	policyBindings := policyBindings(route.Annotations)
+	policyBindings := policyBindings(rule)
 
 	return Route{
 		ID:             route.Name,
@@ -55,30 +55,80 @@ func routeFromResource(route *resource.Route) Route {
 func builtinPolicyOptions() []PolicyOption {
 	return []PolicyOption{
 		{
-			Name:    routePolicyRequestHeaderRewriteName,
-			Meta:    "在转发到上游前设置、追加或删除请求 Header，常用于租户标识、灰度标记和上游兼容",
-			Enabled: false,
+			Capability:  routePolicyRequestHeaderModifier,
+			DisplayName: "请求 Header 改写",
+			Meta:        "在转发到上游前设置、追加或删除请求 Header，常用于租户标识、灰度标记和上游兼容",
+			Enabled:     false,
 			Params: []PolicyParam{
-				{Key: paramSetHeadersOn, Label: "写入 Header 名称", InputType: "text", DefaultValue: "", Placeholder: "多个名称用逗号分隔", Required: true},
-				{Key: paramHeaderValue, Label: "Header 值", InputType: "text", DefaultValue: "", Placeholder: "请输入要写入的 Header 值", Required: true},
-				{Key: paramRemoveHeadersOn, Label: "删除 Header 名称", InputType: "text", DefaultValue: "", Placeholder: "多个名称用逗号分隔"},
+				{
+					Key:          paramSetHeadersOn,
+					Label:        "写入 Header 名称",
+					InputType:    "text",
+					DefaultValue: "",
+					Placeholder:  "多个名称用逗号分隔",
+					Required:     true,
+				},
+				{
+					Key:          paramHeaderValue,
+					Label:        "Header 值",
+					InputType:    "text",
+					DefaultValue: "",
+					Placeholder:  "请输入要写入的 Header 值",
+					Required:     true,
+				},
+				{
+					Key:          paramRemoveHeadersOn,
+					Label:        "删除 Header 名称",
+					InputType:    "text",
+					DefaultValue: "",
+					Placeholder:  "多个名称用逗号分隔",
+				},
 			},
 		},
 		{
-			Name:    routePolicyTimeoutName,
-			Meta:    "设置当前路由从进入网关到返回响应的最长时间，包含失败重试过程",
-			Enabled: false,
+			Capability:  routePolicyTimeout,
+			DisplayName: "超时控制",
+			Meta:        "设置当前路由从进入网关到返回响应的最长时间，包含失败重试过程",
+			Enabled:     false,
 			Params: []PolicyParam{
-				{Key: paramTimeoutMillis, Label: "请求总超时", InputType: "number", DefaultValue: "30000", Required: true, Unit: "ms", Min: minRouteTimeoutMillis, Max: maxRouteTimeoutMillis},
+				{
+					Key:          paramTimeoutMillis,
+					Label:        "请求总超时",
+					InputType:    "number",
+					DefaultValue: "30000",
+					Required:     true,
+					Unit:         "ms",
+					Min:          minRouteTimeoutMillis,
+					Max:          maxRouteTimeoutMillis,
+				},
 			},
 		},
 		{
-			Name:    routePolicyRetryName,
-			Meta:    "针对 5xx、连接失败等上游异常进行有限重试；单次尝试超时不能超过请求总超时",
-			Enabled: false,
+			Capability:  routePolicyRetry,
+			DisplayName: "失败重试",
+			Meta:        "针对 5xx、连接失败等上游异常进行有限重试；单次尝试超时不能超过请求总超时",
+			Enabled:     false,
 			Params: []PolicyParam{
-				{Key: paramRetryAttempts, Label: "重试次数", InputType: "number", DefaultValue: "2", Required: true, Unit: "次", Min: minRetryAttempts, Max: maxRetryAttempts},
-				{Key: paramPerTryTimeoutMillis, Label: "单次尝试超时", InputType: "number", DefaultValue: "1000", Required: true, Unit: "ms", Min: minPerTryTimeoutMillis, Max: maxPerTryTimeoutMillis},
+				{
+					Key:          paramRetryAttempts,
+					Label:        "重试次数",
+					InputType:    "number",
+					DefaultValue: "2",
+					Required:     true,
+					Unit:         "次",
+					Min:          minRetryAttempts,
+					Max:          maxRetryAttempts,
+				},
+				{
+					Key:          paramPerTryTimeoutMillis,
+					Label:        "单次尝试超时",
+					InputType:    "number",
+					DefaultValue: "1000",
+					Required:     true,
+					Unit:         "ms",
+					Min:          minPerTryTimeoutMillis,
+					Max:          maxPerTryTimeoutMillis,
+				},
 			},
 		},
 	}
@@ -117,16 +167,50 @@ func targetServices(rule resource.RouteRule) []TargetService {
 	return targets
 }
 
-func policyBindings(annotations map[string]string) []PolicyBindingRequest {
-	value := annotation(annotations, resource.AnnotationRoutePolicyBindings)
-	if value == "" {
-		return []PolicyBindingRequest{}
+func policyBindings(rule resource.RouteRule) []PolicyBindingRequest {
+	bindings := make([]PolicyBindingRequest, 0, len(rule.Filters)+2)
+	for _, filter := range rule.Filters {
+		if filter.Type != resource.RouteFilterRequestHeaderModifier || filter.RequestHeaderModifier == nil {
+			continue
+		}
+		parameters := map[string]any{}
+		if len(filter.RequestHeaderModifier.Set) > 0 {
+			headers := make([]string, 0, len(filter.RequestHeaderModifier.Set))
+			for _, header := range filter.RequestHeaderModifier.Set {
+				headers = append(headers, header.Name)
+				parameters[paramHeaderValue] = header.Value
+			}
+			parameters[paramSetHeadersOn] = headers
+		}
+		if len(filter.RequestHeaderModifier.Remove) > 0 {
+			parameters[paramRemoveHeadersOn] = filter.RequestHeaderModifier.Remove
+		}
+		bindings = append(bindings, PolicyBindingRequest{
+			Capability: routePolicyRequestHeaderModifier,
+			Source:     routePolicySourceNative,
+			Parameters: parameters,
+		})
 	}
-	items := []PolicyBindingRequest{}
-	if err := json.Unmarshal([]byte(value), &items); err != nil {
-		return []PolicyBindingRequest{}
+	if rule.Timeout != nil && rule.Timeout.RequestMillis > 0 {
+		bindings = append(bindings, PolicyBindingRequest{
+			Capability: routePolicyTimeout,
+			Source:     routePolicySourceNative,
+			Parameters: map[string]any{
+				paramTimeoutMillis: strconv.Itoa(rule.Timeout.RequestMillis),
+			},
+		})
 	}
-	return items
+	if rule.Retry != nil && rule.Retry.Attempts > 0 {
+		bindings = append(bindings, PolicyBindingRequest{
+			Capability: routePolicyRetry,
+			Source:     routePolicySourceNative,
+			Parameters: map[string]any{
+				paramRetryAttempts:       strconv.Itoa(rule.Retry.Attempts),
+				paramPerTryTimeoutMillis: strconv.Itoa(rule.Retry.PerTryTimeoutMillis),
+			},
+		})
+	}
+	return bindings
 }
 
 func enabled(annotations map[string]string) bool {
