@@ -1,147 +1,41 @@
 package dto
 
 import (
-	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
 
-// Resource 将已校验的控制台请求体转换为后端声明式 Gateway 资源
-func (r GatewayRequest) Resource() (*resource.Gateway, error) {
-	annotations := map[string]string{
-		resource.AnnotationGatewayEnabled: strconv.FormatBool(r.enabled()),
-	}
-
-	description := strings.TrimSpace(r.Description)
-	if description != "" {
-		annotations[resource.AnnotationGatewayDescription] = description
-	}
-
-	hostnames := r.hostnames()
-	if len(hostnames) > 0 {
-		data, err := json.Marshal(hostnames)
-		if err != nil {
-			return nil, fmt.Errorf("marshal gateway hostnames: %w", err)
-		}
-		annotations[resource.AnnotationGatewayHostnames] = string(data)
-	}
-
-	return &resource.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindGateway),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            strings.TrimSpace(r.Name),
-			ResourceVersion: strings.TrimSpace(r.Version),
-			Annotations:     annotations,
-		},
-		Spec: resource.GatewaySpec{
-			Listeners: r.listeners(hostnames),
-		},
-	}, nil
-}
-
-// Validate 校验控制台提交的 Gateway 请求体
-func (r GatewayRequest) Validate() error {
-	name := strings.TrimSpace(r.Name)
-	if name == "" {
+// Validate 校验并归一化创建 Gateway 请求
+func (r *CreateGatewayReq) Validate() error {
+	r.Name = strings.TrimSpace(r.Name)
+	if r.Name == "" {
 		return apierrors.NewBadRequest("gateway name is required")
 	}
-	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
+	if errs := validation.IsDNS1123Label(r.Name); len(errs) > 0 {
 		return apierrors.NewBadRequest("gateway name must be a valid DNS label")
 	}
-	if len(r.Listeners) == 0 {
-		return apierrors.NewBadRequest("at least one listener is required")
-	}
-
-	ports := map[int]struct{}{}
-	for _, listener := range r.Listeners {
-		protocol := strings.TrimSpace(listener.Protocol)
-		if protocol != resource.ListenerProtocolHTTP && protocol != resource.ListenerProtocolHTTPS {
-			return apierrors.NewBadRequest("listener protocol must be HTTP or HTTPS")
-		}
-
-		port, err := strconv.Atoi(strings.TrimSpace(listener.Port))
-		if err != nil {
-			return apierrors.NewBadRequest("listener port must be a number")
-		}
-		if port < 1 || port > 65535 {
-			return apierrors.NewBadRequest("listener port must be between 1 and 65535")
-		}
-		if _, ok := ports[port]; ok {
-			return apierrors.NewBadRequest("listener ports cannot be duplicated")
-		}
-		ports[port] = struct{}{}
-	}
-
-	for _, hostname := range r.Hostnames {
-		hostname = strings.TrimSpace(strings.ToLower(hostname))
-		if hostname == "" {
-			return apierrors.NewBadRequest("gateway hostname cannot be empty")
-		}
-		if !validHostname(hostname) {
-			return apierrors.NewBadRequest("gateway hostname is invalid")
-		}
-	}
-	return nil
+	r.Description = strings.TrimSpace(r.Description)
+	r.RuntimeGroup = normalizeRuntimeGroup(r.RuntimeGroup)
+	return validateGatewaySpecRequest(r.Listeners, r.HostBindings)
 }
 
-func validHostname(hostname string) bool {
-	hostname = strings.TrimPrefix(hostname, "*.")
-	return len(validation.IsDNS1123Subdomain(hostname)) == 0
+// Validate 校验并归一化更新 Gateway 请求
+func (r *UpdateGatewayReq) Validate() error {
+	r.Version = strings.TrimSpace(r.Version)
+	if r.Version == "" {
+		return apierrors.NewBadRequest("gateway version is required")
+	}
+	r.Description = strings.TrimSpace(r.Description)
+	r.RuntimeGroup = normalizeRuntimeGroup(r.RuntimeGroup)
+	return validateGatewaySpecRequest(r.Listeners, r.HostBindings)
 }
 
-func (r GatewayRequest) enabled() bool {
-	if r.Enabled == nil {
-		return true
-	}
-	return *r.Enabled
-}
-
-func (r GatewayRequest) hostnames() []string {
-	hostnames := make([]string, 0, len(r.Hostnames))
-	for _, hostname := range r.Hostnames {
-		hostname = strings.TrimSpace(strings.ToLower(hostname))
-		if hostname != "" {
-			hostnames = append(hostnames, hostname)
-		}
-	}
-	return hostnames
-}
-
-func (r GatewayRequest) listeners(hostnames []string) []resource.Listener {
-	listeners := make([]resource.Listener, 0, len(r.Listeners))
-	hostname := ""
-	if len(hostnames) == 1 {
-		hostname = hostnames[0]
-	}
-
-	for _, listener := range r.Listeners {
-		port, _ := strconv.Atoi(strings.TrimSpace(listener.Port))
-		name := strings.TrimSpace(listener.ID)
-		protocol := strings.TrimSpace(listener.Protocol)
-		if name == "" {
-			name = fmt.Sprintf("%s-%d", strings.ToLower(protocol), port)
-		}
-		listeners = append(listeners, resource.Listener{
-			Name:     name,
-			Protocol: protocol,
-			Port:     port,
-			Hostname: hostname,
-		})
-	}
-	return listeners
-}
-
-// Validate 校验控制台提交的 Gateway 启停请求体
-func (r EnabledRequest) Validate() error {
+// Validate 校验 Gateway 启停请求
+func (r *SetGatewayEnabledReq) Validate() error {
 	if r.Enabled == nil {
 		return apierrors.NewBadRequest("enabled is required")
 	}
@@ -149,6 +43,113 @@ func (r EnabledRequest) Validate() error {
 }
 
 // Value 返回已校验的启停值
-func (r EnabledRequest) Value() bool {
+func (r *SetGatewayEnabledReq) Value() bool {
 	return *r.Enabled
+}
+
+func validateGatewaySpecRequest(listeners []GatewayListenerReq, bindings []GatewayHostBindingReq) error {
+	if len(listeners) == 0 {
+		return apierrors.NewBadRequest("at least one listener is required")
+	}
+
+	listenerProtocols := make(map[string]string, len(listeners))
+	ports := map[int]struct{}{}
+	for i := range listeners {
+		listener := &listeners[i]
+		listener.Name = strings.TrimSpace(listener.Name)
+		if listener.Name == "" {
+			return apierrors.NewBadRequest("listener name is required")
+		}
+		if _, ok := listenerProtocols[listener.Name]; ok {
+			return apierrors.NewBadRequest(fmt.Sprintf("listener %q is duplicated", listener.Name))
+		}
+		listener.Protocol = strings.TrimSpace(listener.Protocol)
+		if listener.Protocol != string(resource.ListenerProtocolHTTP) && listener.Protocol != string(resource.ListenerProtocolHTTPS) {
+			return apierrors.NewBadRequest("listener protocol must be HTTP or HTTPS")
+		}
+		if listener.Port < 1 || listener.Port > 65535 {
+			return apierrors.NewBadRequest("listener port must be between 1 and 65535")
+		}
+		if _, ok := ports[listener.Port]; ok {
+			return apierrors.NewBadRequest("listener ports cannot be duplicated")
+		}
+		listenerProtocols[listener.Name] = listener.Protocol
+		ports[listener.Port] = struct{}{}
+	}
+
+	catchAllCount := 0
+	httpsListenersWithTLS := map[string]struct{}{}
+	for i := range bindings {
+		binding := &bindings[i]
+		binding.Hostname = strings.TrimSpace(strings.ToLower(binding.Hostname))
+		if binding.Hostname == "" {
+			catchAllCount++
+			if catchAllCount > 1 {
+				return apierrors.NewBadRequest("only one catch-all host binding is allowed")
+			}
+		} else if !validHostname(binding.Hostname) {
+			return apierrors.NewBadRequest("gateway hostname is invalid")
+		}
+
+		if len(binding.ListenerRefs) == 0 {
+			return apierrors.NewBadRequest("host binding listenerRefs is required")
+		}
+		hasHTTPS := false
+		for j := range binding.ListenerRefs {
+			listenerRef := strings.TrimSpace(binding.ListenerRefs[j])
+			if listenerRef == "" {
+				return apierrors.NewBadRequest("host binding listenerRef cannot be empty")
+			}
+			binding.ListenerRefs[j] = listenerRef
+			protocol, ok := listenerProtocols[listenerRef]
+			if !ok {
+				return apierrors.NewBadRequest(fmt.Sprintf("host binding references unknown listener %q", listenerRef))
+			}
+			if protocol == string(resource.ListenerProtocolHTTPS) {
+				hasHTTPS = true
+			}
+		}
+
+		certificateRef := ""
+		if binding.TLS != nil {
+			certificateRef = strings.TrimSpace(binding.TLS.CertificateRef)
+			binding.TLS.CertificateRef = certificateRef
+		}
+		if hasHTTPS && certificateRef == "" {
+			return apierrors.NewBadRequest("HTTPS host binding certificateRef is required")
+		}
+		if !hasHTTPS && certificateRef != "" {
+			return apierrors.NewBadRequest("HTTP host binding cannot set certificateRef")
+		}
+		if hasHTTPS {
+			for _, listenerRef := range binding.ListenerRefs {
+				if listenerProtocols[listenerRef] == string(resource.ListenerProtocolHTTPS) {
+					httpsListenersWithTLS[listenerRef] = struct{}{}
+				}
+			}
+		}
+	}
+
+	for name, protocol := range listenerProtocols {
+		if protocol != string(resource.ListenerProtocolHTTPS) {
+			continue
+		}
+		if _, ok := httpsListenersWithTLS[name]; !ok {
+			return apierrors.NewBadRequest(fmt.Sprintf("HTTPS listener %q must be referenced by a TLS host binding", name))
+		}
+	}
+	return nil
+}
+
+func normalizeRuntimeGroup(runtimeGroup string) string {
+	runtimeGroup = strings.TrimSpace(runtimeGroup)
+	if runtimeGroup == "" {
+		return "default"
+	}
+	return runtimeGroup
+}
+
+func validHostname(hostname string) bool {
+	hostname = strings.TrimPrefix(hostname, "*.")
+	return len(validation.IsDNS1123Subdomain(hostname)) == 0
 }

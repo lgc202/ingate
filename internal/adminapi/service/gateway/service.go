@@ -2,32 +2,26 @@ package gateway
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"slices"
-	"strconv"
-	"strings"
 
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
-	runtimestore "github.com/lgc202/ingate/internal/adminapi/store/runtime"
-	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 )
 
-// Service 承载 Gateway 查询用例
+// Service 承载 Gateway 管理用例
 type Service struct {
-	store    *gatewaystore.Store
-	routes   *routestore.Store
-	runtime  *runtimestore.Store
-	upstream *upstreamstore.Store
+	store  *gatewaystore.Store
+	routes *routestore.Store
 }
 
 // New 创建 Gateway service
-func New(store *gatewaystore.Store, routes *routestore.Store, runtime *runtimestore.Store, upstream *upstreamstore.Store) *Service {
-	return &Service{store: store, routes: routes, runtime: runtime, upstream: upstream}
+func New(store *gatewaystore.Store, routes *routestore.Store) *Service {
+	return &Service{store: store, routes: routes}
 }
 
 // List 查询 Gateway 列表
@@ -36,24 +30,9 @@ func (s *Service) List(ctx context.Context) (*ListResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	routes, err := s.routes.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	upstreams, err := s.upstream.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	snapshots, err := s.runtime.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	return &ListResult{
-		Gateways:         gateways.Items,
-		Routes:           routes.Items,
-		Upstreams:        upstreams.Items,
-		RuntimeSnapshots: snapshots.Items,
+		Gateways:      gateways.Items,
+		RuntimeGroups: runtimeGroupOptions(),
 	}, nil
 }
 
@@ -63,17 +42,29 @@ func (s *Service) Get(ctx context.Context, name string) (*GatewayResult, error) 
 	if err != nil {
 		return nil, err
 	}
-	return s.gatewayResult(ctx, gateway)
+	return &GatewayResult{
+		Gateway:       gateway,
+		RuntimeGroups: runtimeGroupOptions(),
+	}, nil
+}
+
+// FormOptions 查询 Gateway 表单选项
+func (s *Service) FormOptions(ctx context.Context) (*FormOptionsResult, error) {
+	return &FormOptionsResult{
+		RuntimeGroups: runtimeGroupOptions(),
+		Certificates:  []CertificateOption{},
+	}, nil
 }
 
 // Create 创建 Gateway
-func (s *Service) Create(ctx context.Context, gateway *resource.Gateway) error {
-	if _, err := s.store.Get(ctx, gateway.Name); err == nil {
-		return apierrors.NewAlreadyExists(resource.Resource(resource.ResourceGateways), gateway.Name)
+func (s *Service) Create(ctx context.Context, params CreateGatewayParams) error {
+	if _, err := s.store.Get(ctx, params.Name); err == nil {
+		return apierrors.NewAlreadyExists(resource.Resource(resource.ResourceGateways), params.Name)
 	} else if !apierrors.IsNotFound(err) {
 		return err
 	}
 
+	gateway := gatewayResource(params.Name, "", params.Description, params.RuntimeGroup, true, params.Listeners, params.HostBindings)
 	if err := s.validateDefaultGateway(ctx, gateway, ""); err != nil {
 		return err
 	}
@@ -82,20 +73,17 @@ func (s *Service) Create(ctx context.Context, gateway *resource.Gateway) error {
 }
 
 // Update 更新 Gateway
-func (s *Service) Update(ctx context.Context, name string, gateway *resource.Gateway) error {
-	if gateway.Name != name {
-		return apierrors.NewBadRequest("gateway name cannot be changed")
-	}
-
+func (s *Service) Update(ctx context.Context, name string, params UpdateGatewayParams) error {
 	current, err := s.store.Get(ctx, name)
 	if err != nil {
 		return err
 	}
-	if err := validateVersion(resource.ResourceGateways, name, gateway.ResourceVersion, current.ResourceVersion); err != nil {
+	if err := validateVersion(resource.ResourceGateways, name, params.Version, current.ResourceVersion); err != nil {
 		return err
 	}
+
 	next := current.DeepCopy()
-	applyGatewayUpdate(next, gateway)
+	next.Spec = gatewaySpec(params.Description, params.RuntimeGroup, current.Spec.Enabled, params.Listeners, params.HostBindings)
 	if err := s.validateDefaultGateway(ctx, next, name); err != nil {
 		return err
 	}
@@ -112,10 +100,7 @@ func (s *Service) SetEnabled(ctx context.Context, name string, enabled bool) err
 		}
 
 		next := current.DeepCopy()
-		if next.Annotations == nil {
-			next.Annotations = map[string]string{}
-		}
-		next.Annotations[resource.AnnotationGatewayEnabled] = strconv.FormatBool(enabled)
+		next.Spec.Enabled = enabled
 		if err := s.validateDefaultGateway(ctx, next, name); err != nil {
 			return err
 		}
@@ -139,85 +124,59 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 	return s.store.Delete(ctx, name)
 }
 
-// Overview 查询 Gateway 详情页聚合数据
-func (s *Service) Overview(ctx context.Context, name string) (*DetailResult, error) {
-	gateway, err := s.store.Get(ctx, name)
-	if err != nil {
-		return nil, err
+func gatewayResource(name, version, description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) *resource.Gateway {
+	return &resource.Gateway{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindGateway),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            name,
+			ResourceVersion: version,
+		},
+		Spec: gatewaySpec(description, runtimeGroup, enabled, listeners, bindings),
 	}
-
-	routeList, err := s.routes.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	upstreamList, err := s.upstream.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	snapshotList, err := s.runtime.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	routes := make([]resource.Route, 0)
-	upstreamNames := map[string]struct{}{}
-	for _, route := range routeList.Items {
-		if !slices.Contains(route.Spec.ParentRefs, name) {
-			continue
-		}
-		routes = append(routes, route)
-		for _, rule := range route.Spec.Rules {
-			for _, ref := range rule.UpstreamRefs {
-				upstreamNames[ref.Name] = struct{}{}
-			}
-		}
-	}
-
-	upstreams := make([]resource.Upstream, 0, len(upstreamNames))
-	for _, upstream := range upstreamList.Items {
-		if _, ok := upstreamNames[upstream.Name]; ok {
-			upstreams = append(upstreams, upstream)
-		}
-	}
-
-	snapshots := make([]resource.RuntimeSnapshot, 0)
-	for _, snapshot := range snapshotList.Items {
-		if snapshot.Spec.Gateway == name {
-			snapshots = append(snapshots, snapshot)
-		}
-	}
-
-	return &DetailResult{
-		Gateway:          gateway,
-		Routes:           routes,
-		Upstreams:        upstreams,
-		RuntimeSnapshots: snapshots,
-	}, nil
 }
 
-func applyGatewayUpdate(next *resource.Gateway, submitted *resource.Gateway) {
-	next.Spec = submitted.Spec
-	if next.Annotations == nil {
-		next.Annotations = map[string]string{}
+func gatewaySpec(description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) resource.GatewaySpec {
+	return resource.GatewaySpec{
+		Description:     description,
+		Enabled:         enabled,
+		RuntimeGroupRef: resource.RuntimeGroupRef{Name: runtimeGroupName(runtimeGroup)},
+		Listeners:       resourceListeners(listeners),
+		HostBindings:    resourceHostBindings(bindings),
 	}
-	for _, key := range []string{
-		resource.AnnotationGatewayDescription,
-		resource.AnnotationGatewayEnabled,
-		resource.AnnotationGatewayHostnames,
-	} {
-		delete(next.Annotations, key)
+}
+
+func resourceListeners(items []ListenerParams) []resource.Listener {
+	listeners := make([]resource.Listener, 0, len(items))
+	for _, item := range items {
+		listeners = append(listeners, resource.Listener{
+			Name:     item.Name,
+			Protocol: item.Protocol,
+			Port:     item.Port,
+		})
 	}
-	for key, value := range submitted.Annotations {
-		if key == resource.AnnotationGatewayDescription ||
-			key == resource.AnnotationGatewayEnabled ||
-			key == resource.AnnotationGatewayHostnames {
-			next.Annotations[key] = value
+	return listeners
+}
+
+func resourceHostBindings(items []HostBindingParams) []resource.HostBinding {
+	bindings := make([]resource.HostBinding, 0, len(items))
+	for _, item := range items {
+		binding := resource.HostBinding{
+			Hostname:     item.Hostname,
+			ListenerRefs: append([]string(nil), item.ListenerRefs...),
 		}
+		if item.CertificateRef != "" {
+			binding.TLS = &resource.GatewayTLS{CertificateRef: item.CertificateRef}
+		}
+		bindings = append(bindings, binding)
 	}
+	return bindings
 }
 
 func (s *Service) validateDefaultGateway(ctx context.Context, gateway *resource.Gateway, excludeName string) error {
-	if !gatewayEnabled(gateway) || len(gatewayHostnames(gateway)) > 0 {
+	if !gateway.Spec.Enabled || !gatewayHasCatchAllHost(gateway) {
 		return nil
 	}
 
@@ -227,7 +186,7 @@ func (s *Service) validateDefaultGateway(ctx context.Context, gateway *resource.
 	}
 
 	for _, current := range gateways.Items {
-		if current.Name == excludeName || !gatewayEnabled(&current) || len(gatewayHostnames(&current)) > 0 {
+		if current.Name == excludeName || !current.Spec.Enabled || !gatewayHasCatchAllHost(&current) {
 			continue
 		}
 		if protocol, port, ok := sharedListener(gateway.Spec.Listeners, current.Spec.Listeners); ok {
@@ -237,50 +196,21 @@ func (s *Service) validateDefaultGateway(ctx context.Context, gateway *resource.
 	return nil
 }
 
-func gatewayEnabled(gateway *resource.Gateway) bool {
-	value := strings.TrimSpace(gateway.Annotations[resource.AnnotationGatewayEnabled])
-	return value != "false"
-}
-
-func gatewayHostnames(gateway *resource.Gateway) []string {
-	value := strings.TrimSpace(gateway.Annotations[resource.AnnotationGatewayHostnames])
-	if value != "" {
-		hostnames := []string{}
-		if err := json.Unmarshal([]byte(value), &hostnames); err == nil {
-			return normalizedHostnames(hostnames)
+func gatewayHasCatchAllHost(gateway *resource.Gateway) bool {
+	if len(gateway.Spec.HostBindings) == 0 {
+		return true
+	}
+	for _, binding := range gateway.Spec.HostBindings {
+		if binding.Hostname == "" {
+			return true
 		}
 	}
-
-	hostnames := make([]string, 0)
-	for _, listener := range gateway.Spec.Listeners {
-		hostname := strings.TrimSpace(listener.Hostname)
-		if hostname != "" {
-			hostnames = append(hostnames, hostname)
-		}
-	}
-	return normalizedHostnames(hostnames)
-}
-
-func normalizedHostnames(hostnames []string) []string {
-	seen := map[string]struct{}{}
-	normalized := make([]string, 0, len(hostnames))
-	for _, hostname := range hostnames {
-		hostname = strings.TrimSpace(strings.ToLower(hostname))
-		if hostname == "" {
-			continue
-		}
-		if _, ok := seen[hostname]; ok {
-			continue
-		}
-		seen[hostname] = struct{}{}
-		normalized = append(normalized, hostname)
-	}
-	return normalized
+	return false
 }
 
 func sharedListener(a, b []resource.Listener) (string, int, bool) {
 	type listenerKey struct {
-		protocol string
+		protocol resource.ListenerProtocol
 		port     int
 	}
 
@@ -291,7 +221,7 @@ func sharedListener(a, b []resource.Listener) (string, int, bool) {
 	for _, listener := range b {
 		key := listenerKey{protocol: listener.Protocol, port: listener.Port}
 		if _, ok := keys[key]; ok {
-			return key.protocol, key.port, true
+			return string(key.protocol), key.port, true
 		}
 	}
 	return "", 0, false
@@ -308,24 +238,18 @@ func validateVersion(resourceName resource.ResourceName, name, submittedVersion,
 	)
 }
 
-func (s *Service) gatewayResult(ctx context.Context, gateway *resource.Gateway) (*GatewayResult, error) {
-	routes, err := s.routes.List(ctx)
-	if err != nil {
-		return nil, err
+func runtimeGroupOptions() []RuntimeGroupOption {
+	return []RuntimeGroupOption{
+		{
+			ID:   DefaultRuntimeGroupID,
+			Name: defaultRuntimeGroupName,
+		},
 	}
-	upstreams, err := s.upstream.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	snapshots, err := s.runtime.List(ctx)
-	if err != nil {
-		return nil, err
-	}
+}
 
-	return &GatewayResult{
-		Gateway:          gateway,
-		Routes:           routes.Items,
-		Upstreams:        upstreams.Items,
-		RuntimeSnapshots: snapshots.Items,
-	}, nil
+func runtimeGroupName(runtimeGroup string) string {
+	if runtimeGroup == "" {
+		return DefaultRuntimeGroupID
+	}
+	return runtimeGroup
 }
