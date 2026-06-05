@@ -1,4 +1,4 @@
-import type { GatewayListView, GatewayMutationPayload, GatewayMutationPreview, GatewayMutationResult, GatewayValidationReport } from '@/domain/gateway';
+import type { GatewayFormOptions, GatewayListView, GatewayMutationPayload, GatewayMutationPreview, GatewayMutationResult, GatewayValidationReport } from '@/domain/gateway';
 import type { HomeDashboard } from '@/domain/home';
 import type { ObservabilityOverview } from '@/domain/observability';
 import type { PluginListView } from '@/domain/plugin';
@@ -11,6 +11,7 @@ import type { SettingsWorkspace } from '@/domain/settings';
 export interface ConsoleRepository {
   getHomeDashboard(): Promise<HomeDashboard>;
   listGateways(): Promise<GatewayListView>;
+  getGatewayFormOptions(): Promise<GatewayFormOptions>;
   saveGatewayDraft(payload: GatewayMutationPayload): Promise<GatewayMutationResult>;
   deleteGateway(id: string): Promise<GatewayMutationResult>;
   setGatewayEnabled(id: string, enabled: boolean): Promise<GatewayMutationResult>;
