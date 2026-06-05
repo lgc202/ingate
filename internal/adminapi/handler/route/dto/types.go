@@ -30,6 +30,7 @@ type Route struct {
 	GatewayNames   []string               `json:"gatewayNames"`
 	Hostnames      []string               `json:"hostnames"`
 	ServiceName    string                 `json:"serviceName"`
+	Targets        []TargetService        `json:"targets"`
 	PolicyCount    int                    `json:"policyCount"`
 	PolicyBindings []PolicyBindingRequest `json:"policyBindings,omitempty"`
 	Traffic        string                 `json:"traffic"`
@@ -75,8 +76,15 @@ type RouteRequest struct {
 	GatewayNames   []string               `json:"gatewayNames"`
 	Hostnames      []string               `json:"hostnames"`
 	ServiceName    string                 `json:"serviceName"`
+	Targets        []TargetService        `json:"targets,omitempty"`
 	Enabled        bool                   `json:"enabled"`
 	PolicyBindings []PolicyBindingRequest `json:"policyBindings"`
+}
+
+// TargetService 是路由转发到的目标服务及其权重
+type TargetService struct {
+	Name   string `json:"name"`
+	Weight int    `json:"weight"`
 }
 
 // PolicyBindingRequest 是控制台提交的路由级策略绑定

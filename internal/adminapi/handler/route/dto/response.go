@@ -41,6 +41,7 @@ func routeFromResource(route *resource.Route) Route {
 		GatewayNames:   route.Spec.ParentRefs,
 		Hostnames:      route.Spec.Hostnames,
 		ServiceName:    firstUpstreamName(rule),
+		Targets:        targetServices(rule),
 		PolicyCount:    len(policyBindings),
 		PolicyBindings: policyBindings,
 		Traffic:        "-",
@@ -103,6 +104,17 @@ func firstUpstreamName(rule resource.RouteRule) string {
 		return ""
 	}
 	return rule.UpstreamRefs[0].Name
+}
+
+func targetServices(rule resource.RouteRule) []TargetService {
+	targets := make([]TargetService, 0, len(rule.UpstreamRefs))
+	for _, ref := range rule.UpstreamRefs {
+		targets = append(targets, TargetService{
+			Name:   ref.Name,
+			Weight: ref.Weight,
+		})
+	}
+	return targets
 }
 
 func policyBindings(annotations map[string]string) []PolicyBindingRequest {

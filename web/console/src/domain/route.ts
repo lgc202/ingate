@@ -10,6 +10,7 @@ export interface RouteResource {
   gatewayNames: string[];
   hostnames: string[];
   serviceName: string;
+  targets?: RouteTargetPayload[];
   policyCount: number;
   policyBindings?: RoutePolicyBindingPayload[];
   traffic: string;
@@ -91,8 +92,14 @@ export interface RouteMutationPayload {
   gatewayNames: string[];
   hostnames: string[];
   serviceName: string;
+  targets: RouteTargetPayload[];
   enabled: boolean;
   policyBindings: RoutePolicyBindingPayload[];
+}
+
+export interface RouteTargetPayload {
+  name: string;
+  weight: number;
 }
 
 export interface RoutePolicyBindingPayload {

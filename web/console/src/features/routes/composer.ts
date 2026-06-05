@@ -3,9 +3,14 @@ import type {
   RouteComposerPreview,
   RoutePublishPayload,
   RoutePublishPreview,
+  RouteTargetPayload,
   RouteValidationItem,
   RouteValidationReport,
 } from '@/domain/route';
+
+const defaultTargetWeight = 100;
+const minTargetWeight = 1;
+const maxTargetWeight = 1000;
 
 export interface RouteComposerDraft {
   id?: string;
@@ -15,27 +20,28 @@ export interface RouteComposerDraft {
   gatewayNames: string[];
   hostnames: string[];
   serviceName: string;
+  targetServices: RouteTargetPayload[];
   enabled: boolean;
   rateLimit: string;
   timeout: string;
-  selectedTargetName: string;
   enabledPolicyNames: string[];
   policySettings: Record<string, Record<string, string>>;
 }
 
 export function createRouteComposerDraft(template: RouteComposerPreview): RouteComposerDraft {
   const enabledPolicyNames = template.policies.filter((policy) => policy.enabled).map((policy) => policy.name);
+  const targetServices = normalizeTargetServices(template.targets, template.serviceName ? [{ name: template.serviceName, weight: defaultTargetWeight }] : []);
 
   return {
     methods: template.methods,
     path: template.path || '/',
     gatewayNames: template.gatewayNames,
     hostnames: normalizeHostnames(template.hostnames),
-    serviceName: template.serviceName,
+    serviceName: targetServices[0]?.name ?? template.serviceName,
+    targetServices,
     enabled: true,
     rateLimit: template.rateLimit,
     timeout: '30s',
-    selectedTargetName: template.serviceName,
     enabledPolicyNames,
     policySettings: Object.fromEntries(template.policies.map((policy) => [
       policy.name,
@@ -46,6 +52,7 @@ export function createRouteComposerDraft(template: RouteComposerPreview): RouteC
 
 export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteValidationReport {
   const invalidHostnames = draft.hostnames.filter((hostname) => !isValidHostname(hostname));
+  const targetError = targetServicesError(draft.targetServices);
   const items: RouteValidationItem[] = [
     {
       label: '匹配规则',
@@ -54,8 +61,8 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteVali
     },
     {
       label: '目标服务',
-      status: draft.serviceName ? 'healthy' : 'critical',
-      message: draft.serviceName ? `已选择 ${draft.serviceName}` : '请选择目标服务',
+      status: targetError ? 'critical' : 'healthy',
+      message: targetError || `已选择 ${draft.targetServices.length} 个目标服务，总权重 ${targetWeightSum(draft.targetServices)}`,
     },
     {
       label: '网关',
@@ -87,12 +94,12 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteVali
 export function buildRoutePublishPreview(template: RouteComposerPreview, draft: RouteComposerDraft): RoutePublishPreview {
   return {
     title: `${formatMethods(draft.methods)} ${draft.path}`,
-    subtitle: `目标服务 ${draft.serviceName} · 策略 ${draft.enabledPolicyNames.length} 个`,
+    subtitle: `目标服务 ${formatTargetServices(draft.targetServices)} · 策略 ${draft.enabledPolicyNames.length} 个`,
     diffs: [
       { before: `methods: ${formatMethods(template.methods)}`, after: `methods: ${formatMethods(draft.methods)}` },
       { before: `path: ${template.path}`, after: `path: ${draft.path}` },
       { before: `hostnames: ${template.hostnames.join(', ') || '不限制'}`, after: `hostnames: ${draft.hostnames.join(', ') || '不限制'}` },
-      { before: `service: ${template.serviceName}`, after: `service: ${draft.serviceName}` },
+      { before: `service: ${template.serviceName}`, after: `service: ${formatTargetServices(draft.targetServices)}` },
       { before: `policy_bindings: ${template.policyCount}`, after: `policy_bindings: ${draft.enabledPolicyNames.length}` },
     ],
   };
@@ -106,7 +113,8 @@ export function buildRoutePublishPayload(draft: RouteComposerDraft): RoutePublis
     path: draft.path,
     gatewayNames: draft.gatewayNames,
     hostnames: normalizeHostnames(draft.hostnames),
-    serviceName: draft.serviceName,
+    serviceName: draft.targetServices[0]?.name ?? draft.serviceName,
+    targets: draft.targetServices,
     enabled: draft.enabled,
     policyBindings: draft.enabledPolicyNames.map((policyName) => ({
       policyName,
@@ -128,6 +136,71 @@ function serializePolicyParameters(settings: Record<string, string>): Record<str
 
 function formatMethods(methods: HttpMethod[]): string {
   return methods.length > 0 ? methods.join('、') : '全部方法';
+}
+
+function normalizeTargetServices(
+  availableTargets: RouteComposerPreview['targets'],
+  targets: RouteTargetPayload[],
+): RouteTargetPayload[] {
+  const availableNames = new Set(availableTargets.map((target) => target.name));
+  const seenNames = new Set<string>();
+  const normalizedTargets = targets
+    .map((target) => ({ name: target.name.trim(), weight: normalizeTargetWeight(target.weight) }))
+    .filter((target) => {
+      if (!target.name || !availableNames.has(target.name) || seenNames.has(target.name)) {
+        return false;
+      }
+      seenNames.add(target.name);
+      return true;
+    });
+  if (normalizedTargets.length > 0) {
+    return normalizedTargets;
+  }
+  return availableTargets[0] ? [{ name: availableTargets[0].name, weight: defaultTargetWeight }] : [];
+}
+
+export function formatTargetServices(targets: RouteTargetPayload[]): string {
+  if (targets.length === 0) {
+    return '-';
+  }
+  if (targets.length === 1) {
+    return `${targets[0].name}(${targets[0].weight})`;
+  }
+  return `${targets[0].name} 等 ${targets.length} 个`;
+}
+
+export function targetWeightSum(targets: RouteTargetPayload[]): number {
+  return targets.reduce((sum, target) => sum + (Number(target.weight) || 0), 0);
+}
+
+function targetServicesError(targets: RouteTargetPayload[]): string {
+  if (targets.length === 0) {
+    return '请选择目标服务';
+  }
+
+  const seenNames = new Set<string>();
+  for (const target of targets) {
+    if (!target.name.trim()) {
+      return '目标服务不能为空';
+    }
+    if (seenNames.has(target.name)) {
+      return '目标服务不能重复';
+    }
+    seenNames.add(target.name);
+    if (target.weight < minTargetWeight || target.weight > maxTargetWeight) {
+      return `目标权重必须在 ${minTargetWeight}-${maxTargetWeight} 之间`;
+    }
+  }
+
+  return '';
+}
+
+function normalizeTargetWeight(weight: number): number {
+  const value = Math.trunc(Number(weight));
+  if (!Number.isFinite(value)) {
+    return defaultTargetWeight;
+  }
+  return Math.min(Math.max(value, minTargetWeight), maxTargetWeight);
 }
 
 export function parseHostnames(input: string): string[] {
