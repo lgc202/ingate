@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 
@@ -24,9 +23,6 @@ type Handler struct {
 
 // New 创建 Gateway handler
 func New(service *gatewayservice.Service, logger *slog.Logger) *Handler {
-	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
 	return &Handler{service: service, logger: logger}
 }
 
@@ -47,9 +43,10 @@ func (h *Handler) List(ctx *gin.Context) {
 
 // Get 返回单个 Gateway
 func (h *Handler) Get(ctx *gin.Context) {
-	result, err := h.service.Get(ctx.Request.Context(), ctx.Param("name"))
+	gatewayID := ctx.Param("id")
+	result, err := h.service.Get(ctx.Request.Context(), gatewayID)
 	if err != nil {
-		h.logger.Error("get gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", ctx.Param("name"), "err", err)
+		h.logger.Error("get gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", gatewayID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -97,9 +94,10 @@ func (h *Handler) Update(ctx *gin.Context) {
 		return
 	}
 
-	err := h.service.Update(ctx.Request.Context(), ctx.Param("name"), h.updateGatewayParams(request))
+	gatewayID := ctx.Param("id")
+	err := h.service.Update(ctx.Request.Context(), gatewayID, h.updateGatewayParams(request))
 	if err != nil {
-		h.logger.Error("update gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", ctx.Param("name"), "display_name", request.DisplayName, "err", err)
+		h.logger.Error("update gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", gatewayID, "display_name", request.DisplayName, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -122,9 +120,10 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 		return
 	}
 
-	err := h.service.SetEnabled(ctx.Request.Context(), ctx.Param("name"), request.Value())
+	gatewayID := ctx.Param("id")
+	err := h.service.SetEnabled(ctx.Request.Context(), gatewayID, request.Value())
 	if err != nil {
-		h.logger.Error("set gateway enabled failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", ctx.Param("name"), "enabled", request.Value(), "err", err)
+		h.logger.Error("set gateway enabled failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", gatewayID, "enabled", request.Value(), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -137,9 +136,10 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 
 // Delete 删除 Gateway
 func (h *Handler) Delete(ctx *gin.Context) {
-	err := h.service.Delete(ctx.Request.Context(), ctx.Param("name"))
+	gatewayID := ctx.Param("id")
+	err := h.service.Delete(ctx.Request.Context(), gatewayID)
 	if err != nil {
-		h.logger.Error("delete gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", ctx.Param("name"), "err", err)
+		h.logger.Error("delete gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", gatewayID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -148,21 +148,6 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.DeleteGatewayResp{Success: true})
-}
-
-// FormOptions 返回 Gateway 表单选项
-func (h *Handler) FormOptions(ctx *gin.Context) {
-	result, err := h.service.FormOptions(ctx.Request.Context())
-	if err != nil {
-		h.logger.Error("get gateway form options failed", "request_id", ctx.GetString(requestid.Header), "err", err)
-		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
-			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
-			return
-		}
-		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询网关表单选项失败", nil)
-		return
-	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetGatewayFormOptionsResp(result))
 }
 
 func (h *Handler) createGatewayParams(request dto.CreateGatewayReq) gatewayservice.CreateGatewayParams {

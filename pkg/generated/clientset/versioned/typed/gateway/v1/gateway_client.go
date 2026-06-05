@@ -25,6 +25,7 @@ type GatewayV1Interface interface {
 	PolicyBindingsGetter
 	RateLimitPoliciesGetter
 	RoutesGetter
+	RuntimeGroupsGetter
 	RuntimeSnapshotsGetter
 	UpstreamsGetter
 }
@@ -76,6 +77,10 @@ func (c *GatewayV1Client) RateLimitPolicies() RateLimitPolicyInterface {
 
 func (c *GatewayV1Client) Routes() RouteInterface {
 	return newRoutes(c)
+}
+
+func (c *GatewayV1Client) RuntimeGroups() RuntimeGroupInterface {
+	return newRuntimeGroups(c)
 }
 
 func (c *GatewayV1Client) RuntimeSnapshots() RuntimeSnapshotInterface {

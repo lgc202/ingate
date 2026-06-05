@@ -298,11 +298,11 @@ github.com/envoyproxy/go-control-plane/envoy
 当前已接入：
 
 - `GET /healthz`
-- `GET /api/gateways` / `GET /api/gateways/:name`
+- `GET /api/gateways` / `GET /api/gateways/:id`
 - `GET /api/routes` / `GET /api/routes/:name`
 - `GET /api/upstreams` / `GET /api/upstreams/:name`
 - `GET /api/runtime-snapshots` / `GET /api/runtime-snapshots/:name`
-- `GET /api/gateways/:name/overview`
+- `GET /api/gateways/:id/overview`（历史接口，当前已移除）
 
 当前这个 Admin API 只是让服务跑起来并验证分层，不应作为最终前端契约。后续需要先设计前端信息架构和页面流程，再反推 Admin API 的 DTO、CRUD 语义和聚合接口。前端不应该直接依赖 Kubernetes 风格资源对象；`Gateway / Route / Upstream / RuntimeSnapshot` 可以作为内部资源模型，但 Admin API 应返回面向页面和用户操作的产品 DTO。
 

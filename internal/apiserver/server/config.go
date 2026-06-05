@@ -16,6 +16,7 @@ import (
 	policybindingstorage "github.com/lgc202/ingate/internal/apiserver/registry/policybinding"
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
+	runtimegroupstorage "github.com/lgc202/ingate/internal/apiserver/registry/runtimegroup"
 	runtimesnapshotstorage "github.com/lgc202/ingate/internal/apiserver/registry/runtimesnapshot"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
@@ -111,6 +112,11 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	if err := installStatusStorage(gatewayv1.ResourceGateways, gatewayv1.ResourceGatewaysStatus, func() (rest.Storage, rest.Storage, error) {
 		return gatewaystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
+	}
+	if err := installStatusStorage(gatewayv1.ResourceRuntimeGroups, gatewayv1.ResourceRuntimeGroupsStatus, func() (rest.Storage, rest.Storage, error) {
+		return runtimegroupstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return nil, err
 	}

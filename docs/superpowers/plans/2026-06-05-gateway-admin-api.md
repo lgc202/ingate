@@ -20,7 +20,7 @@
 - Modify compiler/pipeline tests under `internal/core/**`.
 - Replace Gateway DTO files under `internal/adminapi/handler/gateway/dto`.
 - Modify `internal/adminapi/handler/gateway/handler.go`: align handler responsibilities and remove `Overview`.
-- Modify `internal/adminapi/server/router.go`: remove `/overview`, add `/gateway-form-options`.
+- Modify `internal/adminapi/server/router.go`: remove `/overview`; Gateway form dependencies come from resource APIs such as `/runtime-groups`.
 - Modify `internal/adminapi/service/gateway/service.go` and `types.go`: accept use-case params, no page aggregation.
 - Add admin-api Gateway DTO and service tests under `internal/adminapi/**`.
 - Modify frontend Gateway domain/form/page/repository files under `web/console/src/**`.
@@ -138,7 +138,7 @@ Expected: FAIL before DTO rewrite.
 
 - [ ] **Step 3: Define action-named DTOs**
 
-Create `CreateGatewayReq`, `UpdateGatewayReq`, `SetGatewayEnabledReq`, `GatewayListenerReq`, `GatewayHostBindingReq`, `GatewayTLSReq`, `ListGatewaysResp`, `GetGatewayResp`, `GatewaySummary`, `GatewayDetail`, `GatewayListener`, `GatewayHostBinding`, `GatewayTLS`, `GetGatewayFormOptionsResp`, `RuntimeGroupOption`, and `CertificateOption`.
+Create `CreateGatewayReq`, `UpdateGatewayReq`, `SetGatewayEnabledReq`, `GatewayListenerReq`, `GatewayHostBindingReq`, `GatewayTLSReq`, `ListGatewaysResp`, `GetGatewayResp`, `GatewaySummary`, `GatewayDetail`, `GatewayListener`, `GatewayHostBinding`, and `GatewayTLS`.
 
 - [ ] **Step 4: Move request validation into `Validate()`**
 
@@ -175,7 +175,7 @@ Expected: FAIL before service rewrite.
 
 - [ ] **Step 3: Define service params**
 
-Add `CreateGatewayParams`, `UpdateGatewayParams`, and `GatewayFormOptionsResult`. Service should accept params or resource-neutral values, not gin DTO response objects.
+Add `CreateGatewayParams` and `UpdateGatewayParams`. Service should accept params or resource-neutral values, not gin DTO response objects.
 
 - [ ] **Step 4: Update service methods**
 
@@ -191,7 +191,7 @@ Handlers bind URI/body, call `Validate()`, convert DTOs to service params, call 
 
 - [ ] **Step 7: Update router**
 
-Remove `GET /api/v1/gateways/:name/overview`; add `GET /api/v1/gateway-form-options`.
+Remove `GET /api/v1/gateways/:id/overview`; do not add a Gateway form aggregation endpoint.
 
 - [ ] **Step 8: Run adminapi tests**
 
@@ -228,7 +228,7 @@ Keep UI host mode if useful, but build payload as host bindings with TLS certifi
 
 - [ ] **Step 3: Update live repository**
 
-Call `GET /gateway-form-options` separately for form options. Keep `GET /gateways` resource-only.
+Call `GET /runtime-groups` separately for running group options. Keep `GET /gateways` resource-only.
 
 - [ ] **Step 4: Update mock repository**
 
@@ -288,4 +288,3 @@ git status --short
 ```
 
 Expected: no whitespace errors; only intentional source changes before final commit if any.
-

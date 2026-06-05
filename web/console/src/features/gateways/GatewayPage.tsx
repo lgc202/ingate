@@ -19,15 +19,15 @@ import {
 import type { GatewayHostMode } from './form';
 
 const loadGatewayWorkspace = async () => {
-  const [gatewayList, options] = await Promise.all([
+  const [gatewayList, runtimeGroups] = await Promise.all([
     consoleRepository.listGateways(),
-    consoleRepository.getGatewayFormOptions(),
+    consoleRepository.listRuntimeGroups(),
   ]);
 
   return {
     gateways: gatewayList.gateways,
-    runtimeGroups: options.runtimeGroups,
-    certificates: options.certificates,
+    runtimeGroups,
+    certificates: [],
   };
 };
 type GatewayPanelMode = 'list' | 'detail' | 'create' | 'edit';

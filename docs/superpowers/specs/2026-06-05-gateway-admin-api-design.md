@@ -5,7 +5,7 @@
 当前 Gateway 后端接口能支撑控制台第一版页面，但不适合作为长期模型继续扩展：
 
 - `GET /api/v1/gateways` 同时返回列表数据和证书下拉选项，接口职责不清
-- `GET /api/v1/gateways/:name` 和 `GET /api/v1/gateways/:name/overview` 都在表达详情，边界重复
+- `GET /api/v1/gateways/:id` 和历史 `GET /api/v1/gateways/:id/overview` 都在表达详情，边界重复
 - 创建和更新请求包含 `runtimeGroupName`、`certificateName` 等展示字段，后端实际不会持久化这些字段
 - `description`、`enabled`、`hostnames` 等 Gateway 核心语义通过 annotation 保存，绕开了声明式资源模型
 - HTTPS 证书字段出现在控制台请求里，但 `GatewaySpec` 没有证书引用，运行链路无法真正生效
@@ -111,25 +111,25 @@ Gateway 接口按页面和用例职责拆分：
 
 ```text
 GET    /api/v1/gateways
-GET    /api/v1/gateways/:name
+GET    /api/v1/gateways/:id
 POST   /api/v1/gateways
-PUT    /api/v1/gateways/:name
-PATCH  /api/v1/gateways/:name/enabled
-DELETE /api/v1/gateways/:name
-GET    /api/v1/gateway-form-options
+PUT    /api/v1/gateways/:id
+PATCH  /api/v1/gateways/:id/enabled
+DELETE /api/v1/gateways/:id
+GET    /api/v1/runtime-groups
 ```
 
 接口职责：
 
 - `GET /api/v1/gateways` 返回列表摘要，服务 Gateway 列表页和其他页面的 Gateway 选择器
-- `GET /api/v1/gateways/:name` 返回 Gateway 配置详情，不返回关联 Route、Upstream 或 RuntimeSnapshot
+- `GET /api/v1/gateways/:id` 返回 Gateway 配置详情，不返回关联 Route、Upstream 或 RuntimeSnapshot
 - `POST /api/v1/gateways` 创建 Gateway
-- `PUT /api/v1/gateways/:name` 更新 Gateway，不允许改名
-- `PATCH /api/v1/gateways/:name/enabled` 只更新启停状态
-- `DELETE /api/v1/gateways/:name` 删除 Gateway，仍有关联 Route 时拒绝删除
-- `GET /api/v1/gateway-form-options` 返回表单选项，例如运行组和证书列表
+- `PUT /api/v1/gateways/:id` 更新 Gateway，不允许修改资源 ID
+- `PATCH /api/v1/gateways/:id/enabled` 只更新启停状态
+- `DELETE /api/v1/gateways/:id` 删除 Gateway，仍有关联 Route 时拒绝删除
+- `GET /api/v1/runtime-groups` 返回运行组资源列表，前端自行组装 Gateway 表单选项
 
-删除 `GET /api/v1/gateways/:name/overview`。详情页需要的关联 Route、Upstream、RuntimeSnapshot 由前端通过对应资源接口获取并组装。后续如果出现明显性能或一致性问题，再增加带明确语义的查询接口，例如 `GET /api/v1/routes?gateway=gw-public`。
+删除 `GET /api/v1/gateways/:id/overview`。详情页需要的关联 Route、Upstream、RuntimeSnapshot 由前端通过对应资源接口获取并组装。后续如果出现明显性能或一致性问题，再增加带明确语义的查询接口，例如 `GET /api/v1/routes?gateway=gw-public`。
 
 ## DTO 命名和结构
 
@@ -174,11 +174,6 @@ type ListGatewaysResp struct {
 
 type GetGatewayResp struct {
 	Gateway GatewayDetail `json:"gateway"`
-}
-
-type GetGatewayFormOptionsResp struct {
-	RuntimeGroups []RuntimeGroupOption `json:"runtimeGroups"`
-	Certificates  []CertificateOption  `json:"certificates"`
 }
 ```
 
@@ -281,7 +276,7 @@ Envoy xDS 只是第一个 target。Gateway 模型不能以 Envoy 专有结构作
 - 更新内部资源转换和生成代码
 - 更新 Gateway admin-api DTO、Handler、Service 和测试
 - 更新前端 Gateway domain、form 和 live repository 调用
-- 删除 `/api/v1/gateways/:name/overview`
+- 删除 `/api/v1/gateways/:id/overview`
 - 将列表接口和表单选项接口拆开
 - 移除 Gateway 相关 annotation 主链路依赖
 

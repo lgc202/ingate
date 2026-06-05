@@ -32,6 +32,8 @@ type Interface interface {
 	RateLimitPolicies() RateLimitPolicyInformer
 	// Routes returns a RouteInformer.
 	Routes() RouteInformer
+	// RuntimeGroups returns a RuntimeGroupInformer.
+	RuntimeGroups() RuntimeGroupInformer
 	// RuntimeSnapshots returns a RuntimeSnapshotInformer.
 	RuntimeSnapshots() RuntimeSnapshotInformer
 	// Upstreams returns a UpstreamInformer.
@@ -102,6 +104,11 @@ func (v *version) RateLimitPolicies() RateLimitPolicyInformer {
 // Routes returns a RouteInformer.
 func (v *version) Routes() RouteInformer {
 	return &routeInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// RuntimeGroups returns a RuntimeGroupInformer.
+func (v *version) RuntimeGroups() RuntimeGroupInformer {
+	return &runtimeGroupInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // RuntimeSnapshots returns a RuntimeSnapshotInformer.

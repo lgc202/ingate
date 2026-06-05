@@ -24,16 +24,16 @@ func (s *Server) router() *gin.Engine {
 	apiV1 := router.Group("/api/v1")
 	{
 		apiV1.GET("/route-policy-capabilities", handler.Route.PolicyCapabilities)
-		apiV1.GET("/gateway-form-options", handler.Gateway.FormOptions)
+		apiV1.GET("/runtime-groups", handler.RuntimeGroup.List)
 
 		gateways := apiV1.Group("/gateways")
 		{
 			gateways.GET("", handler.Gateway.List)
 			gateways.POST("", handler.Gateway.Create)
-			gateways.GET("/:name", handler.Gateway.Get)
-			gateways.PUT("/:name", handler.Gateway.Update)
-			gateways.PATCH("/:name/enabled", handler.Gateway.SetEnabled)
-			gateways.DELETE("/:name", handler.Gateway.Delete)
+			gateways.GET("/:id", handler.Gateway.Get)
+			gateways.PUT("/:id", handler.Gateway.Update)
+			gateways.PATCH("/:id/enabled", handler.Gateway.SetEnabled)
+			gateways.DELETE("/:id", handler.Gateway.Delete)
 		}
 
 		upstreams := apiV1.Group("/upstreams")

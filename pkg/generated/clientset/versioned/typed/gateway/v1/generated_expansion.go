@@ -26,6 +26,8 @@ type RateLimitPolicyExpansion interface{}
 
 type RouteExpansion interface{}
 
+type RuntimeGroupExpansion interface{}
+
 type RuntimeSnapshotExpansion interface{}
 
 type UpstreamExpansion interface{}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	runtimegroupsvc "github.com/lgc202/ingate/internal/adminapi/service/runtimegroup"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -135,7 +136,7 @@ func validateGatewaySpecRequest(listeners []GatewayListenerReq, bindings []Gatew
 
 func normalizeRuntimeGroup(runtimeGroup string) string {
 	if runtimeGroup == "" {
-		return "default"
+		return runtimegroupsvc.DefaultID
 	}
 	return runtimeGroup
 }

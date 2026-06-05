@@ -52,11 +52,6 @@ export interface GatewayListView {
   gateways: Gateway[];
 }
 
-export interface GatewayFormOptions {
-  runtimeGroups: GatewayRuntimeGroupOption[];
-  certificates: GatewayCertificateOption[];
-}
-
 export interface GatewayWorkspace {
   gateways: Gateway[];
   runtimeGroups: GatewayRuntimeGroupOption[];

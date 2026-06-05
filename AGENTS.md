@@ -7,6 +7,7 @@
 - 构建一个面向 API 网关、AI 网关和多运行时 target 的声明式控制面。
 - 核心抽象优先表达网关领域语义，而不是某个具体数据面实现。
 - Envoy xDS 只是第一个 target，不是核心模型本身。
+- `RuntimeGroup` 是一等资源，表示一组数据面运行时的逻辑投放单元；Gateway 只引用 RuntimeGroup ID，不在 Gateway service 中硬编码运行组选项。
 - 命名要按新设计重新判断，不要被旧项目影响。例如使用 `Upstream`，不要使用 `Backend`。
 
 ## 当前范围
@@ -48,6 +49,7 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 - 不要为了“看起来健壮”写大量没有实际意义的防御性编程。
 - 对外部输入、跨进程边界、持久化数据、网络返回、配置解析等边界必须校验。
 - 对包内刚构造出来、语义已确定的值，不要层层判空或重复校验。
+- 构造函数的必需依赖由调用方保证，不做静默 nil 兜底；例如 logger 由服务入口统一注入，不在下层 `New` 中替换成 discard logger。
 
 ### 控制抽象层级
 
@@ -103,8 +105,12 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 ### Admin API 资源标识
 
 - 控制台创建资源时，由后端生成 UUID 作为不可变资源 ID，并写入底层资源的 `metadata.name`。
-- 面向用户展示和编辑的名称使用 `spec.displayName`，不使用展示名称作为资源 ID 或跨资源引用键。
-- 同一类资源内 `displayName` 原则上保持唯一，避免控制台出现用户无法区分的重名资源。
+- Admin API 和前端协议字段统一使用 `id` 表达资源主键，不使用 `name` 表达不可变 ID。
+- Service 用例层参数按领域命名，例如 `gatewayID`、`routeID`、`upstreamID`；不要把存储层的 `metadata.name` 命名泄漏到用例语义中。
+- Store 和 Kubernetes generated client 边界可以继续使用 `name`，因为这里对接的是 apiserver 存储协议。
+- 不额外增加 `spec.id`；`metadata.name` 是底层资源主键，Admin API 的 `id` 是它在控制台产品语义中的映射。
+- 面向用户展示和编辑的名称使用 `spec.displayName`，Admin API 管理的资源必须填写，不使用展示名称作为资源 ID 或跨资源引用键。
+- 同一类资源内 `displayName` 必须唯一，避免控制台出现用户无法区分的重名资源。
 - `displayName` 的唯一性校验属于系统状态校验，放在 service 层，不放在 DTO `Validate`。
 - 资源之间的引用使用资源 ID，不使用 `displayName`。
 - 声明式 apiserver 可以保留调用方指定 `metadata.name` 的能力；Admin API 面向控制台体验，创建流程可以和声明式 API 不同。

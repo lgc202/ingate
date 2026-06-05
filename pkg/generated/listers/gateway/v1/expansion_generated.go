@@ -48,6 +48,10 @@ type RateLimitPolicyListerExpansion interface{}
 // RouteLister.
 type RouteListerExpansion interface{}
 
+// RuntimeGroupListerExpansion allows custom methods to be added to
+// RuntimeGroupLister.
+type RuntimeGroupListerExpansion interface{}
+
 // RuntimeSnapshotListerExpansion allows custom methods to be added to
 // RuntimeSnapshotLister.
 type RuntimeSnapshotListerExpansion interface{}

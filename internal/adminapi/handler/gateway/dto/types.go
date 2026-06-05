@@ -53,12 +53,6 @@ type GetGatewayResp struct {
 	Gateway GatewayDetail `json:"gateway"`
 }
 
-// GetGatewayFormOptionsResp 是 Gateway 表单选项接口响应
-type GetGatewayFormOptionsResp struct {
-	RuntimeGroups []RuntimeGroupOption `json:"runtimeGroups"`
-	Certificates  []CertificateOption  `json:"certificates"`
-}
-
 // CreateGatewayResp 是创建 Gateway 的响应
 type CreateGatewayResp struct {
 	Success bool   `json:"success"`
@@ -87,7 +81,6 @@ type GatewaySummary struct {
 	DisplayName        string               `json:"displayName"`
 	Description        string               `json:"description"`
 	RuntimeGroup       string               `json:"runtimeGroup"`
-	RuntimeGroupName   string               `json:"runtimeGroupName"`
 	ListenerSummary    string               `json:"listenerSummary"`
 	HostBindingSummary string               `json:"hostBindingSummary"`
 	Listeners          []GatewayListener    `json:"listeners"`
@@ -99,17 +92,16 @@ type GatewaySummary struct {
 
 // GatewayDetail 是详情页使用的 Gateway 配置视图
 type GatewayDetail struct {
-	ID               string               `json:"id"`
-	Version          string               `json:"version,omitempty"`
-	DisplayName      string               `json:"displayName"`
-	Description      string               `json:"description"`
-	RuntimeGroup     string               `json:"runtimeGroup"`
-	RuntimeGroupName string               `json:"runtimeGroupName"`
-	Listeners        []GatewayListener    `json:"listeners"`
-	HostBindings     []GatewayHostBinding `json:"hostBindings"`
-	Enabled          bool                 `json:"enabled"`
-	HealthStatus     string               `json:"healthStatus"`
-	LastChangedAt    string               `json:"lastChangedAt"`
+	ID            string               `json:"id"`
+	Version       string               `json:"version,omitempty"`
+	DisplayName   string               `json:"displayName"`
+	Description   string               `json:"description"`
+	RuntimeGroup  string               `json:"runtimeGroup"`
+	Listeners     []GatewayListener    `json:"listeners"`
+	HostBindings  []GatewayHostBinding `json:"hostBindings"`
+	Enabled       bool                 `json:"enabled"`
+	HealthStatus  string               `json:"healthStatus"`
+	LastChangedAt string               `json:"lastChangedAt"`
 }
 
 // GatewayListener 是响应中的监听器配置
@@ -129,19 +121,4 @@ type GatewayHostBinding struct {
 // GatewayTLS 是响应中的 TLS 配置
 type GatewayTLS struct {
 	CertificateRef string `json:"certificateRef,omitempty"`
-}
-
-// RuntimeGroupOption 是 Gateway 表单中的运行组选项
-type RuntimeGroupOption struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
-
-// CertificateOption 是 Gateway 表单中的证书选项
-type CertificateOption struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Domains   []string `json:"domains"`
-	ExpiresAt string   `json:"expiresAt"`
-	Status    string   `json:"status"`
 }

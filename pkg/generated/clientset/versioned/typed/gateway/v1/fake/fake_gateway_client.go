@@ -58,6 +58,10 @@ func (c *FakeGatewayV1) Routes() v1.RouteInterface {
 	return newFakeRoutes(c)
 }
 
+func (c *FakeGatewayV1) RuntimeGroups() v1.RuntimeGroupInterface {
+	return newFakeRuntimeGroups(c)
+}
+
 func (c *FakeGatewayV1) RuntimeSnapshots() v1.RuntimeSnapshotInterface {
 	return newFakeRuntimeSnapshots(c)
 }

@@ -72,10 +72,14 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule":           schema_pkg_apis_gateway_v1_RouteRule(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteSpec":           schema_pkg_apis_gateway_v1_RouteSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout":        schema_pkg_apis_gateway_v1_RouteTimeout(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroup":        schema_pkg_apis_gateway_v1_RuntimeGroup(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupList":    schema_pkg_apis_gateway_v1_RuntimeGroupList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupRef":     schema_pkg_apis_gateway_v1_RuntimeGroupRef(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupSpec":    schema_pkg_apis_gateway_v1_RuntimeGroupSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshot":     schema_pkg_apis_gateway_v1_RuntimeSnapshot(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshotList": schema_pkg_apis_gateway_v1_RuntimeSnapshotList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshotSpec": schema_pkg_apis_gateway_v1_RuntimeSnapshotSpec(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TargetRef":           schema_pkg_apis_gateway_v1_TargetRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream":            schema_pkg_apis_gateway_v1_Upstream(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamList":        schema_pkg_apis_gateway_v1_UpstreamList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef":         schema_pkg_apis_gateway_v1_UpstreamRef(ref),
@@ -2921,6 +2925,102 @@ func schema_pkg_apis_gateway_v1_RouteTimeout(ref common.ReferenceCallback) commo
 	}
 }
 
+func schema_pkg_apis_gateway_v1_RuntimeGroup(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "RuntimeGroup 表示一组数据面运行时的逻辑投放单元",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_RuntimeGroupList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "RuntimeGroupList 表示 RuntimeGroup 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroup"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroup", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_RuntimeGroupRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2939,6 +3039,51 @@ func schema_pkg_apis_gateway_v1_RuntimeGroupRef(ref common.ReferenceCallback) co
 				Required: []string{"name"},
 			},
 		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_RuntimeGroupSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "RuntimeGroupSpec 定义一组数据面运行时的 target 和控制台展示信息",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与引用匹配",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Description 保存运维识别用的说明，不参与运行时匹配",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 表示该运行组是否允许承载新的 Gateway 配置",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"targetRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TargetRef 表示该运行组对应的运行时 target",
+							Default:     map[string]interface{}{},
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TargetRef"),
+						},
+					},
+				},
+				Required: []string{"enabled", "targetRef"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.TargetRef"},
 	}
 }
 
@@ -3071,6 +3216,27 @@ func schema_pkg_apis_gateway_v1_RuntimeSnapshotSpec(ref common.ReferenceCallback
 		},
 		Dependencies: []string{
 			"k8s.io/apimachinery/pkg/runtime.RawExtension"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TargetRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TargetRef 引用一个运行时 target",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
 	}
 }
 

@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,9 +24,6 @@ type Server struct {
 
 // New 创建管理 API 服务
 func New(client clientset.Interface, listenAddress, consoleDir string, logger *slog.Logger) *Server {
-	if logger == nil {
-		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
-	}
 	return &Server{
 		client:        client,
 		listenAddress: listenAddress,
