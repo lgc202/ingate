@@ -2,23 +2,34 @@ import { useState } from 'react';
 import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel } from '@/components/ui';
-import { healthLabel, runtimeSyncStatusLabel, statusTone } from '@/domain/common';
+import { healthLabel, statusTone } from '@/domain/common';
 import type { Gateway, GatewayCertificateOption, GatewayListener, GatewayMutationPayload, GatewayValidationReport } from '@/domain/gateway';
 import type { GatewayFormDraft } from './form';
 import {
   buildGatewayPayload,
   createGatewayDraft,
   createGatewayListener,
-  formatHostnames,
   formatListeners,
   gatewayEntryPort,
+  hostnamesFromBindings,
   normalizeHostnames,
   parseHostnames,
   validateGatewayDraft,
 } from './form';
 import type { GatewayHostMode } from './form';
 
-const loadGateways = () => consoleRepository.listGateways();
+const loadGatewayWorkspace = async () => {
+  const [gatewayList, options] = await Promise.all([
+    consoleRepository.listGateways(),
+    consoleRepository.getGatewayFormOptions(),
+  ]);
+
+  return {
+    gateways: gatewayList.gateways,
+    runtimeGroups: options.runtimeGroups,
+    certificates: options.certificates,
+  };
+};
 type GatewayPanelMode = 'list' | 'detail' | 'create' | 'edit';
 type GatewayEnabledFilter = 'all' | 'enabled' | 'disabled';
 
@@ -44,6 +55,7 @@ function mergeGateways(baseGateways: Gateway[], savedGateways: Record<string, Ga
 
 function buildGatewayFromPayload(payload: GatewayMutationPayload, original: Gateway | null): Gateway {
   const listenerSummary = payload.listeners.map((listener) => `${listener.protocol}:${listener.port || '-'}`).join(' / ');
+  const hostBindingSummary = payload.hostBindings.map((binding) => binding.hostname ?? '不限制 Host').join('、') || '不限制 Host';
   const id = payload.id ?? payload.name;
 
   return {
@@ -51,24 +63,20 @@ function buildGatewayFromPayload(payload: GatewayMutationPayload, original: Gate
     version: undefined,
     name: payload.name,
     description: payload.description || original?.description || '未填写描述',
-    runtimeGroupId: payload.runtimeGroupId,
-    runtimeGroupName: payload.runtimeGroupName,
-    listeners: listenerSummary,
-    listenerItems: payload.listeners,
-    hostPolicy: payload.hostnames.length > 0 ? payload.hostnames.join('、') : '不限制 Host',
-    hostnames: payload.hostnames,
-    routeCount: original?.routeCount ?? 0,
-    serviceCount: original?.serviceCount ?? 0,
+    runtimeGroup: payload.runtimeGroup,
+    runtimeGroupName: original?.runtimeGroupName ?? payload.runtimeGroup,
+    listenerSummary,
+    hostBindingSummary,
+    listeners: payload.listeners,
+    hostBindings: payload.hostBindings,
     enabled: original?.enabled ?? true,
-    runtimeStatus: 'unknown',
     healthStatus: original?.healthStatus ?? 'unknown',
-    latestSnapshotVersion: original?.latestSnapshotVersion,
     lastChangedAt: '刚刚',
   };
 }
 
 export function GatewayPage() {
-  const gateways = useResource(loadGateways);
+  const gateways = useResource(loadGatewayWorkspace);
   const [selectedGatewayId, setSelectedGatewayId] = useState('gw-public');
   const [panelMode, setPanelMode] = useState<GatewayPanelMode>('list');
   const [filterDraft, setFilterDraft] = useState<GatewayFilters>(emptyGatewayFilters);
@@ -109,7 +117,7 @@ export function GatewayPage() {
     const keyword = filters.keyword.trim().toLowerCase();
     const host = filters.host.trim().toLowerCase();
     const matchedKeyword = !keyword || [gateway.name, gateway.description].some((value) => value.toLowerCase().includes(keyword));
-    const matchedHost = !host || [gateway.hostPolicy, ...gateway.hostnames].some((value) => value.toLowerCase().includes(host));
+    const matchedHost = !host || [gateway.hostBindingSummary, ...gatewayHostnames(gateway)].some((value) => value.toLowerCase().includes(host));
     const matchedEnabled = filters.enabled === 'all' || (filters.enabled === 'enabled' ? gatewayEnabled(gateway) : !gatewayEnabled(gateway));
 
     return matchedKeyword && matchedHost && matchedEnabled;
@@ -137,10 +145,6 @@ export function GatewayPage() {
   };
 
   const requestDeleteGateway = (gateway: Gateway) => {
-    if (gateway.routeCount > 0) {
-      return;
-    }
-
     setDeleteCandidate(gateway);
   };
 
@@ -319,10 +323,8 @@ export function GatewayPage() {
                   <th>网关名称</th>
                   <th>运行入口</th>
                   <th>Host 策略</th>
-                  <th>路由数</th>
-                  <th>服务数</th>
                   <th>启用状态</th>
-                  <th>生效状态</th>
+                  <th>健康状态</th>
                   <th>最近变更</th>
                   <th>操作</th>
                 </tr>
@@ -339,15 +341,13 @@ export function GatewayPage() {
                       <div className="table-secondary">{gateway.description}</div>
                     </td>
                     <td>
-                      <div className="table-primary">{gateway.listeners}</div>
-                      <div className="table-secondary">{gateway.listenerItems.filter((listener) => listener.protocol === 'HTTPS').length} 个 HTTPS</div>
+                      <div className="table-primary">{gateway.listenerSummary}</div>
+                      <div className="table-secondary">{gateway.listeners.filter((listener) => listener.protocol === 'HTTPS').length} 个 HTTPS</div>
                     </td>
                     <td>
-                      <div className="table-primary">{gateway.hostPolicy}</div>
-                      <div className="table-secondary">{gateway.hostnames.length > 0 ? `${gateway.hostnames.length} 个 Host` : '进入路由匹配'}</div>
+                      <div className="table-primary">{gateway.hostBindingSummary}</div>
+                      <div className="table-secondary">{gatewayHostnames(gateway).length > 0 ? `${gatewayHostnames(gateway).length} 个 Host` : '进入路由匹配'}</div>
                     </td>
-                    <td>{gateway.routeCount}</td>
-                    <td>{gateway.serviceCount}</td>
                     <td>
                       <div className={`gateway-status ${gatewayEnabled(gateway) ? 'on' : ''}`.trim()}>
                         <button
@@ -367,9 +367,7 @@ export function GatewayPage() {
                       </div>
                     </td>
                     <td>
-                      <Badge tone={statusTone(gateway.runtimeStatus)}>
-                        {runtimeSyncStatusLabel(gateway.runtimeStatus)}
-                      </Badge>
+                      <Badge tone={statusTone(gateway.healthStatus)}>{healthLabel(gateway.healthStatus)}</Badge>
                     </td>
                     <td>{gateway.lastChangedAt}</td>
                     <td>
@@ -386,7 +384,7 @@ export function GatewayPage() {
                         <button className="link-button danger" type="button" onClick={(event) => {
                           event.stopPropagation();
                           requestDeleteGateway(gateway);
-                        }} disabled={gateway.routeCount > 0} title={gateway.routeCount > 0 ? '仍有关联路由，不能删除' : undefined}>删除</button>
+                        }}>删除</button>
                       </div>
                     </td>
                   </tr>
@@ -416,8 +414,8 @@ export function GatewayPage() {
               <h3 id="delete-gateway-title">删除网关</h3>
               <p>确定删除 {deleteCandidate.name}？如果后续接入真实后端，仍有关联路由时会拒绝删除。</p>
               <div className="confirm-meta">
-                <span>运行入口</span><strong>{deleteCandidate.listeners}</strong>
-                <span>关联路由</span><strong>{deleteCandidate.routeCount} 条</strong>
+                <span>运行入口</span><strong>{deleteCandidate.listenerSummary}</strong>
+                <span>Host 策略</span><strong>{deleteCandidate.hostBindingSummary}</strong>
               </div>
               <div className="confirm-actions">
                 <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button>
@@ -432,9 +430,8 @@ export function GatewayPage() {
               <h3 id="disable-gateway-title">停用网关</h3>
               <p>停用 {disableCandidate.name} 后，关联入口将不再承载流量。请确认关联路由和服务已迁移或可以暂停访问。</p>
               <div className="confirm-meta">
-                <span>运行入口</span><strong>{disableCandidate.listeners}</strong>
-                <span>关联路由</span><strong>{disableCandidate.routeCount} 条</strong>
-                <span>关联服务</span><strong>{disableCandidate.serviceCount} 个</strong>
+                <span>运行入口</span><strong>{disableCandidate.listenerSummary}</strong>
+                <span>Host 策略</span><strong>{disableCandidate.hostBindingSummary}</strong>
               </div>
               <div className="confirm-actions">
                 <Button variant="ghost" onClick={() => setDisableCandidate(null)}>取消</Button>
@@ -545,14 +542,14 @@ function GatewayListenerEditor({
   certificateError?: string;
   onChange: (listeners: GatewayListener[]) => void;
 }) {
-  const updateListener = (listenerId: string, patch: Partial<GatewayListener>) => {
-    onChange(value.map((listener) => listener.id === listenerId ? { ...listener, ...patch } : listener));
+  const updateListener = (listenerName: string, patch: Partial<GatewayListener>) => {
+    onChange(value.map((listener) => listener.name === listenerName ? { ...listener, ...patch } : listener));
   };
   const enabledProtocols = new Set(value.map((listener) => listener.protocol));
   const missingProtocols = (['HTTP', 'HTTPS'] as GatewayListener['protocol'][]).filter((protocol) => !enabledProtocols.has(protocol));
 
-  const removeListener = (listenerId: string) => {
-    onChange(value.filter((listener) => listener.id !== listenerId));
+  const removeListener = (listenerName: string) => {
+    onChange(value.filter((listener) => listener.name !== listenerName));
   };
 
   return (
@@ -564,16 +561,15 @@ function GatewayListenerEditor({
         <span>操作</span>
       </div>
       {value.map((listener) => (
-        <div className="listener-grid" key={listener.id}>
+        <div className="listener-grid" key={listener.name}>
           <select
             value={listener.protocol}
             onChange={(event) => {
               const protocol = event.target.value as GatewayListener['protocol'];
-              updateListener(listener.id, {
+              updateListener(listener.name, {
                 protocol,
                 port: gatewayEntryPort(protocol),
                 certificateId: protocol === 'HTTPS' ? listener.certificateId : undefined,
-                certificateName: protocol === 'HTTPS' ? listener.certificateName : undefined,
               });
             }}
           >
@@ -589,8 +585,7 @@ function GatewayListenerEditor({
             disabled={listener.protocol !== 'HTTPS'}
             className={listener.protocol === 'HTTPS' && !listener.certificateId ? 'invalid-control' : ''}
             onChange={(event) => {
-              const certificate = certificates.find((item) => item.id === event.target.value);
-              updateListener(listener.id, { certificateId: certificate?.id, certificateName: certificate?.name });
+              updateListener(listener.name, { certificateId: event.target.value || undefined });
             }}
           >
             <option value="">选择证书</option>
@@ -603,7 +598,7 @@ function GatewayListenerEditor({
             type="button"
             disabled={value.length <= 1}
             title={value.length <= 1 ? '至少保留一个运行入口' : undefined}
-            onClick={() => removeListener(listener.id)}
+            onClick={() => removeListener(listener.name)}
           >删除</button>
         </div>
       ))}
@@ -711,7 +706,6 @@ function GatewayDetail({ gateway }: { gateway: Gateway }) {
           {[
             ['描述', gateway.description],
             ['启用状态', gateway.enabled ? '启用' : '停用'],
-            ['生效状态', runtimeSyncStatusLabel(gateway.runtimeStatus)],
             ['健康状态', healthLabel(gateway.healthStatus)],
             ['最近变更', gateway.lastChangedAt],
           ].flatMap(([label, value]) => [
@@ -724,14 +718,14 @@ function GatewayDetail({ gateway }: { gateway: Gateway }) {
         <h4>运行归属</h4>
         <div className="kv">
           <div>运行组</div><div>{gateway.runtimeGroupName}</div>
-          <div>运行组 ID</div><div>{gateway.runtimeGroupId}</div>
+          <div>运行组 ID</div><div>{gateway.runtimeGroup}</div>
         </div>
       </div>
       <div className="detail-card">
         <h4>Host 策略</h4>
-        <div className="mini-card-title">{gateway.hostnames.length > 0 ? '指定 Host' : '不限制 Host'}</div>
+        <div className="mini-card-title">{gatewayHostnames(gateway).length > 0 ? '指定 Host' : '不限制 Host'}</div>
         <div className="tag-list">
-          {gateway.hostnames.length > 0 ? gateway.hostnames.map((hostname) => (
+          {gatewayHostnames(gateway).length > 0 ? gatewayHostnames(gateway).map((hostname) => (
             <span className="tag-chip static" key={hostname}>{hostname}</span>
           )) : (
             <span className="host-empty">不校验请求 Host，直接进入路由匹配。</span>
@@ -741,21 +735,22 @@ function GatewayDetail({ gateway }: { gateway: Gateway }) {
       <div className="detail-card">
         <h4>运行入口</h4>
         <div className="drawer-list">
-          {gateway.listenerItems.map((listener) => (
-            <div className="legend-row" key={listener.id}>
+          {gateway.listeners.map((listener) => (
+            <div className="legend-row" key={listener.name}>
               <span>{listener.protocol}:{listener.port}</span>
-              <span className="mini-card-meta">{listener.protocol === 'HTTPS' ? listener.certificateName ?? '未配置证书' : 'HTTP'}</span>
+              <span className="mini-card-meta">{listener.protocol === 'HTTPS' ? gatewayCertificateRef(gateway, listener.name) ?? '未配置证书' : 'HTTP'}</span>
             </div>
           ))}
         </div>
       </div>
-      <div className="detail-card">
-        <h4>关联范围</h4>
-        <div className="kv">
-          <div>关联路由</div><div>{gateway.routeCount} 条</div>
-          <div>关联服务</div><div>{gateway.serviceCount} 个</div>
-        </div>
-      </div>
     </div>
   );
+}
+
+function gatewayHostnames(gateway: Gateway) {
+  return hostnamesFromBindings(gateway.hostBindings);
+}
+
+function gatewayCertificateRef(gateway: Gateway, listenerName: string) {
+  return gateway.hostBindings.find((binding) => binding.listenerRefs.includes(listenerName) && binding.tls?.certificateRef)?.tls?.certificateRef;
 }

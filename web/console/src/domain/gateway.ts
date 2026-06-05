@@ -1,33 +1,38 @@
-import type { HealthStatus, RuntimeSyncStatus } from './common';
+import type { HealthStatus } from './common';
 
 export interface Gateway {
   id: string;
   version?: string;
   name: string;
   description: string;
-  runtimeGroupId: string;
+  runtimeGroup: string;
   runtimeGroupName: string;
-  listeners: string;
-  listenerItems: GatewayListener[];
-  hostPolicy: string;
-  hostnames: string[];
-  routeCount: number;
-  serviceCount: number;
+  listenerSummary: string;
+  hostBindingSummary: string;
+  listeners: GatewayListener[];
+  hostBindings: GatewayHostBinding[];
   enabled: boolean;
-  runtimeStatus: RuntimeSyncStatus;
   healthStatus: HealthStatus;
-  latestSnapshotVersion?: string;
   lastChangedAt: string;
 }
 
 export type GatewayListenerProtocol = 'HTTP' | 'HTTPS';
 
 export interface GatewayListener {
-  id: string;
+  name: string;
   protocol: GatewayListenerProtocol;
-  port: string;
+  port: number;
   certificateId?: string;
-  certificateName?: string;
+}
+
+export interface GatewayHostBinding {
+  hostname?: string;
+  listenerRefs: string[];
+  tls?: GatewayTLS;
+}
+
+export interface GatewayTLS {
+  certificateRef?: string;
 }
 
 export interface GatewayCertificateOption {
@@ -38,8 +43,23 @@ export interface GatewayCertificateOption {
   status: HealthStatus;
 }
 
+export interface GatewayRuntimeGroupOption {
+  id: string;
+  name: string;
+}
+
 export interface GatewayListView {
   gateways: Gateway[];
+}
+
+export interface GatewayFormOptions {
+  runtimeGroups: GatewayRuntimeGroupOption[];
+  certificates: GatewayCertificateOption[];
+}
+
+export interface GatewayWorkspace {
+  gateways: Gateway[];
+  runtimeGroups: GatewayRuntimeGroupOption[];
   certificates: GatewayCertificateOption[];
 }
 
@@ -48,10 +68,9 @@ export interface GatewayMutationPayload {
   version?: string;
   name: string;
   description: string;
-  runtimeGroupId: string;
-  runtimeGroupName: string;
+  runtimeGroup: string;
   listeners: GatewayListener[];
-  hostnames: string[];
+  hostBindings: GatewayHostBinding[];
 }
 
 export interface GatewayMutationPreview {

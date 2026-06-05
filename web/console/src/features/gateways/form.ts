@@ -1,6 +1,7 @@
 import type {
   Gateway,
   GatewayCertificateOption,
+  GatewayHostBinding,
   GatewayListener,
   GatewayMutationPayload,
   GatewayValidationItem,
@@ -8,10 +9,10 @@ import type {
 } from '@/domain/gateway';
 
 const DEFAULT_RUNTIME_GROUP_ID = 'default';
-const DEFAULT_RUNTIME_GROUP_NAME = '默认运行组';
-export const GATEWAY_ENTRY_PORTS: Record<GatewayListener['protocol'], string> = {
-  HTTP: '8080',
-  HTTPS: '8443',
+
+export const GATEWAY_ENTRY_PORTS: Record<GatewayListener['protocol'], number> = {
+  HTTP: 8080,
+  HTTPS: 8443,
 };
 
 export type GatewayHostMode = 'any' | 'specified';
@@ -21,24 +22,22 @@ export interface GatewayFormDraft {
   version?: string;
   name: string;
   description: string;
-  runtimeGroupId: string;
-  runtimeGroupName: string;
+  runtimeGroup: string;
   listeners: GatewayListener[];
   hostMode: GatewayHostMode;
   hostnames: string[];
 }
 
 export function createGatewayDraft(gateway?: Gateway | null): GatewayFormDraft {
-  const hostnames = gateway?.hostnames ?? (gateway?.hostPolicy === '不限制 Host' ? [] : parseHostnames(gateway?.hostPolicy ?? ''));
+  const hostnames = gateway ? hostnamesFromBindings(gateway.hostBindings) : [];
 
   return {
     id: gateway?.id,
     version: gateway?.version,
     name: gateway?.name ?? '',
     description: gateway?.description ?? '',
-    runtimeGroupId: gateway?.runtimeGroupId ?? DEFAULT_RUNTIME_GROUP_ID,
-    runtimeGroupName: gateway?.runtimeGroupName ?? DEFAULT_RUNTIME_GROUP_NAME,
-    listeners: gateway?.listenerItems?.length ? gateway.listenerItems : [createGatewayListener('HTTP')],
+    runtimeGroup: gateway?.runtimeGroup ?? DEFAULT_RUNTIME_GROUP_ID,
+    listeners: gateway?.listeners?.length ? listenersWithCertificates(gateway.listeners, gateway.hostBindings) : [createGatewayListener('HTTP')],
     hostMode: hostnames.length > 0 ? 'specified' : 'any',
     hostnames,
   };
@@ -46,7 +45,7 @@ export function createGatewayDraft(gateway?: Gateway | null): GatewayFormDraft {
 
 export function createGatewayListener(protocol: GatewayListener['protocol'] = 'HTTP', port = gatewayEntryPort(protocol)): GatewayListener {
   return {
-    id: `listener-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    name: `listener-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     protocol,
     port,
   };
@@ -112,18 +111,21 @@ export function validateGatewayDraft(draft: GatewayFormDraft, gateways: Gateway[
 }
 
 export function buildGatewayPayload(draft: GatewayFormDraft): GatewayMutationPayload {
+  const listeners = draft.listeners.map((listener) => ({
+    name: listener.name,
+    protocol: listener.protocol,
+    port: gatewayEntryPort(listener.protocol),
+    certificateId: listener.protocol === 'HTTPS' ? listener.certificateId : undefined,
+  }));
+
   return {
     id: draft.id,
     version: draft.version,
     name: draft.name.trim(),
     description: draft.description.trim(),
-    runtimeGroupId: draft.runtimeGroupId,
-    runtimeGroupName: draft.runtimeGroupName,
-    listeners: draft.listeners.map((listener) => ({
-      ...listener,
-      port: gatewayEntryPort(listener.protocol),
-    })),
-    hostnames: draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [],
+    runtimeGroup: draft.runtimeGroup,
+    listeners,
+    hostBindings: buildHostBindings(draft, listeners),
   };
 }
 
@@ -159,6 +161,35 @@ export function formatHostnames(hostnames: string[]) {
   return hostnames.length > 0 ? hostnames.join('、') : '不限制 Host';
 }
 
+export function hostnamesFromBindings(bindings: GatewayHostBinding[]) {
+  return normalizeHostnames(bindings.map((binding) => binding.hostname ?? '').filter(Boolean));
+}
+
+function buildHostBindings(draft: GatewayFormDraft, listeners: GatewayListener[]): GatewayHostBinding[] {
+  const httpsListener = listeners.find((listener) => listener.protocol === 'HTTPS');
+  const listenerRefs = listeners.map((listener) => listener.name);
+  const hostnames = draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [''];
+
+  return hostnames.map((hostname) => ({
+    hostname: hostname || undefined,
+    listenerRefs,
+    tls: httpsListener?.certificateId ? { certificateRef: httpsListener.certificateId } : undefined,
+  }));
+}
+
+function listenersWithCertificates(listeners: GatewayListener[], bindings: GatewayHostBinding[]) {
+  return listeners.map((listener) => {
+    if (listener.protocol !== 'HTTPS') {
+      return listener;
+    }
+    const binding = bindings.find((item) => item.listenerRefs.includes(listener.name) && item.tls?.certificateRef);
+    return {
+      ...listener,
+      certificateId: binding?.tls?.certificateRef,
+    };
+  });
+}
+
 function isValidHostname(hostname: string): boolean {
   const normalized = hostname.startsWith('*.') ? hostname.slice(2) : hostname;
 
@@ -178,18 +209,18 @@ function isValidGatewayName(name: string): boolean {
 function hostlessGatewayConflict(draft: GatewayFormDraft, gateways: Gateway[], originalGatewayId?: string): string | null {
   const entries = new Set(draft.listeners.map((listener) => `${listener.protocol}:${gatewayEntryPort(listener.protocol)}`));
   const conflict = gateways.find((gateway) => {
-    if (gateway.id === originalGatewayId || !gateway.enabled || gateway.hostnames.length > 0) {
+    if (gateway.id === originalGatewayId || !gateway.enabled || hostnamesFromBindings(gateway.hostBindings).length > 0) {
       return false;
     }
 
-    return gateway.listenerItems.some((listener) => entries.has(`${listener.protocol}:${listener.port || gatewayEntryPort(listener.protocol)}`));
+    return gateway.listeners.some((listener) => entries.has(`${listener.protocol}:${listener.port || gatewayEntryPort(listener.protocol)}`));
   });
 
   if (!conflict) {
     return null;
   }
 
-  const entry = conflict.listenerItems.find((listener) => entries.has(`${listener.protocol}:${listener.port || gatewayEntryPort(listener.protocol)}`));
+  const entry = conflict.listeners.find((listener) => entries.has(`${listener.protocol}:${listener.port || gatewayEntryPort(listener.protocol)}`));
 
   return `${entry ? `${entry.protocol}:${entry.port || gatewayEntryPort(entry.protocol)}` : '当前运行入口'} 已有不限制 Host 的网关 ${conflict.name}。请指定 Host，或先停用/删除该网关`;
 }

@@ -1,5 +1,6 @@
 import type { ConsoleRepository } from '@/api/contracts';
 import type {
+  GatewayFormOptions,
   GatewayListView,
   GatewayMutationPayload,
   GatewayMutationPreview,
@@ -160,83 +161,82 @@ const gatewayList: GatewayListView = {
       id: 'gw-public',
       name: 'gw-public',
       description: '公网 API 入口',
-      runtimeGroupId: 'default',
+      runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
-      listeners: 'HTTPS:443 / HTTP:80',
-      listenerItems: [
-        { id: 'gw-public-https', protocol: 'HTTPS', port: '443', certificateId: 'cert-api-ingate', certificateName: 'api-ingate-io' },
-        { id: 'gw-public-http', protocol: 'HTTP', port: '80' },
+      listenerSummary: 'HTTPS:443 / HTTP:80',
+      hostBindingSummary: 'api.ingate.io、*.api.ingate.io',
+      listeners: [
+        { name: 'gw-public-https', protocol: 'HTTPS', port: 443, certificateId: 'cert-api-ingate' },
+        { name: 'gw-public-http', protocol: 'HTTP', port: 80 },
       ],
-      hostPolicy: 'api.ingate.io、*.api.ingate.io',
-      hostnames: ['api.ingate.io', '*.api.ingate.io'],
-      routeCount: 6,
-      serviceCount: 4,
+      hostBindings: [
+        { hostname: 'api.ingate.io', listenerRefs: ['gw-public-https', 'gw-public-http'], tls: { certificateRef: 'cert-api-ingate' } },
+        { hostname: '*.api.ingate.io', listenerRefs: ['gw-public-https', 'gw-public-http'], tls: { certificateRef: 'cert-api-ingate' } },
+      ],
       enabled: true,
-      runtimeStatus: 'synced',
       healthStatus: 'healthy',
-      latestSnapshotVersion: 'xds/8f31b',
       lastChangedAt: '5 分钟前',
     },
     {
       id: 'gw-partner',
       name: 'gw-partner',
       description: '合作方 API 入口',
-      runtimeGroupId: 'default',
+      runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
-      listeners: 'HTTPS:10443',
-      listenerItems: [
-        { id: 'gw-partner-https', protocol: 'HTTPS', port: '10443', certificateId: 'cert-partner', certificateName: 'partner-ingate-local' },
+      listenerSummary: 'HTTPS:10443',
+      hostBindingSummary: 'partner.ingate.local',
+      listeners: [
+        { name: 'gw-partner-https', protocol: 'HTTPS', port: 10443, certificateId: 'cert-partner' },
       ],
-      hostPolicy: 'partner.ingate.local',
-      hostnames: ['partner.ingate.local'],
-      routeCount: 3,
-      serviceCount: 2,
+      hostBindings: [
+        { hostname: 'partner.ingate.local', listenerRefs: ['gw-partner-https'], tls: { certificateRef: 'cert-partner' } },
+      ],
       enabled: true,
-      runtimeStatus: 'synced',
       healthStatus: 'healthy',
-      latestSnapshotVersion: 'xds/7a9c2',
       lastChangedAt: '18 分钟前',
     },
     {
       id: 'gw-sandbox',
       name: 'gw-sandbox',
       description: '沙箱联调入口',
-      runtimeGroupId: 'default',
+      runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
-      listeners: 'HTTP:18080',
-      listenerItems: [
-        { id: 'gw-sandbox-http', protocol: 'HTTP', port: '18080' },
+      listenerSummary: 'HTTP:18080',
+      hostBindingSummary: '不限制 Host',
+      listeners: [
+        { name: 'gw-sandbox-http', protocol: 'HTTP', port: 18080 },
       ],
-      hostPolicy: '不限制 Host',
-      hostnames: [],
-      routeCount: 2,
-      serviceCount: 2,
+      hostBindings: [
+        { listenerRefs: ['gw-sandbox-http'] },
+      ],
       enabled: true,
-      runtimeStatus: 'syncing',
       healthStatus: 'warning',
-      latestSnapshotVersion: 'xds/6ad20',
       lastChangedAt: '2 小时前',
     },
     {
       id: 'gw-broken',
       name: 'gw-broken',
       description: '遗留系统入口',
-      runtimeGroupId: 'default',
+      runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
-      listeners: 'HTTP:19090',
-      listenerItems: [
-        { id: 'gw-broken-http', protocol: 'HTTP', port: '19090' },
+      listenerSummary: 'HTTP:19090',
+      hostBindingSummary: 'legacy.ingate.local',
+      listeners: [
+        { name: 'gw-broken-http', protocol: 'HTTP', port: 19090 },
       ],
-      hostPolicy: 'legacy.ingate.local',
-      hostnames: ['legacy.ingate.local'],
-      routeCount: 1,
-      serviceCount: 1,
+      hostBindings: [
+        { hostname: 'legacy.ingate.local', listenerRefs: ['gw-broken-http'] },
+      ],
       enabled: false,
-      runtimeStatus: 'failed',
       healthStatus: 'critical',
-      latestSnapshotVersion: 'xds/5c001',
       lastChangedAt: '1 天前',
     },
+  ],
+};
+
+const gatewayFormOptions: GatewayFormOptions = {
+  runtimeGroups: [
+    { id: 'default', name: '默认运行组' },
   ],
   certificates: [
     { id: 'cert-api-ingate', name: 'api-ingate-io', domains: ['api.ingate.io', '*.api.ingate.io'], expiresAt: '2026-08-20', status: 'healthy' },
@@ -740,8 +740,9 @@ function isValidHostname(hostname: string): boolean {
 }
 
 function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidationReport {
-  const invalidHostnames = payload.hostnames.filter((hostname) => !isValidHostname(hostname));
-  const ports = payload.listeners.map((listener) => listener.port.trim()).filter(Boolean);
+  const hostnames = payload.hostBindings.map((binding) => binding.hostname ?? '').filter(Boolean);
+  const invalidHostnames = hostnames.filter((hostname) => !isValidHostname(hostname));
+  const ports = payload.listeners.map((listener) => String(listener.port)).filter(Boolean);
   const duplicatePorts = ports.filter((port, index) => ports.indexOf(port) !== index);
   const httpsWithoutCertificate = payload.listeners.filter((listener) => listener.protocol === 'HTTPS' && !listener.certificateId);
   const items: GatewayValidationReport['items'] = [
@@ -752,15 +753,15 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
     },
     {
       label: '运行组',
-      status: payload.runtimeGroupId.trim() ? 'healthy' : 'critical',
-      message: payload.runtimeGroupName.trim() || '请选择运行组',
+      status: payload.runtimeGroup.trim() ? 'healthy' : 'critical',
+      message: payload.runtimeGroup.trim() || '请选择运行组',
     },
     {
       label: '监听器',
-      status: payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port.trim()) && duplicatePorts.length === 0 ? 'healthy' : 'critical',
+      status: payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0) && duplicatePorts.length === 0 ? 'healthy' : 'critical',
       message: duplicatePorts.length > 0
         ? `端口重复：${Array.from(new Set(duplicatePorts)).join('、')}`
-        : payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port.trim())
+        : payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0)
           ? payload.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ')
           : '至少配置一个监听器，并填写端口',
     },
@@ -774,8 +775,8 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
       status: invalidHostnames.length > 0 ? 'critical' : 'healthy',
       message: invalidHostnames.length > 0
         ? `域名格式不正确：${invalidHostnames.join('、')}`
-        : payload.hostnames.length > 0
-          ? `限制 ${payload.hostnames.length} 个 Host`
+        : hostnames.length > 0
+          ? `限制 ${hostnames.length} 个 Host`
           : '不限制 Host',
     },
   ];
@@ -789,7 +790,8 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
 }
 
 function previewGatewayPayload(payload: GatewayMutationPayload): GatewayMutationPreview {
-  const hostSummary = payload.hostnames.length > 0 ? payload.hostnames.join(', ') : '不限制 Host';
+  const hostnames = payload.hostBindings.map((binding) => binding.hostname ?? '').filter(Boolean);
+  const hostSummary = hostnames.length > 0 ? hostnames.join(', ') : '不限制 Host';
   const listenerSummary = payload.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ');
 
   return {
@@ -933,6 +935,9 @@ export const mockConsoleRepository: ConsoleRepository = {
   },
   async listGateways() {
     return clone(gatewayList);
+  },
+  async getGatewayFormOptions() {
+    return clone(gatewayFormOptions);
   },
   async saveGatewayDraft(payload) {
     return gatewayAction(`网关草稿已保存：${payload.name}`);

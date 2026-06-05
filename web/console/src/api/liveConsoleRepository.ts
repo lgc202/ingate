@@ -1,5 +1,5 @@
 import type { ConsoleRepository } from './contracts';
-import type { GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayValidationReport } from '@/domain/gateway';
+import type { GatewayFormOptions, GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayValidationReport } from '@/domain/gateway';
 import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRetry,
@@ -30,6 +30,10 @@ export const liveConsoleRepository: ConsoleRepository = {
 
   async listGateways() {
     return request<GatewayListView>('/gateways');
+  },
+
+  async getGatewayFormOptions() {
+    return request<GatewayFormOptions>('/gateway-form-options');
   },
 
   async saveGatewayDraft(payload) {
@@ -305,8 +309,9 @@ function unavailable(name: string): Promise<never> {
 }
 
 function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidationReport {
-  const invalidHostnames = payload.hostnames.filter((hostname) => !isValidHostname(hostname));
-  const ports = payload.listeners.map((listener) => listener.port.trim()).filter(Boolean);
+  const hostnames = payload.hostBindings.map((binding) => binding.hostname ?? '').filter(Boolean);
+  const invalidHostnames = hostnames.filter((hostname) => !isValidHostname(hostname));
+  const ports = payload.listeners.map((listener) => String(listener.port)).filter(Boolean);
   const duplicatePorts = ports.filter((port, index) => ports.indexOf(port) !== index);
   const httpsWithoutCertificate = payload.listeners.filter((listener) => listener.protocol === 'HTTPS' && !listener.certificateId);
   const items: GatewayValidationReport['items'] = [
@@ -317,10 +322,10 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
     },
     {
       label: '监听器',
-      status: payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port.trim()) && duplicatePorts.length === 0 ? 'healthy' : 'critical',
+      status: payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0) && duplicatePorts.length === 0 ? 'healthy' : 'critical',
       message: duplicatePorts.length > 0
         ? `端口重复：${Array.from(new Set(duplicatePorts)).join('、')}`
-        : payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port.trim())
+        : payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0)
           ? payload.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ')
           : '至少配置一个监听器，并填写端口',
     },
@@ -334,8 +339,8 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
       status: invalidHostnames.length > 0 ? 'critical' : 'healthy',
       message: invalidHostnames.length > 0
         ? `域名格式不正确：${invalidHostnames.join('、')}`
-        : payload.hostnames.length > 0
-          ? `限制 ${payload.hostnames.length} 个 Host`
+        : hostnames.length > 0
+          ? `限制 ${hostnames.length} 个 Host`
           : '不限制 Host',
     },
   ];
