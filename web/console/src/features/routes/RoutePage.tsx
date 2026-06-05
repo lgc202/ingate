@@ -4,14 +4,16 @@ import { useResource } from '@/api/useResource';
 import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Tabs } from '@/components/ui';
 import type { KeyValue } from '@/domain/common';
 import { healthLabel, runtimeSyncStatusLabel, statusTone } from '@/domain/common';
-import type { RouteComposerPreview, RoutePageView, RouteResource, RouteValidationReport } from '@/domain/route';
+import type { RouteComposerPreview, RoutePageView, RouteResource, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import { serviceTypeLabel } from '@/domain/service';
 import type { RouteComposerDraft } from './composer';
 import {
   buildRoutePublishPayload,
   createRouteComposerDraft,
+  formatTargetServices,
   normalizeHostnames,
   parseHostnames,
+  targetWeightSum,
   validateRouteComposerDraft,
 } from './composer';
 
@@ -82,12 +84,15 @@ export function RoutePage() {
   const routeEnabled = (route: RouteResource) => route.enabled;
   const selectedRouteView = selectedRoute ? { ...selectedRoute, enabled: routeEnabled(selectedRoute) } : undefined;
   const gatewayOptions = Array.from(new Set([...routeWorkspace.composer.gatewayNames, ...availableRoutes.flatMap((route) => route.gatewayNames)])).sort();
-  const serviceOptions = Array.from(new Set([...routeWorkspace.composer.targets.map((target) => target.name), ...availableRoutes.map((route) => route.serviceName)])).sort();
+  const serviceOptions = Array.from(new Set([
+    ...routeWorkspace.composer.targets.map((target) => target.name),
+    ...availableRoutes.flatMap((route) => routeTargetNames(route)),
+  ])).sort();
   const visibleRoutes = availableRoutes.filter((route) => {
     const keyword = filters.keyword.trim().toLowerCase();
-    const matchedKeyword = !keyword || [route.path, route.serviceName, ...route.gatewayNames, ...route.hostnames].some((value) => value.toLowerCase().includes(keyword));
+    const matchedKeyword = !keyword || [route.path, ...routeTargetNames(route), ...route.gatewayNames, ...route.hostnames].some((value) => value.toLowerCase().includes(keyword));
     const matchedGateway = filters.gatewayName === 'all' || route.gatewayNames.includes(filters.gatewayName);
-    const matchedService = filters.serviceName === 'all' || route.serviceName === filters.serviceName;
+    const matchedService = filters.serviceName === 'all' || routeTargetNames(route).includes(filters.serviceName);
     const matchedEnabled = filters.enabled === 'all' || (filters.enabled === 'enabled' ? routeEnabled(route) : !routeEnabled(route));
 
     return matchedKeyword && matchedGateway && matchedService && matchedEnabled;
@@ -121,6 +126,9 @@ export function RoutePage() {
   };
 
   const openEdit = (route: RouteResource) => {
+    const targetServices = routeTargetServices(route);
+    const primaryTargetName = targetServices[0]?.name ?? route.serviceName;
+
     setSelectedRouteId(route.id);
     setMode('composer');
     setDraftState({
@@ -131,9 +139,9 @@ export function RoutePage() {
       path: route.path,
       gatewayNames: route.gatewayNames,
       hostnames: route.hostnames,
-      serviceName: route.serviceName,
+      serviceName: primaryTargetName,
+      targetServices,
       enabled: route.enabled,
-      selectedTargetName: route.serviceName,
       enabledPolicyNames: route.policyBindings?.map((binding) => binding.policyName) ?? [],
       policySettings: policySettingsFromBindings(route.policyBindings ?? []),
     });
@@ -282,8 +290,9 @@ export function RoutePage() {
               <h2>{draft.id ? '编辑路由' : '创建路由'}</h2>
               <p>配置请求匹配条件、目标服务和路由级策略参数；保存后系统自动生效。</p>
             </div>
-            <div className="toolbar">
-              <Button variant="primary" disabled={!activeValidation.valid || submitting} onClick={saveRoute}>{submitting ? '保存中...' : '保存路由'}</Button>
+            <div className="route-workbench-meta">
+              <Badge tone={draft.enabled ? 'green' : 'neutral'}>{draft.enabled ? '启用' : '停用'}</Badge>
+              <span>{draft.enabledPolicyNames.length > 0 ? `${draft.enabledPolicyNames.length} 个策略` : '未绑定策略'}</span>
             </div>
           </div>
           <RouteMatchHeader draft={draft} />
@@ -387,7 +396,7 @@ export function RoutePage() {
                 <p>确定删除 {formatRouteMatch(deleteCandidate)}？删除后这条匹配规则不会再进入目标服务。</p>
                 <div className="confirm-meta">
                   <span>所属网关</span><strong>{formatGatewayNames(deleteCandidate.gatewayNames)}</strong>
-                  <span>目标服务</span><strong>{deleteCandidate.serviceName}</strong>
+                  <span>目标服务</span><strong>{routeTargetSummary(deleteCandidate)}</strong>
                 </div>
                 <div className="confirm-actions">
                   <Button variant="ghost" disabled={deleting} onClick={() => setDeleteCandidate(null)}>取消</Button>
@@ -407,7 +416,7 @@ export function RoutePage() {
                 <p>停用 {formatRouteMatch(disableCandidate)} 后，命中该规则的请求将不再转发到目标服务。</p>
                 <div className="confirm-meta">
                   <span>匹配 Host</span><strong>{formatHostnames(disableCandidate.hostnames)}</strong>
-                  <span>目标服务</span><strong>{disableCandidate.serviceName}</strong>
+                  <span>目标服务</span><strong>{routeTargetSummary(disableCandidate)}</strong>
                 </div>
                 <div className="confirm-actions">
                   <Button variant="ghost" disabled={toggling} onClick={() => setDisableCandidate(null)}>取消</Button>
@@ -423,30 +432,36 @@ export function RoutePage() {
 }
 
 function RouteMatchHeader({ draft }: { draft: RouteComposerDraft }) {
+  const targetSummary = formatTargetServices(draft.targetServices);
+  const flowItems = [
+    { label: '入口网关', value: formatGatewayNames(draft.gatewayNames), meta: `${draft.gatewayNames.length || 0} 个网关` },
+    { label: '匹配请求', value: `${formatMethods(draft.methods)} ${draft.path || '/'}`, meta: formatHostnames(draft.hostnames) },
+    { label: '转发服务', value: targetSummary, meta: `${draft.targetServices.length} 个目标 / 总权重 ${targetWeightSum(draft.targetServices)}` },
+    { label: '治理策略', value: draft.enabledPolicyNames.length > 0 ? `${draft.enabledPolicyNames.length} 个策略` : '未绑定策略', meta: draft.enabled ? '保存后自动生效' : '当前停用' },
+  ];
+
   return (
-    <section className="route-match-header">
-      <div className="route-match-title">
+    <section className="route-flow-hero">
+      <div className="route-flow-head">
         <div>
-          <span>匹配条件</span>
+          <span>当前链路</span>
           <strong>{formatMethods(draft.methods)} {draft.path || '/'}</strong>
         </div>
+        <Badge tone={draft.enabled ? 'green' : 'neutral'}>{draft.enabled ? '运行中' : '已停用'}</Badge>
       </div>
-      <div className="route-match-strip">
-        <SummaryPill label="所属网关" value={formatGatewayNames(draft.gatewayNames)} />
-        <SummaryPill label="Host" value={formatHostnames(draft.hostnames)} />
-        <SummaryPill label="目标服务" value={draft.serviceName || '-'} />
-        <SummaryPill label="策略" value={draft.enabledPolicyNames.length > 0 ? `${draft.enabledPolicyNames.length} 个` : '未绑定'} />
+      <div className="route-flow-lane">
+        {flowItems.map((item, index) => (
+          <div key={item.label} className="route-flow-segment">
+            <div className="route-flow-index">{index + 1}</div>
+            <div className="route-flow-copy">
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.meta}</small>
+            </div>
+          </div>
+        ))}
       </div>
     </section>
-  );
-}
-
-function SummaryPill({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="route-summary-pill">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
   );
 }
 
@@ -496,8 +511,8 @@ function renderRouteTable(
                 <div className="table-secondary">{route.gatewayNames.length} 个网关</div>
               </td>
               <td>
-                <div className="table-primary">{route.serviceName}</div>
-                <div className="table-secondary">{route.traffic} req/s · 成功率 {route.successRate}</div>
+                <div className="table-primary">{routeTargetSummary(route)}</div>
+                <div className="table-secondary">{routeTargetServices(route).length} 个目标 · {route.traffic} req/s · 成功率 {route.successRate}</div>
               </td>
               <td>{route.policyCount > 0 ? `${route.policyCount} 个` : '未绑定'}</td>
               <td>
@@ -566,7 +581,7 @@ function RouteComposer({
     onDraftChange({ ...draft, ...patch });
   };
   const fieldErrors = routeFieldErrors(validation);
-  const selectedTarget = composer.targets.find((target) => target.name === draft.selectedTargetName) ?? composer.targets.find((target) => target.name === draft.serviceName);
+  const selectedTarget = composer.targets.find((target) => target.name === draft.targetServices[0]?.name) ?? composer.targets.find((target) => target.name === draft.serviceName);
 
   return (
     <div className="route-form-layout">
@@ -579,7 +594,7 @@ function RouteComposer({
 
       <div className="route-form-sections">
         <section id="route-basic" className="detail-card composer-card route-form-section">
-          <SectionTitle title="基础信息" description="定义这条路由在控制台和运行时中的基本身份。" />
+          <SectionTitle number="01" title="基础信息" description="定义这条路由在控制台和运行时中的基本身份。" />
           <div className="field-grid">
             <InputField
               label="路由标识"
@@ -592,7 +607,7 @@ function RouteComposer({
             />
             <div className="field">
               <FieldLabel label="启用状态" info="关闭后路由配置保留，但不会下发生效" />
-              <div className={`gateway-status ${draft.enabled ? 'on' : ''}`.trim()}>
+              <div className={`gateway-status route-status-control ${draft.enabled ? 'on' : ''}`.trim()}>
                 <button
                   className="gateway-switch"
                   type="button"
@@ -609,7 +624,7 @@ function RouteComposer({
         </section>
 
         <section id="route-match" className="detail-card composer-card route-form-section">
-          <SectionTitle title="匹配条件" description="定义请求如何进入这条路由；Host 可留空，表示不限制 Host。" />
+          <SectionTitle number="02" title="匹配条件" description="定义请求如何进入这条路由；Host 可留空，表示不限制 Host。" />
           <div className="field-grid">
             <GatewayMultiSelect options={gatewayOptions} value={draft.gatewayNames} error={fieldErrors.gateway} onChange={(gatewayNames) => updateDraft({ gatewayNames })} />
             <MethodSelector value={draft.methods} onChange={(methods) => updateDraft({ methods })} />
@@ -628,17 +643,20 @@ function RouteComposer({
         </section>
 
         <section id="route-target" className="detail-card composer-card route-form-section">
-          <SectionTitle title="目标服务" description="选择路由命中后要转发到的服务；第一阶段先支持一个目标服务。" />
+          <SectionTitle number="03" title="目标服务" description="选择路由命中后要转发到的服务；多个目标按权重分流。" />
           <TargetSelector
             targets={composer.targets}
-            selectedTargetName={draft.selectedTargetName}
+            selectedTargets={draft.targetServices}
             error={fieldErrors.service}
-            onTargetChange={(targetName) => updateDraft({ selectedTargetName: targetName, serviceName: targetName })}
+            onTargetsChange={(targetServices) => updateDraft({
+              targetServices,
+              serviceName: targetServices[0]?.name ?? '',
+            })}
           />
         </section>
 
         <section id="route-policies" className="detail-card composer-card route-form-section">
-          <SectionTitle title="策略配置" description="按能力开关启用路由级治理策略；未启用的能力不会下发到运行时。" />
+          <SectionTitle number="04" title="策略配置" description="按能力开关启用路由级治理策略；未启用的能力不会下发到运行时。" />
           <RoutePolicyBindings
             policies={composer.policies}
             selectedTarget={selectedTarget}
@@ -677,9 +695,10 @@ function routeFieldErrors(validation: RouteValidationReport) {
   };
 }
 
-function SectionTitle({ title, description }: { title: string; description: string }) {
+function SectionTitle({ number, title, description }: { number: string; title: string; description: string }) {
   return (
     <div className="route-section-title">
+      <span className="route-section-number">{number}</span>
       <div>
         <h3>{title}</h3>
         <p>{description}</p>
@@ -715,7 +734,9 @@ function routeDetailsForTab(route: RoutePageView['routes'][number], tab: string)
 
   if (tab === 'target') {
     return [
-      { label: '目标服务', value: route.serviceName },
+      { label: '目标服务', value: routeTargetSummary(route) },
+      { label: '目标数量', value: `${routeTargetServices(route).length} 个` },
+      { label: '总权重', value: String(targetWeightSum(routeTargetServices(route))) },
       { label: '请求量', value: `${route.traffic} req/s` },
       { label: '成功率', value: route.successRate },
     ];
@@ -734,7 +755,7 @@ function routeDetailsForTab(route: RoutePageView['routes'][number], tab: string)
     { label: '方法', value: formatMethods(route.methods) },
     { label: '路径', value: route.path },
     { label: '所属网关', value: formatGatewayNames(route.gatewayNames) },
-    { label: '目标服务', value: route.serviceName },
+    { label: '目标服务', value: routeTargetSummary(route) },
     { label: '流量', value: `${route.traffic} req/s` },
     { label: '成功率', value: route.successRate },
     { label: '启用状态', value: route.enabled ? '启用' : '停用' },
@@ -811,54 +832,97 @@ function GatewayMultiSelect({ options, value, error, onChange }: { options: stri
         onChange={onChange}
       />
       {error ? <div className="form-error">{error}</div> : null}
-      <div className="mini-card-meta">网关与路由是多对多关系；路由命中后再转发到一个目标服务。</div>
+      <div className="mini-card-meta">网关与路由是多对多关系；路由命中后可转发到一个或多个目标服务。</div>
     </div>
   );
 }
 
 function TargetSelector({
   targets,
-  selectedTargetName,
+  selectedTargets,
   error,
-  onTargetChange,
+  onTargetsChange,
 }: {
   targets: RouteComposerPreview['targets'];
-  selectedTargetName: string;
+  selectedTargets: RouteTargetPayload[];
   error?: string;
-  onTargetChange: (targetName: string) => void;
+  onTargetsChange: (targets: RouteTargetPayload[]) => void;
 }) {
-  const selectedTarget = targets.find((target) => target.name === selectedTargetName) ?? targets[0];
+  const [addTargetName, setAddTargetName] = useState(targets[0]?.name ?? '');
+  const selectedNames = new Set(selectedTargets.map((target) => target.name));
+  const availableTargets = targets.filter((target) => !selectedNames.has(target.name));
+  const candidateTargetName = availableTargets.some((target) => target.name === addTargetName)
+    ? addTargetName
+    : availableTargets[0]?.name ?? '';
+
+  const addTarget = () => {
+    if (!candidateTargetName) {
+      return;
+    }
+    onTargetsChange([...selectedTargets, { name: candidateTargetName, weight: 100 }]);
+  };
+
+  const updateTargetWeight = (targetName: string, weight: number) => {
+    onTargetsChange(selectedTargets.map((target) => (target.name === targetName ? { ...target, weight } : target)));
+  };
+
+  const removeTarget = (targetName: string) => {
+    onTargetsChange(selectedTargets.filter((target) => target.name !== targetName));
+  };
 
   return (
     <div className="target-config">
-      <label className={`field ${error ? 'invalid' : ''}`.trim()}>
-        <FieldLabel label="目标服务" required info="当前路由命中后转发到这个服务；后续会扩展多目标和权重" />
-        <select value={selectedTargetName} onChange={(event) => onTargetChange(event.target.value)}>
-          {targets.map((target) => (
-            <option key={target.name} value={target.name}>{target.name} · {serviceTypeLabel(target.type)}</option>
-          ))}
-        </select>
+      <div className={`field target-picker ${error ? 'invalid' : ''}`.trim()}>
+        <FieldLabel label="添加目标服务" required info="一个路由可以转发到多个服务；运行时会按照每个目标的权重做加权分流" />
+        <div className="inline-input">
+          <select value={candidateTargetName} disabled={availableTargets.length === 0} onChange={(event) => setAddTargetName(event.target.value)}>
+            {availableTargets.length === 0 ? <option value="">所有服务都已选择</option> : null}
+            {availableTargets.map((target) => (
+              <option key={target.name} value={target.name}>{target.name} · {serviceTypeLabel(target.type)}</option>
+            ))}
+          </select>
+          <Button variant="soft" type="button" disabled={!candidateTargetName} onClick={addTarget}>添加目标</Button>
+        </div>
         {error ? <div className="form-error">{error}</div> : null}
-      </label>
-      <div className="target-service-card">
+      </div>
+
+      <div className="target-service-card target-service-card-list">
         <div className="target-service-head">
           <div>
-            <span className="mini-card-meta">服务信息</span>
-            <strong>{selectedTarget?.name ?? '-'}</strong>
+            <span className="mini-card-meta">已选目标服务</span>
+            <strong>{selectedTargets.length} 个目标 / 总权重 {targetWeightSum(selectedTargets)}</strong>
           </div>
-          <Badge tone={selectedTarget?.healthStatus === 'healthy' ? 'green' : selectedTarget?.healthStatus === 'warning' ? 'amber' : selectedTarget?.healthStatus === 'unknown' ? 'neutral' : 'red'}>
-            {healthLabel(selectedTarget?.healthStatus ?? 'unknown')}
-          </Badge>
+          <Badge tone={selectedTargets.length > 1 ? 'green' : 'neutral'}>{selectedTargets.length > 1 ? '加权分流' : '单目标'}</Badge>
         </div>
-        <div className="target-service-grid">
-          <span>类型</span>
-          <strong>{selectedTarget ? serviceTypeLabel(selectedTarget.type) : '-'}</strong>
-          <span>地址</span>
-          <strong>{selectedTarget?.endpoint ?? '未配置'}</strong>
-          <span>近况</span>
-          <strong>{selectedTarget?.meta ?? '-'}</strong>
-          <span>引用路由</span>
-          <strong>{typeof selectedTarget?.referencedRoutes === 'number' ? `${selectedTarget.referencedRoutes} 条` : '-'}</strong>
+        <div className="target-service-list">
+          {selectedTargets.length === 0 ? (
+            <div className="target-service-empty">请选择至少一个目标服务。</div>
+          ) : selectedTargets.map((target) => {
+            const service = targets.find((item) => item.name === target.name);
+
+            return (
+              <div key={target.name} className="target-service-row">
+                <div className="target-service-main">
+                  <strong>{target.name}</strong>
+                  <span>{service ? serviceTypeLabel(service.type) : '未知类型'} · {service?.endpoint ?? '未配置地址'}</span>
+                </div>
+                <Badge tone={service?.healthStatus === 'healthy' ? 'green' : service?.healthStatus === 'warning' ? 'amber' : service?.healthStatus === 'unknown' ? 'neutral' : 'red'}>
+                  {healthLabel(service?.healthStatus ?? 'unknown')}
+                </Badge>
+                <label className="target-weight-field">
+                  <span>权重</span>
+                  <input
+                    value={target.weight}
+                    type="number"
+                    min={1}
+                    max={1000}
+                    onChange={(event) => updateTargetWeight(target.name, Number(event.target.value))}
+                  />
+                </label>
+                <button className="link-button danger" type="button" onClick={() => removeTarget(target.name)}>删除</button>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -971,6 +1035,21 @@ function formatGatewayNames(gatewayNames: string[]) {
 
 function formatMethods(methods: string[]) {
   return methods.length > 0 ? methods.join('、') : '全部方法';
+}
+
+function routeTargetServices(route: Pick<RouteResource, 'serviceName' | 'targets'>): RouteTargetPayload[] {
+  if (route.targets && route.targets.length > 0) {
+    return route.targets;
+  }
+  return route.serviceName ? [{ name: route.serviceName, weight: 100 }] : [];
+}
+
+function routeTargetNames(route: Pick<RouteResource, 'serviceName' | 'targets'>) {
+  return routeTargetServices(route).map((target) => target.name);
+}
+
+function routeTargetSummary(route: Pick<RouteResource, 'serviceName' | 'targets'>) {
+  return formatTargetServices(routeTargetServices(route));
 }
 
 function formatRouteMatch(route: Pick<RouteResource, 'methods' | 'path'>) {

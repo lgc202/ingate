@@ -1,6 +1,6 @@
 import type { ConsoleRepository } from './contracts';
 import type { GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayValidationReport } from '@/domain/gateway';
-import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteTargetOption, RouteValidationReport } from '@/domain/route';
+import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import type { ServiceListView, ServiceMutationPayload, ServiceMutationResult, ServiceValidationReport } from '@/domain/service';
 import { serviceLoadBalancePolicyLabel } from '@/domain/service';
 
@@ -278,7 +278,12 @@ function routeTargets(routeList: RouteListView, serviceList: ServiceListView): R
 }
 
 function referencedRoutes(routeList: RouteListView, serviceName: string): number {
-  return routeList.routes.filter((route) => route.serviceName === serviceName).length;
+  return routeList.routes.filter((route) => {
+    if (route.targets && route.targets.length > 0) {
+      return route.targets.some((target) => target.name === serviceName);
+    }
+    return route.serviceName === serviceName;
+  }).length;
 }
 
 function routeName(serviceName: string, method: string, path: string) {
@@ -343,6 +348,8 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
 
 function validateRoutePayload(payload: RoutePublishPayload): RouteValidationReport {
   const policyValidationMessage = validateRoutePolicyRelationship(payload);
+  const targetError = routeTargetValidationMessage(payload);
+  const targets = routeMutationTargets(payload);
   const items: RouteValidationReport['items'] = [
     {
       label: '所属网关',
@@ -366,8 +373,8 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
     },
     {
       label: '目标服务',
-      status: payload.serviceName.trim() ? 'healthy' : 'critical',
-      message: payload.serviceName.trim() || '请选择目标服务',
+      status: targetError ? 'critical' : 'healthy',
+      message: targetError || `已选择 ${targets.length} 个目标服务，总权重 ${routeTargetWeightSum(targets)}`,
     },
     {
       label: '策略参数',
@@ -382,6 +389,39 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
     summary: valid ? '路由配置通过校验，可以保存。' : '路由配置还存在未完成项。',
     items,
   };
+}
+
+function routeMutationTargets(payload: RoutePublishPayload): RouteTargetPayload[] {
+  if (payload.targets.length > 0) {
+    return payload.targets;
+  }
+  return payload.serviceName ? [{ name: payload.serviceName, weight: 100 }] : [];
+}
+
+function routeTargetValidationMessage(payload: RoutePublishPayload) {
+  const targets = routeMutationTargets(payload);
+  if (targets.length === 0) {
+    return '请选择目标服务';
+  }
+
+  const seenNames = new Set<string>();
+  for (const target of targets) {
+    if (!target.name.trim()) {
+      return '目标服务不能为空';
+    }
+    if (seenNames.has(target.name)) {
+      return '目标服务不能重复';
+    }
+    seenNames.add(target.name);
+    if (target.weight < 1 || target.weight > 1000) {
+      return '目标权重必须在 1-1000 之间';
+    }
+  }
+  return '';
+}
+
+function routeTargetWeightSum(targets: RouteTargetPayload[]) {
+  return targets.reduce((sum, target) => sum + target.weight, 0);
 }
 
 function validateRoutePolicyRelationship(payload: RoutePublishPayload) {

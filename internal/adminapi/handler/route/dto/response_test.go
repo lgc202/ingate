@@ -24,6 +24,9 @@ func TestFromListResultReturnsRoutesOnly(t *testing.T) {
 						UpstreamRefs: []resource.UpstreamRef{{
 							Name:   "app",
 							Weight: 100,
+						}, {
+							Name:   "canary",
+							Weight: 20,
 						}},
 					}},
 				},
@@ -39,6 +42,12 @@ func TestFromListResultReturnsRoutesOnly(t *testing.T) {
 	}
 	if got, want := response.Routes[0].ServiceName, "app"; got != want {
 		t.Fatalf("route service = %q, want %q", got, want)
+	}
+	if got, want := len(response.Routes[0].Targets), 2; got != want {
+		t.Fatalf("route targets length = %d, want %d", got, want)
+	}
+	if got, want := response.Routes[0].Targets[1].Name, "canary"; got != want {
+		t.Fatalf("route second target = %q, want %q", got, want)
 	}
 }
 

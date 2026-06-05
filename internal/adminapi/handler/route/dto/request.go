@@ -62,10 +62,7 @@ func (r RouteRequest) Resource() (*resource.Route, error) {
 				Methods:       r.methods(),
 				TimeoutMillis: defaultRouteTimeoutMillis,
 				Headers:       []resource.HeaderMatch{},
-				UpstreamRefs: []resource.UpstreamRef{{
-					Name:   strings.TrimSpace(r.ServiceName),
-					Weight: 100,
-				}},
+				UpstreamRefs:  r.upstreamRefs(),
 			}},
 		},
 	}, nil
@@ -96,8 +93,23 @@ func (r RouteRequest) Validate() error {
 			return apierrors.NewBadRequest("gateway name must be a valid DNS label")
 		}
 	}
-	if errs := validation.IsDNS1123Label(strings.TrimSpace(r.ServiceName)); len(errs) > 0 {
-		return apierrors.NewBadRequest("service name must be a valid DNS label")
+	targets := r.targetServices()
+	if len(targets) == 0 {
+		return apierrors.NewBadRequest("at least one target service is required")
+	}
+	seenTargets := map[string]struct{}{}
+	for _, target := range targets {
+		name := strings.TrimSpace(target.Name)
+		if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
+			return apierrors.NewBadRequest("target service name must be a valid DNS label")
+		}
+		if _, ok := seenTargets[name]; ok {
+			return apierrors.NewBadRequest("target service cannot be duplicated")
+		}
+		seenTargets[name] = struct{}{}
+		if target.Weight < 1 || target.Weight > 1000 {
+			return apierrors.NewBadRequest("target service weight must be between 1 and 1000")
+		}
 	}
 	for _, hostname := range r.Hostnames {
 		hostname = strings.TrimSpace(strings.ToLower(hostname))
@@ -281,7 +293,11 @@ func (r RouteRequest) name() string {
 	if len(r.Methods) > 0 {
 		method = strings.ToLower(string(r.Methods[0]))
 	}
-	return dnsLabel(fmt.Sprintf("%s-%s-%s", r.ServiceName, method, r.Path))
+	targetName := "route"
+	if targets := r.targetServices(); len(targets) > 0 {
+		targetName = targets[0].Name
+	}
+	return dnsLabel(fmt.Sprintf("%s-%s-%s", targetName, method, r.Path))
 }
 
 func dnsLabel(value string) string {
@@ -342,6 +358,37 @@ func (r RouteRequest) hostnames() []string {
 		}
 	}
 	return hostnames
+}
+
+func (r RouteRequest) targetServices() []TargetService {
+	if len(r.Targets) > 0 {
+		targets := make([]TargetService, 0, len(r.Targets))
+		for _, target := range r.Targets {
+			name := strings.TrimSpace(target.Name)
+			if name != "" {
+				targets = append(targets, TargetService{Name: name, Weight: target.Weight})
+			}
+		}
+		return targets
+	}
+
+	serviceName := strings.TrimSpace(r.ServiceName)
+	if serviceName == "" {
+		return nil
+	}
+	return []TargetService{{Name: serviceName, Weight: 100}}
+}
+
+func (r RouteRequest) upstreamRefs() []resource.UpstreamRef {
+	targets := r.targetServices()
+	refs := make([]resource.UpstreamRef, 0, len(targets))
+	for _, target := range targets {
+		refs = append(refs, resource.UpstreamRef{
+			Name:   strings.TrimSpace(target.Name),
+			Weight: target.Weight,
+		})
+	}
+	return refs
 }
 
 // Validate 校验控制台提交的 Route 启停请求体

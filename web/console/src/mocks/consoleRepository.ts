@@ -10,7 +10,7 @@ import type { HomeDashboard } from '@/domain/home';
 import type { ObservabilityOverview } from '@/domain/observability';
 import type { PluginListView } from '@/domain/plugin';
 import type { PolicyListView } from '@/domain/policy';
-import type { RouteActionResult, RoutePageView, RoutePublishPayload, RoutePublishPreview, RouteValidationReport } from '@/domain/route';
+import type { RouteActionResult, RoutePageView, RoutePublishPayload, RoutePublishPreview, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import type {
   ServiceListView,
   ServiceMutationPayload,
@@ -245,7 +245,7 @@ const gatewayList: GatewayListView = {
 const routeWorkspace: RoutePageView = {
   routes: [
     { id: 'users-list', methods: ['GET'], path: '/v1/users', gatewayNames: ['gw-prod'], hostnames: ['api.ingate.io', 'open.ingate.io'], serviceName: 'user-svc', policyCount: 0, traffic: '12.4k', successRate: '98.7%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '5 分钟前' },
-    { id: 'orders-create', methods: ['POST'], path: '/v1/orders', gatewayNames: ['gw-prod', 'gw-partner'], hostnames: ['api.ingate.io', 'shop.ingate.io'], serviceName: 'order-svc', policyCount: 0, traffic: '3.2k', successRate: '99.3%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '18 分钟前' },
+    { id: 'orders-create', methods: ['POST'], path: '/v1/orders', gatewayNames: ['gw-prod', 'gw-partner'], hostnames: ['api.ingate.io', 'shop.ingate.io'], serviceName: 'order-svc', targets: [{ name: 'order-svc', weight: 90 }, { name: 'user-svc', weight: 10 }], policyCount: 0, traffic: '3.2k', successRate: '99.3%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '18 分钟前' },
     { id: 'products-list', methods: ['GET'], path: '/v1/products', gatewayNames: ['gw-prod'], hostnames: ['api.ingate.io'], serviceName: 'catalog-svc', policyCount: 0, traffic: '1.8k', successRate: '97.1%', enabled: true, runtimeStatus: 'synced', lastChangedAt: '34 分钟前' },
     { id: 'inventory-list', methods: [], path: '/v1/inventory', gatewayNames: ['gw-staging'], hostnames: ['staging-api.ingate.io'], serviceName: 'inventory-svc', policyCount: 0, traffic: '356', successRate: '92.4%', enabled: false, runtimeStatus: 'failed', lastChangedAt: '1 小时前' },
   ],
@@ -599,6 +599,8 @@ function clone<T>(data: T): T {
 function validateRoutePayload(payload: RoutePublishPayload): RouteValidationReport {
   const invalidHostnames = payload.hostnames.filter((hostname) => !isValidHostname(hostname));
   const policyValidationMessage = validateRoutePolicyRelationship(payload);
+  const targetError = routeTargetValidationMessage(payload);
+  const targets = routeTargets(payload);
   const items: RouteValidationReport['items'] = [
     {
       label: '匹配规则',
@@ -607,8 +609,8 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
     },
     {
       label: '目标服务',
-      status: payload.serviceName ? 'healthy' : 'critical',
-      message: payload.serviceName ? `已选择 ${payload.serviceName}` : '请选择目标服务',
+      status: targetError ? 'critical' : 'healthy',
+      message: targetError || `已选择 ${targets.length} 个目标服务，总权重 ${routeTargetWeightSum(targets)}`,
     },
     {
       label: '网关',
@@ -657,17 +659,62 @@ function validateRoutePolicyRelationship(payload: RoutePublishPayload) {
 
 function previewRoutePayload(payload: RoutePublishPayload): RoutePublishPreview {
   const methodSummary = payload.methods.length > 0 ? payload.methods.join('、') : '全部方法';
+  const targetSummary = routeTargetSummary(payload);
 
   return {
     title: `${methodSummary} ${payload.path}`,
-    subtitle: `目标服务 ${payload.serviceName} · ${payload.hostnames.length ? `${payload.hostnames.length} 个域名` : '不限制 Host'}`,
+    subtitle: `目标服务 ${targetSummary} · ${payload.hostnames.length ? `${payload.hostnames.length} 个域名` : '不限制 Host'}`,
     diffs: [
       { before: 'route: 未保存配置', after: `route: ${methodSummary} ${payload.path}` },
       { before: 'hostnames: 未配置', after: `hostnames: ${payload.hostnames.join(', ') || '不限制'}` },
-      { before: 'target: 未配置', after: `target: ${payload.serviceName}` },
+      { before: 'target: 未配置', after: `target: ${targetSummary}` },
       { before: 'policy_bindings: 未配置', after: `policy_bindings: ${payload.policyBindings.length}` },
     ],
   };
+}
+
+function routeTargets(payload: RoutePublishPayload): RouteTargetPayload[] {
+  if (payload.targets.length > 0) {
+    return payload.targets;
+  }
+  return payload.serviceName ? [{ name: payload.serviceName, weight: 100 }] : [];
+}
+
+function routeTargetValidationMessage(payload: RoutePublishPayload) {
+  const targets = routeTargets(payload);
+  if (targets.length === 0) {
+    return '请选择目标服务';
+  }
+
+  const seenNames = new Set<string>();
+  for (const target of targets) {
+    if (!target.name.trim()) {
+      return '目标服务不能为空';
+    }
+    if (seenNames.has(target.name)) {
+      return '目标服务不能重复';
+    }
+    seenNames.add(target.name);
+    if (target.weight < 1 || target.weight > 1000) {
+      return '目标权重必须在 1-1000 之间';
+    }
+  }
+  return '';
+}
+
+function routeTargetSummary(payload: RoutePublishPayload) {
+  const targets = routeTargets(payload);
+  if (targets.length === 0) {
+    return '-';
+  }
+  if (targets.length === 1) {
+    return `${targets[0].name}(${targets[0].weight})`;
+  }
+  return `${targets[0].name} 等 ${targets.length} 个`;
+}
+
+function routeTargetWeightSum(targets: RouteTargetPayload[]) {
+  return targets.reduce((sum, target) => sum + target.weight, 0);
 }
 
 function routeAction(message: string, changeId?: string): RouteActionResult {
