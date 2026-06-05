@@ -138,6 +138,9 @@ func (c *gatewayCompiler) indexGateways() error {
 	if !ok {
 		return fmt.Errorf("gateway %q not found", c.gatewayName)
 	}
+	if !gateway.Spec.Enabled {
+		return fmt.Errorf("gateway %q is disabled", c.gatewayName)
+	}
 	c.gateway = gateway
 
 	return nil
@@ -338,12 +341,29 @@ func (c *gatewayCompiler) buildListeners() []ir.LogicalListener {
 	for _, listener := range c.gateway.Spec.Listeners {
 		listeners = append(listeners, ir.LogicalListener{
 			Name:     listener.Name,
-			Protocol: listener.Protocol,
+			Protocol: string(listener.Protocol),
 			Port:     listener.Port,
-			Hostname: listener.Hostname,
+			Hostname: c.listenerHostname(listener.Name),
 		})
 	}
 	return listeners
+}
+
+func (c *gatewayCompiler) listenerHostname(listenerName string) string {
+	hostname := ""
+	for _, binding := range c.gateway.Spec.HostBindings {
+		if !slices.Contains(binding.ListenerRefs, listenerName) {
+			continue
+		}
+		if binding.Hostname == "" {
+			return ""
+		}
+		if hostname != "" {
+			return ""
+		}
+		hostname = binding.Hostname
+	}
+	return hostname
 }
 
 func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, error) {
