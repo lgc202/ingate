@@ -159,7 +159,7 @@ const gatewayList: GatewayListView = {
   gateways: [
     {
       id: 'gw-public',
-      name: 'gw-public',
+      displayName: '公网入口',
       description: '公网 API 入口',
       runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
@@ -179,7 +179,7 @@ const gatewayList: GatewayListView = {
     },
     {
       id: 'gw-partner',
-      name: 'gw-partner',
+      displayName: '合作方入口',
       description: '合作方 API 入口',
       runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
@@ -197,7 +197,7 @@ const gatewayList: GatewayListView = {
     },
     {
       id: 'gw-sandbox',
-      name: 'gw-sandbox',
+      displayName: '沙箱入口',
       description: '沙箱联调入口',
       runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
@@ -215,7 +215,7 @@ const gatewayList: GatewayListView = {
     },
     {
       id: 'gw-broken',
-      name: 'gw-broken',
+      displayName: '遗留系统入口',
       description: '遗留系统入口',
       runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
@@ -748,8 +748,8 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
   const items: GatewayValidationReport['items'] = [
     {
       label: '网关名称',
-      status: payload.name.trim() ? 'healthy' : 'critical',
-      message: payload.name.trim() ? payload.name.trim() : '请输入网关名称',
+      status: payload.displayName.trim() ? 'healthy' : 'critical',
+      message: payload.displayName.trim() ? payload.displayName.trim() : '请输入网关名称',
     },
     {
       label: '运行组',
@@ -795,10 +795,10 @@ function previewGatewayPayload(payload: GatewayMutationPayload): GatewayMutation
   const listenerSummary = payload.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ');
 
   return {
-    title: payload.id ? `编辑网关 ${payload.name}` : `新建网关 ${payload.name}`,
+    title: payload.id ? `编辑网关 ${payload.displayName}` : `新建网关 ${payload.displayName}`,
     subtitle: `${listenerSummary} · ${hostSummary}`,
     diffs: [
-      { before: '名称: 未创建', after: `名称: ${payload.name}` },
+      { before: '名称: 未创建', after: `名称: ${payload.displayName}` },
       { before: '监听器: 未配置', after: `监听器: ${listenerSummary}` },
       { before: 'Host: 未配置', after: `Host: ${hostSummary}` },
     ],
@@ -940,7 +940,7 @@ export const mockConsoleRepository: ConsoleRepository = {
     return clone(gatewayFormOptions);
   },
   async saveGatewayDraft(payload) {
-    return gatewayAction(`网关草稿已保存：${payload.name}`);
+    return gatewayAction(`网关草稿已保存：${payload.displayName}`, payload.id ?? crypto.randomUUID());
   },
   async deleteGateway(id) {
     return gatewayAction(`网关已删除：${id}`);
@@ -955,7 +955,7 @@ export const mockConsoleRepository: ConsoleRepository = {
     return previewGatewayPayload(payload);
   },
   async publishGatewayChange(payload) {
-    return gatewayAction(`网关配置已保存，正在自动生效：${payload.name}`, '#gw-325');
+    return gatewayAction(`网关配置已保存，正在自动生效：${payload.displayName}`, payload.id ?? crypto.randomUUID());
   },
   async getRouteWorkspace() {
     return clone(routeWorkspace);

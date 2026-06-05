@@ -1469,6 +1469,13 @@ func schema_pkg_apis_gateway_v1_GatewaySpec(ref common.ReferenceCallback) common
 				Description: "GatewaySpec 定义 Gateway 的入口监听、运行组和域名绑定",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与引用和运行时匹配",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"description": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Description 保存控制台展示和运维识别用的说明，不参与运行时匹配",

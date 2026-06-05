@@ -3,18 +3,16 @@ package dto
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 // Validate 校验并归一化创建 Gateway 请求
 func (r *CreateGatewayReq) Validate() error {
-	if r.Name == "" {
-		return errors.New("gateway name is required")
-	}
-	if errs := validation.IsDNS1123Label(r.Name); len(errs) > 0 {
-		return errors.New("gateway name must be a valid DNS label")
+	r.DisplayName = strings.TrimSpace(r.DisplayName)
+	if r.DisplayName == "" {
+		return errors.New("gateway displayName is required")
 	}
 	r.RuntimeGroup = normalizeRuntimeGroup(r.RuntimeGroup)
 	return validateGatewaySpecRequest(r.Listeners, r.HostBindings)
@@ -24,6 +22,10 @@ func (r *CreateGatewayReq) Validate() error {
 func (r *UpdateGatewayReq) Validate() error {
 	if r.Version == "" {
 		return errors.New("gateway version is required")
+	}
+	r.DisplayName = strings.TrimSpace(r.DisplayName)
+	if r.DisplayName == "" {
+		return errors.New("gateway displayName is required")
 	}
 	r.RuntimeGroup = normalizeRuntimeGroup(r.RuntimeGroup)
 	return validateGatewaySpecRequest(r.Listeners, r.HostBindings)
@@ -142,5 +144,30 @@ func validHostname(hostname string) bool {
 	if len(hostname) > 2 && hostname[:2] == "*." {
 		hostname = hostname[2:]
 	}
-	return len(validation.IsDNS1123Subdomain(hostname)) == 0
+	hostname = strings.ToLower(hostname)
+	if hostname == "" || len(hostname) > 253 {
+		return false
+	}
+	for _, label := range strings.Split(hostname, ".") {
+		if !validDNSLabel(label) {
+			return false
+		}
+	}
+	return true
+}
+
+func validDNSLabel(label string) bool {
+	if label == "" || len(label) > 63 {
+		return false
+	}
+	for i, r := range label {
+		valid := r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-'
+		if !valid {
+			return false
+		}
+		if (i == 0 || i == len(label)-1) && r == '-' {
+			return false
+		}
+	}
+	return true
 }

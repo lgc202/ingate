@@ -1,13 +1,7 @@
 package response
 
 import (
-	"errors"
-	"net/http"
-
 	"github.com/gin-gonic/gin"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-
-	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 )
 
 // ResponseWrapper 是 admin-api 统一响应体
@@ -37,32 +31,4 @@ func NewResponseWrapper(code int, msg string, data any) *ResponseWrapper {
 		Msg:  msg,
 		Data: data,
 	}
-}
-
-// WriteResult 兼容旧 handler 的统一响应入口
-func WriteResult(ctx *gin.Context, value any, err error) {
-	if err != nil {
-		status := http.StatusInternalServerError
-		if apierrors.IsNotFound(err) {
-			status = http.StatusNotFound
-		}
-		if apierrors.IsBadRequest(err) {
-			status = http.StatusBadRequest
-		}
-		if apierrors.IsAlreadyExists(err) || apierrors.IsConflict(err) {
-			status = http.StatusConflict
-		}
-		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
-			GinAbortJSONResponse(ctx, status, userError.Error(), nil)
-			return
-		}
-		GinAbortJSONResponse(ctx, status, err.Error(), nil)
-		return
-	}
-	GinJSONResponse(ctx, http.StatusOK, "ok", value)
-}
-
-// WriteError 兼容旧 handler 的错误响应入口
-func WriteError(ctx *gin.Context, status int, message string) {
-	GinAbortJSONResponse(ctx, status, message, nil)
 }

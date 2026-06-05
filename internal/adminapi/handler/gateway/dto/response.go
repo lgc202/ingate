@@ -56,7 +56,7 @@ func gatewaySummary(gateway *resource.Gateway, runtimeGroups []gatewayservice.Ru
 	return GatewaySummary{
 		ID:                 gateway.Name,
 		Version:            gateway.ResourceVersion,
-		Name:               gateway.Name,
+		DisplayName:        displayNameOrID(gateway.Name, gateway.Spec.DisplayName),
 		Description:        gateway.Spec.Description,
 		RuntimeGroup:       runtimeGroup(gateway),
 		RuntimeGroupName:   runtimeGroupName(gateway, runtimeGroups),
@@ -74,7 +74,7 @@ func gatewayDetail(gateway *resource.Gateway, runtimeGroups []gatewayservice.Run
 	return GatewayDetail{
 		ID:               gateway.Name,
 		Version:          gateway.ResourceVersion,
-		Name:             gateway.Name,
+		DisplayName:      displayNameOrID(gateway.Name, gateway.Spec.DisplayName),
 		Description:      gateway.Spec.Description,
 		RuntimeGroup:     runtimeGroup(gateway),
 		RuntimeGroupName: runtimeGroupName(gateway, runtimeGroups),
@@ -91,6 +91,13 @@ func runtimeGroup(gateway *resource.Gateway) string {
 		return gatewayservice.DefaultRuntimeGroupID
 	}
 	return gateway.Spec.RuntimeGroupRef.Name
+}
+
+func displayNameOrID(id, displayName string) string {
+	if displayName != "" {
+		return displayName
+	}
+	return id
 }
 
 func runtimeGroupName(gateway *resource.Gateway, runtimeGroups []gatewayservice.RuntimeGroupOption) string {

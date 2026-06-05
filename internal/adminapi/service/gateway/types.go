@@ -43,7 +43,7 @@ type CertificateOption struct {
 
 // CreateGatewayParams 是创建 Gateway 用例参数
 type CreateGatewayParams struct {
-	Name         string
+	DisplayName  string
 	Description  string
 	RuntimeGroup string
 	Listeners    []ListenerParams
@@ -53,6 +53,7 @@ type CreateGatewayParams struct {
 // UpdateGatewayParams 是更新 Gateway 用例参数
 type UpdateGatewayParams struct {
 	Version      string
+	DisplayName  string
 	Description  string
 	RuntimeGroup string
 	Listeners    []ListenerParams

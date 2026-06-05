@@ -20,7 +20,7 @@ export type GatewayHostMode = 'any' | 'specified';
 export interface GatewayFormDraft {
   id?: string;
   version?: string;
-  name: string;
+  displayName: string;
   description: string;
   runtimeGroup: string;
   listeners: GatewayListener[];
@@ -34,7 +34,7 @@ export function createGatewayDraft(gateway?: Gateway | null): GatewayFormDraft {
   return {
     id: gateway?.id,
     version: gateway?.version,
-    name: gateway?.name ?? '',
+    displayName: gateway?.displayName ?? '',
     description: gateway?.description ?? '',
     runtimeGroup: gateway?.runtimeGroup ?? DEFAULT_RUNTIME_GROUP_ID,
     listeners: gateway?.listeners?.length ? listenersWithCertificates(gateway.listeners, gateway.hostBindings) : [createGatewayListener('HTTP')],
@@ -52,26 +52,23 @@ export function createGatewayListener(protocol: GatewayListener['protocol'] = 'H
 }
 
 export function validateGatewayDraft(draft: GatewayFormDraft, gateways: Gateway[] = [], originalGatewayId?: string): GatewayValidationReport {
-  const name = draft.name.trim();
+  const displayName = draft.displayName.trim();
   const normalizedHostnames = draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [];
   const invalidHostnames = normalizedHostnames.filter((hostname) => !isValidHostname(hostname));
   const ports = draft.listeners.map((listener) => gatewayEntryPort(listener.protocol));
   const duplicatePorts = ports.filter((port, index) => ports.indexOf(port) !== index);
-  const duplicateName = gateways.some((gateway) => gateway.id !== originalGatewayId && gateway.name === name);
-  const invalidName = name !== '' && !isValidGatewayName(name);
+  const duplicateName = gateways.some((gateway) => gateway.id !== originalGatewayId && gateway.displayName === displayName);
   const httpsWithoutCertificate = draft.listeners.filter((listener) => listener.protocol === 'HTTPS' && !listener.certificateId);
   const hostlessConflict = draft.hostMode === 'any' ? hostlessGatewayConflict(draft, gateways, originalGatewayId) : null;
   const items: GatewayValidationItem[] = [
     {
       label: '网关名称',
-      status: name && !invalidName && !duplicateName ? 'healthy' : 'critical',
-      message: !name
+      status: displayName && !duplicateName ? 'healthy' : 'critical',
+      message: !displayName
         ? '请输入网关名称'
-        : invalidName
-          ? '网关名称只能使用小写字母、数字和中划线，并且以字母或数字开头结尾'
-          : duplicateName
-            ? '网关名称已存在'
-            : name,
+        : duplicateName
+          ? '网关名称已存在'
+          : displayName,
     },
     {
       label: '运行入口',
@@ -121,7 +118,7 @@ export function buildGatewayPayload(draft: GatewayFormDraft): GatewayMutationPay
   return {
     id: draft.id,
     version: draft.version,
-    name: draft.name.trim(),
+    displayName: draft.displayName.trim(),
     description: draft.description.trim(),
     runtimeGroup: draft.runtimeGroup,
     listeners,
@@ -202,10 +199,6 @@ function isValidHostname(hostname: string): boolean {
     .every((part) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(part));
 }
 
-function isValidGatewayName(name: string): boolean {
-  return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(name);
-}
-
 function hostlessGatewayConflict(draft: GatewayFormDraft, gateways: Gateway[], originalGatewayId?: string): string | null {
   const entries = new Set(draft.listeners.map((listener) => `${listener.protocol}:${gatewayEntryPort(listener.protocol)}`));
   const conflict = gateways.find((gateway) => {
@@ -222,7 +215,7 @@ function hostlessGatewayConflict(draft: GatewayFormDraft, gateways: Gateway[], o
 
   const entry = conflict.listeners.find((listener) => entries.has(`${listener.protocol}:${listener.port || gatewayEntryPort(listener.protocol)}`));
 
-  return `${entry ? `${entry.protocol}:${entry.port || gatewayEntryPort(entry.protocol)}` : '当前运行入口'} 已有不限制 Host 的网关 ${conflict.name}。请指定 Host，或先停用/删除该网关`;
+  return `${entry ? `${entry.protocol}:${entry.port || gatewayEntryPort(entry.protocol)}` : '当前运行入口'} 已有不限制 Host 的网关 ${conflict.displayName}。请指定 Host，或先停用/删除该网关`;
 }
 
 function matchesCertificateDomain(domain: string, hostname: string) {

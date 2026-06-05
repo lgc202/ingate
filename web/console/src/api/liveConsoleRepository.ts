@@ -10,6 +10,7 @@ import { serviceLoadBalancePolicyLabel } from '@/domain/service';
 
 interface GatewayMutationResponse {
   success: boolean;
+  id?: string;
 }
 
 interface UpstreamMutationResponse {
@@ -37,15 +38,15 @@ export const liveConsoleRepository: ConsoleRepository = {
   },
 
   async saveGatewayDraft(payload) {
-    const name = payload.id ?? payload.name;
-    const path = payload.id ? `/gateways/${encodeURIComponent(name)}` : '/gateways';
+    const id = payload.id ?? '';
+    const path = payload.id ? `/gateways/${encodeURIComponent(id)}` : '/gateways';
     const method = payload.id ? 'PUT' : 'POST';
-    await request<GatewayMutationResponse>(path, {
+    const response = await request<GatewayMutationResponse>(path, {
       method,
       body: JSON.stringify(payload),
     });
 
-    return mutationResult(payload.name);
+    return mutationResult(payload.displayName, response.id);
   },
 
   async deleteGateway(id) {
@@ -217,9 +218,10 @@ async function errorMessage(response: Response) {
   }
 }
 
-function mutationResult(gatewayName: string): GatewayMutationResult {
+function mutationResult(gatewayName: string, id?: string): GatewayMutationResult {
   return {
     message: `网关已保存：${gatewayName}`,
+    changeId: id,
   };
 }
 
@@ -253,7 +255,7 @@ function routeComposer(
   serviceList: ServiceListView,
   policyCapabilities: RoutePolicyCapabilities,
 ): RouteComposerPreview {
-  const gatewayNames = gatewayList.gateways.map((gateway) => gateway.name || gateway.id).sort();
+  const gatewayNames = gatewayList.gateways.map((gateway) => gateway.id).sort();
   const targets = routeTargets(routeList, serviceList);
 
   return {
@@ -317,8 +319,8 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
   const items: GatewayValidationReport['items'] = [
     {
       label: '网关名称',
-      status: payload.name.trim() ? 'healthy' : 'critical',
-      message: payload.name.trim() ? payload.name.trim() : '请输入网关名称',
+      status: payload.displayName.trim() ? 'healthy' : 'critical',
+      message: payload.displayName.trim() ? payload.displayName.trim() : '请输入网关名称',
     },
     {
       label: '监听器',

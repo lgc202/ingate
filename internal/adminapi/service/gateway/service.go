@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/google/uuid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 )
@@ -58,19 +58,21 @@ func (s *Service) FormOptions(ctx context.Context) (*FormOptionsResult, error) {
 }
 
 // Create 创建 Gateway
-func (s *Service) Create(ctx context.Context, params CreateGatewayParams) error {
-	if _, err := s.store.Get(ctx, params.Name); err == nil {
-		return apierrors.NewAlreadyExists(resource.Resource(resource.ResourceGateways), params.Name)
-	} else if !apierrors.IsNotFound(err) {
-		return err
+func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (string, error) {
+	if err := s.validateDisplayNameUnique(ctx, params.DisplayName, ""); err != nil {
+		return "", err
 	}
 
-	gateway := gatewayResource(params.Name, "", params.Description, params.RuntimeGroup, true, params.Listeners, params.HostBindings)
+	id := uuid.NewString()
+	gateway := gatewayResource(id, "", params.DisplayName, params.Description, params.RuntimeGroup, true, params.Listeners, params.HostBindings)
 	if err := s.validateDefaultGateway(ctx, gateway, ""); err != nil {
-		return err
+		return "", err
 	}
 	_, err := s.store.Create(ctx, gateway)
-	return err
+	if err != nil {
+		return "", err
+	}
+	return id, nil
 }
 
 // Update 更新 Gateway
@@ -82,9 +84,12 @@ func (s *Service) Update(ctx context.Context, name string, params UpdateGatewayP
 	if err := validateVersion(resource.ResourceGateways, name, params.Version, current.ResourceVersion); err != nil {
 		return err
 	}
+	if err := s.validateDisplayNameUnique(ctx, params.DisplayName, name); err != nil {
+		return err
+	}
 
 	next := current.DeepCopy()
-	next.Spec = gatewaySpec(params.Description, params.RuntimeGroup, current.Spec.Enabled, params.Listeners, params.HostBindings)
+	next.Spec = gatewaySpec(params.DisplayName, params.Description, params.RuntimeGroup, current.Spec.Enabled, params.Listeners, params.HostBindings)
 	if err := s.validateDefaultGateway(ctx, next, name); err != nil {
 		return err
 	}
@@ -113,19 +118,23 @@ func (s *Service) SetEnabled(ctx context.Context, name string, enabled bool) err
 
 // Delete 删除 Gateway，仍有关联路由时拒绝删除
 func (s *Service) Delete(ctx context.Context, name string) error {
+	current, err := s.store.Get(ctx, name)
+	if err != nil {
+		return err
+	}
 	routes, err := s.routes.List(ctx)
 	if err != nil {
 		return err
 	}
 	for _, route := range routes.Items {
 		if slices.Contains(route.Spec.ParentRefs, name) {
-			return xerrors.NewUserError(fmt.Sprintf("gateway %q still has attached routes", name))
+			return xerrors.NewUserError(fmt.Sprintf("网关 %q 仍有关联路由", displayNameOrID(name, current.Spec.DisplayName)))
 		}
 	}
 	return s.store.Delete(ctx, name)
 }
 
-func gatewayResource(name, version, description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) *resource.Gateway {
+func gatewayResource(name, version, displayName, description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) *resource.Gateway {
 	return &resource.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: resource.SchemeGroupVersion.String(),
@@ -135,18 +144,35 @@ func gatewayResource(name, version, description, runtimeGroup string, enabled bo
 			Name:            name,
 			ResourceVersion: version,
 		},
-		Spec: gatewaySpec(description, runtimeGroup, enabled, listeners, bindings),
+		Spec: gatewaySpec(displayName, description, runtimeGroup, enabled, listeners, bindings),
 	}
 }
 
-func gatewaySpec(description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) resource.GatewaySpec {
+func gatewaySpec(displayName, description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) resource.GatewaySpec {
 	return resource.GatewaySpec{
+		DisplayName:     displayName,
 		Description:     description,
 		Enabled:         enabled,
 		RuntimeGroupRef: resource.RuntimeGroupRef{Name: runtimeGroupName(runtimeGroup)},
 		Listeners:       resourceListeners(listeners),
 		HostBindings:    resourceHostBindings(bindings),
 	}
+}
+
+func (s *Service) validateDisplayNameUnique(ctx context.Context, displayName, excludeName string) error {
+	gateways, err := s.store.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, gateway := range gateways.Items {
+		if gateway.Name == excludeName {
+			continue
+		}
+		if gateway.Spec.DisplayName == displayName {
+			return xerrors.NewUserError(fmt.Sprintf("网关名称 %q 已存在", displayName))
+		}
+	}
+	return nil
 }
 
 func resourceListeners(items []ListenerParams) []resource.Listener {
@@ -191,7 +217,7 @@ func (s *Service) validateDefaultGateway(ctx context.Context, gateway *resource.
 			continue
 		}
 		if protocol, port, ok := sharedListener(gateway.Spec.Listeners, current.Spec.Listeners); ok {
-			return xerrors.NewUserError(fmt.Sprintf("运行入口 %s:%d 已有不限制 Host 的网关 %q；请指定 Host，或先停用/删除该网关", protocol, port, current.Name))
+			return xerrors.NewUserError(fmt.Sprintf("运行入口 %s:%d 已有不限制 Host 的网关 %q；请指定 Host，或先停用/删除该网关", protocol, port, displayNameOrID(current.Name, current.Spec.DisplayName)))
 		}
 	}
 	return nil
@@ -232,11 +258,7 @@ func validateVersion(resourceName resource.ResourceName, name, submittedVersion,
 	if submittedVersion == "" || submittedVersion == currentVersion {
 		return nil
 	}
-	return apierrors.NewConflict(
-		resource.Resource(resourceName),
-		name,
-		fmt.Errorf("resource version changed, current version is %s", currentVersion),
-	)
+	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))
 }
 
 func runtimeGroupOptions() []RuntimeGroupOption {
@@ -253,4 +275,11 @@ func runtimeGroupName(runtimeGroup string) string {
 		return DefaultRuntimeGroupID
 	}
 	return runtimeGroup
+}
+
+func displayNameOrID(id, displayName string) string {
+	if displayName != "" {
+		return displayName
+	}
+	return id
 }
