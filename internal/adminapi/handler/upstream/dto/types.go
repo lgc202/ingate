@@ -46,7 +46,7 @@ type Upstream struct {
 	ReferencedRoutes int               `json:"referencedRoutes"`
 	Traffic          string            `json:"traffic"`
 	SuccessRate      string            `json:"successRate"`
-	LastUpdatedAt    string            `json:"lastUpdatedAt"`
+	CreatedAt        string            `json:"createdAt"`
 	Endpoints        []EndpointRequest `json:"endpoints"`
 }
 
@@ -92,7 +92,8 @@ type EndpointRequest struct {
 
 // MutationResponse 是服务变更接口响应
 type MutationResponse struct {
-	Success bool `json:"success"`
+	Success bool   `json:"success"`
+	ID      string `json:"id,omitempty"`
 }
 
 type healthCheckAnnotation struct {

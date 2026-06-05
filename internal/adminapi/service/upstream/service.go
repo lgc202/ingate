@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
@@ -39,8 +41,8 @@ func (s *Service) List(ctx context.Context) (*ListResult, error) {
 }
 
 // Get 查询单个 Upstream
-func (s *Service) Get(ctx context.Context, name string) (*UpstreamResult, error) {
-	upstream, err := s.store.Get(ctx, name)
+func (s *Service) Get(ctx context.Context, upstreamID string) (*UpstreamResult, error) {
+	upstream, err := s.store.Get(ctx, upstreamID)
 	if err != nil {
 		return nil, err
 	}
@@ -55,25 +57,32 @@ func (s *Service) Get(ctx context.Context, name string) (*UpstreamResult, error)
 }
 
 // Create 创建 Upstream
-func (s *Service) Create(ctx context.Context, upstream *resource.Upstream) error {
-	_, err := s.store.Create(ctx, upstream)
-	if apierrors.IsAlreadyExists(err) {
-		return xerrors.NewUserError(fmt.Sprintf("上游 %q 已存在", upstream.Name))
+func (s *Service) Create(ctx context.Context, upstream *resource.Upstream) (string, error) {
+	if err := s.validateDisplayNameUnique(ctx, upstream.Spec.DisplayName, ""); err != nil {
+		return "", err
 	}
-	return err
+	upstream.Name = uuid.NewString()
+
+	created, err := s.store.Create(ctx, upstream)
+	if apierrors.IsAlreadyExists(err) {
+		return "", xerrors.NewUserError(fmt.Sprintf("上游 %q 已存在", upstream.Name))
+	}
+	if err != nil {
+		return "", err
+	}
+	return created.Name, nil
 }
 
 // Update 更新 Upstream
-func (s *Service) Update(ctx context.Context, name string, upstream *resource.Upstream) error {
-	if upstream.Name != name {
-		return xerrors.NewUserError("上游名称不能修改")
-	}
-
-	current, err := s.store.Get(ctx, name)
+func (s *Service) Update(ctx context.Context, upstreamID string, upstream *resource.Upstream) error {
+	current, err := s.store.Get(ctx, upstreamID)
 	if err != nil {
 		return err
 	}
-	if err := validateVersion(resource.ResourceUpstreams, name, upstream.ResourceVersion, current.ResourceVersion); err != nil {
+	if err := validateVersion(resource.ResourceUpstreams, upstreamID, upstream.ResourceVersion, current.ResourceVersion); err != nil {
+		return err
+	}
+	if err := s.validateDisplayNameUnique(ctx, upstream.Spec.DisplayName, upstreamID); err != nil {
 		return err
 	}
 	next := current.DeepCopy()
@@ -83,7 +92,7 @@ func (s *Service) Update(ctx context.Context, name string, upstream *resource.Up
 }
 
 // Delete 删除 Upstream，仍有关联路由时拒绝删除
-func (s *Service) Delete(ctx context.Context, name string) error {
+func (s *Service) Delete(ctx context.Context, upstreamID string) error {
 	routes, err := s.routes.List(ctx)
 	if err != nil {
 		return err
@@ -91,13 +100,29 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 	for _, route := range routes.Items {
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
-				if ref.Name == name {
-					return xerrors.NewUserError(fmt.Sprintf("上游 %q 仍被路由 %q 引用", name, route.Name))
+				if ref.Name == upstreamID {
+					return xerrors.NewUserError(fmt.Sprintf("上游 %q 仍被路由 %q 引用", upstreamID, route.Name))
 				}
 			}
 		}
 	}
-	return s.store.Delete(ctx, name)
+	return s.store.Delete(ctx, upstreamID)
+}
+
+func (s *Service) validateDisplayNameUnique(ctx context.Context, displayName, excludeID string) error {
+	upstreams, err := s.store.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, current := range upstreams.Items {
+		if current.Name == excludeID {
+			continue
+		}
+		if current.Spec.DisplayName == displayName {
+			return xerrors.NewUserError(fmt.Sprintf("上游名称 %q 已存在", displayName))
+		}
+	}
+	return nil
 }
 
 func applyUpstreamUpdate(next *resource.Upstream, submitted *resource.Upstream) {

@@ -29,7 +29,7 @@ func (r UpstreamRequest) Resource() (*resource.Upstream, error) {
 			Kind:       string(resource.KindUpstream),
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            strings.TrimSpace(r.Name),
+			Name:            strings.TrimSpace(r.ID),
 			ResourceVersion: strings.TrimSpace(r.Version),
 			Annotations: map[string]string{
 				resource.AnnotationUpstreamServiceType:       string(r.Type),
@@ -39,7 +39,8 @@ func (r UpstreamRequest) Resource() (*resource.Upstream, error) {
 			},
 		},
 		Spec: resource.UpstreamSpec{
-			Endpoints: r.resourceEndpoints(),
+			DisplayName: strings.TrimSpace(r.Name),
+			Endpoints:   r.resourceEndpoints(),
 		},
 	}, nil
 }
@@ -49,9 +50,6 @@ func (r UpstreamRequest) Validate() error {
 	name := strings.TrimSpace(r.Name)
 	if name == "" {
 		return errors.New("service name is required")
-	}
-	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
-		return errors.New("service name must be a valid DNS label")
 	}
 	if !validServiceType(r.Type) {
 		return errors.New("service type is invalid")

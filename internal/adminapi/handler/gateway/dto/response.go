@@ -40,22 +40,22 @@ func gatewaySummary(gateway *resource.Gateway) GatewaySummary {
 		HostBindings:       hostBindings(gateway.Spec.HostBindings),
 		Enabled:            gateway.Spec.Enabled,
 		HealthStatus:       healthStatus(gateway.Status),
-		LastChangedAt:      lastChangedAt(gateway.ObjectMeta),
+		CreatedAt:          createdAt(gateway.ObjectMeta),
 	}
 }
 
 func gatewayDetail(gateway *resource.Gateway) GatewayDetail {
 	return GatewayDetail{
-		ID:            gateway.Name,
-		Version:       gateway.ResourceVersion,
-		DisplayName:   gateway.Spec.DisplayName,
-		Description:   gateway.Spec.Description,
-		RuntimeGroup:  gateway.Spec.RuntimeGroupRef.Name,
-		Listeners:     listeners(gateway.Spec.Listeners),
-		HostBindings:  hostBindings(gateway.Spec.HostBindings),
-		Enabled:       gateway.Spec.Enabled,
-		HealthStatus:  healthStatus(gateway.Status),
-		LastChangedAt: lastChangedAt(gateway.ObjectMeta),
+		ID:           gateway.Name,
+		Version:      gateway.ResourceVersion,
+		DisplayName:  gateway.Spec.DisplayName,
+		Description:  gateway.Spec.Description,
+		RuntimeGroup: gateway.Spec.RuntimeGroupRef.Name,
+		Listeners:    listeners(gateway.Spec.Listeners),
+		HostBindings: hostBindings(gateway.Spec.HostBindings),
+		Enabled:      gateway.Spec.Enabled,
+		HealthStatus: healthStatus(gateway.Status),
+		CreatedAt:    createdAt(gateway.ObjectMeta),
 	}
 }
 
@@ -124,7 +124,7 @@ func healthStatus(status resource.ResourceStatus) string {
 	return "unknown"
 }
 
-func lastChangedAt(metadata metav1.ObjectMeta) string {
+func createdAt(metadata metav1.ObjectMeta) string {
 	if metadata.CreationTimestamp.IsZero() {
 		return ""
 	}

@@ -42,7 +42,8 @@ func TestCompilerCompileGateway(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
-					ParentRefs: []string{"public"},
+					Enabled:    true,
+					ParentRefs: []resource.ParentRef{{Name: "public"}},
 					Hostnames:  []string{"example.com"},
 					Rules: []resource.RouteRule{
 						{
@@ -399,7 +400,8 @@ func TestCompilerCompileGatewayUnsupportedRouteFilter(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
-					ParentRefs: []string{"public"},
+					Enabled:    true,
+					ParentRefs: []resource.ParentRef{{Name: "public"}},
 					Rules: []resource.RouteRule{
 						{
 							PathPrefix: "/app",
@@ -495,7 +497,8 @@ func TestCompilerCompileGatewayMissingPluginRef(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
-					ParentRefs: []string{"public"},
+					Enabled:    true,
+					ParentRefs: []resource.ParentRef{{Name: "public"}},
 				},
 			},
 		},
@@ -533,7 +536,8 @@ func TestCompilerCompileGatewayMissingRateLimitPolicyRef(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
-					ParentRefs: []string{"public"},
+					Enabled:    true,
+					ParentRefs: []resource.ParentRef{{Name: "public"}},
 				},
 			},
 		},
@@ -571,7 +575,8 @@ func TestCompilerCompileGatewayMissingPolicyRef(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
-					ParentRefs: []string{"public"},
+					Enabled:    true,
+					ParentRefs: []resource.ParentRef{{Name: "public"}},
 				},
 			},
 		},
@@ -703,7 +708,8 @@ func TestCompilerCompileGatewayMissingUpstream(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
-					ParentRefs: []string{"public"},
+					Enabled:    true,
+					ParentRefs: []resource.ParentRef{{Name: "public"}},
 					Rules: []resource.RouteRule{
 						{
 							PathPrefix: "/app",

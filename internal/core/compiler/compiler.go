@@ -372,7 +372,7 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 	var upstreamOrder []string
 
 	for _, route := range c.bundle.Routes {
-		if !slices.Contains(route.Spec.ParentRefs, c.gatewayName) {
+		if !route.Spec.Enabled || !routeHasParent(route, c.gatewayName) {
 			continue
 		}
 
@@ -427,6 +427,12 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 	}
 
 	return routes, upstreamOrder, nil
+}
+
+func routeHasParent(route resource.Route, gatewayName string) bool {
+	return slices.ContainsFunc(route.Spec.ParentRefs, func(parentRef resource.ParentRef) bool {
+		return parentRef.Name == gatewayName
+	})
 }
 
 func (c *gatewayCompiler) applyRouteFilters(routeName string, filters []resource.RouteFilter, logicalRule *ir.LogicalRouteRule) error {

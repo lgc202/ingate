@@ -86,6 +86,9 @@ func (c *Controller) bundleForGateway(gatewayName string) (resource.Bundle, bool
 func (c *Controller) appendRoutes(bundle *resource.Bundle, routes []*resource.Route) map[string]bool {
 	usedUpstreams := map[string]bool{}
 	for _, route := range routes {
+		if !route.Spec.Enabled {
+			continue
+		}
 		bundle.Routes = append(bundle.Routes, *route)
 		for _, rule := range route.Spec.Rules {
 			for _, upstreamRef := range rule.UpstreamRefs {

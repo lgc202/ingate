@@ -48,6 +48,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":         schema_pkg_apis_gateway_v1_HeaderValue(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HostBinding":         schema_pkg_apis_gateway_v1_HostBinding(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":            schema_pkg_apis_gateway_v1_Listener(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ParentRef":           schema_pkg_apis_gateway_v1_ParentRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Plugin":              schema_pkg_apis_gateway_v1_Plugin(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PluginBinding":       schema_pkg_apis_gateway_v1_PluginBinding(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PluginBindingList":   schema_pkg_apis_gateway_v1_PluginBindingList(ref),
@@ -1800,6 +1801,27 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 	}
 }
 
+func schema_pkg_apis_gateway_v1_ParentRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ParentRef 引用承载当前 Route 的 Gateway",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"name"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_Plugin(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2735,6 +2757,13 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 				Description: "RouteRule 声明一条路由匹配规则和加权 Upstream 集合",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
 					"pathPrefix": {
 						SchemaProps: spec.SchemaProps{
 							Default: "",
@@ -2826,7 +2855,7 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 						},
 					},
 				},
-				Required: []string{"pathPrefix", "methods", "headers", "upstreamRefs"},
+				Required: []string{"name", "pathPrefix", "methods", "headers", "upstreamRefs"},
 			},
 		},
 		Dependencies: []string{
@@ -2841,6 +2870,14 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 				Description: "RouteSpec 定义 Route 如何挂载到 Gateway",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 表示 Route 是否参与编译和下发",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 					"parentRefs": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -2852,9 +2889,8 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ParentRef"),
 									},
 								},
 							},
@@ -2898,11 +2934,11 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 						},
 					},
 				},
-				Required: []string{"parentRefs", "hostnames", "rules"},
+				Required: []string{"enabled", "parentRefs", "hostnames", "rules"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ParentRef", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule"},
 	}
 }
 
@@ -3368,9 +3404,16 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamSpec 定义 Upstream 的端点集合",
+				Description: "UpstreamSpec 定义 Upstream 的展示信息和端点集合",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与引用匹配",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"endpoints": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{

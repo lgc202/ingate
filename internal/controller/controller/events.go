@@ -115,7 +115,7 @@ func (c *Controller) enqueueRouteObject(obj any) {
 		return
 	}
 	for _, parentRef := range route.Spec.ParentRefs {
-		c.enqueueGateway(parentRef)
+		c.enqueueGateway(parentRef.Name)
 	}
 }
 
@@ -131,7 +131,7 @@ func (c *Controller) enqueueUpstreamObject(obj any) {
 	}
 	for _, route := range routes {
 		for _, parentRef := range route.Spec.ParentRefs {
-			c.enqueueGateway(parentRef)
+			c.enqueueGateway(parentRef.Name)
 		}
 	}
 }
@@ -307,7 +307,7 @@ func (c *Controller) enqueueGatewayByTarget(kind resource.Kind, name string) {
 			return
 		}
 		for _, parentRef := range route.Spec.ParentRefs {
-			c.enqueueGateway(parentRef)
+			c.enqueueGateway(parentRef.Name)
 		}
 	case resource.KindUpstream:
 		routes, err := c.routesByIndex(routeIndexUpstreamRef, name)
@@ -316,7 +316,7 @@ func (c *Controller) enqueueGatewayByTarget(kind resource.Kind, name string) {
 		}
 		for _, route := range routes {
 			for _, parentRef := range route.Spec.ParentRefs {
-				c.enqueueGateway(parentRef)
+				c.enqueueGateway(parentRef.Name)
 			}
 		}
 	}
@@ -443,7 +443,11 @@ func routeParentRefIndex(obj any) ([]string, error) {
 	if !ok {
 		return nil, nil
 	}
-	return uniqueStrings(route.Spec.ParentRefs), nil
+	parentRefs := make([]string, 0, len(route.Spec.ParentRefs))
+	for _, parentRef := range route.Spec.ParentRefs {
+		parentRefs = append(parentRefs, parentRef.Name)
+	}
+	return uniqueStrings(parentRefs), nil
 }
 
 func routeUpstreamRefIndex(obj any) ([]string, error) {

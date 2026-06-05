@@ -312,21 +312,24 @@ type RouteList struct {
 
 // RouteSpec 定义 Route 如何挂载到 Gateway
 type RouteSpec struct {
+	// Enabled 表示 Route 是否参与编译和下发
+	Enabled bool `json:"enabled"`
 	// +listType=atomic
-	ParentRefs []string `json:"parentRefs"`
+	ParentRefs []ParentRef `json:"parentRefs"`
 	// +listType=atomic
 	Hostnames []string `json:"hostnames"`
 	// +listType=atomic
 	Rules []RouteRule `json:"rules"`
 }
 
-const (
-	// AnnotationRouteEnabled 保存控制台维护的 Route 启停状态
-	AnnotationRouteEnabled = "route.ingate.io/enabled"
-)
+// ParentRef 引用承载当前 Route 的 Gateway
+type ParentRef struct {
+	Name string `json:"name"`
+}
 
 // RouteRule 声明一条路由匹配规则和加权 Upstream 集合
 type RouteRule struct {
+	Name       string `json:"name"`
 	PathPrefix string `json:"pathPrefix"`
 	// +listType=atomic
 	Methods []string `json:"methods"`
@@ -473,8 +476,10 @@ type UpstreamList struct {
 	Items []Upstream `json:"items"`
 }
 
-// UpstreamSpec 定义 Upstream 的端点集合
+// UpstreamSpec 定义 Upstream 的展示信息和端点集合
 type UpstreamSpec struct {
+	// DisplayName 保存控制台展示名称，不参与引用匹配
+	DisplayName string `json:"displayName,omitempty"`
 	// +listType=atomic
 	Endpoints []Endpoint `json:"endpoints"`
 }

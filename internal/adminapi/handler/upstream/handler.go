@@ -42,9 +42,10 @@ func (h *Handler) List(ctx *gin.Context) {
 
 // Get 返回单个 Upstream
 func (h *Handler) Get(ctx *gin.Context) {
-	result, err := h.service.Get(ctx.Request.Context(), ctx.Param("name"))
+	upstreamID := ctx.Param("id")
+	result, err := h.service.Get(ctx.Request.Context(), upstreamID)
 	if err != nil {
-		h.logger.Error("get upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", ctx.Param("name"), "err", err)
+		h.logger.Error("get upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstreamID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -73,9 +74,9 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	err = h.service.Create(ctx.Request.Context(), upstream)
+	upstreamID, err := h.service.Create(ctx.Request.Context(), upstream)
 	if err != nil {
-		h.logger.Error("create upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstream.Name, "err", err)
+		h.logger.Error("create upstream failed", "request_id", ctx.GetString(requestid.Header), "display_name", upstream.Spec.DisplayName, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -83,7 +84,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "创建上游失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.MutationResponse{Success: true})
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.MutationResponse{Success: true, ID: upstreamID})
 }
 
 // Update 更新 Upstream
@@ -103,9 +104,10 @@ func (h *Handler) Update(ctx *gin.Context) {
 		return
 	}
 
-	err = h.service.Update(ctx.Request.Context(), ctx.Param("name"), upstream)
+	upstreamID := ctx.Param("id")
+	err = h.service.Update(ctx.Request.Context(), upstreamID, upstream)
 	if err != nil {
-		h.logger.Error("update upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", ctx.Param("name"), "err", err)
+		h.logger.Error("update upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstreamID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -118,9 +120,10 @@ func (h *Handler) Update(ctx *gin.Context) {
 
 // Delete 删除 Upstream
 func (h *Handler) Delete(ctx *gin.Context) {
-	err := h.service.Delete(ctx.Request.Context(), ctx.Param("name"))
+	upstreamID := ctx.Param("id")
+	err := h.service.Delete(ctx.Request.Context(), upstreamID)
 	if err != nil {
-		h.logger.Error("delete upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", ctx.Param("name"), "err", err)
+		h.logger.Error("delete upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstreamID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
