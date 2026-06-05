@@ -13,14 +13,27 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+func testGateway(name string) resource.Gateway {
+	return resource.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: resource.GatewaySpec{
+			Enabled: true,
+		},
+	}
+}
+
 func TestCompilerCompileGateway(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "public"},
 				Spec: resource.GatewaySpec{
+					Enabled: true,
 					Listeners: []resource.Listener{
-						{Name: "http", Protocol: "HTTP", Port: 80, Hostname: "example.com"},
+						{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 80},
+					},
+					HostBindings: []resource.HostBinding{
+						{Hostname: "example.com", ListenerRefs: []string{"http"}},
 					},
 				},
 			},
@@ -351,7 +364,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 func TestCompilerCompileGatewayMissingAIProvider(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		AIRoutes: []resource.AIRoute{
 			{
@@ -380,7 +393,7 @@ func TestCompilerCompileGatewayMissingAIProvider(t *testing.T) {
 func TestCompilerCompileGatewayUnsupportedRouteFilter(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		Routes: []resource.Route{
 			{
@@ -418,7 +431,7 @@ func TestCompilerCompileGatewayUnsupportedRouteFilter(t *testing.T) {
 func TestCompilerCompileGatewayAIRouteWithoutProvider(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		AIRoutes: []resource.AIRoute{
 			{
@@ -444,7 +457,7 @@ func TestCompilerCompileGatewayAIRouteWithoutProvider(t *testing.T) {
 func TestCompilerCompileGatewayAIRouteInvalidProviderWeight(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		AIProviders: []resource.AIProvider{
 			{ObjectMeta: metav1.ObjectMeta{Name: "openai"}},
@@ -476,7 +489,7 @@ func TestCompilerCompileGatewayAIRouteInvalidProviderWeight(t *testing.T) {
 func TestCompilerCompileGatewayMissingPluginRef(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		Routes: []resource.Route{
 			{
@@ -514,7 +527,7 @@ func TestCompilerCompileGatewayMissingPluginRef(t *testing.T) {
 func TestCompilerCompileGatewayMissingRateLimitPolicyRef(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		Routes: []resource.Route{
 			{
@@ -552,7 +565,7 @@ func TestCompilerCompileGatewayMissingRateLimitPolicyRef(t *testing.T) {
 func TestCompilerCompileGatewayMissingPolicyRef(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		Routes: []resource.Route{
 			{
@@ -590,7 +603,7 @@ func TestCompilerCompileGatewayMissingPolicyRef(t *testing.T) {
 func TestCompilerCompileGatewayMissingPolicyBindingTarget(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		PolicyBindings: []resource.PolicyBinding{
 			{
@@ -627,8 +640,8 @@ func TestCompilerCompileGatewayMissingGateway(t *testing.T) {
 func TestCompilerCompileGatewayDuplicateGateway(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
+			testGateway("public"),
 		},
 	}
 
@@ -644,7 +657,7 @@ func TestCompilerCompileGatewayDuplicateGateway(t *testing.T) {
 func TestCompilerCompileGatewayDuplicateRoute(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		Routes: []resource.Route{
 			{ObjectMeta: metav1.ObjectMeta{Name: "app"}},
@@ -664,7 +677,7 @@ func TestCompilerCompileGatewayDuplicateRoute(t *testing.T) {
 func TestCompilerCompileGatewayDuplicateUpstream(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		Upstreams: []resource.Upstream{
 			{ObjectMeta: metav1.ObjectMeta{Name: "app"}},
@@ -684,7 +697,7 @@ func TestCompilerCompileGatewayDuplicateUpstream(t *testing.T) {
 func TestCompilerCompileGatewayMissingUpstream(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
+			testGateway("public"),
 		},
 		Routes: []resource.Route{
 			{

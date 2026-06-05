@@ -13,14 +13,28 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func testGateway(name string, listeners ...resource.Listener) resource.Gateway {
+	return resource.Gateway{
+		ObjectMeta: metav1.ObjectMeta{Name: name},
+		Spec: resource.GatewaySpec{
+			Enabled:   true,
+			Listeners: listeners,
+		},
+	}
+}
+
 func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "public"},
 				Spec: resource.GatewaySpec{
+					Enabled: true,
 					Listeners: []resource.Listener{
-						{Name: "http", Protocol: "HTTP", Port: 80, Hostname: "example.com"},
+						{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 80},
+					},
+					HostBindings: []resource.HostBinding{
+						{Hostname: "example.com", ListenerRefs: []string{"http"}},
 					},
 				},
 			},
@@ -131,8 +145,12 @@ func TestPipelineBuildGatewaySnapshotForTarget(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "public"},
 				Spec: resource.GatewaySpec{
+					Enabled: true,
 					Listeners: []resource.Listener{
-						{Name: "http", Protocol: "HTTP", Port: 80, Hostname: "example.com"},
+						{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 80},
+					},
+					HostBindings: []resource.HostBinding{
+						{Hostname: "example.com", ListenerRefs: []string{"http"}},
 					},
 				},
 			},
@@ -185,22 +203,8 @@ func TestPipelineBuildGatewaySnapshotsForTarget(t *testing.T) {
 
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "public"},
-				Spec: resource.GatewaySpec{
-					Listeners: []resource.Listener{
-						{Name: "http", Protocol: "HTTP", Port: 80},
-					},
-				},
-			},
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "admin"},
-				Spec: resource.GatewaySpec{
-					Listeners: []resource.Listener{
-						{Name: "http", Protocol: "HTTP", Port: 8080},
-					},
-				},
-			},
+			testGateway("public", resource.Listener{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 80}),
+			testGateway("admin", resource.Listener{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 8080}),
 		},
 	}
 

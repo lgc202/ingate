@@ -41,6 +41,9 @@ func (p Pipeline) BuildGatewaySnapshotsForTarget(bundle resource.Bundle, targetN
 
 	snapshots := make([]runtime.RuntimeSnapshot, 0, len(bundle.Gateways))
 	for _, gateway := range bundle.Gateways {
+		if !gateway.Spec.Enabled {
+			continue
+		}
 		snapshot, err := p.buildGatewaySnapshot(bundle, gateway.Name, translator)
 		if err != nil {
 			return nil, err

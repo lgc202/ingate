@@ -204,34 +204,53 @@ type GatewayList struct {
 	Items []Gateway `json:"items"`
 }
 
-// GatewaySpec 定义 Gateway 的监听器
+// GatewaySpec 定义 Gateway 的入口监听、运行组和域名绑定
 type GatewaySpec struct {
+	// Description 保存控制台展示和运维识别用的说明，不参与运行时匹配
+	Description string `json:"description,omitempty"`
+	// Enabled 表示 Gateway 是否参与编译和下发
+	Enabled bool `json:"enabled"`
+	// RuntimeGroupRef 表示 Gateway 绑定的数据面运行组
+	RuntimeGroupRef RuntimeGroupRef `json:"runtimeGroupRef,omitempty"`
 	// +listType=atomic
 	Listeners []Listener `json:"listeners"`
+	// +listType=atomic
+	HostBindings []HostBinding `json:"hostBindings,omitempty"`
 }
+
+// RuntimeGroupRef 引用一个数据面运行组
+type RuntimeGroupRef struct {
+	Name string `json:"name"`
+}
+
+// ListenerProtocol 表示 Gateway 监听器协议
+type ListenerProtocol string
 
 const (
 	// ListenerProtocolHTTP 表示普通 HTTP 监听器
-	ListenerProtocolHTTP = "HTTP"
+	ListenerProtocolHTTP ListenerProtocol = "HTTP"
 	// ListenerProtocolHTTPS 表示 HTTPS 监听器
-	ListenerProtocolHTTPS = "HTTPS"
-)
-
-const (
-	// AnnotationGatewayDescription 保存控制台填写的 Gateway 描述
-	AnnotationGatewayDescription = "gateway.ingate.io/description"
-	// AnnotationGatewayEnabled 保存控制台维护的 Gateway 启停状态
-	AnnotationGatewayEnabled = "gateway.ingate.io/enabled"
-	// AnnotationGatewayHostnames 保存控制台维护的 Gateway Host 入口过滤列表
-	AnnotationGatewayHostnames = "gateway.ingate.io/hostnames"
+	ListenerProtocolHTTPS ListenerProtocol = "HTTPS"
 )
 
 // Listener 声明一个 Gateway 监听端口
 type Listener struct {
-	Name     string `json:"name"`
-	Protocol string `json:"protocol"`
-	Port     int    `json:"port"`
-	Hostname string `json:"hostname"`
+	Name     string           `json:"name"`
+	Protocol ListenerProtocol `json:"protocol"`
+	Port     int              `json:"port"`
+}
+
+// HostBinding 声明 Host 到 Gateway 监听器的绑定关系
+type HostBinding struct {
+	Hostname string `json:"hostname,omitempty"`
+	// +listType=atomic
+	ListenerRefs []string    `json:"listenerRefs,omitempty"`
+	TLS          *GatewayTLS `json:"tls,omitempty"`
+}
+
+// GatewayTLS 声明域名绑定使用的 TLS 证书引用
+type GatewayTLS struct {
+	CertificateRef string `json:"certificateRef,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
