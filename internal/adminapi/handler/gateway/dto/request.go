@@ -10,14 +10,7 @@ import (
 
 // Validate 校验创建 Gateway 请求
 func (r *CreateGatewayReq) Validate() error {
-	r.DisplayName = strings.TrimSpace(r.DisplayName)
-	if r.DisplayName == "" {
-		return errors.New("gateway displayName is required")
-	}
-	if r.RuntimeGroup == "" {
-		return errors.New("gateway runtimeGroup is required")
-	}
-	return validateGatewaySpecRequest(r.Listeners, r.HostBindings)
+	return r.GatewayConfig.Validate()
 }
 
 // Validate 校验更新 Gateway 请求
@@ -25,6 +18,11 @@ func (r *UpdateGatewayReq) Validate() error {
 	if r.Version == "" {
 		return errors.New("gateway version is required")
 	}
+	return r.GatewayConfig.Validate()
+}
+
+// Validate 校验 Gateway 配置请求
+func (r *GatewayConfig) Validate() error {
 	r.DisplayName = strings.TrimSpace(r.DisplayName)
 	if r.DisplayName == "" {
 		return errors.New("gateway displayName is required")
@@ -32,7 +30,7 @@ func (r *UpdateGatewayReq) Validate() error {
 	if r.RuntimeGroup == "" {
 		return errors.New("gateway runtimeGroup is required")
 	}
-	return validateGatewaySpecRequest(r.Listeners, r.HostBindings)
+	return validateGatewayConfig(r.Listeners, r.HostBindings)
 }
 
 // Validate 校验 Gateway 启停请求
@@ -48,7 +46,7 @@ func (r *SetGatewayEnabledReq) Value() bool {
 	return *r.Enabled
 }
 
-func validateGatewaySpecRequest(listeners []GatewayListenerReq, bindings []GatewayHostBindingReq) error {
+func validateGatewayConfig(listeners []GatewayListener, bindings []GatewayHostBinding) error {
 	if len(listeners) == 0 {
 		return errors.New("at least one listener is required")
 	}

@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 
 	"github.com/lgc202/ingate/internal/adminapi/handler/gateway/dto"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
@@ -152,48 +153,38 @@ func (h *Handler) Delete(ctx *gin.Context) {
 
 func (h *Handler) createGatewayParams(request dto.CreateGatewayReq) gatewayservice.CreateGatewayParams {
 	return gatewayservice.CreateGatewayParams{
-		DisplayName:  request.DisplayName,
-		Description:  request.Description,
-		RuntimeGroup: request.RuntimeGroup,
-		Listeners:    h.listenerParams(request.Listeners),
-		HostBindings: h.hostBindingParams(request.HostBindings),
+		GatewayParams: h.gatewayParams(request.GatewayConfig),
 	}
 }
 
 func (h *Handler) updateGatewayParams(request dto.UpdateGatewayReq) gatewayservice.UpdateGatewayParams {
 	return gatewayservice.UpdateGatewayParams{
-		Version:      request.Version,
-		DisplayName:  request.DisplayName,
-		Description:  request.Description,
-		RuntimeGroup: request.RuntimeGroup,
-		Listeners:    h.listenerParams(request.Listeners),
-		HostBindings: h.hostBindingParams(request.HostBindings),
+		Version:       request.Version,
+		GatewayParams: h.gatewayParams(request.GatewayConfig),
 	}
 }
 
-func (h *Handler) listenerParams(listeners []dto.GatewayListenerReq) []gatewayservice.ListenerParams {
-	params := make([]gatewayservice.ListenerParams, 0, len(listeners))
-	for _, listener := range listeners {
-		params = append(params, gatewayservice.ListenerParams{
-			Name:     listener.Name,
-			Protocol: resource.Protocol(listener.Protocol),
-			Port:     listener.Port,
-		})
+func (h *Handler) gatewayParams(config dto.GatewayConfig) gatewayservice.GatewayParams {
+	return gatewayservice.GatewayParams{
+		DisplayName:  config.DisplayName,
+		Description:  config.Description,
+		RuntimeGroup: config.RuntimeGroup,
+		Listeners: lo.Map(config.Listeners, func(listener dto.GatewayListener, _ int) gatewayservice.ListenerParams {
+			return gatewayservice.ListenerParams{
+				Name:     listener.Name,
+				Protocol: resource.Protocol(listener.Protocol),
+				Port:     listener.Port,
+			}
+		}),
+		HostBindings: lo.Map(config.HostBindings, func(binding dto.GatewayHostBinding, _ int) gatewayservice.HostBindingParams {
+			param := gatewayservice.HostBindingParams{
+				Hostname:     binding.Hostname,
+				ListenerRefs: binding.ListenerRefs,
+			}
+			if binding.TLS != nil {
+				param.CertificateRef = binding.TLS.CertificateRef
+			}
+			return param
+		}),
 	}
-	return params
-}
-
-func (h *Handler) hostBindingParams(bindings []dto.GatewayHostBindingReq) []gatewayservice.HostBindingParams {
-	params := make([]gatewayservice.HostBindingParams, 0, len(bindings))
-	for _, binding := range bindings {
-		param := gatewayservice.HostBindingParams{
-			Hostname:     binding.Hostname,
-			ListenerRefs: append([]string(nil), binding.ListenerRefs...),
-		}
-		if binding.TLS != nil {
-			param.CertificateRef = binding.TLS.CertificateRef
-		}
-		params = append(params, param)
-	}
-	return params
 }

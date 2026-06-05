@@ -14,16 +14,17 @@ type GatewayResult struct {
 
 // CreateGatewayParams 是创建 Gateway 用例参数
 type CreateGatewayParams struct {
-	DisplayName  string
-	Description  string
-	RuntimeGroup string
-	Listeners    []ListenerParams
-	HostBindings []HostBindingParams
+	GatewayParams
 }
 
 // UpdateGatewayParams 是更新 Gateway 用例参数
 type UpdateGatewayParams struct {
-	Version      string
+	Version string
+	GatewayParams
+}
+
+// GatewayParams 是创建和更新 Gateway 共用的配置参数
+type GatewayParams struct {
 	DisplayName  string
 	Description  string
 	RuntimeGroup string

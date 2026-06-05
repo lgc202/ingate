@@ -66,7 +66,7 @@ func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (strin
 		ObjectMeta: metav1.ObjectMeta{
 			Name: uuid.NewString(),
 		},
-		Spec: gatewaySpec(params.DisplayName, params.Description, params.RuntimeGroup, true, params.Listeners, params.HostBindings),
+		Spec: gatewaySpec(params.GatewayParams, true),
 	}
 	if err := s.validateGateway(ctx, gateway, noExcludedGatewayID); err != nil {
 		return "", err
@@ -96,7 +96,7 @@ func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGat
 	}
 
 	next := current.DeepCopy()
-	next.Spec = gatewaySpec(params.DisplayName, params.Description, params.RuntimeGroup, current.Spec.Enabled, params.Listeners, params.HostBindings)
+	next.Spec = gatewaySpec(params.GatewayParams, current.Spec.Enabled)
 	if err := s.validateGateway(ctx, next, gatewayID); err != nil {
 		return err
 	}
@@ -148,9 +148,9 @@ func (s *Service) Delete(ctx context.Context, gatewayID string) error {
 	return s.store.Delete(ctx, gatewayID)
 }
 
-func gatewaySpec(displayName, description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) resource.GatewaySpec {
-	resourceListeners := make([]resource.Listener, 0, len(listeners))
-	for _, listener := range listeners {
+func gatewaySpec(params GatewayParams, enabled bool) resource.GatewaySpec {
+	resourceListeners := make([]resource.Listener, 0, len(params.Listeners))
+	for _, listener := range params.Listeners {
 		resourceListeners = append(resourceListeners, resource.Listener{
 			Name:     listener.Name,
 			Protocol: listener.Protocol,
@@ -158,8 +158,8 @@ func gatewaySpec(displayName, description, runtimeGroup string, enabled bool, li
 		})
 	}
 
-	resourceHostBindings := make([]resource.HostBinding, 0, len(bindings))
-	for _, item := range bindings {
+	resourceHostBindings := make([]resource.HostBinding, 0, len(params.HostBindings))
+	for _, item := range params.HostBindings {
 		binding := resource.HostBinding{
 			Hostname:     item.Hostname,
 			ListenerRefs: append([]string(nil), item.ListenerRefs...),
@@ -171,10 +171,10 @@ func gatewaySpec(displayName, description, runtimeGroup string, enabled bool, li
 	}
 
 	return resource.GatewaySpec{
-		DisplayName:     displayName,
-		Description:     description,
+		DisplayName:     params.DisplayName,
+		Description:     params.Description,
 		Enabled:         enabled,
-		RuntimeGroupRef: resource.RuntimeGroupRef{Name: runtimeGroup},
+		RuntimeGroupRef: resource.RuntimeGroupRef{Name: params.RuntimeGroup},
 		Listeners:       resourceListeners,
 		HostBindings:    resourceHostBindings,
 	}

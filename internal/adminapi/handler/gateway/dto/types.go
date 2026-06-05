@@ -2,21 +2,13 @@ package dto
 
 // CreateGatewayReq 是创建 Gateway 的请求体
 type CreateGatewayReq struct {
-	DisplayName  string                  `json:"displayName"`
-	Description  string                  `json:"description"`
-	RuntimeGroup string                  `json:"runtimeGroup"`
-	Listeners    []GatewayListenerReq    `json:"listeners"`
-	HostBindings []GatewayHostBindingReq `json:"hostBindings"`
+	GatewayConfig
 }
 
 // UpdateGatewayReq 是更新 Gateway 的请求体
 type UpdateGatewayReq struct {
-	Version      string                  `json:"version"`
-	DisplayName  string                  `json:"displayName"`
-	Description  string                  `json:"description"`
-	RuntimeGroup string                  `json:"runtimeGroup"`
-	Listeners    []GatewayListenerReq    `json:"listeners"`
-	HostBindings []GatewayHostBindingReq `json:"hostBindings"`
+	Version string `json:"version"`
+	GatewayConfig
 }
 
 // SetGatewayEnabledReq 是启停 Gateway 的请求体
@@ -24,23 +16,49 @@ type SetGatewayEnabledReq struct {
 	Enabled *bool `json:"enabled"`
 }
 
-// GatewayListenerReq 是控制台提交的监听器配置
-type GatewayListenerReq struct {
+// GatewayConfig 是控制台读写 Gateway 时复用的核心配置
+type GatewayConfig struct {
+	DisplayName  string               `json:"displayName"`
+	Description  string               `json:"description"`
+	RuntimeGroup string               `json:"runtimeGroup"`
+	Listeners    []GatewayListener    `json:"listeners"`
+	HostBindings []GatewayHostBinding `json:"hostBindings"`
+}
+
+// GatewayListener 是控制台读写的监听器配置
+type GatewayListener struct {
 	Name     string `json:"name"`
 	Protocol string `json:"protocol"`
 	Port     int    `json:"port"`
 }
 
-// GatewayHostBindingReq 是控制台提交的域名绑定配置
-type GatewayHostBindingReq struct {
-	Hostname     string         `json:"hostname,omitempty"`
-	ListenerRefs []string       `json:"listenerRefs"`
-	TLS          *GatewayTLSReq `json:"tls,omitempty"`
+// GatewayHostBinding 是控制台读写的域名绑定配置
+type GatewayHostBinding struct {
+	Hostname     string      `json:"hostname,omitempty"`
+	ListenerRefs []string    `json:"listenerRefs"`
+	TLS          *GatewayTLS `json:"tls,omitempty"`
 }
 
-// GatewayTLSReq 是控制台提交的 TLS 配置
-type GatewayTLSReq struct {
+// GatewayTLS 是控制台读写的 TLS 配置
+type GatewayTLS struct {
 	CertificateRef string `json:"certificateRef,omitempty"`
+}
+
+// Gateway 是 admin-api 面向控制台返回的 Gateway 对象，不直接暴露 CR 结构
+type Gateway struct {
+	ID      string `json:"id"`
+	Version string `json:"version,omitempty"`
+	GatewayConfig
+	Enabled      bool   `json:"enabled"`
+	HealthStatus string `json:"healthStatus"`
+	CreatedAt    string `json:"createdAt"`
+}
+
+// GatewaySummary 是列表页使用的 Gateway 摘要
+type GatewaySummary struct {
+	Gateway
+	ListenerSummary    string `json:"listenerSummary"`
+	HostBindingSummary string `json:"hostBindingSummary"`
 }
 
 // ListGatewaysResp 是 Gateway 列表接口响应
@@ -50,7 +68,7 @@ type ListGatewaysResp struct {
 
 // GetGatewayResp 是 Gateway 详情接口响应
 type GetGatewayResp struct {
-	Gateway GatewayDetail `json:"gateway"`
+	Gateway Gateway `json:"gateway"`
 }
 
 // CreateGatewayResp 是创建 Gateway 的响应
@@ -72,53 +90,4 @@ type SetGatewayEnabledResp struct {
 // DeleteGatewayResp 是删除 Gateway 的响应
 type DeleteGatewayResp struct {
 	Success bool `json:"success"`
-}
-
-// GatewaySummary 是列表页使用的 Gateway 摘要
-type GatewaySummary struct {
-	ID                 string               `json:"id"`
-	Version            string               `json:"version,omitempty"`
-	DisplayName        string               `json:"displayName"`
-	Description        string               `json:"description"`
-	RuntimeGroup       string               `json:"runtimeGroup"`
-	ListenerSummary    string               `json:"listenerSummary"`
-	HostBindingSummary string               `json:"hostBindingSummary"`
-	Listeners          []GatewayListener    `json:"listeners"`
-	HostBindings       []GatewayHostBinding `json:"hostBindings"`
-	Enabled            bool                 `json:"enabled"`
-	HealthStatus       string               `json:"healthStatus"`
-	CreatedAt          string               `json:"createdAt"`
-}
-
-// GatewayDetail 是详情页使用的 Gateway 配置视图
-type GatewayDetail struct {
-	ID           string               `json:"id"`
-	Version      string               `json:"version,omitempty"`
-	DisplayName  string               `json:"displayName"`
-	Description  string               `json:"description"`
-	RuntimeGroup string               `json:"runtimeGroup"`
-	Listeners    []GatewayListener    `json:"listeners"`
-	HostBindings []GatewayHostBinding `json:"hostBindings"`
-	Enabled      bool                 `json:"enabled"`
-	HealthStatus string               `json:"healthStatus"`
-	CreatedAt    string               `json:"createdAt"`
-}
-
-// GatewayListener 是响应中的监听器配置
-type GatewayListener struct {
-	Name     string `json:"name"`
-	Protocol string `json:"protocol"`
-	Port     int    `json:"port"`
-}
-
-// GatewayHostBinding 是响应中的域名绑定配置
-type GatewayHostBinding struct {
-	Hostname     string      `json:"hostname,omitempty"`
-	ListenerRefs []string    `json:"listenerRefs"`
-	TLS          *GatewayTLS `json:"tls,omitempty"`
-}
-
-// GatewayTLS 是响应中的 TLS 配置
-type GatewayTLS struct {
-	CertificateRef string `json:"certificateRef,omitempty"`
 }
