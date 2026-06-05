@@ -9,6 +9,7 @@ import (
 
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"github.com/samber/lo"
 )
 
 // NewListGatewaysResp 转换 Gateway 列表用例结果为 HTTP 响应
@@ -23,36 +24,29 @@ func NewListGatewaysResp(result *gatewayservice.ListResult) ListGatewaysResp {
 // NewGetGatewayResp 转换单个 Gateway 用例结果为 HTTP 响应
 func NewGetGatewayResp(result *gatewayservice.GatewayResult) GetGatewayResp {
 	return GetGatewayResp{
-		Gateway: gatewayDetail(result.Gateway),
+		Gateway: gatewayFromResource(result.Gateway),
 	}
 }
 
 func gatewaySummary(gateway *resource.Gateway) GatewaySummary {
 	return GatewaySummary{
-		ID:                 gateway.Name,
-		Version:            gateway.ResourceVersion,
-		DisplayName:        gateway.Spec.DisplayName,
-		Description:        gateway.Spec.Description,
-		RuntimeGroup:       gateway.Spec.RuntimeGroupRef.Name,
+		Gateway:            gatewayFromResource(gateway),
 		ListenerSummary:    listenerSummary(gateway.Spec.Listeners),
 		HostBindingSummary: hostBindingSummary(gateway.Spec.HostBindings),
-		Listeners:          listeners(gateway.Spec.Listeners),
-		HostBindings:       hostBindings(gateway.Spec.HostBindings),
-		Enabled:            gateway.Spec.Enabled,
-		HealthStatus:       healthStatus(gateway.Status),
-		CreatedAt:          createdAt(gateway.ObjectMeta),
 	}
 }
 
-func gatewayDetail(gateway *resource.Gateway) GatewayDetail {
-	return GatewayDetail{
-		ID:           gateway.Name,
-		Version:      gateway.ResourceVersion,
-		DisplayName:  gateway.Spec.DisplayName,
-		Description:  gateway.Spec.Description,
-		RuntimeGroup: gateway.Spec.RuntimeGroupRef.Name,
-		Listeners:    listeners(gateway.Spec.Listeners),
-		HostBindings: hostBindings(gateway.Spec.HostBindings),
+func gatewayFromResource(gateway *resource.Gateway) Gateway {
+	return Gateway{
+		ID:      gateway.Name,
+		Version: gateway.ResourceVersion,
+		GatewayConfig: GatewayConfig{
+			DisplayName:  gateway.Spec.DisplayName,
+			Description:  gateway.Spec.Description,
+			RuntimeGroup: gateway.Spec.RuntimeGroupRef.Name,
+			Listeners:    listeners(gateway.Spec.Listeners),
+			HostBindings: hostBindings(gateway.Spec.HostBindings),
+		},
 		Enabled:      gateway.Spec.Enabled,
 		HealthStatus: healthStatus(gateway.Status),
 		CreatedAt:    createdAt(gateway.ObjectMeta),
@@ -60,20 +54,17 @@ func gatewayDetail(gateway *resource.Gateway) GatewayDetail {
 }
 
 func listeners(items []resource.Listener) []GatewayListener {
-	listeners := make([]GatewayListener, 0, len(items))
-	for _, item := range items {
-		listeners = append(listeners, GatewayListener{
+	return lo.Map(items, func(item resource.Listener, _ int) GatewayListener {
+		return GatewayListener{
 			Name:     item.Name,
 			Protocol: string(item.Protocol),
 			Port:     item.Port,
-		})
-	}
-	return listeners
+		}
+	})
 }
 
 func hostBindings(items []resource.HostBinding) []GatewayHostBinding {
-	bindings := make([]GatewayHostBinding, 0, len(items))
-	for _, item := range items {
+	return lo.Map(items, func(item resource.HostBinding, _ int) GatewayHostBinding {
 		binding := GatewayHostBinding{
 			Hostname:     item.Hostname,
 			ListenerRefs: append([]string(nil), item.ListenerRefs...),
@@ -81,9 +72,8 @@ func hostBindings(items []resource.HostBinding) []GatewayHostBinding {
 		if item.TLS != nil {
 			binding.TLS = &GatewayTLS{CertificateRef: item.TLS.CertificateRef}
 		}
-		bindings = append(bindings, binding)
-	}
-	return bindings
+		return binding
+	})
 }
 
 func listenerSummary(listeners []resource.Listener) string {
