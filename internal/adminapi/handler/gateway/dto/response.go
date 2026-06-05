@@ -1,11 +1,7 @@
 package dto
 
 import (
-	"encoding/json"
 	"fmt"
-	"slices"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -15,119 +11,123 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-const (
-	defaultRuntimeGroupID   = "default"
-	defaultRuntimeGroupName = "默认运行组"
-)
-
-// FromListResult 转换 Gateway 列表用例结果为 HTTP 响应。
-func FromListResult(result *gatewayservice.ListResult) *ListResponse {
-	items := make([]Gateway, 0, len(result.Gateways))
+// FromListResult 转换 Gateway 列表用例结果为 HTTP 响应
+func FromListResult(result *gatewayservice.ListResult) ListGatewaysResp {
+	gateways := make([]GatewaySummary, 0, len(result.Gateways))
 	for i := range result.Gateways {
-		items = append(items, gatewayFromResource(&result.Gateways[i], result.Routes, result.Upstreams, result.RuntimeSnapshots))
+		gateways = append(gateways, gatewaySummary(&result.Gateways[i], result.RuntimeGroups))
 	}
-
-	return &ListResponse{
-		Gateways:     items,
-		Certificates: []Certificate{},
-	}
+	return ListGatewaysResp{Gateways: gateways}
 }
 
-// FromGatewayResult 转换单个 Gateway 用例结果为 HTTP 响应。
-func FromGatewayResult(result *gatewayservice.GatewayResult) *Gateway {
-	item := gatewayFromResource(result.Gateway, result.Routes, result.Upstreams, result.RuntimeSnapshots)
-	return &item
-}
-
-// FromDetailResult 转换 Gateway 详情用例结果为 HTTP 响应。
-func FromDetailResult(result *gatewayservice.DetailResult) *DetailResponse {
-	item := gatewayFromResource(result.Gateway, result.Routes, result.Upstreams, result.RuntimeSnapshots)
-	return &DetailResponse{
-		Gateway:          item,
-		Routes:           routeReferences(result.Routes),
-		Services:         serviceReferences(result.Upstreams),
-		RuntimeSnapshots: runtimeStatuses(result.RuntimeSnapshots),
+// FromGatewayResult 转换单个 Gateway 用例结果为 HTTP 响应
+func FromGatewayResult(result *gatewayservice.GatewayResult) GetGatewayResp {
+	return GetGatewayResp{
+		Gateway: gatewayDetail(result.Gateway, result.RuntimeGroups),
 	}
 }
 
-func gatewayFromResource(gateway *resource.Gateway, routes []resource.Route, upstreams []resource.Upstream, snapshots []resource.RuntimeSnapshot) Gateway {
-	matchedRoutes := gatewayRoutes(gateway.Name, routes)
-	matchedUpstreams := gatewayUpstreams(matchedRoutes, upstreams)
-	matchedSnapshots := gatewaySnapshots(gateway.Name, snapshots)
-	hostnames := gatewayHostnames(gateway)
-
-	return Gateway{
-		ID:                    gateway.Name,
-		Version:               gateway.ResourceVersion,
-		Name:                  gateway.Name,
-		Description:           annotation(gateway.Annotations, resource.AnnotationGatewayDescription),
-		RuntimeGroupID:        defaultRuntimeGroupID,
-		RuntimeGroupName:      defaultRuntimeGroupName,
-		ListenerSummary:       listenerSummary(gateway.Spec.Listeners),
-		Listeners:             listeners(gateway.Spec.Listeners),
-		HostPolicy:            hostPolicy(hostnames),
-		Hostnames:             hostnames,
-		RouteCount:            len(matchedRoutes),
-		ServiceCount:          len(matchedUpstreams),
-		Enabled:               enabled(gateway.Annotations),
-		RuntimeStatus:         runtimeStatus(),
-		HealthStatus:          healthStatus(gateway.Status),
-		LatestSnapshotVersion: latestSnapshotVersion(matchedSnapshots),
-		LastChangedAt:         lastChangedAt(gateway.ObjectMeta),
+// FromFormOptionsResult 转换 Gateway 表单选项用例结果为 HTTP 响应
+func FromFormOptionsResult(result *gatewayservice.FormOptionsResult) GetGatewayFormOptionsResp {
+	runtimeGroups := make([]RuntimeGroupOption, 0, len(result.RuntimeGroups))
+	for _, runtimeGroup := range result.RuntimeGroups {
+		runtimeGroups = append(runtimeGroups, RuntimeGroupOption{
+			ID:   runtimeGroup.ID,
+			Name: runtimeGroup.Name,
+		})
+	}
+	certificates := make([]CertificateOption, 0, len(result.Certificates))
+	for _, certificate := range result.Certificates {
+		certificates = append(certificates, CertificateOption{
+			ID:        certificate.ID,
+			Name:      certificate.Name,
+			Domains:   append([]string(nil), certificate.Domains...),
+			ExpiresAt: certificate.ExpiresAt,
+			Status:    certificate.Status,
+		})
+	}
+	return GetGatewayFormOptionsResp{
+		RuntimeGroups: runtimeGroups,
+		Certificates:  certificates,
 	}
 }
 
-func gatewayRoutes(gatewayName string, routes []resource.Route) []resource.Route {
-	matched := make([]resource.Route, 0)
-	for _, route := range routes {
-		if slices.Contains(route.Spec.ParentRefs, gatewayName) {
-			matched = append(matched, route)
+func gatewaySummary(gateway *resource.Gateway, runtimeGroups []gatewayservice.RuntimeGroupOption) GatewaySummary {
+	return GatewaySummary{
+		ID:                 gateway.Name,
+		Version:            gateway.ResourceVersion,
+		Name:               gateway.Name,
+		Description:        gateway.Spec.Description,
+		RuntimeGroup:       runtimeGroup(gateway),
+		RuntimeGroupName:   runtimeGroupName(gateway, runtimeGroups),
+		ListenerSummary:    listenerSummary(gateway.Spec.Listeners),
+		HostBindingSummary: hostBindingSummary(gateway.Spec.HostBindings),
+		Listeners:          listeners(gateway.Spec.Listeners),
+		HostBindings:       hostBindings(gateway.Spec.HostBindings),
+		Enabled:            gateway.Spec.Enabled,
+		HealthStatus:       healthStatus(gateway.Status),
+		LastChangedAt:      lastChangedAt(gateway.ObjectMeta),
+	}
+}
+
+func gatewayDetail(gateway *resource.Gateway, runtimeGroups []gatewayservice.RuntimeGroupOption) GatewayDetail {
+	return GatewayDetail{
+		ID:               gateway.Name,
+		Version:          gateway.ResourceVersion,
+		Name:             gateway.Name,
+		Description:      gateway.Spec.Description,
+		RuntimeGroup:     runtimeGroup(gateway),
+		RuntimeGroupName: runtimeGroupName(gateway, runtimeGroups),
+		Listeners:        listeners(gateway.Spec.Listeners),
+		HostBindings:     hostBindings(gateway.Spec.HostBindings),
+		Enabled:          gateway.Spec.Enabled,
+		HealthStatus:     healthStatus(gateway.Status),
+		LastChangedAt:    lastChangedAt(gateway.ObjectMeta),
+	}
+}
+
+func runtimeGroup(gateway *resource.Gateway) string {
+	if gateway.Spec.RuntimeGroupRef.Name == "" {
+		return gatewayservice.DefaultRuntimeGroupID
+	}
+	return gateway.Spec.RuntimeGroupRef.Name
+}
+
+func runtimeGroupName(gateway *resource.Gateway, runtimeGroups []gatewayservice.RuntimeGroupOption) string {
+	id := runtimeGroup(gateway)
+	for _, runtimeGroup := range runtimeGroups {
+		if runtimeGroup.ID == id {
+			return runtimeGroup.Name
 		}
 	}
-	return matched
+	return id
 }
 
-func gatewayUpstreams(routes []resource.Route, upstreams []resource.Upstream) []resource.Upstream {
-	names := map[string]struct{}{}
-	for _, route := range routes {
-		for _, rule := range route.Spec.Rules {
-			for _, ref := range rule.UpstreamRefs {
-				names[ref.Name] = struct{}{}
-			}
-		}
-	}
-	matched := make([]resource.Upstream, 0, len(names))
-	for _, upstream := range upstreams {
-		if _, ok := names[upstream.Name]; ok {
-			matched = append(matched, upstream)
-		}
-	}
-	return matched
-}
-
-func gatewaySnapshots(gatewayName string, snapshots []resource.RuntimeSnapshot) []resource.RuntimeSnapshot {
-	matched := make([]resource.RuntimeSnapshot, 0)
-	for _, snapshot := range snapshots {
-		if snapshot.Spec.Gateway == gatewayName {
-			matched = append(matched, snapshot)
-		}
-	}
-	sort.Slice(matched, func(i, j int) bool {
-		return matched[i].CreationTimestamp.After(matched[j].CreationTimestamp.Time)
-	})
-	return matched
-}
-
-func listeners(items []resource.Listener) []Listener {
-	listeners := make([]Listener, 0, len(items))
+func listeners(items []resource.Listener) []GatewayListener {
+	listeners := make([]GatewayListener, 0, len(items))
 	for _, item := range items {
-		listeners = append(listeners, Listener{
-			ID:       item.Name,
-			Protocol: item.Protocol,
-			Port:     strconv.Itoa(item.Port),
+		listeners = append(listeners, GatewayListener{
+			Name:     item.Name,
+			Protocol: string(item.Protocol),
+			Port:     item.Port,
 		})
 	}
 	return listeners
+}
+
+func hostBindings(items []resource.HostBinding) []GatewayHostBinding {
+	bindings := make([]GatewayHostBinding, 0, len(items))
+	for _, item := range items {
+		binding := GatewayHostBinding{
+			Hostname:     item.Hostname,
+			ListenerRefs: append([]string(nil), item.ListenerRefs...),
+		}
+		if item.TLS != nil {
+			binding.TLS = &GatewayTLS{CertificateRef: item.TLS.CertificateRef}
+		}
+		bindings = append(bindings, binding)
+	}
+	return bindings
 }
 
 func listenerSummary(listeners []resource.Listener) string {
@@ -141,46 +141,19 @@ func listenerSummary(listeners []resource.Listener) string {
 	return strings.Join(parts, " / ")
 }
 
-func gatewayHostnames(gateway *resource.Gateway) []string {
-	if hostnames := annotationHostnames(gateway.Annotations); len(hostnames) > 0 {
-		return hostnames
-	}
-
-	seen := map[string]struct{}{}
-	hostnames := make([]string, 0)
-	for _, listener := range gateway.Spec.Listeners {
-		hostname := strings.TrimSpace(listener.Hostname)
-		if hostname == "" {
-			continue
-		}
-		if _, ok := seen[hostname]; ok {
-			continue
-		}
-		seen[hostname] = struct{}{}
-		hostnames = append(hostnames, hostname)
-	}
-	sort.Strings(hostnames)
-	return hostnames
-}
-
-func hostPolicy(hostnames []string) string {
-	if len(hostnames) == 0 {
+func hostBindingSummary(bindings []resource.HostBinding) string {
+	if len(bindings) == 0 {
 		return "不限制 Host"
 	}
-	return strings.Join(hostnames, "、")
-}
-
-func runtimeStatus() string {
-	// RuntimeSnapshot 只能说明控制面生成过配置，不能证明运行时已经应用。
-	// 等后续接入运行时回执后，再从真实回执计算 synced/failed 等状态。
-	return "unknown"
-}
-
-func latestSnapshotVersion(snapshots []resource.RuntimeSnapshot) string {
-	if len(snapshots) == 0 {
-		return ""
+	parts := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		if binding.Hostname == "" {
+			parts = append(parts, "不限制 Host")
+			continue
+		}
+		parts = append(parts, binding.Hostname)
 	}
-	return snapshots[0].Spec.Version
+	return strings.Join(parts, "、")
 }
 
 func healthStatus(status resource.ResourceStatus) string {
@@ -195,126 +168,9 @@ func healthStatus(status resource.ResourceStatus) string {
 	return "unknown"
 }
 
-func enabled(annotations map[string]string) bool {
-	value := annotation(annotations, resource.AnnotationGatewayEnabled)
-	if value == "" {
-		return true
-	}
-	return value != "false"
-}
-
-func annotationHostnames(annotations map[string]string) []string {
-	value := annotation(annotations, resource.AnnotationGatewayHostnames)
-	if value == "" {
-		return nil
-	}
-
-	hostnames := []string{}
-	if err := json.Unmarshal([]byte(value), &hostnames); err != nil {
-		return nil
-	}
-	return normalizedHostnames(hostnames)
-}
-
-func normalizedHostnames(hostnames []string) []string {
-	seen := map[string]struct{}{}
-	normalized := make([]string, 0, len(hostnames))
-	for _, hostname := range hostnames {
-		hostname = strings.TrimSpace(strings.ToLower(hostname))
-		if hostname == "" {
-			continue
-		}
-		if _, ok := seen[hostname]; ok {
-			continue
-		}
-		seen[hostname] = struct{}{}
-		normalized = append(normalized, hostname)
-	}
-	sort.Strings(normalized)
-	return normalized
-}
-
-func annotation(annotations map[string]string, key string) string {
-	if annotations == nil {
-		return ""
-	}
-	return annotations[key]
-}
-
 func lastChangedAt(metadata metav1.ObjectMeta) string {
 	if metadata.CreationTimestamp.IsZero() {
 		return ""
 	}
 	return metadata.CreationTimestamp.UTC().Format(time.RFC3339)
-}
-
-func routeReferences(routes []resource.Route) []RouteReference {
-	references := make([]RouteReference, 0, len(routes))
-	for _, route := range routes {
-		references = append(references, RouteReference{
-			ID:          route.Name,
-			Name:        route.Name,
-			Methods:     routeMethods(route),
-			Path:        routePath(route),
-			Hostnames:   route.Spec.Hostnames,
-			ServiceName: routeServiceName(route),
-		})
-	}
-	return references
-}
-
-func routeMethods(route resource.Route) []string {
-	if len(route.Spec.Rules) == 0 {
-		return nil
-	}
-	return route.Spec.Rules[0].Methods
-}
-
-func routePath(route resource.Route) string {
-	if len(route.Spec.Rules) == 0 {
-		return ""
-	}
-	return route.Spec.Rules[0].PathPrefix
-}
-
-func routeServiceName(route resource.Route) string {
-	if len(route.Spec.Rules) == 0 || len(route.Spec.Rules[0].UpstreamRefs) == 0 {
-		return ""
-	}
-	return route.Spec.Rules[0].UpstreamRefs[0].Name
-}
-
-func serviceReferences(upstreams []resource.Upstream) []ServiceReference {
-	references := make([]ServiceReference, 0, len(upstreams))
-	for _, upstream := range upstreams {
-		references = append(references, ServiceReference{
-			ID:       upstream.Name,
-			Name:     upstream.Name,
-			Endpoint: upstreamEndpoint(upstream),
-		})
-	}
-	return references
-}
-
-func upstreamEndpoint(upstream resource.Upstream) string {
-	if len(upstream.Spec.Endpoints) == 0 {
-		return ""
-	}
-	endpoint := upstream.Spec.Endpoints[0]
-	return fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port)
-}
-
-func runtimeStatuses(snapshots []resource.RuntimeSnapshot) []RuntimeStatus {
-	statuses := make([]RuntimeStatus, 0, len(snapshots))
-	for _, snapshot := range snapshots {
-		statuses = append(statuses, RuntimeStatus{
-			ID:        snapshot.Name,
-			Name:      snapshot.Name,
-			Target:    snapshot.Spec.Target,
-			Version:   snapshot.Spec.Version,
-			Status:    "unknown",
-			CreatedAt: lastChangedAt(snapshot.ObjectMeta),
-		})
-	}
-	return statuses
 }
