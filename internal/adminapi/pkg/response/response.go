@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 
+	"github.com/lgc202/ingate/internal/adminapi/pkg/apperror"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
 )
 
@@ -20,6 +21,10 @@ func WriteResult(ctx *gin.Context, value any, err error) {
 		return
 	}
 	if apierrors.IsBadRequest(err) {
+		WriteError(ctx, http.StatusBadRequest, err.Error())
+		return
+	}
+	if apperror.IsBadRequest(err) {
 		WriteError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
