@@ -22,6 +22,7 @@
 - Handler 层只负责绑定、校验、调用 Service 和写统一响应
 - Service 层承载 Gateway 用例语义和产品 DTO 到声明式资源的转换
 - 列表、详情、表单选项、变更接口职责拆清楚
+- 后端默认返回单资源或明确资源集合，不为页面便利提供不必要的聚合接口
 - 删除不会被真实模型承载的请求字段，避免前端和后端能力不一致
 
 ## 非目标
@@ -38,6 +39,8 @@
 - annotation 只能承载非核心元信息，不能作为运行主链路配置来源
 - 请求体只包含可变更字段，不包含展示名称、派生文案和运行态聚合
 - 响应体可以包含展示字段，但展示字段必须从稳定资源或选项数据派生
+- 前端能通过多个资源接口自行组装的数据，后端不默认做页面聚合
+- 只有存在性能、一致性、权限裁剪或复杂计算需求时，才新增专门聚合接口
 - 后端协议使用稳定英文枚举，不使用控制台中文展示文案作为 key
 - DTO 名称按接口动作定义，例如 `CreateGatewayReq`、`GetGatewayResp`
 - helper 函数不调用 `response.WriteResult`、`ctx.JSON` 等响应方法
@@ -119,14 +122,14 @@ GET    /api/v1/gateway-form-options
 接口职责：
 
 - `GET /api/v1/gateways` 返回列表摘要，服务 Gateway 列表页和其他页面的 Gateway 选择器
-- `GET /api/v1/gateways/:name` 返回详情聚合，包含 Gateway 配置、关联路由、关联 Upstream 和运行态摘要
+- `GET /api/v1/gateways/:name` 返回 Gateway 配置详情，不返回关联 Route、Upstream 或 RuntimeSnapshot
 - `POST /api/v1/gateways` 创建 Gateway
 - `PUT /api/v1/gateways/:name` 更新 Gateway，不允许改名
 - `PATCH /api/v1/gateways/:name/enabled` 只更新启停状态
 - `DELETE /api/v1/gateways/:name` 删除 Gateway，仍有关联 Route 时拒绝删除
 - `GET /api/v1/gateway-form-options` 返回表单选项，例如运行组和证书列表
 
-删除 `GET /api/v1/gateways/:name/overview`。详情聚合统一由 `GET /api/v1/gateways/:name` 承担。
+删除 `GET /api/v1/gateways/:name/overview`。详情页需要的关联 Route、Upstream、RuntimeSnapshot 由前端通过对应资源接口获取并组装。后续如果出现明显性能或一致性问题，再增加带明确语义的查询接口，例如 `GET /api/v1/routes?gateway=gw-public`。
 
 ## DTO 命名和结构
 
@@ -170,10 +173,7 @@ type ListGatewaysResp struct {
 }
 
 type GetGatewayResp struct {
-	Gateway          GatewayDetail            `json:"gateway"`
-	Routes           []GatewayRouteReference  `json:"routes"`
-	Upstreams        []GatewayUpstreamRef     `json:"upstreams"`
-	RuntimeSnapshots []GatewayRuntimeSnapshot `json:"runtimeSnapshots"`
+	Gateway GatewayDetail `json:"gateway"`
 }
 
 type GetGatewayFormOptionsResp struct {
@@ -192,13 +192,11 @@ type GetGatewayFormOptionsResp struct {
 - `runtimeGroupName`
 - `listenerSummary`
 - `hostBindingSummary`
-- `routeCount`
-- `upstreamCount`
 - `enabled`
-- `runtimeStatus`
 - `healthStatus`
-- `latestSnapshotVersion`
 - `lastChangedAt`
+
+列表摘要默认不包含 `routeCount`、`upstreamCount`、`runtimeStatus`、`latestSnapshotVersion` 等聚合字段。确实需要时，优先由前端并行调用 Route、Upstream、RuntimeSnapshot 资源接口后组装；如果后续数据量导致前端组装成本过高，再设计独立统计接口。
 
 `GatewayDetail` 保持配置可编辑：
 
@@ -229,10 +227,10 @@ Handler 层规则：
 
 Service 层规则：
 
-- 承载 Gateway 创建、更新、启停、删除、详情聚合等用例
+- 承载 Gateway 创建、更新、启停、删除和详情查询等用例
 - 将 admin-api DTO 或 Service Params 转换为 `resource.Gateway`
 - 校验跨资源约束，例如默认 Host 冲突、删除前仍有关联 Route
-- 读取 Route、Upstream、RuntimeSnapshot 并计算详情聚合
+- 除跨资源校验外，不为 Gateway 详情读取 Route、Upstream、RuntimeSnapshot 做页面聚合
 - 不返回面向 gin 的响应对象
 
 Store 层规则：
@@ -304,7 +302,7 @@ Envoy xDS 只是第一个 target。Gateway 模型不能以 Envoy 专有结构作
 - 创建、更新、启停和删除 Service 用例
 - host binding 引用 listener 的校验
 - 不限制 Host Gateway 共享监听入口冲突
-- 详情聚合中 Route、Upstream、RuntimeSnapshot 的计算
+- 删除 Gateway 时仍有关联 Route 的拒绝逻辑
 
 前端验证：
 
