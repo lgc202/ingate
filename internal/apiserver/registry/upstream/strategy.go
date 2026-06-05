@@ -51,7 +51,7 @@ func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 }
 
 func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
-	return nil
+	return validateUpstream(obj.(*resource.Upstream))
 }
 
 func (strategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
@@ -77,7 +77,7 @@ func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 }
 
 func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	return nil
+	return validateUpstream(obj.(*resource.Upstream))
 }
 
 func (strategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
@@ -109,4 +109,24 @@ func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Obj
 
 func (statusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	return nil
+}
+
+func validateUpstream(upstream *resource.Upstream) field.ErrorList {
+	specPath := field.NewPath("spec")
+	errs := field.ErrorList{}
+
+	if len(upstream.Spec.Endpoints) == 0 {
+		errs = append(errs, field.Required(specPath.Child("endpoints"), "at least one endpoint is required"))
+	}
+	for i, endpoint := range upstream.Spec.Endpoints {
+		endpointPath := specPath.Child("endpoints").Index(i)
+		if endpoint.Address == "" {
+			errs = append(errs, field.Required(endpointPath.Child("address"), "address is required"))
+		}
+		if endpoint.Port < 1 || endpoint.Port > 65535 {
+			errs = append(errs, field.Invalid(endpointPath.Child("port"), endpoint.Port, "port must be between 1 and 65535"))
+		}
+	}
+
+	return errs
 }

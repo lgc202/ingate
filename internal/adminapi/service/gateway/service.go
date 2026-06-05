@@ -139,7 +139,9 @@ func (s *Service) Delete(ctx context.Context, gatewayID string) error {
 		return err
 	}
 	for _, route := range routes.Items {
-		if slices.Contains(route.Spec.ParentRefs, gatewayID) {
+		if slices.ContainsFunc(route.Spec.ParentRefs, func(parentRef resource.ParentRef) bool {
+			return parentRef.Name == gatewayID
+		}) {
 			return xerrors.NewUserError(fmt.Sprintf("网关 %q 仍有关联路由", current.Spec.DisplayName))
 		}
 	}

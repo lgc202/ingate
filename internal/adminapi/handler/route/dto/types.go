@@ -1,106 +1,109 @@
 package dto
 
-// HTTPMethod 是控制台支持的 HTTP 方法
-type HTTPMethod string
-
-const (
-	// HTTPMethodGET 表示 GET 方法
-	HTTPMethodGET HTTPMethod = "GET"
-	// HTTPMethodPOST 表示 POST 方法
-	HTTPMethodPOST HTTPMethod = "POST"
-	// HTTPMethodPUT 表示 PUT 方法
-	HTTPMethodPUT HTTPMethod = "PUT"
-	// HTTPMethodPATCH 表示 PATCH 方法
-	HTTPMethodPATCH HTTPMethod = "PATCH"
-	// HTTPMethodDELETE 表示 DELETE 方法
-	HTTPMethodDELETE HTTPMethod = "DELETE"
-)
-
-// ListResponse 是 Route 列表响应
-type ListResponse struct {
+// ListRoutesResp 是 Route 列表响应
+type ListRoutesResp struct {
 	Routes []Route `json:"routes"`
 }
 
 // Route 是 admin-api 面向控制台返回的路由对象，不直接暴露 CR 结构
 type Route struct {
-	ID             string                 `json:"id"`
-	Version        string                 `json:"version,omitempty"`
-	Methods        []HTTPMethod           `json:"methods"`
-	Path           string                 `json:"path"`
-	GatewayNames   []string               `json:"gatewayNames"`
-	Hostnames      []string               `json:"hostnames"`
-	ServiceName    string                 `json:"serviceName"`
-	Targets        []TargetService        `json:"targets"`
-	PolicyCount    int                    `json:"policyCount"`
-	PolicyBindings []PolicyBindingRequest `json:"policyBindings,omitempty"`
-	Traffic        string                 `json:"traffic"`
-	SuccessRate    string                 `json:"successRate"`
-	Enabled        bool                   `json:"enabled"`
-	RuntimeStatus  string                 `json:"runtimeStatus"`
-	LastChangedAt  string                 `json:"lastChangedAt"`
+	ID            string      `json:"id"`
+	Version       string      `json:"version,omitempty"`
+	GatewayIDs    []string    `json:"gatewayIDs"`
+	Hostnames     []string    `json:"hostnames"`
+	Rules         []RouteRule `json:"rules"`
+	PolicyCount   int         `json:"policyCount"`
+	Traffic       string      `json:"traffic"`
+	SuccessRate   string      `json:"successRate"`
+	Enabled       bool        `json:"enabled"`
+	RuntimeStatus string      `json:"runtimeStatus"`
+	CreatedAt     string      `json:"createdAt"`
 }
 
-// PolicyCapabilitiesResponse 是当前后端支持的路由策略能力响应
-type PolicyCapabilitiesResponse struct {
-	Policies []PolicyOption `json:"policies"`
+// CreateRouteReq 是创建 Route 的请求体
+type CreateRouteReq struct {
+	GatewayIDs []string    `json:"gatewayIDs"`
+	Hostnames  []string    `json:"hostnames"`
+	Enabled    *bool       `json:"enabled,omitempty"`
+	Rules      []RouteRule `json:"rules"`
 }
 
-// PolicyOption 是路由策略候选项
-type PolicyOption struct {
-	Capability  RoutePolicyCapability `json:"capability"`
-	DisplayName string                `json:"displayName"`
-	Meta        string                `json:"meta"`
-	Enabled     bool                  `json:"enabled"`
-	Params      []PolicyParam         `json:"params"`
+// UpdateRouteReq 是更新 Route 的请求体
+type UpdateRouteReq struct {
+	Version string `json:"version"`
+	CreateRouteReq
 }
 
-// PolicyParam 是路由策略参数定义
-type PolicyParam struct {
-	Key          string   `json:"key"`
-	Label        string   `json:"label"`
-	DefaultValue string   `json:"defaultValue"`
-	InputType    string   `json:"inputType,omitempty"`
-	Placeholder  string   `json:"placeholder,omitempty"`
-	Required     bool     `json:"required,omitempty"`
-	Options      []string `json:"options,omitempty"`
-	Unit         string   `json:"unit,omitempty"`
-	Min          int      `json:"min,omitempty"`
-	Max          int      `json:"max,omitempty"`
+// RouteRule 是控制台读写的一条 Route 规则
+type RouteRule struct {
+	Name                   string             `json:"name"`
+	PathPrefix             string             `json:"pathPrefix"`
+	Methods                []string           `json:"methods,omitempty"`
+	Headers                []HeaderMatchReq   `json:"headers,omitempty"`
+	Targets                []RouteTarget      `json:"targets"`
+	RequestHeaderModifier  *HeaderModifierReq `json:"requestHeaderModifier,omitempty"`
+	ResponseHeaderModifier *HeaderModifierReq `json:"responseHeaderModifier,omitempty"`
+	Timeout                *RouteTimeoutReq   `json:"timeout,omitempty"`
+	Retry                  *RouteRetryReq     `json:"retry,omitempty"`
 }
 
-// RouteRequest 是控制台创建或编辑 Route 的请求体
-type RouteRequest struct {
-	ID             string                 `json:"id,omitempty"`
-	Version        string                 `json:"version,omitempty"`
-	Methods        []HTTPMethod           `json:"methods"`
-	Path           string                 `json:"path"`
-	GatewayNames   []string               `json:"gatewayNames"`
-	Hostnames      []string               `json:"hostnames"`
-	ServiceName    string                 `json:"serviceName"`
-	Targets        []TargetService        `json:"targets,omitempty"`
-	Enabled        bool                   `json:"enabled"`
-	PolicyBindings []PolicyBindingRequest `json:"policyBindings"`
+// HeaderMatchReq 是控制台提交的 Header 精确匹配条件
+type HeaderMatchReq struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
-// TargetService 是路由转发到的目标服务及其权重
-type TargetService struct {
-	Name   string `json:"name"`
-	Weight int    `json:"weight"`
+// RouteTarget 是路由转发到的 Upstream 及其权重
+type RouteTarget struct {
+	UpstreamID string `json:"upstreamID"`
+	Weight     int    `json:"weight"`
 }
 
-// PolicyBindingRequest 是控制台提交的路由级策略绑定
-type PolicyBindingRequest struct {
-	Capability RoutePolicyCapability `json:"capability"`
-	Source     RoutePolicySource     `json:"source"`
-	Parameters map[string]any        `json:"parameters"`
+// HeaderModifierReq 是控制台提交的 Header 改写配置
+type HeaderModifierReq struct {
+	Set    []HeaderValueReq `json:"set,omitempty"`
+	Remove []string         `json:"remove,omitempty"`
 }
 
-// EnabledRequest 是控制台启停 Route 的请求体
-type EnabledRequest struct {
+// HeaderValueReq 是控制台提交的 Header 写入配置
+type HeaderValueReq struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// RouteTimeoutReq 是控制台提交的路由总超时配置
+type RouteTimeoutReq struct {
+	RequestMillis int `json:"requestMillis"`
+}
+
+// RouteRetryReq 是控制台提交的失败重试配置
+type RouteRetryReq struct {
+	Attempts            int `json:"attempts"`
+	PerTryTimeoutMillis int `json:"perTryTimeoutMillis"`
+}
+
+// SetRouteEnabledReq 是控制台启停 Route 的请求体
+type SetRouteEnabledReq struct {
 	Enabled *bool `json:"enabled"`
 }
 
-// MutationResponse 是 Route 变更接口响应
-type MutationResponse struct {
+// CreateRouteResp 是创建 Route 的响应
+type CreateRouteResp struct {
+	Success bool   `json:"success"`
+	ID      string `json:"id"`
+}
+
+// UpdateRouteResp 是更新 Route 的响应
+type UpdateRouteResp struct {
+	Success bool `json:"success"`
+}
+
+// SetRouteEnabledResp 是启停 Route 的响应
+type SetRouteEnabledResp struct {
+	Success bool `json:"success"`
+}
+
+// DeleteRouteResp 是删除 Route 的响应
+type DeleteRouteResp struct {
 	Success bool `json:"success"`
 }

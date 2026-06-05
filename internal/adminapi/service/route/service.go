@@ -3,7 +3,9 @@ package route
 import (
 	"context"
 	"fmt"
-	"strconv"
+
+	"github.com/google/uuid"
+	"github.com/samber/lo"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
@@ -11,6 +13,7 @@ import (
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 )
 
@@ -36,8 +39,8 @@ func (s *Service) List(ctx context.Context) (*ListResult, error) {
 }
 
 // Get 查询单个 Route
-func (s *Service) Get(ctx context.Context, name string) (*RouteResult, error) {
-	route, err := s.store.Get(ctx, name)
+func (s *Service) Get(ctx context.Context, routeID string) (*RouteResult, error) {
+	route, err := s.store.Get(ctx, routeID)
 	if err != nil {
 		return nil, err
 	}
@@ -45,52 +48,63 @@ func (s *Service) Get(ctx context.Context, name string) (*RouteResult, error) {
 }
 
 // Create 创建 Route
-func (s *Service) Create(ctx context.Context, route *resource.Route) error {
+func (s *Service) Create(ctx context.Context, params CreateRouteParams) (string, error) {
+	route := &resource.Route{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindRoute),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: uuid.NewString(),
+		},
+		Spec: routeSpec(params),
+	}
 	if err := s.validateReferences(ctx, route); err != nil {
-		return err
+		return "", err
 	}
 	_, err := s.store.Create(ctx, route)
 	if apierrors.IsAlreadyExists(err) {
-		return xerrors.NewUserError(fmt.Sprintf("路由 %q 已存在", route.Name))
+		return "", xerrors.NewUserError(fmt.Sprintf("路由 %q 已存在", route.Name))
 	}
-	return err
+	if err != nil {
+		return "", err
+	}
+	return route.Name, nil
 }
 
 // Update 更新 Route
-func (s *Service) Update(ctx context.Context, name string, route *resource.Route) error {
-	if route.Name != name {
-		return xerrors.NewUserError("路由名称不能修改")
+func (s *Service) Update(ctx context.Context, routeID string, params UpdateRouteParams) error {
+	if params.Version == "" {
+		return xerrors.NewUserError("路由版本不能为空")
 	}
-	if err := s.validateReferences(ctx, route); err != nil {
-		return err
-	}
-
-	current, err := s.store.Get(ctx, name)
+	current, err := s.store.Get(ctx, routeID)
 	if err != nil {
 		return err
 	}
-	if err := validateVersion(resource.ResourceRoutes, name, route.ResourceVersion, current.ResourceVersion); err != nil {
+	if err := validateVersion(resource.ResourceRoutes, routeID, params.Version, current.ResourceVersion); err != nil {
 		return err
 	}
+
+	spec := routeSpec(params.CreateRouteParams)
 	next := current.DeepCopy()
-	applyRouteUpdate(next, route)
+	next.Spec = spec
+	if err := s.validateReferences(ctx, next); err != nil {
+		return err
+	}
 	_, err = s.store.Update(ctx, next)
 	return err
 }
 
 // SetEnabled 更新 Route 启停状态
-func (s *Service) SetEnabled(ctx context.Context, name string, enabled bool) error {
+func (s *Service) SetEnabled(ctx context.Context, routeID string, enabled bool) error {
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.store.Get(ctx, name)
+		current, err := s.store.Get(ctx, routeID)
 		if err != nil {
 			return err
 		}
 
 		next := current.DeepCopy()
-		if next.Annotations == nil {
-			next.Annotations = map[string]string{}
-		}
-		next.Annotations[resource.AnnotationRouteEnabled] = strconv.FormatBool(enabled)
+		next.Spec.Enabled = enabled
 
 		_, err = s.store.Update(ctx, next)
 		return err
@@ -98,15 +112,15 @@ func (s *Service) SetEnabled(ctx context.Context, name string, enabled bool) err
 }
 
 // Delete 删除 Route
-func (s *Service) Delete(ctx context.Context, name string) error {
-	return s.store.Delete(ctx, name)
+func (s *Service) Delete(ctx context.Context, routeID string) error {
+	return s.store.Delete(ctx, routeID)
 }
 
 func (s *Service) validateReferences(ctx context.Context, route *resource.Route) error {
-	for _, gatewayName := range route.Spec.ParentRefs {
-		if _, err := s.gateways.Get(ctx, gatewayName); err != nil {
+	for _, parentRef := range route.Spec.ParentRefs {
+		if _, err := s.gateways.Get(ctx, parentRef.Name); err != nil {
 			if apierrors.IsNotFound(err) {
-				return xerrors.NewUserError(fmt.Sprintf("关联网关 %q 不存在", gatewayName))
+				return xerrors.NewUserError(fmt.Sprintf("关联网关 %q 不存在", parentRef.Name))
 			}
 			return err
 		}
@@ -124,25 +138,89 @@ func (s *Service) validateReferences(ctx context.Context, route *resource.Route)
 	return nil
 }
 
-func applyRouteUpdate(next *resource.Route, submitted *resource.Route) {
-	next.Spec = submitted.Spec
-	if next.Annotations == nil {
-		next.Annotations = map[string]string{}
+func routeSpec(params CreateRouteParams) resource.RouteSpec {
+	return resource.RouteSpec{
+		Enabled:    params.Enabled,
+		ParentRefs: parentRefs(params.GatewayIDs),
+		Hostnames:  params.Hostnames,
+		Rules:      routeRules(params.Rules),
 	}
-	for _, key := range []string{
-		resource.AnnotationRouteEnabled,
-	} {
-		delete(next.Annotations, key)
-	}
-	for key, value := range submitted.Annotations {
-		if key == resource.AnnotationRouteEnabled {
-			next.Annotations[key] = value
+}
+
+func routeRules(params []RouteRuleParams) []resource.RouteRule {
+	rules := make([]resource.RouteRule, 0, len(params))
+	for _, item := range params {
+		rule := resource.RouteRule{
+			Name:         item.Name,
+			PathPrefix:   item.PathPrefix,
+			Methods:      item.Methods,
+			Headers:      headerMatches(item.Headers),
+			UpstreamRefs: upstreamRefs(item.Targets),
 		}
+		if item.RequestHeaderModifier != nil {
+			rule.Filters = append(rule.Filters, resource.RouteFilter{
+				Type:                  resource.RouteFilterRequestHeaderModifier,
+				RequestHeaderModifier: headerModifier(item.RequestHeaderModifier),
+			})
+		}
+		if item.ResponseHeaderModifier != nil {
+			rule.Filters = append(rule.Filters, resource.RouteFilter{
+				Type:                   resource.RouteFilterResponseHeaderModifier,
+				ResponseHeaderModifier: headerModifier(item.ResponseHeaderModifier),
+			})
+		}
+		if item.Timeout != nil {
+			rule.Timeout = &resource.RouteTimeout{RequestMillis: item.Timeout.RequestMillis}
+		}
+		if item.Retry != nil {
+			rule.Retry = &resource.RouteRetry{
+				Attempts:            item.Retry.Attempts,
+				PerTryTimeoutMillis: item.Retry.PerTryTimeoutMillis,
+			}
+		}
+		rules = append(rules, rule)
+	}
+	return rules
+}
+
+func parentRefs(gatewayIDs []string) []resource.ParentRef {
+	return lo.Map(gatewayIDs, func(gatewayID string, _ int) resource.ParentRef {
+		return resource.ParentRef{Name: gatewayID}
+	})
+}
+
+func upstreamRefs(targets []TargetParams) []resource.UpstreamRef {
+	return lo.Map(targets, func(target TargetParams, _ int) resource.UpstreamRef {
+		return resource.UpstreamRef{
+			Name:   target.UpstreamID,
+			Weight: target.Weight,
+		}
+	})
+}
+
+func headerMatches(headers []HeaderMatchParams) []resource.HeaderMatch {
+	return lo.Map(headers, func(header HeaderMatchParams, _ int) resource.HeaderMatch {
+		return resource.HeaderMatch{
+			Name:  header.Name,
+			Value: header.Value,
+		}
+	})
+}
+
+func headerModifier(params *HeaderModifierParams) *resource.HeaderModifier {
+	return &resource.HeaderModifier{
+		Set: lo.Map(params.Set, func(header HeaderValueParams, _ int) resource.HeaderValue {
+			return resource.HeaderValue{
+				Name:  header.Name,
+				Value: header.Value,
+			}
+		}),
+		Remove: params.Remove,
 	}
 }
 
 func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {
-	if submittedVersion == "" || submittedVersion == currentVersion {
+	if submittedVersion == currentVersion {
 		return nil
 	}
 	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))

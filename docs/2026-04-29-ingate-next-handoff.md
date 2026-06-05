@@ -40,7 +40,7 @@ docs/superpowers/specs/2026-06-05-route-policy-plugin-model-design.md
 - Policy 治理策略：认证、限流、访问控制等可复用、可审计、可绑定能力使用独立 Policy 资源和 `PolicyBinding`
 - Plugin 扩展能力：AI proxy、内容安全、Token 统计、OPA、自定义响应等运行时扩展使用 `Plugin` 和 `PluginBinding`
 
-控制台可以继续使用“策略配置”作为产品语言，但 admin-api 保存时必须拆成正式声明式资源。compiler 不能依赖控制台中文展示名或任意表单 JSON。
+控制台可以继续使用“策略配置”作为产品语言，但 admin-api 保存时必须拆成正式声明式资源。Route 创建/更新接口只保存 Route 原生能力；认证、限流、访问控制和插件能力通过独立 `PolicyBinding`、`PluginBinding` 接口保存。compiler 不能依赖控制台中文展示名或任意表单 JSON。
 
 ## 当前代码状态
 

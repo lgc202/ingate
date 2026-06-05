@@ -38,7 +38,7 @@
 - Modify if needed: `web/console/src/features/routes/composer.ts`
 
 - [x] 目标服务使用 `composer.targets`
-- [x] 网关候选使用 `composer.gatewayNames` 和现有路由网关
+- [x] 网关候选使用 `composer.gatewayIDs` 和现有路由网关
 - [x] 编辑时带上 route `id` 与 `version`
 - [x] 新建保存后按后端命名规则选中新路由
 

@@ -38,7 +38,7 @@ func upstreamFromResource(upstream *resource.Upstream, routes []resource.Route) 
 	return Upstream{
 		ID:               upstream.Name,
 		Version:          upstream.ResourceVersion,
-		Name:             upstream.Name,
+		Name:             upstreamDisplayName(upstream),
 		Type:             serviceType(upstream.Annotations),
 		Endpoint:         endpointSummary(endpoints),
 		Instances:        instanceSummary(endpoints),
@@ -47,9 +47,16 @@ func upstreamFromResource(upstream *resource.Upstream, routes []resource.Route) 
 		ReferencedRoutes: referencedRoutes(upstream.Name, routes),
 		Traffic:          "-",
 		SuccessRate:      "-",
-		LastUpdatedAt:    lastChangedAt(upstream.ObjectMeta),
+		CreatedAt:        createdAt(upstream.ObjectMeta),
 		Endpoints:        endpoints,
 	}
+}
+
+func upstreamDisplayName(upstream *resource.Upstream) string {
+	if upstream.Spec.DisplayName != "" {
+		return upstream.Spec.DisplayName
+	}
+	return upstream.Name
 }
 
 func serviceType(annotations map[string]string) ServiceType {
@@ -143,20 +150,20 @@ func runtimeStatus() string {
 	return "unknown"
 }
 
-func referencedRoutes(upstreamName string, routes []resource.Route) int {
+func referencedRoutes(upstreamID string, routes []resource.Route) int {
 	count := 0
 	for _, route := range routes {
-		if routeReferencesUpstream(route, upstreamName) {
+		if routeReferencesUpstream(route, upstreamID) {
 			count++
 		}
 	}
 	return count
 }
 
-func routeReferencesUpstream(route resource.Route, upstreamName string) bool {
+func routeReferencesUpstream(route resource.Route, upstreamID string) bool {
 	for _, rule := range route.Spec.Rules {
 		if slices.ContainsFunc(rule.UpstreamRefs, func(ref resource.UpstreamRef) bool {
-			return ref.Name == upstreamName
+			return ref.Name == upstreamID
 		}) {
 			return true
 		}
@@ -171,7 +178,7 @@ func annotation(annotations map[string]string, key string) string {
 	return annotations[key]
 }
 
-func lastChangedAt(metadata metav1.ObjectMeta) string {
+func createdAt(metadata metav1.ObjectMeta) string {
 	if metadata.CreationTimestamp.IsZero() {
 		return ""
 	}

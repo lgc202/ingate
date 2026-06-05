@@ -137,8 +137,9 @@ type PolicyBindingSpec struct {
 }
 
 type PolicyTargetRef struct {
-	Kind Kind   `json:"kind"`
-	Name string `json:"name"`
+	Kind     Kind   `json:"kind"`
+	Name     string `json:"name"`
+	RuleName string `json:"ruleName,omitempty"`
 }
 
 type PolicyRef struct {
@@ -204,6 +205,7 @@ type PluginRef struct {
 - 版本
 - 入口或镜像
 - 生效目标
+- 需要精确到 RouteRule 时使用稳定 `ruleName`
 - 执行阶段
 - 优先级
 - 失败策略
@@ -227,13 +229,68 @@ Ingate 不需要照搬 Higress：
 
 控制台可以继续用“策略配置”作为用户语言，因为用户关心的是治理、改写、安全和观测能力。
 
-但 admin-api 保存时必须拆成正式资源：
+但 admin-api 保存时必须拆成正式资源。创建或更新 Route 时，只保存 Route 自身的匹配、目标和原生能力，不夹带治理 Policy 或 Plugin 绑定。
 
 ```text
-控制台 Route 策略面板
+控制台 Route 创建/编辑
   |
-  |-- Header 改写 / 超时 / 重试 / URL rewrite
+  |-- Gateway / Host / Rule / Upstream / Header 改写 / 超时 / 重试 / URL rewrite
   |     -> RouteSpec rule filters / timeout / retry
+```
+
+建议 Route 保存 DTO 直接贴近 `RouteSpec` 的长期边界：
+
+```go
+type CreateRouteReq struct {
+	GatewayIDs []string       `json:"gatewayIDs"`
+	Hostnames  []string       `json:"hostnames"`
+	Enabled    *bool          `json:"enabled,omitempty"`
+	Rules      []RouteRule    `json:"rules"`
+}
+
+type UpdateRouteReq struct {
+	Version string `json:"version"`
+	CreateRouteReq
+}
+
+type RouteRule struct {
+	Name       string           `json:"name"`
+	PathPrefix string           `json:"pathPrefix"`
+	Methods    []string         `json:"methods,omitempty"`
+	Headers    []HeaderMatchReq `json:"headers,omitempty"`
+	Targets    []RouteTarget    `json:"targets"`
+
+	RequestHeaderModifier  *HeaderModifierReq `json:"requestHeaderModifier,omitempty"`
+	ResponseHeaderModifier *HeaderModifierReq `json:"responseHeaderModifier,omitempty"`
+	Timeout                *RouteTimeoutReq   `json:"timeout,omitempty"`
+	Retry                  *RouteRetryReq     `json:"retry,omitempty"`
+}
+
+type HeaderModifierReq struct {
+	Set    []HeaderValueReq `json:"set,omitempty"`
+	Remove []string         `json:"remove,omitempty"`
+}
+
+type RouteTarget struct {
+	UpstreamID string `json:"upstreamID"`
+	Weight     int    `json:"weight"`
+}
+```
+
+`ServiceName` 不应继续和 `Targets` 并存。Route target 引用稳定 Upstream ID，不引用展示名。单目标路由也使用 `Targets` 表达：
+
+```json
+{
+  "targets": [{ "upstreamID": "550e8400-e29b-41d4-a716-446655440000", "weight": 100 }]
+}
+```
+
+Upstream 自身使用后端生成的 `metadata.name` 作为稳定 ID，用户输入名称保存到 `spec.displayName`。声明式资源内部仍使用 `UpstreamRef.Name` 引用 Upstream 的 `metadata.name`。
+
+治理策略和插件由独立接口保存：
+
+```text
+控制台策略/插件配置
   |
   |-- API Key 鉴权 / 限流 / IP 访问控制
   |     -> AuthPolicy / RateLimitPolicy / AccessControlPolicy + PolicyBinding
@@ -242,17 +299,19 @@ Ingate 不需要照搬 Higress：
         -> Plugin / PluginBinding 或 AI 专用资源编译出的 PluginBinding
 ```
 
-因此 `composer.policies` 这类接口可以继续给前端返回产品化能力目录，但目录项必须包含稳定的 `kind` 或 `capability`：
+如果产品上希望在“创建路由向导”里同时配置限流、认证或插件，前端可以保持一体化体验，但提交时应拆成多次调用：
 
-```json
-{
-  "capability": "RequestHeaderModifier",
-  "source": "RouteNative",
-  "displayName": "请求 Header 改写"
-}
+```text
+1. POST /routes
+2. POST /policy-bindings
+3. POST /plugin-bindings
 ```
 
-`displayName` 只用于显示，不进入 compiler 判断逻辑。
+这样用户体验可以是一个流程，后端模型仍保持 Route、Policy、Plugin 的独立生命周期。
+
+后端不提供 `route-policy-capabilities` 这类产品能力目录接口。策略目录、展示名称、表单分组和默认参数属于控制台产品配置，由前端维护或由未来专门的产品配置服务提供；admin-api 只接收稳定的资源保存 DTO。
+
+`displayName` 只用于显示，不进入 admin-api、compiler 或 target translator 的判断逻辑。
 
 ## 编译链路
 
@@ -295,10 +354,11 @@ compiler 不再解析：
 
 1. 删除 `route.ingate.io/policy-bindings` 运行主链路
 2. 将 Header 改写、超时、重试迁入 `RouteRule` 强类型字段
-3. admin-api Route DTO 转换为正式 `RouteSpec`
+3. admin-api Route DTO 收敛为 `Rules []RouteRule`，转换为正式 `RouteSpec`
 4. compiler 只从 `RouteSpec` 读取 route 原生能力
 5. xDS translator 继续从 IR 生成 Envoy route action 和 header action
-6. 后续再补真正的 `PolicyBinding` 和 `PluginBinding` 产品接口
+6. 删除后端 `route-policy-capabilities` 产品能力目录接口
+7. 后续再补真正的 `PolicyBinding` 和 `PluginBinding` 产品接口
 
 历史 plan `docs/superpowers/plans/2026-06-02-route-policy-runtime.md` 是 MVP 验证方案，后续实现应以本文档为准。
 
@@ -320,10 +380,10 @@ compiler 不再解析：
 建议按以下顺序实施：
 
 1. 重构 `RouteRule` 原生能力模型，替换当前 annotation 策略
-2. 调整 admin-api route DTO 和控制台 repository，使其写入新 `RouteSpec`
-3. 调整 compiler 和 IR，删除 `route_policy.go` 的 annotation 解析
-4. 调整 xDS translator 和 ADS response 生成，保持运行行为不退化
-5. 为 `PolicyBinding` 明确只承载可复用治理策略
-6. 为 `PluginBinding` 明确只承载插件执行和绑定语义
-7. 更新前端策略面板，使用户语言和后端模型显式解耦
-
+2. 调整 admin-api route DTO 为 `GatewayIDs / Hostnames / Enabled / Rules`，去掉 `ServiceName` 和顶层 route 原生能力字段
+3. 调整控制台 repository，使 Route 保存只提交 Route 原生能力；策略目录不再来自 admin-api
+4. 调整 compiler 和 IR，删除 `route_policy.go` 的 annotation 解析
+5. 调整 xDS translator 和 ADS response 生成，保持运行行为不退化
+6. 为 `PolicyBinding` 明确只承载可复用治理策略，支持绑定到 Gateway、Route、Upstream，必要时精确到 RouteRule
+7. 为 `PluginBinding` 明确只承载插件执行和绑定语义，支持 target、phase、priority、failurePolicy 的结构化配置
+8. 更新前端策略面板，使用户语言和后端模型显式解耦：一个向导可以触发 Route、PolicyBinding、PluginBinding 多次保存

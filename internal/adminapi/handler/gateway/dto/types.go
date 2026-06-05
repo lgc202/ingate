@@ -87,21 +87,21 @@ type GatewaySummary struct {
 	HostBindings       []GatewayHostBinding `json:"hostBindings"`
 	Enabled            bool                 `json:"enabled"`
 	HealthStatus       string               `json:"healthStatus"`
-	LastChangedAt      string               `json:"lastChangedAt"`
+	CreatedAt          string               `json:"createdAt"`
 }
 
 // GatewayDetail 是详情页使用的 Gateway 配置视图
 type GatewayDetail struct {
-	ID            string               `json:"id"`
-	Version       string               `json:"version,omitempty"`
-	DisplayName   string               `json:"displayName"`
-	Description   string               `json:"description"`
-	RuntimeGroup  string               `json:"runtimeGroup"`
-	Listeners     []GatewayListener    `json:"listeners"`
-	HostBindings  []GatewayHostBinding `json:"hostBindings"`
-	Enabled       bool                 `json:"enabled"`
-	HealthStatus  string               `json:"healthStatus"`
-	LastChangedAt string               `json:"lastChangedAt"`
+	ID           string               `json:"id"`
+	Version      string               `json:"version,omitempty"`
+	DisplayName  string               `json:"displayName"`
+	Description  string               `json:"description"`
+	RuntimeGroup string               `json:"runtimeGroup"`
+	Listeners    []GatewayListener    `json:"listeners"`
+	HostBindings []GatewayHostBinding `json:"hostBindings"`
+	Enabled      bool                 `json:"enabled"`
+	HealthStatus string               `json:"healthStatus"`
+	CreatedAt    string               `json:"createdAt"`
 }
 
 // GatewayListener 是响应中的监听器配置

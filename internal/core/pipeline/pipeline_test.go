@@ -43,7 +43,8 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
-					ParentRefs: []string{"public"},
+					Enabled:    true,
+					ParentRefs: []resource.ParentRef{{Name: "public"}},
 					Hostnames:  []string{"example.com"},
 					Rules: []resource.RouteRule{
 						{
@@ -159,7 +160,8 @@ func TestPipelineBuildGatewaySnapshotForTarget(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
-					ParentRefs: []string{"public"},
+					Enabled:    true,
+					ParentRefs: []resource.ParentRef{{Name: "public"}},
 					Rules: []resource.RouteRule{
 						{
 							PathPrefix: "/app",
