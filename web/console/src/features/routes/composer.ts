@@ -1,6 +1,7 @@
 import type {
   HttpMethod,
   RouteComposerPreview,
+  RoutePolicyCapability,
   RoutePublishPayload,
   RoutePublishPreview,
   RouteTargetPayload,
@@ -24,12 +25,12 @@ export interface RouteComposerDraft {
   enabled: boolean;
   rateLimit: string;
   timeout: string;
-  enabledPolicyNames: string[];
+  enabledPolicyCapabilities: RoutePolicyCapability[];
   policySettings: Record<string, Record<string, string>>;
 }
 
 export function createRouteComposerDraft(template: RouteComposerPreview): RouteComposerDraft {
-  const enabledPolicyNames = template.policies.filter((policy) => policy.enabled).map((policy) => policy.name);
+  const enabledPolicyCapabilities = template.policies.filter((policy) => policy.enabled).map((policy) => policy.capability);
   const targetServices = normalizeTargetServices(template.targets, template.serviceName ? [{ name: template.serviceName, weight: defaultTargetWeight }] : []);
 
   return {
@@ -42,9 +43,9 @@ export function createRouteComposerDraft(template: RouteComposerPreview): RouteC
     enabled: true,
     rateLimit: template.rateLimit,
     timeout: '30s',
-    enabledPolicyNames,
+    enabledPolicyCapabilities,
     policySettings: Object.fromEntries(template.policies.map((policy) => [
-      policy.name,
+      policy.capability,
       Object.fromEntries(policy.params.map((param) => [param.key, param.defaultValue])),
     ])),
   };
@@ -94,13 +95,13 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteVali
 export function buildRoutePublishPreview(template: RouteComposerPreview, draft: RouteComposerDraft): RoutePublishPreview {
   return {
     title: `${formatMethods(draft.methods)} ${draft.path}`,
-    subtitle: `目标服务 ${formatTargetServices(draft.targetServices)} · 策略 ${draft.enabledPolicyNames.length} 个`,
+    subtitle: `目标服务 ${formatTargetServices(draft.targetServices)} · 策略 ${draft.enabledPolicyCapabilities.length} 个`,
     diffs: [
       { before: `methods: ${formatMethods(template.methods)}`, after: `methods: ${formatMethods(draft.methods)}` },
       { before: `path: ${template.path}`, after: `path: ${draft.path}` },
       { before: `hostnames: ${template.hostnames.join(', ') || '不限制'}`, after: `hostnames: ${draft.hostnames.join(', ') || '不限制'}` },
       { before: `service: ${template.serviceName}`, after: `service: ${formatTargetServices(draft.targetServices)}` },
-      { before: `policy_bindings: ${template.policyCount}`, after: `policy_bindings: ${draft.enabledPolicyNames.length}` },
+      { before: `policy_bindings: ${template.policyCount}`, after: `policy_bindings: ${draft.enabledPolicyCapabilities.length}` },
     ],
   };
 }
@@ -116,10 +117,10 @@ export function buildRoutePublishPayload(draft: RouteComposerDraft): RoutePublis
     serviceName: draft.targetServices[0]?.name ?? draft.serviceName,
     targets: draft.targetServices,
     enabled: draft.enabled,
-    policyBindings: draft.enabledPolicyNames.map((policyName) => ({
-      policyName,
-      source: 'route',
-      parameters: serializePolicyParameters(draft.policySettings[policyName] ?? {}),
+    policyBindings: draft.enabledPolicyCapabilities.map((capability) => ({
+      capability,
+      source: 'RouteNative',
+      parameters: serializePolicyParameters(draft.policySettings[capability] ?? {}),
     })),
   };
 }

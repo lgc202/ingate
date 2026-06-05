@@ -47,10 +47,11 @@ type PolicyCapabilitiesResponse struct {
 
 // PolicyOption 是路由策略候选项
 type PolicyOption struct {
-	Name    string        `json:"name"`
-	Meta    string        `json:"meta"`
-	Enabled bool          `json:"enabled"`
-	Params  []PolicyParam `json:"params"`
+	Capability  RoutePolicyCapability `json:"capability"`
+	DisplayName string                `json:"displayName"`
+	Meta        string                `json:"meta"`
+	Enabled     bool                  `json:"enabled"`
+	Params      []PolicyParam         `json:"params"`
 }
 
 // PolicyParam 是路由策略参数定义
@@ -89,9 +90,9 @@ type TargetService struct {
 
 // PolicyBindingRequest 是控制台提交的路由级策略绑定
 type PolicyBindingRequest struct {
-	PolicyName string         `json:"policyName"`
-	Source     string         `json:"source"`
-	Parameters map[string]any `json:"parameters"`
+	Capability RoutePolicyCapability `json:"capability"`
+	Source     RoutePolicySource     `json:"source"`
+	Parameters map[string]any        `json:"parameters"`
 }
 
 // EnabledRequest 是控制台启停 Route 的请求体

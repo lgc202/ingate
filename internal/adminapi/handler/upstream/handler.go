@@ -42,8 +42,9 @@ func (h *Handler) Get(ctx *gin.Context) {
 
 // Create 创建 Upstream
 func (h *Handler) Create(ctx *gin.Context) {
-	request, ok := h.upstreamRequest(ctx)
-	if !ok {
+	request, err := h.upstreamRequest(ctx)
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
 		return
 	}
 	upstream, err := request.Resource()
@@ -58,8 +59,9 @@ func (h *Handler) Create(ctx *gin.Context) {
 
 // Update 更新 Upstream
 func (h *Handler) Update(ctx *gin.Context) {
-	request, ok := h.upstreamRequest(ctx)
-	if !ok {
+	request, err := h.upstreamRequest(ctx)
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
 		return
 	}
 	upstream, err := request.Resource()
@@ -78,15 +80,13 @@ func (h *Handler) Delete(ctx *gin.Context) {
 	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
 }
 
-func (h *Handler) upstreamRequest(ctx *gin.Context) (dto.UpstreamRequest, bool) {
+func (h *Handler) upstreamRequest(ctx *gin.Context) (dto.UpstreamRequest, error) {
 	request := dto.UpstreamRequest{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
-		response.WriteResult(ctx, nil, apierrors.NewBadRequest("invalid service request body"))
-		return dto.UpstreamRequest{}, false
+		return dto.UpstreamRequest{}, apierrors.NewBadRequest("invalid service request body")
 	}
 	if err := request.Validate(); err != nil {
-		response.WriteResult(ctx, nil, err)
-		return dto.UpstreamRequest{}, false
+		return dto.UpstreamRequest{}, err
 	}
-	return request, true
+	return request, nil
 }

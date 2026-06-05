@@ -27,22 +27,34 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		Routes: []resource.Route{
 			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "app",
-					Annotations: map[string]string{
-						resource.AnnotationRoutePolicyBindings: `[{"policyName":"请求 Header 改写","source":"route","parameters":{"setHeadersOn":["x-ingate-tenant"],"value":"acme","removeHeadersOn":["x-debug-token"]}},{"policyName":"超时控制","source":"route","parameters":{"timeoutMillis":"1500"}},{"policyName":"失败重试","source":"route","parameters":{"attempts":"2","perTryTimeoutMillis":"500"}}]`,
-					},
-				},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 					Hostnames:  []string{"example.com"},
 					Rules: []resource.RouteRule{
 						{
-							PathPrefix:    "/app",
-							Methods:       []string{"GET", "POST"},
-							TimeoutMillis: 3000,
+							PathPrefix: "/app",
+							Methods:    []string{"GET", "POST"},
+							Timeout: &resource.RouteTimeout{
+								RequestMillis: 1500,
+							},
+							Retry: &resource.RouteRetry{
+								Attempts:            2,
+								PerTryTimeoutMillis: 500,
+							},
 							Headers: []resource.HeaderMatch{
 								{Name: "x-tenant", Value: "acme"},
+							},
+							Filters: []resource.RouteFilter{
+								{
+									Type: resource.RouteFilterRequestHeaderModifier,
+									RequestHeaderModifier: &resource.HeaderModifier{
+										Set: []resource.HeaderValue{
+											{Name: "x-ingate-tenant", Value: "acme"},
+										},
+										Remove: []string{"x-debug-token"},
+									},
+								},
 							},
 							UpstreamRefs: []resource.UpstreamRef{
 								{Name: "app", Weight: 100},
@@ -365,24 +377,22 @@ func TestCompilerCompileGatewayMissingAIProvider(t *testing.T) {
 	}
 }
 
-func TestCompilerCompileGatewayUnsupportedRoutePolicy(t *testing.T) {
+func TestCompilerCompileGatewayUnsupportedRouteFilter(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
 			{ObjectMeta: metav1.ObjectMeta{Name: "public"}},
 		},
 		Routes: []resource.Route{
 			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "app",
-					Annotations: map[string]string{
-						resource.AnnotationRoutePolicyBindings: `[{"policyName":"不存在的策略","source":"route","parameters":{}}]`,
-					},
-				},
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.RouteSpec{
 					ParentRefs: []string{"public"},
 					Rules: []resource.RouteRule{
 						{
 							PathPrefix: "/app",
+							Filters: []resource.RouteFilter{
+								{Type: resource.RouteFilterURLRewrite},
+							},
 							UpstreamRefs: []resource.UpstreamRef{
 								{Name: "app", Weight: 100},
 							},
@@ -400,7 +410,7 @@ func TestCompilerCompileGatewayUnsupportedRoutePolicy(t *testing.T) {
 	if err == nil {
 		t.Fatal("CompileGateway() error = nil")
 	}
-	if !strings.Contains(err.Error(), `route "app" has unsupported policy "不存在的策略"`) {
+	if !strings.Contains(err.Error(), `route "app" has unsupported route filter "URLRewrite"`) {
 		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }

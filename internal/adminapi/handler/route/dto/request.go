@@ -1,7 +1,6 @@
 package dto
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -14,31 +13,11 @@ import (
 
 const defaultRouteTimeoutMillis = 30000
 
-const (
-	routePolicySourceRoute              = "route"
-	routePolicyRequestHeaderRewriteName = "请求 Header 改写"
-	routePolicyTimeoutName              = "超时控制"
-	routePolicyRetryName                = "失败重试"
-
-	paramSetHeadersOn        = "setHeadersOn"
-	paramHeaderValue         = "value"
-	paramRemoveHeadersOn     = "removeHeadersOn"
-	paramTimeoutMillis       = "timeoutMillis"
-	paramRetryAttempts       = "attempts"
-	paramPerTryTimeoutMillis = "perTryTimeoutMillis"
-	minRouteTimeoutMillis    = 100
-	maxRouteTimeoutMillis    = 300000
-	minRetryAttempts         = 1
-	maxRetryAttempts         = 5
-	minPerTryTimeoutMillis   = 100
-	maxPerTryTimeoutMillis   = 60000
-)
-
 // Resource 将已校验的控制台请求体转换为后端声明式 Route 资源
 func (r RouteRequest) Resource() (*resource.Route, error) {
-	policyBindings, err := json.Marshal(r.PolicyBindings)
+	rule, err := r.rule()
 	if err != nil {
-		return nil, fmt.Errorf("marshal route policy bindings: %w", err)
+		return nil, err
 	}
 
 	return &resource.Route{
@@ -50,22 +29,30 @@ func (r RouteRequest) Resource() (*resource.Route, error) {
 			Name:            r.name(),
 			ResourceVersion: strings.TrimSpace(r.Version),
 			Annotations: map[string]string{
-				resource.AnnotationRouteEnabled:        strconv.FormatBool(r.Enabled),
-				resource.AnnotationRoutePolicyBindings: string(policyBindings),
+				resource.AnnotationRouteEnabled: strconv.FormatBool(r.Enabled),
 			},
 		},
 		Spec: resource.RouteSpec{
 			ParentRefs: r.gatewayNames(),
 			Hostnames:  r.hostnames(),
-			Rules: []resource.RouteRule{{
-				PathPrefix:    strings.TrimSpace(r.Path),
-				Methods:       r.methods(),
-				TimeoutMillis: defaultRouteTimeoutMillis,
-				Headers:       []resource.HeaderMatch{},
-				UpstreamRefs:  r.upstreamRefs(),
-			}},
+			Rules:      []resource.RouteRule{rule},
 		},
 	}, nil
+}
+
+func (r RouteRequest) rule() (resource.RouteRule, error) {
+	rule := resource.RouteRule{
+		PathPrefix:   strings.TrimSpace(r.Path),
+		Methods:      r.methods(),
+		Headers:      []resource.HeaderMatch{},
+		UpstreamRefs: r.upstreamRefs(),
+	}
+	for _, binding := range r.PolicyBindings {
+		if err := binding.applyToRouteRule(&rule); err != nil {
+			return resource.RouteRule{}, err
+		}
+	}
+	return rule, nil
 }
 
 // Validate 校验控制台提交的 Route 请求体
@@ -131,22 +118,22 @@ func (r RouteRequest) validatePolicyBindings() error {
 	perTryTimeoutMillis := 0
 
 	for _, binding := range r.PolicyBindings {
-		if binding.Source != "" && binding.Source != routePolicySourceRoute {
+		if binding.Source != routePolicySourceNative {
 			return apierrors.NewBadRequest("route policy source is invalid")
 		}
 
-		switch binding.PolicyName {
-		case routePolicyRequestHeaderRewriteName:
+		switch binding.Capability {
+		case routePolicyRequestHeaderModifier:
 			if err := binding.validateHeaderRewrite(); err != nil {
 				return err
 			}
-		case routePolicyTimeoutName:
+		case routePolicyTimeout:
 			timeoutMillis, err := binding.intParameter(paramTimeoutMillis, minRouteTimeoutMillis, maxRouteTimeoutMillis)
 			if err != nil {
 				return err
 			}
 			totalTimeoutMillis = timeoutMillis
-		case routePolicyRetryName:
+		case routePolicyRetry:
 			if _, err := binding.intParameter(paramRetryAttempts, minRetryAttempts, maxRetryAttempts); err != nil {
 				return err
 			}
@@ -184,6 +171,67 @@ func (b PolicyBindingRequest) validateHeaderRewrite() error {
 	if len(setHeaders) == 0 && strings.TrimSpace(b.stringParameter(paramHeaderValue)) != "" {
 		return apierrors.NewBadRequest("header name is required")
 	}
+	return nil
+}
+
+func (b PolicyBindingRequest) applyToRouteRule(rule *resource.RouteRule) error {
+	if b.Source != routePolicySourceNative {
+		return apierrors.NewBadRequest("route policy source is invalid")
+	}
+
+	switch b.Capability {
+	case routePolicyRequestHeaderModifier:
+		return b.applyHeaderRewrite(rule)
+	case routePolicyTimeout:
+		timeoutMillis, err := b.intParameter(paramTimeoutMillis, minRouteTimeoutMillis, maxRouteTimeoutMillis)
+		if err != nil {
+			return err
+		}
+		rule.Timeout = &resource.RouteTimeout{RequestMillis: timeoutMillis}
+	case routePolicyRetry:
+		attempts, err := b.intParameter(paramRetryAttempts, minRetryAttempts, maxRetryAttempts)
+		if err != nil {
+			return err
+		}
+		perTryTimeoutMillis, err := b.intParameter(paramPerTryTimeoutMillis, minPerTryTimeoutMillis, maxPerTryTimeoutMillis)
+		if err != nil {
+			return err
+		}
+		rule.Retry = &resource.RouteRetry{
+			Attempts:            attempts,
+			PerTryTimeoutMillis: perTryTimeoutMillis,
+		}
+	default:
+		return apierrors.NewBadRequest("route policy is unsupported")
+	}
+	return nil
+}
+
+func (b PolicyBindingRequest) applyHeaderRewrite(rule *resource.RouteRule) error {
+	setHeaders, err := b.stringListParameter(paramSetHeadersOn)
+	if err != nil {
+		return err
+	}
+	removeHeaders, err := b.stringListParameter(paramRemoveHeadersOn)
+	if err != nil {
+		return err
+	}
+
+	modifier := resource.HeaderModifier{
+		Set:    make([]resource.HeaderValue, 0, len(setHeaders)),
+		Remove: removeHeaders,
+	}
+	value := b.stringParameter(paramHeaderValue)
+	for _, header := range setHeaders {
+		modifier.Set = append(modifier.Set, resource.HeaderValue{
+			Name:  header,
+			Value: value,
+		})
+	}
+	rule.Filters = append(rule.Filters, resource.RouteFilter{
+		Type:                  resource.RouteFilterRequestHeaderModifier,
+		RequestHeaderModifier: &modifier,
+	})
 	return nil
 }
 

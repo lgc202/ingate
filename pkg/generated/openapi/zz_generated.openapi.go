@@ -42,7 +42,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewayList":         schema_pkg_apis_gateway_v1_GatewayList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewaySpec":         schema_pkg_apis_gateway_v1_GatewaySpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch":         schema_pkg_apis_gateway_v1_HeaderMatch(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier":      schema_pkg_apis_gateway_v1_HeaderModifier(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderPair":          schema_pkg_apis_gateway_v1_HeaderPair(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":         schema_pkg_apis_gateway_v1_HeaderValue(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":            schema_pkg_apis_gateway_v1_Listener(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Plugin":              schema_pkg_apis_gateway_v1_Plugin(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PluginBinding":       schema_pkg_apis_gateway_v1_PluginBinding(ref),
@@ -62,9 +64,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicySpec": schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus":      schema_pkg_apis_gateway_v1_ResourceStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Route":               schema_pkg_apis_gateway_v1_Route(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteFilter":         schema_pkg_apis_gateway_v1_RouteFilter(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteList":           schema_pkg_apis_gateway_v1_RouteList(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry":          schema_pkg_apis_gateway_v1_RouteRetry(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule":           schema_pkg_apis_gateway_v1_RouteRule(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteSpec":           schema_pkg_apis_gateway_v1_RouteSpec(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout":        schema_pkg_apis_gateway_v1_RouteTimeout(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshot":     schema_pkg_apis_gateway_v1_RuntimeSnapshot(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshotList": schema_pkg_apis_gateway_v1_RuntimeSnapshotList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshotSpec": schema_pkg_apis_gateway_v1_RuntimeSnapshotSpec(ref),
@@ -1516,11 +1521,109 @@ func schema_pkg_apis_gateway_v1_HeaderMatch(ref common.ReferenceCallback) common
 	}
 }
 
+func schema_pkg_apis_gateway_v1_HeaderModifier(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HeaderModifier 表示 header 写入和删除动作",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"set": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue"),
+									},
+								},
+							},
+						},
+					},
+					"add": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue"),
+									},
+								},
+							},
+						},
+					},
+					"remove": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue"},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_HeaderPair(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
 				Description: "HeaderPair 表示要注入到上游请求的 header",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+				},
+				Required: []string{"name", "value"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_HeaderValue(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HeaderValue 表示 header 名和值",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
@@ -2388,6 +2491,39 @@ func schema_pkg_apis_gateway_v1_Route(ref common.ReferenceCallback) common.OpenA
 	}
 }
 
+func schema_pkg_apis_gateway_v1_RouteFilter(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "RouteFilter 声明命中 RouteRule 后执行的原生请求处理能力",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"requestHeaderModifier": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier"),
+						},
+					},
+					"responseHeaderModifier": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier"),
+						},
+					},
+				},
+				Required: []string{"type"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier"},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_RouteList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2437,6 +2573,50 @@ func schema_pkg_apis_gateway_v1_RouteList(ref common.ReferenceCallback) common.O
 	}
 }
 
+func schema_pkg_apis_gateway_v1_RouteRetry(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "RouteRetry 表示当前 RouteRule 的失败重试策略",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"attempts": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"perTryTimeoutMillis": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"retryOn": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2470,13 +2650,6 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 							},
 						},
 					},
-					"timeoutMillis": {
-						SchemaProps: spec.SchemaProps{
-							Default: 0,
-							Type:    []string{"integer"},
-							Format:  "int32",
-						},
-					},
 					"headers": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -2493,6 +2666,34 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 									},
 								},
 							},
+						},
+					},
+					"filters": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteFilter"),
+									},
+								},
+							},
+						},
+					},
+					"timeout": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout"),
+						},
+					},
+					"retry": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry"),
 						},
 					},
 					"upstreamRefs": {
@@ -2514,11 +2715,11 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 						},
 					},
 				},
-				Required: []string{"pathPrefix", "methods", "timeoutMillis", "headers", "upstreamRefs"},
+				Required: []string{"pathPrefix", "methods", "headers", "upstreamRefs"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteFilter", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
 	}
 }
 
@@ -2591,6 +2792,25 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 		},
 		Dependencies: []string{
 			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_RouteTimeout(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "RouteTimeout 表示当前 RouteRule 的请求总超时",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"requestMillis": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 

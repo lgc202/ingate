@@ -121,12 +121,11 @@ func applyRouteUpdate(next *resource.Route, submitted *resource.Route) {
 	}
 	for _, key := range []string{
 		resource.AnnotationRouteEnabled,
-		resource.AnnotationRoutePolicyBindings,
 	} {
 		delete(next.Annotations, key)
 	}
 	for key, value := range submitted.Annotations {
-		if key == resource.AnnotationRouteEnabled || key == resource.AnnotationRoutePolicyBindings {
+		if key == resource.AnnotationRouteEnabled {
 			next.Annotations[key] = value
 		}
 	}

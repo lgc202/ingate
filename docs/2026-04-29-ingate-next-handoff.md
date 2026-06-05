@@ -3,7 +3,7 @@
 本文档用于给后续 AI 对话快速恢复上下文。当前仓库路径：
 
 ```text
-/Users/guangcaili/workplace/code/lgc202/ingate
+/Users/lgc202/workspace/source/lgc202/ingate
 ```
 
 ## 项目目标
@@ -23,6 +23,24 @@ Ingate Next 是一次全新重写，不受旧项目 `../ingate` 的命名和实�
 - 使用 `Upstream`，不要使用 `Backend`
 - 使用 `Gateway / Route / Upstream` 作为第一批核心资源
 - `RuntimeSnapshot` 表示 controller 编译后给运行时 target 消费的配置快照
+
+## 最新模型决策
+
+Route、Policy 和 Plugin 的长期后端边界已经整理到：
+
+```text
+docs/superpowers/specs/2026-06-05-route-policy-plugin-model-design.md
+```
+
+后续不要继续扩展 `route.ingate.io/policy-bindings` annotation 方案。它只是早期验证控制台路由策略闭环的 MVP 路径。
+
+长期方向：
+
+- Route 原生能力：Header 改写、超时、重试、URL rewrite、mirror、CORS 等直接进入 `RouteSpec` 的强类型字段或 route filters
+- Policy 治理策略：认证、限流、访问控制等可复用、可审计、可绑定能力使用独立 Policy 资源和 `PolicyBinding`
+- Plugin 扩展能力：AI proxy、内容安全、Token 统计、OPA、自定义响应等运行时扩展使用 `Plugin` 和 `PluginBinding`
+
+控制台可以继续使用“策略配置”作为产品语言，但 admin-api 保存时必须拆成正式声明式资源。compiler 不能依赖控制台中文展示名或任意表单 JSON。
 
 ## 当前代码状态
 
@@ -454,11 +472,12 @@ make build
 可以直接使用下面这段作为下一轮对话起点：
 
 ```text
-你在 /Users/guangcaili/workplace/code/lgc202/ingate 仓库继续开发。
+你在 /Users/lgc202/workspace/source/lgc202/ingate 仓库继续开发。
 先阅读 AGENTS.md 和 docs/2026-04-29-ingate-next-handoff.md。
 当前项目是 Ingate 的全新重写，不要参考旧 ../ingate。
 已经完成 Gateway/Route/Upstream/RuntimeSnapshot 的 apiserver REST storage、generated client/informer/lister、controller informer watch、按 Gateway key reconcile、RuntimeSnapshot 写入，以及 ingate-xds watch RuntimeSnapshot 并响应 Envoy ADS。
 ingate-admin-api 已接入 Gin，并按 app/server/handler/service/store/pkg 分层，当前提供只读资源接口和 Gateway overview。
-下一步优先设计前端信息架构和页面流程，再反推 Admin API DTO 与 CRUD 契约；不要直接把 Kubernetes 风格资源对象作为最终前端 API。
+Route、Policy 和 Plugin 的长期模型以 docs/superpowers/specs/2026-06-05-route-policy-plugin-model-design.md 为准，不要继续扩展 route.ingate.io/policy-bindings annotation 方案。
+下一步优先把 Header 改写、超时、重试迁入 RouteSpec 强类型字段或 route filters，再反推 Admin API DTO 与控制台保存契约；不要直接把 Kubernetes 风格资源对象作为最终前端 API。
 开发前先 git status，完成后运行 make test 和 make build。不要自动提交，除非用户明确说提交。
 ```

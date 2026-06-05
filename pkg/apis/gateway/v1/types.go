@@ -269,20 +269,73 @@ type RouteSpec struct {
 const (
 	// AnnotationRouteEnabled 保存控制台维护的 Route 启停状态
 	AnnotationRouteEnabled = "route.ingate.io/enabled"
-	// AnnotationRoutePolicyBindings 保存控制台维护的路由级策略参数
-	AnnotationRoutePolicyBindings = "route.ingate.io/policy-bindings"
 )
 
 // RouteRule 声明一条路由匹配规则和加权 Upstream 集合
 type RouteRule struct {
 	PathPrefix string `json:"pathPrefix"`
 	// +listType=atomic
-	Methods       []string `json:"methods"`
-	TimeoutMillis int      `json:"timeoutMillis"`
+	Methods []string `json:"methods"`
 	// +listType=atomic
 	Headers []HeaderMatch `json:"headers"`
 	// +listType=atomic
+	Filters []RouteFilter `json:"filters,omitempty"`
+	Timeout *RouteTimeout `json:"timeout,omitempty"`
+	Retry   *RouteRetry   `json:"retry,omitempty"`
+	// +listType=atomic
 	UpstreamRefs []UpstreamRef `json:"upstreamRefs"`
+}
+
+// RouteFilterType 表示 Route 原生请求处理能力类型
+type RouteFilterType string
+
+const (
+	// RouteFilterRequestHeaderModifier 表示修改上游请求 header
+	RouteFilterRequestHeaderModifier RouteFilterType = "RequestHeaderModifier"
+	// RouteFilterResponseHeaderModifier 表示修改下游响应 header
+	RouteFilterResponseHeaderModifier RouteFilterType = "ResponseHeaderModifier"
+	// RouteFilterURLRewrite 表示改写请求 URL
+	RouteFilterURLRewrite RouteFilterType = "URLRewrite"
+	// RouteFilterRequestMirror 表示镜像请求到旁路上游
+	RouteFilterRequestMirror RouteFilterType = "RequestMirror"
+	// RouteFilterCORS 表示当前 Route 的 CORS 响应策略
+	RouteFilterCORS RouteFilterType = "CORS"
+)
+
+// RouteFilter 声明命中 RouteRule 后执行的原生请求处理能力
+type RouteFilter struct {
+	Type                   RouteFilterType `json:"type"`
+	RequestHeaderModifier  *HeaderModifier `json:"requestHeaderModifier,omitempty"`
+	ResponseHeaderModifier *HeaderModifier `json:"responseHeaderModifier,omitempty"`
+}
+
+// HeaderModifier 表示 header 写入和删除动作
+type HeaderModifier struct {
+	// +listType=atomic
+	Set []HeaderValue `json:"set,omitempty"`
+	// +listType=atomic
+	Add []HeaderValue `json:"add,omitempty"`
+	// +listType=atomic
+	Remove []string `json:"remove,omitempty"`
+}
+
+// HeaderValue 表示 header 名和值
+type HeaderValue struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// RouteTimeout 表示当前 RouteRule 的请求总超时
+type RouteTimeout struct {
+	RequestMillis int `json:"requestMillis,omitempty"`
+}
+
+// RouteRetry 表示当前 RouteRule 的失败重试策略
+type RouteRetry struct {
+	Attempts            int `json:"attempts,omitempty"`
+	PerTryTimeoutMillis int `json:"perTryTimeoutMillis,omitempty"`
+	// +listType=atomic
+	RetryOn []string `json:"retryOn,omitempty"`
 }
 
 // HeaderMatch 表示 HTTP header 精确匹配条件

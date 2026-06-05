@@ -2,9 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Status:** 这是一版用于验证控制台路由策略闭环的 MVP 计划。项目后续不继续沿用 `route.ingate.io/policy-bindings` annotation 作为长期模型；Route、Policy 和 Plugin 的正式边界以 `docs/superpowers/specs/2026-06-05-route-policy-plugin-model-design.md` 为准。
+
 **Goal:** 实现路由级企业策略最小闭环：控制台选择策略，Route 保存策略参数，compiler/xDS 翻译策略，Envoy 运行时真正生效
 
-**Architecture:** 第一阶段不新增通用策略 CRD，也不做插件市场。路由级内置策略从 `route.ingate.io/policy-bindings` annotation 进入 IR，并由 xDS target 翻译成 Envoy route action/header action。后续再把这些内置策略抽象成可复用策略资源。
+**Architecture:** 第一阶段不新增通用策略 CRD，也不做插件市场。路由级内置策略从 `route.ingate.io/policy-bindings` annotation 进入 IR，并由 xDS target 翻译成 Envoy route action/header action。该方案只用于早期验证，长期实现应将 Header 改写、超时和重试迁入 `RouteSpec` 的强类型字段或 route filters。
 
 **Tech Stack:** Go, React/TypeScript, Envoy xDS RouteConfiguration
 

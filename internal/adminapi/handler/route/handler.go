@@ -46,8 +46,9 @@ func (h *Handler) Get(ctx *gin.Context) {
 
 // Create 创建 Route
 func (h *Handler) Create(ctx *gin.Context) {
-	request, ok := h.routeRequest(ctx)
-	if !ok {
+	request, err := h.routeRequest(ctx)
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
 		return
 	}
 	route, err := request.Resource()
@@ -62,8 +63,9 @@ func (h *Handler) Create(ctx *gin.Context) {
 
 // Update 更新 Route
 func (h *Handler) Update(ctx *gin.Context) {
-	request, ok := h.routeRequest(ctx)
-	if !ok {
+	request, err := h.routeRequest(ctx)
+	if err != nil {
+		response.WriteResult(ctx, nil, err)
 		return
 	}
 	route, err := request.Resource()
@@ -98,15 +100,13 @@ func (h *Handler) Delete(ctx *gin.Context) {
 	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
 }
 
-func (h *Handler) routeRequest(ctx *gin.Context) (dto.RouteRequest, bool) {
+func (h *Handler) routeRequest(ctx *gin.Context) (dto.RouteRequest, error) {
 	request := dto.RouteRequest{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
-		response.WriteResult(ctx, nil, apierrors.NewBadRequest("invalid route request body"))
-		return dto.RouteRequest{}, false
+		return dto.RouteRequest{}, apierrors.NewBadRequest("invalid route request body")
 	}
 	if err := request.Validate(); err != nil {
-		response.WriteResult(ctx, nil, err)
-		return dto.RouteRequest{}, false
+		return dto.RouteRequest{}, err
 	}
-	return request, true
+	return request, nil
 }

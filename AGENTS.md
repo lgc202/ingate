@@ -60,6 +60,38 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
   - 需要隔离可测试的领域逻辑。
 - 调用跳转层级尽量浅，读一条主流程时不应频繁跳 4-5 层才能理解业务含义。
 
+### Admin API 分层
+
+`ingate-admin-api` 按 `handler / dto / service / store` 分层，各层职责必须清楚：
+
+- `handler` 是 HTTP 入口，只负责请求绑定、参数校验、调用 service 和写统一响应。
+- `dto` 定义控制台 API 的请求和响应模型，负责产品 DTO 与内部资源模型之间的纯转换。
+- `service` 承载用例和业务语义，负责调用 store、处理资源状态和跨资源协调。
+- `store` 只封装资源读写，不承载控制台产品语义。
+- 前端不直接依赖 Kubernetes 风格资源对象；admin-api 返回面向页面和操作的产品 DTO。
+
+### Handler 层
+
+- Handler 方法只做上层流程控制，不写业务逻辑、资源拼装细节或复杂参数转换。
+- 请求参数通过 `gin.Context` 的 `ShouldBindJSON`、`ShouldBindQuery`、`ShouldBindUri` 绑定。
+- 绑定失败属于用户输入错误，返回 `http.StatusBadRequest` 对应的统一错误响应，不记录错误日志。
+- 绑定成功后调用请求 DTO 的 `Validate` 方法做语义校验和必要的字段转换。
+- `Validate` 失败也属于用户输入错误，错误文本应尽量明确，优先返回可直接展示的中文描述。
+- Handler 只向 service 传递已校验、已转换的参数或资源对象。
+- Service 返回的错误统一通过 admin-api 的 response helper 映射为响应；不要在每个 Handler 里手写一套错误响应结构。
+- helper 函数中不允许调用 `response.WriteResult`、`ctx.JSON` 等响应输出方法，可以返回 error 在主入口中处理。
+- 系统错误需要记录日志时，应使用项目统一 logging 入口；不要记录用户输入校验失败日志。
+- 操作日志、审计日志这类横切能力按产品需求接入，但不得把核心业务逻辑写进 Handler。
+
+### Admin API DTO
+
+- 新增接口的请求类型默认命名为 `{Method}Req`，响应类型默认命名为 `{Method}Resp`；已有稳定 DTO 可在重构时逐步迁移。
+- 不允许用户直接传入的派生字段使用 `json:"-"`。
+- 请求 DTO 如需校验或参数转换，统一实现 `Validate() error`；`Validate` 只返回 error，不返回转换结果。
+- 字符串拆分、枚举归一化、数字范围校验、跨字段约束等请求级逻辑放在 `Validate` 或 DTO method 中。
+- 响应 DTO 可以提供 `New{Method}Resp` 或 `From{Domain}Result` 构造函数，但构造函数只做字段映射和格式整理，不写业务逻辑。
+- DTO 字段必须表达控制台产品契约，不要把内部资源字段、中文展示名或临时实现细节泄漏成协议主键。
+
 ### 标准库与依赖使用
 
 - 可以使用新版本 Go 标准库能力来简化代码，例如 `slices.Contains`、`slices.IndexFunc`、`maps.Clone` 等。
