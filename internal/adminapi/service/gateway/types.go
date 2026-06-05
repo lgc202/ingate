@@ -34,7 +34,7 @@ type UpdateGatewayParams struct {
 // ListenerParams 是监听器用例参数
 type ListenerParams struct {
 	Name     string
-	Protocol resource.ListenerProtocol
+	Protocol resource.Protocol
 	Port     int
 }
 

@@ -31,7 +31,7 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 				Spec: resource.GatewaySpec{
 					Enabled: true,
 					Listeners: []resource.Listener{
-						{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 80},
+						{Name: "http", Protocol: resource.ProtocolHTTP, Port: 80},
 					},
 					HostBindings: []resource.HostBinding{
 						{Hostname: "example.com", ListenerRefs: []string{"http"}},
@@ -147,7 +147,7 @@ func TestPipelineBuildGatewaySnapshotForTarget(t *testing.T) {
 				Spec: resource.GatewaySpec{
 					Enabled: true,
 					Listeners: []resource.Listener{
-						{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 80},
+						{Name: "http", Protocol: resource.ProtocolHTTP, Port: 80},
 					},
 					HostBindings: []resource.HostBinding{
 						{Hostname: "example.com", ListenerRefs: []string{"http"}},
@@ -203,8 +203,8 @@ func TestPipelineBuildGatewaySnapshotsForTarget(t *testing.T) {
 
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
-			testGateway("public", resource.Listener{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 80}),
-			testGateway("admin", resource.Listener{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 8080}),
+			testGateway("public", resource.Listener{Name: "http", Protocol: resource.ProtocolHTTP, Port: 80}),
+			testGateway("admin", resource.Listener{Name: "http", Protocol: resource.ProtocolHTTP, Port: 8080}),
 		},
 	}
 

@@ -260,21 +260,21 @@ type RuntimeGroupRef struct {
 	Name string `json:"name"`
 }
 
-// ListenerProtocol 表示 Gateway 监听器协议
-type ListenerProtocol string
+// Protocol 表示网关资源中可声明的流量协议
+type Protocol string
 
 const (
-	// ListenerProtocolHTTP 表示普通 HTTP 监听器
-	ListenerProtocolHTTP ListenerProtocol = "HTTP"
-	// ListenerProtocolHTTPS 表示 HTTPS 监听器
-	ListenerProtocolHTTPS ListenerProtocol = "HTTPS"
+	// ProtocolHTTP 表示普通 HTTP 流量
+	ProtocolHTTP Protocol = "HTTP"
+	// ProtocolHTTPS 表示 HTTPS 流量
+	ProtocolHTTPS Protocol = "HTTPS"
 )
 
 // Listener 声明一个 Gateway 监听端口
 type Listener struct {
-	Name     string           `json:"name"`
-	Protocol ListenerProtocol `json:"protocol"`
-	Port     int              `json:"port"`
+	Name     string   `json:"name"`
+	Protocol Protocol `json:"protocol"`
+	Port     int      `json:"port"`
 }
 
 // HostBinding 声明 Host 到 Gateway 监听器的绑定关系

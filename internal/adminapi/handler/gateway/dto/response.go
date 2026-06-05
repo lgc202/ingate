@@ -8,7 +8,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
-	runtimegroupsvc "github.com/lgc202/ingate/internal/adminapi/service/runtimegroup"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -34,7 +33,7 @@ func gatewaySummary(gateway *resource.Gateway) GatewaySummary {
 		Version:            gateway.ResourceVersion,
 		DisplayName:        gateway.Spec.DisplayName,
 		Description:        gateway.Spec.Description,
-		RuntimeGroup:       runtimeGroup(gateway),
+		RuntimeGroup:       gateway.Spec.RuntimeGroupRef.Name,
 		ListenerSummary:    listenerSummary(gateway.Spec.Listeners),
 		HostBindingSummary: hostBindingSummary(gateway.Spec.HostBindings),
 		Listeners:          listeners(gateway.Spec.Listeners),
@@ -51,20 +50,13 @@ func gatewayDetail(gateway *resource.Gateway) GatewayDetail {
 		Version:       gateway.ResourceVersion,
 		DisplayName:   gateway.Spec.DisplayName,
 		Description:   gateway.Spec.Description,
-		RuntimeGroup:  runtimeGroup(gateway),
+		RuntimeGroup:  gateway.Spec.RuntimeGroupRef.Name,
 		Listeners:     listeners(gateway.Spec.Listeners),
 		HostBindings:  hostBindings(gateway.Spec.HostBindings),
 		Enabled:       gateway.Spec.Enabled,
 		HealthStatus:  healthStatus(gateway.Status),
 		LastChangedAt: lastChangedAt(gateway.ObjectMeta),
 	}
-}
-
-func runtimeGroup(gateway *resource.Gateway) string {
-	if gateway.Spec.RuntimeGroupRef.Name == "" {
-		return runtimegroupsvc.DefaultID
-	}
-	return gateway.Spec.RuntimeGroupRef.Name
 }
 
 func listeners(items []resource.Listener) []GatewayListener {

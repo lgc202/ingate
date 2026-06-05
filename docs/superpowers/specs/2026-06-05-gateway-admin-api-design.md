@@ -62,17 +62,17 @@ type RuntimeGroupRef struct {
 	Name string `json:"name"`
 }
 
-type ListenerProtocol string
+type Protocol string
 
 const (
-	ListenerProtocolHTTP  ListenerProtocol = "HTTP"
-	ListenerProtocolHTTPS ListenerProtocol = "HTTPS"
+	ProtocolHTTP  Protocol = "HTTP"
+	ProtocolHTTPS Protocol = "HTTPS"
 )
 
 type Listener struct {
-	Name     string           `json:"name"`
-	Protocol ListenerProtocol `json:"protocol"`
-	Port     int              `json:"port"`
+	Name     string   `json:"name"`
+	Protocol Protocol `json:"protocol"`
+	Port     int      `json:"port"`
 }
 
 type HostBinding struct {

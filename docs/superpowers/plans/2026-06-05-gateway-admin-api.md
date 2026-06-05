@@ -38,7 +38,7 @@ Add `Description`, `Enabled`, `RuntimeGroupRef`, `Listeners`, and `HostBindings`
 
 - [ ] **Step 2: Add typed Gateway substructures**
 
-Add `RuntimeGroupRef`, typed `ListenerProtocol`, `Listener`, `HostBinding`, and `GatewayTLS` with Chinese comments.
+Add `RuntimeGroupRef`, typed `Protocol`, `Listener`, `HostBinding`, and `GatewayTLS` with Chinese comments.
 
 - [ ] **Step 3: Remove Gateway annotation constants from main path**
 

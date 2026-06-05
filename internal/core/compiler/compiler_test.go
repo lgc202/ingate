@@ -30,7 +30,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 				Spec: resource.GatewaySpec{
 					Enabled: true,
 					Listeners: []resource.Listener{
-						{Name: "http", Protocol: resource.ListenerProtocolHTTP, Port: 80},
+						{Name: "http", Protocol: resource.ProtocolHTTP, Port: 80},
 					},
 					HostBindings: []resource.HostBinding{
 						{Hostname: "example.com", ListenerRefs: []string{"http"}},

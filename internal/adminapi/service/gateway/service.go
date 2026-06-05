@@ -114,6 +114,11 @@ func (s *Service) SetEnabled(ctx context.Context, gatewayID string, enabled bool
 
 		next := current.DeepCopy()
 		next.Spec.Enabled = enabled
+		if enabled {
+			if err := s.runtimeGroup.ValidateEnabled(ctx, next.Spec.RuntimeGroupRef.Name); err != nil {
+				return err
+			}
+		}
 		if err := s.validateGateway(ctx, next, gatewayID); err != nil {
 			return err
 		}
@@ -142,11 +147,6 @@ func (s *Service) Delete(ctx context.Context, gatewayID string) error {
 }
 
 func gatewaySpec(displayName, description, runtimeGroup string, enabled bool, listeners []ListenerParams, bindings []HostBindingParams) resource.GatewaySpec {
-	runtimeGroupID := runtimeGroup
-	if runtimeGroupID == "" {
-		runtimeGroupID = runtimegroupsvc.DefaultID
-	}
-
 	resourceListeners := make([]resource.Listener, 0, len(listeners))
 	for _, listener := range listeners {
 		resourceListeners = append(resourceListeners, resource.Listener{
@@ -172,7 +172,7 @@ func gatewaySpec(displayName, description, runtimeGroup string, enabled bool, li
 		DisplayName:     displayName,
 		Description:     description,
 		Enabled:         enabled,
-		RuntimeGroupRef: resource.RuntimeGroupRef{Name: runtimeGroupID},
+		RuntimeGroupRef: resource.RuntimeGroupRef{Name: runtimeGroup},
 		Listeners:       resourceListeners,
 		HostBindings:    resourceHostBindings,
 	}
@@ -229,7 +229,7 @@ func gatewayHasCatchAllHost(gateway *resource.Gateway) bool {
 
 func sharedListener(a, b []resource.Listener) (string, int, bool) {
 	type listenerKey struct {
-		protocol resource.ListenerProtocol
+		protocol resource.Protocol
 		port     int
 	}
 

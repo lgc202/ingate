@@ -37,9 +37,6 @@ func (s *Service) List(ctx context.Context) (*ListResult, error) {
 
 // ValidateEnabled 校验 Gateway 引用的 RuntimeGroup 存在且启用
 func (s *Service) ValidateEnabled(ctx context.Context, id string) error {
-	if id == "" {
-		id = DefaultID
-	}
 	if err := s.EnsureDefault(ctx); err != nil {
 		return err
 	}

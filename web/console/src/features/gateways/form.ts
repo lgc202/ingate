@@ -4,11 +4,10 @@ import type {
   GatewayHostBinding,
   GatewayListener,
   GatewayMutationPayload,
+  GatewayRuntimeGroupOption,
   GatewayValidationItem,
   GatewayValidationReport,
 } from '@/domain/gateway';
-
-const DEFAULT_RUNTIME_GROUP_ID = 'default';
 
 export const GATEWAY_ENTRY_PORTS: Record<GatewayListener['protocol'], number> = {
   HTTP: 8080,
@@ -28,7 +27,7 @@ export interface GatewayFormDraft {
   hostnames: string[];
 }
 
-export function createGatewayDraft(gateway?: Gateway | null): GatewayFormDraft {
+export function createGatewayDraft(gateway?: Gateway | null, defaultRuntimeGroup = ''): GatewayFormDraft {
   const hostnames = gateway ? hostnamesFromBindings(gateway.hostBindings) : [];
 
   return {
@@ -36,7 +35,7 @@ export function createGatewayDraft(gateway?: Gateway | null): GatewayFormDraft {
     version: gateway?.version,
     displayName: gateway?.displayName ?? '',
     description: gateway?.description ?? '',
-    runtimeGroup: gateway?.runtimeGroup ?? DEFAULT_RUNTIME_GROUP_ID,
+    runtimeGroup: gateway?.runtimeGroup ?? defaultRuntimeGroup,
     listeners: gateway?.listeners?.length ? listenersWithCertificates(gateway.listeners, gateway.hostBindings) : [createGatewayListener('HTTP')],
     hostMode: hostnames.length > 0 ? 'specified' : 'any',
     hostnames,
@@ -51,13 +50,20 @@ export function createGatewayListener(protocol: GatewayListener['protocol'] = 'H
   };
 }
 
-export function validateGatewayDraft(draft: GatewayFormDraft, gateways: Gateway[] = [], originalGatewayId?: string): GatewayValidationReport {
+export function validateGatewayDraft(
+  draft: GatewayFormDraft,
+  gateways: Gateway[] = [],
+  originalGatewayId?: string,
+  runtimeGroups: GatewayRuntimeGroupOption[] = [],
+): GatewayValidationReport {
   const displayName = draft.displayName.trim();
+  const runtimeGroup = draft.runtimeGroup.trim();
   const normalizedHostnames = draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [];
   const invalidHostnames = normalizedHostnames.filter((hostname) => !isValidHostname(hostname));
   const ports = draft.listeners.map((listener) => gatewayEntryPort(listener.protocol));
   const duplicatePorts = ports.filter((port, index) => ports.indexOf(port) !== index);
   const duplicateName = gateways.some((gateway) => gateway.id !== originalGatewayId && gateway.displayName === displayName);
+  const runtimeGroupExists = runtimeGroups.some((item) => item.id === runtimeGroup);
   const httpsWithoutCertificate = draft.listeners.filter((listener) => listener.protocol === 'HTTPS' && !listener.certificateId);
   const hostlessConflict = draft.hostMode === 'any' ? hostlessGatewayConflict(draft, gateways, originalGatewayId) : null;
   const items: GatewayValidationItem[] = [
@@ -69,6 +75,15 @@ export function validateGatewayDraft(draft: GatewayFormDraft, gateways: Gateway[
         : duplicateName
           ? '网关名称已存在'
           : displayName,
+    },
+    {
+      label: '运行组',
+      status: runtimeGroup && runtimeGroupExists ? 'healthy' : 'critical',
+      message: !runtimeGroup
+        ? '请选择运行组'
+        : runtimeGroupExists
+          ? runtimeGroups.find((item) => item.id === runtimeGroup)?.name ?? runtimeGroup
+          : '运行组不存在',
     },
     {
       label: '运行入口',
