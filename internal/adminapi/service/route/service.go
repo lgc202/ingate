@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
@@ -49,13 +50,16 @@ func (s *Service) Create(ctx context.Context, route *resource.Route) error {
 		return err
 	}
 	_, err := s.store.Create(ctx, route)
+	if apierrors.IsAlreadyExists(err) {
+		return xerrors.NewUserError(fmt.Sprintf("路由 %q 已存在", route.Name))
+	}
 	return err
 }
 
 // Update 更新 Route
 func (s *Service) Update(ctx context.Context, name string, route *resource.Route) error {
 	if route.Name != name {
-		return apierrors.NewBadRequest("route name cannot be changed")
+		return xerrors.NewUserError("路由名称不能修改")
 	}
 	if err := s.validateReferences(ctx, route); err != nil {
 		return err
@@ -101,12 +105,18 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 func (s *Service) validateReferences(ctx context.Context, route *resource.Route) error {
 	for _, gatewayName := range route.Spec.ParentRefs {
 		if _, err := s.gateways.Get(ctx, gatewayName); err != nil {
+			if apierrors.IsNotFound(err) {
+				return xerrors.NewUserError(fmt.Sprintf("关联网关 %q 不存在", gatewayName))
+			}
 			return err
 		}
 	}
 	for _, rule := range route.Spec.Rules {
 		for _, ref := range rule.UpstreamRefs {
 			if _, err := s.upstream.Get(ctx, ref.Name); err != nil {
+				if apierrors.IsNotFound(err) {
+					return xerrors.NewUserError(fmt.Sprintf("关联上游 %q 不存在", ref.Name))
+				}
 				return err
 			}
 		}
@@ -135,9 +145,5 @@ func validateVersion(resourceName resource.ResourceName, name, submittedVersion,
 	if submittedVersion == "" || submittedVersion == currentVersion {
 		return nil
 	}
-	return apierrors.NewConflict(
-		resource.Resource(resourceName),
-		name,
-		fmt.Errorf("resource version changed, current version is %s", currentVersion),
-	)
+	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))
 }

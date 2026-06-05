@@ -1,12 +1,12 @@
 package dto
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
@@ -59,52 +59,52 @@ func (r RouteRequest) rule() (resource.RouteRule, error) {
 func (r RouteRequest) Validate() error {
 	if id := strings.TrimSpace(r.ID); id != "" {
 		if errs := validation.IsDNS1123Label(id); len(errs) > 0 {
-			return apierrors.NewBadRequest("route id must be a valid DNS label")
+			return errors.New("route id must be a valid DNS label")
 		}
 	}
 
 	path := strings.TrimSpace(r.Path)
 	if path == "" || !strings.HasPrefix(path, "/") {
-		return apierrors.NewBadRequest("route path must start with /")
+		return errors.New("route path must start with /")
 	}
 	for _, method := range r.Methods {
 		if !validHTTPMethod(method) {
-			return apierrors.NewBadRequest("route method is invalid")
+			return errors.New("route method is invalid")
 		}
 	}
 	if len(r.GatewayNames) == 0 {
-		return apierrors.NewBadRequest("at least one gateway is required")
+		return errors.New("at least one gateway is required")
 	}
 	for _, gatewayName := range r.GatewayNames {
 		if errs := validation.IsDNS1123Label(strings.TrimSpace(gatewayName)); len(errs) > 0 {
-			return apierrors.NewBadRequest("gateway name must be a valid DNS label")
+			return errors.New("gateway name must be a valid DNS label")
 		}
 	}
 	targets := r.targetServices()
 	if len(targets) == 0 {
-		return apierrors.NewBadRequest("at least one target service is required")
+		return errors.New("at least one target service is required")
 	}
 	seenTargets := map[string]struct{}{}
 	for _, target := range targets {
 		name := strings.TrimSpace(target.Name)
 		if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
-			return apierrors.NewBadRequest("target service name must be a valid DNS label")
+			return errors.New("target service name must be a valid DNS label")
 		}
 		if _, ok := seenTargets[name]; ok {
-			return apierrors.NewBadRequest("target service cannot be duplicated")
+			return errors.New("target service cannot be duplicated")
 		}
 		seenTargets[name] = struct{}{}
 		if target.Weight < 1 || target.Weight > 1000 {
-			return apierrors.NewBadRequest("target service weight must be between 1 and 1000")
+			return errors.New("target service weight must be between 1 and 1000")
 		}
 	}
 	for _, hostname := range r.Hostnames {
 		hostname = strings.TrimSpace(strings.ToLower(hostname))
 		if hostname == "" {
-			return apierrors.NewBadRequest("route hostname cannot be empty")
+			return errors.New("route hostname cannot be empty")
 		}
 		if !validHostname(hostname) {
-			return apierrors.NewBadRequest("route hostname is invalid")
+			return errors.New("route hostname is invalid")
 		}
 	}
 	if err := r.validatePolicyBindings(); err != nil {
@@ -119,7 +119,7 @@ func (r RouteRequest) validatePolicyBindings() error {
 
 	for _, binding := range r.PolicyBindings {
 		if binding.Source != routePolicySourceNative {
-			return apierrors.NewBadRequest("route policy source is invalid")
+			return errors.New("route policy source is invalid")
 		}
 
 		switch binding.Capability {
@@ -143,12 +143,12 @@ func (r RouteRequest) validatePolicyBindings() error {
 			}
 			perTryTimeoutMillis = value
 		default:
-			return apierrors.NewBadRequest("route policy is unsupported")
+			return errors.New("route policy is unsupported")
 		}
 	}
 
 	if perTryTimeoutMillis > totalTimeoutMillis {
-		return apierrors.NewBadRequest("retry per-try timeout must be less than or equal to route total timeout")
+		return errors.New("retry per-try timeout must be less than or equal to route total timeout")
 	}
 	return nil
 }
@@ -163,20 +163,20 @@ func (b PolicyBindingRequest) validateHeaderRewrite() error {
 		return err
 	}
 	if len(setHeaders) == 0 && len(removeHeaders) == 0 {
-		return apierrors.NewBadRequest("at least one header rewrite action is required")
+		return errors.New("at least one header rewrite action is required")
 	}
 	if len(setHeaders) > 0 && strings.TrimSpace(b.stringParameter(paramHeaderValue)) == "" {
-		return apierrors.NewBadRequest("header value is required")
+		return errors.New("header value is required")
 	}
 	if len(setHeaders) == 0 && strings.TrimSpace(b.stringParameter(paramHeaderValue)) != "" {
-		return apierrors.NewBadRequest("header name is required")
+		return errors.New("header name is required")
 	}
 	return nil
 }
 
 func (b PolicyBindingRequest) applyToRouteRule(rule *resource.RouteRule) error {
 	if b.Source != routePolicySourceNative {
-		return apierrors.NewBadRequest("route policy source is invalid")
+		return errors.New("route policy source is invalid")
 	}
 
 	switch b.Capability {
@@ -202,7 +202,7 @@ func (b PolicyBindingRequest) applyToRouteRule(rule *resource.RouteRule) error {
 			PerTryTimeoutMillis: perTryTimeoutMillis,
 		}
 	default:
-		return apierrors.NewBadRequest("route policy is unsupported")
+		return errors.New("route policy is unsupported")
 	}
 	return nil
 }
@@ -238,7 +238,7 @@ func (b PolicyBindingRequest) applyHeaderRewrite(rule *resource.RouteRule) error
 func (b PolicyBindingRequest) intParameter(key string, minValue int, maxValue int) (int, error) {
 	value, ok := b.Parameters[key]
 	if !ok {
-		return 0, apierrors.NewBadRequest("route policy parameter is required")
+		return 0, errors.New("route policy parameter is required")
 	}
 
 	var text string
@@ -248,18 +248,18 @@ func (b PolicyBindingRequest) intParameter(key string, minValue int, maxValue in
 	case float64:
 		text = strconv.FormatInt(int64(item), 10)
 	default:
-		return 0, apierrors.NewBadRequest("route policy parameter must be a number")
+		return 0, errors.New("route policy parameter must be a number")
 	}
 	if text == "" {
-		return 0, apierrors.NewBadRequest("route policy parameter is required")
+		return 0, errors.New("route policy parameter is required")
 	}
 
 	number, err := strconv.Atoi(text)
 	if err != nil {
-		return 0, apierrors.NewBadRequest("route policy parameter must be a number")
+		return 0, errors.New("route policy parameter must be a number")
 	}
 	if number < minValue || number > maxValue {
-		return 0, apierrors.NewBadRequest("route policy parameter is out of range")
+		return 0, errors.New("route policy parameter is out of range")
 	}
 	return number, nil
 }
@@ -290,7 +290,7 @@ func (b PolicyBindingRequest) stringListParameter(key string) ([]string, error) 
 		for _, item := range items {
 			text, ok := item.(string)
 			if !ok {
-				return nil, apierrors.NewBadRequest("route policy parameter must be a string list")
+				return nil, errors.New("route policy parameter must be a string list")
 			}
 			values = append(values, text)
 		}
@@ -303,7 +303,7 @@ func (b PolicyBindingRequest) stringListParameter(key string) ([]string, error) 
 			return r == ',' || r == '，' || r == '、'
 		})), nil
 	default:
-		return nil, apierrors.NewBadRequest("route policy parameter must be a string list")
+		return nil, errors.New("route policy parameter must be a string list")
 	}
 }
 
@@ -442,7 +442,7 @@ func (r RouteRequest) upstreamRefs() []resource.UpstreamRef {
 // Validate 校验控制台提交的 Route 启停请求体
 func (r EnabledRequest) Validate() error {
 	if r.Enabled == nil {
-		return apierrors.NewBadRequest("enabled is required")
+		return errors.New("enabled is required")
 	}
 	return nil
 }

@@ -74,13 +74,19 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 
 - Handler 方法只做上层流程控制，不写业务逻辑、资源拼装细节或复杂参数转换。
 - 请求参数通过 `gin.Context` 的 `ShouldBindJSON`、`ShouldBindQuery`、`ShouldBindUri` 绑定。
-- 绑定失败属于用户输入错误，返回 `http.StatusBadRequest` 对应的统一错误响应，不记录错误日志。
+- 绑定失败属于用户输入错误，返回 `http.StatusBadRequest` 和 `err.Error()`，不记录错误日志。
 - 绑定成功后调用请求 DTO 的 `Validate` 方法做语义校验和必要的字段转换。
-- `Validate` 失败也属于用户输入错误，错误文本应尽量明确，优先返回可直接展示的中文描述。
+- `Validate` 失败也属于用户输入错误，返回 `http.StatusBadRequest` 和 `err.Error()`，错误文本应尽量明确。
 - Handler 只向 service 传递已校验、已转换的参数或资源对象。
-- Service 返回的错误统一通过 admin-api 的 response helper 映射为响应；不要在每个 Handler 里手写一套错误响应结构。
-- helper 函数中不允许调用 `response.WriteResult`、`ctx.JSON` 等响应输出方法，可以返回 error 在主入口中处理。
-- 系统错误需要记录日志时，应使用项目统一 logging 入口；不要记录用户输入校验失败日志。
+- Service 返回错误时，进入 `if err != nil` 后先用项目统一 logging 入口记录 `Error` 日志，再判断是否为可展示错误。
+- 可展示业务错误统一使用 `xerrors.UserError` 表达，Handler 使用 `errors.AsType[*xerrors.UserError](err)` 判断并返回其错误文本。
+- 非 `UserError` 的 service 错误返回明确的通用失败文案，不把内部错误细节直接暴露给前端。
+- Handler 不需要按 `http.StatusConflict`、`http.StatusNotFound` 等细分业务失败状态；后台业务失败默认使用 `http.StatusInternalServerError` 放入统一响应体。
+- Service 层如果希望前端展示明确原因，应返回 `UserError`，例如同名冲突、引用不存在、规则冲突等。
+- Handler 中优先保持直接主流程，不为了少写几行代码抽 `writeServiceError` 这类 helper；如果未来出现真实共享边界，再提炼统一方法。
+- helper 函数中不允许调用 `response.GinJSONResponse`、`response.GinAbortJSONResponse`、`ctx.JSON` 等响应输出方法，可以返回 error 在主入口中处理。
+- 不再使用 `response.WriteResult`、`response.WriteError` 这类二次封装；统一使用 `response.GinJSONResponse` 和 `response.GinAbortJSONResponse`。
+- 不记录用户输入校验失败日志。
 - 操作日志、审计日志这类横切能力按产品需求接入，但不得把核心业务逻辑写进 Handler。
 
 ### Admin API DTO
@@ -88,9 +94,20 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 - 新增接口的请求类型默认命名为 `{Method}Req`，响应类型默认命名为 `{Method}Resp`；已有稳定 DTO 可在重构时逐步迁移。
 - 不允许用户直接传入的派生字段使用 `json:"-"`。
 - 请求 DTO 如需校验或参数转换，统一实现 `Validate() error`；`Validate` 只返回 error，不返回转换结果。
-- 字符串拆分、枚举归一化、数字范围校验、跨字段约束等请求级逻辑放在 `Validate` 或 DTO method 中。
-- 响应 DTO 可以提供 `New{Method}Resp` 或 `From{Domain}Result` 构造函数，但构造函数只做字段映射和格式整理，不写业务逻辑。
+- `Validate` 只处理请求自身能判断的校验和纯转换，例如字符串拆分、枚举归一化、数字范围校验、跨字段约束。
+- 不允许把 store、service、client 等外部依赖传入 DTO `Validate`；同名校验、引用存在性、资源冲突等依赖系统状态的规则放在 service 层。
+- 请求 required 语义优先写在 `Validate` 中，只有确实需要依赖 gin binding 行为时才使用 `binding:"required"`。
+- 响应 DTO 可以提供 `New{Method}Resp` 构造函数；构造函数只做字段映射和格式整理，不写业务逻辑。
 - DTO 字段必须表达控制台产品契约，不要把内部资源字段、中文展示名或临时实现细节泄漏成协议主键。
+
+### Admin API 资源标识
+
+- 控制台创建资源时，由后端生成 UUID 作为不可变资源 ID，并写入底层资源的 `metadata.name`。
+- 面向用户展示和编辑的名称使用 `spec.displayName`，不使用展示名称作为资源 ID 或跨资源引用键。
+- 同一类资源内 `displayName` 原则上保持唯一，避免控制台出现用户无法区分的重名资源。
+- `displayName` 的唯一性校验属于系统状态校验，放在 service 层，不放在 DTO `Validate`。
+- 资源之间的引用使用资源 ID，不使用 `displayName`。
+- 声明式 apiserver 可以保留调用方指定 `metadata.name` 的能力；Admin API 面向控制台体验，创建流程可以和声明式 API 不同。
 
 ### 标准库与依赖使用
 

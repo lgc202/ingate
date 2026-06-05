@@ -68,7 +68,7 @@ func (s *Server) Run(ctx context.Context) error {
 func (s *Server) newHandler() *handler.Handler {
 	resourceStore := store.New(s.client)
 	resourceService := service.New(resourceStore)
-	return handler.New(resourceService)
+	return handler.New(resourceService, s.logger)
 }
 
 func init() {

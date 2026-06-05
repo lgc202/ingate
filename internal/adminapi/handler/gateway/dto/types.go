@@ -2,25 +2,26 @@ package dto
 
 // CreateGatewayReq 是创建 Gateway 的请求体
 type CreateGatewayReq struct {
-	Name         string                  `json:"name" binding:"required"`
+	DisplayName  string                  `json:"displayName"`
 	Description  string                  `json:"description"`
 	RuntimeGroup string                  `json:"runtimeGroup"`
-	Listeners    []GatewayListenerReq    `json:"listeners" binding:"required"`
+	Listeners    []GatewayListenerReq    `json:"listeners"`
 	HostBindings []GatewayHostBindingReq `json:"hostBindings"`
 }
 
 // UpdateGatewayReq 是更新 Gateway 的请求体
 type UpdateGatewayReq struct {
-	Version      string                  `json:"version" binding:"required"`
+	Version      string                  `json:"version"`
+	DisplayName  string                  `json:"displayName"`
 	Description  string                  `json:"description"`
 	RuntimeGroup string                  `json:"runtimeGroup"`
-	Listeners    []GatewayListenerReq    `json:"listeners" binding:"required"`
+	Listeners    []GatewayListenerReq    `json:"listeners"`
 	HostBindings []GatewayHostBindingReq `json:"hostBindings"`
 }
 
 // SetGatewayEnabledReq 是启停 Gateway 的请求体
 type SetGatewayEnabledReq struct {
-	Enabled *bool `json:"enabled" binding:"required"`
+	Enabled *bool `json:"enabled"`
 }
 
 // GatewayListenerReq 是控制台提交的监听器配置
@@ -60,7 +61,8 @@ type GetGatewayFormOptionsResp struct {
 
 // CreateGatewayResp 是创建 Gateway 的响应
 type CreateGatewayResp struct {
-	Success bool `json:"success"`
+	Success bool   `json:"success"`
+	ID      string `json:"id"`
 }
 
 // UpdateGatewayResp 是更新 Gateway 的响应
@@ -82,7 +84,7 @@ type DeleteGatewayResp struct {
 type GatewaySummary struct {
 	ID                 string               `json:"id"`
 	Version            string               `json:"version,omitempty"`
-	Name               string               `json:"name"`
+	DisplayName        string               `json:"displayName"`
 	Description        string               `json:"description"`
 	RuntimeGroup       string               `json:"runtimeGroup"`
 	RuntimeGroupName   string               `json:"runtimeGroupName"`
@@ -99,7 +101,7 @@ type GatewaySummary struct {
 type GatewayDetail struct {
 	ID               string               `json:"id"`
 	Version          string               `json:"version,omitempty"`
-	Name             string               `json:"name"`
+	DisplayName      string               `json:"displayName"`
 	Description      string               `json:"description"`
 	RuntimeGroup     string               `json:"runtimeGroup"`
 	RuntimeGroupName string               `json:"runtimeGroupName"`

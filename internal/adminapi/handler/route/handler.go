@@ -1,112 +1,165 @@
 package route
 
 import (
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/lgc202/ingate/internal/adminapi/handler/route/dto"
+	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
+	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // Handler 处理 Route HTTP 请求
 type Handler struct {
 	service *routeservice.Service
+	logger  *slog.Logger
 }
 
 // New 创建 Route handler
-func New(service *routeservice.Service) *Handler {
-	return &Handler{service: service}
+func New(service *routeservice.Service, logger *slog.Logger) *Handler {
+	if logger == nil {
+		logger = slog.New(slog.NewTextHandler(io.Discard, nil))
+	}
+	return &Handler{service: service, logger: logger}
 }
 
 // List 返回 Route 列表
 func (h *Handler) List(ctx *gin.Context) {
 	result, err := h.service.List(ctx.Request.Context())
 	if err != nil {
-		response.WriteResult(ctx, nil, err)
+		h.logger.Error("list routes failed", "request_id", ctx.GetString(requestid.Header), "err", err)
+		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
+			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
+			return
+		}
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询路由列表失败", nil)
 		return
 	}
-	response.WriteResult(ctx, dto.FromListResult(result), nil)
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.FromListResult(result))
 }
 
 // PolicyCapabilities 返回当前后端支持的路由策略能力
 func (h *Handler) PolicyCapabilities(ctx *gin.Context) {
-	response.WriteResult(ctx, dto.PolicyCapabilities(), nil)
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.PolicyCapabilities())
 }
 
 // Get 返回单个 Route
 func (h *Handler) Get(ctx *gin.Context) {
 	result, err := h.service.Get(ctx.Request.Context(), ctx.Param("name"))
 	if err != nil {
-		response.WriteResult(ctx, nil, err)
+		h.logger.Error("get route failed", "request_id", ctx.GetString(requestid.Header), "route_id", ctx.Param("name"), "err", err)
+		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
+			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
+			return
+		}
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询路由失败", nil)
 		return
 	}
-	response.WriteResult(ctx, dto.FromRouteResult(result), nil)
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.FromRouteResult(result))
 }
 
 // Create 创建 Route
 func (h *Handler) Create(ctx *gin.Context) {
-	request, err := h.routeRequest(ctx)
-	if err != nil {
-		response.WriteResult(ctx, nil, err)
+	request := dto.RouteRequest{}
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	if err := request.Validate(); err != nil {
+		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 	route, err := request.Resource()
 	if err != nil {
-		response.WriteResult(ctx, nil, err)
+		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	err = h.service.Create(ctx.Request.Context(), route)
-	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
+	if err != nil {
+		h.logger.Error("create route failed", "request_id", ctx.GetString(requestid.Header), "route_id", route.Name, "err", err)
+		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
+			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
+			return
+		}
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "创建路由失败", nil)
+		return
+	}
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.MutationResponse{Success: true})
 }
 
 // Update 更新 Route
 func (h *Handler) Update(ctx *gin.Context) {
-	request, err := h.routeRequest(ctx)
-	if err != nil {
-		response.WriteResult(ctx, nil, err)
+	request := dto.RouteRequest{}
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	if err := request.Validate(); err != nil {
+		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 	route, err := request.Resource()
 	if err != nil {
-		response.WriteResult(ctx, nil, err)
+		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	err = h.service.Update(ctx.Request.Context(), ctx.Param("name"), route)
-	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
+	if err != nil {
+		h.logger.Error("update route failed", "request_id", ctx.GetString(requestid.Header), "route_id", ctx.Param("name"), "err", err)
+		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
+			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
+			return
+		}
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "更新路由失败", nil)
+		return
+	}
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.MutationResponse{Success: true})
 }
 
 // SetEnabled 更新 Route 启停状态
 func (h *Handler) SetEnabled(ctx *gin.Context) {
 	request := dto.EnabledRequest{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
-		response.WriteResult(ctx, nil, apierrors.NewBadRequest("invalid route enabled request body"))
+		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 	if err := request.Validate(); err != nil {
-		response.WriteResult(ctx, nil, err)
+		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 
 	err := h.service.SetEnabled(ctx.Request.Context(), ctx.Param("name"), request.Value())
-	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
+	if err != nil {
+		h.logger.Error("set route enabled failed", "request_id", ctx.GetString(requestid.Header), "route_id", ctx.Param("name"), "enabled", request.Value(), "err", err)
+		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
+			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
+			return
+		}
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "更新路由状态失败", nil)
+		return
+	}
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.MutationResponse{Success: true})
 }
 
 // Delete 删除 Route
 func (h *Handler) Delete(ctx *gin.Context) {
 	err := h.service.Delete(ctx.Request.Context(), ctx.Param("name"))
-	response.WriteResult(ctx, dto.MutationResponse{Success: true}, err)
-}
-
-func (h *Handler) routeRequest(ctx *gin.Context) (dto.RouteRequest, error) {
-	request := dto.RouteRequest{}
-	if err := ctx.ShouldBindJSON(&request); err != nil {
-		return dto.RouteRequest{}, apierrors.NewBadRequest("invalid route request body")
+	if err != nil {
+		h.logger.Error("delete route failed", "request_id", ctx.GetString(requestid.Header), "route_id", ctx.Param("name"), "err", err)
+		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
+			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
+			return
+		}
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "删除路由失败", nil)
+		return
 	}
-	if err := request.Validate(); err != nil {
-		return dto.RouteRequest{}, err
-	}
-	return request, nil
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.MutationResponse{Success: true})
 }

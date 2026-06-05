@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
@@ -56,13 +57,16 @@ func (s *Service) Get(ctx context.Context, name string) (*UpstreamResult, error)
 // Create 创建 Upstream
 func (s *Service) Create(ctx context.Context, upstream *resource.Upstream) error {
 	_, err := s.store.Create(ctx, upstream)
+	if apierrors.IsAlreadyExists(err) {
+		return xerrors.NewUserError(fmt.Sprintf("上游 %q 已存在", upstream.Name))
+	}
 	return err
 }
 
 // Update 更新 Upstream
 func (s *Service) Update(ctx context.Context, name string, upstream *resource.Upstream) error {
 	if upstream.Name != name {
-		return apierrors.NewBadRequest("service name cannot be changed")
+		return xerrors.NewUserError("上游名称不能修改")
 	}
 
 	current, err := s.store.Get(ctx, name)
@@ -88,7 +92,7 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
 				if ref.Name == name {
-					return apierrors.NewBadRequest(fmt.Sprintf("service %q is still referenced by route %q", name, route.Name))
+					return xerrors.NewUserError(fmt.Sprintf("上游 %q 仍被路由 %q 引用", name, route.Name))
 				}
 			}
 		}
@@ -123,9 +127,5 @@ func validateVersion(resourceName resource.ResourceName, name, submittedVersion,
 	if submittedVersion == "" || submittedVersion == currentVersion {
 		return nil
 	}
-	return apierrors.NewConflict(
-		resource.Resource(resourceName),
-		name,
-		fmt.Errorf("resource version changed, current version is %s", currentVersion),
-	)
+	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))
 }

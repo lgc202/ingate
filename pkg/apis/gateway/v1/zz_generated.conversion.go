@@ -1347,6 +1347,7 @@ func Convert_gateway_GatewayList_To_v1_GatewayList(in *gateway.GatewayList, out 
 }
 
 func autoConvert_v1_GatewaySpec_To_gateway_GatewaySpec(in *GatewaySpec, out *gateway.GatewaySpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
 	out.Description = in.Description
 	out.Enabled = in.Enabled
 	if err := Convert_v1_RuntimeGroupRef_To_gateway_RuntimeGroupRef(&in.RuntimeGroupRef, &out.RuntimeGroupRef, s); err != nil {
@@ -1363,6 +1364,7 @@ func Convert_v1_GatewaySpec_To_gateway_GatewaySpec(in *GatewaySpec, out *gateway
 }
 
 func autoConvert_gateway_GatewaySpec_To_v1_GatewaySpec(in *gateway.GatewaySpec, out *GatewaySpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
 	out.Description = in.Description
 	out.Enabled = in.Enabled
 	if err := Convert_gateway_RuntimeGroupRef_To_v1_RuntimeGroupRef(&in.RuntimeGroupRef, &out.RuntimeGroupRef, s); err != nil {

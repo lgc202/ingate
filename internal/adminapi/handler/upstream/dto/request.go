@@ -2,12 +2,12 @@ package dto
 
 import (
 	"encoding/json"
+	"errors"
 	"net/netip"
 	"strconv"
 	"strings"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/validation"
 )
@@ -48,19 +48,19 @@ func (r UpstreamRequest) Resource() (*resource.Upstream, error) {
 func (r UpstreamRequest) Validate() error {
 	name := strings.TrimSpace(r.Name)
 	if name == "" {
-		return apierrors.NewBadRequest("service name is required")
+		return errors.New("service name is required")
 	}
 	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
-		return apierrors.NewBadRequest("service name must be a valid DNS label")
+		return errors.New("service name must be a valid DNS label")
 	}
 	if !validServiceType(r.Type) {
-		return apierrors.NewBadRequest("service type is invalid")
+		return errors.New("service type is invalid")
 	}
 	if !validLoadBalancePolicy(r.LoadBalancePolicy) {
-		return apierrors.NewBadRequest("load balance policy is invalid")
+		return errors.New("load balance policy is invalid")
 	}
 	if len(r.Endpoints) == 0 {
-		return apierrors.NewBadRequest("at least one service endpoint is required")
+		return errors.New("at least one service endpoint is required")
 	}
 
 	enabledEndpoints := 0
@@ -73,7 +73,7 @@ func (r UpstreamRequest) Validate() error {
 		}
 	}
 	if enabledEndpoints == 0 {
-		return apierrors.NewBadRequest("at least one service endpoint must be enabled")
+		return errors.New("at least one service endpoint must be enabled")
 	}
 
 	return r.validateHealthCheck()
@@ -83,26 +83,26 @@ func (r UpstreamRequest) Validate() error {
 func (r EndpointRequest) Validate() error {
 	address := strings.TrimSpace(r.Address)
 	if address == "" {
-		return apierrors.NewBadRequest("endpoint address is required")
+		return errors.New("endpoint address is required")
 	}
 	if !validEndpointAddress(address) {
-		return apierrors.NewBadRequest("endpoint address is invalid")
+		return errors.New("endpoint address is invalid")
 	}
 
 	port, err := strconv.Atoi(strings.TrimSpace(r.Port))
 	if err != nil {
-		return apierrors.NewBadRequest("endpoint port must be a number")
+		return errors.New("endpoint port must be a number")
 	}
 	if port < 1 || port > 65535 {
-		return apierrors.NewBadRequest("endpoint port must be between 1 and 65535")
+		return errors.New("endpoint port must be between 1 and 65535")
 	}
 
 	weight, err := strconv.Atoi(strings.TrimSpace(r.Weight))
 	if err != nil {
-		return apierrors.NewBadRequest("endpoint weight must be a number")
+		return errors.New("endpoint weight must be a number")
 	}
 	if weight < 0 || weight > 1000 {
-		return apierrors.NewBadRequest("endpoint weight must be between 0 and 1000")
+		return errors.New("endpoint weight must be between 0 and 1000")
 	}
 
 	return nil
@@ -138,23 +138,23 @@ func (r UpstreamRequest) validateHealthCheck() error {
 		return nil
 	}
 	if !strings.HasPrefix(strings.TrimSpace(r.HealthCheckPath), "/") {
-		return apierrors.NewBadRequest("health check path must start with /")
+		return errors.New("health check path must start with /")
 	}
 
 	interval, err := strconv.Atoi(strings.TrimSpace(r.HealthCheckIntervalSeconds))
 	if err != nil {
-		return apierrors.NewBadRequest("health check interval must be a number")
+		return errors.New("health check interval must be a number")
 	}
 	if interval < 1 || interval > 300 {
-		return apierrors.NewBadRequest("health check interval must be between 1 and 300")
+		return errors.New("health check interval must be between 1 and 300")
 	}
 
 	timeout, err := strconv.Atoi(strings.TrimSpace(r.HealthCheckTimeoutSeconds))
 	if err != nil {
-		return apierrors.NewBadRequest("health check timeout must be a number")
+		return errors.New("health check timeout must be a number")
 	}
 	if timeout < 1 || timeout > 60 || timeout >= interval {
-		return apierrors.NewBadRequest("health check timeout must be between 1 and 60 and less than interval")
+		return errors.New("health check timeout must be between 1 and 60 and less than interval")
 	}
 
 	return nil
