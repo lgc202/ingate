@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/lgc202/ingate/internal/adminapi/pkg/apperror"
+	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
@@ -119,7 +119,7 @@ func (s *Service) Delete(ctx context.Context, name string) error {
 	}
 	for _, route := range routes.Items {
 		if slices.Contains(route.Spec.ParentRefs, name) {
-			return apperror.NewBadRequest(fmt.Sprintf("gateway %q still has attached routes", name))
+			return xerrors.NewUserError(fmt.Sprintf("gateway %q still has attached routes", name))
 		}
 	}
 	return s.store.Delete(ctx, name)
@@ -191,7 +191,7 @@ func (s *Service) validateDefaultGateway(ctx context.Context, gateway *resource.
 			continue
 		}
 		if protocol, port, ok := sharedListener(gateway.Spec.Listeners, current.Spec.Listeners); ok {
-			return apperror.NewBadRequest(fmt.Sprintf("运行入口 %s:%d 已有不限制 Host 的网关 %q；请指定 Host，或先停用/删除该网关", protocol, port, current.Name))
+			return xerrors.NewUserError(fmt.Sprintf("运行入口 %s:%d 已有不限制 Host 的网关 %q；请指定 Host，或先停用/删除该网关", protocol, port, current.Name))
 		}
 	}
 	return nil
