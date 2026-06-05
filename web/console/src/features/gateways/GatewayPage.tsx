@@ -3,7 +3,7 @@ import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel } from '@/components/ui';
 import { healthLabel, statusTone } from '@/domain/common';
-import type { Gateway, GatewayCertificateOption, GatewayListener, GatewayMutationPayload, GatewayValidationReport } from '@/domain/gateway';
+import type { Gateway, GatewayCertificateOption, GatewayListener, GatewayMutationPayload, GatewayRuntimeGroupOption, GatewayValidationReport } from '@/domain/gateway';
 import type { GatewayFormDraft } from './form';
 import {
   buildGatewayPayload,
@@ -123,13 +123,14 @@ export function GatewayPage() {
     return matchedKeyword && matchedHost && matchedEnabled;
   });
   const hasActiveFilters = Boolean(filters.keyword.trim() || filters.host.trim() || filters.enabled !== 'all');
-  const draft = draftState ?? createGatewayDraft(panelMode === 'edit' ? selectedGateway : null);
-  const clientValidation = validateGatewayDraft(draft, availableGatewayViews, panelMode === 'edit' ? selectedGateway?.id : undefined);
+  const defaultRuntimeGroup = gateways.data.runtimeGroups[0]?.id ?? '';
+  const draft = draftState ?? createGatewayDraft(panelMode === 'edit' ? selectedGateway : null, defaultRuntimeGroup);
+  const clientValidation = validateGatewayDraft(draft, availableGatewayViews, panelMode === 'edit' ? selectedGateway?.id : undefined, gateways.data.runtimeGroups);
   const activeValidation = serverValidation ?? clientValidation;
   const payload = buildGatewayPayload(draft);
   const openCreate = () => {
     setPanelMode('create');
-    setDraftState(createGatewayDraft(null));
+    setDraftState(createGatewayDraft(null, defaultRuntimeGroup));
     setServerValidation(null);
     setSubmitError(null);
     setNotice(null);
@@ -138,7 +139,7 @@ export function GatewayPage() {
   const openEdit = (gateway: Gateway) => {
     setSelectedGatewayId(gateway.id);
     setPanelMode('edit');
-    setDraftState(createGatewayDraft(gateway));
+    setDraftState(createGatewayDraft(gateway, defaultRuntimeGroup));
     setServerValidation(null);
     setSubmitError(null);
     setNotice(null);
@@ -272,6 +273,7 @@ export function GatewayPage() {
             draft={draft}
             validation={activeValidation}
             originalGateway={panelMode === 'edit' ? selectedGateway : null}
+            runtimeGroups={gateways.data.runtimeGroups}
             certificates={gateways.data.certificates}
             submitError={submitError}
             onDraftChange={updateDraft}
@@ -449,6 +451,7 @@ function GatewayFormPanel({
   draft,
   validation,
   originalGateway,
+  runtimeGroups,
   certificates,
   submitError,
   onDraftChange,
@@ -459,6 +462,7 @@ function GatewayFormPanel({
   draft: GatewayFormDraft;
   validation: GatewayValidationReport;
   originalGateway: Gateway | null;
+  runtimeGroups: GatewayRuntimeGroupOption[];
   certificates: GatewayCertificateOption[];
   submitError: string | null;
   onDraftChange: (patch: Partial<GatewayFormDraft>) => void;
@@ -478,6 +482,16 @@ function GatewayFormPanel({
             </div>
             <div className="field-grid">
               <InputField label="网关名称" value={draft.displayName} error={fieldErrors.displayName} onChange={(value) => onDraftChange({ displayName: value })} />
+              <div className={`field ${fieldErrors.runtimeGroup ? 'invalid' : ''}`.trim()}>
+                <label>运行组</label>
+                <select value={draft.runtimeGroup} onChange={(event) => onDraftChange({ runtimeGroup: event.target.value })}>
+                  <option value="">选择运行组</option>
+                  {runtimeGroups.map((runtimeGroup) => (
+                    <option key={runtimeGroup.id} value={runtimeGroup.id}>{runtimeGroup.name}</option>
+                  ))}
+                </select>
+                {fieldErrors.runtimeGroup ? <div className="form-error">{fieldErrors.runtimeGroup}</div> : null}
+              </div>
               <InputField label="描述" value={draft.description} onChange={(value) => onDraftChange({ description: value })} />
             </div>
           </section>
@@ -523,6 +537,7 @@ function GatewayFormPanel({
 function gatewayFieldErrors(validation: GatewayValidationReport) {
   return {
     displayName: validation.items.find((item) => item.label === '网关名称' && item.status === 'critical')?.message,
+    runtimeGroup: validation.items.find((item) => item.label === '运行组' && item.status === 'critical')?.message,
     listeners: validation.items.find((item) => item.label === '运行入口' && item.status === 'critical')?.message,
     certificate: validation.items.find((item) => item.label === 'HTTPS 证书' && item.status === 'critical')?.message,
     host: validation.items.find((item) => item.label === 'Host 策略' && item.status === 'critical')?.message,

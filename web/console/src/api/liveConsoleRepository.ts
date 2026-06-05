@@ -13,6 +13,12 @@ interface GatewayMutationResponse {
   id?: string;
 }
 
+interface ApiResponse<T> {
+  code: number;
+  msg: string;
+  data: T;
+}
+
 type GatewayResource = Omit<Gateway, 'runtimeGroupName'>;
 
 interface GatewayListResponse {
@@ -226,20 +232,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     },
   });
 
+  const body = await response.json() as ApiResponse<T>;
   if (!response.ok) {
-    throw new Error(await errorMessage(response));
+    throw new Error(errorMessage(body, response.status));
   }
 
-  return response.json() as Promise<T>;
+  return body.data;
 }
 
-async function errorMessage(response: Response) {
-  try {
-    const body = await response.json() as { error?: string };
-    return body.error || `请求失败：${response.status}`;
-  } catch {
-    return `请求失败：${response.status}`;
-  }
+function errorMessage(body: { msg?: string; message?: string; error?: string }, status: number) {
+  return body.msg || body.message || body.error || `请求失败：${status}`;
 }
 
 function mutationResult(gatewayName: string, id?: string): GatewayMutationResult {
@@ -366,6 +368,11 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
       label: '网关名称',
       status: payload.displayName.trim() ? 'healthy' : 'critical',
       message: payload.displayName.trim() ? payload.displayName.trim() : '请输入网关名称',
+    },
+    {
+      label: '运行组',
+      status: payload.runtimeGroup.trim() ? 'healthy' : 'critical',
+      message: payload.runtimeGroup.trim() || '请选择运行组',
     },
     {
       label: '监听器',

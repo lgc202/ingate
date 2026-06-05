@@ -5,21 +5,22 @@ import (
 	"fmt"
 	"strings"
 
-	runtimegroupsvc "github.com/lgc202/ingate/internal/adminapi/service/runtimegroup"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// Validate 校验并归一化创建 Gateway 请求
+// Validate 校验创建 Gateway 请求
 func (r *CreateGatewayReq) Validate() error {
 	r.DisplayName = strings.TrimSpace(r.DisplayName)
 	if r.DisplayName == "" {
 		return errors.New("gateway displayName is required")
 	}
-	r.RuntimeGroup = normalizeRuntimeGroup(r.RuntimeGroup)
+	if r.RuntimeGroup == "" {
+		return errors.New("gateway runtimeGroup is required")
+	}
 	return validateGatewaySpecRequest(r.Listeners, r.HostBindings)
 }
 
-// Validate 校验并归一化更新 Gateway 请求
+// Validate 校验更新 Gateway 请求
 func (r *UpdateGatewayReq) Validate() error {
 	if r.Version == "" {
 		return errors.New("gateway version is required")
@@ -28,7 +29,9 @@ func (r *UpdateGatewayReq) Validate() error {
 	if r.DisplayName == "" {
 		return errors.New("gateway displayName is required")
 	}
-	r.RuntimeGroup = normalizeRuntimeGroup(r.RuntimeGroup)
+	if r.RuntimeGroup == "" {
+		return errors.New("gateway runtimeGroup is required")
+	}
 	return validateGatewaySpecRequest(r.Listeners, r.HostBindings)
 }
 
@@ -60,7 +63,7 @@ func validateGatewaySpecRequest(listeners []GatewayListenerReq, bindings []Gatew
 		if _, ok := listenerProtocols[listener.Name]; ok {
 			return fmt.Errorf("listener %q is duplicated", listener.Name)
 		}
-		if listener.Protocol != string(resource.ListenerProtocolHTTP) && listener.Protocol != string(resource.ListenerProtocolHTTPS) {
+		if listener.Protocol != string(resource.ProtocolHTTP) && listener.Protocol != string(resource.ProtocolHTTPS) {
 			return errors.New("listener protocol must be HTTP or HTTPS")
 		}
 		if listener.Port < 1 || listener.Port > 65535 {
@@ -99,7 +102,7 @@ func validateGatewaySpecRequest(listeners []GatewayListenerReq, bindings []Gatew
 			if !ok {
 				return fmt.Errorf("host binding references unknown listener %q", listenerRef)
 			}
-			if protocol == string(resource.ListenerProtocolHTTPS) {
+			if protocol == string(resource.ProtocolHTTPS) {
 				hasHTTPS = true
 			}
 		}
@@ -116,7 +119,7 @@ func validateGatewaySpecRequest(listeners []GatewayListenerReq, bindings []Gatew
 		}
 		if hasHTTPS {
 			for _, listenerRef := range binding.ListenerRefs {
-				if listenerProtocols[listenerRef] == string(resource.ListenerProtocolHTTPS) {
+				if listenerProtocols[listenerRef] == string(resource.ProtocolHTTPS) {
 					httpsListenersWithTLS[listenerRef] = struct{}{}
 				}
 			}
@@ -124,7 +127,7 @@ func validateGatewaySpecRequest(listeners []GatewayListenerReq, bindings []Gatew
 	}
 
 	for name, protocol := range listenerProtocols {
-		if protocol != string(resource.ListenerProtocolHTTPS) {
+		if protocol != string(resource.ProtocolHTTPS) {
 			continue
 		}
 		if _, ok := httpsListenersWithTLS[name]; !ok {
@@ -132,13 +135,6 @@ func validateGatewaySpecRequest(listeners []GatewayListenerReq, bindings []Gatew
 		}
 	}
 	return nil
-}
-
-func normalizeRuntimeGroup(runtimeGroup string) string {
-	if runtimeGroup == "" {
-		return runtimegroupsvc.DefaultID
-	}
-	return runtimeGroup
 }
 
 func validHostname(hostname string) bool {
@@ -149,7 +145,7 @@ func validHostname(hostname string) bool {
 	if hostname == "" || len(hostname) > 253 {
 		return false
 	}
-	for _, label := range strings.Split(hostname, ".") {
+	for label := range strings.SplitSeq(hostname, ".") {
 		if !validDNSLabel(label) {
 			return false
 		}

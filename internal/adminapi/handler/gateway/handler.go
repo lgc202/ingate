@@ -176,7 +176,7 @@ func (h *Handler) listenerParams(listeners []dto.GatewayListenerReq) []gatewayse
 	for _, listener := range listeners {
 		params = append(params, gatewayservice.ListenerParams{
 			Name:     listener.Name,
-			Protocol: resource.ListenerProtocol(listener.Protocol),
+			Protocol: resource.Protocol(listener.Protocol),
 			Port:     listener.Port,
 		})
 	}

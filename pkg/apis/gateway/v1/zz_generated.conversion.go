@@ -1556,7 +1556,7 @@ func Convert_gateway_HostBinding_To_v1_HostBinding(in *gateway.HostBinding, out 
 
 func autoConvert_v1_Listener_To_gateway_Listener(in *Listener, out *gateway.Listener, s conversion.Scope) error {
 	out.Name = in.Name
-	out.Protocol = gateway.ListenerProtocol(in.Protocol)
+	out.Protocol = gateway.Protocol(in.Protocol)
 	out.Port = in.Port
 	return nil
 }
@@ -1568,7 +1568,7 @@ func Convert_v1_Listener_To_gateway_Listener(in *Listener, out *gateway.Listener
 
 func autoConvert_gateway_Listener_To_v1_Listener(in *gateway.Listener, out *Listener, s conversion.Scope) error {
 	out.Name = in.Name
-	out.Protocol = ListenerProtocol(in.Protocol)
+	out.Protocol = Protocol(in.Protocol)
 	out.Port = in.Port
 	return nil
 }
