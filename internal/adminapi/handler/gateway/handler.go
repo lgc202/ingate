@@ -1,14 +1,17 @@
 package gateway
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/lgc202/ingate/internal/adminapi/handler/gateway/dto"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
+	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // Handler 处理 Gateway HTTP 请求
@@ -25,20 +28,20 @@ func New(service *gatewayservice.Service) *Handler {
 func (h *Handler) List(ctx *gin.Context) {
 	result, err := h.service.List(ctx.Request.Context())
 	if err != nil {
-		response.WriteResult(ctx, nil, err)
+		h.writeServiceError(ctx, err)
 		return
 	}
-	response.WriteResult(ctx, dto.NewListGatewaysResp(result), nil)
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListGatewaysResp(result))
 }
 
 // Get 返回单个 Gateway
 func (h *Handler) Get(ctx *gin.Context) {
 	result, err := h.service.Get(ctx.Request.Context(), ctx.Param("name"))
 	if err != nil {
-		response.WriteResult(ctx, nil, err)
+		h.writeServiceError(ctx, err)
 		return
 	}
-	response.WriteResult(ctx, dto.NewGetGatewayResp(result), nil)
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetGatewayResp(result))
 }
 
 // Create 创建 Gateway
@@ -54,7 +57,11 @@ func (h *Handler) Create(ctx *gin.Context) {
 	}
 
 	err := h.service.Create(ctx.Request.Context(), h.createGatewayParams(request))
-	response.WriteResult(ctx, dto.CreateGatewayResp{Success: true}, err)
+	if err != nil {
+		h.writeServiceError(ctx, err)
+		return
+	}
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.CreateGatewayResp{Success: true})
 }
 
 // Update 更新 Gateway
@@ -70,7 +77,11 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	err := h.service.Update(ctx.Request.Context(), ctx.Param("name"), h.updateGatewayParams(request))
-	response.WriteResult(ctx, dto.UpdateGatewayResp{Success: true}, err)
+	if err != nil {
+		h.writeServiceError(ctx, err)
+		return
+	}
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.UpdateGatewayResp{Success: true})
 }
 
 // SetEnabled 更新 Gateway 启停状态
@@ -86,23 +97,47 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 	}
 
 	err := h.service.SetEnabled(ctx.Request.Context(), ctx.Param("name"), request.Value())
-	response.WriteResult(ctx, dto.SetGatewayEnabledResp{Success: true}, err)
+	if err != nil {
+		h.writeServiceError(ctx, err)
+		return
+	}
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.SetGatewayEnabledResp{Success: true})
 }
 
 // Delete 删除 Gateway
 func (h *Handler) Delete(ctx *gin.Context) {
 	err := h.service.Delete(ctx.Request.Context(), ctx.Param("name"))
-	response.WriteResult(ctx, dto.DeleteGatewayResp{Success: true}, err)
+	if err != nil {
+		h.writeServiceError(ctx, err)
+		return
+	}
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.DeleteGatewayResp{Success: true})
 }
 
 // FormOptions 返回 Gateway 表单选项
 func (h *Handler) FormOptions(ctx *gin.Context) {
 	result, err := h.service.FormOptions(ctx.Request.Context())
 	if err != nil {
-		response.WriteResult(ctx, nil, err)
+		h.writeServiceError(ctx, err)
 		return
 	}
-	response.WriteResult(ctx, dto.NewGetGatewayFormOptionsResp(result), nil)
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetGatewayFormOptionsResp(result))
+}
+
+func (h *Handler) writeServiceError(ctx *gin.Context, err error) {
+	if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
+		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, userError.Error(), nil)
+		return
+	}
+	if apierrors.IsNotFound(err) {
+		response.GinAbortJSONResponse(ctx, http.StatusNotFound, "resource not found", nil)
+		return
+	}
+	if apierrors.IsAlreadyExists(err) || apierrors.IsConflict(err) {
+		response.GinAbortJSONResponse(ctx, http.StatusConflict, err.Error(), nil)
+		return
+	}
+	response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "gateway operation failed", nil)
 }
 
 func (h *Handler) createGatewayParams(request dto.CreateGatewayReq) gatewayservice.CreateGatewayParams {
