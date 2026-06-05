@@ -555,6 +555,9 @@ func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.Logica
 			Endpoints: make([]ir.LogicalEndpoint, 0, len(upstream.Spec.Endpoints)),
 		}
 		for _, endpoint := range upstream.Spec.Endpoints {
+			if !endpoint.Enabled {
+				continue
+			}
 			logicalUpstream.Endpoints = append(logicalUpstream.Endpoints, ir.LogicalEndpoint{
 				Address: endpoint.Address,
 				Port:    endpoint.Port,

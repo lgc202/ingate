@@ -41,7 +41,7 @@ func gatewayFromResource(gateway *resource.Gateway) Gateway {
 		ID:      gateway.Name,
 		Version: gateway.ResourceVersion,
 		GatewayConfig: GatewayConfig{
-			DisplayName:  gateway.Spec.DisplayName,
+			Name:         gateway.Spec.DisplayName,
 			Description:  gateway.Spec.Description,
 			RuntimeGroup: gateway.Spec.RuntimeGroupRef.Name,
 			Listeners:    listeners(gateway.Spec.Listeners),

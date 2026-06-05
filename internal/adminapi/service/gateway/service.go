@@ -51,7 +51,7 @@ func (s *Service) Get(ctx context.Context, gatewayID string) (*GatewayResult, er
 
 // Create 创建 Gateway
 func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (string, error) {
-	if err := s.validateDisplayNameUnique(ctx, params.DisplayName, noExcludedGatewayID); err != nil {
+	if err := s.validateNameUnique(ctx, params.Name, noExcludedGatewayID); err != nil {
 		return "", err
 	}
 	if err := s.runtimeGroup.ValidateEnabled(ctx, params.RuntimeGroup); err != nil {
@@ -88,7 +88,7 @@ func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGat
 	if params.Version != "" && params.Version != current.ResourceVersion {
 		return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resource.ResourceGateways, gatewayID))
 	}
-	if err := s.validateDisplayNameUnique(ctx, params.DisplayName, gatewayID); err != nil {
+	if err := s.validateNameUnique(ctx, params.Name, gatewayID); err != nil {
 		return err
 	}
 	if err := s.runtimeGroup.ValidateEnabled(ctx, params.RuntimeGroup); err != nil {
@@ -171,7 +171,7 @@ func gatewaySpec(params GatewayParams, enabled bool) resource.GatewaySpec {
 	}
 
 	return resource.GatewaySpec{
-		DisplayName:     params.DisplayName,
+		DisplayName:     params.Name,
 		Description:     params.Description,
 		Enabled:         enabled,
 		RuntimeGroupRef: resource.RuntimeGroupRef{Name: params.RuntimeGroup},
@@ -180,7 +180,7 @@ func gatewaySpec(params GatewayParams, enabled bool) resource.GatewaySpec {
 	}
 }
 
-func (s *Service) validateDisplayNameUnique(ctx context.Context, displayName, excludeID string) error {
+func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string) error {
 	gateways, err := s.store.List(ctx)
 	if err != nil {
 		return err
@@ -189,8 +189,8 @@ func (s *Service) validateDisplayNameUnique(ctx context.Context, displayName, ex
 		if gateway.Name == excludeID {
 			continue
 		}
-		if gateway.Spec.DisplayName == displayName {
-			return xerrors.NewUserError(fmt.Sprintf("网关名称 %q 已存在", displayName))
+		if gateway.Spec.DisplayName == name {
+			return xerrors.NewUserError(fmt.Sprintf("网关名称 %q 已存在", name))
 		}
 	}
 	return nil

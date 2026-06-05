@@ -72,7 +72,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 
 	id, err := h.service.Create(ctx.Request.Context(), h.createGatewayParams(request))
 	if err != nil {
-		h.logger.Error("create gateway failed", "request_id", ctx.GetString(requestid.Header), "display_name", request.DisplayName, "err", err)
+		h.logger.Error("create gateway failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -98,7 +98,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 	gatewayID := ctx.Param("id")
 	err := h.service.Update(ctx.Request.Context(), gatewayID, h.updateGatewayParams(request))
 	if err != nil {
-		h.logger.Error("update gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", gatewayID, "display_name", request.DisplayName, "err", err)
+		h.logger.Error("update gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", gatewayID, "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -166,7 +166,7 @@ func (h *Handler) updateGatewayParams(request dto.UpdateGatewayReq) gatewayservi
 
 func (h *Handler) gatewayParams(config dto.GatewayConfig) gatewayservice.GatewayParams {
 	return gatewayservice.GatewayParams{
-		DisplayName:  config.DisplayName,
+		Name:         config.Name,
 		Description:  config.Description,
 		RuntimeGroup: config.RuntimeGroup,
 		Listeners: lo.Map(config.Listeners, func(listener dto.GatewayListener, _ int) gatewayservice.ListenerParams {

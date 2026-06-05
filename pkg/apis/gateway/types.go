@@ -476,29 +476,64 @@ type UpstreamList struct {
 	Items []Upstream `json:"items"`
 }
 
-// UpstreamSpec 定义 Upstream 的展示信息和端点集合
+// UpstreamType 表示 Upstream 的业务分类
+type UpstreamType string
+
+const (
+	// UpstreamTypeApplication 表示普通应用服务
+	UpstreamTypeApplication UpstreamType = "application"
+	// UpstreamTypeModel 表示模型服务
+	UpstreamTypeModel UpstreamType = "model"
+	// UpstreamTypeAgent 表示 Agent 服务
+	UpstreamTypeAgent UpstreamType = "agent"
+	// UpstreamTypeMCP 表示 MCP 服务
+	UpstreamTypeMCP UpstreamType = "mcp"
+)
+
+// UpstreamLoadBalancePolicy 表示 Upstream 的负载均衡策略
+type UpstreamLoadBalancePolicy string
+
+const (
+	// UpstreamLoadBalancePolicyRoundRobin 表示轮询
+	UpstreamLoadBalancePolicyRoundRobin UpstreamLoadBalancePolicy = "round_robin"
+	// UpstreamLoadBalancePolicyLeastRequest 表示最少请求
+	UpstreamLoadBalancePolicyLeastRequest UpstreamLoadBalancePolicy = "least_request"
+	// UpstreamLoadBalancePolicyRandom 表示随机
+	UpstreamLoadBalancePolicyRandom UpstreamLoadBalancePolicy = "random"
+)
+
+// UpstreamSpec 定义 Upstream 的展示信息、流量策略和端点集合
 type UpstreamSpec struct {
 	// DisplayName 保存控制台展示名称，不参与引用匹配
 	DisplayName string `json:"displayName,omitempty"`
+	// Type 保存 Upstream 的业务分类，用于区分普通服务、模型服务和 Agent/MCP 服务
+	Type UpstreamType `json:"type,omitempty"`
+	// LoadBalancePolicy 指定多个端点之间的负载均衡策略
+	LoadBalancePolicy UpstreamLoadBalancePolicy `json:"loadBalancePolicy,omitempty"`
+	// HealthCheck 描述 Upstream 端点的主动健康检查配置
+	HealthCheck *UpstreamHealthCheck `json:"healthCheck,omitempty"`
 	// +listType=atomic
 	Endpoints []Endpoint `json:"endpoints"`
 }
 
-const (
-	// AnnotationUpstreamServiceType 保存控制台展示的服务类型
-	AnnotationUpstreamServiceType = "upstream.ingate.io/service-type"
-	// AnnotationUpstreamLoadBalancePolicy 保存控制台维护的负载均衡策略
-	AnnotationUpstreamLoadBalancePolicy = "upstream.ingate.io/load-balance-policy"
-	// AnnotationUpstreamEndpoints 保存控制台维护的端点启停和权重信息
-	AnnotationUpstreamEndpoints = "upstream.ingate.io/endpoints"
-	// AnnotationUpstreamHealthCheck 保存控制台维护的健康检查配置
-	AnnotationUpstreamHealthCheck = "upstream.ingate.io/health-check"
-)
-
 // Endpoint 声明一个上游端点
 type Endpoint struct {
+	// Name 是端点在 Upstream 内的稳定标识
+	Name    string `json:"name,omitempty"`
 	Address string `json:"address"`
 	Port    int    `json:"port"`
+	// Weight 是端点参与负载均衡时的相对权重，取值范围为 1-100
+	Weight int `json:"weight,omitempty"`
+	// Enabled 控制端点是否参与运行时配置生成
+	Enabled bool `json:"enabled"`
+}
+
+// UpstreamHealthCheck 声明 Upstream 的主动健康检查配置
+type UpstreamHealthCheck struct {
+	Enabled         bool   `json:"enabled"`
+	Path            string `json:"path,omitempty"`
+	IntervalSeconds int    `json:"intervalSeconds,omitempty"`
+	TimeoutSeconds  int    `json:"timeoutSeconds,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

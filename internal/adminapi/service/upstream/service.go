@@ -5,12 +5,13 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/samber/lo"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Service 承载 Upstream 查询用例
@@ -30,13 +31,8 @@ func (s *Service) List(ctx context.Context) (*ListResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	routes, err := s.routes.List(ctx)
-	if err != nil {
-		return nil, err
-	}
 	return &ListResult{
 		Upstreams: upstreams.Items,
-		Routes:    routes.Items,
 	}, nil
 }
 
@@ -46,27 +42,19 @@ func (s *Service) Get(ctx context.Context, upstreamID string) (*UpstreamResult, 
 	if err != nil {
 		return nil, err
 	}
-	routes, err := s.routes.List(ctx)
-	if err != nil {
-		return nil, err
-	}
 	return &UpstreamResult{
 		Upstream: upstream,
-		Routes:   routes.Items,
 	}, nil
 }
 
 // Create 创建 Upstream
-func (s *Service) Create(ctx context.Context, upstream *resource.Upstream) (string, error) {
-	if err := s.validateDisplayNameUnique(ctx, upstream.Spec.DisplayName, ""); err != nil {
+func (s *Service) Create(ctx context.Context, params CreateUpstreamParams) (string, error) {
+	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
 		return "", err
 	}
-	upstream.Name = uuid.NewString()
 
+	upstream := upstreamResource(uuid.NewString(), "", params.UpstreamParams)
 	created, err := s.store.Create(ctx, upstream)
-	if apierrors.IsAlreadyExists(err) {
-		return "", xerrors.NewUserError(fmt.Sprintf("上游 %q 已存在", upstream.Name))
-	}
 	if err != nil {
 		return "", err
 	}
@@ -74,19 +62,19 @@ func (s *Service) Create(ctx context.Context, upstream *resource.Upstream) (stri
 }
 
 // Update 更新 Upstream
-func (s *Service) Update(ctx context.Context, upstreamID string, upstream *resource.Upstream) error {
+func (s *Service) Update(ctx context.Context, upstreamID string, params UpdateUpstreamParams) error {
 	current, err := s.store.Get(ctx, upstreamID)
 	if err != nil {
 		return err
 	}
-	if err := validateVersion(resource.ResourceUpstreams, upstreamID, upstream.ResourceVersion, current.ResourceVersion); err != nil {
+	if err := validateVersion(resource.ResourceUpstreams, upstreamID, params.Version, current.ResourceVersion); err != nil {
 		return err
 	}
-	if err := s.validateDisplayNameUnique(ctx, upstream.Spec.DisplayName, upstreamID); err != nil {
+	if err := s.validateNameUnique(ctx, params.Name, upstreamID); err != nil {
 		return err
 	}
 	next := current.DeepCopy()
-	applyUpstreamUpdate(next, upstream)
+	applyUpstreamParams(next, params.UpstreamParams)
 	_, err = s.store.Update(ctx, next)
 	return err
 }
@@ -109,7 +97,7 @@ func (s *Service) Delete(ctx context.Context, upstreamID string) error {
 	return s.store.Delete(ctx, upstreamID)
 }
 
-func (s *Service) validateDisplayNameUnique(ctx context.Context, displayName, excludeID string) error {
+func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string) error {
 	upstreams, err := s.store.List(ctx)
 	if err != nil {
 		return err
@@ -118,34 +106,35 @@ func (s *Service) validateDisplayNameUnique(ctx context.Context, displayName, ex
 		if current.Name == excludeID {
 			continue
 		}
-		if current.Spec.DisplayName == displayName {
-			return xerrors.NewUserError(fmt.Sprintf("上游名称 %q 已存在", displayName))
+		if current.Spec.DisplayName == name {
+			return xerrors.NewUserError(fmt.Sprintf("上游名称 %q 已存在", name))
 		}
 	}
 	return nil
 }
 
-func applyUpstreamUpdate(next *resource.Upstream, submitted *resource.Upstream) {
-	next.Spec = submitted.Spec
-	if next.Annotations == nil {
-		next.Annotations = map[string]string{}
+func upstreamResource(id, version string, params UpstreamParams) *resource.Upstream {
+	return &resource.Upstream{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindUpstream),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            id,
+			ResourceVersion: version,
+		},
+		Spec: resource.UpstreamSpec{
+			DisplayName:       params.Name,
+			Type:              params.Type,
+			LoadBalancePolicy: params.LoadBalancePolicy,
+			HealthCheck:       params.HealthCheck,
+			Endpoints:         resourceEndpoints(params.Endpoints),
+		},
 	}
-	for _, key := range []string{
-		resource.AnnotationUpstreamServiceType,
-		resource.AnnotationUpstreamLoadBalancePolicy,
-		resource.AnnotationUpstreamEndpoints,
-		resource.AnnotationUpstreamHealthCheck,
-	} {
-		delete(next.Annotations, key)
-	}
-	for key, value := range submitted.Annotations {
-		if key == resource.AnnotationUpstreamServiceType ||
-			key == resource.AnnotationUpstreamLoadBalancePolicy ||
-			key == resource.AnnotationUpstreamEndpoints ||
-			key == resource.AnnotationUpstreamHealthCheck {
-			next.Annotations[key] = value
-		}
-	}
+}
+
+func applyUpstreamParams(next *resource.Upstream, params UpstreamParams) {
+	next.Spec = upstreamResource(next.Name, next.ResourceVersion, params).Spec
 }
 
 func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {
@@ -153,4 +142,16 @@ func validateVersion(resourceName resource.ResourceName, name, submittedVersion,
 		return nil
 	}
 	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))
+}
+
+func resourceEndpoints(endpoints []EndpointParams) []resource.Endpoint {
+	return lo.Map(endpoints, func(endpoint EndpointParams, _ int) resource.Endpoint {
+		return resource.Endpoint{
+			Name:    endpoint.ID,
+			Address: endpoint.Address,
+			Port:    endpoint.Port,
+			Weight:  endpoint.Weight,
+			Enabled: endpoint.Enabled,
+		}
+	})
 }
