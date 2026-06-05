@@ -11,8 +11,8 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// FromListResult 转换 Gateway 列表用例结果为 HTTP 响应
-func FromListResult(result *gatewayservice.ListResult) ListGatewaysResp {
+// NewListGatewaysResp 转换 Gateway 列表用例结果为 HTTP 响应
+func NewListGatewaysResp(result *gatewayservice.ListResult) ListGatewaysResp {
 	gateways := make([]GatewaySummary, 0, len(result.Gateways))
 	for i := range result.Gateways {
 		gateways = append(gateways, gatewaySummary(&result.Gateways[i], result.RuntimeGroups))
@@ -20,15 +20,15 @@ func FromListResult(result *gatewayservice.ListResult) ListGatewaysResp {
 	return ListGatewaysResp{Gateways: gateways}
 }
 
-// FromGatewayResult 转换单个 Gateway 用例结果为 HTTP 响应
-func FromGatewayResult(result *gatewayservice.GatewayResult) GetGatewayResp {
+// NewGetGatewayResp 转换单个 Gateway 用例结果为 HTTP 响应
+func NewGetGatewayResp(result *gatewayservice.GatewayResult) GetGatewayResp {
 	return GetGatewayResp{
 		Gateway: gatewayDetail(result.Gateway, result.RuntimeGroups),
 	}
 }
 
-// FromFormOptionsResult 转换 Gateway 表单选项用例结果为 HTTP 响应
-func FromFormOptionsResult(result *gatewayservice.FormOptionsResult) GetGatewayFormOptionsResp {
+// NewGetGatewayFormOptionsResp 转换 Gateway 表单选项用例结果为 HTTP 响应
+func NewGetGatewayFormOptionsResp(result *gatewayservice.FormOptionsResult) GetGatewayFormOptionsResp {
 	runtimeGroups := make([]RuntimeGroupOption, 0, len(result.RuntimeGroups))
 	for _, runtimeGroup := range result.RuntimeGroups {
 		runtimeGroups = append(runtimeGroups, RuntimeGroupOption{

@@ -1,13 +1,14 @@
 package gateway
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
 	"github.com/lgc202/ingate/internal/adminapi/handler/gateway/dto"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 // Handler 处理 Gateway HTTP 请求
@@ -27,7 +28,7 @@ func (h *Handler) List(ctx *gin.Context) {
 		response.WriteResult(ctx, nil, err)
 		return
 	}
-	response.WriteResult(ctx, dto.FromListResult(result), nil)
+	response.WriteResult(ctx, dto.NewListGatewaysResp(result), nil)
 }
 
 // Get 返回单个 Gateway
@@ -37,30 +38,38 @@ func (h *Handler) Get(ctx *gin.Context) {
 		response.WriteResult(ctx, nil, err)
 		return
 	}
-	response.WriteResult(ctx, dto.FromGatewayResult(result), nil)
+	response.WriteResult(ctx, dto.NewGetGatewayResp(result), nil)
 }
 
 // Create 创建 Gateway
 func (h *Handler) Create(ctx *gin.Context) {
-	request, err := bindCreateGatewayReq(ctx)
-	if err != nil {
-		response.WriteResult(ctx, nil, err)
+	request := dto.CreateGatewayReq{}
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		response.WriteError(ctx, http.StatusBadRequest, "invalid gateway request body")
+		return
+	}
+	if err := request.Validate(); err != nil {
+		response.WriteError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	err = h.service.Create(ctx.Request.Context(), createGatewayParams(request))
+	err := h.service.Create(ctx.Request.Context(), h.createGatewayParams(request))
 	response.WriteResult(ctx, dto.CreateGatewayResp{Success: true}, err)
 }
 
 // Update 更新 Gateway
 func (h *Handler) Update(ctx *gin.Context) {
-	request, err := bindUpdateGatewayReq(ctx)
-	if err != nil {
-		response.WriteResult(ctx, nil, err)
+	request := dto.UpdateGatewayReq{}
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		response.WriteError(ctx, http.StatusBadRequest, "invalid gateway request body")
+		return
+	}
+	if err := request.Validate(); err != nil {
+		response.WriteError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	err = h.service.Update(ctx.Request.Context(), ctx.Param("name"), updateGatewayParams(request))
+	err := h.service.Update(ctx.Request.Context(), ctx.Param("name"), h.updateGatewayParams(request))
 	response.WriteResult(ctx, dto.UpdateGatewayResp{Success: true}, err)
 }
 
@@ -68,11 +77,11 @@ func (h *Handler) Update(ctx *gin.Context) {
 func (h *Handler) SetEnabled(ctx *gin.Context) {
 	request := dto.SetGatewayEnabledReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
-		response.WriteResult(ctx, nil, apierrors.NewBadRequest("invalid gateway enabled request body"))
+		response.WriteError(ctx, http.StatusBadRequest, "invalid gateway enabled request body")
 		return
 	}
 	if err := request.Validate(); err != nil {
-		response.WriteResult(ctx, nil, err)
+		response.WriteError(ctx, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -93,52 +102,30 @@ func (h *Handler) FormOptions(ctx *gin.Context) {
 		response.WriteResult(ctx, nil, err)
 		return
 	}
-	response.WriteResult(ctx, dto.FromFormOptionsResult(result), nil)
+	response.WriteResult(ctx, dto.NewGetGatewayFormOptionsResp(result), nil)
 }
 
-func bindCreateGatewayReq(ctx *gin.Context) (dto.CreateGatewayReq, error) {
-	request := dto.CreateGatewayReq{}
-	if err := ctx.ShouldBindJSON(&request); err != nil {
-		return dto.CreateGatewayReq{}, apierrors.NewBadRequest("invalid gateway request body")
-	}
-	if err := request.Validate(); err != nil {
-		return dto.CreateGatewayReq{}, err
-	}
-	return request, nil
-}
-
-func bindUpdateGatewayReq(ctx *gin.Context) (dto.UpdateGatewayReq, error) {
-	request := dto.UpdateGatewayReq{}
-	if err := ctx.ShouldBindJSON(&request); err != nil {
-		return dto.UpdateGatewayReq{}, apierrors.NewBadRequest("invalid gateway request body")
-	}
-	if err := request.Validate(); err != nil {
-		return dto.UpdateGatewayReq{}, err
-	}
-	return request, nil
-}
-
-func createGatewayParams(request dto.CreateGatewayReq) gatewayservice.CreateGatewayParams {
+func (h *Handler) createGatewayParams(request dto.CreateGatewayReq) gatewayservice.CreateGatewayParams {
 	return gatewayservice.CreateGatewayParams{
 		Name:         request.Name,
 		Description:  request.Description,
 		RuntimeGroup: request.RuntimeGroup,
-		Listeners:    listenerParams(request.Listeners),
-		HostBindings: hostBindingParams(request.HostBindings),
+		Listeners:    h.listenerParams(request.Listeners),
+		HostBindings: h.hostBindingParams(request.HostBindings),
 	}
 }
 
-func updateGatewayParams(request dto.UpdateGatewayReq) gatewayservice.UpdateGatewayParams {
+func (h *Handler) updateGatewayParams(request dto.UpdateGatewayReq) gatewayservice.UpdateGatewayParams {
 	return gatewayservice.UpdateGatewayParams{
 		Version:      request.Version,
 		Description:  request.Description,
 		RuntimeGroup: request.RuntimeGroup,
-		Listeners:    listenerParams(request.Listeners),
-		HostBindings: hostBindingParams(request.HostBindings),
+		Listeners:    h.listenerParams(request.Listeners),
+		HostBindings: h.hostBindingParams(request.HostBindings),
 	}
 }
 
-func listenerParams(listeners []dto.GatewayListenerReq) []gatewayservice.ListenerParams {
+func (h *Handler) listenerParams(listeners []dto.GatewayListenerReq) []gatewayservice.ListenerParams {
 	params := make([]gatewayservice.ListenerParams, 0, len(listeners))
 	for _, listener := range listeners {
 		params = append(params, gatewayservice.ListenerParams{
@@ -150,7 +137,7 @@ func listenerParams(listeners []dto.GatewayListenerReq) []gatewayservice.Listene
 	return params
 }
 
-func hostBindingParams(bindings []dto.GatewayHostBindingReq) []gatewayservice.HostBindingParams {
+func (h *Handler) hostBindingParams(bindings []dto.GatewayHostBindingReq) []gatewayservice.HostBindingParams {
 	params := make([]gatewayservice.HostBindingParams, 0, len(bindings))
 	for _, binding := range bindings {
 		param := gatewayservice.HostBindingParams{
