@@ -23,9 +23,9 @@ func (r *UpdateGatewayReq) Validate() error {
 
 // Validate 校验 Gateway 配置请求
 func (r *GatewayConfig) Validate() error {
-	r.DisplayName = strings.TrimSpace(r.DisplayName)
-	if r.DisplayName == "" {
-		return errors.New("gateway displayName is required")
+	r.Name = strings.TrimSpace(r.Name)
+	if r.Name == "" {
+		return errors.New("gateway name is required")
 	}
 	if r.RuntimeGroup == "" {
 		return errors.New("gateway runtimeGroup is required")

@@ -62,7 +62,7 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.UpstreamSpec{
 					Endpoints: []resource.Endpoint{
-						{Address: "10.0.0.10", Port: 8080},
+						{Address: "10.0.0.10", Port: 8080, Enabled: true},
 					},
 				},
 			},
@@ -178,7 +178,7 @@ func TestPipelineBuildGatewaySnapshotForTarget(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
 				Spec: resource.UpstreamSpec{
 					Endpoints: []resource.Endpoint{
-						{Address: "10.0.0.10", Port: 8080},
+						{Address: "10.0.0.10", Port: 8080, Enabled: true},
 					},
 				},
 			},

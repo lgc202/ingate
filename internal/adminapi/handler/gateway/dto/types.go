@@ -18,7 +18,7 @@ type SetGatewayEnabledReq struct {
 
 // GatewayConfig 是控制台读写 Gateway 时复用的核心配置
 type GatewayConfig struct {
-	DisplayName  string               `json:"displayName"`
+	Name         string               `json:"name"`
 	Description  string               `json:"description"`
 	RuntimeGroup string               `json:"runtimeGroup"`
 	Listeners    []GatewayListener    `json:"listeners"`

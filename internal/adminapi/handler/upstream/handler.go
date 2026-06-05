@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/samber/lo"
 
 	"github.com/lgc202/ingate/internal/adminapi/handler/upstream/dto"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
@@ -37,7 +38,7 @@ func (h *Handler) List(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询上游列表失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.FromListResult(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListUpstreamsResp(result))
 }
 
 // Get 返回单个 Upstream
@@ -54,12 +55,12 @@ func (h *Handler) Get(ctx *gin.Context) {
 		return
 	}
 
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.FromUpstreamResult(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetUpstreamResp(result))
 }
 
 // Create 创建 Upstream
 func (h *Handler) Create(ctx *gin.Context) {
-	request := dto.UpstreamRequest{}
+	request := dto.CreateUpstreamReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
@@ -68,15 +69,10 @@ func (h *Handler) Create(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	upstream, err := request.Resource()
-	if err != nil {
-		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
-		return
-	}
 
-	upstreamID, err := h.service.Create(ctx.Request.Context(), upstream)
+	upstreamID, err := h.service.Create(ctx.Request.Context(), h.createUpstreamParams(request))
 	if err != nil {
-		h.logger.Error("create upstream failed", "request_id", ctx.GetString(requestid.Header), "display_name", upstream.Spec.DisplayName, "err", err)
+		h.logger.Error("create upstream failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
@@ -84,12 +80,12 @@ func (h *Handler) Create(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "创建上游失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.MutationResponse{Success: true, ID: upstreamID})
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.CreateUpstreamResp{Success: true, ID: upstreamID})
 }
 
 // Update 更新 Upstream
 func (h *Handler) Update(ctx *gin.Context) {
-	request := dto.UpstreamRequest{}
+	request := dto.UpdateUpstreamReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
@@ -98,14 +94,9 @@ func (h *Handler) Update(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	upstream, err := request.Resource()
-	if err != nil {
-		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
-		return
-	}
 
 	upstreamID := ctx.Param("id")
-	err = h.service.Update(ctx.Request.Context(), upstreamID, upstream)
+	err := h.service.Update(ctx.Request.Context(), upstreamID, h.updateUpstreamParams(request))
 	if err != nil {
 		h.logger.Error("update upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstreamID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -115,7 +106,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "更新上游失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.MutationResponse{Success: true})
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.UpdateUpstreamResp{Success: true})
 }
 
 // Delete 删除 Upstream
@@ -131,5 +122,36 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "删除上游失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.MutationResponse{Success: true})
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.DeleteUpstreamResp{Success: true})
+}
+
+func (h *Handler) createUpstreamParams(request dto.CreateUpstreamReq) upstreamservice.CreateUpstreamParams {
+	return upstreamservice.CreateUpstreamParams{
+		UpstreamParams: h.upstreamParams(request.UpstreamConfig),
+	}
+}
+
+func (h *Handler) updateUpstreamParams(request dto.UpdateUpstreamReq) upstreamservice.UpdateUpstreamParams {
+	return upstreamservice.UpdateUpstreamParams{
+		Version:        request.Version,
+		UpstreamParams: h.upstreamParams(request.UpstreamConfig),
+	}
+}
+
+func (h *Handler) upstreamParams(config dto.UpstreamConfig) upstreamservice.UpstreamParams {
+	return upstreamservice.UpstreamParams{
+		Name:              config.Name,
+		Type:              config.Type,
+		LoadBalancePolicy: config.LoadBalancePolicy,
+		Endpoints: lo.Map(config.Endpoints, func(endpoint dto.UpstreamEndpoint, _ int) upstreamservice.EndpointParams {
+			return upstreamservice.EndpointParams{
+				ID:      endpoint.ID,
+				Address: endpoint.Address,
+				Port:    endpoint.Port,
+				Weight:  endpoint.Weight,
+				Enabled: endpoint.Enabled,
+			}
+		}),
+		HealthCheck: config.HealthCheck,
+	}
 }

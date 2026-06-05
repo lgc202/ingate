@@ -82,6 +82,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshotSpec": schema_pkg_apis_gateway_v1_RuntimeSnapshotSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TargetRef":           schema_pkg_apis_gateway_v1_TargetRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream":            schema_pkg_apis_gateway_v1_Upstream(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck": schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamList":        schema_pkg_apis_gateway_v1_UpstreamList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef":         schema_pkg_apis_gateway_v1_UpstreamRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamSpec":        schema_pkg_apis_gateway_v1_UpstreamSpec(ref),
@@ -1350,6 +1351,13 @@ func schema_pkg_apis_gateway_v1_Endpoint(ref common.ReferenceCallback) common.Op
 				Description: "Endpoint 声明一个上游端点",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name 是端点在 Upstream 内的稳定标识",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"address": {
 						SchemaProps: spec.SchemaProps{
 							Default: "",
@@ -1364,8 +1372,23 @@ func schema_pkg_apis_gateway_v1_Endpoint(ref common.ReferenceCallback) common.Op
 							Format:  "int32",
 						},
 					},
+					"weight": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Weight 是端点参与负载均衡时的相对权重，取值范围为 1-100",
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 控制端点是否参与运行时配置生成",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
 				},
-				Required: []string{"address", "port"},
+				Required: []string{"address", "port", "enabled"},
 			},
 		},
 	}
@@ -3323,6 +3346,45 @@ func schema_pkg_apis_gateway_v1_Upstream(ref common.ReferenceCallback) common.Op
 	}
 }
 
+func schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "UpstreamHealthCheck 声明 Upstream 的主动健康检查配置",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Default: false,
+							Type:    []string{"boolean"},
+							Format:  "",
+						},
+					},
+					"path": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"intervalSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"timeoutSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+				},
+				Required: []string{"enabled"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_UpstreamList(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -3404,7 +3466,7 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamSpec 定义 Upstream 的展示信息和端点集合",
+				Description: "UpstreamSpec 定义 Upstream 的展示信息、流量策略和端点集合",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
@@ -3412,6 +3474,26 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 							Description: "DisplayName 保存控制台展示名称，不参与引用匹配",
 							Type:        []string{"string"},
 							Format:      "",
+						},
+					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type 保存 Upstream 的业务分类，用于区分普通服务、模型服务和 Agent/MCP 服务",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"loadBalancePolicy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LoadBalancePolicy 指定多个端点之间的负载均衡策略",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"healthCheck": {
+						SchemaProps: spec.SchemaProps{
+							Description: "HealthCheck 描述 Upstream 端点的主动健康检查配置",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck"),
 						},
 					},
 					"endpoints": {
@@ -3437,7 +3519,7 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck"},
 	}
 }
 

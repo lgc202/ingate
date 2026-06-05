@@ -25,7 +25,7 @@ type UpdateGatewayParams struct {
 
 // GatewayParams 是创建和更新 Gateway 共用的配置参数
 type GatewayParams struct {
-	DisplayName  string
+	Name         string
 	Description  string
 	RuntimeGroup string
 	Listeners    []ListenerParams
