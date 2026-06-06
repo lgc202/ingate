@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { CircleCheck, X } from 'lucide-react';
+import { AlertCircle, CircleCheck, X } from 'lucide-react';
 
 export function PageFrame({
   title,
@@ -106,10 +106,12 @@ export function Tabs({
 
 export function Toast({
   message,
+  tone = 'success',
   onClose,
   duration = 3200,
 }: {
   message: string | null;
+  tone?: 'success' | 'error';
   onClose: () => void;
   duration?: number;
 }) {
@@ -133,8 +135,10 @@ export function Toast({
   }
 
   return (
-    <div className="toast" role="status">
-      <CircleCheck size={17} strokeWidth={2.3} aria-hidden="true" />
+    <div className={`toast ${tone === 'error' ? 'error' : ''}`.trim()} role="status">
+      {tone === 'error'
+        ? <AlertCircle size={17} strokeWidth={2.3} aria-hidden="true" />
+        : <CircleCheck size={17} strokeWidth={2.3} aria-hidden="true" />}
       <span>{message}</span>
       <button type="button" onClick={onClose} aria-label="关闭提示">
         <X size={15} strokeWidth={2.4} aria-hidden="true" />
