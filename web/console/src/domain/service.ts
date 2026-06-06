@@ -1,4 +1,4 @@
-import type { CountSegment, HealthStatus, RuntimeSyncStatus } from './common';
+import type { HealthStatus, RuntimeSyncStatus } from './common';
 
 export type ServiceType = 'application' | 'model' | 'agent' | 'mcp';
 export type ServiceLoadBalancePolicy = 'round_robin' | 'least_request' | 'random';
@@ -29,28 +29,16 @@ export interface ServiceResource {
   version?: string;
   name: string;
   type: ServiceType;
-  endpoint: string;
-  endpoints?: ServiceEndpointPayload[];
-  instances: string;
+  endpoints: ServiceEndpointPayload[];
   healthStatus: HealthStatus;
   runtimeStatus: RuntimeSyncStatus;
-  referencedRoutes: number;
-  traffic: string;
-  successRate: string;
-  lastUpdatedAt: string;
-}
-
-export interface ServiceIncident {
-  serviceName: string;
-  description: string;
-  time: string;
-  status: HealthStatus;
+  loadBalancePolicy: ServiceLoadBalancePolicy;
+  healthCheck?: ServiceHealthCheck;
+  createdAt: string;
 }
 
 export interface ServiceListView {
-  services: ServiceResource[];
-  health: CountSegment[];
-  incidents: ServiceIncident[];
+  upstreams: ServiceResource[];
 }
 
 export interface ServiceMutationPayload {
@@ -58,22 +46,24 @@ export interface ServiceMutationPayload {
   version?: string;
   name: string;
   type: ServiceType;
-  endpoint: string;
-  instances: string;
   endpoints: ServiceEndpointPayload[];
   loadBalancePolicy: ServiceLoadBalancePolicy;
-  healthCheckEnabled: boolean;
-  healthCheckPath: string;
-  healthCheckIntervalSeconds: string;
-  healthCheckTimeoutSeconds: string;
+  healthCheck?: ServiceHealthCheck;
 }
 
 export interface ServiceEndpointPayload {
   id: string;
   address: string;
-  port: string;
-  weight: string;
+  port: number;
+  weight: number;
   enabled: boolean;
+}
+
+export interface ServiceHealthCheck {
+  enabled: boolean;
+  path?: string;
+  intervalSeconds?: number;
+  timeoutSeconds?: number;
 }
 
 export interface ServiceMutationPreview {

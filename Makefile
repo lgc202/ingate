@@ -1,4 +1,4 @@
-.PHONY: build generate test console-install console-build all-in-one-binaries all-in-one-image dev-image dev-restart
+.PHONY: build generate test console-install console-build all-in-one-binaries all-in-one-image dev-image dev-restart dev-reset
 
 GO_CACHE_DIR ?= /tmp/ingate-gocache
 ALL_IN_ONE_IMAGE ?= ingate/all-in-one:dev
@@ -37,3 +37,7 @@ dev-image:
 
 dev-restart: dev-image
 	./install.sh restart --image $(DEV_IMAGE) --tag $(DEV_TAG) --data-dir $(DEV_DATA_DIR)
+
+dev-reset: dev-image
+	./install.sh delete --purge-data --image $(DEV_IMAGE) --tag $(DEV_TAG) --data-dir $(DEV_DATA_DIR)
+	./install.sh start --image $(DEV_IMAGE) --tag $(DEV_TAG) --data-dir $(DEV_DATA_DIR)

@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { CircleCheck, X } from 'lucide-react';
 
 export function PageFrame({
   title,
@@ -99,6 +100,45 @@ export function Tabs({
           {tab.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+export function Toast({
+  message,
+  onClose,
+  duration = 3200,
+}: {
+  message: string | null;
+  onClose: () => void;
+  duration?: number;
+}) {
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => onCloseRef.current(), duration);
+    return () => window.clearTimeout(timer);
+  }, [duration, message]);
+
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div className="toast" role="status">
+      <CircleCheck size={17} strokeWidth={2.3} aria-hidden="true" />
+      <span>{message}</span>
+      <button type="button" onClick={onClose} aria-label="关闭提示">
+        <X size={15} strokeWidth={2.4} aria-hidden="true" />
+      </button>
     </div>
   );
 }
