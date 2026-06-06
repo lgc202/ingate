@@ -192,7 +192,7 @@ export function RoutePage() {
 
       return availableRoutes.find((route) => route.id !== deleteCandidate.id)?.id ?? '';
     });
-    setNotice(`已删除路由：${routeDisplayName(deleteCandidate)}`);
+    setNotice(`已删除路由：${deleteCandidate.name}`);
     setDeleteCandidate(null);
     setDeleting(false);
   };
@@ -213,7 +213,7 @@ export function RoutePage() {
       return;
     }
 
-    setNotice(`已启用路由：${routeDisplayName(route)}`);
+    setNotice(`已启用路由：${route.name}`);
     setToggling(false);
   };
 
@@ -233,7 +233,7 @@ export function RoutePage() {
       return;
     }
 
-    setNotice(`已停用路由：${routeDisplayName(disableCandidate)}`);
+    setNotice(`已停用路由：${disableCandidate.name}`);
     setDisableCandidate(null);
     setToggling(false);
   };
@@ -270,7 +270,7 @@ export function RoutePage() {
     return (
       <PageFrame
         title="路由详情"
-        subtitle={selectedRouteView ? routeDisplayName(selectedRouteView) : '未选择路由'}
+        subtitle={selectedRouteView ? selectedRouteView.name : '未选择路由'}
         actions={<Button variant="soft" onClick={() => setMode('list')}>返回列表</Button>}
       >
         <Panel title="基础信息">
@@ -404,7 +404,7 @@ export function RoutePage() {
             }}>
               <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-route-title" onMouseDown={(event) => event.stopPropagation()}>
                 <h3 id="delete-route-title">删除路由</h3>
-                <p>确定删除 {routeDisplayName(deleteCandidate)}？删除后这条路由不会再进入目标服务。</p>
+                <p>确定删除 {deleteCandidate.name}？删除后这条路由不会再进入目标服务。</p>
                 <div className="confirm-meta">
                   <span>所属网关</span><strong>{formatGatewayIDs(deleteCandidate.gatewayIDs, routeWorkspace.composer.gateways)}</strong>
                   <span>目标服务</span><strong>{routeTargetSummary(deleteCandidate, routeWorkspace.composer.targets)}</strong>
@@ -424,7 +424,7 @@ export function RoutePage() {
             }}>
               <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="disable-route-title" onMouseDown={(event) => event.stopPropagation()}>
                 <h3 id="disable-route-title">停用路由</h3>
-                <p>停用 {routeDisplayName(disableCandidate)} 后，命中该路由的请求将不再转发到目标服务。</p>
+                <p>停用 {disableCandidate.name} 后，命中该路由的请求将不再转发到目标服务。</p>
                 <div className="confirm-meta">
                   <span>匹配 Host</span><strong>{formatHostnames(disableCandidate.hostnames)}</strong>
                   <span>目标服务</span><strong>{routeTargetSummary(disableCandidate, routeWorkspace.composer.targets)}</strong>
@@ -464,7 +464,7 @@ function RouteMatchHeader({
       <div className="route-flow-head">
         <div>
           <span>当前路由</span>
-          <strong>{draft.name.trim() || '未命名路由'}</strong>
+          <strong>{draft.name.trim() || '请输入路由名称'}</strong>
           <small>{formatMethods(draft.methods)} {draft.path || '/'}</small>
         </div>
         <Badge tone={draft.enabled ? 'green' : 'neutral'}>{draft.enabled ? '运行中' : '已停用'}</Badge>
@@ -524,7 +524,7 @@ function renderRouteTable(
           {routes.map((route) => (
             <tr key={route.id} className={route.id === selectedRouteId ? 'selected' : ''} onClick={() => onSelect(route.id)}>
               <td>
-                <div className="table-primary">{routeDisplayName(route)}</div>
+                <div className="table-primary">{route.name}</div>
                 <div className="table-secondary">{route.rules.length} 条规则</div>
               </td>
               <td>
@@ -550,7 +550,7 @@ function renderRouteTable(
                     role="switch"
                     disabled={toggling}
                     aria-checked={routeEnabled(route)}
-                    aria-label={`${routeDisplayName(route)} ${routeEnabled(route) ? '已启用' : '已停用'}`}
+                    aria-label={`${route.name} ${routeEnabled(route) ? '已启用' : '已停用'}`}
                     onClick={(event) => {
                       event.stopPropagation();
                       onToggleEnabled(route);
@@ -791,7 +791,7 @@ function routeDetailsForTab(route: RoutePageView['routes'][number], tab: string,
   }
 
   return [
-    { label: '路由名称', value: routeDisplayName(route) },
+    { label: '路由名称', value: route.name },
     { label: '方法', value: formatMethods(rule?.methods ?? []) },
     { label: '路径', value: rule?.pathPrefix ?? '-' },
     { label: '所属网关', value: formatGatewayIDs(route.gatewayIDs, gateways) },
@@ -1183,10 +1183,6 @@ function routePolicyCount(route: Pick<RouteResource, 'rules'>) {
 function formatRouteMatch(route: Pick<RouteResource, 'rules'>) {
   const rule = primaryRouteRule(route);
   return `${formatMethods(rule?.methods ?? [])} ${rule?.pathPrefix ?? '-'}`;
-}
-
-function routeDisplayName(route: Pick<RouteResource, 'name' | 'rules'>) {
-  return route.name || formatRouteMatch(route);
 }
 
 function enabledCapabilitiesFromRule(rule: RouteResource['rules'][number] | undefined): RoutePolicyCapability[] {
