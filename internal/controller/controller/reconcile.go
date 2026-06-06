@@ -26,6 +26,17 @@ func (c *Controller) reconcileGateway(gatewayName string) error {
 		)
 		return nil
 	}
+	if !bundle.Gateways[0].Spec.Enabled {
+		if err := c.deleteRuntimeSnapshot(context.Background(), c.target, gatewayName); err != nil {
+			return err
+		}
+		c.logger.Info("runtime snapshot deleted",
+			"target", c.target,
+			"gateway", gatewayName,
+			"reason", "gateway_disabled",
+		)
+		return nil
+	}
 
 	snapshot, err := c.pipeline.BuildGatewaySnapshotForTarget(bundle, gatewayName, c.target)
 	if err != nil {

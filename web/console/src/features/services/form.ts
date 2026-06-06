@@ -16,10 +16,12 @@ export interface ServiceFormDraft {
   type: ServiceType;
   endpoints: ServiceEndpointPayload[];
   loadBalancePolicy: ServiceLoadBalancePolicy;
-  healthCheckEnabled: boolean;
-  healthCheckPath: string;
-  healthCheckIntervalSeconds: string;
-  healthCheckTimeoutSeconds: string;
+  healthCheck: {
+    enabled: boolean;
+    path: string;
+    intervalSeconds: number;
+    timeoutSeconds: number;
+  };
 }
 
 export function createServiceDraft(service?: ServiceResource | null): ServiceFormDraft {
@@ -29,19 +31,21 @@ export function createServiceDraft(service?: ServiceResource | null): ServiceFor
     name: service?.name ?? '',
     type: service?.type ?? 'application',
     endpoints: createEndpointsFromService(service),
-    loadBalancePolicy: 'round_robin',
-    healthCheckEnabled: true,
-    healthCheckPath: '/healthz',
-    healthCheckIntervalSeconds: '10',
-    healthCheckTimeoutSeconds: '2',
+    loadBalancePolicy: service?.loadBalancePolicy ?? 'round_robin',
+    healthCheck: {
+      enabled: service?.healthCheck?.enabled ?? true,
+      path: service?.healthCheck?.path ?? '/healthz',
+      intervalSeconds: service?.healthCheck?.intervalSeconds ?? 10,
+      timeoutSeconds: service?.healthCheck?.timeoutSeconds ?? 2,
+    },
   };
 }
 
 export function validateServiceDraft(draft: ServiceFormDraft): ServiceValidationReport {
   const endpointErrors = validateEndpoints(draft.endpoints);
   const enabledEndpoints = draft.endpoints.filter((endpoint) => endpoint.enabled);
-  const healthInterval = Number(draft.healthCheckIntervalSeconds);
-  const healthTimeout = Number(draft.healthCheckTimeoutSeconds);
+  const healthInterval = draft.healthCheck.intervalSeconds;
+  const healthTimeout = draft.healthCheck.timeoutSeconds;
   const items: ServiceValidationItem[] = [
     {
       label: '服务名称',
@@ -77,23 +81,24 @@ export function buildServicePayload(draft: ServiceFormDraft): ServiceMutationPay
   const endpoints = draft.endpoints.map((endpoint) => ({
     ...endpoint,
     address: endpoint.address.trim(),
-    port: endpoint.port.trim(),
-    weight: endpoint.weight.trim(),
   }));
+  const healthCheck = draft.healthCheck.enabled
+    ? {
+      enabled: true,
+      path: draft.healthCheck.path.trim(),
+      intervalSeconds: draft.healthCheck.intervalSeconds,
+      timeoutSeconds: draft.healthCheck.timeoutSeconds,
+    }
+    : { enabled: false };
 
   return {
     id: draft.id,
     version: draft.version,
     name: draft.name.trim(),
     type: draft.type,
-    endpoint: formatEndpointSummary(endpoints),
-    instances: formatInstanceSummary(endpoints),
     endpoints,
     loadBalancePolicy: draft.loadBalancePolicy,
-    healthCheckEnabled: draft.healthCheckEnabled,
-    healthCheckPath: draft.healthCheckPath.trim(),
-    healthCheckIntervalSeconds: draft.healthCheckIntervalSeconds.trim(),
-    healthCheckTimeoutSeconds: draft.healthCheckTimeoutSeconds.trim(),
+    healthCheck,
   };
 }
 
@@ -101,8 +106,8 @@ export function createServiceEndpoint(): ServiceEndpointPayload {
   return {
     id: `endpoint-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     address: '',
-    port: '80',
-    weight: '100',
+    port: 80,
+    weight: 100,
     enabled: true,
   };
 }
@@ -132,34 +137,10 @@ function createEndpointsFromService(service?: ServiceResource | null): ServiceEn
     return [createServiceEndpoint()];
   }
 
-  if (service.endpoints && service.endpoints.length > 0) {
+  if (service.endpoints.length > 0) {
     return service.endpoints.map((endpoint) => ({ ...endpoint }));
   }
-
-  const endpoint = parseEndpoint(service.endpoint);
-
-  return [{
-    id: `${service.id}-endpoint-1`,
-    address: endpoint.address,
-    port: endpoint.port,
-    weight: '100',
-    enabled: true,
-  }];
-}
-
-function parseEndpoint(endpoint: string) {
-  try {
-    const url = new URL(endpoint.includes('://') ? endpoint : `http://${endpoint}`);
-
-    return {
-      address: url.hostname || endpoint,
-      port: url.port || (url.protocol === 'https:' ? '443' : '80'),
-    };
-  } catch {
-    const [address, port = '80'] = endpoint.split(':');
-
-    return { address, port };
-  }
+  return [createServiceEndpoint()];
 }
 
 function validateEndpoints(endpoints: ServiceEndpointPayload[]) {
@@ -169,8 +150,8 @@ function validateEndpoints(endpoints: ServiceEndpointPayload[]) {
 
   return endpoints.flatMap((endpoint, index) => {
     const messages: string[] = [];
-    const port = Number(endpoint.port);
-    const weight = Number(endpoint.weight);
+    const port = endpoint.port;
+    const weight = endpoint.weight;
 
     if (!endpoint.address.trim()) {
       messages.push(`第 ${index + 1} 个端点缺少地址`);
@@ -180,8 +161,8 @@ function validateEndpoints(endpoints: ServiceEndpointPayload[]) {
       messages.push(`第 ${index + 1} 个端点端口不合法`);
     }
 
-    if (!Number.isInteger(weight) || weight < 0 || weight > 1000) {
-      messages.push(`第 ${index + 1} 个端点权重需要在 0-1000 之间`);
+    if (!Number.isInteger(weight) || weight < 1 || weight > 100) {
+      messages.push(`第 ${index + 1} 个端点权重需要在 1-100 之间`);
     }
 
     return messages;
@@ -189,11 +170,11 @@ function validateEndpoints(endpoints: ServiceEndpointPayload[]) {
 }
 
 function validateHealthCheck(draft: ServiceFormDraft, interval: number, timeout: number) {
-  if (!draft.healthCheckEnabled) {
+  if (!draft.healthCheck.enabled) {
     return 'healthy';
   }
 
-  if (!draft.healthCheckPath.trim().startsWith('/')) {
+  if (!draft.healthCheck.path.trim().startsWith('/')) {
     return 'critical';
   }
 
@@ -209,11 +190,11 @@ function validateHealthCheck(draft: ServiceFormDraft, interval: number, timeout:
 }
 
 function healthCheckMessage(draft: ServiceFormDraft, interval: number, timeout: number) {
-  if (!draft.healthCheckEnabled) {
+  if (!draft.healthCheck.enabled) {
     return '未启用健康检查';
   }
 
-  if (!draft.healthCheckPath.trim().startsWith('/')) {
+  if (!draft.healthCheck.path.trim().startsWith('/')) {
     return '探活路径必须以 / 开头';
   }
 
@@ -225,5 +206,5 @@ function healthCheckMessage(draft: ServiceFormDraft, interval: number, timeout: 
     return '超时时间需要在 1-60 秒之间，并且小于检查间隔';
   }
 
-  return `${draft.healthCheckPath} / ${interval}s / ${timeout}s`;
+  return `${draft.healthCheck.path} / ${interval}s / ${timeout}s`;
 }

@@ -19,7 +19,7 @@ export type GatewayHostMode = 'any' | 'specified';
 export interface GatewayFormDraft {
   id?: string;
   version?: string;
-  displayName: string;
+  name: string;
   description: string;
   runtimeGroup: string;
   listeners: GatewayListener[];
@@ -33,7 +33,7 @@ export function createGatewayDraft(gateway?: Gateway | null, defaultRuntimeGroup
   return {
     id: gateway?.id,
     version: gateway?.version,
-    displayName: gateway?.displayName ?? '',
+    name: gateway?.name ?? '',
     description: gateway?.description ?? '',
     runtimeGroup: gateway?.runtimeGroup ?? defaultRuntimeGroup,
     listeners: gateway?.listeners?.length ? listenersWithCertificates(gateway.listeners, gateway.hostBindings) : [createGatewayListener('HTTP')],
@@ -56,25 +56,25 @@ export function validateGatewayDraft(
   originalGatewayId?: string,
   runtimeGroups: GatewayRuntimeGroupOption[] = [],
 ): GatewayValidationReport {
-  const displayName = draft.displayName.trim();
+  const name = draft.name.trim();
   const runtimeGroup = draft.runtimeGroup.trim();
   const normalizedHostnames = draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [];
   const invalidHostnames = normalizedHostnames.filter((hostname) => !isValidHostname(hostname));
   const ports = draft.listeners.map((listener) => gatewayEntryPort(listener.protocol));
   const duplicatePorts = ports.filter((port, index) => ports.indexOf(port) !== index);
-  const duplicateName = gateways.some((gateway) => gateway.id !== originalGatewayId && gateway.displayName === displayName);
+  const duplicateName = gateways.some((gateway) => gateway.id !== originalGatewayId && gateway.name === name);
   const runtimeGroupExists = runtimeGroups.some((item) => item.id === runtimeGroup);
   const httpsWithoutCertificate = draft.listeners.filter((listener) => listener.protocol === 'HTTPS' && !listener.certificateId);
   const hostlessConflict = draft.hostMode === 'any' ? hostlessGatewayConflict(draft, gateways, originalGatewayId) : null;
   const items: GatewayValidationItem[] = [
     {
       label: '网关名称',
-      status: displayName && !duplicateName ? 'healthy' : 'critical',
-      message: !displayName
+      status: name && !duplicateName ? 'healthy' : 'critical',
+      message: !name
         ? '请输入网关名称'
         : duplicateName
           ? '网关名称已存在'
-          : displayName,
+          : name,
     },
     {
       label: '运行组',
@@ -133,7 +133,7 @@ export function buildGatewayPayload(draft: GatewayFormDraft): GatewayMutationPay
   return {
     id: draft.id,
     version: draft.version,
-    displayName: draft.displayName.trim(),
+    name: draft.name.trim(),
     description: draft.description.trim(),
     runtimeGroup: draft.runtimeGroup,
     listeners,
@@ -230,7 +230,7 @@ function hostlessGatewayConflict(draft: GatewayFormDraft, gateways: Gateway[], o
 
   const entry = conflict.listeners.find((listener) => entries.has(`${listener.protocol}:${listener.port || gatewayEntryPort(listener.protocol)}`));
 
-  return `${entry ? `${entry.protocol}:${entry.port || gatewayEntryPort(entry.protocol)}` : '当前运行入口'} 已有不限制 Host 的网关 ${conflict.displayName}。请指定 Host，或先停用/删除该网关`;
+  return `${entry ? `${entry.protocol}:${entry.port || gatewayEntryPort(entry.protocol)}` : '当前运行入口'} 已有不限制 Host 的网关 ${conflict.name}。请指定 Host，或先停用/删除该网关`;
 }
 
 function matchesCertificateDomain(domain: string, hostname: string) {

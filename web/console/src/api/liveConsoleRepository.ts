@@ -1,11 +1,13 @@
 import type { ConsoleRepository } from './contracts';
 import type { Gateway, GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayRuntimeGroupOption, GatewayValidationReport } from '@/domain/gateway';
-import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
+import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteRule, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
+  routePolicyCapabilityRequestHeaderModifier,
+  routePolicyCapabilityResponseHeaderModifier,
   routePolicyCapabilityRetry,
   routePolicyCapabilityTimeout,
 } from '@/domain/route';
-import type { ServiceListView, ServiceMutationPayload, ServiceMutationResult, ServiceValidationReport } from '@/domain/service';
+import type { ServiceListView, ServiceMutationPayload, ServiceMutationResult, ServiceResource, ServiceValidationReport } from '@/domain/service';
 import { serviceLoadBalancePolicyLabel } from '@/domain/service';
 
 interface GatewayMutationResponse {
@@ -43,10 +45,56 @@ interface UpstreamMutationResponse {
 
 interface RouteMutationResponse {
   success: boolean;
+  id?: string;
 }
 
 const apiBaseUrl = (import.meta.env.VITE_INGATE_API_BASE_URL as string | undefined) ?? '/api/v1';
 const defaultRouteTimeoutMillis = 30000;
+const routePolicyCapabilities: RoutePolicyCapabilities = {
+  policies: [
+    {
+      capability: routePolicyCapabilityRequestHeaderModifier,
+      displayName: '请求 Header 改写',
+      meta: '在转发到上游前设置、追加或删除请求 Header，常用于租户标识、灰度标记和上游兼容',
+      enabled: false,
+      params: [
+        { key: 'setHeadersOn', label: '写入 Header 名称', inputType: 'text', defaultValue: '', placeholder: '多个名称用逗号分隔', required: true },
+        { key: 'value', label: 'Header 值', inputType: 'text', defaultValue: '', placeholder: '请输入要写入的 Header 值', required: true },
+        { key: 'removeHeadersOn', label: '删除 Header 名称', inputType: 'text', defaultValue: '', placeholder: '多个名称用逗号分隔' },
+      ],
+    },
+    {
+      capability: routePolicyCapabilityResponseHeaderModifier,
+      displayName: '响应 Header 改写',
+      meta: '在返回给客户端前设置、追加或删除响应 Header，常用于跨域、安全响应头和兼容旧客户端',
+      enabled: false,
+      params: [
+        { key: 'setHeadersOn', label: '写入 Header 名称', inputType: 'text', defaultValue: '', placeholder: '多个名称用逗号分隔', required: true },
+        { key: 'value', label: 'Header 值', inputType: 'text', defaultValue: '', placeholder: '请输入要写入的 Header 值', required: true },
+        { key: 'removeHeadersOn', label: '删除 Header 名称', inputType: 'text', defaultValue: '', placeholder: '多个名称用逗号分隔' },
+      ],
+    },
+    {
+      capability: routePolicyCapabilityTimeout,
+      displayName: '超时控制',
+      meta: '设置当前路由从进入网关到返回响应的最长时间，包含失败重试过程',
+      enabled: false,
+      params: [
+        { key: 'timeoutMillis', label: '请求总超时', inputType: 'number', defaultValue: '30000', required: true, unit: 'ms', min: 100, max: 300000 },
+      ],
+    },
+    {
+      capability: routePolicyCapabilityRetry,
+      displayName: '失败重试',
+      meta: '针对 5xx、连接失败等上游异常进行有限重试；单次尝试超时不能超过请求总超时',
+      enabled: false,
+      params: [
+        { key: 'attempts', label: '重试次数', inputType: 'number', defaultValue: '2', required: true, unit: '次', min: 1, max: 5 },
+        { key: 'perTryTimeoutMillis', label: '单次尝试超时', inputType: 'number', defaultValue: '1000', required: true, unit: 'ms', min: 100, max: 60000 },
+      ],
+    },
+  ],
+};
 
 export const liveConsoleRepository: ConsoleRepository = {
   async getHomeDashboard() {
@@ -74,7 +122,7 @@ export const liveConsoleRepository: ConsoleRepository = {
       body: JSON.stringify(payload),
     });
 
-    return mutationResult(payload.displayName, response.id);
+    return mutationResult(payload.name, response.id);
   },
 
   async deleteGateway(id) {
@@ -109,28 +157,27 @@ export const liveConsoleRepository: ConsoleRepository = {
   },
 
   async getRouteWorkspace() {
-    const [routeList, gatewayListResponse, runtimeGroups, serviceList, policyCapabilities] = await Promise.all([
+    const [routeListResponse, gatewayListResponse, runtimeGroups, serviceList] = await Promise.all([
       request<RouteListView>('/routes'),
       request<GatewayListResponse>('/gateways'),
       listRuntimeGroupOptions(),
       request<ServiceListView>('/upstreams'),
-      request<RoutePolicyCapabilities>('/route-policy-capabilities'),
     ]);
 
+    const routeList = normalizeRouteListView(routeListResponse);
     const gatewayList = gatewayListView(gatewayListResponse, runtimeGroups);
-    return routePageView(routeList, gatewayList, serviceList, policyCapabilities);
+    return routePageView(routeList, gatewayList, serviceList, routePolicyCapabilities);
   },
 
   async saveRouteDraft(payload) {
-    const name = payload.id ?? routeName(payload.serviceName, payload.methods[0] ?? 'any', payload.path);
-    const path = payload.id ? `/routes/${encodeURIComponent(name)}` : '/routes';
+    const path = payload.id ? `/routes/${encodeURIComponent(payload.id)}` : '/routes';
     const method = payload.id ? 'PUT' : 'POST';
-    await request<RouteMutationResponse>(path, {
+    const response = await request<RouteMutationResponse>(path, {
       method,
       body: JSON.stringify(payload),
     });
 
-    return routeMutationResult(`${payload.methods.length > 0 ? payload.methods.join('、') : '全部方法'} ${payload.path}`);
+    return routeMutationResult(routePayloadSummary(payload), response.id ?? payload.id);
   },
 
   async deleteRoute(id) {
@@ -278,9 +325,49 @@ function serviceMutationResult(serviceName: string): ServiceMutationResult {
   };
 }
 
-function routeMutationResult(route: string): RouteActionResult {
+function routeMutationResult(route: string, changeId?: string): RouteActionResult {
   return {
     message: `路由已保存：${route}`,
+    changeId,
+  };
+}
+
+function routePayloadSummary(payload: RoutePublishPayload) {
+  const rule = primaryRouteRule(payload);
+  if (!rule) {
+    return payload.id ?? '未配置规则';
+  }
+  const methods = rule.methods ?? [];
+  return `${methods.length > 0 ? methods.join('、') : '全部方法'} ${rule.pathPrefix}`;
+}
+
+function normalizeRouteListView(response: RouteListView): RouteListView {
+  return {
+    routes: (response.routes ?? []).map((route) => ({
+      ...route,
+      gatewayIDs: route.gatewayIDs ?? [],
+      hostnames: route.hostnames ?? [],
+      rules: (route.rules ?? []).map((rule) => ({
+        ...rule,
+        methods: rule.methods ?? [],
+        headers: rule.headers ?? [],
+        targets: rule.targets ?? [],
+        requestHeaderModifier: rule.requestHeaderModifier
+          ? {
+            ...rule.requestHeaderModifier,
+            set: rule.requestHeaderModifier.set ?? [],
+            remove: rule.requestHeaderModifier.remove ?? [],
+          }
+          : undefined,
+        responseHeaderModifier: rule.responseHeaderModifier
+          ? {
+            ...rule.responseHeaderModifier,
+            set: rule.responseHeaderModifier.set ?? [],
+            remove: rule.responseHeaderModifier.remove ?? [],
+          }
+          : undefined,
+      })),
+    })),
   };
 }
 
@@ -292,65 +379,61 @@ function routePageView(
 ): RoutePageView {
   return {
     routes: routeList.routes,
-    composer: routeComposer(routeList, gatewayList, serviceList, policyCapabilities),
+    composer: routeComposer(gatewayList, serviceList, policyCapabilities),
   };
 }
 
 function routeComposer(
-  routeList: RouteListView,
   gatewayList: GatewayListView,
   serviceList: ServiceListView,
   policyCapabilities: RoutePolicyCapabilities,
 ): RouteComposerPreview {
-  const gatewayNames = gatewayList.gateways.map((gateway) => gateway.id).sort();
-  const targets = routeTargets(routeList, serviceList);
+  const gateways = gatewayList.gateways
+    .map((gateway) => ({ id: gateway.id, name: gateway.name || gateway.id }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const targets = routeTargets(serviceList);
 
   return {
     methods: [],
     path: '/',
-    gatewayNames: gatewayNames[0] ? [gatewayNames[0]] : [],
+    gatewayIDs: gateways[0] ? [gateways[0].id] : [],
+    gateways,
     hostnames: [],
-    serviceName: targets[0]?.name ?? '',
     policyCount: 0,
-    rateLimit: '',
     validations: [],
     targets,
     policies: policyCapabilities.policies,
   };
 }
 
-function routeTargets(routeList: RouteListView, serviceList: ServiceListView): RouteTargetOption[] {
-  return serviceList.services
+function routeTargets(serviceList: ServiceListView): RouteTargetOption[] {
+  return serviceList.upstreams
     .map((service) => ({
+      id: service.id,
       name: service.name || service.id,
       type: service.type,
-      endpoint: service.endpoint,
-      meta: service.instances,
+      endpoint: upstreamEndpointSummary(service),
+      meta: upstreamEndpointMeta(service),
       healthStatus: service.healthStatus,
-      referencedRoutes: referencedRoutes(routeList, service.name || service.id),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function referencedRoutes(routeList: RouteListView, serviceName: string): number {
-  return routeList.routes.filter((route) => {
-    if (route.targets && route.targets.length > 0) {
-      return route.targets.some((target) => target.name === serviceName);
-    }
-    return route.serviceName === serviceName;
-  }).length;
+function upstreamEndpointSummary(upstream: ServiceResource) {
+  const enabledEndpoints = upstream.endpoints.filter((endpoint) => endpoint.enabled);
+  const visibleEndpoints = enabledEndpoints.length > 0 ? enabledEndpoints : upstream.endpoints;
+  if (visibleEndpoints.length === 0) {
+    return '-';
+  }
+
+  const first = visibleEndpoints[0];
+  const suffix = visibleEndpoints.length > 1 ? ` 等 ${visibleEndpoints.length} 个端点` : '';
+  return `${first.address}:${first.port}${suffix}`;
 }
 
-function routeName(serviceName: string, method: string, path: string) {
-  const value = `${serviceName}-${method}-${path}`
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 63)
-    .replace(/-+$/g, '');
-
-  return value || 'route';
+function upstreamEndpointMeta(upstream: ServiceResource) {
+  const enabledCount = upstream.endpoints.filter((endpoint) => endpoint.enabled).length;
+  return `${enabledCount}/${upstream.endpoints.length} 个端点`;
 }
 
 function unavailable(name: string): Promise<never> {
@@ -366,8 +449,8 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
   const items: GatewayValidationReport['items'] = [
     {
       label: '网关名称',
-      status: payload.displayName.trim() ? 'healthy' : 'critical',
-      message: payload.displayName.trim() ? payload.displayName.trim() : '请输入网关名称',
+      status: payload.name.trim() ? 'healthy' : 'critical',
+      message: payload.name.trim() ? payload.name.trim() : '请输入网关名称',
     },
     {
       label: '运行组',
@@ -408,24 +491,25 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
 }
 
 function validateRoutePayload(payload: RoutePublishPayload): RouteValidationReport {
-  const policyValidationMessage = validateRoutePolicyRelationship(payload);
-  const targetError = routeTargetValidationMessage(payload);
-  const targets = routeMutationTargets(payload);
+  const rule = primaryRouteRule(payload);
+  const policyValidationMessage = rule ? validateRoutePolicyRelationship(rule) : '';
+  const targetError = rule ? routeTargetValidationMessage(rule.targets) : '请至少配置一条路由规则';
+  const targets = rule?.targets ?? [];
   const items: RouteValidationReport['items'] = [
     {
       label: '所属网关',
-      status: payload.gatewayNames.length > 0 ? 'healthy' : 'critical',
-      message: payload.gatewayNames.length > 0 ? payload.gatewayNames.join('、') : '至少选择一个网关',
+      status: payload.gatewayIDs.length > 0 ? 'healthy' : 'critical',
+      message: payload.gatewayIDs.length > 0 ? payload.gatewayIDs.join('、') : '至少选择一个网关',
     },
     {
       label: '匹配路径',
-      status: isValidPath(payload.path) ? 'healthy' : 'critical',
-      message: isValidPath(payload.path) ? payload.path : '路径必须以 / 开头',
+      status: rule && isValidPath(rule.pathPrefix) ? 'healthy' : 'critical',
+      message: rule && isValidPath(rule.pathPrefix) ? rule.pathPrefix : '路径必须以 / 开头',
     },
     {
       label: '请求方法',
-      status: areValidMethods(payload.methods) ? 'healthy' : 'critical',
-      message: payload.methods.length > 0 ? payload.methods.join('、') : '不限制方法',
+      status: rule && areValidMethods(rule.methods ?? []) ? 'healthy' : 'critical',
+      message: rule && (rule.methods ?? []).length > 0 ? (rule.methods ?? []).join('、') : '不限制方法',
     },
     {
       label: 'Host 匹配',
@@ -440,7 +524,7 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
     {
       label: '策略参数',
       status: policyValidationMessage ? 'critical' : 'healthy',
-      message: policyValidationMessage || (payload.policyBindings.length > 0 ? `已配置 ${payload.policyBindings.length} 个策略` : '未绑定策略'),
+      message: policyValidationMessage || (rule ? `已配置 ${routePolicyCount(rule)} 个策略` : '未绑定策略'),
     },
   ];
   const valid = items.every((item) => item.status === 'healthy');
@@ -452,30 +536,26 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
   };
 }
 
-function routeMutationTargets(payload: RoutePublishPayload): RouteTargetPayload[] {
-  if (payload.targets.length > 0) {
-    return payload.targets;
-  }
-  return payload.serviceName ? [{ name: payload.serviceName, weight: 100 }] : [];
+function primaryRouteRule(payload: RoutePublishPayload): RouteRule | undefined {
+  return payload.rules[0];
 }
 
-function routeTargetValidationMessage(payload: RoutePublishPayload) {
-  const targets = routeMutationTargets(payload);
+function routeTargetValidationMessage(targets: RouteTargetPayload[]) {
   if (targets.length === 0) {
     return '请选择目标服务';
   }
 
-  const seenNames = new Set<string>();
+  const seenIDs = new Set<string>();
   for (const target of targets) {
-    if (!target.name.trim()) {
+    if (!target.upstreamID.trim()) {
       return '目标服务不能为空';
     }
-    if (seenNames.has(target.name)) {
+    if (seenIDs.has(target.upstreamID)) {
       return '目标服务不能重复';
     }
-    seenNames.add(target.name);
-    if (target.weight < 1 || target.weight > 1000) {
-      return '目标权重必须在 1-1000 之间';
+    seenIDs.add(target.upstreamID);
+    if (target.weight < 1 || target.weight > 100) {
+      return '目标权重必须在 1-100 之间';
     }
   }
   return '';
@@ -485,19 +565,14 @@ function routeTargetWeightSum(targets: RouteTargetPayload[]) {
   return targets.reduce((sum, target) => sum + target.weight, 0);
 }
 
-function validateRoutePolicyRelationship(payload: RoutePublishPayload) {
-  if (!payload.policyBindings.every((binding) => Object.values(binding.parameters).some(hasPolicyValue))) {
-    return '策略参数未填写完整';
-  }
-
-  const retryPolicy = payload.policyBindings.find((binding) => binding.capability === routePolicyCapabilityRetry);
-  if (!retryPolicy) {
+function validateRoutePolicyRelationship(rule: RouteRule) {
+  const retry = rule.retry;
+  if (!retry) {
     return '';
   }
 
-  const timeoutPolicy = payload.policyBindings.find((binding) => binding.capability === routePolicyCapabilityTimeout);
-  const totalTimeoutMillis = Number(timeoutPolicy?.parameters.timeoutMillis ?? defaultRouteTimeoutMillis);
-  const perTryTimeoutMillis = Number(retryPolicy.parameters.perTryTimeoutMillis ?? 0);
+  const totalTimeoutMillis = rule.timeout?.requestMillis ?? defaultRouteTimeoutMillis;
+  const perTryTimeoutMillis = retry.perTryTimeoutMillis;
   if (Number.isFinite(perTryTimeoutMillis) && Number.isFinite(totalTimeoutMillis) && perTryTimeoutMillis > totalTimeoutMillis) {
     return `单次尝试超时不能大于请求总超时 ${totalTimeoutMillis}ms`;
   }
@@ -505,11 +580,20 @@ function validateRoutePolicyRelationship(payload: RoutePublishPayload) {
   return '';
 }
 
+function routePolicyCount(rule: RouteRule) {
+  return [
+    rule.requestHeaderModifier,
+    rule.responseHeaderModifier,
+    rule.timeout,
+    rule.retry,
+  ].filter(Boolean).length;
+}
+
 function validateServicePayload(payload: ServiceMutationPayload): ServiceValidationReport {
   const endpointErrors = validateServiceEndpoints(payload.endpoints);
   const enabledEndpointCount = payload.endpoints.filter((endpoint) => endpoint.enabled).length;
-  const healthInterval = Number(payload.healthCheckIntervalSeconds);
-  const healthTimeout = Number(payload.healthCheckTimeoutSeconds);
+  const healthInterval = payload.healthCheck?.intervalSeconds ?? 0;
+  const healthTimeout = payload.healthCheck?.timeoutSeconds ?? 0;
   const items: ServiceValidationReport['items'] = [
     {
       label: '服务名称',
@@ -551,14 +635,6 @@ function areValidMethods(methods: HttpMethod[]): boolean {
   return methods.every((method) => allowedMethods.includes(method));
 }
 
-function hasPolicyValue(value: string | string[]): boolean {
-  if (Array.isArray(value)) {
-    return value.some((item) => item.trim().length > 0);
-  }
-
-  return value.trim().length > 0;
-}
-
 function isValidHostname(hostname: string): boolean {
   const normalized = hostname.startsWith('*.') ? hostname.slice(2) : hostname;
 
@@ -589,8 +665,8 @@ function validateServiceEndpoints(endpoints: ServiceMutationPayload['endpoints']
       messages.push(`第 ${index + 1} 个端点端口不合法`);
     }
 
-    if (!Number.isInteger(weight) || weight < 0 || weight > 1000) {
-      messages.push(`第 ${index + 1} 个端点权重需要在 0-1000 之间`);
+    if (!Number.isInteger(weight) || weight < 1 || weight > 100) {
+      messages.push(`第 ${index + 1} 个端点权重需要在 1-100 之间`);
     }
 
     return messages;
@@ -598,11 +674,11 @@ function validateServiceEndpoints(endpoints: ServiceMutationPayload['endpoints']
 }
 
 function validateServiceHealth(payload: ServiceMutationPayload, interval: number, timeout: number) {
-  if (!payload.healthCheckEnabled) {
+  if (!payload.healthCheck?.enabled) {
     return 'healthy';
   }
 
-  if (!payload.healthCheckPath.startsWith('/')) {
+  if (!payload.healthCheck.path?.startsWith('/')) {
     return 'critical';
   }
 
@@ -618,11 +694,11 @@ function validateServiceHealth(payload: ServiceMutationPayload, interval: number
 }
 
 function serviceHealthMessage(payload: ServiceMutationPayload, interval: number, timeout: number) {
-  if (!payload.healthCheckEnabled) {
+  if (!payload.healthCheck?.enabled) {
     return '未启用健康检查';
   }
 
-  if (!payload.healthCheckPath.startsWith('/')) {
+  if (!payload.healthCheck.path?.startsWith('/')) {
     return '探活路径必须以 / 开头';
   }
 
@@ -634,5 +710,5 @@ function serviceHealthMessage(payload: ServiceMutationPayload, interval: number,
     return '超时时间需要在 1-60 秒之间，并且小于检查间隔';
   }
 
-  return `${payload.healthCheckPath} / ${interval}s / ${timeout}s`;
+  return `${payload.healthCheck.path} / ${interval}s / ${timeout}s`;
 }

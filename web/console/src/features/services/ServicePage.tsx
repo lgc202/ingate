@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
-import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel } from '@/components/ui';
+import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import type { HealthStatus } from '@/domain/common';
 import { healthLabel, runtimeSyncStatusLabel, statusTone } from '@/domain/common';
 import type {
@@ -10,9 +10,9 @@ import type {
   ServiceType,
   ServiceValidationReport,
 } from '@/domain/service';
-import { serviceLoadBalancePolicyOptions, serviceTypeLabel, serviceTypeOptions } from '@/domain/service';
+import { serviceLoadBalancePolicyLabel, serviceLoadBalancePolicyOptions, serviceTypeLabel, serviceTypeOptions } from '@/domain/service';
 import type { ServiceFormDraft } from './form';
-import { buildServicePayload, createServiceDraft, createServiceEndpoint, validateServiceDraft } from './form';
+import { buildServicePayload, createServiceDraft, createServiceEndpoint, formatEndpointSummary, formatInstanceSummary, validateServiceDraft } from './form';
 
 const loadServices = () => consoleRepository.listServices();
 type ServicePanelMode = 'list' | 'detail' | 'create' | 'edit';
@@ -46,11 +46,11 @@ export function ServicePage() {
     );
   }
 
-  const availableServices = services.data.services;
+  const availableServices = services.data.upstreams;
   const selectedService = availableServices.find((service) => service.id === selectedServiceId) ?? availableServices[0] ?? null;
   const visibleServices = availableServices.filter((service) => {
     const normalizedQuery = query.trim().toLowerCase();
-    const matchedQuery = !normalizedQuery || [service.name, service.type, serviceTypeLabel(service.type), service.endpoint].some((value) => value.toLowerCase().includes(normalizedQuery));
+    const matchedQuery = !normalizedQuery || [service.name, service.type, serviceTypeLabel(service.type), formatEndpointSummary(service.endpoints)].some((value) => value.toLowerCase().includes(normalizedQuery));
     const matchedHealth = healthFilter === 'all' || service.healthStatus === healthFilter;
 
     return matchedQuery && matchedHealth;
@@ -79,10 +79,6 @@ export function ServicePage() {
   };
 
   const deleteService = (service: ServiceResource) => {
-    if (service.referencedRoutes > 0) {
-      return;
-    }
-
     setDeleteCandidate(service);
   };
 
@@ -181,13 +177,7 @@ export function ServicePage() {
             onCancel={closeEditor}
           />
         </section>
-        {notice ? (
-          <div className="page-notice" role="status">
-            <span />
-            {notice}
-            <button type="button" onClick={() => setNotice(null)} aria-label="关闭提示">×</button>
-          </div>
-        ) : null}
+        <Toast message={notice} onClose={() => setNotice(null)} />
       </PageFrame>
     );
   }
@@ -227,14 +217,12 @@ export function ServicePage() {
                 <tr>
                   <th>服务名称</th>
                   <th>类型</th>
-                  <th>地址</th>
-                  <th>实例数</th>
+                  <th>端点</th>
+                  <th>启用端点</th>
+                  <th>负载均衡</th>
                   <th>健康状态</th>
                   <th>生效状态</th>
-                  <th>被引用路由</th>
-                  <th>请求量</th>
-                  <th>成功率</th>
-                  <th>最近更新</th>
+                  <th>创建时间</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -247,18 +235,16 @@ export function ServicePage() {
                   >
                     <td>{service.name}</td>
                     <td>{serviceTypeLabel(service.type)}</td>
-                    <td>{service.endpoint}</td>
-                    <td>{service.instances}</td>
+                    <td>{formatEndpointSummary(service.endpoints)}</td>
+                    <td>{formatInstanceSummary(service.endpoints)}</td>
+                    <td>{serviceLoadBalancePolicyLabel(service.loadBalancePolicy)}</td>
                     <td>
                       <Badge tone={statusTone(service.healthStatus)}>{healthLabel(service.healthStatus)}</Badge>
                     </td>
                     <td>
                       <Badge tone={statusTone(service.runtimeStatus)}>{runtimeSyncStatusLabel(service.runtimeStatus)}</Badge>
                     </td>
-                    <td>{service.referencedRoutes}</td>
-                    <td>{service.traffic} req/s</td>
-                    <td>{service.successRate}</td>
-                    <td>{service.lastUpdatedAt}</td>
+                    <td>{service.createdAt}</td>
                     <td>
                       <div className="row-actions">
                         <button className="link-button" type="button" onClick={(event) => {
@@ -273,7 +259,7 @@ export function ServicePage() {
                         <button className="link-button danger" type="button" onClick={(event) => {
                           event.stopPropagation();
                           deleteService(service);
-                        }} disabled={service.referencedRoutes > 0} title={service.referencedRoutes > 0 ? '仍有关联路由，不能删除' : undefined}>删除</button>
+                        }}>删除</button>
                       </div>
                     </td>
                   </tr>
@@ -290,13 +276,7 @@ export function ServicePage() {
             ) : null}
           </div>
         </Panel>
-        {notice ? (
-          <div className="page-notice" role="status">
-            <span />
-            {notice}
-            <button type="button" onClick={() => setNotice(null)} aria-label="关闭提示">×</button>
-          </div>
-        ) : null}
+        <Toast message={notice} onClose={() => setNotice(null)} />
         {deleteCandidate ? (
           <div className="confirm-overlay" role="presentation" onMouseDown={() => {
             if (!deleting) {
@@ -307,8 +287,8 @@ export function ServicePage() {
               <h3 id="delete-service-title">删除服务</h3>
               <p>确定删除 {deleteCandidate.name}？删除后引用该服务的路由将无法选择它作为目标。</p>
               <div className="confirm-meta">
-                <span>服务地址</span><strong>{deleteCandidate.endpoint}</strong>
-                <span>关联路由</span><strong>{deleteCandidate.referencedRoutes} 条</strong>
+                <span>服务端点</span><strong>{formatEndpointSummary(deleteCandidate.endpoints)}</strong>
+                <span>启用端点</span><strong>{formatInstanceSummary(deleteCandidate.endpoints)}</strong>
               </div>
               <div className="confirm-actions">
                 <Button variant="ghost" onClick={() => setDeleteCandidate(null)} disabled={deleting}>取消</Button>
@@ -447,13 +427,13 @@ function ServiceEndpointEditor({
             className={!isValidPort(endpoint.port) ? 'invalid-control' : ''}
             value={endpoint.port}
             inputMode="numeric"
-            onChange={(event) => updateEndpoint(endpoint.id, { port: event.target.value })}
+            onChange={(event) => updateEndpoint(endpoint.id, { port: Number(event.target.value) })}
           />
           <input
             className={!isValidWeight(endpoint.weight) ? 'invalid-control' : ''}
             value={endpoint.weight}
             inputMode="numeric"
-            onChange={(event) => updateEndpoint(endpoint.id, { weight: event.target.value })}
+            onChange={(event) => updateEndpoint(endpoint.id, { weight: Number(event.target.value) })}
           />
           <button
             className={`gateway-switch ${endpoint.enabled ? 'on' : ''}`.trim()}
@@ -493,25 +473,25 @@ function HealthCheckEditor({
     <div className="health-check-editor">
       <label className="toggle">
         <span
-          className={`switch ${draft.healthCheckEnabled ? 'on' : ''}`}
-          onClick={() => onChange({ healthCheckEnabled: !draft.healthCheckEnabled })}
+          className={`switch ${draft.healthCheck.enabled ? 'on' : ''}`}
+          onClick={() => onChange({ healthCheck: { ...draft.healthCheck, enabled: !draft.healthCheck.enabled } })}
           role="switch"
-          aria-checked={draft.healthCheckEnabled}
+          aria-checked={draft.healthCheck.enabled}
           tabIndex={0}
           onKeyDown={(event) => {
             if (event.key === 'Enter' || event.key === ' ') {
               event.preventDefault();
-              onChange({ healthCheckEnabled: !draft.healthCheckEnabled });
+              onChange({ healthCheck: { ...draft.healthCheck, enabled: !draft.healthCheck.enabled } });
             }
           }}
         />
         启用健康检查
       </label>
-      {draft.healthCheckEnabled ? (
+      {draft.healthCheck.enabled ? (
         <div className="field-grid">
-          <InputField label="探活路径" value={draft.healthCheckPath} error={error && !draft.healthCheckPath.startsWith('/') ? error : undefined} onChange={(value) => onChange({ healthCheckPath: value })} />
-          <InputField label="检查间隔（秒）" value={draft.healthCheckIntervalSeconds} error={error && !isValidInterval(draft.healthCheckIntervalSeconds) ? error : undefined} onChange={(value) => onChange({ healthCheckIntervalSeconds: value })} />
-          <InputField label="超时时间（秒）" value={draft.healthCheckTimeoutSeconds} error={error && !isValidTimeout(draft.healthCheckTimeoutSeconds, draft.healthCheckIntervalSeconds) ? error : undefined} onChange={(value) => onChange({ healthCheckTimeoutSeconds: value })} />
+          <InputField label="探活路径" value={draft.healthCheck.path} error={error && !draft.healthCheck.path.startsWith('/') ? error : undefined} onChange={(value) => onChange({ healthCheck: { ...draft.healthCheck, path: value } })} />
+          <InputField label="检查间隔（秒）" value={String(draft.healthCheck.intervalSeconds)} error={error && !isValidInterval(draft.healthCheck.intervalSeconds) ? error : undefined} onChange={(value) => onChange({ healthCheck: { ...draft.healthCheck, intervalSeconds: Number(value) } })} />
+          <InputField label="超时时间（秒）" value={String(draft.healthCheck.timeoutSeconds)} error={error && !isValidTimeout(draft.healthCheck.timeoutSeconds, draft.healthCheck.intervalSeconds) ? error : undefined} onChange={(value) => onChange({ healthCheck: { ...draft.healthCheck, timeoutSeconds: Number(value) } })} />
         </div>
       ) : (
         <span className="host-empty">关闭后仍可保存服务，但健康状态会依赖请求结果或显示为未知。</span>
@@ -568,42 +548,32 @@ function SelectField({
   );
 }
 
-function isValidPort(port: string) {
-  const value = Number(port);
-
-  return Number.isInteger(value) && value >= 1 && value <= 65535;
+function isValidPort(port: number) {
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
 }
 
-function isValidWeight(weight: string) {
-  const value = Number(weight);
-
-  return Number.isInteger(value) && value >= 0 && value <= 1000;
+function isValidWeight(weight: number) {
+  return Number.isInteger(weight) && weight >= 1 && weight <= 100;
 }
 
-function isValidInterval(interval: string) {
-  const value = Number(interval);
-
-  return Number.isInteger(value) && value >= 1 && value <= 300;
+function isValidInterval(interval: number) {
+  return Number.isInteger(interval) && interval >= 1 && interval <= 300;
 }
 
-function isValidTimeout(timeout: string, interval: string) {
-  const timeoutValue = Number(timeout);
-  const intervalValue = Number(interval);
-
-  return Number.isInteger(timeoutValue) && timeoutValue >= 1 && timeoutValue <= 60 && timeoutValue < intervalValue;
+function isValidTimeout(timeout: number, interval: number) {
+  return Number.isInteger(timeout) && timeout >= 1 && timeout <= 60 && timeout < interval;
 }
 
 function ServiceDetail({ service }: { service: ServiceResource }) {
   const rows = [
     ['服务类型', serviceTypeLabel(service.type)],
-    ['访问地址', service.endpoint],
-    ['实例状态', service.instances],
+    ['服务端点', formatEndpointSummary(service.endpoints)],
+    ['启用端点', formatInstanceSummary(service.endpoints)],
+    ['负载均衡', serviceLoadBalancePolicyLabel(service.loadBalancePolicy)],
+    ['健康检查', service.healthCheck?.enabled ? `${service.healthCheck.path ?? '-'} / ${service.healthCheck.intervalSeconds ?? '-'}s / ${service.healthCheck.timeoutSeconds ?? '-'}s` : '未启用'],
     ['健康状态', healthLabel(service.healthStatus)],
     ['生效状态', runtimeSyncStatusLabel(service.runtimeStatus)],
-    ['引用路由', String(service.referencedRoutes)],
-    ['请求量', `${service.traffic} req/s`],
-    ['成功率', service.successRate],
-    ['最近更新', service.lastUpdatedAt],
+    ['创建时间', service.createdAt],
   ];
 
   return (

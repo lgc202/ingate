@@ -152,8 +152,8 @@ func (r *RouteRule) targetServices() ([]RouteTarget, error) {
 		if _, ok := seenTargets[upstreamID]; ok {
 			return nil, errors.New("target upstream cannot be duplicated")
 		}
-		if target.Weight < 1 || target.Weight > 1000 {
-			return nil, errors.New("target upstream weight must be between 1 and 1000")
+		if target.Weight < 1 || target.Weight > 100 {
+			return nil, errors.New("target upstream weight must be between 1 and 100")
 		}
 		seenTargets[upstreamID] = struct{}{}
 		values = append(values, RouteTarget{UpstreamID: upstreamID, Weight: target.Weight})

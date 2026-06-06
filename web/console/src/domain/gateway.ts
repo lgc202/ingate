@@ -3,7 +3,7 @@ import type { HealthStatus } from './common';
 export interface Gateway {
   id: string;
   version?: string;
-  displayName: string;
+  name: string;
   description: string;
   runtimeGroup: string;
   runtimeGroupName: string;
@@ -13,7 +13,7 @@ export interface Gateway {
   hostBindings: GatewayHostBinding[];
   enabled: boolean;
   healthStatus: HealthStatus;
-  lastChangedAt: string;
+  createdAt: string;
 }
 
 export type GatewayListenerProtocol = 'HTTP' | 'HTTPS';
@@ -61,7 +61,7 @@ export interface GatewayWorkspace {
 export interface GatewayMutationPayload {
   id?: string;
   version?: string;
-  displayName: string;
+  name: string;
   description: string;
   runtimeGroup: string;
   listeners: GatewayListener[];

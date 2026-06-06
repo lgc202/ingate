@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
-import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Tabs } from '@/components/ui';
+import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Tabs, Toast } from '@/components/ui';
 import type { KeyValue } from '@/domain/common';
 import { healthLabel, runtimeSyncStatusLabel, statusTone } from '@/domain/common';
-import type { RouteComposerPreview, RoutePageView, RoutePolicyCapability, RouteResource, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
+import type { HeaderMatch, RouteComposerPreview, RouteGatewayOption, RoutePageView, RoutePolicyCapability, RouteResource, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRequestHeaderModifier,
+  routePolicyCapabilityResponseHeaderModifier,
   routePolicyCapabilityRetry,
   routePolicyCapabilityTimeout,
 } from '@/domain/route';
@@ -86,16 +87,24 @@ export function RoutePage() {
   const selectedRoute = availableRoutes.find((route) => route.id === selectedRouteId) ?? availableRoutes[0];
   const routeEnabled = (route: RouteResource) => route.enabled;
   const selectedRouteView = selectedRoute ? { ...selectedRoute, enabled: routeEnabled(selectedRoute) } : undefined;
-  const gatewayOptions = Array.from(new Set([...routeWorkspace.composer.gatewayNames, ...availableRoutes.flatMap((route) => route.gatewayNames)])).sort();
+  const gatewayOptions = routeWorkspace.composer.gateways;
   const serviceOptions = Array.from(new Set([
-    ...routeWorkspace.composer.targets.map((target) => target.name),
-    ...availableRoutes.flatMap((route) => routeTargetNames(route)),
+    ...routeWorkspace.composer.targets.map((target) => target.id),
+    ...availableRoutes.flatMap((route) => routeTargetIDs(route)),
   ])).sort();
   const visibleRoutes = availableRoutes.filter((route) => {
     const keyword = filters.keyword.trim().toLowerCase();
-    const matchedKeyword = !keyword || [route.path, ...routeTargetNames(route), ...route.gatewayNames, ...route.hostnames].some((value) => value.toLowerCase().includes(keyword));
-    const matchedGateway = filters.gatewayName === 'all' || route.gatewayNames.includes(filters.gatewayName);
-    const matchedService = filters.serviceName === 'all' || routeTargetNames(route).includes(filters.serviceName);
+    const rule = primaryRouteRule(route);
+    const matchedKeyword = !keyword || [
+      rule?.pathPrefix ?? '',
+      ...routeTargetIDs(route),
+      ...routeTargetLabels(route, routeWorkspace.composer.targets),
+      ...route.gatewayIDs,
+      ...routeGatewayLabels(route.gatewayIDs, gatewayOptions),
+      ...route.hostnames,
+    ].some((value) => value.toLowerCase().includes(keyword));
+    const matchedGateway = filters.gatewayName === 'all' || route.gatewayIDs.includes(filters.gatewayName);
+    const matchedService = filters.serviceName === 'all' || routeTargetIDs(route).includes(filters.serviceName);
     const matchedEnabled = filters.enabled === 'all' || (filters.enabled === 'enabled' ? routeEnabled(route) : !routeEnabled(route));
 
     return matchedKeyword && matchedGateway && matchedService && matchedEnabled;
@@ -129,8 +138,8 @@ export function RoutePage() {
   };
 
   const openEdit = (route: RouteResource) => {
+    const rule = primaryRouteRule(route);
     const targetServices = routeTargetServices(route);
-    const primaryTargetName = targetServices[0]?.name ?? route.serviceName;
 
     setSelectedRouteId(route.id);
     setMode('composer');
@@ -138,15 +147,16 @@ export function RoutePage() {
       ...createRouteComposerDraft(routeWorkspace.composer),
       id: route.id,
       version: route.version,
-      methods: route.methods,
-      path: route.path,
-      gatewayNames: route.gatewayNames,
+      ruleName: rule?.name ?? 'main',
+      methods: rule?.methods ?? [],
+      path: rule?.pathPrefix ?? '/',
+      gatewayIDs: route.gatewayIDs,
       hostnames: route.hostnames,
-      serviceName: primaryTargetName,
+      headers: rule?.headers ?? [],
       targetServices,
       enabled: route.enabled,
-      enabledPolicyCapabilities: route.policyBindings?.map((binding) => binding.capability) ?? [],
-      policySettings: policySettingsFromBindings(route.policyBindings ?? []),
+      enabledPolicyCapabilities: enabledCapabilitiesFromRule(rule),
+      policySettings: policySettingsFromRule(rule),
     });
     setServerValidation(null);
     setNotice(null);
@@ -244,7 +254,7 @@ export function RoutePage() {
     try {
       const result = await consoleRepository.saveRouteDraft(publishPayload);
       await workspace.reload();
-      setSelectedRouteId(routeIdFromPayload(publishPayload));
+      setSelectedRouteId(result.changeId ?? publishPayload.id ?? '');
       setNotice(result.message);
       setMode('list');
     } catch (error) {
@@ -266,7 +276,7 @@ export function RoutePage() {
             <>
               <Tabs tabs={detailTabs} active={tab} onChange={setTab} />
               <div style={{ height: 12 }} />
-              {renderRouteDetail(tab, selectedRouteView)}
+              {renderRouteDetail(tab, selectedRouteView, routeWorkspace.composer.gateways, routeWorkspace.composer.targets)}
             </>
           ) : null}
         </Panel>
@@ -298,7 +308,7 @@ export function RoutePage() {
               <span>{draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 个策略` : '未绑定策略'}</span>
             </div>
           </div>
-          <RouteMatchHeader draft={draft} />
+          <RouteMatchHeader draft={draft} gateways={routeWorkspace.composer.gateways} targets={routeWorkspace.composer.targets} />
           <div className="route-workbench-grid">
             <RouteComposer
               composer={routeWorkspace.composer}
@@ -330,8 +340,8 @@ export function RoutePage() {
                   <span>所属网关</span>
                   <select value={filterDraft.gatewayName} onChange={(event) => updateFilterDraft({ gatewayName: event.target.value })}>
                     <option value="all">全部网关</option>
-                    {gatewayOptions.map((gatewayName) => (
-                      <option key={gatewayName} value={gatewayName}>{gatewayName}</option>
+                    {gatewayOptions.map((gateway) => (
+                      <option key={gateway.id} value={gateway.id}>{gateway.name}</option>
                     ))}
                   </select>
                 </label>
@@ -339,8 +349,8 @@ export function RoutePage() {
                   <span>目标服务</span>
                   <select value={filterDraft.serviceName} onChange={(event) => updateFilterDraft({ serviceName: event.target.value })}>
                     <option value="all">全部服务</option>
-                    {serviceOptions.map((serviceName) => (
-                      <option key={serviceName} value={serviceName}>{serviceName}</option>
+                    {serviceOptions.map((serviceID) => (
+                      <option key={serviceID} value={serviceID}>{targetLabel(serviceID, routeWorkspace.composer.targets)}</option>
                     ))}
                   </select>
                 </label>
@@ -361,6 +371,8 @@ export function RoutePage() {
             {renderRouteTable(
               visibleRoutes,
               selectedRouteView?.id,
+              routeWorkspace.composer.gateways,
+              routeWorkspace.composer.targets,
               routeEnabled,
               toggleRouteEnabled,
               toggling,
@@ -381,13 +393,7 @@ export function RoutePage() {
               </div>
             ) : null}
           </Panel>
-          {notice ? (
-            <div className="page-notice" role="status">
-              <span />
-              {notice}
-              <button type="button" onClick={() => setNotice(null)} aria-label="关闭提示">×</button>
-            </div>
-          ) : null}
+          <Toast message={notice} onClose={() => setNotice(null)} />
           {deleteCandidate ? (
             <div className="confirm-overlay" role="presentation" onMouseDown={() => {
               if (!deleting) {
@@ -398,8 +404,8 @@ export function RoutePage() {
                 <h3 id="delete-route-title">删除路由</h3>
                 <p>确定删除 {formatRouteMatch(deleteCandidate)}？删除后这条匹配规则不会再进入目标服务。</p>
                 <div className="confirm-meta">
-                  <span>所属网关</span><strong>{formatGatewayNames(deleteCandidate.gatewayNames)}</strong>
-                  <span>目标服务</span><strong>{routeTargetSummary(deleteCandidate)}</strong>
+                  <span>所属网关</span><strong>{formatGatewayIDs(deleteCandidate.gatewayIDs, routeWorkspace.composer.gateways)}</strong>
+                  <span>目标服务</span><strong>{routeTargetSummary(deleteCandidate, routeWorkspace.composer.targets)}</strong>
                 </div>
                 <div className="confirm-actions">
                   <Button variant="ghost" disabled={deleting} onClick={() => setDeleteCandidate(null)}>取消</Button>
@@ -419,7 +425,7 @@ export function RoutePage() {
                 <p>停用 {formatRouteMatch(disableCandidate)} 后，命中该规则的请求将不再转发到目标服务。</p>
                 <div className="confirm-meta">
                   <span>匹配 Host</span><strong>{formatHostnames(disableCandidate.hostnames)}</strong>
-                  <span>目标服务</span><strong>{routeTargetSummary(disableCandidate)}</strong>
+                  <span>目标服务</span><strong>{routeTargetSummary(disableCandidate, routeWorkspace.composer.targets)}</strong>
                 </div>
                 <div className="confirm-actions">
                   <Button variant="ghost" disabled={toggling} onClick={() => setDisableCandidate(null)}>取消</Button>
@@ -434,10 +440,18 @@ export function RoutePage() {
   );
 }
 
-function RouteMatchHeader({ draft }: { draft: RouteComposerDraft }) {
-  const targetSummary = formatTargetServices(draft.targetServices);
+function RouteMatchHeader({
+  draft,
+  gateways,
+  targets,
+}: {
+  draft: RouteComposerDraft;
+  gateways: RouteGatewayOption[];
+  targets: RouteTargetOption[];
+}) {
+  const targetSummary = formatTargetServices(draft.targetServices, targets);
   const flowItems = [
-    { label: '入口网关', value: formatGatewayNames(draft.gatewayNames), meta: `${draft.gatewayNames.length || 0} 个网关` },
+    { label: '入口网关', value: formatGatewayIDs(draft.gatewayIDs, gateways), meta: `${draft.gatewayIDs.length || 0} 个网关` },
     { label: '匹配请求', value: `${formatMethods(draft.methods)} ${draft.path || '/'}`, meta: formatHostnames(draft.hostnames) },
     { label: '转发服务', value: targetSummary, meta: `${draft.targetServices.length} 个目标 / 总权重 ${targetWeightSum(draft.targetServices)}` },
     { label: '治理策略', value: draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 个策略` : '未绑定策略', meta: draft.enabled ? '保存后自动生效' : '当前停用' },
@@ -478,6 +492,8 @@ function findPolicyValidationMessage(composer: RouteComposerPreview, draft: Rout
 function renderRouteTable(
   routes: RouteResource[],
   selectedRouteId: string | undefined,
+  gateways: RouteGatewayOption[],
+  targets: RouteTargetOption[],
   routeEnabled: (route: RouteResource) => boolean,
   onToggleEnabled: (route: RouteResource) => void,
   toggling: boolean,
@@ -506,16 +522,16 @@ function renderRouteTable(
             <tr key={route.id} className={route.id === selectedRouteId ? 'selected' : ''} onClick={() => onSelect(route.id)}>
               <td>
                 <div className="table-primary">
-                  <Badge tone={route.methods.includes('POST') ? 'green' : 'amber'}>{formatMethods(route.methods)}</Badge> {route.path}
+                  <Badge tone={(primaryRouteRule(route)?.methods ?? []).includes('POST') ? 'green' : 'amber'}>{formatMethods(primaryRouteRule(route)?.methods ?? [])}</Badge> {primaryRouteRule(route)?.pathPrefix ?? '-'}
                 </div>
                 <div className="table-secondary">Host: {formatHostnames(route.hostnames)}</div>
               </td>
               <td>
-                <div className="table-primary">{formatGatewayNames(route.gatewayNames)}</div>
-                <div className="table-secondary">{route.gatewayNames.length} 个网关</div>
+                <div className="table-primary">{formatGatewayIDs(route.gatewayIDs, gateways)}</div>
+                <div className="table-secondary">{route.gatewayIDs.length} 个网关</div>
               </td>
               <td>
-                <div className="table-primary">{routeTargetSummary(route)}</div>
+                <div className="table-primary">{routeTargetSummary(route, targets)}</div>
                 <div className="table-secondary">{routeTargetServices(route).length} 个目标 · {route.traffic} req/s · 成功率 {route.successRate}</div>
               </td>
               <td>{route.policyCount > 0 ? `${route.policyCount} 个` : '未绑定'}</td>
@@ -543,7 +559,7 @@ function renderRouteTable(
                   {runtimeSyncStatusLabel(route.runtimeStatus)}
                 </Badge>
               </td>
-              <td>{route.lastChangedAt}</td>
+              <td>{route.createdAt}</td>
               <td>
                 <div className="row-actions">
                   <button className="link-button" type="button" onClick={(event) => {
@@ -578,14 +594,13 @@ function RouteComposer({
   composer: RouteComposerPreview;
   draft: RouteComposerDraft;
   validation: RouteValidationReport;
-  gatewayOptions: string[];
+  gatewayOptions: RouteGatewayOption[];
   onDraftChange: (draft: RouteComposerDraft) => void;
 }) {
   const updateDraft = (patch: Partial<RouteComposerDraft>) => {
     onDraftChange({ ...draft, ...patch });
   };
   const fieldErrors = routeFieldErrors(validation);
-  const selectedTarget = composer.targets.find((target) => target.name === draft.targetServices[0]?.name) ?? composer.targets.find((target) => target.name === draft.serviceName);
 
   return (
     <div className="route-form-layout">
@@ -600,15 +615,10 @@ function RouteComposer({
         <section id="route-basic" className="detail-card composer-card route-form-section">
           <SectionTitle number="01" title="基础信息" description="定义这条路由在控制台和运行时中的基本身份。" />
           <div className="field-grid">
-            <InputField
-              label="路由标识"
-              value={draft.id ?? ''}
-              maxLength={63}
-              disabled={Boolean(draft.version)}
-              placeholder="留空时按服务、方法和路径自动生成"
-              info="路由标识保存后会作为资源名称使用；建议只在创建时填写，需符合 DNS 标签格式"
-              onChange={(value) => updateDraft({ id: value })}
-            />
+            <div className="field route-resource-id-field">
+              <FieldLabel label="资源 ID" info="由后端生成，用于 API 引用；控制台展示和筛选优先使用网关、路径和目标服务" />
+              <div className="readonly-value">{draft.id || '保存后自动生成'}</div>
+            </div>
             <div className="field">
               <FieldLabel label="启用状态" info="关闭后路由配置保留，但不会下发生效" />
               <div className={`gateway-status route-status-control ${draft.enabled ? 'on' : ''}`.trim()}>
@@ -630,7 +640,17 @@ function RouteComposer({
         <section id="route-match" className="detail-card composer-card route-form-section">
           <SectionTitle number="02" title="匹配条件" description="定义请求如何进入这条路由；Host 可留空，表示不限制 Host。" />
           <div className="field-grid">
-            <GatewayMultiSelect options={gatewayOptions} value={draft.gatewayNames} error={fieldErrors.gateway} onChange={(gatewayNames) => updateDraft({ gatewayNames })} />
+            <GatewayMultiSelect options={gatewayOptions} value={draft.gatewayIDs} error={fieldErrors.gateway} onChange={(gatewayIDs) => updateDraft({ gatewayIDs })} />
+            <InputField
+              label="规则名称"
+              value={draft.ruleName}
+              required
+              maxLength={63}
+              placeholder="main"
+              info="Route 内规则的稳定名称，同一条 Route 内不能重复"
+              error={fieldErrors.rule}
+              onChange={(ruleName) => updateDraft({ ruleName })}
+            />
             <MethodSelector value={draft.methods} onChange={(methods) => updateDraft({ methods })} />
             <InputField
               label="路径"
@@ -643,6 +663,7 @@ function RouteComposer({
               onChange={(value) => updateDraft({ path: value })}
             />
             <HostnameEditor value={draft.hostnames} error={fieldErrors.host} onChange={(hostnames) => updateDraft({ hostnames })} />
+            <HeaderMatchEditor value={draft.headers} error={fieldErrors.header} onChange={(headers) => updateDraft({ headers })} />
           </div>
         </section>
 
@@ -654,16 +675,14 @@ function RouteComposer({
             error={fieldErrors.service}
             onTargetsChange={(targetServices) => updateDraft({
               targetServices,
-              serviceName: targetServices[0]?.name ?? '',
             })}
           />
         </section>
 
         <section id="route-policies" className="detail-card composer-card route-form-section">
-          <SectionTitle number="04" title="策略配置" description="按能力开关启用路由级治理策略；未启用的能力不会下发到运行时。" />
+          <SectionTitle number="04" title="规则策略" description="配置当前规则的 Header、超时和重试等原生治理能力。" />
           <RoutePolicyBindings
             policies={composer.policies}
-            selectedTarget={selectedTarget}
             enabledPolicyCapabilities={draft.enabledPolicyCapabilities}
             settings={draft.policySettings}
             onAddPolicy={(capability) => {
@@ -693,9 +712,11 @@ function RouteComposer({
 function routeFieldErrors(validation: RouteValidationReport) {
   return {
     path: validation.items.find((item) => item.label === '匹配规则' && item.status === 'critical')?.message,
+    rule: validation.items.find((item) => item.label === '规则名称' && item.status === 'critical')?.message,
     service: validation.items.find((item) => item.label === '目标服务' && item.status === 'critical')?.message,
     gateway: validation.items.find((item) => item.label === '网关' && item.status === 'critical')?.message,
     host: validation.items.find((item) => item.label === '匹配域名' && item.status === 'critical')?.message,
+    header: validation.items.find((item) => item.label === 'Header 匹配' && item.status === 'critical')?.message,
   };
 }
 
@@ -711,8 +732,13 @@ function SectionTitle({ number, title, description }: { number: string; title: s
   );
 }
 
-function renderRouteDetail(tab: string, selectedRoute: RoutePageView['routes'][number] | undefined) {
-  const details: KeyValue[] = selectedRoute ? routeDetailsForTab(selectedRoute, tab) : [];
+function renderRouteDetail(
+  tab: string,
+  selectedRoute: RoutePageView['routes'][number] | undefined,
+  gateways: RouteGatewayOption[],
+  targets: RouteTargetOption[],
+) {
+  const details: KeyValue[] = selectedRoute ? routeDetailsForTab(selectedRoute, tab, gateways, targets) : [];
 
   return (
     <div className="detail-card">
@@ -726,19 +752,22 @@ function renderRouteDetail(tab: string, selectedRoute: RoutePageView['routes'][n
   );
 }
 
-function routeDetailsForTab(route: RoutePageView['routes'][number], tab: string): KeyValue[] {
+function routeDetailsForTab(route: RoutePageView['routes'][number], tab: string, gateways: RouteGatewayOption[], targets: RouteTargetOption[]): KeyValue[] {
+  const rule = primaryRouteRule(route);
+
   if (tab === 'match') {
     return [
-      { label: '方法', value: formatMethods(route.methods) },
-      { label: '路径', value: route.path },
-      { label: '所属网关', value: formatGatewayNames(route.gatewayNames) },
+      { label: '方法', value: formatMethods(rule?.methods ?? []) },
+      { label: '路径', value: rule?.pathPrefix ?? '-' },
+      { label: '所属网关', value: formatGatewayIDs(route.gatewayIDs, gateways) },
       { label: '匹配域名', value: formatHostnames(route.hostnames) },
+      { label: 'Header 条件', value: formatHeaderMatches(rule?.headers ?? []) },
     ];
   }
 
   if (tab === 'target') {
     return [
-      { label: '目标服务', value: routeTargetSummary(route) },
+      { label: '目标服务', value: routeTargetSummary(route, targets) },
       { label: '目标数量', value: `${routeTargetServices(route).length} 个` },
       { label: '总权重', value: String(targetWeightSum(routeTargetServices(route))) },
       { label: '请求量', value: `${route.traffic} req/s` },
@@ -748,7 +777,7 @@ function routeDetailsForTab(route: RoutePageView['routes'][number], tab: string)
 
   if (tab === 'events') {
     return [
-      { label: '最近变更', value: route.lastChangedAt },
+      { label: '创建时间', value: route.createdAt },
       { label: '启用状态', value: route.enabled ? '启用' : '停用' },
       { label: '生效状态', value: runtimeSyncStatusLabel(route.runtimeStatus) },
       { label: '变更摘要', value: formatRouteMatch(route) },
@@ -756,10 +785,10 @@ function routeDetailsForTab(route: RoutePageView['routes'][number], tab: string)
   }
 
   return [
-    { label: '方法', value: formatMethods(route.methods) },
-    { label: '路径', value: route.path },
-    { label: '所属网关', value: formatGatewayNames(route.gatewayNames) },
-    { label: '目标服务', value: routeTargetSummary(route) },
+    { label: '方法', value: formatMethods(rule?.methods ?? []) },
+    { label: '路径', value: rule?.pathPrefix ?? '-' },
+    { label: '所属网关', value: formatGatewayIDs(route.gatewayIDs, gateways) },
+    { label: '目标服务', value: routeTargetSummary(route, targets) },
     { label: '流量', value: `${route.traffic} req/s` },
     { label: '成功率', value: route.successRate },
     { label: '启用状态', value: route.enabled ? '启用' : '停用' },
@@ -823,7 +852,7 @@ function MethodSelector({ value, onChange }: { value: RouteComposerDraft['method
   );
 }
 
-function GatewayMultiSelect({ options, value, error, onChange }: { options: string[]; value: string[]; error?: string; onChange: (value: string[]) => void }) {
+function GatewayMultiSelect({ options, value, error, onChange }: { options: RouteGatewayOption[]; value: string[]; error?: string; onChange: (value: string[]) => void }) {
   return (
     <div className={`field field-wide route-relation-field ${error ? 'invalid' : ''}`.trim()}>
       <MultiSelectDropdown
@@ -831,7 +860,7 @@ function GatewayMultiSelect({ options, value, error, onChange }: { options: stri
         emptyLabel="请选择网关"
         required
         info="一个路由可以挂到多个网关；保存后会分别在这些网关下生效"
-        options={options.map((gatewayName) => ({ value: gatewayName, label: gatewayName }))}
+        options={options.map((gateway) => ({ value: gateway.id, label: gateway.name }))}
         value={value}
         onChange={onChange}
       />
@@ -852,26 +881,26 @@ function TargetSelector({
   error?: string;
   onTargetsChange: (targets: RouteTargetPayload[]) => void;
 }) {
-  const [addTargetName, setAddTargetName] = useState(targets[0]?.name ?? '');
-  const selectedNames = new Set(selectedTargets.map((target) => target.name));
-  const availableTargets = targets.filter((target) => !selectedNames.has(target.name));
-  const candidateTargetName = availableTargets.some((target) => target.name === addTargetName)
-    ? addTargetName
-    : availableTargets[0]?.name ?? '';
+  const [addTargetID, setAddTargetID] = useState(targets[0]?.id ?? '');
+  const selectedIDs = new Set(selectedTargets.map((target) => target.upstreamID));
+  const availableTargets = targets.filter((target) => !selectedIDs.has(target.id));
+  const candidateTargetID = availableTargets.some((target) => target.id === addTargetID)
+    ? addTargetID
+    : availableTargets[0]?.id ?? '';
 
   const addTarget = () => {
-    if (!candidateTargetName) {
+    if (!candidateTargetID) {
       return;
     }
-    onTargetsChange([...selectedTargets, { name: candidateTargetName, weight: 100 }]);
+    onTargetsChange([...selectedTargets, { upstreamID: candidateTargetID, weight: 100 }]);
   };
 
-  const updateTargetWeight = (targetName: string, weight: number) => {
-    onTargetsChange(selectedTargets.map((target) => (target.name === targetName ? { ...target, weight } : target)));
+  const updateTargetWeight = (upstreamID: string, weight: number) => {
+    onTargetsChange(selectedTargets.map((target) => (target.upstreamID === upstreamID ? { ...target, weight } : target)));
   };
 
-  const removeTarget = (targetName: string) => {
-    onTargetsChange(selectedTargets.filter((target) => target.name !== targetName));
+  const removeTarget = (upstreamID: string) => {
+    onTargetsChange(selectedTargets.filter((target) => target.upstreamID !== upstreamID));
   };
 
   return (
@@ -879,13 +908,13 @@ function TargetSelector({
       <div className={`field target-picker ${error ? 'invalid' : ''}`.trim()}>
         <FieldLabel label="添加目标服务" required info="一个路由可以转发到多个服务；运行时会按照每个目标的权重做加权分流" />
         <div className="inline-input">
-          <select value={candidateTargetName} disabled={availableTargets.length === 0} onChange={(event) => setAddTargetName(event.target.value)}>
+          <select value={candidateTargetID} disabled={availableTargets.length === 0} onChange={(event) => setAddTargetID(event.target.value)}>
             {availableTargets.length === 0 ? <option value="">所有服务都已选择</option> : null}
             {availableTargets.map((target) => (
-              <option key={target.name} value={target.name}>{target.name} · {serviceTypeLabel(target.type)}</option>
+              <option key={target.id} value={target.id}>{target.name} · {serviceTypeLabel(target.type)}</option>
             ))}
           </select>
-          <Button variant="soft" type="button" disabled={!candidateTargetName} onClick={addTarget}>添加目标</Button>
+          <Button variant="soft" type="button" disabled={!candidateTargetID} onClick={addTarget}>添加目标</Button>
         </div>
         {error ? <div className="form-error">{error}</div> : null}
       </div>
@@ -902,12 +931,13 @@ function TargetSelector({
           {selectedTargets.length === 0 ? (
             <div className="target-service-empty">请选择至少一个目标服务。</div>
           ) : selectedTargets.map((target) => {
-            const service = targets.find((item) => item.name === target.name);
+            const service = targets.find((item) => item.id === target.upstreamID);
+            const serviceName = service?.name ?? target.upstreamID;
 
             return (
-              <div key={target.name} className="target-service-row">
+              <div key={target.upstreamID} className="target-service-row">
                 <div className="target-service-main">
-                  <strong>{target.name}</strong>
+                  <strong>{serviceName}</strong>
                   <span>{service ? serviceTypeLabel(service.type) : '未知类型'} · {service?.endpoint ?? '未配置地址'}</span>
                 </div>
                 <Badge tone={service?.healthStatus === 'healthy' ? 'green' : service?.healthStatus === 'warning' ? 'amber' : service?.healthStatus === 'unknown' ? 'neutral' : 'red'}>
@@ -919,11 +949,11 @@ function TargetSelector({
                     value={target.weight}
                     type="number"
                     min={1}
-                    max={1000}
-                    onChange={(event) => updateTargetWeight(target.name, Number(event.target.value))}
+                    max={100}
+                    onChange={(event) => updateTargetWeight(target.upstreamID, Number(event.target.value))}
                   />
                 </label>
-                <button className="link-button danger" type="button" onClick={() => removeTarget(target.name)}>删除</button>
+                <button className="link-button danger" type="button" onClick={() => removeTarget(target.upstreamID)}>删除</button>
               </div>
             );
           })}
@@ -950,6 +980,8 @@ function MultiSelectDropdown({
   value: string[];
   onChange: (value: string[]) => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
   const toggleValue = (nextValue: string) => {
     onChange(value.includes(nextValue) ? value.filter((item) => item !== nextValue) : [...value, nextValue]);
   };
@@ -957,26 +989,43 @@ function MultiSelectDropdown({
     ? options.filter((option) => value.includes(option.value)).map((option) => option.label).join('、')
     : emptyLabel;
 
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    return () => document.removeEventListener('mousedown', closeOnOutsideClick);
+  }, [open]);
+
   return (
     <div className="field">
       <FieldLabel label={label} required={required} info={info} />
-      <details className="multi-select">
-        <summary>
+      <div ref={rootRef} className={`multi-select ${open ? 'open' : ''}`.trim()}>
+        <button className="multi-select-trigger" type="button" onClick={() => setOpen(!open)}>
           <span>{displayValue}</span>
           <span aria-hidden="true">⌄</span>
-        </summary>
-        <div className="multi-select-menu">
-          <button className={value.length === 0 ? 'active' : ''} type="button" onClick={() => onChange([])}>
-            {emptyLabel}
-          </button>
-          {options.map((option) => (
-            <button key={option.value} className={value.includes(option.value) ? 'active' : ''} type="button" onClick={() => toggleValue(option.value)}>
-              <span className="multi-check">{value.includes(option.value) ? '✓' : ''}</span>
-              {option.label}
+        </button>
+        {open ? (
+          <div className="multi-select-menu">
+            <button className={value.length === 0 ? 'active' : ''} type="button" onClick={() => onChange([])}>
+              {emptyLabel}
             </button>
-          ))}
-        </div>
-      </details>
+            {options.map((option) => (
+              <button key={option.value} className={value.includes(option.value) ? 'active' : ''} type="button" onClick={() => toggleValue(option.value)}>
+                <span className="multi-check">{value.includes(option.value) ? '✓' : ''}</span>
+                {option.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -1029,67 +1078,164 @@ function HostnameEditor({ value, error, onChange }: { value: string[]; error?: s
   );
 }
 
+function HeaderMatchEditor({ value, error, onChange }: { value: HeaderMatch[]; error?: string; onChange: (value: HeaderMatch[]) => void }) {
+  const addHeader = () => {
+    onChange([...value, { name: '', value: '' }]);
+  };
+  const updateHeader = (index: number, patch: Partial<HeaderMatch>) => {
+    onChange(value.map((header, currentIndex) => (currentIndex === index ? { ...header, ...patch } : header)));
+  };
+  const removeHeader = (index: number) => {
+    onChange(value.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  return (
+    <div className={`field field-wide header-match-editor ${error ? 'invalid' : ''}`.trim()}>
+      <div className="field-row-label">
+        <FieldLabel label="Header 匹配" info="可选；填写后只有满足这些 Header 精确匹配条件的请求才会命中当前规则" />
+        <Button variant="soft" type="button" onClick={addHeader}>添加条件</Button>
+      </div>
+      {value.length === 0 ? (
+        <span className="mini-card-meta">不限制 Header。需要按 Header 匹配时再添加条件。</span>
+      ) : (
+        <div className="header-match-list">
+          {value.map((header, index) => (
+            <div key={index} className="header-match-row">
+              <input value={header.name} placeholder="Header 名称，例如 x-tenant-id" onChange={(event) => updateHeader(index, { name: event.target.value })} />
+              <input value={header.value} placeholder="Header 值" onChange={(event) => updateHeader(index, { value: event.target.value })} />
+              <button className="link-button danger" type="button" onClick={() => removeHeader(index)}>删除</button>
+            </div>
+          ))}
+        </div>
+      )}
+      {error ? <div className="form-error">{error}</div> : null}
+    </div>
+  );
+}
+
 function formatHostnames(hostnames: string[]) {
   return hostnames.length > 0 ? hostnames.join('、') : '不限制 Host';
 }
 
-function formatGatewayNames(gatewayNames: string[]) {
-  return gatewayNames.length > 0 ? gatewayNames.join('、') : '-';
+function formatHeaderMatches(headers: HeaderMatch[]) {
+  if (headers.length === 0) {
+    return '不限制 Header';
+  }
+  return headers.map((header) => `${header.name}=${header.value}`).join('、');
+}
+
+function formatGatewayIDs(gatewayIDs: string[], gateways: RouteGatewayOption[] = []) {
+  if (gatewayIDs.length === 0) {
+    return '-';
+  }
+  return routeGatewayLabels(gatewayIDs, gateways).join('、');
 }
 
 function formatMethods(methods: string[]) {
   return methods.length > 0 ? methods.join('、') : '全部方法';
 }
 
-function routeTargetServices(route: Pick<RouteResource, 'serviceName' | 'targets'>): RouteTargetPayload[] {
-  if (route.targets && route.targets.length > 0) {
-    return route.targets;
+function primaryRouteRule(route: Pick<RouteResource, 'rules'>) {
+  return route.rules?.[0];
+}
+
+function routeTargetServices(route: Pick<RouteResource, 'rules'>): RouteTargetPayload[] {
+  return primaryRouteRule(route)?.targets ?? [];
+}
+
+function routeTargetIDs(route: Pick<RouteResource, 'rules'>) {
+  return routeTargetServices(route).map((target) => target.upstreamID);
+}
+
+function routeTargetLabels(route: Pick<RouteResource, 'rules'>, targets: RouteTargetOption[] = []) {
+  return routeTargetServices(route).map((target) => targetLabel(target.upstreamID, targets));
+}
+
+function routeGatewayLabels(gatewayIDs: string[], gateways: RouteGatewayOption[] = []) {
+  return gatewayIDs.map((gatewayID) => gatewayLabel(gatewayID, gateways));
+}
+
+function routeTargetSummary(route: Pick<RouteResource, 'rules'>, targets: RouteTargetOption[] = []) {
+  return formatTargetServices(routeTargetServices(route), targets);
+}
+
+function formatRouteMatch(route: Pick<RouteResource, 'rules'>) {
+  const rule = primaryRouteRule(route);
+  return `${formatMethods(rule?.methods ?? [])} ${rule?.pathPrefix ?? '-'}`;
+}
+
+function enabledCapabilitiesFromRule(rule: RouteResource['rules'][number] | undefined): RoutePolicyCapability[] {
+  if (!rule) {
+    return [];
   }
-  return route.serviceName ? [{ name: route.serviceName, weight: 100 }] : [];
+
+  const capabilities: RoutePolicyCapability[] = [];
+  if (rule.requestHeaderModifier) {
+    capabilities.push(routePolicyCapabilityRequestHeaderModifier);
+  }
+  if (rule.responseHeaderModifier) {
+    capabilities.push(routePolicyCapabilityResponseHeaderModifier);
+  }
+  if (rule.timeout) {
+    capabilities.push(routePolicyCapabilityTimeout);
+  }
+  if (rule.retry) {
+    capabilities.push(routePolicyCapabilityRetry);
+  }
+  return capabilities;
 }
 
-function routeTargetNames(route: Pick<RouteResource, 'serviceName' | 'targets'>) {
-  return routeTargetServices(route).map((target) => target.name);
-}
-
-function routeTargetSummary(route: Pick<RouteResource, 'serviceName' | 'targets'>) {
-  return formatTargetServices(routeTargetServices(route));
-}
-
-function formatRouteMatch(route: Pick<RouteResource, 'methods' | 'path'>) {
-  return `${formatMethods(route.methods)} ${route.path}`;
-}
-
-function routeIdFromPayload(payload: ReturnType<typeof buildRoutePublishPayload>) {
-  if (payload.id) {
-    return payload.id;
+function policySettingsFromRule(rule: RouteResource['rules'][number] | undefined): RouteComposerDraft['policySettings'] {
+  if (!rule) {
+    return {};
   }
 
-  const method = payload.methods[0] ?? 'any';
-  const value = `${payload.serviceName}-${method}-${payload.path}`
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 63)
-    .replace(/-+$/g, '');
-
-  return value || 'route';
+  const settings: RouteComposerDraft['policySettings'] = {};
+  if (rule.requestHeaderModifier) {
+    settings.RequestHeaderModifier = {
+      setHeadersOn: rule.requestHeaderModifier.set?.map((item) => item.name).join(',') ?? '',
+      value: rule.requestHeaderModifier.set?.[0]?.value ?? '',
+      removeHeadersOn: rule.requestHeaderModifier.remove?.join(',') ?? '',
+    };
+  }
+  if (rule.responseHeaderModifier) {
+    settings.ResponseHeaderModifier = {
+      setHeadersOn: rule.responseHeaderModifier.set?.map((item) => item.name).join(',') ?? '',
+      value: rule.responseHeaderModifier.set?.[0]?.value ?? '',
+      removeHeadersOn: rule.responseHeaderModifier.remove?.join(',') ?? '',
+    };
+  }
+  if (rule.timeout) {
+    settings.Timeout = {
+      timeoutMillis: String(rule.timeout.requestMillis),
+    };
+  }
+  if (rule.retry) {
+    settings.Retry = {
+      attempts: String(rule.retry.attempts),
+      perTryTimeoutMillis: String(rule.retry.perTryTimeoutMillis),
+    };
+  }
+  return settings;
 }
 
-function policySettingsFromBindings(bindings: NonNullable<RouteResource['policyBindings']>): RouteComposerDraft['policySettings'] {
-  return Object.fromEntries(bindings.map((binding) => [
-    binding.capability,
-    Object.fromEntries(Object.entries(binding.parameters).map(([key, value]) => [
-      key,
-      Array.isArray(value) ? value.map(String).join(',') : String(value),
-    ])),
-  ]));
+function gatewayLabel(gatewayID: string, gateways: RouteGatewayOption[]) {
+  return gateways.find((gateway) => gateway.id === gatewayID)?.name ?? shortResourceID(gatewayID);
+}
+
+function targetLabel(upstreamID: string, targets: RouteTargetOption[]) {
+  return targets.find((target) => target.id === upstreamID)?.name ?? shortResourceID(upstreamID);
+}
+
+function shortResourceID(id: string) {
+  if (id.length <= 12) {
+    return id;
+  }
+  return `${id.slice(0, 8)}...${id.slice(-4)}`;
 }
 
 function RoutePolicyBindings({
   policies,
-  selectedTarget,
   enabledPolicyCapabilities,
   settings,
   onAddPolicy,
@@ -1097,14 +1243,13 @@ function RoutePolicyBindings({
   onSettingChange,
 }: {
   policies: RouteComposerPreview['policies'];
-  selectedTarget?: RouteComposerPreview['targets'][number];
   enabledPolicyCapabilities: RoutePolicyCapability[];
   settings: Record<string, Record<string, string>>;
   onAddPolicy: (capability: RoutePolicyCapability) => void;
   onRemovePolicy: (capability: RoutePolicyCapability) => void;
   onSettingChange: (capability: RoutePolicyCapability, key: string, value: string) => void;
 }) {
-  const applicablePolicies = policies.filter((policy) => policyAppliesToTarget(policy, selectedTarget));
+  const applicablePolicies = policies;
   const enabledPolicySet = new Set(enabledPolicyCapabilities);
   const enabledCount = applicablePolicies.filter((policy) => enabledPolicySet.has(policy.capability)).length;
   const policyErrors = validateEnabledPolicySettings(applicablePolicies, enabledPolicyCapabilities, settings);
@@ -1123,7 +1268,7 @@ function RoutePolicyBindings({
       <div className="policy-bindings-head">
         <div>
           <h4>路由策略</h4>
-          <p>按当前目标服务选择治理能力；未启用的能力不会下发到运行时。</p>
+          <p>配置当前 RouteRule 的原生治理能力；未启用的能力不会写入规则。</p>
         </div>
         <Badge tone={enabledCount > 0 ? 'green' : 'neutral'}>已启用 {enabledCount} 个</Badge>
       </div>
@@ -1233,7 +1378,7 @@ function PolicyParamField({
 function validatePolicySettings(policy: RouteComposerPreview['policies'][number], settings: Record<string, string>): Record<string, string> {
   const errors: Record<string, string> = {};
 
-  if (policy.capability === routePolicyCapabilityRequestHeaderModifier) {
+  if (policy.capability === routePolicyCapabilityRequestHeaderModifier || policy.capability === routePolicyCapabilityResponseHeaderModifier) {
     const setHeaderNames = (settings.setHeadersOn ?? '').trim();
     const headerValue = (settings.value ?? '').trim();
     const removeHeaderNames = (settings.removeHeadersOn ?? '').trim();
@@ -1381,27 +1526,12 @@ function policyParamSummary(policy: RouteComposerPreview['policies'][number], se
 }
 
 function policyCategory(capability: RoutePolicyCapability): string {
-  if (capability === routePolicyCapabilityRequestHeaderModifier) {
-    return '请求处理';
+  if (capability === routePolicyCapabilityRequestHeaderModifier || capability === routePolicyCapabilityResponseHeaderModifier) {
+    return 'Header 处理';
   }
   if (capability === routePolicyCapabilityTimeout || capability === routePolicyCapabilityRetry) {
     return '可靠性';
   }
 
   return '通用策略';
-}
-
-function policyAppliesToTarget(policy: RouteComposerPreview['policies'][number], target?: RouteComposerPreview['targets'][number]): boolean {
-  if (!isAiPolicy(policy)) {
-    return true;
-  }
-  return isAiTarget(target);
-}
-
-function isAiTarget(target?: RouteComposerPreview['targets'][number]): boolean {
-  return Boolean(target?.type.includes('模型') || target?.type.includes('Agent') || target?.type.includes('MCP'));
-}
-
-function isAiPolicy(policy: RouteComposerPreview['policies'][number]): boolean {
-  return policy.displayName.includes('Token') || policy.displayName.includes('Prompt') || policy.displayName.includes('模型');
 }
