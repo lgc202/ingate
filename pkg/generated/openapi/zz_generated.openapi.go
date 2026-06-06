@@ -2893,6 +2893,13 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 				Description: "RouteSpec 定义 Route 如何挂载到 Gateway",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与引用和运行时匹配",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Enabled 表示 Route 是否参与编译和下发",

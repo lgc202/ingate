@@ -1,5 +1,3 @@
-import type { HealthStatus, RuntimeSyncStatus } from './common';
-
 export type ServiceType = 'application' | 'model' | 'agent' | 'mcp';
 export type ServiceLoadBalancePolicy = 'round_robin' | 'least_request' | 'random';
 
@@ -30,8 +28,6 @@ export interface ServiceResource {
   name: string;
   type: ServiceType;
   endpoints: ServiceEndpointPayload[];
-  healthStatus: HealthStatus;
-  runtimeStatus: RuntimeSyncStatus;
   loadBalancePolicy: ServiceLoadBalancePolicy;
   healthCheck?: ServiceHealthCheck;
   createdAt: string;
@@ -82,7 +78,7 @@ export interface ServiceMutationResult {
 
 export interface ServiceValidationItem {
   label: string;
-  status: HealthStatus;
+  status: 'healthy' | 'warning' | 'critical' | 'unknown';
   message: string;
 }
 

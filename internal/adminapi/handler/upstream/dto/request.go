@@ -21,7 +21,7 @@ func (r *CreateUpstreamReq) Validate() error {
 // Validate 校验更新 Upstream 请求
 func (r *UpdateUpstreamReq) Validate() error {
 	if r.Version == "" {
-		return errors.New("upstream version is required")
+		return errors.New("服务版本不能为空")
 	}
 	return r.UpstreamConfig.Validate()
 }

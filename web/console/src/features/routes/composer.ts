@@ -18,6 +18,7 @@ const maxTargetWeight = 100;
 export interface RouteComposerDraft {
   id?: string;
   version?: string;
+  name: string;
   ruleName: string;
   methods: HttpMethod[];
   path: string;
@@ -33,6 +34,7 @@ export interface RouteComposerDraft {
 export function createRouteComposerDraft(template: RouteComposerPreview): RouteComposerDraft {
   const enabledPolicyCapabilities = template.policies.filter((policy) => policy.enabled).map((policy) => policy.capability);
   return {
+    name: template.name,
     ruleName: 'main',
     methods: template.methods,
     path: template.path || '/',
@@ -54,6 +56,11 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteVali
   const headerError = headerMatchesError(draft.headers);
   const targetError = targetServicesError(draft.targetServices);
   const items: RouteValidationItem[] = [
+    {
+      label: '路由名称',
+      status: draft.name.trim() ? 'healthy' : 'critical',
+      message: draft.name.trim() ? draft.name.trim() : '请填写路由名称',
+    },
     {
       label: '规则名称',
       status: draft.ruleName.trim() ? 'healthy' : 'critical',
@@ -98,14 +105,15 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteVali
 
 export function buildRoutePublishPreview(template: RouteComposerPreview, draft: RouteComposerDraft): RoutePublishPreview {
   return {
-    title: `${formatMethods(draft.methods)} ${draft.path}`,
+    title: draft.name.trim() || `${formatMethods(draft.methods)} ${draft.path}`,
     subtitle: `目标服务 ${formatTargetServices(draft.targetServices)} · 策略 ${draft.enabledPolicyCapabilities.length} 个`,
     diffs: [
+      { before: `name: ${template.name || '未命名'}`, after: `name: ${draft.name.trim() || '未命名'}` },
       { before: `methods: ${formatMethods(template.methods)}`, after: `methods: ${formatMethods(draft.methods)}` },
       { before: `path: ${template.path}`, after: `path: ${draft.path}` },
       { before: `hostnames: ${template.hostnames.join(', ') || '不限制'}`, after: `hostnames: ${draft.hostnames.join(', ') || '不限制'}` },
       { before: 'rules: 未保存配置', after: `rules: ${draft.path}` },
-      { before: `native_policies: ${template.policyCount}`, after: `native_policies: ${draft.enabledPolicyCapabilities.length}` },
+      { before: 'native_policies: 未配置', after: `native_policies: ${draft.enabledPolicyCapabilities.length}` },
     ],
   };
 }
@@ -114,6 +122,7 @@ export function buildRoutePublishPayload(draft: RouteComposerDraft): RoutePublis
   return {
     id: draft.id,
     version: draft.version,
+    name: draft.name.trim(),
     gatewayIDs: draft.gatewayIDs,
     hostnames: normalizeHostnames(draft.hostnames),
     enabled: draft.enabled,

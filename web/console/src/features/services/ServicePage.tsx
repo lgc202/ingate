@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
-import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
-import type { HealthStatus } from '@/domain/common';
-import { healthLabel, runtimeSyncStatusLabel, statusTone } from '@/domain/common';
+import { Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
+import { formatDateTime } from '@/domain/common';
 import type {
   ServiceEndpointPayload,
   ServiceResource,
@@ -22,7 +21,6 @@ export function ServicePage() {
   const [selectedServiceId, setSelectedServiceId] = useState('');
   const [panelMode, setPanelMode] = useState<ServicePanelMode>('list');
   const [query, setQuery] = useState('');
-  const [healthFilter, setHealthFilter] = useState<'all' | HealthStatus>('all');
   const [draftState, setDraftState] = useState<ServiceFormDraft | null>(null);
   const [serverValidation, setServerValidation] = useState<ServiceValidationReport | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -50,12 +48,9 @@ export function ServicePage() {
   const selectedService = availableServices.find((service) => service.id === selectedServiceId) ?? availableServices[0] ?? null;
   const visibleServices = availableServices.filter((service) => {
     const normalizedQuery = query.trim().toLowerCase();
-    const matchedQuery = !normalizedQuery || [service.name, service.type, serviceTypeLabel(service.type), formatEndpointSummary(service.endpoints)].some((value) => value.toLowerCase().includes(normalizedQuery));
-    const matchedHealth = healthFilter === 'all' || service.healthStatus === healthFilter;
-
-    return matchedQuery && matchedHealth;
+    return !normalizedQuery || [service.name, service.type, serviceTypeLabel(service.type), formatEndpointSummary(service.endpoints)].some((value) => value.toLowerCase().includes(normalizedQuery));
   });
-  const hasActiveFilters = Boolean(query.trim() || healthFilter !== 'all');
+  const hasActiveFilters = Boolean(query.trim());
   const draft = draftState ?? createServiceDraft(panelMode === 'edit' ? selectedService : null);
   const clientValidation = validateServiceDraft(draft);
   const activeValidation = serverValidation ?? clientValidation;
@@ -190,7 +185,6 @@ export function ServicePage() {
         <>
           <Button variant="soft" onClick={() => {
             setQuery('');
-            setHealthFilter('all');
           }}>重置筛选</Button>
           <Button variant="primary" onClick={openCreate}>新建服务</Button>
         </>
@@ -201,13 +195,6 @@ export function ServicePage() {
           actions={
             <div className="table-toolbar">
               <input className="toolbar-input" value={query} placeholder="搜索服务名称 / 地址" onChange={(event) => setQuery(event.target.value)} />
-              <select className="toolbar-select" value={healthFilter} onChange={(event) => setHealthFilter(event.target.value as typeof healthFilter)}>
-                <option value="all">健康：全部</option>
-                <option value="healthy">健康</option>
-                <option value="warning">警告</option>
-                <option value="critical">异常</option>
-                <option value="unknown">未知</option>
-              </select>
             </div>
           }
         >
@@ -220,8 +207,6 @@ export function ServicePage() {
                   <th>端点</th>
                   <th>启用端点</th>
                   <th>负载均衡</th>
-                  <th>健康状态</th>
-                  <th>生效状态</th>
                   <th>创建时间</th>
                   <th>操作</th>
                 </tr>
@@ -238,13 +223,7 @@ export function ServicePage() {
                     <td>{formatEndpointSummary(service.endpoints)}</td>
                     <td>{formatInstanceSummary(service.endpoints)}</td>
                     <td>{serviceLoadBalancePolicyLabel(service.loadBalancePolicy)}</td>
-                    <td>
-                      <Badge tone={statusTone(service.healthStatus)}>{healthLabel(service.healthStatus)}</Badge>
-                    </td>
-                    <td>
-                      <Badge tone={statusTone(service.runtimeStatus)}>{runtimeSyncStatusLabel(service.runtimeStatus)}</Badge>
-                    </td>
-                    <td>{service.createdAt}</td>
+                    <td>{formatDateTime(service.createdAt)}</td>
                     <td>
                       <div className="row-actions">
                         <button className="link-button" type="button" onClick={(event) => {
@@ -571,9 +550,7 @@ function ServiceDetail({ service }: { service: ServiceResource }) {
     ['启用端点', formatInstanceSummary(service.endpoints)],
     ['负载均衡', serviceLoadBalancePolicyLabel(service.loadBalancePolicy)],
     ['健康检查', service.healthCheck?.enabled ? `${service.healthCheck.path ?? '-'} / ${service.healthCheck.intervalSeconds ?? '-'}s / ${service.healthCheck.timeoutSeconds ?? '-'}s` : '未启用'],
-    ['健康状态', healthLabel(service.healthStatus)],
-    ['生效状态', runtimeSyncStatusLabel(service.runtimeStatus)],
-    ['创建时间', service.createdAt],
+    ['创建时间', formatDateTime(service.createdAt)],
   ];
 
   return (

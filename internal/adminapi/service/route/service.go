@@ -49,6 +49,9 @@ func (s *Service) Get(ctx context.Context, routeID string) (*RouteResult, error)
 
 // Create 创建 Route
 func (s *Service) Create(ctx context.Context, params CreateRouteParams) (string, error) {
+	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
+		return "", err
+	}
 	route := &resource.Route{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: resource.SchemeGroupVersion.String(),
@@ -84,6 +87,9 @@ func (s *Service) Update(ctx context.Context, routeID string, params UpdateRoute
 	if err := validateVersion(resource.ResourceRoutes, routeID, params.Version, current.ResourceVersion); err != nil {
 		return err
 	}
+	if err := s.validateNameUnique(ctx, params.Name, routeID); err != nil {
+		return err
+	}
 
 	spec := routeSpec(params.CreateRouteParams)
 	next := current.DeepCopy()
@@ -116,6 +122,22 @@ func (s *Service) Delete(ctx context.Context, routeID string) error {
 	return s.store.Delete(ctx, routeID)
 }
 
+func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string) error {
+	routes, err := s.store.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, route := range routes.Items {
+		if route.Name == excludeID {
+			continue
+		}
+		if route.Spec.DisplayName == name {
+			return xerrors.NewUserError(fmt.Sprintf("路由名称 %q 已存在", name))
+		}
+	}
+	return nil
+}
+
 func (s *Service) validateReferences(ctx context.Context, route *resource.Route) error {
 	for _, parentRef := range route.Spec.ParentRefs {
 		if _, err := s.gateways.Get(ctx, parentRef.Name); err != nil {
@@ -140,10 +162,11 @@ func (s *Service) validateReferences(ctx context.Context, route *resource.Route)
 
 func routeSpec(params CreateRouteParams) resource.RouteSpec {
 	return resource.RouteSpec{
-		Enabled:    params.Enabled,
-		ParentRefs: parentRefs(params.GatewayIDs),
-		Hostnames:  params.Hostnames,
-		Rules:      routeRules(params.Rules),
+		DisplayName: params.Name,
+		Enabled:     params.Enabled,
+		ParentRefs:  parentRefs(params.GatewayIDs),
+		Hostnames:   params.Hostnames,
+		Rules:       routeRules(params.Rules),
 	}
 }
 

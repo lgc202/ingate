@@ -49,21 +49,13 @@ type Gateway struct {
 	ID      string `json:"id"`
 	Version string `json:"version,omitempty"`
 	GatewayConfig
-	Enabled      bool   `json:"enabled"`
-	HealthStatus string `json:"healthStatus"`
-	CreatedAt    string `json:"createdAt"`
-}
-
-// GatewaySummary 是列表页使用的 Gateway 摘要
-type GatewaySummary struct {
-	Gateway
-	ListenerSummary    string `json:"listenerSummary"`
-	HostBindingSummary string `json:"hostBindingSummary"`
+	Enabled   bool   `json:"enabled"`
+	CreatedAt string `json:"createdAt"`
 }
 
 // ListGatewaysResp 是 Gateway 列表接口响应
 type ListGatewaysResp struct {
-	Gateways []GatewaySummary `json:"gateways"`
+	Gateways []Gateway `json:"gateways"`
 }
 
 // GetGatewayResp 是 Gateway 详情接口响应

@@ -85,7 +85,10 @@ func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGat
 	if err != nil {
 		return err
 	}
-	if params.Version != "" && params.Version != current.ResourceVersion {
+	if params.Version == "" {
+		return xerrors.NewUserError("网关版本不能为空")
+	}
+	if params.Version != current.ResourceVersion {
 		return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resource.ResourceGateways, gatewayID))
 	}
 	if err := s.validateNameUnique(ctx, params.Name, gatewayID); err != nil {

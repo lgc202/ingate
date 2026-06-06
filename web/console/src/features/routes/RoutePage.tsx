@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Tabs, Toast } from '@/components/ui';
+import { formatDateTime } from '@/domain/common';
 import type { KeyValue } from '@/domain/common';
-import { healthLabel, runtimeSyncStatusLabel, statusTone } from '@/domain/common';
 import type { HeaderMatch, RouteComposerPreview, RouteGatewayOption, RoutePageView, RoutePolicyCapability, RouteResource, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRequestHeaderModifier,
@@ -96,6 +96,7 @@ export function RoutePage() {
     const keyword = filters.keyword.trim().toLowerCase();
     const rule = primaryRouteRule(route);
     const matchedKeyword = !keyword || [
+      route.name,
       rule?.pathPrefix ?? '',
       ...routeTargetIDs(route),
       ...routeTargetLabels(route, routeWorkspace.composer.targets),
@@ -147,6 +148,7 @@ export function RoutePage() {
       ...createRouteComposerDraft(routeWorkspace.composer),
       id: route.id,
       version: route.version,
+      name: route.name,
       ruleName: rule?.name ?? 'main',
       methods: rule?.methods ?? [],
       path: rule?.pathPrefix ?? '/',
@@ -190,7 +192,7 @@ export function RoutePage() {
 
       return availableRoutes.find((route) => route.id !== deleteCandidate.id)?.id ?? '';
     });
-    setNotice(`已删除路由：${formatRouteMatch(deleteCandidate)}`);
+    setNotice(`已删除路由：${routeDisplayName(deleteCandidate)}`);
     setDeleteCandidate(null);
     setDeleting(false);
   };
@@ -211,7 +213,7 @@ export function RoutePage() {
       return;
     }
 
-    setNotice(`已启用路由：${formatRouteMatch(route)}`);
+    setNotice(`已启用路由：${routeDisplayName(route)}`);
     setToggling(false);
   };
 
@@ -231,7 +233,7 @@ export function RoutePage() {
       return;
     }
 
-    setNotice(`已停用路由：${formatRouteMatch(disableCandidate)}`);
+    setNotice(`已停用路由：${routeDisplayName(disableCandidate)}`);
     setDisableCandidate(null);
     setToggling(false);
   };
@@ -268,7 +270,7 @@ export function RoutePage() {
     return (
       <PageFrame
         title="路由详情"
-        subtitle={selectedRouteView ? formatRouteMatch(selectedRouteView) : '未选择路由'}
+        subtitle={selectedRouteView ? routeDisplayName(selectedRouteView) : '未选择路由'}
         actions={<Button variant="soft" onClick={() => setMode('list')}>返回列表</Button>}
       >
         <Panel title="基础信息">
@@ -402,7 +404,7 @@ export function RoutePage() {
             }}>
               <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-route-title" onMouseDown={(event) => event.stopPropagation()}>
                 <h3 id="delete-route-title">删除路由</h3>
-                <p>确定删除 {formatRouteMatch(deleteCandidate)}？删除后这条匹配规则不会再进入目标服务。</p>
+                <p>确定删除 {routeDisplayName(deleteCandidate)}？删除后这条路由不会再进入目标服务。</p>
                 <div className="confirm-meta">
                   <span>所属网关</span><strong>{formatGatewayIDs(deleteCandidate.gatewayIDs, routeWorkspace.composer.gateways)}</strong>
                   <span>目标服务</span><strong>{routeTargetSummary(deleteCandidate, routeWorkspace.composer.targets)}</strong>
@@ -422,7 +424,7 @@ export function RoutePage() {
             }}>
               <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="disable-route-title" onMouseDown={(event) => event.stopPropagation()}>
                 <h3 id="disable-route-title">停用路由</h3>
-                <p>停用 {formatRouteMatch(disableCandidate)} 后，命中该规则的请求将不再转发到目标服务。</p>
+                <p>停用 {routeDisplayName(disableCandidate)} 后，命中该路由的请求将不再转发到目标服务。</p>
                 <div className="confirm-meta">
                   <span>匹配 Host</span><strong>{formatHostnames(disableCandidate.hostnames)}</strong>
                   <span>目标服务</span><strong>{routeTargetSummary(disableCandidate, routeWorkspace.composer.targets)}</strong>
@@ -461,8 +463,9 @@ function RouteMatchHeader({
     <section className="route-flow-hero">
       <div className="route-flow-head">
         <div>
-          <span>当前链路</span>
-          <strong>{formatMethods(draft.methods)} {draft.path || '/'}</strong>
+          <span>当前路由</span>
+          <strong>{draft.name.trim() || '未命名路由'}</strong>
+          <small>{formatMethods(draft.methods)} {draft.path || '/'}</small>
         </div>
         <Badge tone={draft.enabled ? 'green' : 'neutral'}>{draft.enabled ? '运行中' : '已停用'}</Badge>
       </div>
@@ -507,19 +510,23 @@ function renderRouteTable(
       <table className="table">
         <thead>
           <tr>
+            <th>路由名称</th>
             <th>匹配条件</th>
             <th>所属网关</th>
             <th>目标服务</th>
             <th>策略</th>
             <th>启用状态</th>
-            <th>生效状态</th>
-            <th>最近变更</th>
+            <th>创建时间</th>
             <th>操作</th>
           </tr>
         </thead>
         <tbody>
           {routes.map((route) => (
             <tr key={route.id} className={route.id === selectedRouteId ? 'selected' : ''} onClick={() => onSelect(route.id)}>
+              <td>
+                <div className="table-primary">{routeDisplayName(route)}</div>
+                <div className="table-secondary">{route.rules.length} 条规则</div>
+              </td>
               <td>
                 <div className="table-primary">
                   <Badge tone={(primaryRouteRule(route)?.methods ?? []).includes('POST') ? 'green' : 'amber'}>{formatMethods(primaryRouteRule(route)?.methods ?? [])}</Badge> {primaryRouteRule(route)?.pathPrefix ?? '-'}
@@ -532,9 +539,9 @@ function renderRouteTable(
               </td>
               <td>
                 <div className="table-primary">{routeTargetSummary(route, targets)}</div>
-                <div className="table-secondary">{routeTargetServices(route).length} 个目标 · {route.traffic} req/s · 成功率 {route.successRate}</div>
+                <div className="table-secondary">{routeTargetServices(route).length} 个目标</div>
               </td>
-              <td>{route.policyCount > 0 ? `${route.policyCount} 个` : '未绑定'}</td>
+              <td>{routePolicyCount(route) > 0 ? `${routePolicyCount(route)} 个` : '未绑定'}</td>
               <td>
                 <div className={`gateway-status ${routeEnabled(route) ? 'on' : ''}`.trim()}>
                   <button
@@ -543,7 +550,7 @@ function renderRouteTable(
                     role="switch"
                     disabled={toggling}
                     aria-checked={routeEnabled(route)}
-                    aria-label={`${formatRouteMatch(route)} ${routeEnabled(route) ? '已启用' : '已停用'}`}
+                    aria-label={`${routeDisplayName(route)} ${routeEnabled(route) ? '已启用' : '已停用'}`}
                     onClick={(event) => {
                       event.stopPropagation();
                       onToggleEnabled(route);
@@ -554,12 +561,7 @@ function renderRouteTable(
                   <strong>{routeEnabled(route) ? '启用' : '停用'}</strong>
                 </div>
               </td>
-              <td>
-                <Badge tone={statusTone(route.runtimeStatus)}>
-                  {runtimeSyncStatusLabel(route.runtimeStatus)}
-                </Badge>
-              </td>
-              <td>{route.createdAt}</td>
+              <td>{formatDateTime(route.createdAt)}</td>
               <td>
                 <div className="row-actions">
                   <button className="link-button" type="button" onClick={(event) => {
@@ -615,10 +617,16 @@ function RouteComposer({
         <section id="route-basic" className="detail-card composer-card route-form-section">
           <SectionTitle number="01" title="基础信息" description="定义这条路由在控制台和运行时中的基本身份。" />
           <div className="field-grid">
-            <div className="field route-resource-id-field">
-              <FieldLabel label="资源 ID" info="由后端生成，用于 API 引用；控制台展示和筛选优先使用网关、路径和目标服务" />
-              <div className="readonly-value">{draft.id || '保存后自动生成'}</div>
-            </div>
+            <InputField
+              label="路由名称"
+              value={draft.name}
+              required
+              maxLength={64}
+              placeholder="例如：用户查询接口"
+              info="面向控制台用户的唯一名称；资源 ID 由后端生成，不需要手动维护"
+              error={fieldErrors.name}
+              onChange={(name) => updateDraft({ name })}
+            />
             <div className="field">
               <FieldLabel label="启用状态" info="关闭后路由配置保留，但不会下发生效" />
               <div className={`gateway-status route-status-control ${draft.enabled ? 'on' : ''}`.trim()}>
@@ -711,7 +719,8 @@ function RouteComposer({
 
 function routeFieldErrors(validation: RouteValidationReport) {
   return {
-    path: validation.items.find((item) => item.label === '匹配规则' && item.status === 'critical')?.message,
+    name: validation.items.find((item) => item.label === '路由名称' && item.status === 'critical')?.message,
+    path: validation.items.find((item) => (item.label === '匹配规则' || item.label === '匹配路径') && item.status === 'critical')?.message,
     rule: validation.items.find((item) => item.label === '规则名称' && item.status === 'critical')?.message,
     service: validation.items.find((item) => item.label === '目标服务' && item.status === 'critical')?.message,
     gateway: validation.items.find((item) => item.label === '网关' && item.status === 'critical')?.message,
@@ -770,29 +779,24 @@ function routeDetailsForTab(route: RoutePageView['routes'][number], tab: string,
       { label: '目标服务', value: routeTargetSummary(route, targets) },
       { label: '目标数量', value: `${routeTargetServices(route).length} 个` },
       { label: '总权重', value: String(targetWeightSum(routeTargetServices(route))) },
-      { label: '请求量', value: `${route.traffic} req/s` },
-      { label: '成功率', value: route.successRate },
     ];
   }
 
   if (tab === 'events') {
     return [
-      { label: '创建时间', value: route.createdAt },
+      { label: '创建时间', value: formatDateTime(route.createdAt) },
       { label: '启用状态', value: route.enabled ? '启用' : '停用' },
-      { label: '生效状态', value: runtimeSyncStatusLabel(route.runtimeStatus) },
       { label: '变更摘要', value: formatRouteMatch(route) },
     ];
   }
 
   return [
+    { label: '路由名称', value: routeDisplayName(route) },
     { label: '方法', value: formatMethods(rule?.methods ?? []) },
     { label: '路径', value: rule?.pathPrefix ?? '-' },
     { label: '所属网关', value: formatGatewayIDs(route.gatewayIDs, gateways) },
     { label: '目标服务', value: routeTargetSummary(route, targets) },
-    { label: '流量', value: `${route.traffic} req/s` },
-    { label: '成功率', value: route.successRate },
     { label: '启用状态', value: route.enabled ? '启用' : '停用' },
-    { label: '生效状态', value: runtimeSyncStatusLabel(route.runtimeStatus) },
   ];
 }
 
@@ -940,9 +944,7 @@ function TargetSelector({
                   <strong>{serviceName}</strong>
                   <span>{service ? serviceTypeLabel(service.type) : '未知类型'} · {service?.endpoint ?? '未配置地址'}</span>
                 </div>
-                <Badge tone={service?.healthStatus === 'healthy' ? 'green' : service?.healthStatus === 'warning' ? 'amber' : service?.healthStatus === 'unknown' ? 'neutral' : 'red'}>
-                  {healthLabel(service?.healthStatus ?? 'unknown')}
-                </Badge>
+                <Badge tone="neutral">{service?.meta ?? '未配置端点'}</Badge>
                 <label className="target-weight-field">
                   <span>权重</span>
                   <input
@@ -1159,9 +1161,32 @@ function routeTargetSummary(route: Pick<RouteResource, 'rules'>, targets: RouteT
   return formatTargetServices(routeTargetServices(route), targets);
 }
 
+function routePolicyCount(route: Pick<RouteResource, 'rules'>) {
+  return route.rules.reduce((count, rule) => {
+    let next = count;
+    if (rule.requestHeaderModifier) {
+      next++;
+    }
+    if (rule.responseHeaderModifier) {
+      next++;
+    }
+    if (rule.timeout) {
+      next++;
+    }
+    if (rule.retry) {
+      next++;
+    }
+    return next;
+  }, 0);
+}
+
 function formatRouteMatch(route: Pick<RouteResource, 'rules'>) {
   const rule = primaryRouteRule(route);
   return `${formatMethods(rule?.methods ?? [])} ${rule?.pathPrefix ?? '-'}`;
+}
+
+function routeDisplayName(route: Pick<RouteResource, 'name' | 'rules'>) {
+  return route.name || formatRouteMatch(route);
 }
 
 function enabledCapabilitiesFromRule(rule: RouteResource['rules'][number] | undefined): RoutePolicyCapability[] {

@@ -34,9 +34,7 @@ func upstreamFromResource(upstream *resource.Upstream) Upstream {
 			LoadBalancePolicy: loadBalancePolicy(upstream.Spec.LoadBalancePolicy),
 			HealthCheck:       upstream.Spec.HealthCheck,
 		},
-		HealthStatus:  healthStatus(upstream.Status),
-		RuntimeStatus: runtimeStatus(),
-		CreatedAt:     createdAt(upstream.ObjectMeta),
+		CreatedAt: createdAt(upstream.ObjectMeta),
 	}
 }
 
@@ -85,23 +83,6 @@ func endpointRequests(upstream *resource.Upstream) []UpstreamEndpoint {
 			Enabled: endpoint.Enabled,
 		}
 	})
-}
-
-func healthStatus(status resource.ResourceStatus) string {
-	for _, condition := range status.Conditions {
-		if condition.Type == "Ready" && condition.Status == metav1.ConditionFalse {
-			return "critical"
-		}
-		if condition.Type == "Ready" && condition.Status == metav1.ConditionTrue {
-			return "healthy"
-		}
-	}
-	return "unknown"
-}
-
-func runtimeStatus() string {
-	// RuntimeSnapshot 不能证明运行时已经应用，服务页先统一展示 unknown
-	return "unknown"
 }
 
 func createdAt(metadata metav1.ObjectMeta) string {

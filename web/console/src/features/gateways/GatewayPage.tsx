@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
-import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
-import { healthLabel, statusTone } from '@/domain/common';
-import type { Gateway, GatewayCertificateOption, GatewayListener, GatewayMutationPayload, GatewayRuntimeGroupOption, GatewayValidationReport } from '@/domain/gateway';
+import { Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
+import { formatDateTime } from '@/domain/common';
+import type { Gateway, GatewayCertificateOption, GatewayListener, GatewayRuntimeGroupOption, GatewayValidationReport } from '@/domain/gateway';
 import type { GatewayFormDraft } from './form';
 import {
   buildGatewayPayload,
@@ -45,45 +45,12 @@ const emptyGatewayFilters: GatewayFilters = {
   enabled: 'all',
 };
 
-function mergeGateways(baseGateways: Gateway[], savedGateways: Record<string, Gateway>) {
-  const merged = baseGateways.map((gateway) => savedGateways[gateway.id] ?? gateway);
-  const existingIds = new Set(merged.map((gateway) => gateway.id));
-  const created = Object.values(savedGateways).filter((gateway) => !existingIds.has(gateway.id));
-
-  return [...created, ...merged];
-}
-
-function buildGatewayFromPayload(payload: GatewayMutationPayload, original: Gateway | null, createdId?: string): Gateway {
-	const listenerSummary = payload.listeners.map((listener) => `${listener.protocol}:${listener.port || '-'}`).join(' / ');
-	const hostBindingSummary = payload.hostBindings.map((binding) => binding.hostname ?? '不限制 Host').join('、') || '不限制 Host';
-	const id = payload.id ?? createdId ?? '';
-
-	return {
-		id,
-		version: undefined,
-		name: payload.name,
-		description: payload.description || original?.description || '未填写描述',
-    runtimeGroup: payload.runtimeGroup,
-    runtimeGroupName: original?.runtimeGroupName ?? payload.runtimeGroup,
-    listenerSummary,
-    hostBindingSummary,
-    listeners: payload.listeners,
-    hostBindings: payload.hostBindings,
-    enabled: original?.enabled ?? true,
-    healthStatus: original?.healthStatus ?? 'unknown',
-    createdAt: original?.createdAt ?? '刚刚',
-  };
-}
-
 export function GatewayPage() {
   const gateways = useResource(loadGatewayWorkspace);
-  const [selectedGatewayId, setSelectedGatewayId] = useState('gw-public');
+  const [selectedGatewayId, setSelectedGatewayId] = useState('');
   const [panelMode, setPanelMode] = useState<GatewayPanelMode>('list');
   const [filterDraft, setFilterDraft] = useState<GatewayFilters>(emptyGatewayFilters);
   const [filters, setFilters] = useState<GatewayFilters>(emptyGatewayFilters);
-  const [savedGateways, setSavedGateways] = useState<Record<string, Gateway>>({});
-  const [hiddenGatewayIds, setHiddenGatewayIds] = useState<string[]>([]);
-  const [enabledOverrides, setEnabledOverrides] = useState<Record<string, boolean>>({});
   const [draftState, setDraftState] = useState<GatewayFormDraft | null>(null);
   const [serverValidation, setServerValidation] = useState<GatewayValidationReport | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -107,25 +74,22 @@ export function GatewayPage() {
     );
   }
 
-  const allGateways = mergeGateways(gateways.data.gateways, savedGateways);
-  const availableGateways = allGateways.filter((gateway) => !hiddenGatewayIds.includes(gateway.id));
+  const availableGateways = gateways.data.gateways;
   const selectedGateway = availableGateways.find((gateway) => gateway.id === selectedGatewayId) ?? availableGateways[0] ?? null;
-  const gatewayEnabled = (gateway: Gateway) => enabledOverrides[gateway.id] ?? gateway.enabled;
-  const availableGatewayViews = availableGateways.map((gateway) => ({ ...gateway, enabled: gatewayEnabled(gateway) }));
-  const selectedGatewayView = selectedGateway ? { ...selectedGateway, enabled: gatewayEnabled(selectedGateway) } : null;
+  const selectedGatewayView = selectedGateway;
   const visibleGateways = availableGateways.filter((gateway) => {
     const keyword = filters.keyword.trim().toLowerCase();
     const host = filters.host.trim().toLowerCase();
     const matchedKeyword = !keyword || [gateway.name, gateway.description].some((value) => value.toLowerCase().includes(keyword));
-    const matchedHost = !host || [gateway.hostBindingSummary, ...gatewayHostnames(gateway)].some((value) => value.toLowerCase().includes(host));
-    const matchedEnabled = filters.enabled === 'all' || (filters.enabled === 'enabled' ? gatewayEnabled(gateway) : !gatewayEnabled(gateway));
+    const matchedHost = !host || [hostBindingSummary(gateway), ...gatewayHostnames(gateway)].some((value) => value.toLowerCase().includes(host));
+    const matchedEnabled = filters.enabled === 'all' || (filters.enabled === 'enabled' ? gateway.enabled : !gateway.enabled);
 
     return matchedKeyword && matchedHost && matchedEnabled;
   });
   const hasActiveFilters = Boolean(filters.keyword.trim() || filters.host.trim() || filters.enabled !== 'all');
   const defaultRuntimeGroup = gateways.data.runtimeGroups[0]?.id ?? '';
   const draft = draftState ?? createGatewayDraft(panelMode === 'edit' ? selectedGateway : null, defaultRuntimeGroup);
-  const clientValidation = validateGatewayDraft(draft, availableGatewayViews, panelMode === 'edit' ? selectedGateway?.id : undefined, gateways.data.runtimeGroups);
+  const clientValidation = validateGatewayDraft(draft, availableGateways, panelMode === 'edit' ? selectedGateway?.id : undefined, gateways.data.runtimeGroups);
   const activeValidation = serverValidation ?? clientValidation;
   const payload = buildGatewayPayload(draft);
   const openCreate = () => {
@@ -156,12 +120,11 @@ export function GatewayPage() {
 
     try {
       await consoleRepository.deleteGateway(deleteCandidate.id);
-      setHiddenGatewayIds((ids) => [...ids, deleteCandidate.id]);
+      await gateways.reload();
       setSelectedGatewayId((current) => {
         if (current !== deleteCandidate.id) {
           return current;
         }
-
         return availableGateways.find((gateway) => gateway.id !== deleteCandidate.id)?.id ?? '';
       });
       setNotice(`已删除网关：${deleteCandidate.name}`);
@@ -172,14 +135,14 @@ export function GatewayPage() {
   };
 
   const toggleGatewayEnabled = async (gateway: Gateway) => {
-    if (gatewayEnabled(gateway)) {
+    if (gateway.enabled) {
       setDisableCandidate(gateway);
       return;
     }
 
     try {
       await consoleRepository.setGatewayEnabled(gateway.id, true);
-      setEnabledOverrides((current) => ({ ...current, [gateway.id]: true }));
+      await gateways.reload();
       setNotice(`已启用网关：${gateway.name}`);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '启用网关失败');
@@ -193,7 +156,7 @@ export function GatewayPage() {
 
     try {
       await consoleRepository.setGatewayEnabled(disableCandidate.id, false);
-      setEnabledOverrides((current) => ({ ...current, [disableCandidate.id]: false }));
+      await gateways.reload();
       setNotice(`已停用网关：${disableCandidate.name}`);
       setDisableCandidate(null);
     } catch (error) {
@@ -232,13 +195,9 @@ export function GatewayPage() {
     }
 
     try {
-			const result = await consoleRepository.saveGatewayDraft(payload);
-			const originalGateway = panelMode === 'edit' ? selectedGatewayView : null;
-			const savedGateway = buildGatewayFromPayload(payload, originalGateway, result.changeId);
-
-      setSavedGateways((current) => ({ ...current, [savedGateway.id]: savedGateway }));
-      setHiddenGatewayIds((ids) => ids.filter((id) => id !== savedGateway.id));
-      setSelectedGatewayId(savedGateway.id);
+      const result = await consoleRepository.saveGatewayDraft(payload);
+      await gateways.reload();
+      setSelectedGatewayId(result.changeId ?? payload.id ?? selectedGatewayId);
       setNotice(`网关已保存：${payload.name}`);
       setPanelMode('list');
     } catch (error) {
@@ -326,8 +285,7 @@ export function GatewayPage() {
                   <th>运行入口</th>
                   <th>Host 策略</th>
                   <th>启用状态</th>
-                  <th>健康状态</th>
-                  <th>最近变更</th>
+                  <th>创建时间</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -343,21 +301,21 @@ export function GatewayPage() {
                       <div className="table-secondary">{gateway.description}</div>
                     </td>
                     <td>
-                      <div className="table-primary">{gateway.listenerSummary}</div>
+                      <div className="table-primary">{listenerSummary(gateway)}</div>
                       <div className="table-secondary">{gateway.listeners.filter((listener) => listener.protocol === 'HTTPS').length} 个 HTTPS</div>
                     </td>
                     <td>
-                      <div className="table-primary">{gateway.hostBindingSummary}</div>
+                      <div className="table-primary">{hostBindingSummary(gateway)}</div>
                       <div className="table-secondary">{gatewayHostnames(gateway).length > 0 ? `${gatewayHostnames(gateway).length} 个 Host` : '进入路由匹配'}</div>
                     </td>
                     <td>
-                      <div className={`gateway-status ${gatewayEnabled(gateway) ? 'on' : ''}`.trim()}>
+                      <div className={`gateway-status ${gateway.enabled ? 'on' : ''}`.trim()}>
                         <button
                           className="gateway-switch"
                           type="button"
                           role="switch"
-                          aria-checked={gatewayEnabled(gateway)}
-                          aria-label={`${gateway.name} ${gatewayEnabled(gateway) ? '已启用' : '已停用'}`}
+                          aria-checked={gateway.enabled}
+                          aria-label={`${gateway.name} ${gateway.enabled ? '已启用' : '已停用'}`}
                           onClick={(event) => {
                             event.stopPropagation();
                             toggleGatewayEnabled(gateway);
@@ -365,13 +323,10 @@ export function GatewayPage() {
                         >
                           <span aria-hidden="true" />
                         </button>
-                        <strong>{gatewayEnabled(gateway) ? '启用' : '停用'}</strong>
+                        <strong>{gateway.enabled ? '启用' : '停用'}</strong>
                       </div>
                     </td>
-                    <td>
-                      <Badge tone={statusTone(gateway.healthStatus)}>{healthLabel(gateway.healthStatus)}</Badge>
-                    </td>
-                    <td>{gateway.createdAt}</td>
+                    <td>{formatDateTime(gateway.createdAt)}</td>
                     <td>
                       <div className="row-actions">
                         <button className="link-button" type="button" onClick={(event) => {
@@ -410,8 +365,8 @@ export function GatewayPage() {
               <h3 id="delete-gateway-title">删除网关</h3>
               <p>确定删除 {deleteCandidate.name}？如果后续接入真实后端，仍有关联路由时会拒绝删除。</p>
               <div className="confirm-meta">
-                <span>运行入口</span><strong>{deleteCandidate.listenerSummary}</strong>
-                <span>Host 策略</span><strong>{deleteCandidate.hostBindingSummary}</strong>
+                <span>运行入口</span><strong>{listenerSummary(deleteCandidate)}</strong>
+                <span>Host 策略</span><strong>{hostBindingSummary(deleteCandidate)}</strong>
               </div>
               <div className="confirm-actions">
                 <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button>
@@ -426,8 +381,8 @@ export function GatewayPage() {
               <h3 id="disable-gateway-title">停用网关</h3>
               <p>停用 {disableCandidate.name} 后，关联入口将不再承载流量。请确认关联路由和服务已迁移或可以暂停访问。</p>
               <div className="confirm-meta">
-                <span>运行入口</span><strong>{disableCandidate.listenerSummary}</strong>
-                <span>Host 策略</span><strong>{disableCandidate.hostBindingSummary}</strong>
+                <span>运行入口</span><strong>{listenerSummary(disableCandidate)}</strong>
+                <span>Host 策略</span><strong>{hostBindingSummary(disableCandidate)}</strong>
               </div>
               <div className="confirm-actions">
                 <Button variant="ghost" onClick={() => setDisableCandidate(null)}>取消</Button>
@@ -715,8 +670,7 @@ function GatewayDetail({ gateway }: { gateway: Gateway }) {
           {[
             ['描述', gateway.description],
             ['启用状态', gateway.enabled ? '启用' : '停用'],
-            ['健康状态', healthLabel(gateway.healthStatus)],
-            ['创建时间', gateway.createdAt],
+            ['创建时间', formatDateTime(gateway.createdAt)],
           ].flatMap(([label, value]) => [
             <div key={`${label}-label`}>{label}</div>,
             <div key={`${label}-value`}>{value}</div>,
@@ -758,6 +712,18 @@ function GatewayDetail({ gateway }: { gateway: Gateway }) {
 
 function gatewayHostnames(gateway: Gateway) {
   return hostnamesFromBindings(gateway.hostBindings);
+}
+
+function listenerSummary(gateway: Gateway) {
+  if (gateway.listeners.length === 0) {
+    return '-';
+  }
+  return gateway.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ');
+}
+
+function hostBindingSummary(gateway: Gateway) {
+  const hostnames = gatewayHostnames(gateway);
+  return hostnames.length > 0 ? hostnames.join('、') : '不限制 Host';
 }
 
 function gatewayCertificateRef(gateway: Gateway, listenerName: string) {

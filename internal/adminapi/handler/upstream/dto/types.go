@@ -36,9 +36,7 @@ type Upstream struct {
 	ID      string `json:"id"`
 	Version string `json:"version,omitempty"`
 	UpstreamConfig
-	HealthStatus  string `json:"healthStatus"`
-	RuntimeStatus string `json:"runtimeStatus"`
-	CreatedAt     string `json:"createdAt"`
+	CreatedAt string `json:"createdAt"`
 }
 
 // ListUpstreamsResp 是服务列表接口响应

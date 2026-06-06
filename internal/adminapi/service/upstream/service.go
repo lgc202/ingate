@@ -138,7 +138,10 @@ func applyUpstreamParams(next *resource.Upstream, params UpstreamParams) {
 }
 
 func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {
-	if submittedVersion == "" || submittedVersion == currentVersion {
+	if submittedVersion == "" {
+		return xerrors.NewUserError("服务版本不能为空")
+	}
+	if submittedVersion == currentVersion {
 		return nil
 	}
 	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))

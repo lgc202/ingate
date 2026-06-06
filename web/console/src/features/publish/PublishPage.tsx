@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, PageFrame, Panel, ResourceStatePanel } from '@/components/ui';
-import { statusTone } from '@/domain/common';
+import { formatDateTime, statusTone } from '@/domain/common';
 import type { PublishDiagnostic, PublishSnapshot, SnapshotStatus } from '@/domain/publish';
 import { snapshotStatusLabel } from '@/domain/publish';
 
@@ -152,7 +152,7 @@ function SnapshotRow({
           {snapshotStatusLabel(snapshot.status)}
         </Badge>
       </td>
-      <td>{snapshot.createdAt}</td>
+      <td>{formatDateTime(snapshot.createdAt)}</td>
       <td>{snapshot.message}</td>
       <td>
         <div className="row-actions">
@@ -175,7 +175,7 @@ function SnapshotDetail({ snapshot }: { snapshot: PublishSnapshot }) {
     ['服务数', String(snapshot.clusterCount)],
     ['端点数', String(snapshot.endpointCount)],
     ['状态', snapshotStatusLabel(snapshot.status)],
-    ['生成时间', snapshot.createdAt],
+    ['生成时间', formatDateTime(snapshot.createdAt)],
   ];
 
   return (

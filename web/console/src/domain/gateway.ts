@@ -7,12 +7,9 @@ export interface Gateway {
   description: string;
   runtimeGroup: string;
   runtimeGroupName: string;
-  listenerSummary: string;
-  hostBindingSummary: string;
   listeners: GatewayListener[];
   hostBindings: GatewayHostBinding[];
   enabled: boolean;
-  healthStatus: HealthStatus;
   createdAt: string;
 }
 
@@ -40,7 +37,7 @@ export interface GatewayCertificateOption {
   name: string;
   domains: string[];
   expiresAt: string;
-  status: HealthStatus;
+  status: string;
 }
 
 export interface GatewayRuntimeGroupOption {

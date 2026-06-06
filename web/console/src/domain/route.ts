@@ -1,4 +1,4 @@
-import type { HealthStatus, RuntimeSyncStatus } from './common';
+import type { HealthStatus } from './common';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 export type RoutePolicyCapability = 'RequestHeaderModifier' | 'ResponseHeaderModifier' | 'Timeout' | 'Retry';
@@ -11,24 +11,21 @@ export const routePolicyCapabilityRetry: RoutePolicyCapability = 'Retry';
 export interface RouteResource {
   id: string;
   version?: string;
+  name: string;
   gatewayIDs: string[];
   hostnames: string[];
   rules: RouteRule[];
-  policyCount: number;
-  traffic: string;
-  successRate: string;
   enabled: boolean;
-  runtimeStatus: RuntimeSyncStatus;
   createdAt: string;
 }
 
 export interface RouteComposerPreview {
+  name: string;
   methods: HttpMethod[];
   path: string;
   gatewayIDs: string[];
   gateways: RouteGatewayOption[];
   hostnames: string[];
-  policyCount: number;
   validations: string[];
   targets: RouteTargetOption[];
   policies: RoutePolicyOption[];
@@ -49,7 +46,6 @@ export interface RouteTargetOption {
   type: string;
   endpoint?: string;
   meta: string;
-  healthStatus: HealthStatus;
 }
 
 export interface RoutePolicyOption {
@@ -94,6 +90,7 @@ export interface RoutePageView {
 export interface RouteMutationPayload {
   id?: string;
   version?: string;
+  name: string;
   gatewayIDs: string[];
   hostnames: string[];
   enabled: boolean;
