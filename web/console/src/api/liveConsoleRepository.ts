@@ -333,6 +333,9 @@ function routeMutationResult(route: string, changeId?: string): RouteActionResul
 }
 
 function routePayloadSummary(payload: RoutePublishPayload) {
+  if (payload.name.trim()) {
+    return payload.name.trim();
+  }
   const rule = primaryRouteRule(payload);
   if (!rule) {
     return payload.id ?? '未配置规则';
@@ -345,6 +348,7 @@ function normalizeRouteListView(response: RouteListView): RouteListView {
   return {
     routes: (response.routes ?? []).map((route) => ({
       ...route,
+      name: route.name ?? '',
       gatewayIDs: route.gatewayIDs ?? [],
       hostnames: route.hostnames ?? [],
       rules: (route.rules ?? []).map((rule) => ({
@@ -394,12 +398,12 @@ function routeComposer(
   const targets = routeTargets(serviceList);
 
   return {
+    name: '',
     methods: [],
     path: '/',
     gatewayIDs: gateways[0] ? [gateways[0].id] : [],
     gateways,
     hostnames: [],
-    policyCount: 0,
     validations: [],
     targets,
     policies: policyCapabilities.policies,
@@ -414,7 +418,6 @@ function routeTargets(serviceList: ServiceListView): RouteTargetOption[] {
       type: service.type,
       endpoint: upstreamEndpointSummary(service),
       meta: upstreamEndpointMeta(service),
-      healthStatus: service.healthStatus,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -496,6 +499,11 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
   const targetError = rule ? routeTargetValidationMessage(rule.targets) : '请至少配置一条路由规则';
   const targets = rule?.targets ?? [];
   const items: RouteValidationReport['items'] = [
+    {
+      label: '路由名称',
+      status: payload.name.trim() ? 'healthy' : 'critical',
+      message: payload.name.trim() ? payload.name.trim() : '请填写路由名称',
+    },
     {
       label: '所属网关',
       status: payload.gatewayIDs.length > 0 ? 'healthy' : 'critical',

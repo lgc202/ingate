@@ -312,6 +312,8 @@ type RouteList struct {
 
 // RouteSpec 定义 Route 如何挂载到 Gateway
 type RouteSpec struct {
+	// DisplayName 保存控制台展示名称，不参与引用和运行时匹配
+	DisplayName string `json:"displayName,omitempty"`
 	// Enabled 表示 Route 是否参与编译和下发
 	Enabled bool `json:"enabled"`
 	// +listType=atomic

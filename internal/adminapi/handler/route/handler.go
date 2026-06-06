@@ -150,6 +150,7 @@ func (h *Handler) Delete(ctx *gin.Context) {
 
 func (h *Handler) createRouteParams(request dto.CreateRouteReq) routeservice.CreateRouteParams {
 	return routeservice.CreateRouteParams{
+		Name:       request.Name,
 		GatewayIDs: request.GatewayIDs,
 		Hostnames:  request.Hostnames,
 		Enabled:    request.EnabledValue(),

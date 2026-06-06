@@ -163,8 +163,6 @@ const gatewayList: GatewayListView = {
       description: '公网 API 入口',
       runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
-      listenerSummary: 'HTTPS:443 / HTTP:80',
-      hostBindingSummary: 'api.ingate.io、*.api.ingate.io',
       listeners: [
         { name: 'gw-public-https', protocol: 'HTTPS', port: 443, certificateId: 'cert-api-ingate' },
         { name: 'gw-public-http', protocol: 'HTTP', port: 80 },
@@ -174,7 +172,6 @@ const gatewayList: GatewayListView = {
         { hostname: '*.api.ingate.io', listenerRefs: ['gw-public-https', 'gw-public-http'], tls: { certificateRef: 'cert-api-ingate' } },
       ],
       enabled: true,
-      healthStatus: 'healthy',
       createdAt: '2026-06-05T09:00:00Z',
     },
     {
@@ -183,8 +180,6 @@ const gatewayList: GatewayListView = {
       description: '合作方 API 入口',
       runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
-      listenerSummary: 'HTTPS:10443',
-      hostBindingSummary: 'partner.ingate.local',
       listeners: [
         { name: 'gw-partner-https', protocol: 'HTTPS', port: 10443, certificateId: 'cert-partner' },
       ],
@@ -192,7 +187,6 @@ const gatewayList: GatewayListView = {
         { hostname: 'partner.ingate.local', listenerRefs: ['gw-partner-https'], tls: { certificateRef: 'cert-partner' } },
       ],
       enabled: true,
-      healthStatus: 'healthy',
       createdAt: '2026-06-05T08:40:00Z',
     },
     {
@@ -201,8 +195,6 @@ const gatewayList: GatewayListView = {
       description: '沙箱联调入口',
       runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
-      listenerSummary: 'HTTP:18080',
-      hostBindingSummary: '不限制 Host',
       listeners: [
         { name: 'gw-sandbox-http', protocol: 'HTTP', port: 18080 },
       ],
@@ -210,7 +202,6 @@ const gatewayList: GatewayListView = {
         { listenerRefs: ['gw-sandbox-http'] },
       ],
       enabled: true,
-      healthStatus: 'warning',
       createdAt: '2026-06-05T07:00:00Z',
     },
     {
@@ -219,8 +210,6 @@ const gatewayList: GatewayListView = {
       description: '遗留系统入口',
       runtimeGroup: 'default',
       runtimeGroupName: '默认运行组',
-      listenerSummary: 'HTTP:19090',
-      hostBindingSummary: 'legacy.ingate.local',
       listeners: [
         { name: 'gw-broken-http', protocol: 'HTTP', port: 19090 },
       ],
@@ -228,7 +217,6 @@ const gatewayList: GatewayListView = {
         { hostname: 'legacy.ingate.local', listenerRefs: ['gw-broken-http'] },
       ],
       enabled: false,
-      healthStatus: 'critical',
       createdAt: '2026-06-04T09:00:00Z',
     },
   ],
@@ -240,12 +228,13 @@ const gatewayRuntimeGroups: GatewayRuntimeGroupOption[] = [
 
 const routeWorkspace: RoutePageView = {
   routes: [
-    { id: 'users-list', gatewayIDs: ['gw-prod'], hostnames: ['api.ingate.io', 'open.ingate.io'], rules: [{ name: 'main', methods: ['GET'], pathPrefix: '/v1/users', targets: [{ upstreamID: 'user-svc', weight: 100 }] }], policyCount: 0, traffic: '12.4k', successRate: '98.7%', enabled: true, runtimeStatus: 'synced', createdAt: '2026-06-05T09:00:00Z' },
-    { id: 'orders-create', gatewayIDs: ['gw-prod', 'gw-partner'], hostnames: ['api.ingate.io', 'shop.ingate.io'], rules: [{ name: 'main', methods: ['POST'], pathPrefix: '/v1/orders', targets: [{ upstreamID: 'order-svc', weight: 90 }, { upstreamID: 'user-svc', weight: 10 }] }], policyCount: 0, traffic: '3.2k', successRate: '99.3%', enabled: true, runtimeStatus: 'synced', createdAt: '2026-06-05T08:40:00Z' },
-    { id: 'products-list', gatewayIDs: ['gw-prod'], hostnames: ['api.ingate.io'], rules: [{ name: 'main', methods: ['GET'], pathPrefix: '/v1/products', targets: [{ upstreamID: 'catalog-svc', weight: 100 }] }], policyCount: 0, traffic: '1.8k', successRate: '97.1%', enabled: true, runtimeStatus: 'synced', createdAt: '2026-06-05T08:20:00Z' },
-    { id: 'inventory-list', gatewayIDs: ['gw-staging'], hostnames: ['staging-api.ingate.io'], rules: [{ name: 'main', methods: [], pathPrefix: '/v1/inventory', targets: [{ upstreamID: 'inventory-svc', weight: 100 }] }], policyCount: 0, traffic: '356', successRate: '92.4%', enabled: false, runtimeStatus: 'failed', createdAt: '2026-06-05T08:00:00Z' },
+    { id: 'users-list', name: '用户查询路由', gatewayIDs: ['gw-prod'], hostnames: ['api.ingate.io', 'open.ingate.io'], rules: [{ name: 'main', methods: ['GET'], pathPrefix: '/v1/users', targets: [{ upstreamID: 'user-svc', weight: 100 }] }], enabled: true, createdAt: '2026-06-05T09:00:00Z' },
+    { id: 'orders-create', name: '订单创建路由', gatewayIDs: ['gw-prod', 'gw-partner'], hostnames: ['api.ingate.io', 'shop.ingate.io'], rules: [{ name: 'main', methods: ['POST'], pathPrefix: '/v1/orders', targets: [{ upstreamID: 'order-svc', weight: 90 }, { upstreamID: 'user-svc', weight: 10 }] }], enabled: true, createdAt: '2026-06-05T08:40:00Z' },
+    { id: 'products-list', name: '商品列表路由', gatewayIDs: ['gw-prod'], hostnames: ['api.ingate.io'], rules: [{ name: 'main', methods: ['GET'], pathPrefix: '/v1/products', targets: [{ upstreamID: 'catalog-svc', weight: 100 }] }], enabled: true, createdAt: '2026-06-05T08:20:00Z' },
+    { id: 'inventory-list', name: '库存查询路由', gatewayIDs: ['gw-staging'], hostnames: ['staging-api.ingate.io'], rules: [{ name: 'main', methods: [], pathPrefix: '/v1/inventory', targets: [{ upstreamID: 'inventory-svc', weight: 100 }] }], enabled: false, createdAt: '2026-06-05T08:00:00Z' },
   ],
   composer: {
+    name: '',
     methods: ['POST'],
     path: '/v1/orders',
     gatewayIDs: ['gw-prod'],
@@ -255,12 +244,11 @@ const routeWorkspace: RoutePageView = {
       { id: 'gw-staging', name: '预发网关' },
     ],
     hostnames: ['api.ingate.io', 'shop.ingate.io'],
-    policyCount: 0,
     validations: ['匹配规则生效', '目标服务可用', '策略配置正确', '无冲突'],
     targets: [
-      { id: 'order-svc', name: 'order-svc', type: 'application', endpoint: 'order-svc.cluster.local:80', meta: '3/3 个端点', healthStatus: 'healthy' },
-      { id: 'user-svc', name: 'user-svc', type: 'application', endpoint: 'user-svc.cluster.local:80', meta: '4/4 个端点', healthStatus: 'healthy' },
-      { id: 'gpt-4o-model', name: 'gpt-4o-model', type: 'model', endpoint: 'api.openai.example:443', meta: '1/1 个端点', healthStatus: 'healthy' },
+      { id: 'order-svc', name: 'order-svc', type: 'application', endpoint: 'order-svc.cluster.local:80', meta: '3/3 个端点' },
+      { id: 'user-svc', name: 'user-svc', type: 'application', endpoint: 'user-svc.cluster.local:80', meta: '4/4 个端点' },
+      { id: 'gpt-4o-model', name: 'gpt-4o-model', type: 'model', endpoint: 'api.openai.example:443', meta: '1/1 个端点' },
     ],
     policies: [
       {
@@ -299,10 +287,10 @@ const routeWorkspace: RoutePageView = {
 
 const serviceList: ServiceListView = {
   upstreams: [
-    { id: 'order-svc', name: 'order-svc', type: 'application', endpoints: [{ id: 'order-1', address: 'order-svc.cluster.local', port: 80, weight: 100, enabled: true }], loadBalancePolicy: 'round_robin', healthCheck: { enabled: true, path: '/healthz', intervalSeconds: 10, timeoutSeconds: 2 }, healthStatus: 'healthy', runtimeStatus: 'synced', createdAt: '2026-06-05T09:00:00Z' },
-    { id: 'user-svc', name: 'user-svc', type: 'application', endpoints: [{ id: 'user-1', address: 'user-svc.cluster.local', port: 80, weight: 100, enabled: true }], loadBalancePolicy: 'round_robin', healthCheck: { enabled: true, path: '/healthz', intervalSeconds: 10, timeoutSeconds: 2 }, healthStatus: 'healthy', runtimeStatus: 'synced', createdAt: '2026-06-05T08:50:00Z' },
-    { id: 'catalog-svc', name: 'catalog-svc', type: 'application', endpoints: [{ id: 'catalog-1', address: 'catalog-svc.cluster.local', port: 80, weight: 100, enabled: true }], loadBalancePolicy: 'least_request', healthCheck: { enabled: true, path: '/healthz', intervalSeconds: 10, timeoutSeconds: 2 }, healthStatus: 'healthy', runtimeStatus: 'synced', createdAt: '2026-06-05T08:40:00Z' },
-    { id: 'inventory-svc', name: 'inventory-svc', type: 'application', endpoints: [{ id: 'inventory-1', address: 'inventory-svc.cluster.local', port: 80, weight: 100, enabled: true }, { id: 'inventory-2', address: 'inventory-canary.cluster.local', port: 80, weight: 20, enabled: false }], loadBalancePolicy: 'round_robin', healthCheck: { enabled: true, path: '/healthz', intervalSeconds: 10, timeoutSeconds: 2 }, healthStatus: 'warning', runtimeStatus: 'unknown', createdAt: '2026-06-05T08:30:00Z' },
+    { id: 'order-svc', name: 'order-svc', type: 'application', endpoints: [{ id: 'order-1', address: 'order-svc.cluster.local', port: 80, weight: 100, enabled: true }], loadBalancePolicy: 'round_robin', healthCheck: { enabled: true, path: '/healthz', intervalSeconds: 10, timeoutSeconds: 2 }, createdAt: '2026-06-05T09:00:00Z' },
+    { id: 'user-svc', name: 'user-svc', type: 'application', endpoints: [{ id: 'user-1', address: 'user-svc.cluster.local', port: 80, weight: 100, enabled: true }], loadBalancePolicy: 'round_robin', healthCheck: { enabled: true, path: '/healthz', intervalSeconds: 10, timeoutSeconds: 2 }, createdAt: '2026-06-05T08:50:00Z' },
+    { id: 'catalog-svc', name: 'catalog-svc', type: 'application', endpoints: [{ id: 'catalog-1', address: 'catalog-svc.cluster.local', port: 80, weight: 100, enabled: true }], loadBalancePolicy: 'least_request', healthCheck: { enabled: true, path: '/healthz', intervalSeconds: 10, timeoutSeconds: 2 }, createdAt: '2026-06-05T08:40:00Z' },
+    { id: 'inventory-svc', name: 'inventory-svc', type: 'application', endpoints: [{ id: 'inventory-1', address: 'inventory-svc.cluster.local', port: 80, weight: 100, enabled: true }, { id: 'inventory-2', address: 'inventory-canary.cluster.local', port: 80, weight: 20, enabled: false }], loadBalancePolicy: 'round_robin', healthCheck: { enabled: true, path: '/healthz', intervalSeconds: 10, timeoutSeconds: 2 }, createdAt: '2026-06-05T08:30:00Z' },
   ],
 };
 
@@ -597,6 +585,11 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
   const targetError = rule ? routeTargetValidationMessage(targets) : '请至少配置一条路由规则';
   const items: RouteValidationReport['items'] = [
     {
+      label: '路由名称',
+      status: payload.name.trim() ? 'healthy' : 'critical',
+      message: payload.name.trim() ? payload.name.trim() : '请填写路由名称',
+    },
+    {
       label: '匹配规则',
       status: rule && rule.pathPrefix.startsWith('/') ? 'healthy' : 'critical',
       message: rule && rule.pathPrefix.startsWith('/') ? '路径格式正确' : '路径必须以 / 开头',
@@ -657,10 +650,10 @@ function previewRoutePayload(payload: RoutePublishPayload): RoutePublishPreview 
   const targetSummary = routeTargetSummary(payload);
 
   return {
-    title: `${methodSummary} ${path}`,
+    title: payload.name.trim() || `${methodSummary} ${path}`,
     subtitle: `目标服务 ${targetSummary} · ${payload.hostnames.length ? `${payload.hostnames.length} 个域名` : '不限制 Host'}`,
     diffs: [
-      { before: 'route: 未保存配置', after: `route: ${methodSummary} ${path}` },
+      { before: 'route: 未保存配置', after: `route: ${payload.name.trim() || `${methodSummary} ${path}`}` },
       { before: 'hostnames: 未配置', after: `hostnames: ${payload.hostnames.join(', ') || '不限制'}` },
       { before: 'target: 未配置', after: `target: ${targetSummary}` },
       { before: 'native_policies: 未配置', after: `native_policies: ${routePolicyCount(rule)}` },
@@ -724,6 +717,9 @@ function routeAction(message: string, changeId?: string): RouteActionResult {
 }
 
 function routeActionSummary(payload: RoutePublishPayload) {
+  if (payload.name.trim()) {
+    return payload.name.trim();
+  }
   const rule = routeRule(payload);
   if (!rule) {
     return payload.id ?? '未配置规则';

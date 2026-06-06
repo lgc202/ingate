@@ -16,7 +16,7 @@ func (r *CreateGatewayReq) Validate() error {
 // Validate 校验更新 Gateway 请求
 func (r *UpdateGatewayReq) Validate() error {
 	if r.Version == "" {
-		return errors.New("gateway version is required")
+		return errors.New("网关版本不能为空")
 	}
 	return r.GatewayConfig.Validate()
 }

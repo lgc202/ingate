@@ -2201,6 +2201,7 @@ func Convert_gateway_RouteRule_To_v1_RouteRule(in *gateway.RouteRule, out *Route
 }
 
 func autoConvert_v1_RouteSpec_To_gateway_RouteSpec(in *RouteSpec, out *gateway.RouteSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
 	out.Enabled = in.Enabled
 	out.ParentRefs = *(*[]gateway.ParentRef)(unsafe.Pointer(&in.ParentRefs))
 	out.Hostnames = *(*[]string)(unsafe.Pointer(&in.Hostnames))
@@ -2214,6 +2215,7 @@ func Convert_v1_RouteSpec_To_gateway_RouteSpec(in *RouteSpec, out *gateway.Route
 }
 
 func autoConvert_gateway_RouteSpec_To_v1_RouteSpec(in *gateway.RouteSpec, out *RouteSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
 	out.Enabled = in.Enabled
 	out.ParentRefs = *(*[]ParentRef)(unsafe.Pointer(&in.ParentRefs))
 	out.Hostnames = *(*[]string)(unsafe.Pointer(&in.Hostnames))

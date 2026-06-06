@@ -2397,6 +2397,14 @@ html, body {
   font-size: 1.08rem;
 }
 
+.route-flow-head small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 680;
+}
+
 .route-flow-lane {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

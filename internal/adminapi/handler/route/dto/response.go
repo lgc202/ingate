@@ -26,17 +26,14 @@ func NewGetRouteResp(result *routeservice.RouteResult) *Route {
 
 func routeFromResource(route *resource.Route) Route {
 	return Route{
-		ID:            route.Name,
-		Version:       route.ResourceVersion,
-		GatewayIDs:    parentRefIDs(route.Spec.ParentRefs),
-		Hostnames:     route.Spec.Hostnames,
-		Rules:         routeRules(route.Spec.Rules),
-		PolicyCount:   nativePolicyCount(route.Spec.Rules),
-		Traffic:       "-",
-		SuccessRate:   "-",
-		Enabled:       route.Spec.Enabled,
-		RuntimeStatus: runtimeStatus(),
-		CreatedAt:     createdAt(route.ObjectMeta),
+		ID:         route.Name,
+		Version:    route.ResourceVersion,
+		Name:       route.Spec.DisplayName,
+		GatewayIDs: parentRefIDs(route.Spec.ParentRefs),
+		Hostnames:  route.Spec.Hostnames,
+		Rules:      routeRules(route.Spec.Rules),
+		Enabled:    route.Spec.Enabled,
+		CreatedAt:  createdAt(route.ObjectMeta),
 	}
 }
 
@@ -129,30 +126,6 @@ func routeRetry(retry *resource.RouteRetry) *RouteRetryReq {
 		Attempts:            retry.Attempts,
 		PerTryTimeoutMillis: retry.PerTryTimeoutMillis,
 	}
-}
-
-func nativePolicyCount(rules []resource.RouteRule) int {
-	count := 0
-	for _, rule := range rules {
-		if requestHeaderModifier(rule) != nil {
-			count++
-		}
-		if responseHeaderModifier(rule) != nil {
-			count++
-		}
-		if rule.Timeout != nil && rule.Timeout.RequestMillis > 0 {
-			count++
-		}
-		if rule.Retry != nil && rule.Retry.Attempts > 0 {
-			count++
-		}
-	}
-	return count
-}
-
-func runtimeStatus() string {
-	// Route 是否生效需要运行时回执确认，当前管理面只展示 unknown
-	return "unknown"
 }
 
 func createdAt(metadata metav1.ObjectMeta) string {

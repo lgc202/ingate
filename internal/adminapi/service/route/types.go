@@ -14,6 +14,7 @@ type RouteResult struct {
 
 // CreateRouteParams 是创建 Route 用例参数
 type CreateRouteParams struct {
+	Name       string
 	GatewayIDs []string
 	Hostnames  []string
 	Enabled    bool

@@ -7,21 +7,19 @@ type ListRoutesResp struct {
 
 // Route 是 admin-api 面向控制台返回的路由对象，不直接暴露 CR 结构
 type Route struct {
-	ID            string      `json:"id"`
-	Version       string      `json:"version,omitempty"`
-	GatewayIDs    []string    `json:"gatewayIDs"`
-	Hostnames     []string    `json:"hostnames"`
-	Rules         []RouteRule `json:"rules"`
-	PolicyCount   int         `json:"policyCount"`
-	Traffic       string      `json:"traffic"`
-	SuccessRate   string      `json:"successRate"`
-	Enabled       bool        `json:"enabled"`
-	RuntimeStatus string      `json:"runtimeStatus"`
-	CreatedAt     string      `json:"createdAt"`
+	ID         string      `json:"id"`
+	Version    string      `json:"version,omitempty"`
+	Name       string      `json:"name"`
+	GatewayIDs []string    `json:"gatewayIDs"`
+	Hostnames  []string    `json:"hostnames"`
+	Rules      []RouteRule `json:"rules"`
+	Enabled    bool        `json:"enabled"`
+	CreatedAt  string      `json:"createdAt"`
 }
 
 // CreateRouteReq 是创建 Route 的请求体
 type CreateRouteReq struct {
+	Name       string      `json:"name"`
 	GatewayIDs []string    `json:"gatewayIDs"`
 	Hostnames  []string    `json:"hostnames"`
 	Enabled    *bool       `json:"enabled,omitempty"`

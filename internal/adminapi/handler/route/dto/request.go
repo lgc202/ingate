@@ -18,6 +18,11 @@ const (
 
 // Validate 校验创建 Route 请求
 func (r *CreateRouteReq) Validate() error {
+	r.Name = strings.TrimSpace(r.Name)
+	if r.Name == "" {
+		return errors.New("路由名称不能为空")
+	}
+
 	gatewayIDs, err := routeGatewayIDs(r.GatewayIDs)
 	if err != nil {
 		return err
@@ -49,7 +54,7 @@ func (r *CreateRouteReq) Validate() error {
 // Validate 校验更新 Route 请求
 func (r *UpdateRouteReq) Validate() error {
 	if r.Version == "" {
-		return errors.New("route version is required")
+		return errors.New("路由版本不能为空")
 	}
 	return r.CreateRouteReq.Validate()
 }
