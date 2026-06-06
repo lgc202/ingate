@@ -108,7 +108,7 @@ export function buildRoutePublishPreview(template: RouteComposerPreview, draft: 
     title: draft.name.trim() || `${formatMethods(draft.methods)} ${draft.path}`,
     subtitle: `目标服务 ${formatTargetServices(draft.targetServices)} · 策略 ${draft.enabledPolicyCapabilities.length} 个`,
     diffs: [
-      { before: `name: ${template.name || '未命名'}`, after: `name: ${draft.name.trim() || '未命名'}` },
+      { before: `name: ${template.name}`, after: `name: ${draft.name.trim()}` },
       { before: `methods: ${formatMethods(template.methods)}`, after: `methods: ${formatMethods(draft.methods)}` },
       { before: `path: ${template.path}`, after: `path: ${draft.path}` },
       { before: `hostnames: ${template.hostnames.join(', ') || '不限制'}`, after: `hostnames: ${draft.hostnames.join(', ') || '不限制'}` },

@@ -348,7 +348,6 @@ function normalizeRouteListView(response: RouteListView): RouteListView {
   return {
     routes: (response.routes ?? []).map((route) => ({
       ...route,
-      name: route.name ?? '',
       gatewayIDs: route.gatewayIDs ?? [],
       hostnames: route.hostnames ?? [],
       rules: (route.rules ?? []).map((rule) => ({
