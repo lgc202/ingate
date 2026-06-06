@@ -40,6 +40,11 @@ interface RouteFilters {
   enabled: RouteEnabledFilter;
 }
 
+interface RouteNotice {
+  message: string;
+  tone: 'success' | 'error';
+}
+
 const emptyRouteFilters: RouteFilters = {
   keyword: '',
   gatewayName: 'all',
@@ -58,7 +63,7 @@ export function RoutePage() {
   const [filters, setFilters] = useState<RouteFilters>(emptyRouteFilters);
   const [draftState, setDraftState] = useState<RouteComposerDraft | null>(null);
   const [serverValidation, setServerValidation] = useState<RouteValidationReport | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<RouteNotice | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<RouteResource | null>(null);
   const [disableCandidate, setDisableCandidate] = useState<RouteResource | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -112,7 +117,7 @@ export function RoutePage() {
   });
   const hasActiveFilters = Boolean(filters.keyword.trim() || filters.gatewayName !== 'all' || filters.serviceName !== 'all' || filters.enabled !== 'all');
   const draft = draftState ?? createRouteComposerDraft(routeWorkspace.composer);
-  const validation = validateRouteComposerDraft(draft);
+  const validation = validateRouteComposerDraft(draft, availableRoutes);
   const publishPayload = buildRoutePublishPayload(draft);
   const activeValidation = serverValidation ?? validation;
 
@@ -179,7 +184,7 @@ export function RoutePage() {
       await consoleRepository.deleteRoute(deleteCandidate.id);
       await workspace.reload();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '删除路由失败');
+      setNotice({ message: error instanceof Error ? error.message : '删除路由失败', tone: 'error' });
       setDeleteCandidate(null);
       setDeleting(false);
       return;
@@ -192,7 +197,7 @@ export function RoutePage() {
 
       return availableRoutes.find((route) => route.id !== deleteCandidate.id)?.id ?? '';
     });
-    setNotice(`已删除路由：${deleteCandidate.name}`);
+    setNotice({ message: `已删除路由：${deleteCandidate.name}`, tone: 'success' });
     setDeleteCandidate(null);
     setDeleting(false);
   };
@@ -208,12 +213,12 @@ export function RoutePage() {
       await consoleRepository.setRouteEnabled(route.id, true);
       await workspace.reload();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '启用路由失败');
+      setNotice({ message: error instanceof Error ? error.message : '启用路由失败', tone: 'error' });
       setToggling(false);
       return;
     }
 
-    setNotice(`已启用路由：${route.name}`);
+    setNotice({ message: `已启用路由：${route.name}`, tone: 'success' });
     setToggling(false);
   };
 
@@ -227,13 +232,13 @@ export function RoutePage() {
       await consoleRepository.setRouteEnabled(disableCandidate.id, false);
       await workspace.reload();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '停用路由失败');
+      setNotice({ message: error instanceof Error ? error.message : '停用路由失败', tone: 'error' });
       setDisableCandidate(null);
       setToggling(false);
       return;
     }
 
-    setNotice(`已停用路由：${disableCandidate.name}`);
+    setNotice({ message: `已停用路由：${disableCandidate.name}`, tone: 'success' });
     setDisableCandidate(null);
     setToggling(false);
   };
@@ -241,7 +246,7 @@ export function RoutePage() {
   const saveRoute = async () => {
     const policyValidationMessage = findPolicyValidationMessage(routeWorkspace.composer, draft);
     if (policyValidationMessage) {
-      setNotice(policyValidationMessage);
+      setNotice({ message: policyValidationMessage, tone: 'error' });
       return;
     }
 
@@ -257,10 +262,10 @@ export function RoutePage() {
       const result = await consoleRepository.saveRouteDraft(publishPayload);
       await workspace.reload();
       setSelectedRouteId(result.changeId ?? publishPayload.id ?? '');
-      setNotice(result.message);
+      setNotice({ message: result.message, tone: 'success' });
       setMode('list');
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '保存路由失败');
+      setNotice({ message: error instanceof Error ? error.message : '保存路由失败', tone: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -303,14 +308,13 @@ export function RoutePage() {
           <div className="route-workbench-top">
             <div>
               <h2>{draft.id ? '编辑路由' : '创建路由'}</h2>
-              <p>配置请求匹配条件、目标服务和路由级策略参数；保存后系统自动生效。</p>
+              <p>{draft.name.trim() || '请输入路由名称'} · {formatMethods(draft.methods)} {draft.path || '/'}</p>
             </div>
             <div className="route-workbench-meta">
               <Badge tone={draft.enabled ? 'green' : 'neutral'}>{draft.enabled ? '启用' : '停用'}</Badge>
               <span>{draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 个策略` : '未绑定策略'}</span>
             </div>
           </div>
-          <RouteMatchHeader draft={draft} gateways={routeWorkspace.composer.gateways} targets={routeWorkspace.composer.targets} />
           <div className="route-workbench-grid">
             <RouteComposer
               composer={routeWorkspace.composer}
@@ -318,6 +322,12 @@ export function RoutePage() {
               validation={activeValidation}
               gatewayOptions={gatewayOptions}
               onDraftChange={handleDraftChange}
+            />
+            <RouteComposerSummary
+              draft={draft}
+              validation={activeValidation}
+              gateways={routeWorkspace.composer.gateways}
+              targets={routeWorkspace.composer.targets}
             />
           </div>
           <div className="route-workbench-actions">
@@ -395,7 +405,6 @@ export function RoutePage() {
               </div>
             ) : null}
           </Panel>
-          <Toast message={notice} onClose={() => setNotice(null)} />
           {deleteCandidate ? (
             <div className="confirm-overlay" role="presentation" onMouseDown={() => {
               if (!deleting) {
@@ -438,50 +447,59 @@ export function RoutePage() {
           ) : null}
         </>
       )}
+      <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
     </PageFrame>
   );
 }
 
-function RouteMatchHeader({
+function RouteComposerSummary({
   draft,
+  validation,
   gateways,
   targets,
 }: {
   draft: RouteComposerDraft;
+  validation: RouteValidationReport;
   gateways: RouteGatewayOption[];
   targets: RouteTargetOption[];
 }) {
-  const targetSummary = formatTargetServices(draft.targetServices, targets);
-  const flowItems = [
-    { label: '入口网关', value: formatGatewayIDs(draft.gatewayIDs, gateways), meta: `${draft.gatewayIDs.length || 0} 个网关` },
-    { label: '匹配请求', value: `${formatMethods(draft.methods)} ${draft.path || '/'}`, meta: formatHostnames(draft.hostnames) },
-    { label: '转发服务', value: targetSummary, meta: `${draft.targetServices.length} 个目标 / 总权重 ${targetWeightSum(draft.targetServices)}` },
-    { label: '治理策略', value: draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 个策略` : '未绑定策略', meta: draft.enabled ? '保存后自动生效' : '当前停用' },
+  const summaryItems = [
+    { label: '入口网关', value: formatGatewayIDs(draft.gatewayIDs, gateways) },
+    { label: '匹配请求', value: `${formatMethods(draft.methods)} ${draft.path || '/'}` },
+    { label: 'Host', value: formatHostnames(draft.hostnames) },
+    { label: '目标服务', value: formatTargetServices(draft.targetServices, targets) },
+    { label: '总权重', value: String(targetWeightSum(draft.targetServices)) },
+    { label: '路由策略', value: draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 个` : '未绑定' },
   ];
+  const criticalItems = validation.items.filter((item) => item.status === 'critical');
 
   return (
-    <section className="route-flow-hero">
-      <div className="route-flow-head">
-        <div>
-          <span>当前路由</span>
-          <strong>{draft.name.trim() || '请输入路由名称'}</strong>
-          <small>{formatMethods(draft.methods)} {draft.path || '/'}</small>
-        </div>
-        <Badge tone={draft.enabled ? 'green' : 'neutral'}>{draft.enabled ? '运行中' : '已停用'}</Badge>
-      </div>
-      <div className="route-flow-lane">
-        {flowItems.map((item, index) => (
-          <div key={item.label} className="route-flow-segment">
-            <div className="route-flow-index">{index + 1}</div>
-            <div className="route-flow-copy">
-              <span>{item.label}</span>
-              <strong>{item.value}</strong>
-              <small>{item.meta}</small>
+    <aside className="route-editor-summary" aria-label="路由配置摘要">
+      <div className="route-summary-block">
+        <div className="route-summary-title">配置摘要</div>
+        <dl>
+          {summaryItems.map((item) => (
+            <div key={item.label}>
+              <dt>{item.label}</dt>
+              <dd>{item.value}</dd>
             </div>
-          </div>
-        ))}
+          ))}
+        </dl>
       </div>
-    </section>
+      <div className="route-summary-block">
+        <div className="route-summary-title">校验状态</div>
+        <div className={`route-summary-status ${validation.valid ? 'ok' : 'bad'}`.trim()}>
+          {validation.summary}
+        </div>
+        {criticalItems.length > 0 ? (
+          <div className="route-summary-errors">
+            {criticalItems.map((item) => (
+              <div key={item.label}>{item.label}：{item.message}</div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </aside>
   );
 }
 
@@ -885,18 +903,17 @@ function TargetSelector({
   error?: string;
   onTargetsChange: (targets: RouteTargetPayload[]) => void;
 }) {
-  const [addTargetID, setAddTargetID] = useState(targets[0]?.id ?? '');
+  const [addTargetID, setAddTargetID] = useState('');
   const selectedIDs = new Set(selectedTargets.map((target) => target.upstreamID));
   const availableTargets = targets.filter((target) => !selectedIDs.has(target.id));
-  const candidateTargetID = availableTargets.some((target) => target.id === addTargetID)
-    ? addTargetID
-    : availableTargets[0]?.id ?? '';
+  const candidateTargetID = availableTargets.some((target) => target.id === addTargetID) ? addTargetID : '';
 
   const addTarget = () => {
     if (!candidateTargetID) {
       return;
     }
     onTargetsChange([...selectedTargets, { upstreamID: candidateTargetID, weight: 100 }]);
+    setAddTargetID('');
   };
 
   const updateTargetWeight = (upstreamID: string, weight: number) => {
@@ -909,18 +926,17 @@ function TargetSelector({
 
   return (
     <div className="target-config">
-      <div className={`field target-picker ${error ? 'invalid' : ''}`.trim()}>
+      <div className="field target-picker">
         <FieldLabel label="添加目标服务" required info="一个路由可以转发到多个服务；运行时会按照每个目标的权重做加权分流" />
         <div className="inline-input">
           <select value={candidateTargetID} disabled={availableTargets.length === 0} onChange={(event) => setAddTargetID(event.target.value)}>
-            {availableTargets.length === 0 ? <option value="">所有服务都已选择</option> : null}
+            <option value="">{availableTargets.length === 0 ? '所有服务都已选择' : '请选择目标服务'}</option>
             {availableTargets.map((target) => (
               <option key={target.id} value={target.id}>{target.name} · {serviceTypeLabel(target.type)}</option>
             ))}
           </select>
           <Button variant="soft" type="button" disabled={!candidateTargetID} onClick={addTarget}>添加目标</Button>
         </div>
-        {error ? <div className="form-error">{error}</div> : null}
       </div>
 
       <div className="target-service-card target-service-card-list">
@@ -933,7 +949,7 @@ function TargetSelector({
         </div>
         <div className="target-service-list">
           {selectedTargets.length === 0 ? (
-            <div className="target-service-empty">请选择至少一个目标服务。</div>
+            <div className={`target-service-empty ${error ? 'error' : ''}`.trim()}>{error || '请选择至少一个目标服务。'}</div>
           ) : selectedTargets.map((target) => {
             const service = targets.find((item) => item.id === target.upstreamID);
             const serviceName = service?.name ?? target.upstreamID;

@@ -5,6 +5,7 @@ import type {
   RoutePolicyCapability,
   RoutePublishPayload,
   RoutePublishPreview,
+  RouteResource,
   RouteTargetOption,
   RouteTargetPayload,
   RouteValidationItem,
@@ -51,15 +52,21 @@ export function createRouteComposerDraft(template: RouteComposerPreview): RouteC
   };
 }
 
-export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteValidationReport {
+export function validateRouteComposerDraft(draft: RouteComposerDraft, routes: Pick<RouteResource, 'id' | 'name'>[] = []): RouteValidationReport {
+  const routeName = draft.name.trim();
+  const duplicateName = routes.some((route) => route.id !== draft.id && route.name === routeName);
   const invalidHostnames = draft.hostnames.filter((hostname) => !isValidHostname(hostname));
   const headerError = headerMatchesError(draft.headers);
   const targetError = targetServicesError(draft.targetServices);
   const items: RouteValidationItem[] = [
     {
       label: '路由名称',
-      status: draft.name.trim() ? 'healthy' : 'critical',
-      message: draft.name.trim() ? draft.name.trim() : '请填写路由名称',
+      status: routeName && !duplicateName ? 'healthy' : 'critical',
+      message: routeName
+        ? duplicateName
+          ? '路由名称已存在'
+          : routeName
+        : '请填写路由名称',
     },
     {
       label: '规则名称',
