@@ -21,10 +21,14 @@ const (
 	KindAuthPolicy Kind = "AuthPolicy"
 	// KindRateLimitPolicy 表示 RateLimitPolicy 资源类型
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
+	// KindRedisStore 表示 RedisStore 资源类型
+	KindRedisStore Kind = "RedisStore"
 	// KindPlugin 表示 Plugin 资源类型
 	KindPlugin Kind = "Plugin"
 	// KindPluginBinding 表示 PluginBinding 资源类型
 	KindPluginBinding Kind = "PluginBinding"
+	// KindPolicyBinding 表示 PolicyBinding 资源类型
+	KindPolicyBinding Kind = "PolicyBinding"
 	// KindAIProvider 表示 AIProvider 资源类型
 	KindAIProvider Kind = "AIProvider"
 	// KindAIModel 表示 AIModel 资源类型
@@ -111,14 +115,64 @@ const (
 	AuthTypeAPIKey AuthType = "APIKey"
 )
 
-// RateLimitKey 表示限流计数维度
-type RateLimitKey string
+// RateLimitMode 表示限流计数状态的存放位置
+type RateLimitMode string
 
 const (
-	// RateLimitKeyIP 表示按客户端 IP 限流
-	RateLimitKeyIP RateLimitKey = "IP"
-	// RateLimitKeyHeader 表示按请求 header 限流
-	RateLimitKeyHeader RateLimitKey = "Header"
+	// RateLimitModeLocal 表示每个数据面实例独立计数
+	RateLimitModeLocal RateLimitMode = "Local"
+	// RateLimitModeGlobal 表示通过 Redis 共享计数
+	RateLimitModeGlobal RateLimitMode = "Global"
+)
+
+// RateLimitKeyType 表示限流 key 的组成维度
+type RateLimitKeyType string
+
+const (
+	// RateLimitKeyTypeIP 表示按客户端 IP 生成限流 key
+	RateLimitKeyTypeIP RateLimitKeyType = "IP"
+	// RateLimitKeyTypeHeader 表示按请求 header 生成限流 key
+	RateLimitKeyTypeHeader RateLimitKeyType = "Header"
+	// RateLimitKeyTypeQuery 表示按 query 参数生成限流 key
+	RateLimitKeyTypeQuery RateLimitKeyType = "Query"
+	// RateLimitKeyTypeCookie 表示按 cookie 生成限流 key
+	RateLimitKeyTypeCookie RateLimitKeyType = "Cookie"
+	// RateLimitKeyTypeConsumer 表示按认证后的 consumer 生成限流 key
+	RateLimitKeyTypeConsumer RateLimitKeyType = "Consumer"
+	// RateLimitKeyTypeRoute 表示按 Route 生成限流 key
+	RateLimitKeyTypeRoute RateLimitKeyType = "Route"
+	// RateLimitKeyTypeGateway 表示按 Gateway 生成限流 key
+	RateLimitKeyTypeGateway RateLimitKeyType = "Gateway"
+)
+
+// RateLimitAlgorithm 表示限流计数算法
+type RateLimitAlgorithm string
+
+const (
+	// RateLimitAlgorithmFixedWindow 表示固定窗口限流
+	RateLimitAlgorithmFixedWindow RateLimitAlgorithm = "FixedWindow"
+	// RateLimitAlgorithmTokenBucket 表示令牌桶限流
+	RateLimitAlgorithmTokenBucket RateLimitAlgorithm = "TokenBucket"
+)
+
+// RateLimitFailurePolicy 表示限流执行异常时的处理方式
+type RateLimitFailurePolicy string
+
+const (
+	// RateLimitFailurePolicyFailOpen 表示限流执行失败时放行请求
+	RateLimitFailurePolicyFailOpen RateLimitFailurePolicy = "FailOpen"
+	// RateLimitFailurePolicyFailClose 表示限流执行失败时拒绝请求
+	RateLimitFailurePolicyFailClose RateLimitFailurePolicy = "FailClose"
+)
+
+// RedisMode 表示 Redis 部署模式
+type RedisMode string
+
+const (
+	// RedisModeStandalone 表示单实例 Redis
+	RedisModeStandalone RedisMode = "Standalone"
+	// RedisModeCluster 表示 Redis Cluster
+	RedisModeCluster RedisMode = "Cluster"
 )
 
 // Bundle 表示一次编译所需的资源集合
@@ -143,6 +197,8 @@ type Bundle struct {
 	AuthPolicies []AuthPolicy `json:"authPolicies"`
 	// +listType=atomic
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
+	// +listType=atomic
+	RedisStores []RedisStore `json:"redisStores"`
 	// +listType=atomic
 	PolicyBindings []PolicyBinding `json:"policyBindings"`
 	// +listType=atomic
@@ -738,10 +794,89 @@ type RateLimitPolicyList struct {
 
 // RateLimitPolicySpec 定义限流策略配置
 type RateLimitPolicySpec struct {
-	Requests      int          `json:"requests"`
-	WindowSeconds int          `json:"windowSeconds"`
-	KeyBy         RateLimitKey `json:"keyBy"`
-	Header        string       `json:"header"`
+	DisplayName string        `json:"displayName"`
+	Description string        `json:"description,omitempty"`
+	Enabled     bool          `json:"enabled"`
+	Mode        RateLimitMode `json:"mode"`
+	// +listType=atomic
+	Rules         []RateLimitRule        `json:"rules"`
+	Global        *GlobalRateLimitConfig `json:"global,omitempty"`
+	Response      RateLimitResponse      `json:"response,omitempty"`
+	FailurePolicy RateLimitFailurePolicy `json:"failurePolicy,omitempty"`
+}
+
+// RateLimitRule 定义一条限流规则
+type RateLimitRule struct {
+	Name      string             `json:"name"`
+	Key       RateLimitKey       `json:"key"`
+	Limit     RateLimitQuota     `json:"limit"`
+	Algorithm RateLimitAlgorithm `json:"algorithm,omitempty"`
+}
+
+// RateLimitKey 定义限流计数 key
+type RateLimitKey struct {
+	// +listType=atomic
+	Parts []RateLimitKeyPart `json:"parts"`
+}
+
+// RateLimitKeyPart 定义限流 key 的一个组成部分
+type RateLimitKeyPart struct {
+	Type RateLimitKeyType `json:"type"`
+	Name string           `json:"name,omitempty"`
+}
+
+// RateLimitQuota 定义限流额度
+type RateLimitQuota struct {
+	Requests      int `json:"requests"`
+	WindowSeconds int `json:"windowSeconds"`
+}
+
+// GlobalRateLimitConfig 定义 Redis-backed global limit 配置
+type GlobalRateLimitConfig struct {
+	RedisRef      string `json:"redisRef"`
+	Prefix        string `json:"prefix,omitempty"`
+	TimeoutMillis int    `json:"timeoutMillis,omitempty"`
+}
+
+// RateLimitResponse 定义超限响应
+type RateLimitResponse struct {
+	StatusCode         int    `json:"statusCode,omitempty"`
+	Message            string `json:"message,omitempty"`
+	QuotaHeaderEnabled bool   `json:"quotaHeaderEnabled,omitempty"`
+}
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// RedisStore 声明 Redis 连接配置
+type RedisStore struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   RedisStoreSpec `json:"spec,omitempty"`
+	Status ResourceStatus `json:"status,omitempty"`
+}
+
+// RedisStoreList 表示 RedisStore 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type RedisStoreList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []RedisStore `json:"items"`
+}
+
+// RedisStoreSpec 定义 Redis 连接配置
+type RedisStoreSpec struct {
+	DisplayName          string    `json:"displayName"`
+	Description          string    `json:"description,omitempty"`
+	Mode                 RedisMode `json:"mode"`
+	Address              string    `json:"address"`
+	DB                   int       `json:"db,omitempty"`
+	TLS                  bool      `json:"tls,omitempty"`
+	Username             string    `json:"username,omitempty"`
+	PasswordRef          string    `json:"passwordRef,omitempty"`
+	ConnectTimeoutMillis int       `json:"connectTimeoutMillis,omitempty"`
+	CommandTimeoutMillis int       `json:"commandTimeoutMillis,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -808,15 +943,19 @@ type PolicyBindingList struct {
 
 // PolicyBindingSpec 定义策略绑定目标和策略引用
 type PolicyBindingSpec struct {
-	TargetRef PolicyTargetRef `json:"targetRef"`
+	DisplayName string          `json:"displayName"`
+	Description string          `json:"description,omitempty"`
+	Enabled     bool            `json:"enabled"`
+	TargetRef   PolicyTargetRef `json:"targetRef"`
 	// +listType=atomic
 	Policies []PolicyRef `json:"policies"`
 }
 
 // PolicyTargetRef 表示策略绑定目标资源
 type PolicyTargetRef struct {
-	Kind Kind   `json:"kind"`
-	Name string `json:"name"`
+	Kind     Kind   `json:"kind"`
+	Name     string `json:"name"`
+	RuleName string `json:"ruleName,omitempty"`
 }
 
 // PolicyRef 表示被绑定的策略资源引用

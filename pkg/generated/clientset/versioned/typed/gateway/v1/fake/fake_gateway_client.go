@@ -54,6 +54,10 @@ func (c *FakeGatewayV1) RateLimitPolicies() v1.RateLimitPolicyInterface {
 	return newFakeRateLimitPolicies(c)
 }
 
+func (c *FakeGatewayV1) RedisStores() v1.RedisStoreInterface {
+	return newFakeRedisStores(c)
+}
+
 func (c *FakeGatewayV1) Routes() v1.RouteInterface {
 	return newFakeRoutes(c)
 }

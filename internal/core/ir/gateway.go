@@ -20,6 +20,7 @@ type LogicalGateway struct {
 	Plugins           []LogicalPlugin
 	AuthPolicies      []LogicalAuthPolicy
 	RateLimitPolicies []LogicalRateLimitPolicy
+	RedisStores       []LogicalRedisStore
 	PolicyBindings    []LogicalPolicyBinding
 	PluginBindings    []LogicalPluginBinding
 }
@@ -41,6 +42,7 @@ type LogicalRoute struct {
 
 // LogicalRouteRule 表示编译后的路由规则
 type LogicalRouteRule struct {
+	Name                   string
 	PathPrefix             string
 	Methods                []string
 	TimeoutMillis          int
@@ -163,10 +165,60 @@ type LogicalAPIKeyAuth struct {
 // LogicalRateLimitPolicy 表示编译后的限流策略
 type LogicalRateLimitPolicy struct {
 	Name          string
+	DisplayName   string
+	Mode          resource.RateLimitMode
+	Rules         []LogicalRateLimitRule
+	Global        *LogicalGlobalRateLimit
+	Response      LogicalRateLimitResponse
+	FailurePolicy resource.RateLimitFailurePolicy
+}
+
+// LogicalRateLimitRule 表示编译后的单条限流规则
+type LogicalRateLimitRule struct {
+	Name      string
+	Key       []LogicalRateLimitKeyPart
+	Limit     LogicalRateLimitQuota
+	Algorithm resource.RateLimitAlgorithm
+}
+
+// LogicalRateLimitKeyPart 表示编译后的限流 key 组成部分
+type LogicalRateLimitKeyPart struct {
+	Type resource.RateLimitKeyType
+	Name string
+}
+
+// LogicalRateLimitQuota 表示编译后的限流额度
+type LogicalRateLimitQuota struct {
 	Requests      int
 	WindowSeconds int
-	KeyBy         resource.RateLimitKey
-	Header        string
+}
+
+// LogicalGlobalRateLimit 表示编译后的 Redis-backed global limit 配置
+type LogicalGlobalRateLimit struct {
+	RedisRef      string
+	Prefix        string
+	TimeoutMillis int
+}
+
+// LogicalRateLimitResponse 表示编译后的超限响应
+type LogicalRateLimitResponse struct {
+	StatusCode         int
+	Message            string
+	QuotaHeaderEnabled bool
+}
+
+// LogicalRedisStore 表示编译后的 Redis 连接配置
+type LogicalRedisStore struct {
+	Name                 string
+	DisplayName          string
+	Mode                 resource.RedisMode
+	Address              string
+	DB                   int
+	TLS                  bool
+	Username             string
+	PasswordRef          string
+	ConnectTimeoutMillis int
+	CommandTimeoutMillis int
 }
 
 // LogicalPolicyBinding 表示编译后的策略绑定关系
@@ -178,8 +230,9 @@ type LogicalPolicyBinding struct {
 
 // LogicalPolicyTarget 表示策略绑定目标
 type LogicalPolicyTarget struct {
-	Kind resource.Kind
-	Name string
+	Kind     resource.Kind
+	Name     string
+	RuleName string
 }
 
 // LogicalPolicyRef 表示被绑定的策略引用

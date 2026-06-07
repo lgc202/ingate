@@ -27,6 +27,8 @@ type gatewayCompiler struct {
 	pluginsByName           map[string]resource.Plugin
 	authPoliciesByName      map[string]resource.AuthPolicy
 	rateLimitPoliciesByName map[string]resource.RateLimitPolicy
+	redisStoresByName       map[string]resource.RedisStore
+	routeRulesByRoute       map[string]map[string]bool
 	policyBindingsByName    map[string]bool
 	pluginBindingsByName    map[string]bool
 }
@@ -53,6 +55,8 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 		pluginsByName:           make(map[string]resource.Plugin, len(bundle.Plugins)),
 		authPoliciesByName:      make(map[string]resource.AuthPolicy, len(bundle.AuthPolicies)),
 		rateLimitPoliciesByName: make(map[string]resource.RateLimitPolicy, len(bundle.RateLimitPolicies)),
+		redisStoresByName:       make(map[string]resource.RedisStore, len(bundle.RedisStores)),
+		routeRulesByRoute:       make(map[string]map[string]bool, len(bundle.Routes)),
 		policyBindingsByName:    make(map[string]bool, len(bundle.PolicyBindings)),
 		pluginBindingsByName:    make(map[string]bool, len(bundle.PluginBindings)),
 	}
@@ -88,6 +92,9 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexAuthPolicies(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	if err := c.indexRedisStores(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
 	if err := c.indexRateLimitPolicies(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
@@ -108,6 +115,7 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	}
 	policyBindings := c.buildPolicyBindings(routes, upstreamOrder)
 	pluginBindings := c.buildPluginBindings(routes, upstreamOrder, aiRoutes)
+	rateLimitPolicies, redisStoreNames := c.buildRateLimitPolicies(policyBindings)
 
 	return ir.LogicalGateway{
 		Name:              c.gateway.Name,
@@ -120,7 +128,8 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 		AIPolicies:        c.buildUsedAIPolicies(aiRoutes.policyOrder),
 		Plugins:           c.buildPlugins(pluginBindings),
 		AuthPolicies:      c.buildAuthPolicies(policyBindings),
-		RateLimitPolicies: c.buildRateLimitPolicies(policyBindings),
+		RateLimitPolicies: rateLimitPolicies,
+		RedisStores:       c.buildRedisStores(redisStoreNames),
 		PolicyBindings:    policyBindings,
 		PluginBindings:    pluginBindings,
 	}, nil
@@ -152,6 +161,17 @@ func (c *gatewayCompiler) indexRoutes() error {
 			return fmt.Errorf("duplicate route %q", route.Name)
 		}
 		c.routesByName[route.Name] = true
+		rules := make(map[string]bool, len(route.Spec.Rules))
+		for _, rule := range route.Spec.Rules {
+			if rule.Name == "" {
+				continue
+			}
+			if rules[rule.Name] {
+				return fmt.Errorf("route %q has duplicate rule %q", route.Name, rule.Name)
+			}
+			rules[rule.Name] = true
+		}
+		c.routeRulesByRoute[route.Name] = rules
 	}
 
 	return nil
@@ -239,7 +259,26 @@ func (c *gatewayCompiler) indexRateLimitPolicies() error {
 		if _, ok := c.rateLimitPoliciesByName[policy.Name]; ok {
 			return fmt.Errorf("duplicate rate limit policy %q", policy.Name)
 		}
+		if policy.Spec.Enabled && policy.Spec.Mode == resource.RateLimitModeGlobal {
+			if policy.Spec.Global == nil {
+				return fmt.Errorf("rate limit policy %q requires global config", policy.Name)
+			}
+			if _, ok := c.redisStoresByName[policy.Spec.Global.RedisRef]; !ok {
+				return fmt.Errorf("rate limit policy %q references redis store %q", policy.Name, policy.Spec.Global.RedisRef)
+			}
+		}
 		c.rateLimitPoliciesByName[policy.Name] = policy
+	}
+
+	return nil
+}
+
+func (c *gatewayCompiler) indexRedisStores() error {
+	for _, store := range c.bundle.RedisStores {
+		if _, ok := c.redisStoresByName[store.Name]; ok {
+			return fmt.Errorf("duplicate redis store %q", store.Name)
+		}
+		c.redisStoresByName[store.Name] = store
 	}
 
 	return nil
@@ -251,6 +290,9 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 			return fmt.Errorf("duplicate policy binding %q", binding.Name)
 		}
 		c.policyBindingsByName[binding.Name] = true
+		if !binding.Spec.Enabled {
+			continue
+		}
 
 		target := binding.Spec.TargetRef
 		switch target.Kind {
@@ -261,6 +303,9 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 		case resource.KindRoute:
 			if !c.routesByName[target.Name] {
 				return fmt.Errorf("policy binding %q references route %q", binding.Name, target.Name)
+			}
+			if target.RuleName != "" && !c.routeRulesByRoute[target.Name][target.RuleName] {
+				return fmt.Errorf("policy binding %q references route %q rule %q", binding.Name, target.Name, target.RuleName)
 			}
 		case resource.KindUpstream:
 			if _, ok := c.upstreamsByName[target.Name]; !ok {
@@ -383,6 +428,7 @@ func (c *gatewayCompiler) buildAttachedRoutes() ([]ir.LogicalRoute, []string, er
 		}
 		for _, rule := range route.Spec.Rules {
 			logicalRule := ir.LogicalRouteRule{
+				Name:       rule.Name,
 				PathPrefix: rule.PathPrefix,
 				Methods:    slices.Clone(rule.Methods),
 				Upstreams:  make([]ir.LogicalUpstreamRef, 0, len(rule.UpstreamRefs)),
@@ -676,13 +722,18 @@ func (c *gatewayCompiler) buildAuthPolicies(bindings []ir.LogicalPolicyBinding) 
 	return policies
 }
 
-func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBinding) []ir.LogicalRateLimitPolicy {
+func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBinding) ([]ir.LogicalRateLimitPolicy, map[string]bool) {
 	usedPolicies := make(map[string]bool)
+	usedRedisStores := make(map[string]bool)
 	var policyOrder []string
 
 	for _, binding := range bindings {
 		for _, policy := range binding.Policies {
 			if policy.Kind != resource.KindRateLimitPolicy || usedPolicies[policy.Name] {
+				continue
+			}
+			rateLimitPolicy := c.rateLimitPoliciesByName[policy.Name]
+			if !rateLimitPolicy.Spec.Enabled {
 				continue
 			}
 			usedPolicies[policy.Name] = true
@@ -693,22 +744,95 @@ func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBind
 	policies := make([]ir.LogicalRateLimitPolicy, 0, len(policyOrder))
 	for _, name := range policyOrder {
 		policy := c.rateLimitPoliciesByName[name]
-		policies = append(policies, ir.LogicalRateLimitPolicy{
+		logicalPolicy := ir.LogicalRateLimitPolicy{
 			Name:          policy.Name,
-			Requests:      policy.Spec.Requests,
-			WindowSeconds: policy.Spec.WindowSeconds,
-			KeyBy:         policy.Spec.KeyBy,
-			Header:        policy.Spec.Header,
+			DisplayName:   policy.Spec.DisplayName,
+			Mode:          policy.Spec.Mode,
+			Rules:         make([]ir.LogicalRateLimitRule, 0, len(policy.Spec.Rules)),
+			Response:      c.buildRateLimitResponse(policy.Spec.Response),
+			FailurePolicy: policy.Spec.FailurePolicy,
+		}
+		for _, rule := range policy.Spec.Rules {
+			logicalPolicy.Rules = append(logicalPolicy.Rules, ir.LogicalRateLimitRule{
+				Name:      rule.Name,
+				Key:       c.buildRateLimitKey(rule.Key),
+				Limit:     ir.LogicalRateLimitQuota(rule.Limit),
+				Algorithm: rule.Algorithm,
+			})
+		}
+		if policy.Spec.Global != nil {
+			logicalPolicy.Global = &ir.LogicalGlobalRateLimit{
+				RedisRef:      policy.Spec.Global.RedisRef,
+				Prefix:        policy.Spec.Global.Prefix,
+				TimeoutMillis: policy.Spec.Global.TimeoutMillis,
+			}
+			usedRedisStores[policy.Spec.Global.RedisRef] = true
+		}
+		policies = append(policies, logicalPolicy)
+	}
+
+	return policies, usedRedisStores
+}
+
+func (c *gatewayCompiler) buildRateLimitKey(key resource.RateLimitKey) []ir.LogicalRateLimitKeyPart {
+	parts := make([]ir.LogicalRateLimitKeyPart, 0, len(key.Parts))
+	for _, part := range key.Parts {
+		parts = append(parts, ir.LogicalRateLimitKeyPart{
+			Type: part.Type,
+			Name: part.Name,
+		})
+	}
+	return parts
+}
+
+func (c *gatewayCompiler) buildRateLimitResponse(response resource.RateLimitResponse) ir.LogicalRateLimitResponse {
+	return ir.LogicalRateLimitResponse{
+		StatusCode:         response.StatusCode,
+		Message:            response.Message,
+		QuotaHeaderEnabled: response.QuotaHeaderEnabled,
+	}
+}
+
+func (c *gatewayCompiler) buildRedisStores(names map[string]bool) []ir.LogicalRedisStore {
+	if len(names) == 0 {
+		return nil
+	}
+
+	var storeOrder []string
+	for name := range names {
+		storeOrder = append(storeOrder, name)
+	}
+	slices.Sort(storeOrder)
+
+	stores := make([]ir.LogicalRedisStore, 0, len(names))
+	for _, name := range storeOrder {
+		store := c.redisStoresByName[name]
+		stores = append(stores, ir.LogicalRedisStore{
+			Name:                 store.Name,
+			DisplayName:          store.Spec.DisplayName,
+			Mode:                 store.Spec.Mode,
+			Address:              store.Spec.Address,
+			DB:                   store.Spec.DB,
+			TLS:                  store.Spec.TLS,
+			Username:             store.Spec.Username,
+			PasswordRef:          store.Spec.PasswordRef,
+			ConnectTimeoutMillis: store.Spec.ConnectTimeoutMillis,
+			CommandTimeoutMillis: store.Spec.CommandTimeoutMillis,
 		})
 	}
 
-	return policies
+	return stores
 }
 
 func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstreamOrder []string) []ir.LogicalPolicyBinding {
 	routeNames := make(map[string]bool, len(routes))
+	routeRuleNames := make(map[string]map[string]bool, len(routes))
 	for _, route := range routes {
 		routeNames[route.Name] = true
+		routeRuleNames[route.Name] = make(map[string]bool, len(route.Rules))
+		for _, rule := range route.Rules {
+			routeRuleNames[route.Name][rule.Name] = true
+		}
 	}
 	upstreamNames := make(map[string]bool, len(upstreamOrder))
 	for _, upstreamName := range upstreamOrder {
@@ -717,11 +841,17 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstream
 
 	bindings := make([]ir.LogicalPolicyBinding, 0, len(c.bundle.PolicyBindings))
 	for _, binding := range c.bundle.PolicyBindings {
+		if !binding.Spec.Enabled {
+			continue
+		}
 		target := binding.Spec.TargetRef
 		if target.Kind == resource.KindGateway && target.Name != c.gatewayName {
 			continue
 		}
 		if target.Kind == resource.KindRoute && !routeNames[target.Name] {
+			continue
+		}
+		if target.Kind == resource.KindRoute && target.RuleName != "" && !routeRuleNames[target.Name][target.RuleName] {
 			continue
 		}
 		if target.Kind == resource.KindUpstream && !upstreamNames[target.Name] {
@@ -731,16 +861,26 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstream
 		logicalBinding := ir.LogicalPolicyBinding{
 			Name: binding.Name,
 			Target: ir.LogicalPolicyTarget{
-				Kind: target.Kind,
-				Name: target.Name,
+				Kind:     target.Kind,
+				Name:     target.Name,
+				RuleName: target.RuleName,
 			},
 			Policies: make([]ir.LogicalPolicyRef, 0, len(binding.Spec.Policies)),
 		}
 		for _, policy := range binding.Spec.Policies {
+			if policy.Kind == resource.KindRateLimitPolicy {
+				rateLimitPolicy := c.rateLimitPoliciesByName[policy.Name]
+				if !rateLimitPolicy.Spec.Enabled {
+					continue
+				}
+			}
 			logicalBinding.Policies = append(logicalBinding.Policies, ir.LogicalPolicyRef{
 				Kind: policy.Kind,
 				Name: policy.Name,
 			})
+		}
+		if len(logicalBinding.Policies) == 0 {
+			continue
 		}
 		bindings = append(bindings, logicalBinding)
 	}

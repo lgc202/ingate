@@ -29,6 +29,7 @@ const (
 	aiRouteIndexModel           routeIndexName = "aiModelRef"
 	aiRouteIndexPolicy          routeIndexName = "aiPolicyRef"
 	aiModelIndexProvider        routeIndexName = "aiModelProviderRef"
+	rateLimitPolicyIndexRedis   routeIndexName = "rateLimitPolicyRedisRef"
 	policyBindingIndexTargetRef routeIndexName = "policyBindingTargetRef"
 	policyBindingIndexPolicy    routeIndexName = "policyBindingPolicyRef"
 	pluginBindingIndexTargetRef routeIndexName = "pluginBindingTargetRef"
@@ -48,10 +49,12 @@ type Controller struct {
 	aiPolicyLister       gatewaylisters.AIPolicyLister
 	authPolicyLister     gatewaylisters.AuthPolicyLister
 	rateLimitLister      gatewaylisters.RateLimitPolicyLister
+	redisStoreLister     gatewaylisters.RedisStoreLister
 	pluginLister         gatewaylisters.PluginLister
 	routeIndexer         cache.Indexer
 	aiRouteIndexer       cache.Indexer
 	aiModelIndexer       cache.Indexer
+	rateLimitIndexer     cache.Indexer
 	policyBindingIndexer cache.Indexer
 	pluginBindingIndexer cache.Indexer
 	pipeline             pipeline.Pipeline
@@ -72,6 +75,7 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 	routeInformer := gatewayInformers.Routes().Informer()
 	aiRouteInformer := gatewayInformers.AIRoutes().Informer()
 	aiModelInformer := gatewayInformers.AIModels().Informer()
+	rateLimitInformer := gatewayInformers.RateLimitPolicies().Informer()
 	policyBindingInformer := gatewayInformers.PolicyBindings().Informer()
 	pluginBindingInformer := gatewayInformers.PluginBindings().Informer()
 	if err := routeInformer.AddIndexers(cache.Indexers{
@@ -90,6 +94,11 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 	}
 	if err := aiModelInformer.AddIndexers(cache.Indexers{
 		string(aiModelIndexProvider): aiModelProviderRefIndex,
+	}); err != nil {
+		return nil, err
+	}
+	if err := rateLimitInformer.AddIndexers(cache.Indexers{
+		string(rateLimitPolicyIndexRedis): rateLimitPolicyRedisRefIndex,
 	}); err != nil {
 		return nil, err
 	}
@@ -118,10 +127,12 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 		aiPolicyLister:       gatewayInformers.AIPolicies().Lister(),
 		authPolicyLister:     gatewayInformers.AuthPolicies().Lister(),
 		rateLimitLister:      gatewayInformers.RateLimitPolicies().Lister(),
+		redisStoreLister:     gatewayInformers.RedisStores().Lister(),
 		pluginLister:         gatewayInformers.Plugins().Lister(),
 		routeIndexer:         routeInformer.GetIndexer(),
 		aiRouteIndexer:       aiRouteInformer.GetIndexer(),
 		aiModelIndexer:       aiModelInformer.GetIndexer(),
+		rateLimitIndexer:     rateLimitInformer.GetIndexer(),
 		policyBindingIndexer: policyBindingInformer.GetIndexer(),
 		pluginBindingIndexer: pluginBindingInformer.GetIndexer(),
 		pipeline: pipeline.Pipeline{

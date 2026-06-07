@@ -53,6 +53,35 @@ func (s *Server) router() *gin.Engine {
 			routes.PATCH("/:id/enabled", handler.Route.SetEnabled)
 			routes.DELETE("/:id", handler.Route.Delete)
 		}
+
+		rateLimitPolicies := apiV1.Group("/rate-limit-policies")
+		{
+			rateLimitPolicies.GET("", handler.RateLimitPolicy.List)
+			rateLimitPolicies.POST("", handler.RateLimitPolicy.Create)
+			rateLimitPolicies.GET("/:id", handler.RateLimitPolicy.Get)
+			rateLimitPolicies.PUT("/:id", handler.RateLimitPolicy.Update)
+			rateLimitPolicies.PATCH("/:id/enabled", handler.RateLimitPolicy.SetEnabled)
+			rateLimitPolicies.DELETE("/:id", handler.RateLimitPolicy.Delete)
+		}
+
+		policyBindings := apiV1.Group("/policy-bindings")
+		{
+			policyBindings.GET("", handler.PolicyBinding.List)
+			policyBindings.POST("", handler.PolicyBinding.Create)
+			policyBindings.GET("/:id", handler.PolicyBinding.Get)
+			policyBindings.PUT("/:id", handler.PolicyBinding.Update)
+			policyBindings.PATCH("/:id/enabled", handler.PolicyBinding.SetEnabled)
+			policyBindings.DELETE("/:id", handler.PolicyBinding.Delete)
+		}
+
+		redisStores := apiV1.Group("/redis-stores")
+		{
+			redisStores.GET("", handler.RedisStore.List)
+			redisStores.POST("", handler.RedisStore.Create)
+			redisStores.GET("/:id", handler.RedisStore.Get)
+			redisStores.PUT("/:id", handler.RedisStore.Update)
+			redisStores.DELETE("/:id", handler.RedisStore.Delete)
+		}
 	}
 
 	s.mountConsole(router)

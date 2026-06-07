@@ -168,10 +168,23 @@ func TestCompilerCompileGateway(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app-quota"},
 				Spec: resource.RateLimitPolicySpec{
-					Requests:      100,
-					WindowSeconds: 60,
-					KeyBy:         resource.RateLimitKeyHeader,
-					Header:        "x-consumer-id",
+					Enabled: true,
+					Mode:    resource.RateLimitModeLocal,
+					Rules: []resource.RateLimitRule{
+						{
+							Name: "consumer-minute",
+							Key: resource.RateLimitKey{
+								Parts: []resource.RateLimitKeyPart{
+									{Type: resource.RateLimitKeyTypeHeader, Name: "x-consumer-id"},
+								},
+							},
+							Limit: resource.RateLimitQuota{
+								Requests:      100,
+								WindowSeconds: 60,
+							},
+							Algorithm: resource.RateLimitAlgorithmFixedWindow,
+						},
+					},
 				},
 			},
 		},
@@ -199,6 +212,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app-auth"},
 				Spec: resource.PolicyBindingSpec{
+					Enabled: true,
 					TargetRef: resource.PolicyTargetRef{
 						Kind: resource.KindRoute,
 						Name: "app",
@@ -317,11 +331,21 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		RateLimitPolicies: []ir.LogicalRateLimitPolicy{
 			{
-				Name:          "app-quota",
-				Requests:      100,
-				WindowSeconds: 60,
-				KeyBy:         resource.RateLimitKeyHeader,
-				Header:        "x-consumer-id",
+				Name: "app-quota",
+				Mode: resource.RateLimitModeLocal,
+				Rules: []ir.LogicalRateLimitRule{
+					{
+						Name: "consumer-minute",
+						Key: []ir.LogicalRateLimitKeyPart{
+							{Type: resource.RateLimitKeyTypeHeader, Name: "x-consumer-id"},
+						},
+						Limit: ir.LogicalRateLimitQuota{
+							Requests:      100,
+							WindowSeconds: 60,
+						},
+						Algorithm: resource.RateLimitAlgorithmFixedWindow,
+					},
+				},
 			},
 		},
 		PluginBindings: []ir.LogicalPluginBinding{
@@ -545,6 +569,7 @@ func TestCompilerCompileGatewayMissingRateLimitPolicyRef(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app-quota"},
 				Spec: resource.PolicyBindingSpec{
+					Enabled: true,
 					TargetRef: resource.PolicyTargetRef{
 						Kind: resource.KindRoute,
 						Name: "app",
@@ -584,6 +609,7 @@ func TestCompilerCompileGatewayMissingPolicyRef(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app-auth"},
 				Spec: resource.PolicyBindingSpec{
+					Enabled: true,
 					TargetRef: resource.PolicyTargetRef{
 						Kind: resource.KindRoute,
 						Name: "app",
@@ -614,6 +640,7 @@ func TestCompilerCompileGatewayMissingPolicyBindingTarget(t *testing.T) {
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app-auth"},
 				Spec: resource.PolicyBindingSpec{
+					Enabled: true,
 					TargetRef: resource.PolicyTargetRef{
 						Kind: resource.KindRoute,
 						Name: "missing",
