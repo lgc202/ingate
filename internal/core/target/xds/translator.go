@@ -61,6 +61,7 @@ type Config struct {
 	AIPolicies          []AIPolicy           `json:"aiPolicies"`
 	Plugins             []Plugin             `json:"plugins"`
 	PluginBindings      []PluginBinding      `json:"pluginBindings"`
+	ManagedRateLimit    *ManagedRateLimit    `json:"managedRateLimit,omitempty"`
 }
 
 // Listener 表示 Envoy listener 的内部模型
@@ -88,6 +89,7 @@ type VirtualHost struct {
 // Route 表示 Envoy route 的内部模型
 type Route struct {
 	Name                   string            `json:"name"`
+	RuleName               string            `json:"ruleName,omitempty"`
 	Match                  RouteMatch        `json:"match"`
 	TimeoutMillis          int               `json:"timeoutMillis"`
 	RequestHeadersToAdd    []HeaderValue     `json:"requestHeadersToAdd,omitempty"`
@@ -236,6 +238,85 @@ type PluginRef struct {
 	Config json.RawMessage `json:"config,omitempty"`
 }
 
+// ManagedRateLimit 表示系统内置限流插件的可执行配置
+type ManagedRateLimit struct {
+	Bindings    []RateLimitBinding    `json:"bindings"`
+	RedisStores []RateLimitRedisStore `json:"redisStores,omitempty"`
+}
+
+// RateLimitBinding 表示限流策略绑定展开后的执行配置
+type RateLimitBinding struct {
+	Name     string            `json:"name"`
+	Target   RateLimitTarget   `json:"target"`
+	Policies []RateLimitPolicy `json:"policies"`
+}
+
+// RateLimitTarget 表示限流执行目标
+type RateLimitTarget struct {
+	Kind     resource.Kind `json:"kind"`
+	Name     string        `json:"name"`
+	RuleName string        `json:"ruleName,omitempty"`
+}
+
+// RateLimitPolicy 表示内置限流插件消费的策略配置
+type RateLimitPolicy struct {
+	Name          string                          `json:"name"`
+	DisplayName   string                          `json:"displayName"`
+	Mode          resource.RateLimitMode          `json:"mode"`
+	Rules         []RateLimitRule                 `json:"rules"`
+	Global        *GlobalRateLimit                `json:"global,omitempty"`
+	Response      RateLimitResponse               `json:"response"`
+	FailurePolicy resource.RateLimitFailurePolicy `json:"failurePolicy"`
+}
+
+// RateLimitRule 表示一条限流规则
+type RateLimitRule struct {
+	Name      string                      `json:"name"`
+	Key       []RateLimitKeyPart          `json:"key"`
+	Limit     RateLimitQuota              `json:"limit"`
+	Algorithm resource.RateLimitAlgorithm `json:"algorithm"`
+}
+
+// RateLimitKeyPart 表示限流 key 的组成部分
+type RateLimitKeyPart struct {
+	Type resource.RateLimitKeyType `json:"type"`
+	Name string                    `json:"name,omitempty"`
+}
+
+// RateLimitQuota 表示限流额度
+type RateLimitQuota struct {
+	Requests      int `json:"requests"`
+	WindowSeconds int `json:"windowSeconds"`
+}
+
+// GlobalRateLimit 表示 Redis-backed global limit 配置
+type GlobalRateLimit struct {
+	RedisRef      string `json:"redisRef"`
+	Prefix        string `json:"prefix,omitempty"`
+	TimeoutMillis int    `json:"timeoutMillis,omitempty"`
+}
+
+// RateLimitResponse 表示超限响应配置
+type RateLimitResponse struct {
+	StatusCode         int    `json:"statusCode,omitempty"`
+	Message            string `json:"message,omitempty"`
+	QuotaHeaderEnabled bool   `json:"quotaHeaderEnabled,omitempty"`
+}
+
+// RateLimitRedisStore 表示内置限流插件使用的 Redis 连接配置
+type RateLimitRedisStore struct {
+	Name                 string             `json:"name"`
+	DisplayName          string             `json:"displayName"`
+	Mode                 resource.RedisMode `json:"mode"`
+	Address              string             `json:"address"`
+	DB                   int                `json:"db,omitempty"`
+	TLS                  bool               `json:"tls,omitempty"`
+	Username             string             `json:"username,omitempty"`
+	PasswordRef          string             `json:"passwordRef,omitempty"`
+	ConnectTimeoutMillis int                `json:"connectTimeoutMillis,omitempty"`
+	CommandTimeoutMillis int                `json:"commandTimeoutMillis,omitempty"`
+}
+
 type pluginBindingGroupKey struct {
 	pluginName    string
 	phase         resource.PluginPhase
@@ -295,7 +376,8 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			}
 			for _, rule := range route.Rules {
 				xdsRoute := Route{
-					Name: route.Name,
+					Name:     route.Name,
+					RuleName: rule.Name,
 					Match: RouteMatch{
 						PathPrefix: rule.PathPrefix,
 						Methods:    slices.Clone(rule.Methods),
@@ -446,6 +528,7 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		return runtime.RuntimeSnapshot{}, err
 	}
 	config.PluginBindings = pluginBindings
+	config.ManagedRateLimit = t.translateManagedRateLimit(logical)
 
 	return runtime.RuntimeSnapshot{
 		Target:  t.Target(),
@@ -453,6 +536,103 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		Version: fmt.Sprintf(versionPrefix, logical.Name),
 		Config:  config,
 	}, nil
+}
+
+func (t Translator) translateManagedRateLimit(logical ir.LogicalGateway) *ManagedRateLimit {
+	if len(logical.RateLimitPolicies) == 0 || len(logical.PolicyBindings) == 0 {
+		return nil
+	}
+
+	policiesByName := make(map[string]ir.LogicalRateLimitPolicy, len(logical.RateLimitPolicies))
+	for _, policy := range logical.RateLimitPolicies {
+		policiesByName[policy.Name] = policy
+	}
+
+	config := &ManagedRateLimit{
+		Bindings:    make([]RateLimitBinding, 0, len(logical.PolicyBindings)),
+		RedisStores: make([]RateLimitRedisStore, 0, len(logical.RedisStores)),
+	}
+	for _, binding := range logical.PolicyBindings {
+		rateLimitBinding := RateLimitBinding{
+			Name: binding.Name,
+			Target: RateLimitTarget{
+				Kind:     binding.Target.Kind,
+				Name:     binding.Target.Name,
+				RuleName: binding.Target.RuleName,
+			},
+			Policies: make([]RateLimitPolicy, 0, len(binding.Policies)),
+		}
+		for _, policyRef := range binding.Policies {
+			if policyRef.Kind != resource.KindRateLimitPolicy {
+				continue
+			}
+			policy, ok := policiesByName[policyRef.Name]
+			if !ok {
+				continue
+			}
+			rateLimitBinding.Policies = append(rateLimitBinding.Policies, t.rateLimitPolicy(policy))
+		}
+		if len(rateLimitBinding.Policies) == 0 {
+			continue
+		}
+		config.Bindings = append(config.Bindings, rateLimitBinding)
+	}
+	for _, store := range logical.RedisStores {
+		config.RedisStores = append(config.RedisStores, RateLimitRedisStore{
+			Name:                 store.Name,
+			DisplayName:          store.DisplayName,
+			Mode:                 store.Mode,
+			Address:              store.Address,
+			DB:                   store.DB,
+			TLS:                  store.TLS,
+			Username:             store.Username,
+			PasswordRef:          store.PasswordRef,
+			ConnectTimeoutMillis: store.ConnectTimeoutMillis,
+			CommandTimeoutMillis: store.CommandTimeoutMillis,
+		})
+	}
+	if len(config.Bindings) == 0 {
+		return nil
+	}
+	return config
+}
+
+func (t Translator) rateLimitPolicy(policy ir.LogicalRateLimitPolicy) RateLimitPolicy {
+	result := RateLimitPolicy{
+		Name:          policy.Name,
+		DisplayName:   policy.DisplayName,
+		Mode:          policy.Mode,
+		Rules:         make([]RateLimitRule, 0, len(policy.Rules)),
+		Response:      RateLimitResponse(policy.Response),
+		FailurePolicy: policy.FailurePolicy,
+	}
+	for _, rule := range policy.Rules {
+		result.Rules = append(result.Rules, RateLimitRule{
+			Name:      rule.Name,
+			Key:       t.rateLimitKey(rule.Key),
+			Limit:     RateLimitQuota(rule.Limit),
+			Algorithm: rule.Algorithm,
+		})
+	}
+	if policy.Global != nil {
+		result.Global = &GlobalRateLimit{
+			RedisRef:      policy.Global.RedisRef,
+			Prefix:        policy.Global.Prefix,
+			TimeoutMillis: policy.Global.TimeoutMillis,
+		}
+	}
+	return result
+}
+
+func (t Translator) rateLimitKey(parts []ir.LogicalRateLimitKeyPart) []RateLimitKeyPart {
+	result := make([]RateLimitKeyPart, 0, len(parts))
+	for _, part := range parts {
+		result = append(result, RateLimitKeyPart{
+			Type: part.Type,
+			Name: part.Name,
+		})
+	}
+	return result
 }
 
 func (t Translator) appendAIRouteRuntime(config *Config) error {

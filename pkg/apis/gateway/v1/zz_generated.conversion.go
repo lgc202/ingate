@@ -293,6 +293,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*GlobalRateLimitConfig)(nil), (*gateway.GlobalRateLimitConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig(a.(*GlobalRateLimitConfig), b.(*gateway.GlobalRateLimitConfig), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.GlobalRateLimitConfig)(nil), (*GlobalRateLimitConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig(a.(*gateway.GlobalRateLimitConfig), b.(*GlobalRateLimitConfig), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*HeaderMatch)(nil), (*gateway.HeaderMatch)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_HeaderMatch_To_gateway_HeaderMatch(a.(*HeaderMatch), b.(*gateway.HeaderMatch), scope)
 	}); err != nil {
@@ -493,6 +503,26 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*RateLimitKey)(nil), (*gateway.RateLimitKey)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RateLimitKey_To_gateway_RateLimitKey(a.(*RateLimitKey), b.(*gateway.RateLimitKey), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitKey)(nil), (*RateLimitKey)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RateLimitKey_To_v1_RateLimitKey(a.(*gateway.RateLimitKey), b.(*RateLimitKey), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*RateLimitKeyPart)(nil), (*gateway.RateLimitKeyPart)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart(a.(*RateLimitKeyPart), b.(*gateway.RateLimitKeyPart), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitKeyPart)(nil), (*RateLimitKeyPart)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart(a.(*gateway.RateLimitKeyPart), b.(*RateLimitKeyPart), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*RateLimitPolicy)(nil), (*gateway.RateLimitPolicy)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_RateLimitPolicy_To_gateway_RateLimitPolicy(a.(*RateLimitPolicy), b.(*gateway.RateLimitPolicy), scope)
 	}); err != nil {
@@ -520,6 +550,66 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitPolicySpec)(nil), (*RateLimitPolicySpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(a.(*gateway.RateLimitPolicySpec), b.(*RateLimitPolicySpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*RateLimitQuota)(nil), (*gateway.RateLimitQuota)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota(a.(*RateLimitQuota), b.(*gateway.RateLimitQuota), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitQuota)(nil), (*RateLimitQuota)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RateLimitQuota_To_v1_RateLimitQuota(a.(*gateway.RateLimitQuota), b.(*RateLimitQuota), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*RateLimitResponse)(nil), (*gateway.RateLimitResponse)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse(a.(*RateLimitResponse), b.(*gateway.RateLimitResponse), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitResponse)(nil), (*RateLimitResponse)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse(a.(*gateway.RateLimitResponse), b.(*RateLimitResponse), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*RateLimitRule)(nil), (*gateway.RateLimitRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RateLimitRule_To_gateway_RateLimitRule(a.(*RateLimitRule), b.(*gateway.RateLimitRule), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitRule)(nil), (*RateLimitRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RateLimitRule_To_v1_RateLimitRule(a.(*gateway.RateLimitRule), b.(*RateLimitRule), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*RedisStore)(nil), (*gateway.RedisStore)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RedisStore_To_gateway_RedisStore(a.(*RedisStore), b.(*gateway.RedisStore), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RedisStore)(nil), (*RedisStore)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RedisStore_To_v1_RedisStore(a.(*gateway.RedisStore), b.(*RedisStore), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*RedisStoreList)(nil), (*gateway.RedisStoreList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RedisStoreList_To_gateway_RedisStoreList(a.(*RedisStoreList), b.(*gateway.RedisStoreList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RedisStoreList)(nil), (*RedisStoreList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RedisStoreList_To_v1_RedisStoreList(a.(*gateway.RedisStoreList), b.(*RedisStoreList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*RedisStoreSpec)(nil), (*gateway.RedisStoreSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(a.(*RedisStoreSpec), b.(*gateway.RedisStoreSpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RedisStoreSpec)(nil), (*RedisStoreSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(a.(*gateway.RedisStoreSpec), b.(*RedisStoreSpec), scope)
 	}); err != nil {
 		return err
 	}
@@ -1299,6 +1389,7 @@ func autoConvert_v1_Bundle_To_gateway_Bundle(in *Bundle, out *gateway.Bundle, s 
 	out.Plugins = *(*[]gateway.Plugin)(unsafe.Pointer(&in.Plugins))
 	out.AuthPolicies = *(*[]gateway.AuthPolicy)(unsafe.Pointer(&in.AuthPolicies))
 	out.RateLimitPolicies = *(*[]gateway.RateLimitPolicy)(unsafe.Pointer(&in.RateLimitPolicies))
+	out.RedisStores = *(*[]gateway.RedisStore)(unsafe.Pointer(&in.RedisStores))
 	out.PolicyBindings = *(*[]gateway.PolicyBinding)(unsafe.Pointer(&in.PolicyBindings))
 	out.PluginBindings = *(*[]gateway.PluginBinding)(unsafe.Pointer(&in.PluginBindings))
 	return nil
@@ -1320,6 +1411,7 @@ func autoConvert_gateway_Bundle_To_v1_Bundle(in *gateway.Bundle, out *Bundle, s 
 	out.Plugins = *(*[]Plugin)(unsafe.Pointer(&in.Plugins))
 	out.AuthPolicies = *(*[]AuthPolicy)(unsafe.Pointer(&in.AuthPolicies))
 	out.RateLimitPolicies = *(*[]RateLimitPolicy)(unsafe.Pointer(&in.RateLimitPolicies))
+	out.RedisStores = *(*[]RedisStore)(unsafe.Pointer(&in.RedisStores))
 	out.PolicyBindings = *(*[]PolicyBinding)(unsafe.Pointer(&in.PolicyBindings))
 	out.PluginBindings = *(*[]PluginBinding)(unsafe.Pointer(&in.PluginBindings))
 	return nil
@@ -1464,6 +1556,30 @@ func autoConvert_gateway_GatewayTLS_To_v1_GatewayTLS(in *gateway.GatewayTLS, out
 // Convert_gateway_GatewayTLS_To_v1_GatewayTLS is an autogenerated conversion function.
 func Convert_gateway_GatewayTLS_To_v1_GatewayTLS(in *gateway.GatewayTLS, out *GatewayTLS, s conversion.Scope) error {
 	return autoConvert_gateway_GatewayTLS_To_v1_GatewayTLS(in, out, s)
+}
+
+func autoConvert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig(in *GlobalRateLimitConfig, out *gateway.GlobalRateLimitConfig, s conversion.Scope) error {
+	out.RedisRef = in.RedisRef
+	out.Prefix = in.Prefix
+	out.TimeoutMillis = in.TimeoutMillis
+	return nil
+}
+
+// Convert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig is an autogenerated conversion function.
+func Convert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig(in *GlobalRateLimitConfig, out *gateway.GlobalRateLimitConfig, s conversion.Scope) error {
+	return autoConvert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig(in, out, s)
+}
+
+func autoConvert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig(in *gateway.GlobalRateLimitConfig, out *GlobalRateLimitConfig, s conversion.Scope) error {
+	out.RedisRef = in.RedisRef
+	out.Prefix = in.Prefix
+	out.TimeoutMillis = in.TimeoutMillis
+	return nil
+}
+
+// Convert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig is an autogenerated conversion function.
+func Convert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig(in *gateway.GlobalRateLimitConfig, out *GlobalRateLimitConfig, s conversion.Scope) error {
+	return autoConvert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig(in, out, s)
 }
 
 func autoConvert_v1_HeaderMatch_To_gateway_HeaderMatch(in *HeaderMatch, out *gateway.HeaderMatch, s conversion.Scope) error {
@@ -1895,6 +2011,9 @@ func Convert_gateway_PolicyBindingList_To_v1_PolicyBindingList(in *gateway.Polic
 }
 
 func autoConvert_v1_PolicyBindingSpec_To_gateway_PolicyBindingSpec(in *PolicyBindingSpec, out *gateway.PolicyBindingSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Description = in.Description
+	out.Enabled = in.Enabled
 	if err := Convert_v1_PolicyTargetRef_To_gateway_PolicyTargetRef(&in.TargetRef, &out.TargetRef, s); err != nil {
 		return err
 	}
@@ -1908,6 +2027,9 @@ func Convert_v1_PolicyBindingSpec_To_gateway_PolicyBindingSpec(in *PolicyBinding
 }
 
 func autoConvert_gateway_PolicyBindingSpec_To_v1_PolicyBindingSpec(in *gateway.PolicyBindingSpec, out *PolicyBindingSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Description = in.Description
+	out.Enabled = in.Enabled
 	if err := Convert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(&in.TargetRef, &out.TargetRef, s); err != nil {
 		return err
 	}
@@ -1945,6 +2067,7 @@ func Convert_gateway_PolicyRef_To_v1_PolicyRef(in *gateway.PolicyRef, out *Polic
 func autoConvert_v1_PolicyTargetRef_To_gateway_PolicyTargetRef(in *PolicyTargetRef, out *gateway.PolicyTargetRef, s conversion.Scope) error {
 	out.Kind = gateway.Kind(in.Kind)
 	out.Name = in.Name
+	out.RuleName = in.RuleName
 	return nil
 }
 
@@ -1956,12 +2079,55 @@ func Convert_v1_PolicyTargetRef_To_gateway_PolicyTargetRef(in *PolicyTargetRef, 
 func autoConvert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(in *gateway.PolicyTargetRef, out *PolicyTargetRef, s conversion.Scope) error {
 	out.Kind = Kind(in.Kind)
 	out.Name = in.Name
+	out.RuleName = in.RuleName
 	return nil
 }
 
 // Convert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef is an autogenerated conversion function.
 func Convert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(in *gateway.PolicyTargetRef, out *PolicyTargetRef, s conversion.Scope) error {
 	return autoConvert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(in, out, s)
+}
+
+func autoConvert_v1_RateLimitKey_To_gateway_RateLimitKey(in *RateLimitKey, out *gateway.RateLimitKey, s conversion.Scope) error {
+	out.Parts = *(*[]gateway.RateLimitKeyPart)(unsafe.Pointer(&in.Parts))
+	return nil
+}
+
+// Convert_v1_RateLimitKey_To_gateway_RateLimitKey is an autogenerated conversion function.
+func Convert_v1_RateLimitKey_To_gateway_RateLimitKey(in *RateLimitKey, out *gateway.RateLimitKey, s conversion.Scope) error {
+	return autoConvert_v1_RateLimitKey_To_gateway_RateLimitKey(in, out, s)
+}
+
+func autoConvert_gateway_RateLimitKey_To_v1_RateLimitKey(in *gateway.RateLimitKey, out *RateLimitKey, s conversion.Scope) error {
+	out.Parts = *(*[]RateLimitKeyPart)(unsafe.Pointer(&in.Parts))
+	return nil
+}
+
+// Convert_gateway_RateLimitKey_To_v1_RateLimitKey is an autogenerated conversion function.
+func Convert_gateway_RateLimitKey_To_v1_RateLimitKey(in *gateway.RateLimitKey, out *RateLimitKey, s conversion.Scope) error {
+	return autoConvert_gateway_RateLimitKey_To_v1_RateLimitKey(in, out, s)
+}
+
+func autoConvert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart(in *RateLimitKeyPart, out *gateway.RateLimitKeyPart, s conversion.Scope) error {
+	out.Type = gateway.RateLimitKeyType(in.Type)
+	out.Name = in.Name
+	return nil
+}
+
+// Convert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart is an autogenerated conversion function.
+func Convert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart(in *RateLimitKeyPart, out *gateway.RateLimitKeyPart, s conversion.Scope) error {
+	return autoConvert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart(in, out, s)
+}
+
+func autoConvert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart(in *gateway.RateLimitKeyPart, out *RateLimitKeyPart, s conversion.Scope) error {
+	out.Type = RateLimitKeyType(in.Type)
+	out.Name = in.Name
+	return nil
+}
+
+// Convert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart is an autogenerated conversion function.
+func Convert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart(in *gateway.RateLimitKeyPart, out *RateLimitKeyPart, s conversion.Scope) error {
+	return autoConvert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart(in, out, s)
 }
 
 func autoConvert_v1_RateLimitPolicy_To_gateway_RateLimitPolicy(in *RateLimitPolicy, out *gateway.RateLimitPolicy, s conversion.Scope) error {
@@ -2019,10 +2185,16 @@ func Convert_gateway_RateLimitPolicyList_To_v1_RateLimitPolicyList(in *gateway.R
 }
 
 func autoConvert_v1_RateLimitPolicySpec_To_gateway_RateLimitPolicySpec(in *RateLimitPolicySpec, out *gateway.RateLimitPolicySpec, s conversion.Scope) error {
-	out.Requests = in.Requests
-	out.WindowSeconds = in.WindowSeconds
-	out.KeyBy = gateway.RateLimitKey(in.KeyBy)
-	out.Header = in.Header
+	out.DisplayName = in.DisplayName
+	out.Description = in.Description
+	out.Enabled = in.Enabled
+	out.Mode = gateway.RateLimitMode(in.Mode)
+	out.Rules = *(*[]gateway.RateLimitRule)(unsafe.Pointer(&in.Rules))
+	out.Global = (*gateway.GlobalRateLimitConfig)(unsafe.Pointer(in.Global))
+	if err := Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse(&in.Response, &out.Response, s); err != nil {
+		return err
+	}
+	out.FailurePolicy = gateway.RateLimitFailurePolicy(in.FailurePolicy)
 	return nil
 }
 
@@ -2032,16 +2204,194 @@ func Convert_v1_RateLimitPolicySpec_To_gateway_RateLimitPolicySpec(in *RateLimit
 }
 
 func autoConvert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(in *gateway.RateLimitPolicySpec, out *RateLimitPolicySpec, s conversion.Scope) error {
-	out.Requests = in.Requests
-	out.WindowSeconds = in.WindowSeconds
-	out.KeyBy = RateLimitKey(in.KeyBy)
-	out.Header = in.Header
+	out.DisplayName = in.DisplayName
+	out.Description = in.Description
+	out.Enabled = in.Enabled
+	out.Mode = RateLimitMode(in.Mode)
+	out.Rules = *(*[]RateLimitRule)(unsafe.Pointer(&in.Rules))
+	out.Global = (*GlobalRateLimitConfig)(unsafe.Pointer(in.Global))
+	if err := Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse(&in.Response, &out.Response, s); err != nil {
+		return err
+	}
+	out.FailurePolicy = RateLimitFailurePolicy(in.FailurePolicy)
 	return nil
 }
 
 // Convert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec is an autogenerated conversion function.
 func Convert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(in *gateway.RateLimitPolicySpec, out *RateLimitPolicySpec, s conversion.Scope) error {
 	return autoConvert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(in, out, s)
+}
+
+func autoConvert_v1_RateLimitQuota_To_gateway_RateLimitQuota(in *RateLimitQuota, out *gateway.RateLimitQuota, s conversion.Scope) error {
+	out.Requests = in.Requests
+	out.WindowSeconds = in.WindowSeconds
+	return nil
+}
+
+// Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota is an autogenerated conversion function.
+func Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota(in *RateLimitQuota, out *gateway.RateLimitQuota, s conversion.Scope) error {
+	return autoConvert_v1_RateLimitQuota_To_gateway_RateLimitQuota(in, out, s)
+}
+
+func autoConvert_gateway_RateLimitQuota_To_v1_RateLimitQuota(in *gateway.RateLimitQuota, out *RateLimitQuota, s conversion.Scope) error {
+	out.Requests = in.Requests
+	out.WindowSeconds = in.WindowSeconds
+	return nil
+}
+
+// Convert_gateway_RateLimitQuota_To_v1_RateLimitQuota is an autogenerated conversion function.
+func Convert_gateway_RateLimitQuota_To_v1_RateLimitQuota(in *gateway.RateLimitQuota, out *RateLimitQuota, s conversion.Scope) error {
+	return autoConvert_gateway_RateLimitQuota_To_v1_RateLimitQuota(in, out, s)
+}
+
+func autoConvert_v1_RateLimitResponse_To_gateway_RateLimitResponse(in *RateLimitResponse, out *gateway.RateLimitResponse, s conversion.Scope) error {
+	out.StatusCode = in.StatusCode
+	out.Message = in.Message
+	out.QuotaHeaderEnabled = in.QuotaHeaderEnabled
+	return nil
+}
+
+// Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse is an autogenerated conversion function.
+func Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse(in *RateLimitResponse, out *gateway.RateLimitResponse, s conversion.Scope) error {
+	return autoConvert_v1_RateLimitResponse_To_gateway_RateLimitResponse(in, out, s)
+}
+
+func autoConvert_gateway_RateLimitResponse_To_v1_RateLimitResponse(in *gateway.RateLimitResponse, out *RateLimitResponse, s conversion.Scope) error {
+	out.StatusCode = in.StatusCode
+	out.Message = in.Message
+	out.QuotaHeaderEnabled = in.QuotaHeaderEnabled
+	return nil
+}
+
+// Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse is an autogenerated conversion function.
+func Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse(in *gateway.RateLimitResponse, out *RateLimitResponse, s conversion.Scope) error {
+	return autoConvert_gateway_RateLimitResponse_To_v1_RateLimitResponse(in, out, s)
+}
+
+func autoConvert_v1_RateLimitRule_To_gateway_RateLimitRule(in *RateLimitRule, out *gateway.RateLimitRule, s conversion.Scope) error {
+	out.Name = in.Name
+	if err := Convert_v1_RateLimitKey_To_gateway_RateLimitKey(&in.Key, &out.Key, s); err != nil {
+		return err
+	}
+	if err := Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota(&in.Limit, &out.Limit, s); err != nil {
+		return err
+	}
+	out.Algorithm = gateway.RateLimitAlgorithm(in.Algorithm)
+	return nil
+}
+
+// Convert_v1_RateLimitRule_To_gateway_RateLimitRule is an autogenerated conversion function.
+func Convert_v1_RateLimitRule_To_gateway_RateLimitRule(in *RateLimitRule, out *gateway.RateLimitRule, s conversion.Scope) error {
+	return autoConvert_v1_RateLimitRule_To_gateway_RateLimitRule(in, out, s)
+}
+
+func autoConvert_gateway_RateLimitRule_To_v1_RateLimitRule(in *gateway.RateLimitRule, out *RateLimitRule, s conversion.Scope) error {
+	out.Name = in.Name
+	if err := Convert_gateway_RateLimitKey_To_v1_RateLimitKey(&in.Key, &out.Key, s); err != nil {
+		return err
+	}
+	if err := Convert_gateway_RateLimitQuota_To_v1_RateLimitQuota(&in.Limit, &out.Limit, s); err != nil {
+		return err
+	}
+	out.Algorithm = RateLimitAlgorithm(in.Algorithm)
+	return nil
+}
+
+// Convert_gateway_RateLimitRule_To_v1_RateLimitRule is an autogenerated conversion function.
+func Convert_gateway_RateLimitRule_To_v1_RateLimitRule(in *gateway.RateLimitRule, out *RateLimitRule, s conversion.Scope) error {
+	return autoConvert_gateway_RateLimitRule_To_v1_RateLimitRule(in, out, s)
+}
+
+func autoConvert_v1_RedisStore_To_gateway_RedisStore(in *RedisStore, out *gateway.RedisStore, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_v1_RedisStore_To_gateway_RedisStore is an autogenerated conversion function.
+func Convert_v1_RedisStore_To_gateway_RedisStore(in *RedisStore, out *gateway.RedisStore, s conversion.Scope) error {
+	return autoConvert_v1_RedisStore_To_gateway_RedisStore(in, out, s)
+}
+
+func autoConvert_gateway_RedisStore_To_v1_RedisStore(in *gateway.RedisStore, out *RedisStore, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_gateway_RedisStore_To_v1_RedisStore is an autogenerated conversion function.
+func Convert_gateway_RedisStore_To_v1_RedisStore(in *gateway.RedisStore, out *RedisStore, s conversion.Scope) error {
+	return autoConvert_gateway_RedisStore_To_v1_RedisStore(in, out, s)
+}
+
+func autoConvert_v1_RedisStoreList_To_gateway_RedisStoreList(in *RedisStoreList, out *gateway.RedisStoreList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]gateway.RedisStore)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_v1_RedisStoreList_To_gateway_RedisStoreList is an autogenerated conversion function.
+func Convert_v1_RedisStoreList_To_gateway_RedisStoreList(in *RedisStoreList, out *gateway.RedisStoreList, s conversion.Scope) error {
+	return autoConvert_v1_RedisStoreList_To_gateway_RedisStoreList(in, out, s)
+}
+
+func autoConvert_gateway_RedisStoreList_To_v1_RedisStoreList(in *gateway.RedisStoreList, out *RedisStoreList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]RedisStore)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_gateway_RedisStoreList_To_v1_RedisStoreList is an autogenerated conversion function.
+func Convert_gateway_RedisStoreList_To_v1_RedisStoreList(in *gateway.RedisStoreList, out *RedisStoreList, s conversion.Scope) error {
+	return autoConvert_gateway_RedisStoreList_To_v1_RedisStoreList(in, out, s)
+}
+
+func autoConvert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(in *RedisStoreSpec, out *gateway.RedisStoreSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Description = in.Description
+	out.Mode = gateway.RedisMode(in.Mode)
+	out.Address = in.Address
+	out.DB = in.DB
+	out.TLS = in.TLS
+	out.Username = in.Username
+	out.PasswordRef = in.PasswordRef
+	out.ConnectTimeoutMillis = in.ConnectTimeoutMillis
+	out.CommandTimeoutMillis = in.CommandTimeoutMillis
+	return nil
+}
+
+// Convert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec is an autogenerated conversion function.
+func Convert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(in *RedisStoreSpec, out *gateway.RedisStoreSpec, s conversion.Scope) error {
+	return autoConvert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(in, out, s)
+}
+
+func autoConvert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(in *gateway.RedisStoreSpec, out *RedisStoreSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Description = in.Description
+	out.Mode = RedisMode(in.Mode)
+	out.Address = in.Address
+	out.DB = in.DB
+	out.TLS = in.TLS
+	out.Username = in.Username
+	out.PasswordRef = in.PasswordRef
+	out.ConnectTimeoutMillis = in.ConnectTimeoutMillis
+	out.CommandTimeoutMillis = in.CommandTimeoutMillis
+	return nil
+}
+
+// Convert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec is an autogenerated conversion function.
+func Convert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(in *gateway.RedisStoreSpec, out *RedisStoreSpec, s conversion.Scope) error {
+	return autoConvert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(in, out, s)
 }
 
 func autoConvert_v1_ResourceStatus_To_gateway_ResourceStatus(in *ResourceStatus, out *gateway.ResourceStatus, s conversion.Scope) error {

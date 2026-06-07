@@ -111,11 +111,21 @@ func TestTranslatorTranslate(t *testing.T) {
 		},
 		RateLimitPolicies: []ir.LogicalRateLimitPolicy{
 			{
-				Name:          "app-quota",
-				Requests:      100,
-				WindowSeconds: 60,
-				KeyBy:         resource.RateLimitKeyHeader,
-				Header:        "x-consumer-id",
+				Name: "app-quota",
+				Mode: resource.RateLimitModeLocal,
+				Rules: []ir.LogicalRateLimitRule{
+					{
+						Name: "consumer-minute",
+						Key: []ir.LogicalRateLimitKeyPart{
+							{Type: resource.RateLimitKeyTypeHeader, Name: "x-consumer-id"},
+						},
+						Limit: ir.LogicalRateLimitQuota{
+							Requests:      100,
+							WindowSeconds: 60,
+						},
+						Algorithm: resource.RateLimitAlgorithmFixedWindow,
+					},
+				},
 			},
 		},
 		PluginBindings: []ir.LogicalPluginBinding{
@@ -261,11 +271,21 @@ func TestTranslatorTranslate(t *testing.T) {
 		},
 		RateLimitPolicies: []debug.RateLimitPolicy{
 			{
-				Name:          "app-quota",
-				Requests:      100,
-				WindowSeconds: 60,
-				KeyBy:         resource.RateLimitKeyHeader,
-				Header:        "x-consumer-id",
+				Name: "app-quota",
+				Mode: resource.RateLimitModeLocal,
+				Rules: []debug.RateLimitRule{
+					{
+						Name: "consumer-minute",
+						Key: []debug.RateLimitKeyPart{
+							{Type: resource.RateLimitKeyTypeHeader, Name: "x-consumer-id"},
+						},
+						Limit: debug.RateLimitQuota{
+							Requests:      100,
+							WindowSeconds: 60,
+						},
+						Algorithm: resource.RateLimitAlgorithmFixedWindow,
+					},
+				},
 			},
 		},
 		PluginBindings: []debug.PluginBinding{

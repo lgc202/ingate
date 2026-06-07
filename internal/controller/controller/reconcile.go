@@ -231,7 +231,10 @@ func (c *Controller) appendBindingResources(bundle *resource.Bundle, gatewayName
 	if err := c.appendAuthPolicies(bundle, usedAuthPolicies); err != nil {
 		return err
 	}
-	return c.appendRateLimitPolicies(bundle, usedRateLimitPolicies)
+	if err := c.appendRateLimitPolicies(bundle, usedRateLimitPolicies); err != nil {
+		return err
+	}
+	return c.appendRedisStoresForRateLimitPolicies(bundle)
 }
 
 func (c *Controller) appendPolicyBindingsForTarget(bundle *resource.Bundle, usedAuthPolicies, usedRateLimitPolicies map[string]bool, kind resource.Kind, name string) error {
@@ -316,6 +319,29 @@ func (c *Controller) appendRateLimitPolicies(bundle *resource.Bundle, names map[
 			return err
 		}
 		bundle.RateLimitPolicies = append(bundle.RateLimitPolicies, *policy)
+	}
+	return nil
+}
+
+func (c *Controller) appendRedisStoresForRateLimitPolicies(bundle *resource.Bundle) error {
+	usedRedisStores := map[string]bool{}
+	for _, policy := range bundle.RateLimitPolicies {
+		if policy.Spec.Global == nil || policy.Spec.Global.RedisRef == "" {
+			continue
+		}
+		usedRedisStores[policy.Spec.Global.RedisRef] = true
+	}
+
+	bundle.RedisStores = make([]resource.RedisStore, 0, len(usedRedisStores))
+	for _, storeName := range slices.Sorted(maps.Keys(usedRedisStores)) {
+		store, err := c.redisStoreLister.Get(storeName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+		bundle.RedisStores = append(bundle.RedisStores, *store)
 	}
 	return nil
 }

@@ -30,6 +30,8 @@ type Interface interface {
 	PolicyBindings() PolicyBindingInformer
 	// RateLimitPolicies returns a RateLimitPolicyInformer.
 	RateLimitPolicies() RateLimitPolicyInformer
+	// RedisStores returns a RedisStoreInformer.
+	RedisStores() RedisStoreInformer
 	// Routes returns a RouteInformer.
 	Routes() RouteInformer
 	// RuntimeGroups returns a RuntimeGroupInformer.
@@ -99,6 +101,11 @@ func (v *version) PolicyBindings() PolicyBindingInformer {
 // RateLimitPolicies returns a RateLimitPolicyInformer.
 func (v *version) RateLimitPolicies() RateLimitPolicyInformer {
 	return &rateLimitPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// RedisStores returns a RedisStoreInformer.
+func (v *version) RedisStores() RedisStoreInformer {
+	return &redisStoreInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Routes returns a RouteInformer.

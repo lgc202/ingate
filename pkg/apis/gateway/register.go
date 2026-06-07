@@ -90,6 +90,12 @@ const (
 	ResourceRateLimitPolicies ResourceName = "ratelimitpolicies"
 	// ResourceRateLimitPoliciesStatus 表示 RateLimitPolicy status 子资源名
 	ResourceRateLimitPoliciesStatus ResourceName = "ratelimitpolicies/status"
+	// ResourceRedisStore 表示 RedisStore 单数资源名
+	ResourceRedisStore ResourceName = "redisstore"
+	// ResourceRedisStores 表示 RedisStore 复数资源名
+	ResourceRedisStores ResourceName = "redisstores"
+	// ResourceRedisStoresStatus 表示 RedisStore status 子资源名
+	ResourceRedisStoresStatus ResourceName = "redisstores/status"
 	// ResourcePolicyBinding 表示 PolicyBinding 单数资源名
 	ResourcePolicyBinding ResourceName = "policybinding"
 	// ResourcePolicyBindings 表示 PolicyBinding 复数资源名
@@ -136,6 +142,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&AuthPolicyList{},
 		&RateLimitPolicy{},
 		&RateLimitPolicyList{},
+		&RedisStore{},
+		&RedisStoreList{},
 		&PolicyBinding{},
 		&PolicyBindingList{},
 		&PluginBinding{},

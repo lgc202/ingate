@@ -128,6 +128,16 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 - 资源之间的引用使用资源 ID，不使用 `displayName`。
 - 声明式 apiserver 可以保留调用方指定 `metadata.name` 的能力；Admin API 面向控制台体验，创建流程可以和声明式 API 不同。
 
+### 治理策略与内置插件
+
+- 限流、鉴权、访问控制等核心治理能力必须优先建模为强类型资源，例如 `RateLimitPolicy`、`AuthPolicy`、`AccessControlPolicy` 和 `PolicyBinding`。
+- 核心治理能力可以在数据面通过内置插件执行，但用户协议和 admin-api 不能暴露为普通 `Plugin`、`PluginBinding` 或插件私有 JSON。
+- 内置治理插件由系统自动注入、自动配置、随 `RuntimeSnapshot` 下发；用户不需要独立安装插件，也不需要感知插件版本、phase、priority 或 Wasm 文件路径。
+- `PolicyBinding` 只表达策略绑定到哪个资源或规则，不承载策略配置本身；策略配置必须放在对应强类型 Policy 资源中。
+- Redis、外部服务、证书等可复用运行依赖应独立建模，例如 `RedisStore`，策略通过 ID 引用，不把连接信息复制到每条策略规则里。
+- 后续新增策略时按资源类型拆分 admin-api 的 handler、dto、service、store，不把不同策略堆进一个大 `policy` 文件，也不写进 Route/Gateway 的用例层。
+- 编译链路中，compiler 负责解析强类型策略和绑定关系，target translator 负责生成目标运行时配置；compiler 不生成插件私有 JSON。
+
 ### 标准库与依赖使用
 
 - 可以使用新版本 Go 标准库能力来简化代码，例如 `slices.Contains`、`slices.IndexFunc`、`maps.Clone` 等。

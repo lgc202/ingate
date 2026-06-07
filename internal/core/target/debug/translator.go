@@ -31,6 +31,7 @@ type Config struct {
 	Plugins           []Plugin          `json:"plugins"`
 	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
+	RedisStores       []RedisStore      `json:"redisStores"`
 	PolicyBindings    []PolicyBinding   `json:"policyBindings"`
 	PluginBindings    []PluginBinding   `json:"pluginBindings"`
 }
@@ -52,6 +53,7 @@ type Route struct {
 
 // RouteRule 表示 debug 配置中的路由规则
 type RouteRule struct {
+	Name          string        `json:"name"`
 	PathPrefix    string        `json:"pathPrefix"`
 	Methods       []string      `json:"methods"`
 	TimeoutMillis int           `json:"timeoutMillis"`
@@ -158,11 +160,61 @@ type APIKeyAuth struct {
 
 // RateLimitPolicy 表示 debug 配置中的限流策略
 type RateLimitPolicy struct {
-	Name          string                `json:"name"`
-	Requests      int                   `json:"requests"`
-	WindowSeconds int                   `json:"windowSeconds"`
-	KeyBy         resource.RateLimitKey `json:"keyBy"`
-	Header        string                `json:"header"`
+	Name          string                          `json:"name"`
+	DisplayName   string                          `json:"displayName"`
+	Mode          resource.RateLimitMode          `json:"mode"`
+	Rules         []RateLimitRule                 `json:"rules"`
+	Global        *GlobalRateLimit                `json:"global,omitempty"`
+	Response      RateLimitResponse               `json:"response"`
+	FailurePolicy resource.RateLimitFailurePolicy `json:"failurePolicy"`
+}
+
+// RateLimitRule 表示 debug 配置中的单条限流规则
+type RateLimitRule struct {
+	Name      string                      `json:"name"`
+	Key       []RateLimitKeyPart          `json:"key"`
+	Limit     RateLimitQuota              `json:"limit"`
+	Algorithm resource.RateLimitAlgorithm `json:"algorithm"`
+}
+
+// RateLimitKeyPart 表示 debug 配置中的限流 key 组成部分
+type RateLimitKeyPart struct {
+	Type resource.RateLimitKeyType `json:"type"`
+	Name string                    `json:"name,omitempty"`
+}
+
+// RateLimitQuota 表示 debug 配置中的限流额度
+type RateLimitQuota struct {
+	Requests      int `json:"requests"`
+	WindowSeconds int `json:"windowSeconds"`
+}
+
+// GlobalRateLimit 表示 debug 配置中的 Redis-backed global limit
+type GlobalRateLimit struct {
+	RedisRef      string `json:"redisRef"`
+	Prefix        string `json:"prefix,omitempty"`
+	TimeoutMillis int    `json:"timeoutMillis,omitempty"`
+}
+
+// RateLimitResponse 表示 debug 配置中的超限响应
+type RateLimitResponse struct {
+	StatusCode         int    `json:"statusCode,omitempty"`
+	Message            string `json:"message,omitempty"`
+	QuotaHeaderEnabled bool   `json:"quotaHeaderEnabled,omitempty"`
+}
+
+// RedisStore 表示 debug 配置中的 Redis 连接配置
+type RedisStore struct {
+	Name                 string             `json:"name"`
+	DisplayName          string             `json:"displayName"`
+	Mode                 resource.RedisMode `json:"mode"`
+	Address              string             `json:"address"`
+	DB                   int                `json:"db,omitempty"`
+	TLS                  bool               `json:"tls,omitempty"`
+	Username             string             `json:"username,omitempty"`
+	PasswordRef          string             `json:"passwordRef,omitempty"`
+	ConnectTimeoutMillis int                `json:"connectTimeoutMillis,omitempty"`
+	CommandTimeoutMillis int                `json:"commandTimeoutMillis,omitempty"`
 }
 
 // PolicyBinding 表示 debug 配置中的策略绑定
@@ -174,8 +226,9 @@ type PolicyBinding struct {
 
 // PolicyTarget 表示 debug 配置中的策略绑定目标
 type PolicyTarget struct {
-	Kind resource.Kind `json:"kind"`
-	Name string        `json:"name"`
+	Kind     resource.Kind `json:"kind"`
+	Name     string        `json:"name"`
+	RuleName string        `json:"ruleName,omitempty"`
 }
 
 // PolicyRef 表示 debug 配置中的策略引用
@@ -244,6 +297,7 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		}
 		for _, rule := range route.Rules {
 			debugRule := RouteRule{
+				Name:          rule.Name,
 				PathPrefix:    rule.PathPrefix,
 				Methods:       slices.Clone(rule.Methods),
 				TimeoutMillis: rule.TimeoutMillis,
@@ -353,20 +407,29 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		})
 	}
 	for _, policy := range logical.RateLimitPolicies {
-		config.RateLimitPolicies = append(config.RateLimitPolicies, RateLimitPolicy{
-			Name:          policy.Name,
-			Requests:      policy.Requests,
-			WindowSeconds: policy.WindowSeconds,
-			KeyBy:         policy.KeyBy,
-			Header:        policy.Header,
+		config.RateLimitPolicies = append(config.RateLimitPolicies, newRateLimitPolicy(policy))
+	}
+	for _, store := range logical.RedisStores {
+		config.RedisStores = append(config.RedisStores, RedisStore{
+			Name:                 store.Name,
+			DisplayName:          store.DisplayName,
+			Mode:                 store.Mode,
+			Address:              store.Address,
+			DB:                   store.DB,
+			TLS:                  store.TLS,
+			Username:             store.Username,
+			PasswordRef:          store.PasswordRef,
+			ConnectTimeoutMillis: store.ConnectTimeoutMillis,
+			CommandTimeoutMillis: store.CommandTimeoutMillis,
 		})
 	}
 	for _, binding := range logical.PolicyBindings {
 		debugBinding := PolicyBinding{
 			Name: binding.Name,
 			Target: PolicyTarget{
-				Kind: binding.Target.Kind,
-				Name: binding.Target.Name,
+				Kind:     binding.Target.Kind,
+				Name:     binding.Target.Name,
+				RuleName: binding.Target.RuleName,
 			},
 			Policies: make([]PolicyRef, 0, len(binding.Policies)),
 		}
@@ -405,4 +468,42 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		Version: fmt.Sprintf(versionPrefix, logical.Name),
 		Config:  config,
 	}, nil
+}
+
+func newRateLimitPolicy(policy ir.LogicalRateLimitPolicy) RateLimitPolicy {
+	debugPolicy := RateLimitPolicy{
+		Name:          policy.Name,
+		DisplayName:   policy.DisplayName,
+		Mode:          policy.Mode,
+		Rules:         make([]RateLimitRule, 0, len(policy.Rules)),
+		Response:      RateLimitResponse(policy.Response),
+		FailurePolicy: policy.FailurePolicy,
+	}
+	for _, rule := range policy.Rules {
+		debugPolicy.Rules = append(debugPolicy.Rules, RateLimitRule{
+			Name:      rule.Name,
+			Key:       newRateLimitKey(rule.Key),
+			Limit:     RateLimitQuota(rule.Limit),
+			Algorithm: rule.Algorithm,
+		})
+	}
+	if policy.Global != nil {
+		debugPolicy.Global = &GlobalRateLimit{
+			RedisRef:      policy.Global.RedisRef,
+			Prefix:        policy.Global.Prefix,
+			TimeoutMillis: policy.Global.TimeoutMillis,
+		}
+	}
+	return debugPolicy
+}
+
+func newRateLimitKey(parts []ir.LogicalRateLimitKeyPart) []RateLimitKeyPart {
+	result := make([]RateLimitKeyPart, 0, len(parts))
+	for _, part := range parts {
+		result = append(result, RateLimitKeyPart{
+			Type: part.Type,
+			Name: part.Name,
+		})
+	}
+	return result
 }

@@ -38,6 +38,7 @@ func (c *Controller) registerEventHandlers() error {
 				c.enqueuePolicyObject(resource.KindRateLimitPolicy, obj)
 			}),
 		},
+		{informer: gatewayInformers.RedisStores().Informer(), handler: c.eventHandler(c.enqueueRedisStoreObject)},
 		{informer: gatewayInformers.PolicyBindings().Informer(), handler: c.eventHandler(c.enqueuePolicyBindingObject)},
 		{informer: gatewayInformers.Plugins().Informer(), handler: c.eventHandler(c.enqueuePluginObject)},
 		{informer: gatewayInformers.PluginBindings().Informer(), handler: c.eventHandler(c.enqueuePluginBindingObject)},
@@ -230,6 +231,31 @@ func (c *Controller) enqueuePolicyObject(kind resource.Kind, obj any) {
 	}
 }
 
+func (c *Controller) enqueueRedisStoreObject(obj any) {
+	store, ok := objectAs[*resource.RedisStore](obj)
+	if !ok {
+		return
+	}
+
+	policies, err := c.rateLimitPoliciesByIndex(rateLimitPolicyIndexRedis, store.Name)
+	if err != nil {
+		return
+	}
+	for _, policy := range policies {
+		c.enqueuePolicyByName(resource.KindRateLimitPolicy, policy.Name)
+	}
+}
+
+func (c *Controller) enqueuePolicyByName(kind resource.Kind, name string) {
+	bindings, err := c.policyBindingsByIndex(policyBindingIndexPolicy, targetIndexValue(kind, name))
+	if err != nil {
+		return
+	}
+	for _, binding := range bindings {
+		c.enqueuePolicyBinding(binding)
+	}
+}
+
 func (c *Controller) enqueuePolicyBindingObject(obj any) {
 	binding, ok := objectAs[*resource.PolicyBinding](obj)
 	if !ok {
@@ -378,6 +404,23 @@ func (c *Controller) aiModelsByIndex(index routeIndexName, value string) ([]*res
 		models = append(models, model)
 	}
 	return models, nil
+}
+
+func (c *Controller) rateLimitPoliciesByIndex(index routeIndexName, value string) ([]*resource.RateLimitPolicy, error) {
+	items, err := c.rateLimitIndexer.ByIndex(string(index), value)
+	if err != nil {
+		return nil, err
+	}
+
+	policies := make([]*resource.RateLimitPolicy, 0, len(items))
+	for _, item := range items {
+		policy, ok := item.(*resource.RateLimitPolicy)
+		if !ok {
+			continue
+		}
+		policies = append(policies, policy)
+	}
+	return policies, nil
 }
 
 func (c *Controller) pluginBindingsByIndex(index routeIndexName, value string) ([]*resource.PluginBinding, error) {
@@ -542,6 +585,14 @@ func policyBindingTargetRefIndex(obj any) ([]string, error) {
 		return nil, nil
 	}
 	return uniqueStrings([]string{targetIndexValue(binding.Spec.TargetRef.Kind, binding.Spec.TargetRef.Name)}), nil
+}
+
+func rateLimitPolicyRedisRefIndex(obj any) ([]string, error) {
+	policy, ok := obj.(*resource.RateLimitPolicy)
+	if !ok || policy.Spec.Global == nil {
+		return nil, nil
+	}
+	return uniqueStrings([]string{policy.Spec.Global.RedisRef}), nil
 }
 
 func policyBindingPolicyRefIndex(obj any) ([]string, error) {

@@ -24,6 +24,7 @@ type GatewayV1Interface interface {
 	PluginBindingsGetter
 	PolicyBindingsGetter
 	RateLimitPoliciesGetter
+	RedisStoresGetter
 	RoutesGetter
 	RuntimeGroupsGetter
 	RuntimeSnapshotsGetter
@@ -73,6 +74,10 @@ func (c *GatewayV1Client) PolicyBindings() PolicyBindingInterface {
 
 func (c *GatewayV1Client) RateLimitPolicies() RateLimitPolicyInterface {
 	return newRateLimitPolicies(c)
+}
+
+func (c *GatewayV1Client) RedisStores() RedisStoreInterface {
+	return newRedisStores(c)
 }
 
 func (c *GatewayV1Client) Routes() RouteInterface {

@@ -44,6 +44,10 @@ type PolicyBindingListerExpansion interface{}
 // RateLimitPolicyLister.
 type RateLimitPolicyListerExpansion interface{}
 
+// RedisStoreListerExpansion allows custom methods to be added to
+// RedisStoreLister.
+type RedisStoreListerExpansion interface{}
+
 // RouteListerExpansion allows custom methods to be added to
 // RouteLister.
 type RouteListerExpansion interface{}

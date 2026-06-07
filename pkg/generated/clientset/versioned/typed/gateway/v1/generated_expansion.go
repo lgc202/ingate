@@ -24,6 +24,8 @@ type PolicyBindingExpansion interface{}
 
 type RateLimitPolicyExpansion interface{}
 
+type RedisStoreExpansion interface{}
+
 type RouteExpansion interface{}
 
 type RuntimeGroupExpansion interface{}
