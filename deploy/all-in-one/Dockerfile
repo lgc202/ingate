@@ -20,6 +20,7 @@ COPY deploy/all-in-one/default.env /etc/ingate/default.env
 COPY deploy/all-in-one/envoy/bootstrap.yaml /etc/ingate/envoy/bootstrap.yaml
 COPY deploy/all-in-one/entrypoint.sh /usr/local/bin/ingate-all-in-one
 COPY web/console/dist /opt/ingate/console
+COPY _output/plugins/rate-limit.wasm /opt/ingate/plugins/rate-limit.wasm
 
 RUN chmod +x /usr/local/bin/ingate-all-in-one
 
