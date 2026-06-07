@@ -122,9 +122,44 @@ func TestResponseBuilderBuildListenersWithManagedRateLimit(t *testing.T) {
 				Listeners: []targetxds.Listener{
 					{Name: "public/http", Protocol: "HTTP", Port: 80, RouteConfigName: "public/http/routes"},
 				},
+				RouteConfigs: []targetxds.RouteConfig{
+					{
+						Name: "public/http/routes",
+						VirtualHosts: []targetxds.VirtualHost{
+							{
+								Name:    "app",
+								Domains: []string{"example.com"},
+								Routes: []targetxds.Route{
+									{
+										GatewayName: "public",
+										Name:        "route-users",
+										RuleName:    "primary",
+										WeightedClusters: []targetxds.WeightedCluster{
+											{Name: "users", Weight: 100},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
 				ManagedRateLimit: &targetxds.ManagedRateLimit{
 					Bindings: []targetxds.RateLimitBinding{
-						{Name: "public-limit"},
+						{
+							Name: "gateway-limit",
+							Target: targetxds.RateLimitTarget{
+								Kind: resource.KindGateway,
+								Name: "public",
+							},
+						},
+						{
+							Name: "route-rule-limit",
+							Target: targetxds.RateLimitTarget{
+								Kind:     resource.KindRoute,
+								Name:     "route-users",
+								RuleName: "primary",
+							},
+						},
 					},
 					RedisStores: []targetxds.RateLimitRedisStore{
 						{Name: "redis-main", DisplayName: "主 Redis", Address: "redis.example.com:6379"},
@@ -205,6 +240,19 @@ func TestResponseBuilderBuildListenersWithManagedRateLimit(t *testing.T) {
 	}
 	if len(config.RedisStores) != 1 || config.RedisStores[0].Name != "redis-main" {
 		t.Fatalf("RedisStores = %+v, want redis-main", config.RedisStores)
+	}
+	if len(config.Routes) != 1 {
+		t.Fatalf("len(Routes) = %d, want 1", len(config.Routes))
+	}
+	routeConfig := config.Routes[0]
+	if routeConfig.GatewayName != "public" || routeConfig.RouteName != "route-users" || routeConfig.RuleName != "primary" {
+		t.Fatalf("route identity = %s/%s/%s, want public/route-users/primary", routeConfig.GatewayName, routeConfig.RouteName, routeConfig.RuleName)
+	}
+	if len(routeConfig.Bindings) != 2 {
+		t.Fatalf("len(Bindings) = %d, want 2", len(routeConfig.Bindings))
+	}
+	if routeConfig.Bindings[0].Name != "gateway-limit" || routeConfig.Bindings[1].Name != "route-rule-limit" {
+		t.Fatalf("Bindings = %+v, want gateway and route-rule bindings", routeConfig.Bindings)
 	}
 }
 

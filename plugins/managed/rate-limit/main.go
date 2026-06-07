@@ -1,206 +1,169 @@
 package main
 
 import (
-	"fmt"
-	"net"
-	"strconv"
+	"net/url"
 	"strings"
 
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
 	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
-	"github.com/higress-group/wasm-go/pkg/log"
-	"github.com/higress-group/wasm-go/pkg/wrapper"
 	"github.com/lgc202/ingate/plugins/managed/rate-limit/internal/config"
 	"github.com/lgc202/ingate/plugins/managed/rate-limit/internal/ratelimit"
-	"github.com/tidwall/resp"
 )
-
-func main() {}
-
-func init() {
-	wrapper.SetCtx(
-		"ingate-managed-rate-limit",
-		wrapper.ParseOverrideRawConfig(parseGlobalConfig, parseRouteConfig),
-		wrapper.ProcessRequestHeaders(onHTTPRequestHeaders),
-		wrapper.ProcessResponseHeaders(onHTTPResponseHeaders),
-	)
-}
 
 const (
-	defaultRedisPort          = 6379
-	defaultRedisTimeoutMillis = 1000
-	quotaHeadersContextKey    = "ingate.rate-limit.quota-headers"
-	cookieHeaderName          = "cookie"
-	consumerHeaderName        = "x-ingate-consumer"
-
-	fixedWindowScript = `
-local key = KEYS[1]
-local threshold = tonumber(ARGV[1])
-local window = tonumber(ARGV[2])
-
-local current = tonumber(redis.call('get', key) or "0")
-if current > threshold then
-	return {threshold, current, redis.call('ttl', key)}
-end
-
-current = redis.call('incr', key)
-if current == 1 then
-	redis.call('expire', key, window)
-end
-
-return {threshold, current, redis.call('ttl', key)}
-`
+	cookieHeaderName   = "cookie"
+	consumerHeaderName = "x-ingate-consumer"
+	routeNamePrefix    = "ingate-route"
 )
 
-type runtimeConfig struct {
-	plugin      config.PluginConfig
-	route       config.RouteConfig
-	redisClient map[string]wrapper.RedisClient
+type pluginContext struct {
+	types.DefaultPluginContext
+
+	config config.PluginConfig
+}
+
+type httpContext struct {
+	types.DefaultHttpContext
+
+	plugin       *pluginContext
+	quotaHeaders map[string]string
+}
+
+type routeIdentity struct {
+	GatewayName string
+	RouteName   string
+	RuleName    string
 }
 
 var localLimiter = ratelimit.NewLocalLimiter()
 
-func parseGlobalConfig(configBytes []byte, cfg *runtimeConfig) error {
-	pluginConfig, err := config.ParsePluginConfig(configBytes)
-	if err != nil {
-		return err
-	}
-	redisClients, err := initRedisClients(pluginConfig.RedisStores)
-	if err != nil {
-		return err
-	}
-	cfg.plugin = pluginConfig
-	cfg.redisClient = redisClients
-	return nil
+func main() {}
+
+func init() {
+	proxywasm.SetPluginContext(func(contextID uint32) types.PluginContext {
+		return &pluginContext{}
+	})
 }
 
-func parseRouteConfig(configBytes []byte, global runtimeConfig, cfg *runtimeConfig) error {
-	routeConfig, err := config.ParseRouteConfig(configBytes)
+func (p *pluginContext) OnPluginStart(pluginConfigurationSize int) types.OnPluginStartStatus {
+	data, err := proxywasm.GetPluginConfiguration()
+	if err != nil && err != types.ErrorStatusNotFound {
+		proxywasm.LogErrorf("read managed rate-limit config failed: %v", err)
+		return types.OnPluginStartStatusFailed
+	}
+
+	pluginConfig, err := config.ParsePluginConfig(data)
 	if err != nil {
-		return err
+		proxywasm.LogErrorf("parse managed rate-limit config failed: %v", err)
+		return types.OnPluginStartStatusFailed
 	}
-	cfg.plugin = global.plugin
-	cfg.redisClient = global.redisClient
-	cfg.route = routeConfig
-	return nil
+	p.config = pluginConfig
+	return types.OnPluginStartStatusOK
 }
 
-func initRedisClients(stores []config.RedisStore) (map[string]wrapper.RedisClient, error) {
-	clients := make(map[string]wrapper.RedisClient, len(stores))
-	for _, store := range stores {
-		host, port, err := splitRedisAddress(store.Address)
-		if err != nil {
-			return nil, err
-		}
-		timeout := store.ConnectTimeoutMillis
-		if timeout <= 0 {
-			timeout = defaultRedisTimeoutMillis
-		}
-		if store.TLS {
-			log.Warnf("redis store %s enables TLS, but current managed rate-limit plugin does not enable TLS transport yet", store.Name)
-		}
-		if store.PasswordRef != "" {
-			log.Warnf("redis store %s uses passwordRef %s, secret resolution is not wired into the plugin yet", store.Name, store.PasswordRef)
-		}
-		client := wrapper.NewRedisClusterClient(wrapper.FQDNCluster{
-			FQDN: host,
-			Port: int64(port),
-		})
-		if err := client.Init(store.Username, "", int64(timeout), wrapper.WithDataBase(store.DB)); err != nil {
-			return nil, err
-		}
-		clients[store.Name] = client
-	}
-	return clients, nil
+func (p *pluginContext) NewHttpContext(contextID uint32) types.HttpContext {
+	return &httpContext{plugin: p}
 }
 
-func onHTTPRequestHeaders(ctx wrapper.HttpContext, cfg runtimeConfig) types.Action {
-	if len(cfg.route.Bindings) == 0 {
+func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
+	route, ok := h.routeConfig()
+	if !ok || len(route.Bindings) == 0 {
 		return types.ActionContinue
 	}
 
-	req := requestFromProxyWasm(cfg.route)
-	result := localLimiter.Evaluate(cfg.route, req)
+	req := requestFromProxyWasm(route)
+	result := localLimiter.Evaluate(route, req)
 	if !result.Allowed {
 		sendRejected(result.Decision)
 		return types.ActionPause
 	}
 	if len(result.QuotaHeaders) > 0 {
-		ctx.SetContext(quotaHeadersContextKey, result.QuotaHeaders)
-	}
-	if len(result.RedisChecks) == 0 {
-		return types.ActionContinue
+		h.quotaHeaders = result.QuotaHeaders
 	}
 
-	runRedisChecks(ctx, cfg, result.RedisChecks, 0)
-	return types.HeaderStopAllIterationAndWatermark
+	for _, check := range result.RedisChecks {
+		// Redis-backed global limit 需要 Ingate 自己的数据面执行器或明确的 host function。
+		// 当前插件不继承 Higress wrapper 的 Redis client，避免把非标准运行时能力固化进产品链路。
+		proxywasm.LogErrorf(
+			"managed rate-limit global rule cannot run without redis executor: policy=%s rule=%s redisStore=%s",
+			check.Policy.Name,
+			check.Rule.Name,
+			check.RedisStore,
+		)
+		if check.Policy.FailOpen() {
+			continue
+		}
+		sendRejected(ratelimit.Decision{
+			Allowed:    false,
+			StatusCode: check.Policy.RejectedStatusCode(),
+			Message:    check.Policy.RejectedMessage(),
+			Policy:     check.Policy,
+			Rule:       check.Rule,
+			Key:        check.Key,
+		})
+		return types.ActionPause
+	}
+
+	return types.ActionContinue
 }
 
-func onHTTPResponseHeaders(ctx wrapper.HttpContext, _ runtimeConfig) types.Action {
-	headers, ok := ctx.GetContext(quotaHeadersContextKey).(map[string]string)
-	if !ok {
-		return types.ActionContinue
-	}
-	for name, value := range headers {
+func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) types.Action {
+	for name, value := range h.quotaHeaders {
 		_ = proxywasm.ReplaceHttpResponseHeader(name, value)
 	}
 	return types.ActionContinue
 }
 
-func runRedisChecks(ctx wrapper.HttpContext, cfg runtimeConfig, checks []ratelimit.RedisCheck, index int) {
-	if index >= len(checks) {
-		proxywasm.ResumeHttpRequest()
-		return
+func (h *httpContext) routeConfig() (config.RouteConfig, bool) {
+	identity, ok := currentRouteIdentity()
+	if !ok {
+		return config.RouteConfig{}, false
 	}
 
-	check := checks[index]
-	client := cfg.redisClient[check.RedisStore]
-	if client == nil {
-		handleRedisError(ctx, cfg, checks, index, fmt.Errorf("redis store %q is not configured", check.RedisStore))
-		return
+	for _, route := range h.plugin.config.Routes {
+		if route.GatewayName == identity.GatewayName && route.RouteName == identity.RouteName && route.RuleName == identity.RuleName {
+			return route, true
+		}
 	}
-
-	keys := []interface{}{check.RedisKey}
-	args := []interface{}{check.Requests, check.WindowSeconds}
-	err := client.Eval(fixedWindowScript, 1, keys, args, func(response resp.Value) {
-		values := response.Array()
-		if len(values) != 3 {
-			handleRedisError(ctx, cfg, checks, index, fmt.Errorf("unexpected redis response: %v", response))
-			return
-		}
-		threshold := int(values[0].Integer())
-		current := int(values[1].Integer())
-		reset := int(values[2].Integer())
-		decision := ratelimit.RedisDecision(check.Policy, check.Rule, check.Key, threshold, current, reset)
-		if !decision.Allowed {
-			sendRejected(decision)
-			return
-		}
-		if len(decision.QuotaHeaders) > 0 {
-			ctx.SetContext(quotaHeadersContextKey, decision.QuotaHeaders)
-		}
-		runRedisChecks(ctx, cfg, checks, index+1)
-	})
-	if err != nil {
-		handleRedisError(ctx, cfg, checks, index, err)
-	}
+	return config.RouteConfig{}, false
 }
 
-func handleRedisError(ctx wrapper.HttpContext, cfg runtimeConfig, checks []ratelimit.RedisCheck, index int, err error) {
-	check := checks[index]
-	log.Errorf("managed rate-limit redis check failed: policy=%s rule=%s redisStore=%s err=%v", check.Policy.Name, check.Rule.Name, check.RedisStore, err)
-	if check.Policy.FailOpen() {
-		runRedisChecks(ctx, cfg, checks, index+1)
-		return
+func currentRouteIdentity() (routeIdentity, bool) {
+	rawRouteName, err := proxywasm.GetProperty([]string{"xds", "route_name"})
+	if err != nil || len(rawRouteName) == 0 {
+		rawRouteName, err = proxywasm.GetProperty([]string{"route_name"})
 	}
-	sendRejected(ratelimit.Decision{
-		Allowed:    false,
-		StatusCode: check.Policy.RejectedStatusCode(),
-		Message:    check.Policy.RejectedMessage(),
-		Policy:     check.Policy,
-		Rule:       check.Rule,
-		Key:        check.Key,
-	})
+	if err != nil || len(rawRouteName) == 0 {
+		return routeIdentity{}, false
+	}
+
+	return parseRouteName(string(rawRouteName))
+}
+
+func parseRouteName(value string) (routeIdentity, bool) {
+	parts := strings.Split(value, "/")
+	if len(parts) < 4 || parts[0] != routeNamePrefix {
+		return routeIdentity{}, false
+	}
+
+	gatewayName, err := url.PathUnescape(parts[1])
+	if err != nil {
+		return routeIdentity{}, false
+	}
+	routeName, err := url.PathUnescape(parts[2])
+	if err != nil {
+		return routeIdentity{}, false
+	}
+	ruleName, err := url.PathUnescape(parts[3])
+	if err != nil {
+		return routeIdentity{}, false
+	}
+
+	return routeIdentity{
+		GatewayName: gatewayName,
+		RouteName:   routeName,
+		RuleName:    ruleName,
+	}, true
 }
 
 func sendRejected(decision ratelimit.Decision) {
@@ -268,21 +231,6 @@ func sourceAddress() string {
 		return ""
 	}
 	return string(value)
-}
-
-func splitRedisAddress(address string) (string, int, error) {
-	host, portValue, err := net.SplitHostPort(address)
-	if err == nil {
-		port, err := strconv.Atoi(portValue)
-		if err != nil {
-			return "", 0, err
-		}
-		return host, port, nil
-	}
-	if address == "" {
-		return "", 0, fmt.Errorf("redis address is empty")
-	}
-	return strings.Trim(address, "[]"), defaultRedisPort, nil
 }
 
 func headerPairs(headers map[string]string) [][2]string {

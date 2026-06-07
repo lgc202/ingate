@@ -40,7 +40,7 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 
 - 限流、鉴权、访问控制、AI token 配额这类核心治理能力可以使用数据面插件执行，但控制面产品模型必须保持强类型资源，不让用户直接编辑插件私有 JSON。
 - 内置治理插件不建模为用户创建的 `Plugin` / `PluginBinding`；用户配置的是对应的 Policy、PolicyBinding 和必要的依赖资源。
-- xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次 managed Wasm filter，Route 使用 `typed_per_filter_config` 写入当前 route/rule 命中的策略配置。
+- xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次 managed Wasm filter，filter 配置携带 target translator 生成的可执行策略索引，插件通过当前 xDS route name 定位 route/rule 配置。
 - 内置插件随 Ingate 数据面镜像或安装包发布，默认放在 `/opt/ingate/plugins`；`/var/lib/ingate/plugins` 预留给未来动态下载、缓存或用户安装的外部插件。
 - 用户自定义插件仍走普通插件模型，不和内置治理插件混用同一套产品协议。
 
@@ -143,6 +143,7 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 - 内置治理插件由系统自动注入、自动配置、随 `RuntimeSnapshot` 下发；用户不需要独立安装插件，也不需要感知插件版本、phase、priority 或 Wasm 文件路径。
 - `PolicyBinding` 只表达策略绑定到哪个资源或规则，不承载策略配置本身；策略配置必须放在对应强类型 Policy 资源中。
 - Redis、外部服务、证书等可复用运行依赖应独立建模，例如 `RedisStore`，策略通过 ID 引用，不把连接信息复制到每条策略规则里。
+- 内置治理插件可以参考 Higress 等项目的实现思路，但不能依赖第三方产品的 wrapper、matchRules 或专属 host function 作为 Ingate 长期运行时边界。
 - 后续新增策略时按资源类型拆分 admin-api 的 handler、dto、service、store，不把不同策略堆进一个大 `policy` 文件，也不写进 Route/Gateway 的用例层。
 - 编译链路中，compiler 负责解析强类型策略和绑定关系，target translator 负责生成目标运行时配置；compiler 不生成插件私有 JSON。
 
