@@ -91,6 +91,19 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 - 不记录用户输入校验失败日志。
 - 操作日志、审计日志这类横切能力按产品需求接入，但不得把核心业务逻辑写进 Handler。
 
+### Admin API 错误响应与校验边界
+
+- Admin API 统一响应体为 `{ "code": number, "msg": string, "data": any }`，Handler 统一使用 `response.GinJSONResponse` 和 `response.GinAbortJSONResponse` 写出。
+- `msg` 是当前接口最小稳定错误文案，前端可以直接用于 Toast 或页面错误提示；不要把内部错误、底层存储错误或英文堆栈直接放进 `msg`。
+- 请求绑定失败、DTO `Validate` 失败属于请求自身错误，返回 `http.StatusBadRequest`，不记录错误日志。
+- Service 返回错误时，Handler 一进入 `if err != nil` 就记录 `Error` 日志，再判断是否是 `xerrors.UserError`。
+- `xerrors.UserError` 表示可以展示给用户的业务错误，例如同名冲突、引用不存在、版本冲突、运行状态冲突；非 `UserError` 统一返回通用失败文案。
+- 同名校验、跨资源引用存在性、版本冲突、权限、运行状态冲突等依赖系统状态的规则，必须以后端 Service 层结果为最终裁决。
+- 前端本地校验只做请求自身可确定的基础输入校验，例如必填、长度、格式、数字范围、同一个表单内重复项；不要根据列表快照对资源名称唯一性、引用存在性等系统状态做硬拦截。
+- 前端可以做低风险提示，但不能阻止用户提交依赖后端裁决的场景；保存失败后以前端收到的后端错误为准。
+- 如果需要字段级错误展示，后端应返回稳定字段路径，不使用展示文案作为字段标识。推荐将 `data` 约定为 `{ "fieldErrors": [{ "field": "name", "message": "路由名称已存在" }] }`，其中 `field` 使用请求 DTO 的 JSON 字段路径，例如 `name`、`rules[0].targets[0].upstreamID`。
+- 字段级错误只增强前端定位能力，不改变后端 Service 是系统状态校验权威这一原则。
+
 ### Admin API DTO
 
 - 新增接口的请求类型默认命名为 `{Method}Req`，响应类型默认命名为 `{Method}Resp`；已有稳定 DTO 可在重构时逐步迁移。
