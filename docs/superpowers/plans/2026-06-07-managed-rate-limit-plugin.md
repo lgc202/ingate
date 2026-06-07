@@ -4,9 +4,9 @@
 
 **Goal:** Build the first Ingate managed rate-limit Wasm plugin implementation that consumes the xDS managed rate-limit schema.
 
-**Architecture:** The plugin is a separate Go module under `plugins/managed/rate-limit` so proxy-wasm and TinyGo dependencies do not pollute the control-plane module. Core rate-limit config parsing, key extraction, and fixed-window decisions live in ordinary Go packages; the Wasm entrypoint only adapts Envoy/proxy-wasm APIs to that core logic. Global Redis limit uses the same fixed-window Lua pattern as Higress but consumes Ingate's strongly typed schema.
+**Architecture:** The plugin is a separate Go module under `plugins/managed/rate-limit` so proxy-wasm and TinyGo dependencies do not pollute the control-plane module. Core rate-limit config parsing, key extraction, and fixed-window decisions live in ordinary Go packages; the Wasm entrypoint only adapts Envoy/proxy-wasm APIs to that core logic. The plugin can reference Higress implementation ideas, but must not depend on Higress `wasm-go/pkg/wrapper` or its product config model.
 
-**Tech Stack:** Go, TinyGo, proxy-wasm Go SDK, Higress wasm-go wrapper, Redis Eval, Ingate managed rate-limit xDS schema.
+**Tech Stack:** Go, TinyGo, proxy-wasm Go SDK, Ingate managed rate-limit xDS schema.
 
 ---
 
@@ -29,8 +29,8 @@
 - Create: `plugins/managed/rate-limit/internal/ratelimit/key.go`
 - Create: `plugins/managed/rate-limit/internal/ratelimit/cookie.go`
 
-- [ ] Define plugin-level config with `schemaVersion` and `redisStores`
-- [ ] Define route-level config with `gatewayName`, `routeName`, `ruleName`, and expanded `bindings`
+- [ ] Define plugin-level config with `schemaVersion`, `redisStores`, and executable route configs
+- [ ] Define route config with `gatewayName`, `routeName`, `ruleName`, and expanded `bindings`
 - [ ] Parse the Ingate `RateLimitPolicy` schema without depending on the control-plane module
 - [ ] Implement local fixed-window limiter
 - [ ] Implement key extraction for IP, Header, Query, Cookie, Consumer, Route, and Gateway
@@ -41,9 +41,9 @@
 - Create: `plugins/managed/rate-limit/main.go`
 
 - [ ] Register plugin config parsing
-- [ ] Read route-level per-filter config when available
+- [ ] Read Listener-level executable route config by current xDS route name
 - [ ] Execute local rules synchronously
-- [ ] Execute Redis global rules through async Redis Eval
+- [ ] Keep Redis global execution behind an Ingate-owned data-plane executor boundary
 - [ ] Return over-limit responses and quota headers
 - [ ] Honor `FailOpen` and `FailClose`
 

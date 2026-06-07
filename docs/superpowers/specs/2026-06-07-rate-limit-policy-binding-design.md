@@ -104,7 +104,7 @@ Ingate 不直接照搬这个模型：
 - 不让控制台协议退化成插件 JSON
 - 不把 Redis 连接配置复制到每条规则
 
-Ingate 借鉴它的数据面实现思路：global limit 由插件直连 Redis；但控制面仍保持 `RateLimitPolicy + PolicyBinding` 的强类型资源边界。
+Ingate 借鉴它的数据面实现思路：限流由内置治理插件在数据面执行；但控制面仍保持 `RateLimitPolicy + PolicyBinding` 的强类型资源边界。插件实现不依赖 Higress `wasm-go/pkg/wrapper`，也不复制 Higress `WasmPlugin.matchRules` 作为产品协议。Redis-backed global limit 需要 Ingate 自己的数据面 Redis 执行器或明确验证过的标准 host 能力，不能把 Higress 专属 host function 当成默认运行时能力。
 
 ## 企业级验收标准
 
@@ -483,12 +483,13 @@ type ManagedRateLimitPlugin struct {
 
 每条 binding 带目标匹配条件和策略引用展开后的规则。这样数据面插件不需要理解 Ingate 的全量资源模型，只消费可执行配置。
 
-xDS server 负责把这份配置落到 Envoy 的两个层次：
+xDS server 负责把这份配置落到 Envoy：
 
 - Listener / HCM 注入一次 `ingate.filters.http.managed_rate_limit` Wasm filter，用于加载内置限流插件
-- Route 的 `typed_per_filter_config` 写入当前 route/rule 实际命中的限流 binding，承载类型使用 `udpa.type.v1.TypedStruct`
+- Listener filter 配置携带 `schemaVersion`、RedisStore 连接索引和当前 listener 下可执行的 route/rule 限流配置
+- Envoy route name 使用 xDS target 内部稳定编码，插件通过当前 xDS route name 定位当前请求命中的 Gateway、Route 和 RouteRule
 
-Listener filter 配置只放插件级基础配置，例如 `schemaVersion` 和 RedisStore 连接索引。Route per-filter config 放当前请求路径已经匹配到的 Gateway、Route、RouteRule 级限流策略。这样 Envoy 先完成 host/path/method/header 匹配，插件不需要在每个请求里扫描全量 `PolicyBinding`。
+这种形态保留“插件只注入一次”的企业级方向，同时不依赖 Higress wrapper 读取私有 matchRules。Envoy 仍然先完成 host/path/method/header 匹配，插件只按当前 route name 读取已经编译好的执行配置。
 
 内置插件是 Ingate 发布物的一部分，默认路径使用：
 
@@ -506,7 +507,7 @@ local mode：
 
 global mode：
 
-- 插件按 RedisStore 建立连接池
+- 插件通过 Ingate-owned Redis 执行器或已验证 host 能力使用 RedisStore
 - 使用稳定 key 前缀：环境前缀、gateway、route、rule、policy、rate rule、key parts
 - 请求进入时计算 key，向 Redis 原子更新计数
 - 超限时返回策略定义的响应

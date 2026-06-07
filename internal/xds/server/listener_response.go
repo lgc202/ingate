@@ -25,7 +25,6 @@ const (
 	managedRateLimitHTTPFilterName  = "ingate.filters.http.managed_rate_limit"
 	managedRateLimitPluginName      = "ingate.managed.rate-limit"
 	managedRateLimitPluginPath      = "/opt/ingate/plugins/rate-limit.wasm"
-	managedRateLimitRouteTypeURL    = "type.googleapis.com/ingate.extensions.filters.http.managed_rate_limit.v1.RouteConfig"
 	managedRateLimitSchemaVersion   = "v1"
 	wasmRuntime                     = "envoy.wasm.runtime.v8"
 	defaultBindAddress              = "0.0.0.0"
@@ -34,6 +33,7 @@ const (
 type managedRateLimitFilterConfig struct {
 	SchemaVersion string                          `json:"schemaVersion"`
 	RedisStores   []targetxds.RateLimitRedisStore `json:"redisStores,omitempty"`
+	Routes        []managedRateLimitRouteConfig   `json:"routes,omitempty"`
 }
 
 func (b responseBuilder) buildListeners(configs []snapshotConfig) ([]*anypb.Any, error) {
@@ -101,13 +101,16 @@ func (b responseBuilder) listenerGroups(configs []snapshotConfig) listenerGroups
 		seen := map[listenerGroupKey]struct{}{}
 		for _, listener := range snapshot.Config.Listeners {
 			key := listenerKey(listener)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-			seen[key] = struct{}{}
 			groups.keys[key] = struct{}{}
 
 			config := groups.configs[key]
+			config.RouteConfigs = append(config.RouteConfigs, routeConfigsForListener(snapshot.Config.RouteConfigs, listener.RouteConfigName)...)
+			if _, ok := seen[key]; ok {
+				groups.configs[key] = config
+				continue
+			}
+			seen[key] = struct{}{}
+
 			config.Plugins = append(config.Plugins, snapshot.Config.Plugins...)
 			config.PluginBindings = append(config.PluginBindings, snapshot.Config.PluginBindings...)
 			config.ManagedRateLimit = mergeManagedRateLimit(config.ManagedRateLimit, snapshot.Config.ManagedRateLimit)
@@ -121,10 +124,20 @@ func (g listenerGroups) config(key listenerGroupKey) targetxds.Config {
 	return g.configs[key]
 }
 
+func routeConfigsForListener(configs []targetxds.RouteConfig, name string) []targetxds.RouteConfig {
+	result := make([]targetxds.RouteConfig, 0, 1)
+	for _, config := range configs {
+		if config.Name == name {
+			result = append(result, config)
+		}
+	}
+	return result
+}
+
 func (b responseBuilder) buildHTTPFilters(config targetxds.Config) ([]*hcmv3.HttpFilter, error) {
 	filters := make([]*hcmv3.HttpFilter, 0, len(config.PluginBindings)+2)
 	if config.ManagedRateLimit != nil {
-		filter, err := b.buildManagedRateLimitHTTPFilter(config.ManagedRateLimit)
+		filter, err := b.buildManagedRateLimitHTTPFilter(config)
 		if err != nil {
 			return nil, err
 		}
@@ -178,10 +191,32 @@ func mergeManagedRateLimit(current, next *targetxds.ManagedRateLimit) *targetxds
 	return current
 }
 
-func (b responseBuilder) buildManagedRateLimitHTTPFilter(config *targetxds.ManagedRateLimit) (*hcmv3.HttpFilter, error) {
-	redisStores := make([]targetxds.RateLimitRedisStore, 0, len(config.RedisStores))
+func managedRateLimitRouteConfigs(configs []targetxds.RouteConfig, rateLimit *targetxds.ManagedRateLimit) []managedRateLimitRouteConfig {
+	result := make([]managedRateLimitRouteConfig, 0)
+	seen := map[string]struct{}{}
+	for _, config := range configs {
+		for _, virtualHost := range config.VirtualHosts {
+			for _, route := range virtualHost.Routes {
+				routeConfig, ok := buildManagedRateLimitRouteConfig(route, rateLimit)
+				if !ok {
+					continue
+				}
+				key := routeRuntimeName(routeConfig.GatewayName, routeConfig.RouteName, routeConfig.RuleName, "")
+				if _, ok := seen[key]; ok {
+					continue
+				}
+				seen[key] = struct{}{}
+				result = append(result, routeConfig)
+			}
+		}
+	}
+	return result
+}
+
+func (b responseBuilder) buildManagedRateLimitHTTPFilter(runtimeConfig targetxds.Config) (*hcmv3.HttpFilter, error) {
+	redisStores := make([]targetxds.RateLimitRedisStore, 0, len(runtimeConfig.ManagedRateLimit.RedisStores))
 	seenRedisStores := map[string]struct{}{}
-	for _, store := range config.RedisStores {
+	for _, store := range runtimeConfig.ManagedRateLimit.RedisStores {
 		if _, ok := seenRedisStores[store.Name]; ok {
 			continue
 		}
@@ -192,6 +227,7 @@ func (b responseBuilder) buildManagedRateLimitHTTPFilter(config *targetxds.Manag
 	rawConfig, err := json.Marshal(managedRateLimitFilterConfig{
 		SchemaVersion: managedRateLimitSchemaVersion,
 		RedisStores:   redisStores,
+		Routes:        managedRateLimitRouteConfigs(runtimeConfig.RouteConfigs, runtimeConfig.ManagedRateLimit),
 	})
 	if err != nil {
 		return nil, err

@@ -30,8 +30,9 @@ const (
 
 // PluginConfig 表示 Listener 级插件配置
 type PluginConfig struct {
-	SchemaVersion string       `json:"schemaVersion"`
-	RedisStores   []RedisStore `json:"redisStores,omitempty"`
+	SchemaVersion string        `json:"schemaVersion"`
+	RedisStores   []RedisStore  `json:"redisStores,omitempty"`
+	Routes        []RouteConfig `json:"routes,omitempty"`
 }
 
 // RedisStore 表示插件运行时使用的 Redis 连接配置
