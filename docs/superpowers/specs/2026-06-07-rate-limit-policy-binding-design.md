@@ -62,6 +62,38 @@ Envoy 内置插件执行 local / Redis global limit
 
 这里的“插件”是运行时执行机制，不是控制台产品协议。用户创建的是限流策略和绑定关系，不是 `Plugin` 资源，也不直接维护 WasmPlugin JSON。
 
+## 内置治理插件
+
+内置治理插件表示：能力在数据面通过插件机制执行，但在控制面和产品协议上不是用户插件。
+
+用户只需要创建：
+
+```text
+RateLimitPolicy
+PolicyBinding
+RedisStore
+```
+
+用户不需要安装限流插件，也不需要创建 `Plugin` 或 `PluginBinding` 资源。系统会根据 `RateLimitPolicy + PolicyBinding` 自动生成 managed rate-limit plugin 配置，并随 `RuntimeSnapshot` 下发到数据面。
+
+用户不关心以下实现细节：
+
+- 插件包从哪里下载
+- 插件版本
+- Wasm 文件路径
+- 插件执行 phase
+- priority
+- 插件私有 JSON schema
+- Redis Lua 脚本
+- xDS filter 细节
+
+这样可以同时保留两个边界：
+
+- 控制面是强类型治理模型，便于校验、审计、状态展示和长期演进
+- 数据面使用插件执行，便于复用插件运行时能力并支持 Redis/global limit
+
+限流、鉴权、访问控制这类核心治理能力不应该暴露为普通插件。普通插件适合自定义扩展能力；内置治理插件是 Ingate 自带能力，由 Ingate 版本管理、自动注入、自动配置。
+
 ## 和 Higress 的取舍
 
 Higress 的限流能力主要通过 Wasm 插件配置实现，插件可以通过 `defaultConfig` 和 `matchRules` 在全局、域名、服务或路由范围生效。它的优点是落地快、运行时灵活，cluster/global limit 可以通过 Redis 支持。
@@ -73,6 +105,21 @@ Ingate 不直接照搬这个模型：
 - 不把 Redis 连接配置复制到每条规则
 
 Ingate 借鉴它的数据面实现思路：global limit 由插件直连 Redis；但控制面仍保持 `RateLimitPolicy + PolicyBinding` 的强类型资源边界。
+
+## 企业级验收标准
+
+这个方案要满足企业级要求，不能只做到“能限流”。后续实现至少需要满足以下标准：
+
+- Redis 支持 standalone 和 cluster 的模型边界，连接配置支持认证、TLS、DB、连接超时和命令超时
+- Redis 密码不进入普通 DTO 响应，短期使用 `passwordRef` 占位，后续接 Secret
+- global limit 计数必须使用 Lua 或 Redis 原子命令保证计数和过期时间一致
+- local limit 和 global limit 的失败行为必须按 `FailurePolicy` 明确执行
+- `FailOpen`、`FailClose`、Redis 错误、超限拒绝都必须有指标和日志
+- `RedisStore`、`RateLimitPolicy`、`PolicyBinding` 必须有可展示状态，至少能表达引用是否解析成功、配置是否被接受、是否已下发
+- 插件配置必须随 `RuntimeSnapshot` 版本下发，不能让插件自己绕过控制面拉配置
+- 同一请求命中的 Gateway、Route、RouteRule 策略全部生效，不能出现隐式覆盖
+- admin-api 的同名、引用存在性、删除保护等系统状态校验必须在 service 层完成
+- 前端只消费产品 DTO，不直接维护底层资源对象或插件私有配置
 
 ## 资源模型
 
@@ -491,4 +538,3 @@ global mode：
 10. 后续再做前端页面和联调
 
 本专题先改后端和编译链路。前端在用户明确要求前不改。
-
