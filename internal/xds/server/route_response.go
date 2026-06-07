@@ -1,15 +1,20 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
 
+	udpatypev1 "github.com/cncf/xds/go/udpa/type/v1"
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -18,19 +23,38 @@ const (
 	retryOnUpstreamTransient = "connect-failure,refused-stream,reset,5xx"
 )
 
+type routeConfigGroup struct {
+	virtualHosts []targetxds.VirtualHost
+	rateLimit    *targetxds.ManagedRateLimit
+}
+
+type managedRateLimitRouteConfig struct {
+	SchemaVersion string                       `json:"schemaVersion"`
+	GatewayName   string                       `json:"gatewayName"`
+	RouteName     string                       `json:"routeName"`
+	RuleName      string                       `json:"ruleName,omitempty"`
+	Bindings      []targetxds.RateLimitBinding `json:"bindings"`
+}
+
 func (b responseBuilder) buildRouteConfigs(configs []snapshotConfig) ([]*anypb.Any, error) {
 	resources := make([]*anypb.Any, 0)
-	groups := map[listenerGroupKey][]targetxds.VirtualHost{}
-	unlinked := map[string][]targetxds.VirtualHost{}
+	groups := map[listenerGroupKey]routeConfigGroup{}
+	unlinked := map[string]routeConfigGroup{}
 
 	for _, config := range configs {
 		listenerKeys := routeConfigListenerKeys(config.Config)
 		for _, routeConfig := range config.Config.RouteConfigs {
 			if key, ok := listenerKeys[routeConfig.Name]; ok {
-				groups[key] = append(groups[key], routeConfig.VirtualHosts...)
+				group := groups[key]
+				group.virtualHosts = append(group.virtualHosts, routeConfig.VirtualHosts...)
+				group.rateLimit = mergeManagedRateLimit(group.rateLimit, config.Config.ManagedRateLimit)
+				groups[key] = group
 				continue
 			}
-			unlinked[routeConfig.Name] = append(unlinked[routeConfig.Name], routeConfig.VirtualHosts...)
+			group := unlinked[routeConfig.Name]
+			group.virtualHosts = append(group.virtualHosts, routeConfig.VirtualHosts...)
+			group.rateLimit = mergeManagedRateLimit(group.rateLimit, config.Config.ManagedRateLimit)
+			unlinked[routeConfig.Name] = group
 		}
 	}
 
@@ -39,7 +63,8 @@ func (b responseBuilder) buildRouteConfigs(configs []snapshotConfig) ([]*anypb.A
 		keys[key] = struct{}{}
 	}
 	for _, key := range sortedListenerKeys(keys) {
-		resource, err := b.buildRouteConfig(listenerRouteConfigName(key), groups[key])
+		group := groups[key]
+		resource, err := b.buildRouteConfig(listenerRouteConfigName(key), group.virtualHosts, group.rateLimit)
 		if err != nil {
 			return nil, err
 		}
@@ -52,7 +77,8 @@ func (b responseBuilder) buildRouteConfigs(configs []snapshotConfig) ([]*anypb.A
 	}
 	sort.Strings(names)
 	for _, name := range names {
-		resource, err := b.buildRouteConfig(name, unlinked[name])
+		group := unlinked[name]
+		resource, err := b.buildRouteConfig(name, group.virtualHosts, group.rateLimit)
 		if err != nil {
 			return nil, err
 		}
@@ -61,10 +87,10 @@ func (b responseBuilder) buildRouteConfigs(configs []snapshotConfig) ([]*anypb.A
 	return resources, nil
 }
 
-func (b responseBuilder) buildRouteConfig(name string, virtualHosts []targetxds.VirtualHost) (*anypb.Any, error) {
+func (b responseBuilder) buildRouteConfig(name string, virtualHosts []targetxds.VirtualHost, rateLimit *targetxds.ManagedRateLimit) (*anypb.Any, error) {
 	resources := make([]*routev3.VirtualHost, 0, len(virtualHosts))
 	for _, virtualHost := range virtualHosts {
-		routes, err := b.buildRoutes(virtualHost.Routes)
+		routes, err := b.buildRoutes(virtualHost.Routes, rateLimit)
 		if err != nil {
 			return nil, err
 		}
@@ -81,7 +107,7 @@ func (b responseBuilder) buildRouteConfig(name string, virtualHosts []targetxds.
 	})
 }
 
-func (b responseBuilder) buildRoutes(routes []targetxds.Route) ([]*routev3.Route, error) {
+func (b responseBuilder) buildRoutes(routes []targetxds.Route, rateLimit *targetxds.ManagedRateLimit) ([]*routev3.Route, error) {
 	resources := make([]*routev3.Route, 0)
 	for _, route := range routes {
 		methods := route.Match.Methods
@@ -89,7 +115,7 @@ func (b responseBuilder) buildRoutes(routes []targetxds.Route) ([]*routev3.Route
 			methods = []string{""}
 		}
 		for _, method := range methods {
-			resource, err := b.buildRoute(route, method)
+			resource, err := b.buildRoute(route, method, rateLimit)
 			if err != nil {
 				return nil, err
 			}
@@ -99,7 +125,7 @@ func (b responseBuilder) buildRoutes(routes []targetxds.Route) ([]*routev3.Route
 	return resources, nil
 }
 
-func (b responseBuilder) buildRoute(route targetxds.Route, method string) (*routev3.Route, error) {
+func (b responseBuilder) buildRoute(route targetxds.Route, method string, rateLimit *targetxds.ManagedRateLimit) (*routev3.Route, error) {
 	prefix := route.Match.PathPrefix
 	if prefix == "" {
 		prefix = defaultRoutePrefix
@@ -163,8 +189,16 @@ func (b responseBuilder) buildRoute(route targetxds.Route, method string) (*rout
 	}
 
 	name := route.Name
+	if route.RuleName != "" {
+		name = fmt.Sprintf("%s/%s", route.Name, route.RuleName)
+	}
 	if method != "" {
-		name = fmt.Sprintf("%s/%s", route.Name, method)
+		name = fmt.Sprintf("%s/%s", name, method)
+	}
+
+	typedPerFilterConfig, err := b.managedRateLimitRouteConfig(route, rateLimit)
+	if err != nil {
+		return nil, err
 	}
 	return &routev3.Route{
 		Name:                   name,
@@ -172,7 +206,61 @@ func (b responseBuilder) buildRoute(route targetxds.Route, method string) (*rout
 		Action:                 &routev3.Route_Route{Route: action},
 		RequestHeadersToAdd:    b.requestHeadersToAdd(route.RequestHeadersToAdd),
 		RequestHeadersToRemove: route.RequestHeadersToRemove,
+		TypedPerFilterConfig:   typedPerFilterConfig,
 	}, nil
+}
+
+func (b responseBuilder) managedRateLimitRouteConfig(route targetxds.Route, rateLimit *targetxds.ManagedRateLimit) (map[string]*anypb.Any, error) {
+	if rateLimit == nil {
+		return nil, nil
+	}
+
+	bindings := make([]targetxds.RateLimitBinding, 0)
+	for _, binding := range rateLimit.Bindings {
+		if !rateLimitBindingMatchesRoute(binding, route) {
+			continue
+		}
+		bindings = append(bindings, binding)
+	}
+	if len(bindings) == 0 {
+		return nil, nil
+	}
+
+	rawConfig, err := json.Marshal(managedRateLimitRouteConfig{
+		SchemaVersion: managedRateLimitSchemaVersion,
+		GatewayName:   route.GatewayName,
+		RouteName:     route.Name,
+		RuleName:      route.RuleName,
+		Bindings:      bindings,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var value structpb.Struct
+	if err := protojson.Unmarshal(rawConfig, &value); err != nil {
+		return nil, err
+	}
+	config, err := anypb.New(&udpatypev1.TypedStruct{
+		TypeUrl: managedRateLimitRouteTypeURL,
+		Value:   &value,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return map[string]*anypb.Any{
+		managedRateLimitHTTPFilterName: config,
+	}, nil
+}
+
+func rateLimitBindingMatchesRoute(binding targetxds.RateLimitBinding, route targetxds.Route) bool {
+	switch binding.Target.Kind {
+	case resource.KindGateway:
+		return binding.Target.Name == route.GatewayName
+	case resource.KindRoute:
+		return binding.Target.Name == route.Name && (binding.Target.RuleName == "" || binding.Target.RuleName == route.RuleName)
+	default:
+		return false
+	}
 }
 
 func (b responseBuilder) requestHeadersToAdd(headers []targetxds.HeaderValue) []*corev3.HeaderValueOption {

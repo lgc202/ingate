@@ -145,6 +145,7 @@ func TestTranslatorTranslate(t *testing.T) {
 		t.Fatalf("Config type = %T, want xds.Config", snapshot.Config)
 	}
 	want := xds.Config{
+		GatewayName: "public",
 		Listeners: []xds.Listener{
 			{
 				Name:            "public/http",
@@ -163,7 +164,8 @@ func TestTranslatorTranslate(t *testing.T) {
 						Domains: []string{"example.com"},
 						Routes: []xds.Route{
 							{
-								Name: "app",
+								GatewayName: "public",
+								Name:        "app",
 								Match: xds.RouteMatch{
 									PathPrefix: "/app",
 									Methods:    []string{"GET", "POST"},
@@ -191,7 +193,8 @@ func TestTranslatorTranslate(t *testing.T) {
 						Domains: []string{"api.example.com"},
 						Routes: []xds.Route{
 							{
-								Name: "chat",
+								GatewayName: "public",
+								Name:        "chat",
 								Match: xds.RouteMatch{
 									Path:       "/v1/chat/completions",
 									PathPrefix: "/v1/chat",

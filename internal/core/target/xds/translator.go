@@ -51,6 +51,7 @@ type Translator struct{}
 
 // Config 表示 xDS target 的内部配置载荷
 type Config struct {
+	GatewayName         string               `json:"gatewayName"`
 	Listeners           []Listener           `json:"listeners"`
 	RouteConfigs        []RouteConfig        `json:"routeConfigs"`
 	Clusters            []Cluster            `json:"clusters"`
@@ -88,6 +89,7 @@ type VirtualHost struct {
 
 // Route 表示 Envoy route 的内部模型
 type Route struct {
+	GatewayName            string            `json:"gatewayName"`
 	Name                   string            `json:"name"`
 	RuleName               string            `json:"ruleName,omitempty"`
 	Match                  RouteMatch        `json:"match"`
@@ -338,6 +340,7 @@ func (Translator) Target() string {
 // Translate 将逻辑网关模型转换成 xDS 运行时快照
 func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapshot, error) {
 	config := Config{
+		GatewayName:         logical.Name,
 		Listeners:           make([]Listener, 0, len(logical.Listeners)),
 		RouteConfigs:        make([]RouteConfig, 0, len(logical.Listeners)),
 		Clusters:            make([]Cluster, 0, len(logical.Upstreams)),
@@ -376,8 +379,9 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			}
 			for _, rule := range route.Rules {
 				xdsRoute := Route{
-					Name:     route.Name,
-					RuleName: rule.Name,
+					GatewayName: logical.Name,
+					Name:        route.Name,
+					RuleName:    rule.Name,
 					Match: RouteMatch{
 						PathPrefix: rule.PathPrefix,
 						Methods:    slices.Clone(rule.Methods),
@@ -673,7 +677,8 @@ func (t Translator) appendAIRouteToRouteConfigs(config *Config, aiRoute AIRoute,
 			Domains: slices.Clone(aiRoute.Domains),
 			Routes: []Route{
 				{
-					Name: aiRoute.Name,
+					GatewayName: config.GatewayName,
+					Name:        aiRoute.Name,
 					Match: RouteMatch{
 						Path:       aiRoute.Match.Path,
 						PathPrefix: aiRoute.Match.PathPrefix,

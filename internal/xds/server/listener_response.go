@@ -2,6 +2,7 @@ package server
 
 import (
 	"cmp"
+	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -21,9 +22,19 @@ const (
 	httpConnectionManagerFilterName = "envoy.filters.network.http_connection_manager"
 	httpRouterFilterName            = "envoy.filters.http.router"
 	httpWasmFilterName              = "envoy.filters.http.wasm"
+	managedRateLimitHTTPFilterName  = "ingate.filters.http.managed_rate_limit"
+	managedRateLimitPluginName      = "ingate.managed.rate-limit"
+	managedRateLimitPluginPath      = "/opt/ingate/plugins/rate-limit.wasm"
+	managedRateLimitRouteTypeURL    = "type.googleapis.com/ingate.extensions.filters.http.managed_rate_limit.v1.RouteConfig"
+	managedRateLimitSchemaVersion   = "v1"
 	wasmRuntime                     = "envoy.wasm.runtime.v8"
 	defaultBindAddress              = "0.0.0.0"
 )
+
+type managedRateLimitFilterConfig struct {
+	SchemaVersion string                          `json:"schemaVersion"`
+	RedisStores   []targetxds.RateLimitRedisStore `json:"redisStores,omitempty"`
+}
 
 func (b responseBuilder) buildListeners(configs []snapshotConfig) ([]*anypb.Any, error) {
 	resources := make([]*anypb.Any, 0)
@@ -99,6 +110,7 @@ func (b responseBuilder) listenerGroups(configs []snapshotConfig) listenerGroups
 			config := groups.configs[key]
 			config.Plugins = append(config.Plugins, snapshot.Config.Plugins...)
 			config.PluginBindings = append(config.PluginBindings, snapshot.Config.PluginBindings...)
+			config.ManagedRateLimit = mergeManagedRateLimit(config.ManagedRateLimit, snapshot.Config.ManagedRateLimit)
 			groups.configs[key] = config
 		}
 	}
@@ -110,7 +122,15 @@ func (g listenerGroups) config(key listenerGroupKey) targetxds.Config {
 }
 
 func (b responseBuilder) buildHTTPFilters(config targetxds.Config) ([]*hcmv3.HttpFilter, error) {
-	filters := make([]*hcmv3.HttpFilter, 0, len(config.PluginBindings)+1)
+	filters := make([]*hcmv3.HttpFilter, 0, len(config.PluginBindings)+2)
+	if config.ManagedRateLimit != nil {
+		filter, err := b.buildManagedRateLimitHTTPFilter(config.ManagedRateLimit)
+		if err != nil {
+			return nil, err
+		}
+		filters = append(filters, filter)
+	}
+
 	pluginByName := make(map[string]targetxds.Plugin, len(config.Plugins))
 	for _, plugin := range config.Plugins {
 		pluginByName[plugin.Name] = plugin
@@ -143,31 +163,102 @@ func (b responseBuilder) buildHTTPFilters(config targetxds.Config) ([]*hcmv3.Htt
 	return filters, nil
 }
 
+func mergeManagedRateLimit(current, next *targetxds.ManagedRateLimit) *targetxds.ManagedRateLimit {
+	if next == nil {
+		return current
+	}
+	if current == nil {
+		return &targetxds.ManagedRateLimit{
+			Bindings:    slices.Clone(next.Bindings),
+			RedisStores: slices.Clone(next.RedisStores),
+		}
+	}
+	current.Bindings = append(current.Bindings, next.Bindings...)
+	current.RedisStores = append(current.RedisStores, next.RedisStores...)
+	return current
+}
+
+func (b responseBuilder) buildManagedRateLimitHTTPFilter(config *targetxds.ManagedRateLimit) (*hcmv3.HttpFilter, error) {
+	redisStores := make([]targetxds.RateLimitRedisStore, 0, len(config.RedisStores))
+	seenRedisStores := map[string]struct{}{}
+	for _, store := range config.RedisStores {
+		if _, ok := seenRedisStores[store.Name]; ok {
+			continue
+		}
+		seenRedisStores[store.Name] = struct{}{}
+		redisStores = append(redisStores, store)
+	}
+
+	rawConfig, err := json.Marshal(managedRateLimitFilterConfig{
+		SchemaVersion: managedRateLimitSchemaVersion,
+		RedisStores:   redisStores,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	typedConfig, err := b.buildWasmPluginTypedConfig(
+		managedRateLimitPluginName,
+		managedRateLimitPluginPath,
+		string(rawConfig),
+		wasmv3.FailurePolicy_FAIL_CLOSED,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hcmv3.HttpFilter{
+		Name: managedRateLimitHTTPFilterName,
+		ConfigType: &hcmv3.HttpFilter_TypedConfig{
+			TypedConfig: typedConfig,
+		},
+	}, nil
+}
+
 func (b responseBuilder) buildWasmHTTPFilter(binding targetxds.PluginBinding, plugin targetxds.Plugin, pluginRef targetxds.PluginRef) (*hcmv3.HttpFilter, error) {
 	if plugin.Image == "" {
 		return nil, fmt.Errorf("wasm plugin %q has no image", plugin.Name)
 	}
 
-	config, err := anypb.New(&wrapperspb.StringValue{Value: string(pluginRef.Config)})
+	typedConfig, err := b.buildWasmPluginTypedConfig(
+		plugin.Name,
+		plugin.Image,
+		string(pluginRef.Config),
+		b.wasmFailurePolicy(binding.FailurePolicy),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return &hcmv3.HttpFilter{
+		Name: httpWasmFilterName,
+		ConfigType: &hcmv3.HttpFilter_TypedConfig{
+			TypedConfig: typedConfig,
+		},
+	}, nil
+}
+
+func (b responseBuilder) buildWasmPluginTypedConfig(name, image, configuration string, failurePolicy wasmv3.FailurePolicy) (*anypb.Any, error) {
+	config, err := anypb.New(&wrapperspb.StringValue{Value: configuration})
 	if err != nil {
 		return nil, err
 	}
 
 	typedConfig, err := anypb.New(&httpwasmv3.Wasm{
 		Config: &wasmv3.PluginConfig{
-			Name:          plugin.Name,
-			RootId:        plugin.Name,
+			Name:          name,
+			RootId:        name,
 			Configuration: config,
-			FailurePolicy: b.wasmFailurePolicy(binding.FailurePolicy),
+			FailurePolicy: failurePolicy,
 			Vm: &wasmv3.PluginConfig_VmConfig{
 				VmConfig: &wasmv3.VmConfig{
-					VmId:    plugin.Name,
+					VmId:    name,
 					Runtime: wasmRuntime,
 					Code: &corev3.AsyncDataSource{
 						Specifier: &corev3.AsyncDataSource_Local{
 							Local: &corev3.DataSource{
 								Specifier: &corev3.DataSource_Filename{
-									Filename: plugin.Image,
+									Filename: image,
 								},
 							},
 						},
@@ -179,13 +270,7 @@ func (b responseBuilder) buildWasmHTTPFilter(binding targetxds.PluginBinding, pl
 	if err != nil {
 		return nil, err
 	}
-
-	return &hcmv3.HttpFilter{
-		Name: httpWasmFilterName,
-		ConfigType: &hcmv3.HttpFilter_TypedConfig{
-			TypedConfig: typedConfig,
-		},
-	}, nil
+	return typedConfig, nil
 }
 
 func (b responseBuilder) wasmFailurePolicy(policy resource.PluginFailurePolicy) wasmv3.FailurePolicy {
