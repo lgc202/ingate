@@ -483,6 +483,21 @@ type ManagedRateLimitPlugin struct {
 
 每条 binding 带目标匹配条件和策略引用展开后的规则。这样数据面插件不需要理解 Ingate 的全量资源模型，只消费可执行配置。
 
+xDS server 负责把这份配置落到 Envoy 的两个层次：
+
+- Listener / HCM 注入一次 `ingate.filters.http.managed_rate_limit` Wasm filter，用于加载内置限流插件
+- Route 的 `typed_per_filter_config` 写入当前 route/rule 实际命中的限流 binding，承载类型使用 `udpa.type.v1.TypedStruct`
+
+Listener filter 配置只放插件级基础配置，例如 `schemaVersion` 和 RedisStore 连接索引。Route per-filter config 放当前请求路径已经匹配到的 Gateway、Route、RouteRule 级限流策略。这样 Envoy 先完成 host/path/method/header 匹配，插件不需要在每个请求里扫描全量 `PolicyBinding`。
+
+内置插件是 Ingate 发布物的一部分，默认路径使用：
+
+```text
+/opt/ingate/plugins/rate-limit.wasm
+```
+
+`/opt/ingate/plugins` 表示随镜像或安装包发布的只读内置插件。`/var/lib/ingate/plugins` 更适合未来动态下载、缓存或用户安装的外部插件，不作为内置治理插件的默认路径。
+
 local mode：
 
 - 插件使用本地内存计数器

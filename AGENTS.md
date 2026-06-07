@@ -36,6 +36,14 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 - data-plane agent
 - Kubernetes operator
 
+## 内置治理插件
+
+- 限流、鉴权、访问控制、AI token 配额这类核心治理能力可以使用数据面插件执行，但控制面产品模型必须保持强类型资源，不让用户直接编辑插件私有 JSON。
+- 内置治理插件不建模为用户创建的 `Plugin` / `PluginBinding`；用户配置的是对应的 Policy、PolicyBinding 和必要的依赖资源。
+- xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次 managed Wasm filter，Route 使用 `typed_per_filter_config` 写入当前 route/rule 命中的策略配置。
+- 内置插件随 Ingate 数据面镜像或安装包发布，默认放在 `/opt/ingate/plugins`；`/var/lib/ingate/plugins` 预留给未来动态下载、缓存或用户安装的外部插件。
+- 用户自定义插件仍走普通插件模型，不和内置治理插件混用同一套产品协议。
+
 ## Go 版本
 
 - 使用 Go 1.26。

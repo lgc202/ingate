@@ -1,11 +1,15 @@
 package server
 
 import (
+	"encoding/json"
 	"testing"
 
+	udpatypev1 "github.com/cncf/xds/go/udpa/type/v1"
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestResponseBuilderBuildRouteConfigsWithExactPath(t *testing.T) {
@@ -133,6 +137,121 @@ func TestResponseBuilderBuildRouteConfigsWithRoutePolicies(t *testing.T) {
 	}
 	if action.GetRetryPolicy().GetPerTryTimeout().AsDuration().Milliseconds() != 500 {
 		t.Fatalf("PerTryTimeout = %s, want 500ms", action.GetRetryPolicy().GetPerTryTimeout().AsDuration())
+	}
+}
+
+func TestResponseBuilderBuildRouteConfigsWithManagedRateLimitPerRouteConfig(t *testing.T) {
+	configs := []snapshotConfig{
+		{
+			Gateway: "public",
+			Version: "xds/public",
+			Config: targetxds.Config{
+				Listeners: []targetxds.Listener{
+					{Name: "public/http", Protocol: "HTTP", Port: 80, RouteConfigName: "public/http/routes"},
+				},
+				RouteConfigs: []targetxds.RouteConfig{
+					{
+						Name: "public/http/routes",
+						VirtualHosts: []targetxds.VirtualHost{
+							{
+								Name:    "app",
+								Domains: []string{"example.com"},
+								Routes: []targetxds.Route{
+									{
+										GatewayName: "public",
+										Name:        "route-users",
+										RuleName:    "primary",
+										Match: targetxds.RouteMatch{
+											PathPrefix: "/users",
+											Methods:    []string{"GET"},
+										},
+										WeightedClusters: []targetxds.WeightedCluster{
+											{Name: "users", Weight: 100},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				ManagedRateLimit: &targetxds.ManagedRateLimit{
+					Bindings: []targetxds.RateLimitBinding{
+						{
+							Name: "gateway-limit",
+							Target: targetxds.RateLimitTarget{
+								Kind: resource.KindGateway,
+								Name: "public",
+							},
+							Policies: []targetxds.RateLimitPolicy{{Name: "policy-gateway"}},
+						},
+						{
+							Name: "route-rule-limit",
+							Target: targetxds.RateLimitTarget{
+								Kind:     resource.KindRoute,
+								Name:     "route-users",
+								RuleName: "primary",
+							},
+							Policies: []targetxds.RateLimitPolicy{{Name: "policy-route-rule"}},
+						},
+						{
+							Name: "other-rule-limit",
+							Target: targetxds.RateLimitTarget{
+								Kind:     resource.KindRoute,
+								Name:     "route-users",
+								RuleName: "secondary",
+							},
+							Policies: []targetxds.RateLimitPolicy{{Name: "policy-other-rule"}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resources, err := (responseBuilder{}).buildRouteConfigs(configs)
+	if err != nil {
+		t.Fatalf("buildRouteConfigs() error = %v", err)
+	}
+
+	var routeConfig routev3.RouteConfiguration
+	if err := resources[0].UnmarshalTo(&routeConfig); err != nil {
+		t.Fatalf("UnmarshalTo(routeConfig) error = %v", err)
+	}
+
+	route := routeConfig.VirtualHosts[0].Routes[0]
+	if route.Name != "route-users/primary/GET" {
+		t.Fatalf("Route.Name = %q, want route-users/primary/GET", route.Name)
+	}
+	configAny := route.GetTypedPerFilterConfig()[managedRateLimitHTTPFilterName]
+	if configAny == nil {
+		t.Fatalf("missing managed rate limit per-route config")
+	}
+	var typedConfig udpatypev1.TypedStruct
+	if err := configAny.UnmarshalTo(&typedConfig); err != nil {
+		t.Fatalf("UnmarshalTo(plugin config) error = %v", err)
+	}
+	if typedConfig.TypeUrl != managedRateLimitRouteTypeURL {
+		t.Fatalf("TypeUrl = %q, want %q", typedConfig.TypeUrl, managedRateLimitRouteTypeURL)
+	}
+	rawConfig, err := protojson.Marshal(typedConfig.Value)
+	if err != nil {
+		t.Fatalf("Marshal(route config) error = %v", err)
+	}
+	var config managedRateLimitRouteConfig
+	if err := json.Unmarshal(rawConfig, &config); err != nil {
+		t.Fatalf("Unmarshal(managed route config) error = %v", err)
+	}
+	if config.SchemaVersion != managedRateLimitSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", config.SchemaVersion, managedRateLimitSchemaVersion)
+	}
+	if config.GatewayName != "public" || config.RouteName != "route-users" || config.RuleName != "primary" {
+		t.Fatalf("route identity = %s/%s/%s, want public/route-users/primary", config.GatewayName, config.RouteName, config.RuleName)
+	}
+	if len(config.Bindings) != 2 {
+		t.Fatalf("len(Bindings) = %d, want 2", len(config.Bindings))
+	}
+	if config.Bindings[0].Name != "gateway-limit" || config.Bindings[1].Name != "route-rule-limit" {
+		t.Fatalf("Bindings = %+v, want gateway and route-rule bindings", config.Bindings)
 	}
 }
 
