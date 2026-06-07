@@ -117,7 +117,7 @@ export function RoutePage() {
   });
   const hasActiveFilters = Boolean(filters.keyword.trim() || filters.gatewayName !== 'all' || filters.serviceName !== 'all' || filters.enabled !== 'all');
   const draft = draftState ?? createRouteComposerDraft(routeWorkspace.composer);
-  const validation = validateRouteComposerDraft(draft, availableRoutes);
+  const validation = validateRouteComposerDraft(draft);
   const publishPayload = buildRoutePublishPayload(draft);
   const activeValidation = serverValidation ?? validation;
 
