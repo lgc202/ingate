@@ -7,13 +7,11 @@ import (
 	"strings"
 
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
-	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	listenerv3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	discoveryv3 "github.com/envoyproxy/go-control-plane/envoy/service/discovery/v3"
 	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -203,34 +201,4 @@ func (b responseBuilder) resourceName(resource *anypb.Any) string {
 		}
 	}
 	return ""
-}
-
-func (b responseBuilder) adsConfigSource() *corev3.ConfigSource {
-	return &corev3.ConfigSource{
-		ConfigSourceSpecifier: &corev3.ConfigSource_Ads{
-			Ads: &corev3.AggregatedConfigSource{},
-		},
-		ResourceApiVersion: corev3.ApiVersion_V3,
-	}
-}
-
-func (b responseBuilder) socketAddress(address string, port int) *corev3.Address {
-	return &corev3.Address{
-		Address: &corev3.Address_SocketAddress{
-			SocketAddress: &corev3.SocketAddress{
-				Address: address,
-				PortSpecifier: &corev3.SocketAddress_PortValue{
-					PortValue: uint32(port),
-				},
-			},
-		},
-	}
-}
-
-func (b responseBuilder) mustAny(message proto.Message) *anypb.Any {
-	value, err := anypb.New(message)
-	if err != nil {
-		panic(err)
-	}
-	return value
 }
