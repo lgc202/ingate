@@ -22,6 +22,7 @@ COPY deploy/all-in-one/envoy/bootstrap.yaml /etc/ingate/envoy/bootstrap.yaml
 COPY deploy/all-in-one/entrypoint.sh /usr/local/bin/ingate-all-in-one
 COPY web/console/dist /opt/ingate/console
 COPY _output/plugins/ratelimit.wasm /opt/ingate/plugins/ratelimit.wasm
+COPY _output/plugins/acl.wasm /opt/ingate/plugins/acl.wasm
 
 RUN chmod +x /usr/local/bin/ingate-all-in-one
 
