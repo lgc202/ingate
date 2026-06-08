@@ -4,10 +4,10 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm"
-	"github.com/higress-group/proxy-wasm-go-sdk/proxywasm/types"
 	"github.com/lgc202/ingate/plugins/managed/rate-limit/internal/config"
 	"github.com/lgc202/ingate/plugins/managed/rate-limit/internal/ratelimit"
+	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
+	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const (
@@ -35,7 +35,7 @@ type routeIdentity struct {
 	RuleName    string
 }
 
-var localLimiter = ratelimit.NewLocalLimiter()
+var localLimiter = ratelimit.NewSharedDataLocalLimiter()
 
 func main() {}
 
@@ -73,6 +73,9 @@ func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) typ
 
 	req := requestFromProxyWasm(route)
 	result := localLimiter.Evaluate(route, req)
+	for _, err := range result.Errors {
+		proxywasm.LogErrorf("managed rate-limit local rule evaluation failed: %v", err)
+	}
 	if !result.Allowed {
 		sendRejected(result.Decision)
 		return types.ActionPause
@@ -167,9 +170,8 @@ func parseRouteName(value string) (routeIdentity, bool) {
 }
 
 func sendRejected(decision ratelimit.Decision) {
-	_ = proxywasm.SendHttpResponseWithDetail(
+	_ = proxywasm.SendHttpResponse(
 		uint32(decision.StatusCode),
-		"ingate.rate_limit.rejected",
 		headerPairs(decision.QuotaHeaders),
 		[]byte(decision.Message),
 		-1,

@@ -190,6 +190,71 @@ func TestResponseBuilderBuildRouteConfigsWithRuntimeRouteName(t *testing.T) {
 	}
 }
 
+func TestResponseBuilderBuildRouteConfigsMergesVirtualHostsWithSameDomains(t *testing.T) {
+	configs := []snapshotConfig{
+		{
+			Gateway: "public",
+			Version: "xds/public",
+			Config: targetxds.Config{
+				Listeners: []targetxds.Listener{
+					{Name: "public/http", Protocol: "HTTP", Port: 8080, RouteConfigName: "public/http/routes"},
+				},
+				RouteConfigs: []targetxds.RouteConfig{
+					{
+						Name: "public/http/routes",
+						VirtualHosts: []targetxds.VirtualHost{
+							{
+								Name:    "users",
+								Domains: []string{"*"},
+								Routes: []targetxds.Route{
+									{
+										Name: "users",
+										WeightedClusters: []targetxds.WeightedCluster{
+											{Name: "users", Weight: 100},
+										},
+									},
+								},
+							},
+							{
+								Name:    "orders",
+								Domains: []string{"*"},
+								Routes: []targetxds.Route{
+									{
+										Name: "orders",
+										WeightedClusters: []targetxds.WeightedCluster{
+											{Name: "orders", Weight: 100},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	resources, err := (responseBuilder{}).buildRouteConfigs(configs)
+	if err != nil {
+		t.Fatalf("buildRouteConfigs() error = %v", err)
+	}
+
+	var routeConfig routev3.RouteConfiguration
+	if err := resources[0].UnmarshalTo(&routeConfig); err != nil {
+		t.Fatalf("UnmarshalTo(routeConfig) error = %v", err)
+	}
+	if len(routeConfig.VirtualHosts) != 1 {
+		t.Fatalf("len(VirtualHosts) = %d, want 1 merged wildcard virtual host", len(routeConfig.VirtualHosts))
+	}
+	virtualHost := routeConfig.VirtualHosts[0]
+	if len(virtualHost.Routes) != 2 {
+		t.Fatalf("len(Routes) = %d, want 2", len(virtualHost.Routes))
+	}
+	if virtualHost.Domains[0] != "*" {
+		t.Fatalf("Domains[0] = %q, want wildcard", virtualHost.Domains[0])
+	}
+}
+
 func TestResponseBuilderBuildRouteConfigsGroupsGatewaysByRuntimeEntry(t *testing.T) {
 	configs := []snapshotConfig{
 		{
