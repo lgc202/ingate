@@ -1,22 +1,18 @@
 package wasm
 
 import (
-	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/policy"
+	ratelimitruntime "github.com/lgc202/ingate/plugins/ratelimit/internal/runtime"
 )
 
-func requestFromProxyWasm(route config.RouteConfig) policy.Request {
+func requestFromProxyWasm(route ratelimitruntime.Route) policy.Request {
 	return policy.Request{
-		GatewayName: route.GatewayName,
-		RouteName:   route.RouteName,
-		RuleName:    route.RuleName,
+		GatewayName: route.Config.GatewayName,
+		RouteName:   route.Config.RouteName,
+		RuleName:    route.Config.RuleName,
 		Path:        pluginwasm.RequestHeader(":path"),
 		RemoteAddr:  pluginwasm.SourceAddress(),
-		Headers:     pluginwasm.RequestHeaders(policy.HeaderNames(route)),
+		Headers:     pluginwasm.RequestHeaders(route.HeaderNames),
 	}
-}
-
-func sendRejected(decision policy.Decision) {
-	pluginwasm.SendResponse(decision.StatusCode, decision.QuotaHeaders, decision.Message)
 }

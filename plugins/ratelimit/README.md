@@ -12,12 +12,13 @@
 
 ```text
 internal/app        # 装配并注册插件
-internal/wasm       # Proxy-Wasm 生命周期和请求适配
+internal/runtime    # 编译插件配置，保存 route index、header plan 和外部依赖
+internal/wasm       # Proxy-Wasm 生命周期适配和 action 执行
 internal/policy     # 限流策略判断、key 生成、本地计数和 global check
 internal/dataplane  # 调用 ingate-dataplane
 ```
 
-`pkg/plugin/ratelimit` 定义 xDS 下发给插件的可执行配置。`wasm` 只处理 Proxy-Wasm SDK 动作，`policy` 承载限流领域逻辑，`dataplane` 只封装外部数据面调用。新增内置插件时优先沿用这个边界。
+`pkg/plugin/ratelimit` 定义 xDS 下发给插件的可执行配置。`plugins/internal/runtime` 提供多个内置插件共享的轻量运行时抽象，例如 route key、route index 和 action。`wasm` 只处理 Proxy-Wasm SDK 动作，`runtime` 承载配置编译后的执行计划，`policy` 承载限流领域逻辑，`dataplane` 只封装外部数据面调用。新增内置插件时优先沿用这个边界。
 
 默认发布路径：
 
