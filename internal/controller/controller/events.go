@@ -23,12 +23,6 @@ func (c *Controller) registerEventHandlers() error {
 		{informer: gatewayInformers.Routes().Informer(), handler: c.eventHandler(c.enqueueRouteObject)},
 		{informer: gatewayInformers.Upstreams().Informer(), handler: c.eventHandler(c.enqueueUpstreamObject)},
 		{
-			informer: gatewayInformers.AuthPolicies().Informer(),
-			handler: c.eventHandler(func(obj any) {
-				c.enqueuePolicyObject(resource.KindAuthPolicy, obj)
-			}),
-		},
-		{
 			informer: gatewayInformers.RateLimitPolicies().Informer(),
 			handler: c.eventHandler(func(obj any) {
 				c.enqueuePolicyObject(resource.KindRateLimitPolicy, obj)
@@ -283,8 +277,6 @@ func policyObjectName(obj any) (string, bool) {
 	}
 
 	switch policy := obj.(type) {
-	case *resource.AuthPolicy:
-		return policy.Name, true
 	case *resource.RateLimitPolicy:
 		return policy.Name, true
 	default:

@@ -42,12 +42,6 @@ const (
 	ResourceRuntimeSnapshot ResourceName = "runtimesnapshot"
 	// ResourceRuntimeSnapshots 表示 RuntimeSnapshot 复数资源名
 	ResourceRuntimeSnapshots ResourceName = "runtimesnapshots"
-	// ResourceAuthPolicy 表示 AuthPolicy 单数资源名
-	ResourceAuthPolicy ResourceName = "authpolicy"
-	// ResourceAuthPolicies 表示 AuthPolicy 复数资源名
-	ResourceAuthPolicies ResourceName = "authpolicies"
-	// ResourceAuthPoliciesStatus 表示 AuthPolicy status 子资源名
-	ResourceAuthPoliciesStatus ResourceName = "authpolicies/status"
 	// ResourceRateLimitPolicy 表示 RateLimitPolicy 单数资源名
 	ResourceRateLimitPolicy ResourceName = "ratelimitpolicy"
 	// ResourceRateLimitPolicies 表示 RateLimitPolicy 复数资源名
@@ -92,8 +86,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RouteList{},
 		&Upstream{},
 		&UpstreamList{},
-		&AuthPolicy{},
-		&AuthPolicyList{},
 		&RateLimitPolicy{},
 		&RateLimitPolicyList{},
 		&RedisStore{},

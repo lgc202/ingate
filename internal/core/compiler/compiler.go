@@ -20,7 +20,6 @@ type gatewayCompiler struct {
 	gatewaysByName          map[string]resource.Gateway
 	routesByName            map[string]bool
 	upstreamsByName         map[string]resource.Upstream
-	authPoliciesByName      map[string]resource.AuthPolicy
 	rateLimitPoliciesByName map[string]resource.RateLimitPolicy
 	redisStoresByName       map[string]resource.RedisStore
 	routeRulesByRoute       map[string]map[string]bool
@@ -35,7 +34,6 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 		gatewaysByName:          make(map[string]resource.Gateway, len(bundle.Gateways)),
 		routesByName:            make(map[string]bool, len(bundle.Routes)),
 		upstreamsByName:         make(map[string]resource.Upstream, len(bundle.Upstreams)),
-		authPoliciesByName:      make(map[string]resource.AuthPolicy, len(bundle.AuthPolicies)),
 		rateLimitPoliciesByName: make(map[string]resource.RateLimitPolicy, len(bundle.RateLimitPolicies)),
 		redisStoresByName:       make(map[string]resource.RedisStore, len(bundle.RedisStores)),
 		routeRulesByRoute:       make(map[string]map[string]bool, len(bundle.Routes)),
@@ -53,9 +51,6 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 		return ir.LogicalGateway{}, err
 	}
 	if err := c.indexUpstreams(); err != nil {
-		return ir.LogicalGateway{}, err
-	}
-	if err := c.indexAuthPolicies(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
 	if err := c.indexRedisStores(); err != nil {
@@ -80,7 +75,6 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 		Listeners:         c.buildListeners(),
 		Routes:            routes,
 		Upstreams:         c.buildUsedUpstreams(upstreamOrder),
-		AuthPolicies:      c.buildAuthPolicies(policyBindings),
 		RateLimitPolicies: rateLimitPolicies,
 		RedisStores:       c.buildRedisStores(redisStoreNames),
 		PolicyBindings:    policyBindings,
@@ -135,17 +129,6 @@ func (c *gatewayCompiler) indexUpstreams() error {
 			return fmt.Errorf("duplicate upstream %q", upstream.Name)
 		}
 		c.upstreamsByName[upstream.Name] = upstream
-	}
-
-	return nil
-}
-
-func (c *gatewayCompiler) indexAuthPolicies() error {
-	for _, policy := range c.bundle.AuthPolicies {
-		if _, ok := c.authPoliciesByName[policy.Name]; ok {
-			return fmt.Errorf("duplicate auth policy %q", policy.Name)
-		}
-		c.authPoliciesByName[policy.Name] = policy
 	}
 
 	return nil
@@ -210,10 +193,6 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 
 		for _, policy := range binding.Spec.Policies {
 			switch policy.Kind {
-			case resource.KindAuthPolicy:
-				if _, ok := c.authPoliciesByName[policy.Name]; !ok {
-					return fmt.Errorf("policy binding %q references auth policy %q", binding.Name, policy.Name)
-				}
 			case resource.KindRateLimitPolicy:
 				if _, ok := c.rateLimitPoliciesByName[policy.Name]; !ok {
 					return fmt.Errorf("policy binding %q references rate limit policy %q", binding.Name, policy.Name)
@@ -375,36 +354,6 @@ func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.Logica
 	}
 
 	return upstreams
-}
-
-func (c *gatewayCompiler) buildAuthPolicies(bindings []ir.LogicalPolicyBinding) []ir.LogicalAuthPolicy {
-	usedPolicies := make(map[string]bool)
-	var policyOrder []string
-
-	for _, binding := range bindings {
-		for _, policy := range binding.Policies {
-			if policy.Kind != resource.KindAuthPolicy || usedPolicies[policy.Name] {
-				continue
-			}
-			usedPolicies[policy.Name] = true
-			policyOrder = append(policyOrder, policy.Name)
-		}
-	}
-
-	policies := make([]ir.LogicalAuthPolicy, 0, len(policyOrder))
-	for _, name := range policyOrder {
-		policy := c.authPoliciesByName[name]
-		policies = append(policies, ir.LogicalAuthPolicy{
-			Name: policy.Name,
-			Type: policy.Spec.Type,
-			APIKey: ir.LogicalAPIKeyAuth{
-				Header: policy.Spec.APIKey.Header,
-				Query:  policy.Spec.APIKey.Query,
-			},
-		})
-	}
-
-	return policies
 }
 
 func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBinding) ([]ir.LogicalRateLimitPolicy, map[string]bool) {

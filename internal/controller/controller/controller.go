@@ -36,7 +36,6 @@ type Controller struct {
 	gatewayLister        gatewaylisters.GatewayLister
 	routeLister          gatewaylisters.RouteLister
 	upstreamLister       gatewaylisters.UpstreamLister
-	authPolicyLister     gatewaylisters.AuthPolicyLister
 	rateLimitLister      gatewaylisters.RateLimitPolicyLister
 	redisStoreLister     gatewaylisters.RedisStoreLister
 	routeIndexer         cache.Indexer
@@ -84,7 +83,6 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 		gatewayLister:        gatewayInformers.Gateways().Lister(),
 		routeLister:          gatewayInformers.Routes().Lister(),
 		upstreamLister:       gatewayInformers.Upstreams().Lister(),
-		authPolicyLister:     gatewayInformers.AuthPolicies().Lister(),
 		rateLimitLister:      gatewayInformers.RateLimitPolicies().Lister(),
 		redisStoreLister:     gatewayInformers.RedisStores().Lister(),
 		routeIndexer:         routeInformer.GetIndexer(),

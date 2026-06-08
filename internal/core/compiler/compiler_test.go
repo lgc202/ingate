@@ -86,17 +86,6 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
-		AuthPolicies: []resource.AuthPolicy{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "required"},
-				Spec: resource.AuthPolicySpec{
-					Type: resource.AuthTypeAPIKey,
-					APIKey: resource.APIKeyAuth{
-						Header: "x-api-key",
-					},
-				},
-			},
-		},
 		RateLimitPolicies: []resource.RateLimitPolicy{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app-quota"},
@@ -123,7 +112,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		PolicyBindings: []resource.PolicyBinding{
 			{
-				ObjectMeta: metav1.ObjectMeta{Name: "app-auth"},
+				ObjectMeta: metav1.ObjectMeta{Name: "app-limit"},
 				Spec: resource.PolicyBindingSpec{
 					Enabled: true,
 					TargetRef: resource.PolicyTargetRef{
@@ -131,7 +120,6 @@ func TestCompilerCompileGateway(t *testing.T) {
 						Name: "app",
 					},
 					Policies: []resource.PolicyRef{
-						{Kind: resource.KindAuthPolicy, Name: "required"},
 						{Kind: resource.KindRateLimitPolicy, Name: "app-quota"},
 					},
 				},
@@ -184,15 +172,6 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
-		AuthPolicies: []ir.LogicalAuthPolicy{
-			{
-				Name: "required",
-				Type: resource.AuthTypeAPIKey,
-				APIKey: ir.LogicalAPIKeyAuth{
-					Header: "x-api-key",
-				},
-			},
-		},
 		RateLimitPolicies: []ir.LogicalRateLimitPolicy{
 			{
 				Name: "app-quota",
@@ -214,13 +193,12 @@ func TestCompilerCompileGateway(t *testing.T) {
 		},
 		PolicyBindings: []ir.LogicalPolicyBinding{
 			{
-				Name: "app-auth",
+				Name: "app-limit",
 				Target: ir.LogicalPolicyTarget{
 					Kind: resource.KindRoute,
 					Name: "app",
 				},
 				Policies: []ir.LogicalPolicyRef{
-					{Kind: resource.KindAuthPolicy, Name: "required"},
 					{Kind: resource.KindRateLimitPolicy, Name: "app-quota"},
 				},
 			},
@@ -307,46 +285,6 @@ func TestCompilerCompileGatewayMissingRateLimitPolicyRef(t *testing.T) {
 		t.Fatal("CompileGateway() error = nil")
 	}
 	if !strings.Contains(err.Error(), `policy binding "app-quota" references rate limit policy "missing"`) {
-		t.Fatalf("CompileGateway() error = %v", err)
-	}
-}
-
-func TestCompilerCompileGatewayMissingPolicyRef(t *testing.T) {
-	bundle := resource.Bundle{
-		Gateways: []resource.Gateway{
-			testGateway("public"),
-		},
-		Routes: []resource.Route{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "app"},
-				Spec: resource.RouteSpec{
-					Enabled:    true,
-					ParentRefs: []resource.ParentRef{{Name: "public"}},
-				},
-			},
-		},
-		PolicyBindings: []resource.PolicyBinding{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "app-auth"},
-				Spec: resource.PolicyBindingSpec{
-					Enabled: true,
-					TargetRef: resource.PolicyTargetRef{
-						Kind: resource.KindRoute,
-						Name: "app",
-					},
-					Policies: []resource.PolicyRef{
-						{Kind: resource.KindAuthPolicy, Name: "missing"},
-					},
-				},
-			},
-		},
-	}
-
-	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
-	if err == nil {
-		t.Fatal("CompileGateway() error = nil")
-	}
-	if !strings.Contains(err.Error(), `policy binding "app-auth" references auth policy "missing"`) {
 		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }

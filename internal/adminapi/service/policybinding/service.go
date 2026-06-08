@@ -12,7 +12,6 @@ import (
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	policybindingstore "github.com/lgc202/ingate/internal/adminapi/store/policybinding"
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
-	resourcestore "github.com/lgc202/ingate/internal/adminapi/store/resource"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
@@ -23,17 +22,15 @@ type Service struct {
 	gateways          *gatewaystore.Store
 	routes            *routestore.Store
 	rateLimitPolicies *ratelimitpolicystore.Store
-	resources         *resourcestore.Store
 }
 
 // New 创建 PolicyBinding service
-func New(store *policybindingstore.Store, gateways *gatewaystore.Store, routes *routestore.Store, rateLimitPolicies *ratelimitpolicystore.Store, resources *resourcestore.Store) *Service {
+func New(store *policybindingstore.Store, gateways *gatewaystore.Store, routes *routestore.Store, rateLimitPolicies *ratelimitpolicystore.Store) *Service {
 	return &Service{
 		store:             store,
 		gateways:          gateways,
 		routes:            routes,
 		rateLimitPolicies: rateLimitPolicies,
-		resources:         resources,
 	}
 }
 
@@ -132,13 +129,6 @@ func (s *Service) validateRefs(ctx context.Context, params BindingParams) error 
 	}
 	for _, policy := range params.Policies {
 		switch policy.Kind {
-		case resource.KindAuthPolicy:
-			if _, err := s.resources.Get(ctx, resourcestore.KindAuthPolicies, policy.Name); err != nil {
-				if apierrors.IsNotFound(err) {
-					return xerrors.NewUserError(fmt.Sprintf("认证策略 %q 不存在", policy.Name))
-				}
-				return err
-			}
 		case resource.KindRateLimitPolicy:
 			if _, err := s.rateLimitPolicies.Get(ctx, policy.Name); err != nil {
 				if apierrors.IsNotFound(err) {

@@ -138,7 +138,7 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 
 ### 治理策略与内置插件
 
-- 限流、鉴权、访问控制等核心治理能力必须优先建模为强类型资源，例如 `RateLimitPolicy`、`AuthPolicy`、`AccessControlPolicy` 和 `PolicyBinding`。
+- 当前只保留已落地执行链路的 `RateLimitPolicy`、`PolicyBinding` 和 `RedisStore`；鉴权、访问控制等治理能力后续重新设计后再加入。
 - 核心治理能力可以在数据面通过内置插件执行，但用户协议和 admin-api 不能暴露为普通插件资源、插件绑定资源或插件私有 JSON。
 - 内置治理插件由系统自动注入、自动配置、随 `RuntimeSnapshot` 下发；用户不需要独立安装插件，也不需要感知插件版本、phase、priority 或 Wasm 文件路径。
 - `PolicyBinding` 只表达策略绑定到哪个资源或规则，不承载策略配置本身；策略配置必须放在对应强类型 Policy 资源中。

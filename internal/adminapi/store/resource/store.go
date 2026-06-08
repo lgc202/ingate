@@ -13,8 +13,6 @@ import (
 type Kind string
 
 const (
-	// KindAuthPolicies 表示认证策略资源
-	KindAuthPolicies Kind = "auth-policies"
 	// KindRateLimitPolicies 表示限流策略资源
 	KindRateLimitPolicies Kind = "rate-limit-policies"
 	// KindRedisStores 表示 Redis 配置资源
@@ -37,8 +35,6 @@ func New(client clientset.Interface) *Store {
 func (s *Store) List(ctx context.Context, kind Kind) (any, error) {
 	client := s.client.GatewayV1()
 	switch kind {
-	case KindAuthPolicies:
-		return client.AuthPolicies().List(ctx, metav1.ListOptions{})
 	case KindRateLimitPolicies:
 		return client.RateLimitPolicies().List(ctx, metav1.ListOptions{})
 	case KindRedisStores:
@@ -54,8 +50,6 @@ func (s *Store) List(ctx context.Context, kind Kind) (any, error) {
 func (s *Store) Get(ctx context.Context, kind Kind, name string) (any, error) {
 	client := s.client.GatewayV1()
 	switch kind {
-	case KindAuthPolicies:
-		return client.AuthPolicies().Get(ctx, name, metav1.GetOptions{})
 	case KindRateLimitPolicies:
 		return client.RateLimitPolicies().Get(ctx, name, metav1.GetOptions{})
 	case KindRedisStores:

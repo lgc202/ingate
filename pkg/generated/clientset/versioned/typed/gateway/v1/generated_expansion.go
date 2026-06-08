@@ -4,8 +4,6 @@
 
 package v1
 
-type AuthPolicyExpansion interface{}
-
 type GatewayExpansion interface{}
 
 type PolicyBindingExpansion interface{}

@@ -4,10 +4,6 @@
 
 package v1
 
-// AuthPolicyListerExpansion allows custom methods to be added to
-// AuthPolicyLister.
-type AuthPolicyListerExpansion interface{}
-
 // GatewayListerExpansion allows custom methods to be added to
 // GatewayLister.
 type GatewayListerExpansion interface{}
