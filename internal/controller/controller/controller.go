@@ -24,16 +24,9 @@ const (
 	indexTargetSeparator                       = "/"
 	routeIndexParentRef         routeIndexName = "parentRef"
 	routeIndexUpstreamRef       routeIndexName = "upstreamRef"
-	aiRouteIndexParentRef       routeIndexName = "aiParentRef"
-	aiRouteIndexProvider        routeIndexName = "aiProviderRef"
-	aiRouteIndexModel           routeIndexName = "aiModelRef"
-	aiRouteIndexPolicy          routeIndexName = "aiPolicyRef"
-	aiModelIndexProvider        routeIndexName = "aiModelProviderRef"
 	rateLimitPolicyIndexRedis   routeIndexName = "rateLimitPolicyRedisRef"
 	policyBindingIndexTargetRef routeIndexName = "policyBindingTargetRef"
 	policyBindingIndexPolicy    routeIndexName = "policyBindingPolicyRef"
-	pluginBindingIndexTargetRef routeIndexName = "pluginBindingTargetRef"
-	pluginBindingIndexPlugin    routeIndexName = "pluginBindingPluginRef"
 )
 
 // Controller 监听声明式资源变化并触发编译
@@ -43,20 +36,12 @@ type Controller struct {
 	gatewayLister        gatewaylisters.GatewayLister
 	routeLister          gatewaylisters.RouteLister
 	upstreamLister       gatewaylisters.UpstreamLister
-	aiRouteLister        gatewaylisters.AIRouteLister
-	aiProviderLister     gatewaylisters.AIProviderLister
-	aiModelLister        gatewaylisters.AIModelLister
-	aiPolicyLister       gatewaylisters.AIPolicyLister
 	authPolicyLister     gatewaylisters.AuthPolicyLister
 	rateLimitLister      gatewaylisters.RateLimitPolicyLister
 	redisStoreLister     gatewaylisters.RedisStoreLister
-	pluginLister         gatewaylisters.PluginLister
 	routeIndexer         cache.Indexer
-	aiRouteIndexer       cache.Indexer
-	aiModelIndexer       cache.Indexer
 	rateLimitIndexer     cache.Indexer
 	policyBindingIndexer cache.Indexer
-	pluginBindingIndexer cache.Indexer
 	pipeline             pipeline.Pipeline
 	target               string
 	queue                workqueue.TypedRateLimitingInterface[string]
@@ -73,27 +58,11 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 	factory := informers.NewSharedInformerFactory(client, resyncPeriod)
 	gatewayInformers := factory.Gateway().V1()
 	routeInformer := gatewayInformers.Routes().Informer()
-	aiRouteInformer := gatewayInformers.AIRoutes().Informer()
-	aiModelInformer := gatewayInformers.AIModels().Informer()
 	rateLimitInformer := gatewayInformers.RateLimitPolicies().Informer()
 	policyBindingInformer := gatewayInformers.PolicyBindings().Informer()
-	pluginBindingInformer := gatewayInformers.PluginBindings().Informer()
 	if err := routeInformer.AddIndexers(cache.Indexers{
 		string(routeIndexParentRef):   routeParentRefIndex,
 		string(routeIndexUpstreamRef): routeUpstreamRefIndex,
-	}); err != nil {
-		return nil, err
-	}
-	if err := aiRouteInformer.AddIndexers(cache.Indexers{
-		string(aiRouteIndexParentRef): aiRouteParentRefIndex,
-		string(aiRouteIndexProvider):  aiRouteProviderRefIndex,
-		string(aiRouteIndexModel):     aiRouteModelRefIndex,
-		string(aiRouteIndexPolicy):    aiRoutePolicyRefIndex,
-	}); err != nil {
-		return nil, err
-	}
-	if err := aiModelInformer.AddIndexers(cache.Indexers{
-		string(aiModelIndexProvider): aiModelProviderRefIndex,
 	}); err != nil {
 		return nil, err
 	}
@@ -108,12 +77,6 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 	}); err != nil {
 		return nil, err
 	}
-	if err := pluginBindingInformer.AddIndexers(cache.Indexers{
-		string(pluginBindingIndexTargetRef): pluginBindingTargetRefIndex,
-		string(pluginBindingIndexPlugin):    pluginBindingPluginRefIndex,
-	}); err != nil {
-		return nil, err
-	}
 
 	return &Controller{
 		client:               client,
@@ -121,20 +84,12 @@ func New(client clientset.Interface, target string, resyncPeriod time.Duration, 
 		gatewayLister:        gatewayInformers.Gateways().Lister(),
 		routeLister:          gatewayInformers.Routes().Lister(),
 		upstreamLister:       gatewayInformers.Upstreams().Lister(),
-		aiRouteLister:        gatewayInformers.AIRoutes().Lister(),
-		aiProviderLister:     gatewayInformers.AIProviders().Lister(),
-		aiModelLister:        gatewayInformers.AIModels().Lister(),
-		aiPolicyLister:       gatewayInformers.AIPolicies().Lister(),
 		authPolicyLister:     gatewayInformers.AuthPolicies().Lister(),
 		rateLimitLister:      gatewayInformers.RateLimitPolicies().Lister(),
 		redisStoreLister:     gatewayInformers.RedisStores().Lister(),
-		pluginLister:         gatewayInformers.Plugins().Lister(),
 		routeIndexer:         routeInformer.GetIndexer(),
-		aiRouteIndexer:       aiRouteInformer.GetIndexer(),
-		aiModelIndexer:       aiModelInformer.GetIndexer(),
 		rateLimitIndexer:     rateLimitInformer.GetIndexer(),
 		policyBindingIndexer: policyBindingInformer.GetIndexer(),
-		pluginBindingIndexer: pluginBindingInformer.GetIndexer(),
 		pipeline: pipeline.Pipeline{
 			Compiler: compiler.Compiler{},
 			Registry: registry,

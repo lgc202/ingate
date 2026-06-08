@@ -38,11 +38,9 @@ Publishing is a later phase.
 
 Target-specific data belongs behind translator implementations and inside `RuntimeSnapshot`.
 
-### AI Is A Future Domain, Not An Upstream Hack
+### AI Is Deferred
 
-The MVP does not implement AI resources.
-
-The model should still leave room for future first-class AI resources such as `AIProvider`, `AIRoute`, `AIPolicy`, and `QuotaPolicy`.
+The MVP does not implement AI resources. AI gateway capability will be redesigned as a separate domain when its product boundary is clear.
 
 ## 3. Non-Goals
 
@@ -316,5 +314,5 @@ After this MVP, continue in this order:
 2. Add persistent resource storage.
 3. Add API server boundary.
 4. Add data-plane model: `DataPlane` and `DataPlaneNode`.
-5. Add plugin model: `Plugin` and `PluginBinding`.
-6. Add AI model: `AIProvider`, `AIRoute`, and `AIPolicy`.
+5. Add explicit governance policy models as product requirements become clear.
+6. Redesign AI gateway resources in a separate topic.

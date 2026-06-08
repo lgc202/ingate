@@ -102,7 +102,6 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 				},
 			},
 		},
-		AIRoutes: []debug.AIRoute{},
 		Upstreams: []debug.Upstream{
 			{
 				Name: "app",
@@ -111,14 +110,9 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 				},
 			},
 		},
-		AIProviders:       []debug.AIProvider{},
-		AIModels:          []debug.AIModel{},
-		AIPolicies:        []debug.AIPolicy{},
-		Plugins:           []debug.Plugin{},
 		AuthPolicies:      []debug.AuthPolicy{},
 		RateLimitPolicies: []debug.RateLimitPolicy{},
 		PolicyBindings:    []debug.PolicyBinding{},
-		PluginBindings:    []debug.PluginBinding{},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("Config = %#v, want %#v", got, want)

@@ -13,18 +13,6 @@ import (
 type Kind string
 
 const (
-	// KindAIRoutes 表示 AI 路由资源
-	KindAIRoutes Kind = "ai-routes"
-	// KindAIProviders 表示 AI 供应商资源
-	KindAIProviders Kind = "ai-providers"
-	// KindAIModels 表示 AI 模型资源
-	KindAIModels Kind = "ai-models"
-	// KindAIPolicies 表示 AI 策略资源
-	KindAIPolicies Kind = "ai-policies"
-	// KindPlugins 表示插件资源
-	KindPlugins Kind = "plugins"
-	// KindPluginBindings 表示插件绑定资源
-	KindPluginBindings Kind = "plugin-bindings"
 	// KindAuthPolicies 表示认证策略资源
 	KindAuthPolicies Kind = "auth-policies"
 	// KindRateLimitPolicies 表示限流策略资源
@@ -49,18 +37,6 @@ func New(client clientset.Interface) *Store {
 func (s *Store) List(ctx context.Context, kind Kind) (any, error) {
 	client := s.client.GatewayV1()
 	switch kind {
-	case KindAIRoutes:
-		return client.AIRoutes().List(ctx, metav1.ListOptions{})
-	case KindAIProviders:
-		return client.AIProviders().List(ctx, metav1.ListOptions{})
-	case KindAIModels:
-		return client.AIModels().List(ctx, metav1.ListOptions{})
-	case KindAIPolicies:
-		return client.AIPolicies().List(ctx, metav1.ListOptions{})
-	case KindPlugins:
-		return client.Plugins().List(ctx, metav1.ListOptions{})
-	case KindPluginBindings:
-		return client.PluginBindings().List(ctx, metav1.ListOptions{})
 	case KindAuthPolicies:
 		return client.AuthPolicies().List(ctx, metav1.ListOptions{})
 	case KindRateLimitPolicies:
@@ -78,18 +54,6 @@ func (s *Store) List(ctx context.Context, kind Kind) (any, error) {
 func (s *Store) Get(ctx context.Context, kind Kind, name string) (any, error) {
 	client := s.client.GatewayV1()
 	switch kind {
-	case KindAIRoutes:
-		return client.AIRoutes().Get(ctx, name, metav1.GetOptions{})
-	case KindAIProviders:
-		return client.AIProviders().Get(ctx, name, metav1.GetOptions{})
-	case KindAIModels:
-		return client.AIModels().Get(ctx, name, metav1.GetOptions{})
-	case KindAIPolicies:
-		return client.AIPolicies().Get(ctx, name, metav1.GetOptions{})
-	case KindPlugins:
-		return client.Plugins().Get(ctx, name, metav1.GetOptions{})
-	case KindPluginBindings:
-		return client.PluginBindings().Get(ctx, name, metav1.GetOptions{})
 	case KindAuthPolicies:
 		return client.AuthPolicies().Get(ctx, name, metav1.GetOptions{})
 	case KindRateLimitPolicies:

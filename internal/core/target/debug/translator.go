@@ -2,7 +2,6 @@
 package debug
 
 import (
-	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -23,17 +22,11 @@ type Translator struct{}
 type Config struct {
 	Listeners         []Listener        `json:"listeners"`
 	Routes            []Route           `json:"routes"`
-	AIRoutes          []AIRoute         `json:"aiRoutes"`
 	Upstreams         []Upstream        `json:"upstreams"`
-	AIProviders       []AIProvider      `json:"aiProviders"`
-	AIModels          []AIModel         `json:"aiModels"`
-	AIPolicies        []AIPolicy        `json:"aiPolicies"`
-	Plugins           []Plugin          `json:"plugins"`
 	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
 	RedisStores       []RedisStore      `json:"redisStores"`
 	PolicyBindings    []PolicyBinding   `json:"policyBindings"`
-	PluginBindings    []PluginBinding   `json:"pluginBindings"`
 }
 
 // Listener 表示 debug 配置中的监听器
@@ -73,30 +66,6 @@ type UpstreamRef struct {
 	Weight int    `json:"weight"`
 }
 
-// AIRoute 表示 debug 配置中的 AI 路由
-type AIRoute struct {
-	Name       string          `json:"name"`
-	Hostnames  []string        `json:"hostnames"`
-	Path       string          `json:"path"`
-	PathPrefix string          `json:"pathPrefix"`
-	Model      string          `json:"model"`
-	Models     []AIModelRef    `json:"models"`
-	Providers  []AIProviderRef `json:"providers"`
-	PolicyRefs []string        `json:"policyRefs"`
-}
-
-// AIModelRef 表示 debug 配置中的 AIModel 引用
-type AIModelRef struct {
-	Name   string `json:"name"`
-	Weight int    `json:"weight"`
-}
-
-// AIProviderRef 表示 debug 配置中的 AIProvider 引用
-type AIProviderRef struct {
-	Name   string `json:"name"`
-	Weight int    `json:"weight"`
-}
-
 // Upstream 表示 debug 配置中的上游服务
 type Upstream struct {
 	Name      string     `json:"name"`
@@ -107,42 +76,6 @@ type Upstream struct {
 type Endpoint struct {
 	Address string `json:"address"`
 	Port    int    `json:"port"`
-}
-
-// AIProvider 表示 debug 配置中的 AI 模型供应商
-type AIProvider struct {
-	Name     string                  `json:"name"`
-	Type     resource.AIProviderType `json:"type"`
-	Endpoint string                  `json:"endpoint"`
-	Models   []string                `json:"models"`
-}
-
-// AIModel 表示 debug 配置中的 AI 模型映射
-type AIModel struct {
-	Name          string   `json:"name"`
-	ProviderRef   string   `json:"providerRef"`
-	ProviderModel string   `json:"providerModel"`
-	Capabilities  []string `json:"capabilities"`
-}
-
-// AIPolicy 表示 debug 配置中的 AI 请求策略
-type AIPolicy struct {
-	Name            string                         `json:"name"`
-	ExecutionTarget resource.AIExecutionTargetType `json:"executionTarget"`
-	TimeoutMillis   int                            `json:"timeoutMillis"`
-	RetryAttempts   int                            `json:"retryAttempts"`
-	FallbackEnabled bool                           `json:"fallbackEnabled"`
-	FallbackModels  []string                       `json:"fallbackModels"`
-	UsageEnabled    bool                           `json:"usageEnabled"`
-}
-
-// Plugin 表示 debug 配置中的插件声明
-type Plugin struct {
-	Name     string                 `json:"name"`
-	Runtime  resource.PluginRuntime `json:"runtime"`
-	Version  string                 `json:"version"`
-	Endpoint string                 `json:"endpoint"`
-	Image    string                 `json:"image"`
 }
 
 // AuthPolicy 表示 debug 配置中的认证策略
@@ -243,28 +176,6 @@ type PolicyRef struct {
 	Name string        `json:"name"`
 }
 
-// PluginBinding 表示 debug 配置中的插件绑定
-type PluginBinding struct {
-	Name          string                       `json:"name"`
-	Target        PluginTarget                 `json:"target"`
-	Phase         resource.PluginPhase         `json:"phase"`
-	Priority      int                          `json:"priority"`
-	FailurePolicy resource.PluginFailurePolicy `json:"failurePolicy"`
-	Plugins       []PluginRef                  `json:"plugins"`
-}
-
-// PluginTarget 表示 debug 配置中的插件绑定目标
-type PluginTarget struct {
-	Kind resource.Kind `json:"kind"`
-	Name string        `json:"name"`
-}
-
-// PluginRef 表示 debug 配置中的插件引用
-type PluginRef struct {
-	Name   string          `json:"name"`
-	Config json.RawMessage `json:"config,omitempty"`
-}
-
 // Target 返回运行时 target 名称
 func (Translator) Target() string {
 	return targetName
@@ -275,16 +186,10 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 	config := Config{
 		Listeners:         make([]Listener, 0, len(logical.Listeners)),
 		Routes:            make([]Route, 0, len(logical.Routes)),
-		AIRoutes:          make([]AIRoute, 0, len(logical.AIRoutes)),
 		Upstreams:         make([]Upstream, 0, len(logical.Upstreams)),
-		AIProviders:       make([]AIProvider, 0, len(logical.AIProviders)),
-		AIModels:          make([]AIModel, 0, len(logical.AIModels)),
-		AIPolicies:        make([]AIPolicy, 0, len(logical.AIPolicies)),
-		Plugins:           make([]Plugin, 0, len(logical.Plugins)),
 		AuthPolicies:      make([]AuthPolicy, 0, len(logical.AuthPolicies)),
 		RateLimitPolicies: make([]RateLimitPolicy, 0, len(logical.RateLimitPolicies)),
 		PolicyBindings:    make([]PolicyBinding, 0, len(logical.PolicyBindings)),
-		PluginBindings:    make([]PluginBinding, 0, len(logical.PluginBindings)),
 	}
 
 	for _, listener := range logical.Listeners {
@@ -328,31 +233,6 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		}
 		config.Routes = append(config.Routes, debugRoute)
 	}
-	for _, route := range logical.AIRoutes {
-		debugRoute := AIRoute{
-			Name:       route.Name,
-			Hostnames:  slices.Clone(route.Hostnames),
-			Path:       route.Path,
-			PathPrefix: route.PathPrefix,
-			Model:      route.Model,
-			Models:     make([]AIModelRef, 0, len(route.Models)),
-			Providers:  make([]AIProviderRef, 0, len(route.Providers)),
-			PolicyRefs: slices.Clone(route.PolicyRefs),
-		}
-		for _, model := range route.Models {
-			debugRoute.Models = append(debugRoute.Models, AIModelRef{
-				Name:   model.Name,
-				Weight: model.Weight,
-			})
-		}
-		for _, provider := range route.Providers {
-			debugRoute.Providers = append(debugRoute.Providers, AIProviderRef{
-				Name:   provider.Name,
-				Weight: provider.Weight,
-			})
-		}
-		config.AIRoutes = append(config.AIRoutes, debugRoute)
-	}
 	for _, upstream := range logical.Upstreams {
 		debugUpstream := Upstream{
 			Name:      upstream.Name,
@@ -365,42 +245,6 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			})
 		}
 		config.Upstreams = append(config.Upstreams, debugUpstream)
-	}
-	for _, provider := range logical.AIProviders {
-		config.AIProviders = append(config.AIProviders, AIProvider{
-			Name:     provider.Name,
-			Type:     provider.Type,
-			Endpoint: provider.Endpoint,
-			Models:   slices.Clone(provider.Models),
-		})
-	}
-	for _, model := range logical.AIModels {
-		config.AIModels = append(config.AIModels, AIModel{
-			Name:          model.Name,
-			ProviderRef:   model.ProviderRef,
-			ProviderModel: model.ProviderModel,
-			Capabilities:  slices.Clone(model.Capabilities),
-		})
-	}
-	for _, policy := range logical.AIPolicies {
-		config.AIPolicies = append(config.AIPolicies, AIPolicy{
-			Name:            policy.Name,
-			ExecutionTarget: policy.ExecutionTarget,
-			TimeoutMillis:   policy.TimeoutMillis,
-			RetryAttempts:   policy.RetryAttempts,
-			FallbackEnabled: policy.FallbackEnabled,
-			FallbackModels:  slices.Clone(policy.FallbackModels),
-			UsageEnabled:    policy.UsageEnabled,
-		})
-	}
-	for _, plugin := range logical.Plugins {
-		config.Plugins = append(config.Plugins, Plugin{
-			Name:     plugin.Name,
-			Runtime:  plugin.Runtime,
-			Version:  plugin.Version,
-			Endpoint: plugin.Endpoint,
-			Image:    plugin.Image,
-		})
 	}
 	for _, policy := range logical.AuthPolicies {
 		config.AuthPolicies = append(config.AuthPolicies, AuthPolicy{
@@ -451,26 +295,6 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			})
 		}
 		config.PolicyBindings = append(config.PolicyBindings, debugBinding)
-	}
-	for _, binding := range logical.PluginBindings {
-		debugBinding := PluginBinding{
-			Name: binding.Name,
-			Target: PluginTarget{
-				Kind: binding.Target.Kind,
-				Name: binding.Target.Name,
-			},
-			Phase:         binding.Phase,
-			Priority:      binding.Priority,
-			FailurePolicy: binding.FailurePolicy,
-			Plugins:       make([]PluginRef, 0, len(binding.Plugins)),
-		}
-		for _, plugin := range binding.Plugins {
-			debugBinding.Plugins = append(debugBinding.Plugins, PluginRef{
-				Name:   plugin.Name,
-				Config: slices.Clone(plugin.Config),
-			})
-		}
-		config.PluginBindings = append(config.PluginBindings, debugBinding)
 	}
 
 	return runtime.RuntimeSnapshot{

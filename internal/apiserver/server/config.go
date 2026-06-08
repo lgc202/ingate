@@ -5,14 +5,8 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
-	aimodelstorage "github.com/lgc202/ingate/internal/apiserver/registry/aimodel"
-	aipolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/aipolicy"
-	aiproviderstorage "github.com/lgc202/ingate/internal/apiserver/registry/aiprovider"
-	airoutestorage "github.com/lgc202/ingate/internal/apiserver/registry/airoute"
 	authpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/authpolicy"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
-	pluginstorage "github.com/lgc202/ingate/internal/apiserver/registry/plugin"
-	pluginbindingstorage "github.com/lgc202/ingate/internal/apiserver/registry/pluginbinding"
 	policybindingstorage "github.com/lgc202/ingate/internal/apiserver/registry/policybinding"
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	redisstorestorage "github.com/lgc202/ingate/internal/apiserver/registry/redisstore"
@@ -133,36 +127,6 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 	if err := installStorage(gatewayv1.ResourceRuntimeSnapshots, func() (rest.Storage, error) {
 		return runtimesnapshotstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return nil, err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceAIProviders, gatewayv1.ResourceAIProvidersStatus, func() (rest.Storage, rest.Storage, error) {
-		return aiproviderstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return nil, err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceAIModels, gatewayv1.ResourceAIModelsStatus, func() (rest.Storage, rest.Storage, error) {
-		return aimodelstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return nil, err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceAIRoutes, gatewayv1.ResourceAIRoutesStatus, func() (rest.Storage, rest.Storage, error) {
-		return airoutestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return nil, err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceAIPolicies, gatewayv1.ResourceAIPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return aipolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return nil, err
-	}
-	if err := installStatusStorage(gatewayv1.ResourcePlugins, gatewayv1.ResourcePluginsStatus, func() (rest.Storage, rest.Storage, error) {
-		return pluginstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return nil, err
-	}
-	if err := installStatusStorage(gatewayv1.ResourcePluginBindings, gatewayv1.ResourcePluginBindingsStatus, func() (rest.Storage, rest.Storage, error) {
-		return pluginbindingstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return nil, err
 	}

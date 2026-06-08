@@ -74,7 +74,7 @@ PolicyBinding
 RedisStore
 ```
 
-用户不需要安装限流插件，也不需要创建 `Plugin` 或 `PluginBinding` 资源。系统会根据 `RateLimitPolicy + PolicyBinding` 自动生成内置限流插件配置，并随 `RuntimeSnapshot` 下发到数据面。
+用户不需要安装限流插件，也不需要创建通用插件资源或插件绑定资源。系统会根据 `RateLimitPolicy + PolicyBinding` 自动生成内置限流插件配置，并随 `RuntimeSnapshot` 下发到数据面。
 
 用户不关心以下实现细节：
 
@@ -324,7 +324,7 @@ type PolicyTargetRef struct {
 
 `PolicyTargetRef.Name` 是目标资源 ID，也就是底层资源的 `metadata.name`。admin-api 对外字段使用 `targetID`，不要叫 `name`。
 
-`RuleName` 只在 `Kind=Route` 或未来 `Kind=AIRoute` 时允许填写，用于精确绑定到某条 route rule。
+`RuleName` 只在 `Kind=Route` 时允许填写，用于精确绑定到某条 route rule。
 
 第一阶段支持目标：
 
@@ -476,7 +476,7 @@ xDS target 把 IR 翻译成内置限流插件配置。
 
 ```go
 type RateLimitPluginConfig struct {
-	Bindings []RateLimitPluginBinding `json:"bindings"`
+	Bindings []RateLimitBinding `json:"bindings"`
 	RedisStores []RateLimitRedisStore `json:"redisStores,omitempty"`
 }
 ```
@@ -536,7 +536,7 @@ global mode：
 - 用户不应该看到或维护插件版本、执行阶段、私有 JSON
 - compiler 可以根据 policy/binding 自动生成内置限流插件配置
 
-未来如果用户自定义限流插件，可以另走 `Plugin + PluginBinding`，但不影响核心 `RateLimitPolicy` 模型。
+未来如果支持用户自定义限流插件，需要单独设计安装、配置、绑定和升级模型，但不影响核心 `RateLimitPolicy` 模型。
 
 ## 实施顺序
 

@@ -35,7 +35,7 @@
 - [ ] Add shared dataplane rate-limit data contract package
 - [ ] Extend `RateLimitAlgorithm` with `SlidingWindow`
 - [ ] Extend `RateLimitQuota` for token bucket burst and refill semantics
-- [ ] Extend `RateLimitKeyType` with `RouteRule`, `JWTClaim`, `APIKey`, `AIModel`, and `Tenant`
+- [ ] Extend `RateLimitKeyType` with `RouteRule`, `JWTClaim`, `APIKey`, and `Tenant`
 - [ ] Extend `RedisMode` with `Sentinel`
 - [ ] Extend `RedisStoreSpec` with addresses, TLS server name, connect/command timeout, pool size, min idle, sentinel master, credential refs, and cluster/sentinel knobs
 - [ ] Update Admin API DTO/service mapping for the model fields without adding frontend changes

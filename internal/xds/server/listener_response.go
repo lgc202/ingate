@@ -1,10 +1,6 @@
 package server
 
 import (
-	"cmp"
-	"fmt"
-	"slices"
-
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	listenerv3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	routerv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
@@ -12,7 +8,6 @@ import (
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	wasmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -104,8 +99,6 @@ func (b responseBuilder) listenerGroups(configs []snapshotConfig) listenerGroups
 			}
 			seen[key] = struct{}{}
 
-			config.Plugins = append(config.Plugins, snapshot.Config.Plugins...)
-			config.PluginBindings = append(config.PluginBindings, snapshot.Config.PluginBindings...)
 			config.RateLimit = mergeRateLimitConfig(config.RateLimit, snapshot.Config.RateLimit)
 			groups.configs[key] = config
 		}
@@ -128,36 +121,13 @@ func routeConfigsForListener(configs []targetxds.RouteConfig, name string) []tar
 }
 
 func (b responseBuilder) buildHTTPFilters(config targetxds.Config) ([]*hcmv3.HttpFilter, error) {
-	filters := make([]*hcmv3.HttpFilter, 0, len(config.PluginBindings)+2)
+	filters := make([]*hcmv3.HttpFilter, 0, 2)
 	if config.RateLimit != nil {
 		filter, err := b.buildRateLimitHTTPFilter(config)
 		if err != nil {
 			return nil, err
 		}
 		filters = append(filters, filter)
-	}
-
-	pluginByName := make(map[string]targetxds.Plugin, len(config.Plugins))
-	for _, plugin := range config.Plugins {
-		pluginByName[plugin.Name] = plugin
-	}
-
-	bindings := slices.Clone(config.PluginBindings)
-	slices.SortFunc(bindings, func(a, b targetxds.PluginBinding) int {
-		return cmp.Compare(a.Priority, b.Priority)
-	})
-	for _, binding := range bindings {
-		for _, pluginRef := range binding.Plugins {
-			plugin, ok := pluginByName[pluginRef.Name]
-			if !ok || plugin.Runtime != resource.PluginRuntimeWasm {
-				continue
-			}
-			filter, err := b.buildWasmHTTPFilter(binding, plugin, pluginRef)
-			if err != nil {
-				return nil, err
-			}
-			filters = append(filters, filter)
-		}
 	}
 
 	filters = append(filters, &hcmv3.HttpFilter{
@@ -167,29 +137,6 @@ func (b responseBuilder) buildHTTPFilters(config targetxds.Config) ([]*hcmv3.Htt
 		},
 	})
 	return filters, nil
-}
-
-func (b responseBuilder) buildWasmHTTPFilter(binding targetxds.PluginBinding, plugin targetxds.Plugin, pluginRef targetxds.PluginRef) (*hcmv3.HttpFilter, error) {
-	if plugin.Image == "" {
-		return nil, fmt.Errorf("wasm plugin %q has no image", plugin.Name)
-	}
-
-	typedConfig, err := b.buildWasmPluginTypedConfig(
-		plugin.Name,
-		plugin.Image,
-		string(pluginRef.Config),
-		b.wasmFailurePolicy(binding.FailurePolicy),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &hcmv3.HttpFilter{
-		Name: httpWasmFilterName,
-		ConfigType: &hcmv3.HttpFilter_TypedConfig{
-			TypedConfig: typedConfig,
-		},
-	}, nil
 }
 
 func (b responseBuilder) buildWasmPluginTypedConfig(name, image, configuration string, failurePolicy wasmv3.FailurePolicy) (*anypb.Any, error) {
@@ -225,15 +172,4 @@ func (b responseBuilder) buildWasmPluginTypedConfig(name, image, configuration s
 		return nil, err
 	}
 	return typedConfig, nil
-}
-
-func (b responseBuilder) wasmFailurePolicy(policy resource.PluginFailurePolicy) wasmv3.FailurePolicy {
-	switch policy {
-	case resource.PluginFailurePolicyFailOpen, resource.PluginFailurePolicySkipAndLog:
-		return wasmv3.FailurePolicy_FAIL_OPEN
-	case resource.PluginFailurePolicyFailClose:
-		return wasmv3.FailurePolicy_FAIL_CLOSED
-	default:
-		return wasmv3.FailurePolicy_UNSPECIFIED
-	}
 }

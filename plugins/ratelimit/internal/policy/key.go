@@ -9,7 +9,6 @@ import (
 
 const (
 	apiKeyHeader         = "x-ingate-api-key"
-	aiModelHeader        = "x-ingate-ai-model"
 	consumerHeader       = "x-ingate-consumer"
 	cookieHeader         = "cookie"
 	tenantHeader         = "x-ingate-tenant"
@@ -29,7 +28,6 @@ type Request struct {
 // HeaderNames 返回执行路由限流规则前需要从请求中读取的 header
 func HeaderNames(route config.RouteConfig) []string {
 	seen := map[string]struct{}{
-		aiModelHeader:  {},
 		apiKeyHeader:   {},
 		cookieHeader:   {},
 		consumerHeader: {},
@@ -94,9 +92,6 @@ func keyValue(req Request, part config.KeyPart) (string, bool) {
 		return req.RuleName, req.RuleName != ""
 	case config.KeyTypeAPIKey:
 		value := headerValue(req.Headers, apiKeyHeader)
-		return value, value != ""
-	case config.KeyTypeAIModel:
-		value := headerValue(req.Headers, aiModelHeader)
 		return value, value != ""
 	case config.KeyTypeTenant:
 		value := headerValue(req.Headers, tenantHeader)

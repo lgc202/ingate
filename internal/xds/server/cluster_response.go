@@ -46,7 +46,7 @@ func (b responseBuilder) buildCluster(cluster targetxds.Cluster) (*clusterv3.Clu
 
 	switch cluster.DiscoveryType {
 	case targetxds.ClusterDiscoveryTypeLogicalDNS:
-		// AIProvider cluster 使用 LOGICAL_DNS，Envoy 直接解析模型供应商域名
+		// 外部运行时依赖使用 LOGICAL_DNS，让 Envoy 直接解析目标域名
 		// 普通 Upstream 仍然走 EDS，由控制面维护端点列表
 		envoyCluster.ClusterDiscoveryType = &clusterv3.Cluster_Type{Type: clusterv3.Cluster_LOGICAL_DNS}
 		envoyCluster.LoadAssignment = &endpointv3.ClusterLoadAssignment{
@@ -66,8 +66,7 @@ func (b responseBuilder) buildCluster(cluster targetxds.Cluster) (*clusterv3.Clu
 			},
 		}
 		if cluster.TLS {
-			// AIProvider endpoint 是 https 时必须配置 upstream TLS
-			// 否则 Envoy 会用明文 HTTP 连接供应商 443 端口
+			// https 上游必须配置 upstream TLS，否则 Envoy 会用明文 HTTP 连接目标端口
 			tlsContext, err := anypb.New(&tlsv3.UpstreamTlsContext{
 				Sni: cluster.Address,
 			})

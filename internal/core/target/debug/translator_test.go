@@ -1,7 +1,6 @@
 package debug_test
 
 import (
-	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -43,61 +42,12 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
-		AIRoutes: []ir.LogicalAIRoute{
-			{
-				Name:       "chat",
-				Hostnames:  []string{"api.example.com"},
-				Path:       "/v1/chat/completions",
-				PathPrefix: "/v1/chat/completions",
-				Model:      "gpt-4.1-mini",
-				Models: []ir.LogicalAIModelRef{
-					{Name: "chat-fast", Weight: 100},
-				},
-				Providers:  []ir.LogicalAIProviderRef{},
-				PolicyRefs: []string{"ai-default"},
-			},
-		},
 		Upstreams: []ir.LogicalUpstream{
 			{
 				Name: "app",
 				Endpoints: []ir.LogicalEndpoint{
 					{Address: "10.0.0.10", Port: 8080},
 				},
-			},
-		},
-		AIProviders: []ir.LogicalAIProvider{
-			{
-				Name:     "openai",
-				Type:     resource.AIProviderTypeOpenAICompatible,
-				Endpoint: "https://api.openai.com/v1",
-				Models:   []string{"gpt-4.1-mini"},
-			},
-		},
-		AIModels: []ir.LogicalAIModel{
-			{
-				Name:          "chat-fast",
-				ProviderRef:   "openai",
-				ProviderModel: "gpt-4.1-mini",
-				Capabilities:  []string{"chat", "stream"},
-			},
-		},
-		AIPolicies: []ir.LogicalAIPolicy{
-			{
-				Name:            "ai-default",
-				ExecutionTarget: resource.AIExecutionTargetTypeWasm,
-				TimeoutMillis:   30000,
-				RetryAttempts:   2,
-				FallbackEnabled: true,
-				FallbackModels:  []string{"chat-backup"},
-				UsageEnabled:    true,
-			},
-		},
-		Plugins: []ir.LogicalPlugin{
-			{
-				Name:     "audit-log",
-				Runtime:  resource.PluginRuntimeExternal,
-				Version:  "v1",
-				Endpoint: "dns:///audit-plugin:9000",
 			},
 		},
 		AuthPolicies: []ir.LogicalAuthPolicy{
@@ -124,24 +74,6 @@ func TestTranslatorTranslate(t *testing.T) {
 							WindowSeconds: 60,
 						},
 						Algorithm: resource.RateLimitAlgorithmFixedWindow,
-					},
-				},
-			},
-		},
-		PluginBindings: []ir.LogicalPluginBinding{
-			{
-				Name: "app-audit",
-				Target: ir.LogicalPluginTarget{
-					Kind: resource.KindAIRoute,
-					Name: "chat",
-				},
-				Phase:         resource.PluginPhaseBeforeProviderCall,
-				Priority:      100,
-				FailurePolicy: resource.PluginFailurePolicyFailClose,
-				Plugins: []ir.LogicalPluginRef{
-					{
-						Name:   "audit-log",
-						Config: json.RawMessage(`{"mode":"audit"}`),
 					},
 				},
 			},
@@ -203,61 +135,12 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
-		AIRoutes: []debug.AIRoute{
-			{
-				Name:       "chat",
-				Hostnames:  []string{"api.example.com"},
-				Path:       "/v1/chat/completions",
-				PathPrefix: "/v1/chat/completions",
-				Model:      "gpt-4.1-mini",
-				Models: []debug.AIModelRef{
-					{Name: "chat-fast", Weight: 100},
-				},
-				Providers:  []debug.AIProviderRef{},
-				PolicyRefs: []string{"ai-default"},
-			},
-		},
 		Upstreams: []debug.Upstream{
 			{
 				Name: "app",
 				Endpoints: []debug.Endpoint{
 					{Address: "10.0.0.10", Port: 8080},
 				},
-			},
-		},
-		AIProviders: []debug.AIProvider{
-			{
-				Name:     "openai",
-				Type:     resource.AIProviderTypeOpenAICompatible,
-				Endpoint: "https://api.openai.com/v1",
-				Models:   []string{"gpt-4.1-mini"},
-			},
-		},
-		AIModels: []debug.AIModel{
-			{
-				Name:          "chat-fast",
-				ProviderRef:   "openai",
-				ProviderModel: "gpt-4.1-mini",
-				Capabilities:  []string{"chat", "stream"},
-			},
-		},
-		AIPolicies: []debug.AIPolicy{
-			{
-				Name:            "ai-default",
-				ExecutionTarget: resource.AIExecutionTargetTypeWasm,
-				TimeoutMillis:   30000,
-				RetryAttempts:   2,
-				FallbackEnabled: true,
-				FallbackModels:  []string{"chat-backup"},
-				UsageEnabled:    true,
-			},
-		},
-		Plugins: []debug.Plugin{
-			{
-				Name:     "audit-log",
-				Runtime:  resource.PluginRuntimeExternal,
-				Version:  "v1",
-				Endpoint: "dns:///audit-plugin:9000",
 			},
 		},
 		AuthPolicies: []debug.AuthPolicy{
@@ -284,24 +167,6 @@ func TestTranslatorTranslate(t *testing.T) {
 							WindowSeconds: 60,
 						},
 						Algorithm: resource.RateLimitAlgorithmFixedWindow,
-					},
-				},
-			},
-		},
-		PluginBindings: []debug.PluginBinding{
-			{
-				Name: "app-audit",
-				Target: debug.PluginTarget{
-					Kind: resource.KindAIRoute,
-					Name: "chat",
-				},
-				Phase:         resource.PluginPhaseBeforeProviderCall,
-				Priority:      100,
-				FailurePolicy: resource.PluginFailurePolicyFailClose,
-				Plugins: []debug.PluginRef{
-					{
-						Name:   "audit-log",
-						Config: json.RawMessage(`{"mode":"audit"}`),
 					},
 				},
 			},
