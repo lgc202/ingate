@@ -11,7 +11,7 @@ import (
 
 	xdsserver "github.com/lgc202/ingate/internal/xds/server"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
-	"github.com/lgc202/ingate/pkg/logx"
+	"github.com/lgc202/ingate/pkg/xlog"
 )
 
 const usage = `ingate-xds 是面向 Envoy 的 xDS 配置服务
@@ -51,7 +51,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	logger, err := logx.New(logx.Options{
+	logger, err := xlog.New(xlog.Options{
 		Output: logOutput(options.LogStdout, stdout),
 		Format: options.LogFormat,
 		Level:  options.LogLevel,

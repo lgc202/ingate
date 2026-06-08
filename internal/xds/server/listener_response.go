@@ -2,7 +2,6 @@ package server
 
 import (
 	"cmp"
-	"encoding/json"
 	"fmt"
 	"slices"
 
@@ -22,20 +21,13 @@ const (
 	httpConnectionManagerFilterName = "envoy.filters.network.http_connection_manager"
 	httpRouterFilterName            = "envoy.filters.http.router"
 	httpWasmFilterName              = "envoy.filters.http.wasm"
-	managedRateLimitHTTPFilterName  = "ingate.filters.http.managed_rate_limit"
-	managedRateLimitPluginName      = "ingate.managed.rate-limit"
-	managedRateLimitPluginPath      = "/opt/ingate/plugins/rate-limit.wasm"
-	managedRateLimitSchemaVersion   = "v1"
+	rateLimitHTTPFilterName         = "ingate.filters.http.ratelimit"
+	rateLimitPluginName             = "ingate.ratelimit"
+	rateLimitPluginPath             = "/opt/ingate/plugins/ratelimit.wasm"
+	rateLimitSchemaVersion          = "v1"
 	wasmRuntime                     = "envoy.wasm.runtime.v8"
 	defaultBindAddress              = "0.0.0.0"
 )
-
-type managedRateLimitFilterConfig struct {
-	SchemaVersion string                          `json:"schemaVersion"`
-	RedisStores   []targetxds.RateLimitRedisStore `json:"redisStores,omitempty"`
-	Executor      *targetxds.RateLimitExecutor    `json:"executor,omitempty"`
-	Routes        []managedRateLimitRouteConfig   `json:"routes,omitempty"`
-}
 
 func (b responseBuilder) buildListeners(configs []snapshotConfig) ([]*anypb.Any, error) {
 	resources := make([]*anypb.Any, 0)
@@ -114,7 +106,7 @@ func (b responseBuilder) listenerGroups(configs []snapshotConfig) listenerGroups
 
 			config.Plugins = append(config.Plugins, snapshot.Config.Plugins...)
 			config.PluginBindings = append(config.PluginBindings, snapshot.Config.PluginBindings...)
-			config.ManagedRateLimit = mergeManagedRateLimit(config.ManagedRateLimit, snapshot.Config.ManagedRateLimit)
+			config.RateLimit = mergeRateLimitConfig(config.RateLimit, snapshot.Config.RateLimit)
 			groups.configs[key] = config
 		}
 	}
@@ -137,8 +129,8 @@ func routeConfigsForListener(configs []targetxds.RouteConfig, name string) []tar
 
 func (b responseBuilder) buildHTTPFilters(config targetxds.Config) ([]*hcmv3.HttpFilter, error) {
 	filters := make([]*hcmv3.HttpFilter, 0, len(config.PluginBindings)+2)
-	if config.ManagedRateLimit != nil {
-		filter, err := b.buildManagedRateLimitHTTPFilter(config)
+	if config.RateLimit != nil {
+		filter, err := b.buildRateLimitHTTPFilter(config)
 		if err != nil {
 			return nil, err
 		}
@@ -175,86 +167,6 @@ func (b responseBuilder) buildHTTPFilters(config targetxds.Config) ([]*hcmv3.Htt
 		},
 	})
 	return filters, nil
-}
-
-func mergeManagedRateLimit(current, next *targetxds.ManagedRateLimit) *targetxds.ManagedRateLimit {
-	if next == nil {
-		return current
-	}
-	if current == nil {
-		return &targetxds.ManagedRateLimit{
-			Bindings:    slices.Clone(next.Bindings),
-			RedisStores: slices.Clone(next.RedisStores),
-			Executor:    next.Executor,
-		}
-	}
-	current.Bindings = append(current.Bindings, next.Bindings...)
-	current.RedisStores = append(current.RedisStores, next.RedisStores...)
-	if current.Executor == nil {
-		current.Executor = next.Executor
-	}
-	return current
-}
-
-func managedRateLimitRouteConfigs(configs []targetxds.RouteConfig, rateLimit *targetxds.ManagedRateLimit) []managedRateLimitRouteConfig {
-	result := make([]managedRateLimitRouteConfig, 0)
-	seen := map[string]struct{}{}
-	for _, config := range configs {
-		for _, virtualHost := range config.VirtualHosts {
-			for _, route := range virtualHost.Routes {
-				routeConfig, ok := buildManagedRateLimitRouteConfig(route, rateLimit)
-				if !ok {
-					continue
-				}
-				key := routeRuntimeName(routeConfig.GatewayName, routeConfig.RouteName, routeConfig.RuleName, "")
-				if _, ok := seen[key]; ok {
-					continue
-				}
-				seen[key] = struct{}{}
-				result = append(result, routeConfig)
-			}
-		}
-	}
-	return result
-}
-
-func (b responseBuilder) buildManagedRateLimitHTTPFilter(runtimeConfig targetxds.Config) (*hcmv3.HttpFilter, error) {
-	redisStores := make([]targetxds.RateLimitRedisStore, 0, len(runtimeConfig.ManagedRateLimit.RedisStores))
-	seenRedisStores := map[string]struct{}{}
-	for _, store := range runtimeConfig.ManagedRateLimit.RedisStores {
-		if _, ok := seenRedisStores[store.Name]; ok {
-			continue
-		}
-		seenRedisStores[store.Name] = struct{}{}
-		redisStores = append(redisStores, store)
-	}
-
-	rawConfig, err := json.Marshal(managedRateLimitFilterConfig{
-		SchemaVersion: managedRateLimitSchemaVersion,
-		RedisStores:   redisStores,
-		Executor:      runtimeConfig.ManagedRateLimit.Executor,
-		Routes:        managedRateLimitRouteConfigs(runtimeConfig.RouteConfigs, runtimeConfig.ManagedRateLimit),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	typedConfig, err := b.buildWasmPluginTypedConfig(
-		managedRateLimitPluginName,
-		managedRateLimitPluginPath,
-		string(rawConfig),
-		wasmv3.FailurePolicy_FAIL_CLOSED,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &hcmv3.HttpFilter{
-		Name: managedRateLimitHTTPFilterName,
-		ConfigType: &hcmv3.HttpFilter_TypedConfig{
-			TypedConfig: typedConfig,
-		},
-	}, nil
 }
 
 func (b responseBuilder) buildWasmHTTPFilter(binding targetxds.PluginBinding, plugin targetxds.Plugin, pluginRef targetxds.PluginRef) (*hcmv3.HttpFilter, error) {

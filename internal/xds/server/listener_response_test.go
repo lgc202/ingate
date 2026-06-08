@@ -10,6 +10,7 @@ import (
 	wasmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -113,7 +114,7 @@ func TestResponseBuilderBuildListenersWithWasmPlugin(t *testing.T) {
 	}
 }
 
-func TestResponseBuilderBuildListenersWithManagedRateLimit(t *testing.T) {
+func TestResponseBuilderBuildListenersWithRateLimit(t *testing.T) {
 	configs := []snapshotConfig{
 		{
 			Gateway: "public",
@@ -143,25 +144,25 @@ func TestResponseBuilderBuildListenersWithManagedRateLimit(t *testing.T) {
 						},
 					},
 				},
-				ManagedRateLimit: &targetxds.ManagedRateLimit{
-					Bindings: []targetxds.RateLimitBinding{
+				RateLimit: &pluginratelimit.Config{
+					Bindings: []pluginratelimit.Binding{
 						{
 							Name: "gateway-limit",
-							Target: targetxds.RateLimitTarget{
-								Kind: resource.KindGateway,
+							Target: pluginratelimit.Target{
+								Kind: string(resource.KindGateway),
 								Name: "public",
 							},
 						},
 						{
 							Name: "route-rule-limit",
-							Target: targetxds.RateLimitTarget{
-								Kind:     resource.KindRoute,
+							Target: pluginratelimit.Target{
+								Kind:     string(resource.KindRoute),
 								Name:     "route-users",
 								RuleName: "primary",
 							},
 						},
 					},
-					RedisStores: []targetxds.RateLimitRedisStore{
+					RedisStores: []pluginratelimit.RedisStore{
 						{Name: "redis-main", DisplayName: "主 Redis", Address: "redis.example.com:6379"},
 					},
 				},
@@ -202,8 +203,8 @@ func TestResponseBuilderBuildListenersWithManagedRateLimit(t *testing.T) {
 	if len(hcm.HttpFilters) != 3 {
 		t.Fatalf("len(HttpFilters) = %d, want 3", len(hcm.HttpFilters))
 	}
-	if hcm.HttpFilters[0].Name != managedRateLimitHTTPFilterName {
-		t.Fatalf("HttpFilters[0].Name = %q, want managed rate limit", hcm.HttpFilters[0].Name)
+	if hcm.HttpFilters[0].Name != rateLimitHTTPFilterName {
+		t.Fatalf("HttpFilters[0].Name = %q, want rate limit", hcm.HttpFilters[0].Name)
 	}
 	if hcm.HttpFilters[1].Name != httpWasmFilterName {
 		t.Fatalf("HttpFilters[1].Name = %q, want user wasm", hcm.HttpFilters[1].Name)
@@ -217,26 +218,26 @@ func TestResponseBuilderBuildListenersWithManagedRateLimit(t *testing.T) {
 		t.Fatalf("UnmarshalTo(wasm) error = %v", err)
 	}
 	pluginConfig := wasm.GetConfig()
-	if pluginConfig.GetName() != managedRateLimitPluginName {
-		t.Fatalf("PluginConfig.Name = %q, want %q", pluginConfig.GetName(), managedRateLimitPluginName)
+	if pluginConfig.GetName() != rateLimitPluginName {
+		t.Fatalf("PluginConfig.Name = %q, want %q", pluginConfig.GetName(), rateLimitPluginName)
 	}
 	if pluginConfig.GetFailurePolicy() != wasmv3.FailurePolicy_FAIL_CLOSED {
 		t.Fatalf("PluginConfig.FailurePolicy = %v, want fail close", pluginConfig.GetFailurePolicy())
 	}
-	if pluginConfig.GetVmConfig().GetCode().GetLocal().GetFilename() != managedRateLimitPluginPath {
-		t.Fatalf("PluginConfig filename = %q, want %q", pluginConfig.GetVmConfig().GetCode().GetLocal().GetFilename(), managedRateLimitPluginPath)
+	if pluginConfig.GetVmConfig().GetCode().GetLocal().GetFilename() != rateLimitPluginPath {
+		t.Fatalf("PluginConfig filename = %q, want %q", pluginConfig.GetVmConfig().GetCode().GetLocal().GetFilename(), rateLimitPluginPath)
 	}
 
 	var pluginJSON wrapperspb.StringValue
 	if err := pluginConfig.GetConfiguration().UnmarshalTo(&pluginJSON); err != nil {
 		t.Fatalf("UnmarshalTo(plugin config) error = %v", err)
 	}
-	var config managedRateLimitFilterConfig
+	var config pluginratelimit.PluginConfig
 	if err := json.Unmarshal([]byte(pluginJSON.Value), &config); err != nil {
-		t.Fatalf("Unmarshal(managed config) error = %v", err)
+		t.Fatalf("Unmarshal(rate limit config) error = %v", err)
 	}
-	if config.SchemaVersion != managedRateLimitSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", config.SchemaVersion, managedRateLimitSchemaVersion)
+	if config.SchemaVersion != rateLimitSchemaVersion {
+		t.Fatalf("SchemaVersion = %q, want %q", config.SchemaVersion, rateLimitSchemaVersion)
 	}
 	if len(config.RedisStores) != 1 || config.RedisStores[0].Name != "redis-main" {
 		t.Fatalf("RedisStores = %+v, want redis-main", config.RedisStores)

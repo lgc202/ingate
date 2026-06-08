@@ -6,6 +6,8 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.32.4
 	github.com/gin-gonic/gin v1.12.0
 	github.com/mccutchen/go-httpbin/v2 v2.23.0
+	github.com/proxy-wasm/proxy-wasm-go-sdk v0.0.0-20260105142703-44c7d5847745
+	github.com/redis/go-redis/v9 v9.20.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/pflag v1.0.6
 	k8s.io/apimachinery v0.34.2
@@ -36,7 +38,6 @@ require (
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
-	github.com/redis/go-redis/v9 v9.20.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect

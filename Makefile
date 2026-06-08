@@ -1,4 +1,4 @@
-.PHONY: build generate test managed-rate-limit-plugin-test managed-rate-limit-plugin-build console-install console-build all-in-one-binaries all-in-one-image dev-image dev-restart dev-reset
+.PHONY: build generate test ratelimit-plugin-test ratelimit-plugin-build console-install console-build all-in-one-binaries all-in-one-image dev-image dev-restart dev-reset
 
 GO_CACHE_DIR ?= /tmp/ingate-gocache
 ALL_IN_ONE_IMAGE ?= ingate/all-in-one:dev
@@ -8,8 +8,8 @@ CONSOLE_DIR ?= web/console
 DEV_IMAGE ?= ingate/all-in-one
 DEV_TAG ?= dev
 DEV_DATA_DIR ?= ./ingate-dev
-MANAGED_RATE_LIMIT_PLUGIN_DIR ?= plugins/managed/rate-limit
-MANAGED_RATE_LIMIT_PLUGIN_OUT ?= _output/plugins/rate-limit.wasm
+RATELIMIT_PLUGIN_DIR ?= plugins/ratelimit
+RATELIMIT_PLUGIN_OUT ?= _output/plugins/ratelimit.wasm
 
 build:
 	mkdir -p _output/bin
@@ -21,12 +21,12 @@ generate:
 test:
 	GOCACHE=$(GO_CACHE_DIR) go test ./...
 
-managed-rate-limit-plugin-test:
-	cd $(MANAGED_RATE_LIMIT_PLUGIN_DIR) && GOCACHE=$(GO_CACHE_DIR) go test ./...
+ratelimit-plugin-test:
+	cd $(RATELIMIT_PLUGIN_DIR) && GOCACHE=$(GO_CACHE_DIR) go test ./...
 
-managed-rate-limit-plugin-build:
+ratelimit-plugin-build:
 	mkdir -p _output/plugins
-	cd $(MANAGED_RATE_LIMIT_PLUGIN_DIR) && GOOS=wasip1 GOARCH=wasm GOCACHE=$(GO_CACHE_DIR) go build -buildmode=c-shared -o ../../../$(MANAGED_RATE_LIMIT_PLUGIN_OUT) .
+	cd $(RATELIMIT_PLUGIN_DIR) && GOOS=wasip1 GOARCH=wasm GOCACHE=$(GO_CACHE_DIR) go build -buildmode=c-shared -o ../../$(RATELIMIT_PLUGIN_OUT) .
 
 console-install:
 	cd $(CONSOLE_DIR) && npm ci
@@ -38,7 +38,7 @@ all-in-one-binaries:
 	mkdir -p _output/all-in-one/bin
 	GOOS=$(ALL_IN_ONE_GOOS) GOARCH=$(ALL_IN_ONE_GOARCH) CGO_ENABLED=0 GOCACHE=$(GO_CACHE_DIR) go build -o _output/all-in-one/bin/ ./cmd/...
 
-all-in-one-image: all-in-one-binaries managed-rate-limit-plugin-build console-build
+all-in-one-image: all-in-one-binaries ratelimit-plugin-build console-build
 	docker build -f deploy/all-in-one/Dockerfile -t $(ALL_IN_ONE_IMAGE) .
 
 dev-image:
