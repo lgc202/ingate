@@ -34,7 +34,7 @@ func (s *Service) Check(ctx context.Context, request dataplaneratelimit.CheckReq
 	for _, check := range request.Checks {
 		result, err := s.executeCheck(ctx, check)
 		if err != nil {
-			errorCode := classifyError(err)
+			errorCode := s.classifyError(err)
 			s.logger.Error(
 				"rate limit check failed",
 				"policy", check.PolicyName,
@@ -61,7 +61,7 @@ func (s *Service) Check(ctx context.Context, request dataplaneratelimit.CheckReq
 	}
 }
 
-func classifyError(err error) dataplaneratelimit.ErrorCode {
+func (s *Service) classifyError(err error) dataplaneratelimit.ErrorCode {
 	switch {
 	case errors.Is(err, errInvalidCheck):
 		return dataplaneratelimit.ErrorCodeInvalidRequest
