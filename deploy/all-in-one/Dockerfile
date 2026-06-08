@@ -13,7 +13,7 @@ COPY _output/all-in-one/bin/ingate-admin-api /usr/local/bin/ingate-admin-api
 COPY _output/all-in-one/bin/ingate-controller /usr/local/bin/ingate-controller
 COPY _output/all-in-one/bin/ingate-xds /usr/local/bin/ingate-xds
 COPY _output/all-in-one/bin/ingate-httpbin /usr/local/bin/ingate-httpbin
-COPY _output/all-in-one/bin/ingate-rate-limit-executor /usr/local/bin/ingate-rate-limit-executor
+COPY _output/all-in-one/bin/ingate-dataplane /usr/local/bin/ingate-dataplane
 COPY --from=etcd /usr/local/bin/etcd /usr/local/bin/etcd
 COPY --from=envoy /usr/local/bin/envoy /usr/local/bin/envoy
 
@@ -21,7 +21,7 @@ COPY deploy/all-in-one/default.env /etc/ingate/default.env
 COPY deploy/all-in-one/envoy/bootstrap.yaml /etc/ingate/envoy/bootstrap.yaml
 COPY deploy/all-in-one/entrypoint.sh /usr/local/bin/ingate-all-in-one
 COPY web/console/dist /opt/ingate/console
-COPY _output/plugins/rate-limit.wasm /opt/ingate/plugins/rate-limit.wasm
+COPY _output/plugins/ratelimit.wasm /opt/ingate/plugins/ratelimit.wasm
 
 RUN chmod +x /usr/local/bin/ingate-all-in-one
 

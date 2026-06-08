@@ -15,7 +15,7 @@ ETCD_ADDR="${INGATE_ETCD_ADDR:-127.0.0.1:2379}"
 XDS_ADDR="${INGATE_XDS_ADDR:-127.0.0.1:18000}"
 CONSOLE_ADDR="${INGATE_CONSOLE_ADDR:-0.0.0.0:8001}"
 HTTPBIN_ADDR="${INGATE_HTTPBIN_ADDR:-127.0.0.1:19090}"
-RATE_LIMIT_EXECUTOR_ADDR="${INGATE_RATE_LIMIT_EXECUTOR_ADDR:-127.0.0.1:18081}"
+DATAPLANE_ADDR="${INGATE_DATAPLANE_ADDR:-127.0.0.1:18081}"
 KUBECONFIG_FILE="/etc/ingate/kubeconfig"
 
 pids=()
@@ -110,10 +110,12 @@ start_bg ingate-httpbin ingate-httpbin \
 
 wait_tcp ingate-httpbin "$HTTPBIN_HOST" "$HTTPBIN_PORT"
 
-start_bg ingate-rate-limit-executor ingate-rate-limit-executor \
-	--listen-address "$RATE_LIMIT_EXECUTOR_ADDR"
+start_bg ingate-dataplane ingate-dataplane \
+	--listen-address "$DATAPLANE_ADDR"
 
-wait_tcp ingate-rate-limit-executor 127.0.0.1 18081
+DATAPLANE_HOST="${DATAPLANE_ADDR%:*}"
+DATAPLANE_PORT="${DATAPLANE_ADDR##*:}"
+wait_tcp ingate-dataplane "$DATAPLANE_HOST" "$DATAPLANE_PORT"
 
 start_bg envoy envoy \
 	-c /etc/ingate/envoy/bootstrap.yaml

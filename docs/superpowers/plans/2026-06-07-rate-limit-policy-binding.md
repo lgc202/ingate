@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the backend long-term model for `RateLimitPolicy + PolicyBinding + RedisStore`, compiling it into managed rate-limit plugin configuration.
+**Goal:** Build the backend long-term model for `RateLimitPolicy + PolicyBinding + RedisStore`, compiling it into built-in rate-limit plugin configuration.
 
-**Architecture:** Control-plane resources stay strongly typed and product-oriented. The compiler emits runtime-independent IR, and the xDS target translates that IR into managed rate-limit plugin config consumed by the data plane. Admin API exposes DTOs for policies, bindings, and Redis stores without exposing plugin JSON.
+**Architecture:** Control-plane resources stay strongly typed and product-oriented. The compiler emits runtime-independent IR, and the xDS target translates that IR into built-in rate-limit plugin config consumed by the data plane. Admin API exposes DTOs for policies, bindings, and Redis stores without exposing plugin JSON.
 
 **Tech Stack:** Go 1.26, Kubernetes apiserver-style resources, generated clients, Gin admin API, Envoy xDS internal config.
 
@@ -15,7 +15,7 @@
 **Files:**
 - Modify: `AGENTS.md`
 
-- [x] Add the managed governance plugin boundary to the coding standards
+- [x] Add the built-in governance plugin boundary to the coding standards
 - [x] Add RateLimitPolicy/PolicyBinding/RedisStore modeling rules
 
 ### Task 2: Declarative Resource Model
@@ -67,7 +67,7 @@
 - Modify: `internal/core/target/xds/translator.go`
 - Modify: `internal/core/target/debug/translator.go`
 
-- [ ] Translate logical rate-limit data into managed rate-limit plugin config
+- [ ] Translate logical rate-limit data into built-in rate-limit plugin config
 - [ ] Include RedisStore config without password material
 - [ ] Keep debug target aligned for local inspection
 
@@ -99,4 +99,3 @@
 - [ ] Run `make test`
 - [ ] Run `make build`
 - [ ] Commit focused changes
-

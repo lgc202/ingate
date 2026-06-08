@@ -10,7 +10,6 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -24,14 +23,6 @@ const (
 
 type routeConfigGroup struct {
 	virtualHosts []targetxds.VirtualHost
-}
-
-type managedRateLimitRouteConfig struct {
-	SchemaVersion string                       `json:"schemaVersion"`
-	GatewayName   string                       `json:"gatewayName"`
-	RouteName     string                       `json:"routeName"`
-	RuleName      string                       `json:"ruleName,omitempty"`
-	Bindings      []targetxds.RateLimitBinding `json:"bindings"`
 }
 
 func (b responseBuilder) buildRouteConfigs(configs []snapshotConfig) ([]*anypb.Any, error) {
@@ -218,42 +209,6 @@ func (b responseBuilder) buildRoute(route targetxds.Route, method string) (*rout
 		RequestHeadersToAdd:    b.requestHeadersToAdd(route.RequestHeadersToAdd),
 		RequestHeadersToRemove: route.RequestHeadersToRemove,
 	}, nil
-}
-
-func buildManagedRateLimitRouteConfig(route targetxds.Route, rateLimit *targetxds.ManagedRateLimit) (managedRateLimitRouteConfig, bool) {
-	if rateLimit == nil {
-		return managedRateLimitRouteConfig{}, false
-	}
-
-	bindings := make([]targetxds.RateLimitBinding, 0)
-	for _, binding := range rateLimit.Bindings {
-		if !rateLimitBindingMatchesRoute(binding, route) {
-			continue
-		}
-		bindings = append(bindings, binding)
-	}
-	if len(bindings) == 0 {
-		return managedRateLimitRouteConfig{}, false
-	}
-
-	return managedRateLimitRouteConfig{
-		SchemaVersion: managedRateLimitSchemaVersion,
-		GatewayName:   route.GatewayName,
-		RouteName:     route.Name,
-		RuleName:      route.RuleName,
-		Bindings:      bindings,
-	}, true
-}
-
-func rateLimitBindingMatchesRoute(binding targetxds.RateLimitBinding, route targetxds.Route) bool {
-	switch binding.Target.Kind {
-	case resource.KindGateway:
-		return binding.Target.Name == route.GatewayName
-	case resource.KindRoute:
-		return binding.Target.Name == route.Name && (binding.Target.RuleName == "" || binding.Target.RuleName == route.RuleName)
-	default:
-		return false
-	}
 }
 
 func routeRuntimeName(gatewayName, routeName, ruleName, method string) string {

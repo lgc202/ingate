@@ -19,7 +19,7 @@
 - 使用强类型 `RateLimitPolicy` 表达限流策略本身
 - 使用 `PolicyBinding` 表达策略绑定到哪个 Gateway、Route 或 RouteRule
 - 支持本地限流和 Redis-backed global limit
-- global limit 由内置 managed plugin 直连 Redis 执行，不新增独立 rate-limit 服务
+- global limit 由内置限流插件调用 ingate-dataplane 执行 Redis 访问，不新增用户级外部 rate-limit 服务
 - Redis 连接配置独立建模，策略通过引用使用，不把连接信息散落在策略规则里
 - compiler 输出运行时无关 IR，xDS target 再翻译成内置限流插件配置
 - admin-api 暴露产品 DTO，不暴露 Kubernetes 风格资源对象和插件私有 JSON
@@ -54,7 +54,7 @@ Logical IR
 xDS target translator
   |
   v
-managed rate-limit plugin config
+built-in rate-limit plugin config
   |
   v
 Envoy 内置插件执行 local / Redis global limit
@@ -74,7 +74,7 @@ PolicyBinding
 RedisStore
 ```
 
-用户不需要安装限流插件，也不需要创建 `Plugin` 或 `PluginBinding` 资源。系统会根据 `RateLimitPolicy + PolicyBinding` 自动生成 managed rate-limit plugin 配置，并随 `RuntimeSnapshot` 下发到数据面。
+用户不需要安装限流插件，也不需要创建 `Plugin` 或 `PluginBinding` 资源。系统会根据 `RateLimitPolicy + PolicyBinding` 自动生成内置限流插件配置，并随 `RuntimeSnapshot` 下发到数据面。
 
 用户不关心以下实现细节：
 
@@ -104,7 +104,7 @@ Ingate 不直接照搬这个模型：
 - 不让控制台协议退化成插件 JSON
 - 不把 Redis 连接配置复制到每条规则
 
-Ingate 借鉴它的数据面实现思路：限流由内置治理插件在数据面执行；但控制面仍保持 `RateLimitPolicy + PolicyBinding` 的强类型资源边界。插件实现不依赖 Higress `wasm-go/pkg/wrapper`，也不复制 Higress `WasmPlugin.matchRules` 作为产品协议。Redis-backed global limit 需要 Ingate 自己的数据面 Redis 执行器或明确验证过的标准 host 能力，不能把 Higress 专属 host function 当成默认运行时能力。
+Ingate 借鉴它的数据面实现思路：限流由内置治理插件在数据面执行；但控制面仍保持 `RateLimitPolicy + PolicyBinding` 的强类型资源边界。插件实现不依赖 Higress `wasm-go/pkg/wrapper`，也不复制 Higress `WasmPlugin.matchRules` 作为产品协议。Redis-backed global limit 需要 Ingate 自己的数据面服务或明确验证过的标准 host 能力，不能把 Higress 专属 host function 当成默认运行时能力。
 
 ## 企业级验收标准
 
@@ -470,12 +470,12 @@ compiler 不负责生成插件 JSON。插件配置属于 target translator 的�
 
 ## xDS target 和内置插件
 
-xDS target 把 IR 翻译成 managed rate-limit plugin 配置。
+xDS target 把 IR 翻译成内置限流插件配置。
 
 内部配置建议：
 
 ```go
-type ManagedRateLimitPlugin struct {
+type RateLimitPluginConfig struct {
 	Bindings []RateLimitPluginBinding `json:"bindings"`
 	RedisStores []RateLimitRedisStore `json:"redisStores,omitempty"`
 }
@@ -485,7 +485,7 @@ type ManagedRateLimitPlugin struct {
 
 xDS server 负责把这份配置落到 Envoy：
 
-- Listener / HCM 注入一次 `ingate.filters.http.managed_rate_limit` Wasm filter，用于加载内置限流插件
+- Listener / HCM 注入一次 `ingate.filters.http.ratelimit` Wasm filter，用于加载内置限流插件
 - Listener filter 配置携带 `schemaVersion`、RedisStore 连接索引和当前 listener 下可执行的 route/rule 限流配置
 - Envoy route name 使用 xDS target 内部稳定编码，插件通过当前 xDS route name 定位当前请求命中的 Gateway、Route 和 RouteRule
 
@@ -494,7 +494,7 @@ xDS server 负责把这份配置落到 Envoy：
 内置插件是 Ingate 发布物的一部分，默认路径使用：
 
 ```text
-/opt/ingate/plugins/rate-limit.wasm
+/opt/ingate/plugins/ratelimit.wasm
 ```
 
 `/opt/ingate/plugins` 表示随镜像或安装包发布的只读内置插件。`/var/lib/ingate/plugins` 更适合未来动态下载、缓存或用户安装的外部插件，不作为内置治理插件的默认路径。
@@ -507,7 +507,7 @@ local mode：
 
 global mode：
 
-- 插件通过 Ingate-owned Redis 执行器或已验证 host 能力使用 RedisStore
+- 插件通过 Ingate-owned 数据面服务或已验证 host 能力使用 RedisStore
 - 使用稳定 key 前缀：环境前缀、gateway、route、rule、policy、rate rule、key parts
 - 请求进入时计算 key，向 Redis 原子更新计数
 - 超限时返回策略定义的响应
@@ -534,7 +534,7 @@ global mode：
 
 - 限流是核心治理能力，需要强类型资源和明确 admin-api
 - 用户不应该看到或维护插件版本、执行阶段、私有 JSON
-- compiler 可以根据 policy/binding 自动生成 managed plugin 配置
+- compiler 可以根据 policy/binding 自动生成内置限流插件配置
 
 未来如果用户自定义限流插件，可以另走 `Plugin + PluginBinding`，但不影响核心 `RateLimitPolicy` 模型。
 
@@ -546,8 +546,8 @@ global mode：
 2. 新增 `RedisStore` 资源、apiserver registry、client、lister、informer 和 store 入口
 3. 更新 compiler 索引、引用校验、RouteRule 级 target 支持和 IR
 4. 更新 controller，把相关 RedisStore、PolicyBinding、RateLimitPolicy 收集进 Gateway bundle
-5. 更新 xDS target，输出 managed rate-limit plugin 配置
-6. 更新 xDS server，把 managed rate-limit plugin 注入 HTTP filter 链和 route/rule 匹配配置
+5. 更新 xDS target，输出内置限流插件配置
+6. 更新 xDS server，把内置限流插件注入 HTTP filter 链和 route/rule 匹配配置
 7. 新增 admin-api RateLimitPolicy CRUD
 8. 新增 admin-api PolicyBinding CRUD
 9. 新增 admin-api RedisStore CRUD
