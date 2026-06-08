@@ -20,18 +20,11 @@
 make managed-rate-limit-plugin-build
 ```
 
-本地构建需要安装 TinyGo。普通 Go 单元测试不依赖 TinyGo：
+插件使用 Go 标准工具链按 `GOOS=wasip1 GOARCH=wasm -buildmode=c-shared` 构建。这个构建方式会导出 Envoy 识别 Proxy-Wasm 插件所需的 ABI 入口。
+
+普通 Go 单元测试不需要启动 Envoy：
 
 ```bash
 cd plugins/managed/rate-limit
 go test ./...
 ```
-
-macOS 可以通过 TinyGo 官方 Homebrew tap 安装：
-
-```bash
-brew tap tinygo-org/tools
-brew install tinygo
-```
-
-当前使用 `-gc=leaking` 生成 Wasm。`custom` GC 需要再单独验证 TinyGo 版本和 SDK 依赖的兼容性，不作为首版运行链路的阻塞项。

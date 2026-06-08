@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"sort"
+	"strings"
 	"time"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -83,6 +84,7 @@ func (b responseBuilder) buildRouteConfigs(configs []snapshotConfig) ([]*anypb.A
 }
 
 func (b responseBuilder) buildRouteConfig(name string, virtualHosts []targetxds.VirtualHost) (*anypb.Any, error) {
+	virtualHosts = mergeVirtualHosts(virtualHosts)
 	resources := make([]*routev3.VirtualHost, 0, len(virtualHosts))
 	for _, virtualHost := range virtualHosts {
 		routes, err := b.buildRoutes(virtualHost.Routes)
@@ -100,6 +102,32 @@ func (b responseBuilder) buildRouteConfig(name string, virtualHosts []targetxds.
 		Name:         name,
 		VirtualHosts: resources,
 	})
+}
+
+func mergeVirtualHosts(virtualHosts []targetxds.VirtualHost) []targetxds.VirtualHost {
+	result := make([]targetxds.VirtualHost, 0, len(virtualHosts))
+	indexes := make(map[string]int, len(virtualHosts))
+	for _, virtualHost := range virtualHosts {
+		key := virtualHostDomainKey(virtualHost.Domains)
+		index, ok := indexes[key]
+		if ok {
+			result[index].Routes = append(result[index].Routes, virtualHost.Routes...)
+			continue
+		}
+		indexes[key] = len(result)
+		result = append(result, targetxds.VirtualHost{
+			Name:    virtualHost.Name,
+			Domains: append([]string(nil), virtualHost.Domains...),
+			Routes:  append([]targetxds.Route(nil), virtualHost.Routes...),
+		})
+	}
+	return result
+}
+
+func virtualHostDomainKey(domains []string) string {
+	sorted := append([]string(nil), domains...)
+	sort.Strings(sorted)
+	return strings.Join(sorted, "\x00")
 }
 
 func (b responseBuilder) buildRoutes(routes []targetxds.Route) ([]*routev3.Route, error) {

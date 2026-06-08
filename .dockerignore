@@ -8,3 +8,5 @@ web/console/node_modules
 _output/*
 !_output/all-in-one
 !_output/all-in-one/**
+!_output/plugins
+!_output/plugins/**

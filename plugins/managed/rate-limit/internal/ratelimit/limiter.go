@@ -1,6 +1,7 @@
 package ratelimit
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,6 +13,8 @@ const (
 	quotaHeaderRemaining = "X-RateLimit-Remaining"
 	quotaHeaderReset     = "X-RateLimit-Reset"
 )
+
+var errLocalCounterUnavailable = errors.New("local rate limit counter unavailable")
 
 // Decision 表示一条规则的限流判断结果
 type Decision struct {
@@ -30,6 +33,7 @@ type Result struct {
 	Decision     Decision
 	QuotaHeaders map[string]string
 	RedisChecks  []RedisCheck
+	Errors       []error
 }
 
 // RedisCheck 表示需要交给 Redis 执行的 global limit 检查
@@ -46,8 +50,8 @@ type RedisCheck struct {
 
 // LocalLimiter 执行本地 fixed-window 限流
 type LocalLimiter struct {
-	windows map[string]window
-	now     func() time.Time
+	store counterStore
+	now   func() time.Time
 }
 
 type window struct {
@@ -57,15 +61,23 @@ type window struct {
 
 func NewLocalLimiter() *LocalLimiter {
 	return &LocalLimiter{
-		windows: make(map[string]window),
-		now:     time.Now,
+		store: newMemoryCounterStore(),
+		now:   time.Now,
 	}
 }
 
 func NewLocalLimiterWithClock(now func() time.Time) *LocalLimiter {
 	return &LocalLimiter{
-		windows: make(map[string]window),
-		now:     now,
+		store: newMemoryCounterStore(),
+		now:   now,
+	}
+}
+
+// NewSharedDataLocalLimiter 使用 Envoy shared data 保存本地限流计数
+func NewSharedDataLocalLimiter() *LocalLimiter {
+	return &LocalLimiter{
+		store: sharedDataCounterStore{},
+		now:   time.Now,
 	}
 }
 
@@ -74,7 +86,10 @@ func (l *LocalLimiter) Evaluate(route config.RouteConfig, req Request) Result {
 	for _, binding := range route.Bindings {
 		for _, policy := range binding.Policies {
 			for _, rule := range policy.Rules {
-				decision, redisCheck := l.evaluateRule(route, binding, policy, rule, req)
+				decision, redisCheck, err := l.evaluateRule(route, binding, policy, rule, req)
+				if err != nil {
+					result.Errors = append(result.Errors, err)
+				}
 				if !decision.Allowed {
 					result.Allowed = false
 					result.Decision = decision
@@ -92,16 +107,16 @@ func (l *LocalLimiter) Evaluate(route config.RouteConfig, req Request) Result {
 	return result
 }
 
-func (l *LocalLimiter) evaluateRule(route config.RouteConfig, binding config.Binding, policy config.Policy, rule config.Rule, req Request) (Decision, *RedisCheck) {
+func (l *LocalLimiter) evaluateRule(route config.RouteConfig, binding config.Binding, policy config.Policy, rule config.Rule, req Request) (Decision, *RedisCheck, error) {
 	key, ok := compositeKey(req, rule.Key)
 	if !ok {
-		return Decision{Allowed: true}, nil
+		return Decision{Allowed: true}, nil, nil
 	}
 
 	requests := rule.Limit.Requests
 	windowSeconds := rule.Limit.WindowSeconds
 	if requests <= 0 || windowSeconds <= 0 {
-		return Decision{Allowed: true}, nil
+		return Decision{Allowed: true}, nil, nil
 	}
 
 	limitKey := limitKey(route, binding, policy, rule, key)
@@ -125,28 +140,30 @@ func (l *LocalLimiter) evaluateRule(route config.RouteConfig, binding config.Bin
 			RedisTimeoutMs: timeoutMs,
 			Requests:       requests,
 			WindowSeconds:  windowSeconds,
-		}
+		}, nil
 	}
 
 	now := l.now()
-	current := l.windows[limitKey]
-	if current.start.IsZero() || now.Sub(current.start) >= time.Duration(windowSeconds)*time.Second {
-		current = window{start: now}
+	current, err := l.store.Increment(limitKey, now, windowSeconds)
+	if err != nil {
+		storeErr := fmt.Errorf("%w: %s", errLocalCounterUnavailable, err)
+		if policy.FailOpen() {
+			return Decision{Allowed: true}, nil, storeErr
+		}
+		return rejectDecision(policy, rule, key, requests, 0, windowSeconds), nil, storeErr
 	}
-	current.count++
-	l.windows[limitKey] = current
 
 	remaining := requests - current.count
 	if remaining < 0 {
 		remaining = 0
 	}
 	if current.count > requests {
-		return rejectDecision(policy, rule, key, requests, remaining, resetSeconds(now, current.start, windowSeconds)), nil
+		return rejectDecision(policy, rule, key, requests, remaining, resetSeconds(now, current.start, windowSeconds)), nil, nil
 	}
 	return Decision{
 		Allowed:      true,
 		QuotaHeaders: quotaHeaders(policy, requests, remaining, resetSeconds(now, current.start, windowSeconds)),
-	}, nil
+	}, nil, nil
 }
 
 func rejectDecision(policy config.Policy, rule config.Rule, key string, requests, remaining, reset int) Decision {

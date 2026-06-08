@@ -26,7 +26,7 @@ managed-rate-limit-plugin-test:
 
 managed-rate-limit-plugin-build:
 	mkdir -p _output/plugins
-	cd $(MANAGED_RATE_LIMIT_PLUGIN_DIR) && tinygo build -o ../../../$(MANAGED_RATE_LIMIT_PLUGIN_OUT) -scheduler=none -target=wasi -gc=leaking -tags='proxy_wasm_version_0_2_100' ./main.go
+	cd $(MANAGED_RATE_LIMIT_PLUGIN_DIR) && GOOS=wasip1 GOARCH=wasm GOCACHE=$(GO_CACHE_DIR) go build -buildmode=c-shared -o ../../../$(MANAGED_RATE_LIMIT_PLUGIN_OUT) .
 
 console-install:
 	cd $(CONSOLE_DIR) && npm ci
