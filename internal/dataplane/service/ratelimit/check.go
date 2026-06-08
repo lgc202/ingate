@@ -17,14 +17,14 @@ var (
 )
 
 func (s *Service) executeCheck(ctx context.Context, check dataplaneratelimit.Check) (dataplaneratelimit.Result, error) {
-	if err := validateCheck(check); err != nil {
+	if err := s.validateCheck(check); err != nil {
 		return dataplaneratelimit.Result{}, err
 	}
-	if err := validateAlgorithm(check.Algorithm); err != nil {
+	if err := s.validateAlgorithm(check.Algorithm); err != nil {
 		return dataplaneratelimit.Result{}, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, commandTimeout(check))
+	ctx, cancel := context.WithTimeout(ctx, s.commandTimeout(check))
 	defer cancel()
 
 	client, err := s.clients.Client(redisConfig(check.RedisStore))
@@ -43,7 +43,7 @@ func (s *Service) executeCheck(ctx context.Context, check dataplaneratelimit.Che
 	}
 }
 
-func validateCheck(check dataplaneratelimit.Check) error {
+func (s *Service) validateCheck(check dataplaneratelimit.Check) error {
 	if check.RedisKey == "" {
 		return fmt.Errorf("%w: redis key is required", errInvalidCheck)
 	}
@@ -56,7 +56,7 @@ func validateCheck(check dataplaneratelimit.Check) error {
 	return nil
 }
 
-func validateAlgorithm(algorithm dataplaneratelimit.Algorithm) error {
+func (s *Service) validateAlgorithm(algorithm dataplaneratelimit.Algorithm) error {
 	switch algorithm {
 	case "", dataplaneratelimit.AlgorithmFixedWindow, dataplaneratelimit.AlgorithmSlidingWindow, dataplaneratelimit.AlgorithmTokenBucket:
 		return nil
@@ -65,7 +65,7 @@ func validateAlgorithm(algorithm dataplaneratelimit.Algorithm) error {
 	}
 }
 
-func commandTimeout(check dataplaneratelimit.Check) time.Duration {
+func (s *Service) commandTimeout(check dataplaneratelimit.Check) time.Duration {
 	if check.TimeoutMillis > 0 {
 		return time.Duration(check.TimeoutMillis) * time.Millisecond
 	}

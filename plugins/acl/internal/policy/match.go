@@ -31,16 +31,16 @@ func HeaderNames(route config.RouteConfig) []string {
 	return result
 }
 
-func ruleMatches(rule config.Rule, req Request) bool {
+func (r *Runner) ruleMatches(rule config.Rule, req Request) bool {
 	for _, condition := range rule.Conditions {
-		if !conditionMatches(condition, req) {
+		if !r.conditionMatches(condition, req) {
 			return false
 		}
 	}
 	return true
 }
 
-func conditionMatches(condition config.Condition, req Request) bool {
+func (r *Runner) conditionMatches(condition config.Condition, req Request) bool {
 	switch condition.Type {
 	case config.ConditionTypeIP:
 		return ipMatches(clientIP(req.RemoteAddr), condition.Value)
