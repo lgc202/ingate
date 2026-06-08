@@ -659,6 +659,34 @@ func TestCompilerCompileGatewayMissingPolicyBindingTarget(t *testing.T) {
 	}
 }
 
+func TestCompilerCompileGatewayRejectsUpstreamPolicyBindingTarget(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			testGateway("public"),
+		},
+		PolicyBindings: []resource.PolicyBinding{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "app-limit"},
+				Spec: resource.PolicyBindingSpec{
+					Enabled: true,
+					TargetRef: resource.PolicyTargetRef{
+						Kind: resource.KindUpstream,
+						Name: "app",
+					},
+				},
+			},
+		},
+	}
+
+	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err == nil {
+		t.Fatal("CompileGateway() error = nil")
+	}
+	if !strings.Contains(err.Error(), `policy binding "app-limit" references unsupported kind "Upstream"`) {
+		t.Fatalf("CompileGateway() error = %v", err)
+	}
+}
+
 func TestCompilerCompileGatewayMissingGateway(t *testing.T) {
 	_, err := (compiler.Compiler{}).CompileGateway(resource.Bundle{}, "missing")
 	if err == nil {

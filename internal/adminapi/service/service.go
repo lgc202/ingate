@@ -31,7 +31,7 @@ func New(store *store.Store) *Service {
 		RuntimeGroup:    runtimeGroupService,
 		Upstream:        upstreamservice.New(store.Upstream, store.Route),
 		RateLimitPolicy: ratelimitpolicyservice.New(store.RateLimitPolicy, store.RedisStore, store.PolicyBinding),
-		PolicyBinding:   policybindingservice.New(store.PolicyBinding, store.Gateway, store.Route, store.Upstream, store.RateLimitPolicy, store.Resource),
+		PolicyBinding:   policybindingservice.New(store.PolicyBinding, store.Gateway, store.Route, store.RateLimitPolicy, store.Resource),
 		RedisStore:      redisstoreservice.New(store.RedisStore, store.RateLimitPolicy),
 	}
 }
