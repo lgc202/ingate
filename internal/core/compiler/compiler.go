@@ -2,7 +2,9 @@
 package compiler
 
 import (
+	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 
 	"github.com/lgc202/ingate/internal/core/ir"
@@ -359,7 +361,6 @@ func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.Logica
 func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBinding) ([]ir.LogicalRateLimitPolicy, map[string]bool) {
 	usedPolicies := make(map[string]bool)
 	usedRedisStores := make(map[string]bool)
-	var policyOrder []string
 
 	for _, binding := range bindings {
 		for _, policy := range binding.Policies {
@@ -371,10 +372,10 @@ func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBind
 				continue
 			}
 			usedPolicies[policy.Name] = true
-			policyOrder = append(policyOrder, policy.Name)
 		}
 	}
 
+	policyOrder := slices.Sorted(maps.Keys(usedPolicies))
 	policies := make([]ir.LogicalRateLimitPolicy, 0, len(policyOrder))
 	for _, name := range policyOrder {
 		policy := c.rateLimitPoliciesByName[name]
@@ -513,8 +514,17 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute) []ir.Log
 		if len(logicalBinding.Policies) == 0 {
 			continue
 		}
+		slices.SortFunc(logicalBinding.Policies, func(a, b ir.LogicalPolicyRef) int {
+			if a.Kind != b.Kind {
+				return cmp.Compare(string(a.Kind), string(b.Kind))
+			}
+			return cmp.Compare(a.Name, b.Name)
+		})
 		bindings = append(bindings, logicalBinding)
 	}
 
+	slices.SortFunc(bindings, func(a, b ir.LogicalPolicyBinding) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
 	return bindings
 }

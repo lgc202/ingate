@@ -210,6 +210,99 @@ func TestCompilerCompileGateway(t *testing.T) {
 	}
 }
 
+func TestCompilerCompileGatewaySortsPolicyBindingsAndPolicies(t *testing.T) {
+	bundle := resource.Bundle{
+		Gateways: []resource.Gateway{
+			testGateway("public"),
+		},
+		Routes: []resource.Route{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "app"},
+				Spec: resource.RouteSpec{
+					Enabled:    true,
+					ParentRefs: []resource.ParentRef{{Name: "public"}},
+				},
+			},
+		},
+		RateLimitPolicies: []resource.RateLimitPolicy{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "b-policy"},
+				Spec: resource.RateLimitPolicySpec{
+					Enabled: true,
+					Mode:    resource.RateLimitModeLocal,
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "a-policy"},
+				Spec: resource.RateLimitPolicySpec{
+					Enabled: true,
+					Mode:    resource.RateLimitModeLocal,
+				},
+			},
+		},
+		PolicyBindings: []resource.PolicyBinding{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "z-route-binding"},
+				Spec: resource.PolicyBindingSpec{
+					Enabled: true,
+					TargetRef: resource.PolicyTargetRef{
+						Kind: resource.KindRoute,
+						Name: "app",
+					},
+					Policies: []resource.PolicyRef{
+						{Kind: resource.KindRateLimitPolicy, Name: "b-policy"},
+						{Kind: resource.KindRateLimitPolicy, Name: "a-policy"},
+					},
+				},
+			},
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "a-gateway-binding"},
+				Spec: resource.PolicyBindingSpec{
+					Enabled: true,
+					TargetRef: resource.PolicyTargetRef{
+						Kind: resource.KindGateway,
+						Name: "public",
+					},
+					Policies: []resource.PolicyRef{
+						{Kind: resource.KindRateLimitPolicy, Name: "b-policy"},
+					},
+				},
+			},
+		},
+	}
+
+	got, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
+	if err != nil {
+		t.Fatalf("CompileGateway() error = %v", err)
+	}
+
+	wantBindingNames := []string{"a-gateway-binding", "z-route-binding"}
+	var bindingNames []string
+	for _, binding := range got.PolicyBindings {
+		bindingNames = append(bindingNames, binding.Name)
+	}
+	if !reflect.DeepEqual(bindingNames, wantBindingNames) {
+		t.Fatalf("PolicyBindings names = %#v, want %#v", bindingNames, wantBindingNames)
+	}
+
+	wantPolicyRefs := []ir.LogicalPolicyRef{
+		{Kind: resource.KindRateLimitPolicy, Name: "a-policy"},
+		{Kind: resource.KindRateLimitPolicy, Name: "b-policy"},
+	}
+	if !reflect.DeepEqual(got.PolicyBindings[1].Policies, wantPolicyRefs) {
+		t.Fatalf("Policy refs = %#v, want %#v", got.PolicyBindings[1].Policies, wantPolicyRefs)
+	}
+
+	wantPolicyNames := []string{"a-policy", "b-policy"}
+	var policyNames []string
+	for _, policy := range got.RateLimitPolicies {
+		policyNames = append(policyNames, policy.Name)
+	}
+	if !reflect.DeepEqual(policyNames, wantPolicyNames) {
+		t.Fatalf("RateLimitPolicies names = %#v, want %#v", policyNames, wantPolicyNames)
+	}
+}
+
 func TestCompilerCompileGatewayUnsupportedRouteFilter(t *testing.T) {
 	bundle := resource.Bundle{
 		Gateways: []resource.Gateway{
