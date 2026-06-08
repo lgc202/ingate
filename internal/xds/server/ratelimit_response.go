@@ -11,12 +11,12 @@ import (
 	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 )
 
-func mergeRateLimitConfig(current, next *pluginratelimit.Config) *pluginratelimit.Config {
+func mergeRateLimitConfig(current, next *targetxds.RateLimitConfig) *targetxds.RateLimitConfig {
 	if next == nil {
 		return current
 	}
 	if current == nil {
-		return &pluginratelimit.Config{
+		return &targetxds.RateLimitConfig{
 			Bindings:    slices.Clone(next.Bindings),
 			RedisStores: slices.Clone(next.RedisStores),
 			DataPlane:   next.DataPlane,
@@ -74,7 +74,7 @@ func uniqueRateLimitRedisStores(stores []pluginratelimit.RedisStore) []pluginrat
 	return result
 }
 
-func rateLimitRouteConfigs(configs []targetxds.RouteConfig, rateLimit *pluginratelimit.Config) []pluginratelimit.RouteConfig {
+func rateLimitRouteConfigs(configs []targetxds.RouteConfig, rateLimit *targetxds.RateLimitConfig) []pluginratelimit.RouteConfig {
 	result := make([]pluginratelimit.RouteConfig, 0)
 	seen := map[string]struct{}{}
 	for _, config := range configs {
@@ -96,7 +96,7 @@ func rateLimitRouteConfigs(configs []targetxds.RouteConfig, rateLimit *pluginrat
 	return result
 }
 
-func buildRateLimitRouteConfig(route targetxds.Route, rateLimit *pluginratelimit.Config) (pluginratelimit.RouteConfig, bool) {
+func buildRateLimitRouteConfig(route targetxds.Route, rateLimit *targetxds.RateLimitConfig) (pluginratelimit.RouteConfig, bool) {
 	if rateLimit == nil {
 		return pluginratelimit.RouteConfig{}, false
 	}

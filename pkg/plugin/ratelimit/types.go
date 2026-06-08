@@ -54,14 +54,6 @@ const (
 	defaultRejectedMessage    = "Too many requests"
 )
 
-// Config 表示 xDS target 中保留的 RateLimit 插件编译结果
-type Config struct {
-	SchemaVersion string       `json:"schemaVersion"`
-	Bindings      []Binding    `json:"bindings,omitempty"`
-	RedisStores   []RedisStore `json:"redisStores,omitempty"`
-	DataPlane     *DataPlane   `json:"dataPlane,omitempty"`
-}
-
 // PluginConfig 表示真正下发给 Wasm 插件的运行时配置
 type PluginConfig struct {
 	SchemaVersion string        `json:"schemaVersion"`

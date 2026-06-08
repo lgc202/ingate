@@ -37,12 +37,12 @@ type Translator struct{}
 
 // Config 表示 xDS target 的内部配置载荷
 type Config struct {
-	GatewayName         string                  `json:"gatewayName"`
-	Listeners           []Listener              `json:"listeners"`
-	RouteConfigs        []RouteConfig           `json:"routeConfigs"`
-	Clusters            []Cluster               `json:"clusters"`
-	EndpointAssignments []EndpointAssignment    `json:"endpointAssignments"`
-	RateLimit           *pluginratelimit.Config `json:"rateLimit,omitempty"`
+	GatewayName         string               `json:"gatewayName"`
+	Listeners           []Listener           `json:"listeners"`
+	RouteConfigs        []RouteConfig        `json:"routeConfigs"`
+	Clusters            []Cluster            `json:"clusters"`
+	EndpointAssignments []EndpointAssignment `json:"endpointAssignments"`
+	RateLimit           *RateLimitConfig     `json:"rateLimit,omitempty"`
 }
 
 // Listener 表示 Envoy listener 的内部模型
@@ -259,7 +259,7 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 	}, nil
 }
 
-func (t Translator) translateRateLimitConfig(logical ir.LogicalGateway) *pluginratelimit.Config {
+func (t Translator) translateRateLimitConfig(logical ir.LogicalGateway) *RateLimitConfig {
 	if len(logical.RateLimitPolicies) == 0 || len(logical.PolicyBindings) == 0 {
 		return nil
 	}
@@ -273,7 +273,7 @@ func (t Translator) translateRateLimitConfig(logical ir.LogicalGateway) *pluginr
 		}
 	}
 
-	config := &pluginratelimit.Config{
+	config := &RateLimitConfig{
 		Bindings:    make([]pluginratelimit.Binding, 0, len(logical.PolicyBindings)),
 		RedisStores: make([]pluginratelimit.RedisStore, 0, len(logical.RedisStores)),
 	}
