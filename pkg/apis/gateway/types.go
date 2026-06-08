@@ -143,6 +143,16 @@ const (
 	RateLimitKeyTypeRoute RateLimitKeyType = "Route"
 	// RateLimitKeyTypeGateway 表示按 Gateway 生成限流 key
 	RateLimitKeyTypeGateway RateLimitKeyType = "Gateway"
+	// RateLimitKeyTypeRouteRule 表示按 RouteRule 生成限流 key
+	RateLimitKeyTypeRouteRule RateLimitKeyType = "RouteRule"
+	// RateLimitKeyTypeJWTClaim 表示按 JWT claim 生成限流 key
+	RateLimitKeyTypeJWTClaim RateLimitKeyType = "JWTClaim"
+	// RateLimitKeyTypeAPIKey 表示按 API Key 生成限流 key
+	RateLimitKeyTypeAPIKey RateLimitKeyType = "APIKey"
+	// RateLimitKeyTypeAIModel 表示按 AI 模型生成限流 key
+	RateLimitKeyTypeAIModel RateLimitKeyType = "AIModel"
+	// RateLimitKeyTypeTenant 表示按租户生成限流 key
+	RateLimitKeyTypeTenant RateLimitKeyType = "Tenant"
 )
 
 // RateLimitAlgorithm 表示限流计数算法
@@ -151,6 +161,8 @@ type RateLimitAlgorithm string
 const (
 	// RateLimitAlgorithmFixedWindow 表示固定窗口限流
 	RateLimitAlgorithmFixedWindow RateLimitAlgorithm = "FixedWindow"
+	// RateLimitAlgorithmSlidingWindow 表示滑动窗口限流
+	RateLimitAlgorithmSlidingWindow RateLimitAlgorithm = "SlidingWindow"
 	// RateLimitAlgorithmTokenBucket 表示令牌桶限流
 	RateLimitAlgorithmTokenBucket RateLimitAlgorithm = "TokenBucket"
 )
@@ -171,6 +183,8 @@ type RedisMode string
 const (
 	// RedisModeStandalone 表示单实例 Redis
 	RedisModeStandalone RedisMode = "Standalone"
+	// RedisModeSentinel 表示 Redis Sentinel
+	RedisModeSentinel RedisMode = "Sentinel"
 	// RedisModeCluster 表示 Redis Cluster
 	RedisModeCluster RedisMode = "Cluster"
 )
@@ -829,6 +843,7 @@ type RateLimitKeyPart struct {
 type RateLimitQuota struct {
 	Requests      int `json:"requests"`
 	WindowSeconds int `json:"windowSeconds"`
+	Burst         int `json:"burst,omitempty"`
 }
 
 // GlobalRateLimitConfig 定义 Redis-backed global limit 配置
@@ -867,16 +882,22 @@ type RedisStoreList struct {
 
 // RedisStoreSpec 定义 Redis 连接配置
 type RedisStoreSpec struct {
-	DisplayName          string    `json:"displayName"`
-	Description          string    `json:"description,omitempty"`
-	Mode                 RedisMode `json:"mode"`
-	Address              string    `json:"address"`
-	DB                   int       `json:"db,omitempty"`
-	TLS                  bool      `json:"tls,omitempty"`
-	Username             string    `json:"username,omitempty"`
-	PasswordRef          string    `json:"passwordRef,omitempty"`
-	ConnectTimeoutMillis int       `json:"connectTimeoutMillis,omitempty"`
-	CommandTimeoutMillis int       `json:"commandTimeoutMillis,omitempty"`
+	DisplayName string    `json:"displayName"`
+	Description string    `json:"description,omitempty"`
+	Mode        RedisMode `json:"mode"`
+	Address     string    `json:"address"`
+	// +listType=atomic
+	Addresses            []string `json:"addresses,omitempty"`
+	DB                   int      `json:"db,omitempty"`
+	TLS                  bool     `json:"tls,omitempty"`
+	TLSServerName        string   `json:"tlsServerName,omitempty"`
+	Username             string   `json:"username,omitempty"`
+	PasswordRef          string   `json:"passwordRef,omitempty"`
+	ConnectTimeoutMillis int      `json:"connectTimeoutMillis,omitempty"`
+	CommandTimeoutMillis int      `json:"commandTimeoutMillis,omitempty"`
+	PoolSize             int      `json:"poolSize,omitempty"`
+	MinIdleConns         int      `json:"minIdleConns,omitempty"`
+	SentinelMaster       string   `json:"sentinelMaster,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

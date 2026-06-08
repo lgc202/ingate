@@ -38,14 +38,16 @@ type Result struct {
 
 // RedisCheck 表示需要交给 Redis 执行的 global limit 检查
 type RedisCheck struct {
-	Policy         config.Policy
-	Rule           config.Rule
-	Key            string
-	RedisStore     string
-	RedisKey       string
-	RedisTimeoutMs int
-	Requests       int
-	WindowSeconds  int
+	Policy           config.Policy
+	Rule             config.Rule
+	Key              string
+	RedisStore       string
+	RedisStoreConfig config.RedisStore
+	RedisKey         string
+	RedisTimeoutMs   int
+	Requests         int
+	WindowSeconds    int
+	Burst            int
 }
 
 // LocalLimiter 执行本地 fixed-window 限流
@@ -140,6 +142,7 @@ func (l *LocalLimiter) evaluateRule(route config.RouteConfig, binding config.Bin
 			RedisTimeoutMs: timeoutMs,
 			Requests:       requests,
 			WindowSeconds:  windowSeconds,
+			Burst:          rule.Limit.Burst,
 		}, nil
 	}
 
@@ -179,11 +182,16 @@ func rejectDecision(policy config.Policy, rule config.Rule, key string, requests
 }
 
 func RedisDecision(policy config.Policy, rule config.Rule, key string, requests, current, reset int) Decision {
+	return RedisResultDecision(policy, rule, key, current <= requests, requests, current, reset)
+}
+
+// RedisResultDecision 将执行器返回的结果转换成插件统一决策
+func RedisResultDecision(policy config.Policy, rule config.Rule, key string, allowed bool, requests, current, reset int) Decision {
 	remaining := requests - current
 	if remaining < 0 {
 		remaining = 0
 	}
-	if current > requests {
+	if !allowed {
 		return rejectDecision(policy, rule, key, requests, remaining, reset)
 	}
 	return Decision{

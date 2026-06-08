@@ -33,6 +33,7 @@ const (
 type managedRateLimitFilterConfig struct {
 	SchemaVersion string                          `json:"schemaVersion"`
 	RedisStores   []targetxds.RateLimitRedisStore `json:"redisStores,omitempty"`
+	Executor      *targetxds.RateLimitExecutor    `json:"executor,omitempty"`
 	Routes        []managedRateLimitRouteConfig   `json:"routes,omitempty"`
 }
 
@@ -184,10 +185,14 @@ func mergeManagedRateLimit(current, next *targetxds.ManagedRateLimit) *targetxds
 		return &targetxds.ManagedRateLimit{
 			Bindings:    slices.Clone(next.Bindings),
 			RedisStores: slices.Clone(next.RedisStores),
+			Executor:    next.Executor,
 		}
 	}
 	current.Bindings = append(current.Bindings, next.Bindings...)
 	current.RedisStores = append(current.RedisStores, next.RedisStores...)
+	if current.Executor == nil {
+		current.Executor = next.Executor
+	}
 	return current
 }
 
@@ -227,6 +232,7 @@ func (b responseBuilder) buildManagedRateLimitHTTPFilter(runtimeConfig targetxds
 	rawConfig, err := json.Marshal(managedRateLimitFilterConfig{
 		SchemaVersion: managedRateLimitSchemaVersion,
 		RedisStores:   redisStores,
+		Executor:      runtimeConfig.ManagedRateLimit.Executor,
 		Routes:        managedRateLimitRouteConfigs(runtimeConfig.RouteConfigs, runtimeConfig.ManagedRateLimit),
 	})
 	if err != nil {

@@ -11,15 +11,22 @@ const (
 	ModeLocal  = "Local"
 	ModeGlobal = "Global"
 
-	KeyTypeIP       = "IP"
-	KeyTypeHeader   = "Header"
-	KeyTypeQuery    = "Query"
-	KeyTypeCookie   = "Cookie"
-	KeyTypeConsumer = "Consumer"
-	KeyTypeRoute    = "Route"
-	KeyTypeGateway  = "Gateway"
+	KeyTypeIP        = "IP"
+	KeyTypeHeader    = "Header"
+	KeyTypeQuery     = "Query"
+	KeyTypeCookie    = "Cookie"
+	KeyTypeConsumer  = "Consumer"
+	KeyTypeRoute     = "Route"
+	KeyTypeGateway   = "Gateway"
+	KeyTypeRouteRule = "RouteRule"
+	KeyTypeJWTClaim  = "JWTClaim"
+	KeyTypeAPIKey    = "APIKey"
+	KeyTypeAIModel   = "AIModel"
+	KeyTypeTenant    = "Tenant"
 
-	AlgorithmFixedWindow = "FixedWindow"
+	AlgorithmFixedWindow   = "FixedWindow"
+	AlgorithmSlidingWindow = "SlidingWindow"
+	AlgorithmTokenBucket   = "TokenBucket"
 
 	FailurePolicyFailOpen  = "FailOpen"
 	FailurePolicyFailClose = "FailClose"
@@ -32,21 +39,34 @@ const (
 type PluginConfig struct {
 	SchemaVersion string        `json:"schemaVersion"`
 	RedisStores   []RedisStore  `json:"redisStores,omitempty"`
+	Executor      *Executor     `json:"executor,omitempty"`
 	Routes        []RouteConfig `json:"routes,omitempty"`
 }
 
 // RedisStore 表示插件运行时使用的 Redis 连接配置
 type RedisStore struct {
-	Name                 string `json:"name"`
-	DisplayName          string `json:"displayName,omitempty"`
-	Mode                 string `json:"mode,omitempty"`
-	Address              string `json:"address"`
-	DB                   int    `json:"db,omitempty"`
-	TLS                  bool   `json:"tls,omitempty"`
-	Username             string `json:"username,omitempty"`
-	PasswordRef          string `json:"passwordRef,omitempty"`
-	ConnectTimeoutMillis int    `json:"connectTimeoutMillis,omitempty"`
-	CommandTimeoutMillis int    `json:"commandTimeoutMillis,omitempty"`
+	Name                 string   `json:"name"`
+	DisplayName          string   `json:"displayName,omitempty"`
+	Mode                 string   `json:"mode,omitempty"`
+	Address              string   `json:"address"`
+	Addresses            []string `json:"addresses,omitempty"`
+	DB                   int      `json:"db,omitempty"`
+	TLS                  bool     `json:"tls,omitempty"`
+	TLSServerName        string   `json:"tlsServerName,omitempty"`
+	Username             string   `json:"username,omitempty"`
+	PasswordRef          string   `json:"passwordRef,omitempty"`
+	ConnectTimeoutMillis int      `json:"connectTimeoutMillis,omitempty"`
+	CommandTimeoutMillis int      `json:"commandTimeoutMillis,omitempty"`
+	PoolSize             int      `json:"poolSize,omitempty"`
+	MinIdleConns         int      `json:"minIdleConns,omitempty"`
+	SentinelMaster       string   `json:"sentinelMaster,omitempty"`
+}
+
+// Executor 表示插件调用内置限流执行器所需的 Envoy cluster 配置
+type Executor struct {
+	ClusterName   string `json:"clusterName"`
+	Path          string `json:"path"`
+	TimeoutMillis int    `json:"timeoutMillis"`
 }
 
 // RouteConfig 表示 Route 级限流配置
@@ -101,6 +121,7 @@ type KeyPart struct {
 type Quota struct {
 	Requests      int `json:"requests"`
 	WindowSeconds int `json:"windowSeconds"`
+	Burst         int `json:"burst,omitempty"`
 }
 
 // Global 表示 Redis-backed global limit 配置

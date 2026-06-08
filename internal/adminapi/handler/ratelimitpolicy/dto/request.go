@@ -54,6 +54,14 @@ func (c *RateLimitPolicyConfig) Validate() error {
 		if rule.Limit.WindowSeconds <= 0 {
 			return errors.New("限流窗口必须大于 0")
 		}
+		if rule.Limit.Burst < 0 {
+			return errors.New("限流 burst 不能小于 0")
+		}
+		switch rule.Algorithm {
+		case "", resource.RateLimitAlgorithmFixedWindow, resource.RateLimitAlgorithmSlidingWindow, resource.RateLimitAlgorithmTokenBucket:
+		default:
+			return errors.New("限流算法不正确")
+		}
 		if len(rule.Key.Parts) == 0 {
 			return errors.New("限流规则必须配置计数维度")
 		}
@@ -76,11 +84,21 @@ func (c *RateLimitPolicyConfig) Validate() error {
 
 func validateKeyPart(part resource.RateLimitKeyPart) error {
 	switch part.Type {
-	case resource.RateLimitKeyTypeIP, resource.RateLimitKeyTypeConsumer, resource.RateLimitKeyTypeRoute, resource.RateLimitKeyTypeGateway:
+	case resource.RateLimitKeyTypeIP,
+		resource.RateLimitKeyTypeConsumer,
+		resource.RateLimitKeyTypeRoute,
+		resource.RateLimitKeyTypeGateway,
+		resource.RateLimitKeyTypeRouteRule,
+		resource.RateLimitKeyTypeAPIKey,
+		resource.RateLimitKeyTypeAIModel,
+		resource.RateLimitKeyTypeTenant:
 		return nil
-	case resource.RateLimitKeyTypeHeader, resource.RateLimitKeyTypeQuery, resource.RateLimitKeyTypeCookie:
+	case resource.RateLimitKeyTypeHeader,
+		resource.RateLimitKeyTypeQuery,
+		resource.RateLimitKeyTypeCookie,
+		resource.RateLimitKeyTypeJWTClaim:
 		if part.Name == "" {
-			return errors.New("Header、Query、Cookie 限流维度必须填写名称")
+			return errors.New("Header、Query、Cookie、JWT Claim 限流维度必须填写名称")
 		}
 		return nil
 	default:

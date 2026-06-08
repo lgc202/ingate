@@ -14,26 +14,31 @@ import (
 )
 
 const (
-	targetName                  string = "xds"
-	versionPrefix               string = "xds/%s"
-	wildcardDomain              string = "*"
-	wildcardModel               string = "*"
-	aiProviderClusterNameFormat string = "ai-provider/%s"
-	httpScheme                  string = "http"
-	httpsScheme                 string = "https"
-	pluginConfigRulesKey        string = "_rules_"
-	pluginMatchRouteKey         string = "_match_route_"
-	pluginMatchDomainKey        string = "_match_domain_"
-	pluginProviderKey           string = "provider"
-	pluginModelKey              string = "model"
-	pluginModelsKey             string = "models"
-	pluginPolicyRefsKey         string = "policyRefs"
-	pluginProviderNameKey       string = "name"
-	pluginProviderTypeKey       string = "type"
-	pluginProviderURLKey        string = "endpoint"
-	pluginModelMappingKey       string = "modelMapping"
-	defaultHTTPPort             int    = 80
-	defaultHTTPSPort            int    = 443
+	targetName                            string = "xds"
+	versionPrefix                         string = "xds/%s"
+	wildcardDomain                        string = "*"
+	wildcardModel                         string = "*"
+	aiProviderClusterNameFormat           string = "ai-provider/%s"
+	httpScheme                            string = "http"
+	httpsScheme                           string = "https"
+	pluginConfigRulesKey                  string = "_rules_"
+	pluginMatchRouteKey                   string = "_match_route_"
+	pluginMatchDomainKey                  string = "_match_domain_"
+	pluginProviderKey                     string = "provider"
+	pluginModelKey                        string = "model"
+	pluginModelsKey                       string = "models"
+	pluginPolicyRefsKey                   string = "policyRefs"
+	pluginProviderNameKey                 string = "name"
+	pluginProviderTypeKey                 string = "type"
+	pluginProviderURLKey                  string = "endpoint"
+	pluginModelMappingKey                 string = "modelMapping"
+	rateLimitExecutorCluster              string = "ingate-rate-limit-executor"
+	rateLimitExecutorAddress              string = "127.0.0.1"
+	rateLimitExecutorPath                 string = "/v1/rate-limit/check"
+	defaultHTTPPort                       int    = 80
+	defaultHTTPSPort                      int    = 443
+	defaultRateLimitExecutorPort          int    = 18081
+	defaultRateLimitExecutorTimeoutMillis int    = 50
 )
 
 // ClusterDiscoveryType 表示 Envoy cluster 服务发现方式
@@ -244,6 +249,14 @@ type PluginRef struct {
 type ManagedRateLimit struct {
 	Bindings    []RateLimitBinding    `json:"bindings"`
 	RedisStores []RateLimitRedisStore `json:"redisStores,omitempty"`
+	Executor    *RateLimitExecutor    `json:"executor,omitempty"`
+}
+
+// RateLimitExecutor 表示内置限流执行器的运行时入口
+type RateLimitExecutor struct {
+	ClusterName   string `json:"clusterName"`
+	Path          string `json:"path"`
+	TimeoutMillis int    `json:"timeoutMillis"`
 }
 
 // RateLimitBinding 表示限流策略绑定展开后的执行配置
@@ -289,6 +302,7 @@ type RateLimitKeyPart struct {
 type RateLimitQuota struct {
 	Requests      int `json:"requests"`
 	WindowSeconds int `json:"windowSeconds"`
+	Burst         int `json:"burst,omitempty"`
 }
 
 // GlobalRateLimit 表示 Redis-backed global limit 配置
@@ -311,12 +325,17 @@ type RateLimitRedisStore struct {
 	DisplayName          string             `json:"displayName"`
 	Mode                 resource.RedisMode `json:"mode"`
 	Address              string             `json:"address"`
+	Addresses            []string           `json:"addresses,omitempty"`
 	DB                   int                `json:"db,omitempty"`
 	TLS                  bool               `json:"tls,omitempty"`
+	TLSServerName        string             `json:"tlsServerName,omitempty"`
 	Username             string             `json:"username,omitempty"`
 	PasswordRef          string             `json:"passwordRef,omitempty"`
 	ConnectTimeoutMillis int                `json:"connectTimeoutMillis,omitempty"`
 	CommandTimeoutMillis int                `json:"commandTimeoutMillis,omitempty"`
+	PoolSize             int                `json:"poolSize,omitempty"`
+	MinIdleConns         int                `json:"minIdleConns,omitempty"`
+	SentinelMaster       string             `json:"sentinelMaster,omitempty"`
 }
 
 type pluginBindingGroupKey struct {
@@ -533,6 +552,14 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 	}
 	config.PluginBindings = pluginBindings
 	config.ManagedRateLimit = t.translateManagedRateLimit(logical)
+	if config.ManagedRateLimit != nil && config.ManagedRateLimit.Executor != nil {
+		config.Clusters = append(config.Clusters, Cluster{
+			Name:          config.ManagedRateLimit.Executor.ClusterName,
+			DiscoveryType: ClusterDiscoveryTypeLogicalDNS,
+			Address:       rateLimitExecutorAddress,
+			Port:          defaultRateLimitExecutorPort,
+		})
+	}
 
 	return runtime.RuntimeSnapshot{
 		Target:  t.Target(),
@@ -548,8 +575,12 @@ func (t Translator) translateManagedRateLimit(logical ir.LogicalGateway) *Manage
 	}
 
 	policiesByName := make(map[string]ir.LogicalRateLimitPolicy, len(logical.RateLimitPolicies))
+	hasGlobalPolicy := false
 	for _, policy := range logical.RateLimitPolicies {
 		policiesByName[policy.Name] = policy
+		if policy.Mode == resource.RateLimitModeGlobal {
+			hasGlobalPolicy = true
+		}
 	}
 
 	config := &ManagedRateLimit{
@@ -587,16 +618,28 @@ func (t Translator) translateManagedRateLimit(logical ir.LogicalGateway) *Manage
 			DisplayName:          store.DisplayName,
 			Mode:                 store.Mode,
 			Address:              store.Address,
+			Addresses:            slices.Clone(store.Addresses),
 			DB:                   store.DB,
 			TLS:                  store.TLS,
+			TLSServerName:        store.TLSServerName,
 			Username:             store.Username,
 			PasswordRef:          store.PasswordRef,
 			ConnectTimeoutMillis: store.ConnectTimeoutMillis,
 			CommandTimeoutMillis: store.CommandTimeoutMillis,
+			PoolSize:             store.PoolSize,
+			MinIdleConns:         store.MinIdleConns,
+			SentinelMaster:       store.SentinelMaster,
 		})
 	}
 	if len(config.Bindings) == 0 {
 		return nil
+	}
+	if hasGlobalPolicy {
+		config.Executor = &RateLimitExecutor{
+			ClusterName:   rateLimitExecutorCluster,
+			Path:          rateLimitExecutorPath,
+			TimeoutMillis: defaultRateLimitExecutorTimeoutMillis,
+		}
 	}
 	return config
 }

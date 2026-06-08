@@ -119,12 +119,17 @@ func redisStoreResource(id, version string, params RedisStoreParams) *resource.R
 			Description:          params.Description,
 			Mode:                 params.Mode,
 			Address:              params.Address,
+			Addresses:            params.Addresses,
 			DB:                   params.DB,
 			TLS:                  params.TLS,
+			TLSServerName:        params.TLSServerName,
 			Username:             params.Username,
 			PasswordRef:          params.PasswordRef,
 			ConnectTimeoutMillis: params.ConnectTimeoutMillis,
 			CommandTimeoutMillis: params.CommandTimeoutMillis,
+			PoolSize:             params.PoolSize,
+			MinIdleConns:         params.MinIdleConns,
+			SentinelMaster:       params.SentinelMaster,
 		},
 	}
 }

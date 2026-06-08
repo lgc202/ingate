@@ -8,8 +8,12 @@ import (
 )
 
 const (
-	consumerHeader = "x-ingate-consumer"
-	cookieHeader   = "cookie"
+	apiKeyHeader         = "x-ingate-api-key"
+	aiModelHeader        = "x-ingate-ai-model"
+	consumerHeader       = "x-ingate-consumer"
+	cookieHeader         = "cookie"
+	tenantHeader         = "x-ingate-tenant"
+	jwtClaimHeaderPrefix = "x-ingate-jwt-claim-"
 )
 
 // Request 表示限流判断需要读取的请求信息
@@ -52,6 +56,20 @@ func keyValue(req Request, part config.KeyPart) (string, bool) {
 			return req.RouteName + "/" + req.RuleName, req.RouteName != ""
 		}
 		return req.RouteName, req.RouteName != ""
+	case config.KeyTypeRouteRule:
+		return req.RuleName, req.RuleName != ""
+	case config.KeyTypeAPIKey:
+		value := headerValue(req.Headers, apiKeyHeader)
+		return value, value != ""
+	case config.KeyTypeAIModel:
+		value := headerValue(req.Headers, aiModelHeader)
+		return value, value != ""
+	case config.KeyTypeTenant:
+		value := headerValue(req.Headers, tenantHeader)
+		return value, value != ""
+	case config.KeyTypeJWTClaim:
+		value := headerValue(req.Headers, jwtClaimHeaderPrefix+part.Name)
+		return value, value != ""
 	default:
 		return "", false
 	}
