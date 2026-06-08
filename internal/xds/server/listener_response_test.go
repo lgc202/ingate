@@ -44,7 +44,7 @@ func TestResponseBuilderBuildListenersWithRateLimit(t *testing.T) {
 						},
 					},
 				},
-				RateLimit: &pluginratelimit.Config{
+				RateLimit: &targetxds.RateLimitConfig{
 					Bindings: []pluginratelimit.Binding{
 						{
 							Name: "gateway-limit",
