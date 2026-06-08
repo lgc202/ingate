@@ -13,6 +13,7 @@ COPY _output/all-in-one/bin/ingate-admin-api /usr/local/bin/ingate-admin-api
 COPY _output/all-in-one/bin/ingate-controller /usr/local/bin/ingate-controller
 COPY _output/all-in-one/bin/ingate-xds /usr/local/bin/ingate-xds
 COPY _output/all-in-one/bin/ingate-httpbin /usr/local/bin/ingate-httpbin
+COPY _output/all-in-one/bin/ingate-rate-limit-executor /usr/local/bin/ingate-rate-limit-executor
 COPY --from=etcd /usr/local/bin/etcd /usr/local/bin/etcd
 COPY --from=envoy /usr/local/bin/envoy /usr/local/bin/envoy
 

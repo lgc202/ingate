@@ -138,11 +138,16 @@ func (h *Handler) redisStoreParams(config dto.RedisStoreConfig) redisstoreservic
 		Description:          config.Description,
 		Mode:                 config.Mode,
 		Address:              config.Address,
+		Addresses:            config.Addresses,
 		DB:                   config.DB,
 		TLS:                  config.TLS,
+		TLSServerName:        config.TLSServerName,
 		Username:             config.Username,
 		PasswordRef:          config.PasswordRef,
 		ConnectTimeoutMillis: config.ConnectTimeoutMillis,
 		CommandTimeoutMillis: config.CommandTimeoutMillis,
+		PoolSize:             config.PoolSize,
+		MinIdleConns:         config.MinIdleConns,
+		SentinelMaster:       config.SentinelMaster,
 	}
 }

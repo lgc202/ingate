@@ -2771,6 +2771,12 @@ func schema_pkg_apis_gateway_v1_RateLimitQuota(ref common.ReferenceCallback) com
 							Format:  "int32",
 						},
 					},
+					"burst": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
 				},
 				Required: []string{"requests", "windowSeconds"},
 			},
@@ -2980,6 +2986,25 @@ func schema_pkg_apis_gateway_v1_RedisStoreSpec(ref common.ReferenceCallback) com
 							Format:  "",
 						},
 					},
+					"addresses": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
 					"db": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},
@@ -2989,6 +3014,12 @@ func schema_pkg_apis_gateway_v1_RedisStoreSpec(ref common.ReferenceCallback) com
 					"tls": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"boolean"},
+							Format: "",
+						},
+					},
+					"tlsServerName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
 							Format: "",
 						},
 					},
@@ -3014,6 +3045,24 @@ func schema_pkg_apis_gateway_v1_RedisStoreSpec(ref common.ReferenceCallback) com
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"integer"},
 							Format: "int32",
+						},
+					},
+					"poolSize": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"minIdleConns": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"integer"},
+							Format: "int32",
+						},
+					},
+					"sentinelMaster": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 				},

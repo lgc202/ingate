@@ -191,6 +191,7 @@ type LogicalRateLimitKeyPart struct {
 type LogicalRateLimitQuota struct {
 	Requests      int
 	WindowSeconds int
+	Burst         int
 }
 
 // LogicalGlobalRateLimit 表示编译后的 Redis-backed global limit 配置
@@ -213,12 +214,17 @@ type LogicalRedisStore struct {
 	DisplayName          string
 	Mode                 resource.RedisMode
 	Address              string
+	Addresses            []string
 	DB                   int
 	TLS                  bool
+	TLSServerName        string
 	Username             string
 	PasswordRef          string
 	ConnectTimeoutMillis int
 	CommandTimeoutMillis int
+	PoolSize             int
+	MinIdleConns         int
+	SentinelMaster       string
 }
 
 // LogicalPolicyBinding 表示编译后的策略绑定关系

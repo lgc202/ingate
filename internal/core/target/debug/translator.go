@@ -187,6 +187,7 @@ type RateLimitKeyPart struct {
 type RateLimitQuota struct {
 	Requests      int `json:"requests"`
 	WindowSeconds int `json:"windowSeconds"`
+	Burst         int `json:"burst,omitempty"`
 }
 
 // GlobalRateLimit 表示 debug 配置中的 Redis-backed global limit
@@ -209,12 +210,17 @@ type RedisStore struct {
 	DisplayName          string             `json:"displayName"`
 	Mode                 resource.RedisMode `json:"mode"`
 	Address              string             `json:"address"`
+	Addresses            []string           `json:"addresses,omitempty"`
 	DB                   int                `json:"db,omitempty"`
 	TLS                  bool               `json:"tls,omitempty"`
+	TLSServerName        string             `json:"tlsServerName,omitempty"`
 	Username             string             `json:"username,omitempty"`
 	PasswordRef          string             `json:"passwordRef,omitempty"`
 	ConnectTimeoutMillis int                `json:"connectTimeoutMillis,omitempty"`
 	CommandTimeoutMillis int                `json:"commandTimeoutMillis,omitempty"`
+	PoolSize             int                `json:"poolSize,omitempty"`
+	MinIdleConns         int                `json:"minIdleConns,omitempty"`
+	SentinelMaster       string             `json:"sentinelMaster,omitempty"`
 }
 
 // PolicyBinding 表示 debug 配置中的策略绑定
@@ -415,12 +421,17 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			DisplayName:          store.DisplayName,
 			Mode:                 store.Mode,
 			Address:              store.Address,
+			Addresses:            slices.Clone(store.Addresses),
 			DB:                   store.DB,
 			TLS:                  store.TLS,
+			TLSServerName:        store.TLSServerName,
 			Username:             store.Username,
 			PasswordRef:          store.PasswordRef,
 			ConnectTimeoutMillis: store.ConnectTimeoutMillis,
 			CommandTimeoutMillis: store.CommandTimeoutMillis,
+			PoolSize:             store.PoolSize,
+			MinIdleConns:         store.MinIdleConns,
+			SentinelMaster:       store.SentinelMaster,
 		})
 	}
 	for _, binding := range logical.PolicyBindings {

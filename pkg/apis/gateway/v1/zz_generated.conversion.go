@@ -2225,6 +2225,7 @@ func Convert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(in *gateway.R
 func autoConvert_v1_RateLimitQuota_To_gateway_RateLimitQuota(in *RateLimitQuota, out *gateway.RateLimitQuota, s conversion.Scope) error {
 	out.Requests = in.Requests
 	out.WindowSeconds = in.WindowSeconds
+	out.Burst = in.Burst
 	return nil
 }
 
@@ -2236,6 +2237,7 @@ func Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota(in *RateLimitQuota, out
 func autoConvert_gateway_RateLimitQuota_To_v1_RateLimitQuota(in *gateway.RateLimitQuota, out *RateLimitQuota, s conversion.Scope) error {
 	out.Requests = in.Requests
 	out.WindowSeconds = in.WindowSeconds
+	out.Burst = in.Burst
 	return nil
 }
 
@@ -2361,12 +2363,17 @@ func autoConvert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(in *RedisStoreSpec,
 	out.Description = in.Description
 	out.Mode = gateway.RedisMode(in.Mode)
 	out.Address = in.Address
+	out.Addresses = *(*[]string)(unsafe.Pointer(&in.Addresses))
 	out.DB = in.DB
 	out.TLS = in.TLS
+	out.TLSServerName = in.TLSServerName
 	out.Username = in.Username
 	out.PasswordRef = in.PasswordRef
 	out.ConnectTimeoutMillis = in.ConnectTimeoutMillis
 	out.CommandTimeoutMillis = in.CommandTimeoutMillis
+	out.PoolSize = in.PoolSize
+	out.MinIdleConns = in.MinIdleConns
+	out.SentinelMaster = in.SentinelMaster
 	return nil
 }
 
@@ -2380,12 +2387,17 @@ func autoConvert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(in *gateway.RedisSt
 	out.Description = in.Description
 	out.Mode = RedisMode(in.Mode)
 	out.Address = in.Address
+	out.Addresses = *(*[]string)(unsafe.Pointer(&in.Addresses))
 	out.DB = in.DB
 	out.TLS = in.TLS
+	out.TLSServerName = in.TLSServerName
 	out.Username = in.Username
 	out.PasswordRef = in.PasswordRef
 	out.ConnectTimeoutMillis = in.ConnectTimeoutMillis
 	out.CommandTimeoutMillis = in.CommandTimeoutMillis
+	out.PoolSize = in.PoolSize
+	out.MinIdleConns = in.MinIdleConns
+	out.SentinelMaster = in.SentinelMaster
 	return nil
 }
 

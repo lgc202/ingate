@@ -1,19 +1,27 @@
 package main
 
 import (
+	"encoding/json"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/lgc202/ingate/plugins/managed/rate-limit/internal/config"
+	"github.com/lgc202/ingate/plugins/managed/rate-limit/internal/executor"
 	"github.com/lgc202/ingate/plugins/managed/rate-limit/internal/ratelimit"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 const (
-	cookieHeaderName   = "cookie"
-	consumerHeaderName = "x-ingate-consumer"
-	routeNamePrefix    = "ingate-route"
+	aiModelHeaderName            = "x-ingate-ai-model"
+	apiKeyHeaderName             = "x-ingate-api-key"
+	cookieHeaderName             = "cookie"
+	consumerHeaderName           = "x-ingate-consumer"
+	jwtClaimHeaderPrefix         = "x-ingate-jwt-claim-"
+	routeNamePrefix              = "ingate-route"
+	tenantHeaderName             = "x-ingate-tenant"
+	defaultExecutorTimeoutMillis = 50
 )
 
 type pluginContext struct {
@@ -84,15 +92,160 @@ func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) typ
 		h.quotaHeaders = result.QuotaHeaders
 	}
 
-	for _, check := range result.RedisChecks {
-		// Redis-backed global limit 需要 Ingate 自己的数据面执行器或明确的 host function。
-		// 当前插件不继承 Higress wrapper 的 Redis client，避免把非标准运行时能力固化进产品链路。
-		proxywasm.LogErrorf(
-			"managed rate-limit global rule cannot run without redis executor: policy=%s rule=%s redisStore=%s",
-			check.Policy.Name,
-			check.Rule.Name,
-			check.RedisStore,
+	if len(result.RedisChecks) > 0 {
+		return h.dispatchRedisChecks(result.RedisChecks)
+	}
+
+	return types.ActionContinue
+}
+
+func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) types.Action {
+	for name, value := range h.quotaHeaders {
+		_ = proxywasm.ReplaceHttpResponseHeader(name, value)
+	}
+	return types.ActionContinue
+}
+
+func (h *httpContext) dispatchRedisChecks(checks []ratelimit.RedisCheck) types.Action {
+	executorConfig := h.plugin.config.Executor
+	if executorConfig == nil || executorConfig.ClusterName == "" || executorConfig.Path == "" {
+		return h.handleExecutorFailure(checks, "managed rate-limit executor is not configured")
+	}
+
+	request := executor.CheckRequest{
+		SchemaVersion: executor.SchemaVersionV1,
+		Checks:        make([]executor.Check, 0, len(checks)),
+	}
+	for _, check := range checks {
+		store, ok := h.redisStore(check.RedisStore)
+		if !ok {
+			return h.handleExecutorFailure(checks, "managed rate-limit redis store is not configured")
+		}
+		request.Checks = append(request.Checks, executor.Check{
+			PolicyName: check.Policy.Name,
+			RuleName:   check.Rule.Name,
+			RedisKey:   check.RedisKey,
+			RedisStore: executor.RedisStore{
+				ID:                   store.Name,
+				Mode:                 store.Mode,
+				Address:              store.Address,
+				Addresses:            store.Addresses,
+				DB:                   store.DB,
+				TLS:                  store.TLS,
+				TLSServerName:        store.TLSServerName,
+				Username:             store.Username,
+				PasswordRef:          store.PasswordRef,
+				ConnectTimeoutMillis: store.ConnectTimeoutMillis,
+				CommandTimeoutMillis: store.CommandTimeoutMillis,
+				PoolSize:             store.PoolSize,
+				MinIdleConns:         store.MinIdleConns,
+				SentinelMaster:       store.SentinelMaster,
+			},
+			Algorithm: check.Rule.Algorithm,
+			Limit: executor.Limit{
+				Requests:      check.Requests,
+				WindowSeconds: check.WindowSeconds,
+				Burst:         check.Burst,
+			},
+			TimeoutMillis: check.RedisTimeoutMs,
+		})
+	}
+
+	body, err := json.Marshal(request)
+	if err != nil {
+		proxywasm.LogErrorf("marshal managed rate-limit executor request failed: %v", err)
+		return h.handleExecutorFailure(checks, "marshal executor request failed")
+	}
+
+	_, err = proxywasm.DispatchHttpCall(
+		executorConfig.ClusterName,
+		[][2]string{
+			{":method", "POST"},
+			{":path", executorConfig.Path},
+			{":authority", executorConfig.ClusterName},
+			{"content-type", "application/json"},
+		},
+		body,
+		nil,
+		uint32(executorTimeoutMillis(executorConfig, checks)),
+		func(numHeaders, bodySize, numTrailers int) {
+			h.handleExecutorResponse(checks, bodySize)
+		},
+	)
+	if err != nil {
+		proxywasm.LogErrorf("dispatch managed rate-limit executor request failed: %v", err)
+		return h.handleExecutorFailure(checks, "dispatch executor request failed")
+	}
+	return types.ActionPause
+}
+
+func (h *httpContext) handleExecutorResponse(checks []ratelimit.RedisCheck, bodySize int) {
+	status := httpCallStatus()
+	if status != 200 {
+		h.resumeAfterExecutorFailure(checks, "executor returned non-200 response")
+		return
+	}
+
+	body, err := proxywasm.GetHttpCallResponseBody(0, bodySize)
+	if err != nil {
+		proxywasm.LogErrorf("read managed rate-limit executor response failed: %v", err)
+		h.resumeAfterExecutorFailure(checks, "read executor response failed")
+		return
+	}
+	var response executor.CheckResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		proxywasm.LogErrorf("parse managed rate-limit executor response failed: %v", err)
+		h.resumeAfterExecutorFailure(checks, "parse executor response failed")
+		return
+	}
+	if response.SchemaVersion != "" && response.SchemaVersion != executor.SchemaVersionV1 {
+		h.resumeAfterExecutorFailure(checks, "unsupported executor response schema")
+		return
+	}
+	if len(response.Results) != len(checks) {
+		h.resumeAfterExecutorFailure(checks, "executor response result count mismatch")
+		return
+	}
+
+	for i, result := range response.Results {
+		check := checks[i]
+		if result.Error != "" {
+			if check.Policy.FailOpen() {
+				continue
+			}
+			sendRejected(ratelimit.Decision{
+				Allowed:    false,
+				StatusCode: check.Policy.RejectedStatusCode(),
+				Message:    check.Policy.RejectedMessage(),
+				Policy:     check.Policy,
+				Rule:       check.Rule,
+				Key:        check.Key,
+			})
+			return
+		}
+		decision := ratelimit.RedisResultDecision(
+			check.Policy,
+			check.Rule,
+			check.Key,
+			result.Allowed,
+			result.Limit,
+			result.Current,
+			result.ResetSeconds,
 		)
+		if !decision.Allowed {
+			sendRejected(decision)
+			return
+		}
+		if len(decision.QuotaHeaders) > 0 {
+			h.quotaHeaders = decision.QuotaHeaders
+		}
+	}
+	_ = proxywasm.ResumeHttpRequest()
+}
+
+func (h *httpContext) handleExecutorFailure(checks []ratelimit.RedisCheck, message string) types.Action {
+	proxywasm.LogErrorf("managed rate-limit executor failed: %s", message)
+	for _, check := range checks {
 		if check.Policy.FailOpen() {
 			continue
 		}
@@ -106,15 +259,54 @@ func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) typ
 		})
 		return types.ActionPause
 	}
-
 	return types.ActionContinue
 }
 
-func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) types.Action {
-	for name, value := range h.quotaHeaders {
-		_ = proxywasm.ReplaceHttpResponseHeader(name, value)
+func (h *httpContext) resumeAfterExecutorFailure(checks []ratelimit.RedisCheck, message string) {
+	action := h.handleExecutorFailure(checks, message)
+	if action == types.ActionContinue {
+		_ = proxywasm.ResumeHttpRequest()
 	}
-	return types.ActionContinue
+}
+
+func (h *httpContext) redisStore(name string) (config.RedisStore, bool) {
+	for _, store := range h.plugin.config.RedisStores {
+		if store.Name == name {
+			return store, true
+		}
+	}
+	return config.RedisStore{}, false
+}
+
+func executorTimeoutMillis(config *config.Executor, checks []ratelimit.RedisCheck) int {
+	timeout := defaultExecutorTimeoutMillis
+	if config.TimeoutMillis > timeout {
+		timeout = config.TimeoutMillis
+	}
+	for _, check := range checks {
+		if check.RedisTimeoutMs > timeout {
+			timeout = check.RedisTimeoutMs
+		}
+	}
+	return timeout
+}
+
+func httpCallStatus() int {
+	headers, err := proxywasm.GetHttpCallResponseHeaders()
+	if err != nil {
+		return 0
+	}
+	for _, header := range headers {
+		if header[0] != ":status" {
+			continue
+		}
+		status, err := strconv.Atoi(header[1])
+		if err != nil {
+			return 0
+		}
+		return status
+	}
+	return 0
 }
 
 func (h *httpContext) routeConfig() (config.RouteConfig, bool) {
@@ -200,8 +392,11 @@ func requestFromProxyWasm(route config.RouteConfig) ratelimit.Request {
 
 func headerNames(route config.RouteConfig) []string {
 	seen := map[string]struct{}{
+		aiModelHeaderName:  {},
+		apiKeyHeaderName:   {},
 		cookieHeaderName:   {},
 		consumerHeaderName: {},
+		tenantHeaderName:   {},
 	}
 	for _, binding := range route.Bindings {
 		for _, policy := range binding.Policies {
@@ -215,6 +410,9 @@ func headerNames(route config.RouteConfig) []string {
 					}
 					if part.Type == config.KeyTypeConsumer {
 						seen[consumerHeaderName] = struct{}{}
+					}
+					if part.Type == config.KeyTypeJWTClaim && part.Name != "" {
+						seen[jwtClaimHeaderPrefix+part.Name] = struct{}{}
 					}
 				}
 			}

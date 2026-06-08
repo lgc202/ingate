@@ -812,12 +812,17 @@ func (c *gatewayCompiler) buildRedisStores(names map[string]bool) []ir.LogicalRe
 			DisplayName:          store.Spec.DisplayName,
 			Mode:                 store.Spec.Mode,
 			Address:              store.Spec.Address,
+			Addresses:            slices.Clone(store.Spec.Addresses),
 			DB:                   store.Spec.DB,
 			TLS:                  store.Spec.TLS,
+			TLSServerName:        store.Spec.TLSServerName,
 			Username:             store.Spec.Username,
 			PasswordRef:          store.Spec.PasswordRef,
 			ConnectTimeoutMillis: store.Spec.ConnectTimeoutMillis,
 			CommandTimeoutMillis: store.Spec.CommandTimeoutMillis,
+			PoolSize:             store.Spec.PoolSize,
+			MinIdleConns:         store.Spec.MinIdleConns,
+			SentinelMaster:       store.Spec.SentinelMaster,
 		})
 	}
 

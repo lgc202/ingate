@@ -18,12 +18,17 @@ type RedisStoreParams struct {
 	Description          string
 	Mode                 resource.RedisMode
 	Address              string
+	Addresses            []string
 	DB                   int
 	TLS                  bool
+	TLSServerName        string
 	Username             string
 	PasswordRef          string
 	ConnectTimeoutMillis int
 	CommandTimeoutMillis int
+	PoolSize             int
+	MinIdleConns         int
+	SentinelMaster       string
 }
 
 // CreateRedisStoreParams 表示创建 RedisStore 参数

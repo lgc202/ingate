@@ -8,12 +8,17 @@ type RedisStoreConfig struct {
 	Description          string             `json:"description,omitempty"`
 	Mode                 resource.RedisMode `json:"mode"`
 	Address              string             `json:"address"`
+	Addresses            []string           `json:"addresses,omitempty"`
 	DB                   int                `json:"db,omitempty"`
 	TLS                  bool               `json:"tls"`
+	TLSServerName        string             `json:"tlsServerName,omitempty"`
 	Username             string             `json:"username,omitempty"`
 	PasswordRef          string             `json:"passwordRef,omitempty"`
 	ConnectTimeoutMillis int                `json:"connectTimeoutMillis,omitempty"`
 	CommandTimeoutMillis int                `json:"commandTimeoutMillis,omitempty"`
+	PoolSize             int                `json:"poolSize,omitempty"`
+	MinIdleConns         int                `json:"minIdleConns,omitempty"`
+	SentinelMaster       string             `json:"sentinelMaster,omitempty"`
 }
 
 // CreateRedisStoreReq 是创建 RedisStore 的请求体
