@@ -3,6 +3,7 @@ package ratelimit
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	dataplaneratelimit "github.com/lgc202/ingate/pkg/dataplane/ratelimit"
@@ -10,8 +11,16 @@ import (
 
 const defaultCommandTimeout = 50 * time.Millisecond
 
+var (
+	errInvalidCheck         = errors.New("invalid rate limit check")
+	errUnsupportedAlgorithm = errors.New("unsupported rate limit algorithm")
+)
+
 func (s *Service) executeCheck(ctx context.Context, check dataplaneratelimit.Check) (dataplaneratelimit.Result, error) {
 	if err := validateCheck(check); err != nil {
+		return dataplaneratelimit.Result{}, err
+	}
+	if err := validateAlgorithm(check.Algorithm); err != nil {
 		return dataplaneratelimit.Result{}, err
 	}
 
@@ -30,18 +39,30 @@ func (s *Service) executeCheck(ctx context.Context, check dataplaneratelimit.Che
 	case dataplaneratelimit.AlgorithmTokenBucket:
 		return tokenBucket(ctx, client, check)
 	default:
-		return dataplaneratelimit.Result{}, errors.New("unsupported rate limit algorithm")
+		return dataplaneratelimit.Result{}, errUnsupportedAlgorithm
 	}
 }
 
 func validateCheck(check dataplaneratelimit.Check) error {
 	if check.RedisKey == "" {
-		return errors.New("redis key is required")
+		return fmt.Errorf("%w: redis key is required", errInvalidCheck)
+	}
+	if check.RedisStore.ID == "" {
+		return fmt.Errorf("%w: redis store id is required", errInvalidCheck)
 	}
 	if check.Limit.Requests <= 0 || check.Limit.WindowSeconds <= 0 {
-		return errors.New("limit requests and windowSeconds must be greater than zero")
+		return fmt.Errorf("%w: limit requests and windowSeconds must be greater than zero", errInvalidCheck)
 	}
 	return nil
+}
+
+func validateAlgorithm(algorithm dataplaneratelimit.Algorithm) error {
+	switch algorithm {
+	case "", dataplaneratelimit.AlgorithmFixedWindow, dataplaneratelimit.AlgorithmSlidingWindow, dataplaneratelimit.AlgorithmTokenBucket:
+		return nil
+	default:
+		return fmt.Errorf("%w: %s", errUnsupportedAlgorithm, algorithm)
+	}
 }
 
 func commandTimeout(check dataplaneratelimit.Check) time.Duration {

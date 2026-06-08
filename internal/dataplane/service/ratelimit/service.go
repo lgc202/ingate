@@ -3,6 +3,7 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	dataplaneratelimit "github.com/lgc202/ingate/pkg/dataplane/ratelimit"
@@ -33,11 +34,22 @@ func (s *Service) Check(ctx context.Context, request dataplaneratelimit.CheckReq
 	for _, check := range request.Checks {
 		result, err := s.executeCheck(ctx, check)
 		if err != nil {
-			s.logger.Error("rate limit check failed", "policy", check.PolicyName, "rule", check.RuleName, "redis_store", check.RedisStore.ID, "err", err)
+			errorCode := classifyError(err)
+			s.logger.Error(
+				"rate limit check failed",
+				"policy", check.PolicyName,
+				"rule", check.RuleName,
+				"redis_store", check.RedisStore.ID,
+				"redis_key", check.RedisKey,
+				"algorithm", check.Algorithm,
+				"error_code", errorCode,
+				"err", err,
+			)
 			result = dataplaneratelimit.Result{
 				PolicyName: check.PolicyName,
 				RuleName:   check.RuleName,
 				Allowed:    false,
+				ErrorCode:  errorCode,
 				Error:      err.Error(),
 			}
 		}
@@ -46,5 +58,18 @@ func (s *Service) Check(ctx context.Context, request dataplaneratelimit.CheckReq
 
 	return dataplaneratelimit.CheckResponse{
 		Results: results,
+	}
+}
+
+func classifyError(err error) dataplaneratelimit.ErrorCode {
+	switch {
+	case errors.Is(err, errInvalidCheck):
+		return dataplaneratelimit.ErrorCodeInvalidRequest
+	case errors.Is(err, errUnsupportedAlgorithm):
+		return dataplaneratelimit.ErrorCodeUnsupportedAlgorithm
+	case errors.Is(err, context.DeadlineExceeded):
+		return dataplaneratelimit.ErrorCodeTimeout
+	default:
+		return dataplaneratelimit.ErrorCodeRedisError
 	}
 }

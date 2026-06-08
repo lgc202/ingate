@@ -1,4 +1,4 @@
-// Package ratelimit 处理限流 capability HTTP 请求
+// Package ratelimit 处理限流 dataplane HTTP 请求
 package ratelimit
 
 import (
@@ -10,7 +10,7 @@ import (
 	dataplaneratelimit "github.com/lgc202/ingate/pkg/dataplane/ratelimit"
 )
 
-// Handler 处理限流 capability 请求
+// Handler 处理限流 dataplane 请求
 type Handler struct {
 	service *ratelimitsvc.Service
 }
@@ -28,5 +28,6 @@ func (h *Handler) Check(ctx *gin.Context) {
 		return
 	}
 
+	// 单条 check 的语义错误由 service 写入对应 Result，保证插件可以按策略 fail-open / fail-close
 	ctx.JSON(http.StatusOK, h.service.Check(ctx.Request.Context(), request))
 }
