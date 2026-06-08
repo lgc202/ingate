@@ -10,22 +10,10 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// AIModels returns a AIModelInformer.
-	AIModels() AIModelInformer
-	// AIPolicies returns a AIPolicyInformer.
-	AIPolicies() AIPolicyInformer
-	// AIProviders returns a AIProviderInformer.
-	AIProviders() AIProviderInformer
-	// AIRoutes returns a AIRouteInformer.
-	AIRoutes() AIRouteInformer
 	// AuthPolicies returns a AuthPolicyInformer.
 	AuthPolicies() AuthPolicyInformer
 	// Gateways returns a GatewayInformer.
 	Gateways() GatewayInformer
-	// Plugins returns a PluginInformer.
-	Plugins() PluginInformer
-	// PluginBindings returns a PluginBindingInformer.
-	PluginBindings() PluginBindingInformer
 	// PolicyBindings returns a PolicyBindingInformer.
 	PolicyBindings() PolicyBindingInformer
 	// RateLimitPolicies returns a RateLimitPolicyInformer.
@@ -53,26 +41,6 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// AIModels returns a AIModelInformer.
-func (v *version) AIModels() AIModelInformer {
-	return &aIModelInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// AIPolicies returns a AIPolicyInformer.
-func (v *version) AIPolicies() AIPolicyInformer {
-	return &aIPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// AIProviders returns a AIProviderInformer.
-func (v *version) AIProviders() AIProviderInformer {
-	return &aIProviderInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// AIRoutes returns a AIRouteInformer.
-func (v *version) AIRoutes() AIRouteInformer {
-	return &aIRouteInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
 // AuthPolicies returns a AuthPolicyInformer.
 func (v *version) AuthPolicies() AuthPolicyInformer {
 	return &authPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
@@ -81,16 +49,6 @@ func (v *version) AuthPolicies() AuthPolicyInformer {
 // Gateways returns a GatewayInformer.
 func (v *version) Gateways() GatewayInformer {
 	return &gatewayInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// Plugins returns a PluginInformer.
-func (v *version) Plugins() PluginInformer {
-	return &pluginInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// PluginBindings returns a PluginBindingInformer.
-func (v *version) PluginBindings() PluginBindingInformer {
-	return &pluginBindingInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // PolicyBindings returns a PolicyBindingInformer.

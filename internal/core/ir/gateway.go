@@ -1,28 +1,18 @@
 // Package ir 定义运行时无关的网关编译结果
 package ir
 
-import (
-	"encoding/json"
-
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-)
+import resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 
 // LogicalGateway 表示一个 Gateway 编译后的运行时无关模型
 type LogicalGateway struct {
 	Name              string
 	Listeners         []LogicalListener
 	Routes            []LogicalRoute
-	AIRoutes          []LogicalAIRoute
 	Upstreams         []LogicalUpstream
-	AIProviders       []LogicalAIProvider
-	AIModels          []LogicalAIModel
-	AIPolicies        []LogicalAIPolicy
-	Plugins           []LogicalPlugin
 	AuthPolicies      []LogicalAuthPolicy
 	RateLimitPolicies []LogicalRateLimitPolicy
 	RedisStores       []LogicalRedisStore
 	PolicyBindings    []LogicalPolicyBinding
-	PluginBindings    []LogicalPluginBinding
 }
 
 // LogicalListener 表示编译后的 Gateway 监听器
@@ -77,30 +67,6 @@ type LogicalUpstreamRef struct {
 	Weight int
 }
 
-// LogicalAIRoute 表示编译后的 AI 路由
-type LogicalAIRoute struct {
-	Name       string
-	Hostnames  []string
-	Path       string
-	PathPrefix string
-	Model      string
-	Models     []LogicalAIModelRef
-	Providers  []LogicalAIProviderRef
-	PolicyRefs []string
-}
-
-// LogicalAIModelRef 表示已解析的 AIModel 引用
-type LogicalAIModelRef struct {
-	Name   string
-	Weight int
-}
-
-// LogicalAIProviderRef 表示已解析的 AIProvider 引用
-type LogicalAIProviderRef struct {
-	Name   string
-	Weight int
-}
-
 // LogicalUpstream 表示挂载路由实际使用到的编译后 Upstream
 type LogicalUpstream struct {
 	Name      string
@@ -111,42 +77,6 @@ type LogicalUpstream struct {
 type LogicalEndpoint struct {
 	Address string
 	Port    int
-}
-
-// LogicalAIProvider 表示编译后的 AI 模型供应商
-type LogicalAIProvider struct {
-	Name     string
-	Type     resource.AIProviderType
-	Endpoint string
-	Models   []string
-}
-
-// LogicalAIModel 表示编译后的 AI 模型映射
-type LogicalAIModel struct {
-	Name          string
-	ProviderRef   string
-	ProviderModel string
-	Capabilities  []string
-}
-
-// LogicalAIPolicy 表示编译后的 AI 请求策略
-type LogicalAIPolicy struct {
-	Name            string
-	ExecutionTarget resource.AIExecutionTargetType
-	TimeoutMillis   int
-	RetryAttempts   int
-	FallbackEnabled bool
-	FallbackModels  []string
-	UsageEnabled    bool
-}
-
-// LogicalPlugin 表示编译后的插件声明
-type LogicalPlugin struct {
-	Name     string
-	Runtime  resource.PluginRuntime
-	Version  string
-	Endpoint string
-	Image    string
 }
 
 // LogicalAuthPolicy 表示编译后的认证策略
@@ -245,26 +175,4 @@ type LogicalPolicyTarget struct {
 type LogicalPolicyRef struct {
 	Kind resource.Kind
 	Name string
-}
-
-// LogicalPluginBinding 表示编译后的插件绑定关系
-type LogicalPluginBinding struct {
-	Name          string
-	Target        LogicalPluginTarget
-	Phase         resource.PluginPhase
-	Priority      int
-	FailurePolicy resource.PluginFailurePolicy
-	Plugins       []LogicalPluginRef
-}
-
-// LogicalPluginTarget 表示插件绑定目标
-type LogicalPluginTarget struct {
-	Kind resource.Kind
-	Name string
-}
-
-// LogicalPluginRef 表示被绑定的插件引用
-type LogicalPluginRef struct {
-	Name   string
-	Config json.RawMessage
 }

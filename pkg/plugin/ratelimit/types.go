@@ -29,7 +29,6 @@ const (
 	KeyTypeRouteRule KeyType = "RouteRule"
 	KeyTypeJWTClaim  KeyType = "JWTClaim"
 	KeyTypeAPIKey    KeyType = "APIKey"
-	KeyTypeAIModel   KeyType = "AIModel"
 	KeyTypeTenant    KeyType = "Tenant"
 )
 

@@ -14,14 +14,8 @@ import (
 
 type GatewayV1Interface interface {
 	RESTClient() rest.Interface
-	AIModelsGetter
-	AIPoliciesGetter
-	AIProvidersGetter
-	AIRoutesGetter
 	AuthPoliciesGetter
 	GatewaysGetter
-	PluginsGetter
-	PluginBindingsGetter
 	PolicyBindingsGetter
 	RateLimitPoliciesGetter
 	RedisStoresGetter
@@ -36,36 +30,12 @@ type GatewayV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *GatewayV1Client) AIModels() AIModelInterface {
-	return newAIModels(c)
-}
-
-func (c *GatewayV1Client) AIPolicies() AIPolicyInterface {
-	return newAIPolicies(c)
-}
-
-func (c *GatewayV1Client) AIProviders() AIProviderInterface {
-	return newAIProviders(c)
-}
-
-func (c *GatewayV1Client) AIRoutes() AIRouteInterface {
-	return newAIRoutes(c)
-}
-
 func (c *GatewayV1Client) AuthPolicies() AuthPolicyInterface {
 	return newAuthPolicies(c)
 }
 
 func (c *GatewayV1Client) Gateways() GatewayInterface {
 	return newGateways(c)
-}
-
-func (c *GatewayV1Client) Plugins() PluginInterface {
-	return newPlugins(c)
-}
-
-func (c *GatewayV1Client) PluginBindings() PluginBindingInterface {
-	return newPluginBindings(c)
 }
 
 func (c *GatewayV1Client) PolicyBindings() PolicyBindingInterface {

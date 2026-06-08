@@ -39,22 +39,10 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=gateway.ingate.io, Version=v1
-	case v1.SchemeGroupVersion.WithResource("aimodels"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().AIModels().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("aipolicies"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().AIPolicies().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("aiproviders"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().AIProviders().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("airoutes"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().AIRoutes().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("authpolicies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().AuthPolicies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("gateways"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Gateways().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("plugins"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Plugins().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("pluginbindings"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().PluginBindings().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("policybindings"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().PolicyBindings().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("ratelimitpolicies"):

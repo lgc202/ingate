@@ -1,14 +1,12 @@
 package xds_test
 
 import (
-	"encoding/json"
 	"reflect"
 	"testing"
 
 	"github.com/lgc202/ingate/internal/core/ir"
 	"github.com/lgc202/ingate/internal/core/target"
 	"github.com/lgc202/ingate/internal/core/target/xds"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 func TestTranslatorImplementsTargetTranslator(t *testing.T) {
@@ -51,76 +49,11 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
-		AIRoutes: []ir.LogicalAIRoute{
-			{
-				Name:       "chat",
-				Hostnames:  []string{"api.example.com"},
-				Path:       "/v1/chat/completions",
-				PathPrefix: "/v1/chat",
-				Model:      "gpt-4.1-mini",
-				Models: []ir.LogicalAIModelRef{
-					{Name: "chat-fast", Weight: 100},
-				},
-				PolicyRefs: []string{"ai-default"},
-			},
-		},
 		Upstreams: []ir.LogicalUpstream{
 			{
 				Name: "app",
 				Endpoints: []ir.LogicalEndpoint{
 					{Address: "10.0.0.10", Port: 8080},
-				},
-			},
-		},
-		AIProviders: []ir.LogicalAIProvider{
-			{
-				Name:     "openai",
-				Type:     resource.AIProviderTypeOpenAICompatible,
-				Endpoint: "https://api.openai.com/v1",
-				Models:   []string{"gpt-4.1-mini"},
-			},
-		},
-		AIModels: []ir.LogicalAIModel{
-			{
-				Name:          "chat-fast",
-				ProviderRef:   "openai",
-				ProviderModel: "gpt-4.1-mini",
-				Capabilities:  []string{"chat", "stream"},
-			},
-		},
-		AIPolicies: []ir.LogicalAIPolicy{
-			{
-				Name:            "ai-default",
-				ExecutionTarget: resource.AIExecutionTargetTypeWasm,
-				TimeoutMillis:   30000,
-				RetryAttempts:   2,
-				FallbackEnabled: true,
-				FallbackModels:  []string{"chat-backup"},
-				UsageEnabled:    true,
-			},
-		},
-		Plugins: []ir.LogicalPlugin{
-			{
-				Name:    "ai-proxy",
-				Runtime: resource.PluginRuntimeWasm,
-				Version: "v1",
-				Image:   "oci://example.com/ai-proxy:v1",
-			},
-		},
-		PluginBindings: []ir.LogicalPluginBinding{
-			{
-				Name: "chat-ai-proxy",
-				Target: ir.LogicalPluginTarget{
-					Kind: resource.KindAIRoute,
-					Name: "chat",
-				},
-				Phase:         resource.PluginPhaseBeforeProviderCall,
-				Priority:      100,
-				FailurePolicy: resource.PluginFailurePolicyFailClose,
-				Plugins: []ir.LogicalPluginRef{
-					{
-						Name: "ai-proxy",
-					},
 				},
 			},
 		},
@@ -188,23 +121,6 @@ func TestTranslatorTranslate(t *testing.T) {
 							},
 						},
 					},
-					{
-						Name:    "chat",
-						Domains: []string{"api.example.com"},
-						Routes: []xds.Route{
-							{
-								GatewayName: "public",
-								Name:        "chat",
-								Match: xds.RouteMatch{
-									Path:       "/v1/chat/completions",
-									PathPrefix: "/v1/chat",
-								},
-								WeightedClusters: []xds.WeightedCluster{
-									{Name: "ai-provider/openai", Weight: 100},
-								},
-							},
-						},
-					},
 				},
 			},
 		},
@@ -213,88 +129,12 @@ func TestTranslatorTranslate(t *testing.T) {
 				Name:          "app",
 				DiscoveryType: xds.ClusterDiscoveryTypeEDS,
 			},
-			{
-				Name:          "ai-provider/openai",
-				DiscoveryType: xds.ClusterDiscoveryTypeLogicalDNS,
-				Address:       "api.openai.com",
-				Port:          443,
-				TLS:           true,
-			},
 		},
 		EndpointAssignments: []xds.EndpointAssignment{
 			{
 				ClusterName: "app",
 				Endpoints: []xds.Endpoint{
 					{Address: "10.0.0.10", Port: 8080},
-				},
-			},
-		},
-		AIRoutes: []xds.AIRoute{
-			{
-				Name:    "chat",
-				Domains: []string{"api.example.com"},
-				Match: xds.AIRouteMatch{
-					Path:       "/v1/chat/completions",
-					PathPrefix: "/v1/chat",
-				},
-				Model: "gpt-4.1-mini",
-				Models: []xds.AIModelRef{
-					{Name: "chat-fast", Weight: 100},
-				},
-				Providers:  []xds.AIProviderRef{},
-				PolicyRefs: []string{"ai-default"},
-			},
-		},
-		AIProviders: []xds.AIProvider{
-			{
-				Name:     "openai",
-				Type:     resource.AIProviderTypeOpenAICompatible,
-				Endpoint: "https://api.openai.com/v1",
-				Models:   []string{"gpt-4.1-mini"},
-			},
-		},
-		AIModels: []xds.AIModel{
-			{
-				Name:          "chat-fast",
-				ProviderRef:   "openai",
-				ProviderModel: "gpt-4.1-mini",
-				Capabilities:  []string{"chat", "stream"},
-			},
-		},
-		AIPolicies: []xds.AIPolicy{
-			{
-				Name:            "ai-default",
-				ExecutionTarget: resource.AIExecutionTargetTypeWasm,
-				TimeoutMillis:   30000,
-				RetryAttempts:   2,
-				FallbackEnabled: true,
-				FallbackModels:  []string{"chat-backup"},
-				UsageEnabled:    true,
-			},
-		},
-		Plugins: []xds.Plugin{
-			{
-				Name:    "ai-proxy",
-				Runtime: resource.PluginRuntimeWasm,
-				Version: "v1",
-				Image:   "oci://example.com/ai-proxy:v1",
-			},
-		},
-		PluginBindings: []xds.PluginBinding{
-			{
-				Name: "chat-ai-proxy",
-				Target: xds.PluginTarget{
-					Kind: resource.KindGateway,
-					Name: "public",
-				},
-				Phase:         resource.PluginPhaseBeforeProviderCall,
-				Priority:      100,
-				FailurePolicy: resource.PluginFailurePolicyFailClose,
-				Plugins: []xds.PluginRef{
-					{
-						Name:   "ai-proxy",
-						Config: json.RawMessage(`{"_rules_":[{"_match_domain_":["api.example.com"],"_match_route_":["chat"],"model":"gpt-4.1-mini","models":[{"name":"chat-fast","weight":100}],"policyRefs":["ai-default"],"provider":{"endpoint":"https://api.openai.com/v1","modelMapping":{"*":"gpt-4.1-mini"},"name":"openai","type":"OpenAICompatible"}}]}`),
-					},
 				},
 			},
 		},

@@ -90,7 +90,6 @@ func validateKeyPart(part resource.RateLimitKeyPart) error {
 		resource.RateLimitKeyTypeGateway,
 		resource.RateLimitKeyTypeRouteRule,
 		resource.RateLimitKeyTypeAPIKey,
-		resource.RateLimitKeyTypeAIModel,
 		resource.RateLimitKeyTypeTenant:
 		return nil
 	case resource.RateLimitKeyTypeHeader,

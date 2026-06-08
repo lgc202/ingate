@@ -4,21 +4,9 @@
 
 package v1
 
-type AIModelExpansion interface{}
-
-type AIPolicyExpansion interface{}
-
-type AIProviderExpansion interface{}
-
-type AIRouteExpansion interface{}
-
 type AuthPolicyExpansion interface{}
 
 type GatewayExpansion interface{}
-
-type PluginExpansion interface{}
-
-type PluginBindingExpansion interface{}
 
 type PolicyBindingExpansion interface{}
 

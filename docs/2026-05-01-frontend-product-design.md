@@ -91,7 +91,7 @@ Ingate 是统一网关控制台，面向使用网关发布接口和 AI 能力的
 
 - 匹配规则只决定请求是否命中路由
 - 后端服务只决定命中后转发到哪里
-- 策略配置决定命中后如何治理、改写、保护和观测；控制台可以是一体化向导，但保存时按资源边界拆成 Route、PolicyBinding 或 PluginBinding 多次调用
+- 策略配置决定命中后如何治理、改写、保护和观测；控制台可以是一体化向导，但保存时按资源边界拆成 Route、PolicyBinding 和对应强类型 Policy 多次调用
 - 发布预览展示产品化影响范围，不展示底层配置明细
 
 匹配规则包括：所属网关、匹配域名、匹配路径、请求方法、Header、Query、Cookie、来源 IP。
@@ -277,7 +277,7 @@ MonitorOverview
 SystemSettingsView
 ```
 
-后端再把产品 DTO 翻译成内部声明式资源和数据面配置。Route DTO 只覆盖 Route 原生能力；治理策略和插件分别通过 PolicyBinding、PluginBinding 的 DTO 保存。控制台中文展示名不能进入 compiler 作为协议判断依据。
+后端再把产品 DTO 翻译成内部声明式资源和数据面配置。Route DTO 只覆盖 Route 原生能力；治理策略通过 PolicyBinding 和对应强类型 Policy 的 DTO 保存。控制台中文展示名不能进入 compiler 作为协议判断依据。
 
 ## 插件化路线
 

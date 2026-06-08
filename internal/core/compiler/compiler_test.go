@@ -1,7 +1,6 @@
 package compiler_test
 
 import (
-	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -10,7 +9,6 @@ import (
 	"github.com/lgc202/ingate/internal/core/ir"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 func testGateway(name string) resource.Gateway {
@@ -78,22 +76,6 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
-		AIRoutes: []resource.AIRoute{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "chat"},
-				Spec: resource.AIRouteSpec{
-					ParentRefs: []string{"public"},
-					Hostnames:  []string{"api.example.com"},
-					Path:       "/v1/chat/completions",
-					PathPrefix: "/v1/chat/completions",
-					Model:      "gpt-4.1-mini",
-					Models: []resource.AIModelRef{
-						{Name: "chat-fast", Weight: 100},
-					},
-					PolicyRefs: []string{"ai-default"},
-				},
-			},
-		},
 		Upstreams: []resource.Upstream{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app"},
@@ -101,55 +83,6 @@ func TestCompilerCompileGateway(t *testing.T) {
 					Endpoints: []resource.Endpoint{
 						{Address: "10.0.0.10", Port: 8080, Enabled: true},
 					},
-				},
-			},
-		},
-		AIProviders: []resource.AIProvider{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "openai"},
-				Spec: resource.AIProviderSpec{
-					Type:     resource.AIProviderTypeOpenAICompatible,
-					Endpoint: "https://api.openai.com/v1",
-					Models:   []string{"gpt-4.1-mini"},
-				},
-			},
-		},
-		AIModels: []resource.AIModel{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "chat-fast"},
-				Spec: resource.AIModelSpec{
-					ProviderRef:   "openai",
-					ProviderModel: "gpt-4.1-mini",
-					Capabilities:  []string{"chat", "stream"},
-				},
-			},
-		},
-		AIPolicies: []resource.AIPolicy{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "ai-default"},
-				Spec: resource.AIPolicySpec{
-					ExecutionTarget: resource.AIExecutionTargetTypeWasm,
-					TimeoutMillis:   30000,
-					Retry: resource.AIRetryPolicy{
-						Attempts: 2,
-					},
-					Fallback: resource.AIFallbackPolicy{
-						Enabled: true,
-						Models:  []string{"chat-backup"},
-					},
-					Usage: resource.AIUsagePolicy{
-						Enabled: true,
-					},
-				},
-			},
-		},
-		Plugins: []resource.Plugin{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "audit-log"},
-				Spec: resource.PluginSpec{
-					Runtime:  resource.PluginRuntimeExternal,
-					Version:  "v1",
-					Endpoint: "dns:///audit-plugin:9000",
 				},
 			},
 		},
@@ -183,26 +116,6 @@ func TestCompilerCompileGateway(t *testing.T) {
 								WindowSeconds: 60,
 							},
 							Algorithm: resource.RateLimitAlgorithmFixedWindow,
-						},
-					},
-				},
-			},
-		},
-		PluginBindings: []resource.PluginBinding{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "app-audit"},
-				Spec: resource.PluginBindingSpec{
-					TargetRef: resource.PluginTargetRef{
-						Kind: resource.KindAIRoute,
-						Name: "chat",
-					},
-					Phase:         resource.PluginPhaseBeforeProviderCall,
-					Priority:      100,
-					FailurePolicy: resource.PluginFailurePolicyFailClose,
-					Plugins: []resource.PluginRef{
-						{
-							Name:   "audit-log",
-							Config: runtime.RawExtension{Raw: []byte(`{"mode":"audit"}`)},
 						},
 					},
 				},
@@ -263,61 +176,12 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
-		AIRoutes: []ir.LogicalAIRoute{
-			{
-				Name:       "chat",
-				Hostnames:  []string{"api.example.com"},
-				Path:       "/v1/chat/completions",
-				PathPrefix: "/v1/chat/completions",
-				Model:      "gpt-4.1-mini",
-				Models: []ir.LogicalAIModelRef{
-					{Name: "chat-fast", Weight: 100},
-				},
-				Providers:  []ir.LogicalAIProviderRef{},
-				PolicyRefs: []string{"ai-default"},
-			},
-		},
 		Upstreams: []ir.LogicalUpstream{
 			{
 				Name: "app",
 				Endpoints: []ir.LogicalEndpoint{
 					{Address: "10.0.0.10", Port: 8080},
 				},
-			},
-		},
-		AIProviders: []ir.LogicalAIProvider{
-			{
-				Name:     "openai",
-				Type:     resource.AIProviderTypeOpenAICompatible,
-				Endpoint: "https://api.openai.com/v1",
-				Models:   []string{"gpt-4.1-mini"},
-			},
-		},
-		AIModels: []ir.LogicalAIModel{
-			{
-				Name:          "chat-fast",
-				ProviderRef:   "openai",
-				ProviderModel: "gpt-4.1-mini",
-				Capabilities:  []string{"chat", "stream"},
-			},
-		},
-		AIPolicies: []ir.LogicalAIPolicy{
-			{
-				Name:            "ai-default",
-				ExecutionTarget: resource.AIExecutionTargetTypeWasm,
-				TimeoutMillis:   30000,
-				RetryAttempts:   2,
-				FallbackEnabled: true,
-				FallbackModels:  []string{"chat-backup"},
-				UsageEnabled:    true,
-			},
-		},
-		Plugins: []ir.LogicalPlugin{
-			{
-				Name:     "audit-log",
-				Runtime:  resource.PluginRuntimeExternal,
-				Version:  "v1",
-				Endpoint: "dns:///audit-plugin:9000",
 			},
 		},
 		AuthPolicies: []ir.LogicalAuthPolicy{
@@ -348,24 +212,6 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
-		PluginBindings: []ir.LogicalPluginBinding{
-			{
-				Name: "app-audit",
-				Target: ir.LogicalPluginTarget{
-					Kind: resource.KindAIRoute,
-					Name: "chat",
-				},
-				Phase:         resource.PluginPhaseBeforeProviderCall,
-				Priority:      100,
-				FailurePolicy: resource.PluginFailurePolicyFailClose,
-				Plugins: []ir.LogicalPluginRef{
-					{
-						Name:   "audit-log",
-						Config: json.RawMessage(`{"mode":"audit"}`),
-					},
-				},
-			},
-		},
 		PolicyBindings: []ir.LogicalPolicyBinding{
 			{
 				Name: "app-auth",
@@ -383,35 +229,6 @@ func TestCompilerCompileGateway(t *testing.T) {
 
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("CompileGateway() = %#v, want %#v", got, want)
-	}
-}
-
-func TestCompilerCompileGatewayMissingAIProvider(t *testing.T) {
-	bundle := resource.Bundle{
-		Gateways: []resource.Gateway{
-			testGateway("public"),
-		},
-		AIRoutes: []resource.AIRoute{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "chat"},
-				Spec: resource.AIRouteSpec{
-					ParentRefs: []string{"public"},
-					PathPrefix: "/v1/chat/completions",
-					Model:      "gpt-4.1-mini",
-					ProviderRefs: []resource.AIProviderRef{
-						{Name: "missing", Weight: 100},
-					},
-				},
-			},
-		},
-	}
-
-	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
-	if err == nil {
-		t.Fatal("CompileGateway() error = nil")
-	}
-	if !strings.Contains(err.Error(), `ai route "chat" references ai provider "missing"`) {
-		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }
 
@@ -450,103 +267,6 @@ func TestCompilerCompileGatewayUnsupportedRouteFilter(t *testing.T) {
 		t.Fatal("CompileGateway() error = nil")
 	}
 	if !strings.Contains(err.Error(), `route "app" has unsupported route filter "URLRewrite"`) {
-		t.Fatalf("CompileGateway() error = %v", err)
-	}
-}
-
-func TestCompilerCompileGatewayAIRouteWithoutProvider(t *testing.T) {
-	bundle := resource.Bundle{
-		Gateways: []resource.Gateway{
-			testGateway("public"),
-		},
-		AIRoutes: []resource.AIRoute{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "chat"},
-				Spec: resource.AIRouteSpec{
-					ParentRefs: []string{"public"},
-					PathPrefix: "/v1/chat/completions",
-					Model:      "gpt-4.1-mini",
-				},
-			},
-		},
-	}
-
-	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
-	if err == nil {
-		t.Fatal("CompileGateway() error = nil")
-	}
-	if !strings.Contains(err.Error(), `ai route "chat" has no ai models or ai providers`) {
-		t.Fatalf("CompileGateway() error = %v", err)
-	}
-}
-
-func TestCompilerCompileGatewayAIRouteInvalidProviderWeight(t *testing.T) {
-	bundle := resource.Bundle{
-		Gateways: []resource.Gateway{
-			testGateway("public"),
-		},
-		AIProviders: []resource.AIProvider{
-			{ObjectMeta: metav1.ObjectMeta{Name: "openai"}},
-		},
-		AIRoutes: []resource.AIRoute{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "chat"},
-				Spec: resource.AIRouteSpec{
-					ParentRefs: []string{"public"},
-					PathPrefix: "/v1/chat/completions",
-					Model:      "gpt-4.1-mini",
-					ProviderRefs: []resource.AIProviderRef{
-						{Name: "openai"},
-					},
-				},
-			},
-		},
-	}
-
-	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
-	if err == nil {
-		t.Fatal("CompileGateway() error = nil")
-	}
-	if !strings.Contains(err.Error(), `ai route "chat" provider "openai" has invalid weight 0`) {
-		t.Fatalf("CompileGateway() error = %v", err)
-	}
-}
-
-func TestCompilerCompileGatewayMissingPluginRef(t *testing.T) {
-	bundle := resource.Bundle{
-		Gateways: []resource.Gateway{
-			testGateway("public"),
-		},
-		Routes: []resource.Route{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "app"},
-				Spec: resource.RouteSpec{
-					Enabled:    true,
-					ParentRefs: []resource.ParentRef{{Name: "public"}},
-				},
-			},
-		},
-		PluginBindings: []resource.PluginBinding{
-			{
-				ObjectMeta: metav1.ObjectMeta{Name: "app-audit"},
-				Spec: resource.PluginBindingSpec{
-					TargetRef: resource.PluginTargetRef{
-						Kind: resource.KindRoute,
-						Name: "app",
-					},
-					Plugins: []resource.PluginRef{
-						{Name: "missing"},
-					},
-				},
-			},
-		},
-	}
-
-	_, err := (compiler.Compiler{}).CompileGateway(bundle, "public")
-	if err == nil {
-		t.Fatal("CompileGateway() error = nil")
-	}
-	if !strings.Contains(err.Error(), `plugin binding "app-audit" references plugin "missing"`) {
 		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }

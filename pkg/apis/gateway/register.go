@@ -42,42 +42,6 @@ const (
 	ResourceRuntimeSnapshot ResourceName = "runtimesnapshot"
 	// ResourceRuntimeSnapshots 表示 RuntimeSnapshot 复数资源名
 	ResourceRuntimeSnapshots ResourceName = "runtimesnapshots"
-	// ResourceAIRoute 表示 AIRoute 单数资源名
-	ResourceAIRoute ResourceName = "airoute"
-	// ResourceAIRoutes 表示 AIRoute 复数资源名
-	ResourceAIRoutes ResourceName = "airoutes"
-	// ResourceAIRoutesStatus 表示 AIRoute status 子资源名
-	ResourceAIRoutesStatus ResourceName = "airoutes/status"
-	// ResourceAIProvider 表示 AIProvider 单数资源名
-	ResourceAIProvider ResourceName = "aiprovider"
-	// ResourceAIProviders 表示 AIProvider 复数资源名
-	ResourceAIProviders ResourceName = "aiproviders"
-	// ResourceAIProvidersStatus 表示 AIProvider status 子资源名
-	ResourceAIProvidersStatus ResourceName = "aiproviders/status"
-	// ResourceAIModel 表示 AIModel 单数资源名
-	ResourceAIModel ResourceName = "aimodel"
-	// ResourceAIModels 表示 AIModel 复数资源名
-	ResourceAIModels ResourceName = "aimodels"
-	// ResourceAIModelsStatus 表示 AIModel status 子资源名
-	ResourceAIModelsStatus ResourceName = "aimodels/status"
-	// ResourceAIPolicy 表示 AIPolicy 单数资源名
-	ResourceAIPolicy ResourceName = "aipolicy"
-	// ResourceAIPolicies 表示 AIPolicy 复数资源名
-	ResourceAIPolicies ResourceName = "aipolicies"
-	// ResourceAIPoliciesStatus 表示 AIPolicy status 子资源名
-	ResourceAIPoliciesStatus ResourceName = "aipolicies/status"
-	// ResourcePlugin 表示 Plugin 单数资源名
-	ResourcePlugin ResourceName = "plugin"
-	// ResourcePlugins 表示 Plugin 复数资源名
-	ResourcePlugins ResourceName = "plugins"
-	// ResourcePluginsStatus 表示 Plugin status 子资源名
-	ResourcePluginsStatus ResourceName = "plugins/status"
-	// ResourcePluginBinding 表示 PluginBinding 单数资源名
-	ResourcePluginBinding ResourceName = "pluginbinding"
-	// ResourcePluginBindings 表示 PluginBinding 复数资源名
-	ResourcePluginBindings ResourceName = "pluginbindings"
-	// ResourcePluginBindingsStatus 表示 PluginBinding status 子资源名
-	ResourcePluginBindingsStatus ResourceName = "pluginbindings/status"
 	// ResourceAuthPolicy 表示 AuthPolicy 单数资源名
 	ResourceAuthPolicy ResourceName = "authpolicy"
 	// ResourceAuthPolicies 表示 AuthPolicy 复数资源名
@@ -126,18 +90,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RuntimeGroupList{},
 		&Route{},
 		&RouteList{},
-		&AIRoute{},
-		&AIRouteList{},
 		&Upstream{},
 		&UpstreamList{},
-		&AIProvider{},
-		&AIProviderList{},
-		&AIModel{},
-		&AIModelList{},
-		&AIPolicy{},
-		&AIPolicyList{},
-		&Plugin{},
-		&PluginList{},
 		&AuthPolicy{},
 		&AuthPolicyList{},
 		&RateLimitPolicy{},
@@ -146,8 +100,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RedisStoreList{},
 		&PolicyBinding{},
 		&PolicyBindingList{},
-		&PluginBinding{},
-		&PluginBindingList{},
 		&RuntimeSnapshot{},
 		&RuntimeSnapshotList{},
 	)

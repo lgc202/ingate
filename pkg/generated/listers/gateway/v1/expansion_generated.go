@@ -4,22 +4,6 @@
 
 package v1
 
-// AIModelListerExpansion allows custom methods to be added to
-// AIModelLister.
-type AIModelListerExpansion interface{}
-
-// AIPolicyListerExpansion allows custom methods to be added to
-// AIPolicyLister.
-type AIPolicyListerExpansion interface{}
-
-// AIProviderListerExpansion allows custom methods to be added to
-// AIProviderLister.
-type AIProviderListerExpansion interface{}
-
-// AIRouteListerExpansion allows custom methods to be added to
-// AIRouteLister.
-type AIRouteListerExpansion interface{}
-
 // AuthPolicyListerExpansion allows custom methods to be added to
 // AuthPolicyLister.
 type AuthPolicyListerExpansion interface{}
@@ -27,14 +11,6 @@ type AuthPolicyListerExpansion interface{}
 // GatewayListerExpansion allows custom methods to be added to
 // GatewayLister.
 type GatewayListerExpansion interface{}
-
-// PluginListerExpansion allows custom methods to be added to
-// PluginLister.
-type PluginListerExpansion interface{}
-
-// PluginBindingListerExpansion allows custom methods to be added to
-// PluginBindingLister.
-type PluginBindingListerExpansion interface{}
 
 // PolicyBindingListerExpansion allows custom methods to be added to
 // PolicyBindingLister.

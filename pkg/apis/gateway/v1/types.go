@@ -23,88 +23,8 @@ const (
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
 	// KindRedisStore 表示 RedisStore 资源类型
 	KindRedisStore Kind = "RedisStore"
-	// KindPlugin 表示 Plugin 资源类型
-	KindPlugin Kind = "Plugin"
-	// KindPluginBinding 表示 PluginBinding 资源类型
-	KindPluginBinding Kind = "PluginBinding"
 	// KindPolicyBinding 表示 PolicyBinding 资源类型
 	KindPolicyBinding Kind = "PolicyBinding"
-	// KindAIProvider 表示 AIProvider 资源类型
-	KindAIProvider Kind = "AIProvider"
-	// KindAIModel 表示 AIModel 资源类型
-	KindAIModel Kind = "AIModel"
-	// KindAIRoute 表示 AIRoute 资源类型
-	KindAIRoute Kind = "AIRoute"
-	// KindAIPolicy 表示 AIPolicy 资源类型
-	KindAIPolicy Kind = "AIPolicy"
-)
-
-// AIProviderType 表示 AI 供应商协议类型
-type AIProviderType string
-
-const (
-	// AIProviderTypeOpenAICompatible 表示 OpenAI 兼容协议
-	AIProviderTypeOpenAICompatible AIProviderType = "OpenAICompatible"
-)
-
-// AIExecutionTargetType 表示 AI 请求执行目标类型
-type AIExecutionTargetType string
-
-const (
-	// AIExecutionTargetTypeWasm 表示 Envoy Wasm 插件执行目标
-	AIExecutionTargetTypeWasm AIExecutionTargetType = "Wasm"
-	// AIExecutionTargetTypeExternalProcessor 表示 Envoy External Processor 执行目标
-	AIExecutionTargetTypeExternalProcessor AIExecutionTargetType = "ExternalProcessor"
-	// AIExecutionTargetTypeGoRuntime 表示 Go AI Runtime 执行目标
-	AIExecutionTargetTypeGoRuntime AIExecutionTargetType = "GoRuntime"
-)
-
-// PluginRuntime 表示插件运行时类型
-type PluginRuntime string
-
-const (
-	// PluginRuntimeBuiltin 表示内置插件
-	PluginRuntimeBuiltin PluginRuntime = "Builtin"
-	// PluginRuntimeExternal 表示外部进程插件
-	PluginRuntimeExternal PluginRuntime = "External"
-	// PluginRuntimeWasm 表示 Wasm 插件
-	PluginRuntimeWasm PluginRuntime = "Wasm"
-)
-
-// PluginPhase 表示插件执行阶段
-type PluginPhase string
-
-const (
-	// PluginPhaseRequestHeaders 表示请求头阶段
-	PluginPhaseRequestHeaders PluginPhase = "RequestHeaders"
-	// PluginPhaseRequestBody 表示请求体阶段
-	PluginPhaseRequestBody PluginPhase = "RequestBody"
-	// PluginPhaseBeforeAIRoute 表示 AI 路由选择前阶段
-	PluginPhaseBeforeAIRoute PluginPhase = "BeforeAIRoute"
-	// PluginPhaseBeforeProviderCall 表示调用模型供应商前阶段
-	PluginPhaseBeforeProviderCall PluginPhase = "BeforeProviderCall"
-	// PluginPhaseResponseHeaders 表示响应头阶段
-	PluginPhaseResponseHeaders PluginPhase = "ResponseHeaders"
-	// PluginPhaseResponseBody 表示响应体阶段
-	PluginPhaseResponseBody PluginPhase = "ResponseBody"
-	// PluginPhaseStreamChunk 表示流式响应片段阶段
-	PluginPhaseStreamChunk PluginPhase = "StreamChunk"
-	// PluginPhaseUsage 表示用量统计阶段
-	PluginPhaseUsage PluginPhase = "Usage"
-	// PluginPhaseError 表示错误处理阶段
-	PluginPhaseError PluginPhase = "Error"
-)
-
-// PluginFailurePolicy 表示插件失败处理策略
-type PluginFailurePolicy string
-
-const (
-	// PluginFailurePolicyFailClose 表示插件失败时拒绝请求
-	PluginFailurePolicyFailClose PluginFailurePolicy = "FailClose"
-	// PluginFailurePolicyFailOpen 表示插件失败时放行请求
-	PluginFailurePolicyFailOpen PluginFailurePolicy = "FailOpen"
-	// PluginFailurePolicySkipAndLog 表示插件失败时跳过并记录日志
-	PluginFailurePolicySkipAndLog PluginFailurePolicy = "SkipAndLog"
 )
 
 // AuthType 表示认证策略类型
@@ -149,8 +69,6 @@ const (
 	RateLimitKeyTypeJWTClaim RateLimitKeyType = "JWTClaim"
 	// RateLimitKeyTypeAPIKey 表示按 API Key 生成限流 key
 	RateLimitKeyTypeAPIKey RateLimitKeyType = "APIKey"
-	// RateLimitKeyTypeAIModel 表示按 AI 模型生成限流 key
-	RateLimitKeyTypeAIModel RateLimitKeyType = "AIModel"
 	// RateLimitKeyTypeTenant 表示按租户生成限流 key
 	RateLimitKeyTypeTenant RateLimitKeyType = "Tenant"
 )
@@ -196,17 +114,7 @@ type Bundle struct {
 	// +listType=atomic
 	Routes []Route `json:"routes"`
 	// +listType=atomic
-	AIRoutes []AIRoute `json:"aiRoutes"`
-	// +listType=atomic
 	Upstreams []Upstream `json:"upstreams"`
-	// +listType=atomic
-	AIProviders []AIProvider `json:"aiProviders"`
-	// +listType=atomic
-	AIModels []AIModel `json:"aiModels"`
-	// +listType=atomic
-	AIPolicies []AIPolicy `json:"aiPolicies"`
-	// +listType=atomic
-	Plugins []Plugin `json:"plugins"`
 	// +listType=atomic
 	AuthPolicies []AuthPolicy `json:"authPolicies"`
 	// +listType=atomic
@@ -215,8 +123,6 @@ type Bundle struct {
 	RedisStores []RedisStore `json:"redisStores"`
 	// +listType=atomic
 	PolicyBindings []PolicyBinding `json:"policyBindings"`
-	// +listType=atomic
-	PluginBindings []PluginBinding `json:"pluginBindings"`
 }
 
 // ResourceStatus 表示声明式资源状态
@@ -491,57 +397,6 @@ type UpstreamRef struct {
 // +genclient
 // +genclient:nonNamespaced
 
-// AIRoute 声明 AI 请求匹配规则和模型供应商引用
-type AIRoute struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   AIRouteSpec    `json:"spec,omitempty"`
-	Status ResourceStatus `json:"status,omitempty"`
-}
-
-// AIRouteList 表示 AIRoute 资源列表
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type AIRouteList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-
-	Items []AIRoute `json:"items"`
-}
-
-// AIRouteSpec 定义 AI 路由如何挂载到 Gateway
-type AIRouteSpec struct {
-	// +listType=atomic
-	ParentRefs []string `json:"parentRefs"`
-	// +listType=atomic
-	Hostnames  []string `json:"hostnames,omitempty"`
-	Path       string   `json:"path,omitempty"`
-	PathPrefix string   `json:"pathPrefix"`
-	Model      string   `json:"model"`
-	// +listType=atomic
-	Models []AIModelRef `json:"models,omitempty"`
-	// +listType=atomic
-	ProviderRefs []AIProviderRef `json:"providerRefs"`
-	// +listType=atomic
-	PolicyRefs []string `json:"policyRefs,omitempty"`
-}
-
-// AIModelRef 表示 AIRoute 中的 AIModel 引用
-type AIModelRef struct {
-	Name   string `json:"name"`
-	Weight int    `json:"weight"`
-}
-
-// AIProviderRef 表示 AIRoute 中的 AIProvider 引用
-type AIProviderRef struct {
-	Name   string `json:"name"`
-	Weight int    `json:"weight"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +genclient
-// +genclient:nonNamespaced
-
 // Upstream 声明一个逻辑上游服务
 type Upstream struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -618,160 +473,6 @@ type UpstreamHealthCheck struct {
 	Path            string `json:"path,omitempty"`
 	IntervalSeconds int    `json:"intervalSeconds,omitempty"`
 	TimeoutSeconds  int    `json:"timeoutSeconds,omitempty"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +genclient
-// +genclient:nonNamespaced
-
-// AIProvider 声明一个 AI 模型供应商
-type AIProvider struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   AIProviderSpec `json:"spec,omitempty"`
-	Status ResourceStatus `json:"status,omitempty"`
-}
-
-// AIProviderList 表示 AIProvider 资源列表
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type AIProviderList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-
-	Items []AIProvider `json:"items"`
-}
-
-// AIProviderSpec 定义 AI 模型供应商入口
-type AIProviderSpec struct {
-	Type     AIProviderType `json:"type"`
-	Endpoint string         `json:"endpoint"`
-	// +listType=atomic
-	Models []string `json:"models"`
-	// CredentialRef 引用后续 Credential/Secret 资源
-	CredentialRef string `json:"credentialRef,omitempty"`
-	// +listType=atomic
-	Headers       []HeaderPair `json:"headers,omitempty"`
-	TimeoutMillis int          `json:"timeoutMillis,omitempty"`
-}
-
-// HeaderPair 表示要注入到上游请求的 header
-type HeaderPair struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +genclient
-// +genclient:nonNamespaced
-
-// AIModel 声明一个可被 AIRoute 引用的模型
-type AIModel struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   AIModelSpec    `json:"spec,omitempty"`
-	Status ResourceStatus `json:"status,omitempty"`
-}
-
-// AIModelList 表示 AIModel 资源列表
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type AIModelList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-
-	Items []AIModel `json:"items"`
-}
-
-// AIModelSpec 定义对外模型和供应商模型的映射
-type AIModelSpec struct {
-	ProviderRef   string `json:"providerRef"`
-	ProviderModel string `json:"providerModel"`
-	// +listType=atomic
-	Capabilities []string `json:"capabilities,omitempty"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +genclient
-// +genclient:nonNamespaced
-
-// AIPolicy 声明 AI 请求策略
-type AIPolicy struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   AIPolicySpec   `json:"spec,omitempty"`
-	Status ResourceStatus `json:"status,omitempty"`
-}
-
-// AIPolicyList 表示 AIPolicy 资源列表
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type AIPolicyList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-
-	Items []AIPolicy `json:"items"`
-}
-
-// AIPolicySpec 定义 AI 请求策略配置
-type AIPolicySpec struct {
-	ExecutionTarget AIExecutionTargetType `json:"executionTarget,omitempty"`
-	TimeoutMillis   int                   `json:"timeoutMillis,omitempty"`
-	Retry           AIRetryPolicy         `json:"retry,omitempty"`
-	Fallback        AIFallbackPolicy      `json:"fallback,omitempty"`
-	Usage           AIUsagePolicy         `json:"usage,omitempty"`
-}
-
-// AIRetryPolicy 定义 AI 请求重试策略
-type AIRetryPolicy struct {
-	Attempts int `json:"attempts,omitempty"`
-}
-
-// AIFallbackPolicy 定义 AI 请求 fallback 策略
-type AIFallbackPolicy struct {
-	Enabled bool `json:"enabled,omitempty"`
-	// +listType=atomic
-	Models []string `json:"models,omitempty"`
-}
-
-// AIUsagePolicy 定义 AI 用量采集策略
-type AIUsagePolicy struct {
-	Enabled bool `json:"enabled,omitempty"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +genclient
-// +genclient:nonNamespaced
-
-// Plugin 声明一个可绑定到网关资源的插件
-type Plugin struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   PluginSpec     `json:"spec,omitempty"`
-	Status ResourceStatus `json:"status,omitempty"`
-}
-
-// PluginList 表示 Plugin 资源列表
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type PluginList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-
-	Items []Plugin `json:"items"`
-}
-
-// PluginSpec 定义插件运行时和入口
-type PluginSpec struct {
-	Runtime  PluginRuntime `json:"runtime"`
-	Version  string        `json:"version"`
-	Endpoint string        `json:"endpoint"`
-	Image    string        `json:"image"`
-	// +listType=atomic
-	Phases []PluginPhase `json:"phases,omitempty"`
-	// +listType=atomic
-	TargetKinds   []Kind              `json:"targetKinds,omitempty"`
-	FailurePolicy PluginFailurePolicy `json:"failurePolicy,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -924,50 +625,6 @@ type RedisStoreSpec struct {
 	PoolSize             int      `json:"poolSize,omitempty"`
 	MinIdleConns         int      `json:"minIdleConns,omitempty"`
 	SentinelMaster       string   `json:"sentinelMaster,omitempty"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +genclient
-// +genclient:nonNamespaced
-
-// PluginBinding 声明一组插件绑定到哪个资源
-type PluginBinding struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   PluginBindingSpec `json:"spec,omitempty"`
-	Status ResourceStatus    `json:"status,omitempty"`
-}
-
-// PluginBindingList 表示 PluginBinding 资源列表
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type PluginBindingList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-
-	Items []PluginBinding `json:"items"`
-}
-
-// PluginBindingSpec 定义插件绑定目标和插件引用
-type PluginBindingSpec struct {
-	TargetRef     PluginTargetRef     `json:"targetRef"`
-	Phase         PluginPhase         `json:"phase,omitempty"`
-	Priority      int                 `json:"priority,omitempty"`
-	FailurePolicy PluginFailurePolicy `json:"failurePolicy,omitempty"`
-	// +listType=atomic
-	Plugins []PluginRef `json:"plugins"`
-}
-
-// PluginTargetRef 表示插件绑定目标资源
-type PluginTargetRef struct {
-	Kind Kind   `json:"kind"`
-	Name string `json:"name"`
-}
-
-// PluginRef 表示被绑定的插件引用
-type PluginRef struct {
-	Name   string               `json:"name"`
-	Config runtime.RawExtension `json:"config,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
