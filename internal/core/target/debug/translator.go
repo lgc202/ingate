@@ -23,7 +23,6 @@ type Config struct {
 	Listeners         []Listener        `json:"listeners"`
 	Routes            []Route           `json:"routes"`
 	Upstreams         []Upstream        `json:"upstreams"`
-	AuthPolicies      []AuthPolicy      `json:"authPolicies"`
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
 	RedisStores       []RedisStore      `json:"redisStores"`
 	PolicyBindings    []PolicyBinding   `json:"policyBindings"`
@@ -76,19 +75,6 @@ type Upstream struct {
 type Endpoint struct {
 	Address string `json:"address"`
 	Port    int    `json:"port"`
-}
-
-// AuthPolicy 表示 debug 配置中的认证策略
-type AuthPolicy struct {
-	Name   string            `json:"name"`
-	Type   resource.AuthType `json:"type"`
-	APIKey APIKeyAuth        `json:"apiKey"`
-}
-
-// APIKeyAuth 表示 debug 配置中的 API Key 认证配置
-type APIKeyAuth struct {
-	Header string `json:"header"`
-	Query  string `json:"query"`
 }
 
 // RateLimitPolicy 表示 debug 配置中的限流策略
@@ -187,7 +173,6 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		Listeners:         make([]Listener, 0, len(logical.Listeners)),
 		Routes:            make([]Route, 0, len(logical.Routes)),
 		Upstreams:         make([]Upstream, 0, len(logical.Upstreams)),
-		AuthPolicies:      make([]AuthPolicy, 0, len(logical.AuthPolicies)),
 		RateLimitPolicies: make([]RateLimitPolicy, 0, len(logical.RateLimitPolicies)),
 		PolicyBindings:    make([]PolicyBinding, 0, len(logical.PolicyBindings)),
 	}
@@ -245,16 +230,6 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 			})
 		}
 		config.Upstreams = append(config.Upstreams, debugUpstream)
-	}
-	for _, policy := range logical.AuthPolicies {
-		config.AuthPolicies = append(config.AuthPolicies, AuthPolicy{
-			Name: policy.Name,
-			Type: policy.Type,
-			APIKey: APIKeyAuth{
-				Header: policy.APIKey.Header,
-				Query:  policy.APIKey.Query,
-			},
-		})
 	}
 	for _, policy := range logical.RateLimitPolicies {
 		config.RateLimitPolicies = append(config.RateLimitPolicies, newRateLimitPolicy(policy))

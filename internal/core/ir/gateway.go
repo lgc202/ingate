@@ -9,7 +9,6 @@ type LogicalGateway struct {
 	Listeners         []LogicalListener
 	Routes            []LogicalRoute
 	Upstreams         []LogicalUpstream
-	AuthPolicies      []LogicalAuthPolicy
 	RateLimitPolicies []LogicalRateLimitPolicy
 	RedisStores       []LogicalRedisStore
 	PolicyBindings    []LogicalPolicyBinding
@@ -77,19 +76,6 @@ type LogicalUpstream struct {
 type LogicalEndpoint struct {
 	Address string
 	Port    int
-}
-
-// LogicalAuthPolicy 表示编译后的认证策略
-type LogicalAuthPolicy struct {
-	Name   string
-	Type   resource.AuthType
-	APIKey LogicalAPIKeyAuth
-}
-
-// LogicalAPIKeyAuth 表示编译后的 API Key 认证配置
-type LogicalAPIKeyAuth struct {
-	Header string
-	Query  string
 }
 
 // LogicalRateLimitPolicy 表示编译后的限流策略

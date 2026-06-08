@@ -23,7 +23,6 @@ func TestSchemeRegistersInternalGatewayTypes(t *testing.T) {
 		{kind: string(resource.KindRoute), want: &resource.Route{}},
 		{kind: string(resource.KindUpstream), want: &resource.Upstream{}},
 		{kind: "RuntimeSnapshot", want: &resource.RuntimeSnapshot{}},
-		{kind: string(resource.KindAuthPolicy), want: &resource.AuthPolicy{}},
 		{kind: string(resource.KindRateLimitPolicy), want: &resource.RateLimitPolicy{}},
 		{kind: "PolicyBinding", want: &resource.PolicyBinding{}},
 	}
@@ -59,7 +58,6 @@ func TestSchemeConvertsGatewayResourcesBetweenExternalAndInternalVersions(t *tes
 		&gatewayv1.Route{},
 		&gatewayv1.Upstream{},
 		&gatewayv1.RuntimeSnapshot{},
-		&gatewayv1.AuthPolicy{},
 		&gatewayv1.RateLimitPolicy{},
 		&gatewayv1.PolicyBinding{},
 	}

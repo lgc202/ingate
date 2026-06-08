@@ -17,22 +17,12 @@ const (
 	KindRoute Kind = "Route"
 	// KindUpstream 表示 Upstream 资源类型
 	KindUpstream Kind = "Upstream"
-	// KindAuthPolicy 表示 AuthPolicy 资源类型
-	KindAuthPolicy Kind = "AuthPolicy"
 	// KindRateLimitPolicy 表示 RateLimitPolicy 资源类型
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
 	// KindRedisStore 表示 RedisStore 资源类型
 	KindRedisStore Kind = "RedisStore"
 	// KindPolicyBinding 表示 PolicyBinding 资源类型
 	KindPolicyBinding Kind = "PolicyBinding"
-)
-
-// AuthType 表示认证策略类型
-type AuthType string
-
-const (
-	// AuthTypeAPIKey 表示 API Key 认证
-	AuthTypeAPIKey AuthType = "APIKey"
 )
 
 // RateLimitMode 表示限流计数状态的存放位置
@@ -115,8 +105,6 @@ type Bundle struct {
 	Routes []Route `json:"routes"`
 	// +listType=atomic
 	Upstreams []Upstream `json:"upstreams"`
-	// +listType=atomic
-	AuthPolicies []AuthPolicy `json:"authPolicies"`
 	// +listType=atomic
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
 	// +listType=atomic
@@ -466,39 +454,6 @@ type UpstreamHealthCheck struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
-// AuthPolicy 声明认证策略
-type AuthPolicy struct {
-	metav1.TypeMeta   `json:",inline"`
-	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   AuthPolicySpec `json:"spec,omitempty"`
-	Status ResourceStatus `json:"status,omitempty"`
-}
-
-// AuthPolicyList 表示 AuthPolicy 资源列表
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-type AuthPolicyList struct {
-	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-
-	Items []AuthPolicy `json:"items"`
-}
-
-// AuthPolicySpec 定义认证策略配置
-type AuthPolicySpec struct {
-	Type   AuthType   `json:"type"`
-	APIKey APIKeyAuth `json:"apiKey"`
-}
-
-// APIKeyAuth 定义 API Key 提取位置
-type APIKeyAuth struct {
-	Header string `json:"header"`
-	Query  string `json:"query"`
-}
-
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // RateLimitPolicy 声明限流策略
 type RateLimitPolicy struct {
 	metav1.TypeMeta   `json:",inline"`

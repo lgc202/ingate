@@ -14,7 +14,6 @@ import (
 
 type GatewayV1Interface interface {
 	RESTClient() rest.Interface
-	AuthPoliciesGetter
 	GatewaysGetter
 	PolicyBindingsGetter
 	RateLimitPoliciesGetter
@@ -28,10 +27,6 @@ type GatewayV1Interface interface {
 // GatewayV1Client is used to interact with features provided by the gateway.ingate.io group.
 type GatewayV1Client struct {
 	restClient rest.Interface
-}
-
-func (c *GatewayV1Client) AuthPolicies() AuthPolicyInterface {
-	return newAuthPolicies(c)
 }
 
 func (c *GatewayV1Client) Gateways() GatewayInterface {

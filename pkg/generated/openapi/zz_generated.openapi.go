@@ -15,10 +15,6 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyAuth":            schema_pkg_apis_gateway_v1_APIKeyAuth(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AuthPolicy":            schema_pkg_apis_gateway_v1_AuthPolicy(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AuthPolicyList":        schema_pkg_apis_gateway_v1_AuthPolicyList(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AuthPolicySpec":        schema_pkg_apis_gateway_v1_AuthPolicySpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Bundle":                schema_pkg_apis_gateway_v1_Bundle(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint":              schema_pkg_apis_gateway_v1_Endpoint(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Gateway":               schema_pkg_apis_gateway_v1_Gateway(ref),
@@ -125,159 +121,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 	}
 }
 
-func schema_pkg_apis_gateway_v1_APIKeyAuth(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "APIKeyAuth 定义 API Key 提取位置",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"header": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"query": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-				},
-				Required: []string{"header", "query"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_AuthPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "AuthPolicy 声明认证策略",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.AuthPolicySpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AuthPolicySpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_AuthPolicyList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "AuthPolicyList 表示 AuthPolicy 资源列表",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.AuthPolicy"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AuthPolicy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_AuthPolicySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "AuthPolicySpec 定义认证策略配置",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"apiKey": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyAuth"),
-						},
-					},
-				},
-				Required: []string{"type", "apiKey"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyAuth"},
-	}
-}
-
 func schema_pkg_apis_gateway_v1_Bundle(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -339,24 +182,6 @@ func schema_pkg_apis_gateway_v1_Bundle(ref common.ReferenceCallback) common.Open
 							},
 						},
 					},
-					"authPolicies": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.AuthPolicy"),
-									},
-								},
-							},
-						},
-					},
 					"rateLimitPolicies": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -412,11 +237,11 @@ func schema_pkg_apis_gateway_v1_Bundle(ref common.ReferenceCallback) common.Open
 						},
 					},
 				},
-				Required: []string{"gateways", "routes", "upstreams", "authPolicies", "rateLimitPolicies", "redisStores", "policyBindings"},
+				Required: []string{"gateways", "routes", "upstreams", "rateLimitPolicies", "redisStores", "policyBindings"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AuthPolicy", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Gateway", "github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBinding", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicy", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStore", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Route", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Gateway", "github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBinding", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicy", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStore", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Route", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream"},
 	}
 }
 

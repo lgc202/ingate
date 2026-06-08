@@ -50,15 +50,6 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
-		AuthPolicies: []ir.LogicalAuthPolicy{
-			{
-				Name: "required",
-				Type: resource.AuthTypeAPIKey,
-				APIKey: ir.LogicalAPIKeyAuth{
-					Header: "x-api-key",
-				},
-			},
-		},
 		RateLimitPolicies: []ir.LogicalRateLimitPolicy{
 			{
 				Name: "app-quota",
@@ -80,13 +71,12 @@ func TestTranslatorTranslate(t *testing.T) {
 		},
 		PolicyBindings: []ir.LogicalPolicyBinding{
 			{
-				Name: "app-auth",
+				Name: "app-limit",
 				Target: ir.LogicalPolicyTarget{
 					Kind: resource.KindRoute,
 					Name: "app",
 				},
 				Policies: []ir.LogicalPolicyRef{
-					{Kind: resource.KindAuthPolicy, Name: "required"},
 					{Kind: resource.KindRateLimitPolicy, Name: "app-quota"},
 				},
 			},
@@ -143,15 +133,6 @@ func TestTranslatorTranslate(t *testing.T) {
 				},
 			},
 		},
-		AuthPolicies: []debug.AuthPolicy{
-			{
-				Name: "required",
-				Type: resource.AuthTypeAPIKey,
-				APIKey: debug.APIKeyAuth{
-					Header: "x-api-key",
-				},
-			},
-		},
 		RateLimitPolicies: []debug.RateLimitPolicy{
 			{
 				Name: "app-quota",
@@ -173,13 +154,12 @@ func TestTranslatorTranslate(t *testing.T) {
 		},
 		PolicyBindings: []debug.PolicyBinding{
 			{
-				Name: "app-auth",
+				Name: "app-limit",
 				Target: debug.PolicyTarget{
 					Kind: resource.KindRoute,
 					Name: "app",
 				},
 				Policies: []debug.PolicyRef{
-					{Kind: resource.KindAuthPolicy, Name: "required"},
 					{Kind: resource.KindRateLimitPolicy, Name: "app-quota"},
 				},
 			},

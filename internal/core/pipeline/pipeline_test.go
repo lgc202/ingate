@@ -110,7 +110,6 @@ func TestPipelineBuildGatewaySnapshot(t *testing.T) {
 				},
 			},
 		},
-		AuthPolicies:      []debug.AuthPolicy{},
 		RateLimitPolicies: []debug.RateLimitPolicy{},
 		PolicyBindings:    []debug.PolicyBinding{},
 	}
