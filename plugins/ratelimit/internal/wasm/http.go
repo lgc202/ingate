@@ -4,26 +4,24 @@ import (
 	"errors"
 
 	dataplaneratelimit "github.com/lgc202/ingate/pkg/dataplane/ratelimit"
+	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
-	"github.com/lgc202/ingate/plugins/ratelimit/internal/dataplane"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/policy"
+	ratelimitruntime "github.com/lgc202/ingate/plugins/ratelimit/internal/runtime"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 )
 
-var (
-	errDataPlaneUnavailable         = errors.New("rate-limit dataplane unavailable")
-	errDataPlaneResultCountMismatch = errors.New("rate-limit dataplane response result count mismatch")
-)
+var errDataPlaneResultCountMismatch = errors.New("rate-limit dataplane response result count mismatch")
 
 func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
-	route, ok := h.routeConfig()
-	if !ok || len(route.Bindings) == 0 {
+	route, ok := h.route()
+	if !ok || len(route.Config.Bindings) == 0 {
 		return types.ActionContinue
 	}
 
-	result := h.plugin.policy.Apply(route, requestFromProxyWasm(route))
-	return h.applyPolicyResult(result)
+	result := h.plugin.runtime.Apply(route, requestFromProxyWasm(route))
+	return h.applyRuntimeResult(result)
 }
 
 func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) types.Action {
@@ -31,38 +29,26 @@ func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) ty
 	return types.ActionContinue
 }
 
-func (h *httpContext) applyPolicyResult(result policy.Result) types.Action {
+func (h *httpContext) applyRuntimeResult(result ratelimitruntime.Result) types.Action {
 	for _, err := range result.Errors {
 		proxywasm.LogErrorf("rate-limit local rule evaluation failed: %v", err)
-	}
-	if !result.Allowed {
-		sendRejected(result.Decision)
-		return types.ActionPause
 	}
 	if len(result.QuotaHeaders) > 0 {
 		h.quotaHeaders = result.QuotaHeaders
 	}
-
 	if len(result.GlobalChecks) > 0 {
 		return h.dispatchGlobalChecks(result.GlobalChecks)
 	}
-
-	return types.ActionContinue
+	return proxyWasmAction(result.Action)
 }
 
 func (h *httpContext) dispatchGlobalChecks(checks []policy.GlobalCheck) types.Action {
-	dataPlaneConfig := h.plugin.config.DataPlane
-	if dataPlaneConfig == nil || dataPlaneConfig.ClusterName == "" || dataPlaneConfig.Path == "" {
-		return h.handleDataPlaneFailure(checks, "rate-limit dataplane is not configured")
-	}
-
-	client := dataplane.New(*dataPlaneConfig)
-	err := client.CheckGlobal(h.plugin.config.RedisStores, checks, func(response dataplaneratelimit.CheckResponse, err error) {
+	err := h.plugin.runtime.DispatchGlobalChecks(checks, func(response dataplaneratelimit.CheckResponse, err error) {
 		h.handleDataPlaneResponse(checks, response, err)
 	})
 	if err != nil {
 		proxywasm.LogErrorf("dispatch rate-limit dataplane request failed: %v", err)
-		return h.handleDataPlaneFailure(checks, "dispatch dataplane request failed")
+		return h.handleDataPlaneFailure(checks, err)
 	}
 	return types.ActionPause
 }
@@ -75,27 +61,27 @@ func (h *httpContext) handleDataPlaneResponse(checks []policy.GlobalCheck, respo
 		err = errDataPlaneResultCountMismatch
 	}
 
-	decision, rejected := policy.ApplyGlobalResult(checks, response, err)
-	if rejected {
-		sendRejected(decision)
+	result := h.plugin.runtime.CompleteGlobalChecks(checks, response, err)
+	if result.Action.Kind == pluginruntime.ActionRespond {
+		_ = proxyWasmAction(result.Action)
 		return
 	}
-	h.applyQuotaHeaders(decision)
+	h.applyQuotaHeaders(result)
 	_ = proxywasm.ResumeHttpRequest()
 }
 
-func (h *httpContext) handleDataPlaneFailure(checks []policy.GlobalCheck, message string) types.Action {
-	proxywasm.LogErrorf("rate-limit dataplane failed: %s", message)
-	decision, rejected := policy.ApplyGlobalResult(checks, dataplaneratelimit.CheckResponse{}, errDataPlaneUnavailable)
-	if rejected {
-		sendRejected(decision)
-		return types.ActionPause
+func (h *httpContext) handleDataPlaneFailure(checks []policy.GlobalCheck, err error) types.Action {
+	if errors.Is(err, ratelimitruntime.ErrDataPlaneUnavailable) {
+		proxywasm.LogError("rate-limit dataplane is not configured")
+	} else {
+		proxywasm.LogErrorf("rate-limit dataplane failed: %v", err)
 	}
-	return types.ActionContinue
+	result := h.plugin.runtime.CompleteGlobalChecks(checks, dataplaneratelimit.CheckResponse{}, ratelimitruntime.ErrDataPlaneUnavailable)
+	return h.applyRuntimeResult(result)
 }
 
-func (h *httpContext) applyQuotaHeaders(decision policy.Decision) {
-	if len(decision.QuotaHeaders) > 0 {
-		h.quotaHeaders = decision.QuotaHeaders
+func (h *httpContext) applyQuotaHeaders(result ratelimitruntime.Result) {
+	if len(result.QuotaHeaders) > 0 {
+		h.quotaHeaders = result.QuotaHeaders
 	}
 }

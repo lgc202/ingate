@@ -1,22 +1,24 @@
 package wasm
 
 import (
-	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
+	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
+	ratelimitruntime "github.com/lgc202/ingate/plugins/ratelimit/internal/runtime"
 )
 
 const routeNamePrefix = "ingate-route"
 
-func (h *httpContext) routeConfig() (config.RouteConfig, bool) {
+func (h *httpContext) route() (ratelimitruntime.Route, bool) {
 	identity, ok := pluginwasm.CurrentRouteIdentity(routeNamePrefix)
 	if !ok {
-		return config.RouteConfig{}, false
+		return ratelimitruntime.Route{}, false
 	}
-
-	for _, route := range h.plugin.config.Routes {
-		if route.GatewayName == identity.GatewayName && route.RouteName == identity.RouteName && route.RuleName == identity.RuleName {
-			return route, true
-		}
+	if h.plugin.runtime == nil {
+		return ratelimitruntime.Route{}, false
 	}
-	return config.RouteConfig{}, false
+	return h.plugin.runtime.Route(pluginruntime.RouteKey{
+		GatewayName: identity.GatewayName,
+		RouteName:   identity.RouteName,
+		RuleName:    identity.RuleName,
+	})
 }

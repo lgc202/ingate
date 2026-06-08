@@ -92,6 +92,10 @@ func responseStatus() int {
 	if err != nil {
 		return 0
 	}
+	return responseStatusFromHeaders(headers)
+}
+
+func responseStatusFromHeaders(headers [][2]string) int {
 	for _, header := range headers {
 		if header[0] != ":status" {
 			continue
