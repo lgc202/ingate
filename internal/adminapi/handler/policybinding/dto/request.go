@@ -30,9 +30,9 @@ func (c *PolicyBindingConfig) Validate() error {
 		return errors.New("名称不能为空")
 	}
 	switch c.TargetRef.Kind {
-	case resource.KindGateway, resource.KindRoute, resource.KindUpstream:
+	case resource.KindGateway, resource.KindRoute:
 	default:
-		return errors.New("绑定目标类型不正确")
+		return errors.New("策略绑定目标只支持 Gateway 或 Route")
 	}
 	if c.TargetRef.Name == "" {
 		return errors.New("绑定目标不能为空")

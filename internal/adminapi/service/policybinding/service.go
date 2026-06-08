@@ -14,7 +14,6 @@ import (
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
 	resourcestore "github.com/lgc202/ingate/internal/adminapi/store/resource"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
-	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -23,18 +22,16 @@ type Service struct {
 	store             *policybindingstore.Store
 	gateways          *gatewaystore.Store
 	routes            *routestore.Store
-	upstreams         *upstreamstore.Store
 	rateLimitPolicies *ratelimitpolicystore.Store
 	resources         *resourcestore.Store
 }
 
 // New 创建 PolicyBinding service
-func New(store *policybindingstore.Store, gateways *gatewaystore.Store, routes *routestore.Store, upstreams *upstreamstore.Store, rateLimitPolicies *ratelimitpolicystore.Store, resources *resourcestore.Store) *Service {
+func New(store *policybindingstore.Store, gateways *gatewaystore.Store, routes *routestore.Store, rateLimitPolicies *ratelimitpolicystore.Store, resources *resourcestore.Store) *Service {
 	return &Service{
 		store:             store,
 		gateways:          gateways,
 		routes:            routes,
-		upstreams:         upstreams,
 		rateLimitPolicies: rateLimitPolicies,
 		resources:         resources,
 	}
@@ -181,15 +178,8 @@ func (s *Service) validateTargetRef(ctx context.Context, target resource.PolicyT
 			}
 			return xerrors.NewUserError(fmt.Sprintf("路由规则 %q 不存在", target.RuleName))
 		}
-	case resource.KindUpstream:
-		if _, err := s.upstreams.Get(ctx, target.Name); err != nil {
-			if apierrors.IsNotFound(err) {
-				return xerrors.NewUserError(fmt.Sprintf("上游 %q 不存在", target.Name))
-			}
-			return err
-		}
 	default:
-		return xerrors.NewUserError(fmt.Sprintf("不支持绑定目标类型 %q", target.Kind))
+		return xerrors.NewUserError("策略绑定目标只支持 Gateway 或 Route")
 	}
 	return nil
 }

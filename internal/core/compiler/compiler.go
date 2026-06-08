@@ -113,7 +113,7 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err != nil {
 		return ir.LogicalGateway{}, err
 	}
-	policyBindings := c.buildPolicyBindings(routes, upstreamOrder)
+	policyBindings := c.buildPolicyBindings(routes)
 	pluginBindings := c.buildPluginBindings(routes, upstreamOrder, aiRoutes)
 	rateLimitPolicies, redisStoreNames := c.buildRateLimitPolicies(policyBindings)
 
@@ -306,10 +306,6 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 			}
 			if target.RuleName != "" && !c.routeRulesByRoute[target.Name][target.RuleName] {
 				return fmt.Errorf("policy binding %q references route %q rule %q", binding.Name, target.Name, target.RuleName)
-			}
-		case resource.KindUpstream:
-			if _, ok := c.upstreamsByName[target.Name]; !ok {
-				return fmt.Errorf("policy binding %q references upstream %q", binding.Name, target.Name)
 			}
 		default:
 			return fmt.Errorf("policy binding %q references unsupported kind %q", binding.Name, target.Kind)
@@ -829,7 +825,7 @@ func (c *gatewayCompiler) buildRedisStores(names map[string]bool) []ir.LogicalRe
 	return stores
 }
 
-func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstreamOrder []string) []ir.LogicalPolicyBinding {
+func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute) []ir.LogicalPolicyBinding {
 	routeNames := make(map[string]bool, len(routes))
 	routeRuleNames := make(map[string]map[string]bool, len(routes))
 	for _, route := range routes {
@@ -839,11 +835,6 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstream
 			routeRuleNames[route.Name][rule.Name] = true
 		}
 	}
-	upstreamNames := make(map[string]bool, len(upstreamOrder))
-	for _, upstreamName := range upstreamOrder {
-		upstreamNames[upstreamName] = true
-	}
-
 	bindings := make([]ir.LogicalPolicyBinding, 0, len(c.bundle.PolicyBindings))
 	for _, binding := range c.bundle.PolicyBindings {
 		if !binding.Spec.Enabled {
@@ -857,9 +848,6 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute, upstream
 			continue
 		}
 		if target.Kind == resource.KindRoute && target.RuleName != "" && !routeRuleNames[target.Name][target.RuleName] {
-			continue
-		}
-		if target.Kind == resource.KindUpstream && !upstreamNames[target.Name] {
 			continue
 		}
 

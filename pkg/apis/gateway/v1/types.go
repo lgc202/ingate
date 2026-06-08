@@ -1002,7 +1002,7 @@ type PolicyBindingSpec struct {
 	Policies []PolicyRef `json:"policies"`
 }
 
-// PolicyTargetRef 表示策略绑定目标资源
+// PolicyTargetRef 表示策略绑定目标资源，当前执行链路只支持 Gateway 和 Route
 type PolicyTargetRef struct {
 	Kind     Kind   `json:"kind"`
 	Name     string `json:"name"`
