@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Tabs, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { KeyValue } from '@/domain/common';
+import type { PolicyWorkspace } from '@/domain/policy';
+import { GovernanceBindingPanel } from '@/features/policies/GovernanceBindingPanel';
 import type { HeaderMatch, RouteComposerPreview, RouteGatewayOption, RoutePageView, RoutePolicyCapability, RouteResource, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRequestHeaderModifier,
@@ -31,6 +34,7 @@ const detailTabs = [
 ];
 
 const loadRouteWorkspace = () => consoleRepository.getRouteWorkspace();
+const loadPolicyWorkspace = () => consoleRepository.getPolicyWorkspace();
 type RouteEnabledFilter = 'all' | 'enabled' | 'disabled';
 
 interface RouteFilters {
@@ -70,10 +74,11 @@ export function RoutePage() {
   const [deleting, setDeleting] = useState(false);
   const [toggling, setToggling] = useState(false);
   const workspace = useResource(loadRouteWorkspace);
+  const policyWorkspace = useResource(loadPolicyWorkspace);
 
   if (workspace.loading) {
     return (
-      <PageFrame title="流量 / 路由" subtitle="管理请求匹配、目标服务和策略配置">
+      <PageFrame title="流量 / 路由" subtitle="管理请求匹配、目标服务和转发控制">
         <ResourceStatePanel title="加载路由数据" message="正在读取路由列表和详情。" />
       </PageFrame>
     );
@@ -81,7 +86,7 @@ export function RoutePage() {
 
   if (workspace.error || !workspace.data) {
     return (
-      <PageFrame title="流量 / 路由" subtitle="管理请求匹配、目标服务和策略配置">
+      <PageFrame title="流量 / 路由" subtitle="管理请求匹配、目标服务和转发控制">
         <ResourceStatePanel title="路由数据加载失败" message={workspace.error?.message ?? '请稍后重试。'} />
       </PageFrame>
     );
@@ -284,6 +289,13 @@ export function RoutePage() {
               <Tabs tabs={detailTabs} active={tab} onChange={setTab} />
               <div style={{ height: 12 }} />
               {renderRouteDetail(tab, selectedRouteView, routeWorkspace.composer.gateways, routeWorkspace.composer.targets)}
+              {policyWorkspace.data ? (
+                <RouteGovernanceCard
+                  route={selectedRouteView}
+                  policyWorkspace={policyWorkspace.data}
+                  onPolicyWorkspaceChanged={policyWorkspace.reload}
+                />
+              ) : null}
             </>
           ) : null}
         </Panel>
@@ -294,7 +306,7 @@ export function RoutePage() {
   return (
     <PageFrame
       title="流量 / 路由"
-      subtitle="管理请求匹配、目标服务和策略配置"
+      subtitle="管理请求匹配、目标服务和转发控制"
       actions={
         mode === 'list'
           ? (
@@ -312,7 +324,7 @@ export function RoutePage() {
             </div>
             <div className="route-workbench-meta">
               <Badge tone={draft.enabled ? 'green' : 'neutral'}>{draft.enabled ? '启用' : '停用'}</Badge>
-              <span>{draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 个策略` : '未绑定策略'}</span>
+              <span>{draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 项转发控制` : '未配置转发控制'}</span>
             </div>
           </div>
           <div className="route-workbench-grid">
@@ -385,6 +397,7 @@ export function RoutePage() {
               selectedRouteView?.id,
               routeWorkspace.composer.gateways,
               routeWorkspace.composer.targets,
+              policyWorkspace.data,
               routeEnabled,
               toggleRouteEnabled,
               toggling,
@@ -452,6 +465,27 @@ export function RoutePage() {
   );
 }
 
+function RouteGovernanceCard({
+  route,
+  policyWorkspace,
+  onPolicyWorkspaceChanged,
+}: {
+  route: RouteResource;
+  policyWorkspace: PolicyWorkspace;
+  onPolicyWorkspaceChanged: () => Promise<void> | void;
+}) {
+  return (
+    <GovernanceBindingPanel
+      targetKind="Route"
+      targetID={route.id}
+      targetName={route.name}
+      ruleName={primaryRouteRule(route)?.name}
+      workspace={policyWorkspace}
+      onChanged={onPolicyWorkspaceChanged}
+    />
+  );
+}
+
 function RouteComposerSummary({
   draft,
   validation,
@@ -469,7 +503,7 @@ function RouteComposerSummary({
     { label: 'Host', value: formatHostnames(draft.hostnames) },
     { label: '目标服务', value: formatTargetServices(draft.targetServices, targets) },
     { label: '总权重', value: String(targetWeightSum(draft.targetServices)) },
-    { label: '路由策略', value: draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 个` : '未绑定' },
+    { label: '转发控制', value: draft.enabledPolicyCapabilities.length > 0 ? `${draft.enabledPolicyCapabilities.length} 项` : '未配置' },
   ];
   const criticalItems = validation.items.filter((item) => item.status === 'critical');
 
@@ -507,7 +541,7 @@ function findPolicyValidationMessage(composer: RouteComposerPreview, draft: Rout
   const errors = validateEnabledPolicySettings(composer.policies, draft.enabledPolicyCapabilities, draft.policySettings);
   const invalidCapability = draft.enabledPolicyCapabilities.find((capability) => Object.keys(errors[capability] ?? {}).length > 0);
   const invalidPolicy = composer.policies.find((policy) => policy.capability === invalidCapability);
-  return invalidPolicy ? `请补齐策略参数：${invalidPolicy.displayName}` : '';
+  return invalidPolicy ? `请补齐转发控制参数：${invalidPolicy.displayName}` : '';
 }
 
 function renderRouteTable(
@@ -515,6 +549,7 @@ function renderRouteTable(
   selectedRouteId: string | undefined,
   gateways: RouteGatewayOption[],
   targets: RouteTargetOption[],
+  policyWorkspace: PolicyWorkspace | null | undefined,
   routeEnabled: (route: RouteResource) => boolean,
   onToggleEnabled: (route: RouteResource) => void,
   toggling: boolean,
@@ -524,8 +559,8 @@ function renderRouteTable(
   onDelete: (route: RouteResource) => void,
 ) {
   return (
-    <div style={{ overflow: 'auto' }}>
-      <table className="table">
+    <div className="table-scroll route-table-scroll">
+      <table className="table route-table">
         <thead>
           <tr>
             <th>路由名称</th>
@@ -559,7 +594,7 @@ function renderRouteTable(
                 <div className="table-primary">{routeTargetSummary(route, targets)}</div>
                 <div className="table-secondary">{routeTargetServices(route).length} 个目标</div>
               </td>
-              <td>{routePolicyCount(route) > 0 ? `${routePolicyCount(route)} 个` : '未绑定'}</td>
+              <td>{routeGovernancePolicyLabel(route, policyWorkspace)}</td>
               <td>
                 <div className={`gateway-status ${routeEnabled(route) ? 'on' : ''}`.trim()}>
                   <button
@@ -586,6 +621,11 @@ function renderRouteTable(
                     event.stopPropagation();
                     onDetail(route);
                   }}>详情</button>
+                  <Link
+                    className="link-button"
+                    to={`/traffic/policies?tab=bindings&targetKind=Route&targetID=${encodeURIComponent(route.id)}&ruleName=${encodeURIComponent(primaryRouteRule(route)?.name ?? '')}`}
+                    onClick={(event) => event.stopPropagation()}
+                  >策略</Link>
                   <button className="link-button" type="button" onClick={(event) => {
                     event.stopPropagation();
                     onEdit(route);
@@ -628,7 +668,7 @@ function RouteComposer({
         <a href="#route-basic">基础信息</a>
         <a href="#route-match">匹配条件</a>
         <a href="#route-target">目标服务</a>
-        <a href="#route-policies">策略配置</a>
+        <a href="#route-policies">转发控制</a>
       </nav>
 
       <div className="route-form-sections">
@@ -706,8 +746,8 @@ function RouteComposer({
         </section>
 
         <section id="route-policies" className="detail-card composer-card route-form-section">
-          <SectionTitle number="04" title="规则策略" description="配置当前规则的 Header、超时和重试等原生治理能力。" />
-          <RoutePolicyBindings
+          <SectionTitle number="04" title="转发控制" description="配置当前规则的 Header、超时和重试等转发行为。" />
+          <RouteForwardControls
             policies={composer.policies}
             enabledPolicyCapabilities={draft.enabledPolicyCapabilities}
             settings={draft.policySettings}
@@ -1177,23 +1217,27 @@ function routeTargetSummary(route: Pick<RouteResource, 'rules'>, targets: RouteT
   return formatTargetServices(routeTargetServices(route), targets);
 }
 
-function routePolicyCount(route: Pick<RouteResource, 'rules'>) {
-  return route.rules.reduce((count, rule) => {
-    let next = count;
-    if (rule.requestHeaderModifier) {
-      next++;
-    }
-    if (rule.responseHeaderModifier) {
-      next++;
-    }
-    if (rule.timeout) {
-      next++;
-    }
-    if (rule.retry) {
-      next++;
-    }
-    return next;
-  }, 0);
+function routeGovernancePolicyCount(route: Pick<RouteResource, 'id' | 'rules'>, policyWorkspace: PolicyWorkspace | null | undefined) {
+  if (!policyWorkspace) {
+    return 0;
+  }
+
+  return policyWorkspace.bindings
+    .filter((binding) => {
+      if (binding.targetRef.kind !== 'Route' || binding.targetRef.name !== route.id) {
+        return false;
+      }
+      if (!binding.targetRef.ruleName) {
+        return true;
+      }
+      return route.rules.some((rule) => rule.name === binding.targetRef.ruleName);
+    })
+    .reduce((count, binding) => count + binding.policies.length, 0);
+}
+
+function routeGovernancePolicyLabel(route: Pick<RouteResource, 'id' | 'rules'>, policyWorkspace: PolicyWorkspace | null | undefined) {
+  const count = routeGovernancePolicyCount(route, policyWorkspace);
+  return count > 0 ? `${count} 个` : '未绑定';
 }
 
 function formatRouteMatch(route: Pick<RouteResource, 'rules'>) {
@@ -1271,7 +1315,7 @@ function shortResourceID(id: string) {
   return `${id.slice(0, 8)}...${id.slice(-4)}`;
 }
 
-function RoutePolicyBindings({
+function RouteForwardControls({
   policies,
   enabledPolicyCapabilities,
   settings,
@@ -1304,8 +1348,8 @@ function RoutePolicyBindings({
     <div className="route-policy-bindings">
       <div className="policy-bindings-head">
         <div>
-          <h4>路由策略</h4>
-          <p>配置当前 RouteRule 的原生治理能力；未启用的能力不会写入规则。</p>
+          <h4>转发控制</h4>
+          <p>配置当前 RouteRule 的 Header、超时和重试行为；未启用的能力不会写入规则。</p>
         </div>
         <Badge tone={enabledCount > 0 ? 'green' : 'neutral'}>已启用 {enabledCount} 个</Badge>
       </div>
@@ -1351,8 +1395,8 @@ function RoutePolicyBindings({
         </div>
       ) : (
         <div className="route-policy-empty">
-          <strong>当前目标暂无可用策略能力</strong>
-          <span>请选择服务后再配置路由级治理能力。</span>
+          <strong>当前目标暂无可用控制项</strong>
+          <span>请选择服务后再配置路由级转发行为。</span>
         </div>
       )}
     </div>
@@ -1570,5 +1614,5 @@ function policyCategory(capability: RoutePolicyCapability): string {
     return '可靠性';
   }
 
-  return '通用策略';
+  return '通用';
 }

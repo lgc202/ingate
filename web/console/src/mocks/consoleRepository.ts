@@ -10,7 +10,19 @@ import type {
 import type { HomeDashboard } from '@/domain/home';
 import type { ObservabilityOverview } from '@/domain/observability';
 import type { PluginListView } from '@/domain/plugin';
-import type { PolicyListView } from '@/domain/policy';
+import type {
+  AccessControlPolicy,
+  AccessControlPolicyPayload,
+  GovernancePolicy,
+  PolicyBinding,
+  PolicyBindingPayload,
+  PolicyMutationResult,
+  PolicyTargetOption,
+  PolicyWorkspace,
+  RateLimitPolicy,
+  RateLimitPolicyPayload,
+  RedisStoreOption,
+} from '@/domain/policy';
 import type { RouteActionResult, RoutePageView, RoutePublishPayload, RoutePublishPreview, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRequestHeaderModifier,
@@ -244,7 +256,7 @@ const routeWorkspace: RoutePageView = {
       { id: 'gw-staging', name: '预发网关' },
     ],
     hostnames: ['api.ingate.io', 'shop.ingate.io'],
-    validations: ['匹配规则生效', '目标服务可用', '策略配置正确', '无冲突'],
+    validations: ['匹配规则生效', '目标服务可用', '转发控制正确', '无冲突'],
     targets: [
       { id: 'order-svc', name: 'order-svc', type: 'application', endpoint: 'order-svc.cluster.local:80', meta: '3/3 个端点' },
       { id: 'user-svc', name: 'user-svc', type: 'application', endpoint: 'user-svc.cluster.local:80', meta: '4/4 个端点' },
@@ -344,23 +356,119 @@ const publishList = {
   ],
 };
 
-const policyList: PolicyListView = {
-  policies: [
-    { id: 'api-key-auth', name: 'api-key-auth', type: '认证', scope: '全部网关', boundRoutes: 12, publishStatus: 'published', riskLevel: 'low', lastChangedAt: '5 分钟前' },
-    { id: 'user-rate-limit', name: 'user-rate-limit', type: '限流', scope: '用户级', boundRoutes: 8, publishStatus: 'published', riskLevel: 'medium', lastChangedAt: '18 分钟前' },
-    { id: 'prompt-safety', name: 'prompt-safety', type: 'AI 安全', scope: 'AI 路由', boundRoutes: 4, publishStatus: 'published', riskLevel: 'medium', lastChangedAt: '34 分钟前' },
-    { id: 'token-quota', name: 'token-quota', type: '配额', scope: '模型服务', boundRoutes: 5, publishStatus: 'pending', riskLevel: 'medium', lastChangedAt: '1 小时前' },
-    { id: 'request-validation', name: 'request-validation', type: '校验', scope: '全部路由', boundRoutes: 16, publishStatus: 'published', riskLevel: 'low', lastChangedAt: '2 小时前' },
-  ],
-  coverage: [
-    { label: '已绑定', value: '16', status: 'healthy' },
-    { label: '未绑定', value: '8', status: 'warning' },
-  ],
-  changes: [
-    { time: '5 分钟前', title: 'user-rate-limit', description: '限流规则调整到 100 req/s', status: 'healthy' },
-    { time: '34 分钟前', title: 'prompt-safety', description: '启用严格模式', status: 'unknown' },
-  ],
-};
+const rateLimitPolicies: RateLimitPolicy[] = [
+  {
+    id: 'rl-prod-api',
+    version: '101',
+    name: '生产 API 全局限流',
+    description: '公网入口统一限流',
+    enabled: true,
+    mode: 'Global',
+    rules: [
+      {
+        name: 'by-ip',
+        key: { parts: [{ type: 'IP' }] },
+        limit: { requests: 1000, windowSeconds: 60, burst: 100 },
+        algorithm: 'SlidingWindow',
+      },
+    ],
+    global: { redisRef: 'redis-prod', prefix: 'ingate:rl', timeoutMillis: 50 },
+    response: { statusCode: 429, message: 'Too many requests', quotaHeaderEnabled: true },
+    failurePolicy: 'FailOpen',
+    createdAt: '2026-06-05T09:20:00Z',
+  },
+  {
+    id: 'rl-partner-login',
+    version: '87',
+    name: '合作方登录限流',
+    description: '按合作方 Header 控制登录请求频率',
+    enabled: true,
+    mode: 'Local',
+    rules: [
+      {
+        name: 'by-partner',
+        key: { parts: [{ type: 'Header', name: 'x-partner-id' }] },
+        limit: { requests: 120, windowSeconds: 60 },
+        algorithm: 'FixedWindow',
+      },
+    ],
+    response: { statusCode: 429, message: 'Too many requests' },
+    failurePolicy: 'FailClose',
+    createdAt: '2026-06-05T08:50:00Z',
+  },
+];
+
+const accessControlPolicies: AccessControlPolicy[] = [
+  {
+    id: 'acl-internal-only',
+    version: '45',
+    name: '内网访问控制',
+    description: '只允许内网网段访问管理接口',
+    enabled: true,
+    defaultAction: 'Deny',
+    rules: [
+      {
+        name: 'allow-office',
+        action: 'Allow',
+        conditions: [{ type: 'IP', value: '10.0.0.0/8' }],
+      },
+      {
+        name: 'allow-vpc',
+        action: 'Allow',
+        conditions: [{ type: 'IP', value: '172.16.0.0/12' }],
+      },
+    ],
+    response: { statusCode: 403, message: 'Forbidden' },
+    createdAt: '2026-06-05T09:10:00Z',
+  },
+  {
+    id: 'acl-partner-header',
+    version: '33',
+    name: '合作方 Header 准入',
+    description: '合作方流量必须携带来源标识',
+    enabled: false,
+    defaultAction: 'Allow',
+    rules: [
+      {
+        name: 'deny-missing-partner',
+        action: 'Deny',
+        conditions: [{ type: 'Header', name: 'x-partner-id', value: '' }],
+      },
+    ],
+    response: { statusCode: 403, message: 'Forbidden' },
+    createdAt: '2026-06-05T08:30:00Z',
+  },
+];
+
+const policyBindings: PolicyBinding[] = [
+  {
+    id: 'bind-public-rate-limit',
+    version: '17',
+    name: '公网入口限流',
+    description: '生产公网网关绑定全局限流策略',
+    enabled: true,
+    targetRef: { kind: 'Gateway', name: 'gw-public' },
+    policies: [{ kind: 'RateLimitPolicy', name: 'rl-prod-api' }],
+    createdAt: '2026-06-05T09:30:00Z',
+  },
+  {
+    id: 'bind-orders-acl',
+    version: '12',
+    name: '订单路由访问控制',
+    description: '订单创建路由绑定访问控制',
+    enabled: true,
+    targetRef: { kind: 'Route', name: 'orders-create', ruleName: 'main' },
+    policies: [
+      { kind: 'AccessControlPolicy', name: 'acl-internal-only' },
+      { kind: 'RateLimitPolicy', name: 'rl-partner-login' },
+    ],
+    createdAt: '2026-06-05T09:25:00Z',
+  },
+];
+
+const redisStores: RedisStoreOption[] = [
+  { id: 'redis-prod', name: '生产 Redis', mode: 'Cluster' },
+];
 
 const pluginList: PluginListView = {
   plugins: [
@@ -614,9 +722,9 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
             : '不限制 Host',
     },
     {
-      label: '策略',
+      label: '转发控制',
       status: policyValidationMessage ? 'critical' : routePolicyCount(rule) > 0 ? 'healthy' : 'warning',
-      message: policyValidationMessage || (routePolicyCount(rule) > 0 ? `已配置 ${routePolicyCount(rule)} 个路由策略` : '未绑定路由策略'),
+      message: policyValidationMessage || (routePolicyCount(rule) > 0 ? `已配置 ${routePolicyCount(rule)} 项转发控制` : '未配置转发控制'),
     },
   ];
   const valid = items.every((item) => item.status !== 'critical');
@@ -929,6 +1037,113 @@ function serviceAction(message: string, changeId?: string): ServiceMutationResul
   return { message, changeId };
 }
 
+function getPolicyWorkspace(): PolicyWorkspace {
+  const policies: GovernancePolicy[] = [
+    ...rateLimitPolicies.map((policy) => ({
+      id: policy.id,
+      version: policy.version,
+      kind: 'RateLimitPolicy' as const,
+      name: policy.name,
+      description: policy.description,
+      enabled: policy.enabled,
+      mode: policy.mode === 'Global' ? 'Global / Redis' : 'Local',
+      ruleCount: policy.rules.length,
+      createdAt: policy.createdAt,
+      raw: policy,
+    })),
+    ...accessControlPolicies.map((policy) => ({
+      id: policy.id,
+      version: policy.version,
+      kind: 'AccessControlPolicy' as const,
+      name: policy.name,
+      description: policy.description,
+      enabled: policy.enabled,
+      mode: policy.defaultAction === 'Deny' ? '默认拒绝' : '默认放行',
+      ruleCount: policy.rules?.length ?? 0,
+      createdAt: policy.createdAt,
+      raw: policy,
+    })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    policies,
+    rateLimitPolicies,
+    accessControlPolicies,
+    bindings: policyBindings,
+    redisStores,
+    targets: policyTargets(),
+  };
+}
+
+function policyTargets(): PolicyTargetOption[] {
+  return [
+    ...gatewayList.gateways.map((gateway) => ({
+      id: gateway.id,
+      name: gateway.name,
+      kind: 'Gateway' as const,
+    })),
+    ...routeWorkspace.routes.map((route) => ({
+      id: route.id,
+      name: route.name,
+      kind: 'Route' as const,
+    })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function saveRateLimitPolicy(payload: RateLimitPolicyPayload): PolicyMutationResult {
+  const id = payload.id ?? crypto.randomUUID();
+  const index = rateLimitPolicies.findIndex((policy) => policy.id === id);
+  const nextPolicy: RateLimitPolicy = { ...payload, id, createdAt: index >= 0 ? rateLimitPolicies[index].createdAt : new Date().toISOString() };
+  if (index >= 0) {
+    rateLimitPolicies[index] = nextPolicy;
+  } else {
+    rateLimitPolicies.push(nextPolicy);
+  }
+  return { message: `限流策略已保存：${payload.name}`, changeId: id };
+}
+
+function saveAccessControlPolicy(payload: AccessControlPolicyPayload): PolicyMutationResult {
+  const id = payload.id ?? crypto.randomUUID();
+  const index = accessControlPolicies.findIndex((policy) => policy.id === id);
+  const nextPolicy: AccessControlPolicy = { ...payload, id, createdAt: index >= 0 ? accessControlPolicies[index].createdAt : new Date().toISOString() };
+  if (index >= 0) {
+    accessControlPolicies[index] = nextPolicy;
+  } else {
+    accessControlPolicies.push(nextPolicy);
+  }
+  return { message: `访问控制策略已保存：${payload.name}`, changeId: id };
+}
+
+function savePolicyBinding(payload: PolicyBindingPayload): PolicyMutationResult {
+  const id = payload.id ?? crypto.randomUUID();
+  const index = policyBindings.findIndex((binding) => binding.id === id);
+  const nextBinding: PolicyBinding = { ...payload, id, createdAt: index >= 0 ? policyBindings[index].createdAt : new Date().toISOString() };
+  if (index >= 0) {
+    policyBindings[index] = nextBinding;
+  } else {
+    policyBindings.push(nextBinding);
+  }
+  return { message: `策略绑定已保存：${payload.name}`, changeId: id };
+}
+
+function deletePolicyResource(kind: 'RateLimitPolicy' | 'AccessControlPolicy' | 'PolicyBinding', id: string): PolicyMutationResult {
+  const resources = kind === 'RateLimitPolicy' ? rateLimitPolicies : kind === 'AccessControlPolicy' ? accessControlPolicies : policyBindings;
+  const index = resources.findIndex((resource) => resource.id === id);
+  if (index >= 0) {
+    resources.splice(index, 1);
+  }
+  return { message: `已删除：${id}` };
+}
+
+function setPolicyEnabled(kind: 'RateLimitPolicy' | 'AccessControlPolicy' | 'PolicyBinding', id: string, enabled: boolean): PolicyMutationResult {
+  const resources = kind === 'RateLimitPolicy' ? rateLimitPolicies : kind === 'AccessControlPolicy' ? accessControlPolicies : policyBindings;
+  const resource = resources.find((item) => item.id === id);
+  if (resource) {
+    resource.enabled = enabled;
+  }
+  return { message: `已${enabled ? '启用' : '停用'}：${id}` };
+}
+
 export const mockConsoleRepository: ConsoleRepository = {
   async getHomeDashboard() {
     return clone(homeDashboard);
@@ -999,8 +1214,35 @@ export const mockConsoleRepository: ConsoleRepository = {
   async listPublishSnapshots() {
     return clone(publishList);
   },
-  async listPolicies() {
-    return clone(policyList);
+  async getPolicyWorkspace() {
+    return clone(getPolicyWorkspace());
+  },
+  async saveRateLimitPolicy(payload) {
+    return saveRateLimitPolicy(payload);
+  },
+  async saveAccessControlPolicy(payload) {
+    return saveAccessControlPolicy(payload);
+  },
+  async savePolicyBinding(payload) {
+    return savePolicyBinding(payload);
+  },
+  async deleteRateLimitPolicy(id) {
+    return deletePolicyResource('RateLimitPolicy', id);
+  },
+  async deleteAccessControlPolicy(id) {
+    return deletePolicyResource('AccessControlPolicy', id);
+  },
+  async deletePolicyBinding(id) {
+    return deletePolicyResource('PolicyBinding', id);
+  },
+  async setRateLimitPolicyEnabled(id, enabled) {
+    return setPolicyEnabled('RateLimitPolicy', id, enabled);
+  },
+  async setAccessControlPolicyEnabled(id, enabled) {
+    return setPolicyEnabled('AccessControlPolicy', id, enabled);
+  },
+  async setPolicyBindingEnabled(id, enabled) {
+    return setPolicyEnabled('PolicyBinding', id, enabled);
   },
   async listPlugins() {
     return clone(pluginList);

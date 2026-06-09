@@ -1,5 +1,15 @@
 import type { ConsoleRepository } from './contracts';
 import type { Gateway, GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayRuntimeGroupOption, GatewayValidationReport } from '@/domain/gateway';
+import type {
+  AccessControlPolicy,
+  GovernancePolicy,
+  PolicyBinding,
+  PolicyMutationResult,
+  PolicyTargetOption,
+  PolicyWorkspace,
+  RateLimitPolicy,
+  RedisStoreOption,
+} from '@/domain/policy';
 import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteRule, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRequestHeaderModifier,
@@ -41,11 +51,39 @@ interface RuntimeGroupSummary {
 
 interface UpstreamMutationResponse {
   success: boolean;
+  id?: string;
 }
 
 interface RouteMutationResponse {
   success: boolean;
   id?: string;
+}
+
+interface PolicyMutationResponse {
+  success: boolean;
+  id?: string;
+}
+
+interface RateLimitPolicyListResponse {
+  policies: RateLimitPolicy[];
+}
+
+interface AccessControlPolicyListResponse {
+  policies: AccessControlPolicy[];
+}
+
+interface PolicyBindingListResponse {
+  bindings: PolicyBinding[];
+}
+
+interface RedisStoreListResponse {
+  redisStores: RedisStoreResource[];
+}
+
+interface RedisStoreResource {
+  id: string;
+  name: string;
+  mode: string;
 }
 
 const apiBaseUrl = (import.meta.env.VITE_INGATE_API_BASE_URL as string | undefined) ?? '/api/v1';
@@ -219,12 +257,12 @@ export const liveConsoleRepository: ConsoleRepository = {
     const name = payload.id ?? payload.name;
     const path = payload.id ? `/upstreams/${encodeURIComponent(name)}` : '/upstreams';
     const method = payload.id ? 'PUT' : 'POST';
-    await request<UpstreamMutationResponse>(path, {
+    const response = await request<UpstreamMutationResponse>(path, {
       method,
       body: JSON.stringify(payload),
     });
 
-    return serviceMutationResult(payload.name);
+    return serviceMutationResult(payload.name, response.id ?? payload.id);
   },
 
   async deleteService(id) {
@@ -252,8 +290,89 @@ export const liveConsoleRepository: ConsoleRepository = {
     return unavailable('发布记录');
   },
 
-  async listPolicies() {
-    return unavailable('策略列表');
+  async getPolicyWorkspace() {
+    const [rateLimitPolicies, accessControlPolicies, bindings, redisStores, gatewayListResponse, routeListResponse, runtimeGroups] = await Promise.all([
+      request<RateLimitPolicyListResponse>('/rate-limit-policies'),
+      request<AccessControlPolicyListResponse>('/access-control-policies'),
+      request<PolicyBindingListResponse>('/policy-bindings'),
+      request<RedisStoreListResponse>('/redis-stores'),
+      request<GatewayListResponse>('/gateways'),
+      request<RouteListView>('/routes'),
+      listRuntimeGroupOptions(),
+    ]);
+
+    const gatewayList = gatewayListView(gatewayListResponse, runtimeGroups);
+    const routeList = normalizeRouteListView(routeListResponse);
+    return policyWorkspace(rateLimitPolicies, accessControlPolicies, bindings, redisStores, gatewayList, routeList);
+  },
+
+  async saveRateLimitPolicy(payload) {
+    const path = payload.id ? `/rate-limit-policies/${encodeURIComponent(payload.id)}` : '/rate-limit-policies';
+    const method = payload.id ? 'PUT' : 'POST';
+    const response = await request<PolicyMutationResponse>(path, {
+      method,
+      body: JSON.stringify(payload),
+    });
+    return policyMutationResult(`限流策略已保存：${payload.name}`, response.id ?? payload.id);
+  },
+
+  async saveAccessControlPolicy(payload) {
+    const path = payload.id ? `/access-control-policies/${encodeURIComponent(payload.id)}` : '/access-control-policies';
+    const method = payload.id ? 'PUT' : 'POST';
+    const response = await request<PolicyMutationResponse>(path, {
+      method,
+      body: JSON.stringify(payload),
+    });
+    return policyMutationResult(`访问控制策略已保存：${payload.name}`, response.id ?? payload.id);
+  },
+
+  async savePolicyBinding(payload) {
+    const path = payload.id ? `/policy-bindings/${encodeURIComponent(payload.id)}` : '/policy-bindings';
+    const method = payload.id ? 'PUT' : 'POST';
+    const response = await request<PolicyMutationResponse>(path, {
+      method,
+      body: JSON.stringify(payload),
+    });
+    return policyMutationResult(`策略绑定已保存：${payload.name}`, response.id ?? payload.id);
+  },
+
+  async deleteRateLimitPolicy(id) {
+    await request<PolicyMutationResponse>(`/rate-limit-policies/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return policyMutationResult(`限流策略已删除：${id}`);
+  },
+
+  async deleteAccessControlPolicy(id) {
+    await request<PolicyMutationResponse>(`/access-control-policies/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return policyMutationResult(`访问控制策略已删除：${id}`);
+  },
+
+  async deletePolicyBinding(id) {
+    await request<PolicyMutationResponse>(`/policy-bindings/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    return policyMutationResult(`策略绑定已删除：${id}`);
+  },
+
+  async setRateLimitPolicyEnabled(id, enabled) {
+    await request<PolicyMutationResponse>(`/rate-limit-policies/${encodeURIComponent(id)}/enabled`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    });
+    return policyMutationResult(`限流策略已${enabled ? '启用' : '停用'}：${id}`);
+  },
+
+  async setAccessControlPolicyEnabled(id, enabled) {
+    await request<PolicyMutationResponse>(`/access-control-policies/${encodeURIComponent(id)}/enabled`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    });
+    return policyMutationResult(`访问控制策略已${enabled ? '启用' : '停用'}：${id}`);
+  },
+
+  async setPolicyBindingEnabled(id, enabled) {
+    await request<PolicyMutationResponse>(`/policy-bindings/${encodeURIComponent(id)}/enabled`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    });
+    return policyMutationResult(`策略绑定已${enabled ? '启用' : '停用'}：${id}`);
   },
 
   async listPlugins() {
@@ -280,7 +399,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   const body = await response.json() as ApiResponse<T>;
-  if (!response.ok) {
+  if (!response.ok || body.code < 200 || body.code >= 300) {
     throw new Error(errorMessage(body, response.status));
   }
 
@@ -319,9 +438,10 @@ function runtimeGroupName(id: string, runtimeGroups: GatewayRuntimeGroupOption[]
   return runtimeGroups.find((runtimeGroup) => runtimeGroup.id === id)?.name ?? id;
 }
 
-function serviceMutationResult(serviceName: string): ServiceMutationResult {
+function serviceMutationResult(serviceName: string, changeId?: string): ServiceMutationResult {
   return {
     message: `服务已保存：${serviceName}`,
+    changeId,
   };
 }
 
@@ -419,6 +539,74 @@ function routeTargets(serviceList: ServiceListView): RouteTargetOption[] {
       meta: upstreamEndpointMeta(service),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function policyWorkspace(
+  rateLimitPolicies: RateLimitPolicyListResponse,
+  accessControlPolicies: AccessControlPolicyListResponse,
+  bindings: PolicyBindingListResponse,
+  redisStores: RedisStoreListResponse,
+  gatewayList: GatewayListView,
+  routeList: RouteListView,
+): PolicyWorkspace {
+  const policies: GovernancePolicy[] = [
+    ...rateLimitPolicies.policies.map((policy) => ({
+      id: policy.id,
+      version: policy.version,
+      kind: 'RateLimitPolicy' as const,
+      name: policy.name,
+      description: policy.description,
+      enabled: policy.enabled,
+      mode: policy.mode === 'Global' ? 'Global / Redis' : 'Local',
+      ruleCount: policy.rules.length,
+      createdAt: policy.createdAt,
+      raw: policy,
+    })),
+    ...accessControlPolicies.policies.map((policy) => ({
+      id: policy.id,
+      version: policy.version,
+      kind: 'AccessControlPolicy' as const,
+      name: policy.name,
+      description: policy.description,
+      enabled: policy.enabled,
+      mode: policy.defaultAction === 'Deny' ? '默认拒绝' : '默认放行',
+      ruleCount: policy.rules?.length ?? 0,
+      createdAt: policy.createdAt,
+      raw: policy,
+    })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    policies,
+    rateLimitPolicies: rateLimitPolicies.policies,
+    accessControlPolicies: accessControlPolicies.policies,
+    bindings: bindings.bindings,
+    redisStores: redisStores.redisStores.map((store) => ({
+      id: store.id,
+      name: store.name || store.id,
+      mode: store.mode,
+    })),
+    targets: policyTargets(gatewayList, routeList),
+  };
+}
+
+function policyTargets(gatewayList: GatewayListView, routeList: RouteListView): PolicyTargetOption[] {
+  return [
+    ...gatewayList.gateways.map((gateway) => ({
+      id: gateway.id,
+      name: gateway.name || gateway.id,
+      kind: 'Gateway' as const,
+    })),
+    ...routeList.routes.map((route) => ({
+      id: route.id,
+      name: route.name || route.id,
+      kind: 'Route' as const,
+    })),
+  ].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function policyMutationResult(message: string, changeId?: string): PolicyMutationResult {
+  return { message, changeId };
 }
 
 function upstreamEndpointSummary(upstream: ServiceResource) {
@@ -529,9 +717,9 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
       message: targetError || `已选择 ${targets.length} 个目标服务，总权重 ${routeTargetWeightSum(targets)}`,
     },
     {
-      label: '策略参数',
+      label: '转发控制',
       status: policyValidationMessage ? 'critical' : 'healthy',
-      message: policyValidationMessage || (rule ? `已配置 ${routePolicyCount(rule)} 个策略` : '未绑定策略'),
+      message: policyValidationMessage || (rule ? `已配置 ${routePolicyCount(rule)} 项转发控制` : '未配置转发控制'),
     },
   ];
   const valid = items.every((item) => item.status === 'healthy');

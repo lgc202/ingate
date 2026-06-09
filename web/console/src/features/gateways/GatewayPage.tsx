@@ -1,9 +1,12 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
 import { Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { Gateway, GatewayCertificateOption, GatewayListener, GatewayRuntimeGroupOption, GatewayValidationReport } from '@/domain/gateway';
+import type { PolicyWorkspace } from '@/domain/policy';
+import { GovernanceBindingPanel } from '@/features/policies/GovernanceBindingPanel';
 import type { GatewayFormDraft } from './form';
 import {
   buildGatewayPayload,
@@ -23,11 +26,13 @@ const loadGatewayWorkspace = async () => {
     consoleRepository.listGateways(),
     consoleRepository.listRuntimeGroups(),
   ]);
+  const policyWorkspace = await consoleRepository.getPolicyWorkspace();
 
   return {
     gateways: gatewayList.gateways,
     runtimeGroups,
     certificates: [],
+    policyWorkspace,
   };
 };
 type GatewayPanelMode = 'list' | 'detail' | 'create' | 'edit';
@@ -213,8 +218,15 @@ export function GatewayPage() {
         actions={<Button variant="soft" onClick={() => setPanelMode('list')}>返回列表</Button>}
       >
         <Panel title="基础信息">
-          {selectedGatewayView ? <GatewayDetail gateway={selectedGatewayView} /> : null}
+          {selectedGatewayView ? (
+            <GatewayDetail
+              gateway={selectedGatewayView}
+              policyWorkspace={gateways.data.policyWorkspace}
+              onPolicyWorkspaceChanged={gateways.reload}
+            />
+          ) : null}
         </Panel>
+        <Toast message={notice} onClose={() => setNotice(null)} />
       </PageFrame>
     );
   }
@@ -334,6 +346,7 @@ export function GatewayPage() {
                           setSelectedGatewayId(gateway.id);
                           setPanelMode('detail');
                         }}>详情</button>
+                        <Link className="link-button" to={`/traffic/policies?tab=bindings&targetKind=Gateway&targetID=${encodeURIComponent(gateway.id)}`} onClick={(event) => event.stopPropagation()}>策略</Link>
                         <button className="link-button" type="button" onClick={(event) => {
                           event.stopPropagation();
                           openEdit(gateway);
@@ -661,7 +674,15 @@ function InputField({ label, value, error, onChange }: { label: string; value: s
   );
 }
 
-function GatewayDetail({ gateway }: { gateway: Gateway }) {
+function GatewayDetail({
+  gateway,
+  policyWorkspace,
+  onPolicyWorkspaceChanged,
+}: {
+  gateway: Gateway;
+  policyWorkspace: PolicyWorkspace;
+  onPolicyWorkspaceChanged: () => Promise<void> | void;
+}) {
   return (
     <div className="section-grid">
       <div className="detail-card">
@@ -706,6 +727,13 @@ function GatewayDetail({ gateway }: { gateway: Gateway }) {
           ))}
         </div>
       </div>
+      <GovernanceBindingPanel
+        targetKind="Gateway"
+        targetID={gateway.id}
+        targetName={gateway.name}
+        workspace={policyWorkspace}
+        onChanged={onPolicyWorkspaceChanged}
+      />
     </div>
   );
 }
