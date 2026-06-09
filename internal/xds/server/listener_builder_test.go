@@ -10,6 +10,7 @@ import (
 	wasmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 	targetxds "github.com/lgc202/ingate/internal/core/target/xds"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	pluginacl "github.com/lgc202/ingate/pkg/plugin/acl"
 	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -66,6 +67,25 @@ func TestResponseBuilderBuildListenersWithRateLimit(t *testing.T) {
 						{Name: "redis-main", DisplayName: "主 Redis", Address: "redis.example.com:6379"},
 					},
 				},
+				AccessControl: &targetxds.AccessControlConfig{
+					Bindings: []pluginacl.Binding{
+						{
+							Name: "gateway-acl",
+							Target: pluginacl.Target{
+								Kind: string(resource.KindGateway),
+								Name: "public",
+							},
+							Policies: []pluginacl.Policy{
+								{
+									Name: "acl",
+									Rules: []pluginacl.Rule{
+										{Name: "deny-risk", Action: pluginacl.ActionDeny},
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	}
@@ -83,18 +103,43 @@ func TestResponseBuilderBuildListenersWithRateLimit(t *testing.T) {
 	if err := listener.FilterChains[0].Filters[0].GetTypedConfig().UnmarshalTo(&hcm); err != nil {
 		t.Fatalf("UnmarshalTo(hcm) error = %v", err)
 	}
-	if len(hcm.HttpFilters) != 2 {
-		t.Fatalf("len(HttpFilters) = %d, want 2", len(hcm.HttpFilters))
+	if len(hcm.HttpFilters) != 3 {
+		t.Fatalf("len(HttpFilters) = %d, want 3", len(hcm.HttpFilters))
 	}
-	if hcm.HttpFilters[0].Name != rateLimitHTTPFilterName {
-		t.Fatalf("HttpFilters[0].Name = %q, want rate limit", hcm.HttpFilters[0].Name)
+	if hcm.HttpFilters[0].Name != accessControlHTTPFilterName {
+		t.Fatalf("HttpFilters[0].Name = %q, want access control", hcm.HttpFilters[0].Name)
 	}
-	if hcm.HttpFilters[1].Name != httpRouterFilterName {
-		t.Fatalf("HttpFilters[1].Name = %q, want router", hcm.HttpFilters[1].Name)
+	if hcm.HttpFilters[1].Name != rateLimitHTTPFilterName {
+		t.Fatalf("HttpFilters[1].Name = %q, want rate limit", hcm.HttpFilters[1].Name)
+	}
+	if hcm.HttpFilters[2].Name != httpRouterFilterName {
+		t.Fatalf("HttpFilters[2].Name = %q, want router", hcm.HttpFilters[2].Name)
 	}
 
 	var wasm httpwasmv3.Wasm
 	if err := hcm.HttpFilters[0].GetTypedConfig().UnmarshalTo(&wasm); err != nil {
+		t.Fatalf("UnmarshalTo(acl wasm) error = %v", err)
+	}
+	aclPluginConfig := wasm.GetConfig()
+	if aclPluginConfig.GetName() != accessControlPluginName {
+		t.Fatalf("ACL PluginConfig.Name = %q, want %q", aclPluginConfig.GetName(), accessControlPluginName)
+	}
+	if aclPluginConfig.GetVmConfig().GetCode().GetLocal().GetFilename() != accessControlPluginPath {
+		t.Fatalf("ACL PluginConfig filename = %q, want %q", aclPluginConfig.GetVmConfig().GetCode().GetLocal().GetFilename(), accessControlPluginPath)
+	}
+	var aclPluginJSON wrapperspb.StringValue
+	if err := aclPluginConfig.GetConfiguration().UnmarshalTo(&aclPluginJSON); err != nil {
+		t.Fatalf("UnmarshalTo(acl plugin config) error = %v", err)
+	}
+	var aclConfig pluginacl.PluginConfig
+	if err := json.Unmarshal([]byte(aclPluginJSON.Value), &aclConfig); err != nil {
+		t.Fatalf("Unmarshal(acl config) error = %v", err)
+	}
+	if len(aclConfig.Routes) != 1 || aclConfig.Routes[0].Bindings[0].Name != "gateway-acl" {
+		t.Fatalf("ACL routes = %+v, want gateway-acl", aclConfig.Routes)
+	}
+
+	if err := hcm.HttpFilters[1].GetTypedConfig().UnmarshalTo(&wasm); err != nil {
 		t.Fatalf("UnmarshalTo(wasm) error = %v", err)
 	}
 	pluginConfig := wasm.GetConfig()

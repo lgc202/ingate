@@ -20,12 +20,13 @@ type Translator struct{}
 
 // Config 表示 debug target 的配置载荷
 type Config struct {
-	Listeners         []Listener        `json:"listeners"`
-	Routes            []Route           `json:"routes"`
-	Upstreams         []Upstream        `json:"upstreams"`
-	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
-	RedisStores       []RedisStore      `json:"redisStores"`
-	PolicyBindings    []PolicyBinding   `json:"policyBindings"`
+	Listeners             []Listener            `json:"listeners"`
+	Routes                []Route               `json:"routes"`
+	Upstreams             []Upstream            `json:"upstreams"`
+	RateLimitPolicies     []RateLimitPolicy     `json:"rateLimitPolicies"`
+	AccessControlPolicies []AccessControlPolicy `json:"accessControlPolicies"`
+	RedisStores           []RedisStore          `json:"redisStores"`
+	PolicyBindings        []PolicyBinding       `json:"policyBindings"`
 }
 
 // Listener 表示 debug 配置中的监听器
@@ -45,16 +46,26 @@ type Route struct {
 
 // RouteRule 表示 debug 配置中的路由规则
 type RouteRule struct {
-	Name          string        `json:"name"`
-	PathPrefix    string        `json:"pathPrefix"`
-	Methods       []string      `json:"methods"`
-	TimeoutMillis int           `json:"timeoutMillis"`
-	Headers       []HeaderMatch `json:"headers"`
-	Upstreams     []UpstreamRef `json:"upstreams"`
+	Name                    string        `json:"name"`
+	PathPrefix              string        `json:"pathPrefix"`
+	Methods                 []string      `json:"methods"`
+	TimeoutMillis           int           `json:"timeoutMillis"`
+	Headers                 []HeaderMatch `json:"headers"`
+	RequestHeadersToAdd     []HeaderValue `json:"requestHeadersToAdd,omitempty"`
+	RequestHeadersToRemove  []string      `json:"requestHeadersToRemove,omitempty"`
+	ResponseHeadersToAdd    []HeaderValue `json:"responseHeadersToAdd,omitempty"`
+	ResponseHeadersToRemove []string      `json:"responseHeadersToRemove,omitempty"`
+	Upstreams               []UpstreamRef `json:"upstreams"`
 }
 
 // HeaderMatch 表示 debug 配置中的 HTTP header 精确匹配条件
 type HeaderMatch struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+// HeaderValue 表示 debug 配置中的 HTTP header 写入动作
+type HeaderValue struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
@@ -121,6 +132,35 @@ type RateLimitResponse struct {
 	StatusCode         int    `json:"statusCode,omitempty"`
 	Message            string `json:"message,omitempty"`
 	QuotaHeaderEnabled bool   `json:"quotaHeaderEnabled,omitempty"`
+}
+
+// AccessControlPolicy 表示 debug 配置中的访问控制策略
+type AccessControlPolicy struct {
+	Name          string                       `json:"name"`
+	DisplayName   string                       `json:"displayName"`
+	DefaultAction resource.AccessControlAction `json:"defaultAction,omitempty"`
+	Rules         []AccessControlRule          `json:"rules,omitempty"`
+	Response      AccessControlDenyResponse    `json:"response,omitempty"`
+}
+
+// AccessControlRule 表示 debug 配置中的访问控制规则
+type AccessControlRule struct {
+	Name       string                       `json:"name"`
+	Action     resource.AccessControlAction `json:"action"`
+	Conditions []AccessControlCondition     `json:"conditions,omitempty"`
+}
+
+// AccessControlCondition 表示 debug 配置中的访问控制匹配条件
+type AccessControlCondition struct {
+	Type  resource.AccessControlConditionType `json:"type"`
+	Name  string                              `json:"name,omitempty"`
+	Value string                              `json:"value"`
+}
+
+// AccessControlDenyResponse 表示 debug 配置中的访问控制拒绝响应
+type AccessControlDenyResponse struct {
+	StatusCode int    `json:"statusCode,omitempty"`
+	Message    string `json:"message,omitempty"`
 }
 
 // RedisStore 表示 debug 配置中的 Redis 连接配置
@@ -193,11 +233,15 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		}
 		for _, rule := range route.Rules {
 			debugRule := RouteRule{
-				Name:          rule.Name,
-				PathPrefix:    rule.PathPrefix,
-				Methods:       slices.Clone(rule.Methods),
-				TimeoutMillis: rule.TimeoutMillis,
-				Upstreams:     make([]UpstreamRef, 0, len(rule.Upstreams)),
+				Name:                    rule.Name,
+				PathPrefix:              rule.PathPrefix,
+				Methods:                 slices.Clone(rule.Methods),
+				TimeoutMillis:           rule.TimeoutMillis,
+				Upstreams:               make([]UpstreamRef, 0, len(rule.Upstreams)),
+				RequestHeadersToAdd:     newHeaderValues(rule.RequestHeadersToAdd),
+				RequestHeadersToRemove:  slices.Clone(rule.RequestHeadersToRemove),
+				ResponseHeadersToAdd:    newHeaderValues(rule.ResponseHeadersToAdd),
+				ResponseHeadersToRemove: slices.Clone(rule.ResponseHeadersToRemove),
 			}
 			if len(rule.Headers) > 0 {
 				debugRule.Headers = make([]HeaderMatch, 0, len(rule.Headers))
@@ -233,6 +277,9 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 	}
 	for _, policy := range logical.RateLimitPolicies {
 		config.RateLimitPolicies = append(config.RateLimitPolicies, newRateLimitPolicy(policy))
+	}
+	for _, policy := range logical.AccessControlPolicies {
+		config.AccessControlPolicies = append(config.AccessControlPolicies, newAccessControlPolicy(policy))
 	}
 	for _, store := range logical.RedisStores {
 		config.RedisStores = append(config.RedisStores, RedisStore{
@@ -313,6 +360,49 @@ func newRateLimitKey(parts []ir.LogicalRateLimitKeyPart) []RateLimitKeyPart {
 		result = append(result, RateLimitKeyPart{
 			Type: part.Type,
 			Name: part.Name,
+		})
+	}
+	return result
+}
+
+func newAccessControlPolicy(policy ir.LogicalAccessControlPolicy) AccessControlPolicy {
+	debugPolicy := AccessControlPolicy{
+		Name:          policy.Name,
+		DisplayName:   policy.DisplayName,
+		DefaultAction: policy.DefaultAction,
+		Rules:         make([]AccessControlRule, 0, len(policy.Rules)),
+		Response: AccessControlDenyResponse{
+			StatusCode: policy.Response.StatusCode,
+			Message:    policy.Response.Message,
+		},
+	}
+	for _, rule := range policy.Rules {
+		debugRule := AccessControlRule{
+			Name:       rule.Name,
+			Action:     rule.Action,
+			Conditions: make([]AccessControlCondition, 0, len(rule.Conditions)),
+		}
+		for _, condition := range rule.Conditions {
+			debugRule.Conditions = append(debugRule.Conditions, AccessControlCondition{
+				Type:  condition.Type,
+				Name:  condition.Name,
+				Value: condition.Value,
+			})
+		}
+		debugPolicy.Rules = append(debugPolicy.Rules, debugRule)
+	}
+	return debugPolicy
+}
+
+func newHeaderValues(headers []ir.LogicalHeaderValue) []HeaderValue {
+	if len(headers) == 0 {
+		return nil
+	}
+	result := make([]HeaderValue, 0, len(headers))
+	for _, header := range headers {
+		result = append(result, HeaderValue{
+			Name:  header.Name,
+			Value: header.Value,
 		})
 	}
 	return result

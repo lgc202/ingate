@@ -10,12 +10,6 @@ const (
 	RouteFilterRequestHeaderModifier RouteFilterType = "RequestHeaderModifier"
 	// RouteFilterResponseHeaderModifier 表示修改下游响应 header
 	RouteFilterResponseHeaderModifier RouteFilterType = "ResponseHeaderModifier"
-	// RouteFilterURLRewrite 表示改写请求 URL
-	RouteFilterURLRewrite RouteFilterType = "URLRewrite"
-	// RouteFilterRequestMirror 表示镜像请求到旁路上游
-	RouteFilterRequestMirror RouteFilterType = "RequestMirror"
-	// RouteFilterCORS 表示当前 Route 的 CORS 响应策略
-	RouteFilterCORS RouteFilterType = "CORS"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

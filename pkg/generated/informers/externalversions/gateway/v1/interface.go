@@ -10,6 +10,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// AccessControlPolicies returns a AccessControlPolicyInformer.
+	AccessControlPolicies() AccessControlPolicyInformer
 	// Gateways returns a GatewayInformer.
 	Gateways() GatewayInformer
 	// PolicyBindings returns a PolicyBindingInformer.
@@ -37,6 +39,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// AccessControlPolicies returns a AccessControlPolicyInformer.
+func (v *version) AccessControlPolicies() AccessControlPolicyInformer {
+	return &accessControlPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Gateways returns a GatewayInformer.

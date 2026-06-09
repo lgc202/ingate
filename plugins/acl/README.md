@@ -1,8 +1,8 @@
 # Ingate ACL Plugin
 
-`acl` 是 Ingate 内置访问控制插件骨架，消费 xDS 下发的 ACL 可执行配置。
+`acl` 是 Ingate 内置访问控制插件，消费 xDS 下发的 ACL 可执行配置。
 
-控制台用户不直接安装或配置这个插件。后续控制面资源会编译成插件运行时配置，由 xDS target 注入到 Envoy Wasm filter。
+控制台用户不直接安装或配置这个插件。控制面中的 `AccessControlPolicy` 和 `PolicyBinding` 会被编译成插件运行时配置，由 xDS target 注入到 Envoy Wasm filter。
 
 ## Code Organization
 
@@ -20,4 +20,3 @@ internal/policy   # ACL 规则匹配和 allow / deny 决策
 ```text
 /opt/ingate/plugins/acl.wasm
 ```
-

@@ -64,6 +64,16 @@ func (s *Server) router() *gin.Engine {
 			rateLimitPolicies.DELETE("/:id", handler.RateLimitPolicy.Delete)
 		}
 
+		accessControlPolicies := apiV1.Group("/access-control-policies")
+		{
+			accessControlPolicies.GET("", handler.AccessControlPolicy.List)
+			accessControlPolicies.POST("", handler.AccessControlPolicy.Create)
+			accessControlPolicies.GET("/:id", handler.AccessControlPolicy.Get)
+			accessControlPolicies.PUT("/:id", handler.AccessControlPolicy.Update)
+			accessControlPolicies.PATCH("/:id/enabled", handler.AccessControlPolicy.SetEnabled)
+			accessControlPolicies.DELETE("/:id", handler.AccessControlPolicy.Delete)
+		}
+
 		policyBindings := apiV1.Group("/policy-bindings")
 		{
 			policyBindings.GET("", handler.PolicyBinding.List)

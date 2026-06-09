@@ -4,6 +4,10 @@
 
 package v1
 
+// AccessControlPolicyListerExpansion allows custom methods to be added to
+// AccessControlPolicyLister.
+type AccessControlPolicyListerExpansion interface{}
+
 // GatewayListerExpansion allows custom methods to be added to
 // GatewayLister.
 type GatewayListerExpansion interface{}

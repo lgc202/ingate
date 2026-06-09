@@ -15,6 +15,8 @@ type Kind string
 const (
 	// KindRateLimitPolicies 表示限流策略资源
 	KindRateLimitPolicies Kind = "rate-limit-policies"
+	// KindAccessControlPolicies 表示访问控制策略资源
+	KindAccessControlPolicies Kind = "access-control-policies"
 	// KindRedisStores 表示 Redis 配置资源
 	KindRedisStores Kind = "redis-stores"
 	// KindPolicyBindings 表示策略绑定资源
@@ -37,6 +39,8 @@ func (s *Store) List(ctx context.Context, kind Kind) (any, error) {
 	switch kind {
 	case KindRateLimitPolicies:
 		return client.RateLimitPolicies().List(ctx, metav1.ListOptions{})
+	case KindAccessControlPolicies:
+		return client.AccessControlPolicies().List(ctx, metav1.ListOptions{})
 	case KindRedisStores:
 		return client.RedisStores().List(ctx, metav1.ListOptions{})
 	case KindPolicyBindings:
@@ -52,6 +56,8 @@ func (s *Store) Get(ctx context.Context, kind Kind, name string) (any, error) {
 	switch kind {
 	case KindRateLimitPolicies:
 		return client.RateLimitPolicies().Get(ctx, name, metav1.GetOptions{})
+	case KindAccessControlPolicies:
+		return client.AccessControlPolicies().Get(ctx, name, metav1.GetOptions{})
 	case KindRedisStores:
 		return client.RedisStores().Get(ctx, name, metav1.GetOptions{})
 	case KindPolicyBindings:

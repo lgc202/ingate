@@ -16,6 +16,10 @@ const (
 	httpConnectionManagerFilterName = "envoy.filters.network.http_connection_manager"
 	httpRouterFilterName            = "envoy.filters.http.router"
 	httpWasmFilterName              = "envoy.filters.http.wasm"
+	accessControlHTTPFilterName     = "ingate.filters.http.acl"
+	accessControlPluginName         = "ingate.acl"
+	accessControlPluginPath         = "/opt/ingate/plugins/acl.wasm"
+	accessControlSchemaVersion      = "v1"
 	rateLimitHTTPFilterName         = "ingate.filters.http.ratelimit"
 	rateLimitPluginName             = "ingate.ratelimit"
 	rateLimitPluginPath             = "/opt/ingate/plugins/ratelimit.wasm"
@@ -100,6 +104,7 @@ func (b responseBuilder) listenerGroups(configs []snapshotConfig) listenerGroups
 			seen[key] = struct{}{}
 
 			config.RateLimit = mergeRateLimitConfig(config.RateLimit, snapshot.Config.RateLimit)
+			config.AccessControl = mergeAccessControlConfig(config.AccessControl, snapshot.Config.AccessControl)
 			groups.configs[key] = config
 		}
 	}
@@ -121,7 +126,14 @@ func routeConfigsForListener(configs []targetxds.RouteConfig, name string) []tar
 }
 
 func (b responseBuilder) buildHTTPFilters(config targetxds.Config) ([]*hcmv3.HttpFilter, error) {
-	filters := make([]*hcmv3.HttpFilter, 0, 2)
+	filters := make([]*hcmv3.HttpFilter, 0, 3)
+	if config.AccessControl != nil {
+		filter, err := b.buildAccessControlHTTPFilter(config)
+		if err != nil {
+			return nil, err
+		}
+		filters = append(filters, filter)
+	}
 	if config.RateLimit != nil {
 		filter, err := b.buildRateLimitHTTPFilter(config)
 		if err != nil {

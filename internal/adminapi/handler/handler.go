@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	accesscontrolpolicyhandler "github.com/lgc202/ingate/internal/adminapi/handler/accesscontrolpolicy"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	policybindinghandler "github.com/lgc202/ingate/internal/adminapi/handler/policybinding"
 	ratelimitpolicyhandler "github.com/lgc202/ingate/internal/adminapi/handler/ratelimitpolicy"
@@ -19,25 +20,27 @@ import (
 
 // Handler 聚合 admin-api HTTP handler
 type Handler struct {
-	Gateway         *gatewayhandler.Handler
-	Route           *routehandler.Handler
-	RuntimeGroup    *runtimegrouphandler.Handler
-	Upstream        *upstreamhandler.Handler
-	RateLimitPolicy *ratelimitpolicyhandler.Handler
-	PolicyBinding   *policybindinghandler.Handler
-	RedisStore      *redisstorehandler.Handler
+	Gateway             *gatewayhandler.Handler
+	Route               *routehandler.Handler
+	RuntimeGroup        *runtimegrouphandler.Handler
+	Upstream            *upstreamhandler.Handler
+	AccessControlPolicy *accesscontrolpolicyhandler.Handler
+	RateLimitPolicy     *ratelimitpolicyhandler.Handler
+	PolicyBinding       *policybindinghandler.Handler
+	RedisStore          *redisstorehandler.Handler
 }
 
 // New 创建 handler 聚合入口
 func New(service *service.Service, logger *slog.Logger) *Handler {
 	return &Handler{
-		Gateway:         gatewayhandler.New(service.Gateway, logger.With("handler", "gateway")),
-		Route:           routehandler.New(service.Route, logger.With("handler", "route")),
-		RuntimeGroup:    runtimegrouphandler.New(service.RuntimeGroup, logger.With("handler", "runtimegroup")),
-		Upstream:        upstreamhandler.New(service.Upstream, logger.With("handler", "upstream")),
-		RateLimitPolicy: ratelimitpolicyhandler.New(service.RateLimitPolicy, logger.With("handler", "ratelimitpolicy")),
-		PolicyBinding:   policybindinghandler.New(service.PolicyBinding, logger.With("handler", "policybinding")),
-		RedisStore:      redisstorehandler.New(service.RedisStore, logger.With("handler", "redisstore")),
+		Gateway:             gatewayhandler.New(service.Gateway, logger.With("handler", "gateway")),
+		Route:               routehandler.New(service.Route, logger.With("handler", "route")),
+		RuntimeGroup:        runtimegrouphandler.New(service.RuntimeGroup, logger.With("handler", "runtimegroup")),
+		Upstream:            upstreamhandler.New(service.Upstream, logger.With("handler", "upstream")),
+		AccessControlPolicy: accesscontrolpolicyhandler.New(service.AccessControlPolicy, logger.With("handler", "accesscontrolpolicy")),
+		RateLimitPolicy:     ratelimitpolicyhandler.New(service.RateLimitPolicy, logger.With("handler", "ratelimitpolicy")),
+		PolicyBinding:       policybindinghandler.New(service.PolicyBinding, logger.With("handler", "policybinding")),
+		RedisStore:          redisstorehandler.New(service.RedisStore, logger.With("handler", "redisstore")),
 	}
 }
 

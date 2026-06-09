@@ -16,6 +16,8 @@ const (
 	KindUpstream Kind = "Upstream"
 	// KindRateLimitPolicy 表示 RateLimitPolicy 资源类型
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
+	// KindAccessControlPolicy 表示 AccessControlPolicy 资源类型
+	KindAccessControlPolicy Kind = "AccessControlPolicy"
 	// KindRedisStore 表示 RedisStore 资源类型
 	KindRedisStore Kind = "RedisStore"
 	// KindPolicyBinding 表示 PolicyBinding 资源类型
@@ -104,6 +106,8 @@ type Bundle struct {
 	Upstreams []Upstream `json:"upstreams"`
 	// +listType=atomic
 	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
+	// +listType=atomic
+	AccessControlPolicies []AccessControlPolicy `json:"accessControlPolicies"`
 	// +listType=atomic
 	RedisStores []RedisStore `json:"redisStores"`
 	// +listType=atomic

@@ -46,12 +46,22 @@ func pluginConfig() config.PluginConfig {
 				GatewayName: "gw",
 				RouteName:   "users",
 				RuleName:    "primary",
-				Rules: []config.Rule{
+				Bindings: []config.Binding{
 					{
-						Name:   "block-risk",
-						Action: config.ActionDeny,
-						Conditions: []config.Condition{
-							{Type: config.ConditionTypeHeader, Name: "x-risk-level", Value: "high"},
+						Name: "binding",
+						Policies: []config.Policy{
+							{
+								Name: "acl",
+								Rules: []config.Rule{
+									{
+										Name:   "block-risk",
+										Action: config.ActionDeny,
+										Conditions: []config.Condition{
+											{Type: config.ConditionTypeHeader, Name: "x-risk-level", Value: "high"},
+										},
+									},
+								},
+							},
 						},
 					},
 				},

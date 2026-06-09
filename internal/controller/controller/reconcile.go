@@ -116,11 +116,12 @@ func (c *Controller) appendUpstreams(bundle *resource.Bundle, names map[string]b
 
 func (c *Controller) appendBindingResources(bundle *resource.Bundle, gatewayName string) error {
 	usedRateLimitPolicies := map[string]bool{}
-	if err := c.appendPolicyBindingsForTarget(bundle, usedRateLimitPolicies, resource.KindGateway, gatewayName); err != nil {
+	usedAccessControlPolicies := map[string]bool{}
+	if err := c.appendPolicyBindingsForTarget(bundle, usedRateLimitPolicies, usedAccessControlPolicies, resource.KindGateway, gatewayName); err != nil {
 		return err
 	}
 	for _, route := range bundle.Routes {
-		if err := c.appendPolicyBindingsForTarget(bundle, usedRateLimitPolicies, resource.KindRoute, route.Name); err != nil {
+		if err := c.appendPolicyBindingsForTarget(bundle, usedRateLimitPolicies, usedAccessControlPolicies, resource.KindRoute, route.Name); err != nil {
 			return err
 		}
 	}
@@ -128,12 +129,15 @@ func (c *Controller) appendBindingResources(bundle *resource.Bundle, gatewayName
 	if err := c.appendRateLimitPolicies(bundle, usedRateLimitPolicies); err != nil {
 		return err
 	}
+	if err := c.appendAccessControlPolicies(bundle, usedAccessControlPolicies); err != nil {
+		return err
+	}
 	return c.appendRedisStoresForRateLimitPolicies(bundle)
 }
 
-func (c *Controller) appendPolicyBindingsForTarget(bundle *resource.Bundle, usedRateLimitPolicies map[string]bool, kind resource.Kind, name string) error {
+func (c *Controller) appendPolicyBindingsForTarget(bundle *resource.Bundle, usedRateLimitPolicies, usedAccessControlPolicies map[string]bool, kind resource.Kind, name string) error {
 	// PolicyBinding 通过 Gateway/Route 生效
-	// 这里补进 bundle 后，compiler 会按绑定关系生成 RateLimitPolicy 的逻辑配置
+	// 这里补进 bundle 后，compiler 会按绑定关系生成内置治理插件的逻辑配置
 	bindings, err := c.policyBindingsByIndex(policyBindingIndexTargetRef, targetIndexValue(kind, name))
 	if err != nil {
 		return err
@@ -144,8 +148,25 @@ func (c *Controller) appendPolicyBindingsForTarget(bundle *resource.Bundle, used
 			switch policyRef.Kind {
 			case resource.KindRateLimitPolicy:
 				usedRateLimitPolicies[policyRef.Name] = true
+			case resource.KindAccessControlPolicy:
+				usedAccessControlPolicies[policyRef.Name] = true
 			}
 		}
+	}
+	return nil
+}
+
+func (c *Controller) appendAccessControlPolicies(bundle *resource.Bundle, names map[string]bool) error {
+	bundle.AccessControlPolicies = make([]resource.AccessControlPolicy, 0, len(names))
+	for _, policyName := range slices.Sorted(maps.Keys(names)) {
+		policy, err := c.accessControlLister.Get(policyName)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				continue
+			}
+			return err
+		}
+		bundle.AccessControlPolicies = append(bundle.AccessControlPolicies, *policy)
 	}
 	return nil
 }

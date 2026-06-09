@@ -8,6 +8,7 @@ import (
 	"github.com/lgc202/ingate/internal/core/ir"
 	"github.com/lgc202/ingate/internal/core/runtime"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	pluginacl "github.com/lgc202/ingate/pkg/plugin/acl"
 	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 )
 
@@ -43,6 +44,7 @@ type Config struct {
 	Clusters            []Cluster            `json:"clusters"`
 	EndpointAssignments []EndpointAssignment `json:"endpointAssignments"`
 	RateLimit           *RateLimitConfig     `json:"rateLimit,omitempty"`
+	AccessControl       *AccessControlConfig `json:"accessControl,omitempty"`
 }
 
 // Listener 表示 Envoy listener 的内部模型
@@ -69,15 +71,17 @@ type VirtualHost struct {
 
 // Route 表示 Envoy route 的内部模型
 type Route struct {
-	GatewayName            string            `json:"gatewayName"`
-	Name                   string            `json:"name"`
-	RuleName               string            `json:"ruleName,omitempty"`
-	Match                  RouteMatch        `json:"match"`
-	TimeoutMillis          int               `json:"timeoutMillis"`
-	RequestHeadersToAdd    []HeaderValue     `json:"requestHeadersToAdd,omitempty"`
-	RequestHeadersToRemove []string          `json:"requestHeadersToRemove,omitempty"`
-	RetryPolicy            *RetryPolicy      `json:"retryPolicy,omitempty"`
-	WeightedClusters       []WeightedCluster `json:"weightedClusters"`
+	GatewayName             string            `json:"gatewayName"`
+	Name                    string            `json:"name"`
+	RuleName                string            `json:"ruleName,omitempty"`
+	Match                   RouteMatch        `json:"match"`
+	TimeoutMillis           int               `json:"timeoutMillis"`
+	RequestHeadersToAdd     []HeaderValue     `json:"requestHeadersToAdd,omitempty"`
+	RequestHeadersToRemove  []string          `json:"requestHeadersToRemove,omitempty"`
+	ResponseHeadersToAdd    []HeaderValue     `json:"responseHeadersToAdd,omitempty"`
+	ResponseHeadersToRemove []string          `json:"responseHeadersToRemove,omitempty"`
+	RetryPolicy             *RetryPolicy      `json:"retryPolicy,omitempty"`
+	WeightedClusters        []WeightedCluster `json:"weightedClusters"`
 }
 
 // RouteMatch 表示 Envoy route match 的内部模型
@@ -203,6 +207,16 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 					}
 				}
 				xdsRoute.RequestHeadersToRemove = slices.Clone(rule.RequestHeadersToRemove)
+				if len(rule.ResponseHeadersToAdd) > 0 {
+					xdsRoute.ResponseHeadersToAdd = make([]HeaderValue, 0, len(rule.ResponseHeadersToAdd))
+					for _, header := range rule.ResponseHeadersToAdd {
+						xdsRoute.ResponseHeadersToAdd = append(xdsRoute.ResponseHeadersToAdd, HeaderValue{
+							Name:  header.Name,
+							Value: header.Value,
+						})
+					}
+				}
+				xdsRoute.ResponseHeadersToRemove = slices.Clone(rule.ResponseHeadersToRemove)
 				if rule.Retry.Attempts > 0 {
 					xdsRoute.RetryPolicy = &RetryPolicy{
 						Attempts:            rule.Retry.Attempts,
@@ -242,6 +256,7 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 	}
 
 	config.RateLimit = t.translateRateLimitConfig(logical)
+	config.AccessControl = t.translateAccessControlConfig(logical)
 	if config.RateLimit != nil && config.RateLimit.DataPlane != nil {
 		config.Clusters = append(config.Clusters, Cluster{
 			Name:          config.RateLimit.DataPlane.ClusterName,
@@ -257,6 +272,79 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 		Version: fmt.Sprintf(versionPrefix, logical.Name),
 		Config:  config,
 	}, nil
+}
+
+func (t Translator) translateAccessControlConfig(logical ir.LogicalGateway) *AccessControlConfig {
+	if len(logical.AccessControlPolicies) == 0 || len(logical.PolicyBindings) == 0 {
+		return nil
+	}
+
+	policiesByName := make(map[string]ir.LogicalAccessControlPolicy, len(logical.AccessControlPolicies))
+	for _, policy := range logical.AccessControlPolicies {
+		policiesByName[policy.Name] = policy
+	}
+
+	config := &AccessControlConfig{
+		Bindings: make([]pluginacl.Binding, 0, len(logical.PolicyBindings)),
+	}
+	for _, binding := range logical.PolicyBindings {
+		accessControlBinding := pluginacl.Binding{
+			Name: binding.Name,
+			Target: pluginacl.Target{
+				Kind:     string(binding.Target.Kind),
+				Name:     binding.Target.Name,
+				RuleName: binding.Target.RuleName,
+			},
+			Policies: make([]pluginacl.Policy, 0, len(binding.Policies)),
+		}
+		for _, policyRef := range binding.Policies {
+			if policyRef.Kind != resource.KindAccessControlPolicy {
+				continue
+			}
+			policy, ok := policiesByName[policyRef.Name]
+			if !ok {
+				continue
+			}
+			accessControlBinding.Policies = append(accessControlBinding.Policies, t.accessControlPolicy(policy))
+		}
+		if len(accessControlBinding.Policies) == 0 {
+			continue
+		}
+		config.Bindings = append(config.Bindings, accessControlBinding)
+	}
+	if len(config.Bindings) == 0 {
+		return nil
+	}
+	return config
+}
+
+func (t Translator) accessControlPolicy(policy ir.LogicalAccessControlPolicy) pluginacl.Policy {
+	result := pluginacl.Policy{
+		Name:          policy.Name,
+		DisplayName:   policy.DisplayName,
+		DefaultAction: pluginacl.Action(policy.DefaultAction),
+		Rules:         make([]pluginacl.Rule, 0, len(policy.Rules)),
+		Response: pluginacl.Response{
+			StatusCode: policy.Response.StatusCode,
+			Message:    policy.Response.Message,
+		},
+	}
+	for _, rule := range policy.Rules {
+		pluginRule := pluginacl.Rule{
+			Name:       rule.Name,
+			Action:     pluginacl.Action(rule.Action),
+			Conditions: make([]pluginacl.Condition, 0, len(rule.Conditions)),
+		}
+		for _, condition := range rule.Conditions {
+			pluginRule.Conditions = append(pluginRule.Conditions, pluginacl.Condition{
+				Type:  pluginacl.ConditionType(condition.Type),
+				Name:  condition.Name,
+				Value: condition.Value,
+			})
+		}
+		result.Rules = append(result.Rules, pluginRule)
+	}
+	return result
 }
 
 func (t Translator) translateRateLimitConfig(logical ir.LogicalGateway) *RateLimitConfig {
