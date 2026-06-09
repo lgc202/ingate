@@ -12,7 +12,7 @@ export function ObservabilityPage() {
 
   if (overview.loading) {
     return (
-      <PageFrame title="观测" subtitle="查看流量运行态、路由质量、服务健康和策略命中情况">
+      <PageFrame title="观测" subtitle="查看流量运行态、路由质量、服务健康和 AI Token 用量">
         <ResourceStatePanel title="加载观测数据" message="正在读取请求趋势、调用日志和告警列表。" />
       </PageFrame>
     );
@@ -20,7 +20,7 @@ export function ObservabilityPage() {
 
   if (overview.error || !overview.data) {
     return (
-      <PageFrame title="观测" subtitle="查看流量运行态、路由质量、服务健康和策略命中情况">
+      <PageFrame title="观测" subtitle="查看流量运行态、路由质量、服务健康和 AI Token 用量">
         <ResourceStatePanel title="观测数据加载失败" message={overview.error?.message ?? '请稍后重试。'} />
       </PageFrame>
     );
@@ -29,7 +29,7 @@ export function ObservabilityPage() {
   return (
     <PageFrame
       title="观测"
-      subtitle="查看流量运行态、路由质量、服务健康和策略命中情况"
+      subtitle="查看流量运行态、路由质量、服务健康和 AI Token 用量"
       actions={
         <>
           <Badge>最近 15 分钟</Badge>
