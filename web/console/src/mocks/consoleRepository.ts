@@ -10,7 +10,7 @@ import type {
 import type { HomeDashboard } from '@/domain/home';
 import type { ObservabilityOverview } from '@/domain/observability';
 import type { PluginListView } from '@/domain/plugin';
-import type { PolicyListView } from '@/domain/policy';
+import type { AccessControlPolicy, PolicyBinding, PolicyWorkspace, RateLimitPolicy } from '@/domain/policy';
 import type { RouteActionResult, RoutePageView, RoutePublishPayload, RoutePublishPreview, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRequestHeaderModifier,
@@ -344,29 +344,83 @@ const publishList = {
   ],
 };
 
-const policyList: PolicyListView = {
-  policies: [
-    { id: 'api-key-auth', name: 'api-key-auth', type: '认证', scope: '全部网关', boundRoutes: 12, publishStatus: 'published', riskLevel: 'low', lastChangedAt: '5 分钟前' },
-    { id: 'user-rate-limit', name: 'user-rate-limit', type: '限流', scope: '用户级', boundRoutes: 8, publishStatus: 'published', riskLevel: 'medium', lastChangedAt: '18 分钟前' },
-    { id: 'prompt-safety', name: 'prompt-safety', type: 'AI 安全', scope: 'AI 路由', boundRoutes: 4, publishStatus: 'published', riskLevel: 'medium', lastChangedAt: '34 分钟前' },
-    { id: 'token-quota', name: 'token-quota', type: '配额', scope: '模型服务', boundRoutes: 5, publishStatus: 'pending', riskLevel: 'medium', lastChangedAt: '1 小时前' },
-    { id: 'request-validation', name: 'request-validation', type: '校验', scope: '全部路由', boundRoutes: 16, publishStatus: 'published', riskLevel: 'low', lastChangedAt: '2 小时前' },
-  ],
-  coverage: [
-    { label: '已绑定', value: '16', status: 'healthy' },
-    { label: '未绑定', value: '8', status: 'warning' },
-  ],
-  changes: [
-    { time: '5 分钟前', title: 'user-rate-limit', description: '限流规则调整到 100 req/s', status: 'healthy' },
-    { time: '34 分钟前', title: 'prompt-safety', description: '启用严格模式', status: 'unknown' },
+const mockRateLimitPolicies: RateLimitPolicy[] = [
+  {
+    id: 'policy-rate-login',
+    version: '1',
+    name: '登录接口限流',
+    description: '按客户端 IP 控制登录接口请求频率',
+    enabled: true,
+    mode: 'Local',
+    rules: [
+      {
+        name: 'ip-fixed-window',
+        key: { parts: [{ type: 'IP' }] },
+        limit: { requests: 60, windowSeconds: 60, burst: 0 },
+        algorithm: 'FixedWindow',
+      },
+    ],
+    response: { statusCode: 429, message: 'Too many requests', quotaHeaderEnabled: true },
+    failurePolicy: 'FailOpen',
+    createdAt: '2026-06-08T10:00:00Z',
+  },
+];
+
+const mockAccessControlPolicies: AccessControlPolicy[] = [
+  {
+    id: 'policy-acl-office',
+    version: '1',
+    name: '办公网访问控制',
+    description: '只允许办公网段访问管理接口',
+    enabled: true,
+    defaultAction: 'Deny',
+    rules: [
+      {
+        name: 'office-ip',
+        action: 'Allow',
+        conditions: [{ type: 'IP', value: '10.0.0.0/8' }],
+      },
+    ],
+    response: { statusCode: 403, message: 'Access denied' },
+    createdAt: '2026-06-08T10:05:00Z',
+  },
+];
+
+const mockPolicyBindings: PolicyBinding[] = [
+  {
+    id: 'binding-public-login',
+    version: '1',
+    name: '登录接口治理',
+    description: '为登录路由启用访问控制和限流',
+    enabled: true,
+    targetRef: { kind: 'Route', name: 'route-login', ruleName: 'primary' },
+    policies: [
+      { kind: 'AccessControlPolicy', name: 'policy-acl-office' },
+      { kind: 'RateLimitPolicy', name: 'policy-rate-login' },
+    ],
+    createdAt: '2026-06-08T10:10:00Z',
+  },
+];
+
+const policyWorkspace: PolicyWorkspace = {
+  rateLimitPolicies: mockRateLimitPolicies,
+  accessControlPolicies: mockAccessControlPolicies,
+  bindings: mockPolicyBindings,
+  gateways: gatewayList.gateways.map((gateway) => ({ id: gateway.id, name: gateway.name })),
+  routes: routeWorkspace.routes.map((route) => ({
+    id: route.id,
+    name: route.name,
+    rules: route.rules.map((rule) => rule.name),
+  })),
+  redisStores: [
+    { id: 'redis-global', name: '生产 Redis' },
   ],
 };
 
 const pluginList: PluginListView = {
   plugins: [
-    { id: 'auth-plugin', name: 'auth-plugin', type: '认证', version: 'v2.1.0', source: '包仓库', checksum: 'sha256:9b..f1', deploymentScope: 'gw-prod / gw-staging', healthStatus: 'healthy', usedRoutes: 12, lastUpdatedAt: '4 分钟前' },
     { id: 'ratelimit-plugin', name: 'ratelimit-plugin', type: '限流', version: 'v2.1.0', source: '包仓库', checksum: 'sha256:2c..84', deploymentScope: 'gw-prod', healthStatus: 'critical', usedRoutes: 8, lastUpdatedAt: '18 分钟前' },
-    { id: 'ai-safety-plugin', name: 'ai-safety-plugin', type: 'AI 安全', version: 'v1.9.3', source: '包仓库', checksum: 'sha256:7f..aa', deploymentScope: 'AI 路由', healthStatus: 'healthy', usedRoutes: 4, lastUpdatedAt: '34 分钟前' },
+    { id: 'acl-plugin', name: 'acl-plugin', type: '访问控制', version: 'v1.0.0', source: '内置', checksum: 'sha256:7f..aa', deploymentScope: 'gw-prod / gw-staging', healthStatus: 'healthy', usedRoutes: 4, lastUpdatedAt: '34 分钟前' },
     { id: 'observability-plugin', name: 'observability-plugin', type: '观测', version: 'v1.2.0', source: '包仓库', checksum: 'sha256:3d..bc', deploymentScope: '全部网关', healthStatus: 'healthy', usedRoutes: 16, lastUpdatedAt: '1 小时前' },
   ],
   health: [
@@ -385,7 +439,7 @@ const observabilityOverview: ObservabilityOverview = {
     { label: '请求量', value: '18.7k', meta: '较上一周期 +12%', footer: '按网关聚合' },
     { label: '错误率', value: '1.8%', meta: '较上一周期 -0.4%', footer: '按路由聚合' },
     { label: 'P95 延迟', value: '242ms', meta: '较上一周期 +18ms', footer: '按服务聚合' },
-    { label: 'AI Token', value: '9.6M', meta: '较上一周期 +8%', footer: '按模型聚合' },
+    { label: '策略命中', value: '1.2k', meta: '较上一周期 +8%', footer: '限流 / 访问控制' },
     { label: '插件异常', value: '3', meta: '较上一周期 -1', footer: '最近 1 小时' },
   ],
   requestTrend: [14, 15, 13, 17, 20, 18, 22, 25, 21, 24, 27, 26],
@@ -556,7 +610,7 @@ const settingsWorkspace: SettingsWorkspace = {
       { label: '环境类型', value: '生产', status: 'healthy' },
       { label: '创建时间', value: '2024-01-10 09:30:21' },
       { label: '创建人', value: 'alex@ingate.io' },
-      { label: '资源配额', value: '查看详情' },
+      { label: '资源限制', value: '查看详情' },
     ],
     dataPlaneHealth: [
       { label: 'prod-dp-1', status: 'healthy' },
@@ -999,8 +1053,35 @@ export const mockConsoleRepository: ConsoleRepository = {
   async listPublishSnapshots() {
     return clone(publishList);
   },
-  async listPolicies() {
-    return clone(policyList);
+  async getPolicyWorkspace() {
+    return clone(policyWorkspace);
+  },
+  async saveRateLimitPolicy(payload) {
+    return { message: `限流策略已保存：${payload.name}`, changeId: payload.id ?? crypto.randomUUID() };
+  },
+  async deleteRateLimitPolicy(id) {
+    return { message: `限流策略已删除：${id}` };
+  },
+  async setRateLimitPolicyEnabled(id, enabled) {
+    return { message: `限流策略已${enabled ? '启用' : '停用'}：${id}` };
+  },
+  async saveAccessControlPolicy(payload) {
+    return { message: `访问控制策略已保存：${payload.name}`, changeId: payload.id ?? crypto.randomUUID() };
+  },
+  async deleteAccessControlPolicy(id) {
+    return { message: `访问控制策略已删除：${id}` };
+  },
+  async setAccessControlPolicyEnabled(id, enabled) {
+    return { message: `访问控制策略已${enabled ? '启用' : '停用'}：${id}` };
+  },
+  async savePolicyBinding(payload) {
+    return { message: `策略绑定已保存：${payload.name}`, changeId: payload.id ?? crypto.randomUUID() };
+  },
+  async deletePolicyBinding(id) {
+    return { message: `策略绑定已删除：${id}` };
+  },
+  async setPolicyBindingEnabled(id, enabled) {
+    return { message: `策略绑定已${enabled ? '启用' : '停用'}：${id}` };
   },
   async listPlugins() {
     return clone(pluginList);

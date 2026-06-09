@@ -2,7 +2,13 @@ import type { GatewayListView, GatewayMutationPayload, GatewayMutationPreview, G
 import type { HomeDashboard } from '@/domain/home';
 import type { ObservabilityOverview } from '@/domain/observability';
 import type { PluginListView } from '@/domain/plugin';
-import type { PolicyListView } from '@/domain/policy';
+import type {
+  AccessControlPolicy,
+  PolicyBinding,
+  PolicyMutationResult,
+  PolicyWorkspace,
+  RateLimitPolicy,
+} from '@/domain/policy';
 import type { PublishListView } from '@/domain/publish';
 import type { RouteActionResult, RoutePageView, RoutePublishPayload, RoutePublishPreview, RouteValidationReport } from '@/domain/route';
 import type { ServiceListView, ServiceMutationPayload, ServiceMutationPreview, ServiceMutationResult, ServiceValidationReport } from '@/domain/service';
@@ -32,7 +38,16 @@ export interface ConsoleRepository {
   previewServiceChange(payload: ServiceMutationPayload): Promise<ServiceMutationPreview>;
   publishServiceChange(payload: ServiceMutationPayload): Promise<ServiceMutationResult>;
   listPublishSnapshots(): Promise<PublishListView>;
-  listPolicies(): Promise<PolicyListView>;
+  getPolicyWorkspace(): Promise<PolicyWorkspace>;
+  saveRateLimitPolicy(payload: RateLimitPolicy): Promise<PolicyMutationResult>;
+  deleteRateLimitPolicy(id: string): Promise<PolicyMutationResult>;
+  setRateLimitPolicyEnabled(id: string, enabled: boolean): Promise<PolicyMutationResult>;
+  saveAccessControlPolicy(payload: AccessControlPolicy): Promise<PolicyMutationResult>;
+  deleteAccessControlPolicy(id: string): Promise<PolicyMutationResult>;
+  setAccessControlPolicyEnabled(id: string, enabled: boolean): Promise<PolicyMutationResult>;
+  savePolicyBinding(payload: PolicyBinding): Promise<PolicyMutationResult>;
+  deletePolicyBinding(id: string): Promise<PolicyMutationResult>;
+  setPolicyBindingEnabled(id: string, enabled: boolean): Promise<PolicyMutationResult>;
   listPlugins(): Promise<PluginListView>;
   getObservabilityOverview(): Promise<ObservabilityOverview>;
   getSettingsWorkspace(): Promise<SettingsWorkspace>;
