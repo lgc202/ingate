@@ -123,7 +123,7 @@ export function ServicePage() {
     try {
       const result = await consoleRepository.saveServiceDraft(payload);
       await services.reload();
-      setSelectedServiceId(payload.id ?? payload.name);
+      setSelectedServiceId(result.changeId ?? payload.id ?? '');
       setNotice(result.message);
       setPanelMode('list');
     } catch (error) {

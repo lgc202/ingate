@@ -1,42 +1,201 @@
-import type { CountSegment, HealthStatus, PublishStatus, TimelineEvent } from './common';
+export type GovernancePolicyKind = 'RateLimitPolicy' | 'AccessControlPolicy';
+export type PolicyTargetKind = 'Gateway' | 'Route';
+export type RateLimitMode = 'Local' | 'Global';
+export type RateLimitAlgorithm = 'FixedWindow' | 'SlidingWindow' | 'TokenBucket';
+export type RateLimitKeyType = 'IP' | 'Header' | 'Query' | 'Cookie' | 'Consumer' | 'Route' | 'Gateway' | 'RouteRule' | 'JWTClaim' | 'APIKey' | 'Tenant';
+export type RateLimitFailurePolicy = '' | 'FailOpen' | 'FailClose';
+export type AccessControlAction = '' | 'Allow' | 'Deny';
+export type AccessControlConditionType = 'IP' | 'Header' | 'Consumer' | 'Tenant';
 
-export type PolicyRiskLevel = 'low' | 'medium' | 'high';
+export interface RateLimitPolicy {
+  id: string;
+  version?: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  mode: RateLimitMode;
+  rules: RateLimitRule[];
+  global?: GlobalRateLimitConfig;
+  response?: RateLimitResponse;
+  failurePolicy?: RateLimitFailurePolicy;
+  createdAt?: string;
+}
 
-export interface PolicyResource {
+export interface RateLimitRule {
+  name: string;
+  key: RateLimitKey;
+  limit: RateLimitQuota;
+  algorithm?: RateLimitAlgorithm;
+}
+
+export interface RateLimitKey {
+  parts: RateLimitKeyPart[];
+}
+
+export interface RateLimitKeyPart {
+  type: RateLimitKeyType;
+  name?: string;
+}
+
+export interface RateLimitQuota {
+  requests: number;
+  windowSeconds: number;
+  burst?: number;
+}
+
+export interface GlobalRateLimitConfig {
+  redisRef: string;
+  prefix?: string;
+  timeoutMillis?: number;
+}
+
+export interface RateLimitResponse {
+  statusCode?: number;
+  message?: string;
+  quotaHeaderEnabled?: boolean;
+}
+
+export interface AccessControlPolicy {
+  id: string;
+  version?: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  defaultAction?: AccessControlAction;
+  rules?: AccessControlRule[];
+  response?: AccessControlDenyResponse;
+  createdAt?: string;
+}
+
+export interface AccessControlRule {
+  name: string;
+  action: AccessControlAction;
+  conditions?: AccessControlCondition[];
+}
+
+export interface AccessControlCondition {
+  type: AccessControlConditionType;
+  name?: string;
+  value: string;
+}
+
+export interface AccessControlDenyResponse {
+  statusCode?: number;
+  message?: string;
+}
+
+export interface PolicyTargetRef {
+  kind: PolicyTargetKind;
+  name: string;
+  ruleName?: string;
+}
+
+export interface PolicyRef {
+  kind: GovernancePolicyKind;
+  name: string;
+}
+
+export interface PolicyBinding {
+  id: string;
+  version?: string;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  targetRef: PolicyTargetRef;
+  policies: PolicyRef[];
+  createdAt?: string;
+}
+
+export interface RedisStoreOption {
   id: string;
   name: string;
-  type: string;
-  scope: string;
-  boundRoutes: number;
-  publishStatus: PublishStatus;
-  riskLevel: PolicyRiskLevel;
-  lastChangedAt: string;
+  mode: string;
 }
 
-export interface PolicyListView {
-  policies: PolicyResource[];
-  coverage: CountSegment[];
-  changes: TimelineEvent[];
+export interface PolicyTargetOption {
+  id: string;
+  name: string;
+  kind: PolicyTargetKind;
 }
 
-export function riskLevelLabel(level: PolicyRiskLevel) {
-  const labels: Record<PolicyRiskLevel, string> = {
-    low: '低',
-    medium: '中',
-    high: '高',
+export interface GovernancePolicy {
+  id: string;
+  version?: string;
+  kind: GovernancePolicyKind;
+  name: string;
+  description?: string;
+  enabled: boolean;
+  mode: string;
+  ruleCount: number;
+  createdAt?: string;
+  raw: RateLimitPolicy | AccessControlPolicy;
+}
+
+export interface PolicyWorkspace {
+  policies: GovernancePolicy[];
+  rateLimitPolicies: RateLimitPolicy[];
+  accessControlPolicies: AccessControlPolicy[];
+  bindings: PolicyBinding[];
+  redisStores: RedisStoreOption[];
+  targets: PolicyTargetOption[];
+}
+
+export interface PolicyMutationResult {
+  message: string;
+  changeId?: string;
+}
+
+export type RateLimitPolicyPayload = Omit<RateLimitPolicy, 'id' | 'createdAt'> & { id?: string };
+export type AccessControlPolicyPayload = Omit<AccessControlPolicy, 'id' | 'createdAt'> & { id?: string };
+export type PolicyBindingPayload = Omit<PolicyBinding, 'id' | 'createdAt'> & { id?: string };
+
+export function policyKindLabel(kind: GovernancePolicyKind) {
+  if (kind === 'RateLimitPolicy') {
+    return '限流';
+  }
+  return '访问控制';
+}
+
+export function policyTargetKindLabel(kind: PolicyTargetKind) {
+  if (kind === 'Gateway') {
+    return '网关';
+  }
+  return '路由';
+}
+
+export function policyStatusLabel(enabled: boolean) {
+  return enabled ? '启用' : '停用';
+}
+
+export function policyStatusTone(enabled: boolean) {
+  return enabled ? 'green' : 'neutral';
+}
+
+export function policyRefKey(policy: PolicyRef) {
+  return `${policy.kind}:${policy.name}`;
+}
+
+export function governancePolicyRef(policy: GovernancePolicy): PolicyRef {
+  return {
+    kind: policy.kind,
+    name: policy.id,
   };
-
-  return labels[level];
 }
 
-export function riskLevelStatus(level: PolicyRiskLevel): HealthStatus {
-  if (level === 'high') {
-    return 'critical';
-  }
+export function governancePolicyKey(policy: GovernancePolicy) {
+  return policyRefKey(governancePolicyRef(policy));
+}
 
-  if (level === 'medium') {
-    return 'warning';
-  }
+export function policyBindingTargetLabel(binding: PolicyBinding, targets: PolicyTargetOption[]) {
+  const target = targets.find((item) => item.kind === binding.targetRef.kind && item.id === binding.targetRef.name);
+  const name = target?.name ?? binding.targetRef.name;
+  const prefix = policyTargetKindLabel(binding.targetRef.kind);
+  return binding.targetRef.ruleName ? `${prefix} / ${name} / ${binding.targetRef.ruleName}` : `${prefix} / ${name}`;
+}
 
-  return 'healthy';
+export function policyNamesForBinding(binding: PolicyBinding, policies: GovernancePolicy[]) {
+  return binding.policies.map((ref) => {
+    const policy = policies.find((item) => item.kind === ref.kind && item.id === ref.name);
+    return policy?.name ?? ref.name;
+  });
 }

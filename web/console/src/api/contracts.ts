@@ -2,7 +2,13 @@ import type { GatewayListView, GatewayMutationPayload, GatewayMutationPreview, G
 import type { HomeDashboard } from '@/domain/home';
 import type { ObservabilityOverview } from '@/domain/observability';
 import type { PluginListView } from '@/domain/plugin';
-import type { PolicyListView } from '@/domain/policy';
+import type {
+  AccessControlPolicyPayload,
+  PolicyBindingPayload,
+  PolicyMutationResult,
+  PolicyWorkspace,
+  RateLimitPolicyPayload,
+} from '@/domain/policy';
 import type { PublishListView } from '@/domain/publish';
 import type { RouteActionResult, RoutePageView, RoutePublishPayload, RoutePublishPreview, RouteValidationReport } from '@/domain/route';
 import type { ServiceListView, ServiceMutationPayload, ServiceMutationPreview, ServiceMutationResult, ServiceValidationReport } from '@/domain/service';
@@ -32,7 +38,16 @@ export interface ConsoleRepository {
   previewServiceChange(payload: ServiceMutationPayload): Promise<ServiceMutationPreview>;
   publishServiceChange(payload: ServiceMutationPayload): Promise<ServiceMutationResult>;
   listPublishSnapshots(): Promise<PublishListView>;
-  listPolicies(): Promise<PolicyListView>;
+  getPolicyWorkspace(): Promise<PolicyWorkspace>;
+  saveRateLimitPolicy(payload: RateLimitPolicyPayload): Promise<PolicyMutationResult>;
+  saveAccessControlPolicy(payload: AccessControlPolicyPayload): Promise<PolicyMutationResult>;
+  savePolicyBinding(payload: PolicyBindingPayload): Promise<PolicyMutationResult>;
+  deleteRateLimitPolicy(id: string): Promise<PolicyMutationResult>;
+  deleteAccessControlPolicy(id: string): Promise<PolicyMutationResult>;
+  deletePolicyBinding(id: string): Promise<PolicyMutationResult>;
+  setRateLimitPolicyEnabled(id: string, enabled: boolean): Promise<PolicyMutationResult>;
+  setAccessControlPolicyEnabled(id: string, enabled: boolean): Promise<PolicyMutationResult>;
+  setPolicyBindingEnabled(id: string, enabled: boolean): Promise<PolicyMutationResult>;
   listPlugins(): Promise<PluginListView>;
   getObservabilityOverview(): Promise<ObservabilityOverview>;
   getSettingsWorkspace(): Promise<SettingsWorkspace>;
