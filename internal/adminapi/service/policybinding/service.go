@@ -9,6 +9,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
+	accesscontrolpolicystore "github.com/lgc202/ingate/internal/adminapi/store/accesscontrolpolicy"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	policybindingstore "github.com/lgc202/ingate/internal/adminapi/store/policybinding"
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
@@ -18,19 +19,21 @@ import (
 
 // Service 承载 PolicyBinding 管理用例
 type Service struct {
-	store             *policybindingstore.Store
-	gateways          *gatewaystore.Store
-	routes            *routestore.Store
-	rateLimitPolicies *ratelimitpolicystore.Store
+	store                 *policybindingstore.Store
+	gateways              *gatewaystore.Store
+	routes                *routestore.Store
+	rateLimitPolicies     *ratelimitpolicystore.Store
+	accessControlPolicies *accesscontrolpolicystore.Store
 }
 
 // New 创建 PolicyBinding service
-func New(store *policybindingstore.Store, gateways *gatewaystore.Store, routes *routestore.Store, rateLimitPolicies *ratelimitpolicystore.Store) *Service {
+func New(store *policybindingstore.Store, gateways *gatewaystore.Store, routes *routestore.Store, rateLimitPolicies *ratelimitpolicystore.Store, accessControlPolicies *accesscontrolpolicystore.Store) *Service {
 	return &Service{
-		store:             store,
-		gateways:          gateways,
-		routes:            routes,
-		rateLimitPolicies: rateLimitPolicies,
+		store:                 store,
+		gateways:              gateways,
+		routes:                routes,
+		rateLimitPolicies:     rateLimitPolicies,
+		accessControlPolicies: accessControlPolicies,
 	}
 }
 
@@ -133,6 +136,13 @@ func (s *Service) validateRefs(ctx context.Context, params BindingParams) error 
 			if _, err := s.rateLimitPolicies.Get(ctx, policy.Name); err != nil {
 				if apierrors.IsNotFound(err) {
 					return xerrors.NewUserError(fmt.Sprintf("限流策略 %q 不存在", policy.Name))
+				}
+				return err
+			}
+		case resource.KindAccessControlPolicy:
+			if _, err := s.accessControlPolicies.Get(ctx, policy.Name); err != nil {
+				if apierrors.IsNotFound(err) {
+					return xerrors.NewUserError(fmt.Sprintf("访问控制策略 %q 不存在", policy.Name))
 				}
 				return err
 			}

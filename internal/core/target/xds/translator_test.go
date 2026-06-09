@@ -38,6 +38,10 @@ func TestTranslatorTranslate(t *testing.T) {
 							{Name: "x-ingate-tenant", Value: "acme"},
 						},
 						RequestHeadersToRemove: []string{"x-debug-token"},
+						ResponseHeadersToAdd: []ir.LogicalHeaderValue{
+							{Name: "x-frame-options", Value: "deny"},
+						},
+						ResponseHeadersToRemove: []string{"server"},
 						Retry: ir.LogicalRetryPolicy{
 							Attempts:            2,
 							PerTryTimeoutMillis: 500,
@@ -111,6 +115,10 @@ func TestTranslatorTranslate(t *testing.T) {
 									{Name: "x-ingate-tenant", Value: "acme"},
 								},
 								RequestHeadersToRemove: []string{"x-debug-token"},
+								ResponseHeadersToAdd: []xds.HeaderValue{
+									{Name: "x-frame-options", Value: "deny"},
+								},
+								ResponseHeadersToRemove: []string{"server"},
 								RetryPolicy: &xds.RetryPolicy{
 									Attempts:            2,
 									PerTryTimeoutMillis: 500,

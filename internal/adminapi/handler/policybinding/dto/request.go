@@ -45,7 +45,7 @@ func (c *PolicyBindingConfig) Validate() error {
 	}
 	for _, policy := range c.Policies {
 		switch policy.Kind {
-		case resource.KindRateLimitPolicy:
+		case resource.KindRateLimitPolicy, resource.KindAccessControlPolicy:
 		default:
 			return errors.New("绑定策略类型不正确")
 		}

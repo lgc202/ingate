@@ -183,14 +183,10 @@ func validateRoute(route *resource.Route) field.ErrorList {
 				} else {
 					errs = append(errs, validateHeaderModifier(filter.ResponseHeaderModifier, filterPath.Child("responseHeaderModifier"))...)
 				}
-			case resource.RouteFilterURLRewrite, resource.RouteFilterRequestMirror, resource.RouteFilterCORS:
 			default:
 				errs = append(errs, field.NotSupported(filterPath.Child("type"), filter.Type, []string{
 					string(resource.RouteFilterRequestHeaderModifier),
 					string(resource.RouteFilterResponseHeaderModifier),
-					string(resource.RouteFilterURLRewrite),
-					string(resource.RouteFilterRequestMirror),
-					string(resource.RouteFilterCORS),
 				}))
 			}
 		}

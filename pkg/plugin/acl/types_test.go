@@ -13,11 +13,11 @@ func TestParsePluginConfigDefaultsSchemaVersion(t *testing.T) {
 }
 
 func TestRouteResponseDefaults(t *testing.T) {
-	var route RouteConfig
-	if route.DeniedStatusCode() != defaultDeniedStatusCode {
-		t.Fatalf("DeniedStatusCode() = %d, want default", route.DeniedStatusCode())
+	var policy Policy
+	if policy.DeniedStatusCode() != defaultDeniedStatusCode {
+		t.Fatalf("DeniedStatusCode() = %d, want default", policy.DeniedStatusCode())
 	}
-	if route.DeniedMessage() != defaultDeniedMessage {
-		t.Fatalf("DeniedMessage() = %q, want default", route.DeniedMessage())
+	if policy.DeniedMessage() != defaultDeniedMessage {
+		t.Fatalf("DeniedMessage() = %q, want default", policy.DeniedMessage())
 	}
 }

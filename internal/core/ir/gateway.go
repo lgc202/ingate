@@ -5,13 +5,14 @@ import resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 
 // LogicalGateway 表示一个 Gateway 编译后的运行时无关模型
 type LogicalGateway struct {
-	Name              string
-	Listeners         []LogicalListener
-	Routes            []LogicalRoute
-	Upstreams         []LogicalUpstream
-	RateLimitPolicies []LogicalRateLimitPolicy
-	RedisStores       []LogicalRedisStore
-	PolicyBindings    []LogicalPolicyBinding
+	Name                  string
+	Listeners             []LogicalListener
+	Routes                []LogicalRoute
+	Upstreams             []LogicalUpstream
+	RateLimitPolicies     []LogicalRateLimitPolicy
+	AccessControlPolicies []LogicalAccessControlPolicy
+	RedisStores           []LogicalRedisStore
+	PolicyBindings        []LogicalPolicyBinding
 }
 
 // LogicalListener 表示编译后的 Gateway 监听器
@@ -31,15 +32,17 @@ type LogicalRoute struct {
 
 // LogicalRouteRule 表示编译后的路由规则
 type LogicalRouteRule struct {
-	Name                   string
-	PathPrefix             string
-	Methods                []string
-	TimeoutMillis          int
-	Headers                []LogicalHeaderMatch
-	RequestHeadersToAdd    []LogicalHeaderValue
-	RequestHeadersToRemove []string
-	Retry                  LogicalRetryPolicy
-	Upstreams              []LogicalUpstreamRef
+	Name                    string
+	PathPrefix              string
+	Methods                 []string
+	TimeoutMillis           int
+	Headers                 []LogicalHeaderMatch
+	RequestHeadersToAdd     []LogicalHeaderValue
+	RequestHeadersToRemove  []string
+	ResponseHeadersToAdd    []LogicalHeaderValue
+	ResponseHeadersToRemove []string
+	Retry                   LogicalRetryPolicy
+	Upstreams               []LogicalUpstreamRef
 }
 
 // LogicalHeaderMatch 表示编译后的 HTTP header 精确匹配条件
@@ -122,6 +125,35 @@ type LogicalRateLimitResponse struct {
 	StatusCode         int
 	Message            string
 	QuotaHeaderEnabled bool
+}
+
+// LogicalAccessControlPolicy 表示编译后的访问控制策略
+type LogicalAccessControlPolicy struct {
+	Name          string
+	DisplayName   string
+	DefaultAction resource.AccessControlAction
+	Rules         []LogicalAccessControlRule
+	Response      LogicalAccessControlDenyResponse
+}
+
+// LogicalAccessControlRule 表示编译后的访问控制规则
+type LogicalAccessControlRule struct {
+	Name       string
+	Action     resource.AccessControlAction
+	Conditions []LogicalAccessControlCondition
+}
+
+// LogicalAccessControlCondition 表示编译后的访问控制匹配条件
+type LogicalAccessControlCondition struct {
+	Type  resource.AccessControlConditionType
+	Name  string
+	Value string
+}
+
+// LogicalAccessControlDenyResponse 表示编译后的访问控制拒绝响应
+type LogicalAccessControlDenyResponse struct {
+	StatusCode int
+	Message    string
 }
 
 // LogicalRedisStore 表示编译后的 Redis 连接配置

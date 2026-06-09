@@ -23,6 +23,66 @@ func init() {
 // RegisterConversions adds conversion functions to the given scheme.
 // Public to allow building arbitrary schemes.
 func RegisterConversions(s *runtime.Scheme) error {
+	if err := s.AddGeneratedConversionFunc((*AccessControlCondition)(nil), (*gateway.AccessControlCondition)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AccessControlCondition_To_gateway_AccessControlCondition(a.(*AccessControlCondition), b.(*gateway.AccessControlCondition), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AccessControlCondition)(nil), (*AccessControlCondition)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AccessControlCondition_To_v1_AccessControlCondition(a.(*gateway.AccessControlCondition), b.(*AccessControlCondition), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*AccessControlDenyResponse)(nil), (*gateway.AccessControlDenyResponse)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AccessControlDenyResponse_To_gateway_AccessControlDenyResponse(a.(*AccessControlDenyResponse), b.(*gateway.AccessControlDenyResponse), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AccessControlDenyResponse)(nil), (*AccessControlDenyResponse)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AccessControlDenyResponse_To_v1_AccessControlDenyResponse(a.(*gateway.AccessControlDenyResponse), b.(*AccessControlDenyResponse), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*AccessControlPolicy)(nil), (*gateway.AccessControlPolicy)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AccessControlPolicy_To_gateway_AccessControlPolicy(a.(*AccessControlPolicy), b.(*gateway.AccessControlPolicy), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AccessControlPolicy)(nil), (*AccessControlPolicy)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AccessControlPolicy_To_v1_AccessControlPolicy(a.(*gateway.AccessControlPolicy), b.(*AccessControlPolicy), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*AccessControlPolicyList)(nil), (*gateway.AccessControlPolicyList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AccessControlPolicyList_To_gateway_AccessControlPolicyList(a.(*AccessControlPolicyList), b.(*gateway.AccessControlPolicyList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AccessControlPolicyList)(nil), (*AccessControlPolicyList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AccessControlPolicyList_To_v1_AccessControlPolicyList(a.(*gateway.AccessControlPolicyList), b.(*AccessControlPolicyList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*AccessControlPolicySpec)(nil), (*gateway.AccessControlPolicySpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AccessControlPolicySpec_To_gateway_AccessControlPolicySpec(a.(*AccessControlPolicySpec), b.(*gateway.AccessControlPolicySpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AccessControlPolicySpec)(nil), (*AccessControlPolicySpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AccessControlPolicySpec_To_v1_AccessControlPolicySpec(a.(*gateway.AccessControlPolicySpec), b.(*AccessControlPolicySpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*AccessControlRule)(nil), (*gateway.AccessControlRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AccessControlRule_To_gateway_AccessControlRule(a.(*AccessControlRule), b.(*gateway.AccessControlRule), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AccessControlRule)(nil), (*AccessControlRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AccessControlRule_To_v1_AccessControlRule(a.(*gateway.AccessControlRule), b.(*AccessControlRule), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*Bundle)(nil), (*gateway.Bundle)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_Bundle_To_gateway_Bundle(a.(*Bundle), b.(*gateway.Bundle), scope)
 	}); err != nil {
@@ -526,11 +586,170 @@ func RegisterConversions(s *runtime.Scheme) error {
 	return nil
 }
 
+func autoConvert_v1_AccessControlCondition_To_gateway_AccessControlCondition(in *AccessControlCondition, out *gateway.AccessControlCondition, s conversion.Scope) error {
+	out.Type = gateway.AccessControlConditionType(in.Type)
+	out.Name = in.Name
+	out.Value = in.Value
+	return nil
+}
+
+// Convert_v1_AccessControlCondition_To_gateway_AccessControlCondition is an autogenerated conversion function.
+func Convert_v1_AccessControlCondition_To_gateway_AccessControlCondition(in *AccessControlCondition, out *gateway.AccessControlCondition, s conversion.Scope) error {
+	return autoConvert_v1_AccessControlCondition_To_gateway_AccessControlCondition(in, out, s)
+}
+
+func autoConvert_gateway_AccessControlCondition_To_v1_AccessControlCondition(in *gateway.AccessControlCondition, out *AccessControlCondition, s conversion.Scope) error {
+	out.Type = AccessControlConditionType(in.Type)
+	out.Name = in.Name
+	out.Value = in.Value
+	return nil
+}
+
+// Convert_gateway_AccessControlCondition_To_v1_AccessControlCondition is an autogenerated conversion function.
+func Convert_gateway_AccessControlCondition_To_v1_AccessControlCondition(in *gateway.AccessControlCondition, out *AccessControlCondition, s conversion.Scope) error {
+	return autoConvert_gateway_AccessControlCondition_To_v1_AccessControlCondition(in, out, s)
+}
+
+func autoConvert_v1_AccessControlDenyResponse_To_gateway_AccessControlDenyResponse(in *AccessControlDenyResponse, out *gateway.AccessControlDenyResponse, s conversion.Scope) error {
+	out.StatusCode = in.StatusCode
+	out.Message = in.Message
+	return nil
+}
+
+// Convert_v1_AccessControlDenyResponse_To_gateway_AccessControlDenyResponse is an autogenerated conversion function.
+func Convert_v1_AccessControlDenyResponse_To_gateway_AccessControlDenyResponse(in *AccessControlDenyResponse, out *gateway.AccessControlDenyResponse, s conversion.Scope) error {
+	return autoConvert_v1_AccessControlDenyResponse_To_gateway_AccessControlDenyResponse(in, out, s)
+}
+
+func autoConvert_gateway_AccessControlDenyResponse_To_v1_AccessControlDenyResponse(in *gateway.AccessControlDenyResponse, out *AccessControlDenyResponse, s conversion.Scope) error {
+	out.StatusCode = in.StatusCode
+	out.Message = in.Message
+	return nil
+}
+
+// Convert_gateway_AccessControlDenyResponse_To_v1_AccessControlDenyResponse is an autogenerated conversion function.
+func Convert_gateway_AccessControlDenyResponse_To_v1_AccessControlDenyResponse(in *gateway.AccessControlDenyResponse, out *AccessControlDenyResponse, s conversion.Scope) error {
+	return autoConvert_gateway_AccessControlDenyResponse_To_v1_AccessControlDenyResponse(in, out, s)
+}
+
+func autoConvert_v1_AccessControlPolicy_To_gateway_AccessControlPolicy(in *AccessControlPolicy, out *gateway.AccessControlPolicy, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_v1_AccessControlPolicySpec_To_gateway_AccessControlPolicySpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_v1_AccessControlPolicy_To_gateway_AccessControlPolicy is an autogenerated conversion function.
+func Convert_v1_AccessControlPolicy_To_gateway_AccessControlPolicy(in *AccessControlPolicy, out *gateway.AccessControlPolicy, s conversion.Scope) error {
+	return autoConvert_v1_AccessControlPolicy_To_gateway_AccessControlPolicy(in, out, s)
+}
+
+func autoConvert_gateway_AccessControlPolicy_To_v1_AccessControlPolicy(in *gateway.AccessControlPolicy, out *AccessControlPolicy, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_gateway_AccessControlPolicySpec_To_v1_AccessControlPolicySpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_gateway_AccessControlPolicy_To_v1_AccessControlPolicy is an autogenerated conversion function.
+func Convert_gateway_AccessControlPolicy_To_v1_AccessControlPolicy(in *gateway.AccessControlPolicy, out *AccessControlPolicy, s conversion.Scope) error {
+	return autoConvert_gateway_AccessControlPolicy_To_v1_AccessControlPolicy(in, out, s)
+}
+
+func autoConvert_v1_AccessControlPolicyList_To_gateway_AccessControlPolicyList(in *AccessControlPolicyList, out *gateway.AccessControlPolicyList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]gateway.AccessControlPolicy)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_v1_AccessControlPolicyList_To_gateway_AccessControlPolicyList is an autogenerated conversion function.
+func Convert_v1_AccessControlPolicyList_To_gateway_AccessControlPolicyList(in *AccessControlPolicyList, out *gateway.AccessControlPolicyList, s conversion.Scope) error {
+	return autoConvert_v1_AccessControlPolicyList_To_gateway_AccessControlPolicyList(in, out, s)
+}
+
+func autoConvert_gateway_AccessControlPolicyList_To_v1_AccessControlPolicyList(in *gateway.AccessControlPolicyList, out *AccessControlPolicyList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]AccessControlPolicy)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_gateway_AccessControlPolicyList_To_v1_AccessControlPolicyList is an autogenerated conversion function.
+func Convert_gateway_AccessControlPolicyList_To_v1_AccessControlPolicyList(in *gateway.AccessControlPolicyList, out *AccessControlPolicyList, s conversion.Scope) error {
+	return autoConvert_gateway_AccessControlPolicyList_To_v1_AccessControlPolicyList(in, out, s)
+}
+
+func autoConvert_v1_AccessControlPolicySpec_To_gateway_AccessControlPolicySpec(in *AccessControlPolicySpec, out *gateway.AccessControlPolicySpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Description = in.Description
+	out.Enabled = in.Enabled
+	out.DefaultAction = gateway.AccessControlAction(in.DefaultAction)
+	out.Rules = *(*[]gateway.AccessControlRule)(unsafe.Pointer(&in.Rules))
+	if err := Convert_v1_AccessControlDenyResponse_To_gateway_AccessControlDenyResponse(&in.Response, &out.Response, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_v1_AccessControlPolicySpec_To_gateway_AccessControlPolicySpec is an autogenerated conversion function.
+func Convert_v1_AccessControlPolicySpec_To_gateway_AccessControlPolicySpec(in *AccessControlPolicySpec, out *gateway.AccessControlPolicySpec, s conversion.Scope) error {
+	return autoConvert_v1_AccessControlPolicySpec_To_gateway_AccessControlPolicySpec(in, out, s)
+}
+
+func autoConvert_gateway_AccessControlPolicySpec_To_v1_AccessControlPolicySpec(in *gateway.AccessControlPolicySpec, out *AccessControlPolicySpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Description = in.Description
+	out.Enabled = in.Enabled
+	out.DefaultAction = AccessControlAction(in.DefaultAction)
+	out.Rules = *(*[]AccessControlRule)(unsafe.Pointer(&in.Rules))
+	if err := Convert_gateway_AccessControlDenyResponse_To_v1_AccessControlDenyResponse(&in.Response, &out.Response, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_gateway_AccessControlPolicySpec_To_v1_AccessControlPolicySpec is an autogenerated conversion function.
+func Convert_gateway_AccessControlPolicySpec_To_v1_AccessControlPolicySpec(in *gateway.AccessControlPolicySpec, out *AccessControlPolicySpec, s conversion.Scope) error {
+	return autoConvert_gateway_AccessControlPolicySpec_To_v1_AccessControlPolicySpec(in, out, s)
+}
+
+func autoConvert_v1_AccessControlRule_To_gateway_AccessControlRule(in *AccessControlRule, out *gateway.AccessControlRule, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Action = gateway.AccessControlAction(in.Action)
+	out.Conditions = *(*[]gateway.AccessControlCondition)(unsafe.Pointer(&in.Conditions))
+	return nil
+}
+
+// Convert_v1_AccessControlRule_To_gateway_AccessControlRule is an autogenerated conversion function.
+func Convert_v1_AccessControlRule_To_gateway_AccessControlRule(in *AccessControlRule, out *gateway.AccessControlRule, s conversion.Scope) error {
+	return autoConvert_v1_AccessControlRule_To_gateway_AccessControlRule(in, out, s)
+}
+
+func autoConvert_gateway_AccessControlRule_To_v1_AccessControlRule(in *gateway.AccessControlRule, out *AccessControlRule, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Action = AccessControlAction(in.Action)
+	out.Conditions = *(*[]AccessControlCondition)(unsafe.Pointer(&in.Conditions))
+	return nil
+}
+
+// Convert_gateway_AccessControlRule_To_v1_AccessControlRule is an autogenerated conversion function.
+func Convert_gateway_AccessControlRule_To_v1_AccessControlRule(in *gateway.AccessControlRule, out *AccessControlRule, s conversion.Scope) error {
+	return autoConvert_gateway_AccessControlRule_To_v1_AccessControlRule(in, out, s)
+}
+
 func autoConvert_v1_Bundle_To_gateway_Bundle(in *Bundle, out *gateway.Bundle, s conversion.Scope) error {
 	out.Gateways = *(*[]gateway.Gateway)(unsafe.Pointer(&in.Gateways))
 	out.Routes = *(*[]gateway.Route)(unsafe.Pointer(&in.Routes))
 	out.Upstreams = *(*[]gateway.Upstream)(unsafe.Pointer(&in.Upstreams))
 	out.RateLimitPolicies = *(*[]gateway.RateLimitPolicy)(unsafe.Pointer(&in.RateLimitPolicies))
+	out.AccessControlPolicies = *(*[]gateway.AccessControlPolicy)(unsafe.Pointer(&in.AccessControlPolicies))
 	out.RedisStores = *(*[]gateway.RedisStore)(unsafe.Pointer(&in.RedisStores))
 	out.PolicyBindings = *(*[]gateway.PolicyBinding)(unsafe.Pointer(&in.PolicyBindings))
 	return nil
@@ -546,6 +765,7 @@ func autoConvert_gateway_Bundle_To_v1_Bundle(in *gateway.Bundle, out *Bundle, s 
 	out.Routes = *(*[]Route)(unsafe.Pointer(&in.Routes))
 	out.Upstreams = *(*[]Upstream)(unsafe.Pointer(&in.Upstreams))
 	out.RateLimitPolicies = *(*[]RateLimitPolicy)(unsafe.Pointer(&in.RateLimitPolicies))
+	out.AccessControlPolicies = *(*[]AccessControlPolicy)(unsafe.Pointer(&in.AccessControlPolicies))
 	out.RedisStores = *(*[]RedisStore)(unsafe.Pointer(&in.RedisStores))
 	out.PolicyBindings = *(*[]PolicyBinding)(unsafe.Pointer(&in.PolicyBindings))
 	return nil

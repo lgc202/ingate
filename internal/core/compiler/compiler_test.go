@@ -67,6 +67,15 @@ func TestCompilerCompileGateway(t *testing.T) {
 										Remove: []string{"x-debug-token"},
 									},
 								},
+								{
+									Type: resource.RouteFilterResponseHeaderModifier,
+									ResponseHeaderModifier: &resource.HeaderModifier{
+										Set: []resource.HeaderValue{
+											{Name: "x-frame-options", Value: "deny"},
+										},
+										Remove: []string{"server"},
+									},
+								},
 							},
 							UpstreamRefs: []resource.UpstreamRef{
 								{Name: "app", Weight: 100},
@@ -110,6 +119,28 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
+		AccessControlPolicies: []resource.AccessControlPolicy{
+			{
+				ObjectMeta: metav1.ObjectMeta{Name: "app-acl"},
+				Spec: resource.AccessControlPolicySpec{
+					Enabled:       true,
+					DefaultAction: resource.AccessControlActionAllow,
+					Rules: []resource.AccessControlRule{
+						{
+							Name:   "deny-risk",
+							Action: resource.AccessControlActionDeny,
+							Conditions: []resource.AccessControlCondition{
+								{Type: resource.AccessControlConditionTypeHeader, Name: "x-risk", Value: "high"},
+							},
+						},
+					},
+					Response: resource.AccessControlDenyResponse{
+						StatusCode: 403,
+						Message:    "blocked",
+					},
+				},
+			},
+		},
 		PolicyBindings: []resource.PolicyBinding{
 			{
 				ObjectMeta: metav1.ObjectMeta{Name: "app-limit"},
@@ -120,6 +151,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 						Name: "app",
 					},
 					Policies: []resource.PolicyRef{
+						{Kind: resource.KindAccessControlPolicy, Name: "app-acl"},
 						{Kind: resource.KindRateLimitPolicy, Name: "app-quota"},
 					},
 				},
@@ -153,6 +185,10 @@ func TestCompilerCompileGateway(t *testing.T) {
 							{Name: "x-ingate-tenant", Value: "acme"},
 						},
 						RequestHeadersToRemove: []string{"x-debug-token"},
+						ResponseHeadersToAdd: []ir.LogicalHeaderValue{
+							{Name: "x-frame-options", Value: "deny"},
+						},
+						ResponseHeadersToRemove: []string{"server"},
 						Retry: ir.LogicalRetryPolicy{
 							Attempts:            2,
 							PerTryTimeoutMillis: 500,
@@ -191,6 +227,25 @@ func TestCompilerCompileGateway(t *testing.T) {
 				},
 			},
 		},
+		AccessControlPolicies: []ir.LogicalAccessControlPolicy{
+			{
+				Name:          "app-acl",
+				DefaultAction: resource.AccessControlActionAllow,
+				Rules: []ir.LogicalAccessControlRule{
+					{
+						Name:   "deny-risk",
+						Action: resource.AccessControlActionDeny,
+						Conditions: []ir.LogicalAccessControlCondition{
+							{Type: resource.AccessControlConditionTypeHeader, Name: "x-risk", Value: "high"},
+						},
+					},
+				},
+				Response: ir.LogicalAccessControlDenyResponse{
+					StatusCode: 403,
+					Message:    "blocked",
+				},
+			},
+		},
 		PolicyBindings: []ir.LogicalPolicyBinding{
 			{
 				Name: "app-limit",
@@ -199,6 +254,7 @@ func TestCompilerCompileGateway(t *testing.T) {
 					Name: "app",
 				},
 				Policies: []ir.LogicalPolicyRef{
+					{Kind: resource.KindAccessControlPolicy, Name: "app-acl"},
 					{Kind: resource.KindRateLimitPolicy, Name: "app-quota"},
 				},
 			},
@@ -318,7 +374,7 @@ func TestCompilerCompileGatewayUnsupportedRouteFilter(t *testing.T) {
 						{
 							PathPrefix: "/app",
 							Filters: []resource.RouteFilter{
-								{Type: resource.RouteFilterURLRewrite},
+								{Type: resource.RouteFilterType("Unknown")},
 							},
 							UpstreamRefs: []resource.UpstreamRef{
 								{Name: "app", Weight: 100},
@@ -337,7 +393,7 @@ func TestCompilerCompileGatewayUnsupportedRouteFilter(t *testing.T) {
 	if err == nil {
 		t.Fatal("CompileGateway() error = nil")
 	}
-	if !strings.Contains(err.Error(), `route "app" has unsupported route filter "URLRewrite"`) {
+	if !strings.Contains(err.Error(), `route "app" has unsupported route filter "Unknown"`) {
 		t.Fatalf("CompileGateway() error = %v", err)
 	}
 }

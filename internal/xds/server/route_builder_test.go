@@ -85,6 +85,10 @@ func TestResponseBuilderBuildRouteConfigsWithRoutePolicies(t *testing.T) {
 											{Name: "x-ingate-tenant", Value: "acme"},
 										},
 										RequestHeadersToRemove: []string{"x-debug-token"},
+										ResponseHeadersToAdd: []targetxds.HeaderValue{
+											{Name: "x-frame-options", Value: "deny"},
+										},
+										ResponseHeadersToRemove: []string{"server"},
 										RetryPolicy: &targetxds.RetryPolicy{
 											Attempts:            2,
 											PerTryTimeoutMillis: 500,
@@ -122,6 +126,13 @@ func TestResponseBuilderBuildRouteConfigsWithRoutePolicies(t *testing.T) {
 	}
 	if route.GetRequestHeadersToRemove()[0] != "x-debug-token" {
 		t.Fatalf("RequestHeadersToRemove[0] = %q, want x-debug-token", route.GetRequestHeadersToRemove()[0])
+	}
+	responseHeader := route.GetResponseHeadersToAdd()[0]
+	if responseHeader.GetHeader().GetKey() != "x-frame-options" || responseHeader.GetHeader().GetValue() != "deny" {
+		t.Fatalf("ResponseHeadersToAdd[0] = %v, want x-frame-options=deny", responseHeader.GetHeader())
+	}
+	if route.GetResponseHeadersToRemove()[0] != "server" {
+		t.Fatalf("ResponseHeadersToRemove[0] = %q, want server", route.GetResponseHeadersToRemove()[0])
 	}
 
 	action := route.GetRoute()

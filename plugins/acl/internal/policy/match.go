@@ -11,15 +11,19 @@ import (
 // HeaderNames 返回执行路由 ACL 规则前需要从请求中读取的 header
 func HeaderNames(route config.RouteConfig) []string {
 	seen := map[string]struct{}{}
-	for _, rule := range route.Rules {
-		for _, condition := range rule.Conditions {
-			switch {
-			case condition.Type == config.ConditionTypeHeader && condition.Name != "":
-				seen[condition.Name] = struct{}{}
-			case condition.Type == config.ConditionTypeConsumer:
-				seen[consumerHeader] = struct{}{}
-			case condition.Type == config.ConditionTypeTenant:
-				seen[tenantHeader] = struct{}{}
+	for _, binding := range route.Bindings {
+		for _, policy := range binding.Policies {
+			for _, rule := range policy.Rules {
+				for _, condition := range rule.Conditions {
+					switch {
+					case condition.Type == config.ConditionTypeHeader && condition.Name != "":
+						seen[condition.Name] = struct{}{}
+					case condition.Type == config.ConditionTypeConsumer:
+						seen[consumerHeader] = struct{}{}
+					case condition.Type == config.ConditionTypeTenant:
+						seen[tenantHeader] = struct{}{}
+					}
+				}
 			}
 		}
 	}

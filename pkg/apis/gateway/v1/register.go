@@ -51,6 +51,12 @@ const (
 	ResourceRateLimitPolicies ResourceName = "ratelimitpolicies"
 	// ResourceRateLimitPoliciesStatus 表示 RateLimitPolicy status 子资源名
 	ResourceRateLimitPoliciesStatus ResourceName = "ratelimitpolicies/status"
+	// ResourceAccessControlPolicy 表示 AccessControlPolicy 单数资源名
+	ResourceAccessControlPolicy ResourceName = "accesscontrolpolicy"
+	// ResourceAccessControlPolicies 表示 AccessControlPolicy 复数资源名
+	ResourceAccessControlPolicies ResourceName = "accesscontrolpolicies"
+	// ResourceAccessControlPoliciesStatus 表示 AccessControlPolicy status 子资源名
+	ResourceAccessControlPoliciesStatus ResourceName = "accesscontrolpolicies/status"
 	// ResourceRedisStore 表示 RedisStore 单数资源名
 	ResourceRedisStore ResourceName = "redisstore"
 	// ResourceRedisStores 表示 RedisStore 复数资源名
@@ -97,6 +103,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&UpstreamList{},
 		&RateLimitPolicy{},
 		&RateLimitPolicyList{},
+		&AccessControlPolicy{},
+		&AccessControlPolicyList{},
 		&RedisStore{},
 		&RedisStoreList{},
 		&PolicyBinding{},

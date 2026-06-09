@@ -14,6 +14,10 @@ type FakeGatewayV1 struct {
 	*testing.Fake
 }
 
+func (c *FakeGatewayV1) AccessControlPolicies() v1.AccessControlPolicyInterface {
+	return newFakeAccessControlPolicies(c)
+}
+
 func (c *FakeGatewayV1) Gateways() v1.GatewayInterface {
 	return newFakeGateways(c)
 }

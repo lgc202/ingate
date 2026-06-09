@@ -28,6 +28,12 @@ func (c *Controller) registerEventHandlers() error {
 				c.enqueuePolicyObject(resource.KindRateLimitPolicy, obj)
 			}),
 		},
+		{
+			informer: gatewayInformers.AccessControlPolicies().Informer(),
+			handler: c.eventHandler(func(obj any) {
+				c.enqueuePolicyObject(resource.KindAccessControlPolicy, obj)
+			}),
+		},
 		{informer: gatewayInformers.RedisStores().Informer(), handler: c.eventHandler(c.enqueueRedisStoreObject)},
 		{informer: gatewayInformers.PolicyBindings().Informer(), handler: c.eventHandler(c.enqueuePolicyBindingObject)},
 	}
@@ -278,6 +284,8 @@ func policyObjectName(obj any) (string, bool) {
 
 	switch policy := obj.(type) {
 	case *resource.RateLimitPolicy:
+		return policy.Name, true
+	case *resource.AccessControlPolicy:
 		return policy.Name, true
 	default:
 		return "", false

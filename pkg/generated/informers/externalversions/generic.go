@@ -39,6 +39,8 @@ func (f *genericInformer) Lister() cache.GenericLister {
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
 	// Group=gateway.ingate.io, Version=v1
+	case v1.SchemeGroupVersion.WithResource("accesscontrolpolicies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().AccessControlPolicies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("gateways"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Gateways().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("policybindings"):

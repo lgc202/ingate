@@ -7,17 +7,7 @@ import (
 )
 
 func TestRunnerDeniesMatchingRule(t *testing.T) {
-	route := config.RouteConfig{
-		Rules: []config.Rule{
-			{
-				Name:   "block-risk",
-				Action: config.ActionDeny,
-				Conditions: []config.Condition{
-					{Type: config.ConditionTypeHeader, Name: "x-risk-level", Value: "high"},
-				},
-			},
-		},
-	}
+	route := routeConfig(config.Policy{Rules: riskRules()})
 	req := Request{Headers: map[string]string{"x-risk-level": "high"}}
 
 	decision := NewRunner().Apply(route, req)
@@ -30,17 +20,7 @@ func TestRunnerDeniesMatchingRule(t *testing.T) {
 }
 
 func TestRunnerAllowsUnmatchedRequestByDefault(t *testing.T) {
-	route := config.RouteConfig{
-		Rules: []config.Rule{
-			{
-				Name:   "block-risk",
-				Action: config.ActionDeny,
-				Conditions: []config.Condition{
-					{Type: config.ConditionTypeHeader, Name: "x-risk-level", Value: "high"},
-				},
-			},
-		},
-	}
+	route := routeConfig(config.Policy{Rules: riskRules()})
 
 	decision := NewRunner().Apply(route, Request{Headers: map[string]string{"x-risk-level": "low"}})
 	if !decision.Allowed {
@@ -49,7 +29,7 @@ func TestRunnerAllowsUnmatchedRequestByDefault(t *testing.T) {
 }
 
 func TestRunnerSupportsIPCidrCondition(t *testing.T) {
-	route := config.RouteConfig{
+	route := routeConfig(config.Policy{
 		Rules: []config.Rule{
 			{
 				Name:   "allow-office",
@@ -60,10 +40,33 @@ func TestRunnerSupportsIPCidrCondition(t *testing.T) {
 			},
 		},
 		DefaultAction: config.ActionDeny,
-	}
+	})
 
 	decision := NewRunner().Apply(route, Request{RemoteAddr: "10.1.2.3:12345"})
 	if !decision.Allowed {
 		t.Fatalf("Allowed = false: %+v", decision)
+	}
+}
+
+func routeConfig(policy config.Policy) config.RouteConfig {
+	return config.RouteConfig{
+		Bindings: []config.Binding{
+			{
+				Name:     "binding",
+				Policies: []config.Policy{policy},
+			},
+		},
+	}
+}
+
+func riskRules() []config.Rule {
+	return []config.Rule{
+		{
+			Name:   "block-risk",
+			Action: config.ActionDeny,
+			Conditions: []config.Condition{
+				{Type: config.ConditionTypeHeader, Name: "x-risk-level", Value: "high"},
+			},
+		},
 	}
 }

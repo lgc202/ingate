@@ -203,11 +203,13 @@ func (b responseBuilder) buildRoute(route targetxds.Route, method string) (*rout
 	}
 
 	return &routev3.Route{
-		Name:                   routeRuntimeName(route.GatewayName, route.Name, route.RuleName, method),
-		Match:                  routeMatch,
-		Action:                 &routev3.Route_Route{Route: action},
-		RequestHeadersToAdd:    b.requestHeadersToAdd(route.RequestHeadersToAdd),
-		RequestHeadersToRemove: route.RequestHeadersToRemove,
+		Name:                    routeRuntimeName(route.GatewayName, route.Name, route.RuleName, method),
+		Match:                   routeMatch,
+		Action:                  &routev3.Route_Route{Route: action},
+		RequestHeadersToAdd:     b.headerValueOptions(route.RequestHeadersToAdd),
+		RequestHeadersToRemove:  route.RequestHeadersToRemove,
+		ResponseHeadersToAdd:    b.headerValueOptions(route.ResponseHeadersToAdd),
+		ResponseHeadersToRemove: route.ResponseHeadersToRemove,
 	}, nil
 }
 
@@ -222,7 +224,7 @@ func routeRuntimeName(gatewayName, routeName, ruleName, method string) string {
 	)
 }
 
-func (b responseBuilder) requestHeadersToAdd(headers []targetxds.HeaderValue) []*corev3.HeaderValueOption {
+func (b responseBuilder) headerValueOptions(headers []targetxds.HeaderValue) []*corev3.HeaderValueOption {
 	result := make([]*corev3.HeaderValueOption, 0, len(headers))
 	for _, header := range headers {
 		result = append(result, &corev3.HeaderValueOption{

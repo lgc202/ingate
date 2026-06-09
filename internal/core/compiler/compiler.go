@@ -19,27 +19,29 @@ type gatewayCompiler struct {
 	gatewayName string
 	gateway     resource.Gateway
 
-	gatewaysByName          map[string]resource.Gateway
-	routesByName            map[string]bool
-	upstreamsByName         map[string]resource.Upstream
-	rateLimitPoliciesByName map[string]resource.RateLimitPolicy
-	redisStoresByName       map[string]resource.RedisStore
-	routeRulesByRoute       map[string]map[string]bool
-	policyBindingsByName    map[string]bool
+	gatewaysByName              map[string]resource.Gateway
+	routesByName                map[string]bool
+	upstreamsByName             map[string]resource.Upstream
+	rateLimitPoliciesByName     map[string]resource.RateLimitPolicy
+	accessControlPoliciesByName map[string]resource.AccessControlPolicy
+	redisStoresByName           map[string]resource.RedisStore
+	routeRulesByRoute           map[string]map[string]bool
+	policyBindingsByName        map[string]bool
 }
 
 // CompileGateway 从内存资源集合中编译指定 Gateway
 func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.LogicalGateway, error) {
 	c := gatewayCompiler{
-		bundle:                  bundle,
-		gatewayName:             gatewayName,
-		gatewaysByName:          make(map[string]resource.Gateway, len(bundle.Gateways)),
-		routesByName:            make(map[string]bool, len(bundle.Routes)),
-		upstreamsByName:         make(map[string]resource.Upstream, len(bundle.Upstreams)),
-		rateLimitPoliciesByName: make(map[string]resource.RateLimitPolicy, len(bundle.RateLimitPolicies)),
-		redisStoresByName:       make(map[string]resource.RedisStore, len(bundle.RedisStores)),
-		routeRulesByRoute:       make(map[string]map[string]bool, len(bundle.Routes)),
-		policyBindingsByName:    make(map[string]bool, len(bundle.PolicyBindings)),
+		bundle:                      bundle,
+		gatewayName:                 gatewayName,
+		gatewaysByName:              make(map[string]resource.Gateway, len(bundle.Gateways)),
+		routesByName:                make(map[string]bool, len(bundle.Routes)),
+		upstreamsByName:             make(map[string]resource.Upstream, len(bundle.Upstreams)),
+		rateLimitPoliciesByName:     make(map[string]resource.RateLimitPolicy, len(bundle.RateLimitPolicies)),
+		accessControlPoliciesByName: make(map[string]resource.AccessControlPolicy, len(bundle.AccessControlPolicies)),
+		redisStoresByName:           make(map[string]resource.RedisStore, len(bundle.RedisStores)),
+		routeRulesByRoute:           make(map[string]map[string]bool, len(bundle.Routes)),
+		policyBindingsByName:        make(map[string]bool, len(bundle.PolicyBindings)),
 	}
 
 	return c.compile()
@@ -61,6 +63,9 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexRateLimitPolicies(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
+	if err := c.indexAccessControlPolicies(); err != nil {
+		return ir.LogicalGateway{}, err
+	}
 	if err := c.indexPolicyBindings(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
@@ -71,15 +76,17 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	}
 	policyBindings := c.buildPolicyBindings(routes)
 	rateLimitPolicies, redisStoreNames := c.buildRateLimitPolicies(policyBindings)
+	accessControlPolicies := c.buildAccessControlPolicies(policyBindings)
 
 	return ir.LogicalGateway{
-		Name:              c.gateway.Name,
-		Listeners:         c.buildListeners(),
-		Routes:            routes,
-		Upstreams:         c.buildUsedUpstreams(upstreamOrder),
-		RateLimitPolicies: rateLimitPolicies,
-		RedisStores:       c.buildRedisStores(redisStoreNames),
-		PolicyBindings:    policyBindings,
+		Name:                  c.gateway.Name,
+		Listeners:             c.buildListeners(),
+		Routes:                routes,
+		Upstreams:             c.buildUsedUpstreams(upstreamOrder),
+		RateLimitPolicies:     rateLimitPolicies,
+		AccessControlPolicies: accessControlPolicies,
+		RedisStores:           c.buildRedisStores(redisStoreNames),
+		PolicyBindings:        policyBindings,
 	}, nil
 }
 
@@ -155,6 +162,16 @@ func (c *gatewayCompiler) indexRateLimitPolicies() error {
 	return nil
 }
 
+func (c *gatewayCompiler) indexAccessControlPolicies() error {
+	for _, policy := range c.bundle.AccessControlPolicies {
+		if _, ok := c.accessControlPoliciesByName[policy.Name]; ok {
+			return fmt.Errorf("duplicate access control policy %q", policy.Name)
+		}
+		c.accessControlPoliciesByName[policy.Name] = policy
+	}
+	return nil
+}
+
 func (c *gatewayCompiler) indexRedisStores() error {
 	for _, store := range c.bundle.RedisStores {
 		if _, ok := c.redisStoresByName[store.Name]; ok {
@@ -198,6 +215,10 @@ func (c *gatewayCompiler) indexPolicyBindings() error {
 			case resource.KindRateLimitPolicy:
 				if _, ok := c.rateLimitPoliciesByName[policy.Name]; !ok {
 					return fmt.Errorf("policy binding %q references rate limit policy %q", binding.Name, policy.Name)
+				}
+			case resource.KindAccessControlPolicy:
+				if _, ok := c.accessControlPoliciesByName[policy.Name]; !ok {
+					return fmt.Errorf("policy binding %q references access control policy %q", binding.Name, policy.Name)
 				}
 			default:
 				return fmt.Errorf("policy binding %q references unsupported policy kind %q", binding.Name, policy.Kind)
@@ -315,24 +336,36 @@ func (c *gatewayCompiler) applyRouteFilters(routeName string, filters []resource
 			if filter.RequestHeaderModifier == nil {
 				return fmt.Errorf("route %q request header modifier is empty", routeName)
 			}
-			for _, header := range filter.RequestHeaderModifier.Set {
-				logicalRule.RequestHeadersToAdd = append(logicalRule.RequestHeadersToAdd, ir.LogicalHeaderValue{
-					Name:  header.Name,
-					Value: header.Value,
-				})
-			}
-			for _, header := range filter.RequestHeaderModifier.Add {
-				logicalRule.RequestHeadersToAdd = append(logicalRule.RequestHeadersToAdd, ir.LogicalHeaderValue{
-					Name:  header.Name,
-					Value: header.Value,
-				})
-			}
+			logicalRule.RequestHeadersToAdd = append(logicalRule.RequestHeadersToAdd, c.headerValues(filter.RequestHeaderModifier)...)
 			logicalRule.RequestHeadersToRemove = append(logicalRule.RequestHeadersToRemove, filter.RequestHeaderModifier.Remove...)
+		case resource.RouteFilterResponseHeaderModifier:
+			if filter.ResponseHeaderModifier == nil {
+				return fmt.Errorf("route %q response header modifier is empty", routeName)
+			}
+			logicalRule.ResponseHeadersToAdd = append(logicalRule.ResponseHeadersToAdd, c.headerValues(filter.ResponseHeaderModifier)...)
+			logicalRule.ResponseHeadersToRemove = append(logicalRule.ResponseHeadersToRemove, filter.ResponseHeaderModifier.Remove...)
 		default:
 			return fmt.Errorf("route %q has unsupported route filter %q", routeName, filter.Type)
 		}
 	}
 	return nil
+}
+
+func (c *gatewayCompiler) headerValues(modifier *resource.HeaderModifier) []ir.LogicalHeaderValue {
+	headers := make([]ir.LogicalHeaderValue, 0, len(modifier.Set)+len(modifier.Add))
+	for _, header := range modifier.Set {
+		headers = append(headers, ir.LogicalHeaderValue{
+			Name:  header.Name,
+			Value: header.Value,
+		})
+	}
+	for _, header := range modifier.Add {
+		headers = append(headers, ir.LogicalHeaderValue{
+			Name:  header.Name,
+			Value: header.Value,
+		})
+	}
+	return headers
 }
 
 func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.LogicalUpstream {
@@ -407,6 +440,58 @@ func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBind
 	}
 
 	return policies, usedRedisStores
+}
+
+func (c *gatewayCompiler) buildAccessControlPolicies(bindings []ir.LogicalPolicyBinding) []ir.LogicalAccessControlPolicy {
+	usedPolicies := make(map[string]bool)
+	for _, binding := range bindings {
+		for _, policy := range binding.Policies {
+			if policy.Kind != resource.KindAccessControlPolicy || usedPolicies[policy.Name] {
+				continue
+			}
+			accessControlPolicy := c.accessControlPoliciesByName[policy.Name]
+			if !accessControlPolicy.Spec.Enabled {
+				continue
+			}
+			usedPolicies[policy.Name] = true
+		}
+	}
+
+	policyOrder := slices.Sorted(maps.Keys(usedPolicies))
+	if len(policyOrder) == 0 {
+		return nil
+	}
+	policies := make([]ir.LogicalAccessControlPolicy, 0, len(policyOrder))
+	for _, name := range policyOrder {
+		policy := c.accessControlPoliciesByName[name]
+		logicalPolicy := ir.LogicalAccessControlPolicy{
+			Name:          policy.Name,
+			DisplayName:   policy.Spec.DisplayName,
+			DefaultAction: policy.Spec.DefaultAction,
+			Rules:         make([]ir.LogicalAccessControlRule, 0, len(policy.Spec.Rules)),
+			Response: ir.LogicalAccessControlDenyResponse{
+				StatusCode: policy.Spec.Response.StatusCode,
+				Message:    policy.Spec.Response.Message,
+			},
+		}
+		for _, rule := range policy.Spec.Rules {
+			logicalRule := ir.LogicalAccessControlRule{
+				Name:       rule.Name,
+				Action:     rule.Action,
+				Conditions: make([]ir.LogicalAccessControlCondition, 0, len(rule.Conditions)),
+			}
+			for _, condition := range rule.Conditions {
+				logicalRule.Conditions = append(logicalRule.Conditions, ir.LogicalAccessControlCondition{
+					Type:  condition.Type,
+					Name:  condition.Name,
+					Value: condition.Value,
+				})
+			}
+			logicalPolicy.Rules = append(logicalPolicy.Rules, logicalRule)
+		}
+		policies = append(policies, logicalPolicy)
+	}
+	return policies
 }
 
 func (c *gatewayCompiler) buildRateLimitKey(key resource.RateLimitKey) []ir.LogicalRateLimitKeyPart {
@@ -503,6 +588,12 @@ func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute) []ir.Log
 			if policy.Kind == resource.KindRateLimitPolicy {
 				rateLimitPolicy := c.rateLimitPoliciesByName[policy.Name]
 				if !rateLimitPolicy.Spec.Enabled {
+					continue
+				}
+			}
+			if policy.Kind == resource.KindAccessControlPolicy {
+				accessControlPolicy := c.accessControlPoliciesByName[policy.Name]
+				if !accessControlPolicy.Spec.Enabled {
 					continue
 				}
 			}
