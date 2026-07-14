@@ -20,6 +20,8 @@ Higress Envoy 已扩展 Proxy-Wasm Redis hostcall，支持 RedisInit、DispatchR
 
 已经验证官方 Higress gateway:v2.2.3 镜像包含 Envoy 1.36.4，二进制位于 /usr/local/bin/envoy，当前 Ingate bootstrap 可以通过该二进制的配置校验。第一阶段使用未经修改的官方 Higress Envoy，不维护 Envoy fork。
 
+Higress proxy-wasm-go-sdk 的 v1.0.1 tag 尚未实现 Redis callout 测试驱动。本阶段固定到 commit 662ed045bf0b58eb0ab67ba9954ae2fa65343072 或包含同等 Redis proxytest 能力的后续稳定版本，不使用缺少 callout ID、调用记录和 callback 驱动的旧 tag。
+
 ## 决策
 
 第一阶段只支持 Standalone Redis，并直接删除 ingate-dataplane。
@@ -127,12 +129,21 @@ Redis cluster 至少包含：
 
 一个 RedisStore 可以产生多个 runtime client。原因是 Higress RedisInit 的命令超时绑定到 Envoy cluster 的 thread-local Redis client，而 RateLimitPolicy 可以覆盖 RedisStore 的命令超时。xDS target 按 RedisStore ID 和生效 command timeout 生成独立 cluster name，避免不同策略重配同一个共享 client。
 
-推荐的稳定 identity 为：
+稳定 identity 使用规范化字段的 SHA-256：
 
-    Redis runtime client = RedisStore ID + effective command timeout
-    Envoy cluster = 上述 identity 的 target-safe 名称
+    identity input = RedisStore ID、effective address、DB、Username、TLS、
+                     effective TLS server name、connect timeout、command timeout
+    digest = SHA-256(identity input)
+    Redis runtime client = ingate.redis.client.<完整十六进制 digest>
+    Envoy cluster = ingate.redis.cluster.<完整十六进制 digest>
 
-这些名称只属于 xDS target，不进入 Admin API 或核心资源协议。
+identity input 使用固定字段顺序和无歧义长度编码。RedisStore 配置变化时产生新名称，使多个 Gateway 的 RuntimeSnapshot 在逐步收敛期间可以同时携带新旧 cluster；相同有效配置仍会稳定去重。固定前缀把 Redis runtime 资源与普通 Upstream 名称区分开，完整 digest 避免有损字符替换导致的静默碰撞。这些名称只属于 xDS target，不进入 Admin API 或核心资源协议。
+
+xDS server 构建 CDS 时必须检查全局名称冲突：
+
+- 同名且 protobuf 内容相同的 cluster 可以去重
+- 同名但内容不同的 cluster 必须返回错误
+- 不再沿用 first-wins 的静默去重行为
 
 ### 插件配置
 
@@ -154,7 +165,9 @@ v2 不再包含 DataPlane、HTTP path 或 ingate-dataplane cluster。Global poli
 - 最终地址必须是有效的 host:port
 - PasswordRef 非空时返回明确错误
 - PoolSize 或 MinIdleConns 非零时返回明确错误，因为 Higress hostcall 不能等价映射这些参数
-- DB、超时和端口继续执行边界值校验
+- DB 必须在 0 到 math.MaxInt32 范围内
+- ConnectTimeoutMillis 和 CommandTimeoutMillis 必须在 0 到 math.MaxUint32 范围内
+- 地址使用 net.SplitHostPort 解析，端口必须在 1 到 65535 范围内，IPv6 必须使用带方括号形式
 
 错误必须包含 RedisStore ID 和不支持的字段或模式，方便 controller 状态和日志定位。
 
@@ -182,18 +195,20 @@ DB 通过 RedisInit cluster query 参数传递。
 
 TLS 由 xDS server 在 Redis Envoy cluster 上生成 upstream TLS transport socket。
 
-- TLSServerName 非空时作为 SNI 和证书主机名
-- TLSServerName 为空时从 Redis 地址 host 派生
-- 使用 all-in-one 中的系统 CA bundle 验证服务端证书
+- TLSServerName 非空时作为 effective TLS server name
+- TLSServerName 为空时从 Redis 地址 host 派生 effective TLS server name
+- UpstreamTlsContext.Sni 使用 effective TLS server name
+- CommonTlsContext.ValidationContext.TrustedCa 使用 all-in-one 中的系统 CA bundle
+- MatchTypedSubjectAltNames 必须匹配 effective TLS server name，不能只配置 SNI 或只验证 CA 链
 - TLS 配置不进入插件 JSON
 
-本阶段至少提供 xDS 单元测试；真实 TLS Redis E2E 可以和基础 Standalone E2E 分开，但在声明 TLS 支持完成前必须补齐。
+TLS 测试必须包含配置单元测试和真实连接测试。真实连接测试至少覆盖受信任且 SAN 匹配时成功，以及 SAN 不匹配时连接被拒绝。
 
 ## 插件运行时
 
 ### SDK 边界
 
-内置插件统一使用 github.com/higress-group/proxy-wasm-go-sdk，避免同一个 Wasm 二进制同时链接两个拥有独立全局上下文的 Proxy-Wasm SDK。
+内置插件统一使用 github.com/higress-group/proxy-wasm-go-sdk，避免共享 helper 和不同插件继续分裂在两个 Proxy-Wasm SDK 上。迁移范围包括 ratelimit、acl 和 plugins/internal/wasm。
 
 Ingate 不使用 Higress wasm-go/pkg/wrapper。Higress SDK import 只出现在 Wasm 生命周期适配和 Redis runtime adapter 中。
 
@@ -302,9 +317,9 @@ ratelimit.wasm 和 acl.wasm 继续安装在 /opt/ingate/plugins。
 
 ### Proxy-Wasm 测试
 
-使用 Higress proxy-wasm-go-sdk 的测试 host：
+使用固定 SDK revision 中已经实现 Redis callout ID、调用记录和 callback 驱动的 proxytest host：
 
-- RedisInit 配置正确
+- RedisInit 输入由纯配置构造测试覆盖，真实调用由 E2E 覆盖
 - EVAL RESP 命令正确
 - 有 global checks 时 Pause
 - callback 后按顺序发送下一条 Redis call
@@ -313,19 +328,24 @@ ratelimit.wasm 和 acl.wasm 继续安装在 /opt/ingate/plugins。
 - 同步 dispatch 失败和 callback 失败按 failure policy 处理
 - HTTP context 已销毁时不重复完成
 
+如果选定的后续稳定 SDK release 再次缺少上述 proxytest 能力，不能为此在生产代码中增加只为测试存在的接口；应继续固定已验证 revision，或把缺失能力贡献到 Higress SDK。
+
 ### xDS 测试
 
 - Standalone Redis cluster 自动注入
 - 没有 global policy 时不注入 Redis cluster
 - 相同 store 和 timeout 去重
 - 不同 timeout 生成不同 runtime client
+- Redis cluster name 使用固定前缀和完整 SHA-256
+- 同名不同内容的 cluster 返回构建错误
 - TLS transport socket、SNI 和 CA 配置
+- TLS validation context 包含 effective server name 的 SAN matcher
 - RateLimit plugin config v2 不再包含 DataPlane
 - xDS 输出不再包含 ingate-dataplane cluster
 
 ### 真实 E2E
 
-使用官方 Higress Envoy、编译后的 ratelimit.wasm、真实 Redis Standalone 和测试 Upstream。
+新增独立 E2E 脚本，在隔离的 Docker network 中启动官方 Higress Envoy all-in-one 镜像、真实 Redis Standalone 和测试 Upstream。脚本负责创建资源、发送请求、收集 Envoy 日志并清理临时容器，不把 Redis 加入 all-in-one 的生产进程集合。
 
 至少验证：
 
@@ -335,8 +355,11 @@ ratelimit.wasm 和 acl.wasm 继续安装在 /opt/ingate/plugins。
 - quota headers 的 limit、remaining 和 reset
 - Redis 不可用时 FailOpen 放行
 - Redis 不可用时 FailClose 拒绝
+- TLS Redis 的受信任 SAN 成功和错误 SAN 拒绝
 - Envoy 日志中没有 Wasm ABI、插件加载或 Redis hostcall 初始化错误
 - 进程列表和镜像中不存在 ingate-dataplane
+
+最终 all-in-one 镜像还需要执行启动 smoke test，证明从 Higress gateway 镜像复制出的 Envoy 二进制在最终 Debian 文件系统中依赖完整，并能使用 Ingate bootstrap 启动。
 
 ## 验收标准
 
