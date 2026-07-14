@@ -20,7 +20,7 @@ Higress Envoy 已扩展 Proxy-Wasm Redis hostcall，支持 RedisInit、DispatchR
 
 已经验证官方 Higress gateway:v2.2.3 镜像包含 Envoy 1.36.4，二进制位于 /usr/local/bin/envoy，当前 Ingate bootstrap 可以通过该二进制的配置校验。第一阶段使用未经修改的官方 Higress Envoy，不维护 Envoy fork。
 
-Higress proxy-wasm-go-sdk 的 v1.0.1 tag 尚未实现 Redis callout 测试驱动。本阶段固定到 commit 662ed045bf0b58eb0ab67ba9954ae2fa65343072 或包含同等 Redis proxytest 能力的后续稳定版本，不使用缺少 callout ID、调用记录和 callback 驱动的旧 tag。
+Higress proxy-wasm-go-sdk 的 v1.0.1 tag 尚未实现 Redis callout 测试驱动。本阶段固定到 Go pseudo-version v0.0.0-20260525073613-662ed045bf0b（commit 662ed045bf0b58eb0ab67ba9954ae2fa65343072）或包含同等 Redis proxytest 能力的后续稳定版本，不使用缺少 callout ID、调用记录和 callback 驱动的旧 tag。
 
 ## 决策
 
@@ -137,7 +137,7 @@ Redis cluster 至少包含：
     Redis runtime client = ingate.redis.client.<完整十六进制 digest>
     Envoy cluster = ingate.redis.cluster.<完整十六进制 digest>
 
-identity input 使用固定字段顺序和无歧义长度编码。RedisStore 配置变化时产生新名称，使多个 Gateway 的 RuntimeSnapshot 在逐步收敛期间可以同时携带新旧 cluster；相同有效配置仍会稳定去重。固定前缀把 Redis runtime 资源与普通 Upstream 名称区分开，完整 digest 避免有损字符替换导致的静默碰撞。这些名称只属于 xDS target，不进入 Admin API 或核心资源协议。
+identity input 使用固定字段顺序和无歧义长度编码。RedisStore 配置变化时产生新名称，使多个 Gateway 的 RuntimeSnapshot 在逐步收敛期间可以同时携带新旧 cluster；相同 RedisStore ID 和相同有效配置会稳定去重。不同 RedisStore ID 即使连接配置相同也保持独立 identity，避免一个资源的后续修改影响另一个资源。固定前缀把 Redis runtime 资源与普通 Upstream 名称区分开，完整 digest 避免有损字符替换导致的静默碰撞。这些名称只属于 xDS target，不进入 Admin API 或核心资源协议。
 
 xDS server 构建 CDS 时必须检查全局名称冲突：
 
@@ -167,6 +167,7 @@ v2 不再包含 DataPlane、HTTP path 或 ingate-dataplane cluster。Global poli
 - PoolSize 或 MinIdleConns 非零时返回明确错误，因为 Higress hostcall 不能等价映射这些参数
 - DB 必须在 0 到 math.MaxInt32 范围内
 - ConnectTimeoutMillis 和 CommandTimeoutMillis 必须在 0 到 math.MaxUint32 范围内
+- RateLimitPolicy Global.TimeoutMillis 必须在 0 到 math.MaxUint32 范围内
 - 地址使用 net.SplitHostPort 解析，端口必须在 1 到 65535 范围内，IPv6 必须使用带方括号形式
 
 错误必须包含 RedisStore ID 和不支持的字段或模式，方便 controller 状态和日志定位。
@@ -197,9 +198,11 @@ TLS 由 xDS server 在 Redis Envoy cluster 上生成 upstream TLS transport sock
 
 - TLSServerName 非空时作为 effective TLS server name
 - TLSServerName 为空时从 Redis 地址 host 派生 effective TLS server name
-- UpstreamTlsContext.Sni 使用 effective TLS server name
+- effective TLS server name 是 DNS 名称时，UpstreamTlsContext.Sni 使用该名称，并生成 DNS 类型的精确 SAN matcher
+- DNS SAN matcher 以请求的完整主机名为 exact 值，由 Envoy 执行标准 DNS 主机名校验，包括合法的通配符证书匹配
+- effective TLS server name 是 IPv4 或 IPv6 地址时，不发送 SNI，并生成 IP_ADDRESS 类型的精确 SAN matcher
 - CommonTlsContext.ValidationContext.TrustedCa 使用 all-in-one 中的系统 CA bundle
-- MatchTypedSubjectAltNames 必须匹配 effective TLS server name，不能只配置 SNI 或只验证 CA 链
+- MatchTypedSubjectAltNames 必须按上述 DNS 或 IP 类型匹配 effective TLS server name，不能只配置 SNI 或只验证 CA 链
 - TLS 配置不进入插件 JSON
 
 TLS 测试必须包含配置单元测试和真实连接测试。真实连接测试至少覆盖受信任且 SAN 匹配时成功，以及 SAN 不匹配时连接被拒绝。
@@ -345,7 +348,9 @@ ratelimit.wasm 和 acl.wasm 继续安装在 /opt/ingate/plugins。
 
 ### 真实 E2E
 
-新增独立 E2E 脚本，在隔离的 Docker network 中启动官方 Higress Envoy all-in-one 镜像、真实 Redis Standalone 和测试 Upstream。脚本负责创建资源、发送请求、收集 Envoy 日志并清理临时容器，不把 Redis 加入 all-in-one 的生产进程集合。
+新增独立 E2E 脚本，在隔离的 Docker network 中启动 Ingate all-in-one 镜像、真实 Redis Standalone 和测试 Upstream。该 Ingate 镜像使用从官方 Higress gateway:v2.2.3 复制的 Envoy 二进制，不直接运行官方 Higress gateway 容器。脚本负责创建资源、发送请求、收集 Envoy 日志并清理临时容器，不把 Redis 加入 all-in-one 的生产进程集合。
+
+TLS E2E 生成一次性测试 CA 和服务端证书，并构建仅用于测试的派生 Ingate 镜像，把测试 CA 加入系统 CA bundle。生产镜像和 RedisStore 产品协议不增加测试 CA 开关。正确证书使用 Docker network DNS 名称作为 SAN；错误证书使用不匹配的 SAN 验证拒绝路径。
 
 至少验证：
 
