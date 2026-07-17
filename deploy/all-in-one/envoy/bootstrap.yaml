@@ -19,9 +19,13 @@ dynamic_resources:
 static_resources:
   clusters:
     - name: ingate_xds
-      type: STRICT_DNS
+      type: STATIC
       connect_timeout: 1s
-      http2_protocol_options: {}
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
       load_assignment:
         cluster_name: ingate_xds
         endpoints:
@@ -31,6 +35,18 @@ static_resources:
                     socket_address:
                       address: 127.0.0.1
                       port_value: 18000
+    - name: ingate-system-redis
+      type: STATIC
+      connect_timeout: 1s
+      load_assignment:
+        cluster_name: ingate-system-redis
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: 6379
 
 admin:
   address:

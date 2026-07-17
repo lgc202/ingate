@@ -1,38 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [[ -f /etc/ingate/default.env ]]; then
-	set -a
-	# shellcheck disable=SC1091
-	source /etc/ingate/default.env
-	set +a
-fi
-
 DATA_DIR="${INGATE_DATA_DIR:-/var/lib/ingate}"
 LOG_DIR="${INGATE_LOG_DIR:-/var/log/ingate}"
-APISERVER_ADDR="${INGATE_APISERVER_ADDR:-127.0.0.1:18443}"
-ETCD_ADDR="${INGATE_ETCD_ADDR:-127.0.0.1:2379}"
-XDS_ADDR="${INGATE_XDS_ADDR:-127.0.0.1:18000}"
-CONSOLE_ADDR="${INGATE_CONSOLE_ADDR:-0.0.0.0:8001}"
-HTTPBIN_ADDR="${INGATE_HTTPBIN_ADDR:-127.0.0.1:19090}"
-DATAPLANE_ADDR="${INGATE_DATAPLANE_ADDR:-127.0.0.1:18081}"
+APISERVER_ADDR="127.0.0.1:18443"
+ETCD_ADDR="127.0.0.1:2379"
+CONTROLLER_XDS_ADDR="127.0.0.1:18000"
+CONTROLLER_INTERNAL_ADDR="127.0.0.1:18080"
+CONTROLLER_ACK_TIMEOUT="${INGATE_CANDIDATE_ACK_TIMEOUT:-30s}"
+CONTROLLER_NACK_ROLLBACK_TIMEOUT="${INGATE_NACK_ROLLBACK_TIMEOUT:-3s}"
+CONTROLLER_RESYNC_PERIOD="${INGATE_RESYNC_PERIOD:-0s}"
+CONTROLLER_STATUS_TIMEOUT="500ms"
 KUBECONFIG_FILE="/etc/ingate/kubeconfig"
 
-pids=()
+all_pids=()
+critical_pids=()
 
-mkdir -p "$DATA_DIR/etcd" "$DATA_DIR/runtime" "$DATA_DIR/certs" "$LOG_DIR"
+mkdir -p "$DATA_DIR/etcd" "$DATA_DIR/redis" "$DATA_DIR/certs" "$LOG_DIR"
 
 start_bg() {
-	local name="$1"
-	shift
+	local role="$1"
+	local name="$2"
+	shift 2
 	echo "starting $name"
 	"$@" >"$LOG_DIR/$name.log" 2>&1 &
-	pids+=("$!")
+	local pid="$!"
+	all_pids+=("$pid")
+	if [[ "$role" == "critical" ]]; then
+		critical_pids+=("$pid")
+	fi
 }
 
 stop_all() {
 	local pid
-	for pid in "${pids[@]}"; do
+	for pid in "${all_pids[@]}"; do
 		kill "$pid" 2>/dev/null || true
 	done
 	wait || true
@@ -53,16 +54,38 @@ wait_tcp() {
 	return 1
 }
 
-trap stop_all INT TERM
+wait_http() {
+	local name="$1"
+	local url="$2"
+	local i
+	for i in $(seq 1 60); do
+		if curl -fsS "$url" >/dev/null 2>&1; then
+			return 0
+		fi
+		sleep 1
+	done
+	echo "timeout waiting for $name at $url" >&2
+	return 1
+}
 
-start_bg etcd etcd \
+handle_signal() {
+	exit 0
+}
+
+trap stop_all EXIT
+trap handle_signal INT TERM
+
+start_bg critical etcd etcd \
 	--data-dir "$DATA_DIR/etcd" \
 	--listen-client-urls "http://$ETCD_ADDR" \
 	--advertise-client-urls "http://$ETCD_ADDR"
 
 wait_tcp etcd 127.0.0.1 2379
 
-start_bg ingate-apiserver ingate-apiserver \
+start_bg auxiliary redis redis-server /etc/ingate/redis/redis.conf \
+	--dir "$DATA_DIR/redis"
+
+start_bg critical ingate-apiserver ingate-apiserver \
 	--bind-address 127.0.0.1 \
 	--secure-port 18443 \
 	--cert-dir "$DATA_DIR/certs" \
@@ -90,40 +113,28 @@ users:
   user: {}
 EOF
 
-start_bg ingate-controller ingate-controller \
+start_bg critical ingate-controller ingate-controller \
 	--kubeconfig "$KUBECONFIG_FILE" \
-	--target xds
+	--xds-listen-address "$CONTROLLER_XDS_ADDR" \
+	--internal-listen-address "$CONTROLLER_INTERNAL_ADDR" \
+	--candidate-ack-timeout "$CONTROLLER_ACK_TIMEOUT" \
+	--nack-rollback-timeout "$CONTROLLER_NACK_ROLLBACK_TIMEOUT" \
+	--resync-period "$CONTROLLER_RESYNC_PERIOD"
 
-start_bg ingate-xds ingate-xds \
-	--listen-address "$XDS_ADDR" \
-	--kubeconfig "$KUBECONFIG_FILE" \
-	--target xds
+wait_http ingate-controller "http://$CONTROLLER_INTERNAL_ADDR/readyz"
 
-wait_tcp ingate-xds 127.0.0.1 18000
-
-HTTPBIN_HOST="${HTTPBIN_ADDR%:*}"
-HTTPBIN_PORT="${HTTPBIN_ADDR##*:}"
-start_bg ingate-httpbin ingate-httpbin \
-	-host "$HTTPBIN_HOST" \
-	-port "$HTTPBIN_PORT" \
-	-log-format json
-
-wait_tcp ingate-httpbin "$HTTPBIN_HOST" "$HTTPBIN_PORT"
-
-start_bg ingate-dataplane ingate-dataplane \
-	--listen-address "$DATAPLANE_ADDR"
-
-DATAPLANE_HOST="${DATAPLANE_ADDR%:*}"
-DATAPLANE_PORT="${DATAPLANE_ADDR##*:}"
-wait_tcp ingate-dataplane "$DATAPLANE_HOST" "$DATAPLANE_PORT"
-
-start_bg envoy envoy \
+start_bg critical envoy envoy \
 	-c /etc/ingate/envoy/bootstrap.yaml
 
-start_bg ingate-admin-api ingate-admin-api \
-	--listen-address "$CONSOLE_ADDR" \
+start_bg critical ingate-admin-api ingate-admin-api \
+	--listen-address 0.0.0.0:8001 \
 	--kubeconfig "$KUBECONFIG_FILE" \
+	--controller-status-url "http://$CONTROLLER_INTERNAL_ADDR" \
+	--controller-status-timeout "$CONTROLLER_STATUS_TIMEOUT" \
 	--console-dir /opt/ingate/console
 
-wait -n
-stop_all
+set +e
+wait -n "${critical_pids[@]}"
+status="$?"
+set -e
+exit "$status"
