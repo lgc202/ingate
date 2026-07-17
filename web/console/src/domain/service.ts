@@ -62,15 +62,6 @@ export interface ServiceHealthCheck {
   timeoutSeconds?: number;
 }
 
-export interface ServiceMutationPreview {
-  title: string;
-  subtitle: string;
-  diffs: {
-    before: string;
-    after: string;
-  }[];
-}
-
 export interface ServiceMutationResult {
   message: string;
   changeId?: string;

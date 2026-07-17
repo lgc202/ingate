@@ -73,15 +73,6 @@ export interface RoutePolicyParam {
   max?: number;
 }
 
-export interface RoutePublishPreview {
-  title: string;
-  subtitle: string;
-  diffs: {
-    before: string;
-    after: string;
-  }[];
-}
-
 export interface RoutePageView {
   routes: RouteResource[];
   composer: RouteComposerPreview;
@@ -137,8 +128,6 @@ export interface RouteRetry {
   attempts: number;
   perTryTimeoutMillis: number;
 }
-
-export type RoutePublishPayload = RouteMutationPayload;
 
 export interface RouteActionResult {
   message: string;

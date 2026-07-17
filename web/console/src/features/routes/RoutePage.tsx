@@ -17,7 +17,7 @@ import {
 import { serviceTypeLabel } from '@/domain/service';
 import type { RouteComposerDraft } from './composer';
 import {
-  buildRoutePublishPayload,
+  buildRouteMutationPayload,
   createRouteComposerDraft,
   formatTargetServices,
   normalizeHostnames,
@@ -123,7 +123,7 @@ export function RoutePage() {
   const hasActiveFilters = Boolean(filters.keyword.trim() || filters.gatewayName !== 'all' || filters.serviceName !== 'all' || filters.enabled !== 'all');
   const draft = draftState ?? createRouteComposerDraft(routeWorkspace.composer);
   const validation = validateRouteComposerDraft(draft);
-  const publishPayload = buildRoutePublishPayload(draft);
+  const mutationPayload = buildRouteMutationPayload(draft);
   const activeValidation = serverValidation ?? validation;
 
   const handleDraftChange = (nextDraft: RouteComposerDraft) => {
@@ -255,7 +255,7 @@ export function RoutePage() {
       return;
     }
 
-    const validationResult = await consoleRepository.validateRouteDraft(publishPayload);
+    const validationResult = await consoleRepository.validateRouteDraft(mutationPayload);
     setServerValidation(validationResult);
 
     if (!validationResult.valid) {
@@ -264,9 +264,9 @@ export function RoutePage() {
 
     setSubmitting(true);
     try {
-      const result = await consoleRepository.saveRouteDraft(publishPayload);
+      const result = await consoleRepository.saveRouteDraft(mutationPayload);
       await workspace.reload();
-      setSelectedRouteId(result.changeId ?? publishPayload.id ?? '');
+      setSelectedRouteId(result.changeId ?? mutationPayload.id ?? '');
       setNotice({ message: result.message, tone: 'success' });
       setMode('list');
     } catch (error) {

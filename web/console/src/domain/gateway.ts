@@ -5,8 +5,6 @@ export interface Gateway {
   version?: string;
   name: string;
   description: string;
-  runtimeGroup: string;
-  runtimeGroupName: string;
   listeners: GatewayListener[];
   hostBindings: GatewayHostBinding[];
   enabled: boolean;
@@ -40,19 +38,8 @@ export interface GatewayCertificateOption {
   status: string;
 }
 
-export interface GatewayRuntimeGroupOption {
-  id: string;
-  name: string;
-}
-
 export interface GatewayListView {
   gateways: Gateway[];
-}
-
-export interface GatewayWorkspace {
-  gateways: Gateway[];
-  runtimeGroups: GatewayRuntimeGroupOption[];
-  certificates: GatewayCertificateOption[];
 }
 
 export interface GatewayMutationPayload {
@@ -60,18 +47,8 @@ export interface GatewayMutationPayload {
   version?: string;
   name: string;
   description: string;
-  runtimeGroup: string;
   listeners: GatewayListener[];
   hostBindings: GatewayHostBinding[];
-}
-
-export interface GatewayMutationPreview {
-  title: string;
-  subtitle: string;
-  diffs: {
-    before: string;
-    after: string;
-  }[];
 }
 
 export interface GatewayMutationResult {

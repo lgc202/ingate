@@ -47,7 +47,7 @@ export function SettingsPage() {
   }
 
   const dataSectionKey = dataSectionMap[section] ?? 'users-roles';
-  const activeSection = settings.data.sections[dataSectionKey] ?? settings.data.sections['users-roles'] ?? settings.data.sections.environment;
+  const activeSection = settings.data.sections[dataSectionKey] ?? settings.data.sections['users-roles'];
 
   return (
     <PageFrame
@@ -199,17 +199,17 @@ function KeyValuePanel({ title, values }: { title: string; values: SettingsSecti
 function SettingInspector({ inspector }: { inspector: SettingsInspectorData }) {
   return (
     <>
-      <Panel title="当前环境详情">
+      <Panel title="当前配置域">
         <div className="kv">
-          {inspector.environment.flatMap((item) => [
+          {inspector.configurationDomain.flatMap((item) => [
             <div key={`${item.label}-label`}>{item.label}</div>,
             <div key={`${item.label}-value`}>{item.status ? <Badge tone={statusTone(item.status)}>{item.value}</Badge> : item.value}</div>,
           ])}
         </div>
       </Panel>
-      <Panel title="数据面组健康">
+      <Panel title="Envoy 实例健康">
         <div className="drawer-list">
-          {inspector.dataPlaneHealth.map((item) => (
+          {inspector.envoyHealth.map((item) => (
             <div className="mini-card" key={item.label}>
               <div className="legend-row">
                 <span>{item.label}</span>
