@@ -3,6 +3,7 @@ package reconcile
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -136,14 +137,19 @@ func (r *Reconciler) reconcile(ctx context.Context) error {
 
 	result := r.compiler.Compile(resources)
 	r.runtime.UpdateDiagnostics(result.Diagnostics)
-	if err := r.statuses.ApplyDiagnostics(ctx, resources, result.Diagnostics); err != nil {
-		return err
-	}
+
+	var deliveryErr error
 	if result.HasErrors() {
-		return nil
+		if err := r.delivery.CancelCandidate(ctx); err != nil {
+			deliveryErr = fmt.Errorf("cancel pending Envoy configuration after compile errors: %w", err)
+		}
+	} else if err := r.delivery.Submit(ctx, result); err != nil {
+		deliveryErr = fmt.Errorf("submit Envoy configuration %q: %w", result.Version, err)
 	}
-	if err := r.delivery.Submit(ctx, result); err != nil {
-		return fmt.Errorf("submit Envoy configuration %q: %w", result.Version, err)
+
+	statusErr := r.statuses.ApplyDiagnostics(ctx, resources, result.Diagnostics)
+	if statusErr != nil {
+		statusErr = fmt.Errorf("apply resource diagnostics: %w", statusErr)
 	}
-	return nil
+	return errors.Join(deliveryErr, statusErr)
 }

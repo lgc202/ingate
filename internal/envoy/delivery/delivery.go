@@ -106,6 +106,11 @@ func (d *Delivery) Submit(ctx context.Context, result config.CompileResult) erro
 	})
 }
 
+// CancelCandidate 取消尚未成为 Active 的配置，并恢复当前 Active 或空 Baseline
+func (d *Delivery) CancelCandidate(ctx context.Context) error {
+	return d.call(ctx, command{kind: commandCancelCandidate})
+}
+
 // HandleXDSEvent 将一个 xDS stream 或 ACK/NACK 事件同步交给 Delivery
 //
 // NACK 的排队和回滚总时间受 NACKRollbackTimeout 限制，超时错误应由 xDS 用于关闭 stream
@@ -215,6 +220,8 @@ func (d *Delivery) handleCommand(ctx context.Context, command command) error {
 	switch command.kind {
 	case commandSubmit:
 		return d.handleSubmit(ctx, command.result, command.compileHasErrors)
+	case commandCancelCandidate:
+		return d.handleCancelCandidate(ctx)
 	case commandXDSEvent:
 		return d.handleXDSEvent(ctx, command.event)
 	case commandACKTimeout:
@@ -232,14 +239,14 @@ func (d *Delivery) handleSubmit(ctx context.Context, result config.CompileResult
 	if result.Version == "" {
 		return fmt.Errorf("%w: version is empty", ErrInvalidCompileResult)
 	}
-	if d.state.rejected[result.Version] {
-		return nil
-	}
 	if d.state.active != nil && d.state.active.version == result.Version {
-		if configsEqual(d.state.active.config, result.Config) {
+		if !configsEqual(d.state.active.config, result.Config) {
+			return fmt.Errorf("%w: active version %q", ErrVersionConflict, result.Version)
+		}
+		if d.state.candidate == nil && d.state.rollbackError == "" {
 			return nil
 		}
-		return fmt.Errorf("%w: active version %q", ErrVersionConflict, result.Version)
+		return d.restoreFallback(ctx, "restore active configuration after candidate cancellation")
 	}
 	if d.state.candidate != nil && d.state.candidate.version == result.Version {
 		if configsEqual(d.state.candidate.config, result.Config) {
@@ -263,6 +270,13 @@ func (d *Delivery) handleSubmit(ctx context.Context, result config.CompileResult
 	return nil
 }
 
+func (d *Delivery) handleCancelCandidate(ctx context.Context) error {
+	if d.state.candidate == nil && d.state.rollbackError == "" {
+		return nil
+	}
+	return d.restoreFallback(ctx, "cancel candidate after desired configuration changed")
+}
+
 func (d *Delivery) setCandidate(result config.CompileResult, snapshot *cachev3.Snapshot) {
 	if d.state.candidate != nil && d.state.candidate.timer != nil {
 		d.state.candidate.timer.Stop()
@@ -281,7 +295,6 @@ func (d *Delivery) setCandidate(result config.CompileResult, snapshot *cachev3.S
 	d.state.ackTimedOut = false
 	d.state.nackCount = 0
 	d.state.rollbackError = ""
-	d.state.activeNACK = false
 
 	activeVersion := ""
 	if d.state.active != nil {
@@ -315,6 +328,7 @@ func (d *Delivery) handleXDSEvent(ctx context.Context, event xds.Event) error {
 		return nil
 	case xds.EventStreamClosed:
 		delete(d.state.streams, event.StreamID)
+		delete(d.state.activeNACKs, event.StreamID)
 		return nil
 	case xds.EventResponseSent:
 		d.handleResponseSent(event)
@@ -339,7 +353,9 @@ func (d *Delivery) handleResponseSent(event xds.Event) {
 	if !ok {
 		return
 	}
-	stream.progress(event.Version).sent[event.TypeURL] = true
+	progress := stream.progress(event.Version)
+	progress.sent[event.TypeURL] = true
+	progress.acked[event.TypeURL] = false
 	if !currentCandidate {
 		return
 	}
@@ -374,6 +390,9 @@ func (d *Delivery) handleACK(event xds.Event) {
 		return
 	}
 	progress.acked[event.TypeURL] = true
+	if currentActive && stream.fullyACKed(event.Version, configTypeURLs(d.state.active.config)) {
+		delete(d.state.activeNACKs, event.StreamID)
+	}
 	if !currentCandidate || !stream.fullyACKed(event.Version, d.state.candidate.requiredTypes) {
 		return
 	}
@@ -394,7 +413,7 @@ func (d *Delivery) activateCandidate() {
 	d.state.candidate = nil
 	d.state.ackTimedOut = false
 	d.state.rollbackError = ""
-	d.state.activeNACK = false
+	clear(d.state.activeNACKs)
 	d.state.pruneProgress(candidate.version)
 }
 
@@ -425,33 +444,13 @@ func (d *Delivery) handleNACK(ctx context.Context, event xds.Event) error {
 		Time:    time.Now().UTC(),
 		Message: message,
 	}
+	progress.acked[event.TypeURL] = false
 	if !currentCandidate {
-		d.state.activeNACK = true
+		d.state.activeNACKs[event.StreamID] = true
 		return nil
 	}
 
-	candidate := d.state.candidate
-	if candidate.timer != nil {
-		candidate.timer.Stop()
-	}
-	d.state.rejected[candidate.version] = true
-	d.state.candidate = nil
-	d.state.ackTimedOut = false
-
-	fallback := d.baseline
-	activeVersion := ""
-	if d.state.active != nil {
-		fallback = d.state.active.snapshot
-		activeVersion = d.state.active.version
-	}
-	d.state.pruneProgress(activeVersion)
-	// SetSnapshot 必须在 NACK command reply 前完成，避免标准 server 继续从坏版本重建 watch
-	if err := d.cache.SetSnapshot(ctx, xds.CacheKey, fallback); err != nil {
-		d.state.rollbackError = summarizeError(err)
-		return fmt.Errorf("rollback rejected candidate %q: %w", candidate.version, err)
-	}
-	d.state.rollbackError = ""
-	return nil
+	return d.restoreFallback(ctx, fmt.Sprintf("rollback rejected candidate %q", d.state.candidate.version))
 }
 
 func (d *Delivery) handleACKTimeout(version string, sequence uint64) {
@@ -462,4 +461,29 @@ func (d *Delivery) handleACKTimeout(version string, sequence uint64) {
 	candidate.timer = nil
 	candidate.responseSeen = true
 	d.state.ackTimedOut = true
+}
+
+func (d *Delivery) restoreFallback(ctx context.Context, operation string) error {
+	if d.state.candidate != nil && d.state.candidate.timer != nil {
+		d.state.candidate.timer.Stop()
+	}
+
+	fallback := d.baseline
+	fallbackVersion := BaselineVersion
+	if d.state.active != nil {
+		fallback = d.state.active.snapshot
+		fallbackVersion = d.state.active.version
+	}
+
+	// SetSnapshot 必须在 command reply 前完成，避免标准 server 继续从已撤回版本重建 watch
+	err := d.cache.SetSnapshot(ctx, xds.CacheKey, fallback)
+	d.state.candidate = nil
+	d.state.ackTimedOut = false
+	d.state.pruneProgress(fallbackVersion)
+	if err != nil {
+		d.state.rollbackError = summarizeError(err)
+		return fmt.Errorf("%s: %w", operation, err)
+	}
+	d.state.rollbackError = ""
+	return nil
 }

@@ -140,13 +140,14 @@ func (c *Callbacks) OnStreamRequest(streamID int64, request *discoveryv3.Discove
 
 // OnStreamResponse 记录 go-control-plane 已生成的最终 nonce 和 version
 func (c *Callbacks) OnStreamResponse(
-	ctx context.Context,
+	_ context.Context,
 	streamID int64,
 	_ *discoveryv3.DiscoveryRequest,
 	response *discoveryv3.DiscoveryResponse,
 ) {
 	c.mu.Lock()
 	nodeID := c.streamNodes[streamID]
+	streamCtx := c.streamContexts[streamID]
 	sent := sentResponse{
 		nodeID:  nodeID,
 		version: response.GetVersionInfo(),
@@ -155,8 +156,11 @@ func (c *Callbacks) OnStreamResponse(
 	c.sent[sentKey{streamID: streamID, typeURL: response.GetTypeUrl()}] = sent
 	c.mu.Unlock()
 
+	if streamCtx == nil {
+		streamCtx = context.Background()
+	}
 	// SotW response callback 没有错误返回值，只能忽略 sink 返回错误
-	_ = c.sink(ctx, Event{
+	_ = c.sink(streamCtx, Event{
 		Kind:     EventResponseSent,
 		StreamID: streamID,
 		NodeID:   nodeID,
