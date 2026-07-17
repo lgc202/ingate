@@ -28,7 +28,7 @@ func CurrentRouteIdentity(prefix string) (RouteIdentity, bool) {
 	return ParseRouteName(prefix, string(rawRouteName))
 }
 
-// ParseRouteName 解析 Ingate xDS target 生成的 route name
+// ParseRouteName 解析 Envoy Config Compiler 生成的 route name
 func ParseRouteName(prefix, value string) (RouteIdentity, bool) {
 	parts := strings.Split(value, "/")
 	if len(parts) < 4 || parts[0] != prefix {
