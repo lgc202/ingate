@@ -8,8 +8,6 @@ type Protocol string
 const (
 	// ProtocolHTTP 表示普通 HTTP 流量
 	ProtocolHTTP Protocol = "HTTP"
-	// ProtocolHTTPS 表示 HTTPS 流量
-	ProtocolHTTPS Protocol = "HTTPS"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -59,11 +57,5 @@ type Listener struct {
 type HostBinding struct {
 	Hostname string `json:"hostname,omitempty"`
 	// +listType=atomic
-	ListenerRefs []string    `json:"listenerRefs,omitempty"`
-	TLS          *GatewayTLS `json:"tls,omitempty"`
-}
-
-// GatewayTLS 声明域名绑定使用的 TLS 证书引用
-type GatewayTLS struct {
-	CertificateRef string `json:"certificateRef,omitempty"`
+	ListenerRefs []string `json:"listenerRefs,omitempty"`
 }

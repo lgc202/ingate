@@ -547,7 +547,6 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
   const invalidHostnames = hostnames.filter((hostname) => !isValidHostname(hostname));
   const ports = payload.listeners.map((listener) => String(listener.port)).filter(Boolean);
   const duplicatePorts = ports.filter((port, index) => ports.indexOf(port) !== index);
-  const httpsWithoutCertificate = payload.listeners.filter((listener) => listener.protocol === 'HTTPS' && !listener.certificateId);
   const items: GatewayValidationReport['items'] = [
     {
       label: '网关名称',
@@ -555,18 +554,13 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
       message: payload.name.trim() ? payload.name.trim() : '请输入网关名称',
     },
     {
-      label: '监听器',
+      label: '运行入口',
       status: payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0) && duplicatePorts.length === 0 ? 'healthy' : 'critical',
       message: duplicatePorts.length > 0
         ? `端口重复：${Array.from(new Set(duplicatePorts)).join('、')}`
         : payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0)
           ? payload.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ')
           : '至少配置一个监听器，并填写端口',
-    },
-    {
-      label: 'HTTPS 证书',
-      status: httpsWithoutCertificate.length > 0 ? 'critical' : 'healthy',
-      message: httpsWithoutCertificate.length > 0 ? 'HTTPS 监听器必须选择证书' : '证书配置满足要求',
     },
     {
       label: 'Host 策略',

@@ -148,14 +148,10 @@ func gatewaySpec(params GatewayParams, enabled bool) resource.GatewaySpec {
 
 	resourceHostBindings := make([]resource.HostBinding, 0, len(params.HostBindings))
 	for _, item := range params.HostBindings {
-		binding := resource.HostBinding{
+		resourceHostBindings = append(resourceHostBindings, resource.HostBinding{
 			Hostname:     item.Hostname,
 			ListenerRefs: append([]string(nil), item.ListenerRefs...),
-		}
-		if item.CertificateRef != "" {
-			binding.TLS = &resource.GatewayTLS{CertificateRef: item.CertificateRef}
-		}
-		resourceHostBindings = append(resourceHostBindings, binding)
+		})
 	}
 
 	return resource.GatewaySpec{

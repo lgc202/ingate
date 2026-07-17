@@ -166,12 +166,11 @@ const gatewayList: GatewayListView = {
       name: '公网入口',
       description: '公网 API 入口',
       listeners: [
-        { name: 'gw-public-https', protocol: 'HTTPS', port: 443, certificateId: 'cert-api-ingate' },
-        { name: 'gw-public-http', protocol: 'HTTP', port: 80 },
+        { name: 'gw-public-http', protocol: 'HTTP', port: 8080 },
       ],
       hostBindings: [
-        { hostname: 'api.ingate.io', listenerRefs: ['gw-public-https', 'gw-public-http'], tls: { certificateRef: 'cert-api-ingate' } },
-        { hostname: '*.api.ingate.io', listenerRefs: ['gw-public-https', 'gw-public-http'], tls: { certificateRef: 'cert-api-ingate' } },
+        { hostname: 'api.ingate.io', listenerRefs: ['gw-public-http'] },
+        { hostname: '*.api.ingate.io', listenerRefs: ['gw-public-http'] },
       ],
       enabled: true,
       createdAt: '2026-06-05T09:00:00Z',
@@ -181,10 +180,10 @@ const gatewayList: GatewayListView = {
       name: '合作方入口',
       description: '合作方 API 入口',
       listeners: [
-        { name: 'gw-partner-https', protocol: 'HTTPS', port: 10443, certificateId: 'cert-partner' },
+        { name: 'gw-partner-http', protocol: 'HTTP', port: 8080 },
       ],
       hostBindings: [
-        { hostname: 'partner.ingate.local', listenerRefs: ['gw-partner-https'], tls: { certificateRef: 'cert-partner' } },
+        { hostname: 'partner.ingate.local', listenerRefs: ['gw-partner-http'] },
       ],
       enabled: true,
       createdAt: '2026-06-05T08:40:00Z',
@@ -574,8 +573,6 @@ const settingsWorkspace: SettingsWorkspace = {
       { label: 'envoy-3', status: 'warning' },
     ],
     securityBaseline: [
-      { label: 'HTTPS 强制跳转', status: 'healthy' },
-      { label: '最小 TLS 版本 1.2+', status: 'healthy' },
       { label: '敏感字段脱敏', status: 'healthy' },
       { label: '访问令牌有效期 <= 24h', status: 'healthy' },
     ],
@@ -720,7 +717,6 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
   const invalidHostnames = hostnames.filter((hostname) => !isValidHostname(hostname));
   const ports = payload.listeners.map((listener) => String(listener.port)).filter(Boolean);
   const duplicatePorts = ports.filter((port, index) => ports.indexOf(port) !== index);
-  const httpsWithoutCertificate = payload.listeners.filter((listener) => listener.protocol === 'HTTPS' && !listener.certificateId);
   const items: GatewayValidationReport['items'] = [
     {
       label: '网关名称',
@@ -728,18 +724,13 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
       message: payload.name.trim() ? payload.name.trim() : '请输入网关名称',
     },
     {
-      label: '监听器',
+      label: '运行入口',
       status: payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0) && duplicatePorts.length === 0 ? 'healthy' : 'critical',
       message: duplicatePorts.length > 0
         ? `端口重复：${Array.from(new Set(duplicatePorts)).join('、')}`
         : payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0)
           ? payload.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ')
           : '至少配置一个监听器，并填写端口',
-    },
-    {
-      label: 'HTTPS 证书',
-      status: httpsWithoutCertificate.length > 0 ? 'critical' : 'healthy',
-      message: httpsWithoutCertificate.length > 0 ? 'HTTPS 监听器必须选择证书' : '证书配置满足要求',
     },
     {
       label: 'Host 策略',

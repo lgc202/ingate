@@ -4,16 +4,15 @@ import { consoleRepository } from '@/api/client';
 import { useResource } from '@/api/useResource';
 import { Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
-import type { Gateway, GatewayCertificateOption, GatewayListener, GatewayValidationReport } from '@/domain/gateway';
+import type { Gateway, GatewayListener, GatewayValidationReport } from '@/domain/gateway';
 import type { PolicyWorkspace } from '@/domain/policy';
 import { GovernanceBindingPanel } from '@/features/policies/GovernanceBindingPanel';
 import type { GatewayFormDraft } from './form';
 import {
   buildGatewayPayload,
   createGatewayDraft,
-  createGatewayListener,
   formatListeners,
-  gatewayEntryPort,
+  GATEWAY_ENTRY_PORT,
   hostnamesFromBindings,
   normalizeHostnames,
   parseHostnames,
@@ -29,7 +28,6 @@ const loadGatewayWorkspace = async () => {
 
   return {
     gateways: gatewayList.gateways,
-    certificates: [],
     policyWorkspace,
   };
 };
@@ -240,7 +238,6 @@ export function GatewayPage() {
             mode={panelMode}
             draft={draft}
             validation={activeValidation}
-            certificates={gateways.data.certificates}
             submitError={submitError}
             onDraftChange={updateDraft}
             onSubmit={handleGatewaySubmit}
@@ -309,7 +306,7 @@ export function GatewayPage() {
                     </td>
                     <td>
                       <div className="table-primary">{listenerSummary(gateway)}</div>
-                      <div className="table-secondary">{gateway.listeners.filter((listener) => listener.protocol === 'HTTPS').length} 个 HTTPS</div>
+                      <div className="table-secondary">{gateway.listeners.length} 个 HTTP 入口</div>
                     </td>
                     <td>
                       <div className="table-primary">{hostBindingSummary(gateway)}</div>
@@ -407,7 +404,6 @@ function GatewayFormPanel({
   mode,
   draft,
   validation,
-  certificates,
   submitError,
   onDraftChange,
   onSubmit,
@@ -416,7 +412,6 @@ function GatewayFormPanel({
   mode: GatewayPanelMode;
   draft: GatewayFormDraft;
   validation: GatewayValidationReport;
-  certificates: GatewayCertificateOption[];
   submitError: string | null;
   onDraftChange: (patch: Partial<GatewayFormDraft>) => void;
   onSubmit: () => void;
@@ -442,14 +437,11 @@ function GatewayFormPanel({
           <section className="form-section">
             <div className="form-section-title">
               <h3>运行入口</h3>
-              <p>选择这个网关承载的入口协议，端口由当前 all-in-one 运行入口固定。</p>
+              <p>Standalone 当前只提供 HTTP 入口，端口由 all-in-one 运行入口固定。</p>
             </div>
             <GatewayListenerEditor
               value={draft.listeners}
-              certificates={certificates}
               listenerError={fieldErrors.listeners}
-              certificateError={fieldErrors.certificate}
-              onChange={(listeners) => onDraftChange({ listeners })}
             />
           </section>
 
@@ -481,91 +473,33 @@ function gatewayFieldErrors(validation: GatewayValidationReport) {
   return {
     name: validation.items.find((item) => item.label === '网关名称' && item.status === 'critical')?.message,
     listeners: validation.items.find((item) => item.label === '运行入口' && item.status === 'critical')?.message,
-    certificate: validation.items.find((item) => item.label === 'HTTPS 证书' && item.status === 'critical')?.message,
     host: validation.items.find((item) => item.label === 'Host 策略' && item.status === 'critical')?.message,
   };
 }
 
 function GatewayListenerEditor({
   value,
-  certificates,
   listenerError,
-  certificateError,
-  onChange,
 }: {
   value: GatewayListener[];
-  certificates: GatewayCertificateOption[];
   listenerError?: string;
-  certificateError?: string;
-  onChange: (listeners: GatewayListener[]) => void;
 }) {
-  const updateListener = (listenerName: string, patch: Partial<GatewayListener>) => {
-    onChange(value.map((listener) => listener.name === listenerName ? { ...listener, ...patch } : listener));
-  };
-  const enabledProtocols = new Set(value.map((listener) => listener.protocol));
-  const missingProtocols = (['HTTP', 'HTTPS'] as GatewayListener['protocol'][]).filter((protocol) => !enabledProtocols.has(protocol));
-
-  const removeListener = (listenerName: string) => {
-    onChange(value.filter((listener) => listener.name !== listenerName));
-  };
-
   return (
     <div className="listener-editor">
       <div className="listener-grid listener-grid-head">
         <span>协议</span>
         <span>运行入口</span>
-        <span>证书</span>
-        <span>操作</span>
       </div>
       {value.map((listener) => (
         <div className="listener-grid" key={listener.name}>
-          <select
-            value={listener.protocol}
-            onChange={(event) => {
-              const protocol = event.target.value as GatewayListener['protocol'];
-              updateListener(listener.name, {
-                protocol,
-                port: gatewayEntryPort(protocol),
-                certificateId: protocol === 'HTTPS' ? listener.certificateId : undefined,
-              });
-            }}
-          >
-            <option value="HTTP" disabled={listener.protocol !== 'HTTP' && enabledProtocols.has('HTTP')}>HTTP</option>
-            <option value="HTTPS" disabled={listener.protocol !== 'HTTPS' && enabledProtocols.has('HTTPS')}>HTTPS</option>
-          </select>
+          <strong>{listener.protocol}</strong>
           <div className="fixed-entry-port">
-            <strong>{gatewayEntryPort(listener.protocol)}</strong>
-            <span>{listener.protocol === 'HTTPS' ? 'Gateway HTTPS' : 'Gateway HTTP'}</span>
+            <strong>{GATEWAY_ENTRY_PORT}</strong>
+            <span>Gateway HTTP</span>
           </div>
-          <select
-            value={listener.certificateId ?? ''}
-            disabled={listener.protocol !== 'HTTPS'}
-            className={listener.protocol === 'HTTPS' && !listener.certificateId ? 'invalid-control' : ''}
-            onChange={(event) => {
-              updateListener(listener.name, { certificateId: event.target.value || undefined });
-            }}
-          >
-            <option value="">选择证书</option>
-            {certificates.map((certificate) => (
-              <option key={certificate.id} value={certificate.id}>{certificate.name}</option>
-            ))}
-          </select>
-          <button
-            className="link-button danger"
-            type="button"
-            disabled={value.length <= 1}
-            title={value.length <= 1 ? '至少保留一个运行入口' : undefined}
-            onClick={() => removeListener(listener.name)}
-          >删除</button>
         </div>
       ))}
       {listenerError ? <div className="form-error">{listenerError}</div> : null}
-      {certificateError ? <div className="form-error">{certificateError}</div> : null}
-      {missingProtocols.length > 0 ? (
-        <button className="link-button" type="button" onClick={() => onChange([...value, createGatewayListener(missingProtocols[0])])}>
-          启用{missingProtocols[0]}入口
-        </button>
-      ) : null}
     </div>
   );
 }
@@ -695,7 +629,7 @@ function GatewayDetail({
           {gateway.listeners.map((listener) => (
             <div className="legend-row" key={listener.name}>
               <span>{listener.protocol}:{listener.port}</span>
-              <span className="mini-card-meta">{listener.protocol === 'HTTPS' ? gatewayCertificateRef(gateway, listener.name) ?? '未配置证书' : 'HTTP'}</span>
+              <span className="mini-card-meta">HTTP</span>
             </div>
           ))}
         </div>
@@ -725,8 +659,4 @@ function listenerSummary(gateway: Gateway) {
 function hostBindingSummary(gateway: Gateway) {
   const hostnames = gatewayHostnames(gateway);
   return hostnames.length > 0 ? hostnames.join('、') : '不限制 Host';
-}
-
-function gatewayCertificateRef(gateway: Gateway, listenerName: string) {
-  return gateway.hostBindings.find((binding) => binding.listenerRefs.includes(listenerName) && binding.tls?.certificateRef)?.tls?.certificateRef;
 }

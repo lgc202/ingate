@@ -53,14 +53,10 @@ func listeners(items []resource.Listener) []GatewayListener {
 
 func hostBindings(items []resource.HostBinding) []GatewayHostBinding {
 	return lo.Map(items, func(item resource.HostBinding, _ int) GatewayHostBinding {
-		binding := GatewayHostBinding{
+		return GatewayHostBinding{
 			Hostname:     item.Hostname,
 			ListenerRefs: append([]string(nil), item.ListenerRefs...),
 		}
-		if item.TLS != nil {
-			binding.TLS = &GatewayTLS{CertificateRef: item.TLS.CertificateRef}
-		}
-		return binding
 	})
 }
 

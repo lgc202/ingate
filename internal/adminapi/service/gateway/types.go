@@ -40,7 +40,6 @@ type ListenerParams struct {
 
 // HostBindingParams 是域名绑定用例参数
 type HostBindingParams struct {
-	Hostname       string
-	ListenerRefs   []string
-	CertificateRef string
+	Hostname     string
+	ListenerRefs []string
 }

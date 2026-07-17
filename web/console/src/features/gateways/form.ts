@@ -1,6 +1,5 @@
 import type {
   Gateway,
-  GatewayCertificateOption,
   GatewayHostBinding,
   GatewayListener,
   GatewayMutationPayload,
@@ -8,10 +7,7 @@ import type {
   GatewayValidationReport,
 } from '@/domain/gateway';
 
-export const GATEWAY_ENTRY_PORTS: Record<GatewayListener['protocol'], number> = {
-  HTTP: 8080,
-  HTTPS: 8443,
-};
+export const GATEWAY_ENTRY_PORT = 8080;
 
 export type GatewayHostMode = 'any' | 'specified';
 
@@ -33,17 +29,17 @@ export function createGatewayDraft(gateway?: Gateway | null): GatewayFormDraft {
     version: gateway?.version,
     name: gateway?.name ?? '',
     description: gateway?.description ?? '',
-    listeners: gateway?.listeners?.length ? listenersWithCertificates(gateway.listeners, gateway.hostBindings) : [createGatewayListener('HTTP')],
+    listeners: gateway?.listeners?.length ? gateway.listeners.map((listener) => ({ ...listener })) : [createGatewayListener()],
     hostMode: hostnames.length > 0 ? 'specified' : 'any',
     hostnames,
   };
 }
 
-export function createGatewayListener(protocol: GatewayListener['protocol'] = 'HTTP', port = gatewayEntryPort(protocol)): GatewayListener {
+export function createGatewayListener(): GatewayListener {
   return {
     name: `listener-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    protocol,
-    port,
+    protocol: 'HTTP',
+    port: GATEWAY_ENTRY_PORT,
   };
 }
 
@@ -51,9 +47,8 @@ export function validateGatewayDraft(draft: GatewayFormDraft): GatewayValidation
   const name = draft.name.trim();
   const normalizedHostnames = draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [];
   const invalidHostnames = normalizedHostnames.filter((hostname) => !isValidHostname(hostname));
-  const ports = draft.listeners.map((listener) => gatewayEntryPort(listener.protocol));
+  const ports = draft.listeners.map(() => GATEWAY_ENTRY_PORT);
   const duplicatePorts = ports.filter((port, index) => ports.indexOf(port) !== index);
-  const httpsWithoutCertificate = draft.listeners.filter((listener) => listener.protocol === 'HTTPS' && !listener.certificateId);
   const items: GatewayValidationItem[] = [
     {
       label: '网关名称',
@@ -68,11 +63,6 @@ export function validateGatewayDraft(draft: GatewayFormDraft): GatewayValidation
         : draft.listeners.length > 0
           ? formatListeners(draft.listeners)
           : '至少启用一个运行入口',
-    },
-    {
-      label: 'HTTPS 证书',
-      status: httpsWithoutCertificate.length > 0 ? 'critical' : 'healthy',
-      message: httpsWithoutCertificate.length > 0 ? 'HTTPS 监听器必须选择证书' : '证书配置满足要求',
     },
     {
       label: 'Host 策略',
@@ -99,8 +89,7 @@ export function buildGatewayPayload(draft: GatewayFormDraft): GatewayMutationPay
   const listeners = draft.listeners.map((listener) => ({
     name: listener.name,
     protocol: listener.protocol,
-    port: gatewayEntryPort(listener.protocol),
-    certificateId: listener.protocol === 'HTTPS' ? listener.certificateId : undefined,
+    port: GATEWAY_ENTRY_PORT,
   }));
 
   return {
@@ -115,22 +104,8 @@ export function buildGatewayPayload(draft: GatewayFormDraft): GatewayMutationPay
 
 export function formatListeners(listeners: GatewayListener[]) {
   return listeners
-    .map((listener) => `${listener.protocol}:${gatewayEntryPort(listener.protocol)}`)
+    .map((listener) => `${listener.protocol}:${GATEWAY_ENTRY_PORT}`)
     .join(' / ');
-}
-
-export function gatewayEntryPort(protocol: GatewayListener['protocol']) {
-  return GATEWAY_ENTRY_PORTS[protocol];
-}
-
-export function certificateCoverage(certificate: GatewayCertificateOption | undefined, hostnames: string[]) {
-  if (!certificate || hostnames.length === 0) {
-    return '不检查';
-  }
-
-  const uncovered = hostnames.filter((hostname) => !certificate.domains.some((domain) => matchesCertificateDomain(domain, hostname)));
-
-  return uncovered.length === 0 ? '已覆盖 Host' : `未覆盖：${uncovered.join('、')}`;
 }
 
 export function parseHostnames(input: string): string[] {
@@ -150,28 +125,13 @@ export function hostnamesFromBindings(bindings: GatewayHostBinding[]) {
 }
 
 function buildHostBindings(draft: GatewayFormDraft, listeners: GatewayListener[]): GatewayHostBinding[] {
-  const httpsListener = listeners.find((listener) => listener.protocol === 'HTTPS');
   const listenerRefs = listeners.map((listener) => listener.name);
   const hostnames = draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [''];
 
   return hostnames.map((hostname) => ({
     hostname: hostname || undefined,
     listenerRefs,
-    tls: httpsListener?.certificateId ? { certificateRef: httpsListener.certificateId } : undefined,
   }));
-}
-
-function listenersWithCertificates(listeners: GatewayListener[], bindings: GatewayHostBinding[]) {
-  return listeners.map((listener) => {
-    if (listener.protocol !== 'HTTPS') {
-      return listener;
-    }
-    const binding = bindings.find((item) => item.listenerRefs.includes(listener.name) && item.tls?.certificateRef);
-    return {
-      ...listener,
-      certificateId: binding?.tls?.certificateRef,
-    };
-  });
 }
 
 function isValidHostname(hostname: string): boolean {
@@ -184,12 +144,4 @@ function isValidHostname(hostname: string): boolean {
   return normalized
     .split('.')
     .every((part) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(part));
-}
-
-function matchesCertificateDomain(domain: string, hostname: string) {
-  if (domain.startsWith('*.')) {
-    return hostname.endsWith(domain.slice(1));
-  }
-
-  return domain === hostname;
 }

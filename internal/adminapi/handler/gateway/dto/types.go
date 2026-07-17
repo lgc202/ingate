@@ -33,14 +33,8 @@ type GatewayListener struct {
 
 // GatewayHostBinding 是控制台读写的域名绑定配置
 type GatewayHostBinding struct {
-	Hostname     string      `json:"hostname,omitempty"`
-	ListenerRefs []string    `json:"listenerRefs"`
-	TLS          *GatewayTLS `json:"tls,omitempty"`
-}
-
-// GatewayTLS 是控制台读写的 TLS 配置
-type GatewayTLS struct {
-	CertificateRef string `json:"certificateRef,omitempty"`
+	Hostname     string   `json:"hostname,omitempty"`
+	ListenerRefs []string `json:"listenerRefs"`
 }
 
 // Gateway 是 admin-api 面向控制台返回的 Gateway 对象，不直接暴露 CR 结构
