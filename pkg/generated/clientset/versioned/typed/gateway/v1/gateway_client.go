@@ -18,10 +18,7 @@ type GatewayV1Interface interface {
 	GatewaysGetter
 	PolicyBindingsGetter
 	RateLimitPoliciesGetter
-	RedisStoresGetter
 	RoutesGetter
-	RuntimeGroupsGetter
-	RuntimeSnapshotsGetter
 	UpstreamsGetter
 }
 
@@ -46,20 +43,8 @@ func (c *GatewayV1Client) RateLimitPolicies() RateLimitPolicyInterface {
 	return newRateLimitPolicies(c)
 }
 
-func (c *GatewayV1Client) RedisStores() RedisStoreInterface {
-	return newRedisStores(c)
-}
-
 func (c *GatewayV1Client) Routes() RouteInterface {
 	return newRoutes(c)
-}
-
-func (c *GatewayV1Client) RuntimeGroups() RuntimeGroupInterface {
-	return newRuntimeGroups(c)
-}
-
-func (c *GatewayV1Client) RuntimeSnapshots() RuntimeSnapshotInterface {
-	return newRuntimeSnapshots(c)
 }
 
 func (c *GatewayV1Client) Upstreams() UpstreamInterface {

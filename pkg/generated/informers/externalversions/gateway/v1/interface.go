@@ -18,14 +18,8 @@ type Interface interface {
 	PolicyBindings() PolicyBindingInformer
 	// RateLimitPolicies returns a RateLimitPolicyInformer.
 	RateLimitPolicies() RateLimitPolicyInformer
-	// RedisStores returns a RedisStoreInformer.
-	RedisStores() RedisStoreInformer
 	// Routes returns a RouteInformer.
 	Routes() RouteInformer
-	// RuntimeGroups returns a RuntimeGroupInformer.
-	RuntimeGroups() RuntimeGroupInformer
-	// RuntimeSnapshots returns a RuntimeSnapshotInformer.
-	RuntimeSnapshots() RuntimeSnapshotInformer
 	// Upstreams returns a UpstreamInformer.
 	Upstreams() UpstreamInformer
 }
@@ -61,24 +55,9 @@ func (v *version) RateLimitPolicies() RateLimitPolicyInformer {
 	return &rateLimitPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
-// RedisStores returns a RedisStoreInformer.
-func (v *version) RedisStores() RedisStoreInformer {
-	return &redisStoreInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
 // Routes returns a RouteInformer.
 func (v *version) Routes() RouteInformer {
 	return &routeInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// RuntimeGroups returns a RuntimeGroupInformer.
-func (v *version) RuntimeGroups() RuntimeGroupInformer {
-	return &runtimeGroupInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// RuntimeSnapshots returns a RuntimeSnapshotInformer.
-func (v *version) RuntimeSnapshots() RuntimeSnapshotInformer {
-	return &runtimeSnapshotInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Upstreams returns a UpstreamInformer.

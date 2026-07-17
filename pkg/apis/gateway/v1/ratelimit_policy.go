@@ -32,7 +32,6 @@ type RateLimitPolicySpec struct {
 	Mode        RateLimitMode `json:"mode"`
 	// +listType=atomic
 	Rules         []RateLimitRule        `json:"rules"`
-	Global        *GlobalRateLimitConfig `json:"global,omitempty"`
 	Response      RateLimitResponse      `json:"response,omitempty"`
 	FailurePolicy RateLimitFailurePolicy `json:"failurePolicy,omitempty"`
 }
@@ -62,13 +61,6 @@ type RateLimitQuota struct {
 	Requests      int `json:"requests"`
 	WindowSeconds int `json:"windowSeconds"`
 	Burst         int `json:"burst,omitempty"`
-}
-
-// GlobalRateLimitConfig 定义 Redis-backed global limit 配置
-type GlobalRateLimitConfig struct {
-	RedisRef      string `json:"redisRef"`
-	Prefix        string `json:"prefix,omitempty"`
-	TimeoutMillis int    `json:"timeoutMillis,omitempty"`
 }
 
 // RateLimitResponse 定义超限响应

@@ -8,8 +8,6 @@ type Kind string
 const (
 	// KindGateway 表示 Gateway 资源类型
 	KindGateway Kind = "Gateway"
-	// KindRuntimeGroup 表示 RuntimeGroup 资源类型
-	KindRuntimeGroup Kind = "RuntimeGroup"
 	// KindRoute 表示 Route 资源类型
 	KindRoute Kind = "Route"
 	// KindUpstream 表示 Upstream 资源类型
@@ -18,8 +16,6 @@ const (
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
 	// KindAccessControlPolicy 表示 AccessControlPolicy 资源类型
 	KindAccessControlPolicy Kind = "AccessControlPolicy"
-	// KindRedisStore 表示 RedisStore 资源类型
-	KindRedisStore Kind = "RedisStore"
 	// KindPolicyBinding 表示 PolicyBinding 资源类型
 	KindPolicyBinding Kind = "PolicyBinding"
 )
@@ -83,36 +79,6 @@ const (
 	// RateLimitFailurePolicyFailClose 表示限流执行失败时拒绝请求
 	RateLimitFailurePolicyFailClose RateLimitFailurePolicy = "FailClose"
 )
-
-// RedisMode 表示 Redis 部署模式
-type RedisMode string
-
-const (
-	// RedisModeStandalone 表示单实例 Redis
-	RedisModeStandalone RedisMode = "Standalone"
-	// RedisModeSentinel 表示 Redis Sentinel
-	RedisModeSentinel RedisMode = "Sentinel"
-	// RedisModeCluster 表示 Redis Cluster
-	RedisModeCluster RedisMode = "Cluster"
-)
-
-// Bundle 表示一次编译所需的资源集合
-type Bundle struct {
-	// +listType=atomic
-	Gateways []Gateway `json:"gateways"`
-	// +listType=atomic
-	Routes []Route `json:"routes"`
-	// +listType=atomic
-	Upstreams []Upstream `json:"upstreams"`
-	// +listType=atomic
-	RateLimitPolicies []RateLimitPolicy `json:"rateLimitPolicies"`
-	// +listType=atomic
-	AccessControlPolicies []AccessControlPolicy `json:"accessControlPolicies"`
-	// +listType=atomic
-	RedisStores []RedisStore `json:"redisStores"`
-	// +listType=atomic
-	PolicyBindings []PolicyBinding `json:"policyBindings"`
-}
 
 // ResourceStatus 表示声明式资源状态
 type ResourceStatus struct {

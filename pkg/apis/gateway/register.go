@@ -20,12 +20,6 @@ const (
 	ResourceGateways ResourceName = "gateways"
 	// ResourceGatewaysStatus 表示 Gateway status 子资源名
 	ResourceGatewaysStatus ResourceName = "gateways/status"
-	// ResourceRuntimeGroup 表示 RuntimeGroup 单数资源名
-	ResourceRuntimeGroup ResourceName = "runtimegroup"
-	// ResourceRuntimeGroups 表示 RuntimeGroup 复数资源名
-	ResourceRuntimeGroups ResourceName = "runtimegroups"
-	// ResourceRuntimeGroupsStatus 表示 RuntimeGroup status 子资源名
-	ResourceRuntimeGroupsStatus ResourceName = "runtimegroups/status"
 	// ResourceRoute 表示 Route 单数资源名
 	ResourceRoute ResourceName = "route"
 	// ResourceRoutes 表示 Route 复数资源名
@@ -38,10 +32,6 @@ const (
 	ResourceUpstreams ResourceName = "upstreams"
 	// ResourceUpstreamsStatus 表示 Upstream status 子资源名
 	ResourceUpstreamsStatus ResourceName = "upstreams/status"
-	// ResourceRuntimeSnapshot 表示 RuntimeSnapshot 单数资源名
-	ResourceRuntimeSnapshot ResourceName = "runtimesnapshot"
-	// ResourceRuntimeSnapshots 表示 RuntimeSnapshot 复数资源名
-	ResourceRuntimeSnapshots ResourceName = "runtimesnapshots"
 	// ResourceRateLimitPolicy 表示 RateLimitPolicy 单数资源名
 	ResourceRateLimitPolicy ResourceName = "ratelimitpolicy"
 	// ResourceRateLimitPolicies 表示 RateLimitPolicy 复数资源名
@@ -54,12 +44,6 @@ const (
 	ResourceAccessControlPolicies ResourceName = "accesscontrolpolicies"
 	// ResourceAccessControlPoliciesStatus 表示 AccessControlPolicy status 子资源名
 	ResourceAccessControlPoliciesStatus ResourceName = "accesscontrolpolicies/status"
-	// ResourceRedisStore 表示 RedisStore 单数资源名
-	ResourceRedisStore ResourceName = "redisstore"
-	// ResourceRedisStores 表示 RedisStore 复数资源名
-	ResourceRedisStores ResourceName = "redisstores"
-	// ResourceRedisStoresStatus 表示 RedisStore status 子资源名
-	ResourceRedisStoresStatus ResourceName = "redisstores/status"
 	// ResourcePolicyBinding 表示 PolicyBinding 单数资源名
 	ResourcePolicyBinding ResourceName = "policybinding"
 	// ResourcePolicyBindings 表示 PolicyBinding 复数资源名
@@ -86,8 +70,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Gateway{},
 		&GatewayList{},
-		&RuntimeGroup{},
-		&RuntimeGroupList{},
 		&Route{},
 		&RouteList{},
 		&Upstream{},
@@ -96,12 +78,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RateLimitPolicyList{},
 		&AccessControlPolicy{},
 		&AccessControlPolicyList{},
-		&RedisStore{},
-		&RedisStoreList{},
 		&PolicyBinding{},
 		&PolicyBindingList{},
-		&RuntimeSnapshot{},
-		&RuntimeSnapshotList{},
 	)
 	return nil
 }

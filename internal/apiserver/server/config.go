@@ -9,10 +9,7 @@ import (
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
 	policybindingstorage "github.com/lgc202/ingate/internal/apiserver/registry/policybinding"
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
-	redisstorestorage "github.com/lgc202/ingate/internal/apiserver/registry/redisstore"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
-	runtimegroupstorage "github.com/lgc202/ingate/internal/apiserver/registry/runtimegroup"
-	runtimesnapshotstorage "github.com/lgc202/ingate/internal/apiserver/registry/runtimesnapshot"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
@@ -75,17 +72,6 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	// ExtraConfig.Storage 允许测试或上层调用方预置 storage
 	// 这里只补齐缺失项，避免覆盖外部传入的自定义实现
-	installStorage := func(resourceName gatewayv1.ResourceName, factory func() (rest.Storage, error)) error {
-		if _, ok := storage[string(resourceName)]; ok {
-			return nil
-		}
-		resourceStorage, err := factory()
-		if err != nil {
-			return err
-		}
-		storage[string(resourceName)] = resourceStorage
-		return nil
-	}
 	installStatusStorage := func(resourceName, statusResourceName gatewayv1.ResourceName, factory func() (rest.Storage, rest.Storage, error)) error {
 		_, hasResource := storage[string(resourceName)]
 		_, hasStatus := storage[string(statusResourceName)]
@@ -110,11 +96,6 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}); err != nil {
 		return nil, err
 	}
-	if err := installStatusStorage(gatewayv1.ResourceRuntimeGroups, gatewayv1.ResourceRuntimeGroupsStatus, func() (rest.Storage, rest.Storage, error) {
-		return runtimegroupstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return nil, err
-	}
 	if err := installStatusStorage(gatewayv1.ResourceRoutes, gatewayv1.ResourceRoutesStatus, func() (rest.Storage, rest.Storage, error) {
 		return routestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
 	}); err != nil {
@@ -125,11 +106,6 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}); err != nil {
 		return nil, err
 	}
-	if err := installStorage(gatewayv1.ResourceRuntimeSnapshots, func() (rest.Storage, error) {
-		return runtimesnapshotstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return nil, err
-	}
 	if err := installStatusStorage(gatewayv1.ResourceRateLimitPolicies, gatewayv1.ResourceRateLimitPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
 		return ratelimitpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
 	}); err != nil {
@@ -137,11 +113,6 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 	if err := installStatusStorage(gatewayv1.ResourceAccessControlPolicies, gatewayv1.ResourceAccessControlPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
 		return accesscontrolpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return nil, err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceRedisStores, gatewayv1.ResourceRedisStoresStatus, func() (rest.Storage, rest.Storage, error) {
-		return redisstorestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return nil, err
 	}
