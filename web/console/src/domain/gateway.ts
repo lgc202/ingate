@@ -11,31 +11,17 @@ export interface Gateway {
   createdAt: string;
 }
 
-export type GatewayListenerProtocol = 'HTTP' | 'HTTPS';
+export type GatewayListenerProtocol = 'HTTP';
 
 export interface GatewayListener {
   name: string;
   protocol: GatewayListenerProtocol;
   port: number;
-  certificateId?: string;
 }
 
 export interface GatewayHostBinding {
   hostname?: string;
   listenerRefs: string[];
-  tls?: GatewayTLS;
-}
-
-export interface GatewayTLS {
-  certificateRef?: string;
-}
-
-export interface GatewayCertificateOption {
-  id: string;
-  name: string;
-  domains: string[];
-  expiresAt: string;
-  status: string;
 }
 
 export interface GatewayListView {

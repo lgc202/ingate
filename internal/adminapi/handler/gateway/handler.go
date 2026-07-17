@@ -176,14 +176,10 @@ func (h *Handler) gatewayParams(config dto.GatewayConfig) gatewayservice.Gateway
 			}
 		}),
 		HostBindings: lo.Map(config.HostBindings, func(binding dto.GatewayHostBinding, _ int) gatewayservice.HostBindingParams {
-			param := gatewayservice.HostBindingParams{
+			return gatewayservice.HostBindingParams{
 				Hostname:     binding.Hostname,
 				ListenerRefs: binding.ListenerRefs,
 			}
-			if binding.TLS != nil {
-				param.CertificateRef = binding.TLS.CertificateRef
-			}
-			return param
 		}),
 	}
 }

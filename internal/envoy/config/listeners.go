@@ -50,7 +50,6 @@ func (c *compileContext) buildListenerGroups() {
 	// 一套 Ingate 中所有 Gateway 共享同一组 Envoy Listener，端口和协议相同的入口必须合并
 	// Hostname 所有权在合并后统一检查，避免两个逻辑 Gateway 抢占同一个请求域
 	gatewayIDs := slices.Sorted(maps.Keys(c.gateways))
-	protocolOwners := make(map[int]map[gatewayv1.Protocol]map[string]bool)
 
 	for _, gatewayID := range gatewayIDs {
 		gateway := c.gateways[gatewayID]
@@ -127,29 +126,9 @@ func (c *compileContext) buildListenerGroups() {
 					ports[listener.Port] = listener.Name
 				}
 			}
-			if listener.Port >= 1 && listener.Port <= 65535 &&
-				(listener.Protocol == gatewayv1.ProtocolHTTP || listener.Protocol == gatewayv1.ProtocolHTTPS) {
-				if protocolOwners[listener.Port] == nil {
-					protocolOwners[listener.Port] = make(map[gatewayv1.Protocol]map[string]bool)
-				}
-				if protocolOwners[listener.Port][listener.Protocol] == nil {
-					protocolOwners[listener.Port][listener.Protocol] = make(map[string]bool)
-				}
-				protocolOwners[listener.Port][listener.Protocol][gatewayID] = true
-			}
-
-			switch listener.Protocol {
-			case gatewayv1.ProtocolHTTP:
+			if listener.Protocol == gatewayv1.ProtocolHTTP {
 				declaration.supported = listener.Port >= 1 && listener.Port <= 65535 && !duplicatePort
-			case gatewayv1.ProtocolHTTPS:
-				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindGateway,
-					gatewayID,
-					ReasonUnsupported,
-					fmt.Sprintf("gateway %q listener %q uses unsupported HTTPS", gatewayID, listener.Name),
-				)
-			default:
+			} else {
 				c.addDiagnostic(
 					SeverityError,
 					gatewayv1.KindGateway,
@@ -162,27 +141,6 @@ func (c *compileContext) buildListenerGroups() {
 		}
 
 		c.buildGatewayListenerClaims(gateway, declarations)
-	}
-
-	for port, protocols := range protocolOwners {
-		if len(protocols) < 2 {
-			continue
-		}
-		owners := make(map[string]bool)
-		for _, protocolOwners := range protocols {
-			for gatewayID := range protocolOwners {
-				owners[gatewayID] = true
-			}
-		}
-		for _, gatewayID := range slices.Sorted(maps.Keys(owners)) {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindGateway,
-				gatewayID,
-				ReasonConflict,
-				fmt.Sprintf("listener port %d is declared with conflicting HTTP and HTTPS protocols", port),
-			)
-		}
 	}
 
 	for _, key := range c.sortedListenerKeys() {
@@ -215,15 +173,6 @@ func (c *compileContext) buildGatewayListenerClaims(
 				fmt.Sprintf("gateway %q has invalid hostname %q", gateway.Name, binding.Hostname),
 			)
 			continue
-		}
-		if binding.TLS != nil {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindGateway,
-				gateway.Name,
-				ReasonUnsupported,
-				fmt.Sprintf("gateway %q hostname %q uses unsupported certificateRef", gateway.Name, hostname),
-			)
 		}
 		if len(binding.ListenerRefs) == 0 {
 			c.addDiagnostic(

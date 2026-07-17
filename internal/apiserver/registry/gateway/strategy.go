@@ -124,17 +124,17 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 		return errs
 	}
 
-	listenerProtocols := make(map[string]resource.Protocol, len(gateway.Spec.Listeners))
+	listenerNames := make(map[string]struct{}, len(gateway.Spec.Listeners))
 	ports := map[int]*field.Path{}
 	for i, listener := range gateway.Spec.Listeners {
 		listenerPath := specPath.Child("listeners").Index(i)
 		if listener.Name == "" {
 			errs = append(errs, field.Required(listenerPath.Child("name"), "listener name is required"))
-		} else if _, ok := listenerProtocols[listener.Name]; ok {
+		} else if _, ok := listenerNames[listener.Name]; ok {
 			errs = append(errs, field.Duplicate(listenerPath.Child("name"), listener.Name))
 		}
-		if !validProtocol(listener.Protocol) {
-			errs = append(errs, field.NotSupported(listenerPath.Child("protocol"), listener.Protocol, []string{string(resource.ProtocolHTTP), string(resource.ProtocolHTTPS)}))
+		if listener.Protocol != resource.ProtocolHTTP {
+			errs = append(errs, field.NotSupported(listenerPath.Child("protocol"), listener.Protocol, []string{string(resource.ProtocolHTTP)}))
 		}
 		if listener.Port < 1 || listener.Port > 65535 {
 			errs = append(errs, field.Invalid(listenerPath.Child("port"), listener.Port, "listener port must be between 1 and 65535"))
@@ -143,12 +143,11 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 			errs = append(errs, field.Duplicate(firstPath, listener.Port))
 		}
 
-		listenerProtocols[listener.Name] = listener.Protocol
+		listenerNames[listener.Name] = struct{}{}
 		ports[listener.Port] = listenerPath.Child("port")
 	}
 
 	catchAllCount := 0
-	httpsListenersWithTLS := map[string]struct{}{}
 	for i, binding := range gateway.Spec.HostBindings {
 		bindingPath := specPath.Child("hostBindings").Index(i)
 		if binding.Hostname == "" {
@@ -163,49 +162,18 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 		if len(binding.ListenerRefs) == 0 {
 			errs = append(errs, field.Required(bindingPath.Child("listenerRefs"), "listenerRefs is required"))
 		}
-		hasHTTPS := false
 		for j, listenerRef := range binding.ListenerRefs {
 			listenerRefPath := bindingPath.Child("listenerRefs").Index(j)
 			if listenerRef == "" {
 				errs = append(errs, field.Required(listenerRefPath, "listenerRef cannot be empty"))
 				continue
 			}
-			protocol, ok := listenerProtocols[listenerRef]
-			if !ok {
+			if _, ok := listenerNames[listenerRef]; !ok {
 				errs = append(errs, field.Invalid(listenerRefPath, listenerRef, "listenerRef references unknown listener"))
-				continue
 			}
-			if protocol == resource.ProtocolHTTPS {
-				hasHTTPS = true
-				httpsListenersWithTLS[listenerRef] = struct{}{}
-			}
-		}
-
-		certificateRef := ""
-		if binding.TLS != nil {
-			certificateRef = binding.TLS.CertificateRef
-		}
-		if hasHTTPS && certificateRef == "" {
-			errs = append(errs, field.Required(bindingPath.Child("tls").Child("certificateRef"), "HTTPS host binding requires certificateRef"))
-		}
-		if !hasHTTPS && certificateRef != "" {
-			errs = append(errs, field.Invalid(bindingPath.Child("tls").Child("certificateRef"), certificateRef, "HTTP host binding cannot set certificateRef"))
-		}
-	}
-
-	for i, listener := range gateway.Spec.Listeners {
-		if listener.Protocol != resource.ProtocolHTTPS {
-			continue
-		}
-		if _, ok := httpsListenersWithTLS[listener.Name]; !ok {
-			errs = append(errs, field.Required(specPath.Child("listeners").Index(i).Child("name"), "HTTPS listener must be referenced by a TLS host binding"))
 		}
 	}
 	return errs
-}
-
-func validProtocol(protocol resource.Protocol) bool {
-	return protocol == resource.ProtocolHTTP || protocol == resource.ProtocolHTTPS
 }
 
 func validHostname(hostname string) bool {

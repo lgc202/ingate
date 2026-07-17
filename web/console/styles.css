@@ -2260,10 +2260,10 @@ html, body {
 
 .listener-grid {
   display: grid;
-  grid-template-columns: 132px 160px minmax(220px, 320px) 72px;
+  grid-template-columns: 132px 220px;
   gap: 10px;
   align-items: center;
-  width: min(100%, 714px);
+  width: min(100%, 362px);
   min-width: 0;
 }
 

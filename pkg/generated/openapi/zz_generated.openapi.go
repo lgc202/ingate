@@ -25,7 +25,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Gateway":                   schema_pkg_apis_gateway_v1_Gateway(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewayList":               schema_pkg_apis_gateway_v1_GatewayList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewaySpec":               schema_pkg_apis_gateway_v1_GatewaySpec(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewayTLS":                schema_pkg_apis_gateway_v1_GatewayTLS(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch":               schema_pkg_apis_gateway_v1_HeaderMatch(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier":            schema_pkg_apis_gateway_v1_HeaderModifier(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":               schema_pkg_apis_gateway_v1_HeaderValue(ref),
@@ -603,25 +602,6 @@ func schema_pkg_apis_gateway_v1_GatewaySpec(ref common.ReferenceCallback) common
 	}
 }
 
-func schema_pkg_apis_gateway_v1_GatewayTLS(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "GatewayTLS 声明域名绑定使用的 TLS 证书引用",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"certificateRef": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
 func schema_pkg_apis_gateway_v1_HeaderMatch(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -780,16 +760,9 @@ func schema_pkg_apis_gateway_v1_HostBinding(ref common.ReferenceCallback) common
 							},
 						},
 					},
-					"tls": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewayTLS"),
-						},
-					},
 				},
 			},
 		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewayTLS"},
 	}
 }
 
