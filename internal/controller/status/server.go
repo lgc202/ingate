@@ -52,7 +52,7 @@ func NewServer(runtime *Runtime, configDelivery *delivery.Delivery, logger *slog
 	}
 }
 
-// MarkReady 标记 Last Good/Baseline 已恢复且 ADS listener 已绑定
+// MarkReady 标记 Delivery 已运行且 ADS 与内部 HTTP listener 均已绑定
 func (s *Server) MarkReady() {
 	s.ready.Store(true)
 }

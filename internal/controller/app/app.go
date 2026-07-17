@@ -16,7 +16,6 @@ import (
 	"github.com/lgc202/ingate/internal/controller/reconcile"
 	controllerstatus "github.com/lgc202/ingate/internal/controller/status"
 	"github.com/lgc202/ingate/internal/envoy/delivery"
-	"github.com/lgc202/ingate/internal/envoy/lastgood"
 	"github.com/lgc202/ingate/internal/envoy/xds"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 	"github.com/lgc202/ingate/pkg/xlog"
@@ -27,7 +26,7 @@ const usage = `ingate-controller 负责将声明式资源收敛为 Envoy 配置
 职责：
   - 监听 ingate-apiserver 中的声明式资源
   - 编译并发布完整 Envoy xDS 配置
-  - 处理 Envoy ACK/NACK 并维护 Last Good
+  - 处理 Envoy ACK/NACK 和配置回滚
   - 提供 ADS 和内部运行状态接口
 `
 
@@ -78,14 +77,9 @@ func run(ctx context.Context, options *Options, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("create apiserver resource client: %w", err)
 	}
-	lastGoodClient, err := lastgood.NewClient(restConfig)
-	if err != nil {
-		return err
-	}
-
 	xdsLogger := xds.NewSlogLogger(logger.With("component", "xds"))
 	snapshotCache := xds.NewSnapshotCache(xdsLogger)
-	configDelivery, err := delivery.New(snapshotCache, lastGoodClient, delivery.Options{
+	configDelivery, err := delivery.New(snapshotCache, delivery.Options{
 		ACKTimeout:          options.CandidateACKTimeout,
 		NACKRollbackTimeout: options.NACKRollbackTimeout,
 	})
@@ -117,19 +111,18 @@ func run(ctx context.Context, options *Options, logger *slog.Logger) error {
 		return configDelivery.Run(groupCtx)
 	})
 
-	if err := configDelivery.Restore(groupCtx); err != nil {
+	if ctx.Err() != nil {
+		cancel()
+		_ = group.Wait()
+		return nil
+	}
+	xdsListener, err := net.Listen("tcp", options.XDSListenAddress)
+	if err != nil {
 		cancel()
 		_ = group.Wait()
 		if ctx.Err() != nil {
 			return nil
 		}
-		return fmt.Errorf("restore last good Envoy config: %w", err)
-	}
-
-	xdsListener, err := net.Listen("tcp", options.XDSListenAddress)
-	if err != nil {
-		cancel()
-		_ = group.Wait()
 		return fmt.Errorf("listen for xDS on %q: %w", options.XDSListenAddress, err)
 	}
 	defer xdsListener.Close()
@@ -138,6 +131,9 @@ func run(ctx context.Context, options *Options, logger *slog.Logger) error {
 	if err != nil {
 		cancel()
 		_ = group.Wait()
+		if ctx.Err() != nil {
+			return nil
+		}
 		return fmt.Errorf("listen for controller status on %q: %w", options.InternalListenAddress, err)
 	}
 	defer internalListener.Close()
@@ -154,7 +150,7 @@ func run(ctx context.Context, options *Options, logger *slog.Logger) error {
 		return internalServer.Serve(groupCtx, internalListener)
 	})
 
-	// Last Good/Baseline 已安装且两个 listener 均已绑定，此时 Envoy 可以安全连接
+	// Delivery 已运行且两个 listener 均已绑定，此时 Envoy 可以连接并等待首次编译结果
 	internalServer.MarkReady()
 	group.Go(func() error {
 		return reconciler.Run(groupCtx)
