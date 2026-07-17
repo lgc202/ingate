@@ -32,18 +32,42 @@ func (c Config) Snapshot(version string) (*cachev3.Snapshot, error) {
 
 	listeners := make([]cachetypes.Resource, 0, len(c.Listeners))
 	for _, listener := range c.Listeners {
+		if listener == nil {
+			return nil, errors.New("listener resource is nil")
+		}
+		if err := listener.ValidateAll(); err != nil {
+			return nil, fmt.Errorf("validate listener %q: %w", listener.GetName(), err)
+		}
 		listeners = append(listeners, listener)
 	}
 	routes := make([]cachetypes.Resource, 0, len(c.Routes))
 	for _, route := range c.Routes {
+		if route == nil {
+			return nil, errors.New("route resource is nil")
+		}
+		if err := route.ValidateAll(); err != nil {
+			return nil, fmt.Errorf("validate route %q: %w", route.GetName(), err)
+		}
 		routes = append(routes, route)
 	}
 	clusters := make([]cachetypes.Resource, 0, len(c.Clusters))
 	for _, cluster := range c.Clusters {
+		if cluster == nil {
+			return nil, errors.New("cluster resource is nil")
+		}
+		if err := cluster.ValidateAll(); err != nil {
+			return nil, fmt.Errorf("validate cluster %q: %w", cluster.GetName(), err)
+		}
 		clusters = append(clusters, cluster)
 	}
 	endpoints := make([]cachetypes.Resource, 0, len(c.Endpoints))
 	for _, endpoint := range c.Endpoints {
+		if endpoint == nil {
+			return nil, errors.New("endpoint resource is nil")
+		}
+		if err := endpoint.ValidateAll(); err != nil {
+			return nil, fmt.Errorf("validate endpoint %q: %w", endpoint.GetClusterName(), err)
+		}
 		endpoints = append(endpoints, endpoint)
 	}
 
