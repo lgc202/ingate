@@ -15,6 +15,7 @@ import (
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+	"k8s.io/apimachinery/pkg/util/validation"
 )
 
 const (
@@ -23,7 +24,7 @@ const (
 )
 
 func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.ClusterLoadAssignment) {
-	// Upstream ID 直接作为全局 Cluster identity，Route、CDS 和 EDS 始终使用同一个名字
+	// Upstream ID 直接作为全局 Cluster identity，Route、CDS 和可选的 EDS 始终使用同一个名字
 	ids := slices.Sorted(maps.Keys(c.upstreams))
 	clusters := make([]*clusterv3.Cluster, 0, len(ids))
 	assignments := make([]*endpointv3.ClusterLoadAssignment, 0, len(ids))
@@ -55,25 +56,31 @@ func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.C
 			)
 		}
 
-		endpoints := c.buildUpstreamEndpoints(upstream)
-		clusters = append(clusters, &clusterv3.Cluster{
+		endpoints, usesDNS := c.buildUpstreamEndpoints(upstream)
+		cluster := &clusterv3.Cluster{
 			Name:           id,
 			ConnectTimeout: durationpb.New(defaultUpstreamConnectTimeout),
 			LbPolicy:       lbPolicy,
-			ClusterDiscoveryType: &clusterv3.Cluster_Type{
-				Type: clusterv3.Cluster_EDS,
-			},
-			EdsClusterConfig: &clusterv3.Cluster_EdsClusterConfig{
-				EdsConfig:   adsConfigSource(),
-				ServiceName: id,
-			},
-		})
-		assignments = append(assignments, &endpointv3.ClusterLoadAssignment{
+		}
+		assignment := &endpointv3.ClusterLoadAssignment{
 			ClusterName: id,
 			Endpoints: []*endpointv3.LocalityLbEndpoints{
 				{LbEndpoints: endpoints},
 			},
-		})
+		}
+		if usesDNS {
+			// Envoy 只会在 DNS cluster 中解析 hostname，不能把 hostname 伪装成 EDS socket address
+			cluster.ClusterDiscoveryType = &clusterv3.Cluster_Type{Type: clusterv3.Cluster_STRICT_DNS}
+			cluster.LoadAssignment = assignment
+		} else {
+			cluster.ClusterDiscoveryType = &clusterv3.Cluster_Type{Type: clusterv3.Cluster_EDS}
+			cluster.EdsClusterConfig = &clusterv3.Cluster_EdsClusterConfig{
+				EdsConfig:   adsConfigSource(),
+				ServiceName: id,
+			}
+			assignments = append(assignments, assignment)
+		}
+		clusters = append(clusters, cluster)
 	}
 
 	return clusters, assignments
@@ -99,7 +106,7 @@ func (c *compileContext) upstreamLBPolicy(upstream *gatewayv1.Upstream) (cluster
 	}
 }
 
-func (c *compileContext) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) []*endpointv3.LbEndpoint {
+func (c *compileContext) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) ([]*endpointv3.LbEndpoint, bool) {
 	items := slices.Clone(upstream.Spec.Endpoints)
 	slices.SortFunc(items, func(a, b gatewayv1.Endpoint) int {
 		if a.Address != b.Address {
@@ -114,6 +121,7 @@ func (c *compileContext) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) []
 	result := make([]*endpointv3.LbEndpoint, 0, len(items))
 	seenNames := make(map[string]bool, len(items))
 	enabledCount := 0
+	usesDNS := false
 	for _, endpoint := range items {
 		valid := true
 		if endpoint.Name != "" && seenNames[endpoint.Name] {
@@ -134,7 +142,7 @@ func (c *compileContext) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) []
 				gatewayv1.KindUpstream,
 				upstream.Name,
 				ReasonInvalidSpec,
-				fmt.Sprintf("upstream %q endpoint %q address %q must be an IP address", upstream.Name, endpoint.Name, endpoint.Address),
+				fmt.Sprintf("upstream %q endpoint %q address %q must be an IP address or DNS hostname", upstream.Name, endpoint.Name, endpoint.Address),
 			)
 			valid = false
 		}
@@ -165,6 +173,7 @@ func (c *compileContext) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) []
 		if !valid {
 			continue
 		}
+		usesDNS = usesDNS || !isIPAddress(endpoint.Address)
 
 		result = append(result, &endpointv3.LbEndpoint{
 			HostIdentifier: &endpointv3.LbEndpoint_Endpoint{
@@ -194,13 +203,20 @@ func (c *compileContext) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) []
 		)
 	}
 
-	return result
+	return result, usesDNS
 }
 
 func validEndpointAddress(address string) bool {
 	if address == "" || strings.TrimSpace(address) != address {
 		return false
 	}
+	if isIPAddress(address) {
+		return true
+	}
+	return len(validation.IsDNS1123Subdomain(strings.ToLower(address))) == 0
+}
+
+func isIPAddress(address string) bool {
 	_, err := netip.ParseAddr(address)
 	return err == nil
 }
