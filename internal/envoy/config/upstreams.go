@@ -134,7 +134,7 @@ func (c *compileContext) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) []
 				gatewayv1.KindUpstream,
 				upstream.Name,
 				ReasonInvalidSpec,
-				fmt.Sprintf("upstream %q endpoint %q has invalid address %q", upstream.Name, endpoint.Name, endpoint.Address),
+				fmt.Sprintf("upstream %q endpoint %q address %q must be an IP address", upstream.Name, endpoint.Name, endpoint.Address),
 			)
 			valid = false
 		}
@@ -201,10 +201,8 @@ func validEndpointAddress(address string) bool {
 	if address == "" || strings.TrimSpace(address) != address {
 		return false
 	}
-	if _, err := netip.ParseAddr(address); err == nil {
-		return true
-	}
-	return validDNSName(strings.ToLower(address))
+	_, err := netip.ParseAddr(address)
+	return err == nil
 }
 
 func socketAddress(address string, port int) *corev3.Address {

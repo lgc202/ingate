@@ -42,7 +42,6 @@ type routeEntry struct {
 	ruleName    string
 	pathPrefix  string
 	method      string
-	methodCount int
 	headerCount int
 	route       *routev3.Route
 }
@@ -386,7 +385,6 @@ func (c *compileContext) buildRouteEntries(
 			ruleName:    rule.Name,
 			pathPrefix:  pathPrefix,
 			method:      method,
-			methodCount: len(methods),
 			headerCount: len(headers),
 			route: &routev3.Route{
 				Name: runtimeRouteName(gatewayID, routeID, rule.Name, method),
@@ -787,11 +785,14 @@ func compareRouteEntries(a, b routeEntry) int {
 	if len(a.pathPrefix) != len(b.pathPrefix) {
 		return cmp.Compare(len(b.pathPrefix), len(a.pathPrefix))
 	}
-	if a.methodCount != b.methodCount {
-		return cmp.Compare(b.methodCount, a.methodCount)
-	}
 	if a.headerCount != b.headerCount {
 		return cmp.Compare(b.headerCount, a.headerCount)
+	}
+	if (a.method == "") != (b.method == "") {
+		if a.method != "" {
+			return -1
+		}
+		return 1
 	}
 	if a.routeID != b.routeID {
 		return cmp.Compare(a.routeID, b.routeID)
