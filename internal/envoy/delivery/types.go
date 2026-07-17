@@ -18,7 +18,7 @@ const (
 	StateWaitingForACK State = "WaitingForACK"
 	// StateActive 表示当前配置已经被至少一个 Envoy 完整接受
 	StateActive State = "Active"
-	// StateDegraded 表示仍可继续服务，但回滚或 Envoy 实例收敛存在异常
+	// StateDegraded 表示 ACK 超时、回滚或 Envoy 实例收敛存在异常
 	StateDegraded State = "Degraded"
 )
 

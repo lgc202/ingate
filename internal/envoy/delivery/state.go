@@ -22,6 +22,7 @@ type commandKind uint8
 
 const (
 	commandSubmit commandKind = iota + 1
+	commandCancelCandidate
 	commandXDSEvent
 	commandACKTimeout
 )
@@ -75,22 +76,21 @@ type runtimeState struct {
 	ackTimedOut bool
 	nackCount   int
 	lastNACK    *NACK
-	rejected    map[string]bool
 
 	rollbackError string
-	activeNACK    bool
+	activeNACKs   map[int64]bool
 }
 
 func newRuntimeState() runtimeState {
 	return runtimeState{
-		state:    StateNoConfig,
-		streams:  make(map[int64]*streamState),
-		rejected: make(map[string]bool),
+		state:       StateNoConfig,
+		streams:     make(map[int64]*streamState),
+		activeNACKs: make(map[int64]bool),
 	}
 }
 
 func (s *runtimeState) refreshState() {
-	if s.rollbackError != "" || s.activeNACK {
+	if s.ackTimedOut || s.rollbackError != "" || len(s.activeNACKs) > 0 {
 		s.state = StateDegraded
 		return
 	}
