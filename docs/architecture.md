@@ -48,7 +48,7 @@ Resource
 
 Controller 使用唯一全局队列 key。Gateway、Route、Upstream、Policy 和 PolicyBinding 的任意 spec 变化都会触发一次完整配置域编译。
 
-Compiler 直接生成 LDS、RDS、CDS 和 EDS protobuf，不输出公开 IR，不存在 Target、Translator、RuntimeGroup 或 RuntimeSnapshot。
+Compiler 直接生成 Envoy protobuf，不输出公开 IR，不存在 Target、Translator、RuntimeGroup 或 RuntimeSnapshot。IP Upstream 生成 EDS，包含 hostname 的 Upstream 生成带内联端点的 `STRICT_DNS` cluster。
 
 任意 Error diagnostic 都会阻止新配置发布，但不会修改当前进程内 Active。Warning 不阻止发布。
 
@@ -61,6 +61,8 @@ Delivery 是 Snapshot Cache 的唯一写入者，并在单 goroutine 中维护�
 - Baseline：首次 Candidate 被 NACK 且没有 Active 时使用的空配置
 
 Candidate 可以被更新版本替换。旧版本迟到的 ACK、NACK 和 timeout 不得改变当前状态。
+
+最新资源无法编译时，Controller 会保留 Active，但取消仍在飞行的 Candidate 并恢复 Active 或 Baseline。Candidate 等待 ACK 超时后进入 Degraded；后续完整 ACK 仍可将它提升为 Active。
 
 NACK 时：
 
