@@ -314,6 +314,18 @@ Compiler 可以复用小型内部结构降低单个函数复杂度，但不再�
 - Upstream cluster 以不可变 Upstream ID 作为全局身份，共享引用只生成一份 CDS/EDS 资源
 - 所有 Envoy 资源名称从资源 ID 和规范化分组键确定生成，不能依赖 map 遍历或 informer 返回顺序
 
+Route 的生效 Host 按 `(Gateway, Listener, Route)` 展开：
+
+- `HostBinding.ListenerRefs` 必须引用当前 Gateway 中存在的 Listener；空列表返回 `InvalidSpec`
+- 没有任何 HostBinding 引用某个 Listener 时，该 Listener 的所有权默认为 `*`
+- HostBinding 的空 Hostname 规范化为 `*`
+- Route 没有 Hostnames 时，继承所绑定 Listener 的全部有效 Host
+- Route 有 Hostnames 时，每个 hostname 必须等于或属于该 Listener 的 Host 所有权；不满足时该 Route 不进入该 Listener，且没有任何 Listener 可挂载时返回 `Conflict`
+- exact hostname 是对应 wildcard 的子集；两个 wildcard 有重叠时视为冲突
+- 一个 Route 绑定多个 ParentRef 时，对每个 Gateway/Listener 独立展开和校验
+
+这样可以在生成 virtual host 之前确定每条 Route 的 effective hostnames，不依赖 Envoy 对空域名、wildcard 和 filter chain 的隐式选择。
+
 当前 Gateway HTTPS CertificateRef 尚未完整进入 Envoy 配置。在 TLS 语义实现前，Compiler 对 HTTPS Listener 返回明确 `Unsupported`，不能接受后静默生成明文 Listener。后续 TLS 设计需要补充 SNI filter chain、证书解析和重叠规则。
 
 ### Config Delivery
@@ -337,6 +349,17 @@ xDS 模块使用 `go-control-plane` 标准 SotW Snapshot Cache 和 ADS server：
 - 第一阶段只支持 SotW，不实现 Delta xDS
 - callbacks 将连接、ACK 和 NACK 事件交给 Delivery
 - xDS 模块不写资源状态，不访问 etcd
+
+第一阶段固定 `github.com/envoyproxy/go-control-plane v0.14.0`，并把 `github.com/envoyproxy/go-control-plane/envoy` 对齐到其要求的 `v1.36.0`。依赖升级必须同时检查 root module、Envoy protobuf 子模块和实际 Envoy 二进制兼容性，不能让 Go MVS 隐式升级后未经验证。
+
+callbacks 必须自己维护发送记录，不能依赖 go-control-plane 在 callback 之后执行的 stale nonce 检查：
+
+- `OnStreamResponse` 在响应发送前记录 `(streamID, typeURL, nonce) -> version/nodeID`
+- `OnStreamRequest` 根据发送记录和 ErrorDetail 分类 ACK/NACK
+- 普通 ACK 可以投递到 Delivery 事件循环后返回
+- 匹配当前 Candidate 的 NACK 必须使用带 reply 的同步事件，等待 Delivery 完成回滚后才能返回
+- 如果同步回滚失败或超时，callback 返回错误关闭 stream，不能让标准 server 立即为坏 Candidate 重建 watch
+- `OnStreamClosed` 使用本地 stream registry 清理状态，不能依赖可能为空的 node 参数
 
 现有 Listener、Route、Cluster、Endpoint 和 Wasm builder 可以迁移复用；自研 ADS stream 状态机、nonce 管理和 RuntimeSnapshot watcher 删除。
 
@@ -381,11 +404,16 @@ Status 只在 Condition 内容变化时调用 UpdateStatus，并处理 resourceV
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Active: 启动时恢复 Last Good
+    [*] --> NoConfig: 无 Last Good，安装 Baseline
+    [*] --> Active: 恢复 Last Good
+    NoConfig --> Candidate: 新配置编译成功
     Active --> Candidate: 新配置编译成功
+    Candidate --> Candidate: 新版本 supersede
     Candidate --> Active: Envoy ACK
-    Candidate --> Active: NACK 后恢复旧版本
+    Candidate --> Active: NACK 后恢复旧 Active
+    Candidate --> NoConfig: NACK 且无旧 Active
     Active --> Active: 编译失败，保持旧版本
+    NoConfig --> NoConfig: 编译失败，保持 Baseline
 ```
 
 ### 正常发布
@@ -395,10 +423,11 @@ stateDiagram-v2
 3. Delivery 将版本设为唯一当前 Candidate，并发布到 Snapshot Cache
 4. 新 Candidate 到来时直接 supersede 旧 Candidate；旧版本后续事件永远不能改变状态
 5. xDS callbacks 按 `{candidateVersion, streamID, nodeID, typeURL, responseNonce}` 收集 ACK/NACK
-6. required type 由 Candidate 内容推导：LDS 始终需要，使用 RDS 或 EDS 时才加入对应 type，CDS 在存在动态 Cluster 时需要
-7. 同一 stream/node 完成全部 required type ACK 后，版本成为 Active
-8. Delivery 将 Active 持久化为 Last Good
-9. 其他 Envoy 的 ACK/NACK 继续反映到全局运行状态
+6. required type 是 Active 与 Candidate 所用动态 type 的并集，再结合该 stream 的实际订阅和发送记录判断；LDS 始终需要
+7. Candidate 删除某类资源时，该 type 仍使用 Candidate 版本发送空资源响应并等待 ACK，不能因为新资源列表为空而跳过删除确认
+8. 同一 stream/node 完成全部 required type ACK 后，版本成为 Active
+9. Delivery 将 Active 持久化为 Last Good
+10. 其他 Envoy 的 ACK/NACK 继续反映到全局运行状态
 
 使用至少一个实例完成 ACK 作为配置有效性判断，是因为一套 Ingate 的 Envoy 实例必须使用相同二进制和相同配置。第一阶段不引入 quorum、全实例阻塞发布或滚动版本兼容状态机。
 
@@ -415,10 +444,12 @@ stateDiagram-v2
 
 ### NACK
 
-- Candidate 在成为 Active 前收到 NACK 时，恢复旧 Active 到 Snapshot Cache
+- Candidate 在成为 Active 前收到 NACK 时，Delivery 必须在 xDS request callback 返回前恢复旧 Active 到 Snapshot Cache
 - 不重复发送同一个已拒绝版本
 - 保留 Last Good
 - 记录 node ID、type URL、版本和稳定错误摘要
+
+首次启动没有 Active 或 Last Good 时，Controller 预先安装一个经过 consistency 校验的空 Baseline Snapshot。Baseline 为 LDS、RDS、CDS、EDS 都设置非空 baseline version 和空资源列表，使已订阅 type 能收到明确的空配置。首个 Candidate NACK 后恢复 Baseline，进入 `NoConfig`，`configReady=false`，继续保持 ADS watch 等待新 Candidate；不能把 nil 当作旧 Active，也不能重新发送被拒版本。Baseline 不是用户配置，不写入 Last Good。
 
 版本已经由一个同构实例完整 ACK 后，其他实例的 NACK 不自动回滚整个 fleet，而是将全局状态标记为 degraded，避免单个异常或旧版本 Envoy 影响所有实例。
 
@@ -436,7 +467,8 @@ Controller readiness 不依赖 Envoy ACK，避免启动死锁：
 
 - `/healthz` 只表示进程存活
 - `/readyz` 表示内部存储初始化完成且 ADS 已监听，可以让 Envoy 启动和连接
-- 系统状态中的 `configReady` 表示是否存在 Active 或当前有效配置
+- 系统状态中的 `configReady` 表示 Cache 中存在由当前 Compiler 成功生成的 Candidate 或 Active；空 Baseline 不计入
+- `deliveryState` 区分 `NoConfig`、`WaitingForEnvoy`、`WaitingForACK`、`Active` 和 `Degraded`
 
 没有 Last Good 且当前资源无法编译时，ADS 仍保持监听，`configReady=false` 并报告明确错误。
 
@@ -568,6 +600,48 @@ RateLimit 插件配置 schema 升级为 v2：
 - 插件内部使用固定 `ingate-system-redis` 和固定 50ms command timeout
 - v2 解析器拒绝未知 schema version，不兼容读取 v1 后静默降级
 
+v2 的顶层和嵌套结构固定为：
+
+```json
+{
+  "schemaVersion": "v2",
+  "routes": [
+    {
+      "gatewayName": "gateway-id",
+      "routeName": "route-id",
+      "bindings": [
+        {
+          "name": "binding-id",
+          "target": {"kind": "Route", "name": "route-id", "ruleName": "rule-a"},
+          "policies": [
+            {
+              "name": "policy-id",
+              "mode": "Global",
+              "rules": [],
+              "response": {},
+              "failurePolicy": "FailClose"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+`Policy` 不再有 `global` 字段；`Global` 只由 `mode=Global` 表示。`schemaVersion` 缺失、不是 `v2` 或出现未知字段都返回配置错误。RouteConfig 的 `gatewayName`、`routeName`、`bindings` 结构保持，插件不接收 Redis 地址、用户名、密码、TLS 或 cluster 配置。
+
+Redis ABI 只在 `plugins/internal/redisabi` 中定义，固定签名与 Envoy 扩展契约：
+
+```text
+proxy_redis_init(cluster, username, password, timeout) -> status
+proxy_redis_call(cluster, query, calloutID*) -> status
+proxy_get_buffer_bytes(redisResponse, start, maxSize, data*, size*) -> status
+proxy_on_redis_call_response(pluginContextID, calloutID, status, responseSize)
+```
+
+插件 Root Context 启动时只初始化一次固定 cluster。Dispatch 时记录 calloutID、plugin context 和 HTTP context；callback 先设置有效 context，再检查 context 是否已销毁，最后删除记录并执行上层回调。ABI status 数值、Redis response buffer 类型和 callback export 名称固定在 Ingate 包内，并由绑定的 Envoy 镜像版本 E2E 验证。更换 Envoy 二进制必须重新运行 ABI smoke test。
+
 ## 插件执行边界
 
 用户配置强类型 Policy 和 PolicyBinding，不配置插件文件、JSON、phase、priority 或 cluster name。
@@ -641,6 +715,8 @@ ingate-dataplane
 
 独立容器或 Kubernetes 形态复用相同二进制和资源模型。Redis 地址、etcd 地址和 xDS 地址属于部署模板或进程启动配置，不进入用户声明式资源。
 
+部署配置还必须提供 Controller Internal Status API 地址和 Admin API 查询超时；all-in-one 使用内部固定地址，独立部署通过受限 Service 暴露。整体 readiness 要同时检查 apiserver、Controller `/readyz` 和 Envoy admin readiness，但不等待某个业务 Gateway 存在。
+
 ## 错误处理
 
 ### 资源错误
@@ -695,6 +771,10 @@ Redis 故障不影响 apiserver、Admin API、Controller 或普通代理流量�
 - Controller/xDS 的 `--target` 参数、default.env、bootstrap、Dockerfile、entrypoint 和 install.sh
 - RuntimeSnapshot 的间接 Admin store 和资源路由
 - 删除 go-redis，仅为标准 Snapshot Cache 增加完整 `github.com/envoyproxy/go-control-plane` 模块
+- Controller Internal Status API 的 server、Admin client、DTO、service、handler、router、地址和超时配置
+- Controller `/healthz`、`/readyz`、Envoy admin readiness 和 all-in-one 整体健康检查
+- RateLimitPolicy v1 API、插件 v1 config、runner 和 Wasm callback 到 v2 的完整删除闭包
+- schema bootstrap/reset 命令及 install.sh、首次安装、升级和 dev-reset 调用点
 
 这是 Ingate Next 的新设计，当前不承诺对尚未稳定的 RuntimeGroup、RuntimeSnapshot、RedisStore 和旧 RateLimitPolicy API 提供兼容迁移层。
 
@@ -705,7 +785,28 @@ Redis 故障不影响 apiserver、Admin API、Controller 或普通代理流量�
 3. 使用新 API schema 启动服务
 4. 重新创建声明式资源
 
-安装脚本和开发命令必须明确执行或提示该重置。升级前未完成重置时，apiserver/controller 通过内部 schema marker 拒绝启动并给出清晰错误，不能忽略 `runtimeGroupRef`、`redisRef` 等旧字段后继续运行。
+Schema marker 协议固定为：
+
+```text
+key:   /ingate/internal/schema-version
+value: 2
+```
+
+只有安装 bootstrap/reset 命令可以写 marker。该命令负责：
+
+1. 停止 Ingate 服务
+2. 删除 `/registry/gateway.ingate.io/` 和 `/ingate/internal/` 下的旧数据
+3. 在同一次 reset 流程中写入值为 `2` 的 marker
+4. 再启动 apiserver 和 Controller
+
+apiserver 和 Controller 都只读取并校验 marker，不自动初始化：
+
+- marker 为 `2`：允许启动
+- marker 缺失：无论资源前缀是否为空都 fail-fast，并提示执行 bootstrap/reset
+- marker 为旧版本或未知值：fail-fast
+- 两个服务读取结果不一致：整体 readiness 失败
+
+这样不会把“旧库缺 marker”误认为“新空库”。`install.sh` 的首次安装、升级和 `make dev-reset` 都必须调用同一个 bootstrap/reset 实现，并覆盖上述状态矩阵测试。
 
 ## 实施阶段
 
@@ -758,6 +859,11 @@ Redis 故障不影响 apiserver、Admin API、Controller 或普通代理流量�
 - Delivery 的 Candidate、ACK、NACK 和回滚状态机
 - Last Good 序列化、版本检查和恢复
 - Redis RESP、Lua 算法和 fail-open/fail-close
+- RateLimit v2 对缺失版本、v1、未知版本和未知字段的拒绝
+- Redis ABI callout registry、有效 context 恢复和已销毁 context 忽略
+- schema marker 缺失、正确、旧版、未知值和服务读取不一致
+- xDS NACK callback 在返回前完成同步回滚
+- Candidate 删除 RDS/CDS/EDS 时发送并 ACK 空资源版本
 
 ### 集成测试
 
@@ -767,6 +873,8 @@ Redis 故障不影响 apiserver、Admin API、Controller 或普通代理流量�
 - 状态写回不会触发无休止 reconcile
 - Internal Status API 超时和 Controller 不可用时不影响 Admin API 资源 CRUD
 - 唯一全局 queue key 对连续事件正确去重
+- package 依赖检查确保 xDS 不反向 import Delivery
+- Controller `/readyz` 不依赖 Envoy ACK，all-in-one 启动无循环等待
 
 ### 真实 E2E
 
