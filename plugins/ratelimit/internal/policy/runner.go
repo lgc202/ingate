@@ -17,7 +17,7 @@ func (r *Runner) Apply(route config.RouteConfig, req Request) Result {
 	for _, binding := range route.Bindings {
 		for _, rateLimitPolicy := range binding.Policies {
 			for _, rule := range rateLimitPolicy.Rules {
-				decision, globalCheck, err := r.applyRule(route, binding, rateLimitPolicy, rule, req)
+				decision, globalCheck, err := r.applyRule(route, rateLimitPolicy, rule, req)
 				if err != nil {
 					result.Errors = append(result.Errors, err)
 				}
@@ -38,7 +38,7 @@ func (r *Runner) Apply(route config.RouteConfig, req Request) Result {
 	return result
 }
 
-func (r *Runner) applyRule(route config.RouteConfig, binding config.Binding, rateLimitPolicy config.Policy, rule config.Rule, req Request) (Decision, *GlobalCheck, error) {
+func (r *Runner) applyRule(route config.RouteConfig, rateLimitPolicy config.Policy, rule config.Rule, req Request) (Decision, *GlobalCheck, error) {
 	key, ok := compositeKey(req, rule.Key)
 	if !ok {
 		return Decision{Allowed: true}, nil, nil
@@ -50,7 +50,7 @@ func (r *Runner) applyRule(route config.RouteConfig, binding config.Binding, rat
 		return Decision{Allowed: true}, nil, nil
 	}
 
-	limitKey := limitKey(route, binding, rateLimitPolicy, rule, key)
+	limitKey := limitKey(route, req.RuleName, rateLimitPolicy, rule, key)
 	if rateLimitPolicy.Mode == config.ModeGlobal {
 		return Decision{Allowed: true}, globalCheck(rateLimitPolicy, rule, key, limitKey), nil
 	}
@@ -80,25 +80,10 @@ func (r *Runner) applyLocalRule(rateLimitPolicy config.Policy, rule config.Rule,
 }
 
 func globalCheck(policy config.Policy, rule config.Rule, key, limitKey string) *GlobalCheck {
-	prefix := defaultRedisKeyPrefix
-	redisRef := ""
-	timeoutMs := 0
-	if policy.Global != nil {
-		redisRef = policy.Global.RedisRef
-		timeoutMs = policy.Global.TimeoutMillis
-		if policy.Global.Prefix != "" {
-			prefix = policy.Global.Prefix
-		}
-	}
 	return &GlobalCheck{
-		Policy:         policy,
-		Rule:           rule,
-		Key:            key,
-		RedisStore:     redisRef,
-		RedisKey:       prefix + ":" + limitKey,
-		RedisTimeoutMs: timeoutMs,
-		Requests:       rule.Limit.Requests,
-		WindowSeconds:  rule.Limit.WindowSeconds,
-		Burst:          rule.Limit.Burst,
+		Policy:   policy,
+		Rule:     rule,
+		Key:      key,
+		RedisKey: limitKey,
 	}
 }

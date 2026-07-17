@@ -13,14 +13,9 @@ import (
 )
 
 const (
-	targetName                          string = "xds"
-	versionPrefix                       string = "xds/%s"
-	wildcardDomain                      string = "*"
-	dataPlaneCluster                    string = "ingate-dataplane"
-	dataPlaneAddress                    string = "127.0.0.1"
-	dataPlaneRateLimitCheckPath         string = "/v1/capabilities/rate-limit/check"
-	defaultDataPlanePort                int    = 18081
-	defaultDataPlaneCapabilityTimeoutMs int    = 50
+	targetName     string = "xds"
+	versionPrefix  string = "xds/%s"
+	wildcardDomain string = "*"
 )
 
 // ClusterDiscoveryType 表示 Envoy cluster 服务发现方式
@@ -257,14 +252,6 @@ func (t Translator) Translate(logical ir.LogicalGateway) (runtime.RuntimeSnapsho
 
 	config.RateLimit = t.translateRateLimitConfig(logical)
 	config.AccessControl = t.translateAccessControlConfig(logical)
-	if config.RateLimit != nil && config.RateLimit.DataPlane != nil {
-		config.Clusters = append(config.Clusters, Cluster{
-			Name:          config.RateLimit.DataPlane.ClusterName,
-			DiscoveryType: ClusterDiscoveryTypeLogicalDNS,
-			Address:       dataPlaneAddress,
-			Port:          defaultDataPlanePort,
-		})
-	}
 
 	return runtime.RuntimeSnapshot{
 		Target:  t.Target(),
@@ -353,17 +340,12 @@ func (t Translator) translateRateLimitConfig(logical ir.LogicalGateway) *RateLim
 	}
 
 	policiesByName := make(map[string]ir.LogicalRateLimitPolicy, len(logical.RateLimitPolicies))
-	hasGlobalPolicy := false
 	for _, policy := range logical.RateLimitPolicies {
 		policiesByName[policy.Name] = policy
-		if policy.Mode == resource.RateLimitModeGlobal {
-			hasGlobalPolicy = true
-		}
 	}
 
 	config := &RateLimitConfig{
-		Bindings:    make([]pluginratelimit.Binding, 0, len(logical.PolicyBindings)),
-		RedisStores: make([]pluginratelimit.RedisStore, 0, len(logical.RedisStores)),
+		Bindings: make([]pluginratelimit.Binding, 0, len(logical.PolicyBindings)),
 	}
 	for _, binding := range logical.PolicyBindings {
 		rateLimitBinding := pluginratelimit.Binding{
@@ -390,34 +372,8 @@ func (t Translator) translateRateLimitConfig(logical ir.LogicalGateway) *RateLim
 		}
 		config.Bindings = append(config.Bindings, rateLimitBinding)
 	}
-	for _, store := range logical.RedisStores {
-		config.RedisStores = append(config.RedisStores, pluginratelimit.RedisStore{
-			Name:                 store.Name,
-			DisplayName:          store.DisplayName,
-			Mode:                 string(store.Mode),
-			Address:              store.Address,
-			Addresses:            slices.Clone(store.Addresses),
-			DB:                   store.DB,
-			TLS:                  store.TLS,
-			TLSServerName:        store.TLSServerName,
-			Username:             store.Username,
-			PasswordRef:          store.PasswordRef,
-			ConnectTimeoutMillis: store.ConnectTimeoutMillis,
-			CommandTimeoutMillis: store.CommandTimeoutMillis,
-			PoolSize:             store.PoolSize,
-			MinIdleConns:         store.MinIdleConns,
-			SentinelMaster:       store.SentinelMaster,
-		})
-	}
 	if len(config.Bindings) == 0 {
 		return nil
-	}
-	if hasGlobalPolicy {
-		config.DataPlane = &pluginratelimit.DataPlane{
-			ClusterName:   dataPlaneCluster,
-			Path:          dataPlaneRateLimitCheckPath,
-			TimeoutMillis: defaultDataPlaneCapabilityTimeoutMs,
-		}
 	}
 	return config
 }
@@ -425,7 +381,6 @@ func (t Translator) translateRateLimitConfig(logical ir.LogicalGateway) *RateLim
 func (t Translator) rateLimitPolicy(policy ir.LogicalRateLimitPolicy) pluginratelimit.Policy {
 	result := pluginratelimit.Policy{
 		Name:          policy.Name,
-		DisplayName:   policy.DisplayName,
 		Mode:          pluginratelimit.Mode(policy.Mode),
 		Rules:         make([]pluginratelimit.Rule, 0, len(policy.Rules)),
 		Response:      pluginratelimit.Response(policy.Response),
@@ -438,13 +393,6 @@ func (t Translator) rateLimitPolicy(policy ir.LogicalRateLimitPolicy) pluginrate
 			Limit:     pluginratelimit.Quota(rule.Limit),
 			Algorithm: pluginratelimit.Algorithm(rule.Algorithm),
 		})
-	}
-	if policy.Global != nil {
-		result.Global = &pluginratelimit.Global{
-			RedisRef:      policy.Global.RedisRef,
-			Prefix:        policy.Global.Prefix,
-			TimeoutMillis: policy.Global.TimeoutMillis,
-		}
 	}
 	return result
 }

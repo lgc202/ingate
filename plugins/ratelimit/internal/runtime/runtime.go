@@ -2,28 +2,34 @@
 package runtime
 
 import (
-	"errors"
+	"fmt"
+	"sync/atomic"
+	"time"
 
-	dataplaneratelimit "github.com/lgc202/ingate/pkg/dataplane/ratelimit"
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
+	"github.com/lgc202/ingate/plugins/internal/redisabi"
 	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
-	"github.com/lgc202/ingate/plugins/ratelimit/internal/dataplane"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/policy"
+	"github.com/lgc202/ingate/plugins/ratelimit/internal/redis"
 )
 
-var ErrDataPlaneUnavailable = errors.New("rate-limit dataplane unavailable")
+const (
+	bindingTargetGateway = "Gateway"
+	bindingTargetRoute   = "Route"
+	maxWindowSeconds     = int64(^uint64(0)>>1) / int64(time.Second)
+)
 
 // Runtime 是 RateLimit 插件配置编译后的请求执行计划
 type Runtime struct {
-	runner      *policy.Runner
-	routes      pluginruntime.RouteIndex[Route]
-	redisStores []config.RedisStore
-	dataPlane   *dataplane.Client
+	runner         *policy.Runner
+	routes         pluginruntime.RouteIndex[Route]
+	memberSequence atomic.Uint64
 }
 
 // Route 表示单条 route 的预编译限流配置
 type Route struct {
 	Config      config.RouteConfig
+	RuleName    string
 	HeaderNames []string
 }
 
@@ -39,16 +45,7 @@ type Result struct {
 func Compile(cfg config.PluginConfig, runner *policy.Runner) *Runtime {
 	routes := make([]Route, 0, len(cfg.Routes))
 	for _, routeConfig := range cfg.Routes {
-		routes = append(routes, Route{
-			Config:      routeConfig,
-			HeaderNames: policy.HeaderNames(routeConfig),
-		})
-	}
-
-	var dataPlane *dataplane.Client
-	if cfg.DataPlane != nil {
-		client := dataplane.New(*cfg.DataPlane)
-		dataPlane = &client
+		routes = append(routes, Route{Config: routeConfig})
 	}
 
 	return &Runtime{
@@ -57,17 +54,38 @@ func Compile(cfg config.PluginConfig, runner *policy.Runner) *Runtime {
 			return pluginruntime.RouteKey{
 				GatewayName: route.Config.GatewayName,
 				RouteName:   route.Config.RouteName,
-				RuleName:    route.Config.RuleName,
 			}
 		}),
-		redisStores: cfg.RedisStores,
-		dataPlane:   dataPlane,
 	}
 }
 
-// Route 返回命中当前 xDS route identity 的限流配置
+// Route 返回命中当前 xDS route identity 且已经按 rule scope 过滤的限流配置
 func (r *Runtime) Route(key pluginruntime.RouteKey) (Route, bool) {
-	return r.routes.Get(key)
+	route, ok := r.routes.Get(pluginruntime.RouteKey{
+		GatewayName: key.GatewayName,
+		RouteName:   key.RouteName,
+	})
+	if !ok {
+		return Route{}, false
+	}
+
+	bindings := make([]config.Binding, 0, len(route.Config.Bindings))
+	for _, binding := range route.Config.Bindings {
+		switch binding.Target.Kind {
+		case bindingTargetGateway:
+			if binding.Target.Name == key.GatewayName {
+				bindings = append(bindings, binding)
+			}
+		case bindingTargetRoute:
+			if binding.Target.Name == key.RouteName && (binding.Target.RuleName == "" || binding.Target.RuleName == key.RuleName) {
+				bindings = append(bindings, binding)
+			}
+		}
+	}
+	route.Config.Bindings = bindings
+	route.RuleName = key.RuleName
+	route.HeaderNames = policy.HeaderNames(route.Config)
+	return route, true
 }
 
 // Apply 对一次请求执行本地限流判断并生成下一步动作
@@ -76,17 +94,52 @@ func (r *Runtime) Apply(route Route, request policy.Request) Result {
 	return resultFromPolicy(result)
 }
 
-// DispatchGlobalChecks 发送 global limit 检查请求
-func (r *Runtime) DispatchGlobalChecks(checks []policy.GlobalCheck, callback dataplane.CheckCallback) error {
-	if r.dataPlane == nil {
-		return ErrDataPlaneUnavailable
+// PrepareGlobalCheck 为一条 global limit 检查生成 Redis 请求和 RESP 命令
+func (r *Runtime) PrepareGlobalCheck(check policy.GlobalCheck) (redis.Request, []byte, error) {
+	now := time.Now()
+	windowSeconds := int64(check.Rule.Limit.WindowSeconds)
+	if windowSeconds <= 0 || windowSeconds > maxWindowSeconds {
+		return redis.Request{}, nil, fmt.Errorf("rate limit window seconds %d is out of range", windowSeconds)
 	}
-	return r.dataPlane.CheckGlobal(r.redisStores, checks, callback)
+	request := redis.Request{
+		Algorithm: redis.Algorithm(check.Rule.Algorithm),
+		Key:       check.RedisKey,
+		Requests:  check.Rule.Limit.Requests,
+		Window:    time.Duration(windowSeconds) * time.Second,
+		Burst:     check.Rule.Limit.Burst,
+		Now:       now,
+		Member:    fmt.Sprintf("%d-%d", now.UnixNano(), r.memberSequence.Add(1)),
+	}
+	command, err := redis.BuildCommand(request)
+	if err != nil {
+		return redis.Request{}, nil, err
+	}
+	return request, command, nil
 }
 
-// CompleteGlobalChecks 将 dataplane 回调结果转换成插件动作
-func (r *Runtime) CompleteGlobalChecks(checks []policy.GlobalCheck, response dataplaneratelimit.CheckResponse, err error) Result {
-	decision, rejected := policy.ApplyGlobalResult(checks, response, err)
+// CompleteGlobalCheck 将 Redis ABI callback 转换成统一裁决输入
+func (r *Runtime) CompleteGlobalCheck(request redis.Request, result redisabi.Result) policy.GlobalOutcome {
+	if result.Err != nil {
+		return policy.GlobalOutcome{Err: result.Err}
+	}
+	if result.Status != redisabi.RedisStatusOK {
+		return policy.GlobalOutcome{Err: fmt.Errorf("redis call failed with status %d", result.Status)}
+	}
+	parsed, err := redis.ParseResult(request, result.Data)
+	if err != nil {
+		return policy.GlobalOutcome{Err: err}
+	}
+	return policy.GlobalOutcome{
+		Allowed:      parsed.Allowed,
+		Current:      parsed.Current,
+		Limit:        parsed.Limit,
+		ResetSeconds: parsed.ResetSeconds,
+	}
+}
+
+// CompleteGlobalChecks 按原始检查顺序统一生成 Resume 或 Respond 动作
+func (r *Runtime) CompleteGlobalChecks(checks []policy.GlobalCheck, outcomes []policy.GlobalOutcome) Result {
+	decision, rejected := policy.ApplyGlobalResults(checks, outcomes)
 	if rejected {
 		return Result{Action: respondAction(decision)}
 	}

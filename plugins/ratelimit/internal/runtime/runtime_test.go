@@ -5,7 +5,6 @@ import (
 	"slices"
 	"testing"
 
-	dataplaneratelimit "github.com/lgc202/ingate/pkg/dataplane/ratelimit"
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/policy"
@@ -63,7 +62,7 @@ func TestCompleteGlobalChecksAppliesFailClosePolicy(t *testing.T) {
 			Rule: config.Rule{Name: "tenant"},
 			Key:  "Header=acme",
 		},
-	}, dataplaneratelimit.CheckResponse{}, errors.New("dataplane unavailable"))
+	}, []policy.GlobalOutcome{{Err: errors.New("redis unavailable")}})
 
 	if result.Action.Kind != pluginruntime.ActionRespond {
 		t.Fatalf("action = %q, want Respond", result.Action.Kind)
@@ -79,10 +78,10 @@ func pluginConfig() config.PluginConfig {
 			{
 				GatewayName: "gw",
 				RouteName:   "users",
-				RuleName:    "primary",
 				Bindings: []config.Binding{
 					{
-						Name: "binding",
+						Name:   "binding",
+						Target: config.Target{Kind: "Route", Name: "users", RuleName: "primary"},
 						Policies: []config.Policy{
 							{
 								Name: "local",

@@ -1,11 +1,11 @@
 package ratelimit
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 )
-
-const schemaVersion = "v1"
 
 // Mode 表示限流策略执行模式
 type Mode string
@@ -56,45 +56,14 @@ const (
 
 // PluginConfig 表示真正下发给 Wasm 插件的运行时配置
 type PluginConfig struct {
-	SchemaVersion string        `json:"schemaVersion"`
-	RedisStores   []RedisStore  `json:"redisStores,omitempty"`
-	DataPlane     *DataPlane    `json:"dataPlane,omitempty"`
-	Routes        []RouteConfig `json:"routes,omitempty"`
-}
-
-// RedisStore 表示插件运行时使用的 Redis 连接配置
-type RedisStore struct {
-	Name                 string   `json:"name"`
-	DisplayName          string   `json:"displayName,omitempty"`
-	Mode                 string   `json:"mode,omitempty"`
-	Address              string   `json:"address"`
-	Addresses            []string `json:"addresses,omitempty"`
-	DB                   int      `json:"db,omitempty"`
-	TLS                  bool     `json:"tls,omitempty"`
-	TLSServerName        string   `json:"tlsServerName,omitempty"`
-	Username             string   `json:"username,omitempty"`
-	PasswordRef          string   `json:"passwordRef,omitempty"`
-	ConnectTimeoutMillis int      `json:"connectTimeoutMillis,omitempty"`
-	CommandTimeoutMillis int      `json:"commandTimeoutMillis,omitempty"`
-	PoolSize             int      `json:"poolSize,omitempty"`
-	MinIdleConns         int      `json:"minIdleConns,omitempty"`
-	SentinelMaster       string   `json:"sentinelMaster,omitempty"`
-}
-
-// DataPlane 表示插件调用 ingate-dataplane 所需的 Envoy cluster 配置
-type DataPlane struct {
-	ClusterName   string `json:"clusterName"`
-	Path          string `json:"path"`
-	TimeoutMillis int    `json:"timeoutMillis"`
+	Routes []RouteConfig `json:"routes"`
 }
 
 // RouteConfig 表示 Route 级限流配置
 type RouteConfig struct {
-	SchemaVersion string    `json:"schemaVersion"`
-	GatewayName   string    `json:"gatewayName"`
-	RouteName     string    `json:"routeName"`
-	RuleName      string    `json:"ruleName,omitempty"`
-	Bindings      []Binding `json:"bindings"`
+	GatewayName string    `json:"gatewayName"`
+	RouteName   string    `json:"routeName"`
+	Bindings    []Binding `json:"bindings"`
 }
 
 // Binding 表示绑定展开后的执行配置
@@ -104,7 +73,7 @@ type Binding struct {
 	Policies []Policy `json:"policies"`
 }
 
-// Target 表示绑定目标
+// Target 表示绑定目标，RuleName 只在 Route target 上限定当前 xDS rule
 type Target struct {
 	Kind     string `json:"kind"`
 	Name     string `json:"name"`
@@ -114,10 +83,8 @@ type Target struct {
 // Policy 表示限流策略执行配置
 type Policy struct {
 	Name          string        `json:"name"`
-	DisplayName   string        `json:"displayName,omitempty"`
 	Mode          Mode          `json:"mode"`
 	Rules         []Rule        `json:"rules"`
-	Global        *Global       `json:"global,omitempty"`
 	Response      Response      `json:"response,omitempty"`
 	FailurePolicy FailurePolicy `json:"failurePolicy,omitempty"`
 }
@@ -136,18 +103,11 @@ type KeyPart struct {
 	Name string  `json:"name,omitempty"`
 }
 
-// Quota 表示固定窗口限流额度
+// Quota 表示限流额度
 type Quota struct {
 	Requests      int `json:"requests"`
 	WindowSeconds int `json:"windowSeconds"`
 	Burst         int `json:"burst,omitempty"`
-}
-
-// Global 表示 Redis-backed global limit 配置
-type Global struct {
-	RedisRef      string `json:"redisRef"`
-	Prefix        string `json:"prefix,omitempty"`
-	TimeoutMillis int    `json:"timeoutMillis,omitempty"`
 }
 
 // Response 表示超限响应配置
@@ -157,49 +117,11 @@ type Response struct {
 	QuotaHeaderEnabled bool   `json:"quotaHeaderEnabled,omitempty"`
 }
 
-// ParsePluginConfig 解析 Listener 级插件配置
+// ParsePluginConfig 严格解析 Listener 级插件配置
 func ParsePluginConfig(data []byte) (PluginConfig, error) {
 	var cfg PluginConfig
-	if len(data) == 0 {
-		cfg.SchemaVersion = schemaVersion
-		return cfg, nil
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	if err := decodeStrict(data, &cfg); err != nil {
 		return PluginConfig{}, err
-	}
-	if cfg.SchemaVersion == "" {
-		cfg.SchemaVersion = schemaVersion
-	}
-	if cfg.SchemaVersion != schemaVersion {
-		return PluginConfig{}, errors.New("unsupported rate limit plugin config schema version")
-	}
-	return cfg, nil
-}
-
-// ParseRouteConfig 解析 route 级插件配置
-func ParseRouteConfig(data []byte) (RouteConfig, error) {
-	var cfg RouteConfig
-	if len(data) == 0 {
-		return cfg, nil
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return RouteConfig{}, err
-	}
-	if cfg.GatewayName == "" && cfg.RouteName == "" && len(cfg.Bindings) == 0 {
-		var envelope struct {
-			Value json.RawMessage `json:"value"`
-		}
-		if err := json.Unmarshal(data, &envelope); err == nil && len(envelope.Value) > 0 {
-			if err := json.Unmarshal(envelope.Value, &cfg); err != nil {
-				return RouteConfig{}, err
-			}
-		}
-	}
-	if cfg.SchemaVersion == "" {
-		cfg.SchemaVersion = schemaVersion
-	}
-	if cfg.SchemaVersion != schemaVersion {
-		return RouteConfig{}, errors.New("unsupported rate limit route config schema version")
 	}
 	return cfg, nil
 }
@@ -223,4 +145,23 @@ func (p Policy) RejectedMessage() string {
 // FailOpen 表示限流执行失败时是否放行请求
 func (p Policy) FailOpen() bool {
 	return p.FailurePolicy == "" || p.FailurePolicy == FailurePolicyFailOpen
+}
+
+func decodeStrict(data []byte, value any) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return errors.New("rate limit config must be a JSON object")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(value); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("rate limit config contains multiple JSON values")
+		}
+		return err
+	}
+	return nil
 }

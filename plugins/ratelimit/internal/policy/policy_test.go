@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	dataplaneratelimit "github.com/lgc202/ingate/pkg/dataplane/ratelimit"
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 )
 
@@ -92,8 +91,8 @@ func TestRunnerCollectsGlobalChecks(t *testing.T) {
 	if len(result.GlobalChecks) != 2 {
 		t.Fatalf("len(GlobalChecks) = %d, want 2", len(result.GlobalChecks))
 	}
-	if result.GlobalChecks[0].RedisStore != "redis-main" {
-		t.Fatalf("RedisStore = %q, want redis-main", result.GlobalChecks[0].RedisStore)
+	if result.GlobalChecks[0].RedisKey == "" {
+		t.Fatal("RedisKey is empty")
 	}
 }
 
@@ -142,7 +141,10 @@ func TestApplyGlobalResultRejectsFirstFailClosePolicy(t *testing.T) {
 		},
 	}
 
-	decision, rejected := ApplyGlobalResult(checks, dataplaneratelimit.CheckResponse{}, errors.New("dataplane unavailable"))
+	decision, rejected := ApplyGlobalResults(checks, []GlobalOutcome{
+		{Err: errors.New("redis unavailable")},
+		{Err: errors.New("redis unavailable")},
+	})
 	if !rejected {
 		t.Fatal("rejected = false, want true")
 	}
@@ -161,18 +163,14 @@ func TestApplyGlobalResultReturnsQuotaHeadersWhenAllowed(t *testing.T) {
 			Key:    "tenant=acme",
 		},
 	}
-	response := dataplaneratelimit.CheckResponse{
-		Results: []dataplaneratelimit.Result{
-			{
-				Allowed:      true,
-				Limit:        10,
-				Current:      3,
-				ResetSeconds: 30,
-			},
+	decision, rejected := ApplyGlobalResults(checks, []GlobalOutcome{
+		{
+			Allowed:      true,
+			Limit:        10,
+			Current:      3,
+			ResetSeconds: 30,
 		},
-	}
-
-	decision, rejected := ApplyGlobalResult(checks, response, nil)
+	})
 	if rejected {
 		t.Fatalf("rejected = true: %+v", decision)
 	}
@@ -213,10 +211,6 @@ func globalPolicy(name string) config.Policy {
 	return config.Policy{
 		Name: name,
 		Mode: config.ModeGlobal,
-		Global: &config.Global{
-			RedisRef: "redis-main",
-			Prefix:   "ingate-test",
-		},
 		Rules: []config.Rule{
 			{
 				Name: "tenant",

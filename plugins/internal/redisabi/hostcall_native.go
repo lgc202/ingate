@@ -20,3 +20,17 @@ func hostCall(string, []byte) (uint32, error) {
 func hostResponse(int32) ([]byte, error) {
 	return nil, errHostUnavailable
 }
+
+func hostSetEffectiveContext(uint32) error {
+	return errHostUnavailable
+}
+
+func hostResumeHTTPRequest() error {
+	return errHostUnavailable
+}
+
+func hostSendHTTPResponse(uint32, map[string]string, []byte) error {
+	return errHostUnavailable
+}
+
+func hostLogWarning(string) {}
