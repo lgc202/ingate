@@ -22,7 +22,6 @@ const (
 	accessControlHTTPFilterName = "ingate.filters.http.acl"
 	accessControlPluginName     = "ingate.acl"
 	accessControlPluginPath     = "/opt/ingate/plugins/acl.wasm"
-	accessControlSchemaVersion  = "v1"
 	rateLimitHTTPFilterName     = "ingate.filters.http.ratelimit"
 	rateLimitPluginName         = "ingate.ratelimit"
 	rateLimitPluginPath         = "/opt/ingate/plugins/ratelimit.wasm"
@@ -41,7 +40,7 @@ type compiledPolicyBinding struct {
 	rateLimitPolicies     []pluginratelimit.Policy
 }
 
-type rateLimitRouteKey struct {
+type policyRouteKey struct {
 	listenerKey listenerKey
 	gatewayID   string
 	routeID     string
@@ -49,46 +48,13 @@ type rateLimitRouteKey struct {
 
 func (c *compileContext) buildPolicyConfigs() map[listenerKey]listenerPolicyConfig {
 	// 每个 HCM 只注入一次内置 filter，插件再用当前 xDS route name 定位 Gateway/Route/Rule
-	// RateLimit 配置直接使用最终 routes/bindings/policies 结构，系统 Redis 不进入插件 JSON
+	// 内置策略配置直接使用最终 routes/bindings/policies 结构，系统依赖不进入插件 JSON
 	bindings := c.compilePolicyBindings()
 	result := make(map[listenerKey]listenerPolicyConfig)
 
+	routeRules := make(map[policyRouteKey]map[string]bool)
 	for _, attachment := range c.routeAttachments {
-		aclBindings := make([]pluginacl.Binding, 0)
-		for _, binding := range bindings {
-			if len(binding.accessControlPolicies) == 0 || !bindingMatchesAttachment(binding.target, attachment) {
-				continue
-			}
-			aclBindings = append(aclBindings, pluginacl.Binding{
-				Name: binding.name,
-				Target: pluginacl.Target{
-					Kind:     string(binding.target.Kind),
-					Name:     binding.target.Name,
-					RuleName: binding.target.RuleName,
-				},
-				Policies: binding.accessControlPolicies,
-			})
-		}
-		if len(aclBindings) == 0 {
-			continue
-		}
-		config := result[attachment.listenerKey]
-		if config.accessControl == nil {
-			config.accessControl = &pluginacl.PluginConfig{SchemaVersion: accessControlSchemaVersion}
-		}
-		config.accessControl.Routes = append(config.accessControl.Routes, pluginacl.RouteConfig{
-			SchemaVersion: accessControlSchemaVersion,
-			GatewayName:   attachment.gatewayID,
-			RouteName:     attachment.routeID,
-			RuleName:      attachment.ruleName,
-			Bindings:      aclBindings,
-		})
-		result[attachment.listenerKey] = config
-	}
-
-	routeRules := make(map[rateLimitRouteKey]map[string]bool)
-	for _, attachment := range c.routeAttachments {
-		key := rateLimitRouteKey{
+		key := policyRouteKey{
 			listenerKey: attachment.listenerKey,
 			gatewayID:   attachment.gatewayID,
 			routeID:     attachment.routeID,
@@ -98,37 +64,64 @@ func (c *compileContext) buildPolicyConfigs() map[listenerKey]listenerPolicyConf
 		}
 		routeRules[key][attachment.ruleName] = true
 	}
+
 	routeKeys := slices.Collect(maps.Keys(routeRules))
-	slices.SortFunc(routeKeys, compareRateLimitRouteKeys)
+	slices.SortFunc(routeKeys, comparePolicyRouteKeys)
 	for _, key := range routeKeys {
+		aclBindings := make([]pluginacl.Binding, 0)
 		rateBindings := make([]pluginratelimit.Binding, 0)
 		for _, binding := range bindings {
-			if len(binding.rateLimitPolicies) == 0 || !bindingMatchesRateLimitRoute(binding.target, key, routeRules[key]) {
+			if !bindingMatchesPolicyRoute(binding.target, key, routeRules[key]) {
 				continue
 			}
-			rateBindings = append(rateBindings, pluginratelimit.Binding{
-				Name: binding.name,
-				Target: pluginratelimit.Target{
-					Kind:     string(binding.target.Kind),
-					Name:     binding.target.Name,
-					RuleName: binding.target.RuleName,
-				},
-				Policies: binding.rateLimitPolicies,
+			if len(binding.accessControlPolicies) > 0 {
+				aclBindings = append(aclBindings, pluginacl.Binding{
+					Name: binding.name,
+					Target: pluginacl.Target{
+						Kind:     string(binding.target.Kind),
+						Name:     binding.target.Name,
+						RuleName: binding.target.RuleName,
+					},
+					Policies: binding.accessControlPolicies,
+				})
+			}
+			if len(binding.rateLimitPolicies) > 0 {
+				rateBindings = append(rateBindings, pluginratelimit.Binding{
+					Name: binding.name,
+					Target: pluginratelimit.Target{
+						Kind:     string(binding.target.Kind),
+						Name:     binding.target.Name,
+						RuleName: binding.target.RuleName,
+					},
+					Policies: binding.rateLimitPolicies,
+				})
+			}
+		}
+
+		config := result[key.listenerKey]
+		if len(aclBindings) > 0 {
+			if config.accessControl == nil {
+				config.accessControl = &pluginacl.PluginConfig{}
+			}
+			config.accessControl.Routes = append(config.accessControl.Routes, pluginacl.RouteConfig{
+				GatewayName: key.gatewayID,
+				RouteName:   key.routeID,
+				Bindings:    aclBindings,
 			})
 		}
-		if len(rateBindings) == 0 {
-			continue
+		if len(rateBindings) > 0 {
+			if config.rateLimit == nil {
+				config.rateLimit = &pluginratelimit.PluginConfig{}
+			}
+			config.rateLimit.Routes = append(config.rateLimit.Routes, pluginratelimit.RouteConfig{
+				GatewayName: key.gatewayID,
+				RouteName:   key.routeID,
+				Bindings:    rateBindings,
+			})
 		}
-		config := result[key.listenerKey]
-		if config.rateLimit == nil {
-			config.rateLimit = &pluginratelimit.PluginConfig{}
+		if len(aclBindings) > 0 || len(rateBindings) > 0 {
+			result[key.listenerKey] = config
 		}
-		config.rateLimit.Routes = append(config.rateLimit.Routes, pluginratelimit.RouteConfig{
-			GatewayName: key.gatewayID,
-			RouteName:   key.routeID,
-			Bindings:    rateBindings,
-		})
-		result[key.listenerKey] = config
 	}
 
 	return result
@@ -378,7 +371,6 @@ func (c *compileContext) accessControlPolicy(policy *gatewayv1.AccessControlPoli
 	}
 	return pluginacl.Policy{
 		Name:          policy.Name,
-		DisplayName:   policy.Spec.DisplayName,
 		DefaultAction: pluginacl.Action(policy.Spec.DefaultAction),
 		Rules:         rules,
 		Response: pluginacl.Response{
@@ -497,18 +489,7 @@ func (c *compileContext) validRateLimitKeyPart(policyID, ruleName string, part g
 	}
 }
 
-func bindingMatchesAttachment(target gatewayv1.PolicyTargetRef, attachment routeAttachment) bool {
-	switch target.Kind {
-	case gatewayv1.KindGateway:
-		return target.Name == attachment.gatewayID
-	case gatewayv1.KindRoute:
-		return target.Name == attachment.routeID && (target.RuleName == "" || target.RuleName == attachment.ruleName)
-	default:
-		return false
-	}
-}
-
-func bindingMatchesRateLimitRoute(target gatewayv1.PolicyTargetRef, key rateLimitRouteKey, rules map[string]bool) bool {
+func bindingMatchesPolicyRoute(target gatewayv1.PolicyTargetRef, key policyRouteKey, rules map[string]bool) bool {
 	switch target.Kind {
 	case gatewayv1.KindGateway:
 		return target.Name == key.gatewayID
@@ -519,7 +500,7 @@ func bindingMatchesRateLimitRoute(target gatewayv1.PolicyTargetRef, key rateLimi
 	}
 }
 
-func compareRateLimitRouteKeys(a, b rateLimitRouteKey) int {
+func comparePolicyRouteKeys(a, b policyRouteKey) int {
 	if result := compareListenerKeys(a.listenerKey, b.listenerKey); result != 0 {
 		return result
 	}

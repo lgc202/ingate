@@ -19,7 +19,6 @@ const (
 	accessControlHTTPFilterName     = "ingate.filters.http.acl"
 	accessControlPluginName         = "ingate.acl"
 	accessControlPluginPath         = "/opt/ingate/plugins/acl.wasm"
-	accessControlSchemaVersion      = "v1"
 	rateLimitHTTPFilterName         = "ingate.filters.http.ratelimit"
 	rateLimitPluginName             = "ingate.ratelimit"
 	rateLimitPluginPath             = "/opt/ingate/plugins/ratelimit.wasm"

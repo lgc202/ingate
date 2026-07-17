@@ -25,8 +25,7 @@ func mergeAccessControlConfig(current, next *targetxds.AccessControlConfig) *tar
 
 func (b responseBuilder) buildAccessControlHTTPFilter(runtimeConfig targetxds.Config) (*hcmv3.HttpFilter, error) {
 	rawConfig, err := json.Marshal(pluginacl.PluginConfig{
-		SchemaVersion: accessControlSchemaVersion,
-		Routes:        accessControlRouteConfigs(runtimeConfig.RouteConfigs, runtimeConfig.AccessControl),
+		Routes: accessControlRouteConfigs(runtimeConfig.RouteConfigs, runtimeConfig.AccessControl),
 	})
 	if err != nil {
 		return nil, err
@@ -60,7 +59,7 @@ func accessControlRouteConfigs(configs []targetxds.RouteConfig, accessControl *t
 				if !ok {
 					continue
 				}
-				key := routeRuntimeName(routeConfig.GatewayName, routeConfig.RouteName, routeConfig.RuleName, "")
+				key := routeConfig.GatewayName + "\x00" + routeConfig.RouteName
 				if _, ok := seen[key]; ok {
 					continue
 				}
@@ -89,11 +88,9 @@ func buildAccessControlRouteConfig(route targetxds.Route, accessControl *targetx
 	}
 
 	return pluginacl.RouteConfig{
-		SchemaVersion: accessControlSchemaVersion,
-		GatewayName:   route.GatewayName,
-		RouteName:     route.Name,
-		RuleName:      route.RuleName,
-		Bindings:      bindings,
+		GatewayName: route.GatewayName,
+		RouteName:   route.Name,
+		Bindings:    bindings,
 	}, true
 }
 
@@ -102,7 +99,7 @@ func accessControlBindingMatchesRoute(binding pluginacl.Binding, route targetxds
 	case resource.KindGateway:
 		return binding.Target.Name == route.GatewayName
 	case resource.KindRoute:
-		return binding.Target.Name == route.Name && (binding.Target.RuleName == "" || binding.Target.RuleName == route.RuleName)
+		return binding.Target.Name == route.Name
 	default:
 		return false
 	}

@@ -308,7 +308,6 @@ func (t Translator) translateAccessControlConfig(logical ir.LogicalGateway) *Acc
 func (t Translator) accessControlPolicy(policy ir.LogicalAccessControlPolicy) pluginacl.Policy {
 	result := pluginacl.Policy{
 		Name:          policy.Name,
-		DisplayName:   policy.DisplayName,
 		DefaultAction: pluginacl.Action(policy.DefaultAction),
 		Rules:         make([]pluginacl.Rule, 0, len(policy.Rules)),
 		Response: pluginacl.Response{

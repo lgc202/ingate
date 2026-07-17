@@ -1,11 +1,11 @@
 package acl
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
+	"io"
 )
-
-const schemaVersion = "v1"
 
 // Action 表示 ACL 规则命中后的处理动作
 type Action string
@@ -32,17 +32,14 @@ const (
 
 // PluginConfig 表示真正下发给 Wasm 插件的 ACL 运行时配置
 type PluginConfig struct {
-	SchemaVersion string        `json:"schemaVersion"`
-	Routes        []RouteConfig `json:"routes,omitempty"`
+	Routes []RouteConfig `json:"routes"`
 }
 
 // RouteConfig 表示 Route 级 ACL 配置
 type RouteConfig struct {
-	SchemaVersion string    `json:"schemaVersion"`
-	GatewayName   string    `json:"gatewayName"`
-	RouteName     string    `json:"routeName"`
-	RuleName      string    `json:"ruleName,omitempty"`
-	Bindings      []Binding `json:"bindings"`
+	GatewayName string    `json:"gatewayName"`
+	RouteName   string    `json:"routeName"`
+	Bindings    []Binding `json:"bindings"`
 }
 
 // Binding 表示绑定展开后的 ACL 执行配置
@@ -52,7 +49,7 @@ type Binding struct {
 	Policies []Policy `json:"policies"`
 }
 
-// Target 表示绑定目标
+// Target 表示绑定目标，RuleName 只在 Route target 上限定当前 xDS rule
 type Target struct {
 	Kind     string `json:"kind"`
 	Name     string `json:"name"`
@@ -62,7 +59,6 @@ type Target struct {
 // Policy 表示访问控制策略执行配置
 type Policy struct {
 	Name          string   `json:"name"`
-	DisplayName   string   `json:"displayName,omitempty"`
 	DefaultAction Action   `json:"defaultAction,omitempty"`
 	Rules         []Rule   `json:"rules,omitempty"`
 	Response      Response `json:"response,omitempty"`
@@ -88,21 +84,11 @@ type Response struct {
 	Message    string `json:"message,omitempty"`
 }
 
-// ParsePluginConfig 解析 Listener 级插件配置
+// ParsePluginConfig 严格解析 Listener 级插件配置
 func ParsePluginConfig(data []byte) (PluginConfig, error) {
 	var cfg PluginConfig
-	if len(data) == 0 {
-		cfg.SchemaVersion = schemaVersion
-		return cfg, nil
-	}
-	if err := json.Unmarshal(data, &cfg); err != nil {
+	if err := decodeStrict(data, &cfg); err != nil {
 		return PluginConfig{}, err
-	}
-	if cfg.SchemaVersion == "" {
-		cfg.SchemaVersion = schemaVersion
-	}
-	if cfg.SchemaVersion != schemaVersion {
-		return PluginConfig{}, errors.New("unsupported acl plugin config schema version")
 	}
 	return cfg, nil
 }
@@ -121,4 +107,23 @@ func (p Policy) DeniedMessage() string {
 		return p.Response.Message
 	}
 	return defaultDeniedMessage
+}
+
+func decodeStrict(data []byte, value any) error {
+	trimmed := bytes.TrimSpace(data)
+	if len(trimmed) == 0 || trimmed[0] != '{' {
+		return errors.New("access control config must be a JSON object")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(value); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("access control config contains multiple JSON values")
+		}
+		return err
+	}
+	return nil
 }
