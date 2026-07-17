@@ -8,17 +8,14 @@ DEFAULT_DATA_DIR="./ingate"
 DEFAULT_BIND="127.0.0.1"
 DEFAULT_CONSOLE_PORT="8001"
 DEFAULT_HTTP_PORT="8080"
-DEFAULT_HTTPS_PORT="8443"
 CONTAINER_CONSOLE_PORT="8001"
 CONTAINER_HTTP_PORT="8080"
-CONTAINER_HTTPS_PORT="8443"
 
 usage() {
 	cat <<EOF
 Usage: ./install.sh [start|stop|restart|delete|status|logs] [options]
 
 Options:
-  --non-interactive          Accepted for script compatibility; start is non-interactive by default
   --container-name NAME      Container name, default: $DEFAULT_CONTAINER_NAME
   --image IMAGE              Image name, default: $DEFAULT_IMAGE
   --tag TAG                  Image tag, default: $DEFAULT_TAG
@@ -26,7 +23,6 @@ Options:
   --bind ADDRESS             Host bind address, default: $DEFAULT_BIND
   --console-port PORT        Console host port, default: $DEFAULT_CONSOLE_PORT
   --http-port PORT           Gateway HTTP host port, default: $DEFAULT_HTTP_PORT
-  --https-port PORT          Gateway HTTPS host port, default: $DEFAULT_HTTPS_PORT
   --purge-data               Delete local data directory with delete command
   -h, --help                 Show help
 EOF
@@ -45,14 +41,10 @@ DATA_DIR="$DEFAULT_DATA_DIR"
 BIND="$DEFAULT_BIND"
 CONSOLE_PORT="$DEFAULT_CONSOLE_PORT"
 HTTP_PORT="$DEFAULT_HTTP_PORT"
-HTTPS_PORT="$DEFAULT_HTTPS_PORT"
 PURGE_DATA="false"
 
 while [[ $# -gt 0 ]]; do
 	case "$1" in
-	--non-interactive)
-		shift
-		;;
 	--container-name)
 		CONTAINER_NAME="$2"
 		shift 2
@@ -81,10 +73,6 @@ while [[ $# -gt 0 ]]; do
 		HTTP_PORT="$2"
 		shift 2
 		;;
-	--https-port)
-		HTTPS_PORT="$2"
-		shift 2
-		;;
 	--purge-data)
 		PURGE_DATA="true"
 		shift
@@ -111,24 +99,6 @@ require_docker() {
 ensure_dirs() {
 	mkdir -p "$DATA_DIR/data" "$DATA_DIR/logs"
 	DATA_DIR="$(cd "$DATA_DIR" && pwd -P)"
-	if [[ ! -f "$DATA_DIR/default.env" ]]; then
-		write_default_env
-	fi
-}
-
-write_default_env() {
-	cat >"$DATA_DIR/default.env" <<EOF
-INGATE_MODE=all-in-one
-INGATE_CONSOLE_ADDR=0.0.0.0:$CONTAINER_CONSOLE_PORT
-INGATE_GATEWAY_HTTP_ADDR=0.0.0.0:$CONTAINER_HTTP_PORT
-INGATE_GATEWAY_HTTPS_ADDR=0.0.0.0:$CONTAINER_HTTPS_PORT
-INGATE_APISERVER_ADDR=127.0.0.1:18443
-INGATE_ETCD_ADDR=127.0.0.1:2379
-INGATE_XDS_ADDR=127.0.0.1:18000
-INGATE_ENVOY_ADMIN_ADDR=127.0.0.1:15000
-INGATE_DATA_DIR=/var/lib/ingate
-INGATE_LOG_DIR=/var/log/ingate
-EOF
 }
 
 container_id() {
@@ -137,6 +107,38 @@ container_id() {
 
 container_running() {
 	docker ps --filter "name=^/${CONTAINER_NAME}$" --filter "status=running" --format "{{.ID}}"
+}
+
+wait_healthy() {
+	local i state health
+	for i in $(seq 1 90); do
+		state="$(docker inspect -f '{{.State.Status}}' "$CONTAINER_NAME")"
+		health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$CONTAINER_NAME")"
+		if [[ "$state" != "running" ]]; then
+			echo "Container $CONTAINER_NAME stopped during startup (status: $state)" >&2
+			docker logs --tail 50 "$CONTAINER_NAME" >&2 || true
+			return 1
+		fi
+		case "$health" in
+		healthy)
+			return 0
+			;;
+		unhealthy)
+			echo "Container $CONTAINER_NAME is unhealthy; component logs: $DATA_DIR/logs" >&2
+			docker logs --tail 50 "$CONTAINER_NAME" >&2 || true
+			return 1
+			;;
+		none)
+			echo "Image $IMAGE:$TAG does not define a health check" >&2
+			return 1
+			;;
+		esac
+		sleep 1
+	done
+
+	echo "Timed out waiting for container $CONTAINER_NAME to become healthy; component logs: $DATA_DIR/logs" >&2
+	docker logs --tail 50 "$CONTAINER_NAME" >&2 || true
+	return 1
 }
 
 print_success() {
@@ -156,29 +158,27 @@ start_container() {
 	ensure_dirs
 
 	if [[ -n "$(container_running)" ]]; then
+		wait_healthy
 		print_success
 		return
 	fi
 
 	if [[ -n "$(container_id)" ]]; then
 		docker start "$CONTAINER_NAME" >/dev/null
+		wait_healthy
 		print_success
 		return
 	fi
 
 	docker run -d \
 		--name "$CONTAINER_NAME" \
-		--env-file "$DATA_DIR/default.env" \
-		-e "INGATE_CONSOLE_ADDR=0.0.0.0:$CONTAINER_CONSOLE_PORT" \
-		-e "INGATE_GATEWAY_HTTP_ADDR=0.0.0.0:$CONTAINER_HTTP_PORT" \
-		-e "INGATE_GATEWAY_HTTPS_ADDR=0.0.0.0:$CONTAINER_HTTPS_PORT" \
 		-p "$BIND:$CONSOLE_PORT:$CONTAINER_CONSOLE_PORT" \
 		-p "$BIND:$HTTP_PORT:$CONTAINER_HTTP_PORT" \
-		-p "$BIND:$HTTPS_PORT:$CONTAINER_HTTPS_PORT" \
 		-v "$DATA_DIR/data:/var/lib/ingate" \
 		-v "$DATA_DIR/logs:/var/log/ingate" \
 		"$IMAGE:$TAG" >/dev/null
 
+	wait_healthy
 	print_success
 }
 
@@ -211,15 +211,17 @@ delete_container() {
 
 show_status() {
 	require_docker
-	local id status
+	local id status health
 	id="$(container_id)"
 	if [[ -z "$id" ]]; then
 		echo "Container $CONTAINER_NAME does not exist"
 		return
 	fi
 	status="$(docker inspect -f '{{.State.Status}}' "$CONTAINER_NAME")"
+	health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$CONTAINER_NAME")"
 	echo "Container: $CONTAINER_NAME"
 	echo "Status:    $status"
+	echo "Health:    $health"
 	echo "Console:   http://localhost:$CONSOLE_PORT"
 	echo "Gateway:   http://localhost:$HTTP_PORT"
 	echo "Data dir:  $DATA_DIR"

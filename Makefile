@@ -3,8 +3,7 @@
 GO_CACHE_DIR ?= /tmp/ingate-gocache
 GO_MOD_CACHE_DIR ?= /tmp/ingate-gomodcache
 ALL_IN_ONE_IMAGE ?= ingate/all-in-one:dev
-ALL_IN_ONE_GOOS ?= linux
-ALL_IN_ONE_GOARCH ?= arm64
+ALL_IN_ONE_COMMANDS := ./cmd/ingate-apiserver ./cmd/ingate-admin-api ./cmd/ingate-controller
 CONSOLE_DIR ?= web/console
 DEV_IMAGE ?= ingate/all-in-one
 DEV_TAG ?= dev
@@ -50,7 +49,7 @@ console-build: console-install
 
 all-in-one-binaries:
 	mkdir -p _output/all-in-one/bin
-	GOOS=$(ALL_IN_ONE_GOOS) GOARCH=$(ALL_IN_ONE_GOARCH) CGO_ENABLED=0 GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build -o _output/all-in-one/bin/ ./cmd/...
+	GOOS=linux GOARCH=$(shell go env GOARCH) CGO_ENABLED=0 GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build -o _output/all-in-one/bin/ $(ALL_IN_ONE_COMMANDS)
 
 all-in-one-image: all-in-one-binaries plugins-build console-build
 	docker build -f deploy/all-in-one/Dockerfile -t $(ALL_IN_ONE_IMAGE) .
