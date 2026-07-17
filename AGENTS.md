@@ -4,34 +4,35 @@
 
 ## 项目方向
 
-- 构建一个面向 API 网关、AI 网关和多运行时 target 的声明式控制面。
-- 核心抽象优先表达网关领域语义，而不是某个具体数据面实现。
-- Envoy xDS 只是第一个 target，不是核心模型本身。
-- `RuntimeGroup` 是一等资源，表示一组数据面运行时的逻辑投放单元；Gateway 只引用 RuntimeGroup ID，不在 Gateway service 中硬编码运行组选项。
+- 构建一个面向 API 网关和 AI 网关的声明式 Envoy 控制面。
+- Envoy 是唯一数据平面，不为 Kong、Nginx 等假设提前设计 target 抽象。
+- Higress 只作为带 Redis 扩展 ABI 的 Envoy 二进制来源；生产 Go 代码不依赖 Higress 产品模型、wrapper 或高层 SDK。
+- 一套 Ingate 表示一个环境、一个配置域和一组配置完全相同的 Envoy 实例；一套 Ingate 可以包含多个逻辑 Gateway。
+- `Upstream` 统一表示应用、模型、MCP 和 Agent 等网络目标；`type` 表达业务分类，`protocol` 表达实际通信语义。
 - 命名要按新设计重新判断，不要被旧项目影响。例如使用 `Upstream`，不要使用 `Backend`。
 
 ## 当前范围
 
-第一个实现里程碑已经完成核心编译链路：
+当前需要把已有编译链路收缩为直接的 Envoy 配置链路：
 
 ```text
-Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
+Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> Envoy
 ```
 
-当前阶段开始划分长期服务边界，但只做必要入口，不提前实现临时 store、复杂 controller、真实 xDS 协议或 AI runtime。
+删除 RuntimeGroup、RuntimeSnapshot、Target、Translator、公开 Logical IR、独立 ingate-xds 和 ingate-dataplane。Controller 与 xDS 合并为一个进程，但按 Resource Watch、Compiler、Delivery、xDS、Last Good Store 和 Status 分模块。
 
-第一批服务边界：
+当前服务和系统组件：
 
 - `ingate`：CLI 和本地调试入口
 - `ingate-admin-api`：前端管理 API
 - `ingate-apiserver`：声明式资源 API
-- `ingate-controller`：资源状态收敛
-- `ingate-xds`：Envoy xDS 配置服务
+- `ingate-controller`：资源状态收敛、Envoy 配置编译和 xDS 服务
+- `Envoy`：唯一数据平面
+- `etcd`：声明式资源和内部 Last Good 持久化
+- `Redis`：限流和未来 Token 配额等请求路径共享状态
 
 暂时不加入：
 
-- etcd
-- plugin runtime
 - AI runtime
 - data-plane agent
 - Kubernetes operator
@@ -40,7 +41,9 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 
 - 限流、鉴权、访问控制、AI token 配额这类核心治理能力可以使用数据面插件执行，但控制面产品模型必须保持强类型资源，不让用户直接编辑插件私有 JSON。
 - 内置治理插件不建模为用户创建的通用插件资源或插件绑定资源；用户配置的是对应的 Policy、PolicyBinding 和必要的依赖资源。
-- xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次内置 Wasm filter，filter 配置携带 target translator 生成的可执行策略索引，插件通过当前 xDS route name 定位 route/rule 配置。
+- xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次内置 Wasm filter，filter 配置携带 Envoy Config Compiler 生成的可执行策略索引，插件通过当前 xDS route name 定位 route/rule 配置。
+- Redis 是系统组件，不建模为 RedisStore 资源；RateLimitPolicy 和未来 TokenQuotaPolicy 自动使用 Envoy bootstrap 中的 `ingate-system-redis`。
+- Redis 扩展由 Ingate 自己维护最小 ABI adapter，现有插件继续使用标准 Proxy-Wasm SDK，生产代码不 import `github.com/higress-group/...`。
 - 内置插件随 Ingate 数据面镜像或安装包发布，默认放在 `/opt/ingate/plugins`；`/var/lib/ingate/plugins` 预留给未来动态下载、缓存或用户安装的外部插件。
 - 用户自定义插件仍走普通插件模型，不和内置治理插件混用同一套产品协议。
 
@@ -138,14 +141,14 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 
 ### 治理策略与内置插件
 
-- 当前已落地执行链路保留 `RateLimitPolicy`、`AccessControlPolicy`、`PolicyBinding` 和 `RedisStore`；鉴权等治理能力后续重新设计后再加入。
+- 当前已落地执行链路保留 `RateLimitPolicy`、`AccessControlPolicy` 和 `PolicyBinding`；删除 `RedisStore`，鉴权等治理能力后续重新设计后再加入。
 - 核心治理能力可以在数据面通过内置插件执行，但用户协议和 admin-api 不能暴露为普通插件资源、插件绑定资源或插件私有 JSON。
-- 内置治理插件由系统自动注入、自动配置、随 `RuntimeSnapshot` 下发；用户不需要独立安装插件，也不需要感知插件版本、phase、priority 或 Wasm 文件路径。
+- 内置治理插件由系统自动注入、自动配置并通过 Envoy xDS 配置生效；用户不需要独立安装插件，也不需要感知插件版本、phase、priority 或 Wasm 文件路径。
 - `PolicyBinding` 只表达策略绑定到哪个资源或规则，不承载策略配置本身；策略配置必须放在对应强类型 Policy 资源中。
-- Redis、外部服务、证书等可复用运行依赖应独立建模，例如 `RedisStore`，策略通过 ID 引用，不把连接信息复制到每条策略规则里。
-- 内置治理插件可以参考 Higress 等项目的实现思路，但不能依赖第三方产品的 wrapper、matchRules 或专属 host function 作为 Ingate 长期运行时边界。
+- 外部服务、证书等可复用运行依赖按真实产品需求独立建模；系统 Redis 是安装级基础组件，不进入用户资源协议。
+- 内置治理插件可以参考 Higress 等项目的实现思路，但不能依赖第三方产品的 wrapper、matchRules 或高层配置协议；Redis hostcall 通过 Ingate 自己维护的最小 ABI adapter 隔离。
 - 后续新增策略时按资源类型拆分 admin-api 的 handler、dto、service、store，不把不同策略堆进一个大 `policy` 文件，也不写进 Route/Gateway 的用例层。
-- 编译链路中，compiler 负责解析强类型策略和绑定关系，target translator 负责生成目标运行时配置；compiler 不生成插件私有 JSON。
+- Envoy Config Compiler 负责解析强类型策略和绑定关系，并生成 Envoy 与内置插件可执行配置；插件私有结构不能泄漏到用户 API。
 
 ### 标准库与依赖使用
 
@@ -208,7 +211,7 @@ Resource -> Compiler -> Logical IR -> Target Translator -> RuntimeSnapshot
 - 涉及核心链路、跨层转换、协议适配、AI 网关配置生效逻辑等关键或难懂的地方，要主动补充说明性注释。
 - 注释要讲清楚“为什么这样做”和“配置如何生效”，尤其要说明普通网关配置与 AI 网关配置的差异。
 - 注释不需要以句号结尾，保持简洁即可。
-- 英文专有名词可以保留英文，例如 Envoy、xDS、Gateway、Route、Upstream、RuntimeSnapshot。
+- 英文专有名词可以保留英文，例如 Envoy、xDS、Gateway、Route、Upstream。
 - 对外协议字段、错误文本、CLI 输出等用户可见字符串，按实际产品语境决定中英文，不受代码注释语言限制。
 
 ## Git 规则
