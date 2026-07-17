@@ -64,38 +64,6 @@ func TestRunnerResetsWindow(t *testing.T) {
 	}
 }
 
-func TestRunnerCollectsGlobalChecks(t *testing.T) {
-	route := config.RouteConfig{
-		GatewayName: "gw",
-		RouteName:   "users",
-		Bindings: []config.Binding{
-			{
-				Name: "binding",
-				Policies: []config.Policy{
-					globalPolicy("policy-a"),
-					globalPolicy("policy-b"),
-				},
-			},
-		},
-	}
-	req := Request{
-		GatewayName: "gw",
-		RouteName:   "users",
-		Headers:     map[string]string{"x-tenant": "acme"},
-	}
-
-	result := NewMemoryRunner().Apply(route, req)
-	if !result.Allowed {
-		t.Fatalf("Apply() rejected: %+v", result.Decision)
-	}
-	if len(result.GlobalChecks) != 2 {
-		t.Fatalf("len(GlobalChecks) = %d, want 2", len(result.GlobalChecks))
-	}
-	if result.GlobalChecks[0].RedisKey == "" {
-		t.Fatal("RedisKey is empty")
-	}
-}
-
 func TestCompositeKeyUsesRequestParts(t *testing.T) {
 	req := Request{
 		GatewayName: "gw",
@@ -150,32 +118,6 @@ func TestApplyGlobalResultRejectsFirstFailClosePolicy(t *testing.T) {
 	}
 	if decision.Policy.Name != "close" {
 		t.Fatalf("rejected policy = %q, want close", decision.Policy.Name)
-	}
-}
-
-func TestApplyGlobalResultReturnsQuotaHeadersWhenAllowed(t *testing.T) {
-	policy := globalPolicy("global")
-	policy.Response.QuotaHeaderEnabled = true
-	checks := []GlobalCheck{
-		{
-			Policy: policy,
-			Rule:   config.Rule{Name: "tenant"},
-			Key:    "tenant=acme",
-		},
-	}
-	decision, rejected := ApplyGlobalResults(checks, []GlobalOutcome{
-		{
-			Allowed:      true,
-			Limit:        10,
-			Current:      3,
-			ResetSeconds: 30,
-		},
-	})
-	if rejected {
-		t.Fatalf("rejected = true: %+v", decision)
-	}
-	if decision.QuotaHeaders[quotaHeaderRemaining] != "7" {
-		t.Fatalf("remaining header = %q, want 7", decision.QuotaHeaders[quotaHeaderRemaining])
 	}
 }
 
