@@ -631,16 +631,51 @@ v2 的顶层和嵌套结构固定为：
 
 `Policy` 不再有 `global` 字段；`Global` 只由 `mode=Global` 表示。`schemaVersion` 缺失、不是 `v2` 或出现未知字段都返回配置错误。RouteConfig 的 `gatewayName`、`routeName`、`bindings` 结构保持，插件不接收 Redis 地址、用户名、密码、TLS 或 cluster 配置。
 
-Redis ABI 只在 `plugins/internal/redisabi` 中定义，固定签名与 Envoy 扩展契约：
+Redis ABI 只在 `plugins/internal/redisabi` 中定义，固定为 Envoy 扩展的精确 ptr/len 签名：
 
-```text
-proxy_redis_init(cluster, username, password, timeout) -> status
-proxy_redis_call(cluster, query, calloutID*) -> status
-proxy_get_buffer_bytes(redisResponse, start, maxSize, data*, size*) -> status
-proxy_on_redis_call_response(pluginContextID, calloutID, status, responseSize)
+```go
+type HostStatus uint32
+type RedisStatus int32
+type BufferType uint32
+
+//go:wasmimport env proxy_redis_init
+func proxyRedisInit(
+	clusterData *byte, clusterSize int32,
+	usernameData *byte, usernameSize int32,
+	passwordData *byte, passwordSize int32,
+	timeoutMilliseconds uint32,
+) HostStatus
+
+//go:wasmimport env proxy_redis_call
+func proxyRedisCall(
+	clusterData *byte, clusterSize int32,
+	queryData *byte, querySize int32,
+	calloutID *uint32,
+) HostStatus
+
+//go:wasmimport env proxy_get_buffer_bytes
+func proxyGetBufferBytes(
+	bufferType BufferType,
+	start int32,
+	maxSize int32,
+	returnBufferData unsafe.Pointer,
+	returnBufferSize *int32,
+) HostStatus
+
+//go:wasmexport proxy_on_redis_call_response
+func proxyOnRedisCallResponse(
+	pluginContextID uint32,
+	calloutID uint32,
+	status int32,
+	responseSize int32,
+)
 ```
 
-插件 Root Context 启动时只初始化一次固定 cluster。Dispatch 时记录 calloutID、plugin context 和 HTTP context；callback 先设置有效 context，再检查 context 是否已销毁，最后删除记录并执行上层回调。ABI status 数值、Redis response buffer 类型和 callback export 名称固定在 Ingate 包内，并由绑定的 Envoy 镜像版本 E2E 验证。更换 Envoy 二进制必须重新运行 ABI smoke test。
+Redis response buffer 使用 `BufferType(9)`。三个 hostcall 的返回值是 `HostStatus(uint32)`，callback 的 Redis 执行状态是 `RedisStatus(int32)`，不能混用同一类型。
+
+插件 Root Context 启动时只初始化一次固定 cluster。Dispatch registry 的 key 固定为 `(pluginContextID, calloutID)`，record 显式保存 plugin context 和 HTTP context，避免不同 plugin 的相同 callout ID 碰撞。HTTP context 创建时登记存活，`OnHttpStreamDone` 只移除/标记 liveness，不删除仍在飞行的 callout；callback 顺序固定为：设置始终有效的 plugin/root context，查找但暂不删除 callout 记录，根据显式 liveness 尝试切换 HTTP context，最后删除 callout。已销毁时稳定记录 `late_callback_ignored`，存活时在 callback 返回前复制 response buffer 并继续上层执行。
+
+`proxywasm.SetEffectiveContext` 只改变 host context，不更新 SDK 私有的 `activeContextID`。因此自定义 Redis callback 的 buffer、Resume/Respond 和后续 Redis dispatch 必须调用 Ingate 自己的直接 hostcall，不能使用依赖 SDK callback registry 的异步 API。ABI status、buffer 类型、callback export 和 context 生命周期由绑定的 Envoy 镜像版本 E2E 验证；更换 Envoy 二进制必须重新运行 ABI smoke test。
 
 ## 插件执行边界
 
