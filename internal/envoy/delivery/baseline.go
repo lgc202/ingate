@@ -9,7 +9,7 @@ import (
 )
 
 // BaselineVersion 是没有可服务配置时写入四类 xDS 资源的固定版本
-const BaselineVersion = "ingate/baseline/v1"
+const BaselineVersion = "ingate/baseline"
 
 func newBaselineSnapshot() (*cachev3.Snapshot, error) {
 	snapshot, err := cachev3.NewSnapshot(BaselineVersion, map[resourcev3.Type][]cachetypes.Resource{

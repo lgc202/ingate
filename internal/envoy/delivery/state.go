@@ -12,24 +12,18 @@ import (
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/lgc202/ingate/internal/envoy/config"
-	"github.com/lgc202/ingate/internal/envoy/lastgood"
 	"github.com/lgc202/ingate/internal/envoy/xds"
 	"google.golang.org/protobuf/proto"
 )
 
-const (
-	lastGoodRetryLimit   = 3
-	maxErrorSummaryRunes = 512
-)
+const maxErrorSummaryRunes = 512
 
 type commandKind uint8
 
 const (
-	commandRestore commandKind = iota + 1
-	commandSubmit
+	commandSubmit commandKind = iota + 1
 	commandXDSEvent
 	commandACKTimeout
-	commandLastGoodRetry
 )
 
 type command struct {
@@ -40,20 +34,16 @@ type command struct {
 	compileHasErrors bool
 	event            xds.Event
 
-	version     string
-	sequence    uint64
-	contentHash string
-	record      lastgood.Record
-	attempt     int
+	version  string
+	sequence uint64
 
 	reply chan<- error
 }
 
 type publishedConfig struct {
-	version     string
-	contentHash string
-	config      config.Config
-	snapshot    *cachev3.Snapshot
+	version  string
+	config   config.Config
+	snapshot *cachev3.Snapshot
 }
 
 type candidateState struct {
@@ -62,15 +52,6 @@ type candidateState struct {
 	requiredTypes []string
 	responseSeen  bool
 	timer         *time.Timer
-}
-
-type persistenceState struct {
-	version     string
-	contentHash string
-	record      lastgood.Record
-	attempt     int
-	err         string
-	timer       *time.Timer
 }
 
 type ackProgress struct {
@@ -84,24 +65,20 @@ type streamState struct {
 }
 
 type runtimeState struct {
-	initialized bool
-	state       State
-	sequence    uint64
+	state    State
+	sequence uint64
 
 	candidate *candidateState
 	active    *publishedConfig
 	streams   map[int64]*streamState
 
-	lastGoodVersion string
-	ackTimedOut     bool
-	nackCount       int
-	lastNACK        *NACK
-	rejected        map[string]bool
+	ackTimedOut bool
+	nackCount   int
+	lastNACK    *NACK
+	rejected    map[string]bool
 
-	restoreError  string
 	rollbackError string
 	activeNACK    bool
-	persistence   *persistenceState
 }
 
 func newRuntimeState() runtimeState {
@@ -124,10 +101,6 @@ func (s *runtimeState) refreshState() {
 		}
 		return
 	}
-	if s.restoreError != "" || (s.persistence != nil && s.persistence.err != "") {
-		s.state = StateDegraded
-		return
-	}
 	if s.active != nil {
 		s.state = StateActive
 		return
@@ -137,7 +110,6 @@ func (s *runtimeState) refreshState() {
 
 func (s *runtimeState) snapshot() Status {
 	status := Status{
-		LastGoodVersion: s.lastGoodVersion,
 		ConfigReady:     s.candidate != nil || s.active != nil,
 		State:           s.state,
 		ConnectedEnvoys: len(s.streams),
@@ -152,12 +124,6 @@ func (s *runtimeState) snapshot() Status {
 	}
 	if s.active != nil {
 		status.ActiveVersion = s.active.version
-	}
-	if s.persistence != nil {
-		status.PersistenceError = s.persistence.err
-		status.PersistenceRetrying = s.persistence.timer != nil
-	} else {
-		status.PersistenceError = s.restoreError
 	}
 	return status
 }

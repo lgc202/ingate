@@ -64,7 +64,6 @@ func TestReconcileDeliveryErrorIsRetried(t *testing.T) {
 	ctx := context.Background()
 	configDelivery, err := delivery.New(
 		cachev3.NewSnapshotCache(true, xds.NodeHash{}, nil),
-		nil,
 		delivery.Options{},
 	)
 	if err != nil {
@@ -75,17 +74,15 @@ func TestReconcileDeliveryErrorIsRetried(t *testing.T) {
 	go func() {
 		deliveryDone <- configDelivery.Run(deliveryCtx)
 	}()
-	t.Cleanup(func() {
-		cancelDelivery()
-		select {
-		case err := <-deliveryDone:
-			if err != nil {
-				t.Errorf("Delivery.Run() error = %v", err)
-			}
-		case <-time.After(2 * time.Second):
-			t.Error("Delivery.Run() did not stop")
+	cancelDelivery()
+	select {
+	case err := <-deliveryDone:
+		if err != nil {
+			t.Fatalf("Delivery.Run() error = %v", err)
 		}
-	})
+	case <-time.After(2 * time.Second):
+		t.Fatal("Delivery.Run() did not stop")
+	}
 
 	client := fakeclient.NewSimpleClientset()
 	r, err := New(client, 0, configDelivery, controllerstatus.NewRuntime(), discardLogger())

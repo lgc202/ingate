@@ -113,10 +113,5 @@ func (o *Options) Config() (*Config, error) {
 	genericConfig.OpenAPIV3Config.Info.Title = "Ingate API Server"
 	genericConfig.OpenAPIV3Config.Info.Version = gatewayv1.SchemeGroupVersion.Version
 
-	return &Config{
-		GenericConfig: genericConfig,
-		ExtraConfig: ExtraConfig{
-			EtcdTransport: o.Etcd.StorageConfig.Transport,
-		},
-	}, nil
+	return &Config{GenericConfig: genericConfig}, nil
 }
