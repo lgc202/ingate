@@ -19,7 +19,7 @@
 Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> Envoy
 ```
 
-删除 RuntimeGroup、RuntimeSnapshot、Target、Translator、公开 Logical IR、独立 ingate-xds 和 ingate-dataplane。Controller 与 xDS 合并为一个进程，但按 Resource Watch、Compiler、Delivery、xDS、Last Good Store 和 Status 分模块。
+删除 RuntimeGroup、RuntimeSnapshot、Target、Translator、公开 Logical IR、独立 ingate-xds 和 ingate-dataplane。Controller 与 xDS 合并为一个进程，但按 Resource Watch、Compiler、Delivery、xDS 和 Status 分模块。声明式资源是唯一持久化事实；Delivery 的 Candidate 和 Active 只保存在进程内，Controller 重启后重新全量编译，不持久化 Last Good。
 
 当前服务和系统组件：
 
@@ -28,7 +28,7 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - `ingate-apiserver`：声明式资源 API
 - `ingate-controller`：资源状态收敛、Envoy 配置编译和 xDS 服务
 - `Envoy`：唯一数据平面
-- `etcd`：声明式资源和内部 Last Good 持久化
+- `etcd`：声明式资源持久化，仅由 ingate-apiserver 访问
 - `Redis`：限流和未来 Token 配额等请求路径共享状态
 
 暂时不加入：

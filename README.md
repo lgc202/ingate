@@ -1,144 +1,80 @@
 # Ingate
 
-Ingate 是面向 API 网关、AI 网关、流量分析和治理的一体化产品工程。当前仓库采用单仓结构，同时包含控制台前端、admin-api、apiserver、controller、xDS 服务和 all-in-one 交付配置。
+Ingate 是面向 API 网关和 AI 网关的声明式 Envoy 控制面。应用服务、模型、MCP 和 Agent 统一建模为 `Upstream`，Envoy 是唯一数据平面。
 
-## 项目方向
-
-- 普通 API 网关：管理网关、路由、服务和策略，先跑通代理闭环
-- AI 网关：把模型服务、Agent 服务、MCP 服务作为一类后端服务接入
-- 数据分析：基于访问日志和 AI 用量识别 API、账号、用户、应用、源 IP 等资产
-- 治理处置：围绕 API、风险事件、用户和服务执行限流、封禁、下线等治理动作
-
-当前阶段优先保证网关主链路稳定：
+## 架构
 
 ```text
-Gateway / Route / Upstream -> Compiler -> RuntimeSnapshot -> xDS -> Envoy
+Gateway / Route / Upstream / Policy
+                  |
+                  v
+          ingate-apiserver
+                  |
+                  v
+         ingate-controller
+  Resource Watch -> Envoy Compiler
+                 -> Config Delivery
+                 -> xDS Snapshot Cache
+                  |
+                  v
+                Envoy
 ```
 
-## 目录结构
+一套 Ingate 表示一个环境、一个配置域和一组配置完全相同的 Envoy 实例。一套 Ingate 可以声明多个逻辑 Gateway；所有资源会被全量编译成同一份 LDS、RDS、CDS 和 EDS 配置。
+
+主要组件：
+
+- `ingate`：CLI 和本地管理入口
+- `ingate-admin-api`：控制台产品 API
+- `ingate-apiserver`：声明式资源 API，也是持久化数据的唯一入口
+- `ingate-controller`：资源收敛、Envoy 配置编译、Delivery 和 ADS xDS
+- `Envoy`：唯一数据平面，二进制来自带 Redis 扩展 ABI 的 Higress Envoy
+- `etcd`：由 apiserver 使用的声明式资源存储
+- `Redis`：限流及未来 Token 配额等请求路径共享状态
+
+内置限流和访问控制以强类型 Policy 与 PolicyBinding 对外提供。用户不需要安装内置 Wasm 插件，也不需要配置 Redis 地址；系统 Redis 由 Envoy bootstrap 中固定的 `ingate-system-redis` 使用。
+
+## 目录
 
 ```text
-cmd/                    后端进程入口
-internal/               后端内部实现
-pkg/                    API 类型、客户端和生成代码
+cmd/                    服务和 CLI 入口
+internal/               控制面内部实现
+pkg/                    声明式 API 类型与生成客户端
+plugins/                内置 Proxy-Wasm 插件和 Ingate Redis ABI
 web/console/            控制台前端
-deploy/all-in-one/      all-in-one 镜像和运行配置
-docs/                   设计文档
+deploy/all-in-one/      all-in-one 镜像与运行配置
 hack/                   代码生成脚本
-install.sh              all-in-one 本地安装和运行脚本
-Makefile                统一构建入口
+install.sh              本地安装脚本
 ```
 
-前端和后端在同一仓库内管理，但工程边界保持隔离：前端只通过 `/api/v1` 调用 admin-api，不直接依赖 Go 代码；all-in-one 只消费 `web/console/dist` 构建产物。
+## 构建
 
-## 本地构建
-
-构建后端：
+项目使用 Go 1.26。
 
 ```bash
+make test
 make build
-```
-
-构建前端：
-
-```bash
+make plugins-build
 make console-build
-```
-
-构建 all-in-one 镜像：
-
-```bash
 make all-in-one-image
 ```
 
-`make all-in-one-image` 会依次构建 Go 二进制、`web/console` 前端产物，并把它们打进 `ingate/all-in-one:dev` 镜像。
-
 ## 本地运行
 
-启动或重启 all-in-one：
-
 ```bash
-./install.sh restart --image ingate/all-in-one --tag dev --data-dir ./ingate-dev
+./install.sh restart \
+  --image ingate/all-in-one \
+  --tag dev \
+  --data-dir ./ingate-dev
 ```
 
-默认访问入口：
+默认入口：
 
 ```text
-控制台: http://127.0.0.1:8001
-网关 HTTP: http://127.0.0.1:8080
-网关 HTTPS: https://127.0.0.1:8443
+Console:      http://127.0.0.1:8001
+Gateway HTTP: http://127.0.0.1:8080
 ```
 
-all-in-one 内部包含：
+all-in-one 内只运行产品必需组件：etcd、Redis、ingate-apiserver、ingate-controller、ingate-admin-api、Envoy 和 Console。测试后端使用独立容器，不进入产品镜像。
 
-```text
-etcd
-ingate-apiserver
-ingate-controller
-ingate-xds
-ingate-admin-api
-Envoy
-Console
-go-httpbin 示例服务
-```
-
-## 网关入口模型
-
-all-in-one 默认固定暴露运行入口端口：
-
-```text
-HTTP  8080
-HTTPS 8443
-```
-
-多个业务 Gateway 共享同一组运行入口，通过 Host、SNI、Path、Method 和 Header 等规则区分流量。网关不是 Docker 端口映射对象，端口属于运行时部署。
-
-同一个运行入口下可以有多个指定 Host 的 Gateway，但只允许一个启用状态的“不限制 Host”Gateway 作为默认入口。
-
-## 常用验证
-
-```bash
-go test ./internal/xds/server ./internal/adminapi/...
-npm --prefix web/console run build
-curl -sSf http://127.0.0.1:8001/api/v1/gateways
-curl -sSf -D - http://127.0.0.1:8080/ -o /dev/null
-```
-
-网关入口响应里应该能看到：
-
-```text
-server: envoy
-```
-
-all-in-one 内置 `go-httpbin`，监听容器内 `127.0.0.1:19090`，用于验证网关代理链路。可以在控制台创建一个服务指向 `127.0.0.1:19090`，再创建路由后访问：
-
-```bash
-curl -sSf http://127.0.0.1:8080/get
-curl -sSf -X POST http://127.0.0.1:8080/post -H 'Content-Type: application/json' -d '{"hello":"ingate"}'
-curl -sS -D - http://127.0.0.1:8080/status/500 -o /dev/null
-curl -sSf http://127.0.0.1:8080/delay/1
-```
-
-这些接口来自 go-httpbin，适合验证方法匹配、请求体转发、状态码、延迟和请求头等场景。
-
-## 本地数据
-
-`ingate-dev/` 是 all-in-one 本地运行数据目录，包含 etcd 数据和日志，只用于开发验证，不提交到 Git。
-
-停止容器但保留数据：
-
-```bash
-./install.sh stop
-```
-
-删除容器并保留数据：
-
-```bash
-./install.sh delete
-```
-
-删除容器并清理数据：
-
-```bash
-./install.sh delete --purge-data
-```
+本地数据和日志默认保存在 `ingate-dev/`，不提交到 Git。
