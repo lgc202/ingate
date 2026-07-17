@@ -198,8 +198,9 @@ git commit -m "test(xds): lock SotW callback contract"
 - Create: `plugins/internal/redisabi/callback_wasm.go`
 - Create: `plugins/internal/redisabi/client.go`
 - Create: `plugins/internal/redisabi/client_test.go`
-- Create: `test/redisabi/plugin/main.go`
+- Create: `plugins/redisabi-smoke/main.go`
 - Create: `test/redisabi/Dockerfile`
+- Create: `test/redisabi/bootstrap.yaml`
 - Create: `test/redisabi/run.sh`
 - Modify: `Makefile`
 
@@ -211,28 +212,59 @@ git commit -m "test(xds): lock SotW callback contract"
 
 ```go
 const (
-	SystemCluster = "ingate-system-redis"
+	SystemCluster  = "ingate-system-redis"
 	CommandTimeout = 50 * time.Millisecond
 )
 
+type HostStatus uint32
+type RedisStatus int32
+type BufferType uint32
+
 type Result struct {
-	Status Status
+	Status RedisStatus
 	Data   []byte
 }
 
 type Callback func(Result)
 ```
 
-ABI 契约固定为：
+ABI 契约使用精确的 ptr/len 签名：
 
-```text
-proxy_redis_init(cluster, username, password, timeout) -> status
-proxy_redis_call(cluster, query, calloutID*) -> status
-proxy_get_buffer_bytes(bufferType=9, start, maxSize, data*, size*) -> status
-proxy_on_redis_call_response(pluginContextID, calloutID, status, responseSize)
+```go
+//go:wasmimport env proxy_redis_init
+func proxyRedisInit(
+	clusterData *byte, clusterSize int32,
+	usernameData *byte, usernameSize int32,
+	passwordData *byte, passwordSize int32,
+	timeoutMilliseconds uint32,
+) HostStatus
+
+//go:wasmimport env proxy_redis_call
+func proxyRedisCall(
+	clusterData *byte, clusterSize int32,
+	queryData *byte, querySize int32,
+	calloutID *uint32,
+) HostStatus
+
+//go:wasmimport env proxy_get_buffer_bytes
+func proxyGetBufferBytes(
+	bufferType BufferType,
+	start int32,
+	maxSize int32,
+	returnBufferData unsafe.Pointer,
+	returnBufferSize *int32,
+) HostStatus
+
+//go:wasmexport proxy_on_redis_call_response
+func proxyOnRedisCallResponse(
+	pluginContextID uint32,
+	calloutID uint32,
+	status int32,
+	responseSize int32,
+)
 ```
 
-`status == 0` 表示成功；非零统一转换为稳定 Redis call error，不依赖未稳定的细分数值。Redis response buffer 类型固定为具名常量 9，且只在 callback 期间有效，必须在返回前复制。
+三个 hostcall 返回 `HostStatus`，callback 的 Redis 执行状态使用 `RedisStatus`，两类状态不能复用同一类型。`HostStatus(0)` 表示 hostcall 成功；非零统一转换为稳定 hostcall error，不依赖未稳定的细分数值。Redis response buffer 类型固定为 `BufferType(9)`，且只在 callback 期间有效，必须在返回前复制。
 
 - [ ] **Step 2: 运行普通 Go 测试并确认 stub 尚未实现**
 
@@ -268,15 +300,19 @@ proxy_on_redis_call_response
 ingate-system-redis?buffer_flush_timeout=0&max_buffer_size_before_flush=0
 ```
 
-username/password 为空，DB 固定 0，timeout 固定 50ms。空 query 必须返回 Go error，不能对 `&query[0]` 取址导致 panic。
+username/password 为空时传 `nil, 0`，DB 固定 0，timeout 固定 50ms。空 query 必须返回 Go error，不能对空 slice 取 `&value[0]` 导致 panic。
 
 - [ ] **Step 4: 构建只做 PING 的最小 Wasm**
 
-`test/redisabi/plugin/main.go` 在 Root Context 启动时初始化 `ingate-system-redis`，收到测试 HTTP 请求后发送 RESP `PING`，callback 读取 Redis response buffer；成功返回 HTTP 200 和 `PONG`，任何 ABI/status/RESP 错误返回 500 并写明稳定错误类别。
+`plugins/redisabi-smoke/main.go` 在 Root Context 启动时初始化 `ingate-system-redis` 并立即发送一次 RESP `PING`。异步 callback 只复制 Redis response buffer 到该 plugin/root context 的状态，不切换 HTTP context，也不 Resume/Respond；后续测试 HTTP 请求在正常 `OnHttpRequestHeaders` callback 中同步读取该状态，成功返回 HTTP 200 和 `PONG`，未完成返回 503，ABI/status/RESP 错误返回 500 并写明稳定错误类别。
+
+Task 2 只验证 Redis ABI、buffer 和 callback export，不提前实现 HTTP callout context registry；`(pluginContextID, calloutID)`、late callback 和 direct Resume/Respond 在 Task 5 接入。
+
+Smoke plugin 必须放在 `plugins/` 下，因为 Go 的 `internal` import 规则只允许 `plugins` 子树导入 `plugins/internal/redisabi`；`test/redisabi` 只保存 Docker 和运行 harness。
 
 - [ ] **Step 5: 写真实 Higress Envoy + Redis smoke harness**
 
-`test/redisabi/run.sh` 使用隔离 Docker network 启动：
+`test/redisabi/run.sh` 使用隔离 Docker network，并把 Higress 镜像中的 Envoy 复制进与最终 all-in-one 相同的 Debian bookworm 基础环境，再启动：
 
 - 官方 Redis Standalone；
 - 从官方 Higress gateway v2.2.3 镜像取得的 Envoy 1.36.4；
@@ -284,6 +320,14 @@ username/password 为空，DB 固定 0，timeout 固定 50ms。空 query 必须�
 - 最小 Wasm filter。
 
 先以 tag 拉取并验证，再将镜像引用替换为 `@sha256:` digest；脚本必须在发现仍是可变 tag 时失败。清理使用 trap，不复用开发环境容器。
+
+启动前必须在最终 Debian 环境中依次验证：
+
+```text
+ldd /usr/local/bin/envoy 无 not found
+envoy --version 为 1.36.4
+envoy --mode validate -c /etc/ingate/envoy/bootstrap.yaml 成功
+```
 
 - [ ] **Step 6: 运行真实 ABI smoke**
 
@@ -298,7 +342,7 @@ Expected: HTTP 200、响应包含 `PONG`，Envoy 日志无 unknown import、ABI 
 - [ ] **Step 7: 提交**
 
 ```bash
-git add plugins/internal/redisabi test/redisabi Makefile
+git add plugins/internal/redisabi plugins/redisabi-smoke test/redisabi Makefile
 git commit -m "test(ratelimit): verify Ingate Redis ABI"
 ```
 
@@ -372,7 +416,7 @@ func New(store *gatewaystore.Store, routes *routestore.Store) *Service
 
 `GatewayParams`、`GatewayConfig`、响应 DTO 和 Handler 参数转换全部删除 RuntimeGroup 字段；启停 Gateway 不再检查运行组。路由聚合、store 聚合和 router 同步删除 RuntimeGroup。
 
-此时声明式 API 类型暂时保留 `RuntimeGroupRef`，但管理面不再读写它；最终在 Task 17 统一删除和重新生成代码。
+此时声明式 API 类型暂时保留 `RuntimeGroupRef`，但管理面不再读写它；最终在 Task 16 统一删除和重新生成代码。
 
 - [ ] **Step 3: 建立 Console 单元测试基础**
 
@@ -413,12 +457,97 @@ git commit -m "refactor(adminapi): remove runtime group management"
 
 ---
 
-### Task 4: 从管理面移除 RedisStore 和 RateLimitPolicy.global
+### Task 4: 迁移纯 Redis RESP 与三种限流算法
 
-**Required skills:** @superpowers:test-driven-development, @go-testing
+**Required skills:** @superpowers:test-driven-development, @go-testing, @go-error-handling
 
 **Files:**
 
+- Create: `plugins/ratelimit/internal/redis/resp.go`
+- Create: `plugins/ratelimit/internal/redis/resp_test.go`
+- Create: `plugins/ratelimit/internal/redis/algorithm.go`
+- Create: `plugins/ratelimit/internal/redis/algorithm_test.go`
+- [ ] **Step 1: 为 RESP 和三种 Lua 算法写普通 Go 失败测试**
+
+从 `internal/dataplane/service/ratelimit/algorithm.go` 迁移脚本和结果语义，但新 package 不能 import `go-redis`、Proxy-Wasm 或 HTTP DTO。覆盖：
+
+- RESP bulk string、simple string、integer、array、nil、Redis error；
+- FixedWindow、SlidingWindow、TokenBucket 的 EVAL argv；
+- Allowed、Current、Limit、Remaining、ResetSeconds、RetryAfterSeconds；
+- Redis error、空响应、截断、错误类型、数字溢出和尾随数据；
+- FixedWindow TTL 毫秒向上取整；
+- TokenBucket capacity 等于 requests + burst。
+
+- [ ] **Step 2: 实现无运行时依赖的 RESP/算法层**
+
+只实现本项目需要的 RESP2：bulk-string array 编码，以及 array/integer/bulk/simple/error 解码。Lua 脚本内容从现有 dataplane 原样迁移，删除 `redis.NewScript` 包装。时间通过可注入 clock 测试，生产使用 `time.Now`。
+
+这个任务只新增未接线的纯代码，不修改当前 v1 plugin schema、旧 xDS producer 或运行时，因此提交后现有系统仍可编译和运行。真正的 v2 producer/consumer 切换在 Task 5 原子完成。
+
+- [ ] **Step 3: 运行纯算法测试**
+
+Run:
+
+```bash
+go test -race ./plugins/ratelimit/internal/redis -count=1
+```
+
+Expected: PASS。
+
+- [ ] **Step 4: 提交**
+
+```bash
+git add plugins/ratelimit/internal/redis
+git commit -m "refactor(ratelimit): extract Redis algorithms"
+```
+
+---
+
+### Task 5: 原子切换 RateLimit v2 producer、Redis ABI consumer 和 Envoy 二进制
+
+**Required skills:** @superpowers:test-driven-development, @go-testing, @go-concurrency, @go-context
+
+**Files:**
+
+- Create: `plugins/internal/redisabi/registry.go`
+- Create: `plugins/internal/redisabi/registry_test.go`
+- Modify: `plugins/internal/redisabi/status.go`
+- Modify: `plugins/internal/redisabi/hostcall_wasm.go`
+- Modify: `plugins/internal/redisabi/hostcall_native.go`
+- Modify: `plugins/internal/redisabi/callback_wasm.go`
+- Modify: `plugins/internal/redisabi/client.go`
+- Modify: `plugins/internal/redisabi/client_test.go`
+- Create: `plugins/ratelimit/internal/redis/client.go`
+- Create: `plugins/ratelimit/internal/redis/client_test.go`
+- Create: `plugins/ratelimit/internal/redis/execution.go`
+- Create: `plugins/ratelimit/internal/redis/execution_test.go`
+- Modify: `plugins/ratelimit/internal/app/app.go`
+- Modify: `plugins/ratelimit/internal/runtime/runtime.go`
+- Modify: `plugins/ratelimit/internal/runtime/runtime_test.go`
+- Modify: `plugins/ratelimit/internal/wasm/http.go`
+- Modify: `plugins/ratelimit/internal/wasm/plugin.go`
+- Modify: `plugins/ratelimit/internal/wasm/request.go`
+- Modify: `plugins/ratelimit/internal/wasm/route.go`
+- Modify: `plugins/ratelimit/README.md`
+- Modify: `pkg/plugin/ratelimit/doc.go`
+- Modify: `pkg/plugin/ratelimit/types.go`
+- Modify: `pkg/plugin/ratelimit/types_test.go`
+- Modify: `plugins/ratelimit/internal/policy/decision.go`
+- Modify: `plugins/ratelimit/internal/policy/global.go`
+- Modify: `plugins/ratelimit/internal/policy/key.go`
+- Modify: `plugins/ratelimit/internal/policy/policy.go`
+- Modify: `plugins/ratelimit/internal/policy/policy_test.go`
+- Modify: `plugins/ratelimit/internal/policy/runner.go`
+- Modify: `internal/core/compiler/compiler.go`
+- Modify: `internal/core/compiler/compiler_test.go`
+- Modify: `internal/core/target/xds/ratelimit.go`
+- Modify: `internal/core/target/xds/translator.go`
+- Modify: `internal/core/target/xds/translator_test.go`
+- Modify: `internal/xds/server/ratelimit_builder.go`
+- Modify: `internal/xds/server/listener_builder.go`
+- Modify: `internal/xds/server/listener_builder_test.go`
+- Modify: `internal/xds/server/snapshot_watcher.go`
+- Create: `internal/xds/server/snapshot_watcher_test.go`
 - Modify: `internal/adminapi/handler/ratelimitpolicy/dto/request.go`
 - Modify: `internal/adminapi/handler/ratelimitpolicy/dto/response.go`
 - Modify: `internal/adminapi/handler/ratelimitpolicy/dto/types.go`
@@ -445,266 +574,119 @@ git commit -m "refactor(adminapi): remove runtime group management"
 - Create: `web/console/src/features/policies/form.test.ts`
 - Modify: `web/console/src/features/policies/PolicyPage.tsx`
 - Modify: `web/console/src/mocks/consoleRepository.ts`
-
-- [ ] **Step 1: 写后端失败测试**
-
-覆盖：
-
-- `mode=Global` 不需要 `global` 或 `redisRef`；
-- Local/Global 仍是唯一合法 mode；
-- Create/Update 不查询 RedisStore，写入的 `RateLimitPolicy.Spec.Global` 为 nil；
-- `/api/v1/redis-stores` 返回 404；
-- Resource 聚合不再包含 RedisStore 选项。
-
-Run:
-
-```bash
-go test ./internal/adminapi/handler/ratelimitpolicy/dto ./internal/adminapi/service/ratelimitpolicy ./internal/adminapi/server -count=1
-```
-
-Expected: FAIL。
-
-- [ ] **Step 2: 删除 RedisStore Admin API 和引用校验**
-
-RateLimitPolicy service 构造函数改为：
-
-```go
-func New(store *ratelimitpolicystore.Store, policyBindings *policybindingstore.Store) *Service
-```
-
-删除 `validateRedisRef`，从 DTO、service 参数和资源转换中删除 `Global`。底层 v1 API 字段暂时保留但不再写入，Task 17 再统一删除。
-
-- [ ] **Step 3: 抽出并测试前端纯表单转换**
-
-把 `PolicyPage.tsx` 中的 `createRateLimitDraft`、`rateLimitPayload` 和校验逻辑移到 `features/policies/form.ts`。测试断言：
-
-- Global payload 只有 `mode: "Global"`，不含 `global`；
-- workspace 不含 `redisStores`；
-- Global 编辑器显示只读说明“使用系统 Redis”，不出现 Redis 下拉或地址字段。
-
-- [ ] **Step 4: 修改 Console repository 和页面**
-
-删除 `RedisStoreOption`、`PolicyWorkspace.redisStores`、RedisStore API 请求和 mock 数据。`getPolicyWorkspace()` 只聚合 Policy、Binding、Gateway、Route。
-
-- [ ] **Step 5: 运行测试**
-
-Run:
-
-```bash
-go test ./internal/adminapi/... -count=1
-make console-test
-make console-build
-```
-
-Expected: PASS；Console network trace 不再请求 `/redis-stores`。
-
-- [ ] **Step 6: 提交**
-
-```bash
-git add internal/adminapi web/console
-git commit -m "refactor(ratelimit): use system Redis in product APIs"
-```
-
----
-
-### Task 5: 将 RateLimit 插件配置收缩为严格 v2 并迁移纯 Redis 算法
-
-**Required skills:** @superpowers:test-driven-development, @go-testing, @go-error-handling
-
-**Files:**
-
-- Modify: `pkg/plugin/ratelimit/doc.go`
-- Modify: `pkg/plugin/ratelimit/types.go`
-- Modify: `pkg/plugin/ratelimit/types_test.go`
-- Create: `plugins/ratelimit/internal/redis/resp.go`
-- Create: `plugins/ratelimit/internal/redis/resp_test.go`
-- Create: `plugins/ratelimit/internal/redis/algorithm.go`
-- Create: `plugins/ratelimit/internal/redis/algorithm_test.go`
-- Modify: `plugins/ratelimit/internal/policy/decision.go`
-- Modify: `plugins/ratelimit/internal/policy/global.go`
-- Modify: `plugins/ratelimit/internal/policy/key.go`
-- Modify: `plugins/ratelimit/internal/policy/policy.go`
-- Modify: `plugins/ratelimit/internal/policy/policy_test.go`
-- Modify: `plugins/ratelimit/internal/policy/runner.go`
-- Modify: `plugins/ratelimit/README.md`
-
-- [ ] **Step 1: 写严格 schema v2 的失败测试**
-
-固定最终 JSON：
-
-```json
-{
-  "schemaVersion": "v2",
-  "routes": [
-    {
-      "gatewayName": "gateway-id",
-      "routeName": "route-id",
-      "bindings": [
-        {
-          "name": "binding-id",
-          "target": {"kind": "Route", "name": "route-id", "ruleName": "rule-a"},
-          "policies": [
-            {
-              "name": "policy-id",
-              "mode": "Global",
-              "rules": [],
-              "response": {},
-              "failurePolicy": "FailClose"
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}
-```
-
-测试必须拒绝：空 schemaVersion、v1、未知版本、顶层未知字段、Policy `global`、`redisStores`、`dataPlane`。RouteConfig 不再有独立 `schemaVersion` 和旧 envelope 兼容分支。
-
-- [ ] **Step 2: 实现严格 JSON 解析**
-
-使用 `json.Decoder.DisallowUnknownFields()`，并要求恰好一个 JSON value。`ParsePluginConfig` 对空输入也返回配置错误；不能默认为 v2。
-
-最终类型删除：
-
-```text
-RedisStore
-DataPlane
-Global
-PluginConfig.RedisStores
-PluginConfig.DataPlane
-Policy.Global
-RouteConfig.SchemaVersion
-```
-
-- [ ] **Step 3: 为 RESP 和三种 Lua 算法写普通 Go 失败测试**
-
-从 `internal/dataplane/service/ratelimit/algorithm.go` 迁移脚本和结果语义，但新 package 不能 import `go-redis`、Proxy-Wasm 或 HTTP DTO。覆盖：
-
-- RESP bulk string、integer、array、nil、error；
-- FixedWindow、SlidingWindow、TokenBucket 的 EVAL argv；
-- Allowed、Current、Limit、Remaining、ResetSeconds、RetryAfterSeconds；
-- Redis error、数组长度和类型不正确。
-
-- [ ] **Step 4: 实现纯算法层并切断 pkg/dataplane DTO**
-
-`policy.GlobalCheck` 收缩为：
-
-```go
-type GlobalCheck struct {
-	Policy        config.Policy
-	Rule          config.Rule
-	Key           string
-	RedisKey      string
-	Requests      int
-	WindowSeconds int
-	Burst         int
-}
-```
-
-固定 Redis key 前缀为 `ingate-rate-limit`，后续使用无歧义长度编码依次包含 Policy ID、Route ID、Route rule、RateLimit rule 和请求维度 key；不再携带 RedisStore、可配置 prefix、displayName 或 timeout。
-
-- [ ] **Step 5: 运行纯配置和算法测试**
-
-Run:
-
-```bash
-go test -race ./pkg/plugin/ratelimit ./plugins/ratelimit/internal/policy ./plugins/ratelimit/internal/redis -count=1
-```
-
-Expected: PASS。
-
-- [ ] **Step 6: 提交**
-
-```bash
-git add pkg/plugin/ratelimit plugins/ratelimit/internal/policy plugins/ratelimit/internal/redis plugins/ratelimit/README.md
-git commit -m "refactor(ratelimit): define strict v2 runtime config"
-```
-
----
-
-### Task 6: 用 Redis ABI executor 替换插件到 dataplane 的 HTTP 调用
-
-**Required skills:** @superpowers:test-driven-development, @go-testing, @go-concurrency, @go-context
-
-**Files:**
-
-- Create: `plugins/internal/redisabi/registry.go`
-- Create: `plugins/internal/redisabi/registry_test.go`
-- Create: `plugins/ratelimit/internal/redis/client.go`
-- Create: `plugins/ratelimit/internal/redis/client_test.go`
-- Create: `plugins/ratelimit/internal/redis/execution.go`
-- Create: `plugins/ratelimit/internal/redis/execution_test.go`
-- Modify: `plugins/ratelimit/internal/app/app.go`
-- Modify: `plugins/ratelimit/internal/runtime/runtime.go`
-- Modify: `plugins/ratelimit/internal/runtime/runtime_test.go`
-- Modify: `plugins/ratelimit/internal/wasm/http.go`
-- Modify: `plugins/ratelimit/internal/wasm/plugin.go`
-- Modify: `plugins/ratelimit/internal/wasm/request.go`
-- Modify: `plugins/ratelimit/internal/wasm/route.go`
+- Modify: `deploy/all-in-one/Dockerfile`
+- Modify: `deploy/all-in-one/entrypoint.sh`
+- Modify: `deploy/all-in-one/default.env`
+- Modify: `deploy/all-in-one/envoy/bootstrap.yaml`
+- Create: `deploy/all-in-one/redis/redis.conf`
+- Create: `test/backend/Dockerfile`
+- Create: `test/ratelimit-runtime/run.sh`
+- Modify: `Makefile`
 - Delete: `plugins/ratelimit/internal/dataplane/client.go`
 - Delete: `plugins/ratelimit/internal/dataplane/http_transport.go`
 - Delete: `plugins/ratelimit/internal/dataplane/request.go`
 - Delete: `plugins/ratelimit/internal/dataplane/request_test.go`
 
-- [ ] **Step 1: 写 callout registry 和 context 生命周期失败测试**
+- [ ] **Step 1: 写严格 schema v2 和 producer/consumer 契约失败测试**
+
+固定最终 v2 JSON 为生效架构规格中的 routes/bindings/policies 结构。测试拒绝空 schemaVersion、v1、未知版本、任意未知字段、`redisStores`、`dataPlane`、Policy `global`、Policy `displayName`、RouteConfig 顶层 `ruleName` 和旧 envelope；展示字段只存在于产品资源/DTO，不进入可执行插件 schema。
+
+同一测试提交还要证明旧的当前 xDS producer 已切为 v2：Listener typed config 的 `schemaVersion` 为 v2，且 JSON 不含 RedisStore、dataplane cluster、Redis 地址或 timeout。旧 xDS watcher 从 etcd/API 读取持久化 `RuntimeSnapshot` 时，必须拒绝/忽略其中 ratelimit typed config 为 v1、缺版本或未知版本的派生快照，不能放入 xDS cache；等待当前 Controller 重新生成 v2 后才发布。这样 strict-v2 Wasm、producer 和 persisted consumer 在同一提交激活，不出现旧快照被重新发送导致的 NACK 窗口。
+
+- [ ] **Step 2: 写管理面系统 Redis 失败测试**
 
 覆盖：
 
-- callout ID 唯一并映射到 plugin context、HTTP context 和 callback；
-- callback 先恢复始终有效的 plugin/root context，再读取 HTTP context 存活标记；存活时再切到 HTTP context；
-- HTTP context 已销毁时删除记录但不 Resume/Respond；
-- 未知或重复 callout ID 安全忽略；
-- 同一个请求的 GlobalCheck 严格串行、全部执行完成后统一裁决，结果顺序不变；
-- 同步 dispatch 失败与异步 Redis/RESP 失败进入相同 fail-open/fail-close 决策。
+- `mode=Global` 不需要 `global`/`redisRef`；
+- Create/Update 不查询 RedisStore，也不写 `Spec.Global`；
+- 旧 compiler 过渡实现不再因 `Mode=Global, Global=nil` 报错，且不收集 RedisStore；
+- 旧 compiler 过渡实现拒绝用户 Upstream ID/生成的 Envoy cluster name 使用 `ingate-system-*` 保留前缀；
+- `/api/v1/redis-stores` 返回 404；
+- Console workspace/payload 不含 `redisStores`、`global` 或 `redisRef`，Global 编辑器只显示“使用系统 Redis”。
 
-- [ ] **Step 2: 实现 Redis executor**
+- [ ] **Step 3: 写 callout registry、rule scope 和执行生命周期失败测试**
 
-Root Context 只初始化一次 `ingate-system-redis?buffer_flush_timeout=0&max_buffer_size_before_flush=0`。Execution 对每个 GlobalCheck 构造一个 EVAL RESP 命令，通过 `redisabi.Client` dispatch；callback 解析结果后执行下一项，全部完成后调用现有 `CompleteGlobalChecks`。
+覆盖：
 
-请求暂停/恢复流程固定为：
+- registry key 固定为 `(pluginContextID, calloutID)`，不同 plugin 的相同 callout ID 不碰撞；
+- HTTP context 创建时登记存活，`OnHttpStreamDone` 时只标记/移除 liveness，不提前删除仍在飞行的 callout；迟到 callback 负责最终删除 callout 并记录 ignored；
+- runtime 先按 `(gatewayName, routeName)` 找 RouteConfig，再按当前 xDS `RuleName` 过滤 bindings；
+- Gateway binding、整条 Route binding 和 rule-specific Route binding 的作用域正确；
+- callback 先恢复始终有效的 plugin/root context，再查找但不删除 callout 记录；确认 HTTP context 存活与否后才删除记录；
+- response buffer 在 callback 返回前复制，status 非零时不读取 buffer；
+- 已销毁、未知、重复或跨 plugin callback 不 Resume/Respond、不 panic；
+- 已销毁 context 的 callback 必须产生稳定的 `late_callback_ignored` 计数或日志，供真实 E2E 证明 callback 确实到达；
+- registry 显式保存 pluginContextID 和 httpContextID；自定义 Redis callback 内只调用 Ingate 直接 hostcall（buffer、Resume/Respond、后续 Redis dispatch），不能调用依赖 SDK 私有 `activeContextID` 的异步注册 API，例如 `DispatchHttpCall`；
+- GlobalCheck 严格串行且全部完成后统一裁决；同步/异步错误进入相同 fail-open/fail-close 顺序。
+
+- [ ] **Step 4: 实现 strict v2 schema、binding 过滤和固定 key**
+
+`pkg/plugin/ratelimit` 删除 v1 的 RedisStore、DataPlane、Global 和 DisplayName 字段，使用 `json.Decoder.DisallowUnknownFields()` 且要求单一 JSON value。RouteConfig 只按 GatewayName + RouteName 建索引；当前 xDS RuleName 用于过滤：Gateway target 作用于所有 rule，Route target 无 ruleName 作用于整条 Route，有 ruleName 时只匹配同名 rule。
+
+`policy.GlobalCheck` 删除 RedisStore/timeout。Redis key 用长度编码依次包含 `ingate-rate-limit`、Policy ID、Route ID、Route rule、RateLimit rule 和请求维度 key；每段使用 `字节长度:原始字节` 编码，测试空值、冒号、斜杠以及 `("a", "b:c")` / `("a:b", "c")` 这类碰撞输入。
+
+- [ ] **Step 5: 实现 Redis ABI execution 并删除插件 HTTP transport**
+
+Root Context 只初始化一次 `ingate-system-redis?buffer_flush_timeout=0&max_buffer_size_before_flush=0`。Execution 流程固定为：
 
 ```text
-Apply -> 有 GlobalCheck -> Pause
+Apply -> GlobalChecks -> Pause
 dispatch 当前 check
-callback -> set plugin context -> 删除 callout 记录 -> 检查 HTTP context 存活
--> 存活则 set HTTP context -> 立即复制 buffer -> 记录结果 -> dispatch 下一项
+callback -> set plugin/root context -> 查找但暂不删除 (plugin, callout) 记录
+-> 尝试切换 HTTP context 并判断是否仍存活 -> 删除记录
+-> 已销毁则记录 late_callback_ignored 并返回
+-> 存活则复制/解析 buffer -> 下一项
 全部完成 -> CompleteGlobalChecks -> Resume 或 Respond
 ```
 
-- [ ] **Step 3: 删除插件 HTTP/JSON dataplane transport**
+`proxywasm.SetEffectiveContext` 只改变 host context，不会同步 SDK 私有的 `activeContextID`。因此 Redis callback 路径不能借用 SDK 的 callback registry；plugin/http context ID 由 Ingate registry 显式管理，Resume/Respond/读取 buffer/继续 Redis call 都走本包可审计的直接 hostcall，并用单元测试证明不会把 callback 注册到错误 context。
 
-插件代码不得再 import：
+删除 `plugins/ratelimit/internal/dataplane`，但独立 dataplane 服务暂留到 Task 17，保证 root build；插件不再 import `pkg/dataplane/ratelimit`。
 
-```text
-github.com/lgc202/ingate/pkg/dataplane/ratelimit
-github.com/lgc202/ingate/plugins/ratelimit/internal/dataplane
-```
+- [ ] **Step 6: 同步切换过渡 compiler/xDS producer 和管理面**
 
-服务端 `ingate-dataplane` 暂留到 Task 18，保证提交边界聚焦且 root build 仍可通过。
+修改当前 `internal/core/compiler`，Global 不再要求 Global config/RedisStore，并拒绝用户资源占用 `ingate-system-*`；修改旧 target/xDS translator 和 listener/ratelimit builder，只生成 v2 routes/bindings/policies。旧 xDS watcher 在发布整个 snapshot 前校验所有内置 ratelimit typed config，遇到 v1/未知版本时记录稳定日志并保持 cache 为空或保留上一个已验证版本，不做部分发布；Controller 的下一次全局 reconcile 会覆盖为 v2。Admin API/Console 同一提交删除 RedisStore CRUD、Redis 选择和 `spec.global` 写入；`plugins/ratelimit/README.md` 同步改为系统 Redis + 内置 ABI，不再描述 `ingate-dataplane` 或插件 HTTP transport。
 
-- [ ] **Step 4: 运行 race、Wasm build 和真实 ABI smoke**
+这些过渡修改在新 Compiler/Controller 切换后由 Task 12/16 删除，不形成长期兼容层。
+
+- [ ] **Step 7: 同步切换 all-in-one 到 Higress Envoy 和系统 Redis**
+
+使用 Task 2 已固定 digest 的 Higress Envoy 1.36.4；bootstrap 加静态 `ingate-system-redis`；镜像加入固定 digest 的官方 Redis；entrypoint 使用 `/etc/ingate/redis/redis.conf` 启动 Redis。此阶段暂时保留独立 ingate-xds/ingate-dataplane 进程，但 dataplane 已无调用者。
+
+`redis.conf` 固定：`bind 127.0.0.1`、`protected-mode yes`、`port 6379`、`daemonize no`、`dir /var/lib/ingate/redis`、`save ""`、`appendonly no`；限流状态允许随 Redis 重启清空，不把它当作控制面持久化数据。smoke 必须证明容器内 `redis-cli -h 127.0.0.1 ping` 成功，而同 Docker network 的 peer container 无法连接 6379。
+
+同时修复 defaults 加载：`/etc/ingate/default.env` 只为尚未设置的变量赋默认值，不能覆盖 Docker `--env-file`/`-e`。runtime smoke 至少使用非默认 Console 地址和数据目录证明外部值生效；Controller internal/status 参数在 Task 12/13 出现后继续覆盖验证。
+
+从这一任务开始就使用 `critical_pids`/`auxiliary_pids` 分组并只等待关键 pid，确保 Redis 退出不终止容器。完整健康检查和进程删除在后续任务继续收口。
+
+- [ ] **Step 8: 运行原子切换验证**
 
 Run:
 
 ```bash
-go test -race ./plugins/internal/redisabi ./plugins/ratelimit/internal/... -count=1
+go test -race ./pkg/plugin/ratelimit ./plugins/internal/redisabi ./plugins/ratelimit/internal/... ./internal/core/... ./internal/xds/... ./internal/adminapi/... -count=1
 make ratelimit-plugin-build
+make console-test
+make console-build
 make redis-abi-smoke
+make all-in-one-image
+make ratelimit-runtime-smoke
 ```
 
-Expected: PASS；Wasm import 中只有 Ingate 验证过的 Redis ABI，不含 HTTP callout 到 `ingate-dataplane`。
+`test/backend/Dockerfile` 从当前源码构建仅测试使用的 `cmd/ingate-httpbin` image，不进入 all-in-one，也不依赖 mutable 公共 echo/httpbin tag。`ratelimit-runtime-smoke` 必须使用刚构建的精确 `ALL_IN_ONE_IMAGE` 和本地 test backend image，在隔离 network 启动两者，创建最小 Gateway/Route/Upstream/Global RateLimitPolicy/PolicyBinding，证明额度内请求成功、超额请求返回 429，且 Redis key 只存在于内置实例。另用预置 v1 `RuntimeSnapshot` 的数据卷重启一次，断言 v1 从未进入 xDS cache，Controller 生成 v2 后才恢复流量。
 
-- [ ] **Step 5: 提交**
+Expected: 全部 PASS；all-in-one 使用 Higress Envoy，v2 filter 配置可加载，Global 请求走系统 Redis；peer container 不能直连 Redis；源码无插件到 dataplane HTTP import。
+
+- [ ] **Step 9: 提交**
 
 ```bash
-git add plugins/internal/redisabi plugins/ratelimit
-git commit -m "feat(ratelimit): execute global limits through Redis ABI"
+git add pkg/plugin/ratelimit plugins internal/core internal/xds internal/adminapi web/console deploy/all-in-one test/backend test/ratelimit-runtime Makefile
+git commit -m "feat(ratelimit): switch to system Redis runtime"
 ```
 
 ---
 
-### Task 7: 建立直接的全局 Envoy Config Compiler 和 Listener 合并
+### Task 6: 建立直接的全局 Envoy Config Compiler 和 Listener 合并
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-data-structures, @go-error-handling
 
@@ -841,7 +823,7 @@ git commit -m "feat(envoy): add global config compiler foundation"
 
 ---
 
-### Task 8: 完成 Route、Upstream 和内置治理插件的 Envoy 编译
+### Task 7: 完成 Route、Upstream 和内置治理插件的 Envoy 编译
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-data-structures
 
@@ -879,6 +861,7 @@ git commit -m "feat(envoy): add global config compiler foundation"
 - Remove 保持原语义；
 - Timeout 进入 `RouteAction.Timeout`；
 - Retry attempts、per-try timeout 和用户 `RetryOn` 全部进入 Envoy，不使用固定 retry 条件覆盖；
+- `RouteRule.UpstreamRefs[].Weight` 映射到 `WeightedCluster`，两个及以上 Upstream 的比例和总权重保持，单 Upstream 也不丢失显式 weight；
 - 未知 RouteFilter 返回 `Unsupported`。
 
 - [ ] **Step 3: 写 Upstream CDS/EDS 失败测试**
@@ -921,7 +904,7 @@ git commit -m "feat(envoy): compile routes upstreams and policies"
 
 ---
 
-### Task 9: 完成标准 SotW Snapshot Cache 与 ADS Server
+### Task 8: 完成标准 SotW Snapshot Cache 与 ADS Server
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-concurrency, @go-context
 
@@ -1002,7 +985,7 @@ git commit -m "feat(xds): serve standard SotW ADS"
 
 ---
 
-### Task 10: 实现内部 etcd Last Good Store
+### Task 9: 实现内部 etcd Last Good Store
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-error-handling, @go-defensive
 
@@ -1045,6 +1028,18 @@ type Record struct {
 
 测试 schema 不匹配、hash 篡改、畸形 protobuf、重复资源名、缺失引用、snapshot `Consistent()` 失败时 Load 返回错误且不返回部分 Config；原 etcd 记录不删除。
 
+错误必须可分类：
+
+```go
+var (
+	ErrNotFound     = errors.New("last good not found")
+	ErrCorrupt      = errors.New("last good corrupt")
+	ErrIncompatible = errors.New("last good incompatible")
+)
+```
+
+etcd transport、权限和超时错误保留为外部存储错误，不能误判为 NotFound/Corrupt。
+
 - [ ] **Step 3: 实现 deterministic codec**
 
 编码前按资源名排序；使用 `proto.MarshalOptions{Deterministic: true}`。ContentHash 对 version 之外的规范化资源内容计算并在 Load 时复验。解码后重新构造 `config.Config` 和 `cachev3.Snapshot`，再次执行 `Consistent()`。
@@ -1072,7 +1067,7 @@ git commit -m "feat(controller): persist last good Envoy config"
 
 ---
 
-### Task 11: 实现 Candidate、Active、Baseline 和 Last Good Delivery 状态机
+### Task 10: 实现 Candidate、Active、Baseline 和 Last Good Delivery 状态机
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-concurrency, @go-context, @go-error-handling
 
@@ -1116,6 +1111,8 @@ Baseline 必须为 LDS/RDS/CDS/EDS 四类显式空资源、每类非空 baseline
 - 同一 stream/node 已实际发送并 ACK 全部 required type 后成为 Active；
 - 至少一个同构实例完整 ACK 即可 Active；
 - Candidate 版本与当前 Active 内容相同则 no-op。
+- Last Good retry command 固定携带待持久化的 version 和 content hash；v1 retry 到达时若当前 Active 已是 v2，必须丢弃且不能覆盖 v2。
+- 没有 Envoy 连接/实际 response 时保持 `WaitingForEnvoy` 且不启动 ACK timeout；首次发送订阅响应后才进入 `WaitingForACK` 并启动 30 秒 timer；timer 到期只记录 timeout，Candidate 仍留在 cache、Last Good 不变；新 Candidate supersede 时旧 timer 不能修改新状态。
 
 - [ ] **Step 3: 写 NACK 同步回滚失败测试**
 
@@ -1131,13 +1128,15 @@ Baseline 必须为 LDS/RDS/CDS/EDS 四类显式空资源、每类非空 baseline
 
 无旧 Active 时恢复 Baseline 并回到 `NoConfig`。回滚失败或超过 `nackRollbackTimeout` 时 sink 返回 error，关闭 stream。
 
+另覆盖多实例后置 NACK：node A 完整 ACK v2 后 v2 已 Active 且 Last Good=v2，node B 再对同一 v2 NACK 时只能更新 `Degraded`/lastNACK，不得把 fleet 回滚到 v1/Baseline，也不得覆盖 v2 Last Good。
+
 - [ ] **Step 4: 实现单线程命令循环**
 
 所有 Submit、xDS Event、ACK timeout 和 Last Good retry 都进入一个 command channel；只允许该 goroutine 修改 Candidate/Active/ACK map/Last Good 状态和调用 `SetSnapshot`。ACK 可以异步入队，NACK 通过 command reply 等待同步结果。
 
 - [ ] **Step 5: 实现 Active 后持久化与 degraded 语义**
 
-Candidate Active 后才 Save Last Good。Save 失败不回滚 Active，状态变为 Degraded 并重试持久化；旧 Last Good 保持。版本已经 Active 后，其他实例 NACK 只更新 degraded/lastNACK，不回滚 fleet。
+Candidate Active 后才 Save Last Good。Save 失败不回滚 Active，状态变为 Degraded 并重试持久化；旧 Last Good 保持。每个 retry command 携带目标 version/content hash，执行前再次比较当前 Active，只有完全匹配才允许 Save；因此旧 v1 retry 不能覆盖已经 Active 的 v2。只有同一版本成功持久化后才能清除对应的 persistence degraded，过期 retry 的成功/失败都不能改变当前状态。版本已经 Active 后，其他实例 NACK 只更新 degraded/lastNACK，不回滚 fleet。
 
 默认 30 秒未完整 ACK 时保留 Candidate 在 Cache、保持 `WaitingForACK`，不自动覆盖 Last Good；新资源变化仍可 supersede。
 
@@ -1160,7 +1159,7 @@ git commit -m "feat(controller): add atomic Envoy config delivery"
 
 ---
 
-### Task 12: 改为完整配置域 Reconciler 并写 Accepted 状态
+### Task 11: 改为完整配置域 Reconciler 并写 Accepted 状态
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-concurrency
 
@@ -1235,7 +1234,7 @@ git commit -m "refactor(controller): reconcile the full config domain"
 
 ---
 
-### Task 13: 在 ingate-controller 内装配 xDS、Delivery、Reconciler 和状态服务
+### Task 12: 在 ingate-controller 内装配 xDS、Delivery、Reconciler 和状态服务
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-concurrency, @go-context, @go-logging
 
@@ -1290,6 +1289,11 @@ git commit -m "refactor(controller): reconcile the full config domain"
 - Delete: `internal/xds/server/server.go`
 - Delete: `internal/xds/server/snapshot_store.go`
 - Delete: `internal/xds/server/snapshot_watcher.go`
+- Modify: `deploy/all-in-one/Dockerfile`
+- Modify: `deploy/all-in-one/entrypoint.sh`
+- Modify: `deploy/all-in-one/default.env`
+- Modify: `install.sh`
+- Modify: `Makefile`
 
 - [ ] **Step 1: 写启动参数和 readiness 失败测试**
 
@@ -1304,7 +1308,20 @@ git commit -m "refactor(controller): reconcile the full config domain"
 --resync-period=0
 ```
 
-测试 `/readyz` 在 Last Good/Baseline 初始化完成且 ADS listener 已监听后返回 200；不等待 Envoy 连接、Candidate 或 ACK。`/healthz` 只表示进程存活。
+all-in-one 显式把环境变量映射到 pflag，不能只写进 `default.env` 后假设二进制会自动读取：
+
+```text
+INGATE_CONTROLLER_XDS_ADDR       -> --xds-listen-address
+INGATE_CONTROLLER_INTERNAL_ADDR  -> --internal-listen-address
+INGATE_ETCD_ADDR                 -> --etcd-endpoints=http://<value>
+INGATE_CANDIDATE_ACK_TIMEOUT     -> --candidate-ack-timeout
+INGATE_NACK_ROLLBACK_TIMEOUT     -> --nack-rollback-timeout
+INGATE_RESYNC_PERIOD             -> --resync-period
+```
+
+同一变更删除 `INGATE_XDS_ADDR`、Controller `--target` 以及独立 xDS 的 `--listen-address/--target` 接线。测试 `/readyz` 在 Last Good/Baseline 初始化完成且 ADS listener 已监听后返回 200；不等待 Envoy 连接、Candidate 或 ACK。`/healthz` 只表示进程存活。
+
+二进制通用默认值可以保留 `:18000` 供独立部署显式控制，但 all-in-one 的 `default.env` 必须固定 `INGATE_CONTROLLER_XDS_ADDR=127.0.0.1:18000`，确保 ADS 仅在容器 loopback 可达。
 
 - [ ] **Step 2: 实现 Controller Internal Status HTTP API**
 
@@ -1340,7 +1357,11 @@ git commit -m "refactor(controller): reconcile the full config domain"
 -> cache sync 后 enqueue 全局 key
 ```
 
-测试当前声明式资源编译失败时仍继续服务已恢复 Last Good。
+测试当前声明式资源编译失败时仍继续服务已恢复 Last Good，并覆盖启动分类：
+
+- `ErrNotFound`：安装 Baseline，状态 NoConfig；
+- `ErrCorrupt` / `ErrIncompatible`：保留原 etcd 记录，安装 Baseline，状态 Degraded，继续启动 ADS 和 informer，并尝试从当前声明式资源重新编译；
+- etcd transport/权限或 Last Good store 初始化失败：启动失败，不伪装成空配置。schema marker 检查在 Task 16 与 API cutover 同时接入。
 
 - [ ] **Step 4: 实现唯一 app 装配入口**
 
@@ -1348,7 +1369,9 @@ git commit -m "refactor(controller): reconcile the full config domain"
 
 - [ ] **Step 5: 删除旧 Controller/Core/xDS 文件**
 
-只有在新 app 测试通过后删除旧目录。不要搬迁 `Logical*` 类型；现有 builder 中仍有价值的 protobuf 逻辑应已在 Task 7/8 迁入 `internal/envoy/config`。
+只有在新 app 测试通过后删除旧目录。不要搬迁 `Logical*` 类型；现有 builder 中仍有价值的 protobuf 逻辑应已在 Task 6/7 迁入 `internal/envoy/config`。
+
+同时从 all-in-one Dockerfile 删除 `ingate-xds` binary COPY，从 entrypoint 删除独立进程启动和等待；由 `ingate-controller` 直接监听 18000。`default.env` 与 `install.sh` 生成的 env 文件同步改为 Controller 参数，保证删除源码的同一提交仍能构建并启动镜像。此时 `ingate-dataplane` 仍保留到 Task 17。
 
 - [ ] **Step 6: 运行合并后的 Controller 测试和构建**
 
@@ -1357,21 +1380,22 @@ Run:
 ```bash
 go test -race ./internal/controller/... ./internal/envoy/... -count=1
 go build ./cmd/ingate-controller
-rg -n 'RuntimeSnapshot|LogicalGateway|internal/core/(ir|pipeline|target|runtime)|ingate-xds|--target' cmd internal --glob '*.go'
+make all-in-one-image
+rg -n 'RuntimeSnapshot|LogicalGateway|internal/core/(ir|pipeline|target|runtime)|ingate-xds|--target|INGATE_XDS_ADDR' cmd internal/controller internal/envoy deploy/all-in-one install.sh --glob '*.go' --glob '*.sh' --glob '*.env' --glob 'Dockerfile'
 ```
 
-Expected: 前两条 PASS；最后一条无输出。
+Expected: 前三条 PASS；最后一条无输出；all-in-one 只运行合并后的 Controller xDS 端口。
 
 - [ ] **Step 7: 提交**
 
 ```bash
-git add cmd/ingate-controller internal/controller internal/envoy cmd/ingate-xds internal/xds internal/core
+git add cmd/ingate-controller internal/controller internal/envoy cmd/ingate-xds internal/xds internal/core deploy/all-in-one install.sh Makefile
 git commit -m "refactor(controller): merge controller and xds process"
 ```
 
 ---
 
-### Task 14: 通过 Admin API 暴露产品化运行状态
+### Task 13: 通过 Admin API 暴露产品化运行状态
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-context, @go-error-handling
 
@@ -1392,6 +1416,9 @@ git commit -m "refactor(controller): merge controller and xds process"
 - Modify: `internal/adminapi/handler/handler.go`
 - Modify: `internal/adminapi/service/service.go`
 - Modify: `internal/adminapi/store/store.go`
+- Modify: `deploy/all-in-one/entrypoint.sh`
+- Modify: `deploy/all-in-one/default.env`
+- Modify: `install.sh`
 
 - [ ] **Step 1: 写 Controller client 边界失败测试**
 
@@ -1435,26 +1462,36 @@ Controller 不可用时 endpoint 仍返回统一 HTTP 200 响应体，`available
 
 Service 捕获内部 client 错误并转换成 unavailable result，不向 Handler 返回底层错误。Handler 只调用 service 并使用 `response.GinJSONResponse`。
 
+all-in-one 在同一提交显式接线：
+
+```text
+INGATE_CONTROLLER_INTERNAL_ADDR  -> --controller-status-url=http://<value>
+INGATE_CONTROLLER_STATUS_TIMEOUT -> --controller-status-timeout
+```
+
+`default.env` 和 `install.sh` 生成的 env 文件增加 timeout，entrypoint 必须把两个值作为 pflag 传给 admin-api，不能只导出环境变量。
+
 - [ ] **Step 4: 运行测试**
 
 Run:
 
 ```bash
 go test -race ./internal/adminapi/client/controller ./internal/adminapi/service/systemstatus ./internal/adminapi/handler/systemstatus ./internal/adminapi/server -count=1
+make all-in-one-image
 ```
 
-Expected: PASS；Controller unavailable 时 Gateway/Route router 测试仍可正常响应。
+Expected: PASS；Controller unavailable 时 Gateway/Route router 测试仍可正常响应；启动 all-in-one 后 `GET /api/v1/system/status` 的 `available=true`，证明请求实际到达 Controller internal server。
 
 - [ ] **Step 5: 提交**
 
 ```bash
-git add internal/adminapi
+git add internal/adminapi deploy/all-in-one install.sh
 git commit -m "feat(adminapi): expose controller runtime status"
 ```
 
 ---
 
-### Task 15: 将 Console 发布页迁移为单配置域运行状态
+### Task 14: 将 Console 发布页迁移为单配置域运行状态
 
 **Required skills:** @superpowers:test-driven-development
 
@@ -1528,7 +1565,7 @@ git commit -m "refactor(console): show global Envoy runtime status"
 
 ---
 
-### Task 16: 增加 schema marker 2、bootstrap 和显式 reset
+### Task 15: 准备 schema marker 2 校验与 reset 核心库
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-error-handling
 
@@ -1537,16 +1574,6 @@ git commit -m "refactor(console): show global Envoy runtime status"
 - Create: `internal/storage/schema/schema.go`
 - Create: `internal/storage/schema/reset.go`
 - Create: `internal/storage/schema/schema_test.go`
-- Create: `internal/cli/app/app.go`
-- Create: `internal/cli/app/storage.go`
-- Create: `internal/cli/app/storage_test.go`
-- Create: `cmd/ingate/main.go`
-- Modify: `internal/apiserver/app/app.go`
-- Modify: `internal/apiserver/server/options.go`
-- Create: `internal/apiserver/app/app_test.go`
-- Modify: `internal/controller/app/app.go`
-- Modify: `internal/controller/app/options.go`
-- Create: `internal/controller/app/schema_test.go`
 
 - [ ] **Step 1: 写 marker 状态矩阵失败测试**
 
@@ -1563,47 +1590,36 @@ const (
 
 `Check` 矩阵：值为 2 成功；marker 缺失（即使资源前缀为空）、旧值、未知值均失败并提示运行 bootstrap/reset。
 
-- [ ] **Step 2: 写 bootstrap/reset 失败测试**
+- [ ] **Step 2: 写 bootstrap/reset 核心行为失败测试**
 
-CLI 固定提供：
+`Bootstrap` 仅在 marker 缺失且 Resource/Internal 前缀均为空时写入 2；已有有效 marker 时 no-op；已有旧数据或未知 marker 时拒绝。`Reset` 顺序删除 ResourcePrefix、删除 InternalPrefix、最后写 marker=2；任一步失败立即返回。崩溃在写 marker 前会使服务 fail-fast，是安全状态。
 
-```text
-ingate storage check
-ingate storage bootstrap
-ingate storage reset
-```
+测试只通过 fake `clientv3.KV` 调用内部库，不创建可执行命令、部署入口或自动启动路径，避免旧 API 仍在运行时有人提前写入 marker=2。
 
-`bootstrap` 仅在 marker 缺失且 Resource/Internal 前缀均为空时写入 2；已有有效 marker 时 no-op；已有旧数据或未知 marker 时拒绝。`reset` 顺序删除 ResourcePrefix、删除 InternalPrefix、最后写 marker=2；任一步失败立即返回。崩溃在写 marker 前会使服务 fail-fast，是安全状态。
+- [ ] **Step 3: 实现 schema 核心库**
 
-- [ ] **Step 3: 实现 schema package 和 CLI**
+使用 `clientv3.KV` 作为真实外部边界，不创建临时 API 资源。库提供 `Check`、`Bootstrap`、`Reset`，但 Task 15 不从 `cmd/ingate`、apiserver、controller 或 entrypoint 暴露这些写操作。CLI、服务启动校验和部署接线必须等到 Task 16 与旧 API 删除一起启用。
 
-使用 `clientv3.KV` 作为真实外部边界，不创建临时 API 资源。CLI 通过 `--etcd-endpoints` 接收部署参数，默认 `http://127.0.0.1:2379`；reset 命令必须明确打印删除前缀和最终 schema version。
-
-- [ ] **Step 4: 在 apiserver 和 controller 启动前只读校验**
-
-两个服务都必须在开启 listener/informer 前调用同一个 `schema.Check`。它们绝不自动写 marker；只有 CLI bootstrap/reset 可写。Controller 的 etcd client同时供 schema check 和 Last Good Store 使用。
-
-- [ ] **Step 5: 运行测试和 CLI 构建**
+- [ ] **Step 4: 运行测试**
 
 Run:
 
 ```bash
-go test ./internal/storage/schema ./internal/cli/app ./internal/apiserver/app ./internal/controller/app -count=1
-go build ./cmd/ingate
+go test ./internal/storage/schema -count=1
 ```
 
 Expected: PASS。
 
-- [ ] **Step 6: 提交**
+- [ ] **Step 5: 提交**
 
 ```bash
-git add internal/storage/schema internal/cli cmd/ingate internal/apiserver internal/controller
-git commit -m "feat(storage): require schema version 2"
+git add internal/storage/schema
+git commit -m "feat(storage): prepare schema version library"
 ```
 
 ---
 
-### Task 17: 删除旧声明式 API 类型、registry 和生成代码
+### Task 16: 原子删除旧 API 并启用 schema marker 2
 
 **Required skills:** @superpowers:test-driven-development, @go-testing
 
@@ -1630,7 +1646,24 @@ git commit -m "feat(storage): require schema version 2"
 - Delete: `internal/apiserver/registry/redisstore/storage.go`
 - Delete: `internal/apiserver/registry/redisstore/strategy.go`
 - Modify: `internal/apiserver/server/config.go`
+- Modify: `internal/apiserver/server/options.go`
 - Modify: `internal/apiserver/server/scheme_test.go`
+- Modify: `internal/apiserver/app/app.go`
+- Create: `internal/apiserver/app/schema_test.go`
+- Modify: `internal/controller/app/options.go`
+- Modify: `internal/controller/app/options_test.go`
+- Modify: `internal/controller/app/app.go`
+- Create: `internal/controller/app/schema_test.go`
+- Create: `internal/cli/app/app.go`
+- Create: `internal/cli/app/storage.go`
+- Create: `internal/cli/app/storage_test.go`
+- Create: `cmd/ingate/main.go`
+- Modify: `deploy/all-in-one/Dockerfile`
+- Modify: `deploy/all-in-one/entrypoint.sh`
+- Modify: `deploy/all-in-one/default.env`
+- Modify: `install.sh`
+- Modify: `Makefile`
+- Create: `test/schema/run.sh`
 - Modify: `hack/openapi/api-rule-violations.report`
 - Regenerate: `pkg/apis/gateway/zz_generated.deepcopy.go`
 - Regenerate: `pkg/apis/gateway/v1/zz_generated.deepcopy.go`
@@ -1644,7 +1677,21 @@ git commit -m "feat(storage): require schema version 2"
 
 断言 RuntimeGroup、RuntimeSnapshot、RedisStore 的 internal/v1 GVK 均未注册；storage map 不安装对应资源；Gateway OpenAPI 没有 `runtimeGroupRef`；RateLimitPolicy OpenAPI 没有 `global`；仍保留 `RateLimitModeGlobal`。
 
-- [ ] **Step 2: 删除源 API 模型和常量**
+- [ ] **Step 2: 写 schema 启动边界和 CLI 失败测试**
+
+在 apiserver 和 controller 的真实入口测试：`schema.Check` 必须在 apiserver 打开服务 listener、controller 创建 informer/ADS listener 和启动 Reconciler 之前完成；marker 缺失、旧值、未知值都 fail-fast，不能把错误当成空配置继续运行。etcd transport/权限错误原样归为启动失败。
+
+CLI 在同一任务首次出现并固定提供：
+
+```text
+ingate storage check
+ingate storage bootstrap
+ingate storage reset --confirm-services-stopped
+```
+
+`reset` 未带确认参数必须拒绝；输出必须说明它不会替调用方停止 apiserver/controller。测试 bootstrap 的空 volume、旧数据保护、unknown marker、reset 删除两个前缀后写 marker=2。
+
+- [ ] **Step 3: 删除源 API 模型和常量**
 
 删除：
 
@@ -1660,11 +1707,17 @@ Bundle（整个旧 compiler helper，不只 RedisStores 字段）
 RuntimeGroup/RuntimeSnapshot/RedisStore resource names
 ```
 
-- [ ] **Step 3: 删除 registry 并更新 server storage**
+- [ ] **Step 4: 删除 registry 并更新 server storage**
 
 `internal/apiserver/server/config.go` 只安装 Gateway、Route、Upstream、RateLimitPolicy、AccessControlPolicy、PolicyBinding 及其 status storage。
 
-- [ ] **Step 4: 重新生成全部代码**
+- [ ] **Step 5: 在同一原子边界接入服务检查、CLI 和部署 bootstrap/reset**
+
+apiserver 从其实际 `--etcd-servers` 配置构造 schema checker；controller 使用 `--etcd-endpoints`，二者都在监听/缓存初始化前调用 `Check`。旧 API 删除、marker=2 检查和新 CLI 不拆成可独立发布的提交。
+
+all-in-one entrypoint 在启动 apiserver/controller 前执行 `storage bootstrap`（仅空 volume）；检测到旧数据、缺 marker 或非 2 直接退出并保留 key。`install.sh reset` 先停止并删除容器，再用同一镜像启动 etcd one-shot action 执行带确认的 reset，之后才正常 start；不得用删除宿主目录替代 reset。`make dev-reset` 调用同一路径。Task 16 之后的每个 all-in-one 镜像都必须包含 `ingate` CLI，但最终镜像仍不自动迁移数据。
+
+- [ ] **Step 6: 重新生成全部代码**
 
 Run:
 
@@ -1685,22 +1738,25 @@ fake_redisstore.go
 
 禁止手改 generated 文件。
 
-- [ ] **Step 5: 运行 API 和全仓测试**
+- [ ] **Step 7: 运行 API、schema 矩阵和全仓测试**
 
 Run:
 
 ```bash
 go test ./internal/apiserver/... ./pkg/apis/gateway/... -count=1
+go test ./internal/storage/schema ./internal/cli/app ./internal/controller/app -count=1
 make test
 make build
+make all-in-one-image
+test/schema/run.sh "${ALL_IN_ONE_IMAGE:-ingate/all-in-one:dev}"
 ```
 
-Expected: PASS。
+`test/schema/run.sh` 必须覆盖：全新空 volume 自动 bootstrap marker=2；缺 marker 但已有旧资源时 start 失败且 key 保留；old/unknown marker 失败且数据不删除；显式 reset 清空 ResourcePrefix/InternalPrefix 并写 marker=2；`make dev-reset` 走同一路径。Expected: 全部 PASS。
 
-- [ ] **Step 6: 提交并验证生成幂等**
+- [ ] **Step 8: 提交并验证生成幂等**
 
 ```bash
-git add pkg/apis pkg/generated internal/apiserver hack/openapi
+git add pkg/apis pkg/generated internal/apiserver internal/controller internal/cli cmd/ingate deploy/all-in-one install.sh Makefile test/schema hack/openapi
 git commit -m "refactor(api): remove runtime and Redis resources"
 make generate
 git diff --exit-code
@@ -1710,7 +1766,7 @@ Expected: 最后一条无 diff。
 
 ---
 
-### Task 18: 删除 ingate-dataplane、HTTP DTO、pkg/xredis 和 go-redis
+### Task 17: 删除 ingate-dataplane、HTTP DTO、pkg/xredis 和 go-redis
 
 **Required skills:** @superpowers:test-driven-development, @go-testing
 
@@ -1737,20 +1793,27 @@ Expected: 最后一条无 diff。
 - Delete: `pkg/xredis/client_test.go`
 - Modify: `go.mod`
 - Modify: `go.sum`
+- Modify: `deploy/all-in-one/Dockerfile`
+- Modify: `deploy/all-in-one/entrypoint.sh`
+- Modify: `deploy/all-in-one/default.env`
+- Modify: `install.sh`
+- Modify: `Makefile`
 
 - [ ] **Step 1: 写残留扫描测试命令**
 
 先运行：
 
 ```bash
-rg -n 'ingate-dataplane|pkg/dataplane|pkg/xredis|redis/go-redis' --glob '*.go' go.mod
+rg -n 'ingate-dataplane|pkg/dataplane|pkg/xredis|redis/go-redis' --glob '*.go' --glob 'go.mod' .
 ```
 
-记录所有命中，确认插件已在 Task 6 切换，剩余命中仅属于待删除服务。
+记录所有命中，确认插件已在 Task 5 切换，剩余命中仅属于待删除服务。
 
 - [ ] **Step 2: 删除完整代码闭包和依赖**
 
 删除上述目录，从 `go.mod` 删除 `github.com/redis/go-redis/v9`，运行 `go mod tidy`。不要保留 compatibility DTO、fallback HTTP transport 或空 package。
+
+同一提交从 Dockerfile 删除 `ingate-dataplane` COPY，从 entrypoint 删除启动/等待，从 `default.env` 与 `install.sh` 删除 `INGATE_DATAPLANE_ADDR`，并移除只服务于该进程的 Makefile 目标。删除源码后必须立即保证 all-in-one 仍可构建和启动，不能留到 Task 18。
 
 - [ ] **Step 3: 运行测试、构建和残留扫描**
 
@@ -1761,27 +1824,28 @@ make test
 make build
 make plugins-test
 make plugins-build
-rg -n 'ingate-dataplane|pkg/dataplane|pkg/xredis|redis/go-redis' --glob '*.go' go.mod
+make all-in-one-image
+rg -n 'ingate-dataplane|pkg/dataplane|pkg/xredis|redis/go-redis|INGATE_DATAPLANE_ADDR' --glob '*.go' --glob 'go.mod' --glob '*.sh' --glob '*.env' --glob 'Dockerfile' .
 ```
 
-Expected: 前四条 PASS；最后一条无输出。
+Expected: 前五条 PASS；最后一条无输出。
 
 - [ ] **Step 4: 提交**
 
 ```bash
-git add cmd internal pkg go.mod go.sum
+git add cmd internal pkg go.mod go.sum deploy/all-in-one install.sh Makefile
 git commit -m "refactor(dataplane): remove legacy rate limit service"
 ```
 
 ---
 
-### Task 19: 收口 all-in-one、系统 Redis、schema bootstrap 和健康检查
+### Task 18: 收口 all-in-one 镜像、多架构与健康检查
 
 **Required skills:** @superpowers:test-driven-development
 
 **Files:**
 
-- Create: `deploy/all-in-one/redis/redis.conf`
+- Modify: `deploy/all-in-one/redis/redis.conf`
 - Create: `deploy/all-in-one/healthcheck.sh`
 - Modify: `deploy/all-in-one/Dockerfile`
 - Modify: `deploy/all-in-one/entrypoint.sh`
@@ -1799,27 +1863,30 @@ envoy --version 显示 1.36.4
 envoy --mode validate -c /etc/ingate/envoy/bootstrap.yaml 成功
 redis-server --version 成功
 redis-cli -h 127.0.0.1 ping 返回 PONG
+etcdctl version 成功
 ldd envoy/redis-server 无 not found
-镜像中没有 ingate-xds、ingate-dataplane
+镜像中没有 ingate-xds、ingate-dataplane、ingate-httpbin
 ```
 
 Higress gateway v2.2.3 和官方 Redis bookworm 镜像都必须在 spike 验证后固定为 immutable digest；Dockerfile 不保留可变 tag。
 
-- [ ] **Step 2: 修改 Dockerfile**
+- [ ] **Step 2: 修改 Dockerfile 并统一目标架构**
 
 复制：
 
-- etcd；
-- `ingate`、ingate-apiserver、ingate-admin-api、ingate-controller、ingate-httpbin；
+- etcd 和 `etcdctl`；`etcdctl` 只用于安装诊断与 E2E 数据损坏验证；
+- `ingate`、ingate-apiserver、ingate-admin-api、ingate-controller；
 - Higress Envoy 二进制；
 - 官方 Redis `redis-server`/`redis-cli` 及运行所需动态库；
 - Console 和内置 Wasm。
 
-删除独立 xDS/dataplane binary COPY。增加 Docker `HEALTHCHECK` 调用 `/usr/local/bin/ingate-healthcheck`。
+删除独立 xDS/dataplane 和 demo `ingate-httpbin` binary COPY；httpbin 只作为 E2E 外部 backend，不属于最终产品组件。增加 Docker `HEALTHCHECK` 调用 `/usr/local/bin/ingate-healthcheck`，并固定足以覆盖 etcd/schema/controller 冷启动的参数，例如 `--start-period=60s --interval=5s --timeout=3s --retries=6`，避免正常启动在 readiness 建立前被判 unhealthy。
 
-- [ ] **Step 3: 配置固定系统 Redis cluster**
+删除 `ALL_IN_ONE_GOARCH ?= arm64`。使用同一个 `ALL_IN_ONE_ARCH ?= $(shell go env GOARCH)` 同时驱动 `GOARCH` 和 `docker build --platform=linux/$(ALL_IN_ONE_ARCH)`，Dockerfile/构建参数统一使用 `TARGETOS/TARGETARCH` 语义，保证 amd64 CI 不会得到“amd64 基础镜像 + arm64 Go binary”。本里程碑只要求 amd64/arm64 单平台构建都可用，不提前发布 buildx 多平台 manifest。
 
-`bootstrap.yaml` 增加静态 cluster：
+- [ ] **Step 3: 收口固定系统 Redis 配置**
+
+Task 5 已增加静态 cluster；本任务把最终 bootstrap 固定并验证：
 
 ```yaml
 - name: ingate-system-redis
@@ -1836,34 +1903,45 @@ Higress gateway v2.2.3 和官方 Redis bookworm 镜像都必须在 spike 验证�
                   port_value: 6379
 ```
 
-该 cluster 不进入 CDS。ADS cluster 指向合并后的 controller 18000 端口。
+该 cluster 不进入 CDS。ADS cluster 指向合并后的 controller 18000 端口。`redis.conf` 保持 loopback-only、无持久化约定，不重新引入用户地址配置。
 
-- [ ] **Step 4: 重写 entrypoint 启动和 schema 流程**
+- [ ] **Step 4: 收口 entrypoint 启动、依赖等待和进程监督**
 
 启动顺序：
 
 ```text
 etcd
--> ingate storage bootstrap/check（或显式 reset action）
+-> 等待 etcd endpoint health
+-> ingate storage bootstrap/check（reset action 已在 Task 16 接入）
 -> Redis
+-> 有界等待 redis-cli PING；失败只记录 degraded 并继续
 -> apiserver
+-> 等待 apiserver /readyz
 -> controller
 -> 等待 controller /readyz
 -> Envoy
+-> 等待 Envoy admin /ready
 -> admin-api / Console
 ```
 
-关键进程与非关键 Redis 分开管理：Redis 退出不能触发现有 `wait -n -> stop_all` 杀死整个 Ingate；普通代理和控制面继续运行，依赖 Redis 的策略按 FailOpen/FailClose 处理。停止容器时仍要清理 Redis pid。
+镜像内 `default.env` 只能为尚未设置的变量提供默认值，不得覆盖 Docker `--env-file` 或 `-e` 注入值；smoke 使用非默认 Console/Controller internal/status timeout 验证外部环境优先。
 
-- [ ] **Step 5: 实现 install.sh 显式 reset**
+关键进程与非关键 Redis 明确分组：
 
-新增 `reset` 命令：停止并删除现有容器，使用同一镜像的 one-shot storage action 启动 etcd、执行 `ingate storage reset`，再正常启动。首次空数据目录由 `storage bootstrap` 初始化；旧数据缺 marker 或 marker 非 2 时普通 start 必须 fail-fast 并提示运行 reset，不能静默删除用户数据。
+```bash
+critical_pids=()
+auxiliary_pids=()
+```
 
-`make dev-reset` 调用该 reset 路径，不再只依赖宿主目录删除。`default.env` 删除 `INGATE_DATAPLANE_ADDR`，增加 Controller internal 地址和 Admin status timeout。
+etcd、apiserver、controller、Envoy、admin-api 属于 `critical_pids`；Redis 属于 `auxiliary_pids`。主等待只能执行等价于 `wait -n "${critical_pids[@]}"` 的逻辑，不能对所有 shell child 使用裸 `wait -n`。Redis 首次启动使用有界 PING：成功后继续，超时或进程已退出则记录明确错误但仍启动 Envoy；运行期间由独立 auxiliary watcher `wait`/reap Redis 并记录退出，不结束主进程。普通代理和控制面继续运行，依赖 Redis 的策略按 FailOpen/FailClose 处理。shutdown trap 同时终止并 reap 两组 pid/watcher。
+
+- [ ] **Step 5: 完成 install.sh 健康等待**
+
+Task 16 已实现 reset/bootstrap。这里统一 `start`、`restart` 和 `reset` 的正常启动阶段调用有界 `wait_container_healthy`：每次轮询同时读取 `.State.Running`、`.State.ExitCode` 和 `.State.Health.Status`；进程提前退出时立即打印组件文件日志和 inspect 结果，不能一直等 `starting` 超时。只有 `healthy` 后才能 `print_success`，`unhealthy` 或超时也必须返回失败。
 
 - [ ] **Step 6: 实现整体健康检查**
 
-healthcheck 检查 apiserver、Controller `/readyz` 和 Envoy admin `/ready`；不要求业务 Gateway 存在，也不把 Redis 故障变成整个容器 unhealthy。Redis PING 单独进入 status/smoke。
+healthcheck 检查 apiserver `/readyz`、Controller `/readyz` 和 Envoy admin `/ready`；不要求业务 Gateway 存在，也不把 Redis 运行期故障变成整个容器 unhealthy。Redis PING 单独进入 status/smoke。所有组件日志写入 `/var/log/ingate/<component>.log`，失败诊断不能只依赖通常为空的 `docker logs`。
 
 - [ ] **Step 7: 构建和 smoke**
 
@@ -1874,7 +1952,9 @@ make all-in-one-image
 make all-in-one-smoke
 ```
 
-Expected: PASS；`ps` 无 ingate-xds/ingate-dataplane；Controller 在 Envoy 启动前 ready；config dump 中静态存在 `ingate-system-redis`。
+Expected: PASS；`ps` 和镜像均无 ingate-xds/ingate-dataplane/ingate-httpbin；Controller 在 Envoy 启动前 ready；ADS 只监听 `127.0.0.1:18000`；config dump 中静态存在 `ingate-system-redis`；非默认环境变量未被镜像 defaults 覆盖；当前宿主架构与镜像/Go binary 一致。
+
+Smoke 使用外部 backend container。必须证明同 network peer 无法连接 Redis 6379，而容器内 PING 成功；主动 kill Redis 进程，等待超过原裸 `wait -n` 的触发窗口，断言容器仍 running、Docker health 仍 healthy、普通无策略 Route 仍代理成功；随后重启 Redis 供后续测试使用。另以确定性失败的 Redis wrapper/config 启动全新容器，验证 `set -e` 不会让 entrypoint 退出、总体 health 仍 healthy、普通 Route 可代理且组件日志出现 Redis degraded。
 
 - [ ] **Step 8: 提交**
 
@@ -1885,7 +1965,7 @@ git commit -m "build(all-in-one): embed Envoy and system Redis"
 
 ---
 
-### Task 20: 增加真实 all-in-one、Delivery 和 Redis RateLimit E2E
+### Task 19: 增加真实 all-in-one、Delivery 和 Redis RateLimit E2E
 
 **Required skills:** @superpowers:test-driven-development, @go-testing
 
@@ -1896,16 +1976,23 @@ git commit -m "build(all-in-one): embed Envoy and system Redis"
 - Create: `test/e2e/delivery_test.go`
 - Create: `test/e2e/ratelimit_test.go`
 - Create: `test/e2e/process_test.go`
+- Create: `test/e2e/xdsclient/main.go`
+- Create: `test/e2e/xdsclient/Dockerfile`
 - Create: `test/e2e/testdata/gateway.json`
 - Create: `test/e2e/testdata/route.json`
 - Create: `test/e2e/testdata/upstream.json`
 - Create: `test/e2e/testdata/ratelimit-policies.json`
 - Create: `test/e2e/testdata/policy-bindings.json`
+- Reuse: `test/backend/Dockerfile`
 - Modify: `Makefile`
 
 - [ ] **Step 1: 建立隔离 E2E harness**
 
-`make e2e` 运行带 `e2e` build tag 的 Go tests。Harness 为每次测试创建唯一容器名、数据目录和 Docker network，等待 healthcheck，提供声明式 API create/update/delete、Admin status、Envoy admin、日志和清理 helper。测试失败时保留关键日志到 `/tmp/ingate-e2e-*`，成功时清理。
+`make e2e` 必须依赖并传入本次刚构建的精确 `ALL_IN_ONE_IMAGE`，同时构建/传入 Task 5 的本地 test backend image，再运行带 `e2e` build tag 的 Go tests。Harness 为每组串行测试创建唯一容器名、数据目录和 Docker network，启动该外部 backend，等待 healthcheck，提供声明式 API create/update/delete、Admin status、Envoy admin、组件日志和清理 helper。重启/破坏存储/暂停进程等重型测试禁止 `t.Parallel`，`go test` 使用显式长 timeout 和 `-p=1`。
+
+生产安装仍只映射 Admin/Gateway 端口。E2E 通过 `docker exec` 在容器内访问 apiserver 18443（TLS insecure test client）和 Envoy admin 15000；可控 SotW client 通过 `docker run --network container:<all-in-one>` 共享 network namespace，连接 `127.0.0.1:18000`，不把这些 loopback 内部端口发布到宿主机。sidecar 使用独立稳定 Node ID `ingate-e2e-controlled`，不复用被 SIGSTOP 的真实 Envoy Node ID。
+
+entrypoint 把日志重定向到挂载的 `/var/log/ingate/<component>.log`，因此 harness 必须读取/复制这些文件，不能把 `docker logs` 当作 Envoy/Controller/ABI 错误来源。测试失败时保留数据、组件日志、inspect 和 config dump 到 `/tmp/ingate-e2e-*`，成功时清理。
 
 - [ ] **Step 2: 实现普通代理和资源删除测试**
 
@@ -1913,45 +2000,52 @@ git commit -m "build(all-in-one): embed Envoy and system Redis"
 
 - 创建 Gateway、Route、Upstream 后 Envoy ADS ACK，HTTP 代理成功；
 - 更新 Route path 后新行为生效；
-- 删除/禁用 Route、Upstream 或 Gateway 后相应 RDS/CDS/EDS 明确移除；
-- 非法引用、hostname 冲突和 Unsupported HealthCheck 不破坏当前 Active；
+- 先禁用/删除 Route 并等待 ACK，验证 RDS route 移除；再删除已无引用的 Upstream 并验证 CDS/EDS 移除；最后在无 child Route 后删除 Gateway 并验证 LDS/RDS 移除；
+- 直接删除仍被启用 Route 引用的 Upstream/Gateway、非法引用、hostname 冲突和 Unsupported HealthCheck 都使当前资源 Accepted=False，并保持旧 Active；不假设父资源删除会隐式级联；
 - 用户 Upstream ID 以 `ingate-system-` 开头时 Accepted=False。
 
 - [ ] **Step 3: 实现 Delivery/Last Good 测试**
 
-覆盖：
+使用 `xdsclient` sidecar 做可控 SotW 序列：先 `SIGSTOP` 容器内真实 Envoy，sidecar 记录每个 type 的 version/nonce 并可延迟 ACK；v1 已 Active 后发布 v2 Candidate 但不 ACK，再发布 v3 supersede v2；此时发送 v2 nonce 的迟到 ACK/NACK，断言 Candidate 仍为 v3。随后对当前 v3 nonce 发送 NACK，断言 callback 返回前已恢复 v1；首次 Candidate/Baseline 使用独立 case，当前 nonce NACK 后恢复 Baseline、`configReady=false`。暂停期间允许 Docker health 暂时 unhealthy，但容器必须保持 running；停止 sidecar、`SIGCONT` Envoy 后重新等待 healthy，避免两个客户端互相影响。
 
-- 快速连续更新产生 Candidate supersede，旧版本事件不改变最终 Active；
-- 暂时移走容器内 Wasm 文件后发布需要该 filter 的 Candidate，Envoy NACK，Controller 在 callback 返回前恢复旧 Active；恢复文件后下一版本成功；
-- 首个 Candidate NACK 时恢复 Baseline，`configReady=false`；
-- Controller/容器重启先恢复 Last Good，再重新编译当前资源；
-- 篡改 `/ingate/internal/last-good/envoy` 后重启，拒绝部分恢复、状态 degraded，并从当前资源重新编译。
+另做真实 Envoy NACK：在全新容器、该 Wasm VM 从未加载的前提下暂时移走 `ratelimit.wasm`，首次创建需要该内置 filter 的 Policy/Binding，使 Envoy 必须创建新 VM 并 NACK；恢复文件并发布下一版本后成功，不能依赖已经缓存的 VmId。
+
+Last Good 正常恢复测试先建立 v1 Active/LastGood，再提交确定性 compiler-invalid 更新，使当前资源 Accepted=False 且 Active 保持 v1；重启 Controller/容器后必须仍以 v1 代理，证明恢复发生在失败的重新编译之前。
+
+损坏测试同样先保持当前资源 invalid，再用镜像内 `etcdctl` 篡改 `/ingate/internal/last-good/envoy` 后重启；由于当前资源仍 invalid，Degraded/Baseline 状态必须持续可观察，不能被立即成功编译掩盖。修复资源后验证生成新 Active、覆盖损坏记录并恢复代理。
 
 - [ ] **Step 4: 实现三种 Redis 限流与故障语义测试**
 
 覆盖 FixedWindow、SlidingWindow、TokenBucket、burst、quota headers、429 响应、FailOpen 和 FailClose。停止 Redis 后普通无策略 Route 仍可代理；Ingate 容器不退出。
 
-迟到 callback 场景：对 Redis 执行短时 `CLIENT PAUSE`，发起 Global 请求并让客户端提前断开；callback 到达后 Envoy 不崩溃、无 invalid context trap、不会恢复已销毁请求。
+迟到 callback 场景：对 Redis 执行短时 `CLIENT PAUSE`，发起 Global 请求并让客户端提前断开；等待 pause 结束后必须在组件日志/稳定计数中观察到 `late_callback_ignored`，证明 callback 确实在 context 销毁后到达，而不是被取消；同时 Envoy 不崩溃、无 invalid context trap、不会恢复已销毁请求。
 
 - [ ] **Step 5: 实现进程、镜像和系统 cluster 测试**
 
 断言：
 
-- 进程和镜像无 ingate-xds、ingate-dataplane；
+- 进程和镜像无 ingate-xds、ingate-dataplane、ingate-httpbin；
 - 动态 CDS 不包含 `ingate-system-redis`；
 - 静态 bootstrap 包含该 cluster；
-- 日志无缺失 `proxy_redis_*` import、缺失 callback export、BadArgument、Wasm trap；
+- `/var/log/ingate` 组件日志无缺失 `proxy_redis_*` import、缺失 callback export、BadArgument、Wasm trap；
 - `/readyz` 不等待 Envoy ACK，整体 healthcheck 不等待业务 Gateway。
+- apiserver、ADS、Envoy admin 保持 loopback/internal-only，测试只通过 exec/sidecar 访问。
 
 - [ ] **Step 6: 运行真实 E2E**
 
 Run:
 
 ```bash
-make e2e
+make e2e ALL_IN_ONE_IMAGE=ingate/all-in-one:e2e
 ```
 
-Expected: PASS。
+Makefile 中 `e2e` 依赖 `all-in-one-image`，并等价执行：
+
+```bash
+INGATE_E2E_IMAGE="$(ALL_IN_ONE_IMAGE)" INGATE_E2E_BACKEND_IMAGE="$(E2E_BACKEND_IMAGE)" go test -tags=e2e -timeout=45m -p=1 ./test/e2e -count=1
+```
+
+Expected: PASS；测试使用的 all-in-one/backend image ID 都与本次刚构建镜像一致。
 
 - [ ] **Step 7: 提交**
 
@@ -1962,7 +2056,7 @@ git commit -m "test(e2e): cover Envoy delivery and Redis governance"
 
 ---
 
-### Task 21: 更新现行文档、设计图并完成最终验收
+### Task 20: 更新现行文档、设计图并完成最终验收
 
 **Required skills:** @superpowers:verification-before-completion, @go-code-review
 
@@ -1982,6 +2076,7 @@ git commit -m "test(e2e): cover Envoy delivery and Redis governance"
 - Modify: `docs/images/frontend-plugin-list-ui.svg`
 - Modify: `docs/images/frontend-product-architecture.svg`
 - Modify: `docs/images/frontend-system-settings-ui.svg`
+- Modify: `docs/superpowers/specs/2026-07-17-ingate-simplified-architecture-design.md`
 - Modify: `docs/superpowers/specs/2026-06-05-gateway-admin-api-design.md`
 - Modify: `docs/superpowers/specs/2026-06-07-rate-limit-policy-binding-design.md`
 - Modify: `docs/superpowers/specs/2026-06-08-dataplane-capability-design.md`
@@ -1995,7 +2090,7 @@ README、前端产品设计、all-in-one 设计和 Agent 方向文档统一描�
 
 - [ ] **Step 2: 更新设计图和历史文档状态**
 
-当前产品图删除数据面组、独立 xDS/dataplane 和 Redis 配置页面。四份仍被用户检索的旧 design 顶部增加 superseded banner，指向 `2026-07-17-ingate-simplified-architecture-design.md`；不要重写历史 `docs/superpowers/plans/**`。
+当前产品图删除数据面组、独立 xDS/dataplane 和 Redis 配置页面。生效 spec 保持精确 Redis ABI、callback 生命周期和 SDK 边界；四份仍被用户检索的旧 design 顶部增加 superseded banner，指向 `2026-07-17-ingate-simplified-architecture-design.md`；不要重写历史 `docs/superpowers/plans/**`。
 
 - [ ] **Step 3: 运行旧术语和第三方依赖扫描**
 
@@ -2005,8 +2100,12 @@ Run:
 rg -n 'RuntimeGroup|RuntimeSnapshot|RedisStore|runtimeGroupRef|redisRef|json:"global|ingate-xds|ingate-dataplane|LogicalGateway|Target Translator' \
   --glob '!docs/superpowers/plans/**' \
   --glob '!docs/superpowers/specs/2026-04-28-control-plane-core-mvp-design.md' \
+  --glob '!docs/superpowers/specs/2026-06-05-gateway-admin-api-design.md' \
+  --glob '!docs/superpowers/specs/2026-06-07-rate-limit-policy-binding-design.md' \
+  --glob '!docs/superpowers/specs/2026-06-08-dataplane-capability-design.md' \
+  --glob '!docs/superpowers/specs/2026-06-08-enterprise-rate-limit-design.md' \
   --glob '!docs/superpowers/specs/2026-07-14-higress-envoy-standalone-ratelimit-design.md'
-rg -n 'github.com/higress-group/' --glob '*.go' go.mod
+rg -n 'github.com/higress-group/' --glob '*.go' --glob 'go.mod' .
 ```
 
 Expected: 第一条仅允许明确的“已删除/不支持”迁移说明；第二条无输出。
@@ -2073,5 +2172,5 @@ git commit -m "docs: align project with simplified Envoy architecture"
 - Controller 重启可恢复 Last Good，损坏记录不部分恢复。
 - Admin API/Console 展示单配置域 Candidate、Active、Last Good、ACK/NACK 和连接状态。
 - schema marker 必须为 2；首次安装 bootstrap、旧数据显式 reset，服务不自动迁移。
-- all-in-one 包含 Console、admin-api、apiserver、controller、Envoy、etcd、Redis，且不包含独立 xDS/dataplane 进程。
+- all-in-one 包含 Console、admin-api、apiserver、controller、Envoy、etcd、Redis，且不包含独立 xDS/dataplane 或 demo httpbin 进程；amd64/arm64 单平台构建都不会混入错误架构二进制。
 - 最终完整验证矩阵全部通过。
