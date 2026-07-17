@@ -593,18 +593,17 @@ RateLimitPolicy
 
 FixedWindow、SlidingWindow、TokenBucket、检查顺序、fail-open/fail-close 和 quota headers 语义保持不变。
 
-RateLimit 插件配置 schema 升级为 v2：
+RateLimit 插件配置直接收缩为最终结构：
 
 - 删除 Listener 级 `redisStores` 和 `dataPlane`
 - 删除 Policy 级 `global.redisRef`、`global.prefix` 和 `global.timeoutMillis`
 - 插件内部使用固定 `ingate-system-redis` 和固定 50ms command timeout
-- v2 解析器拒绝未知 schema version，不兼容读取 v1 后静默降级
+- 解析器拒绝未知字段，不读取任何历史兼容结构
 
-v2 的顶层和嵌套结构固定为：
+顶层和嵌套结构固定为：
 
 ```json
 {
-  "schemaVersion": "v2",
   "routes": [
     {
       "gatewayName": "gateway-id",
@@ -629,7 +628,7 @@ v2 的顶层和嵌套结构固定为：
 }
 ```
 
-`Policy` 不再有 `global` 字段；`Global` 只由 `mode=Global` 表示。`schemaVersion` 缺失、不是 `v2` 或出现未知字段都返回配置错误。RouteConfig 的 `gatewayName`、`routeName`、`bindings` 结构保持，插件不接收 Redis 地址、用户名、密码、TLS 或 cluster 配置。
+`Policy` 不再有 `global` 字段；`Global` 只由 `mode=Global` 表示。配置不携带 schema version，出现未知字段直接返回配置错误。RouteConfig 的 `gatewayName`、`routeName`、`bindings` 结构保持，插件不接收 Redis 地址、用户名、密码、TLS 或 cluster 配置。
 
 Redis ABI 只在 `plugins/internal/redisabi` 中定义，固定为 Envoy 扩展的精确 ptr/len 签名：
 
@@ -808,7 +807,7 @@ Redis 故障不影响 apiserver、Admin API、Controller 或普通代理流量�
 - 删除 go-redis，仅为标准 Snapshot Cache 增加完整 `github.com/envoyproxy/go-control-plane` 模块
 - Controller Internal Status API 的 server、Admin client、DTO、service、handler、router、地址和超时配置
 - Controller `/healthz`、`/readyz`、Envoy admin readiness 和 all-in-one 整体健康检查
-- RateLimitPolicy v1 API、插件 v1 config、runner 和 Wasm callback 到 v2 的完整删除闭包
+- RateLimitPolicy API、最终插件配置、runner 和 Wasm callback 的完整删除闭包
 - schema bootstrap/reset 命令及 install.sh、首次安装、升级和 dev-reset 调用点
 
 这是 Ingate Next 的新设计，当前不承诺对尚未稳定的 RuntimeGroup、RuntimeSnapshot、RedisStore 和旧 RateLimitPolicy API 提供兼容迁移层。
@@ -894,7 +893,7 @@ apiserver 和 Controller 都只读取并校验 marker，不自动初始化：
 - Delivery 的 Candidate、ACK、NACK 和回滚状态机
 - Last Good 序列化、版本检查和恢复
 - Redis RESP、Lua 算法和 fail-open/fail-close
-- RateLimit v2 对缺失版本、v1、未知版本和未知字段的拒绝
+- RateLimit 对未知字段和历史兼容结构的拒绝
 - Redis ABI callout registry、有效 context 恢复和已销毁 context 忽略
 - schema marker 缺失、正确、旧版、未知值和服务读取不一致
 - xDS NACK callback 在返回前完成同步回滚

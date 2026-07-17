@@ -482,7 +482,7 @@ git commit -m "refactor(adminapi): remove runtime group management"
 
 只实现本项目需要的 RESP2：bulk-string array 编码，以及 array/integer/bulk/simple/error 解码。Lua 脚本内容从现有 dataplane 原样迁移，删除 `redis.NewScript` 包装。时间通过可注入 clock 测试，生产使用 `time.Now`。
 
-这个任务只新增未接线的纯代码，不修改当前 v1 plugin schema、旧 xDS producer 或运行时，因此提交后现有系统仍可编译和运行。真正的 v2 producer/consumer 切换在 Task 5 原子完成。
+这个任务只新增未接线的纯代码，不修改当前 plugin schema、旧 xDS producer 或运行时。最终 producer/consumer 切换在 Task 5 原子完成。
 
 - [ ] **Step 3: 运行纯算法测试**
 
@@ -503,7 +503,7 @@ git commit -m "refactor(ratelimit): extract Redis algorithms"
 
 ---
 
-### Task 5: 原子切换 RateLimit v2 producer、Redis ABI consumer 和 Envoy 二进制
+### Task 5: 原子切换 RateLimit 配置、Redis ABI consumer 和 Envoy 二进制
 
 **Required skills:** @superpowers:test-driven-development, @go-testing, @go-concurrency, @go-context
 
@@ -546,8 +546,6 @@ git commit -m "refactor(ratelimit): extract Redis algorithms"
 - Modify: `internal/xds/server/ratelimit_builder.go`
 - Modify: `internal/xds/server/listener_builder.go`
 - Modify: `internal/xds/server/listener_builder_test.go`
-- Modify: `internal/xds/server/snapshot_watcher.go`
-- Create: `internal/xds/server/snapshot_watcher_test.go`
 - Modify: `internal/adminapi/handler/ratelimitpolicy/dto/request.go`
 - Modify: `internal/adminapi/handler/ratelimitpolicy/dto/response.go`
 - Modify: `internal/adminapi/handler/ratelimitpolicy/dto/types.go`
@@ -587,11 +585,11 @@ git commit -m "refactor(ratelimit): extract Redis algorithms"
 - Delete: `plugins/ratelimit/internal/dataplane/request.go`
 - Delete: `plugins/ratelimit/internal/dataplane/request_test.go`
 
-- [ ] **Step 1: 写严格 schema v2 和 producer/consumer 契约失败测试**
+- [ ] **Step 1: 写严格执行配置和 producer/consumer 契约失败测试**
 
-固定最终 v2 JSON 为生效架构规格中的 routes/bindings/policies 结构。测试拒绝空 schemaVersion、v1、未知版本、任意未知字段、`redisStores`、`dataPlane`、Policy `global`、Policy `displayName`、RouteConfig 顶层 `ruleName` 和旧 envelope；展示字段只存在于产品资源/DTO，不进入可执行插件 schema。
+固定最终 JSON 为生效架构规格中的 routes/bindings/policies 结构，不携带 schema version。测试拒绝任意未知字段、`schemaVersion`、`redisStores`、`dataPlane`、Policy `global`、Policy `displayName`、RouteConfig 顶层 `ruleName` 和旧 envelope；展示字段只存在于产品资源/DTO，不进入可执行插件配置。
 
-同一测试提交还要证明旧的当前 xDS producer 已切为 v2：Listener typed config 的 `schemaVersion` 为 v2，且 JSON 不含 RedisStore、dataplane cluster、Redis 地址或 timeout。旧 xDS watcher 从 etcd/API 读取持久化 `RuntimeSnapshot` 时，必须拒绝/忽略其中 ratelimit typed config 为 v1、缺版本或未知版本的派生快照，不能放入 xDS cache；等待当前 Controller 重新生成 v2 后才发布。这样 strict-v2 Wasm、producer 和 persisted consumer 在同一提交激活，不出现旧快照被重新发送导致的 NACK 窗口。
+同一提交证明当前 xDS producer 只输出最终结构，且 JSON 不含 schema version、RedisStore、dataplane cluster、Redis 地址或 timeout。项目按全新配置域开发，不增加旧 RuntimeSnapshot 的兼容读取或迁移分支。
 
 - [ ] **Step 2: 写管理面系统 Redis 失败测试**
 
@@ -619,9 +617,9 @@ git commit -m "refactor(ratelimit): extract Redis algorithms"
 - registry 显式保存 pluginContextID 和 httpContextID；自定义 Redis callback 内只调用 Ingate 直接 hostcall（buffer、Resume/Respond、后续 Redis dispatch），不能调用依赖 SDK 私有 `activeContextID` 的异步注册 API，例如 `DispatchHttpCall`；
 - GlobalCheck 严格串行且全部完成后统一裁决；同步/异步错误进入相同 fail-open/fail-close 顺序。
 
-- [ ] **Step 4: 实现 strict v2 schema、binding 过滤和固定 key**
+- [ ] **Step 4: 实现严格配置、binding 过滤和固定 key**
 
-`pkg/plugin/ratelimit` 删除 v1 的 RedisStore、DataPlane、Global 和 DisplayName 字段，使用 `json.Decoder.DisallowUnknownFields()` 且要求单一 JSON value。RouteConfig 只按 GatewayName + RouteName 建索引；当前 xDS RuleName 用于过滤：Gateway target 作用于所有 rule，Route target 无 ruleName 作用于整条 Route，有 ruleName 时只匹配同名 rule。
+`pkg/plugin/ratelimit` 删除 RedisStore、DataPlane、Global、DisplayName 和 schema version 字段，使用 `json.Decoder.DisallowUnknownFields()` 且要求单一 JSON value。RouteConfig 只按 GatewayName + RouteName 建索引；当前 xDS RuleName 用于过滤：Gateway target 作用于所有 rule，Route target 无 ruleName 作用于整条 Route，有 ruleName 时只匹配同名 rule。
 
 `policy.GlobalCheck` 删除 RedisStore/timeout。Redis key 用长度编码依次包含 `ingate-rate-limit`、Policy ID、Route ID、Route rule、RateLimit rule 和请求维度 key；每段使用 `字节长度:原始字节` 编码，测试空值、冒号、斜杠以及 `("a", "b:c")` / `("a:b", "c")` 这类碰撞输入。
 
@@ -645,7 +643,7 @@ callback -> set plugin/root context -> 查找但暂不删除 (plugin, callout) �
 
 - [ ] **Step 6: 同步切换过渡 compiler/xDS producer 和管理面**
 
-修改当前 `internal/core/compiler`，Global 不再要求 Global config/RedisStore，并拒绝用户资源占用 `ingate-system-*`；修改旧 target/xDS translator 和 listener/ratelimit builder，只生成 v2 routes/bindings/policies。旧 xDS watcher 在发布整个 snapshot 前校验所有内置 ratelimit typed config，遇到 v1/未知版本时记录稳定日志并保持 cache 为空或保留上一个已验证版本，不做部分发布；Controller 的下一次全局 reconcile 会覆盖为 v2。Admin API/Console 同一提交删除 RedisStore CRUD、Redis 选择和 `spec.global` 写入；`plugins/ratelimit/README.md` 同步改为系统 Redis + 内置 ABI，不再描述 `ingate-dataplane` 或插件 HTTP transport。
+修改当前 `internal/core/compiler`，Global 不再要求 Global config/RedisStore，并拒绝用户资源占用 `ingate-system-*`；修改旧 target/xDS translator 和 listener/ratelimit builder，只生成最终 routes/bindings/policies。Admin API/Console 同一提交删除 RedisStore CRUD、Redis 选择和 `spec.global` 写入；`plugins/ratelimit/README.md` 同步改为系统 Redis + 内置 ABI，不再描述 `ingate-dataplane` 或插件 HTTP transport。
 
 这些过渡修改在新 Compiler/Controller 切换后由 Task 12/16 删除，不形成长期兼容层。
 
@@ -673,9 +671,9 @@ make all-in-one-image
 make ratelimit-runtime-smoke
 ```
 
-`test/backend/Dockerfile` 从当前源码构建仅测试使用的 `cmd/ingate-httpbin` image，不进入 all-in-one，也不依赖 mutable 公共 echo/httpbin tag。`ratelimit-runtime-smoke` 必须使用刚构建的精确 `ALL_IN_ONE_IMAGE` 和本地 test backend image，在隔离 network 启动两者，创建最小 Gateway/Route/Upstream/Global RateLimitPolicy/PolicyBinding，证明额度内请求成功、超额请求返回 429，且 Redis key 只存在于内置实例。另用预置 v1 `RuntimeSnapshot` 的数据卷重启一次，断言 v1 从未进入 xDS cache，Controller 生成 v2 后才恢复流量。
+`test/backend/Dockerfile` 从当前源码构建仅测试使用的 `cmd/ingate-httpbin` image，不进入 all-in-one，也不依赖 mutable 公共 echo/httpbin tag。`ratelimit-runtime-smoke` 必须使用刚构建的精确 `ALL_IN_ONE_IMAGE` 和本地 test backend image，在隔离 network 启动两者，创建最小 Gateway/Route/Upstream/Global RateLimitPolicy/PolicyBinding，证明额度内请求成功、超额请求返回 429，且 Redis key 只存在于内置实例。
 
-Expected: 全部 PASS；all-in-one 使用 Higress Envoy，v2 filter 配置可加载，Global 请求走系统 Redis；peer container 不能直连 Redis；源码无插件到 dataplane HTTP import。
+Expected: 全部 PASS；all-in-one 使用 Higress Envoy，最终 filter 配置可加载，Global 请求走系统 Redis；peer container 不能直连 Redis；源码无插件到 dataplane HTTP import。
 
 - [ ] **Step 9: 提交**
 
@@ -879,7 +877,7 @@ git commit -m "feat(envoy): add global config compiler foundation"
 
 - [ ] **Step 4: 写内置 Policy 配置失败测试**
 
-Compiler 直接从强类型 Policy/Binding 构造 `pkg/plugin/acl` 与 `pkg/plugin/ratelimit` 的 route index。RateLimit JSON 必须是 v2，且不含 Redis 地址、RedisStore、cluster、timeout、`global` 或 dataplane 字段。Listener/HCM 每种内置插件只注入一次 Wasm filter，per-route config 通过稳定 xDS route name 定位。
+Compiler 直接从强类型 Policy/Binding 构造 `pkg/plugin/acl` 与 `pkg/plugin/ratelimit` 的 route index。RateLimit JSON 使用无版本的最终结构，且不含 Redis 地址、RedisStore、cluster、timeout、`global` 或 dataplane 字段。Listener/HCM 每种内置插件只注入一次 Wasm filter，per-route config 通过稳定 xDS route name 定位。
 
 - [ ] **Step 5: 实现 Route、Upstream 和 Policy 编译**
 
