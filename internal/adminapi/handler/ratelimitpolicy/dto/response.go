@@ -34,7 +34,6 @@ func policyFromResource(policy *resource.RateLimitPolicy) RateLimitPolicy {
 			Enabled:       policy.Spec.Enabled,
 			Mode:          policy.Spec.Mode,
 			Rules:         policy.Spec.Rules,
-			Global:        policy.Spec.Global,
 			Response:      policy.Spec.Response,
 			FailurePolicy: policy.Spec.FailurePolicy,
 		},

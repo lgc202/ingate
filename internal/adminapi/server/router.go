@@ -23,8 +23,6 @@ func (s *Server) router() *gin.Engine {
 
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.GET("/runtime-groups", handler.RuntimeGroup.List)
-
 		gateways := apiV1.Group("/gateways")
 		{
 			gateways.GET("", handler.Gateway.List)
@@ -82,15 +80,6 @@ func (s *Server) router() *gin.Engine {
 			policyBindings.PUT("/:id", handler.PolicyBinding.Update)
 			policyBindings.PATCH("/:id/enabled", handler.PolicyBinding.SetEnabled)
 			policyBindings.DELETE("/:id", handler.PolicyBinding.Delete)
-		}
-
-		redisStores := apiV1.Group("/redis-stores")
-		{
-			redisStores.GET("", handler.RedisStore.List)
-			redisStores.POST("", handler.RedisStore.Create)
-			redisStores.GET("/:id", handler.RedisStore.Get)
-			redisStores.PUT("/:id", handler.RedisStore.Update)
-			redisStores.DELETE("/:id", handler.RedisStore.Delete)
 		}
 	}
 

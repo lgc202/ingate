@@ -9,7 +9,6 @@ type RateLimitPolicyConfig struct {
 	Enabled       bool                            `json:"enabled"`
 	Mode          resource.RateLimitMode          `json:"mode"`
 	Rules         []resource.RateLimitRule        `json:"rules"`
-	Global        *resource.GlobalRateLimitConfig `json:"global,omitempty"`
 	Response      resource.RateLimitResponse      `json:"response,omitempty"`
 	FailurePolicy resource.RateLimitFailurePolicy `json:"failurePolicy,omitempty"`
 }

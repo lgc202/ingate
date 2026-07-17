@@ -33,7 +33,6 @@ func gatewayFromResource(gateway *resource.Gateway) Gateway {
 		GatewayConfig: GatewayConfig{
 			Name:         gateway.Spec.DisplayName,
 			Description:  gateway.Spec.Description,
-			RuntimeGroup: gateway.Spec.RuntimeGroupRef.Name,
 			Listeners:    listeners(gateway.Spec.Listeners),
 			HostBindings: hostBindings(gateway.Spec.HostBindings),
 		},

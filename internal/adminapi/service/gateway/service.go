@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
-	runtimegroupsvc "github.com/lgc202/ingate/internal/adminapi/service/runtimegroup"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
@@ -19,14 +18,13 @@ const noExcludedGatewayID = ""
 
 // Service 承载 Gateway 管理用例
 type Service struct {
-	store        *gatewaystore.Store
-	routes       *routestore.Store
-	runtimeGroup *runtimegroupsvc.Service
+	store  *gatewaystore.Store
+	routes *routestore.Store
 }
 
 // New 创建 Gateway service
-func New(store *gatewaystore.Store, routes *routestore.Store, runtimeGroup *runtimegroupsvc.Service) *Service {
-	return &Service{store: store, routes: routes, runtimeGroup: runtimeGroup}
+func New(store *gatewaystore.Store, routes *routestore.Store) *Service {
+	return &Service{store: store, routes: routes}
 }
 
 // List 查询 Gateway 列表
@@ -54,10 +52,6 @@ func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (strin
 	if err := s.validateNameUnique(ctx, params.Name, noExcludedGatewayID); err != nil {
 		return "", err
 	}
-	if err := s.runtimeGroup.ValidateEnabled(ctx, params.RuntimeGroup); err != nil {
-		return "", err
-	}
-
 	gateway := &resource.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: resource.SchemeGroupVersion.String(),
@@ -94,10 +88,6 @@ func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGat
 	if err := s.validateNameUnique(ctx, params.Name, gatewayID); err != nil {
 		return err
 	}
-	if err := s.runtimeGroup.ValidateEnabled(ctx, params.RuntimeGroup); err != nil {
-		return err
-	}
-
 	next := current.DeepCopy()
 	next.Spec = gatewaySpec(params.GatewayParams, current.Spec.Enabled)
 	if err := s.validateGateway(ctx, next, gatewayID); err != nil {
@@ -117,11 +107,6 @@ func (s *Service) SetEnabled(ctx context.Context, gatewayID string, enabled bool
 
 		next := current.DeepCopy()
 		next.Spec.Enabled = enabled
-		if enabled {
-			if err := s.runtimeGroup.ValidateEnabled(ctx, next.Spec.RuntimeGroupRef.Name); err != nil {
-				return err
-			}
-		}
 		if err := s.validateGateway(ctx, next, gatewayID); err != nil {
 			return err
 		}
@@ -174,12 +159,11 @@ func gatewaySpec(params GatewayParams, enabled bool) resource.GatewaySpec {
 	}
 
 	return resource.GatewaySpec{
-		DisplayName:     params.Name,
-		Description:     params.Description,
-		Enabled:         enabled,
-		RuntimeGroupRef: resource.RuntimeGroupRef{Name: params.RuntimeGroup},
-		Listeners:       resourceListeners,
-		HostBindings:    resourceHostBindings,
+		DisplayName:  params.Name,
+		Description:  params.Description,
+		Enabled:      enabled,
+		Listeners:    resourceListeners,
+		HostBindings: resourceHostBindings,
 	}
 }
 

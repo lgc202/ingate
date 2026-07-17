@@ -30,14 +30,7 @@ func (c *RateLimitPolicyConfig) Validate() error {
 		return errors.New("名称不能为空")
 	}
 	switch c.Mode {
-	case resource.RateLimitModeLocal:
-		if c.Global != nil {
-			return errors.New("本地限流不能配置 Redis")
-		}
-	case resource.RateLimitModeGlobal:
-		if c.Global == nil || c.Global.RedisRef == "" {
-			return errors.New("全局限流必须选择 Redis 配置")
-		}
+	case resource.RateLimitModeLocal, resource.RateLimitModeGlobal:
 	default:
 		return errors.New("限流模式不正确")
 	}

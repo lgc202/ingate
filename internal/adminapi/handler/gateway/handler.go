@@ -166,9 +166,8 @@ func (h *Handler) updateGatewayParams(request dto.UpdateGatewayReq) gatewayservi
 
 func (h *Handler) gatewayParams(config dto.GatewayConfig) gatewayservice.GatewayParams {
 	return gatewayservice.GatewayParams{
-		Name:         config.Name,
-		Description:  config.Description,
-		RuntimeGroup: config.RuntimeGroup,
+		Name:        config.Name,
+		Description: config.Description,
 		Listeners: lo.Map(config.Listeners, func(listener dto.GatewayListener, _ int) gatewayservice.ListenerParams {
 			return gatewayservice.ListenerParams{
 				Name:     listener.Name,

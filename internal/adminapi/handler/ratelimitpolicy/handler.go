@@ -164,7 +164,6 @@ func (h *Handler) policyParams(config dto.RateLimitPolicyConfig) ratelimitpolicy
 		Enabled:       config.Enabled,
 		Mode:          config.Mode,
 		Rules:         config.Rules,
-		Global:        config.Global,
 		Response:      config.Response,
 		FailurePolicy: config.FailurePolicy,
 	}
