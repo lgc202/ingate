@@ -110,4 +110,4 @@ type LastGoodStore interface {
 	Save(context.Context, lastgood.Record) error
 }
 
-var _ LastGoodStore = (*lastgood.Store)(nil)
+var _ LastGoodStore = (*lastgood.Client)(nil)
