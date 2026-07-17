@@ -10,6 +10,7 @@ import (
 	policybindinghandler "github.com/lgc202/ingate/internal/adminapi/handler/policybinding"
 	ratelimitpolicyhandler "github.com/lgc202/ingate/internal/adminapi/handler/ratelimitpolicy"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/route"
+	systemstatushandler "github.com/lgc202/ingate/internal/adminapi/handler/systemstatus"
 	upstreamhandler "github.com/lgc202/ingate/internal/adminapi/handler/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
@@ -24,6 +25,7 @@ type Handler struct {
 	AccessControlPolicy *accesscontrolpolicyhandler.Handler
 	RateLimitPolicy     *ratelimitpolicyhandler.Handler
 	PolicyBinding       *policybindinghandler.Handler
+	SystemStatus        *systemstatushandler.Handler
 }
 
 // New 创建 handler 聚合入口
@@ -35,6 +37,7 @@ func New(service *service.Service, logger *slog.Logger) *Handler {
 		AccessControlPolicy: accesscontrolpolicyhandler.New(service.AccessControlPolicy, logger.With("handler", "accesscontrolpolicy")),
 		RateLimitPolicy:     ratelimitpolicyhandler.New(service.RateLimitPolicy, logger.With("handler", "ratelimitpolicy")),
 		PolicyBinding:       policybindinghandler.New(service.PolicyBinding, logger.With("handler", "policybinding")),
+		SystemStatus:        systemstatushandler.New(service.SystemStatus, logger.With("handler", "systemstatus")),
 	}
 }
 
