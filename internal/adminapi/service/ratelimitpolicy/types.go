@@ -19,7 +19,6 @@ type PolicyParams struct {
 	Enabled       bool
 	Mode          resource.RateLimitMode
 	Rules         []resource.RateLimitRule
-	Global        *resource.GlobalRateLimitConfig
 	Response      resource.RateLimitResponse
 	FailurePolicy resource.RateLimitFailurePolicy
 }

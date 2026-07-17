@@ -27,9 +27,6 @@ func (r *GatewayConfig) Validate() error {
 	if r.Name == "" {
 		return errors.New("gateway name is required")
 	}
-	if r.RuntimeGroup == "" {
-		return errors.New("gateway runtimeGroup is required")
-	}
 	return validateGatewayConfig(r.Listeners, r.HostBindings)
 }
 

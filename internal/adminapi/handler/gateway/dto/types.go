@@ -20,7 +20,6 @@ type SetGatewayEnabledReq struct {
 type GatewayConfig struct {
 	Name         string               `json:"name"`
 	Description  string               `json:"description"`
-	RuntimeGroup string               `json:"runtimeGroup"`
 	Listeners    []GatewayListener    `json:"listeners"`
 	HostBindings []GatewayHostBinding `json:"hostBindings"`
 }

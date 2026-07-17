@@ -27,7 +27,6 @@ type UpdateGatewayParams struct {
 type GatewayParams struct {
 	Name         string
 	Description  string
-	RuntimeGroup string
 	Listeners    []ListenerParams
 	HostBindings []HostBindingParams
 }

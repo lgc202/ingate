@@ -5,26 +5,23 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	policybindingstore "github.com/lgc202/ingate/internal/adminapi/store/policybinding"
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
-	redisstorestore "github.com/lgc202/ingate/internal/adminapi/store/redisstore"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 // Service 承载 RateLimitPolicy 管理用例
 type Service struct {
 	store          *ratelimitpolicystore.Store
-	redisStores    *redisstorestore.Store
 	policyBindings *policybindingstore.Store
 }
 
 // New 创建 RateLimitPolicy service
-func New(store *ratelimitpolicystore.Store, redisStores *redisstorestore.Store, policyBindings *policybindingstore.Store) *Service {
-	return &Service{store: store, redisStores: redisStores, policyBindings: policyBindings}
+func New(store *ratelimitpolicystore.Store, policyBindings *policybindingstore.Store) *Service {
+	return &Service{store: store, policyBindings: policyBindings}
 }
 
 // List 查询 RateLimitPolicy 列表
@@ -50,10 +47,6 @@ func (s *Service) Create(ctx context.Context, params CreatePolicyParams) (string
 	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
 		return "", err
 	}
-	if err := s.validateRedisRef(ctx, params.PolicyParams); err != nil {
-		return "", err
-	}
-
 	created, err := s.store.Create(ctx, policyResource(uuid.NewString(), "", params.PolicyParams))
 	if err != nil {
 		return "", err
@@ -73,10 +66,6 @@ func (s *Service) Update(ctx context.Context, policyID string, params UpdatePoli
 	if err := s.validateNameUnique(ctx, params.Name, policyID); err != nil {
 		return err
 	}
-	if err := s.validateRedisRef(ctx, params.PolicyParams); err != nil {
-		return err
-	}
-
 	next := current.DeepCopy()
 	next.Spec = policyResource(next.Name, next.ResourceVersion, params.PolicyParams).Spec
 	_, err = s.store.Update(ctx, next)
@@ -127,19 +116,6 @@ func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string
 	return nil
 }
 
-func (s *Service) validateRedisRef(ctx context.Context, params PolicyParams) error {
-	if params.Mode != resource.RateLimitModeGlobal || params.Global == nil {
-		return nil
-	}
-	if _, err := s.redisStores.Get(ctx, params.Global.RedisRef); err != nil {
-		if apierrors.IsNotFound(err) {
-			return xerrors.NewUserError(fmt.Sprintf("Redis 配置 %q 不存在", params.Global.RedisRef))
-		}
-		return err
-	}
-	return nil
-}
-
 func policyResource(id, version string, params PolicyParams) *resource.RateLimitPolicy {
 	return &resource.RateLimitPolicy{
 		TypeMeta: metav1.TypeMeta{
@@ -156,7 +132,6 @@ func policyResource(id, version string, params PolicyParams) *resource.RateLimit
 			Enabled:       params.Enabled,
 			Mode:          params.Mode,
 			Rules:         params.Rules,
-			Global:        params.Global,
 			Response:      params.Response,
 			FailurePolicy: params.FailurePolicy,
 		},
