@@ -1,5 +1,7 @@
 # Higress Envoy Standalone Redis 限流设计
 
+> 状态：Redis hostcall、限流行为和测试要求继续有效；RedisStore、Logical IR、xDS target、RuntimeSnapshot、独立 ingate-xds、Redis 部署边界及 Higress SDK 依赖决策已被 [2026-07-17-ingate-simplified-architecture-design.md](./2026-07-17-ingate-simplified-architecture-design.md) 取代。当前方案只使用 Higress 提供的 Envoy 二进制，生产代码由 Ingate 自己封装最小 Redis ABI。
+
 ## 背景
 
 Ingate 当前使用原生 Envoy 处理网关流量，同时运行独立的 ingate-dataplane 进程。内置 RateLimit Wasm 插件通过标准 Proxy-Wasm DispatchHttpCall 调用该进程，由 ingate-dataplane 使用 go-redis 执行 Redis Lua 脚本。

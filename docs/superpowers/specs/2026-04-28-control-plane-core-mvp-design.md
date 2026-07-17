@@ -1,5 +1,7 @@
 # Control Plane Core MVP Design
 
+> 状态：历史 MVP 设计。本文中的 Logical IR、Target、Translator 和 RuntimeSnapshot 长期架构已被 [2026-07-17-ingate-simplified-architecture-design.md](./2026-07-17-ingate-simplified-architecture-design.md) 取代。
+
 ## 1. Project Positioning
 
 Ingate Next is a declarative control-plane project for API gateways, AI gateways, and future traffic runtimes.
