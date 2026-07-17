@@ -63,9 +63,6 @@ func TestResponseBuilderBuildListenersWithRateLimit(t *testing.T) {
 							},
 						},
 					},
-					RedisStores: []pluginratelimit.RedisStore{
-						{Name: "redis-main", DisplayName: "主 Redis", Address: "redis.example.com:6379"},
-					},
 				},
 				AccessControl: &targetxds.AccessControlConfig{
 					Bindings: []pluginacl.Binding{
@@ -161,18 +158,12 @@ func TestResponseBuilderBuildListenersWithRateLimit(t *testing.T) {
 	if err := json.Unmarshal([]byte(pluginJSON.Value), &config); err != nil {
 		t.Fatalf("Unmarshal(rate limit config) error = %v", err)
 	}
-	if config.SchemaVersion != rateLimitSchemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", config.SchemaVersion, rateLimitSchemaVersion)
-	}
-	if len(config.RedisStores) != 1 || config.RedisStores[0].Name != "redis-main" {
-		t.Fatalf("RedisStores = %+v, want redis-main", config.RedisStores)
-	}
 	if len(config.Routes) != 1 {
 		t.Fatalf("len(Routes) = %d, want 1", len(config.Routes))
 	}
 	routeConfig := config.Routes[0]
-	if routeConfig.GatewayName != "public" || routeConfig.RouteName != "route-users" || routeConfig.RuleName != "primary" {
-		t.Fatalf("route identity = %s/%s/%s, want public/route-users/primary", routeConfig.GatewayName, routeConfig.RouteName, routeConfig.RuleName)
+	if routeConfig.GatewayName != "public" || routeConfig.RouteName != "route-users" {
+		t.Fatalf("route identity = %s/%s, want public/route-users", routeConfig.GatewayName, routeConfig.RouteName)
 	}
 	if len(routeConfig.Bindings) != 2 {
 		t.Fatalf("len(Bindings) = %d, want 2", len(routeConfig.Bindings))

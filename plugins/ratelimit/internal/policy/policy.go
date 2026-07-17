@@ -27,17 +27,21 @@ type Result struct {
 	Errors       []error
 }
 
-// GlobalCheck 表示需要交给 ingate-dataplane 执行的 global limit 检查
+// GlobalCheck 表示需要通过系统 Redis 串行执行的 global limit 检查
 type GlobalCheck struct {
-	Policy         config.Policy
-	Rule           config.Rule
-	Key            string
-	RedisStore     string
-	RedisKey       string
-	RedisTimeoutMs int
-	Requests       int
-	WindowSeconds  int
-	Burst          int
+	Policy   config.Policy
+	Rule     config.Rule
+	Key      string
+	RedisKey string
+}
+
+// GlobalOutcome 表示一条 Redis global limit 检查的执行结果
+type GlobalOutcome struct {
+	Allowed      bool
+	Current      int
+	Limit        int
+	ResetSeconds int
+	Err          error
 }
 
 // Runner 应用限流策略，产出本地决策或 global limit 检查

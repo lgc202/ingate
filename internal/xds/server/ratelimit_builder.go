@@ -17,27 +17,16 @@ func mergeRateLimitConfig(current, next *targetxds.RateLimitConfig) *targetxds.R
 	}
 	if current == nil {
 		return &targetxds.RateLimitConfig{
-			Bindings:    slices.Clone(next.Bindings),
-			RedisStores: slices.Clone(next.RedisStores),
-			DataPlane:   next.DataPlane,
+			Bindings: slices.Clone(next.Bindings),
 		}
 	}
 	current.Bindings = append(current.Bindings, next.Bindings...)
-	current.RedisStores = append(current.RedisStores, next.RedisStores...)
-	if current.DataPlane == nil {
-		current.DataPlane = next.DataPlane
-	}
 	return current
 }
 
 func (b responseBuilder) buildRateLimitHTTPFilter(runtimeConfig targetxds.Config) (*hcmv3.HttpFilter, error) {
-	redisStores := uniqueRateLimitRedisStores(runtimeConfig.RateLimit.RedisStores)
-
 	rawConfig, err := json.Marshal(pluginratelimit.PluginConfig{
-		SchemaVersion: rateLimitSchemaVersion,
-		RedisStores:   redisStores,
-		DataPlane:     runtimeConfig.RateLimit.DataPlane,
-		Routes:        rateLimitRouteConfigs(runtimeConfig.RouteConfigs, runtimeConfig.RateLimit),
+		Routes: rateLimitRouteConfigs(runtimeConfig.RouteConfigs, runtimeConfig.RateLimit),
 	})
 	if err != nil {
 		return nil, err
@@ -61,19 +50,6 @@ func (b responseBuilder) buildRateLimitHTTPFilter(runtimeConfig targetxds.Config
 	}, nil
 }
 
-func uniqueRateLimitRedisStores(stores []pluginratelimit.RedisStore) []pluginratelimit.RedisStore {
-	result := make([]pluginratelimit.RedisStore, 0, len(stores))
-	seen := map[string]struct{}{}
-	for _, store := range stores {
-		if _, ok := seen[store.Name]; ok {
-			continue
-		}
-		seen[store.Name] = struct{}{}
-		result = append(result, store)
-	}
-	return result
-}
-
 func rateLimitRouteConfigs(configs []targetxds.RouteConfig, rateLimit *targetxds.RateLimitConfig) []pluginratelimit.RouteConfig {
 	result := make([]pluginratelimit.RouteConfig, 0)
 	seen := map[string]struct{}{}
@@ -84,7 +60,7 @@ func rateLimitRouteConfigs(configs []targetxds.RouteConfig, rateLimit *targetxds
 				if !ok {
 					continue
 				}
-				key := routeRuntimeName(routeConfig.GatewayName, routeConfig.RouteName, routeConfig.RuleName, "")
+				key := routeConfig.GatewayName + "\x00" + routeConfig.RouteName
 				if _, ok := seen[key]; ok {
 					continue
 				}
@@ -113,11 +89,9 @@ func buildRateLimitRouteConfig(route targetxds.Route, rateLimit *targetxds.RateL
 	}
 
 	return pluginratelimit.RouteConfig{
-		SchemaVersion: rateLimitSchemaVersion,
-		GatewayName:   route.GatewayName,
-		RouteName:     route.Name,
-		RuleName:      route.RuleName,
-		Bindings:      bindings,
+		GatewayName: route.GatewayName,
+		RouteName:   route.Name,
+		Bindings:    bindings,
 	}, true
 }
 
@@ -126,7 +100,7 @@ func rateLimitBindingMatchesRoute(binding pluginratelimit.Binding, route targetx
 	case resource.KindGateway:
 		return binding.Target.Name == route.GatewayName
 	case resource.KindRoute:
-		return binding.Target.Name == route.Name && (binding.Target.RuleName == "" || binding.Target.RuleName == route.RuleName)
+		return binding.Target.Name == route.Name
 	default:
 		return false
 	}

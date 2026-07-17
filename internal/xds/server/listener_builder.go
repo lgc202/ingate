@@ -23,7 +23,6 @@ const (
 	rateLimitHTTPFilterName         = "ingate.filters.http.ratelimit"
 	rateLimitPluginName             = "ingate.ratelimit"
 	rateLimitPluginPath             = "/opt/ingate/plugins/ratelimit.wasm"
-	rateLimitSchemaVersion          = "v1"
 	wasmRuntime                     = "envoy.wasm.runtime.v8"
 	defaultBindAddress              = "0.0.0.0"
 )

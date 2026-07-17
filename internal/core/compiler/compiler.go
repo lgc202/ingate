@@ -6,10 +6,13 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/lgc202/ingate/internal/core/ir"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
+
+const systemClusterNamePrefix = "ingate-system-"
 
 // Compiler 负责把声明式资源编译成逻辑网关模型
 type Compiler struct{}
@@ -24,7 +27,6 @@ type gatewayCompiler struct {
 	upstreamsByName             map[string]resource.Upstream
 	rateLimitPoliciesByName     map[string]resource.RateLimitPolicy
 	accessControlPoliciesByName map[string]resource.AccessControlPolicy
-	redisStoresByName           map[string]resource.RedisStore
 	routeRulesByRoute           map[string]map[string]bool
 	policyBindingsByName        map[string]bool
 }
@@ -39,7 +41,6 @@ func (Compiler) CompileGateway(bundle resource.Bundle, gatewayName string) (ir.L
 		upstreamsByName:             make(map[string]resource.Upstream, len(bundle.Upstreams)),
 		rateLimitPoliciesByName:     make(map[string]resource.RateLimitPolicy, len(bundle.RateLimitPolicies)),
 		accessControlPoliciesByName: make(map[string]resource.AccessControlPolicy, len(bundle.AccessControlPolicies)),
-		redisStoresByName:           make(map[string]resource.RedisStore, len(bundle.RedisStores)),
 		routeRulesByRoute:           make(map[string]map[string]bool, len(bundle.Routes)),
 		policyBindingsByName:        make(map[string]bool, len(bundle.PolicyBindings)),
 	}
@@ -57,9 +58,6 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 	if err := c.indexUpstreams(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
-	if err := c.indexRedisStores(); err != nil {
-		return ir.LogicalGateway{}, err
-	}
 	if err := c.indexRateLimitPolicies(); err != nil {
 		return ir.LogicalGateway{}, err
 	}
@@ -75,7 +73,7 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 		return ir.LogicalGateway{}, err
 	}
 	policyBindings := c.buildPolicyBindings(routes)
-	rateLimitPolicies, redisStoreNames := c.buildRateLimitPolicies(policyBindings)
+	rateLimitPolicies := c.buildRateLimitPolicies(policyBindings)
 	accessControlPolicies := c.buildAccessControlPolicies(policyBindings)
 
 	return ir.LogicalGateway{
@@ -85,7 +83,6 @@ func (c *gatewayCompiler) compile() (ir.LogicalGateway, error) {
 		Upstreams:             c.buildUsedUpstreams(upstreamOrder),
 		RateLimitPolicies:     rateLimitPolicies,
 		AccessControlPolicies: accessControlPolicies,
-		RedisStores:           c.buildRedisStores(redisStoreNames),
 		PolicyBindings:        policyBindings,
 	}, nil
 }
@@ -137,6 +134,9 @@ func (c *gatewayCompiler) indexUpstreams() error {
 		if _, ok := c.upstreamsByName[upstream.Name]; ok {
 			return fmt.Errorf("duplicate upstream %q", upstream.Name)
 		}
+		if strings.HasPrefix(upstream.Name, systemClusterNamePrefix) {
+			return fmt.Errorf("upstream %q uses reserved system cluster prefix %q", upstream.Name, systemClusterNamePrefix)
+		}
 		c.upstreamsByName[upstream.Name] = upstream
 	}
 
@@ -147,14 +147,6 @@ func (c *gatewayCompiler) indexRateLimitPolicies() error {
 	for _, policy := range c.bundle.RateLimitPolicies {
 		if _, ok := c.rateLimitPoliciesByName[policy.Name]; ok {
 			return fmt.Errorf("duplicate rate limit policy %q", policy.Name)
-		}
-		if policy.Spec.Enabled && policy.Spec.Mode == resource.RateLimitModeGlobal {
-			if policy.Spec.Global == nil {
-				return fmt.Errorf("rate limit policy %q requires global config", policy.Name)
-			}
-			if _, ok := c.redisStoresByName[policy.Spec.Global.RedisRef]; !ok {
-				return fmt.Errorf("rate limit policy %q references redis store %q", policy.Name, policy.Spec.Global.RedisRef)
-			}
 		}
 		c.rateLimitPoliciesByName[policy.Name] = policy
 	}
@@ -169,17 +161,6 @@ func (c *gatewayCompiler) indexAccessControlPolicies() error {
 		}
 		c.accessControlPoliciesByName[policy.Name] = policy
 	}
-	return nil
-}
-
-func (c *gatewayCompiler) indexRedisStores() error {
-	for _, store := range c.bundle.RedisStores {
-		if _, ok := c.redisStoresByName[store.Name]; ok {
-			return fmt.Errorf("duplicate redis store %q", store.Name)
-		}
-		c.redisStoresByName[store.Name] = store
-	}
-
 	return nil
 }
 
@@ -391,9 +372,8 @@ func (c *gatewayCompiler) buildUsedUpstreams(upstreamOrder []string) []ir.Logica
 	return upstreams
 }
 
-func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBinding) ([]ir.LogicalRateLimitPolicy, map[string]bool) {
+func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBinding) []ir.LogicalRateLimitPolicy {
 	usedPolicies := make(map[string]bool)
-	usedRedisStores := make(map[string]bool)
 
 	for _, binding := range bindings {
 		for _, policy := range binding.Policies {
@@ -428,18 +408,10 @@ func (c *gatewayCompiler) buildRateLimitPolicies(bindings []ir.LogicalPolicyBind
 				Algorithm: rule.Algorithm,
 			})
 		}
-		if policy.Spec.Global != nil {
-			logicalPolicy.Global = &ir.LogicalGlobalRateLimit{
-				RedisRef:      policy.Spec.Global.RedisRef,
-				Prefix:        policy.Spec.Global.Prefix,
-				TimeoutMillis: policy.Spec.Global.TimeoutMillis,
-			}
-			usedRedisStores[policy.Spec.Global.RedisRef] = true
-		}
 		policies = append(policies, logicalPolicy)
 	}
 
-	return policies, usedRedisStores
+	return policies
 }
 
 func (c *gatewayCompiler) buildAccessControlPolicies(bindings []ir.LogicalPolicyBinding) []ir.LogicalAccessControlPolicy {
@@ -511,42 +483,6 @@ func (c *gatewayCompiler) buildRateLimitResponse(response resource.RateLimitResp
 		Message:            response.Message,
 		QuotaHeaderEnabled: response.QuotaHeaderEnabled,
 	}
-}
-
-func (c *gatewayCompiler) buildRedisStores(names map[string]bool) []ir.LogicalRedisStore {
-	if len(names) == 0 {
-		return nil
-	}
-
-	var storeOrder []string
-	for name := range names {
-		storeOrder = append(storeOrder, name)
-	}
-	slices.Sort(storeOrder)
-
-	stores := make([]ir.LogicalRedisStore, 0, len(names))
-	for _, name := range storeOrder {
-		store := c.redisStoresByName[name]
-		stores = append(stores, ir.LogicalRedisStore{
-			Name:                 store.Name,
-			DisplayName:          store.Spec.DisplayName,
-			Mode:                 store.Spec.Mode,
-			Address:              store.Spec.Address,
-			Addresses:            slices.Clone(store.Spec.Addresses),
-			DB:                   store.Spec.DB,
-			TLS:                  store.Spec.TLS,
-			TLSServerName:        store.Spec.TLSServerName,
-			Username:             store.Spec.Username,
-			PasswordRef:          store.Spec.PasswordRef,
-			ConnectTimeoutMillis: store.Spec.ConnectTimeoutMillis,
-			CommandTimeoutMillis: store.Spec.CommandTimeoutMillis,
-			PoolSize:             store.Spec.PoolSize,
-			MinIdleConns:         store.Spec.MinIdleConns,
-			SentinelMaster:       store.Spec.SentinelMaster,
-		})
-	}
-
-	return stores
 }
 
 func (c *gatewayCompiler) buildPolicyBindings(routes []ir.LogicalRoute) []ir.LogicalPolicyBinding {

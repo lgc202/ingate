@@ -10,7 +10,7 @@ func requestFromProxyWasm(route ratelimitruntime.Route) policy.Request {
 	return policy.Request{
 		GatewayName: route.Config.GatewayName,
 		RouteName:   route.Config.RouteName,
-		RuleName:    route.Config.RuleName,
+		RuleName:    route.RuleName,
 		Path:        pluginwasm.RequestHeader(":path"),
 		RemoteAddr:  pluginwasm.SourceAddress(),
 		Headers:     pluginwasm.RequestHeaders(route.HeaderNames),

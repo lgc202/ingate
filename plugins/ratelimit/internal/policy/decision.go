@@ -2,6 +2,8 @@ package policy
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
@@ -44,10 +46,23 @@ func resetSeconds(now, start time.Time, windowSeconds int) int {
 	return int(resetAt.Sub(now).Seconds())
 }
 
-func limitKey(route config.RouteConfig, binding config.Binding, policy config.Policy, rule config.Rule, key string) string {
-	ruleName := route.RuleName
-	if ruleName == "" {
-		ruleName = "_"
+func limitKey(route config.RouteConfig, routeRuleName string, policy config.Policy, rule config.Rule, key string) string {
+	return encodeKeySegments(
+		defaultRedisKeyPrefix,
+		policy.Name,
+		route.RouteName,
+		routeRuleName,
+		rule.Name,
+		key,
+	)
+}
+
+func encodeKeySegments(segments ...string) string {
+	var key strings.Builder
+	for _, segment := range segments {
+		key.WriteString(strconv.Itoa(len(segment)))
+		key.WriteByte(':')
+		key.WriteString(segment)
 	}
-	return fmt.Sprintf("%s:%s:%s:%s:%s:%s", route.GatewayName, route.RouteName, ruleName, binding.Name, policy.Name, rule.Name) + ":" + key
+	return key.String()
 }

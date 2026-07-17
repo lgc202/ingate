@@ -3,7 +3,6 @@ package redis
 import (
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"time"
 )
@@ -110,19 +109,21 @@ func BuildCommand(request Request) ([]byte, error) {
 	case AlgorithmFixedWindow:
 		return evalCommand(fixedWindowScript, request.Key, strconv.FormatInt(windowMillis, 10))
 	case AlgorithmSlidingWindow:
-		member := request.Member
-		if member == "" {
-			member = strconv.FormatInt(request.Now.UnixNano(), 10)
+		if request.Member == "" {
+			return nil, errors.New("sliding window member is required")
 		}
 		return evalCommand(
 			slidingWindowScript,
 			request.Key,
 			strconv.FormatInt(windowMillis, 10),
 			strconv.Itoa(request.Requests),
-			member,
+			request.Member,
 			strconv.FormatInt(request.Now.UnixMilli(), 10),
 		)
 	case AlgorithmTokenBucket:
+		if request.Burst > maxInt()-request.Requests {
+			return nil, errors.New("rate limit token bucket capacity overflows int")
+		}
 		return evalCommand(
 			tokenBucketScript,
 			request.Key,
@@ -151,17 +152,29 @@ func ParseResult(request Request, response []byte) (Result, error) {
 		if len(values) != 2 {
 			return Result{}, fmt.Errorf("fixed window returned %d values, want 2", len(values))
 		}
-		return newResult(values[0] <= int64(request.Requests), values[0], int64(request.Requests), resetSeconds(values[1])), nil
+		reset, err := resetSeconds(values[1])
+		if err != nil {
+			return Result{}, err
+		}
+		return newResult(values[0] <= int64(request.Requests), values[0], int64(request.Requests), reset)
 	case AlgorithmSlidingWindow:
 		if len(values) != 3 {
 			return Result{}, fmt.Errorf("sliding window returned %d values, want 3", len(values))
 		}
-		return newResult(values[0] == 1, values[1], int64(request.Requests), resetSeconds(values[2])), nil
+		reset, err := resetSeconds(values[2])
+		if err != nil {
+			return Result{}, err
+		}
+		return newResult(values[0] == 1, values[1], int64(request.Requests), reset)
 	case AlgorithmTokenBucket:
 		if len(values) != 5 {
 			return Result{}, fmt.Errorf("token bucket returned %d values, want 5", len(values))
 		}
-		return newResult(values[0] == 1, values[1], values[2], resetSeconds(values[4])), nil
+		reset, err := resetSeconds(values[4])
+		if err != nil {
+			return Result{}, err
+		}
+		return newResult(values[0] == 1, values[1], values[2], reset)
 	default:
 		return Result{}, fmt.Errorf("unsupported rate limit algorithm %q", request.Algorithm)
 	}
@@ -183,8 +196,8 @@ func validateRequest(request Request) error {
 	if request.Requests <= 0 {
 		return errors.New("rate limit requests must be greater than zero")
 	}
-	if request.Window <= 0 {
-		return errors.New("rate limit window must be greater than zero")
+	if request.Window < time.Millisecond {
+		return errors.New("rate limit window must be at least one millisecond")
 	}
 	if request.Burst < 0 {
 		return errors.New("rate limit burst must not be negative")
@@ -199,25 +212,62 @@ func normalizeAlgorithm(algorithm Algorithm) Algorithm {
 	return algorithm
 }
 
-func newResult(allowed bool, current, limit int64, reset int) Result {
-	remaining := max(limit-current, 0)
+func newResult(allowed bool, current, limit int64, reset int) (Result, error) {
+	if current < 0 || limit < 0 {
+		return Result{}, errors.New("rate limit response contains a negative counter")
+	}
+	remaining := int64(0)
+	if current < limit {
+		remaining = limit - current
+	}
+	currentInt, err := checkedInt(current)
+	if err != nil {
+		return Result{}, fmt.Errorf("rate limit current: %w", err)
+	}
+	limitInt, err := checkedInt(limit)
+	if err != nil {
+		return Result{}, fmt.Errorf("rate limit limit: %w", err)
+	}
+	remainingInt, err := checkedInt(remaining)
+	if err != nil {
+		return Result{}, fmt.Errorf("rate limit remaining: %w", err)
+	}
 	retryAfter := 0
 	if !allowed {
 		retryAfter = reset
 	}
 	return Result{
 		Allowed:           allowed,
-		Current:           int(current),
-		Limit:             int(limit),
-		Remaining:         int(remaining),
+		Current:           currentInt,
+		Limit:             limitInt,
+		Remaining:         remainingInt,
 		ResetSeconds:      reset,
 		RetryAfterSeconds: retryAfter,
-	}
+	}, nil
 }
 
-func resetSeconds(milliseconds int64) int {
+func resetSeconds(milliseconds int64) (int, error) {
 	if milliseconds <= 0 {
-		return 0
+		return 0, nil
 	}
-	return int(math.Ceil(float64(milliseconds) / float64(time.Second/time.Millisecond)))
+	seconds := milliseconds / int64(time.Second/time.Millisecond)
+	if milliseconds%int64(time.Second/time.Millisecond) != 0 {
+		seconds++
+	}
+	return checkedInt(seconds)
+}
+
+func checkedInt(value int64) (int, error) {
+	if value < int64(minInt()) || value > int64(maxInt()) {
+		return 0, fmt.Errorf("value %d overflows int", value)
+	}
+	return int(value), nil
+}
+
+func maxInt() int {
+	return int(^uint(0) >> 1)
+}
+
+func minInt() int {
+	return -maxInt() - 1
 }

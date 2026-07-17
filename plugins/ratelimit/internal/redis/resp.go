@@ -152,10 +152,11 @@ func decodeBulkString(data []byte, offset int) (Value, int, error) {
 	if size < 0 {
 		return Value{}, offset, fmt.Errorf("redis bulk string size is %d", size)
 	}
-	end := next + int(size)
-	if end < next || end+2 > len(data) {
+	remaining := len(data) - next
+	if remaining < 2 || size > int64(remaining-2) {
 		return Value{}, offset, errors.New("redis bulk string is truncated")
 	}
+	end := next + int(size)
 	if data[end] != '\r' || data[end+1] != '\n' {
 		return Value{}, offset, errors.New("redis bulk string has invalid terminator")
 	}
@@ -176,6 +177,9 @@ func decodeArray(data []byte, offset int) (Value, int, error) {
 	}
 	if size < 0 {
 		return Value{}, offset, fmt.Errorf("redis array size is %d", size)
+	}
+	if size > int64((len(data)-next)/3) {
+		return Value{}, offset, errors.New("redis array element count exceeds response size")
 	}
 
 	values := make([]Value, 0, int(size))

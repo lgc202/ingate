@@ -2,33 +2,23 @@ package ratelimit
 
 import "testing"
 
-func TestParseRouteConfigDefaultsSchemaVersion(t *testing.T) {
-	cfg, err := ParseRouteConfig([]byte(`{"gatewayName":"gw","routeName":"route","bindings":[]}`))
+func TestParsePluginConfigRejectsUnknownFieldsAndMultipleValues(t *testing.T) {
+	cfg, err := ParsePluginConfig([]byte(`{"routes":[]}`))
 	if err != nil {
-		t.Fatalf("ParseRouteConfig() error = %v", err)
+		t.Fatalf("ParsePluginConfig() error = %v", err)
 	}
-	if cfg.SchemaVersion != schemaVersion {
-		t.Fatalf("SchemaVersion = %q, want %q", cfg.SchemaVersion, schemaVersion)
+	if len(cfg.Routes) != 0 {
+		t.Fatalf("len(Routes) = %d, want 0", len(cfg.Routes))
 	}
-}
 
-func TestParseRouteConfigAcceptsTypedStructEnvelope(t *testing.T) {
-	cfg, err := ParseRouteConfig([]byte(`{
-		"typeUrl":"type.googleapis.com/ingate.extensions.filters.http.ratelimit.v1.RouteConfig",
-		"value":{"schemaVersion":"v1","gatewayName":"gw","routeName":"route","bindings":[]}
-	}`))
-	if err != nil {
-		t.Fatalf("ParseRouteConfig() error = %v", err)
-	}
-	if cfg.GatewayName != "gw" || cfg.RouteName != "route" {
-		t.Fatalf("route identity = %s/%s, want gw/route", cfg.GatewayName, cfg.RouteName)
-	}
-}
-
-func TestParsePluginConfigRejectsUnknownSchemaVersion(t *testing.T) {
-	_, err := ParsePluginConfig([]byte(`{"schemaVersion":"v2"}`))
-	if err == nil {
-		t.Fatalf("ParsePluginConfig() error = nil, want unsupported version")
+	for _, data := range []string{
+		`{"routes":[],"unknown":"value"}`,
+		`{"routes":[{"gatewayName":"gw","routeName":"route","bindings":[{"name":"binding","target":{"kind":"Route","name":"route"},"policies":[{"name":"policy","mode":"Global","rules":[],"unknown":"value"}]}]}]}`,
+		`{"routes":[]} {}`,
+	} {
+		if _, err := ParsePluginConfig([]byte(data)); err == nil {
+			t.Errorf("ParsePluginConfig(%s) error = nil, want rejection", data)
+		}
 	}
 }
 

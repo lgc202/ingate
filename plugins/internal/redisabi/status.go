@@ -14,6 +14,8 @@ type BufferType uint32
 const (
 	// HostStatusOK 表示 hostcall 已被 Envoy 接受
 	HostStatusOK HostStatus = 0
+	// RedisStatusOK 表示 Redis 异步调用执行成功
+	RedisStatusOK RedisStatus = 0
 	// RedisCallResponseBuffer 表示 Redis call response buffer
 	RedisCallResponseBuffer BufferType = 9
 )
