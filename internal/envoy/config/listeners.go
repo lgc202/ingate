@@ -354,9 +354,10 @@ func (c *compileContext) buildListeners(policies map[listenerKey]listenerPolicyC
 			continue
 		}
 
-		hcm, err := anypb.New(&hcmv3.HttpConnectionManager{
-			CodecType:  hcmv3.HttpConnectionManager_AUTO,
-			StatPrefix: listenerName(key),
+		manager := &hcmv3.HttpConnectionManager{
+			CodecType:             hcmv3.HttpConnectionManager_AUTO,
+			StatPrefix:            listenerName(key),
+			StripMatchingHostPort: true,
 			RouteSpecifier: &hcmv3.HttpConnectionManager_Rds{
 				Rds: &hcmv3.Rds{
 					ConfigSource:    adsConfigSource(),
@@ -364,7 +365,18 @@ func (c *compileContext) buildListeners(policies map[listenerKey]listenerPolicyC
 				},
 			},
 			HttpFilters: httpFilters,
-		})
+		}
+		if err := manager.ValidateAll(); err != nil {
+			c.addDiagnostic(
+				SeverityError,
+				gatewayv1.KindGateway,
+				listenerName(key),
+				ReasonCompileFailed,
+				fmt.Sprintf("validate HTTP connection manager for listener %s: %v", listenerName(key), err),
+			)
+			continue
+		}
+		hcm, err := anypb.New(manager)
 		if err != nil {
 			c.addDiagnostic(
 				SeverityError,
@@ -413,7 +425,11 @@ func (c *compileContext) buildHTTPFilters(policies listenerPolicyConfig) ([]*hcm
 		filters = append(filters, filter)
 	}
 
-	router, err := anypb.New(&routerv3.Router{})
+	routerConfig := &routerv3.Router{}
+	if err := routerConfig.ValidateAll(); err != nil {
+		return nil, fmt.Errorf("validate Envoy router filter: %w", err)
+	}
+	router, err := anypb.New(routerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("encode Envoy router filter: %w", err)
 	}

@@ -569,7 +569,7 @@ func buildWasmHTTPFilter(filterName, pluginName, pluginPath string, raw []byte) 
 	if err != nil {
 		return nil, fmt.Errorf("encode Wasm plugin configuration: %w", err)
 	}
-	typedConfig, err := anypb.New(&httpwasmv3.Wasm{
+	wasmConfig := &httpwasmv3.Wasm{
 		Config: &wasmv3.PluginConfig{
 			Name:          pluginName,
 			RootId:        pluginName,
@@ -591,7 +591,11 @@ func buildWasmHTTPFilter(filterName, pluginName, pluginPath string, raw []byte) 
 				},
 			},
 		},
-	})
+	}
+	if err := wasmConfig.ValidateAll(); err != nil {
+		return nil, fmt.Errorf("validate Wasm HTTP filter: %w", err)
+	}
+	typedConfig, err := anypb.New(wasmConfig)
 	if err != nil {
 		return nil, fmt.Errorf("encode Wasm HTTP filter: %w", err)
 	}
