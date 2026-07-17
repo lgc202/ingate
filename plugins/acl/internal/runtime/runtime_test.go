@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"slices"
 	"testing"
 
 	config "github.com/lgc202/ingate/pkg/plugin/acl"
@@ -18,8 +19,21 @@ func TestCompileBuildsRouteIndex(t *testing.T) {
 	if route.Config.RouteName != "users" {
 		t.Fatalf("route name = %q, want users", route.Config.RouteName)
 	}
-	if len(route.HeaderNames) != 1 || route.HeaderNames[0] != "x-risk-level" {
-		t.Fatalf("HeaderNames = %v, want [x-risk-level]", route.HeaderNames)
+	if len(route.Config.Bindings) != 3 {
+		t.Fatalf("len(Bindings) = %d, want 3", len(route.Config.Bindings))
+	}
+	for _, name := range []string{"gateway-binding", "route-binding", "primary-binding"} {
+		if !slices.ContainsFunc(route.Config.Bindings, func(binding config.Binding) bool { return binding.Name == name }) {
+			t.Fatalf("Bindings = %+v, want %s", route.Config.Bindings, name)
+		}
+	}
+	for _, name := range []string{"x-gateway", "x-route", "x-risk-level"} {
+		if !slices.Contains(route.HeaderNames, name) {
+			t.Fatalf("HeaderNames = %v, want %s", route.HeaderNames, name)
+		}
+	}
+	if slices.Contains(route.HeaderNames, "x-secondary") {
+		t.Fatalf("HeaderNames = %v, must not include x-secondary", route.HeaderNames)
 	}
 }
 
@@ -45,10 +59,46 @@ func pluginConfig() config.PluginConfig {
 			{
 				GatewayName: "gw",
 				RouteName:   "users",
-				RuleName:    "primary",
 				Bindings: []config.Binding{
 					{
-						Name: "binding",
+						Name:   "gateway-binding",
+						Target: config.Target{Kind: "Gateway", Name: "gw"},
+						Policies: []config.Policy{
+							{
+								Name: "gateway-acl",
+								Rules: []config.Rule{
+									{
+										Name:   "block-gateway",
+										Action: config.ActionDeny,
+										Conditions: []config.Condition{
+											{Type: config.ConditionTypeHeader, Name: "x-gateway", Value: "deny"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name:   "route-binding",
+						Target: config.Target{Kind: "Route", Name: "users"},
+						Policies: []config.Policy{
+							{
+								Name: "route-acl",
+								Rules: []config.Rule{
+									{
+										Name:   "block-route",
+										Action: config.ActionDeny,
+										Conditions: []config.Condition{
+											{Type: config.ConditionTypeHeader, Name: "x-route", Value: "deny"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name:   "primary-binding",
+						Target: config.Target{Kind: "Route", Name: "users", RuleName: "primary"},
 						Policies: []config.Policy{
 							{
 								Name: "acl",
@@ -58,6 +108,24 @@ func pluginConfig() config.PluginConfig {
 										Action: config.ActionDeny,
 										Conditions: []config.Condition{
 											{Type: config.ConditionTypeHeader, Name: "x-risk-level", Value: "high"},
+										},
+									},
+								},
+							},
+						},
+					},
+					{
+						Name:   "secondary-binding",
+						Target: config.Target{Kind: "Route", Name: "users", RuleName: "secondary"},
+						Policies: []config.Policy{
+							{
+								Name: "secondary-acl",
+								Rules: []config.Rule{
+									{
+										Name:   "block-secondary",
+										Action: config.ActionDeny,
+										Conditions: []config.Condition{
+											{Type: config.ConditionTypeHeader, Name: "x-secondary", Value: "deny"},
 										},
 									},
 								},

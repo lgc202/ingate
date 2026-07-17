@@ -10,11 +10,8 @@ const (
 
 // Request 表示 ACL 判断需要读取的请求信息
 type Request struct {
-	GatewayName string
-	RouteName   string
-	RuleName    string
-	RemoteAddr  string
-	Headers     map[string]string
+	RemoteAddr string
+	Headers    map[string]string
 }
 
 // Decision 表示 ACL 对一次请求的访问控制结果
