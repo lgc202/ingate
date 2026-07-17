@@ -10,16 +10,14 @@ import (
 
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 	"github.com/lgc202/ingate/internal/envoy/config"
-	"github.com/lgc202/ingate/internal/envoy/lastgood"
 	"github.com/lgc202/ingate/internal/envoy/xds"
 )
 
-// Delivery 串行管理 Candidate、Active、ACK/NACK 和 Last Good
+// Delivery 串行管理 Candidate、Active 和 ACK/NACK
 //
-// Run 运行后，Submit、Restore、HandleXDSEvent 和 Status 可被多个 goroutine 并发调用
+// Run 运行后，Submit、HandleXDSEvent 和 Status 可被多个 goroutine 并发调用
 type Delivery struct {
 	cache    cachev3.SnapshotCache
-	store    LastGoodStore
 	baseline *cachev3.Snapshot
 	options  Options
 
@@ -35,7 +33,7 @@ type Delivery struct {
 }
 
 // New 创建尚未运行的 Delivery
-func New(cache cachev3.SnapshotCache, store LastGoodStore, options Options) (*Delivery, error) {
+func New(cache cachev3.SnapshotCache, options Options) (*Delivery, error) {
 	options, err := normalizeOptions(options)
 	if err != nil {
 		return nil, err
@@ -48,7 +46,6 @@ func New(cache cachev3.SnapshotCache, store LastGoodStore, options Options) (*De
 	state := newRuntimeState()
 	return &Delivery{
 		cache:    cache,
-		store:    store,
 		baseline: baseline,
 		options:  options,
 		commands: make(chan command, 1),
@@ -93,11 +90,6 @@ func (d *Delivery) Run(ctx context.Context) error {
 			}
 		}
 	}
-}
-
-// Restore 从 Last Good 初始化 Active，或在没有可用记录时安装 Baseline
-func (d *Delivery) Restore(ctx context.Context) error {
-	return d.call(ctx, command{kind: commandRestore})
 }
 
 // Submit 发布一个通过编译的完整 Envoy 配置
@@ -148,17 +140,11 @@ func normalizeOptions(options Options) (Options, error) {
 	if options.NACKRollbackTimeout < 0 {
 		return Options{}, errors.New("NACK rollback timeout must not be negative")
 	}
-	if options.LastGoodRetryInterval < 0 {
-		return Options{}, errors.New("last good retry interval must not be negative")
-	}
 	if options.ACKTimeout == 0 {
 		options.ACKTimeout = defaults.ACKTimeout
 	}
 	if options.NACKRollbackTimeout == 0 {
 		options.NACKRollbackTimeout = defaults.NACKRollbackTimeout
-	}
-	if options.LastGoodRetryInterval == 0 {
-		options.LastGoodRetryInterval = defaults.LastGoodRetryInterval
 	}
 	return options, nil
 }
@@ -223,15 +209,10 @@ func (d *Delivery) stopTimers() {
 	if d.state.candidate != nil && d.state.candidate.timer != nil {
 		d.state.candidate.timer.Stop()
 	}
-	if d.state.persistence != nil && d.state.persistence.timer != nil {
-		d.state.persistence.timer.Stop()
-	}
 }
 
 func (d *Delivery) handleCommand(ctx context.Context, command command) error {
 	switch command.kind {
-	case commandRestore:
-		return d.handleRestore(ctx)
 	case commandSubmit:
 		return d.handleSubmit(ctx, command.result, command.compileHasErrors)
 	case commandXDSEvent:
@@ -239,90 +220,12 @@ func (d *Delivery) handleCommand(ctx context.Context, command command) error {
 	case commandACKTimeout:
 		d.handleACKTimeout(command.version, command.sequence)
 		return nil
-	case commandLastGoodRetry:
-		d.handleLastGoodRetry(ctx, command)
-		return nil
 	default:
 		return fmt.Errorf("unknown delivery command %d", command.kind)
 	}
 }
 
-func (d *Delivery) handleRestore(ctx context.Context) error {
-	if d.state.initialized {
-		return nil
-	}
-
-	record, err := d.store.Load(ctx)
-	if err != nil {
-		switch {
-		case errors.Is(err, lastgood.ErrNotFound):
-			return d.installBaseline(ctx, "")
-		case errors.Is(err, lastgood.ErrCorrupt), errors.Is(err, lastgood.ErrIncompatible):
-			return d.installBaseline(ctx, summarizeError(err))
-		default:
-			return fmt.Errorf("load last good: %w", err)
-		}
-	}
-
-	value, err := record.Config()
-	if err != nil {
-		if errors.Is(err, lastgood.ErrCorrupt) || errors.Is(err, lastgood.ErrIncompatible) {
-			return d.installBaseline(ctx, summarizeError(err))
-		}
-		return fmt.Errorf("restore last good config: %w", err)
-	}
-	snapshot, err := value.Snapshot(record.Version)
-	if err != nil {
-		return d.installBaseline(ctx, summarizeError(err))
-	}
-	if err := d.cache.SetSnapshot(ctx, xds.CacheKey, snapshot); err != nil {
-		return fmt.Errorf("install last good snapshot %q: %w", record.Version, err)
-	}
-
-	d.state.active = &publishedConfig{
-		version:     record.Version,
-		contentHash: record.ContentHash,
-		config:      value,
-		snapshot:    snapshot,
-	}
-	d.state.candidate = nil
-	d.state.initialized = true
-	d.state.lastGoodVersion = record.Version
-	d.state.ackTimedOut = false
-	d.state.nackCount = 0
-	d.state.restoreError = ""
-	d.state.rollbackError = ""
-	d.state.activeNACK = false
-	d.state.persistence = nil
-	d.state.rejected = make(map[string]bool)
-	d.state.pruneProgress(record.Version)
-	return nil
-}
-
-func (d *Delivery) installBaseline(ctx context.Context, persistenceError string) error {
-	if err := d.cache.SetSnapshot(ctx, xds.CacheKey, d.baseline); err != nil {
-		return fmt.Errorf("install baseline snapshot: %w", err)
-	}
-
-	d.state.active = nil
-	d.state.candidate = nil
-	d.state.initialized = true
-	d.state.lastGoodVersion = ""
-	d.state.ackTimedOut = false
-	d.state.nackCount = 0
-	d.state.restoreError = persistenceError
-	d.state.rollbackError = ""
-	d.state.activeNACK = false
-	d.state.persistence = nil
-	d.state.rejected = make(map[string]bool)
-	d.state.pruneProgress()
-	return nil
-}
-
 func (d *Delivery) handleSubmit(ctx context.Context, result config.CompileResult, hasErrors bool) error {
-	if !d.state.initialized {
-		return ErrNotRestored
-	}
 	if hasErrors {
 		return fmt.Errorf("%w: compiler returned error diagnostics", ErrInvalidCompileResult)
 	}
@@ -377,7 +280,6 @@ func (d *Delivery) setCandidate(result config.CompileResult, snapshot *cachev3.S
 	}
 	d.state.ackTimedOut = false
 	d.state.nackCount = 0
-	d.state.restoreError = ""
 	d.state.rollbackError = ""
 	d.state.activeNACK = false
 
@@ -418,7 +320,7 @@ func (d *Delivery) handleXDSEvent(ctx context.Context, event xds.Event) error {
 		d.handleResponseSent(event)
 		return nil
 	case xds.EventACK:
-		d.handleACK(ctx, event)
+		d.handleACK(event)
 		return nil
 	case xds.EventNACK:
 		return d.handleNACK(ctx, event)
@@ -457,7 +359,7 @@ func (d *Delivery) handleResponseSent(event xds.Event) {
 	}
 }
 
-func (d *Delivery) handleACK(ctx context.Context, event xds.Event) {
+func (d *Delivery) handleACK(event xds.Event) {
 	currentCandidate := d.state.candidate != nil && event.Version == d.state.candidate.version
 	currentActive := d.state.active != nil && event.Version == d.state.active.version
 	if !currentCandidate && !currentActive {
@@ -475,16 +377,13 @@ func (d *Delivery) handleACK(ctx context.Context, event xds.Event) {
 	if !currentCandidate || !stream.fullyACKed(event.Version, d.state.candidate.requiredTypes) {
 		return
 	}
-	d.activateCandidate(ctx)
+	d.activateCandidate()
 }
 
-func (d *Delivery) activateCandidate(ctx context.Context) {
+func (d *Delivery) activateCandidate() {
 	candidate := d.state.candidate
 	if candidate.timer != nil {
 		candidate.timer.Stop()
-	}
-	if d.state.persistence != nil && d.state.persistence.timer != nil {
-		d.state.persistence.timer.Stop()
 	}
 
 	d.state.active = &publishedConfig{
@@ -494,34 +393,9 @@ func (d *Delivery) activateCandidate(ctx context.Context) {
 	}
 	d.state.candidate = nil
 	d.state.ackTimedOut = false
-	d.state.restoreError = ""
 	d.state.rollbackError = ""
 	d.state.activeNACK = false
-	d.state.persistence = nil
 	d.state.pruneProgress(candidate.version)
-
-	// Candidate 先成为 Active，再构造和持久化 Last Good，持久化失败不能回滚已 ACK 配置
-	record, err := lastgood.NewRecord(candidate.version, candidate.config, time.Now())
-	if err != nil {
-		d.state.persistence = &persistenceState{
-			version: candidate.version,
-			err:     summarizeError(err),
-		}
-		return
-	}
-	d.state.active.contentHash = record.ContentHash
-	if err := d.store.Save(ctx, record); err != nil {
-		persistence := &persistenceState{
-			version:     record.Version,
-			contentHash: record.ContentHash,
-			record:      record,
-			err:         summarizeError(err),
-		}
-		d.state.persistence = persistence
-		d.scheduleLastGoodRetry(persistence, 1)
-		return
-	}
-	d.state.lastGoodVersion = record.Version
 }
 
 func (d *Delivery) handleNACK(ctx context.Context, event xds.Event) error {
@@ -588,43 +462,4 @@ func (d *Delivery) handleACKTimeout(version string, sequence uint64) {
 	candidate.timer = nil
 	candidate.responseSeen = true
 	d.state.ackTimedOut = true
-}
-
-func (d *Delivery) scheduleLastGoodRetry(persistence *persistenceState, attempt int) {
-	version := persistence.version
-	contentHash := persistence.contentHash
-	record := persistence.record
-	persistence.timer = time.AfterFunc(d.options.LastGoodRetryInterval, func() {
-		d.enqueue(command{
-			kind:        commandLastGoodRetry,
-			version:     version,
-			contentHash: contentHash,
-			record:      record,
-			attempt:     attempt,
-		})
-	})
-}
-
-func (d *Delivery) handleLastGoodRetry(ctx context.Context, command command) {
-	persistence := d.state.persistence
-	active := d.state.active
-	// version 和内容哈希共同绑定当前 Active，旧版本 retry 不能覆盖后来激活的配置
-	if persistence == nil || active == nil ||
-		persistence.version != command.version || persistence.contentHash != command.contentHash ||
-		active.version != command.version || active.contentHash != command.contentHash {
-		return
-	}
-
-	persistence.timer = nil
-	persistence.attempt = command.attempt
-	if err := d.store.Save(ctx, command.record); err != nil {
-		persistence.err = summarizeError(err)
-		if command.attempt < lastGoodRetryLimit && ctx.Err() == nil {
-			d.scheduleLastGoodRetry(persistence, command.attempt+1)
-		}
-		return
-	}
-
-	d.state.lastGoodVersion = command.version
-	d.state.persistence = nil
 }
