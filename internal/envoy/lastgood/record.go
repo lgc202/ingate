@@ -6,6 +6,8 @@ import (
 )
 
 const (
+	// APIPath 是 apiserver 暴露给 controller 的 Last Good 内部单例接口
+	APIPath = "/internal/v1/envoy/last-good"
 	// Key 是 Last Good 在内部 etcd 前缀中的固定键
 	Key = "/ingate/internal/last-good/envoy"
 	// SchemaVersion 是当前 Last Good 记录格式版本

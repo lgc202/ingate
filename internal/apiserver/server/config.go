@@ -4,7 +4,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/apiserver/pkg/storage/storagebackend"
 
+	lastgoodstorage "github.com/lgc202/ingate/internal/apiserver/lastgood"
 	accesscontrolpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/accesscontrolpolicy"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
 	policybindingstorage "github.com/lgc202/ingate/internal/apiserver/registry/policybinding"
@@ -14,6 +16,7 @@ import (
 	runtimegroupstorage "github.com/lgc202/ingate/internal/apiserver/registry/runtimegroup"
 	runtimesnapshotstorage "github.com/lgc202/ingate/internal/apiserver/registry/runtimesnapshot"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
+	envoylastgood "github.com/lgc202/ingate/internal/envoy/lastgood"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -21,7 +24,8 @@ const serverName = "ingate-apiserver"
 
 // ExtraConfig 表示 ingate-apiserver 自己的扩展配置
 type ExtraConfig struct {
-	Storage map[string]rest.Storage
+	Storage       map[string]rest.Storage
+	EtcdTransport storagebackend.TransportConfig
 }
 
 // Config 表示 ingate-apiserver 完整配置
@@ -155,6 +159,19 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	if err := server.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
 		return nil, err
 	}
+
+	lastGoodStore, err := lastgoodstorage.NewStore(c.ExtraConfig.EtcdTransport)
+	if err != nil {
+		return nil, err
+	}
+	if err := server.GenericAPIServer.AddPreShutdownHook("close-last-good-store", lastGoodStore.Close); err != nil {
+		_ = lastGoodStore.Close()
+		return nil, err
+	}
+	server.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle(
+		envoylastgood.APIPath,
+		lastgoodstorage.NewHandler(lastGoodStore),
+	)
 
 	return server, nil
 }

@@ -115,5 +115,8 @@ func (o *Options) Config() (*Config, error) {
 
 	return &Config{
 		GenericConfig: genericConfig,
+		ExtraConfig: ExtraConfig{
+			EtcdTransport: o.Etcd.StorageConfig.Transport,
+		},
 	}, nil
 }
