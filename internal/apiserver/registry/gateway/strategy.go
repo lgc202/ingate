@@ -119,9 +119,6 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 	if gateway.Spec.DisplayName == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
-	if gateway.Spec.RuntimeGroupRef.Name == "" {
-		errs = append(errs, field.Required(specPath.Child("runtimeGroupRef").Child("name"), "runtimeGroupRef.name is required"))
-	}
 	if len(gateway.Spec.Listeners) == 0 {
 		errs = append(errs, field.Required(specPath.Child("listeners"), "at least one listener is required"))
 		return errs

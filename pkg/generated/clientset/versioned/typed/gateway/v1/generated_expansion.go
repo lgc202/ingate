@@ -12,12 +12,6 @@ type PolicyBindingExpansion interface{}
 
 type RateLimitPolicyExpansion interface{}
 
-type RedisStoreExpansion interface{}
-
 type RouteExpansion interface{}
-
-type RuntimeGroupExpansion interface{}
-
-type RuntimeSnapshotExpansion interface{}
 
 type UpstreamExpansion interface{}

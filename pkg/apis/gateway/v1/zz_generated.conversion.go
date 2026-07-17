@@ -83,16 +83,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*Bundle)(nil), (*gateway.Bundle)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_Bundle_To_gateway_Bundle(a.(*Bundle), b.(*gateway.Bundle), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.Bundle)(nil), (*Bundle)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_Bundle_To_v1_Bundle(a.(*gateway.Bundle), b.(*Bundle), scope)
-	}); err != nil {
-		return err
-	}
 	if err := s.AddGeneratedConversionFunc((*Endpoint)(nil), (*gateway.Endpoint)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_Endpoint_To_gateway_Endpoint(a.(*Endpoint), b.(*gateway.Endpoint), scope)
 	}); err != nil {
@@ -140,16 +130,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.GatewayTLS)(nil), (*GatewayTLS)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_GatewayTLS_To_v1_GatewayTLS(a.(*gateway.GatewayTLS), b.(*GatewayTLS), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*GlobalRateLimitConfig)(nil), (*gateway.GlobalRateLimitConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig(a.(*GlobalRateLimitConfig), b.(*gateway.GlobalRateLimitConfig), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.GlobalRateLimitConfig)(nil), (*GlobalRateLimitConfig)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig(a.(*gateway.GlobalRateLimitConfig), b.(*GlobalRateLimitConfig), scope)
 	}); err != nil {
 		return err
 	}
@@ -343,36 +323,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*RedisStore)(nil), (*gateway.RedisStore)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RedisStore_To_gateway_RedisStore(a.(*RedisStore), b.(*gateway.RedisStore), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RedisStore)(nil), (*RedisStore)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RedisStore_To_v1_RedisStore(a.(*gateway.RedisStore), b.(*RedisStore), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RedisStoreList)(nil), (*gateway.RedisStoreList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RedisStoreList_To_gateway_RedisStoreList(a.(*RedisStoreList), b.(*gateway.RedisStoreList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RedisStoreList)(nil), (*RedisStoreList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RedisStoreList_To_v1_RedisStoreList(a.(*gateway.RedisStoreList), b.(*RedisStoreList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RedisStoreSpec)(nil), (*gateway.RedisStoreSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(a.(*RedisStoreSpec), b.(*gateway.RedisStoreSpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RedisStoreSpec)(nil), (*RedisStoreSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(a.(*gateway.RedisStoreSpec), b.(*RedisStoreSpec), scope)
-	}); err != nil {
-		return err
-	}
 	if err := s.AddGeneratedConversionFunc((*ResourceStatus)(nil), (*gateway.ResourceStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_ResourceStatus_To_gateway_ResourceStatus(a.(*ResourceStatus), b.(*gateway.ResourceStatus), scope)
 	}); err != nil {
@@ -450,86 +400,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.RouteTimeout)(nil), (*RouteTimeout)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_RouteTimeout_To_v1_RouteTimeout(a.(*gateway.RouteTimeout), b.(*RouteTimeout), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RuntimeGroup)(nil), (*gateway.RuntimeGroup)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RuntimeGroup_To_gateway_RuntimeGroup(a.(*RuntimeGroup), b.(*gateway.RuntimeGroup), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RuntimeGroup)(nil), (*RuntimeGroup)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RuntimeGroup_To_v1_RuntimeGroup(a.(*gateway.RuntimeGroup), b.(*RuntimeGroup), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RuntimeGroupList)(nil), (*gateway.RuntimeGroupList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RuntimeGroupList_To_gateway_RuntimeGroupList(a.(*RuntimeGroupList), b.(*gateway.RuntimeGroupList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RuntimeGroupList)(nil), (*RuntimeGroupList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RuntimeGroupList_To_v1_RuntimeGroupList(a.(*gateway.RuntimeGroupList), b.(*RuntimeGroupList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RuntimeGroupRef)(nil), (*gateway.RuntimeGroupRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RuntimeGroupRef_To_gateway_RuntimeGroupRef(a.(*RuntimeGroupRef), b.(*gateway.RuntimeGroupRef), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RuntimeGroupRef)(nil), (*RuntimeGroupRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RuntimeGroupRef_To_v1_RuntimeGroupRef(a.(*gateway.RuntimeGroupRef), b.(*RuntimeGroupRef), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RuntimeGroupSpec)(nil), (*gateway.RuntimeGroupSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RuntimeGroupSpec_To_gateway_RuntimeGroupSpec(a.(*RuntimeGroupSpec), b.(*gateway.RuntimeGroupSpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RuntimeGroupSpec)(nil), (*RuntimeGroupSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RuntimeGroupSpec_To_v1_RuntimeGroupSpec(a.(*gateway.RuntimeGroupSpec), b.(*RuntimeGroupSpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RuntimeSnapshot)(nil), (*gateway.RuntimeSnapshot)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RuntimeSnapshot_To_gateway_RuntimeSnapshot(a.(*RuntimeSnapshot), b.(*gateway.RuntimeSnapshot), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RuntimeSnapshot)(nil), (*RuntimeSnapshot)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RuntimeSnapshot_To_v1_RuntimeSnapshot(a.(*gateway.RuntimeSnapshot), b.(*RuntimeSnapshot), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RuntimeSnapshotList)(nil), (*gateway.RuntimeSnapshotList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RuntimeSnapshotList_To_gateway_RuntimeSnapshotList(a.(*RuntimeSnapshotList), b.(*gateway.RuntimeSnapshotList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RuntimeSnapshotList)(nil), (*RuntimeSnapshotList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RuntimeSnapshotList_To_v1_RuntimeSnapshotList(a.(*gateway.RuntimeSnapshotList), b.(*RuntimeSnapshotList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RuntimeSnapshotSpec)(nil), (*gateway.RuntimeSnapshotSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RuntimeSnapshotSpec_To_gateway_RuntimeSnapshotSpec(a.(*RuntimeSnapshotSpec), b.(*gateway.RuntimeSnapshotSpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RuntimeSnapshotSpec)(nil), (*RuntimeSnapshotSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RuntimeSnapshotSpec_To_v1_RuntimeSnapshotSpec(a.(*gateway.RuntimeSnapshotSpec), b.(*RuntimeSnapshotSpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*TargetRef)(nil), (*gateway.TargetRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_TargetRef_To_gateway_TargetRef(a.(*TargetRef), b.(*gateway.TargetRef), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.TargetRef)(nil), (*TargetRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_TargetRef_To_v1_TargetRef(a.(*gateway.TargetRef), b.(*TargetRef), scope)
 	}); err != nil {
 		return err
 	}
@@ -744,38 +614,6 @@ func Convert_gateway_AccessControlRule_To_v1_AccessControlRule(in *gateway.Acces
 	return autoConvert_gateway_AccessControlRule_To_v1_AccessControlRule(in, out, s)
 }
 
-func autoConvert_v1_Bundle_To_gateway_Bundle(in *Bundle, out *gateway.Bundle, s conversion.Scope) error {
-	out.Gateways = *(*[]gateway.Gateway)(unsafe.Pointer(&in.Gateways))
-	out.Routes = *(*[]gateway.Route)(unsafe.Pointer(&in.Routes))
-	out.Upstreams = *(*[]gateway.Upstream)(unsafe.Pointer(&in.Upstreams))
-	out.RateLimitPolicies = *(*[]gateway.RateLimitPolicy)(unsafe.Pointer(&in.RateLimitPolicies))
-	out.AccessControlPolicies = *(*[]gateway.AccessControlPolicy)(unsafe.Pointer(&in.AccessControlPolicies))
-	out.RedisStores = *(*[]gateway.RedisStore)(unsafe.Pointer(&in.RedisStores))
-	out.PolicyBindings = *(*[]gateway.PolicyBinding)(unsafe.Pointer(&in.PolicyBindings))
-	return nil
-}
-
-// Convert_v1_Bundle_To_gateway_Bundle is an autogenerated conversion function.
-func Convert_v1_Bundle_To_gateway_Bundle(in *Bundle, out *gateway.Bundle, s conversion.Scope) error {
-	return autoConvert_v1_Bundle_To_gateway_Bundle(in, out, s)
-}
-
-func autoConvert_gateway_Bundle_To_v1_Bundle(in *gateway.Bundle, out *Bundle, s conversion.Scope) error {
-	out.Gateways = *(*[]Gateway)(unsafe.Pointer(&in.Gateways))
-	out.Routes = *(*[]Route)(unsafe.Pointer(&in.Routes))
-	out.Upstreams = *(*[]Upstream)(unsafe.Pointer(&in.Upstreams))
-	out.RateLimitPolicies = *(*[]RateLimitPolicy)(unsafe.Pointer(&in.RateLimitPolicies))
-	out.AccessControlPolicies = *(*[]AccessControlPolicy)(unsafe.Pointer(&in.AccessControlPolicies))
-	out.RedisStores = *(*[]RedisStore)(unsafe.Pointer(&in.RedisStores))
-	out.PolicyBindings = *(*[]PolicyBinding)(unsafe.Pointer(&in.PolicyBindings))
-	return nil
-}
-
-// Convert_gateway_Bundle_To_v1_Bundle is an autogenerated conversion function.
-func Convert_gateway_Bundle_To_v1_Bundle(in *gateway.Bundle, out *Bundle, s conversion.Scope) error {
-	return autoConvert_gateway_Bundle_To_v1_Bundle(in, out, s)
-}
-
 func autoConvert_v1_Endpoint_To_gateway_Endpoint(in *Endpoint, out *gateway.Endpoint, s conversion.Scope) error {
 	out.Name = in.Name
 	out.Address = in.Address
@@ -862,9 +700,6 @@ func autoConvert_v1_GatewaySpec_To_gateway_GatewaySpec(in *GatewaySpec, out *gat
 	out.DisplayName = in.DisplayName
 	out.Description = in.Description
 	out.Enabled = in.Enabled
-	if err := Convert_v1_RuntimeGroupRef_To_gateway_RuntimeGroupRef(&in.RuntimeGroupRef, &out.RuntimeGroupRef, s); err != nil {
-		return err
-	}
 	out.Listeners = *(*[]gateway.Listener)(unsafe.Pointer(&in.Listeners))
 	out.HostBindings = *(*[]gateway.HostBinding)(unsafe.Pointer(&in.HostBindings))
 	return nil
@@ -879,9 +714,6 @@ func autoConvert_gateway_GatewaySpec_To_v1_GatewaySpec(in *gateway.GatewaySpec, 
 	out.DisplayName = in.DisplayName
 	out.Description = in.Description
 	out.Enabled = in.Enabled
-	if err := Convert_gateway_RuntimeGroupRef_To_v1_RuntimeGroupRef(&in.RuntimeGroupRef, &out.RuntimeGroupRef, s); err != nil {
-		return err
-	}
 	out.Listeners = *(*[]Listener)(unsafe.Pointer(&in.Listeners))
 	out.HostBindings = *(*[]HostBinding)(unsafe.Pointer(&in.HostBindings))
 	return nil
@@ -910,30 +742,6 @@ func autoConvert_gateway_GatewayTLS_To_v1_GatewayTLS(in *gateway.GatewayTLS, out
 // Convert_gateway_GatewayTLS_To_v1_GatewayTLS is an autogenerated conversion function.
 func Convert_gateway_GatewayTLS_To_v1_GatewayTLS(in *gateway.GatewayTLS, out *GatewayTLS, s conversion.Scope) error {
 	return autoConvert_gateway_GatewayTLS_To_v1_GatewayTLS(in, out, s)
-}
-
-func autoConvert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig(in *GlobalRateLimitConfig, out *gateway.GlobalRateLimitConfig, s conversion.Scope) error {
-	out.RedisRef = in.RedisRef
-	out.Prefix = in.Prefix
-	out.TimeoutMillis = in.TimeoutMillis
-	return nil
-}
-
-// Convert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig is an autogenerated conversion function.
-func Convert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig(in *GlobalRateLimitConfig, out *gateway.GlobalRateLimitConfig, s conversion.Scope) error {
-	return autoConvert_v1_GlobalRateLimitConfig_To_gateway_GlobalRateLimitConfig(in, out, s)
-}
-
-func autoConvert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig(in *gateway.GlobalRateLimitConfig, out *GlobalRateLimitConfig, s conversion.Scope) error {
-	out.RedisRef = in.RedisRef
-	out.Prefix = in.Prefix
-	out.TimeoutMillis = in.TimeoutMillis
-	return nil
-}
-
-// Convert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig is an autogenerated conversion function.
-func Convert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig(in *gateway.GlobalRateLimitConfig, out *GlobalRateLimitConfig, s conversion.Scope) error {
-	return autoConvert_gateway_GlobalRateLimitConfig_To_v1_GlobalRateLimitConfig(in, out, s)
 }
 
 func autoConvert_v1_HeaderMatch_To_gateway_HeaderMatch(in *HeaderMatch, out *gateway.HeaderMatch, s conversion.Scope) error {
@@ -1306,7 +1114,6 @@ func autoConvert_v1_RateLimitPolicySpec_To_gateway_RateLimitPolicySpec(in *RateL
 	out.Enabled = in.Enabled
 	out.Mode = gateway.RateLimitMode(in.Mode)
 	out.Rules = *(*[]gateway.RateLimitRule)(unsafe.Pointer(&in.Rules))
-	out.Global = (*gateway.GlobalRateLimitConfig)(unsafe.Pointer(in.Global))
 	if err := Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse(&in.Response, &out.Response, s); err != nil {
 		return err
 	}
@@ -1325,7 +1132,6 @@ func autoConvert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(in *gatew
 	out.Enabled = in.Enabled
 	out.Mode = RateLimitMode(in.Mode)
 	out.Rules = *(*[]RateLimitRule)(unsafe.Pointer(&in.Rules))
-	out.Global = (*GlobalRateLimitConfig)(unsafe.Pointer(in.Global))
 	if err := Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse(&in.Response, &out.Response, s); err != nil {
 		return err
 	}
@@ -1418,108 +1224,6 @@ func autoConvert_gateway_RateLimitRule_To_v1_RateLimitRule(in *gateway.RateLimit
 // Convert_gateway_RateLimitRule_To_v1_RateLimitRule is an autogenerated conversion function.
 func Convert_gateway_RateLimitRule_To_v1_RateLimitRule(in *gateway.RateLimitRule, out *RateLimitRule, s conversion.Scope) error {
 	return autoConvert_gateway_RateLimitRule_To_v1_RateLimitRule(in, out, s)
-}
-
-func autoConvert_v1_RedisStore_To_gateway_RedisStore(in *RedisStore, out *gateway.RedisStore, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_v1_RedisStore_To_gateway_RedisStore is an autogenerated conversion function.
-func Convert_v1_RedisStore_To_gateway_RedisStore(in *RedisStore, out *gateway.RedisStore, s conversion.Scope) error {
-	return autoConvert_v1_RedisStore_To_gateway_RedisStore(in, out, s)
-}
-
-func autoConvert_gateway_RedisStore_To_v1_RedisStore(in *gateway.RedisStore, out *RedisStore, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_gateway_RedisStore_To_v1_RedisStore is an autogenerated conversion function.
-func Convert_gateway_RedisStore_To_v1_RedisStore(in *gateway.RedisStore, out *RedisStore, s conversion.Scope) error {
-	return autoConvert_gateway_RedisStore_To_v1_RedisStore(in, out, s)
-}
-
-func autoConvert_v1_RedisStoreList_To_gateway_RedisStoreList(in *RedisStoreList, out *gateway.RedisStoreList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]gateway.RedisStore)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_v1_RedisStoreList_To_gateway_RedisStoreList is an autogenerated conversion function.
-func Convert_v1_RedisStoreList_To_gateway_RedisStoreList(in *RedisStoreList, out *gateway.RedisStoreList, s conversion.Scope) error {
-	return autoConvert_v1_RedisStoreList_To_gateway_RedisStoreList(in, out, s)
-}
-
-func autoConvert_gateway_RedisStoreList_To_v1_RedisStoreList(in *gateway.RedisStoreList, out *RedisStoreList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]RedisStore)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_gateway_RedisStoreList_To_v1_RedisStoreList is an autogenerated conversion function.
-func Convert_gateway_RedisStoreList_To_v1_RedisStoreList(in *gateway.RedisStoreList, out *RedisStoreList, s conversion.Scope) error {
-	return autoConvert_gateway_RedisStoreList_To_v1_RedisStoreList(in, out, s)
-}
-
-func autoConvert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(in *RedisStoreSpec, out *gateway.RedisStoreSpec, s conversion.Scope) error {
-	out.DisplayName = in.DisplayName
-	out.Description = in.Description
-	out.Mode = gateway.RedisMode(in.Mode)
-	out.Address = in.Address
-	out.Addresses = *(*[]string)(unsafe.Pointer(&in.Addresses))
-	out.DB = in.DB
-	out.TLS = in.TLS
-	out.TLSServerName = in.TLSServerName
-	out.Username = in.Username
-	out.PasswordRef = in.PasswordRef
-	out.ConnectTimeoutMillis = in.ConnectTimeoutMillis
-	out.CommandTimeoutMillis = in.CommandTimeoutMillis
-	out.PoolSize = in.PoolSize
-	out.MinIdleConns = in.MinIdleConns
-	out.SentinelMaster = in.SentinelMaster
-	return nil
-}
-
-// Convert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec is an autogenerated conversion function.
-func Convert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(in *RedisStoreSpec, out *gateway.RedisStoreSpec, s conversion.Scope) error {
-	return autoConvert_v1_RedisStoreSpec_To_gateway_RedisStoreSpec(in, out, s)
-}
-
-func autoConvert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(in *gateway.RedisStoreSpec, out *RedisStoreSpec, s conversion.Scope) error {
-	out.DisplayName = in.DisplayName
-	out.Description = in.Description
-	out.Mode = RedisMode(in.Mode)
-	out.Address = in.Address
-	out.Addresses = *(*[]string)(unsafe.Pointer(&in.Addresses))
-	out.DB = in.DB
-	out.TLS = in.TLS
-	out.TLSServerName = in.TLSServerName
-	out.Username = in.Username
-	out.PasswordRef = in.PasswordRef
-	out.ConnectTimeoutMillis = in.ConnectTimeoutMillis
-	out.CommandTimeoutMillis = in.CommandTimeoutMillis
-	out.PoolSize = in.PoolSize
-	out.MinIdleConns = in.MinIdleConns
-	out.SentinelMaster = in.SentinelMaster
-	return nil
-}
-
-// Convert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec is an autogenerated conversion function.
-func Convert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(in *gateway.RedisStoreSpec, out *RedisStoreSpec, s conversion.Scope) error {
-	return autoConvert_gateway_RedisStoreSpec_To_v1_RedisStoreSpec(in, out, s)
 }
 
 func autoConvert_v1_ResourceStatus_To_gateway_ResourceStatus(in *ResourceStatus, out *gateway.ResourceStatus, s conversion.Scope) error {
@@ -1724,204 +1428,6 @@ func autoConvert_gateway_RouteTimeout_To_v1_RouteTimeout(in *gateway.RouteTimeou
 // Convert_gateway_RouteTimeout_To_v1_RouteTimeout is an autogenerated conversion function.
 func Convert_gateway_RouteTimeout_To_v1_RouteTimeout(in *gateway.RouteTimeout, out *RouteTimeout, s conversion.Scope) error {
 	return autoConvert_gateway_RouteTimeout_To_v1_RouteTimeout(in, out, s)
-}
-
-func autoConvert_v1_RuntimeGroup_To_gateway_RuntimeGroup(in *RuntimeGroup, out *gateway.RuntimeGroup, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_v1_RuntimeGroupSpec_To_gateway_RuntimeGroupSpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_v1_RuntimeGroup_To_gateway_RuntimeGroup is an autogenerated conversion function.
-func Convert_v1_RuntimeGroup_To_gateway_RuntimeGroup(in *RuntimeGroup, out *gateway.RuntimeGroup, s conversion.Scope) error {
-	return autoConvert_v1_RuntimeGroup_To_gateway_RuntimeGroup(in, out, s)
-}
-
-func autoConvert_gateway_RuntimeGroup_To_v1_RuntimeGroup(in *gateway.RuntimeGroup, out *RuntimeGroup, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_gateway_RuntimeGroupSpec_To_v1_RuntimeGroupSpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_gateway_RuntimeGroup_To_v1_RuntimeGroup is an autogenerated conversion function.
-func Convert_gateway_RuntimeGroup_To_v1_RuntimeGroup(in *gateway.RuntimeGroup, out *RuntimeGroup, s conversion.Scope) error {
-	return autoConvert_gateway_RuntimeGroup_To_v1_RuntimeGroup(in, out, s)
-}
-
-func autoConvert_v1_RuntimeGroupList_To_gateway_RuntimeGroupList(in *RuntimeGroupList, out *gateway.RuntimeGroupList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]gateway.RuntimeGroup)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_v1_RuntimeGroupList_To_gateway_RuntimeGroupList is an autogenerated conversion function.
-func Convert_v1_RuntimeGroupList_To_gateway_RuntimeGroupList(in *RuntimeGroupList, out *gateway.RuntimeGroupList, s conversion.Scope) error {
-	return autoConvert_v1_RuntimeGroupList_To_gateway_RuntimeGroupList(in, out, s)
-}
-
-func autoConvert_gateway_RuntimeGroupList_To_v1_RuntimeGroupList(in *gateway.RuntimeGroupList, out *RuntimeGroupList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]RuntimeGroup)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_gateway_RuntimeGroupList_To_v1_RuntimeGroupList is an autogenerated conversion function.
-func Convert_gateway_RuntimeGroupList_To_v1_RuntimeGroupList(in *gateway.RuntimeGroupList, out *RuntimeGroupList, s conversion.Scope) error {
-	return autoConvert_gateway_RuntimeGroupList_To_v1_RuntimeGroupList(in, out, s)
-}
-
-func autoConvert_v1_RuntimeGroupRef_To_gateway_RuntimeGroupRef(in *RuntimeGroupRef, out *gateway.RuntimeGroupRef, s conversion.Scope) error {
-	out.Name = in.Name
-	return nil
-}
-
-// Convert_v1_RuntimeGroupRef_To_gateway_RuntimeGroupRef is an autogenerated conversion function.
-func Convert_v1_RuntimeGroupRef_To_gateway_RuntimeGroupRef(in *RuntimeGroupRef, out *gateway.RuntimeGroupRef, s conversion.Scope) error {
-	return autoConvert_v1_RuntimeGroupRef_To_gateway_RuntimeGroupRef(in, out, s)
-}
-
-func autoConvert_gateway_RuntimeGroupRef_To_v1_RuntimeGroupRef(in *gateway.RuntimeGroupRef, out *RuntimeGroupRef, s conversion.Scope) error {
-	out.Name = in.Name
-	return nil
-}
-
-// Convert_gateway_RuntimeGroupRef_To_v1_RuntimeGroupRef is an autogenerated conversion function.
-func Convert_gateway_RuntimeGroupRef_To_v1_RuntimeGroupRef(in *gateway.RuntimeGroupRef, out *RuntimeGroupRef, s conversion.Scope) error {
-	return autoConvert_gateway_RuntimeGroupRef_To_v1_RuntimeGroupRef(in, out, s)
-}
-
-func autoConvert_v1_RuntimeGroupSpec_To_gateway_RuntimeGroupSpec(in *RuntimeGroupSpec, out *gateway.RuntimeGroupSpec, s conversion.Scope) error {
-	out.DisplayName = in.DisplayName
-	out.Description = in.Description
-	out.Enabled = in.Enabled
-	if err := Convert_v1_TargetRef_To_gateway_TargetRef(&in.TargetRef, &out.TargetRef, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_v1_RuntimeGroupSpec_To_gateway_RuntimeGroupSpec is an autogenerated conversion function.
-func Convert_v1_RuntimeGroupSpec_To_gateway_RuntimeGroupSpec(in *RuntimeGroupSpec, out *gateway.RuntimeGroupSpec, s conversion.Scope) error {
-	return autoConvert_v1_RuntimeGroupSpec_To_gateway_RuntimeGroupSpec(in, out, s)
-}
-
-func autoConvert_gateway_RuntimeGroupSpec_To_v1_RuntimeGroupSpec(in *gateway.RuntimeGroupSpec, out *RuntimeGroupSpec, s conversion.Scope) error {
-	out.DisplayName = in.DisplayName
-	out.Description = in.Description
-	out.Enabled = in.Enabled
-	if err := Convert_gateway_TargetRef_To_v1_TargetRef(&in.TargetRef, &out.TargetRef, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_gateway_RuntimeGroupSpec_To_v1_RuntimeGroupSpec is an autogenerated conversion function.
-func Convert_gateway_RuntimeGroupSpec_To_v1_RuntimeGroupSpec(in *gateway.RuntimeGroupSpec, out *RuntimeGroupSpec, s conversion.Scope) error {
-	return autoConvert_gateway_RuntimeGroupSpec_To_v1_RuntimeGroupSpec(in, out, s)
-}
-
-func autoConvert_v1_RuntimeSnapshot_To_gateway_RuntimeSnapshot(in *RuntimeSnapshot, out *gateway.RuntimeSnapshot, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_v1_RuntimeSnapshotSpec_To_gateway_RuntimeSnapshotSpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_v1_RuntimeSnapshot_To_gateway_RuntimeSnapshot is an autogenerated conversion function.
-func Convert_v1_RuntimeSnapshot_To_gateway_RuntimeSnapshot(in *RuntimeSnapshot, out *gateway.RuntimeSnapshot, s conversion.Scope) error {
-	return autoConvert_v1_RuntimeSnapshot_To_gateway_RuntimeSnapshot(in, out, s)
-}
-
-func autoConvert_gateway_RuntimeSnapshot_To_v1_RuntimeSnapshot(in *gateway.RuntimeSnapshot, out *RuntimeSnapshot, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_gateway_RuntimeSnapshotSpec_To_v1_RuntimeSnapshotSpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_gateway_RuntimeSnapshot_To_v1_RuntimeSnapshot is an autogenerated conversion function.
-func Convert_gateway_RuntimeSnapshot_To_v1_RuntimeSnapshot(in *gateway.RuntimeSnapshot, out *RuntimeSnapshot, s conversion.Scope) error {
-	return autoConvert_gateway_RuntimeSnapshot_To_v1_RuntimeSnapshot(in, out, s)
-}
-
-func autoConvert_v1_RuntimeSnapshotList_To_gateway_RuntimeSnapshotList(in *RuntimeSnapshotList, out *gateway.RuntimeSnapshotList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]gateway.RuntimeSnapshot)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_v1_RuntimeSnapshotList_To_gateway_RuntimeSnapshotList is an autogenerated conversion function.
-func Convert_v1_RuntimeSnapshotList_To_gateway_RuntimeSnapshotList(in *RuntimeSnapshotList, out *gateway.RuntimeSnapshotList, s conversion.Scope) error {
-	return autoConvert_v1_RuntimeSnapshotList_To_gateway_RuntimeSnapshotList(in, out, s)
-}
-
-func autoConvert_gateway_RuntimeSnapshotList_To_v1_RuntimeSnapshotList(in *gateway.RuntimeSnapshotList, out *RuntimeSnapshotList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]RuntimeSnapshot)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_gateway_RuntimeSnapshotList_To_v1_RuntimeSnapshotList is an autogenerated conversion function.
-func Convert_gateway_RuntimeSnapshotList_To_v1_RuntimeSnapshotList(in *gateway.RuntimeSnapshotList, out *RuntimeSnapshotList, s conversion.Scope) error {
-	return autoConvert_gateway_RuntimeSnapshotList_To_v1_RuntimeSnapshotList(in, out, s)
-}
-
-func autoConvert_v1_RuntimeSnapshotSpec_To_gateway_RuntimeSnapshotSpec(in *RuntimeSnapshotSpec, out *gateway.RuntimeSnapshotSpec, s conversion.Scope) error {
-	out.Target = in.Target
-	out.Gateway = in.Gateway
-	out.Version = in.Version
-	out.Config = in.Config
-	return nil
-}
-
-// Convert_v1_RuntimeSnapshotSpec_To_gateway_RuntimeSnapshotSpec is an autogenerated conversion function.
-func Convert_v1_RuntimeSnapshotSpec_To_gateway_RuntimeSnapshotSpec(in *RuntimeSnapshotSpec, out *gateway.RuntimeSnapshotSpec, s conversion.Scope) error {
-	return autoConvert_v1_RuntimeSnapshotSpec_To_gateway_RuntimeSnapshotSpec(in, out, s)
-}
-
-func autoConvert_gateway_RuntimeSnapshotSpec_To_v1_RuntimeSnapshotSpec(in *gateway.RuntimeSnapshotSpec, out *RuntimeSnapshotSpec, s conversion.Scope) error {
-	out.Target = in.Target
-	out.Gateway = in.Gateway
-	out.Version = in.Version
-	out.Config = in.Config
-	return nil
-}
-
-// Convert_gateway_RuntimeSnapshotSpec_To_v1_RuntimeSnapshotSpec is an autogenerated conversion function.
-func Convert_gateway_RuntimeSnapshotSpec_To_v1_RuntimeSnapshotSpec(in *gateway.RuntimeSnapshotSpec, out *RuntimeSnapshotSpec, s conversion.Scope) error {
-	return autoConvert_gateway_RuntimeSnapshotSpec_To_v1_RuntimeSnapshotSpec(in, out, s)
-}
-
-func autoConvert_v1_TargetRef_To_gateway_TargetRef(in *TargetRef, out *gateway.TargetRef, s conversion.Scope) error {
-	out.Name = in.Name
-	return nil
-}
-
-// Convert_v1_TargetRef_To_gateway_TargetRef is an autogenerated conversion function.
-func Convert_v1_TargetRef_To_gateway_TargetRef(in *TargetRef, out *gateway.TargetRef, s conversion.Scope) error {
-	return autoConvert_v1_TargetRef_To_gateway_TargetRef(in, out, s)
-}
-
-func autoConvert_gateway_TargetRef_To_v1_TargetRef(in *gateway.TargetRef, out *TargetRef, s conversion.Scope) error {
-	out.Name = in.Name
-	return nil
-}
-
-// Convert_gateway_TargetRef_To_v1_TargetRef is an autogenerated conversion function.
-func Convert_gateway_TargetRef_To_v1_TargetRef(in *gateway.TargetRef, out *TargetRef, s conversion.Scope) error {
-	return autoConvert_gateway_TargetRef_To_v1_TargetRef(in, out, s)
 }
 
 func autoConvert_v1_Upstream_To_gateway_Upstream(in *Upstream, out *gateway.Upstream, s conversion.Scope) error {

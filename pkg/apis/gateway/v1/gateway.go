@@ -34,7 +34,7 @@ type GatewayList struct {
 	Items []Gateway `json:"items"`
 }
 
-// GatewaySpec 定义 Gateway 的入口监听、运行组和域名绑定
+// GatewaySpec 定义 Gateway 的入口监听和域名绑定
 type GatewaySpec struct {
 	// DisplayName 保存控制台展示名称，不参与引用和运行时匹配
 	DisplayName string `json:"displayName,omitempty"`
@@ -42,17 +42,10 @@ type GatewaySpec struct {
 	Description string `json:"description,omitempty"`
 	// Enabled 表示 Gateway 是否参与编译和下发
 	Enabled bool `json:"enabled"`
-	// RuntimeGroupRef 表示 Gateway 绑定的数据面运行组
-	RuntimeGroupRef RuntimeGroupRef `json:"runtimeGroupRef,omitempty"`
 	// +listType=atomic
 	Listeners []Listener `json:"listeners"`
 	// +listType=atomic
 	HostBindings []HostBinding `json:"hostBindings,omitempty"`
-}
-
-// RuntimeGroupRef 引用一个数据面运行组
-type RuntimeGroupRef struct {
-	Name string `json:"name"`
 }
 
 // Listener 声明一个 Gateway 监听端口

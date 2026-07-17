@@ -21,13 +21,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicyList":   schema_pkg_apis_gateway_v1_AccessControlPolicyList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicySpec":   schema_pkg_apis_gateway_v1_AccessControlPolicySpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlRule":         schema_pkg_apis_gateway_v1_AccessControlRule(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Bundle":                    schema_pkg_apis_gateway_v1_Bundle(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint":                  schema_pkg_apis_gateway_v1_Endpoint(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Gateway":                   schema_pkg_apis_gateway_v1_Gateway(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewayList":               schema_pkg_apis_gateway_v1_GatewayList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewaySpec":               schema_pkg_apis_gateway_v1_GatewaySpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewayTLS":                schema_pkg_apis_gateway_v1_GatewayTLS(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GlobalRateLimitConfig":     schema_pkg_apis_gateway_v1_GlobalRateLimitConfig(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch":               schema_pkg_apis_gateway_v1_HeaderMatch(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier":            schema_pkg_apis_gateway_v1_HeaderModifier(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":               schema_pkg_apis_gateway_v1_HeaderValue(ref),
@@ -47,9 +45,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitQuota":            schema_pkg_apis_gateway_v1_RateLimitQuota(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitResponse":         schema_pkg_apis_gateway_v1_RateLimitResponse(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitRule":             schema_pkg_apis_gateway_v1_RateLimitRule(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStore":                schema_pkg_apis_gateway_v1_RedisStore(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStoreList":            schema_pkg_apis_gateway_v1_RedisStoreList(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStoreSpec":            schema_pkg_apis_gateway_v1_RedisStoreSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus":            schema_pkg_apis_gateway_v1_ResourceStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Route":                     schema_pkg_apis_gateway_v1_Route(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteFilter":               schema_pkg_apis_gateway_v1_RouteFilter(ref),
@@ -58,14 +53,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule":                 schema_pkg_apis_gateway_v1_RouteRule(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteSpec":                 schema_pkg_apis_gateway_v1_RouteSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout":              schema_pkg_apis_gateway_v1_RouteTimeout(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroup":              schema_pkg_apis_gateway_v1_RuntimeGroup(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupList":          schema_pkg_apis_gateway_v1_RuntimeGroupList(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupRef":           schema_pkg_apis_gateway_v1_RuntimeGroupRef(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupSpec":          schema_pkg_apis_gateway_v1_RuntimeGroupSpec(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshot":           schema_pkg_apis_gateway_v1_RuntimeSnapshot(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshotList":       schema_pkg_apis_gateway_v1_RuntimeSnapshotList(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshotSpec":       schema_pkg_apis_gateway_v1_RuntimeSnapshotSpec(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TargetRef":                 schema_pkg_apis_gateway_v1_TargetRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream":                  schema_pkg_apis_gateway_v1_Upstream(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck":       schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamList":              schema_pkg_apis_gateway_v1_UpstreamList(ref),
@@ -396,148 +383,6 @@ func schema_pkg_apis_gateway_v1_AccessControlRule(ref common.ReferenceCallback) 
 	}
 }
 
-func schema_pkg_apis_gateway_v1_Bundle(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "Bundle 表示一次编译所需的资源集合",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"gateways": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.Gateway"),
-									},
-								},
-							},
-						},
-					},
-					"routes": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.Route"),
-									},
-								},
-							},
-						},
-					},
-					"upstreams": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream"),
-									},
-								},
-							},
-						},
-					},
-					"rateLimitPolicies": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicy"),
-									},
-								},
-							},
-						},
-					},
-					"accessControlPolicies": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicy"),
-									},
-								},
-							},
-						},
-					},
-					"redisStores": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStore"),
-									},
-								},
-							},
-						},
-					},
-					"policyBindings": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBinding"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"gateways", "routes", "upstreams", "rateLimitPolicies", "accessControlPolicies", "redisStores", "policyBindings"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicy", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Gateway", "github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBinding", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicy", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStore", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Route", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream"},
-	}
-}
-
 func schema_pkg_apis_gateway_v1_Endpoint(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -688,7 +533,7 @@ func schema_pkg_apis_gateway_v1_GatewaySpec(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "GatewaySpec 定义 Gateway 的入口监听、运行组和域名绑定",
+				Description: "GatewaySpec 定义 Gateway 的入口监听和域名绑定",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
@@ -711,13 +556,6 @@ func schema_pkg_apis_gateway_v1_GatewaySpec(ref common.ReferenceCallback) common
 							Default:     false,
 							Type:        []string{"boolean"},
 							Format:      "",
-						},
-					},
-					"runtimeGroupRef": {
-						SchemaProps: spec.SchemaProps{
-							Description: "RuntimeGroupRef 表示 Gateway 绑定的数据面运行组",
-							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupRef"),
 						},
 					},
 					"listeners": {
@@ -761,7 +599,7 @@ func schema_pkg_apis_gateway_v1_GatewaySpec(ref common.ReferenceCallback) common
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HostBinding", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupRef"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HostBinding", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener"},
 	}
 }
 
@@ -779,39 +617,6 @@ func schema_pkg_apis_gateway_v1_GatewayTLS(ref common.ReferenceCallback) common.
 						},
 					},
 				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_GlobalRateLimitConfig(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "GlobalRateLimitConfig 定义 Redis-backed global limit 配置",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"redisRef": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"prefix": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"timeoutMillis": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-				},
-				Required: []string{"redisRef"},
 			},
 		},
 	}
@@ -1471,11 +1276,6 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 							},
 						},
 					},
-					"global": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.GlobalRateLimitConfig"),
-						},
-					},
 					"response": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
@@ -1493,7 +1293,7 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.GlobalRateLimitConfig", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitResponse", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitRule"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitResponse", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitRule"},
 	}
 }
 
@@ -1600,222 +1400,6 @@ func schema_pkg_apis_gateway_v1_RateLimitRule(ref common.ReferenceCallback) comm
 		},
 		Dependencies: []string{
 			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitKey", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitQuota"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RedisStore(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RedisStore 声明 Redis 连接配置",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStoreSpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStoreSpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RedisStoreList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RedisStoreList 表示 RedisStore 资源列表",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStore"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RedisStore", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RedisStoreSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RedisStoreSpec 定义 Redis 连接配置",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"displayName": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"description": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"mode": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"address": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"addresses": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-					"db": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"tls": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"boolean"},
-							Format: "",
-						},
-					},
-					"tlsServerName": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"username": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"passwordRef": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"connectTimeoutMillis": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"commandTimeoutMillis": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"poolSize": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"minIdleConns": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"sentinelMaster": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-				Required: []string{"displayName", "mode", "address"},
-			},
-		},
 	}
 }
 
@@ -2238,321 +1822,6 @@ func schema_pkg_apis_gateway_v1_RouteTimeout(ref common.ReferenceCallback) commo
 						},
 					},
 				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RuntimeGroup(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RuntimeGroup 表示一组数据面运行时的逻辑投放单元",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupSpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroupSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RuntimeGroupList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RuntimeGroupList 表示 RuntimeGroup 资源列表",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroup"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeGroup", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RuntimeGroupRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RuntimeGroupRef 引用一个数据面运行组",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-				},
-				Required: []string{"name"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RuntimeGroupSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RuntimeGroupSpec 定义一组数据面运行时的 target 和控制台展示信息",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"displayName": {
-						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与引用匹配",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"description": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Description 保存运维识别用的说明，不参与运行时匹配",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"enabled": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 表示该运行组是否允许承载新的 Gateway 配置",
-							Default:     false,
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-					"targetRef": {
-						SchemaProps: spec.SchemaProps{
-							Description: "TargetRef 表示该运行组对应的运行时 target",
-							Default:     map[string]interface{}{},
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TargetRef"),
-						},
-					},
-				},
-				Required: []string{"enabled", "targetRef"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.TargetRef"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RuntimeSnapshot(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RuntimeSnapshot 表示 controller 编译后交给运行时 target 的配置快照",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshotSpec"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshotSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RuntimeSnapshotList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RuntimeSnapshotList 表示 RuntimeSnapshot 资源列表",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshot"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RuntimeSnapshot", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RuntimeSnapshotSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RuntimeSnapshotSpec 定义某个 target 可消费的网关配置快照",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"target": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"gateway": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"version": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"config": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("k8s.io/apimachinery/pkg/runtime.RawExtension"),
-						},
-					},
-				},
-				Required: []string{"target", "gateway", "version", "config"},
-			},
-		},
-		Dependencies: []string{
-			"k8s.io/apimachinery/pkg/runtime.RawExtension"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_TargetRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "TargetRef 引用一个运行时 target",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-				},
-				Required: []string{"name"},
 			},
 		},
 	}
