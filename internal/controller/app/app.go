@@ -1,48 +1,38 @@
-// Package app 实现 ingate-controller 服务入口
+// Package app 实现 ingate-controller 的唯一装配入口
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
-	"time"
+	"log/slog"
+	"net"
 
 	"github.com/spf13/pflag"
-	"k8s.io/apiserver/pkg/server"
+	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/clientcmd"
 
-	"github.com/lgc202/ingate/internal/controller/controller"
+	"github.com/lgc202/ingate/internal/controller/reconcile"
+	controllerstatus "github.com/lgc202/ingate/internal/controller/status"
+	"github.com/lgc202/ingate/internal/envoy/delivery"
+	"github.com/lgc202/ingate/internal/envoy/lastgood"
+	"github.com/lgc202/ingate/internal/envoy/xds"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 	"github.com/lgc202/ingate/pkg/xlog"
 )
 
-const (
-	defaultTarget    = "xds"
-	defaultLogFormat = xlog.FormatText
-	defaultLogLevel  = xlog.LevelInfo
-)
-
-const usage = `ingate-controller 负责声明式资源的状态收敛
+const usage = `ingate-controller 负责将声明式资源收敛为 Envoy 配置
 
 职责：
-  - 监听 ingate-apiserver 中的资源变化
-  - 调用 compiler 和 pipeline 生成 RuntimeSnapshot
-  - 推进资源状态并为 ingate-xds 准备运行时配置
+  - 监听 ingate-apiserver 中的声明式资源
+  - 编译并发布完整 Envoy xDS 配置
+  - 处理 Envoy ACK/NACK 并维护 Last Good
+  - 提供 ADS 和内部运行状态接口
 `
 
-// Options 表示 ingate-controller 启动参数
-type Options struct {
-	Master       string
-	Kubeconfig   string
-	Target       string
-	ResyncPeriod time.Duration
-	LogFormat    xlog.Format
-	LogLevel     xlog.Level
-	LogFile      xlog.FileOptions
-	LogStdout    bool
-}
-
-// Run 执行 ingate-controller 服务
-func Run(args []string, stdout, stderr io.Writer) error {
+// Run 解析启动参数并运行 ingate-controller
+func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	flags := pflag.NewFlagSet("ingate-controller", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
 
@@ -56,20 +46,15 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		flags.SetOutput(stderr)
 	}
 	if err := flags.Parse(args); err != nil {
-		if err == pflag.ErrHelp {
+		if errors.Is(err, pflag.ErrHelp) {
 			return nil
 		}
 		return err
 	}
+	if err := options.Validate(); err != nil {
+		return err
+	}
 
-	config, err := clientcmd.BuildConfigFromFlags(options.Master, options.Kubeconfig)
-	if err != nil {
-		return err
-	}
-	client, err := clientset.NewForConfig(config)
-	if err != nil {
-		return err
-	}
 	logger, err := xlog.New(xlog.Options{
 		Output: logOutput(options.LogStdout, stdout),
 		Format: options.LogFormat,
@@ -81,39 +66,105 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	}
 	defer logger.Close()
 
-	ctrl, err := controller.New(client, options.Target, options.ResyncPeriod, logger.With("component", "ingate-controller"))
+	return run(ctx, options, logger.Logger)
+}
+
+func run(ctx context.Context, options *Options, logger *slog.Logger) error {
+	restConfig, err := clientcmd.BuildConfigFromFlags(options.Master, options.Kubeconfig)
+	if err != nil {
+		return fmt.Errorf("build apiserver client config: %w", err)
+	}
+	client, err := clientset.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("create apiserver resource client: %w", err)
+	}
+	lastGoodClient, err := lastgood.NewClient(restConfig)
 	if err != nil {
 		return err
 	}
 
-	return ctrl.Run(server.SetupSignalContext())
-}
-
-// NewOptions 创建 ingate-controller 默认启动参数
-func NewOptions() *Options {
-	return &Options{
-		Target:       defaultTarget,
-		ResyncPeriod: 0,
-		LogFormat:    defaultLogFormat,
-		LogLevel:     defaultLogLevel,
-		LogStdout:    true,
+	xdsLogger := xds.NewSlogLogger(logger.With("component", "xds"))
+	snapshotCache := xds.NewSnapshotCache(xdsLogger)
+	configDelivery, err := delivery.New(snapshotCache, lastGoodClient, delivery.Options{
+		ACKTimeout:          options.CandidateACKTimeout,
+		NACKRollbackTimeout: options.NACKRollbackTimeout,
+	})
+	if err != nil {
+		return fmt.Errorf("create config delivery: %w", err)
 	}
-}
 
-// AddFlags 注册 ingate-controller 命令行参数
-func (o *Options) AddFlags(flags *pflag.FlagSet) {
-	flags.StringVar(&o.Master, "master", o.Master, "ingate-apiserver 地址")
-	flags.StringVar(&o.Kubeconfig, "kubeconfig", o.Kubeconfig, "连接 ingate-apiserver 的 kubeconfig 路径")
-	flags.StringVar(&o.Target, "target", o.Target, "编译输出的运行时 target")
-	flags.DurationVar(&o.ResyncPeriod, "resync-period", o.ResyncPeriod, "informer 全量 resync 周期")
-	flags.Var((*xlog.FormatValue)(&o.LogFormat), "log-format", "日志输出格式：text 或 json")
-	flags.Var((*xlog.LevelValue)(&o.LogLevel), "log-level", "日志级别：debug、info、warn 或 error")
-	flags.BoolVar(&o.LogStdout, "log-stdout", o.LogStdout, "是否输出日志到 stdout")
-	flags.StringVar(&o.LogFile.Path, "log-file", o.LogFile.Path, "日志文件路径，留空时只输出到 stdout")
-	flags.IntVar(&o.LogFile.MaxSizeMB, "log-max-size-mb", o.LogFile.MaxSizeMB, "单个日志文件最大大小 MB")
-	flags.IntVar(&o.LogFile.MaxBackups, "log-max-backups", o.LogFile.MaxBackups, "最多保留的旧日志文件数")
-	flags.IntVar(&o.LogFile.MaxAgeDays, "log-max-age-days", o.LogFile.MaxAgeDays, "旧日志最多保留天数")
-	flags.BoolVar(&o.LogFile.Compress, "log-compress", o.LogFile.Compress, "是否压缩轮转后的日志文件")
+	runtimeStatus := controllerstatus.NewRuntime()
+	reconciler, err := reconcile.New(
+		client,
+		options.ResyncPeriod,
+		configDelivery,
+		runtimeStatus,
+		logger.With("component", "reconciler"),
+	)
+	if err != nil {
+		return fmt.Errorf("create resource reconciler: %w", err)
+	}
+	internalServer := controllerstatus.NewServer(
+		runtimeStatus,
+		configDelivery,
+		logger.With("component", "status"),
+	)
+
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	group, groupCtx := errgroup.WithContext(runCtx)
+	group.Go(func() error {
+		return configDelivery.Run(groupCtx)
+	})
+
+	if err := configDelivery.Restore(groupCtx); err != nil {
+		cancel()
+		_ = group.Wait()
+		if ctx.Err() != nil {
+			return nil
+		}
+		return fmt.Errorf("restore last good Envoy config: %w", err)
+	}
+
+	xdsListener, err := net.Listen("tcp", options.XDSListenAddress)
+	if err != nil {
+		cancel()
+		_ = group.Wait()
+		return fmt.Errorf("listen for xDS on %q: %w", options.XDSListenAddress, err)
+	}
+	defer xdsListener.Close()
+
+	internalListener, err := net.Listen("tcp", options.InternalListenAddress)
+	if err != nil {
+		cancel()
+		_ = group.Wait()
+		return fmt.Errorf("listen for controller status on %q: %w", options.InternalListenAddress, err)
+	}
+	defer internalListener.Close()
+
+	callbacks := xds.NewCallbacks(func(eventCtx context.Context, event xds.Event) error {
+		return configDelivery.HandleXDSEvent(eventCtx, event)
+	})
+	adsServer := xds.NewServer(groupCtx, snapshotCache, callbacks, xdsLogger)
+
+	group.Go(func() error {
+		return adsServer.Serve(groupCtx, xdsListener, logger.With("component", "xds"))
+	})
+	group.Go(func() error {
+		return internalServer.Serve(groupCtx, internalListener)
+	})
+
+	// Last Good/Baseline 已安装且两个 listener 均已绑定，此时 Envoy 可以安全连接
+	internalServer.MarkReady()
+	group.Go(func() error {
+		return reconciler.Run(groupCtx)
+	})
+
+	err = group.Wait()
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func logOutput(enabled bool, stdout io.Writer) io.Writer {
