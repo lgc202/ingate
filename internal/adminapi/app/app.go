@@ -9,6 +9,7 @@ import (
 	genericserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/tools/clientcmd"
 
+	controllerclient "github.com/lgc202/ingate/internal/adminapi/client/controller"
 	adminserver "github.com/lgc202/ingate/internal/adminapi/server"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 	"github.com/lgc202/ingate/pkg/xlog"
@@ -43,6 +44,11 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
+	controllerStatusClient, err := controllerclient.New(options.ControllerStatusURL, options.ControllerStatusTimeout)
+	if err != nil {
+		return err
+	}
+
 	config, err := clientcmd.BuildConfigFromFlags(options.Master, options.Kubeconfig)
 	if err != nil {
 		return err
@@ -62,7 +68,13 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	}
 	defer logger.Close()
 
-	server := adminserver.New(client, options.ListenAddress, options.ConsoleDir, logger.With("component", "ingate-admin-api"))
+	server := adminserver.New(
+		client,
+		controllerStatusClient,
+		options.ListenAddress,
+		options.ConsoleDir,
+		logger.With("component", "ingate-admin-api"),
+	)
 
 	return server.Run(genericserver.SetupSignalContext())
 }

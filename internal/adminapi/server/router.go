@@ -23,6 +23,8 @@ func (s *Server) router() *gin.Engine {
 
 	apiV1 := router.Group("/api/v1")
 	{
+		apiV1.GET("/system/status", handler.SystemStatus.Get)
+
 		gateways := apiV1.Group("/gateways")
 		{
 			gateways.GET("", handler.Gateway.List)
