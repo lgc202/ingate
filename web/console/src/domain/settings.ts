@@ -29,12 +29,12 @@ export interface SettingsSectionData {
 }
 
 export interface SettingsInspectorData {
-  environment: {
+  configurationDomain: {
     label: string;
     value: string;
     status?: HealthStatus;
   }[];
-  dataPlaneHealth: {
+  envoyHealth: {
     label: string;
     status: HealthStatus;
   }[];

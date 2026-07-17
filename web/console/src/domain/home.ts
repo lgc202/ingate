@@ -13,14 +13,9 @@ export interface HomeDashboard {
 }
 
 export interface DashboardContext {
-  environment: string;
-  environmentOptions: string[];
-  dataPlaneGroup: string;
-  dataPlaneGroupOptions: string[];
+  configurationDomain: string;
   timeRange: string;
   timeRangeOptions: string[];
-  dataPlaneInstances: string;
-  scopeDescription: string;
 }
 
 export interface KeyLinkSummary {

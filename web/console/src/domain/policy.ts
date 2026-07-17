@@ -15,7 +15,6 @@ export interface RateLimitPolicy {
   enabled: boolean;
   mode: RateLimitMode;
   rules: RateLimitRule[];
-  global?: GlobalRateLimitConfig;
   response?: RateLimitResponse;
   failurePolicy?: RateLimitFailurePolicy;
   createdAt?: string;
@@ -41,12 +40,6 @@ export interface RateLimitQuota {
   requests: number;
   windowSeconds: number;
   burst?: number;
-}
-
-export interface GlobalRateLimitConfig {
-  redisRef: string;
-  prefix?: string;
-  timeoutMillis?: number;
 }
 
 export interface RateLimitResponse {
@@ -106,12 +99,6 @@ export interface PolicyBinding {
   createdAt?: string;
 }
 
-export interface RedisStoreOption {
-  id: string;
-  name: string;
-  mode: string;
-}
-
 export interface PolicyTargetOption {
   id: string;
   name: string;
@@ -136,7 +123,6 @@ export interface PolicyWorkspace {
   rateLimitPolicies: RateLimitPolicy[];
   accessControlPolicies: AccessControlPolicy[];
   bindings: PolicyBinding[];
-  redisStores: RedisStoreOption[];
   targets: PolicyTargetOption[];
 }
 

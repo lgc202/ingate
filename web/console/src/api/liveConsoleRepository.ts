@@ -1,5 +1,5 @@
 import type { ConsoleRepository } from './contracts';
-import type { Gateway, GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayRuntimeGroupOption, GatewayValidationReport } from '@/domain/gateway';
+import type { Gateway, GatewayListView, GatewayMutationPayload, GatewayMutationResult, GatewayValidationReport } from '@/domain/gateway';
 import type {
   AccessControlPolicy,
   GovernancePolicy,
@@ -8,9 +8,9 @@ import type {
   PolicyTargetOption,
   PolicyWorkspace,
   RateLimitPolicy,
-  RedisStoreOption,
 } from '@/domain/policy';
-import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RoutePageView, RoutePolicyCapabilities, RoutePublishPayload, RouteRule, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
+import type { RuntimeStatusView } from '@/domain/runtime';
+import type { HttpMethod, RouteActionResult, RouteComposerPreview, RouteListView, RouteMutationPayload, RoutePageView, RoutePolicyCapabilities, RouteRule, RouteTargetOption, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRequestHeaderModifier,
   routePolicyCapabilityResponseHeaderModifier,
@@ -31,22 +31,8 @@ interface ApiResponse<T> {
   data: T;
 }
 
-type GatewayResource = Omit<Gateway, 'runtimeGroupName'>;
-
 interface GatewayListResponse {
-  gateways: GatewayResource[];
-}
-
-interface RuntimeGroupListResponse {
-  runtimeGroups: RuntimeGroupSummary[];
-}
-
-interface RuntimeGroupSummary {
-  id: string;
-  displayName: string;
-  description: string;
-  enabled: boolean;
-  target: string;
+  gateways: Gateway[];
 }
 
 interface UpstreamMutationResponse {
@@ -74,16 +60,6 @@ interface AccessControlPolicyListResponse {
 
 interface PolicyBindingListResponse {
   bindings: PolicyBinding[];
-}
-
-interface RedisStoreListResponse {
-  redisStores: RedisStoreResource[];
-}
-
-interface RedisStoreResource {
-  id: string;
-  name: string;
-  mode: string;
 }
 
 const apiBaseUrl = (import.meta.env.VITE_INGATE_API_BASE_URL as string | undefined) ?? '/api/v1';
@@ -140,15 +116,7 @@ export const liveConsoleRepository: ConsoleRepository = {
   },
 
   async listGateways() {
-    const [gatewayList, runtimeGroups] = await Promise.all([
-      request<GatewayListResponse>('/gateways'),
-      listRuntimeGroupOptions(),
-    ]);
-    return gatewayListView(gatewayList, runtimeGroups);
-  },
-
-  async listRuntimeGroups() {
-    return listRuntimeGroupOptions();
+    return request<GatewayListResponse>('/gateways');
   },
 
   async saveGatewayDraft(payload) {
@@ -186,24 +154,14 @@ export const liveConsoleRepository: ConsoleRepository = {
     return validateGatewayPayload(payload);
   },
 
-  async previewGatewayChange() {
-    return unavailable('网关变更预览');
-  },
-
-  async publishGatewayChange(payload) {
-    return this.saveGatewayDraft(payload);
-  },
-
   async getRouteWorkspace() {
-    const [routeListResponse, gatewayListResponse, runtimeGroups, serviceList] = await Promise.all([
+    const [routeListResponse, gatewayList, serviceList] = await Promise.all([
       request<RouteListView>('/routes'),
       request<GatewayListResponse>('/gateways'),
-      listRuntimeGroupOptions(),
       request<ServiceListView>('/upstreams'),
     ]);
 
     const routeList = normalizeRouteListView(routeListResponse);
-    const gatewayList = gatewayListView(gatewayListResponse, runtimeGroups);
     return routePageView(routeList, gatewayList, serviceList, routePolicyCapabilities);
   },
 
@@ -241,14 +199,6 @@ export const liveConsoleRepository: ConsoleRepository = {
     return validateRoutePayload(payload);
   },
 
-  async previewRoutePublish() {
-    return unavailable('路由变更预览');
-  },
-
-  async publishRoute(payload) {
-    return this.saveRouteDraft(payload);
-  },
-
   async listServices() {
     return request<ServiceListView>('/upstreams');
   },
@@ -278,32 +228,21 @@ export const liveConsoleRepository: ConsoleRepository = {
     return validateServicePayload(payload);
   },
 
-  async previewServiceChange() {
-    return unavailable('服务变更预览');
-  },
-
-  async publishServiceChange(payload) {
-    return this.saveServiceDraft(payload);
-  },
-
-  async listPublishSnapshots() {
-    return unavailable('发布记录');
+  async getRuntimeStatus() {
+    return request<RuntimeStatusView>('/system/status');
   },
 
   async getPolicyWorkspace() {
-    const [rateLimitPolicies, accessControlPolicies, bindings, redisStores, gatewayListResponse, routeListResponse, runtimeGroups] = await Promise.all([
+    const [rateLimitPolicies, accessControlPolicies, bindings, gatewayList, routeListResponse] = await Promise.all([
       request<RateLimitPolicyListResponse>('/rate-limit-policies'),
       request<AccessControlPolicyListResponse>('/access-control-policies'),
       request<PolicyBindingListResponse>('/policy-bindings'),
-      request<RedisStoreListResponse>('/redis-stores'),
       request<GatewayListResponse>('/gateways'),
       request<RouteListView>('/routes'),
-      listRuntimeGroupOptions(),
     ]);
 
-    const gatewayList = gatewayListView(gatewayListResponse, runtimeGroups);
     const routeList = normalizeRouteListView(routeListResponse);
-    return policyWorkspace(rateLimitPolicies, accessControlPolicies, bindings, redisStores, gatewayList, routeList);
+    return policyWorkspace(rateLimitPolicies, accessControlPolicies, bindings, gatewayList, routeList);
   },
 
   async saveRateLimitPolicy(payload) {
@@ -417,27 +356,6 @@ function mutationResult(gatewayName: string, id?: string): GatewayMutationResult
   };
 }
 
-async function listRuntimeGroupOptions(): Promise<GatewayRuntimeGroupOption[]> {
-  const response = await request<RuntimeGroupListResponse>('/runtime-groups');
-  return response.runtimeGroups.map((runtimeGroup) => ({
-    id: runtimeGroup.id,
-    name: runtimeGroup.displayName,
-  }));
-}
-
-function gatewayListView(response: GatewayListResponse, runtimeGroups: GatewayRuntimeGroupOption[]): GatewayListView {
-  return {
-    gateways: response.gateways.map((gateway) => ({
-      ...gateway,
-      runtimeGroupName: runtimeGroupName(gateway.runtimeGroup, runtimeGroups),
-    })),
-  };
-}
-
-function runtimeGroupName(id: string, runtimeGroups: GatewayRuntimeGroupOption[]) {
-  return runtimeGroups.find((runtimeGroup) => runtimeGroup.id === id)?.name ?? id;
-}
-
 function serviceMutationResult(serviceName: string, changeId?: string): ServiceMutationResult {
   return {
     message: `服务已保存：${serviceName}`,
@@ -452,7 +370,7 @@ function routeMutationResult(route: string, changeId?: string): RouteActionResul
   };
 }
 
-function routePayloadSummary(payload: RoutePublishPayload) {
+function routePayloadSummary(payload: RouteMutationPayload) {
   if (payload.name.trim()) {
     return payload.name.trim();
   }
@@ -545,7 +463,6 @@ function policyWorkspace(
   rateLimitPolicies: RateLimitPolicyListResponse,
   accessControlPolicies: AccessControlPolicyListResponse,
   bindings: PolicyBindingListResponse,
-  redisStores: RedisStoreListResponse,
   gatewayList: GatewayListView,
   routeList: RouteListView,
 ): PolicyWorkspace {
@@ -557,7 +474,7 @@ function policyWorkspace(
       name: policy.name,
       description: policy.description,
       enabled: policy.enabled,
-      mode: policy.mode === 'Global' ? 'Global / Redis' : 'Local',
+      mode: policy.mode === 'Global' ? 'Global / 系统 Redis' : 'Local',
       ruleCount: policy.rules.length,
       createdAt: policy.createdAt,
       raw: policy,
@@ -581,11 +498,6 @@ function policyWorkspace(
     rateLimitPolicies: rateLimitPolicies.policies,
     accessControlPolicies: accessControlPolicies.policies,
     bindings: bindings.bindings,
-    redisStores: redisStores.redisStores.map((store) => ({
-      id: store.id,
-      name: store.name || store.id,
-      mode: store.mode,
-    })),
     targets: policyTargets(gatewayList, routeList),
   };
 }
@@ -643,11 +555,6 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
       message: payload.name.trim() ? payload.name.trim() : '请输入网关名称',
     },
     {
-      label: '运行组',
-      status: payload.runtimeGroup.trim() ? 'healthy' : 'critical',
-      message: payload.runtimeGroup.trim() || '请选择运行组',
-    },
-    {
       label: '监听器',
       status: payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0) && duplicatePorts.length === 0 ? 'healthy' : 'critical',
       message: duplicatePorts.length > 0
@@ -680,7 +587,7 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
   };
 }
 
-function validateRoutePayload(payload: RoutePublishPayload): RouteValidationReport {
+function validateRoutePayload(payload: RouteMutationPayload): RouteValidationReport {
   const rule = primaryRouteRule(payload);
   const policyValidationMessage = rule ? validateRoutePolicyRelationship(rule) : '';
   const targetError = rule ? routeTargetValidationMessage(rule.targets) : '请至少配置一条路由规则';
@@ -731,7 +638,7 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
   };
 }
 
-function primaryRouteRule(payload: RoutePublishPayload): RouteRule | undefined {
+function primaryRouteRule(payload: RouteMutationPayload): RouteRule | undefined {
   return payload.rules[0];
 }
 

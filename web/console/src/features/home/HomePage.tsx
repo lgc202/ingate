@@ -149,7 +149,7 @@ function ContextBar({ context }: { context: DashboardContext }) {
   return (
     <div className="context-bar">
       <span className="chip">部署形态：Docker all-in-one</span>
-      <span className="chip">运行配置：默认 target</span>
+      <span className="chip">配置域：{context.configurationDomain}</span>
       <ContextSelect label="时间" value={context.timeRange} options={context.timeRangeOptions} />
     </div>
   );

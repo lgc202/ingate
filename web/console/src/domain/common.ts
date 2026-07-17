@@ -1,9 +1,5 @@
 export type HealthStatus = 'healthy' | 'warning' | 'critical' | 'unknown';
 
-export type PublishStatus = 'published' | 'pending' | 'failed' | 'disabled';
-
-export type RuntimeSyncStatus = 'synced' | 'syncing' | 'failed' | 'unknown';
-
 export interface MetricCard {
   label: string;
   value: string;
@@ -40,38 +36,16 @@ export function healthLabel(status: HealthStatus) {
   return labels[status];
 }
 
-export function publishStatusLabel(status: PublishStatus) {
-  const labels: Record<PublishStatus, string> = {
-    published: '已生效',
-    pending: '生效中',
-    failed: '生效失败',
-    disabled: '停用',
-  };
-
-  return labels[status];
-}
-
-export function runtimeSyncStatusLabel(status: RuntimeSyncStatus) {
-  const labels: Record<RuntimeSyncStatus, string> = {
-    synced: '已生效',
-    syncing: '生效中',
-    failed: '生效失败',
-    unknown: '未知',
-  };
-
-  return labels[status];
-}
-
-export function statusTone(status: HealthStatus | PublishStatus | RuntimeSyncStatus) {
-  if (status === 'healthy' || status === 'published' || status === 'synced') {
+export function statusTone(status: HealthStatus) {
+  if (status === 'healthy') {
     return 'green';
   }
 
-  if (status === 'warning' || status === 'pending' || status === 'syncing') {
+  if (status === 'warning') {
     return 'amber';
   }
 
-  if (status === 'critical' || status === 'failed') {
+  if (status === 'critical') {
     return 'red';
   }
 

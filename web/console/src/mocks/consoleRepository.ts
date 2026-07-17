@@ -2,9 +2,7 @@ import type { ConsoleRepository } from '@/api/contracts';
 import type {
   GatewayListView,
   GatewayMutationPayload,
-  GatewayMutationPreview,
   GatewayMutationResult,
-  GatewayRuntimeGroupOption,
   GatewayValidationReport,
 } from '@/domain/gateway';
 import type { HomeDashboard } from '@/domain/home';
@@ -21,9 +19,9 @@ import type {
   PolicyWorkspace,
   RateLimitPolicy,
   RateLimitPolicyPayload,
-  RedisStoreOption,
 } from '@/domain/policy';
-import type { RouteActionResult, RoutePageView, RoutePublishPayload, RoutePublishPreview, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
+import type { RuntimeStatusView } from '@/domain/runtime';
+import type { RouteActionResult, RouteMutationPayload, RoutePageView, RouteTargetPayload, RouteValidationReport } from '@/domain/route';
 import {
   routePolicyCapabilityRequestHeaderModifier,
   routePolicyCapabilityRetry,
@@ -32,25 +30,19 @@ import {
 import type {
   ServiceListView,
   ServiceMutationPayload,
-  ServiceMutationPreview,
   ServiceMutationResult,
   ServiceValidationReport,
 } from '@/domain/service';
-import { serviceLoadBalancePolicyLabel, serviceTypeLabel } from '@/domain/service';
+import { serviceLoadBalancePolicyLabel } from '@/domain/service';
 import type { SettingsWorkspace } from '@/domain/settings';
 
 const defaultRouteTimeoutMillis = 30000;
 
 const homeDashboard: HomeDashboard = {
   context: {
-    environment: '生产环境',
-    environmentOptions: ['生产环境', '预发布环境', '测试环境', '沙箱环境'],
-    dataPlaneGroup: '华东生产组',
-    dataPlaneGroupOptions: ['华东生产组', '华南生产组', '海外生产组'],
+    configurationDomain: '当前 Ingate',
     timeRange: '最近 15 分钟',
     timeRangeOptions: ['最近 15 分钟', '最近 1 小时', '最近 24 小时'],
-    dataPlaneInstances: '28 个实例 / 27 个健康',
-    scopeDescription: '生产环境 / 华东生产组',
   },
   metrics: [
     { label: '活跃网关', value: '3', meta: '较昨日 0', footer: '全部正常' },
@@ -173,8 +165,6 @@ const gatewayList: GatewayListView = {
       id: 'gw-public',
       name: '公网入口',
       description: '公网 API 入口',
-      runtimeGroup: 'default',
-      runtimeGroupName: '默认运行组',
       listeners: [
         { name: 'gw-public-https', protocol: 'HTTPS', port: 443, certificateId: 'cert-api-ingate' },
         { name: 'gw-public-http', protocol: 'HTTP', port: 80 },
@@ -190,8 +180,6 @@ const gatewayList: GatewayListView = {
       id: 'gw-partner',
       name: '合作方入口',
       description: '合作方 API 入口',
-      runtimeGroup: 'default',
-      runtimeGroupName: '默认运行组',
       listeners: [
         { name: 'gw-partner-https', protocol: 'HTTPS', port: 10443, certificateId: 'cert-partner' },
       ],
@@ -205,8 +193,6 @@ const gatewayList: GatewayListView = {
       id: 'gw-sandbox',
       name: '沙箱入口',
       description: '沙箱联调入口',
-      runtimeGroup: 'default',
-      runtimeGroupName: '默认运行组',
       listeners: [
         { name: 'gw-sandbox-http', protocol: 'HTTP', port: 18080 },
       ],
@@ -220,8 +206,6 @@ const gatewayList: GatewayListView = {
       id: 'gw-broken',
       name: '遗留系统入口',
       description: '遗留系统入口',
-      runtimeGroup: 'default',
-      runtimeGroupName: '默认运行组',
       listeners: [
         { name: 'gw-broken-http', protocol: 'HTTP', port: 19090 },
       ],
@@ -233,10 +217,6 @@ const gatewayList: GatewayListView = {
     },
   ],
 };
-
-const gatewayRuntimeGroups: GatewayRuntimeGroupOption[] = [
-  { id: 'default', name: '默认运行组' },
-];
 
 const routeWorkspace: RoutePageView = {
   routes: [
@@ -306,54 +286,14 @@ const serviceList: ServiceListView = {
   ],
 };
 
-const publishList = {
-  snapshots: [
-    {
-      id: 'gw-public-xds-8f31b',
-      name: '运行配置 #324',
-      gateway: 'gw-public',
-      target: 'xds' as const,
-      version: '#324',
-      routeCount: 6,
-      clusterCount: 4,
-      endpointCount: 8,
-      status: 'published' as const,
-      createdAt: '5 分钟前',
-      message: '配置已自动生效，等待后续接入更完整的实例回执诊断。',
-    },
-    {
-      id: 'gw-partner-xds-7a9c2',
-      name: '运行配置 #323',
-      gateway: 'gw-partner',
-      target: 'xds' as const,
-      version: '#323',
-      routeCount: 3,
-      clusterCount: 2,
-      endpointCount: 4,
-      status: 'generated' as const,
-      createdAt: '18 分钟前',
-      message: '运行配置已生成，等待运行时回执。',
-    },
-    {
-      id: 'gw-broken-xds-5c001',
-      name: '运行配置 #322',
-      gateway: 'gw-broken',
-      target: 'xds' as const,
-      version: '#322',
-      routeCount: 1,
-      clusterCount: 0,
-      endpointCount: 0,
-      status: 'failed' as const,
-      createdAt: '1 天前',
-      message: '目标服务端点为空，运行配置生成失败。',
-    },
-  ],
-  diagnostics: [
-    { label: '运行配置', value: '3 个版本', status: 'healthy' as const },
-    { label: '编译控制器', value: '在线', status: 'healthy' as const },
-    { label: '生效回执', value: '待接入', status: 'unknown' as const },
-    { label: '运行时连接', value: '开发模式', status: 'unknown' as const },
-  ],
+const runtimeStatus: RuntimeStatusView = {
+  available: true,
+  message: 'Controller 正常提供配置编译和 xDS 交付服务',
+  configReady: true,
+  deliveryState: 'Active',
+  activeVersion: 'ingate/8f31b7e',
+  connectedEnvoys: 3,
+  ack: { required: 4, received: 4 },
 };
 
 const rateLimitPolicies: RateLimitPolicy[] = [
@@ -372,7 +312,6 @@ const rateLimitPolicies: RateLimitPolicy[] = [
         algorithm: 'SlidingWindow',
       },
     ],
-    global: { redisRef: 'redis-prod', prefix: 'ingate:rl', timeoutMillis: 50 },
     response: { statusCode: 429, message: 'Too many requests', quotaHeaderEnabled: true },
     failurePolicy: 'FailOpen',
     createdAt: '2026-06-05T09:20:00Z',
@@ -466,10 +405,6 @@ const policyBindings: PolicyBinding[] = [
   },
 ];
 
-const redisStores: RedisStoreOption[] = [
-  { id: 'redis-prod', name: '生产 Redis', mode: 'Cluster' },
-];
-
 const pluginList: PluginListView = {
   plugins: [
     { id: 'auth-plugin', name: 'auth-plugin', type: '认证', version: 'v2.1.0', source: '包仓库', checksum: 'sha256:9b..f1', deploymentScope: 'gw-prod / gw-staging', healthStatus: 'healthy', usedRoutes: 12, lastUpdatedAt: '4 分钟前' },
@@ -519,38 +454,6 @@ const observabilityOverview: ObservabilityOverview = {
 
 const settingsWorkspace: SettingsWorkspace = {
   sections: {
-    environment: {
-      key: 'environment',
-      title: '环境管理',
-      table: {
-        title: '环境管理',
-        subtitle: '管理系统中的运行环境，环境之间数据隔离，配置独立。',
-        headers: ['环境名称', '类型', '网关数', '路由数', '服务数', '状态', '最近变更'],
-        rows: [
-          ['生产环境', '生产', '3', '54', '27', '正常', '5 分钟前 / alex@ingate.io'],
-          ['预发布环境', '预发布', '2', '23', '15', '正常', '18 分钟前 / liwei@ingate.io'],
-          ['测试环境', '测试', '2', '18', '11', '正常', '2 小时前 / zhangxp@ingate.io'],
-          ['沙箱环境', '沙箱', '1', '12', '8', '警告', '1 天前 / system'],
-          ['开发环境', '开发', '1', '9', '6', '正常', '3 天前 / devops@ingate.io'],
-          ['演示环境', '演示', '1', '7', '5', '停用', '7 天前 / mkt@ingate.io'],
-        ],
-      },
-    },
-    'data-plane-groups': {
-      key: 'data-plane-groups',
-      title: '数据面组',
-      table: {
-        title: '数据面组',
-        subtitle: '管理承载网关流量的数据面实例组',
-        headers: ['数据面组', '所属环境', '区域', '实例数', '健康实例', '关联网关', '当前版本', '生效状态', '最近心跳'],
-        rows: [
-          ['prod-dp-a', '生产环境', '北京可用区 A', '4', '4 (100%)', '2', 'v2.14.3', '已生效', '3 秒前'],
-          ['prod-dp-b', '生产环境', '上海可用区 A', '4', '3 (75%)', '2', 'v2.14.3', '已生效', '5 秒前'],
-          ['staging-dp', '预发布环境', '上海可用区 B', '4', '4 (100%)', '1', 'v2.14.3', '已生效', '2 秒前'],
-          ['sandbox-dp', '沙箱环境', '新加坡可用区 A', '4', '2 (50%)', '1', 'v2.13.8', '生效中', '18 秒前'],
-        ],
-      },
-    },
     'users-roles': {
       key: 'users-roles',
       title: '用户与角色',
@@ -654,23 +557,21 @@ const settingsWorkspace: SettingsWorkspace = {
           ['自动回滚', '开启', '关闭', '生效', '中'],
           ['路由冲突阻断', '开启', '开启', '生效', '低'],
           ['生效前校验', '严格模式', '标准模式', '生效', '低'],
-          ['快照保留数量', '30', '10', '全局', '低'],
         ],
       },
     },
   },
   inspector: {
-    environment: [
-      { label: '环境类型', value: '生产', status: 'healthy' },
+    configurationDomain: [
+      { label: '配置域', value: '当前 Ingate', status: 'healthy' },
       { label: '创建时间', value: '2024-01-10 09:30:21' },
       { label: '创建人', value: 'alex@ingate.io' },
-      { label: '资源配额', value: '查看详情' },
+      { label: '配置分发', value: '单一 Envoy 配置' },
     ],
-    dataPlaneHealth: [
-      { label: 'prod-dp-1', status: 'healthy' },
-      { label: 'prod-dp-2', status: 'healthy' },
-      { label: 'prod-dp-3', status: 'warning' },
-      { label: 'prod-dp-4', status: 'healthy' },
+    envoyHealth: [
+      { label: 'envoy-1', status: 'healthy' },
+      { label: 'envoy-2', status: 'healthy' },
+      { label: 'envoy-3', status: 'warning' },
     ],
     securityBaseline: [
       { label: 'HTTPS 强制跳转', status: 'healthy' },
@@ -685,7 +586,7 @@ function clone<T>(data: T): T {
   return structuredClone(data);
 }
 
-function validateRoutePayload(payload: RoutePublishPayload): RouteValidationReport {
+function validateRoutePayload(payload: RouteMutationPayload): RouteValidationReport {
   const invalidHostnames = payload.hostnames.filter((hostname) => !isValidHostname(hostname));
   const rule = routeRule(payload);
   const policyValidationMessage = rule ? validateRoutePolicyRelationship(rule) : '';
@@ -736,7 +637,7 @@ function validateRoutePayload(payload: RoutePublishPayload): RouteValidationRepo
   };
 }
 
-function validateRoutePolicyRelationship(rule: RoutePublishPayload['rules'][number]) {
+function validateRoutePolicyRelationship(rule: RouteMutationPayload['rules'][number]) {
   if (!rule.retry) {
     return '';
   }
@@ -750,31 +651,8 @@ function validateRoutePolicyRelationship(rule: RoutePublishPayload['rules'][numb
   return '';
 }
 
-function previewRoutePayload(payload: RoutePublishPayload): RoutePublishPreview {
-  const rule = routeRule(payload);
-  const methods = rule?.methods ?? [];
-  const path = rule?.pathPrefix ?? '-';
-  const methodSummary = methods.length > 0 ? methods.join('、') : '全部方法';
-  const targetSummary = routeTargetSummary(payload);
-
-  return {
-    title: payload.name.trim() || `${methodSummary} ${path}`,
-    subtitle: `目标服务 ${targetSummary} · ${payload.hostnames.length ? `${payload.hostnames.length} 个域名` : '不限制 Host'}`,
-    diffs: [
-      { before: 'route: 未保存配置', after: `route: ${payload.name.trim() || `${methodSummary} ${path}`}` },
-      { before: 'hostnames: 未配置', after: `hostnames: ${payload.hostnames.join(', ') || '不限制'}` },
-      { before: 'target: 未配置', after: `target: ${targetSummary}` },
-      { before: 'native_policies: 未配置', after: `native_policies: ${routePolicyCount(rule)}` },
-    ],
-  };
-}
-
-function routeRule(payload: RoutePublishPayload) {
+function routeRule(payload: RouteMutationPayload) {
   return payload.rules[0];
-}
-
-function routeTargets(payload: RoutePublishPayload): RouteTargetPayload[] {
-  return routeRule(payload)?.targets ?? [];
 }
 
 function routeTargetValidationMessage(targets: RouteTargetPayload[]) {
@@ -798,18 +676,7 @@ function routeTargetValidationMessage(targets: RouteTargetPayload[]) {
   return '';
 }
 
-function routeTargetSummary(payload: RoutePublishPayload) {
-  const targets = routeTargets(payload);
-  if (targets.length === 0) {
-    return '-';
-  }
-  if (targets.length === 1) {
-    return `${targets[0].upstreamID}(${targets[0].weight})`;
-  }
-  return `${targets[0].upstreamID} 等 ${targets.length} 个`;
-}
-
-function routePolicyCount(rule?: RoutePublishPayload['rules'][number]) {
+function routePolicyCount(rule?: RouteMutationPayload['rules'][number]) {
   if (!rule) {
     return 0;
   }
@@ -824,7 +691,7 @@ function routeAction(message: string, changeId?: string): RouteActionResult {
   return { message, changeId };
 }
 
-function routeActionSummary(payload: RoutePublishPayload) {
+function routeActionSummary(payload: RouteMutationPayload) {
   if (payload.name.trim()) {
     return payload.name.trim();
   }
@@ -861,11 +728,6 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
       message: payload.name.trim() ? payload.name.trim() : '请输入网关名称',
     },
     {
-      label: '运行组',
-      status: payload.runtimeGroup.trim() ? 'healthy' : 'critical',
-      message: payload.runtimeGroup.trim() || '请选择运行组',
-    },
-    {
       label: '监听器',
       status: payload.listeners.length > 0 && payload.listeners.every((listener) => listener.port > 0) && duplicatePorts.length === 0 ? 'healthy' : 'critical',
       message: duplicatePorts.length > 0
@@ -895,22 +757,6 @@ function validateGatewayPayload(payload: GatewayMutationPayload): GatewayValidat
     valid,
     summary: valid ? '网关服务端校验通过。' : '网关服务端校验发现未完成项。',
     items,
-  };
-}
-
-function previewGatewayPayload(payload: GatewayMutationPayload): GatewayMutationPreview {
-  const hostnames = payload.hostBindings.map((binding) => binding.hostname ?? '').filter(Boolean);
-  const hostSummary = hostnames.length > 0 ? hostnames.join(', ') : '不限制 Host';
-  const listenerSummary = payload.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ');
-
-  return {
-    title: payload.id ? `编辑网关 ${payload.name}` : `新建网关 ${payload.name}`,
-    subtitle: `${listenerSummary} · ${hostSummary}`,
-    diffs: [
-      { before: '名称: 未创建', after: `名称: ${payload.name}` },
-      { before: '监听器: 未配置', after: `监听器: ${listenerSummary}` },
-      { before: 'Host: 未配置', after: `Host: ${hostSummary}` },
-    ],
   };
 }
 
@@ -951,19 +797,6 @@ function validateServicePayload(payload: ServiceMutationPayload): ServiceValidat
     valid,
     summary: valid ? '服务服务端校验通过。' : '服务服务端校验发现未完成项。',
     items,
-  };
-}
-
-function previewServicePayload(payload: ServiceMutationPayload): ServiceMutationPreview {
-  return {
-    title: payload.id ? `编辑服务 ${payload.name}` : `新建服务 ${payload.name}`,
-    subtitle: `${serviceTypeLabel(payload.type)} · ${payload.endpoints.length} 个端点 · ${serviceLoadBalancePolicyLabel(payload.loadBalancePolicy)}`,
-    diffs: [
-      { before: '名称: 未创建', after: `名称: ${payload.name}` },
-      { before: '类型: 未选择', after: `类型: ${serviceTypeLabel(payload.type)}` },
-      { before: '端点: 未配置', after: `端点: ${payload.endpoints.length}` },
-      { before: '健康检查: 未配置', after: payload.healthCheck?.enabled ? `${payload.healthCheck.path} / ${payload.healthCheck.intervalSeconds}s` : '关闭' },
-    ],
   };
 }
 
@@ -1046,7 +879,7 @@ function getPolicyWorkspace(): PolicyWorkspace {
       name: policy.name,
       description: policy.description,
       enabled: policy.enabled,
-      mode: policy.mode === 'Global' ? 'Global / Redis' : 'Local',
+      mode: policy.mode === 'Global' ? 'Global / 系统 Redis' : 'Local',
       ruleCount: policy.rules.length,
       createdAt: policy.createdAt,
       raw: policy,
@@ -1070,7 +903,6 @@ function getPolicyWorkspace(): PolicyWorkspace {
     rateLimitPolicies,
     accessControlPolicies,
     bindings: policyBindings,
-    redisStores,
     targets: policyTargets(),
   };
 }
@@ -1151,9 +983,6 @@ export const mockConsoleRepository: ConsoleRepository = {
   async listGateways() {
     return clone(gatewayList);
   },
-  async listRuntimeGroups() {
-    return clone(gatewayRuntimeGroups);
-  },
   async saveGatewayDraft(payload) {
     return gatewayAction(`网关草稿已保存：${payload.name}`, payload.id ?? crypto.randomUUID());
   },
@@ -1165,12 +994,6 @@ export const mockConsoleRepository: ConsoleRepository = {
   },
   async validateGatewayDraft(payload) {
     return validateGatewayPayload(payload);
-  },
-  async previewGatewayChange(payload) {
-    return previewGatewayPayload(payload);
-  },
-  async publishGatewayChange(payload) {
-    return gatewayAction(`网关配置已保存，正在自动生效：${payload.name}`, payload.id ?? crypto.randomUUID());
   },
   async getRouteWorkspace() {
     return clone(routeWorkspace);
@@ -1187,12 +1010,6 @@ export const mockConsoleRepository: ConsoleRepository = {
   async validateRouteDraft(payload) {
     return validateRoutePayload(payload);
   },
-  async previewRoutePublish(payload) {
-    return previewRoutePayload(payload);
-  },
-  async publishRoute(payload) {
-    return routeAction(`路由配置已保存，正在自动生效：${routeActionSummary(payload)}`, '#325');
-  },
   async listServices() {
     return clone(serviceList);
   },
@@ -1205,14 +1022,8 @@ export const mockConsoleRepository: ConsoleRepository = {
   async validateServiceDraft(payload) {
     return validateServicePayload(payload);
   },
-  async previewServiceChange(payload) {
-    return previewServicePayload(payload);
-  },
-  async publishServiceChange(payload) {
-    return serviceAction(`服务配置已保存，正在自动生效：${payload.name}`, '#svc-325');
-  },
-  async listPublishSnapshots() {
-    return clone(publishList);
+  async getRuntimeStatus() {
+    return clone(runtimeStatus);
   },
   async getPolicyWorkspace() {
     return clone(getPolicyWorkspace());

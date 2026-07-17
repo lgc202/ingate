@@ -2,9 +2,8 @@ import type {
   HeaderMatch,
   HttpMethod,
   RouteComposerPreview,
+  RouteMutationPayload,
   RoutePolicyCapability,
-  RoutePublishPayload,
-  RoutePublishPreview,
   RouteTargetOption,
   RouteTargetPayload,
   RouteValidationItem,
@@ -104,22 +103,7 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteVali
   return { valid, summary, items };
 }
 
-export function buildRoutePublishPreview(template: RouteComposerPreview, draft: RouteComposerDraft): RoutePublishPreview {
-  return {
-    title: draft.name.trim() || `${formatMethods(draft.methods)} ${draft.path}`,
-    subtitle: `目标服务 ${formatTargetServices(draft.targetServices)} · 策略 ${draft.enabledPolicyCapabilities.length} 个`,
-    diffs: [
-      { before: `name: ${template.name}`, after: `name: ${draft.name.trim()}` },
-      { before: `methods: ${formatMethods(template.methods)}`, after: `methods: ${formatMethods(draft.methods)}` },
-      { before: `path: ${template.path}`, after: `path: ${draft.path}` },
-      { before: `hostnames: ${template.hostnames.join(', ') || '不限制'}`, after: `hostnames: ${draft.hostnames.join(', ') || '不限制'}` },
-      { before: 'rules: 未保存配置', after: `rules: ${draft.path}` },
-      { before: 'native_policies: 未配置', after: `native_policies: ${draft.enabledPolicyCapabilities.length}` },
-    ],
-  };
-}
-
-export function buildRoutePublishPayload(draft: RouteComposerDraft): RoutePublishPayload {
+export function buildRouteMutationPayload(draft: RouteComposerDraft): RouteMutationPayload {
   return {
     id: draft.id,
     version: draft.version,
@@ -174,10 +158,6 @@ function headerModifierFromSettings(settings: Record<string, string>) {
 
 function parsePolicyNames(value: string): string[] {
   return value.split(/[,，、]/).map((item) => item.trim()).filter(Boolean);
-}
-
-function formatMethods(methods: HttpMethod[]): string {
-  return methods.length > 0 ? methods.join('、') : '全部方法';
 }
 
 function normalizeTargetServices(

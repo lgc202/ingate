@@ -52,7 +52,6 @@ interface RateLimitDraft {
   description: string;
   enabled: boolean;
   mode: RateLimitMode;
-  redisRef: string;
   ruleName: string;
   keyType: RateLimitKeyType;
   keyName: string;
@@ -272,7 +271,7 @@ export function PolicyPage() {
       >
         <Panel title="基础配置">
           {editor.type === 'rateLimit' ? (
-            <RateLimitEditor draft={editor.draft} workspace={data} onChange={(draft) => setEditor({ type: 'rateLimit', draft })} />
+            <RateLimitEditor draft={editor.draft} onChange={(draft) => setEditor({ type: 'rateLimit', draft })} />
           ) : editor.type === 'accessControl' ? (
             <AccessControlEditor draft={editor.draft} onChange={(draft) => setEditor({ type: 'accessControl', draft })} />
           ) : (
@@ -295,7 +294,7 @@ export function PolicyPage() {
       actions={
         activeTab === 'library' ? (
           <CreatePolicyMenu
-            onCreateRateLimit={() => setEditor({ type: 'rateLimit', draft: createRateLimitDraft(data) })}
+            onCreateRateLimit={() => setEditor({ type: 'rateLimit', draft: createRateLimitDraft() })}
             onCreateAccessControl={() => setEditor({ type: 'accessControl', draft: createAccessControlDraft() })}
           />
         ) : (
@@ -335,7 +334,7 @@ export function PolicyPage() {
         {activeTab === 'library' ? (
           <PolicyLibraryTable policies={filteredPolicies} bindings={data.bindings} onEdit={(policy) => {
             setEditor(policy.kind === 'RateLimitPolicy'
-              ? { type: 'rateLimit', draft: createRateLimitDraft(data, policy.raw as RateLimitPolicy) }
+              ? { type: 'rateLimit', draft: createRateLimitDraft(policy.raw as RateLimitPolicy) }
               : { type: 'accessControl', draft: createAccessControlDraft(policy.raw as AccessControlPolicy) });
           }} onToggle={togglePolicy} onDelete={deletePolicy} />
         ) : (
@@ -364,7 +363,7 @@ function CreatePolicyMenu({
       <div className="policy-create-menu-popover">
         <button type="button" onClick={onCreateRateLimit}>
           <strong>限流策略</strong>
-          <span>控制请求速率，支持 Local 和 Global / Redis</span>
+          <span>控制请求速率，Global 模式自动使用系统 Redis</span>
         </button>
         <button type="button" onClick={onCreateAccessControl}>
           <strong>访问控制</strong>
@@ -493,16 +492,19 @@ function PolicyBindingTable({
   );
 }
 
-function RateLimitEditor({ draft, workspace, onChange }: { draft: RateLimitDraft; workspace: PolicyWorkspace; onChange: (draft: RateLimitDraft) => void }) {
+function RateLimitEditor({ draft, onChange }: { draft: RateLimitDraft; onChange: (draft: RateLimitDraft) => void }) {
   const needsKeyName = ['Header', 'Query', 'Cookie', 'JWTClaim'].includes(draft.keyType);
 
   return (
     <div className="policy-editor-grid">
       <InputField label="策略名称" value={draft.name} onChange={(name) => onChange({ ...draft, name })} />
-      <SelectField label="限流模式" value={draft.mode} options={[['Local', 'Local'], ['Global', 'Global / Redis']]} onChange={(mode) => onChange({ ...draft, mode: mode as RateLimitMode })} />
+      <SelectField label="限流模式" value={draft.mode} options={[['Local', 'Local'], ['Global', 'Global']]} onChange={(mode) => onChange({ ...draft, mode: mode as RateLimitMode })} />
       <InputField label="描述" value={draft.description} onChange={(description) => onChange({ ...draft, description })} />
       {draft.mode === 'Global' ? (
-        <SelectField label="Redis 配置" value={draft.redisRef} options={[['', '选择 Redis'], ...workspace.redisStores.map((store) => [store.id, store.name] as [string, string])]} onChange={(redisRef) => onChange({ ...draft, redisRef })} />
+        <div className="mini-card">
+          <div className="mini-card-meta">共享状态</div>
+          <div className="mini-card-title">使用系统 Redis</div>
+        </div>
       ) : null}
       <InputField label="规则名称" value={draft.ruleName} onChange={(ruleName) => onChange({ ...draft, ruleName })} />
       <SelectField label="计数维度" value={draft.keyType} options={rateLimitKeyTypes.map((type) => [type, rateLimitKeyLabel(type)])} onChange={(keyType) => onChange({ ...draft, keyType: keyType as RateLimitKeyType })} />
@@ -594,7 +596,7 @@ function SelectField({ label, value, options, onChange }: { label: string; value
   );
 }
 
-function createRateLimitDraft(workspace: PolicyWorkspace, policy?: RateLimitPolicy): RateLimitDraft {
+function createRateLimitDraft(policy?: RateLimitPolicy): RateLimitDraft {
   const rule = policy?.rules[0];
   const keyPart = rule?.key.parts[0];
   return {
@@ -604,7 +606,6 @@ function createRateLimitDraft(workspace: PolicyWorkspace, policy?: RateLimitPoli
     description: policy?.description ?? '',
     enabled: policy?.enabled ?? true,
     mode: policy?.mode ?? 'Local',
-    redisRef: policy?.global?.redisRef ?? workspace.redisStores[0]?.id ?? '',
     ruleName: rule?.name ?? 'default',
     keyType: keyPart?.type ?? 'IP',
     keyName: keyPart?.name ?? '',
@@ -712,7 +713,6 @@ function rateLimitPayload(draft: RateLimitDraft): RateLimitPolicyPayload {
         algorithm: draft.algorithm,
       },
     ],
-    global: draft.mode === 'Global' ? { redisRef: draft.redisRef } : undefined,
     response: {
       statusCode: Number(draft.responseStatusCode || 429),
       message: draft.responseMessage,
