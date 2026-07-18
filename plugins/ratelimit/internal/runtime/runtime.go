@@ -3,7 +3,6 @@ package runtime
 
 import (
 	"fmt"
-	"sync/atomic"
 	"time"
 
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
@@ -14,16 +13,12 @@ import (
 )
 
 const (
-	bindingTargetGateway = "Gateway"
-	bindingTargetRoute   = "Route"
-	maxWindowSeconds     = int64(^uint64(0)>>1) / int64(time.Second)
+	maxWindowSeconds = int64(^uint64(0)>>1) / int64(time.Second)
 )
 
 // Runtime 是 RateLimit 插件配置编译后的请求执行计划
 type Runtime struct {
-	runner         *policy.Runner
-	routes         pluginruntime.RouteIndex[Route]
-	memberSequence atomic.Uint64
+	routes pluginruntime.RouteIndex[Route]
 }
 
 // Route 表示单条 route 的预编译限流配置
@@ -37,19 +32,20 @@ type Route struct {
 type Result struct {
 	Action       pluginruntime.Action
 	QuotaHeaders map[string]string
-	GlobalChecks []policy.GlobalCheck
-	Errors       []error
+	Checks       []policy.Check
 }
 
 // Compile 将插件配置转换成请求路径上可直接使用的执行计划
-func Compile(cfg config.PluginConfig, runner *policy.Runner) *Runtime {
+func Compile(cfg config.PluginConfig) *Runtime {
 	routes := make([]Route, 0, len(cfg.Routes))
 	for _, routeConfig := range cfg.Routes {
-		routes = append(routes, Route{Config: routeConfig})
+		routes = append(routes, Route{
+			Config:      routeConfig,
+			HeaderNames: policy.HeaderNames(routeConfig),
+		})
 	}
 
 	return &Runtime{
-		runner: runner,
 		routes: pluginruntime.NewRouteIndex(routes, func(route Route) pluginruntime.RouteKey {
 			return pluginruntime.RouteKey{
 				GatewayName: route.Config.GatewayName,
@@ -59,7 +55,7 @@ func Compile(cfg config.PluginConfig, runner *policy.Runner) *Runtime {
 	}
 }
 
-// Route 返回命中当前 xDS route identity 且已经按 rule scope 过滤的限流配置
+// Route 返回命中当前 xDS route identity 的限流执行配置
 func (r *Runtime) Route(key pluginruntime.RouteKey) (Route, bool) {
 	route, ok := r.routes.Get(pluginruntime.RouteKey{
 		GatewayName: key.GatewayName,
@@ -69,46 +65,34 @@ func (r *Runtime) Route(key pluginruntime.RouteKey) (Route, bool) {
 		return Route{}, false
 	}
 
-	bindings := make([]config.Binding, 0, len(route.Config.Bindings))
-	for _, binding := range route.Config.Bindings {
-		switch binding.Target.Kind {
-		case bindingTargetGateway:
-			if binding.Target.Name == key.GatewayName {
-				bindings = append(bindings, binding)
-			}
-		case bindingTargetRoute:
-			if binding.Target.Name == key.RouteName && (binding.Target.RuleName == "" || binding.Target.RuleName == key.RuleName) {
-				bindings = append(bindings, binding)
-			}
-		}
-	}
-	route.Config.Bindings = bindings
 	route.RuleName = key.RuleName
-	route.HeaderNames = policy.HeaderNames(route.Config)
 	return route, true
 }
 
-// Apply 对一次请求执行本地限流判断并生成下一步动作
+// Apply 将一次请求展开为共享限流检查并生成下一步动作
 func (r *Runtime) Apply(route Route, request policy.Request) Result {
-	result := r.runner.Apply(route.Config, request)
-	return resultFromPolicy(result)
+	checks := policy.Checks(route.Config, request)
+	result := Result{Action: pluginruntime.Continue(), Checks: checks}
+	if len(checks) > 0 {
+		result.Action = pluginruntime.Pause()
+	}
+	return result
 }
 
-// PrepareGlobalCheck 为一条 global limit 检查生成 Redis 请求和 RESP 命令
-func (r *Runtime) PrepareGlobalCheck(check policy.GlobalCheck) (redis.Request, []byte, error) {
-	now := time.Now()
+// PrepareCheck 为一条限流检查生成 Redis 请求和 RESP 命令
+func (r *Runtime) PrepareCheck(check policy.Check) (redis.Request, []byte, error) {
 	windowSeconds := int64(check.Rule.Limit.WindowSeconds)
 	if windowSeconds <= 0 || windowSeconds > maxWindowSeconds {
 		return redis.Request{}, nil, fmt.Errorf("rate limit window seconds %d is out of range", windowSeconds)
 	}
 	request := redis.Request{
-		Algorithm: redis.Algorithm(check.Rule.Algorithm),
-		Key:       check.RedisKey,
-		Requests:  check.Rule.Limit.Requests,
-		Window:    time.Duration(windowSeconds) * time.Second,
-		Burst:     check.Rule.Limit.Burst,
-		Now:       now,
-		Member:    fmt.Sprintf("%d-%d", now.UnixNano(), r.memberSequence.Add(1)),
+		Key:      check.RedisKey,
+		Requests: check.Rule.Limit.Requests,
+		Window:   time.Duration(windowSeconds) * time.Second,
+		Capacity: check.Rule.Limit.Burst,
+	}
+	if request.Capacity == 0 {
+		request.Capacity = request.Requests
 	}
 	command, err := redis.BuildCommand(request)
 	if err != nil {
@@ -117,19 +101,19 @@ func (r *Runtime) PrepareGlobalCheck(check policy.GlobalCheck) (redis.Request, [
 	return request, command, nil
 }
 
-// CompleteGlobalCheck 将 Redis ABI callback 转换成统一裁决输入
-func (r *Runtime) CompleteGlobalCheck(request redis.Request, result redisabi.Result) policy.GlobalOutcome {
+// CompleteCheck 将 Redis ABI callback 转换成统一裁决输入
+func (r *Runtime) CompleteCheck(request redis.Request, result redisabi.Result) policy.Outcome {
 	if result.Err != nil {
-		return policy.GlobalOutcome{Err: result.Err}
+		return policy.Outcome{Err: result.Err}
 	}
 	if result.Status != redisabi.RedisStatusOK {
-		return policy.GlobalOutcome{Err: fmt.Errorf("redis call failed with status %d", result.Status)}
+		return policy.Outcome{Err: fmt.Errorf("redis call failed with status %d", result.Status)}
 	}
 	parsed, err := redis.ParseResult(request, result.Data)
 	if err != nil {
-		return policy.GlobalOutcome{Err: err}
+		return policy.Outcome{Err: err}
 	}
-	return policy.GlobalOutcome{
+	return policy.Outcome{
 		Allowed:      parsed.Allowed,
 		Current:      parsed.Current,
 		Limit:        parsed.Limit,
@@ -137,9 +121,9 @@ func (r *Runtime) CompleteGlobalCheck(request redis.Request, result redisabi.Res
 	}
 }
 
-// CompleteGlobalChecks 按原始检查顺序统一生成 Resume 或 Respond 动作
-func (r *Runtime) CompleteGlobalChecks(checks []policy.GlobalCheck, outcomes []policy.GlobalOutcome) Result {
-	decision, rejected := policy.ApplyGlobalResults(checks, outcomes)
+// CompleteChecks 按原始检查顺序统一生成 Resume 或 Respond 动作
+func (r *Runtime) CompleteChecks(checks []policy.Check, outcomes []policy.Outcome) Result {
+	decision, rejected := policy.ApplyOutcomes(checks, outcomes)
 	if rejected {
 		return Result{Action: respondAction(decision)}
 	}
@@ -147,23 +131,6 @@ func (r *Runtime) CompleteGlobalChecks(checks []policy.GlobalCheck, outcomes []p
 		Action:       pluginruntime.Continue(),
 		QuotaHeaders: decision.QuotaHeaders,
 	}
-}
-
-func resultFromPolicy(result policy.Result) Result {
-	next := Result{
-		Action:       pluginruntime.Continue(),
-		QuotaHeaders: result.QuotaHeaders,
-		GlobalChecks: result.GlobalChecks,
-		Errors:       result.Errors,
-	}
-	if !result.Allowed {
-		next.Action = respondAction(result.Decision)
-		return next
-	}
-	if len(result.GlobalChecks) > 0 {
-		next.Action = pluginruntime.Pause()
-	}
-	return next
 }
 
 func respondAction(decision policy.Decision) pluginruntime.Action {

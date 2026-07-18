@@ -16,8 +16,6 @@ type Interface interface {
 	Certificates() CertificateInformer
 	// Gateways returns a GatewayInformer.
 	Gateways() GatewayInformer
-	// PolicyBindings returns a PolicyBindingInformer.
-	PolicyBindings() PolicyBindingInformer
 	// RateLimitPolicies returns a RateLimitPolicyInformer.
 	RateLimitPolicies() RateLimitPolicyInformer
 	// Routes returns a RouteInformer.
@@ -50,11 +48,6 @@ func (v *version) Certificates() CertificateInformer {
 // Gateways returns a GatewayInformer.
 func (v *version) Gateways() GatewayInformer {
 	return &gatewayInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
-// PolicyBindings returns a PolicyBindingInformer.
-func (v *version) PolicyBindings() PolicyBindingInformer {
-	return &policyBindingInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // RateLimitPolicies returns a RateLimitPolicyInformer.

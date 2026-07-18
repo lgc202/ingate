@@ -23,12 +23,11 @@ type compileContext struct {
 	upstreams             map[string]*gatewayv1.Upstream
 	rateLimitPolicies     map[string]*gatewayv1.RateLimitPolicy
 	accessControlPolicies map[string]*gatewayv1.AccessControlPolicy
-	policyBindings        map[string]*gatewayv1.PolicyBinding
-	routeRules            map[string]map[string]bool
 
 	listenerGroups   map[listenerKey]*listenerGroup
 	gatewayListeners map[string][]gatewayListener
 	routeAttachments []routeAttachment
+	policyTargets    map[ProgrammedPolicyTarget]bool
 	diagnostics      []Diagnostic
 	diagnosticSet    map[string]bool
 }
@@ -44,10 +43,9 @@ func (Compiler) Compile(resources ResourceSet) CompileResult {
 		upstreams:             make(map[string]*gatewayv1.Upstream, len(resources.Upstreams)),
 		rateLimitPolicies:     make(map[string]*gatewayv1.RateLimitPolicy, len(resources.RateLimitPolicies)),
 		accessControlPolicies: make(map[string]*gatewayv1.AccessControlPolicy, len(resources.AccessControlPolicies)),
-		policyBindings:        make(map[string]*gatewayv1.PolicyBinding, len(resources.PolicyBindings)),
-		routeRules:            make(map[string]map[string]bool, len(resources.Routes)),
 		listenerGroups:        make(map[listenerKey]*listenerGroup),
 		gatewayListeners:      make(map[string][]gatewayListener),
+		policyTargets:         make(map[ProgrammedPolicyTarget]bool),
 		diagnosticSet:         make(map[string]bool),
 	}
 
@@ -69,8 +67,9 @@ func (Compiler) Compile(resources ResourceSet) CompileResult {
 
 	resourcesGeneration := resources.Generations()
 	result := CompileResult{
-		Resources:   resourcesGeneration,
-		Diagnostics: c.diagnostics,
+		Resources:     resourcesGeneration,
+		PolicyTargets: c.programmedPolicyTargets(),
+		Diagnostics:   c.diagnostics,
 	}
 	if result.HasErrors() {
 		return result
@@ -135,13 +134,6 @@ func (c *compileContext) indexResources() {
 			continue
 		}
 		c.indexAccessControlPolicy(policy)
-	}
-	for _, binding := range c.resources.PolicyBindings {
-		if binding == nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindPolicyBinding, "", ReasonInvalidSpec, "policy binding resource is nil")
-			continue
-		}
-		c.indexPolicyBinding(binding)
 	}
 }
 
@@ -227,7 +219,6 @@ func (c *compileContext) indexRoute(route *gatewayv1.Route) {
 		}
 		rules[rule.Name] = true
 	}
-	c.routeRules[id] = rules
 }
 
 func (c *compileContext) indexUpstream(upstream *gatewayv1.Upstream) {
@@ -267,19 +258,6 @@ func (c *compileContext) indexAccessControlPolicy(policy *gatewayv1.AccessContro
 		return
 	}
 	c.accessControlPolicies[id] = policy
-}
-
-func (c *compileContext) indexPolicyBinding(binding *gatewayv1.PolicyBinding) {
-	id := binding.Name
-	if id == "" {
-		c.addDiagnostic(SeverityError, gatewayv1.KindPolicyBinding, id, ReasonInvalidSpec, "policy binding metadata.name is required")
-		return
-	}
-	if _, ok := c.policyBindings[id]; ok {
-		c.addDiagnostic(SeverityError, gatewayv1.KindPolicyBinding, id, ReasonConflict, fmt.Sprintf("duplicate policy binding %q", id))
-		return
-	}
-	c.policyBindings[id] = binding
 }
 
 func (c *compileContext) addDiagnostic(severity Severity, kind gatewayv1.Kind, id string, reason Reason, message string) {

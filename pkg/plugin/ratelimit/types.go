@@ -7,14 +7,6 @@ import (
 	"io"
 )
 
-// Mode 表示限流策略执行模式
-type Mode string
-
-const (
-	ModeLocal  Mode = "Local"
-	ModeGlobal Mode = "Global"
-)
-
 // KeyType 表示限流 key 的组成维度
 type KeyType string
 
@@ -23,22 +15,9 @@ const (
 	KeyTypeHeader    KeyType = "Header"
 	KeyTypeQuery     KeyType = "Query"
 	KeyTypeCookie    KeyType = "Cookie"
-	KeyTypeConsumer  KeyType = "Consumer"
 	KeyTypeRoute     KeyType = "Route"
 	KeyTypeGateway   KeyType = "Gateway"
 	KeyTypeRouteRule KeyType = "RouteRule"
-	KeyTypeJWTClaim  KeyType = "JWTClaim"
-	KeyTypeAPIKey    KeyType = "APIKey"
-	KeyTypeTenant    KeyType = "Tenant"
-)
-
-// Algorithm 表示限流算法
-type Algorithm string
-
-const (
-	AlgorithmFixedWindow   Algorithm = "FixedWindow"
-	AlgorithmSlidingWindow Algorithm = "SlidingWindow"
-	AlgorithmTokenBucket   Algorithm = "TokenBucket"
 )
 
 // FailurePolicy 表示限流执行异常时的处理方式
@@ -61,29 +40,15 @@ type PluginConfig struct {
 
 // RouteConfig 表示 Route 级限流配置
 type RouteConfig struct {
-	GatewayName string    `json:"gatewayName"`
-	RouteName   string    `json:"routeName"`
-	Bindings    []Binding `json:"bindings"`
-}
-
-// Binding 表示绑定展开后的执行配置
-type Binding struct {
-	Name     string   `json:"name"`
-	Target   Target   `json:"target"`
-	Policies []Policy `json:"policies"`
-}
-
-// Target 表示绑定目标，RuleName 只在 Route target 上限定当前 xDS rule
-type Target struct {
-	Kind     string `json:"kind"`
-	Name     string `json:"name"`
-	RuleName string `json:"ruleName,omitempty"`
+	GatewayName string   `json:"gatewayName"`
+	RouteName   string   `json:"routeName"`
+	Policies    []Policy `json:"policies"`
 }
 
 // Policy 表示限流策略执行配置
 type Policy struct {
 	Name          string        `json:"name"`
-	Mode          Mode          `json:"mode"`
+	Scope         string        `json:"scope"`
 	Rules         []Rule        `json:"rules"`
 	Response      Response      `json:"response,omitempty"`
 	FailurePolicy FailurePolicy `json:"failurePolicy,omitempty"`
@@ -91,10 +56,9 @@ type Policy struct {
 
 // Rule 表示一条限流规则
 type Rule struct {
-	Name      string    `json:"name"`
-	Key       []KeyPart `json:"key"`
-	Limit     Quota     `json:"limit"`
-	Algorithm Algorithm `json:"algorithm,omitempty"`
+	Name  string    `json:"name"`
+	Key   []KeyPart `json:"key"`
+	Limit Quota     `json:"limit"`
 }
 
 // KeyPart 表示限流 key 的一个组成部分
@@ -107,7 +71,8 @@ type KeyPart struct {
 type Quota struct {
 	Requests      int `json:"requests"`
 	WindowSeconds int `json:"windowSeconds"`
-	Burst         int `json:"burst,omitempty"`
+	// Burst 表示令牌桶容量，省略时使用 Requests
+	Burst int `json:"burst,omitempty"`
 }
 
 // Response 表示超限响应配置

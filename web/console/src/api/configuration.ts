@@ -2,7 +2,6 @@ import { listCertificates } from './certificates';
 import { listGateways } from './gateways';
 import {
   listAccessControlPolicies,
-  listPolicyBindings,
   listRateLimitPolicies,
 } from './policies';
 import { listRoutes } from './routes';
@@ -15,14 +14,13 @@ import type {
 import type { ResourceStatus } from '@/domain/common';
 
 export async function getConfigurationStatus(): Promise<ConfigurationStatusView> {
-  const [gateways, routes, upstreams, certificates, rateLimitPolicies, accessControlPolicies, policyBindings] = await Promise.all([
+  const [gateways, routes, upstreams, certificates, rateLimitPolicies, accessControlPolicies] = await Promise.all([
     listGateways(),
     listRoutes(),
     listUpstreams(),
     listCertificates(),
     listRateLimitPolicies(),
     listAccessControlPolicies(),
-    listPolicyBindings(),
   ]);
 
   const items = [
@@ -30,12 +28,20 @@ export async function getConfigurationStatus(): Promise<ConfigurationStatusView>
     ...routes.routes.map((resource) => configurationItem(resource, 'Route', '/routes')),
     ...upstreams.upstreams.map((resource) => configurationItem(resource, 'Upstream', '/services')),
     ...certificates.certificates.map((resource) => configurationItem(resource, 'Certificate', '/certificates')),
-    ...rateLimitPolicies.map((resource) => configurationItem(resource, 'RateLimitPolicy', '/policies')),
-    ...accessControlPolicies.map((resource) => configurationItem(resource, 'AccessControlPolicy', '/policies')),
-    ...policyBindings.map((resource) => configurationItem(resource, 'PolicyBinding', '/policies?tab=bindings')),
+    ...rateLimitPolicies.map((resource) => configurationPolicyItem(resource, 'RateLimitPolicy')),
+    ...accessControlPolicies.map((resource) => configurationPolicyItem(resource, 'AccessControlPolicy')),
   ];
 
   return { items: items.sort(compareConfigurationItems) };
+}
+
+function configurationPolicyItem(
+  resource: { id: string; name: string; status: ResourceStatus; targets: Array<{ status?: ResourceStatus }> },
+  kind: 'RateLimitPolicy' | 'AccessControlPolicy',
+): ConfigurationStatusItem {
+  const targetStatuses = resource.targets.flatMap((target) => target.status ? [target.status] : []);
+  const status = [resource.status, ...targetStatuses].sort(compareResourceStatus)[0];
+  return configurationItem({ ...resource, status }, kind, '/policies');
 }
 
 function configurationItem(
@@ -53,8 +59,12 @@ function configurationItem(
 }
 
 function compareConfigurationItems(left: ConfigurationStatusItem, right: ConfigurationStatusItem) {
-  const priority = { Error: 0, Pending: 1, Ready: 2, Disabled: 3 };
-  return priority[left.status.state] - priority[right.status.state]
+  return compareResourceStatus(left.status, right.status)
     || left.kind.localeCompare(right.kind)
     || left.name.localeCompare(right.name);
+}
+
+function compareResourceStatus(left: ResourceStatus, right: ResourceStatus) {
+  const priority = { Error: 0, Pending: 1, Ready: 2, Disabled: 3 };
+  return priority[left.state] - priority[right.state];
 }

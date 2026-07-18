@@ -1,4 +1,5 @@
 import type { PolicyWorkspace } from '@/domain/policy';
+import { governancePolicyKey, policyTargetsResource } from '@/domain/policy';
 import type {
   HeaderMatch,
   RouteGatewayOption,
@@ -38,26 +39,22 @@ export function routeForwardControlCount(route: Pick<RouteResource, 'rules'>): n
 }
 
 export function routeGovernancePolicyLabel(
-  route: Pick<RouteResource, 'id' | 'rules'>,
+  route: Pick<RouteResource, 'id' | 'rules' | 'gatewayIDs'>,
   policyWorkspace: PolicyWorkspace | null | undefined,
 ): string {
   if (!policyWorkspace) {
-    return '未绑定';
+    return '策略未知';
   }
 
-  const count = policyWorkspace.bindings
-    .filter((binding) => {
-      if (binding.targetRef.kind !== 'Route' || binding.targetRef.name !== route.id) {
-        return false;
-      }
-      if (!binding.targetRef.ruleName) {
-        return true;
-      }
-      return route.rules.some((rule) => rule.name === binding.targetRef.ruleName);
-    })
-    .reduce((total, binding) => total + binding.policies.length, 0);
-
-  return count > 0 ? `${count} 个` : '未绑定';
+  const direct = policyWorkspace.policies.filter((policy) => policyTargetsResource(policy, 'Route', route.id));
+  const inherited = policyWorkspace.policies.filter((policy) => (
+    policy.targets.some((target) => target.kind === 'Gateway' && route.gatewayIDs.includes(target.id))
+  ));
+  const unique = new Set([...direct, ...inherited].map(governancePolicyKey));
+  if (unique.size === 0) {
+    return '未应用策略';
+  }
+  return inherited.length > 0 ? `${unique.size} 个策略（含继承）` : `${unique.size} 个策略`;
 }
 
 export function formatGatewayIDs(gatewayIDs: string[], gateways: RouteGatewayOption[]): string {

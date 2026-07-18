@@ -50,12 +50,6 @@ const (
 	ResourceAccessControlPolicies ResourceName = "accesscontrolpolicies"
 	// ResourceAccessControlPoliciesStatus 表示 AccessControlPolicy status 子资源名
 	ResourceAccessControlPoliciesStatus ResourceName = "accesscontrolpolicies/status"
-	// ResourcePolicyBinding 表示 PolicyBinding 单数资源名
-	ResourcePolicyBinding ResourceName = "policybinding"
-	// ResourcePolicyBindings 表示 PolicyBinding 复数资源名
-	ResourcePolicyBindings ResourceName = "policybindings"
-	// ResourcePolicyBindingsStatus 表示 PolicyBinding status 子资源名
-	ResourcePolicyBindingsStatus ResourceName = "policybindings/status"
 )
 
 // SchemeGroupVersion 表示 Ingate API internal 组版本
@@ -86,8 +80,6 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RateLimitPolicyList{},
 		&AccessControlPolicy{},
 		&AccessControlPolicyList{},
-		&PolicyBinding{},
-		&PolicyBindingList{},
 	)
 	return nil
 }

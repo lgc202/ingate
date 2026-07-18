@@ -19,7 +19,6 @@ type resourceListers struct {
 	upstreams             gatewaylisters.UpstreamLister
 	rateLimitPolicies     gatewaylisters.RateLimitPolicyLister
 	accessControlPolicies gatewaylisters.AccessControlPolicyLister
-	policyBindings        gatewaylisters.PolicyBindingLister
 }
 
 func (l resourceListers) build() (config.ResourceSet, error) {
@@ -47,11 +46,6 @@ func (l resourceListers) build() (config.ResourceSet, error) {
 	if err != nil {
 		return config.ResourceSet{}, fmt.Errorf("list AccessControlPolicies: %w", err)
 	}
-	policyBindings, err := l.policyBindings.List(labels.Everything())
-	if err != nil {
-		return config.ResourceSet{}, fmt.Errorf("list PolicyBindings: %w", err)
-	}
-
 	resources := config.ResourceSet{
 		Gateways:              make([]*gatewayv1.Gateway, 0, len(gateways)),
 		Certificates:          make([]*gatewayv1.Certificate, 0, len(certificates)),
@@ -59,7 +53,6 @@ func (l resourceListers) build() (config.ResourceSet, error) {
 		Upstreams:             make([]*gatewayv1.Upstream, 0, len(upstreams)),
 		RateLimitPolicies:     make([]*gatewayv1.RateLimitPolicy, 0, len(rateLimitPolicies)),
 		AccessControlPolicies: make([]*gatewayv1.AccessControlPolicy, 0, len(accessControlPolicies)),
-		PolicyBindings:        make([]*gatewayv1.PolicyBinding, 0, len(policyBindings)),
 	}
 	for _, resource := range gateways {
 		resources.Gateways = append(resources.Gateways, resource.DeepCopy())
@@ -79,9 +72,6 @@ func (l resourceListers) build() (config.ResourceSet, error) {
 	for _, resource := range accessControlPolicies {
 		resources.AccessControlPolicies = append(resources.AccessControlPolicies, resource.DeepCopy())
 	}
-	for _, resource := range policyBindings {
-		resources.PolicyBindings = append(resources.PolicyBindings, resource.DeepCopy())
-	}
 
 	slices.SortFunc(resources.Gateways, func(a, b *gatewayv1.Gateway) int {
 		return cmp.Compare(a.Name, b.Name)
@@ -99,9 +89,6 @@ func (l resourceListers) build() (config.ResourceSet, error) {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	slices.SortFunc(resources.AccessControlPolicies, func(a, b *gatewayv1.AccessControlPolicy) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.PolicyBindings, func(a, b *gatewayv1.PolicyBinding) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	return resources, nil

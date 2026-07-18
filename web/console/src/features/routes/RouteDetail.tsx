@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Button, PageFrame, Panel, Tabs } from '@/components/ui';
 import type { PolicyWorkspace } from '@/domain/policy';
 import type { RouteGatewayOption, RouteResource, UpstreamOption } from '@/domain/route';
-import { GovernanceBindingPanel } from '@/features/policies/GovernanceBindingPanel';
-import { primaryRouteRule, routeDetailItems } from './routeView';
+import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
+import { routeDetailItems } from './routeView';
 
 const detailTabs = [
   { key: 'overview', label: '概览' },
@@ -17,6 +17,7 @@ export function RouteDetail({
   gateways,
   upstreams,
   policyWorkspace,
+  policyError,
   onPolicyWorkspaceChanged,
   onBack,
 }: {
@@ -24,6 +25,7 @@ export function RouteDetail({
   gateways: RouteGatewayOption[];
   upstreams: UpstreamOption[];
   policyWorkspace: PolicyWorkspace | null | undefined;
+  policyError?: string;
   onPolicyWorkspaceChanged: () => Promise<void> | void;
   onBack: () => void;
 }) {
@@ -49,15 +51,20 @@ export function RouteDetail({
           </div>
         </div>
         {policyWorkspace ? (
-          <GovernanceBindingPanel
+          <GovernancePolicyPanel
             targetKind="Route"
             targetID={route.id}
             targetName={route.name}
-            ruleName={primaryRouteRule(route)?.name}
+            inheritedGatewayIDs={route.gatewayIDs}
             workspace={policyWorkspace}
             onChanged={onPolicyWorkspaceChanged}
           />
-        ) : null}
+        ) : (
+          <div className="mini-card policy-execution-note">
+            <div className="mini-card-title">策略暂不可用</div>
+            <div className="mini-card-meta">{policyError ?? '策略数据正在加载，请稍后刷新。'}</div>
+          </div>
+        )}
       </Panel>
     </PageFrame>
   );

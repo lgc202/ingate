@@ -48,14 +48,30 @@ func TestRunnerSupportsIPCidrCondition(t *testing.T) {
 	}
 }
 
+func TestRunnerDoesNotTrustLegacyIdentityConditions(t *testing.T) {
+	req := Request{Headers: map[string]string{
+		"x-ingate-consumer": "alice",
+		"x-ingate-tenant":   "acme",
+	}}
+	for _, tt := range []struct {
+		conditionType config.ConditionType
+		value         string
+	}{
+		{conditionType: "Consumer", value: "alice"},
+		{conditionType: "Tenant", value: "acme"},
+	} {
+		t.Run(string(tt.conditionType), func(t *testing.T) {
+			condition := config.Condition{Type: tt.conditionType, Value: tt.value}
+			if NewRunner().conditionMatches(condition, req) {
+				t.Errorf("Runner.conditionMatches(type=%q) = true, want false", tt.conditionType)
+			}
+		})
+	}
+}
+
 func routeConfig(policy config.Policy) config.RouteConfig {
 	return config.RouteConfig{
-		Bindings: []config.Binding{
-			{
-				Name:     "binding",
-				Policies: []config.Policy{policy},
-			},
-		},
+		Policies: []config.Policy{policy},
 	}
 }
 

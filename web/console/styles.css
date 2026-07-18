@@ -850,8 +850,7 @@ body { overflow-x: hidden; }
   min-width: 860px;
 }
 
-.policy-table,
-.policy-binding-table {
+.policy-table {
   min-width: 900px;
 }
 
@@ -1903,24 +1902,24 @@ body { overflow-x: hidden; }
   gap: 14px 18px;
 }
 
-.route-policy-bindings {
+.route-forward-controls {
   display: grid;
   gap: 12px;
 }
 
-.policy-bindings-head {
+.forward-controls-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
 
-.policy-bindings-head h4 {
+.forward-controls-head h4 {
   margin: 0;
   font-size: 0.94rem;
 }
 
-.policy-bindings-head p {
+.forward-controls-head p {
   margin: 5px 0 0;
   color: var(--muted);
   font-size: 0.82rem;
@@ -2238,6 +2237,19 @@ body { overflow-x: hidden; }
   box-shadow: none;
 }
 
+.policy-target-summary,
+.policy-status-message {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.policy-status-message {
+  margin-top: 5px;
+  max-width: 180px;
+}
+
 .policy-execution-note {
   background: #f7f9fc;
   box-shadow: none;
@@ -2245,6 +2257,29 @@ body { overflow-x: hidden; }
 
 .policy-rule-toggle {
   margin-bottom: 14px;
+}
+
+.policy-advanced {
+  border: 1px solid #dfe4ec;
+  border-radius: 9px;
+  background: #fafbfe;
+}
+
+.policy-advanced > summary {
+  min-height: 44px;
+  padding: 11px 14px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 780;
+}
+
+.policy-advanced[open] > summary {
+  border-bottom: 1px solid #e5e8ef;
+}
+
+.policy-advanced-body {
+  padding: 16px;
 }
 
 .policy-check-row {
@@ -2307,6 +2342,27 @@ body { overflow-x: hidden; }
   background: #fff;
   box-shadow: 0 18px 38px rgba(30, 41, 59, 0.17);
   padding: 6px;
+}
+
+.policy-select-group + .policy-select-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #edf0f5;
+}
+
+.policy-select-group-title {
+  padding: 5px 9px 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.policy-select-empty {
+  padding: 14px 10px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  text-align: center;
 }
 
 .policy-select-menu button {
@@ -2372,12 +2428,35 @@ body { overflow-x: hidden; }
   white-space: nowrap;
 }
 
-.governance-binding-list {
+.governance-policy-section {
   display: grid;
   gap: 8px;
 }
 
-.governance-binding-row {
+.governance-policy-section + .governance-policy-section {
+  padding-top: 10px;
+  border-top: 1px solid #edf0f4;
+}
+
+.governance-policy-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.governance-policy-section-title span {
+  color: var(--muted);
+}
+
+.governance-policy-list {
+  display: grid;
+  gap: 8px;
+}
+
+.governance-policy-row {
   min-height: 50px;
   border: 1px solid #e2e6ee;
   border-radius: 6px;
@@ -2389,25 +2468,25 @@ body { overflow-x: hidden; }
   gap: 12px;
 }
 
-.governance-binding-row > div {
+.governance-policy-row > div {
   display: grid;
   gap: 3px;
   min-width: 0;
 }
 
-.governance-binding-row strong,
-.governance-binding-row span {
+.governance-policy-row strong,
+.governance-policy-row span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.governance-binding-row > div > span {
+.governance-policy-row > div > span {
   color: var(--muted);
   font-size: 0.82rem;
 }
 
-.governance-binding-actions {
+.governance-policy-actions {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -2416,13 +2495,24 @@ body { overflow-x: hidden; }
   white-space: nowrap;
 }
 
-.governance-binding-editor {
+.governance-policy-editor {
   border: 1px solid #dfe4ec;
   border-radius: 8px;
   background: #fafbfe;
   padding: 14px;
   display: grid;
   gap: 14px;
+}
+
+.governance-policy-editor > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.governance-policy-editor p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
 }
 
 @media (max-width: 1320px) {
@@ -2521,6 +2611,9 @@ body { overflow-x: hidden; }
   .header-match-row { grid-template-columns: 1fr; }
   .header-match-row .link-button { justify-self: start; }
   .route-workbench-actions { align-items: stretch; flex-direction: column; }
+  .governance-card-head,
+  .governance-policy-row { align-items: flex-start; flex-direction: column; }
+  .governance-policy-actions { width: 100%; justify-content: flex-start; }
   .table-toolbar, .toolbar-input, .query-actions { width: 100%; }
   .query-actions { justify-content: stretch; }
   .query-actions .button { flex: 1; }

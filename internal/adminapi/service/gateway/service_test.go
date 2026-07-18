@@ -9,8 +9,11 @@ import (
 	"testing"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
+	"github.com/lgc202/ingate/internal/adminapi/service/policytarget"
+	accesscontrolpolicystore "github.com/lgc202/ingate/internal/adminapi/store/accesscontrolpolicy"
 	certificatestore "github.com/lgc202/ingate/internal/adminapi/store/certificate"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
+	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	clientfake "github.com/lgc202/ingate/pkg/generated/clientset/versioned/fake"
@@ -224,11 +227,7 @@ func TestServiceCreateValidatesGatewayListenerOwnership(t *testing.T) {
 			if _, err := client.GatewayV1().Certificates().Create(context.Background(), certificate, metav1.CreateOptions{}); err != nil {
 				t.Fatalf("Certificates.Create(%q) error = %v", certificate.Name, err)
 			}
-			service := New(
-				gatewaystore.New(client),
-				routestore.New(client),
-				certificatestore.New(client),
-			)
+			service := newTestService(client)
 
 			_, err := service.Create(context.Background(), CreateGatewayParams{GatewayParams: GatewayParams{
 				Name:      "new gateway",
@@ -273,11 +272,7 @@ func TestServiceSetEnabledRejectsHostnameConflict(t *testing.T) {
 			t.Fatalf("Gateways.Create(%q) error = %v", gateway.Name, err)
 		}
 	}
-	service := New(
-		gatewaystore.New(client),
-		routestore.New(client),
-		certificatestore.New(client),
-	)
+	service := newTestService(client)
 
 	err := service.SetEnabled(context.Background(), disabled.Name, true)
 	var userError *xerrors.UserError
@@ -307,11 +302,7 @@ func TestServiceSetEnabledAllowsDisablingGatewayWithMissingCertificate(t *testin
 	if _, err := client.GatewayV1().Gateways().Create(context.Background(), gateway, metav1.CreateOptions{}); err != nil {
 		t.Fatalf("Gateways.Create(%q) error = %v", gateway.Name, err)
 	}
-	service := New(
-		gatewaystore.New(client),
-		routestore.New(client),
-		certificatestore.New(client),
-	)
+	service := newTestService(client)
 
 	if err := service.SetEnabled(context.Background(), gateway.Name, false); err != nil {
 		t.Fatalf("Service.SetEnabled(%q, false) error = %v", gateway.Name, err)
@@ -327,11 +318,7 @@ func TestServiceSetEnabledAllowsDisablingGatewayWithMissingCertificate(t *testin
 
 func TestServiceCreateSerializesConflictValidation(t *testing.T) {
 	client := clientfake.NewSimpleClientset()
-	service := New(
-		gatewaystore.New(client),
-		routestore.New(client),
-		certificatestore.New(client),
-	)
+	service := newTestService(client)
 
 	const attempts = 16
 	start := make(chan struct{})
@@ -404,11 +391,7 @@ func TestServiceUpdateRejectsHostnameConflict(t *testing.T) {
 			t.Fatalf("Gateways.Create(%q) error = %v", gateway.Name, err)
 		}
 	}
-	service := New(
-		gatewaystore.New(client),
-		routestore.New(client),
-		certificatestore.New(client),
-	)
+	service := newTestService(client)
 
 	err := service.Update(context.Background(), target.Name, UpdateGatewayParams{
 		Version: target.ResourceVersion,
@@ -422,6 +405,55 @@ func TestServiceUpdateRejectsHostnameConflict(t *testing.T) {
 	if !errors.As(err, &userError) {
 		t.Errorf("Service.Update(%q) error = %T, want *xerrors.UserError", target.Name, err)
 	}
+}
+
+func TestServiceDeleteRejectsGatewayUsedByPolicy(t *testing.T) {
+	gateway := testGateway(
+		"gateway-1",
+		"生产网关",
+		true,
+		resource.ProtocolHTTP,
+		8080,
+		nil,
+		"",
+	)
+	policy := &resource.RateLimitPolicy{
+		ObjectMeta: metav1.ObjectMeta{Name: "rate-limit-1"},
+		Spec: resource.RateLimitPolicySpec{
+			DisplayName: "公共接口限流",
+			TargetRefs:  []resource.PolicyTargetRef{{Kind: resource.KindGateway, Name: gateway.Name}},
+		},
+	}
+	client := clientfake.NewSimpleClientset()
+	if _, err := client.GatewayV1().Gateways().Create(context.Background(), gateway, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("Gateways.Create(%q) error = %v", gateway.Name, err)
+	}
+	if _, err := client.GatewayV1().RateLimitPolicies().Create(context.Background(), policy, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("RateLimitPolicies.Create(%q) error = %v", policy.Name, err)
+	}
+	service := newTestService(client)
+
+	err := service.Delete(context.Background(), gateway.Name)
+	var userError *xerrors.UserError
+	if !errors.As(err, &userError) {
+		t.Errorf("Service.Delete(%q) error = %T, want *xerrors.UserError", gateway.Name, err)
+	}
+	if _, err := client.GatewayV1().Gateways().Get(context.Background(), gateway.Name, metav1.GetOptions{}); err != nil {
+		t.Errorf("Service.Delete(%q) removed referenced gateway: %v", gateway.Name, err)
+	}
+}
+
+func newTestService(client *clientfake.Clientset) *Service {
+	policyUsage := policytarget.NewUsageFinder(
+		ratelimitpolicystore.New(client),
+		accesscontrolpolicystore.New(client),
+	)
+	return New(
+		gatewaystore.New(client),
+		routestore.New(client),
+		certificatestore.New(client),
+		policyUsage,
+	)
 }
 
 func testGateway(

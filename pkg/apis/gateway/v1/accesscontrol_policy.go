@@ -20,10 +20,6 @@ const (
 	AccessControlConditionTypeIP AccessControlConditionType = "IP"
 	// AccessControlConditionTypeHeader 表示按请求 Header 匹配
 	AccessControlConditionTypeHeader AccessControlConditionType = "Header"
-	// AccessControlConditionTypeConsumer 表示按认证后的 consumer 匹配
-	AccessControlConditionTypeConsumer AccessControlConditionType = "Consumer"
-	// AccessControlConditionTypeTenant 表示按租户匹配
-	AccessControlConditionTypeTenant AccessControlConditionType = "Tenant"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -36,7 +32,7 @@ type AccessControlPolicy struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   AccessControlPolicySpec `json:"spec,omitempty"`
-	Status ResourceStatus          `json:"status,omitempty"`
+	Status PolicyStatus            `json:"status,omitempty"`
 }
 
 // AccessControlPolicyList 表示 AccessControlPolicy 资源列表
@@ -50,9 +46,11 @@ type AccessControlPolicyList struct {
 
 // AccessControlPolicySpec 定义访问控制策略配置
 type AccessControlPolicySpec struct {
-	DisplayName   string              `json:"displayName"`
-	Description   string              `json:"description,omitempty"`
-	Enabled       bool                `json:"enabled"`
+	DisplayName string `json:"displayName"`
+	Description string `json:"description,omitempty"`
+	Enabled     bool   `json:"enabled"`
+	// +listType=atomic
+	TargetRefs    []PolicyTargetRef   `json:"targetRefs,omitempty"`
 	DefaultAction AccessControlAction `json:"defaultAction,omitempty"`
 	// +listType=atomic
 	Rules    []AccessControlRule       `json:"rules,omitempty"`

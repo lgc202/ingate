@@ -19,10 +19,8 @@ const (
 type ConditionType string
 
 const (
-	ConditionTypeIP       ConditionType = "IP"
-	ConditionTypeHeader   ConditionType = "Header"
-	ConditionTypeConsumer ConditionType = "Consumer"
-	ConditionTypeTenant   ConditionType = "Tenant"
+	ConditionTypeIP     ConditionType = "IP"
+	ConditionTypeHeader ConditionType = "Header"
 )
 
 const (
@@ -37,23 +35,9 @@ type PluginConfig struct {
 
 // RouteConfig 表示 Route 级 ACL 配置
 type RouteConfig struct {
-	GatewayName string    `json:"gatewayName"`
-	RouteName   string    `json:"routeName"`
-	Bindings    []Binding `json:"bindings"`
-}
-
-// Binding 表示绑定展开后的 ACL 执行配置
-type Binding struct {
-	Name     string   `json:"name"`
-	Target   Target   `json:"target"`
-	Policies []Policy `json:"policies"`
-}
-
-// Target 表示绑定目标，RuleName 只在 Route target 上限定当前 xDS rule
-type Target struct {
-	Kind     string `json:"kind"`
-	Name     string `json:"name"`
-	RuleName string `json:"ruleName,omitempty"`
+	GatewayName string   `json:"gatewayName"`
+	RouteName   string   `json:"routeName"`
+	Policies    []Policy `json:"policies"`
 }
 
 // Policy 表示访问控制策略执行配置

@@ -5,8 +5,11 @@ import type {
   AccessControlPolicy,
   AccessControlPolicyPayload,
   AccessControlRule,
+  PolicyTargetOption,
+  PolicyTargetRef,
 } from '@/domain/policy';
 import { PolicyInputField, PolicySelectField } from './PolicyEditorFields';
+import { PolicyTargetSelect } from './PolicySelectors';
 
 export interface AccessControlPolicyDraft {
   id?: string;
@@ -14,10 +17,12 @@ export interface AccessControlPolicyDraft {
   name: string;
   description: string;
   enabled: boolean;
+  targets: PolicyTargetRef[];
   defaultAction: AccessControlAction;
   ruleEnabled: boolean;
   ruleName: string;
   ruleAction: AccessControlAction;
+  conditionEnabled: boolean;
   conditionType: AccessControlConditionType;
   conditionName: string;
   conditionValue: string;
@@ -27,16 +32,18 @@ export interface AccessControlPolicyDraft {
   preservedRules: AccessControlRule[];
 }
 
-const accessControlConditionTypes: AccessControlConditionType[] = ['IP', 'Header', 'Consumer', 'Tenant'];
+const accessControlConditionTypes: AccessControlConditionType[] = ['IP', 'Header'];
 
 export function AccessControlPolicyEditor({
   draft,
+  targets,
   onChange,
 }: {
   draft: AccessControlPolicyDraft;
+  targets: PolicyTargetOption[];
   onChange: (draft: AccessControlPolicyDraft) => void;
 }) {
-  const needsConditionName = draft.conditionType === 'Header';
+  const needsConditionName = draft.conditionEnabled && draft.conditionType === 'Header';
 
   return (
     <div className="editor-main-stack">
@@ -68,6 +75,15 @@ export function AccessControlPolicyEditor({
       </section>
       <section className="form-section">
         <div className="form-section-title">
+          <h3>应用目标</h3>
+          <p>可同时应用到多个网关或路由；留空时仅保存策略，不会处理请求。</p>
+        </div>
+        <div className="policy-editor-grid">
+          <PolicyTargetSelect options={targets} value={draft.targets} onChange={(nextTargets) => onChange({ ...draft, targets: nextTargets })} />
+        </div>
+      </section>
+      <section className="form-section">
+        <div className="form-section-title">
           <h3>访问规则</h3>
           <p>配置当前主规则的动作和匹配条件。</p>
         </div>
@@ -86,23 +102,51 @@ export function AccessControlPolicyEditor({
           </label>
         ) : null}
         {draft.ruleEnabled ? (
-          <div className="policy-editor-grid">
-          <PolicyInputField label="规则名称" value={draft.ruleName} onChange={(ruleName) => onChange({ ...draft, ruleName })} />
-          <PolicySelectField
-            label="规则动作"
-            value={draft.ruleAction}
-            options={[['Allow', '允许'], ['Deny', '拒绝']]}
-            onChange={(ruleAction) => onChange({ ...draft, ruleAction: ruleAction as AccessControlAction })}
-          />
-          <PolicySelectField
-            label="匹配类型"
-            value={draft.conditionType}
-            options={accessControlConditionTypes.map((type) => [type, accessControlConditionTypeLabel(type)])}
-            onChange={(conditionType) => onChange({ ...draft, conditionType: conditionType as AccessControlConditionType })}
-          />
-          {needsConditionName ? <PolicyInputField label="匹配名称" value={draft.conditionName} onChange={(conditionName) => onChange({ ...draft, conditionName })} /> : null}
-          <PolicyInputField label="匹配值" value={draft.conditionValue} onChange={(conditionValue) => onChange({ ...draft, conditionValue })} />
-          </div>
+          <>
+            <div className="policy-editor-grid">
+              <PolicyInputField label="规则名称" value={draft.ruleName} onChange={(ruleName) => onChange({ ...draft, ruleName })} />
+              <PolicySelectField
+                label="规则动作"
+                value={draft.ruleAction}
+                options={[['Allow', '允许'], ['Deny', '拒绝']]}
+                onChange={(ruleAction) => onChange({ ...draft, ruleAction: ruleAction as AccessControlAction })}
+              />
+            </div>
+            {draft.preservedConditions.length === 0 ? (
+              <label className="policy-check-row policy-rule-toggle">
+                <input
+                  type="checkbox"
+                  checked={draft.conditionEnabled}
+                  onChange={(event) => onChange({ ...draft, conditionEnabled: event.target.checked })}
+                />
+                <span>配置匹配条件</span>
+              </label>
+            ) : null}
+            {draft.conditionEnabled ? (
+              <div className="policy-editor-grid">
+                <PolicySelectField
+                  label="匹配类型"
+                  value={draft.conditionType}
+                  options={accessControlConditionTypes.map((type) => [type, accessControlConditionTypeLabel(type)])}
+                  onChange={(conditionType) => {
+                    const nextConditionType = conditionType as AccessControlConditionType;
+                    onChange({
+                      ...draft,
+                      conditionType: nextConditionType,
+                      conditionName: nextConditionType === 'Header' ? draft.conditionName : '',
+                    });
+                  }}
+                />
+                {needsConditionName ? <PolicyInputField label="匹配名称" value={draft.conditionName} onChange={(conditionName) => onChange({ ...draft, conditionName })} /> : null}
+                <PolicyInputField label="匹配值" value={draft.conditionValue} onChange={(conditionValue) => onChange({ ...draft, conditionValue })} />
+              </div>
+            ) : (
+              <div className="mini-card policy-execution-note">
+                <div className="mini-card-title">规则匹配全部请求</div>
+                <div className="mini-card-meta">不配置匹配条件时，该规则会对所有请求执行。</div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="mini-card policy-execution-note">
             <div className="mini-card-title">默认拒绝全部请求</div>
@@ -133,15 +177,17 @@ export function createAccessControlPolicyDraft(policy?: AccessControlPolicy): Ac
     name: policy?.name ?? '',
     description: policy?.description ?? '',
     enabled: policy?.enabled ?? true,
+    targets: policy?.targets ?? [],
     defaultAction: policy?.defaultAction || 'Deny',
     ruleEnabled: policy ? Boolean(rule) : true,
     ruleName: rule?.name ?? 'default',
     ruleAction: rule?.action || 'Allow',
+    conditionEnabled: policy ? Boolean(condition) : true,
     conditionType: condition?.type ?? 'IP',
     conditionName: condition?.name ?? '',
     conditionValue: condition?.value ?? '',
     responseStatusCode: String(policy?.response?.statusCode ?? 403),
-    responseMessage: policy?.response?.message ?? 'Forbidden',
+    responseMessage: policy?.response?.message ?? 'Access denied',
     preservedConditions: condition ? rule?.conditions?.slice(1) ?? [] : [],
     preservedRules: policy?.rules?.slice(1) ?? [],
   };
@@ -150,34 +196,38 @@ export function createAccessControlPolicyDraft(policy?: AccessControlPolicy): Ac
 export function accessControlPolicyPayload(draft: AccessControlPolicyDraft): AccessControlPolicyPayload {
   const condition = {
     type: draft.conditionType,
-    ...(draft.conditionName ? { name: draft.conditionName } : {}),
+    ...(draft.conditionType === 'Header' && draft.conditionName ? { name: draft.conditionName } : {}),
     value: draft.conditionValue,
   };
-  return {
-    id: draft.id,
-    version: draft.version,
+  const config = {
     name: draft.name,
     description: draft.description,
     enabled: draft.enabled,
+    targets: draft.targets.map((target) => ({ kind: target.kind, id: target.id })),
     defaultAction: draft.defaultAction,
     rules: draft.ruleEnabled ? [{
       name: draft.ruleName,
       action: draft.ruleAction,
-      conditions: [condition, ...draft.preservedConditions],
+      conditions: draft.conditionEnabled ? [condition, ...draft.preservedConditions] : [],
     }, ...draft.preservedRules] : [],
     response: {
       statusCode: Number(draft.responseStatusCode || 403),
       message: draft.responseMessage,
     },
   };
+  if (!draft.id) {
+    return config;
+  }
+  if (!draft.version) {
+    throw new Error('策略版本缺失，请刷新后重试');
+  }
+  return { ...config, id: draft.id, version: draft.version };
 }
 
 function accessControlConditionTypeLabel(type: AccessControlConditionType) {
   const labels: Record<AccessControlConditionType, string> = {
     IP: '客户端 IP',
     Header: '请求头',
-    Consumer: '调用方',
-    Tenant: '租户',
   };
   return labels[type];
 }

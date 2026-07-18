@@ -17,7 +17,6 @@ type GatewayV1Interface interface {
 	AccessControlPoliciesGetter
 	CertificatesGetter
 	GatewaysGetter
-	PolicyBindingsGetter
 	RateLimitPoliciesGetter
 	RoutesGetter
 	UpstreamsGetter
@@ -38,10 +37,6 @@ func (c *GatewayV1Client) Certificates() CertificateInterface {
 
 func (c *GatewayV1Client) Gateways() GatewayInterface {
 	return newGateways(c)
-}
-
-func (c *GatewayV1Client) PolicyBindings() PolicyBindingInterface {
-	return newPolicyBindings(c)
 }
 
 func (c *GatewayV1Client) RateLimitPolicies() RateLimitPolicyInterface {

@@ -105,8 +105,9 @@ func (d *Delivery) Run(ctx context.Context) error {
 func (d *Delivery) Submit(ctx context.Context, result config.CompileResult) error {
 	hasErrors := result.HasErrors()
 	cleanResult := config.CompileResult{
-		Version:   result.Version,
-		Resources: cloneResourceGenerations(result.Resources),
+		Version:       result.Version,
+		Resources:     cloneResourceGenerations(result.Resources),
+		PolicyTargets: clonePolicyTargets(result.PolicyTargets),
 	}
 	if !hasErrors && result.Version != "" {
 		cleanResult.Config = cloneConfig(result.Config)
@@ -143,9 +144,11 @@ func (d *Delivery) Status() Status {
 	d.statusMu.RUnlock()
 
 	status.ActiveResources = cloneResourceGenerations(status.ActiveResources)
+	status.ActivePolicyTargets = clonePolicyTargets(status.ActivePolicyTargets)
 	if status.LastFailure != nil {
 		failure := *status.LastFailure
 		failure.Resources = cloneResourceGenerations(failure.Resources)
+		failure.PolicyTargets = clonePolicyTargets(failure.PolicyTargets)
 		status.LastFailure = &failure
 	}
 	return status
@@ -273,23 +276,29 @@ func (d *Delivery) handleSubmit(ctx context.Context, result config.CompileResult
 		needsRestore := d.state.candidate != nil ||
 			(d.state.lastFailure != nil && d.state.lastFailure.Reason == FailureDelivery)
 		if needsRestore {
+			failurePolicyTargets := affectedPolicyTargets(d.state.active, result.Resources, result.PolicyTargets)
 			if err := d.restoreFallback(
 				ctx,
 				"restore active configuration after candidate cancellation",
 				result.Resources,
+				failurePolicyTargets,
 			); err != nil {
 				return err
 			}
 		}
 		d.state.active.resources = cloneResourceGenerations(result.Resources)
+		d.state.active.policyTargets = clonePolicyTargets(result.PolicyTargets)
 		d.state.lastFailure = nil
 		return nil
 	}
 	if d.state.candidate != nil && d.state.candidate.version == result.Version {
 		if configsEqual(d.state.candidate.config, result.Config) {
 			d.state.candidate.resources = cloneResourceGenerations(result.Resources)
+			d.state.candidate.policyTargets = clonePolicyTargets(result.PolicyTargets)
+			d.state.candidate.failurePolicyTargets = affectedPolicyTargets(d.state.active, result.Resources, result.PolicyTargets)
 			if d.state.lastFailure != nil {
 				d.state.lastFailure.Resources = cloneResourceGenerations(result.Resources)
+				d.state.lastFailure.PolicyTargets = clonePolicyTargets(d.state.candidate.failurePolicyTargets)
 			}
 			d.activateAcceptedCandidate()
 			return nil
@@ -297,19 +306,20 @@ func (d *Delivery) handleSubmit(ctx context.Context, result config.CompileResult
 		return fmt.Errorf("%w: candidate version %q", ErrVersionConflict, result.Version)
 	}
 
+	failurePolicyTargets := affectedPolicyTargets(d.state.active, result.Resources, result.PolicyTargets)
 	snapshot, err := result.Config.Snapshot(result.Version)
 	if err != nil {
-		d.recordFailure(FailureDelivery, result.Resources)
+		d.recordFailure(FailureDelivery, result.Resources, failurePolicyTargets)
 		return fmt.Errorf("build candidate snapshot %q: %w", result.Version, err)
 	}
 	publishErr := d.cache.SetSnapshot(ctx, xds.CacheKey, snapshot)
 	if publishErr != nil && !d.cacheHasVersion(result.Version) {
-		d.recordFailure(FailureDelivery, result.Resources)
+		d.recordFailure(FailureDelivery, result.Resources, failurePolicyTargets)
 		return fmt.Errorf("publish candidate snapshot %q: %w", result.Version, publishErr)
 	}
 	d.setCandidate(result, snapshot)
 	if publishErr != nil {
-		d.recordFailure(FailureDelivery, result.Resources)
+		d.recordFailure(FailureDelivery, result.Resources, d.state.candidate.failurePolicyTargets)
 		return fmt.Errorf("publish candidate snapshot %q: %w", result.Version, publishErr)
 	}
 	d.activateAcceptedCandidate()
@@ -322,11 +332,13 @@ func (d *Delivery) handleCancelCandidate(ctx context.Context) error {
 		return nil
 	}
 	failureResources := d.candidateResources()
+	failurePolicyTargets := d.candidateFailurePolicyTargets()
 	if len(failureResources) == 0 && d.state.lastFailure != nil {
 		failureResources = cloneResourceGenerations(d.state.lastFailure.Resources)
+		failurePolicyTargets = clonePolicyTargets(d.state.lastFailure.PolicyTargets)
 	}
 	d.state.lastFailure = nil
-	return d.restoreFallback(ctx, "cancel candidate after desired configuration changed", failureResources)
+	return d.restoreFallback(ctx, "cancel candidate after desired configuration changed", failureResources, failurePolicyTargets)
 }
 
 func (d *Delivery) setCandidate(result config.CompileResult, snapshot *cachev3.Snapshot) {
@@ -336,14 +348,16 @@ func (d *Delivery) setCandidate(result config.CompileResult, snapshot *cachev3.S
 	d.state.sequence++
 	d.state.candidate = &candidateState{
 		publishedConfig: publishedConfig{
-			version:   result.Version,
-			config:    result.Config,
-			snapshot:  snapshot,
-			resources: cloneResourceGenerations(result.Resources),
+			version:       result.Version,
+			config:        result.Config,
+			snapshot:      snapshot,
+			resources:     cloneResourceGenerations(result.Resources),
+			policyTargets: clonePolicyTargets(result.PolicyTargets),
 		},
 		sequence: d.state.sequence,
 		// 保留 Active 用过的动态类型，才能通过 Candidate 的空响应确认资源删除
-		requiredTypes: transitionTypeURLs(d.state.active, result.Config),
+		requiredTypes:        transitionTypeURLs(d.state.active, result.Config),
+		failurePolicyTargets: affectedPolicyTargets(d.state.active, result.Resources, result.PolicyTargets),
 	}
 	d.state.lastFailure = nil
 
@@ -466,10 +480,11 @@ func (d *Delivery) activateCandidate() {
 	}
 
 	d.state.active = &publishedConfig{
-		version:   candidate.version,
-		config:    candidate.config,
-		snapshot:  candidate.snapshot,
-		resources: candidate.resources,
+		version:       candidate.version,
+		config:        candidate.config,
+		snapshot:      candidate.snapshot,
+		resources:     candidate.resources,
+		policyTargets: candidate.policyTargets,
 	}
 	d.state.candidate = nil
 	d.state.lastFailure = nil
@@ -503,11 +518,13 @@ func (d *Delivery) handleNACK(ctx context.Context, event xds.Event) error {
 
 	progress.acked[event.TypeURL] = false
 	resources := cloneResourceGenerations(d.state.candidate.resources)
-	d.recordFailure(FailureRejected, resources)
+	policyTargets := clonePolicyTargets(d.state.candidate.failurePolicyTargets)
+	d.recordFailure(FailureRejected, resources, policyTargets)
 	if err := d.restoreFallback(
 		ctx,
 		fmt.Sprintf("rollback rejected candidate %q", event.Version),
 		resources,
+		policyTargets,
 	); err != nil {
 		return err
 	}
@@ -519,13 +536,14 @@ func (d *Delivery) handleACKTimeout(version string, sequence uint64) {
 	if candidate == nil || candidate.version != version || candidate.sequence != sequence {
 		return
 	}
-	d.recordFailure(FailureDelivery, candidate.resources)
+	d.recordFailure(FailureDelivery, candidate.resources, candidate.failurePolicyTargets)
 }
 
 func (d *Delivery) restoreFallback(
 	ctx context.Context,
 	operation string,
 	failureResources []config.ResourceGeneration,
+	failurePolicyTargets []config.ProgrammedPolicyTarget,
 ) error {
 	if d.state.candidate != nil && d.state.candidate.timer != nil {
 		d.state.candidate.timer.Stop()
@@ -544,7 +562,7 @@ func (d *Delivery) restoreFallback(
 	d.state.pruneProgress(fallbackVersion)
 	d.clearAcceptedVersions()
 	if err != nil {
-		d.recordFailure(FailureDelivery, failureResources)
+		d.recordFailure(FailureDelivery, failureResources, failurePolicyTargets)
 		return fmt.Errorf("%s: %w", operation, err)
 	}
 	return nil
@@ -557,16 +575,28 @@ func (d *Delivery) candidateResources() []config.ResourceGeneration {
 	return cloneResourceGenerations(d.state.candidate.resources)
 }
 
+func (d *Delivery) candidateFailurePolicyTargets() []config.ProgrammedPolicyTarget {
+	if d.state.candidate == nil {
+		return nil
+	}
+	return clonePolicyTargets(d.state.candidate.failurePolicyTargets)
+}
+
 func (d *Delivery) clearAcceptedVersions() {
 	for _, stream := range d.state.streams {
 		clear(stream.acceptedVersions)
 	}
 }
 
-func (d *Delivery) recordFailure(reason FailureReason, resources []config.ResourceGeneration) {
+func (d *Delivery) recordFailure(
+	reason FailureReason,
+	resources []config.ResourceGeneration,
+	policyTargets []config.ProgrammedPolicyTarget,
+) {
 	d.state.lastFailure = &Failure{
-		Reason:    reason,
-		Resources: cloneResourceGenerations(resources),
+		Reason:        reason,
+		Resources:     cloneResourceGenerations(resources),
+		PolicyTargets: clonePolicyTargets(policyTargets),
 	}
 }
 
@@ -574,9 +604,13 @@ func statusEqual(a, b Status) bool {
 	if !slices.Equal(a.ActiveResources, b.ActiveResources) {
 		return false
 	}
+	if !slices.Equal(a.ActivePolicyTargets, b.ActivePolicyTargets) {
+		return false
+	}
 	if a.LastFailure == nil || b.LastFailure == nil {
 		return a.LastFailure == nil && b.LastFailure == nil
 	}
 	return a.LastFailure.Reason == b.LastFailure.Reason &&
-		slices.Equal(a.LastFailure.Resources, b.LastFailure.Resources)
+		slices.Equal(a.LastFailure.Resources, b.LastFailure.Resources) &&
+		slices.Equal(a.LastFailure.PolicyTargets, b.LastFailure.PolicyTargets)
 }

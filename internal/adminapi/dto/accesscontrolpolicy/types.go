@@ -1,19 +1,53 @@
 // Package accesscontrolpolicy 定义访问控制策略管理接口的请求和响应模型
 package accesscontrolpolicy
 
-import (
-	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+import admindto "github.com/lgc202/ingate/internal/adminapi/dto"
+
+// Action 表示访问控制规则命中后的处理动作
+type Action string
+
+const (
+	ActionAllow Action = "Allow"
+	ActionDeny  Action = "Deny"
 )
 
-// AccessControlPolicyConfig 是控制台读写 AccessControlPolicy 时复用的核心配置
+// ConditionType 表示访问控制匹配维度
+type ConditionType string
+
+const (
+	ConditionTypeIP     ConditionType = "IP"
+	ConditionTypeHeader ConditionType = "Header"
+)
+
+// AccessControlPolicyConfig 是控制台创建和更新访问控制策略的产品配置
 type AccessControlPolicyConfig struct {
-	Name          string                             `json:"name"`
-	Description   string                             `json:"description,omitempty"`
-	Enabled       bool                               `json:"enabled"`
-	DefaultAction resource.AccessControlAction       `json:"defaultAction,omitempty"`
-	Rules         []resource.AccessControlRule       `json:"rules,omitempty"`
-	Response      resource.AccessControlDenyResponse `json:"response,omitempty"`
+	Name          string                     `json:"name"`
+	Description   string                     `json:"description,omitempty"`
+	Enabled       bool                       `json:"enabled"`
+	Targets       []admindto.PolicyTargetReq `json:"targets,omitempty"`
+	DefaultAction Action                     `json:"defaultAction,omitempty"`
+	Rules         []Rule                     `json:"rules,omitempty"`
+	Response      DenyResponse               `json:"response,omitempty"`
+}
+
+// Rule 表示一条访问控制规则
+type Rule struct {
+	Name       string      `json:"name"`
+	Action     Action      `json:"action"`
+	Conditions []Condition `json:"conditions,omitempty"`
+}
+
+// Condition 表示访问控制规则中的一个匹配条件
+type Condition struct {
+	Type  ConditionType `json:"type"`
+	Name  string        `json:"name,omitempty"`
+	Value string        `json:"value"`
+}
+
+// DenyResponse 表示访问被拒绝时返回给调用方的响应
+type DenyResponse struct {
+	StatusCode int    `json:"statusCode,omitempty"`
+	Message    string `json:"message,omitempty"`
 }
 
 // CreateAccessControlPolicyReq 是创建访问控制策略的请求体
@@ -34,11 +68,17 @@ type SetEnabledReq struct {
 
 // AccessControlPolicy 是 admin-api 面向控制台返回的访问控制策略
 type AccessControlPolicy struct {
-	ID      string                  `json:"id"`
-	Version string                  `json:"version,omitempty"`
-	Status  admindto.ResourceStatus `json:"status"`
-	AccessControlPolicyConfig
-	CreatedAt string `json:"createdAt"`
+	ID            string                  `json:"id"`
+	Version       string                  `json:"version"`
+	Status        admindto.PolicyStatus   `json:"status"`
+	Name          string                  `json:"name"`
+	Description   string                  `json:"description,omitempty"`
+	Enabled       bool                    `json:"enabled"`
+	Targets       []admindto.PolicyTarget `json:"targets"`
+	DefaultAction Action                  `json:"defaultAction,omitempty"`
+	Rules         []Rule                  `json:"rules,omitempty"`
+	Response      DenyResponse            `json:"response,omitempty"`
+	CreatedAt     string                  `json:"createdAt"`
 }
 
 // ListAccessControlPoliciesResp 是访问控制策略列表响应

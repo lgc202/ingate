@@ -1,15 +1,26 @@
 package ratelimitpolicy
 
-import resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+import (
+	"github.com/lgc202/ingate/internal/adminapi/service/policytarget"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+)
 
 // ListResult 表示 RateLimitPolicy 列表查询结果
 type ListResult struct {
-	Policies []resource.RateLimitPolicy
+	Policies    []resource.RateLimitPolicy
+	TargetNames policytarget.DisplayNames
 }
 
 // PolicyResult 表示单个 RateLimitPolicy 查询结果
 type PolicyResult struct {
-	Policy *resource.RateLimitPolicy
+	Policy      *resource.RateLimitPolicy
+	TargetNames policytarget.DisplayNames
+}
+
+// TargetParams 表示策略作用目标参数
+type TargetParams struct {
+	Kind resource.Kind
+	ID   string
 }
 
 // PolicyParams 表示 RateLimitPolicy 可编辑字段
@@ -17,7 +28,7 @@ type PolicyParams struct {
 	Name          string
 	Description   string
 	Enabled       bool
-	Mode          resource.RateLimitMode
+	Targets       []TargetParams
 	Rules         []resource.RateLimitRule
 	Response      resource.RateLimitResponse
 	FailurePolicy resource.RateLimitFailurePolicy

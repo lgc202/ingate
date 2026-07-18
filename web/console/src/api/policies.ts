@@ -6,10 +6,9 @@ import type {
   AccessControlPolicy,
   AccessControlPolicyPayload,
   GovernancePolicy,
-  PolicyBinding,
-  PolicyBindingPayload,
   PolicyMutationResult,
   PolicyTargetOption,
+  PolicyTargetRef,
   PolicyWorkspace,
   RateLimitPolicy,
   RateLimitPolicyPayload,
@@ -29,15 +28,10 @@ interface AccessControlPolicyListResponse {
   policies?: AccessControlPolicy[];
 }
 
-interface PolicyBindingListResponse {
-  bindings?: PolicyBinding[];
-}
-
 export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
-  const [rateLimitPolicies, accessControlPolicies, bindings, gatewayList, routeList] = await Promise.all([
+  const [rateLimitPolicies, accessControlPolicies, gatewayList, routeList] = await Promise.all([
     listRateLimitPolicies(),
     listAccessControlPolicies(),
-    listPolicyBindings(),
     listGateways(),
     listRoutes(),
   ]);
@@ -50,8 +44,10 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
       name: policy.name,
       description: policy.description,
       enabled: policy.enabled,
-      mode: policy.mode === 'Global' ? '全局共享计数' : '单实例计数',
+      summary: rateLimitSummary(policy),
       ruleCount: policy.rules.length,
+      targets: policy.targets ?? [],
+      status: policy.status,
       createdAt: policy.createdAt,
       raw: policy,
     })),
@@ -62,8 +58,10 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
       name: policy.name,
       description: policy.description,
       enabled: policy.enabled,
-      mode: policy.defaultAction === 'Deny' ? '默认拒绝' : '默认放行',
+      summary: policy.defaultAction === 'Deny' ? '未命中时拒绝' : '未命中时放行',
       ruleCount: policy.rules?.length ?? 0,
+      targets: policy.targets ?? [],
+      status: policy.status,
       createdAt: policy.createdAt,
       raw: policy,
     })),
@@ -73,7 +71,6 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
     policies,
     rateLimitPolicies,
     accessControlPolicies,
-    bindings,
     targets: policyTargets(gatewayList, routeList),
   };
 }
@@ -88,11 +85,6 @@ export async function listAccessControlPolicies(): Promise<AccessControlPolicy[]
   return response.policies ?? [];
 }
 
-export async function listPolicyBindings(): Promise<PolicyBinding[]> {
-  const response = await apiRequest<PolicyBindingListResponse>('/policy-bindings');
-  return response.bindings ?? [];
-}
-
 export async function saveRateLimitPolicy(payload: RateLimitPolicyPayload) {
   return savePolicy('/rate-limit-policies', payload, `限流策略已保存：${payload.name}`);
 }
@@ -101,32 +93,57 @@ export async function saveAccessControlPolicy(payload: AccessControlPolicyPayloa
   return savePolicy('/access-control-policies', payload, `访问控制策略已保存：${payload.name}`);
 }
 
-export async function savePolicyBinding(payload: PolicyBindingPayload) {
-  return savePolicy('/policy-bindings', payload, `策略绑定已保存：${payload.name}`);
+export async function updateGovernancePolicyTargets(policy: GovernancePolicy, targets: PolicyTargetRef[]) {
+  const normalizedTargets = targets.map((target) => ({ kind: target.kind, id: target.id }));
+  if (policy.kind === 'RateLimitPolicy') {
+    const source = policy.raw;
+    if (!source.version) {
+      throw new Error('限流策略版本缺失，请刷新后重试');
+    }
+    return savePolicy('/rate-limit-policies', {
+      id: source.id,
+      version: source.version,
+      name: source.name,
+      description: source.description,
+      enabled: source.enabled,
+      targets: normalizedTargets,
+      rules: source.rules,
+      response: source.response,
+      failurePolicy: source.failurePolicy,
+    } satisfies RateLimitPolicyPayload, `限流策略应用范围已更新：${source.name}`);
+  }
+
+  const source = policy.raw;
+  if (!source.version) {
+    throw new Error('访问控制策略版本缺失，请刷新后重试');
+  }
+  return savePolicy('/access-control-policies', {
+    id: source.id,
+    version: source.version,
+    name: source.name,
+    description: source.description,
+    enabled: source.enabled,
+    targets: normalizedTargets,
+    defaultAction: source.defaultAction,
+    rules: source.rules ?? [],
+    response: source.response,
+  } satisfies AccessControlPolicyPayload, `访问控制策略应用范围已更新：${source.name}`);
 }
 
-export async function deleteRateLimitPolicy(id: string) {
-  return deletePolicy('/rate-limit-policies', id, `限流策略已删除：${id}`);
+export async function deleteRateLimitPolicy(id: string, name: string) {
+  return deletePolicy('/rate-limit-policies', id, `限流策略已删除：${name}`);
 }
 
-export async function deleteAccessControlPolicy(id: string) {
-  return deletePolicy('/access-control-policies', id, `访问控制策略已删除：${id}`);
+export async function deleteAccessControlPolicy(id: string, name: string) {
+  return deletePolicy('/access-control-policies', id, `访问控制策略已删除：${name}`);
 }
 
-export async function deletePolicyBinding(id: string) {
-  return deletePolicy('/policy-bindings', id, `策略绑定已删除：${id}`);
+export async function setRateLimitPolicyEnabled(id: string, name: string, enabled: boolean) {
+  return setPolicyEnabled('/rate-limit-policies', id, enabled, `限流策略已${enabled ? '启用' : '停用'}：${name}`);
 }
 
-export async function setRateLimitPolicyEnabled(id: string, enabled: boolean) {
-  return setPolicyEnabled('/rate-limit-policies', id, enabled, `限流策略已${enabled ? '启用' : '停用'}：${id}`);
-}
-
-export async function setAccessControlPolicyEnabled(id: string, enabled: boolean) {
-  return setPolicyEnabled('/access-control-policies', id, enabled, `访问控制策略已${enabled ? '启用' : '停用'}：${id}`);
-}
-
-export async function setPolicyBindingEnabled(id: string, enabled: boolean) {
-  return setPolicyEnabled('/policy-bindings', id, enabled, `策略绑定已${enabled ? '启用' : '停用'}：${id}`);
+export async function setAccessControlPolicyEnabled(id: string, name: string, enabled: boolean) {
+  return setPolicyEnabled('/access-control-policies', id, enabled, `访问控制策略已${enabled ? '启用' : '停用'}：${name}`);
 }
 
 function policyTargets(gateways: GatewayListView, routes: RouteListView): PolicyTargetOption[] {
@@ -140,9 +157,16 @@ function policyTargets(gateways: GatewayListView, routes: RouteListView): Policy
       id: route.id,
       name: route.name || route.id,
       kind: 'Route' as const,
-      ruleNames: route.rules.map((rule) => rule.name),
     })),
   ].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function rateLimitSummary(policy: RateLimitPolicy) {
+  const limit = policy.rules[0]?.limit;
+  if (!limit) {
+    return '未配置额度';
+  }
+  return `${limit.requests} 次 / ${limit.windowSeconds} 秒`;
 }
 
 async function savePolicy<T extends { id?: string }>(basePath: string, payload: T, message: string): Promise<PolicyMutationResult> {

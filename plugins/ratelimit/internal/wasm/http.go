@@ -13,7 +13,7 @@ import (
 
 func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
 	route, ok := h.route()
-	if !ok || len(route.Config.Bindings) == 0 {
+	if !ok || len(route.Config.Policies) == 0 {
 		return types.ActionContinue
 	}
 
@@ -31,79 +31,76 @@ func (h *httpContext) OnHttpStreamDone() {
 }
 
 func (h *httpContext) applyRuntimeResult(result ratelimitruntime.Result) types.Action {
-	for _, err := range result.Errors {
-		proxywasm.LogErrorf("rate-limit local rule evaluation failed: %v", err)
-	}
 	if len(result.QuotaHeaders) > 0 {
 		h.quotaHeaders = result.QuotaHeaders
 	}
 	if result.Action.Kind == pluginruntime.ActionRespond {
 		return proxyWasmAction(result.Action)
 	}
-	if len(result.GlobalChecks) > 0 {
-		return h.dispatchGlobalChecks(result.GlobalChecks)
+	if len(result.Checks) > 0 {
+		return h.dispatchChecks(result.Checks)
 	}
 	return proxyWasmAction(result.Action)
 }
 
-func (h *httpContext) dispatchGlobalChecks(checks []policy.GlobalCheck) types.Action {
-	h.globalChecks = checks
-	h.globalOutcomes = make([]policy.GlobalOutcome, len(checks))
-	h.globalRequests = make([]redis.Request, len(checks))
-	h.globalIndex = 0
+func (h *httpContext) dispatchChecks(checks []policy.Check) types.Action {
+	h.checks = checks
+	h.outcomes = make([]policy.Outcome, len(checks))
+	h.requests = make([]redis.Request, len(checks))
+	h.index = 0
 
-	pending, result := h.dispatchNextGlobalCheck()
+	pending, result := h.dispatchNextCheck()
 	if pending {
 		return types.ActionPause
 	}
-	h.clearGlobalExecution()
+	h.clearExecution()
 	return h.applyRuntimeResult(result)
 }
 
-func (h *httpContext) dispatchNextGlobalCheck() (bool, ratelimitruntime.Result) {
-	for h.globalIndex < len(h.globalChecks) {
-		index := h.globalIndex
-		check := h.globalChecks[index]
-		request, command, err := h.plugin.runtime.PrepareGlobalCheck(check)
+func (h *httpContext) dispatchNextCheck() (bool, ratelimitruntime.Result) {
+	for h.index < len(h.checks) {
+		index := h.index
+		check := h.checks[index]
+		request, command, err := h.plugin.runtime.PrepareCheck(check)
 		if err != nil {
-			h.globalOutcomes[index].Err = err
-			h.globalIndex++
+			h.outcomes[index].Err = err
+			h.index++
 			proxywasm.LogErrorf("prepare rate-limit Redis check failed: %v", err)
 			continue
 		}
-		h.globalRequests[index] = request
-		h.globalIndex++
+		h.requests[index] = request
+		h.index++
 
 		_, err = redisabi.Dispatch(h.plugin.contextID, h.contextID, command, func(result redisabi.Result) {
 			h.handleRedisResponse(index, result)
 		})
 		if err != nil {
-			h.globalOutcomes[index].Err = err
+			h.outcomes[index].Err = err
 			proxywasm.LogErrorf("dispatch rate-limit Redis check failed: %v", err)
 			continue
 		}
 		return true, ratelimitruntime.Result{}
 	}
 
-	return false, h.plugin.runtime.CompleteGlobalChecks(h.globalChecks, h.globalOutcomes)
+	return false, h.plugin.runtime.CompleteChecks(h.checks, h.outcomes)
 }
 
 func (h *httpContext) handleRedisResponse(index int, result redisabi.Result) {
-	outcome := h.plugin.runtime.CompleteGlobalCheck(h.globalRequests[index], result)
-	h.globalOutcomes[index] = outcome
+	outcome := h.plugin.runtime.CompleteCheck(h.requests[index], result)
+	h.outcomes[index] = outcome
 	if outcome.Err != nil {
 		proxywasm.LogErrorf("complete rate-limit Redis check failed: %v", outcome.Err)
 	}
 
-	pending, completed := h.dispatchNextGlobalCheck()
+	pending, completed := h.dispatchNextCheck()
 	if pending {
 		return
 	}
-	h.finishGlobalExecution(completed)
+	h.finishExecution(completed)
 }
 
-func (h *httpContext) finishGlobalExecution(result ratelimitruntime.Result) {
-	h.clearGlobalExecution()
+func (h *httpContext) finishExecution(result ratelimitruntime.Result) {
+	h.clearExecution()
 	if result.Action.Kind == pluginruntime.ActionRespond {
 		if err := redisabi.SendHTTPResponse(
 			h.contextID,
@@ -124,9 +121,9 @@ func (h *httpContext) finishGlobalExecution(result ratelimitruntime.Result) {
 	}
 }
 
-func (h *httpContext) clearGlobalExecution() {
-	h.globalChecks = nil
-	h.globalOutcomes = nil
-	h.globalRequests = nil
-	h.globalIndex = 0
+func (h *httpContext) clearExecution() {
+	h.checks = nil
+	h.outcomes = nil
+	h.requests = nil
+	h.index = 0
 }

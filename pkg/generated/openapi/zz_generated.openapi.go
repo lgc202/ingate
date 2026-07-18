@@ -34,11 +34,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HostBinding":               schema_pkg_apis_gateway_v1_HostBinding(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":                  schema_pkg_apis_gateway_v1_Listener(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ParentRef":                 schema_pkg_apis_gateway_v1_ParentRef(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBinding":             schema_pkg_apis_gateway_v1_PolicyBinding(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBindingList":         schema_pkg_apis_gateway_v1_PolicyBindingList(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBindingSpec":         schema_pkg_apis_gateway_v1_PolicyBindingSpec(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyRef":                 schema_pkg_apis_gateway_v1_PolicyRef(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus":              schema_pkg_apis_gateway_v1_PolicyStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef":           schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetStatus":        schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitKey":              schema_pkg_apis_gateway_v1_RateLimitKey(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitKeyPart":          schema_pkg_apis_gateway_v1_RateLimitKeyPart(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicy":           schema_pkg_apis_gateway_v1_RateLimitPolicy(ref),
@@ -211,14 +209,14 @@ func schema_pkg_apis_gateway_v1_AccessControlPolicy(ref common.ReferenceCallback
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicySpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicySpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -298,6 +296,24 @@ func schema_pkg_apis_gateway_v1_AccessControlPolicySpec(ref common.ReferenceCall
 							Format:  "",
 						},
 					},
+					"targetRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef"),
+									},
+								},
+							},
+						},
+					},
 					"defaultAction": {
 						SchemaProps: spec.SchemaProps{
 							Type:   []string{"string"},
@@ -333,7 +349,7 @@ func schema_pkg_apis_gateway_v1_AccessControlPolicySpec(ref common.ReferenceCall
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlDenyResponse", "github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlRule"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlDenyResponse", "github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlRule", "github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef"},
 	}
 }
 
@@ -968,136 +984,35 @@ func schema_pkg_apis_gateway_v1_ParentRef(ref common.ReferenceCallback) common.O
 	}
 }
 
-func schema_pkg_apis_gateway_v1_PolicyBinding(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_gateway_v1_PolicyStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "PolicyBinding 声明一组策略绑定到哪个资源",
+				Description: "PolicyStatus 表示策略的总体状态和各目标生效状态",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
 						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBindingSpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBindingSpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_PolicyBindingList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "PolicyBindingList 表示 PolicyBinding 资源列表",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
 						SchemaProps: spec.SchemaProps{
 							Type: []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBinding"),
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
 									},
 								},
 							},
 						},
 					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyBinding", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_PolicyBindingSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "PolicyBindingSpec 定义策略绑定目标和策略引用",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"displayName": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"description": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"enabled": {
-						SchemaProps: spec.SchemaProps{
-							Default: false,
-							Type:    []string{"boolean"},
-							Format:  "",
-						},
-					},
-					"targetRef": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef"),
-						},
-					},
-					"policies": {
+					"targets": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
 								"x-kubernetes-list-type": "atomic",
@@ -1109,46 +1024,17 @@ func schema_pkg_apis_gateway_v1_PolicyBindingSpec(ref common.ReferenceCallback) 
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyRef"),
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetStatus"),
 									},
 								},
 							},
 						},
 					},
 				},
-				Required: []string{"displayName", "enabled", "targetRef", "policies"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyRef", "github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_PolicyRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "PolicyRef 表示被绑定的策略资源引用",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-				},
-				Required: []string{"kind", "name"},
-			},
-		},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
 	}
 }
 
@@ -1156,7 +1042,7 @@ func schema_pkg_apis_gateway_v1_PolicyTargetRef(ref common.ReferenceCallback) co
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "PolicyTargetRef 表示策略绑定目标资源，当前执行链路只支持 Gateway 和 Route",
+				Description: "PolicyTargetRef 表示策略的生效目标",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1173,16 +1059,53 @@ func schema_pkg_apis_gateway_v1_PolicyTargetRef(ref common.ReferenceCallback) co
 							Format:  "",
 						},
 					},
-					"ruleName": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
 				},
 				Required: []string{"kind", "name"},
 			},
 		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "PolicyTargetStatus 表示策略在单个目标上的生效状态",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"targetRef": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef"),
+						},
+					},
+					"conditions": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.Condition"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"targetRef"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef", "k8s.io/apimachinery/pkg/apis/meta/v1.Condition"},
 	}
 }
 
@@ -1283,14 +1206,14 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicy(ref common.ReferenceCallback) co
 					"status": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicySpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicySpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
 	}
 }
 
@@ -1370,11 +1293,22 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 							Format:  "",
 						},
 					},
-					"mode": {
+					"targetRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
 						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef"),
+									},
+								},
+							},
 						},
 					},
 					"rules": {
@@ -1408,11 +1342,11 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 						},
 					},
 				},
-				Required: []string{"displayName", "enabled", "mode", "rules"},
+				Required: []string{"displayName", "enabled", "rules"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitResponse", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitRule"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitResponse", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitRule"},
 	}
 }
 
@@ -1439,8 +1373,9 @@ func schema_pkg_apis_gateway_v1_RateLimitQuota(ref common.ReferenceCallback) com
 					},
 					"burst": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
+							Description: "Burst 表示令牌桶容量，0 表示使用 Requests 作为容量",
+							Type:        []string{"integer"},
+							Format:      "int32",
 						},
 					},
 				},
@@ -1505,12 +1440,6 @@ func schema_pkg_apis_gateway_v1_RateLimitRule(ref common.ReferenceCallback) comm
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
 							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitQuota"),
-						},
-					},
-					"algorithm": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
 						},
 					},
 				},

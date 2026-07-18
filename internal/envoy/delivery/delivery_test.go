@@ -13,6 +13,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/envoy/config"
 	"github.com/lgc202/ingate/internal/envoy/xds"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 type setSnapshotErrorCache struct {
@@ -83,6 +84,204 @@ func TestDeliveryAllowsNACKedVersionToBeSubmittedAgain(t *testing.T) {
 	}
 	if d.state.candidate == nil || d.state.candidate.version != result.Version {
 		t.Fatalf("Delivery.handleSubmit(%q) after NACK candidate = %#v, want same version", result.Version, d.state.candidate)
+	}
+}
+
+func TestDeliveryNACKKeepsActivePolicyTargetsAndRecordsCandidateTargets(t *testing.T) {
+	d, err := New(cachev3.NewSnapshotCache(true, xds.NodeHash{}, nil), Options{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	activeTarget := config.ProgrammedPolicyTarget{
+		Policy: config.ResourceGeneration{Kind: gatewayv1.KindRateLimitPolicy, Name: "rate-limit-1", Generation: 1},
+		Target: config.ResourceGeneration{Kind: gatewayv1.KindGateway, Name: "gateway-1", Generation: 1},
+	}
+	active := config.CompileResult{Version: "version-active", PolicyTargets: []config.ProgrammedPolicyTarget{activeTarget}}
+	if err := d.handleSubmit(context.Background(), active, false); err != nil {
+		t.Fatalf("Delivery.handleSubmit(%q) error = %v", active.Version, err)
+	}
+	d.activateCandidate()
+
+	candidateTarget := activeTarget
+	candidateTarget.Target.Generation = 2
+	candidate := config.CompileResult{Version: "version-candidate", PolicyTargets: []config.ProgrammedPolicyTarget{candidateTarget}}
+	if err := d.handleSubmit(context.Background(), candidate, false); err != nil {
+		t.Fatalf("Delivery.handleSubmit(%q) error = %v", candidate.Version, err)
+	}
+	d.state.streams[1] = &streamState{nodeID: "envoy-1", versions: make(map[string]*ackProgress)}
+	d.state.streams[1].progress(candidate.Version).sent[resourcev3.ListenerType] = true
+	if err := d.handleNACK(context.Background(), xds.Event{
+		Kind:     xds.EventNACK,
+		StreamID: 1,
+		NodeID:   "envoy-1",
+		TypeURL:  resourcev3.ListenerType,
+		Version:  candidate.Version,
+	}); err != nil {
+		t.Fatalf("Delivery.handleNACK(%q) error = %v", candidate.Version, err)
+	}
+
+	if got, want := d.state.active.policyTargets, active.PolicyTargets; !slices.Equal(got, want) {
+		t.Errorf("Delivery.handleNACK(%q) active policy targets = %v, want %v", candidate.Version, got, want)
+	}
+	if got, want := d.state.lastFailure.PolicyTargets, candidate.PolicyTargets; !slices.Equal(got, want) {
+		t.Errorf("Delivery.handleNACK(%q) failure policy targets = %v, want %v", candidate.Version, got, want)
+	}
+}
+
+func TestAffectedPolicyTargetsIncludesRemovedActiveTargetAtDesiredGeneration(t *testing.T) {
+	active := &publishedConfig{policyTargets: []config.ProgrammedPolicyTarget{{
+		Policy: config.ResourceGeneration{
+			Kind:       gatewayv1.KindRateLimitPolicy,
+			Name:       "rate-limit-1",
+			UID:        types.UID("policy-uid"),
+			Generation: 1,
+		},
+		Target: config.ResourceGeneration{
+			Kind:       gatewayv1.KindGateway,
+			Name:       "gateway-1",
+			UID:        types.UID("gateway-uid"),
+			Generation: 1,
+		},
+	}}}
+	desiredPolicy := active.policyTargets[0].Policy
+	desiredPolicy.Generation = 2
+	desiredTarget := active.policyTargets[0].Target
+	desiredTarget.Generation = 2
+
+	got := affectedPolicyTargets(active, []config.ResourceGeneration{desiredPolicy, desiredTarget}, nil)
+	want := []config.ProgrammedPolicyTarget{{Policy: desiredPolicy, Target: desiredTarget}}
+	if !slices.Equal(got, want) {
+		t.Errorf("affectedPolicyTargets(removed active target) = %v, want %v", got, want)
+	}
+}
+
+func TestDeliveryNACKRecordsRemovedActivePolicyTargetAtDesiredGeneration(t *testing.T) {
+	tests := []struct {
+		name             string
+		desiredPolicyGen int64
+		desiredTargetGen int64
+	}{
+		{
+			name:             "policy disabled",
+			desiredPolicyGen: 2,
+			desiredTargetGen: 1,
+		},
+		{
+			name:             "target disabled",
+			desiredPolicyGen: 1,
+			desiredTargetGen: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			d, err := New(cachev3.NewSnapshotCache(true, xds.NodeHash{}, nil), Options{})
+			if err != nil {
+				t.Fatalf("New() error = %v", err)
+			}
+			activeTarget := config.ProgrammedPolicyTarget{
+				Policy: config.ResourceGeneration{
+					Kind:       gatewayv1.KindRateLimitPolicy,
+					Name:       "rate-limit-1",
+					UID:        types.UID("policy-uid"),
+					Generation: 1,
+				},
+				Target: config.ResourceGeneration{
+					Kind:       gatewayv1.KindGateway,
+					Name:       "gateway-1",
+					UID:        types.UID("gateway-uid"),
+					Generation: 1,
+				},
+			}
+			active := config.CompileResult{
+				Version:       "version-active",
+				Resources:     []config.ResourceGeneration{activeTarget.Policy, activeTarget.Target},
+				PolicyTargets: []config.ProgrammedPolicyTarget{activeTarget},
+			}
+			if err := d.handleSubmit(context.Background(), active, false); err != nil {
+				t.Fatalf("Delivery.handleSubmit(%q) error = %v", active.Version, err)
+			}
+			d.activateCandidate()
+
+			desiredPolicy := activeTarget.Policy
+			desiredPolicy.Generation = tt.desiredPolicyGen
+			desiredTarget := activeTarget.Target
+			desiredTarget.Generation = tt.desiredTargetGen
+			candidate := config.CompileResult{
+				Version:   "version-candidate",
+				Resources: []config.ResourceGeneration{desiredPolicy, desiredTarget},
+			}
+			if err := d.handleSubmit(context.Background(), candidate, false); err != nil {
+				t.Fatalf("Delivery.handleSubmit(%q) error = %v", candidate.Version, err)
+			}
+			d.state.streams[1] = &streamState{nodeID: "envoy-1", versions: make(map[string]*ackProgress)}
+			d.state.streams[1].progress(candidate.Version).sent[resourcev3.ListenerType] = true
+			if err := d.handleNACK(context.Background(), xds.Event{
+				Kind:     xds.EventNACK,
+				StreamID: 1,
+				NodeID:   "envoy-1",
+				TypeURL:  resourcev3.ListenerType,
+				Version:  candidate.Version,
+			}); err != nil {
+				t.Fatalf("Delivery.handleNACK(%q) error = %v", candidate.Version, err)
+			}
+
+			if got, want := d.state.active.policyTargets, active.PolicyTargets; !slices.Equal(got, want) {
+				t.Errorf("Delivery.handleNACK(%q) active policy targets = %v, want %v", candidate.Version, got, want)
+			}
+			wantFailureTargets := []config.ProgrammedPolicyTarget{{Policy: desiredPolicy, Target: desiredTarget}}
+			if got := d.state.lastFailure.PolicyTargets; !slices.Equal(got, wantFailureTargets) {
+				t.Errorf("Delivery.handleNACK(%q) failure policy targets = %v, want %v", candidate.Version, got, wantFailureTargets)
+			}
+		})
+	}
+}
+
+func TestDeliveryACKTimeoutRecordsRemovedActivePolicyTarget(t *testing.T) {
+	d, err := New(cachev3.NewSnapshotCache(true, xds.NodeHash{}, nil), Options{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	activeTarget := config.ProgrammedPolicyTarget{
+		Policy: config.ResourceGeneration{
+			Kind:       gatewayv1.KindAccessControlPolicy,
+			Name:       "access-control-1",
+			UID:        types.UID("policy-uid"),
+			Generation: 1,
+		},
+		Target: config.ResourceGeneration{
+			Kind:       gatewayv1.KindRoute,
+			Name:       "route-1",
+			UID:        types.UID("route-uid"),
+			Generation: 1,
+		},
+	}
+	active := config.CompileResult{
+		Version:       "version-active",
+		Resources:     []config.ResourceGeneration{activeTarget.Policy, activeTarget.Target},
+		PolicyTargets: []config.ProgrammedPolicyTarget{activeTarget},
+	}
+	if err := d.handleSubmit(context.Background(), active, false); err != nil {
+		t.Fatalf("Delivery.handleSubmit(%q) error = %v", active.Version, err)
+	}
+	d.activateCandidate()
+
+	desiredPolicy := activeTarget.Policy
+	desiredPolicy.Generation = 2
+	candidate := config.CompileResult{
+		Version:   "version-candidate",
+		Resources: []config.ResourceGeneration{desiredPolicy, activeTarget.Target},
+	}
+	if err := d.handleSubmit(context.Background(), candidate, false); err != nil {
+		t.Fatalf("Delivery.handleSubmit(%q) error = %v", candidate.Version, err)
+	}
+	d.handleACKTimeout(candidate.Version, d.state.candidate.sequence)
+
+	wantFailureTargets := []config.ProgrammedPolicyTarget{{Policy: desiredPolicy, Target: activeTarget.Target}}
+	if got := d.state.lastFailure.PolicyTargets; !slices.Equal(got, wantFailureTargets) {
+		t.Errorf("Delivery.handleACKTimeout(%q) failure policy targets = %v, want %v", candidate.Version, got, wantFailureTargets)
+	}
+	if got, want := d.state.active.policyTargets, active.PolicyTargets; !slices.Equal(got, want) {
+		t.Errorf("Delivery.handleACKTimeout(%q) active policy targets = %v, want %v", candidate.Version, got, want)
 	}
 }
 
@@ -273,21 +472,32 @@ func TestDeliverySameVersionSubmitUpdatesCandidateAndActiveResources(t *testing.
 	}
 	second := first
 	second.Generation = 2
+	firstTarget := config.ProgrammedPolicyTarget{
+		Policy: config.ResourceGeneration{Kind: gatewayv1.KindRateLimitPolicy, Name: "rate-limit-1", Generation: 1},
+		Target: config.ResourceGeneration{Kind: gatewayv1.KindGateway, Name: "gateway-1", Generation: 1},
+	}
+	secondTarget := firstTarget
+	secondTarget.Target.Generation = 2
 	result := config.CompileResult{
-		Version:   "version-1",
-		Resources: []config.ResourceGeneration{first},
+		Version:       "version-1",
+		Resources:     []config.ResourceGeneration{first},
+		PolicyTargets: []config.ProgrammedPolicyTarget{firstTarget},
 	}
 	if err := d.handleSubmit(context.Background(), result, false); err != nil {
 		t.Fatalf("Delivery.handleSubmit(%q) error = %v", result.Version, err)
 	}
-	d.recordFailure(FailureDelivery, result.Resources)
+	d.recordFailure(FailureDelivery, result.Resources, result.PolicyTargets)
 
 	result.Resources = []config.ResourceGeneration{second}
+	result.PolicyTargets = []config.ProgrammedPolicyTarget{secondTarget}
 	if err := d.handleSubmit(context.Background(), result, false); err != nil {
 		t.Fatalf("Delivery.handleSubmit(%q) candidate provenance update error = %v", result.Version, err)
 	}
 	if got, want := d.state.candidate.resources, result.Resources; !slices.Equal(got, want) {
 		t.Errorf("Delivery.handleSubmit(%q) candidate resources = %v, want %v", result.Version, got, want)
+	}
+	if got, want := d.state.candidate.policyTargets, result.PolicyTargets; !slices.Equal(got, want) {
+		t.Errorf("Delivery.handleSubmit(%q) candidate policy targets = %v, want %v", result.Version, got, want)
 	}
 	if d.state.lastFailure == nil || d.state.lastFailure.Reason != FailureDelivery {
 		t.Fatalf("Delivery.handleSubmit(%q) last failure = %#v, want delivery failure preserved", result.Version, d.state.lastFailure)
@@ -295,16 +505,25 @@ func TestDeliverySameVersionSubmitUpdatesCandidateAndActiveResources(t *testing.
 	if got, want := d.state.lastFailure.Resources, result.Resources; !slices.Equal(got, want) {
 		t.Errorf("Delivery.handleSubmit(%q) failure resources = %v, want %v", result.Version, got, want)
 	}
+	if got, want := d.state.lastFailure.PolicyTargets, result.PolicyTargets; !slices.Equal(got, want) {
+		t.Errorf("Delivery.handleSubmit(%q) failure policy targets = %v, want %v", result.Version, got, want)
+	}
 
 	d.activateCandidate()
 	third := second
 	third.Generation = 3
+	thirdTarget := secondTarget
+	thirdTarget.Target.Generation = 3
 	result.Resources = []config.ResourceGeneration{third}
+	result.PolicyTargets = []config.ProgrammedPolicyTarget{thirdTarget}
 	if err := d.handleSubmit(context.Background(), result, false); err != nil {
 		t.Fatalf("Delivery.handleSubmit(%q) active provenance update error = %v", result.Version, err)
 	}
 	if got, want := d.state.active.resources, result.Resources; !slices.Equal(got, want) {
 		t.Errorf("Delivery.handleSubmit(%q) active resources = %v, want %v", result.Version, got, want)
+	}
+	if got, want := d.state.active.policyTargets, result.PolicyTargets; !slices.Equal(got, want) {
+		t.Errorf("Delivery.handleSubmit(%q) active policy targets = %v, want %v", result.Version, got, want)
 	}
 	if d.state.candidate != nil {
 		t.Errorf("Delivery.handleSubmit(%q) candidate = %#v, want nil for unchanged active config", result.Version, d.state.candidate)
@@ -868,6 +1087,79 @@ func TestDeliveryChangeNotificationIsNonBlockingAndCoalesced(t *testing.T) {
 	}
 }
 
+func TestDeliveryStatusReturnsIndependentPolicyTargetSlices(t *testing.T) {
+	target := config.ProgrammedPolicyTarget{
+		Policy: config.ResourceGeneration{Kind: gatewayv1.KindRateLimitPolicy, Name: "rate-limit-1"},
+		Target: config.ResourceGeneration{Kind: gatewayv1.KindGateway, Name: "gateway-1"},
+	}
+	d, err := New(cachev3.NewSnapshotCache(true, xds.NodeHash{}, nil), Options{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	d.publishStatus(Status{
+		ActivePolicyTargets: []config.ProgrammedPolicyTarget{target},
+		LastFailure: &Failure{
+			Reason:        FailureDelivery,
+			PolicyTargets: []config.ProgrammedPolicyTarget{target},
+		},
+	})
+
+	status := d.Status()
+	status.ActivePolicyTargets[0].Target.Name = "changed"
+	status.LastFailure.PolicyTargets[0].Target.Name = "changed"
+	next := d.Status()
+	if got := next.ActivePolicyTargets[0].Target.Name; got != target.Target.Name {
+		t.Errorf("Delivery.Status().ActivePolicyTargets mutation leaked, got target %q, want %q", got, target.Target.Name)
+	}
+	if got := next.LastFailure.PolicyTargets[0].Target.Name; got != target.Target.Name {
+		t.Errorf("Delivery.Status().LastFailure.PolicyTargets mutation leaked, got target %q, want %q", got, target.Target.Name)
+	}
+}
+
+func TestDeliveryRunNotifiesWhenOnlyActivePolicyTargetsChange(t *testing.T) {
+	d, err := New(cachev3.NewSnapshotCache(true, xds.NodeHash{}, nil), Options{})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	firstTarget := config.ProgrammedPolicyTarget{
+		Policy: config.ResourceGeneration{Kind: gatewayv1.KindRateLimitPolicy, Name: "rate-limit-1", Generation: 1},
+		Target: config.ResourceGeneration{Kind: gatewayv1.KindGateway, Name: "gateway-1", Generation: 1},
+	}
+	secondTarget := firstTarget
+	secondTarget.Target.Generation = 2
+	d.state.active = &publishedConfig{
+		version:       "version-1",
+		policyTargets: []config.ProgrammedPolicyTarget{firstTarget},
+	}
+
+	runCtx, cancel := context.WithCancel(context.Background())
+	runDone := make(chan error, 1)
+	go func() {
+		runDone <- d.Run(runCtx)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		if err := <-runDone; err != nil {
+			t.Errorf("Delivery.Run() error = %v", err)
+		}
+	})
+
+	if err := d.Submit(context.Background(), config.CompileResult{
+		Version:       "version-1",
+		PolicyTargets: []config.ProgrammedPolicyTarget{secondTarget},
+	}); err != nil {
+		t.Fatalf("Delivery.Submit(version-1) error = %v", err)
+	}
+	select {
+	case <-d.Changes():
+	case <-time.After(time.Second):
+		t.Fatal("Delivery.Changes() did not report active policy target change")
+	}
+	if got, want := d.Status().ActivePolicyTargets, []config.ProgrammedPolicyTarget{secondTarget}; !slices.Equal(got, want) {
+		t.Errorf("Delivery.Status().ActivePolicyTargets = %v, want %v", got, want)
+	}
+}
+
 func TestDeliveryRunNotifiesAfterCandidateActivation(t *testing.T) {
 	d, err := New(cachev3.NewSnapshotCache(true, xds.NodeHash{}, nil), Options{})
 	if err != nil {
@@ -893,6 +1185,12 @@ func TestDeliveryRunNotifiesAfterCandidateActivation(t *testing.T) {
 			UID:        types.UID("upstream-uid"),
 			Generation: 1,
 		}},
+		PolicyTargets: []config.ProgrammedPolicyTarget{
+			{
+				Policy: config.ResourceGeneration{Kind: gatewayv1.KindRateLimitPolicy, Name: "rate-limit-1"},
+				Target: config.ResourceGeneration{Kind: gatewayv1.KindGateway, Name: "gateway-1"},
+			},
+		},
 	}
 	if err := d.Submit(context.Background(), result); err != nil {
 		t.Fatalf("Delivery.Submit(%q) error = %v", result.Version, err)
@@ -933,6 +1231,9 @@ func TestDeliveryRunNotifiesAfterCandidateActivation(t *testing.T) {
 	}
 	if got, want := d.Status().ActiveResources, result.Resources; !slices.Equal(got, want) {
 		t.Errorf("Delivery.Status().ActiveResources = %v, want %v", got, want)
+	}
+	if got, want := d.Status().ActivePolicyTargets, result.PolicyTargets; !slices.Equal(got, want) {
+		t.Errorf("Delivery.Status().ActivePolicyTargets = %v, want %v", got, want)
 	}
 }
 

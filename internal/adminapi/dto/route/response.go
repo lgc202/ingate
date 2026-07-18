@@ -27,7 +27,7 @@ func NewGetRouteResp(result *routeservice.RouteResult) *Route {
 
 func routeFromResource(route *resource.Route) Route {
 	status := admindto.NewResourceStatus(route.Generation, route.Status.Conditions)
-	if !route.Spec.Enabled {
+	if !route.Spec.Enabled && admindto.ConfigurationApplied(route.Generation, route.Status.Conditions) {
 		status = admindto.NewDisabledResourceStatus()
 	}
 	return Route{

@@ -7,11 +7,6 @@ import (
 	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
 )
 
-const (
-	bindingTargetGateway = "Gateway"
-	bindingTargetRoute   = "Route"
-)
-
 // Runtime 是 ACL 插件配置编译后的请求执行计划
 type Runtime struct {
 	runner *policy.Runner
@@ -28,7 +23,10 @@ type Route struct {
 func Compile(cfg config.PluginConfig, runner *policy.Runner) *Runtime {
 	routes := make([]Route, 0, len(cfg.Routes))
 	for _, routeConfig := range cfg.Routes {
-		routes = append(routes, Route{Config: routeConfig})
+		routes = append(routes, Route{
+			Config:      routeConfig,
+			HeaderNames: policy.HeaderNames(routeConfig),
+		})
 	}
 
 	return &Runtime{
@@ -42,7 +40,7 @@ func Compile(cfg config.PluginConfig, runner *policy.Runner) *Runtime {
 	}
 }
 
-// Route 返回命中当前 xDS route identity 且已经按 rule scope 过滤的 ACL 配置
+// Route 返回命中当前 xDS route identity 的 ACL 执行配置
 func (r *Runtime) Route(key pluginruntime.RouteKey) (Route, bool) {
 	route, ok := r.routes.Get(pluginruntime.RouteKey{
 		GatewayName: key.GatewayName,
@@ -52,21 +50,6 @@ func (r *Runtime) Route(key pluginruntime.RouteKey) (Route, bool) {
 		return Route{}, false
 	}
 
-	bindings := make([]config.Binding, 0, len(route.Config.Bindings))
-	for _, binding := range route.Config.Bindings {
-		switch binding.Target.Kind {
-		case bindingTargetGateway:
-			if binding.Target.Name == key.GatewayName {
-				bindings = append(bindings, binding)
-			}
-		case bindingTargetRoute:
-			if binding.Target.Name == key.RouteName && (binding.Target.RuleName == "" || binding.Target.RuleName == key.RuleName) {
-				bindings = append(bindings, binding)
-			}
-		}
-	}
-	route.Config.Bindings = bindings
-	route.HeaderNames = policy.HeaderNames(route.Config)
 	return route, true
 }
 
