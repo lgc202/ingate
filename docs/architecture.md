@@ -48,7 +48,7 @@ Resource
   -> Envoy
 ```
 
-Controller 使用唯一全局队列 key。Gateway、Certificate、Route、Upstream、Policy 和 PolicyBinding 的任意 spec 变化都会触发一次完整配置域编译。
+Controller 使用唯一全局队列 key。Gateway、Certificate、Route、Upstream 和强类型 Policy 的任意 spec 变化都会触发一次完整配置域编译。
 
 Compiler 直接生成 Envoy protobuf，不输出公开 IR，不存在 Target、Translator、RuntimeGroup 或 RuntimeSnapshot。IP Upstream 生成 EDS，包含 hostname 的 Upstream 生成带内联端点的 `STRICT_DNS` cluster。
 
@@ -74,7 +74,7 @@ NACK 时：
 
 Candidate、Active 和 Baseline 只存在于 Controller 进程内。声明式资源是唯一持久化事实；Controller 重启后重新全量编译，不持久化 Last Good，也不创建特殊 apiserver 存储接口。
 
-Candidate 和 Active 会在进程内携带参与编译的资源 UID 与 generation，用于在配置确认后更新对应资源的 `Programmed` Condition。这些来源信息不参与 xDS version 计算，也不持久化。
+Candidate 和 Active 会在进程内携带参与编译的资源 UID 与 generation，以及实际展开进配置的 Policy/Target 身份，用于在配置确认后更新对应资源的 `Programmed` Condition。这些来源信息不参与 xDS version 计算，也不持久化。
 
 Controller 启动时不会预先发布空 Baseline，避免重启期间覆盖仍在运行的 Envoy 配置。首次编译完成后才向 Snapshot Cache 发布。
 
@@ -97,28 +97,31 @@ Controller 内嵌标准 go-control-plane State-of-the-World ADS：
 - Upstream
 - RateLimitPolicy
 - AccessControlPolicy
-- PolicyBinding
 
 资源之间使用不可变 ID 引用。Admin API 创建资源时生成 UUID 并映射为底层 `metadata.name`；用户可编辑名称使用 `spec.displayName`。
+
+`RateLimitPolicy` 和 `AccessControlPolicy` 通过 `spec.targetRefs[]` 直接引用 Gateway 或 Route，不再使用独立策略绑定资源。`targetRefs[]` 可以为空，表示策略已保存但当前不应用到流量。
 
 每个资源遵循标准的 `spec/status` 分离：
 
 - `spec` 是用户声明的期望状态，也是唯一业务事实来源
 - `status.conditions` 是 Controller 可重新计算的观察结果，只能通过 status 子资源更新
 - `Accepted` 表示当前 generation 的资源配置是否被接受
-- `ResolvedRefs` 表示 Gateway、Route 和 PolicyBinding 的引用是否有效
+- `ResolvedRefs` 表示 Gateway、Route 和 Policy 的引用是否有效
 - `Programmed` 表示当前 UID 与 generation 已进入 Active 配置
 - `observedGeneration` 小于 `metadata.generation` 时，调用方必须将状态视为处理中
+
+Policy 除总体 `status.conditions` 外，还通过 `status.targets[]` 记录每个 `targetRef` 的解析和生效结果。缺失目标只产生 Warning，有效目标继续进入配置；任一目标已生效时总体 `Programmed=True`，控制台结合目标状态展示部分生效；启用但 `targetRefs[]` 为空，或所有目标都没有实际展开到流量入口时，使用 `Programmed=False` 和 `NotApplied` 表达未应用。Admin API 删除 Gateway 或 Route 时会拒绝删除仍被 Policy 引用的目标，声明式 API 仍允许删除并由 `ResolvedRefs=False` 反馈。
 
 Admin API 只把 Condition 转换成面向页面的状态摘要，不向控制台泄漏 Kubernetes 资源结构、Envoy、xDS、ACK 或 NACK 等实现细节。
 
 standalone 默认提供 HTTP `8080` 和 HTTPS `8443` 两个固定数据面入口。相同协议和端口的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Gateway 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。
 
-RateLimitPolicy 的 Global mode 自动使用系统 Redis，不包含 RedisStore、redisRef 或私有插件 JSON。
+RateLimitPolicy 统一使用系统 Redis，用户协议不包含 Local/Global 模式、限流算法、RedisStore、redisRef 或私有插件 JSON。数据面当前使用系统选定的令牌桶实现，`burst` 为 0 时使用 `requests` 作为桶容量，正数表示显式桶容量。
 
 ## 内置治理插件
 
-限流和访问控制以强类型 Policy 与 PolicyBinding 对外提供。Compiler 把策略和绑定展开成插件执行配置，并在 Listener/HCM 中注入一次内置 Wasm filter。
+限流和访问控制以强类型 Policy 对外提供。Compiler 解析每个 Policy 的 `targetRefs[]`，展开成按 Gateway 和 Route 索引的插件执行配置，并在 Listener/HCM 中注入一次内置 Wasm filter。
 
 内置插件：
 

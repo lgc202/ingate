@@ -1,13 +1,6 @@
 // Package policy 执行 ACL 插件的访问控制判断
 package policy
 
-import config "github.com/lgc202/ingate/pkg/plugin/acl"
-
-const (
-	consumerHeader = "x-ingate-consumer"
-	tenantHeader   = "x-ingate-tenant"
-)
-
 // Request 表示 ACL 判断需要读取的请求信息
 type Request struct {
 	RemoteAddr string
@@ -19,7 +12,6 @@ type Decision struct {
 	Allowed    bool
 	StatusCode int
 	Message    string
-	Rule       config.Rule
 }
 
 // Runner 应用 ACL 规则，产出 allow 或 deny 决策

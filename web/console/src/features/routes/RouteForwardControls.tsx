@@ -18,8 +18,8 @@ export function RouteForwardControls({
   const enabledCount = forwardControlCount(draft);
 
   return (
-    <div className="route-policy-bindings">
-      <div className="policy-bindings-head">
+    <div className="route-forward-controls">
+      <div className="forward-controls-head">
         <div>
           <h4>转发控制</h4>
           <p>这些能力由网关直接执行，不需要安装额外插件。</p>

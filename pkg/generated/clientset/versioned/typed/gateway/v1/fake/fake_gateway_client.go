@@ -26,10 +26,6 @@ func (c *FakeGatewayV1) Gateways() v1.GatewayInterface {
 	return newFakeGateways(c)
 }
 
-func (c *FakeGatewayV1) PolicyBindings() v1.PolicyBindingInterface {
-	return newFakePolicyBindings(c)
-}
-
 func (c *FakeGatewayV1) RateLimitPolicies() v1.RateLimitPolicyInterface {
 	return newFakeRateLimitPolicies(c)
 }

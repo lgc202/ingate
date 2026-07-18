@@ -80,16 +80,6 @@ func (s *Server) router() *gin.Engine {
 			accessControlPolicies.PATCH("/:id/enabled", handler.AccessControlPolicy.SetEnabled)
 			accessControlPolicies.DELETE("/:id", handler.AccessControlPolicy.Delete)
 		}
-
-		policyBindings := apiV1.Group("/policy-bindings")
-		{
-			policyBindings.GET("", handler.PolicyBinding.List)
-			policyBindings.POST("", handler.PolicyBinding.Create)
-			policyBindings.GET("/:id", handler.PolicyBinding.Get)
-			policyBindings.PUT("/:id", handler.PolicyBinding.Update)
-			policyBindings.PATCH("/:id/enabled", handler.PolicyBinding.SetEnabled)
-			policyBindings.DELETE("/:id", handler.PolicyBinding.Delete)
-		}
 	}
 
 	s.mountConsole(router)

@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
+	"github.com/lgc202/ingate/internal/adminapi/service/policytarget"
 	certificatestore "github.com/lgc202/ingate/internal/adminapi/store/certificate"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
@@ -25,13 +26,24 @@ type Service struct {
 	store        *gatewaystore.Store
 	routes       *routestore.Store
 	certificates *certificatestore.Store
+	policyUsage  *policytarget.UsageFinder
 	// writeMu 保证当前 Service 实例内跨 Gateway 的读取校验和写入连续执行
 	writeMu sync.Mutex
 }
 
 // New 创建 Gateway service
-func New(store *gatewaystore.Store, routes *routestore.Store, certificates *certificatestore.Store) *Service {
-	return &Service{store: store, routes: routes, certificates: certificates}
+func New(
+	store *gatewaystore.Store,
+	routes *routestore.Store,
+	certificates *certificatestore.Store,
+	policyUsage *policytarget.UsageFinder,
+) *Service {
+	return &Service{
+		store:        store,
+		routes:       routes,
+		certificates: certificates,
+		policyUsage:  policyUsage,
+	}
 }
 
 // List 查询 Gateway 列表
@@ -148,6 +160,13 @@ func (s *Service) Delete(ctx context.Context, gatewayID string) error {
 		}) {
 			return xerrors.NewUserError(fmt.Sprintf("网关 %q 仍有关联路由", current.Spec.DisplayName))
 		}
+	}
+	usage, err := s.policyUsage.Find(ctx, resource.PolicyTargetRef{Kind: resource.KindGateway, Name: gatewayID})
+	if err != nil {
+		return err
+	}
+	if usage != nil {
+		return xerrors.NewUserError(fmt.Sprintf("网关 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
 	}
 	return s.store.Delete(ctx, gatewayID)
 }

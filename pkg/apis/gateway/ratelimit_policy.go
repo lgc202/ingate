@@ -9,7 +9,7 @@ type RateLimitPolicy struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	Spec   RateLimitPolicySpec `json:"spec,omitempty"`
-	Status ResourceStatus      `json:"status,omitempty"`
+	Status PolicyStatus        `json:"status,omitempty"`
 }
 
 // RateLimitPolicyList 表示 RateLimitPolicy 资源列表
@@ -23,10 +23,11 @@ type RateLimitPolicyList struct {
 
 // RateLimitPolicySpec 定义限流策略配置
 type RateLimitPolicySpec struct {
-	DisplayName string        `json:"displayName"`
-	Description string        `json:"description,omitempty"`
-	Enabled     bool          `json:"enabled"`
-	Mode        RateLimitMode `json:"mode"`
+	DisplayName string `json:"displayName"`
+	Description string `json:"description,omitempty"`
+	Enabled     bool   `json:"enabled"`
+	// +listType=atomic
+	TargetRefs []PolicyTargetRef `json:"targetRefs,omitempty"`
 	// +listType=atomic
 	Rules         []RateLimitRule        `json:"rules"`
 	Response      RateLimitResponse      `json:"response,omitempty"`
@@ -35,10 +36,9 @@ type RateLimitPolicySpec struct {
 
 // RateLimitRule 定义一条限流规则
 type RateLimitRule struct {
-	Name      string             `json:"name"`
-	Key       RateLimitKey       `json:"key"`
-	Limit     RateLimitQuota     `json:"limit"`
-	Algorithm RateLimitAlgorithm `json:"algorithm,omitempty"`
+	Name  string         `json:"name"`
+	Key   RateLimitKey   `json:"key"`
+	Limit RateLimitQuota `json:"limit"`
 }
 
 // RateLimitKey 定义限流计数 key
@@ -57,7 +57,8 @@ type RateLimitKeyPart struct {
 type RateLimitQuota struct {
 	Requests      int `json:"requests"`
 	WindowSeconds int `json:"windowSeconds"`
-	Burst         int `json:"burst,omitempty"`
+	// Burst 表示令牌桶容量，0 表示使用 Requests 作为容量
+	Burst int `json:"burst,omitempty"`
 }
 
 // RateLimitResponse 定义超限响应

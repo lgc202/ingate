@@ -2,7 +2,7 @@
 
 `acl` 是 Ingate 内置访问控制插件，消费 xDS 下发的 ACL 可执行配置。
 
-控制台用户不直接安装或配置这个插件。Envoy Config Compiler 将 `AccessControlPolicy` 和 `PolicyBinding` 编译成 route/rule 策略索引，并注入 Envoy Wasm filter。
+控制台用户不直接安装或配置这个插件。`AccessControlPolicy` 通过自身的 `targetRefs[]` 声明生效的 Gateway 或 Route，Envoy Config Compiler 将其编译成 route 策略索引并注入 Envoy Wasm filter。
 
 ## Code Organization
 

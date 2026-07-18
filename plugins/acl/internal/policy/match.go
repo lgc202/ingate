@@ -11,18 +11,11 @@ import (
 // HeaderNames 返回执行路由 ACL 规则前需要从请求中读取的 header
 func HeaderNames(route config.RouteConfig) []string {
 	seen := map[string]struct{}{}
-	for _, binding := range route.Bindings {
-		for _, policy := range binding.Policies {
-			for _, rule := range policy.Rules {
-				for _, condition := range rule.Conditions {
-					switch {
-					case condition.Type == config.ConditionTypeHeader && condition.Name != "":
-						seen[condition.Name] = struct{}{}
-					case condition.Type == config.ConditionTypeConsumer:
-						seen[consumerHeader] = struct{}{}
-					case condition.Type == config.ConditionTypeTenant:
-						seen[tenantHeader] = struct{}{}
-					}
+	for _, policy := range route.Policies {
+		for _, rule := range policy.Rules {
+			for _, condition := range rule.Conditions {
+				if condition.Type == config.ConditionTypeHeader && condition.Name != "" {
+					seen[condition.Name] = struct{}{}
 				}
 			}
 		}
@@ -50,10 +43,6 @@ func (r *Runner) conditionMatches(condition config.Condition, req Request) bool 
 		return ipMatches(clientIP(req.RemoteAddr), condition.Value)
 	case config.ConditionTypeHeader:
 		return headerValue(req.Headers, condition.Name) == condition.Value
-	case config.ConditionTypeConsumer:
-		return headerValue(req.Headers, consumerHeader) == condition.Value
-	case config.ConditionTypeTenant:
-		return headerValue(req.Headers, tenantHeader) == condition.Value
 	default:
 		return false
 	}

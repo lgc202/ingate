@@ -38,6 +38,8 @@ const (
 	ReasonCompileFailed ConditionReason = "CompileFailed"
 	// ReasonPending 表示资源配置仍在等待生效
 	ReasonPending ConditionReason = "Pending"
+	// ReasonNotApplied 表示策略当前没有可生效的目标
+	ReasonNotApplied ConditionReason = "NotApplied"
 	// ReasonRejected 表示资源配置被网关实例拒绝
 	ReasonRejected ConditionReason = "Rejected"
 	// ReasonDeliveryFailed 表示资源配置发布失败
@@ -60,18 +62,6 @@ const (
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
 	// KindAccessControlPolicy 表示 AccessControlPolicy 资源类型
 	KindAccessControlPolicy Kind = "AccessControlPolicy"
-	// KindPolicyBinding 表示 PolicyBinding 资源类型
-	KindPolicyBinding Kind = "PolicyBinding"
-)
-
-// RateLimitMode 表示限流计数状态的存放位置
-type RateLimitMode string
-
-const (
-	// RateLimitModeLocal 表示每个数据面实例独立计数
-	RateLimitModeLocal RateLimitMode = "Local"
-	// RateLimitModeGlobal 表示通过 Redis 共享计数
-	RateLimitModeGlobal RateLimitMode = "Global"
 )
 
 // RateLimitKeyType 表示限流 key 的组成维度
@@ -86,32 +76,12 @@ const (
 	RateLimitKeyTypeQuery RateLimitKeyType = "Query"
 	// RateLimitKeyTypeCookie 表示按 cookie 生成限流 key
 	RateLimitKeyTypeCookie RateLimitKeyType = "Cookie"
-	// RateLimitKeyTypeConsumer 表示按认证后的 consumer 生成限流 key
-	RateLimitKeyTypeConsumer RateLimitKeyType = "Consumer"
 	// RateLimitKeyTypeRoute 表示按 Route 生成限流 key
 	RateLimitKeyTypeRoute RateLimitKeyType = "Route"
 	// RateLimitKeyTypeGateway 表示按 Gateway 生成限流 key
 	RateLimitKeyTypeGateway RateLimitKeyType = "Gateway"
 	// RateLimitKeyTypeRouteRule 表示按 RouteRule 生成限流 key
 	RateLimitKeyTypeRouteRule RateLimitKeyType = "RouteRule"
-	// RateLimitKeyTypeJWTClaim 表示按 JWT claim 生成限流 key
-	RateLimitKeyTypeJWTClaim RateLimitKeyType = "JWTClaim"
-	// RateLimitKeyTypeAPIKey 表示按 API Key 生成限流 key
-	RateLimitKeyTypeAPIKey RateLimitKeyType = "APIKey"
-	// RateLimitKeyTypeTenant 表示按租户生成限流 key
-	RateLimitKeyTypeTenant RateLimitKeyType = "Tenant"
-)
-
-// RateLimitAlgorithm 表示限流计数算法
-type RateLimitAlgorithm string
-
-const (
-	// RateLimitAlgorithmFixedWindow 表示固定窗口限流
-	RateLimitAlgorithmFixedWindow RateLimitAlgorithm = "FixedWindow"
-	// RateLimitAlgorithmSlidingWindow 表示滑动窗口限流
-	RateLimitAlgorithmSlidingWindow RateLimitAlgorithm = "SlidingWindow"
-	// RateLimitAlgorithmTokenBucket 表示令牌桶限流
-	RateLimitAlgorithmTokenBucket RateLimitAlgorithm = "TokenBucket"
 )
 
 // RateLimitFailurePolicy 表示限流执行异常时的处理方式
@@ -123,6 +93,29 @@ const (
 	// RateLimitFailurePolicyFailClose 表示限流执行失败时拒绝请求
 	RateLimitFailurePolicyFailClose RateLimitFailurePolicy = "FailClose"
 )
+
+// PolicyTargetRef 表示策略的生效目标
+type PolicyTargetRef struct {
+	Kind Kind   `json:"kind"`
+	Name string `json:"name"`
+}
+
+// PolicyStatus 表示策略的总体状态和各目标生效状态
+type PolicyStatus struct {
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// +listType=atomic
+	Targets []PolicyTargetStatus `json:"targets,omitempty"`
+}
+
+// PolicyTargetStatus 表示策略在单个目标上的生效状态
+type PolicyTargetStatus struct {
+	TargetRef PolicyTargetRef `json:"targetRef"`
+	// +listType=map
+	// +listMapKey=type
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
 
 // ResourceStatus 表示声明式资源状态
 type ResourceStatus struct {

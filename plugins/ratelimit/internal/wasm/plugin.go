@@ -15,26 +15,25 @@ type pluginContext struct {
 	types.DefaultPluginContext
 
 	contextID uint32
-	runner    *policy.Runner
 	runtime   *ratelimitruntime.Runtime
 }
 
 type httpContext struct {
 	types.DefaultHttpContext
 
-	plugin         *pluginContext
-	contextID      uint32
-	quotaHeaders   map[string]string
-	globalChecks   []policy.GlobalCheck
-	globalOutcomes []policy.GlobalOutcome
-	globalRequests []redis.Request
-	globalIndex    int
+	plugin       *pluginContext
+	contextID    uint32
+	quotaHeaders map[string]string
+	checks       []policy.Check
+	outcomes     []policy.Outcome
+	requests     []redis.Request
+	index        int
 }
 
 // Register 注册 Proxy-Wasm 插件上下文
-func Register(runner *policy.Runner) {
+func Register() {
 	proxywasm.SetPluginContext(func(contextID uint32) types.PluginContext {
-		return &pluginContext{contextID: contextID, runner: runner}
+		return &pluginContext{contextID: contextID}
 	})
 }
 
@@ -55,7 +54,7 @@ func (p *pluginContext) OnPluginStart(pluginConfigurationSize int) types.OnPlugi
 		proxywasm.LogErrorf("parse rate-limit config failed: %v", err)
 		return types.OnPluginStartStatusFailed
 	}
-	p.runtime = ratelimitruntime.Compile(pluginConfig, p.runner)
+	p.runtime = ratelimitruntime.Compile(pluginConfig)
 	return types.OnPluginStartStatusOK
 }
 

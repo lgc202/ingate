@@ -213,43 +213,13 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*PolicyBinding)(nil), (*gateway.PolicyBinding)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_PolicyBinding_To_gateway_PolicyBinding(a.(*PolicyBinding), b.(*gateway.PolicyBinding), scope)
+	if err := s.AddGeneratedConversionFunc((*PolicyStatus)(nil), (*gateway.PolicyStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_PolicyStatus_To_gateway_PolicyStatus(a.(*PolicyStatus), b.(*gateway.PolicyStatus), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*gateway.PolicyBinding)(nil), (*PolicyBinding)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_PolicyBinding_To_v1_PolicyBinding(a.(*gateway.PolicyBinding), b.(*PolicyBinding), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*PolicyBindingList)(nil), (*gateway.PolicyBindingList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_PolicyBindingList_To_gateway_PolicyBindingList(a.(*PolicyBindingList), b.(*gateway.PolicyBindingList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.PolicyBindingList)(nil), (*PolicyBindingList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_PolicyBindingList_To_v1_PolicyBindingList(a.(*gateway.PolicyBindingList), b.(*PolicyBindingList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*PolicyBindingSpec)(nil), (*gateway.PolicyBindingSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_PolicyBindingSpec_To_gateway_PolicyBindingSpec(a.(*PolicyBindingSpec), b.(*gateway.PolicyBindingSpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.PolicyBindingSpec)(nil), (*PolicyBindingSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_PolicyBindingSpec_To_v1_PolicyBindingSpec(a.(*gateway.PolicyBindingSpec), b.(*PolicyBindingSpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*PolicyRef)(nil), (*gateway.PolicyRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_PolicyRef_To_gateway_PolicyRef(a.(*PolicyRef), b.(*gateway.PolicyRef), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.PolicyRef)(nil), (*PolicyRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_PolicyRef_To_v1_PolicyRef(a.(*gateway.PolicyRef), b.(*PolicyRef), scope)
+	if err := s.AddGeneratedConversionFunc((*gateway.PolicyStatus)(nil), (*PolicyStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_PolicyStatus_To_v1_PolicyStatus(a.(*gateway.PolicyStatus), b.(*PolicyStatus), scope)
 	}); err != nil {
 		return err
 	}
@@ -260,6 +230,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.PolicyTargetRef)(nil), (*PolicyTargetRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(a.(*gateway.PolicyTargetRef), b.(*PolicyTargetRef), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*PolicyTargetStatus)(nil), (*gateway.PolicyTargetStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_PolicyTargetStatus_To_gateway_PolicyTargetStatus(a.(*PolicyTargetStatus), b.(*gateway.PolicyTargetStatus), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.PolicyTargetStatus)(nil), (*PolicyTargetStatus)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_PolicyTargetStatus_To_v1_PolicyTargetStatus(a.(*gateway.PolicyTargetStatus), b.(*PolicyTargetStatus), scope)
 	}); err != nil {
 		return err
 	}
@@ -527,7 +507,7 @@ func autoConvert_v1_AccessControlPolicy_To_gateway_AccessControlPolicy(in *Acces
 	if err := Convert_v1_AccessControlPolicySpec_To_gateway_AccessControlPolicySpec(&in.Spec, &out.Spec, s); err != nil {
 		return err
 	}
-	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+	if err := Convert_v1_PolicyStatus_To_gateway_PolicyStatus(&in.Status, &out.Status, s); err != nil {
 		return err
 	}
 	return nil
@@ -543,7 +523,7 @@ func autoConvert_gateway_AccessControlPolicy_To_v1_AccessControlPolicy(in *gatew
 	if err := Convert_gateway_AccessControlPolicySpec_To_v1_AccessControlPolicySpec(&in.Spec, &out.Spec, s); err != nil {
 		return err
 	}
-	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+	if err := Convert_gateway_PolicyStatus_To_v1_PolicyStatus(&in.Status, &out.Status, s); err != nil {
 		return err
 	}
 	return nil
@@ -580,6 +560,7 @@ func autoConvert_v1_AccessControlPolicySpec_To_gateway_AccessControlPolicySpec(i
 	out.DisplayName = in.DisplayName
 	out.Description = in.Description
 	out.Enabled = in.Enabled
+	out.TargetRefs = *(*[]gateway.PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
 	out.DefaultAction = gateway.AccessControlAction(in.DefaultAction)
 	out.Rules = *(*[]gateway.AccessControlRule)(unsafe.Pointer(&in.Rules))
 	if err := Convert_v1_AccessControlDenyResponse_To_gateway_AccessControlDenyResponse(&in.Response, &out.Response, s); err != nil {
@@ -597,6 +578,7 @@ func autoConvert_gateway_AccessControlPolicySpec_To_v1_AccessControlPolicySpec(i
 	out.DisplayName = in.DisplayName
 	out.Description = in.Description
 	out.Enabled = in.Enabled
+	out.TargetRefs = *(*[]PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
 	out.DefaultAction = AccessControlAction(in.DefaultAction)
 	out.Rules = *(*[]AccessControlRule)(unsafe.Pointer(&in.Rules))
 	if err := Convert_gateway_AccessControlDenyResponse_To_v1_AccessControlDenyResponse(&in.Response, &out.Response, s); err != nil {
@@ -960,118 +942,31 @@ func Convert_gateway_ParentRef_To_v1_ParentRef(in *gateway.ParentRef, out *Paren
 	return autoConvert_gateway_ParentRef_To_v1_ParentRef(in, out, s)
 }
 
-func autoConvert_v1_PolicyBinding_To_gateway_PolicyBinding(in *PolicyBinding, out *gateway.PolicyBinding, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_v1_PolicyBindingSpec_To_gateway_PolicyBindingSpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
-		return err
-	}
+func autoConvert_v1_PolicyStatus_To_gateway_PolicyStatus(in *PolicyStatus, out *gateway.PolicyStatus, s conversion.Scope) error {
+	out.Conditions = *(*[]metav1.Condition)(unsafe.Pointer(&in.Conditions))
+	out.Targets = *(*[]gateway.PolicyTargetStatus)(unsafe.Pointer(&in.Targets))
 	return nil
 }
 
-// Convert_v1_PolicyBinding_To_gateway_PolicyBinding is an autogenerated conversion function.
-func Convert_v1_PolicyBinding_To_gateway_PolicyBinding(in *PolicyBinding, out *gateway.PolicyBinding, s conversion.Scope) error {
-	return autoConvert_v1_PolicyBinding_To_gateway_PolicyBinding(in, out, s)
+// Convert_v1_PolicyStatus_To_gateway_PolicyStatus is an autogenerated conversion function.
+func Convert_v1_PolicyStatus_To_gateway_PolicyStatus(in *PolicyStatus, out *gateway.PolicyStatus, s conversion.Scope) error {
+	return autoConvert_v1_PolicyStatus_To_gateway_PolicyStatus(in, out, s)
 }
 
-func autoConvert_gateway_PolicyBinding_To_v1_PolicyBinding(in *gateway.PolicyBinding, out *PolicyBinding, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_gateway_PolicyBindingSpec_To_v1_PolicyBindingSpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
-		return err
-	}
+func autoConvert_gateway_PolicyStatus_To_v1_PolicyStatus(in *gateway.PolicyStatus, out *PolicyStatus, s conversion.Scope) error {
+	out.Conditions = *(*[]metav1.Condition)(unsafe.Pointer(&in.Conditions))
+	out.Targets = *(*[]PolicyTargetStatus)(unsafe.Pointer(&in.Targets))
 	return nil
 }
 
-// Convert_gateway_PolicyBinding_To_v1_PolicyBinding is an autogenerated conversion function.
-func Convert_gateway_PolicyBinding_To_v1_PolicyBinding(in *gateway.PolicyBinding, out *PolicyBinding, s conversion.Scope) error {
-	return autoConvert_gateway_PolicyBinding_To_v1_PolicyBinding(in, out, s)
-}
-
-func autoConvert_v1_PolicyBindingList_To_gateway_PolicyBindingList(in *PolicyBindingList, out *gateway.PolicyBindingList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]gateway.PolicyBinding)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_v1_PolicyBindingList_To_gateway_PolicyBindingList is an autogenerated conversion function.
-func Convert_v1_PolicyBindingList_To_gateway_PolicyBindingList(in *PolicyBindingList, out *gateway.PolicyBindingList, s conversion.Scope) error {
-	return autoConvert_v1_PolicyBindingList_To_gateway_PolicyBindingList(in, out, s)
-}
-
-func autoConvert_gateway_PolicyBindingList_To_v1_PolicyBindingList(in *gateway.PolicyBindingList, out *PolicyBindingList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]PolicyBinding)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_gateway_PolicyBindingList_To_v1_PolicyBindingList is an autogenerated conversion function.
-func Convert_gateway_PolicyBindingList_To_v1_PolicyBindingList(in *gateway.PolicyBindingList, out *PolicyBindingList, s conversion.Scope) error {
-	return autoConvert_gateway_PolicyBindingList_To_v1_PolicyBindingList(in, out, s)
-}
-
-func autoConvert_v1_PolicyBindingSpec_To_gateway_PolicyBindingSpec(in *PolicyBindingSpec, out *gateway.PolicyBindingSpec, s conversion.Scope) error {
-	out.DisplayName = in.DisplayName
-	out.Description = in.Description
-	out.Enabled = in.Enabled
-	if err := Convert_v1_PolicyTargetRef_To_gateway_PolicyTargetRef(&in.TargetRef, &out.TargetRef, s); err != nil {
-		return err
-	}
-	out.Policies = *(*[]gateway.PolicyRef)(unsafe.Pointer(&in.Policies))
-	return nil
-}
-
-// Convert_v1_PolicyBindingSpec_To_gateway_PolicyBindingSpec is an autogenerated conversion function.
-func Convert_v1_PolicyBindingSpec_To_gateway_PolicyBindingSpec(in *PolicyBindingSpec, out *gateway.PolicyBindingSpec, s conversion.Scope) error {
-	return autoConvert_v1_PolicyBindingSpec_To_gateway_PolicyBindingSpec(in, out, s)
-}
-
-func autoConvert_gateway_PolicyBindingSpec_To_v1_PolicyBindingSpec(in *gateway.PolicyBindingSpec, out *PolicyBindingSpec, s conversion.Scope) error {
-	out.DisplayName = in.DisplayName
-	out.Description = in.Description
-	out.Enabled = in.Enabled
-	if err := Convert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(&in.TargetRef, &out.TargetRef, s); err != nil {
-		return err
-	}
-	out.Policies = *(*[]PolicyRef)(unsafe.Pointer(&in.Policies))
-	return nil
-}
-
-// Convert_gateway_PolicyBindingSpec_To_v1_PolicyBindingSpec is an autogenerated conversion function.
-func Convert_gateway_PolicyBindingSpec_To_v1_PolicyBindingSpec(in *gateway.PolicyBindingSpec, out *PolicyBindingSpec, s conversion.Scope) error {
-	return autoConvert_gateway_PolicyBindingSpec_To_v1_PolicyBindingSpec(in, out, s)
-}
-
-func autoConvert_v1_PolicyRef_To_gateway_PolicyRef(in *PolicyRef, out *gateway.PolicyRef, s conversion.Scope) error {
-	out.Kind = gateway.Kind(in.Kind)
-	out.Name = in.Name
-	return nil
-}
-
-// Convert_v1_PolicyRef_To_gateway_PolicyRef is an autogenerated conversion function.
-func Convert_v1_PolicyRef_To_gateway_PolicyRef(in *PolicyRef, out *gateway.PolicyRef, s conversion.Scope) error {
-	return autoConvert_v1_PolicyRef_To_gateway_PolicyRef(in, out, s)
-}
-
-func autoConvert_gateway_PolicyRef_To_v1_PolicyRef(in *gateway.PolicyRef, out *PolicyRef, s conversion.Scope) error {
-	out.Kind = Kind(in.Kind)
-	out.Name = in.Name
-	return nil
-}
-
-// Convert_gateway_PolicyRef_To_v1_PolicyRef is an autogenerated conversion function.
-func Convert_gateway_PolicyRef_To_v1_PolicyRef(in *gateway.PolicyRef, out *PolicyRef, s conversion.Scope) error {
-	return autoConvert_gateway_PolicyRef_To_v1_PolicyRef(in, out, s)
+// Convert_gateway_PolicyStatus_To_v1_PolicyStatus is an autogenerated conversion function.
+func Convert_gateway_PolicyStatus_To_v1_PolicyStatus(in *gateway.PolicyStatus, out *PolicyStatus, s conversion.Scope) error {
+	return autoConvert_gateway_PolicyStatus_To_v1_PolicyStatus(in, out, s)
 }
 
 func autoConvert_v1_PolicyTargetRef_To_gateway_PolicyTargetRef(in *PolicyTargetRef, out *gateway.PolicyTargetRef, s conversion.Scope) error {
 	out.Kind = gateway.Kind(in.Kind)
 	out.Name = in.Name
-	out.RuleName = in.RuleName
 	return nil
 }
 
@@ -1083,13 +978,38 @@ func Convert_v1_PolicyTargetRef_To_gateway_PolicyTargetRef(in *PolicyTargetRef, 
 func autoConvert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(in *gateway.PolicyTargetRef, out *PolicyTargetRef, s conversion.Scope) error {
 	out.Kind = Kind(in.Kind)
 	out.Name = in.Name
-	out.RuleName = in.RuleName
 	return nil
 }
 
 // Convert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef is an autogenerated conversion function.
 func Convert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(in *gateway.PolicyTargetRef, out *PolicyTargetRef, s conversion.Scope) error {
 	return autoConvert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(in, out, s)
+}
+
+func autoConvert_v1_PolicyTargetStatus_To_gateway_PolicyTargetStatus(in *PolicyTargetStatus, out *gateway.PolicyTargetStatus, s conversion.Scope) error {
+	if err := Convert_v1_PolicyTargetRef_To_gateway_PolicyTargetRef(&in.TargetRef, &out.TargetRef, s); err != nil {
+		return err
+	}
+	out.Conditions = *(*[]metav1.Condition)(unsafe.Pointer(&in.Conditions))
+	return nil
+}
+
+// Convert_v1_PolicyTargetStatus_To_gateway_PolicyTargetStatus is an autogenerated conversion function.
+func Convert_v1_PolicyTargetStatus_To_gateway_PolicyTargetStatus(in *PolicyTargetStatus, out *gateway.PolicyTargetStatus, s conversion.Scope) error {
+	return autoConvert_v1_PolicyTargetStatus_To_gateway_PolicyTargetStatus(in, out, s)
+}
+
+func autoConvert_gateway_PolicyTargetStatus_To_v1_PolicyTargetStatus(in *gateway.PolicyTargetStatus, out *PolicyTargetStatus, s conversion.Scope) error {
+	if err := Convert_gateway_PolicyTargetRef_To_v1_PolicyTargetRef(&in.TargetRef, &out.TargetRef, s); err != nil {
+		return err
+	}
+	out.Conditions = *(*[]metav1.Condition)(unsafe.Pointer(&in.Conditions))
+	return nil
+}
+
+// Convert_gateway_PolicyTargetStatus_To_v1_PolicyTargetStatus is an autogenerated conversion function.
+func Convert_gateway_PolicyTargetStatus_To_v1_PolicyTargetStatus(in *gateway.PolicyTargetStatus, out *PolicyTargetStatus, s conversion.Scope) error {
+	return autoConvert_gateway_PolicyTargetStatus_To_v1_PolicyTargetStatus(in, out, s)
 }
 
 func autoConvert_v1_RateLimitKey_To_gateway_RateLimitKey(in *RateLimitKey, out *gateway.RateLimitKey, s conversion.Scope) error {
@@ -1139,7 +1059,7 @@ func autoConvert_v1_RateLimitPolicy_To_gateway_RateLimitPolicy(in *RateLimitPoli
 	if err := Convert_v1_RateLimitPolicySpec_To_gateway_RateLimitPolicySpec(&in.Spec, &out.Spec, s); err != nil {
 		return err
 	}
-	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+	if err := Convert_v1_PolicyStatus_To_gateway_PolicyStatus(&in.Status, &out.Status, s); err != nil {
 		return err
 	}
 	return nil
@@ -1155,7 +1075,7 @@ func autoConvert_gateway_RateLimitPolicy_To_v1_RateLimitPolicy(in *gateway.RateL
 	if err := Convert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(&in.Spec, &out.Spec, s); err != nil {
 		return err
 	}
-	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+	if err := Convert_gateway_PolicyStatus_To_v1_PolicyStatus(&in.Status, &out.Status, s); err != nil {
 		return err
 	}
 	return nil
@@ -1192,7 +1112,7 @@ func autoConvert_v1_RateLimitPolicySpec_To_gateway_RateLimitPolicySpec(in *RateL
 	out.DisplayName = in.DisplayName
 	out.Description = in.Description
 	out.Enabled = in.Enabled
-	out.Mode = gateway.RateLimitMode(in.Mode)
+	out.TargetRefs = *(*[]gateway.PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
 	out.Rules = *(*[]gateway.RateLimitRule)(unsafe.Pointer(&in.Rules))
 	if err := Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse(&in.Response, &out.Response, s); err != nil {
 		return err
@@ -1210,7 +1130,7 @@ func autoConvert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(in *gatew
 	out.DisplayName = in.DisplayName
 	out.Description = in.Description
 	out.Enabled = in.Enabled
-	out.Mode = RateLimitMode(in.Mode)
+	out.TargetRefs = *(*[]PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
 	out.Rules = *(*[]RateLimitRule)(unsafe.Pointer(&in.Rules))
 	if err := Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse(&in.Response, &out.Response, s); err != nil {
 		return err
@@ -1280,7 +1200,6 @@ func autoConvert_v1_RateLimitRule_To_gateway_RateLimitRule(in *RateLimitRule, ou
 	if err := Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota(&in.Limit, &out.Limit, s); err != nil {
 		return err
 	}
-	out.Algorithm = gateway.RateLimitAlgorithm(in.Algorithm)
 	return nil
 }
 
@@ -1297,7 +1216,6 @@ func autoConvert_gateway_RateLimitRule_To_v1_RateLimitRule(in *gateway.RateLimit
 	if err := Convert_gateway_RateLimitQuota_To_v1_RateLimitQuota(&in.Limit, &out.Limit, s); err != nil {
 		return err
 	}
-	out.Algorithm = RateLimitAlgorithm(in.Algorithm)
 	return nil
 }
 

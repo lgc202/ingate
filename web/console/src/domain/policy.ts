@@ -1,21 +1,31 @@
-import type { ResourceStatus } from './common';
+import type { ResourceState, ResourceStatus } from './common';
 
 export type GovernancePolicyKind = 'RateLimitPolicy' | 'AccessControlPolicy';
 export type PolicyTargetKind = 'Gateway' | 'Route';
-export type RateLimitMode = 'Local' | 'Global';
-export type RateLimitAlgorithm = 'FixedWindow' | 'SlidingWindow' | 'TokenBucket';
-export type RateLimitKeyType = 'IP' | 'Header' | 'Query' | 'Cookie' | 'Consumer' | 'Route' | 'Gateway' | 'RouteRule' | 'JWTClaim' | 'APIKey' | 'Tenant';
+export type RateLimitKeyType = 'IP' | 'Header' | 'Query' | 'Cookie' | 'Route' | 'Gateway' | 'RouteRule';
 export type RateLimitFailurePolicy = '' | 'FailOpen' | 'FailClose';
 export type AccessControlAction = '' | 'Allow' | 'Deny';
-export type AccessControlConditionType = 'IP' | 'Header' | 'Consumer' | 'Tenant';
+export type AccessControlConditionType = 'IP' | 'Header';
+
+export interface PolicyTargetRef {
+  kind: PolicyTargetKind;
+  id: string;
+  displayName?: string;
+  status?: ResourceStatus;
+}
+
+export interface PolicyTargetPayload {
+  kind: PolicyTargetKind;
+  id: string;
+}
 
 export interface RateLimitPolicy {
   id: string;
-  version?: string;
+  version: string;
   name: string;
   description?: string;
   enabled: boolean;
-  mode: RateLimitMode;
+  targets: PolicyTargetRef[];
   rules: RateLimitRule[];
   response?: RateLimitResponse;
   failurePolicy?: RateLimitFailurePolicy;
@@ -27,7 +37,6 @@ export interface RateLimitRule {
   name: string;
   key: RateLimitKey;
   limit: RateLimitQuota;
-  algorithm?: RateLimitAlgorithm;
 }
 
 export interface RateLimitKey {
@@ -53,10 +62,11 @@ export interface RateLimitResponse {
 
 export interface AccessControlPolicy {
   id: string;
-  version?: string;
+  version: string;
   name: string;
   description?: string;
   enabled: boolean;
+  targets: PolicyTargetRef[];
   defaultAction?: AccessControlAction;
   rules?: AccessControlRule[];
   response?: AccessControlDenyResponse;
@@ -81,54 +91,33 @@ export interface AccessControlDenyResponse {
   message?: string;
 }
 
-export interface PolicyTargetRef {
-  kind: PolicyTargetKind;
-  name: string;
-  ruleName?: string;
-}
-
-export interface PolicyRef {
-  kind: GovernancePolicyKind;
-  name: string;
-}
-
-export interface PolicyBinding {
-  id: string;
-  version?: string;
-  name: string;
-  description?: string;
-  enabled: boolean;
-  targetRef: PolicyTargetRef;
-  policies: PolicyRef[];
-  status: ResourceStatus;
-  createdAt?: string;
-}
-
 export interface PolicyTargetOption {
   id: string;
   name: string;
   kind: PolicyTargetKind;
-  ruleNames?: string[];
 }
 
-export interface GovernancePolicy {
+interface GovernancePolicyBase {
   id: string;
-  version?: string;
-  kind: GovernancePolicyKind;
+  version: string;
   name: string;
   description?: string;
   enabled: boolean;
-  mode: string;
+  summary: string;
   ruleCount: number;
+  targets: PolicyTargetRef[];
+  status: ResourceStatus;
   createdAt?: string;
-  raw: RateLimitPolicy | AccessControlPolicy;
 }
+
+export type GovernancePolicy =
+  | GovernancePolicyBase & { kind: 'RateLimitPolicy'; raw: RateLimitPolicy }
+  | GovernancePolicyBase & { kind: 'AccessControlPolicy'; raw: AccessControlPolicy };
 
 export interface PolicyWorkspace {
   policies: GovernancePolicy[];
   rateLimitPolicies: RateLimitPolicy[];
   accessControlPolicies: AccessControlPolicy[];
-  bindings: PolicyBinding[];
   targets: PolicyTargetOption[];
 }
 
@@ -137,57 +126,80 @@ export interface PolicyMutationResult {
   changeId?: string;
 }
 
-export type RateLimitPolicyPayload = Omit<RateLimitPolicy, 'id' | 'status' | 'createdAt'> & { id?: string };
-export type AccessControlPolicyPayload = Omit<AccessControlPolicy, 'id' | 'status' | 'createdAt'> & { id?: string };
-export type PolicyBindingPayload = Omit<PolicyBinding, 'id' | 'status' | 'createdAt'> & { id?: string };
+interface RateLimitPolicyConfigPayload {
+  name: string;
+  description?: string;
+  enabled: boolean;
+  targets: PolicyTargetPayload[];
+  rules: RateLimitRule[];
+  response?: RateLimitResponse;
+  failurePolicy?: RateLimitFailurePolicy;
+}
+
+interface AccessControlPolicyConfigPayload {
+  name: string;
+  description?: string;
+  enabled: boolean;
+  targets: PolicyTargetPayload[];
+  defaultAction?: AccessControlAction;
+  rules: AccessControlRule[];
+  response?: AccessControlDenyResponse;
+}
+
+type CreatePolicyIdentity = { id?: never; version?: never };
+type UpdatePolicyIdentity = { id: string; version: string };
+
+export type RateLimitPolicyPayload = RateLimitPolicyConfigPayload & (CreatePolicyIdentity | UpdatePolicyIdentity);
+export type AccessControlPolicyPayload = AccessControlPolicyConfigPayload & (CreatePolicyIdentity | UpdatePolicyIdentity);
 
 export function policyKindLabel(kind: GovernancePolicyKind) {
-  if (kind === 'RateLimitPolicy') {
-    return '限流';
-  }
-  return '访问控制';
+  return kind === 'RateLimitPolicy' ? '限流' : '访问控制';
 }
 
 export function policyTargetKindLabel(kind: PolicyTargetKind) {
-  if (kind === 'Gateway') {
-    return '网关';
-  }
-  return '路由';
+  return kind === 'Gateway' ? '网关' : '路由';
 }
 
-export function policyStatusLabel(enabled: boolean) {
-  return enabled ? '启用' : '停用';
-}
-
-export function policyStatusTone(enabled: boolean) {
-  return enabled ? 'accent' : 'neutral';
-}
-
-export function policyRefKey(policy: PolicyRef) {
-  return `${policy.kind}:${policy.name}`;
-}
-
-export function governancePolicyRef(policy: GovernancePolicy): PolicyRef {
-  return {
-    kind: policy.kind,
-    name: policy.id,
+export function policyStatusLabel(status: ResourceStatus) {
+  const labels: Record<ResourceState, string> = {
+    Ready: '已生效',
+    Pending: '待生效',
+    Error: '异常',
+    Disabled: '已停用',
   };
+  return labels[status.state];
 }
 
-export function governancePolicyKey(policy: GovernancePolicy) {
-  return policyRefKey(governancePolicyRef(policy));
+export function governancePolicyStatusLabel(policy: Pick<GovernancePolicy, 'enabled' | 'targets' | 'status'>) {
+  if (policy.enabled && policy.targets.length === 0 && policy.status.state === 'Ready') {
+    return '已保存';
+  }
+  return policyStatusLabel(policy.status);
 }
 
-export function policyBindingTargetLabel(binding: PolicyBinding, targets: PolicyTargetOption[]) {
-  const target = targets.find((item) => item.kind === binding.targetRef.kind && item.id === binding.targetRef.name);
-  const name = target?.name ?? binding.targetRef.name;
-  const prefix = policyTargetKindLabel(binding.targetRef.kind);
-  return binding.targetRef.ruleName ? `${prefix} / ${name} / ${binding.targetRef.ruleName}` : `${prefix} / ${name}`;
+export function policyStatusTone(status: ResourceStatus): 'success' | 'warning' | 'danger' | 'neutral' {
+  const tones: Record<ResourceState, 'success' | 'warning' | 'danger' | 'neutral'> = {
+    Ready: 'success',
+    Pending: 'warning',
+    Error: 'danger',
+    Disabled: 'neutral',
+  };
+  return tones[status.state];
 }
 
-export function policyNamesForBinding(binding: PolicyBinding, policies: GovernancePolicy[]) {
-  return binding.policies.map((ref) => {
-    const policy = policies.find((item) => item.kind === ref.kind && item.id === ref.name);
-    return policy?.name ?? ref.name;
-  });
+export function governancePolicyKey(policy: Pick<GovernancePolicy, 'kind' | 'id'>) {
+  return `${policy.kind}:${policy.id}`;
+}
+
+export function policyTargetKey(target: Pick<PolicyTargetRef, 'kind' | 'id'>) {
+  return `${target.kind}:${target.id}`;
+}
+
+export function policyTargetsResource(policy: GovernancePolicy, kind: PolicyTargetKind, id: string) {
+  return policy.targets.some((target) => target.kind === kind && target.id === id);
+}
+
+export function policyTargetLabel(target: PolicyTargetRef, options: PolicyTargetOption[]) {
+  const option = options.find((item) => item.kind === target.kind && item.id === target.id);
+  return option?.name ?? target.displayName ?? target.id;
 }

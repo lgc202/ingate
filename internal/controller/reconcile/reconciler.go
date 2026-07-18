@@ -50,7 +50,6 @@ func New(
 	upstreamInformer := gatewayInformers.Upstreams()
 	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
 	accessControlPolicyInformer := gatewayInformers.AccessControlPolicies()
-	policyBindingInformer := gatewayInformers.PolicyBindings()
 
 	r := &Reconciler{
 		factory: factory,
@@ -61,7 +60,6 @@ func New(
 			upstreams:             upstreamInformer.Lister(),
 			rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
 			accessControlPolicies: accessControlPolicyInformer.Lister(),
-			policyBindings:        policyBindingInformer.Lister(),
 		},
 		delivery: configDelivery,
 		statuses: controllerstatus.NewWriter(client),
@@ -78,7 +76,6 @@ func New(
 		{name: "Upstream", informer: upstreamInformer.Informer()},
 		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
 		{name: "AccessControlPolicy", informer: accessControlPolicyInformer.Informer()},
-		{name: "PolicyBinding", informer: policyBindingInformer.Informer()},
 	}); err != nil {
 		r.queue.ShutDown()
 		return nil, err

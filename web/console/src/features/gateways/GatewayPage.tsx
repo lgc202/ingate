@@ -9,7 +9,7 @@ import { formatDateTime } from '@/domain/common';
 import type { Certificate } from '@/domain/certificate';
 import type { Gateway, GatewayValidationReport } from '@/domain/gateway';
 import type { PolicyWorkspace } from '@/domain/policy';
-import { GovernanceBindingPanel } from '@/features/policies/GovernanceBindingPanel';
+import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
 import type { GatewayFormDraft } from './form';
 import {
   buildGatewayPayload,
@@ -320,7 +320,6 @@ export function GatewayPage() {
                           setSelectedGatewayId(gateway.id);
                           setPanelMode('detail');
                         }}>详情</button>
-                        <Link className="link-button" to={`/policies?tab=bindings&targetKind=Gateway&targetID=${encodeURIComponent(gateway.id)}`} onClick={(event) => event.stopPropagation()}>策略</Link>
                         <button className="link-button" type="button" onClick={(event) => {
                           event.stopPropagation();
                           openEdit(gateway);
@@ -662,7 +661,7 @@ function GatewayDetail({
         </div>
       </div>
       {policyWorkspace ? (
-        <GovernanceBindingPanel
+        <GovernancePolicyPanel
           targetKind="Gateway"
           targetID={gateway.id}
           targetName={gateway.name}
@@ -671,8 +670,8 @@ function GatewayDetail({
         />
       ) : (
         <div className="mini-card">
-          <div className="mini-card-title">策略绑定暂不可用</div>
-          <div className="mini-card-meta">网关本身可以继续查看和编辑；策略接口恢复后再管理绑定关系。</div>
+          <div className="mini-card-title">策略暂不可用</div>
+          <div className="mini-card-meta">网关本身可以继续查看和编辑；策略数据恢复后可在这里管理应用范围。</div>
         </div>
       )}
     </div>

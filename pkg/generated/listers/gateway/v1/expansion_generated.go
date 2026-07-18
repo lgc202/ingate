@@ -16,10 +16,6 @@ type CertificateListerExpansion interface{}
 // GatewayLister.
 type GatewayListerExpansion interface{}
 
-// PolicyBindingListerExpansion allows custom methods to be added to
-// PolicyBindingLister.
-type PolicyBindingListerExpansion interface{}
-
 // RateLimitPolicyListerExpansion allows custom methods to be added to
 // RateLimitPolicyLister.
 type RateLimitPolicyListerExpansion interface{}

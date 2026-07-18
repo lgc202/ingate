@@ -1,18 +1,19 @@
 package policy
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"net/url"
+	"strconv"
 	"strings"
 
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 )
 
 const (
-	apiKeyHeader         = "x-ingate-api-key"
-	consumerHeader       = "x-ingate-consumer"
-	cookieHeader         = "cookie"
-	tenantHeader         = "x-ingate-tenant"
-	jwtClaimHeaderPrefix = "x-ingate-jwt-claim-"
+	cookieHeader          = "cookie"
+	missingKeyValue       = "\x00"
+	presentKeyValuePrefix = "\x01"
 )
 
 // Request 表示限流判断需要读取的请求信息
@@ -27,26 +28,15 @@ type Request struct {
 
 // HeaderNames 返回执行路由限流规则前需要从请求中读取的 header
 func HeaderNames(route config.RouteConfig) []string {
-	seen := map[string]struct{}{
-		apiKeyHeader:   {},
-		cookieHeader:   {},
-		consumerHeader: {},
-		tenantHeader:   {},
-	}
-	for _, binding := range route.Bindings {
-		for _, policy := range binding.Policies {
-			for _, rule := range policy.Rules {
-				for _, part := range rule.Key {
-					switch {
-					case part.Type == config.KeyTypeHeader && part.Name != "":
-						seen[part.Name] = struct{}{}
-					case part.Type == config.KeyTypeCookie:
-						seen[cookieHeader] = struct{}{}
-					case part.Type == config.KeyTypeConsumer:
-						seen[consumerHeader] = struct{}{}
-					case part.Type == config.KeyTypeJWTClaim && part.Name != "":
-						seen[jwtClaimHeaderPrefix+part.Name] = struct{}{}
-					}
+	seen := make(map[string]struct{})
+	for _, policy := range route.Policies {
+		for _, rule := range policy.Rules {
+			for _, part := range rule.Key {
+				switch {
+				case part.Type == config.KeyTypeHeader && part.Name != "":
+					seen[part.Name] = struct{}{}
+				case part.Type == config.KeyTypeCookie:
+					seen[cookieHeader] = struct{}{}
 				}
 			}
 		}
@@ -61,62 +51,63 @@ func HeaderNames(route config.RouteConfig) []string {
 func keyValue(req Request, part config.KeyPart) (string, bool) {
 	switch part.Type {
 	case config.KeyTypeIP:
-		if req.RemoteAddr == "" {
-			return "", false
-		}
-		return clientIP(req.RemoteAddr), true
+		return optionalKeyValue(clientIP(req.RemoteAddr)), true
 	case config.KeyTypeHeader:
-		value := headerValue(req.Headers, part.Name)
-		return value, value != ""
+		return optionalKeyValue(headerValue(req.Headers, part.Name)), true
 	case config.KeyTypeQuery:
 		values, err := url.ParseQuery(rawQuery(req.Path))
 		if err != nil {
-			return "", false
+			return missingKeyValue, true
 		}
-		value := values.Get(part.Name)
-		return value, value != ""
+		return optionalKeyValue(values.Get(part.Name)), true
 	case config.KeyTypeCookie:
-		value := cookieValue(headerValue(req.Headers, cookieHeader), part.Name)
-		return value, value != ""
-	case config.KeyTypeConsumer:
-		value := headerValue(req.Headers, consumerHeader)
-		return value, value != ""
+		return optionalKeyValue(cookieValue(headerValue(req.Headers, cookieHeader), part.Name)), true
 	case config.KeyTypeGateway:
-		return req.GatewayName, req.GatewayName != ""
+		return optionalKeyValue(req.GatewayName), true
 	case config.KeyTypeRoute:
-		if req.RuleName != "" {
-			return req.RouteName + "/" + req.RuleName, req.RouteName != ""
-		}
-		return req.RouteName, req.RouteName != ""
+		return optionalKeyValue(req.RouteName), true
 	case config.KeyTypeRouteRule:
-		return req.RuleName, req.RuleName != ""
-	case config.KeyTypeAPIKey:
-		value := headerValue(req.Headers, apiKeyHeader)
-		return value, value != ""
-	case config.KeyTypeTenant:
-		value := headerValue(req.Headers, tenantHeader)
-		return value, value != ""
-	case config.KeyTypeJWTClaim:
-		value := headerValue(req.Headers, jwtClaimHeaderPrefix+part.Name)
-		return value, value != ""
+		return optionalKeyValue(req.RuleName), true
 	default:
 		return "", false
 	}
 }
 
-func compositeKey(req Request, parts []config.KeyPart) (string, bool) {
+func optionalKeyValue(value string) string {
+	if value == "" {
+		return missingKeyValue
+	}
+	return presentKeyValuePrefix + value
+}
+
+func compositeKeyHash(req Request, parts []config.KeyPart) (string, bool) {
 	if len(parts) == 0 {
 		return "", false
 	}
-	values := make([]string, 0, len(parts))
+	var composite strings.Builder
 	for _, part := range parts {
 		value, ok := keyValue(req, part)
 		if !ok {
 			return "", false
 		}
-		values = append(values, string(part.Type)+"="+value)
+		writeKeySegments(&composite, string(part.Type), part.Name, value)
 	}
-	return strings.Join(values, "|"), true
+	digest := sha256.Sum256([]byte(composite.String()))
+	return hex.EncodeToString(digest[:]), true
+}
+
+func encodeKeySegments(segments ...string) string {
+	var key strings.Builder
+	writeKeySegments(&key, segments...)
+	return key.String()
+}
+
+func writeKeySegments(key *strings.Builder, segments ...string) {
+	for _, segment := range segments {
+		key.WriteString(strconv.Itoa(len(segment)))
+		key.WriteByte(':')
+		key.WriteString(segment)
+	}
 }
 
 func headerValue(headers map[string]string, name string) string {

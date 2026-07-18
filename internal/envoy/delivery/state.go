@@ -1,7 +1,9 @@
 package delivery
 
 import (
+	"cmp"
 	"context"
+	"slices"
 	"time"
 
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
@@ -12,6 +14,7 @@ import (
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
 	"github.com/lgc202/ingate/internal/envoy/config"
 	"github.com/lgc202/ingate/internal/envoy/xds"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -39,17 +42,19 @@ type command struct {
 }
 
 type publishedConfig struct {
-	version   string
-	config    config.Config
-	snapshot  *cachev3.Snapshot
-	resources []config.ResourceGeneration
+	version       string
+	config        config.Config
+	snapshot      *cachev3.Snapshot
+	resources     []config.ResourceGeneration
+	policyTargets []config.ProgrammedPolicyTarget
 }
 
 type candidateState struct {
 	publishedConfig
-	sequence      uint64
-	requiredTypes []string
-	timer         *time.Timer
+	sequence             uint64
+	requiredTypes        []string
+	failurePolicyTargets []config.ProgrammedPolicyTarget
+	timer                *time.Timer
 }
 
 type ackProgress struct {
@@ -81,10 +86,12 @@ func (s *deliveryState) snapshot() Status {
 	var status Status
 	if s.active != nil {
 		status.ActiveResources = cloneResourceGenerations(s.active.resources)
+		status.ActivePolicyTargets = clonePolicyTargets(s.active.policyTargets)
 	}
 	if s.lastFailure != nil {
 		failure := *s.lastFailure
 		failure.Resources = cloneResourceGenerations(failure.Resources)
+		failure.PolicyTargets = clonePolicyTargets(failure.PolicyTargets)
 		status.LastFailure = &failure
 	}
 	return status
@@ -263,4 +270,64 @@ func configsEqual(a, b config.Config) bool {
 
 func cloneResourceGenerations(resources []config.ResourceGeneration) []config.ResourceGeneration {
 	return append([]config.ResourceGeneration(nil), resources...)
+}
+
+func clonePolicyTargets(targets []config.ProgrammedPolicyTarget) []config.ProgrammedPolicyTarget {
+	return append([]config.ProgrammedPolicyTarget(nil), targets...)
+}
+
+func affectedPolicyTargets(
+	active *publishedConfig,
+	resources []config.ResourceGeneration,
+	desired []config.ProgrammedPolicyTarget,
+) []config.ProgrammedPolicyTarget {
+	resourceIndex := make(map[string]config.ResourceGeneration, len(resources))
+	for _, resource := range resources {
+		resourceIndex[resourceGenerationKey(resource.Kind, resource.Name)] = resource
+	}
+
+	resultSet := make(map[config.ProgrammedPolicyTarget]bool, len(desired))
+	for _, target := range desired {
+		resultSet[target] = true
+	}
+	if active != nil {
+		for _, target := range active.policyTargets {
+			policy, hasPolicy := resourceIndex[resourceGenerationKey(target.Policy.Kind, target.Policy.Name)]
+			currentTarget, hasTarget := resourceIndex[resourceGenerationKey(target.Target.Kind, target.Target.Name)]
+			if hasPolicy && hasTarget {
+				resultSet[config.ProgrammedPolicyTarget{Policy: policy, Target: currentTarget}] = true
+			}
+		}
+	}
+
+	result := make([]config.ProgrammedPolicyTarget, 0, len(resultSet))
+	for target := range resultSet {
+		result = append(result, target)
+	}
+	slices.SortFunc(result, compareProgrammedPolicyTarget)
+	return result
+}
+
+func resourceGenerationKey(kind gatewayv1.Kind, name string) string {
+	return string(kind) + "\x00" + name
+}
+
+func compareProgrammedPolicyTarget(a, b config.ProgrammedPolicyTarget) int {
+	if result := compareResourceGeneration(a.Policy, b.Policy); result != 0 {
+		return result
+	}
+	return compareResourceGeneration(a.Target, b.Target)
+}
+
+func compareResourceGeneration(a, b config.ResourceGeneration) int {
+	if result := cmp.Compare(a.Kind, b.Kind); result != 0 {
+		return result
+	}
+	if result := cmp.Compare(a.Name, b.Name); result != 0 {
+		return result
+	}
+	if result := cmp.Compare(string(a.UID), string(b.UID)); result != 0 {
+		return result
+	}
+	return cmp.Compare(a.Generation, b.Generation)
 }

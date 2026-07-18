@@ -30,9 +30,9 @@ CLI / SDK -----------------------+-> ingate-apiserver -> etcd
 - `etcd`：由 apiserver 使用的声明式资源存储
 - `Redis`：限流及未来 Token 配额等请求路径共享状态
 
-内置限流和访问控制以强类型 Policy 与 PolicyBinding 对外提供。用户不需要安装内置 Wasm 插件，也不需要配置 Redis 地址；系统 Redis 由 Envoy bootstrap 中固定的 `ingate-system-redis` 使用。
+内置限流和访问控制以强类型 Policy 对外提供，策略通过自身的 `targetRefs[]` 直接声明生效的 Gateway 或 Route。用户不需要安装内置 Wasm 插件，也不需要选择本地或全局限流模式、限流算法或 Redis 地址；限流统一使用 Envoy bootstrap 中固定的 `ingate-system-redis`。
 
-所有产品状态都通过声明式资源的 `status.conditions` 表达。Admin API 只访问 API Server，不直接查询 Controller；Controller 通过 status 子资源写入 `Accepted`、`ResolvedRefs` 和 `Programmed` 等观察结果。
+所有产品状态都通过声明式资源的 status 表达。Admin API 只访问 API Server，不直接查询 Controller；Controller 通过 status 子资源写入 `Accepted`、`ResolvedRefs` 和 `Programmed` 等观察结果，Policy 还使用 `status.targets[]` 记录每个目标的生效状态。
 
 Gateway 使用固定的 standalone 入口：HTTP `8080`、HTTPS `8443`。多个逻辑 Gateway 共享相同的 Envoy Listener，通过 Host 和 TLS SNI 分流；HTTPS Listener 引用独立 Certificate 资源。
 

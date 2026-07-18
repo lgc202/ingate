@@ -26,6 +26,8 @@ const (
 	messageRejected       = "Resource configuration was rejected"
 	messageDeliveryFailed = "Resource configuration could not be applied"
 	messageCompileFailed  = "Resource configuration could not be compiled"
+	messageNotApplied     = "Policy is not applied to any target"
+	messageTargetResolved = "Policy target is resolved"
 )
 
 type resourceKey struct {
@@ -68,9 +70,11 @@ func (w *Writer) ApplyCompileResult(
 	deliveryStatus delivery.Status,
 ) error {
 	decisions := newDiagnosticIndex(resources, diagnostics)
+	targets := newPolicyTargetIndex(resources)
+	programmedTargets := newProgrammedPolicyTargetIndex(deliveryStatus.ActivePolicyTargets)
 	for _, resource := range resources.Generations() {
 		decision := decisions.forResource(resource.Kind, resource.Name)
-		if err := w.updateResource(ctx, resource, &decision, deliveryStatus); err != nil {
+		if err := w.updateResource(ctx, resource, &decision, deliveryStatus, targets, programmedTargets); err != nil {
 			return err
 		}
 	}
@@ -83,8 +87,10 @@ func (w *Writer) ApplyProgrammed(
 	resources config.ResourceSet,
 	deliveryStatus delivery.Status,
 ) error {
+	targets := newPolicyTargetIndex(resources)
+	programmedTargets := newProgrammedPolicyTargetIndex(deliveryStatus.ActivePolicyTargets)
 	for _, resource := range resources.Generations() {
-		if err := w.updateResource(ctx, resource, nil, deliveryStatus); err != nil {
+		if err := w.updateResource(ctx, resource, nil, deliveryStatus, targets, programmedTargets); err != nil {
 			return err
 		}
 	}
@@ -96,6 +102,8 @@ func (w *Writer) updateResource(
 	resource config.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
+	targets map[resourceKey]config.ResourceGeneration,
+	programmedTargets map[config.ProgrammedPolicyTarget]bool,
 ) error {
 	switch resource.Kind {
 	case gatewayv1.KindGateway:
@@ -107,11 +115,9 @@ func (w *Writer) updateResource(
 	case gatewayv1.KindUpstream:
 		return w.updateUpstream(ctx, resource, compile, deliveryStatus)
 	case gatewayv1.KindRateLimitPolicy:
-		return w.updateRateLimitPolicy(ctx, resource, compile, deliveryStatus)
+		return w.updateRateLimitPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
 	case gatewayv1.KindAccessControlPolicy:
-		return w.updateAccessControlPolicy(ctx, resource, compile, deliveryStatus)
-	case gatewayv1.KindPolicyBinding:
-		return w.updatePolicyBinding(ctx, resource, compile, deliveryStatus)
+		return w.updateAccessControlPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
 	default:
 		return fmt.Errorf("update unsupported resource kind %q", resource.Kind)
 	}
@@ -266,6 +272,8 @@ func (w *Writer) updateRateLimitPolicy(
 	source config.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
+	targets map[resourceKey]config.ResourceGeneration,
+	programmedTargets map[config.ProgrammedPolicyTarget]bool,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.RateLimitPolicies().Get(ctx, source.Name, metav1.GetOptions{})
@@ -280,11 +288,15 @@ func (w *Writer) updateRateLimitPolicy(
 		}
 
 		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
-		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
+		targetStatuses := policyTargetStatuses(resource.Status.Targets, resource.Spec.TargetRefs, source, conditions, deliveryStatus, targets, programmedTargets)
+		conditions = policyConditions(conditions, source, targetStatuses)
+		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&
+			equality.Semantic.DeepEqual(resource.Status.Targets, targetStatuses) {
 			return nil
 		}
 		updated := resource.DeepCopy()
 		updated.Status.Conditions = conditions
+		updated.Status.Targets = targetStatuses
 		_, err = w.client.RateLimitPolicies().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
@@ -302,6 +314,8 @@ func (w *Writer) updateAccessControlPolicy(
 	source config.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
+	targets map[resourceKey]config.ResourceGeneration,
+	programmedTargets map[config.ProgrammedPolicyTarget]bool,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.AccessControlPolicies().Get(ctx, source.Name, metav1.GetOptions{})
@@ -316,11 +330,15 @@ func (w *Writer) updateAccessControlPolicy(
 		}
 
 		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
-		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
+		targetStatuses := policyTargetStatuses(resource.Status.Targets, resource.Spec.TargetRefs, source, conditions, deliveryStatus, targets, programmedTargets)
+		conditions = policyConditions(conditions, source, targetStatuses)
+		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) &&
+			equality.Semantic.DeepEqual(resource.Status.Targets, targetStatuses) {
 			return nil
 		}
 		updated := resource.DeepCopy()
 		updated.Status.Conditions = conditions
+		updated.Status.Targets = targetStatuses
 		_, err = w.client.AccessControlPolicies().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
@@ -329,42 +347,6 @@ func (w *Writer) updateAccessControlPolicy(
 	})
 	if err != nil {
 		return fmt.Errorf("update AccessControlPolicy %q conditions: %w", source.Name, err)
-	}
-	return nil
-}
-
-func (w *Writer) updatePolicyBinding(
-	ctx context.Context,
-	source config.ResourceGeneration,
-	compile *compileDecision,
-	deliveryStatus delivery.Status,
-) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resource, err := w.client.PolicyBindings().Get(ctx, source.Name, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if resource.UID != source.UID || resource.Generation != source.Generation {
-			return nil
-		}
-
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
-		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
-			return nil
-		}
-		updated := resource.DeepCopy()
-		updated.Status.Conditions = conditions
-		_, err = w.client.PolicyBindings().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("update PolicyBinding %q conditions: %w", source.Name, err)
 	}
 	return nil
 }
@@ -393,6 +375,194 @@ func resourceConditions(
 
 	meta.SetStatusCondition(&conditions, programmedCondition(conditions, resource, deliveryStatus))
 	return conditions
+}
+
+func policyConditions(
+	conditions []metav1.Condition,
+	resource config.ResourceGeneration,
+	targets []gatewayv1.PolicyTargetStatus,
+) []metav1.Condition {
+	accepted := currentCondition(conditions, gatewayv1.ConditionAccepted, resource.Generation)
+	if accepted == nil || accepted.Status != metav1.ConditionTrue {
+		return conditions
+	}
+	if len(targets) == 0 {
+		programmed := currentCondition(conditions, gatewayv1.ConditionProgrammed, resource.Generation)
+		if programmed == nil || programmed.Status != metav1.ConditionTrue {
+			return conditions
+		}
+		meta.SetStatusCondition(&conditions, newCondition(
+			gatewayv1.ConditionProgrammed,
+			resource.Generation,
+			conditionDecision{
+				status:  metav1.ConditionFalse,
+				reason:  gatewayv1.ReasonNotApplied,
+				message: messageNotApplied,
+			},
+		))
+		return conditions
+	}
+
+	var failure *metav1.Condition
+	hasPending := false
+	for _, target := range targets {
+		programmed := currentCondition(target.Conditions, gatewayv1.ConditionProgrammed, resource.Generation)
+		if programmed == nil || programmed.Status == metav1.ConditionUnknown {
+			hasPending = true
+			continue
+		}
+		if programmed.Status == metav1.ConditionTrue {
+			meta.SetStatusCondition(&conditions, newCondition(
+				gatewayv1.ConditionProgrammed,
+				resource.Generation,
+				conditionDecision{
+					status:  metav1.ConditionTrue,
+					reason:  gatewayv1.ReasonProgrammed,
+					message: messageProgrammed,
+				},
+			))
+			return conditions
+		}
+		if gatewayv1.ConditionReason(programmed.Reason) != gatewayv1.ReasonNotApplied && failure == nil {
+			current := *programmed
+			failure = &current
+		}
+	}
+
+	decision := conditionDecision{
+		status:  metav1.ConditionFalse,
+		reason:  gatewayv1.ReasonNotApplied,
+		message: messageNotApplied,
+	}
+	if failure != nil {
+		decision = conditionDecision{
+			status:  failure.Status,
+			reason:  gatewayv1.ConditionReason(failure.Reason),
+			message: failure.Message,
+		}
+	} else if hasPending {
+		decision = pendingDecision()
+	}
+	meta.SetStatusCondition(&conditions, newCondition(
+		gatewayv1.ConditionProgrammed,
+		resource.Generation,
+		decision,
+	))
+	return conditions
+}
+
+func policyTargetStatuses(
+	existing []gatewayv1.PolicyTargetStatus,
+	targetRefs []gatewayv1.PolicyTargetRef,
+	resource config.ResourceGeneration,
+	policyConditions []metav1.Condition,
+	deliveryStatus delivery.Status,
+	targets map[resourceKey]config.ResourceGeneration,
+	programmedTargets map[config.ProgrammedPolicyTarget]bool,
+) []gatewayv1.PolicyTargetStatus {
+	result := make([]gatewayv1.PolicyTargetStatus, 0, len(targetRefs))
+	for _, targetRef := range targetRefs {
+		conditions := existingPolicyTargetConditions(existing, targetRef)
+		resolved := conditionDecision{
+			status:  metav1.ConditionTrue,
+			reason:  gatewayv1.ReasonResolvedRefs,
+			message: messageTargetResolved,
+		}
+		target, exists := targets[resourceKey{kind: targetRef.Kind, name: targetRef.Name}]
+		if !exists {
+			resolved = conditionDecision{
+				status:  metav1.ConditionFalse,
+				reason:  gatewayv1.ReasonReferenceNotFound,
+				message: fmt.Sprintf("Policy target %s %q does not exist", targetRef.Kind, targetRef.Name),
+			}
+		}
+		meta.SetStatusCondition(&conditions, newCondition(
+			gatewayv1.ConditionResolvedRefs,
+			resource.Generation,
+			resolved,
+		))
+		meta.SetStatusCondition(&conditions, policyTargetProgrammedCondition(
+			policyConditions,
+			resolved,
+			resource,
+			target,
+			deliveryStatus,
+			programmedTargets[config.ProgrammedPolicyTarget{
+				Policy: resource,
+				Target: target,
+			}],
+		))
+		result = append(result, gatewayv1.PolicyTargetStatus{
+			TargetRef:  targetRef,
+			Conditions: conditions,
+		})
+	}
+	return result
+}
+
+func existingPolicyTargetConditions(
+	existing []gatewayv1.PolicyTargetStatus,
+	target gatewayv1.PolicyTargetRef,
+) []metav1.Condition {
+	for _, status := range existing {
+		if status.TargetRef == target {
+			return slices.Clone(status.Conditions)
+		}
+	}
+	return nil
+}
+
+func policyTargetProgrammedCondition(
+	policyConditions []metav1.Condition,
+	resolved conditionDecision,
+	resource config.ResourceGeneration,
+	target config.ResourceGeneration,
+	deliveryStatus delivery.Status,
+	isProgrammedTarget bool,
+) metav1.Condition {
+	accepted := currentCondition(policyConditions, gatewayv1.ConditionAccepted, resource.Generation)
+	if accepted == nil {
+		return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, pendingDecision())
+	}
+	if accepted.Status != metav1.ConditionTrue {
+		return conditionBlockedBy(gatewayv1.ConditionProgrammed, resource.Generation, accepted)
+	}
+	if resolved.status != metav1.ConditionTrue {
+		blocking := newCondition(gatewayv1.ConditionResolvedRefs, resource.Generation, resolved)
+		return conditionBlockedBy(gatewayv1.ConditionProgrammed, resource.Generation, &blocking)
+	}
+	if slices.Contains(deliveryStatus.ActiveResources, resource) &&
+		slices.Contains(deliveryStatus.ActiveResources, target) {
+		if !isProgrammedTarget {
+			return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, conditionDecision{
+				status:  metav1.ConditionFalse,
+				reason:  gatewayv1.ReasonNotApplied,
+				message: messageNotApplied,
+			})
+		}
+		return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, conditionDecision{
+			status:  metav1.ConditionTrue,
+			reason:  gatewayv1.ReasonProgrammed,
+			message: messageProgrammed,
+		})
+	}
+	failedTarget := config.ProgrammedPolicyTarget{Policy: resource, Target: target}
+	if deliveryStatus.LastFailure != nil &&
+		slices.Contains(deliveryStatus.LastFailure.Resources, resource) &&
+		slices.Contains(deliveryStatus.LastFailure.PolicyTargets, failedTarget) {
+		reason := gatewayv1.ReasonDeliveryFailed
+		message := messageDeliveryFailed
+		if deliveryStatus.LastFailure.Reason == delivery.FailureRejected {
+			reason = gatewayv1.ReasonRejected
+			message = messageRejected
+		}
+		return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, conditionDecision{
+			status:  metav1.ConditionFalse,
+			reason:  reason,
+			message: message,
+		})
+	}
+	return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, pendingDecision())
 }
 
 func programmedCondition(
@@ -495,6 +665,26 @@ func pendingDecision() conditionDecision {
 	}
 }
 
+func newPolicyTargetIndex(resources config.ResourceSet) map[resourceKey]config.ResourceGeneration {
+	targets := make(map[resourceKey]config.ResourceGeneration, len(resources.Gateways)+len(resources.Routes))
+	for _, resource := range resources.Generations() {
+		if resource.Kind == gatewayv1.KindGateway || resource.Kind == gatewayv1.KindRoute {
+			targets[resourceKey{kind: resource.Kind, name: resource.Name}] = resource
+		}
+	}
+	return targets
+}
+
+func newProgrammedPolicyTargetIndex(
+	targets []config.ProgrammedPolicyTarget,
+) map[config.ProgrammedPolicyTarget]bool {
+	result := make(map[config.ProgrammedPolicyTarget]bool, len(targets))
+	for _, target := range targets {
+		result[target] = true
+	}
+	return result
+}
+
 func newDiagnosticIndex(resources config.ResourceSet, diagnostics []config.Diagnostic) diagnosticIndex {
 	knownResources := make(map[resourceKey]bool)
 	knownKinds := make(map[gatewayv1.Kind]bool)
@@ -508,7 +698,8 @@ func newDiagnosticIndex(resources config.ResourceSet, diagnostics []config.Diagn
 		kinds:    make(map[gatewayv1.Kind][]config.Diagnostic),
 	}
 	for _, diagnostic := range diagnostics {
-		if diagnostic.Severity != config.SeverityError {
+		if diagnostic.Severity != config.SeverityError &&
+			!(diagnostic.Severity == config.SeverityWarning && isReferenceReason(diagnostic.Reason)) {
 			continue
 		}
 		key := resourceKey{kind: diagnostic.Kind, name: diagnostic.ID}
@@ -584,7 +775,10 @@ func isReferenceReason(reason config.Reason) bool {
 
 func kindHasReferences(kind gatewayv1.Kind) bool {
 	switch kind {
-	case gatewayv1.KindGateway, gatewayv1.KindRoute, gatewayv1.KindPolicyBinding:
+	case gatewayv1.KindGateway,
+		gatewayv1.KindRoute,
+		gatewayv1.KindRateLimitPolicy,
+		gatewayv1.KindAccessControlPolicy:
 		return true
 	default:
 		return false

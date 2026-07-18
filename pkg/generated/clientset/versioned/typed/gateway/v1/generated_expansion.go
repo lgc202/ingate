@@ -10,8 +10,6 @@ type CertificateExpansion interface{}
 
 type GatewayExpansion interface{}
 
-type PolicyBindingExpansion interface{}
-
 type RateLimitPolicyExpansion interface{}
 
 type RouteExpansion interface{}

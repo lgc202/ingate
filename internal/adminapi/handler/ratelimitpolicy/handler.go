@@ -68,7 +68,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	policyID, err := h.service.Create(ctx.Request.Context(), h.createParams(request))
+	policyID, err := h.service.Create(ctx.Request.Context(), dto.NewCreatePolicyParams(request))
 	if err != nil {
 		h.logger.Error("create rate limit policy failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -94,7 +94,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	policyID := ctx.Param("id")
-	if err := h.service.Update(ctx.Request.Context(), policyID, h.updateParams(request)); err != nil {
+	if err := h.service.Update(ctx.Request.Context(), policyID, dto.NewUpdatePolicyParams(request)); err != nil {
 		h.logger.Error("update rate limit policy failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
@@ -144,27 +144,4 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.DeleteRateLimitPolicyResp{Success: true})
-}
-
-func (h *Handler) createParams(request dto.CreateRateLimitPolicyReq) ratelimitpolicyservice.CreatePolicyParams {
-	return ratelimitpolicyservice.CreatePolicyParams{PolicyParams: h.policyParams(request.RateLimitPolicyConfig)}
-}
-
-func (h *Handler) updateParams(request dto.UpdateRateLimitPolicyReq) ratelimitpolicyservice.UpdatePolicyParams {
-	return ratelimitpolicyservice.UpdatePolicyParams{
-		Version:      request.Version,
-		PolicyParams: h.policyParams(request.RateLimitPolicyConfig),
-	}
-}
-
-func (h *Handler) policyParams(config dto.RateLimitPolicyConfig) ratelimitpolicyservice.PolicyParams {
-	return ratelimitpolicyservice.PolicyParams{
-		Name:          config.Name,
-		Description:   config.Description,
-		Enabled:       config.Enabled,
-		Mode:          config.Mode,
-		Rules:         config.Rules,
-		Response:      config.Response,
-		FailurePolicy: config.FailurePolicy,
-	}
 }

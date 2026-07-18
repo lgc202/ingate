@@ -8,6 +8,7 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
+	"github.com/lgc202/ingate/internal/adminapi/service/policytarget"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
@@ -19,14 +20,25 @@ import (
 
 // Service 承载 Route 查询用例
 type Service struct {
-	store    *routestore.Store
-	gateways *gatewaystore.Store
-	upstream *upstreamstore.Store
+	store       *routestore.Store
+	gateways    *gatewaystore.Store
+	upstream    *upstreamstore.Store
+	policyUsage *policytarget.UsageFinder
 }
 
 // New 创建 Route service
-func New(store *routestore.Store, gateways *gatewaystore.Store, upstream *upstreamstore.Store) *Service {
-	return &Service{store: store, gateways: gateways, upstream: upstream}
+func New(
+	store *routestore.Store,
+	gateways *gatewaystore.Store,
+	upstream *upstreamstore.Store,
+	policyUsage *policytarget.UsageFinder,
+) *Service {
+	return &Service{
+		store:       store,
+		gateways:    gateways,
+		upstream:    upstream,
+		policyUsage: policyUsage,
+	}
 }
 
 // List 查询 Route 列表
@@ -117,8 +129,19 @@ func (s *Service) SetEnabled(ctx context.Context, routeID string, enabled bool) 
 	})
 }
 
-// Delete 删除 Route
+// Delete 删除 Route，仍被策略应用时拒绝删除
 func (s *Service) Delete(ctx context.Context, routeID string) error {
+	current, err := s.store.Get(ctx, routeID)
+	if err != nil {
+		return err
+	}
+	usage, err := s.policyUsage.Find(ctx, resource.PolicyTargetRef{Kind: resource.KindRoute, Name: routeID})
+	if err != nil {
+		return err
+	}
+	if usage != nil {
+		return xerrors.NewUserError(fmt.Sprintf("路由 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
+	}
 	return s.store.Delete(ctx, routeID)
 }
 

@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Badge, Button, EmptyState, Panel } from '@/components/ui';
 import type { PolicyWorkspace } from '@/domain/policy';
 import type { RouteGatewayOption, RouteResource, UpstreamOption } from '@/domain/route';
@@ -180,11 +179,6 @@ export function RouteList({
                         event.stopPropagation();
                         onDetail(route);
                       }}>详情</button>
-                      <Link
-                        className="link-button"
-                        to={`/policies?tab=bindings&targetKind=Route&targetID=${encodeURIComponent(route.id)}&ruleName=${encodeURIComponent(rule?.name ?? '')}`}
-                        onClick={(event) => event.stopPropagation()}
-                      >策略</Link>
                       <button className="link-button" type="button" onClick={(event) => {
                         event.stopPropagation();
                         onEdit(route);

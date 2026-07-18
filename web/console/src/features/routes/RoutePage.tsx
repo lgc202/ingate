@@ -161,6 +161,7 @@ export function RoutePage() {
           gateways={gateways}
           upstreams={upstreams}
           policyWorkspace={policyWorkspace.data}
+          policyError={policyWorkspace.error?.message}
           onPolicyWorkspaceChanged={policyWorkspace.reload}
           onBack={() => setMode('list')}
         />

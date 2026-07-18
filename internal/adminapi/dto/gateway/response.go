@@ -28,7 +28,7 @@ func NewGetGatewayResp(result *gatewayservice.GatewayResult) GetGatewayResp {
 
 func gatewayFromResource(gateway *resource.Gateway) Gateway {
 	status := admindto.NewResourceStatus(gateway.Generation, gateway.Status.Conditions)
-	if !gateway.Spec.Enabled {
+	if !gateway.Spec.Enabled && admindto.ConfigurationApplied(gateway.Generation, gateway.Status.Conditions) {
 		status = admindto.NewDisabledResourceStatus()
 	}
 	return Gateway{

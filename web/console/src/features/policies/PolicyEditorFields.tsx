@@ -1,3 +1,5 @@
+import { useId } from 'react';
+
 export function PolicyInputField({
   label,
   value,
@@ -11,10 +13,11 @@ export function PolicyInputField({
   type?: string;
   onChange: (value: string) => void;
 }) {
+  const inputID = useId();
   return (
     <div className="field">
-      <label>{label}</label>
-      <input value={value} type={type} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+      <label htmlFor={inputID}>{label}</label>
+      <input id={inputID} value={value} type={type} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
     </div>
   );
 }
@@ -30,10 +33,11 @@ export function PolicySelectField({
   options: Array<[string, string]>;
   onChange: (value: string) => void;
 }) {
+  const selectID = useId();
   return (
     <div className="field">
-      <label>{label}</label>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+      <label htmlFor={selectID}>{label}</label>
+      <select id={selectID} value={value} onChange={(event) => onChange(event.target.value)}>
         {options.map(([optionValue, labelText]) => (
           <option key={optionValue || labelText} value={optionValue}>{labelText}</option>
         ))}

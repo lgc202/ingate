@@ -4,7 +4,6 @@ import (
 	accesscontrolpolicystore "github.com/lgc202/ingate/internal/adminapi/store/accesscontrolpolicy"
 	certificatestore "github.com/lgc202/ingate/internal/adminapi/store/certificate"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
-	policybindingstore "github.com/lgc202/ingate/internal/adminapi/store/policybinding"
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
@@ -19,7 +18,6 @@ type Store struct {
 	Upstream            *upstreamstore.Store
 	AccessControlPolicy *accesscontrolpolicystore.Store
 	RateLimitPolicy     *ratelimitpolicystore.Store
-	PolicyBinding       *policybindingstore.Store
 }
 
 // New 创建 store 聚合入口
@@ -31,6 +29,5 @@ func New(client clientset.Interface) *Store {
 		Upstream:            upstreamstore.New(client),
 		AccessControlPolicy: accesscontrolpolicystore.New(client),
 		RateLimitPolicy:     ratelimitpolicystore.New(client),
-		PolicyBinding:       policybindingstore.New(client),
 	}
 }

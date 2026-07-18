@@ -54,12 +54,14 @@ const (
 
 // Failure 记录最近一次发布失败所对应的资源版本
 type Failure struct {
-	Reason    FailureReason
-	Resources []config.ResourceGeneration
+	Reason        FailureReason
+	Resources     []config.ResourceGeneration
+	PolicyTargets []config.ProgrammedPolicyTarget
 }
 
 // Status 是 Delivery 对外提供的并发安全状态快照
 type Status struct {
-	ActiveResources []config.ResourceGeneration
-	LastFailure     *Failure
+	ActiveResources     []config.ResourceGeneration
+	ActivePolicyTargets []config.ProgrammedPolicyTarget
+	LastFailure         *Failure
 }

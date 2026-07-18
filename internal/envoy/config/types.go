@@ -51,6 +51,12 @@ type ResourceGeneration struct {
 	Generation int64
 }
 
+// ProgrammedPolicyTarget 标识一条策略实际展开到运行配置中的作用目标
+type ProgrammedPolicyTarget struct {
+	Policy ResourceGeneration
+	Target ResourceGeneration
+}
+
 // ResourceSet 表示一次编译使用的完整声明式资源集合
 //
 // 使用 gateway/v1 指针可以直接接收 informer 和 generated client 的结果，
@@ -62,14 +68,13 @@ type ResourceSet struct {
 	Upstreams             []*gatewayv1.Upstream
 	RateLimitPolicies     []*gatewayv1.RateLimitPolicy
 	AccessControlPolicies []*gatewayv1.AccessControlPolicy
-	PolicyBindings        []*gatewayv1.PolicyBinding
 }
 
 // Generations 返回当前资源集合中所有非 nil 资源的身份和 spec 版本
 func (r ResourceSet) Generations() []ResourceGeneration {
 	result := make([]ResourceGeneration, 0,
 		len(r.Gateways)+len(r.Certificates)+len(r.Routes)+len(r.Upstreams)+
-			len(r.RateLimitPolicies)+len(r.AccessControlPolicies)+len(r.PolicyBindings),
+			len(r.RateLimitPolicies)+len(r.AccessControlPolicies),
 	)
 	for _, resource := range r.Gateways {
 		if resource != nil {
@@ -101,11 +106,6 @@ func (r ResourceSet) Generations() []ResourceGeneration {
 			result = append(result, newResourceGeneration(gatewayv1.KindAccessControlPolicy, resource.Name, resource.UID, resource.Generation))
 		}
 	}
-	for _, resource := range r.PolicyBindings {
-		if resource != nil {
-			result = append(result, newResourceGeneration(gatewayv1.KindPolicyBinding, resource.Name, resource.UID, resource.Generation))
-		}
-	}
 	return result
 }
 
@@ -130,10 +130,11 @@ type Config struct {
 //
 // 任意 Error diagnostic 都会使 Version 为空并清空 Config，Resources 仍保留本次输入来源供状态收敛使用
 type CompileResult struct {
-	Version     string
-	Config      Config
-	Resources   []ResourceGeneration
-	Diagnostics []Diagnostic
+	Version       string
+	Config        Config
+	Resources     []ResourceGeneration
+	PolicyTargets []ProgrammedPolicyTarget
+	Diagnostics   []Diagnostic
 }
 
 // Compiler 将完整资源集合直接编译为 Envoy protobuf

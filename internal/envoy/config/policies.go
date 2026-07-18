@@ -26,6 +26,9 @@ const (
 	rateLimitPluginName         = "ingate.ratelimit"
 	rateLimitPluginPath         = "/opt/ingate/plugins/ratelimit.wasm"
 	wasmRuntime                 = "envoy.wasm.runtime.v8"
+	maxPluginInteger            = 1<<31 - 1
+	minPolicyResponseStatusCode = 400
+	maxPolicyResponseStatusCode = 599
 )
 
 type listenerPolicyConfig struct {
@@ -33,11 +36,14 @@ type listenerPolicyConfig struct {
 	rateLimit     *pluginratelimit.PluginConfig
 }
 
-type compiledPolicyBinding struct {
-	name                  string
-	target                gatewayv1.PolicyTargetRef
-	accessControlPolicies []pluginacl.Policy
-	rateLimitPolicies     []pluginratelimit.Policy
+type compiledAccessControlPolicy struct {
+	policy  pluginacl.Policy
+	targets []gatewayv1.PolicyTargetRef
+}
+
+type compiledRateLimitPolicy struct {
+	policy  pluginratelimit.Policy
+	targets []gatewayv1.PolicyTargetRef
 }
 
 type policyRouteKey struct {
@@ -47,79 +53,69 @@ type policyRouteKey struct {
 }
 
 func (c *compileContext) buildPolicyConfigs() map[listenerKey]listenerPolicyConfig {
-	// 每个 HCM 只注入一次内置 filter，插件再用当前 xDS route name 定位 Gateway/Route/Rule
-	// 内置策略配置直接使用最终 routes/bindings/policies 结构，系统依赖不进入插件 JSON
-	bindings := c.compilePolicyBindings()
+	// Compiler 已经把 Gateway/Route 应用范围展开成最终执行清单，Wasm 不再理解用户层绑定模型
+	accessControlPolicies := c.compileAccessControlPolicies()
+	rateLimitPolicies := c.compileRateLimitPolicies()
 	result := make(map[listenerKey]listenerPolicyConfig)
 
-	routeRules := make(map[policyRouteKey]map[string]bool)
+	routeKeySet := make(map[policyRouteKey]bool)
 	for _, attachment := range c.routeAttachments {
-		key := policyRouteKey{
+		routeKeySet[policyRouteKey{
 			listenerKey: attachment.listenerKey,
 			gatewayID:   attachment.gatewayID,
 			routeID:     attachment.routeID,
-		}
-		if routeRules[key] == nil {
-			routeRules[key] = make(map[string]bool)
-		}
-		routeRules[key][attachment.ruleName] = true
+		}] = true
 	}
-
-	routeKeys := slices.Collect(maps.Keys(routeRules))
+	routeKeys := slices.Collect(maps.Keys(routeKeySet))
 	slices.SortFunc(routeKeys, comparePolicyRouteKeys)
+
 	for _, key := range routeKeys {
-		aclBindings := make([]pluginacl.Binding, 0)
-		rateBindings := make([]pluginratelimit.Binding, 0)
-		for _, binding := range bindings {
-			if !bindingMatchesPolicyRoute(binding.target, key, routeRules[key]) {
+		aclPolicies := make([]pluginacl.Policy, 0)
+		for _, policyID := range slices.Sorted(maps.Keys(accessControlPolicies)) {
+			compiled := accessControlPolicies[policyID]
+			_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
+			if len(matchedTargets) == 0 {
 				continue
 			}
-			if len(binding.accessControlPolicies) > 0 {
-				aclBindings = append(aclBindings, pluginacl.Binding{
-					Name: binding.name,
-					Target: pluginacl.Target{
-						Kind:     string(binding.target.Kind),
-						Name:     binding.target.Name,
-						RuleName: binding.target.RuleName,
-					},
-					Policies: binding.accessControlPolicies,
-				})
+			c.markProgrammedPolicyTargets(gatewayv1.KindAccessControlPolicy, policyID, matchedTargets)
+			aclPolicies = append(aclPolicies, compiled.policy)
+		}
+
+		ratePolicies := make([]pluginratelimit.Policy, 0)
+		for _, policyID := range slices.Sorted(maps.Keys(rateLimitPolicies)) {
+			compiled := rateLimitPolicies[policyID]
+			scope, matchedTargets := matchingPolicyTargets(compiled.targets, key)
+			if len(matchedTargets) == 0 {
+				continue
 			}
-			if len(binding.rateLimitPolicies) > 0 {
-				rateBindings = append(rateBindings, pluginratelimit.Binding{
-					Name: binding.name,
-					Target: pluginratelimit.Target{
-						Kind:     string(binding.target.Kind),
-						Name:     binding.target.Name,
-						RuleName: binding.target.RuleName,
-					},
-					Policies: binding.rateLimitPolicies,
-				})
-			}
+			c.markProgrammedPolicyTargets(gatewayv1.KindRateLimitPolicy, policyID, matchedTargets)
+			policy := compiled.policy
+			policy.Scope = scope
+			ratePolicies = append(ratePolicies, policy)
 		}
 
 		config := result[key.listenerKey]
-		if len(aclBindings) > 0 {
+		if len(aclPolicies) > 0 {
 			if config.accessControl == nil {
 				config.accessControl = &pluginacl.PluginConfig{}
 			}
 			config.accessControl.Routes = append(config.accessControl.Routes, pluginacl.RouteConfig{
 				GatewayName: key.gatewayID,
 				RouteName:   key.routeID,
-				Bindings:    aclBindings,
+				Policies:    aclPolicies,
 			})
 		}
-		if len(rateBindings) > 0 {
+		if len(ratePolicies) > 0 {
 			if config.rateLimit == nil {
 				config.rateLimit = &pluginratelimit.PluginConfig{}
 			}
 			config.rateLimit.Routes = append(config.rateLimit.Routes, pluginratelimit.RouteConfig{
 				GatewayName: key.gatewayID,
 				RouteName:   key.routeID,
-				Bindings:    rateBindings,
+				Policies:    ratePolicies,
 			})
 		}
-		if len(aclBindings) > 0 || len(rateBindings) > 0 {
+		if len(aclPolicies) > 0 || len(ratePolicies) > 0 {
 			result[key.listenerKey] = config
 		}
 	}
@@ -127,175 +123,191 @@ func (c *compileContext) buildPolicyConfigs() map[listenerKey]listenerPolicyConf
 	return result
 }
 
-func (c *compileContext) compilePolicyBindings() []compiledPolicyBinding {
-	bindings := make([]compiledPolicyBinding, 0, len(c.policyBindings))
-	for _, bindingID := range slices.Sorted(maps.Keys(c.policyBindings)) {
-		binding := c.policyBindings[bindingID]
-		if !binding.Spec.Enabled {
+func (c *compileContext) compileAccessControlPolicies() map[string]compiledAccessControlPolicy {
+	result := make(map[string]compiledAccessControlPolicy)
+	for _, policyID := range slices.Sorted(maps.Keys(c.accessControlPolicies)) {
+		policy := c.accessControlPolicies[policyID]
+		targets := c.validPolicyTargets(gatewayv1.KindAccessControlPolicy, policyID, policy.Spec.TargetRefs)
+		if !policy.Spec.Enabled {
 			continue
 		}
-		if !c.validatePolicyTarget(binding) {
+		pluginPolicy, valid := c.accessControlPolicy(policy)
+		if !valid {
 			continue
 		}
-		if len(binding.Spec.Policies) == 0 {
+		result[policyID] = compiledAccessControlPolicy{
+			policy:  pluginPolicy,
+			targets: targets,
+		}
+	}
+	return result
+}
+
+func (c *compileContext) compileRateLimitPolicies() map[string]compiledRateLimitPolicy {
+	result := make(map[string]compiledRateLimitPolicy)
+	for _, policyID := range slices.Sorted(maps.Keys(c.rateLimitPolicies)) {
+		policy := c.rateLimitPolicies[policyID]
+		targets := c.validPolicyTargets(gatewayv1.KindRateLimitPolicy, policyID, policy.Spec.TargetRefs)
+		if !policy.Spec.Enabled {
+			continue
+		}
+		pluginPolicy, valid := c.rateLimitPolicy(policy)
+		if !valid {
+			continue
+		}
+		result[policyID] = compiledRateLimitPolicy{
+			policy:  pluginPolicy,
+			targets: targets,
+		}
+	}
+	return result
+}
+
+func (c *compileContext) validPolicyTargets(
+	policyKind gatewayv1.Kind,
+	policyID string,
+	targets []gatewayv1.PolicyTargetRef,
+) []gatewayv1.PolicyTargetRef {
+	validTargets := make([]gatewayv1.PolicyTargetRef, 0, len(targets))
+	seen := make(map[string]bool, len(targets))
+	for _, target := range targets {
+		key := string(target.Kind) + "\x00" + target.Name
+		if seen[key] {
 			c.addDiagnostic(
 				SeverityError,
-				gatewayv1.KindPolicyBinding,
-				bindingID,
-				ReasonInvalidSpec,
-				fmt.Sprintf("policy binding %q must reference at least one policy", bindingID),
+				policyKind,
+				policyID,
+				ReasonConflict,
+				fmt.Sprintf("policy %q repeats target %s %q", policyID, target.Kind, target.Name),
 			)
 			continue
 		}
+		seen[key] = true
 
-		compiled := compiledPolicyBinding{
-			name:   bindingID,
-			target: binding.Spec.TargetRef,
+		if target.Name == "" {
+			c.addDiagnostic(SeverityError, policyKind, policyID, ReasonInvalidSpec, fmt.Sprintf("policy %q has a target without a name", policyID))
+			continue
 		}
-		policyRefs := slices.Clone(binding.Spec.Policies)
-		slices.SortFunc(policyRefs, func(a, b gatewayv1.PolicyRef) int {
-			if a.Kind != b.Kind {
-				return cmp.Compare(a.Kind, b.Kind)
-			}
-			return cmp.Compare(a.Name, b.Name)
-		})
-		seen := make(map[string]bool, len(policyRefs))
-		for _, ref := range policyRefs {
-			key := string(ref.Kind) + "\x00" + ref.Name
-			if seen[key] {
+		switch target.Kind {
+		case gatewayv1.KindGateway:
+			if _, exists := c.gateways[target.Name]; !exists {
 				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindPolicyBinding,
-					bindingID,
-					ReasonConflict,
-					fmt.Sprintf("policy binding %q repeats policy %s %q", bindingID, ref.Kind, ref.Name),
+					SeverityWarning,
+					policyKind,
+					policyID,
+					ReasonReferenceNotFound,
+					fmt.Sprintf("policy %q references missing gateway %q", policyID, target.Name),
 				)
 				continue
 			}
-			seen[key] = true
-
-			switch ref.Kind {
-			case gatewayv1.KindAccessControlPolicy:
-				policy, exists := c.accessControlPolicies[ref.Name]
-				if !exists {
-					c.addDiagnostic(
-						SeverityError,
-						gatewayv1.KindPolicyBinding,
-						bindingID,
-						ReasonReferenceNotFound,
-						fmt.Sprintf("policy binding %q references missing access control policy %q", bindingID, ref.Name),
-					)
-					continue
-				}
-				if !policy.Spec.Enabled {
-					continue
-				}
-				pluginPolicy, ok := c.accessControlPolicy(policy)
-				if ok {
-					compiled.accessControlPolicies = append(compiled.accessControlPolicies, pluginPolicy)
-				}
-			case gatewayv1.KindRateLimitPolicy:
-				policy, exists := c.rateLimitPolicies[ref.Name]
-				if !exists {
-					c.addDiagnostic(
-						SeverityError,
-						gatewayv1.KindPolicyBinding,
-						bindingID,
-						ReasonReferenceNotFound,
-						fmt.Sprintf("policy binding %q references missing rate limit policy %q", bindingID, ref.Name),
-					)
-					continue
-				}
-				if !policy.Spec.Enabled {
-					continue
-				}
-				pluginPolicy, ok := c.rateLimitPolicy(policy)
-				if ok {
-					compiled.rateLimitPolicies = append(compiled.rateLimitPolicies, pluginPolicy)
-				}
-			default:
+		case gatewayv1.KindRoute:
+			if _, exists := c.routes[target.Name]; !exists {
 				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindPolicyBinding,
-					bindingID,
-					ReasonUnsupported,
-					fmt.Sprintf("policy binding %q references unsupported policy kind %q", bindingID, ref.Kind),
+					SeverityWarning,
+					policyKind,
+					policyID,
+					ReasonReferenceNotFound,
+					fmt.Sprintf("policy %q references missing route %q", policyID, target.Name),
 				)
+				continue
 			}
+		default:
+			c.addDiagnostic(
+				SeverityError,
+				policyKind,
+				policyID,
+				ReasonUnsupported,
+				fmt.Sprintf("policy %q targets unsupported kind %q", policyID, target.Kind),
+			)
+			continue
 		}
-		if len(compiled.accessControlPolicies) > 0 || len(compiled.rateLimitPolicies) > 0 {
-			bindings = append(bindings, compiled)
-		}
+		validTargets = append(validTargets, target)
 	}
-	return bindings
+	return validTargets
 }
 
-func (c *compileContext) validatePolicyTarget(binding *gatewayv1.PolicyBinding) bool {
-	target := binding.Spec.TargetRef
-	if target.Name == "" {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindPolicyBinding,
-			binding.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("policy binding %q target name is required", binding.Name),
-		)
-		return false
+func matchingPolicyTargets(targets []gatewayv1.PolicyTargetRef, key policyRouteKey) (string, []gatewayv1.PolicyTargetRef) {
+	// 同一策略同时命中 Gateway 和 Route 时只执行一次，并让更精确的 Route 范围决定计数作用域
+	matched := make([]gatewayv1.PolicyTargetRef, 0, 2)
+	var routeTarget *gatewayv1.PolicyTargetRef
+	var gatewayTarget *gatewayv1.PolicyTargetRef
+	for _, target := range targets {
+		switch {
+		case target.Kind == gatewayv1.KindRoute && target.Name == key.routeID:
+			matched = append(matched, target)
+			current := target
+			routeTarget = &current
+		case target.Kind == gatewayv1.KindGateway && target.Name == key.gatewayID:
+			matched = append(matched, target)
+			current := target
+			gatewayTarget = &current
+		}
 	}
-	switch target.Kind {
-	case gatewayv1.KindGateway:
-		if target.RuleName != "" {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindPolicyBinding,
-				binding.Name,
-				ReasonInvalidSpec,
-				fmt.Sprintf("policy binding %q cannot set ruleName for a Gateway target", binding.Name),
-			)
-			return false
-		}
-		if _, exists := c.gateways[target.Name]; !exists {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindPolicyBinding,
-				binding.Name,
-				ReasonReferenceNotFound,
-				fmt.Sprintf("policy binding %q references missing gateway %q", binding.Name, target.Name),
-			)
-			return false
-		}
-	case gatewayv1.KindRoute:
-		if _, exists := c.routes[target.Name]; !exists {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindPolicyBinding,
-				binding.Name,
-				ReasonReferenceNotFound,
-				fmt.Sprintf("policy binding %q references missing route %q", binding.Name, target.Name),
-			)
-			return false
-		}
-		if target.RuleName != "" && !c.routeRules[target.Name][target.RuleName] {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindPolicyBinding,
-				binding.Name,
-				ReasonReferenceNotFound,
-				fmt.Sprintf("policy binding %q references missing route %q rule %q", binding.Name, target.Name, target.RuleName),
-			)
-			return false
-		}
-	default:
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindPolicyBinding,
-			binding.Name,
-			ReasonUnsupported,
-			fmt.Sprintf("policy binding %q targets unsupported kind %q", binding.Name, target.Kind),
-		)
-		return false
+	if routeTarget != nil {
+		return policyScope(*routeTarget), matched
 	}
-	return true
+	if gatewayTarget != nil {
+		return policyScope(*gatewayTarget), matched
+	}
+	return "", nil
+}
+
+func policyScope(target gatewayv1.PolicyTargetRef) string {
+	return string(target.Kind) + "/" + target.Name
+}
+
+func (c *compileContext) markProgrammedPolicyTargets(
+	policyKind gatewayv1.Kind,
+	policyName string,
+	targets []gatewayv1.PolicyTargetRef,
+) {
+	var policy ResourceGeneration
+	if policyKind == gatewayv1.KindRateLimitPolicy {
+		resource := c.rateLimitPolicies[policyName]
+		policy = newResourceGeneration(policyKind, resource.Name, resource.UID, resource.Generation)
+	} else {
+		resource := c.accessControlPolicies[policyName]
+		policy = newResourceGeneration(policyKind, resource.Name, resource.UID, resource.Generation)
+	}
+
+	for _, target := range targets {
+		var targetResource ResourceGeneration
+		if target.Kind == gatewayv1.KindGateway {
+			resource := c.gateways[target.Name]
+			targetResource = newResourceGeneration(target.Kind, resource.Name, resource.UID, resource.Generation)
+		} else {
+			resource := c.routes[target.Name]
+			targetResource = newResourceGeneration(target.Kind, resource.Name, resource.UID, resource.Generation)
+		}
+		c.policyTargets[ProgrammedPolicyTarget{
+			Policy: policy,
+			Target: targetResource,
+		}] = true
+	}
+}
+
+func (c *compileContext) programmedPolicyTargets() []ProgrammedPolicyTarget {
+	result := slices.Collect(maps.Keys(c.policyTargets))
+	slices.SortFunc(result, func(a, b ProgrammedPolicyTarget) int {
+		if result := compareResourceGeneration(a.Policy, b.Policy); result != 0 {
+			return result
+		}
+		return compareResourceGeneration(a.Target, b.Target)
+	})
+	return result
+}
+
+func compareResourceGeneration(a, b ResourceGeneration) int {
+	if result := cmp.Compare(a.Kind, b.Kind); result != 0 {
+		return result
+	}
+	if result := cmp.Compare(a.Name, b.Name); result != 0 {
+		return result
+	}
+	if result := cmp.Compare(string(a.UID), string(b.UID)); result != 0 {
+		return result
+	}
+	return cmp.Compare(a.Generation, b.Generation)
 }
 
 func (c *compileContext) accessControlPolicy(policy *gatewayv1.AccessControlPolicy) (pluginacl.Policy, bool) {
@@ -339,9 +351,12 @@ func (c *compileContext) accessControlPolicy(policy *gatewayv1.AccessControlPoli
 				continue
 			}
 			switch condition.Type {
-			case gatewayv1.AccessControlConditionTypeIP,
-				gatewayv1.AccessControlConditionTypeConsumer,
-				gatewayv1.AccessControlConditionTypeTenant:
+			case gatewayv1.AccessControlConditionTypeIP:
+				if condition.Name != "" {
+					c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q rule %q IP condition must not declare a name", policy.Name, rule.Name))
+					valid = false
+					continue
+				}
 			case gatewayv1.AccessControlConditionTypeHeader:
 				if condition.Name == "" {
 					c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q rule %q has a Header condition without a name", policy.Name, rule.Name))
@@ -365,8 +380,9 @@ func (c *compileContext) accessControlPolicy(policy *gatewayv1.AccessControlPoli
 			Conditions: conditions,
 		})
 	}
-	if policy.Spec.Response.StatusCode != 0 && (policy.Spec.Response.StatusCode < 100 || policy.Spec.Response.StatusCode > 599) {
-		c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q response status code must be between 100 and 599", policy.Name))
+	if policy.Spec.Response.StatusCode != 0 &&
+		(policy.Spec.Response.StatusCode < minPolicyResponseStatusCode || policy.Spec.Response.StatusCode > maxPolicyResponseStatusCode) {
+		c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q response status code must be between 400 and 599", policy.Name))
 		valid = false
 	}
 	return pluginacl.Policy{
@@ -382,12 +398,6 @@ func (c *compileContext) accessControlPolicy(policy *gatewayv1.AccessControlPoli
 
 func (c *compileContext) rateLimitPolicy(policy *gatewayv1.RateLimitPolicy) (pluginratelimit.Policy, bool) {
 	valid := true
-	switch policy.Spec.Mode {
-	case gatewayv1.RateLimitModeLocal, gatewayv1.RateLimitModeGlobal:
-	default:
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("rate limit policy %q uses unsupported mode %q", policy.Name, policy.Spec.Mode))
-		valid = false
-	}
 	if len(policy.Spec.Rules) == 0 {
 		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q must declare at least one rule", policy.Name))
 		valid = false
@@ -424,25 +434,21 @@ func (c *compileContext) rateLimitPolicy(policy *gatewayv1.RateLimitPolicy) (plu
 				Name: part.Name,
 			})
 		}
-		if rule.Limit.Requests <= 0 || rule.Limit.WindowSeconds <= 0 || rule.Limit.Burst < 0 {
+		if rule.Limit.Requests <= 0 || rule.Limit.Requests > maxPluginInteger ||
+			rule.Limit.WindowSeconds <= 0 || rule.Limit.WindowSeconds > maxPluginInteger ||
+			rule.Limit.Burst < 0 || rule.Limit.Burst > maxPluginInteger {
 			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q rule %q has invalid quota", policy.Name, rule.Name))
 			valid = false
 		}
-		switch rule.Algorithm {
-		case "", gatewayv1.RateLimitAlgorithmFixedWindow, gatewayv1.RateLimitAlgorithmSlidingWindow, gatewayv1.RateLimitAlgorithmTokenBucket:
-		default:
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("rate limit policy %q rule %q uses unsupported algorithm %q", policy.Name, rule.Name, rule.Algorithm))
-			valid = false
-		}
 		rules = append(rules, pluginratelimit.Rule{
-			Name:      rule.Name,
-			Key:       parts,
-			Limit:     pluginratelimit.Quota(rule.Limit),
-			Algorithm: pluginratelimit.Algorithm(rule.Algorithm),
+			Name:  rule.Name,
+			Key:   parts,
+			Limit: pluginratelimit.Quota(rule.Limit),
 		})
 	}
-	if policy.Spec.Response.StatusCode != 0 && (policy.Spec.Response.StatusCode < 100 || policy.Spec.Response.StatusCode > 599) {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q response status code must be between 100 and 599", policy.Name))
+	if policy.Spec.Response.StatusCode != 0 &&
+		(policy.Spec.Response.StatusCode < minPolicyResponseStatusCode || policy.Spec.Response.StatusCode > maxPolicyResponseStatusCode) {
+		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q response status code must be between 400 and 599", policy.Name))
 		valid = false
 	}
 	switch policy.Spec.FailurePolicy {
@@ -453,7 +459,6 @@ func (c *compileContext) rateLimitPolicy(policy *gatewayv1.RateLimitPolicy) (plu
 	}
 	return pluginratelimit.Policy{
 		Name:  policy.Name,
-		Mode:  pluginratelimit.Mode(policy.Spec.Mode),
 		Rules: rules,
 		Response: pluginratelimit.Response{
 			StatusCode:         policy.Spec.Response.StatusCode,
@@ -468,34 +473,23 @@ func (c *compileContext) validRateLimitKeyPart(policyID, ruleName string, part g
 	switch part.Type {
 	case gatewayv1.RateLimitKeyTypeHeader,
 		gatewayv1.RateLimitKeyTypeQuery,
-		gatewayv1.RateLimitKeyTypeCookie,
-		gatewayv1.RateLimitKeyTypeJWTClaim:
+		gatewayv1.RateLimitKeyTypeCookie:
 		if part.Name != "" {
 			return true
 		}
 		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policyID, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q rule %q key type %q requires a name", policyID, ruleName, part.Type))
 		return false
 	case gatewayv1.RateLimitKeyTypeIP,
-		gatewayv1.RateLimitKeyTypeConsumer,
 		gatewayv1.RateLimitKeyTypeRoute,
 		gatewayv1.RateLimitKeyTypeGateway,
-		gatewayv1.RateLimitKeyTypeRouteRule,
-		gatewayv1.RateLimitKeyTypeAPIKey,
-		gatewayv1.RateLimitKeyTypeTenant:
+		gatewayv1.RateLimitKeyTypeRouteRule:
+		if part.Name != "" {
+			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policyID, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q rule %q key type %q must not declare a name", policyID, ruleName, part.Type))
+			return false
+		}
 		return true
 	default:
 		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policyID, ReasonUnsupported, fmt.Sprintf("rate limit policy %q rule %q uses unsupported key type %q", policyID, ruleName, part.Type))
-		return false
-	}
-}
-
-func bindingMatchesPolicyRoute(target gatewayv1.PolicyTargetRef, key policyRouteKey, rules map[string]bool) bool {
-	switch target.Kind {
-	case gatewayv1.KindGateway:
-		return target.Name == key.gatewayID
-	case gatewayv1.KindRoute:
-		return target.Name == key.routeID && (target.RuleName == "" || rules[target.RuleName])
-	default:
 		return false
 	}
 }

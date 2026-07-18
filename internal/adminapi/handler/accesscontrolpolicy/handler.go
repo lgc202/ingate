@@ -67,7 +67,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	policyID, err := h.service.Create(ctx.Request.Context(), h.createParams(request))
+	policyID, err := h.service.Create(ctx.Request.Context(), dto.NewCreatePolicyParams(request))
 	if err != nil {
 		h.logger.Error("create access control policy failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -92,7 +92,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 		return
 	}
 	policyID := ctx.Param("id")
-	err := h.service.Update(ctx.Request.Context(), policyID, h.updateParams(request))
+	err := h.service.Update(ctx.Request.Context(), policyID, dto.NewUpdatePolicyParams(request))
 	if err != nil {
 		h.logger.Error("update access control policy failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -144,26 +144,4 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.DeleteAccessControlPolicyResp{Success: true})
-}
-
-func (h *Handler) createParams(request dto.CreateAccessControlPolicyReq) accesscontrolpolicyservice.CreatePolicyParams {
-	return accesscontrolpolicyservice.CreatePolicyParams{PolicyParams: h.policyParams(request.AccessControlPolicyConfig)}
-}
-
-func (h *Handler) updateParams(request dto.UpdateAccessControlPolicyReq) accesscontrolpolicyservice.UpdatePolicyParams {
-	return accesscontrolpolicyservice.UpdatePolicyParams{
-		Version:      request.Version,
-		PolicyParams: h.policyParams(request.AccessControlPolicyConfig),
-	}
-}
-
-func (h *Handler) policyParams(config dto.AccessControlPolicyConfig) accesscontrolpolicyservice.PolicyParams {
-	return accesscontrolpolicyservice.PolicyParams{
-		Name:          config.Name,
-		Description:   config.Description,
-		Enabled:       config.Enabled,
-		DefaultAction: config.DefaultAction,
-		Rules:         config.Rules,
-		Response:      config.Response,
-	}
 }
