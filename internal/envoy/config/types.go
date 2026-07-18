@@ -6,6 +6,8 @@ import (
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	listenerv3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	"k8s.io/apimachinery/pkg/types"
+
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -20,22 +22,34 @@ const (
 )
 
 // Reason 表示资源编译状态的稳定原因
-type Reason string
+type Reason = gatewayv1.ConditionReason
 
 const (
 	// ReasonAccepted 表示资源已被编译器接受
-	ReasonAccepted Reason = "Accepted"
+	ReasonAccepted = gatewayv1.ReasonAccepted
 	// ReasonInvalidSpec 表示资源字段不满足编译要求
-	ReasonInvalidSpec Reason = "InvalidSpec"
+	ReasonInvalidSpec = gatewayv1.ReasonInvalidSpec
 	// ReasonReferenceNotFound 表示资源引用的目标不存在
-	ReasonReferenceNotFound Reason = "ReferenceNotFound"
+	ReasonReferenceNotFound = gatewayv1.ReasonReferenceNotFound
+	// ReasonInvalidReference 表示资源引用的目标存在但不可用
+	ReasonInvalidReference = gatewayv1.ReasonInvalidReference
 	// ReasonConflict 表示资源与同一配置域内的其他资源冲突
-	ReasonConflict Reason = "Conflict"
+	ReasonConflict = gatewayv1.ReasonConflict
 	// ReasonUnsupported 表示当前 Envoy 配置链路尚不支持该能力
-	ReasonUnsupported Reason = "Unsupported"
+	ReasonUnsupported = gatewayv1.ReasonUnsupported
 	// ReasonCompileFailed 表示资源通过校验后仍无法生成一致的 Envoy 配置
-	ReasonCompileFailed Reason = "CompileFailed"
+	ReasonCompileFailed = gatewayv1.ReasonCompileFailed
 )
+
+// ResourceGeneration 标识一次编译所观察到的资源身份和 spec 版本
+//
+// UID 用于隔离删除后同名重建的资源，Generation 用于避免旧配置结果覆盖新 spec 状态
+type ResourceGeneration struct {
+	Kind       gatewayv1.Kind
+	Name       string
+	UID        types.UID
+	Generation int64
+}
 
 // ResourceSet 表示一次编译使用的完整声明式资源集合
 //
@@ -43,11 +57,56 @@ const (
 // 同时避免复制带有 ObjectMeta 和切片字段的 Kubernetes 资源值
 type ResourceSet struct {
 	Gateways              []*gatewayv1.Gateway
+	Certificates          []*gatewayv1.Certificate
 	Routes                []*gatewayv1.Route
 	Upstreams             []*gatewayv1.Upstream
 	RateLimitPolicies     []*gatewayv1.RateLimitPolicy
 	AccessControlPolicies []*gatewayv1.AccessControlPolicy
 	PolicyBindings        []*gatewayv1.PolicyBinding
+}
+
+// Generations 返回当前资源集合中所有非 nil 资源的身份和 spec 版本
+func (r ResourceSet) Generations() []ResourceGeneration {
+	result := make([]ResourceGeneration, 0,
+		len(r.Gateways)+len(r.Certificates)+len(r.Routes)+len(r.Upstreams)+
+			len(r.RateLimitPolicies)+len(r.AccessControlPolicies)+len(r.PolicyBindings),
+	)
+	for _, resource := range r.Gateways {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindGateway, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.Certificates {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindCertificate, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.Routes {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindRoute, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.Upstreams {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindUpstream, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.RateLimitPolicies {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindRateLimitPolicy, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.AccessControlPolicies {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindAccessControlPolicy, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.PolicyBindings {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindPolicyBinding, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	return result
 }
 
 // Diagnostic 描述一个资源在当前配置域中的编译结果
@@ -69,10 +128,11 @@ type Config struct {
 
 // CompileResult 表示一次全量编译的结果
 //
-// 任意 Error diagnostic 都会使 Version 为空并清空 Config，调用方不得发布该结果
+// 任意 Error diagnostic 都会使 Version 为空并清空 Config，Resources 仍保留本次输入来源供状态收敛使用
 type CompileResult struct {
 	Version     string
 	Config      Config
+	Resources   []ResourceGeneration
 	Diagnostics []Diagnostic
 }
 
@@ -87,4 +147,13 @@ func (r CompileResult) HasErrors() bool {
 		}
 	}
 	return false
+}
+
+func newResourceGeneration(kind gatewayv1.Kind, name string, uid types.UID, generation int64) ResourceGeneration {
+	return ResourceGeneration{
+		Kind:       kind,
+		Name:       name,
+		UID:        uid,
+		Generation: generation,
+	}
 }

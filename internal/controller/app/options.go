@@ -5,80 +5,70 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/pflag"
-
 	"github.com/lgc202/ingate/internal/envoy/delivery"
-	"github.com/lgc202/ingate/pkg/xlog"
+	"github.com/lgc202/ingate/internal/pkg/appconfig"
 )
 
-const (
-	defaultXDSListenAddress      = ":18000"
-	defaultInternalListenAddress = "127.0.0.1:18080"
-)
+const defaultConfigPath = "configs/ingate-controller.yaml"
 
-// Options 表示 ingate-controller 启动参数
-type Options struct {
-	Master                string
-	Kubeconfig            string
-	XDSListenAddress      string
-	InternalListenAddress string
-	CandidateACKTimeout   time.Duration
-	NACKRollbackTimeout   time.Duration
-	ResyncPeriod          time.Duration
-	LogFormat             xlog.Format
-	LogLevel              xlog.Level
-	LogFile               xlog.FileOptions
-	LogStdout             bool
+// Config 定义 ingate-controller 的进程配置
+type Config struct {
+	APIServer     APIServerConfig     `mapstructure:"apiserver"`
+	Server        ServerConfig        `mapstructure:"server"`
+	Delivery      DeliveryConfig      `mapstructure:"delivery"`
+	ResourceWatch ResourceWatchConfig `mapstructure:"resource_watch"`
+	Logging       appconfig.Logging   `mapstructure:"logging"`
 }
 
-// NewOptions 创建 ingate-controller 默认启动参数
-func NewOptions() *Options {
-	return &Options{
-		XDSListenAddress:      defaultXDSListenAddress,
-		InternalListenAddress: defaultInternalListenAddress,
-		CandidateACKTimeout:   delivery.DefaultACKTimeout,
-		NACKRollbackTimeout:   delivery.DefaultNACKRollbackTimeout,
-		LogFormat:             xlog.FormatText,
-		LogLevel:              xlog.LevelInfo,
-		LogStdout:             true,
-	}
+// APIServerConfig 定义声明式资源 API 连接配置
+type APIServerConfig struct {
+	Master     string `mapstructure:"master"`
+	Kubeconfig string `mapstructure:"kubeconfig"`
 }
 
-// Validate 校验启动参数自身可以确定的约束
-func (o *Options) Validate() error {
-	if strings.TrimSpace(o.XDSListenAddress) == "" {
+// ServerConfig 定义 Controller 对内服务地址
+type ServerConfig struct {
+	XDSListenAddress    string `mapstructure:"xds_listen_address"`
+	HealthListenAddress string `mapstructure:"health_listen_address"`
+}
+
+// DeliveryConfig 定义配置发布时序参数
+type DeliveryConfig struct {
+	CandidateACKTimeout time.Duration `mapstructure:"candidate_ack_timeout"`
+	NACKRollbackTimeout time.Duration `mapstructure:"nack_rollback_timeout"`
+}
+
+// ResourceWatchConfig 定义声明式资源监听参数
+type ResourceWatchConfig struct {
+	ResyncPeriod time.Duration `mapstructure:"resync_period"`
+}
+
+// Validate 校验进程配置
+func (c Config) Validate() error {
+	if strings.TrimSpace(c.Server.XDSListenAddress) == "" {
 		return errors.New("xDS listen address must not be empty")
 	}
-	if strings.TrimSpace(o.InternalListenAddress) == "" {
-		return errors.New("internal listen address must not be empty")
+	if strings.TrimSpace(c.Server.HealthListenAddress) == "" {
+		return errors.New("health listen address must not be empty")
 	}
-	if o.CandidateACKTimeout < 0 {
+	if c.Delivery.CandidateACKTimeout < 0 {
 		return errors.New("candidate ACK timeout must not be negative")
 	}
-	if o.NACKRollbackTimeout < 0 {
+	if c.Delivery.NACKRollbackTimeout < 0 {
 		return errors.New("NACK rollback timeout must not be negative")
 	}
-	if o.ResyncPeriod < 0 {
-		return errors.New("resync period must not be negative")
+	if c.ResourceWatch.ResyncPeriod < 0 {
+		return errors.New("resource resync period must not be negative")
 	}
-	return nil
+	return c.Logging.Validate()
 }
 
-// AddFlags 注册 ingate-controller 命令行参数
-func (o *Options) AddFlags(flags *pflag.FlagSet) {
-	flags.StringVar(&o.Master, "master", o.Master, "ingate-apiserver 地址")
-	flags.StringVar(&o.Kubeconfig, "kubeconfig", o.Kubeconfig, "连接 ingate-apiserver 的 kubeconfig 路径")
-	flags.StringVar(&o.XDSListenAddress, "xds-listen-address", o.XDSListenAddress, "Envoy ADS gRPC 监听地址")
-	flags.StringVar(&o.InternalListenAddress, "internal-listen-address", o.InternalListenAddress, "健康检查和内部状态 HTTP 监听地址")
-	flags.DurationVar(&o.CandidateACKTimeout, "candidate-ack-timeout", o.CandidateACKTimeout, "Candidate 首次发送后的 ACK 等待时间")
-	flags.DurationVar(&o.NACKRollbackTimeout, "nack-rollback-timeout", o.NACKRollbackTimeout, "NACK 同步回滚的最长等待时间")
-	flags.DurationVar(&o.ResyncPeriod, "resync-period", o.ResyncPeriod, "informer 全量 resync 周期，0 表示关闭")
-	flags.Var((*xlog.FormatValue)(&o.LogFormat), "log-format", "日志输出格式：text 或 json")
-	flags.Var((*xlog.LevelValue)(&o.LogLevel), "log-level", "日志级别：debug、info、warn 或 error")
-	flags.BoolVar(&o.LogStdout, "log-stdout", o.LogStdout, "是否输出日志到 stdout")
-	flags.StringVar(&o.LogFile.Path, "log-file", o.LogFile.Path, "日志文件路径，留空时只输出到 stdout")
-	flags.IntVar(&o.LogFile.MaxSizeMB, "log-max-size-mb", o.LogFile.MaxSizeMB, "单个日志文件最大大小 MB")
-	flags.IntVar(&o.LogFile.MaxBackups, "log-max-backups", o.LogFile.MaxBackups, "最多保留的旧日志文件数")
-	flags.IntVar(&o.LogFile.MaxAgeDays, "log-max-age-days", o.LogFile.MaxAgeDays, "旧日志最多保留天数")
-	flags.BoolVar(&o.LogFile.Compress, "log-compress", o.LogFile.Compress, "是否压缩轮转后的日志文件")
+// DefaultConfig 返回配置文件未覆盖时使用的时序参数
+func DefaultConfig() Config {
+	return Config{
+		Delivery: DeliveryConfig{
+			CandidateACKTimeout: delivery.DefaultACKTimeout,
+			NACKRollbackTimeout: delivery.DefaultNACKRollbackTimeout,
+		},
+	}
 }

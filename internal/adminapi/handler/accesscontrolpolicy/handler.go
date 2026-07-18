@@ -7,7 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/lgc202/ingate/internal/adminapi/handler/accesscontrolpolicy/dto"
+	dto "github.com/lgc202/ingate/internal/adminapi/dto/accesscontrolpolicy"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"

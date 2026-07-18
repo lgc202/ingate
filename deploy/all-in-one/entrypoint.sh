@@ -5,13 +5,11 @@ DATA_DIR="${INGATE_DATA_DIR:-/var/lib/ingate}"
 LOG_DIR="${INGATE_LOG_DIR:-/var/log/ingate}"
 APISERVER_ADDR="127.0.0.1:18443"
 ETCD_ADDR="127.0.0.1:2379"
-CONTROLLER_XDS_ADDR="127.0.0.1:18000"
 CONTROLLER_INTERNAL_ADDR="127.0.0.1:18080"
-CONTROLLER_ACK_TIMEOUT="${INGATE_CANDIDATE_ACK_TIMEOUT:-30s}"
-CONTROLLER_NACK_ROLLBACK_TIMEOUT="${INGATE_NACK_ROLLBACK_TIMEOUT:-3s}"
-CONTROLLER_RESYNC_PERIOD="${INGATE_RESYNC_PERIOD:-0s}"
-CONTROLLER_STATUS_TIMEOUT="500ms"
 KUBECONFIG_FILE="/etc/ingate/kubeconfig"
+APISERVER_CONFIG="/etc/ingate/configs/ingate-apiserver.yaml"
+CONTROLLER_CONFIG="/etc/ingate/configs/ingate-controller.yaml"
+ADMIN_API_CONFIG="/etc/ingate/configs/ingate-admin-api.yaml"
 
 all_pids=()
 critical_pids=()
@@ -23,7 +21,7 @@ start_bg() {
 	local name="$2"
 	shift 2
 	echo "starting $name"
-	"$@" >"$LOG_DIR/$name.log" 2>&1 &
+	"$@" >"$LOG_DIR/$name.process.log" 2>&1 &
 	local pid="$!"
 	all_pids+=("$pid")
 	if [[ "$role" == "critical" ]]; then
@@ -85,11 +83,20 @@ wait_tcp etcd 127.0.0.1 2379
 start_bg auxiliary redis redis-server /etc/ingate/redis/redis.conf \
 	--dir "$DATA_DIR/redis"
 
+export INGATE_APISERVER_SERVER_CERT_DIRECTORY="${INGATE_APISERVER_SERVER_CERT_DIRECTORY:-$DATA_DIR/certs}"
+export INGATE_CONTROLLER_APISERVER_KUBECONFIG="${INGATE_CONTROLLER_APISERVER_KUBECONFIG:-$KUBECONFIG_FILE}"
+export INGATE_ADMIN_API_APISERVER_KUBECONFIG="${INGATE_ADMIN_API_APISERVER_KUBECONFIG:-$KUBECONFIG_FILE}"
+export INGATE_ADMIN_API_SERVER_LISTEN_ADDRESS="${INGATE_ADMIN_API_SERVER_LISTEN_ADDRESS:-0.0.0.0:8001}"
+export INGATE_ADMIN_API_SERVER_CONSOLE_DIR="${INGATE_ADMIN_API_SERVER_CONSOLE_DIR:-/opt/ingate/console}"
+export INGATE_APISERVER_LOGGING_STDOUT="${INGATE_APISERVER_LOGGING_STDOUT:-false}"
+export INGATE_APISERVER_LOGGING_FILE_PATH="${INGATE_APISERVER_LOGGING_FILE_PATH:-$LOG_DIR/ingate-apiserver.log}"
+export INGATE_CONTROLLER_LOGGING_STDOUT="${INGATE_CONTROLLER_LOGGING_STDOUT:-false}"
+export INGATE_CONTROLLER_LOGGING_FILE_PATH="${INGATE_CONTROLLER_LOGGING_FILE_PATH:-$LOG_DIR/ingate-controller.log}"
+export INGATE_ADMIN_API_LOGGING_STDOUT="${INGATE_ADMIN_API_LOGGING_STDOUT:-false}"
+export INGATE_ADMIN_API_LOGGING_FILE_PATH="${INGATE_ADMIN_API_LOGGING_FILE_PATH:-$LOG_DIR/ingate-admin-api.log}"
+
 start_bg critical ingate-apiserver ingate-apiserver \
-	--bind-address 127.0.0.1 \
-	--secure-port 18443 \
-	--cert-dir "$DATA_DIR/certs" \
-	--etcd-servers "http://$ETCD_ADDR"
+	--config "$APISERVER_CONFIG"
 
 wait_tcp ingate-apiserver 127.0.0.1 18443
 
@@ -114,12 +121,7 @@ users:
 EOF
 
 start_bg critical ingate-controller ingate-controller \
-	--kubeconfig "$KUBECONFIG_FILE" \
-	--xds-listen-address "$CONTROLLER_XDS_ADDR" \
-	--internal-listen-address "$CONTROLLER_INTERNAL_ADDR" \
-	--candidate-ack-timeout "$CONTROLLER_ACK_TIMEOUT" \
-	--nack-rollback-timeout "$CONTROLLER_NACK_ROLLBACK_TIMEOUT" \
-	--resync-period "$CONTROLLER_RESYNC_PERIOD"
+	--config "$CONTROLLER_CONFIG"
 
 wait_http ingate-controller "http://$CONTROLLER_INTERNAL_ADDR/readyz"
 
@@ -127,11 +129,7 @@ start_bg critical envoy envoy \
 	-c /etc/ingate/envoy/bootstrap.yaml
 
 start_bg critical ingate-admin-api ingate-admin-api \
-	--listen-address 0.0.0.0:8001 \
-	--kubeconfig "$KUBECONFIG_FILE" \
-	--controller-status-url "http://$CONTROLLER_INTERNAL_ADDR" \
-	--controller-status-timeout "$CONTROLLER_STATUS_TIMEOUT" \
-	--console-dir /opt/ingate/console
+	--config "$ADMIN_API_CONFIG"
 
 set +e
 wait -n "${critical_pids[@]}"

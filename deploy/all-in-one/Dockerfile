@@ -18,6 +18,7 @@ COPY --from=envoy /usr/local/bin/envoy /usr/local/bin/envoy
 COPY --from=redis /usr/local/bin/redis-server /usr/local/bin/redis-server
 COPY --from=redis /usr/local/bin/redis-cli /usr/local/bin/redis-cli
 
+COPY configs /etc/ingate/configs
 COPY deploy/all-in-one/envoy/bootstrap.yaml /etc/ingate/envoy/bootstrap.yaml
 COPY deploy/all-in-one/redis/redis.conf /etc/ingate/redis/redis.conf
 COPY deploy/all-in-one/entrypoint.sh /usr/local/bin/ingate-all-in-one
@@ -30,7 +31,7 @@ RUN chmod +x /usr/local/bin/ingate-all-in-one
 ENV INGATE_DATA_DIR=/var/lib/ingate
 ENV INGATE_LOG_DIR=/var/log/ingate
 
-EXPOSE 8001 8080
+EXPOSE 8001 8080 8443
 HEALTHCHECK --start-period=60s --interval=5s --timeout=3s --retries=6 \
 	CMD redis-cli -h 127.0.0.1 ping >/dev/null \
 	&& curl -fsS http://127.0.0.1:18080/readyz \

@@ -89,7 +89,11 @@ func (s *Service) Delete(ctx context.Context, upstreamID string) error {
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
 				if ref.Name == upstreamID {
-					return xerrors.NewUserError(fmt.Sprintf("上游 %q 仍被路由 %q 引用", upstreamID, route.Name))
+					routeName := route.Spec.DisplayName
+					if routeName == "" {
+						routeName = route.Name
+					}
+					return xerrors.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", upstreamID, routeName))
 				}
 			}
 		}
@@ -107,7 +111,7 @@ func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string
 			continue
 		}
 		if current.Spec.DisplayName == name {
-			return xerrors.NewUserError(fmt.Sprintf("上游名称 %q 已存在", name))
+			return xerrors.NewUserError(fmt.Sprintf("服务名称 %q 已存在", name))
 		}
 	}
 	return nil

@@ -17,7 +17,12 @@ import (
 	informers "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
 )
 
-const queueKey = "config"
+type queueKey string
+
+const (
+	queueKeyConfig queueKey = "config"
+	queueKeyStatus queueKey = "status"
+)
 
 // Reconciler 监听一个 Ingate 配置域内的全部资源并执行原子全量编译
 type Reconciler struct {
@@ -25,9 +30,8 @@ type Reconciler struct {
 	resources resourceListers
 	compiler  config.Compiler
 	delivery  *delivery.Delivery
-	runtime   *controllerstatus.Runtime
-	statuses  *controllerstatus.AcceptedWriter
-	queue     workqueue.TypedRateLimitingInterface[string]
+	statuses  *controllerstatus.Writer
+	queue     workqueue.TypedRateLimitingInterface[queueKey]
 	logger    *slog.Logger
 }
 
@@ -36,12 +40,12 @@ func New(
 	client clientset.Interface,
 	resyncPeriod time.Duration,
 	configDelivery *delivery.Delivery,
-	runtime *controllerstatus.Runtime,
 	logger *slog.Logger,
 ) (*Reconciler, error) {
 	factory := informers.NewSharedInformerFactory(client, resyncPeriod)
 	gatewayInformers := factory.Gateway().V1()
 	gatewayInformer := gatewayInformers.Gateways()
+	certificateInformer := gatewayInformers.Certificates()
 	routeInformer := gatewayInformers.Routes()
 	upstreamInformer := gatewayInformers.Upstreams()
 	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
@@ -52,6 +56,7 @@ func New(
 		factory: factory,
 		resources: resourceListers{
 			gateways:              gatewayInformer.Lister(),
+			certificates:          certificateInformer.Lister(),
 			routes:                routeInformer.Lister(),
 			upstreams:             upstreamInformer.Lister(),
 			rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
@@ -59,16 +64,16 @@ func New(
 			policyBindings:        policyBindingInformer.Lister(),
 		},
 		delivery: configDelivery,
-		runtime:  runtime,
-		statuses: controllerstatus.NewAcceptedWriter(client),
+		statuses: controllerstatus.NewWriter(client),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[string](),
-			workqueue.TypedRateLimitingQueueConfig[string]{Name: queueKey},
+			workqueue.DefaultTypedControllerRateLimiter[queueKey](),
+			workqueue.TypedRateLimitingQueueConfig[queueKey]{Name: "controller"},
 		),
 		logger: logger,
 	}
 	if err := r.registerEventHandlers([]eventRegistration{
 		{name: "Gateway", informer: gatewayInformer.Informer()},
+		{name: "Certificate", informer: certificateInformer.Informer()},
 		{name: "Route", informer: routeInformer.Informer()},
 		{name: "Upstream", informer: upstreamInformer.Informer()},
 		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
@@ -85,8 +90,21 @@ func New(
 func (r *Reconciler) Run(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	stopQueue := context.AfterFunc(runCtx, r.queue.ShutDown)
+	deliveryWatcherDone := make(chan struct{})
+	go func() {
+		defer close(deliveryWatcherDone)
+		for {
+			select {
+			case <-runCtx.Done():
+				return
+			case <-r.delivery.Changes():
+				r.queue.Add(queueKeyStatus)
+			}
+		}
+	}()
 	defer func() {
 		cancel()
+		<-deliveryWatcherDone
 		stopQueue()
 		r.queue.ShutDown()
 		r.factory.Shutdown()
@@ -103,7 +121,7 @@ func (r *Reconciler) Run(ctx context.Context) error {
 		return fmt.Errorf("sync informer cache for %v", resourceType)
 	}
 
-	r.queue.Add(queueKey)
+	r.queue.Add(queueKeyConfig)
 	for r.processNextWorkItem(runCtx) {
 	}
 	return nil
@@ -116,12 +134,21 @@ func (r *Reconciler) processNextWorkItem(ctx context.Context) bool {
 	}
 	defer r.queue.Done(key)
 
-	if err := r.reconcile(ctx); err != nil {
+	var err error
+	switch key {
+	case queueKeyConfig:
+		err = r.reconcileConfig(ctx)
+	case queueKeyStatus:
+		err = r.reconcileStatus(ctx)
+	default:
+		err = fmt.Errorf("unknown reconcile queue key %q", key)
+	}
+	if err != nil {
 		if ctx.Err() != nil {
 			r.queue.Forget(key)
 			return true
 		}
-		r.logger.Error("reconcile Envoy configuration", "error", err)
+		r.logger.Error("reconcile controller state", "key", key, "error", err)
 		r.queue.AddRateLimited(key)
 		return true
 	}
@@ -129,14 +156,13 @@ func (r *Reconciler) processNextWorkItem(ctx context.Context) bool {
 	return true
 }
 
-func (r *Reconciler) reconcile(ctx context.Context) error {
+func (r *Reconciler) reconcileConfig(ctx context.Context) error {
 	resources, err := r.resources.build()
 	if err != nil {
 		return err
 	}
 
 	result := r.compiler.Compile(resources)
-	r.runtime.UpdateDiagnostics(result.Diagnostics)
 
 	var deliveryErr error
 	if result.HasErrors() {
@@ -147,9 +173,20 @@ func (r *Reconciler) reconcile(ctx context.Context) error {
 		deliveryErr = fmt.Errorf("submit Envoy configuration %q: %w", result.Version, err)
 	}
 
-	statusErr := r.statuses.ApplyDiagnostics(ctx, resources, result.Diagnostics)
+	statusErr := r.statuses.ApplyCompileResult(ctx, resources, result.Diagnostics, r.delivery.Status())
 	if statusErr != nil {
-		statusErr = fmt.Errorf("apply resource diagnostics: %w", statusErr)
+		statusErr = fmt.Errorf("apply resource compile status: %w", statusErr)
 	}
 	return errors.Join(deliveryErr, statusErr)
+}
+
+func (r *Reconciler) reconcileStatus(ctx context.Context) error {
+	resources, err := r.resources.build()
+	if err != nil {
+		return err
+	}
+	if err := r.statuses.ApplyProgrammed(ctx, resources, r.delivery.Status()); err != nil {
+		return fmt.Errorf("apply resource programmed status: %w", err)
+	}
+	return nil
 }

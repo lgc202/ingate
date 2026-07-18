@@ -1,4 +1,12 @@
-import type { HealthStatus } from './common';
+import type { HealthStatus, ResourceStatus } from './common';
+
+export type GatewayProtocol = 'HTTP' | 'HTTPS';
+
+export interface GatewayListener {
+  protocol: GatewayProtocol;
+  port: number;
+  certificateID?: string;
+}
 
 export interface Gateway {
   id: string;
@@ -6,22 +14,10 @@ export interface Gateway {
   name: string;
   description: string;
   listeners: GatewayListener[];
-  hostBindings: GatewayHostBinding[];
+  hostnames: string[];
   enabled: boolean;
+  status: ResourceStatus;
   createdAt: string;
-}
-
-export type GatewayListenerProtocol = 'HTTP';
-
-export interface GatewayListener {
-  name: string;
-  protocol: GatewayListenerProtocol;
-  port: number;
-}
-
-export interface GatewayHostBinding {
-  hostname?: string;
-  listenerRefs: string[];
 }
 
 export interface GatewayListView {
@@ -34,7 +30,7 @@ export interface GatewayMutationPayload {
   name: string;
   description: string;
   listeners: GatewayListener[];
-  hostBindings: GatewayHostBinding[];
+  hostnames: string[];
 }
 
 export interface GatewayMutationResult {

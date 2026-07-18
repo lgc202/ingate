@@ -1,3 +1,5 @@
+import type { ResourceStatus } from './common';
+
 export type GovernancePolicyKind = 'RateLimitPolicy' | 'AccessControlPolicy';
 export type PolicyTargetKind = 'Gateway' | 'Route';
 export type RateLimitMode = 'Local' | 'Global';
@@ -17,6 +19,7 @@ export interface RateLimitPolicy {
   rules: RateLimitRule[];
   response?: RateLimitResponse;
   failurePolicy?: RateLimitFailurePolicy;
+  status: ResourceStatus;
   createdAt?: string;
 }
 
@@ -57,6 +60,7 @@ export interface AccessControlPolicy {
   defaultAction?: AccessControlAction;
   rules?: AccessControlRule[];
   response?: AccessControlDenyResponse;
+  status: ResourceStatus;
   createdAt?: string;
 }
 
@@ -96,6 +100,7 @@ export interface PolicyBinding {
   enabled: boolean;
   targetRef: PolicyTargetRef;
   policies: PolicyRef[];
+  status: ResourceStatus;
   createdAt?: string;
 }
 
@@ -103,6 +108,7 @@ export interface PolicyTargetOption {
   id: string;
   name: string;
   kind: PolicyTargetKind;
+  ruleNames?: string[];
 }
 
 export interface GovernancePolicy {
@@ -131,9 +137,9 @@ export interface PolicyMutationResult {
   changeId?: string;
 }
 
-export type RateLimitPolicyPayload = Omit<RateLimitPolicy, 'id' | 'createdAt'> & { id?: string };
-export type AccessControlPolicyPayload = Omit<AccessControlPolicy, 'id' | 'createdAt'> & { id?: string };
-export type PolicyBindingPayload = Omit<PolicyBinding, 'id' | 'createdAt'> & { id?: string };
+export type RateLimitPolicyPayload = Omit<RateLimitPolicy, 'id' | 'status' | 'createdAt'> & { id?: string };
+export type AccessControlPolicyPayload = Omit<AccessControlPolicy, 'id' | 'status' | 'createdAt'> & { id?: string };
+export type PolicyBindingPayload = Omit<PolicyBinding, 'id' | 'status' | 'createdAt'> & { id?: string };
 
 export function policyKindLabel(kind: GovernancePolicyKind) {
   if (kind === 'RateLimitPolicy') {
@@ -154,7 +160,7 @@ export function policyStatusLabel(enabled: boolean) {
 }
 
 export function policyStatusTone(enabled: boolean) {
-  return enabled ? 'green' : 'neutral';
+  return enabled ? 'accent' : 'neutral';
 }
 
 export function policyRefKey(policy: PolicyRef) {

@@ -1,36 +1,29 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { consoleRepository } from '@/api/client';
+import { listCertificates } from '@/api/certificates';
+import { deleteGateway, listGateways, saveGateway, setGatewayEnabled } from '@/api/gateways';
+import { getPolicyWorkspace } from '@/api/policies';
 import { useResource } from '@/api/useResource';
 import { Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
-import type { Gateway, GatewayListener, GatewayValidationReport } from '@/domain/gateway';
+import type { Certificate } from '@/domain/certificate';
+import type { Gateway, GatewayValidationReport } from '@/domain/gateway';
 import type { PolicyWorkspace } from '@/domain/policy';
 import { GovernanceBindingPanel } from '@/features/policies/GovernanceBindingPanel';
 import type { GatewayFormDraft } from './form';
 import {
   buildGatewayPayload,
   createGatewayDraft,
-  formatListeners,
-  GATEWAY_ENTRY_PORT,
-  hostnamesFromBindings,
+  GATEWAY_HTTP_PORT,
+  GATEWAY_HTTPS_PORT,
   normalizeHostnames,
   parseHostnames,
   validateGatewayDraft,
 } from './form';
 import type { GatewayHostMode } from './form';
 
-const loadGatewayWorkspace = async () => {
-  const [gatewayList, policyWorkspace] = await Promise.all([
-    consoleRepository.listGateways(),
-    consoleRepository.getPolicyWorkspace(),
-  ]);
-
-  return {
-    gateways: gatewayList.gateways,
-    policyWorkspace,
-  };
-};
+const loadGateways = () => listGateways();
+const loadCertificates = () => listCertificates();
 type GatewayPanelMode = 'list' | 'detail' | 'create' | 'edit';
 type GatewayEnabledFilter = 'all' | 'enabled' | 'disabled';
 
@@ -40,6 +33,11 @@ interface GatewayFilters {
   enabled: GatewayEnabledFilter;
 }
 
+interface GatewayNotice {
+  message: string;
+  tone: 'success' | 'error';
+}
+
 const emptyGatewayFilters: GatewayFilters = {
   keyword: '',
   host: '',
@@ -47,21 +45,22 @@ const emptyGatewayFilters: GatewayFilters = {
 };
 
 export function GatewayPage() {
-  const gateways = useResource(loadGatewayWorkspace);
+  const gateways = useResource(loadGateways);
+  const certificates = useResource(loadCertificates);
+  const policies = useResource(getPolicyWorkspace);
   const [selectedGatewayId, setSelectedGatewayId] = useState('');
   const [panelMode, setPanelMode] = useState<GatewayPanelMode>('list');
   const [filterDraft, setFilterDraft] = useState<GatewayFilters>(emptyGatewayFilters);
   const [filters, setFilters] = useState<GatewayFilters>(emptyGatewayFilters);
   const [draftState, setDraftState] = useState<GatewayFormDraft | null>(null);
-  const [serverValidation, setServerValidation] = useState<GatewayValidationReport | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<GatewayNotice | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Gateway | null>(null);
   const [disableCandidate, setDisableCandidate] = useState<Gateway | null>(null);
 
   if (gateways.loading) {
     return (
-      <PageFrame title="流量 / 网关" subtitle="管理流量入口、运行入口和 Host 策略">
+      <PageFrame title="网关" subtitle="定义对外访问入口和域名范围">
         <ResourceStatePanel title="加载网关数据" message="正在读取网关列表。" />
       </PageFrame>
     );
@@ -69,7 +68,7 @@ export function GatewayPage() {
 
   if (gateways.error || !gateways.data) {
     return (
-      <PageFrame title="流量 / 网关" subtitle="管理流量入口、运行入口和 Host 策略">
+      <PageFrame title="网关" subtitle="定义对外访问入口和域名范围">
         <ResourceStatePanel title="网关数据加载失败" message={gateways.error?.message ?? '请稍后重试。'} />
       </PageFrame>
     );
@@ -90,12 +89,10 @@ export function GatewayPage() {
   const hasActiveFilters = Boolean(filters.keyword.trim() || filters.host.trim() || filters.enabled !== 'all');
   const draft = draftState ?? createGatewayDraft(panelMode === 'edit' ? selectedGateway : null);
   const clientValidation = validateGatewayDraft(draft);
-  const activeValidation = serverValidation ?? clientValidation;
   const payload = buildGatewayPayload(draft);
   const openCreate = () => {
     setPanelMode('create');
     setDraftState(createGatewayDraft());
-    setServerValidation(null);
     setSubmitError(null);
     setNotice(null);
   };
@@ -104,7 +101,6 @@ export function GatewayPage() {
     setSelectedGatewayId(gateway.id);
     setPanelMode('edit');
     setDraftState(createGatewayDraft(gateway));
-    setServerValidation(null);
     setSubmitError(null);
     setNotice(null);
   };
@@ -119,7 +115,7 @@ export function GatewayPage() {
     }
 
     try {
-      await consoleRepository.deleteGateway(deleteCandidate.id);
+      await deleteGateway(deleteCandidate.id);
       await gateways.reload();
       setSelectedGatewayId((current) => {
         if (current !== deleteCandidate.id) {
@@ -127,10 +123,10 @@ export function GatewayPage() {
         }
         return availableGateways.find((gateway) => gateway.id !== deleteCandidate.id)?.id ?? '';
       });
-      setNotice(`已删除网关：${deleteCandidate.name}`);
+      setNotice({ message: `已删除网关：${deleteCandidate.name}`, tone: 'success' });
       setDeleteCandidate(null);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '删除网关失败');
+      setNotice({ message: error instanceof Error ? error.message : '删除网关失败', tone: 'error' });
     }
   };
 
@@ -141,11 +137,11 @@ export function GatewayPage() {
     }
 
     try {
-      await consoleRepository.setGatewayEnabled(gateway.id, true);
+      await setGatewayEnabled(gateway.id, true);
       await gateways.reload();
-      setNotice(`已启用网关：${gateway.name}`);
+      setNotice({ message: `已启用网关：${gateway.name}`, tone: 'success' });
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '启用网关失败');
+      setNotice({ message: error instanceof Error ? error.message : '启用网关失败', tone: 'error' });
     }
   };
 
@@ -155,12 +151,12 @@ export function GatewayPage() {
     }
 
     try {
-      await consoleRepository.setGatewayEnabled(disableCandidate.id, false);
+      await setGatewayEnabled(disableCandidate.id, false);
       await gateways.reload();
-      setNotice(`已停用网关：${disableCandidate.name}`);
+      setNotice({ message: `已停用网关：${disableCandidate.name}`, tone: 'success' });
       setDisableCandidate(null);
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '停用网关失败');
+      setNotice({ message: error instanceof Error ? error.message : '停用网关失败', tone: 'error' });
     }
   };
 
@@ -175,30 +171,21 @@ export function GatewayPage() {
 
   const updateDraft = (patch: Partial<GatewayFormDraft>) => {
     setDraftState({ ...draft, ...patch });
-    setServerValidation(null);
     setSubmitError(null);
   };
 
   const handleGatewaySubmit = async () => {
     setSubmitError(null);
-    setServerValidation(clientValidation);
 
     if (!clientValidation.valid) {
       return;
     }
 
-    const validation = await consoleRepository.validateGatewayDraft(payload);
-    setServerValidation(validation);
-
-    if (!validation.valid) {
-      return;
-    }
-
     try {
-      const result = await consoleRepository.saveGatewayDraft(payload);
+      const result = await saveGateway(payload);
       await gateways.reload();
       setSelectedGatewayId(result.changeId ?? payload.id ?? selectedGatewayId);
-      setNotice(`网关已保存：${payload.name}`);
+      setNotice({ message: `网关已保存：${payload.name}`, tone: 'success' });
       setPanelMode('list');
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : '保存网关失败');
@@ -216,12 +203,12 @@ export function GatewayPage() {
           {selectedGatewayView ? (
             <GatewayDetail
               gateway={selectedGatewayView}
-              policyWorkspace={gateways.data.policyWorkspace}
-              onPolicyWorkspaceChanged={gateways.reload}
+              policyWorkspace={policies.data}
+              onPolicyWorkspaceChanged={policies.reload}
             />
           ) : null}
         </Panel>
-        <Toast message={notice} onClose={() => setNotice(null)} />
+        <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
       </PageFrame>
     );
   }
@@ -230,14 +217,13 @@ export function GatewayPage() {
     return (
       <PageFrame
         title={panelMode === 'create' ? '新建网关' : '编辑网关'}
-        subtitle="配置流量入口、运行入口和 Host 匹配策略"
         actions={<Button variant="soft" onClick={() => setPanelMode('list')}>返回列表</Button>}
       >
         <section className="editor-layout">
           <GatewayFormPanel
-            mode={panelMode}
             draft={draft}
-            validation={activeValidation}
+            validation={clientValidation}
+            certificates={certificates.data?.certificates ?? []}
             submitError={submitError}
             onDraftChange={updateDraft}
             onSubmit={handleGatewaySubmit}
@@ -250,21 +236,21 @@ export function GatewayPage() {
 
   return (
     <PageFrame
-      title="流量 / 网关"
-      subtitle="管理流量入口、运行入口和 Host 策略"
+      title="网关"
+      subtitle="定义对外访问入口和域名范围"
       actions={
         <Button variant="primary" onClick={openCreate}>新建网关</Button>
       }
     >
         <Panel title="网关列表">
           <div className="gateway-query">
-            <div className="gateway-query-grid">
+            <div className="gateway-query-grid gateway-query-grid-3">
               <label className="query-control">
                 <span>网关名称</span>
                 <input value={filterDraft.keyword} placeholder="请输入名称或描述" onChange={(event) => updateFilterDraft({ keyword: event.target.value })} />
               </label>
               <label className="query-control">
-                <span>Host 匹配</span>
+                <span>域名</span>
                 <input value={filterDraft.host} placeholder="请输入域名或通配符" onChange={(event) => updateFilterDraft({ host: event.target.value })} />
               </label>
               <label className="query-control">
@@ -281,13 +267,13 @@ export function GatewayPage() {
               <Button variant="primary" onClick={() => setFilters(filterDraft)}>查询</Button>
             </div>
           </div>
-          <div style={{ overflow: 'auto' }}>
-            <table className="table">
+          <div className="table-scroll gateway-table-scroll">
+            <table className="table gateway-table">
               <thead>
                 <tr>
                   <th>网关名称</th>
                   <th>运行入口</th>
-                  <th>Host 策略</th>
+                  <th>域名范围</th>
                   <th>启用状态</th>
                   <th>创建时间</th>
                   <th>操作</th>
@@ -295,22 +281,18 @@ export function GatewayPage() {
               </thead>
               <tbody>
                 {visibleGateways.map((gateway) => (
-                  <tr
-                    key={gateway.id}
-                    className={gateway.id === selectedGateway?.id ? 'selected' : ''}
-                    onClick={() => setSelectedGatewayId(gateway.id)}
-                  >
+                  <tr key={gateway.id}>
                     <td>
                       <div className="table-primary">{gateway.name}</div>
                       <div className="table-secondary">{gateway.description}</div>
                     </td>
                     <td>
                       <div className="table-primary">{listenerSummary(gateway)}</div>
-                      <div className="table-secondary">{gateway.listeners.length} 个 HTTP 入口</div>
+                      <div className="table-secondary">固定访问入口</div>
                     </td>
                     <td>
                       <div className="table-primary">{hostBindingSummary(gateway)}</div>
-                      <div className="table-secondary">{gatewayHostnames(gateway).length > 0 ? `${gatewayHostnames(gateway).length} 个 Host` : '进入路由匹配'}</div>
+                      <div className="table-secondary">{gatewayHostnames(gateway).length > 0 ? `${gatewayHostnames(gateway).length} 个域名` : '不限制域名'}</div>
                     </td>
                     <td>
                       <div className={`gateway-status ${gateway.enabled ? 'on' : ''}`.trim()}>
@@ -338,7 +320,7 @@ export function GatewayPage() {
                           setSelectedGatewayId(gateway.id);
                           setPanelMode('detail');
                         }}>详情</button>
-                        <Link className="link-button" to={`/traffic/policies?tab=bindings&targetKind=Gateway&targetID=${encodeURIComponent(gateway.id)}`} onClick={(event) => event.stopPropagation()}>策略</Link>
+                        <Link className="link-button" to={`/policies?tab=bindings&targetKind=Gateway&targetID=${encodeURIComponent(gateway.id)}`} onClick={(event) => event.stopPropagation()}>策略</Link>
                         <button className="link-button" type="button" onClick={(event) => {
                           event.stopPropagation();
                           openEdit(gateway);
@@ -363,15 +345,14 @@ export function GatewayPage() {
             ) : null}
           </div>
         </Panel>
-        <Toast message={notice} onClose={() => setNotice(null)} />
+        <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
         {deleteCandidate ? (
           <div className="confirm-overlay" role="presentation" onMouseDown={() => setDeleteCandidate(null)}>
             <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-gateway-title" onMouseDown={(event) => event.stopPropagation()}>
               <h3 id="delete-gateway-title">删除网关</h3>
-              <p>确定删除 {deleteCandidate.name}？如果后续接入真实后端，仍有关联路由时会拒绝删除。</p>
+              <p>确定删除 {deleteCandidate.name}？仍有关联路由时，系统会拒绝删除。</p>
               <div className="confirm-meta">
-                <span>运行入口</span><strong>{listenerSummary(deleteCandidate)}</strong>
-                <span>Host 策略</span><strong>{hostBindingSummary(deleteCandidate)}</strong>
+                <span>域名范围</span><strong>{hostBindingSummary(deleteCandidate)}</strong>
               </div>
               <div className="confirm-actions">
                 <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button>
@@ -384,10 +365,9 @@ export function GatewayPage() {
           <div className="confirm-overlay" role="presentation" onMouseDown={() => setDisableCandidate(null)}>
             <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="disable-gateway-title" onMouseDown={(event) => event.stopPropagation()}>
               <h3 id="disable-gateway-title">停用网关</h3>
-              <p>停用 {disableCandidate.name} 后，关联入口将不再承载流量。请确认关联路由和服务已迁移或可以暂停访问。</p>
+              <p>停用 {disableCandidate.name} 后，关联路由将不再承载流量。请确认业务可以暂停访问。</p>
               <div className="confirm-meta">
-                <span>运行入口</span><strong>{listenerSummary(disableCandidate)}</strong>
-                <span>Host 策略</span><strong>{hostBindingSummary(disableCandidate)}</strong>
+                <span>域名范围</span><strong>{hostBindingSummary(disableCandidate)}</strong>
               </div>
               <div className="confirm-actions">
                 <Button variant="ghost" onClick={() => setDisableCandidate(null)}>取消</Button>
@@ -401,17 +381,17 @@ export function GatewayPage() {
 }
 
 function GatewayFormPanel({
-  mode,
   draft,
   validation,
+  certificates,
   submitError,
   onDraftChange,
   onSubmit,
   onCancel,
 }: {
-  mode: GatewayPanelMode;
   draft: GatewayFormDraft;
   validation: GatewayValidationReport;
+  certificates: Certificate[];
   submitError: string | null;
   onDraftChange: (patch: Partial<GatewayFormDraft>) => void;
   onSubmit: () => void;
@@ -420,13 +400,12 @@ function GatewayFormPanel({
   const fieldErrors = gatewayFieldErrors(validation);
 
   return (
-    <Panel title={mode === 'create' ? '新建网关' : '编辑网关'} subtitle={mode === 'edit' ? draft.name : undefined}>
+    <Panel>
       <div className="editor-grid form-only">
         <div className="editor-main-stack">
           <section className="form-section">
             <div className="form-section-title">
               <h3>基础信息</h3>
-              <p>用于识别这个入口的业务用途。</p>
             </div>
             <div className="field-grid">
               <InputField label="网关名称" value={draft.name} error={fieldErrors.name} onChange={(value) => onDraftChange({ name: value })} />
@@ -437,18 +416,19 @@ function GatewayFormPanel({
           <section className="form-section">
             <div className="form-section-title">
               <h3>运行入口</h3>
-              <p>Standalone 当前只提供 HTTP 入口，端口由 all-in-one 运行入口固定。</p>
             </div>
             <GatewayListenerEditor
               value={draft.listeners}
+              certificates={certificates}
               listenerError={fieldErrors.listeners}
+              certificateError={fieldErrors.certificate}
+              onChange={(listeners) => onDraftChange({ listeners })}
             />
           </section>
 
           <section className="form-section">
             <div className="form-section-title">
-              <h3>Host 策略</h3>
-              <p>决定网关是否先按请求 Host 做入口过滤。</p>
+              <h3>域名范围</h3>
             </div>
             <GatewayHostnameEditor
               mode={draft.hostMode}
@@ -473,33 +453,80 @@ function gatewayFieldErrors(validation: GatewayValidationReport) {
   return {
     name: validation.items.find((item) => item.label === '网关名称' && item.status === 'critical')?.message,
     listeners: validation.items.find((item) => item.label === '运行入口' && item.status === 'critical')?.message,
-    host: validation.items.find((item) => item.label === 'Host 策略' && item.status === 'critical')?.message,
+    certificate: validation.items.find((item) => item.label === 'HTTPS 证书' && item.status === 'critical')?.message,
+    host: validation.items.find((item) => item.label === '域名范围' && item.status === 'critical')?.message,
   };
 }
 
 function GatewayListenerEditor({
   value,
+  certificates,
   listenerError,
+  certificateError,
+  onChange,
 }: {
-  value: GatewayListener[];
+  value: GatewayFormDraft['listeners'];
+  certificates: Certificate[];
   listenerError?: string;
+  certificateError?: string;
+  onChange: (listeners: GatewayFormDraft['listeners']) => void;
 }) {
+  const httpListener = value.find((listener) => listener.protocol === 'HTTP');
+  const httpsListener = value.find((listener) => listener.protocol === 'HTTPS');
+  const setEnabled = (protocol: 'HTTP' | 'HTTPS', enabled: boolean) => {
+    if (!enabled) {
+      onChange(value.filter((listener) => listener.protocol !== protocol));
+      return;
+    }
+    const listener = protocol === 'HTTP'
+      ? { protocol, port: GATEWAY_HTTP_PORT } as const
+      : { protocol, port: GATEWAY_HTTPS_PORT, certificateID: '' } as const;
+    onChange([...value, listener].sort((a, b) => a.protocol.localeCompare(b.protocol)));
+  };
+
   return (
-    <div className="listener-editor">
-      <div className="listener-grid listener-grid-head">
-        <span>协议</span>
-        <span>运行入口</span>
-      </div>
-      {value.map((listener) => (
-        <div className="listener-grid" key={listener.name}>
-          <strong>{listener.protocol}</strong>
-          <div className="fixed-entry-port">
-            <strong>{GATEWAY_ENTRY_PORT}</strong>
-            <span>Gateway HTTP</span>
-          </div>
+    <div className="gateway-listener-editor">
+      <div className={`gateway-listener-card ${httpListener ? 'enabled' : ''}`.trim()}>
+        <div className="gateway-listener-head">
+          <strong>HTTP</strong>
+          <label className="gateway-listener-toggle">
+            <input type="checkbox" checked={Boolean(httpListener)} onChange={(event) => setEnabled('HTTP', event.target.checked)} />
+            <span>{httpListener ? '已启用' : '未启用'}</span>
+          </label>
         </div>
-      ))}
+        <div className="gateway-listener-address">0.0.0.0:{GATEWAY_HTTP_PORT}</div>
+      </div>
+
+      <div className={`gateway-listener-card ${httpsListener ? 'enabled' : ''}`.trim()}>
+        <div className="gateway-listener-head">
+          <strong>HTTPS</strong>
+          <label className="gateway-listener-toggle">
+            <input type="checkbox" checked={Boolean(httpsListener)} onChange={(event) => setEnabled('HTTPS', event.target.checked)} />
+            <span>{httpsListener ? '已启用' : '未启用'}</span>
+          </label>
+        </div>
+        <div className="gateway-listener-address">0.0.0.0:{GATEWAY_HTTPS_PORT}</div>
+        {httpsListener ? (
+          <div className={`field gateway-certificate-field ${certificateError ? 'invalid' : ''}`.trim()}>
+            <label htmlFor="gateway-https-certificate">证书</label>
+            <select
+              id="gateway-https-certificate"
+              value={httpsListener.certificateID ?? ''}
+              onChange={(event) => onChange(value.map((listener) => listener.protocol === 'HTTPS'
+                ? { ...listener, certificateID: event.target.value }
+                : listener))}
+            >
+              <option value="">请选择证书</option>
+              {certificates.map((certificate) => (
+                <option key={certificate.id} value={certificate.id}>{certificate.name}</option>
+              ))}
+            </select>
+            {certificates.length === 0 ? <Link className="link-button gateway-certificate-link" to="/certificates">创建新证书</Link> : null}
+          </div>
+        ) : null}
+      </div>
       {listenerError ? <div className="form-error">{listenerError}</div> : null}
+      {certificateError ? <div className="form-error">{certificateError}</div> : null}
     </div>
   );
 }
@@ -532,12 +559,12 @@ function GatewayHostnameEditor({
 
   return (
     <div className={`gateway-host-editor ${error ? 'invalid' : ''}`.trim()}>
-      <div className="gateway-host-mode" role="group" aria-label="Host 策略">
+      <div className="gateway-host-mode" role="group" aria-label="域名范围">
         <button className={mode === 'any' ? 'active' : ''} type="button" onClick={() => onModeChange('any')}>
-          不限制 Host
+          不限制域名
         </button>
         <button className={mode === 'specified' ? 'active' : ''} type="button" onClick={() => onModeChange('specified')}>
-          指定 Host
+          指定域名
         </button>
       </div>
       {mode === 'specified' ? (
@@ -558,7 +585,7 @@ function GatewayHostnameEditor({
           </div>
           <div className="tag-list">
             {value.length === 0 ? (
-              <span className="host-empty">请添加至少一个 Host</span>
+              <span className="host-empty">请添加至少一个域名</span>
             ) : value.map((hostname) => (
               <button key={hostname} className="tag-chip" type="button" onClick={() => removeHostname(hostname)} title="点击移除">
                 {hostname}
@@ -570,7 +597,7 @@ function GatewayHostnameEditor({
         </>
       ) : (
         <>
-          <span className="host-empty">当前不校验请求 Host，直接进入路由匹配。</span>
+          <span className="host-empty">当前不限制请求域名，直接进入路由匹配。</span>
           {error ? <div className="form-error">{error}</div> : null}
         </>
       )}
@@ -594,7 +621,7 @@ function GatewayDetail({
   onPolicyWorkspaceChanged,
 }: {
   gateway: Gateway;
-  policyWorkspace: PolicyWorkspace;
+  policyWorkspace: PolicyWorkspace | null | undefined;
   onPolicyWorkspaceChanged: () => Promise<void> | void;
 }) {
   return (
@@ -613,40 +640,52 @@ function GatewayDetail({
         </div>
       </div>
       <div className="detail-card">
-        <h4>Host 策略</h4>
-        <div className="mini-card-title">{gatewayHostnames(gateway).length > 0 ? '指定 Host' : '不限制 Host'}</div>
-        <div className="tag-list">
-          {gatewayHostnames(gateway).length > 0 ? gatewayHostnames(gateway).map((hostname) => (
-            <span className="tag-chip static" key={hostname}>{hostname}</span>
-          )) : (
-            <span className="host-empty">不校验请求 Host，直接进入路由匹配。</span>
-          )}
-        </div>
-      </div>
-      <div className="detail-card">
         <h4>运行入口</h4>
         <div className="drawer-list">
           {gateway.listeners.map((listener) => (
-            <div className="legend-row" key={listener.name}>
-              <span>{listener.protocol}:{listener.port}</span>
-              <span className="mini-card-meta">HTTP</span>
+            <div className="legend-row" key={listener.protocol}>
+              <span>{listener.protocol}</span>
+              <strong>0.0.0.0:{listener.port}</strong>
             </div>
           ))}
         </div>
       </div>
-      <GovernanceBindingPanel
-        targetKind="Gateway"
-        targetID={gateway.id}
-        targetName={gateway.name}
-        workspace={policyWorkspace}
-        onChanged={onPolicyWorkspaceChanged}
-      />
+      <div className="detail-card">
+        <h4>域名范围</h4>
+        <div className="mini-card-title">{gatewayHostnames(gateway).length > 0 ? '指定域名' : '不限制域名'}</div>
+        <div className="tag-list">
+          {gatewayHostnames(gateway).length > 0 ? gatewayHostnames(gateway).map((hostname) => (
+            <span className="tag-chip static" key={hostname}>{hostname}</span>
+          )) : (
+            <span className="host-empty">不限制请求域名，直接进入路由匹配。</span>
+          )}
+        </div>
+      </div>
+      {policyWorkspace ? (
+        <GovernanceBindingPanel
+          targetKind="Gateway"
+          targetID={gateway.id}
+          targetName={gateway.name}
+          workspace={policyWorkspace}
+          onChanged={onPolicyWorkspaceChanged}
+        />
+      ) : (
+        <div className="mini-card">
+          <div className="mini-card-title">策略绑定暂不可用</div>
+          <div className="mini-card-meta">网关本身可以继续查看和编辑；策略接口恢复后再管理绑定关系。</div>
+        </div>
+      )}
     </div>
   );
 }
 
 function gatewayHostnames(gateway: Gateway) {
-  return hostnamesFromBindings(gateway.hostBindings);
+  return gateway.hostnames;
+}
+
+function hostBindingSummary(gateway: Gateway) {
+  const hostnames = gatewayHostnames(gateway);
+  return hostnames.length > 0 ? hostnames.join('、') : '不限制域名';
 }
 
 function listenerSummary(gateway: Gateway) {
@@ -654,9 +693,4 @@ function listenerSummary(gateway: Gateway) {
     return '-';
   }
   return gateway.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ');
-}
-
-function hostBindingSummary(gateway: Gateway) {
-  const hostnames = gatewayHostnames(gateway);
-  return hostnames.length > 0 ? hostnames.join('、') : '不限制 Host';
 }

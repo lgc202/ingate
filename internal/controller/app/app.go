@@ -9,6 +9,8 @@ import (
 	"log/slog"
 	"net"
 
+	kitconfig "github.com/lgc202/go-kit/config"
+	"github.com/lgc202/go-kit/version"
 	"github.com/spf13/pflag"
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/clientcmd"
@@ -18,7 +20,6 @@ import (
 	"github.com/lgc202/ingate/internal/envoy/delivery"
 	"github.com/lgc202/ingate/internal/envoy/xds"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
-	"github.com/lgc202/ingate/pkg/xlog"
 )
 
 const usage = `ingate-controller 负责将声明式资源收敛为 Envoy 配置
@@ -27,7 +28,7 @@ const usage = `ingate-controller 负责将声明式资源收敛为 Envoy 配置
   - 监听 ingate-apiserver 中的声明式资源
   - 编译并发布完整 Envoy xDS 配置
   - 处理 Envoy ACK/NACK 和配置回滚
-  - 提供 ADS 和内部运行状态接口
+  - 提供 ADS 和内部健康检查接口
 `
 
 // Run 解析启动参数并运行 ingate-controller
@@ -35,8 +36,10 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	flags := pflag.NewFlagSet("ingate-controller", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
 
-	options := NewOptions()
-	options.AddFlags(flags)
+	configPath := defaultConfigPath
+	showVersion := false
+	flags.StringVar(&configPath, "config", configPath, "配置文件路径")
+	flags.BoolVar(&showVersion, "version", showVersion, "显示版本信息")
 	flags.Usage = func() {
 		fmt.Fprint(stdout, usage)
 		fmt.Fprintln(stdout)
@@ -50,26 +53,50 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		}
 		return err
 	}
-	if err := options.Validate(); err != nil {
+	if showVersion {
+		fmt.Fprintln(stdout, version.Get().Text())
+		return nil
+	}
+
+	defaults := DefaultConfig()
+	loaded, err := kitconfig.Load[Config](configPath,
+		kitconfig.WithDefaults[Config](map[string]any{
+			"delivery.candidate_ack_timeout": defaults.Delivery.CandidateACKTimeout,
+			"delivery.nack_rollback_timeout": defaults.Delivery.NACKRollbackTimeout,
+		}),
+		kitconfig.WithEnv[Config]("INGATE_CONTROLLER"),
+	)
+	if err != nil {
+		return err
+	}
+	settings := loaded.Get()
+	if err := settings.Validate(); err != nil {
 		return err
 	}
 
-	logger, err := xlog.New(xlog.Options{
-		Output: logOutput(options.LogStdout, stdout),
-		Format: options.LogFormat,
-		Level:  options.LogLevel,
-		File:   options.LogFile,
-	})
+	logger, err := settings.Logging.NewLogger("ingate-controller", stdout)
 	if err != nil {
 		return err
 	}
 	defer logger.Close()
+	loaded.OnChange(func(old, next Config) {
+		if err := next.Validate(); err != nil {
+			logger.Error("忽略无效的配置文件变更", "err", err)
+			return
+		}
+		old.Logging.ApplyDynamic(next.Logging, logger)
+		old.Logging = next.Logging
+		if kitconfig.Changed(old, next) {
+			logger.Warn("服务配置已变化，将在重启后生效")
+		}
+	})
+	logger.Info("服务启动", "config_file", configPath)
 
-	return run(ctx, options, logger.Logger)
+	return run(ctx, settings, logger.Logger)
 }
 
-func run(ctx context.Context, options *Options, logger *slog.Logger) error {
-	restConfig, err := clientcmd.BuildConfigFromFlags(options.Master, options.Kubeconfig)
+func run(ctx context.Context, settings Config, logger *slog.Logger) error {
+	restConfig, err := clientcmd.BuildConfigFromFlags(settings.APIServer.Master, settings.APIServer.Kubeconfig)
 	if err != nil {
 		return fmt.Errorf("build apiserver client config: %w", err)
 	}
@@ -80,29 +107,23 @@ func run(ctx context.Context, options *Options, logger *slog.Logger) error {
 	xdsLogger := xds.NewSlogLogger(logger.With("component", "xds"))
 	snapshotCache := xds.NewSnapshotCache(xdsLogger)
 	configDelivery, err := delivery.New(snapshotCache, delivery.Options{
-		ACKTimeout:          options.CandidateACKTimeout,
-		NACKRollbackTimeout: options.NACKRollbackTimeout,
+		ACKTimeout:          settings.Delivery.CandidateACKTimeout,
+		NACKRollbackTimeout: settings.Delivery.NACKRollbackTimeout,
 	})
 	if err != nil {
 		return fmt.Errorf("create config delivery: %w", err)
 	}
 
-	runtimeStatus := controllerstatus.NewRuntime()
 	reconciler, err := reconcile.New(
 		client,
-		options.ResyncPeriod,
+		settings.ResourceWatch.ResyncPeriod,
 		configDelivery,
-		runtimeStatus,
 		logger.With("component", "reconciler"),
 	)
 	if err != nil {
 		return fmt.Errorf("create resource reconciler: %w", err)
 	}
-	internalServer := controllerstatus.NewServer(
-		runtimeStatus,
-		configDelivery,
-		logger.With("component", "status"),
-	)
+	internalServer := controllerstatus.NewServer(logger.With("component", "status"))
 
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -116,25 +137,25 @@ func run(ctx context.Context, options *Options, logger *slog.Logger) error {
 		_ = group.Wait()
 		return nil
 	}
-	xdsListener, err := net.Listen("tcp", options.XDSListenAddress)
+	xdsListener, err := net.Listen("tcp", settings.Server.XDSListenAddress)
 	if err != nil {
 		cancel()
 		_ = group.Wait()
 		if ctx.Err() != nil {
 			return nil
 		}
-		return fmt.Errorf("listen for xDS on %q: %w", options.XDSListenAddress, err)
+		return fmt.Errorf("listen for xDS on %q: %w", settings.Server.XDSListenAddress, err)
 	}
 	defer xdsListener.Close()
 
-	internalListener, err := net.Listen("tcp", options.InternalListenAddress)
+	internalListener, err := net.Listen("tcp", settings.Server.HealthListenAddress)
 	if err != nil {
 		cancel()
 		_ = group.Wait()
 		if ctx.Err() != nil {
 			return nil
 		}
-		return fmt.Errorf("listen for controller status on %q: %w", options.InternalListenAddress, err)
+		return fmt.Errorf("listen for controller health checks on %q: %w", settings.Server.HealthListenAddress, err)
 	}
 	defer internalListener.Close()
 
@@ -161,11 +182,4 @@ func run(ctx context.Context, options *Options, logger *slog.Logger) error {
 		return err
 	}
 	return nil
-}
-
-func logOutput(enabled bool, stdout io.Writer) io.Writer {
-	if !enabled {
-		return nil
-	}
-	return stdout
 }

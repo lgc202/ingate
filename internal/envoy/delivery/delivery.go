@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,6 +23,7 @@ type Delivery struct {
 	options  Options
 
 	commands chan command
+	changes  chan struct{}
 	started  chan struct{}
 	done     chan struct{}
 	running  atomic.Bool
@@ -29,7 +31,7 @@ type Delivery struct {
 	statusMu sync.RWMutex
 	status   Status
 
-	state runtimeState
+	state deliveryState
 }
 
 // New 创建尚未运行的 Delivery
@@ -43,12 +45,13 @@ func New(cache cachev3.SnapshotCache, options Options) (*Delivery, error) {
 		return nil, err
 	}
 
-	state := newRuntimeState()
+	state := newDeliveryState()
 	return &Delivery{
 		cache:    cache,
 		baseline: baseline,
 		options:  options,
 		commands: make(chan command, 1),
+		changes:  make(chan struct{}, 1),
 		started:  make(chan struct{}),
 		done:     make(chan struct{}),
 		status:   state.snapshot(),
@@ -72,19 +75,25 @@ func (d *Delivery) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		case command := <-d.commands:
+			previousStatus := d.state.snapshot()
 			commandCtx := ctx
 			if command.ctx != nil {
 				commandCtx = command.ctx
 			}
 
 			var err error
-			if commandCtx.Err() != nil {
-				err = commandCtx.Err()
+			commandErr := commandCtx.Err()
+			isNACK := command.kind == commandXDSEvent && command.event.Kind == xds.EventNACK
+			if commandErr != nil && !isNACK {
+				err = commandErr
 			} else {
 				err = d.handleCommand(commandCtx, command)
 			}
-			d.state.refreshState()
-			d.publishStatus()
+			status := d.state.snapshot()
+			d.publishStatus(status)
+			if !statusEqual(previousStatus, status) {
+				d.notifyChange()
+			}
 			if command.reply != nil {
 				command.reply <- err
 			}
@@ -95,7 +104,10 @@ func (d *Delivery) Run(ctx context.Context) error {
 // Submit 发布一个通过编译的完整 Envoy 配置
 func (d *Delivery) Submit(ctx context.Context, result config.CompileResult) error {
 	hasErrors := result.HasErrors()
-	cleanResult := config.CompileResult{Version: result.Version}
+	cleanResult := config.CompileResult{
+		Version:   result.Version,
+		Resources: cloneResourceGenerations(result.Resources),
+	}
 	if !hasErrors && result.Version != "" {
 		cleanResult.Config = cloneConfig(result.Config)
 	}
@@ -130,11 +142,20 @@ func (d *Delivery) Status() Status {
 	status := d.status
 	d.statusMu.RUnlock()
 
-	if status.LastNACK != nil {
-		lastNACK := *status.LastNACK
-		status.LastNACK = &lastNACK
+	status.ActiveResources = cloneResourceGenerations(status.ActiveResources)
+	if status.LastFailure != nil {
+		failure := *status.LastFailure
+		failure.Resources = cloneResourceGenerations(failure.Resources)
+		status.LastFailure = &failure
 	}
 	return status
+}
+
+// Changes 返回 Delivery 声明式状态变化通知
+//
+// 通知通道容量为 1 且不会关闭，消费者应结合自身 context 退出并在收到通知后读取最新 Status
+func (d *Delivery) Changes() <-chan struct{} {
+	return d.changes
 }
 
 func normalizeOptions(options Options) (Options, error) {
@@ -203,11 +224,17 @@ func (d *Delivery) enqueue(command command) {
 	}
 }
 
-func (d *Delivery) publishStatus() {
-	status := d.state.snapshot()
+func (d *Delivery) publishStatus(status Status) {
 	d.statusMu.Lock()
 	d.status = status
 	d.statusMu.Unlock()
+}
+
+func (d *Delivery) notifyChange() {
+	select {
+	case d.changes <- struct{}{}:
+	default:
+	}
 }
 
 func (d *Delivery) stopTimers() {
@@ -243,13 +270,28 @@ func (d *Delivery) handleSubmit(ctx context.Context, result config.CompileResult
 		if !configsEqual(d.state.active.config, result.Config) {
 			return fmt.Errorf("%w: active version %q", ErrVersionConflict, result.Version)
 		}
-		if d.state.candidate == nil && d.state.rollbackError == "" {
-			return nil
+		needsRestore := d.state.candidate != nil ||
+			(d.state.lastFailure != nil && d.state.lastFailure.Reason == FailureDelivery)
+		if needsRestore {
+			if err := d.restoreFallback(
+				ctx,
+				"restore active configuration after candidate cancellation",
+				result.Resources,
+			); err != nil {
+				return err
+			}
 		}
-		return d.restoreFallback(ctx, "restore active configuration after candidate cancellation")
+		d.state.active.resources = cloneResourceGenerations(result.Resources)
+		d.state.lastFailure = nil
+		return nil
 	}
 	if d.state.candidate != nil && d.state.candidate.version == result.Version {
 		if configsEqual(d.state.candidate.config, result.Config) {
+			d.state.candidate.resources = cloneResourceGenerations(result.Resources)
+			if d.state.lastFailure != nil {
+				d.state.lastFailure.Resources = cloneResourceGenerations(result.Resources)
+			}
+			d.activateAcceptedCandidate()
 			return nil
 		}
 		return fmt.Errorf("%w: candidate version %q", ErrVersionConflict, result.Version)
@@ -257,24 +299,34 @@ func (d *Delivery) handleSubmit(ctx context.Context, result config.CompileResult
 
 	snapshot, err := result.Config.Snapshot(result.Version)
 	if err != nil {
+		d.recordFailure(FailureDelivery, result.Resources)
 		return fmt.Errorf("build candidate snapshot %q: %w", result.Version, err)
 	}
 	publishErr := d.cache.SetSnapshot(ctx, xds.CacheKey, snapshot)
 	if publishErr != nil && !d.cacheHasVersion(result.Version) {
+		d.recordFailure(FailureDelivery, result.Resources)
 		return fmt.Errorf("publish candidate snapshot %q: %w", result.Version, publishErr)
 	}
 	d.setCandidate(result, snapshot)
 	if publishErr != nil {
+		d.recordFailure(FailureDelivery, result.Resources)
 		return fmt.Errorf("publish candidate snapshot %q: %w", result.Version, publishErr)
 	}
+	d.activateAcceptedCandidate()
 	return nil
 }
 
 func (d *Delivery) handleCancelCandidate(ctx context.Context) error {
-	if d.state.candidate == nil && d.state.rollbackError == "" {
+	if d.state.candidate == nil && (d.state.lastFailure == nil || d.state.lastFailure.Reason != FailureDelivery) {
+		d.state.lastFailure = nil
 		return nil
 	}
-	return d.restoreFallback(ctx, "cancel candidate after desired configuration changed")
+	failureResources := d.candidateResources()
+	if len(failureResources) == 0 && d.state.lastFailure != nil {
+		failureResources = cloneResourceGenerations(d.state.lastFailure.Resources)
+	}
+	d.state.lastFailure = nil
+	return d.restoreFallback(ctx, "cancel candidate after desired configuration changed", failureResources)
 }
 
 func (d *Delivery) setCandidate(result config.CompileResult, snapshot *cachev3.Snapshot) {
@@ -284,17 +336,16 @@ func (d *Delivery) setCandidate(result config.CompileResult, snapshot *cachev3.S
 	d.state.sequence++
 	d.state.candidate = &candidateState{
 		publishedConfig: publishedConfig{
-			version:  result.Version,
-			config:   result.Config,
-			snapshot: snapshot,
+			version:   result.Version,
+			config:    result.Config,
+			snapshot:  snapshot,
+			resources: cloneResourceGenerations(result.Resources),
 		},
 		sequence: d.state.sequence,
 		// 保留 Active 用过的动态类型，才能通过 Candidate 的空响应确认资源删除
 		requiredTypes: transitionTypeURLs(d.state.active, result.Config),
 	}
-	d.state.ackTimedOut = false
-	d.state.nackCount = 0
-	d.state.rollbackError = ""
+	d.state.lastFailure = nil
 
 	activeVersion := ""
 	if d.state.active != nil {
@@ -321,17 +372,20 @@ func (d *Delivery) handleXDSEvent(ctx context.Context, event xds.Event) error {
 	case xds.EventStreamOpened:
 		if _, exists := d.state.streams[event.StreamID]; !exists {
 			d.state.streams[event.StreamID] = &streamState{
-				nodeID:   event.NodeID,
-				versions: make(map[string]*ackProgress),
+				nodeID:           event.NodeID,
+				versions:         make(map[string]*ackProgress),
+				acceptedVersions: make(map[string]string),
 			}
 		}
 		return nil
 	case xds.EventStreamClosed:
 		delete(d.state.streams, event.StreamID)
-		delete(d.state.activeNACKs, event.StreamID)
 		return nil
 	case xds.EventResponseSent:
 		d.handleResponseSent(event)
+		return nil
+	case xds.EventAcceptedVersionObserved:
+		d.handleAcceptedVersionObserved(event)
 		return nil
 	case xds.EventACK:
 		d.handleACK(event)
@@ -344,9 +398,7 @@ func (d *Delivery) handleXDSEvent(ctx context.Context, event xds.Event) error {
 }
 
 func (d *Delivery) handleResponseSent(event xds.Event) {
-	currentCandidate := d.state.candidate != nil && event.Version == d.state.candidate.version
-	currentActive := d.state.active != nil && event.Version == d.state.active.version
-	if !currentCandidate && !currentActive {
+	if d.state.candidate == nil || event.Version != d.state.candidate.version {
 		return
 	}
 	stream, ok := d.state.stream(event.StreamID, event.NodeID)
@@ -356,12 +408,8 @@ func (d *Delivery) handleResponseSent(event xds.Event) {
 	progress := stream.progress(event.Version)
 	progress.sent[event.TypeURL] = true
 	progress.acked[event.TypeURL] = false
-	if !currentCandidate {
-		return
-	}
 
 	candidate := d.state.candidate
-	candidate.responseSeen = true
 	if candidate.timer == nil {
 		version := candidate.version
 		sequence := candidate.sequence
@@ -375,10 +423,23 @@ func (d *Delivery) handleResponseSent(event xds.Event) {
 	}
 }
 
+func (d *Delivery) handleAcceptedVersionObserved(event xds.Event) {
+	if event.TypeURL == "" || event.AcceptedVersion == "" {
+		return
+	}
+	stream, ok := d.state.stream(event.StreamID, event.NodeID)
+	if !ok {
+		return
+	}
+	stream.recordAccepted(event.TypeURL, event.AcceptedVersion)
+	d.activateAcceptedCandidate()
+}
+
 func (d *Delivery) handleACK(event xds.Event) {
-	currentCandidate := d.state.candidate != nil && event.Version == d.state.candidate.version
-	currentActive := d.state.active != nil && event.Version == d.state.active.version
-	if !currentCandidate && !currentActive {
+	if d.state.candidate == nil || event.Version != d.state.candidate.version {
+		return
+	}
+	if event.AcceptedVersion != event.Version {
 		return
 	}
 	stream, ok := d.state.stream(event.StreamID, event.NodeID)
@@ -390,13 +451,12 @@ func (d *Delivery) handleACK(event xds.Event) {
 		return
 	}
 	progress.acked[event.TypeURL] = true
-	if currentActive && stream.fullyACKed(event.Version, configTypeURLs(d.state.active.config)) {
-		delete(d.state.activeNACKs, event.StreamID)
-	}
-	if !currentCandidate || !stream.fullyACKed(event.Version, d.state.candidate.requiredTypes) {
+	stream.recordAccepted(event.TypeURL, event.Version)
+	if stream.fullyACKed(event.Version, d.state.candidate.requiredTypes) {
+		d.activateCandidate()
 		return
 	}
-	d.activateCandidate()
+	d.activateAcceptedCandidate()
 }
 
 func (d *Delivery) activateCandidate() {
@@ -406,21 +466,30 @@ func (d *Delivery) activateCandidate() {
 	}
 
 	d.state.active = &publishedConfig{
-		version:  candidate.version,
-		config:   candidate.config,
-		snapshot: candidate.snapshot,
+		version:   candidate.version,
+		config:    candidate.config,
+		snapshot:  candidate.snapshot,
+		resources: candidate.resources,
 	}
 	d.state.candidate = nil
-	d.state.ackTimedOut = false
-	d.state.rollbackError = ""
-	clear(d.state.activeNACKs)
+	d.state.lastFailure = nil
 	d.state.pruneProgress(candidate.version)
 }
 
+func (d *Delivery) activateAcceptedCandidate() {
+	if d.state.candidate == nil {
+		return
+	}
+	for _, stream := range d.state.streams {
+		if stream.fullyAccepted(d.state.candidate.version, d.state.candidate.requiredTypes) {
+			d.activateCandidate()
+			return
+		}
+	}
+}
+
 func (d *Delivery) handleNACK(ctx context.Context, event xds.Event) error {
-	currentCandidate := d.state.candidate != nil && event.Version == d.state.candidate.version
-	currentActive := d.state.active != nil && event.Version == d.state.active.version
-	if !currentCandidate && !currentActive {
+	if d.state.candidate == nil || event.Version != d.state.candidate.version {
 		return nil
 	}
 	stream, ok := d.state.stream(event.StreamID, event.NodeID)
@@ -432,25 +501,17 @@ func (d *Delivery) handleNACK(ctx context.Context, event xds.Event) error {
 		return nil
 	}
 
-	message := summarizeMessage(event.ErrorMessage)
-	if message == "" {
-		message = fmt.Sprintf("xDS NACK code %d", event.ErrorCode)
-	}
-	d.state.nackCount++
-	d.state.lastNACK = &NACK{
-		NodeID:  stream.nodeID,
-		TypeURL: event.TypeURL,
-		Version: event.Version,
-		Time:    time.Now().UTC(),
-		Message: message,
-	}
 	progress.acked[event.TypeURL] = false
-	if !currentCandidate {
-		d.state.activeNACKs[event.StreamID] = true
-		return nil
+	resources := cloneResourceGenerations(d.state.candidate.resources)
+	d.recordFailure(FailureRejected, resources)
+	if err := d.restoreFallback(
+		ctx,
+		fmt.Sprintf("rollback rejected candidate %q", event.Version),
+		resources,
+	); err != nil {
+		return err
 	}
-
-	return d.restoreFallback(ctx, fmt.Sprintf("rollback rejected candidate %q", d.state.candidate.version))
+	return nil
 }
 
 func (d *Delivery) handleACKTimeout(version string, sequence uint64) {
@@ -458,12 +519,14 @@ func (d *Delivery) handleACKTimeout(version string, sequence uint64) {
 	if candidate == nil || candidate.version != version || candidate.sequence != sequence {
 		return
 	}
-	candidate.timer = nil
-	candidate.responseSeen = true
-	d.state.ackTimedOut = true
+	d.recordFailure(FailureDelivery, candidate.resources)
 }
 
-func (d *Delivery) restoreFallback(ctx context.Context, operation string) error {
+func (d *Delivery) restoreFallback(
+	ctx context.Context,
+	operation string,
+	failureResources []config.ResourceGeneration,
+) error {
 	if d.state.candidate != nil && d.state.candidate.timer != nil {
 		d.state.candidate.timer.Stop()
 	}
@@ -478,12 +541,42 @@ func (d *Delivery) restoreFallback(ctx context.Context, operation string) error 
 	// SetSnapshot 必须在 command reply 前完成，避免标准 server 继续从已撤回版本重建 watch
 	err := d.cache.SetSnapshot(ctx, xds.CacheKey, fallback)
 	d.state.candidate = nil
-	d.state.ackTimedOut = false
 	d.state.pruneProgress(fallbackVersion)
+	d.clearAcceptedVersions()
 	if err != nil {
-		d.state.rollbackError = summarizeError(err)
+		d.recordFailure(FailureDelivery, failureResources)
 		return fmt.Errorf("%s: %w", operation, err)
 	}
-	d.state.rollbackError = ""
 	return nil
+}
+
+func (d *Delivery) candidateResources() []config.ResourceGeneration {
+	if d.state.candidate == nil {
+		return nil
+	}
+	return cloneResourceGenerations(d.state.candidate.resources)
+}
+
+func (d *Delivery) clearAcceptedVersions() {
+	for _, stream := range d.state.streams {
+		clear(stream.acceptedVersions)
+	}
+}
+
+func (d *Delivery) recordFailure(reason FailureReason, resources []config.ResourceGeneration) {
+	d.state.lastFailure = &Failure{
+		Reason:    reason,
+		Resources: cloneResourceGenerations(resources),
+	}
+}
+
+func statusEqual(a, b Status) bool {
+	if !slices.Equal(a.ActiveResources, b.ActiveResources) {
+		return false
+	}
+	if a.LastFailure == nil || b.LastFailure == nil {
+		return a.LastFailure == nil && b.LastFailure == nil
+	}
+	return a.LastFailure.Reason == b.LastFailure.Reason &&
+		slices.Equal(a.LastFailure.Resources, b.LastFailure.Resources)
 }

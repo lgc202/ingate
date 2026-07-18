@@ -2,14 +2,15 @@ package gateway
 
 import (
 	"context"
-	"strings"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
+	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
@@ -106,6 +107,7 @@ func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Obj
 	oldGateway := old.(*resource.Gateway)
 
 	newGateway.Spec = oldGateway.Spec
+	metav1.ResetObjectMetaForStatus(&newGateway.ObjectMeta, &oldGateway.ObjectMeta)
 }
 
 func (statusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
@@ -133,8 +135,20 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 		} else if _, ok := listenerNames[listener.Name]; ok {
 			errs = append(errs, field.Duplicate(listenerPath.Child("name"), listener.Name))
 		}
-		if listener.Protocol != resource.ProtocolHTTP {
-			errs = append(errs, field.NotSupported(listenerPath.Child("protocol"), listener.Protocol, []string{string(resource.ProtocolHTTP)}))
+		switch listener.Protocol {
+		case resource.ProtocolHTTP:
+			if listener.CertificateRef != "" {
+				errs = append(errs, field.Forbidden(listenerPath.Child("certificateRef"), "certificateRef is only supported by HTTPS listeners"))
+			}
+		case resource.ProtocolHTTPS:
+			if listener.CertificateRef == "" {
+				errs = append(errs, field.Required(listenerPath.Child("certificateRef"), "certificateRef is required for HTTPS listeners"))
+			}
+		default:
+			errs = append(errs, field.NotSupported(listenerPath.Child("protocol"), listener.Protocol, []string{
+				string(resource.ProtocolHTTP),
+				string(resource.ProtocolHTTPS),
+			}))
 		}
 		if listener.Port < 1 || listener.Port > 65535 {
 			errs = append(errs, field.Invalid(listenerPath.Child("port"), listener.Port, "listener port must be between 1 and 65535"))
@@ -147,63 +161,50 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 		ports[listener.Port] = listenerPath.Child("port")
 	}
 
-	catchAllCount := 0
+	hostnamesByListener := make(map[string][]string, len(gateway.Spec.Listeners))
 	for i, binding := range gateway.Spec.HostBindings {
 		bindingPath := specPath.Child("hostBindings").Index(i)
-		if binding.Hostname == "" {
-			catchAllCount++
-			if catchAllCount > 1 {
-				errs = append(errs, field.Invalid(bindingPath.Child("hostname"), binding.Hostname, "only one catch-all host binding is allowed"))
-			}
-		} else if !validHostname(binding.Hostname) {
+		normalizedHostname, hostnameValid := hostnameutil.Normalize(binding.Hostname)
+		hostnameValid = hostnameValid && binding.Hostname != "*"
+		if !hostnameValid {
 			errs = append(errs, field.Invalid(bindingPath.Child("hostname"), binding.Hostname, "hostname is invalid"))
 		}
 
 		if len(binding.ListenerRefs) == 0 {
 			errs = append(errs, field.Required(bindingPath.Child("listenerRefs"), "listenerRefs is required"))
 		}
+		seenListenerRefs := make(map[string]struct{}, len(binding.ListenerRefs))
 		for j, listenerRef := range binding.ListenerRefs {
 			listenerRefPath := bindingPath.Child("listenerRefs").Index(j)
 			if listenerRef == "" {
 				errs = append(errs, field.Required(listenerRefPath, "listenerRef cannot be empty"))
 				continue
 			}
+			if _, exists := seenListenerRefs[listenerRef]; exists {
+				errs = append(errs, field.Duplicate(listenerRefPath, listenerRef))
+				continue
+			}
+			seenListenerRefs[listenerRef] = struct{}{}
 			if _, ok := listenerNames[listenerRef]; !ok {
 				errs = append(errs, field.Invalid(listenerRefPath, listenerRef, "listenerRef references unknown listener"))
+				continue
 			}
+			if !hostnameValid {
+				continue
+			}
+
+			for _, existingHostname := range hostnamesByListener[listenerRef] {
+				if hostnameutil.Overlaps(normalizedHostname, existingHostname) {
+					errs = append(errs, field.Invalid(
+						bindingPath.Child("hostname"),
+						binding.Hostname,
+						"hostname overlaps another binding for the same listener",
+					))
+					break
+				}
+			}
+			hostnamesByListener[listenerRef] = append(hostnamesByListener[listenerRef], normalizedHostname)
 		}
 	}
 	return errs
-}
-
-func validHostname(hostname string) bool {
-	if len(hostname) > 2 && hostname[:2] == "*." {
-		hostname = hostname[2:]
-	}
-	hostname = strings.ToLower(hostname)
-	if hostname == "" || len(hostname) > 253 {
-		return false
-	}
-	for label := range strings.SplitSeq(hostname, ".") {
-		if !validDNSLabel(label) {
-			return false
-		}
-	}
-	return true
-}
-
-func validDNSLabel(label string) bool {
-	if label == "" || len(label) > 63 {
-		return false
-	}
-	for i, r := range label {
-		valid := r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-'
-		if !valid {
-			return false
-		}
-		if (i == 0 || i == len(label)-1) && r == '-' {
-			return false
-		}
-	}
-	return true
 }

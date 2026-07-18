@@ -8,16 +8,16 @@ export function PageFrame({
   children,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className="content-grid">
-      <section className="topbar" style={{ marginBottom: 0 }}>
+      <section className="topbar">
         <div>
           <h1 className="page-title">{title}</h1>
-          <p className="page-subtitle">{subtitle}</p>
+          {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
         </div>
         <div className="toolbar">{actions}</div>
       </section>
@@ -53,22 +53,9 @@ export function Panel({
   );
 }
 
-export function StatCard({ label, value, meta, footer }: { label: string; value: string; meta: string; footer: string }) {
-  return (
-    <article className="stat-card">
-      <div className="stat-card-top">
-        <div className="stat-label">{label}</div>
-        <span className="badge">{footer}</span>
-      </div>
-      <div className="stat-card-main">
-        <div className="stat-value">{value}</div>
-        <div className="stat-meta">{meta}</div>
-      </div>
-    </article>
-  );
-}
+export type BadgeTone = 'accent' | 'success' | 'warning' | 'danger' | 'neutral';
 
-export function Badge({ tone = 'neutral', children }: { tone?: 'green' | 'amber' | 'red' | 'neutral'; children: ReactNode }) {
+export function Badge({ tone = 'neutral', children }: { tone?: BadgeTone; children: ReactNode }) {
   return <span className={`badge ${tone !== 'neutral' ? tone : ''}`.trim()}>{children}</span>;
 }
 

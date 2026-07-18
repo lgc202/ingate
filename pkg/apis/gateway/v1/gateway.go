@@ -8,6 +8,8 @@ type Protocol string
 const (
 	// ProtocolHTTP 表示普通 HTTP 流量
 	ProtocolHTTP Protocol = "HTTP"
+	// ProtocolHTTPS 表示由 Envoy 终止 TLS 的 HTTPS 流量
+	ProtocolHTTPS Protocol = "HTTPS"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -48,9 +50,10 @@ type GatewaySpec struct {
 
 // Listener 声明一个 Gateway 监听端口
 type Listener struct {
-	Name     string   `json:"name"`
-	Protocol Protocol `json:"protocol"`
-	Port     int      `json:"port"`
+	Name           string   `json:"name"`
+	Protocol       Protocol `json:"protocol"`
+	Port           int      `json:"port"`
+	CertificateRef string   `json:"certificateRef,omitempty"`
 }
 
 // HostBinding 声明 Host 到 Gateway 监听器的绑定关系

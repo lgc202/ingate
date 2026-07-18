@@ -3,6 +3,7 @@
 /.gomodcache/
 /ingate
 /ingate-dev/
+/ingate-next-dev/
 /web/console/node_modules/
 /web/console/dist/
 /web/console/*.tsbuildinfo

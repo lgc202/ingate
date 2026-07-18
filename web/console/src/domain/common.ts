@@ -1,5 +1,12 @@
 export type HealthStatus = 'healthy' | 'warning' | 'critical' | 'unknown';
 
+export type ResourceState = 'Pending' | 'Ready' | 'Error' | 'Disabled';
+
+export interface ResourceStatus {
+  state: ResourceState;
+  message: string;
+}
+
 export interface MetricCard {
   label: string;
   value: string;
@@ -38,15 +45,15 @@ export function healthLabel(status: HealthStatus) {
 
 export function statusTone(status: HealthStatus) {
   if (status === 'healthy') {
-    return 'green';
+    return 'success';
   }
 
   if (status === 'warning') {
-    return 'amber';
+    return 'warning';
   }
 
   if (status === 'critical') {
-    return 'red';
+    return 'danger';
   }
 
   return 'neutral';
@@ -54,10 +61,10 @@ export function statusTone(status: HealthStatus) {
 
 export function statusColor(status: HealthStatus) {
   const colors: Record<HealthStatus, string> = {
-    healthy: 'var(--green)',
+    healthy: 'var(--success)',
     warning: 'var(--amber)',
     critical: 'var(--red)',
-    unknown: '#8b918a',
+    unknown: 'var(--muted)',
   };
 
   return colors[status];

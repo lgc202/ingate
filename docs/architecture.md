@@ -13,26 +13,28 @@ Ingate 是面向 API 网关和 AI 网关的声明式 Envoy 控制面。
 ## 组件
 
 ```text
-Console
-   |
-ingate-admin-api
-   |
-ingate-apiserver ------ etcd
-   |
-ingate-controller
-   |  Resource Watch
-   |  Envoy Config Compiler
-   |  Config Delivery
-   |  SotW ADS xDS
-   |
-Envoy ----------------- Redis
+Console --------> ingate-admin-api
+                         |
+CLI / SDK --------------+----> ingate-apiserver ----> etcd
+                                  ^          |
+                                  | status   | watch spec
+                                  |          v
+                             ingate-controller
+                                  |
+                                  | Envoy Config Compiler
+                                  | Config Delivery
+                                  | SotW ADS xDS
+                                  v
+                                Envoy ----------------> Redis
 ```
 
 - `ingate-admin-api` 提供面向控制台用例的产品 DTO
 - `ingate-apiserver` 提供声明式资源 API，是 etcd 的唯一访问者
-- `ingate-controller` 监听完整资源集合，编译并发布一份 Envoy 配置
+- `ingate-controller` 监听完整资源集合，编译并发布一份 Envoy 配置，并通过 status 子资源回写观察结果
 - Envoy 执行路由、代理和内置治理插件
 - Redis 保存限流及未来 Token 配额等请求路径共享状态
+
+Admin API 只访问 API Server，不直接访问 Controller。Controller 的内部 HTTP 服务只提供健康检查，不作为产品状态查询协议。
 
 当前不包含 AI runtime、data-plane agent 和 Kubernetes operator。
 
@@ -46,7 +48,7 @@ Resource
   -> Envoy
 ```
 
-Controller 使用唯一全局队列 key。Gateway、Route、Upstream、Policy 和 PolicyBinding 的任意 spec 变化都会触发一次完整配置域编译。
+Controller 使用唯一全局队列 key。Gateway、Certificate、Route、Upstream、Policy 和 PolicyBinding 的任意 spec 变化都会触发一次完整配置域编译。
 
 Compiler 直接生成 Envoy protobuf，不输出公开 IR，不存在 Target、Translator、RuntimeGroup 或 RuntimeSnapshot。IP Upstream 生成 EDS，包含 hostname 的 Upstream 生成带内联端点的 `STRICT_DNS` cluster。
 
@@ -60,17 +62,19 @@ Delivery 是 Snapshot Cache 的唯一写入者，并在单 goroutine 中维护�
 - Active：至少被一个 Envoy 实例完整 ACK 的配置
 - Baseline：首次 Candidate 被 NACK 且没有 Active 时使用的空配置
 
-Candidate 可以被更新版本替换。旧版本迟到的 ACK、NACK 和 timeout 不得改变当前状态。
+Candidate 可以被更新版本替换。旧版本迟到的 ACK、NACK 和 timeout 不得改变当前配置。
 
-最新资源无法编译时，Controller 会保留 Active，但取消仍在飞行的 Candidate 并恢复 Active 或 Baseline。Candidate 等待 ACK 超时后进入 Degraded；后续完整 ACK 仍可将它提升为 Active。
+最新资源无法编译时，Controller 会保留 Active，但取消仍在飞行的 Candidate 并恢复 Active 或 Baseline。Candidate 等待 ACK 超时后，对应资源会标记为发布失败，但 Candidate 仍可接收迟到的完整 ACK 并提升为 Active。
 
 NACK 时：
 
 - 有 Active：同步恢复 Active
 - 无 Active：同步安装 Baseline
-- 配置已成为 Active 后，其他实例的后置 NACK 只进入 Degraded，不回滚整个实例组
+- 配置已成为 Active 后，其他实例的后置 NACK 不回滚整个实例组，也不改变资源 `Programmed` 状态；实例连接状态属于监控能力
 
 Candidate、Active 和 Baseline 只存在于 Controller 进程内。声明式资源是唯一持久化事实；Controller 重启后重新全量编译，不持久化 Last Good，也不创建特殊 apiserver 存储接口。
+
+Candidate 和 Active 会在进程内携带参与编译的资源 UID 与 generation，用于在配置确认后更新对应资源的 `Programmed` Condition。这些来源信息不参与 xDS version 计算，也不持久化。
 
 Controller 启动时不会预先发布空 Baseline，避免重启期间覆盖仍在运行的 Envoy 配置。首次编译完成后才向 Snapshot Cache 发布。
 
@@ -88,6 +92,7 @@ Controller 内嵌标准 go-control-plane State-of-the-World ADS：
 当前资源：
 
 - Gateway
+- Certificate
 - Route
 - Upstream
 - RateLimitPolicy
@@ -95,6 +100,19 @@ Controller 内嵌标准 go-control-plane State-of-the-World ADS：
 - PolicyBinding
 
 资源之间使用不可变 ID 引用。Admin API 创建资源时生成 UUID 并映射为底层 `metadata.name`；用户可编辑名称使用 `spec.displayName`。
+
+每个资源遵循标准的 `spec/status` 分离：
+
+- `spec` 是用户声明的期望状态，也是唯一业务事实来源
+- `status.conditions` 是 Controller 可重新计算的观察结果，只能通过 status 子资源更新
+- `Accepted` 表示当前 generation 的资源配置是否被接受
+- `ResolvedRefs` 表示 Gateway、Route 和 PolicyBinding 的引用是否有效
+- `Programmed` 表示当前 UID 与 generation 已进入 Active 配置
+- `observedGeneration` 小于 `metadata.generation` 时，调用方必须将状态视为处理中
+
+Admin API 只把 Condition 转换成面向页面的状态摘要，不向控制台泄漏 Kubernetes 资源结构、Envoy、xDS、ACK 或 NACK 等实现细节。
+
+standalone 默认提供 HTTP `8080` 和 HTTPS `8443` 两个固定数据面入口。相同协议和端口的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Gateway 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。
 
 RateLimitPolicy 的 Global mode 自动使用系统 Redis，不包含 RedisStore、redisRef 或私有插件 JSON。
 

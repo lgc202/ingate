@@ -12,10 +12,16 @@ RATELIMIT_PLUGIN_DIR ?= plugins/ratelimit
 RATELIMIT_PLUGIN_OUT ?= _output/plugins/ratelimit.wasm
 ACL_PLUGIN_DIR ?= plugins/acl
 ACL_PLUGIN_OUT ?= _output/plugins/acl.wasm
+VERSION_PACKAGE := github.com/lgc202/go-kit/version
+GIT_VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo v0.0.0-unknown)
+GIT_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
+GIT_TREE_STATE ?= $(shell if test -z "$$(git status --porcelain 2>/dev/null)"; then echo clean; else echo dirty; fi)
+BUILD_DATE ?= $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+VERSION_LDFLAGS := -X $(VERSION_PACKAGE).gitVersion=$(GIT_VERSION) -X $(VERSION_PACKAGE).gitCommit=$(GIT_COMMIT) -X $(VERSION_PACKAGE).gitTreeState=$(GIT_TREE_STATE) -X $(VERSION_PACKAGE).buildDate=$(BUILD_DATE)
 
 build:
 	mkdir -p _output/bin
-	GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build -o _output/bin/ ./cmd/...
+	GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build -ldflags "$(VERSION_LDFLAGS)" -o _output/bin/ ./cmd/...
 
 generate:
 	bash hack/update-codegen.sh
@@ -49,7 +55,7 @@ console-build: console-install
 
 all-in-one-binaries:
 	mkdir -p _output/all-in-one/bin
-	GOOS=linux GOARCH=$(shell go env GOARCH) CGO_ENABLED=0 GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build -o _output/all-in-one/bin/ $(ALL_IN_ONE_COMMANDS)
+	GOOS=linux GOARCH=$(shell go env GOARCH) CGO_ENABLED=0 GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build -ldflags "$(VERSION_LDFLAGS)" -o _output/all-in-one/bin/ $(ALL_IN_ONE_COMMANDS)
 
 all-in-one-image: all-in-one-binaries plugins-build console-build
 	docker build -f deploy/all-in-one/Dockerfile -t $(ALL_IN_ONE_IMAGE) .

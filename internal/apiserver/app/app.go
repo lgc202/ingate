@@ -6,8 +6,12 @@ import (
 	"fmt"
 	"io"
 
+	kitconfig "github.com/lgc202/go-kit/config"
+	"github.com/lgc202/go-kit/version"
 	"github.com/spf13/pflag"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	"k8s.io/klog/v2"
+	netutils "k8s.io/utils/net"
 
 	"github.com/lgc202/ingate/internal/apiserver/server"
 )
@@ -24,8 +28,10 @@ const usage = `ingate-apiserver 是声明式资源 API
 func Run(args []string, stdout, stderr io.Writer) error {
 	flags := pflag.NewFlagSet("ingate-apiserver", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
-	options := server.NewOptions(stdout, stderr)
-	options.AddFlags(flags)
+	configPath := defaultConfigPath
+	showVersion := false
+	flags.StringVar(&configPath, "config", configPath, "配置文件路径")
+	flags.BoolVar(&showVersion, "version", showVersion, "显示版本信息")
 	flags.Usage = func() {
 		fmt.Fprint(stdout, usage)
 		fmt.Fprintln(stdout)
@@ -39,6 +45,45 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		}
 		return err
 	}
+	if showVersion {
+		fmt.Fprintln(stdout, version.Get().Text())
+		return nil
+	}
+
+	loaded, err := kitconfig.Load[Config](configPath, kitconfig.WithEnv[Config]("INGATE_APISERVER"))
+	if err != nil {
+		return err
+	}
+	settings := loaded.Get()
+	if err := settings.Validate(); err != nil {
+		return err
+	}
+
+	logger, err := settings.Logging.NewLogger("ingate-apiserver", stdout)
+	if err != nil {
+		return err
+	}
+	defer logger.Close()
+	klog.SetSlogLogger(logger.Logger)
+	loaded.OnChange(func(old, next Config) {
+		if err := next.Validate(); err != nil {
+			logger.Error("忽略无效的配置文件变更", "err", err)
+			return
+		}
+		old.Logging.ApplyDynamic(next.Logging, logger)
+		old.Logging = next.Logging
+		if kitconfig.Changed(old, next) {
+			logger.Warn("服务配置已变化，将在重启后生效")
+		}
+	})
+	logger.Info("服务启动", "config_file", configPath)
+
+	options := server.NewOptions(stdout, stderr)
+	options.SecureServing.BindAddress = netutils.ParseIPSloppy(settings.Server.BindAddress)
+	options.SecureServing.BindPort = settings.Server.SecurePort
+	options.SecureServing.ServerCert.CertDirectory = settings.Server.CertDirectory
+	options.Etcd.StorageConfig.Transport.ServerList = append([]string(nil), settings.Storage.EtcdServers...)
+	options.Etcd.StorageConfig.Prefix = settings.Storage.PathPrefix
 	if err := options.Complete(); err != nil {
 		return err
 	}
@@ -46,11 +91,11 @@ func Run(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	config, err := options.Config()
+	serverConfig, err := options.Config()
 	if err != nil {
 		return err
 	}
-	apiServer, err := config.Complete().New(genericapiserver.NewEmptyDelegate())
+	apiServer, err := serverConfig.Complete().New(genericapiserver.NewEmptyDelegate())
 	if err != nil {
 		return err
 	}

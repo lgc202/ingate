@@ -4,12 +4,16 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"sync"
 
 	"github.com/google/uuid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
+	certificatestore "github.com/lgc202/ingate/internal/adminapi/store/certificate"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
+	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 )
@@ -18,13 +22,16 @@ const noExcludedGatewayID = ""
 
 // Service 承载 Gateway 管理用例
 type Service struct {
-	store  *gatewaystore.Store
-	routes *routestore.Store
+	store        *gatewaystore.Store
+	routes       *routestore.Store
+	certificates *certificatestore.Store
+	// writeMu 保证当前 Service 实例内跨 Gateway 的读取校验和写入连续执行
+	writeMu sync.Mutex
 }
 
 // New 创建 Gateway service
-func New(store *gatewaystore.Store, routes *routestore.Store) *Service {
-	return &Service{store: store, routes: routes}
+func New(store *gatewaystore.Store, routes *routestore.Store, certificates *certificatestore.Store) *Service {
+	return &Service{store: store, routes: routes, certificates: certificates}
 }
 
 // List 查询 Gateway 列表
@@ -49,6 +56,9 @@ func (s *Service) Get(ctx context.Context, gatewayID string) (*GatewayResult, er
 
 // Create 创建 Gateway
 func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (string, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
 	if err := s.validateNameUnique(ctx, params.Name, noExcludedGatewayID); err != nil {
 		return "", err
 	}
@@ -75,6 +85,9 @@ func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (strin
 
 // Update 更新 Gateway
 func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGatewayParams) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
 	current, err := s.store.Get(ctx, gatewayID)
 	if err != nil {
 		return err
@@ -99,6 +112,9 @@ func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGat
 
 // SetEnabled 更新 Gateway 启停状态
 func (s *Service) SetEnabled(ctx context.Context, gatewayID string, enabled bool) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current, err := s.store.Get(ctx, gatewayID)
 		if err != nil {
@@ -137,20 +153,24 @@ func (s *Service) Delete(ctx context.Context, gatewayID string) error {
 }
 
 func gatewaySpec(params GatewayParams, enabled bool) resource.GatewaySpec {
-	resourceListeners := make([]resource.Listener, 0, len(params.Listeners))
+	listeners := make([]resource.Listener, 0, len(params.Listeners))
+	listenerRefs := make([]string, 0, len(params.Listeners))
 	for _, listener := range params.Listeners {
-		resourceListeners = append(resourceListeners, resource.Listener{
-			Name:     listener.Name,
-			Protocol: listener.Protocol,
-			Port:     listener.Port,
+		name := listenerName(listener.Protocol)
+		listeners = append(listeners, resource.Listener{
+			Name:           name,
+			Protocol:       listener.Protocol,
+			Port:           listener.Port,
+			CertificateRef: listener.CertificateID,
 		})
+		listenerRefs = append(listenerRefs, name)
 	}
 
-	resourceHostBindings := make([]resource.HostBinding, 0, len(params.HostBindings))
-	for _, item := range params.HostBindings {
-		resourceHostBindings = append(resourceHostBindings, resource.HostBinding{
-			Hostname:     item.Hostname,
-			ListenerRefs: append([]string(nil), item.ListenerRefs...),
+	var hostBindings []resource.HostBinding
+	for _, hostname := range params.Hostnames {
+		hostBindings = append(hostBindings, resource.HostBinding{
+			Hostname:     hostname,
+			ListenerRefs: append([]string(nil), listenerRefs...),
 		})
 	}
 
@@ -158,9 +178,16 @@ func gatewaySpec(params GatewayParams, enabled bool) resource.GatewaySpec {
 		DisplayName:  params.Name,
 		Description:  params.Description,
 		Enabled:      enabled,
-		Listeners:    resourceListeners,
-		HostBindings: resourceHostBindings,
+		Listeners:    listeners,
+		HostBindings: hostBindings,
 	}
+}
+
+func listenerName(protocol resource.Protocol) string {
+	if protocol == resource.ProtocolHTTPS {
+		return "https"
+	}
+	return "http"
 }
 
 func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string) error {
@@ -180,8 +207,11 @@ func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string
 }
 
 func (s *Service) validateGateway(ctx context.Context, gateway *resource.Gateway, excludeID string) error {
-	if !gateway.Spec.Enabled || !gatewayHasCatchAllHost(gateway) {
+	if !gateway.Spec.Enabled {
 		return nil
+	}
+	if err := s.validateCertificateRefs(ctx, gateway); err != nil {
+		return err
 	}
 
 	gateways, err := s.store.List(ctx)
@@ -190,43 +220,89 @@ func (s *Service) validateGateway(ctx context.Context, gateway *resource.Gateway
 	}
 
 	for _, current := range gateways.Items {
-		if current.Name == excludeID || !current.Spec.Enabled || !gatewayHasCatchAllHost(&current) {
+		if current.Name == excludeID || !current.Spec.Enabled {
 			continue
 		}
-		if protocol, port, ok := sharedListener(gateway.Spec.Listeners, current.Spec.Listeners); ok {
-			return xerrors.NewUserError(fmt.Sprintf("运行入口 %s:%d 已有不限制 Host 的网关 %q；请指定 Host，或先停用/删除该网关", protocol, port, current.Spec.DisplayName))
+
+		for _, listener := range gateway.Spec.Listeners {
+			for _, currentListener := range current.Spec.Listeners {
+				if listener.Port != currentListener.Port {
+					continue
+				}
+				if listener.Protocol != currentListener.Protocol {
+					return xerrors.NewUserError(fmt.Sprintf(
+						"端口 %d 已被网关 %q 的 %s 入口占用，不能同时配置为 %s 入口",
+						listener.Port,
+						current.Spec.DisplayName,
+						currentListener.Protocol,
+						listener.Protocol,
+					))
+				}
+
+				for _, hostname := range listenerHostnames(gateway, listener.Name) {
+					for _, currentHostname := range listenerHostnames(&current, currentListener.Name) {
+						if !hostnameutil.Overlaps(hostname, currentHostname) {
+							continue
+						}
+						return xerrors.NewUserError(fmt.Sprintf(
+							"访问入口 %s:%d 的域名范围 %s 与网关 %q 的域名范围 %s 重叠；请调整域名，或先停用该网关",
+							listener.Protocol,
+							listener.Port,
+							hostClaimDescription(hostname),
+							current.Spec.DisplayName,
+							hostClaimDescription(currentHostname),
+						))
+					}
+				}
+			}
 		}
 	}
 	return nil
 }
 
-func gatewayHasCatchAllHost(gateway *resource.Gateway) bool {
-	if len(gateway.Spec.HostBindings) == 0 {
-		return true
-	}
-	for _, binding := range gateway.Spec.HostBindings {
-		if binding.Hostname == "" {
-			return true
+func (s *Service) validateCertificateRefs(ctx context.Context, gateway *resource.Gateway) error {
+	seen := make(map[string]struct{})
+	for _, listener := range gateway.Spec.Listeners {
+		if listener.Protocol != resource.ProtocolHTTPS {
+			continue
 		}
+		if _, exists := seen[listener.CertificateRef]; exists {
+			continue
+		}
+		seen[listener.CertificateRef] = struct{}{}
+
+		_, err := s.certificates.Get(ctx, listener.CertificateRef)
+		if err == nil {
+			continue
+		}
+		if apierrors.IsNotFound(err) {
+			return xerrors.NewUserError(fmt.Sprintf("HTTPS 证书 %q 不存在", listener.CertificateRef))
+		}
+		return err
 	}
-	return false
+	return nil
 }
 
-func sharedListener(a, b []resource.Listener) (string, int, bool) {
-	type listenerKey struct {
-		protocol resource.Protocol
-		port     int
-	}
-
-	keys := make(map[listenerKey]struct{}, len(a))
-	for _, listener := range a {
-		keys[listenerKey{protocol: listener.Protocol, port: listener.Port}] = struct{}{}
-	}
-	for _, listener := range b {
-		key := listenerKey{protocol: listener.Protocol, port: listener.Port}
-		if _, ok := keys[key]; ok {
-			return string(key.protocol), key.port, true
+func listenerHostnames(gateway *resource.Gateway, listenerName string) []string {
+	var hostnames []string
+	for _, binding := range gateway.Spec.HostBindings {
+		if !slices.Contains(binding.ListenerRefs, listenerName) {
+			continue
+		}
+		hostname, ok := hostnameutil.Normalize(binding.Hostname)
+		if ok {
+			hostnames = append(hostnames, hostname)
 		}
 	}
-	return "", 0, false
+	if len(hostnames) == 0 {
+		return []string{"*"}
+	}
+	return hostnames
+}
+
+func hostClaimDescription(hostname string) string {
+	if hostname == "*" {
+		return "全部域名"
+	}
+	return fmt.Sprintf("%q", hostname)
 }

@@ -3,124 +3,139 @@ package status
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/envoy/config"
+	"github.com/lgc202/ingate/internal/envoy/delivery"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 	gatewayclient "github.com/lgc202/ingate/pkg/generated/clientset/versioned/typed/gateway/v1"
 )
 
 const (
-	conditionAccepted    = "Accepted"
-	messageAccepted      = "Resource is accepted"
-	messageCompileFailed = "Envoy configuration could not be compiled"
+	messageAccepted       = "Resource is accepted"
+	messageResolvedRefs   = "All resource references are resolved"
+	messageProgrammed     = "Resource configuration is active"
+	messagePending        = "Resource configuration is pending"
+	messageRejected       = "Resource configuration was rejected"
+	messageDeliveryFailed = "Resource configuration could not be applied"
+	messageCompileFailed  = "Resource configuration could not be compiled"
 )
 
 type resourceKey struct {
 	kind gatewayv1.Kind
-	id   string
+	name string
 }
 
 type conditionDecision struct {
-	accepted bool
-	reason   config.Reason
-	message  string
+	status  metav1.ConditionStatus
+	reason  gatewayv1.ConditionReason
+	message string
 }
 
-type conditionDecisions struct {
-	specific map[resourceKey]conditionDecision
-	kinds    map[gatewayv1.Kind]conditionDecision
-	global   *conditionDecision
+type compileDecision struct {
+	accepted     conditionDecision
+	resolvedRefs *conditionDecision
 }
 
-// AcceptedWriter 将编译诊断收敛为每个声明式资源唯一的 Accepted Condition
-type AcceptedWriter struct {
+type diagnosticIndex struct {
+	specific map[resourceKey][]config.Diagnostic
+	kinds    map[gatewayv1.Kind][]config.Diagnostic
+	global   []config.Diagnostic
+}
+
+// Writer 将编译和发布结果收敛为声明式资源 Conditions
+type Writer struct {
 	client gatewayclient.GatewayV1Interface
 }
 
-// NewAcceptedWriter 创建资源 Accepted 状态写入器
-func NewAcceptedWriter(client clientset.Interface) *AcceptedWriter {
-	return &AcceptedWriter{client: client.GatewayV1()}
+// NewWriter 创建声明式资源状态写入器
+func NewWriter(client clientset.Interface) *Writer {
+	return &Writer{client: client.GatewayV1()}
 }
 
-// ApplyDiagnostics 更新本次 ResourceSet 中所有资源的 Accepted Condition
-func (w *AcceptedWriter) ApplyDiagnostics(
+// ApplyCompileResult 更新本次资源集合的 Accepted、ResolvedRefs 和 Programmed Conditions
+func (w *Writer) ApplyCompileResult(
 	ctx context.Context,
 	resources config.ResourceSet,
 	diagnostics []config.Diagnostic,
+	deliveryStatus delivery.Status,
 ) error {
-	decisions := newConditionDecisions(resources, diagnostics)
-
-	for _, resource := range resources.Gateways {
-		if resource == nil {
-			continue
-		}
-		if err := w.updateGateway(ctx, resource.Name, resource.Generation, decisions.forResource(gatewayv1.KindGateway, resource.Name)); err != nil {
-			return err
-		}
-	}
-	for _, resource := range resources.Routes {
-		if resource == nil {
-			continue
-		}
-		if err := w.updateRoute(ctx, resource.Name, resource.Generation, decisions.forResource(gatewayv1.KindRoute, resource.Name)); err != nil {
-			return err
-		}
-	}
-	for _, resource := range resources.Upstreams {
-		if resource == nil {
-			continue
-		}
-		if err := w.updateUpstream(ctx, resource.Name, resource.Generation, decisions.forResource(gatewayv1.KindUpstream, resource.Name)); err != nil {
-			return err
-		}
-	}
-	for _, resource := range resources.RateLimitPolicies {
-		if resource == nil {
-			continue
-		}
-		if err := w.updateRateLimitPolicy(ctx, resource.Name, resource.Generation, decisions.forResource(gatewayv1.KindRateLimitPolicy, resource.Name)); err != nil {
-			return err
-		}
-	}
-	for _, resource := range resources.AccessControlPolicies {
-		if resource == nil {
-			continue
-		}
-		if err := w.updateAccessControlPolicy(ctx, resource.Name, resource.Generation, decisions.forResource(gatewayv1.KindAccessControlPolicy, resource.Name)); err != nil {
-			return err
-		}
-	}
-	for _, resource := range resources.PolicyBindings {
-		if resource == nil {
-			continue
-		}
-		if err := w.updatePolicyBinding(ctx, resource.Name, resource.Generation, decisions.forResource(gatewayv1.KindPolicyBinding, resource.Name)); err != nil {
+	decisions := newDiagnosticIndex(resources, diagnostics)
+	for _, resource := range resources.Generations() {
+		decision := decisions.forResource(resource.Kind, resource.Name)
+		if err := w.updateResource(ctx, resource, &decision, deliveryStatus); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (w *AcceptedWriter) updateGateway(ctx context.Context, id string, generation int64, decision conditionDecision) error {
+// ApplyProgrammed 根据最新 Delivery 状态更新本次资源集合的 Programmed Condition
+func (w *Writer) ApplyProgrammed(
+	ctx context.Context,
+	resources config.ResourceSet,
+	deliveryStatus delivery.Status,
+) error {
+	for _, resource := range resources.Generations() {
+		if err := w.updateResource(ctx, resource, nil, deliveryStatus); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (w *Writer) updateResource(
+	ctx context.Context,
+	resource config.ResourceGeneration,
+	compile *compileDecision,
+	deliveryStatus delivery.Status,
+) error {
+	switch resource.Kind {
+	case gatewayv1.KindGateway:
+		return w.updateGateway(ctx, resource, compile, deliveryStatus)
+	case gatewayv1.KindCertificate:
+		return w.updateCertificate(ctx, resource, compile, deliveryStatus)
+	case gatewayv1.KindRoute:
+		return w.updateRoute(ctx, resource, compile, deliveryStatus)
+	case gatewayv1.KindUpstream:
+		return w.updateUpstream(ctx, resource, compile, deliveryStatus)
+	case gatewayv1.KindRateLimitPolicy:
+		return w.updateRateLimitPolicy(ctx, resource, compile, deliveryStatus)
+	case gatewayv1.KindAccessControlPolicy:
+		return w.updateAccessControlPolicy(ctx, resource, compile, deliveryStatus)
+	case gatewayv1.KindPolicyBinding:
+		return w.updatePolicyBinding(ctx, resource, compile, deliveryStatus)
+	default:
+		return fmt.Errorf("update unsupported resource kind %q", resource.Kind)
+	}
+}
+
+func (w *Writer) updateGateway(
+	ctx context.Context,
+	source config.ResourceGeneration,
+	compile *compileDecision,
+	deliveryStatus delivery.Status,
+) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resource, err := w.client.Gateways().Get(ctx, id, metav1.GetOptions{})
+		resource, err := w.client.Gateways().Get(ctx, source.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		if resource.Generation != generation {
+		if resource.UID != source.UID || resource.Generation != source.Generation {
 			return nil
 		}
 
-		conditions := acceptedConditions(resource.Status.Conditions, generation, decision)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}
@@ -133,25 +148,66 @@ func (w *AcceptedWriter) updateGateway(ctx context.Context, id string, generatio
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("update Gateway %q Accepted condition: %w", id, err)
+		return fmt.Errorf("update Gateway %q conditions: %w", source.Name, err)
 	}
 	return nil
 }
 
-func (w *AcceptedWriter) updateRoute(ctx context.Context, id string, generation int64, decision conditionDecision) error {
+func (w *Writer) updateCertificate(
+	ctx context.Context,
+	source config.ResourceGeneration,
+	compile *compileDecision,
+	deliveryStatus delivery.Status,
+) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resource, err := w.client.Routes().Get(ctx, id, metav1.GetOptions{})
+		resource, err := w.client.Certificates().Get(ctx, source.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		if resource.Generation != generation {
+		if resource.UID != source.UID || resource.Generation != source.Generation {
 			return nil
 		}
 
-		conditions := acceptedConditions(resource.Status.Conditions, generation, decision)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
+		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
+			return nil
+		}
+		updated := resource.DeepCopy()
+		updated.Status.Conditions = conditions
+		_, err = w.client.Certificates().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("update Certificate %q conditions: %w", source.Name, err)
+	}
+	return nil
+}
+
+func (w *Writer) updateRoute(
+	ctx context.Context,
+	source config.ResourceGeneration,
+	compile *compileDecision,
+	deliveryStatus delivery.Status,
+) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		resource, err := w.client.Routes().Get(ctx, source.Name, metav1.GetOptions{})
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if resource.UID != source.UID || resource.Generation != source.Generation {
+			return nil
+		}
+
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}
@@ -164,25 +220,30 @@ func (w *AcceptedWriter) updateRoute(ctx context.Context, id string, generation 
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("update Route %q Accepted condition: %w", id, err)
+		return fmt.Errorf("update Route %q conditions: %w", source.Name, err)
 	}
 	return nil
 }
 
-func (w *AcceptedWriter) updateUpstream(ctx context.Context, id string, generation int64, decision conditionDecision) error {
+func (w *Writer) updateUpstream(
+	ctx context.Context,
+	source config.ResourceGeneration,
+	compile *compileDecision,
+	deliveryStatus delivery.Status,
+) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resource, err := w.client.Upstreams().Get(ctx, id, metav1.GetOptions{})
+		resource, err := w.client.Upstreams().Get(ctx, source.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		if resource.Generation != generation {
+		if resource.UID != source.UID || resource.Generation != source.Generation {
 			return nil
 		}
 
-		conditions := acceptedConditions(resource.Status.Conditions, generation, decision)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}
@@ -195,25 +256,30 @@ func (w *AcceptedWriter) updateUpstream(ctx context.Context, id string, generati
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("update Upstream %q Accepted condition: %w", id, err)
+		return fmt.Errorf("update Upstream %q conditions: %w", source.Name, err)
 	}
 	return nil
 }
 
-func (w *AcceptedWriter) updateRateLimitPolicy(ctx context.Context, id string, generation int64, decision conditionDecision) error {
+func (w *Writer) updateRateLimitPolicy(
+	ctx context.Context,
+	source config.ResourceGeneration,
+	compile *compileDecision,
+	deliveryStatus delivery.Status,
+) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resource, err := w.client.RateLimitPolicies().Get(ctx, id, metav1.GetOptions{})
+		resource, err := w.client.RateLimitPolicies().Get(ctx, source.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		if resource.Generation != generation {
+		if resource.UID != source.UID || resource.Generation != source.Generation {
 			return nil
 		}
 
-		conditions := acceptedConditions(resource.Status.Conditions, generation, decision)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}
@@ -226,25 +292,30 @@ func (w *AcceptedWriter) updateRateLimitPolicy(ctx context.Context, id string, g
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("update RateLimitPolicy %q Accepted condition: %w", id, err)
+		return fmt.Errorf("update RateLimitPolicy %q conditions: %w", source.Name, err)
 	}
 	return nil
 }
 
-func (w *AcceptedWriter) updateAccessControlPolicy(ctx context.Context, id string, generation int64, decision conditionDecision) error {
+func (w *Writer) updateAccessControlPolicy(
+	ctx context.Context,
+	source config.ResourceGeneration,
+	compile *compileDecision,
+	deliveryStatus delivery.Status,
+) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resource, err := w.client.AccessControlPolicies().Get(ctx, id, metav1.GetOptions{})
+		resource, err := w.client.AccessControlPolicies().Get(ctx, source.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		if resource.Generation != generation {
+		if resource.UID != source.UID || resource.Generation != source.Generation {
 			return nil
 		}
 
-		conditions := acceptedConditions(resource.Status.Conditions, generation, decision)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}
@@ -257,25 +328,30 @@ func (w *AcceptedWriter) updateAccessControlPolicy(ctx context.Context, id strin
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("update AccessControlPolicy %q Accepted condition: %w", id, err)
+		return fmt.Errorf("update AccessControlPolicy %q conditions: %w", source.Name, err)
 	}
 	return nil
 }
 
-func (w *AcceptedWriter) updatePolicyBinding(ctx context.Context, id string, generation int64, decision conditionDecision) error {
+func (w *Writer) updatePolicyBinding(
+	ctx context.Context,
+	source config.ResourceGeneration,
+	compile *compileDecision,
+	deliveryStatus delivery.Status,
+) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resource, err := w.client.PolicyBindings().Get(ctx, id, metav1.GetOptions{})
+		resource, err := w.client.PolicyBindings().Get(ctx, source.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		if err != nil {
 			return err
 		}
-		if resource.Generation != generation {
+		if resource.UID != source.UID || resource.Generation != source.Generation {
 			return nil
 		}
 
-		conditions := acceptedConditions(resource.Status.Conditions, generation, decision)
+		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
 		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
 			return nil
 		}
@@ -288,116 +364,229 @@ func (w *AcceptedWriter) updatePolicyBinding(ctx context.Context, id string, gen
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("update PolicyBinding %q Accepted condition: %w", id, err)
+		return fmt.Errorf("update PolicyBinding %q conditions: %w", source.Name, err)
 	}
 	return nil
 }
 
-func newConditionDecisions(resources config.ResourceSet, diagnostics []config.Diagnostic) conditionDecisions {
+func resourceConditions(
+	existing []metav1.Condition,
+	resource config.ResourceGeneration,
+	compile *compileDecision,
+	deliveryStatus delivery.Status,
+) []metav1.Condition {
+	conditions := slices.Clone(existing)
+	if compile != nil {
+		meta.SetStatusCondition(&conditions, newCondition(
+			gatewayv1.ConditionAccepted,
+			resource.Generation,
+			compile.accepted,
+		))
+		if compile.resolvedRefs != nil {
+			meta.SetStatusCondition(&conditions, newCondition(
+				gatewayv1.ConditionResolvedRefs,
+				resource.Generation,
+				*compile.resolvedRefs,
+			))
+		}
+	}
+
+	meta.SetStatusCondition(&conditions, programmedCondition(conditions, resource, deliveryStatus))
+	return conditions
+}
+
+func programmedCondition(
+	conditions []metav1.Condition,
+	resource config.ResourceGeneration,
+	deliveryStatus delivery.Status,
+) metav1.Condition {
+	accepted := currentCondition(conditions, gatewayv1.ConditionAccepted, resource.Generation)
+	if accepted == nil {
+		return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, pendingDecision())
+	}
+	if accepted.Status != metav1.ConditionTrue {
+		return conditionBlockedBy(gatewayv1.ConditionProgrammed, resource.Generation, accepted)
+	}
+
+	if kindHasReferences(resource.Kind) {
+		resolvedRefs := currentCondition(conditions, gatewayv1.ConditionResolvedRefs, resource.Generation)
+		if resolvedRefs == nil {
+			return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, pendingDecision())
+		}
+		if resolvedRefs.Status != metav1.ConditionTrue {
+			return conditionBlockedBy(gatewayv1.ConditionProgrammed, resource.Generation, resolvedRefs)
+		}
+	}
+
+	if slices.Contains(deliveryStatus.ActiveResources, resource) {
+		return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, conditionDecision{
+			status:  metav1.ConditionTrue,
+			reason:  gatewayv1.ReasonProgrammed,
+			message: messageProgrammed,
+		})
+	}
+	if deliveryStatus.LastFailure != nil && slices.Contains(deliveryStatus.LastFailure.Resources, resource) {
+		reason := gatewayv1.ReasonDeliveryFailed
+		message := messageDeliveryFailed
+		if deliveryStatus.LastFailure.Reason == delivery.FailureRejected {
+			reason = gatewayv1.ReasonRejected
+			message = messageRejected
+		}
+		return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, conditionDecision{
+			status:  metav1.ConditionFalse,
+			reason:  reason,
+			message: message,
+		})
+	}
+	return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, pendingDecision())
+}
+
+func conditionBlockedBy(
+	conditionType gatewayv1.ConditionType,
+	generation int64,
+	blocking *metav1.Condition,
+) metav1.Condition {
+	status := metav1.ConditionUnknown
+	reason := gatewayv1.ReasonPending
+	message := messagePending
+	if blocking.Status == metav1.ConditionFalse {
+		status = metav1.ConditionFalse
+		reason = gatewayv1.ConditionReason(blocking.Reason)
+		message = blocking.Message
+	}
+	return newCondition(conditionType, generation, conditionDecision{
+		status:  status,
+		reason:  reason,
+		message: message,
+	})
+}
+
+func currentCondition(
+	conditions []metav1.Condition,
+	conditionType gatewayv1.ConditionType,
+	generation int64,
+) *metav1.Condition {
+	condition := meta.FindStatusCondition(conditions, string(conditionType))
+	if condition == nil || condition.ObservedGeneration != generation {
+		return nil
+	}
+	return condition
+}
+
+func newCondition(
+	conditionType gatewayv1.ConditionType,
+	generation int64,
+	decision conditionDecision,
+) metav1.Condition {
+	return metav1.Condition{
+		Type:               string(conditionType),
+		Status:             decision.status,
+		ObservedGeneration: generation,
+		Reason:             string(decision.reason),
+		Message:            decision.message,
+	}
+}
+
+func pendingDecision() conditionDecision {
+	return conditionDecision{
+		status:  metav1.ConditionUnknown,
+		reason:  gatewayv1.ReasonPending,
+		message: messagePending,
+	}
+}
+
+func newDiagnosticIndex(resources config.ResourceSet, diagnostics []config.Diagnostic) diagnosticIndex {
 	knownResources := make(map[resourceKey]bool)
 	knownKinds := make(map[gatewayv1.Kind]bool)
-	addKnownResources(knownResources, knownKinds, gatewayv1.KindGateway, resources.Gateways, func(resource *gatewayv1.Gateway) string { return resource.Name })
-	addKnownResources(knownResources, knownKinds, gatewayv1.KindRoute, resources.Routes, func(resource *gatewayv1.Route) string { return resource.Name })
-	addKnownResources(knownResources, knownKinds, gatewayv1.KindUpstream, resources.Upstreams, func(resource *gatewayv1.Upstream) string { return resource.Name })
-	addKnownResources(knownResources, knownKinds, gatewayv1.KindRateLimitPolicy, resources.RateLimitPolicies, func(resource *gatewayv1.RateLimitPolicy) string { return resource.Name })
-	addKnownResources(knownResources, knownKinds, gatewayv1.KindAccessControlPolicy, resources.AccessControlPolicies, func(resource *gatewayv1.AccessControlPolicy) string { return resource.Name })
-	addKnownResources(knownResources, knownKinds, gatewayv1.KindPolicyBinding, resources.PolicyBindings, func(resource *gatewayv1.PolicyBinding) string { return resource.Name })
+	for _, resource := range resources.Generations() {
+		knownResources[resourceKey{kind: resource.Kind, name: resource.Name}] = true
+		knownKinds[resource.Kind] = true
+	}
 
-	decisions := conditionDecisions{
-		specific: make(map[resourceKey]conditionDecision),
-		kinds:    make(map[gatewayv1.Kind]conditionDecision),
+	index := diagnosticIndex{
+		specific: make(map[resourceKey][]config.Diagnostic),
+		kinds:    make(map[gatewayv1.Kind][]config.Diagnostic),
 	}
 	for _, diagnostic := range diagnostics {
 		if diagnostic.Severity != config.SeverityError {
 			continue
 		}
-		decision := conditionDecision{
-			reason:  diagnostic.Reason,
-			message: diagnostic.Message,
-		}
-		if decision.reason == "" {
-			decision.reason = config.ReasonCompileFailed
-		}
-		if decision.message == "" {
-			decision.message = messageCompileFailed
-		}
-
-		key := resourceKey{kind: diagnostic.Kind, id: diagnostic.ID}
+		key := resourceKey{kind: diagnostic.Kind, name: diagnostic.ID}
 		switch {
 		case diagnostic.Kind == "" || !knownKinds[diagnostic.Kind]:
-			if decisions.global == nil {
-				decision.message = messageCompileFailed
-				decisions.global = &decision
-			}
+			index.global = append(index.global, diagnostic)
 		case diagnostic.ID == "" || !knownResources[key]:
-			if _, exists := decisions.kinds[diagnostic.Kind]; !exists {
-				decisions.kinds[diagnostic.Kind] = decision
-			}
+			index.kinds[diagnostic.Kind] = append(index.kinds[diagnostic.Kind], diagnostic)
 		default:
-			if _, exists := decisions.specific[key]; !exists {
-				decisions.specific[key] = decision
-			}
+			index.specific[key] = append(index.specific[key], diagnostic)
 		}
 	}
-	return decisions
+	return index
 }
 
-func addKnownResources[T any](
-	resources map[resourceKey]bool,
-	kinds map[gatewayv1.Kind]bool,
-	kind gatewayv1.Kind,
-	items []*T,
-	id func(*T) string,
-) {
-	for _, item := range items {
-		if item == nil {
+func (i diagnosticIndex) forResource(kind gatewayv1.Kind, name string) compileDecision {
+	diagnostics := make([]config.Diagnostic, 0,
+		len(i.global)+len(i.kinds[kind])+len(i.specific[resourceKey{kind: kind, name: name}]),
+	)
+	diagnostics = append(diagnostics, i.global...)
+	diagnostics = append(diagnostics, i.kinds[kind]...)
+	diagnostics = append(diagnostics, i.specific[resourceKey{kind: kind, name: name}]...)
+
+	decision := compileDecision{
+		accepted: conditionDecision{
+			status:  metav1.ConditionTrue,
+			reason:  gatewayv1.ReasonAccepted,
+			message: messageAccepted,
+		},
+	}
+	if kindHasReferences(kind) {
+		resolvedRefs := conditionDecision{
+			status:  metav1.ConditionTrue,
+			reason:  gatewayv1.ReasonResolvedRefs,
+			message: messageResolvedRefs,
+		}
+		decision.resolvedRefs = &resolvedRefs
+	}
+
+	for _, diagnostic := range diagnostics {
+		if decision.resolvedRefs != nil && isReferenceReason(diagnostic.Reason) {
+			if decision.resolvedRefs.status == metav1.ConditionTrue {
+				*decision.resolvedRefs = decisionFromDiagnostic(diagnostic)
+			}
 			continue
 		}
-		resources[resourceKey{kind: kind, id: id(item)}] = true
-		kinds[kind] = true
+		if decision.accepted.status == metav1.ConditionTrue {
+			decision.accepted = decisionFromDiagnostic(diagnostic)
+		}
 	}
+	return decision
 }
 
-func (d conditionDecisions) forResource(kind gatewayv1.Kind, id string) conditionDecision {
-	if decision, ok := d.specific[resourceKey{kind: kind, id: id}]; ok {
-		return decision
+func decisionFromDiagnostic(diagnostic config.Diagnostic) conditionDecision {
+	reason := diagnostic.Reason
+	if reason == "" {
+		reason = gatewayv1.ReasonCompileFailed
 	}
-	if decision, ok := d.kinds[kind]; ok {
-		return decision
-	}
-	if d.global != nil {
-		return *d.global
+	message := diagnostic.Message
+	if message == "" || diagnostic.Kind == "" {
+		message = messageCompileFailed
 	}
 	return conditionDecision{
-		accepted: true,
-		reason:   config.ReasonAccepted,
-		message:  messageAccepted,
+		status:  metav1.ConditionFalse,
+		reason:  reason,
+		message: message,
 	}
 }
 
-func acceptedConditions(existing []metav1.Condition, generation int64, decision conditionDecision) []metav1.Condition {
-	status := metav1.ConditionFalse
-	if decision.accepted {
-		status = metav1.ConditionTrue
-	}
+func isReferenceReason(reason config.Reason) bool {
+	return reason == config.ReasonReferenceNotFound || reason == config.ReasonInvalidReference
+}
 
-	lastTransitionTime := metav1.Now()
-	for i := range existing {
-		if existing[i].Type != conditionAccepted {
-			continue
-		}
-		if existing[i].Status == status && !existing[i].LastTransitionTime.IsZero() {
-			lastTransitionTime = existing[i].LastTransitionTime
-		}
-		break
+func kindHasReferences(kind gatewayv1.Kind) bool {
+	switch kind {
+	case gatewayv1.KindGateway, gatewayv1.KindRoute, gatewayv1.KindPolicyBinding:
+		return true
+	default:
+		return false
 	}
-
-	return []metav1.Condition{{
-		Type:               conditionAccepted,
-		Status:             status,
-		ObservedGeneration: generation,
-		LastTransitionTime: lastTransitionTime,
-		Reason:             string(decision.reason),
-		Message:            decision.message,
-	}}
 }

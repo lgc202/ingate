@@ -1,0 +1,27 @@
+apiserver:
+  master: ""
+  kubeconfig: "_output/kubeconfig"
+
+server:
+  xds_listen_address: "127.0.0.1:18000"
+  health_listen_address: "127.0.0.1:18080"
+
+delivery:
+  candidate_ack_timeout: "30s"
+  nack_rollback_timeout: "3s"
+
+resource_watch:
+  resync_period: "0s"
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false
+  stdout: false
+  file:
+    path: "_output/logs/ingate-controller.log"
+    max_size_mb: 100
+    max_backups: 10
+    max_age_days: 30
+    compress: false
+    local_time: false

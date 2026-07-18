@@ -1,15 +1,15 @@
 import type {
   Gateway,
-  GatewayHostBinding,
   GatewayListener,
   GatewayMutationPayload,
   GatewayValidationItem,
   GatewayValidationReport,
 } from '@/domain/gateway';
 
-export const GATEWAY_ENTRY_PORT = 8080;
-
 export type GatewayHostMode = 'any' | 'specified';
+
+export const GATEWAY_HTTP_PORT = 8080;
+export const GATEWAY_HTTPS_PORT = 8443;
 
 export interface GatewayFormDraft {
   id?: string;
@@ -22,24 +22,18 @@ export interface GatewayFormDraft {
 }
 
 export function createGatewayDraft(gateway?: Gateway | null): GatewayFormDraft {
-  const hostnames = gateway ? hostnamesFromBindings(gateway.hostBindings) : [];
+  const hostnames = normalizeHostnames(gateway?.hostnames ?? []);
 
   return {
     id: gateway?.id,
     version: gateway?.version,
     name: gateway?.name ?? '',
     description: gateway?.description ?? '',
-    listeners: gateway?.listeners?.length ? gateway.listeners.map((listener) => ({ ...listener })) : [createGatewayListener()],
+    listeners: gateway?.listeners.length
+      ? gateway.listeners.map((listener) => ({ ...listener }))
+      : [{ protocol: 'HTTP', port: GATEWAY_HTTP_PORT }],
     hostMode: hostnames.length > 0 ? 'specified' : 'any',
     hostnames,
-  };
-}
-
-export function createGatewayListener(): GatewayListener {
-  return {
-    name: `listener-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    protocol: 'HTTP',
-    port: GATEWAY_ENTRY_PORT,
   };
 }
 
@@ -47,8 +41,7 @@ export function validateGatewayDraft(draft: GatewayFormDraft): GatewayValidation
   const name = draft.name.trim();
   const normalizedHostnames = draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [];
   const invalidHostnames = normalizedHostnames.filter((hostname) => !isValidHostname(hostname));
-  const ports = draft.listeners.map(() => GATEWAY_ENTRY_PORT);
-  const duplicatePorts = ports.filter((port, index) => ports.indexOf(port) !== index);
+  const httpsListener = draft.listeners.find((listener) => listener.protocol === 'HTTPS');
   const items: GatewayValidationItem[] = [
     {
       label: '网关名称',
@@ -57,23 +50,30 @@ export function validateGatewayDraft(draft: GatewayFormDraft): GatewayValidation
     },
     {
       label: '运行入口',
-      status: draft.listeners.length > 0 && duplicatePorts.length === 0 ? 'healthy' : 'critical',
-      message: duplicatePorts.length > 0
-        ? `入口重复：${Array.from(new Set(duplicatePorts)).join('、')}`
-        : draft.listeners.length > 0
-          ? formatListeners(draft.listeners)
-          : '至少启用一个运行入口',
+      status: draft.listeners.length > 0 ? 'healthy' : 'critical',
+      message: draft.listeners.length > 0
+        ? draft.listeners.map((listener) => `${listener.protocol}:${listener.port}`).join(' / ')
+        : '至少启用一个运行入口',
     },
     {
-      label: 'Host 策略',
+      label: 'HTTPS 证书',
+      status: !httpsListener || httpsListener.certificateID ? 'healthy' : 'critical',
+      message: !httpsListener
+        ? '未启用 HTTPS'
+        : httpsListener.certificateID
+          ? '已选择 HTTPS 证书'
+          : '请选择 HTTPS 证书',
+    },
+    {
+      label: '域名范围',
       status: (draft.hostMode === 'specified' && normalizedHostnames.length === 0) || invalidHostnames.length > 0 ? 'critical' : 'healthy',
       message: draft.hostMode === 'specified' && normalizedHostnames.length === 0
-        ? '指定 Host 时至少添加一个域名'
+        ? '指定域名时至少添加一个域名'
         : invalidHostnames.length > 0
           ? `域名格式不正确：${invalidHostnames.join('、')}`
           : normalizedHostnames.length > 0
-            ? `限制 ${normalizedHostnames.length} 个 Host`
-            : '不限制 Host',
+            ? `限制 ${normalizedHostnames.length} 个域名`
+            : '不限制域名',
     },
   ];
   const valid = items.every((item) => item.status === 'healthy');
@@ -86,26 +86,14 @@ export function validateGatewayDraft(draft: GatewayFormDraft): GatewayValidation
 }
 
 export function buildGatewayPayload(draft: GatewayFormDraft): GatewayMutationPayload {
-  const listeners = draft.listeners.map((listener) => ({
-    name: listener.name,
-    protocol: listener.protocol,
-    port: GATEWAY_ENTRY_PORT,
-  }));
-
   return {
     id: draft.id,
     version: draft.version,
     name: draft.name.trim(),
     description: draft.description.trim(),
-    listeners,
-    hostBindings: buildHostBindings(draft, listeners),
+    listeners: draft.listeners.map((listener) => ({ ...listener })),
+    hostnames: draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [],
   };
-}
-
-export function formatListeners(listeners: GatewayListener[]) {
-  return listeners
-    .map((listener) => `${listener.protocol}:${GATEWAY_ENTRY_PORT}`)
-    .join(' / ');
 }
 
 export function parseHostnames(input: string): string[] {
@@ -117,27 +105,13 @@ export function normalizeHostnames(hostnames: string[]): string[] {
 }
 
 export function formatHostnames(hostnames: string[]) {
-  return hostnames.length > 0 ? hostnames.join('、') : '不限制 Host';
-}
-
-export function hostnamesFromBindings(bindings: GatewayHostBinding[]) {
-  return normalizeHostnames(bindings.map((binding) => binding.hostname ?? '').filter(Boolean));
-}
-
-function buildHostBindings(draft: GatewayFormDraft, listeners: GatewayListener[]): GatewayHostBinding[] {
-  const listenerRefs = listeners.map((listener) => listener.name);
-  const hostnames = draft.hostMode === 'specified' ? normalizeHostnames(draft.hostnames) : [''];
-
-  return hostnames.map((hostname) => ({
-    hostname: hostname || undefined,
-    listenerRefs,
-  }));
+  return hostnames.length > 0 ? hostnames.join('、') : '不限制域名';
 }
 
 function isValidHostname(hostname: string): boolean {
   const normalized = hostname.startsWith('*.') ? hostname.slice(2) : hostname;
 
-  if (!normalized.includes('.') || normalized.length > 253) {
+  if (!normalized || normalized.length > 253) {
     return false;
   }
 

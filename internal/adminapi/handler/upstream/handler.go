@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 
-	"github.com/lgc202/ingate/internal/adminapi/handler/upstream/dto"
+	dto "github.com/lgc202/ingate/internal/adminapi/dto/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
@@ -35,7 +35,7 @@ func (h *Handler) List(ctx *gin.Context) {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
 		}
-		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询上游列表失败", nil)
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询服务列表失败", nil)
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListUpstreamsResp(result))
@@ -51,7 +51,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
 		}
-		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询上游失败", nil)
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询服务失败", nil)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
 		}
-		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "创建上游失败", nil)
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "创建服务失败", nil)
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.CreateUpstreamResp{Success: true, ID: upstreamID})
@@ -103,7 +103,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
 		}
-		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "更新上游失败", nil)
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "更新服务失败", nil)
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.UpdateUpstreamResp{Success: true})
@@ -119,7 +119,7 @@ func (h *Handler) Delete(ctx *gin.Context) {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
 		}
-		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "删除上游失败", nil)
+		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "删除服务失败", nil)
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.DeleteUpstreamResp{Success: true})

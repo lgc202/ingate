@@ -25,21 +25,15 @@ type UpdateGatewayParams struct {
 
 // GatewayParams 是创建和更新 Gateway 共用的配置参数
 type GatewayParams struct {
-	Name         string
-	Description  string
-	Listeners    []ListenerParams
-	HostBindings []HostBindingParams
+	Name        string
+	Description string
+	Listeners   []ListenerParams
+	Hostnames   []string
 }
 
-// ListenerParams 是监听器用例参数
+// ListenerParams 是固定数据面入口参数
 type ListenerParams struct {
-	Name     string
-	Protocol resource.Protocol
-	Port     int
-}
-
-// HostBindingParams 是域名绑定用例参数
-type HostBindingParams struct {
-	Hostname     string
-	ListenerRefs []string
+	Protocol      resource.Protocol
+	Port          int
+	CertificateID string
 }

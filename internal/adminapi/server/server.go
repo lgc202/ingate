@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	controllerclient "github.com/lgc202/ingate/internal/adminapi/client/controller"
 	"github.com/lgc202/ingate/internal/adminapi/handler"
 	"github.com/lgc202/ingate/internal/adminapi/service"
 	"github.com/lgc202/ingate/internal/adminapi/store"
@@ -17,27 +16,24 @@ import (
 
 // Server 提供面向控制台的管理 API 服务生命周期
 type Server struct {
-	client                 clientset.Interface
-	controllerStatusClient *controllerclient.Client
-	listenAddress          string
-	consoleDir             string
-	logger                 *slog.Logger
+	client        clientset.Interface
+	listenAddress string
+	consoleDir    string
+	logger        *slog.Logger
 }
 
 // New 创建管理 API 服务
 func New(
 	client clientset.Interface,
-	controllerStatusClient *controllerclient.Client,
 	listenAddress string,
 	consoleDir string,
 	logger *slog.Logger,
 ) *Server {
 	return &Server{
-		client:                 client,
-		controllerStatusClient: controllerStatusClient,
-		listenAddress:          listenAddress,
-		consoleDir:             consoleDir,
-		logger:                 logger,
+		client:        client,
+		listenAddress: listenAddress,
+		consoleDir:    consoleDir,
+		logger:        logger,
 	}
 }
 
@@ -72,7 +68,7 @@ func (s *Server) Run(ctx context.Context) error {
 
 func (s *Server) newHandler() *handler.Handler {
 	resourceStore := store.New(s.client)
-	resourceService := service.New(resourceStore, s.controllerStatusClient)
+	resourceService := service.New(resourceStore)
 	return handler.New(resourceService, s.logger)
 }
 

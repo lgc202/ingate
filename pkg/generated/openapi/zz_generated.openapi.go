@@ -21,6 +21,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicyList":   schema_pkg_apis_gateway_v1_AccessControlPolicyList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicySpec":   schema_pkg_apis_gateway_v1_AccessControlPolicySpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlRule":         schema_pkg_apis_gateway_v1_AccessControlRule(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Certificate":               schema_pkg_apis_gateway_v1_Certificate(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.CertificateList":           schema_pkg_apis_gateway_v1_CertificateList(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.CertificateSpec":           schema_pkg_apis_gateway_v1_CertificateSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint":                  schema_pkg_apis_gateway_v1_Endpoint(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Gateway":                   schema_pkg_apis_gateway_v1_Gateway(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.GatewayList":               schema_pkg_apis_gateway_v1_GatewayList(ref),
@@ -379,6 +382,143 @@ func schema_pkg_apis_gateway_v1_AccessControlRule(ref common.ReferenceCallback) 
 		},
 		Dependencies: []string{
 			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlCondition"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_Certificate(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Certificate 声明一个可由多个 HTTPS Gateway 监听器复用的 TLS 证书",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.CertificateSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.CertificateSpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_CertificateList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CertificateList 表示 Certificate 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.Certificate"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Certificate", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_CertificateSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CertificateSpec 定义 TLS 证书及其私钥",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与 Gateway 引用",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Description 保存控制台展示和运维识别用的说明",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"certificatePEM": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CertificatePEM 保存叶子证书以及可选的中间证书链",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"privateKeyPEM": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PrivateKeyPEM 保存与叶子证书匹配的私钥",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+			},
+		},
 	}
 }
 
@@ -792,6 +932,12 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 							Default: 0,
 							Type:    []string{"integer"},
 							Format:  "int32",
+						},
+					},
+					"certificateRef": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 				},
@@ -1386,7 +1532,10 @@ func schema_pkg_apis_gateway_v1_ResourceStatus(ref common.ReferenceCallback) com
 					"conditions": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
+								"x-kubernetes-list-map-keys": []interface{}{
+									"type",
+								},
+								"x-kubernetes-list-type": "map",
 							},
 						},
 						SchemaProps: spec.SchemaProps{

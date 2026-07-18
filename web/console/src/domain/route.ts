@@ -1,12 +1,6 @@
-import type { HealthStatus } from './common';
+import type { ResourceStatus } from './common';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
-export type RoutePolicyCapability = 'RequestHeaderModifier' | 'ResponseHeaderModifier' | 'Timeout' | 'Retry';
-
-export const routePolicyCapabilityRequestHeaderModifier: RoutePolicyCapability = 'RequestHeaderModifier';
-export const routePolicyCapabilityResponseHeaderModifier: RoutePolicyCapability = 'ResponseHeaderModifier';
-export const routePolicyCapabilityTimeout: RoutePolicyCapability = 'Timeout';
-export const routePolicyCapabilityRetry: RoutePolicyCapability = 'Retry';
 
 export interface RouteResource {
   id: string;
@@ -16,19 +10,14 @@ export interface RouteResource {
   hostnames: string[];
   rules: RouteRule[];
   enabled: boolean;
+  status: ResourceStatus;
   createdAt: string;
 }
 
-export interface RouteComposerPreview {
-  name: string;
-  methods: HttpMethod[];
-  path: string;
-  gatewayIDs: string[];
+export interface RouteWorkspace {
+  routes: RouteResource[];
   gateways: RouteGatewayOption[];
-  hostnames: string[];
-  validations: string[];
-  targets: RouteTargetOption[];
-  policies: RoutePolicyOption[];
+  upstreams: UpstreamOption[];
 }
 
 export interface RouteListView {
@@ -40,7 +29,7 @@ export interface RouteGatewayOption {
   name: string;
 }
 
-export interface RouteTargetOption {
+export interface UpstreamOption {
   id: string;
   name: string;
   type: string;
@@ -48,61 +37,21 @@ export interface RouteTargetOption {
   meta: string;
 }
 
-export interface RoutePolicyOption {
-  capability: RoutePolicyCapability;
-  displayName: string;
-  meta: string;
-  enabled: boolean;
-  params: RoutePolicyParam[];
-}
-
-export interface RoutePolicyCapabilities {
-  policies: RoutePolicyOption[];
-}
-
-export interface RoutePolicyParam {
-  key: string;
-  label: string;
-  defaultValue: string;
-  inputType?: 'text' | 'number' | 'select' | 'multiselect';
-  placeholder?: string;
-  required?: boolean;
-  options?: string[];
-  unit?: string;
-  min?: number;
-  max?: number;
-}
-
-export interface RoutePageView {
-  routes: RouteResource[];
-  composer: RouteComposerPreview;
-}
-
-export interface RouteMutationPayload {
-  id?: string;
-  version?: string;
-  name: string;
-  gatewayIDs: string[];
-  hostnames: string[];
-  enabled: boolean;
-  rules: RouteRule[];
-}
-
-export interface RouteTargetPayload {
-  upstreamID: string;
-  weight: number;
-}
-
 export interface RouteRule {
   name: string;
   pathPrefix: string;
   methods: HttpMethod[];
-  headers?: HeaderMatch[];
-  targets: RouteTargetPayload[];
+  headers: HeaderMatch[];
+  upstreams: WeightedUpstream[];
   requestHeaderModifier?: HeaderModifier;
   responseHeaderModifier?: HeaderModifier;
   timeout?: RouteTimeout;
   retry?: RouteRetry;
+}
+
+export interface WeightedUpstream {
+  upstreamID: string;
+  weight: number;
 }
 
 export interface HeaderMatch {
@@ -111,8 +60,8 @@ export interface HeaderMatch {
 }
 
 export interface HeaderModifier {
-  set?: HeaderValue[];
-  remove?: string[];
+  set: HeaderValue[];
+  remove: string[];
 }
 
 export interface HeaderValue {
@@ -129,19 +78,22 @@ export interface RouteRetry {
   perTryTimeoutMillis: number;
 }
 
+export interface RouteMutationPayload {
+  id?: string;
+  version?: string;
+  name: string;
+  gatewayIDs: string[];
+  hostnames: string[];
+  enabled: boolean;
+  rules: RouteRulePayload[];
+}
+
+// RouteRulePayload 只在 admin-api 协议边界保留 targets 字段名
+export interface RouteRulePayload extends Omit<RouteRule, 'upstreams'> {
+  targets: WeightedUpstream[];
+}
+
 export interface RouteActionResult {
   message: string;
   changeId?: string;
-}
-
-export interface RouteValidationItem {
-  label: string;
-  status: HealthStatus;
-  message: string;
-}
-
-export interface RouteValidationReport {
-  valid: boolean;
-  summary: string;
-  items: RouteValidationItem[];
 }

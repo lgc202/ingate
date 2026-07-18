@@ -6,14 +6,12 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/samber/lo"
 
-	"github.com/lgc202/ingate/internal/adminapi/handler/gateway/dto"
+	dto "github.com/lgc202/ingate/internal/adminapi/dto/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 // Handler 处理 Gateway HTTP 请求
@@ -165,21 +163,18 @@ func (h *Handler) updateGatewayParams(request dto.UpdateGatewayReq) gatewayservi
 }
 
 func (h *Handler) gatewayParams(config dto.GatewayConfig) gatewayservice.GatewayParams {
+	listeners := make([]gatewayservice.ListenerParams, 0, len(config.Listeners))
+	for _, listener := range config.Listeners {
+		listeners = append(listeners, gatewayservice.ListenerParams{
+			Protocol:      listener.Protocol,
+			Port:          listener.Port,
+			CertificateID: listener.CertificateID,
+		})
+	}
 	return gatewayservice.GatewayParams{
 		Name:        config.Name,
 		Description: config.Description,
-		Listeners: lo.Map(config.Listeners, func(listener dto.GatewayListener, _ int) gatewayservice.ListenerParams {
-			return gatewayservice.ListenerParams{
-				Name:     listener.Name,
-				Protocol: resource.Protocol(listener.Protocol),
-				Port:     listener.Port,
-			}
-		}),
-		HostBindings: lo.Map(config.HostBindings, func(binding dto.GatewayHostBinding, _ int) gatewayservice.HostBindingParams {
-			return gatewayservice.HostBindingParams{
-				Hostname:     binding.Hostname,
-				ListenerRefs: binding.ListenerRefs,
-			}
-		}),
+		Listeners:   listeners,
+		Hostnames:   config.Hostnames,
 	}
 }
