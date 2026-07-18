@@ -15,6 +15,7 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyCredential":          schema_pkg_apis_gateway_v1_APIKeyCredential(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlCondition":    schema_pkg_apis_gateway_v1_AccessControlCondition(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlDenyResponse": schema_pkg_apis_gateway_v1_AccessControlDenyResponse(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicy":       schema_pkg_apis_gateway_v1_AccessControlPolicy(ref),
@@ -33,6 +34,8 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":               schema_pkg_apis_gateway_v1_HeaderValue(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HostBinding":               schema_pkg_apis_gateway_v1_HostBinding(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":                  schema_pkg_apis_gateway_v1_Listener(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRoute":                schema_pkg_apis_gateway_v1_ModelRoute(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting":              schema_pkg_apis_gateway_v1_ModelRouting(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ParentRef":                 schema_pkg_apis_gateway_v1_ParentRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus":              schema_pkg_apis_gateway_v1_PolicyStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef":           schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
@@ -54,10 +57,14 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteSpec":                 schema_pkg_apis_gateway_v1_RouteSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout":              schema_pkg_apis_gateway_v1_RouteTimeout(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream":                  schema_pkg_apis_gateway_v1_Upstream(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredential":        schema_pkg_apis_gateway_v1_UpstreamCredential(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredentialList":    schema_pkg_apis_gateway_v1_UpstreamCredentialList(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredentialSpec":    schema_pkg_apis_gateway_v1_UpstreamCredentialSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck":       schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamList":              schema_pkg_apis_gateway_v1_UpstreamList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef":               schema_pkg_apis_gateway_v1_UpstreamRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamSpec":              schema_pkg_apis_gateway_v1_UpstreamSpec(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS":               schema_pkg_apis_gateway_v1_UpstreamTLS(ref),
 		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                          schema_pkg_apis_meta_v1_APIGroup(ref),
 		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                      schema_pkg_apis_meta_v1_APIGroupList(ref),
 		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                       schema_pkg_apis_meta_v1_APIResource(ref),
@@ -111,6 +118,28 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                               schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
 		"k8s.io/apimachinery/pkg/runtime.Unknown":                                schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
 		"k8s.io/apimachinery/pkg/version.Info":                                   schema_k8sio_apimachinery_pkg_version_Info(ref),
+	}
+}
+
+func schema_pkg_apis_gateway_v1_APIKeyCredential(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "APIKeyCredential 保存静态 API Key",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Value 保存发送给上游服务的完整 API Key",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"value"},
+			},
+		},
 	}
 }
 
@@ -963,6 +992,77 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 	}
 }
 
+func schema_pkg_apis_gateway_v1_ModelRoute(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ModelRoute 将客户端模型名称映射到上游模型名称",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"model": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Model 是客户端请求中使用的模型名称",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"upstreamModel": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UpstreamModel 是发送给模型服务的模型名称，为空时沿用 Model",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"model"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_ModelRouting(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ModelRouting 声明一条 RouteRule 使用的模型 Upstream 和模型名称映射",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"upstreamRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UpstreamRef 引用实际接收当前规则全部模型请求的 Upstream",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"models": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRoute"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"upstreamRef", "models"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRoute"},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_ParentRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1664,7 +1764,7 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RouteRule 声明一条路由匹配规则和加权 Upstream 集合",
+				Description: "RouteRule 声明一条路由匹配规则以及普通或模型 Upstream 转发配置",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
@@ -1764,12 +1864,18 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 							},
 						},
 					},
+					"modelRouting": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ModelRouting 声明将 OpenAI 请求中的 model 映射后转发到单一模型 Upstream",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting"),
+						},
+					},
 				},
-				Required: []string{"name", "pathPrefix", "methods", "headers", "upstreamRefs"},
+				Required: []string{"name", "pathPrefix", "methods", "headers"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteFilter", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteFilter", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
 	}
 }
 
@@ -1925,6 +2031,137 @@ func schema_pkg_apis_gateway_v1_Upstream(ref common.ReferenceCallback) common.Op
 	}
 }
 
+func schema_pkg_apis_gateway_v1_UpstreamCredential(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "UpstreamCredential 声明 Ingate 访问上游服务时使用的凭据",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredentialSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredentialSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_UpstreamCredentialList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "UpstreamCredentialList 表示 UpstreamCredential 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredential"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredential", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_UpstreamCredentialSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "UpstreamCredentialSpec 定义上游访问凭据的展示名称、类型和密钥内容",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与资源引用",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Type 指定凭据类型",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiKey": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIKey 保存 APIKey 类型凭据的密钥内容",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyCredential"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyCredential"},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2062,6 +2299,26 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 							Format:      "",
 						},
 					},
+					"protocol": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Protocol 描述 Ingate 与 Upstream 之间实际使用的应用协议",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"tls": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TLS 描述访问 Upstream 时的 TLS 配置，未配置时使用明文连接",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"),
+						},
+					},
+					"credentialRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CredentialRef 引用 Ingate 访问 Upstream 时使用的凭据",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"loadBalancePolicy": {
 						SchemaProps: spec.SchemaProps{
 							Description: "LoadBalancePolicy 指定多个端点之间的负载均衡策略",
@@ -2098,7 +2355,29 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_UpstreamTLS(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "UpstreamTLS 声明访问 Upstream 时使用系统 CA 根证书包校验的 TLS 配置",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"serverName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ServerName 用于 TLS SNI 和服务端证书身份校验",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"serverName"},
+			},
+		},
 	}
 }
 

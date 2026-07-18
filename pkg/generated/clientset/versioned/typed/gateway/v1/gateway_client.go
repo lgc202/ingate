@@ -20,6 +20,7 @@ type GatewayV1Interface interface {
 	RateLimitPoliciesGetter
 	RoutesGetter
 	UpstreamsGetter
+	UpstreamCredentialsGetter
 }
 
 // GatewayV1Client is used to interact with features provided by the gateway.ingate.io group.
@@ -49,6 +50,10 @@ func (c *GatewayV1Client) Routes() RouteInterface {
 
 func (c *GatewayV1Client) Upstreams() UpstreamInterface {
 	return newUpstreams(c)
+}
+
+func (c *GatewayV1Client) UpstreamCredentials() UpstreamCredentialInterface {
+	return newUpstreamCredentials(c)
 }
 
 // NewForConfig creates a new GatewayV1Client for the given config.

@@ -8,9 +8,11 @@ import {
   formatMethods,
   primaryRouteRule,
   routeGovernancePolicyLabel,
+  routeModelNames,
+  routeTargetCount,
+  routeTargetKindLabel,
   routeUpstreamIDs,
   routeUpstreamLabels,
-  routeUpstreams,
   routeUpstreamSummary,
   upstreamLabel,
 } from './routeView';
@@ -72,7 +74,7 @@ export function RouteList({
   };
 
   return (
-    <Panel title="路由列表" subtitle={`${routes.length} 条路由 · 请求匹配后直接转发到目标服务`}>
+    <Panel title="路由列表" subtitle={`${routes.length} 条路由 · 请求匹配后转发到普通服务或模型服务`}>
       <div className="gateway-query">
         <div className="gateway-query-grid route-query-grid">
           <label className="query-control">
@@ -124,7 +126,7 @@ export function RouteList({
               <th>路由名称</th>
               <th>匹配条件</th>
               <th>作用范围</th>
-              <th>目标服务</th>
+              <th>转发目标</th>
               <th>状态</th>
               <th>操作</th>
             </tr>
@@ -154,7 +156,7 @@ export function RouteList({
                   </td>
                   <td>
                     <div className="table-primary">{routeUpstreamSummary(route, upstreams)}</div>
-                    <div className="table-secondary">{routeUpstreams(route).length} 个目标服务</div>
+                    <div className="table-secondary">{routeTargetCount(route)} 个{routeTargetKindLabel(route)}</div>
                   </td>
                   <td>
                     <div className={`gateway-status ${route.enabled ? 'on' : ''}`.trim()}>
@@ -223,6 +225,7 @@ function matchesFilters(
     ...route.gatewayIDs.map((gatewayID) => gateways.find((gateway) => gateway.id === gatewayID)?.name ?? gatewayID),
     ...routeUpstreamIDs(route),
     ...routeUpstreamLabels(route, upstreams),
+    ...routeModelNames(route),
     ...route.hostnames,
   ].some((value) => value.toLowerCase().includes(keyword));
 

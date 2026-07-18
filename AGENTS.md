@@ -37,6 +37,17 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - data-plane agent
 - Kubernetes operator
 
+## 第一阶段 AI Gateway
+
+- 不新增 AI runtime 或独立服务，AI 请求继续使用现有 Controller 编译链路和 Envoy 数据面
+- 第一阶段只支持 OpenAI-compatible `POST /v1/chat/completions`；普通响应和 SSE 流式响应原样转发
+- 模型服务仍建模为 `Upstream(type=model, protocol=OpenAI)`，不新增 Provider、Model、AIRoute 或 AIBackend 等平行资源
+- `UpstreamCredential` 第一阶段只支持 `APIKey`；Admin API 不回显密钥，只返回是否已配置
+- 一条模型 RouteRule 的 `modelRouting` 只绑定一个 OpenAI Upstream，`models[]` 只表达客户端模型别名到 `upstreamModel` 的映射
+- Envoy 静态 Route 负责选择规则绑定的 Upstream；内置 `ai-proxy` Wasm 只负责模型别名匹配、请求体模型名改写和 API Key 注入，用户不编辑插件私有配置
+- 模型 Upstream 通过 `tls.serverName` 使用 HTTPS、SNI 和系统 CA 根证书包校验；配置访问凭据时必须启用 HTTPS
+- 当前不支持其他模型协议转换、Responses、Embeddings、根据请求体 `model` 跨多个 Provider 或 Upstream 动态选路、多 Provider fallback/retry、TokenQuotaPolicy 或大文件和大体积多模态请求；单次请求体上限为 1 MiB
+
 ## 部署目录
 
 - 安装包和容器内统一使用 `/opt/ingate` 保存组件相关文件，使用 `/data/ingate` 保存运行产生的持久化数据。

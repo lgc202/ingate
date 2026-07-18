@@ -51,6 +51,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Routes().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("upstreams"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Upstreams().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("upstreamcredentials"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().UpstreamCredentials().Informer()}, nil
 
 	}
 

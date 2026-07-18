@@ -27,9 +27,17 @@ type UpdateUpstreamParams struct {
 type UpstreamParams struct {
 	Name              string
 	Type              resource.UpstreamType
+	Protocol          resource.UpstreamProtocol
+	TLS               *TLSParams
+	CredentialID      string
 	LoadBalancePolicy resource.UpstreamLoadBalancePolicy
 	Endpoints         []EndpointParams
 	HealthCheck       *resource.UpstreamHealthCheck
+}
+
+// TLSParams 是 Upstream HTTPS 连接参数
+type TLSParams struct {
+	ServerName string
 }
 
 // EndpointParams 是 Upstream 端点配置参数

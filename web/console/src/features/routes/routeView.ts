@@ -8,7 +8,7 @@ import type {
   UpstreamOption,
   WeightedUpstream,
 } from '@/domain/route';
-import { formatWeightedUpstreams, upstreamWeightSum } from './composer';
+import { formatModelRoutes, formatWeightedUpstreams, upstreamWeightSum } from './composer';
 
 export function primaryRouteRule(route: Pick<RouteResource, 'rules'>): RouteRule | undefined {
   return route.rules[0];
@@ -19,15 +19,36 @@ export function routeUpstreams(route: Pick<RouteResource, 'rules'>): WeightedUps
 }
 
 export function routeUpstreamIDs(route: Pick<RouteResource, 'rules'>): string[] {
-  return routeUpstreams(route).map((upstream) => upstream.upstreamID);
+  const rule = primaryRouteRule(route);
+  const serviceIDs = rule?.upstreams.map((upstream) => upstream.upstreamID) ?? [];
+  const modelIDs = rule?.modelRouting ? [rule.modelRouting.upstreamID] : [];
+  return Array.from(new Set([...serviceIDs, ...modelIDs]));
 }
 
 export function routeUpstreamLabels(route: Pick<RouteResource, 'rules'>, upstreams: UpstreamOption[]): string[] {
-  return routeUpstreams(route).map((upstream) => upstreamLabel(upstream.upstreamID, upstreams));
+  return routeUpstreamIDs(route).map((upstreamID) => upstreamLabel(upstreamID, upstreams));
 }
 
 export function routeUpstreamSummary(route: Pick<RouteResource, 'rules'>, upstreams: UpstreamOption[]): string {
-  return formatWeightedUpstreams(routeUpstreams(route), upstreams);
+  const rule = primaryRouteRule(route);
+  if (rule?.modelRouting) {
+    return formatModelRoutes(rule.modelRouting.upstreamID, rule.modelRouting.models, upstreams);
+  }
+  return formatWeightedUpstreams(rule?.upstreams ?? [], upstreams);
+}
+
+export function routeTargetCount(route: Pick<RouteResource, 'rules'>): number {
+  const rule = primaryRouteRule(route);
+  return rule?.modelRouting?.models.length ?? rule?.upstreams.length ?? 0;
+}
+
+export function routeTargetKindLabel(route: Pick<RouteResource, 'rules'>): string {
+  return primaryRouteRule(route)?.modelRouting ? '模型' : '目标服务';
+}
+
+export function routeModelNames(route: Pick<RouteResource, 'rules'>): string[] {
+  const models = primaryRouteRule(route)?.modelRouting?.models ?? [];
+  return models.flatMap((model) => [model.model, model.upstreamModel ?? '']);
 }
 
 export function routeForwardControlCount(route: Pick<RouteResource, 'rules'>): number {
@@ -103,7 +124,15 @@ export function routeDetailItems(
   }
 
   if (tab === 'upstream') {
+    if (rule?.modelRouting) {
+      return [
+        { label: '转发方式', value: '模型服务代理' },
+        { label: '模型映射', value: formatModelRoutes(rule.modelRouting.upstreamID, rule.modelRouting.models, upstreams) },
+        { label: '模型数量', value: `${rule.modelRouting.models.length} 个` },
+      ];
+    }
     return [
+      { label: '转发方式', value: '普通服务转发' },
       { label: '目标服务', value: routeUpstreamSummary(route, upstreams) },
       { label: '目标服务数', value: `${routeUpstreams(route).length} 个` },
       { label: '总权重', value: String(upstreamWeightSum(routeUpstreams(route))) },
@@ -123,7 +152,7 @@ export function routeDetailItems(
     { label: '路由名称', value: route.name },
     { label: '匹配请求', value: formatRouteMatch(route) },
     { label: '所属网关', value: formatGatewayIDs(route.gatewayIDs, gateways) },
-    { label: '目标服务', value: routeUpstreamSummary(route, upstreams) },
+    { label: rule?.modelRouting ? '模型映射' : '目标服务', value: routeUpstreamSummary(route, upstreams) },
     { label: '转发控制', value: `${routeForwardControlCount(route)} 项` },
     { label: '启用状态', value: route.enabled ? '启用' : '停用' },
   ];

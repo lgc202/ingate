@@ -28,11 +28,34 @@ func (r *UpdateUpstreamReq) Validate() error {
 
 // Validate 校验控制台提交的 Upstream 配置
 func (r *UpstreamConfig) Validate() error {
+	r.Name = strings.TrimSpace(r.Name)
 	if r.Name == "" {
 		return errors.New("服务名称不能为空")
 	}
 	if !validServiceType(r.Type) {
 		return errors.New("服务类型不正确")
+	}
+	if !validProtocol(r.Protocol) {
+		return errors.New("服务协议不正确")
+	}
+	if r.Type == resource.UpstreamTypeModel && r.Protocol != resource.UpstreamProtocolOpenAI {
+		return errors.New("大模型服务必须使用 OpenAI 兼容协议")
+	}
+	if r.Type != resource.UpstreamTypeModel && r.Protocol != resource.UpstreamProtocolHTTP {
+		return errors.New("当前只有大模型服务支持 OpenAI 兼容协议")
+	}
+	r.CredentialID = strings.TrimSpace(r.CredentialID)
+	if r.CredentialID != "" && r.Protocol != resource.UpstreamProtocolOpenAI {
+		return errors.New("当前只有 OpenAI 兼容服务支持访问凭据")
+	}
+	if r.TLS != nil {
+		r.TLS.ServerName = strings.TrimSpace(strings.ToLower(r.TLS.ServerName))
+		if !validEndpointAddress(r.TLS.ServerName) {
+			return errors.New("HTTPS 服务名称格式不正确")
+		}
+	}
+	if r.CredentialID != "" && r.TLS == nil {
+		return errors.New("配置访问凭据时必须使用 HTTPS")
 	}
 	if !validLoadBalancePolicy(r.LoadBalancePolicy) {
 		return errors.New("负载均衡方式不正确")
@@ -42,10 +65,15 @@ func (r *UpstreamConfig) Validate() error {
 	}
 
 	enabledEndpoints := 0
+	endpointIDs := make(map[string]bool, len(r.Endpoints))
 	for i := range r.Endpoints {
 		if err := r.Endpoints[i].Validate(); err != nil {
 			return err
 		}
+		if endpointIDs[r.Endpoints[i].ID] {
+			return errors.New("服务端点 ID 不能重复")
+		}
+		endpointIDs[r.Endpoints[i].ID] = true
 		if r.Endpoints[i].Enabled {
 			enabledEndpoints++
 		}
@@ -59,9 +87,11 @@ func (r *UpstreamConfig) Validate() error {
 
 // Validate 校验控制台提交的服务端点
 func (r *UpstreamEndpoint) Validate() error {
+	r.ID = strings.TrimSpace(r.ID)
 	if r.ID == "" {
 		return errors.New("服务端点 ID 不能为空")
 	}
+	r.Address = strings.TrimSpace(r.Address)
 	if r.Address == "" {
 		return errors.New("服务端点地址不能为空")
 	}
@@ -92,6 +122,15 @@ func validServiceType(value resource.UpstreamType) bool {
 func validLoadBalancePolicy(value resource.UpstreamLoadBalancePolicy) bool {
 	switch value {
 	case resource.UpstreamLoadBalancePolicyRoundRobin, resource.UpstreamLoadBalancePolicyLeastRequest, resource.UpstreamLoadBalancePolicyRandom:
+		return true
+	default:
+		return false
+	}
+}
+
+func validProtocol(value resource.UpstreamProtocol) bool {
+	switch value {
+	case resource.UpstreamProtocolHTTP, resource.UpstreamProtocolOpenAI:
 		return true
 	default:
 		return false

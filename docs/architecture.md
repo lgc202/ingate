@@ -48,7 +48,7 @@ Resource
   -> Envoy
 ```
 
-Controller 使用唯一全局队列 key。Gateway、Certificate、Route、Upstream 和强类型 Policy 的任意 spec 变化都会触发一次完整配置域编译。
+Controller 使用唯一全局队列 key。Gateway、Certificate、Route、Upstream、UpstreamCredential 和强类型 Policy 的任意 spec 变化都会触发一次完整配置域编译。
 
 Compiler 直接生成 Envoy protobuf，不输出公开 IR，不存在 Target、Translator、RuntimeGroup 或 RuntimeSnapshot。IP Upstream 生成 EDS，包含 hostname 的 Upstream 生成带内联端点的 `STRICT_DNS` cluster。
 
@@ -95,6 +95,7 @@ Controller 内嵌标准 go-control-plane State-of-the-World ADS：
 - Certificate
 - Route
 - Upstream
+- UpstreamCredential
 - RateLimitPolicy
 - AccessControlPolicy
 
@@ -114,6 +115,55 @@ Controller 内嵌标准 go-control-plane State-of-the-World ADS：
 Policy 除总体 `status.conditions` 外，还通过 `status.targets[]` 记录每个 `targetRef` 的解析和生效结果。缺失目标只产生 Warning，有效目标继续进入配置；任一目标已生效时总体 `Programmed=True`，控制台结合目标状态展示部分生效；启用但 `targetRefs[]` 为空，或所有目标都没有实际展开到流量入口时，使用 `Programmed=False` 和 `NotApplied` 表达未应用。Admin API 删除 Gateway 或 Route 时会拒绝删除仍被 Policy 引用的目标，声明式 API 仍允许删除并由 `ResolvedRefs=False` 反馈。
 
 Admin API 只把 Condition 转换成面向页面的状态摘要，不向控制台泄漏 Kubernetes 资源结构、Envoy、xDS、ACK 或 NACK 等实现细节。
+
+## 第一阶段 AI Gateway
+
+第一阶段 AI Gateway 直接复用现有控制面和 Envoy 数据面，不新增 AI runtime、协议转换服务或其他独立组件：
+
+```text
+OpenAI Client
+  -> Envoy Listener / Route
+  -> 内置 ai-proxy Wasm
+  -> Upstream(type=model, protocol=OpenAI)
+  -> OpenAI-compatible 模型服务
+```
+
+资源职责保持单一：
+
+- 模型服务仍是 `Upstream`，使用 `type=model` 表达业务分类，使用 `protocol=OpenAI` 表达通信语义
+- `UpstreamCredential` 保存 Ingate 访问模型服务的凭据，第一阶段只支持 `APIKey`；绑定访问凭据时模型 Upstream 必须配置 TLS，避免密钥通过明文 HTTP 发送
+- 模型 Upstream 通过 `credentialRef` 引用凭据；Admin API 响应只返回 `configured`，不回显密钥内容
+- 一条模型 RouteRule 的 `modelRouting.upstreamRef` 只引用一个 `type=model, protocol=OpenAI` 的 Upstream，同一规则下的全部模型请求都固定转发到该 Upstream
+- `modelRouting.models[]` 只把客户端模型别名映射为 `upstreamModel`；未填写 `upstreamModel` 时沿用客户端模型名
+- Compiler 使用 `upstreamRef` 生成 Envoy 静态 Route，并将模型别名索引和 API Key 编译为 Listener 级 `ai-proxy` 私有配置；用户资源不暴露 Wasm 路径或插件 JSON
+
+声明式资源示例：
+
+```yaml
+pathPrefix: /v1/chat/completions
+methods:
+  - POST
+modelRouting:
+  upstreamRef: model-upstream-id
+  models:
+    - model: chat-default
+      upstreamModel: gpt-4o-mini
+```
+
+Admin API 和控制台使用 `upstreamID` 表达同一个单一 Upstream 绑定，不把内部资源引用命名泄漏给页面协议。
+
+数据面只对 `POST /v1/chat/completions` 缓冲并解析请求体。Envoy 静态 Route 负责把请求转发到规则绑定的 Upstream；`ai-proxy` 只匹配客户端模型别名、改写 `model` 并按需注入 `Authorization: Bearer <APIKey>`，不参与 Upstream 选择。客户端提供的上游凭据会被移除。普通响应和 SSE 流式响应不做缓冲或改写，由 Envoy 原样转发。本地拒绝使用 OpenAI-compatible 错误结构。
+
+模型 Upstream 可通过 `tls.serverName` 使用 HTTPS。Compiler 配置 SNI、数据面镜像的系统 CA 根证书包、精确 DNS/IP SAN 校验和 HTTP/1.1 ALPN。
+
+第一阶段限制：
+
+- 单次请求体上限为 1 MiB，不面向大文件或大体积多模态输入
+- 不支持 Anthropic、Azure OpenAI、Bedrock 等协议和认证转换
+- 不支持 Responses、Embeddings 等其他 OpenAI API
+- 不支持根据请求体 `model` 跨多个 Provider 或 Upstream 动态选路
+- 不支持多 Provider fallback、模型路由重试和 TokenQuotaPolicy
+- 不包含独立 AI runtime
 
 standalone 默认提供 HTTP `8080` 和 HTTPS `8443` 两个固定数据面入口。相同协议和端口的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Gateway 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。
 

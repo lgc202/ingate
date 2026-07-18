@@ -1,6 +1,7 @@
 import type { ResourceStatus } from './common';
 
 export type UpstreamType = 'application' | 'model' | 'agent' | 'mcp';
+export type UpstreamProtocol = 'HTTP' | 'OpenAI';
 export type UpstreamLoadBalancePolicy = 'round_robin' | 'least_request' | 'random';
 
 export const upstreamTypeOptions: { value: UpstreamType; label: string }[] = [
@@ -16,6 +17,11 @@ export const upstreamLoadBalancePolicyOptions: { value: UpstreamLoadBalancePolic
   { value: 'random', label: '随机' },
 ];
 
+export const upstreamProtocolOptions: { value: UpstreamProtocol; label: string }[] = [
+  { value: 'HTTP', label: 'HTTP' },
+  { value: 'OpenAI', label: 'OpenAI 兼容' },
+];
+
 export function upstreamTypeLabel(type: UpstreamType | string): string {
   return upstreamTypeOptions.find((option) => option.value === type)?.label ?? type;
 }
@@ -24,11 +30,18 @@ export function upstreamLoadBalancePolicyLabel(policy: UpstreamLoadBalancePolicy
   return upstreamLoadBalancePolicyOptions.find((option) => option.value === policy)?.label ?? policy;
 }
 
+export function upstreamProtocolLabel(protocol: UpstreamProtocol | string): string {
+  return upstreamProtocolOptions.find((option) => option.value === protocol)?.label ?? protocol;
+}
+
 export interface Upstream {
   id: string;
   version?: string;
   name: string;
   type: UpstreamType;
+  protocol: UpstreamProtocol;
+  tls?: UpstreamTLS;
+  credentialID?: string;
   endpoints: UpstreamEndpoint[];
   loadBalancePolicy: UpstreamLoadBalancePolicy;
   healthCheck?: UpstreamHealthCheck;
@@ -45,6 +58,9 @@ export interface UpstreamMutationPayload {
   version?: string;
   name: string;
   type: UpstreamType;
+  protocol: UpstreamProtocol;
+  tls?: UpstreamTLS;
+  credentialID?: string;
   endpoints: UpstreamEndpoint[];
   loadBalancePolicy: UpstreamLoadBalancePolicy;
   healthCheck?: UpstreamHealthCheck;
@@ -56,6 +72,10 @@ export interface UpstreamEndpoint {
   port: number;
   weight: number;
   enabled: boolean;
+}
+
+export interface UpstreamTLS {
+  serverName: string;
 }
 
 export interface UpstreamHealthCheck {

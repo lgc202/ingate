@@ -41,6 +41,7 @@ interface RouteRuleResponse {
   responseHeaderModifier?: Partial<HeaderModifier>;
   timeout?: RouteTimeout;
   retry?: RouteRetry;
+  modelRouting?: RouteRule['modelRouting'];
 }
 
 export async function getRouteWorkspace(): Promise<RouteWorkspace> {
@@ -60,6 +61,7 @@ export async function getRouteWorkspace(): Promise<RouteWorkspace> {
         id: upstream.id,
         name: upstream.name || upstream.id,
         type: upstream.type,
+        protocol: upstream.protocol,
         endpoint: upstreamEndpointSummary(upstream),
         meta: upstreamEndpointMeta(upstream),
       }))
@@ -107,6 +109,10 @@ function normalizeRoute(route: RouteResponse): RouteResource {
       methods: rule.methods ?? [],
       headers: rule.headers ?? [],
       upstreams: rule.targets ?? [],
+      modelRouting: rule.modelRouting ? {
+        upstreamID: rule.modelRouting.upstreamID,
+        models: rule.modelRouting.models.map((model) => ({ ...model })),
+      } : undefined,
       requestHeaderModifier: normalizeHeaderModifier(rule.requestHeaderModifier),
       responseHeaderModifier: normalizeHeaderModifier(rule.responseHeaderModifier),
       timeout: rule.timeout,

@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/samber/lo"
 
 	dto "github.com/lgc202/ingate/internal/adminapi/dto/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
@@ -70,7 +69,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	upstreamID, err := h.service.Create(ctx.Request.Context(), h.createUpstreamParams(request))
+	upstreamID, err := h.service.Create(ctx.Request.Context(), request.Params())
 	if err != nil {
 		h.logger.Error("create upstream failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -96,7 +95,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	upstreamID := ctx.Param("id")
-	err := h.service.Update(ctx.Request.Context(), upstreamID, h.updateUpstreamParams(request))
+	err := h.service.Update(ctx.Request.Context(), upstreamID, request.Params())
 	if err != nil {
 		h.logger.Error("update upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstreamID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -123,35 +122,4 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.DeleteUpstreamResp{Success: true})
-}
-
-func (h *Handler) createUpstreamParams(request dto.CreateUpstreamReq) upstreamservice.CreateUpstreamParams {
-	return upstreamservice.CreateUpstreamParams{
-		UpstreamParams: h.upstreamParams(request.UpstreamConfig),
-	}
-}
-
-func (h *Handler) updateUpstreamParams(request dto.UpdateUpstreamReq) upstreamservice.UpdateUpstreamParams {
-	return upstreamservice.UpdateUpstreamParams{
-		Version:        request.Version,
-		UpstreamParams: h.upstreamParams(request.UpstreamConfig),
-	}
-}
-
-func (h *Handler) upstreamParams(config dto.UpstreamConfig) upstreamservice.UpstreamParams {
-	return upstreamservice.UpstreamParams{
-		Name:              config.Name,
-		Type:              config.Type,
-		LoadBalancePolicy: config.LoadBalancePolicy,
-		Endpoints: lo.Map(config.Endpoints, func(endpoint dto.UpstreamEndpoint, _ int) upstreamservice.EndpointParams {
-			return upstreamservice.EndpointParams{
-				ID:      endpoint.ID,
-				Address: endpoint.Address,
-				Port:    endpoint.Port,
-				Weight:  endpoint.Weight,
-				Enabled: endpoint.Enabled,
-			}
-		}),
-		HealthCheck: config.HealthCheck,
-	}
 }

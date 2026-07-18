@@ -11,6 +11,7 @@ import (
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
+	upstreamcredentialstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstreamcredential"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -103,6 +104,11 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 	if err := installStatusStorage(gatewayv1.ResourceUpstreams, gatewayv1.ResourceUpstreamsStatus, func() (rest.Storage, rest.Storage, error) {
 		return upstreamstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
+	}
+	if err := installStatusStorage(gatewayv1.ResourceUpstreamCredentials, gatewayv1.ResourceUpstreamCredentialsStatus, func() (rest.Storage, rest.Storage, error) {
+		return upstreamcredentialstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return nil, err
 	}

@@ -15,6 +15,7 @@ import (
 	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	pluginaiproxy "github.com/lgc202/ingate/pkg/plugin/aiproxy"
 	"google.golang.org/protobuf/types/known/anypb"
 )
 
@@ -395,11 +396,11 @@ func (c *compileContext) validateListenerPortOwnership() {
 	}
 }
 
-func (c *compileContext) buildListeners(policies map[listenerKey]listenerPolicyConfig) []*listenerv3.Listener {
+func (c *compileContext) buildListeners(plugins map[listenerKey]listenerPluginConfig) []*listenerv3.Listener {
 	keys := c.sortedListenerKeys()
 	listeners := make([]*listenerv3.Listener, 0, len(keys))
 	for _, key := range keys {
-		httpFilters, err := c.buildHTTPFilters(policies[key])
+		httpFilters, err := c.buildHTTPFilters(plugins[key])
 		if err != nil {
 			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, listenerName(key), ReasonCompileFailed, err.Error())
 			continue
@@ -574,22 +575,31 @@ func inlineStringDataSource(value string) *corev3.DataSource {
 	}
 }
 
-func (c *compileContext) buildHTTPFilters(policies listenerPolicyConfig) ([]*hcmv3.HttpFilter, error) {
-	filters := make([]*hcmv3.HttpFilter, 0, 3)
-	if policies.accessControl != nil {
-		filter, err := buildAccessControlHTTPFilter(policies.accessControl)
+func (c *compileContext) buildHTTPFilters(plugins listenerPluginConfig) ([]*hcmv3.HttpFilter, error) {
+	filters := make([]*hcmv3.HttpFilter, 0, 4)
+	if plugins.accessControl != nil {
+		filter, err := buildAccessControlHTTPFilter(plugins.accessControl)
 		if err != nil {
 			return nil, err
 		}
 		filters = append(filters, filter)
 	}
-	if policies.rateLimit != nil {
-		filter, err := buildRateLimitHTTPFilter(policies.rateLimit)
+	if plugins.rateLimit != nil {
+		filter, err := buildRateLimitHTTPFilter(plugins.rateLimit)
 		if err != nil {
 			return nil, err
 		}
 		filters = append(filters, filter)
 	}
+	aiProxy := plugins.aiProxy
+	if aiProxy == nil {
+		aiProxy = &pluginaiproxy.PluginConfig{Routes: []pluginaiproxy.RouteConfig{}}
+	}
+	filter, err := buildAIProxyHTTPFilter(aiProxy)
+	if err != nil {
+		return nil, err
+	}
+	filters = append(filters, filter)
 
 	routerConfig := &routerv3.Router{}
 	if err := routerConfig.ValidateAll(); err != nil {

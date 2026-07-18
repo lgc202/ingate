@@ -34,10 +34,23 @@ type RouteRuleParams struct {
 	Methods                []string
 	Headers                []HeaderMatchParams
 	Targets                []TargetParams
+	ModelRouting           *ModelRoutingParams
 	RequestHeaderModifier  *HeaderModifierParams
 	ResponseHeaderModifier *HeaderModifierParams
 	Timeout                *RouteTimeoutParams
 	Retry                  *RouteRetryParams
+}
+
+// ModelRoutingParams 是模型路由用例参数
+type ModelRoutingParams struct {
+	UpstreamID string
+	Models     []ModelRouteParams
+}
+
+// ModelRouteParams 是单个客户端模型到模型服务的映射参数
+type ModelRouteParams struct {
+	Model         string
+	UpstreamModel string
 }
 
 // HeaderMatchParams 是 Route header 匹配条件参数

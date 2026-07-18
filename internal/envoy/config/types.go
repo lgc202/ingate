@@ -66,6 +66,7 @@ type ResourceSet struct {
 	Certificates          []*gatewayv1.Certificate
 	Routes                []*gatewayv1.Route
 	Upstreams             []*gatewayv1.Upstream
+	UpstreamCredentials   []*gatewayv1.UpstreamCredential
 	RateLimitPolicies     []*gatewayv1.RateLimitPolicy
 	AccessControlPolicies []*gatewayv1.AccessControlPolicy
 }
@@ -73,7 +74,7 @@ type ResourceSet struct {
 // Generations 返回当前资源集合中所有非 nil 资源的身份和 spec 版本
 func (r ResourceSet) Generations() []ResourceGeneration {
 	result := make([]ResourceGeneration, 0,
-		len(r.Gateways)+len(r.Certificates)+len(r.Routes)+len(r.Upstreams)+
+		len(r.Gateways)+len(r.Certificates)+len(r.Routes)+len(r.Upstreams)+len(r.UpstreamCredentials)+
 			len(r.RateLimitPolicies)+len(r.AccessControlPolicies),
 	)
 	for _, resource := range r.Gateways {
@@ -94,6 +95,11 @@ func (r ResourceSet) Generations() []ResourceGeneration {
 	for _, resource := range r.Upstreams {
 		if resource != nil {
 			result = append(result, newResourceGeneration(gatewayv1.KindUpstream, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.UpstreamCredentials {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindUpstreamCredential, resource.Name, resource.UID, resource.Generation))
 		}
 	}
 	for _, resource := range r.RateLimitPolicies {

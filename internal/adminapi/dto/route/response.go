@@ -51,12 +51,28 @@ func routeRules(rules []resource.RouteRule) []RouteRule {
 			Methods:                rule.Methods,
 			Headers:                headerMatches(rule.Headers),
 			Targets:                targetServices(rule),
+			ModelRouting:           modelRouting(rule.ModelRouting),
 			RequestHeaderModifier:  requestHeaderModifier(rule),
 			ResponseHeaderModifier: responseHeaderModifier(rule),
 			Timeout:                routeTimeout(rule.Timeout),
 			Retry:                  routeRetry(rule.Retry),
 		}
 	})
+}
+
+func modelRouting(source *resource.ModelRouting) *ModelRouting {
+	if source == nil {
+		return nil
+	}
+	return &ModelRouting{
+		UpstreamID: source.UpstreamRef,
+		Models: lo.Map(source.Models, func(model resource.ModelRoute, _ int) ModelRoute {
+			return ModelRoute{
+				Model:         model.Model,
+				UpstreamModel: model.UpstreamModel,
+			}
+		}),
+	}
 }
 
 func parentRefIDs(parentRefs []resource.ParentRef) []string {

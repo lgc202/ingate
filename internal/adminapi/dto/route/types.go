@@ -42,11 +42,24 @@ type RouteRule struct {
 	PathPrefix             string             `json:"pathPrefix"`
 	Methods                []string           `json:"methods,omitempty"`
 	Headers                []HeaderMatchReq   `json:"headers,omitempty"`
-	Targets                []RouteTarget      `json:"targets"`
+	Targets                []RouteTarget      `json:"targets,omitempty"`
+	ModelRouting           *ModelRouting      `json:"modelRouting,omitempty"`
 	RequestHeaderModifier  *HeaderModifierReq `json:"requestHeaderModifier,omitempty"`
 	ResponseHeaderModifier *HeaderModifierReq `json:"responseHeaderModifier,omitempty"`
 	Timeout                *RouteTimeoutReq   `json:"timeout,omitempty"`
 	Retry                  *RouteRetryReq     `json:"retry,omitempty"`
+}
+
+// ModelRouting 是控制台读写的模型路由配置
+type ModelRouting struct {
+	UpstreamID string       `json:"upstreamID"`
+	Models     []ModelRoute `json:"models"`
+}
+
+// ModelRoute 将客户端模型名称映射到上游模型名称
+type ModelRoute struct {
+	Model         string `json:"model"`
+	UpstreamModel string `json:"upstreamModel,omitempty"`
 }
 
 // HeaderMatchReq 是控制台提交的 Header 精确匹配条件
