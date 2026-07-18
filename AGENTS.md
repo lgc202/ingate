@@ -37,6 +37,15 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - data-plane agent
 - Kubernetes operator
 
+## 部署目录
+
+- 安装包和容器内统一使用 `/opt/ingate` 保存组件相关文件，使用 `/data/ingate` 保存运行产生的持久化数据。
+- 各组件的二进制、配置、静态资源和脚本放在 `/opt/ingate/<component>` 下，不把实际运行配置放入 `/data/ingate`。
+- API Server 自身运行证书放在 `/opt/ingate/apiserver/certificates`。用户为 Gateway 创建的 Certificate 仍是声明式资源，由 API Server 持久化到 etcd，不作为本地文件放进该目录。
+- 内置插件放在 `/opt/ingate/plugins`；外部安装或动态缓存的插件放在 `/data/ingate/plugins`。
+- 日志、etcd 数据和 Redis 数据等分别放在 `/data/ingate/<component>` 下，未来的备份统一放在 `/data/ingate/backups`。
+- 这些绝对路径只约束安装包和容器内布局；源码开发可以继续使用 `configs/`、`_output/` 和 `ingate-dev/` 等相对路径。
+
 ## 内置治理插件
 
 - 限流、鉴权、访问控制、AI token 配额这类核心治理能力可以使用数据面插件执行，但控制面产品模型必须保持强类型资源，不让用户直接编辑插件私有 JSON。
@@ -44,7 +53,7 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次内置 Wasm filter，filter 配置携带 Envoy Config Compiler 生成的可执行策略索引，插件通过当前 xDS route name 定位 route/rule 配置。
 - Redis 是系统组件，不建模为 RedisStore 资源；RateLimitPolicy 和未来 TokenQuotaPolicy 自动使用 Envoy bootstrap 中的 `ingate-system-redis`。
 - Redis 扩展由 Ingate 自己维护最小 ABI adapter，现有插件继续使用标准 Proxy-Wasm SDK，生产代码不 import `github.com/higress-group/...`。
-- 内置插件随 Ingate 数据面镜像或安装包发布，默认放在 `/opt/ingate/plugins`；`/var/lib/ingate/plugins` 预留给未来动态下载、缓存或用户安装的外部插件。
+- 内置插件随 Ingate 数据面镜像或安装包发布，默认放在 `/opt/ingate/plugins`；`/data/ingate/plugins` 用于未来动态下载、缓存或用户安装的外部插件。
 - 用户自定义插件仍走普通插件模型，不和内置治理插件混用同一套产品协议。
 
 ## Go 版本

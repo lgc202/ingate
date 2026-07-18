@@ -38,6 +38,8 @@ Gateway 使用固定的 standalone 入口：HTTP `8080`、HTTPS `8443`。多个�
 
 ## 目录
 
+源码仓库使用相对目录组织代码和本地开发文件：
+
 ```text
 cmd/                    服务和 CLI 入口
 configs/                各服务的 YAML 配置
@@ -49,6 +51,48 @@ deploy/all-in-one/      all-in-one 镜像与运行配置
 hack/                   代码生成脚本
 install.sh              本地安装脚本
 ```
+
+安装包和容器内统一使用下面的运行目录：
+
+```text
+/opt/ingate/                    程序、配置和随组件发布的文件
+├── bin/                        安装或容器级入口
+├── configs/kubeconfig         all-in-one 内部共享连接配置
+├── admin-api/
+│   ├── bin/ingate-admin-api
+│   ├── configs/config.yaml
+│   ├── console/
+│   └── scripts/
+├── apiserver/
+│   ├── bin/ingate-apiserver
+│   ├── configs/config.yaml
+│   ├── certificates/           API Server 自身运行证书
+│   └── scripts/
+├── controller/
+│   ├── bin/ingate-controller
+│   ├── configs/config.yaml
+│   └── scripts/
+├── envoy/
+│   ├── bin/envoy
+│   └── configs/bootstrap.yaml
+├── plugins/                    Ingate 内置插件
+├── etcd/                       etcd 二进制和配置
+└── redis/                      Redis 二进制和配置
+
+/data/ingate/                   运行产生的持久化数据
+├── admin-api/logs/
+├── apiserver/logs/
+├── controller/logs/
+├── envoy/logs/
+├── etcd/data/
+├── redis/data/
+├── plugins/                    外部安装或动态缓存的插件
+└── backups/                    未来的备份目录
+```
+
+API Server 自身运行证书属于组件文件，放在 `/opt/ingate/apiserver/certificates`。用户为 Gateway 创建的 Certificate 仍是声明式资源，由 API Server 持久化到 etcd，不作为本地证书文件保存在该目录。
+
+这套绝对路径只约束安装包和容器内布局。源码开发仍可使用 `configs/`、`_output/` 和 `ingate-dev/` 等相对路径。
 
 ## 构建
 
@@ -81,6 +125,6 @@ Gateway TLS:  https://127.0.0.1:8443
 
 all-in-one 内只运行产品必需组件：etcd、Redis、ingate-apiserver、ingate-controller、ingate-admin-api、Envoy 和 Console。测试后端使用独立容器，不进入产品镜像。
 
-本地数据和日志默认保存在 `ingate-dev/`，不提交到 Git。
+本地数据和日志默认保存在 `ingate-dev/`，不提交到 Git；它是开发环境对生产 `/data/ingate` 的本地映射。
 
 all-in-one 首次启动时会把默认服务配置复制到 `ingate-dev/configs/` 并挂载进容器。修改 `logging.level` 会立即生效，其它服务配置需要重启。每个服务也支持通过 `--config` 指定配置文件、通过 `--version` 查看构建版本。
