@@ -130,6 +130,20 @@ RateLimitPolicy 的 Global mode 自动使用系统 Redis，不包含 RedisStore�
 
 Envoy bootstrap 中固定存在 `ingate-system-redis`。Redis 是安装级系统组件，不是声明式资源。
 
+## 运行目录
+
+安装包和容器内使用统一目录语义，不因 systemd、Docker 或 Kubernetes 等部署方式改变：
+
+- `/opt/ingate` 保存组件二进制、配置、静态资源、脚本和其他随组件发布的文件
+- `/data/ingate` 保存日志、etcd、Redis、外部插件和备份等运行产生或需要持久化的数据
+- 各组件使用 `/opt/ingate/<component>/bin` 和 `/opt/ingate/<component>/configs`
+- API Server 自身运行证书放在 `/opt/ingate/apiserver/certificates`
+- 内置插件放在 `/opt/ingate/plugins`，外部安装或动态缓存的插件放在 `/data/ingate/plugins`
+
+API Server 自身运行证书是组件运行文件。用户为 Gateway 配置的 Certificate 是声明式资源，其 PEM 内容由 API Server 持久化到 etcd，再由 Controller 编译并下发给 Envoy，不写入 `/opt/ingate/apiserver/certificates`。
+
+绝对路径只约束安装包和容器内布局。源码开发仍可使用仓库中的 `configs/`、`_output/` 和 `ingate-dev/` 等相对路径。
+
 ## all-in-one
 
 all-in-one 只运行：

@@ -1,27 +1,50 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-DATA_DIR="${INGATE_DATA_DIR:-/var/lib/ingate}"
-LOG_DIR="${INGATE_LOG_DIR:-/var/log/ingate}"
+DATA_DIR="${INGATE_DATA_DIR:-/data/ingate}"
 APISERVER_ADDR="127.0.0.1:18443"
 ETCD_ADDR="127.0.0.1:2379"
 CONTROLLER_INTERNAL_ADDR="127.0.0.1:18080"
-KUBECONFIG_FILE="/etc/ingate/kubeconfig"
-APISERVER_CONFIG="/etc/ingate/configs/ingate-apiserver.yaml"
-CONTROLLER_CONFIG="/etc/ingate/configs/ingate-controller.yaml"
-ADMIN_API_CONFIG="/etc/ingate/configs/ingate-admin-api.yaml"
+KUBECONFIG_FILE="/opt/ingate/configs/kubeconfig"
+APISERVER_CONFIG="/opt/ingate/apiserver/configs/config.yaml"
+APISERVER_CERT_DIR="/opt/ingate/apiserver/certificates"
+CONTROLLER_CONFIG="/opt/ingate/controller/configs/config.yaml"
+ADMIN_API_CONFIG="/opt/ingate/admin-api/configs/config.yaml"
+ENVOY_CONFIG="/opt/ingate/envoy/configs/bootstrap.yaml"
+REDIS_CONFIG="/opt/ingate/redis/configs/redis.conf"
+
+APISERVER_LOG_DIR="$DATA_DIR/apiserver/logs"
+ADMIN_API_LOG_DIR="$DATA_DIR/admin-api/logs"
+CONTROLLER_LOG_DIR="$DATA_DIR/controller/logs"
+ENVOY_LOG_DIR="$DATA_DIR/envoy/logs"
+ETCD_DATA_DIR="$DATA_DIR/etcd/data"
+ETCD_LOG_DIR="$DATA_DIR/etcd/logs"
+REDIS_DATA_DIR="$DATA_DIR/redis/data"
+REDIS_LOG_DIR="$DATA_DIR/redis/logs"
 
 all_pids=()
 critical_pids=()
 
-mkdir -p "$DATA_DIR/etcd" "$DATA_DIR/redis" "$DATA_DIR/certs" "$LOG_DIR"
+mkdir -p \
+	"$APISERVER_CERT_DIR" \
+	"$APISERVER_LOG_DIR" \
+	"$ADMIN_API_LOG_DIR" \
+	"$CONTROLLER_LOG_DIR" \
+	"$ENVOY_LOG_DIR" \
+	"$ETCD_DATA_DIR" \
+	"$ETCD_LOG_DIR" \
+	"$REDIS_DATA_DIR" \
+	"$REDIS_LOG_DIR" \
+	"$DATA_DIR/plugins" \
+	"$DATA_DIR/backups"
 
 start_bg() {
 	local role="$1"
 	local name="$2"
-	shift 2
+	local log_dir="$3"
+	shift 3
 	echo "starting $name"
-	"$@" >"$LOG_DIR/$name.process.log" 2>&1 &
+	"$@" >"$log_dir/$name.process.log" 2>&1 &
 	local pid="$!"
 	all_pids+=("$pid")
 	if [[ "$role" == "critical" ]]; then
@@ -73,29 +96,29 @@ handle_signal() {
 trap stop_all EXIT
 trap handle_signal INT TERM
 
-start_bg critical etcd etcd \
-	--data-dir "$DATA_DIR/etcd" \
+start_bg critical etcd "$ETCD_LOG_DIR" /opt/ingate/etcd/bin/etcd \
+	--data-dir "$ETCD_DATA_DIR" \
 	--listen-client-urls "http://$ETCD_ADDR" \
 	--advertise-client-urls "http://$ETCD_ADDR"
 
 wait_tcp etcd 127.0.0.1 2379
 
-start_bg auxiliary redis redis-server /etc/ingate/redis/redis.conf \
-	--dir "$DATA_DIR/redis"
+start_bg auxiliary redis "$REDIS_LOG_DIR" /opt/ingate/redis/bin/redis-server "$REDIS_CONFIG" \
+	--dir "$REDIS_DATA_DIR"
 
-export INGATE_APISERVER_SERVER_CERT_DIRECTORY="${INGATE_APISERVER_SERVER_CERT_DIRECTORY:-$DATA_DIR/certs}"
+export INGATE_APISERVER_SERVER_CERT_DIRECTORY="${INGATE_APISERVER_SERVER_CERT_DIRECTORY:-$APISERVER_CERT_DIR}"
 export INGATE_CONTROLLER_APISERVER_KUBECONFIG="${INGATE_CONTROLLER_APISERVER_KUBECONFIG:-$KUBECONFIG_FILE}"
 export INGATE_ADMIN_API_APISERVER_KUBECONFIG="${INGATE_ADMIN_API_APISERVER_KUBECONFIG:-$KUBECONFIG_FILE}"
 export INGATE_ADMIN_API_SERVER_LISTEN_ADDRESS="${INGATE_ADMIN_API_SERVER_LISTEN_ADDRESS:-0.0.0.0:8001}"
-export INGATE_ADMIN_API_SERVER_CONSOLE_DIR="${INGATE_ADMIN_API_SERVER_CONSOLE_DIR:-/opt/ingate/console}"
+export INGATE_ADMIN_API_SERVER_CONSOLE_DIR="${INGATE_ADMIN_API_SERVER_CONSOLE_DIR:-/opt/ingate/admin-api/console}"
 export INGATE_APISERVER_LOGGING_STDOUT="${INGATE_APISERVER_LOGGING_STDOUT:-false}"
-export INGATE_APISERVER_LOGGING_FILE_PATH="${INGATE_APISERVER_LOGGING_FILE_PATH:-$LOG_DIR/ingate-apiserver.log}"
+export INGATE_APISERVER_LOGGING_FILE_PATH="${INGATE_APISERVER_LOGGING_FILE_PATH:-$APISERVER_LOG_DIR/ingate-apiserver.log}"
 export INGATE_CONTROLLER_LOGGING_STDOUT="${INGATE_CONTROLLER_LOGGING_STDOUT:-false}"
-export INGATE_CONTROLLER_LOGGING_FILE_PATH="${INGATE_CONTROLLER_LOGGING_FILE_PATH:-$LOG_DIR/ingate-controller.log}"
+export INGATE_CONTROLLER_LOGGING_FILE_PATH="${INGATE_CONTROLLER_LOGGING_FILE_PATH:-$CONTROLLER_LOG_DIR/ingate-controller.log}"
 export INGATE_ADMIN_API_LOGGING_STDOUT="${INGATE_ADMIN_API_LOGGING_STDOUT:-false}"
-export INGATE_ADMIN_API_LOGGING_FILE_PATH="${INGATE_ADMIN_API_LOGGING_FILE_PATH:-$LOG_DIR/ingate-admin-api.log}"
+export INGATE_ADMIN_API_LOGGING_FILE_PATH="${INGATE_ADMIN_API_LOGGING_FILE_PATH:-$ADMIN_API_LOG_DIR/ingate-admin-api.log}"
 
-start_bg critical ingate-apiserver ingate-apiserver \
+start_bg critical ingate-apiserver "$APISERVER_LOG_DIR" /opt/ingate/apiserver/bin/ingate-apiserver \
 	--config "$APISERVER_CONFIG"
 
 wait_tcp ingate-apiserver 127.0.0.1 18443
@@ -120,15 +143,15 @@ users:
   user: {}
 EOF
 
-start_bg critical ingate-controller ingate-controller \
+start_bg critical ingate-controller "$CONTROLLER_LOG_DIR" /opt/ingate/controller/bin/ingate-controller \
 	--config "$CONTROLLER_CONFIG"
 
 wait_http ingate-controller "http://$CONTROLLER_INTERNAL_ADDR/readyz"
 
-start_bg critical envoy envoy \
-	-c /etc/ingate/envoy/bootstrap.yaml
+start_bg critical envoy "$ENVOY_LOG_DIR" /opt/ingate/envoy/bin/envoy \
+	-c "$ENVOY_CONFIG"
 
-start_bg critical ingate-admin-api ingate-admin-api \
+start_bg critical ingate-admin-api "$ADMIN_API_LOG_DIR" /opt/ingate/admin-api/bin/ingate-admin-api \
 	--config "$ADMIN_API_CONFIG"
 
 set +e

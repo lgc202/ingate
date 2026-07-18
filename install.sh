@@ -106,7 +106,19 @@ require_docker() {
 }
 
 ensure_dirs() {
-	mkdir -p "$DATA_DIR/data" "$DATA_DIR/logs" "$DATA_DIR/configs"
+	mkdir -p \
+		"$DATA_DIR/configs" \
+		"$DATA_DIR/certificates" \
+		"$DATA_DIR/data/admin-api/logs" \
+		"$DATA_DIR/data/apiserver/logs" \
+		"$DATA_DIR/data/controller/logs" \
+		"$DATA_DIR/data/envoy/logs" \
+		"$DATA_DIR/data/etcd/data" \
+		"$DATA_DIR/data/etcd/logs" \
+		"$DATA_DIR/data/redis/data" \
+		"$DATA_DIR/data/redis/logs" \
+		"$DATA_DIR/data/plugins" \
+		"$DATA_DIR/data/backups"
 	local config_file
 	for config_file in ingate-apiserver.yaml ingate-admin-api.yaml ingate-controller.yaml; do
 		if [[ ! -f "$DATA_DIR/configs/$config_file" ]]; then
@@ -139,7 +151,7 @@ wait_healthy() {
 			return 0
 			;;
 		unhealthy)
-			echo "Container $CONTAINER_NAME is unhealthy; component logs: $DATA_DIR/logs" >&2
+			echo "Container $CONTAINER_NAME is unhealthy; component logs: $DATA_DIR/data/<component>/logs" >&2
 			docker logs --tail 50 "$CONTAINER_NAME" >&2 || true
 			return 1
 			;;
@@ -151,7 +163,7 @@ wait_healthy() {
 		sleep 1
 	done
 
-	echo "Timed out waiting for container $CONTAINER_NAME to become healthy; component logs: $DATA_DIR/logs" >&2
+	echo "Timed out waiting for container $CONTAINER_NAME to become healthy; component logs: $DATA_DIR/data/<component>/logs" >&2
 	docker logs --tail 50 "$CONTAINER_NAME" >&2 || true
 	return 1
 }
@@ -163,9 +175,11 @@ Ingate is running.
 Console:      http://localhost:$CONSOLE_PORT
 Gateway HTTP: http://localhost:$HTTP_PORT
 Gateway TLS:  https://localhost:$HTTPS_PORT
-Data dir:     $DATA_DIR
-Logs:         $DATA_DIR/logs
+Ingate dir:   $DATA_DIR
+Runtime data: $DATA_DIR/data
+Logs:         $DATA_DIR/data/<component>/logs
 Configs:      $DATA_DIR/configs
+Certificates: $DATA_DIR/certificates
 Stop:         ./install.sh stop --container-name $CONTAINER_NAME
 EOF
 }
@@ -192,9 +206,11 @@ start_container() {
 		-p "$BIND:$CONSOLE_PORT:$CONTAINER_CONSOLE_PORT" \
 		-p "$BIND:$HTTP_PORT:$CONTAINER_HTTP_PORT" \
 		-p "$BIND:$HTTPS_PORT:$CONTAINER_HTTPS_PORT" \
-		-v "$DATA_DIR/data:/var/lib/ingate" \
-		-v "$DATA_DIR/logs:/var/log/ingate" \
-		-v "$DATA_DIR/configs:/etc/ingate/configs" \
+		-v "$DATA_DIR/data:/data/ingate" \
+		-v "$DATA_DIR/configs/ingate-apiserver.yaml:/opt/ingate/apiserver/configs/config.yaml:ro" \
+		-v "$DATA_DIR/configs/ingate-admin-api.yaml:/opt/ingate/admin-api/configs/config.yaml:ro" \
+		-v "$DATA_DIR/configs/ingate-controller.yaml:/opt/ingate/controller/configs/config.yaml:ro" \
+		-v "$DATA_DIR/certificates:/opt/ingate/apiserver/certificates" \
 		"$IMAGE:$TAG" >/dev/null
 
 	wait_healthy
@@ -244,7 +260,11 @@ show_status() {
 	echo "Console:   http://localhost:$CONSOLE_PORT"
 	echo "HTTP:      http://localhost:$HTTP_PORT"
 	echo "HTTPS:     https://localhost:$HTTPS_PORT"
-	echo "Data dir:  $DATA_DIR"
+	echo "Ingate dir: $DATA_DIR"
+	echo "Data:       $DATA_DIR/data"
+	echo "Logs:       $DATA_DIR/data/<component>/logs"
+	echo "Configs:    $DATA_DIR/configs"
+	echo "Certs:      $DATA_DIR/certificates"
 }
 
 show_logs() {
@@ -253,14 +273,17 @@ show_logs() {
 		echo "Container $CONTAINER_NAME does not exist" >&2
 		exit 1
 	fi
-	local log_files=(
-		"$DATA_DIR"/logs/*.process.log
-		"$DATA_DIR/logs/ingate-apiserver.log"
-		"$DATA_DIR/logs/ingate-controller.log"
-		"$DATA_DIR/logs/ingate-admin-api.log"
-	)
-	if [[ ! -e "${log_files[0]}" ]]; then
-		echo "No log files found in $DATA_DIR/logs" >&2
+	local component log_file
+	local log_files=()
+	for component in admin-api apiserver controller envoy etcd redis; do
+		for log_file in "$DATA_DIR/data/$component/logs/"*.log; do
+			if [[ -e "$log_file" ]]; then
+				log_files+=("$log_file")
+			fi
+		done
+	done
+	if [[ ${#log_files[@]} -eq 0 ]]; then
+		echo "No log files found in $DATA_DIR/data/<component>/logs" >&2
 		exit 1
 	fi
 	tail -F "${log_files[@]}"
