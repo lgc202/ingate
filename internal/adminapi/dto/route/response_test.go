@@ -67,6 +67,26 @@ func TestRouteFromResourceShowsDisabledOnlyAfterConfigurationApplied(t *testing.
 	}
 }
 
+func TestModelRoutingUsesOneUpstream(t *testing.T) {
+	source := &resource.ModelRouting{
+		UpstreamRef: "model-upstream",
+		Models: []resource.ModelRoute{
+			{Model: "assistant", UpstreamModel: "gpt-4o-mini"},
+		},
+	}
+	want := &ModelRouting{
+		UpstreamID: "model-upstream",
+		Models: []ModelRoute{
+			{Model: "assistant", UpstreamModel: "gpt-4o-mini"},
+		},
+	}
+
+	got := modelRouting(source)
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Errorf("modelRouting() mismatch (-want +got):\n%s", diff)
+	}
+}
+
 func routeCondition(status metav1.ConditionStatus, reason resource.ConditionReason, generation int64) metav1.Condition {
 	return metav1.Condition{
 		Type:               string(resource.ConditionProgrammed),

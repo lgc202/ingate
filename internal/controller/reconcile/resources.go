@@ -17,6 +17,7 @@ type resourceListers struct {
 	certificates          gatewaylisters.CertificateLister
 	routes                gatewaylisters.RouteLister
 	upstreams             gatewaylisters.UpstreamLister
+	upstreamCredentials   gatewaylisters.UpstreamCredentialLister
 	rateLimitPolicies     gatewaylisters.RateLimitPolicyLister
 	accessControlPolicies gatewaylisters.AccessControlPolicyLister
 }
@@ -38,6 +39,10 @@ func (l resourceListers) build() (config.ResourceSet, error) {
 	if err != nil {
 		return config.ResourceSet{}, fmt.Errorf("list Upstreams: %w", err)
 	}
+	upstreamCredentials, err := l.upstreamCredentials.List(labels.Everything())
+	if err != nil {
+		return config.ResourceSet{}, fmt.Errorf("list UpstreamCredentials: %w", err)
+	}
 	rateLimitPolicies, err := l.rateLimitPolicies.List(labels.Everything())
 	if err != nil {
 		return config.ResourceSet{}, fmt.Errorf("list RateLimitPolicies: %w", err)
@@ -51,6 +56,7 @@ func (l resourceListers) build() (config.ResourceSet, error) {
 		Certificates:          make([]*gatewayv1.Certificate, 0, len(certificates)),
 		Routes:                make([]*gatewayv1.Route, 0, len(routes)),
 		Upstreams:             make([]*gatewayv1.Upstream, 0, len(upstreams)),
+		UpstreamCredentials:   make([]*gatewayv1.UpstreamCredential, 0, len(upstreamCredentials)),
 		RateLimitPolicies:     make([]*gatewayv1.RateLimitPolicy, 0, len(rateLimitPolicies)),
 		AccessControlPolicies: make([]*gatewayv1.AccessControlPolicy, 0, len(accessControlPolicies)),
 	}
@@ -65,6 +71,9 @@ func (l resourceListers) build() (config.ResourceSet, error) {
 	}
 	for _, resource := range upstreams {
 		resources.Upstreams = append(resources.Upstreams, resource.DeepCopy())
+	}
+	for _, resource := range upstreamCredentials {
+		resources.UpstreamCredentials = append(resources.UpstreamCredentials, resource.DeepCopy())
 	}
 	for _, resource := range rateLimitPolicies {
 		resources.RateLimitPolicies = append(resources.RateLimitPolicies, resource.DeepCopy())
@@ -83,6 +92,9 @@ func (l resourceListers) build() (config.ResourceSet, error) {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	slices.SortFunc(resources.Upstreams, func(a, b *gatewayv1.Upstream) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	slices.SortFunc(resources.UpstreamCredentials, func(a, b *gatewayv1.UpstreamCredential) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	slices.SortFunc(resources.RateLimitPolicies, func(a, b *gatewayv1.RateLimitPolicy) int {

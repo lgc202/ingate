@@ -21,9 +21,17 @@ type UpdateUpstreamReq struct {
 type UpstreamConfig struct {
 	Name              string                             `json:"name"`
 	Type              resource.UpstreamType              `json:"type"`
+	Protocol          resource.UpstreamProtocol          `json:"protocol"`
+	TLS               *UpstreamTLS                       `json:"tls,omitempty"`
+	CredentialID      string                             `json:"credentialID,omitempty"`
 	Endpoints         []UpstreamEndpoint                 `json:"endpoints"`
 	LoadBalancePolicy resource.UpstreamLoadBalancePolicy `json:"loadBalancePolicy"`
 	HealthCheck       *resource.UpstreamHealthCheck      `json:"healthCheck,omitempty"`
+}
+
+// UpstreamTLS 是控制台读写服务 HTTPS 配置的产品模型
+type UpstreamTLS struct {
+	ServerName string `json:"serverName"`
 }
 
 // UpstreamEndpoint 是控制台读写的服务端点配置

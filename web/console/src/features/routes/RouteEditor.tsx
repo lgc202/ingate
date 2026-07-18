@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Badge, Button } from '@/components/ui';
-import type { HeaderMatch, HttpMethod, RouteGatewayOption, UpstreamOption, WeightedUpstream } from '@/domain/route';
+import type { HeaderMatch, HttpMethod, ModelRoute, RouteGatewayOption, UpstreamOption, WeightedUpstream } from '@/domain/route';
 import { upstreamTypeLabel } from '@/domain/upstream';
-import type { RouteComposerDraft, RouteDraftValidation } from './composer';
+import type { RouteComposerDraft, RouteDraftValidation, RouteForwardMode } from './composer';
 import {
+  changeRouteForwardMode,
+  createModelRoute,
+  formatModelRoutes,
   formatWeightedUpstreams,
   forwardControlCount,
+  modelRoutePath,
   normalizeHostnames,
   parseHostnames,
   upstreamWeightSum,
@@ -48,6 +52,7 @@ export function RouteEditor({
         </div>
         <div className="route-workbench-meta">
           <Badge tone={draft.enabled ? 'accent' : 'neutral'}>{draft.enabled ? '启用' : '停用'}</Badge>
+          <Badge tone={draft.forwardMode === 'model' ? 'accent' : 'neutral'}>{draft.forwardMode === 'model' ? '模型路由' : '普通转发'}</Badge>
           {draft.preservedRules.length > 0 ? <Badge tone="warning">保留 {draft.preservedRules.length} 条附加规则</Badge> : null}
           <span>{controlCount > 0 ? `${controlCount} 项转发控制` : '使用默认转发行为'}</span>
         </div>
@@ -58,7 +63,7 @@ export function RouteEditor({
           <nav className="route-form-nav" aria-label="路由配置导航">
             <a href="#route-basic">基础信息</a>
             <a href="#route-match">匹配条件</a>
-            <a href="#route-upstreams">目标服务</a>
+            <a href="#route-upstreams">转发目标</a>
             <a href="#route-controls">转发控制</a>
           </nav>
 
@@ -121,17 +126,29 @@ export function RouteEditor({
                   error={validation.errors.ruleName}
                   onChange={(ruleName) => updateDraft({ ruleName })}
                 />
-                <MethodSelector value={draft.methods} onChange={(methods) => updateDraft({ methods })} />
-                <InputField
-                  label="路径前缀"
-                  value={draft.path}
-                  required
-                  maxLength={256}
-                  placeholder="/v1/chat"
-                  info="必须以 / 开头；/ 表示匹配所有路径"
-                  error={validation.errors.path}
-                  onChange={(path) => updateDraft({ path })}
-                />
+                {draft.forwardMode === 'model' ? (
+                  <div className="field">
+                    <FieldLabel label="请求方法" info="模型路由固定接收 POST 请求" />
+                    <div className="readonly-control"><strong>POST</strong><span>模型路由固定方法</span></div>
+                  </div>
+                ) : <MethodSelector value={draft.methods} onChange={(methods) => updateDraft({ methods })} />}
+                {draft.forwardMode === 'model' ? (
+                  <div className="field">
+                    <FieldLabel label="请求路径" info="第一阶段固定提供 OpenAI Chat Completions 接口" />
+                    <div className="readonly-control"><strong>{modelRoutePath}</strong><span>模型路由固定路径</span></div>
+                  </div>
+                ) : (
+                  <InputField
+                    label="路径前缀"
+                    value={draft.path}
+                    required
+                    maxLength={256}
+                    placeholder="/api"
+                    info="必须以 / 开头；/ 表示匹配所有路径"
+                    error={validation.errors.path}
+                    onChange={(path) => updateDraft({ path })}
+                  />
+                )}
                 <HostnameEditor
                   value={draft.hostnames}
                   error={validation.errors.hostnames}
@@ -146,18 +163,38 @@ export function RouteEditor({
             </section>
 
             <section id="route-upstreams" className="detail-card composer-card route-form-section">
-              <SectionTitle number="03" title="目标服务" description="选择请求命中后转发到的目标服务；多个目标服务按权重分流" />
-              <UpstreamSelector
-                upstreams={upstreams}
-                selected={draft.weightedUpstreams}
-                error={validation.errors.upstreams}
-                onChange={(weightedUpstreams) => updateDraft({ weightedUpstreams })}
+              <SectionTitle number="03" title="转发目标" description="选择普通服务，或连接一个模型服务并配置模型别名" />
+              <ForwardModeSelector
+                value={draft.forwardMode}
+                onChange={(forwardMode) => onDraftChange(changeRouteForwardMode(draft, forwardMode))}
               />
+              {draft.forwardMode === 'model' ? (
+                <ModelRouteEditor
+                  upstreams={upstreams}
+                  upstreamID={draft.modelUpstreamID}
+                  value={draft.modelRoutes}
+                  error={validation.errors.models}
+                  onUpstreamChange={(modelUpstreamID) => updateDraft({ modelUpstreamID })}
+                  onChange={(modelRoutes) => updateDraft({ modelRoutes })}
+                />
+              ) : (
+                <UpstreamSelector
+                  upstreams={upstreams}
+                  selected={draft.weightedUpstreams}
+                  error={validation.errors.upstreams}
+                  onChange={(weightedUpstreams) => updateDraft({ weightedUpstreams })}
+                />
+              )}
             </section>
 
             <section id="route-controls" className="detail-card composer-card route-form-section">
               <SectionTitle number="04" title="转发控制" description="按需配置请求头、超时和重试能力" />
-              <RouteForwardControls draft={draft} errors={validation.errors} onChange={updateDraft} />
+              <RouteForwardControls
+                draft={draft}
+                errors={validation.errors}
+                modelRouting={draft.forwardMode === 'model'}
+                onChange={updateDraft}
+              />
             </section>
           </div>
         </div>
@@ -187,12 +224,19 @@ function RouteEditorSummary({
   upstreams: UpstreamOption[];
 }) {
   const errors = Object.values(validation.errors).filter(Boolean);
+  const modelRouting = draft.forwardMode === 'model';
   const items = [
     { label: '入口网关', value: formatGatewayIDs(draft.gatewayIDs, gateways) },
     { label: '匹配请求', value: `${formatMethods(draft.methods)} ${draft.path || '/'}` },
     { label: '域名', value: formatHostnames(draft.hostnames) },
-    { label: '目标服务', value: formatWeightedUpstreams(draft.weightedUpstreams, upstreams) },
-    { label: '总权重', value: String(upstreamWeightSum(draft.weightedUpstreams)) },
+    { label: '转发方式', value: modelRouting ? '模型服务代理' : '普通服务转发' },
+    {
+      label: modelRouting ? '模型映射' : '目标服务',
+      value: modelRouting
+        ? formatModelRoutes(draft.modelUpstreamID, draft.modelRoutes, upstreams)
+        : formatWeightedUpstreams(draft.weightedUpstreams, upstreams),
+    },
+    ...(modelRouting ? [{ label: '模型数量', value: `${draft.modelRoutes.length} 个` }] : [{ label: '总权重', value: String(upstreamWeightSum(draft.weightedUpstreams)) }]),
     { label: '转发控制', value: `${forwardControlCount(draft)} 项` },
     ...(draft.preservedRules.length > 0 ? [{ label: '附加规则', value: `保留 ${draft.preservedRules.length} 条` }] : []),
   ];
@@ -223,6 +267,117 @@ function RouteEditorSummary({
   );
 }
 
+function ForwardModeSelector({
+  value,
+  onChange,
+}: {
+  value: RouteForwardMode;
+  onChange: (value: RouteForwardMode) => void;
+}) {
+  const options: Array<{ value: RouteForwardMode; title: string; description: string }> = [
+    { value: 'service', title: '普通服务转发', description: '选择一个或多个服务，并按权重分配请求' },
+    { value: 'model', title: '模型路由', description: '连接一个大模型服务，并按请求中的 model 改写目标模型名称' },
+  ];
+
+  return (
+    <div className="route-forward-mode" role="radiogroup" aria-label="转发方式">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          role="radio"
+          aria-checked={value === option.value}
+          className={value === option.value ? 'active' : ''}
+          onClick={() => onChange(option.value)}
+        >
+          <span className="route-forward-mode-dot" aria-hidden="true" />
+          <span><strong>{option.title}</strong><small>{option.description}</small></span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ModelRouteEditor({
+  upstreams,
+  upstreamID,
+  value,
+  error,
+  onUpstreamChange,
+  onChange,
+}: {
+  upstreams: UpstreamOption[];
+  upstreamID: string;
+  value: ModelRoute[];
+  error?: string;
+  onUpstreamChange: (value: string) => void;
+  onChange: (value: ModelRoute[]) => void;
+}) {
+  const modelUpstreams = upstreams.filter((upstream) => (
+    upstream.type === 'model' && upstream.protocol === 'OpenAI'
+  ));
+  const selectedAvailable = modelUpstreams.some((upstream) => upstream.id === upstreamID);
+
+  const update = (index: number, patch: Partial<ModelRoute>) => {
+    onChange(value.map((model, currentIndex) => currentIndex === index ? { ...model, ...patch } : model));
+  };
+
+  return (
+    <div className="model-route-editor">
+      <label className="field model-route-service-field">
+        <span>模型服务</span>
+        <select value={upstreamID} onChange={(event) => onUpstreamChange(event.target.value)}>
+          <option value="">请选择模型服务</option>
+          {!selectedAvailable && upstreamID ? <option value={upstreamID}>当前服务不可用</option> : null}
+          {modelUpstreams.map((upstream) => (
+            <option key={upstream.id} value={upstream.id}>{upstream.name}</option>
+          ))}
+        </select>
+        <small className="field-hint">一条模型路由固定连接一个模型服务，下面配置客户端模型别名。</small>
+      </label>
+      <div className="model-route-head">
+        <div>
+          <strong>模型映射</strong>
+          <span>客户端模型名称用于匹配请求；目标模型名称留空时保持原值。</span>
+        </div>
+        <Button variant="soft" type="button" onClick={() => onChange([...value, createModelRoute()])}>添加模型</Button>
+      </div>
+
+      {modelUpstreams.length === 0 ? (
+        <div className="model-route-empty">当前没有可用的大模型服务，请先在“服务”中创建 OpenAI 兼容的大模型服务。</div>
+      ) : null}
+
+      <div className="model-route-grid model-route-grid-head">
+        <span>客户端模型</span>
+        <span>目标模型（可选）</span>
+        <span>操作</span>
+      </div>
+      {value.map((model, index) => (
+        <div className="model-route-grid" key={`${index}-${model.model}`}>
+          <input
+            value={model.model}
+            placeholder="例如 gpt-4o-mini"
+            onChange={(event) => update(index, { model: event.target.value })}
+          />
+          <input
+            value={model.upstreamModel ?? ''}
+            placeholder="留空则与客户端模型相同"
+            onChange={(event) => update(index, { upstreamModel: event.target.value })}
+          />
+          <button
+            className="link-button danger"
+            type="button"
+            disabled={value.length <= 1}
+            title={value.length <= 1 ? '至少保留一个模型' : undefined}
+            onClick={() => onChange(value.filter((_, currentIndex) => currentIndex !== index))}
+          >删除</button>
+        </div>
+      ))}
+      {error ? <div className="form-error">{error}</div> : null}
+    </div>
+  );
+}
+
 function UpstreamSelector({
   upstreams,
   selected,
@@ -236,7 +391,9 @@ function UpstreamSelector({
 }) {
   const [candidateID, setCandidateID] = useState('');
   const selectedIDs = new Set(selected.map((upstream) => upstream.upstreamID));
-  const available = upstreams.filter((upstream) => !selectedIDs.has(upstream.id));
+  const available = upstreams.filter((upstream) => (
+    upstream.protocol === 'HTTP' && !selectedIDs.has(upstream.id)
+  ));
   const selectedCandidateID = available.some((upstream) => upstream.id === candidateID) ? candidateID : '';
 
   const addUpstream = () => {

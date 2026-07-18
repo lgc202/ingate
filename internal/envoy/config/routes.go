@@ -28,6 +28,8 @@ const (
 	defaultRetryOn         = "connect-failure,refused-stream,reset,5xx"
 	runtimeRouteNamePrefix = "ingate-route"
 	virtualHostNamePrefix  = "ingate-vhost"
+	authorizationHeader    = "authorization"
+	contentLengthHeader    = "content-length"
 )
 
 type routeAttachment struct {
@@ -42,6 +44,7 @@ type routeEntry struct {
 	routeID     string
 	ruleName    string
 	pathPrefix  string
+	exactPath   bool
 	method      string
 	headerCount int
 	route       *routev3.Route
@@ -323,17 +326,36 @@ func (c *compileContext) buildRouteEntries(
 	}
 
 	methods, methodsValid := c.routeMethods(routeID, rule)
-	clusters, clustersValid := c.weightedClusters(routeID, rule)
 	requestHeadersToAdd, requestHeadersToRemove, responseHeadersToAdd, responseHeadersToRemove, filtersValid := c.routeFilters(routeID, rule)
 	headers, headersValid := c.routeHeaderMatches(routeID, rule)
-	if !methodsValid || !clustersValid || !filtersValid || !headersValid {
+	if !methodsValid || !filtersValid || !headersValid {
 		return nil
 	}
 
-	action := &routev3.RouteAction{
-		ClusterSpecifier: &routev3.RouteAction_WeightedClusters{
+	action := &routev3.RouteAction{}
+	var aiRoute compiledAIRoute
+	if rule.ModelRouting != nil {
+		var valid bool
+		aiRoute, valid = c.compileAIModels(routeID, rule, methods)
+		if !valid {
+			return nil
+		}
+		action.ClusterSpecifier = &routev3.RouteAction_Cluster{Cluster: aiRoute.clusterName}
+		upstream := c.upstreams[rule.ModelRouting.UpstreamRef]
+		if upstream.Spec.TLS != nil {
+			// TLS serverName 同时作为上游 Host，确保端点使用 IP 时仍能命中模型服务的虚拟主机
+			action.HostRewriteSpecifier = &routev3.RouteAction_HostRewriteLiteral{HostRewriteLiteral: normalizedTLSServerName(upstream.Spec.TLS.ServerName)}
+		} else {
+			action.HostRewriteSpecifier = &routev3.RouteAction_AutoHostRewrite{AutoHostRewrite: wrapperspb.Bool(true)}
+		}
+	} else {
+		clusters, clustersValid := c.weightedClusters(routeID, rule)
+		if !clustersValid {
+			return nil
+		}
+		action.ClusterSpecifier = &routev3.RouteAction_WeightedClusters{
 			WeightedClusters: &routev3.WeightedCluster{Clusters: clusters},
-		},
+		}
 	}
 	if rule.Timeout != nil {
 		if rule.Timeout.RequestMillis < minRouteTimeoutMillis ||
@@ -354,6 +376,9 @@ func (c *compileContext) buildRouteEntries(
 			return nil
 		}
 		action.Timeout = durationpb.New(time.Duration(rule.Timeout.RequestMillis) * time.Millisecond)
+	} else if rule.ModelRouting != nil {
+		// 模型响应可能长时间流式输出，未显式配置时关闭普通 HTTP Route 的总超时
+		action.Timeout = durationpb.New(0)
 	}
 	if rule.Retry != nil {
 		retryPolicy, ok := c.routeRetryPolicy(routeID, rule)
@@ -369,6 +394,10 @@ func (c *compileContext) buildRouteEntries(
 	}
 	entries := make([]routeEntry, 0, len(methodValues))
 	for _, method := range methodValues {
+		routeName := runtimeRouteName(gatewayID, routeID, rule.Name, method)
+		if rule.ModelRouting != nil {
+			routeName = runtimeAIRouteName(gatewayID, routeID, rule.Name, method, aiRoute.configID)
+		}
 		routeHeaders := slices.Clone(headers)
 		if method != "" {
 			routeHeaders = append([]*routev3.HeaderMatcher{
@@ -380,19 +409,23 @@ func (c *compileContext) buildRouteEntries(
 				},
 			}, routeHeaders...)
 		}
+		match := &routev3.RouteMatch{Headers: routeHeaders}
+		if rule.ModelRouting != nil {
+			match.PathSpecifier = &routev3.RouteMatch_Path{Path: pathPrefix}
+		} else {
+			match.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: pathPrefix}
+		}
 		entries = append(entries, routeEntry{
 			gatewayID:   gatewayID,
 			routeID:     routeID,
 			ruleName:    rule.Name,
 			pathPrefix:  pathPrefix,
+			exactPath:   rule.ModelRouting != nil,
 			method:      method,
 			headerCount: len(headers),
 			route: &routev3.Route{
-				Name: runtimeRouteName(gatewayID, routeID, rule.Name, method),
-				Match: &routev3.RouteMatch{
-					PathSpecifier: &routev3.RouteMatch_Prefix{Prefix: pathPrefix},
-					Headers:       routeHeaders,
-				},
+				Name:                    routeName,
+				Match:                   match,
 				Action:                  &routev3.Route_Route{Route: action},
 				RequestHeadersToAdd:     requestHeadersToAdd,
 				RequestHeadersToRemove:  requestHeadersToRemove,
@@ -542,13 +575,25 @@ func (c *compileContext) weightedClusters(
 			continue
 		}
 		seen[ref.Name] = true
-		if _, exists := c.upstreams[ref.Name]; !exists {
+		upstream, exists := c.upstreams[ref.Name]
+		if !exists {
 			c.addDiagnostic(
 				SeverityError,
 				gatewayv1.KindRoute,
 				routeID,
 				ReasonReferenceNotFound,
 				fmt.Sprintf("route %q rule %q references missing upstream %q", routeID, rule.Name, ref.Name),
+			)
+			valid = false
+			continue
+		}
+		if upstream.Spec.Protocol == gatewayv1.UpstreamProtocolOpenAI {
+			c.addDiagnostic(
+				SeverityError,
+				gatewayv1.KindRoute,
+				routeID,
+				ReasonInvalidReference,
+				fmt.Sprintf("route %q rule %q must reference OpenAI upstream %q through modelRouting", routeID, rule.Name, ref.Name),
 			)
 			valid = false
 			continue
@@ -602,6 +647,26 @@ func (c *compileContext) routeFilters(
 				valid = false
 				continue
 			}
+			if rule.ModelRouting != nil {
+				reserved := ""
+				for _, name := range []string{authorizationHeader, contentLengthHeader} {
+					if headerModifierContains(filter.RequestHeaderModifier, name) {
+						reserved = name
+						break
+					}
+				}
+				if reserved != "" {
+					c.addDiagnostic(
+						SeverityError,
+						gatewayv1.KindRoute,
+						routeID,
+						ReasonInvalidSpec,
+						fmt.Sprintf("route %q rule %q cannot modify AI-managed request header %q", routeID, rule.Name, reserved),
+					)
+					valid = false
+					continue
+				}
+			}
 			values, remove, ok := c.headerModifier(routeID, rule.Name, filter.RequestHeaderModifier)
 			requestHeadersToAdd = append(requestHeadersToAdd, values...)
 			requestHeadersToRemove = append(requestHeadersToRemove, remove...)
@@ -634,6 +699,25 @@ func (c *compileContext) routeFilters(
 		}
 	}
 	return requestHeadersToAdd, requestHeadersToRemove, responseHeadersToAdd, responseHeadersToRemove, valid
+}
+
+func headerModifierContains(modifier *gatewayv1.HeaderModifier, name string) bool {
+	for _, header := range modifier.Set {
+		if strings.EqualFold(header.Name, name) {
+			return true
+		}
+	}
+	for _, header := range modifier.Add {
+		if strings.EqualFold(header.Name, name) {
+			return true
+		}
+	}
+	for _, header := range modifier.Remove {
+		if strings.EqualFold(header, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *compileContext) headerModifier(
@@ -775,7 +859,11 @@ func headerValueOption(value gatewayv1.HeaderValue, action corev3.HeaderValueOpt
 }
 
 func routeMatchKey(match *routev3.RouteMatch) string {
-	parts := []string{match.GetPrefix()}
+	path := "prefix=" + match.GetPrefix()
+	if match.GetPath() != "" {
+		path = "exact=" + match.GetPath()
+	}
+	parts := []string{path}
 	for _, header := range match.GetHeaders() {
 		parts = append(parts, strings.ToLower(header.GetName())+"="+header.GetExactMatch())
 	}
@@ -785,6 +873,12 @@ func routeMatchKey(match *routev3.RouteMatch) string {
 func compareRouteEntries(a, b routeEntry) int {
 	if len(a.pathPrefix) != len(b.pathPrefix) {
 		return cmp.Compare(len(b.pathPrefix), len(a.pathPrefix))
+	}
+	if a.exactPath != b.exactPath {
+		if a.exactPath {
+			return -1
+		}
+		return 1
 	}
 	if a.headerCount != b.headerCount {
 		return cmp.Compare(b.headerCount, a.headerCount)
@@ -832,6 +926,10 @@ func runtimeRouteName(gatewayID, routeID, ruleName, method string) string {
 		url.PathEscape(ruleName),
 		url.PathEscape(method),
 	)
+}
+
+func runtimeAIRouteName(gatewayID, routeID, ruleName, method, configID string) string {
+	return runtimeRouteName(gatewayID, routeID, ruleName, method) + "/ai/" + url.PathEscape(configID)
 }
 
 func virtualHostName(key listenerKey, domain string) string {

@@ -22,6 +22,8 @@ type Interface interface {
 	Routes() RouteInformer
 	// Upstreams returns a UpstreamInformer.
 	Upstreams() UpstreamInformer
+	// UpstreamCredentials returns a UpstreamCredentialInformer.
+	UpstreamCredentials() UpstreamCredentialInformer
 }
 
 type version struct {
@@ -63,4 +65,9 @@ func (v *version) Routes() RouteInformer {
 // Upstreams returns a UpstreamInformer.
 func (v *version) Upstreams() UpstreamInformer {
 	return &upstreamInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// UpstreamCredentials returns a UpstreamCredentialInformer.
+func (v *version) UpstreamCredentials() UpstreamCredentialInformer {
+	return &upstreamCredentialInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

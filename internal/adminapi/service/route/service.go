@@ -172,12 +172,29 @@ func (s *Service) validateReferences(ctx context.Context, route *resource.Route)
 	}
 	for _, rule := range route.Spec.Rules {
 		for _, ref := range rule.UpstreamRefs {
-			if _, err := s.upstream.Get(ctx, ref.Name); err != nil {
+			upstream, err := s.upstream.Get(ctx, ref.Name)
+			if err != nil {
 				if apierrors.IsNotFound(err) {
 					return xerrors.NewUserError(fmt.Sprintf("关联服务 %q 不存在", ref.Name))
 				}
 				return err
 			}
+			if upstream.Spec.Protocol == resource.UpstreamProtocolOpenAI {
+				return xerrors.NewUserError(fmt.Sprintf("模型服务 %q 只能用于模型路由", upstream.Spec.DisplayName))
+			}
+		}
+		if rule.ModelRouting == nil {
+			continue
+		}
+		upstream, err := s.upstream.Get(ctx, rule.ModelRouting.UpstreamRef)
+		if err != nil {
+			if apierrors.IsNotFound(err) {
+				return xerrors.NewUserError(fmt.Sprintf("关联模型服务 %q 不存在", rule.ModelRouting.UpstreamRef))
+			}
+			return err
+		}
+		if upstream.Spec.Type != resource.UpstreamTypeModel || upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
+			return xerrors.NewUserError(fmt.Sprintf("关联服务 %q 不是 OpenAI 兼容模型服务", upstream.Spec.DisplayName))
 		}
 	}
 	return nil
@@ -202,6 +219,7 @@ func routeRules(params []RouteRuleParams) []resource.RouteRule {
 			Methods:      item.Methods,
 			Headers:      headerMatches(item.Headers),
 			UpstreamRefs: upstreamRefs(item.Targets),
+			ModelRouting: modelRouting(item.ModelRouting),
 		}
 		if item.RequestHeaderModifier != nil {
 			rule.Filters = append(rule.Filters, resource.RouteFilter{
@@ -227,6 +245,21 @@ func routeRules(params []RouteRuleParams) []resource.RouteRule {
 		rules = append(rules, rule)
 	}
 	return rules
+}
+
+func modelRouting(params *ModelRoutingParams) *resource.ModelRouting {
+	if params == nil {
+		return nil
+	}
+	return &resource.ModelRouting{
+		UpstreamRef: params.UpstreamID,
+		Models: lo.Map(params.Models, func(model ModelRouteParams, _ int) resource.ModelRoute {
+			return resource.ModelRoute{
+				Model:         model.Model,
+				UpstreamModel: model.UpstreamModel,
+			}
+		}),
+	}
 }
 
 func parentRefs(gatewayIDs []string) []resource.ParentRef {

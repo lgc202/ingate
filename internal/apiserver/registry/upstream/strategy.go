@@ -2,6 +2,8 @@ package upstream
 
 import (
 	"context"
+	"net/netip"
+	"strings"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -120,13 +122,41 @@ func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 	if len(upstream.Spec.Endpoints) == 0 {
 		errs = append(errs, field.Required(specPath.Child("endpoints"), "at least one endpoint is required"))
 	}
-	if upstream.Spec.Type != "" && !validUpstreamType(upstream.Spec.Type) {
+	if upstream.Spec.Type == "" {
+		errs = append(errs, field.Required(specPath.Child("type"), "type is required"))
+	} else if !validUpstreamType(upstream.Spec.Type) {
 		errs = append(errs, field.NotSupported(specPath.Child("type"), upstream.Spec.Type, []string{
 			string(resource.UpstreamTypeApplication),
 			string(resource.UpstreamTypeModel),
 			string(resource.UpstreamTypeAgent),
 			string(resource.UpstreamTypeMCP),
 		}))
+	}
+	if upstream.Spec.Protocol == "" {
+		errs = append(errs, field.Required(specPath.Child("protocol"), "protocol is required"))
+	} else if !validUpstreamProtocol(upstream.Spec.Protocol) {
+		errs = append(errs, field.NotSupported(specPath.Child("protocol"), upstream.Spec.Protocol, []string{
+			string(resource.UpstreamProtocolHTTP),
+			string(resource.UpstreamProtocolOpenAI),
+		}))
+	}
+	if upstream.Spec.Type == resource.UpstreamTypeModel && upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
+		errs = append(errs, field.Invalid(specPath.Child("protocol"), upstream.Spec.Protocol, "model upstreams must use the OpenAI protocol"))
+	}
+	if upstream.Spec.Type != "" && upstream.Spec.Type != resource.UpstreamTypeModel && upstream.Spec.Protocol == resource.UpstreamProtocolOpenAI {
+		errs = append(errs, field.Invalid(specPath.Child("protocol"), upstream.Spec.Protocol, "the OpenAI protocol is only supported by model upstreams"))
+	}
+	if upstream.Spec.CredentialRef != "" && upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
+		errs = append(errs, field.Forbidden(specPath.Child("credentialRef"), "credentialRef is currently only supported by OpenAI upstreams"))
+	}
+	if upstream.Spec.CredentialRef != "" && upstream.Spec.TLS == nil {
+		errs = append(errs, field.Required(specPath.Child("tls"), "tls is required when credentialRef is configured"))
+	}
+	if upstream.Spec.TLS != nil {
+		tlsPath := specPath.Child("tls")
+		if !validTLSServerName(upstream.Spec.TLS.ServerName) {
+			errs = append(errs, field.Invalid(tlsPath.Child("serverName"), upstream.Spec.TLS.ServerName, "serverName must be an IP address or DNS hostname"))
+		}
 	}
 	if upstream.Spec.LoadBalancePolicy != "" && !validLoadBalancePolicy(upstream.Spec.LoadBalancePolicy) {
 		errs = append(errs, field.NotSupported(specPath.Child("loadBalancePolicy"), upstream.Spec.LoadBalancePolicy, []string{
@@ -196,4 +226,44 @@ func validLoadBalancePolicy(value resource.UpstreamLoadBalancePolicy) bool {
 	default:
 		return false
 	}
+}
+
+func validUpstreamProtocol(value resource.UpstreamProtocol) bool {
+	switch value {
+	case resource.UpstreamProtocolHTTP, resource.UpstreamProtocolOpenAI:
+		return true
+	default:
+		return false
+	}
+}
+
+func validTLSServerName(value string) bool {
+	if value == "" || strings.TrimSpace(value) != value {
+		return false
+	}
+	if _, err := netip.ParseAddr(value); err == nil {
+		return true
+	}
+	return validHostname(strings.ToLower(value))
+}
+
+func validHostname(hostname string) bool {
+	if hostname == "" || len(hostname) > 253 {
+		return false
+	}
+	for label := range strings.SplitSeq(hostname, ".") {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, r := range label {
+			if r < 'a' || r > 'z' {
+				if r < '0' || r > '9' {
+					if r != '-' {
+						return false
+					}
+				}
+			}
+		}
+	}
+	return true
 }

@@ -16,6 +16,16 @@ const (
 	UpstreamTypeMCP UpstreamType = "mcp"
 )
 
+// UpstreamProtocol 表示 Ingate 与 Upstream 之间使用的应用协议
+type UpstreamProtocol string
+
+const (
+	// UpstreamProtocolHTTP 表示普通 HTTP 服务
+	UpstreamProtocolHTTP UpstreamProtocol = "HTTP"
+	// UpstreamProtocolOpenAI 表示兼容 OpenAI API 的模型服务
+	UpstreamProtocolOpenAI UpstreamProtocol = "OpenAI"
+)
+
 // UpstreamLoadBalancePolicy 表示 Upstream 的负载均衡策略
 type UpstreamLoadBalancePolicy string
 
@@ -56,12 +66,24 @@ type UpstreamSpec struct {
 	DisplayName string `json:"displayName,omitempty"`
 	// Type 保存 Upstream 的业务分类，用于区分普通服务、模型服务和 Agent/MCP 服务
 	Type UpstreamType `json:"type,omitempty"`
+	// Protocol 描述 Ingate 与 Upstream 之间实际使用的应用协议
+	Protocol UpstreamProtocol `json:"protocol,omitempty"`
+	// TLS 描述访问 Upstream 时的 TLS 配置，未配置时使用明文连接
+	TLS *UpstreamTLS `json:"tls,omitempty"`
+	// CredentialRef 引用 Ingate 访问 Upstream 时使用的凭据
+	CredentialRef string `json:"credentialRef,omitempty"`
 	// LoadBalancePolicy 指定多个端点之间的负载均衡策略
 	LoadBalancePolicy UpstreamLoadBalancePolicy `json:"loadBalancePolicy,omitempty"`
 	// HealthCheck 描述 Upstream 端点的主动健康检查配置
 	HealthCheck *UpstreamHealthCheck `json:"healthCheck,omitempty"`
 	// +listType=atomic
 	Endpoints []Endpoint `json:"endpoints"`
+}
+
+// UpstreamTLS 声明访问 Upstream 时使用系统 CA 根证书包校验的 TLS 配置
+type UpstreamTLS struct {
+	// ServerName 用于 TLS SNI 和服务端证书身份校验
+	ServerName string `json:"serverName"`
 }
 
 // Endpoint 声明一个上游端点

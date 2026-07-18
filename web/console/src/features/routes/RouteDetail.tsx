@@ -8,7 +8,7 @@ import { routeDetailItems } from './routeView';
 const detailTabs = [
   { key: 'overview', label: '概览' },
   { key: 'match', label: '匹配规则' },
-  { key: 'upstream', label: '目标服务' },
+  { key: 'upstream', label: '转发目标' },
   { key: 'controls', label: '转发控制' },
 ];
 
@@ -38,7 +38,7 @@ export function RouteDetail({
       subtitle={route.name}
       actions={<Button variant="soft" onClick={onBack}>返回列表</Button>}
     >
-      <Panel title="请求转发配置" subtitle="从网关匹配请求，并按权重转发到目标服务">
+      <Panel title="请求转发配置" subtitle="从网关匹配请求，并转发到普通服务或模型服务">
         <div className="route-detail-tabs">
           <Tabs tabs={detailTabs} active={tab} onChange={setTab} />
         </div>

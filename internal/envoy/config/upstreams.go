@@ -6,13 +6,18 @@ import (
 	"maps"
 	"net/netip"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
+	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	"github.com/lgc202/ingate/internal/pkg/bearer"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"k8s.io/apimachinery/pkg/util/validation"
@@ -21,10 +26,11 @@ import (
 const (
 	defaultUpstreamConnectTimeout = 5 * time.Second
 	systemClusterPrefix           = "ingate-system-"
+	systemCABundlePath            = "/etc/ssl/certs/ca-certificates.crt"
 )
 
 func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.ClusterLoadAssignment) {
-	// Upstream ID 直接作为全局 Cluster identity，Route、CDS 和可选的 EDS 始终使用同一个名字
+	// 普通 Upstream 直接使用资源 ID；OpenAI Upstream 使用运行配置摘要隔离新旧 CDS/EDS 资源
 	ids := slices.Sorted(maps.Keys(c.upstreams))
 	clusters := make([]*clusterv3.Cluster, 0, len(ids))
 	assignments := make([]*endpointv3.ClusterLoadAssignment, 0, len(ids))
@@ -46,6 +52,9 @@ func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.C
 		if !ok {
 			continue
 		}
+		if !c.validUpstreamProtocol(upstream) {
+			continue
+		}
 		if upstream.Spec.HealthCheck != nil && upstream.Spec.HealthCheck.Enabled {
 			c.addDiagnostic(
 				SeverityError,
@@ -57,13 +66,27 @@ func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.C
 		}
 
 		endpoints, usesDNS := c.buildUpstreamEndpoints(upstream)
+		clusterName := id
+		if upstream.Spec.Protocol == gatewayv1.UpstreamProtocolOpenAI {
+			apiKey, credentialValid := c.upstreamAPIKey(upstream)
+			if !credentialValid {
+				continue
+			}
+			clusterName = openAIRuntimeClusterName(upstream, lbPolicy, apiKey)
+		}
 		cluster := &clusterv3.Cluster{
-			Name:           id,
+			Name:           clusterName,
 			ConnectTimeout: durationpb.New(defaultUpstreamConnectTimeout),
 			LbPolicy:       lbPolicy,
 		}
+		transportSocket, validTLS := c.upstreamTransportSocket(upstream)
+		if !validTLS {
+			continue
+		}
+		cluster.TransportSocket = transportSocket
+		c.upstreamClusters[id] = clusterName
 		assignment := &endpointv3.ClusterLoadAssignment{
-			ClusterName: id,
+			ClusterName: clusterName,
 			Endpoints: []*endpointv3.LocalityLbEndpoints{
 				{LbEndpoints: endpoints},
 			},
@@ -76,7 +99,7 @@ func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.C
 			cluster.ClusterDiscoveryType = &clusterv3.Cluster_Type{Type: clusterv3.Cluster_EDS}
 			cluster.EdsClusterConfig = &clusterv3.Cluster_EdsClusterConfig{
 				EdsConfig:   adsConfigSource(),
-				ServiceName: id,
+				ServiceName: clusterName,
 			}
 			assignments = append(assignments, assignment)
 		}
@@ -84,6 +107,231 @@ func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.C
 	}
 
 	return clusters, assignments
+}
+
+func openAIRuntimeClusterName(upstream *gatewayv1.Upstream, lbPolicy clusterv3.Cluster_LbPolicy, apiKey string) string {
+	fields := []string{
+		"protocol", string(upstream.Spec.Protocol),
+		"connectTimeout", defaultUpstreamConnectTimeout.String(),
+		"loadBalancePolicy", lbPolicy.String(),
+		"apiKey", apiKey,
+	}
+	if upstream.Spec.TLS == nil {
+		fields = append(fields, "tls", "disabled")
+	} else {
+		fields = append(fields,
+			"tls", "enabled",
+			"serverName", normalizedTLSServerName(upstream.Spec.TLS.ServerName),
+			"trustedCA", systemCABundlePath,
+			"alpn", "http/1.1",
+		)
+	}
+
+	endpoints := make([]gatewayv1.Endpoint, 0, len(upstream.Spec.Endpoints))
+	for _, endpoint := range upstream.Spec.Endpoints {
+		if endpoint.Enabled {
+			endpoints = append(endpoints, endpoint)
+		}
+	}
+	slices.SortFunc(endpoints, func(a, b gatewayv1.Endpoint) int {
+		if a.Address != b.Address {
+			return cmp.Compare(a.Address, b.Address)
+		}
+		if a.Port != b.Port {
+			return cmp.Compare(a.Port, b.Port)
+		}
+		if a.Weight != b.Weight {
+			return cmp.Compare(a.Weight, b.Weight)
+		}
+		return cmp.Compare(a.Name, b.Name)
+	})
+	for _, endpoint := range endpoints {
+		fields = append(fields,
+			"endpoint",
+			endpoint.Name,
+			endpoint.Address,
+			strconv.Itoa(endpoint.Port),
+			strconv.Itoa(endpoint.Weight),
+		)
+	}
+	return upstream.Name + "/ai/" + runtimeConfigID(fields...)
+}
+
+func (c *compileContext) validUpstreamProtocol(upstream *gatewayv1.Upstream) bool {
+	protocolValid := true
+	if upstream.Spec.Type == "" {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("upstream %q must declare a type", upstream.Name),
+		)
+		protocolValid = false
+	} else {
+		switch upstream.Spec.Type {
+		case gatewayv1.UpstreamTypeApplication, gatewayv1.UpstreamTypeModel, gatewayv1.UpstreamTypeAgent, gatewayv1.UpstreamTypeMCP:
+		default:
+			c.addDiagnostic(
+				SeverityError,
+				gatewayv1.KindUpstream,
+				upstream.Name,
+				ReasonUnsupported,
+				fmt.Sprintf("upstream %q uses unsupported type %q", upstream.Name, upstream.Spec.Type),
+			)
+			protocolValid = false
+		}
+	}
+	switch upstream.Spec.Protocol {
+	case gatewayv1.UpstreamProtocolHTTP:
+	case gatewayv1.UpstreamProtocolOpenAI:
+		if upstream.Spec.Type != gatewayv1.UpstreamTypeModel {
+			c.addDiagnostic(
+				SeverityError,
+				gatewayv1.KindUpstream,
+				upstream.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("upstream %q uses the OpenAI protocol without model type", upstream.Name),
+			)
+			protocolValid = false
+		}
+	default:
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonUnsupported,
+			fmt.Sprintf("upstream %q uses unsupported protocol %q", upstream.Name, upstream.Spec.Protocol),
+		)
+		protocolValid = false
+	}
+	if upstream.Spec.Type == gatewayv1.UpstreamTypeModel && upstream.Spec.Protocol != gatewayv1.UpstreamProtocolOpenAI {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("model upstream %q must use the OpenAI protocol", upstream.Name),
+		)
+		protocolValid = false
+	}
+	if upstream.Spec.CredentialRef != "" && upstream.Spec.Protocol != gatewayv1.UpstreamProtocolOpenAI {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("upstream %q declares a credential outside the OpenAI protocol", upstream.Name),
+		)
+		protocolValid = false
+	}
+	if upstream.Spec.CredentialRef != "" && upstream.Spec.TLS == nil {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("upstream %q must use TLS when a credential is configured", upstream.Name),
+		)
+		protocolValid = false
+	}
+	if upstream.Spec.CredentialRef != "" {
+		credential, exists := c.upstreamCredentials[upstream.Spec.CredentialRef]
+		if !exists {
+			c.addDiagnostic(
+				SeverityError,
+				gatewayv1.KindUpstream,
+				upstream.Name,
+				ReasonReferenceNotFound,
+				fmt.Sprintf("upstream %q references missing credential %q", upstream.Name, upstream.Spec.CredentialRef),
+			)
+			protocolValid = false
+		} else if credential.Spec.Type != gatewayv1.UpstreamCredentialTypeAPIKey || credential.Spec.APIKey == nil || !bearer.ValidToken(credential.Spec.APIKey.Value) {
+			c.addDiagnostic(
+				SeverityError,
+				gatewayv1.KindUpstream,
+				upstream.Name,
+				ReasonInvalidReference,
+				fmt.Sprintf("upstream %q references unusable credential %q", upstream.Name, upstream.Spec.CredentialRef),
+			)
+			protocolValid = false
+		}
+	}
+	return protocolValid
+}
+
+func (c *compileContext) upstreamTransportSocket(upstream *gatewayv1.Upstream) (*corev3.TransportSocket, bool) {
+	if upstream.Spec.TLS == nil {
+		return nil, true
+	}
+
+	serverName := normalizedTLSServerName(upstream.Spec.TLS.ServerName)
+	if !validEndpointAddress(serverName) {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("upstream %q has invalid TLS server name %q", upstream.Name, serverName),
+		)
+		return nil, false
+	}
+
+	sanType := tlsv3.SubjectAltNameMatcher_DNS
+	if isIPAddress(serverName) {
+		sanType = tlsv3.SubjectAltNameMatcher_IP_ADDRESS
+	}
+	tlsContext := &tlsv3.UpstreamTlsContext{
+		CommonTlsContext: &tlsv3.CommonTlsContext{
+			AlpnProtocols: []string{"http/1.1"},
+			ValidationContextType: &tlsv3.CommonTlsContext_ValidationContext{
+				ValidationContext: &tlsv3.CertificateValidationContext{
+					// Envoy 1.36 尚未实现 system_root_certs，显式读取数据面镜像中的系统 CA 根证书包
+					TrustedCa: &corev3.DataSource{
+						Specifier: &corev3.DataSource_Filename{Filename: systemCABundlePath},
+					},
+					MatchTypedSubjectAltNames: []*tlsv3.SubjectAltNameMatcher{
+						{
+							SanType: sanType,
+							Matcher: &matcherv3.StringMatcher{
+								MatchPattern: &matcherv3.StringMatcher_Exact{Exact: serverName},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	if sanType == tlsv3.SubjectAltNameMatcher_DNS {
+		tlsContext.Sni = serverName
+	}
+	if err := tlsContext.ValidateAll(); err != nil {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonCompileFailed,
+			fmt.Sprintf("validate TLS context for upstream %q: %v", upstream.Name, err),
+		)
+		return nil, false
+	}
+	typedTLSContext, err := anypb.New(tlsContext)
+	if err != nil {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonCompileFailed,
+			fmt.Sprintf("encode TLS context for upstream %q: %v", upstream.Name, err),
+		)
+		return nil, false
+	}
+	return &corev3.TransportSocket{
+		Name: tlsTransportSocketName,
+		ConfigType: &corev3.TransportSocket_TypedConfig{
+			TypedConfig: typedTLSContext,
+		},
+	}, true
 }
 
 func (c *compileContext) upstreamLBPolicy(upstream *gatewayv1.Upstream) (clusterv3.Cluster_LbPolicy, bool) {
@@ -219,6 +467,13 @@ func validEndpointAddress(address string) bool {
 func isIPAddress(address string) bool {
 	_, err := netip.ParseAddr(address)
 	return err == nil
+}
+
+func normalizedTLSServerName(serverName string) string {
+	if isIPAddress(serverName) {
+		return serverName
+	}
+	return strings.ToLower(serverName)
 }
 
 func socketAddress(address string, port int) *corev3.Address {

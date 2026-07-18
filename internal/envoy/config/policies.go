@@ -31,11 +31,6 @@ const (
 	maxPolicyResponseStatusCode = 599
 )
 
-type listenerPolicyConfig struct {
-	accessControl *pluginacl.PluginConfig
-	rateLimit     *pluginratelimit.PluginConfig
-}
-
 type compiledAccessControlPolicy struct {
 	policy  pluginacl.Policy
 	targets []gatewayv1.PolicyTargetRef
@@ -52,11 +47,11 @@ type policyRouteKey struct {
 	routeID     string
 }
 
-func (c *compileContext) buildPolicyConfigs() map[listenerKey]listenerPolicyConfig {
+func (c *compileContext) buildPolicyConfigs() map[listenerKey]listenerPluginConfig {
 	// Compiler 已经把 Gateway/Route 应用范围展开成最终执行清单，Wasm 不再理解用户层绑定模型
 	accessControlPolicies := c.compileAccessControlPolicies()
 	rateLimitPolicies := c.compileRateLimitPolicies()
-	result := make(map[listenerKey]listenerPolicyConfig)
+	result := make(map[listenerKey]listenerPluginConfig)
 
 	routeKeySet := make(map[policyRouteKey]bool)
 	for _, attachment := range c.routeAttachments {

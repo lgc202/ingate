@@ -27,6 +27,7 @@ COPY deploy/all-in-one/entrypoint.sh /opt/ingate/bin/ingate-all-in-one
 COPY web/console/dist /opt/ingate/admin-api/console
 COPY _output/plugins/ratelimit.wasm /opt/ingate/plugins/ratelimit.wasm
 COPY _output/plugins/acl.wasm /opt/ingate/plugins/acl.wasm
+COPY _output/plugins/ai-proxy.wasm /opt/ingate/plugins/ai-proxy.wasm
 
 RUN mkdir -p /opt/ingate/apiserver/certificates /opt/ingate/configs \
 	&& chmod +x /opt/ingate/bin/ingate-all-in-one

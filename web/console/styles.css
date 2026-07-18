@@ -847,7 +847,25 @@ body { overflow-x: hidden; }
 }
 
 .service-table {
-  min-width: 860px;
+  min-width: 1080px;
+}
+
+.credential-table {
+  min-width: 760px;
+}
+
+.credential-secret-card {
+  min-height: 118px;
+  border: 1px solid #dfe4ec;
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(47, 95, 199, 0.06), transparent 52%),
+    #fafbfe;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 14px;
 }
 
 .policy-table {
@@ -1701,6 +1719,205 @@ body { overflow-x: hidden; }
   gap: 14px;
 }
 
+.upstream-connection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+  align-items: start;
+}
+
+.readonly-control {
+  min-height: 46px;
+  border: 1px solid #dce2ec;
+  border-radius: 7px;
+  background: #f8faff;
+  padding: 8px 11px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+}
+
+.readonly-control strong {
+  color: #243552;
+  font-size: 0.88rem;
+}
+
+.readonly-control span,
+.field-hint {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.connection-toggle-row {
+  min-height: 46px;
+  border: 1px solid #dce2ec;
+  border-radius: 7px;
+  background: #fafbfe;
+  padding: 9px 11px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.connection-toggle-row input {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.connection-toggle-row > span {
+  display: grid;
+  gap: 2px;
+  color: var(--text);
+}
+
+.connection-toggle-row small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.route-forward-mode {
+  margin-bottom: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.route-forward-mode > button {
+  appearance: none;
+  min-width: 0;
+  min-height: 74px;
+  border: 1px solid #dce2ec;
+  border-radius: 8px;
+  background: #fafbfe;
+  color: var(--text);
+  padding: 13px 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.route-forward-mode > button:hover {
+  border-color: #bdcbe5;
+  background: #f7f9ff;
+}
+
+.route-forward-mode > button.active {
+  border-color: rgba(47, 95, 199, 0.45);
+  background: linear-gradient(90deg, rgba(47, 95, 199, 0.09), rgba(47, 95, 199, 0.02));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.route-forward-mode-dot {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  border: 2px solid #aeb8ca;
+  border-radius: 50%;
+  background: #fff;
+  flex: 0 0 auto;
+}
+
+.route-forward-mode > button.active .route-forward-mode-dot {
+  border: 5px solid var(--accent);
+}
+
+.route-forward-mode > button > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.route-forward-mode strong {
+  font-size: 0.9rem;
+}
+
+.route-forward-mode small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.model-route-editor {
+  overflow-x: auto;
+  border: 1px solid #dfe4ec;
+  border-radius: 9px;
+  background: #fbfcfe;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+}
+
+.model-route-head {
+  min-width: 620px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.model-route-head > div {
+  display: grid;
+  gap: 4px;
+}
+
+.model-route-head span,
+.model-route-empty {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.model-route-empty {
+  min-width: 620px;
+  border: 1px dashed #cbd5e5;
+  border-radius: 6px;
+  background: #fff;
+  padding: 10px 11px;
+}
+
+.model-route-grid {
+  min-width: 620px;
+  display: grid;
+  grid-template-columns: minmax(190px, 0.9fr) minmax(240px, 1.1fr) 66px;
+  gap: 10px;
+  align-items: center;
+}
+
+.model-route-service-field {
+  max-width: 520px;
+}
+
+.model-route-grid-head {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.model-route-grid input,
+.model-route-grid select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #dce1ea;
+  border-radius: 6px;
+  background: #fff;
+  padding: 0 10px;
+  color: var(--text);
+  outline: 0;
+}
+
+.model-route-grid input:focus,
+.model-route-grid select:focus {
+  border-color: rgba(45, 94, 210, 0.45);
+  box-shadow: 0 0 0 3px rgba(45, 94, 210, 0.08);
+}
+
 .upstream-picker .inline-input select {
   min-width: 0;
   flex: 1;
@@ -1929,6 +2146,25 @@ body { overflow-x: hidden; }
 .route-policy-capability-list {
   display: grid;
   gap: 10px;
+}
+
+.route-control-note {
+  border: 1px dashed #cbd5e5;
+  border-radius: 8px;
+  background: #f8faff;
+  padding: 13px 15px;
+  display: grid;
+  gap: 4px;
+}
+
+.route-control-note strong {
+  font-size: 0.86rem;
+}
+
+.route-control-note span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.5;
 }
 
 .route-policy-capability {
@@ -2583,7 +2819,7 @@ body { overflow-x: hidden; }
   .main { padding: 16px; }
   .topbar { align-items: stretch; flex-direction: column; }
   .topbar > .toolbar { justify-content: flex-start; }
-  .field-grid, .gateway-query-grid, .policy-param-grid, .policy-editor-grid, .gateway-listener-editor, .certificate-upload-grid, .certificate-pem-grid { grid-template-columns: 1fr; }
+  .field-grid, .gateway-query-grid, .policy-param-grid, .policy-editor-grid, .gateway-listener-editor, .certificate-upload-grid, .certificate-pem-grid, .upstream-connection-grid, .route-forward-mode { grid-template-columns: 1fr; }
   .route-workbench-top { align-items: flex-start; flex-direction: column; }
   .route-editor-summary { grid-template-columns: 1fr; }
   .route-form-layout { grid-template-columns: 1fr; }
@@ -2608,6 +2844,7 @@ body { overflow-x: hidden; }
   .upstream-row { grid-template-columns: 1fr; align-items: stretch; }
   .upstream-endpoint-editor { overflow-x: auto; padding-bottom: 4px; }
   .upstream-endpoint-grid { min-width: 640px; }
+  .credential-secret-card { grid-template-columns: 1fr; align-items: start; }
   .header-match-row { grid-template-columns: 1fr; }
   .header-match-row .link-button { justify-self: start; }
   .route-workbench-actions { align-items: stretch; flex-direction: column; }

@@ -2,6 +2,7 @@ import type {
   HeaderMatch,
   HeaderModifier,
   HttpMethod,
+  ModelRoute,
   RouteMutationPayload,
   RouteResource,
   RouteRetry,
@@ -22,6 +23,9 @@ const minRetryAttempts = 1;
 const maxRetryAttempts = 5;
 const minPerTryTimeoutMillis = 100;
 const maxPerTryTimeoutMillis = 60000;
+export const modelRoutePath = '/v1/chat/completions';
+
+export type RouteForwardMode = 'service' | 'model';
 
 export interface RouteComposerDraft {
   id?: string;
@@ -33,7 +37,10 @@ export interface RouteComposerDraft {
   gatewayIDs: string[];
   hostnames: string[];
   headers: HeaderMatch[];
+  forwardMode: RouteForwardMode;
   weightedUpstreams: WeightedUpstream[];
+  modelUpstreamID: string;
+  modelRoutes: ModelRoute[];
   enabled: boolean;
   requestHeaderModifier?: HeaderModifier;
   responseHeaderModifier?: HeaderModifier;
@@ -50,6 +57,7 @@ export interface RouteDraftErrors {
   hostnames?: string;
   headers?: string;
   upstreams?: string;
+  models?: string;
   requestHeaderModifier?: string;
   responseHeaderModifier?: string;
   timeout?: string;
@@ -64,18 +72,22 @@ export interface RouteDraftValidation {
 
 export function createRouteComposerDraft(route?: RouteResource): RouteComposerDraft {
   const rule = route?.rules[0];
+  const forwardMode: RouteForwardMode = rule?.modelRouting ? 'model' : 'service';
 
   return {
     id: route?.id,
     version: route?.version,
     name: route?.name ?? '',
     ruleName: rule?.name ?? 'main',
-    methods: rule?.methods ?? [],
-    path: rule?.pathPrefix ?? '/',
+    methods: forwardMode === 'model' ? ['POST'] : rule?.methods ?? [],
+    path: forwardMode === 'model' ? modelRoutePath : rule?.pathPrefix ?? '/',
     gatewayIDs: route?.gatewayIDs ?? [],
     hostnames: route?.hostnames ?? [],
     headers: rule?.headers ?? [],
+    forwardMode,
     weightedUpstreams: rule?.upstreams ?? [],
+    modelUpstreamID: rule?.modelRouting?.upstreamID ?? '',
+    modelRoutes: rule?.modelRouting?.models.map((model) => ({ ...model })) ?? [createModelRoute()],
     enabled: route?.enabled ?? true,
     requestHeaderModifier: cloneHeaderModifier(rule?.requestHeaderModifier),
     responseHeaderModifier: cloneHeaderModifier(rule?.responseHeaderModifier),
@@ -109,11 +121,23 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteDraf
   }
 
   errors.headers = headerMatchesError(draft.headers) || undefined;
-  errors.upstreams = weightedUpstreamsError(draft.weightedUpstreams) || undefined;
-  errors.requestHeaderModifier = headerModifierError(draft.requestHeaderModifier) || undefined;
+  if (draft.forwardMode === 'model') {
+    errors.models = modelRoutesError(draft.modelUpstreamID, draft.modelRoutes) || undefined;
+    if (draft.path !== modelRoutePath) {
+      errors.path = '模型路由路径必须为 ' + modelRoutePath;
+    }
+  } else {
+    errors.upstreams = weightedUpstreamsError(draft.weightedUpstreams) || undefined;
+  }
+  errors.requestHeaderModifier = requestHeaderModifierError(
+    draft.requestHeaderModifier,
+    draft.forwardMode === 'model',
+  ) || undefined;
   errors.responseHeaderModifier = headerModifierError(draft.responseHeaderModifier) || undefined;
   errors.timeout = timeoutError(draft.timeout) || undefined;
-  errors.retry = retryError(draft.retry, draft.timeout?.requestMillis ?? defaultRouteTimeoutMillis) || undefined;
+  errors.retry = draft.forwardMode === 'model'
+    ? draft.retry ? '模型路由暂不支持失败重试' : undefined
+    : retryError(draft.retry, draft.timeout?.requestMillis ?? defaultRouteTimeoutMillis) || undefined;
 
   const valid = Object.values(errors).every((error) => !error);
   return {
@@ -124,6 +148,15 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteDraf
 }
 
 export function buildRouteMutationPayload(draft: RouteComposerDraft): RouteMutationPayload {
+  const modelRouting = draft.forwardMode === 'model'
+    ? {
+      upstreamID: draft.modelUpstreamID.trim(),
+      models: draft.modelRoutes.map((model) => ({
+        model: model.model.trim(),
+        upstreamModel: model.upstreamModel?.trim() || undefined,
+      })),
+    }
+    : undefined;
   return {
     id: draft.id,
     version: draft.version,
@@ -133,22 +166,48 @@ export function buildRouteMutationPayload(draft: RouteComposerDraft): RouteMutat
     enabled: draft.enabled,
     rules: [{
       name: draft.ruleName.trim(),
-      pathPrefix: draft.path.trim(),
-      methods: draft.methods,
+      pathPrefix: draft.forwardMode === 'model' ? modelRoutePath : draft.path.trim() || '/',
+      methods: draft.forwardMode === 'model' ? ['POST'] : draft.methods,
       headers: normalizeHeaderMatches(draft.headers),
-      targets: draft.weightedUpstreams.map((upstream) => ({
+      targets: draft.forwardMode === 'service' ? draft.weightedUpstreams.map((upstream) => ({
         upstreamID: upstream.upstreamID.trim(),
         weight: normalizeUpstreamWeight(upstream.weight),
-      })),
+      })) : undefined,
+      modelRouting,
       requestHeaderModifier: normalizeHeaderModifier(draft.requestHeaderModifier),
       responseHeaderModifier: normalizeHeaderModifier(draft.responseHeaderModifier),
       timeout: draft.timeout ? { requestMillis: Number(draft.timeout.requestMillis) } : undefined,
-      retry: draft.retry ? {
+      retry: draft.forwardMode === 'service' && draft.retry ? {
         attempts: Number(draft.retry.attempts),
         perTryTimeoutMillis: Number(draft.retry.perTryTimeoutMillis),
       } : undefined,
     }, ...draft.preservedRules.map(preservedRulePayload)],
   };
+}
+
+export function changeRouteForwardMode(draft: RouteComposerDraft, forwardMode: RouteForwardMode): RouteComposerDraft {
+  if (forwardMode === draft.forwardMode) {
+    return draft;
+  }
+  if (forwardMode === 'model') {
+    return {
+      ...draft,
+      forwardMode,
+      methods: ['POST'],
+      path: modelRoutePath,
+      retry: undefined,
+      modelRoutes: draft.modelRoutes.length > 0 ? draft.modelRoutes : [createModelRoute()],
+    };
+  }
+  return {
+    ...draft,
+    forwardMode,
+    methods: [],
+  };
+}
+
+export function createModelRoute(): ModelRoute {
+  return { model: '', upstreamModel: '' };
 }
 
 export function formatWeightedUpstreams(upstreams: WeightedUpstream[], options: UpstreamOption[] = []): string {
@@ -161,6 +220,21 @@ export function formatWeightedUpstreams(upstreams: WeightedUpstream[], options: 
     return `${firstUpstreamName} (${upstreams[0].weight})`;
   }
   return `${firstUpstreamName} 等 ${upstreams.length} 个`;
+}
+
+export function formatModelRoutes(upstreamID: string, models: ModelRoute[], options: UpstreamOption[] = []): string {
+  if (models.length === 0) {
+    return '-';
+  }
+  const first = models[0];
+  const service = upstreamName(upstreamID, options);
+  const clientModel = first.model || '未命名模型';
+  const upstreamModel = first.upstreamModel || clientModel;
+  const firstMapping = `${clientModel} → ${upstreamModel}`;
+  if (models.length === 1) {
+    return `${service} · ${firstMapping}`;
+  }
+  return `${service} · ${firstMapping} 等 ${models.length} 个模型`;
 }
 
 export function upstreamWeightSum(upstreams: WeightedUpstream[]): number {
@@ -204,6 +278,10 @@ function cloneRouteRule(rule: RouteRule): RouteRule {
     methods: [...rule.methods],
     headers: rule.headers.map((header) => ({ ...header })),
     upstreams: rule.upstreams.map((upstream) => ({ ...upstream })),
+    modelRouting: rule.modelRouting ? {
+      upstreamID: rule.modelRouting.upstreamID,
+      models: rule.modelRouting.models.map((model) => ({ ...model })),
+    } : undefined,
     requestHeaderModifier: cloneHeaderModifier(rule.requestHeaderModifier),
     responseHeaderModifier: cloneHeaderModifier(rule.responseHeaderModifier),
     timeout: rule.timeout ? { ...rule.timeout } : undefined,
@@ -218,11 +296,33 @@ function preservedRulePayload(rule: RouteRule): RouteRulePayload {
     methods: rule.methods,
     headers: rule.headers,
     targets: rule.upstreams,
+    modelRouting: rule.modelRouting,
     requestHeaderModifier: rule.requestHeaderModifier,
     responseHeaderModifier: rule.responseHeaderModifier,
     timeout: rule.timeout,
     retry: rule.retry,
   };
+}
+
+function modelRoutesError(upstreamID: string, models: ModelRoute[]): string {
+  if (!upstreamID.trim()) {
+    return '请选择模型服务';
+  }
+  if (models.length === 0) {
+    return '至少配置一个模型';
+  }
+  const seenModels = new Set<string>();
+  for (const [index, model] of models.entries()) {
+    const clientModel = model.model.trim();
+    if (!clientModel) {
+      return `第 ${index + 1} 个模型缺少客户端模型名称`;
+    }
+    if (seenModels.has(clientModel)) {
+      return `客户端模型名称不能重复：${clientModel}`;
+    }
+    seenModels.add(clientModel);
+  }
+  return '';
 }
 
 function normalizeHeaderModifier(modifier: HeaderModifier | undefined): HeaderModifier | undefined {
@@ -285,6 +385,22 @@ function headerModifierError(modifier: HeaderModifier | undefined): string {
   }
   if (modifier.remove.some((name) => !name.trim())) {
     return '删除请求头的名称不能为空';
+  }
+  return '';
+}
+
+function requestHeaderModifierError(modifier: HeaderModifier | undefined, modelRouting: boolean): string {
+  const error = headerModifierError(modifier);
+  if (error || !modifier) {
+    return error;
+  }
+
+  const names = [
+    ...modifier.set.map((header) => header.name),
+    ...modifier.remove,
+  ].map((name) => name.trim().toLowerCase());
+  if (modelRouting && (names.includes('authorization') || names.includes('content-length'))) {
+    return '模型路由的认证和请求体相关 Header 由系统管理';
   }
   return '';
 }

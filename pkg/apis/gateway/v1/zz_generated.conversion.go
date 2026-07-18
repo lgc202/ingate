@@ -23,6 +23,16 @@ func init() {
 // RegisterConversions adds conversion functions to the given scheme.
 // Public to allow building arbitrary schemes.
 func RegisterConversions(s *runtime.Scheme) error {
+	if err := s.AddGeneratedConversionFunc((*APIKeyCredential)(nil), (*gateway.APIKeyCredential)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_APIKeyCredential_To_gateway_APIKeyCredential(a.(*APIKeyCredential), b.(*gateway.APIKeyCredential), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.APIKeyCredential)(nil), (*APIKeyCredential)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_APIKeyCredential_To_v1_APIKeyCredential(a.(*gateway.APIKeyCredential), b.(*APIKeyCredential), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*AccessControlCondition)(nil), (*gateway.AccessControlCondition)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_AccessControlCondition_To_gateway_AccessControlCondition(a.(*AccessControlCondition), b.(*gateway.AccessControlCondition), scope)
 	}); err != nil {
@@ -200,6 +210,26 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.Listener)(nil), (*Listener)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_Listener_To_v1_Listener(a.(*gateway.Listener), b.(*Listener), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*ModelRoute)(nil), (*gateway.ModelRoute)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_ModelRoute_To_gateway_ModelRoute(a.(*ModelRoute), b.(*gateway.ModelRoute), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.ModelRoute)(nil), (*ModelRoute)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_ModelRoute_To_v1_ModelRoute(a.(*gateway.ModelRoute), b.(*ModelRoute), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*ModelRouting)(nil), (*gateway.ModelRouting)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_ModelRouting_To_gateway_ModelRouting(a.(*ModelRouting), b.(*gateway.ModelRouting), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.ModelRouting)(nil), (*ModelRouting)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_ModelRouting_To_v1_ModelRouting(a.(*gateway.ModelRouting), b.(*ModelRouting), scope)
 	}); err != nil {
 		return err
 	}
@@ -413,6 +443,36 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*UpstreamCredential)(nil), (*gateway.UpstreamCredential)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_UpstreamCredential_To_gateway_UpstreamCredential(a.(*UpstreamCredential), b.(*gateway.UpstreamCredential), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.UpstreamCredential)(nil), (*UpstreamCredential)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_UpstreamCredential_To_v1_UpstreamCredential(a.(*gateway.UpstreamCredential), b.(*UpstreamCredential), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*UpstreamCredentialList)(nil), (*gateway.UpstreamCredentialList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_UpstreamCredentialList_To_gateway_UpstreamCredentialList(a.(*UpstreamCredentialList), b.(*gateway.UpstreamCredentialList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.UpstreamCredentialList)(nil), (*UpstreamCredentialList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_UpstreamCredentialList_To_v1_UpstreamCredentialList(a.(*gateway.UpstreamCredentialList), b.(*UpstreamCredentialList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*UpstreamCredentialSpec)(nil), (*gateway.UpstreamCredentialSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_UpstreamCredentialSpec_To_gateway_UpstreamCredentialSpec(a.(*UpstreamCredentialSpec), b.(*gateway.UpstreamCredentialSpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.UpstreamCredentialSpec)(nil), (*UpstreamCredentialSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_UpstreamCredentialSpec_To_v1_UpstreamCredentialSpec(a.(*gateway.UpstreamCredentialSpec), b.(*UpstreamCredentialSpec), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*UpstreamHealthCheck)(nil), (*gateway.UpstreamHealthCheck)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_UpstreamHealthCheck_To_gateway_UpstreamHealthCheck(a.(*UpstreamHealthCheck), b.(*gateway.UpstreamHealthCheck), scope)
 	}); err != nil {
@@ -453,7 +513,37 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*UpstreamTLS)(nil), (*gateway.UpstreamTLS)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_UpstreamTLS_To_gateway_UpstreamTLS(a.(*UpstreamTLS), b.(*gateway.UpstreamTLS), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.UpstreamTLS)(nil), (*UpstreamTLS)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_UpstreamTLS_To_v1_UpstreamTLS(a.(*gateway.UpstreamTLS), b.(*UpstreamTLS), scope)
+	}); err != nil {
+		return err
+	}
 	return nil
+}
+
+func autoConvert_v1_APIKeyCredential_To_gateway_APIKeyCredential(in *APIKeyCredential, out *gateway.APIKeyCredential, s conversion.Scope) error {
+	out.Value = in.Value
+	return nil
+}
+
+// Convert_v1_APIKeyCredential_To_gateway_APIKeyCredential is an autogenerated conversion function.
+func Convert_v1_APIKeyCredential_To_gateway_APIKeyCredential(in *APIKeyCredential, out *gateway.APIKeyCredential, s conversion.Scope) error {
+	return autoConvert_v1_APIKeyCredential_To_gateway_APIKeyCredential(in, out, s)
+}
+
+func autoConvert_gateway_APIKeyCredential_To_v1_APIKeyCredential(in *gateway.APIKeyCredential, out *APIKeyCredential, s conversion.Scope) error {
+	out.Value = in.Value
+	return nil
+}
+
+// Convert_gateway_APIKeyCredential_To_v1_APIKeyCredential is an autogenerated conversion function.
+func Convert_gateway_APIKeyCredential_To_v1_APIKeyCredential(in *gateway.APIKeyCredential, out *APIKeyCredential, s conversion.Scope) error {
+	return autoConvert_gateway_APIKeyCredential_To_v1_APIKeyCredential(in, out, s)
 }
 
 func autoConvert_v1_AccessControlCondition_To_gateway_AccessControlCondition(in *AccessControlCondition, out *gateway.AccessControlCondition, s conversion.Scope) error {
@@ -922,6 +1012,50 @@ func Convert_gateway_Listener_To_v1_Listener(in *gateway.Listener, out *Listener
 	return autoConvert_gateway_Listener_To_v1_Listener(in, out, s)
 }
 
+func autoConvert_v1_ModelRoute_To_gateway_ModelRoute(in *ModelRoute, out *gateway.ModelRoute, s conversion.Scope) error {
+	out.Model = in.Model
+	out.UpstreamModel = in.UpstreamModel
+	return nil
+}
+
+// Convert_v1_ModelRoute_To_gateway_ModelRoute is an autogenerated conversion function.
+func Convert_v1_ModelRoute_To_gateway_ModelRoute(in *ModelRoute, out *gateway.ModelRoute, s conversion.Scope) error {
+	return autoConvert_v1_ModelRoute_To_gateway_ModelRoute(in, out, s)
+}
+
+func autoConvert_gateway_ModelRoute_To_v1_ModelRoute(in *gateway.ModelRoute, out *ModelRoute, s conversion.Scope) error {
+	out.Model = in.Model
+	out.UpstreamModel = in.UpstreamModel
+	return nil
+}
+
+// Convert_gateway_ModelRoute_To_v1_ModelRoute is an autogenerated conversion function.
+func Convert_gateway_ModelRoute_To_v1_ModelRoute(in *gateway.ModelRoute, out *ModelRoute, s conversion.Scope) error {
+	return autoConvert_gateway_ModelRoute_To_v1_ModelRoute(in, out, s)
+}
+
+func autoConvert_v1_ModelRouting_To_gateway_ModelRouting(in *ModelRouting, out *gateway.ModelRouting, s conversion.Scope) error {
+	out.UpstreamRef = in.UpstreamRef
+	out.Models = *(*[]gateway.ModelRoute)(unsafe.Pointer(&in.Models))
+	return nil
+}
+
+// Convert_v1_ModelRouting_To_gateway_ModelRouting is an autogenerated conversion function.
+func Convert_v1_ModelRouting_To_gateway_ModelRouting(in *ModelRouting, out *gateway.ModelRouting, s conversion.Scope) error {
+	return autoConvert_v1_ModelRouting_To_gateway_ModelRouting(in, out, s)
+}
+
+func autoConvert_gateway_ModelRouting_To_v1_ModelRouting(in *gateway.ModelRouting, out *ModelRouting, s conversion.Scope) error {
+	out.UpstreamRef = in.UpstreamRef
+	out.Models = *(*[]ModelRoute)(unsafe.Pointer(&in.Models))
+	return nil
+}
+
+// Convert_gateway_ModelRouting_To_v1_ModelRouting is an autogenerated conversion function.
+func Convert_gateway_ModelRouting_To_v1_ModelRouting(in *gateway.ModelRouting, out *ModelRouting, s conversion.Scope) error {
+	return autoConvert_gateway_ModelRouting_To_v1_ModelRouting(in, out, s)
+}
+
 func autoConvert_v1_ParentRef_To_gateway_ParentRef(in *ParentRef, out *gateway.ParentRef, s conversion.Scope) error {
 	out.Name = in.Name
 	return nil
@@ -1355,6 +1489,7 @@ func autoConvert_v1_RouteRule_To_gateway_RouteRule(in *RouteRule, out *gateway.R
 	out.Timeout = (*gateway.RouteTimeout)(unsafe.Pointer(in.Timeout))
 	out.Retry = (*gateway.RouteRetry)(unsafe.Pointer(in.Retry))
 	out.UpstreamRefs = *(*[]gateway.UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
+	out.ModelRouting = (*gateway.ModelRouting)(unsafe.Pointer(in.ModelRouting))
 	return nil
 }
 
@@ -1372,6 +1507,7 @@ func autoConvert_gateway_RouteRule_To_v1_RouteRule(in *gateway.RouteRule, out *R
 	out.Timeout = (*RouteTimeout)(unsafe.Pointer(in.Timeout))
 	out.Retry = (*RouteRetry)(unsafe.Pointer(in.Retry))
 	out.UpstreamRefs = *(*[]UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
+	out.ModelRouting = (*ModelRouting)(unsafe.Pointer(in.ModelRouting))
 	return nil
 }
 
@@ -1460,6 +1596,84 @@ func Convert_gateway_Upstream_To_v1_Upstream(in *gateway.Upstream, out *Upstream
 	return autoConvert_gateway_Upstream_To_v1_Upstream(in, out, s)
 }
 
+func autoConvert_v1_UpstreamCredential_To_gateway_UpstreamCredential(in *UpstreamCredential, out *gateway.UpstreamCredential, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_v1_UpstreamCredentialSpec_To_gateway_UpstreamCredentialSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_v1_UpstreamCredential_To_gateway_UpstreamCredential is an autogenerated conversion function.
+func Convert_v1_UpstreamCredential_To_gateway_UpstreamCredential(in *UpstreamCredential, out *gateway.UpstreamCredential, s conversion.Scope) error {
+	return autoConvert_v1_UpstreamCredential_To_gateway_UpstreamCredential(in, out, s)
+}
+
+func autoConvert_gateway_UpstreamCredential_To_v1_UpstreamCredential(in *gateway.UpstreamCredential, out *UpstreamCredential, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_gateway_UpstreamCredentialSpec_To_v1_UpstreamCredentialSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_gateway_UpstreamCredential_To_v1_UpstreamCredential is an autogenerated conversion function.
+func Convert_gateway_UpstreamCredential_To_v1_UpstreamCredential(in *gateway.UpstreamCredential, out *UpstreamCredential, s conversion.Scope) error {
+	return autoConvert_gateway_UpstreamCredential_To_v1_UpstreamCredential(in, out, s)
+}
+
+func autoConvert_v1_UpstreamCredentialList_To_gateway_UpstreamCredentialList(in *UpstreamCredentialList, out *gateway.UpstreamCredentialList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]gateway.UpstreamCredential)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_v1_UpstreamCredentialList_To_gateway_UpstreamCredentialList is an autogenerated conversion function.
+func Convert_v1_UpstreamCredentialList_To_gateway_UpstreamCredentialList(in *UpstreamCredentialList, out *gateway.UpstreamCredentialList, s conversion.Scope) error {
+	return autoConvert_v1_UpstreamCredentialList_To_gateway_UpstreamCredentialList(in, out, s)
+}
+
+func autoConvert_gateway_UpstreamCredentialList_To_v1_UpstreamCredentialList(in *gateway.UpstreamCredentialList, out *UpstreamCredentialList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]UpstreamCredential)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_gateway_UpstreamCredentialList_To_v1_UpstreamCredentialList is an autogenerated conversion function.
+func Convert_gateway_UpstreamCredentialList_To_v1_UpstreamCredentialList(in *gateway.UpstreamCredentialList, out *UpstreamCredentialList, s conversion.Scope) error {
+	return autoConvert_gateway_UpstreamCredentialList_To_v1_UpstreamCredentialList(in, out, s)
+}
+
+func autoConvert_v1_UpstreamCredentialSpec_To_gateway_UpstreamCredentialSpec(in *UpstreamCredentialSpec, out *gateway.UpstreamCredentialSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Type = gateway.UpstreamCredentialType(in.Type)
+	out.APIKey = (*gateway.APIKeyCredential)(unsafe.Pointer(in.APIKey))
+	return nil
+}
+
+// Convert_v1_UpstreamCredentialSpec_To_gateway_UpstreamCredentialSpec is an autogenerated conversion function.
+func Convert_v1_UpstreamCredentialSpec_To_gateway_UpstreamCredentialSpec(in *UpstreamCredentialSpec, out *gateway.UpstreamCredentialSpec, s conversion.Scope) error {
+	return autoConvert_v1_UpstreamCredentialSpec_To_gateway_UpstreamCredentialSpec(in, out, s)
+}
+
+func autoConvert_gateway_UpstreamCredentialSpec_To_v1_UpstreamCredentialSpec(in *gateway.UpstreamCredentialSpec, out *UpstreamCredentialSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Type = UpstreamCredentialType(in.Type)
+	out.APIKey = (*APIKeyCredential)(unsafe.Pointer(in.APIKey))
+	return nil
+}
+
+// Convert_gateway_UpstreamCredentialSpec_To_v1_UpstreamCredentialSpec is an autogenerated conversion function.
+func Convert_gateway_UpstreamCredentialSpec_To_v1_UpstreamCredentialSpec(in *gateway.UpstreamCredentialSpec, out *UpstreamCredentialSpec, s conversion.Scope) error {
+	return autoConvert_gateway_UpstreamCredentialSpec_To_v1_UpstreamCredentialSpec(in, out, s)
+}
+
 func autoConvert_v1_UpstreamHealthCheck_To_gateway_UpstreamHealthCheck(in *UpstreamHealthCheck, out *gateway.UpstreamHealthCheck, s conversion.Scope) error {
 	out.Enabled = in.Enabled
 	out.Path = in.Path
@@ -1533,6 +1747,9 @@ func Convert_gateway_UpstreamRef_To_v1_UpstreamRef(in *gateway.UpstreamRef, out 
 func autoConvert_v1_UpstreamSpec_To_gateway_UpstreamSpec(in *UpstreamSpec, out *gateway.UpstreamSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
 	out.Type = gateway.UpstreamType(in.Type)
+	out.Protocol = gateway.UpstreamProtocol(in.Protocol)
+	out.TLS = (*gateway.UpstreamTLS)(unsafe.Pointer(in.TLS))
+	out.CredentialRef = in.CredentialRef
 	out.LoadBalancePolicy = gateway.UpstreamLoadBalancePolicy(in.LoadBalancePolicy)
 	out.HealthCheck = (*gateway.UpstreamHealthCheck)(unsafe.Pointer(in.HealthCheck))
 	out.Endpoints = *(*[]gateway.Endpoint)(unsafe.Pointer(&in.Endpoints))
@@ -1547,6 +1764,9 @@ func Convert_v1_UpstreamSpec_To_gateway_UpstreamSpec(in *UpstreamSpec, out *gate
 func autoConvert_gateway_UpstreamSpec_To_v1_UpstreamSpec(in *gateway.UpstreamSpec, out *UpstreamSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
 	out.Type = UpstreamType(in.Type)
+	out.Protocol = UpstreamProtocol(in.Protocol)
+	out.TLS = (*UpstreamTLS)(unsafe.Pointer(in.TLS))
+	out.CredentialRef = in.CredentialRef
 	out.LoadBalancePolicy = UpstreamLoadBalancePolicy(in.LoadBalancePolicy)
 	out.HealthCheck = (*UpstreamHealthCheck)(unsafe.Pointer(in.HealthCheck))
 	out.Endpoints = *(*[]Endpoint)(unsafe.Pointer(&in.Endpoints))
@@ -1556,4 +1776,24 @@ func autoConvert_gateway_UpstreamSpec_To_v1_UpstreamSpec(in *gateway.UpstreamSpe
 // Convert_gateway_UpstreamSpec_To_v1_UpstreamSpec is an autogenerated conversion function.
 func Convert_gateway_UpstreamSpec_To_v1_UpstreamSpec(in *gateway.UpstreamSpec, out *UpstreamSpec, s conversion.Scope) error {
 	return autoConvert_gateway_UpstreamSpec_To_v1_UpstreamSpec(in, out, s)
+}
+
+func autoConvert_v1_UpstreamTLS_To_gateway_UpstreamTLS(in *UpstreamTLS, out *gateway.UpstreamTLS, s conversion.Scope) error {
+	out.ServerName = in.ServerName
+	return nil
+}
+
+// Convert_v1_UpstreamTLS_To_gateway_UpstreamTLS is an autogenerated conversion function.
+func Convert_v1_UpstreamTLS_To_gateway_UpstreamTLS(in *UpstreamTLS, out *gateway.UpstreamTLS, s conversion.Scope) error {
+	return autoConvert_v1_UpstreamTLS_To_gateway_UpstreamTLS(in, out, s)
+}
+
+func autoConvert_gateway_UpstreamTLS_To_v1_UpstreamTLS(in *gateway.UpstreamTLS, out *UpstreamTLS, s conversion.Scope) error {
+	out.ServerName = in.ServerName
+	return nil
+}
+
+// Convert_gateway_UpstreamTLS_To_v1_UpstreamTLS is an autogenerated conversion function.
+func Convert_gateway_UpstreamTLS_To_v1_UpstreamTLS(in *gateway.UpstreamTLS, out *UpstreamTLS, s conversion.Scope) error {
+	return autoConvert_gateway_UpstreamTLS_To_v1_UpstreamTLS(in, out, s)
 }

@@ -9,10 +9,12 @@ const defaultRetry: RouteRetry = { attempts: 2, perTryTimeoutMillis: 1000 };
 export function RouteForwardControls({
   draft,
   errors,
+  modelRouting = false,
   onChange,
 }: {
   draft: RouteComposerDraft;
   errors: RouteDraftErrors;
+  modelRouting?: boolean;
   onChange: (patch: Partial<RouteComposerDraft>) => void;
 }) {
   const enabledCount = forwardControlCount(draft);
@@ -47,11 +49,18 @@ export function RouteForwardControls({
           error={errors.timeout}
           onChange={(timeout) => onChange({ timeout })}
         />
-        <RetryControl
-          value={draft.retry}
-          error={errors.retry}
-          onChange={(retry) => onChange({ retry })}
-        />
+        {modelRouting ? (
+          <div className="route-control-note">
+            <strong>模型路由暂不配置失败重试</strong>
+            <span>避免同一次模型请求被重复发送；请求超时仍可单独设置。</span>
+          </div>
+        ) : (
+          <RetryControl
+            value={draft.retry}
+            error={errors.retry}
+            onChange={(retry) => onChange({ retry })}
+          />
+        )}
       </div>
     </div>
   );

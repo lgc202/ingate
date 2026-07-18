@@ -7,6 +7,7 @@ import (
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
+	upstreamcredentialstore "github.com/lgc202/ingate/internal/adminapi/store/upstreamcredential"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
@@ -16,6 +17,7 @@ type Store struct {
 	Gateway             *gatewaystore.Store
 	Route               *routestore.Store
 	Upstream            *upstreamstore.Store
+	UpstreamCredential  *upstreamcredentialstore.Store
 	AccessControlPolicy *accesscontrolpolicystore.Store
 	RateLimitPolicy     *ratelimitpolicystore.Store
 }
@@ -27,6 +29,7 @@ func New(client clientset.Interface) *Store {
 		Gateway:             gatewaystore.New(client),
 		Route:               routestore.New(client),
 		Upstream:            upstreamstore.New(client),
+		UpstreamCredential:  upstreamcredentialstore.New(client),
 		AccessControlPolicy: accesscontrolpolicystore.New(client),
 		RateLimitPolicy:     ratelimitpolicystore.New(client),
 	}

@@ -32,6 +32,12 @@ const (
 	ResourceUpstreams ResourceName = "upstreams"
 	// ResourceUpstreamsStatus 表示 Upstream status 子资源名
 	ResourceUpstreamsStatus ResourceName = "upstreams/status"
+	// ResourceUpstreamCredential 表示 UpstreamCredential 单数资源名
+	ResourceUpstreamCredential ResourceName = "upstreamcredential"
+	// ResourceUpstreamCredentials 表示 UpstreamCredential 复数资源名
+	ResourceUpstreamCredentials ResourceName = "upstreamcredentials"
+	// ResourceUpstreamCredentialsStatus 表示 UpstreamCredential status 子资源名
+	ResourceUpstreamCredentialsStatus ResourceName = "upstreamcredentials/status"
 	// ResourceCertificate 表示 Certificate 单数资源名
 	ResourceCertificate ResourceName = "certificate"
 	// ResourceCertificates 表示 Certificate 复数资源名
@@ -74,6 +80,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RouteList{},
 		&Upstream{},
 		&UpstreamList{},
+		&UpstreamCredential{},
+		&UpstreamCredentialList{},
 		&Certificate{},
 		&CertificateList{},
 		&RateLimitPolicy{},

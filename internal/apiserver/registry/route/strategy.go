@@ -18,12 +18,15 @@ import (
 const gatewayAPIVersion = "gateway.ingate.io/v1"
 
 const (
-	minRouteTimeoutMillis  = 100
-	maxRouteTimeoutMillis  = 300000
-	minRetryAttempts       = 1
-	maxRetryAttempts       = 5
-	minPerTryTimeoutMillis = 100
-	maxPerTryTimeoutMillis = 60000
+	minRouteTimeoutMillis     = 100
+	maxRouteTimeoutMillis     = 300000
+	minRetryAttempts          = 1
+	maxRetryAttempts          = 5
+	minPerTryTimeoutMillis    = 100
+	maxPerTryTimeoutMillis    = 60000
+	authorizationHeader       = "authorization"
+	contentLengthHeader       = "content-length"
+	openAIChatCompletionsPath = "/v1/chat/completions"
 )
 
 // strategy 定义 Route 资源在 apiserver 存储前后的处理规则
@@ -178,6 +181,14 @@ func validateRoute(route *resource.Route) field.ErrorList {
 					errs = append(errs, field.Required(filterPath.Child("requestHeaderModifier"), "requestHeaderModifier is required"))
 				} else {
 					errs = append(errs, validateHeaderModifier(filter.RequestHeaderModifier, filterPath.Child("requestHeaderModifier"))...)
+					if rule.ModelRouting != nil {
+						for _, name := range []string{authorizationHeader, contentLengthHeader} {
+							if headerModifierContains(filter.RequestHeaderModifier, name) {
+								errs = append(errs, field.Forbidden(filterPath.Child("requestHeaderModifier"), "AI request authentication and body framing headers are managed by Ingate"))
+								break
+							}
+						}
+					}
 				}
 			case resource.RouteFilterResponseHeaderModifier:
 				if filter.ResponseHeaderModifier == nil {
@@ -208,8 +219,11 @@ func validateRoute(route *resource.Route) field.ErrorList {
 				errs = append(errs, field.Invalid(rulePath.Child("retry").Child("perTryTimeoutMillis"), rule.Retry.PerTryTimeoutMillis, "retry.perTryTimeoutMillis must be less than or equal to timeout.requestMillis"))
 			}
 		}
-		if len(rule.UpstreamRefs) == 0 {
-			errs = append(errs, field.Required(rulePath.Child("upstreamRefs"), "at least one upstreamRef is required"))
+		if len(rule.UpstreamRefs) > 0 && rule.ModelRouting != nil {
+			errs = append(errs, field.Forbidden(rulePath.Child("modelRouting"), "modelRouting and upstreamRefs cannot be configured together"))
+		}
+		if len(rule.UpstreamRefs) == 0 && rule.ModelRouting == nil {
+			errs = append(errs, field.Required(rulePath.Child("upstreamRefs"), "upstreamRefs or modelRouting is required"))
 		}
 		for j, upstreamRef := range rule.UpstreamRefs {
 			upstreamPath := rulePath.Child("upstreamRefs").Index(j)
@@ -220,8 +234,70 @@ func validateRoute(route *resource.Route) field.ErrorList {
 				errs = append(errs, field.Invalid(upstreamPath.Child("weight"), upstreamRef.Weight, "upstreamRef.weight must be between 1 and 1000"))
 			}
 		}
+		if rule.ModelRouting != nil {
+			errs = append(errs, validateModelRouting(rule, rulePath)...)
+		}
 	}
 	return errs
+}
+
+func headerModifierContains(modifier *resource.HeaderModifier, name string) bool {
+	for _, header := range modifier.Set {
+		if strings.EqualFold(header.Name, name) {
+			return true
+		}
+	}
+	for _, header := range modifier.Add {
+		if strings.EqualFold(header.Name, name) {
+			return true
+		}
+	}
+	for _, header := range modifier.Remove {
+		if strings.EqualFold(header, name) {
+			return true
+		}
+	}
+	return false
+}
+
+func validateModelRouting(rule resource.RouteRule, path *field.Path) field.ErrorList {
+	modelRoutingPath := path.Child("modelRouting")
+	errList := field.ErrorList{}
+	if rule.PathPrefix != openAIChatCompletionsPath {
+		errList = append(errList, field.Invalid(path.Child("pathPrefix"), rule.PathPrefix, "model routing pathPrefix must be /v1/chat/completions"))
+	}
+	if len(rule.ModelRouting.Models) == 0 {
+		errList = append(errList, field.Required(modelRoutingPath.Child("models"), "at least one model is required"))
+	}
+	if rule.ModelRouting.UpstreamRef == "" {
+		errList = append(errList, field.Required(modelRoutingPath.Child("upstreamRef"), "upstreamRef is required"))
+	} else if strings.TrimSpace(rule.ModelRouting.UpstreamRef) != rule.ModelRouting.UpstreamRef {
+		errList = append(errList, field.Invalid(modelRoutingPath.Child("upstreamRef"), rule.ModelRouting.UpstreamRef, "upstreamRef must not contain leading or trailing whitespace"))
+	}
+	if len(rule.Methods) != 1 || rule.Methods[0] != http.MethodPost {
+		errList = append(errList, field.Invalid(path.Child("methods"), rule.Methods, "model routing requires POST as the only method"))
+	}
+	if rule.Retry != nil {
+		errList = append(errList, field.Forbidden(path.Child("retry"), "retry is not supported by model routing"))
+	}
+
+	models := make(map[string]struct{}, len(rule.ModelRouting.Models))
+	for i, model := range rule.ModelRouting.Models {
+		modelPath := modelRoutingPath.Child("models").Index(i)
+		if model.Model == "" {
+			errList = append(errList, field.Required(modelPath.Child("model"), "model is required"))
+		} else if strings.TrimSpace(model.Model) != model.Model {
+			errList = append(errList, field.Invalid(modelPath.Child("model"), model.Model, "model must not contain leading or trailing whitespace"))
+		} else if _, exists := models[model.Model]; exists {
+			errList = append(errList, field.Duplicate(modelPath.Child("model"), model.Model))
+		} else {
+			models[model.Model] = struct{}{}
+		}
+		if strings.TrimSpace(model.UpstreamModel) != model.UpstreamModel {
+			errList = append(errList, field.Invalid(modelPath.Child("upstreamModel"), model.UpstreamModel, "upstreamModel must not contain leading or trailing whitespace"))
+		}
+	}
+	return errList
 }
 
 func validateHeaderModifier(modifier *resource.HeaderModifier, path *field.Path) field.ErrorList {

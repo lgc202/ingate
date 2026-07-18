@@ -14,6 +14,9 @@ const (
 	maxRetryAttempts          = 5
 	minPerTryTimeoutMillis    = 100
 	maxPerTryTimeoutMillis    = 60000
+	authorizationHeader       = "authorization"
+	contentLengthHeader       = "content-length"
+	openAIChatCompletionsPath = "/v1/chat/completions"
 )
 
 // Validate 校验创建 Route 请求
@@ -118,12 +121,53 @@ func (r *RouteRule) Validate() error {
 	}
 	r.Headers = headers
 
-	targets, err := r.targetServices()
-	if err != nil {
-		return err
+	if r.ModelRouting == nil {
+		targets, err := r.targetServices()
+		if err != nil {
+			return err
+		}
+		r.Targets = targets
+	} else {
+		if len(r.Targets) > 0 {
+			return errors.New("普通目标服务和模型路由不能同时配置")
+		}
+		if r.PathPrefix != openAIChatCompletionsPath {
+			return errors.New("模型路由路径必须为 /v1/chat/completions")
+		}
+		if err := r.ModelRouting.Validate(r.Methods); err != nil {
+			return err
+		}
 	}
-	r.Targets = targets
 	return r.validateRouteNativePolicies()
+}
+
+// Validate 校验并规整模型路由配置
+func (r *ModelRouting) Validate(methods []string) error {
+	if len(methods) != 1 || methods[0] != http.MethodPost {
+		return errors.New("模型路由只支持 POST 方法")
+	}
+	r.UpstreamID = strings.TrimSpace(r.UpstreamID)
+	if r.UpstreamID == "" {
+		return errors.New("模型服务 ID 不能为空")
+	}
+	if len(r.Models) == 0 {
+		return errors.New("至少需要配置一个模型")
+	}
+
+	seenModels := make(map[string]struct{}, len(r.Models))
+	for i := range r.Models {
+		model := &r.Models[i]
+		model.Model = strings.TrimSpace(model.Model)
+		model.UpstreamModel = strings.TrimSpace(model.UpstreamModel)
+		if model.Model == "" {
+			return errors.New("客户端模型名称不能为空")
+		}
+		if _, exists := seenModels[model.Model]; exists {
+			return errors.New("客户端模型名称不能重复")
+		}
+		seenModels[model.Model] = struct{}{}
+	}
+	return nil
 }
 
 func (r *RouteRule) headerMatches() ([]HeaderMatchReq, error) {
@@ -173,6 +217,13 @@ func (r *RouteRule) validateRouteNativePolicies() error {
 		if err := r.RequestHeaderModifier.Validate(); err != nil {
 			return err
 		}
+		if r.ModelRouting != nil {
+			for _, name := range []string{authorizationHeader, contentLengthHeader} {
+				if r.RequestHeaderModifier.contains(name) {
+					return errors.New("模型路由的请求 Header 改写不能使用系统管理的名称")
+				}
+			}
+		}
 	}
 	if r.ResponseHeaderModifier != nil {
 		if err := r.ResponseHeaderModifier.Validate(); err != nil {
@@ -186,6 +237,9 @@ func (r *RouteRule) validateRouteNativePolicies() error {
 		totalTimeoutMillis = r.Timeout.RequestMillis
 	}
 	if r.Retry != nil {
+		if r.ModelRouting != nil {
+			return errors.New("模型路由暂不支持失败重试")
+		}
 		if r.Retry.Attempts < minRetryAttempts || r.Retry.Attempts > maxRetryAttempts {
 			return errors.New("重试次数必须在 1-5 之间")
 		}
@@ -222,6 +276,20 @@ func (r *HeaderModifierReq) Validate() error {
 	r.Set = setHeaders
 	r.Remove = removeHeaders
 	return nil
+}
+
+func (r *HeaderModifierReq) contains(name string) bool {
+	for _, header := range r.Set {
+		if strings.EqualFold(header.Name, name) {
+			return true
+		}
+	}
+	for _, header := range r.Remove {
+		if strings.EqualFold(header, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func lowerNonEmptyStrings(items []string) []string {

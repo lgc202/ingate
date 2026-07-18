@@ -5,6 +5,7 @@ type RouteKey struct {
 	GatewayName string
 	RouteName   string
 	RuleName    string
+	ConfigID    string
 }
 
 // RouteIndex 保存插件编译后的 route 执行配置

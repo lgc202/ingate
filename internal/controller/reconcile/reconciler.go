@@ -48,6 +48,7 @@ func New(
 	certificateInformer := gatewayInformers.Certificates()
 	routeInformer := gatewayInformers.Routes()
 	upstreamInformer := gatewayInformers.Upstreams()
+	upstreamCredentialInformer := gatewayInformers.UpstreamCredentials()
 	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
 	accessControlPolicyInformer := gatewayInformers.AccessControlPolicies()
 
@@ -58,6 +59,7 @@ func New(
 			certificates:          certificateInformer.Lister(),
 			routes:                routeInformer.Lister(),
 			upstreams:             upstreamInformer.Lister(),
+			upstreamCredentials:   upstreamCredentialInformer.Lister(),
 			rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
 			accessControlPolicies: accessControlPolicyInformer.Lister(),
 		},
@@ -74,6 +76,7 @@ func New(
 		{name: "Certificate", informer: certificateInformer.Informer()},
 		{name: "Route", informer: routeInformer.Informer()},
 		{name: "Upstream", informer: upstreamInformer.Informer()},
+		{name: "UpstreamCredential", informer: upstreamCredentialInformer.Informer()},
 		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
 		{name: "AccessControlPolicy", informer: accessControlPolicyInformer.Informer()},
 	}); err != nil {

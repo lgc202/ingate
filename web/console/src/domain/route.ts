@@ -1,4 +1,5 @@
 import type { ResourceStatus } from './common';
+import type { UpstreamProtocol } from './upstream';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -33,6 +34,7 @@ export interface UpstreamOption {
   id: string;
   name: string;
   type: string;
+  protocol: UpstreamProtocol;
   endpoint?: string;
   meta: string;
 }
@@ -43,10 +45,21 @@ export interface RouteRule {
   methods: HttpMethod[];
   headers: HeaderMatch[];
   upstreams: WeightedUpstream[];
+  modelRouting?: ModelRouting;
   requestHeaderModifier?: HeaderModifier;
   responseHeaderModifier?: HeaderModifier;
   timeout?: RouteTimeout;
   retry?: RouteRetry;
+}
+
+export interface ModelRouting {
+  upstreamID: string;
+  models: ModelRoute[];
+}
+
+export interface ModelRoute {
+  model: string;
+  upstreamModel?: string;
 }
 
 export interface WeightedUpstream {
@@ -90,7 +103,7 @@ export interface RouteMutationPayload {
 
 // RouteRulePayload 只在 admin-api 协议边界保留 targets 字段名
 export interface RouteRulePayload extends Omit<RouteRule, 'upstreams'> {
-  targets: WeightedUpstream[];
+  targets?: WeightedUpstream[];
 }
 
 export interface RouteActionResult {
