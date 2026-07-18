@@ -117,40 +117,6 @@ func TestWriterMarksAcceptedResourcePendingWithoutActiveProvenance(t *testing.T)
 	assertCondition(t, updated.Status.Conditions, gatewayv1.ConditionProgrammed, metav1.ConditionUnknown, gatewayv1.ReasonPending, upstream.Generation)
 }
 
-func TestWriterReportsMissingUpstreamCredentialAsUnresolvedReference(t *testing.T) {
-	upstream := &gatewayv1.Upstream{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       "upstream-1",
-			UID:        types.UID("upstream-uid"),
-			Generation: 2,
-		},
-	}
-	client := clientfake.NewSimpleClientset(upstream)
-	writer := NewWriter(client)
-
-	if err := writer.ApplyCompileResult(
-		context.Background(),
-		config.ResourceSet{Upstreams: []*gatewayv1.Upstream{upstream}},
-		[]config.Diagnostic{{
-			Severity: config.SeverityError,
-			Kind:     gatewayv1.KindUpstream,
-			ID:       upstream.Name,
-			Reason:   config.ReasonReferenceNotFound,
-			Message:  "credential not found",
-		}},
-		delivery.Status{},
-	); err != nil {
-		t.Fatalf("Writer.ApplyCompileResult(%q) error = %v", upstream.Name, err)
-	}
-	updated, err := client.GatewayV1().Upstreams().Get(context.Background(), upstream.Name, metav1.GetOptions{})
-	if err != nil {
-		t.Fatalf("Upstreams.Get(%q) error = %v", upstream.Name, err)
-	}
-
-	assertCondition(t, updated.Status.Conditions, gatewayv1.ConditionAccepted, metav1.ConditionTrue, gatewayv1.ReasonAccepted, upstream.Generation)
-	assertCondition(t, updated.Status.Conditions, gatewayv1.ConditionResolvedRefs, metav1.ConditionFalse, gatewayv1.ReasonReferenceNotFound, upstream.Generation)
-}
-
 func TestWriterMarksRejectedCandidateProgrammedFalse(t *testing.T) {
 	upstream := &gatewayv1.Upstream{
 		ObjectMeta: metav1.ObjectMeta{
@@ -180,7 +146,7 @@ func TestWriterMarksRejectedCandidateProgrammedFalse(t *testing.T) {
 	assertCondition(t, updated.Status.Conditions, gatewayv1.ConditionProgrammed, metav1.ConditionFalse, gatewayv1.ReasonRejected, upstream.Generation)
 }
 
-func TestWriterApplyProgrammedPromotesPendingResourceWithoutChangingCompileConditions(t *testing.T) {
+func TestWriterApplyProgrammedPromotesPendingUpstreamAndRemovesObsoleteResolvedRefs(t *testing.T) {
 	upstream := &gatewayv1.Upstream{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "upstream-1",
@@ -228,8 +194,10 @@ func TestWriterApplyProgrammedPromotesPendingResourceWithoutChangingCompileCondi
 	}
 
 	assertCondition(t, updated.Status.Conditions, gatewayv1.ConditionAccepted, metav1.ConditionTrue, gatewayv1.ReasonAccepted, upstream.Generation)
-	assertCondition(t, updated.Status.Conditions, gatewayv1.ConditionResolvedRefs, metav1.ConditionTrue, gatewayv1.ReasonResolvedRefs, upstream.Generation)
 	assertCondition(t, updated.Status.Conditions, gatewayv1.ConditionProgrammed, metav1.ConditionTrue, gatewayv1.ReasonProgrammed, upstream.Generation)
+	if condition := meta.FindStatusCondition(updated.Status.Conditions, string(gatewayv1.ConditionResolvedRefs)); condition != nil {
+		t.Errorf("Writer.ApplyProgrammed(%q) ResolvedRefs = %v, want removed", upstream.Name, condition)
+	}
 }
 
 func TestWriterKeepsValidPolicyTargetProgrammedWhenAnotherTargetIsMissing(t *testing.T) {

@@ -6,63 +6,63 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func TestUpstreamConfigValidateModelProtocol(t *testing.T) {
+func TestCreateUpstreamReqValidateModelAuthentication(t *testing.T) {
 	tests := []struct {
 		name    string
-		config  UpstreamConfig
+		request CreateUpstreamReq
 		wantErr bool
 	}{
 		{
-			name: "OpenAI model with HTTPS",
-			config: modelUpstreamConfig(&UpstreamTLS{
-				ServerName: "api.openai.com",
-			}),
+			name:    "OpenAI model with API key over HTTPS",
+			request: modelUpstreamRequest(&UpstreamTLS{ServerName: "api.openai.com"}, &APIKeyConfig{Value: "sk-test-secret"}),
 		},
 		{
 			name: "model rejects HTTP protocol",
-			config: func() UpstreamConfig {
-				config := modelUpstreamConfig(nil)
-				config.Protocol = resource.UpstreamProtocolHTTP
-				return config
+			request: func() CreateUpstreamReq {
+				request := modelUpstreamRequest(nil, nil)
+				request.Protocol = resource.UpstreamProtocolHTTP
+				return request
 			}(),
 			wantErr: true,
 		},
 		{
-			name:    "credential requires HTTPS",
-			config:  modelUpstreamConfig(nil),
+			name:    "API key requires HTTPS",
+			request: modelUpstreamRequest(nil, &APIKeyConfig{Value: "sk-test-secret"}),
 			wantErr: true,
 		},
 		{
-			name: "credentialless model allows HTTP transport",
-			config: func() UpstreamConfig {
-				config := modelUpstreamConfig(nil)
-				config.CredentialID = ""
-				config.Endpoints[0].Port = 80
-				return config
+			name: "model without API key allows HTTP transport",
+			request: func() CreateUpstreamReq {
+				request := modelUpstreamRequest(nil, nil)
+				request.Endpoints[0].Port = 80
+				return request
 			}(),
+		},
+		{
+			name:    "API key rejects unsafe value",
+			request: modelUpstreamRequest(&UpstreamTLS{ServerName: "api.openai.com"}, &APIKeyConfig{Value: "secret\r\ninjected"}),
+			wantErr: true,
 		},
 		{
 			name: "application rejects OpenAI protocol",
-			config: func() UpstreamConfig {
-				config := modelUpstreamConfig(nil)
-				config.Type = resource.UpstreamTypeApplication
-				return config
+			request: func() CreateUpstreamReq {
+				request := modelUpstreamRequest(nil, nil)
+				request.Type = resource.UpstreamTypeApplication
+				return request
 			}(),
 			wantErr: true,
 		},
 		{
-			name: "invalid HTTPS server name",
-			config: modelUpstreamConfig(&UpstreamTLS{
-				ServerName: "https://api.openai.com",
-			}),
+			name:    "invalid HTTPS server name",
+			request: modelUpstreamRequest(&UpstreamTLS{ServerName: "https://api.openai.com"}, nil),
 			wantErr: true,
 		},
 		{
 			name: "duplicate endpoint ID",
-			config: func() UpstreamConfig {
-				config := modelUpstreamConfig(nil)
-				config.Endpoints = append(config.Endpoints, config.Endpoints[0])
-				return config
+			request: func() CreateUpstreamReq {
+				request := modelUpstreamRequest(nil, nil)
+				request.Endpoints = append(request.Endpoints, request.Endpoints[0])
+				return request
 			}(),
 			wantErr: true,
 		},
@@ -70,29 +70,47 @@ func TestUpstreamConfigValidateModelProtocol(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
+			err := tt.request.Validate()
 			if gotErr := err != nil; gotErr != tt.wantErr {
-				t.Errorf("UpstreamConfig.Validate() error = %v, want error presence = %t", err, tt.wantErr)
+				t.Errorf("CreateUpstreamReq.Validate() error = %v, want error presence = %t", err, tt.wantErr)
 			}
 		})
 	}
 }
 
-func modelUpstreamConfig(tls *UpstreamTLS) UpstreamConfig {
-	return UpstreamConfig{
-		Name:              "OpenAI",
-		Type:              resource.UpstreamTypeModel,
-		Protocol:          resource.UpstreamProtocolOpenAI,
-		TLS:               tls,
-		CredentialID:      "credential-1",
-		LoadBalancePolicy: resource.UpstreamLoadBalancePolicyRoundRobin,
-		Endpoints: []UpstreamEndpoint{
-			{
-				ID:      "primary",
-				Address: "api.openai.com",
-				Port:    443,
-				Weight:  100,
-				Enabled: true,
+func TestUpdateUpstreamReqValidateRejectsConflictingAPIKeyOperations(t *testing.T) {
+	request := UpdateUpstreamReq{
+		Version:      "1",
+		APIKey:       &APIKeyConfig{Value: "sk-test-secret"},
+		RemoveAPIKey: true,
+		UpstreamConfig: modelUpstreamRequest(
+			&UpstreamTLS{ServerName: "api.openai.com"},
+			nil,
+		).UpstreamConfig,
+	}
+
+	if err := request.Validate(); err == nil {
+		t.Fatal("UpdateUpstreamReq.Validate(conflicting API key operations) error = nil, want non-nil")
+	}
+}
+
+func modelUpstreamRequest(tls *UpstreamTLS, apiKey *APIKeyConfig) CreateUpstreamReq {
+	return CreateUpstreamReq{
+		APIKey: apiKey,
+		UpstreamConfig: UpstreamConfig{
+			Name:              "OpenAI",
+			Type:              resource.UpstreamTypeModel,
+			Protocol:          resource.UpstreamProtocolOpenAI,
+			TLS:               tls,
+			LoadBalancePolicy: resource.UpstreamLoadBalancePolicyRoundRobin,
+			Endpoints: []UpstreamEndpoint{
+				{
+					ID:      "primary",
+					Address: "api.openai.com",
+					Port:    443,
+					Weight:  100,
+					Enabled: true,
+				},
 			},
 		},
 	}

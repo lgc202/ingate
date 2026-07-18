@@ -10,22 +10,19 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
-	credentialstore "github.com/lgc202/ingate/internal/adminapi/store/upstreamcredential"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // Service 承载 Upstream 查询用例
 type Service struct {
-	store       *upstreamstore.Store
-	routes      *routestore.Store
-	credentials *credentialstore.Store
+	store  *upstreamstore.Store
+	routes *routestore.Store
 }
 
 // New 创建 Upstream service
-func New(store *upstreamstore.Store, routes *routestore.Store, credentials *credentialstore.Store) *Service {
-	return &Service{store: store, routes: routes, credentials: credentials}
+func New(store *upstreamstore.Store, routes *routestore.Store) *Service {
+	return &Service{store: store, routes: routes}
 }
 
 // List 查询 Upstream 列表
@@ -55,11 +52,8 @@ func (s *Service) Create(ctx context.Context, params CreateUpstreamParams) (stri
 	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
 		return "", err
 	}
-	if err := s.validateCredentialRef(ctx, params.CredentialID); err != nil {
-		return "", err
-	}
-
 	upstream := upstreamResource(uuid.NewString(), "", params.UpstreamParams)
+	upstream.Spec.Authentication = upstreamAuthentication(params.APIKey)
 	created, err := s.store.Create(ctx, upstream)
 	if err != nil {
 		return "", err
@@ -79,33 +73,21 @@ func (s *Service) Update(ctx context.Context, upstreamID string, params UpdateUp
 	if err := s.validateNameUnique(ctx, params.Name, upstreamID); err != nil {
 		return err
 	}
-	if err := s.validateCredentialRef(ctx, params.CredentialID); err != nil {
-		return err
-	}
 	if err := s.validateRouteCompatibility(ctx, upstreamID, params.Type, params.Protocol); err != nil {
 		return err
 	}
 	next := current.DeepCopy()
 	applyUpstreamParams(next, params.UpstreamParams)
-	_, err = s.store.Update(ctx, next)
-	return err
-}
-
-func (s *Service) validateCredentialRef(ctx context.Context, credentialID string) error {
-	if credentialID == "" {
-		return nil
+	if params.RemoveAPIKey {
+		next.Spec.Authentication = nil
+	} else if params.APIKey != nil {
+		next.Spec.Authentication = upstreamAuthentication(params.APIKey)
 	}
-	credential, err := s.credentials.Get(ctx, credentialID)
-	if apierrors.IsNotFound(err) {
-		return xerrors.NewUserError(fmt.Sprintf("访问凭据 %q 不存在", credentialID))
-	}
-	if err != nil {
+	if err := validateAuthentication(next); err != nil {
 		return err
 	}
-	if credential.Spec.Type != resource.UpstreamCredentialTypeAPIKey || credential.Spec.APIKey == nil {
-		return xerrors.NewUserError(fmt.Sprintf("访问凭据 %q 不可用于 API Key 认证", credential.Spec.DisplayName))
-	}
-	return nil
+	_, err = s.store.Update(ctx, next)
+	return err
 }
 
 func (s *Service) validateRouteCompatibility(
@@ -195,11 +177,19 @@ func upstreamResource(id, version string, params UpstreamParams) *resource.Upstr
 			Type:              params.Type,
 			Protocol:          params.Protocol,
 			TLS:               upstreamTLS(params.TLS),
-			CredentialRef:     params.CredentialID,
 			LoadBalancePolicy: params.LoadBalancePolicy,
 			HealthCheck:       params.HealthCheck,
 			Endpoints:         resourceEndpoints(params.Endpoints),
 		},
+	}
+}
+
+func upstreamAuthentication(params *APIKeyParams) *resource.UpstreamAuthentication {
+	if params == nil {
+		return nil
+	}
+	return &resource.UpstreamAuthentication{
+		APIKey: &resource.APIKeyAuthentication{Value: params.Value},
 	}
 }
 
@@ -211,7 +201,22 @@ func upstreamTLS(params *TLSParams) *resource.UpstreamTLS {
 }
 
 func applyUpstreamParams(next *resource.Upstream, params UpstreamParams) {
+	authentication := next.Spec.Authentication
 	next.Spec = upstreamResource(next.Name, next.ResourceVersion, params).Spec
+	next.Spec.Authentication = authentication
+}
+
+func validateAuthentication(upstream *resource.Upstream) error {
+	if upstream.Spec.Authentication == nil {
+		return nil
+	}
+	if upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
+		return xerrors.NewUserError("服务已配置 API Key，当前只有 OpenAI 兼容服务支持")
+	}
+	if upstream.Spec.TLS == nil {
+		return xerrors.NewUserError("服务已配置 API Key，关闭 HTTPS 前请先移除 API Key")
+	}
+	return nil
 }
 
 func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {

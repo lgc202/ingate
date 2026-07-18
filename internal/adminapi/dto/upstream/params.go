@@ -10,6 +10,7 @@ import (
 func (r CreateUpstreamReq) Params() upstreamservice.CreateUpstreamParams {
 	return upstreamservice.CreateUpstreamParams{
 		UpstreamParams: r.UpstreamConfig.params(),
+		APIKey:         apiKeyParams(r.APIKey),
 	}
 }
 
@@ -18,6 +19,8 @@ func (r UpdateUpstreamReq) Params() upstreamservice.UpdateUpstreamParams {
 	return upstreamservice.UpdateUpstreamParams{
 		Version:        r.Version,
 		UpstreamParams: r.UpstreamConfig.params(),
+		APIKey:         apiKeyParams(r.APIKey),
+		RemoveAPIKey:   r.RemoveAPIKey,
 	}
 }
 
@@ -27,7 +30,6 @@ func (c UpstreamConfig) params() upstreamservice.UpstreamParams {
 		Type:              c.Type,
 		Protocol:          c.Protocol,
 		TLS:               tlsParams(c.TLS),
-		CredentialID:      c.CredentialID,
 		LoadBalancePolicy: c.LoadBalancePolicy,
 		Endpoints: lo.Map(c.Endpoints, func(endpoint UpstreamEndpoint, _ int) upstreamservice.EndpointParams {
 			return upstreamservice.EndpointParams{
@@ -40,6 +42,13 @@ func (c UpstreamConfig) params() upstreamservice.UpstreamParams {
 		}),
 		HealthCheck: c.HealthCheck,
 	}
+}
+
+func apiKeyParams(config *APIKeyConfig) *upstreamservice.APIKeyParams {
+	if config == nil {
+		return nil
+	}
+	return &upstreamservice.APIKeyParams{Value: config.Value}
 }
 
 func tlsParams(config *UpstreamTLS) *upstreamservice.TLSParams {

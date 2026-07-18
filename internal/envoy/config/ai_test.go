@@ -156,7 +156,7 @@ func TestCompilerVersionsOpenAIRuntimeConfig(t *testing.T) {
 		{
 			name: "API key change",
 			mutate: func(resources ResourceSet) {
-				resources.UpstreamCredentials[0].Spec.APIKey.Value = "sk-rotated-secret"
+				resources.Upstreams[0].Spec.Authentication.APIKey.Value = "sk-rotated-secret"
 			},
 			wantClusterChange: true,
 			wantConfigChange:  true,
@@ -201,102 +201,49 @@ func TestCompilerVersionsOpenAIRuntimeConfig(t *testing.T) {
 	}
 }
 
-func TestCompilerRejectsMissingOpenAIUpstreamCredential(t *testing.T) {
-	upstream := newAIUpstream("model-upstream", "missing-credential")
+func TestCompilerRejectsOpenAIAuthenticationWithoutAPIKey(t *testing.T) {
+	upstream := newAIUpstream("model-upstream", "")
+	upstream.Spec.Authentication = &gatewayv1.UpstreamAuthentication{}
 	result := (Compiler{}).Compile(ResourceSet{Upstreams: []*gatewayv1.Upstream{upstream}})
 	if !result.HasErrors() {
-		t.Fatal("Compiler.Compile(missing OpenAI credential) has errors = false, want true")
-	}
-	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindUpstream, upstream.Name, ReasonReferenceNotFound) {
-		t.Errorf(
-			"Compiler.Compile(missing OpenAI credential) diagnostics = %v, want Upstream %q reason %q",
-			result.Diagnostics,
-			upstream.Name,
-			ReasonReferenceNotFound,
-		)
-	}
-}
-
-func TestCompilerRejectsInvalidOpenAIUpstreamCredential(t *testing.T) {
-	credential := &gatewayv1.UpstreamCredential{
-		ObjectMeta: metav1.ObjectMeta{Name: "openai-key"},
-		Spec: gatewayv1.UpstreamCredentialSpec{
-			Type:   gatewayv1.UpstreamCredentialTypeAPIKey,
-			APIKey: &gatewayv1.APIKeyCredential{},
-		},
-	}
-	upstream := newAIUpstream("model-upstream", credential.Name)
-	result := (Compiler{}).Compile(ResourceSet{
-		Upstreams:           []*gatewayv1.Upstream{upstream},
-		UpstreamCredentials: []*gatewayv1.UpstreamCredential{credential},
-	})
-	if !result.HasErrors() {
-		t.Fatal("Compiler.Compile(invalid OpenAI credential) has errors = false, want true")
-	}
-	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindUpstreamCredential, credential.Name, ReasonInvalidSpec) {
-		t.Errorf(
-			"Compiler.Compile(invalid OpenAI credential) diagnostics = %v, want UpstreamCredential %q reason %q",
-			result.Diagnostics,
-			credential.Name,
-			ReasonInvalidSpec,
-		)
-	}
-	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidReference) {
-		t.Errorf(
-			"Compiler.Compile(invalid OpenAI credential) diagnostics = %v, want Upstream %q reason %q",
-			result.Diagnostics,
-			upstream.Name,
-			ReasonInvalidReference,
-		)
-	}
-}
-
-func TestCompilerRejectsUnsafeOpenAIUpstreamCredential(t *testing.T) {
-	credential := &gatewayv1.UpstreamCredential{
-		ObjectMeta: metav1.ObjectMeta{Name: "openai-key"},
-		Spec: gatewayv1.UpstreamCredentialSpec{
-			Type:   gatewayv1.UpstreamCredentialTypeAPIKey,
-			APIKey: &gatewayv1.APIKeyCredential{Value: "secret\r\ninjected"},
-		},
-	}
-	upstream := newAIUpstream("model-upstream", credential.Name)
-	result := (Compiler{}).Compile(ResourceSet{
-		Upstreams:           []*gatewayv1.Upstream{upstream},
-		UpstreamCredentials: []*gatewayv1.UpstreamCredential{credential},
-	})
-	if !result.HasErrors() {
-		t.Fatal("Compiler.Compile(unsafe OpenAI credential) has errors = false, want true")
-	}
-	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindUpstreamCredential, credential.Name, ReasonInvalidSpec) {
-		t.Errorf(
-			"Compiler.Compile(unsafe OpenAI credential) diagnostics = %v, want UpstreamCredential %q reason %q",
-			result.Diagnostics,
-			credential.Name,
-			ReasonInvalidSpec,
-		)
-	}
-}
-
-func TestCompilerRejectsCredentialOverPlaintextOpenAIUpstream(t *testing.T) {
-	credential := &gatewayv1.UpstreamCredential{
-		ObjectMeta: metav1.ObjectMeta{Name: "openai-key"},
-		Spec: gatewayv1.UpstreamCredentialSpec{
-			Type:   gatewayv1.UpstreamCredentialTypeAPIKey,
-			APIKey: &gatewayv1.APIKeyCredential{Value: "sk-test-secret"},
-		},
-	}
-	upstream := newAIUpstream("model-upstream", credential.Name)
-	upstream.Spec.TLS = nil
-	result := (Compiler{}).Compile(ResourceSet{
-		Upstreams:           []*gatewayv1.Upstream{upstream},
-		UpstreamCredentials: []*gatewayv1.UpstreamCredential{credential},
-	})
-	if !result.HasErrors() {
-		t.Fatal("Compiler.Compile(credential over plaintext) has errors = false, want true")
+		t.Fatal("Compiler.Compile(OpenAI authentication without API key) has errors = false, want true")
 	}
 	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec) {
 		t.Errorf(
-			"Compiler.Compile(credential over plaintext) diagnostics = %v, want Upstream %q reason %q",
+			"Compiler.Compile(OpenAI authentication without API key) diagnostics = %v, want Upstream %q reason %q",
+			result.Diagnostics,
+			upstream.Name,
+			ReasonInvalidSpec,
+		)
+	}
+}
+
+func TestCompilerRejectsUnsafeOpenAIAPIKey(t *testing.T) {
+	upstream := newAIUpstream("model-upstream", "secret\r\ninjected")
+	result := (Compiler{}).Compile(ResourceSet{Upstreams: []*gatewayv1.Upstream{upstream}})
+	if !result.HasErrors() {
+		t.Fatal("Compiler.Compile(unsafe OpenAI API key) has errors = false, want true")
+	}
+	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec) {
+		t.Errorf(
+			"Compiler.Compile(unsafe OpenAI API key) diagnostics = %v, want Upstream %q reason %q",
+			result.Diagnostics,
+			upstream.Name,
+			ReasonInvalidSpec,
+		)
+	}
+}
+
+func TestCompilerRejectsAPIKeyOverPlaintextOpenAIUpstream(t *testing.T) {
+	upstream := newAIUpstream("model-upstream", "sk-test-secret")
+	upstream.Spec.TLS = nil
+	result := (Compiler{}).Compile(ResourceSet{Upstreams: []*gatewayv1.Upstream{upstream}})
+	if !result.HasErrors() {
+		t.Fatal("Compiler.Compile(API key over plaintext) has errors = false, want true")
+	}
+	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec) {
+		t.Errorf(
+			"Compiler.Compile(API key over plaintext) diagnostics = %v, want Upstream %q reason %q",
 			result.Diagnostics,
 			upstream.Name,
 			ReasonInvalidSpec,
@@ -385,16 +332,7 @@ func TestCompilerRejectsUnsupportedAIPath(t *testing.T) {
 func newAICompilerResources() ResourceSet {
 	aiGateway := newTestGateway("ai-gateway", gatewayv1.ProtocolHTTP, 8080, "ai.example.com", "")
 	appGateway := newTestGateway("app-gateway", gatewayv1.ProtocolHTTP, 8081, "app.example.com", "")
-	credential := &gatewayv1.UpstreamCredential{
-		ObjectMeta: metav1.ObjectMeta{Name: "openai-key"},
-		Spec: gatewayv1.UpstreamCredentialSpec{
-			Type: gatewayv1.UpstreamCredentialTypeAPIKey,
-			APIKey: &gatewayv1.APIKeyCredential{
-				Value: "sk-test-secret",
-			},
-		},
-	}
-	modelUpstream := newAIUpstream("model-upstream", credential.Name)
+	modelUpstream := newAIUpstream("model-upstream", "sk-test-secret")
 	appUpstream := &gatewayv1.Upstream{
 		ObjectMeta: metav1.ObjectMeta{Name: "app-upstream"},
 		Spec: gatewayv1.UpstreamSpec{
@@ -443,26 +381,30 @@ func newAICompilerResources() ResourceSet {
 		},
 	}
 	return ResourceSet{
-		Gateways:            []*gatewayv1.Gateway{aiGateway, appGateway},
-		Routes:              []*gatewayv1.Route{aiRoute, appRoute},
-		Upstreams:           []*gatewayv1.Upstream{modelUpstream, appUpstream},
-		UpstreamCredentials: []*gatewayv1.UpstreamCredential{credential},
+		Gateways:  []*gatewayv1.Gateway{aiGateway, appGateway},
+		Routes:    []*gatewayv1.Route{aiRoute, appRoute},
+		Upstreams: []*gatewayv1.Upstream{modelUpstream, appUpstream},
 	}
 }
 
-func newAIUpstream(name, credentialRef string) *gatewayv1.Upstream {
-	return &gatewayv1.Upstream{
+func newAIUpstream(name, apiKey string) *gatewayv1.Upstream {
+	upstream := &gatewayv1.Upstream{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec: gatewayv1.UpstreamSpec{
-			Type:          gatewayv1.UpstreamTypeModel,
-			Protocol:      gatewayv1.UpstreamProtocolOpenAI,
-			TLS:           &gatewayv1.UpstreamTLS{ServerName: "api.example.com"},
-			CredentialRef: credentialRef,
+			Type:     gatewayv1.UpstreamTypeModel,
+			Protocol: gatewayv1.UpstreamProtocolOpenAI,
+			TLS:      &gatewayv1.UpstreamTLS{ServerName: "api.example.com"},
 			Endpoints: []gatewayv1.Endpoint{
 				{Name: "primary", Address: "192.0.2.10", Port: 8080, Weight: 100, Enabled: true},
 			},
 		},
 	}
+	if apiKey != "" {
+		upstream.Spec.Authentication = &gatewayv1.UpstreamAuthentication{
+			APIKey: &gatewayv1.APIKeyAuthentication{Value: apiKey},
+		}
+	}
+	return upstream
 }
 
 func compileAITestIdentity(t *testing.T, resources ResourceSet) (string, string) {

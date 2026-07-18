@@ -114,8 +114,6 @@ func (w *Writer) updateResource(
 		return w.updateRoute(ctx, resource, compile, deliveryStatus)
 	case gatewayv1.KindUpstream:
 		return w.updateUpstream(ctx, resource, compile, deliveryStatus)
-	case gatewayv1.KindUpstreamCredential:
-		return w.updateUpstreamCredential(ctx, resource, compile, deliveryStatus)
 	case gatewayv1.KindRateLimitPolicy:
 		return w.updateRateLimitPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
 	case gatewayv1.KindAccessControlPolicy:
@@ -123,42 +121,6 @@ func (w *Writer) updateResource(
 	default:
 		return fmt.Errorf("update unsupported resource kind %q", resource.Kind)
 	}
-}
-
-func (w *Writer) updateUpstreamCredential(
-	ctx context.Context,
-	source config.ResourceGeneration,
-	compile *compileDecision,
-	deliveryStatus delivery.Status,
-) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resource, err := w.client.UpstreamCredentials().Get(ctx, source.Name, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		if resource.UID != source.UID || resource.Generation != source.Generation {
-			return nil
-		}
-
-		conditions := resourceConditions(resource.Status.Conditions, source, compile, deliveryStatus)
-		if equality.Semantic.DeepEqual(resource.Status.Conditions, conditions) {
-			return nil
-		}
-		updated := resource.DeepCopy()
-		updated.Status.Conditions = conditions
-		_, err = w.client.UpstreamCredentials().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return err
-	})
-	if err != nil {
-		return fmt.Errorf("update UpstreamCredential %q conditions: %w", source.Name, err)
-	}
-	return nil
 }
 
 func (w *Writer) updateGateway(
@@ -396,6 +358,9 @@ func resourceConditions(
 	deliveryStatus delivery.Status,
 ) []metav1.Condition {
 	conditions := slices.Clone(existing)
+	if !kindHasReferences(resource.Kind) {
+		meta.RemoveStatusCondition(&conditions, string(gatewayv1.ConditionResolvedRefs))
+	}
 	if compile != nil {
 		meta.SetStatusCondition(&conditions, newCondition(
 			gatewayv1.ConditionAccepted,
@@ -815,7 +780,6 @@ func kindHasReferences(kind gatewayv1.Kind) bool {
 	switch kind {
 	case gatewayv1.KindGateway,
 		gatewayv1.KindRoute,
-		gatewayv1.KindUpstream,
 		gatewayv1.KindRateLimitPolicy,
 		gatewayv1.KindAccessControlPolicy:
 		return true

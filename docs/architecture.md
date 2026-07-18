@@ -48,7 +48,7 @@ Resource
   -> Envoy
 ```
 
-Controller 使用唯一全局队列 key。Gateway、Certificate、Route、Upstream、UpstreamCredential 和强类型 Policy 的任意 spec 变化都会触发一次完整配置域编译。
+Controller 使用唯一全局队列 key。Gateway、Certificate、Route、Upstream 和强类型 Policy 的任意 spec 变化都会触发一次完整配置域编译。
 
 Compiler 直接生成 Envoy protobuf，不输出公开 IR，不存在 Target、Translator、RuntimeGroup 或 RuntimeSnapshot。IP Upstream 生成 EDS，包含 hostname 的 Upstream 生成带内联端点的 `STRICT_DNS` cluster。
 
@@ -95,7 +95,6 @@ Controller 内嵌标准 go-control-plane State-of-the-World ADS：
 - Certificate
 - Route
 - Upstream
-- UpstreamCredential
 - RateLimitPolicy
 - AccessControlPolicy
 
@@ -131,8 +130,9 @@ OpenAI Client
 资源职责保持单一：
 
 - 模型服务仍是 `Upstream`，使用 `type=model` 表达业务分类，使用 `protocol=OpenAI` 表达通信语义
-- `UpstreamCredential` 保存 Ingate 访问模型服务的凭据，第一阶段只支持 `APIKey`；绑定访问凭据时模型 Upstream 必须配置 TLS，避免密钥通过明文 HTTP 发送
-- 模型 Upstream 通过 `credentialRef` 引用凭据；Admin API 响应只返回 `configured`，不回显密钥内容
+- API Key 直接保存在模型 `Upstream.spec.authentication.apiKey.value` 中，不再创建独立凭据资源或跨资源引用
+- Admin API 只返回 `apiKeyConfigured`，不回显密钥内容；更新时省略 API Key 表示保留，显式移除才会清除
+- 配置或保留 API Key 时模型 Upstream 必须启用 TLS，避免密钥通过明文 HTTP 发送
 - 一条模型 RouteRule 的 `modelRouting.upstreamRef` 只引用一个 `type=model, protocol=OpenAI` 的 Upstream，同一规则下的全部模型请求都固定转发到该 Upstream
 - `modelRouting.models[]` 只把客户端模型别名映射为 `upstreamModel`；未填写 `upstreamModel` 时沿用客户端模型名
 - Compiler 使用 `upstreamRef` 生成 Envoy 静态 Route，并将模型别名索引和 API Key 编译为 Listener 级 `ai-proxy` 私有配置；用户资源不暴露 Wasm 路径或插件 JSON

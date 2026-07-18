@@ -70,14 +70,26 @@ type UpstreamSpec struct {
 	Protocol UpstreamProtocol `json:"protocol,omitempty"`
 	// TLS 描述访问 Upstream 时的 TLS 配置，未配置时使用明文连接
 	TLS *UpstreamTLS `json:"tls,omitempty"`
-	// CredentialRef 引用 Ingate 访问 Upstream 时使用的凭据
-	CredentialRef string `json:"credentialRef,omitempty"`
+	// Authentication 描述 Ingate 访问 Upstream 时使用的认证信息
+	Authentication *UpstreamAuthentication `json:"authentication,omitempty"`
 	// LoadBalancePolicy 指定多个端点之间的负载均衡策略
 	LoadBalancePolicy UpstreamLoadBalancePolicy `json:"loadBalancePolicy,omitempty"`
 	// HealthCheck 描述 Upstream 端点的主动健康检查配置
 	HealthCheck *UpstreamHealthCheck `json:"healthCheck,omitempty"`
 	// +listType=atomic
 	Endpoints []Endpoint `json:"endpoints"`
+}
+
+// UpstreamAuthentication 声明访问 Upstream 时使用的认证配置
+type UpstreamAuthentication struct {
+	// APIKey 保存静态 API Key 认证信息
+	APIKey *APIKeyAuthentication `json:"apiKey,omitempty"`
+}
+
+// APIKeyAuthentication 保存静态 API Key
+type APIKeyAuthentication struct {
+	// Value 保存发送给 Upstream 的完整 API Key
+	Value string `json:"value"`
 }
 
 // UpstreamTLS 声明访问 Upstream 时使用系统 CA 根证书包校验的 TLS 配置

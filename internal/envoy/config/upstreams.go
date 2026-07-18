@@ -215,47 +215,36 @@ func (c *compileContext) validUpstreamProtocol(upstream *gatewayv1.Upstream) boo
 		)
 		protocolValid = false
 	}
-	if upstream.Spec.CredentialRef != "" && upstream.Spec.Protocol != gatewayv1.UpstreamProtocolOpenAI {
+	if upstream.Spec.Authentication != nil && upstream.Spec.Protocol != gatewayv1.UpstreamProtocolOpenAI {
 		c.addDiagnostic(
 			SeverityError,
 			gatewayv1.KindUpstream,
 			upstream.Name,
 			ReasonInvalidSpec,
-			fmt.Sprintf("upstream %q declares a credential outside the OpenAI protocol", upstream.Name),
+			fmt.Sprintf("upstream %q declares authentication outside the OpenAI protocol", upstream.Name),
 		)
 		protocolValid = false
 	}
-	if upstream.Spec.CredentialRef != "" && upstream.Spec.TLS == nil {
+	if upstream.Spec.Authentication != nil && upstream.Spec.TLS == nil {
 		c.addDiagnostic(
 			SeverityError,
 			gatewayv1.KindUpstream,
 			upstream.Name,
 			ReasonInvalidSpec,
-			fmt.Sprintf("upstream %q must use TLS when a credential is configured", upstream.Name),
+			fmt.Sprintf("upstream %q must use TLS when authentication is configured", upstream.Name),
 		)
 		protocolValid = false
 	}
-	if upstream.Spec.CredentialRef != "" {
-		credential, exists := c.upstreamCredentials[upstream.Spec.CredentialRef]
-		if !exists {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				upstream.Name,
-				ReasonReferenceNotFound,
-				fmt.Sprintf("upstream %q references missing credential %q", upstream.Name, upstream.Spec.CredentialRef),
-			)
-			protocolValid = false
-		} else if credential.Spec.Type != gatewayv1.UpstreamCredentialTypeAPIKey || credential.Spec.APIKey == nil || !bearer.ValidToken(credential.Spec.APIKey.Value) {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				upstream.Name,
-				ReasonInvalidReference,
-				fmt.Sprintf("upstream %q references unusable credential %q", upstream.Name, upstream.Spec.CredentialRef),
-			)
-			protocolValid = false
-		}
+	if upstream.Spec.Authentication != nil &&
+		(upstream.Spec.Authentication.APIKey == nil || !bearer.ValidToken(upstream.Spec.Authentication.APIKey.Value)) {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("upstream %q API key is missing or invalid", upstream.Name),
+		)
+		protocolValid = false
 	}
 	return protocolValid
 }

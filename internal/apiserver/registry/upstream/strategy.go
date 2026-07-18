@@ -12,6 +12,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
+	"github.com/lgc202/ingate/internal/pkg/bearer"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
@@ -146,11 +147,19 @@ func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 	if upstream.Spec.Type != "" && upstream.Spec.Type != resource.UpstreamTypeModel && upstream.Spec.Protocol == resource.UpstreamProtocolOpenAI {
 		errs = append(errs, field.Invalid(specPath.Child("protocol"), upstream.Spec.Protocol, "the OpenAI protocol is only supported by model upstreams"))
 	}
-	if upstream.Spec.CredentialRef != "" && upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
-		errs = append(errs, field.Forbidden(specPath.Child("credentialRef"), "credentialRef is currently only supported by OpenAI upstreams"))
-	}
-	if upstream.Spec.CredentialRef != "" && upstream.Spec.TLS == nil {
-		errs = append(errs, field.Required(specPath.Child("tls"), "tls is required when credentialRef is configured"))
+	if upstream.Spec.Authentication != nil {
+		authenticationPath := specPath.Child("authentication")
+		if upstream.Spec.Authentication.APIKey == nil {
+			errs = append(errs, field.Required(authenticationPath.Child("apiKey"), "apiKey is required when authentication is configured"))
+		} else if !bearer.ValidToken(upstream.Spec.Authentication.APIKey.Value) {
+			errs = append(errs, field.Invalid(authenticationPath.Child("apiKey", "value"), "<redacted>", "value must be a valid Bearer token"))
+		}
+		if upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
+			errs = append(errs, field.Forbidden(authenticationPath, "authentication is currently only supported by OpenAI upstreams"))
+		}
+		if upstream.Spec.TLS == nil {
+			errs = append(errs, field.Required(specPath.Child("tls"), "tls is required when authentication is configured"))
+		}
 	}
 	if upstream.Spec.TLS != nil {
 		tlsPath := specPath.Child("tls")

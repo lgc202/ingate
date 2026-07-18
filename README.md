@@ -46,7 +46,7 @@ OpenAI Client
 
 - 第一阶段只处理 `POST /v1/chat/completions`，普通响应和 SSE 流式响应均由 Envoy 原样转发
 - 模型服务仍使用 `Upstream`，通过 `tls.serverName` 启用 HTTPS、SNI 和系统 CA 根证书包校验
-- `UpstreamCredential` 第一阶段只支持 `APIKey`；Admin API 不回显密钥，只返回是否已配置，更新时省略密钥会保留原值；绑定访问凭据的模型服务必须使用 HTTPS
+- 模型服务的 API Key 直接随 `Upstream` 配置，不再创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略密钥会保留原值，显式移除才会清除；配置 API Key 时必须使用 HTTPS
 - 一条模型 RouteRule 通过 `modelRouting` 固定绑定一个 OpenAI Upstream；`models[]` 只把客户端 `model` 别名映射为实际的上游模型名称
 - Envoy Config Compiler 生成 `ai-proxy` 的私有执行配置，用户不需要安装插件或编辑插件 JSON
 

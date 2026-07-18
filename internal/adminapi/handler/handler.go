@@ -11,7 +11,6 @@ import (
 	ratelimitpolicyhandler "github.com/lgc202/ingate/internal/adminapi/handler/ratelimitpolicy"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/route"
 	upstreamhandler "github.com/lgc202/ingate/internal/adminapi/handler/upstream"
-	upstreamcredentialhandler "github.com/lgc202/ingate/internal/adminapi/handler/upstreamcredential"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
 	"github.com/lgc202/ingate/internal/adminapi/service"
@@ -23,7 +22,6 @@ type Handler struct {
 	Gateway             *gatewayhandler.Handler
 	Route               *routehandler.Handler
 	Upstream            *upstreamhandler.Handler
-	UpstreamCredential  *upstreamcredentialhandler.Handler
 	AccessControlPolicy *accesscontrolpolicyhandler.Handler
 	RateLimitPolicy     *ratelimitpolicyhandler.Handler
 }
@@ -35,7 +33,6 @@ func New(service *service.Service, logger *slog.Logger) *Handler {
 		Gateway:             gatewayhandler.New(service.Gateway, logger.With("handler", "gateway")),
 		Route:               routehandler.New(service.Route, logger.With("handler", "route")),
 		Upstream:            upstreamhandler.New(service.Upstream, logger.With("handler", "upstream")),
-		UpstreamCredential:  upstreamcredentialhandler.New(service.UpstreamCredential, logger.With("handler", "upstreamcredential")),
 		AccessControlPolicy: accesscontrolpolicyhandler.New(service.AccessControlPolicy, logger.With("handler", "accesscontrolpolicy")),
 		RateLimitPolicy:     ratelimitpolicyhandler.New(service.RateLimitPolicy, logger.With("handler", "ratelimitpolicy")),
 	}

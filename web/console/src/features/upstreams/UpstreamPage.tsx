@@ -1,10 +1,8 @@
 import { useState } from 'react';
-import { listUpstreamCredentials } from '@/api/credentials';
 import { deleteUpstream, listUpstreams, saveUpstream } from '@/api/upstreams';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
-import type { UpstreamCredential } from '@/domain/credential';
 import type { Upstream, UpstreamEndpoint, UpstreamType } from '@/domain/upstream';
 import {
   upstreamLoadBalancePolicyLabel,
@@ -24,16 +22,7 @@ import {
   validateUpstreamDraft,
 } from './form';
 
-const loadUpstreamWorkspace = async () => {
-  const [upstreamList, credentialList] = await Promise.all([
-    listUpstreams(),
-    listUpstreamCredentials(),
-  ]);
-  return {
-    upstreams: upstreamList.upstreams,
-    credentials: credentialList.credentials,
-  };
-};
+const loadUpstreamWorkspace = () => listUpstreams();
 type UpstreamPanelMode = 'list' | 'detail' | 'create' | 'edit';
 
 interface UpstreamNotice {
@@ -69,7 +58,6 @@ export function UpstreamPage() {
   }
 
   const availableUpstreams = upstreams.data.upstreams;
-  const availableCredentials = upstreams.data.credentials;
   const selectedUpstream = availableUpstreams.find((upstream) => upstream.id === selectedUpstreamId) ?? availableUpstreams[0] ?? null;
   const visibleUpstreams = availableUpstreams.filter((upstream) => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -163,7 +151,7 @@ export function UpstreamPage() {
         actions={<Button variant="soft" onClick={() => setPanelMode('list')}>返回列表</Button>}
       >
         <Panel title="基础信息">
-          {selectedUpstream ? <UpstreamDetail upstream={selectedUpstream} credentials={availableCredentials} /> : null}
+          {selectedUpstream ? <UpstreamDetail upstream={selectedUpstream} /> : null}
         </Panel>
       </PageFrame>
     );
@@ -186,7 +174,6 @@ export function UpstreamPage() {
           <UpstreamFormPanel
             draft={draft}
             validation={validation}
-            credentials={availableCredentials}
             submitting={submitting}
             onDraftChange={updateDraft}
             onSubmit={handleUpstreamSubmit}
@@ -241,7 +228,9 @@ export function UpstreamPage() {
                   <td>
                     <div className="table-primary">{upstreamConnectionSummary(upstream)}</div>
                     <div className="table-secondary">
-                      {upstream.credentialID ? credentialName(upstream.credentialID, availableCredentials) : '无需访问凭据'}
+                      {upstream.type === 'model'
+                        ? (upstream.apiKeyConfigured ? 'API Key 已配置' : '未配置 API Key')
+                        : '无需认证'}
                     </div>
                   </td>
                   <td>
@@ -310,7 +299,6 @@ export function UpstreamPage() {
 function UpstreamFormPanel({
   draft,
   validation,
-  credentials,
   submitting,
   onDraftChange,
   onSubmit,
@@ -318,7 +306,6 @@ function UpstreamFormPanel({
 }: {
   draft: UpstreamFormDraft;
   validation: UpstreamFormValidation;
-  credentials: UpstreamCredential[];
   submitting: boolean;
   onDraftChange: (patch: Partial<UpstreamFormDraft>) => void;
   onSubmit: () => void;
@@ -354,16 +341,29 @@ function UpstreamFormPanel({
           <section className="form-section">
             <div className="form-section-title">
               <h3>连接方式</h3>
-              <p>{draft.type === 'model' ? '模型服务使用 OpenAI 兼容接口，并可选择访问凭据。' : '普通服务使用 HTTP 接口，可按需启用 HTTPS。'}</p>
+              <p>{draft.type === 'model' ? '模型服务使用 OpenAI 兼容接口，可通过 HTTPS 安全连接上游。' : '普通服务使用 HTTP 接口，可按需启用 HTTPS。'}</p>
             </div>
             <UpstreamConnectionEditor
               draft={draft}
-              credentials={credentials}
               protocolError={validation.errors.protocol}
               tlsError={validation.errors.tls}
               onChange={onDraftChange}
             />
           </section>
+
+          {draft.type === 'model' ? (
+            <section className="form-section">
+              <div className="form-section-title">
+                <h3>服务认证</h3>
+                <p>API Key 直接随模型服务保存，转发请求时由网关自动携带。</p>
+              </div>
+              <UpstreamAuthenticationEditor
+                draft={draft}
+                error={validation.errors.apiKey}
+                onChange={onDraftChange}
+              />
+            </section>
+          ) : null}
 
           <section className="form-section">
             <div className="form-section-title">
@@ -474,18 +474,15 @@ function UpstreamEndpointEditor({
 
 function UpstreamConnectionEditor({
   draft,
-  credentials,
   protocolError,
   tlsError,
   onChange,
 }: {
   draft: UpstreamFormDraft;
-  credentials: UpstreamCredential[];
   protocolError?: string;
   tlsError?: string;
   onChange: (patch: Partial<UpstreamFormDraft>) => void;
 }) {
-  const selectedCredentialAvailable = credentials.some((credential) => credential.id === draft.credentialID);
   return (
     <div className="upstream-connection-grid">
       <div className={`field ${protocolError ? 'invalid' : ''}`.trim()}>
@@ -496,22 +493,6 @@ function UpstreamConnectionEditor({
         </div>
         {protocolError ? <div className="form-error">{protocolError}</div> : null}
       </div>
-
-      {draft.type === 'model' ? (
-        <label className="field">
-          <span>访问凭据</span>
-          <select value={draft.credentialID} onChange={(event) => onChange({ credentialID: event.target.value })}>
-            <option value="">不使用访问凭据</option>
-            {!selectedCredentialAvailable && draft.credentialID ? <option value={draft.credentialID}>当前凭据不可用</option> : null}
-            {credentials.map((credential) => (
-              <option key={credential.id} value={credential.id}>
-                {credential.name}{credential.configured ? '' : '（未配置密钥）'}
-              </option>
-            ))}
-          </select>
-          <small className="field-hint">请求转发时自动携带所选密钥；使用凭据时必须开启 HTTPS。</small>
-        </label>
-      ) : null}
 
       <div className={`field field-wide ${tlsError ? 'invalid' : ''}`.trim()}>
         <label className="connection-toggle-row">
@@ -534,6 +515,87 @@ function UpstreamConnectionEditor({
         ) : null}
         {tlsError ? <div className="form-error">{tlsError}</div> : null}
       </div>
+    </div>
+  );
+}
+
+function UpstreamAuthenticationEditor({
+  draft,
+  error,
+  onChange,
+}: {
+  draft: UpstreamFormDraft;
+  error?: string;
+  onChange: (patch: Partial<UpstreamFormDraft>) => void;
+}) {
+  const [showAPIKey, setShowAPIKey] = useState(false);
+  const replacingAPIKey = Boolean(draft.apiKey);
+  const status = draft.removeAPIKey
+    ? { label: '保存后移除', tone: 'warning' as const }
+    : replacingAPIKey
+      ? { label: draft.apiKeyConfigured ? '将替换' : '待配置', tone: 'accent' as const }
+      : draft.apiKeyConfigured
+        ? { label: '已配置', tone: 'success' as const }
+        : { label: '未配置', tone: 'neutral' as const };
+
+  return (
+    <div className={`upstream-auth-card ${draft.removeAPIKey ? 'removing' : ''}`.trim()}>
+      <div className="upstream-auth-head">
+        <div>
+          <strong>API Key</strong>
+          <span>密钥不会在保存后回显</span>
+        </div>
+        <Badge tone={status.tone}>{status.label}</Badge>
+      </div>
+
+      {draft.removeAPIKey ? (
+        <div className="upstream-auth-removal">
+          <div>
+            <strong>将停止使用 API Key</strong>
+            <span>保存服务后，网关不再为请求注入当前密钥。</span>
+          </div>
+          <Button variant="soft" type="button" onClick={() => onChange({ removeAPIKey: false })}>撤销移除</Button>
+        </div>
+      ) : (
+        <div className="upstream-auth-editor">
+          <label className={`field ${error ? 'invalid' : ''}`.trim()}>
+            <span>{draft.apiKeyConfigured ? '替换 API Key' : 'API Key（可选）'}</span>
+            <div className="upstream-secret-input">
+              <input
+                type={showAPIKey ? 'text' : 'password'}
+                value={draft.apiKey}
+                autoComplete="new-password"
+                spellCheck={false}
+                placeholder={draft.apiKeyConfigured ? '留空则保留当前 API Key' : '输入模型服务 API Key'}
+                onChange={(event) => onChange({ apiKey: event.target.value })}
+              />
+              <button
+                className="link-button"
+                type="button"
+                aria-pressed={showAPIKey}
+                onClick={() => setShowAPIKey((current) => !current)}
+              >
+                {showAPIKey ? '隐藏' : '显示'}
+              </button>
+            </div>
+            <small className="field-hint">
+              {draft.apiKeyConfigured
+                ? (replacingAPIKey ? '保存后会替换当前 API Key。' : '当前已配置 API Key，留空不会修改。')
+                : '不填写时，转发请求不会携带认证信息。'}
+            </small>
+            {error ? <div className="form-error">{error}</div> : null}
+          </label>
+          {draft.apiKeyConfigured ? (
+            <button
+              className="link-button danger upstream-auth-remove"
+              type="button"
+              onClick={() => onChange({ apiKey: '', removeAPIKey: true })}
+            >移除 API Key</button>
+          ) : null}
+        </div>
+      )}
+
+      <div className="upstream-auth-note">配置或保留 API Key 时必须使用 HTTPS。</div>
     </div>
   );
 }
@@ -655,12 +717,12 @@ function isValidTimeout(timeout: number, interval: number) {
   return Number.isInteger(timeout) && timeout >= 1 && timeout <= 60 && timeout < interval;
 }
 
-function UpstreamDetail({ upstream, credentials }: { upstream: Upstream; credentials: UpstreamCredential[] }) {
+function UpstreamDetail({ upstream }: { upstream: Upstream }) {
   const rows = [
     ['服务类型', upstreamTypeLabel(upstream.type)],
     ['接口协议', upstreamProtocolLabel(upstream.protocol)],
     ['安全连接', upstream.tls ? `HTTPS / ${upstream.tls.serverName}` : 'HTTP'],
-    ['访问凭据', upstream.credentialID ? credentialName(upstream.credentialID, credentials) : '未配置'],
+    ['服务认证', upstream.type === 'model' ? (upstream.apiKeyConfigured ? 'API Key 已配置' : '未配置') : '无需认证'],
     ['服务端点', formatEndpointSummary(upstream.endpoints)],
     ['启用端点', formatInstanceSummary(upstream.endpoints)],
     ['负载均衡', upstreamLoadBalancePolicyLabel(upstream.loadBalancePolicy)],
@@ -678,10 +740,6 @@ function UpstreamDetail({ upstream, credentials }: { upstream: Upstream; credent
       </div>
     </div>
   );
-}
-
-function credentialName(credentialID: string, credentials: UpstreamCredential[]) {
-  return credentials.find((credential) => credential.id === credentialID)?.name ?? '凭据不可用';
 }
 
 function upstreamConnectionSummary(upstream: Upstream) {

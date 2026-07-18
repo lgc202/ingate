@@ -850,24 +850,6 @@ body { overflow-x: hidden; }
   min-width: 1080px;
 }
 
-.credential-table {
-  min-width: 760px;
-}
-
-.credential-secret-card {
-  min-height: 118px;
-  border: 1px solid #dfe4ec;
-  border-radius: 8px;
-  background:
-    linear-gradient(90deg, rgba(47, 95, 199, 0.06), transparent 52%),
-    #fafbfe;
-  padding: 16px;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 14px;
-}
-
 .policy-table {
   min-width: 900px;
 }
@@ -1778,6 +1760,80 @@ body { overflow-x: hidden; }
   color: var(--muted);
   font-size: 0.76rem;
   font-weight: 500;
+}
+
+.upstream-auth-card {
+  border: 1px solid #dce2ec;
+  border-radius: 7px;
+  background:
+    linear-gradient(90deg, rgba(47, 95, 199, 0.055), transparent 58%),
+    #fafbfe;
+  padding: 14px;
+  display: grid;
+  gap: 14px;
+}
+
+.upstream-auth-card.removing {
+  border-color: #ead6ae;
+  background:
+    linear-gradient(90deg, rgba(173, 104, 0, 0.065), transparent 58%),
+    #fffdf8;
+}
+
+.upstream-auth-head,
+.upstream-auth-removal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.upstream-auth-head > div,
+.upstream-auth-removal > div {
+  display: grid;
+  gap: 3px;
+}
+
+.upstream-auth-head strong,
+.upstream-auth-removal strong {
+  color: #243552;
+  font-size: 0.88rem;
+}
+
+.upstream-auth-head span,
+.upstream-auth-removal span,
+.upstream-auth-note {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.upstream-auth-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+}
+
+.upstream-secret-input {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.upstream-secret-input input {
+  width: 100%;
+  min-width: 0;
+}
+
+.upstream-auth-remove {
+  margin-top: 31px;
+}
+
+.upstream-auth-note {
+  border-top: 1px solid rgba(220, 226, 236, 0.82);
+  padding-top: 10px;
 }
 
 .route-forward-mode {
@@ -2844,7 +2900,9 @@ body { overflow-x: hidden; }
   .upstream-row { grid-template-columns: 1fr; align-items: stretch; }
   .upstream-endpoint-editor { overflow-x: auto; padding-bottom: 4px; }
   .upstream-endpoint-grid { min-width: 640px; }
-  .credential-secret-card { grid-template-columns: 1fr; align-items: start; }
+  .upstream-auth-editor { grid-template-columns: 1fr; }
+  .upstream-auth-remove { margin-top: 0; justify-self: start; }
+  .upstream-auth-removal { align-items: flex-start; flex-direction: column; }
   .header-match-row { grid-template-columns: 1fr; }
   .header-match-row .link-button { justify-self: start; }
   .route-workbench-actions { align-items: stretch; flex-direction: column; }

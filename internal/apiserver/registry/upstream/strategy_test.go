@@ -1,6 +1,7 @@
 package upstream
 
 import (
+	"strings"
 	"testing"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
@@ -35,7 +36,7 @@ func TestValidateUpstreamModelConnection(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "credential requires TLS",
+			name: "API key requires TLS",
 			spec: func() resource.UpstreamSpec {
 				spec := modelUpstreamSpec()
 				spec.TLS = nil
@@ -44,14 +45,23 @@ func TestValidateUpstreamModelConnection(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "credentialless model allows plaintext transport",
+			name: "model without API key allows plaintext transport",
 			spec: func() resource.UpstreamSpec {
 				spec := modelUpstreamSpec()
 				spec.TLS = nil
-				spec.CredentialRef = ""
+				spec.Authentication = nil
 				spec.Endpoints[0].Port = 80
 				return spec
 			}(),
+		},
+		{
+			name: "API key rejects unsafe value",
+			spec: func() resource.UpstreamSpec {
+				spec := modelUpstreamSpec()
+				spec.Authentication.APIKey.Value = "secret\r\ninjected"
+				return spec
+			}(),
+			wantErr: true,
 		},
 		{
 			name: "TLS requires valid server name",
@@ -74,12 +84,27 @@ func TestValidateUpstreamModelConnection(t *testing.T) {
 	}
 }
 
+func TestValidateUpstreamDoesNotExposeAPIKey(t *testing.T) {
+	spec := modelUpstreamSpec()
+	spec.Authentication.APIKey.Value = "secret\r\ninjected"
+
+	errs := validateUpstream(&resource.Upstream{Spec: spec})
+	if len(errs) == 0 {
+		t.Fatal("validateUpstream(unsafe API key) errors = nil, want non-empty")
+	}
+	if strings.Contains(errs.ToAggregate().Error(), spec.Authentication.APIKey.Value) {
+		t.Error("validateUpstream(unsafe API key) exposed the API key in its error")
+	}
+}
+
 func modelUpstreamSpec() resource.UpstreamSpec {
 	return resource.UpstreamSpec{
-		Type:          resource.UpstreamTypeModel,
-		Protocol:      resource.UpstreamProtocolOpenAI,
-		TLS:           &resource.UpstreamTLS{ServerName: "api.openai.com"},
-		CredentialRef: "credential-1",
+		Type:     resource.UpstreamTypeModel,
+		Protocol: resource.UpstreamProtocolOpenAI,
+		TLS:      &resource.UpstreamTLS{ServerName: "api.openai.com"},
+		Authentication: &resource.UpstreamAuthentication{
+			APIKey: &resource.APIKeyAuthentication{Value: "sk-test-secret"},
+		},
 		Endpoints: []resource.Endpoint{
 			{
 				Name:    "primary",

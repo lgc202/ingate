@@ -15,11 +15,14 @@ type UpstreamResult struct {
 // CreateUpstreamParams 是创建 Upstream 用例参数
 type CreateUpstreamParams struct {
 	UpstreamParams
+	APIKey *APIKeyParams
 }
 
 // UpdateUpstreamParams 是更新 Upstream 用例参数
 type UpdateUpstreamParams struct {
-	Version string
+	Version      string
+	APIKey       *APIKeyParams
+	RemoveAPIKey bool
 	UpstreamParams
 }
 
@@ -29,10 +32,14 @@ type UpstreamParams struct {
 	Type              resource.UpstreamType
 	Protocol          resource.UpstreamProtocol
 	TLS               *TLSParams
-	CredentialID      string
 	LoadBalancePolicy resource.UpstreamLoadBalancePolicy
 	Endpoints         []EndpointParams
 	HealthCheck       *resource.UpstreamHealthCheck
+}
+
+// APIKeyParams 是 Upstream 使用的 API Key 参数
+type APIKeyParams struct {
+	Value string
 }
 
 // TLSParams 是 Upstream HTTPS 连接参数

@@ -133,17 +133,13 @@ func (c *compileContext) compileAIModels(routeID string, rule gatewayv1.RouteRul
 }
 
 func (c *compileContext) upstreamAPIKey(upstream *gatewayv1.Upstream) (string, bool) {
-	if upstream.Spec.CredentialRef == "" {
+	if upstream.Spec.Authentication == nil {
 		return "", true
 	}
-	credential, exists := c.upstreamCredentials[upstream.Spec.CredentialRef]
-	if !exists {
+	if upstream.Spec.Authentication.APIKey == nil || !bearer.ValidToken(upstream.Spec.Authentication.APIKey.Value) {
 		return "", false
 	}
-	if credential.Spec.Type != gatewayv1.UpstreamCredentialTypeAPIKey || credential.Spec.APIKey == nil || !bearer.ValidToken(credential.Spec.APIKey.Value) {
-		return "", false
-	}
-	return credential.Spec.APIKey.Value, true
+	return upstream.Spec.Authentication.APIKey.Value, true
 }
 
 func (c *compileContext) addAIProxyConfigs(configs map[listenerKey]listenerPluginConfig) {
