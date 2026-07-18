@@ -6,6 +6,7 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	accesscontrolpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/accesscontrolpolicy"
+	certificatestorage "github.com/lgc202/ingate/internal/apiserver/registry/certificate"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
 	policybindingstorage "github.com/lgc202/ingate/internal/apiserver/registry/policybinding"
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
@@ -103,6 +104,11 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 	if err := installStatusStorage(gatewayv1.ResourceUpstreams, gatewayv1.ResourceUpstreamsStatus, func() (rest.Storage, rest.Storage, error) {
 		return upstreamstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return nil, err
+	}
+	if err := installStatusStorage(gatewayv1.ResourceCertificates, gatewayv1.ResourceCertificatesStatus, func() (rest.Storage, rest.Storage, error) {
+		return certificatestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return nil, err
 	}

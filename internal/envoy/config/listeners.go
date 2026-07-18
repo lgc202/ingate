@@ -7,9 +7,13 @@ import (
 	"slices"
 	"strings"
 
+	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	listenerv3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	routerv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
+	tlsinspectorv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/tls_inspector/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 )
@@ -18,6 +22,9 @@ const (
 	defaultBindAddress              = "0.0.0.0"
 	httpConnectionManagerFilterName = "envoy.filters.network.http_connection_manager"
 	httpRouterFilterName            = "envoy.filters.http.router"
+	tlsInspectorFilterName          = "envoy.filters.listener.tls_inspector"
+	tlsTransportSocketName          = "envoy.transport_sockets.tls"
+	tlsTransportProtocol            = "tls"
 )
 
 type listenerKey struct {
@@ -27,13 +34,16 @@ type listenerKey struct {
 }
 
 type listenerGroup struct {
-	key    listenerKey
-	claims []hostnameClaim
+	key      listenerKey
+	claims   []hostnameClaim
+	gateways []gatewayListener
 }
 
 type gatewayListener struct {
-	key   listenerKey
-	hosts []string
+	key            listenerKey
+	gatewayID      string
+	hosts          []string
+	certificateRef string
 }
 
 type hostnameClaim struct {
@@ -42,8 +52,9 @@ type hostnameClaim struct {
 }
 
 type gatewayListenerDeclaration struct {
-	key       listenerKey
-	supported bool
+	key            listenerKey
+	certificateRef string
+	supported      bool
 }
 
 func (c *compileContext) buildListenerGroups() {
@@ -96,7 +107,10 @@ func (c *compileContext) buildListenerGroups() {
 				port:     listener.Port,
 				protocol: listener.Protocol,
 			}
-			declaration := gatewayListenerDeclaration{key: key}
+			declaration := gatewayListenerDeclaration{
+				key:            key,
+				certificateRef: listener.CertificateRef,
+			}
 			duplicatePort := false
 			if listener.Port < 1 || listener.Port > 65535 {
 				c.addDiagnostic(
@@ -126,9 +140,63 @@ func (c *compileContext) buildListenerGroups() {
 					ports[listener.Port] = listener.Name
 				}
 			}
-			if listener.Protocol == gatewayv1.ProtocolHTTP {
-				declaration.supported = listener.Port >= 1 && listener.Port <= 65535 && !duplicatePort
-			} else {
+			validPort := listener.Port >= 1 && listener.Port <= 65535 && !duplicatePort
+			switch listener.Protocol {
+			case gatewayv1.ProtocolHTTP:
+				if listener.CertificateRef != "" {
+					c.addDiagnostic(
+						SeverityError,
+						gatewayv1.KindGateway,
+						gatewayID,
+						ReasonInvalidSpec,
+						fmt.Sprintf("gateway %q HTTP listener %q must not reference a certificate", gatewayID, listener.Name),
+					)
+					break
+				}
+				declaration.supported = validPort
+			case gatewayv1.ProtocolHTTPS:
+				if listener.CertificateRef == "" {
+					c.addDiagnostic(
+						SeverityError,
+						gatewayv1.KindGateway,
+						gatewayID,
+						ReasonInvalidSpec,
+						fmt.Sprintf("gateway %q HTTPS listener %q must reference a certificate", gatewayID, listener.Name),
+					)
+					break
+				}
+				if _, exists := c.certificates[listener.CertificateRef]; !exists {
+					c.addDiagnostic(
+						SeverityError,
+						gatewayv1.KindGateway,
+						gatewayID,
+						ReasonReferenceNotFound,
+						fmt.Sprintf(
+							"gateway %q HTTPS listener %q references missing certificate %q",
+							gatewayID,
+							listener.Name,
+							listener.CertificateRef,
+						),
+					)
+					break
+				}
+				if !c.validCertificates[listener.CertificateRef] {
+					c.addDiagnostic(
+						SeverityError,
+						gatewayv1.KindGateway,
+						gatewayID,
+						ReasonInvalidSpec,
+						fmt.Sprintf(
+							"gateway %q HTTPS listener %q references invalid certificate %q",
+							gatewayID,
+							listener.Name,
+							listener.CertificateRef,
+						),
+					)
+					break
+				}
+				declaration.supported = validPort
+			default:
 				c.addDiagnostic(
 					SeverityError,
 					gatewayv1.KindGateway,
@@ -146,6 +214,7 @@ func (c *compileContext) buildListenerGroups() {
 	for _, key := range c.sortedListenerKeys() {
 		c.validateHostnameClaims(c.listenerGroups[key])
 	}
+	c.validateListenerPortOwnership()
 }
 
 func (c *compileContext) buildGatewayListenerClaims(
@@ -153,6 +222,7 @@ func (c *compileContext) buildGatewayListenerClaims(
 	declarations map[string]gatewayListenerDeclaration,
 ) {
 	hostsByKey := make(map[listenerKey]map[string]bool)
+	certificateRefs := make(map[listenerKey]string)
 	keys := make(map[listenerKey]bool)
 	for _, declaration := range declarations {
 		if !declaration.supported {
@@ -160,10 +230,11 @@ func (c *compileContext) buildGatewayListenerClaims(
 		}
 		keys[declaration.key] = true
 		hostsByKey[declaration.key] = make(map[string]bool)
+		certificateRefs[declaration.key] = declaration.certificateRef
 	}
 
 	for _, binding := range gateway.Spec.HostBindings {
-		hostname, ok := normalizeHostname(binding.Hostname)
+		hostname, ok := hostnameutil.Normalize(binding.Hostname)
 		if !ok {
 			c.addDiagnostic(
 				SeverityError,
@@ -246,15 +317,19 @@ func (c *compileContext) buildGatewayListenerClaims(
 			hostsByKey[key]["*"] = true
 		}
 		hosts := slices.Sorted(maps.Keys(hostsByKey[key]))
-		c.gatewayListeners[gateway.Name] = append(c.gatewayListeners[gateway.Name], gatewayListener{
-			key:   key,
-			hosts: hosts,
-		})
+		compiledListener := gatewayListener{
+			key:            key,
+			gatewayID:      gateway.Name,
+			hosts:          hosts,
+			certificateRef: certificateRefs[key],
+		}
+		c.gatewayListeners[gateway.Name] = append(c.gatewayListeners[gateway.Name], compiledListener)
 		group := c.listenerGroups[key]
 		if group == nil {
 			group = &listenerGroup{key: key}
 			c.listenerGroups[key] = group
 		}
+		group.gateways = append(group.gateways, compiledListener)
 		for _, hostname := range hosts {
 			group.claims = append(group.claims, hostnameClaim{
 				gatewayID: gateway.Name,
@@ -276,7 +351,7 @@ func (c *compileContext) validateHostnameClaims(group *listenerGroup) {
 	})
 	for i, first := range group.claims {
 		for _, second := range group.claims[i+1:] {
-			if !hostnamesOverlap(first.hostname, second.hostname) {
+			if !hostnameutil.Overlaps(first.hostname, second.hostname) {
 				continue
 			}
 			message := fmt.Sprintf(
@@ -289,6 +364,33 @@ func (c *compileContext) validateHostnameClaims(group *listenerGroup) {
 			)
 			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, first.gatewayID, ReasonConflict, message)
 			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, second.gatewayID, ReasonConflict, message)
+		}
+	}
+}
+
+func (c *compileContext) validateListenerPortOwnership() {
+	keys := c.sortedListenerKeys()
+	for i, first := range keys {
+		for _, second := range keys[i+1:] {
+			if first.address != second.address || first.port != second.port {
+				continue
+			}
+			if first.protocol == second.protocol {
+				continue
+			}
+
+			message := fmt.Sprintf(
+				"port %d is configured for both %s and %s gateways",
+				first.port,
+				first.protocol,
+				second.protocol,
+			)
+			for _, gateway := range c.listenerGroups[first].gateways {
+				c.addDiagnostic(SeverityError, gatewayv1.KindGateway, gateway.gatewayID, ReasonConflict, message)
+			}
+			for _, gateway := range c.listenerGroups[second].gateways {
+				c.addDiagnostic(SeverityError, gatewayv1.KindGateway, gateway.gatewayID, ReasonConflict, message)
+			}
 		}
 	}
 }
@@ -337,24 +439,139 @@ func (c *compileContext) buildListeners(policies map[listenerKey]listenerPolicyC
 			continue
 		}
 
-		listeners = append(listeners, &listenerv3.Listener{
+		listener := &listenerv3.Listener{
 			Name:    listenerName(key),
 			Address: socketAddress(key.address, key.port),
-			FilterChains: []*listenerv3.FilterChain{
-				{
-					Filters: []*listenerv3.Filter{
-						{
-							Name: httpConnectionManagerFilterName,
-							ConfigType: &listenerv3.Filter_TypedConfig{
-								TypedConfig: hcm,
-							},
-						},
-					},
-				},
-			},
-		})
+		}
+		switch key.protocol {
+		case gatewayv1.ProtocolHTTP:
+			listener.FilterChains = []*listenerv3.FilterChain{httpFilterChain(hcm)}
+		case gatewayv1.ProtocolHTTPS:
+			if err := c.configureHTTPSListener(listener, c.listenerGroups[key], hcm); err != nil {
+				c.addDiagnostic(SeverityError, gatewayv1.KindGateway, listenerName(key), ReasonCompileFailed, err.Error())
+				continue
+			}
+		default:
+			continue
+		}
+		listeners = append(listeners, listener)
 	}
 	return listeners
+}
+
+func (c *compileContext) configureHTTPSListener(
+	listener *listenerv3.Listener,
+	group *listenerGroup,
+	hcm *anypb.Any,
+) error {
+	// TLS Inspector 先提取 SNI，同一 8443 Listener 再按逻辑 Gateway 的 Host 所有权选择证书和 HCM filter chain
+	inspectorConfig := &tlsinspectorv3.TlsInspector{}
+	if err := inspectorConfig.ValidateAll(); err != nil {
+		return fmt.Errorf("validate TLS inspector for listener %s: %w", listener.Name, err)
+	}
+	inspector, err := anypb.New(inspectorConfig)
+	if err != nil {
+		return fmt.Errorf("encode TLS inspector for listener %s: %w", listener.Name, err)
+	}
+	listener.ListenerFilters = []*listenerv3.ListenerFilter{
+		{
+			Name: tlsInspectorFilterName,
+			ConfigType: &listenerv3.ListenerFilter_TypedConfig{
+				TypedConfig: inspector,
+			},
+		},
+	}
+
+	gateways := slices.Clone(group.gateways)
+	slices.SortFunc(gateways, func(a, b gatewayListener) int {
+		return cmp.Compare(a.gatewayID, b.gatewayID)
+	})
+	for _, gateway := range gateways {
+		certificate := c.certificates[gateway.certificateRef]
+		filterChain, err := buildHTTPSFilterChain(listener.Name, gateway, certificate, hcm)
+		if err != nil {
+			return err
+		}
+		if slices.Contains(gateway.hosts, "*") {
+			// Envoy 不接受 ServerNames=["*"]，无 Host 限制的 Gateway 必须使用 DefaultFilterChain
+			listener.DefaultFilterChain = filterChain
+			continue
+		}
+		listener.FilterChains = append(listener.FilterChains, filterChain)
+	}
+	return nil
+}
+
+func buildHTTPSFilterChain(
+	listenerName string,
+	gateway gatewayListener,
+	certificate *gatewayv1.Certificate,
+	hcm *anypb.Any,
+) (*listenerv3.FilterChain, error) {
+	// Certificate 是声明式事实，本轮直接随 LDS 下发 PEM；后续需要独立密钥轮转时再引入 SDS
+	tlsContext := &tlsv3.DownstreamTlsContext{
+		CommonTlsContext: &tlsv3.CommonTlsContext{
+			TlsCertificates: []*tlsv3.TlsCertificate{
+				{
+					CertificateChain: inlineStringDataSource(certificate.Spec.CertificatePEM),
+					PrivateKey:       inlineStringDataSource(certificate.Spec.PrivateKeyPEM),
+				},
+			},
+			AlpnProtocols: []string{"h2", "http/1.1"},
+		},
+	}
+	if err := tlsContext.ValidateAll(); err != nil {
+		return nil, fmt.Errorf(
+			"validate TLS context for gateway %q on listener %s: %w",
+			gateway.gatewayID,
+			listenerName,
+			err,
+		)
+	}
+	typedTLSContext, err := anypb.New(tlsContext)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"encode TLS context for gateway %q on listener %s: %w",
+			gateway.gatewayID,
+			listenerName,
+			err,
+		)
+	}
+
+	filterChain := httpFilterChain(hcm)
+	filterChain.Name = listenerName + "/gateway/" + gateway.gatewayID
+	filterChain.TransportSocket = &corev3.TransportSocket{
+		Name: tlsTransportSocketName,
+		ConfigType: &corev3.TransportSocket_TypedConfig{
+			TypedConfig: typedTLSContext,
+		},
+	}
+	if !slices.Contains(gateway.hosts, "*") {
+		filterChain.FilterChainMatch = &listenerv3.FilterChainMatch{
+			ServerNames:       slices.Clone(gateway.hosts),
+			TransportProtocol: tlsTransportProtocol,
+		}
+	}
+	return filterChain, nil
+}
+
+func httpFilterChain(hcm *anypb.Any) *listenerv3.FilterChain {
+	return &listenerv3.FilterChain{
+		Filters: []*listenerv3.Filter{
+			{
+				Name: httpConnectionManagerFilterName,
+				ConfigType: &listenerv3.Filter_TypedConfig{
+					TypedConfig: hcm,
+				},
+			},
+		},
+	}
+}
+
+func inlineStringDataSource(value string) *corev3.DataSource {
+	return &corev3.DataSource{
+		Specifier: &corev3.DataSource_InlineString{InlineString: value},
+	}
 }
 
 func (c *compileContext) buildHTTPFilters(policies listenerPolicyConfig) ([]*hcmv3.HttpFilter, error) {
@@ -413,63 +630,6 @@ func listenerName(key listenerKey) string {
 
 func routeConfigName(key listenerKey) string {
 	return listenerName(key) + "/routes"
-}
-
-func normalizeHostname(hostname string) (string, bool) {
-	if hostname == "" || hostname == "*" {
-		return "*", true
-	}
-	if strings.TrimSpace(hostname) != hostname {
-		return "", false
-	}
-	hostname = strings.ToLower(hostname)
-	if strings.HasPrefix(hostname, "*.") {
-		if !validDNSName(strings.TrimPrefix(hostname, "*.")) {
-			return "", false
-		}
-		return hostname, true
-	}
-	return hostname, validDNSName(hostname)
-}
-
-func validDNSName(hostname string) bool {
-	if hostname == "" || len(hostname) > 253 {
-		return false
-	}
-	for label := range strings.SplitSeq(hostname, ".") {
-		if label == "" || len(label) > 63 {
-			return false
-		}
-		for i, r := range label {
-			if !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-') {
-				return false
-			}
-			if (i == 0 || i == len(label)-1) && r == '-' {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func hostnamesOverlap(first, second string) bool {
-	if first == "*" || second == "*" {
-		return true
-	}
-	firstWildcard := strings.HasPrefix(first, "*.")
-	secondWildcard := strings.HasPrefix(second, "*.")
-	switch {
-	case !firstWildcard && !secondWildcard:
-		return first == second
-	case firstWildcard && secondWildcard:
-		firstSuffix := strings.TrimPrefix(first, "*")
-		secondSuffix := strings.TrimPrefix(second, "*")
-		return strings.HasSuffix(firstSuffix, secondSuffix) || strings.HasSuffix(secondSuffix, firstSuffix)
-	case firstWildcard:
-		return strings.HasSuffix(second, strings.TrimPrefix(first, "*"))
-	default:
-		return strings.HasSuffix(first, strings.TrimPrefix(second, "*"))
-	}
 }
 
 func hostnameCoveredByListener(hostname, listenerHostname string) bool {

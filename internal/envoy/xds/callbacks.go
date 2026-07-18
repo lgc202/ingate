@@ -110,8 +110,23 @@ func (c *Callbacks) OnStreamRequest(streamID int64, request *discoveryv3.Discove
 	key := sentKey{streamID: streamID, typeURL: request.GetTypeUrl()}
 	sent, ok := c.sent[key]
 	if !ok || request.GetResponseNonce() == "" || request.GetResponseNonce() != sent.nonce {
+		ctx := c.streamContexts[streamID]
 		c.mu.Unlock()
-		return nil
+
+		acceptedVersion := request.GetVersionInfo()
+		if acceptedVersion == "" || request.GetTypeUrl() == "" || request.GetErrorDetail() != nil {
+			return nil
+		}
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		return c.sink(ctx, Event{
+			Kind:            EventAcceptedVersionObserved,
+			StreamID:        streamID,
+			NodeID:          nodeID,
+			TypeURL:         request.GetTypeUrl(),
+			AcceptedVersion: acceptedVersion,
+		})
 	}
 	delete(c.sent, key)
 	ctx := c.streamContexts[streamID]
@@ -124,12 +139,9 @@ func (c *Callbacks) OnStreamRequest(streamID int64, request *discoveryv3.Discove
 		TypeURL:         request.GetTypeUrl(),
 		Version:         sent.version,
 		AcceptedVersion: request.GetVersionInfo(),
-		Nonce:           sent.nonce,
 	}
-	if detail := request.GetErrorDetail(); detail != nil {
+	if request.GetErrorDetail() != nil {
 		event.Kind = EventNACK
-		event.ErrorCode = detail.GetCode()
-		event.ErrorMessage = detail.GetMessage()
 	}
 
 	if ctx == nil {
@@ -166,6 +178,5 @@ func (c *Callbacks) OnStreamResponse(
 		NodeID:   nodeID,
 		TypeURL:  response.GetTypeUrl(),
 		Version:  sent.version,
-		Nonce:    sent.nonce,
 	})
 }

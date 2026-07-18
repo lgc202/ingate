@@ -2,7 +2,6 @@ package status
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,10 +9,6 @@ import (
 	"net/http"
 	"sync/atomic"
 	"time"
-
-	"github.com/lgc202/ingate/internal/envoy/config"
-	"github.com/lgc202/ingate/internal/envoy/delivery"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 const (
@@ -21,35 +16,15 @@ const (
 	serverShutdownTimeout   = 5 * time.Second
 )
 
-type diagnostic struct {
-	Severity config.Severity `json:"severity"`
-	Kind     gatewayv1.Kind  `json:"kind"`
-	ID       string          `json:"id"`
-	Reason   config.Reason   `json:"reason"`
-	Message  string          `json:"message"`
-}
-
-type response struct {
-	delivery.Status
-	Reconciled  bool         `json:"reconciled"`
-	Diagnostics []diagnostic `json:"diagnostics"`
-}
-
-// Server 提供 Controller 健康检查和内部运行状态 HTTP 接口
+// Server 提供 Controller 健康检查 HTTP 接口
 type Server struct {
-	runtime  *Runtime
-	delivery *delivery.Delivery
-	logger   *slog.Logger
-	ready    atomic.Bool
+	logger *slog.Logger
+	ready  atomic.Bool
 }
 
 // NewServer 创建尚未就绪的内部状态服务
-func NewServer(runtime *Runtime, configDelivery *delivery.Delivery, logger *slog.Logger) *Server {
-	return &Server{
-		runtime:  runtime,
-		delivery: configDelivery,
-		logger:   logger,
-	}
+func NewServer(logger *slog.Logger) *Server {
+	return &Server{logger: logger}
 }
 
 // MarkReady 标记 Delivery 已运行且 ADS 与内部 HTTP listener 均已绑定
@@ -110,29 +85,5 @@ func (s *Server) handler() http.Handler {
 		writer.WriteHeader(http.StatusOK)
 		_, _ = writer.Write([]byte("ok\n"))
 	})
-	mux.HandleFunc("GET /internal/v1/status", s.writeStatus)
 	return mux
-}
-
-func (s *Server) writeStatus(writer http.ResponseWriter, _ *http.Request) {
-	runtimeState := s.runtime.Snapshot()
-	diagnostics := make([]diagnostic, len(runtimeState.Diagnostics))
-	for index, value := range runtimeState.Diagnostics {
-		diagnostics[index] = diagnostic{
-			Severity: value.Severity,
-			Kind:     value.Kind,
-			ID:       value.ID,
-			Reason:   value.Reason,
-			Message:  value.Message,
-		}
-	}
-
-	writer.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(writer).Encode(response{
-		Status:      s.delivery.Status(),
-		Reconciled:  runtimeState.Reconciled,
-		Diagnostics: diagnostics,
-	}); err != nil {
-		s.logger.Warn("write controller status response", "err", err)
-	}
 }

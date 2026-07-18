@@ -4,7 +4,6 @@ import (
 	"io"
 	"net"
 
-	"github.com/spf13/pflag"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
@@ -54,13 +53,6 @@ func NewOptions(stdout, stderr io.Writer) *Options {
 		StdOut:           stdout,
 		StdErr:           stderr,
 	}
-}
-
-// AddFlags 注册 ingate-apiserver 命令行参数
-func (o *Options) AddFlags(flags *pflag.FlagSet) {
-	o.ServerRunOptions.AddUniversalFlags(flags)
-	o.SecureServing.AddFlags(flags)
-	o.Etcd.AddFlags(flags)
 }
 
 // Validate 校验 ingate-apiserver 启动参数

@@ -1,0 +1,148 @@
+import type { PolicyWorkspace } from '@/domain/policy';
+import type {
+  HeaderMatch,
+  RouteGatewayOption,
+  RouteResource,
+  RouteRule,
+  UpstreamOption,
+  WeightedUpstream,
+} from '@/domain/route';
+import { formatWeightedUpstreams, upstreamWeightSum } from './composer';
+
+export function primaryRouteRule(route: Pick<RouteResource, 'rules'>): RouteRule | undefined {
+  return route.rules[0];
+}
+
+export function routeUpstreams(route: Pick<RouteResource, 'rules'>): WeightedUpstream[] {
+  return primaryRouteRule(route)?.upstreams ?? [];
+}
+
+export function routeUpstreamIDs(route: Pick<RouteResource, 'rules'>): string[] {
+  return routeUpstreams(route).map((upstream) => upstream.upstreamID);
+}
+
+export function routeUpstreamLabels(route: Pick<RouteResource, 'rules'>, upstreams: UpstreamOption[]): string[] {
+  return routeUpstreams(route).map((upstream) => upstreamLabel(upstream.upstreamID, upstreams));
+}
+
+export function routeUpstreamSummary(route: Pick<RouteResource, 'rules'>, upstreams: UpstreamOption[]): string {
+  return formatWeightedUpstreams(routeUpstreams(route), upstreams);
+}
+
+export function routeForwardControlCount(route: Pick<RouteResource, 'rules'>): number {
+  const rule = primaryRouteRule(route);
+  if (!rule) {
+    return 0;
+  }
+  return [rule.requestHeaderModifier, rule.responseHeaderModifier, rule.timeout, rule.retry].filter(Boolean).length;
+}
+
+export function routeGovernancePolicyLabel(
+  route: Pick<RouteResource, 'id' | 'rules'>,
+  policyWorkspace: PolicyWorkspace | null | undefined,
+): string {
+  if (!policyWorkspace) {
+    return '未绑定';
+  }
+
+  const count = policyWorkspace.bindings
+    .filter((binding) => {
+      if (binding.targetRef.kind !== 'Route' || binding.targetRef.name !== route.id) {
+        return false;
+      }
+      if (!binding.targetRef.ruleName) {
+        return true;
+      }
+      return route.rules.some((rule) => rule.name === binding.targetRef.ruleName);
+    })
+    .reduce((total, binding) => total + binding.policies.length, 0);
+
+  return count > 0 ? `${count} 个` : '未绑定';
+}
+
+export function formatGatewayIDs(gatewayIDs: string[], gateways: RouteGatewayOption[]): string {
+  if (gatewayIDs.length === 0) {
+    return '-';
+  }
+  return gatewayIDs.map((gatewayID) => gatewayLabel(gatewayID, gateways)).join('、');
+}
+
+export function formatHostnames(hostnames: string[]): string {
+  return hostnames.length > 0 ? hostnames.join('、') : '不限制域名';
+}
+
+export function formatHeaderMatches(headers: HeaderMatch[]): string {
+  if (headers.length === 0) {
+    return '不限制请求头';
+  }
+  return headers.map((header) => `${header.name}=${header.value}`).join('、');
+}
+
+export function formatMethods(methods: string[]): string {
+  return methods.length > 0 ? methods.join('、') : '全部方法';
+}
+
+export function formatRouteMatch(route: Pick<RouteResource, 'rules'>): string {
+  const rule = primaryRouteRule(route);
+  return `${formatMethods(rule?.methods ?? [])} ${rule?.pathPrefix ?? '-'}`;
+}
+
+export function routeDetailItems(
+  route: RouteResource,
+  tab: string,
+  gateways: RouteGatewayOption[],
+  upstreams: UpstreamOption[],
+): { label: string; value: string }[] {
+  const rule = primaryRouteRule(route);
+
+  if (tab === 'match') {
+    return [
+      { label: '方法', value: formatMethods(rule?.methods ?? []) },
+      { label: '路径', value: rule?.pathPrefix ?? '-' },
+      { label: '所属网关', value: formatGatewayIDs(route.gatewayIDs, gateways) },
+      { label: '匹配域名', value: formatHostnames(route.hostnames) },
+      { label: '请求头条件', value: formatHeaderMatches(rule?.headers ?? []) },
+    ];
+  }
+
+  if (tab === 'upstream') {
+    return [
+      { label: '目标服务', value: routeUpstreamSummary(route, upstreams) },
+      { label: '目标服务数', value: `${routeUpstreams(route).length} 个` },
+      { label: '总权重', value: String(upstreamWeightSum(routeUpstreams(route))) },
+    ];
+  }
+
+  if (tab === 'controls') {
+    return [
+      { label: '请求头改写', value: rule?.requestHeaderModifier ? '已配置' : '未配置' },
+      { label: '响应头改写', value: rule?.responseHeaderModifier ? '已配置' : '未配置' },
+      { label: '请求超时', value: rule?.timeout ? `${rule.timeout.requestMillis}ms` : '默认' },
+      { label: '失败重试', value: rule?.retry ? `${rule.retry.attempts} 次 / ${rule.retry.perTryTimeoutMillis}ms` : '未配置' },
+    ];
+  }
+
+  return [
+    { label: '路由名称', value: route.name },
+    { label: '匹配请求', value: formatRouteMatch(route) },
+    { label: '所属网关', value: formatGatewayIDs(route.gatewayIDs, gateways) },
+    { label: '目标服务', value: routeUpstreamSummary(route, upstreams) },
+    { label: '转发控制', value: `${routeForwardControlCount(route)} 项` },
+    { label: '启用状态', value: route.enabled ? '启用' : '停用' },
+  ];
+}
+
+export function gatewayLabel(gatewayID: string, gateways: RouteGatewayOption[]): string {
+  return gateways.find((gateway) => gateway.id === gatewayID)?.name ?? shortResourceID(gatewayID);
+}
+
+export function upstreamLabel(upstreamID: string, upstreams: UpstreamOption[]): string {
+  return upstreams.find((upstream) => upstream.id === upstreamID)?.name ?? shortResourceID(upstreamID);
+}
+
+function shortResourceID(id: string): string {
+  if (id.length <= 12) {
+    return id;
+  }
+  return `${id.slice(0, 8)}...${id.slice(-4)}`;
+}

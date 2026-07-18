@@ -3,6 +3,7 @@
 .gomodcache
 ingate
 ingate-dev
+ingate-next-dev
 docs/images
 web/console/node_modules
 _output/*

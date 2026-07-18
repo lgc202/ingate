@@ -9,6 +9,7 @@ import (
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	listenerv3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -16,6 +17,8 @@ type compileContext struct {
 	resources ResourceSet
 
 	gateways              map[string]*gatewayv1.Gateway
+	certificates          map[string]*gatewayv1.Certificate
+	validCertificates     map[string]bool
 	routes                map[string]*gatewayv1.Route
 	upstreams             map[string]*gatewayv1.Upstream
 	rateLimitPolicies     map[string]*gatewayv1.RateLimitPolicy
@@ -35,6 +38,8 @@ func (Compiler) Compile(resources ResourceSet) CompileResult {
 	c := &compileContext{
 		resources:             resources,
 		gateways:              make(map[string]*gatewayv1.Gateway, len(resources.Gateways)),
+		certificates:          make(map[string]*gatewayv1.Certificate, len(resources.Certificates)),
+		validCertificates:     make(map[string]bool, len(resources.Certificates)),
 		routes:                make(map[string]*gatewayv1.Route, len(resources.Routes)),
 		upstreams:             make(map[string]*gatewayv1.Upstream, len(resources.Upstreams)),
 		rateLimitPolicies:     make(map[string]*gatewayv1.RateLimitPolicy, len(resources.RateLimitPolicies)),
@@ -62,7 +67,11 @@ func (Compiler) Compile(resources ResourceSet) CompileResult {
 	sortConfig(&config)
 	c.sortDiagnostics()
 
-	result := CompileResult{Diagnostics: c.diagnostics}
+	resourcesGeneration := resources.Generations()
+	result := CompileResult{
+		Resources:   resourcesGeneration,
+		Diagnostics: c.diagnostics,
+	}
 	if result.HasErrors() {
 		return result
 	}
@@ -71,12 +80,12 @@ func (Compiler) Compile(resources ResourceSet) CompileResult {
 	if err != nil {
 		c.addDiagnostic(SeverityError, "", "envoy", ReasonCompileFailed, fmt.Sprintf("compute Envoy config version: %v", err))
 		c.sortDiagnostics()
-		return CompileResult{Diagnostics: c.diagnostics}
+		return CompileResult{Resources: resourcesGeneration, Diagnostics: c.diagnostics}
 	}
 	if _, err := config.Snapshot(version); err != nil {
 		c.addDiagnostic(SeverityError, "", "envoy", ReasonCompileFailed, fmt.Sprintf("build consistent Envoy snapshot: %v", err))
 		c.sortDiagnostics()
-		return CompileResult{Diagnostics: c.diagnostics}
+		return CompileResult{Resources: resourcesGeneration, Diagnostics: c.diagnostics}
 	}
 
 	result.Version = version
@@ -85,6 +94,13 @@ func (Compiler) Compile(resources ResourceSet) CompileResult {
 }
 
 func (c *compileContext) indexResources() {
+	for _, certificate := range c.resources.Certificates {
+		if certificate == nil {
+			c.addDiagnostic(SeverityError, gatewayv1.KindCertificate, "", ReasonInvalidSpec, "certificate resource is nil")
+			continue
+		}
+		c.indexCertificate(certificate)
+	}
 	for _, gateway := range c.resources.Gateways {
 		if gateway == nil {
 			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, "", ReasonInvalidSpec, "gateway resource is nil")
@@ -127,6 +143,51 @@ func (c *compileContext) indexResources() {
 		}
 		c.indexPolicyBinding(binding)
 	}
+}
+
+func (c *compileContext) indexCertificate(certificate *gatewayv1.Certificate) {
+	id := certificate.Name
+	if id == "" {
+		c.addDiagnostic(SeverityError, gatewayv1.KindCertificate, id, ReasonInvalidSpec, "certificate metadata.name is required")
+		return
+	}
+	if _, ok := c.certificates[id]; ok {
+		c.addDiagnostic(SeverityError, gatewayv1.KindCertificate, id, ReasonConflict, fmt.Sprintf("duplicate certificate %q", id))
+		return
+	}
+	c.certificates[id] = certificate
+
+	if certificate.Spec.CertificatePEM == "" {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindCertificate,
+			id,
+			ReasonInvalidSpec,
+			fmt.Sprintf("certificate %q certificatePEM is required", id),
+		)
+		return
+	}
+	if certificate.Spec.PrivateKeyPEM == "" {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindCertificate,
+			id,
+			ReasonInvalidSpec,
+			fmt.Sprintf("certificate %q privateKeyPEM is required", id),
+		)
+		return
+	}
+	if _, err := certificateutil.ParseKeyPair(certificate.Spec.CertificatePEM, certificate.Spec.PrivateKeyPEM); err != nil {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindCertificate,
+			id,
+			ReasonInvalidSpec,
+			fmt.Sprintf("certificate %q contains an invalid TLS key pair: %v", id, err),
+		)
+		return
+	}
+	c.validCertificates[id] = true
 }
 
 func (c *compileContext) indexGateway(gateway *gatewayv1.Gateway) {

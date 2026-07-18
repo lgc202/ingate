@@ -25,7 +25,7 @@ func (r *Reconciler) registerEventHandlers(registrations []eventRegistration) er
 func (r *Reconciler) eventHandler() cache.ResourceEventHandlerFuncs {
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(any) {
-			r.queue.Add(queueKey)
+			r.queue.Add(queueKeyConfig)
 		},
 		UpdateFunc: func(oldObject, newObject any) {
 			oldMetadata, oldErr := meta.Accessor(oldObject)
@@ -33,10 +33,10 @@ func (r *Reconciler) eventHandler() cache.ResourceEventHandlerFuncs {
 			if oldErr == nil && newErr == nil && oldMetadata.GetGeneration() == newMetadata.GetGeneration() {
 				return
 			}
-			r.queue.Add(queueKey)
+			r.queue.Add(queueKeyConfig)
 		},
 		DeleteFunc: func(any) {
-			r.queue.Add(queueKey)
+			r.queue.Add(queueKeyConfig)
 		},
 	}
 }

@@ -4,22 +4,8 @@ package delivery
 import (
 	"errors"
 	"time"
-)
 
-// State 表示当前 Envoy 配置发布状态
-type State string
-
-const (
-	// StateNoConfig 表示当前尚无可服务配置
-	StateNoConfig State = "NoConfig"
-	// StateWaitingForEnvoy 表示 Candidate 已发布但尚未向 Envoy 发送响应
-	StateWaitingForEnvoy State = "WaitingForEnvoy"
-	// StateWaitingForACK 表示 Candidate 已发送并正在等待完整 ACK
-	StateWaitingForACK State = "WaitingForACK"
-	// StateActive 表示当前配置已经被至少一个 Envoy 完整接受
-	StateActive State = "Active"
-	// StateDegraded 表示 ACK 超时、回滚或 Envoy 实例收敛存在异常
-	StateDegraded State = "Degraded"
+	"github.com/lgc202/ingate/internal/envoy/config"
 )
 
 const (
@@ -56,38 +42,24 @@ func DefaultOptions() Options {
 	}
 }
 
-// ACKSummary 汇总当前 Candidate 或 Active 在单个最佳进度实例上的 ACK 数量
-//
-// Received 不会跨 Envoy 合并，只有同一实例完成全部 Required 才能激活 Candidate
-type ACKSummary struct {
-	Required int `json:"required"`
-	Received int `json:"received"`
-}
+// FailureReason 表示最近一次配置发布失败的稳定分类
+type FailureReason string
 
-// NACKSummary 汇总当前发布周期收到的有效 NACK
-type NACKSummary struct {
-	Count int `json:"count"`
-}
+const (
+	// FailureRejected 表示配置被网关实例拒绝
+	FailureRejected FailureReason = "Rejected"
+	// FailureDelivery 表示配置发布或回退过程失败
+	FailureDelivery FailureReason = "DeliveryFailed"
+)
 
-// NACK 记录最近一次影响当前 Candidate 或 Active 的 Envoy 拒绝信息
-type NACK struct {
-	NodeID  string    `json:"nodeID"`
-	TypeURL string    `json:"typeURL"`
-	Version string    `json:"version"`
-	Time    time.Time `json:"time"`
-	Message string    `json:"message"`
+// Failure 记录最近一次发布失败所对应的资源版本
+type Failure struct {
+	Reason    FailureReason
+	Resources []config.ResourceGeneration
 }
 
 // Status 是 Delivery 对外提供的并发安全状态快照
 type Status struct {
-	CandidateVersion string      `json:"candidateVersion"`
-	ActiveVersion    string      `json:"activeVersion"`
-	ConfigReady      bool        `json:"configReady"`
-	State            State       `json:"deliveryState"`
-	ConnectedEnvoys  int         `json:"connectedEnvoys"`
-	ACKs             ACKSummary  `json:"acks"`
-	NACKs            NACKSummary `json:"nacks"`
-	LastNACK         *NACK       `json:"lastNack,omitempty"`
-	ACKTimedOut      bool        `json:"ackTimedOut"`
-	RollbackError    string      `json:"rollbackError,omitempty"`
+	ActiveResources []config.ResourceGeneration
+	LastFailure     *Failure
 }

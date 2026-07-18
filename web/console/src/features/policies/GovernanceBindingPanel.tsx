@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { consoleRepository } from '@/api/client';
+import { deletePolicyBinding, savePolicyBinding, setPolicyBindingEnabled } from '@/api/policies';
 import { Badge, Button, Toast } from '@/components/ui';
 import type { GovernancePolicyKind, PolicyBinding, PolicyBindingPayload, PolicyTargetKind, PolicyWorkspace } from '@/domain/policy';
 import { policyNamesForBinding, policyRefKey, policyStatusLabel, policyStatusTone, policyTargetKindLabel } from '@/domain/policy';
@@ -63,7 +63,7 @@ export function GovernanceBindingPanel({
 
   const saveBinding = async () => {
     try {
-      const result = await consoleRepository.savePolicyBinding(bindingPayload(draft, targetKind, targetID, ruleName));
+      const result = await savePolicyBinding(bindingPayload(draft, targetKind, targetID, ruleName));
       await onChanged();
       setNotice({ message: result.message, tone: 'success' });
       setEditorOpen(false);
@@ -74,7 +74,7 @@ export function GovernanceBindingPanel({
 
   const toggleBinding = async (binding: PolicyBinding) => {
     try {
-      const result = await consoleRepository.setPolicyBindingEnabled(binding.id, !binding.enabled);
+      const result = await setPolicyBindingEnabled(binding.id, !binding.enabled);
       await onChanged();
       setNotice({ message: result.message, tone: 'success' });
     } catch (error) {
@@ -84,7 +84,7 @@ export function GovernanceBindingPanel({
 
   const deleteBinding = async (binding: PolicyBinding) => {
     try {
-      const result = await consoleRepository.deletePolicyBinding(binding.id);
+      const result = await deletePolicyBinding(binding.id);
       await onChanged();
       setNotice({ message: result.message, tone: 'success' });
     } catch (error) {

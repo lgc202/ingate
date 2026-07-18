@@ -12,6 +12,8 @@ const (
 	KindRoute Kind = "Route"
 	// KindUpstream 表示 Upstream 资源类型
 	KindUpstream Kind = "Upstream"
+	// KindCertificate 表示 Certificate 资源类型
+	KindCertificate Kind = "Certificate"
 	// KindRateLimitPolicy 表示 RateLimitPolicy 资源类型
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
 	// KindAccessControlPolicy 表示 AccessControlPolicy 资源类型
@@ -82,6 +84,7 @@ const (
 
 // ResourceStatus 表示声明式资源状态
 type ResourceStatus struct {
-	// +listType=atomic
+	// +listType=map
+	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }

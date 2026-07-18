@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 
-	"github.com/lgc202/ingate/internal/adminapi/handler/route/dto"
+	dto "github.com/lgc202/ingate/internal/adminapi/dto/route"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/requestid"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/response"
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"

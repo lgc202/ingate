@@ -12,6 +12,8 @@ import (
 type Interface interface {
 	// AccessControlPolicies returns a AccessControlPolicyInformer.
 	AccessControlPolicies() AccessControlPolicyInformer
+	// Certificates returns a CertificateInformer.
+	Certificates() CertificateInformer
 	// Gateways returns a GatewayInformer.
 	Gateways() GatewayInformer
 	// PolicyBindings returns a PolicyBindingInformer.
@@ -38,6 +40,11 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 // AccessControlPolicies returns a AccessControlPolicyInformer.
 func (v *version) AccessControlPolicies() AccessControlPolicyInformer {
 	return &accessControlPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// Certificates returns a CertificateInformer.
+func (v *version) Certificates() CertificateInformer {
+	return &certificateInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Gateways returns a GatewayInformer.

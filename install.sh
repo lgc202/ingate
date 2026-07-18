@@ -8,8 +8,11 @@ DEFAULT_DATA_DIR="./ingate"
 DEFAULT_BIND="127.0.0.1"
 DEFAULT_CONSOLE_PORT="8001"
 DEFAULT_HTTP_PORT="8080"
+DEFAULT_HTTPS_PORT="8443"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CONTAINER_CONSOLE_PORT="8001"
 CONTAINER_HTTP_PORT="8080"
+CONTAINER_HTTPS_PORT="8443"
 
 usage() {
 	cat <<EOF
@@ -23,6 +26,7 @@ Options:
   --bind ADDRESS             Host bind address, default: $DEFAULT_BIND
   --console-port PORT        Console host port, default: $DEFAULT_CONSOLE_PORT
   --http-port PORT           Gateway HTTP host port, default: $DEFAULT_HTTP_PORT
+  --https-port PORT          Gateway HTTPS host port, default: $DEFAULT_HTTPS_PORT
   --purge-data               Delete local data directory with delete command
   -h, --help                 Show help
 EOF
@@ -41,6 +45,7 @@ DATA_DIR="$DEFAULT_DATA_DIR"
 BIND="$DEFAULT_BIND"
 CONSOLE_PORT="$DEFAULT_CONSOLE_PORT"
 HTTP_PORT="$DEFAULT_HTTP_PORT"
+HTTPS_PORT="$DEFAULT_HTTPS_PORT"
 PURGE_DATA="false"
 
 while [[ $# -gt 0 ]]; do
@@ -73,6 +78,10 @@ while [[ $# -gt 0 ]]; do
 		HTTP_PORT="$2"
 		shift 2
 		;;
+	--https-port)
+		HTTPS_PORT="$2"
+		shift 2
+		;;
 	--purge-data)
 		PURGE_DATA="true"
 		shift
@@ -97,7 +106,13 @@ require_docker() {
 }
 
 ensure_dirs() {
-	mkdir -p "$DATA_DIR/data" "$DATA_DIR/logs"
+	mkdir -p "$DATA_DIR/data" "$DATA_DIR/logs" "$DATA_DIR/configs"
+	local config_file
+	for config_file in ingate-apiserver.yaml ingate-admin-api.yaml ingate-controller.yaml; do
+		if [[ ! -f "$DATA_DIR/configs/$config_file" ]]; then
+			cp "$SCRIPT_DIR/configs/$config_file" "$DATA_DIR/configs/$config_file"
+		fi
+	done
 	DATA_DIR="$(cd "$DATA_DIR" && pwd -P)"
 }
 
@@ -147,8 +162,10 @@ Ingate is running.
 
 Console:      http://localhost:$CONSOLE_PORT
 Gateway HTTP: http://localhost:$HTTP_PORT
+Gateway TLS:  https://localhost:$HTTPS_PORT
 Data dir:     $DATA_DIR
 Logs:         $DATA_DIR/logs
+Configs:      $DATA_DIR/configs
 Stop:         ./install.sh stop --container-name $CONTAINER_NAME
 EOF
 }
@@ -174,8 +191,10 @@ start_container() {
 		--name "$CONTAINER_NAME" \
 		-p "$BIND:$CONSOLE_PORT:$CONTAINER_CONSOLE_PORT" \
 		-p "$BIND:$HTTP_PORT:$CONTAINER_HTTP_PORT" \
+		-p "$BIND:$HTTPS_PORT:$CONTAINER_HTTPS_PORT" \
 		-v "$DATA_DIR/data:/var/lib/ingate" \
 		-v "$DATA_DIR/logs:/var/log/ingate" \
+		-v "$DATA_DIR/configs:/etc/ingate/configs" \
 		"$IMAGE:$TAG" >/dev/null
 
 	wait_healthy
@@ -223,7 +242,8 @@ show_status() {
 	echo "Status:    $status"
 	echo "Health:    $health"
 	echo "Console:   http://localhost:$CONSOLE_PORT"
-	echo "Gateway:   http://localhost:$HTTP_PORT"
+	echo "HTTP:      http://localhost:$HTTP_PORT"
+	echo "HTTPS:     https://localhost:$HTTPS_PORT"
 	echo "Data dir:  $DATA_DIR"
 }
 
@@ -233,7 +253,17 @@ show_logs() {
 		echo "Container $CONTAINER_NAME does not exist" >&2
 		exit 1
 	fi
-	docker logs -f "$CONTAINER_NAME"
+	local log_files=(
+		"$DATA_DIR"/logs/*.process.log
+		"$DATA_DIR/logs/ingate-apiserver.log"
+		"$DATA_DIR/logs/ingate-controller.log"
+		"$DATA_DIR/logs/ingate-admin-api.log"
+	)
+	if [[ ! -e "${log_files[0]}" ]]; then
+		echo "No log files found in $DATA_DIR/logs" >&2
+		exit 1
+	fi
+	tail -F "${log_files[@]}"
 }
 
 restart_container() {

@@ -8,6 +8,10 @@ package v1
 // AccessControlPolicyLister.
 type AccessControlPolicyListerExpansion interface{}
 
+// CertificateListerExpansion allows custom methods to be added to
+// CertificateLister.
+type CertificateListerExpansion interface{}
+
 // GatewayListerExpansion allows custom methods to be added to
 // GatewayLister.
 type GatewayListerExpansion interface{}

@@ -23,7 +23,14 @@ func (s *Server) router() *gin.Engine {
 
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.GET("/system/status", handler.SystemStatus.Get)
+		certificates := apiV1.Group("/certificates")
+		{
+			certificates.GET("", handler.Certificate.List)
+			certificates.POST("", handler.Certificate.Create)
+			certificates.GET("/:id", handler.Certificate.Get)
+			certificates.PUT("/:id", handler.Certificate.Update)
+			certificates.DELETE("/:id", handler.Certificate.Delete)
+		}
 
 		gateways := apiV1.Group("/gateways")
 		{

@@ -151,7 +151,7 @@ func (s *Service) validateReferences(ctx context.Context, route *resource.Route)
 		for _, ref := range rule.UpstreamRefs {
 			if _, err := s.upstream.Get(ctx, ref.Name); err != nil {
 				if apierrors.IsNotFound(err) {
-					return xerrors.NewUserError(fmt.Sprintf("关联上游 %q 不存在", ref.Name))
+					return xerrors.NewUserError(fmt.Sprintf("关联服务 %q 不存在", ref.Name))
 				}
 				return err
 			}

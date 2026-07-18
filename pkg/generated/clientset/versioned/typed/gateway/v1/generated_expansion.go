@@ -6,6 +6,8 @@ package v1
 
 type AccessControlPolicyExpansion interface{}
 
+type CertificateExpansion interface{}
+
 type GatewayExpansion interface{}
 
 type PolicyBindingExpansion interface{}

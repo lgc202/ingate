@@ -2,7 +2,6 @@ package delivery
 
 import (
 	"context"
-	"strings"
 	"time"
 
 	clusterv3 "github.com/envoyproxy/go-control-plane/envoy/config/cluster/v3"
@@ -15,8 +14,6 @@ import (
 	"github.com/lgc202/ingate/internal/envoy/xds"
 	"google.golang.org/protobuf/proto"
 )
-
-const maxErrorSummaryRunes = 512
 
 type commandKind uint8
 
@@ -42,16 +39,16 @@ type command struct {
 }
 
 type publishedConfig struct {
-	version  string
-	config   config.Config
-	snapshot *cachev3.Snapshot
+	version   string
+	config    config.Config
+	snapshot  *cachev3.Snapshot
+	resources []config.ResourceGeneration
 }
 
 type candidateState struct {
 	publishedConfig
 	sequence      uint64
 	requiredTypes []string
-	responseSeen  bool
 	timer         *time.Timer
 }
 
@@ -61,109 +58,39 @@ type ackProgress struct {
 }
 
 type streamState struct {
-	nodeID   string
-	versions map[string]*ackProgress
+	nodeID           string
+	versions         map[string]*ackProgress
+	acceptedVersions map[string]string
 }
 
-type runtimeState struct {
-	state    State
+type deliveryState struct {
 	sequence uint64
 
 	candidate *candidateState
 	active    *publishedConfig
 	streams   map[int64]*streamState
 
-	ackTimedOut bool
-	nackCount   int
-	lastNACK    *NACK
-
-	rollbackError string
-	activeNACKs   map[int64]bool
+	lastFailure *Failure
 }
 
-func newRuntimeState() runtimeState {
-	return runtimeState{
-		state:       StateNoConfig,
-		streams:     make(map[int64]*streamState),
-		activeNACKs: make(map[int64]bool),
-	}
+func newDeliveryState() deliveryState {
+	return deliveryState{streams: make(map[int64]*streamState)}
 }
 
-func (s *runtimeState) refreshState() {
-	if s.ackTimedOut || s.rollbackError != "" || len(s.activeNACKs) > 0 {
-		s.state = StateDegraded
-		return
-	}
-	if s.candidate != nil {
-		s.state = StateWaitingForEnvoy
-		if s.candidate.responseSeen {
-			s.state = StateWaitingForACK
-		}
-		return
-	}
+func (s *deliveryState) snapshot() Status {
+	var status Status
 	if s.active != nil {
-		s.state = StateActive
-		return
+		status.ActiveResources = cloneResourceGenerations(s.active.resources)
 	}
-	s.state = StateNoConfig
-}
-
-func (s *runtimeState) snapshot() Status {
-	status := Status{
-		ConfigReady:     s.candidate != nil || s.active != nil,
-		State:           s.state,
-		ConnectedEnvoys: len(s.streams),
-		ACKs:            s.ackSummary(),
-		NACKs:           NACKSummary{Count: s.nackCount},
-		LastNACK:        s.lastNACK,
-		ACKTimedOut:     s.ackTimedOut,
-		RollbackError:   s.rollbackError,
-	}
-	if s.candidate != nil {
-		status.CandidateVersion = s.candidate.version
-	}
-	if s.active != nil {
-		status.ActiveVersion = s.active.version
+	if s.lastFailure != nil {
+		failure := *s.lastFailure
+		failure.Resources = cloneResourceGenerations(failure.Resources)
+		status.LastFailure = &failure
 	}
 	return status
 }
 
-func (s *runtimeState) ackSummary() ACKSummary {
-	var (
-		version  string
-		required []string
-	)
-	if s.candidate != nil {
-		version = s.candidate.version
-		required = s.candidate.requiredTypes
-	} else if s.active != nil {
-		version = s.active.version
-		required = configTypeURLs(s.active.config)
-	}
-	if version == "" {
-		return ACKSummary{}
-	}
-
-	received := 0
-	for _, stream := range s.streams {
-		progress := stream.versions[version]
-		if progress == nil {
-			continue
-		}
-		count := 0
-		for _, typeURL := range required {
-			if progress.acked[typeURL] {
-				count++
-			}
-		}
-		if count > received {
-			received = count
-		}
-	}
-	return ACKSummary{Required: len(required), Received: received}
-}
-
-func (s *runtimeState) stream(streamID int64, nodeID string) (*streamState, bool) {
+func (s *deliveryState) stream(streamID int64, nodeID string) (*streamState, bool) {
 	stream, ok := s.streams[streamID]
 	if !ok {
 		return nil, false
@@ -177,7 +104,7 @@ func (s *runtimeState) stream(streamID int64, nodeID string) (*streamState, bool
 	return stream, true
 }
 
-func (s *runtimeState) pruneProgress(versions ...string) {
+func (s *deliveryState) pruneProgress(versions ...string) {
 	keep := make(map[string]bool, len(versions))
 	for _, version := range versions {
 		if version != "" {
@@ -220,6 +147,25 @@ func (s *streamState) fullyACKed(version string, required []string) bool {
 		}
 	}
 	return true
+}
+
+func (s *streamState) fullyAccepted(version string, required []string) bool {
+	if s.nodeID == "" {
+		return false
+	}
+	for _, typeURL := range required {
+		if s.acceptedVersions[typeURL] != version {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *streamState) recordAccepted(typeURL, version string) {
+	if s.acceptedVersions == nil {
+		s.acceptedVersions = make(map[string]string)
+	}
+	s.acceptedVersions[typeURL] = version
 }
 
 func transitionTypeURLs(active *publishedConfig, candidate config.Config) []string {
@@ -315,18 +261,6 @@ func configsEqual(a, b config.Config) bool {
 	return true
 }
 
-func summarizeError(err error) string {
-	if err == nil {
-		return ""
-	}
-	return summarizeMessage(err.Error())
-}
-
-func summarizeMessage(message string) string {
-	message = strings.Join(strings.Fields(message), " ")
-	runes := []rune(message)
-	if len(runes) <= maxErrorSummaryRunes {
-		return message
-	}
-	return string(runes[:maxErrorSummaryRunes])
+func cloneResourceGenerations(resources []config.ResourceGeneration) []config.ResourceGeneration {
+	return append([]config.ResourceGeneration(nil), resources...)
 }
