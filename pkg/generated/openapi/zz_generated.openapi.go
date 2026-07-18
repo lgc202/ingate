@@ -15,7 +15,7 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyCredential":          schema_pkg_apis_gateway_v1_APIKeyCredential(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyAuthentication":      schema_pkg_apis_gateway_v1_APIKeyAuthentication(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlCondition":    schema_pkg_apis_gateway_v1_AccessControlCondition(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlDenyResponse": schema_pkg_apis_gateway_v1_AccessControlDenyResponse(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicy":       schema_pkg_apis_gateway_v1_AccessControlPolicy(ref),
@@ -57,9 +57,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteSpec":                 schema_pkg_apis_gateway_v1_RouteSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout":              schema_pkg_apis_gateway_v1_RouteTimeout(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream":                  schema_pkg_apis_gateway_v1_Upstream(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredential":        schema_pkg_apis_gateway_v1_UpstreamCredential(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredentialList":    schema_pkg_apis_gateway_v1_UpstreamCredentialList(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredentialSpec":    schema_pkg_apis_gateway_v1_UpstreamCredentialSpec(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication":    schema_pkg_apis_gateway_v1_UpstreamAuthentication(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck":       schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamList":              schema_pkg_apis_gateway_v1_UpstreamList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef":               schema_pkg_apis_gateway_v1_UpstreamRef(ref),
@@ -121,16 +119,16 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 	}
 }
 
-func schema_pkg_apis_gateway_v1_APIKeyCredential(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_gateway_v1_APIKeyAuthentication(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "APIKeyCredential 保存静态 API Key",
+				Description: "APIKeyAuthentication 保存静态 API Key",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"value": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Value 保存发送给上游服务的完整 API Key",
+							Description: "Value 保存发送给 Upstream 的完整 API Key",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2031,134 +2029,24 @@ func schema_pkg_apis_gateway_v1_Upstream(ref common.ReferenceCallback) common.Op
 	}
 }
 
-func schema_pkg_apis_gateway_v1_UpstreamCredential(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_gateway_v1_UpstreamAuthentication(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamCredential 声明 Ingate 访问上游服务时使用的凭据",
+				Description: "UpstreamAuthentication 声明访问 Upstream 时使用的认证配置",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredentialSpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredentialSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_UpstreamCredentialList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamCredentialList 表示 UpstreamCredential 资源列表",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredential"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamCredential", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_UpstreamCredentialSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamCredentialSpec 定义上游访问凭据的展示名称、类型和密钥内容",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"displayName": {
-						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与资源引用",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Type 指定凭据类型",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 					"apiKey": {
 						SchemaProps: spec.SchemaProps{
-							Description: "APIKey 保存 APIKey 类型凭据的密钥内容",
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyCredential"),
+							Description: "APIKey 保存静态 API Key 认证信息",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyAuthentication"),
 						},
 					},
 				},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyCredential"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyAuthentication"},
 	}
 }
 
@@ -2312,11 +2200,10 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"),
 						},
 					},
-					"credentialRef": {
+					"authentication": {
 						SchemaProps: spec.SchemaProps{
-							Description: "CredentialRef 引用 Ingate 访问 Upstream 时使用的凭据",
-							Type:        []string{"string"},
-							Format:      "",
+							Description: "Authentication 描述 Ingate 访问 Upstream 时使用的认证信息",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication"),
 						},
 					},
 					"loadBalancePolicy": {
@@ -2355,7 +2242,7 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
 	}
 }
 

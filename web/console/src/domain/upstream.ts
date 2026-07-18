@@ -41,7 +41,7 @@ export interface Upstream {
   type: UpstreamType;
   protocol: UpstreamProtocol;
   tls?: UpstreamTLS;
-  credentialID?: string;
+  apiKeyConfigured: boolean;
   endpoints: UpstreamEndpoint[];
   loadBalancePolicy: UpstreamLoadBalancePolicy;
   healthCheck?: UpstreamHealthCheck;
@@ -60,10 +60,15 @@ export interface UpstreamMutationPayload {
   type: UpstreamType;
   protocol: UpstreamProtocol;
   tls?: UpstreamTLS;
-  credentialID?: string;
+  apiKey?: UpstreamAPIKey;
+  removeAPIKey?: boolean;
   endpoints: UpstreamEndpoint[];
   loadBalancePolicy: UpstreamLoadBalancePolicy;
   healthCheck?: UpstreamHealthCheck;
+}
+
+export interface UpstreamAPIKey {
+  value: string;
 }
 
 export interface UpstreamEndpoint {

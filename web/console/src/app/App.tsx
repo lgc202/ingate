@@ -6,7 +6,6 @@ import { UpstreamPage } from '@/features/upstreams/UpstreamPage';
 import { ConfigurationStatusPage } from '@/features/configuration/ConfigurationStatusPage';
 import { PolicyPage } from '@/features/policies/PolicyPage';
 import { CertificatePage } from '@/features/certificates/CertificatePage';
-import { CredentialPage } from '@/features/credentials/CredentialPage';
 
 export default function App() {
   return (
@@ -17,7 +16,6 @@ export default function App() {
         <Route path="certificates" element={<CertificatePage />} />
         <Route path="routes" element={<RoutePage />} />
         <Route path="services" element={<UpstreamPage />} />
-        <Route path="credentials" element={<CredentialPage />} />
         <Route path="policies" element={<PolicyPage />} />
         <Route path="status" element={<ConfigurationStatusPage />} />
       </Route>

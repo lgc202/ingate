@@ -12,8 +12,6 @@ const (
 	KindRoute Kind = "Route"
 	// KindUpstream 表示 Upstream 资源类型
 	KindUpstream Kind = "Upstream"
-	// KindUpstreamCredential 表示 UpstreamCredential 资源类型
-	KindUpstreamCredential Kind = "UpstreamCredential"
 	// KindCertificate 表示 Certificate 资源类型
 	KindCertificate Kind = "Certificate"
 	// KindRateLimitPolicy 表示 RateLimitPolicy 资源类型

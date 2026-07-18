@@ -9,7 +9,6 @@ import (
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	listenerv3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	"github.com/lgc202/ingate/internal/pkg/bearer"
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
@@ -23,7 +22,6 @@ type compileContext struct {
 	routes                map[string]*gatewayv1.Route
 	upstreams             map[string]*gatewayv1.Upstream
 	upstreamClusters      map[string]string
-	upstreamCredentials   map[string]*gatewayv1.UpstreamCredential
 	rateLimitPolicies     map[string]*gatewayv1.RateLimitPolicy
 	accessControlPolicies map[string]*gatewayv1.AccessControlPolicy
 
@@ -46,7 +44,6 @@ func (Compiler) Compile(resources ResourceSet) CompileResult {
 		routes:                make(map[string]*gatewayv1.Route, len(resources.Routes)),
 		upstreams:             make(map[string]*gatewayv1.Upstream, len(resources.Upstreams)),
 		upstreamClusters:      make(map[string]string, len(resources.Upstreams)),
-		upstreamCredentials:   make(map[string]*gatewayv1.UpstreamCredential, len(resources.UpstreamCredentials)),
 		rateLimitPolicies:     make(map[string]*gatewayv1.RateLimitPolicy, len(resources.RateLimitPolicies)),
 		accessControlPolicies: make(map[string]*gatewayv1.AccessControlPolicy, len(resources.AccessControlPolicies)),
 		listenerGroups:        make(map[listenerKey]*listenerGroup),
@@ -128,13 +125,6 @@ func (c *compileContext) indexResources() {
 			continue
 		}
 		c.indexUpstream(upstream)
-	}
-	for _, credential := range c.resources.UpstreamCredentials {
-		if credential == nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindUpstreamCredential, "", ReasonInvalidSpec, "upstream credential resource is nil")
-			continue
-		}
-		c.indexUpstreamCredential(credential)
 	}
 	for _, policy := range c.resources.RateLimitPolicies {
 		if policy == nil {
@@ -247,27 +237,6 @@ func (c *compileContext) indexUpstream(upstream *gatewayv1.Upstream) {
 		return
 	}
 	c.upstreams[id] = upstream
-}
-
-func (c *compileContext) indexUpstreamCredential(credential *gatewayv1.UpstreamCredential) {
-	id := credential.Name
-	if id == "" {
-		c.addDiagnostic(SeverityError, gatewayv1.KindUpstreamCredential, id, ReasonInvalidSpec, "upstream credential metadata.name is required")
-		return
-	}
-	if _, ok := c.upstreamCredentials[id]; ok {
-		c.addDiagnostic(SeverityError, gatewayv1.KindUpstreamCredential, id, ReasonConflict, fmt.Sprintf("duplicate upstream credential %q", id))
-		return
-	}
-	c.upstreamCredentials[id] = credential
-
-	if credential.Spec.Type != gatewayv1.UpstreamCredentialTypeAPIKey {
-		c.addDiagnostic(SeverityError, gatewayv1.KindUpstreamCredential, id, ReasonUnsupported, fmt.Sprintf("upstream credential %q uses unsupported type %q", id, credential.Spec.Type))
-		return
-	}
-	if credential.Spec.APIKey == nil || !bearer.ValidToken(credential.Spec.APIKey.Value) {
-		c.addDiagnostic(SeverityError, gatewayv1.KindUpstreamCredential, id, ReasonInvalidSpec, fmt.Sprintf("upstream credential %q API key is missing or invalid", id))
-	}
 }
 
 func (c *compileContext) indexRateLimitPolicy(policy *gatewayv1.RateLimitPolicy) {

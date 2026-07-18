@@ -26,15 +26,15 @@ func NewGetUpstreamResp(result *upstreamservice.UpstreamResult) Upstream {
 
 func upstreamFromResource(upstream *resource.Upstream) Upstream {
 	return Upstream{
-		ID:      upstream.Name,
-		Version: upstream.ResourceVersion,
-		Status:  admindto.NewResourceStatus(upstream.Generation, upstream.Status.Conditions),
+		ID:               upstream.Name,
+		Version:          upstream.ResourceVersion,
+		Status:           admindto.NewResourceStatus(upstream.Generation, upstream.Status.Conditions),
+		APIKeyConfigured: upstream.Spec.Authentication != nil && upstream.Spec.Authentication.APIKey != nil && upstream.Spec.Authentication.APIKey.Value != "",
 		UpstreamConfig: UpstreamConfig{
 			Name:              upstreamName(upstream),
 			Type:              upstream.Spec.Type,
 			Protocol:          upstream.Spec.Protocol,
 			TLS:               upstreamTLS(upstream.Spec.TLS),
-			CredentialID:      upstream.Spec.CredentialRef,
 			Endpoints:         endpointRequests(upstream),
 			LoadBalancePolicy: loadBalancePolicy(upstream.Spec.LoadBalancePolicy),
 			HealthCheck:       upstream.Spec.HealthCheck,

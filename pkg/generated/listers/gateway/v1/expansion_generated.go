@@ -27,7 +27,3 @@ type RouteListerExpansion interface{}
 // UpstreamListerExpansion allows custom methods to be added to
 // UpstreamLister.
 type UpstreamListerExpansion interface{}
-
-// UpstreamCredentialListerExpansion allows custom methods to be added to
-// UpstreamCredentialLister.
-type UpstreamCredentialListerExpansion interface{}

@@ -5,6 +5,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/lgc202/ingate/internal/pkg/bearer"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -15,7 +16,10 @@ const (
 
 // Validate 校验创建 Upstream 请求
 func (r *CreateUpstreamReq) Validate() error {
-	return r.UpstreamConfig.Validate()
+	if err := r.UpstreamConfig.Validate(); err != nil {
+		return err
+	}
+	return validateAPIKey(r.APIKey, r.Protocol, r.TLS)
 }
 
 // Validate 校验更新 Upstream 请求
@@ -23,7 +27,13 @@ func (r *UpdateUpstreamReq) Validate() error {
 	if r.Version == "" {
 		return errors.New("服务版本不能为空")
 	}
-	return r.UpstreamConfig.Validate()
+	if err := r.UpstreamConfig.Validate(); err != nil {
+		return err
+	}
+	if r.APIKey != nil && r.RemoveAPIKey {
+		return errors.New("不能同时设置和移除 API Key")
+	}
+	return validateAPIKey(r.APIKey, r.Protocol, r.TLS)
 }
 
 // Validate 校验控制台提交的 Upstream 配置
@@ -44,18 +54,11 @@ func (r *UpstreamConfig) Validate() error {
 	if r.Type != resource.UpstreamTypeModel && r.Protocol != resource.UpstreamProtocolHTTP {
 		return errors.New("当前只有大模型服务支持 OpenAI 兼容协议")
 	}
-	r.CredentialID = strings.TrimSpace(r.CredentialID)
-	if r.CredentialID != "" && r.Protocol != resource.UpstreamProtocolOpenAI {
-		return errors.New("当前只有 OpenAI 兼容服务支持访问凭据")
-	}
 	if r.TLS != nil {
 		r.TLS.ServerName = strings.TrimSpace(strings.ToLower(r.TLS.ServerName))
 		if !validEndpointAddress(r.TLS.ServerName) {
 			return errors.New("HTTPS 服务名称格式不正确")
 		}
-	}
-	if r.CredentialID != "" && r.TLS == nil {
-		return errors.New("配置访问凭据时必须使用 HTTPS")
 	}
 	if !validLoadBalancePolicy(r.LoadBalancePolicy) {
 		return errors.New("负载均衡方式不正确")
@@ -83,6 +86,25 @@ func (r *UpstreamConfig) Validate() error {
 	}
 
 	return r.validateHealthCheck()
+}
+
+func validateAPIKey(apiKey *APIKeyConfig, protocol resource.UpstreamProtocol, tls *UpstreamTLS) error {
+	if apiKey == nil {
+		return nil
+	}
+	if apiKey.Value == "" {
+		return errors.New("API Key 不能为空")
+	}
+	if !bearer.ValidToken(apiKey.Value) {
+		return errors.New("API Key 包含不支持的空白字符、控制字符或格式")
+	}
+	if protocol != resource.UpstreamProtocolOpenAI {
+		return errors.New("当前只有 OpenAI 兼容服务支持 API Key")
+	}
+	if tls == nil {
+		return errors.New("配置 API Key 时必须使用 HTTPS")
+	}
+	return nil
 }
 
 // Validate 校验控制台提交的服务端点

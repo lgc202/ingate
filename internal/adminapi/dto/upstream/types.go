@@ -9,11 +9,14 @@ import (
 // CreateUpstreamReq 是创建 Upstream 的请求体
 type CreateUpstreamReq struct {
 	UpstreamConfig
+	APIKey *APIKeyConfig `json:"apiKey,omitempty"`
 }
 
 // UpdateUpstreamReq 是更新 Upstream 的请求体
 type UpdateUpstreamReq struct {
-	Version string `json:"version"`
+	Version      string        `json:"version"`
+	APIKey       *APIKeyConfig `json:"apiKey,omitempty"`
+	RemoveAPIKey bool          `json:"removeAPIKey,omitempty"`
 	UpstreamConfig
 }
 
@@ -23,10 +26,14 @@ type UpstreamConfig struct {
 	Type              resource.UpstreamType              `json:"type"`
 	Protocol          resource.UpstreamProtocol          `json:"protocol"`
 	TLS               *UpstreamTLS                       `json:"tls,omitempty"`
-	CredentialID      string                             `json:"credentialID,omitempty"`
 	Endpoints         []UpstreamEndpoint                 `json:"endpoints"`
 	LoadBalancePolicy resource.UpstreamLoadBalancePolicy `json:"loadBalancePolicy"`
 	HealthCheck       *resource.UpstreamHealthCheck      `json:"healthCheck,omitempty"`
+}
+
+// APIKeyConfig 是控制台写入的 API Key 配置
+type APIKeyConfig struct {
+	Value string `json:"value"`
 }
 
 // UpstreamTLS 是控制台读写服务 HTTPS 配置的产品模型
@@ -45,9 +52,10 @@ type UpstreamEndpoint struct {
 
 // Upstream 是 admin-api 面向控制台返回的服务对象，不直接暴露 CR 结构
 type Upstream struct {
-	ID      string                  `json:"id"`
-	Version string                  `json:"version,omitempty"`
-	Status  admindto.ResourceStatus `json:"status"`
+	ID               string                  `json:"id"`
+	Version          string                  `json:"version,omitempty"`
+	Status           admindto.ResourceStatus `json:"status"`
+	APIKeyConfigured bool                    `json:"apiKeyConfigured"`
 	UpstreamConfig
 	CreatedAt string `json:"createdAt"`
 }

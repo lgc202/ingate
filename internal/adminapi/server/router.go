@@ -51,15 +51,6 @@ func (s *Server) router() *gin.Engine {
 			upstreams.DELETE("/:id", handler.Upstream.Delete)
 		}
 
-		upstreamCredentials := apiV1.Group("/upstream-credentials")
-		{
-			upstreamCredentials.GET("", handler.UpstreamCredential.List)
-			upstreamCredentials.POST("", handler.UpstreamCredential.Create)
-			upstreamCredentials.GET("/:id", handler.UpstreamCredential.Get)
-			upstreamCredentials.PUT("/:id", handler.UpstreamCredential.Update)
-			upstreamCredentials.DELETE("/:id", handler.UpstreamCredential.Delete)
-		}
-
 		routes := apiV1.Group("/routes")
 		{
 			routes.GET("", handler.Route.List)

@@ -15,5 +15,3 @@ type RateLimitPolicyExpansion interface{}
 type RouteExpansion interface{}
 
 type UpstreamExpansion interface{}
-
-type UpstreamCredentialExpansion interface{}

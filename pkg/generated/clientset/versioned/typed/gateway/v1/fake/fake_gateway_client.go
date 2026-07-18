@@ -38,10 +38,6 @@ func (c *FakeGatewayV1) Upstreams() v1.UpstreamInterface {
 	return newFakeUpstreams(c)
 }
 
-func (c *FakeGatewayV1) UpstreamCredentials() v1.UpstreamCredentialInterface {
-	return newFakeUpstreamCredentials(c)
-}
-
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
 func (c *FakeGatewayV1) RESTClient() rest.Interface {

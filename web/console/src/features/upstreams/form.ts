@@ -7,6 +7,8 @@ import type {
   UpstreamType,
 } from '@/domain/upstream';
 
+const bearerTokenCharacters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~+/';
+
 export interface UpstreamFormDraft {
   id?: string;
   version?: string;
@@ -15,7 +17,9 @@ export interface UpstreamFormDraft {
   protocol: UpstreamProtocol;
   httpsEnabled: boolean;
   serverName: string;
-  credentialID: string;
+  apiKey: string;
+  apiKeyConfigured: boolean;
+  removeAPIKey: boolean;
   endpoints: UpstreamEndpoint[];
   loadBalancePolicy: UpstreamLoadBalancePolicy;
   healthCheck: {
@@ -33,6 +37,7 @@ export interface UpstreamFormValidation {
     name?: string;
     protocol?: string;
     tls?: string;
+    apiKey?: string;
     endpoints?: string;
     loadBalancePolicy?: string;
     healthCheck?: string;
@@ -48,7 +53,9 @@ export function createUpstreamDraft(upstream?: Upstream | null): UpstreamFormDra
     protocol: upstream?.protocol ?? (upstream?.type === 'model' ? 'OpenAI' : 'HTTP'),
     httpsEnabled: Boolean(upstream?.tls),
     serverName: upstream?.tls?.serverName ?? '',
-    credentialID: upstream?.credentialID ?? '',
+    apiKey: '',
+    apiKeyConfigured: upstream?.apiKeyConfigured ?? false,
+    removeAPIKey: false,
     endpoints: createEndpointsFromUpstream(upstream),
     loadBalancePolicy: upstream?.loadBalancePolicy ?? 'round_robin',
     healthCheck: {
@@ -73,8 +80,13 @@ export function validateUpstreamDraft(draft: UpstreamFormDraft): UpstreamFormVal
   if (draft.type !== 'model' && draft.protocol !== 'HTTP') {
     errors.protocol = '当前服务类型使用 HTTP 协议';
   }
-  if (draft.credentialID && !draft.httpsEnabled) {
-    errors.tls = '使用访问凭据时必须开启 HTTPS';
+  if (draft.type === 'model' && draft.apiKey && !isValidAPIKey(draft.apiKey)) {
+    errors.apiKey = 'API Key 格式不正确，不能包含空格、换行或不支持的符号';
+  }
+  const keepsAPIKey = draft.type === 'model'
+    && (Boolean(draft.apiKey) || (draft.apiKeyConfigured && !draft.removeAPIKey));
+  if (keepsAPIKey && !draft.httpsEnabled) {
+    errors.tls = '配置或保留 API Key 时必须开启 HTTPS';
   } else if (draft.httpsEnabled) {
     const serverName = draft.serverName.trim().toLowerCase();
     if (!serverName) {
@@ -101,6 +113,11 @@ export function validateUpstreamDraft(draft: UpstreamFormDraft): UpstreamFormVal
 }
 
 export function buildUpstreamPayload(draft: UpstreamFormDraft): UpstreamMutationPayload {
+  const apiKey = draft.apiKey;
+  const removeAPIKey = Boolean(draft.id) && (
+    (draft.type === 'model' && draft.removeAPIKey)
+    || (draft.type !== 'model' && draft.apiKeyConfigured)
+  );
   const endpoints = draft.endpoints.map((endpoint) => ({
     ...endpoint,
     address: endpoint.address.trim(),
@@ -121,7 +138,8 @@ export function buildUpstreamPayload(draft: UpstreamFormDraft): UpstreamMutation
     type: draft.type,
     protocol: draft.type === 'model' ? 'OpenAI' : 'HTTP',
     tls: draft.httpsEnabled ? { serverName: draft.serverName.trim().toLowerCase() } : undefined,
-    credentialID: draft.type === 'model' ? draft.credentialID : undefined,
+    apiKey: draft.type === 'model' && apiKey && !removeAPIKey ? { value: apiKey } : undefined,
+    removeAPIKey: removeAPIKey || undefined,
     endpoints,
     loadBalancePolicy: draft.loadBalancePolicy,
     healthCheck,
@@ -133,7 +151,6 @@ export function changeUpstreamType(draft: UpstreamFormDraft, type: UpstreamType)
     ...draft,
     type,
     protocol: type === 'model' ? 'OpenAI' : 'HTTP',
-    credentialID: type === 'model' ? draft.credentialID : '',
   };
 }
 
@@ -244,4 +261,25 @@ function isIPv4(value: string): boolean {
     const number = Number(part);
     return /^\d+$/.test(part) && number >= 0 && number <= 255;
   });
+}
+
+function isValidAPIKey(value: string): boolean {
+  let padding = false;
+  let tokenCharactersCount = 0;
+
+  for (const character of value) {
+    if (character === '=') {
+      if (tokenCharactersCount === 0) {
+        return false;
+      }
+      padding = true;
+      continue;
+    }
+    if (padding || !bearerTokenCharacters.includes(character)) {
+      return false;
+    }
+    tokenCharactersCount += 1;
+  }
+
+  return tokenCharactersCount > 0;
 }
