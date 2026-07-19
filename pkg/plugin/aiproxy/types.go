@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/lgc202/ingate/pkg/llm"
 )
 
 const (
@@ -16,40 +18,28 @@ const (
 	ResponseBufferLimitBytes = MaxResponseBodyBytes + (1 << 20)
 )
 
-// Protocol 表示 AI Proxy 与目标模型服务之间使用的线上协议
-type Protocol string
-
-const (
-	// ProtocolOpenAI 表示 OpenAI-compatible Chat Completions 协议
-	ProtocolOpenAI Protocol = "OpenAI"
-	// ProtocolAnthropic 表示 Anthropic Messages 协议
-	ProtocolAnthropic Protocol = "Anthropic"
-	// ProtocolGemini 表示 Gemini generateContent 协议
-	ProtocolGemini Protocol = "Gemini"
-)
-
-// PluginConfig 表示真正下发给 AI Proxy Wasm 插件的运行时配置
+// PluginConfig 表示真正下发给 AI Proxy Wasm 插件的 Listener 级执行配置
 type PluginConfig struct {
 	Routes []RouteConfig `json:"routes"`
 }
 
 // RouteConfig 表示一条 RouteRule 的模型路由执行配置
 type RouteConfig struct {
-	GatewayName string         `json:"gatewayName"`
-	RouteName   string         `json:"routeName"`
-	RuleName    string         `json:"ruleName"`
-	ConfigID    string         `json:"configID"`
-	Targets     []TargetConfig `json:"targets"`
-	Models      []ModelConfig  `json:"models"`
+	GatewayName string           `json:"gatewayName"`
+	RouteName   string           `json:"routeName"`
+	RuleName    string           `json:"ruleName"`
+	ConfigID    string           `json:"configID"`
+	Upstreams   []UpstreamConfig `json:"upstreams"`
+	Models      []ModelConfig    `json:"models"`
 }
 
-// TargetConfig 表示模型路由可选择的一个实际模型服务
+// UpstreamConfig 表示模型路由可选择的一个实际模型上游
 //
 // Cluster 和认证信息只能由 Controller 生成，客户端请求中的同名 Header 不可信
-type TargetConfig struct {
+type UpstreamConfig struct {
 	ID           string         `json:"id"`
 	Provider     string         `json:"provider"`
-	Protocol     Protocol       `json:"protocol"`
+	Protocol     llm.Protocol   `json:"protocol"`
 	Cluster      string         `json:"cluster"`
 	BasePath     string         `json:"basePath"`
 	APIKey       string         `json:"apiKey,omitempty"`
@@ -64,10 +54,10 @@ type HeaderConfig struct {
 	Value string `json:"value"`
 }
 
-// ModelConfig 表示客户端模型名称到实际目标和厂商模型名称的可执行映射
+// ModelConfig 表示客户端模型名称到实际上游和厂商模型名称的可执行映射
 type ModelConfig struct {
 	Model         string `json:"model"`
-	TargetID      string `json:"targetID"`
+	UpstreamID    string `json:"upstreamID"`
 	UpstreamModel string `json:"upstreamModel"`
 }
 
@@ -98,8 +88,8 @@ func (c PluginConfig) validate() error {
 		if route.ConfigID == "" {
 			return fmt.Errorf("routes[%d].configID must not be empty", i)
 		}
-		if len(route.Targets) == 0 {
-			return fmt.Errorf("routes[%d].targets must not be empty", i)
+		if len(route.Upstreams) == 0 {
+			return fmt.Errorf("routes[%d].upstreams must not be empty", i)
 		}
 		if len(route.Models) == 0 {
 			return fmt.Errorf("routes[%d].models must not be empty", i)
@@ -111,15 +101,15 @@ func (c PluginConfig) validate() error {
 		}
 		routes[routeKey] = true
 
-		targets := make(map[string]bool, len(route.Targets))
-		for j, target := range route.Targets {
-			if err := target.validate(i, j); err != nil {
+		upstreams := make(map[string]bool, len(route.Upstreams))
+		for j, upstream := range route.Upstreams {
+			if err := upstream.validate(i, j); err != nil {
 				return err
 			}
-			if targets[target.ID] {
-				return fmt.Errorf("routes[%d].targets[%d] duplicates target %q", i, j, target.ID)
+			if upstreams[upstream.ID] {
+				return fmt.Errorf("routes[%d].upstreams[%d] duplicates upstream %q", i, j, upstream.ID)
 			}
-			targets[target.ID] = true
+			upstreams[upstream.ID] = true
 		}
 
 		models := make(map[string]bool, len(route.Models))
@@ -127,11 +117,11 @@ func (c PluginConfig) validate() error {
 			if model.Model == "" {
 				return fmt.Errorf("routes[%d].models[%d].model must not be empty", i, j)
 			}
-			if model.TargetID == "" {
-				return fmt.Errorf("routes[%d].models[%d].targetID must not be empty", i, j)
+			if model.UpstreamID == "" {
+				return fmt.Errorf("routes[%d].models[%d].upstreamID must not be empty", i, j)
 			}
-			if !targets[model.TargetID] {
-				return fmt.Errorf("routes[%d].models[%d] references missing target %q", i, j, model.TargetID)
+			if !upstreams[model.UpstreamID] {
+				return fmt.Errorf("routes[%d].models[%d] references missing upstream %q", i, j, model.UpstreamID)
 			}
 			if model.UpstreamModel == "" {
 				return fmt.Errorf("routes[%d].models[%d].upstreamModel must not be empty", i, j)
@@ -145,8 +135,8 @@ func (c PluginConfig) validate() error {
 	return nil
 }
 
-func (c TargetConfig) validate(routeIndex, targetIndex int) error {
-	prefix := fmt.Sprintf("routes[%d].targets[%d]", routeIndex, targetIndex)
+func (c UpstreamConfig) validate(routeIndex, upstreamIndex int) error {
+	prefix := fmt.Sprintf("routes[%d].upstreams[%d]", routeIndex, upstreamIndex)
 	if c.ID == "" {
 		return fmt.Errorf("%s.id must not be empty", prefix)
 	}
@@ -154,7 +144,7 @@ func (c TargetConfig) validate(routeIndex, targetIndex int) error {
 		return fmt.Errorf("%s.provider must not be empty", prefix)
 	}
 	switch c.Protocol {
-	case ProtocolOpenAI, ProtocolAnthropic, ProtocolGemini:
+	case llm.ProtocolOpenAIChatCompletions, llm.ProtocolAnthropicMessages, llm.ProtocolGeminiGenerateContent:
 	default:
 		return fmt.Errorf("%s.protocol %q is not supported", prefix, c.Protocol)
 	}

@@ -78,6 +78,12 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 
 ## 编码规范
 
+### 使用领域名称
+
+- Ingate 自己定义的包、类型和变量不要使用 `runner`、`runtime`、`snapshot` 这类无法直接说明职责的笼统名称，应按实际领域行为命名，例如 `Proxy`、`Compiler`、`Delivery`、`RouteIndex`、`ConfigFingerprint`。
+- 不要只把笼统名称替换成同样空泛的 `engine`、`manager`、`processor`；名称应让调用方无需进入实现就能理解其职责。
+- 外部协议或依赖库的正式术语可以保留，例如 `runtime.Object`、Envoy xDS `Snapshot` 和 `HttpConnectionManager`。
+
 ### 保持代码直接
 
 - 优先写清楚、直接、可读的代码。

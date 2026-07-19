@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/lgc202/ingate/pkg/llm"
+	"github.com/lgc202/ingate/pkg/llm/openai"
 	"github.com/lgc202/ingate/pkg/llm/sse"
 	config "github.com/lgc202/ingate/pkg/plugin/aiproxy"
-	"github.com/lgc202/ingate/plugins/aiproxy/internal/policy"
-	aiproxyruntime "github.com/lgc202/ingate/plugins/aiproxy/internal/runtime"
+	modelproxy "github.com/lgc202/ingate/plugins/aiproxy/internal/proxy"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/proxytest"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 )
@@ -159,9 +159,9 @@ func TestHTTPContextRewritesRequestsForModelProviders(t *testing.T) {
 
 func TestHTTPContextDoesNotForwardClientAuthorizationWithoutAPIKey(t *testing.T) {
 	cfg := modelConfig()
-	cfg.Routes[0].Targets[0].APIKey = ""
-	cfg.Routes[0].Targets[0].APIKeyHeader = ""
-	cfg.Routes[0].Targets[0].APIKeyPrefix = ""
+	cfg.Routes[0].Upstreams[0].APIKey = ""
+	cfg.Routes[0].Upstreams[0].APIKeyHeader = ""
+	cfg.Routes[0].Upstreams[0].APIKeyPrefix = ""
 	host, contextID := newTestHost(t, cfg, aiRouteName("config-1"))
 	headers := [][2]string{
 		{":method", "POST"},
@@ -256,7 +256,7 @@ func TestHTTPContextTransformsBufferedProviderResponses(t *testing.T) {
 				t.Fatalf("OnHttpResponseBody(%s response final chunk) action = %v, want continue", tt.name, action)
 			}
 
-			var completion llm.ChatCompletion
+			var completion openai.ChatCompletion
 			if err := json.Unmarshal(host.GetCurrentResponseBody(contextID), &completion); err != nil {
 				t.Fatalf("json.Unmarshal(%s transformed response) error = %v; body=%s", tt.name, err, host.GetCurrentResponseBody(contextID))
 			}
@@ -314,7 +314,7 @@ func TestHTTPContextTransformsProviderErrors(t *testing.T) {
 				t.Fatalf("OnHttpResponseBody(%s error) action = %v, want continue", tt.name, action)
 			}
 
-			var envelope llm.ErrorEnvelope
+			var envelope openai.ErrorEnvelope
 			if err := json.Unmarshal(host.GetCurrentResponseBody(contextID), &envelope); err != nil {
 				t.Fatalf("json.Unmarshal(%s transformed error) error = %v; body=%s", tt.name, err, host.GetCurrentResponseBody(contextID))
 			}
@@ -343,7 +343,7 @@ func TestHTTPContextRejectsOversizedResponseImmediately(t *testing.T) {
 	if action := host.CallOnResponseHeaders(contextID, responseHeaders, false); action != types.ActionPause {
 		t.Fatalf("OnHttpResponseHeaders(oversized response) action = %v, want pause", action)
 	}
-	body := make([]byte, aiproxyruntime.MaxResponseBodyBytes+1)
+	body := make([]byte, modelproxy.MaxResponseBodyBytes+1)
 	if action := host.CallOnResponseBody(contextID, body, false); action != types.ActionPause {
 		t.Fatalf("OnHttpResponseBody(oversized response before end) action = %v, want pause after replacement response", action)
 	}
@@ -381,7 +381,7 @@ func TestHTTPContextNormalizesResponseWithoutBody(t *testing.T) {
 				t.Errorf("OnHttpResponseHeaders(%s without body) status = %d, want %d", tt.name, response.StatusCode, tt.wantStatus)
 			}
 			assertSingleHeader(t, response.Headers, contentTypeHeader, jsonContentType)
-			var envelope llm.ErrorEnvelope
+			var envelope openai.ErrorEnvelope
 			if err := json.Unmarshal(response.Data, &envelope); err != nil {
 				t.Fatalf("json.Unmarshal(OnHttpResponseHeaders(%s without body) response) error = %v; body=%s", tt.name, err, response.Data)
 			}
@@ -393,12 +393,12 @@ func TestHTTPContextNormalizesResponseWithoutBody(t *testing.T) {
 }
 
 func TestHTTPContextFailsClosedWhenResponseStreamCannotBeCreated(t *testing.T) {
-	runtime := aiproxyruntime.Compile(config.PluginConfig{}, policy.NewRunner())
+	modelProxy := modelproxy.New(config.PluginConfig{})
 	option := proxytest.NewEmulatorOption().WithHttpContext(func(contextID uint32) types.HttpContext {
 		return &httpContext{
-			plugin: &pluginContext{runtime: runtime},
-			responsePlan: &aiproxyruntime.ResponsePlan{
-				Protocol:    config.Protocol("invalid"),
+			plugin: &pluginContext{proxy: modelProxy},
+			responseTransform: &modelproxy.ResponseTransform{
+				Protocol:    llm.Protocol("invalid"),
 				PublicModel: "public-model",
 				Stream:      true,
 			},
@@ -430,21 +430,21 @@ func TestHTTPContextTransformsAnthropicSSEAcrossChunks(t *testing.T) {
 	if len(events) != 5 {
 		t.Fatalf("Anthropic transformed SSE event count = %d, want 5", len(events))
 	}
-	var first llm.ChatCompletionChunk
+	var first openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[0].Data, &first); err != nil {
 		t.Fatalf("json.Unmarshal(Anthropic first SSE event) error = %v", err)
 	}
-	if first.ID != "msg_1" || first.Model != "claude" || len(first.Choices) != 1 || first.Choices[0].Delta.Role != llm.RoleAssistant {
+	if first.ID != "msg_1" || first.Model != "claude" || len(first.Choices) != 1 || first.Choices[0].Delta.Role != openai.RoleAssistant {
 		t.Errorf("Anthropic first SSE event = %#v, want public model and assistant role", first)
 	}
-	var textChunk llm.ChatCompletionChunk
+	var textChunk openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[1].Data, &textChunk); err != nil {
 		t.Fatalf("json.Unmarshal(Anthropic text SSE event) error = %v", err)
 	}
 	if len(textChunk.Choices) != 1 || textChunk.Choices[0].Delta.Content == nil || *textChunk.Choices[0].Delta.Content != "hello" {
 		t.Errorf("Anthropic text SSE event = %#v, want hello", textChunk)
 	}
-	var usageChunk llm.ChatCompletionChunk
+	var usageChunk openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[3].Data, &usageChunk); err != nil {
 		t.Fatalf("json.Unmarshal(Anthropic usage SSE event) error = %v", err)
 	}
@@ -464,14 +464,14 @@ func TestHTTPContextTransformsGeminiSSEAcrossChunks(t *testing.T) {
 	if len(events) != 3 {
 		t.Fatalf("Gemini transformed SSE event count = %d, want 3", len(events))
 	}
-	var first llm.ChatCompletionChunk
+	var first openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[0].Data, &first); err != nil {
 		t.Fatalf("json.Unmarshal(Gemini first SSE event) error = %v", err)
 	}
 	if first.ID != "resp_1" || first.Model != "gemini" || len(first.Choices) != 1 || first.Choices[0].Delta.Content == nil || *first.Choices[0].Delta.Content != "hel" {
 		t.Errorf("Gemini first SSE event = %#v, want public model and text hel", first)
 	}
-	var second llm.ChatCompletionChunk
+	var second openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[1].Data, &second); err != nil {
 		t.Fatalf("json.Unmarshal(Gemini second SSE event) error = %v", err)
 	}
@@ -496,7 +496,7 @@ func TestHTTPContextReplacesInvalidStreamAndDropsVendorTail(t *testing.T) {
 	if len(events) != 2 {
 		t.Fatalf("OnHttpResponseBody(invalid Anthropic stream) event count = %d, want 2", len(events))
 	}
-	var envelope llm.ErrorEnvelope
+	var envelope openai.ErrorEnvelope
 	if err := json.Unmarshal(events[0].Data, &envelope); err != nil {
 		t.Fatalf("json.Unmarshal(invalid Anthropic stream error) error = %v; data=%s", err, events[0].Data)
 	}
@@ -632,7 +632,7 @@ func TestHTTPContextReturnsOpenAIErrorForOversizedBody(t *testing.T) {
 	if action := host.CallOnRequestHeaders(contextID, headers, false); action != types.ActionPause {
 		t.Fatalf("OnHttpRequestHeaders(oversized body) action = %v, want pause", action)
 	}
-	body := make([]byte, aiproxyruntime.MaxRequestBodyBytes+1)
+	body := make([]byte, modelproxy.MaxRequestBodyBytes+1)
 	if action := host.CallOnRequestBody(contextID, body, true); action != types.ActionPause {
 		t.Fatalf("OnHttpRequestBody(oversized body) action = %v, want pause", action)
 	}
@@ -656,7 +656,7 @@ func newTestHost(t *testing.T, cfg config.PluginConfig, routeName string) (proxy
 	}
 	option := proxytest.NewEmulatorOption().
 		WithPluginContext(func(contextID uint32) types.PluginContext {
-			return &pluginContext{runner: policy.NewRunner()}
+			return &pluginContext{}
 		}).
 		WithPluginConfiguration(data).
 		WithProperty([]string{"xds", "route_name"}, []byte(routeName))
@@ -725,28 +725,28 @@ func modelConfig() config.PluginConfig {
 			RouteName:   "route-1",
 			RuleName:    "chat",
 			ConfigID:    "config-1",
-			Targets: []config.TargetConfig{
+			Upstreams: []config.UpstreamConfig{
 				{
-					ID: "openai", Provider: "openai", Protocol: config.ProtocolOpenAI,
+					ID: "openai", Provider: "openai", Protocol: llm.ProtocolOpenAIChatCompletions,
 					Cluster: "model/openai", BasePath: "/v1",
 					APIKey: "openai-secret", APIKeyHeader: "authorization", APIKeyPrefix: "Bearer ",
 				},
 				{
-					ID: "anthropic", Provider: "anthropic", Protocol: config.ProtocolAnthropic,
+					ID: "anthropic", Provider: "anthropic", Protocol: llm.ProtocolAnthropicMessages,
 					Cluster: "model/anthropic", BasePath: "/v1",
 					APIKey: "anthropic-secret", APIKeyHeader: "x-api-key",
 					Headers: []config.HeaderConfig{{Name: "anthropic-version", Value: "2023-06-01"}},
 				},
 				{
-					ID: "gemini", Provider: "gemini", Protocol: config.ProtocolGemini,
+					ID: "gemini", Provider: "gemini", Protocol: llm.ProtocolGeminiGenerateContent,
 					Cluster: "model/gemini", BasePath: "/v1beta",
 					APIKey: "gemini-secret", APIKeyHeader: "x-goog-api-key",
 				},
 			},
 			Models: []config.ModelConfig{
-				{Model: "assistant", TargetID: "openai", UpstreamModel: "gpt-4o-mini"},
-				{Model: "claude", TargetID: "anthropic", UpstreamModel: "claude-sonnet-4"},
-				{Model: "gemini", TargetID: "gemini", UpstreamModel: "gemini-2.5-flash"},
+				{Model: "assistant", UpstreamID: "openai", UpstreamModel: "gpt-4o-mini"},
+				{Model: "claude", UpstreamID: "anthropic", UpstreamModel: "claude-sonnet-4"},
+				{Model: "gemini", UpstreamID: "gemini", UpstreamModel: "gemini-2.5-flash"},
 			},
 		},
 	}}
@@ -781,7 +781,7 @@ func assertServerErrorResponse(t *testing.T, response *proxytest.LocalHttpRespon
 		t.Errorf("%s status = %d, want 502", source, response.StatusCode)
 	}
 	assertSingleHeader(t, response.Headers, contentTypeHeader, jsonContentType)
-	var envelope llm.ErrorEnvelope
+	var envelope openai.ErrorEnvelope
 	if err := json.Unmarshal(response.Data, &envelope); err != nil {
 		t.Fatalf("json.Unmarshal(%s error response) error = %v; body=%s", source, err, response.Data)
 	}

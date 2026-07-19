@@ -14,8 +14,8 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
+	"github.com/lgc202/ingate/internal/modelprovider"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
-	"github.com/lgc202/ingate/pkg/llm/provider"
 )
 
 const gatewayAPIVersion = "gateway.ingate.io/v1"
@@ -163,7 +163,7 @@ func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 		authenticationPath := specPath.Child("authentication")
 		if upstream.Spec.Authentication.APIKey == nil {
 			errs = append(errs, field.Required(authenticationPath.Child("apiKey"), "apiKey is required when authentication is configured"))
-		} else if !provider.ValidAPIKey(upstream.Spec.Authentication.APIKey.Value) {
+		} else if !modelprovider.ValidAPIKey(upstream.Spec.Authentication.APIKey.Value) {
 			errs = append(errs, field.Invalid(authenticationPath.Child("apiKey", "value"), "<redacted>", "value must be safe for use in an HTTP header"))
 		}
 		if upstream.Spec.Type != resource.UpstreamTypeModel {
@@ -268,7 +268,7 @@ func validateModelSpec(
 	protocolPath *field.Path,
 ) field.ErrorList {
 	errs := field.ErrorList{}
-	expectedProtocol, validProvider := model.Provider.Protocol()
+	definition, validProvider := modelprovider.Lookup(modelprovider.ID(model.Provider))
 	if !validProvider {
 		errs = append(errs, field.NotSupported(modelPath.Child("provider"), model.Provider, []string{
 			string(resource.ModelProviderOpenAI),
@@ -278,7 +278,7 @@ func validateModelSpec(
 			string(resource.ModelProviderGemini),
 			string(resource.ModelProviderCustom),
 		}))
-	} else if protocol != expectedProtocol {
+	} else if protocol != resource.UpstreamProtocol(definition.Protocol) {
 		errs = append(errs, field.Invalid(protocolPath, protocol, "protocol does not match model provider"))
 	}
 	if !validAPIBasePath(model.APIBasePath) {

@@ -9,7 +9,7 @@ func TestParsePluginConfig(t *testing.T) {
 			"routeName": "route-1",
 			"ruleName": "chat",
 			"configID": "config-1",
-			"targets": [{
+			"upstreams": [{
 				"id": "openai",
 				"provider": "openai",
 				"protocol": "OpenAI",
@@ -21,7 +21,7 @@ func TestParsePluginConfig(t *testing.T) {
 			}],
 			"models": [{
 				"model": "assistant",
-				"targetID": "openai",
+				"upstreamID": "openai",
 				"upstreamModel": "gpt-4o-mini"
 			}]
 		}]
@@ -31,8 +31,8 @@ func TestParsePluginConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParsePluginConfig(valid config) error = %v, want nil", err)
 	}
-	if got := cfg.Routes[0].Targets[0].APIKey; got != "secret" {
-		t.Errorf("ParsePluginConfig(valid config).Routes[0].Targets[0].APIKey = %q, want %q", got, "secret")
+	if got := cfg.Routes[0].Upstreams[0].APIKey; got != "secret" {
+		t.Errorf("ParsePluginConfig(valid config).Routes[0].Upstreams[0].APIKey = %q, want %q", got, "secret")
 	}
 }
 
@@ -57,37 +57,37 @@ func TestParsePluginConfigRejectsInvalidConfig(t *testing.T) {
 		},
 		{
 			name: "missing rule name",
-			data: routeConfigJSON(`"routeName":"route-1"`, modelConfigJSON("assistant", "target-1", "gpt-4o-mini")),
+			data: routeConfigJSON(`"routeName":"route-1"`, modelConfigJSON("assistant", "upstream-1", "gpt-4o-mini")),
 		},
 		{
 			name: "missing config ID",
-			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","targets":[` + targetConfigJSON("target-1") + `],"models":[` + modelConfigJSON("assistant", "target-1", "gpt-4o-mini") + `]}]}`,
+			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","upstreams":[` + upstreamConfigJSON("upstream-1") + `],"models":[` + modelConfigJSON("assistant", "upstream-1", "gpt-4o-mini") + `]}]}`,
 		},
 		{
 			name: "duplicate route rule",
 			data: `{"routes": [
-				{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","targets":[` + targetConfigJSON("target-1") + `],"models":[` + modelConfigJSON("assistant", "target-1", "gpt-4o-mini") + `]},
-				{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-2","targets":[` + targetConfigJSON("target-2") + `],"models":[` + modelConfigJSON("assistant-2", "target-2", "gpt-4o") + `]}
+				{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","upstreams":[` + upstreamConfigJSON("upstream-1") + `],"models":[` + modelConfigJSON("assistant", "upstream-1", "gpt-4o-mini") + `]},
+				{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-2","upstreams":[` + upstreamConfigJSON("upstream-2") + `],"models":[` + modelConfigJSON("assistant-2", "upstream-2", "gpt-4o") + `]}
 			]}`,
 		},
 		{
 			name: "duplicate model",
-			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","targets":[` + targetConfigJSON("target-1") + `],"models":[
-				` + modelConfigJSON("assistant", "target-1", "gpt-4o-mini") + `,
-				` + modelConfigJSON("assistant", "target-1", "gpt-4o") + `
+			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","upstreams":[` + upstreamConfigJSON("upstream-1") + `],"models":[
+				` + modelConfigJSON("assistant", "upstream-1", "gpt-4o-mini") + `,
+				` + modelConfigJSON("assistant", "upstream-1", "gpt-4o") + `
 			]}]}`,
 		},
 		{
 			name: "missing upstream model",
-			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","targets":[` + targetConfigJSON("target-1") + `],"models":[{"model":"assistant","targetID":"target-1"}]}]}`,
+			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","upstreams":[` + upstreamConfigJSON("upstream-1") + `],"models":[{"model":"assistant","upstreamID":"upstream-1"}]}]}`,
 		},
 		{
 			name: "API key contains newline",
-			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","targets":[{"id":"target-1","provider":"openai","protocol":"OpenAI","cluster":"cluster","basePath":"/v1","apiKey":"secret\r\ninjected","apiKeyHeader":"authorization","apiKeyPrefix":"Bearer "}],"models":[` + modelConfigJSON("assistant", "target-1", "gpt-4o-mini") + `]}]}`,
+			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","upstreams":[{"id":"upstream-1","provider":"openai","protocol":"OpenAI","cluster":"cluster","basePath":"/v1","apiKey":"secret\r\ninjected","apiKeyHeader":"authorization","apiKeyPrefix":"Bearer "}],"models":[` + modelConfigJSON("assistant", "upstream-1", "gpt-4o-mini") + `]}]}`,
 		},
 		{
-			name: "model target does not exist",
-			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","targets":[` + targetConfigJSON("target-1") + `],"models":[` + modelConfigJSON("assistant", "missing", "gpt-4o-mini") + `]}]}`,
+			name: "model upstream does not exist",
+			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","upstreams":[` + upstreamConfigJSON("upstream-1") + `],"models":[` + modelConfigJSON("assistant", "missing", "gpt-4o-mini") + `]}]}`,
 		},
 	}
 
@@ -101,13 +101,13 @@ func TestParsePluginConfigRejectsInvalidConfig(t *testing.T) {
 }
 
 func routeConfigJSON(extra, model string) string {
-	return `{"routes": [{"gatewayName":"gateway-1",` + extra + `,"configID":"config-1","targets":[` + targetConfigJSON("target-1") + `],"models":[` + model + `]}]}`
+	return `{"routes": [{"gatewayName":"gateway-1",` + extra + `,"configID":"config-1","upstreams":[` + upstreamConfigJSON("upstream-1") + `],"models":[` + model + `]}]}`
 }
 
-func targetConfigJSON(id string) string {
+func upstreamConfigJSON(id string) string {
 	return `{"id":"` + id + `","provider":"openai","protocol":"OpenAI","cluster":"cluster","basePath":"/v1"}`
 }
 
-func modelConfigJSON(model, targetID, upstreamModel string) string {
-	return `{"model":"` + model + `","targetID":"` + targetID + `","upstreamModel":"` + upstreamModel + `"}`
+func modelConfigJSON(model, upstreamID, upstreamModel string) string {
+	return `{"model":"` + model + `","upstreamID":"` + upstreamID + `","upstreamModel":"` + upstreamModel + `"}`
 }

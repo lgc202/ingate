@@ -3,8 +3,7 @@ package wasm
 import (
 	"strconv"
 
-	aiproxyruntime "github.com/lgc202/ingate/plugins/aiproxy/internal/runtime"
-	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
+	modelproxy "github.com/lgc202/ingate/plugins/aiproxy/internal/proxy"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
@@ -48,23 +47,23 @@ func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) typ
 		acceptEncodingHeader,
 	); err != nil {
 		proxywasm.LogErrorf("sanitize AI proxy request headers failed: %v", err)
-		return proxyWasmAction(h.plugin.runtime.InternalError().Action)
+		return sendLocalResponse(h.plugin.proxy.InternalError())
 	}
 	if !configured {
 		proxywasm.LogError("AI proxy route configuration is missing or stale")
-		return proxyWasmAction(h.plugin.runtime.InternalError().Action)
+		return sendLocalResponse(h.plugin.proxy.InternalError())
 	}
 
 	h.route = route
 	h.requestActive = true
-	result := h.plugin.runtime.ValidateEndpoint(method, path)
-	if result.Action.Kind == pluginruntime.ActionRespond {
+	if response := h.plugin.proxy.ValidateEndpoint(method, path); response != nil {
 		h.requestActive = false
-		return proxyWasmAction(result.Action)
+		return sendLocalResponse(*response)
 	}
 	if endOfStream {
 		h.requestActive = false
-		return proxyWasmAction(h.plugin.runtime.Apply(route, nil).Action)
+		_, response := h.plugin.proxy.PrepareRequest(route, nil)
+		return sendLocalResponse(*response)
 	}
 	// 暂停 header 发送，等待完整请求体确定目标 Cluster 和厂商协议
 	return types.ActionPause
@@ -75,9 +74,9 @@ func (h *httpContext) OnHttpRequestBody(bodySize int, endOfStream bool) types.Ac
 	if !h.requestActive {
 		return types.ActionContinue
 	}
-	if bodySize > aiproxyruntime.MaxRequestBodyBytes {
+	if bodySize > modelproxy.MaxRequestBodyBytes {
 		h.requestActive = false
-		return proxyWasmAction(h.plugin.runtime.RequestTooLarge().Action)
+		return sendLocalResponse(h.plugin.proxy.RequestTooLarge())
 	}
 	if !endOfStream {
 		return types.ActionPause
@@ -90,47 +89,47 @@ func (h *httpContext) OnHttpRequestBody(bodySize int, endOfStream bool) types.Ac
 		if err != nil {
 			proxywasm.LogErrorf("read AI proxy request body failed: %v", err)
 			h.requestActive = false
-			return proxyWasmAction(h.plugin.runtime.InternalError().Action)
+			return sendLocalResponse(h.plugin.proxy.InternalError())
 		}
 	}
-	result := h.plugin.runtime.Apply(h.route, body)
-	if result.Action.Kind == pluginruntime.ActionRespond {
+	request, response := h.plugin.proxy.PrepareRequest(h.route, body)
+	if response != nil {
 		h.requestActive = false
-		return proxyWasmAction(result.Action)
+		return sendLocalResponse(*response)
 	}
-	if err := proxywasm.ReplaceHttpRequestBody(result.Mutation.Body); err != nil {
+	if err := proxywasm.ReplaceHttpRequestBody(request.Body); err != nil {
 		proxywasm.LogErrorf("replace AI proxy request body failed: %v", err)
 		h.requestActive = false
-		return proxyWasmAction(h.plugin.runtime.InternalError().Action)
+		return sendLocalResponse(h.plugin.proxy.InternalError())
 	}
 	for _, header := range [][2]string{
-		{":path", result.Mutation.Path},
-		{aiClusterHeader, result.Mutation.Cluster},
-		{aiRouteHeader, result.Mutation.RouteConfigID},
+		{":path", request.Path},
+		{aiClusterHeader, request.Cluster},
+		{aiRouteHeader, request.RouteConfigID},
 		{contentTypeHeader, jsonContentType},
-		{contentLengthHeader, strconv.Itoa(len(result.Mutation.Body))},
+		{contentLengthHeader, strconv.Itoa(len(request.Body))},
 	} {
 		if err := replaceRequestHeader(header[0], header[1]); err != nil {
 			proxywasm.LogErrorf("set AI proxy routing header failed: %v", err)
 			h.requestActive = false
-			return proxyWasmAction(h.plugin.runtime.InternalError().Action)
+			return sendLocalResponse(h.plugin.proxy.InternalError())
 		}
 	}
-	for _, header := range result.Mutation.Headers {
+	for _, header := range request.Headers {
 		if err := replaceRequestHeader(header.Name, header.Value); err != nil {
 			proxywasm.LogErrorf("set AI proxy upstream header failed: %v", err)
 			h.requestActive = false
-			return proxyWasmAction(h.plugin.runtime.InternalError().Action)
+			return sendLocalResponse(h.plugin.proxy.InternalError())
 		}
 	}
-	h.responsePlan = result.ResponsePlan
+	h.responseTransform = &request.Response
 	h.requestActive = false
 	return types.ActionContinue
 }
 
 // OnHttpResponseHeaders 选择普通响应缓冲或 SSE 增量转换模式
 func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) types.Action {
-	if h.responsePlan == nil {
+	if h.responseTransform == nil {
 		return types.ActionContinue
 	}
 	status, err := strconv.Atoi(pluginwasm.ResponseHeader(":status"))
@@ -141,18 +140,18 @@ func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) ty
 	h.responseStatus = status
 	if err := removeResponseHeaders(contentLengthHeader, contentEncodingHeader, contentTypeHeader); err != nil {
 		proxywasm.LogErrorf("sanitize AI proxy response headers failed: %v", err)
-		return h.sendJSONResponse(502, h.plugin.runtime.ResponseError())
+		return h.sendJSONResponse(502, h.plugin.proxy.ResponseError())
 	}
 
-	if h.responsePlan.Stream && status < 400 {
-		stream, err := h.plugin.runtime.NewResponseStream(*h.responsePlan)
+	if h.responseTransform.Stream && status < 400 {
+		stream, err := h.plugin.proxy.NewResponseStream(*h.responseTransform)
 		if err != nil {
 			proxywasm.LogErrorf("create AI proxy response stream failed: %v", err)
-			return h.sendJSONResponse(502, h.plugin.runtime.ResponseError())
+			return h.sendJSONResponse(502, h.plugin.proxy.ResponseError())
 		}
 		if err := replaceResponseHeader(contentTypeHeader, sseContentType); err != nil {
 			proxywasm.LogErrorf("set AI proxy SSE content type failed: %v", err)
-			return h.sendJSONResponse(502, h.plugin.runtime.ResponseError())
+			return h.sendJSONResponse(502, h.plugin.proxy.ResponseError())
 		}
 		h.responseStream = stream
 		h.responseStreaming = true
@@ -161,7 +160,7 @@ func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) ty
 
 	if err := replaceResponseHeader(contentTypeHeader, jsonContentType); err != nil {
 		proxywasm.LogErrorf("set AI proxy JSON content type failed: %v", err)
-		return h.sendJSONResponse(502, h.plugin.runtime.ResponseError())
+		return h.sendJSONResponse(502, h.plugin.proxy.ResponseError())
 	}
 	h.responseBuffered = true
 	if !endOfStream {
@@ -169,17 +168,17 @@ func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) ty
 	}
 
 	// endOfStream 表示不会再进入 body 回调，需要在响应头仍未下发时直接重建规范响应
-	transformed, err := h.plugin.runtime.TransformResponse(*h.responsePlan, h.responseStatus, nil)
+	transformed, err := h.plugin.proxy.TransformResponse(*h.responseTransform, h.responseStatus, nil)
 	if err != nil {
 		proxywasm.LogErrorf("transform empty AI proxy response failed: %v", err)
-		return h.sendJSONResponse(502, h.plugin.runtime.ResponseError())
+		return h.sendJSONResponse(502, h.plugin.proxy.ResponseError())
 	}
 	return h.sendJSONResponse(h.responseStatus, transformed)
 }
 
 // OnHttpResponseBody 转换普通响应或任意边界的 SSE 分块
 func (h *httpContext) OnHttpResponseBody(bodySize int, endOfStream bool) types.Action {
-	if h.responsePlan == nil {
+	if h.responseTransform == nil {
 		return types.ActionContinue
 	}
 	if h.responseClosed {
@@ -191,9 +190,9 @@ func (h *httpContext) OnHttpResponseBody(bodySize int, endOfStream bool) types.A
 	if !h.responseBuffered {
 		return types.ActionContinue
 	}
-	if bodySize > aiproxyruntime.MaxResponseBodyBytes {
-		proxywasm.LogErrorf("AI proxy response body exceeds %d bytes", aiproxyruntime.MaxResponseBodyBytes)
-		return h.sendJSONResponse(502, h.plugin.runtime.ResponseError())
+	if bodySize > modelproxy.MaxResponseBodyBytes {
+		proxywasm.LogErrorf("AI proxy response body exceeds %d bytes", modelproxy.MaxResponseBodyBytes)
+		return h.sendJSONResponse(502, h.plugin.proxy.ResponseError())
 	}
 	if !endOfStream {
 		return types.ActionPause
@@ -201,16 +200,16 @@ func (h *httpContext) OnHttpResponseBody(bodySize int, endOfStream bool) types.A
 	body, err := proxywasm.GetHttpResponseBody(0, bodySize)
 	if err != nil {
 		proxywasm.LogErrorf("read AI proxy response body failed: %v", err)
-		return h.sendJSONResponse(502, h.plugin.runtime.ResponseError())
+		return h.sendJSONResponse(502, h.plugin.proxy.ResponseError())
 	}
-	transformed, err := h.plugin.runtime.TransformResponse(*h.responsePlan, h.responseStatus, body)
+	transformed, err := h.plugin.proxy.TransformResponse(*h.responseTransform, h.responseStatus, body)
 	if err != nil {
 		proxywasm.LogErrorf("transform AI proxy response failed: %v", err)
-		return h.sendJSONResponse(502, h.plugin.runtime.ResponseError())
+		return h.sendJSONResponse(502, h.plugin.proxy.ResponseError())
 	}
 	if err := proxywasm.ReplaceHttpResponseBody(transformed); err != nil {
 		proxywasm.LogErrorf("replace AI proxy response body failed: %v", err)
-		return h.sendJSONResponse(502, h.plugin.runtime.ResponseError())
+		return h.sendJSONResponse(502, h.plugin.proxy.ResponseError())
 	}
 	return types.ActionContinue
 }
@@ -269,7 +268,7 @@ func (h *httpContext) transformStreamingResponse(bodySize int, endOfStream bool)
 
 func (h *httpContext) failStreamingResponse() types.Action {
 	h.streamFailed = true
-	if err := proxywasm.ReplaceHttpResponseBody(h.plugin.runtime.StreamError()); err != nil {
+	if err := proxywasm.ReplaceHttpResponseBody(h.plugin.proxy.StreamError()); err != nil {
 		proxywasm.LogErrorf("replace AI proxy stream with error failed: %v", err)
 		return types.ActionPause
 	}

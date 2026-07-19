@@ -161,17 +161,3 @@ type UpstreamHealthCheck struct {
 	IntervalSeconds int    `json:"intervalSeconds,omitempty"`
 	TimeoutSeconds  int    `json:"timeoutSeconds,omitempty"`
 }
-
-// Protocol 返回当前厂商使用的上游协议
-func (p ModelProvider) Protocol() (UpstreamProtocol, bool) {
-	switch p {
-	case ModelProviderOpenAI, ModelProviderDeepSeek, ModelProviderQwen, ModelProviderCustom:
-		return UpstreamProtocolOpenAI, true
-	case ModelProviderAnthropic:
-		return UpstreamProtocolAnthropic, true
-	case ModelProviderGemini:
-		return UpstreamProtocolGemini, true
-	default:
-		return "", false
-	}
-}

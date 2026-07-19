@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/lgc202/ingate/pkg/llm"
+	"github.com/lgc202/ingate/pkg/llm/openai"
 	"github.com/lgc202/ingate/pkg/llm/sse"
 )
 
@@ -108,9 +109,9 @@ func (s *Stream) transform(events []sse.Event) ([]byte, error) {
 			s.completionTokens = original.Message.Usage.OutputTokens
 			s.started = true
 			empty := ""
-			chunk := s.chunk([]llm.ChunkChoice{{
+			chunk := s.chunk([]openai.ChunkChoice{{
 				Index: 0,
-				Delta: llm.MessageDelta{Role: llm.RoleAssistant, Content: &empty},
+				Delta: openai.MessageDelta{Role: openai.RoleAssistant, Content: &empty},
 			}})
 			output = appendJSONEvent(output, chunk)
 		case "content_block_start":
@@ -130,9 +131,9 @@ func (s *Stream) transform(events []sse.Event) ([]byte, error) {
 			s.activeBlocks[original.Index] = true
 			if *original.ContentBlock.Text != "" {
 				text := *original.ContentBlock.Text
-				output = appendJSONEvent(output, s.chunk([]llm.ChunkChoice{{
+				output = appendJSONEvent(output, s.chunk([]openai.ChunkChoice{{
 					Index: 0,
-					Delta: llm.MessageDelta{Content: &text},
+					Delta: openai.MessageDelta{Content: &text},
 				}}))
 			}
 		case "content_block_delta":
@@ -147,9 +148,9 @@ func (s *Stream) transform(events []sse.Event) ([]byte, error) {
 					llm.ErrUnsupportedFeature, original.Delta.Type)
 			}
 			text := original.Delta.Text
-			output = appendJSONEvent(output, s.chunk([]llm.ChunkChoice{{
+			output = appendJSONEvent(output, s.chunk([]openai.ChunkChoice{{
 				Index: 0,
-				Delta: llm.MessageDelta{Content: &text},
+				Delta: openai.MessageDelta{Content: &text},
 			}}))
 		case "content_block_stop":
 			if !s.activeBlocks[original.Index] {
@@ -172,9 +173,9 @@ func (s *Stream) transform(events []sse.Event) ([]byte, error) {
 			if original.Usage != nil {
 				s.completionTokens = original.Usage.OutputTokens
 			}
-			output = appendJSONEvent(output, s.chunk([]llm.ChunkChoice{{
+			output = appendJSONEvent(output, s.chunk([]openai.ChunkChoice{{
 				Index:        0,
-				Delta:        llm.MessageDelta{},
+				Delta:        openai.MessageDelta{},
 				FinishReason: mapFinishReason(original.Delta.StopReason),
 			}}))
 			s.finished = true
@@ -182,13 +183,13 @@ func (s *Stream) transform(events []sse.Event) ([]byte, error) {
 			if !s.started || !s.finished {
 				return nil, fmt.Errorf("%w: Anthropic message_stop arrived before message_delta", llm.ErrInvalidStream)
 			}
-			usage := &llm.Usage{
+			usage := &openai.Usage{
 				PromptTokens:     s.promptTokens,
 				CompletionTokens: s.completionTokens,
 				TotalTokens:      s.promptTokens + s.completionTokens,
 			}
 			chunk := s.chunk(nil)
-			chunk.Choices = []llm.ChunkChoice{}
+			chunk.Choices = []openai.ChunkChoice{}
 			chunk.Usage = usage
 			output = appendJSONEvent(output, chunk)
 			output = append(output, sse.EncodeData([]byte("[DONE]"))...)
@@ -197,11 +198,11 @@ func (s *Stream) transform(events []sse.Event) ([]byte, error) {
 			if original.Error == nil {
 				return nil, fmt.Errorf("%w: Anthropic error event is missing error details", llm.ErrInvalidStream)
 			}
-			detail := llm.APIError{Message: original.Error.Message, Type: original.Error.Type}
+			detail := openai.ErrorDetail{Message: original.Error.Message, Type: original.Error.Type}
 			if detail.Type == "" {
-				detail.Type = llm.DefaultAPIError(502, "").Type
+				detail.Type = openai.DefaultError(502, "").Type
 			}
-			output = append(output, sse.EncodeData(llm.EncodeError(detail))...)
+			output = append(output, sse.EncodeData(openai.EncodeError(detail))...)
 			output = append(output, sse.EncodeData([]byte("[DONE]"))...)
 			s.done = true
 		default:
@@ -211,10 +212,10 @@ func (s *Stream) transform(events []sse.Event) ([]byte, error) {
 	return output, nil
 }
 
-func (s *Stream) chunk(choices []llm.ChunkChoice) llm.ChatCompletionChunk {
-	return llm.ChatCompletionChunk{
+func (s *Stream) chunk(choices []openai.ChunkChoice) openai.ChatCompletionChunk {
+	return openai.ChatCompletionChunk{
 		ID:      s.id,
-		Object:  llm.ObjectChatCompletionChunk,
+		Object:  openai.ObjectChatCompletionChunk,
 		Created: s.created,
 		Model:   s.publicModel,
 		Choices: choices,

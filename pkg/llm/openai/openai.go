@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"strings"
 
 	"github.com/lgc202/ingate/pkg/llm"
@@ -12,23 +13,22 @@ import (
 // ChatCompletionsPath 是相对于 OpenAI API Base Path 的请求路径
 const ChatCompletionsPath = "/chat/completions"
 
-// TransformRequest 校验文本 Chat 请求并只替换 model 字段，其余 JSON 字段保持不变
-func TransformRequest(body []byte, upstreamModel string) ([]byte, error) {
+// TransformRequest 只替换已解析请求的 model 字段，其余 JSON 字段保持不变
+func TransformRequest(request Request, upstreamModel string) ([]byte, error) {
 	if strings.TrimSpace(upstreamModel) == "" {
 		return nil, fmt.Errorf("%w: upstream model must not be empty", llm.ErrInvalidRequest)
 	}
-	original, err := llm.DecodeChatRequest(body)
-	if err != nil {
-		return nil, err
-	}
-	if err := original.ValidateSupported(); err != nil {
-		return nil, err
+
+	if request.fields == nil {
+		request.Model = upstreamModel
+		transformed, err := json.Marshal(request)
+		if err != nil {
+			return nil, fmt.Errorf("encode OpenAI request: %w", err)
+		}
+		return transformed, nil
 	}
 
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(body, &fields); err != nil {
-		return nil, fmt.Errorf("%w: decode request body: %v", llm.ErrInvalidRequest, err)
-	}
+	fields := maps.Clone(request.fields)
 	model, err := json.Marshal(upstreamModel)
 	if err != nil {
 		return nil, fmt.Errorf("encode upstream model: %w", err)
@@ -71,26 +71,26 @@ func TransformError(body []byte, statusCode int) []byte {
 	type upstreamError struct {
 		Message string          `json:"message"`
 		Type    string          `json:"type"`
-		Param   string          `json:"param"`
+		Param   *string         `json:"param"`
 		Code    json.RawMessage `json:"code"`
 	}
 	var envelope struct {
 		Error upstreamError `json:"error"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil || envelope.Error.Message == "" {
-		return llm.EncodeError(llm.DefaultAPIError(statusCode, "upstream returned an invalid error response"))
+		return EncodeError(DefaultError(statusCode, "upstream returned an invalid error response"))
 	}
 
-	detail := llm.APIError{
+	detail := ErrorDetail{
 		Message: envelope.Error.Message,
 		Type:    envelope.Error.Type,
 		Param:   envelope.Error.Param,
 		Code:    decodeCode(envelope.Error.Code),
 	}
 	if detail.Type == "" {
-		detail.Type = llm.DefaultAPIError(statusCode, "").Type
+		detail.Type = DefaultError(statusCode, "").Type
 	}
-	return llm.EncodeError(detail)
+	return EncodeError(detail)
 }
 
 func decodeCode(raw json.RawMessage) string {

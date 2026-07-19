@@ -1,8 +1,7 @@
 package wasm
 
 import (
-	aiproxyruntime "github.com/lgc202/ingate/plugins/aiproxy/internal/runtime"
-	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
+	modelproxy "github.com/lgc202/ingate/plugins/aiproxy/internal/proxy"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 )
 
@@ -11,12 +10,12 @@ const (
 	routeConfigMark = "ai"
 )
 
-func (h *httpContext) currentRoute() (aiproxyruntime.Route, bool, bool) {
+func (h *httpContext) currentRoute() (modelproxy.Route, bool, bool) {
 	identity, configID, aiRoute := pluginwasm.CurrentRouteConfigIdentity(routeNamePrefix, routeConfigMark)
 	if !aiRoute {
-		return aiproxyruntime.Route{}, false, false
+		return modelproxy.Route{}, false, false
 	}
-	route, configured := h.plugin.runtime.Route(pluginruntime.RouteKey{
+	route, configured := h.plugin.proxy.Route(modelproxy.RouteKey{
 		GatewayName: identity.GatewayName,
 		RouteName:   identity.RouteName,
 		RuleName:    identity.RuleName,

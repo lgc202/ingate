@@ -1,4 +1,4 @@
-package llm
+package openai
 
 // FinishReason 表示 OpenAI-compatible 结束原因
 type FinishReason string

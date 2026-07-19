@@ -1,4 +1,7 @@
-package provider
+// Package modelprovider 定义 Ingate 内置模型厂商目录及认证元数据
+package modelprovider
+
+import "github.com/lgc202/ingate/pkg/llm"
 
 // ID 是模型厂商目录中的稳定标识
 type ID string
@@ -18,18 +21,6 @@ const (
 	IDCustom ID = "custom"
 )
 
-// Protocol 表示模型服务实际使用的请求和响应协议
-type Protocol string
-
-const (
-	// ProtocolOpenAI 表示 OpenAI Chat Completions 协议
-	ProtocolOpenAI Protocol = "OpenAI"
-	// ProtocolAnthropic 表示 Anthropic Messages 协议
-	ProtocolAnthropic Protocol = "Anthropic"
-	// ProtocolGemini 表示 Gemini generateContent 协议
-	ProtocolGemini Protocol = "Gemini"
-)
-
 // Authentication 描述 API Key 如何写入上游 HTTP Header
 type Authentication struct {
 	Header string
@@ -40,7 +31,7 @@ type Authentication struct {
 type Definition struct {
 	ID              ID
 	DisplayName     string
-	Protocol        Protocol
+	Protocol        llm.Protocol
 	DefaultBaseURL  string
 	DefaultBasePath string
 	Authentication  Authentication
@@ -51,7 +42,7 @@ var catalog = []Definition{
 	{
 		ID:              IDOpenAI,
 		DisplayName:     "OpenAI",
-		Protocol:        ProtocolOpenAI,
+		Protocol:        llm.ProtocolOpenAIChatCompletions,
 		DefaultBaseURL:  "https://api.openai.com",
 		DefaultBasePath: "/v1",
 		Authentication:  Authentication{Header: "Authorization", Prefix: "Bearer "},
@@ -59,7 +50,7 @@ var catalog = []Definition{
 	{
 		ID:              IDDeepSeek,
 		DisplayName:     "DeepSeek",
-		Protocol:        ProtocolOpenAI,
+		Protocol:        llm.ProtocolOpenAIChatCompletions,
 		DefaultBaseURL:  "https://api.deepseek.com",
 		DefaultBasePath: "/v1",
 		Authentication:  Authentication{Header: "Authorization", Prefix: "Bearer "},
@@ -67,7 +58,7 @@ var catalog = []Definition{
 	{
 		ID:              IDQwen,
 		DisplayName:     "通义千问",
-		Protocol:        ProtocolOpenAI,
+		Protocol:        llm.ProtocolOpenAIChatCompletions,
 		DefaultBaseURL:  "https://dashscope.aliyuncs.com",
 		DefaultBasePath: "/compatible-mode/v1",
 		Authentication:  Authentication{Header: "Authorization", Prefix: "Bearer "},
@@ -75,7 +66,7 @@ var catalog = []Definition{
 	{
 		ID:              IDAnthropic,
 		DisplayName:     "Anthropic Claude",
-		Protocol:        ProtocolAnthropic,
+		Protocol:        llm.ProtocolAnthropicMessages,
 		DefaultBaseURL:  "https://api.anthropic.com",
 		DefaultBasePath: "/v1",
 		Authentication:  Authentication{Header: "x-api-key"},
@@ -84,7 +75,7 @@ var catalog = []Definition{
 	{
 		ID:              IDGemini,
 		DisplayName:     "Google Gemini",
-		Protocol:        ProtocolGemini,
+		Protocol:        llm.ProtocolGeminiGenerateContent,
 		DefaultBaseURL:  "https://generativelanguage.googleapis.com",
 		DefaultBasePath: "/v1beta",
 		Authentication:  Authentication{Header: "x-goog-api-key"},
@@ -92,7 +83,7 @@ var catalog = []Definition{
 	{
 		ID:              IDCustom,
 		DisplayName:     "自定义 OpenAI 兼容服务",
-		Protocol:        ProtocolOpenAI,
+		Protocol:        llm.ProtocolOpenAIChatCompletions,
 		DefaultBasePath: "/v1",
 		Authentication:  Authentication{Header: "Authorization", Prefix: "Bearer "},
 	},

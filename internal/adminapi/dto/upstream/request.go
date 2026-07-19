@@ -7,8 +7,8 @@ import (
 	"path"
 	"strings"
 
+	"github.com/lgc202/ingate/internal/modelprovider"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/pkg/llm/provider"
 )
 
 const (
@@ -106,7 +106,7 @@ func validateAPIKey(apiKey *APIKeyConfig, upstreamType resource.UpstreamType, tl
 	if apiKey.Value == "" {
 		return errors.New("API Key 不能为空")
 	}
-	if !provider.ValidAPIKey(apiKey.Value) {
+	if !modelprovider.ValidAPIKey(apiKey.Value) {
 		return errors.New("API Key 包含不能用于 HTTP Header 的字符")
 	}
 	if upstreamType != resource.UpstreamTypeModel {
@@ -120,11 +120,11 @@ func validateAPIKey(apiKey *APIKeyConfig, upstreamType resource.UpstreamType, tl
 
 // Validate 校验并规整模型厂商和模型目录配置
 func (r *ModelConfig) Validate(protocol resource.UpstreamProtocol) error {
-	expectedProtocol, ok := r.Provider.Protocol()
+	definition, ok := modelprovider.Lookup(modelprovider.ID(r.Provider))
 	if !ok {
 		return errors.New("模型厂商不正确")
 	}
-	if protocol != expectedProtocol {
+	if protocol != resource.UpstreamProtocol(definition.Protocol) {
 		return errors.New("模型服务协议与厂商不匹配")
 	}
 	r.APIBasePath = strings.TrimSpace(r.APIBasePath)
