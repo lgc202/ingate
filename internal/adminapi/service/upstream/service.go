@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
-	"github.com/samber/lo"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
@@ -44,12 +43,18 @@ func (s *Service) Get(ctx context.Context, upstreamID string) (*resource.Upstrea
 }
 
 // Create 创建 Upstream
-func (s *Service) Create(ctx context.Context, params CreateUpstreamParams) (string, error) {
-	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
+func (s *Service) Create(ctx context.Context, spec resource.UpstreamSpec) (string, error) {
+	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
 	}
-	upstream := upstreamResource(uuid.NewString(), "", params.UpstreamParams)
-	upstream.Spec.Authentication = upstreamAuthentication(params.APIKey)
+	upstream := &resource.Upstream{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindUpstream),
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: uuid.NewString()},
+		Spec:       spec,
+	}
 	created, err := s.store.Create(ctx, upstream)
 	if err != nil {
 		return "", err
@@ -58,23 +63,30 @@ func (s *Service) Create(ctx context.Context, params CreateUpstreamParams) (stri
 }
 
 // Update 更新 Upstream
-func (s *Service) Update(ctx context.Context, upstreamID string, params UpdateUpstreamParams) error {
+func (s *Service) Update(
+	ctx context.Context,
+	upstreamID string,
+	version string,
+	spec resource.UpstreamSpec,
+	removeAPIKey bool,
+) error {
 	current, err := s.store.Get(ctx, upstreamID)
 	if err != nil {
 		return err
 	}
-	if err := validateVersion(resource.ResourceUpstreams, upstreamID, params.Version, current.ResourceVersion); err != nil {
+	if err := validateVersion(resource.ResourceUpstreams, upstreamID, version, current.ResourceVersion); err != nil {
 		return err
 	}
-	if err := s.validateNameUnique(ctx, params.Name, upstreamID); err != nil {
+	if err := s.validateNameUnique(ctx, spec.DisplayName, upstreamID); err != nil {
 		return err
 	}
 	next := current.DeepCopy()
-	applyUpstreamParams(next, params.UpstreamParams)
-	if params.RemoveAPIKey {
+	currentAuthentication := next.Spec.Authentication
+	next.Spec = spec
+	if removeAPIKey {
 		next.Spec.Authentication = nil
-	} else if params.APIKey != nil {
-		next.Spec.Authentication = upstreamAuthentication(params.APIKey)
+	} else if next.Spec.Authentication == nil {
+		next.Spec.Authentication = currentAuthentication
 	}
 	if err := validateAuthentication(next); err != nil {
 		return err
@@ -173,68 +185,6 @@ func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string
 	return nil
 }
 
-func upstreamResource(id, version string, params UpstreamParams) *resource.Upstream {
-	return &resource.Upstream{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindUpstream),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            id,
-			ResourceVersion: version,
-		},
-		Spec: resource.UpstreamSpec{
-			DisplayName:       params.Name,
-			Type:              params.Type,
-			Protocol:          params.Protocol,
-			TLS:               upstreamTLS(params.TLS),
-			Model:             upstreamModel(params.Model),
-			LoadBalancePolicy: params.LoadBalancePolicy,
-			HealthCheck:       params.HealthCheck,
-			Endpoints:         resourceEndpoints(params.Endpoints),
-		},
-	}
-}
-
-func upstreamModel(params *ModelParams) *resource.ModelSpec {
-	if params == nil {
-		return nil
-	}
-	return &resource.ModelSpec{
-		Provider:    params.Provider,
-		APIBasePath: params.APIBasePath,
-		Models: lo.Map(params.Models, func(model ModelCatalogItemParams, _ int) resource.ModelCatalogItem {
-			return resource.ModelCatalogItem{
-				Name:        model.Name,
-				DisplayName: model.DisplayName,
-				Enabled:     model.Enabled,
-			}
-		}),
-	}
-}
-
-func upstreamAuthentication(params *APIKeyParams) *resource.UpstreamAuthentication {
-	if params == nil {
-		return nil
-	}
-	return &resource.UpstreamAuthentication{
-		APIKey: &resource.APIKeyAuthentication{Value: params.Value},
-	}
-}
-
-func upstreamTLS(params *TLSParams) *resource.UpstreamTLS {
-	if params == nil {
-		return nil
-	}
-	return &resource.UpstreamTLS{ServerName: params.ServerName}
-}
-
-func applyUpstreamParams(next *resource.Upstream, params UpstreamParams) {
-	authentication := next.Spec.Authentication
-	next.Spec = upstreamResource(next.Name, next.ResourceVersion, params).Spec
-	next.Spec.Authentication = authentication
-}
-
 func validateAuthentication(upstream *resource.Upstream) error {
 	if upstream.Spec.Authentication == nil {
 		return nil
@@ -276,16 +226,4 @@ func validateVersion(resourceName resource.ResourceName, name, submittedVersion,
 		return nil
 	}
 	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))
-}
-
-func resourceEndpoints(endpoints []EndpointParams) []resource.Endpoint {
-	return lo.Map(endpoints, func(endpoint EndpointParams, _ int) resource.Endpoint {
-		return resource.Endpoint{
-			Name:    endpoint.ID,
-			Address: endpoint.Address,
-			Port:    endpoint.Port,
-			Weight:  endpoint.Weight,
-			Enabled: endpoint.Enabled,
-		}
-	})
 }

@@ -29,14 +29,11 @@ func TestServiceUpdateRejectsModelProtocolWhileOrdinaryRouteReferencesUpstream(t
 	}
 	service := newTestService(t, ctx, upstream, route)
 
-	err := service.Update(ctx, upstream.Name, UpdateUpstreamParams{
-		Version: upstream.ResourceVersion,
-		UpstreamParams: UpstreamParams{
-			Name:     upstream.Spec.DisplayName,
-			Type:     resource.UpstreamTypeModel,
-			Protocol: resource.UpstreamProtocolOpenAI,
-		},
-	})
+	err := service.Update(ctx, upstream.Name, upstream.ResourceVersion, resource.UpstreamSpec{
+		DisplayName: upstream.Spec.DisplayName,
+		Type:        resource.UpstreamTypeModel,
+		Protocol:    resource.UpstreamProtocolOpenAI,
+	}, false)
 	var userError *xerrors.UserError
 	if !errors.As(err, &userError) {
 		t.Fatalf("Service.Update(ordinary route reference) error = %T, want *xerrors.UserError", err)
@@ -63,14 +60,11 @@ func TestServiceUpdateRejectsHTTPProtocolWhileModelRouteReferencesUpstream(t *te
 	}
 	service := newTestService(t, ctx, upstream, route)
 
-	err := service.Update(ctx, upstream.Name, UpdateUpstreamParams{
-		Version: upstream.ResourceVersion,
-		UpstreamParams: UpstreamParams{
-			Name:     upstream.Spec.DisplayName,
-			Type:     resource.UpstreamTypeApplication,
-			Protocol: resource.UpstreamProtocolHTTP,
-		},
-	})
+	err := service.Update(ctx, upstream.Name, upstream.ResourceVersion, resource.UpstreamSpec{
+		DisplayName: upstream.Spec.DisplayName,
+		Type:        resource.UpstreamTypeApplication,
+		Protocol:    resource.UpstreamProtocolHTTP,
+	}, false)
 	var userError *xerrors.UserError
 	if !errors.As(err, &userError) {
 		t.Fatalf("Service.Update(model route reference) error = %T, want *xerrors.UserError", err)
@@ -96,18 +90,15 @@ func TestServiceUpdateRejectsDisablingReferencedModel(t *testing.T) {
 		},
 	}
 	service := newTestService(t, ctx, upstream, route)
-	params := modelUpstreamParams()
-	params.Model.Models[0].Enabled = false
-	params.Model.Models = append(params.Model.Models, ModelCatalogItemParams{
+	spec := modelUpstreamSpec()
+	spec.Model.Models[0].Enabled = false
+	spec.Model.Models = append(spec.Model.Models, resource.ModelCatalogItem{
 		Name:        "gpt-4o",
 		DisplayName: "GPT-4o",
 		Enabled:     true,
 	})
 
-	err := service.Update(ctx, upstream.Name, UpdateUpstreamParams{
-		Version:        upstream.ResourceVersion,
-		UpstreamParams: params,
-	})
+	err := service.Update(ctx, upstream.Name, upstream.ResourceVersion, spec, false)
 	var userError *xerrors.UserError
 	if !errors.As(err, &userError) {
 		t.Fatalf("Service.Update(disabled referenced model) error = %T, want *xerrors.UserError", err)
@@ -139,31 +130,25 @@ func TestServiceDeleteRejectsModelRouteReference(t *testing.T) {
 
 func TestServiceUpdateAPIKey(t *testing.T) {
 	tests := []struct {
-		name       string
-		params     UpdateUpstreamParams
-		wantAPIKey string
+		name         string
+		apiKey       string
+		removeAPIKey bool
+		wantAPIKey   string
+		wantRemoved  bool
 	}{
 		{
-			name: "omitted API key preserves current value",
-			params: UpdateUpstreamParams{
-				UpstreamParams: modelUpstreamParams(),
-			},
+			name:       "omitted API key preserves current value",
 			wantAPIKey: "existing-secret",
 		},
 		{
-			name: "provided API key replaces current value",
-			params: UpdateUpstreamParams{
-				UpstreamParams: modelUpstreamParams(),
-				APIKey:         &APIKeyParams{Value: "rotated-secret"},
-			},
+			name:       "provided API key replaces current value",
+			apiKey:     "rotated-secret",
 			wantAPIKey: "rotated-secret",
 		},
 		{
-			name: "remove API key clears authentication",
-			params: UpdateUpstreamParams{
-				UpstreamParams: modelUpstreamParams(),
-				RemoveAPIKey:   true,
-			},
+			name:         "remove API key clears authentication",
+			removeAPIKey: true,
+			wantRemoved:  true,
 		},
 	}
 
@@ -176,16 +161,21 @@ func TestServiceUpdateAPIKey(t *testing.T) {
 				APIKey: &resource.APIKeyAuthentication{Value: "existing-secret"},
 			}
 			service := newTestService(t, ctx, upstream, nil)
-			tt.params.Version = upstream.ResourceVersion
+			spec := modelUpstreamSpec()
+			if tt.apiKey != "" {
+				spec.Authentication = &resource.UpstreamAuthentication{
+					APIKey: &resource.APIKeyAuthentication{Value: tt.apiKey},
+				}
+			}
 
-			if err := service.Update(ctx, upstream.Name, tt.params); err != nil {
+			if err := service.Update(ctx, upstream.Name, upstream.ResourceVersion, spec, tt.removeAPIKey); err != nil {
 				t.Fatalf("Service.Update(%q) error = %v, want nil", tt.name, err)
 			}
 			updated, err := service.store.Get(ctx, upstream.Name)
 			if err != nil {
 				t.Fatalf("Store.Get(%q) error = %v, want nil", upstream.Name, err)
 			}
-			if tt.wantAPIKey == "" {
+			if tt.wantRemoved {
 				if updated.Spec.Authentication != nil {
 					t.Errorf("Service.Update(%q) authentication = %#v, want nil", tt.name, updated.Spec.Authentication)
 				}
@@ -210,13 +200,38 @@ func TestServiceUpdateRejectsPreservedAPIKeyWithoutTLS(t *testing.T) {
 	}
 	service := newTestService(t, ctx, upstream, nil)
 
-	err := service.Update(ctx, upstream.Name, UpdateUpstreamParams{
-		Version:        upstream.ResourceVersion,
-		UpstreamParams: UpstreamParams{Name: upstream.Spec.DisplayName, Type: upstream.Spec.Type, Protocol: upstream.Spec.Protocol},
-	})
+	spec := modelUpstreamSpec()
+	spec.TLS = nil
+	err := service.Update(ctx, upstream.Name, upstream.ResourceVersion, spec, false)
 	var userError *xerrors.UserError
 	if !errors.As(err, &userError) {
 		t.Fatalf("Service.Update(preserved API key without TLS) error = %T, want *xerrors.UserError", err)
+	}
+}
+
+func TestServiceUpdateRemovesAPIKeyBeforeDisablingTLS(t *testing.T) {
+	ctx := context.Background()
+	upstream := testUpstream("model", resource.UpstreamTypeModel, resource.UpstreamProtocolOpenAI)
+	upstream.Spec.TLS = &resource.UpstreamTLS{ServerName: "api.example.com"}
+	upstream.Spec.Authentication = &resource.UpstreamAuthentication{
+		APIKey: &resource.APIKeyAuthentication{Value: "existing-secret"},
+	}
+	service := newTestService(t, ctx, upstream, nil)
+	spec := modelUpstreamSpec()
+	spec.TLS = nil
+
+	if err := service.Update(ctx, upstream.Name, upstream.ResourceVersion, spec, true); err != nil {
+		t.Fatalf("Service.Update(remove API key and disable TLS) error = %v, want nil", err)
+	}
+	updated, err := service.store.Get(ctx, upstream.Name)
+	if err != nil {
+		t.Fatalf("Store.Get(%q) error = %v, want nil", upstream.Name, err)
+	}
+	if updated.Spec.Authentication != nil {
+		t.Errorf("Service.Update(remove API key and disable TLS) authentication = %#v, want nil", updated.Spec.Authentication)
+	}
+	if updated.Spec.TLS != nil {
+		t.Errorf("Service.Update(remove API key and disable TLS) TLS = %#v, want nil", updated.Spec.TLS)
 	}
 }
 
@@ -234,16 +249,16 @@ func newTestService(t *testing.T, ctx context.Context, upstream *resource.Upstre
 	return New(upstreamstore.New(client), routestore.New(client))
 }
 
-func modelUpstreamParams() UpstreamParams {
-	return UpstreamParams{
-		Name:     "model",
-		Type:     resource.UpstreamTypeModel,
-		Protocol: resource.UpstreamProtocolOpenAI,
-		TLS:      &TLSParams{ServerName: "api.example.com"},
-		Model: &ModelParams{
+func modelUpstreamSpec() resource.UpstreamSpec {
+	return resource.UpstreamSpec{
+		DisplayName: "model",
+		Type:        resource.UpstreamTypeModel,
+		Protocol:    resource.UpstreamProtocolOpenAI,
+		TLS:         &resource.UpstreamTLS{ServerName: "api.example.com"},
+		Model: &resource.ModelSpec{
 			Provider:    resource.ModelProviderOpenAI,
 			APIBasePath: "/v1",
-			Models: []ModelCatalogItemParams{
+			Models: []resource.ModelCatalogItem{
 				{Name: "gpt-4o-mini", DisplayName: "GPT-4o mini", Enabled: true},
 			},
 		},

@@ -69,7 +69,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	upstreamID, err := h.service.Create(ctx.Request.Context(), request.Params())
+	upstreamID, err := h.service.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create upstream failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -95,7 +95,13 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	upstreamID := ctx.Param("id")
-	err := h.service.Update(ctx.Request.Context(), upstreamID, request.Params())
+	err := h.service.Update(
+		ctx.Request.Context(),
+		upstreamID,
+		request.Version,
+		request.Spec(),
+		request.RemoveAPIKey,
+	)
 	if err != nil {
 		h.logger.Error("update upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstreamID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
