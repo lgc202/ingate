@@ -10,9 +10,9 @@ import (
 
 	"k8s.io/client-go/util/workqueue"
 
+	"github.com/lgc202/ingate/internal/controller/compiler"
+	"github.com/lgc202/ingate/internal/controller/delivery"
 	controllerstatus "github.com/lgc202/ingate/internal/controller/status"
-	"github.com/lgc202/ingate/internal/envoy/config"
-	"github.com/lgc202/ingate/internal/envoy/delivery"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 	informers "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
 )
@@ -26,13 +26,12 @@ const (
 
 // Reconciler 监听一个 Ingate 配置域内的全部资源并执行原子全量编译
 type Reconciler struct {
-	factory   informers.SharedInformerFactory
-	resources resourceListers
-	compiler  config.Compiler
-	delivery  *delivery.Delivery
-	statuses  *controllerstatus.Writer
-	queue     workqueue.TypedRateLimitingInterface[queueKey]
-	logger    *slog.Logger
+	factory      informers.SharedInformerFactory
+	resources    resourceListers
+	delivery     *delivery.Delivery
+	statusWriter *controllerstatus.Writer
+	queue        workqueue.TypedRateLimitingInterface[queueKey]
+	logger       *slog.Logger
 }
 
 // New 创建只使用唯一全局 queue key 的配置域 Reconciler
@@ -61,8 +60,8 @@ func New(
 			rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
 			accessControlPolicies: accessControlPolicyInformer.Lister(),
 		},
-		delivery: configDelivery,
-		statuses: controllerstatus.NewWriter(client),
+		delivery:     configDelivery,
+		statusWriter: controllerstatus.NewWriter(client.GatewayV1()),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[queueKey](),
 			workqueue.TypedRateLimitingQueueConfig[queueKey]{Name: "controller"},
@@ -154,12 +153,12 @@ func (r *Reconciler) processNextWorkItem(ctx context.Context) bool {
 }
 
 func (r *Reconciler) reconcileConfig(ctx context.Context) error {
-	resources, err := r.resources.build()
+	resources, err := r.resources.list()
 	if err != nil {
 		return err
 	}
 
-	result := r.compiler.Compile(resources)
+	result := compiler.Compile(resources)
 
 	var deliveryErr error
 	if result.HasErrors() {
@@ -170,7 +169,7 @@ func (r *Reconciler) reconcileConfig(ctx context.Context) error {
 		deliveryErr = fmt.Errorf("submit Envoy configuration %q: %w", result.Version, err)
 	}
 
-	statusErr := r.statuses.ApplyCompileResult(ctx, resources, result.Diagnostics, r.delivery.Status())
+	statusErr := r.statusWriter.ApplyCompileResult(ctx, resources, result.Diagnostics, r.delivery.Status())
 	if statusErr != nil {
 		statusErr = fmt.Errorf("apply resource compile status: %w", statusErr)
 	}
@@ -178,11 +177,11 @@ func (r *Reconciler) reconcileConfig(ctx context.Context) error {
 }
 
 func (r *Reconciler) reconcileStatus(ctx context.Context) error {
-	resources, err := r.resources.build()
+	resources, err := r.resources.list()
 	if err != nil {
 		return err
 	}
-	if err := r.statuses.ApplyProgrammed(ctx, resources, r.delivery.Status()); err != nil {
+	if err := r.statusWriter.ApplyProgrammed(ctx, resources, r.delivery.Status()); err != nil {
 		return fmt.Errorf("apply resource programmed status: %w", err)
 	}
 	return nil

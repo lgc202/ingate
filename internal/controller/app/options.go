@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lgc202/ingate/internal/envoy/delivery"
+	"github.com/lgc202/ingate/internal/controller/delivery"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 )
 
