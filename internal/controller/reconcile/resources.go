@@ -7,7 +7,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/labels"
 
-	"github.com/lgc202/ingate/internal/envoy/config"
+	"github.com/lgc202/ingate/internal/controller/compiler"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	gatewaylisters "github.com/lgc202/ingate/pkg/generated/listers/gateway/v1"
 )
@@ -21,32 +21,32 @@ type resourceListers struct {
 	accessControlPolicies gatewaylisters.AccessControlPolicyLister
 }
 
-func (l resourceListers) build() (config.ResourceSet, error) {
+func (l resourceListers) list() (compiler.Resources, error) {
 	gateways, err := l.gateways.List(labels.Everything())
 	if err != nil {
-		return config.ResourceSet{}, fmt.Errorf("list Gateways: %w", err)
+		return compiler.Resources{}, fmt.Errorf("list Gateways: %w", err)
 	}
 	certificates, err := l.certificates.List(labels.Everything())
 	if err != nil {
-		return config.ResourceSet{}, fmt.Errorf("list Certificates: %w", err)
+		return compiler.Resources{}, fmt.Errorf("list Certificates: %w", err)
 	}
 	routes, err := l.routes.List(labels.Everything())
 	if err != nil {
-		return config.ResourceSet{}, fmt.Errorf("list Routes: %w", err)
+		return compiler.Resources{}, fmt.Errorf("list Routes: %w", err)
 	}
 	upstreams, err := l.upstreams.List(labels.Everything())
 	if err != nil {
-		return config.ResourceSet{}, fmt.Errorf("list Upstreams: %w", err)
+		return compiler.Resources{}, fmt.Errorf("list Upstreams: %w", err)
 	}
 	rateLimitPolicies, err := l.rateLimitPolicies.List(labels.Everything())
 	if err != nil {
-		return config.ResourceSet{}, fmt.Errorf("list RateLimitPolicies: %w", err)
+		return compiler.Resources{}, fmt.Errorf("list RateLimitPolicies: %w", err)
 	}
 	accessControlPolicies, err := l.accessControlPolicies.List(labels.Everything())
 	if err != nil {
-		return config.ResourceSet{}, fmt.Errorf("list AccessControlPolicies: %w", err)
+		return compiler.Resources{}, fmt.Errorf("list AccessControlPolicies: %w", err)
 	}
-	resources := config.ResourceSet{
+	resources := compiler.Resources{
 		Gateways:              make([]*gatewayv1.Gateway, 0, len(gateways)),
 		Certificates:          make([]*gatewayv1.Certificate, 0, len(certificates)),
 		Routes:                make([]*gatewayv1.Route, 0, len(routes)),

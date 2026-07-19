@@ -8,8 +8,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
-	"github.com/lgc202/ingate/internal/envoy/config"
-	"github.com/lgc202/ingate/internal/envoy/delivery"
+	"github.com/lgc202/ingate/internal/controller/compiler"
+	"github.com/lgc202/ingate/internal/controller/delivery"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	clientfake "github.com/lgc202/ingate/pkg/generated/clientset/versioned/fake"
 )
@@ -32,19 +32,19 @@ func TestWriterSeparatesReferenceErrorsAndPreservesFutureConditions(t *testing.T
 		},
 	}
 	client := clientfake.NewSimpleClientset(route)
-	writer := NewWriter(client)
-	diagnostic := config.Diagnostic{
-		Severity: config.SeverityError,
+	writer := NewWriter(client.GatewayV1())
+	diagnostic := compiler.Diagnostic{
+		Severity: compiler.SeverityError,
 		Kind:     gatewayv1.KindRoute,
 		ID:       route.Name,
-		Reason:   config.ReasonReferenceNotFound,
+		Reason:   compiler.ReasonReferenceNotFound,
 		Message:  "route references a missing upstream",
 	}
 
 	err := writer.ApplyCompileResult(
 		context.Background(),
-		config.ResourceSet{Routes: []*gatewayv1.Route{route}},
-		[]config.Diagnostic{diagnostic},
+		compiler.Resources{Routes: []*gatewayv1.Route{route}},
+		[]compiler.Diagnostic{diagnostic},
 		delivery.Status{},
 	)
 	if err != nil {
@@ -72,12 +72,12 @@ func TestWriterMarksExactActiveResourceProgrammed(t *testing.T) {
 		},
 	}
 	client := clientfake.NewSimpleClientset(certificate)
-	writer := NewWriter(client)
-	resource := config.ResourceSet{Certificates: []*gatewayv1.Certificate{certificate}}
+	writer := NewWriter(client.GatewayV1())
+	resource := compiler.Resources{Certificates: []*gatewayv1.Certificate{certificate}}
 	active := resource.Generations()[0]
 
 	if err := writer.ApplyCompileResult(context.Background(), resource, nil, delivery.Status{
-		ActiveResources: []config.ResourceGeneration{active},
+		ActiveResources: []compiler.ResourceGeneration{active},
 	}); err != nil {
 		t.Fatalf("Writer.ApplyCompileResult(%q) error = %v", certificate.Name, err)
 	}
@@ -99,11 +99,11 @@ func TestWriterMarksAcceptedResourcePendingWithoutActiveProvenance(t *testing.T)
 		},
 	}
 	client := clientfake.NewSimpleClientset(upstream)
-	writer := NewWriter(client)
+	writer := NewWriter(client.GatewayV1())
 
 	if err := writer.ApplyCompileResult(
 		context.Background(),
-		config.ResourceSet{Upstreams: []*gatewayv1.Upstream{upstream}},
+		compiler.Resources{Upstreams: []*gatewayv1.Upstream{upstream}},
 		nil,
 		delivery.Status{},
 	); err != nil {
@@ -126,14 +126,14 @@ func TestWriterMarksRejectedCandidateProgrammedFalse(t *testing.T) {
 		},
 	}
 	client := clientfake.NewSimpleClientset(upstream)
-	writer := NewWriter(client)
-	resource := config.ResourceSet{Upstreams: []*gatewayv1.Upstream{upstream}}
+	writer := NewWriter(client.GatewayV1())
+	resource := compiler.Resources{Upstreams: []*gatewayv1.Upstream{upstream}}
 	failed := resource.Generations()[0]
 
 	if err := writer.ApplyCompileResult(context.Background(), resource, nil, delivery.Status{
 		LastFailure: &delivery.Failure{
 			Reason:    delivery.FailureRejected,
-			Resources: []config.ResourceGeneration{failed},
+			Resources: []compiler.ResourceGeneration{failed},
 		},
 	}); err != nil {
 		t.Fatalf("Writer.ApplyCompileResult(%q) error = %v", upstream.Name, err)
@@ -180,8 +180,8 @@ func TestWriterApplyProgrammedPromotesPendingUpstreamAndRemovesObsoleteResolvedR
 		},
 	}
 	client := clientfake.NewSimpleClientset(upstream)
-	writer := NewWriter(client)
-	resource := config.ResourceSet{Upstreams: []*gatewayv1.Upstream{upstream}}
+	writer := NewWriter(client.GatewayV1())
+	resource := compiler.Resources{Upstreams: []*gatewayv1.Upstream{upstream}}
 
 	if err := writer.ApplyProgrammed(context.Background(), resource, delivery.Status{
 		ActiveResources: resource.Generations(),
@@ -216,34 +216,34 @@ func TestWriterKeepsValidPolicyTargetProgrammedWhenAnotherTargetIsMissing(t *tes
 		},
 	}
 	client := clientfake.NewSimpleClientset(gateway, policy)
-	writer := NewWriter(client)
-	resources := config.ResourceSet{
+	writer := NewWriter(client.GatewayV1())
+	resources := compiler.Resources{
 		Gateways:          []*gatewayv1.Gateway{gateway},
 		RateLimitPolicies: []*gatewayv1.RateLimitPolicy{policy},
 	}
-	diagnostic := config.Diagnostic{
-		Severity: config.SeverityWarning,
+	diagnostic := compiler.Diagnostic{
+		Severity: compiler.SeverityWarning,
 		Kind:     gatewayv1.KindRateLimitPolicy,
 		ID:       policy.Name,
-		Reason:   config.ReasonReferenceNotFound,
+		Reason:   compiler.ReasonReferenceNotFound,
 		Message:  "policy references a missing route",
 	}
 
 	if err := writer.ApplyCompileResult(
 		context.Background(),
 		resources,
-		[]config.Diagnostic{diagnostic},
+		[]compiler.Diagnostic{diagnostic},
 		delivery.Status{
 			ActiveResources: resources.Generations(),
-			ActivePolicyTargets: []config.ProgrammedPolicyTarget{
+			ActivePolicyTargets: []compiler.CompiledPolicyTarget{
 				{
-					Policy: config.ResourceGeneration{
+					Policy: compiler.ResourceGeneration{
 						Kind:       gatewayv1.KindRateLimitPolicy,
 						Name:       policy.Name,
 						UID:        policy.UID,
 						Generation: policy.Generation,
 					},
-					Target: config.ResourceGeneration{
+					Target: compiler.ResourceGeneration{
 						Kind:       gatewayv1.KindGateway,
 						Name:       gateway.Name,
 						UID:        gateway.UID,
@@ -280,8 +280,8 @@ func TestWriterMarksPolicyWithoutTargetsNotApplied(t *testing.T) {
 		},
 	}
 	client := clientfake.NewSimpleClientset(policy)
-	writer := NewWriter(client)
-	resources := config.ResourceSet{AccessControlPolicies: []*gatewayv1.AccessControlPolicy{policy}}
+	writer := NewWriter(client.GatewayV1())
+	resources := compiler.Resources{AccessControlPolicies: []*gatewayv1.AccessControlPolicy{policy}}
 
 	if err := writer.ApplyCompileResult(
 		context.Background(),
@@ -307,19 +307,19 @@ func TestWriterMarksPolicyWithoutTargetsNotApplied(t *testing.T) {
 func TestWriterKeepsPolicyWithoutTargetsPendingOrFailedUntilRemovalIsActive(t *testing.T) {
 	tests := []struct {
 		name       string
-		status     func(config.ResourceSet) delivery.Status
+		status     func(compiler.Resources) delivery.Status
 		wantStatus metav1.ConditionStatus
 		wantReason gatewayv1.ConditionReason
 	}{
 		{
 			name:       "pending",
-			status:     func(config.ResourceSet) delivery.Status { return delivery.Status{} },
+			status:     func(compiler.Resources) delivery.Status { return delivery.Status{} },
 			wantStatus: metav1.ConditionUnknown,
 			wantReason: gatewayv1.ReasonPending,
 		},
 		{
 			name: "rejected",
-			status: func(resources config.ResourceSet) delivery.Status {
+			status: func(resources compiler.Resources) delivery.Status {
 				return delivery.Status{LastFailure: &delivery.Failure{
 					Reason:    delivery.FailureRejected,
 					Resources: resources.Generations(),
@@ -339,8 +339,8 @@ func TestWriterKeepsPolicyWithoutTargetsPendingOrFailedUntilRemovalIsActive(t *t
 				},
 			}
 			client := clientfake.NewSimpleClientset(policy)
-			writer := NewWriter(client)
-			resources := config.ResourceSet{RateLimitPolicies: []*gatewayv1.RateLimitPolicy{policy}}
+			writer := NewWriter(client.GatewayV1())
+			resources := compiler.Resources{RateLimitPolicies: []*gatewayv1.RateLimitPolicy{policy}}
 
 			if err := writer.ApplyCompileResult(context.Background(), resources, nil, tt.status(resources)); err != nil {
 				t.Fatalf("Writer.ApplyCompileResult(%q) error = %v", policy.Name, err)
@@ -368,8 +368,8 @@ func TestWriterMarksExistingButUnattachedPolicyTargetNotApplied(t *testing.T) {
 		},
 	}
 	client := clientfake.NewSimpleClientset(gateway, policy)
-	writer := NewWriter(client)
-	resources := config.ResourceSet{
+	writer := NewWriter(client.GatewayV1())
+	resources := compiler.Resources{
 		Gateways:              []*gatewayv1.Gateway{gateway},
 		AccessControlPolicies: []*gatewayv1.AccessControlPolicy{policy},
 	}
@@ -403,18 +403,18 @@ func TestWriterMarksPolicyPartiallyAppliedWhenOneTargetIsNotProgrammed(t *testin
 		}},
 	}
 	client := clientfake.NewSimpleClientset(gateway, route, policy)
-	writer := NewWriter(client)
-	resources := config.ResourceSet{
+	writer := NewWriter(client.GatewayV1())
+	resources := compiler.Resources{
 		Gateways:          []*gatewayv1.Gateway{gateway},
 		Routes:            []*gatewayv1.Route{route},
 		RateLimitPolicies: []*gatewayv1.RateLimitPolicy{policy},
 	}
-	policyGeneration := config.ResourceGeneration{Kind: gatewayv1.KindRateLimitPolicy, Name: policy.Name, UID: policy.UID, Generation: policy.Generation}
-	gatewayGeneration := config.ResourceGeneration{Kind: gatewayv1.KindGateway, Name: gateway.Name, UID: gateway.UID, Generation: gateway.Generation}
+	policyGeneration := compiler.ResourceGeneration{Kind: gatewayv1.KindRateLimitPolicy, Name: policy.Name, UID: policy.UID, Generation: policy.Generation}
+	gatewayGeneration := compiler.ResourceGeneration{Kind: gatewayv1.KindGateway, Name: gateway.Name, UID: gateway.UID, Generation: gateway.Generation}
 
 	if err := writer.ApplyCompileResult(context.Background(), resources, nil, delivery.Status{
 		ActiveResources: resources.Generations(),
-		ActivePolicyTargets: []config.ProgrammedPolicyTarget{{
+		ActivePolicyTargets: []compiler.CompiledPolicyTarget{{
 			Policy: policyGeneration,
 			Target: gatewayGeneration,
 		}},
@@ -442,17 +442,17 @@ func TestWriterDoesNotReuseProgrammedTargetAcrossTargetGenerations(t *testing.T)
 		},
 	}
 	client := clientfake.NewSimpleClientset(route, policy)
-	writer := NewWriter(client)
-	resources := config.ResourceSet{
+	writer := NewWriter(client.GatewayV1())
+	resources := compiler.Resources{
 		Routes:                []*gatewayv1.Route{route},
 		AccessControlPolicies: []*gatewayv1.AccessControlPolicy{policy},
 	}
-	policyGeneration := config.ResourceGeneration{Kind: gatewayv1.KindAccessControlPolicy, Name: policy.Name, UID: policy.UID, Generation: policy.Generation}
-	oldRouteGeneration := config.ResourceGeneration{Kind: gatewayv1.KindRoute, Name: route.Name, UID: route.UID, Generation: 1}
+	policyGeneration := compiler.ResourceGeneration{Kind: gatewayv1.KindAccessControlPolicy, Name: policy.Name, UID: policy.UID, Generation: policy.Generation}
+	oldRouteGeneration := compiler.ResourceGeneration{Kind: gatewayv1.KindRoute, Name: route.Name, UID: route.UID, Generation: 1}
 
 	if err := writer.ApplyCompileResult(context.Background(), resources, nil, delivery.Status{
-		ActiveResources: []config.ResourceGeneration{policyGeneration, oldRouteGeneration},
-		ActivePolicyTargets: []config.ProgrammedPolicyTarget{{
+		ActiveResources: []compiler.ResourceGeneration{policyGeneration, oldRouteGeneration},
+		ActivePolicyTargets: []compiler.CompiledPolicyTarget{{
 			Policy: policyGeneration,
 			Target: oldRouteGeneration,
 		}},
@@ -480,11 +480,11 @@ func TestWriterSkipsDeletedAndRecreatedResourceWithSameName(t *testing.T) {
 	recreated := compiled.DeepCopy()
 	recreated.UID = types.UID("new-uid")
 	client := clientfake.NewSimpleClientset(recreated)
-	writer := NewWriter(client)
+	writer := NewWriter(client.GatewayV1())
 
 	if err := writer.ApplyCompileResult(
 		context.Background(),
-		config.ResourceSet{Upstreams: []*gatewayv1.Upstream{compiled}},
+		compiler.Resources{Upstreams: []*gatewayv1.Upstream{compiled}},
 		nil,
 		delivery.Status{},
 	); err != nil {

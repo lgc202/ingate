@@ -15,10 +15,10 @@ import (
 	"golang.org/x/sync/errgroup"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/lgc202/ingate/internal/controller/delivery"
+	"github.com/lgc202/ingate/internal/controller/health"
 	"github.com/lgc202/ingate/internal/controller/reconcile"
-	controllerstatus "github.com/lgc202/ingate/internal/controller/status"
-	"github.com/lgc202/ingate/internal/envoy/delivery"
-	"github.com/lgc202/ingate/internal/envoy/xds"
+	"github.com/lgc202/ingate/internal/controller/xds"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
@@ -123,7 +123,7 @@ func run(ctx context.Context, settings Config, logger *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("create resource reconciler: %w", err)
 	}
-	internalServer := controllerstatus.NewServer(logger.With("component", "status"))
+	healthServer := health.NewServer(logger.With("component", "health"))
 
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -148,7 +148,7 @@ func run(ctx context.Context, settings Config, logger *slog.Logger) error {
 	}
 	defer xdsListener.Close()
 
-	internalListener, err := net.Listen("tcp", settings.Server.HealthListenAddress)
+	healthListener, err := net.Listen("tcp", settings.Server.HealthListenAddress)
 	if err != nil {
 		cancel()
 		_ = group.Wait()
@@ -157,7 +157,7 @@ func run(ctx context.Context, settings Config, logger *slog.Logger) error {
 		}
 		return fmt.Errorf("listen for controller health checks on %q: %w", settings.Server.HealthListenAddress, err)
 	}
-	defer internalListener.Close()
+	defer healthListener.Close()
 
 	callbacks := xds.NewCallbacks(func(eventCtx context.Context, event xds.Event) error {
 		return configDelivery.HandleXDSEvent(eventCtx, event)
@@ -168,11 +168,11 @@ func run(ctx context.Context, settings Config, logger *slog.Logger) error {
 		return adsServer.Serve(groupCtx, xdsListener, logger.With("component", "xds"))
 	})
 	group.Go(func() error {
-		return internalServer.Serve(groupCtx, internalListener)
+		return healthServer.Serve(groupCtx, healthListener)
 	})
 
 	// Delivery 已运行且两个 listener 均已绑定，此时 Envoy 可以连接并等待首次编译结果
-	internalServer.MarkReady()
+	healthServer.MarkReady()
 	group.Go(func() error {
 		return reconciler.Run(groupCtx)
 	})

@@ -11,10 +11,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
-	"github.com/lgc202/ingate/internal/envoy/config"
-	"github.com/lgc202/ingate/internal/envoy/delivery"
+	"github.com/lgc202/ingate/internal/controller/compiler"
+	"github.com/lgc202/ingate/internal/controller/delivery"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 	gatewayclient "github.com/lgc202/ingate/pkg/generated/clientset/versioned/typed/gateway/v1"
 )
 
@@ -47,9 +46,9 @@ type compileDecision struct {
 }
 
 type diagnosticIndex struct {
-	specific map[resourceKey][]config.Diagnostic
-	kinds    map[gatewayv1.Kind][]config.Diagnostic
-	global   []config.Diagnostic
+	specific map[resourceKey][]compiler.Diagnostic
+	kinds    map[gatewayv1.Kind][]compiler.Diagnostic
+	global   []compiler.Diagnostic
 }
 
 // Writer 将编译和发布结果收敛为声明式资源 Conditions
@@ -58,15 +57,15 @@ type Writer struct {
 }
 
 // NewWriter 创建声明式资源状态写入器
-func NewWriter(client clientset.Interface) *Writer {
-	return &Writer{client: client.GatewayV1()}
+func NewWriter(client gatewayclient.GatewayV1Interface) *Writer {
+	return &Writer{client: client}
 }
 
 // ApplyCompileResult 更新本次资源集合的 Accepted、ResolvedRefs 和 Programmed Conditions
 func (w *Writer) ApplyCompileResult(
 	ctx context.Context,
-	resources config.ResourceSet,
-	diagnostics []config.Diagnostic,
+	resources compiler.Resources,
+	diagnostics []compiler.Diagnostic,
 	deliveryStatus delivery.Status,
 ) error {
 	decisions := newDiagnosticIndex(resources, diagnostics)
@@ -84,7 +83,7 @@ func (w *Writer) ApplyCompileResult(
 // ApplyProgrammed 根据最新 Delivery 状态更新本次资源集合的 Programmed Condition
 func (w *Writer) ApplyProgrammed(
 	ctx context.Context,
-	resources config.ResourceSet,
+	resources compiler.Resources,
 	deliveryStatus delivery.Status,
 ) error {
 	targets := newPolicyTargetIndex(resources)
@@ -99,11 +98,11 @@ func (w *Writer) ApplyProgrammed(
 
 func (w *Writer) updateResource(
 	ctx context.Context,
-	resource config.ResourceGeneration,
+	resource compiler.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
-	targets map[resourceKey]config.ResourceGeneration,
-	programmedTargets map[config.ProgrammedPolicyTarget]bool,
+	targets map[resourceKey]compiler.ResourceGeneration,
+	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) error {
 	switch resource.Kind {
 	case gatewayv1.KindGateway:
@@ -125,7 +124,7 @@ func (w *Writer) updateResource(
 
 func (w *Writer) updateGateway(
 	ctx context.Context,
-	source config.ResourceGeneration,
+	source compiler.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
 ) error {
@@ -161,7 +160,7 @@ func (w *Writer) updateGateway(
 
 func (w *Writer) updateCertificate(
 	ctx context.Context,
-	source config.ResourceGeneration,
+	source compiler.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
 ) error {
@@ -197,7 +196,7 @@ func (w *Writer) updateCertificate(
 
 func (w *Writer) updateRoute(
 	ctx context.Context,
-	source config.ResourceGeneration,
+	source compiler.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
 ) error {
@@ -233,7 +232,7 @@ func (w *Writer) updateRoute(
 
 func (w *Writer) updateUpstream(
 	ctx context.Context,
-	source config.ResourceGeneration,
+	source compiler.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
 ) error {
@@ -269,11 +268,11 @@ func (w *Writer) updateUpstream(
 
 func (w *Writer) updateRateLimitPolicy(
 	ctx context.Context,
-	source config.ResourceGeneration,
+	source compiler.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
-	targets map[resourceKey]config.ResourceGeneration,
-	programmedTargets map[config.ProgrammedPolicyTarget]bool,
+	targets map[resourceKey]compiler.ResourceGeneration,
+	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.RateLimitPolicies().Get(ctx, source.Name, metav1.GetOptions{})
@@ -311,11 +310,11 @@ func (w *Writer) updateRateLimitPolicy(
 
 func (w *Writer) updateAccessControlPolicy(
 	ctx context.Context,
-	source config.ResourceGeneration,
+	source compiler.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
-	targets map[resourceKey]config.ResourceGeneration,
-	programmedTargets map[config.ProgrammedPolicyTarget]bool,
+	targets map[resourceKey]compiler.ResourceGeneration,
+	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		resource, err := w.client.AccessControlPolicies().Get(ctx, source.Name, metav1.GetOptions{})
@@ -353,7 +352,7 @@ func (w *Writer) updateAccessControlPolicy(
 
 func resourceConditions(
 	existing []metav1.Condition,
-	resource config.ResourceGeneration,
+	resource compiler.ResourceGeneration,
 	compile *compileDecision,
 	deliveryStatus delivery.Status,
 ) []metav1.Condition {
@@ -382,7 +381,7 @@ func resourceConditions(
 
 func policyConditions(
 	conditions []metav1.Condition,
-	resource config.ResourceGeneration,
+	resource compiler.ResourceGeneration,
 	targets []gatewayv1.PolicyTargetStatus,
 ) []metav1.Condition {
 	accepted := currentCondition(conditions, gatewayv1.ConditionAccepted, resource.Generation)
@@ -457,11 +456,11 @@ func policyConditions(
 func policyTargetStatuses(
 	existing []gatewayv1.PolicyTargetStatus,
 	targetRefs []gatewayv1.PolicyTargetRef,
-	resource config.ResourceGeneration,
+	resource compiler.ResourceGeneration,
 	policyConditions []metav1.Condition,
 	deliveryStatus delivery.Status,
-	targets map[resourceKey]config.ResourceGeneration,
-	programmedTargets map[config.ProgrammedPolicyTarget]bool,
+	targets map[resourceKey]compiler.ResourceGeneration,
+	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) []gatewayv1.PolicyTargetStatus {
 	result := make([]gatewayv1.PolicyTargetStatus, 0, len(targetRefs))
 	for _, targetRef := range targetRefs {
@@ -490,7 +489,7 @@ func policyTargetStatuses(
 			resource,
 			target,
 			deliveryStatus,
-			programmedTargets[config.ProgrammedPolicyTarget{
+			programmedTargets[compiler.CompiledPolicyTarget{
 				Policy: resource,
 				Target: target,
 			}],
@@ -518,8 +517,8 @@ func existingPolicyTargetConditions(
 func policyTargetProgrammedCondition(
 	policyConditions []metav1.Condition,
 	resolved conditionDecision,
-	resource config.ResourceGeneration,
-	target config.ResourceGeneration,
+	resource compiler.ResourceGeneration,
+	target compiler.ResourceGeneration,
 	deliveryStatus delivery.Status,
 	isProgrammedTarget bool,
 ) metav1.Condition {
@@ -549,7 +548,7 @@ func policyTargetProgrammedCondition(
 			message: messageProgrammed,
 		})
 	}
-	failedTarget := config.ProgrammedPolicyTarget{Policy: resource, Target: target}
+	failedTarget := compiler.CompiledPolicyTarget{Policy: resource, Target: target}
 	if deliveryStatus.LastFailure != nil &&
 		slices.Contains(deliveryStatus.LastFailure.Resources, resource) &&
 		slices.Contains(deliveryStatus.LastFailure.PolicyTargets, failedTarget) {
@@ -570,7 +569,7 @@ func policyTargetProgrammedCondition(
 
 func programmedCondition(
 	conditions []metav1.Condition,
-	resource config.ResourceGeneration,
+	resource compiler.ResourceGeneration,
 	deliveryStatus delivery.Status,
 ) metav1.Condition {
 	accepted := currentCondition(conditions, gatewayv1.ConditionAccepted, resource.Generation)
@@ -668,8 +667,8 @@ func pendingDecision() conditionDecision {
 	}
 }
 
-func newPolicyTargetIndex(resources config.ResourceSet) map[resourceKey]config.ResourceGeneration {
-	targets := make(map[resourceKey]config.ResourceGeneration, len(resources.Gateways)+len(resources.Routes))
+func newPolicyTargetIndex(resources compiler.Resources) map[resourceKey]compiler.ResourceGeneration {
+	targets := make(map[resourceKey]compiler.ResourceGeneration, len(resources.Gateways)+len(resources.Routes))
 	for _, resource := range resources.Generations() {
 		if resource.Kind == gatewayv1.KindGateway || resource.Kind == gatewayv1.KindRoute {
 			targets[resourceKey{kind: resource.Kind, name: resource.Name}] = resource
@@ -679,16 +678,16 @@ func newPolicyTargetIndex(resources config.ResourceSet) map[resourceKey]config.R
 }
 
 func newProgrammedPolicyTargetIndex(
-	targets []config.ProgrammedPolicyTarget,
-) map[config.ProgrammedPolicyTarget]bool {
-	result := make(map[config.ProgrammedPolicyTarget]bool, len(targets))
+	targets []compiler.CompiledPolicyTarget,
+) map[compiler.CompiledPolicyTarget]bool {
+	result := make(map[compiler.CompiledPolicyTarget]bool, len(targets))
 	for _, target := range targets {
 		result[target] = true
 	}
 	return result
 }
 
-func newDiagnosticIndex(resources config.ResourceSet, diagnostics []config.Diagnostic) diagnosticIndex {
+func newDiagnosticIndex(resources compiler.Resources, diagnostics []compiler.Diagnostic) diagnosticIndex {
 	knownResources := make(map[resourceKey]bool)
 	knownKinds := make(map[gatewayv1.Kind]bool)
 	for _, resource := range resources.Generations() {
@@ -697,12 +696,12 @@ func newDiagnosticIndex(resources config.ResourceSet, diagnostics []config.Diagn
 	}
 
 	index := diagnosticIndex{
-		specific: make(map[resourceKey][]config.Diagnostic),
-		kinds:    make(map[gatewayv1.Kind][]config.Diagnostic),
+		specific: make(map[resourceKey][]compiler.Diagnostic),
+		kinds:    make(map[gatewayv1.Kind][]compiler.Diagnostic),
 	}
 	for _, diagnostic := range diagnostics {
-		if diagnostic.Severity != config.SeverityError &&
-			!(diagnostic.Severity == config.SeverityWarning && isReferenceReason(diagnostic.Reason)) {
+		if diagnostic.Severity != compiler.SeverityError &&
+			!(diagnostic.Severity == compiler.SeverityWarning && isReferenceReason(diagnostic.Reason)) {
 			continue
 		}
 		key := resourceKey{kind: diagnostic.Kind, name: diagnostic.ID}
@@ -719,7 +718,7 @@ func newDiagnosticIndex(resources config.ResourceSet, diagnostics []config.Diagn
 }
 
 func (i diagnosticIndex) forResource(kind gatewayv1.Kind, name string) compileDecision {
-	diagnostics := make([]config.Diagnostic, 0,
+	diagnostics := make([]compiler.Diagnostic, 0,
 		len(i.global)+len(i.kinds[kind])+len(i.specific[resourceKey{kind: kind, name: name}]),
 	)
 	diagnostics = append(diagnostics, i.global...)
@@ -756,7 +755,7 @@ func (i diagnosticIndex) forResource(kind gatewayv1.Kind, name string) compileDe
 	return decision
 }
 
-func decisionFromDiagnostic(diagnostic config.Diagnostic) conditionDecision {
+func decisionFromDiagnostic(diagnostic compiler.Diagnostic) conditionDecision {
 	reason := diagnostic.Reason
 	if reason == "" {
 		reason = gatewayv1.ReasonCompileFailed
@@ -772,8 +771,8 @@ func decisionFromDiagnostic(diagnostic config.Diagnostic) conditionDecision {
 	}
 }
 
-func isReferenceReason(reason config.Reason) bool {
-	return reason == config.ReasonReferenceNotFound || reason == config.ReasonInvalidReference
+func isReferenceReason(reason compiler.Reason) bool {
+	return reason == compiler.ReasonReferenceNotFound || reason == compiler.ReasonInvalidReference
 }
 
 func kindHasReferences(kind gatewayv1.Kind) bool {
