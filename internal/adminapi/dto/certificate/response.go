@@ -4,23 +4,22 @@ import (
 	"time"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
-	certificateservice "github.com/lgc202/ingate/internal/adminapi/service/certificate"
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// NewListCertificatesResp 转换 Certificate 列表用例结果为 HTTP 响应
-func NewListCertificatesResp(result *certificateservice.ListResult) ListCertificatesResp {
-	certificates := make([]Certificate, 0, len(result.Certificates))
-	for i := range result.Certificates {
-		certificates = append(certificates, certificateFromResource(&result.Certificates[i], false))
+// NewListCertificatesResp 转换 Certificate 资源列表为 HTTP 响应
+func NewListCertificatesResp(resources []resource.Certificate) ListCertificatesResp {
+	certificates := make([]Certificate, 0, len(resources))
+	for i := range resources {
+		certificates = append(certificates, certificateFromResource(&resources[i], false))
 	}
 	return ListCertificatesResp{Certificates: certificates}
 }
 
-// NewGetCertificateResp 转换单个 Certificate 用例结果为 HTTP 响应
-func NewGetCertificateResp(result *certificateservice.CertificateResult) GetCertificateResp {
-	return GetCertificateResp{Certificate: certificateFromResource(result.Certificate, true)}
+// NewGetCertificateResp 转换 Certificate 资源为 HTTP 响应
+func NewGetCertificateResp(certificate *resource.Certificate) GetCertificateResp {
+	return GetCertificateResp{Certificate: certificateFromResource(certificate, true)}
 }
 
 func certificateFromResource(certificate *resource.Certificate, includePEM bool) Certificate {

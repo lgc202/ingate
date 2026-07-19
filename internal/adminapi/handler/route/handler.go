@@ -27,7 +27,7 @@ func New(service *routeservice.Service, logger *slog.Logger) *Handler {
 
 // List 返回 Route 列表
 func (h *Handler) List(ctx *gin.Context) {
-	result, err := h.service.List(ctx.Request.Context())
+	routes, err := h.service.List(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("list routes failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -37,13 +37,13 @@ func (h *Handler) List(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询路由列表失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListRoutesResp(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListRoutesResp(routes))
 }
 
 // Get 返回单个 Route
 func (h *Handler) Get(ctx *gin.Context) {
 	routeID := ctx.Param("id")
-	result, err := h.service.Get(ctx.Request.Context(), routeID)
+	route, err := h.service.Get(ctx.Request.Context(), routeID)
 	if err != nil {
 		h.logger.Error("get route failed", "request_id", ctx.GetString(requestid.Header), "route_id", routeID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -53,7 +53,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询路由失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetRouteResp(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetRouteResp(route))
 }
 
 // Create 创建 Route

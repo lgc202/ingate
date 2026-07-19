@@ -47,23 +47,21 @@ func New(
 }
 
 // List 查询 Gateway 列表
-func (s *Service) List(ctx context.Context) (*ListResult, error) {
+func (s *Service) List(ctx context.Context) ([]resource.Gateway, error) {
 	gateways, err := s.store.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &ListResult{Gateways: gateways.Items}, nil
+	return gateways.Items, nil
 }
 
 // Get 查询单个 Gateway
-func (s *Service) Get(ctx context.Context, gatewayID string) (*GatewayResult, error) {
+func (s *Service) Get(ctx context.Context, gatewayID string) (*resource.Gateway, error) {
 	gateway, err := s.store.Get(ctx, gatewayID)
 	if err != nil {
 		return nil, err
 	}
-	return &GatewayResult{
-		Gateway: gateway,
-	}, nil
+	return gateway, nil
 }
 
 // Create 创建 Gateway

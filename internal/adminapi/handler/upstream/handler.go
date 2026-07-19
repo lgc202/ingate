@@ -27,7 +27,7 @@ func New(service *upstreamservice.Service, logger *slog.Logger) *Handler {
 
 // List 返回 Upstream 列表
 func (h *Handler) List(ctx *gin.Context) {
-	result, err := h.service.List(ctx.Request.Context())
+	upstreams, err := h.service.List(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("list upstreams failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -37,13 +37,13 @@ func (h *Handler) List(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询服务列表失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListUpstreamsResp(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListUpstreamsResp(upstreams))
 }
 
 // Get 返回单个 Upstream
 func (h *Handler) Get(ctx *gin.Context) {
 	upstreamID := ctx.Param("id")
-	result, err := h.service.Get(ctx.Request.Context(), upstreamID)
+	upstream, err := h.service.Get(ctx.Request.Context(), upstreamID)
 	if err != nil {
 		h.logger.Error("get upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstreamID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -54,7 +54,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 		return
 	}
 
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetUpstreamResp(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetUpstreamResp(upstream))
 }
 
 // Create 创建 Upstream

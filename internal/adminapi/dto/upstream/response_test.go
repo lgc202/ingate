@@ -7,20 +7,19 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 func TestNewGetUpstreamRespDoesNotExposeAPIKey(t *testing.T) {
-	result := &upstreamservice.UpstreamResult{Upstream: &resource.Upstream{
+	upstream := &resource.Upstream{
 		Spec: resource.UpstreamSpec{
 			Authentication: &resource.UpstreamAuthentication{
 				APIKey: &resource.APIKeyAuthentication{Value: "secret-value"},
 			},
 		},
-	}}
+	}
 
-	encoded, err := json.Marshal(NewGetUpstreamResp(result))
+	encoded, err := json.Marshal(NewGetUpstreamResp(upstream))
 	if err != nil {
 		t.Fatalf("json.Marshal(NewGetUpstreamResp()) error = %v, want nil", err)
 	}
@@ -33,7 +32,7 @@ func TestNewGetUpstreamRespDoesNotExposeAPIKey(t *testing.T) {
 }
 
 func TestNewGetUpstreamRespIncludesModelConfig(t *testing.T) {
-	result := &upstreamservice.UpstreamResult{Upstream: &resource.Upstream{
+	upstream := &resource.Upstream{
 		Spec: resource.UpstreamSpec{
 			Model: &resource.ModelSpec{
 				Provider:    resource.ModelProviderAnthropic,
@@ -43,7 +42,7 @@ func TestNewGetUpstreamRespIncludesModelConfig(t *testing.T) {
 				},
 			},
 		},
-	}}
+	}
 	want := &ModelConfig{
 		Provider:    resource.ModelProviderAnthropic,
 		APIBasePath: "/v1",
@@ -52,7 +51,7 @@ func TestNewGetUpstreamRespIncludesModelConfig(t *testing.T) {
 		},
 	}
 
-	got := NewGetUpstreamResp(result).Model
+	got := NewGetUpstreamResp(upstream).Model
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("NewGetUpstreamResp() model mismatch (-want +got):\n%s", diff)
 	}

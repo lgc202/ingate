@@ -12,10 +12,8 @@ import (
 	ratelimitpolicydto "github.com/lgc202/ingate/internal/adminapi/dto/ratelimitpolicy"
 	routedto "github.com/lgc202/ingate/internal/adminapi/dto/route"
 	accesscontrolpolicyservice "github.com/lgc202/ingate/internal/adminapi/service/accesscontrolpolicy"
-	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/service/policytarget"
 	ratelimitpolicyservice "github.com/lgc202/ingate/internal/adminapi/service/ratelimitpolicy"
-	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -34,7 +32,7 @@ func TestEnabledResourceStatusConversion(t *testing.T) {
 					Spec:       resource.GatewaySpec{Enabled: enabled},
 					Status:     readyResourceStatus(),
 				}
-				return gatewaydto.NewGetGatewayResp(&gatewayservice.GatewayResult{Gateway: gateway}).Gateway.Status
+				return gatewaydto.NewGetGatewayResp(gateway).Gateway.Status
 			},
 		},
 		{
@@ -45,7 +43,7 @@ func TestEnabledResourceStatusConversion(t *testing.T) {
 					Spec:       resource.RouteSpec{Enabled: enabled},
 					Status:     readyResourceStatus(),
 				}
-				return routedto.NewGetRouteResp(&routeservice.RouteResult{Route: route}).Status
+				return routedto.NewGetRouteResp(route).Status
 			},
 		},
 		{

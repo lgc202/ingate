@@ -6,23 +6,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
-	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// NewListGatewaysResp 转换 Gateway 列表用例结果为 HTTP 响应
-func NewListGatewaysResp(result *gatewayservice.ListResult) ListGatewaysResp {
-	gateways := make([]Gateway, 0, len(result.Gateways))
-	for i := range result.Gateways {
-		gateways = append(gateways, gatewayFromResource(&result.Gateways[i]))
+// NewListGatewaysResp 转换 Gateway 资源列表为 HTTP 响应
+func NewListGatewaysResp(resources []resource.Gateway) ListGatewaysResp {
+	gateways := make([]Gateway, 0, len(resources))
+	for i := range resources {
+		gateways = append(gateways, gatewayFromResource(&resources[i]))
 	}
 	return ListGatewaysResp{Gateways: gateways}
 }
 
-// NewGetGatewayResp 转换单个 Gateway 用例结果为 HTTP 响应
-func NewGetGatewayResp(result *gatewayservice.GatewayResult) GetGatewayResp {
+// NewGetGatewayResp 转换 Gateway 资源为 HTTP 响应
+func NewGetGatewayResp(gateway *resource.Gateway) GetGatewayResp {
 	return GetGatewayResp{
-		Gateway: gatewayFromResource(result.Gateway),
+		Gateway: gatewayFromResource(gateway),
 	}
 }
 
