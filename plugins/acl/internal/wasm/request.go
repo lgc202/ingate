@@ -2,13 +2,12 @@ package wasm
 
 import (
 	"github.com/lgc202/ingate/plugins/acl/internal/policy"
-	aclruntime "github.com/lgc202/ingate/plugins/acl/internal/runtime"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 )
 
-func requestFromProxyWasm(route aclruntime.Route) policy.Request {
-	return policy.Request{
+func requestFromProxyWasm(route policy.Route) policy.RequestAttributes {
+	return policy.RequestAttributes{
 		RemoteAddr: pluginwasm.SourceAddress(),
-		Headers:    pluginwasm.RequestHeaders(route.HeaderNames),
+		Headers:    pluginwasm.RequestHeaders(route.RequiredHeaders),
 	}
 }

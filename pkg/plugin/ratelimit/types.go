@@ -33,7 +33,7 @@ const (
 	defaultRejectedMessage    = "Too many requests"
 )
 
-// PluginConfig 表示真正下发给 Wasm 插件的运行时配置
+// PluginConfig 表示真正下发给 RateLimit Wasm 插件的 Listener 级执行配置
 type PluginConfig struct {
 	Routes []RouteConfig `json:"routes"`
 }

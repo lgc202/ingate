@@ -10,7 +10,7 @@ import (
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 )
 
-func TestChecksBuildsRedisChecksForEveryMatchingPolicy(t *testing.T) {
+func TestBuildChecksBuildsRedisChecksForEveryMatchingPolicy(t *testing.T) {
 	route := config.RouteConfig{
 		GatewayName: "gw",
 		RouteName:   "users",
@@ -19,61 +19,61 @@ func TestChecksBuildsRedisChecksForEveryMatchingPolicy(t *testing.T) {
 			rateLimitPolicy("route-limit", "Route/users"),
 		},
 	}
-	req := Request{
+	req := RequestAttributes{
 		GatewayName: "gw",
 		RouteName:   "users",
 		Headers:     map[string]string{"x-tenant": "acme"},
 	}
 
-	checks := Checks(route, req)
+	checks := BuildChecks(route, req)
 	if len(checks) != 2 {
-		t.Fatalf("Checks() = %d checks, want 2", len(checks))
+		t.Fatalf("BuildChecks() = %d checks, want 2", len(checks))
 	}
 	if checks[0].RedisKey == checks[1].RedisKey {
-		t.Fatalf("Checks() Redis keys are equal: %q", checks[0].RedisKey)
+		t.Fatalf("BuildChecks() Redis keys are equal: %q", checks[0].RedisKey)
 	}
 	for _, segment := range []string{defaultRedisKeyPrefix, "gateway-limit", "Gateway/gw", "tenant"} {
 		if !strings.Contains(checks[0].RedisKey, segment) {
-			t.Errorf("Checks() gateway Redis key = %q, want readable segment %q", checks[0].RedisKey, segment)
+			t.Errorf("BuildChecks() gateway Redis key = %q, want readable segment %q", checks[0].RedisKey, segment)
 		}
 	}
 	if !strings.Contains(checks[1].RedisKey, "Route/users") {
-		t.Fatalf("Checks() route Redis key = %q, want Route/users scope", checks[1].RedisKey)
+		t.Fatalf("BuildChecks() route Redis key = %q, want Route/users scope", checks[1].RedisKey)
 	}
 	for i, check := range checks {
 		if strings.Contains(check.RedisKey, "acme") {
-			t.Errorf("Checks()[%d].RedisKey = %q, want sensitive request value hashed", i, check.RedisKey)
+			t.Errorf("BuildChecks()[%d].RedisKey = %q, want sensitive request value hashed", i, check.RedisKey)
 		}
 	}
 	encodedComposite := "6:Header8:x-tenant5:\x01acme"
 	digest := sha256.Sum256([]byte(encodedComposite))
 	if want := hex.EncodeToString(digest[:]); !strings.HasSuffix(checks[0].RedisKey, want) {
-		t.Errorf("Checks()[0].RedisKey = %q, want SHA-256 suffix %q", checks[0].RedisKey, want)
+		t.Errorf("BuildChecks()[0].RedisKey = %q, want SHA-256 suffix %q", checks[0].RedisKey, want)
 	}
 }
 
-func TestChecksUsesStableBucketWhenKeyPartIsMissing(t *testing.T) {
+func TestBuildChecksUsesStableBucketWhenKeyPartIsMissing(t *testing.T) {
 	route := config.RouteConfig{Policies: []config.Policy{rateLimitPolicy("tenant-limit", "Route/users")}}
 
-	first := Checks(route, Request{})
-	second := Checks(route, Request{})
+	first := BuildChecks(route, RequestAttributes{})
+	second := BuildChecks(route, RequestAttributes{})
 	if len(first) != 1 || len(second) != 1 {
-		t.Fatalf("Checks(missing dimension) lengths = %d, %d, want 1, 1", len(first), len(second))
+		t.Fatalf("BuildChecks(missing dimension) lengths = %d, %d, want 1, 1", len(first), len(second))
 	}
 	if first[0].RedisKey != second[0].RedisKey {
-		t.Fatalf("Checks(missing dimension) keys = %q, %q, want stable bucket", first[0].RedisKey, second[0].RedisKey)
+		t.Fatalf("BuildChecks(missing dimension) keys = %q, %q, want stable bucket", first[0].RedisKey, second[0].RedisKey)
 	}
-	present := Checks(route, Request{Headers: map[string]string{"x-tenant": "acme"}})
+	present := BuildChecks(route, RequestAttributes{Headers: map[string]string{"x-tenant": "acme"}})
 	if len(present) != 1 {
-		t.Fatalf("Checks(present dimension) = %d checks, want 1", len(present))
+		t.Fatalf("BuildChecks(present dimension) = %d checks, want 1", len(present))
 	}
 	if first[0].RedisKey == present[0].RedisKey {
-		t.Fatalf("Checks() missing and present dimensions share Redis key %q", first[0].RedisKey)
+		t.Fatalf("BuildChecks() missing and present dimensions share Redis key %q", first[0].RedisKey)
 	}
 }
 
 func TestCompositeKeyHashUsesLengthPrefixedRequestParts(t *testing.T) {
-	req := Request{
+	req := RequestAttributes{
 		GatewayName: "gw",
 		RouteName:   "users",
 		RuleName:    "primary",
@@ -105,13 +105,13 @@ func TestCompositeKeyHashUsesLengthPrefixedRequestParts(t *testing.T) {
 }
 
 func TestCompositeKeyHashSeparatesAmbiguousValues(t *testing.T) {
-	onePartHash, ok := compositeKeyHash(Request{
+	onePartHash, ok := compositeKeyHash(RequestAttributes{
 		Headers: map[string]string{"x-single": "one|Header=two"},
 	}, []config.KeyPart{{Type: config.KeyTypeHeader, Name: "x-single"}})
 	if !ok {
 		t.Fatal("compositeKeyHash(one part) ok = false, want true")
 	}
-	twoPartHash, ok := compositeKeyHash(Request{
+	twoPartHash, ok := compositeKeyHash(RequestAttributes{
 		Headers: map[string]string{"x-first": "one", "x-second": "two"},
 	}, []config.KeyPart{
 		{Type: config.KeyTypeHeader, Name: "x-first"},
@@ -126,7 +126,7 @@ func TestCompositeKeyHashSeparatesAmbiguousValues(t *testing.T) {
 }
 
 func TestKeyValueDoesNotTrustLegacyIdentityDimensions(t *testing.T) {
-	req := Request{Headers: map[string]string{
+	req := RequestAttributes{Headers: map[string]string{
 		"x-ingate-consumer":      "alice",
 		"x-ingate-tenant":        "acme",
 		"x-ingate-api-key":       "secret",
@@ -141,7 +141,7 @@ func TestKeyValueDoesNotTrustLegacyIdentityDimensions(t *testing.T) {
 	}
 }
 
-func TestApplyOutcomesRejectsFirstFailClosePolicy(t *testing.T) {
+func TestDecideRejectsFirstFailClosePolicy(t *testing.T) {
 	closePolicy := rateLimitPolicyWithFailurePolicy("close", config.FailurePolicyFailClose)
 	closePolicy.Response.StatusCode = 503
 	closePolicy.Response.Message = "rate limit unavailable"
@@ -156,38 +156,38 @@ func TestApplyOutcomesRejectsFirstFailClosePolicy(t *testing.T) {
 		},
 	}
 
-	decision, rejected := ApplyOutcomes(checks, []Outcome{
+	decision := Decide(checks, []CheckOutcome{
 		{Err: errors.New("redis unavailable")},
 		{Err: errors.New("redis unavailable")},
 	})
-	if !rejected {
-		t.Fatal("rejected = false, want true")
+	if decision.Allowed {
+		t.Fatal("Decide() allowed = true, want false")
 	}
 	if decision.StatusCode != closePolicy.Response.StatusCode || decision.Message != closePolicy.Response.Message {
-		t.Fatalf("ApplyOutcomes() decision = %+v, want fail-close response from policy %q", decision, closePolicy.Name)
+		t.Fatalf("Decide() = %+v, want fail-close response from policy %q", decision, closePolicy.Name)
 	}
 }
 
-func TestApplyOutcomesUsesStrictestAllowedQuotaHeaders(t *testing.T) {
+func TestDecideUsesStrictestAllowedQuotaHeaders(t *testing.T) {
 	first := rateLimitPolicy("first", "Route/users")
 	first.Response.QuotaHeaderEnabled = true
 	second := rateLimitPolicy("second", "Route/users")
 	second.Response.QuotaHeaderEnabled = true
-	decision, rejected := ApplyOutcomes(
+	decision := Decide(
 		[]Check{{Policy: first}, {Policy: second}},
-		[]Outcome{
-			{Allowed: true, Current: 9, Limit: 10, ResetSeconds: 30},
-			{Allowed: true, Current: 2, Limit: 10, ResetSeconds: 10},
+		[]CheckOutcome{
+			{Allowed: true, Limit: 10, Remaining: 1, ResetSeconds: 30},
+			{Allowed: true, Limit: 10, Remaining: 8, ResetSeconds: 10},
 		},
 	)
-	if rejected {
-		t.Fatal("ApplyOutcomes() rejected = true, want false")
+	if !decision.Allowed {
+		t.Fatalf("Decide() allowed = false, want true: %+v", decision)
 	}
 	if got := decision.QuotaHeaders[quotaHeaderRemaining]; got != "1" {
-		t.Errorf("ApplyOutcomes() remaining header = %q, want %q", got, "1")
+		t.Errorf("Decide() remaining header = %q, want %q", got, "1")
 	}
 	if got := decision.QuotaHeaders[quotaHeaderReset]; got != "30" {
-		t.Errorf("ApplyOutcomes() reset header = %q, want %q", got, "30")
+		t.Errorf("Decide() reset header = %q, want %q", got, "30")
 	}
 }
 

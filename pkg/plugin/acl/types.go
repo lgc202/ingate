@@ -28,7 +28,7 @@ const (
 	defaultDeniedMessage    = "Access denied"
 )
 
-// PluginConfig 表示真正下发给 Wasm 插件的 ACL 运行时配置
+// PluginConfig 表示真正下发给 ACL Wasm 插件的 Listener 级执行配置
 type PluginConfig struct {
 	Routes []RouteConfig `json:"routes"`
 }
