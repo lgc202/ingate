@@ -26,25 +26,21 @@ func New(store *upstreamstore.Store, routes *routestore.Store) *Service {
 }
 
 // List 查询 Upstream 列表
-func (s *Service) List(ctx context.Context) (*ListResult, error) {
+func (s *Service) List(ctx context.Context) ([]resource.Upstream, error) {
 	upstreams, err := s.store.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &ListResult{
-		Upstreams: upstreams.Items,
-	}, nil
+	return upstreams.Items, nil
 }
 
 // Get 查询单个 Upstream
-func (s *Service) Get(ctx context.Context, upstreamID string) (*UpstreamResult, error) {
+func (s *Service) Get(ctx context.Context, upstreamID string) (*resource.Upstream, error) {
 	upstream, err := s.store.Get(ctx, upstreamID)
 	if err != nil {
 		return nil, err
 	}
-	return &UpstreamResult{
-		Upstream: upstream,
-	}, nil
+	return upstream, nil
 }
 
 // Create 创建 Upstream

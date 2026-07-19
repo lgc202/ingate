@@ -27,7 +27,7 @@ func New(service *gatewayservice.Service, logger *slog.Logger) *Handler {
 
 // List 返回 Gateway 列表
 func (h *Handler) List(ctx *gin.Context) {
-	result, err := h.service.List(ctx.Request.Context())
+	gateways, err := h.service.List(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("list gateways failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -37,13 +37,13 @@ func (h *Handler) List(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询网关列表失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListGatewaysResp(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListGatewaysResp(gateways))
 }
 
 // Get 返回单个 Gateway
 func (h *Handler) Get(ctx *gin.Context) {
 	gatewayID := ctx.Param("id")
-	result, err := h.service.Get(ctx.Request.Context(), gatewayID)
+	gateway, err := h.service.Get(ctx.Request.Context(), gatewayID)
 	if err != nil {
 		h.logger.Error("get gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", gatewayID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -53,7 +53,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询网关失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetGatewayResp(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetGatewayResp(gateway))
 }
 
 // Create 创建 Gateway

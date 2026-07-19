@@ -25,21 +25,21 @@ func New(store *certificatestore.Store, gateways *gatewaystore.Store) *Service {
 }
 
 // List 查询 Certificate 列表
-func (s *Service) List(ctx context.Context) (*ListResult, error) {
+func (s *Service) List(ctx context.Context) ([]resource.Certificate, error) {
 	certificates, err := s.store.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &ListResult{Certificates: certificates.Items}, nil
+	return certificates.Items, nil
 }
 
 // Get 查询单个 Certificate
-func (s *Service) Get(ctx context.Context, certificateID string) (*CertificateResult, error) {
+func (s *Service) Get(ctx context.Context, certificateID string) (*resource.Certificate, error) {
 	certificate, err := s.store.Get(ctx, certificateID)
 	if err != nil {
 		return nil, err
 	}
-	return &CertificateResult{Certificate: certificate}, nil
+	return certificate, nil
 }
 
 // Create 创建 Certificate

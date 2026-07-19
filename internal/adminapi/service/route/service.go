@@ -45,21 +45,21 @@ func New(
 }
 
 // List 查询 Route 列表
-func (s *Service) List(ctx context.Context) (*ListResult, error) {
+func (s *Service) List(ctx context.Context) ([]resource.Route, error) {
 	routes, err := s.store.List(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &ListResult{Routes: routes.Items}, nil
+	return routes.Items, nil
 }
 
 // Get 查询单个 Route
-func (s *Service) Get(ctx context.Context, routeID string) (*RouteResult, error) {
+func (s *Service) Get(ctx context.Context, routeID string) (*resource.Route, error) {
 	route, err := s.store.Get(ctx, routeID)
 	if err != nil {
 		return nil, err
 	}
-	return &RouteResult{Route: route}, nil
+	return route, nil
 }
 
 // Create 创建 Route

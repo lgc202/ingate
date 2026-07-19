@@ -4,24 +4,23 @@ import (
 	"time"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
-	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NewListRoutesResp 转换 Route 列表用例结果为控制台响应
-func NewListRoutesResp(result *routeservice.ListResult) ListRoutesResp {
-	routes := make([]Route, 0, len(result.Routes))
-	for i := range result.Routes {
-		routes = append(routes, routeFromResource(&result.Routes[i]))
+// NewListRoutesResp 转换 Route 资源列表为控制台响应
+func NewListRoutesResp(resources []resource.Route) ListRoutesResp {
+	routes := make([]Route, 0, len(resources))
+	for i := range resources {
+		routes = append(routes, routeFromResource(&resources[i]))
 	}
 	return ListRoutesResp{Routes: routes}
 }
 
-// NewGetRouteResp 转换单个 Route 用例结果为控制台响应
-func NewGetRouteResp(result *routeservice.RouteResult) *Route {
-	item := routeFromResource(result.Route)
+// NewGetRouteResp 转换 Route 资源为控制台响应
+func NewGetRouteResp(route *resource.Route) *Route {
+	item := routeFromResource(route)
 	return &item
 }
 

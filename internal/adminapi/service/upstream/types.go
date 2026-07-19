@@ -2,16 +2,6 @@ package upstream
 
 import resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 
-// ListResult 是服务列表用例结果
-type ListResult struct {
-	Upstreams []resource.Upstream
-}
-
-// UpstreamResult 是单个服务用例结果
-type UpstreamResult struct {
-	Upstream *resource.Upstream
-}
-
 // CreateUpstreamParams 是创建 Upstream 用例参数
 type CreateUpstreamParams struct {
 	UpstreamParams

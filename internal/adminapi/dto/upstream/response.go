@@ -4,24 +4,23 @@ import (
 	"time"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
-	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// NewListUpstreamsResp 转换 Upstream 列表用例结果为控制台服务列表响应
-func NewListUpstreamsResp(result *upstreamservice.ListResult) ListUpstreamsResp {
+// NewListUpstreamsResp 转换 Upstream 资源列表为控制台服务列表响应
+func NewListUpstreamsResp(resources []resource.Upstream) ListUpstreamsResp {
 	return ListUpstreamsResp{
-		Upstreams: lo.Map(result.Upstreams, func(upstream resource.Upstream, _ int) Upstream {
+		Upstreams: lo.Map(resources, func(upstream resource.Upstream, _ int) Upstream {
 			return upstreamFromResource(&upstream)
 		}),
 	}
 }
 
-// NewGetUpstreamResp 转换单个 Upstream 用例结果为控制台服务响应
-func NewGetUpstreamResp(result *upstreamservice.UpstreamResult) Upstream {
-	return upstreamFromResource(result.Upstream)
+// NewGetUpstreamResp 转换 Upstream 资源为控制台服务响应
+func NewGetUpstreamResp(upstream *resource.Upstream) Upstream {
+	return upstreamFromResource(upstream)
 }
 
 func upstreamFromResource(upstream *resource.Upstream) Upstream {

@@ -28,7 +28,7 @@ func New(service *certificateservice.Service, logger *slog.Logger) *Handler {
 
 // List 返回 Certificate 列表
 func (h *Handler) List(ctx *gin.Context) {
-	result, err := h.service.List(ctx.Request.Context())
+	certificates, err := h.service.List(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("list certificates failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -38,13 +38,13 @@ func (h *Handler) List(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询证书列表失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListCertificatesResp(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListCertificatesResp(certificates))
 }
 
 // Get 返回单个 Certificate
 func (h *Handler) Get(ctx *gin.Context) {
 	certificateID := ctx.Param("id")
-	result, err := h.service.Get(ctx.Request.Context(), certificateID)
+	certificate, err := h.service.Get(ctx.Request.Context(), certificateID)
 	if err != nil {
 		h.logger.Error("get certificate failed", "request_id", ctx.GetString(requestid.Header), "certificate_id", certificateID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -54,7 +54,7 @@ func (h *Handler) Get(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, "查询证书失败", nil)
 		return
 	}
-	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetCertificateResp(result))
+	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetCertificateResp(certificate))
 }
 
 // Create 创建 Certificate
