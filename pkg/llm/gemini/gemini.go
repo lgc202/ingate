@@ -8,9 +8,10 @@ import (
 	"time"
 
 	"github.com/lgc202/ingate/pkg/llm"
+	"github.com/lgc202/ingate/pkg/llm/openai"
 )
 
-type request struct {
+type requestBody struct {
 	Contents          []content         `json:"contents"`
 	SystemInstruction *content          `json:"systemInstruction,omitempty"`
 	GenerationConfig  *generationConfig `json:"generationConfig,omitempty"`
@@ -72,25 +73,17 @@ func EndpointPath(upstreamModel string, stream bool) (string, error) {
 	return "/models/" + url.PathEscape(upstreamModel) + ":" + action, nil
 }
 
-// TransformRequest 把受支持的 OpenAI-compatible 文本请求转换为 Gemini generateContent 请求
-func TransformRequest(body []byte) ([]byte, error) {
-	original, err := llm.DecodeChatRequest(body)
-	if err != nil {
-		return nil, err
-	}
-	if err := original.ValidateSupported(); err != nil {
-		return nil, err
-	}
-
-	transformed := request{Contents: make([]content, 0, len(original.Messages))}
+// TransformRequest 把 openai.DecodeRequest 返回的文本请求转换为 Gemini generateContent 请求
+func TransformRequest(request openai.Request) ([]byte, error) {
+	transformed := requestBody{Contents: make([]content, 0, len(request.Messages))}
 	var system []string
-	for _, item := range original.Messages {
-		if item.Role == llm.RoleSystem {
+	for _, item := range request.Messages {
+		if item.Role == openai.RoleSystem {
 			system = append(system, item.Content)
 			continue
 		}
 		role := "user"
-		if item.Role == llm.RoleAssistant {
+		if item.Role == openai.RoleAssistant {
 			role = "model"
 		}
 		text := item.Content
@@ -106,12 +99,12 @@ func TransformRequest(body []byte) ([]byte, error) {
 		text := strings.Join(system, "\n\n")
 		transformed.SystemInstruction = &content{Parts: []part{{Text: &text}}}
 	}
-	if original.Temperature != nil || original.TopP != nil || original.MaxTokens != nil || len(original.Stop) > 0 {
+	if request.Temperature != nil || request.TopP != nil || request.MaxTokens != nil || len(request.Stop) > 0 {
 		transformed.GenerationConfig = &generationConfig{
-			Temperature:     original.Temperature,
-			TopP:            original.TopP,
-			MaxOutputTokens: original.MaxTokens,
-			StopSequences:   original.Stop,
+			Temperature:     request.Temperature,
+			TopP:            request.TopP,
+			MaxOutputTokens: request.MaxTokens,
+			StopSequences:   request.Stop,
 		}
 	}
 
@@ -138,16 +131,16 @@ func TransformResponse(body []byte, publicModel string) ([]byte, error) {
 		return nil, fmt.Errorf("%w: Gemini response has no candidates", llm.ErrInvalidResponse)
 	}
 
-	choices := make([]llm.CompletionChoice, 0, len(original.Candidates))
+	choices := make([]openai.CompletionChoice, 0, len(original.Candidates))
 	for _, item := range original.Candidates {
 		text, err := textContent(item.Content)
 		if err != nil {
 			return nil, err
 		}
-		choices = append(choices, llm.CompletionChoice{
+		choices = append(choices, openai.CompletionChoice{
 			Index: item.Index,
-			Message: llm.ResponseMessage{
-				Role:    llm.RoleAssistant,
+			Message: openai.ResponseMessage{
+				Role:    openai.RoleAssistant,
 				Content: text,
 			},
 			FinishReason: mapFinishReason(item.FinishReason),
@@ -158,9 +151,9 @@ func TransformResponse(body []byte, publicModel string) ([]byte, error) {
 	if id == "" {
 		id = "chatcmpl-gemini"
 	}
-	transformed := llm.ChatCompletion{
+	transformed := openai.ChatCompletion{
 		ID:      id,
-		Object:  llm.ObjectChatCompletion,
+		Object:  openai.ObjectChatCompletion,
 		Created: time.Now().Unix(),
 		Model:   publicModel,
 		Choices: choices,
@@ -179,20 +172,20 @@ func TransformError(body []byte, statusCode int) []byte {
 		Error upstreamError `json:"error"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil || envelope.Error.Message == "" {
-		return llm.EncodeError(llm.DefaultAPIError(statusCode, "upstream returned an invalid Gemini error response"))
+		return openai.EncodeError(openai.DefaultError(statusCode, "upstream returned an invalid Gemini error response"))
 	}
 	if statusCode == 0 {
 		statusCode = envelope.Error.Code
 	}
-	detail := llm.APIError{
+	detail := openai.ErrorDetail{
 		Message: envelope.Error.Message,
-		Type:    llm.DefaultAPIError(statusCode, "").Type,
+		Type:    openai.DefaultError(statusCode, "").Type,
 		Code:    envelope.Error.Status,
 	}
 	if detail.Code == "" && envelope.Error.Code != 0 {
 		detail.Code = fmt.Sprintf("%d", envelope.Error.Code)
 	}
-	return llm.EncodeError(detail)
+	return openai.EncodeError(detail)
 }
 
 func textContent(value content) (string, error) {
@@ -209,28 +202,28 @@ func textContent(value content) (string, error) {
 	return text.String(), nil
 }
 
-func mapUsage(value usageMetadata) *llm.Usage {
+func mapUsage(value usageMetadata) *openai.Usage {
 	total := value.TotalTokenCount
 	if total == 0 {
 		total = value.PromptTokenCount + value.CandidatesTokenCount
 	}
-	return &llm.Usage{
+	return &openai.Usage{
 		PromptTokens:     value.PromptTokenCount,
 		CompletionTokens: value.CandidatesTokenCount,
 		TotalTokens:      total,
 	}
 }
 
-func mapFinishReason(reason string) *llm.FinishReason {
+func mapFinishReason(reason string) *openai.FinishReason {
 	if reason == "" || reason == "FINISH_REASON_UNSPECIFIED" {
 		return nil
 	}
-	mapped := llm.FinishReasonContentFilter
+	mapped := openai.FinishReasonContentFilter
 	switch reason {
 	case "STOP":
-		mapped = llm.FinishReasonStop
+		mapped = openai.FinishReasonStop
 	case "MAX_TOKENS":
-		mapped = llm.FinishReasonLength
+		mapped = openai.FinishReasonLength
 	}
 	return &mapped
 }

@@ -16,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/pkg/llm"
 	pluginaiproxy "github.com/lgc202/ingate/pkg/plugin/aiproxy"
 )
 
@@ -34,7 +35,7 @@ func TestCompilerBuildsOpenAIModelRoute(t *testing.T) {
 		t.Fatal("Compiler.Compile(OpenAI model route) AI proxy config ID is empty")
 	}
 
-	routeName := runtimeAIRouteName("ai-gateway", "ai-route", "chat", "POST", pluginRoute.ConfigID)
+	routeName := envoyAIRouteName("ai-gateway", "ai-route", "chat", "POST", pluginRoute.ConfigID)
 	route := findCompiledRoute(t, result.Config.Routes, routeName)
 	if got, want := route.GetMatch().GetPath(), openAIChatCompletionsPath; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) exact path = %q, want %q", got, want)
@@ -46,14 +47,14 @@ func TestCompilerBuildsOpenAIModelRoute(t *testing.T) {
 	if !slices.Contains(route.RequestHeadersToRemove, aiClusterHeader) {
 		t.Errorf("Compiler.Compile(OpenAI model route) request headers to remove = %v, want %q", route.RequestHeadersToRemove, aiClusterHeader)
 	}
-	if got, want := len(pluginRoute.Targets), 1; got != want {
-		t.Fatalf("Compiler.Compile(OpenAI model route) AI proxy target count = %d, want %d", got, want)
+	if got, want := len(pluginRoute.Upstreams), 1; got != want {
+		t.Fatalf("Compiler.Compile(OpenAI model route) AI proxy upstream count = %d, want %d", got, want)
 	}
-	target := pluginRoute.Targets[0]
-	if !strings.HasPrefix(target.Cluster, "model-upstream/ai/") {
-		t.Errorf("Compiler.Compile(OpenAI model route) target cluster = %q, want prefix %q", target.Cluster, "model-upstream/ai/")
+	upstream := pluginRoute.Upstreams[0]
+	if !strings.HasPrefix(upstream.Cluster, "model-upstream/ai/") {
+		t.Errorf("Compiler.Compile(OpenAI model route) upstream cluster = %q, want prefix %q", upstream.Cluster, "model-upstream/ai/")
 	}
-	cluster := findCompiledCluster(t, result.Config.Clusters, target.Cluster)
+	cluster := findCompiledCluster(t, result.Config.Clusters, upstream.Cluster)
 	if got, want := cluster.GetEdsClusterConfig().GetServiceName(), cluster.Name; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) EDS service name = %q, want %q", got, want)
 	}
@@ -77,10 +78,10 @@ func TestCompilerBuildsOpenAIModelRoute(t *testing.T) {
 	if got, want := pluginRoute.RuleName, "chat"; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) AI proxy rule = %q, want %q", got, want)
 	}
-	if got, want := target.APIKey, "sk-test-secret"; got != want {
+	if got, want := upstream.APIKey, "sk-test-secret"; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) API key = %q, want %q", got, want)
 	}
-	if got, want := target.APIKeyHeader, "Authorization"; got != want {
+	if got, want := upstream.APIKeyHeader, "Authorization"; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) API key header = %q, want %q", got, want)
 	}
 	if got, want := len(pluginRoute.Models), 1; got != want {
@@ -93,15 +94,15 @@ func TestCompilerBuildsOpenAIModelRoute(t *testing.T) {
 	if got, want := model.UpstreamModel, "assistant"; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) default upstream model = %q, want %q", got, want)
 	}
-	if got, want := model.TargetID, target.ID; got != want {
-		t.Errorf("Compiler.Compile(OpenAI model route) model target = %q, want %q", got, want)
+	if got, want := model.UpstreamID, upstream.ID; got != want {
+		t.Errorf("Compiler.Compile(OpenAI model route) model upstream = %q, want %q", got, want)
 	}
 
 	routes := findCompiledRoutes(t, result.Config.Routes, routeName)
 	if got, want := len(routes), 2; got != want {
 		t.Fatalf("Compiler.Compile(OpenAI model route) xDS route count = %d, want public and continuation routes", got)
 	}
-	continuation := findAIContinuationRoute(t, routes, pluginRoute.ConfigID, target.Cluster)
+	continuation := findAIContinuationRoute(t, routes, pluginRoute.ConfigID, upstream.Cluster)
 	if got, want := continuation.GetRoute().GetHostRewriteLiteral(), "api.example.com:8080"; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) continuation host rewrite = %q, want %q", got, want)
 	}
@@ -158,25 +159,25 @@ func TestCompilerBuildsCrossProviderModelRoute(t *testing.T) {
 		t.Fatalf("Compiler.Compile(cross-provider model route) plugin route count = %d, want %d", got, want)
 	}
 	pluginRoute := config.Routes[0]
-	if got, want := len(pluginRoute.Targets), 3; got != want {
-		t.Fatalf("Compiler.Compile(cross-provider model route) target count = %d, want %d", got, want)
+	if got, want := len(pluginRoute.Upstreams), 3; got != want {
+		t.Fatalf("Compiler.Compile(cross-provider model route) upstream count = %d, want %d", got, want)
 	}
 	if got, want := len(pluginRoute.Models), 3; got != want {
 		t.Fatalf("Compiler.Compile(cross-provider model route) model count = %d, want %d", got, want)
 	}
 
-	targets := make(map[string]pluginaiproxy.TargetConfig, len(pluginRoute.Targets))
-	for _, target := range pluginRoute.Targets {
-		targets[target.ID] = target
-		findCompiledCluster(t, result.Config.Clusters, target.Cluster)
+	upstreams := make(map[string]pluginaiproxy.UpstreamConfig, len(pluginRoute.Upstreams))
+	for _, upstream := range pluginRoute.Upstreams {
+		upstreams[upstream.ID] = upstream
+		findCompiledCluster(t, result.Config.Clusters, upstream.Cluster)
 	}
-	assertAITarget(t, targets["model-upstream"], pluginaiproxy.ProtocolOpenAI, "Authorization", "Bearer ", nil)
-	assertAITarget(t, targets[anthropicUpstream.Name], pluginaiproxy.ProtocolAnthropic, "x-api-key", "", map[string]string{
+	assertAIUpstream(t, upstreams["model-upstream"], llm.ProtocolOpenAIChatCompletions, "Authorization", "Bearer ", nil)
+	assertAIUpstream(t, upstreams[anthropicUpstream.Name], llm.ProtocolAnthropicMessages, "x-api-key", "", map[string]string{
 		"anthropic-version": "2023-06-01",
 	})
-	assertAITarget(t, targets[geminiUpstream.Name], pluginaiproxy.ProtocolGemini, "x-goog-api-key", "", nil)
+	assertAIUpstream(t, upstreams[geminiUpstream.Name], llm.ProtocolGeminiGenerateContent, "x-goog-api-key", "", nil)
 
-	routeName := runtimeAIRouteName("ai-gateway", "ai-route", "chat", "POST", pluginRoute.ConfigID)
+	routeName := envoyAIRouteName("ai-gateway", "ai-route", "chat", "POST", pluginRoute.ConfigID)
 	routes := findCompiledRoutes(t, result.Config.Routes, routeName)
 	if got, want := len(routes), 5; got != want {
 		t.Fatalf("Compiler.Compile(cross-provider model route) xDS route count = %d, want one public and four continuation routes", got)
@@ -186,10 +187,10 @@ func TestCompilerBuildsCrossProviderModelRoute(t *testing.T) {
 		anthropicUpstream.Name: "api.anthropic.com",
 		geminiUpstream.Name:    "generativelanguage.googleapis.com",
 	}
-	for _, target := range pluginRoute.Targets {
-		continuation := findAIContinuationRoute(t, routes, pluginRoute.ConfigID, target.Cluster)
-		if got, want := continuation.GetRoute().GetHostRewriteLiteral(), wantAuthorities[target.ID]; got != want {
-			t.Errorf("Compiler.Compile(cross-provider model route) target %q host rewrite = %q, want %q", target.ID, got, want)
+	for _, upstream := range pluginRoute.Upstreams {
+		continuation := findAIContinuationRoute(t, routes, pluginRoute.ConfigID, upstream.Cluster)
+		if got, want := continuation.GetRoute().GetHostRewriteLiteral(), wantAuthorities[upstream.ID]; got != want {
+			t.Errorf("Compiler.Compile(cross-provider model route) upstream %q host rewrite = %q, want %q", upstream.ID, got, want)
 		}
 	}
 }
@@ -229,8 +230,8 @@ func TestCompilerFormatsIPv6ModelAuthority(t *testing.T) {
 
 			config := decodeAIProxyConfig(t, findCompiledListener(t, result.Config.Listeners, "ingate/http-8080"))
 			pluginRoute := config.Routes[0]
-			routeName := runtimeAIRouteName("ai-gateway", "ai-route", "chat", "POST", pluginRoute.ConfigID)
-			continuation := findAIContinuationRoute(t, findCompiledRoutes(t, result.Config.Routes, routeName), pluginRoute.ConfigID, pluginRoute.Targets[0].Cluster)
+			routeName := envoyAIRouteName("ai-gateway", "ai-route", "chat", "POST", pluginRoute.ConfigID)
+			continuation := findAIContinuationRoute(t, findCompiledRoutes(t, result.Config.Routes, routeName), pluginRoute.ConfigID, pluginRoute.Upstreams[0].Cluster)
 			if got, want := continuation.GetRoute().GetHostRewriteLiteral(), "[2001:db8::1]"; got != want {
 				t.Errorf("Compiler.Compile(%s IPv6 model authority) host rewrite = %q, want %q", tt.name, got, want)
 			}
@@ -294,7 +295,7 @@ func TestCompilerInjectsAIProxyIntoEveryListener(t *testing.T) {
 	}
 }
 
-func TestCompilerVersionsOpenAIRuntimeConfig(t *testing.T) {
+func TestCompilerVersionsAIProxyConfig(t *testing.T) {
 	newResources := func() ResourceSet {
 		resources := newAICompilerResources()
 		resources.Routes[0].Spec.Rules[0].ModelRouting.Models = []gatewayv1.ModelRoute{
@@ -350,7 +351,7 @@ func TestCompilerVersionsOpenAIRuntimeConfig(t *testing.T) {
 			clusterName, configID := compileAITestIdentity(t, resources)
 
 			if got := clusterName != baselineCluster; got != tt.wantClusterChange {
-				t.Errorf("OpenAI runtime cluster change = %t, want %t; baseline = %q, current = %q", got, tt.wantClusterChange, baselineCluster, clusterName)
+				t.Errorf("OpenAI model cluster change = %t, want %t; baseline = %q, current = %q", got, tt.wantClusterChange, baselineCluster, clusterName)
 			}
 			if got := configID != baselineConfigID; got != tt.wantConfigChange {
 				t.Errorf("OpenAI config ID change = %t, want %t; baseline = %q, current = %q", got, tt.wantConfigChange, baselineConfigID, configID)
@@ -644,52 +645,52 @@ func compileAITestIdentity(t *testing.T, resources ResourceSet) (string, string)
 	t.Helper()
 	result := (Compiler{}).Compile(resources)
 	if result.HasErrors() {
-		t.Fatalf("Compiler.Compile(OpenAI runtime identity) diagnostics = %v, want no errors", result.Diagnostics)
+		t.Fatalf("Compiler.Compile(OpenAI config identity) diagnostics = %v, want no errors", result.Diagnostics)
 	}
 	config := decodeAIProxyConfig(t, findCompiledListener(t, result.Config.Listeners, "ingate/http-8080"))
 	if got, want := len(config.Routes), 1; got != want {
-		t.Fatalf("Compiler.Compile(OpenAI runtime identity) AI route count = %d, want %d", got, want)
+		t.Fatalf("Compiler.Compile(OpenAI config identity) AI route count = %d, want %d", got, want)
 	}
 	configID := config.Routes[0].ConfigID
-	findCompiledRoute(t, result.Config.Routes, runtimeAIRouteName("ai-gateway", "ai-route", "chat", "POST", configID))
-	if got, want := len(config.Routes[0].Targets), 1; got != want {
-		t.Fatalf("Compiler.Compile(OpenAI runtime identity) target count = %d, want %d", got, want)
+	findCompiledRoute(t, result.Config.Routes, envoyAIRouteName("ai-gateway", "ai-route", "chat", "POST", configID))
+	if got, want := len(config.Routes[0].Upstreams), 1; got != want {
+		t.Fatalf("Compiler.Compile(OpenAI config identity) upstream count = %d, want %d", got, want)
 	}
-	return config.Routes[0].Targets[0].Cluster, configID
+	return config.Routes[0].Upstreams[0].Cluster, configID
 }
 
-func assertAITarget(
+func assertAIUpstream(
 	t *testing.T,
-	target pluginaiproxy.TargetConfig,
-	protocol pluginaiproxy.Protocol,
+	upstream pluginaiproxy.UpstreamConfig,
+	protocol llm.Protocol,
 	apiKeyHeader string,
 	apiKeyPrefix string,
 	wantHeaders map[string]string,
 ) {
 	t.Helper()
-	if target.ID == "" {
-		t.Fatal("compiled AI target is missing")
+	if upstream.ID == "" {
+		t.Fatal("compiled AI upstream is missing")
 	}
-	if target.Protocol != protocol {
-		t.Errorf("compiled AI target %q protocol = %q, want %q", target.ID, target.Protocol, protocol)
+	if upstream.Protocol != protocol {
+		t.Errorf("compiled AI upstream %q protocol = %q, want %q", upstream.ID, upstream.Protocol, protocol)
 	}
-	if target.APIKeyHeader != apiKeyHeader {
-		t.Errorf("compiled AI target %q API key header = %q, want %q", target.ID, target.APIKeyHeader, apiKeyHeader)
+	if upstream.APIKeyHeader != apiKeyHeader {
+		t.Errorf("compiled AI upstream %q API key header = %q, want %q", upstream.ID, upstream.APIKeyHeader, apiKeyHeader)
 	}
-	if target.APIKeyPrefix != apiKeyPrefix {
-		t.Errorf("compiled AI target %q API key prefix = %q, want %q", target.ID, target.APIKeyPrefix, apiKeyPrefix)
+	if upstream.APIKeyPrefix != apiKeyPrefix {
+		t.Errorf("compiled AI upstream %q API key prefix = %q, want %q", upstream.ID, upstream.APIKeyPrefix, apiKeyPrefix)
 	}
-	gotHeaders := make(map[string]string, len(target.Headers))
-	for _, header := range target.Headers {
+	gotHeaders := make(map[string]string, len(upstream.Headers))
+	for _, header := range upstream.Headers {
 		gotHeaders[strings.ToLower(header.Name)] = header.Value
 	}
 	if len(gotHeaders) != len(wantHeaders) {
-		t.Errorf("compiled AI target %q static headers = %v, want %v", target.ID, gotHeaders, wantHeaders)
+		t.Errorf("compiled AI upstream %q static headers = %v, want %v", upstream.ID, gotHeaders, wantHeaders)
 		return
 	}
 	for name, value := range wantHeaders {
 		if gotHeaders[name] != value {
-			t.Errorf("compiled AI target %q static header %q = %q, want %q", target.ID, name, gotHeaders[name], value)
+			t.Errorf("compiled AI upstream %q static header %q = %q, want %q", upstream.ID, name, gotHeaders[name], value)
 		}
 	}
 }

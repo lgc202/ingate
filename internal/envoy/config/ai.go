@@ -10,11 +10,12 @@ import (
 	"strings"
 
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	"github.com/lgc202/ingate/internal/modelprovider"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/pkg/llm"
 	"github.com/lgc202/ingate/pkg/llm/anthropic"
 	"github.com/lgc202/ingate/pkg/llm/gemini"
 	"github.com/lgc202/ingate/pkg/llm/openai"
-	"github.com/lgc202/ingate/pkg/llm/provider"
 	pluginaiproxy "github.com/lgc202/ingate/pkg/plugin/aiproxy"
 )
 
@@ -51,7 +52,7 @@ type aiRouteKey struct {
 
 type compiledAIRoute struct {
 	configID     string
-	targets      []pluginaiproxy.TargetConfig
+	upstreams    []pluginaiproxy.UpstreamConfig
 	models       []pluginaiproxy.ModelConfig
 	continuation []compiledAIContinuation
 }
@@ -62,8 +63,8 @@ type compiledAIContinuation struct {
 	authority string
 }
 
-type compiledAITarget struct {
-	config    pluginaiproxy.TargetConfig
+type compiledAIUpstream struct {
+	config    pluginaiproxy.UpstreamConfig
 	authority string
 }
 
@@ -97,7 +98,7 @@ func (c *compileContext) compileAIModels(routeID string, rule gatewayv1.RouteRul
 	slices.SortFunc(items, func(a, b gatewayv1.ModelRoute) int {
 		return strings.Compare(a.Model, b.Model)
 	})
-	targetsByID := make(map[string]compiledAITarget)
+	upstreamsByID := make(map[string]compiledAIUpstream)
 	models := make([]pluginaiproxy.ModelConfig, 0, len(items))
 	seen := make(map[string]bool, len(items))
 	for _, item := range items {
@@ -146,11 +147,11 @@ func (c *compileContext) compileAIModels(routeID string, rule gatewayv1.RouteRul
 			continue
 		}
 
-		target, exists := targetsByID[upstreamRef]
+		compiledUpstream, exists := upstreamsByID[upstreamRef]
 		if !exists {
-			var targetValid bool
-			target, targetValid = c.compileAITarget(upstream)
-			if !targetValid {
+			var upstreamValid bool
+			compiledUpstream, upstreamValid = c.compileAIUpstream(upstream)
+			if !upstreamValid {
 				c.addDiagnostic(
 					SeverityError,
 					gatewayv1.KindRoute,
@@ -161,11 +162,11 @@ func (c *compileContext) compileAIModels(routeID string, rule gatewayv1.RouteRul
 				valid = false
 				continue
 			}
-			targetsByID[upstreamRef] = target
+			upstreamsByID[upstreamRef] = compiledUpstream
 		}
 		models = append(models, pluginaiproxy.ModelConfig{
 			Model:         item.Model,
-			TargetID:      target.config.ID,
+			UpstreamID:    compiledUpstream.config.ID,
 			UpstreamModel: upstreamModel,
 		})
 	}
@@ -173,9 +174,9 @@ func (c *compileContext) compileAIModels(routeID string, rule gatewayv1.RouteRul
 		return compiledAIRoute{}, false
 	}
 
-	targets := make([]pluginaiproxy.TargetConfig, 0, len(targetsByID))
-	for _, targetID := range slices.Sorted(maps.Keys(targetsByID)) {
-		targets = append(targets, targetsByID[targetID].config)
+	upstreams := make([]pluginaiproxy.UpstreamConfig, 0, len(upstreamsByID))
+	for _, upstreamID := range slices.Sorted(maps.Keys(upstreamsByID)) {
+		upstreams = append(upstreams, upstreamsByID[upstreamID].config)
 	}
 	fields := []string{
 		"routeID", routeID,
@@ -183,69 +184,69 @@ func (c *compileContext) compileAIModels(routeID string, rule gatewayv1.RouteRul
 		"clusterHeader", aiClusterHeader,
 		"routeHeader", aiRouteHeader,
 	}
-	for _, targetID := range slices.Sorted(maps.Keys(targetsByID)) {
-		target := targetsByID[targetID]
+	for _, upstreamID := range slices.Sorted(maps.Keys(upstreamsByID)) {
+		upstream := upstreamsByID[upstreamID]
 		fields = append(fields,
-			"target", target.config.ID,
-			"provider", target.config.Provider,
-			"protocol", string(target.config.Protocol),
-			"cluster", target.config.Cluster,
-			"authority", target.authority,
-			"basePath", target.config.BasePath,
-			"apiKeyHeader", target.config.APIKeyHeader,
-			"apiKeyPrefix", target.config.APIKeyPrefix,
-			"apiKey", target.config.APIKey,
+			"upstream", upstream.config.ID,
+			"provider", upstream.config.Provider,
+			"protocol", string(upstream.config.Protocol),
+			"cluster", upstream.config.Cluster,
+			"authority", upstream.authority,
+			"basePath", upstream.config.BasePath,
+			"apiKeyHeader", upstream.config.APIKeyHeader,
+			"apiKeyPrefix", upstream.config.APIKeyPrefix,
+			"apiKey", upstream.config.APIKey,
 		)
-		for _, header := range target.config.Headers {
+		for _, header := range upstream.config.Headers {
 			fields = append(fields, "header", strings.ToLower(header.Name), header.Value)
 		}
 	}
 	for _, model := range models {
-		fields = append(fields, "model", model.Model, model.TargetID, model.UpstreamModel)
+		fields = append(fields, "model", model.Model, model.UpstreamID, model.UpstreamModel)
 	}
 	compiled := compiledAIRoute{
-		configID:     runtimeConfigID(fields...),
-		targets:      targets,
+		configID:     configFingerprint(fields...),
+		upstreams:    upstreams,
 		models:       models,
-		continuation: compileAIContinuations(targetsByID, models),
+		continuation: compileAIContinuations(upstreamsByID, models),
 	}
 	c.aiRoutes[aiRouteKey{routeID: routeID, ruleName: rule.Name}] = compiled
 	return compiled, true
 }
 
-func (c *compileContext) compileAITarget(upstream *gatewayv1.Upstream) (compiledAITarget, bool) {
+func (c *compileContext) compileAIUpstream(upstream *gatewayv1.Upstream) (compiledAIUpstream, bool) {
 	clusterName, clusterExists := c.upstreamClusters[upstream.Name]
 	if !clusterExists {
-		return compiledAITarget{}, false
+		return compiledAIUpstream{}, false
 	}
-	definition, exists := provider.Lookup(provider.ID(upstream.Spec.Model.Provider))
+	definition, exists := modelprovider.Lookup(modelprovider.ID(upstream.Spec.Model.Provider))
 	if !exists {
-		return compiledAITarget{}, false
+		return compiledAIUpstream{}, false
 	}
 	apiKey, credentialValid := c.upstreamAPIKey(upstream)
 	if !credentialValid {
-		return compiledAITarget{}, false
+		return compiledAIUpstream{}, false
 	}
 
 	headers := make([]pluginaiproxy.HeaderConfig, 0, len(definition.StaticHeaders))
 	for _, name := range slices.Sorted(maps.Keys(definition.StaticHeaders)) {
 		headers = append(headers, pluginaiproxy.HeaderConfig{Name: name, Value: definition.StaticHeaders[name]})
 	}
-	target := pluginaiproxy.TargetConfig{
+	upstreamConfig := pluginaiproxy.UpstreamConfig{
 		ID:       upstream.Name,
 		Provider: string(upstream.Spec.Model.Provider),
-		Protocol: pluginaiproxy.Protocol(upstream.Spec.Protocol),
+		Protocol: definition.Protocol,
 		Cluster:  clusterName,
 		BasePath: upstream.Spec.Model.APIBasePath,
 		APIKey:   apiKey,
 		Headers:  headers,
 	}
 	if apiKey != "" {
-		target.APIKeyHeader = definition.Authentication.Header
-		target.APIKeyPrefix = definition.Authentication.Prefix
+		upstreamConfig.APIKeyHeader = definition.Authentication.Header
+		upstreamConfig.APIKeyPrefix = definition.Authentication.Prefix
 	}
-	return compiledAITarget{
-		config:    target,
+	return compiledAIUpstream{
+		config:    upstreamConfig,
 		authority: modelUpstreamAuthority(upstream),
 	}, true
 }
@@ -254,7 +255,7 @@ func (c *compileContext) upstreamAPIKey(upstream *gatewayv1.Upstream) (string, b
 	if upstream.Spec.Authentication == nil {
 		return "", true
 	}
-	if upstream.Spec.Authentication.APIKey == nil || !provider.ValidAPIKey(upstream.Spec.Authentication.APIKey.Value) {
+	if upstream.Spec.Authentication.APIKey == nil || !modelprovider.ValidAPIKey(upstream.Spec.Authentication.APIKey.Value) {
 		return "", false
 	}
 	return upstream.Spec.Authentication.APIKey.Value, true
@@ -275,7 +276,7 @@ func (c *compileContext) addAIProxyConfigs(configs map[listenerKey]listenerPlugi
 			RouteName:   attachment.routeID,
 			RuleName:    attachment.ruleName,
 			ConfigID:    aiRoute.configID,
-			Targets:     slices.Clone(aiRoute.targets),
+			Upstreams:   slices.Clone(aiRoute.upstreams),
 			Models:      slices.Clone(aiRoute.models),
 		})
 		configs[attachment.listenerKey] = config
@@ -306,19 +307,19 @@ func enabledUpstreamModel(models []gatewayv1.ModelCatalogItem, name string) bool
 }
 
 func compileAIContinuations(
-	targets map[string]compiledAITarget,
+	upstreams map[string]compiledAIUpstream,
 	models []pluginaiproxy.ModelConfig,
 ) []compiledAIContinuation {
 	continuations := make(map[string]compiledAIContinuation)
 	for _, model := range models {
-		target := targets[model.TargetID]
-		for _, requestPath := range modelRequestPaths(target.config, model.UpstreamModel) {
+		upstream := upstreams[model.UpstreamID]
+		for _, requestPath := range modelRequestPaths(upstream.config, model.UpstreamModel) {
 			continuation := compiledAIContinuation{
 				path:      requestPath,
-				cluster:   target.config.Cluster,
-				authority: target.authority,
+				cluster:   upstream.config.Cluster,
+				authority: upstream.authority,
 			}
-			continuations[requestPath+"\x00"+target.config.Cluster] = continuation
+			continuations[requestPath+"\x00"+upstream.config.Cluster] = continuation
 		}
 	}
 
@@ -332,13 +333,13 @@ func compileAIContinuations(
 	return result
 }
 
-func modelRequestPaths(target pluginaiproxy.TargetConfig, upstreamModel string) []string {
-	switch target.Protocol {
-	case pluginaiproxy.ProtocolOpenAI:
-		return []string{joinModelAPIPath(target.BasePath, openai.ChatCompletionsPath)}
-	case pluginaiproxy.ProtocolAnthropic:
-		return []string{joinModelAPIPath(target.BasePath, anthropic.MessagesPath)}
-	case pluginaiproxy.ProtocolGemini:
+func modelRequestPaths(upstream pluginaiproxy.UpstreamConfig, upstreamModel string) []string {
+	switch upstream.Protocol {
+	case llm.ProtocolOpenAIChatCompletions:
+		return []string{joinModelAPIPath(upstream.BasePath, openai.ChatCompletionsPath)}
+	case llm.ProtocolAnthropicMessages:
+		return []string{joinModelAPIPath(upstream.BasePath, anthropic.MessagesPath)}
+	case llm.ProtocolGeminiGenerateContent:
 		requestPath, err := gemini.EndpointPath(upstreamModel, false)
 		if err != nil {
 			return nil
@@ -349,8 +350,8 @@ func modelRequestPaths(target pluginaiproxy.TargetConfig, upstreamModel string) 
 		}
 		streamPath, _, _ = strings.Cut(streamPath, "?")
 		return []string{
-			joinModelAPIPath(target.BasePath, requestPath),
-			joinModelAPIPath(target.BasePath, streamPath),
+			joinModelAPIPath(upstream.BasePath, requestPath),
+			joinModelAPIPath(upstream.BasePath, streamPath),
 		}
 	default:
 		return nil

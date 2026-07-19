@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/lgc202/ingate/pkg/llm"
+	"github.com/lgc202/ingate/pkg/llm/openai"
 	"github.com/lgc202/ingate/pkg/llm/sse"
 )
 
@@ -104,16 +105,16 @@ func (s *Stream) transform(events []sse.Event) ([]byte, error) {
 			}
 		}
 
-		choices := make([]llm.ChunkChoice, 0, len(original.Candidates))
+		choices := make([]openai.ChunkChoice, 0, len(original.Candidates))
 		for _, item := range original.Candidates {
 			s.seenCandidates[item.Index] = true
 			text, err := textContent(item.Content)
 			if err != nil {
 				return nil, err
 			}
-			delta := llm.MessageDelta{}
+			delta := openai.MessageDelta{}
 			if !s.roleSent[item.Index] {
-				delta.Role = llm.RoleAssistant
+				delta.Role = openai.RoleAssistant
 				s.roleSent[item.Index] = true
 			}
 			if text != "" {
@@ -123,22 +124,22 @@ func (s *Stream) transform(events []sse.Event) ([]byte, error) {
 			if finishReason != nil {
 				s.finished[item.Index] = true
 			}
-			choices = append(choices, llm.ChunkChoice{
+			choices = append(choices, openai.ChunkChoice{
 				Index:        item.Index,
 				Delta:        delta,
 				FinishReason: finishReason,
 			})
 		}
 
-		chunk := llm.ChatCompletionChunk{
+		chunk := openai.ChatCompletionChunk{
 			ID:      s.id,
-			Object:  llm.ObjectChatCompletionChunk,
+			Object:  openai.ObjectChatCompletionChunk,
 			Created: s.created,
 			Model:   s.publicModel,
 			Choices: choices,
 		}
 		if original.UsageMetadata != (usageMetadata{}) {
-			chunk.Usage = &llm.Usage{
+			chunk.Usage = &openai.Usage{
 				PromptTokens:     s.promptTokens,
 				CompletionTokens: s.completionTokens,
 				TotalTokens:      s.totalTokens,

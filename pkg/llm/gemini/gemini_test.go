@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/lgc202/ingate/pkg/llm"
+	"github.com/lgc202/ingate/pkg/llm/openai"
 	"github.com/lgc202/ingate/pkg/llm/sse"
 )
 
@@ -60,11 +61,15 @@ func TestTransformRequest(t *testing.T) {
 		"max_tokens":256,
 		"stop":"END"
 	}`)
-	got, err := TransformRequest(body)
+	original, err := openai.DecodeRequest(body)
+	if err != nil {
+		t.Fatalf("openai.DecodeRequest(%s) returned error: %v", body, err)
+	}
+	got, err := TransformRequest(original)
 	if err != nil {
 		t.Fatalf("TransformRequest(%s) returned error: %v", body, err)
 	}
-	var transformed request
+	var transformed requestBody
 	if err := json.Unmarshal(got, &transformed); err != nil {
 		t.Fatalf("json.Unmarshal(TransformRequest result) returned error: %v", err)
 	}
@@ -91,9 +96,9 @@ func TestTransformRequest(t *testing.T) {
 
 func TestTransformRequest_RejectsLateSystemMessage(t *testing.T) {
 	body := []byte(`{"model":"m","messages":[{"role":"user","content":"x"},{"role":"system","content":"late"}]}`)
-	_, err := TransformRequest(body)
+	_, err := openai.DecodeRequest(body)
 	if !errors.Is(err, llm.ErrUnsupportedFeature) {
-		t.Errorf("TransformRequest(%s) error = %v, want errors.Is(_, ErrUnsupportedFeature)", body, err)
+		t.Errorf("openai.DecodeRequest(%s) error = %v, want errors.Is(_, ErrUnsupportedFeature)", body, err)
 	}
 }
 
@@ -110,7 +115,7 @@ func TestTransformResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TransformResponse(%s, gemini-public) returned error: %v", body, err)
 	}
-	var completion llm.ChatCompletion
+	var completion openai.ChatCompletion
 	if err := json.Unmarshal(got, &completion); err != nil {
 		t.Fatalf("json.Unmarshal(TransformResponse result) returned error: %v", err)
 	}
@@ -120,7 +125,7 @@ func TestTransformResponse(t *testing.T) {
 	if len(completion.Choices) != 1 || completion.Choices[0].Message.Content != "hello world" {
 		t.Errorf("TransformResponse choices = %#v, want concatenated text", completion.Choices)
 	}
-	if completion.Choices[0].FinishReason == nil || *completion.Choices[0].FinishReason != llm.FinishReasonLength {
+	if completion.Choices[0].FinishReason == nil || *completion.Choices[0].FinishReason != openai.FinishReasonLength {
 		t.Errorf("TransformResponse finish_reason = %v, want length", completion.Choices[0].FinishReason)
 	}
 	if completion.Usage == nil || completion.Usage.TotalTokens != 10 {
@@ -134,22 +139,22 @@ func TestTransformResponse_MapsSafetyFinishReason(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TransformResponse(%s, gemini-public) returned error: %v", body, err)
 	}
-	var completion llm.ChatCompletion
+	var completion openai.ChatCompletion
 	if err := json.Unmarshal(got, &completion); err != nil {
 		t.Fatalf("json.Unmarshal(TransformResponse result) returned error: %v", err)
 	}
-	if completion.Choices[0].FinishReason == nil || *completion.Choices[0].FinishReason != llm.FinishReasonContentFilter {
+	if completion.Choices[0].FinishReason == nil || *completion.Choices[0].FinishReason != openai.FinishReasonContentFilter {
 		t.Errorf("TransformResponse finish_reason = %v, want content_filter", completion.Choices[0].FinishReason)
 	}
 }
 
 func TestTransformError(t *testing.T) {
 	body := TransformError([]byte(`{"error":{"code":400,"message":"bad request","status":"INVALID_ARGUMENT"}}`), 400)
-	var envelope llm.ErrorEnvelope
+	var envelope openai.ErrorEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatalf("json.Unmarshal(TransformError result) returned error: %v", err)
 	}
-	want := llm.APIError{Message: "bad request", Type: "invalid_request_error", Code: "INVALID_ARGUMENT"}
+	want := openai.ErrorDetail{Message: "bad request", Type: "invalid_request_error", Code: "INVALID_ARGUMENT"}
 	if envelope.Error != want {
 		t.Errorf("TransformError(...) = %#v, want %#v", envelope.Error, want)
 	}
@@ -182,18 +187,18 @@ func TestStream_ConvertsChunksAndUsage(t *testing.T) {
 	if len(events) != 3 {
 		t.Fatalf("converted SSE event count = %d, want 3; output=%s", len(events), output)
 	}
-	var first llm.ChatCompletionChunk
+	var first openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[0].Data, &first); err != nil {
 		t.Fatalf("json.Unmarshal(first chunk) returned error: %v", err)
 	}
-	if first.ID != "resp_1" || first.Model != "gemini-public" || first.Choices[0].Delta.Role != llm.RoleAssistant || *first.Choices[0].Delta.Content != "hel" {
+	if first.ID != "resp_1" || first.Model != "gemini-public" || first.Choices[0].Delta.Role != openai.RoleAssistant || *first.Choices[0].Delta.Content != "hel" {
 		t.Errorf("first chunk = %#v, want role assistant and text hel", first)
 	}
-	var second llm.ChatCompletionChunk
+	var second openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[1].Data, &second); err != nil {
 		t.Fatalf("json.Unmarshal(second chunk) returned error: %v", err)
 	}
-	if second.Choices[0].Delta.Role != "" || second.Choices[0].FinishReason == nil || *second.Choices[0].FinishReason != llm.FinishReasonStop {
+	if second.Choices[0].Delta.Role != "" || second.Choices[0].FinishReason == nil || *second.Choices[0].FinishReason != openai.FinishReasonStop {
 		t.Errorf("second chunk choice = %#v, want no role and finish stop", second.Choices[0])
 	}
 	if second.Usage == nil || second.Usage.TotalTokens != 7 {

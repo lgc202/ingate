@@ -10,6 +10,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
+	"github.com/lgc202/ingate/internal/modelprovider"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -256,8 +257,8 @@ func validModelUpstream(upstream *resource.Upstream) bool {
 	if upstream.Spec.Type != resource.UpstreamTypeModel || upstream.Spec.Model == nil {
 		return false
 	}
-	expectedProtocol, ok := upstream.Spec.Model.Provider.Protocol()
-	return ok && upstream.Spec.Protocol == expectedProtocol
+	definition, ok := modelprovider.Lookup(modelprovider.ID(upstream.Spec.Model.Provider))
+	return ok && upstream.Spec.Protocol == resource.UpstreamProtocol(definition.Protocol)
 }
 
 func enabledModel(modelSpec *resource.ModelSpec, name string) bool {

@@ -1,2 +1,2 @@
-// Package llm 定义可独立迁移的文本 Chat Completions 协议模型与校验逻辑
+// Package llm 定义模型协议适配共享的协议标识和错误语义
 package llm

@@ -3,8 +3,7 @@ package wasm
 
 import (
 	config "github.com/lgc202/ingate/pkg/plugin/aiproxy"
-	"github.com/lgc202/ingate/plugins/aiproxy/internal/policy"
-	aiproxyruntime "github.com/lgc202/ingate/plugins/aiproxy/internal/runtime"
+	modelproxy "github.com/lgc202/ingate/plugins/aiproxy/internal/proxy"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 )
@@ -12,17 +11,16 @@ import (
 type pluginContext struct {
 	types.DefaultPluginContext
 
-	runner  *policy.Runner
-	runtime *aiproxyruntime.Runtime
+	proxy *modelproxy.Proxy
 }
 
 type httpContext struct {
 	types.DefaultHttpContext
 
 	plugin            *pluginContext
-	route             aiproxyruntime.Route
-	responsePlan      *aiproxyruntime.ResponsePlan
-	responseStream    *aiproxyruntime.ResponseStream
+	route             modelproxy.Route
+	responseTransform *modelproxy.ResponseTransform
+	responseStream    *modelproxy.ResponseStream
 	responseStatus    int
 	requestActive     bool
 	responseBuffered  bool
@@ -32,9 +30,9 @@ type httpContext struct {
 }
 
 // Register 注册 Proxy-Wasm 插件上下文
-func Register(runner *policy.Runner) {
+func Register() {
 	proxywasm.SetPluginContext(func(contextID uint32) types.PluginContext {
-		return &pluginContext{runner: runner}
+		return &pluginContext{}
 	})
 }
 
@@ -51,7 +49,7 @@ func (p *pluginContext) OnPluginStart(pluginConfigurationSize int) types.OnPlugi
 		proxywasm.LogErrorf("parse AI proxy config failed: %v", err)
 		return types.OnPluginStartStatusFailed
 	}
-	p.runtime = aiproxyruntime.Compile(pluginConfig, p.runner)
+	p.proxy = modelproxy.New(pluginConfig)
 	return types.OnPluginStartStatusOK
 }
 

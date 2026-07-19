@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/lgc202/ingate/pkg/llm"
+	"github.com/lgc202/ingate/pkg/llm/openai"
 	"github.com/lgc202/ingate/pkg/llm/sse"
 )
 
@@ -24,7 +25,11 @@ func TestTransformRequest(t *testing.T) {
 		"top_p":0.9,
 		"stop":["END"]
 	}`)
-	got, err := TransformRequest(body, "claude-sonnet-4")
+	original, err := openai.DecodeRequest(body)
+	if err != nil {
+		t.Fatalf("openai.DecodeRequest(%s) returned error: %v", body, err)
+	}
+	got, err := TransformRequest(original, "claude-sonnet-4")
 	if err != nil {
 		t.Fatalf("TransformRequest(%s, claude-sonnet-4) returned error: %v", body, err)
 	}
@@ -50,24 +55,24 @@ func TestTransformRequest(t *testing.T) {
 	if err := json.Unmarshal(request["messages"], &messages); err != nil {
 		t.Fatalf("json.Unmarshal(messages) returned error: %v", err)
 	}
-	if len(messages) != 2 || messages[0].Role != llm.RoleUser || messages[1].Role != llm.RoleAssistant {
+	if len(messages) != 2 || messages[0].Role != openai.RoleUser || messages[1].Role != openai.RoleAssistant {
 		t.Errorf("TransformRequest messages = %#v, want user and assistant messages", messages)
 	}
 }
 
 func TestTransformRequest_RejectsUnknownPortableField(t *testing.T) {
 	body := []byte(`{"model":"m","messages":[{"role":"user","content":"x"}],"frequency_penalty":1}`)
-	_, err := TransformRequest(body, "claude")
+	_, err := openai.DecodeRequest(body)
 	if !errors.Is(err, llm.ErrUnsupportedFeature) {
-		t.Errorf("TransformRequest(%s, claude) error = %v, want errors.Is(_, ErrUnsupportedFeature)", body, err)
+		t.Errorf("openai.DecodeRequest(%s) error = %v, want errors.Is(_, ErrUnsupportedFeature)", body, err)
 	}
 }
 
 func TestTransformRequest_RejectsLateSystemMessage(t *testing.T) {
 	body := []byte(`{"model":"m","messages":[{"role":"user","content":"x"},{"role":"system","content":"late"}]}`)
-	_, err := TransformRequest(body, "claude")
+	_, err := openai.DecodeRequest(body)
 	if !errors.Is(err, llm.ErrUnsupportedFeature) {
-		t.Errorf("TransformRequest(%s, claude) error = %v, want errors.Is(_, ErrUnsupportedFeature)", body, err)
+		t.Errorf("openai.DecodeRequest(%s) error = %v, want errors.Is(_, ErrUnsupportedFeature)", body, err)
 	}
 }
 
@@ -81,17 +86,17 @@ func TestTransformResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TransformResponse(%s, claude-public) returned error: %v", body, err)
 	}
-	var completion llm.ChatCompletion
+	var completion openai.ChatCompletion
 	if err := json.Unmarshal(got, &completion); err != nil {
 		t.Fatalf("json.Unmarshal(TransformResponse result) returned error: %v", err)
 	}
-	if completion.ID != "msg_123" || completion.Model != "claude-public" || completion.Object != llm.ObjectChatCompletion {
+	if completion.ID != "msg_123" || completion.Model != "claude-public" || completion.Object != openai.ObjectChatCompletion {
 		t.Errorf("TransformResponse metadata = %#v, want msg_123/claude-public/chat.completion", completion)
 	}
 	if len(completion.Choices) != 1 || completion.Choices[0].Message.Content != "hello world" {
 		t.Errorf("TransformResponse choices = %#v, want concatenated text", completion.Choices)
 	}
-	if completion.Choices[0].FinishReason == nil || *completion.Choices[0].FinishReason != llm.FinishReasonLength {
+	if completion.Choices[0].FinishReason == nil || *completion.Choices[0].FinishReason != openai.FinishReasonLength {
 		t.Errorf("TransformResponse finish_reason = %v, want length", completion.Choices[0].FinishReason)
 	}
 	if completion.Usage == nil || completion.Usage.TotalTokens != 15 {
@@ -101,11 +106,11 @@ func TestTransformResponse(t *testing.T) {
 
 func TestTransformError(t *testing.T) {
 	body := TransformError([]byte(`{"type":"error","error":{"type":"invalid_request_error","message":"bad request"}}`), 400)
-	var envelope llm.ErrorEnvelope
+	var envelope openai.ErrorEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatalf("json.Unmarshal(TransformError result) returned error: %v", err)
 	}
-	want := llm.APIError{Message: "bad request", Type: "invalid_request_error"}
+	want := openai.ErrorDetail{Message: "bad request", Type: "invalid_request_error"}
 	if envelope.Error != want {
 		t.Errorf("TransformError(...) = %#v, want %#v", envelope.Error, want)
 	}
@@ -143,28 +148,28 @@ func TestStream_ConvertsStateAndUsageAcrossChunks(t *testing.T) {
 	if len(events) != 5 {
 		t.Fatalf("converted SSE event count = %d, want 5; output=%s", len(events), output)
 	}
-	var startChunk llm.ChatCompletionChunk
+	var startChunk openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[0].Data, &startChunk); err != nil {
 		t.Fatalf("json.Unmarshal(message_start chunk) returned error: %v", err)
 	}
-	if startChunk.ID != "msg_1" || startChunk.Model != "claude-public" || startChunk.Choices[0].Delta.Role != llm.RoleAssistant {
+	if startChunk.ID != "msg_1" || startChunk.Model != "claude-public" || startChunk.Choices[0].Delta.Role != openai.RoleAssistant {
 		t.Errorf("message_start chunk = %#v, want assistant role and public metadata", startChunk)
 	}
-	var textChunk llm.ChatCompletionChunk
+	var textChunk openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[1].Data, &textChunk); err != nil {
 		t.Fatalf("json.Unmarshal(text chunk) returned error: %v", err)
 	}
 	if textChunk.Choices[0].Delta.Content == nil || *textChunk.Choices[0].Delta.Content != "hello" {
 		t.Errorf("text chunk delta = %#v, want hello", textChunk.Choices[0].Delta)
 	}
-	var finishChunk llm.ChatCompletionChunk
+	var finishChunk openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[2].Data, &finishChunk); err != nil {
 		t.Fatalf("json.Unmarshal(finish chunk) returned error: %v", err)
 	}
-	if finishChunk.Choices[0].FinishReason == nil || *finishChunk.Choices[0].FinishReason != llm.FinishReasonStop {
+	if finishChunk.Choices[0].FinishReason == nil || *finishChunk.Choices[0].FinishReason != openai.FinishReasonStop {
 		t.Errorf("finish chunk reason = %v, want stop", finishChunk.Choices[0].FinishReason)
 	}
-	var usageChunk llm.ChatCompletionChunk
+	var usageChunk openai.ChatCompletionChunk
 	if err := json.Unmarshal(events[3].Data, &usageChunk); err != nil {
 		t.Fatalf("json.Unmarshal(usage chunk) returned error: %v", err)
 	}

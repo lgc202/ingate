@@ -27,7 +27,7 @@ const (
 	minPerTryTimeoutMillis = 100
 	maxPerTryTimeoutMillis = 60000
 	defaultRetryOn         = "connect-failure,refused-stream,reset,5xx"
-	runtimeRouteNamePrefix = "ingate-route"
+	envoyRouteNamePrefix   = "ingate-route"
 	virtualHostNamePrefix  = "ingate-vhost"
 )
 
@@ -401,9 +401,9 @@ func (c *compileContext) buildRouteEntries(
 	}
 	entries := make([]routeEntry, 0, entryCapacity)
 	for _, method := range methodValues {
-		routeName := runtimeRouteName(gatewayID, routeID, rule.Name, method)
+		routeName := envoyRouteName(gatewayID, routeID, rule.Name, method)
 		if rule.ModelRouting != nil {
-			routeName = runtimeAIRouteName(gatewayID, routeID, rule.Name, method, aiRoute.configID)
+			routeName = envoyAIRouteName(gatewayID, routeID, rule.Name, method, aiRoute.configID)
 		}
 		routeHeaders := slices.Clone(headers)
 		if method != "" {
@@ -998,10 +998,10 @@ func sortedListenerKeySet(values map[listenerKey]map[string]bool) []listenerKey 
 	return keys
 }
 
-func runtimeRouteName(gatewayID, routeID, ruleName, method string) string {
+func envoyRouteName(gatewayID, routeID, ruleName, method string) string {
 	return fmt.Sprintf(
 		"%s/%s/%s/%s/%s",
-		runtimeRouteNamePrefix,
+		envoyRouteNamePrefix,
 		url.PathEscape(gatewayID),
 		url.PathEscape(routeID),
 		url.PathEscape(ruleName),
@@ -1009,8 +1009,8 @@ func runtimeRouteName(gatewayID, routeID, ruleName, method string) string {
 	)
 }
 
-func runtimeAIRouteName(gatewayID, routeID, ruleName, method, configID string) string {
-	return runtimeRouteName(gatewayID, routeID, ruleName, method) + "/ai/" + url.PathEscape(configID)
+func envoyAIRouteName(gatewayID, routeID, ruleName, method, configID string) string {
+	return envoyRouteName(gatewayID, routeID, ruleName, method) + "/ai/" + url.PathEscape(configID)
 }
 
 func virtualHostName(key listenerKey, domain string) string {

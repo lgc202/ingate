@@ -7,16 +7,17 @@ import (
 	"time"
 
 	"github.com/lgc202/ingate/pkg/llm"
+	"github.com/lgc202/ingate/pkg/llm/openai"
 )
 
 const (
 	// MessagesPath 是相对于 Anthropic API Base Path 的请求路径
 	MessagesPath = "/messages"
-	// DefaultMaxTokens 是调用方省略 max_tokens 时使用的 Anthropic 必填值
-	DefaultMaxTokens = 4096
+	// defaultMaxTokens 是调用方省略 max_tokens 时使用的 Anthropic 必填值
+	defaultMaxTokens = 4096
 )
 
-type request struct {
+type requestBody struct {
 	Model         string    `json:"model"`
 	Messages      []message `json:"messages"`
 	System        string    `json:"system,omitempty"`
@@ -28,8 +29,8 @@ type request struct {
 }
 
 type message struct {
-	Role    llm.Role `json:"role"`
-	Content string   `json:"content"`
+	Role    openai.Role `json:"role"`
+	Content string      `json:"content"`
 }
 
 type response struct {
@@ -57,35 +58,28 @@ type upstreamError struct {
 	Message string `json:"message"`
 }
 
-// TransformRequest 把受支持的 OpenAI-compatible 文本请求转换为 Anthropic Messages 请求
-func TransformRequest(body []byte, upstreamModel string) ([]byte, error) {
+// TransformRequest 把 openai.DecodeRequest 返回的文本请求转换为 Anthropic Messages 请求
+func TransformRequest(request openai.Request, upstreamModel string) ([]byte, error) {
 	if strings.TrimSpace(upstreamModel) == "" {
 		return nil, fmt.Errorf("%w: upstream model must not be empty", llm.ErrInvalidRequest)
 	}
-	original, err := llm.DecodeChatRequest(body)
-	if err != nil {
-		return nil, err
-	}
-	if err := original.ValidateSupported(); err != nil {
-		return nil, err
-	}
 
-	transformed := request{
+	transformed := requestBody{
 		Model:         upstreamModel,
-		Messages:      make([]message, 0, len(original.Messages)),
-		MaxTokens:     DefaultMaxTokens,
-		StopSequences: original.Stop,
-		Stream:        original.Streaming(),
-		Temperature:   original.Temperature,
-		TopP:          original.TopP,
+		Messages:      make([]message, 0, len(request.Messages)),
+		MaxTokens:     defaultMaxTokens,
+		StopSequences: request.Stop,
+		Stream:        request.Streaming(),
+		Temperature:   request.Temperature,
+		TopP:          request.TopP,
 	}
-	if original.MaxTokens != nil {
-		transformed.MaxTokens = *original.MaxTokens
+	if request.MaxTokens != nil {
+		transformed.MaxTokens = *request.MaxTokens
 	}
 
 	var system []string
-	for _, item := range original.Messages {
-		if item.Role == llm.RoleSystem {
+	for _, item := range request.Messages {
+		if item.Role == openai.RoleSystem {
 			system = append(system, item.Content)
 			continue
 		}
@@ -129,20 +123,20 @@ func TransformResponse(body []byte, publicModel string) ([]byte, error) {
 	}
 
 	finishReason := mapFinishReason(original.StopReason)
-	transformed := llm.ChatCompletion{
+	transformed := openai.ChatCompletion{
 		ID:      original.ID,
-		Object:  llm.ObjectChatCompletion,
+		Object:  openai.ObjectChatCompletion,
 		Created: time.Now().Unix(),
 		Model:   publicModel,
-		Choices: []llm.CompletionChoice{{
+		Choices: []openai.CompletionChoice{{
 			Index: 0,
-			Message: llm.ResponseMessage{
-				Role:    llm.RoleAssistant,
+			Message: openai.ResponseMessage{
+				Role:    openai.RoleAssistant,
 				Content: content.String(),
 			},
 			FinishReason: finishReason,
 		}},
-		Usage: &llm.Usage{
+		Usage: &openai.Usage{
 			PromptTokens:     original.Usage.InputTokens,
 			CompletionTokens: original.Usage.OutputTokens,
 			TotalTokens:      original.Usage.InputTokens + original.Usage.OutputTokens,
@@ -161,28 +155,28 @@ func TransformError(body []byte, statusCode int) []byte {
 		Error upstreamError `json:"error"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil || envelope.Error.Message == "" {
-		return llm.EncodeError(llm.DefaultAPIError(statusCode, "upstream returned an invalid Anthropic error response"))
+		return openai.EncodeError(openai.DefaultError(statusCode, "upstream returned an invalid Anthropic error response"))
 	}
-	detail := llm.APIError{
+	detail := openai.ErrorDetail{
 		Message: envelope.Error.Message,
 		Type:    envelope.Error.Type,
 	}
 	if detail.Type == "" {
-		detail.Type = llm.DefaultAPIError(statusCode, "").Type
+		detail.Type = openai.DefaultError(statusCode, "").Type
 	}
-	return llm.EncodeError(detail)
+	return openai.EncodeError(detail)
 }
 
-func mapFinishReason(reason *string) *llm.FinishReason {
+func mapFinishReason(reason *string) *openai.FinishReason {
 	if reason == nil || *reason == "" {
 		return nil
 	}
-	mapped := llm.FinishReason(*reason)
+	mapped := openai.FinishReason(*reason)
 	switch *reason {
 	case "end_turn", "stop_sequence":
-		mapped = llm.FinishReasonStop
+		mapped = openai.FinishReasonStop
 	case "max_tokens":
-		mapped = llm.FinishReasonLength
+		mapped = openai.FinishReasonLength
 	}
 	return &mapped
 }

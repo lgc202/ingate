@@ -1,6 +1,10 @@
-package provider
+package modelprovider
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/lgc202/ingate/pkg/llm"
+)
 
 func TestCatalog(t *testing.T) {
 	definitions := Catalog()
@@ -11,7 +15,7 @@ func TestCatalog(t *testing.T) {
 	if !ok {
 		t.Fatal("Lookup(IDAnthropic) did not find definition")
 	}
-	if anthropic.Protocol != ProtocolAnthropic || anthropic.Authentication.Header != "x-api-key" || anthropic.StaticHeaders["anthropic-version"] != "2023-06-01" {
+	if anthropic.Protocol != llm.ProtocolAnthropicMessages || anthropic.Authentication.Header != "x-api-key" || anthropic.StaticHeaders["anthropic-version"] != "2023-06-01" {
 		t.Errorf("Lookup(IDAnthropic) = %#v, want Anthropic auth and version metadata", anthropic)
 	}
 

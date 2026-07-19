@@ -3,6 +3,7 @@ package openai
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -17,8 +18,39 @@ func TestTransformRequest_RejectsUnknownFields(t *testing.T) {
 		"frequency_penalty":0.4,
 		"vendor_option":{"enabled":true}
 	}`)
-	if _, err := TransformRequest(body, "upstream-model"); !errors.Is(err, llm.ErrUnsupportedFeature) {
-		t.Errorf("TransformRequest(%s, upstream-model) error = %v, want errors.Is(_, ErrUnsupportedFeature)", body, err)
+	if _, err := DecodeRequest(body); !errors.Is(err, llm.ErrUnsupportedFeature) {
+		t.Errorf("DecodeRequest(%s) error = %v, want errors.Is(_, ErrUnsupportedFeature)", body, err)
+	}
+}
+
+func TestTransformRequest_ReusesDecodedRequestAndPreservesFields(t *testing.T) {
+	body := []byte(`{
+		"model":"public-model",
+		"messages":[{"role":"user","content":"hello"}],
+		"temperature":0,
+		"stop":"END"
+	}`)
+	request, err := DecodeRequest(body)
+	if err != nil {
+		t.Fatalf("DecodeRequest(%s) returned error: %v", body, err)
+	}
+	got, err := TransformRequest(request, "upstream-model")
+	if err != nil {
+		t.Fatalf("TransformRequest(request, upstream-model) returned error: %v", err)
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(got, &fields); err != nil {
+		t.Fatalf("json.Unmarshal(TransformRequest result) returned error: %v", err)
+	}
+	if string(fields["model"]) != `"upstream-model"` {
+		t.Errorf("TransformRequest model = %s, want upstream-model", fields["model"])
+	}
+	if string(fields["temperature"]) != "0" {
+		t.Errorf("TransformRequest temperature = %s, want 0", fields["temperature"])
+	}
+	if string(fields["stop"]) != `"END"` {
+		t.Errorf("TransformRequest stop = %s, want original string form", fields["stop"])
 	}
 }
 
@@ -65,7 +97,7 @@ func TestStream_NormalizesErrorAndCompletes(t *testing.T) {
 	if len(events) != 2 || string(events[1].Data) != "[DONE]" {
 		t.Fatalf("converted error SSE = %s, want error event followed by [DONE]", output)
 	}
-	var envelope llm.ErrorEnvelope
+	var envelope ErrorEnvelope
 	if err := json.Unmarshal(events[0].Data, &envelope); err != nil {
 		t.Fatalf("json.Unmarshal(error event) returned error: %v", err)
 	}
@@ -94,12 +126,13 @@ func TestTransformResponse_ChangesPublicModelAndPreservesFields(t *testing.T) {
 
 func TestTransformError(t *testing.T) {
 	body := TransformError([]byte(`{"error":{"message":"bad model","type":"invalid_request_error","param":"model","code":400}}`), 400)
-	var envelope llm.ErrorEnvelope
+	var envelope ErrorEnvelope
 	if err := json.Unmarshal(body, &envelope); err != nil {
 		t.Fatalf("json.Unmarshal(TransformError result) returned error: %v", err)
 	}
-	want := llm.APIError{Message: "bad model", Type: "invalid_request_error", Param: "model", Code: "400"}
-	if envelope.Error != want {
+	param := "model"
+	want := ErrorDetail{Message: "bad model", Type: "invalid_request_error", Param: &param, Code: "400"}
+	if !reflect.DeepEqual(envelope.Error, want) {
 		t.Errorf("TransformError(...) = %#v, want %#v", envelope.Error, want)
 	}
 }
