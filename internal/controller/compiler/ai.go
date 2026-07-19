@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
-	"github.com/lgc202/ingate/internal/modelprovider"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/pkg/llm"
 	"github.com/lgc202/ingate/pkg/llm/anthropic"
@@ -28,6 +28,12 @@ const (
 	aiRouteHeader             = "x-ingate-ai-route-v1"
 	defaultPlainHTTPPort      = 80
 	defaultSecureHTTPPort     = 443
+	openAIAPIKeyHeader        = "Authorization"
+	openAIAPIKeyPrefix        = "Bearer "
+	anthropicAPIKeyHeader     = "x-api-key"
+	anthropicVersionHeader    = "anthropic-version"
+	anthropicVersion          = "2023-06-01"
+	geminiAPIKeyHeader        = "x-goog-api-key"
 )
 
 var aiManagedRequestHeaders = []string{
@@ -188,7 +194,6 @@ func (c *compilation) compileAIModels(routeID string, rule gatewayv1.RouteRule, 
 		upstream := upstreamsByID[upstreamID]
 		fields = append(fields,
 			"upstream", upstream.config.ID,
-			"provider", upstream.config.Provider,
 			"protocol", string(upstream.config.Protocol),
 			"cluster", upstream.config.Cluster,
 			"authority", upstream.authority,
@@ -219,31 +224,38 @@ func (c *compilation) compileAIUpstream(upstream *gatewayv1.Upstream) (compiledA
 	if !clusterExists {
 		return compiledAIUpstream{}, false
 	}
-	definition, exists := modelprovider.Lookup(modelprovider.ID(upstream.Spec.Model.Provider))
-	if !exists {
-		return compiledAIUpstream{}, false
-	}
 	apiKey, credentialValid := c.upstreamAPIKey(upstream)
 	if !credentialValid {
 		return compiledAIUpstream{}, false
 	}
 
-	headers := make([]pluginaiproxy.HeaderConfig, 0, len(definition.StaticHeaders))
-	for _, name := range slices.Sorted(maps.Keys(definition.StaticHeaders)) {
-		headers = append(headers, pluginaiproxy.HeaderConfig{Name: name, Value: definition.StaticHeaders[name]})
+	var apiKeyHeader string
+	var apiKeyPrefix string
+	var headers []pluginaiproxy.HeaderConfig
+	// Provider 只用于资源组合校验；数据面执行配置完全由 Protocol 决定
+	switch upstream.Spec.Protocol {
+	case gatewayv1.UpstreamProtocolOpenAI:
+		apiKeyHeader = openAIAPIKeyHeader
+		apiKeyPrefix = openAIAPIKeyPrefix
+	case gatewayv1.UpstreamProtocolAnthropic:
+		apiKeyHeader = anthropicAPIKeyHeader
+		headers = []pluginaiproxy.HeaderConfig{{Name: anthropicVersionHeader, Value: anthropicVersion}}
+	case gatewayv1.UpstreamProtocolGemini:
+		apiKeyHeader = geminiAPIKeyHeader
+	default:
+		return compiledAIUpstream{}, false
 	}
 	upstreamConfig := pluginaiproxy.UpstreamConfig{
 		ID:       upstream.Name,
-		Provider: string(upstream.Spec.Model.Provider),
-		Protocol: definition.Protocol,
+		Protocol: llm.Protocol(upstream.Spec.Protocol),
 		Cluster:  clusterName,
 		BasePath: upstream.Spec.Model.APIBasePath,
 		APIKey:   apiKey,
 		Headers:  headers,
 	}
 	if apiKey != "" {
-		upstreamConfig.APIKeyHeader = definition.Authentication.Header
-		upstreamConfig.APIKeyPrefix = definition.Authentication.Prefix
+		upstreamConfig.APIKeyHeader = apiKeyHeader
+		upstreamConfig.APIKeyPrefix = apiKeyPrefix
 	}
 	return compiledAIUpstream{
 		config:    upstreamConfig,
@@ -255,7 +267,7 @@ func (c *compilation) upstreamAPIKey(upstream *gatewayv1.Upstream) (string, bool
 	if upstream.Spec.Authentication == nil {
 		return "", true
 	}
-	if upstream.Spec.Authentication.APIKey == nil || !modelprovider.ValidAPIKey(upstream.Spec.Authentication.APIKey.Value) {
+	if upstream.Spec.Authentication.APIKey == nil || upstream.Spec.Authentication.APIKey.Value == "" || !httpheader.ValidValue(upstream.Spec.Authentication.APIKey.Value) {
 		return "", false
 	}
 	return upstream.Spec.Authentication.APIKey.Value, true

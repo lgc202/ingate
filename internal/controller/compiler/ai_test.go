@@ -12,6 +12,7 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	httpwasmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/wasm/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	"github.com/google/go-cmp/cmp"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -117,7 +118,42 @@ func TestCompilerBuildsOpenAIModelRoute(t *testing.T) {
 	}
 }
 
-func TestCompilerBuildsCrossProviderModelRoute(t *testing.T) {
+func TestCompilerUsesProtocolForOpenAICompatibleProviders(t *testing.T) {
+	providers := []gatewayv1.ModelProvider{
+		gatewayv1.ModelProviderOpenAI,
+		gatewayv1.ModelProviderDeepSeek,
+		gatewayv1.ModelProviderQwen,
+		gatewayv1.ModelProviderCustom,
+	}
+	var wantUpstream pluginaiproxy.UpstreamConfig
+	var wantConfigID string
+	for i, provider := range providers {
+		t.Run(string(provider), func(t *testing.T) {
+			resources := newAICompilerResources()
+			resources.Upstreams[0].Spec.Model.Provider = provider
+			result := Compile(resources)
+			if result.HasErrors() {
+				t.Fatalf("Compile(OpenAI-compatible provider %q) diagnostics = %v, want no errors", provider, result.Diagnostics)
+			}
+
+			config := decodeAIProxyConfig(t, findCompiledListener(t, result.Config.Listeners, "ingate/http-8080"))
+			gotUpstream := config.Routes[0].Upstreams[0]
+			if i == 0 {
+				wantUpstream = gotUpstream
+				wantConfigID = config.Routes[0].ConfigID
+				return
+			}
+			if diff := cmp.Diff(wantUpstream, gotUpstream); diff != "" {
+				t.Errorf("Compile(OpenAI-compatible provider %q) upstream mismatch (-want +got):\n%s", provider, diff)
+			}
+			if got := config.Routes[0].ConfigID; got != wantConfigID {
+				t.Errorf("Compile(OpenAI-compatible provider %q) config ID = %q, want %q", provider, got, wantConfigID)
+			}
+		})
+	}
+}
+
+func TestCompilerBuildsCrossProtocolModelRoute(t *testing.T) {
 	resources := newAICompilerResources()
 	anthropicUpstream := newAIUpstream("anthropic-upstream", "anthropic-secret")
 	anthropicUpstream.Spec.Protocol = gatewayv1.UpstreamProtocolAnthropic
@@ -152,18 +188,18 @@ func TestCompilerBuildsCrossProviderModelRoute(t *testing.T) {
 
 	result := Compile(resources)
 	if result.HasErrors() {
-		t.Fatalf("Compile(cross-provider model route) diagnostics = %v, want no errors", result.Diagnostics)
+		t.Fatalf("Compile(cross-protocol model route) diagnostics = %v, want no errors", result.Diagnostics)
 	}
 	config := decodeAIProxyConfig(t, findCompiledListener(t, result.Config.Listeners, "ingate/http-8080"))
 	if got, want := len(config.Routes), 1; got != want {
-		t.Fatalf("Compile(cross-provider model route) plugin route count = %d, want %d", got, want)
+		t.Fatalf("Compile(cross-protocol model route) plugin route count = %d, want %d", got, want)
 	}
 	pluginRoute := config.Routes[0]
 	if got, want := len(pluginRoute.Upstreams), 3; got != want {
-		t.Fatalf("Compile(cross-provider model route) upstream count = %d, want %d", got, want)
+		t.Fatalf("Compile(cross-protocol model route) upstream count = %d, want %d", got, want)
 	}
 	if got, want := len(pluginRoute.Models), 3; got != want {
-		t.Fatalf("Compile(cross-provider model route) model count = %d, want %d", got, want)
+		t.Fatalf("Compile(cross-protocol model route) model count = %d, want %d", got, want)
 	}
 
 	upstreams := make(map[string]pluginaiproxy.UpstreamConfig, len(pluginRoute.Upstreams))
@@ -180,7 +216,7 @@ func TestCompilerBuildsCrossProviderModelRoute(t *testing.T) {
 	routeName := envoyAIRouteName("ai-gateway", "ai-route", "chat", "POST", pluginRoute.ConfigID)
 	routes := findCompiledRoutes(t, result.Config.Routes, routeName)
 	if got, want := len(routes), 5; got != want {
-		t.Fatalf("Compile(cross-provider model route) xDS route count = %d, want one public and four continuation routes", got)
+		t.Fatalf("Compile(cross-protocol model route) xDS route count = %d, want one public and four continuation routes", got)
 	}
 	wantAuthorities := map[string]string{
 		"model-upstream":       "api.example.com:8080",
@@ -190,9 +226,26 @@ func TestCompilerBuildsCrossProviderModelRoute(t *testing.T) {
 	for _, upstream := range pluginRoute.Upstreams {
 		continuation := findAIContinuationRoute(t, routes, pluginRoute.ConfigID, upstream.Cluster)
 		if got, want := continuation.GetRoute().GetHostRewriteLiteral(), wantAuthorities[upstream.ID]; got != want {
-			t.Errorf("Compile(cross-provider model route) upstream %q host rewrite = %q, want %q", upstream.ID, got, want)
+			t.Errorf("Compile(cross-protocol model route) upstream %q host rewrite = %q, want %q", upstream.ID, got, want)
 		}
 	}
+}
+
+func TestCompilerKeepsAnthropicVersionWithoutAPIKey(t *testing.T) {
+	resources := newAICompilerResources()
+	upstream := resources.Upstreams[0]
+	upstream.Spec.Protocol = gatewayv1.UpstreamProtocolAnthropic
+	upstream.Spec.Authentication = nil
+	upstream.Spec.Model.Provider = gatewayv1.ModelProviderAnthropic
+	result := Compile(resources)
+	if result.HasErrors() {
+		t.Fatalf("Compile(Anthropic upstream without API key) diagnostics = %v, want no errors", result.Diagnostics)
+	}
+
+	config := decodeAIProxyConfig(t, findCompiledListener(t, result.Config.Listeners, "ingate/http-8080"))
+	assertAIUpstream(t, config.Routes[0].Upstreams[0], llm.ProtocolAnthropicMessages, "", "", map[string]string{
+		anthropicVersionHeader: anthropicVersion,
+	})
 }
 
 func TestCompilerFormatsIPv6ModelAuthority(t *testing.T) {
@@ -340,6 +393,12 @@ func TestCompilerVersionsAIProxyConfig(t *testing.T) {
 			mutate: func(resources Resources) {
 				models := resources.Routes[0].Spec.Rules[0].ModelRouting.Models
 				models[0], models[1] = models[1], models[0]
+			},
+		},
+		{
+			name: "provider preset change",
+			mutate: func(resources Resources) {
+				resources.Upstreams[0].Spec.Model.Provider = gatewayv1.ModelProviderDeepSeek
 			},
 		},
 	}

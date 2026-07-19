@@ -163,7 +163,7 @@ func routeConfig(ruleName, model, apiKey string) config.RouteConfig {
 		RuleName:    ruleName,
 		ConfigID:    ruleName + "-config",
 		Upstreams: []config.UpstreamConfig{{
-			ID: upstreamID, Provider: "openai", Protocol: llm.ProtocolOpenAIChatCompletions,
+			ID: upstreamID, Protocol: llm.ProtocolOpenAIChatCompletions,
 			Cluster: "cluster-" + ruleName, BasePath: "/v1",
 			APIKey: apiKey, APIKeyHeader: "authorization", APIKeyPrefix: "Bearer ",
 		}},

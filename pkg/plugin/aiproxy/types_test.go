@@ -11,7 +11,6 @@ func TestParsePluginConfig(t *testing.T) {
 			"configID": "config-1",
 			"upstreams": [{
 				"id": "openai",
-				"provider": "openai",
 				"protocol": "OpenAI",
 				"cluster": "openai/ai/config",
 				"basePath": "/v1",
@@ -56,6 +55,10 @@ func TestParsePluginConfigRejectsInvalidConfig(t *testing.T) {
 			data: `{"routes": [], "provider": "openai"}`,
 		},
 		{
+			name: "upstream provider field",
+			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","upstreams":[{"id":"upstream-1","provider":"openai","protocol":"OpenAI","cluster":"cluster","basePath":"/v1"}],"models":[` + modelConfigJSON("assistant", "upstream-1", "gpt-4o-mini") + `]}]}`,
+		},
+		{
 			name: "missing rule name",
 			data: routeConfigJSON(`"routeName":"route-1"`, modelConfigJSON("assistant", "upstream-1", "gpt-4o-mini")),
 		},
@@ -83,7 +86,7 @@ func TestParsePluginConfigRejectsInvalidConfig(t *testing.T) {
 		},
 		{
 			name: "API key contains newline",
-			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","upstreams":[{"id":"upstream-1","provider":"openai","protocol":"OpenAI","cluster":"cluster","basePath":"/v1","apiKey":"secret\r\ninjected","apiKeyHeader":"authorization","apiKeyPrefix":"Bearer "}],"models":[` + modelConfigJSON("assistant", "upstream-1", "gpt-4o-mini") + `]}]}`,
+			data: `{"routes": [{"gatewayName":"gateway-1","routeName":"route-1","ruleName":"chat","configID":"config-1","upstreams":[{"id":"upstream-1","protocol":"OpenAI","cluster":"cluster","basePath":"/v1","apiKey":"secret\r\ninjected","apiKeyHeader":"authorization","apiKeyPrefix":"Bearer "}],"models":[` + modelConfigJSON("assistant", "upstream-1", "gpt-4o-mini") + `]}]}`,
 		},
 		{
 			name: "model upstream does not exist",
@@ -105,7 +108,7 @@ func routeConfigJSON(extra, model string) string {
 }
 
 func upstreamConfigJSON(id string) string {
-	return `{"id":"` + id + `","provider":"openai","protocol":"OpenAI","cluster":"cluster","basePath":"/v1"}`
+	return `{"id":"` + id + `","protocol":"OpenAI","cluster":"cluster","basePath":"/v1"}`
 }
 
 func modelConfigJSON(model, upstreamID, upstreamModel string) string {

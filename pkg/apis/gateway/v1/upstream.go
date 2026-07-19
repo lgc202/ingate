@@ -1,6 +1,9 @@
 package v1
 
-import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+import (
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
 // UpstreamType 表示 Upstream 的业务分类
 type UpstreamType string
@@ -47,6 +50,17 @@ const (
 	// ModelProviderCustom 表示自定义 OpenAI-compatible 服务
 	ModelProviderCustom ModelProvider = "custom"
 )
+
+// Protocol 返回模型厂商预设对应的通信协议，仅用于校验资源组合
+func (p ModelProvider) Protocol() (UpstreamProtocol, bool) {
+	protocol, ok := resource.ModelProvider(p).Protocol()
+	return UpstreamProtocol(protocol), ok
+}
+
+// IsSupported 判断协议是否为 Ingate 支持的 Upstream 通信协议
+func (p UpstreamProtocol) IsSupported() bool {
+	return resource.UpstreamProtocol(p).IsSupported()
+}
 
 // UpstreamLoadBalancePolicy 表示 Upstream 的负载均衡策略
 type UpstreamLoadBalancePolicy string
@@ -106,7 +120,7 @@ type UpstreamSpec struct {
 
 // ModelSpec 定义模型服务的厂商协议参数和模型目录
 type ModelSpec struct {
-	// Provider 表示模型厂商或 OpenAI-compatible 实现类型
+	// Provider 表示模型厂商或 OpenAI-compatible 实现类型，仅用于产品预设和协议组合校验
 	Provider ModelProvider `json:"provider"`
 	// APIBasePath 是追加到模型端点后的厂商 API 基础路径
 	APIBasePath string `json:"apiBasePath"`
