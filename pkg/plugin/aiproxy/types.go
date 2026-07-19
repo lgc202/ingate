@@ -8,6 +8,7 @@ import (
 	"io"
 	"strings"
 
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
 	"github.com/lgc202/ingate/pkg/llm"
 )
 
@@ -35,10 +36,10 @@ type RouteConfig struct {
 
 // UpstreamConfig 表示模型路由可选择的一个实际模型上游
 //
-// Cluster 和认证信息只能由 Controller 生成，客户端请求中的同名 Header 不可信
+// Protocol 决定协议转换，Cluster 和认证信息只能由 Controller 生成，不携带厂商预设
+// 客户端请求中的同名 Header 不可信
 type UpstreamConfig struct {
 	ID           string         `json:"id"`
-	Provider     string         `json:"provider"`
 	Protocol     llm.Protocol   `json:"protocol"`
 	Cluster      string         `json:"cluster"`
 	BasePath     string         `json:"basePath"`
@@ -140,9 +141,6 @@ func (c UpstreamConfig) validate(routeIndex, upstreamIndex int) error {
 	if c.ID == "" {
 		return fmt.Errorf("%s.id must not be empty", prefix)
 	}
-	if c.Provider == "" {
-		return fmt.Errorf("%s.provider must not be empty", prefix)
-	}
 	switch c.Protocol {
 	case llm.ProtocolOpenAIChatCompletions, llm.ProtocolAnthropicMessages, llm.ProtocolGeminiGenerateContent:
 	default:
@@ -162,14 +160,14 @@ func (c UpstreamConfig) validate(routeIndex, upstreamIndex int) error {
 		if c.APIKeyHeader == "" {
 			return fmt.Errorf("%s.apiKeyHeader must not be empty when API key is configured", prefix)
 		}
-		if !validHeaderValue(c.APIKeyPrefix + c.APIKey) {
+		if !httpheader.ValidValue(c.APIKeyPrefix + c.APIKey) {
 			return fmt.Errorf("%s.apiKey contains unsupported control characters", prefix)
 		}
 	}
 	seenHeaders := make(map[string]bool, len(c.Headers))
 	for i, header := range c.Headers {
 		name := strings.ToLower(header.Name)
-		if name == "" || header.Value == "" || !validHeaderValue(header.Value) {
+		if name == "" || header.Value == "" || !httpheader.ValidValue(header.Value) {
 			return fmt.Errorf("%s.headers[%d] name and value must not be empty", prefix, i)
 		}
 		if seenHeaders[name] {
@@ -178,15 +176,6 @@ func (c UpstreamConfig) validate(routeIndex, upstreamIndex int) error {
 		seenHeaders[name] = true
 	}
 	return nil
-}
-
-func validHeaderValue(value string) bool {
-	for i := 0; i < len(value); i++ {
-		if value[i] < 0x20 || value[i] == 0x7f {
-			return false
-		}
-	}
-	return true
 }
 
 func decodeStrict(data []byte, value any) error {

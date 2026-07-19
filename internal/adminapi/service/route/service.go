@@ -15,7 +15,6 @@ import (
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
-	"github.com/lgc202/ingate/internal/modelprovider"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -234,9 +233,9 @@ func validModelUpstream(upstream *resource.Upstream) bool {
 	if upstream.Spec.Type != resource.UpstreamTypeModel || upstream.Spec.Model == nil {
 		return false
 	}
-	definition, ok := modelprovider.Lookup(modelprovider.ID(upstream.Spec.Model.Provider))
+	providerProtocol, ok := upstream.Spec.Model.Provider.Protocol()
 	if !ok ||
-		upstream.Spec.Protocol != resource.UpstreamProtocol(definition.Protocol) ||
+		upstream.Spec.Protocol != providerProtocol ||
 		!validAPIBasePath(upstream.Spec.Model.APIBasePath) ||
 		len(upstream.Spec.Model.Models) == 0 {
 		return false

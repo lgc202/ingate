@@ -727,18 +727,18 @@ func modelConfig() config.PluginConfig {
 			ConfigID:    "config-1",
 			Upstreams: []config.UpstreamConfig{
 				{
-					ID: "openai", Provider: "openai", Protocol: llm.ProtocolOpenAIChatCompletions,
+					ID: "openai", Protocol: llm.ProtocolOpenAIChatCompletions,
 					Cluster: "model/openai", BasePath: "/v1",
 					APIKey: "openai-secret", APIKeyHeader: "authorization", APIKeyPrefix: "Bearer ",
 				},
 				{
-					ID: "anthropic", Provider: "anthropic", Protocol: llm.ProtocolAnthropicMessages,
+					ID: "anthropic", Protocol: llm.ProtocolAnthropicMessages,
 					Cluster: "model/anthropic", BasePath: "/v1",
 					APIKey: "anthropic-secret", APIKeyHeader: "x-api-key",
 					Headers: []config.HeaderConfig{{Name: "anthropic-version", Value: "2023-06-01"}},
 				},
 				{
-					ID: "gemini", Provider: "gemini", Protocol: llm.ProtocolGeminiGenerateContent,
+					ID: "gemini", Protocol: llm.ProtocolGeminiGenerateContent,
 					Cluster: "model/gemini", BasePath: "/v1beta",
 					APIKey: "gemini-secret", APIKeyHeader: "x-goog-api-key",
 				},

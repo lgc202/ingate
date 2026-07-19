@@ -16,7 +16,7 @@ import (
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
-	"github.com/lgc202/ingate/internal/modelprovider"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -119,7 +119,6 @@ func modelClusterName(upstream *gatewayv1.Upstream, lbPolicy clusterv3.Cluster_L
 	}
 	if upstream.Spec.Model != nil {
 		fields = append(fields,
-			"provider", string(upstream.Spec.Model.Provider),
 			"apiBasePath", upstream.Spec.Model.APIBasePath,
 		)
 	}
@@ -257,7 +256,7 @@ func (c *compilation) validUpstreamProtocol(upstream *gatewayv1.Upstream) bool {
 		protocolValid = false
 	}
 	if upstream.Spec.Authentication != nil &&
-		(upstream.Spec.Authentication.APIKey == nil || !modelprovider.ValidAPIKey(upstream.Spec.Authentication.APIKey.Value)) {
+		(upstream.Spec.Authentication.APIKey == nil || upstream.Spec.Authentication.APIKey.Value == "" || !httpheader.ValidValue(upstream.Spec.Authentication.APIKey.Value)) {
 		c.addDiagnostic(
 			SeverityError,
 			gatewayv1.KindUpstream,
@@ -283,7 +282,7 @@ func (c *compilation) validModelUpstream(upstream *gatewayv1.Upstream) bool {
 	}
 
 	valid := true
-	definition, providerValid := modelprovider.Lookup(modelprovider.ID(upstream.Spec.Model.Provider))
+	providerProtocol, providerValid := upstream.Spec.Model.Provider.Protocol()
 	if !providerValid {
 		c.addDiagnostic(
 			SeverityError,
@@ -293,13 +292,13 @@ func (c *compilation) validModelUpstream(upstream *gatewayv1.Upstream) bool {
 			fmt.Sprintf("model upstream %q uses unsupported provider %q", upstream.Name, upstream.Spec.Model.Provider),
 		)
 		valid = false
-	} else if gatewayv1.UpstreamProtocol(definition.Protocol) != upstream.Spec.Protocol {
+	} else if providerProtocol != upstream.Spec.Protocol {
 		c.addDiagnostic(
 			SeverityError,
 			gatewayv1.KindUpstream,
 			upstream.Name,
 			ReasonInvalidSpec,
-			fmt.Sprintf("model upstream %q provider %q requires protocol %q", upstream.Name, upstream.Spec.Model.Provider, definition.Protocol),
+			fmt.Sprintf("model upstream %q provider %q requires protocol %q", upstream.Name, upstream.Spec.Model.Provider, providerProtocol),
 		)
 		valid = false
 	}

@@ -14,7 +14,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	"github.com/lgc202/ingate/internal/modelprovider"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
@@ -137,7 +137,7 @@ func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 	}
 	if upstream.Spec.Protocol == "" {
 		errs = append(errs, field.Required(specPath.Child("protocol"), "protocol is required"))
-	} else if !validUpstreamProtocol(upstream.Spec.Protocol) {
+	} else if !upstream.Spec.Protocol.IsSupported() {
 		errs = append(errs, field.NotSupported(specPath.Child("protocol"), upstream.Spec.Protocol, []string{
 			string(resource.UpstreamProtocolHTTP),
 			string(resource.UpstreamProtocolOpenAI),
@@ -163,7 +163,7 @@ func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 		authenticationPath := specPath.Child("authentication")
 		if upstream.Spec.Authentication.APIKey == nil {
 			errs = append(errs, field.Required(authenticationPath.Child("apiKey"), "apiKey is required when authentication is configured"))
-		} else if !modelprovider.ValidAPIKey(upstream.Spec.Authentication.APIKey.Value) {
+		} else if upstream.Spec.Authentication.APIKey.Value == "" || !httpheader.ValidValue(upstream.Spec.Authentication.APIKey.Value) {
 			errs = append(errs, field.Invalid(authenticationPath.Child("apiKey", "value"), "<redacted>", "value must be safe for use in an HTTP header"))
 		}
 		if upstream.Spec.Type != resource.UpstreamTypeModel {
@@ -249,18 +249,6 @@ func validLoadBalancePolicy(value resource.UpstreamLoadBalancePolicy) bool {
 	}
 }
 
-func validUpstreamProtocol(value resource.UpstreamProtocol) bool {
-	switch value {
-	case resource.UpstreamProtocolHTTP,
-		resource.UpstreamProtocolOpenAI,
-		resource.UpstreamProtocolAnthropic,
-		resource.UpstreamProtocolGemini:
-		return true
-	default:
-		return false
-	}
-}
-
 func validateModelSpec(
 	model *resource.ModelSpec,
 	protocol resource.UpstreamProtocol,
@@ -268,7 +256,7 @@ func validateModelSpec(
 	protocolPath *field.Path,
 ) field.ErrorList {
 	errs := field.ErrorList{}
-	definition, validProvider := modelprovider.Lookup(modelprovider.ID(model.Provider))
+	providerProtocol, validProvider := model.Provider.Protocol()
 	if !validProvider {
 		errs = append(errs, field.NotSupported(modelPath.Child("provider"), model.Provider, []string{
 			string(resource.ModelProviderOpenAI),
@@ -278,7 +266,7 @@ func validateModelSpec(
 			string(resource.ModelProviderGemini),
 			string(resource.ModelProviderCustom),
 		}))
-	} else if protocol != resource.UpstreamProtocol(definition.Protocol) {
+	} else if protocol != providerProtocol {
 		errs = append(errs, field.Invalid(protocolPath, protocol, "protocol does not match model provider"))
 	}
 	if !validAPIBasePath(model.APIBasePath) {
