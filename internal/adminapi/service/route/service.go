@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/samber/lo"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	"github.com/lgc202/ingate/internal/adminapi/service/policytarget"
@@ -63,8 +62,11 @@ func (s *Service) Get(ctx context.Context, routeID string) (*resource.Route, err
 }
 
 // Create 创建 Route
-func (s *Service) Create(ctx context.Context, params CreateRouteParams) (string, error) {
-	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
+func (s *Service) Create(ctx context.Context, spec resource.RouteSpec) (string, error) {
+	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
+		return "", err
+	}
+	if err := s.validateReferences(ctx, spec); err != nil {
 		return "", err
 	}
 	route := &resource.Route{
@@ -75,10 +77,7 @@ func (s *Service) Create(ctx context.Context, params CreateRouteParams) (string,
 		ObjectMeta: metav1.ObjectMeta{
 			Name: uuid.NewString(),
 		},
-		Spec: routeSpec(params),
-	}
-	if err := s.validateReferences(ctx, route); err != nil {
-		return "", err
+		Spec: spec,
 	}
 	_, err := s.store.Create(ctx, route)
 	if apierrors.IsAlreadyExists(err) {
@@ -91,27 +90,26 @@ func (s *Service) Create(ctx context.Context, params CreateRouteParams) (string,
 }
 
 // Update 更新 Route
-func (s *Service) Update(ctx context.Context, routeID string, params UpdateRouteParams) error {
-	if params.Version == "" {
+func (s *Service) Update(ctx context.Context, routeID, version string, spec resource.RouteSpec) error {
+	if version == "" {
 		return xerrors.NewUserError("路由版本不能为空")
 	}
 	current, err := s.store.Get(ctx, routeID)
 	if err != nil {
 		return err
 	}
-	if err := validateVersion(resource.ResourceRoutes, routeID, params.Version, current.ResourceVersion); err != nil {
+	if err := validateVersion(resource.ResourceRoutes, routeID, version, current.ResourceVersion); err != nil {
 		return err
 	}
-	if err := s.validateNameUnique(ctx, params.Name, routeID); err != nil {
+	if err := s.validateNameUnique(ctx, spec.DisplayName, routeID); err != nil {
+		return err
+	}
+	if err := s.validateReferences(ctx, spec); err != nil {
 		return err
 	}
 
-	spec := routeSpec(params.CreateRouteParams)
 	next := current.DeepCopy()
 	next.Spec = spec
-	if err := s.validateReferences(ctx, next); err != nil {
-		return err
-	}
 	_, err = s.store.Update(ctx, next)
 	return err
 }
@@ -164,8 +162,8 @@ func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string
 	return nil
 }
 
-func (s *Service) validateReferences(ctx context.Context, route *resource.Route) error {
-	for _, parentRef := range route.Spec.ParentRefs {
+func (s *Service) validateReferences(ctx context.Context, spec resource.RouteSpec) error {
+	for _, parentRef := range spec.ParentRefs {
 		if _, err := s.gateways.Get(ctx, parentRef.Name); err != nil {
 			if apierrors.IsNotFound(err) {
 				return xerrors.NewUserError(fmt.Sprintf("关联网关 %q 不存在", parentRef.Name))
@@ -174,7 +172,7 @@ func (s *Service) validateReferences(ctx context.Context, route *resource.Route)
 		}
 	}
 	upstreams := make(map[string]*resource.Upstream)
-	for _, rule := range route.Spec.Rules {
+	for _, rule := range spec.Rules {
 		for _, ref := range rule.UpstreamRefs {
 			upstream, err := s.getUpstream(ctx, upstreams, ref.Name)
 			if err != nil {
@@ -287,104 +285,6 @@ func upstreamDisplayName(upstream *resource.Upstream) string {
 		return upstream.Spec.DisplayName
 	}
 	return upstream.Name
-}
-
-func routeSpec(params CreateRouteParams) resource.RouteSpec {
-	return resource.RouteSpec{
-		DisplayName: params.Name,
-		Enabled:     params.Enabled,
-		ParentRefs:  parentRefs(params.GatewayIDs),
-		Hostnames:   params.Hostnames,
-		Rules:       routeRules(params.Rules),
-	}
-}
-
-func routeRules(params []RouteRuleParams) []resource.RouteRule {
-	rules := make([]resource.RouteRule, 0, len(params))
-	for _, item := range params {
-		rule := resource.RouteRule{
-			Name:         item.Name,
-			PathPrefix:   item.PathPrefix,
-			Methods:      item.Methods,
-			Headers:      headerMatches(item.Headers),
-			UpstreamRefs: upstreamRefs(item.Targets),
-			ModelRouting: modelRouting(item.ModelRouting),
-		}
-		if item.RequestHeaderModifier != nil {
-			rule.Filters = append(rule.Filters, resource.RouteFilter{
-				Type:                  resource.RouteFilterRequestHeaderModifier,
-				RequestHeaderModifier: headerModifier(item.RequestHeaderModifier),
-			})
-		}
-		if item.ResponseHeaderModifier != nil {
-			rule.Filters = append(rule.Filters, resource.RouteFilter{
-				Type:                   resource.RouteFilterResponseHeaderModifier,
-				ResponseHeaderModifier: headerModifier(item.ResponseHeaderModifier),
-			})
-		}
-		if item.Timeout != nil {
-			rule.Timeout = &resource.RouteTimeout{RequestMillis: item.Timeout.RequestMillis}
-		}
-		if item.Retry != nil {
-			rule.Retry = &resource.RouteRetry{
-				Attempts:            item.Retry.Attempts,
-				PerTryTimeoutMillis: item.Retry.PerTryTimeoutMillis,
-			}
-		}
-		rules = append(rules, rule)
-	}
-	return rules
-}
-
-func modelRouting(params *ModelRoutingParams) *resource.ModelRouting {
-	if params == nil {
-		return nil
-	}
-	return &resource.ModelRouting{
-		Models: lo.Map(params.Models, func(model ModelRouteParams, _ int) resource.ModelRoute {
-			return resource.ModelRoute{
-				Model:         model.Model,
-				UpstreamRef:   model.UpstreamID,
-				UpstreamModel: model.UpstreamModel,
-			}
-		}),
-	}
-}
-
-func parentRefs(gatewayIDs []string) []resource.ParentRef {
-	return lo.Map(gatewayIDs, func(gatewayID string, _ int) resource.ParentRef {
-		return resource.ParentRef{Name: gatewayID}
-	})
-}
-
-func upstreamRefs(targets []TargetParams) []resource.UpstreamRef {
-	return lo.Map(targets, func(target TargetParams, _ int) resource.UpstreamRef {
-		return resource.UpstreamRef{
-			Name:   target.UpstreamID,
-			Weight: target.Weight,
-		}
-	})
-}
-
-func headerMatches(headers []HeaderMatchParams) []resource.HeaderMatch {
-	return lo.Map(headers, func(header HeaderMatchParams, _ int) resource.HeaderMatch {
-		return resource.HeaderMatch{
-			Name:  header.Name,
-			Value: header.Value,
-		}
-	})
-}
-
-func headerModifier(params *HeaderModifierParams) *resource.HeaderModifier {
-	return &resource.HeaderModifier{
-		Set: lo.Map(params.Set, func(header HeaderValueParams, _ int) resource.HeaderValue {
-			return resource.HeaderValue{
-				Name:  header.Name,
-				Value: header.Value,
-			}
-		}),
-		Remove: params.Remove,
-	}
 }
 
 func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {
