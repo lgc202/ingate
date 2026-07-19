@@ -1,13 +1,11 @@
 package policy
 
-import (
-	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
-)
+import config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 
 const defaultRedisKeyPrefix = "ingate-rate-limit"
 
-// Checks 将当前请求展开为系统 Redis 限流检查
-func Checks(route config.RouteConfig, req Request) []Check {
+// BuildChecks 将当前请求展开为系统 Redis 限流检查
+func BuildChecks(route config.RouteConfig, req RequestAttributes) []Check {
 	var checks []Check
 	for _, rateLimitPolicy := range route.Policies {
 		for _, rule := range rateLimitPolicy.Rules {
@@ -20,7 +18,7 @@ func Checks(route config.RouteConfig, req Request) []Check {
 	return checks
 }
 
-func buildCheck(rateLimitPolicy config.Policy, rule config.Rule, req Request) *Check {
+func buildCheck(rateLimitPolicy config.Policy, rule config.Rule, req RequestAttributes) *Check {
 	compositeHash, ok := compositeKeyHash(req, rule.Key)
 	if !ok {
 		return nil

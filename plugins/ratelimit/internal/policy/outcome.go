@@ -1,7 +1,7 @@
 package policy
 
-// ApplyOutcomes 按原始策略顺序统一裁决串行 Redis 检查结果
-func ApplyOutcomes(checks []Check, outcomes []Outcome) (Decision, bool) {
+// Decide 按原始策略顺序裁决串行 Redis 检查结果
+func Decide(checks []Check, outcomes []CheckOutcome) Decision {
 	decision := Decision{Allowed: true}
 	strictestRemaining := 0
 	hasQuotaHeaders := false
@@ -10,21 +10,21 @@ func ApplyOutcomes(checks []Check, outcomes []Outcome) (Decision, bool) {
 			if check.Policy.FailOpen() {
 				continue
 			}
-			return rejectCheck(check), true
+			return rejectCheck(check)
 		}
 
 		next := outcomeDecision(check, outcomes[i])
 		if !next.Allowed {
-			return next, true
+			return next
 		}
-		remaining := max(outcomes[i].Limit-outcomes[i].Current, 0)
+		remaining := max(outcomes[i].Remaining, 0)
 		if len(next.QuotaHeaders) > 0 && (!hasQuotaHeaders || remaining < strictestRemaining) {
 			decision = next
 			strictestRemaining = remaining
 			hasQuotaHeaders = true
 		}
 	}
-	return decision, false
+	return decision
 }
 
 func rejectCheck(check Check) Decision {
@@ -35,8 +35,8 @@ func rejectCheck(check Check) Decision {
 	}
 }
 
-func outcomeDecision(check Check, outcome Outcome) Decision {
-	remaining := max(outcome.Limit-outcome.Current, 0)
+func outcomeDecision(check Check, outcome CheckOutcome) Decision {
+	remaining := max(outcome.Remaining, 0)
 	if !outcome.Allowed {
 		return rejectDecision(
 			check.Policy,

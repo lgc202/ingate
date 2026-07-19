@@ -8,8 +8,7 @@ import (
 	config "github.com/lgc202/ingate/pkg/plugin/acl"
 )
 
-// HeaderNames 返回执行路由 ACL 规则前需要从请求中读取的 header
-func HeaderNames(route config.RouteConfig) []string {
+func requiredHeaders(route config.RouteConfig) []string {
 	seen := map[string]struct{}{}
 	for _, policy := range route.Policies {
 		for _, rule := range policy.Rules {
@@ -28,16 +27,16 @@ func HeaderNames(route config.RouteConfig) []string {
 	return result
 }
 
-func (r *Runner) ruleMatches(rule config.Rule, req Request) bool {
+func ruleMatches(rule config.Rule, req RequestAttributes) bool {
 	for _, condition := range rule.Conditions {
-		if !r.conditionMatches(condition, req) {
+		if !conditionMatches(condition, req) {
 			return false
 		}
 	}
 	return true
 }
 
-func (r *Runner) conditionMatches(condition config.Condition, req Request) bool {
+func conditionMatches(condition config.Condition, req RequestAttributes) bool {
 	switch condition.Type {
 	case config.ConditionTypeIP:
 		return ipMatches(clientIP(req.RemoteAddr), condition.Value)

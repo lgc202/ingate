@@ -5,8 +5,6 @@ import (
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	"github.com/lgc202/ingate/plugins/internal/redisabi"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/policy"
-	"github.com/lgc202/ingate/plugins/ratelimit/internal/redis"
-	ratelimitruntime "github.com/lgc202/ingate/plugins/ratelimit/internal/runtime"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 )
@@ -15,19 +13,18 @@ type pluginContext struct {
 	types.DefaultPluginContext
 
 	contextID uint32
-	runtime   *ratelimitruntime.Runtime
+	routes    routeIndex
 }
 
 type httpContext struct {
 	types.DefaultHttpContext
 
-	plugin       *pluginContext
-	contextID    uint32
-	quotaHeaders map[string]string
-	checks       []policy.Check
-	outcomes     []policy.Outcome
-	requests     []redis.Request
-	index        int
+	plugin        *pluginContext
+	contextID     uint32
+	quotaHeaders  map[string]string
+	checks        []policy.Check
+	checkOutcomes []policy.CheckOutcome
+	nextCheck     int
 }
 
 // Register 注册 Proxy-Wasm 插件上下文
@@ -54,7 +51,7 @@ func (p *pluginContext) OnPluginStart(pluginConfigurationSize int) types.OnPlugi
 		proxywasm.LogErrorf("parse rate-limit config failed: %v", err)
 		return types.OnPluginStartStatusFailed
 	}
-	p.runtime = ratelimitruntime.Compile(pluginConfig)
+	p.routes = newRouteIndex(pluginConfig)
 	return types.OnPluginStartStatusOK
 }
 

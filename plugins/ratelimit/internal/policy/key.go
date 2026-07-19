@@ -16,8 +16,8 @@ const (
 	presentKeyValuePrefix = "\x01"
 )
 
-// Request 表示限流判断需要读取的请求信息
-type Request struct {
+// RequestAttributes 表示限流检查需要读取的请求属性
+type RequestAttributes struct {
 	GatewayName string
 	RouteName   string
 	RuleName    string
@@ -26,8 +26,8 @@ type Request struct {
 	Headers     map[string]string
 }
 
-// HeaderNames 返回执行路由限流规则前需要从请求中读取的 header
-func HeaderNames(route config.RouteConfig) []string {
+// RequiredHeaders 返回执行路由限流规则前需要读取的 Header
+func RequiredHeaders(route config.RouteConfig) []string {
 	seen := make(map[string]struct{})
 	for _, policy := range route.Policies {
 		for _, rule := range policy.Rules {
@@ -48,7 +48,7 @@ func HeaderNames(route config.RouteConfig) []string {
 	return result
 }
 
-func keyValue(req Request, part config.KeyPart) (string, bool) {
+func keyValue(req RequestAttributes, part config.KeyPart) (string, bool) {
 	switch part.Type {
 	case config.KeyTypeIP:
 		return optionalKeyValue(clientIP(req.RemoteAddr)), true
@@ -80,7 +80,7 @@ func optionalKeyValue(value string) string {
 	return presentKeyValuePrefix + value
 }
 
-func compositeKeyHash(req Request, parts []config.KeyPart) (string, bool) {
+func compositeKeyHash(req RequestAttributes, parts []config.KeyPart) (string, bool) {
 	if len(parts) == 0 {
 		return "", false
 	}

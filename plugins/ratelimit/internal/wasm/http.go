@@ -1,24 +1,41 @@
 package wasm
 
 import (
+	"fmt"
+
 	"github.com/lgc202/ingate/plugins/internal/redisabi"
-	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/policy"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/redis"
-	ratelimitruntime "github.com/lgc202/ingate/plugins/ratelimit/internal/runtime"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
 	route, ok := h.route()
-	if !ok || len(route.Config.Policies) == 0 {
+	if !ok || len(route.config.Policies) == 0 {
 		return types.ActionContinue
 	}
 
-	result := h.plugin.runtime.Apply(route, requestFromProxyWasm(route))
-	return h.applyRuntimeResult(result)
+	checks := policy.BuildChecks(route.config, requestFromProxyWasm(route))
+	if len(checks) == 0 {
+		return types.ActionContinue
+	}
+	h.checks = checks
+	h.checkOutcomes = make([]policy.CheckOutcome, len(checks))
+	h.nextCheck = 0
+
+	if h.dispatchNextCheck() {
+		return types.ActionPause
+	}
+	decision := policy.Decide(h.checks, h.checkOutcomes)
+	h.clearChecks()
+	if !decision.Allowed {
+		pluginwasm.SendResponse(decision.StatusCode, decision.QuotaHeaders, decision.Message)
+		return types.ActionPause
+	}
+	h.quotaHeaders = decision.QuotaHeaders
+	return types.ActionContinue
 }
 
 func (h *httpContext) OnHttpResponseHeaders(numHeaders int, endOfStream bool) types.Action {
@@ -30,100 +47,93 @@ func (h *httpContext) OnHttpStreamDone() {
 	redisabi.CloseHTTPContext(h.plugin.contextID, h.contextID)
 }
 
-func (h *httpContext) applyRuntimeResult(result ratelimitruntime.Result) types.Action {
-	if len(result.QuotaHeaders) > 0 {
-		h.quotaHeaders = result.QuotaHeaders
-	}
-	if result.Action.Kind == pluginruntime.ActionRespond {
-		return proxyWasmAction(result.Action)
-	}
-	if len(result.Checks) > 0 {
-		return h.dispatchChecks(result.Checks)
-	}
-	return proxyWasmAction(result.Action)
-}
-
-func (h *httpContext) dispatchChecks(checks []policy.Check) types.Action {
-	h.checks = checks
-	h.outcomes = make([]policy.Outcome, len(checks))
-	h.requests = make([]redis.Request, len(checks))
-	h.index = 0
-
-	pending, result := h.dispatchNextCheck()
-	if pending {
-		return types.ActionPause
-	}
-	h.clearExecution()
-	return h.applyRuntimeResult(result)
-}
-
-func (h *httpContext) dispatchNextCheck() (bool, ratelimitruntime.Result) {
-	for h.index < len(h.checks) {
-		index := h.index
+func (h *httpContext) dispatchNextCheck() bool {
+	for h.nextCheck < len(h.checks) {
+		index := h.nextCheck
 		check := h.checks[index]
-		request, command, err := h.plugin.runtime.PrepareCheck(check)
+		bucket, err := redis.NewTokenBucket(check.RedisKey, check.Rule.Limit)
 		if err != nil {
-			h.outcomes[index].Err = err
-			h.index++
+			h.checkOutcomes[index].Err = err
+			h.nextCheck++
 			proxywasm.LogErrorf("prepare rate-limit Redis check failed: %v", err)
 			continue
 		}
-		h.requests[index] = request
-		h.index++
+		command, err := bucket.Command()
+		if err != nil {
+			h.checkOutcomes[index].Err = err
+			h.nextCheck++
+			proxywasm.LogErrorf("encode rate-limit Redis check failed: %v", err)
+			continue
+		}
+		h.nextCheck++
 
 		_, err = redisabi.Dispatch(h.plugin.contextID, h.contextID, command, func(result redisabi.Result) {
 			h.handleRedisResponse(index, result)
 		})
 		if err != nil {
-			h.outcomes[index].Err = err
+			h.checkOutcomes[index].Err = err
 			proxywasm.LogErrorf("dispatch rate-limit Redis check failed: %v", err)
 			continue
 		}
-		return true, ratelimitruntime.Result{}
+		return true
 	}
-
-	return false, h.plugin.runtime.CompleteChecks(h.checks, h.outcomes)
+	return false
 }
 
 func (h *httpContext) handleRedisResponse(index int, result redisabi.Result) {
-	outcome := h.plugin.runtime.CompleteCheck(h.requests[index], result)
-	h.outcomes[index] = outcome
+	outcome := decodeCheckOutcome(result)
+	h.checkOutcomes[index] = outcome
 	if outcome.Err != nil {
 		proxywasm.LogErrorf("complete rate-limit Redis check failed: %v", outcome.Err)
 	}
 
-	pending, completed := h.dispatchNextCheck()
-	if pending {
+	if h.dispatchNextCheck() {
 		return
 	}
-	h.finishExecution(completed)
+	h.finishPausedRequest(policy.Decide(h.checks, h.checkOutcomes))
 }
 
-func (h *httpContext) finishExecution(result ratelimitruntime.Result) {
-	h.clearExecution()
-	if result.Action.Kind == pluginruntime.ActionRespond {
+func (h *httpContext) finishPausedRequest(decision policy.Decision) {
+	h.clearChecks()
+	if !decision.Allowed {
 		if err := redisabi.SendHTTPResponse(
 			h.contextID,
-			result.Action.StatusCode,
-			result.Action.Headers,
-			result.Action.Body,
+			decision.StatusCode,
+			decision.QuotaHeaders,
+			decision.Message,
 		); err != nil {
 			proxywasm.LogErrorf("send rate-limit response failed: %v", err)
 		}
 		return
 	}
 
-	if len(result.QuotaHeaders) > 0 {
-		h.quotaHeaders = result.QuotaHeaders
-	}
+	h.quotaHeaders = decision.QuotaHeaders
 	if err := redisabi.ResumeHTTPRequest(h.contextID); err != nil {
 		proxywasm.LogErrorf("resume rate-limit request failed: %v", err)
 	}
 }
 
-func (h *httpContext) clearExecution() {
+func (h *httpContext) clearChecks() {
 	h.checks = nil
-	h.outcomes = nil
-	h.requests = nil
-	h.index = 0
+	h.checkOutcomes = nil
+	h.nextCheck = 0
+}
+
+func decodeCheckOutcome(result redisabi.Result) policy.CheckOutcome {
+	if result.Err != nil {
+		return policy.CheckOutcome{Err: result.Err}
+	}
+	if result.Status != redisabi.RedisStatusOK {
+		return policy.CheckOutcome{Err: fmt.Errorf("redis call failed with status %d", result.Status)}
+	}
+	state, err := redis.ParseBucketState(result.Data)
+	if err != nil {
+		return policy.CheckOutcome{Err: err}
+	}
+	return policy.CheckOutcome{
+		Allowed:      state.Allowed,
+		Limit:        state.Limit,
+		Remaining:    state.Remaining,
+		ResetSeconds: state.ResetSeconds,
+	}
 }

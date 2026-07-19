@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 )
 
-const tokenBucketScript = `
+const (
+	maxWindowSeconds  = int64(^uint64(0)>>1) / int64(time.Second)
+	tokenBucketScript = `
 local capacity = tonumber(ARGV[1])
 local requests = tonumber(ARGV[2])
 local window = tonumber(ARGV[3])
@@ -37,57 +41,77 @@ local current = capacity - math.floor(tokens)
 local reset = math.ceil((capacity - tokens) * window / requests)
 return {allowed, current, capacity, math.floor(tokens), reset}
 `
+)
 
-// Request 表示一次 Redis 令牌桶检查
-type Request struct {
-	Key      string
-	Requests int
-	Window   time.Duration
-	Capacity int
+// TokenBucket 表示一条可以交给系统 Redis 执行的令牌桶检查
+type TokenBucket struct {
+	key      string
+	requests int
+	window   time.Duration
+	capacity int
 }
 
-// Result 表示一次令牌桶检查结果
-type Result struct {
+// BucketState 表示系统 Redis 返回的令牌桶状态
+type BucketState struct {
 	Allowed      bool
-	Current      int
 	Limit        int
 	Remaining    int
 	ResetSeconds int
 }
 
-// BuildCommand 生成可直接传给 Redis ABI 的 EVAL 命令
-func BuildCommand(request Request) ([]byte, error) {
-	if err := validateRequest(request); err != nil {
-		return nil, err
+// NewTokenBucket 根据策略额度构造一条 Redis 令牌桶检查
+func NewTokenBucket(key string, quota config.Quota) (TokenBucket, error) {
+	if key == "" {
+		return TokenBucket{}, errors.New("redis key is required")
 	}
+	if quota.Requests <= 0 {
+		return TokenBucket{}, errors.New("rate limit requests must be greater than zero")
+	}
+	windowSeconds := int64(quota.WindowSeconds)
+	if windowSeconds <= 0 || windowSeconds > maxWindowSeconds {
+		return TokenBucket{}, fmt.Errorf("rate limit window seconds %d is out of range", windowSeconds)
+	}
+	capacity := quota.Burst
+	if capacity == 0 {
+		capacity = quota.Requests
+	}
+	if capacity <= 0 {
+		return TokenBucket{}, errors.New("rate limit capacity must be greater than zero")
+	}
+	return TokenBucket{
+		key:      key,
+		requests: quota.Requests,
+		window:   time.Duration(windowSeconds) * time.Second,
+		capacity: capacity,
+	}, nil
+}
 
+// Command 生成可直接传给 Redis ABI 的 EVAL 命令
+func (b TokenBucket) Command() ([]byte, error) {
 	return evalCommand(
 		tokenBucketScript,
-		request.Key,
-		strconv.Itoa(request.Capacity),
-		strconv.Itoa(request.Requests),
-		strconv.FormatInt(request.Window.Milliseconds(), 10),
+		b.key,
+		strconv.Itoa(b.capacity),
+		strconv.Itoa(b.requests),
+		strconv.FormatInt(b.window.Milliseconds(), 10),
 	)
 }
 
-// ParseResult 将 Redis Lua 返回值转换为稳定限流结果
-func ParseResult(request Request, response []byte) (Result, error) {
-	if err := validateRequest(request); err != nil {
-		return Result{}, err
-	}
+// ParseBucketState 将 Redis Lua 返回值转换为稳定的令牌桶状态
+func ParseBucketState(response []byte) (BucketState, error) {
 	values, err := DecodeIntegers(response)
 	if err != nil {
-		return Result{}, fmt.Errorf("decode rate limit response: %w", err)
+		return BucketState{}, fmt.Errorf("decode rate limit response: %w", err)
 	}
 
 	if len(values) != 5 {
-		return Result{}, fmt.Errorf("token bucket returned %d values, want 5", len(values))
+		return BucketState{}, fmt.Errorf("token bucket returned %d values, want 5", len(values))
 	}
 	reset, err := resetSeconds(values[4])
 	if err != nil {
-		return Result{}, err
+		return BucketState{}, err
 	}
-	return newResult(values[0] == 1, values[1], values[2], reset)
+	return newBucketState(values[0] == 1, values[1], values[2], reset)
 }
 
 func evalCommand(script, key string, args ...string) ([]byte, error) {
@@ -99,45 +123,24 @@ func evalCommand(script, key string, args ...string) ([]byte, error) {
 	return EncodeCommand(parts...)
 }
 
-func validateRequest(request Request) error {
-	if request.Key == "" {
-		return errors.New("redis key is required")
-	}
-	if request.Requests <= 0 {
-		return errors.New("rate limit requests must be greater than zero")
-	}
-	if request.Window < time.Millisecond {
-		return errors.New("rate limit window must be at least one millisecond")
-	}
-	if request.Capacity <= 0 {
-		return errors.New("rate limit capacity must be greater than zero")
-	}
-	return nil
-}
-
-func newResult(allowed bool, current, limit int64, reset int) (Result, error) {
+func newBucketState(allowed bool, current, limit int64, reset int) (BucketState, error) {
 	if current < 0 || limit < 0 {
-		return Result{}, errors.New("rate limit response contains a negative counter")
+		return BucketState{}, errors.New("rate limit response contains a negative counter")
 	}
 	remaining := int64(0)
 	if current < limit {
 		remaining = limit - current
 	}
-	currentInt, err := checkedInt(current)
-	if err != nil {
-		return Result{}, fmt.Errorf("rate limit current: %w", err)
-	}
 	limitInt, err := checkedInt(limit)
 	if err != nil {
-		return Result{}, fmt.Errorf("rate limit limit: %w", err)
+		return BucketState{}, fmt.Errorf("rate limit limit: %w", err)
 	}
 	remainingInt, err := checkedInt(remaining)
 	if err != nil {
-		return Result{}, fmt.Errorf("rate limit remaining: %w", err)
+		return BucketState{}, fmt.Errorf("rate limit remaining: %w", err)
 	}
-	return Result{
+	return BucketState{
 		Allowed:      allowed,
-		Current:      currentInt,
 		Limit:        limitInt,
 		Remaining:    remainingInt,
 		ResetSeconds: reset,

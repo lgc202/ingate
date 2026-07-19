@@ -9,11 +9,10 @@ Header、Query、Cookie 等维度缺失时会进入独立且稳定的缺失值�
 代码边界：
 
 ```text
-internal/app      # 装配并注册插件
-internal/runtime  # 加载策略索引并准备限流检查
-internal/wasm     # Proxy-Wasm 生命周期与请求控制
-internal/policy   # 策略匹配、key 和裁决语义
-internal/redis    # RESP 编解码与 Redis 令牌桶执行
+internal/app     # 装配并注册插件
+internal/wasm    # Route 索引、Proxy-Wasm 生命周期和串行 Redis 调度
+internal/policy  # 限流检查、key 和最终裁决语义
+internal/redis   # RESP 编解码与 Redis 令牌桶协议
 ```
 
 `pkg/plugin/ratelimit` 定义 Compiler 下发给插件的内部执行协议，`plugins/internal/redisabi` 隔离 Higress Envoy 提供的 Redis hostcall ABI。

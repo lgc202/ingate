@@ -1,24 +1,50 @@
 package wasm
 
 import (
-	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
+	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
-	ratelimitruntime "github.com/lgc202/ingate/plugins/ratelimit/internal/runtime"
+	"github.com/lgc202/ingate/plugins/ratelimit/internal/policy"
 )
 
 const routeNamePrefix = "ingate-route"
 
-func (h *httpContext) route() (ratelimitruntime.Route, bool) {
+type routeKey struct {
+	gatewayName string
+	routeName   string
+}
+
+type routeLimits struct {
+	config          config.RouteConfig
+	ruleName        string
+	requiredHeaders []string
+}
+
+type routeIndex map[routeKey]routeLimits
+
+func newRouteIndex(cfg config.PluginConfig) routeIndex {
+	routes := make(routeIndex, len(cfg.Routes))
+	for _, item := range cfg.Routes {
+		routes[routeKey{gatewayName: item.GatewayName, routeName: item.RouteName}] = routeLimits{
+			config:          item,
+			requiredHeaders: policy.RequiredHeaders(item),
+		}
+	}
+	return routes
+}
+
+func (i routeIndex) lookup(identity pluginwasm.RouteIdentity) (routeLimits, bool) {
+	route, ok := i[routeKey{gatewayName: identity.GatewayName, routeName: identity.RouteName}]
+	if !ok {
+		return routeLimits{}, false
+	}
+	route.ruleName = identity.RuleName
+	return route, true
+}
+
+func (h *httpContext) route() (routeLimits, bool) {
 	identity, ok := pluginwasm.CurrentRouteIdentity(routeNamePrefix)
 	if !ok {
-		return ratelimitruntime.Route{}, false
+		return routeLimits{}, false
 	}
-	if h.plugin.runtime == nil {
-		return ratelimitruntime.Route{}, false
-	}
-	return h.plugin.runtime.Route(pluginruntime.RouteKey{
-		GatewayName: identity.GatewayName,
-		RouteName:   identity.RouteName,
-		RuleName:    identity.RuleName,
-	})
+	return h.plugin.routes.lookup(identity)
 }

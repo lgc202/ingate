@@ -6,11 +6,11 @@ import (
 	config "github.com/lgc202/ingate/pkg/plugin/acl"
 )
 
-func TestRunnerDeniesMatchingRule(t *testing.T) {
+func TestEvaluateDeniesMatchingRule(t *testing.T) {
 	route := routeConfig(config.Policy{Rules: riskRules()})
-	req := Request{Headers: map[string]string{"x-risk-level": "high"}}
+	req := RequestAttributes{Headers: map[string]string{"x-risk-level": "high"}}
 
-	decision := NewRunner().Apply(route, req)
+	decision := route.Evaluate(req)
 	if decision.Allowed {
 		t.Fatal("Allowed = true, want false")
 	}
@@ -19,16 +19,16 @@ func TestRunnerDeniesMatchingRule(t *testing.T) {
 	}
 }
 
-func TestRunnerAllowsUnmatchedRequestByDefault(t *testing.T) {
+func TestEvaluateAllowsUnmatchedRequestByDefault(t *testing.T) {
 	route := routeConfig(config.Policy{Rules: riskRules()})
 
-	decision := NewRunner().Apply(route, Request{Headers: map[string]string{"x-risk-level": "low"}})
+	decision := route.Evaluate(RequestAttributes{Headers: map[string]string{"x-risk-level": "low"}})
 	if !decision.Allowed {
 		t.Fatalf("Allowed = false: %+v", decision)
 	}
 }
 
-func TestRunnerSupportsIPCidrCondition(t *testing.T) {
+func TestEvaluateSupportsIPCidrCondition(t *testing.T) {
 	route := routeConfig(config.Policy{
 		Rules: []config.Rule{
 			{
@@ -42,14 +42,14 @@ func TestRunnerSupportsIPCidrCondition(t *testing.T) {
 		DefaultAction: config.ActionDeny,
 	})
 
-	decision := NewRunner().Apply(route, Request{RemoteAddr: "10.1.2.3:12345"})
+	decision := route.Evaluate(RequestAttributes{RemoteAddr: "10.1.2.3:12345"})
 	if !decision.Allowed {
 		t.Fatalf("Allowed = false: %+v", decision)
 	}
 }
 
-func TestRunnerDoesNotTrustLegacyIdentityConditions(t *testing.T) {
-	req := Request{Headers: map[string]string{
+func TestEvaluateDoesNotTrustLegacyIdentityConditions(t *testing.T) {
+	req := RequestAttributes{Headers: map[string]string{
 		"x-ingate-consumer": "alice",
 		"x-ingate-tenant":   "acme",
 	}}
@@ -62,17 +62,15 @@ func TestRunnerDoesNotTrustLegacyIdentityConditions(t *testing.T) {
 	} {
 		t.Run(string(tt.conditionType), func(t *testing.T) {
 			condition := config.Condition{Type: tt.conditionType, Value: tt.value}
-			if NewRunner().conditionMatches(condition, req) {
-				t.Errorf("Runner.conditionMatches(type=%q) = true, want false", tt.conditionType)
+			if conditionMatches(condition, req) {
+				t.Errorf("conditionMatches(type=%q) = true, want false", tt.conditionType)
 			}
 		})
 	}
 }
 
-func routeConfig(policy config.Policy) config.RouteConfig {
-	return config.RouteConfig{
-		Policies: []config.Policy{policy},
-	}
+func routeConfig(policy config.Policy) Route {
+	return Route{policies: []config.Policy{policy}}
 }
 
 func riskRules() []config.Rule {

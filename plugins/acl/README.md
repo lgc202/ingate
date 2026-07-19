@@ -7,13 +7,12 @@
 ## Code Organization
 
 ```text
-internal/app      # 装配并注册插件
-internal/runtime  # 编译插件配置，保存 route index 和 header plan
-internal/wasm     # Proxy-Wasm 生命周期适配和 action 执行
-internal/policy   # ACL 规则匹配和 allow / deny 决策
+internal/app     # 装配并注册插件
+internal/wasm    # Proxy-Wasm 生命周期、请求属性读取和拒绝响应
+internal/policy  # Route 策略索引、ACL 规则匹配和 allow / deny 决策
 ```
 
-`pkg/plugin/acl` 定义 xDS 下发给插件的可执行配置。`wasm` 只处理 Proxy-Wasm SDK 动作，`runtime` 承载配置编译后的执行计划，`policy` 承载 ACL 领域逻辑。
+`pkg/plugin/acl` 定义 xDS 下发给插件的可执行配置。`policy` 根据 Gateway 和 Route 建立策略索引并完成访问判断，`wasm` 只负责 Proxy-Wasm 生命周期和请求响应适配。
 
 默认发布路径：
 

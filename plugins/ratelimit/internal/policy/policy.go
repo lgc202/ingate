@@ -20,11 +20,11 @@ type Check struct {
 	RedisKey string
 }
 
-// Outcome 表示一条 Redis 限流检查的执行结果
-type Outcome struct {
+// CheckOutcome 表示一条 Redis 限流检查的执行结果
+type CheckOutcome struct {
 	Allowed      bool
-	Current      int
 	Limit        int
+	Remaining    int
 	ResetSeconds int
 	Err          error
 }

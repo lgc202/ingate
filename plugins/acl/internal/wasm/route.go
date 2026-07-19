@@ -1,24 +1,20 @@
 package wasm
 
 import (
-	aclruntime "github.com/lgc202/ingate/plugins/acl/internal/runtime"
-	pluginruntime "github.com/lgc202/ingate/plugins/internal/runtime"
+	"github.com/lgc202/ingate/plugins/acl/internal/policy"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 )
 
 const routeNamePrefix = "ingate-route"
 
-func (h *httpContext) route() (aclruntime.Route, bool) {
+func (h *httpContext) route() (policy.Route, bool) {
 	identity, ok := pluginwasm.CurrentRouteIdentity(routeNamePrefix)
 	if !ok {
-		return aclruntime.Route{}, false
+		return policy.Route{}, false
 	}
-	if h.plugin.runtime == nil {
-		return aclruntime.Route{}, false
-	}
-	return h.plugin.runtime.Route(pluginruntime.RouteKey{
+	route, exists := h.plugin.routes[policy.RouteKey{
 		GatewayName: identity.GatewayName,
 		RouteName:   identity.RouteName,
-		RuleName:    identity.RuleName,
-	})
+	}]
+	return route, exists
 }
