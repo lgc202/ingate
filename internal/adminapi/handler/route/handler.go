@@ -67,7 +67,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	routeID, err := h.service.Create(ctx.Request.Context(), request.Params())
+	routeID, err := h.service.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create route failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -92,7 +92,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 		return
 	}
 	routeID := ctx.Param("id")
-	err := h.service.Update(ctx.Request.Context(), routeID, request.Params())
+	err := h.service.Update(ctx.Request.Context(), routeID, request.Version, request.Spec())
 	if err != nil {
 		h.logger.Error("update route failed", "request_id", ctx.GetString(requestid.Header), "route_id", routeID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {

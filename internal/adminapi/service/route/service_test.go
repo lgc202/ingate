@@ -87,16 +87,16 @@ func TestServiceCreateRejectsOpenAIUpstreamInOrdinaryRoute(t *testing.T) {
 		policyUsage,
 	)
 
-	_, err := service.Create(context.Background(), CreateRouteParams{
-		Name:       "普通路由",
-		GatewayIDs: []string{gateway.Name},
-		Enabled:    true,
-		Rules: []RouteRuleParams{
+	_, err := service.Create(context.Background(), resource.RouteSpec{
+		DisplayName: "普通路由",
+		ParentRefs:  []resource.ParentRef{{Name: gateway.Name}},
+		Enabled:     true,
+		Rules: []resource.RouteRule{
 			{
-				Name:       "main",
-				PathPrefix: "/",
-				Methods:    []string{"POST"},
-				Targets:    []TargetParams{{UpstreamID: upstream.Name, Weight: 100}},
+				Name:         "main",
+				PathPrefix:   "/",
+				Methods:      []string{"POST"},
+				UpstreamRefs: []resource.UpstreamRef{{Name: upstream.Name, Weight: 100}},
 			},
 		},
 	})
@@ -169,19 +169,19 @@ func TestServiceCreateModelRouteUsesPerModelUpstreams(t *testing.T) {
 		policyUsage,
 	)
 
-	routeID, err := service.Create(context.Background(), CreateRouteParams{
-		Name:       "模型路由",
-		GatewayIDs: []string{gateway.Name},
-		Enabled:    true,
-		Rules: []RouteRuleParams{
+	routeID, err := service.Create(context.Background(), resource.RouteSpec{
+		DisplayName: "模型路由",
+		ParentRefs:  []resource.ParentRef{{Name: gateway.Name}},
+		Enabled:     true,
+		Rules: []resource.RouteRule{
 			{
 				Name:       "chat",
 				PathPrefix: "/v1/chat/completions",
 				Methods:    []string{"POST"},
-				ModelRouting: &ModelRoutingParams{
-					Models: []ModelRouteParams{
-						{Model: "chat-default", UpstreamID: openAIUpstream.Name, UpstreamModel: "gpt-4o-mini"},
-						{Model: "reasoning", UpstreamID: deepSeekUpstream.Name, UpstreamModel: "deepseek-reasoner"},
+				ModelRouting: &resource.ModelRouting{
+					Models: []resource.ModelRoute{
+						{Model: "chat-default", UpstreamRef: openAIUpstream.Name, UpstreamModel: "gpt-4o-mini"},
+						{Model: "reasoning", UpstreamRef: deepSeekUpstream.Name, UpstreamModel: "deepseek-reasoner"},
 					},
 				},
 			},
@@ -243,17 +243,17 @@ func TestServiceCreateRejectsHTTPUpstreamInModelRoute(t *testing.T) {
 		policyUsage,
 	)
 
-	_, err := service.Create(context.Background(), CreateRouteParams{
-		Name:       "模型路由",
-		GatewayIDs: []string{gateway.Name},
-		Enabled:    true,
-		Rules: []RouteRuleParams{
+	_, err := service.Create(context.Background(), resource.RouteSpec{
+		DisplayName: "模型路由",
+		ParentRefs:  []resource.ParentRef{{Name: gateway.Name}},
+		Enabled:     true,
+		Rules: []resource.RouteRule{
 			{
 				Name:       "chat",
 				PathPrefix: "/v1/chat/completions",
 				Methods:    []string{"POST"},
-				ModelRouting: &ModelRoutingParams{
-					Models: []ModelRouteParams{{Model: "chat-default", UpstreamID: upstream.Name}},
+				ModelRouting: &resource.ModelRouting{
+					Models: []resource.ModelRoute{{Model: "chat-default", UpstreamRef: upstream.Name}},
 				},
 			},
 		},
@@ -304,16 +304,16 @@ func TestServiceCreateRejectsDisabledUpstreamModel(t *testing.T) {
 		policyUsage,
 	)
 
-	_, err := service.Create(context.Background(), CreateRouteParams{
-		Name:       "模型路由",
-		GatewayIDs: []string{gateway.Name},
-		Enabled:    true,
-		Rules: []RouteRuleParams{{
+	_, err := service.Create(context.Background(), resource.RouteSpec{
+		DisplayName: "模型路由",
+		ParentRefs:  []resource.ParentRef{{Name: gateway.Name}},
+		Enabled:     true,
+		Rules: []resource.RouteRule{{
 			Name:       "chat",
 			PathPrefix: "/v1/chat/completions",
 			Methods:    []string{"POST"},
-			ModelRouting: &ModelRoutingParams{Models: []ModelRouteParams{
-				{Model: "assistant", UpstreamID: upstream.Name, UpstreamModel: "claude-sonnet"},
+			ModelRouting: &resource.ModelRouting{Models: []resource.ModelRoute{
+				{Model: "assistant", UpstreamRef: upstream.Name, UpstreamModel: "claude-sonnet"},
 			}},
 		}},
 	})
