@@ -1,5 +1,5 @@
 import type { ResourceStatus } from './common';
-import type { UpstreamProtocol } from './upstream';
+import type { ModelCatalogItem, ModelProvider, UpstreamProtocol } from './upstream';
 
 export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
 
@@ -35,6 +35,8 @@ export interface UpstreamOption {
   name: string;
   type: string;
   protocol: UpstreamProtocol;
+  provider?: ModelProvider;
+  models: ModelCatalogItem[];
   endpoint?: string;
   meta: string;
 }
@@ -53,12 +55,12 @@ export interface RouteRule {
 }
 
 export interface ModelRouting {
-  upstreamID: string;
   models: ModelRoute[];
 }
 
 export interface ModelRoute {
   model: string;
+  upstreamID: string;
   upstreamModel?: string;
 }
 

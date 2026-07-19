@@ -14,10 +14,25 @@ const (
 	maxRetryAttempts          = 5
 	minPerTryTimeoutMillis    = 100
 	maxPerTryTimeoutMillis    = 60000
-	authorizationHeader       = "authorization"
-	contentLengthHeader       = "content-length"
 	openAIChatCompletionsPath = "/v1/chat/completions"
+	aiClusterHeader           = "x-ingate-ai-cluster-v1"
+	aiRouteHeader             = "x-ingate-ai-route-v1"
 )
+
+var aiManagedRequestHeaders = []string{
+	":authority",
+	":path",
+	"accept-encoding",
+	"anthropic-version",
+	"authorization",
+	"content-encoding",
+	"content-length",
+	"content-type",
+	aiClusterHeader,
+	aiRouteHeader,
+	"x-api-key",
+	"x-goog-api-key",
+}
 
 // Validate 校验创建 Route 请求
 func (r *CreateRouteReq) Validate() error {
@@ -146,10 +161,6 @@ func (r *ModelRouting) Validate(methods []string) error {
 	if len(methods) != 1 || methods[0] != http.MethodPost {
 		return errors.New("模型路由只支持 POST 方法")
 	}
-	r.UpstreamID = strings.TrimSpace(r.UpstreamID)
-	if r.UpstreamID == "" {
-		return errors.New("模型服务 ID 不能为空")
-	}
 	if len(r.Models) == 0 {
 		return errors.New("至少需要配置一个模型")
 	}
@@ -158,9 +169,13 @@ func (r *ModelRouting) Validate(methods []string) error {
 	for i := range r.Models {
 		model := &r.Models[i]
 		model.Model = strings.TrimSpace(model.Model)
+		model.UpstreamID = strings.TrimSpace(model.UpstreamID)
 		model.UpstreamModel = strings.TrimSpace(model.UpstreamModel)
 		if model.Model == "" {
 			return errors.New("客户端模型名称不能为空")
+		}
+		if model.UpstreamID == "" {
+			return errors.New("模型服务 ID 不能为空")
 		}
 		if _, exists := seenModels[model.Model]; exists {
 			return errors.New("客户端模型名称不能重复")
@@ -180,6 +195,9 @@ func (r *RouteRule) headerMatches() ([]HeaderMatchReq, error) {
 		}
 		if value == "" {
 			return nil, errors.New("路由规则 Header 值不能为空")
+		}
+		if r.ModelRouting != nil && (name == aiClusterHeader || name == aiRouteHeader) {
+			return nil, errors.New("模型路由不能匹配系统内部 Header")
 		}
 		headers = append(headers, HeaderMatchReq{Name: name, Value: value})
 	}
@@ -218,7 +236,7 @@ func (r *RouteRule) validateRouteNativePolicies() error {
 			return err
 		}
 		if r.ModelRouting != nil {
-			for _, name := range []string{authorizationHeader, contentLengthHeader} {
+			for _, name := range aiManagedRequestHeaders {
 				if r.RequestHeaderModifier.contains(name) {
 					return errors.New("模型路由的请求 Header 改写不能使用系统管理的名称")
 				}

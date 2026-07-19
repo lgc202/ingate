@@ -43,13 +43,13 @@ type RouteRuleParams struct {
 
 // ModelRoutingParams 是模型路由用例参数
 type ModelRoutingParams struct {
-	UpstreamID string
-	Models     []ModelRouteParams
+	Models []ModelRouteParams
 }
 
-// ModelRouteParams 是单个客户端模型到模型服务的映射参数
+// ModelRouteParams 是单个客户端模型到模型服务和厂商模型的映射参数
 type ModelRouteParams struct {
 	Model         string
+	UpstreamID    string
 	UpstreamModel string
 }
 

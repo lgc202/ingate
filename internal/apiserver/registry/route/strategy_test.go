@@ -47,7 +47,7 @@ func TestValidateRouteModelRouting(t *testing.T) {
 			name: "requires upstream ref",
 			rule: func() resource.RouteRule {
 				rule := modelRouteRule()
-				rule.ModelRouting.UpstreamRef = ""
+				rule.ModelRouting.Models[0].UpstreamRef = ""
 				return rule
 			}(),
 			wantErr: true,
@@ -56,7 +56,7 @@ func TestValidateRouteModelRouting(t *testing.T) {
 			name: "rejects whitespace around upstream ref",
 			rule: func() resource.RouteRule {
 				rule := modelRouteRule()
-				rule.ModelRouting.UpstreamRef = " model-1 "
+				rule.ModelRouting.Models[0].UpstreamRef = " model-1 "
 				return rule
 			}(),
 			wantErr: true,
@@ -113,6 +113,31 @@ func TestValidateRouteModelRouting(t *testing.T) {
 			}(),
 			wantErr: true,
 		},
+		{
+			name: "rejects managed content type header",
+			rule: func() resource.RouteRule {
+				rule := modelRouteRule()
+				rule.Filters = []resource.RouteFilter{
+					{
+						Type: resource.RouteFilterRequestHeaderModifier,
+						RequestHeaderModifier: &resource.HeaderModifier{
+							Set: []resource.HeaderValue{{Name: "Content-Type", Value: "text/plain"}},
+						},
+					},
+				}
+				return rule
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "rejects internal route header match",
+			rule: func() resource.RouteRule {
+				rule := modelRouteRule()
+				rule.Headers = []resource.HeaderMatch{{Name: aiRouteHeader, Value: "forged"}}
+				return rule
+			}(),
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -135,9 +160,8 @@ func modelRouteRule() resource.RouteRule {
 		PathPrefix: "/v1/chat/completions",
 		Methods:    []string{"POST"},
 		ModelRouting: &resource.ModelRouting{
-			UpstreamRef: "model-1",
 			Models: []resource.ModelRoute{
-				{Model: "chat-default", UpstreamModel: "gpt-4o-mini"},
+				{Model: "chat-default", UpstreamRef: "model-1", UpstreamModel: "gpt-4o-mini"},
 			},
 		},
 	}

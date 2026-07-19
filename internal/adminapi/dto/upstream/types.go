@@ -26,6 +26,7 @@ type UpstreamConfig struct {
 	Type              resource.UpstreamType              `json:"type"`
 	Protocol          resource.UpstreamProtocol          `json:"protocol"`
 	TLS               *UpstreamTLS                       `json:"tls,omitempty"`
+	Model             *ModelConfig                       `json:"model,omitempty"`
 	Endpoints         []UpstreamEndpoint                 `json:"endpoints"`
 	LoadBalancePolicy resource.UpstreamLoadBalancePolicy `json:"loadBalancePolicy"`
 	HealthCheck       *resource.UpstreamHealthCheck      `json:"healthCheck,omitempty"`
@@ -39,6 +40,20 @@ type APIKeyConfig struct {
 // UpstreamTLS 是控制台读写服务 HTTPS 配置的产品模型
 type UpstreamTLS struct {
 	ServerName string `json:"serverName"`
+}
+
+// ModelConfig 是控制台读写的模型厂商和模型目录配置
+type ModelConfig struct {
+	Provider    resource.ModelProvider `json:"provider"`
+	APIBasePath string                 `json:"apiBasePath"`
+	Models      []ModelCatalogItem     `json:"models"`
+}
+
+// ModelCatalogItem 是控制台维护的一个厂商模型
+type ModelCatalogItem struct {
+	Name        string `json:"name"`
+	DisplayName string `json:"displayName"`
+	Enabled     bool   `json:"enabled"`
 }
 
 // UpstreamEndpoint 是控制台读写的服务端点配置

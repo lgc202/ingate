@@ -1,17 +1,17 @@
 package policy
 
 import (
-	"encoding/json"
 	"testing"
 
 	config "github.com/lgc202/ingate/pkg/plugin/aiproxy"
 )
 
-func TestRunnerRewritesSelectedModel(t *testing.T) {
+func TestRunnerSelectsModelAndStreamMode(t *testing.T) {
 	runner := NewRunner()
 	models := map[string]config.ModelConfig{
 		"assistant": {
 			Model:         "assistant",
+			TargetID:      "openai-account",
 			UpstreamModel: "gpt-4o-mini",
 		},
 	}
@@ -21,21 +21,20 @@ func TestRunnerRewritesSelectedModel(t *testing.T) {
 	if decision.Rejection != nil {
 		t.Fatalf("Runner.Apply(valid request).Rejection = %+v, want nil", decision.Rejection)
 	}
-	var got map[string]any
-	if err := json.Unmarshal(decision.Mutation.Body, &got); err != nil {
-		t.Fatalf("json.Unmarshal(Runner.Apply(valid request).Mutation.Body) error = %v", err)
+	if decision.Selection == nil {
+		t.Fatal("Runner.Apply(valid request).Selection = nil, want selection")
 	}
-	if got["model"] != "gpt-4o-mini" {
-		t.Errorf("Runner.Apply(valid request) model = %v, want %q", got["model"], "gpt-4o-mini")
+	if got, want := decision.Selection.Model.TargetID, "openai-account"; got != want {
+		t.Errorf("Runner.Apply(valid request) target = %q, want %q", got, want)
 	}
-	if got["stream"] != true {
-		t.Errorf("Runner.Apply(valid request) stream = %v, want true", got["stream"])
+	if !decision.Selection.Stream {
+		t.Error("Runner.Apply(valid request) stream = false, want true")
 	}
 }
 
 func TestRunnerRejectsInvalidRequest(t *testing.T) {
 	models := map[string]config.ModelConfig{
-		"assistant": {Model: "assistant", UpstreamModel: "gpt-4o-mini"},
+		"assistant": {Model: "assistant", TargetID: "openai-account", UpstreamModel: "gpt-4o-mini"},
 	}
 	tests := []struct {
 		name       string
@@ -43,13 +42,15 @@ func TestRunnerRejectsInvalidRequest(t *testing.T) {
 		statusCode int
 		code       string
 	}{
-		{name: "empty body", statusCode: 400, code: "invalid_json"},
-		{name: "non object", body: `[]`, statusCode: 400, code: "invalid_json"},
-		{name: "invalid JSON", body: `{`, statusCode: 400, code: "invalid_json"},
-		{name: "multiple JSON values", body: `{"model":"assistant"} {}`, statusCode: 400, code: "invalid_json"},
-		{name: "missing model", body: `{"messages":[]}`, statusCode: 400, code: "model_required"},
-		{name: "invalid model type", body: `{"model":1}`, statusCode: 400, code: "invalid_model"},
-		{name: "unknown model", body: `{"model":"unknown"}`, statusCode: 404, code: "model_not_found"},
+		{name: "empty body", statusCode: 400, code: "invalid_request"},
+		{name: "non object", body: `[]`, statusCode: 400, code: "invalid_request"},
+		{name: "invalid JSON", body: `{`, statusCode: 400, code: "invalid_request"},
+		{name: "multiple JSON values", body: `{"model":"assistant"} {}`, statusCode: 400, code: "invalid_request"},
+		{name: "missing model", body: `{"messages":[{"role":"user","content":"hi"}]}`, statusCode: 400, code: "invalid_request"},
+		{name: "invalid model type", body: `{"model":1,"messages":[{"role":"user","content":"hi"}]}`, statusCode: 400, code: "invalid_request"},
+		{name: "unknown model", body: `{"model":"unknown","messages":[{"role":"user","content":"hi"}]}`, statusCode: 404, code: "model_not_found"},
+		{name: "unknown model with unsupported field", body: `{"model":"unknown","messages":[{"role":"user","content":"hi"}],"frequency_penalty":0.2}`, statusCode: 400, code: "unsupported_feature"},
+		{name: "tools unsupported", body: `{"model":"assistant","messages":[{"role":"user","content":"hi"}],"tools":[]}`, statusCode: 400, code: "unsupported_feature"},
 	}
 
 	for _, tt := range tests {

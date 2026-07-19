@@ -40,19 +40,26 @@ func TestCompilerBuildsOpenAIModelRoute(t *testing.T) {
 		t.Errorf("Compiler.Compile(OpenAI model route) exact path = %q, want %q", got, want)
 	}
 	action := route.GetRoute()
-	if got := action.GetCluster(); !strings.HasPrefix(got, "model-upstream/ai/") {
-		t.Errorf("Compiler.Compile(OpenAI model route) cluster = %q, want prefix %q", got, "model-upstream/ai/")
+	if got, want := action.GetClusterHeader(), aiClusterHeader; got != want {
+		t.Errorf("Compiler.Compile(OpenAI model route) cluster header = %q, want %q", got, want)
 	}
-	cluster := findCompiledCluster(t, result.Config.Clusters, action.GetCluster())
+	if !slices.Contains(route.RequestHeadersToRemove, aiClusterHeader) {
+		t.Errorf("Compiler.Compile(OpenAI model route) request headers to remove = %v, want %q", route.RequestHeadersToRemove, aiClusterHeader)
+	}
+	if got, want := len(pluginRoute.Targets), 1; got != want {
+		t.Fatalf("Compiler.Compile(OpenAI model route) AI proxy target count = %d, want %d", got, want)
+	}
+	target := pluginRoute.Targets[0]
+	if !strings.HasPrefix(target.Cluster, "model-upstream/ai/") {
+		t.Errorf("Compiler.Compile(OpenAI model route) target cluster = %q, want prefix %q", target.Cluster, "model-upstream/ai/")
+	}
+	cluster := findCompiledCluster(t, result.Config.Clusters, target.Cluster)
 	if got, want := cluster.GetEdsClusterConfig().GetServiceName(), cluster.Name; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) EDS service name = %q, want %q", got, want)
 	}
 	assignment := findCompiledEndpoint(t, result.Config.Endpoints, cluster.Name)
 	if got, want := assignment.ClusterName, cluster.Name; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) EDS cluster name = %q, want %q", got, want)
-	}
-	if got, want := action.GetHostRewriteLiteral(), "api.example.com"; got != want {
-		t.Errorf("Compiler.Compile(OpenAI model route) host rewrite = %q, want %q", got, want)
 	}
 	if action.GetTimeout() == nil {
 		t.Fatal("Compiler.Compile(OpenAI model route) timeout = nil, want explicit zero timeout")
@@ -70,8 +77,11 @@ func TestCompilerBuildsOpenAIModelRoute(t *testing.T) {
 	if got, want := pluginRoute.RuleName, "chat"; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) AI proxy rule = %q, want %q", got, want)
 	}
-	if got, want := pluginRoute.APIKey, "sk-test-secret"; got != want {
+	if got, want := target.APIKey, "sk-test-secret"; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) API key = %q, want %q", got, want)
+	}
+	if got, want := target.APIKeyHeader, "Authorization"; got != want {
+		t.Errorf("Compiler.Compile(OpenAI model route) API key header = %q, want %q", got, want)
 	}
 	if got, want := len(pluginRoute.Models), 1; got != want {
 		t.Fatalf("Compiler.Compile(OpenAI model route) AI proxy model count = %d, want %d", got, want)
@@ -82,6 +92,149 @@ func TestCompilerBuildsOpenAIModelRoute(t *testing.T) {
 	}
 	if got, want := model.UpstreamModel, "assistant"; got != want {
 		t.Errorf("Compiler.Compile(OpenAI model route) default upstream model = %q, want %q", got, want)
+	}
+	if got, want := model.TargetID, target.ID; got != want {
+		t.Errorf("Compiler.Compile(OpenAI model route) model target = %q, want %q", got, want)
+	}
+
+	routes := findCompiledRoutes(t, result.Config.Routes, routeName)
+	if got, want := len(routes), 2; got != want {
+		t.Fatalf("Compiler.Compile(OpenAI model route) xDS route count = %d, want public and continuation routes", got)
+	}
+	continuation := findAIContinuationRoute(t, routes, pluginRoute.ConfigID, target.Cluster)
+	if got, want := continuation.GetRoute().GetHostRewriteLiteral(), "api.example.com:8080"; got != want {
+		t.Errorf("Compiler.Compile(OpenAI model route) continuation host rewrite = %q, want %q", got, want)
+	}
+	routeConfig := findRouteConfiguration(t, result.Config.Routes, routeName)
+	for _, header := range []string{aiClusterHeader, aiRouteHeader} {
+		if !slices.Contains(routeConfig.InternalOnlyHeaders, header) {
+			t.Errorf("Compiler.Compile(OpenAI model route) internal headers = %v, want %q", routeConfig.InternalOnlyHeaders, header)
+		}
+		if !slices.Contains(continuation.RequestHeadersToRemove, header) {
+			t.Errorf("Compiler.Compile(OpenAI model route) continuation headers to remove = %v, want %q", continuation.RequestHeadersToRemove, header)
+		}
+	}
+}
+
+func TestCompilerBuildsCrossProviderModelRoute(t *testing.T) {
+	resources := newAICompilerResources()
+	anthropicUpstream := newAIUpstream("anthropic-upstream", "anthropic-secret")
+	anthropicUpstream.Spec.Protocol = gatewayv1.UpstreamProtocolAnthropic
+	anthropicUpstream.Spec.TLS.ServerName = "api.anthropic.com"
+	anthropicUpstream.Spec.Endpoints[0].Address = "192.0.2.11"
+	anthropicUpstream.Spec.Endpoints[0].Port = 443
+	anthropicUpstream.Spec.Model = &gatewayv1.ModelSpec{
+		Provider:    gatewayv1.ModelProviderAnthropic,
+		APIBasePath: "/v1",
+		Models: []gatewayv1.ModelCatalogItem{
+			{Name: "claude-sonnet", DisplayName: "Claude Sonnet", Enabled: true},
+		},
+	}
+	geminiUpstream := newAIUpstream("gemini-upstream", "gemini-secret")
+	geminiUpstream.Spec.Protocol = gatewayv1.UpstreamProtocolGemini
+	geminiUpstream.Spec.TLS.ServerName = "generativelanguage.googleapis.com"
+	geminiUpstream.Spec.Endpoints[0].Address = "192.0.2.12"
+	geminiUpstream.Spec.Endpoints[0].Port = 443
+	geminiUpstream.Spec.Model = &gatewayv1.ModelSpec{
+		Provider:    gatewayv1.ModelProviderGemini,
+		APIBasePath: "/v1beta",
+		Models: []gatewayv1.ModelCatalogItem{
+			{Name: "gemini-2.5-flash", DisplayName: "Gemini 2.5 Flash", Enabled: true},
+		},
+	}
+	resources.Upstreams = append(resources.Upstreams, anthropicUpstream, geminiUpstream)
+	resources.Routes[0].Spec.Rules[0].ModelRouting.Models = []gatewayv1.ModelRoute{
+		{Model: "assistant", UpstreamRef: "model-upstream", UpstreamModel: "gpt-assistant"},
+		{Model: "claude", UpstreamRef: anthropicUpstream.Name, UpstreamModel: "claude-sonnet"},
+		{Model: "gemini", UpstreamRef: geminiUpstream.Name, UpstreamModel: "gemini-2.5-flash"},
+	}
+
+	result := (Compiler{}).Compile(resources)
+	if result.HasErrors() {
+		t.Fatalf("Compiler.Compile(cross-provider model route) diagnostics = %v, want no errors", result.Diagnostics)
+	}
+	config := decodeAIProxyConfig(t, findCompiledListener(t, result.Config.Listeners, "ingate/http-8080"))
+	if got, want := len(config.Routes), 1; got != want {
+		t.Fatalf("Compiler.Compile(cross-provider model route) plugin route count = %d, want %d", got, want)
+	}
+	pluginRoute := config.Routes[0]
+	if got, want := len(pluginRoute.Targets), 3; got != want {
+		t.Fatalf("Compiler.Compile(cross-provider model route) target count = %d, want %d", got, want)
+	}
+	if got, want := len(pluginRoute.Models), 3; got != want {
+		t.Fatalf("Compiler.Compile(cross-provider model route) model count = %d, want %d", got, want)
+	}
+
+	targets := make(map[string]pluginaiproxy.TargetConfig, len(pluginRoute.Targets))
+	for _, target := range pluginRoute.Targets {
+		targets[target.ID] = target
+		findCompiledCluster(t, result.Config.Clusters, target.Cluster)
+	}
+	assertAITarget(t, targets["model-upstream"], pluginaiproxy.ProtocolOpenAI, "Authorization", "Bearer ", nil)
+	assertAITarget(t, targets[anthropicUpstream.Name], pluginaiproxy.ProtocolAnthropic, "x-api-key", "", map[string]string{
+		"anthropic-version": "2023-06-01",
+	})
+	assertAITarget(t, targets[geminiUpstream.Name], pluginaiproxy.ProtocolGemini, "x-goog-api-key", "", nil)
+
+	routeName := runtimeAIRouteName("ai-gateway", "ai-route", "chat", "POST", pluginRoute.ConfigID)
+	routes := findCompiledRoutes(t, result.Config.Routes, routeName)
+	if got, want := len(routes), 5; got != want {
+		t.Fatalf("Compiler.Compile(cross-provider model route) xDS route count = %d, want one public and four continuation routes", got)
+	}
+	wantAuthorities := map[string]string{
+		"model-upstream":       "api.example.com:8080",
+		anthropicUpstream.Name: "api.anthropic.com",
+		geminiUpstream.Name:    "generativelanguage.googleapis.com",
+	}
+	for _, target := range pluginRoute.Targets {
+		continuation := findAIContinuationRoute(t, routes, pluginRoute.ConfigID, target.Cluster)
+		if got, want := continuation.GetRoute().GetHostRewriteLiteral(), wantAuthorities[target.ID]; got != want {
+			t.Errorf("Compiler.Compile(cross-provider model route) target %q host rewrite = %q, want %q", target.ID, got, want)
+		}
+	}
+}
+
+func TestCompilerFormatsIPv6ModelAuthority(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*gatewayv1.Upstream)
+	}{
+		{
+			name: "TLS default port",
+			mutate: func(upstream *gatewayv1.Upstream) {
+				upstream.Spec.TLS.ServerName = "2001:db8::1"
+				upstream.Spec.Endpoints[0].Address = "2001:db8::2"
+				upstream.Spec.Endpoints[0].Port = 443
+			},
+		},
+		{
+			name: "HTTP default port",
+			mutate: func(upstream *gatewayv1.Upstream) {
+				upstream.Spec.Authentication = nil
+				upstream.Spec.TLS = nil
+				upstream.Spec.Endpoints[0].Address = "2001:db8::1"
+				upstream.Spec.Endpoints[0].Port = 80
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resources := newAICompilerResources()
+			tt.mutate(resources.Upstreams[0])
+			result := (Compiler{}).Compile(resources)
+			if result.HasErrors() {
+				t.Fatalf("Compiler.Compile(%s IPv6 model authority) diagnostics = %v, want no errors", tt.name, result.Diagnostics)
+			}
+
+			config := decodeAIProxyConfig(t, findCompiledListener(t, result.Config.Listeners, "ingate/http-8080"))
+			pluginRoute := config.Routes[0]
+			routeName := runtimeAIRouteName("ai-gateway", "ai-route", "chat", "POST", pluginRoute.ConfigID)
+			continuation := findAIContinuationRoute(t, findCompiledRoutes(t, result.Config.Routes, routeName), pluginRoute.ConfigID, pluginRoute.Targets[0].Cluster)
+			if got, want := continuation.GetRoute().GetHostRewriteLiteral(), "[2001:db8::1]"; got != want {
+				t.Errorf("Compiler.Compile(%s IPv6 model authority) host rewrite = %q, want %q", tt.name, got, want)
+			}
+		})
 	}
 }
 
@@ -103,14 +256,16 @@ func TestCompilerInjectsAIProxyIntoEveryListener(t *testing.T) {
 	}
 
 	tests := []struct {
-		listenerName string
-		wantFilters  []string
-		wantRoutes   int
+		listenerName    string
+		wantFilters     []string
+		wantRoutes      int
+		wantBufferLimit uint32
 	}{
 		{
-			listenerName: "ingate/http-8080",
-			wantFilters:  []string{aiProxyHTTPFilterName, httpRouterFilterName},
-			wantRoutes:   1,
+			listenerName:    "ingate/http-8080",
+			wantFilters:     []string{aiProxyHTTPFilterName, httpRouterFilterName},
+			wantRoutes:      1,
+			wantBufferLimit: pluginaiproxy.ResponseBufferLimitBytes,
 		},
 		{
 			listenerName: "ingate/http-8081",
@@ -120,6 +275,9 @@ func TestCompilerInjectsAIProxyIntoEveryListener(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.listenerName, func(t *testing.T) {
 			listener := findCompiledListener(t, result.Config.Listeners, tt.listenerName)
+			if got := listener.GetPerConnectionBufferLimitBytes().GetValue(); got != tt.wantBufferLimit {
+				t.Errorf("Compiler.Compile(mixed AI and HTTP listeners) buffer limit for %q = %d, want %d", tt.listenerName, got, tt.wantBufferLimit)
+			}
 			manager := decodeHTTPConnectionManager(t, listener)
 			gotFilters := make([]string, 0, len(manager.HttpFilters))
 			for _, filter := range manager.HttpFilters {
@@ -140,8 +298,8 @@ func TestCompilerVersionsOpenAIRuntimeConfig(t *testing.T) {
 	newResources := func() ResourceSet {
 		resources := newAICompilerResources()
 		resources.Routes[0].Spec.Rules[0].ModelRouting.Models = []gatewayv1.ModelRoute{
-			{Model: "assistant", UpstreamModel: "gpt-assistant"},
-			{Model: "reasoning", UpstreamModel: "gpt-reasoning"},
+			{Model: "assistant", UpstreamRef: "model-upstream", UpstreamModel: "gpt-assistant"},
+			{Model: "reasoning", UpstreamRef: "model-upstream", UpstreamModel: "gpt-reasoning"},
 		}
 		return resources
 	}
@@ -251,6 +409,31 @@ func TestCompilerRejectsAPIKeyOverPlaintextOpenAIUpstream(t *testing.T) {
 	}
 }
 
+func TestCompilerReportsUncompiledModelUpstreamAsInvalidReference(t *testing.T) {
+	resources := newAICompilerResources()
+	resources.Upstreams[0].Spec.TLS.ServerName = "invalid server name"
+	result := (Compiler{}).Compile(resources)
+	if !result.HasErrors() {
+		t.Fatal("Compiler.Compile(uncompiled model upstream) has errors = false, want true")
+	}
+	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindUpstream, resources.Upstreams[0].Name, ReasonInvalidSpec) {
+		t.Errorf(
+			"Compiler.Compile(uncompiled model upstream) diagnostics = %v, want Upstream %q reason %q",
+			result.Diagnostics,
+			resources.Upstreams[0].Name,
+			ReasonInvalidSpec,
+		)
+	}
+	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindRoute, resources.Routes[0].Name, ReasonInvalidReference) {
+		t.Errorf(
+			"Compiler.Compile(uncompiled model upstream) diagnostics = %v, want Route %q reason %q",
+			result.Diagnostics,
+			resources.Routes[0].Name,
+			ReasonInvalidReference,
+		)
+	}
+}
+
 func TestCompilerRejectsOpenAIUpstreamInOrdinaryRoute(t *testing.T) {
 	gateway := newTestGateway("gateway", gatewayv1.ProtocolHTTP, 8080, "api.example.com", "")
 	upstream := newAIUpstream("model-upstream", "")
@@ -312,6 +495,47 @@ func TestCompilerRejectsAIManagedRequestHeaderModifier(t *testing.T) {
 	}
 }
 
+func TestCompilerRejectsAIManagedContentTypeModifier(t *testing.T) {
+	resources := newAICompilerResources()
+	resources.Routes[0].Spec.Rules[0].Filters = []gatewayv1.RouteFilter{
+		{
+			Type: gatewayv1.RouteFilterRequestHeaderModifier,
+			RequestHeaderModifier: &gatewayv1.HeaderModifier{
+				Set: []gatewayv1.HeaderValue{{Name: "Content-Type", Value: "text/plain"}},
+			},
+		},
+	}
+	result := (Compiler{}).Compile(resources)
+	if !result.HasErrors() {
+		t.Fatal("Compiler.Compile(AI-managed content type header) has errors = false, want true")
+	}
+	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindRoute, resources.Routes[0].Name, ReasonInvalidSpec) {
+		t.Errorf(
+			"Compiler.Compile(AI-managed content type header) diagnostics = %v, want Route %q reason %q",
+			result.Diagnostics,
+			resources.Routes[0].Name,
+			ReasonInvalidSpec,
+		)
+	}
+}
+
+func TestCompilerRejectsInternalAIRouteHeaderMatch(t *testing.T) {
+	resources := newAICompilerResources()
+	resources.Routes[0].Spec.Rules[0].Headers = []gatewayv1.HeaderMatch{{Name: aiRouteHeader, Value: "forged"}}
+	result := (Compiler{}).Compile(resources)
+	if !result.HasErrors() {
+		t.Fatal("Compiler.Compile(internal AI route header match) has errors = false, want true")
+	}
+	if !containsDiagnostic(result.Diagnostics, gatewayv1.KindRoute, resources.Routes[0].Name, ReasonInvalidSpec) {
+		t.Errorf(
+			"Compiler.Compile(internal AI route header match) diagnostics = %v, want Route %q reason %q",
+			result.Diagnostics,
+			resources.Routes[0].Name,
+			ReasonInvalidSpec,
+		)
+	}
+}
+
 func TestCompilerRejectsUnsupportedAIPath(t *testing.T) {
 	resources := newAICompilerResources()
 	resources.Routes[0].Spec.Rules[0].PathPrefix = "/chat"
@@ -355,9 +579,8 @@ func newAICompilerResources() ResourceSet {
 					PathPrefix: "/v1/chat/completions",
 					Methods:    []string{"POST"},
 					ModelRouting: &gatewayv1.ModelRouting{
-						UpstreamRef: modelUpstream.Name,
 						Models: []gatewayv1.ModelRoute{
-							{Model: "assistant"},
+							{Model: "assistant", UpstreamRef: modelUpstream.Name},
 						},
 					},
 				},
@@ -394,6 +617,16 @@ func newAIUpstream(name, apiKey string) *gatewayv1.Upstream {
 			Type:     gatewayv1.UpstreamTypeModel,
 			Protocol: gatewayv1.UpstreamProtocolOpenAI,
 			TLS:      &gatewayv1.UpstreamTLS{ServerName: "api.example.com"},
+			Model: &gatewayv1.ModelSpec{
+				Provider:    gatewayv1.ModelProviderOpenAI,
+				APIBasePath: "/v1",
+				Models: []gatewayv1.ModelCatalogItem{
+					{Name: "assistant", DisplayName: "Assistant", Enabled: true},
+					{Name: "gpt-assistant", DisplayName: "GPT Assistant", Enabled: true},
+					{Name: "gpt-reasoning", DisplayName: "GPT Reasoning", Enabled: true},
+					{Name: "gpt-assistant-v2", DisplayName: "GPT Assistant v2", Enabled: true},
+				},
+			},
 			Endpoints: []gatewayv1.Endpoint{
 				{Name: "primary", Address: "192.0.2.10", Port: 8080, Weight: 100, Enabled: true},
 			},
@@ -418,8 +651,110 @@ func compileAITestIdentity(t *testing.T, resources ResourceSet) (string, string)
 		t.Fatalf("Compiler.Compile(OpenAI runtime identity) AI route count = %d, want %d", got, want)
 	}
 	configID := config.Routes[0].ConfigID
-	route := findCompiledRoute(t, result.Config.Routes, runtimeAIRouteName("ai-gateway", "ai-route", "chat", "POST", configID))
-	return route.GetRoute().GetCluster(), configID
+	findCompiledRoute(t, result.Config.Routes, runtimeAIRouteName("ai-gateway", "ai-route", "chat", "POST", configID))
+	if got, want := len(config.Routes[0].Targets), 1; got != want {
+		t.Fatalf("Compiler.Compile(OpenAI runtime identity) target count = %d, want %d", got, want)
+	}
+	return config.Routes[0].Targets[0].Cluster, configID
+}
+
+func assertAITarget(
+	t *testing.T,
+	target pluginaiproxy.TargetConfig,
+	protocol pluginaiproxy.Protocol,
+	apiKeyHeader string,
+	apiKeyPrefix string,
+	wantHeaders map[string]string,
+) {
+	t.Helper()
+	if target.ID == "" {
+		t.Fatal("compiled AI target is missing")
+	}
+	if target.Protocol != protocol {
+		t.Errorf("compiled AI target %q protocol = %q, want %q", target.ID, target.Protocol, protocol)
+	}
+	if target.APIKeyHeader != apiKeyHeader {
+		t.Errorf("compiled AI target %q API key header = %q, want %q", target.ID, target.APIKeyHeader, apiKeyHeader)
+	}
+	if target.APIKeyPrefix != apiKeyPrefix {
+		t.Errorf("compiled AI target %q API key prefix = %q, want %q", target.ID, target.APIKeyPrefix, apiKeyPrefix)
+	}
+	gotHeaders := make(map[string]string, len(target.Headers))
+	for _, header := range target.Headers {
+		gotHeaders[strings.ToLower(header.Name)] = header.Value
+	}
+	if len(gotHeaders) != len(wantHeaders) {
+		t.Errorf("compiled AI target %q static headers = %v, want %v", target.ID, gotHeaders, wantHeaders)
+		return
+	}
+	for name, value := range wantHeaders {
+		if gotHeaders[name] != value {
+			t.Errorf("compiled AI target %q static header %q = %q, want %q", target.ID, name, gotHeaders[name], value)
+		}
+	}
+}
+
+func findCompiledRoutes(t *testing.T, configs []*routev3.RouteConfiguration, name string) []*routev3.Route {
+	t.Helper()
+	var result []*routev3.Route
+	for _, config := range configs {
+		for _, virtualHost := range config.VirtualHosts {
+			for _, route := range virtualHost.Routes {
+				if route.Name == name {
+					result = append(result, route)
+				}
+			}
+		}
+	}
+	if len(result) == 0 {
+		t.Fatalf("compiled routes %q not found", name)
+	}
+	return result
+}
+
+func findAIContinuationRoute(
+	t *testing.T,
+	routes []*routev3.Route,
+	configID string,
+	cluster string,
+) *routev3.Route {
+	t.Helper()
+	for _, route := range routes {
+		if exactHeaderMatch(route.GetMatch(), aiRouteHeader) == configID &&
+			exactHeaderMatch(route.GetMatch(), aiClusterHeader) == cluster {
+			return route
+		}
+	}
+	t.Fatalf("compiled AI continuation route for config %q cluster %q not found", configID, cluster)
+	return nil
+}
+
+func exactHeaderMatch(match *routev3.RouteMatch, name string) string {
+	for _, header := range match.GetHeaders() {
+		if strings.EqualFold(header.GetName(), name) {
+			return header.GetExactMatch()
+		}
+	}
+	return ""
+}
+
+func findRouteConfiguration(
+	t *testing.T,
+	configs []*routev3.RouteConfiguration,
+	routeName string,
+) *routev3.RouteConfiguration {
+	t.Helper()
+	for _, config := range configs {
+		for _, virtualHost := range config.VirtualHosts {
+			for _, route := range virtualHost.Routes {
+				if route.Name == routeName {
+					return config
+				}
+			}
+		}
+	}
+	t.Fatalf("route configuration containing %q not found", routeName)
+	return nil
 }
 
 func findCompiledRoute(t *testing.T, configs []*routev3.RouteConfiguration, name string) *routev3.Route {
@@ -492,6 +827,9 @@ func decodeAIProxyConfig(t *testing.T, listener *listenerv3.Listener) pluginaipr
 		wasm := &httpwasmv3.Wasm{}
 		if err := filter.GetTypedConfig().UnmarshalTo(wasm); err != nil {
 			t.Fatalf("decode listener %q AI proxy filter error = %v, want nil", listener.Name, err)
+		}
+		if !wasm.GetConfig().GetAllowOnHeadersStopIteration().GetValue() {
+			t.Fatalf("listener %q AI proxy filter does not allow Header pause followed by Body processing", listener.Name)
 		}
 		configuration := &wrapperspb.StringValue{}
 		if err := wasm.GetConfig().GetConfiguration().UnmarshalTo(configuration); err != nil {

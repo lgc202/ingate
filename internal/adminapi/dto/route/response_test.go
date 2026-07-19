@@ -67,17 +67,17 @@ func TestRouteFromResourceShowsDisabledOnlyAfterConfigurationApplied(t *testing.
 	}
 }
 
-func TestModelRoutingUsesOneUpstream(t *testing.T) {
+func TestModelRoutingMapsEachModelUpstream(t *testing.T) {
 	source := &resource.ModelRouting{
-		UpstreamRef: "model-upstream",
 		Models: []resource.ModelRoute{
-			{Model: "assistant", UpstreamModel: "gpt-4o-mini"},
+			{Model: "assistant", UpstreamRef: "openai-upstream", UpstreamModel: "gpt-4o-mini"},
+			{Model: "reasoning", UpstreamRef: "deepseek-upstream", UpstreamModel: "deepseek-reasoner"},
 		},
 	}
 	want := &ModelRouting{
-		UpstreamID: "model-upstream",
 		Models: []ModelRoute{
-			{Model: "assistant", UpstreamModel: "gpt-4o-mini"},
+			{Model: "assistant", UpstreamID: "openai-upstream", UpstreamModel: "gpt-4o-mini"},
+			{Model: "reasoning", UpstreamID: "deepseek-upstream", UpstreamModel: "deepseek-reasoner"},
 		},
 	}
 

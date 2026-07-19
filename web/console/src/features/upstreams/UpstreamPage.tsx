@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { deleteUpstream, listUpstreams, saveUpstream } from '@/api/upstreams';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
-import type { Upstream, UpstreamEndpoint, UpstreamType } from '@/domain/upstream';
+import type { ModelCatalogItem, ModelProvider, Upstream, UpstreamEndpoint, UpstreamType } from '@/domain/upstream';
 import {
+  modelProviderDefinition,
+  modelProviderDefinitions,
+  modelProviderLabel,
   upstreamLoadBalancePolicyLabel,
   upstreamLoadBalancePolicyOptions,
   upstreamProtocolLabel,
@@ -14,11 +17,14 @@ import {
 import type { UpstreamFormDraft, UpstreamFormValidation } from './form';
 import {
   buildUpstreamPayload,
+  changeModelProvider,
   changeUpstreamType,
+  createModelCatalogItem,
   createUpstreamDraft,
   createUpstreamEndpoint,
   formatEndpointSummary,
   formatInstanceSummary,
+  formatModelBaseURL,
   validateUpstreamDraft,
 } from './form';
 
@@ -65,6 +71,10 @@ export function UpstreamPage() {
       upstream.name,
       upstream.type,
       upstream.protocol,
+      upstream.model?.provider ?? '',
+      upstream.model ? modelProviderLabel(upstream.model.provider) : '',
+      upstream.model ? formatModelBaseURL(upstream) : '',
+      ...(upstream.model?.models.flatMap((model) => [model.name, model.displayName]) ?? []),
       upstreamTypeLabel(upstream.type),
       upstreamProtocolLabel(upstream.protocol),
       formatEndpointSummary(upstream.endpoints),
@@ -167,7 +177,9 @@ export function UpstreamPage() {
     return (
       <PageFrame
         title={panelMode === 'create' ? '新建服务' : '编辑服务'}
-        subtitle={panelMode === 'create' ? '创建路由可以引用的目标服务' : '调整服务类型、端点、负载均衡和健康检查'}
+        subtitle={draft.type === 'model'
+          ? '连接模型厂商，维护可用于统一模型入口的模型目录'
+          : panelMode === 'create' ? '创建路由可以引用的目标服务' : '调整服务端点、负载均衡和健康检查'}
         actions={<Button variant="soft" onClick={closeEditor} disabled={submitting}>返回列表</Button>}
       >
         <section className="editor-layout">
@@ -198,7 +210,7 @@ export function UpstreamPage() {
             <input
               className="toolbar-input"
               value={query}
-              placeholder="搜索服务名称 / 地址 / 类型"
+              placeholder="搜索服务名称 / 地址 / 厂商 / 模型"
               onChange={(event) => setQuery(event.target.value)}
             />
             {query ? <Button variant="soft" onClick={() => setQuery('')}>重置</Button> : null}
@@ -210,10 +222,10 @@ export function UpstreamPage() {
             <thead>
               <tr>
                 <th>服务名称</th>
-                <th>连接方式</th>
-                <th>转发端点</th>
-                <th>负载均衡</th>
-                <th>健康检查</th>
+                <th>类型 / 厂商</th>
+                <th>访问地址</th>
+                <th>可用范围</th>
+                <th>连接配置</th>
                 <th>创建时间</th>
                 <th>操作</th>
               </tr>
@@ -223,22 +235,33 @@ export function UpstreamPage() {
                 <tr key={upstream.id}>
                   <td>
                     <div className="table-primary">{upstream.name}</div>
-                    <div className="table-secondary">{upstreamTypeLabel(upstream.type)}</div>
                   </td>
                   <td>
-                    <div className="table-primary">{upstreamConnectionSummary(upstream)}</div>
-                    <div className="table-secondary">
-                      {upstream.type === 'model'
-                        ? (upstream.apiKeyConfigured ? 'API Key 已配置' : '未配置 API Key')
-                        : '无需认证'}
-                    </div>
+                    <div className="table-primary">{upstream.type === 'model' ? modelProviderLabel(upstream.model?.provider ?? 'custom') : upstreamTypeLabel(upstream.type)}</div>
+                    <div className="table-secondary">{upstream.type === 'model' ? `模型服务 · ${upstreamProtocolLabel(upstream.protocol)}` : upstreamConnectionSummary(upstream)}</div>
                   </td>
                   <td>
-                    <div className="table-primary">{formatEndpointSummary(upstream.endpoints)}</div>
-                    <div className="table-secondary">{formatInstanceSummary(upstream.endpoints)}</div>
+                    <div className="table-primary">{upstream.type === 'model' ? formatModelBaseURL(upstream) : formatEndpointSummary(upstream.endpoints)}</div>
+                    <div className="table-secondary">{upstream.type === 'model' ? '统一模型入口自动转换协议' : `${formatInstanceSummary(upstream.endpoints)} 个端点启用`}</div>
                   </td>
-                  <td>{upstreamLoadBalancePolicyLabel(upstream.loadBalancePolicy)}</td>
-                  <td><Badge tone={upstream.healthCheck?.enabled ? 'accent' : 'neutral'}>{upstream.healthCheck?.enabled ? '已启用' : '未启用'}</Badge></td>
+                  <td>
+                    {upstream.type === 'model' ? (
+                      <>
+                        <div className="table-primary">{upstream.model?.models.filter((model) => model.enabled).length ?? 0} 个可用模型</div>
+                        <div className="table-secondary">共 {upstream.model?.models.length ?? 0} 个模型</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="table-primary">{upstreamLoadBalancePolicyLabel(upstream.loadBalancePolicy)}</div>
+                        <div className="table-secondary">{upstream.endpoints.length} 个服务端点</div>
+                      </>
+                    )}
+                  </td>
+                  <td><Badge tone={upstream.type === 'model' ? (upstream.apiKeyConfigured ? 'accent' : 'neutral') : (upstream.healthCheck?.enabled ? 'accent' : 'neutral')}>
+                    {upstream.type === 'model'
+                      ? (upstream.apiKeyConfigured ? '密钥已配置' : '无需或未配置密钥')
+                      : (upstream.healthCheck?.enabled ? '健康检查已启用' : '未启用健康检查')}
+                  </Badge></td>
                   <td>{formatDateTime(upstream.createdAt)}</td>
                   <td>
                     <div className="row-actions">
@@ -282,8 +305,10 @@ export function UpstreamPage() {
             <h3 id="delete-upstream-title">删除服务</h3>
             <p>确定删除 {deleteCandidate.name}？如果仍有路由引用该服务，后端会拒绝删除。</p>
             <div className="confirm-meta">
-              <span>服务端点</span><strong>{formatEndpointSummary(deleteCandidate.endpoints)}</strong>
-              <span>启用端点</span><strong>{formatInstanceSummary(deleteCandidate.endpoints)}</strong>
+              <span>{deleteCandidate.type === 'model' ? '模型厂商' : '服务端点'}</span>
+              <strong>{deleteCandidate.type === 'model' ? modelProviderLabel(deleteCandidate.model?.provider ?? 'custom') : formatEndpointSummary(deleteCandidate.endpoints)}</strong>
+              <span>{deleteCandidate.type === 'model' ? '可用模型' : '启用端点'}</span>
+              <strong>{deleteCandidate.type === 'model' ? `${deleteCandidate.model?.models.filter((model) => model.enabled).length ?? 0} 个` : formatInstanceSummary(deleteCandidate.endpoints)}</strong>
             </div>
             <div className="confirm-actions">
               <Button variant="ghost" onClick={() => setDeleteCandidate(null)} disabled={deleting}>取消</Button>
@@ -311,6 +336,7 @@ function UpstreamFormPanel({
   onSubmit: () => void;
   onCancel: () => void;
 }) {
+  const modelProvider = modelProviderDefinition(draft.modelProvider);
   return (
     <Panel>
       <div className="editor-grid form-only">
@@ -318,7 +344,7 @@ function UpstreamFormPanel({
           <section className="form-section">
             <div className="form-section-title">
               <h3>基础信息</h3>
-              <p>服务可以表示应用、大模型、Agent 或 MCP，类型用于区分业务语义。</p>
+              <p>{draft.type === 'model' ? '模型服务代表一个厂商账号和 API Key，可维护多个厂商模型。' : '服务可以表示应用、Agent 或 MCP，类型用于区分业务语义。'}</p>
             </div>
             <div className="field-grid">
               <InputField label="服务名称" value={draft.name} error={validation.errors.name} onChange={(value) => onDraftChange({ name: value })} />
@@ -328,67 +354,96 @@ function UpstreamFormPanel({
                 options={upstreamTypeOptions}
                 onChange={(value) => onDraftChange(changeUpstreamType(draft, value as UpstreamType))}
               />
-              <SelectField
-                label="负载均衡"
-                value={draft.loadBalancePolicy}
-                options={upstreamLoadBalancePolicyOptions}
-                error={validation.errors.loadBalancePolicy}
-                onChange={(value) => onDraftChange({ loadBalancePolicy: value as UpstreamFormDraft['loadBalancePolicy'] })}
-              />
+              {draft.type !== 'model' ? (
+                <SelectField
+                  label="负载均衡"
+                  value={draft.loadBalancePolicy}
+                  options={upstreamLoadBalancePolicyOptions}
+                  error={validation.errors.loadBalancePolicy}
+                  onChange={(value) => onDraftChange({ loadBalancePolicy: value as UpstreamFormDraft['loadBalancePolicy'] })}
+                />
+              ) : null}
             </div>
-          </section>
-
-          <section className="form-section">
-            <div className="form-section-title">
-              <h3>连接方式</h3>
-              <p>{draft.type === 'model' ? '模型服务使用 OpenAI 兼容接口，可通过 HTTPS 安全连接上游。' : '普通服务使用 HTTP 接口，可按需启用 HTTPS。'}</p>
-            </div>
-            <UpstreamConnectionEditor
-              draft={draft}
-              protocolError={validation.errors.protocol}
-              tlsError={validation.errors.tls}
-              onChange={onDraftChange}
-            />
           </section>
 
           {draft.type === 'model' ? (
-            <section className="form-section">
-              <div className="form-section-title">
-                <h3>服务认证</h3>
-                <p>API Key 直接随模型服务保存，转发请求时由网关自动携带。</p>
-              </div>
-              <UpstreamAuthenticationEditor
-                draft={draft}
-                error={validation.errors.apiKey}
-                onChange={onDraftChange}
-              />
-            </section>
-          ) : null}
+            <>
+              <section className="form-section">
+                <div className="form-section-title">
+                  <h3>模型厂商</h3>
+                  <p>选择厂商后，系统会自动确定协议、默认地址和认证方式。</p>
+                </div>
+                <ModelProviderPicker
+                  value={draft.modelProvider}
+                  onChange={(provider) => onDraftChange(changeModelProvider(draft, provider))}
+                />
+              </section>
 
-          <section className="form-section">
-            <div className="form-section-title">
-              <h3>服务端点</h3>
-              <p>配置网关访问服务时使用的地址、端口和流量权重。</p>
-            </div>
-            <UpstreamEndpointEditor
-              model={draft.type === 'model'}
-              value={draft.endpoints}
-              error={validation.errors.endpoints}
-              onChange={(endpoints) => onDraftChange({ endpoints })}
-            />
-          </section>
+              <section className="form-section">
+                <div className="form-section-title">
+                  <h3>连接与认证</h3>
+                  <p>官方地址已预填；访问密钥只写入模型服务，保存后不会回显。</p>
+                </div>
+                <div className="model-connection-card">
+                  <InputField
+                    label="API 地址"
+                    value={draft.modelBaseURL}
+                    type="url"
+                    placeholder="https://api.example.com/v1"
+                    error={validation.errors.modelBaseURL}
+                    onChange={(modelBaseURL) => onDraftChange({ modelBaseURL })}
+                  />
+                  <div className="model-connection-meta">
+                    <span>{modelProvider.label}</span>
+                    <span>{upstreamProtocolLabel(modelProvider.protocol)}</span>
+                    <span>{draft.modelBaseURL.trim().toLowerCase().startsWith('https://') ? 'HTTPS 安全连接' : 'HTTP 连接'}</span>
+                    {draft.id && draft.initialType === 'model' ? (
+                      <span>保留 {draft.endpoints.length} 个端点 · {upstreamLoadBalancePolicyLabel(draft.loadBalancePolicy)}</span>
+                    ) : null}
+                    {modelProvider.defaultBaseURL && draft.modelBaseURL === modelProvider.defaultBaseURL ? <Badge tone="accent">系统预设</Badge> : <Badge tone="neutral">自定义地址</Badge>}
+                  </div>
+                </div>
+                <UpstreamAuthenticationEditor draft={draft} error={validation.errors.apiKey} onChange={onDraftChange} />
+              </section>
 
-          <section className="form-section">
-            <div className="form-section-title">
-              <h3>健康检查</h3>
-              <p>启用后，网关会主动检查服务端点是否可用。</p>
-            </div>
-            <HealthCheckEditor
-              draft={draft}
-              error={validation.errors.healthCheck}
-              onChange={onDraftChange}
-            />
-          </section>
+              <section className="form-section">
+                <div className="form-section-title model-catalog-title">
+                  <div>
+                    <h3>可用模型</h3>
+                    <p>维护厂商账号下允许路由引用的模型，不会自动从厂商同步。</p>
+                  </div>
+                  <Button variant="soft" type="button" onClick={() => onDraftChange({ models: [...draft.models, createModelCatalogItem()] })}>添加模型</Button>
+                </div>
+                <ModelCatalogEditor value={draft.models} error={validation.errors.models} onChange={(models) => onDraftChange({ models })} />
+              </section>
+            </>
+          ) : (
+            <>
+              <section className="form-section">
+                <div className="form-section-title">
+                  <h3>连接方式</h3>
+                  <p>普通服务使用 HTTP 接口，可按需启用 HTTPS。</p>
+                </div>
+                <UpstreamConnectionEditor draft={draft} protocolError={validation.errors.protocol} tlsError={validation.errors.tls} onChange={onDraftChange} />
+              </section>
+
+              <section className="form-section">
+                <div className="form-section-title">
+                  <h3>服务端点</h3>
+                  <p>配置网关访问服务时使用的地址、端口和流量权重。</p>
+                </div>
+                <UpstreamEndpointEditor model={false} value={draft.endpoints} error={validation.errors.endpoints} onChange={(endpoints) => onDraftChange({ endpoints })} />
+              </section>
+
+              <section className="form-section">
+                <div className="form-section-title">
+                  <h3>健康检查</h3>
+                  <p>启用后，网关会主动检查服务端点是否可用。</p>
+                </div>
+                <HealthCheckEditor draft={draft} error={validation.errors.healthCheck} onChange={onDraftChange} />
+              </section>
+            </>
+          )}
         </div>
         <div className="form-actions">
           <Button variant="primary" disabled={submitting} onClick={onSubmit}>{submitting ? '保存中...' : '保存服务'}</Button>
@@ -396,6 +451,92 @@ function UpstreamFormPanel({
         </div>
       </div>
     </Panel>
+  );
+}
+
+function ModelProviderPicker({ value, onChange }: { value: ModelProvider; onChange: (value: ModelProvider) => void }) {
+  return (
+    <div className="model-provider-grid" role="radiogroup" aria-label="模型厂商">
+      {modelProviderDefinitions.map((provider) => (
+        <button
+          key={provider.value}
+          className={`model-provider-card provider-${provider.value} ${value === provider.value ? 'selected' : ''}`.trim()}
+          type="button"
+          role="radio"
+          aria-checked={value === provider.value}
+          onClick={() => onChange(provider.value)}
+        >
+          <span className="model-provider-mark">{provider.monogram}</span>
+          <span className="model-provider-copy"><strong>{provider.label}</strong><small>{provider.description}</small></span>
+          <span className="model-provider-check" aria-hidden="true">{value === provider.value ? '✓' : ''}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ModelCatalogEditor({
+  value,
+  error,
+  onChange,
+}: {
+  value: ModelCatalogItem[];
+  error?: string;
+  onChange: (value: ModelCatalogItem[]) => void;
+}) {
+  const update = (index: number, patch: Partial<ModelCatalogItem>) => {
+    onChange(value.map((model, currentIndex) => currentIndex === index ? { ...model, ...patch } : model));
+  };
+
+  const updateName = (index: number, name: string) => {
+    const model = value[index];
+    update(index, {
+      name,
+      displayName: !model.displayName || model.displayName === model.name ? name : model.displayName,
+    });
+  };
+
+  return (
+    <div className="model-catalog-editor">
+      <div className="model-catalog-grid model-catalog-grid-head">
+        <span>厂商模型名称</span>
+        <span>显示名称</span>
+        <span>启用</span>
+        <span>操作</span>
+      </div>
+      {value.map((model, index) => (
+        <div className="model-catalog-grid" key={index}>
+          <input
+            value={model.name}
+            placeholder="例如 qwen-max"
+            aria-label={`第 ${index + 1} 个厂商模型名称`}
+            onChange={(event) => updateName(index, event.target.value)}
+          />
+          <input
+            value={model.displayName}
+            placeholder="例如 通义千问 Max"
+            aria-label={`第 ${index + 1} 个模型显示名称`}
+            onChange={(event) => update(index, { displayName: event.target.value })}
+          />
+          <button
+            className={`gateway-switch ${model.enabled ? 'on' : ''}`.trim()}
+            type="button"
+            role="switch"
+            aria-checked={model.enabled}
+            aria-label={`${model.name || '模型'} ${model.enabled ? '已启用' : '已停用'}`}
+            onClick={() => update(index, { enabled: !model.enabled })}
+          ><span aria-hidden="true" /></button>
+          <button
+            className="link-button danger"
+            type="button"
+            disabled={value.length <= 1}
+            title={value.length <= 1 ? '至少保留一个模型' : undefined}
+            onClick={() => onChange(value.filter((_, currentIndex) => currentIndex !== index))}
+          >删除</button>
+        </div>
+      ))}
+      {error ? <div className="form-error">{error}</div> : null}
+    </div>
   );
 }
 
@@ -595,7 +736,7 @@ function UpstreamAuthenticationEditor({
         </div>
       )}
 
-      <div className="upstream-auth-note">配置或保留 API Key 时必须使用 HTTPS。</div>
+      <div className="upstream-auth-note">配置或保留 API Key 时，API 地址必须使用 HTTPS；认证 Header 由系统按厂商自动生成。</div>
     </div>
   );
 }
@@ -658,19 +799,33 @@ function HealthCheckEditor({
 function InputField({
   label,
   value,
+  type = 'text',
+  placeholder,
   error,
   onChange,
 }: {
   label: string;
   value: string;
+  type?: string;
+  placeholder?: string;
   error?: string;
   onChange: (value: string) => void;
 }) {
+  const inputID = useId();
+  const errorID = `${inputID}-error`;
   return (
     <div className={`field ${error ? 'invalid' : ''}`.trim()}>
-      <label>{label}</label>
-      <input value={value} onChange={(event) => onChange(event.target.value)} />
-      {error ? <div className="form-error">{error}</div> : null}
+      <label htmlFor={inputID}>{label}</label>
+      <input
+        id={inputID}
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorID : undefined}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {error ? <div id={errorID} className="form-error" role="alert">{error}</div> : null}
     </div>
   );
 }
@@ -718,11 +873,24 @@ function isValidTimeout(timeout: number, interval: number) {
 }
 
 function UpstreamDetail({ upstream }: { upstream: Upstream }) {
-  const rows = [
+  const rows = upstream.type === 'model' ? [
+    ['服务类型', '模型服务'],
+    ['模型厂商', modelProviderLabel(upstream.model?.provider ?? 'custom')],
+    ['API 地址', formatModelBaseURL(upstream)],
+    ['连接协议', upstreamProtocolLabel(upstream.protocol)],
+    ['访问密钥', upstream.apiKeyConfigured ? '已配置' : '未配置'],
+    ['服务端点', formatEndpointSummary(upstream.endpoints)],
+    ['启用端点', formatInstanceSummary(upstream.endpoints)],
+    ['负载均衡', upstreamLoadBalancePolicyLabel(upstream.loadBalancePolicy)],
+    ['健康检查', upstream.healthCheck?.enabled ? `${upstream.healthCheck.path ?? '-'} / ${upstream.healthCheck.intervalSeconds ?? '-'}s / ${upstream.healthCheck.timeoutSeconds ?? '-'}s` : '未启用'],
+    ['启用模型', `${upstream.model?.models.filter((model) => model.enabled).length ?? 0} / ${upstream.model?.models.length ?? 0}`],
+    ['模型目录', upstream.model?.models.map((model) => `${model.displayName} (${model.name})${model.enabled ? '' : ' · 停用'}`).join('、') || '-'],
+    ['创建时间', formatDateTime(upstream.createdAt)],
+  ] : [
     ['服务类型', upstreamTypeLabel(upstream.type)],
     ['接口协议', upstreamProtocolLabel(upstream.protocol)],
     ['安全连接', upstream.tls ? `HTTPS / ${upstream.tls.serverName}` : 'HTTP'],
-    ['服务认证', upstream.type === 'model' ? (upstream.apiKeyConfigured ? 'API Key 已配置' : '未配置') : '无需认证'],
+    ['服务认证', '无需认证'],
     ['服务端点', formatEndpointSummary(upstream.endpoints)],
     ['启用端点', formatInstanceSummary(upstream.endpoints)],
     ['负载均衡', upstreamLoadBalancePolicyLabel(upstream.loadBalancePolicy)],
@@ -744,7 +912,7 @@ function UpstreamDetail({ upstream }: { upstream: Upstream }) {
 
 function upstreamConnectionSummary(upstream: Upstream) {
   const transport = upstream.tls ? 'HTTPS' : 'HTTP';
-  return upstream.protocol === 'OpenAI'
+  return upstream.protocol !== 'HTTP'
     ? `${transport} · ${upstreamProtocolLabel(upstream.protocol)}`
     : transport;
 }

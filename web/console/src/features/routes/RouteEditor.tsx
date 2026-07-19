@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Badge, Button } from '@/components/ui';
 import type { HeaderMatch, HttpMethod, ModelRoute, RouteGatewayOption, UpstreamOption, WeightedUpstream } from '@/domain/route';
-import { upstreamTypeLabel } from '@/domain/upstream';
+import { modelProviderLabel, upstreamTypeLabel } from '@/domain/upstream';
 import type { RouteComposerDraft, RouteDraftValidation, RouteForwardMode } from './composer';
 import {
   changeRouteForwardMode,
@@ -163,7 +163,7 @@ export function RouteEditor({
             </section>
 
             <section id="route-upstreams" className="detail-card composer-card route-form-section">
-              <SectionTitle number="03" title="转发目标" description="选择普通服务，或连接一个模型服务并配置模型别名" />
+              <SectionTitle number="03" title="转发目标" description="选择普通服务，或让每个公开模型独立选择厂商与模型服务" />
               <ForwardModeSelector
                 value={draft.forwardMode}
                 onChange={(forwardMode) => onDraftChange(changeRouteForwardMode(draft, forwardMode))}
@@ -171,10 +171,8 @@ export function RouteEditor({
               {draft.forwardMode === 'model' ? (
                 <ModelRouteEditor
                   upstreams={upstreams}
-                  upstreamID={draft.modelUpstreamID}
                   value={draft.modelRoutes}
                   error={validation.errors.models}
-                  onUpstreamChange={(modelUpstreamID) => updateDraft({ modelUpstreamID })}
                   onChange={(modelRoutes) => updateDraft({ modelRoutes })}
                 />
               ) : (
@@ -233,7 +231,7 @@ function RouteEditorSummary({
     {
       label: modelRouting ? '模型映射' : '目标服务',
       value: modelRouting
-        ? formatModelRoutes(draft.modelUpstreamID, draft.modelRoutes, upstreams)
+        ? formatModelRoutes(draft.modelRoutes, upstreams)
         : formatWeightedUpstreams(draft.weightedUpstreams, upstreams),
     },
     ...(modelRouting ? [{ label: '模型数量', value: `${draft.modelRoutes.length} 个` }] : [{ label: '总权重', value: String(upstreamWeightSum(draft.weightedUpstreams)) }]),
@@ -276,7 +274,7 @@ function ForwardModeSelector({
 }) {
   const options: Array<{ value: RouteForwardMode; title: string; description: string }> = [
     { value: 'service', title: '普通服务转发', description: '选择一个或多个服务，并按权重分配请求' },
-    { value: 'model', title: '模型路由', description: '连接一个大模型服务，并按请求中的 model 改写目标模型名称' },
+    { value: 'model', title: '模型路由', description: '提供统一模型入口，每个公开模型可以选择不同厂商服务' },
   ];
 
   return (
@@ -300,79 +298,113 @@ function ForwardModeSelector({
 
 function ModelRouteEditor({
   upstreams,
-  upstreamID,
   value,
   error,
-  onUpstreamChange,
   onChange,
 }: {
   upstreams: UpstreamOption[];
-  upstreamID: string;
   value: ModelRoute[];
   error?: string;
-  onUpstreamChange: (value: string) => void;
   onChange: (value: ModelRoute[]) => void;
 }) {
-  const modelUpstreams = upstreams.filter((upstream) => (
-    upstream.type === 'model' && upstream.protocol === 'OpenAI'
-  ));
-  const selectedAvailable = modelUpstreams.some((upstream) => upstream.id === upstreamID);
+  const modelUpstreams = upstreams.filter((upstream) => upstream.type === 'model');
 
   const update = (index: number, patch: Partial<ModelRoute>) => {
     onChange(value.map((model, currentIndex) => currentIndex === index ? { ...model, ...patch } : model));
   };
 
+  const changeUpstream = (index: number, upstreamID: string) => {
+    const upstream = modelUpstreams.find((item) => item.id === upstreamID);
+    const firstModel = upstream?.models.find((model) => model.enabled)?.name ?? '';
+    const current = value[index];
+    update(index, {
+      upstreamID,
+      upstreamModel: firstModel,
+      model: !current.model.trim() || current.model === current.upstreamModel ? firstModel : current.model,
+    });
+  };
+
+  const changeUpstreamModel = (index: number, upstreamModel: string) => {
+    const current = value[index];
+    update(index, {
+      upstreamModel,
+      model: upstreamModel && (!current.model.trim() || current.model === current.upstreamModel)
+        ? upstreamModel
+        : current.model,
+    });
+  };
+
   return (
     <div className="model-route-editor">
-      <label className="field model-route-service-field">
-        <span>模型服务</span>
-        <select value={upstreamID} onChange={(event) => onUpstreamChange(event.target.value)}>
-          <option value="">请选择模型服务</option>
-          {!selectedAvailable && upstreamID ? <option value={upstreamID}>当前服务不可用</option> : null}
-          {modelUpstreams.map((upstream) => (
-            <option key={upstream.id} value={upstream.id}>{upstream.name}</option>
-          ))}
-        </select>
-        <small className="field-hint">一条模型路由固定连接一个模型服务，下面配置客户端模型别名。</small>
-      </label>
       <div className="model-route-head">
         <div>
           <strong>模型映射</strong>
-          <span>客户端模型名称用于匹配请求；目标模型名称留空时保持原值。</span>
+          <span>客户端只使用公开模型名称，网关会为每一项选择对应厂商服务和实际模型。</span>
         </div>
         <Button variant="soft" type="button" onClick={() => onChange([...value, createModelRoute()])}>添加模型</Button>
       </div>
 
       {modelUpstreams.length === 0 ? (
-        <div className="model-route-empty">当前没有可用的大模型服务，请先在“服务”中创建 OpenAI 兼容的大模型服务。</div>
+        <div className="model-route-empty">当前没有可用的模型服务，请先在“服务”中连接一个模型厂商。</div>
       ) : null}
 
-      <div className="model-route-grid model-route-grid-head">
-        <span>客户端模型</span>
-        <span>目标模型（可选）</span>
-        <span>操作</span>
-      </div>
-      {value.map((model, index) => (
-        <div className="model-route-grid" key={`${index}-${model.model}`}>
-          <input
-            value={model.model}
-            placeholder="例如 gpt-4o-mini"
-            onChange={(event) => update(index, { model: event.target.value })}
-          />
-          <input
-            value={model.upstreamModel ?? ''}
-            placeholder="留空则与客户端模型相同"
-            onChange={(event) => update(index, { upstreamModel: event.target.value })}
-          />
-          <button
-            className="link-button danger"
-            type="button"
-            disabled={value.length <= 1}
-            title={value.length <= 1 ? '至少保留一个模型' : undefined}
-            onClick={() => onChange(value.filter((_, currentIndex) => currentIndex !== index))}
-          >删除</button>
+      <div className="model-route-table">
+        <div className="model-route-grid model-route-grid-head">
+          <span>对外模型</span>
+          <span>模型服务</span>
+          <span>厂商模型</span>
+          <span>操作</span>
         </div>
-      ))}
+        {value.map((model, index) => {
+          const selectedUpstream = modelUpstreams.find((upstream) => upstream.id === model.upstreamID);
+          const availableModels = selectedUpstream?.models.filter((item) => item.enabled) ?? [];
+          const selectedModelAvailable = availableModels.some((item) => item.name === model.upstreamModel);
+          return (
+            <div className="model-route-grid" key={index}>
+              <input
+                value={model.model}
+                placeholder="例如 general-chat"
+                aria-label={`第 ${index + 1} 个对外模型名称`}
+                onChange={(event) => update(index, { model: event.target.value })}
+              />
+              <select
+                value={model.upstreamID}
+                aria-label={`第 ${index + 1} 个模型服务`}
+                onChange={(event) => changeUpstream(index, event.target.value)}
+              >
+                <option value="">请选择模型服务</option>
+                {!selectedUpstream && model.upstreamID ? <option value={model.upstreamID}>当前服务不可用</option> : null}
+                {modelUpstreams.map((upstream) => (
+                  <option key={upstream.id} value={upstream.id}>
+                    {upstream.name} · {modelProviderLabel(upstream.provider ?? 'custom')}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={model.upstreamModel ?? ''}
+                disabled={!selectedUpstream}
+                aria-label={`第 ${index + 1} 个厂商模型`}
+                onChange={(event) => changeUpstreamModel(index, event.target.value)}
+              >
+                <option value="">{selectedUpstream ? '与对外模型同名' : '请先选择模型服务'}</option>
+                {!selectedModelAvailable && model.upstreamModel ? (
+                  <option value={model.upstreamModel}>{model.upstreamModel}（当前不可用）</option>
+                ) : null}
+                {availableModels.map((item) => (
+                  <option key={item.name} value={item.name}>{item.displayName} · {item.name}</option>
+                ))}
+              </select>
+              <button
+                className="link-button danger"
+                type="button"
+                disabled={value.length <= 1}
+                title={value.length <= 1 ? '至少保留一个模型' : undefined}
+                onClick={() => onChange(value.filter((_, currentIndex) => currentIndex !== index))}
+              >删除</button>
+            </div>
+          );
+        })}
+      </div>
       {error ? <div className="form-error">{error}</div> : null}
     </div>
   );

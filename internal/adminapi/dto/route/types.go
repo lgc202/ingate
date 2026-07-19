@@ -52,13 +52,13 @@ type RouteRule struct {
 
 // ModelRouting 是控制台读写的模型路由配置
 type ModelRouting struct {
-	UpstreamID string       `json:"upstreamID"`
-	Models     []ModelRoute `json:"models"`
+	Models []ModelRoute `json:"models"`
 }
 
-// ModelRoute 将客户端模型名称映射到上游模型名称
+// ModelRoute 将客户端模型名称映射到模型服务及其厂商模型名称
 type ModelRoute struct {
 	Model         string `json:"model"`
+	UpstreamID    string `json:"upstreamID"`
 	UpstreamModel string `json:"upstreamModel,omitempty"`
 }
 

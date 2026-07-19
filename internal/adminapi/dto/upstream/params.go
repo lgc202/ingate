@@ -30,6 +30,7 @@ func (c UpstreamConfig) params() upstreamservice.UpstreamParams {
 		Type:              c.Type,
 		Protocol:          c.Protocol,
 		TLS:               tlsParams(c.TLS),
+		Model:             modelParams(c.Model),
 		LoadBalancePolicy: c.LoadBalancePolicy,
 		Endpoints: lo.Map(c.Endpoints, func(endpoint UpstreamEndpoint, _ int) upstreamservice.EndpointParams {
 			return upstreamservice.EndpointParams{
@@ -41,6 +42,23 @@ func (c UpstreamConfig) params() upstreamservice.UpstreamParams {
 			}
 		}),
 		HealthCheck: c.HealthCheck,
+	}
+}
+
+func modelParams(config *ModelConfig) *upstreamservice.ModelParams {
+	if config == nil {
+		return nil
+	}
+	return &upstreamservice.ModelParams{
+		Provider:    config.Provider,
+		APIBasePath: config.APIBasePath,
+		Models: lo.Map(config.Models, func(model ModelCatalogItem, _ int) upstreamservice.ModelCatalogItemParams {
+			return upstreamservice.ModelCatalogItemParams{
+				Name:        model.Name,
+				DisplayName: model.DisplayName,
+				Enabled:     model.Enabled,
+			}
+		}),
 	}
 }
 

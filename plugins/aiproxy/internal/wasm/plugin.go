@@ -19,9 +19,16 @@ type pluginContext struct {
 type httpContext struct {
 	types.DefaultHttpContext
 
-	plugin *pluginContext
-	route  aiproxyruntime.Route
-	active bool
+	plugin            *pluginContext
+	route             aiproxyruntime.Route
+	responsePlan      *aiproxyruntime.ResponsePlan
+	responseStream    *aiproxyruntime.ResponseStream
+	responseStatus    int
+	requestActive     bool
+	responseBuffered  bool
+	responseStreaming bool
+	responseClosed    bool
+	streamFailed      bool
 }
 
 // Register 注册 Proxy-Wasm 插件上下文

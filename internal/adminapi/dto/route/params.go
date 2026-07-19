@@ -47,10 +47,10 @@ func modelRoutingParams(request *ModelRouting) *routeservice.ModelRoutingParams 
 		return nil
 	}
 	return &routeservice.ModelRoutingParams{
-		UpstreamID: request.UpstreamID,
 		Models: lo.Map(request.Models, func(model ModelRoute, _ int) routeservice.ModelRouteParams {
 			return routeservice.ModelRouteParams{
 				Model:         model.Model,
+				UpstreamID:    model.UpstreamID,
 				UpstreamModel: model.UpstreamModel,
 			}
 		}),

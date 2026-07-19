@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"net/netip"
+	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -15,8 +16,8 @@ import (
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
-	"github.com/lgc202/ingate/internal/pkg/bearer"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/pkg/llm/provider"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -30,7 +31,7 @@ const (
 )
 
 func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.ClusterLoadAssignment) {
-	// 普通 Upstream 直接使用资源 ID；OpenAI Upstream 使用运行配置摘要隔离新旧 CDS/EDS 资源
+	// 普通 Upstream 直接使用资源 ID；模型 Upstream 使用运行配置摘要隔离新旧 CDS/EDS 资源
 	ids := slices.Sorted(maps.Keys(c.upstreams))
 	clusters := make([]*clusterv3.Cluster, 0, len(ids))
 	assignments := make([]*endpointv3.ClusterLoadAssignment, 0, len(ids))
@@ -67,12 +68,12 @@ func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.C
 
 		endpoints, usesDNS := c.buildUpstreamEndpoints(upstream)
 		clusterName := id
-		if upstream.Spec.Protocol == gatewayv1.UpstreamProtocolOpenAI {
+		if upstream.Spec.Type == gatewayv1.UpstreamTypeModel {
 			apiKey, credentialValid := c.upstreamAPIKey(upstream)
 			if !credentialValid {
 				continue
 			}
-			clusterName = openAIRuntimeClusterName(upstream, lbPolicy, apiKey)
+			clusterName = modelRuntimeClusterName(upstream, lbPolicy, apiKey)
 		}
 		cluster := &clusterv3.Cluster{
 			Name:           clusterName,
@@ -109,12 +110,18 @@ func (c *compileContext) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.C
 	return clusters, assignments
 }
 
-func openAIRuntimeClusterName(upstream *gatewayv1.Upstream, lbPolicy clusterv3.Cluster_LbPolicy, apiKey string) string {
+func modelRuntimeClusterName(upstream *gatewayv1.Upstream, lbPolicy clusterv3.Cluster_LbPolicy, apiKey string) string {
 	fields := []string{
 		"protocol", string(upstream.Spec.Protocol),
 		"connectTimeout", defaultUpstreamConnectTimeout.String(),
 		"loadBalancePolicy", lbPolicy.String(),
 		"apiKey", apiKey,
+	}
+	if upstream.Spec.Model != nil {
+		fields = append(fields,
+			"provider", string(upstream.Spec.Model.Provider),
+			"apiBasePath", upstream.Spec.Model.APIBasePath,
+		)
 	}
 	if upstream.Spec.TLS == nil {
 		fields = append(fields, "tls", "disabled")
@@ -184,14 +191,24 @@ func (c *compileContext) validUpstreamProtocol(upstream *gatewayv1.Upstream) boo
 	}
 	switch upstream.Spec.Protocol {
 	case gatewayv1.UpstreamProtocolHTTP:
-	case gatewayv1.UpstreamProtocolOpenAI:
+		if upstream.Spec.Type == gatewayv1.UpstreamTypeModel {
+			c.addDiagnostic(
+				SeverityError,
+				gatewayv1.KindUpstream,
+				upstream.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("model upstream %q cannot use the HTTP protocol", upstream.Name),
+			)
+			protocolValid = false
+		}
+	case gatewayv1.UpstreamProtocolOpenAI, gatewayv1.UpstreamProtocolAnthropic, gatewayv1.UpstreamProtocolGemini:
 		if upstream.Spec.Type != gatewayv1.UpstreamTypeModel {
 			c.addDiagnostic(
 				SeverityError,
 				gatewayv1.KindUpstream,
 				upstream.Name,
 				ReasonInvalidSpec,
-				fmt.Sprintf("upstream %q uses the OpenAI protocol without model type", upstream.Name),
+				fmt.Sprintf("upstream %q uses model protocol %q without model type", upstream.Name, upstream.Spec.Protocol),
 			)
 			protocolValid = false
 		}
@@ -205,23 +222,27 @@ func (c *compileContext) validUpstreamProtocol(upstream *gatewayv1.Upstream) boo
 		)
 		protocolValid = false
 	}
-	if upstream.Spec.Type == gatewayv1.UpstreamTypeModel && upstream.Spec.Protocol != gatewayv1.UpstreamProtocolOpenAI {
+	if upstream.Spec.Type == gatewayv1.UpstreamTypeModel {
+		if !c.validModelUpstream(upstream) {
+			protocolValid = false
+		}
+	} else if upstream.Spec.Model != nil {
 		c.addDiagnostic(
 			SeverityError,
 			gatewayv1.KindUpstream,
 			upstream.Name,
 			ReasonInvalidSpec,
-			fmt.Sprintf("model upstream %q must use the OpenAI protocol", upstream.Name),
+			fmt.Sprintf("non-model upstream %q must not declare model configuration", upstream.Name),
 		)
 		protocolValid = false
 	}
-	if upstream.Spec.Authentication != nil && upstream.Spec.Protocol != gatewayv1.UpstreamProtocolOpenAI {
+	if upstream.Spec.Authentication != nil && upstream.Spec.Type != gatewayv1.UpstreamTypeModel {
 		c.addDiagnostic(
 			SeverityError,
 			gatewayv1.KindUpstream,
 			upstream.Name,
 			ReasonInvalidSpec,
-			fmt.Sprintf("upstream %q declares authentication outside the OpenAI protocol", upstream.Name),
+			fmt.Sprintf("non-model upstream %q must not declare authentication", upstream.Name),
 		)
 		protocolValid = false
 	}
@@ -236,7 +257,7 @@ func (c *compileContext) validUpstreamProtocol(upstream *gatewayv1.Upstream) boo
 		protocolValid = false
 	}
 	if upstream.Spec.Authentication != nil &&
-		(upstream.Spec.Authentication.APIKey == nil || !bearer.ValidToken(upstream.Spec.Authentication.APIKey.Value)) {
+		(upstream.Spec.Authentication.APIKey == nil || !provider.ValidAPIKey(upstream.Spec.Authentication.APIKey.Value)) {
 		c.addDiagnostic(
 			SeverityError,
 			gatewayv1.KindUpstream,
@@ -247,6 +268,91 @@ func (c *compileContext) validUpstreamProtocol(upstream *gatewayv1.Upstream) boo
 		protocolValid = false
 	}
 	return protocolValid
+}
+
+func (c *compileContext) validModelUpstream(upstream *gatewayv1.Upstream) bool {
+	if upstream.Spec.Model == nil {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("model upstream %q must declare model configuration", upstream.Name),
+		)
+		return false
+	}
+
+	valid := true
+	expectedProtocol, providerValid := upstream.Spec.Model.Provider.Protocol()
+	if !providerValid {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonUnsupported,
+			fmt.Sprintf("model upstream %q uses unsupported provider %q", upstream.Name, upstream.Spec.Model.Provider),
+		)
+		valid = false
+	} else if expectedProtocol != upstream.Spec.Protocol {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("model upstream %q provider %q requires protocol %q", upstream.Name, upstream.Spec.Model.Provider, expectedProtocol),
+		)
+		valid = false
+	}
+
+	basePath := upstream.Spec.Model.APIBasePath
+	if basePath == "" || !strings.HasPrefix(basePath, "/") || strings.ContainsAny(basePath, "?#") || path.Clean(basePath) != basePath || (basePath != "/" && strings.HasSuffix(basePath, "/")) {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("model upstream %q has invalid API base path %q", upstream.Name, basePath),
+		)
+		valid = false
+	}
+
+	if len(upstream.Spec.Model.Models) == 0 {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindUpstream,
+			upstream.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("model upstream %q must declare at least one model", upstream.Name),
+		)
+		return false
+	}
+	seenModels := make(map[string]bool, len(upstream.Spec.Model.Models))
+	enabledModels := 0
+	for _, model := range upstream.Spec.Model.Models {
+		if model.Name == "" || strings.TrimSpace(model.Name) != model.Name {
+			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("model upstream %q contains an invalid model name %q", upstream.Name, model.Name))
+			valid = false
+			continue
+		}
+		if seenModels[model.Name] {
+			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonConflict, fmt.Sprintf("model upstream %q declares model %q more than once", upstream.Name, model.Name))
+			valid = false
+			continue
+		}
+		seenModels[model.Name] = true
+		if model.DisplayName == "" || strings.TrimSpace(model.DisplayName) != model.DisplayName {
+			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("model upstream %q model %q has an invalid display name", upstream.Name, model.Name))
+			valid = false
+		}
+		if model.Enabled {
+			enabledModels++
+		}
+	}
+	if enabledModels == 0 {
+		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("model upstream %q must enable at least one model", upstream.Name))
+		valid = false
+	}
+	return valid
 }
 
 func (c *compileContext) upstreamTransportSocket(upstream *gatewayv1.Upstream) (*corev3.TransportSocket, bool) {

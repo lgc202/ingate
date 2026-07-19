@@ -24,6 +24,22 @@ const maxRetryAttempts = 5;
 const minPerTryTimeoutMillis = 100;
 const maxPerTryTimeoutMillis = 60000;
 export const modelRoutePath = '/v1/chat/completions';
+const aiClusterHeader = 'x-ingate-ai-cluster-v1';
+const aiRouteHeader = 'x-ingate-ai-route-v1';
+const aiManagedRequestHeaders = new Set([
+  ':authority',
+  ':path',
+  'accept-encoding',
+  'anthropic-version',
+  'authorization',
+  'content-encoding',
+  'content-length',
+  'content-type',
+  aiClusterHeader,
+  aiRouteHeader,
+  'x-api-key',
+  'x-goog-api-key',
+]);
 
 export type RouteForwardMode = 'service' | 'model';
 
@@ -39,7 +55,6 @@ export interface RouteComposerDraft {
   headers: HeaderMatch[];
   forwardMode: RouteForwardMode;
   weightedUpstreams: WeightedUpstream[];
-  modelUpstreamID: string;
   modelRoutes: ModelRoute[];
   enabled: boolean;
   requestHeaderModifier?: HeaderModifier;
@@ -86,7 +101,6 @@ export function createRouteComposerDraft(route?: RouteResource): RouteComposerDr
     headers: rule?.headers ?? [],
     forwardMode,
     weightedUpstreams: rule?.upstreams ?? [],
-    modelUpstreamID: rule?.modelRouting?.upstreamID ?? '',
     modelRoutes: rule?.modelRouting?.models.map((model) => ({ ...model })) ?? [createModelRoute()],
     enabled: route?.enabled ?? true,
     requestHeaderModifier: cloneHeaderModifier(rule?.requestHeaderModifier),
@@ -120,9 +134,9 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteDraf
     errors.hostnames = `域名格式不正确：${invalidHostnames.join('、')}`;
   }
 
-  errors.headers = headerMatchesError(draft.headers) || undefined;
+  errors.headers = headerMatchesError(draft.headers, draft.forwardMode === 'model') || undefined;
   if (draft.forwardMode === 'model') {
-    errors.models = modelRoutesError(draft.modelUpstreamID, draft.modelRoutes) || undefined;
+    errors.models = modelRoutesError(draft.modelRoutes) || undefined;
     if (draft.path !== modelRoutePath) {
       errors.path = '模型路由路径必须为 ' + modelRoutePath;
     }
@@ -150,9 +164,9 @@ export function validateRouteComposerDraft(draft: RouteComposerDraft): RouteDraf
 export function buildRouteMutationPayload(draft: RouteComposerDraft): RouteMutationPayload {
   const modelRouting = draft.forwardMode === 'model'
     ? {
-      upstreamID: draft.modelUpstreamID.trim(),
       models: draft.modelRoutes.map((model) => ({
         model: model.model.trim(),
+        upstreamID: model.upstreamID.trim(),
         upstreamModel: model.upstreamModel?.trim() || undefined,
       })),
     }
@@ -207,7 +221,7 @@ export function changeRouteForwardMode(draft: RouteComposerDraft, forwardMode: R
 }
 
 export function createModelRoute(): ModelRoute {
-  return { model: '', upstreamModel: '' };
+  return { model: '', upstreamID: '', upstreamModel: '' };
 }
 
 export function formatWeightedUpstreams(upstreams: WeightedUpstream[], options: UpstreamOption[] = []): string {
@@ -222,19 +236,20 @@ export function formatWeightedUpstreams(upstreams: WeightedUpstream[], options: 
   return `${firstUpstreamName} 等 ${upstreams.length} 个`;
 }
 
-export function formatModelRoutes(upstreamID: string, models: ModelRoute[], options: UpstreamOption[] = []): string {
+export function formatModelRoutes(models: ModelRoute[], options: UpstreamOption[] = []): string {
   if (models.length === 0) {
     return '-';
   }
   const first = models[0];
-  const service = upstreamName(upstreamID, options);
+  const service = upstreamName(first.upstreamID, options);
   const clientModel = first.model || '未命名模型';
   const upstreamModel = first.upstreamModel || clientModel;
   const firstMapping = `${clientModel} → ${upstreamModel}`;
   if (models.length === 1) {
     return `${service} · ${firstMapping}`;
   }
-  return `${service} · ${firstMapping} 等 ${models.length} 个模型`;
+  const serviceCount = new Set(models.map((model) => model.upstreamID).filter(Boolean)).size;
+  return `${service} · ${firstMapping} 等 ${models.length} 个模型 / ${serviceCount} 个服务`;
 }
 
 export function upstreamWeightSum(upstreams: WeightedUpstream[]): number {
@@ -279,7 +294,6 @@ function cloneRouteRule(rule: RouteRule): RouteRule {
     headers: rule.headers.map((header) => ({ ...header })),
     upstreams: rule.upstreams.map((upstream) => ({ ...upstream })),
     modelRouting: rule.modelRouting ? {
-      upstreamID: rule.modelRouting.upstreamID,
       models: rule.modelRouting.models.map((model) => ({ ...model })),
     } : undefined,
     requestHeaderModifier: cloneHeaderModifier(rule.requestHeaderModifier),
@@ -304,10 +318,7 @@ function preservedRulePayload(rule: RouteRule): RouteRulePayload {
   };
 }
 
-function modelRoutesError(upstreamID: string, models: ModelRoute[]): string {
-  if (!upstreamID.trim()) {
-    return '请选择模型服务';
-  }
+function modelRoutesError(models: ModelRoute[]): string {
   if (models.length === 0) {
     return '至少配置一个模型';
   }
@@ -316,6 +327,9 @@ function modelRoutesError(upstreamID: string, models: ModelRoute[]): string {
     const clientModel = model.model.trim();
     if (!clientModel) {
       return `第 ${index + 1} 个模型缺少客户端模型名称`;
+    }
+    if (!model.upstreamID.trim()) {
+      return `第 ${index + 1} 个模型缺少模型服务`;
     }
     if (seenModels.has(clientModel)) {
       return `客户端模型名称不能重复：${clientModel}`;
@@ -338,13 +352,17 @@ function normalizeHeaderModifier(modifier: HeaderModifier | undefined): HeaderMo
   };
 }
 
-function headerMatchesError(headers: HeaderMatch[]): string {
+function headerMatchesError(headers: HeaderMatch[], modelRouting: boolean): string {
   for (const header of headers) {
-    if (!header.name.trim()) {
+    const name = header.name.trim().toLowerCase();
+    if (!name) {
       return '请求头名称不能为空';
     }
     if (!header.value.trim()) {
       return '请求头值不能为空';
+    }
+    if (modelRouting && (name === aiClusterHeader || name === aiRouteHeader)) {
+      return '模型路由不能匹配系统内部请求头';
     }
   }
   return '';
@@ -399,7 +417,7 @@ function requestHeaderModifierError(modifier: HeaderModifier | undefined, modelR
     ...modifier.set.map((header) => header.name),
     ...modifier.remove,
   ].map((name) => name.trim().toLowerCase());
-  if (modelRouting && (names.includes('authorization') || names.includes('content-length'))) {
+  if (modelRouting && names.some((name) => aiManagedRequestHeaders.has(name))) {
     return '模型路由的认证和请求体相关 Header 由系统管理';
   }
   return '';

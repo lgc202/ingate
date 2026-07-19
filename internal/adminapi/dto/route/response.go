@@ -65,10 +65,10 @@ func modelRouting(source *resource.ModelRouting) *ModelRouting {
 		return nil
 	}
 	return &ModelRouting{
-		UpstreamID: source.UpstreamRef,
 		Models: lo.Map(source.Models, func(model resource.ModelRoute, _ int) ModelRoute {
 			return ModelRoute{
 				Model:         model.Model,
+				UpstreamID:    model.UpstreamRef,
 				UpstreamModel: model.UpstreamModel,
 			}
 		}),
