@@ -5,7 +5,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -157,22 +156,50 @@ func TestUpdateUpstreamReqValidateRejectsConflictingAPIKeyOperations(t *testing.
 	}
 }
 
-func TestCreateUpstreamReqParamsIncludesModelConfig(t *testing.T) {
-	request := modelUpstreamRequest(nil, nil)
+func TestCreateUpstreamReqSpec(t *testing.T) {
+	request := modelUpstreamRequest(
+		&UpstreamTLS{ServerName: "API.OPENAI.COM"},
+		&APIKeyConfig{Value: "sk-test-secret"},
+	)
+	request.HealthCheck = &resource.UpstreamHealthCheck{
+		Enabled:         true,
+		Path:            "/health",
+		IntervalSeconds: 30,
+		TimeoutSeconds:  5,
+	}
 	if err := request.Validate(); err != nil {
 		t.Fatalf("CreateUpstreamReq.Validate() error = %v, want nil", err)
 	}
-	want := &upstreamservice.ModelParams{
-		Provider:    resource.ModelProviderOpenAI,
-		APIBasePath: "/v1",
-		Models: []upstreamservice.ModelCatalogItemParams{
-			{Name: "gpt-4o-mini", DisplayName: "GPT-4o mini", Enabled: true},
+	want := resource.UpstreamSpec{
+		DisplayName: "OpenAI",
+		Type:        resource.UpstreamTypeModel,
+		Protocol:    resource.UpstreamProtocolOpenAI,
+		TLS:         &resource.UpstreamTLS{ServerName: "api.openai.com"},
+		Authentication: &resource.UpstreamAuthentication{
+			APIKey: &resource.APIKeyAuthentication{Value: "sk-test-secret"},
+		},
+		Model: &resource.ModelSpec{
+			Provider:    resource.ModelProviderOpenAI,
+			APIBasePath: "/v1",
+			Models: []resource.ModelCatalogItem{
+				{Name: "gpt-4o-mini", DisplayName: "GPT-4o mini", Enabled: true},
+			},
+		},
+		LoadBalancePolicy: resource.UpstreamLoadBalancePolicyRoundRobin,
+		HealthCheck: &resource.UpstreamHealthCheck{
+			Enabled:         true,
+			Path:            "/health",
+			IntervalSeconds: 30,
+			TimeoutSeconds:  5,
+		},
+		Endpoints: []resource.Endpoint{
+			{Name: "primary", Address: "api.openai.com", Port: 443, Weight: 100, Enabled: true},
 		},
 	}
 
-	got := request.Params().Model
+	got := request.Spec()
 	if diff := cmp.Diff(want, got); diff != "" {
-		t.Errorf("CreateUpstreamReq.Params() model mismatch (-want +got):\n%s", diff)
+		t.Errorf("CreateUpstreamReq.Spec() mismatch (-want +got):\n%s", diff)
 	}
 }
 
