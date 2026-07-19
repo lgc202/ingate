@@ -2,17 +2,21 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 
+	"github.com/gin-gonic/gin"
 	kitconfig "github.com/lgc202/go-kit/config"
 	"github.com/lgc202/go-kit/version"
 	"github.com/spf13/pflag"
-	genericserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/lgc202/ingate/internal/adminapi/handler"
 	adminserver "github.com/lgc202/ingate/internal/adminapi/server"
+	"github.com/lgc202/ingate/internal/adminapi/service"
+	"github.com/lgc202/ingate/internal/adminapi/store"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
@@ -25,7 +29,7 @@ const usage = `ingate-admin-api 是面向前端控制台的管理 API
 `
 
 // Run 执行 ingate-admin-api 服务
-func Run(args []string, stdout, stderr io.Writer) error {
+func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	flags := pflag.NewFlagSet("ingate-admin-api", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
 
@@ -80,19 +84,25 @@ func Run(args []string, stdout, stderr io.Writer) error {
 
 	restConfig, err := clientcmd.BuildConfigFromFlags(settings.APIServer.Master, settings.APIServer.Kubeconfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("build apiserver client config: %w", err)
 	}
 	client, err := clientset.NewForConfig(restConfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("create apiserver resource client: %w", err)
 	}
 
+	componentLogger := logger.With("component", "ingate-admin-api")
+	stores := store.New(client)
+	services := service.New(stores)
+	handlers := handler.New(services, componentLogger)
+
+	gin.SetMode(gin.ReleaseMode)
+	router := adminserver.NewRouter(handlers, settings.Server.ConsoleDir, componentLogger)
 	server := adminserver.New(
-		client,
 		settings.Server.ListenAddress,
-		settings.Server.ConsoleDir,
-		logger.With("component", "ingate-admin-api"),
+		router,
+		componentLogger,
 	)
 
-	return server.Run(genericserver.SetupSignalContext())
+	return server.Run(ctx)
 }

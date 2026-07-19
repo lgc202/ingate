@@ -2,37 +2,35 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
+	"time"
+)
 
-	"github.com/gin-gonic/gin"
-
-	"github.com/lgc202/ingate/internal/adminapi/handler"
-	"github.com/lgc202/ingate/internal/adminapi/service"
-	"github.com/lgc202/ingate/internal/adminapi/store"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+const (
+	serverReadHeaderTimeout = 5 * time.Second
+	serverShutdownTimeout   = 5 * time.Second
 )
 
 // Server 提供面向控制台的管理 API 服务生命周期
 type Server struct {
-	client        clientset.Interface
 	listenAddress string
-	consoleDir    string
+	handler       http.Handler
 	logger        *slog.Logger
 }
 
 // New 创建管理 API 服务
 func New(
-	client clientset.Interface,
 	listenAddress string,
-	consoleDir string,
+	handler http.Handler,
 	logger *slog.Logger,
 ) *Server {
 	return &Server{
-		client:        client,
 		listenAddress: listenAddress,
-		consoleDir:    consoleDir,
+		handler:       handler,
 		logger:        logger,
 	}
 }
@@ -41,11 +39,16 @@ func New(
 func (s *Server) Run(ctx context.Context) error {
 	listener, err := net.Listen("tcp", s.listenAddress)
 	if err != nil {
-		return err
+		return fmt.Errorf("listen for admin API HTTP on %q: %w", s.listenAddress, err)
 	}
-	defer listener.Close()
 
-	httpServer := &http.Server{Handler: s.router()}
+	httpServer := &http.Server{
+		Handler:           s.handler,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		BaseContext: func(net.Listener) context.Context {
+			return ctx
+		},
+	}
 	serverErr := make(chan error, 1)
 	go func() {
 		s.logger.Info("admin api http server started", "addr", listener.Addr().String())
@@ -53,25 +56,27 @@ func (s *Server) Run(ctx context.Context) error {
 	}()
 
 	select {
-	case <-ctx.Done():
-		if err := httpServer.Shutdown(context.Background()); err != nil {
-			return err
-		}
-		return ctx.Err()
 	case err := <-serverErr:
-		if err == http.ErrServerClosed {
+		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
-		return err
+		return fmt.Errorf("serve admin API HTTP: %w", err)
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), serverShutdownTimeout)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			shutdownErr := fmt.Errorf("shut down admin API HTTP: %w", err)
+			if closeErr := httpServer.Close(); closeErr != nil {
+				shutdownErr = errors.Join(shutdownErr, fmt.Errorf("force close admin API HTTP: %w", closeErr))
+			}
+			if serveErr := <-serverErr; serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+				shutdownErr = errors.Join(shutdownErr, fmt.Errorf("serve admin API HTTP: %w", serveErr))
+			}
+			return shutdownErr
+		}
+		if err := <-serverErr; err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return fmt.Errorf("serve admin API HTTP: %w", err)
+		}
+		return nil
 	}
-}
-
-func (s *Server) newHandler() *handler.Handler {
-	resourceStore := store.New(s.client)
-	resourceService := service.New(resourceStore)
-	return handler.New(resourceService, s.logger)
-}
-
-func init() {
-	gin.SetMode(gin.ReleaseMode)
 }
