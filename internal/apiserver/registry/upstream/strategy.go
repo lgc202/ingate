@@ -3,6 +3,8 @@ package upstream
 import (
 	"context"
 	"net/netip"
+	"net/url"
+	"path"
 	"strings"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -12,8 +14,8 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	"github.com/lgc202/ingate/internal/pkg/bearer"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
+	"github.com/lgc202/ingate/pkg/llm/provider"
 )
 
 const gatewayAPIVersion = "gateway.ingate.io/v1"
@@ -139,23 +141,33 @@ func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 		errs = append(errs, field.NotSupported(specPath.Child("protocol"), upstream.Spec.Protocol, []string{
 			string(resource.UpstreamProtocolHTTP),
 			string(resource.UpstreamProtocolOpenAI),
+			string(resource.UpstreamProtocolAnthropic),
+			string(resource.UpstreamProtocolGemini),
 		}))
 	}
-	if upstream.Spec.Type == resource.UpstreamTypeModel && upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
-		errs = append(errs, field.Invalid(specPath.Child("protocol"), upstream.Spec.Protocol, "model upstreams must use the OpenAI protocol"))
-	}
-	if upstream.Spec.Type != "" && upstream.Spec.Type != resource.UpstreamTypeModel && upstream.Spec.Protocol == resource.UpstreamProtocolOpenAI {
-		errs = append(errs, field.Invalid(specPath.Child("protocol"), upstream.Spec.Protocol, "the OpenAI protocol is only supported by model upstreams"))
+	if upstream.Spec.Type == resource.UpstreamTypeModel {
+		if upstream.Spec.Model == nil {
+			errs = append(errs, field.Required(specPath.Child("model"), "model is required for model upstreams"))
+		} else {
+			errs = append(errs, validateModelSpec(upstream.Spec.Model, upstream.Spec.Protocol, specPath.Child("model"), specPath.Child("protocol"))...)
+		}
+	} else if upstream.Spec.Type != "" {
+		if upstream.Spec.Model != nil {
+			errs = append(errs, field.Forbidden(specPath.Child("model"), "model is only supported by model upstreams"))
+		}
+		if upstream.Spec.Protocol != "" && upstream.Spec.Protocol != resource.UpstreamProtocolHTTP {
+			errs = append(errs, field.Invalid(specPath.Child("protocol"), upstream.Spec.Protocol, "non-model upstreams must use the HTTP protocol"))
+		}
 	}
 	if upstream.Spec.Authentication != nil {
 		authenticationPath := specPath.Child("authentication")
 		if upstream.Spec.Authentication.APIKey == nil {
 			errs = append(errs, field.Required(authenticationPath.Child("apiKey"), "apiKey is required when authentication is configured"))
-		} else if !bearer.ValidToken(upstream.Spec.Authentication.APIKey.Value) {
-			errs = append(errs, field.Invalid(authenticationPath.Child("apiKey", "value"), "<redacted>", "value must be a valid Bearer token"))
+		} else if !provider.ValidAPIKey(upstream.Spec.Authentication.APIKey.Value) {
+			errs = append(errs, field.Invalid(authenticationPath.Child("apiKey", "value"), "<redacted>", "value must be safe for use in an HTTP header"))
 		}
-		if upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
-			errs = append(errs, field.Forbidden(authenticationPath, "authentication is currently only supported by OpenAI upstreams"))
+		if upstream.Spec.Type != resource.UpstreamTypeModel {
+			errs = append(errs, field.Forbidden(authenticationPath, "authentication is only supported by model upstreams"))
 		}
 		if upstream.Spec.TLS == nil {
 			errs = append(errs, field.Required(specPath.Child("tls"), "tls is required when authentication is configured"))
@@ -239,11 +251,83 @@ func validLoadBalancePolicy(value resource.UpstreamLoadBalancePolicy) bool {
 
 func validUpstreamProtocol(value resource.UpstreamProtocol) bool {
 	switch value {
-	case resource.UpstreamProtocolHTTP, resource.UpstreamProtocolOpenAI:
+	case resource.UpstreamProtocolHTTP,
+		resource.UpstreamProtocolOpenAI,
+		resource.UpstreamProtocolAnthropic,
+		resource.UpstreamProtocolGemini:
 		return true
 	default:
 		return false
 	}
+}
+
+func validateModelSpec(
+	model *resource.ModelSpec,
+	protocol resource.UpstreamProtocol,
+	modelPath *field.Path,
+	protocolPath *field.Path,
+) field.ErrorList {
+	errs := field.ErrorList{}
+	expectedProtocol, validProvider := model.Provider.Protocol()
+	if !validProvider {
+		errs = append(errs, field.NotSupported(modelPath.Child("provider"), model.Provider, []string{
+			string(resource.ModelProviderOpenAI),
+			string(resource.ModelProviderDeepSeek),
+			string(resource.ModelProviderQwen),
+			string(resource.ModelProviderAnthropic),
+			string(resource.ModelProviderGemini),
+			string(resource.ModelProviderCustom),
+		}))
+	} else if protocol != expectedProtocol {
+		errs = append(errs, field.Invalid(protocolPath, protocol, "protocol does not match model provider"))
+	}
+	if !validAPIBasePath(model.APIBasePath) {
+		errs = append(errs, field.Invalid(modelPath.Child("apiBasePath"), model.APIBasePath, "apiBasePath must be a normalized absolute path without query, fragment, or trailing slash"))
+	}
+	if len(model.Models) == 0 {
+		return append(errs, field.Required(modelPath.Child("models"), "at least one model is required"))
+	}
+
+	enabledModels := 0
+	modelNames := make(map[string]struct{}, len(model.Models))
+	for i, item := range model.Models {
+		itemPath := modelPath.Child("models").Index(i)
+		if item.Name == "" {
+			errs = append(errs, field.Required(itemPath.Child("name"), "name is required"))
+		} else if strings.TrimSpace(item.Name) != item.Name {
+			errs = append(errs, field.Invalid(itemPath.Child("name"), item.Name, "name must not contain leading or trailing whitespace"))
+		} else if _, exists := modelNames[item.Name]; exists {
+			errs = append(errs, field.Duplicate(itemPath.Child("name"), item.Name))
+		} else {
+			modelNames[item.Name] = struct{}{}
+		}
+		if item.DisplayName == "" {
+			errs = append(errs, field.Required(itemPath.Child("displayName"), "displayName is required"))
+		} else if strings.TrimSpace(item.DisplayName) != item.DisplayName {
+			errs = append(errs, field.Invalid(itemPath.Child("displayName"), item.DisplayName, "displayName must not contain leading or trailing whitespace"))
+		}
+		if item.Enabled {
+			enabledModels++
+		}
+	}
+	if enabledModels == 0 {
+		errs = append(errs, field.Invalid(modelPath.Child("models"), model.Models, "at least one model must be enabled"))
+	}
+	return errs
+}
+
+func validAPIBasePath(value string) bool {
+	if value == "" || strings.TrimSpace(value) != value || !strings.HasPrefix(value, "/") {
+		return false
+	}
+	if value != "/" && strings.HasSuffix(value, "/") {
+		return false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != value {
+		return false
+	}
+	return path.Clean(value) == value
 }
 
 func validTLSServerName(value string) bool {

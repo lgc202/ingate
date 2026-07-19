@@ -1,19 +1,22 @@
 # AI Proxy 插件
 
-AI Proxy 是 Ingate 内置的数据面插件。第一版只处理 OpenAI-compatible 的
-`POST /v1/chat/completions` 请求。一条模型 Route 固定转发到一个 Upstream，
-`models[]` 只把请求体中的客户端模型别名映射为实际的 `upstreamModel`；插件完成
-别名匹配和模型名改写，并注入该 Route 使用的上游 API Key。
+AI Proxy 是 Ingate 内置的数据面插件。第一阶段对外只处理 OpenAI-compatible
+`POST /v1/chat/completions`，模型服务仍由声明式 `Upstream` 和 Route 的
+`modelRouting` 管理，用户不会直接编辑插件私有 JSON。
 
-Upstream 选择由 Envoy 的静态 Route 配置完成，插件不参与 cluster 选择，也不使用
-内部选路 Header。第一版不支持根据请求体 `model` 跨多个 Provider 或 Upstream
-动态选路，这样请求体缓冲和模型改写不会影响 Envoy 的路由生命周期。
+一条模型 Route 可以按请求体中的公开 `model` 选择不同的模型 Upstream。插件读取完整
+请求体后完成别名匹配，按目标协议转换请求体和上游路径，写入 Controller 生成的受控
+规则版本 Header、Cluster Header 和认证 Header。Envoy 按标准 Route cache 语义重新选中
+只接受内部 Header 的续接 Route，由续接 Route 选择 Cluster、写入上游 Host 并移除内部 Header。
 
-插件只加工请求，普通响应与 SSE 流式响应均由 Envoy 原样转发。运行时配置由
-Envoy Config Compiler 生成，用户不会直接编辑插件私有 JSON。
+第一批目标包括 OpenAI、DeepSeek、通义千问兼容模式、Anthropic、Gemini 和自定义
+OpenAI-compatible 服务。普通响应、错误、Token usage 和 SSE 会转换成
+OpenAI-compatible 结构，响应中的 `model` 始终使用客户端公开别名。客户端提供的内部
+选路 Header 和模型服务凭据会在处理开始时移除。
 
-第一版单次请求体上限为 1 MiB，只面向常规文本对话 JSON，不支持在请求体中
-携带大图、大文件等大体积多模态输入。该限制避免为同一 Listener 上的普通路由
-扩大共享内存边界。
+协议转换由顶层 `pkg/llm` 提供。该包不依赖 Proxy-Wasm；本目录只承载配置索引、请求
+生命周期和 hostcall 适配。第一阶段只支持文本 `system`、`user`、`assistant` 消息和
+`model/messages/stream/temperature/top_p/max_tokens/stop`，不支持 Tools、多模态、
+fallback 或模型级重试。
 
-插件默认发布到 `/opt/ingate/plugins/ai-proxy.wasm`。
+单次请求体上限为 1 MiB，插件默认发布到 `/opt/ingate/plugins/ai-proxy.wasm`。

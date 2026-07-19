@@ -3,10 +3,12 @@ package upstream
 import (
 	"errors"
 	"net/netip"
+	"net/url"
+	"path"
 	"strings"
 
-	"github.com/lgc202/ingate/internal/pkg/bearer"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/pkg/llm/provider"
 )
 
 const (
@@ -19,7 +21,7 @@ func (r *CreateUpstreamReq) Validate() error {
 	if err := r.UpstreamConfig.Validate(); err != nil {
 		return err
 	}
-	return validateAPIKey(r.APIKey, r.Protocol, r.TLS)
+	return validateAPIKey(r.APIKey, r.Type, r.TLS)
 }
 
 // Validate 校验更新 Upstream 请求
@@ -33,7 +35,7 @@ func (r *UpdateUpstreamReq) Validate() error {
 	if r.APIKey != nil && r.RemoveAPIKey {
 		return errors.New("不能同时设置和移除 API Key")
 	}
-	return validateAPIKey(r.APIKey, r.Protocol, r.TLS)
+	return validateAPIKey(r.APIKey, r.Type, r.TLS)
 }
 
 // Validate 校验控制台提交的 Upstream 配置
@@ -48,11 +50,20 @@ func (r *UpstreamConfig) Validate() error {
 	if !validProtocol(r.Protocol) {
 		return errors.New("服务协议不正确")
 	}
-	if r.Type == resource.UpstreamTypeModel && r.Protocol != resource.UpstreamProtocolOpenAI {
-		return errors.New("大模型服务必须使用 OpenAI 兼容协议")
-	}
-	if r.Type != resource.UpstreamTypeModel && r.Protocol != resource.UpstreamProtocolHTTP {
-		return errors.New("当前只有大模型服务支持 OpenAI 兼容协议")
+	if r.Type == resource.UpstreamTypeModel {
+		if r.Model == nil {
+			return errors.New("大模型服务必须配置厂商和模型目录")
+		}
+		if err := r.Model.Validate(r.Protocol); err != nil {
+			return err
+		}
+	} else {
+		if r.Model != nil {
+			return errors.New("只有大模型服务可以配置模型目录")
+		}
+		if r.Protocol != resource.UpstreamProtocolHTTP {
+			return errors.New("非大模型服务必须使用 HTTP 协议")
+		}
 	}
 	if r.TLS != nil {
 		r.TLS.ServerName = strings.TrimSpace(strings.ToLower(r.TLS.ServerName))
@@ -88,23 +99,79 @@ func (r *UpstreamConfig) Validate() error {
 	return r.validateHealthCheck()
 }
 
-func validateAPIKey(apiKey *APIKeyConfig, protocol resource.UpstreamProtocol, tls *UpstreamTLS) error {
+func validateAPIKey(apiKey *APIKeyConfig, upstreamType resource.UpstreamType, tls *UpstreamTLS) error {
 	if apiKey == nil {
 		return nil
 	}
 	if apiKey.Value == "" {
 		return errors.New("API Key 不能为空")
 	}
-	if !bearer.ValidToken(apiKey.Value) {
-		return errors.New("API Key 包含不支持的空白字符、控制字符或格式")
+	if !provider.ValidAPIKey(apiKey.Value) {
+		return errors.New("API Key 包含不能用于 HTTP Header 的字符")
 	}
-	if protocol != resource.UpstreamProtocolOpenAI {
-		return errors.New("当前只有 OpenAI 兼容服务支持 API Key")
+	if upstreamType != resource.UpstreamTypeModel {
+		return errors.New("只有大模型服务支持 API Key")
 	}
 	if tls == nil {
 		return errors.New("配置 API Key 时必须使用 HTTPS")
 	}
 	return nil
+}
+
+// Validate 校验并规整模型厂商和模型目录配置
+func (r *ModelConfig) Validate(protocol resource.UpstreamProtocol) error {
+	expectedProtocol, ok := r.Provider.Protocol()
+	if !ok {
+		return errors.New("模型厂商不正确")
+	}
+	if protocol != expectedProtocol {
+		return errors.New("模型服务协议与厂商不匹配")
+	}
+	r.APIBasePath = strings.TrimSpace(r.APIBasePath)
+	if !validAPIBasePath(r.APIBasePath) {
+		return errors.New("API 基础路径必须是规整的绝对路径，且不能包含查询参数、片段或末尾斜杠")
+	}
+	if len(r.Models) == 0 {
+		return errors.New("至少需要配置一个厂商模型")
+	}
+
+	enabledModels := 0
+	modelNames := make(map[string]struct{}, len(r.Models))
+	for i := range r.Models {
+		r.Models[i].Name = strings.TrimSpace(r.Models[i].Name)
+		r.Models[i].DisplayName = strings.TrimSpace(r.Models[i].DisplayName)
+		if r.Models[i].Name == "" {
+			return errors.New("厂商模型名称不能为空")
+		}
+		if r.Models[i].DisplayName == "" {
+			return errors.New("厂商模型展示名称不能为空")
+		}
+		if _, exists := modelNames[r.Models[i].Name]; exists {
+			return errors.New("厂商模型名称不能重复")
+		}
+		modelNames[r.Models[i].Name] = struct{}{}
+		if r.Models[i].Enabled {
+			enabledModels++
+		}
+	}
+	if enabledModels == 0 {
+		return errors.New("至少需要启用一个厂商模型")
+	}
+	return nil
+}
+
+func validAPIBasePath(value string) bool {
+	if value == "" || !strings.HasPrefix(value, "/") {
+		return false
+	}
+	if value != "/" && strings.HasSuffix(value, "/") {
+		return false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != value {
+		return false
+	}
+	return path.Clean(value) == value
 }
 
 // Validate 校验控制台提交的服务端点
@@ -152,7 +219,10 @@ func validLoadBalancePolicy(value resource.UpstreamLoadBalancePolicy) bool {
 
 func validProtocol(value resource.UpstreamProtocol) bool {
 	switch value {
-	case resource.UpstreamProtocolHTTP, resource.UpstreamProtocolOpenAI:
+	case resource.UpstreamProtocolHTTP,
+		resource.UpstreamProtocolOpenAI,
+		resource.UpstreamProtocolAnthropic,
+		resource.UpstreamProtocolGemini:
 		return true
 	default:
 		return false

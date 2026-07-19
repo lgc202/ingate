@@ -3,6 +3,9 @@ package route
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"path"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -170,34 +173,117 @@ func (s *Service) validateReferences(ctx context.Context, route *resource.Route)
 			return err
 		}
 	}
+	upstreams := make(map[string]*resource.Upstream)
 	for _, rule := range route.Spec.Rules {
 		for _, ref := range rule.UpstreamRefs {
-			upstream, err := s.upstream.Get(ctx, ref.Name)
+			upstream, err := s.getUpstream(ctx, upstreams, ref.Name)
 			if err != nil {
 				if apierrors.IsNotFound(err) {
 					return xerrors.NewUserError(fmt.Sprintf("关联服务 %q 不存在", ref.Name))
 				}
 				return err
 			}
-			if upstream.Spec.Protocol == resource.UpstreamProtocolOpenAI {
-				return xerrors.NewUserError(fmt.Sprintf("模型服务 %q 只能用于模型路由", upstream.Spec.DisplayName))
+			if upstream.Spec.Type == resource.UpstreamTypeModel || upstream.Spec.Protocol != resource.UpstreamProtocolHTTP {
+				return xerrors.NewUserError(fmt.Sprintf("模型服务 %q 只能用于模型路由", upstreamDisplayName(upstream)))
 			}
 		}
 		if rule.ModelRouting == nil {
 			continue
 		}
-		upstream, err := s.upstream.Get(ctx, rule.ModelRouting.UpstreamRef)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				return xerrors.NewUserError(fmt.Sprintf("关联模型服务 %q 不存在", rule.ModelRouting.UpstreamRef))
+		for _, model := range rule.ModelRouting.Models {
+			upstream, err := s.getUpstream(ctx, upstreams, model.UpstreamRef)
+			if err != nil {
+				if apierrors.IsNotFound(err) {
+					return xerrors.NewUserError(fmt.Sprintf("关联模型服务 %q 不存在", model.UpstreamRef))
+				}
+				return err
 			}
-			return err
-		}
-		if upstream.Spec.Type != resource.UpstreamTypeModel || upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
-			return xerrors.NewUserError(fmt.Sprintf("关联服务 %q 不是 OpenAI 兼容模型服务", upstream.Spec.DisplayName))
+			if !validModelUpstream(upstream) {
+				return xerrors.NewUserError(fmt.Sprintf("关联服务 %q 不是有效的大模型服务", upstreamDisplayName(upstream)))
+			}
+			upstreamModel := model.UpstreamModel
+			if upstreamModel == "" {
+				upstreamModel = model.Model
+			}
+			if !enabledModel(upstream.Spec.Model, upstreamModel) {
+				return xerrors.NewUserError(fmt.Sprintf("模型服务 %q 未启用厂商模型 %q", upstreamDisplayName(upstream), upstreamModel))
+			}
 		}
 	}
 	return nil
+}
+
+func (s *Service) getUpstream(
+	ctx context.Context,
+	upstreams map[string]*resource.Upstream,
+	upstreamID string,
+) (*resource.Upstream, error) {
+	if upstream, ok := upstreams[upstreamID]; ok {
+		return upstream, nil
+	}
+	upstream, err := s.upstream.Get(ctx, upstreamID)
+	if err != nil {
+		return nil, err
+	}
+	upstreams[upstreamID] = upstream
+	return upstream, nil
+}
+
+func validModelUpstream(upstream *resource.Upstream) bool {
+	if upstream.Spec.Type != resource.UpstreamTypeModel || upstream.Spec.Model == nil {
+		return false
+	}
+	expectedProtocol, ok := upstream.Spec.Model.Provider.Protocol()
+	if !ok || upstream.Spec.Protocol != expectedProtocol || !validAPIBasePath(upstream.Spec.Model.APIBasePath) || len(upstream.Spec.Model.Models) == 0 {
+		return false
+	}
+
+	enabledModels := 0
+	modelNames := make(map[string]struct{}, len(upstream.Spec.Model.Models))
+	for _, model := range upstream.Spec.Model.Models {
+		if model.Name == "" || strings.TrimSpace(model.Name) != model.Name ||
+			model.DisplayName == "" || strings.TrimSpace(model.DisplayName) != model.DisplayName {
+			return false
+		}
+		if _, exists := modelNames[model.Name]; exists {
+			return false
+		}
+		modelNames[model.Name] = struct{}{}
+		if model.Enabled {
+			enabledModels++
+		}
+	}
+	return enabledModels > 0
+}
+
+func enabledModel(modelSpec *resource.ModelSpec, name string) bool {
+	for _, model := range modelSpec.Models {
+		if model.Name == name {
+			return model.Enabled
+		}
+	}
+	return false
+}
+
+func validAPIBasePath(value string) bool {
+	if value == "" || strings.TrimSpace(value) != value || !strings.HasPrefix(value, "/") {
+		return false
+	}
+	if value != "/" && strings.HasSuffix(value, "/") {
+		return false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != value {
+		return false
+	}
+	return path.Clean(value) == value
+}
+
+func upstreamDisplayName(upstream *resource.Upstream) string {
+	if upstream.Spec.DisplayName != "" {
+		return upstream.Spec.DisplayName
+	}
+	return upstream.Name
 }
 
 func routeSpec(params CreateRouteParams) resource.RouteSpec {
@@ -252,10 +338,10 @@ func modelRouting(params *ModelRoutingParams) *resource.ModelRouting {
 		return nil
 	}
 	return &resource.ModelRouting{
-		UpstreamRef: params.UpstreamID,
 		Models: lo.Map(params.Models, func(model ModelRouteParams, _ int) resource.ModelRoute {
 			return resource.ModelRoute{
 				Model:         model.Model,
+				UpstreamRef:   model.UpstreamID,
 				UpstreamModel: model.UpstreamModel,
 			}
 		}),

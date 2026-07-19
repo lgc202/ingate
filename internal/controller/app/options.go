@@ -2,6 +2,7 @@ package app
 
 import (
 	"errors"
+	"net/netip"
 	"strings"
 	"time"
 
@@ -45,8 +46,9 @@ type ResourceWatchConfig struct {
 
 // Validate 校验进程配置
 func (c Config) Validate() error {
-	if strings.TrimSpace(c.Server.XDSListenAddress) == "" {
-		return errors.New("xDS listen address must not be empty")
+	xdsAddress, err := netip.ParseAddrPort(strings.TrimSpace(c.Server.XDSListenAddress))
+	if err != nil || !xdsAddress.Addr().Unmap().IsLoopback() {
+		return errors.New("xDS listen address must use a loopback IP:port because xDS carries sensitive configuration; remote deployments require mTLS")
 	}
 	if strings.TrimSpace(c.Server.HealthListenAddress) == "" {
 		return errors.New("health listen address must not be empty")

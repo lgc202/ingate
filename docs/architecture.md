@@ -123,19 +123,20 @@ Admin API 只把 Condition 转换成面向页面的状态摘要，不向控制�
 OpenAI Client
   -> Envoy Listener / Route
   -> 内置 ai-proxy Wasm
-  -> Upstream(type=model, protocol=OpenAI)
-  -> OpenAI-compatible 模型服务
+  -> 按请求体 model 选择模型 Upstream
+  -> OpenAI / DeepSeek / 通义 / Anthropic / Gemini / 自定义兼容服务
 ```
 
 资源职责保持单一：
 
-- 模型服务仍是 `Upstream`，使用 `type=model` 表达业务分类，使用 `protocol=OpenAI` 表达通信语义
+- 模型服务仍是 `Upstream`，使用 `type=model` 表达业务分类，使用 `protocol` 表达 OpenAI、Anthropic 或 Gemini 通信语义，使用 `spec.model.provider` 表达具体厂商
+- 用户在 `spec.model.models[]` 中手工维护厂商模型目录，不新增 Provider 或 Model 资源，也不自动同步厂商模型列表
 - API Key 直接保存在模型 `Upstream.spec.authentication.apiKey.value` 中，不再创建独立凭据资源或跨资源引用
 - Admin API 只返回 `apiKeyConfigured`，不回显密钥内容；更新时省略 API Key 表示保留，显式移除才会清除
 - 配置或保留 API Key 时模型 Upstream 必须启用 TLS，避免密钥通过明文 HTTP 发送
-- 一条模型 RouteRule 的 `modelRouting.upstreamRef` 只引用一个 `type=model, protocol=OpenAI` 的 Upstream，同一规则下的全部模型请求都固定转发到该 Upstream
-- `modelRouting.models[]` 只把客户端模型别名映射为 `upstreamModel`；未填写 `upstreamModel` 时沿用客户端模型名
-- Compiler 使用 `upstreamRef` 生成 Envoy 静态 Route，并将模型别名索引和 API Key 编译为 Listener 级 `ai-proxy` 私有配置；用户资源不暴露 Wasm 路径或插件 JSON
+- 一条模型 RouteRule 的 `modelRouting.models[]` 中，每个客户端模型别名分别保存 `upstreamRef` 和 `upstreamModel`；同一路由可以按 `model` 跨多个模型 Upstream 选择目标
+- Compiler 为模型规则生成公开入口 Route 和只接受内部 Header 的续接 Route；续接 Route 使用标准 Envoy `cluster_header` 选择目标 Cluster，并按目标写入上游 Host
+- Compiler 把目标 Cluster、协议、基础路径、认证执行计划和模型映射编译为 Listener 级 `ai-proxy` 私有配置；内部选路 Header 在进入插件前清除客户端值，并在发往模型服务前移除，xDS 配置乱序时保持 fail-closed
 
 声明式资源示例：
 
@@ -144,25 +145,33 @@ pathPrefix: /v1/chat/completions
 methods:
   - POST
 modelRouting:
-  upstreamRef: model-upstream-id
   models:
     - model: chat-default
+      upstreamRef: openai-upstream-id
       upstreamModel: gpt-4o-mini
+    - model: claude-sonnet
+      upstreamRef: anthropic-upstream-id
+      upstreamModel: claude-sonnet-4
 ```
 
-Admin API 和控制台使用 `upstreamID` 表达同一个单一 Upstream 绑定，不把内部资源引用命名泄漏给页面协议。
+Admin API 和控制台在每条模型映射中使用 `upstreamID` 表达模型服务引用，不把内部资源引用命名泄漏给页面协议。
 
-数据面只对 `POST /v1/chat/completions` 缓冲并解析请求体。Envoy 静态 Route 负责把请求转发到规则绑定的 Upstream；`ai-proxy` 只匹配客户端模型别名、改写 `model` 并按需注入 `Authorization: Bearer <APIKey>`，不参与 Upstream 选择。客户端提供的上游凭据会被移除。普通响应和 SSE 流式响应不做缓冲或改写，由 Envoy 原样转发。本地拒绝使用 OpenAI-compatible 错误结构。
+数据面只对 `POST /v1/chat/completions` 缓冲并解析请求体。`ai-proxy` 根据公开模型别名选择目标，转换厂商请求体和路径，写入受控的规则版本 Header、Cluster Header 与认证 Header。Proxy-Wasm 修改请求路径和 Header 时，Envoy 会按标准语义清除 Route cache；随后只有携带这两个内部 Header 的续接 Route 能命中，续接 Route 选择目标 Cluster、写入上游 Host，并移除内部 Header。这样不依赖 Higress 的产品路由模型，也不会让修改后的 Anthropic 或 Gemini 路径丢失 Route。客户端提供的内部选路和上游凭据一律不可信并在插件入口清除。
+
+OpenAI-compatible、Anthropic 和 Gemini 上游都只接受第一阶段公开的文本消息字段；Anthropic 和 Gemini 进一步完成厂商协议转换。对外统一返回 OpenAI-compatible 错误、finish reason、Token usage 和公开模型名称。跨 chunk SSE 使用有状态解析，不受 `bufio.Scanner` 64 KiB 限制，但单个未完成事件有显式的 1 MiB 安全上限。
 
 模型 Upstream 可通过 `tls.serverName` 使用 HTTPS。Compiler 配置 SNI、数据面镜像的系统 CA 根证书包、精确 DNS/IP SAN 校验和 HTTP/1.1 ALPN。
+
+纯协议转换放在顶层 `pkg/llm`。该包不依赖 Ingate 资源、Envoy、Proxy-Wasm、Gin 或 Kubernetes，不发送模型 HTTP 请求、不读取环境变量，也不管理密钥持久化；数据面适配层只负责把编译配置和 Proxy-Wasm hostcall 接到纯转换函数。
 
 第一阶段限制：
 
 - 单次请求体上限为 1 MiB，不面向大文件或大体积多模态输入
-- 不支持 Anthropic、Azure OpenAI、Bedrock 等协议和认证转换
+- 只支持文本 `system`、`user`、`assistant` 消息和 `model/messages/stream/temperature/top_p/max_tokens/stop`
 - 不支持 Responses、Embeddings 等其他 OpenAI API
-- 不支持根据请求体 `model` 跨多个 Provider 或 Upstream 动态选路
+- 不支持 Tools/function calling、图片、音频、文件等多模态内容
 - 不支持多 Provider fallback、模型路由重试和 TokenQuotaPolicy
+- 不支持 OAuth、IAM、Azure Entra、AWS SigV4 等云认证
 - 不包含独立 AI runtime
 
 standalone 默认提供 HTTP `8080` 和 HTTPS `8443` 两个固定数据面入口。相同协议和端口的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Gateway 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。

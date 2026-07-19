@@ -62,8 +62,12 @@ export async function getRouteWorkspace(): Promise<RouteWorkspace> {
         name: upstream.name || upstream.id,
         type: upstream.type,
         protocol: upstream.protocol,
+        provider: upstream.model?.provider,
+        models: upstream.model?.models ?? [],
         endpoint: upstreamEndpointSummary(upstream),
-        meta: upstreamEndpointMeta(upstream),
+        meta: upstream.type === 'model'
+          ? `${(upstream.model?.models ?? []).filter((model) => model.enabled).length} 个可用模型`
+          : upstreamEndpointMeta(upstream),
       }))
       .sort((a, b) => a.name.localeCompare(b.name)),
   };
@@ -110,7 +114,6 @@ function normalizeRoute(route: RouteResponse): RouteResource {
       headers: rule.headers ?? [],
       upstreams: rule.targets ?? [],
       modelRouting: rule.modelRouting ? {
-        upstreamID: rule.modelRouting.upstreamID,
         models: rule.modelRouting.models.map((model) => ({ ...model })),
       } : undefined,
       requestHeaderModifier: normalizeHeaderModifier(rule.requestHeaderModifier),

@@ -1,13 +1,11 @@
 package policy
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 
+	"github.com/lgc202/ingate/pkg/llm"
 	config "github.com/lgc202/ingate/pkg/plugin/aiproxy"
 )
 
@@ -36,43 +34,36 @@ func (r *Runner) ValidateEndpoint(req Request) *Rejection {
 	return nil
 }
 
-// Apply 选择客户端请求的模型并将 model 改写为上游模型名称
+// Apply 校验客户端请求并选择公开模型绑定的目标
 func (r *Runner) Apply(models map[string]config.ModelConfig, req Request) Decision {
-	fields, rejection := requestFields(req.Body)
-	if rejection != nil {
-		return Decision{Rejection: rejection}
+	chat, err := llm.DecodeChatRequest(req.Body)
+	if err == nil {
+		err = chat.ValidateSupported()
+	}
+	if err != nil {
+		code := "invalid_request"
+		if errors.Is(err, llm.ErrUnsupportedFeature) {
+			code = "unsupported_feature"
+		}
+		return Decision{Rejection: &Rejection{
+			StatusCode: 400,
+			Message:    err.Error(),
+			Type:       "invalid_request_error",
+			Code:       code,
+		}}
 	}
 
-	rawModel, exists := fields["model"]
-	if !exists {
-		return Decision{Rejection: invalidModel("Field 'model' is required", "model_required")}
-	}
-	var modelName string
-	if err := json.Unmarshal(rawModel, &modelName); err != nil || strings.TrimSpace(modelName) == "" {
-		return Decision{Rejection: invalidModel("Field 'model' must be a non-empty string", "invalid_model")}
-	}
-
-	model, exists := models[modelName]
+	model, exists := models[chat.Model]
 	if !exists {
 		return Decision{Rejection: &Rejection{
 			StatusCode: 404,
-			Message:    fmt.Sprintf("The model %q does not exist or is not available for this route", modelName),
+			Message:    fmt.Sprintf("The model %q does not exist or is not available for this route", chat.Model),
 			Type:       "invalid_request_error",
 			Param:      "model",
 			Code:       "model_not_found",
 		}}
 	}
-
-	upstreamModel, err := json.Marshal(model.UpstreamModel)
-	if err != nil {
-		return Decision{Rejection: internalError()}
-	}
-	fields["model"] = upstreamModel
-	body, err := json.Marshal(fields)
-	if err != nil {
-		return Decision{Rejection: internalError()}
-	}
-	return Decision{Mutation: Mutation{Body: body}}
+	return Decision{Selection: &Selection{Model: model, Stream: chat.Streaming()}}
 }
 
 // RequestTooLarge 返回请求体超过插件缓冲上限时的错误
@@ -87,51 +78,6 @@ func (r *Runner) RequestTooLarge() *Rejection {
 
 // InternalError 返回不向客户端暴露内部细节的错误
 func (r *Runner) InternalError() *Rejection {
-	return internalError()
-}
-
-func requestFields(body []byte) (map[string]json.RawMessage, *Rejection) {
-	if len(bytes.TrimSpace(body)) == 0 {
-		return nil, &Rejection{
-			StatusCode: 400,
-			Message:    "Request body must be a JSON object",
-			Type:       "invalid_request_error",
-			Code:       "invalid_json",
-		}
-	}
-
-	var fields map[string]json.RawMessage
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	if err := decoder.Decode(&fields); err != nil || fields == nil {
-		return nil, &Rejection{
-			StatusCode: 400,
-			Message:    "Request body must be a valid JSON object",
-			Type:       "invalid_request_error",
-			Code:       "invalid_json",
-		}
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return nil, &Rejection{
-			StatusCode: 400,
-			Message:    "Request body must contain one JSON object",
-			Type:       "invalid_request_error",
-			Code:       "invalid_json",
-		}
-	}
-	return fields, nil
-}
-
-func invalidModel(message, code string) *Rejection {
-	return &Rejection{
-		StatusCode: 400,
-		Message:    message,
-		Type:       "invalid_request_error",
-		Param:      "model",
-		Code:       code,
-	}
-}
-
-func internalError() *Rejection {
 	return &Rejection{
 		StatusCode: 500,
 		Message:    "The request could not be processed",

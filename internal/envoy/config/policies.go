@@ -47,6 +47,10 @@ type policyRouteKey struct {
 	routeID     string
 }
 
+type wasmHTTPFilterOptions struct {
+	allowOnHeadersStopIteration bool
+}
+
 func (c *compileContext) buildPolicyConfigs() map[listenerKey]listenerPluginConfig {
 	// Compiler 已经把 Gateway/Route 应用范围展开成最终执行清单，Wasm 不再理解用户层绑定模型
 	accessControlPolicies := c.compileAccessControlPolicies()
@@ -518,6 +522,7 @@ func buildAccessControlHTTPFilter(config *pluginacl.PluginConfig) (*hcmv3.HttpFi
 		accessControlPluginName,
 		accessControlPluginPath,
 		raw,
+		wasmHTTPFilterOptions{},
 	)
 }
 
@@ -531,30 +536,35 @@ func buildRateLimitHTTPFilter(config *pluginratelimit.PluginConfig) (*hcmv3.Http
 		rateLimitPluginName,
 		rateLimitPluginPath,
 		raw,
+		wasmHTTPFilterOptions{},
 	)
 }
 
-func buildWasmHTTPFilter(filterName, pluginName, pluginPath string, raw []byte) (*hcmv3.HttpFilter, error) {
+func buildWasmHTTPFilter(
+	filterName string,
+	pluginName string,
+	pluginPath string,
+	raw []byte,
+	options wasmHTTPFilterOptions,
+) (*hcmv3.HttpFilter, error) {
 	configuration, err := anypb.New(&wrapperspb.StringValue{Value: string(raw)})
 	if err != nil {
 		return nil, fmt.Errorf("encode Wasm plugin configuration: %w", err)
 	}
-	wasmConfig := &httpwasmv3.Wasm{
-		Config: &wasmv3.PluginConfig{
-			Name:          pluginName,
-			RootId:        pluginName,
-			Configuration: configuration,
-			FailurePolicy: wasmv3.FailurePolicy_FAIL_CLOSED,
-			Vm: &wasmv3.PluginConfig_VmConfig{
-				VmConfig: &wasmv3.VmConfig{
-					VmId:    pluginName,
-					Runtime: wasmRuntime,
-					Code: &corev3.AsyncDataSource{
-						Specifier: &corev3.AsyncDataSource_Local{
-							Local: &corev3.DataSource{
-								Specifier: &corev3.DataSource_Filename{
-									Filename: pluginPath,
-								},
+	pluginConfig := &wasmv3.PluginConfig{
+		Name:          pluginName,
+		RootId:        pluginName,
+		Configuration: configuration,
+		FailurePolicy: wasmv3.FailurePolicy_FAIL_CLOSED,
+		Vm: &wasmv3.PluginConfig_VmConfig{
+			VmConfig: &wasmv3.VmConfig{
+				VmId:    pluginName,
+				Runtime: wasmRuntime,
+				Code: &corev3.AsyncDataSource{
+					Specifier: &corev3.AsyncDataSource_Local{
+						Local: &corev3.DataSource{
+							Specifier: &corev3.DataSource_Filename{
+								Filename: pluginPath,
 							},
 						},
 					},
@@ -562,6 +572,11 @@ func buildWasmHTTPFilter(filterName, pluginName, pluginPath string, raw []byte) 
 			},
 		},
 	}
+	if options.allowOnHeadersStopIteration {
+		// AI Proxy 必须在 Header 阶段暂停后继续接收 Body；Envoy 默认兼容模式不会回调请求体
+		pluginConfig.AllowOnHeadersStopIteration = wrapperspb.Bool(true)
+	}
+	wasmConfig := &httpwasmv3.Wasm{Config: pluginConfig}
 	if err := wasmConfig.ValidateAll(); err != nil {
 		return nil, fmt.Errorf("validate Wasm HTTP filter: %w", err)
 	}

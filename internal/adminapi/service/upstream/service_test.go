@@ -41,7 +41,7 @@ func TestServiceUpdateRejectsModelProtocolWhileOrdinaryRouteReferencesUpstream(t
 	if !errors.As(err, &userError) {
 		t.Fatalf("Service.Update(ordinary route reference) error = %T, want *xerrors.UserError", err)
 	}
-	if got, want := userError.Error(), "服务仍被普通路由 \"订单接口\" 引用，不能改为 OpenAI 模型服务"; got != want {
+	if got, want := userError.Error(), "服务仍被普通路由 \"订单接口\" 引用，不能改为模型服务"; got != want {
 		t.Errorf("Service.Update(ordinary route reference) error = %q, want %q", got, want)
 	}
 }
@@ -56,8 +56,7 @@ func TestServiceUpdateRejectsHTTPProtocolWhileModelRouteReferencesUpstream(t *te
 			Rules: []resource.RouteRule{{
 				Name: "chat",
 				ModelRouting: &resource.ModelRouting{
-					UpstreamRef: upstream.Name,
-					Models:      []resource.ModelRoute{{Model: "assistant"}},
+					Models: []resource.ModelRoute{{Model: "assistant", UpstreamRef: upstream.Name}},
 				},
 			}},
 		},
@@ -76,8 +75,65 @@ func TestServiceUpdateRejectsHTTPProtocolWhileModelRouteReferencesUpstream(t *te
 	if !errors.As(err, &userError) {
 		t.Fatalf("Service.Update(model route reference) error = %T, want *xerrors.UserError", err)
 	}
-	if got, want := userError.Error(), "服务仍被模型路由 \"模型对话\" 引用，必须保持为 OpenAI 兼容大模型服务"; got != want {
+	if got, want := userError.Error(), "服务仍被模型路由 \"模型对话\" 引用，必须保持为有效的大模型服务"; got != want {
 		t.Errorf("Service.Update(model route reference) error = %q, want %q", got, want)
+	}
+}
+
+func TestServiceUpdateRejectsDisablingReferencedModel(t *testing.T) {
+	ctx := context.Background()
+	upstream := testUpstream("model", resource.UpstreamTypeModel, resource.UpstreamProtocolOpenAI)
+	route := &resource.Route{
+		ObjectMeta: metav1.ObjectMeta{Name: "route-1"},
+		Spec: resource.RouteSpec{
+			DisplayName: "模型对话",
+			Rules: []resource.RouteRule{{
+				Name: "chat",
+				ModelRouting: &resource.ModelRouting{Models: []resource.ModelRoute{
+					{Model: "assistant", UpstreamRef: upstream.Name, UpstreamModel: "gpt-4o-mini"},
+				}},
+			}},
+		},
+	}
+	service := newTestService(t, ctx, upstream, route)
+	params := modelUpstreamParams()
+	params.Model.Models[0].Enabled = false
+	params.Model.Models = append(params.Model.Models, ModelCatalogItemParams{
+		Name:        "gpt-4o",
+		DisplayName: "GPT-4o",
+		Enabled:     true,
+	})
+
+	err := service.Update(ctx, upstream.Name, UpdateUpstreamParams{
+		Version:        upstream.ResourceVersion,
+		UpstreamParams: params,
+	})
+	var userError *xerrors.UserError
+	if !errors.As(err, &userError) {
+		t.Fatalf("Service.Update(disabled referenced model) error = %T, want *xerrors.UserError", err)
+	}
+}
+
+func TestServiceDeleteRejectsModelRouteReference(t *testing.T) {
+	ctx := context.Background()
+	upstream := testUpstream("model", resource.UpstreamTypeModel, resource.UpstreamProtocolOpenAI)
+	route := &resource.Route{
+		ObjectMeta: metav1.ObjectMeta{Name: "route-1"},
+		Spec: resource.RouteSpec{
+			DisplayName: "模型对话",
+			Rules: []resource.RouteRule{{
+				ModelRouting: &resource.ModelRouting{Models: []resource.ModelRoute{
+					{Model: "assistant", UpstreamRef: upstream.Name},
+				}},
+			}},
+		},
+	}
+	service := newTestService(t, ctx, upstream, route)
+
+	err := service.Delete(ctx, upstream.Name)
+	var userError *xerrors.UserError
+	if !errors.As(err, &userError) {
+		t.Fatalf("Service.Delete(model route reference) error = %T, want *xerrors.UserError", err)
 	}
 }
 
@@ -184,11 +240,18 @@ func modelUpstreamParams() UpstreamParams {
 		Type:     resource.UpstreamTypeModel,
 		Protocol: resource.UpstreamProtocolOpenAI,
 		TLS:      &TLSParams{ServerName: "api.example.com"},
+		Model: &ModelParams{
+			Provider:    resource.ModelProviderOpenAI,
+			APIBasePath: "/v1",
+			Models: []ModelCatalogItemParams{
+				{Name: "gpt-4o-mini", DisplayName: "GPT-4o mini", Enabled: true},
+			},
+		},
 	}
 }
 
 func testUpstream(name string, upstreamType resource.UpstreamType, protocol resource.UpstreamProtocol) *resource.Upstream {
-	return &resource.Upstream{
+	upstream := &resource.Upstream{
 		ObjectMeta: metav1.ObjectMeta{Name: name, ResourceVersion: "1"},
 		Spec: resource.UpstreamSpec{
 			DisplayName: name,
@@ -196,4 +259,15 @@ func testUpstream(name string, upstreamType resource.UpstreamType, protocol reso
 			Protocol:    protocol,
 		},
 	}
+	if upstreamType == resource.UpstreamTypeModel {
+		upstream.Spec.Model = &resource.ModelSpec{
+			Provider:    resource.ModelProviderOpenAI,
+			APIBasePath: "/v1",
+			Models: []resource.ModelCatalogItem{
+				{Name: "gpt-4o-mini", DisplayName: "GPT-4o mini", Enabled: true},
+				{Name: "assistant", DisplayName: "Assistant", Enabled: true},
+			},
+		}
+	}
+	return upstream
 }

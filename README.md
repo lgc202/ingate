@@ -40,17 +40,19 @@ AI Gateway 不新增 AI runtime 或独立服务，继续使用现有资源和 Co
 OpenAI Client
   -> Envoy
   -> 内置 ai-proxy Wasm
-  -> Upstream(type=model, protocol=OpenAI)
-  -> OpenAI-compatible 模型服务
+  -> 按 model 选择模型 Upstream
+  -> OpenAI / DeepSeek / 通义 / Anthropic / Gemini / 自定义兼容服务
 ```
 
-- 第一阶段只处理 `POST /v1/chat/completions`，普通响应和 SSE 流式响应均由 Envoy 原样转发
-- 模型服务仍使用 `Upstream`，通过 `tls.serverName` 启用 HTTPS、SNI 和系统 CA 根证书包校验
+- 对外只处理 OpenAI-compatible `POST /v1/chat/completions`，客户端不需要感知不同厂商的请求路径、认证 Header 和响应事件格式
+- 模型服务仍使用 `Upstream(type=model)`；`protocol` 表达 OpenAI、Anthropic 或 Gemini 通信语义，`spec.model.provider` 表达厂商，`spec.model.models[]` 保存用户手工维护的可用模型目录
+- 模型服务通过 `tls.serverName` 启用 HTTPS、SNI 和系统 CA 根证书包校验
 - 模型服务的 API Key 直接随 `Upstream` 配置，不再创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略密钥会保留原值，显式移除才会清除；配置 API Key 时必须使用 HTTPS
-- 一条模型 RouteRule 通过 `modelRouting` 固定绑定一个 OpenAI Upstream；`models[]` 只把客户端 `model` 别名映射为实际的上游模型名称
-- Envoy Config Compiler 生成 `ai-proxy` 的私有执行配置，用户不需要安装插件或编辑插件 JSON
+- 一条模型 RouteRule 的 `modelRouting.models[]` 中，每个公开模型别名独立引用模型 Upstream 和厂商模型；同一路由可以按请求体 `model` 跨厂商选择目标
+- Envoy Config Compiler 生成 Cluster、受控内部选路 Header 和 `ai-proxy` 私有执行配置；用户不需要安装插件或编辑插件 JSON
+- `ai-proxy` 将请求、普通响应、错误、Token usage 和 SSE 统一为 OpenAI-compatible 语义，响应中的 `model` 始终返回客户端公开别名
 
-当前不提供 Anthropic、Azure OpenAI、Bedrock 等协议和认证适配，不支持 Responses、Embeddings、根据请求体 `model` 跨多个 Provider 或 Upstream 动态选路、多 Provider fallback/retry、Token 配额及大文件或大体积多模态请求。单次 AI 请求体上限为 1 MiB。
+第一阶段只支持文本 `system`、`user`、`assistant` 消息和 `model/messages/stream/temperature/top_p/max_tokens/stop`。当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动同步厂商模型、多 Provider fallback/retry、Token 配额、OAuth/IAM 云认证及大文件请求。单次 AI 请求体上限为 1 MiB。
 
 所有产品状态都通过声明式资源的 status 表达。Admin API 只访问 API Server，不直接查询 Controller；Controller 通过 status 子资源写入 `Accepted`、`ResolvedRefs` 和 `Programmed` 等观察结果，Policy 还使用 `status.targets[]` 记录每个目标的生效状态。
 

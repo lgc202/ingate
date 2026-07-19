@@ -34,8 +34,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":               schema_pkg_apis_gateway_v1_HeaderValue(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HostBinding":               schema_pkg_apis_gateway_v1_HostBinding(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":                  schema_pkg_apis_gateway_v1_Listener(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelCatalogItem":          schema_pkg_apis_gateway_v1_ModelCatalogItem(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRoute":                schema_pkg_apis_gateway_v1_ModelRoute(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting":              schema_pkg_apis_gateway_v1_ModelRouting(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec":                 schema_pkg_apis_gateway_v1_ModelSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ParentRef":                 schema_pkg_apis_gateway_v1_ParentRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus":              schema_pkg_apis_gateway_v1_PolicyStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef":           schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
@@ -990,16 +992,62 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 	}
 }
 
+func schema_pkg_apis_gateway_v1_ModelCatalogItem(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ModelCatalogItem 表示模型服务对路由开放的一个厂商模型",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name 是发送给厂商 API 的模型名称，也是路由引用键",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 是控制台展示名称",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 控制该模型是否允许被模型路由引用",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"name", "displayName", "enabled"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_ModelRoute(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ModelRoute 将客户端模型名称映射到上游模型名称",
+				Description: "ModelRoute 将客户端模型名称映射到一个模型 Upstream 及其厂商模型名称",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"model": {
 						SchemaProps: spec.SchemaProps{
 							Description: "Model 是客户端请求中使用的模型名称",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"upstreamRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UpstreamRef 引用实际接收该模型请求的 Upstream",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1013,7 +1061,7 @@ func schema_pkg_apis_gateway_v1_ModelRoute(ref common.ReferenceCallback) common.
 						},
 					},
 				},
-				Required: []string{"model"},
+				Required: []string{"model", "upstreamRef"},
 			},
 		},
 	}
@@ -1023,17 +1071,9 @@ func schema_pkg_apis_gateway_v1_ModelRouting(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ModelRouting 声明一条 RouteRule 使用的模型 Upstream 和模型名称映射",
+				Description: "ModelRouting 声明一条 RouteRule 的公开模型和实际模型目标",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"upstreamRef": {
-						SchemaProps: spec.SchemaProps{
-							Description: "UpstreamRef 引用实际接收当前规则全部模型请求的 Upstream",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 					"models": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -1053,11 +1093,61 @@ func schema_pkg_apis_gateway_v1_ModelRouting(ref common.ReferenceCallback) commo
 						},
 					},
 				},
-				Required: []string{"upstreamRef", "models"},
+				Required: []string{"models"},
 			},
 		},
 		Dependencies: []string{
 			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRoute"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_ModelSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ModelSpec 定义模型服务的厂商协议参数和模型目录",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"provider": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Provider 表示模型厂商或 OpenAI-compatible 实现类型",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiBasePath": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIBasePath 是追加到模型端点后的厂商 API 基础路径",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"models": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelCatalogItem"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"provider", "apiBasePath", "models"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelCatalogItem"},
 	}
 }
 
@@ -1864,7 +1954,7 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 					},
 					"modelRouting": {
 						SchemaProps: spec.SchemaProps{
-							Description: "ModelRouting 声明将 OpenAI 请求中的 model 映射后转发到单一模型 Upstream",
+							Description: "ModelRouting 声明将 OpenAI-compatible 请求中的 model 映射到对应模型 Upstream",
 							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting"),
 						},
 					},
@@ -2206,6 +2296,12 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication"),
 						},
 					},
+					"model": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Model 描述模型厂商、API 基础路径和可供路由选择的模型目录",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec"),
+						},
+					},
 					"loadBalancePolicy": {
 						SchemaProps: spec.SchemaProps{
 							Description: "LoadBalancePolicy 指定多个端点之间的负载均衡策略",
@@ -2242,7 +2338,7 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
 	}
 }
 

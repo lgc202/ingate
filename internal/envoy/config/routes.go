@@ -14,6 +14,7 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -28,8 +29,6 @@ const (
 	defaultRetryOn         = "connect-failure,refused-stream,reset,5xx"
 	runtimeRouteNamePrefix = "ingate-route"
 	virtualHostNamePrefix  = "ingate-vhost"
-	authorizationHeader    = "authorization"
-	contentLengthHeader    = "content-length"
 )
 
 type routeAttachment struct {
@@ -40,14 +39,15 @@ type routeAttachment struct {
 }
 
 type routeEntry struct {
-	gatewayID   string
-	routeID     string
-	ruleName    string
-	pathPrefix  string
-	exactPath   bool
-	method      string
-	headerCount int
-	route       *routev3.Route
+	gatewayID      string
+	routeID        string
+	ruleName       string
+	pathPrefix     string
+	exactPath      bool
+	aiContinuation bool
+	method         string
+	headerCount    int
+	route          *routev3.Route
 }
 
 func (c *compileContext) buildRoutes() []*routev3.RouteConfiguration {
@@ -219,6 +219,10 @@ func (c *compileContext) buildRoutes() []*routev3.RouteConfiguration {
 		configs = append(configs, &routev3.RouteConfiguration{
 			Name:         routeConfigName(key),
 			VirtualHosts: virtualHosts,
+			InternalOnlyHeaders: []string{
+				aiClusterHeader,
+				aiRouteHeader,
+			},
 		})
 	}
 	return configs
@@ -340,13 +344,12 @@ func (c *compileContext) buildRouteEntries(
 		if !valid {
 			return nil
 		}
-		action.ClusterSpecifier = &routev3.RouteAction_Cluster{Cluster: aiRoute.clusterName}
-		upstream := c.upstreams[rule.ModelRouting.UpstreamRef]
-		if upstream.Spec.TLS != nil {
-			// TLS serverName 同时作为上游 Host，确保端点使用 IP 时仍能命中模型服务的虚拟主机
-			action.HostRewriteSpecifier = &routev3.RouteAction_HostRewriteLiteral{HostRewriteLiteral: normalizedTLSServerName(upstream.Spec.TLS.ServerName)}
-		} else {
-			action.HostRewriteSpecifier = &routev3.RouteAction_AutoHostRewrite{AutoHostRewrite: wrapperspb.Bool(true)}
+		action.ClusterSpecifier = &routev3.RouteAction_ClusterHeader{ClusterHeader: aiClusterHeader}
+		// Router 使用内部 Header 完成二次选路后再移除，避免私有执行信息泄漏给模型服务
+		for _, name := range []string{aiClusterHeader, aiRouteHeader} {
+			if !slices.Contains(requestHeadersToRemove, name) {
+				requestHeadersToRemove = append(requestHeadersToRemove, name)
+			}
 		}
 	} else {
 		clusters, clustersValid := c.weightedClusters(routeID, rule)
@@ -392,7 +395,11 @@ func (c *compileContext) buildRouteEntries(
 	if len(methodValues) == 0 {
 		methodValues = []string{""}
 	}
-	entries := make([]routeEntry, 0, len(methodValues))
+	entryCapacity := len(methodValues)
+	if rule.ModelRouting != nil {
+		entryCapacity *= 1 + len(aiRoute.continuation)
+	}
+	entries := make([]routeEntry, 0, entryCapacity)
 	for _, method := range methodValues {
 		routeName := runtimeRouteName(gatewayID, routeID, rule.Name, method)
 		if rule.ModelRouting != nil {
@@ -433,6 +440,62 @@ func (c *compileContext) buildRouteEntries(
 				ResponseHeadersToRemove: responseHeadersToRemove,
 			},
 		})
+		if rule.ModelRouting == nil {
+			continue
+		}
+
+		for _, continuation := range aiRoute.continuation {
+			continuationHeaders := []*routev3.HeaderMatcher{
+				{
+					Name: aiRouteHeader,
+					HeaderMatchSpecifier: &routev3.HeaderMatcher_ExactMatch{
+						ExactMatch: aiRoute.configID,
+					},
+				},
+				{
+					Name: aiClusterHeader,
+					HeaderMatchSpecifier: &routev3.HeaderMatcher_ExactMatch{
+						ExactMatch: continuation.cluster,
+					},
+				},
+			}
+			if method != "" {
+				continuationHeaders = append([]*routev3.HeaderMatcher{
+					{
+						Name: ":method",
+						HeaderMatchSpecifier: &routev3.HeaderMatcher_ExactMatch{
+							ExactMatch: method,
+						},
+					},
+				}, continuationHeaders...)
+			}
+			continuationAction := proto.Clone(action).(*routev3.RouteAction)
+			continuationAction.HostRewriteSpecifier = &routev3.RouteAction_HostRewriteLiteral{
+				HostRewriteLiteral: continuation.authority,
+			}
+			entries = append(entries, routeEntry{
+				gatewayID:      gatewayID,
+				routeID:        routeID,
+				ruleName:       rule.Name,
+				pathPrefix:     continuation.path,
+				exactPath:      true,
+				aiContinuation: true,
+				method:         method,
+				headerCount:    2,
+				route: &routev3.Route{
+					Name: routeName,
+					Match: &routev3.RouteMatch{
+						PathSpecifier: &routev3.RouteMatch_Path{Path: continuation.path},
+						Headers:       continuationHeaders,
+					},
+					Action:                  &routev3.Route_Route{Route: continuationAction},
+					RequestHeadersToAdd:     requestHeadersToAdd,
+					RequestHeadersToRemove:  requestHeadersToRemove,
+					ResponseHeadersToAdd:    responseHeadersToAdd,
+					ResponseHeadersToRemove: responseHeadersToRemove,
+				},
+			})
+		}
 	}
 	return entries
 }
@@ -502,6 +565,18 @@ func (c *compileContext) routeHeaderMatches(routeID string, rule gatewayv1.Route
 				routeID,
 				ReasonInvalidSpec,
 				fmt.Sprintf("route %q rule %q header match %q has an empty value", routeID, rule.Name, header.Name),
+			)
+			valid = false
+			continue
+		}
+		if rule.ModelRouting != nil &&
+			(strings.EqualFold(header.Name, aiClusterHeader) || strings.EqualFold(header.Name, aiRouteHeader)) {
+			c.addDiagnostic(
+				SeverityError,
+				gatewayv1.KindRoute,
+				routeID,
+				ReasonInvalidSpec,
+				fmt.Sprintf("route %q rule %q cannot match internal AI routing header %q", routeID, rule.Name, header.Name),
 			)
 			valid = false
 			continue
@@ -587,13 +662,13 @@ func (c *compileContext) weightedClusters(
 			valid = false
 			continue
 		}
-		if upstream.Spec.Protocol == gatewayv1.UpstreamProtocolOpenAI {
+		if upstream.Spec.Type == gatewayv1.UpstreamTypeModel || upstream.Spec.Protocol != gatewayv1.UpstreamProtocolHTTP {
 			c.addDiagnostic(
 				SeverityError,
 				gatewayv1.KindRoute,
 				routeID,
 				ReasonInvalidReference,
-				fmt.Sprintf("route %q rule %q must reference OpenAI upstream %q through modelRouting", routeID, rule.Name, ref.Name),
+				fmt.Sprintf("route %q rule %q must reference model upstream %q through modelRouting", routeID, rule.Name, ref.Name),
 			)
 			valid = false
 			continue
@@ -649,7 +724,7 @@ func (c *compileContext) routeFilters(
 			}
 			if rule.ModelRouting != nil {
 				reserved := ""
-				for _, name := range []string{authorizationHeader, contentLengthHeader} {
+				for _, name := range aiManagedRequestHeaders {
 					if headerModifierContains(filter.RequestHeaderModifier, name) {
 						reserved = name
 						break
@@ -871,6 +946,12 @@ func routeMatchKey(match *routev3.RouteMatch) string {
 }
 
 func compareRouteEntries(a, b routeEntry) int {
+	if a.aiContinuation != b.aiContinuation {
+		if a.aiContinuation {
+			return -1
+		}
+		return 1
+	}
 	if len(a.pathPrefix) != len(b.pathPrefix) {
 		return cmp.Compare(len(b.pathPrefix), len(a.pathPrefix))
 	}

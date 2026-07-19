@@ -35,11 +35,29 @@ func upstreamFromResource(upstream *resource.Upstream) Upstream {
 			Type:              upstream.Spec.Type,
 			Protocol:          upstream.Spec.Protocol,
 			TLS:               upstreamTLS(upstream.Spec.TLS),
+			Model:             modelConfig(upstream.Spec.Model),
 			Endpoints:         endpointRequests(upstream),
 			LoadBalancePolicy: loadBalancePolicy(upstream.Spec.LoadBalancePolicy),
 			HealthCheck:       upstream.Spec.HealthCheck,
 		},
 		CreatedAt: createdAt(upstream.ObjectMeta),
+	}
+}
+
+func modelConfig(value *resource.ModelSpec) *ModelConfig {
+	if value == nil {
+		return nil
+	}
+	return &ModelConfig{
+		Provider:    value.Provider,
+		APIBasePath: value.APIBasePath,
+		Models: lo.Map(value.Models, func(model resource.ModelCatalogItem, _ int) ModelCatalogItem {
+			return ModelCatalogItem{
+				Name:        model.Name,
+				DisplayName: model.DisplayName,
+				Enabled:     model.Enabled,
+			}
+		}),
 	}
 }
 

@@ -47,7 +47,7 @@ func TestRouteRuleValidateModelRouting(t *testing.T) {
 			name: "requires model upstream",
 			rule: func() RouteRule {
 				rule := modelRouteRule()
-				rule.ModelRouting.UpstreamID = ""
+				rule.ModelRouting.Models[0].UpstreamID = ""
 				return rule
 			}(),
 			wantErr: true,
@@ -99,6 +99,26 @@ func TestRouteRuleValidateModelRouting(t *testing.T) {
 			}(),
 			wantErr: true,
 		},
+		{
+			name: "rejects managed content type header",
+			rule: func() RouteRule {
+				rule := modelRouteRule()
+				rule.RequestHeaderModifier = &HeaderModifierReq{
+					Set: []HeaderValueReq{{Name: "Content-Type", Value: "text/plain"}},
+				}
+				return rule
+			}(),
+			wantErr: true,
+		},
+		{
+			name: "rejects internal route header match",
+			rule: func() RouteRule {
+				rule := modelRouteRule()
+				rule.Headers = []HeaderMatchReq{{Name: aiRouteHeader, Value: "forged"}}
+				return rule
+			}(),
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -113,17 +133,16 @@ func TestRouteRuleValidateModelRouting(t *testing.T) {
 
 func TestRouteRuleValidateNormalizesModelRouting(t *testing.T) {
 	rule := modelRouteRule()
-	rule.ModelRouting.UpstreamID = " model-1 "
 	rule.ModelRouting.Models[0].Model = " chat-default "
+	rule.ModelRouting.Models[0].UpstreamID = " model-1 "
 	rule.ModelRouting.Models[0].UpstreamModel = " gpt-4o-mini "
 
 	if err := rule.Validate(); err != nil {
 		t.Fatalf("RouteRule.Validate() error = %v, want nil", err)
 	}
 	want := &ModelRouting{
-		UpstreamID: "model-1",
 		Models: []ModelRoute{
-			{Model: "chat-default", UpstreamModel: "gpt-4o-mini"},
+			{Model: "chat-default", UpstreamID: "model-1", UpstreamModel: "gpt-4o-mini"},
 		},
 	}
 	if diff := cmp.Diff(want, rule.ModelRouting); diff != "" {
@@ -137,10 +156,10 @@ func modelRouteRule() RouteRule {
 		PathPrefix: "/v1/chat/completions",
 		Methods:    []string{"POST"},
 		ModelRouting: &ModelRouting{
-			UpstreamID: "model-1",
 			Models: []ModelRoute{
 				{
 					Model:         "chat-default",
+					UpstreamID:    "model-1",
 					UpstreamModel: "gpt-4o-mini",
 				},
 			},

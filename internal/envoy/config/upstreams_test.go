@@ -88,6 +88,13 @@ func TestCompilerBuildsTLSClusterForOpenAIUpstream(t *testing.T) {
 					Type:     gatewayv1.UpstreamTypeModel,
 					Protocol: gatewayv1.UpstreamProtocolOpenAI,
 					TLS:      &gatewayv1.UpstreamTLS{ServerName: "API.OpenAI.COM"},
+					Model: &gatewayv1.ModelSpec{
+						Provider:    gatewayv1.ModelProviderOpenAI,
+						APIBasePath: "/v1",
+						Models: []gatewayv1.ModelCatalogItem{
+							{Name: "gpt-4o", DisplayName: "GPT-4o", Enabled: true},
+						},
+					},
 					Endpoints: []gatewayv1.Endpoint{
 						{
 							Name:    "primary",
@@ -153,6 +160,13 @@ func TestCompilerOmitsSNIForIPTLSIdentity(t *testing.T) {
 					Type:     gatewayv1.UpstreamTypeModel,
 					Protocol: gatewayv1.UpstreamProtocolOpenAI,
 					TLS:      &gatewayv1.UpstreamTLS{ServerName: "192.0.2.10"},
+					Model: &gatewayv1.ModelSpec{
+						Provider:    gatewayv1.ModelProviderCustom,
+						APIBasePath: "/v1",
+						Models: []gatewayv1.ModelCatalogItem{
+							{Name: "local-model", DisplayName: "Local Model", Enabled: true},
+						},
+					},
 					Endpoints: []gatewayv1.Endpoint{
 						{Name: "primary", Address: "192.0.2.10", Port: 443, Weight: 100, Enabled: true},
 					},

@@ -17,6 +17,7 @@ import (
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	pluginaiproxy "github.com/lgc202/ingate/pkg/plugin/aiproxy"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
@@ -443,6 +444,10 @@ func (c *compileContext) buildListeners(plugins map[listenerKey]listenerPluginCo
 		listener := &listenerv3.Listener{
 			Name:    listenerName(key),
 			Address: socketAddress(key.address, key.port),
+		}
+		if aiProxy := plugins[key].aiProxy; aiProxy != nil && len(aiProxy.Routes) > 0 {
+			// Listener 软限制需要高于 Wasm 业务上限，确保首个越界字节到达插件并触发统一 502
+			listener.PerConnectionBufferLimitBytes = wrapperspb.UInt32(pluginaiproxy.ResponseBufferLimitBytes)
 		}
 		switch key.protocol {
 		case gatewayv1.ProtocolHTTP:

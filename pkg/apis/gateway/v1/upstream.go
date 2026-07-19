@@ -24,6 +24,28 @@ const (
 	UpstreamProtocolHTTP UpstreamProtocol = "HTTP"
 	// UpstreamProtocolOpenAI 表示兼容 OpenAI API 的模型服务
 	UpstreamProtocolOpenAI UpstreamProtocol = "OpenAI"
+	// UpstreamProtocolAnthropic 表示使用 Anthropic 原生消息协议的模型服务
+	UpstreamProtocolAnthropic UpstreamProtocol = "Anthropic"
+	// UpstreamProtocolGemini 表示使用 Gemini 原生生成内容协议的模型服务
+	UpstreamProtocolGemini UpstreamProtocol = "Gemini"
+)
+
+// ModelProvider 表示模型服务所属的厂商或兼容实现
+type ModelProvider string
+
+const (
+	// ModelProviderOpenAI 表示 OpenAI 官方服务
+	ModelProviderOpenAI ModelProvider = "openai"
+	// ModelProviderDeepSeek 表示 DeepSeek 官方服务
+	ModelProviderDeepSeek ModelProvider = "deepseek"
+	// ModelProviderQwen 表示通义千问兼容模式服务
+	ModelProviderQwen ModelProvider = "qwen"
+	// ModelProviderAnthropic 表示 Anthropic 官方服务
+	ModelProviderAnthropic ModelProvider = "anthropic"
+	// ModelProviderGemini 表示 Gemini 官方服务
+	ModelProviderGemini ModelProvider = "gemini"
+	// ModelProviderCustom 表示自定义 OpenAI-compatible 服务
+	ModelProviderCustom ModelProvider = "custom"
 )
 
 // UpstreamLoadBalancePolicy 表示 Upstream 的负载均衡策略
@@ -72,12 +94,34 @@ type UpstreamSpec struct {
 	TLS *UpstreamTLS `json:"tls,omitempty"`
 	// Authentication 描述 Ingate 访问 Upstream 时使用的认证信息
 	Authentication *UpstreamAuthentication `json:"authentication,omitempty"`
+	// Model 描述模型厂商、API 基础路径和可供路由选择的模型目录
+	Model *ModelSpec `json:"model,omitempty"`
 	// LoadBalancePolicy 指定多个端点之间的负载均衡策略
 	LoadBalancePolicy UpstreamLoadBalancePolicy `json:"loadBalancePolicy,omitempty"`
 	// HealthCheck 描述 Upstream 端点的主动健康检查配置
 	HealthCheck *UpstreamHealthCheck `json:"healthCheck,omitempty"`
 	// +listType=atomic
 	Endpoints []Endpoint `json:"endpoints"`
+}
+
+// ModelSpec 定义模型服务的厂商协议参数和模型目录
+type ModelSpec struct {
+	// Provider 表示模型厂商或 OpenAI-compatible 实现类型
+	Provider ModelProvider `json:"provider"`
+	// APIBasePath 是追加到模型端点后的厂商 API 基础路径
+	APIBasePath string `json:"apiBasePath"`
+	// +listType=atomic
+	Models []ModelCatalogItem `json:"models"`
+}
+
+// ModelCatalogItem 表示模型服务对路由开放的一个厂商模型
+type ModelCatalogItem struct {
+	// Name 是发送给厂商 API 的模型名称，也是路由引用键
+	Name string `json:"name"`
+	// DisplayName 是控制台展示名称
+	DisplayName string `json:"displayName"`
+	// Enabled 控制该模型是否允许被模型路由引用
+	Enabled bool `json:"enabled"`
 }
 
 // UpstreamAuthentication 声明访问 Upstream 时使用的认证配置
@@ -116,4 +160,18 @@ type UpstreamHealthCheck struct {
 	Path            string `json:"path,omitempty"`
 	IntervalSeconds int    `json:"intervalSeconds,omitempty"`
 	TimeoutSeconds  int    `json:"timeoutSeconds,omitempty"`
+}
+
+// Protocol 返回当前厂商使用的上游协议
+func (p ModelProvider) Protocol() (UpstreamProtocol, bool) {
+	switch p {
+	case ModelProviderOpenAI, ModelProviderDeepSeek, ModelProviderQwen, ModelProviderCustom:
+		return UpstreamProtocolOpenAI, true
+	case ModelProviderAnthropic:
+		return UpstreamProtocolAnthropic, true
+	case ModelProviderGemini:
+		return UpstreamProtocolGemini, true
+	default:
+		return "", false
+	}
 }

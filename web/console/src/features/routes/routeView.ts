@@ -21,7 +21,7 @@ export function routeUpstreams(route: Pick<RouteResource, 'rules'>): WeightedUps
 export function routeUpstreamIDs(route: Pick<RouteResource, 'rules'>): string[] {
   const rule = primaryRouteRule(route);
   const serviceIDs = rule?.upstreams.map((upstream) => upstream.upstreamID) ?? [];
-  const modelIDs = rule?.modelRouting ? [rule.modelRouting.upstreamID] : [];
+  const modelIDs = rule?.modelRouting?.models.map((model) => model.upstreamID) ?? [];
   return Array.from(new Set([...serviceIDs, ...modelIDs]));
 }
 
@@ -32,7 +32,7 @@ export function routeUpstreamLabels(route: Pick<RouteResource, 'rules'>, upstrea
 export function routeUpstreamSummary(route: Pick<RouteResource, 'rules'>, upstreams: UpstreamOption[]): string {
   const rule = primaryRouteRule(route);
   if (rule?.modelRouting) {
-    return formatModelRoutes(rule.modelRouting.upstreamID, rule.modelRouting.models, upstreams);
+    return formatModelRoutes(rule.modelRouting.models, upstreams);
   }
   return formatWeightedUpstreams(rule?.upstreams ?? [], upstreams);
 }
@@ -127,7 +127,7 @@ export function routeDetailItems(
     if (rule?.modelRouting) {
       return [
         { label: '转发方式', value: '模型服务代理' },
-        { label: '模型映射', value: formatModelRoutes(rule.modelRouting.upstreamID, rule.modelRouting.models, upstreams) },
+        { label: '模型映射', value: formatModelRoutes(rule.modelRouting.models, upstreams) },
         { label: '模型数量', value: `${rule.modelRouting.models.length} 个` },
       ];
     }

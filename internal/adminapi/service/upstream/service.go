@@ -73,9 +73,6 @@ func (s *Service) Update(ctx context.Context, upstreamID string, params UpdateUp
 	if err := s.validateNameUnique(ctx, params.Name, upstreamID); err != nil {
 		return err
 	}
-	if err := s.validateRouteCompatibility(ctx, upstreamID, params.Type, params.Protocol); err != nil {
-		return err
-	}
 	next := current.DeepCopy()
 	applyUpstreamParams(next, params.UpstreamParams)
 	if params.RemoveAPIKey {
@@ -86,6 +83,9 @@ func (s *Service) Update(ctx context.Context, upstreamID string, params UpdateUp
 	if err := validateAuthentication(next); err != nil {
 		return err
 	}
+	if err := s.validateRouteCompatibility(ctx, upstreamID, next); err != nil {
+		return err
+	}
 	_, err = s.store.Update(ctx, next)
 	return err
 }
@@ -93,8 +93,7 @@ func (s *Service) Update(ctx context.Context, upstreamID string, params UpdateUp
 func (s *Service) validateRouteCompatibility(
 	ctx context.Context,
 	upstreamID string,
-	upstreamType resource.UpstreamType,
-	protocol resource.UpstreamProtocol,
+	next *resource.Upstream,
 ) error {
 	routes, err := s.routes.List(ctx)
 	if err != nil {
@@ -103,13 +102,27 @@ func (s *Service) validateRouteCompatibility(
 	for _, route := range routes.Items {
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
-				if ref.Name == upstreamID && protocol == resource.UpstreamProtocolOpenAI {
-					return xerrors.NewUserError(fmt.Sprintf("服务仍被普通路由 %q 引用，不能改为 OpenAI 模型服务", routeDisplayName(route)))
+				if ref.Name == upstreamID && (next.Spec.Type == resource.UpstreamTypeModel || next.Spec.Protocol != resource.UpstreamProtocolHTTP) {
+					return xerrors.NewUserError(fmt.Sprintf("服务仍被普通路由 %q 引用，不能改为模型服务", routeDisplayName(route)))
 				}
 			}
-			if rule.ModelRouting != nil && rule.ModelRouting.UpstreamRef == upstreamID &&
-				(upstreamType != resource.UpstreamTypeModel || protocol != resource.UpstreamProtocolOpenAI) {
-				return xerrors.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 引用，必须保持为 OpenAI 兼容大模型服务", routeDisplayName(route)))
+			if rule.ModelRouting == nil {
+				continue
+			}
+			for _, model := range rule.ModelRouting.Models {
+				if model.UpstreamRef != upstreamID {
+					continue
+				}
+				if !validModelUpstream(next) {
+					return xerrors.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 引用，必须保持为有效的大模型服务", routeDisplayName(route)))
+				}
+				upstreamModel := model.UpstreamModel
+				if upstreamModel == "" {
+					upstreamModel = model.Model
+				}
+				if !enabledModel(next.Spec.Model, upstreamModel) {
+					return xerrors.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 的公开模型 %q 引用，不能删除或禁用厂商模型 %q", routeDisplayName(route), model.Model, upstreamModel))
+				}
 			}
 		}
 	}
@@ -130,8 +143,10 @@ func (s *Service) Delete(ctx context.Context, upstreamID string) error {
 				}
 			}
 			if rule.ModelRouting != nil {
-				if rule.ModelRouting.UpstreamRef == upstreamID {
-					return xerrors.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", upstreamID, routeDisplayName(route)))
+				for _, model := range rule.ModelRouting.Models {
+					if model.UpstreamRef == upstreamID {
+						return xerrors.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 的公开模型 %q 引用", upstreamID, routeDisplayName(route), model.Model))
+					}
 				}
 			}
 		}
@@ -177,10 +192,28 @@ func upstreamResource(id, version string, params UpstreamParams) *resource.Upstr
 			Type:              params.Type,
 			Protocol:          params.Protocol,
 			TLS:               upstreamTLS(params.TLS),
+			Model:             upstreamModel(params.Model),
 			LoadBalancePolicy: params.LoadBalancePolicy,
 			HealthCheck:       params.HealthCheck,
 			Endpoints:         resourceEndpoints(params.Endpoints),
 		},
+	}
+}
+
+func upstreamModel(params *ModelParams) *resource.ModelSpec {
+	if params == nil {
+		return nil
+	}
+	return &resource.ModelSpec{
+		Provider:    params.Provider,
+		APIBasePath: params.APIBasePath,
+		Models: lo.Map(params.Models, func(model ModelCatalogItemParams, _ int) resource.ModelCatalogItem {
+			return resource.ModelCatalogItem{
+				Name:        model.Name,
+				DisplayName: model.DisplayName,
+				Enabled:     model.Enabled,
+			}
+		}),
 	}
 }
 
@@ -210,13 +243,33 @@ func validateAuthentication(upstream *resource.Upstream) error {
 	if upstream.Spec.Authentication == nil {
 		return nil
 	}
-	if upstream.Spec.Protocol != resource.UpstreamProtocolOpenAI {
-		return xerrors.NewUserError("服务已配置 API Key，当前只有 OpenAI 兼容服务支持")
+	if upstream.Spec.Type != resource.UpstreamTypeModel {
+		return xerrors.NewUserError("服务已配置 API Key，必须保持为大模型服务")
 	}
 	if upstream.Spec.TLS == nil {
 		return xerrors.NewUserError("服务已配置 API Key，关闭 HTTPS 前请先移除 API Key")
 	}
 	return nil
+}
+
+func validModelUpstream(upstream *resource.Upstream) bool {
+	if upstream.Spec.Type != resource.UpstreamTypeModel || upstream.Spec.Model == nil {
+		return false
+	}
+	expectedProtocol, ok := upstream.Spec.Model.Provider.Protocol()
+	return ok && upstream.Spec.Protocol == expectedProtocol
+}
+
+func enabledModel(modelSpec *resource.ModelSpec, name string) bool {
+	if modelSpec == nil {
+		return false
+	}
+	for _, model := range modelSpec.Models {
+		if model.Name == name {
+			return model.Enabled
+		}
+	}
+	return false
 }
 
 func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {

@@ -40,13 +40,16 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 ## 第一阶段 AI Gateway
 
 - 不新增 AI runtime 或独立服务，AI 请求继续使用现有 Controller 编译链路和 Envoy 数据面
-- 第一阶段只支持 OpenAI-compatible `POST /v1/chat/completions`；普通响应和 SSE 流式响应原样转发
-- 模型服务仍建模为 `Upstream(type=model, protocol=OpenAI)`，不新增 Provider、Model、AIRoute 或 AIBackend 等平行资源
+- 对外统一支持 OpenAI-compatible `POST /v1/chat/completions`；第一批上游支持 OpenAI、DeepSeek、通义千问兼容模式、Anthropic 原生协议、Gemini 原生协议和自定义 OpenAI-compatible 服务
+- 模型服务仍建模为 `Upstream(type=model)`，通过 `protocol` 表达 OpenAI、Anthropic 或 Gemini 通信语义，通过 `spec.model.provider` 表达具体厂商；不新增 Provider、Model、AIRoute 或 AIBackend 等平行资源
+- 模型目录由用户在模型 Upstream 的 `spec.model.models[]` 中手工维护，不自动同步厂商模型列表
 - API Key 直接作为模型 Upstream 的认证配置，不创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略表示保留、显式移除才会清除
-- 一条模型 RouteRule 的 `modelRouting` 只绑定一个 OpenAI Upstream，`models[]` 只表达客户端模型别名到 `upstreamModel` 的映射
-- Envoy 静态 Route 负责选择规则绑定的 Upstream；内置 `ai-proxy` Wasm 只负责模型别名匹配、请求体模型名改写和 API Key 注入，用户不编辑插件私有配置
+- 一条模型 RouteRule 的 `modelRouting.models[]` 中每个客户端模型别名各自引用一个模型 Upstream 和 `upstreamModel`，同一路由可以按请求体 `model` 跨多个厂商和 Upstream 选择目标
+- Envoy Route 使用受控内部 Header 和内部续接 Route 选择目标 Cluster，并由续接 Route 写入上游 Host；内置 `ai-proxy` Wasm 负责模型别名匹配、协议转换、路径与认证 Header 改写、响应与 SSE 归一化，用户不编辑插件私有配置
+- `pkg/llm` 是不依赖 Ingate、Envoy、Proxy-Wasm、Gin 或 Kubernetes 的纯 Go 协议包，不发送模型 HTTP 请求、不读取环境变量、不管理密钥持久化；Provider 协议适配按子包隔离
 - 模型 Upstream 通过 `tls.serverName` 使用 HTTPS、SNI 和系统 CA 根证书包校验；配置或保留 API Key 时必须启用 HTTPS
-- 当前不支持其他模型协议转换、Responses、Embeddings、根据请求体 `model` 跨多个 Provider 或 Upstream 动态选路、多 Provider fallback/retry、TokenQuotaPolicy 或大文件和大体积多模态请求；单次请求体上限为 1 MiB
+- 第一阶段只支持文本 `system`、`user`、`assistant` 消息，以及 `model`、`messages`、`stream`、`temperature`、`top_p`、`max_tokens`、`stop`；普通响应、SSE、错误和 Token usage 统一为 OpenAI-compatible 结构，响应 `model` 返回客户端公开别名
+- 当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动模型同步、多 Provider fallback/retry、模型级重试、TokenQuotaPolicy、OAuth/IAM 云认证或大文件请求；单次请求体上限为 1 MiB
 
 ## 部署目录
 

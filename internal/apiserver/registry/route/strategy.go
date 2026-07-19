@@ -24,10 +24,25 @@ const (
 	maxRetryAttempts          = 5
 	minPerTryTimeoutMillis    = 100
 	maxPerTryTimeoutMillis    = 60000
-	authorizationHeader       = "authorization"
-	contentLengthHeader       = "content-length"
 	openAIChatCompletionsPath = "/v1/chat/completions"
+	aiClusterHeader           = "x-ingate-ai-cluster-v1"
+	aiRouteHeader             = "x-ingate-ai-route-v1"
 )
+
+var aiManagedRequestHeaders = []string{
+	":authority",
+	":path",
+	"accept-encoding",
+	"anthropic-version",
+	"authorization",
+	"content-encoding",
+	"content-length",
+	"content-type",
+	aiClusterHeader,
+	aiRouteHeader,
+	"x-api-key",
+	"x-goog-api-key",
+}
 
 // strategy 定义 Route 资源在 apiserver 存储前后的处理规则
 type strategy struct {
@@ -182,7 +197,7 @@ func validateRoute(route *resource.Route) field.ErrorList {
 				} else {
 					errs = append(errs, validateHeaderModifier(filter.RequestHeaderModifier, filterPath.Child("requestHeaderModifier"))...)
 					if rule.ModelRouting != nil {
-						for _, name := range []string{authorizationHeader, contentLengthHeader} {
+						for _, name := range aiManagedRequestHeaders {
 							if headerModifierContains(filter.RequestHeaderModifier, name) {
 								errs = append(errs, field.Forbidden(filterPath.Child("requestHeaderModifier"), "AI request authentication and body framing headers are managed by Ingate"))
 								break
@@ -269,11 +284,6 @@ func validateModelRouting(rule resource.RouteRule, path *field.Path) field.Error
 	if len(rule.ModelRouting.Models) == 0 {
 		errList = append(errList, field.Required(modelRoutingPath.Child("models"), "at least one model is required"))
 	}
-	if rule.ModelRouting.UpstreamRef == "" {
-		errList = append(errList, field.Required(modelRoutingPath.Child("upstreamRef"), "upstreamRef is required"))
-	} else if strings.TrimSpace(rule.ModelRouting.UpstreamRef) != rule.ModelRouting.UpstreamRef {
-		errList = append(errList, field.Invalid(modelRoutingPath.Child("upstreamRef"), rule.ModelRouting.UpstreamRef, "upstreamRef must not contain leading or trailing whitespace"))
-	}
 	if len(rule.Methods) != 1 || rule.Methods[0] != http.MethodPost {
 		errList = append(errList, field.Invalid(path.Child("methods"), rule.Methods, "model routing requires POST as the only method"))
 	}
@@ -293,8 +303,18 @@ func validateModelRouting(rule resource.RouteRule, path *field.Path) field.Error
 		} else {
 			models[model.Model] = struct{}{}
 		}
+		if model.UpstreamRef == "" {
+			errList = append(errList, field.Required(modelPath.Child("upstreamRef"), "upstreamRef is required"))
+		} else if strings.TrimSpace(model.UpstreamRef) != model.UpstreamRef {
+			errList = append(errList, field.Invalid(modelPath.Child("upstreamRef"), model.UpstreamRef, "upstreamRef must not contain leading or trailing whitespace"))
+		}
 		if strings.TrimSpace(model.UpstreamModel) != model.UpstreamModel {
 			errList = append(errList, field.Invalid(modelPath.Child("upstreamModel"), model.UpstreamModel, "upstreamModel must not contain leading or trailing whitespace"))
+		}
+	}
+	for i, header := range rule.Headers {
+		if strings.EqualFold(header.Name, aiClusterHeader) || strings.EqualFold(header.Name, aiRouteHeader) {
+			errList = append(errList, field.Forbidden(path.Child("headers").Index(i), "internal AI routing headers are managed by Ingate"))
 		}
 	}
 	return errList
