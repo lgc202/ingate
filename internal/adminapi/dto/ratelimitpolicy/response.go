@@ -1,6 +1,7 @@
 package ratelimitpolicy
 
 import (
+	"strconv"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,7 +44,7 @@ func policyFromResource(policy *resource.RateLimitPolicy, targetNames policytarg
 	}
 	return RateLimitPolicy{
 		ID:            policy.Name,
-		Version:       policy.ResourceVersion,
+		Version:       strconv.FormatInt(policy.Generation, 10),
 		Status:        status,
 		Name:          policy.Spec.DisplayName,
 		Description:   policy.Spec.Description,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
@@ -98,26 +99,31 @@ func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGat
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	current, err := s.store.Get(ctx, gatewayID)
-	if err != nil {
-		return err
-	}
 	if params.Version == "" {
 		return xerrors.NewUserError("网关版本不能为空")
 	}
-	if params.Version != current.ResourceVersion {
-		return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resource.ResourceGateways, gatewayID))
-	}
-	if err := s.validateNameUnique(ctx, params.Name, gatewayID); err != nil {
+
+	// Generation 只随配置变化，重试时重新读取对象以避开 Controller 更新 status 引起的写冲突
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := s.store.Get(ctx, gatewayID)
+		if err != nil {
+			return err
+		}
+		if params.Version != strconv.FormatInt(current.Generation, 10) {
+			return xerrors.NewUserError(fmt.Sprintf("网关 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		}
+		if err := s.validateNameUnique(ctx, params.Name, gatewayID); err != nil {
+			return err
+		}
+
+		next := current.DeepCopy()
+		next.Spec = gatewaySpec(params.GatewayParams, current.Spec.Enabled)
+		if err := s.validateGateway(ctx, next, gatewayID); err != nil {
+			return err
+		}
+		_, err = s.store.Update(ctx, next)
 		return err
-	}
-	next := current.DeepCopy()
-	next.Spec = gatewaySpec(params.GatewayParams, current.Spec.Enabled)
-	if err := s.validateGateway(ctx, next, gatewayID); err != nil {
-		return err
-	}
-	_, err = s.store.Update(ctx, next)
-	return err
+	})
 }
 
 // SetEnabled 更新 Gateway 启停状态

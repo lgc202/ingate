@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -94,24 +95,28 @@ func (s *Service) Update(ctx context.Context, routeID, version string, spec reso
 	if version == "" {
 		return xerrors.NewUserError("路由版本不能为空")
 	}
-	current, err := s.store.Get(ctx, routeID)
-	if err != nil {
-		return err
-	}
-	if err := validateVersion(resource.ResourceRoutes, routeID, version, current.ResourceVersion); err != nil {
-		return err
-	}
-	if err := s.validateNameUnique(ctx, spec.DisplayName, routeID); err != nil {
-		return err
-	}
-	if err := s.validateReferences(ctx, spec); err != nil {
-		return err
-	}
 
-	next := current.DeepCopy()
-	next.Spec = spec
-	_, err = s.store.Update(ctx, next)
-	return err
+	// version 对应配置 Generation；status 写入只改变 ResourceVersion，因此写冲突可以安全重试
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := s.store.Get(ctx, routeID)
+		if err != nil {
+			return err
+		}
+		if version != strconv.FormatInt(current.Generation, 10) {
+			return xerrors.NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		}
+		if err := s.validateNameUnique(ctx, spec.DisplayName, routeID); err != nil {
+			return err
+		}
+		if err := s.validateReferences(ctx, spec); err != nil {
+			return err
+		}
+
+		next := current.DeepCopy()
+		s.applyRouteSpec(&next.Spec, spec)
+		_, err = s.store.Update(ctx, next)
+		return err
+	})
 }
 
 // SetEnabled 更新 Route 启停状态
@@ -144,6 +149,63 @@ func (s *Service) Delete(ctx context.Context, routeID string) error {
 		return xerrors.NewUserError(fmt.Sprintf("路由 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
 	}
 	return s.store.Delete(ctx, routeID)
+}
+
+// applyRouteSpec 保留声明式 API 可配置但控制台暂未开放的规则字段
+// 只有同名且仍保留对应能力的规则才继承 Add 和 RetryOn，删除或改名视为显式移除
+func (s *Service) applyRouteSpec(current *resource.RouteSpec, submitted resource.RouteSpec) {
+	currentByName := make(map[string]resource.RouteRule, len(current.Rules))
+	for _, rule := range current.Rules {
+		currentByName[rule.Name] = rule
+	}
+
+	rules := make([]resource.RouteRule, 0, len(submitted.Rules))
+	for _, rule := range submitted.Rules {
+		currentRule, exists := currentByName[rule.Name]
+		if !exists {
+			rules = append(rules, rule)
+			continue
+		}
+
+		currentFilters := make(map[resource.RouteFilterType]resource.RouteFilter, len(currentRule.Filters))
+		for _, filter := range currentRule.Filters {
+			currentFilters[filter.Type] = filter
+		}
+		filters := make([]resource.RouteFilter, 0, len(rule.Filters))
+		for _, filter := range rule.Filters {
+			currentFilter := currentFilters[filter.Type]
+			switch filter.Type {
+			case resource.RouteFilterRequestHeaderModifier:
+				if currentFilter.RequestHeaderModifier != nil && filter.RequestHeaderModifier != nil {
+					modifier := *filter.RequestHeaderModifier
+					modifier.Add = currentFilter.RequestHeaderModifier.Add
+					filter.RequestHeaderModifier = &modifier
+				}
+			case resource.RouteFilterResponseHeaderModifier:
+				if currentFilter.ResponseHeaderModifier != nil && filter.ResponseHeaderModifier != nil {
+					modifier := *filter.ResponseHeaderModifier
+					modifier.Add = currentFilter.ResponseHeaderModifier.Add
+					filter.ResponseHeaderModifier = &modifier
+				}
+			}
+			filters = append(filters, filter)
+		}
+
+		next := rule
+		next.Filters = filters
+		if currentRule.Retry != nil && rule.Retry != nil {
+			retry := *rule.Retry
+			retry.RetryOn = currentRule.Retry.RetryOn
+			next.Retry = &retry
+		}
+		rules = append(rules, next)
+	}
+
+	current.DisplayName = submitted.DisplayName
+	current.Enabled = submitted.Enabled
+	current.ParentRefs = submitted.ParentRefs
+	current.Hostnames = submitted.Hostnames
+	current.Rules = rules
 }
 
 func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string) error {
@@ -285,11 +347,4 @@ func upstreamDisplayName(upstream *resource.Upstream) string {
 		return upstream.Spec.DisplayName
 	}
 	return upstream.Name
-}
-
-func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {
-	if submittedVersion == currentVersion {
-		return nil
-	}
-	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))
 }

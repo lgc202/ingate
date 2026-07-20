@@ -3,11 +3,12 @@ package ratelimitpolicy
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	"github.com/lgc202/ingate/internal/adminapi/service/policytarget"
@@ -63,7 +64,7 @@ func (s *Service) Create(ctx context.Context, params CreatePolicyParams) (string
 	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
 		return "", err
 	}
-	policy := policyResource(uuid.NewString(), "", params.PolicyParams)
+	policy := policyResource(uuid.NewString(), params.PolicyParams)
 	if err := s.targets.Validate(ctx, policy.Spec.TargetRefs); err != nil {
 		return "", err
 	}
@@ -79,39 +80,41 @@ func (s *Service) Update(ctx context.Context, policyID string, params UpdatePoli
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	current, err := s.store.Get(ctx, policyID)
-	if err != nil {
-		return err
-	}
-	if err := validateVersion(current.Spec.DisplayName, params.Version, current.ResourceVersion); err != nil {
-		return err
-	}
-	if err := s.validateNameUnique(ctx, params.Name, policyID); err != nil {
-		return err
-	}
+	// Generation 只在期望配置变化时递增，status 更新造成的 ResourceVersion 冲突可以安全重试
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := s.store.Get(ctx, policyID)
+		if err != nil {
+			return err
+		}
+		if params.Version != strconv.FormatInt(current.Generation, 10) {
+			return xerrors.NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		}
+		if err := s.validateNameUnique(ctx, params.Name, policyID); err != nil {
+			return err
+		}
 
-	next := current.DeepCopy()
-	next.Spec = policyResource(next.Name, next.ResourceVersion, params.PolicyParams).Spec
-	if err := s.targets.Validate(ctx, next.Spec.TargetRefs); err != nil {
+		next := current.DeepCopy()
+		next.Spec = policyResource(next.Name, params.PolicyParams).Spec
+		if err := s.targets.Validate(ctx, next.Spec.TargetRefs); err != nil {
+			return err
+		}
+		_, err = s.store.Update(ctx, next)
 		return err
-	}
-	_, err = s.store.Update(ctx, next)
-	if apierrors.IsConflict(err) {
-		return versionConflict(current.Spec.DisplayName)
-	}
-	return err
+	})
 }
 
 // SetEnabled 设置 RateLimitPolicy 启用状态
 func (s *Service) SetEnabled(ctx context.Context, policyID string, enabled bool) error {
-	current, err := s.store.Get(ctx, policyID)
-	if err != nil {
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := s.store.Get(ctx, policyID)
+		if err != nil {
+			return err
+		}
+		next := current.DeepCopy()
+		next.Spec.Enabled = enabled
+		_, err = s.store.Update(ctx, next)
 		return err
-	}
-	next := current.DeepCopy()
-	next.Spec.Enabled = enabled
-	_, err = s.store.Update(ctx, next)
-	return err
+	})
 }
 
 // Delete 删除 RateLimitPolicy
@@ -135,16 +138,13 @@ func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string
 	return nil
 }
 
-func policyResource(id, version string, params PolicyParams) *resource.RateLimitPolicy {
+func policyResource(id string, params PolicyParams) *resource.RateLimitPolicy {
 	return &resource.RateLimitPolicy{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: resource.SchemeGroupVersion.String(),
 			Kind:       string(resource.KindRateLimitPolicy),
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            id,
-			ResourceVersion: version,
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: id},
 		Spec: resource.RateLimitPolicySpec{
 			DisplayName:   params.Name,
 			Description:   params.Description,
@@ -171,18 +171,4 @@ func rateLimitPolicyTargetRefs(policies []resource.RateLimitPolicy) []resource.P
 		refs = append(refs, policy.Spec.TargetRefs...)
 	}
 	return refs
-}
-
-func validateVersion(displayName, submittedVersion, currentVersion string) error {
-	if submittedVersion == "" {
-		return xerrors.NewUserError("资源版本不能为空")
-	}
-	if submittedVersion == currentVersion {
-		return nil
-	}
-	return versionConflict(displayName)
-}
-
-func versionConflict(displayName string) error {
-	return xerrors.NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", displayName))
 }

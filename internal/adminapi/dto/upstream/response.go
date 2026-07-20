@@ -1,6 +1,7 @@
 package upstream
 
 import (
+	"strconv"
 	"time"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
@@ -26,7 +27,7 @@ func NewGetUpstreamResp(upstream *resource.Upstream) Upstream {
 func upstreamFromResource(upstream *resource.Upstream) Upstream {
 	return Upstream{
 		ID:               upstream.Name,
-		Version:          upstream.ResourceVersion,
+		Version:          strconv.FormatInt(upstream.Generation, 10),
 		Status:           admindto.NewResourceStatus(upstream.Generation, upstream.Status.Conditions),
 		APIKeyConfigured: upstream.Spec.Authentication != nil && upstream.Spec.Authentication.APIKey != nil && upstream.Spec.Authentication.APIKey.Value != "",
 		UpstreamConfig: UpstreamConfig{

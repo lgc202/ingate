@@ -3,6 +3,7 @@ package certificate
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,6 +12,7 @@ import (
 	certificatestore "github.com/lgc202/ingate/internal/adminapi/store/certificate"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"k8s.io/client-go/util/retry"
 )
 
 // Service 承载 Certificate 管理用例
@@ -47,7 +49,7 @@ func (s *Service) Create(ctx context.Context, params CreateParams) (string, erro
 	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
 		return "", err
 	}
-	certificate := certificateResource(uuid.NewString(), "", params.CertificateParams)
+	certificate := certificateResource(uuid.NewString(), params.CertificateParams)
 	created, err := s.store.Create(ctx, certificate)
 	if err != nil {
 		return "", err
@@ -57,29 +59,33 @@ func (s *Service) Create(ctx context.Context, params CreateParams) (string, erro
 
 // Update 更新 Certificate
 func (s *Service) Update(ctx context.Context, certificateID string, params UpdateParams) error {
-	current, err := s.store.Get(ctx, certificateID)
-	if err != nil {
-		return err
-	}
 	if params.Version == "" {
 		return xerrors.NewUserError("证书版本不能为空")
 	}
-	if params.Version != current.ResourceVersion {
-		return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resource.ResourceCertificates, certificateID))
-	}
-	if err := s.validateNameUnique(ctx, params.Name, certificateID); err != nil {
-		return err
-	}
 
-	next := current.DeepCopy()
-	next.Spec.DisplayName = params.Name
-	next.Spec.Description = params.Description
-	if params.CertificatePEM != "" {
-		next.Spec.CertificatePEM = params.CertificatePEM
-		next.Spec.PrivateKeyPEM = params.PrivateKeyPEM
-	}
-	_, err = s.store.Update(ctx, next)
-	return err
+	// Generation 只随配置变化，重试时重新读取对象以避开 Controller 更新 status 引起的写冲突
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := s.store.Get(ctx, certificateID)
+		if err != nil {
+			return err
+		}
+		if params.Version != strconv.FormatInt(current.Generation, 10) {
+			return xerrors.NewUserError(fmt.Sprintf("证书 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		}
+		if err := s.validateNameUnique(ctx, params.Name, certificateID); err != nil {
+			return err
+		}
+
+		next := current.DeepCopy()
+		next.Spec.DisplayName = params.Name
+		next.Spec.Description = params.Description
+		if params.CertificatePEM != "" {
+			next.Spec.CertificatePEM = params.CertificatePEM
+			next.Spec.PrivateKeyPEM = params.PrivateKeyPEM
+		}
+		_, err = s.store.Update(ctx, next)
+		return err
+	})
 }
 
 // Delete 删除 Certificate，仍被 Gateway 引用时拒绝删除
@@ -114,16 +120,13 @@ func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string
 	return nil
 }
 
-func certificateResource(id, version string, params CertificateParams) *resource.Certificate {
+func certificateResource(id string, params CertificateParams) *resource.Certificate {
 	return &resource.Certificate{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: resource.SchemeGroupVersion.String(),
 			Kind:       string(resource.KindCertificate),
 		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            id,
-			ResourceVersion: version,
-		},
+		ObjectMeta: metav1.ObjectMeta{Name: id},
 		Spec: resource.CertificateSpec{
 			DisplayName:    params.Name,
 			Description:    params.Description,
