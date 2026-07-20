@@ -12,6 +12,7 @@ import (
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/proto"
@@ -408,12 +409,7 @@ func (c *compilation) buildRouteEntries(
 		routeHeaders := slices.Clone(headers)
 		if method != "" {
 			routeHeaders = append([]*routev3.HeaderMatcher{
-				{
-					Name: ":method",
-					HeaderMatchSpecifier: &routev3.HeaderMatcher_ExactMatch{
-						ExactMatch: method,
-					},
-				},
+				exactHeaderMatcher(":method", method),
 			}, routeHeaders...)
 		}
 		match := &routev3.RouteMatch{Headers: routeHeaders}
@@ -446,27 +442,12 @@ func (c *compilation) buildRouteEntries(
 
 		for _, continuation := range aiRoute.continuation {
 			continuationHeaders := []*routev3.HeaderMatcher{
-				{
-					Name: aiRouteHeader,
-					HeaderMatchSpecifier: &routev3.HeaderMatcher_ExactMatch{
-						ExactMatch: aiRoute.configID,
-					},
-				},
-				{
-					Name: aiClusterHeader,
-					HeaderMatchSpecifier: &routev3.HeaderMatcher_ExactMatch{
-						ExactMatch: continuation.cluster,
-					},
-				},
+				exactHeaderMatcher(aiRouteHeader, aiRoute.configID),
+				exactHeaderMatcher(aiClusterHeader, continuation.cluster),
 			}
 			if method != "" {
 				continuationHeaders = append([]*routev3.HeaderMatcher{
-					{
-						Name: ":method",
-						HeaderMatchSpecifier: &routev3.HeaderMatcher_ExactMatch{
-							ExactMatch: method,
-						},
-					},
+					exactHeaderMatcher(":method", method),
 				}, continuationHeaders...)
 			}
 			continuationAction := proto.Clone(action).(*routev3.RouteAction)
@@ -594,12 +575,7 @@ func (c *compilation) routeHeaderMatches(routeID string, rule gatewayv1.RouteRul
 			continue
 		}
 		seen[key] = true
-		result = append(result, &routev3.HeaderMatcher{
-			Name: header.Name,
-			HeaderMatchSpecifier: &routev3.HeaderMatcher_ExactMatch{
-				ExactMatch: header.Value,
-			},
-		})
+		result = append(result, exactHeaderMatcher(header.Name, header.Value))
 	}
 	return result, valid
 }
@@ -933,6 +909,17 @@ func headerValueOption(value gatewayv1.HeaderValue, action corev3.HeaderValueOpt
 	}
 }
 
+func exactHeaderMatcher(name, value string) *routev3.HeaderMatcher {
+	return &routev3.HeaderMatcher{
+		Name: name,
+		HeaderMatchSpecifier: &routev3.HeaderMatcher_StringMatch{
+			StringMatch: &matcherv3.StringMatcher{
+				MatchPattern: &matcherv3.StringMatcher_Exact{Exact: value},
+			},
+		},
+	}
+}
+
 func routeMatchKey(match *routev3.RouteMatch) string {
 	path := "prefix=" + match.GetPrefix()
 	if match.GetPath() != "" {
@@ -940,7 +927,7 @@ func routeMatchKey(match *routev3.RouteMatch) string {
 	}
 	parts := []string{path}
 	for _, header := range match.GetHeaders() {
-		parts = append(parts, strings.ToLower(header.GetName())+"="+header.GetExactMatch())
+		parts = append(parts, strings.ToLower(header.GetName())+"="+header.GetStringMatch().GetExact())
 	}
 	return strings.Join(parts, "\x00")
 }
