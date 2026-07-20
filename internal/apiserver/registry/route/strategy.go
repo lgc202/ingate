@@ -188,8 +188,14 @@ func validateRoute(route *resource.Route) field.ErrorList {
 				errs = append(errs, field.NotSupported(rulePath.Child("methods").Index(j), method, []string{"GET", "POST", "PUT", "PATCH", "DELETE"}))
 			}
 		}
+		seenFilterTypes := make(map[resource.RouteFilterType]struct{}, len(rule.Filters))
 		for j, filter := range rule.Filters {
 			filterPath := rulePath.Child("filters").Index(j)
+			if _, exists := seenFilterTypes[filter.Type]; exists {
+				errs = append(errs, field.Duplicate(filterPath.Child("type"), filter.Type))
+			} else {
+				seenFilterTypes[filter.Type] = struct{}{}
+			}
 			switch filter.Type {
 			case resource.RouteFilterRequestHeaderModifier:
 				if filter.RequestHeaderModifier == nil {
