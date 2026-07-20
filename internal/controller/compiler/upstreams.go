@@ -26,6 +26,7 @@ import (
 
 const (
 	defaultUpstreamConnectTimeout = 5 * time.Second
+	hostnameDNSLookupFamily       = clusterv3.Cluster_V4_PREFERRED
 	systemClusterPrefix           = "ingate-system-"
 	systemCABundlePath            = "/etc/ssl/certs/ca-certificates.crt"
 )
@@ -93,8 +94,9 @@ func (c *compilation) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.Clus
 			},
 		}
 		if usesDNS {
-			// Envoy 只会在 DNS cluster 中解析 hostname，不能把 hostname 伪装成 EDS socket address
+			// hostname 优先使用通常可达的 IPv4；没有 A 记录时仍可使用 IPv6
 			cluster.ClusterDiscoveryType = &clusterv3.Cluster_Type{Type: clusterv3.Cluster_STRICT_DNS}
+			cluster.DnsLookupFamily = hostnameDNSLookupFamily
 			cluster.LoadAssignment = assignment
 		} else {
 			cluster.ClusterDiscoveryType = &clusterv3.Cluster_Type{Type: clusterv3.Cluster_EDS}
@@ -114,6 +116,7 @@ func modelClusterName(upstream *gatewayv1.Upstream, lbPolicy clusterv3.Cluster_L
 	fields := []string{
 		"protocol", string(upstream.Spec.Protocol),
 		"connectTimeout", defaultUpstreamConnectTimeout.String(),
+		"dnsLookupFamily", hostnameDNSLookupFamily.String(),
 		"loadBalancePolicy", lbPolicy.String(),
 		"apiKey", apiKey,
 	}
