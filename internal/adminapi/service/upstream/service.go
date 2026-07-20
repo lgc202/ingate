@@ -3,6 +3,7 @@ package upstream
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 
@@ -11,6 +12,7 @@ import (
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 )
 
 // Service 承载 Upstream 查询用例
@@ -70,32 +72,40 @@ func (s *Service) Update(
 	spec resource.UpstreamSpec,
 	removeAPIKey bool,
 ) error {
-	current, err := s.store.Get(ctx, upstreamID)
-	if err != nil {
+	if version == "" {
+		return xerrors.NewUserError("服务版本不能为空")
+	}
+
+	// Generation 只随配置变化，重试时重新读取对象以避开 Controller 更新 status 引起的写冲突
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := s.store.Get(ctx, upstreamID)
+		if err != nil {
+			return err
+		}
+		if version != strconv.FormatInt(current.Generation, 10) {
+			return xerrors.NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		}
+		if err := s.validateNameUnique(ctx, spec.DisplayName, upstreamID); err != nil {
+			return err
+		}
+
+		next := current.DeepCopy()
+		currentAuthentication := next.Spec.Authentication
+		next.Spec = spec
+		if removeAPIKey {
+			next.Spec.Authentication = nil
+		} else if next.Spec.Authentication == nil {
+			next.Spec.Authentication = currentAuthentication
+		}
+		if err := validateAuthentication(next); err != nil {
+			return err
+		}
+		if err := s.validateRouteCompatibility(ctx, upstreamID, next); err != nil {
+			return err
+		}
+		_, err = s.store.Update(ctx, next)
 		return err
-	}
-	if err := validateVersion(resource.ResourceUpstreams, upstreamID, version, current.ResourceVersion); err != nil {
-		return err
-	}
-	if err := s.validateNameUnique(ctx, spec.DisplayName, upstreamID); err != nil {
-		return err
-	}
-	next := current.DeepCopy()
-	currentAuthentication := next.Spec.Authentication
-	next.Spec = spec
-	if removeAPIKey {
-		next.Spec.Authentication = nil
-	} else if next.Spec.Authentication == nil {
-		next.Spec.Authentication = currentAuthentication
-	}
-	if err := validateAuthentication(next); err != nil {
-		return err
-	}
-	if err := s.validateRouteCompatibility(ctx, upstreamID, next); err != nil {
-		return err
-	}
-	_, err = s.store.Update(ctx, next)
-	return err
+	})
 }
 
 func (s *Service) validateRouteCompatibility(
@@ -216,14 +226,4 @@ func enabledModel(modelSpec *resource.ModelSpec, name string) bool {
 		}
 	}
 	return false
-}
-
-func validateVersion(resourceName resource.ResourceName, name, submittedVersion, currentVersion string) error {
-	if submittedVersion == "" {
-		return xerrors.NewUserError("服务版本不能为空")
-	}
-	if submittedVersion == currentVersion {
-		return nil
-	}
-	return xerrors.NewUserError(fmt.Sprintf("%s %q 已被更新，请刷新后重试", resourceName, name))
 }

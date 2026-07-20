@@ -1,6 +1,7 @@
 package certificate
 
 import (
+	"strconv"
 	"time"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
@@ -25,7 +26,7 @@ func NewGetCertificateResp(certificate *resource.Certificate) GetCertificateResp
 func certificateFromResource(certificate *resource.Certificate, includePEM bool) Certificate {
 	result := Certificate{
 		ID:          certificate.Name,
-		Version:     certificate.ResourceVersion,
+		Version:     strconv.FormatInt(certificate.Generation, 10),
 		Status:      admindto.NewResourceStatus(certificate.Generation, certificate.Status.Conditions),
 		Name:        certificate.Spec.DisplayName,
 		Description: certificate.Spec.Description,

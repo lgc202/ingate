@@ -1,6 +1,7 @@
 package route
 
 import (
+	"strconv"
 	"time"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
@@ -31,7 +32,7 @@ func routeFromResource(route *resource.Route) Route {
 	}
 	return Route{
 		ID:         route.Name,
-		Version:    route.ResourceVersion,
+		Version:    strconv.FormatInt(route.Generation, 10),
 		Status:     status,
 		Name:       route.Spec.DisplayName,
 		GatewayIDs: parentRefIDs(route.Spec.ParentRefs),

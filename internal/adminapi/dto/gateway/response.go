@@ -1,6 +1,7 @@
 package gateway
 
 import (
+	"strconv"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,7 +33,7 @@ func gatewayFromResource(gateway *resource.Gateway) Gateway {
 	}
 	return Gateway{
 		ID:      gateway.Name,
-		Version: gateway.ResourceVersion,
+		Version: strconv.FormatInt(gateway.Generation, 10),
 		Status:  status,
 		GatewayConfig: GatewayConfig{
 			Name:        gateway.Spec.DisplayName,
