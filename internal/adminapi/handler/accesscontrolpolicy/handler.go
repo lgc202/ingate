@@ -117,9 +117,10 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 		return
 	}
 	policyID := ctx.Param("id")
-	err := h.service.SetEnabled(ctx.Request.Context(), policyID, request.Enabled)
+	enabled := request.Value()
+	err := h.service.SetEnabled(ctx.Request.Context(), policyID, enabled)
 	if err != nil {
-		h.logger.Error("set access control policy enabled failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "enabled", request.Enabled, "err", err)
+		h.logger.Error("set access control policy enabled failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "enabled", enabled, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return

@@ -82,7 +82,7 @@ type UpdateRateLimitPolicyReq struct {
 
 // SetEnabledReq 是设置启用状态的请求体
 type SetEnabledReq struct {
-	Enabled bool `json:"enabled"`
+	Enabled *bool `json:"enabled"`
 }
 
 // RateLimitPolicy 是 admin-api 面向控制台返回的限流策略

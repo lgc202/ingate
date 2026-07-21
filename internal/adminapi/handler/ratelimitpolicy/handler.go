@@ -119,8 +119,9 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 	}
 
 	policyID := ctx.Param("id")
-	if err := h.service.SetEnabled(ctx.Request.Context(), policyID, request.Enabled); err != nil {
-		h.logger.Error("set rate limit policy enabled failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "err", err)
+	enabled := request.Value()
+	if err := h.service.SetEnabled(ctx.Request.Context(), policyID, enabled); err != nil {
+		h.logger.Error("set rate limit policy enabled failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "enabled", enabled, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
 			return
