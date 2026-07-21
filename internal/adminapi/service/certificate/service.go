@@ -1,3 +1,4 @@
+// Package certificate 实现 Certificate 管理用例
 package certificate
 
 import (
@@ -6,12 +7,11 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/lgc202/ingate/internal/adminapi/pkg/xerrors"
 	certificatestore "github.com/lgc202/ingate/internal/adminapi/store/certificate"
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 )
 
@@ -45,11 +45,18 @@ func (s *Service) Get(ctx context.Context, certificateID string) (*resource.Cert
 }
 
 // Create 创建 Certificate
-func (s *Service) Create(ctx context.Context, params CreateParams) (string, error) {
-	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
+func (s *Service) Create(ctx context.Context, spec resource.CertificateSpec) (string, error) {
+	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
 	}
-	certificate := certificateResource(uuid.NewString(), params.CertificateParams)
+	certificate := &resource.Certificate{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindCertificate),
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: uuid.NewString()},
+		Spec:       spec,
+	}
 	created, err := s.store.Create(ctx, certificate)
 	if err != nil {
 		return "", err
@@ -58,8 +65,8 @@ func (s *Service) Create(ctx context.Context, params CreateParams) (string, erro
 }
 
 // Update 更新 Certificate
-func (s *Service) Update(ctx context.Context, certificateID string, params UpdateParams) error {
-	if params.Version == "" {
+func (s *Service) Update(ctx context.Context, certificateID, version string, spec resource.CertificateSpec) error {
+	if version == "" {
 		return xerrors.NewUserError("证书版本不能为空")
 	}
 
@@ -69,20 +76,20 @@ func (s *Service) Update(ctx context.Context, certificateID string, params Updat
 		if err != nil {
 			return err
 		}
-		if params.Version != strconv.FormatInt(current.Generation, 10) {
+		if version != strconv.FormatInt(current.Generation, 10) {
 			return xerrors.NewUserError(fmt.Sprintf("证书 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		if err := s.validateNameUnique(ctx, params.Name, certificateID); err != nil {
+		if err := s.validateNameUnique(ctx, spec.DisplayName, certificateID); err != nil {
 			return err
 		}
 
 		next := current.DeepCopy()
-		next.Spec.DisplayName = params.Name
-		next.Spec.Description = params.Description
-		if params.CertificatePEM != "" {
-			next.Spec.CertificatePEM = params.CertificatePEM
-			next.Spec.PrivateKeyPEM = params.PrivateKeyPEM
+		nextSpec := spec
+		if nextSpec.CertificatePEM == "" {
+			nextSpec.CertificatePEM = current.Spec.CertificatePEM
+			nextSpec.PrivateKeyPEM = current.Spec.PrivateKeyPEM
 		}
+		next.Spec = nextSpec
 		_, err = s.store.Update(ctx, next)
 		return err
 	})
@@ -118,20 +125,4 @@ func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string
 		}
 	}
 	return nil
-}
-
-func certificateResource(id string, params CertificateParams) *resource.Certificate {
-	return &resource.Certificate{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindCertificate),
-		},
-		ObjectMeta: metav1.ObjectMeta{Name: id},
-		Spec: resource.CertificateSpec{
-			DisplayName:    params.Name,
-			Description:    params.Description,
-			CertificatePEM: params.CertificatePEM,
-			PrivateKeyPEM:  params.PrivateKeyPEM,
-		},
-	}
 }
