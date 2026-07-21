@@ -66,11 +66,12 @@ func (s *Service) Get(ctx context.Context, gatewayID string) (*resource.Gateway,
 }
 
 // Create 创建 Gateway
-func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (string, error) {
+func (s *Service) Create(ctx context.Context, spec resource.GatewaySpec) (string, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if err := s.validateNameUnique(ctx, params.Name, noExcludedGatewayID); err != nil {
+	spec.Enabled = true
+	if err := s.validateNameUnique(ctx, spec.DisplayName, noExcludedGatewayID); err != nil {
 		return "", err
 	}
 	gateway := &resource.Gateway{
@@ -81,7 +82,7 @@ func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (strin
 		ObjectMeta: metav1.ObjectMeta{
 			Name: uuid.NewString(),
 		},
-		Spec: gatewaySpec(params.GatewayParams, true),
+		Spec: spec,
 	}
 	if err := s.validateGateway(ctx, gateway, noExcludedGatewayID); err != nil {
 		return "", err
@@ -95,11 +96,11 @@ func (s *Service) Create(ctx context.Context, params CreateGatewayParams) (strin
 }
 
 // Update 更新 Gateway
-func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGatewayParams) error {
+func (s *Service) Update(ctx context.Context, gatewayID, version string, spec resource.GatewaySpec) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if params.Version == "" {
+	if version == "" {
 		return xerrors.NewUserError("网关版本不能为空")
 	}
 
@@ -109,15 +110,16 @@ func (s *Service) Update(ctx context.Context, gatewayID string, params UpdateGat
 		if err != nil {
 			return err
 		}
-		if params.Version != strconv.FormatInt(current.Generation, 10) {
+		if version != strconv.FormatInt(current.Generation, 10) {
 			return xerrors.NewUserError(fmt.Sprintf("网关 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		if err := s.validateNameUnique(ctx, params.Name, gatewayID); err != nil {
+		if err := s.validateNameUnique(ctx, spec.DisplayName, gatewayID); err != nil {
 			return err
 		}
 
 		next := current.DeepCopy()
-		next.Spec = gatewaySpec(params.GatewayParams, current.Spec.Enabled)
+		next.Spec = spec
+		next.Spec.Enabled = current.Spec.Enabled
 		if err := s.validateGateway(ctx, next, gatewayID); err != nil {
 			return err
 		}
@@ -173,44 +175,6 @@ func (s *Service) Delete(ctx context.Context, gatewayID string) error {
 		return xerrors.NewUserError(fmt.Sprintf("网关 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
 	}
 	return s.store.Delete(ctx, gatewayID)
-}
-
-func gatewaySpec(params GatewayParams, enabled bool) resource.GatewaySpec {
-	listeners := make([]resource.Listener, 0, len(params.Listeners))
-	listenerRefs := make([]string, 0, len(params.Listeners))
-	for _, listener := range params.Listeners {
-		name := listenerName(listener.Protocol)
-		listeners = append(listeners, resource.Listener{
-			Name:           name,
-			Protocol:       listener.Protocol,
-			Port:           listener.Port,
-			CertificateRef: listener.CertificateID,
-		})
-		listenerRefs = append(listenerRefs, name)
-	}
-
-	var hostBindings []resource.HostBinding
-	for _, hostname := range params.Hostnames {
-		hostBindings = append(hostBindings, resource.HostBinding{
-			Hostname:     hostname,
-			ListenerRefs: append([]string(nil), listenerRefs...),
-		})
-	}
-
-	return resource.GatewaySpec{
-		DisplayName:  params.Name,
-		Description:  params.Description,
-		Enabled:      enabled,
-		Listeners:    listeners,
-		HostBindings: hostBindings,
-	}
-}
-
-func listenerName(protocol resource.Protocol) string {
-	if protocol == resource.ProtocolHTTPS {
-		return "https"
-	}
-	return "http"
 }
 
 func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string) error {

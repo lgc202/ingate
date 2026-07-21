@@ -68,7 +68,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	id, err := h.service.Create(ctx.Request.Context(), h.createGatewayParams(request))
+	id, err := h.service.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create gateway failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -94,7 +94,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	gatewayID := ctx.Param("id")
-	err := h.service.Update(ctx.Request.Context(), gatewayID, h.updateGatewayParams(request))
+	err := h.service.Update(ctx.Request.Context(), gatewayID, request.Version, request.Spec())
 	if err != nil {
 		h.logger.Error("update gateway failed", "request_id", ctx.GetString(requestid.Header), "gateway_id", gatewayID, "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -147,34 +147,4 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.DeleteGatewayResp{Success: true})
-}
-
-func (h *Handler) createGatewayParams(request dto.CreateGatewayReq) gatewayservice.CreateGatewayParams {
-	return gatewayservice.CreateGatewayParams{
-		GatewayParams: h.gatewayParams(request.GatewayConfig),
-	}
-}
-
-func (h *Handler) updateGatewayParams(request dto.UpdateGatewayReq) gatewayservice.UpdateGatewayParams {
-	return gatewayservice.UpdateGatewayParams{
-		Version:       request.Version,
-		GatewayParams: h.gatewayParams(request.GatewayConfig),
-	}
-}
-
-func (h *Handler) gatewayParams(config dto.GatewayConfig) gatewayservice.GatewayParams {
-	listeners := make([]gatewayservice.ListenerParams, 0, len(config.Listeners))
-	for _, listener := range config.Listeners {
-		listeners = append(listeners, gatewayservice.ListenerParams{
-			Protocol:      listener.Protocol,
-			Port:          listener.Port,
-			CertificateID: listener.CertificateID,
-		})
-	}
-	return gatewayservice.GatewayParams{
-		Name:        config.Name,
-		Description: config.Description,
-		Listeners:   listeners,
-		Hostnames:   config.Hostnames,
-	}
 }
