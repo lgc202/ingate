@@ -2,50 +2,46 @@ package accesscontrolpolicy
 
 import (
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
-	accesscontrolpolicyservice "github.com/lgc202/ingate/internal/adminapi/service/accesscontrolpolicy"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// NewCreatePolicyParams 转换创建请求为访问控制策略用例参数
-func NewCreatePolicyParams(request CreateAccessControlPolicyReq) accesscontrolpolicyservice.CreatePolicyParams {
-	return accesscontrolpolicyservice.CreatePolicyParams{PolicyParams: policyParams(request.AccessControlPolicyConfig)}
+// Spec 将已校验的创建请求转换为声明式 AccessControlPolicySpec
+func (r CreateAccessControlPolicyReq) Spec() resource.AccessControlPolicySpec {
+	return r.AccessControlPolicyConfig.spec()
 }
 
-// NewUpdatePolicyParams 转换更新请求为访问控制策略用例参数
-func NewUpdatePolicyParams(request UpdateAccessControlPolicyReq) accesscontrolpolicyservice.UpdatePolicyParams {
-	return accesscontrolpolicyservice.UpdatePolicyParams{
-		Version:      request.Version,
-		PolicyParams: policyParams(request.AccessControlPolicyConfig),
-	}
+// Spec 将已校验的更新请求转换为声明式 AccessControlPolicySpec
+func (r UpdateAccessControlPolicyReq) Spec() resource.AccessControlPolicySpec {
+	return r.AccessControlPolicyConfig.spec()
 }
 
-func policyParams(config AccessControlPolicyConfig) accesscontrolpolicyservice.PolicyParams {
-	return accesscontrolpolicyservice.PolicyParams{
-		Name:          config.Name,
-		Description:   config.Description,
-		Enabled:       config.Enabled,
-		Targets:       targetParams(config.Targets),
-		DefaultAction: resource.AccessControlAction(config.DefaultAction),
-		Rules:         rulesToResource(config.Rules),
+func (c AccessControlPolicyConfig) spec() resource.AccessControlPolicySpec {
+	return resource.AccessControlPolicySpec{
+		DisplayName:   c.Name,
+		Description:   c.Description,
+		Enabled:       c.Enabled,
+		TargetRefs:    targetRefsFromRequest(c.Targets),
+		DefaultAction: resource.AccessControlAction(c.DefaultAction),
+		Rules:         rulesFromRequest(c.Rules),
 		Response: resource.AccessControlDenyResponse{
-			StatusCode: config.Response.StatusCode,
-			Message:    config.Response.Message,
+			StatusCode: c.Response.StatusCode,
+			Message:    c.Response.Message,
 		},
 	}
 }
 
-func targetParams(targets []admindto.PolicyTargetReq) []accesscontrolpolicyservice.TargetParams {
-	params := make([]accesscontrolpolicyservice.TargetParams, 0, len(targets))
+func targetRefsFromRequest(targets []admindto.PolicyTargetReq) []resource.PolicyTargetRef {
+	refs := make([]resource.PolicyTargetRef, 0, len(targets))
 	for _, target := range targets {
-		params = append(params, accesscontrolpolicyservice.TargetParams{
+		refs = append(refs, resource.PolicyTargetRef{
 			Kind: resource.Kind(target.Kind),
-			ID:   target.ID,
+			Name: target.ID,
 		})
 	}
-	return params
+	return refs
 }
 
-func rulesToResource(items []Rule) []resource.AccessControlRule {
+func rulesFromRequest(items []Rule) []resource.AccessControlRule {
 	rules := make([]resource.AccessControlRule, 0, len(items))
 	for _, item := range items {
 		conditions := make([]resource.AccessControlCondition, 0, len(item.Conditions))
