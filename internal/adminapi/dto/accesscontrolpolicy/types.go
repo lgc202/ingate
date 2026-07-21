@@ -65,7 +65,7 @@ type UpdateAccessControlPolicyReq struct {
 
 // SetEnabledReq 是启停访问控制策略的请求体
 type SetEnabledReq struct {
-	Enabled bool `json:"enabled"`
+	Enabled *bool `json:"enabled"`
 }
 
 // AccessControlPolicy 是 admin-api 面向控制台返回的访问控制策略

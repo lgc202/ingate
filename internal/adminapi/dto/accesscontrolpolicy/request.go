@@ -31,7 +31,15 @@ func (r *UpdateAccessControlPolicyReq) Validate() error {
 
 // Validate 校验启用状态请求
 func (r *SetEnabledReq) Validate() error {
+	if r.Enabled == nil {
+		return errors.New("启用状态不能为空")
+	}
 	return nil
+}
+
+// Value 返回已校验的启停值
+func (r *SetEnabledReq) Value() bool {
+	return *r.Enabled
 }
 
 // Validate 校验访问控制策略核心配置
