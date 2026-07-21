@@ -5,6 +5,7 @@ import (
 	"time"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
+	"github.com/lgc202/ingate/internal/adminapi/service/resourcestatus"
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
@@ -27,7 +28,7 @@ func certificateFromResource(certificate *resource.Certificate, includePEM bool)
 	result := Certificate{
 		ID:          certificate.Name,
 		Version:     strconv.FormatInt(certificate.Generation, 10),
-		Status:      admindto.NewResourceStatus(certificate.Generation, certificate.Status.Conditions),
+		Status:      admindto.NewResourceStatus(resourcestatus.FromConditions(certificate.Generation, certificate.Status.Conditions)),
 		Name:        certificate.Spec.DisplayName,
 		Description: certificate.Spec.Description,
 		DNSNames:    []string{},

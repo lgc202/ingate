@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	accesscontrolpolicyhandler "github.com/lgc202/ingate/internal/adminapi/handler/accesscontrolpolicy"
 	certificatehandler "github.com/lgc202/ingate/internal/adminapi/handler/certificate"
+	configurationstatushandler "github.com/lgc202/ingate/internal/adminapi/handler/configurationstatus"
 	gatewayhandler "github.com/lgc202/ingate/internal/adminapi/handler/gateway"
 	ratelimitpolicyhandler "github.com/lgc202/ingate/internal/adminapi/handler/ratelimitpolicy"
 	routehandler "github.com/lgc202/ingate/internal/adminapi/handler/route"
@@ -19,6 +20,7 @@ import (
 // Handler 聚合 admin-api HTTP handler
 type Handler struct {
 	Certificate         *certificatehandler.Handler
+	ConfigurationStatus *configurationstatushandler.Handler
 	Gateway             *gatewayhandler.Handler
 	Route               *routehandler.Handler
 	Upstream            *upstreamhandler.Handler
@@ -30,6 +32,7 @@ type Handler struct {
 func New(service *service.Service, logger *slog.Logger) *Handler {
 	return &Handler{
 		Certificate:         certificatehandler.New(service.Certificate, logger.With("handler", "certificate")),
+		ConfigurationStatus: configurationstatushandler.New(service.ConfigurationStatus, logger.With("handler", "configurationstatus")),
 		Gateway:             gatewayhandler.New(service.Gateway, logger.With("handler", "gateway")),
 		Route:               routehandler.New(service.Route, logger.With("handler", "route")),
 		Upstream:            upstreamhandler.New(service.Upstream, logger.With("handler", "upstream")),

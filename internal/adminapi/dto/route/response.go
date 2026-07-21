@@ -5,6 +5,7 @@ import (
 	"time"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
+	"github.com/lgc202/ingate/internal/adminapi/service/resourcestatus"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,14 +27,14 @@ func NewGetRouteResp(route *resource.Route) *Route {
 }
 
 func routeFromResource(route *resource.Route) Route {
-	status := admindto.NewResourceStatus(route.Generation, route.Status.Conditions)
-	if !route.Spec.Enabled && admindto.ConfigurationApplied(route.Generation, route.Status.Conditions) {
-		status = admindto.NewDisabledResourceStatus()
+	status := resourcestatus.FromConditions(route.Generation, route.Status.Conditions)
+	if !route.Spec.Enabled && resourcestatus.ConfigurationApplied(route.Generation, route.Status.Conditions) {
+		status = resourcestatus.Disabled()
 	}
 	return Route{
 		ID:         route.Name,
 		Version:    strconv.FormatInt(route.Generation, 10),
-		Status:     status,
+		Status:     admindto.NewResourceStatus(status),
 		Name:       route.Spec.DisplayName,
 		GatewayIDs: parentRefIDs(route.Spec.ParentRefs),
 		Hostnames:  route.Spec.Hostnames,

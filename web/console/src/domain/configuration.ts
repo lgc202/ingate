@@ -13,10 +13,18 @@ export interface ConfigurationStatusItem {
   name: string;
   kind: ConfigurationResourceKind;
   status: ResourceStatus;
-  href: string;
+}
+
+export interface ConfigurationStatusSummary {
+  total: number;
+  ready: number;
+  pending: number;
+  error: number;
+  disabled: number;
 }
 
 export interface ConfigurationStatusView {
+  summary: ConfigurationStatusSummary;
   items: ConfigurationStatusItem[];
 }
 

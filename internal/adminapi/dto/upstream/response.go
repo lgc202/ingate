@@ -5,6 +5,7 @@ import (
 	"time"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
+	"github.com/lgc202/ingate/internal/adminapi/service/resourcestatus"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"github.com/samber/lo"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,7 +29,7 @@ func upstreamFromResource(upstream *resource.Upstream) Upstream {
 	return Upstream{
 		ID:               upstream.Name,
 		Version:          strconv.FormatInt(upstream.Generation, 10),
-		Status:           admindto.NewResourceStatus(upstream.Generation, upstream.Status.Conditions),
+		Status:           admindto.NewResourceStatus(resourcestatus.FromConditions(upstream.Generation, upstream.Status.Conditions)),
 		APIKeyConfigured: upstream.Spec.Authentication != nil && upstream.Spec.Authentication.APIKey != nil && upstream.Spec.Authentication.APIKey.Value != "",
 		UpstreamConfig: UpstreamConfig{
 			Name:              upstreamName(upstream),

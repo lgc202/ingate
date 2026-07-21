@@ -1,7 +1,9 @@
 // Package ratelimitpolicy 定义限流策略管理接口的请求和响应模型
 package ratelimitpolicy
 
-import admindto "github.com/lgc202/ingate/internal/adminapi/dto"
+import (
+	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
+)
 
 // KeyType 表示控制台可配置的限流计数维度
 type KeyType string
@@ -87,7 +89,7 @@ type SetEnabledReq struct {
 type RateLimitPolicy struct {
 	ID            string                  `json:"id"`
 	Version       string                  `json:"version"`
-	Status        admindto.PolicyStatus   `json:"status"`
+	Status        admindto.ResourceStatus `json:"status"`
 	Name          string                  `json:"name"`
 	Description   string                  `json:"description,omitempty"`
 	Enabled       bool                    `json:"enabled"`

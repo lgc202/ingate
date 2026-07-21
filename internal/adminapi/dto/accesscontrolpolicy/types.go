@@ -1,7 +1,9 @@
 // Package accesscontrolpolicy 定义访问控制策略管理接口的请求和响应模型
 package accesscontrolpolicy
 
-import admindto "github.com/lgc202/ingate/internal/adminapi/dto"
+import (
+	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
+)
 
 // Action 表示访问控制规则命中后的处理动作
 type Action string
@@ -70,7 +72,7 @@ type SetEnabledReq struct {
 type AccessControlPolicy struct {
 	ID            string                  `json:"id"`
 	Version       string                  `json:"version"`
-	Status        admindto.PolicyStatus   `json:"status"`
+	Status        admindto.ResourceStatus `json:"status"`
 	Name          string                  `json:"name"`
 	Description   string                  `json:"description,omitempty"`
 	Enabled       bool                    `json:"enabled"`

@@ -7,6 +7,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
+	"github.com/lgc202/ingate/internal/adminapi/service/resourcestatus"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -27,14 +28,14 @@ func NewGetGatewayResp(gateway *resource.Gateway) GetGatewayResp {
 }
 
 func gatewayFromResource(gateway *resource.Gateway) Gateway {
-	status := admindto.NewResourceStatus(gateway.Generation, gateway.Status.Conditions)
-	if !gateway.Spec.Enabled && admindto.ConfigurationApplied(gateway.Generation, gateway.Status.Conditions) {
-		status = admindto.NewDisabledResourceStatus()
+	status := resourcestatus.FromConditions(gateway.Generation, gateway.Status.Conditions)
+	if !gateway.Spec.Enabled && resourcestatus.ConfigurationApplied(gateway.Generation, gateway.Status.Conditions) {
+		status = resourcestatus.Disabled()
 	}
 	return Gateway{
 		ID:      gateway.Name,
 		Version: strconv.FormatInt(gateway.Generation, 10),
-		Status:  status,
+		Status:  admindto.NewResourceStatus(status),
 		GatewayConfig: GatewayConfig{
 			Name:        gateway.Spec.DisplayName,
 			Description: gateway.Spec.Description,
