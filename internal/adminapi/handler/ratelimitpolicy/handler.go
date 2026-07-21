@@ -68,7 +68,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	policyID, err := h.service.Create(ctx.Request.Context(), dto.NewCreatePolicyParams(request))
+	policyID, err := h.service.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create rate limit policy failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -94,7 +94,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	policyID := ctx.Param("id")
-	if err := h.service.Update(ctx.Request.Context(), policyID, dto.NewUpdatePolicyParams(request)); err != nil {
+	if err := h.service.Update(ctx.Request.Context(), policyID, request.Version, request.Spec()); err != nil {
 		h.logger.Error("update rate limit policy failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
