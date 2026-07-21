@@ -14,24 +14,30 @@ import { Badge, Button, PageFrame, Panel, ResourceStatePanel, type BadgeTone } f
 import type { ResourceState } from '@/domain/common';
 import {
   configurationResourceKindLabel,
+  type ConfigurationResourceKind,
   type ConfigurationStatusItem,
-  type ConfigurationStatusView,
+  type ConfigurationStatusSummary,
 } from '@/domain/configuration';
 
 const loadConfigurationStatus = () => getConfigurationStatus();
 const pendingRefreshIntervalMs = 4000;
 const errorRefreshIntervalMs = 12000;
-const resourceStates: ResourceState[] = ['Ready', 'Pending', 'Error', 'Disabled'];
 
-type ResourceStateCounts = Record<ResourceState, number>;
+const resourceStateSummaries: Array<{
+  state: ResourceState;
+  summaryKey: Exclude<keyof ConfigurationStatusSummary, 'total'>;
+}> = [
+  { state: 'Ready', summaryKey: 'ready' },
+  { state: 'Pending', summaryKey: 'pending' },
+  { state: 'Error', summaryKey: 'error' },
+  { state: 'Disabled', summaryKey: 'disabled' },
+];
 
 export function ConfigurationStatusPage() {
   const status = useResource(loadConfigurationStatus);
-  const hasPending = status.data?.items.some((item) => item.status.state === 'Pending') ?? false;
-  const hasError = status.data?.items.some((item) => item.status.state === 'Error') ?? false;
-  const refreshIntervalMs = hasPending
+  const refreshIntervalMs = (status.data?.summary.pending ?? 0) > 0
     ? pendingRefreshIntervalMs
-    : hasError
+    : (status.data?.summary.error ?? 0) > 0
       ? errorRefreshIntervalMs
       : null;
 
@@ -72,9 +78,6 @@ export function ConfigurationStatusPage() {
     );
   }
 
-  const counts = countResourceStates(status.data);
-  const attentionItems = status.data.items.filter((item) => item.status.state === 'Error' || item.status.state === 'Pending');
-
   return (
     <PageFrame
       title="配置状态"
@@ -86,14 +89,14 @@ export function ConfigurationStatusPage() {
         </Button>
       )}
     >
-      <ConfigurationOverview counts={counts} total={status.data.items.length} />
-      <AttentionList items={attentionItems} counts={counts} total={status.data.items.length} />
+      <ConfigurationOverview summary={status.data.summary} />
+      <ConfigurationResourceList items={status.data.items} />
     </PageFrame>
   );
 }
 
-function ConfigurationOverview({ counts, total }: { counts: ResourceStateCounts; total: number }) {
-  const state = overviewState(counts, total);
+function ConfigurationOverview({ summary }: { summary: ConfigurationStatusSummary }) {
+  const state = overviewState(summary);
   const Icon = state.icon;
 
   return (
@@ -103,16 +106,16 @@ function ConfigurationOverview({ counts, total }: { counts: ResourceStateCounts;
           <Icon size={21} strokeWidth={2.2} />
         </div>
         <div>
-          <span>当前配置</span>
+          <span>当前配置 · 共 {summary.total} 项</span>
           <h2>{state.title}</h2>
           <p>{state.description}</p>
         </div>
       </div>
       <div className="configuration-status-counts">
-        {resourceStates.map((resourceState) => (
+        {resourceStateSummaries.map(({ state: resourceState, summaryKey }) => (
           <div key={resourceState} className={resourceState.toLowerCase()}>
             <span>{resourceStateLabel(resourceState)}</span>
-            <strong>{counts[resourceState]}</strong>
+            <strong>{summary[summaryKey]}</strong>
           </div>
         ))}
       </div>
@@ -120,22 +123,17 @@ function ConfigurationOverview({ counts, total }: { counts: ResourceStateCounts;
   );
 }
 
-function AttentionList({
+function ConfigurationResourceList({
   items,
-  counts,
-  total,
 }: {
   items: ConfigurationStatusItem[];
-  counts: ResourceStateCounts;
-  total: number;
 }) {
-  const emptyState = attentionEmptyState(counts, total);
-  const EmptyIcon = emptyState.icon;
+  const emptyState = configurationEmptyState();
 
   return (
     <Panel
-      title={items.length > 0 ? '需要关注' : emptyState.panelTitle}
-      subtitle={items.length > 0 ? '仅展示正在处理或需要修改的资源' : emptyState.panelSubtitle}
+      title={items.length > 0 ? '资源状态' : emptyState.panelTitle}
+      subtitle={items.length > 0 ? '需要处理的配置会优先显示' : emptyState.panelSubtitle}
     >
       {items.length > 0 ? (
         <div className="table-scroll configuration-status-table-scroll">
@@ -158,7 +156,7 @@ function AttentionList({
                     <Badge tone={resourceStateTone(item.status.state)}>{resourceStateLabel(item.status.state)}</Badge>
                   </td>
                   <td data-label="说明" className="configuration-status-message">{resourceStatusMessage(item)}</td>
-                  <td data-label="操作"><Link className="link-button" to={item.href}>查看</Link></td>
+                  <td data-label="操作"><Link className="link-button" to={configurationResourcePath(item.kind)}>查看</Link></td>
                 </tr>
               ))}
             </tbody>
@@ -166,7 +164,7 @@ function AttentionList({
         </div>
       ) : (
         <div className={`configuration-status-empty ${emptyState.tone}`}>
-          <span aria-hidden="true"><EmptyIcon size={20} strokeWidth={2.5} /></span>
+          <span aria-hidden="true"><CirclePause size={20} strokeWidth={2.5} /></span>
           <div>
             <strong>{emptyState.title}</strong>
             <p>{emptyState.description}</p>
@@ -177,32 +175,24 @@ function AttentionList({
   );
 }
 
-function countResourceStates(data: ConfigurationStatusView): ResourceStateCounts {
-  const counts: ResourceStateCounts = { Ready: 0, Pending: 0, Error: 0, Disabled: 0 };
-  for (const item of data.items) {
-    counts[item.status.state]++;
-  }
-  return counts;
-}
-
-function overviewState(counts: ResourceStateCounts, total: number) {
-  if (counts.Error > 0) {
+function overviewState(summary: ConfigurationStatusSummary) {
+  if (summary.error > 0) {
     return {
       tone: 'error',
       icon: AlertTriangle,
-      title: `${counts.Error} 项配置需要处理`,
+      title: `${summary.error} 项配置需要处理`,
       description: '请根据下方说明修改相关资源，保存后系统会自动重新处理。',
     };
   }
-  if (counts.Pending > 0) {
+  if (summary.pending > 0) {
     return {
       tone: 'pending',
       icon: Clock3,
-      title: `${counts.Pending} 项配置正在处理`,
+      title: `${summary.pending} 项配置正在处理`,
       description: '最近保存的配置尚未完成处理，页面会自动更新。',
     };
   }
-  if (total === 0) {
+  if (summary.total === 0) {
     return {
       tone: 'empty',
       icon: CirclePause,
@@ -210,7 +200,7 @@ function overviewState(counts: ResourceStateCounts, total: number) {
       description: '创建网关、路由或服务后，可以在这里查看处理结果。',
     };
   }
-  if (counts.Disabled === total) {
+  if (summary.disabled === summary.total) {
     return {
       tone: 'disabled',
       icon: CirclePause,
@@ -226,35 +216,26 @@ function overviewState(counts: ResourceStateCounts, total: number) {
   };
 }
 
-function attentionEmptyState(counts: ResourceStateCounts, total: number) {
-  if (total === 0) {
-    return {
-      tone: 'neutral',
-      icon: CirclePause,
-      panelTitle: '配置检查结果',
-      panelSubtitle: '还没有可检查的配置资源',
-      title: '还没有配置资源',
-      description: '先创建网关、路由或服务，之后可在这里查看处理进度。',
-    };
-  }
-  if (counts.Disabled === total) {
-    return {
-      tone: 'neutral',
-      icon: CirclePause,
-      panelTitle: '配置检查结果',
-      panelSubtitle: '当前没有启用中的配置资源',
-      title: '所有资源均已停用',
-      description: '启用网关、路由或策略后，系统会重新检查对应配置。',
-    };
-  }
+function configurationEmptyState() {
   return {
-    tone: 'ready',
-    icon: Check,
-    panelTitle: '配置检查结果',
-    panelSubtitle: '当前没有需要处理的配置',
-    title: '当前没有需要处理的配置',
-    description: '已启用资源均已完成处理；后续配置变化会继续显示在这里。',
+    tone: 'neutral',
+    panelTitle: '资源状态',
+    panelSubtitle: '还没有可检查的配置资源',
+    title: '还没有配置资源',
+    description: '先创建网关，再添加路由和服务；配置处理进度会统一显示在这里。',
   };
+}
+
+function configurationResourcePath(kind: ConfigurationResourceKind) {
+  const paths: Record<ConfigurationResourceKind, string> = {
+    Gateway: '/gateways',
+    Route: '/routes',
+    Upstream: '/services',
+    Certificate: '/certificates',
+    RateLimitPolicy: '/policies',
+    AccessControlPolicy: '/policies',
+  };
+  return paths[kind];
 }
 
 function resourceStateLabel(state: ResourceState) {

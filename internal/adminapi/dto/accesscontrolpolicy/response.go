@@ -9,6 +9,7 @@ import (
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
 	accesscontrolpolicyservice "github.com/lgc202/ingate/internal/adminapi/service/accesscontrolpolicy"
 	"github.com/lgc202/ingate/internal/adminapi/service/policytarget"
+	"github.com/lgc202/ingate/internal/adminapi/service/resourcestatus"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -33,10 +34,10 @@ func NewGetAccessControlPolicyResp(result *accesscontrolpolicyservice.PolicyResu
 }
 
 func policyFromResource(policy *resource.AccessControlPolicy, targetNames policytarget.DisplayNames) AccessControlPolicy {
-	status := admindto.NewPolicyStatus(policy.Generation, len(policy.Spec.TargetRefs), policy.Status.Conditions)
-	disabled := !policy.Spec.Enabled && admindto.ConfigurationApplied(policy.Generation, policy.Status.Conditions)
+	status := resourcestatus.ForPolicy(policy.Generation, len(policy.Spec.TargetRefs), policy.Status.Conditions)
+	disabled := !policy.Spec.Enabled && resourcestatus.ConfigurationApplied(policy.Generation, policy.Status.Conditions)
 	if disabled {
-		status = admindto.NewDisabledPolicyStatus()
+		status = resourcestatus.Disabled()
 	}
 	action := Action(policy.Spec.DefaultAction)
 	if action == "" {
@@ -55,7 +56,7 @@ func policyFromResource(policy *resource.AccessControlPolicy, targetNames policy
 	return AccessControlPolicy{
 		ID:            policy.Name,
 		Version:       strconv.FormatInt(policy.Generation, 10),
-		Status:        status,
+		Status:        admindto.NewResourceStatus(status),
 		Name:          policy.Spec.DisplayName,
 		Description:   policy.Spec.Description,
 		Enabled:       policy.Spec.Enabled,
@@ -74,15 +75,15 @@ func policyTargets(
 ) []admindto.PolicyTarget {
 	targets := make([]admindto.PolicyTarget, 0, len(policy.Spec.TargetRefs))
 	for _, ref := range policy.Spec.TargetRefs {
-		status := admindto.NewPolicyTargetStatus(policy.Generation, targetConditions(policy.Status.Targets, ref))
+		status := resourcestatus.ForPolicyTarget(policy.Generation, targetConditions(policy.Status.Targets, ref))
 		if disabled {
-			status = admindto.NewDisabledResourceStatus()
+			status = resourcestatus.Disabled()
 		}
 		targets = append(targets, admindto.PolicyTarget{
 			Kind:        admindto.PolicyTargetKind(ref.Kind),
 			ID:          ref.Name,
 			DisplayName: targetNames.Name(ref),
-			Status:      status,
+			Status:      admindto.NewResourceStatus(status),
 		})
 	}
 	return targets

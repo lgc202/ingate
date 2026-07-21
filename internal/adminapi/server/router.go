@@ -25,6 +25,8 @@ func NewRouter(handlers *handler.Handler, consoleDir string, logger *slog.Logger
 
 	apiV1 := router.Group("/api/v1")
 	{
+		apiV1.GET("/configuration/status", handlers.ConfigurationStatus.Get)
+
 		certificates := apiV1.Group("/certificates")
 		{
 			certificates.GET("", handlers.Certificate.List)
