@@ -17,6 +17,7 @@ import {
   accessControlPolicyPayload,
   createAccessControlPolicyDraft,
   type AccessControlPolicyDraft,
+  validateAccessControlPolicyDraft,
 } from './AccessControlPolicyEditor';
 import { CreatePolicyMenu, PolicyLibraryTable } from './PolicyLibraryTable';
 import {
@@ -24,6 +25,7 @@ import {
   RateLimitPolicyEditor,
   rateLimitPolicyPayload,
   type RateLimitPolicyDraft,
+  validateRateLimitPolicyDraft,
 } from './RateLimitPolicyEditor';
 
 const loadPolicyWorkspace = () => getPolicyWorkspace();
@@ -91,6 +93,12 @@ export function PolicyPage() {
     if (!editor || submitting) {
       return;
     }
+    const validation = editor.type === 'rateLimit'
+      ? validateRateLimitPolicyDraft(editor.draft)
+      : validateAccessControlPolicyDraft(editor.draft);
+    if (!validation.valid) {
+      return;
+    }
     setSubmitting(true);
     try {
       const result = editor.type === 'rateLimit'
@@ -127,6 +135,9 @@ export function PolicyPage() {
   };
 
   if (editor) {
+    const editorValid = editor.type === 'rateLimit'
+      ? validateRateLimitPolicyDraft(editor.draft).valid
+      : validateAccessControlPolicyDraft(editor.draft).valid;
     return (
       <PageFrame
         title="策略"
@@ -139,17 +150,25 @@ export function PolicyPage() {
               <RateLimitPolicyEditor
                 draft={editor.draft}
                 targets={data.targets}
-                onChange={(draft) => setEditor({ type: 'rateLimit', draft })}
+                validation={validateRateLimitPolicyDraft(editor.draft)}
+                onChange={(draft) => {
+                  setEditor({ type: 'rateLimit', draft });
+                  setNotice(null);
+                }}
               />
             ) : (
               <AccessControlPolicyEditor
                 draft={editor.draft}
                 targets={data.targets}
-                onChange={(draft) => setEditor({ type: 'accessControl', draft })}
+                validation={validateAccessControlPolicyDraft(editor.draft)}
+                onChange={(draft) => {
+                  setEditor({ type: 'accessControl', draft });
+                  setNotice(null);
+                }}
               />
             )}
             <div className="form-actions">
-              <Button variant="primary" disabled={submitting} onClick={saveEditor}>{submitting ? '保存中…' : '保存策略'}</Button>
+              <Button variant="primary" disabled={submitting || !editorValid} onClick={saveEditor}>{submitting ? '保存中…' : '保存策略'}</Button>
               <Button variant="ghost" disabled={submitting} onClick={() => setEditor(null)}>取消</Button>
             </div>
           </Panel>

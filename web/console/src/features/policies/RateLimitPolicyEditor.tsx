@@ -32,6 +32,23 @@ export interface RateLimitPolicyDraft {
   preservedRules: RateLimitRule[];
 }
 
+const rateLimitPolicyFields = {
+  name: 'name',
+  ruleName: 'rules[0].name',
+  keyName: 'rules[0].key.parts[0].name',
+  requests: 'rules[0].limit.requests',
+  windowSeconds: 'rules[0].limit.windowSeconds',
+  burst: 'rules[0].limit.burst',
+  responseStatusCode: 'response.statusCode',
+} as const;
+
+type RateLimitPolicyFieldPath = typeof rateLimitPolicyFields[keyof typeof rateLimitPolicyFields];
+
+export interface RateLimitPolicyValidation {
+  valid: boolean;
+  errors: Partial<Record<RateLimitPolicyFieldPath, string>>;
+}
+
 const rateLimitKeyTypes: RateLimitKeyType[] = [
   'IP',
   'Header',
@@ -43,17 +60,26 @@ const rateLimitKeyTypes: RateLimitKeyType[] = [
 ];
 
 const namedRateLimitKeyTypes: RateLimitKeyType[] = ['Header', 'Query', 'Cookie'];
+const maxPluginInteger = 2_147_483_647;
+const httpHeaderNamePattern = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 export function RateLimitPolicyEditor({
   draft,
   targets,
+  validation,
   onChange,
 }: {
   draft: RateLimitPolicyDraft;
   targets: PolicyTargetOption[];
+  validation: RateLimitPolicyValidation;
   onChange: (draft: RateLimitPolicyDraft) => void;
 }) {
   const needsKeyName = rateLimitKeyNeedsName(draft.keyType);
+  const advancedErrorCount = [
+    validation.errors[rateLimitPolicyFields.ruleName],
+    validation.errors[rateLimitPolicyFields.burst],
+    validation.errors[rateLimitPolicyFields.responseStatusCode],
+  ].filter(Boolean).length;
 
   return (
     <div className="editor-main-stack">
@@ -70,7 +96,7 @@ export function RateLimitPolicyEditor({
           <p>策略保存后，在当前环境内统一共享计数状态。</p>
         </div>
         <div className="policy-editor-grid">
-          <PolicyInputField label="策略名称" value={draft.name} onChange={(name) => onChange({ ...draft, name })} />
+          <PolicyInputField label="策略名称" value={draft.name} error={validation.errors[rateLimitPolicyFields.name]} onChange={(name) => onChange({ ...draft, name })} />
           <PolicyInputField label="描述" value={draft.description} onChange={(description) => onChange({ ...draft, description })} />
           <label className="policy-check-row">
             <input type="checkbox" checked={draft.enabled} onChange={(event) => onChange({ ...draft, enabled: event.target.checked })} />
@@ -108,29 +134,32 @@ export function RateLimitPolicyEditor({
               });
             }}
           />
-          {needsKeyName ? <PolicyInputField label="维度名称" value={draft.keyName} onChange={(keyName) => onChange({ ...draft, keyName })} /> : null}
-          <PolicyInputField label="请求数" value={draft.requests} type="number" onChange={(requests) => onChange({ ...draft, requests })} />
-          <PolicyInputField label="时间窗口（秒）" value={draft.windowSeconds} type="number" onChange={(windowSeconds) => onChange({ ...draft, windowSeconds })} />
+          {needsKeyName ? <PolicyInputField label="维度名称" value={draft.keyName} error={validation.errors[rateLimitPolicyFields.keyName]} onChange={(keyName) => onChange({ ...draft, keyName })} /> : null}
+          <PolicyInputField label="请求数" value={draft.requests} type="number" error={validation.errors[rateLimitPolicyFields.requests]} onChange={(requests) => onChange({ ...draft, requests })} />
+          <PolicyInputField label="时间窗口（秒）" value={draft.windowSeconds} type="number" error={validation.errors[rateLimitPolicyFields.windowSeconds]} onChange={(windowSeconds) => onChange({ ...draft, windowSeconds })} />
         </div>
       </section>
 
       <details className="policy-advanced">
-        <summary>高级设置</summary>
+        <summary>
+          高级设置
+          {advancedErrorCount > 0 ? <span className="policy-advanced-error">{advancedErrorCount} 项需要修正</span> : null}
+        </summary>
         <div className="policy-advanced-body">
           <div className="form-section-title">
             <h3>执行与响应</h3>
             <p>仅在需要自定义故障处理、突发额度或超限响应时调整。</p>
           </div>
           <div className="policy-editor-grid">
-            <PolicyInputField label="规则名称" value={draft.ruleName} onChange={(ruleName) => onChange({ ...draft, ruleName })} />
-            <PolicyInputField label="突发额度" value={draft.burst} type="number" onChange={(burst) => onChange({ ...draft, burst })} />
+            <PolicyInputField label="规则名称" value={draft.ruleName} error={validation.errors[rateLimitPolicyFields.ruleName]} onChange={(ruleName) => onChange({ ...draft, ruleName })} />
+            <PolicyInputField label="突发额度" value={draft.burst} type="number" error={validation.errors[rateLimitPolicyFields.burst]} onChange={(burst) => onChange({ ...draft, burst })} />
             <PolicySelectField
               label="执行异常时"
               value={draft.failurePolicy}
               options={[['FailOpen', '放行请求'], ['FailClose', '拒绝请求']]}
               onChange={(failurePolicy) => onChange({ ...draft, failurePolicy: failurePolicy as RateLimitFailurePolicy })}
             />
-            <PolicyInputField label="超限状态码" value={draft.responseStatusCode} type="number" onChange={(responseStatusCode) => onChange({ ...draft, responseStatusCode })} />
+            <PolicyInputField label="超限状态码" value={draft.responseStatusCode} type="number" error={validation.errors[rateLimitPolicyFields.responseStatusCode]} onChange={(responseStatusCode) => onChange({ ...draft, responseStatusCode })} />
             <PolicyInputField label="超限消息" value={draft.responseMessage} onChange={(responseMessage) => onChange({ ...draft, responseMessage })} />
             <label className="policy-check-row">
               <input type="checkbox" checked={draft.quotaHeaderEnabled} onChange={(event) => onChange({ ...draft, quotaHeaderEnabled: event.target.checked })} />
@@ -165,6 +194,34 @@ export function createRateLimitPolicyDraft(policy?: RateLimitPolicy): RateLimitP
     quotaHeaderEnabled: policy?.response?.quotaHeaderEnabled ?? true,
     preservedKeyParts: rule?.key.parts.slice(1) ?? [],
     preservedRules: policy?.rules.slice(1) ?? [],
+  };
+}
+
+export function validateRateLimitPolicyDraft(draft: RateLimitPolicyDraft): RateLimitPolicyValidation {
+  const errors: RateLimitPolicyValidation['errors'] = {};
+  if (!draft.name.trim()) {
+    errors[rateLimitPolicyFields.name] = '请输入策略名称';
+  }
+  if (!draft.ruleName.trim()) {
+    errors[rateLimitPolicyFields.ruleName] = '请输入规则名称';
+  } else if (draft.preservedRules.some((rule) => rule.name === draft.ruleName.trim())) {
+    errors[rateLimitPolicyFields.ruleName] = '规则名称不能与保留的高级规则重复';
+  }
+  if (rateLimitKeyNeedsName(draft.keyType)) {
+    const keyName = draft.keyName.trim();
+    if (!keyName) {
+      errors[rateLimitPolicyFields.keyName] = `${rateLimitKeyLabel(draft.keyType)}名称不能为空`;
+    } else if (draft.keyType === 'Header' && !httpHeaderNamePattern.test(keyName)) {
+      errors[rateLimitPolicyFields.keyName] = '请求头名称格式不正确';
+    }
+  }
+  errors[rateLimitPolicyFields.requests] = integerFieldError(draft.requests, '请求数', 1, maxPluginInteger);
+  errors[rateLimitPolicyFields.windowSeconds] = integerFieldError(draft.windowSeconds, '时间窗口', 1, maxPluginInteger);
+  errors[rateLimitPolicyFields.burst] = integerFieldError(draft.burst, '突发额度', 0, maxPluginInteger, true);
+  errors[rateLimitPolicyFields.responseStatusCode] = integerFieldError(draft.responseStatusCode, '超限状态码', 400, 599, true);
+  return {
+    valid: Object.values(errors).every((message) => !message),
+    errors,
   };
 }
 
@@ -208,6 +265,21 @@ export function rateLimitPolicyPayload(draft: RateLimitPolicyDraft): RateLimitPo
 
 function rateLimitKeyNeedsName(type: RateLimitKeyType) {
   return namedRateLimitKeyTypes.includes(type);
+}
+
+function integerFieldError(value: string, label: string, min: number, max: number, optional = false) {
+  const normalized = value.trim();
+  if (!normalized) {
+    return optional ? undefined : `请输入${label}`;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isInteger(parsed)) {
+    return `${label}必须是整数`;
+  }
+  if (parsed < min || parsed > max) {
+    return `${label}必须在 ${min} 到 ${max} 之间`;
+  }
+  return undefined;
 }
 
 function rateLimitKeyLabel(type: RateLimitKeyType) {

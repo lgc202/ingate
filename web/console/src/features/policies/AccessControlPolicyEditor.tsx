@@ -32,15 +32,34 @@ export interface AccessControlPolicyDraft {
   preservedRules: AccessControlRule[];
 }
 
+const accessControlPolicyFields = {
+  name: 'name',
+  defaultAction: 'defaultAction',
+  ruleName: 'rules[0].name',
+  conditionName: 'rules[0].conditions[0].name',
+  conditionValue: 'rules[0].conditions[0].value',
+  responseStatusCode: 'response.statusCode',
+} as const;
+
+type AccessControlPolicyFieldPath = typeof accessControlPolicyFields[keyof typeof accessControlPolicyFields];
+
+export interface AccessControlPolicyValidation {
+  valid: boolean;
+  errors: Partial<Record<AccessControlPolicyFieldPath, string>>;
+}
+
 const accessControlConditionTypes: AccessControlConditionType[] = ['IP', 'Header'];
+const httpHeaderNamePattern = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
 export function AccessControlPolicyEditor({
   draft,
   targets,
+  validation,
   onChange,
 }: {
   draft: AccessControlPolicyDraft;
   targets: PolicyTargetOption[];
+  validation: AccessControlPolicyValidation;
   onChange: (draft: AccessControlPolicyDraft) => void;
 }) {
   const needsConditionName = draft.conditionEnabled && draft.conditionType === 'Header';
@@ -59,11 +78,12 @@ export function AccessControlPolicyEditor({
           <p>默认动作决定没有命中规则的请求如何处理。</p>
         </div>
         <div className="policy-editor-grid">
-          <PolicyInputField label="策略名称" value={draft.name} onChange={(name) => onChange({ ...draft, name })} />
+          <PolicyInputField label="策略名称" value={draft.name} error={validation.errors[accessControlPolicyFields.name]} onChange={(name) => onChange({ ...draft, name })} />
           <PolicySelectField
             label="默认动作"
             value={draft.defaultAction}
             options={draft.ruleEnabled ? [['Allow', '默认放行'], ['Deny', '默认拒绝']] : [['Deny', '默认拒绝']]}
+            error={validation.errors[accessControlPolicyFields.defaultAction]}
             onChange={(defaultAction) => onChange({ ...draft, defaultAction: defaultAction as AccessControlAction })}
           />
           <PolicyInputField label="描述" value={draft.description} onChange={(description) => onChange({ ...draft, description })} />
@@ -104,7 +124,7 @@ export function AccessControlPolicyEditor({
         {draft.ruleEnabled ? (
           <>
             <div className="policy-editor-grid">
-              <PolicyInputField label="规则名称" value={draft.ruleName} onChange={(ruleName) => onChange({ ...draft, ruleName })} />
+              <PolicyInputField label="规则名称" value={draft.ruleName} error={validation.errors[accessControlPolicyFields.ruleName]} onChange={(ruleName) => onChange({ ...draft, ruleName })} />
               <PolicySelectField
                 label="规则动作"
                 value={draft.ruleAction}
@@ -137,8 +157,8 @@ export function AccessControlPolicyEditor({
                     });
                   }}
                 />
-                {needsConditionName ? <PolicyInputField label="匹配名称" value={draft.conditionName} onChange={(conditionName) => onChange({ ...draft, conditionName })} /> : null}
-                <PolicyInputField label="匹配值" value={draft.conditionValue} onChange={(conditionValue) => onChange({ ...draft, conditionValue })} />
+                {needsConditionName ? <PolicyInputField label="匹配名称" value={draft.conditionName} error={validation.errors[accessControlPolicyFields.conditionName]} onChange={(conditionName) => onChange({ ...draft, conditionName })} /> : null}
+                <PolicyInputField label="匹配值" value={draft.conditionValue} error={validation.errors[accessControlPolicyFields.conditionValue]} onChange={(conditionValue) => onChange({ ...draft, conditionValue })} />
               </div>
             ) : (
               <div className="mini-card policy-execution-note">
@@ -160,7 +180,7 @@ export function AccessControlPolicyEditor({
           <p>请求被拒绝时返回给调用方的 HTTP 状态码和消息。</p>
         </div>
         <div className="policy-editor-grid">
-          <PolicyInputField label="拒绝状态码" value={draft.responseStatusCode} type="number" onChange={(responseStatusCode) => onChange({ ...draft, responseStatusCode })} />
+          <PolicyInputField label="拒绝状态码" value={draft.responseStatusCode} type="number" error={validation.errors[accessControlPolicyFields.responseStatusCode]} onChange={(responseStatusCode) => onChange({ ...draft, responseStatusCode })} />
           <PolicyInputField label="拒绝消息" value={draft.responseMessage} onChange={(responseMessage) => onChange({ ...draft, responseMessage })} />
         </div>
       </section>
@@ -190,6 +210,43 @@ export function createAccessControlPolicyDraft(policy?: AccessControlPolicy): Ac
     responseMessage: policy?.response?.message ?? 'Access denied',
     preservedConditions: condition ? rule?.conditions?.slice(1) ?? [] : [],
     preservedRules: policy?.rules?.slice(1) ?? [],
+  };
+}
+
+export function validateAccessControlPolicyDraft(draft: AccessControlPolicyDraft): AccessControlPolicyValidation {
+  const errors: AccessControlPolicyValidation['errors'] = {};
+  if (!draft.name.trim()) {
+    errors[accessControlPolicyFields.name] = '请输入策略名称';
+  }
+  if (!draft.ruleEnabled && draft.defaultAction !== 'Deny') {
+    errors[accessControlPolicyFields.defaultAction] = '不配置访问规则时必须默认拒绝请求';
+  }
+  if (draft.ruleEnabled) {
+    if (!draft.ruleName.trim()) {
+      errors[accessControlPolicyFields.ruleName] = '请输入规则名称';
+    } else if (draft.preservedRules.some((rule) => rule.name === draft.ruleName.trim())) {
+      errors[accessControlPolicyFields.ruleName] = '规则名称不能与保留的高级规则重复';
+    }
+    if (draft.conditionEnabled) {
+      const conditionName = draft.conditionName.trim();
+      if (draft.conditionType === 'Header') {
+        if (!conditionName) {
+          errors[accessControlPolicyFields.conditionName] = '请输入请求头名称';
+        } else if (!httpHeaderNamePattern.test(conditionName)) {
+          errors[accessControlPolicyFields.conditionName] = '请求头名称格式不正确';
+        }
+      }
+      if (!draft.conditionValue.trim()) {
+        errors[accessControlPolicyFields.conditionValue] = draft.conditionType === 'IP'
+          ? '请输入客户端 IP 或 CIDR'
+          : '请输入请求头匹配值';
+      }
+    }
+  }
+  errors[accessControlPolicyFields.responseStatusCode] = integerFieldError(draft.responseStatusCode, '拒绝状态码', 400, 599, true);
+  return {
+    valid: Object.values(errors).every((message) => !message),
+    errors,
   };
 }
 
@@ -230,4 +287,19 @@ function accessControlConditionTypeLabel(type: AccessControlConditionType) {
     Header: '请求头',
   };
   return labels[type];
+}
+
+function integerFieldError(value: string, label: string, min: number, max: number, optional = false) {
+  const normalized = value.trim();
+  if (!normalized) {
+    return optional ? undefined : `请输入${label}`;
+  }
+  const parsed = Number(normalized);
+  if (!Number.isInteger(parsed)) {
+    return `${label}必须是整数`;
+  }
+  if (parsed < min || parsed > max) {
+    return `${label}必须在 ${min} 到 ${max} 之间`;
+  }
+  return undefined;
 }
