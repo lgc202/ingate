@@ -69,7 +69,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	certificateID, err := h.service.Create(ctx.Request.Context(), h.createParams(request))
+	certificateID, err := h.service.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create certificate failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -95,7 +95,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	certificateID := ctx.Param("id")
-	if err := h.service.Update(ctx.Request.Context(), certificateID, h.updateParams(request)); err != nil {
+	if err := h.service.Update(ctx.Request.Context(), certificateID, request.Version, request.Spec()); err != nil {
 		h.logger.Error("update certificate failed", "request_id", ctx.GetString(requestid.Header), "certificate_id", certificateID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
@@ -120,24 +120,4 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		return
 	}
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.DeleteCertificateResp{Success: true})
-}
-
-func (h *Handler) createParams(request dto.CreateCertificateReq) certificateservice.CreateParams {
-	return certificateservice.CreateParams{CertificateParams: h.certificateParams(request.CertificateConfig)}
-}
-
-func (h *Handler) updateParams(request dto.UpdateCertificateReq) certificateservice.UpdateParams {
-	return certificateservice.UpdateParams{
-		Version:           request.Version,
-		CertificateParams: h.certificateParams(request.CertificateConfig),
-	}
-}
-
-func (h *Handler) certificateParams(config dto.CertificateConfig) certificateservice.CertificateParams {
-	return certificateservice.CertificateParams{
-		Name:           config.Name,
-		Description:    config.Description,
-		CertificatePEM: config.CertificatePEM,
-		PrivateKeyPEM:  config.PrivateKeyPEM,
-	}
 }
