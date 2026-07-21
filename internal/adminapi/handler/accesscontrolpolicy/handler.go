@@ -67,7 +67,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	policyID, err := h.service.Create(ctx.Request.Context(), dto.NewCreatePolicyParams(request))
+	policyID, err := h.service.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create access control policy failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -92,7 +92,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 		return
 	}
 	policyID := ctx.Param("id")
-	err := h.service.Update(ctx.Request.Context(), policyID, dto.NewUpdatePolicyParams(request))
+	err := h.service.Update(ctx.Request.Context(), policyID, request.Version, request.Spec())
 	if err != nil {
 		h.logger.Error("update access control policy failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
