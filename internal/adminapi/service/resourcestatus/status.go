@@ -8,24 +8,6 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-const (
-	messagePending            = "配置正在处理中"
-	messageCheckingReferences = "正在检查关联资源"
-	messageProgramming        = "配置正在生效"
-	messageReady              = "配置已生效"
-	messageDisabled           = "已停用"
-	messageUnapplied          = "策略已保存，尚未应用"
-	messageTargetNotApplied   = "目标当前没有可生效的流量入口"
-	messageInvalidSpec        = "配置内容不正确"
-	messageReferenceNotFound  = "引用的资源不存在"
-	messageInvalidReference   = "引用的资源不可用"
-	messageConflict           = "配置与其他资源冲突"
-	messageUnsupported        = "当前版本尚不支持该配置"
-	messageCompileFailed      = "配置处理失败"
-	messageRejected           = "配置未能生效"
-	messageDeliveryFailed     = "配置发布失败"
-)
-
 // State 表示声明式资源面向控制台的处理状态
 type State string
 
@@ -40,10 +22,46 @@ const (
 	StateDisabled State = "Disabled"
 )
 
-// Status 是控制台使用的声明式资源状态，不暴露底层 Condition 协议
+// Reason 表示资源进入当前状态的产品语义原因
+type Reason string
+
+const (
+	// ReasonAwaitingAcceptance 表示控制面尚未接受当前配置
+	ReasonAwaitingAcceptance Reason = "AwaitingAcceptance"
+	// ReasonCheckingReferences 表示控制面正在检查关联资源
+	ReasonCheckingReferences Reason = "CheckingReferences"
+	// ReasonProgramming 表示配置正在发布到数据面
+	ReasonProgramming Reason = "Programming"
+	// ReasonReady 表示当前配置已经生效
+	ReasonReady Reason = "Ready"
+	// ReasonDisabled 表示资源已被用户停用
+	ReasonDisabled Reason = "Disabled"
+	// ReasonUnapplied 表示策略已保存但没有作用目标
+	ReasonUnapplied Reason = "Unapplied"
+	// ReasonTargetNotApplied 表示目标当前没有可生效的流量入口
+	ReasonTargetNotApplied Reason = "TargetNotApplied"
+	// ReasonInvalidSpec 表示配置内容不正确
+	ReasonInvalidSpec Reason = "InvalidSpec"
+	// ReasonReferenceNotFound 表示引用的资源不存在
+	ReasonReferenceNotFound Reason = "ReferenceNotFound"
+	// ReasonInvalidReference 表示引用的资源不可用
+	ReasonInvalidReference Reason = "InvalidReference"
+	// ReasonConflict 表示配置与其他资源冲突
+	ReasonConflict Reason = "Conflict"
+	// ReasonUnsupported 表示当前版本不支持该配置
+	ReasonUnsupported Reason = "Unsupported"
+	// ReasonCompileFailed 表示配置编译失败
+	ReasonCompileFailed Reason = "CompileFailed"
+	// ReasonRejected 表示数据面拒绝当前配置
+	ReasonRejected Reason = "Rejected"
+	// ReasonDeliveryFailed 表示配置发布失败
+	ReasonDeliveryFailed Reason = "DeliveryFailed"
+)
+
+// Status 是控制台用例使用的资源状态，不暴露底层 Condition 协议
 type Status struct {
-	State   State
-	Message string
+	State  State
+	Reason Reason
 }
 
 // FromConditions 将当前 generation 的声明式 Condition 转换为产品状态
@@ -63,28 +81,28 @@ func FromConditions(generation int64, conditions []metav1.Condition) Status {
 	}
 
 	if accepted == nil || accepted.Status != metav1.ConditionTrue {
-		return Status{State: StatePending, Message: messagePending}
+		return Status{State: StatePending, Reason: ReasonAwaitingAcceptance}
 	}
 	if hasResolvedRefs && (resolvedRefs == nil || resolvedRefs.Status != metav1.ConditionTrue) {
-		return Status{State: StatePending, Message: messageCheckingReferences}
+		return Status{State: StatePending, Reason: ReasonCheckingReferences}
 	}
 	if programmed == nil || programmed.Status != metav1.ConditionTrue {
-		return Status{State: StatePending, Message: messageProgramming}
+		return Status{State: StatePending, Reason: ReasonProgramming}
 	}
-	return Status{State: StateReady, Message: messageReady}
+	return Status{State: StateReady, Reason: ReasonReady}
 }
 
 // ForPolicy 将策略总体 Condition 转换为产品状态
 func ForPolicy(generation int64, targetCount int, conditions []metav1.Condition) Status {
 	programmed := currentCondition(generation, conditions, resource.ConditionProgrammed)
 	if programmed != nil && programmed.Status == metav1.ConditionTrue {
-		return Status{State: StateReady, Message: messageReady}
+		return Status{State: StateReady, Reason: ReasonReady}
 	}
 	if programmed != nil && programmed.Status == metav1.ConditionFalse && resource.ConditionReason(programmed.Reason) == resource.ReasonNotApplied {
 		if targetCount == 0 {
-			return Status{State: StateReady, Message: messageUnapplied}
+			return Status{State: StateReady, Reason: ReasonUnapplied}
 		}
-		return Status{State: StatePending, Message: messageTargetNotApplied}
+		return Status{State: StatePending, Reason: ReasonTargetNotApplied}
 	}
 	return FromConditions(generation, conditions)
 }
@@ -98,23 +116,23 @@ func ForPolicyTarget(generation int64, conditions []metav1.Condition) Status {
 		return errorStatus(resolvedRefs)
 	}
 	if programmed != nil && programmed.Status == metav1.ConditionFalse && resource.ConditionReason(programmed.Reason) == resource.ReasonNotApplied {
-		return Status{State: StatePending, Message: messageTargetNotApplied}
+		return Status{State: StatePending, Reason: ReasonTargetNotApplied}
 	}
 	if programmed != nil && programmed.Status == metav1.ConditionFalse && resource.ConditionReason(programmed.Reason) != resource.ReasonPending {
 		return errorStatus(programmed)
 	}
 	if hasResolvedRefs && (resolvedRefs == nil || resolvedRefs.Status != metav1.ConditionTrue) {
-		return Status{State: StatePending, Message: messageCheckingReferences}
+		return Status{State: StatePending, Reason: ReasonCheckingReferences}
 	}
 	if programmed == nil || programmed.Status != metav1.ConditionTrue {
-		return Status{State: StatePending, Message: messageProgramming}
+		return Status{State: StatePending, Reason: ReasonProgramming}
 	}
-	return Status{State: StateReady, Message: messageReady}
+	return Status{State: StateReady, Reason: ReasonReady}
 }
 
 // Disabled 返回用户主动停用资源时的产品状态
 func Disabled() Status {
-	return Status{State: StateDisabled, Message: messageDisabled}
+	return Status{State: StateDisabled, Reason: ReasonDisabled}
 }
 
 // ConfigurationApplied 判断当前 generation 的停用或未应用结果是否已经进入 Active 配置
@@ -147,24 +165,24 @@ func currentCondition(generation int64, conditions []metav1.Condition, condition
 }
 
 func errorStatus(condition *metav1.Condition) Status {
-	message := messageCompileFailed
+	reason := ReasonCompileFailed
 	switch resource.ConditionReason(condition.Reason) {
 	case resource.ReasonInvalidSpec:
-		message = messageInvalidSpec
+		reason = ReasonInvalidSpec
 	case resource.ReasonReferenceNotFound:
-		message = messageReferenceNotFound
+		reason = ReasonReferenceNotFound
 	case resource.ReasonInvalidReference:
-		message = messageInvalidReference
+		reason = ReasonInvalidReference
 	case resource.ReasonConflict:
-		message = messageConflict
+		reason = ReasonConflict
 	case resource.ReasonUnsupported:
-		message = messageUnsupported
+		reason = ReasonUnsupported
 	case resource.ReasonCompileFailed:
-		message = messageCompileFailed
+		reason = ReasonCompileFailed
 	case resource.ReasonRejected:
-		message = messageRejected
+		reason = ReasonRejected
 	case resource.ReasonDeliveryFailed:
-		message = messageDeliveryFailed
+		reason = ReasonDeliveryFailed
 	}
-	return Status{State: StateError, Message: message}
+	return Status{State: StateError, Reason: reason}
 }
