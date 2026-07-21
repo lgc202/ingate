@@ -2707,6 +2707,13 @@ body { overflow-x: hidden; }
   font-weight: 780;
 }
 
+.policy-advanced-error {
+  margin-left: 8px;
+  color: #dc2626;
+  font-size: 0.76rem;
+  font-weight: 720;
+}
+
 .policy-advanced[open] > summary {
   border-bottom: 1px solid #e5e8ef;
 }
