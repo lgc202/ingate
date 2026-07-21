@@ -1,3 +1,4 @@
+// Package ratelimitpolicy 实现 RateLimitPolicy 管理用例
 package ratelimitpolicy
 
 import (
@@ -57,14 +58,21 @@ func (s *Service) Get(ctx context.Context, policyID string) (*PolicyResult, erro
 }
 
 // Create 创建 RateLimitPolicy
-func (s *Service) Create(ctx context.Context, params CreatePolicyParams) (string, error) {
+func (s *Service) Create(ctx context.Context, spec resource.RateLimitPolicySpec) (string, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if err := s.validateNameUnique(ctx, params.Name, ""); err != nil {
+	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
 	}
-	policy := policyResource(uuid.NewString(), params.PolicyParams)
+	policy := &resource.RateLimitPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindRateLimitPolicy),
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: uuid.NewString()},
+		Spec:       spec,
+	}
 	if err := s.targets.Validate(ctx, policy.Spec.TargetRefs); err != nil {
 		return "", err
 	}
@@ -76,9 +84,13 @@ func (s *Service) Create(ctx context.Context, params CreatePolicyParams) (string
 }
 
 // Update 更新 RateLimitPolicy
-func (s *Service) Update(ctx context.Context, policyID string, params UpdatePolicyParams) error {
+func (s *Service) Update(ctx context.Context, policyID, version string, spec resource.RateLimitPolicySpec) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
+
+	if version == "" {
+		return xerrors.NewUserError("限流策略版本不能为空")
+	}
 
 	// Generation 只在期望配置变化时递增，status 更新造成的 ResourceVersion 冲突可以安全重试
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
@@ -86,15 +98,15 @@ func (s *Service) Update(ctx context.Context, policyID string, params UpdatePoli
 		if err != nil {
 			return err
 		}
-		if params.Version != strconv.FormatInt(current.Generation, 10) {
+		if version != strconv.FormatInt(current.Generation, 10) {
 			return xerrors.NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		if err := s.validateNameUnique(ctx, params.Name, policyID); err != nil {
+		if err := s.validateNameUnique(ctx, spec.DisplayName, policyID); err != nil {
 			return err
 		}
 
 		next := current.DeepCopy()
-		next.Spec = policyResource(next.Name, params.PolicyParams).Spec
+		next.Spec = spec
 		if err := s.targets.Validate(ctx, next.Spec.TargetRefs); err != nil {
 			return err
 		}
@@ -136,33 +148,6 @@ func (s *Service) validateNameUnique(ctx context.Context, name, excludeID string
 		}
 	}
 	return nil
-}
-
-func policyResource(id string, params PolicyParams) *resource.RateLimitPolicy {
-	return &resource.RateLimitPolicy{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindRateLimitPolicy),
-		},
-		ObjectMeta: metav1.ObjectMeta{Name: id},
-		Spec: resource.RateLimitPolicySpec{
-			DisplayName:   params.Name,
-			Description:   params.Description,
-			Enabled:       params.Enabled,
-			TargetRefs:    targetRefs(params.Targets),
-			Rules:         params.Rules,
-			Response:      params.Response,
-			FailurePolicy: params.FailurePolicy,
-		},
-	}
-}
-
-func targetRefs(targets []TargetParams) []resource.PolicyTargetRef {
-	refs := make([]resource.PolicyTargetRef, 0, len(targets))
-	for _, target := range targets {
-		refs = append(refs, resource.PolicyTargetRef{Kind: target.Kind, Name: target.ID})
-	}
-	return refs
 }
 
 func rateLimitPolicyTargetRefs(policies []resource.RateLimitPolicy) []resource.PolicyTargetRef {

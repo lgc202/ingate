@@ -16,31 +16,3 @@ type PolicyResult struct {
 	Policy      *resource.RateLimitPolicy
 	TargetNames policytarget.DisplayNames
 }
-
-// TargetParams 表示策略作用目标参数
-type TargetParams struct {
-	Kind resource.Kind
-	ID   string
-}
-
-// PolicyParams 表示 RateLimitPolicy 可编辑字段
-type PolicyParams struct {
-	Name          string
-	Description   string
-	Enabled       bool
-	Targets       []TargetParams
-	Rules         []resource.RateLimitRule
-	Response      resource.RateLimitResponse
-	FailurePolicy resource.RateLimitFailurePolicy
-}
-
-// CreatePolicyParams 表示创建 RateLimitPolicy 参数
-type CreatePolicyParams struct {
-	PolicyParams
-}
-
-// UpdatePolicyParams 表示更新 RateLimitPolicy 参数
-type UpdatePolicyParams struct {
-	Version string
-	PolicyParams
-}

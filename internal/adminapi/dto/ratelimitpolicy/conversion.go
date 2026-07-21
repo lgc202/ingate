@@ -2,51 +2,47 @@ package ratelimitpolicy
 
 import (
 	admindto "github.com/lgc202/ingate/internal/adminapi/dto"
-	ratelimitpolicyservice "github.com/lgc202/ingate/internal/adminapi/service/ratelimitpolicy"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// NewCreatePolicyParams 转换创建请求为限流策略用例参数
-func NewCreatePolicyParams(request CreateRateLimitPolicyReq) ratelimitpolicyservice.CreatePolicyParams {
-	return ratelimitpolicyservice.CreatePolicyParams{PolicyParams: policyParams(request.RateLimitPolicyConfig)}
+// Spec 将已校验的创建请求转换为声明式 RateLimitPolicySpec
+func (r CreateRateLimitPolicyReq) Spec() resource.RateLimitPolicySpec {
+	return r.RateLimitPolicyConfig.spec()
 }
 
-// NewUpdatePolicyParams 转换更新请求为限流策略用例参数
-func NewUpdatePolicyParams(request UpdateRateLimitPolicyReq) ratelimitpolicyservice.UpdatePolicyParams {
-	return ratelimitpolicyservice.UpdatePolicyParams{
-		Version:      request.Version,
-		PolicyParams: policyParams(request.RateLimitPolicyConfig),
-	}
+// Spec 将已校验的更新请求转换为声明式 RateLimitPolicySpec
+func (r UpdateRateLimitPolicyReq) Spec() resource.RateLimitPolicySpec {
+	return r.RateLimitPolicyConfig.spec()
 }
 
-func policyParams(config RateLimitPolicyConfig) ratelimitpolicyservice.PolicyParams {
-	return ratelimitpolicyservice.PolicyParams{
-		Name:        config.Name,
-		Description: config.Description,
-		Enabled:     config.Enabled,
-		Targets:     targetParams(config.Targets),
-		Rules:       rulesToResource(config.Rules),
+func (c RateLimitPolicyConfig) spec() resource.RateLimitPolicySpec {
+	return resource.RateLimitPolicySpec{
+		DisplayName: c.Name,
+		Description: c.Description,
+		Enabled:     c.Enabled,
+		TargetRefs:  targetRefsFromRequest(c.Targets),
+		Rules:       rulesFromRequest(c.Rules),
 		Response: resource.RateLimitResponse{
-			StatusCode:         config.Response.StatusCode,
-			Message:            config.Response.Message,
-			QuotaHeaderEnabled: config.Response.QuotaHeaderEnabled,
+			StatusCode:         c.Response.StatusCode,
+			Message:            c.Response.Message,
+			QuotaHeaderEnabled: c.Response.QuotaHeaderEnabled,
 		},
-		FailurePolicy: resource.RateLimitFailurePolicy(config.FailurePolicy),
+		FailurePolicy: resource.RateLimitFailurePolicy(c.FailurePolicy),
 	}
 }
 
-func targetParams(targets []admindto.PolicyTargetReq) []ratelimitpolicyservice.TargetParams {
-	params := make([]ratelimitpolicyservice.TargetParams, 0, len(targets))
+func targetRefsFromRequest(targets []admindto.PolicyTargetReq) []resource.PolicyTargetRef {
+	refs := make([]resource.PolicyTargetRef, 0, len(targets))
 	for _, target := range targets {
-		params = append(params, ratelimitpolicyservice.TargetParams{
+		refs = append(refs, resource.PolicyTargetRef{
 			Kind: resource.Kind(target.Kind),
-			ID:   target.ID,
+			Name: target.ID,
 		})
 	}
-	return params
+	return refs
 }
 
-func rulesToResource(items []Rule) []resource.RateLimitRule {
+func rulesFromRequest(items []Rule) []resource.RateLimitRule {
 	rules := make([]resource.RateLimitRule, 0, len(items))
 	for _, item := range items {
 		parts := make([]resource.RateLimitKeyPart, 0, len(item.Key.Parts))
