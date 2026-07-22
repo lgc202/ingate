@@ -8,6 +8,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/policytarget"
 	ratelimitpolicyservice "github.com/lgc202/ingate/internal/adminapi/service/ratelimitpolicy"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
+	tokenquotapolicyservice "github.com/lgc202/ingate/internal/adminapi/service/tokenquotapolicy"
 	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/store"
 )
@@ -21,11 +22,12 @@ type Service struct {
 	Upstream            *upstreamservice.Service
 	AccessControlPolicy *accesscontrolpolicyservice.Service
 	RateLimitPolicy     *ratelimitpolicyservice.Service
+	TokenQuotaPolicy    *tokenquotapolicyservice.Service
 }
 
 // New 创建 service 聚合入口
 func New(store *store.Store) *Service {
-	policyUsage := policytarget.NewUsageFinder(store.RateLimitPolicy, store.AccessControlPolicy)
+	policyUsage := policytarget.NewUsageFinder(store.RateLimitPolicy, store.AccessControlPolicy, store.TokenQuotaPolicy)
 	configurationStatus := configurationstatusservice.New(
 		store.Gateway,
 		store.Route,
@@ -33,6 +35,7 @@ func New(store *store.Store) *Service {
 		store.Certificate,
 		store.RateLimitPolicy,
 		store.AccessControlPolicy,
+		store.TokenQuotaPolicy,
 	)
 	return &Service{
 		Certificate:         certificateservice.New(store.Certificate, store.Gateway),
@@ -42,5 +45,6 @@ func New(store *store.Store) *Service {
 		Upstream:            upstreamservice.New(store.Upstream, store.Route),
 		AccessControlPolicy: accesscontrolpolicyservice.New(store.AccessControlPolicy, store.Gateway, store.Route),
 		RateLimitPolicy:     ratelimitpolicyservice.New(store.RateLimitPolicy, store.Gateway, store.Route),
+		TokenQuotaPolicy:    tokenquotapolicyservice.New(store.TokenQuotaPolicy, store.Gateway, store.Route),
 	}
 }

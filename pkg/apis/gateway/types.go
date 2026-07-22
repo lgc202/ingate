@@ -18,6 +18,8 @@ const (
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
 	// KindAccessControlPolicy 表示 AccessControlPolicy 资源类型
 	KindAccessControlPolicy Kind = "AccessControlPolicy"
+	// KindTokenQuotaPolicy 表示 TokenQuotaPolicy 资源类型
+	KindTokenQuotaPolicy Kind = "TokenQuotaPolicy"
 )
 
 // RateLimitKeyType 表示限流 key 的组成维度

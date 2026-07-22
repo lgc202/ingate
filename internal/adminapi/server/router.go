@@ -84,6 +84,16 @@ func NewRouter(handlers *handler.Handler, consoleDir string, logger *slog.Logger
 			accessControlPolicies.PATCH("/:id/enabled", handlers.AccessControlPolicy.SetEnabled)
 			accessControlPolicies.DELETE("/:id", handlers.AccessControlPolicy.Delete)
 		}
+
+		tokenQuotaPolicies := apiV1.Group("/token-quota-policies")
+		{
+			tokenQuotaPolicies.GET("", handlers.TokenQuotaPolicy.List)
+			tokenQuotaPolicies.POST("", handlers.TokenQuotaPolicy.Create)
+			tokenQuotaPolicies.GET("/:id", handlers.TokenQuotaPolicy.Get)
+			tokenQuotaPolicies.PUT("/:id", handlers.TokenQuotaPolicy.Update)
+			tokenQuotaPolicies.PATCH("/:id/enabled", handlers.TokenQuotaPolicy.SetEnabled)
+			tokenQuotaPolicies.DELETE("/:id", handlers.TokenQuotaPolicy.Delete)
+		}
 	}
 
 	mountConsole(router, consoleDir)

@@ -1,4 +1,5 @@
-package redis
+// Package redisresp 编解码内置插件通过 Redis ABI 交换的 RESP2 数据
+package redisresp
 
 import (
 	"errors"

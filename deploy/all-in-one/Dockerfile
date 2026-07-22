@@ -26,6 +26,7 @@ COPY deploy/all-in-one/redis/redis.conf /opt/ingate/redis/configs/redis.conf
 COPY deploy/all-in-one/entrypoint.sh /opt/ingate/bin/ingate-all-in-one
 COPY web/console/dist /opt/ingate/admin-api/console
 COPY _output/plugins/ratelimit.wasm /opt/ingate/plugins/ratelimit.wasm
+COPY _output/plugins/tokenquota.wasm /opt/ingate/plugins/tokenquota.wasm
 COPY _output/plugins/acl.wasm /opt/ingate/plugins/acl.wasm
 COPY _output/plugins/ai-proxy.wasm /opt/ingate/plugins/ai-proxy.wasm
 

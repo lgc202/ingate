@@ -58,6 +58,12 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule":                 schema_pkg_apis_gateway_v1_RouteRule(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteSpec":                 schema_pkg_apis_gateway_v1_RouteSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout":              schema_pkg_apis_gateway_v1_RouteTimeout(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuota":                schema_pkg_apis_gateway_v1_TokenQuota(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicy":          schema_pkg_apis_gateway_v1_TokenQuotaPolicy(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicyList":      schema_pkg_apis_gateway_v1_TokenQuotaPolicyList(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicySpec":      schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaResponse":        schema_pkg_apis_gateway_v1_TokenQuotaResponse(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaSubject":         schema_pkg_apis_gateway_v1_TokenQuotaSubject(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream":                  schema_pkg_apis_gateway_v1_Upstream(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication":    schema_pkg_apis_gateway_v1_UpstreamAuthentication(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck":       schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
@@ -1110,7 +1116,7 @@ func schema_pkg_apis_gateway_v1_ModelSpec(ref common.ReferenceCallback) common.O
 				Properties: map[string]spec.Schema{
 					"provider": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Provider 表示模型厂商或 OpenAI-compatible 实现类型",
+							Description: "Provider 表示模型厂商或 OpenAI-compatible 实现类型，仅用于产品预设和协议组合校验",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -2067,6 +2073,255 @@ func schema_pkg_apis_gateway_v1_RouteTimeout(ref common.ReferenceCallback) commo
 						},
 					},
 				},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuota(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuota 定义一个时间窗口内允许消费的 Token 数量",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"tokens": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int64",
+						},
+					},
+					"windowSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int64",
+						},
+					},
+				},
+				Required: []string{"tokens", "windowSeconds"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuotaPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuotaPolicy 声明 AI 模型流量的 Token 配额策略",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicySpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus", "github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicySpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuotaPolicyList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuotaPolicyList 表示 TokenQuotaPolicy 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicy"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuotaPolicySpec 定义单个共享预算池及其生效目标",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"description": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Default: false,
+							Type:    []string{"boolean"},
+							Format:  "",
+						},
+					},
+					"targetRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef"),
+									},
+								},
+							},
+						},
+					},
+					"subject": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaSubject"),
+						},
+					},
+					"quota": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuota"),
+						},
+					},
+					"failurePolicy": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"response": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaResponse"),
+						},
+					},
+				},
+				Required: []string{"displayName", "enabled", "subject", "quota", "failurePolicy"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef", "github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuota", "github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaResponse", "github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaSubject"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuotaResponse(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuotaResponse 定义超过 Token 配额时返回给调用方的响应",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"message": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuotaSubject(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuotaSubject 定义请求如何映射到预算池",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"headerName": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
+						},
+					},
+				},
+				Required: []string{"type"},
 			},
 		},
 	}

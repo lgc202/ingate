@@ -47,9 +47,10 @@ type RouteKey struct {
 
 // Route 表示单条 RouteRule 的预编译模型和 Upstream 索引
 type Route struct {
-	ConfigID  string
-	Upstreams map[string]config.UpstreamConfig
-	Models    map[string]config.ModelConfig
+	ConfigID     string
+	RequireUsage bool
+	Upstreams    map[string]config.UpstreamConfig
+	Models       map[string]config.ModelConfig
 }
 
 // PreparedRequest 保存发送给模型 Upstream 的完整请求改写结果
@@ -103,7 +104,12 @@ func New(cfg config.PluginConfig) *Proxy {
 			RouteName:   routeConfig.RouteName,
 			RuleName:    routeConfig.RuleName,
 			ConfigID:    routeConfig.ConfigID,
-		}] = Route{ConfigID: routeConfig.ConfigID, Upstreams: upstreams, Models: models}
+		}] = Route{
+			ConfigID:     routeConfig.ConfigID,
+			RequireUsage: routeConfig.RequireUsage,
+			Upstreams:    upstreams,
+			Models:       models,
+		}
 	}
 	return &Proxy{routes: routes}
 }
@@ -172,7 +178,7 @@ func (p *Proxy) PrepareRequest(route Route, body []byte) (PreparedRequest, *Loca
 		return PreparedRequest{}, &response
 	}
 
-	transformedBody, upstreamPath, err := transformRequest(upstream, model.UpstreamModel, request)
+	transformedBody, upstreamPath, err := transformRequest(upstream, model.UpstreamModel, request, route.RequireUsage)
 	if err != nil {
 		if errors.Is(err, llm.ErrInvalidRequest) || errors.Is(err, llm.ErrUnsupportedFeature) {
 			response := rejectionResponse(rejection{
@@ -298,7 +304,12 @@ func (p *Proxy) InternalError() LocalResponse {
 	})
 }
 
-func transformRequest(upstream config.UpstreamConfig, upstreamModel string, request openai.Request) ([]byte, string, error) {
+func transformRequest(
+	upstream config.UpstreamConfig,
+	upstreamModel string,
+	request openai.Request,
+	requireUsage bool,
+) ([]byte, string, error) {
 	var (
 		transformed []byte
 		endpoint    string
@@ -306,7 +317,11 @@ func transformRequest(upstream config.UpstreamConfig, upstreamModel string, requ
 	)
 	switch upstream.Protocol {
 	case llm.ProtocolOpenAIChatCompletions:
-		transformed, err = openai.TransformRequest(request, upstreamModel)
+		if requireUsage && request.Streaming() {
+			transformed, err = openai.TransformRequestWithStreamUsage(request, upstreamModel)
+		} else {
+			transformed, err = openai.TransformRequest(request, upstreamModel)
+		}
 		endpoint = openai.ChatCompletionsPath
 	case llm.ProtocolAnthropicMessages:
 		transformed, err = anthropic.TransformRequest(request, upstreamModel)

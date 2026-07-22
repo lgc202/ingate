@@ -581,7 +581,7 @@ func inlineStringDataSource(value string) *corev3.DataSource {
 }
 
 func (c *compilation) buildHTTPFilters(plugins listenerPluginConfig) ([]*hcmv3.HttpFilter, error) {
-	filters := make([]*hcmv3.HttpFilter, 0, 4)
+	filters := make([]*hcmv3.HttpFilter, 0, 5)
 	if plugins.accessControl != nil {
 		filter, err := buildAccessControlHTTPFilter(plugins.accessControl)
 		if err != nil {
@@ -591,6 +591,13 @@ func (c *compilation) buildHTTPFilters(plugins listenerPluginConfig) ([]*hcmv3.H
 	}
 	if plugins.rateLimit != nil {
 		filter, err := buildRateLimitHTTPFilter(plugins.rateLimit)
+		if err != nil {
+			return nil, err
+		}
+		filters = append(filters, filter)
+	}
+	if plugins.tokenQuota != nil {
+		filter, err := buildTokenQuotaHTTPFilter(plugins.tokenQuota)
 		if err != nil {
 			return nil, err
 		}

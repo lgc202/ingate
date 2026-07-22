@@ -15,11 +15,20 @@ const ChatCompletionsPath = "/chat/completions"
 
 // TransformRequest 只替换已解析请求的 model 字段，其余 JSON 字段保持不变
 func TransformRequest(request Request, upstreamModel string) ([]byte, error) {
+	return transformRequest(request, upstreamModel, false)
+}
+
+// TransformRequestWithStreamUsage 替换 model 并请求 OpenAI-compatible 流式上游在最终事件返回 Token usage
+func TransformRequestWithStreamUsage(request Request, upstreamModel string) ([]byte, error) {
+	return transformRequest(request, upstreamModel, request.Streaming())
+}
+
+func transformRequest(request Request, upstreamModel string, includeStreamUsage bool) ([]byte, error) {
 	if strings.TrimSpace(upstreamModel) == "" {
 		return nil, fmt.Errorf("%w: upstream model must not be empty", llm.ErrInvalidRequest)
 	}
 
-	if request.fields == nil {
+	if request.fields == nil && !includeStreamUsage {
 		request.Model = upstreamModel
 		transformed, err := json.Marshal(request)
 		if err != nil {
@@ -29,11 +38,23 @@ func TransformRequest(request Request, upstreamModel string) ([]byte, error) {
 	}
 
 	fields := maps.Clone(request.fields)
+	if fields == nil {
+		encoded, err := json.Marshal(request)
+		if err != nil {
+			return nil, fmt.Errorf("encode OpenAI request: %w", err)
+		}
+		if err := json.Unmarshal(encoded, &fields); err != nil {
+			return nil, fmt.Errorf("decode encoded OpenAI request: %w", err)
+		}
+	}
 	model, err := json.Marshal(upstreamModel)
 	if err != nil {
 		return nil, fmt.Errorf("encode upstream model: %w", err)
 	}
 	fields["model"] = model
+	if includeStreamUsage {
+		fields["stream_options"] = json.RawMessage(`{"include_usage":true}`)
+	}
 	transformed, err := json.Marshal(fields)
 	if err != nil {
 		return nil, fmt.Errorf("encode OpenAI request: %w", err)

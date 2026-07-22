@@ -7,6 +7,7 @@ import (
 	"time"
 
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
+	"github.com/lgc202/ingate/plugins/internal/redisresp"
 )
 
 const (
@@ -99,7 +100,7 @@ func (b TokenBucket) Command() ([]byte, error) {
 
 // ParseBucketState 将 Redis Lua 返回值转换为稳定的令牌桶状态
 func ParseBucketState(response []byte) (BucketState, error) {
-	values, err := DecodeIntegers(response)
+	values, err := redisresp.DecodeIntegers(response)
 	if err != nil {
 		return BucketState{}, fmt.Errorf("decode rate limit response: %w", err)
 	}
@@ -120,7 +121,7 @@ func evalCommand(script, key string, args ...string) ([]byte, error) {
 	for _, arg := range args {
 		parts = append(parts, []byte(arg))
 	}
-	return EncodeCommand(parts...)
+	return redisresp.EncodeCommand(parts...)
 }
 
 func newBucketState(allowed bool, current, limit int64, reset int) (BucketState, error) {

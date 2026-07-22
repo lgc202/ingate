@@ -49,6 +49,7 @@ func New(
 	upstreamInformer := gatewayInformers.Upstreams()
 	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
 	accessControlPolicyInformer := gatewayInformers.AccessControlPolicies()
+	tokenQuotaPolicyInformer := gatewayInformers.TokenQuotaPolicies()
 
 	r := &Reconciler{
 		factory: factory,
@@ -59,6 +60,7 @@ func New(
 			upstreams:             upstreamInformer.Lister(),
 			rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
 			accessControlPolicies: accessControlPolicyInformer.Lister(),
+			tokenQuotaPolicies:    tokenQuotaPolicyInformer.Lister(),
 		},
 		delivery:     configDelivery,
 		statusWriter: controllerstatus.NewWriter(client.GatewayV1()),
@@ -75,6 +77,7 @@ func New(
 		{name: "Upstream", informer: upstreamInformer.Informer()},
 		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
 		{name: "AccessControlPolicy", informer: accessControlPolicyInformer.Informer()},
+		{name: "TokenQuotaPolicy", informer: tokenQuotaPolicyInformer.Informer()},
 	}); err != nil {
 		r.queue.ShutDown()
 		return nil, err

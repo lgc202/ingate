@@ -13,6 +13,7 @@ import (
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
+	tokenquotapolicystore "github.com/lgc202/ingate/internal/adminapi/store/tokenquotapolicy"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"golang.org/x/sync/errgroup"
@@ -34,6 +35,7 @@ const (
 	kindPriorityCertificate
 	kindPriorityRateLimitPolicy
 	kindPriorityAccessControlPolicy
+	kindPriorityTokenQuotaPolicy
 	kindPriorityUnknown
 )
 
@@ -45,6 +47,7 @@ type Service struct {
 	certificates          *certificatestore.Store
 	rateLimitPolicies     *ratelimitpolicystore.Store
 	accessControlPolicies *accesscontrolpolicystore.Store
+	tokenQuotaPolicies    *tokenquotapolicystore.Store
 }
 
 type resourceLists struct {
@@ -54,6 +57,7 @@ type resourceLists struct {
 	certificates          []resource.Certificate
 	rateLimitPolicies     []resource.RateLimitPolicy
 	accessControlPolicies []resource.AccessControlPolicy
+	tokenQuotaPolicies    []resource.TokenQuotaPolicy
 }
 
 // New 创建配置状态聚合 service
@@ -64,6 +68,7 @@ func New(
 	certificates *certificatestore.Store,
 	rateLimitPolicies *ratelimitpolicystore.Store,
 	accessControlPolicies *accesscontrolpolicystore.Store,
+	tokenQuotaPolicies *tokenquotapolicystore.Store,
 ) *Service {
 	return &Service{
 		gateways:              gateways,
@@ -72,6 +77,7 @@ func New(
 		certificates:          certificates,
 		rateLimitPolicies:     rateLimitPolicies,
 		accessControlPolicies: accessControlPolicies,
+		tokenQuotaPolicies:    tokenQuotaPolicies,
 	}
 }
 
@@ -83,7 +89,8 @@ func (s *Service) Get(ctx context.Context) (*Report, error) {
 	}
 
 	total := len(resources.gateways) + len(resources.routes) + len(resources.upstreams) +
-		len(resources.certificates) + len(resources.rateLimitPolicies) + len(resources.accessControlPolicies)
+		len(resources.certificates) + len(resources.rateLimitPolicies) + len(resources.accessControlPolicies) +
+		len(resources.tokenQuotaPolicies)
 	items := make([]Item, 0, total)
 	for _, gateway := range resources.gateways {
 		items = append(items, Item{
@@ -134,6 +141,20 @@ func (s *Service) Get(ctx context.Context) (*Report, error) {
 	for _, policy := range resources.accessControlPolicies {
 		items = append(items, Item{
 			Kind: resource.KindAccessControlPolicy,
+			ID:   policy.Name,
+			Name: displayName(policy.Spec.DisplayName, policy.Name),
+			Status: effectivePolicyStatus(
+				policy.Generation,
+				policy.Spec.Enabled,
+				policy.Spec.TargetRefs,
+				policy.Status.Conditions,
+				policy.Status.Targets,
+			),
+		})
+	}
+	for _, policy := range resources.tokenQuotaPolicies {
+		items = append(items, Item{
+			Kind: resource.KindTokenQuotaPolicy,
 			ID:   policy.Name,
 			Name: displayName(policy.Spec.DisplayName, policy.Name),
 			Status: effectivePolicyStatus(
@@ -199,6 +220,14 @@ func (s *Service) listResources(ctx context.Context) (resourceLists, error) {
 			return fmt.Errorf("list access control policies: %w", err)
 		}
 		resources.accessControlPolicies = policies.Items
+		return nil
+	})
+	group.Go(func() error {
+		policies, err := s.tokenQuotaPolicies.List(ctx)
+		if err != nil {
+			return fmt.Errorf("list token quota policies: %w", err)
+		}
+		resources.tokenQuotaPolicies = policies.Items
 		return nil
 	})
 	if err := group.Wait(); err != nil {
@@ -288,6 +317,8 @@ func kindPriority(kind resource.Kind) int {
 		return kindPriorityRateLimitPolicy
 	case resource.KindAccessControlPolicy:
 		return kindPriorityAccessControlPolicy
+	case resource.KindTokenQuotaPolicy:
+		return kindPriorityTokenQuotaPolicy
 	default:
 		return kindPriorityUnknown
 	}

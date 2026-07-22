@@ -53,6 +53,12 @@ const (
 	ResourceAccessControlPolicies ResourceName = "accesscontrolpolicies"
 	// ResourceAccessControlPoliciesStatus 表示 AccessControlPolicy status 子资源名
 	ResourceAccessControlPoliciesStatus ResourceName = "accesscontrolpolicies/status"
+	// ResourceTokenQuotaPolicy 表示 TokenQuotaPolicy 单数资源名
+	ResourceTokenQuotaPolicy ResourceName = "tokenquotapolicy"
+	// ResourceTokenQuotaPolicies 表示 TokenQuotaPolicy 复数资源名
+	ResourceTokenQuotaPolicies ResourceName = "tokenquotapolicies"
+	// ResourceTokenQuotaPoliciesStatus 表示 TokenQuotaPolicy status 子资源名
+	ResourceTokenQuotaPoliciesStatus ResourceName = "tokenquotapolicies/status"
 )
 
 // SchemeGroupVersion 表示 Ingate API 组版本
@@ -89,6 +95,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RateLimitPolicyList{},
 		&AccessControlPolicy{},
 		&AccessControlPolicyList{},
+		&TokenQuotaPolicy{},
+		&TokenQuotaPolicyList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
