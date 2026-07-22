@@ -27,6 +27,7 @@ export function GovernancePolicyPanel({
   targetID,
   targetName,
   inheritedGatewayIDs = [],
+  supportsTokenQuota = true,
   workspace,
   onChanged,
 }: {
@@ -34,6 +35,7 @@ export function GovernancePolicyPanel({
   targetID: string;
   targetName: string;
   inheritedGatewayIDs?: string[];
+  supportsTokenQuota?: boolean;
   workspace: PolicyWorkspace;
   onChanged: () => Promise<void> | void;
 }) {
@@ -44,6 +46,9 @@ export function GovernancePolicyPanel({
   const directPolicies = workspace.policies.filter((policy) => policyTargetsResource(policy, targetKind, targetID));
   const inheritedPolicies = targetKind === 'Route'
     ? workspace.policies.flatMap((policy) => {
+      if (policy.kind === 'TokenQuotaPolicy' && !supportsTokenQuota) {
+        return [];
+      }
       const gatewayTargets = policy.targets.filter((target) => target.kind === 'Gateway' && inheritedGatewayIDs.includes(target.id));
       const gateways = gatewayTargets.map((target) => (
         workspace.targets.find((option) => option.kind === 'Gateway' && option.id === target.id)?.name ?? target.displayName ?? target.id
@@ -56,7 +61,13 @@ export function GovernancePolicyPanel({
       }] : [];
     })
     : [];
-  const candidates = workspace.policies.filter((policy) => !policyTargetsResource(policy, targetKind, targetID));
+  const candidates = workspace.policies.filter((policy) => (
+    !policyTargetsResource(policy, targetKind, targetID)
+    && (supportsTokenQuota || policy.kind !== 'TokenQuotaPolicy')
+  ));
+  const selectedIncludesTokenQuota = candidates.some((policy) => (
+    policy.kind === 'TokenQuotaPolicy' && selectedPolicyKeys.includes(governancePolicyKey(policy))
+  ));
 
   const openEditor = () => {
     setSelectedPolicyKeys([]);
@@ -103,9 +114,11 @@ export function GovernancePolicyPanel({
   const removePolicy = async (policy: GovernancePolicy) => {
     setSubmitting(true);
     try {
-      const remainsInherited = targetKind === 'Route' && policy.targets.some((target) => (
-        target.kind === 'Gateway' && inheritedGatewayIDs.includes(target.id)
-      ));
+      const remainsInherited = targetKind === 'Route'
+        && (supportsTokenQuota || policy.kind !== 'TokenQuotaPolicy')
+        && policy.targets.some((target) => (
+          target.kind === 'Gateway' && inheritedGatewayIDs.includes(target.id)
+        ));
       const result = await updateGovernancePolicyTargets(
         policy,
         policy.targets.filter((target) => target.kind !== targetKind || target.id !== targetID),
@@ -175,8 +188,14 @@ export function GovernancePolicyPanel({
           {candidates.length > 0 ? (
             <GovernancePolicySelect policies={candidates} value={selectedPolicyKeys} onChange={setSelectedPolicyKeys} />
           ) : (
-            <span className="mini-card-meta">全部已有策略都已直接应用到当前{policyTargetKindLabel(targetKind)}。</span>
+            <span className="mini-card-meta">当前没有可应用到该{policyTargetKindLabel(targetKind)}的已有策略。</span>
           )}
+          {selectedIncludesTokenQuota ? (
+            <div className="mini-card policy-execution-note">
+              <div className="mini-card-title">原有目标与当前目标共享同一预算池</div>
+              <div className="mini-card-meta">如果当前目标需要独立额度，请新建 Token 配额策略，不要追加这个策略。</div>
+            </div>
+          ) : null}
           <div className="form-actions">
             <Button variant="primary" type="button" disabled={submitting || selectedPolicyKeys.length === 0} onClick={applyPolicies}>确认应用</Button>
             <Button variant="ghost" type="button" disabled={submitting} onClick={() => setEditorOpen(false)}>取消</Button>

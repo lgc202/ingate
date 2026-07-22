@@ -112,3 +112,7 @@ export interface RouteActionResult {
   message: string;
   changeId?: string;
 }
+
+export function isModelRoute(route: Pick<RouteResource, 'rules'>) {
+  return route.rules.some((rule) => Boolean(rule.modelRouting?.models.length));
+}

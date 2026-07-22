@@ -2,16 +2,19 @@ import { useState } from 'react';
 import {
   deleteAccessControlPolicy,
   deleteRateLimitPolicy,
+  deleteTokenQuotaPolicy,
   getPolicyWorkspace,
   saveAccessControlPolicy,
   saveRateLimitPolicy,
+  saveTokenQuotaPolicy,
   setAccessControlPolicyEnabled,
   setRateLimitPolicyEnabled,
+  setTokenQuotaPolicyEnabled,
 } from '@/api/policies';
 import { useResource } from '@/api/useResource';
 import { Button, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
-import type { GovernancePolicy, GovernancePolicyKind } from '@/domain/policy';
-import { policyTargetLabel } from '@/domain/policy';
+import type { GovernancePolicy, GovernancePolicyKind, PolicyMutationResult } from '@/domain/policy';
+import { policyKindLabel, policyTargetLabel } from '@/domain/policy';
 import {
   AccessControlPolicyEditor,
   accessControlPolicyPayload,
@@ -27,12 +30,20 @@ import {
   type RateLimitPolicyDraft,
   validateRateLimitPolicyDraft,
 } from './RateLimitPolicyEditor';
+import {
+  createTokenQuotaPolicyDraft,
+  TokenQuotaPolicyEditor,
+  tokenQuotaPolicyPayload,
+  type TokenQuotaPolicyDraft,
+  validateTokenQuotaPolicyDraft,
+} from './TokenQuotaPolicyEditor';
 
 const loadPolicyWorkspace = () => getPolicyWorkspace();
 
 type EditorState =
   | { type: 'rateLimit'; draft: RateLimitPolicyDraft }
   | { type: 'accessControl'; draft: AccessControlPolicyDraft }
+  | { type: 'tokenQuota'; draft: TokenQuotaPolicyDraft }
   | null;
 
 interface Notice {
@@ -44,6 +55,7 @@ const policyTypeOptions = [
   { value: 'all', label: '全部类型' },
   { value: 'RateLimitPolicy', label: '限流' },
   { value: 'AccessControlPolicy', label: '访问控制' },
+  { value: 'TokenQuotaPolicy', label: 'Token 配额' },
 ];
 
 export function PolicyPage() {
@@ -53,11 +65,13 @@ export function PolicyPage() {
   const [editor, setEditor] = useState<EditorState>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<GovernancePolicy | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   if (workspace.loading) {
     return (
       <PageFrame title="策略" subtitle="定义请求治理规则及其应用范围">
-        <ResourceStatePanel title="加载策略数据" message="正在读取限流和访问控制策略。" />
+        <ResourceStatePanel title="加载策略数据" message="正在读取限流、访问控制和 Token 配额策略。" />
       </PageFrame>
     );
   }
@@ -93,17 +107,12 @@ export function PolicyPage() {
     if (!editor || submitting) {
       return;
     }
-    const validation = editor.type === 'rateLimit'
-      ? validateRateLimitPolicyDraft(editor.draft)
-      : validateAccessControlPolicyDraft(editor.draft);
-    if (!validation.valid) {
+    if (!editorIsValid(editor)) {
       return;
     }
     setSubmitting(true);
     try {
-      const result = editor.type === 'rateLimit'
-        ? await saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft))
-        : await saveAccessControlPolicy(accessControlPolicyPayload(editor.draft));
+      const result = await savePolicyEditor(editor);
       await reloadAfterMutation(result.message);
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '保存策略失败', tone: 'error' });
@@ -112,22 +121,40 @@ export function PolicyPage() {
     }
   };
 
-  const deletePolicy = async (policy: GovernancePolicy) => {
+  const confirmDeletePolicy = async () => {
+    if (!deleteCandidate) {
+      return;
+    }
+
+    setDeleting(true);
     try {
-      const result = policy.kind === 'RateLimitPolicy'
-        ? await deleteRateLimitPolicy(policy.id, policy.name)
-        : await deleteAccessControlPolicy(policy.id, policy.name);
+      let result: PolicyMutationResult;
+      if (deleteCandidate.kind === 'RateLimitPolicy') {
+        result = await deleteRateLimitPolicy(deleteCandidate.id, deleteCandidate.name);
+      } else if (deleteCandidate.kind === 'AccessControlPolicy') {
+        result = await deleteAccessControlPolicy(deleteCandidate.id, deleteCandidate.name);
+      } else {
+        result = await deleteTokenQuotaPolicy(deleteCandidate.id, deleteCandidate.name);
+      }
       await reloadAfterMutation(result.message);
+      setDeleteCandidate(null);
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '删除策略失败', tone: 'error' });
+    } finally {
+      setDeleting(false);
     }
   };
 
   const togglePolicy = async (policy: GovernancePolicy) => {
     try {
-      const result = policy.kind === 'RateLimitPolicy'
-        ? await setRateLimitPolicyEnabled(policy.id, policy.name, !policy.enabled)
-        : await setAccessControlPolicyEnabled(policy.id, policy.name, !policy.enabled);
+      let result: PolicyMutationResult;
+      if (policy.kind === 'RateLimitPolicy') {
+        result = await setRateLimitPolicyEnabled(policy.id, policy.name, !policy.enabled);
+      } else if (policy.kind === 'AccessControlPolicy') {
+        result = await setAccessControlPolicyEnabled(policy.id, policy.name, !policy.enabled);
+      } else {
+        result = await setTokenQuotaPolicyEnabled(policy.id, policy.name, !policy.enabled);
+      }
       await reloadAfterMutation(result.message);
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '更新策略状态失败', tone: 'error' });
@@ -135,9 +162,7 @@ export function PolicyPage() {
   };
 
   if (editor) {
-    const editorValid = editor.type === 'rateLimit'
-      ? validateRateLimitPolicyDraft(editor.draft).valid
-      : validateAccessControlPolicyDraft(editor.draft).valid;
+    const editorValid = editorIsValid(editor);
     return (
       <PageFrame
         title="策略"
@@ -156,13 +181,23 @@ export function PolicyPage() {
                   setNotice(null);
                 }}
               />
-            ) : (
+            ) : editor.type === 'accessControl' ? (
               <AccessControlPolicyEditor
                 draft={editor.draft}
                 targets={data.targets}
                 validation={validateAccessControlPolicyDraft(editor.draft)}
                 onChange={(draft) => {
                   setEditor({ type: 'accessControl', draft });
+                  setNotice(null);
+                }}
+              />
+            ) : (
+              <TokenQuotaPolicyEditor
+                draft={editor.draft}
+                targets={data.targets}
+                validation={validateTokenQuotaPolicyDraft(editor.draft)}
+                onChange={(draft) => {
+                  setEditor({ type: 'tokenQuota', draft });
                   setNotice(null);
                 }}
               />
@@ -186,6 +221,7 @@ export function PolicyPage() {
         <CreatePolicyMenu
           onCreateRateLimit={() => setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft() })}
           onCreateAccessControl={() => setEditor({ type: 'accessControl', draft: createAccessControlPolicyDraft() })}
+          onCreateTokenQuota={() => setEditor({ type: 'tokenQuota', draft: createTokenQuotaPolicyDraft() })}
         />
       }
     >
@@ -202,14 +238,38 @@ export function PolicyPage() {
           policies={filteredPolicies}
           targets={data.targets}
           onEdit={(policy) => {
-            setEditor(policy.kind === 'RateLimitPolicy'
-              ? { type: 'rateLimit', draft: createRateLimitPolicyDraft(policy.raw) }
-              : { type: 'accessControl', draft: createAccessControlPolicyDraft(policy.raw) });
+            if (policy.kind === 'RateLimitPolicy') {
+              setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft(policy.raw) });
+            } else if (policy.kind === 'AccessControlPolicy') {
+              setEditor({ type: 'accessControl', draft: createAccessControlPolicyDraft(policy.raw) });
+            } else {
+              setEditor({ type: 'tokenQuota', draft: createTokenQuotaPolicyDraft(policy.raw) });
+            }
           }}
           onToggle={togglePolicy}
-          onDelete={deletePolicy}
+          onDelete={setDeleteCandidate}
         />
       </Panel>
+      {deleteCandidate ? (
+        <div className="confirm-overlay" role="presentation" onMouseDown={() => {
+          if (!deleting) {
+            setDeleteCandidate(null);
+          }
+        }}>
+          <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-policy-title" onMouseDown={(event) => event.stopPropagation()}>
+            <h3 id="delete-policy-title">删除策略</h3>
+            <p>确定删除 {deleteCandidate.name}？策略会从所有应用目标移除，此操作无法撤销。</p>
+            <div className="confirm-meta">
+              <span>策略类型</span><strong>{policyKindLabel(deleteCandidate.kind)}</strong>
+              <span>应用目标</span><strong>{deleteCandidate.targets.length > 0 ? deleteCandidate.targets.length + ' 个' : '未应用'}</strong>
+            </div>
+            <div className="confirm-actions">
+              <Button variant="ghost" disabled={deleting} onClick={() => setDeleteCandidate(null)}>取消</Button>
+              <Button variant="primary" disabled={deleting} onClick={confirmDeletePolicy}>{deleting ? '删除中…' : '确认删除'}</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
     </PageFrame>
   );
@@ -219,5 +279,28 @@ function editorTitle(editor: Exclude<EditorState, null>) {
   if (editor.type === 'rateLimit') {
     return editor.draft.id ? '编辑限流策略' : '新建限流策略';
   }
-  return editor.draft.id ? '编辑访问控制策略' : '新建访问控制策略';
+  if (editor.type === 'accessControl') {
+    return editor.draft.id ? '编辑访问控制策略' : '新建访问控制策略';
+  }
+  return editor.draft.id ? '编辑 Token 配额策略' : '新建 Token 配额策略';
+}
+
+function editorIsValid(editor: Exclude<EditorState, null>) {
+  if (editor.type === 'rateLimit') {
+    return validateRateLimitPolicyDraft(editor.draft).valid;
+  }
+  if (editor.type === 'accessControl') {
+    return validateAccessControlPolicyDraft(editor.draft).valid;
+  }
+  return validateTokenQuotaPolicyDraft(editor.draft).valid;
+}
+
+function savePolicyEditor(editor: Exclude<EditorState, null>) {
+  if (editor.type === 'rateLimit') {
+    return saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft));
+  }
+  if (editor.type === 'accessControl') {
+    return saveAccessControlPolicy(accessControlPolicyPayload(editor.draft));
+  }
+  return saveTokenQuotaPolicy(tokenQuotaPolicyPayload(editor.draft));
 }

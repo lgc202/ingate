@@ -234,6 +234,7 @@ function configurationResourcePath(kind: ConfigurationResourceKind) {
     Certificate: '/certificates',
     RateLimitPolicy: '/policies',
     AccessControlPolicy: '/policies',
+    TokenQuotaPolicy: '/policies',
   };
   return paths[kind];
 }

@@ -1,12 +1,13 @@
 import type { PolicyWorkspace } from '@/domain/policy';
 import { governancePolicyKey, policyTargetsResource } from '@/domain/policy';
-import type {
-  HeaderMatch,
-  RouteGatewayOption,
-  RouteResource,
-  RouteRule,
-  UpstreamOption,
-  WeightedUpstream,
+import {
+  isModelRoute,
+  type HeaderMatch,
+  type RouteGatewayOption,
+  type RouteResource,
+  type RouteRule,
+  type UpstreamOption,
+  type WeightedUpstream,
 } from '@/domain/route';
 import { formatModelRoutes, formatWeightedUpstreams, upstreamWeightSum } from './composer';
 
@@ -67,8 +68,11 @@ export function routeGovernancePolicyLabel(
     return '策略未知';
   }
 
-  const direct = policyWorkspace.policies.filter((policy) => policyTargetsResource(policy, 'Route', route.id));
-  const inherited = policyWorkspace.policies.filter((policy) => (
+  const policies = isModelRoute(route)
+    ? policyWorkspace.policies
+    : policyWorkspace.policies.filter((policy) => policy.kind !== 'TokenQuotaPolicy');
+  const direct = policies.filter((policy) => policyTargetsResource(policy, 'Route', route.id));
+  const inherited = policies.filter((policy) => (
     policy.targets.some((target) => target.kind === 'Gateway' && route.gatewayIDs.includes(target.id))
   ));
   const unique = new Set([...direct, ...inherited].map(governancePolicyKey));
