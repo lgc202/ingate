@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, PageFrame, Panel, Tabs } from '@/components/ui';
 import type { PolicyWorkspace } from '@/domain/policy';
-import type { RouteGatewayOption, RouteResource, UpstreamOption } from '@/domain/route';
+import { isModelRoute, type RouteGatewayOption, type RouteResource, type UpstreamOption } from '@/domain/route';
 import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
 import { routeDetailItems } from './routeView';
 
@@ -56,6 +56,7 @@ export function RouteDetail({
             targetID={route.id}
             targetName={route.name}
             inheritedGatewayIDs={route.gatewayIDs}
+            supportsTokenQuota={isModelRoute(route)}
             workspace={policyWorkspace}
             onChanged={onPolicyWorkspaceChanged}
           />

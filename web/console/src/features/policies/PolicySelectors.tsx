@@ -17,10 +17,12 @@ import {
 export function PolicyTargetSelect({
   options,
   value,
+  requireTokenQuotaSupport = false,
   onChange,
 }: {
   options: PolicyTargetOption[];
   value: PolicyTargetRef[];
+  requireTokenQuotaSupport?: boolean;
   onChange: (value: PolicyTargetRef[]) => void;
 }) {
   const selected = new Set(value.map(policyTargetKey));
@@ -46,21 +48,27 @@ export function PolicyTargetSelect({
               {group.map((option) => {
                 const key = policyTargetKey(option);
                 const checked = selected.has(key);
+                const unsupported = requireTokenQuotaSupport && !option.supportsTokenQuota;
+                const disabled = unsupported && !checked;
                 return (
                   <button
                     key={key}
-                    className={checked ? 'selected' : ''}
+                    className={`${checked ? 'selected' : ''} ${unsupported ? 'unsupported' : ''}`.trim()}
                     type="button"
                     role="option"
                     aria-selected={checked}
                     aria-pressed={checked}
+                    aria-disabled={disabled}
+                    disabled={disabled}
                     onClick={() => onChange(checked
                       ? value.filter((target) => policyTargetKey(target) !== key)
                       : [...value, { kind: option.kind, id: option.id, displayName: option.name }])}
                   >
                     <span className="multi-check">{checked ? '✓' : ''}</span>
                     <strong>{option.name}</strong>
-                    <small>{policyTargetKindLabel(option.kind)}</small>
+                    <small>{unsupported
+                      ? checked ? '不是模型路由，点击移除' : '仅模型路由支持 Token 配额'
+                      : policyTargetKindLabel(option.kind)}</small>
                   </button>
                 );
               })}

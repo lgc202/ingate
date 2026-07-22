@@ -6,7 +6,8 @@ export type ConfigurationResourceKind =
   | 'Upstream'
   | 'Certificate'
   | 'RateLimitPolicy'
-  | 'AccessControlPolicy';
+  | 'AccessControlPolicy'
+  | 'TokenQuotaPolicy';
 
 export interface ConfigurationStatusItem {
   id: string;
@@ -36,6 +37,7 @@ export function configurationResourceKindLabel(kind: ConfigurationResourceKind) 
     Certificate: '证书',
     RateLimitPolicy: '限流策略',
     AccessControlPolicy: '访问控制策略',
+    TokenQuotaPolicy: 'Token 配额策略',
   };
 
   return labels[kind];

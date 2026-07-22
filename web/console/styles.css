@@ -2688,6 +2688,22 @@ body { overflow-x: hidden; }
   box-shadow: none;
 }
 
+.policy-trust-note {
+  border-color: #e9d4a4;
+  background: #fffaf0;
+  box-shadow: none;
+}
+
+.policy-trust-note .mini-card-title {
+  color: #8a5a12;
+}
+
+.policy-editor-grid + .policy-execution-note,
+.policy-editor-grid + .policy-trust-note,
+.policy-trust-note + .policy-execution-note {
+  margin-top: 12px;
+}
+
 .policy-rule-toggle {
   margin-bottom: 14px;
 }
@@ -2824,6 +2840,21 @@ body { overflow-x: hidden; }
 .policy-select-menu button:hover,
 .policy-select-menu button.selected {
   background: #eef3ff;
+}
+
+.policy-select-menu button.unsupported:disabled {
+  background: #f8f9fb;
+  color: #8a909c;
+  cursor: not-allowed;
+}
+
+.policy-select-menu button.unsupported small {
+  max-width: 230px;
+  color: #9a681a;
+  overflow: visible;
+  text-align: right;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .policy-select-menu strong,

@@ -13,9 +13,11 @@ import {
 export function CreatePolicyMenu({
   onCreateRateLimit,
   onCreateAccessControl,
+  onCreateTokenQuota,
 }: {
   onCreateRateLimit: () => void;
   onCreateAccessControl: () => void;
+  onCreateTokenQuota: () => void;
 }) {
   return (
     <details className="policy-create-menu">
@@ -32,6 +34,10 @@ export function CreatePolicyMenu({
         <button type="button" onClick={onCreateAccessControl}>
           <strong>访问控制</strong>
           <span>按 IP 或请求特征放行、拒绝访问</span>
+        </button>
+        <button type="button" onClick={onCreateTokenQuota}>
+          <strong>Token 配额</strong>
+          <span>限制模型请求在统计周期内可消耗的输入与输出 Token</span>
         </button>
       </div>
     </details>
@@ -82,7 +88,7 @@ export function PolicyLibraryTable({
               </td>
               <td>
                 <div className="table-primary">{policy.summary}</div>
-                <div className="table-secondary">{policy.ruleCount} 条规则</div>
+                <div className="table-secondary">{policy.kind === 'TokenQuotaPolicy' ? '1 个预算池' : `${policy.ruleCount} 条规则`}</div>
               </td>
               <td>
                 <div className="table-primary">{policy.targets.length > 0 ? `${policy.targets.length} 个` : '未应用'}</div>
