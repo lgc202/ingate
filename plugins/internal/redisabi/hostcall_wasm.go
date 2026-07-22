@@ -13,6 +13,7 @@ import (
 const (
 	warningLogLevel = 3
 	requestStream   = 0
+	responseStream  = 1
 )
 
 //go:wasmimport env proxy_redis_init
@@ -126,6 +127,10 @@ func hostSetEffectiveContext(contextID uint32) error {
 
 func hostResumeHTTPRequest() error {
 	return checkHostStatus("resume HTTP request", proxyContinueStream(requestStream))
+}
+
+func hostResumeHTTPResponse() error {
+	return checkHostStatus("resume HTTP response", proxyContinueStream(responseStream))
 }
 
 func hostSendHTTPResponse(statusCode uint32, headers map[string]string, body []byte) error {

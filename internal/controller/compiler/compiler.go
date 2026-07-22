@@ -24,6 +24,7 @@ type compilation struct {
 	upstreamClusters      map[string]string
 	rateLimitPolicies     map[string]*gatewayv1.RateLimitPolicy
 	accessControlPolicies map[string]*gatewayv1.AccessControlPolicy
+	tokenQuotaPolicies    map[string]*gatewayv1.TokenQuotaPolicy
 
 	listenerGroups   map[listenerKey]*listenerGroup
 	gatewayListeners map[string][]gatewayListener
@@ -46,6 +47,7 @@ func Compile(resources Resources) Result {
 		upstreamClusters:      make(map[string]string, len(resources.Upstreams)),
 		rateLimitPolicies:     make(map[string]*gatewayv1.RateLimitPolicy, len(resources.RateLimitPolicies)),
 		accessControlPolicies: make(map[string]*gatewayv1.AccessControlPolicy, len(resources.AccessControlPolicies)),
+		tokenQuotaPolicies:    make(map[string]*gatewayv1.TokenQuotaPolicy, len(resources.TokenQuotaPolicies)),
 		listenerGroups:        make(map[listenerKey]*listenerGroup),
 		gatewayListeners:      make(map[string][]gatewayListener),
 		aiRoutes:              make(map[aiRouteKey]compiledAIRoute),
@@ -139,6 +141,13 @@ func (c *compilation) indexResources() {
 			continue
 		}
 		c.indexAccessControlPolicy(policy)
+	}
+	for _, policy := range c.resources.TokenQuotaPolicies {
+		if policy == nil {
+			c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, "", ReasonInvalidSpec, "token quota policy resource is nil")
+			continue
+		}
+		c.indexTokenQuotaPolicy(policy)
 	}
 }
 
@@ -263,6 +272,19 @@ func (c *compilation) indexAccessControlPolicy(policy *gatewayv1.AccessControlPo
 		return
 	}
 	c.accessControlPolicies[id] = policy
+}
+
+func (c *compilation) indexTokenQuotaPolicy(policy *gatewayv1.TokenQuotaPolicy) {
+	id := policy.Name
+	if id == "" {
+		c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, id, ReasonInvalidSpec, "token quota policy metadata.name is required")
+		return
+	}
+	if _, ok := c.tokenQuotaPolicies[id]; ok {
+		c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, id, ReasonConflict, fmt.Sprintf("duplicate token quota policy %q", id))
+		return
+	}
+	c.tokenQuotaPolicies[id] = policy
 }
 
 func (c *compilation) addDiagnostic(severity Severity, kind gatewayv1.Kind, id string, reason Reason, message string) {

@@ -20,6 +20,8 @@ type Interface interface {
 	RateLimitPolicies() RateLimitPolicyInformer
 	// Routes returns a RouteInformer.
 	Routes() RouteInformer
+	// TokenQuotaPolicies returns a TokenQuotaPolicyInformer.
+	TokenQuotaPolicies() TokenQuotaPolicyInformer
 	// Upstreams returns a UpstreamInformer.
 	Upstreams() UpstreamInformer
 }
@@ -58,6 +60,11 @@ func (v *version) RateLimitPolicies() RateLimitPolicyInformer {
 // Routes returns a RouteInformer.
 func (v *version) Routes() RouteInformer {
 	return &routeInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// TokenQuotaPolicies returns a TokenQuotaPolicyInformer.
+func (v *version) TokenQuotaPolicies() TokenQuotaPolicyInformer {
+	return &tokenQuotaPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Upstreams returns a UpstreamInformer.

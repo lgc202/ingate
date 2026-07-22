@@ -32,7 +32,7 @@ CLI / SDK --------------+----> ingate-apiserver ----> etcd
 - `ingate-apiserver` 提供声明式资源 API，是 etcd 的唯一访问者
 - `ingate-controller` 监听完整资源集合，编译并发布一份 Envoy 配置，并通过 status 子资源回写观察结果
 - Envoy 执行路由、代理和内置治理插件
-- Redis 保存限流及未来 Token 配额等请求路径共享状态
+- Redis 保存限流及 Token 配额等请求路径共享状态
 
 Admin API 只访问 API Server，不直接访问 Controller。Controller 的内部 HTTP 服务只提供健康检查，不作为产品状态查询协议。
 
@@ -97,10 +97,11 @@ Controller 内嵌标准 go-control-plane State-of-the-World ADS：
 - Upstream
 - RateLimitPolicy
 - AccessControlPolicy
+- TokenQuotaPolicy
 
 资源之间使用不可变 ID 引用。Admin API 创建资源时生成 UUID 并映射为底层 `metadata.name`；用户可编辑名称使用 `spec.displayName`。
 
-`RateLimitPolicy` 和 `AccessControlPolicy` 通过 `spec.targetRefs[]` 直接引用 Gateway 或 Route，不再使用独立策略绑定资源。`targetRefs[]` 可以为空，表示策略已保存但当前不应用到流量。
+`RateLimitPolicy`、`AccessControlPolicy` 和 `TokenQuotaPolicy` 通过 `spec.targetRefs[]` 直接引用 Gateway 或 Route，不再使用独立策略绑定资源。`targetRefs[]` 可以为空，表示策略已保存但当前不应用到流量。
 
 每个资源遵循标准的 `spec/status` 分离：
 
@@ -122,6 +123,7 @@ Admin API 只把 Condition 转换成面向页面的状态摘要，不向控制�
 ```text
 OpenAI Client
   -> Envoy Listener / Route
+  -> 内置 tokenquota Wasm
   -> 内置 ai-proxy Wasm
   -> 按请求体 model 选择模型 Upstream
   -> OpenAI / DeepSeek / 通义 / Anthropic / Gemini / 自定义兼容服务
@@ -170,7 +172,7 @@ OpenAI-compatible、Anthropic 和 Gemini 上游都只接受第一阶段公开的
 - 只支持文本 `system`、`user`、`assistant` 消息和 `model/messages/stream/temperature/top_p/max_tokens/stop`
 - 不支持 Responses、Embeddings 等其他 OpenAI API
 - 不支持 Tools/function calling、图片、音频、文件等多模态内容
-- 不支持多 Provider fallback、模型路由重试和 TokenQuotaPolicy
+- 不支持多 Provider fallback 和模型路由重试
 - 不支持 OAuth、IAM、Azure Entra、AWS SigV4 等云认证
 - 不包含独立 AI runtime
 
@@ -178,9 +180,20 @@ standalone 默认提供 HTTP `8080` 和 HTTPS `8443` 两个固定数据面入口
 
 RateLimitPolicy 统一使用系统 Redis，用户协议不包含 Local/Global 模式、限流算法、RedisStore、redisRef 或私有插件 JSON。数据面当前使用系统选定的令牌桶实现，`burst` 为 0 时使用 `requests` 作为桶容量，正数表示显式桶容量。
 
+TokenQuotaPolicy 为一个策略定义一个 Token 预算池，仅展开到目标 Gateway 或 Route 下的模型 RouteRule。预算池可以由所有命中请求共享，也可以按网关看到的来源 IP 或指定请求 Header 值区分；Header 和 IP 原始值经过哈希后才进入 Redis key。多个 targetRef 命中同一策略时仍共享同一预算池，需要独立预算时应创建多条策略。
+
+数据面在请求进入模型服务前检查当前固定窗口的已用额度，在 AI Proxy 完成普通响应或 SSE 归一化后读取最后一个 `usage.total_tokens` 并记账。OpenAI-compatible 流式上游在策略生效时由 AI Proxy 内部请求最终 usage，客户端协议不开放 `stream_options`。首版不做字符估算和模型 tokenizer 预扣；并发中的在途请求可能造成有限超额，因此这是 best-effort 的后付费软额度，不是严格硬额度，也不能替代计费系统。
+
+Token 配额的主体划分和流式记账有以下运行约束：
+
+- 流式连接在完成标记到达前中断时无法记账，实际用量可能少计
+- Header 维度必须使用可信认证层写入且客户端无法伪造的 Header；缺失该 Header 的请求会共用同一个未标识预算池，允许客户端自由修改或轮换值还会绕过单主体额度并产生高基数 Redis key
+- IP 维度使用 Envoy 看到的连接源地址；前置负载均衡或反向代理未保留真实源地址时，多个客户端可能按代理地址共用预算池
+- 自定义 OpenAI-compatible 上游只有支持 `stream_options.include_usage` 并在最终 SSE 事件返回 usage 时，才能用于受 TokenQuotaPolicy 保护的流式请求
+
 ## 内置治理插件
 
-限流和访问控制以强类型 Policy 对外提供。Compiler 解析每个 Policy 的 `targetRefs[]`，展开成按 Gateway 和 Route 索引的插件执行配置，并在 Listener/HCM 中注入一次内置 Wasm filter。
+限流、访问控制和 Token 配额以强类型 Policy 对外提供。Compiler 解析每个 Policy 的 `targetRefs[]`，展开成按 Gateway、Route 和必要 RouteRule 索引的插件执行配置，并在 Listener/HCM 中注入一次内置 Wasm filter。
 
 内置插件：
 
@@ -220,7 +233,7 @@ all-in-one 只运行：
 
 不包含独立 ingate-xds、ingate-dataplane 或示例 backend。
 
-Envoy 二进制来自固定 digest 的 Higress gateway 镜像；Redis 来自固定 digest 的官方 bookworm 镜像。Redis 只绑定容器 loopback，重启丢失限流计数是允许的。
+Envoy 二进制来自固定 digest 的 Higress gateway 镜像；Redis 来自固定 digest 的官方镜像。Redis 只绑定容器 loopback，并使用 AOF 保存限流和 Token 配额状态。standalone 形态不提供 Redis 高可用，生产集群可以按部署方式替换为兼容的高可用 Redis 地址。
 
 ## 明确删除
 

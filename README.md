@@ -28,9 +28,9 @@ CLI / SDK -----------------------+-> ingate-apiserver -> etcd
 - `ingate-controller`：资源收敛、Envoy 配置编译、Delivery、ADS xDS 和资源 status 更新
 - `Envoy`：唯一数据平面，二进制来自带 Redis 扩展 ABI 的 Higress Envoy
 - `etcd`：由 apiserver 使用的声明式资源存储
-- `Redis`：限流及未来 Token 配额等请求路径共享状态
+- `Redis`：限流及 Token 配额等请求路径共享状态
 
-内置限流和访问控制以强类型 Policy 对外提供，策略通过自身的 `targetRefs[]` 直接声明生效的 Gateway 或 Route。用户不需要安装内置 Wasm 插件，也不需要选择本地或全局限流模式、限流算法或 Redis 地址；限流统一使用 Envoy bootstrap 中固定的 `ingate-system-redis`。
+内置限流、访问控制和 Token 配额以强类型 Policy 对外提供，策略通过自身的 `targetRefs[]` 直接声明生效的 Gateway 或 Route。用户不需要安装内置 Wasm 插件，也不需要选择本地或全局计数模式、算法或 Redis 地址；请求路径共享状态统一使用 Envoy bootstrap 中固定的 `ingate-system-redis`。
 
 ## 第一阶段 AI Gateway
 
@@ -39,6 +39,7 @@ AI Gateway 不新增 AI runtime 或独立服务，继续使用现有资源和 Co
 ```text
 OpenAI Client
   -> Envoy
+  -> 内置 tokenquota Wasm
   -> 内置 ai-proxy Wasm
   -> 按 model 选择模型 Upstream
   -> OpenAI / DeepSeek / 通义 / Anthropic / Gemini / 自定义兼容服务
@@ -51,8 +52,12 @@ OpenAI Client
 - 一条模型 RouteRule 的 `modelRouting.models[]` 中，每个公开模型别名独立引用模型 Upstream 和厂商模型；同一路由可以按请求体 `model` 跨厂商选择目标
 - Envoy Config Compiler 生成 Cluster、受控内部选路 Header 和 `ai-proxy` 私有执行配置；用户不需要安装插件或编辑插件 JSON
 - `ai-proxy` 将请求、普通响应、错误、Token usage 和 SSE 统一为 OpenAI-compatible 语义，响应中的 `model` 始终返回客户端公开别名
+- `TokenQuotaPolicy` 可以应用到模型 Route 或承载模型 Route 的 Gateway，按共享预算、来源 IP 或请求 Header 值累计输入与输出 Token；多个 `targetRefs[]` 共享同一个策略预算池
+- Token 配额在请求前检查当前固定窗口，在响应结束后按上游返回的实际 `usage.total_tokens` 记账；并发中的请求可能造成有限超额，因此首版属于软额度而不是严格预扣
 
-第一阶段只支持文本 `system`、`user`、`assistant` 消息和 `model/messages/stream/temperature/top_p/max_tokens/stop`。当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动同步厂商模型、多 Provider fallback/retry、Token 配额、OAuth/IAM 云认证及大文件请求。单次 AI 请求体上限为 1 MiB。
+Token 配额用于预算保护，不替代计费系统。流式请求在完成标记到达前中断时可能漏记；Header 维度必须使用可信认证层写入且客户端无法伪造的值。自定义 OpenAI-compatible 上游若启用流式 Token 配额，需要支持 `stream_options.include_usage` 并在最终事件返回 usage。
+
+第一阶段只支持文本 `system`、`user`、`assistant` 消息和 `model/messages/stream/temperature/top_p/max_tokens/stop`。当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动同步厂商模型、多 Provider fallback/retry、OAuth/IAM 云认证及大文件请求。单次 AI 请求体上限为 1 MiB。
 
 所有产品状态都通过声明式资源的 status 表达。Admin API 只访问 API Server，不直接查询 Controller；Controller 通过 status 子资源写入 `Accepted`、`ResolvedRefs` 和 `Programmed` 等观察结果，Policy 还使用 `status.targets[]` 记录每个目标的生效状态。
 

@@ -66,13 +66,14 @@ type Resources struct {
 	Upstreams             []*gatewayv1.Upstream
 	RateLimitPolicies     []*gatewayv1.RateLimitPolicy
 	AccessControlPolicies []*gatewayv1.AccessControlPolicy
+	TokenQuotaPolicies    []*gatewayv1.TokenQuotaPolicy
 }
 
 // Generations 返回当前资源集合中所有非 nil 资源的身份和 spec 版本
 func (r Resources) Generations() []ResourceGeneration {
 	result := make([]ResourceGeneration, 0,
 		len(r.Gateways)+len(r.Certificates)+len(r.Routes)+len(r.Upstreams)+
-			len(r.RateLimitPolicies)+len(r.AccessControlPolicies),
+			len(r.RateLimitPolicies)+len(r.AccessControlPolicies)+len(r.TokenQuotaPolicies),
 	)
 	for _, resource := range r.Gateways {
 		if resource != nil {
@@ -102,6 +103,11 @@ func (r Resources) Generations() []ResourceGeneration {
 	for _, resource := range r.AccessControlPolicies {
 		if resource != nil {
 			result = append(result, newResourceGeneration(gatewayv1.KindAccessControlPolicy, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.TokenQuotaPolicies {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindTokenQuotaPolicy, resource.Name, resource.UID, resource.Generation))
 		}
 	}
 	return result

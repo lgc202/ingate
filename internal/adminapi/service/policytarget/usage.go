@@ -6,6 +6,7 @@ import (
 
 	accesscontrolpolicystore "github.com/lgc202/ingate/internal/adminapi/store/accesscontrolpolicy"
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
+	tokenquotapolicystore "github.com/lgc202/ingate/internal/adminapi/store/tokenquotapolicy"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -18,16 +19,19 @@ type Usage struct {
 type UsageFinder struct {
 	rateLimitPolicies     *ratelimitpolicystore.Store
 	accessControlPolicies *accesscontrolpolicystore.Store
+	tokenQuotaPolicies    *tokenquotapolicystore.Store
 }
 
 // NewUsageFinder 创建策略目标引用查询器
 func NewUsageFinder(
 	rateLimitPolicies *ratelimitpolicystore.Store,
 	accessControlPolicies *accesscontrolpolicystore.Store,
+	tokenQuotaPolicies *tokenquotapolicystore.Store,
 ) *UsageFinder {
 	return &UsageFinder{
 		rateLimitPolicies:     rateLimitPolicies,
 		accessControlPolicies: accessControlPolicies,
+		tokenQuotaPolicies:    tokenQuotaPolicies,
 	}
 }
 
@@ -48,6 +52,16 @@ func (f *UsageFinder) Find(ctx context.Context, target resource.PolicyTargetRef)
 		return nil, err
 	}
 	for _, policy := range accessControlPolicies.Items {
+		if slices.Contains(policy.Spec.TargetRefs, target) {
+			return &Usage{DisplayName: policy.Spec.DisplayName}, nil
+		}
+	}
+
+	tokenQuotaPolicies, err := f.tokenQuotaPolicies.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, policy := range tokenQuotaPolicies.Items {
 		if slices.Contains(policy.Spec.TargetRefs, target) {
 			return &Usage{DisplayName: policy.Spec.DisplayName}, nil
 		}

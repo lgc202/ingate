@@ -1,4 +1,4 @@
-.PHONY: build generate test ratelimit-plugin-test ratelimit-plugin-build acl-plugin-test acl-plugin-build ai-proxy-plugin-test ai-proxy-plugin-build plugins-test plugins-build console-install console-build all-in-one-binaries all-in-one-image dev-image dev-restart dev-reset
+.PHONY: build generate test ratelimit-plugin-test ratelimit-plugin-build tokenquota-plugin-test tokenquota-plugin-build acl-plugin-test acl-plugin-build ai-proxy-plugin-test ai-proxy-plugin-build plugins-test plugins-build console-install console-build all-in-one-binaries all-in-one-image dev-image dev-restart dev-reset
 
 GO_CACHE_DIR ?= /tmp/ingate-gocache
 GO_MOD_CACHE_DIR ?= /tmp/ingate-gomodcache
@@ -10,6 +10,8 @@ DEV_TAG ?= dev
 DEV_DATA_DIR ?= ./ingate-dev
 RATELIMIT_PLUGIN_DIR ?= plugins/ratelimit
 RATELIMIT_PLUGIN_OUT ?= _output/plugins/ratelimit.wasm
+TOKENQUOTA_PLUGIN_DIR ?= plugins/tokenquota
+TOKENQUOTA_PLUGIN_OUT ?= _output/plugins/tokenquota.wasm
 ACL_PLUGIN_DIR ?= plugins/acl
 ACL_PLUGIN_OUT ?= _output/plugins/acl.wasm
 AI_PROXY_PLUGIN_DIR ?= plugins/aiproxy
@@ -38,6 +40,13 @@ ratelimit-plugin-build:
 	mkdir -p _output/plugins
 	cd $(RATELIMIT_PLUGIN_DIR) && GOOS=wasip1 GOARCH=wasm GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build -buildmode=c-shared -o ../../$(RATELIMIT_PLUGIN_OUT) .
 
+tokenquota-plugin-test:
+	cd $(TOKENQUOTA_PLUGIN_DIR) && GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go test ./...
+
+tokenquota-plugin-build:
+	mkdir -p _output/plugins
+	cd $(TOKENQUOTA_PLUGIN_DIR) && GOOS=wasip1 GOARCH=wasm GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build -buildmode=c-shared -o ../../$(TOKENQUOTA_PLUGIN_OUT) .
+
 acl-plugin-test:
 	cd $(ACL_PLUGIN_DIR) && GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go test ./...
 
@@ -52,9 +61,9 @@ ai-proxy-plugin-build:
 	mkdir -p _output/plugins
 	cd $(AI_PROXY_PLUGIN_DIR) && GOOS=wasip1 GOARCH=wasm GOCACHE=$(GO_CACHE_DIR) GOMODCACHE=$(GO_MOD_CACHE_DIR) go build -buildmode=c-shared -o ../../$(AI_PROXY_PLUGIN_OUT) .
 
-plugins-test: ratelimit-plugin-test acl-plugin-test ai-proxy-plugin-test
+plugins-test: ratelimit-plugin-test tokenquota-plugin-test acl-plugin-test ai-proxy-plugin-test
 
-plugins-build: ratelimit-plugin-build acl-plugin-build ai-proxy-plugin-build
+plugins-build: ratelimit-plugin-build tokenquota-plugin-build acl-plugin-build ai-proxy-plugin-build
 
 console-install:
 	cd $(CONSOLE_DIR) && npm ci

@@ -288,8 +288,13 @@ func (c *compilation) addAIProxyConfigs(configs map[listenerKey]listenerPluginCo
 			RouteName:   attachment.routeID,
 			RuleName:    attachment.ruleName,
 			ConfigID:    aiRoute.configID,
-			Upstreams:   slices.Clone(aiRoute.upstreams),
-			Models:      slices.Clone(aiRoute.models),
+			RequireUsage: config.requiresAIUsage(
+				attachment.gatewayID,
+				attachment.routeID,
+				attachment.ruleName,
+			),
+			Upstreams: slices.Clone(aiRoute.upstreams),
+			Models:    slices.Clone(aiRoute.models),
 		})
 		configs[attachment.listenerKey] = config
 	}

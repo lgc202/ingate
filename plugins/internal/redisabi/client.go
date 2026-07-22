@@ -10,7 +10,7 @@ import (
 const (
 	// SystemCluster 是 Envoy bootstrap 中系统 Redis 的固定 cluster 名称
 	SystemCluster = "ingate-system-redis"
-	// CommandTimeout 是 Redis hostcall 的系统级固定超时
+	// CommandTimeout 是请求路径上单次 Redis 操作的固定超时
 	CommandTimeout = 50 * time.Millisecond
 
 	clusterInitialization = SystemCluster + "?buffer_flush_timeout=0&max_buffer_size_before_flush=0"
@@ -88,6 +88,14 @@ func ResumeHTTPRequest(httpContextID uint32) error {
 		return err
 	}
 	return hostResumeHTTPRequest()
+}
+
+// ResumeHTTPResponse 在显式 HTTP context 中恢复暂停的响应流
+func ResumeHTTPResponse(httpContextID uint32) error {
+	if err := hostSetEffectiveContext(httpContextID); err != nil {
+		return err
+	}
+	return hostResumeHTTPResponse()
 }
 
 // SendHTTPResponse 在显式 HTTP context 中返回本地响应

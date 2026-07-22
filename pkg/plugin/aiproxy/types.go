@@ -26,12 +26,13 @@ type PluginConfig struct {
 
 // RouteConfig 表示一条 RouteRule 的模型路由执行配置
 type RouteConfig struct {
-	GatewayName string           `json:"gatewayName"`
-	RouteName   string           `json:"routeName"`
-	RuleName    string           `json:"ruleName"`
-	ConfigID    string           `json:"configID"`
-	Upstreams   []UpstreamConfig `json:"upstreams"`
-	Models      []ModelConfig    `json:"models"`
+	GatewayName  string           `json:"gatewayName"`
+	RouteName    string           `json:"routeName"`
+	RuleName     string           `json:"ruleName"`
+	ConfigID     string           `json:"configID"`
+	RequireUsage bool             `json:"requireUsage,omitempty"`
+	Upstreams    []UpstreamConfig `json:"upstreams"`
+	Models       []ModelConfig    `json:"models"`
 }
 
 // UpstreamConfig 表示模型路由可选择的一个实际模型上游

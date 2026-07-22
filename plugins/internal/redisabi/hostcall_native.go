@@ -29,6 +29,10 @@ func hostResumeHTTPRequest() error {
 	return errHostUnavailable
 }
 
+func hostResumeHTTPResponse() error {
+	return errHostUnavailable
+}
+
 func hostSendHTTPResponse(uint32, map[string]string, []byte) error {
 	return errHostUnavailable
 }

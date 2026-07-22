@@ -29,7 +29,7 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - `ingate-controller`：资源状态收敛、Envoy 配置编译和 xDS 服务
 - `Envoy`：唯一数据平面
 - `etcd`：声明式资源持久化，仅由 ingate-apiserver 访问
-- `Redis`：限流和未来 Token 配额等请求路径共享状态
+- `Redis`：限流和 Token 配额等请求路径共享状态
 
 暂时不加入：
 
@@ -49,7 +49,10 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - `pkg/llm` 是不依赖 Ingate、Envoy、Proxy-Wasm、Gin 或 Kubernetes 的纯 Go 协议包，不发送模型 HTTP 请求、不读取环境变量、不管理密钥持久化；Provider 协议适配按子包隔离
 - 模型 Upstream 通过 `tls.serverName` 使用 HTTPS、SNI 和系统 CA 根证书包校验；配置或保留 API Key 时必须启用 HTTPS
 - 第一阶段只支持文本 `system`、`user`、`assistant` 消息，以及 `model`、`messages`、`stream`、`temperature`、`top_p`、`max_tokens`、`stop`；普通响应、SSE、错误和 Token usage 统一为 OpenAI-compatible 结构，响应 `model` 返回客户端公开别名
-- 当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动模型同步、多 Provider fallback/retry、模型级重试、TokenQuotaPolicy、OAuth/IAM 云认证或大文件请求；单次请求体上限为 1 MiB
+- 当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动模型同步、多 Provider fallback/retry、模型级重试、OAuth/IAM 云认证或大文件请求；单次请求体上限为 1 MiB
+- `TokenQuotaPolicy` 为一个策略定义一个共享预算池，只应用到目标 Gateway 或 Route 下的模型 RouteRule；支持所有请求共享、按客户端 IP 和按请求 Header 值区分预算池
+- Token 配额固定统计归一化响应中的输入与输出 `total_tokens`，请求前检查当前固定窗口已用额度，响应结束后按实际 usage 记账；并发中的请求可能造成有限超额，不把首版能力描述为严格预扣的硬额度
+- 受 Token 配额保护的 OpenAI-compatible 流式请求由 `ai-proxy` 内部注入 usage 请求参数，客户端协议仍不开放 `stream_options`
 
 ## 部署目录
 
@@ -66,7 +69,7 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - 内置治理插件不建模为用户创建的通用插件资源或插件绑定资源；用户配置的是对应的强类型 Policy 和必要的依赖资源。
 - 强类型 Policy 通过自身的 `targetRefs[]` 直接引用 Gateway 或 Route，不再使用独立 `PolicyBinding`。`targetRefs[]` 允许为空，表示策略已保存但当前不应用到流量。
 - xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次内置 Wasm filter，filter 配置携带 Envoy Config Compiler 生成的可执行策略索引，插件通过当前 xDS route name 定位 route/rule 配置。
-- Redis 是系统组件，不建模为 RedisStore 资源；RateLimitPolicy 和未来 TokenQuotaPolicy 自动使用 Envoy bootstrap 中的 `ingate-system-redis`。RateLimitPolicy 不向用户暴露 Local/Global 计数模式或限流算法，实际执行方式由 Ingate 内部统一选择。
+- Redis 是系统组件，不建模为 RedisStore 资源；RateLimitPolicy 和 TokenQuotaPolicy 自动使用 Envoy bootstrap 中的 `ingate-system-redis`。RateLimitPolicy 不向用户暴露 Local/Global 计数模式或限流算法，实际执行方式由 Ingate 内部统一选择。
 - Redis 扩展由 Ingate 自己维护最小 ABI adapter，现有插件继续使用标准 Proxy-Wasm SDK，生产代码不 import `github.com/higress-group/...`。
 - 内置插件随 Ingate 数据面镜像或安装包发布，默认放在 `/opt/ingate/plugins`；`/data/ingate/plugins` 用于未来动态下载、缓存或用户安装的外部插件。
 - 用户自定义插件仍走普通插件模型，不和内置治理插件混用同一套产品协议。

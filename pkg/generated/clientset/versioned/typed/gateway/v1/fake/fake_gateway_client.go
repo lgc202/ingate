@@ -34,6 +34,10 @@ func (c *FakeGatewayV1) Routes() v1.RouteInterface {
 	return newFakeRoutes(c)
 }
 
+func (c *FakeGatewayV1) TokenQuotaPolicies() v1.TokenQuotaPolicyInterface {
+	return newFakeTokenQuotaPolicies(c)
+}
+
 func (c *FakeGatewayV1) Upstreams() v1.UpstreamInterface {
 	return newFakeUpstreams(c)
 }

@@ -6,6 +6,7 @@ import (
 	gatewaystore "github.com/lgc202/ingate/internal/adminapi/store/gateway"
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/adminapi/store/ratelimitpolicy"
 	routestore "github.com/lgc202/ingate/internal/adminapi/store/route"
+	tokenquotapolicystore "github.com/lgc202/ingate/internal/adminapi/store/tokenquotapolicy"
 	upstreamstore "github.com/lgc202/ingate/internal/adminapi/store/upstream"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
@@ -18,6 +19,7 @@ type Store struct {
 	Upstream            *upstreamstore.Store
 	AccessControlPolicy *accesscontrolpolicystore.Store
 	RateLimitPolicy     *ratelimitpolicystore.Store
+	TokenQuotaPolicy    *tokenquotapolicystore.Store
 }
 
 // New 创建 store 聚合入口
@@ -29,5 +31,6 @@ func New(client clientset.Interface) *Store {
 		Upstream:            upstreamstore.New(client),
 		AccessControlPolicy: accesscontrolpolicystore.New(client),
 		RateLimitPolicy:     ratelimitpolicystore.New(client),
+		TokenQuotaPolicy:    tokenquotapolicystore.New(client),
 	}
 }

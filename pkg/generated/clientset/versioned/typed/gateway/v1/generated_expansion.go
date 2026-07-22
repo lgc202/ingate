@@ -14,4 +14,6 @@ type RateLimitPolicyExpansion interface{}
 
 type RouteExpansion interface{}
 
+type TokenQuotaPolicyExpansion interface{}
+
 type UpstreamExpansion interface{}
