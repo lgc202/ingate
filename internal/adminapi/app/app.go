@@ -71,16 +71,16 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	defer logger.Close()
 	loaded.OnChange(func(old, next Config) {
 		if err := next.Validate(); err != nil {
-			logger.Error("忽略无效的配置文件变更", "err", err)
+			logger.Error("ignoring invalid configuration change", "err", err)
 			return
 		}
 		old.Logging.ApplyDynamic(next.Logging, logger)
 		old.Logging = next.Logging
 		if kitconfig.Changed(old, next) {
-			logger.Warn("服务配置已变化，将在重启后生效")
+			logger.Warn("service configuration changed and requires a restart")
 		}
 	})
-	logger.Info("服务启动", "config_file", configPath)
+	logger.Info("service started", "config_file", configPath)
 
 	restConfig, err := clientcmd.BuildConfigFromFlags(settings.APIServer.Master, settings.APIServer.Kubeconfig)
 	if err != nil {

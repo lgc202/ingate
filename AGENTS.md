@@ -31,16 +31,16 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - `etcd`：声明式资源持久化，仅由 ingate-apiserver 访问
 - `Redis`：限流和 Token 配额等请求路径共享状态
 
-暂时不加入：
+当前不包含：
 
 - AI runtime
 - data-plane agent
 - Kubernetes operator
 
-## 第一阶段 AI Gateway
+## AI Gateway 当前范围
 
 - 不新增 AI runtime 或独立服务，AI 请求继续使用现有 Controller 编译链路和 Envoy 数据面
-- 对外统一支持 OpenAI-compatible `POST /v1/chat/completions`；第一批上游支持 OpenAI、DeepSeek、通义千问兼容模式、Anthropic 原生协议、Gemini 原生协议和自定义 OpenAI-compatible 服务
+- 对外统一支持 OpenAI-compatible `POST /v1/chat/completions`；当前上游支持 OpenAI、DeepSeek、通义千问兼容模式、Anthropic 原生协议、Gemini 原生协议和自定义 OpenAI-compatible 服务
 - 模型服务仍建模为 `Upstream(type=model)`，通过 `protocol` 表达 OpenAI、Anthropic 或 Gemini 通信语义，通过 `spec.model.provider` 表达具体厂商；不新增 Provider、Model、AIRoute 或 AIBackend 等平行资源
 - 模型目录由用户在模型 Upstream 的 `spec.model.models[]` 中手工维护，不自动同步厂商模型列表
 - API Key 直接作为模型 Upstream 的认证配置，不创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略表示保留、显式移除才会清除
@@ -48,20 +48,34 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - Envoy Route 使用受控内部 Header 和内部续接 Route 选择目标 Cluster，并由续接 Route 写入上游 Host；内置 `ai-proxy` Wasm 负责模型别名匹配、协议转换、路径与认证 Header 改写、响应与 SSE 归一化，用户不编辑插件私有配置
 - `pkg/llm` 是不依赖 Ingate、Envoy、Proxy-Wasm、Gin 或 Kubernetes 的纯 Go 协议包，不发送模型 HTTP 请求、不读取环境变量、不管理密钥持久化；Provider 协议适配按子包隔离
 - 模型 Upstream 通过 `tls.serverName` 使用 HTTPS、SNI 和系统 CA 根证书包校验；配置或保留 API Key 时必须启用 HTTPS
-- 第一阶段只支持文本 `system`、`user`、`assistant` 消息，以及 `model`、`messages`、`stream`、`temperature`、`top_p`、`max_tokens`、`stop`；普通响应、SSE、错误和 Token usage 统一为 OpenAI-compatible 结构，响应 `model` 返回客户端公开别名
+- 当前只支持文本 `system`、`user`、`assistant` 消息，以及 `model`、`messages`、`stream`、`temperature`、`top_p`、`max_tokens`、`stop`；普通响应、SSE、错误和 Token usage 统一为 OpenAI-compatible 结构，响应 `model` 返回客户端公开别名
 - 当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动模型同步、多 Provider fallback/retry、模型级重试、OAuth/IAM 云认证或大文件请求；单次请求体上限为 1 MiB
 - `TokenQuotaPolicy` 为一个策略定义一个共享预算池，只应用到目标 Gateway 或 Route 下的模型 RouteRule；支持所有请求共享、按客户端 IP 和按请求 Header 值区分预算池
-- Token 配额固定统计归一化响应中的输入与输出 `total_tokens`，请求前检查当前固定窗口已用额度，响应结束后按实际 usage 记账；并发中的请求可能造成有限超额，不把首版能力描述为严格预扣的硬额度
+- Token 配额固定统计归一化响应中的输入与输出 `total_tokens`，请求前检查当前固定窗口已用额度，响应结束后按实际 usage 记账；并发中的请求可能造成有限超额，不把当前能力描述为严格预扣的硬额度
 - 受 Token 配额保护的 OpenAI-compatible 流式请求由 `ai-proxy` 内部注入 usage 请求参数，客户端协议仍不开放 `stream_options`
 
-## 部署目录
+## 工程实现原则
 
-- 安装包和容器内统一使用 `/opt/ingate` 保存组件相关文件，使用 `/data/ingate` 保存运行产生的持久化数据。
-- 各组件的二进制、配置、静态资源和脚本放在 `/opt/ingate/<component>` 下，不把实际运行配置放入 `/data/ingate`。
-- API Server 自身运行证书放在 `/opt/ingate/apiserver/certificates`。用户为 Gateway 创建的 Certificate 仍是声明式资源，由 API Server 持久化到 etcd，不作为本地文件放进该目录。
-- 内置插件放在 `/opt/ingate/plugins`；外部安装或动态缓存的插件放在 `/data/ingate/plugins`。
-- 日志、etcd 数据和 Redis 数据等分别放在 `/data/ingate/<component>` 下，未来的备份统一放在 `/data/ingate/backups`。
-- 这些绝对路径只约束安装包和容器内布局；源码开发可以继续使用 `configs/`、`_output/` 和 `ingate-dev/` 等相对路径。
+- 新能力必须从真实调用方和可验收场景开始，不创建空接口、空目录、占位资源和没有读写方的状态。
+- 能直接使用 Go 标准库、现有依赖或目标项目官方实现时优先复用；参考开源项目必须能指向实际源码，不根据架构图自造运行时概念。
+- 第三方框架和实现细节不能进入 Ingate 的外部 API、资源名称和产品术语。
+- 函数、接口和中间结构只有在隔离真实变化或明显提高主流程可读性时才增加。
+- 错误、重试和兼容逻辑按真实调用方需要设计，不建立无人消费的错误分类、状态机和历史兼容层。
+- 当前项目没有需要兼容的生产历史数据时，错误的资源或配置设计直接重写，Git 负责保存历史。
+- 代码、生成协议、README 和架构文档只保留一套当前事实；撤销的设计直接删除，不在主文档中保留过程性 Plan。
+- Go 标识符和日志消息使用英文；代码注释使用中文，解释领域语义、设计约束和不明显的原因。
+- 日志消息和结构化字段中的错误文本都不能包含中文；中文错误只用于返回给前端的用户提示，`xerrors.UserError` 通过 `LogValue` 向日志提供稳定的英文语义。
+
+## 部署边界
+
+- 服务二进制、YAML 配置、环境变量、健康检查、日志和优雅退出必须保持部署方式中立，业务代码不能感知 Docker Compose、systemd 或 Kubernetes。
+- Docker Compose 只是开发、联调和演示方式，不是唯一部署模型，也不代表生产拓扑。
+- 不再提供把 etcd、Redis、Envoy 和多个 Go 服务塞进同一个容器的 all-in-one 镜像。
+- Compose 中每个服务使用独立容器和健康检查；Controller 与 Envoy 共享网络命名空间，使未启用 mTLS 的 xDS 继续只监听 loopback。
+- 后续只有出现真实交付需求时才分别设计 systemd 或 Kubernetes，不提前建立通用部署抽象。
+- 安装包和容器内使用 `/opt/ingate/<component>` 保存二进制、配置和静态资源；运行数据由具体部署方式挂载到明确目录。
+- API Server 自身运行证书与用户声明的 Gateway Certificate 是不同概念，后者始终由 API Server 持久化到 etcd。
+- 内置插件固定放在 Envoy 可读取的 `/opt/ingate/plugins`，用户不感知插件文件路径。
 
 ## 内置治理插件
 
@@ -71,13 +85,13 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次内置 Wasm filter，filter 配置携带 Envoy Config Compiler 生成的可执行策略索引，插件通过当前 xDS route name 定位 route/rule 配置。
 - Redis 是系统组件，不建模为 RedisStore 资源；RateLimitPolicy 和 TokenQuotaPolicy 自动使用 Envoy bootstrap 中的 `ingate-system-redis`。RateLimitPolicy 不向用户暴露 Local/Global 计数模式或限流算法，实际执行方式由 Ingate 内部统一选择。
 - Redis 扩展由 Ingate 自己维护最小 ABI adapter，现有插件继续使用标准 Proxy-Wasm SDK，生产代码不 import `github.com/higress-group/...`。
-- 内置插件随 Ingate 数据面镜像或安装包发布，默认放在 `/opt/ingate/plugins`；`/data/ingate/plugins` 用于未来动态下载、缓存或用户安装的外部插件。
+- 内置插件随 Ingate 数据面镜像发布，默认放在 `/opt/ingate/plugins`。
 - 用户自定义插件仍走普通插件模型，不和内置治理插件混用同一套产品协议。
 
 ## Go 版本
 
 - 使用 Go 1.26。
-- 完成改动前运行 `make test` 和 `make build`。
+- 完成改动前运行 `make verify`；修改镜像或 Compose 时还要运行 `make docker-up` 并实际验证组件状态。
 
 ## 编码规范
 

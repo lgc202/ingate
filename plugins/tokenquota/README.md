@@ -4,7 +4,7 @@
 
 一个 Policy 定义一个跨全部 `targetRefs[]` 共享的预算池，并可选择所有命中请求共享、按网关看到的来源 IP 或按请求 Header 值划分主体。预算池身份由资源 UID 派生，删除后同名重建不会继承旧窗口计数；普通配置更新不会重置额度。IP 和 Header 原始值会先经过 SHA-256，再进入 Redis key，不保存明文主体值。
 
-插件使用 Envoy bootstrap 中固定的 `ingate-system-redis`，按 Redis 服务端时间计算固定窗口。请求进入时原子查询当前窗口已用额度，达到上限后返回 OpenAI-compatible 错误响应；通过检查的请求不预扣额度，因此并发请求可能造成有限超额。首版语义是 best-effort 的后付费软额度，不是严格硬额度，也不应作为财务计费依据。
+插件使用 Envoy bootstrap 中固定的 `ingate-system-redis`，按 Redis 服务端时间计算固定窗口。请求进入时原子查询当前窗口已用额度，达到上限后返回 OpenAI-compatible 错误响应；通过检查的请求不预扣额度，因此并发请求可能造成有限超额。当前语义是 best-effort 的后付费软额度，不是严格硬额度，也不应作为财务计费依据。
 
 响应结束后，插件按归一化响应最后一个合法的 `usage.total_tokens` 原子记账。普通 JSON 响应读取最终 usage；SSE 响应增量解析事件，只保留最后一个合法值，并在完成标记下发前记账。没有合法 usage 时记录错误但不计费；流式连接在完成标记到达前中断时同样无法记账。长请求跨越窗口时，实际 Token 计入响应结束时所在的窗口。
 
@@ -33,5 +33,5 @@ internal/usage   # 普通响应和 SSE usage 提取
 插件默认发布到 `/opt/ingate/plugins/tokenquota.wasm`，在仓库根目录运行：
 
 ```bash
-make tokenquota-plugin-build
+make plugins-build
 ```

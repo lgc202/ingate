@@ -1,11 +1,9 @@
 /_output/
 /.gocache/
 /.gomodcache/
-/ingate
-/ingate-dev/
-/ingate-next-dev/
 /web/console/node_modules/
 /web/console/dist/
 /web/console/*.tsbuildinfo
+.env
 .DS_Store
 *.log

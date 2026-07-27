@@ -1,13 +1,7 @@
 .git
 .gocache
 .gomodcache
-ingate
-ingate-dev
-ingate-next-dev
-docs/images
+.env
 web/console/node_modules
-_output/*
-!_output/all-in-one
-!_output/all-in-one/**
-!_output/plugins
-!_output/plugins/**
+web/console/dist
+_output

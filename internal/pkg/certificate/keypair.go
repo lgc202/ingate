@@ -11,12 +11,12 @@ import (
 func ParseKeyPair(certificatePEM, privateKeyPEM string) (*x509.Certificate, error) {
 	keyPair, err := tls.X509KeyPair([]byte(certificatePEM), []byte(privateKeyPEM))
 	if err != nil {
-		return nil, fmt.Errorf("解析 TLS 证书和私钥: %w", err)
+		return nil, fmt.Errorf("parse TLS certificate and private key: %w", err)
 	}
 
 	leaf, err := x509.ParseCertificate(keyPair.Certificate[0])
 	if err != nil {
-		return nil, fmt.Errorf("解析叶子证书: %w", err)
+		return nil, fmt.Errorf("parse leaf certificate: %w", err)
 	}
 	return leaf, nil
 }

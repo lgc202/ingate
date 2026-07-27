@@ -20,5 +20,5 @@ internal/redis   # RESP 编解码与 Redis 令牌桶协议
 插件默认发布到 `/opt/ingate/plugins/ratelimit.wasm`，在仓库根目录运行：
 
 ```bash
-make ratelimit-plugin-build
+make plugins-build
 ```

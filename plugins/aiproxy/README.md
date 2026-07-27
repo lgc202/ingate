@@ -1,6 +1,6 @@
 # AI Proxy 插件
 
-AI Proxy 是 Ingate 内置的数据面插件。第一阶段对外只处理 OpenAI-compatible
+AI Proxy 是 Ingate 内置的数据面插件。当前对外只处理 OpenAI-compatible
 `POST /v1/chat/completions`，模型服务仍由声明式 `Upstream` 和 Route 的
 `modelRouting` 管理，用户不会直接编辑插件私有 JSON。
 
@@ -9,7 +9,7 @@ AI Proxy 是 Ingate 内置的数据面插件。第一阶段对外只处理 OpenA
 规则版本 Header、Cluster Header 和认证 Header。Envoy 按标准 Route cache 语义重新选中
 只接受内部 Header 的续接 Route，由续接 Route 选择 Cluster、写入上游 Host 并移除内部 Header。
 
-第一批目标包括 OpenAI、DeepSeek、通义千问兼容模式、Anthropic、Gemini 和自定义
+当前支持 OpenAI、DeepSeek、通义千问兼容模式、Anthropic、Gemini 和自定义
 OpenAI-compatible 服务。普通响应、错误、Token usage 和 SSE 会转换成
 OpenAI-compatible 结构，响应中的 `model` 始终使用客户端公开别名。客户端提供的内部
 选路 Header 和模型服务凭据会在处理开始时移除。
@@ -18,7 +18,7 @@ OpenAI-compatible 结构，响应中的 `model` 始终使用客户端公开别�
 客户端开放，也不会注入 Anthropic 或 Gemini 上游。
 
 协议转换由顶层 `pkg/llm` 提供。该包不依赖 Proxy-Wasm；本目录只承载配置索引、请求
-生命周期和 hostcall 适配。第一阶段只支持文本 `system`、`user`、`assistant` 消息和
+生命周期和 hostcall 适配。当前只支持文本 `system`、`user`、`assistant` 消息和
 `model/messages/stream/temperature/top_p/max_tokens/stop`，不支持 Tools、多模态、
 fallback 或模型级重试。
 
