@@ -116,9 +116,9 @@ Policy 除总体 `status.conditions` 外，还通过 `status.targets[]` 记录�
 
 Admin API 只把 Condition 转换成面向页面的状态摘要，不向控制台泄漏 Kubernetes 资源结构、Envoy、xDS、ACK 或 NACK 等实现细节。
 
-## 第一阶段 AI Gateway
+## AI Gateway
 
-第一阶段 AI Gateway 直接复用现有控制面和 Envoy 数据面，不新增 AI runtime、协议转换服务或其他独立组件：
+AI Gateway 直接复用现有控制面和 Envoy 数据面，不新增 AI runtime、协议转换服务或其他独立组件：
 
 ```text
 OpenAI Client
@@ -160,13 +160,13 @@ Admin API 和控制台在每条模型映射中使用 `upstreamID` 表达模型�
 
 数据面只对 `POST /v1/chat/completions` 缓冲并解析请求体。`ai-proxy` 根据公开模型别名选择目标，转换厂商请求体和路径，写入受控的规则版本 Header、Cluster Header 与认证 Header。Proxy-Wasm 修改请求路径和 Header 时，Envoy 会按标准语义清除 Route cache；随后只有携带这两个内部 Header 的续接 Route 能命中，续接 Route 选择目标 Cluster、写入上游 Host，并移除内部 Header。这样不依赖 Higress 的产品路由模型，也不会让修改后的 Anthropic 或 Gemini 路径丢失 Route。客户端提供的内部选路和上游凭据一律不可信并在插件入口清除。
 
-OpenAI-compatible、Anthropic 和 Gemini 上游都只接受第一阶段公开的文本消息字段；Anthropic 和 Gemini 进一步完成厂商协议转换。对外统一返回 OpenAI-compatible 错误、finish reason、Token usage 和公开模型名称。跨 chunk SSE 使用有状态解析，不受 `bufio.Scanner` 64 KiB 限制，但单个未完成事件有显式的 1 MiB 安全上限。
+OpenAI-compatible、Anthropic 和 Gemini 上游都只接受当前公开的文本消息字段；Anthropic 和 Gemini 进一步完成厂商协议转换。对外统一返回 OpenAI-compatible 错误、finish reason、Token usage 和公开模型名称。跨 chunk SSE 使用有状态解析，不受 `bufio.Scanner` 64 KiB 限制，但单个未完成事件有显式的 1 MiB 安全上限。
 
 模型 Upstream 可通过 `tls.serverName` 使用 HTTPS。Compiler 配置 SNI、数据面镜像的系统 CA 根证书包、精确 DNS/IP SAN 校验和 HTTP/1.1 ALPN。
 
 纯协议转换放在顶层 `pkg/llm`。该包不依赖 Ingate 资源、Envoy、Proxy-Wasm、Gin 或 Kubernetes，不发送模型 HTTP 请求、不读取环境变量，也不管理密钥持久化；数据面适配层只负责把编译配置和 Proxy-Wasm hostcall 接到纯转换函数。
 
-第一阶段限制：
+当前限制：
 
 - 单次请求体上限为 1 MiB，不面向大文件或大体积多模态输入
 - 只支持文本 `system`、`user`、`assistant` 消息和 `model/messages/stream/temperature/top_p/max_tokens/stop`
@@ -182,7 +182,7 @@ RateLimitPolicy 统一使用系统 Redis，用户协议不包含 Local/Global �
 
 TokenQuotaPolicy 为一个策略定义一个 Token 预算池，仅展开到目标 Gateway 或 Route 下的模型 RouteRule。预算池可以由所有命中请求共享，也可以按网关看到的来源 IP 或指定请求 Header 值区分；Header 和 IP 原始值经过哈希后才进入 Redis key。多个 targetRef 命中同一策略时仍共享同一预算池，需要独立预算时应创建多条策略。
 
-数据面在请求进入模型服务前检查当前固定窗口的已用额度，在 AI Proxy 完成普通响应或 SSE 归一化后读取最后一个 `usage.total_tokens` 并记账。OpenAI-compatible 流式上游在策略生效时由 AI Proxy 内部请求最终 usage，客户端协议不开放 `stream_options`。首版不做字符估算和模型 tokenizer 预扣；并发中的在途请求可能造成有限超额，因此这是 best-effort 的后付费软额度，不是严格硬额度，也不能替代计费系统。
+数据面在请求进入模型服务前检查当前固定窗口的已用额度，在 AI Proxy 完成普通响应或 SSE 归一化后读取最后一个 `usage.total_tokens` 并记账。OpenAI-compatible 流式上游在策略生效时由 AI Proxy 内部请求最终 usage，客户端协议不开放 `stream_options`。当前不做字符估算和模型 tokenizer 预扣；并发中的在途请求可能造成有限超额，因此这是 best-effort 的后付费软额度，不是严格硬额度，也不能替代计费系统。
 
 Token 配额的主体划分和流式记账有以下运行约束：
 
@@ -205,45 +205,37 @@ Token 配额的主体划分和流式记账有以下运行约束：
 
 Envoy bootstrap 中固定存在 `ingate-system-redis`。Redis 是安装级系统组件，不是声明式资源。
 
-## 运行目录
+## 容器目录
 
-安装包和容器内使用统一目录语义，不因 systemd、Docker 或 Kubernetes 等部署方式改变：
+Ingate 镜像使用 `/opt/ingate` 保存随组件发布的文件：
 
-- `/opt/ingate` 保存组件二进制、配置、静态资源、脚本和其他随组件发布的文件
-- `/data/ingate` 保存日志、etcd、Redis、外部插件和备份等运行产生或需要持久化的数据
 - 各组件使用 `/opt/ingate/<component>/bin` 和 `/opt/ingate/<component>/configs`
 - API Server 自身运行证书放在 `/opt/ingate/apiserver/certificates`
-- 内置插件放在 `/opt/ingate/plugins`，外部安装或动态缓存的插件放在 `/data/ingate/plugins`
+- 内置插件放在 `/opt/ingate/plugins`
 
 API Server 自身运行证书是组件运行文件。用户为 Gateway 配置的 Certificate 是声明式资源，其 PEM 内容由 API Server 持久化到 etcd，再由 Controller 编译并下发给 Envoy，不写入 `/opt/ingate/apiserver/certificates`。
 
-绝对路径只约束安装包和容器内布局。源码开发仍可使用仓库中的 `configs/`、`_output/` 和 `ingate-dev/` 等相对路径。
+这些路径只约束当前容器镜像。源码开发仍使用仓库中的 `configs/` 和 `_output/`；运行数据位置由具体部署方式决定。
 
-## all-in-one
+## 部署边界
 
-all-in-one 只运行：
+Ingate 不把部署方式写入业务代码。每个 Go 服务都通过 YAML、环境变量和启动参数配置，提供健康检查并响应进程退出信号；日志可以写入标准输出或文件。systemd、Docker Compose 和 Kubernetes 可以使用同一套二进制和领域协议。
+
+当前仓库只落地 Docker Compose 开发联调环境，不把它描述为生产拓扑，也不提供把所有进程放进同一容器的镜像。未来出现明确交付需求时，再分别设计 systemd Unit 或 Kubernetes Workload。
+
+## Docker Compose 开发环境
+
+Compose 使用独立容器运行：
 
 - etcd
 - Redis
 - ingate-apiserver
 - ingate-controller
-- ingate-admin-api
+- ingate-admin-api 和 Console
 - Envoy
-- Console
 
-不包含独立 ingate-xds、ingate-dataplane 或示例 backend。
+Controller 与 Envoy 是独立容器，但共享网络命名空间。当前 xDS 没有启用 mTLS，因此继续只监听 `127.0.0.1:18000`；不能为了容器互联把敏感 xDS 直接开放到 Bridge Network。
 
-Envoy 二进制来自固定 digest 的 Higress gateway 镜像；Redis 来自固定 digest 的官方镜像。Redis 只绑定容器 loopback，并使用 AOF 保存限流和 Token 配额状态。standalone 形态不提供 Redis 高可用，生产集群可以按部署方式替换为兼容的高可用 Redis 地址。
+Ingate Envoy 镜像从固定 Digest 的 Higress Gateway 镜像提取带 Redis ABI 的 Envoy 二进制，并加入当前源码构建的内置 Wasm 插件和 Bootstrap。Redis 在 Compose 内不暴露宿主机端口，使用 AOF 保存开发联调期间的限流和 Token 配额状态。
 
-## 明确删除
-
-- RuntimeGroup
-- RuntimeSnapshot
-- RedisStore
-- Logical IR
-- Target 和 Translator
-- 独立 ingate-xds
-- ingate-dataplane
-- 插件到 dataplane 的 HTTP transport
-- Last Good 持久化
-- schema marker、自动迁移和存储 reset 协议
+Compose 只发布 Console `8001`、Gateway HTTP `8080` 和 Gateway HTTPS `8443`。etcd、Redis、API Server、xDS 和 Envoy Admin 都保持内部可见。

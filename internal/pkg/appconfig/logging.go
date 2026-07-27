@@ -79,14 +79,14 @@ func (c Logging) NewLogger(service string, stdout io.Writer) (*logx.Logger, erro
 func (c Logging) ApplyDynamic(next Logging, logger *logx.Logger) {
 	if logger.Level() != next.Level {
 		if err := logger.SetLevel(next.Level); err != nil {
-			logger.Error("更新日志级别失败，继续使用原级别", "err", err)
+			logger.Error("update log level failed, keeping current level", "err", err)
 		} else {
-			logger.Info("日志级别已更新", "level", next.Level)
+			logger.Info("log level updated", "level", next.Level)
 		}
 	}
 
 	c.Level = next.Level
 	if c != next {
-		logger.Warn("其他日志配置已变化，将在服务重启后生效")
+		logger.Warn("other logging settings changed and require a service restart")
 	}
 }

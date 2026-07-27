@@ -1,0 +1,123 @@
+name: ingate
+
+x-ingate-build: &ingate-build
+  context: .
+  dockerfile: deploy/docker/ingate.Dockerfile
+  args:
+    GIT_VERSION: ${GIT_VERSION:-v0.0.0-dev}
+    GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    GIT_TREE_STATE: ${GIT_TREE_STATE:-dirty}
+    BUILD_DATE: ${BUILD_DATE:-unknown}
+
+services:
+  etcd:
+    image: quay.io/coreos/etcd@sha256:8429758911821e36a15e2fe6ae75cfd563a501c97af0b3d119c74921f5fb6f19
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd
+      - --data-dir=/var/lib/etcd
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+    volumes:
+      - etcd-data:/var/lib/etcd
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/etcdctl", "endpoint", "health", "--endpoints=http://127.0.0.1:2379"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis@sha256:a8f08480e1f88f2647fed492d1178c06abb0d0c1fbf02c682a61e2f483fb3954
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    volumes:
+      - ./deploy/docker/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+  apiserver:
+    image: ingate/apiserver:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: apiserver
+    depends_on:
+      etcd:
+        condition: service_healthy
+    volumes:
+      - ./deploy/docker/configs/ingate-apiserver.yaml:/opt/ingate/apiserver/configs/config.yaml:ro
+      - apiserver-certificates:/opt/ingate/apiserver/certificates
+    healthcheck:
+      test: ["CMD", "curl", "-kfsS", "https://127.0.0.1:18443/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  controller:
+    image: ingate/controller:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: controller
+    depends_on:
+      apiserver:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${INGATE_HTTP_PORT:-8080}:8080"
+      - "127.0.0.1:${INGATE_HTTPS_PORT:-8443}:8443"
+    volumes:
+      - ./deploy/docker/configs/ingate-controller.yaml:/opt/ingate/controller/configs/config.yaml:ro
+      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/controller/configs/kubeconfig.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  envoy:
+    image: ingate/envoy:${INGATE_IMAGE_TAG:-dev}
+    build:
+      context: .
+      dockerfile: deploy/docker/envoy.Dockerfile
+    network_mode: service:controller
+    depends_on:
+      controller:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:15000/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  admin-api:
+    image: ingate/admin-api:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: admin-api
+    depends_on:
+      apiserver:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${INGATE_CONSOLE_PORT:-8001}:8001"
+    volumes:
+      - ./deploy/docker/configs/ingate-admin-api.yaml:/opt/ingate/admin-api/configs/config.yaml:ro
+      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/admin-api/configs/kubeconfig.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8001/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  apiserver-certificates:
+  etcd-data:
+  redis-data:
