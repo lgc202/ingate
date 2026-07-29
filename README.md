@@ -107,14 +107,16 @@ API Server 自身运行证书属于组件运行文件。用户为 Gateway 创建
 
 ## 构建
 
-项目使用 Go 1.26。
+项目使用 Go 1.26 和 Node.js 24。首次开发前可以检查宿主工具，并把 Kubernetes 代码生成器安装到仓库本地：
 
 ```bash
 make help
+make check-tools
+make tools
 make verify
 ```
 
-`make verify` 执行格式化、生成代码检查、Go 编译检查、服务构建、Wasm 插件构建和 Console 构建。
+`make tools` 使用 `go.mod` 中锁定的版本，将生成器安装到 `_output/tools`，不会写入全局 `$GOPATH/bin`。`make verify` 执行格式化、生成代码检查、Go 编译检查、服务构建、Wasm 插件构建和 Console 构建。
 
 ## Docker Compose 开发联调
 

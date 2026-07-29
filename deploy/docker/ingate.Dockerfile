@@ -1,5 +1,5 @@
 ARG GO_VERSION=1.26.0
-ARG NODE_VERSION=22
+ARG NODE_VERSION=24
 
 FROM golang:${GO_VERSION}-bookworm AS service-builder
 
