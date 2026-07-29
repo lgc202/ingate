@@ -91,6 +91,8 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 ## Go 版本
 
 - 使用 Go 1.26。
+- 项目可安装的开发工具统一放入 `_output/tools`，生成脚本不得污染全局 `$GOPATH/bin`；工具版本优先由 `go.mod`、`package-lock.json` 等现有依赖清单锁定。
+- Go 生成工具通过 `make tools` 安装，宿主机上的 Go、Node、npm 和 Docker Compose 等外部工具通过 `make check-tools` 检查。
 - 完成改动前运行 `make verify`；修改镜像或 Compose 时还要运行 `make docker-up` 并实际验证组件状态。
 
 ## 编码规范
