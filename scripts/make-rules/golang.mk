@@ -5,7 +5,7 @@ GO_ENV := GOTOOLCHAIN=$(GO_TOOLCHAIN)
 
 .PHONY: fmt
 fmt: ## 格式化 Go 代码
-	@files="$$(find . -name '*.go' -not -path './_output/*')"; if [[ -n "$$files" ]]; then $(GOFMT) -w $$files; fi
+	@git ls-files -co --exclude-standard -z -- '*.go' | xargs -0 $(GOFMT) -w
 
 .PHONY: vet
 vet: ## 运行 go vet
