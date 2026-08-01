@@ -103,7 +103,7 @@ export interface RouteMutationPayload {
   rules: RouteRulePayload[];
 }
 
-// RouteRulePayload 只在 admin-api 协议边界保留 targets 字段名
+// RouteRulePayload 只在 Console API 边界保留 targets 字段名
 export interface RouteRulePayload extends Omit<RouteRule, 'upstreams'> {
   targets?: WeightedUpstream[];
 }
