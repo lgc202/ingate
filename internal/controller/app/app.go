@@ -118,7 +118,7 @@ func run(ctx context.Context, settings Config, logger *slog.Logger) error {
 		client,
 		settings.ResourceWatch.ResyncPeriod,
 		configDelivery,
-		logger.With("component", "reconciler"),
+		logger.With("component", "reconcile"),
 	)
 	if err != nil {
 		return fmt.Errorf("create resource reconciler: %w", err)
@@ -159,9 +159,7 @@ func run(ctx context.Context, settings Config, logger *slog.Logger) error {
 	}
 	defer healthListener.Close()
 
-	callbacks := xds.NewCallbacks(func(eventCtx context.Context, event xds.Event) error {
-		return configDelivery.HandleXDSEvent(eventCtx, event)
-	})
+	callbacks := xds.NewCallbacks(configDelivery.HandleXDSEvent)
 	adsServer := xds.NewServer(groupCtx, snapshotCache, callbacks, xdsLogger)
 
 	group.Go(func() error {

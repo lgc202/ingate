@@ -14,75 +14,49 @@ import (
 	"github.com/lgc202/ingate/internal/controller/delivery"
 	controllerstatus "github.com/lgc202/ingate/internal/controller/status"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
-	informers "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
 )
 
 type queueKey string
 
 const (
-	queueKeyConfig queueKey = "config"
-	queueKeyStatus queueKey = "status"
+	queueKeyDesiredConfig    queueKey = "desired-config"
+	queueKeyProgrammedStatus queueKey = "programmed-status"
 )
 
-// Reconciler 监听一个 Ingate 配置域内的全部资源并执行原子全量编译
+// Reconciler 编排一个 Ingate 配置域的全量编译、发布和资源状态收敛
 type Reconciler struct {
-	factory      informers.SharedInformerFactory
-	resources    resourceListers
+	resources    *resourceCache
 	delivery     *delivery.Delivery
 	statusWriter *controllerstatus.Writer
 	queue        workqueue.TypedRateLimitingInterface[queueKey]
 	logger       *slog.Logger
 }
 
-// New 创建只使用唯一全局 queue key 的配置域 Reconciler
+// New 创建使用固定全局 key 收敛整个配置域的 Reconciler
 func New(
 	client clientset.Interface,
 	resyncPeriod time.Duration,
 	configDelivery *delivery.Delivery,
 	logger *slog.Logger,
 ) (*Reconciler, error) {
-	factory := informers.NewSharedInformerFactory(client, resyncPeriod)
-	gatewayInformers := factory.Gateway().V1()
-	gatewayInformer := gatewayInformers.Gateways()
-	certificateInformer := gatewayInformers.Certificates()
-	routeInformer := gatewayInformers.Routes()
-	upstreamInformer := gatewayInformers.Upstreams()
-	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
-	accessControlPolicyInformer := gatewayInformers.AccessControlPolicies()
-	tokenQuotaPolicyInformer := gatewayInformers.TokenQuotaPolicies()
-
-	r := &Reconciler{
-		factory: factory,
-		resources: resourceListers{
-			gateways:              gatewayInformer.Lister(),
-			certificates:          certificateInformer.Lister(),
-			routes:                routeInformer.Lister(),
-			upstreams:             upstreamInformer.Lister(),
-			rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
-			accessControlPolicies: accessControlPolicyInformer.Lister(),
-			tokenQuotaPolicies:    tokenQuotaPolicyInformer.Lister(),
-		},
-		delivery:     configDelivery,
-		statusWriter: controllerstatus.NewWriter(client.GatewayV1()),
-		queue: workqueue.NewTypedRateLimitingQueueWithConfig(
-			workqueue.DefaultTypedControllerRateLimiter[queueKey](),
-			workqueue.TypedRateLimitingQueueConfig[queueKey]{Name: "controller"},
-		),
-		logger: logger,
-	}
-	if err := r.registerEventHandlers([]eventRegistration{
-		{name: "Gateway", informer: gatewayInformer.Informer()},
-		{name: "Certificate", informer: certificateInformer.Informer()},
-		{name: "Route", informer: routeInformer.Informer()},
-		{name: "Upstream", informer: upstreamInformer.Informer()},
-		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
-		{name: "AccessControlPolicy", informer: accessControlPolicyInformer.Informer()},
-		{name: "TokenQuotaPolicy", informer: tokenQuotaPolicyInformer.Informer()},
-	}); err != nil {
-		r.queue.ShutDown()
+	queue := workqueue.NewTypedRateLimitingQueueWithConfig(
+		workqueue.DefaultTypedControllerRateLimiter[queueKey](),
+		workqueue.TypedRateLimitingQueueConfig[queueKey]{Name: "resource-reconcile"},
+	)
+	resources, err := newResourceCache(client, resyncPeriod, func() {
+		queue.Add(queueKeyDesiredConfig)
+	})
+	if err != nil {
+		queue.ShutDown()
 		return nil, err
 	}
-	return r, nil
+	return &Reconciler{
+		resources:    resources,
+		delivery:     configDelivery,
+		statusWriter: controllerstatus.NewWriter(client.GatewayV1()),
+		queue:        queue,
+		logger:       logger,
+	}, nil
 }
 
 // Run 同步 informer cache 后执行唯一的全配置域收敛循环
@@ -97,7 +71,7 @@ func (r *Reconciler) Run(ctx context.Context) error {
 			case <-runCtx.Done():
 				return
 			case <-r.delivery.Changes():
-				r.queue.Add(queueKeyStatus)
+				r.queue.Add(queueKeyProgrammedStatus)
 			}
 		}
 	}()
@@ -106,21 +80,17 @@ func (r *Reconciler) Run(ctx context.Context) error {
 		<-deliveryWatcherDone
 		stopQueue()
 		r.queue.ShutDown()
-		r.factory.Shutdown()
+		r.resources.shutdown()
 	}()
 
-	r.factory.Start(runCtx.Done())
-	for resourceType, synced := range r.factory.WaitForCacheSync(runCtx.Done()) {
-		if synced {
-			continue
-		}
-		if runCtx.Err() != nil {
-			return nil
-		}
-		return fmt.Errorf("sync informer cache for %v", resourceType)
+	if err := r.resources.start(runCtx); err != nil {
+		return err
+	}
+	if runCtx.Err() != nil {
+		return nil
 	}
 
-	r.queue.Add(queueKeyConfig)
+	r.queue.Add(queueKeyDesiredConfig)
 	for r.processNextWorkItem(runCtx) {
 	}
 	return nil
@@ -135,10 +105,10 @@ func (r *Reconciler) processNextWorkItem(ctx context.Context) bool {
 
 	var err error
 	switch key {
-	case queueKeyConfig:
-		err = r.reconcileConfig(ctx)
-	case queueKeyStatus:
-		err = r.reconcileStatus(ctx)
+	case queueKeyDesiredConfig:
+		err = r.reconcileDesiredConfig(ctx)
+	case queueKeyProgrammedStatus:
+		err = r.reconcileProgrammedStatus(ctx)
 	default:
 		err = fmt.Errorf("unknown reconcile queue key %q", key)
 	}
@@ -147,7 +117,7 @@ func (r *Reconciler) processNextWorkItem(ctx context.Context) bool {
 			r.queue.Forget(key)
 			return true
 		}
-		r.logger.Error("reconcile controller state", "key", key, "error", err)
+		r.logger.Error("reconcile work item failed", "queue_key", key, "err", err)
 		r.queue.AddRateLimited(key)
 		return true
 	}
@@ -155,7 +125,7 @@ func (r *Reconciler) processNextWorkItem(ctx context.Context) bool {
 	return true
 }
 
-func (r *Reconciler) reconcileConfig(ctx context.Context) error {
+func (r *Reconciler) reconcileDesiredConfig(ctx context.Context) error {
 	resources, err := r.resources.list()
 	if err != nil {
 		return err
@@ -179,7 +149,7 @@ func (r *Reconciler) reconcileConfig(ctx context.Context) error {
 	return errors.Join(deliveryErr, statusErr)
 }
 
-func (r *Reconciler) reconcileStatus(ctx context.Context) error {
+func (r *Reconciler) reconcileProgrammedStatus(ctx context.Context) error {
 	resources, err := r.resources.list()
 	if err != nil {
 		return err

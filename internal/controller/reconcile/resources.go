@@ -2,17 +2,25 @@ package reconcile
 
 import (
 	"cmp"
+	"context"
 	"fmt"
 	"slices"
+	"time"
 
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/lgc202/ingate/internal/controller/compiler"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	informers "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
 	gatewaylisters "github.com/lgc202/ingate/pkg/generated/listers/gateway/v1"
 )
 
-type resourceListers struct {
+// resourceCache 管理声明式资源 informer 及其只读本地缓存
+type resourceCache struct {
+	factory         informers.SharedInformerFactory
+	onDesiredChange func()
+
 	gateways              gatewaylisters.GatewayLister
 	certificates          gatewaylisters.CertificateLister
 	routes                gatewaylisters.RouteLister
@@ -22,32 +30,91 @@ type resourceListers struct {
 	tokenQuotaPolicies    gatewaylisters.TokenQuotaPolicyLister
 }
 
-func (l resourceListers) list() (compiler.Resources, error) {
-	gateways, err := l.gateways.List(labels.Everything())
+func newResourceCache(
+	client clientset.Interface,
+	resyncPeriod time.Duration,
+	onDesiredChange func(),
+) (*resourceCache, error) {
+	factory := informers.NewSharedInformerFactory(client, resyncPeriod)
+	gatewayInformers := factory.Gateway().V1()
+	gatewayInformer := gatewayInformers.Gateways()
+	certificateInformer := gatewayInformers.Certificates()
+	routeInformer := gatewayInformers.Routes()
+	upstreamInformer := gatewayInformers.Upstreams()
+	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
+	accessControlPolicyInformer := gatewayInformers.AccessControlPolicies()
+	tokenQuotaPolicyInformer := gatewayInformers.TokenQuotaPolicies()
+
+	resources := &resourceCache{
+		factory:               factory,
+		onDesiredChange:       onDesiredChange,
+		gateways:              gatewayInformer.Lister(),
+		certificates:          certificateInformer.Lister(),
+		routes:                routeInformer.Lister(),
+		upstreams:             upstreamInformer.Lister(),
+		rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
+		accessControlPolicies: accessControlPolicyInformer.Lister(),
+		tokenQuotaPolicies:    tokenQuotaPolicyInformer.Lister(),
+	}
+	if err := resources.registerEventHandlers([]eventRegistration{
+		{name: "Gateway", informer: gatewayInformer.Informer()},
+		{name: "Certificate", informer: certificateInformer.Informer()},
+		{name: "Route", informer: routeInformer.Informer()},
+		{name: "Upstream", informer: upstreamInformer.Informer()},
+		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
+		{name: "AccessControlPolicy", informer: accessControlPolicyInformer.Informer()},
+		{name: "TokenQuotaPolicy", informer: tokenQuotaPolicyInformer.Informer()},
+	}); err != nil {
+		return nil, err
+	}
+	return resources, nil
+}
+
+func (c *resourceCache) start(ctx context.Context) error {
+	c.factory.Start(ctx.Done())
+	for resourceType, synced := range c.factory.WaitForCacheSync(ctx.Done()) {
+		if synced {
+			continue
+		}
+		if ctx.Err() != nil {
+			return nil
+		}
+		return fmt.Errorf("sync informer cache for %v", resourceType)
+	}
+	return nil
+}
+
+func (c *resourceCache) shutdown() {
+	c.factory.Shutdown()
+}
+
+// list 返回深拷贝且顺序稳定的资源集合，避免编译过程修改 informer 共享对象
+func (c *resourceCache) list() (compiler.Resources, error) {
+	gateways, err := c.gateways.List(labels.Everything())
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list Gateways: %w", err)
 	}
-	certificates, err := l.certificates.List(labels.Everything())
+	certificates, err := c.certificates.List(labels.Everything())
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list Certificates: %w", err)
 	}
-	routes, err := l.routes.List(labels.Everything())
+	routes, err := c.routes.List(labels.Everything())
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list Routes: %w", err)
 	}
-	upstreams, err := l.upstreams.List(labels.Everything())
+	upstreams, err := c.upstreams.List(labels.Everything())
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list Upstreams: %w", err)
 	}
-	rateLimitPolicies, err := l.rateLimitPolicies.List(labels.Everything())
+	rateLimitPolicies, err := c.rateLimitPolicies.List(labels.Everything())
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list RateLimitPolicies: %w", err)
 	}
-	accessControlPolicies, err := l.accessControlPolicies.List(labels.Everything())
+	accessControlPolicies, err := c.accessControlPolicies.List(labels.Everything())
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list AccessControlPolicies: %w", err)
 	}
-	tokenQuotaPolicies, err := l.tokenQuotaPolicies.List(labels.Everything())
+	tokenQuotaPolicies, err := c.tokenQuotaPolicies.List(labels.Everything())
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list TokenQuotaPolicies: %w", err)
 	}
