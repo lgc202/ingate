@@ -94,19 +94,36 @@ services:
       retries: 20
       start_period: 10s
 
+  admin:
+    image: ingate/admin:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: admin
+    depends_on:
+      apiserver:
+        condition: service_healthy
+    volumes:
+      - ./deploy/docker/configs/ingate-admin.yaml:/opt/ingate/admin/configs/config.yaml:ro
+      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/admin/configs/kubeconfig.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
   console:
     image: ingate/console:${INGATE_IMAGE_TAG:-dev}
     build:
       <<: *ingate-build
       target: console
     depends_on:
-      apiserver:
+      admin:
         condition: service_healthy
     ports:
       - "127.0.0.1:${INGATE_CONSOLE_PORT:-8001}:8001"
     volumes:
       - ./deploy/docker/configs/ingate-console.yaml:/opt/ingate/console/configs/config.yaml:ro
-      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/console/configs/kubeconfig.yaml:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8001/healthz"]
       interval: 5s

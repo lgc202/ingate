@@ -55,6 +55,13 @@ COPY --from=service-builder /out/ingate-controller /opt/ingate/controller/bin/in
 ENTRYPOINT ["/opt/ingate/controller/bin/ingate-controller"]
 CMD ["--config", "/opt/ingate/controller/configs/config.yaml"]
 
+FROM service-runtime AS admin
+
+COPY --from=service-builder /out/ingate-admin /opt/ingate/admin/bin/ingate-admin
+
+ENTRYPOINT ["/opt/ingate/admin/bin/ingate-admin"]
+CMD ["--config", "/opt/ingate/admin/configs/config.yaml"]
+
 FROM service-runtime AS console
 
 COPY --from=service-builder /out/ingate-console /opt/ingate/console/bin/ingate-console
