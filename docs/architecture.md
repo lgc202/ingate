@@ -236,6 +236,6 @@ Compose 使用独立容器运行：
 
 Controller 与 Envoy 是独立容器，但共享网络命名空间。当前 xDS 没有启用 mTLS，因此继续只监听 `127.0.0.1:18000`；不能为了容器互联把敏感 xDS 直接开放到 Bridge Network。
 
-Ingate Envoy 镜像从固定 Digest 的 Higress Gateway 镜像提取带 Redis ABI 的 Envoy 二进制，并加入当前源码构建的内置 Wasm 插件和 Bootstrap。Redis 在 Compose 内不暴露宿主机端口，使用 AOF 保存开发联调期间的限流和 Token 配额状态。
+Compose 直接使用固定版本的 `lgc202/ingate-envoy:v0.1.0`。该镜像从 Higress Gateway `v2.2.3` 提取带 Redis ABI 的 Envoy 二进制，并加入 Ingate 内置 Wasm 插件和 Bootstrap。Redis 在 Compose 内不暴露宿主机端口，使用 AOF 保存开发联调期间的限流和 Token 配额状态。
 
 Compose 只发布 Console `8001`、Gateway HTTP `8080` 和 Gateway HTTPS `8443`。etcd、Redis、API Server、xDS 和 Envoy Admin 都保持内部可见。

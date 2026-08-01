@@ -137,7 +137,7 @@ Gateway TLS:  https://127.0.0.1:8443
 
 开发环境由独立的 etcd、Redis、ingate-apiserver、ingate-controller、ingate-admin-api 和 Envoy 容器组成。Console 静态资源包含在 Admin API 镜像中。
 
-Controller 和 Envoy 共享网络命名空间，xDS 继续只监听 `127.0.0.1`，不会因为拆分容器而暴露到开发网络。Envoy 使用 Ingate 自己构建的镜像：从固定 Digest 的 Higress Gateway 镜像提取带 Redis ABI 的 Envoy 二进制，并加入当前源码构建的内置 Wasm 插件。
+Controller 和 Envoy 共享网络命名空间，xDS 继续只监听 `127.0.0.1`，不会因为拆分容器而暴露到开发网络。Compose 直接使用固定版本的 `lgc202/ingate-envoy:v0.1.0`；该镜像从 Higress Gateway `v2.2.3` 提取带 Redis ABI 的 Envoy 二进制，并加入 Ingate 内置 Wasm 插件。
 
 etcd、Redis 和 API Server 证书使用独立 Docker Volume。Go 服务日志写入容器标准输出，通过 `make docker-logs` 查看。停止环境不会删除 Volume：
 
