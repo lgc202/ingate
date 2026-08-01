@@ -17,20 +17,13 @@ import (
 
 const serverName = "ingate-apiserver"
 
-// ExtraConfig 表示 ingate-apiserver 自己的扩展配置
-type ExtraConfig struct {
-	Storage map[string]rest.Storage
-}
-
 // Config 表示 ingate-apiserver 完整配置
 type Config struct {
 	GenericConfig *genericapiserver.RecommendedConfig
-	ExtraConfig   ExtraConfig
 }
 
 type completedConfig struct {
 	GenericConfig genericapiserver.CompletedConfig
-	ExtraConfig   *ExtraConfig
 }
 
 // CompletedConfig 表示补全后的 ingate-apiserver 配置
@@ -47,7 +40,6 @@ type Server struct {
 func (c *Config) Complete() CompletedConfig {
 	return CompletedConfig{&completedConfig{
 		GenericConfig: c.GenericConfig.Complete(),
-		ExtraConfig:   &c.ExtraConfig,
 	}}
 }
 
@@ -66,29 +58,14 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		Codecs,
 	)
 
-	storage := c.ExtraConfig.Storage
-	if storage == nil {
-		storage = map[string]rest.Storage{}
-	}
-
-	// ExtraConfig.Storage 允许测试或上层调用方预置 storage
-	// 这里只补齐缺失项，避免覆盖外部传入的自定义实现
+	storage := make(map[string]rest.Storage)
 	installStatusStorage := func(resourceName, statusResourceName gatewayv1.ResourceName, factory func() (rest.Storage, rest.Storage, error)) error {
-		_, hasResource := storage[string(resourceName)]
-		_, hasStatus := storage[string(statusResourceName)]
-		if hasResource && hasStatus {
-			return nil
-		}
 		resourceStorage, statusStorage, err := factory()
 		if err != nil {
 			return err
 		}
-		if !hasResource {
-			storage[string(resourceName)] = resourceStorage
-		}
-		if !hasStatus {
-			storage[string(statusResourceName)] = statusStorage
-		}
+		storage[string(resourceName)] = resourceStorage
+		storage[string(statusResourceName)] = statusStorage
 		return nil
 	}
 
