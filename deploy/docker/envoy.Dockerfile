@@ -20,9 +20,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/acl.wasm ./plugins/acl \
     && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/ai-proxy.wasm ./plugins/aiproxy
 
-FROM higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway@sha256:cf1fa0e100e79890b1de15c74f41a21fabba8f854b9d004d8f5b8ccb48a95c5d AS higress-envoy
+FROM higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3 AS higress-envoy
 
-FROM debian@sha256:0104b334637a5f19aa9c983a91b54c89887c0984081f2068983107a6f6c21eeb
+FROM debian:12.14-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
