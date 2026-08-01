@@ -1,9 +1,9 @@
 server:
-  listen_address: "0.0.0.0:8001"
-  console_dir: "/opt/ingate/console/web"
+  listen_address: "0.0.0.0:8002"
 
-admin:
-  base_url: "http://admin:8002"
+apiserver:
+  master: ""
+  kubeconfig: "/opt/ingate/admin/configs/kubeconfig.yaml"
 
 logging:
   format: "json"

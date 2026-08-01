@@ -5,7 +5,9 @@ GO_ENV := GOTOOLCHAIN=$(GO_TOOLCHAIN)
 
 .PHONY: fmt
 fmt: ## 格式化 Go 代码
-	@git ls-files -co --exclude-standard -z -- '*.go' | xargs -0 $(GOFMT) -w
+	@git ls-files -co --exclude-standard -- '*.go' | while IFS= read -r file; do \
+		if [ -f "$$file" ]; then $(GOFMT) -w "$$file"; fi; \
+	done
 
 .PHONY: vet
 vet: ## 运行 go vet

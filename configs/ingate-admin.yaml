@@ -1,9 +1,9 @@
 server:
-  listen_address: ":8081"
-  console_dir: "web/console/dist"
+  listen_address: ":8082"
 
-admin:
-  base_url: "http://127.0.0.1:8082"
+apiserver:
+  master: ""
+  kubeconfig: "_output/kubeconfig"
 
 logging:
   format: "json"
@@ -11,7 +11,7 @@ logging:
   add_source: false
   stdout: false
   file:
-    path: "_output/logs/ingate-console.log"
+    path: "_output/logs/ingate-admin.log"
     max_size_mb: 100
     max_backups: 10
     max_age_days: 30

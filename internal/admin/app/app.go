@@ -1,4 +1,4 @@
-// Package app 实现 ingate-console 服务入口
+// Package app 实现 ingate-admin 服务入口
 package app
 
 import (
@@ -11,21 +11,26 @@ import (
 	kitconfig "github.com/lgc202/go-kit/config"
 	"github.com/lgc202/go-kit/version"
 	"github.com/spf13/pflag"
+	"k8s.io/client-go/tools/clientcmd"
 
-	consoleserver "github.com/lgc202/ingate/internal/console/server"
+	"github.com/lgc202/ingate/internal/admin/handler"
+	adminserver "github.com/lgc202/ingate/internal/admin/server"
+	"github.com/lgc202/ingate/internal/admin/service"
+	"github.com/lgc202/ingate/internal/admin/store"
 	"github.com/lgc202/ingate/internal/pkg/httpserver"
+	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
-const usage = `ingate-console 提供 Ingate 控制台
+const usage = `ingate-admin 提供 Ingate 管理 API
 
 职责：
-  - 托管控制台静态资源
-  - 将控制台管理请求转发给 ingate-admin
+  - 聚合声明式资源，提供页面友好的接口
+  - 通过 ingate-apiserver 写入网关期望状态
 `
 
-// Run 执行 ingate-console 服务
+// Run 执行 ingate-admin 服务
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
-	flags := pflag.NewFlagSet("ingate-console", pflag.ContinueOnError)
+	flags := pflag.NewFlagSet("ingate-admin", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
 
 	configPath := defaultConfigPath
@@ -50,7 +55,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return nil
 	}
 
-	loaded, err := kitconfig.Load[Config](configPath, kitconfig.WithEnv[Config]("INGATE_CONSOLE"))
+	loaded, err := kitconfig.Load[Config](configPath, kitconfig.WithEnv[Config]("INGATE_ADMIN"))
 	if err != nil {
 		return err
 	}
@@ -59,7 +64,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 
-	logger, err := settings.Logging.NewLogger("ingate-console", stdout)
+	logger, err := settings.Logging.NewLogger("ingate-admin", stdout)
 	if err != nil {
 		return err
 	}
@@ -77,15 +82,27 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	})
 	logger.Info("service started", "config_file", configPath)
 
-	componentLogger := logger.With("component", "ingate-console")
-	adminProxy, err := consoleserver.NewAdminProxy(settings.Admin.BaseURL, componentLogger)
+	restConfig, err := clientcmd.BuildConfigFromFlags(settings.APIServer.Master, settings.APIServer.Kubeconfig)
 	if err != nil {
-		return err
+		return fmt.Errorf("build apiserver client config: %w", err)
+	}
+	client, err := clientset.NewForConfig(restConfig)
+	if err != nil {
+		return fmt.Errorf("create apiserver resource client: %w", err)
 	}
 
+	componentLogger := logger.With("component", "ingate-admin")
+	stores := store.New(client)
+	services := service.New(stores)
+	handlers := handler.New(services, componentLogger)
+
 	gin.SetMode(gin.ReleaseMode)
-	router := consoleserver.NewRouter(adminProxy, settings.Server.ConsoleDir, componentLogger)
-	server := httpserver.New(settings.Server.ListenAddress, router, componentLogger)
+	router := adminserver.NewRouter(handlers, componentLogger)
+	server := httpserver.New(
+		settings.Server.ListenAddress,
+		router,
+		componentLogger,
+	)
 
 	return server.Run(ctx)
 }
