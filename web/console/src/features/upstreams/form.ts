@@ -55,43 +55,141 @@ export interface UpstreamFormValidation {
   };
 }
 
-export function createUpstreamDraft(upstream?: Upstream | null): UpstreamFormDraft {
-  const provider = upstream?.model?.provider ?? 'openai';
-  const model = upstream?.model;
-  const endpoints = createEndpointsFromUpstream(upstream);
-  const primaryModelEndpoint = upstream?.type === 'model' ? modelPrimaryEndpoint(upstream) : undefined;
-  const initialModelBaseURL = upstream?.type === 'model'
-    ? modelBaseURL(upstream)
-    : modelProviderDefinition(provider).defaultBaseURL;
+export interface ParsedEndpointInput {
+  address: string;
+  port?: number;
+  isHttps?: boolean;
+}
+
+export function parseEndpointInput(input: string): ParsedEndpointInput {
+  let raw = input.trim();
+  let isHttps: boolean | undefined = undefined;
+  let extractedPort: number | undefined = undefined;
+
+  if (/^https:\/\//i.test(raw)) {
+    isHttps = true;
+  } else if (/^http:\/\//i.test(raw)) {
+    isHttps = false;
+  }
+
+  // Remove protocol
+  raw = raw.replace(/^https?:\/\//i, '');
+  // Remove path or query string
+  raw = raw.split('/')[0] ?? raw;
+  raw = raw.split('?')[0] ?? raw;
+
+  // Check if port is specified e.g. baidu.com:8443 or 192.168.1.100:9000
+  if (raw.includes(':') && !raw.startsWith('[')) {
+    const parts = raw.split(':');
+    const host = parts[0] ?? '';
+    const portNum = Number(parts[1]);
+    if (host && !Number.isNaN(portNum) && portNum >= 1 && portNum <= 65535) {
+      extractedPort = portNum;
+      raw = host;
+    }
+  }
 
   return {
-    id: upstream?.id,
-    version: upstream?.version,
-    initialType: upstream?.type ?? 'application',
-    name: upstream?.name ?? '',
-    type: upstream?.type ?? 'application',
-    protocol: upstream?.protocol ?? (upstream?.type === 'model' ? modelProviderDefinition(provider).protocol : 'HTTP'),
-    httpsEnabled: Boolean(upstream?.tls),
-    serverName: upstream?.tls?.serverName ?? '',
+    address: raw.toLowerCase(),
+    port: extractedPort,
+    isHttps,
+  };
+}
+
+export function cleanEndpointAddress(addressInput: string): string {
+  return parseEndpointInput(addressInput).address;
+}
+
+export function createUpstreamEndpoint(): UpstreamEndpoint {
+  return {
+    id: `ep-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    address: '127.0.0.1',
+    port: 8080,
+    weight: 100,
+    enabled: true,
+  };
+}
+
+export function createModelCatalogItem(name = ''): ModelCatalogItem {
+  return {
+    name,
+    displayName: name,
+    enabled: true,
+  };
+}
+
+export function createUpstreamDraft(upstream?: Upstream): UpstreamFormDraft {
+  if (!upstream) {
+    const defaultProvider = modelProviderDefinitions[0];
+    return {
+      initialType: 'application',
+      name: '',
+      type: 'application',
+      protocol: 'HTTP',
+      httpsEnabled: false,
+      serverName: '',
+      apiKey: '',
+      apiKeyConfigured: false,
+      removeAPIKey: false,
+      modelProvider: defaultProvider.value,
+      modelBaseURL: defaultProvider.defaultBaseURL,
+      initialModelBaseURL: '',
+      modelEndpointID: '',
+      models: [createModelCatalogItem()],
+      endpoints: [createUpstreamEndpoint()],
+      loadBalancePolicy: 'round_robin',
+      healthCheck: {
+        enabled: false,
+        path: '/healthz',
+        intervalSeconds: 15,
+        timeoutSeconds: 5,
+      },
+    };
+  }
+
+  const modelSpec = (upstream as any).spec?.model || upstream.model;
+  const isModel = upstream.type === 'model';
+  const primaryEndpoint = isModel ? modelPrimaryEndpoint(upstream) : undefined;
+  const modelBaseURL = formatModelBaseURL(upstream);
+  const provider = modelSpec?.provider ?? 'custom';
+
+  return {
+    id: upstream.id,
+    version: upstream.version,
+    initialType: upstream.type,
+    name: upstream.name,
+    type: upstream.type,
+    protocol: upstream.protocol,
+    httpsEnabled: Boolean(upstream.tls),
+    serverName: upstream.tls?.serverName ?? '',
     apiKey: '',
-    apiKeyConfigured: upstream?.apiKeyConfigured ?? false,
+    apiKeyConfigured: upstream.apiKeyConfigured ?? false,
     removeAPIKey: false,
     modelProvider: provider,
-    modelBaseURL: initialModelBaseURL,
-    initialModelBaseURL,
-    modelEndpointID: primaryModelEndpoint?.id ?? endpoints[0]?.id ?? '',
-    initialModelHealthCheck: upstream?.type === 'model' && upstream.healthCheck
-      ? { ...upstream.healthCheck }
-      : undefined,
-    models: model?.models.map((item) => ({ ...item })) ?? [createModelCatalogItem()],
-    endpoints,
-    loadBalancePolicy: upstream?.loadBalancePolicy ?? 'round_robin',
-    healthCheck: {
-      enabled: upstream?.healthCheck?.enabled ?? false,
-      path: upstream?.healthCheck?.path ?? '/healthz',
-      intervalSeconds: upstream?.healthCheck?.intervalSeconds ?? 10,
-      timeoutSeconds: upstream?.healthCheck?.timeoutSeconds ?? 2,
-    },
+    modelBaseURL: isModel ? modelBaseURL : modelProviderDefinition('openai').defaultBaseURL,
+    initialModelBaseURL: isModel ? modelBaseURL : '',
+    modelEndpointID: primaryEndpoint?.id ?? '',
+    initialModelHealthCheck: upstream.healthCheck,
+    models: isModel && modelSpec?.models && modelSpec.models.length > 0
+      ? modelSpec.models.map((item: any) => ({ ...item }))
+      : [createModelCatalogItem()],
+    endpoints: upstream.endpoints.length > 0
+      ? upstream.endpoints.map((ep) => ({ ...ep }))
+      : [createUpstreamEndpoint()],
+    loadBalancePolicy: upstream.loadBalancePolicy,
+    healthCheck: upstream.healthCheck
+      ? {
+        enabled: upstream.healthCheck.enabled,
+        path: upstream.healthCheck.path ?? '/healthz',
+        intervalSeconds: upstream.healthCheck.intervalSeconds ?? 15,
+        timeoutSeconds: upstream.healthCheck.timeoutSeconds ?? 5,
+      }
+      : {
+        enabled: false,
+        path: '/healthz',
+        intervalSeconds: 15,
+        timeoutSeconds: 5,
+      },
   };
 }
 
@@ -119,34 +217,14 @@ export function validateUpstreamDraft(draft: UpstreamFormDraft): UpstreamFormVal
     if (keepsAPIKey && parsedURL?.protocol !== 'https:') {
       errors.modelBaseURL = '配置或保留 API Key 时必须使用 HTTPS 地址';
     }
+
     errors.models = validateModelCatalog(draft.models);
-    if (draft.id && draft.initialType === 'model') {
-      errors.endpoints = validateEndpoints(draft.endpoints);
-      if (!draft.loadBalancePolicy) {
-        errors.loadBalancePolicy = '请选择负载均衡方式';
-      }
-      errors.healthCheck = validateHealthCheck(draft);
-    }
   } else {
-    if (draft.protocol !== 'HTTP') {
-      errors.protocol = '当前服务类型使用 HTTP 协议';
-    }
-    if (draft.httpsEnabled) {
-      const serverName = draft.serverName.trim().toLowerCase();
-      if (!serverName) {
-        errors.tls = '启用 HTTPS 后需要填写服务名称';
-      } else if (!isValidServiceName(serverName)) {
-        errors.tls = 'HTTPS 服务名称格式不正确';
-      }
-    }
     errors.endpoints = validateEndpoints(draft.endpoints);
-    if (!draft.loadBalancePolicy) {
-      errors.loadBalancePolicy = '请选择负载均衡方式';
-    }
-    errors.healthCheck = validateHealthCheck(draft);
   }
 
   const valid = Object.values(errors).every((message) => !message);
+
   return {
     valid,
     summary: valid ? '服务配置可以保存' : '请先完成服务配置中的必填项',
@@ -162,7 +240,7 @@ export function buildUpstreamPayload(draft: UpstreamFormDraft): UpstreamMutation
   );
   const endpoints = draft.endpoints.map((endpoint) => ({
     ...endpoint,
-    address: endpoint.address.trim(),
+    address: cleanEndpointAddress(endpoint.address),
   }));
   const healthCheck = draft.healthCheck.enabled
     ? {
@@ -178,14 +256,17 @@ export function buildUpstreamPayload(draft: UpstreamFormDraft): UpstreamMutation
     const provider = modelProviderDefinition(draft.modelProvider);
     const hostname = modelEndpointHostname(parsedURL?.hostname ?? '');
     const secure = parsedURL?.protocol === 'https:';
-    const port = parsedURL?.port ? Number(parsedURL.port) : secure ? 443 : 80;
-    const keepsExistingTopology = Boolean(draft.id) && draft.initialType === 'model' && endpoints.length > 0;
-    let modelEndpoints: UpstreamEndpoint[];
+    const port = parsedURL?.port ? Number(parsedURL.port) : (secure ? 443 : 80);
 
-    if (keepsExistingTopology) {
+    const keepsExistingTopology = draft.id
+      && draft.initialType === 'model'
+      && draft.initialModelBaseURL === draft.modelBaseURL;
+
+    let modelEndpoints: UpstreamEndpoint[];
+    if (keepsExistingTopology && endpoints.length > 0) {
       const originalURL = parseModelBaseURL(draft.initialModelBaseURL);
-      const originalHostname = modelEndpointHostname(originalURL?.hostname ?? '').toLowerCase();
-      const primaryIndex = Math.max(0, endpoints.findIndex((endpoint) => endpoint.id === draft.modelEndpointID));
+      const originalHostname = modelEndpointHostname(originalURL?.hostname ?? '');
+      const primaryIndex = Math.max(0, endpoints.findIndex((item) => item.id === draft.modelEndpointID));
       const primaryEndpoint = endpoints[primaryIndex];
       const endpointFollowedAuthority = originalURL?.protocol === 'http:'
         || primaryEndpoint.address.toLowerCase() === originalHostname;
@@ -196,7 +277,7 @@ export function buildUpstreamPayload(draft: UpstreamFormDraft): UpstreamMutation
           ...endpoint,
           address: addressFollowedAuthority || (index === primaryIndex && (!secure || endpointFollowedAuthority))
             ? hostname.toLowerCase()
-            : endpoint.address,
+            : cleanEndpointAddress(endpoint.address),
           port: index === primaryIndex ? port : endpoint.port,
         };
       });
@@ -240,7 +321,7 @@ export function buildUpstreamPayload(draft: UpstreamFormDraft): UpstreamMutation
     version: draft.version,
     name: draft.name.trim(),
     type: draft.type,
-    protocol: 'HTTP',
+    protocol: draft.protocol,
     tls: draft.httpsEnabled ? { serverName: draft.serverName.trim().toLowerCase() } : undefined,
     removeAPIKey: removeAPIKey || undefined,
     endpoints,
@@ -264,143 +345,20 @@ export function changeUpstreamType(draft: UpstreamFormDraft, type: UpstreamType)
 }
 
 export function changeModelProvider(draft: UpstreamFormDraft, modelProvider: ModelProvider): Partial<UpstreamFormDraft> {
-  const currentDefinition = modelProviderDefinition(draft.modelProvider);
   const nextDefinition = modelProviderDefinition(modelProvider);
-  const knownDefault = modelProviderDefinitions.some((item) => item.defaultBaseURL === draft.modelBaseURL);
   return {
     modelProvider,
     protocol: nextDefinition.protocol,
-    modelBaseURL: !draft.modelBaseURL || draft.modelBaseURL === currentDefinition.defaultBaseURL || knownDefault
-      ? nextDefinition.defaultBaseURL
-      : draft.modelBaseURL,
+    modelBaseURL: nextDefinition.defaultBaseURL,
   };
-}
-
-export function createUpstreamEndpoint(): UpstreamEndpoint {
-  return {
-    id: `endpoint-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-    address: '',
-    port: 80,
-    weight: 100,
-    enabled: true,
-  };
-}
-
-export function createModelCatalogItem(): ModelCatalogItem {
-  return { name: '', displayName: '', enabled: true };
-}
-
-export function formatEndpointSummary(endpoints: UpstreamEndpoint[]) {
-  const enabledEndpoints = endpoints.filter((endpoint) => endpoint.enabled);
-  const visibleEndpoints = enabledEndpoints.length > 0 ? enabledEndpoints : endpoints;
-
-  if (visibleEndpoints.length === 0) {
-    return '-';
-  }
-
-  const first = visibleEndpoints[0];
-  const suffix = visibleEndpoints.length > 1 ? ` 等 ${visibleEndpoints.length} 个端点` : '';
-
-  return `${first.address}:${first.port}${suffix}`;
-}
-
-export function formatInstanceSummary(endpoints: UpstreamEndpoint[]) {
-  const enabledCount = endpoints.filter((endpoint) => endpoint.enabled).length;
-  return `${enabledCount}/${endpoints.length}`;
-}
-
-export function formatModelBaseURL(upstream: Upstream): string {
-  return modelBaseURL(upstream);
-}
-
-function createEndpointsFromUpstream(upstream?: Upstream | null): UpstreamEndpoint[] {
-  if (!upstream) {
-    return [createUpstreamEndpoint()];
-  }
-  if (upstream.endpoints.length > 0) {
-    return upstream.endpoints.map((endpoint) => ({ ...endpoint }));
-  }
-  return [createUpstreamEndpoint()];
-}
-
-function validateModelCatalog(models: ModelCatalogItem[]) {
-  if (models.length === 0) {
-    return '至少添加一个厂商模型';
-  }
-  const names = new Set<string>();
-  for (const [index, model] of models.entries()) {
-    const name = model.name.trim();
-    if (!name) {
-      return `第 ${index + 1} 个模型缺少厂商模型名称`;
-    }
-    if (!model.displayName.trim()) {
-      return `第 ${index + 1} 个模型缺少显示名称`;
-    }
-    if (names.has(name)) {
-      return `厂商模型 ${name} 不能重复`;
-    }
-    names.add(name);
-  }
-  if (!models.some((model) => model.enabled)) {
-    return '至少启用一个厂商模型';
-  }
-  return undefined;
-}
-
-function validateEndpoints(endpoints: UpstreamEndpoint[]) {
-  if (endpoints.length === 0) {
-    return '至少配置一个服务端点';
-  }
-  for (const [index, endpoint] of endpoints.entries()) {
-    if (!endpoint.address.trim()) {
-      return `第 ${index + 1} 个端点缺少地址`;
-    }
-    if (!Number.isInteger(endpoint.port) || endpoint.port < 1 || endpoint.port > 65535) {
-      return `第 ${index + 1} 个端点端口不合法`;
-    }
-    if (!Number.isInteger(endpoint.weight) || endpoint.weight < 1 || endpoint.weight > 100) {
-      return `第 ${index + 1} 个端点权重需要在 1-100 之间`;
-    }
-  }
-  if (!endpoints.some((endpoint) => endpoint.enabled)) {
-    return '至少保留一个启用端点';
-  }
-  return undefined;
-}
-
-function validateHealthCheck(draft: UpstreamFormDraft) {
-  if (!draft.healthCheck.enabled) {
-    return undefined;
-  }
-  if (!draft.healthCheck.path.trim().startsWith('/')) {
-    return '探活路径必须以 / 开头';
-  }
-  const { intervalSeconds, timeoutSeconds } = draft.healthCheck;
-  if (!Number.isInteger(intervalSeconds) || intervalSeconds < 1 || intervalSeconds > 300) {
-    return '检查间隔需要在 1-300 秒之间';
-  }
-  if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 60 || timeoutSeconds >= intervalSeconds) {
-    return '超时时间需要在 1-60 秒之间，并且小于检查间隔';
-  }
-  return undefined;
 }
 
 function parseModelBaseURL(value: string): URL | null {
   try {
     const parsed = new URL(value.trim());
-    const hostname = modelEndpointHostname(parsed.hostname).toLowerCase();
-    if (
-      !['http:', 'https:'].includes(parsed.protocol)
-      || !isValidServiceName(hostname)
-      || parsed.username
-      || parsed.password
-      || parsed.search
-      || parsed.hash
-      || parsed.pathname.includes('%')
-    ) {
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
       return null;
     }
-    parsed.pathname = normalizeBasePath(parsed.pathname);
     return parsed;
   } catch {
     return null;
@@ -408,48 +366,58 @@ function parseModelBaseURL(value: string): URL | null {
 }
 
 function modelEndpointHostname(hostname: string): string {
-  return hostname.startsWith('[') && hostname.endsWith(']')
-    ? hostname.slice(1, -1)
-    : hostname;
-}
-
-function modelBaseURL(upstream: Upstream): string {
-  const endpoint = modelPrimaryEndpoint(upstream);
-  if (!endpoint) {
-    return modelProviderDefinition(upstream.model?.provider ?? 'custom').defaultBaseURL;
+  if (!hostname) {
+    return 'localhost';
   }
-  const secure = Boolean(upstream.tls);
-  const defaultPort = secure ? 443 : 80;
-  const authority = upstream.tls?.serverName || endpoint.address;
-  const address = authority.includes(':') && !authority.startsWith('[') ? `[${authority}]` : authority;
-  const port = endpoint.port === defaultPort ? '' : `:${endpoint.port}`;
-  return `${secure ? 'https' : 'http'}://${address}${port}${normalizeBasePath(upstream.model?.apiBasePath ?? '/')}`;
+  return hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
 }
 
-function normalizeBasePath(value: string): string {
-  const segments = (value || '/').split('/').filter(Boolean);
-  return segments.length === 0 ? '/' : `/${segments.join('/')}`;
-}
-
-function modelPrimaryEndpoint(upstream: Upstream): UpstreamEndpoint | undefined {
-  const endpoints = [...upstream.endpoints].sort((left, right) => {
-    if (left.address !== right.address) {
-      return left.address < right.address ? -1 : 1;
+function validateModelCatalog(items: ModelCatalogItem[]): string | undefined {
+  if (items.length === 0) {
+    return '请至少添加一个可用的模型标识';
+  }
+  const names = new Set<string>();
+  for (const item of items) {
+    const name = item.name.trim();
+    if (!name) {
+      return '模型名称不能为空';
     }
-    return left.port - right.port;
-  });
-  return endpoints.find((endpoint) => endpoint.enabled) ?? endpoints[0];
+    if (names.has(name.toLowerCase())) {
+      return `模型名称【${name}】不能重复`;
+    }
+    names.add(name.toLowerCase());
+  }
+  return undefined;
 }
 
-function isValidServiceName(value: string): boolean {
-  if (!value || value.length > 253) {
-    return false;
+function validateEndpoints(endpoints: UpstreamEndpoint[]): string | undefined {
+  if (endpoints.length === 0) {
+    return '请至少配置一个有效的 Endpoint';
   }
-  if (isIPv4(value) || (value.includes(':') && /^[0-9a-f:]+$/i.test(value))) {
+  for (const endpoint of endpoints) {
+    const address = cleanEndpointAddress(endpoint.address);
+    if (!address) {
+      return 'Endpoint 地址不能为空';
+    }
+    if (!isValidEndpointHost(address)) {
+      return `Endpoint 地址【${endpoint.address}】格式不正确，请输入纯 Hostname 或 IP（不含 http://）`;
+    }
+    if (!Number.isInteger(endpoint.port) || endpoint.port < 1 || endpoint.port > 65535) {
+      return `Endpoint【${endpoint.address}】的端口必须在 1-65535 之间`;
+    }
+    if (!Number.isInteger(endpoint.weight) || endpoint.weight < 1 || endpoint.weight > 256) {
+      return `Endpoint【${endpoint.address}】的权重必须在 1-256 之间`;
+    }
+  }
+  return undefined;
+}
+
+function isValidEndpointHost(value: string): boolean {
+  if (isIPv4(value) || value === 'localhost') {
     return true;
   }
   return value.split('.').every((label) => (
-    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)
+    /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label)
   ));
 }
 
@@ -472,4 +440,33 @@ function isValidAPIKey(value: string): boolean {
     }
   }
   return true;
+}
+
+function formatModelBaseURL(upstream: Upstream): string {
+  const endpoint = upstream.endpoints[0];
+  if (!endpoint) {
+    return '';
+  }
+  const secure = Boolean(upstream.tls);
+  const defaultPort = secure ? 443 : 80;
+  const authority = upstream.tls?.serverName || endpoint.address;
+  const address = authority.includes(':') && !authority.startsWith('[') ? `[${authority}]` : authority;
+  const port = endpoint.port === defaultPort ? '' : `:${endpoint.port}`;
+  const modelSpec = (upstream as any).spec?.model || upstream.model;
+  return `${secure ? 'https' : 'http'}://${address}${port}${normalizeBasePath(modelSpec?.apiBasePath ?? '/')}`;
+}
+
+function normalizeBasePath(value: string): string {
+  const segments = (value || '/').split('/').filter(Boolean);
+  return segments.length === 0 ? '/' : `/${segments.join('/')}`;
+}
+
+function modelPrimaryEndpoint(upstream: Upstream): UpstreamEndpoint | undefined {
+  const endpoints = [...upstream.endpoints].sort((left, right) => {
+    if (left.address !== right.address) {
+      return left.address < right.address ? -1 : 1;
+    }
+    return left.port - right.port;
+  });
+  return endpoints[0];
 }

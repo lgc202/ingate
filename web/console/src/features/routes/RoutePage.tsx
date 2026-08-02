@@ -22,71 +22,74 @@ interface RouteNotice {
 export function RoutePage() {
   const workspace = useResource(getRouteWorkspace);
   const policyWorkspace = useResource(getPolicyWorkspace);
+
+  const [selectedRouteID, setSelectedRouteID] = useState<string>('');
   const [mode, setMode] = useState<RouteMode>('list');
-  const [selectedRouteID, setSelectedRouteID] = useState('');
   const [draft, setDraft] = useState<RouteComposerDraft | null>(null);
-  const [notice, setNotice] = useState<RouteNotice | null>(null);
-  const [deleteCandidate, setDeleteCandidate] = useState<RouteResource | null>(null);
-  const [disableCandidate, setDisableCandidate] = useState<RouteResource | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const [disableCandidate, setDisableCandidate] = useState<RouteResource | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<RouteResource | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [toggling, setToggling] = useState(false);
 
-  if (workspace.loading) {
+  const [notice, setNotice] = useState<RouteNotice | null>(null);
+
+  if (workspace.loading && !workspace.data) {
     return (
-      <PageFrame title="路由" subtitle="定义请求匹配、目标服务和转发规则">
-        <ResourceStatePanel title="加载路由数据" message="正在读取路由、网关和目标服务。" />
+      <PageFrame title="路由">
+        <ResourceStatePanel title="正在加载路由数据..." message="系统正在连接管理 API 获取当前系统的路由定义。" />
       </PageFrame>
     );
   }
 
   if (workspace.error || !workspace.data) {
     return (
-      <PageFrame title="路由" subtitle="定义请求匹配、目标服务和转发规则">
+      <PageFrame title="路由">
         <ResourceStatePanel title="路由数据加载失败" message={workspace.error?.message ?? '请稍后重试。'} />
       </PageFrame>
     );
   }
 
   const { routes, gateways, upstreams } = workspace.data;
-  const selectedRoute = routes.find((route) => route.id === selectedRouteID) ?? routes[0] ?? null;
-  const activeDraft = draft ?? createRouteComposerDraft();
-  const validation = validateRouteComposerDraft(activeDraft);
+  const activeRouteID = selectedRouteID || routes[0]?.id || '';
+  const activeRoute = routes.find((route) => route.id === activeRouteID) ?? null;
 
   const openCreate = () => {
-    setMode('editor');
     setDraft(createRouteComposerDraft());
-    setNotice(null);
+    setMode('editor');
   };
 
   const openEdit = (route: RouteResource) => {
     setSelectedRouteID(route.id);
-    setMode('editor');
     setDraft(createRouteComposerDraft(route));
-    setNotice(null);
+    setMode('editor');
   };
 
   const closeEditor = () => {
-    setMode('list');
     setDraft(null);
-    setSubmitting(false);
+    setMode(activeRoute ? 'detail' : 'list');
   };
 
   const handleSave = async () => {
+    if (!draft || submitting) {
+      return;
+    }
+
+    const validation = validateRouteComposerDraft(draft);
     if (!validation.valid) {
       setNotice({ message: validation.summary, tone: 'error' });
       return;
     }
 
-    const payload = buildRouteMutationPayload(activeDraft);
     setSubmitting(true);
     try {
+      const payload = buildRouteMutationPayload(draft);
       const result = await saveRoute(payload);
-      await workspace.reload();
-      setSelectedRouteID(result.changeId ?? payload.id ?? '');
+      await Promise.all([workspace.reload(), policyWorkspace.reload()]);
+      setSelectedRouteID(result.changeId ?? payload.id ?? activeRouteID);
       setNotice({ message: result.message, tone: 'success' });
-      setMode('list');
-      setDraft(null);
+      closeEditor();
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '保存路由失败', tone: 'error' });
     } finally {
@@ -95,14 +98,14 @@ export function RoutePage() {
   };
 
   const confirmDelete = async () => {
-    if (!deleteCandidate) {
+    if (!deleteCandidate || deleting) {
       return;
     }
 
     setDeleting(true);
     try {
       await deleteRoute(deleteCandidate.id);
-      await workspace.reload();
+      await Promise.all([workspace.reload(), policyWorkspace.reload()]);
       setSelectedRouteID((current) => (
         current === deleteCandidate.id
           ? routes.find((route) => route.id !== deleteCandidate.id)?.id ?? ''
@@ -126,8 +129,8 @@ export function RoutePage() {
     setToggling(true);
     try {
       await setRouteEnabled(route.id, true);
-      await workspace.reload();
-      setNotice({ message: `已启用路由：${route.name}`, tone: 'success' });
+      await Promise.all([workspace.reload(), policyWorkspace.reload()]);
+      setNotice({ message: '路由已启用', tone: 'success' });
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '启用路由失败', tone: 'error' });
     } finally {
@@ -136,15 +139,15 @@ export function RoutePage() {
   };
 
   const confirmDisable = async () => {
-    if (!disableCandidate) {
+    if (!disableCandidate || toggling) {
       return;
     }
 
     setToggling(true);
     try {
       await setRouteEnabled(disableCandidate.id, false);
-      await workspace.reload();
-      setNotice({ message: `已停用路由：${disableCandidate.name}`, tone: 'success' });
+      await Promise.all([workspace.reload(), policyWorkspace.reload()]);
+      setNotice({ message: '路由已停用', tone: 'success' });
       setDisableCandidate(null);
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '停用路由失败', tone: 'error' });
@@ -153,29 +156,14 @@ export function RoutePage() {
     }
   };
 
-  if (mode === 'detail' && selectedRoute) {
-    return (
-      <>
-        <RouteDetail
-          route={selectedRoute}
-          gateways={gateways}
-          upstreams={upstreams}
-          policyWorkspace={policyWorkspace.data}
-          policyError={policyWorkspace.error?.message}
-          onPolicyWorkspaceChanged={policyWorkspace.reload}
-          onBack={() => setMode('list')}
-        />
-        <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
-      </>
-    );
-  }
+  if (mode === 'editor' && draft) {
+    const activeDraft = draft;
+    const validation = validateRouteComposerDraft(activeDraft);
 
-  if (mode === 'editor') {
     return (
       <PageFrame
-        title="路由"
-        subtitle="一条路由描述从网关到目标服务的完整请求链路"
-        actions={<Button variant="soft" disabled={submitting} onClick={closeEditor}>返回列表</Button>}
+        title={activeDraft.id ? `编辑路由：${activeDraft.name}` : '新建路由'}
+        subtitle="集中配置域名、匹配条件、高级转发和 AI 模型能力"
       >
         <RouteEditor
           draft={activeDraft}
@@ -195,30 +183,47 @@ export function RoutePage() {
   return (
     <PageFrame
       title="路由"
-      subtitle="定义请求匹配、目标服务和转发规则"
-      actions={<Button variant="primary" onClick={openCreate}>新建路由</Button>}
+      subtitle="定义请求匹配、AI 路由分发、目标服务和转发规则"
+      actions={<Button variant="primary" onClick={openCreate}>+ 新建路由</Button>}
     >
       <RouteList
         routes={routes}
         gateways={gateways}
         upstreams={upstreams}
+        selectedRouteID={activeRouteID}
         policyWorkspace={policyWorkspace.data}
-        toggling={toggling}
-        onDetail={(route) => {
-          setSelectedRouteID(route.id);
+        onSelect={(id) => {
+          setSelectedRouteID(id);
           setMode('detail');
         }}
+        onCreate={openCreate}
         onEdit={openEdit}
-        onDelete={setDeleteCandidate}
+        onRequestDisable={setDisableCandidate}
+        onRequestDelete={setDeleteCandidate}
         onToggleEnabled={toggleEnabled}
       />
+
+      {activeRoute && mode === 'detail' && (
+        <div className="mt-6">
+          <RouteDetail
+            route={activeRoute}
+            gateways={gateways}
+            upstreams={upstreams}
+            policyWorkspace={policyWorkspace.data}
+            policyError={policyWorkspace.error?.message}
+            onBack={() => setMode('list')}
+            onPolicyWorkspaceChanged={() => policyWorkspace.reload()}
+          />
+        </div>
+      )}
 
       {deleteCandidate ? (
         <RouteConfirmDialog
           title="删除路由"
           message={`确定删除 ${deleteCandidate.name}？删除后匹配请求将不再转发到目标服务。`}
           details={[
-            { label: '所属网关', value: formatGatewayIDs(deleteCandidate.gatewayIDs, gateways) },
+            { label: '所属 Gateway', value: formatGatewayIDs(deleteCandidate.gatewayIDs, gateways) },
+            { label: '匹配域名', value: formatHostnames(deleteCandidate.hostnames) },
             { label: '目标服务', value: routeUpstreamSummary(deleteCandidate, upstreams) },
           ]}
           confirmLabel="确认删除"
