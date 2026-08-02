@@ -12,90 +12,105 @@ import {
   setTokenQuotaPolicyEnabled,
 } from '@/api/policies';
 import { useResource } from '@/api/useResource';
-import { Button, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
+import { Drawer, Modal, PageFrame, ResourceStatePanel, Toast } from '@/components/ui';
 import type { GovernancePolicy, GovernancePolicyKind, PolicyMutationResult } from '@/domain/policy';
-import { policyKindLabel, policyTargetLabel } from '@/domain/policy';
 import {
   AccessControlPolicyEditor,
   accessControlPolicyPayload,
   createAccessControlPolicyDraft,
-  type AccessControlPolicyDraft,
   validateAccessControlPolicyDraft,
+  type AccessControlPolicyDraft,
 } from './AccessControlPolicyEditor';
-import { CreatePolicyMenu, PolicyLibraryTable } from './PolicyLibraryTable';
+import { PolicyLibraryTable } from './PolicyLibraryTable';
 import {
   createRateLimitPolicyDraft,
   RateLimitPolicyEditor,
   rateLimitPolicyPayload,
-  type RateLimitPolicyDraft,
   validateRateLimitPolicyDraft,
+  type RateLimitPolicyDraft,
 } from './RateLimitPolicyEditor';
 import {
   createTokenQuotaPolicyDraft,
   TokenQuotaPolicyEditor,
   tokenQuotaPolicyPayload,
-  type TokenQuotaPolicyDraft,
   validateTokenQuotaPolicyDraft,
+  type TokenQuotaPolicyDraft,
 } from './TokenQuotaPolicyEditor';
 
-const loadPolicyWorkspace = () => getPolicyWorkspace();
-
-type EditorState =
+type PolicyEditorState =
   | { type: 'rateLimit'; draft: RateLimitPolicyDraft }
   | { type: 'accessControl'; draft: AccessControlPolicyDraft }
-  | { type: 'tokenQuota'; draft: TokenQuotaPolicyDraft }
-  | null;
-
-interface Notice {
-  message: string;
-  tone: 'success' | 'error';
-}
-
-const policyTypeOptions = [
-  { value: 'all', label: '全部类型' },
-  { value: 'RateLimitPolicy', label: '限流' },
-  { value: 'AccessControlPolicy', label: '访问控制' },
-  { value: 'TokenQuotaPolicy', label: 'Token 配额' },
-];
+  | { type: 'tokenQuota'; draft: TokenQuotaPolicyDraft };
 
 export function PolicyPage() {
-  const workspace = useResource(loadPolicyWorkspace);
-  const [query, setQuery] = useState('');
-  const [policyKindFilter, setPolicyKindFilter] = useState<GovernancePolicyKind | 'all'>('all');
-  const [editor, setEditor] = useState<EditorState>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const workspace = useResource(getPolicyWorkspace);
+  const [editor, setEditor] = useState<PolicyEditorState | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GovernancePolicy | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
-  if (workspace.loading) {
+  if (workspace.loading && !workspace.data) {
     return (
-      <PageFrame title="策略" subtitle="定义请求治理规则及其应用范围">
-        <ResourceStatePanel title="加载策略数据" message="正在读取限流、访问控制和 Token 配额策略。" />
+      <PageFrame title="治理策略">
+        <ResourceStatePanel title="正在加载治理策略..." message="从管理 API 获取策略列表与关联目标" />
       </PageFrame>
     );
   }
 
   if (workspace.error || !workspace.data) {
     return (
-      <PageFrame title="策略" subtitle="定义请求治理规则及其应用范围">
-        <ResourceStatePanel title="策略数据加载失败" message={workspace.error?.message ?? '请稍后重试。'} />
+      <PageFrame title="治理策略">
+        <ResourceStatePanel title="策略加载失败" message={workspace.error?.message ?? '请稍后重试。'} />
       </PageFrame>
     );
   }
 
   const data = workspace.data;
-  const keyword = query.trim().toLowerCase();
-  const filteredPolicies = data.policies.filter((policy) => {
-    const targetNames = policy.targets.map((target) => policyTargetLabel(target, data.targets));
-    const matchedKeyword = !keyword || [
-      policy.name,
-      policy.description ?? '',
-      policy.summary,
-      ...targetNames,
-    ].some((value) => value.toLowerCase().includes(keyword));
-    return matchedKeyword && (policyKindFilter === 'all' || policy.kind === policyKindFilter);
-  });
+  const allPolicies: GovernancePolicy[] = [
+    ...data.rateLimitPolicies.map((p) => ({
+      kind: 'RateLimitPolicy' as const,
+      id: p.id,
+      version: p.version,
+      name: p.name,
+      description: p.description,
+      enabled: p.enabled,
+      summary: `${p.rules?.length ?? 0} 条限流规则`,
+      ruleCount: p.rules?.length ?? 0,
+      targets: p.targets,
+      status: p.status,
+      createdAt: p.createdAt,
+      raw: p,
+    })),
+    ...data.accessControlPolicies.map((p) => ({
+      kind: 'AccessControlPolicy' as const,
+      id: p.id,
+      version: p.version,
+      name: p.name,
+      description: p.description,
+      enabled: p.enabled,
+      summary: `${p.rules?.length ?? 0} 条 ACL 规则`,
+      ruleCount: p.rules?.length ?? 0,
+      targets: p.targets,
+      status: p.status,
+      createdAt: p.createdAt,
+      raw: p,
+    })),
+    ...data.tokenQuotaPolicies.map((p) => ({
+      kind: 'TokenQuotaPolicy' as const,
+      id: p.id,
+      version: p.version,
+      name: p.name,
+      description: p.description,
+      enabled: p.enabled,
+      summary: `Token Quota Policy`,
+      ruleCount: 1,
+      targets: p.targets,
+      status: p.status,
+      createdAt: p.createdAt,
+      raw: p,
+    })),
+  ];
 
   const reloadAfterMutation = async (resultMessage: string) => {
     await workspace.reload();
@@ -104,12 +119,8 @@ export function PolicyPage() {
   };
 
   const saveEditor = async () => {
-    if (!editor || submitting) {
-      return;
-    }
-    if (!editorIsValid(editor)) {
-      return;
-    }
+    if (!editor || submitting) return;
+    if (!editorIsValid(editor)) return;
     setSubmitting(true);
     try {
       const result = await savePolicyEditor(editor);
@@ -122,20 +133,10 @@ export function PolicyPage() {
   };
 
   const confirmDeletePolicy = async () => {
-    if (!deleteCandidate) {
-      return;
-    }
-
+    if (!deleteCandidate || deleting) return;
     setDeleting(true);
     try {
-      let result: PolicyMutationResult;
-      if (deleteCandidate.kind === 'RateLimitPolicy') {
-        result = await deleteRateLimitPolicy(deleteCandidate.id, deleteCandidate.name);
-      } else if (deleteCandidate.kind === 'AccessControlPolicy') {
-        result = await deleteAccessControlPolicy(deleteCandidate.id, deleteCandidate.name);
-      } else {
-        result = await deleteTokenQuotaPolicy(deleteCandidate.id, deleteCandidate.name);
-      }
+      const result = await deletePolicyByKind(deleteCandidate.kind, deleteCandidate.id, deleteCandidate.version);
       await reloadAfterMutation(result.message);
       setDeleteCandidate(null);
     } catch (error) {
@@ -145,97 +146,50 @@ export function PolicyPage() {
     }
   };
 
-  const togglePolicy = async (policy: GovernancePolicy) => {
+  const togglePolicyStatus = async (policy: GovernancePolicy) => {
     try {
-      let result: PolicyMutationResult;
-      if (policy.kind === 'RateLimitPolicy') {
-        result = await setRateLimitPolicyEnabled(policy.id, policy.name, !policy.enabled);
-      } else if (policy.kind === 'AccessControlPolicy') {
-        result = await setAccessControlPolicyEnabled(policy.id, policy.name, !policy.enabled);
-      } else {
-        result = await setTokenQuotaPolicyEnabled(policy.id, policy.name, !policy.enabled);
-      }
+      const result = await setPolicyEnabledByKind(policy.kind, policy.id, policy.version, !policy.enabled);
       await reloadAfterMutation(result.message);
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '更新策略状态失败', tone: 'error' });
     }
   };
 
-  if (editor) {
-    const editorValid = editorIsValid(editor);
-    return (
-      <PageFrame
-        title="策略"
-        subtitle={editorTitle(editor)}
-        actions={<Button variant="soft" onClick={() => setEditor(null)}>返回列表</Button>}
-      >
-        <section className="editor-layout">
-          <Panel title="配置详情">
-            {editor.type === 'rateLimit' ? (
-              <RateLimitPolicyEditor
-                draft={editor.draft}
-                targets={data.targets}
-                validation={validateRateLimitPolicyDraft(editor.draft)}
-                onChange={(draft) => {
-                  setEditor({ type: 'rateLimit', draft });
-                  setNotice(null);
-                }}
-              />
-            ) : editor.type === 'accessControl' ? (
-              <AccessControlPolicyEditor
-                draft={editor.draft}
-                targets={data.targets}
-                validation={validateAccessControlPolicyDraft(editor.draft)}
-                onChange={(draft) => {
-                  setEditor({ type: 'accessControl', draft });
-                  setNotice(null);
-                }}
-              />
-            ) : (
-              <TokenQuotaPolicyEditor
-                draft={editor.draft}
-                targets={data.targets}
-                validation={validateTokenQuotaPolicyDraft(editor.draft)}
-                onChange={(draft) => {
-                  setEditor({ type: 'tokenQuota', draft });
-                  setNotice(null);
-                }}
-              />
-            )}
-            <div className="form-actions">
-              <Button variant="primary" disabled={submitting || !editorValid} onClick={saveEditor}>{submitting ? '保存中…' : '保存策略'}</Button>
-              <Button variant="ghost" disabled={submitting} onClick={() => setEditor(null)}>取消</Button>
-            </div>
-          </Panel>
-        </section>
-        <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
-      </PageFrame>
-    );
-  }
-
   return (
     <PageFrame
-      title="策略"
-      subtitle="定义请求治理规则及其应用范围"
+      title="治理策略"
+      subtitle={`全量声明式治理策略（已挂载 ${allPolicies.length} 个配置规则）`}
       actions={
-        <CreatePolicyMenu
-          onCreateRateLimit={() => setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft() })}
-          onCreateAccessControl={() => setEditor({ type: 'accessControl', draft: createAccessControlPolicyDraft() })}
-          onCreateTokenQuota={() => setEditor({ type: 'tokenQuota', draft: createTokenQuotaPolicyDraft() })}
-        />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft() })}
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+          >
+            + 限流策略 (Rate Limit)
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditor({ type: 'accessControl', draft: createAccessControlPolicyDraft() })}
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 rounded-lg shadow-xs transition-colors cursor-pointer"
+          >
+            + 访问控制 (IP / ACL)
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditor({ type: 'tokenQuota', draft: createTokenQuotaPolicyDraft() })}
+            className="px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+          >
+            + AI Token 配额
+          </button>
+        </div>
       }
     >
-      <Panel title="策略列表" subtitle={`${data.policies.length} 条策略 · 可直接应用到多个网关或路由`}>
-        <div className="policy-toolbar">
-          <input aria-label="搜索策略" value={query} placeholder="搜索策略名称、内容或应用目标" onChange={(event) => setQuery(event.target.value)} />
-          <select aria-label="策略类型" value={policyKindFilter} onChange={(event) => setPolicyKindFilter(event.target.value as GovernancePolicyKind | 'all')}>
-            {policyTypeOptions.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-        </div>
+      <div className="space-y-6 mt-4">
+        <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
+
         <PolicyLibraryTable
-          policies={filteredPolicies}
+          policies={allPolicies}
           targets={data.targets}
           onEdit={(policy) => {
             if (policy.kind === 'RateLimitPolicy') {
@@ -246,61 +200,125 @@ export function PolicyPage() {
               setEditor({ type: 'tokenQuota', draft: createTokenQuotaPolicyDraft(policy.raw) });
             }
           }}
-          onToggle={togglePolicy}
-          onDelete={setDeleteCandidate}
+          onToggle={togglePolicyStatus}
+          onDelete={(policy) => setDeleteCandidate(policy)}
         />
-      </Panel>
-      {deleteCandidate ? (
-        <div className="confirm-overlay" role="presentation" onMouseDown={() => {
-          if (!deleting) {
-            setDeleteCandidate(null);
-          }
-        }}>
-          <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-policy-title" onMouseDown={(event) => event.stopPropagation()}>
-            <h3 id="delete-policy-title">删除策略</h3>
-            <p>确定删除 {deleteCandidate.name}？策略会从所有应用目标移除，此操作无法撤销。</p>
-            <div className="confirm-meta">
-              <span>策略类型</span><strong>{policyKindLabel(deleteCandidate.kind)}</strong>
-              <span>应用目标</span><strong>{deleteCandidate.targets.length > 0 ? deleteCandidate.targets.length + ' 个' : '未应用'}</strong>
-            </div>
-            <div className="confirm-actions">
-              <Button variant="ghost" disabled={deleting} onClick={() => setDeleteCandidate(null)}>取消</Button>
-              <Button variant="primary" disabled={deleting} onClick={confirmDeletePolicy}>{deleting ? '删除中…' : '确认删除'}</Button>
+      </div>
+
+      {/* Drawer Editor */}
+      <Drawer
+        title={editor ? `编辑${editorTypeTitle(editor.type)}` : ''}
+        subtitle="策略更改后将自动同步至 Envoy 数据面"
+        isOpen={Boolean(editor)}
+        onClose={() => setEditor(null)}
+      >
+        {editor && (
+          <div className="space-y-5">
+            {editor.type === 'rateLimit' ? (
+              <RateLimitPolicyEditor
+                draft={editor.draft}
+                targets={data.targets}
+                validation={validateRateLimitPolicyDraft(editor.draft)}
+                onChange={(draft) => setEditor({ type: 'rateLimit', draft })}
+              />
+            ) : editor.type === 'accessControl' ? (
+              <AccessControlPolicyEditor
+                draft={editor.draft}
+                targets={data.targets}
+                validation={validateAccessControlPolicyDraft(editor.draft)}
+                onChange={(draft) => setEditor({ type: 'accessControl', draft })}
+              />
+            ) : (
+              <TokenQuotaPolicyEditor
+                draft={editor.draft}
+                targets={data.targets}
+                validation={validateTokenQuotaPolicyDraft(editor.draft)}
+                onChange={(draft) => setEditor({ type: 'tokenQuota', draft })}
+              />
+            )}
+
+            <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setEditor(null)}
+                className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={submitting || !editorIsValid(editor)}
+                onClick={saveEditor}
+                className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {submitting ? '提交中...' : '保存策略'}
+              </button>
             </div>
           </div>
+        )}
+      </Drawer>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        title="确认删除治理策略"
+        isOpen={Boolean(deleteCandidate)}
+        onClose={() => setDeleteCandidate(null)}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-600">
+            确定要删除策略 <strong className="text-slate-900 font-mono">{deleteCandidate?.name}</strong> ({deleteCandidate?.id}) 吗？
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setDeleteCandidate(null)}
+              className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={confirmDeletePolicy}
+              className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs cursor-pointer"
+            >
+              {deleting ? '删除中...' : '确认删除'}
+            </button>
+          </div>
         </div>
-      ) : null}
-      <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
+      </Modal>
     </PageFrame>
   );
 }
 
-function editorTitle(editor: Exclude<EditorState, null>) {
-  if (editor.type === 'rateLimit') {
-    return editor.draft.id ? '编辑限流策略' : '新建限流策略';
+function editorTypeTitle(type: PolicyEditorState['type']) {
+  switch (type) {
+    case 'rateLimit': return '限流策略';
+    case 'accessControl': return '访问控制策略';
+    case 'tokenQuota': return 'AI Token 配额策略';
   }
-  if (editor.type === 'accessControl') {
-    return editor.draft.id ? '编辑访问控制策略' : '新建访问控制策略';
-  }
-  return editor.draft.id ? '编辑 Token 配额策略' : '新建 Token 配额策略';
 }
 
-function editorIsValid(editor: Exclude<EditorState, null>) {
-  if (editor.type === 'rateLimit') {
-    return validateRateLimitPolicyDraft(editor.draft).valid;
-  }
-  if (editor.type === 'accessControl') {
-    return validateAccessControlPolicyDraft(editor.draft).valid;
-  }
+function editorIsValid(editor: PolicyEditorState): boolean {
+  if (editor.type === 'rateLimit') return validateRateLimitPolicyDraft(editor.draft).valid;
+  if (editor.type === 'accessControl') return validateAccessControlPolicyDraft(editor.draft).valid;
   return validateTokenQuotaPolicyDraft(editor.draft).valid;
 }
 
-function savePolicyEditor(editor: Exclude<EditorState, null>) {
-  if (editor.type === 'rateLimit') {
-    return saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft));
-  }
-  if (editor.type === 'accessControl') {
-    return saveAccessControlPolicy(accessControlPolicyPayload(editor.draft));
-  }
+function savePolicyEditor(editor: PolicyEditorState): Promise<PolicyMutationResult> {
+  if (editor.type === 'rateLimit') return saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft));
+  if (editor.type === 'accessControl') return saveAccessControlPolicy(accessControlPolicyPayload(editor.draft));
   return saveTokenQuotaPolicy(tokenQuotaPolicyPayload(editor.draft));
+}
+
+function deletePolicyByKind(kind: GovernancePolicyKind, id: string, version?: string): Promise<PolicyMutationResult> {
+  if (kind === 'RateLimitPolicy') return deleteRateLimitPolicy(id, version ?? '');
+  if (kind === 'AccessControlPolicy') return deleteAccessControlPolicy(id, version ?? '');
+  return deleteTokenQuotaPolicy(id, version ?? '');
+}
+
+function setPolicyEnabledByKind(kind: GovernancePolicyKind, id: string, version: string | undefined, enabled: boolean): Promise<PolicyMutationResult> {
+  if (kind === 'RateLimitPolicy') return setRateLimitPolicyEnabled(id, version ?? '', enabled);
+  if (kind === 'AccessControlPolicy') return setAccessControlPolicyEnabled(id, version ?? '', enabled);
+  return setTokenQuotaPolicyEnabled(id, version ?? '', enabled);
 }

@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import { deleteCertificate, listCertificates, saveCertificate } from '@/api/certificates';
 import { useResource } from '@/api/useResource';
-import { Badge, Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
+import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { Certificate, CertificateMutationPayload } from '@/domain/certificate';
+import { KeyRound, Plus, Trash2, Edit3, FileText } from 'lucide-react';
 
-type CertificateMode = 'list' | 'create' | 'edit';
 type CertificateInputMode = 'upload' | 'paste';
 
 interface CertificateDraft extends CertificateMutationPayload {}
@@ -15,123 +15,93 @@ interface CertificateNotice {
   tone: 'success' | 'error';
 }
 
-const loadCertificates = () => listCertificates();
 const maxPEMFileSize = 1024 * 1024;
 
 export function CertificatePage() {
-  const certificates = useResource(loadCertificates);
-  const [mode, setMode] = useState<CertificateMode>('list');
-  const [draft, setDraft] = useState<CertificateDraft>(emptyDraft());
+  const certificates = useResource(listCertificates);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [deleteCandidate, setDeleteCandidate] = useState<Certificate | null>(null);
+
+  const [inputMode, setInputMode] = useState<CertificateInputMode>('upload');
+  const [draft, setDraft] = useState<CertificateDraft>(emptyDraft);
   const [notice, setNotice] = useState<CertificateNotice | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [deleteCandidate, setDeleteCandidate] = useState<Certificate | null>(null);
-  const [inputMode, setInputMode] = useState<CertificateInputMode>('upload');
-  const [certificateFileName, setCertificateFileName] = useState('');
-  const [privateKeyFileName, setPrivateKeyFileName] = useState('');
-  const certificateFileInput = useRef<HTMLInputElement>(null);
-  const privateKeyFileInput = useRef<HTMLInputElement>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  if (certificates.loading) {
+  const certFileInputRef = useRef<HTMLInputElement>(null);
+  const keyFileInputRef = useRef<HTMLInputElement>(null);
+
+  if (certificates.loading && !certificates.data) {
     return (
-      <PageFrame title="证书">
-        <ResourceStatePanel title="加载证书数据" message="正在读取证书列表。" />
+      <PageFrame title="TLS 证书">
+        <ResourceStatePanel title="正在加载证书数据..." message="从管理 API 获取数据中" />
       </PageFrame>
     );
   }
 
   if (certificates.error || !certificates.data) {
     return (
-      <PageFrame title="证书">
+      <PageFrame title="TLS 证书">
         <ResourceStatePanel title="证书数据加载失败" message={certificates.error?.message ?? '请稍后重试。'} />
       </PageFrame>
     );
   }
 
-  const openCreate = () => {
+  const certificateList = certificates.data.certificates;
+
+  const handleCreateNew = () => {
+    setIsEditing(false);
     setDraft(emptyDraft());
-    setMode('create');
     setInputMode('upload');
     setSubmitError(null);
-    setCertificateFileName('');
-    setPrivateKeyFileName('');
+    setDrawerOpen(true);
   };
-  const openEdit = (certificate: Certificate) => {
-    setDraft(emptyDraft(certificate));
-    setMode('edit');
-    setInputMode('upload');
+
+  const handleEdit = (cert: Certificate) => {
+    setIsEditing(true);
+    setDraft({
+      id: cert.id,
+      name: cert.name,
+      description: cert.description ?? '',
+      certificatePEM: '',
+      privateKeyPEM: '',
+    });
+    setInputMode('paste');
     setSubmitError(null);
-    setCertificateFileName('');
-    setPrivateKeyFileName('');
+    setDrawerOpen(true);
   };
-  const clearPEMFile = (field: 'certificatePEM' | 'privateKeyPEM') => {
-    setDraft((current) => ({ ...current, [field]: '' }));
-    if (field === 'certificatePEM') {
-      setCertificateFileName('');
-      return;
-    }
-    setPrivateKeyFileName('');
-  };
-  const changeInputMode = (nextMode: CertificateInputMode) => {
-    if (nextMode === inputMode) {
-      return;
-    }
-    setInputMode(nextMode);
-    setDraft((current) => ({ ...current, certificatePEM: '', privateKeyPEM: '' }));
-    setCertificateFileName('');
-    setPrivateKeyFileName('');
-    setSubmitError(null);
-    if (certificateFileInput.current) {
-      certificateFileInput.current.value = '';
-    }
-    if (privateKeyFileInput.current) {
-      privateKeyFileInput.current.value = '';
-    }
-  };
-  const readPEMFile = async (field: 'certificatePEM' | 'privateKeyPEM', input: HTMLInputElement) => {
-    const file = input.files?.[0];
-    if (!file) {
-      return;
-    }
+
+  const handleFileUpload = (type: 'cert' | 'key', file?: File) => {
+    if (!file) return;
     if (file.size > maxPEMFileSize) {
-      clearPEMFile(field);
-      input.value = '';
-      setSubmitError('PEM 文件不能超过 1 MB');
+      setSubmitError('PEM 文件大小不能超过 1 MB');
       return;
     }
-    try {
-      const content = await file.text();
-      setDraft((current) => ({ ...current, [field]: content }));
-      setSubmitError(null);
-      if (field === 'certificatePEM') {
-        setCertificateFileName(file.name);
-        return;
-      }
-      setPrivateKeyFileName(file.name);
-    } catch {
-      clearPEMFile(field);
-      input.value = '';
-      setSubmitError('读取 PEM 文件失败');
-    }
-  };
-  const updatePEM = (field: 'certificatePEM' | 'privateKeyPEM', value: string) => {
-    setDraft((current) => ({ ...current, [field]: value }));
-    if (field === 'certificatePEM') {
-      setCertificateFileName('');
-    } else {
-      setPrivateKeyFileName('');
-    }
-    const input = field === 'certificatePEM' ? certificateFileInput.current : privateKeyFileInput.current;
-    if (input) {
-      input.value = '';
-    }
-  };
-  const save = async () => {
     setSubmitError(null);
-    const validationError = validateDraft(draft, mode);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const text = String(reader.result ?? '');
+      if (type === 'cert') {
+        setDraft((prev) => ({ ...prev, certificatePEM: text }));
+      } else {
+        setDraft((prev) => ({ ...prev, privateKeyPEM: text }));
+      }
+    };
+    reader.onerror = () => setSubmitError('读取 PEM 文件失败');
+    reader.readAsText(file);
+  };
+
+  const handleSave = async () => {
+    setSubmitError(null);
+    const validationError = validateDraft(draft, isEditing ? 'edit' : 'create');
     if (validationError) {
       setSubmitError(validationError);
       return;
     }
+
+    setSubmitting(true);
     try {
       await saveCertificate({
         ...draft,
@@ -142,217 +112,321 @@ export function CertificatePage() {
       });
       await certificates.reload();
       setNotice({ message: `证书已保存：${draft.name.trim()}`, tone: 'success' });
-      setMode('list');
+      setDrawerOpen(false);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : '保存证书失败');
+    } finally {
+      setSubmitting(false);
     }
   };
+
   const confirmDelete = async () => {
-    if (!deleteCandidate) {
-      return;
-    }
+    if (!deleteCandidate) return;
+    setDeleting(true);
     try {
       await deleteCertificate(deleteCandidate.id);
       await certificates.reload();
-      setNotice({ message: `已删除证书：${deleteCandidate.name}`, tone: 'success' });
+      setNotice({ message: `证书已删除：${deleteCandidate.name}`, tone: 'success' });
       setDeleteCandidate(null);
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '删除证书失败', tone: 'error' });
-      setDeleteCandidate(null);
+    } finally {
+      setDeleting(false);
     }
   };
 
-  if (mode !== 'list') {
-    return (
-      <PageFrame
-        title={mode === 'create' ? '新建证书' : '编辑证书'}
-        actions={<Button variant="soft" onClick={() => setMode('list')}>返回列表</Button>}
-      >
-        <section className="editor-layout">
-          <Panel>
-            <div className="editor-grid form-only">
-              <div className="editor-main-stack">
-                <section className="form-section">
-                  <div className="form-section-title"><h3>基础信息</h3></div>
-                  <div className="field-grid">
-                    <label className="field">
-                      <span>证书名称</span>
-                      <input value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-                    </label>
-                    <label className="field">
-                      <span>描述</span>
-                      <input value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} />
-                    </label>
-                  </div>
-                </section>
-
-                <section className="form-section">
-                  <div className="form-section-title"><h3>{mode === 'create' ? '证书材料' : '替换证书材料（可选）'}</h3></div>
-                  <div className="certificate-input-mode" role="group" aria-label="证书材料录入方式">
-                    <button type="button" className={inputMode === 'upload' ? 'active' : ''} aria-pressed={inputMode === 'upload'} onClick={() => changeInputMode('upload')}>上传文件</button>
-                    <button type="button" className={inputMode === 'paste' ? 'active' : ''} aria-pressed={inputMode === 'paste'} onClick={() => changeInputMode('paste')}>手动粘贴</button>
-                  </div>
-                  <p className="form-section-help">
-                    {inputMode === 'upload' ? '仅支持 PEM 编码，单个文件不超过 1 MB' : '分别粘贴 PEM 格式的证书链和私钥'}
-                  </p>
-                  {inputMode === 'upload' ? (
-                    <div className="certificate-upload-grid">
-                      <label className="certificate-upload-field">
-                        <strong>证书链文件</strong>
-                        <input
-                          ref={certificateFileInput}
-                          type="file"
-                          accept=".pem,.crt,.cer,text/plain,application/x-pem-file"
-                          onChange={(event) => readPEMFile('certificatePEM', event.currentTarget)}
-                        />
-                        <span>{certificateFileName || (mode === 'create' ? '未选择文件' : '不替换现有证书')}</span>
-                      </label>
-                      <label className="certificate-upload-field">
-                        <strong>私钥文件</strong>
-                        <input
-                          ref={privateKeyFileInput}
-                          type="file"
-                          accept=".pem,.key,text/plain,application/x-pem-file"
-                          onChange={(event) => readPEMFile('privateKeyPEM', event.currentTarget)}
-                        />
-                        <span>{privateKeyFileName || (mode === 'create' ? '未选择文件' : '不替换现有私钥')}</span>
-                      </label>
-                    </div>
-                  ) : (
-                    <div className="certificate-pem-grid">
-                      <label className="field">
-                        <span>证书链 PEM</span>
-                        <textarea
-                          className="certificate-pem-input"
-                          value={draft.certificatePEM}
-                          placeholder="-----BEGIN CERTIFICATE-----"
-                          spellCheck={false}
-                          onChange={(event) => updatePEM('certificatePEM', event.target.value)}
-                        />
-                      </label>
-                      <label className="field">
-                        <span>私钥 PEM</span>
-                        <textarea
-                          className="certificate-pem-input"
-                          value={draft.privateKeyPEM}
-                          placeholder="-----BEGIN PRIVATE KEY-----"
-                          spellCheck={false}
-                          onChange={(event) => updatePEM('privateKeyPEM', event.target.value)}
-                        />
-                      </label>
-                    </div>
-                  )}
-                </section>
-              </div>
-              <div className="form-actions">
-                {submitError ? <div className="form-error submit-error" role="alert">{submitError}</div> : null}
-                <Button variant="primary" onClick={save}>保存证书</Button>
-                <Button variant="ghost" onClick={() => setMode('list')}>取消</Button>
-              </div>
-            </div>
-          </Panel>
-        </section>
-      </PageFrame>
-    );
-  }
-
   return (
-    <PageFrame title="证书" actions={<Button variant="primary" onClick={openCreate}>新建证书</Button>}>
-      <Panel title="证书列表">
-        <div className="table-scroll">
-          <table className="table certificate-table">
-            <thead>
-              <tr>
-                <th>证书名称</th>
-                <th>域名</th>
-                <th>有效期</th>
-                <th>状态</th>
-                <th>创建时间</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {certificates.data.certificates.map((certificate) => {
-                const state = certificateState(certificate);
-                return (
-                  <tr key={certificate.id}>
-                    <td>
-                      <div className="table-primary">{certificate.name}</div>
-                      <div className="table-secondary">{certificate.description}</div>
-                    </td>
-                    <td>{certificate.dnsNames.length > 0 ? certificate.dnsNames.join('、') : '-'}</td>
-                    <td>{certificate.notAfter ? formatDateTime(certificate.notAfter) : '-'}</td>
-                    <td><Badge tone={state.tone}>{state.label}</Badge></td>
-                    <td>{formatDateTime(certificate.createdAt)}</td>
-                    <td>
-                      <div className="row-actions">
-                        <button className="link-button" type="button" onClick={() => openEdit(certificate)}>编辑</button>
-                        <button className="link-button danger" type="button" onClick={() => setDeleteCandidate(certificate)}>删除</button>
-                      </div>
-                    </td>
+    <PageFrame
+      title="TLS 证书"
+      subtitle={`已录入 ${certificateList.length} 张 HTTPS 域名与 wildcard TLS 证书`}
+      actions={
+        <button
+          type="button"
+          onClick={handleCreateNew}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          录入证书
+        </button>
+      }
+    >
+      <div className="space-y-6 mt-4">
+        <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
+
+        {/* Certificate List High-Density Table */}
+        <Panel>
+          {certificateList.length === 0 ? (
+            <EmptyState title="暂无 TLS 证书" message="点击右上角按钮录入与绑定的 HTTPS 证书" />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 text-slate-500 bg-slate-50/50 font-medium">
+                    <th className="py-2.5 px-3">证书名称 / ID</th>
+                    <th className="py-2.5 px-3">DNS 域名列表</th>
+                    <th className="py-2.5 px-3">有效期截止</th>
+                    <th className="py-2.5 px-3">录入时间</th>
+                    <th className="py-2.5 px-3 text-right">操作</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {certificates.data.certificates.length === 0 ? (
-            <div className="table-empty"><EmptyState title="暂无证书" message="启用 HTTPS 网关前，需要先创建一张 TLS 证书。" /></div>
-          ) : null}
-        </div>
-      </Panel>
-      <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
-      {deleteCandidate ? (
-        <div className="confirm-overlay" role="presentation" onMouseDown={() => setDeleteCandidate(null)}>
-          <div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="delete-certificate-title" onMouseDown={(event) => event.stopPropagation()}>
-            <h3 id="delete-certificate-title">删除证书</h3>
-            <p>确定删除 {deleteCandidate.name}？仍被 HTTPS 网关引用时，系统会拒绝删除。</p>
-            <div className="confirm-actions">
-              <Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button>
-              <Button variant="primary" onClick={confirmDelete}>确认删除</Button>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-normal">
+                  {certificateList.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-3 px-3">
+                        <div className="flex items-center gap-2">
+                          <KeyRound className="w-4 h-4 text-blue-600 shrink-0" />
+                          <div>
+                            <div className="font-semibold text-slate-900">{item.name}</div>
+                            <div className="text-[11px] font-mono text-slate-400">{item.id}</div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-3 font-mono text-[11px]">
+                        <div className="flex flex-wrap gap-1">
+                          {(item.dnsNames ?? []).map((dns: string) => (
+                            <span key={dns} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-200/60">
+                              {dns}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+
+                      <td className="py-3 px-3">
+                        <span className="font-mono text-[11px] text-slate-700">
+                          {formatDateTime(item.notAfter)}
+                        </span>
+                      </td>
+
+                      <td className="py-3 px-3 text-slate-400 text-[11px]">
+                        {formatDateTime(item.createdAt)}
+                      </td>
+
+                      <td className="py-3 px-3 text-right space-x-1">
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(item)}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
+                          title="修改信息"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteCandidate(item)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                          title="删除"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+          )}
+        </Panel>
+      </div>
+
+      {/* Slide-over Drawer Form */}
+      <Drawer
+        title={isEditing ? `修改证书信息: ${draft.name}` : '录入新 TLS 证书'}
+        subtitle="上传 PEM 格式公私钥文本，用于 HTTPS Listener SNI 握手"
+        isOpen={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+      >
+        <div className="space-y-5">
+          {submitError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg">
+              {submitError}
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                证书展示名称 <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                placeholder="例如: *.example.com 通配符证书"
+                className="w-full px-3 py-2 text-xs border border-slate-300 rounded-lg focus:outline-hidden focus:ring-2 focus:ring-blue-500/20"
+              />
+            </div>
+
+            {!isEditing && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-4 text-xs">
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="inputMode"
+                      checked={inputMode === 'upload'}
+                      onChange={() => setInputMode('upload')}
+                      className="text-blue-600"
+                    />
+                    上传 PEM 文件
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700">
+                    <input
+                      type="radio"
+                      name="inputMode"
+                      checked={inputMode === 'paste'}
+                      onChange={() => setInputMode('paste')}
+                      className="text-blue-600"
+                    />
+                    直接粘贴 PEM 文本
+                  </label>
+                </div>
+
+                {inputMode === 'upload' ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-center">
+                      <FileText className="w-5 h-5 text-slate-400 mx-auto" />
+                      <div className="text-xs font-medium text-slate-700">证书公钥 (.crt / .pem)</div>
+                      <input
+                        ref={certFileInputRef}
+                        type="file"
+                        accept=".pem,.crt,.cer"
+                        className="hidden"
+                        onChange={(e) => handleFileUpload('cert', e.target.files?.[0])}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => certFileInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-white border border-slate-300 text-xs font-medium rounded-lg hover:bg-slate-50 cursor-pointer"
+                      >
+                        选择公钥文件
+                      </button>
+                      {draft.certificatePEM && (
+                        <p className="text-[10px] text-emerald-600 font-mono">已加载公钥文件</p>
+                      )}
+                    </div>
+
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-center">
+                      <FileText className="w-5 h-5 text-slate-400 mx-auto" />
+                      <div className="text-xs font-medium text-slate-700">私钥 Key (.key / .pem)</div>
+                      <input
+                        ref={keyFileInputRef}
+                        type="file"
+                        accept=".pem,.key"
+                        className="hidden"
+                        onChange={(e) => handleFileUpload('key', e.target.files?.[0])}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => keyFileInputRef.current?.click()}
+                        className="px-3 py-1.5 bg-white border border-slate-300 text-xs font-medium rounded-lg hover:bg-slate-50 cursor-pointer"
+                      >
+                        选择私钥文件
+                      </button>
+                      {draft.privateKeyPEM && (
+                        <p className="text-[10px] text-emerald-600 font-mono">已加载私钥文件</p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        证书公钥内容 (BEGIN CERTIFICATE)
+                      </label>
+                      <textarea
+                        rows={5}
+                        value={draft.certificatePEM}
+                        onChange={(e) => setDraft({ ...draft, certificatePEM: e.target.value })}
+                        placeholder="-----BEGIN CERTIFICATE-----"
+                        className="w-full p-2.5 font-mono text-[11px] border border-slate-300 rounded-lg focus:outline-hidden"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        私钥内容 (BEGIN PRIVATE KEY)
+                      </label>
+                      <textarea
+                        rows={5}
+                        value={draft.privateKeyPEM}
+                        onChange={(e) => setDraft({ ...draft, privateKeyPEM: e.target.value })}
+                        placeholder="-----BEGIN PRIVATE KEY-----"
+                        className="w-full p-2.5 font-mono text-[11px] border border-slate-300 rounded-lg focus:outline-hidden"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setDrawerOpen(false)}
+              className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={handleSave}
+              className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              {submitting ? '保存中...' : '保存证书'}
+            </button>
           </div>
         </div>
-      ) : null}
+      </Drawer>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        title="确认删除证书"
+        isOpen={Boolean(deleteCandidate)}
+        onClose={() => setDeleteCandidate(null)}
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-600">
+            删除证书 <strong className="text-slate-900 font-mono">{deleteCandidate?.name}</strong> ({deleteCandidate?.id}) 可能导致依赖此证书的 HTTPS 网关握手失败。确认操作？
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => setDeleteCandidate(null)}
+              className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+            >
+              取消
+            </button>
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={confirmDelete}
+              className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs cursor-pointer"
+            >
+              {deleting ? '删除中...' : '确认删除'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </PageFrame>
   );
 }
 
-function emptyDraft(certificate?: Certificate): CertificateDraft {
+function emptyDraft(): CertificateDraft {
   return {
-    id: certificate?.id,
-    version: certificate?.version,
-    name: certificate?.name ?? '',
-    description: certificate?.description ?? '',
+    name: '',
+    description: '',
     certificatePEM: '',
     privateKeyPEM: '',
   };
 }
 
-function validateDraft(draft: CertificateDraft, mode: CertificateMode) {
-  if (!draft.name.trim()) {
-    return '证书名称不能为空';
-  }
-  const hasCertificate = Boolean(draft.certificatePEM.trim());
-  const hasPrivateKey = Boolean(draft.privateKeyPEM.trim());
-  if (mode === 'create' && (!hasCertificate || !hasPrivateKey)) {
-    return '请同时填写证书链和私钥';
-  }
-  if (hasCertificate !== hasPrivateKey) {
-    return '替换证书时必须同时填写证书链和私钥';
+function validateDraft(draft: CertificateDraft, mode: 'create' | 'edit'): string | null {
+  if (!draft.name.trim()) return '请输入证书展示名称';
+  if (mode === 'create') {
+    if (!draft.certificatePEM.trim()) return '请提供证书公钥内容 (PEM)';
+    if (!draft.privateKeyPEM.trim()) return '请提供证书私钥内容 (PEM)';
   }
   return null;
-}
-
-function certificateState(certificate: Certificate): { label: string; tone: 'success' | 'warning' | 'danger' } {
-  if (!certificate.notAfter) {
-    return { label: '未知', tone: 'warning' };
-  }
-  const remaining = new Date(certificate.notAfter).getTime() - Date.now();
-  if (remaining <= 0) {
-    return { label: '已过期', tone: 'danger' };
-  }
-  if (remaining <= 30 * 24 * 60 * 60 * 1000) {
-    return { label: '即将过期', tone: 'warning' };
-  }
-  return { label: '有效', tone: 'success' };
 }

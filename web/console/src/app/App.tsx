@@ -13,10 +13,10 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route index element={<Navigate to="/gateways" replace />} />
         <Route path="gateways" element={<GatewayPage />} />
-        <Route path="certificates" element={<CertificatePage />} />
         <Route path="routes" element={<RoutePage />} />
         <Route path="services" element={<UpstreamPage />} />
         <Route path="policies" element={<PolicyPage />} />
+        <Route path="certificates" element={<CertificatePage />} />
         <Route path="status" element={<ConfigurationStatusPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/gateways" replace />} />
