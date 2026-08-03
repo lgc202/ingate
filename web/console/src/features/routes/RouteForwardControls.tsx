@@ -307,9 +307,9 @@ function ControlToggle({
 
 function FieldHeading({ title, hint }: { title: string; hint: string }) {
   return (
-    <span className="field-label">
-      <span>{title}</span>
-      <span className="field-help" role="img" tabIndex={0} data-tooltip={hint} aria-label={hint}>?</span>
-    </span>
+    <div className="space-y-0.5 mb-1">
+      <span className="block text-xs font-semibold text-slate-700">{title}</span>
+      {hint ? <p className="text-[11px] text-slate-400 font-normal leading-normal">{hint}</p> : null}
+    </div>
   );
 }
