@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { getPolicyWorkspace } from '@/api/policies';
 import { deleteRoute, getRouteWorkspace, saveRoute, setRouteEnabled } from '@/api/routes';
 import { useResource } from '@/api/useResource';
-import { Button, PageFrame, ResourceStatePanel, Toast } from '@/components/ui';
+import { Button, Drawer, PageFrame, ResourceStatePanel, Toast } from '@/components/ui';
 import type { RouteResource } from '@/domain/route';
 import type { RouteComposerDraft } from './composer';
 import { buildRouteMutationPayload, createRouteComposerDraft, validateRouteComposerDraft } from './composer';
@@ -156,30 +156,6 @@ export function RoutePage() {
     }
   };
 
-  if (mode === 'editor' && draft) {
-    const activeDraft = draft;
-    const validation = validateRouteComposerDraft(activeDraft);
-
-    return (
-      <PageFrame
-        title={activeDraft.id ? `编辑路由：${activeDraft.name}` : '新建路由'}
-        subtitle="集中配置域名、匹配条件、高级转发和 AI 模型能力"
-      >
-        <RouteEditor
-          draft={activeDraft}
-          validation={validation}
-          gateways={gateways}
-          upstreams={upstreams}
-          submitting={submitting}
-          onDraftChange={setDraft}
-          onCancel={closeEditor}
-          onSave={handleSave}
-        />
-        <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
-      </PageFrame>
-    );
-  }
-
   return (
     <PageFrame
       title="路由"
@@ -202,6 +178,26 @@ export function RoutePage() {
         onRequestDelete={setDeleteCandidate}
         onToggleEnabled={toggleEnabled}
       />
+
+      {mode === 'editor' && draft ? (
+        <Drawer
+          isOpen={mode === 'editor'}
+          onClose={closeEditor}
+          title={draft.id ? `编辑路由：${draft.name}` : '新建路由'}
+          subtitle="集中配置域名、匹配条件、高级转发和 AI 模型能力"
+        >
+          <RouteEditor
+            draft={draft}
+            validation={validateRouteComposerDraft(draft)}
+            gateways={gateways}
+            upstreams={upstreams}
+            submitting={submitting}
+            onDraftChange={setDraft}
+            onCancel={closeEditor}
+            onSave={handleSave}
+          />
+        </Drawer>
+      ) : null}
 
       {activeRoute && mode === 'detail' && (
         <div className="mt-6">

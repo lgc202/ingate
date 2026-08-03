@@ -64,7 +64,7 @@ export function RouteList({
             placeholder="搜索路由路径/名称..."
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
-            className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg bg-white w-48 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20"
+            className="px-3 py-1.5 text-xs border border-slate-300 rounded-lg w-48 bg-white focus:outline-hidden"
           />
           <select
             value={gatewayFilter}
@@ -90,13 +90,6 @@ export function RouteList({
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={onCreate}
-            className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors cursor-pointer"
-          >
-            + 新建路由
-          </button>
         </div>
       }
     >

@@ -3,9 +3,9 @@ import { AppShell } from './layout/AppShell';
 import { GatewayPage } from '@/features/gateways/GatewayPage';
 import { RoutePage } from '@/features/routes/RoutePage';
 import { UpstreamPage } from '@/features/upstreams/UpstreamPage';
-import { ConfigurationStatusPage } from '@/features/configuration/ConfigurationStatusPage';
 import { PolicyPage } from '@/features/policies/PolicyPage';
 import { CertificatePage } from '@/features/certificates/CertificatePage';
+import { ConfigurationStatusPage } from '@/features/configuration/ConfigurationStatusPage';
 
 export default function App() {
   return (

@@ -7,8 +7,8 @@ export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className={`min-h-screen grid transition-all duration-200 ${collapsed ? 'grid-cols-[64px_1fr]' : 'grid-cols-[220px_1fr]'}`}>
-      <aside className="bg-slate-900 text-slate-200 flex flex-col justify-between border-r border-slate-800 select-none">
+    <div className={`h-screen overflow-hidden grid transition-all duration-200 ${collapsed ? 'grid-cols-[64px_1fr]' : 'grid-cols-[220px_1fr]'}`}>
+      <aside className="bg-slate-900 text-slate-200 flex flex-col justify-between border-r border-slate-800 select-none h-full overflow-hidden">
         <div>
           {/* Brand Header */}
           <div className="h-14 px-4 flex items-center justify-between border-b border-slate-800/80">
@@ -17,19 +17,19 @@ export function AppShell() {
               {!collapsed && (
                 <div className="truncate">
                   <div className="text-sm font-semibold text-white tracking-tight leading-none">Ingate</div>
-                  <span className="text-[10px] font-mono text-slate-400">Control Plane</span>
+                  <span className="text-[10px] font-mono text-slate-400">API 与 AI 网关</span>
                 </div>
               )}
             </div>
             <button
               type="button"
               onClick={() => setCollapsed(!collapsed)}
-              className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
               title={collapsed ? '展开侧边栏' : '折叠侧边栏'}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 {collapsed ? (
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7" />
                 ) : (
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
                 )}
@@ -65,20 +65,20 @@ export function AppShell() {
             <>
               <div className="flex items-center gap-2">
                 <StatusDot status="healthy" />
-                <span className="font-mono text-slate-300">Envoy xDS Active</span>
+                <span className="font-medium text-slate-300">网关运行中</span>
               </div>
               <span className="font-mono text-slate-500">v0.2</span>
             </>
           ) : (
-            <div className="mx-auto" title="Envoy xDS Active">
+            <div className="mx-auto" title="网关运行中">
               <StatusDot status="healthy" />
             </div>
           )}
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="bg-slate-50/60 min-h-screen p-6 overflow-y-auto">
+      {/* Main Content Area: Fixed Height + Native Vertical Scrollbar */}
+      <main className="bg-slate-50/60 h-screen overflow-y-auto min-h-0 p-6">
         <Outlet />
       </main>
     </div>

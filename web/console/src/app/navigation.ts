@@ -1,5 +1,5 @@
 import {
-  ClipboardCheck,
+  Activity,
   KeyRound,
   Layers3,
   Route,
@@ -21,5 +21,5 @@ export const primaryNav: NavItem[] = [
   { key: 'services', label: '服务', to: '/services', icon: Server },
   { key: 'policies', label: '策略', to: '/policies', icon: ShieldCheck },
   { key: 'certificates', label: '证书', to: '/certificates', icon: KeyRound },
-  { key: 'status', label: '配置状态', to: '/status', icon: ClipboardCheck },
+  { key: 'status', label: '配置状态', to: '/status', icon: Activity },
 ];

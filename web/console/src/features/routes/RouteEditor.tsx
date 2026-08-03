@@ -44,30 +44,7 @@ export function RouteEditor({
   const controlCount = forwardControlCount(draft);
 
   return (
-    <section className="route-workbench">
-      <div className="route-workbench-top">
-        <div>
-          <h2>{draft.id ? '编辑路由' : '创建路由'}</h2>
-          <p>{draft.name.trim() || '未命名路由'} · {formatMethods(draft.methods)} {draft.path || '/'}</p>
-        </div>
-        <div className="route-workbench-meta">
-          <Badge tone={draft.enabled ? 'accent' : 'neutral'}>{draft.enabled ? '启用' : '停用'}</Badge>
-          <Badge tone={draft.forwardMode === 'model' ? 'accent' : 'neutral'}>{draft.forwardMode === 'model' ? '模型路由' : '普通转发'}</Badge>
-          {draft.preservedRules.length > 0 ? <Badge tone="warning">保留 {draft.preservedRules.length} 条附加规则</Badge> : null}
-          <span>{controlCount > 0 ? `${controlCount} 项转发控制` : '使用默认转发行为'}</span>
-        </div>
-      </div>
-
-      <div className="route-workbench-grid">
-        <div className="route-form-layout">
-          <nav className="route-form-nav" aria-label="路由配置导航">
-            <a href="#route-basic">基础信息</a>
-            <a href="#route-match">匹配条件</a>
-            <a href="#route-upstreams">转发目标</a>
-            <a href="#route-controls">转发控制</a>
-          </nav>
-
-          <div className="route-form-sections">
+    <div className="space-y-6">
             {draft.preservedRules.length > 0 ? (
               <aside className="mini-card">
                 <strong>附加规则保持不变</strong>
@@ -194,74 +171,28 @@ export function RouteEditor({
                 onChange={updateDraft}
               />
             </section>
-          </div>
+      {/* 校验提示 */}
+      {!validation.valid && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 space-y-1">
+          <div className="font-semibold">{validation.summary}</div>
+          {Object.values(validation.errors)
+            .filter(Boolean)
+            .map((err, i) => (
+              <div key={i}>• {err}</div>
+            ))}
         </div>
+      )}
 
-        <RouteEditorSummary draft={draft} validation={validation} gateways={gateways} upstreams={upstreams} />
-      </div>
-
-      <div className="route-workbench-actions">
-        <Button variant="ghost" disabled={submitting} onClick={onCancel}>取消</Button>
+      {/* 底部操作区 */}
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+        <Button variant="ghost" disabled={submitting} onClick={onCancel}>
+          取消
+        </Button>
         <Button variant="primary" disabled={!validation.valid || submitting} onClick={onSave}>
           {submitting ? '保存中...' : '保存路由'}
         </Button>
       </div>
-    </section>
-  );
-}
-
-function RouteEditorSummary({
-  draft,
-  validation,
-  gateways,
-  upstreams,
-}: {
-  draft: RouteComposerDraft;
-  validation: RouteDraftValidation;
-  gateways: RouteGatewayOption[];
-  upstreams: UpstreamOption[];
-}) {
-  const errors = Object.values(validation.errors).filter(Boolean);
-  const modelRouting = draft.forwardMode === 'model';
-  const items = [
-    { label: '入口网关', value: formatGatewayIDs(draft.gatewayIDs, gateways) },
-    { label: '匹配请求', value: `${formatMethods(draft.methods)} ${draft.path || '/'}` },
-    { label: '域名', value: formatHostnames(draft.hostnames) },
-    { label: '转发方式', value: modelRouting ? '模型服务代理' : '普通服务转发' },
-    {
-      label: modelRouting ? '模型映射' : '目标服务',
-      value: modelRouting
-        ? formatModelRoutes(draft.modelRoutes, upstreams)
-        : formatWeightedUpstreams(draft.weightedUpstreams, upstreams),
-    },
-    ...(modelRouting ? [{ label: '模型数量', value: `${draft.modelRoutes.length} 个` }] : [{ label: '总权重', value: String(upstreamWeightSum(draft.weightedUpstreams)) }]),
-    { label: '转发控制', value: `${forwardControlCount(draft)} 项` },
-    ...(draft.preservedRules.length > 0 ? [{ label: '附加规则', value: `保留 ${draft.preservedRules.length} 条` }] : []),
-  ];
-
-  return (
-    <aside className="route-editor-summary" aria-label="路由配置摘要">
-      <div className="route-summary-block">
-        <div className="route-summary-title">请求链路</div>
-        <dl>
-          {items.map((item) => (
-            <div key={item.label}>
-              <dt>{item.label}</dt>
-              <dd>{item.value}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-      <div className="route-summary-block">
-        <div className="route-summary-title">保存检查</div>
-        <div className={`route-summary-status ${validation.valid ? 'ok' : 'bad'}`.trim()}>{validation.summary}</div>
-        {errors.length > 0 ? (
-          <div className="route-summary-errors">
-            {errors.map((error, index) => <div key={`${error}-${index}`}>{error}</div>)}
-          </div>
-        ) : null}
-      </div>
-    </aside>
+    </div>
   );
 }
 
@@ -694,10 +625,13 @@ function SectionTitle({ number, title, description }: { number: string; title: s
 
 function FieldLabel({ label, required, info }: { label: string; required?: boolean; info?: string }) {
   return (
-    <span className="field-label">
-      <span>{required ? <span className="required-mark">*</span> : null}{label}</span>
-      {info ? <span className="field-help" role="img" tabIndex={0} data-tooltip={info} aria-label={info}>?</span> : null}
-    </span>
+    <div className="space-y-0.5 mb-1">
+      <span className="block text-xs font-semibold text-slate-700">
+        {required ? <span className="text-rose-500 mr-0.5">*</span> : null}
+        {label}
+      </span>
+      {info ? <p className="text-[11px] text-slate-400 font-normal leading-normal">{info}</p> : null}
+    </div>
   );
 }
 
