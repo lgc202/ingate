@@ -14,7 +14,7 @@ import (
 	extprochttpv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_proc/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
-	"github.com/lgc202/ingate/internal/aiproxy/routeconfig"
+	"github.com/lgc202/ingate/internal/pkg/aiproxyconfig"
 	"github.com/lgc202/ingate/internal/pkg/bearer"
 	"github.com/redis/go-redis/v9"
 	"google.golang.org/grpc/codes"
@@ -57,7 +57,7 @@ type Server struct {
 }
 
 type requestState struct {
-	config            routeconfig.Config
+	config            aiproxyconfig.Config
 	configErr         error
 	proxy             *modelProxy
 	grant             grant
@@ -177,7 +177,7 @@ func (s *Server) processRequestBody(
 	state *requestState,
 	body *extprocv3.HttpBody,
 ) (*extprocv3.ProcessingResponse, bool, error) {
-	if len(body.GetBody()) > routeconfig.MaxRequestBodyBytes {
+	if len(body.GetBody()) > aiproxyconfig.MaxRequestBodyBytes {
 		response := rejectionResponse(413, "Request body is too large", "invalid_request_error", "request_too_large", nil)
 		return immediateResponse(response), true, nil
 	}
@@ -241,7 +241,7 @@ func (s *Server) processResponseBody(
 	if state.responseTransform.stream && state.responseStatus < 400 {
 		return s.processStreamingResponse(state, body)
 	}
-	if len(body.GetBody()) > routeconfig.MaxResponseBodyBytes {
+	if len(body.GetBody()) > aiproxyconfig.MaxResponseBodyBytes {
 		s.logger.Error("AI upstream response body is too large", "bytes", len(body.GetBody()))
 		return replaceResponseBody(502, responseErrorBody()), body.GetEndOfStream(), nil
 	}
@@ -277,16 +277,16 @@ func (s *Server) processStreamingResponse(
 	return replaceResponseBody(0, transformed), body.GetEndOfStream(), nil
 }
 
-func decodeRouteConfig(ctx context.Context) (routeconfig.Config, error) {
+func decodeRouteConfig(ctx context.Context) (aiproxyconfig.Config, error) {
 	metadata, ok := grpcmetadata.FromIncomingContext(ctx)
 	if !ok {
-		return routeconfig.Config{}, errors.New("ExtProc gRPC metadata is missing")
+		return aiproxyconfig.Config{}, errors.New("ExtProc gRPC metadata is missing")
 	}
-	values := metadata.Get(routeconfig.GRPCMetadataKey)
+	values := metadata.Get(aiproxyconfig.GRPCMetadataKey)
 	if len(values) != 1 {
-		return routeconfig.Config{}, fmt.Errorf("ExtProc gRPC metadata %q must contain one value", routeconfig.GRPCMetadataKey)
+		return aiproxyconfig.Config{}, fmt.Errorf("ExtProc gRPC metadata %q must contain one value", aiproxyconfig.GRPCMetadataKey)
 	}
-	return routeconfig.Decode(values[0])
+	return aiproxyconfig.Decode(values[0])
 }
 
 func bearerSecret(authorization string) (string, bool) {

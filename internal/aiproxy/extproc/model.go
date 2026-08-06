@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lgc202/ingate/internal/aiproxy/routeconfig"
+	"github.com/lgc202/ingate/internal/pkg/aiproxyconfig"
 	"github.com/lgc202/ingate/pkg/llm"
 	"github.com/lgc202/ingate/pkg/llm/anthropic"
 	"github.com/lgc202/ingate/pkg/llm/gemini"
@@ -17,8 +17,8 @@ const chatCompletionsPath = "/v1/chat/completions"
 
 type modelProxy struct {
 	requireUsage bool
-	upstreams    map[string]routeconfig.Upstream
-	models       map[string]routeconfig.Model
+	upstreams    map[string]aiproxyconfig.Upstream
+	models       map[string]aiproxyconfig.Model
 }
 
 type preparedRequest struct {
@@ -26,7 +26,7 @@ type preparedRequest struct {
 	path      string
 	cluster   string
 	authority string
-	headers   []routeconfig.Header
+	headers   []aiproxyconfig.Header
 	response  responseTransform
 }
 
@@ -47,12 +47,12 @@ type responseStream interface {
 	Finish() ([]byte, error)
 }
 
-func newModelProxy(config routeconfig.Config) *modelProxy {
-	upstreams := make(map[string]routeconfig.Upstream, len(config.Upstreams))
+func newModelProxy(config aiproxyconfig.Config) *modelProxy {
+	upstreams := make(map[string]aiproxyconfig.Upstream, len(config.Upstreams))
 	for _, upstream := range config.Upstreams {
 		upstreams[upstream.ID] = upstream
 	}
-	models := make(map[string]routeconfig.Model, len(config.Models))
+	models := make(map[string]aiproxyconfig.Model, len(config.Models))
 	for _, model := range config.Models {
 		models[model.Model] = model
 	}
@@ -125,10 +125,10 @@ func (p *modelProxy) prepareRequest(body []byte, allowsModel func(string) bool) 
 		response := internalErrorResponse()
 		return preparedRequest{}, &response
 	}
-	headers := make([]routeconfig.Header, 0, len(upstream.Headers)+1)
+	headers := make([]aiproxyconfig.Header, 0, len(upstream.Headers)+1)
 	headers = append(headers, upstream.Headers...)
 	if upstream.APIKey != "" {
-		headers = append(headers, routeconfig.Header{
+		headers = append(headers, aiproxyconfig.Header{
 			Name:  upstream.APIKeyHeader,
 			Value: upstream.APIKeyPrefix + upstream.APIKey,
 		})
@@ -186,7 +186,7 @@ func (p *modelProxy) newResponseStream(transform responseTransform) (responseStr
 }
 
 func transformRequest(
-	upstream routeconfig.Upstream,
+	upstream aiproxyconfig.Upstream,
 	upstreamModel string,
 	request openai.Request,
 	requireUsage bool,

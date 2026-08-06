@@ -14,7 +14,7 @@ import (
 	extprochttpv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_proc/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
-	"github.com/lgc202/ingate/internal/aiproxy/routeconfig"
+	"github.com/lgc202/ingate/internal/pkg/aiproxyconfig"
 	"github.com/lgc202/ingate/internal/pkg/httpheader"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/pkg/llm"
@@ -66,8 +66,8 @@ type attachedAIRouteKey struct {
 }
 
 type compiledAIRoute struct {
-	upstreams []routeconfig.Upstream
-	models    []routeconfig.Model
+	upstreams []aiproxyconfig.Upstream
+	models    []aiproxyconfig.Model
 }
 
 func (c *compilation) compileAIModels(routeID string, rule gatewayv1.RouteRule, methods []string) (compiledAIRoute, bool) {
@@ -100,8 +100,8 @@ func (c *compilation) compileAIModels(routeID string, rule gatewayv1.RouteRule, 
 	slices.SortFunc(items, func(a, b gatewayv1.ModelRoute) int {
 		return strings.Compare(a.Model, b.Model)
 	})
-	upstreamsByID := make(map[string]routeconfig.Upstream)
-	models := make([]routeconfig.Model, 0, len(items))
+	upstreamsByID := make(map[string]aiproxyconfig.Upstream)
+	models := make([]aiproxyconfig.Model, 0, len(items))
 	seen := make(map[string]bool, len(items))
 	for _, item := range items {
 		if item.Model == "" || strings.TrimSpace(item.Model) != item.Model {
@@ -166,7 +166,7 @@ func (c *compilation) compileAIModels(routeID string, rule gatewayv1.RouteRule, 
 			}
 			upstreamsByID[upstreamRef] = compiledUpstream
 		}
-		models = append(models, routeconfig.Model{
+		models = append(models, aiproxyconfig.Model{
 			Model:         item.Model,
 			UpstreamID:    compiledUpstream.ID,
 			UpstreamModel: upstreamModel,
@@ -176,7 +176,7 @@ func (c *compilation) compileAIModels(routeID string, rule gatewayv1.RouteRule, 
 		return compiledAIRoute{}, false
 	}
 
-	upstreams := make([]routeconfig.Upstream, 0, len(upstreamsByID))
+	upstreams := make([]aiproxyconfig.Upstream, 0, len(upstreamsByID))
 	for _, upstreamID := range slices.Sorted(maps.Keys(upstreamsByID)) {
 		upstreams = append(upstreams, upstreamsByID[upstreamID])
 	}
@@ -185,19 +185,19 @@ func (c *compilation) compileAIModels(routeID string, rule gatewayv1.RouteRule, 
 	return compiled, true
 }
 
-func (c *compilation) compileAIUpstream(upstream *gatewayv1.Upstream) (routeconfig.Upstream, bool) {
+func (c *compilation) compileAIUpstream(upstream *gatewayv1.Upstream) (aiproxyconfig.Upstream, bool) {
 	clusterName, clusterExists := c.upstreamClusters[upstream.Name]
 	if !clusterExists {
-		return routeconfig.Upstream{}, false
+		return aiproxyconfig.Upstream{}, false
 	}
 	apiKey, credentialValid := c.upstreamAPIKey(upstream)
 	if !credentialValid {
-		return routeconfig.Upstream{}, false
+		return aiproxyconfig.Upstream{}, false
 	}
 
 	var apiKeyHeader string
 	var apiKeyPrefix string
-	var headers []routeconfig.Header
+	var headers []aiproxyconfig.Header
 	// Provider 只用于资源组合校验；数据面执行配置完全由 Protocol 决定
 	switch upstream.Spec.Protocol {
 	case gatewayv1.UpstreamProtocolOpenAI:
@@ -205,13 +205,13 @@ func (c *compilation) compileAIUpstream(upstream *gatewayv1.Upstream) (routeconf
 		apiKeyPrefix = openAIAPIKeyPrefix
 	case gatewayv1.UpstreamProtocolAnthropic:
 		apiKeyHeader = anthropicAPIKeyHeader
-		headers = []routeconfig.Header{{Name: anthropicVersionHeader, Value: anthropicVersion}}
+		headers = []aiproxyconfig.Header{{Name: anthropicVersionHeader, Value: anthropicVersion}}
 	case gatewayv1.UpstreamProtocolGemini:
 		apiKeyHeader = geminiAPIKeyHeader
 	default:
-		return routeconfig.Upstream{}, false
+		return aiproxyconfig.Upstream{}, false
 	}
-	config := routeconfig.Upstream{
+	config := aiproxyconfig.Upstream{
 		ID:        upstream.Name,
 		Protocol:  llm.Protocol(upstream.Spec.Protocol),
 		Cluster:   clusterName,
@@ -244,7 +244,7 @@ func (c *compilation) configureAIRoutes(configs map[listenerKey]listenerFilterCo
 			continue
 		}
 		listenerConfig := configs[attachment.listenerKey]
-		encodedConfig, err := routeconfig.Encode(routeconfig.Config{
+		encodedConfig, err := aiproxyconfig.Encode(aiproxyconfig.Config{
 			RequireUsage: listenerConfig.requiresAIUsage(
 				attachment.gatewayID,
 				attachment.routeID,
@@ -297,7 +297,7 @@ func buildAIProxyHTTPFilter() (*hcmv3.HttpFilter, error) {
 			TargetSpecifier: &corev3.GrpcService_EnvoyGrpc_{
 				EnvoyGrpc: &corev3.GrpcService_EnvoyGrpc{
 					ClusterName:             aiProxyClusterName,
-					MaxReceiveMessageLength: wrapperspb.UInt32(routeconfig.ResponseBufferLimitBytes),
+					MaxReceiveMessageLength: wrapperspb.UInt32(aiproxyconfig.ResponseBufferLimitBytes),
 				},
 			},
 		},
@@ -333,7 +333,7 @@ func buildAIProxyRouteConfig(encodedConfig string) (*anypb.Any, error) {
 			Overrides: &extprochttpv3.ExtProcOverrides{
 				ProcessingMode: aiProxyProcessingMode(),
 				GrpcInitialMetadata: []*corev3.HeaderValue{{
-					Key:   routeconfig.GRPCMetadataKey,
+					Key:   aiproxyconfig.GRPCMetadataKey,
 					Value: encodedConfig,
 				}},
 			},
