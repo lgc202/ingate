@@ -5,7 +5,7 @@ Ingate 是面向 API 网关和 AI 网关的声明式 Envoy 控制面。应用服
 ## 架构
 
 ```text
-Console -> ingate-admin-api -----+
+Console -> ingate-admin ---------+
 CLI / SDK -----------------------+-> ingate-apiserver -> etcd
                                       ^          |
                                       | status   | watch spec
@@ -15,33 +15,34 @@ CLI / SDK -----------------------+-> ingate-apiserver -> etcd
                                    -> xDS Snapshot Cache
                                       |
                                       v
-                                    Envoy
+                                    Envoy <----> ingate-ai-proxy
 ```
 
 一套 Ingate 表示一个环境、一个配置域和一组配置完全相同的 Envoy 实例。一套 Ingate 可以声明多个逻辑 Gateway；所有资源会被全量编译成同一份 Envoy 配置。IP Upstream 使用 EDS，hostname Upstream 使用 Envoy `STRICT_DNS` cluster。
 
 主要组件：
 
-- `ingate`：CLI 和本地管理入口
-- `ingate-admin-api`：控制台产品 API
+- `ingate-console`：控制台静态资源和管理 API 入口
+- `ingate-admin`：控制台产品 API
 - `ingate-apiserver`：声明式资源 API，也是持久化数据的唯一入口
 - `ingate-controller`：资源收敛、Envoy 配置编译、Delivery、ADS xDS 和资源 status 更新
+- `ingate-ai-proxy`：通过 Envoy ExtProc 执行 AI 访问认证、模型选路、协议转换和响应归一化
 - `Envoy`：唯一数据平面，二进制来自带 Redis 扩展 ABI 的 Higress Envoy
 - `etcd`：由 apiserver 使用的声明式资源存储
-- `Redis`：限流及 Token 配额等请求路径共享状态
+- `MySQL`：访问密钥等管理业务数据
+- `Redis`：访问密钥执行索引、限流及 Token 配额等请求路径共享状态
 
 内置限流、访问控制和 Token 配额以强类型 Policy 对外提供，策略通过自身的 `targetRefs[]` 直接声明生效的 Gateway 或 Route。用户不需要安装内置 Wasm 插件，也不需要选择本地或全局计数模式、算法或 Redis 地址；请求路径共享状态统一使用 Envoy bootstrap 中固定的 `ingate-system-redis`。
 
 ## AI Gateway
 
-AI Gateway 不新增 AI runtime 或独立服务，继续使用现有资源和 Controller 编译链路：
+AI Gateway 继续使用现有资源和 Controller 编译链路，并通过标准 ExtProc 把适合普通 Go 服务实现的请求处理能力接到 Envoy：
 
 ```text
 OpenAI Client
   -> Envoy
   -> 内置 tokenquota Wasm
-  -> 内置 ai-proxy Wasm
-  -> 按 model 选择模型 Upstream
+  -> ingate-ai-proxy：认证、按 model 选路和协议转换
   -> OpenAI / DeepSeek / 通义 / Anthropic / Gemini / 自定义兼容服务
 ```
 
@@ -50,8 +51,9 @@ OpenAI Client
 - 模型服务通过 `tls.serverName` 启用 HTTPS、SNI 和系统 CA 根证书包校验
 - 模型服务的 API Key 直接随 `Upstream` 配置，不再创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略密钥会保留原值，显式移除才会清除；配置 API Key 时必须使用 HTTPS
 - 一条模型 RouteRule 的 `modelRouting.models[]` 中，每个公开模型别名独立引用模型 Upstream 和厂商模型；同一路由可以按请求体 `model` 跨厂商选择目标
-- Envoy Config Compiler 生成 Cluster、受控内部选路 Header 和 `ai-proxy` 私有执行配置；用户不需要安装插件或编辑插件 JSON
-- `ai-proxy` 将请求、普通响应、错误、Token usage 和 SSE 统一为 OpenAI-compatible 语义，响应中的 `model` 始终返回客户端公开别名
+- Envoy Config Compiler 把每条模型路由的 Cluster、上游 Host、协议、凭据和模型映射写入 ExtProc per-route 配置
+- `ingate-ai-proxy` 认证客户端访问密钥并校验公开模型权限；密钥索引从 MySQL 发布到 Redis，请求链路不访问 MySQL
+- `ingate-ai-proxy` 将厂商请求、普通响应、错误、Token usage 和 SSE 统一为 OpenAI-compatible 语义，响应中的 `model` 始终返回客户端公开别名
 - `TokenQuotaPolicy` 可以应用到模型 Route 或承载模型 Route 的 Gateway，按共享预算、来源 IP 或请求 Header 值累计输入与输出 Token；多个 `targetRefs[]` 共享同一个策略预算池
 - Token 配额在请求前检查当前固定窗口，在响应结束后按上游返回的实际 `usage.total_tokens` 记账；并发中的请求可能造成有限超额，因此当前能力属于软额度而不是严格预扣
 
@@ -84,10 +86,12 @@ hack/                        代码生成脚本
 
 ```text
 /opt/ingate/
-├── admin-api/
-│   ├── bin/ingate-admin-api
-│   ├── configs/config.yaml
-│   └── console/
+├── admin/
+│   ├── bin/ingate-admin
+│   └── configs/config.yaml
+├── ai-proxy/
+│   ├── bin/ingate-ai-proxy
+│   └── configs/config.yaml
 ├── apiserver/
 │   ├── bin/ingate-apiserver
 │   ├── configs/config.yaml
@@ -95,6 +99,10 @@ hack/                        代码生成脚本
 ├── controller/
 │   ├── bin/ingate-controller
 │   └── configs/config.yaml
+├── console/
+│   ├── bin/ingate-console
+│   ├── configs/config.yaml
+│   └── web/
 ├── envoy/
 │   ├── bin/envoy
 │   └── configs/bootstrap.yaml
@@ -135,9 +143,9 @@ Gateway HTTP: http://127.0.0.1:8080
 Gateway TLS:  https://127.0.0.1:8443
 ```
 
-开发环境由独立的 etcd、Redis、ingate-apiserver、ingate-controller、ingate-admin-api 和 Envoy 容器组成。Console 静态资源包含在 Admin API 镜像中。
+开发环境由独立的 etcd、MySQL、Redis、ingate-apiserver、ingate-controller、ingate-ai-proxy、ingate-admin、ingate-console 和 Envoy 容器组成。
 
-Controller 和 Envoy 共享网络命名空间，xDS 继续只监听 `127.0.0.1`，不会因为拆分容器而暴露到开发网络。Compose 直接使用固定版本的 `lgc202/ingate-envoy:v0.1.0`；该镜像从 Higress Gateway `v2.2.3` 提取带 Redis ABI 的 Envoy 二进制，并加入 Ingate 内置 Wasm 插件。
+Controller 和 Envoy 共享网络命名空间，xDS 继续只监听 `127.0.0.1`，不会因为拆分容器而暴露到开发网络。Compose 直接使用固定版本的 `lgc202/ingate-envoy:v0.2.0`；该镜像从 Higress Gateway `v2.2.3` 提取带 Redis ABI 的 Envoy 二进制，并加入 Ingate 内置 Wasm 插件和 ExtProc Bootstrap 配置。
 
 etcd、Redis 和 API Server 证书使用独立 Docker Volume。Go 服务日志写入容器标准输出，通过 `make docker-logs` 查看。停止环境不会删除 Volume：
 

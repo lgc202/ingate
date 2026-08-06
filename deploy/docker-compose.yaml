@@ -97,13 +97,32 @@ services:
       retries: 20
       start_period: 10s
 
+  ai-proxy:
+    image: ingate/ai-proxy:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: ai-proxy
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./deploy/docker/configs/ingate-ai-proxy.yaml:/opt/ingate/ai-proxy/configs/config.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18082/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
   envoy:
-    image: lgc202/ingate-envoy:v0.1.0
+    image: lgc202/ingate-envoy:v0.2.0
     network_mode: service:controller
     depends_on:
       controller:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      ai-proxy:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:15000/ready"]

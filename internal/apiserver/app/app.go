@@ -82,8 +82,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	options.SecureServing.BindAddress = netutils.ParseIPSloppy(settings.Server.BindAddress)
 	options.SecureServing.BindPort = settings.Server.SecurePort
 	options.SecureServing.ServerCert.CertDirectory = settings.Server.CertDirectory
-	options.Etcd.StorageConfig.Transport.ServerList = append([]string(nil), settings.Storage.EtcdServers...)
-	options.Etcd.StorageConfig.Prefix = settings.Storage.PathPrefix
+	options.Etcd.StorageConfig.Transport.ServerList = append([]string(nil), settings.Etcd.Endpoints...)
+	options.Etcd.StorageConfig.Prefix = settings.Etcd.Prefix
 	if err := options.Complete(); err != nil {
 		return err
 	}

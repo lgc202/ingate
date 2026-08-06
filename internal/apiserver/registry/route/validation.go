@@ -18,7 +18,6 @@ const (
 	maxPerTryTimeoutMillis    = 60000
 	openAIChatCompletionsPath = "/v1/chat/completions"
 	aiClusterHeader           = "x-ingate-ai-cluster-v1"
-	aiRouteHeader             = "x-ingate-ai-route-v1"
 )
 
 var aiManagedRequestHeaders = []string{
@@ -31,7 +30,6 @@ var aiManagedRequestHeaders = []string{
 	"content-length",
 	"content-type",
 	aiClusterHeader,
-	aiRouteHeader,
 	"x-api-key",
 	"x-goog-api-key",
 }
@@ -215,7 +213,7 @@ func validateModelRouting(rule resource.RouteRule, path *field.Path) field.Error
 		}
 	}
 	for i, header := range rule.Headers {
-		if strings.EqualFold(header.Name, aiClusterHeader) || strings.EqualFold(header.Name, aiRouteHeader) {
+		if strings.EqualFold(header.Name, aiClusterHeader) {
 			errList = append(errList, field.Forbidden(path.Child("headers").Index(i), "internal AI routing headers are managed by Ingate"))
 		}
 	}

@@ -25,7 +25,6 @@ const minPerTryTimeoutMillis = 100;
 const maxPerTryTimeoutMillis = 60000;
 export const modelRoutePath = '/v1/chat/completions';
 const aiClusterHeader = 'x-ingate-ai-cluster-v1';
-const aiRouteHeader = 'x-ingate-ai-route-v1';
 const aiManagedRequestHeaders = new Set([
   ':authority',
   ':path',
@@ -36,7 +35,6 @@ const aiManagedRequestHeaders = new Set([
   'content-length',
   'content-type',
   aiClusterHeader,
-  aiRouteHeader,
   'x-api-key',
   'x-goog-api-key',
 ]);
@@ -361,7 +359,7 @@ function headerMatchesError(headers: HeaderMatch[], modelRouting: boolean): stri
     if (!header.value.trim()) {
       return '请求头值不能为空';
     }
-    if (modelRouting && (name === aiClusterHeader || name === aiRouteHeader)) {
+    if (modelRouting && name === aiClusterHeader) {
       return '模型路由不能匹配系统内部请求头';
     }
   }

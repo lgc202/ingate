@@ -13,9 +13,9 @@ import (
 	tlsinspectorv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/tls_inspector/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
+	"github.com/lgc202/ingate/internal/aiproxy/routeconfig"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	pluginaiproxy "github.com/lgc202/ingate/pkg/plugin/aiproxy"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -397,11 +397,11 @@ func (c *compilation) validateListenerPortOwnership() {
 	}
 }
 
-func (c *compilation) buildListeners(plugins map[listenerKey]listenerPluginConfig) []*listenerv3.Listener {
+func (c *compilation) buildListeners(filters map[listenerKey]listenerFilterConfig) []*listenerv3.Listener {
 	keys := c.sortedListenerKeys()
 	listeners := make([]*listenerv3.Listener, 0, len(keys))
 	for _, key := range keys {
-		httpFilters, err := c.buildHTTPFilters(plugins[key])
+		httpFilters, err := c.buildHTTPFilters(filters[key])
 		if err != nil {
 			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, listenerName(key), ReasonCompileFailed, err.Error())
 			continue
@@ -445,9 +445,9 @@ func (c *compilation) buildListeners(plugins map[listenerKey]listenerPluginConfi
 			Name:    listenerName(key),
 			Address: socketAddress(key.address, key.port),
 		}
-		if aiProxy := plugins[key].aiProxy; aiProxy != nil && len(aiProxy.Routes) > 0 {
-			// Listener 软限制需要高于 Wasm 业务上限，确保首个越界字节到达插件并触发统一 502
-			listener.PerConnectionBufferLimitBytes = wrapperspb.UInt32(pluginaiproxy.ResponseBufferLimitBytes)
+		if filters[key].aiProxy {
+			// Listener 软限制高于普通响应业务上限，使 ExtProc 能返回统一错误
+			listener.PerConnectionBufferLimitBytes = wrapperspb.UInt32(routeconfig.ResponseBufferLimitBytes)
 		}
 		switch key.protocol {
 		case gatewayv1.ProtocolHTTP:
@@ -580,38 +580,37 @@ func inlineStringDataSource(value string) *corev3.DataSource {
 	}
 }
 
-func (c *compilation) buildHTTPFilters(plugins listenerPluginConfig) ([]*hcmv3.HttpFilter, error) {
-	filters := make([]*hcmv3.HttpFilter, 0, 5)
-	if plugins.accessControl != nil {
-		filter, err := buildAccessControlHTTPFilter(plugins.accessControl)
+func (c *compilation) buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) {
+	filters := make([]*hcmv3.HttpFilter, 0, 6)
+	if config.accessControl != nil {
+		filter, err := buildAccessControlHTTPFilter(config.accessControl)
 		if err != nil {
 			return nil, err
 		}
 		filters = append(filters, filter)
 	}
-	if plugins.rateLimit != nil {
-		filter, err := buildRateLimitHTTPFilter(plugins.rateLimit)
+	if config.rateLimit != nil {
+		filter, err := buildRateLimitHTTPFilter(config.rateLimit)
 		if err != nil {
 			return nil, err
 		}
 		filters = append(filters, filter)
 	}
-	if plugins.tokenQuota != nil {
-		filter, err := buildTokenQuotaHTTPFilter(plugins.tokenQuota)
+	if config.tokenQuota != nil {
+		filter, err := buildTokenQuotaHTTPFilter(config.tokenQuota)
 		if err != nil {
 			return nil, err
 		}
 		filters = append(filters, filter)
 	}
-	aiProxy := plugins.aiProxy
-	if aiProxy == nil {
-		aiProxy = &pluginaiproxy.PluginConfig{Routes: []pluginaiproxy.RouteConfig{}}
+	if config.aiProxy {
+		// 模型 Route 通过 ExtProc per-route 配置启用过滤器并下发执行参数
+		filter, err := buildAIProxyHTTPFilter()
+		if err != nil {
+			return nil, err
+		}
+		filters = append(filters, filter)
 	}
-	filter, err := buildAIProxyHTTPFilter(aiProxy)
-	if err != nil {
-		return nil, err
-	}
-	filters = append(filters, filter)
 
 	routerConfig := &routerv3.Router{}
 	if err := routerConfig.ValidateAll(); err != nil {

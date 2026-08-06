@@ -14,8 +14,6 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY pkg ./pkg
 COPY plugins ./plugins
-COPY internal/pkg/accesskey ./internal/pkg/accesskey
-COPY internal/pkg/bearer ./internal/pkg/bearer
 COPY internal/pkg/httpheader ./internal/pkg/httpheader
 
 RUN --mount=type=cache,target=/go/pkg/mod \
@@ -23,8 +21,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     mkdir -p /out \
     && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/ratelimit.wasm ./plugins/ratelimit \
     && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/tokenquota.wasm ./plugins/tokenquota \
-    && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/acl.wasm ./plugins/acl \
-    && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/ai-proxy.wasm ./plugins/aiproxy
+    && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/acl.wasm ./plugins/acl
 
 FROM higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3 AS higress-envoy
 

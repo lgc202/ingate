@@ -61,12 +61,12 @@ type wasmHTTPFilterOptions struct {
 	allowOnHeadersStopIteration bool
 }
 
-func (c *compilation) buildPolicyConfigs() map[listenerKey]listenerPluginConfig {
+func (c *compilation) buildPolicyConfigs() map[listenerKey]listenerFilterConfig {
 	// 编译阶段已经把 Gateway/Route 应用范围展开成最终执行清单，Wasm 不再理解用户层绑定模型
 	accessControlPolicies := c.compileAccessControlPolicies()
 	rateLimitPolicies := c.compileRateLimitPolicies()
 	tokenQuotaPolicies := c.compileTokenQuotaPolicies()
-	result := make(map[listenerKey]listenerPluginConfig)
+	result := make(map[listenerKey]listenerFilterConfig)
 
 	routeKeySet := make(map[policyRouteKey]bool)
 	for _, attachment := range c.routeAttachments {
