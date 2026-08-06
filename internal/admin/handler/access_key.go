@@ -1,9 +1,7 @@
-// Package accesskey 提供访问密钥管理 HTTP 入口
-package accesskey
+package handler
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,24 +9,12 @@ import (
 	dto "github.com/lgc202/ingate/internal/admin/dto/accesskey"
 	"github.com/lgc202/ingate/internal/admin/pkg/response"
 	"github.com/lgc202/ingate/internal/admin/pkg/xerrors"
-	accesskeyservice "github.com/lgc202/ingate/internal/admin/service/accesskey"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// Handler 处理访问密钥 HTTP 请求
-type Handler struct {
-	service *accesskeyservice.Service
-	logger  *slog.Logger
-}
-
-// New 创建访问密钥 handler
-func New(service *accesskeyservice.Service, logger *slog.Logger) *Handler {
-	return &Handler{service: service, logger: logger}
-}
-
-// List 返回访问密钥列表
-func (h *Handler) List(ctx *gin.Context) {
-	keys, err := h.service.List(ctx.Request.Context())
+// ListAccessKey 返回访问密钥列表
+func (h *Handler) ListAccessKey(ctx *gin.Context) {
+	keys, err := h.services.AccessKey.List(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("list access keys failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -41,8 +27,8 @@ func (h *Handler) List(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListAccessKeysResp(keys))
 }
 
-// Create 创建访问密钥
-func (h *Handler) Create(ctx *gin.Context) {
+// CreateAccessKey 创建访问密钥
+func (h *Handler) CreateAccessKey(ctx *gin.Context) {
 	request := dto.CreateAccessKeyReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -53,7 +39,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	key, secret, err := h.service.Create(
+	key, secret, err := h.services.AccessKey.Create(
 		ctx.Request.Context(),
 		request.Name,
 		request.AllowedModels,
@@ -71,8 +57,8 @@ func (h *Handler) Create(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewCreateAccessKeyResp(key, secret))
 }
 
-// Update 更新访问密钥
-func (h *Handler) Update(ctx *gin.Context) {
+// UpdateAccessKey 更新访问密钥
+func (h *Handler) UpdateAccessKey(ctx *gin.Context) {
 	path := dto.IDReq{}
 	if err := ctx.ShouldBindUri(&path); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -92,7 +78,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 		return
 	}
 
-	key, err := h.service.Update(
+	key, err := h.services.AccessKey.Update(
 		ctx.Request.Context(),
 		path.ID,
 		request.Name,
@@ -111,8 +97,8 @@ func (h *Handler) Update(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewUpdateAccessKeyResp(key))
 }
 
-// SetEnabled 设置访问密钥启用状态
-func (h *Handler) SetEnabled(ctx *gin.Context) {
+// SetAccessKeyEnabled 设置访问密钥启用状态
+func (h *Handler) SetAccessKeyEnabled(ctx *gin.Context) {
 	path := dto.IDReq{}
 	if err := ctx.ShouldBindUri(&path); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -133,7 +119,7 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 	}
 
 	enabled := request.Value()
-	key, err := h.service.SetEnabled(ctx.Request.Context(), path.ID, enabled)
+	key, err := h.services.AccessKey.SetEnabled(ctx.Request.Context(), path.ID, enabled)
 	if err != nil {
 		h.logger.Error("set access key enabled failed", "request_id", ctx.GetString(requestid.Header), "access_key_id", path.ID, "enabled", enabled, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -146,8 +132,8 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewUpdateAccessKeyResp(key))
 }
 
-// Rotate 轮换访问密钥
-func (h *Handler) Rotate(ctx *gin.Context) {
+// RotateAccessKey 轮换访问密钥
+func (h *Handler) RotateAccessKey(ctx *gin.Context) {
 	path := dto.IDReq{}
 	if err := ctx.ShouldBindUri(&path); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -158,7 +144,7 @@ func (h *Handler) Rotate(ctx *gin.Context) {
 		return
 	}
 
-	key, secret, err := h.service.Rotate(ctx.Request.Context(), path.ID)
+	key, secret, err := h.services.AccessKey.Rotate(ctx.Request.Context(), path.ID)
 	if err != nil {
 		h.logger.Error("rotate access key failed", "request_id", ctx.GetString(requestid.Header), "access_key_id", path.ID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -171,8 +157,8 @@ func (h *Handler) Rotate(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewRotateAccessKeyResp(key, secret))
 }
 
-// Delete 删除访问密钥
-func (h *Handler) Delete(ctx *gin.Context) {
+// DeleteAccessKey 删除访问密钥
+func (h *Handler) DeleteAccessKey(ctx *gin.Context) {
 	path := dto.IDReq{}
 	if err := ctx.ShouldBindUri(&path); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -183,7 +169,7 @@ func (h *Handler) Delete(ctx *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(ctx.Request.Context(), path.ID); err != nil {
+	if err := h.services.AccessKey.Delete(ctx.Request.Context(), path.ID); err != nil {
 		h.logger.Error("delete access key failed", "request_id", ctx.GetString(requestid.Header), "access_key_id", path.ID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)

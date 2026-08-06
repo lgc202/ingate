@@ -1,8 +1,7 @@
-package upstream
+package handler
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,24 +9,12 @@ import (
 	dto "github.com/lgc202/ingate/internal/admin/dto/upstream"
 	"github.com/lgc202/ingate/internal/admin/pkg/response"
 	"github.com/lgc202/ingate/internal/admin/pkg/xerrors"
-	upstreamservice "github.com/lgc202/ingate/internal/admin/service/upstream"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// Handler 处理 Upstream HTTP 请求
-type Handler struct {
-	service *upstreamservice.Service
-	logger  *slog.Logger
-}
-
-// New 创建 Upstream handler
-func New(service *upstreamservice.Service, logger *slog.Logger) *Handler {
-	return &Handler{service: service, logger: logger}
-}
-
-// List 返回 Upstream 列表
-func (h *Handler) List(ctx *gin.Context) {
-	upstreams, err := h.service.List(ctx.Request.Context())
+// ListUpstream 返回 Upstream 列表
+func (h *Handler) ListUpstream(ctx *gin.Context) {
+	upstreams, err := h.services.Upstream.List(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("list upstreams failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -40,10 +27,10 @@ func (h *Handler) List(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListUpstreamsResp(upstreams))
 }
 
-// Get 返回单个 Upstream
-func (h *Handler) Get(ctx *gin.Context) {
+// GetUpstream 返回单个 Upstream
+func (h *Handler) GetUpstream(ctx *gin.Context) {
 	upstreamID := ctx.Param("id")
-	upstream, err := h.service.Get(ctx.Request.Context(), upstreamID)
+	upstream, err := h.services.Upstream.Get(ctx.Request.Context(), upstreamID)
 	if err != nil {
 		h.logger.Error("get upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstreamID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -57,8 +44,8 @@ func (h *Handler) Get(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetUpstreamResp(upstream))
 }
 
-// Create 创建 Upstream
-func (h *Handler) Create(ctx *gin.Context) {
+// CreateUpstream 创建 Upstream
+func (h *Handler) CreateUpstream(ctx *gin.Context) {
 	request := dto.CreateUpstreamReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -69,7 +56,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	upstreamID, err := h.service.Create(ctx.Request.Context(), request.Spec())
+	upstreamID, err := h.services.Upstream.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create upstream failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -82,8 +69,8 @@ func (h *Handler) Create(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.CreateUpstreamResp{Success: true, ID: upstreamID})
 }
 
-// Update 更新 Upstream
-func (h *Handler) Update(ctx *gin.Context) {
+// UpdateUpstream 更新 Upstream
+func (h *Handler) UpdateUpstream(ctx *gin.Context) {
 	request := dto.UpdateUpstreamReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -95,7 +82,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	upstreamID := ctx.Param("id")
-	err := h.service.Update(
+	err := h.services.Upstream.Update(
 		ctx.Request.Context(),
 		upstreamID,
 		request.Version,
@@ -114,10 +101,10 @@ func (h *Handler) Update(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.UpdateUpstreamResp{Success: true})
 }
 
-// Delete 删除 Upstream
-func (h *Handler) Delete(ctx *gin.Context) {
+// DeleteUpstream 删除 Upstream
+func (h *Handler) DeleteUpstream(ctx *gin.Context) {
 	upstreamID := ctx.Param("id")
-	err := h.service.Delete(ctx.Request.Context(), upstreamID)
+	err := h.services.Upstream.Delete(ctx.Request.Context(), upstreamID)
 	if err != nil {
 		h.logger.Error("delete upstream failed", "request_id", ctx.GetString(requestid.Header), "upstream_id", upstreamID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {

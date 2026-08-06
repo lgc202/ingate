@@ -16,15 +16,20 @@ KUBE_CODEGEN_PACKAGES := \
 
 SQLC_VERSION := v1.31.1
 SQLC_PACKAGE := github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
+WIRE_PACKAGE := github.com/google/wire/cmd/wire
 
 .PHONY: tools
-tools: $(TOOLS_DIR)/sqlc ## 安装项目代码生成工具
+tools: $(TOOLS_DIR)/sqlc $(TOOLS_DIR)/wire ## 安装项目代码生成工具
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(KUBE_CODEGEN_PACKAGES)
 
 $(TOOLS_DIR)/sqlc: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(SQLC_PACKAGE)
+
+$(TOOLS_DIR)/wire: $(PROJECT_ROOT)/go.mod $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+	@mkdir -p $(TOOLS_DIR)
+	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(WIRE_PACKAGE)
 
 .PHONY: check-tools
 check-tools: ## 检查本地开发工具

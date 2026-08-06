@@ -1,3 +1,4 @@
+// Package handler 提供管理 API 的 HTTP 请求入口
 package handler
 
 import (
@@ -5,45 +6,22 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	accesscontrolpolicyhandler "github.com/lgc202/ingate/internal/admin/handler/accesscontrolpolicy"
-	accesskeyhandler "github.com/lgc202/ingate/internal/admin/handler/accesskey"
-	certificatehandler "github.com/lgc202/ingate/internal/admin/handler/certificate"
-	configurationstatushandler "github.com/lgc202/ingate/internal/admin/handler/configurationstatus"
-	gatewayhandler "github.com/lgc202/ingate/internal/admin/handler/gateway"
-	ratelimitpolicyhandler "github.com/lgc202/ingate/internal/admin/handler/ratelimitpolicy"
-	routehandler "github.com/lgc202/ingate/internal/admin/handler/route"
-	tokenquotapolicyhandler "github.com/lgc202/ingate/internal/admin/handler/tokenquotapolicy"
-	upstreamhandler "github.com/lgc202/ingate/internal/admin/handler/upstream"
 	"github.com/lgc202/ingate/internal/admin/pkg/response"
 	"github.com/lgc202/ingate/internal/admin/service"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// Handler 聚合管理 API 的 HTTP 入口
+// Handler 持有管理 API 各领域共用的服务与日志依赖
 type Handler struct {
-	AccessKey           *accesskeyhandler.Handler
-	Certificate         *certificatehandler.Handler
-	ConfigurationStatus *configurationstatushandler.Handler
-	Gateway             *gatewayhandler.Handler
-	Route               *routehandler.Handler
-	Upstream            *upstreamhandler.Handler
-	AccessControlPolicy *accesscontrolpolicyhandler.Handler
-	RateLimitPolicy     *ratelimitpolicyhandler.Handler
-	TokenQuotaPolicy    *tokenquotapolicyhandler.Handler
+	services *service.Service
+	logger   *slog.Logger
 }
 
-// New 创建 handler 聚合入口
-func New(service *service.Service, logger *slog.Logger) *Handler {
+// New 创建管理 API Handler
+func New(services *service.Service, logger *slog.Logger) *Handler {
 	return &Handler{
-		AccessKey:           accesskeyhandler.New(service.AccessKey, logger.With("handler", "accesskey")),
-		Certificate:         certificatehandler.New(service.Certificate, logger.With("handler", "certificate")),
-		ConfigurationStatus: configurationstatushandler.New(service.ConfigurationStatus, logger.With("handler", "configurationstatus")),
-		Gateway:             gatewayhandler.New(service.Gateway, logger.With("handler", "gateway")),
-		Route:               routehandler.New(service.Route, logger.With("handler", "route")),
-		Upstream:            upstreamhandler.New(service.Upstream, logger.With("handler", "upstream")),
-		AccessControlPolicy: accesscontrolpolicyhandler.New(service.AccessControlPolicy, logger.With("handler", "accesscontrolpolicy")),
-		RateLimitPolicy:     ratelimitpolicyhandler.New(service.RateLimitPolicy, logger.With("handler", "ratelimitpolicy")),
-		TokenQuotaPolicy:    tokenquotapolicyhandler.New(service.TokenQuotaPolicy, logger.With("handler", "tokenquotapolicy")),
+		services: services,
+		logger:   logger,
 	}
 }
 

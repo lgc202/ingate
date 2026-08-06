@@ -1,9 +1,7 @@
-// Package configurationstatus 处理配置状态聚合 HTTP 请求
-package configurationstatus
+package handler
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,24 +9,12 @@ import (
 	dto "github.com/lgc202/ingate/internal/admin/dto/configurationstatus"
 	"github.com/lgc202/ingate/internal/admin/pkg/response"
 	"github.com/lgc202/ingate/internal/admin/pkg/xerrors"
-	configurationstatusservice "github.com/lgc202/ingate/internal/admin/service/configurationstatus"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// Handler 处理配置状态聚合 HTTP 请求
-type Handler struct {
-	service *configurationstatusservice.Service
-	logger  *slog.Logger
-}
-
-// New 创建配置状态聚合 handler
-func New(service *configurationstatusservice.Service, logger *slog.Logger) *Handler {
-	return &Handler{service: service, logger: logger}
-}
-
-// Get 返回全部声明式资源的配置状态
-func (h *Handler) Get(ctx *gin.Context) {
-	report, err := h.service.Get(ctx.Request.Context())
+// GetConfigurationStatus 返回全部声明式资源的配置状态
+func (h *Handler) GetConfigurationStatus(ctx *gin.Context) {
+	report, err := h.services.ConfigurationStatus.Get(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("get configuration status failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
