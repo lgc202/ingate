@@ -1,5 +1,5 @@
-// Package routeconfig 定义 Controller 通过 Envoy ExtProc 下发给 AI Proxy 的执行配置
-package routeconfig
+// Package aiproxyconfig 定义 Controller 通过 Envoy ExtProc 下发给 AI Proxy 的执行配置
+package aiproxyconfig
 
 import (
 	"bytes"

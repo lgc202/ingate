@@ -20,7 +20,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/lgc202/ingate/internal/aiproxy/extproc"
-	"github.com/lgc202/ingate/internal/aiproxy/routeconfig"
+	"github.com/lgc202/ingate/internal/pkg/aiproxyconfig"
 	"github.com/lgc202/ingate/internal/pkg/httpserver"
 	"github.com/lgc202/ingate/pkg/redisx"
 )
@@ -129,8 +129,8 @@ func serveGRPC(
 	logger *slog.Logger,
 ) error {
 	grpcServer := grpc.NewServer(
-		grpc.MaxRecvMsgSize(routeconfig.ResponseBufferLimitBytes),
-		grpc.MaxSendMsgSize(routeconfig.ResponseBufferLimitBytes),
+		grpc.MaxRecvMsgSize(aiproxyconfig.ResponseBufferLimitBytes),
+		grpc.MaxSendMsgSize(aiproxyconfig.ResponseBufferLimitBytes),
 	)
 	extprocv3.RegisterExternalProcessorServer(grpcServer, processor)
 

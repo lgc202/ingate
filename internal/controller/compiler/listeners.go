@@ -13,7 +13,7 @@ import (
 	tlsinspectorv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/listener/tls_inspector/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
-	"github.com/lgc202/ingate/internal/aiproxy/routeconfig"
+	"github.com/lgc202/ingate/internal/pkg/aiproxyconfig"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -447,7 +447,7 @@ func (c *compilation) buildListeners(filters map[listenerKey]listenerFilterConfi
 		}
 		if filters[key].aiProxy {
 			// Listener 软限制高于普通响应业务上限，使 ExtProc 能返回统一错误
-			listener.PerConnectionBufferLimitBytes = wrapperspb.UInt32(routeconfig.ResponseBufferLimitBytes)
+			listener.PerConnectionBufferLimitBytes = wrapperspb.UInt32(aiproxyconfig.ResponseBufferLimitBytes)
 		}
 		switch key.protocol {
 		case gatewayv1.ProtocolHTTP:
