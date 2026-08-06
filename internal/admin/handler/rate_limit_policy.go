@@ -1,8 +1,7 @@
-package ratelimitpolicy
+package handler
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,24 +9,12 @@ import (
 	dto "github.com/lgc202/ingate/internal/admin/dto/ratelimitpolicy"
 	"github.com/lgc202/ingate/internal/admin/pkg/response"
 	"github.com/lgc202/ingate/internal/admin/pkg/xerrors"
-	ratelimitpolicyservice "github.com/lgc202/ingate/internal/admin/service/ratelimitpolicy"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// Handler 处理 RateLimitPolicy HTTP 请求
-type Handler struct {
-	service *ratelimitpolicyservice.Service
-	logger  *slog.Logger
-}
-
-// New 创建 RateLimitPolicy handler
-func New(service *ratelimitpolicyservice.Service, logger *slog.Logger) *Handler {
-	return &Handler{service: service, logger: logger}
-}
-
-// List 返回 RateLimitPolicy 列表
-func (h *Handler) List(ctx *gin.Context) {
-	result, err := h.service.List(ctx.Request.Context())
+// ListRateLimitPolicy 返回 RateLimitPolicy 列表
+func (h *Handler) ListRateLimitPolicy(ctx *gin.Context) {
+	result, err := h.services.RateLimitPolicy.List(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("list rate limit policies failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -40,10 +27,10 @@ func (h *Handler) List(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListRateLimitPoliciesResp(result))
 }
 
-// Get 返回单个 RateLimitPolicy
-func (h *Handler) Get(ctx *gin.Context) {
+// GetRateLimitPolicy 返回单个 RateLimitPolicy
+func (h *Handler) GetRateLimitPolicy(ctx *gin.Context) {
 	policyID := ctx.Param("id")
-	result, err := h.service.Get(ctx.Request.Context(), policyID)
+	result, err := h.services.RateLimitPolicy.Get(ctx.Request.Context(), policyID)
 	if err != nil {
 		h.logger.Error("get rate limit policy failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -56,8 +43,8 @@ func (h *Handler) Get(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetRateLimitPolicyResp(result))
 }
 
-// Create 创建 RateLimitPolicy
-func (h *Handler) Create(ctx *gin.Context) {
+// CreateRateLimitPolicy 创建 RateLimitPolicy
+func (h *Handler) CreateRateLimitPolicy(ctx *gin.Context) {
 	request := dto.CreateRateLimitPolicyReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -68,7 +55,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	policyID, err := h.service.Create(ctx.Request.Context(), request.Spec())
+	policyID, err := h.services.RateLimitPolicy.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create rate limit policy failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -81,8 +68,8 @@ func (h *Handler) Create(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.CreateRateLimitPolicyResp{Success: true, ID: policyID})
 }
 
-// Update 更新 RateLimitPolicy
-func (h *Handler) Update(ctx *gin.Context) {
+// UpdateRateLimitPolicy 更新 RateLimitPolicy
+func (h *Handler) UpdateRateLimitPolicy(ctx *gin.Context) {
 	request := dto.UpdateRateLimitPolicyReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -94,7 +81,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	policyID := ctx.Param("id")
-	if err := h.service.Update(ctx.Request.Context(), policyID, request.Version, request.Spec()); err != nil {
+	if err := h.services.RateLimitPolicy.Update(ctx.Request.Context(), policyID, request.Version, request.Spec()); err != nil {
 		h.logger.Error("update rate limit policy failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
@@ -106,8 +93,8 @@ func (h *Handler) Update(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.UpdateRateLimitPolicyResp{Success: true})
 }
 
-// SetEnabled 设置 RateLimitPolicy 启用状态
-func (h *Handler) SetEnabled(ctx *gin.Context) {
+// SetRateLimitPolicyEnabled 设置 RateLimitPolicy 启用状态
+func (h *Handler) SetRateLimitPolicyEnabled(ctx *gin.Context) {
 	request := dto.SetEnabledReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -120,7 +107,7 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 
 	policyID := ctx.Param("id")
 	enabled := request.Value()
-	if err := h.service.SetEnabled(ctx.Request.Context(), policyID, enabled); err != nil {
+	if err := h.services.RateLimitPolicy.SetEnabled(ctx.Request.Context(), policyID, enabled); err != nil {
 		h.logger.Error("set rate limit policy enabled failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "enabled", enabled, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
@@ -132,10 +119,10 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.SetEnabledResp{Success: true})
 }
 
-// Delete 删除 RateLimitPolicy
-func (h *Handler) Delete(ctx *gin.Context) {
+// DeleteRateLimitPolicy 删除 RateLimitPolicy
+func (h *Handler) DeleteRateLimitPolicy(ctx *gin.Context) {
 	policyID := ctx.Param("id")
-	if err := h.service.Delete(ctx.Request.Context(), policyID); err != nil {
+	if err := h.services.RateLimitPolicy.Delete(ctx.Request.Context(), policyID); err != nil {
 		h.logger.Error("delete rate limit policy failed", "request_id", ctx.GetString(requestid.Header), "policy_id", policyID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)

@@ -1,8 +1,7 @@
-package route
+package handler
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,24 +9,12 @@ import (
 	dto "github.com/lgc202/ingate/internal/admin/dto/route"
 	"github.com/lgc202/ingate/internal/admin/pkg/response"
 	"github.com/lgc202/ingate/internal/admin/pkg/xerrors"
-	routeservice "github.com/lgc202/ingate/internal/admin/service/route"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// Handler 处理 Route HTTP 请求
-type Handler struct {
-	service *routeservice.Service
-	logger  *slog.Logger
-}
-
-// New 创建 Route handler
-func New(service *routeservice.Service, logger *slog.Logger) *Handler {
-	return &Handler{service: service, logger: logger}
-}
-
-// List 返回 Route 列表
-func (h *Handler) List(ctx *gin.Context) {
-	routes, err := h.service.List(ctx.Request.Context())
+// ListRoute 返回 Route 列表
+func (h *Handler) ListRoute(ctx *gin.Context) {
+	routes, err := h.services.Route.List(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("list routes failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -40,10 +27,10 @@ func (h *Handler) List(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListRoutesResp(routes))
 }
 
-// Get 返回单个 Route
-func (h *Handler) Get(ctx *gin.Context) {
+// GetRoute 返回单个 Route
+func (h *Handler) GetRoute(ctx *gin.Context) {
 	routeID := ctx.Param("id")
-	route, err := h.service.Get(ctx.Request.Context(), routeID)
+	route, err := h.services.Route.Get(ctx.Request.Context(), routeID)
 	if err != nil {
 		h.logger.Error("get route failed", "request_id", ctx.GetString(requestid.Header), "route_id", routeID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -56,8 +43,8 @@ func (h *Handler) Get(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetRouteResp(route))
 }
 
-// Create 创建 Route
-func (h *Handler) Create(ctx *gin.Context) {
+// CreateRoute 创建 Route
+func (h *Handler) CreateRoute(ctx *gin.Context) {
 	request := dto.CreateRouteReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -67,7 +54,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
-	routeID, err := h.service.Create(ctx.Request.Context(), request.Spec())
+	routeID, err := h.services.Route.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create route failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -80,8 +67,8 @@ func (h *Handler) Create(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.CreateRouteResp{Success: true, ID: routeID})
 }
 
-// Update 更新 Route
-func (h *Handler) Update(ctx *gin.Context) {
+// UpdateRoute 更新 Route
+func (h *Handler) UpdateRoute(ctx *gin.Context) {
 	request := dto.UpdateRouteReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -92,7 +79,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 		return
 	}
 	routeID := ctx.Param("id")
-	err := h.service.Update(ctx.Request.Context(), routeID, request.Version, request.Spec())
+	err := h.services.Route.Update(ctx.Request.Context(), routeID, request.Version, request.Spec())
 	if err != nil {
 		h.logger.Error("update route failed", "request_id", ctx.GetString(requestid.Header), "route_id", routeID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -105,8 +92,8 @@ func (h *Handler) Update(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.UpdateRouteResp{Success: true})
 }
 
-// SetEnabled 更新 Route 启停状态
-func (h *Handler) SetEnabled(ctx *gin.Context) {
+// SetRouteEnabled 更新 Route 启停状态
+func (h *Handler) SetRouteEnabled(ctx *gin.Context) {
 	request := dto.SetRouteEnabledReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -118,7 +105,7 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 	}
 
 	routeID := ctx.Param("id")
-	err := h.service.SetEnabled(ctx.Request.Context(), routeID, request.Value())
+	err := h.services.Route.SetEnabled(ctx.Request.Context(), routeID, request.Value())
 	if err != nil {
 		h.logger.Error("set route enabled failed", "request_id", ctx.GetString(requestid.Header), "route_id", routeID, "enabled", request.Value(), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -131,10 +118,10 @@ func (h *Handler) SetEnabled(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.SetRouteEnabledResp{Success: true})
 }
 
-// Delete 删除 Route
-func (h *Handler) Delete(ctx *gin.Context) {
+// DeleteRoute 删除 Route
+func (h *Handler) DeleteRoute(ctx *gin.Context) {
 	routeID := ctx.Param("id")
-	err := h.service.Delete(ctx.Request.Context(), routeID)
+	err := h.services.Route.Delete(ctx.Request.Context(), routeID)
 	if err != nil {
 		h.logger.Error("delete route failed", "request_id", ctx.GetString(requestid.Header), "route_id", routeID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {

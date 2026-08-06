@@ -7,14 +7,17 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/lgc202/ingate/internal/admin/app"
+	"github.com/lgc202/ingate/cmd/ingate-admin/app"
 )
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if err := app.Run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
+	command := app.NewCommand()
+	command.SetOut(os.Stdout)
+	command.SetErr(os.Stderr)
+	if err := command.ExecuteContext(ctx); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

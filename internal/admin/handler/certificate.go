@@ -1,9 +1,7 @@
-// Package certificate 提供 Certificate 控制台 HTTP 接口
-package certificate
+package handler
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -11,24 +9,12 @@ import (
 	dto "github.com/lgc202/ingate/internal/admin/dto/certificate"
 	"github.com/lgc202/ingate/internal/admin/pkg/response"
 	"github.com/lgc202/ingate/internal/admin/pkg/xerrors"
-	certificateservice "github.com/lgc202/ingate/internal/admin/service/certificate"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// Handler 处理 Certificate HTTP 请求
-type Handler struct {
-	service *certificateservice.Service
-	logger  *slog.Logger
-}
-
-// New 创建 Certificate handler
-func New(service *certificateservice.Service, logger *slog.Logger) *Handler {
-	return &Handler{service: service, logger: logger}
-}
-
-// List 返回 Certificate 列表
-func (h *Handler) List(ctx *gin.Context) {
-	certificates, err := h.service.List(ctx.Request.Context())
+// ListCertificate 返回 Certificate 列表
+func (h *Handler) ListCertificate(ctx *gin.Context) {
+	certificates, err := h.services.Certificate.List(ctx.Request.Context())
 	if err != nil {
 		h.logger.Error("list certificates failed", "request_id", ctx.GetString(requestid.Header), "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -41,10 +27,10 @@ func (h *Handler) List(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewListCertificatesResp(certificates))
 }
 
-// Get 返回单个 Certificate
-func (h *Handler) Get(ctx *gin.Context) {
+// GetCertificate 返回单个 Certificate
+func (h *Handler) GetCertificate(ctx *gin.Context) {
 	certificateID := ctx.Param("id")
-	certificate, err := h.service.Get(ctx.Request.Context(), certificateID)
+	certificate, err := h.services.Certificate.Get(ctx.Request.Context(), certificateID)
 	if err != nil {
 		h.logger.Error("get certificate failed", "request_id", ctx.GetString(requestid.Header), "certificate_id", certificateID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -57,8 +43,8 @@ func (h *Handler) Get(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.NewGetCertificateResp(certificate))
 }
 
-// Create 创建 Certificate
-func (h *Handler) Create(ctx *gin.Context) {
+// CreateCertificate 创建 Certificate
+func (h *Handler) CreateCertificate(ctx *gin.Context) {
 	request := dto.CreateCertificateReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -69,7 +55,7 @@ func (h *Handler) Create(ctx *gin.Context) {
 		return
 	}
 
-	certificateID, err := h.service.Create(ctx.Request.Context(), request.Spec())
+	certificateID, err := h.services.Certificate.Create(ctx.Request.Context(), request.Spec())
 	if err != nil {
 		h.logger.Error("create certificate failed", "request_id", ctx.GetString(requestid.Header), "name", request.Name, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
@@ -82,8 +68,8 @@ func (h *Handler) Create(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.CreateCertificateResp{Success: true, ID: certificateID})
 }
 
-// Update 更新 Certificate
-func (h *Handler) Update(ctx *gin.Context) {
+// UpdateCertificate 更新 Certificate
+func (h *Handler) UpdateCertificate(ctx *gin.Context) {
 	request := dto.UpdateCertificateReq{}
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		response.GinAbortJSONResponse(ctx, http.StatusBadRequest, err.Error(), nil)
@@ -95,7 +81,7 @@ func (h *Handler) Update(ctx *gin.Context) {
 	}
 
 	certificateID := ctx.Param("id")
-	if err := h.service.Update(ctx.Request.Context(), certificateID, request.Version, request.Spec()); err != nil {
+	if err := h.services.Certificate.Update(ctx.Request.Context(), certificateID, request.Version, request.Spec()); err != nil {
 		h.logger.Error("update certificate failed", "request_id", ctx.GetString(requestid.Header), "certificate_id", certificateID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)
@@ -107,10 +93,10 @@ func (h *Handler) Update(ctx *gin.Context) {
 	response.GinJSONResponse(ctx, http.StatusOK, "ok", dto.UpdateCertificateResp{Success: true})
 }
 
-// Delete 删除 Certificate
-func (h *Handler) Delete(ctx *gin.Context) {
+// DeleteCertificate 删除 Certificate
+func (h *Handler) DeleteCertificate(ctx *gin.Context) {
 	certificateID := ctx.Param("id")
-	if err := h.service.Delete(ctx.Request.Context(), certificateID); err != nil {
+	if err := h.services.Certificate.Delete(ctx.Request.Context(), certificateID); err != nil {
 		h.logger.Error("delete certificate failed", "request_id", ctx.GetString(requestid.Header), "certificate_id", certificateID, "err", err)
 		if userError, ok := errors.AsType[*xerrors.UserError](err); ok {
 			response.GinAbortJSONResponse(ctx, http.StatusInternalServerError, userError.Error(), nil)

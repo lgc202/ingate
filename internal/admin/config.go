@@ -1,4 +1,4 @@
-package app
+package admin
 
 import (
 	"errors"
@@ -8,8 +8,6 @@ import (
 	"github.com/lgc202/ingate/pkg/mysqlx"
 	"github.com/lgc202/ingate/pkg/redisx"
 )
-
-const defaultConfigPath = "configs/ingate-admin.yaml"
 
 // Config 定义 ingate-admin 的进程配置
 type Config struct {
