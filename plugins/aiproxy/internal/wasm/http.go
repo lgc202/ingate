@@ -1,9 +1,14 @@
 package wasm
 
 import (
+	"fmt"
 	"strconv"
+	"strings"
 
+	"github.com/lgc202/ingate/internal/pkg/bearer"
+	auth "github.com/lgc202/ingate/plugins/aiproxy/internal/accesskey"
 	modelproxy "github.com/lgc202/ingate/plugins/aiproxy/internal/proxy"
+	"github.com/lgc202/ingate/plugins/internal/redisabi"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
@@ -24,10 +29,11 @@ const (
 	sseContentType         = "text/event-stream"
 )
 
-// OnHttpRequestHeaders 清理不可信请求头并暂停 AI 请求，等待请求体完成模型选择
+// OnHttpRequestHeaders 清理不可信请求头并通过系统 Redis 认证客户端访问密钥
 func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {
 	method := pluginwasm.RequestHeader(":method")
 	path := pluginwasm.RequestHeader(":path")
+	authorization := pluginwasm.RequestHeader(authorizationHeader)
 	route, aiRoute, configured := h.currentRoute()
 
 	if !aiRoute {
@@ -55,22 +61,30 @@ func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) typ
 	}
 
 	h.route = route
-	h.requestActive = true
 	if response := h.plugin.proxy.ValidateEndpoint(method, path); response != nil {
-		h.requestActive = false
 		return sendLocalResponse(*response)
 	}
+	secret, ok := bearerSecret(authorization)
+	if !ok {
+		return sendLocalResponse(h.plugin.proxy.Unauthorized())
+	}
+	h.authenticationSecret = secret
+	h.requestActive = true
 	if endOfStream {
-		h.requestActive = false
-		_, response := h.plugin.proxy.PrepareRequest(route, nil)
-		return sendLocalResponse(*response)
+		if err := h.dispatchAuthentication(); err != nil {
+			proxywasm.LogErrorf("dispatch AI access key authentication failed: %v", err)
+			return sendLocalResponse(h.plugin.proxy.AuthenticationUnavailable())
+		}
 	}
-	// 暂停 header 发送，等待完整请求体确定目标 Cluster 和厂商协议
+	// 认证和模型选择都完成前不向上游发送请求头
 	return types.ActionPause
 }
 
 // OnHttpRequestBody 缓冲并转换请求体，然后写入目标 Cluster、路径和认证信息
 func (h *httpContext) OnHttpRequestBody(bodySize int, endOfStream bool) types.Action {
+	if h.authenticationPending {
+		return types.ActionPause
+	}
 	if !h.requestActive {
 		return types.ActionContinue
 	}
@@ -92,15 +106,92 @@ func (h *httpContext) OnHttpRequestBody(bodySize int, endOfStream bool) types.Ac
 			return sendLocalResponse(h.plugin.proxy.InternalError())
 		}
 	}
-	request, response := h.plugin.proxy.PrepareRequest(h.route, body)
-	if response != nil {
+	h.requestBody = body
+	if err := h.dispatchAuthentication(); err != nil {
+		proxywasm.LogErrorf("dispatch AI access key authentication failed: %v", err)
 		h.requestActive = false
-		return sendLocalResponse(*response)
+		return sendLocalResponse(h.plugin.proxy.AuthenticationUnavailable())
 	}
+	return types.ActionPause
+}
+
+// OnHttpStreamDone 关闭当前 HTTP context 的 Redis callback 生命周期
+func (h *httpContext) OnHttpStreamDone() {
+	redisabi.CloseHTTPContext(h.plugin.contextID, h.contextID)
+}
+
+func (h *httpContext) handleAuthentication(result redisabi.Result) {
+	h.authenticationPending = false
+	if result.Err != nil || result.Status != redisabi.RedisStatusOK {
+		err := result.Err
+		if err == nil {
+			err = fmt.Errorf("redis call failed with status %d", result.Status)
+		}
+		proxywasm.LogErrorf("complete AI access key authentication failed: %v", err)
+		if err := sendPausedResponse(h.contextID, h.plugin.proxy.AuthenticationUnavailable()); err != nil {
+			proxywasm.LogErrorf("send AI access key unavailable response failed: %v", err)
+		}
+		return
+	}
+	grant, authorized, err := auth.Decode(result.Data)
+	if err != nil {
+		proxywasm.LogErrorf("decode AI access key authentication failed: %v", err)
+		if err := sendPausedResponse(h.contextID, h.plugin.proxy.AuthenticationUnavailable()); err != nil {
+			proxywasm.LogErrorf("send AI access key decode failure response failed: %v", err)
+		}
+		return
+	}
+	if !authorized {
+		if err := sendPausedResponse(h.contextID, h.plugin.proxy.Unauthorized()); err != nil {
+			proxywasm.LogErrorf("send AI access key unauthorized response failed: %v", err)
+		}
+		return
+	}
+
+	request, response := h.plugin.proxy.PrepareRequest(h.route, h.requestBody)
+	if response != nil {
+		if err := sendPausedResponse(h.contextID, *response); err != nil {
+			proxywasm.LogErrorf("send invalid AI request response failed: %v", err)
+		}
+		return
+	}
+	if !grant.Allows(request.Response.PublicModel) {
+		if err := sendPausedResponse(h.contextID, h.plugin.proxy.ModelForbidden(request.Response.PublicModel)); err != nil {
+			proxywasm.LogErrorf("send AI access key model permission response failed: %v", err)
+		}
+		return
+	}
+	if err := h.applyPreparedRequest(request); err != nil {
+		proxywasm.LogErrorf("apply AI proxy request failed: %v", err)
+		if sendErr := sendPausedResponse(h.contextID, h.plugin.proxy.InternalError()); sendErr != nil {
+			proxywasm.LogErrorf("send AI proxy request failure response failed: %v", sendErr)
+		}
+		return
+	}
+	h.authenticationSecret = ""
+	h.requestBody = nil
+	h.requestActive = false
+	if err := redisabi.ResumeHTTPRequest(h.contextID); err != nil {
+		proxywasm.LogErrorf("resume authenticated AI request failed: %v", err)
+	}
+}
+
+func (h *httpContext) dispatchAuthentication() error {
+	command, err := auth.Command(h.authenticationSecret)
+	if err != nil {
+		return fmt.Errorf("encode Redis command: %w", err)
+	}
+	h.authenticationPending = true
+	if _, err := redisabi.Dispatch(h.plugin.contextID, h.contextID, command, h.handleAuthentication); err != nil {
+		h.authenticationPending = false
+		return err
+	}
+	return nil
+}
+
+func (h *httpContext) applyPreparedRequest(request modelproxy.PreparedRequest) error {
 	if err := proxywasm.ReplaceHttpRequestBody(request.Body); err != nil {
-		proxywasm.LogErrorf("replace AI proxy request body failed: %v", err)
-		h.requestActive = false
-		return sendLocalResponse(h.plugin.proxy.InternalError())
+		return fmt.Errorf("replace request body: %w", err)
 	}
 	for _, header := range [][2]string{
 		{":path", request.Path},
@@ -110,21 +201,24 @@ func (h *httpContext) OnHttpRequestBody(bodySize int, endOfStream bool) types.Ac
 		{contentLengthHeader, strconv.Itoa(len(request.Body))},
 	} {
 		if err := replaceRequestHeader(header[0], header[1]); err != nil {
-			proxywasm.LogErrorf("set AI proxy routing header failed: %v", err)
-			h.requestActive = false
-			return sendLocalResponse(h.plugin.proxy.InternalError())
+			return err
 		}
 	}
 	for _, header := range request.Headers {
 		if err := replaceRequestHeader(header.Name, header.Value); err != nil {
-			proxywasm.LogErrorf("set AI proxy upstream header failed: %v", err)
-			h.requestActive = false
-			return sendLocalResponse(h.plugin.proxy.InternalError())
+			return err
 		}
 	}
 	h.responseTransform = &request.Response
-	h.requestActive = false
-	return types.ActionContinue
+	return nil
+}
+
+func bearerSecret(authorization string) (string, bool) {
+	parts := strings.Fields(authorization)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || !bearer.ValidToken(parts[1]) {
+		return "", false
+	}
+	return parts[1], true
 }
 
 // OnHttpResponseHeaders 选择普通响应缓冲或 SSE 增量转换模式

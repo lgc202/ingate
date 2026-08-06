@@ -3,8 +3,9 @@ import { AppShell } from './layout/AppShell';
 import { GatewayPage } from '@/features/gateways/GatewayPage';
 import { RoutePage } from '@/features/routes/RoutePage';
 import { UpstreamPage } from '@/features/upstreams/UpstreamPage';
-import { PolicyPage } from '@/features/policies/PolicyPage';
 import { CertificatePage } from '@/features/certificates/CertificatePage';
+import { AccessKeyPage } from '@/features/accessKeys/AccessKeyPage';
+import { PolicyPage } from '@/features/policies/PolicyPage';
 import { ConfigurationStatusPage } from '@/features/configuration/ConfigurationStatusPage';
 
 export default function App() {
@@ -15,8 +16,9 @@ export default function App() {
         <Route path="gateways" element={<GatewayPage />} />
         <Route path="routes" element={<RoutePage />} />
         <Route path="services" element={<UpstreamPage />} />
-        <Route path="policies" element={<PolicyPage />} />
         <Route path="certificates" element={<CertificatePage />} />
+        <Route path="access-keys" element={<AccessKeyPage />} />
+        <Route path="policies" element={<PolicyPage />} />
         <Route path="status" element={<ConfigurationStatusPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/gateways" replace />} />

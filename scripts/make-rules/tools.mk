@@ -14,10 +14,17 @@ KUBE_CODEGEN_PACKAGES := \
 	k8s.io/code-generator/cmd/validation-gen \
 	k8s.io/kube-openapi/cmd/openapi-gen
 
+SQLC_VERSION := v1.31.1
+SQLC_PACKAGE := github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
+
 .PHONY: tools
-tools: ## 安装项目代码生成工具
+tools: $(TOOLS_DIR)/sqlc ## 安装项目代码生成工具
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(KUBE_CODEGEN_PACKAGES)
+
+$(TOOLS_DIR)/sqlc: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+	@mkdir -p $(TOOLS_DIR)
+	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(SQLC_PACKAGE)
 
 .PHONY: check-tools
 check-tools: ## 检查本地开发工具

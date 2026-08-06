@@ -1,7 +1,10 @@
 package store
 
 import (
+	"database/sql"
+
 	accesscontrolpolicystore "github.com/lgc202/ingate/internal/admin/store/accesscontrolpolicy"
+	accesskeystore "github.com/lgc202/ingate/internal/admin/store/accesskey"
 	certificatestore "github.com/lgc202/ingate/internal/admin/store/certificate"
 	gatewaystore "github.com/lgc202/ingate/internal/admin/store/gateway"
 	ratelimitpolicystore "github.com/lgc202/ingate/internal/admin/store/ratelimitpolicy"
@@ -13,6 +16,7 @@ import (
 
 // Store 聚合 Admin 访问 ingate-apiserver 的资源存储
 type Store struct {
+	AccessKey           *accesskeystore.Store
 	Certificate         *certificatestore.Store
 	Gateway             *gatewaystore.Store
 	Route               *routestore.Store
@@ -23,8 +27,9 @@ type Store struct {
 }
 
 // New 创建 store 聚合入口
-func New(client clientset.Interface) *Store {
+func New(client clientset.Interface, database *sql.DB) *Store {
 	return &Store{
+		AccessKey:           accesskeystore.New(database),
 		Certificate:         certificatestore.New(client),
 		Gateway:             gatewaystore.New(client),
 		Route:               routestore.New(client),

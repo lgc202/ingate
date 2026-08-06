@@ -8,6 +8,7 @@ x-ingate-build: &ingate-build
     GIT_COMMIT: ${GIT_COMMIT:-unknown}
     GIT_TREE_STATE: ${GIT_TREE_STATE:-dirty}
     BUILD_DATE: ${BUILD_DATE:-unknown}
+    GOPROXY: ${GOPROXY:-https://proxy.golang.org,direct}
 
 services:
   etcd:
@@ -39,6 +40,23 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
+
+  mysql:
+    image: mysql:8.4.10
+    environment:
+      MYSQL_DATABASE: ingate
+      MYSQL_USER: ingate
+      MYSQL_PASSWORD: ingate
+      MYSQL_ROOT_PASSWORD: ingate-root
+    volumes:
+      - ./internal/admin/store/accesskey/sql/schema.sql:/docker-entrypoint-initdb.d/001-access-keys.sql:ro
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 20s
 
   apiserver:
     image: ingate/apiserver:${INGATE_IMAGE_TAG:-dev}
@@ -102,6 +120,10 @@ services:
     depends_on:
       apiserver:
         condition: service_healthy
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - ./deploy/docker/configs/ingate-admin.yaml:/opt/ingate/admin/configs/config.yaml:ro
       - ./deploy/docker/kubeconfig.yaml:/opt/ingate/admin/configs/kubeconfig.yaml:ro
@@ -134,4 +156,5 @@ services:
 volumes:
   apiserver-certificates:
   etcd-data:
+  mysql-data:
   redis-data:

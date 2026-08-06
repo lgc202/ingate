@@ -1,7 +1,9 @@
 package service
 
 import (
+	"github.com/lgc202/ingate/internal/admin/accesskeyindex"
 	accesscontrolpolicyservice "github.com/lgc202/ingate/internal/admin/service/accesscontrolpolicy"
+	accesskeyservice "github.com/lgc202/ingate/internal/admin/service/accesskey"
 	certificateservice "github.com/lgc202/ingate/internal/admin/service/certificate"
 	configurationstatusservice "github.com/lgc202/ingate/internal/admin/service/configurationstatus"
 	gatewayservice "github.com/lgc202/ingate/internal/admin/service/gateway"
@@ -15,6 +17,7 @@ import (
 
 // Service 聚合 Admin 面向用户的管理用例
 type Service struct {
+	AccessKey           *accesskeyservice.Service
 	Certificate         *certificateservice.Service
 	ConfigurationStatus *configurationstatusservice.Service
 	Gateway             *gatewayservice.Service
@@ -26,7 +29,7 @@ type Service struct {
 }
 
 // New 创建 service 聚合入口
-func New(store *store.Store) *Service {
+func New(store *store.Store, accessKeyIndex *accesskeyindex.Index) *Service {
 	policyUsage := policytarget.NewUsageFinder(store.RateLimitPolicy, store.AccessControlPolicy, store.TokenQuotaPolicy)
 	configurationStatus := configurationstatusservice.New(
 		store.Gateway,
@@ -38,6 +41,7 @@ func New(store *store.Store) *Service {
 		store.TokenQuotaPolicy,
 	)
 	return &Service{
+		AccessKey:           accesskeyservice.New(store.AccessKey, accessKeyIndex),
 		Certificate:         certificateservice.New(store.Certificate, store.Gateway),
 		ConfigurationStatus: configurationStatus,
 		Gateway:             gatewayservice.New(store.Gateway, store.Route, store.Certificate, policyUsage),
