@@ -24,6 +24,16 @@ func NewRouter(handlers *handler.Handler, logger *slog.Logger) http.Handler {
 	{
 		apiV1.GET("/configuration/status", handlers.ConfigurationStatus.Get)
 
+		accessKeys := apiV1.Group("/access-keys")
+		{
+			accessKeys.GET("", handlers.AccessKey.List)
+			accessKeys.POST("", handlers.AccessKey.Create)
+			accessKeys.PUT("/:id", handlers.AccessKey.Update)
+			accessKeys.PATCH("/:id/enabled", handlers.AccessKey.SetEnabled)
+			accessKeys.POST("/:id/rotate", handlers.AccessKey.Rotate)
+			accessKeys.DELETE("/:id", handlers.AccessKey.Delete)
+		}
+
 		certificates := apiV1.Group("/certificates")
 		{
 			certificates.GET("", handlers.Certificate.List)

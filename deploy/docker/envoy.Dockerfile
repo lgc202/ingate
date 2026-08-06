@@ -1,6 +1,10 @@
 ARG GO_VERSION=1.26.0
+ARG GOPROXY=https://proxy.golang.org,direct
 
 FROM golang:${GO_VERSION}-bookworm AS plugin-builder
+
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY}
 
 WORKDIR /src
 
@@ -10,6 +14,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY pkg ./pkg
 COPY plugins ./plugins
+COPY internal/pkg/accesskey ./internal/pkg/accesskey
+COPY internal/pkg/bearer ./internal/pkg/bearer
 COPY internal/pkg/httpheader ./internal/pkg/httpheader
 
 RUN --mount=type=cache,target=/go/pkg/mod \

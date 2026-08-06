@@ -294,6 +294,39 @@ func (p *Proxy) RequestTooLarge() LocalResponse {
 	})
 }
 
+// Unauthorized 返回缺少、无效、停用或过期访问密钥时的统一响应
+func (p *Proxy) Unauthorized() LocalResponse {
+	response := rejectionResponse(rejection{
+		statusCode: 401,
+		message:    "Invalid or missing API key",
+		typ:        "invalid_request_error",
+		code:       "invalid_api_key",
+	})
+	response.Headers["www-authenticate"] = "Bearer"
+	return response
+}
+
+// ModelForbidden 返回访问密钥没有公开模型权限时的响应
+func (p *Proxy) ModelForbidden(model string) LocalResponse {
+	return rejectionResponse(rejection{
+		statusCode: 403,
+		message:    fmt.Sprintf("The API key is not allowed to access model %q", model),
+		typ:        "permission_error",
+		param:      "model",
+		code:       "model_not_allowed",
+	})
+}
+
+// AuthenticationUnavailable 返回系统 Redis 无法完成认证时的故障关闭响应
+func (p *Proxy) AuthenticationUnavailable() LocalResponse {
+	return rejectionResponse(rejection{
+		statusCode: 503,
+		message:    "API key authentication is temporarily unavailable",
+		typ:        "server_error",
+		code:       "authentication_unavailable",
+	})
+}
+
 // InternalError 返回插件无法完成请求改写时的本地响应
 func (p *Proxy) InternalError() LocalResponse {
 	return rejectionResponse(rejection{

@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	accesscontrolpolicyhandler "github.com/lgc202/ingate/internal/admin/handler/accesscontrolpolicy"
+	accesskeyhandler "github.com/lgc202/ingate/internal/admin/handler/accesskey"
 	certificatehandler "github.com/lgc202/ingate/internal/admin/handler/certificate"
 	configurationstatushandler "github.com/lgc202/ingate/internal/admin/handler/configurationstatus"
 	gatewayhandler "github.com/lgc202/ingate/internal/admin/handler/gateway"
@@ -20,6 +21,7 @@ import (
 
 // Handler 聚合管理 API 的 HTTP 入口
 type Handler struct {
+	AccessKey           *accesskeyhandler.Handler
 	Certificate         *certificatehandler.Handler
 	ConfigurationStatus *configurationstatushandler.Handler
 	Gateway             *gatewayhandler.Handler
@@ -33,6 +35,7 @@ type Handler struct {
 // New 创建 handler 聚合入口
 func New(service *service.Service, logger *slog.Logger) *Handler {
 	return &Handler{
+		AccessKey:           accesskeyhandler.New(service.AccessKey, logger.With("handler", "accesskey")),
 		Certificate:         certificatehandler.New(service.Certificate, logger.With("handler", "certificate")),
 		ConfigurationStatus: configurationstatushandler.New(service.ConfigurationStatus, logger.With("handler", "configurationstatus")),
 		Gateway:             gatewayhandler.New(service.Gateway, logger.With("handler", "gateway")),

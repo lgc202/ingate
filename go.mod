@@ -6,8 +6,10 @@ require (
 	github.com/envoyproxy/go-control-plane v0.14.0
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0
 	github.com/gin-gonic/gin v1.12.0
+	github.com/go-sql-driver/mysql v1.10.0
 	github.com/lgc202/go-kit v0.0.0-20260608113601-338cc7dcde97
 	github.com/proxy-wasm/proxy-wasm-go-sdk v0.0.0-20260105142703-44c7d5847745
+	github.com/redis/go-redis/v9 v9.20.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/pflag v1.0.10
 	k8s.io/apimachinery v0.34.2
@@ -18,6 +20,7 @@ require (
 )
 
 require (
+	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/bytedance/gopkg v0.1.3 // indirect
 	github.com/bytedance/sonic v1.15.0 // indirect
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
@@ -53,6 +56,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
 	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 )

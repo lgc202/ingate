@@ -1,7 +1,11 @@
 ARG GO_VERSION=1.26.0
 ARG NODE_VERSION=24
+ARG GOPROXY=https://proxy.golang.org,direct
 
 FROM golang:${GO_VERSION}-bookworm AS service-builder
+
+ARG GOPROXY
+ENV GOPROXY=${GOPROXY}
 
 WORKDIR /src
 
