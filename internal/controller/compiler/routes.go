@@ -13,9 +13,9 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
+	"github.com/lgc202/ingate/internal/aiproxy/routeconfig"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -40,15 +40,15 @@ type routeAttachment struct {
 }
 
 type routeEntry struct {
-	gatewayID      string
-	routeID        string
-	ruleName       string
-	pathPrefix     string
-	exactPath      bool
-	aiContinuation bool
-	method         string
-	headerCount    int
-	route          *routev3.Route
+	gatewayID   string
+	routeID     string
+	ruleName    string
+	pathPrefix  string
+	exactPath   bool
+	aiRoute     bool
+	method      string
+	headerCount int
+	route       *routev3.Route
 }
 
 func (c *compilation) buildRoutes() []*routev3.RouteConfiguration {
@@ -173,6 +173,15 @@ func (c *compilation) buildRoutes() []*routev3.RouteConfiguration {
 							}
 							matchOwners[key][domain][matchKey] = entry
 							routesByListener[key][domain] = append(routesByListener[key][domain], entry)
+							if entry.aiRoute {
+								aiKey := attachedAIRouteKey{
+									listenerKey: key,
+									gatewayID:   gatewayID,
+									routeID:     routeID,
+									ruleName:    rule.Name,
+								}
+								c.aiRouteEntries[aiKey] = append(c.aiRouteEntries[aiKey], entry.route)
+							}
 
 							attachmentKey := fmt.Sprintf("%s\x00%s\x00%s\x00%s", listenerName(key), gatewayID, routeID, rule.Name)
 							if !attachmentSet[attachmentKey] {
@@ -218,12 +227,9 @@ func (c *compilation) buildRoutes() []*routev3.RouteConfiguration {
 			})
 		}
 		configs = append(configs, &routev3.RouteConfiguration{
-			Name:         routeConfigName(key),
-			VirtualHosts: virtualHosts,
-			InternalOnlyHeaders: []string{
-				aiClusterHeader,
-				aiRouteHeader,
-			},
+			Name:                routeConfigName(key),
+			VirtualHosts:        virtualHosts,
+			InternalOnlyHeaders: []string{aiClusterHeader},
 		})
 	}
 	return configs
@@ -338,19 +344,16 @@ func (c *compilation) buildRouteEntries(
 	}
 
 	action := &routev3.RouteAction{}
-	var aiRoute compiledAIRoute
 	if rule.ModelRouting != nil {
 		var valid bool
-		aiRoute, valid = c.compileAIModels(routeID, rule, methods)
+		_, valid = c.compileAIModels(routeID, rule, methods)
 		if !valid {
 			return nil
 		}
 		action.ClusterSpecifier = &routev3.RouteAction_ClusterHeader{ClusterHeader: aiClusterHeader}
-		// Router 使用内部 Header 完成二次选路后再移除，避免私有执行信息泄漏给模型服务
-		for _, name := range []string{aiClusterHeader, aiRouteHeader} {
-			if !slices.Contains(requestHeadersToRemove, name) {
-				requestHeadersToRemove = append(requestHeadersToRemove, name)
-			}
+		// ExtProc 在 Router 执行前写入目标 Cluster，Router 读取后移除私有 Header
+		if !slices.Contains(requestHeadersToRemove, aiClusterHeader) {
+			requestHeadersToRemove = append(requestHeadersToRemove, aiClusterHeader)
 		}
 	} else {
 		clusters, clustersValid := c.weightedClusters(routeID, rule)
@@ -396,16 +399,9 @@ func (c *compilation) buildRouteEntries(
 	if len(methodValues) == 0 {
 		methodValues = []string{""}
 	}
-	entryCapacity := len(methodValues)
-	if rule.ModelRouting != nil {
-		entryCapacity *= 1 + len(aiRoute.continuation)
-	}
-	entries := make([]routeEntry, 0, entryCapacity)
+	entries := make([]routeEntry, 0, len(methodValues))
 	for _, method := range methodValues {
 		routeName := envoyRouteName(gatewayID, routeID, rule.Name, method)
-		if rule.ModelRouting != nil {
-			routeName = envoyAIRouteName(gatewayID, routeID, rule.Name, method, aiRoute.configID)
-		}
 		routeHeaders := slices.Clone(headers)
 		if method != "" {
 			routeHeaders = append([]*routev3.HeaderMatcher{
@@ -418,65 +414,30 @@ func (c *compilation) buildRouteEntries(
 		} else {
 			match.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: pathPrefix}
 		}
+		var requestBodyBufferLimit *wrapperspb.UInt64Value
+		if rule.ModelRouting != nil {
+			requestBodyBufferLimit = wrapperspb.UInt64(routeconfig.MaxRequestBodyBytes)
+		}
 		entries = append(entries, routeEntry{
 			gatewayID:   gatewayID,
 			routeID:     routeID,
 			ruleName:    rule.Name,
 			pathPrefix:  pathPrefix,
 			exactPath:   rule.ModelRouting != nil,
+			aiRoute:     rule.ModelRouting != nil,
 			method:      method,
 			headerCount: len(headers),
 			route: &routev3.Route{
 				Name:                    routeName,
 				Match:                   match,
 				Action:                  &routev3.Route_Route{Route: action},
+				RequestBodyBufferLimit:  requestBodyBufferLimit,
 				RequestHeadersToAdd:     requestHeadersToAdd,
 				RequestHeadersToRemove:  requestHeadersToRemove,
 				ResponseHeadersToAdd:    responseHeadersToAdd,
 				ResponseHeadersToRemove: responseHeadersToRemove,
 			},
 		})
-		if rule.ModelRouting == nil {
-			continue
-		}
-
-		for _, continuation := range aiRoute.continuation {
-			continuationHeaders := []*routev3.HeaderMatcher{
-				exactHeaderMatcher(aiRouteHeader, aiRoute.configID),
-				exactHeaderMatcher(aiClusterHeader, continuation.cluster),
-			}
-			if method != "" {
-				continuationHeaders = append([]*routev3.HeaderMatcher{
-					exactHeaderMatcher(":method", method),
-				}, continuationHeaders...)
-			}
-			continuationAction := proto.Clone(action).(*routev3.RouteAction)
-			continuationAction.HostRewriteSpecifier = &routev3.RouteAction_HostRewriteLiteral{
-				HostRewriteLiteral: continuation.authority,
-			}
-			entries = append(entries, routeEntry{
-				gatewayID:      gatewayID,
-				routeID:        routeID,
-				ruleName:       rule.Name,
-				pathPrefix:     continuation.path,
-				exactPath:      true,
-				aiContinuation: true,
-				method:         method,
-				headerCount:    2,
-				route: &routev3.Route{
-					Name: routeName,
-					Match: &routev3.RouteMatch{
-						PathSpecifier: &routev3.RouteMatch_Path{Path: continuation.path},
-						Headers:       continuationHeaders,
-					},
-					Action:                  &routev3.Route_Route{Route: continuationAction},
-					RequestHeadersToAdd:     requestHeadersToAdd,
-					RequestHeadersToRemove:  requestHeadersToRemove,
-					ResponseHeadersToAdd:    responseHeadersToAdd,
-					ResponseHeadersToRemove: responseHeadersToRemove,
-				},
-			})
-		}
 	}
 	return entries
 }
@@ -550,8 +511,7 @@ func (c *compilation) routeHeaderMatches(routeID string, rule gatewayv1.RouteRul
 			valid = false
 			continue
 		}
-		if rule.ModelRouting != nil &&
-			(strings.EqualFold(header.Name, aiClusterHeader) || strings.EqualFold(header.Name, aiRouteHeader)) {
+		if rule.ModelRouting != nil && strings.EqualFold(header.Name, aiClusterHeader) {
 			c.addDiagnostic(
 				SeverityError,
 				gatewayv1.KindRoute,
@@ -933,12 +893,6 @@ func routeMatchKey(match *routev3.RouteMatch) string {
 }
 
 func compareRouteEntries(a, b routeEntry) int {
-	if a.aiContinuation != b.aiContinuation {
-		if a.aiContinuation {
-			return -1
-		}
-		return 1
-	}
 	if len(a.pathPrefix) != len(b.pathPrefix) {
 		return cmp.Compare(len(b.pathPrefix), len(a.pathPrefix))
 	}
@@ -994,10 +948,6 @@ func envoyRouteName(gatewayID, routeID, ruleName, method string) string {
 		url.PathEscape(ruleName),
 		url.PathEscape(method),
 	)
-}
-
-func envoyAIRouteName(gatewayID, routeID, ruleName, method, configID string) string {
-	return envoyRouteName(gatewayID, routeID, ruleName, method) + "/ai/" + url.PathEscape(configID)
 }
 
 func virtualHostName(key listenerKey, domain string) string {

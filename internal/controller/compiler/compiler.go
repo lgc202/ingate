@@ -30,6 +30,7 @@ type compilation struct {
 	gatewayListeners map[string][]gatewayListener
 	routeAttachments []routeAttachment
 	aiRoutes         map[aiRouteKey]compiledAIRoute
+	aiRouteEntries   map[attachedAIRouteKey][]*routev3.Route
 	policyTargetSet  map[CompiledPolicyTarget]bool
 	diagnostics      []Diagnostic
 	diagnosticSet    map[string]bool
@@ -51,6 +52,7 @@ func Compile(resources Resources) Result {
 		listenerGroups:        make(map[listenerKey]*listenerGroup),
 		gatewayListeners:      make(map[string][]gatewayListener),
 		aiRoutes:              make(map[aiRouteKey]compiledAIRoute),
+		aiRouteEntries:        make(map[attachedAIRouteKey][]*routev3.Route),
 		policyTargetSet:       make(map[CompiledPolicyTarget]bool),
 		diagnosticSet:         make(map[string]bool),
 	}
@@ -59,9 +61,9 @@ func Compile(resources Resources) Result {
 	clusters, endpoints := c.buildUpstreams()
 	c.buildListenerGroups()
 	routes := c.buildRoutes()
-	plugins := c.buildPolicyConfigs()
-	c.addAIProxyConfigs(plugins)
-	listeners := c.buildListeners(plugins)
+	filters := c.buildPolicyConfigs()
+	c.configureAIRoutes(filters)
+	listeners := c.buildListeners(filters)
 
 	envoyConfig := EnvoyConfig{
 		Listeners: listeners,

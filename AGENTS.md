@@ -23,13 +23,15 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 
 当前服务和系统组件：
 
-- `ingate`：CLI 和本地调试入口
-- `ingate-admin-api`：前端管理 API
+- `ingate-console`：控制台静态资源和管理 API 反向代理入口
+- `ingate-admin`：前端管理 API
 - `ingate-apiserver`：声明式资源 API
 - `ingate-controller`：资源状态收敛、Envoy 配置编译和 xDS 服务
+- `ingate-ai-proxy`：通过 Envoy ExtProc 执行 AI 访问认证、模型选路、协议转换和响应归一化
 - `Envoy`：唯一数据平面
 - `etcd`：声明式资源持久化，仅由 ingate-apiserver 访问
-- `Redis`：限流和 Token 配额等请求路径共享状态
+- `MySQL`：访问密钥等管理业务数据
+- `Redis`：访问密钥执行索引、限流和 Token 配额等请求路径共享状态
 
 当前不包含：
 
@@ -39,20 +41,20 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 
 ## AI Gateway 当前范围
 
-- 不新增 AI runtime 或独立服务，AI 请求继续使用现有 Controller 编译链路和 Envoy 数据面
+- AI 请求继续使用现有 Controller 编译链路和 Envoy 数据面；`ingate-ai-proxy` 通过标准 ExtProc 接入请求链路，不直接对客户端监听模型 API
 - 对外统一支持 OpenAI-compatible `POST /v1/chat/completions`；当前上游支持 OpenAI、DeepSeek、通义千问兼容模式、Anthropic 原生协议、Gemini 原生协议和自定义 OpenAI-compatible 服务
 - 模型服务仍建模为 `Upstream(type=model)`，通过 `protocol` 表达 OpenAI、Anthropic 或 Gemini 通信语义，通过 `spec.model.provider` 表达具体厂商；不新增 Provider、Model、AIRoute 或 AIBackend 等平行资源
 - 模型目录由用户在模型 Upstream 的 `spec.model.models[]` 中手工维护，不自动同步厂商模型列表
 - API Key 直接作为模型 Upstream 的认证配置，不创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略表示保留、显式移除才会清除
 - 一条模型 RouteRule 的 `modelRouting.models[]` 中每个客户端模型别名各自引用一个模型 Upstream 和 `upstreamModel`，同一路由可以按请求体 `model` 跨多个厂商和 Upstream 选择目标
-- Envoy Route 使用受控内部 Header 和内部续接 Route 选择目标 Cluster，并由续接 Route 写入上游 Host；内置 `ai-proxy` Wasm 负责模型别名匹配、协议转换、路径与认证 Header 改写、响应与 SSE 归一化，用户不编辑插件私有配置
-- `pkg/llm` 是不依赖 Ingate、Envoy、Proxy-Wasm、Gin 或 Kubernetes 的纯 Go 协议包，不发送模型 HTTP 请求、不读取环境变量、不管理密钥持久化；Provider 协议适配按子包隔离
+- Controller 把每条模型 RouteRule 的目标 Cluster、上游 Host、协议、凭据和模型映射编译到 Envoy ExtProc per-route 配置；`ingate-ai-proxy` 读取配置后完成客户端认证、模型别名匹配、厂商协议转换、路径与上游认证 Header 改写、响应和 SSE 归一化
+- `pkg/llm` 是不依赖 Ingate、Envoy、ExtProc、Gin 或 Kubernetes 的纯 Go 协议包，不发送模型 HTTP 请求、不读取环境变量、不管理密钥持久化；Provider 协议适配按子包隔离
 - 模型 Upstream 通过 `tls.serverName` 使用 HTTPS、SNI 和系统 CA 根证书包校验；配置或保留 API Key 时必须启用 HTTPS
 - 当前只支持文本 `system`、`user`、`assistant` 消息，以及 `model`、`messages`、`stream`、`temperature`、`top_p`、`max_tokens`、`stop`；普通响应、SSE、错误和 Token usage 统一为 OpenAI-compatible 结构，响应 `model` 返回客户端公开别名
 - 当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动模型同步、多 Provider fallback/retry、模型级重试、OAuth/IAM 云认证或大文件请求；单次请求体上限为 1 MiB
 - `TokenQuotaPolicy` 为一个策略定义一个共享预算池，只应用到目标 Gateway 或 Route 下的模型 RouteRule；支持所有请求共享、按客户端 IP 和按请求 Header 值区分预算池
 - Token 配额固定统计归一化响应中的输入与输出 `total_tokens`，请求前检查当前固定窗口已用额度，响应结束后按实际 usage 记账；并发中的请求可能造成有限超额，不把当前能力描述为严格预扣的硬额度
-- 受 Token 配额保护的 OpenAI-compatible 流式请求由 `ai-proxy` 内部注入 usage 请求参数，客户端协议仍不开放 `stream_options`
+- 受 Token 配额保护的 OpenAI-compatible 流式请求由 `ingate-ai-proxy` 内部注入 usage 请求参数，客户端协议仍不开放 `stream_options`
 
 ## 工程实现原则
 
@@ -124,13 +126,13 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 
 ### Admin API 分层
 
-`ingate-admin-api` 按 `handler / dto / service / store` 分层，各层职责必须清楚：
+`ingate-admin` 按 `handler / dto / service / store` 分层，各层职责必须清楚：
 
 - `handler` 是 HTTP 入口，只负责请求绑定、参数校验、调用 service 和写统一响应。
 - `dto` 定义控制台 API 的请求和响应模型，负责产品 DTO 与内部资源模型之间的纯转换。
 - `service` 承载用例和业务语义，负责调用 store、处理资源状态和跨资源协调。
 - `store` 只封装资源读写，不承载控制台产品语义。
-- 前端不直接依赖 Kubernetes 风格资源对象；admin-api 返回面向页面和操作的产品 DTO。
+- 前端不直接依赖 Kubernetes 风格资源对象；ingate-admin 返回面向页面和操作的产品 DTO。
 
 ### Handler 层
 
@@ -191,13 +193,13 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 ### 治理策略与内置插件
 
 - 当前已落地执行链路保留 `RateLimitPolicy` 和 `AccessControlPolicy`；删除 `PolicyBinding` 和 `RedisStore`，鉴权等治理能力后续重新设计后再加入。
-- 核心治理能力可以在数据面通过内置插件执行，但用户协议和 admin-api 不能暴露为普通插件资源、插件绑定资源或插件私有 JSON。
+- 核心治理能力可以在数据面通过内置插件执行，但用户协议和 ingate-admin 不能暴露为普通插件资源、插件绑定资源或插件私有 JSON。
 - 内置治理插件由系统自动注入、自动配置并通过 Envoy xDS 配置生效；用户不需要独立安装插件，也不需要感知插件版本、phase、priority 或 Wasm 文件路径。
 - `RateLimitPolicy` 和 `AccessControlPolicy` 通过 `targetRefs[]` 表达策略应用到哪些 Gateway 或 Route；策略配置和目标引用都由对应强类型 Policy 承载。
 - Policy 的总体结果写入 `status.conditions`，每个目标的解析和生效结果写入 `status.targets[]`。缺失目标不影响其他有效目标继续发布；任一目标已生效时总体可视为已生效，部分生效和异常由 `status.targets[]` 表达；没有目标或所有目标都未接入流量时使用 `NotApplied`。
 - 外部服务、证书等可复用运行依赖按真实产品需求独立建模；系统 Redis 是安装级基础组件，不进入用户资源协议。
 - 内置治理插件可以参考 Higress 等项目的实现思路，但不能依赖第三方产品的 wrapper、matchRules 或高层配置协议；Redis hostcall 通过 Ingate 自己维护的最小 ABI adapter 隔离。
-- 后续新增策略时按资源类型拆分 admin-api 的 handler、dto、service、store，不把不同策略堆进一个大 `policy` 文件，也不写进 Route/Gateway 的用例层。
+- 后续新增策略时按资源类型拆分 ingate-admin 的 handler、dto、service、store，不把不同策略堆进一个大 `policy` 文件，也不写进 Route/Gateway 的用例层。
 - Envoy Config Compiler 负责解析强类型策略的 `targetRefs[]`，并生成 Envoy 与内置插件可执行配置；插件私有结构不能泄漏到用户 API。
 
 ### 标准库与依赖使用

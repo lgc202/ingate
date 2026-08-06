@@ -12,21 +12,21 @@ import (
 
 // Logging 定义服务日志配置
 type Logging struct {
-	Format    logx.Format `mapstructure:"format"`
-	Level     logx.Level  `mapstructure:"level"`
-	AddSource bool        `mapstructure:"add_source"`
-	Stdout    bool        `mapstructure:"stdout"`
-	File      LogFile     `mapstructure:"file"`
+	Format    logx.Format `json:"format" mapstructure:"format"`
+	Level     logx.Level  `json:"level" mapstructure:"level"`
+	AddSource bool        `json:"add_source" mapstructure:"add_source"`
+	Stdout    bool        `json:"stdout" mapstructure:"stdout"`
+	File      LogFile     `json:"file" mapstructure:"file"`
 }
 
 // LogFile 定义文件日志和轮转配置
 type LogFile struct {
-	Path       string `mapstructure:"path"`
-	MaxSizeMB  int    `mapstructure:"max_size_mb"`
-	MaxBackups int    `mapstructure:"max_backups"`
-	MaxAgeDays int    `mapstructure:"max_age_days"`
-	Compress   bool   `mapstructure:"compress"`
-	LocalTime  bool   `mapstructure:"local_time"`
+	Path       string `json:"path" mapstructure:"path"`
+	MaxSizeMB  int    `json:"max_size_mb" mapstructure:"max_size_mb"`
+	MaxBackups int    `json:"max_backups" mapstructure:"max_backups"`
+	MaxAgeDays int    `json:"max_age_days" mapstructure:"max_age_days"`
+	Compress   bool   `json:"compress" mapstructure:"compress"`
+	LocalTime  bool   `json:"local_time" mapstructure:"local_time"`
 }
 
 // Validate 校验日志配置

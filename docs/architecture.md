@@ -13,7 +13,7 @@ Ingate 是面向 API 网关和 AI 网关的声明式 Envoy 控制面。
 ## 组件
 
 ```text
-Console --------> ingate-admin-api
+Console --------> ingate-admin
                          |
 CLI / SDK --------------+----> ingate-apiserver ----> etcd
                                   ^          |
@@ -26,13 +26,17 @@ CLI / SDK --------------+----> ingate-apiserver ----> etcd
                                   | SotW ADS xDS
                                   v
                                 Envoy ----------------> Redis
+                                  |
+                                  +---- ExtProc ----> ingate-ai-proxy ----> Redis
 ```
 
-- `ingate-admin-api` 提供面向控制台用例的产品 DTO
+- `ingate-console` 提供控制台静态资源和管理 API 入口
+- `ingate-admin` 提供面向控制台用例的产品 DTO
 - `ingate-apiserver` 提供声明式资源 API，是 etcd 的唯一访问者
 - `ingate-controller` 监听完整资源集合，编译并发布一份 Envoy 配置，并通过 status 子资源回写观察结果
+- `ingate-ai-proxy` 通过标准 ExtProc 执行 AI 访问认证、模型选路、协议转换和响应归一化
 - Envoy 执行路由、代理和内置治理插件
-- Redis 保存限流及 Token 配额等请求路径共享状态
+- MySQL 保存访问密钥等管理业务数据；Redis 保存访问密钥执行索引、限流及 Token 配额等请求路径共享状态
 
 Admin API 只访问 API Server，不直接访问 Controller。Controller 的内部 HTTP 服务只提供健康检查，不作为产品状态查询协议。
 
@@ -118,14 +122,13 @@ Admin API 只把 Condition 转换成面向页面的状态摘要，不向控制�
 
 ## AI Gateway
 
-AI Gateway 直接复用现有控制面和 Envoy 数据面，不新增 AI runtime、协议转换服务或其他独立组件：
+AI Gateway 复用现有控制面和 Envoy 数据面，并通过标准 ExtProc 接入独立的请求处理服务：
 
 ```text
 OpenAI Client
   -> Envoy Listener / Route
   -> 内置 tokenquota Wasm
-  -> 内置 ai-proxy Wasm
-  -> 按请求体 model 选择模型 Upstream
+  -> ingate-ai-proxy：认证、按 model 选路和协议转换
   -> OpenAI / DeepSeek / 通义 / Anthropic / Gemini / 自定义兼容服务
 ```
 
@@ -137,8 +140,9 @@ OpenAI Client
 - Admin API 只返回 `apiKeyConfigured`，不回显密钥内容；更新时省略 API Key 表示保留，显式移除才会清除
 - 配置或保留 API Key 时模型 Upstream 必须启用 TLS，避免密钥通过明文 HTTP 发送
 - 一条模型 RouteRule 的 `modelRouting.models[]` 中，每个客户端模型别名分别保存 `upstreamRef` 和 `upstreamModel`；同一路由可以按 `model` 跨多个模型 Upstream 选择目标
-- Compiler 为模型规则生成公开入口 Route 和只接受内部 Header 的续接 Route；续接 Route 使用标准 Envoy `cluster_header` 选择目标 Cluster，并按目标写入上游 Host
-- Compiler 把目标 Cluster、协议、基础路径、认证执行计划和模型映射编译为 Listener 级 `ai-proxy` 私有配置；内部选路 Header 在进入插件前清除客户端值，并在发往模型服务前移除，xDS 配置乱序时保持 fail-closed
+- Compiler 为模型规则生成一个公开入口 Route，使用标准 Envoy `cluster_header` 接收 ExtProc 选出的目标 Cluster
+- Compiler 把目标 Cluster、上游 Host、协议、基础路径、认证执行计划和模型映射编译为 ExtProc per-route 配置，配置只随对应 Route 生效
+- `ingate-ai-proxy` 从 Redis 查询访问密钥执行索引，认证后按公开模型选择目标，改写上游路径、Host、凭据和请求体，并统一普通响应、错误和 SSE
 
 声明式资源示例：
 
@@ -158,13 +162,13 @@ modelRouting:
 
 Admin API 和控制台在每条模型映射中使用 `upstreamID` 表达模型服务引用，不把内部资源引用命名泄漏给页面协议。
 
-数据面只对 `POST /v1/chat/completions` 缓冲并解析请求体。`ai-proxy` 根据公开模型别名选择目标，转换厂商请求体和路径，写入受控的规则版本 Header、Cluster Header 与认证 Header。Proxy-Wasm 修改请求路径和 Header 时，Envoy 会按标准语义清除 Route cache；随后只有携带这两个内部 Header 的续接 Route 能命中，续接 Route 选择目标 Cluster、写入上游 Host，并移除内部 Header。这样不依赖 Higress 的产品路由模型，也不会让修改后的 Anthropic 或 Gemini 路径丢失 Route。客户端提供的内部选路和上游凭据一律不可信并在插件入口清除。
+数据面只对 `POST /v1/chat/completions` 缓冲并解析请求体。`ingate-ai-proxy` 根据公开模型别名选择目标，转换厂商请求体和路径，并写入 Cluster、上游 Host 与认证 Header。由于模型名称位于请求体，ExtProc 写入受控 Cluster Header 后清理路由缓存，让 Router 重新计算路由动作；发往模型服务前再移除内部 Header。客户端提供的内部选路信息和上游凭据一律不可信并在 ExtProc 入口清除。
 
 OpenAI-compatible、Anthropic 和 Gemini 上游都只接受当前公开的文本消息字段；Anthropic 和 Gemini 进一步完成厂商协议转换。对外统一返回 OpenAI-compatible 错误、finish reason、Token usage 和公开模型名称。跨 chunk SSE 使用有状态解析，不受 `bufio.Scanner` 64 KiB 限制，但单个未完成事件有显式的 1 MiB 安全上限。
 
 模型 Upstream 可通过 `tls.serverName` 使用 HTTPS。Compiler 配置 SNI、数据面镜像的系统 CA 根证书包、精确 DNS/IP SAN 校验和 HTTP/1.1 ALPN。
 
-纯协议转换放在顶层 `pkg/llm`。该包不依赖 Ingate 资源、Envoy、Proxy-Wasm、Gin 或 Kubernetes，不发送模型 HTTP 请求、不读取环境变量，也不管理密钥持久化；数据面适配层只负责把编译配置和 Proxy-Wasm hostcall 接到纯转换函数。
+纯协议转换放在顶层 `pkg/llm`。该包不依赖 Ingate 资源、Envoy、ExtProc、Gin 或 Kubernetes，不发送模型 HTTP 请求、不读取环境变量，也不管理密钥持久化；`ingate-ai-proxy` 只负责把 per-route 执行配置和 ExtProc 消息接到纯转换函数。
 
 当前限制：
 
@@ -174,7 +178,7 @@ OpenAI-compatible、Anthropic 和 Gemini 上游都只接受当前公开的文本
 - 不支持 Tools/function calling、图片、音频、文件等多模态内容
 - 不支持多 Provider fallback 和模型路由重试
 - 不支持 OAuth、IAM、Azure Entra、AWS SigV4 等云认证
-- 不包含独立 AI runtime
+- `ingate-ai-proxy` 只承接网关请求路径能力，不是 Agent 或通用模型调用服务
 
 standalone 默认提供 HTTP `8080` 和 HTTPS `8443` 两个固定数据面入口。相同协议和端口的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Gateway 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。
 
@@ -229,13 +233,15 @@ Compose 使用独立容器运行：
 
 - etcd
 - Redis
+- MySQL
 - ingate-apiserver
 - ingate-controller
-- ingate-admin-api 和 Console
+- ingate-ai-proxy
+- ingate-admin 和 ingate-console
 - Envoy
 
 Controller 与 Envoy 是独立容器，但共享网络命名空间。当前 xDS 没有启用 mTLS，因此继续只监听 `127.0.0.1:18000`；不能为了容器互联把敏感 xDS 直接开放到 Bridge Network。
 
-Compose 直接使用固定版本的 `lgc202/ingate-envoy:v0.1.0`。该镜像从 Higress Gateway `v2.2.3` 提取带 Redis ABI 的 Envoy 二进制，并加入 Ingate 内置 Wasm 插件和 Bootstrap。Redis 在 Compose 内不暴露宿主机端口，使用 AOF 保存开发联调期间的限流和 Token 配额状态。
+Compose 直接使用固定版本的 `lgc202/ingate-envoy:v0.2.0`。该镜像从 Higress Gateway `v2.2.3` 提取带 Redis ABI 的 Envoy 二进制，并加入 Ingate 内置 Wasm 插件和 ExtProc Bootstrap 配置。Redis 在 Compose 内不暴露宿主机端口，使用 AOF 保存开发联调期间的访问密钥索引、限流和 Token 配额状态。
 
 Compose 只发布 Console `8001`、Gateway HTTP `8080` 和 Gateway HTTPS `8443`。etcd、Redis、API Server、xDS 和 Envoy Admin 都保持内部可见。

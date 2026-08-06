@@ -1,12 +1,15 @@
 server:
-  bind_address: "0.0.0.0"
-  secure_port: 18443
-  cert_directory: "/opt/ingate/apiserver/certificates"
+  http:
+    address: "0.0.0.0"
+    port: 18082
+  grpc:
+    address: "0.0.0.0"
+    port: 18081
 
-etcd:
-  endpoints:
-    - "http://etcd:2379"
-  prefix: "/registry/gateway.ingate.io"
+redis:
+  address: "redis:6379"
+  password: ""
+  database: 0
 
 logging:
   format: "json"

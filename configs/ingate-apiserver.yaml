@@ -3,10 +3,10 @@ server:
   secure_port: 18443
   cert_directory: "_output/certificates"
 
-storage:
-  etcd_servers:
+etcd:
+  endpoints:
     - "http://127.0.0.1:2379"
-  path_prefix: "/registry/gateway.ingate.io"
+  prefix: "/registry/gateway.ingate.io"
 
 logging:
   format: "json"

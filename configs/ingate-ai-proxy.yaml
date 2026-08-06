@@ -1,0 +1,25 @@
+server:
+  http:
+    address: "127.0.0.1"
+    port: 18082
+  grpc:
+    address: "127.0.0.1"
+    port: 18081
+
+redis:
+  address: "127.0.0.1:6379"
+  password: ""
+  database: 0
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false
+  stdout: false
+  file:
+    path: "_output/logs/ingate-ai-proxy.log"
+    max_size_mb: 100
+    max_backups: 10
+    max_age_days: 30
+    compress: false
+    local_time: false

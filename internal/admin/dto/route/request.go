@@ -16,7 +16,6 @@ const (
 	maxPerTryTimeoutMillis    = 60000
 	openAIChatCompletionsPath = "/v1/chat/completions"
 	aiClusterHeader           = "x-ingate-ai-cluster-v1"
-	aiRouteHeader             = "x-ingate-ai-route-v1"
 )
 
 var aiManagedRequestHeaders = []string{
@@ -29,7 +28,6 @@ var aiManagedRequestHeaders = []string{
 	"content-length",
 	"content-type",
 	aiClusterHeader,
-	aiRouteHeader,
 	"x-api-key",
 	"x-goog-api-key",
 }
@@ -196,7 +194,7 @@ func (r *RouteRule) headerMatches() ([]HeaderMatchReq, error) {
 		if value == "" {
 			return nil, errors.New("路由规则 Header 值不能为空")
 		}
-		if r.ModelRouting != nil && (name == aiClusterHeader || name == aiRouteHeader) {
+		if r.ModelRouting != nil && name == aiClusterHeader {
 			return nil, errors.New("模型路由不能匹配系统内部 Header")
 		}
 		headers = append(headers, HeaderMatchReq{Name: name, Value: value})

@@ -3,16 +3,13 @@ package app
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"io"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/go-sql-driver/mysql"
 	kitconfig "github.com/lgc202/go-kit/config"
 	"github.com/lgc202/go-kit/version"
-	"github.com/redis/go-redis/v9"
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -23,6 +20,8 @@ import (
 	"github.com/lgc202/ingate/internal/admin/store"
 	"github.com/lgc202/ingate/internal/pkg/httpserver"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	"github.com/lgc202/ingate/pkg/mysqlx"
+	"github.com/lgc202/ingate/pkg/redisx"
 )
 
 const usage = `ingate-admin 提供 Ingate 管理 API
@@ -95,27 +94,17 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("create apiserver resource client: %w", err)
 	}
-	database, err := sql.Open("mysql", settings.MySQL.DSN)
+	database, err := mysqlx.NewDB(ctx, settings.MySQL)
 	if err != nil {
-		return fmt.Errorf("open mysql: %w", err)
+		return err
 	}
-	database.SetMaxOpenConns(settings.MySQL.MaxOpenConnections)
-	database.SetMaxIdleConns(settings.MySQL.MaxIdleConnections)
-	database.SetConnMaxLifetime(settings.MySQL.ConnectionMaxLifetime)
 	defer database.Close()
-	if err := database.PingContext(ctx); err != nil {
-		return fmt.Errorf("connect mysql: %w", err)
-	}
 
-	redisClient := redis.NewClient(&redis.Options{
-		Addr:     settings.Redis.Address,
-		Password: settings.Redis.Password,
-		DB:       settings.Redis.Database,
-	})
-	defer redisClient.Close()
-	if err := redisClient.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("connect redis: %w", err)
+	redisClient, err := redisx.NewClient(ctx, settings.Redis)
+	if err != nil {
+		return err
 	}
+	defer redisClient.Close()
 
 	componentLogger := logger.With("component", "ingate-admin")
 	stores := store.New(client, database)
