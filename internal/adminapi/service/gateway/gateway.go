@@ -1,4 +1,5 @@
-package service
+// Package gateway 实现 Gateway 管理 API
+package gateway
 
 import (
 	"context"
@@ -7,10 +8,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/wire"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
@@ -20,20 +24,23 @@ const (
 	standaloneHTTPSPort = 8443
 )
 
-// GatewayService 实现网关入口管理 API
-type GatewayService struct {
-	usecase *biz.GatewayUsecase
+// ProviderSet 提供 Gateway 协议服务
+var ProviderSet = wire.NewSet(NewService)
+
+// Service 实现网关入口管理 API
+type Service struct {
+	usecase *gatewaybiz.Usecase
 }
 
-// NewGatewayService 创建网关入口协议服务
-func NewGatewayService(usecase *biz.GatewayUsecase) *GatewayService {
-	return &GatewayService{usecase: usecase}
+// NewService 创建网关入口协议服务
+func NewService(usecase *gatewaybiz.Usecase) *Service {
+	return &Service{usecase: usecase}
 }
 
-func (s *GatewayService) ListGateways(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListGatewaysReply, error) {
+func (s *Service) ListGateways(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListGatewaysReply, error) {
 	items, err := s.usecase.List(ctx)
 	if err != nil {
-		return nil, operationError(err, "查询网关失败")
+		return nil, adminservice.OperationError(err, "查询网关失败")
 	}
 	reply := &adminv1.ListGatewaysReply{Gateways: make([]*adminv1.Gateway, 0, len(items))}
 	for i := range items {
@@ -42,47 +49,47 @@ func (s *GatewayService) ListGateways(ctx context.Context, _ *emptypb.Empty) (*a
 	return reply, nil
 }
 
-func (s *GatewayService) GetGateway(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.GetGatewayReply, error) {
+func (s *Service) GetGateway(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.GetGatewayReply, error) {
 	item, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
-		return nil, operationError(err, "查询网关失败")
+		return nil, adminservice.OperationError(err, "查询网关失败")
 	}
 	return &adminv1.GetGatewayReply{Gateway: gatewayReply(item)}, nil
 }
 
-func (s *GatewayService) CreateGateway(ctx context.Context, request *adminv1.CreateGatewayRequest) (*adminv1.MutationReply, error) {
+func (s *Service) CreateGateway(ctx context.Context, request *adminv1.CreateGatewayRequest) (*adminv1.MutationReply, error) {
 	spec, err := gatewaySpec(request.GetName(), request.GetDescription(), request.GetListeners(), request.GetHostnames())
 	if err != nil {
 		return nil, err
 	}
 	id, err := s.usecase.Create(ctx, spec)
 	if err != nil {
-		return nil, operationError(err, "创建网关失败")
+		return nil, adminservice.OperationError(err, "创建网关失败")
 	}
 	return &adminv1.MutationReply{Success: true, Id: id}, nil
 }
 
-func (s *GatewayService) UpdateGateway(ctx context.Context, request *adminv1.UpdateGatewayRequest) (*adminv1.MutationReply, error) {
+func (s *Service) UpdateGateway(ctx context.Context, request *adminv1.UpdateGatewayRequest) (*adminv1.MutationReply, error) {
 	spec, err := gatewaySpec(request.GetName(), request.GetDescription(), request.GetListeners(), request.GetHostnames())
 	if err != nil {
 		return nil, err
 	}
 	if err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec); err != nil {
-		return nil, operationError(err, "更新网关失败")
+		return nil, adminservice.OperationError(err, "更新网关失败")
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
-func (s *GatewayService) SetGatewayEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
+func (s *Service) SetGatewayEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
 	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
-		return nil, operationError(err, "更新网关状态失败")
+		return nil, adminservice.OperationError(err, "更新网关状态失败")
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
-func (s *GatewayService) DeleteGateway(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
+func (s *Service) DeleteGateway(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
-		return nil, operationError(err, "删除网关失败")
+		return nil, adminservice.OperationError(err, "删除网关失败")
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
@@ -95,10 +102,10 @@ func gatewaySpec(
 ) (resource.GatewaySpec, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return resource.GatewaySpec{}, badRequest("网关名称不能为空")
+		return resource.GatewaySpec{}, adminservice.BadRequest("网关名称不能为空")
 	}
 	if len(inputListeners) == 0 {
-		return resource.GatewaySpec{}, badRequest("至少需要启用一个运行入口")
+		return resource.GatewaySpec{}, adminservice.BadRequest("至少需要启用一个运行入口")
 	}
 
 	listeners := make([]resource.Listener, 0, len(inputListeners))
@@ -106,31 +113,31 @@ func gatewaySpec(
 	seenProtocols := make(map[resource.Protocol]struct{}, len(inputListeners))
 	for _, input := range inputListeners {
 		if input == nil {
-			return resource.GatewaySpec{}, badRequest("运行入口配置不能为空")
+			return resource.GatewaySpec{}, adminservice.BadRequest("运行入口配置不能为空")
 		}
 		protocol := resource.Protocol(input.GetProtocol())
 		if _, exists := seenProtocols[protocol]; exists {
-			return resource.GatewaySpec{}, badRequest("同一种运行入口协议只能配置一次")
+			return resource.GatewaySpec{}, adminservice.BadRequest("同一种运行入口协议只能配置一次")
 		}
 		seenProtocols[protocol] = struct{}{}
 		certificateID := strings.TrimSpace(input.GetCertificateId())
 		switch protocol {
 		case resource.ProtocolHTTP:
 			if input.GetPort() != standaloneHTTPPort {
-				return resource.GatewaySpec{}, badRequest("HTTP 运行入口端口必须为 8080")
+				return resource.GatewaySpec{}, adminservice.BadRequest("HTTP 运行入口端口必须为 8080")
 			}
 			if certificateID != "" {
-				return resource.GatewaySpec{}, badRequest("HTTP 运行入口不能配置证书")
+				return resource.GatewaySpec{}, adminservice.BadRequest("HTTP 运行入口不能配置证书")
 			}
 		case resource.ProtocolHTTPS:
 			if input.GetPort() != standaloneHTTPSPort {
-				return resource.GatewaySpec{}, badRequest("HTTPS 运行入口端口必须为 8443")
+				return resource.GatewaySpec{}, adminservice.BadRequest("HTTPS 运行入口端口必须为 8443")
 			}
 			if certificateID == "" {
-				return resource.GatewaySpec{}, badRequest("HTTPS 运行入口必须选择证书")
+				return resource.GatewaySpec{}, adminservice.BadRequest("HTTPS 运行入口必须选择证书")
 			}
 		default:
-			return resource.GatewaySpec{}, badRequest("运行入口协议不正确")
+			return resource.GatewaySpec{}, adminservice.BadRequest("运行入口协议不正确")
 		}
 		listenerName := strings.ToLower(string(protocol))
 		listeners = append(listeners, resource.Listener{
@@ -146,14 +153,14 @@ func gatewaySpec(
 	for _, value := range inputHostnames {
 		hostname, ok := hostnameutil.Normalize(strings.ToLower(strings.TrimSpace(value)))
 		if !ok || hostname == "*" {
-			return resource.GatewaySpec{}, badRequest("网关域名格式不正确")
+			return resource.GatewaySpec{}, adminservice.BadRequest("网关域名格式不正确")
 		}
 		if slices.Contains(hostnames, hostname) {
 			continue
 		}
 		for _, existing := range hostnames {
 			if hostnameutil.Overlaps(hostname, existing) {
-				return resource.GatewaySpec{}, badRequest(fmt.Sprintf("网关域名 %q 与 %q 的范围重叠", hostname, existing))
+				return resource.GatewaySpec{}, adminservice.BadRequest(fmt.Sprintf("网关域名 %q 与 %q 的范围重叠", hostname, existing))
 			}
 		}
 		hostnames = append(hostnames, hostname)
@@ -187,12 +194,12 @@ func gatewayReply(gateway *resource.Gateway) *adminv1.Gateway {
 	return &adminv1.Gateway{
 		Id:          gateway.Name,
 		Version:     strconv.FormatInt(gateway.Generation, 10),
-		Status:      resourceStatus(status),
+		Status:      adminservice.ResourceStatus(status),
 		Name:        gateway.Spec.DisplayName,
 		Description: gateway.Spec.Description,
 		Listeners:   listeners,
 		Hostnames:   hostnames,
 		Enabled:     gateway.Spec.Enabled,
-		CreatedAt:   timestamp(gateway.CreationTimestamp.Time),
+		CreatedAt:   adminservice.Timestamp(gateway.CreationTimestamp.Time),
 	}
 }

@@ -1,4 +1,5 @@
-package biz
+// Package ratelimit 实现请求限流策略管理用例
+package ratelimit
 
 import (
 	"context"
@@ -8,12 +9,17 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/google/wire"
 
+	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// RateLimitPolicyRepository 定义限流策略用例需要的持久化能力
-type RateLimitPolicyRepository interface {
+// ProviderSet 提供请求限流策略管理用例
+var ProviderSet = wire.NewSet(NewUsecase)
+
+// Repository 定义限流策略用例需要的持久化能力
+type Repository interface {
 	List(context.Context) ([]resource.RateLimitPolicy, error)
 	Get(context.Context, string) (*resource.RateLimitPolicy, error)
 	Create(context.Context, string, resource.RateLimitPolicySpec) error
@@ -21,36 +27,36 @@ type RateLimitPolicyRepository interface {
 	Delete(context.Context, string) error
 }
 
-// RateLimitPolicyUsecase 承载 RateLimitPolicy 管理用例
-type RateLimitPolicyUsecase struct {
-	repository RateLimitPolicyRepository
-	targets    *PolicyTargetResolver
+// Usecase 承载 RateLimitPolicy 管理用例
+type Usecase struct {
+	repository Repository
+	targets    *biz.PolicyTargetResolver
 	writeMu    sync.Mutex
 }
 
-// RateLimitPolicyList 保存策略列表及其目标展示名称
-type RateLimitPolicyList struct {
+// ListResult 保存策略列表及其目标展示名称
+type ListResult struct {
 	Policies    []resource.RateLimitPolicy
-	TargetNames PolicyTargetNames
+	TargetNames biz.PolicyTargetNames
 }
 
-// RateLimitPolicyResult 保存单个策略及其目标展示名称
-type RateLimitPolicyResult struct {
+// Result 保存单个策略及其目标展示名称
+type Result struct {
 	Policy      *resource.RateLimitPolicy
-	TargetNames PolicyTargetNames
+	TargetNames biz.PolicyTargetNames
 }
 
-// NewRateLimitPolicyUsecase 创建请求限流策略用例
-func NewRateLimitPolicyUsecase(
-	repository RateLimitPolicyRepository,
-	gateways GatewayRepository,
-	routes RouteRepository,
-) *RateLimitPolicyUsecase {
-	return &RateLimitPolicyUsecase{repository: repository, targets: NewPolicyTargetResolver(gateways, routes)}
+// NewUsecase 创建请求限流策略用例
+func NewUsecase(
+	repository Repository,
+	gateways biz.GatewayLister,
+	routes biz.RouteLister,
+) *Usecase {
+	return &Usecase{repository: repository, targets: biz.NewPolicyTargetResolver(gateways, routes)}
 }
 
 // List 查询 RateLimitPolicy 列表
-func (s *RateLimitPolicyUsecase) List(ctx context.Context) (*RateLimitPolicyList, error) {
+func (s *Usecase) List(ctx context.Context) (*ListResult, error) {
 	policies, err := s.repository.List(ctx)
 	if err != nil {
 		return nil, err
@@ -59,11 +65,11 @@ func (s *RateLimitPolicyUsecase) List(ctx context.Context) (*RateLimitPolicyList
 	if err != nil {
 		return nil, err
 	}
-	return &RateLimitPolicyList{Policies: policies, TargetNames: targetNames}, nil
+	return &ListResult{Policies: policies, TargetNames: targetNames}, nil
 }
 
 // Get 查询单个 RateLimitPolicy
-func (s *RateLimitPolicyUsecase) Get(ctx context.Context, policyID string) (*RateLimitPolicyResult, error) {
+func (s *Usecase) Get(ctx context.Context, policyID string) (*Result, error) {
 	policy, err := s.repository.Get(ctx, policyID)
 	if err != nil {
 		return nil, err
@@ -72,11 +78,11 @@ func (s *RateLimitPolicyUsecase) Get(ctx context.Context, policyID string) (*Rat
 	if err != nil {
 		return nil, err
 	}
-	return &RateLimitPolicyResult{Policy: policy, TargetNames: targetNames}, nil
+	return &Result{Policy: policy, TargetNames: targetNames}, nil
 }
 
 // Create 创建 RateLimitPolicy
-func (s *RateLimitPolicyUsecase) Create(ctx context.Context, spec resource.RateLimitPolicySpec) (string, error) {
+func (s *Usecase) Create(ctx context.Context, spec resource.RateLimitPolicySpec) (string, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
@@ -94,7 +100,7 @@ func (s *RateLimitPolicyUsecase) Create(ctx context.Context, spec resource.RateL
 }
 
 // Update 更新 RateLimitPolicy
-func (s *RateLimitPolicyUsecase) Update(ctx context.Context, policyID, version string, spec resource.RateLimitPolicySpec) error {
+func (s *Usecase) Update(ctx context.Context, policyID, version string, spec resource.RateLimitPolicySpec) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
@@ -103,7 +109,7 @@ func (s *RateLimitPolicyUsecase) Update(ctx context.Context, policyID, version s
 		return err
 	}
 	if version != strconv.FormatInt(current.Generation, 10) {
-		return NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		return biz.NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 	}
 	if err := s.validateNameUnique(ctx, spec.DisplayName, policyID); err != nil {
 		return err
@@ -112,8 +118,8 @@ func (s *RateLimitPolicyUsecase) Update(ctx context.Context, policyID, version s
 		return err
 	}
 	if err := s.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
-		if errors.Is(err, ErrResourceVersionConflict) {
-			return NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		if errors.Is(err, biz.ErrResourceVersionConflict) {
+			return biz.NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
 		return err
 	}
@@ -121,7 +127,7 @@ func (s *RateLimitPolicyUsecase) Update(ctx context.Context, policyID, version s
 }
 
 // SetEnabled 设置 RateLimitPolicy 启用状态
-func (s *RateLimitPolicyUsecase) SetEnabled(ctx context.Context, policyID string, enabled bool) error {
+func (s *Usecase) SetEnabled(ctx context.Context, policyID string, enabled bool) error {
 	current, err := s.repository.Get(ctx, policyID)
 	if err != nil {
 		return err
@@ -129,8 +135,8 @@ func (s *RateLimitPolicyUsecase) SetEnabled(ctx context.Context, policyID string
 	spec := current.Spec
 	spec.Enabled = enabled
 	if err := s.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
-		if errors.Is(err, ErrResourceVersionConflict) {
-			return NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		if errors.Is(err, biz.ErrResourceVersionConflict) {
+			return biz.NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
 		return err
 	}
@@ -138,11 +144,11 @@ func (s *RateLimitPolicyUsecase) SetEnabled(ctx context.Context, policyID string
 }
 
 // Delete 删除 RateLimitPolicy
-func (s *RateLimitPolicyUsecase) Delete(ctx context.Context, policyID string) error {
+func (s *Usecase) Delete(ctx context.Context, policyID string) error {
 	return s.repository.Delete(ctx, policyID)
 }
 
-func (s *RateLimitPolicyUsecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
+func (s *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
 	policies, err := s.repository.List(ctx)
 	if err != nil {
 		return err
@@ -152,7 +158,7 @@ func (s *RateLimitPolicyUsecase) validateNameUnique(ctx context.Context, name, e
 			continue
 		}
 		if current.Spec.DisplayName == name {
-			return NewUserError(fmt.Sprintf("限流策略名称 %q 已存在", name))
+			return biz.NewUserError(fmt.Sprintf("限流策略名称 %q 已存在", name))
 		}
 	}
 	return nil

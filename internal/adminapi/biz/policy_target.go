@@ -7,6 +7,16 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
+// GatewayLister 定义跨策略目标解析所需的 Gateway 列表能力
+type GatewayLister interface {
+	List(context.Context) ([]resource.Gateway, error)
+}
+
+// RouteLister 定义跨策略目标解析所需的 Route 列表能力
+type RouteLister interface {
+	List(context.Context) ([]resource.Route, error)
+}
+
 // PolicyTargetKey 唯一标识一个策略作用目标
 type PolicyTargetKey struct {
 	Kind resource.Kind
@@ -29,12 +39,12 @@ func (n PolicyTargetNames) Contains(ref resource.PolicyTargetRef) bool {
 
 // PolicyTargetResolver 解析 Gateway 和 Route 策略作用目标
 type PolicyTargetResolver struct {
-	gateways GatewayRepository
-	routes   RouteRepository
+	gateways GatewayLister
+	routes   RouteLister
 }
 
 // NewPolicyTargetResolver 创建策略作用目标解析器
-func NewPolicyTargetResolver(gateways GatewayRepository, routes RouteRepository) *PolicyTargetResolver {
+func NewPolicyTargetResolver(gateways GatewayLister, routes RouteLister) *PolicyTargetResolver {
 	return &PolicyTargetResolver{gateways: gateways, routes: routes}
 }
 

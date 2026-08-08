@@ -1,10 +1,11 @@
-package service
+package upstream
 
 import (
 	"strconv"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -12,13 +13,13 @@ func upstreamReply(upstream *resource.Upstream) *adminv1.Upstream {
 	reply := &adminv1.Upstream{
 		Id:                upstream.Name,
 		Version:           strconv.FormatInt(upstream.Generation, 10),
-		Status:            resourceStatus(biz.ResourceStatusFromConditions(upstream.Generation, upstream.Status.Conditions)),
+		Status:            adminservice.ResourceStatus(biz.ResourceStatusFromConditions(upstream.Generation, upstream.Status.Conditions)),
 		ApiKeyConfigured:  upstream.Spec.Authentication != nil && upstream.Spec.Authentication.APIKey != nil && upstream.Spec.Authentication.APIKey.Value != "",
 		Name:              upstream.Spec.DisplayName,
 		Type:              string(upstream.Spec.Type),
 		Protocol:          string(upstream.Spec.Protocol),
 		LoadBalancePolicy: string(upstream.Spec.LoadBalancePolicy),
-		CreatedAt:         timestamp(upstream.CreationTimestamp.Time),
+		CreatedAt:         adminservice.Timestamp(upstream.CreationTimestamp.Time),
 	}
 	if reply.LoadBalancePolicy == "" {
 		reply.LoadBalancePolicy = string(resource.UpstreamLoadBalancePolicyRoundRobin)

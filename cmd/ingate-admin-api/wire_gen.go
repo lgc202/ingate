@@ -9,13 +9,31 @@ package main
 import (
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/accesscontrol"
+	accesskey2 "github.com/lgc202/ingate/internal/adminapi/biz/accesskey"
+	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
+	"github.com/lgc202/ingate/internal/adminapi/biz/configuration"
+	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
+	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
+	"github.com/lgc202/ingate/internal/adminapi/biz/route"
+	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
+	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
 	"github.com/lgc202/ingate/internal/adminapi/data/cache"
 	"github.com/lgc202/ingate/internal/adminapi/data/dao/accesskey"
 	"github.com/lgc202/ingate/internal/adminapi/server"
-	"github.com/lgc202/ingate/internal/adminapi/service"
+	accesscontrol2 "github.com/lgc202/ingate/internal/adminapi/service/accesscontrol"
+	accesskey3 "github.com/lgc202/ingate/internal/adminapi/service/accesskey"
+	certificate2 "github.com/lgc202/ingate/internal/adminapi/service/certificate"
+	configuration2 "github.com/lgc202/ingate/internal/adminapi/service/configuration"
+	gateway2 "github.com/lgc202/ingate/internal/adminapi/service/gateway"
+	"github.com/lgc202/ingate/internal/adminapi/service/health"
+	ratelimit2 "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
+	route2 "github.com/lgc202/ingate/internal/adminapi/service/route"
+	tokenquota2 "github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
+	upstream2 "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	"log/slog"
 )
 
@@ -38,32 +56,32 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, 
 	accessControlPolicyRepository := apiserver.NewAccessControlPolicy(versionedInterface)
 	tokenQuotaPolicyRepository := apiserver.NewTokenQuotaPolicy(versionedInterface)
 	policyUsageFinder := biz.NewPolicyUsageFinder(rateLimitPolicyRepository, accessControlPolicyRepository, tokenQuotaPolicyRepository)
-	gatewayUsecase := biz.NewGatewayUsecase(gatewayRepository, routeRepository, certificateRepository, policyUsageFinder)
-	gatewayService := service.NewGatewayService(gatewayUsecase)
+	usecase := gateway.NewUsecase(gatewayRepository, routeRepository, certificateRepository, policyUsageFinder)
+	service := gateway2.NewService(usecase)
 	upstreamRepository := apiserver.NewUpstream(versionedInterface)
-	routeUsecase := biz.NewRouteUsecase(routeRepository, gatewayRepository, upstreamRepository, policyUsageFinder)
-	routeService := service.NewRouteService(routeUsecase)
-	upstreamUsecase := biz.NewUpstreamUsecase(upstreamRepository, routeRepository)
-	upstreamService := service.NewUpstreamService(upstreamUsecase)
-	certificateUsecase := biz.NewCertificateUsecase(certificateRepository, gatewayRepository)
-	certificateService := service.NewCertificateService(certificateUsecase)
+	routeUsecase := route.NewUsecase(routeRepository, gatewayRepository, upstreamRepository, policyUsageFinder)
+	routeService := route2.NewService(routeUsecase)
+	upstreamUsecase := upstream.NewUsecase(upstreamRepository, routeRepository)
+	upstreamService := upstream2.NewService(upstreamUsecase)
+	certificateUsecase := certificate.NewUsecase(certificateRepository, gatewayRepository)
+	certificateService := certificate2.NewService(certificateUsecase)
 	db := data.NewDB(dataData)
 	dao := accesskey.New(db)
 	client := data.NewRedisClient(dataData)
 	credentialIndex := cache.NewCredentialIndex(client)
 	accessKeyRepository := data.NewAccessKeyRepository(dao, credentialIndex)
-	accessKeyUsecase := biz.NewAccessKeyUsecase(accessKeyRepository)
-	accessKeyService := service.NewAccessKeyService(accessKeyUsecase)
-	rateLimitPolicyUsecase := biz.NewRateLimitPolicyUsecase(rateLimitPolicyRepository, gatewayRepository, routeRepository)
-	rateLimitPolicyService := service.NewRateLimitPolicyService(rateLimitPolicyUsecase)
-	accessControlPolicyUsecase := biz.NewAccessControlPolicyUsecase(accessControlPolicyRepository, gatewayRepository, routeRepository)
-	accessControlPolicyService := service.NewAccessControlPolicyService(accessControlPolicyUsecase)
-	tokenQuotaPolicyUsecase := biz.NewTokenQuotaPolicyUsecase(tokenQuotaPolicyRepository, gatewayRepository, routeRepository)
-	tokenQuotaPolicyService := service.NewTokenQuotaPolicyService(tokenQuotaPolicyUsecase)
-	configurationUsecase := biz.NewConfigurationUsecase(gatewayRepository, routeRepository, upstreamRepository, certificateRepository, rateLimitPolicyRepository, accessControlPolicyRepository, tokenQuotaPolicyRepository)
-	configurationService := service.NewConfigurationService(configurationUsecase)
-	healthService := service.NewHealthService()
-	httpServer := server.NewHTTPServer(confServer, logger, gatewayService, routeService, upstreamService, certificateService, accessKeyService, rateLimitPolicyService, accessControlPolicyService, tokenQuotaPolicyService, configurationService, healthService)
+	accesskeyUsecase := accesskey2.NewUsecase(accessKeyRepository)
+	accesskeyService := accesskey3.NewService(accesskeyUsecase)
+	ratelimitUsecase := ratelimit.NewUsecase(rateLimitPolicyRepository, gatewayRepository, routeRepository)
+	ratelimitService := ratelimit2.NewService(ratelimitUsecase)
+	accesscontrolUsecase := accesscontrol.NewUsecase(accessControlPolicyRepository, gatewayRepository, routeRepository)
+	accesscontrolService := accesscontrol2.NewService(accesscontrolUsecase)
+	tokenquotaUsecase := tokenquota.NewUsecase(tokenQuotaPolicyRepository, gatewayRepository, routeRepository)
+	tokenquotaService := tokenquota2.NewService(tokenquotaUsecase)
+	configurationUsecase := configuration.NewUsecase(gatewayRepository, routeRepository, upstreamRepository, certificateRepository, rateLimitPolicyRepository, accessControlPolicyRepository, tokenQuotaPolicyRepository)
+	configurationService := configuration2.NewService(configurationUsecase)
+	healthService := health.NewService()
+	httpServer := server.NewHTTPServer(confServer, logger, service, routeService, upstreamService, certificateService, accesskeyService, ratelimitService, accesscontrolService, tokenquotaService, configurationService, healthService)
 	accessKeyIndexSync := data.NewAccessKeyIndexSync(accessKeyRepository, logger)
 	app := newApp(logger, httpServer, accessKeyIndexSync, mainServiceInstanceID)
 	return app, func() {

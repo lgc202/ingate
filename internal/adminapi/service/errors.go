@@ -11,13 +11,15 @@ import (
 
 const userMessageMetadata = "user_message"
 
-func badRequest(message string) error {
+// BadRequest 创建包含控制台提示的参数错误
+func BadRequest(message string) error {
 	return kratoserrors.BadRequest(adminv1.ErrorReason_INVALID_ARGUMENT.String(), "invalid request").WithMetadata(map[string]string{
 		userMessageMetadata: message,
 	})
 }
 
-func operationError(err error, message string) error {
+// OperationError 把领域错误转换为稳定的 Admin API 错误
+func OperationError(err error, message string) error {
 	if err == nil {
 		return nil
 	}

@@ -9,25 +9,28 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 )
 
-func timestamp(value time.Time) *timestamppb.Timestamp {
+// Timestamp 把非零时间转换为协议时间
+func Timestamp(value time.Time) *timestamppb.Timestamp {
 	if value.IsZero() {
 		return nil
 	}
 	return timestamppb.New(value)
 }
 
-func optionalTime(value *timestamppb.Timestamp) (*time.Time, error) {
+// OptionalTime 校验并转换可选协议时间
+func OptionalTime(value *timestamppb.Timestamp) (*time.Time, error) {
 	if value == nil {
 		return nil, nil
 	}
 	if err := value.CheckValid(); err != nil {
-		return nil, badRequest("时间格式不正确")
+		return nil, BadRequest("时间格式不正确")
 	}
 	result := value.AsTime()
 	return &result, nil
 }
 
-func resourceStatus(status biz.ResourceStatus) *adminv1.ResourceStatus {
+// ResourceStatus 把领域状态转换为控制台状态
+func ResourceStatus(status biz.ResourceStatus) *adminv1.ResourceStatus {
 	message := ""
 	switch status.Reason {
 	case biz.ReasonAwaitingAcceptance:
