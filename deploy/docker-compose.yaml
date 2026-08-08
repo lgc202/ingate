@@ -49,7 +49,7 @@ services:
       MYSQL_PASSWORD: ingate
       MYSQL_ROOT_PASSWORD: ingate-root
     volumes:
-      - ./internal/admin/store/accesskey/sql/schema.sql:/docker-entrypoint-initdb.d/001-access-keys.sql:ro
+      - ./internal/adminapi/data/dao/accesskey/sql/schema.sql:/docker-entrypoint-initdb.d/001-access-keys.sql:ro
       - mysql-data:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
@@ -131,11 +131,11 @@ services:
       retries: 20
       start_period: 10s
 
-  admin:
-    image: ingate/admin:${INGATE_IMAGE_TAG:-dev}
+  admin-api:
+    image: ingate/admin-api:${INGATE_IMAGE_TAG:-dev}
     build:
       <<: *ingate-build
-      target: admin
+      target: admin-api
     depends_on:
       apiserver:
         condition: service_healthy
@@ -144,8 +144,8 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./deploy/docker/configs/ingate-admin.yaml:/opt/ingate/admin/configs/config.yaml:ro
-      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/admin/configs/kubeconfig.yaml:ro
+      - ./deploy/docker/configs/ingate-admin-api.yaml:/opt/ingate/admin-api/configs/config.yaml:ro
+      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/admin-api/configs/kubeconfig.yaml:ro
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/healthz"]
       interval: 5s
@@ -159,7 +159,7 @@ services:
       <<: *ingate-build
       target: console
     depends_on:
-      admin:
+      admin-api:
         condition: service_healthy
     ports:
       - "127.0.0.1:${INGATE_CONSOLE_PORT:-8001}:8001"

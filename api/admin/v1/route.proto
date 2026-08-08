@@ -1,0 +1,128 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// RouteService 提供路由规则管理接口
+service RouteService {
+  rpc ListRoutes(google.protobuf.Empty) returns (ListRoutesReply) {
+    option (google.api.http) = {get: "/api/v1/routes"};
+  }
+  rpc GetRoute(ResourceRequest) returns (Route) {
+    option (google.api.http) = {get: "/api/v1/routes/{id}"};
+  }
+  rpc CreateRoute(CreateRouteRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      post: "/api/v1/routes"
+      body: "*"
+    };
+  }
+  rpc UpdateRoute(UpdateRouteRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      put: "/api/v1/routes/{id}"
+      body: "*"
+    };
+  }
+  rpc SetRouteEnabled(SetEnabledRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      patch: "/api/v1/routes/{id}/enabled"
+      body: "*"
+    };
+  }
+  rpc DeleteRoute(ResourceRequest) returns (MutationReply) {
+    option (google.api.http) = {delete: "/api/v1/routes/{id}"};
+  }
+}
+
+message HeaderMatch {
+  string name = 1;
+  string value = 2;
+}
+
+message RouteTarget {
+  string upstream_id = 1 [json_name = "upstreamID"];
+  int32 weight = 2;
+}
+
+message HeaderValue {
+  string name = 1;
+  string value = 2;
+}
+
+message HeaderModifier {
+  repeated HeaderValue set = 1;
+  repeated string remove = 2;
+}
+
+message RouteTimeout {
+  int32 request_millis = 1;
+}
+
+message RouteRetry {
+  int32 attempts = 1;
+  int32 per_try_timeout_millis = 2;
+}
+
+message ModelRoute {
+  string model = 1;
+  string upstream_id = 2 [json_name = "upstreamID"];
+  string upstream_model = 3;
+}
+
+message ModelRouting {
+  repeated ModelRoute models = 1;
+}
+
+message RouteRule {
+  string name = 1;
+  string path_prefix = 2;
+  repeated string methods = 3;
+  repeated HeaderMatch headers = 4;
+  repeated RouteTarget targets = 5;
+  ModelRouting model_routing = 6;
+  HeaderModifier request_header_modifier = 7;
+  HeaderModifier response_header_modifier = 8;
+  RouteTimeout timeout = 9;
+  RouteRetry retry = 10;
+}
+
+message Route {
+  string id = 1;
+  string version = 2;
+  ResourceStatus status = 3;
+  string name = 4;
+  repeated string gateway_ids = 5 [json_name = "gatewayIDs"];
+  repeated string hostnames = 6;
+  repeated RouteRule rules = 7;
+  bool enabled = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+message CreateRouteRequest {
+  string name = 1;
+  repeated string gateway_ids = 2 [json_name = "gatewayIDs"];
+  repeated string hostnames = 3;
+  optional bool enabled = 4;
+  repeated RouteRule rules = 5;
+}
+
+message UpdateRouteRequest {
+  string id = 1;
+  string version = 2;
+  string name = 3;
+  repeated string gateway_ids = 4 [json_name = "gatewayIDs"];
+  repeated string hostnames = 5;
+  optional bool enabled = 6;
+  repeated RouteRule rules = 7;
+}
+
+message ListRoutesReply {
+  repeated Route routes = 1;
+}
+

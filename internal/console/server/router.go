@@ -12,7 +12,7 @@ import (
 )
 
 // NewRouter 创建控制台静态资源与管理 API 转发路由
-func NewRouter(adminProxy http.Handler, consoleDir string, logger *slog.Logger) http.Handler {
+func NewRouter(adminAPIProxy http.Handler, consoleDir string, logger *slog.Logger) http.Handler {
 	router := gin.New()
 	router.Use(
 		requestID(),
@@ -30,7 +30,7 @@ func NewRouter(adminProxy http.Handler, consoleDir string, logger *slog.Logger) 
 			},
 		})
 	})
-	router.Any("/api/*path", gin.WrapH(adminProxy))
+	router.Any("/api/*path", gin.WrapH(adminAPIProxy))
 
 	mountConsole(router, consoleDir)
 	return router

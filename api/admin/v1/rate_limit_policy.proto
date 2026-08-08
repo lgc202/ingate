@@ -1,0 +1,109 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// RateLimitPolicyService 提供请求限流策略管理接口
+service RateLimitPolicyService {
+  rpc ListRateLimitPolicies(google.protobuf.Empty) returns (ListRateLimitPoliciesReply) {
+    option (google.api.http) = {get: "/api/v1/rate-limit-policies"};
+  }
+  rpc GetRateLimitPolicy(ResourceRequest) returns (RateLimitPolicy) {
+    option (google.api.http) = {get: "/api/v1/rate-limit-policies/{id}"};
+  }
+  rpc CreateRateLimitPolicy(CreateRateLimitPolicyRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      post: "/api/v1/rate-limit-policies"
+      body: "*"
+    };
+  }
+  rpc UpdateRateLimitPolicy(UpdateRateLimitPolicyRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      put: "/api/v1/rate-limit-policies/{id}"
+      body: "*"
+    };
+  }
+  rpc SetRateLimitPolicyEnabled(SetEnabledRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      patch: "/api/v1/rate-limit-policies/{id}/enabled"
+      body: "*"
+    };
+  }
+  rpc DeleteRateLimitPolicy(ResourceRequest) returns (MutationReply) {
+    option (google.api.http) = {delete: "/api/v1/rate-limit-policies/{id}"};
+  }
+}
+
+message RateLimitKeyPart {
+  string type = 1;
+  string name = 2;
+}
+
+message RateLimitKey {
+  repeated RateLimitKeyPart parts = 1;
+}
+
+message RateLimitQuota {
+  int32 requests = 1;
+  int32 window_seconds = 2;
+  int32 burst = 3;
+}
+
+message RateLimitRule {
+  string name = 1;
+  RateLimitKey key = 2;
+  RateLimitQuota limit = 3;
+}
+
+message RateLimitResponse {
+  int32 status_code = 1;
+  string message = 2;
+  bool quota_header_enabled = 3;
+}
+
+message RateLimitPolicy {
+  string id = 1;
+  string version = 2;
+  ResourceStatus status = 3;
+  string name = 4;
+  string description = 5;
+  bool enabled = 6;
+  repeated PolicyTarget targets = 7;
+  repeated RateLimitRule rules = 8;
+  RateLimitResponse response = 9;
+  string failure_policy = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message CreateRateLimitPolicyRequest {
+  string name = 1;
+  string description = 2;
+  bool enabled = 3;
+  repeated PolicyTargetRef targets = 4;
+  repeated RateLimitRule rules = 5;
+  RateLimitResponse response = 6;
+  string failure_policy = 7;
+}
+
+message UpdateRateLimitPolicyRequest {
+  string id = 1;
+  string version = 2;
+  string name = 3;
+  string description = 4;
+  bool enabled = 5;
+  repeated PolicyTargetRef targets = 6;
+  repeated RateLimitRule rules = 7;
+  RateLimitResponse response = 8;
+  string failure_policy = 9;
+}
+
+message ListRateLimitPoliciesReply {
+  repeated RateLimitPolicy policies = 1;
+}
+

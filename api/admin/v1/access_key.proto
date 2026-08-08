@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// AccessKeyService 提供客户端访问密钥管理接口
+service AccessKeyService {
+  rpc ListAccessKeys(google.protobuf.Empty) returns (ListAccessKeysReply) {
+    option (google.api.http) = {get: "/api/v1/access-keys"};
+  }
+  rpc CreateAccessKey(CreateAccessKeyRequest) returns (AccessKeySecretReply) {
+    option (google.api.http) = {
+      post: "/api/v1/access-keys"
+      body: "*"
+    };
+  }
+  rpc UpdateAccessKey(UpdateAccessKeyRequest) returns (AccessKeyReply) {
+    option (google.api.http) = {
+      put: "/api/v1/access-keys/{id}"
+      body: "*"
+    };
+  }
+  rpc SetAccessKeyEnabled(SetEnabledRequest) returns (AccessKeyReply) {
+    option (google.api.http) = {
+      patch: "/api/v1/access-keys/{id}/enabled"
+      body: "*"
+    };
+  }
+  rpc RotateAccessKey(ResourceRequest) returns (AccessKeySecretReply) {
+    option (google.api.http) = {post: "/api/v1/access-keys/{id}/rotate"};
+  }
+  rpc DeleteAccessKey(ResourceRequest) returns (MutationReply) {
+    option (google.api.http) = {delete: "/api/v1/access-keys/{id}"};
+  }
+}
+
+message AccessKey {
+  string id = 1;
+  string name = 2;
+  string prefix = 3;
+  string suffix = 4;
+  bool enabled = 5;
+  repeated string allowed_models = 6;
+  google.protobuf.Timestamp expires_at = 7;
+  google.protobuf.Timestamp last_used_at = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+message CreateAccessKeyRequest {
+  string name = 1;
+  repeated string allowed_models = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message UpdateAccessKeyRequest {
+  string id = 1;
+  string name = 2;
+  repeated string allowed_models = 3;
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message ListAccessKeysReply {
+  repeated AccessKey access_keys = 1;
+}
+
+message AccessKeyReply {
+  AccessKey access_key = 1;
+}
+
+message AccessKeySecretReply {
+  AccessKey access_key = 1;
+  string secret = 2;
+}
+

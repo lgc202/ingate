@@ -21,7 +21,7 @@ const usage = `ingate-apiserver 是声明式资源 API
 职责：
   - 接收 Gateway、Route、Upstream、Policy 等资源的 apply/get/list/watch
   - 校验资源并维护期望状态
-  - 作为 CLI、ingate-admin 和 ingate-controller 的统一控制面入口
+  - 作为 CLI、ingate-admin-api 和 ingate-controller 的统一控制面入口
 `
 
 // Run 执行 ingate-apiserver 服务
