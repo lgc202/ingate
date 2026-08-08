@@ -17,8 +17,8 @@ type CertificateRepository struct {
 	client clientset.Interface
 }
 
-// NewCertificate 创建 Certificate Repository
-func NewCertificate(client clientset.Interface) *CertificateRepository {
+// NewCertificateRepository 创建 Certificate Repository
+func NewCertificateRepository(client clientset.Interface) *CertificateRepository {
 	return &CertificateRepository{client: client}
 }
 

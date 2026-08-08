@@ -33,11 +33,11 @@ func NewService(usecase *certificatebiz.Usecase) *Service {
 func (s *Service) ListCertificates(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListCertificatesReply, error) {
 	items, err := s.usecase.List(ctx)
 	if err != nil {
-		return nil, adminservice.OperationError(err, "查询证书失败")
+		return nil, err
 	}
 	reply := &adminv1.ListCertificatesReply{Certificates: make([]*adminv1.Certificate, 0, len(items))}
 	for i := range items {
-		reply.Certificates = append(reply.Certificates, certificateReply(&items[i], false))
+		reply.Certificates = append(reply.Certificates, newCertificateReply(&items[i], false))
 	}
 	return reply, nil
 }
@@ -45,42 +45,42 @@ func (s *Service) ListCertificates(ctx context.Context, _ *emptypb.Empty) (*admi
 func (s *Service) GetCertificate(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.GetCertificateReply, error) {
 	item, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
-		return nil, adminservice.OperationError(err, "查询证书失败")
+		return nil, err
 	}
-	return &adminv1.GetCertificateReply{Certificate: certificateReply(item, true)}, nil
+	return &adminv1.GetCertificateReply{Certificate: newCertificateReply(item, true)}, nil
 }
 
 func (s *Service) CreateCertificate(ctx context.Context, request *adminv1.CreateCertificateRequest) (*adminv1.MutationReply, error) {
-	spec, err := certificateSpec(request.GetName(), request.GetDescription(), request.GetCertificatePem(), request.GetPrivateKeyPem(), true)
+	spec, err := buildCertificateSpec(request.GetName(), request.GetDescription(), request.GetCertificatePem(), request.GetPrivateKeyPem(), true)
 	if err != nil {
 		return nil, err
 	}
 	id, err := s.usecase.Create(ctx, spec)
 	if err != nil {
-		return nil, adminservice.OperationError(err, "创建证书失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: id}, nil
 }
 
 func (s *Service) UpdateCertificate(ctx context.Context, request *adminv1.UpdateCertificateRequest) (*adminv1.MutationReply, error) {
-	spec, err := certificateSpec(request.GetName(), request.GetDescription(), request.GetCertificatePem(), request.GetPrivateKeyPem(), false)
+	spec, err := buildCertificateSpec(request.GetName(), request.GetDescription(), request.GetCertificatePem(), request.GetPrivateKeyPem(), false)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec); err != nil {
-		return nil, adminservice.OperationError(err, "更新证书失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
 func (s *Service) DeleteCertificate(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
-		return nil, adminservice.OperationError(err, "删除证书失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
-func certificateSpec(name, description, certificatePEM, privateKeyPEM string, creating bool) (resource.CertificateSpec, error) {
+func buildCertificateSpec(name, description, certificatePEM, privateKeyPEM string, creating bool) (resource.CertificateSpec, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return resource.CertificateSpec{}, adminservice.BadRequest("证书名称不能为空")
@@ -104,15 +104,15 @@ func certificateSpec(name, description, certificatePEM, privateKeyPEM string, cr
 	}, nil
 }
 
-func certificateReply(certificate *resource.Certificate, includePEM bool) *adminv1.Certificate {
+func newCertificateReply(certificate *resource.Certificate, includePEM bool) *adminv1.Certificate {
 	reply := &adminv1.Certificate{
 		Id:          certificate.Name,
 		Version:     strconv.FormatInt(certificate.Generation, 10),
-		Status:      adminservice.ResourceStatus(biz.ResourceStatusFromConditions(certificate.Generation, certificate.Status.Conditions)),
+		Status:      adminservice.NewResourceStatus(biz.ResourceStatusFromConditions(certificate.Generation, certificate.Status.Conditions)),
 		Name:        certificate.Spec.DisplayName,
 		Description: certificate.Spec.Description,
 		DnsNames:    []string{},
-		CreatedAt:   adminservice.Timestamp(certificate.CreationTimestamp.Time),
+		CreatedAt:   adminservice.NewTimestamp(certificate.CreationTimestamp.Time),
 	}
 	if includePEM {
 		reply.CertificatePem = certificate.Spec.CertificatePEM
@@ -120,8 +120,8 @@ func certificateReply(certificate *resource.Certificate, includePEM bool) *admin
 	leaf, err := certificateutil.ParseKeyPair(certificate.Spec.CertificatePEM, certificate.Spec.PrivateKeyPEM)
 	if err == nil {
 		reply.DnsNames = append([]string(nil), leaf.DNSNames...)
-		reply.NotBefore = adminservice.Timestamp(leaf.NotBefore)
-		reply.NotAfter = adminservice.Timestamp(leaf.NotAfter)
+		reply.NotBefore = adminservice.NewTimestamp(leaf.NotBefore)
+		reply.NotAfter = adminservice.NewTimestamp(leaf.NotAfter)
 	}
 	return reply
 }

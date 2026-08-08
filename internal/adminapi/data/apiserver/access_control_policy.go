@@ -16,8 +16,8 @@ type AccessControlPolicyRepository struct {
 	client clientset.Interface
 }
 
-// NewAccessControlPolicy 创建 AccessControlPolicy Repository
-func NewAccessControlPolicy(client clientset.Interface) *AccessControlPolicyRepository {
+// NewAccessControlPolicyRepository 创建 AccessControlPolicy Repository
+func NewAccessControlPolicyRepository(client clientset.Interface) *AccessControlPolicyRepository {
 	return &AccessControlPolicyRepository{client: client}
 }
 

@@ -16,8 +16,8 @@ type RateLimitPolicyRepository struct {
 	client clientset.Interface
 }
 
-// NewRateLimitPolicy 创建 RateLimitPolicy Repository
-func NewRateLimitPolicy(client clientset.Interface) *RateLimitPolicyRepository {
+// NewRateLimitPolicyRepository 创建 RateLimitPolicy Repository
+func NewRateLimitPolicyRepository(client clientset.Interface) *RateLimitPolicyRepository {
 	return &RateLimitPolicyRepository{client: client}
 }
 

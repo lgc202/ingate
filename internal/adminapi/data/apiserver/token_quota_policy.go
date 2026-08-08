@@ -16,8 +16,8 @@ type TokenQuotaPolicyRepository struct {
 	client clientset.Interface
 }
 
-// NewTokenQuotaPolicy 创建 TokenQuotaPolicy Repository
-func NewTokenQuotaPolicy(client clientset.Interface) *TokenQuotaPolicyRepository {
+// NewTokenQuotaPolicyRepository 创建 TokenQuotaPolicy Repository
+func NewTokenQuotaPolicyRepository(client clientset.Interface) *TokenQuotaPolicyRepository {
 	return &TokenQuotaPolicyRepository{client: client}
 }
 

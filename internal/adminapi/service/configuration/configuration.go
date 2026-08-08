@@ -28,7 +28,7 @@ func NewService(usecase *configurationbiz.Usecase) *Service {
 func (s *Service) GetConfigurationStatus(ctx context.Context, _ *emptypb.Empty) (*adminv1.ConfigurationStatusReply, error) {
 	report, err := s.usecase.Get(ctx)
 	if err != nil {
-		return nil, adminservice.OperationError(err, "查询配置状态失败")
+		return nil, err
 	}
 	reply := &adminv1.ConfigurationStatusReply{
 		Summary: &adminv1.ConfigurationSummary{
@@ -40,7 +40,7 @@ func (s *Service) GetConfigurationStatus(ctx context.Context, _ *emptypb.Empty) 
 	}
 	for _, item := range report.Items {
 		reply.Items = append(reply.Items, &adminv1.ConfigurationItem{
-			Kind: string(item.Kind), Id: item.ID, Name: item.Name, Status: adminservice.ResourceStatus(item.Status),
+			Kind: string(item.Kind), Id: item.ID, Name: item.Name, Status: adminservice.NewResourceStatus(item.Status),
 		})
 	}
 	return reply, nil

@@ -29,8 +29,8 @@ var aiManagedRequestHeaders = map[string]struct{}{
 	"x-goog-api-key":    {},
 }
 
-// routeSpec 校验请求自身语义并转换为声明式 Route 配置
-func routeSpec(
+// buildRouteSpec 校验请求自身语义并构造声明式 Route 配置
+func buildRouteSpec(
 	name string,
 	gatewayIDs []string,
 	hostnames []string,
@@ -64,7 +64,7 @@ func routeSpec(
 	}
 	seen := make(map[string]struct{}, len(inputRules))
 	for _, input := range inputRules {
-		rule, err := routeRule(input)
+		rule, err := buildRouteRule(input)
 		if err != nil {
 			return resource.RouteSpec{}, err
 		}
@@ -77,7 +77,7 @@ func routeSpec(
 	return spec, nil
 }
 
-func routeRule(input *adminv1.RouteRule) (resource.RouteRule, error) {
+func buildRouteRule(input *adminv1.RouteRule) (resource.RouteRule, error) {
 	if input == nil {
 		return resource.RouteRule{}, adminservice.BadRequest("路由规则不能为空")
 	}
@@ -153,7 +153,7 @@ func routeRule(input *adminv1.RouteRule) (resource.RouteRule, error) {
 		}
 	}
 	if input.GetRequestHeaderModifier() != nil {
-		modifier, err := headerModifier(input.GetRequestHeaderModifier())
+		modifier, err := buildHeaderModifier(input.GetRequestHeaderModifier())
 		if err != nil {
 			return resource.RouteRule{}, err
 		}
@@ -165,7 +165,7 @@ func routeRule(input *adminv1.RouteRule) (resource.RouteRule, error) {
 		})
 	}
 	if input.GetResponseHeaderModifier() != nil {
-		modifier, err := headerModifier(input.GetResponseHeaderModifier())
+		modifier, err := buildHeaderModifier(input.GetResponseHeaderModifier())
 		if err != nil {
 			return resource.RouteRule{}, err
 		}
@@ -210,7 +210,7 @@ func containsManagedHeader(modifier *resource.HeaderModifier) bool {
 	return false
 }
 
-func headerModifier(input *adminv1.HeaderModifier) (*resource.HeaderModifier, error) {
+func buildHeaderModifier(input *adminv1.HeaderModifier) (*resource.HeaderModifier, error) {
 	modifier := &resource.HeaderModifier{}
 	for _, header := range input.GetSet() {
 		if header == nil || strings.TrimSpace(header.GetName()) == "" || strings.TrimSpace(header.GetValue()) == "" {

@@ -9,23 +9,23 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func routeReply(route *resource.Route) *adminv1.Route {
+func newRouteReply(route *resource.Route) *adminv1.Route {
 	status := biz.EnabledResourceStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions)
 	reply := &adminv1.Route{
-		Id: route.Name, Version: strconv.FormatInt(route.Generation, 10), Status: adminservice.ResourceStatus(status),
+		Id: route.Name, Version: strconv.FormatInt(route.Generation, 10), Status: adminservice.NewResourceStatus(status),
 		Name: route.Spec.DisplayName, Hostnames: append([]string(nil), route.Spec.Hostnames...),
-		Enabled: route.Spec.Enabled, CreatedAt: adminservice.Timestamp(route.CreationTimestamp.Time),
+		Enabled: route.Spec.Enabled, CreatedAt: adminservice.NewTimestamp(route.CreationTimestamp.Time),
 	}
 	for _, ref := range route.Spec.ParentRefs {
 		reply.GatewayIds = append(reply.GatewayIds, ref.Name)
 	}
 	for _, rule := range route.Spec.Rules {
-		reply.Rules = append(reply.Rules, routeRuleReply(rule))
+		reply.Rules = append(reply.Rules, newRouteRuleReply(rule))
 	}
 	return reply
 }
 
-func routeRuleReply(rule resource.RouteRule) *adminv1.RouteRule {
+func newRouteRuleReply(rule resource.RouteRule) *adminv1.RouteRule {
 	reply := &adminv1.RouteRule{
 		Name: rule.Name, PathPrefix: rule.PathPrefix, Methods: append([]string(nil), rule.Methods...),
 	}
@@ -46,9 +46,9 @@ func routeRuleReply(rule resource.RouteRule) *adminv1.RouteRule {
 	for _, filter := range rule.Filters {
 		switch filter.Type {
 		case resource.RouteFilterRequestHeaderModifier:
-			reply.RequestHeaderModifier = headerModifierReply(filter.RequestHeaderModifier)
+			reply.RequestHeaderModifier = newHeaderModifierReply(filter.RequestHeaderModifier)
 		case resource.RouteFilterResponseHeaderModifier:
-			reply.ResponseHeaderModifier = headerModifierReply(filter.ResponseHeaderModifier)
+			reply.ResponseHeaderModifier = newHeaderModifierReply(filter.ResponseHeaderModifier)
 		}
 	}
 	if rule.Timeout != nil {
@@ -62,7 +62,7 @@ func routeRuleReply(rule resource.RouteRule) *adminv1.RouteRule {
 	return reply
 }
 
-func headerModifierReply(modifier *resource.HeaderModifier) *adminv1.HeaderModifier {
+func newHeaderModifierReply(modifier *resource.HeaderModifier) *adminv1.HeaderModifier {
 	if modifier == nil {
 		return nil
 	}

@@ -9,17 +9,17 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func upstreamReply(upstream *resource.Upstream) *adminv1.Upstream {
+func newUpstreamReply(upstream *resource.Upstream) *adminv1.Upstream {
 	reply := &adminv1.Upstream{
 		Id:                upstream.Name,
 		Version:           strconv.FormatInt(upstream.Generation, 10),
-		Status:            adminservice.ResourceStatus(biz.ResourceStatusFromConditions(upstream.Generation, upstream.Status.Conditions)),
+		Status:            adminservice.NewResourceStatus(biz.ResourceStatusFromConditions(upstream.Generation, upstream.Status.Conditions)),
 		ApiKeyConfigured:  upstream.Spec.Authentication != nil && upstream.Spec.Authentication.APIKey != nil && upstream.Spec.Authentication.APIKey.Value != "",
 		Name:              upstream.Spec.DisplayName,
 		Type:              string(upstream.Spec.Type),
 		Protocol:          string(upstream.Spec.Protocol),
 		LoadBalancePolicy: string(upstream.Spec.LoadBalancePolicy),
-		CreatedAt:         adminservice.Timestamp(upstream.CreationTimestamp.Time),
+		CreatedAt:         adminservice.NewTimestamp(upstream.CreationTimestamp.Time),
 	}
 	if reply.LoadBalancePolicy == "" {
 		reply.LoadBalancePolicy = string(resource.UpstreamLoadBalancePolicyRoundRobin)

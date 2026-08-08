@@ -8,8 +8,8 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// PolicyTargetRefs 校验并转换策略作用目标
-func PolicyTargetRefs(targets []*adminv1.PolicyTargetRef) ([]resource.PolicyTargetRef, error) {
+// BuildPolicyTargetRefs 校验并转换策略作用目标
+func BuildPolicyTargetRefs(targets []*adminv1.PolicyTargetRef) ([]resource.PolicyTargetRef, error) {
 	refs := make([]resource.PolicyTargetRef, 0, len(targets))
 	seen := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
@@ -31,8 +31,8 @@ func PolicyTargetRefs(targets []*adminv1.PolicyTargetRef) ([]resource.PolicyTarg
 	return refs, nil
 }
 
-// PolicyTargets 把策略目标及其生效状态转换为控制台协议
-func PolicyTargets(
+// NewPolicyTargets 把策略目标及其生效状态转换为控制台协议
+func NewPolicyTargets(
 	generation int64,
 	disabled bool,
 	refs []resource.PolicyTargetRef,
@@ -46,7 +46,7 @@ func PolicyTargets(
 			Kind:        string(ref.Kind),
 			Id:          ref.Name,
 			DisplayName: names.Name(ref),
-			Status:      ResourceStatus(status),
+			Status:      NewResourceStatus(status),
 		})
 	}
 	return targets

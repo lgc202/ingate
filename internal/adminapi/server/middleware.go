@@ -15,6 +15,8 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+	"github.com/lgc202/ingate/internal/adminapi/biz"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
@@ -30,6 +32,32 @@ func requestValidationMiddleware(next middleware.Handler) middleware.Handler {
 				WithCause(err)
 		}
 		return next(ctx, request)
+	}
+}
+
+func errorMappingMiddleware(next middleware.Handler) middleware.Handler {
+	return func(ctx context.Context, request any) (any, error) {
+		reply, err := next(ctx, request)
+		if err == nil {
+			return reply, nil
+		}
+
+		if requestError, ok := errors.AsType[*adminservice.RequestError](err); ok {
+			return nil, kratoserrors.BadRequest(adminv1.ErrorReason_INVALID_ARGUMENT.String(), "invalid request").
+				WithMetadata(map[string]string{userMessageMetadata: requestError.UserMessage()}).
+				WithCause(err)
+		}
+		if userError, ok := errors.AsType[*biz.UserError](err); ok {
+			return nil, kratoserrors.New(http.StatusInternalServerError, adminv1.ErrorReason_BUSINESS_RULE_VIOLATION.String(), "request rejected").
+				WithMetadata(map[string]string{userMessageMetadata: userError.UserMessage()}).
+				WithCause(err)
+		}
+		if _, ok := errors.AsType[*kratoserrors.Error](err); ok {
+			return nil, err
+		}
+		return nil, kratoserrors.InternalServer(adminv1.ErrorReason_INTERNAL_ERROR.String(), "operation failed").
+			WithMetadata(map[string]string{userMessageMetadata: "请求处理失败"}).
+			WithCause(err)
 	}
 }
 
@@ -93,7 +121,7 @@ func requestLoggingMiddleware(logger *slog.Logger) middleware.Middleware {
 				}
 				logger.ErrorContext(ctx, "server request", attrs...)
 			} else {
-				// 参数和业务规则错误属于正常请求结果，不按服务异常记录
+				// 参数错误属于正常请求结果，不按服务异常记录
 				logger.InfoContext(ctx, "server request", attrs...)
 			}
 			return reply, err

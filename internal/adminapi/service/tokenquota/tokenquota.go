@@ -33,11 +33,11 @@ func NewService(usecase *tokenquotabiz.Usecase) *Service {
 func (s *Service) ListTokenQuotaPolicies(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListTokenQuotaPoliciesReply, error) {
 	result, err := s.usecase.List(ctx)
 	if err != nil {
-		return nil, adminservice.OperationError(err, "查询 Token 配额策略失败")
+		return nil, err
 	}
 	reply := &adminv1.ListTokenQuotaPoliciesReply{Policies: make([]*adminv1.TokenQuotaPolicy, 0, len(result.Policies))}
 	for i := range result.Policies {
-		reply.Policies = append(reply.Policies, tokenQuotaPolicyReply(&result.Policies[i], result.TargetNames))
+		reply.Policies = append(reply.Policies, newTokenQuotaPolicyReply(&result.Policies[i], result.TargetNames))
 	}
 	return reply, nil
 }
@@ -45,13 +45,13 @@ func (s *Service) ListTokenQuotaPolicies(ctx context.Context, _ *emptypb.Empty) 
 func (s *Service) GetTokenQuotaPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.TokenQuotaPolicy, error) {
 	result, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
-		return nil, adminservice.OperationError(err, "查询 Token 配额策略失败")
+		return nil, err
 	}
-	return tokenQuotaPolicyReply(result.Policy, result.TargetNames), nil
+	return newTokenQuotaPolicyReply(result.Policy, result.TargetNames), nil
 }
 
 func (s *Service) CreateTokenQuotaPolicy(ctx context.Context, request *adminv1.CreateTokenQuotaPolicyRequest) (*adminv1.MutationReply, error) {
-	spec, err := tokenQuotaPolicySpec(
+	spec, err := buildTokenQuotaPolicySpec(
 		request.GetName(), request.GetDescription(), request.GetEnabled(), request.GetTargets(),
 		request.GetSubject(), request.GetQuota(), request.GetFailurePolicy(), request.GetResponse(),
 	)
@@ -60,13 +60,13 @@ func (s *Service) CreateTokenQuotaPolicy(ctx context.Context, request *adminv1.C
 	}
 	id, err := s.usecase.Create(ctx, spec)
 	if err != nil {
-		return nil, adminservice.OperationError(err, "创建 Token 配额策略失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: id}, nil
 }
 
 func (s *Service) UpdateTokenQuotaPolicy(ctx context.Context, request *adminv1.UpdateTokenQuotaPolicyRequest) (*adminv1.MutationReply, error) {
-	spec, err := tokenQuotaPolicySpec(
+	spec, err := buildTokenQuotaPolicySpec(
 		request.GetName(), request.GetDescription(), request.GetEnabled(), request.GetTargets(),
 		request.GetSubject(), request.GetQuota(), request.GetFailurePolicy(), request.GetResponse(),
 	)
@@ -74,26 +74,26 @@ func (s *Service) UpdateTokenQuotaPolicy(ctx context.Context, request *adminv1.U
 		return nil, err
 	}
 	if err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec); err != nil {
-		return nil, adminservice.OperationError(err, "更新 Token 配额策略失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
 func (s *Service) SetTokenQuotaPolicyEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
 	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
-		return nil, adminservice.OperationError(err, "更新 Token 配额策略状态失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
 func (s *Service) DeleteTokenQuotaPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
-		return nil, adminservice.OperationError(err, "删除 Token 配额策略失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
-func tokenQuotaPolicySpec(
+func buildTokenQuotaPolicySpec(
 	name, description string,
 	enabled bool,
 	targets []*adminv1.PolicyTargetRef,
@@ -106,7 +106,7 @@ func tokenQuotaPolicySpec(
 	if name == "" {
 		return resource.TokenQuotaPolicySpec{}, adminservice.BadRequest("名称不能为空")
 	}
-	refs, err := adminservice.PolicyTargetRefs(targets)
+	refs, err := adminservice.BuildPolicyTargetRefs(targets)
 	if err != nil {
 		return resource.TokenQuotaPolicySpec{}, err
 	}
@@ -148,13 +148,13 @@ func tokenQuotaPolicySpec(
 	return spec, nil
 }
 
-func tokenQuotaPolicyReply(policy *resource.TokenQuotaPolicy, names biz.PolicyTargetNames) *adminv1.TokenQuotaPolicy {
+func newTokenQuotaPolicyReply(policy *resource.TokenQuotaPolicy, names biz.PolicyTargetNames) *adminv1.TokenQuotaPolicy {
 	status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
 	disabled := status.State == biz.ResourceStateDisabled
 	reply := &adminv1.TokenQuotaPolicy{
-		Id: policy.Name, Version: strconv.FormatInt(policy.Generation, 10), Status: adminservice.ResourceStatus(status),
+		Id: policy.Name, Version: strconv.FormatInt(policy.Generation, 10), Status: adminservice.NewResourceStatus(status),
 		Name: policy.Spec.DisplayName, Description: policy.Spec.Description, Enabled: policy.Spec.Enabled,
-		Targets: adminservice.PolicyTargets(policy.Generation, disabled, policy.Spec.TargetRefs, policy.Status.Targets, names),
+		Targets: adminservice.NewPolicyTargets(policy.Generation, disabled, policy.Spec.TargetRefs, policy.Status.Targets, names),
 		Subject: &adminv1.TokenQuotaSubject{
 			Type: string(policy.Spec.Subject.Type), HeaderName: policy.Spec.Subject.HeaderName,
 		},
@@ -163,7 +163,7 @@ func tokenQuotaPolicyReply(policy *resource.TokenQuotaPolicy, names biz.PolicyTa
 		},
 		FailurePolicy: string(policy.Spec.FailurePolicy),
 		Response:      &adminv1.TokenQuotaResponse{Message: policy.Spec.Response.Message},
-		CreatedAt:     adminservice.Timestamp(policy.CreationTimestamp.Time),
+		CreatedAt:     adminservice.NewTimestamp(policy.CreationTimestamp.Time),
 	}
 	if reply.Response.Message == "" {
 		reply.Response.Message = "Token quota exceeded"

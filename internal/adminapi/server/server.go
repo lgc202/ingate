@@ -49,6 +49,7 @@ func NewHTTPServer(
 		kratoshttp.Middleware(
 			recoveryMiddleware(logger),
 			requestLoggingMiddleware(logger),
+			errorMappingMiddleware,
 			requestValidationMiddleware,
 		),
 		kratoshttp.ResponseEncoder(responseEncoder),
