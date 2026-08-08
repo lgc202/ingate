@@ -1,0 +1,24 @@
+server:
+  http:
+    network: "${SERVER_HTTP_NETWORK:tcp}"
+    addr: "${SERVER_HTTP_ADDR::8082}"
+    timeout: "${SERVER_HTTP_TIMEOUT:30s}"
+
+data:
+  apiserver:
+    master: "${DATA_APISERVER_MASTER:}"
+    kubeconfig: "${DATA_APISERVER_KUBECONFIG:_output/kubeconfig}"
+  mysql:
+    dsn: "${DATA_MYSQL_DSN:ingate:ingate@tcp(127.0.0.1:3306)/ingate?charset=utf8mb4&parseTime=true&loc=UTC&timeout=5s&readTimeout=5s&writeTimeout=5s}"
+    max_open_connections: "${DATA_MYSQL_MAX_OPEN_CONNECTIONS:20}"
+    max_idle_connections: "${DATA_MYSQL_MAX_IDLE_CONNECTIONS:10}"
+    connection_max_lifetime: "${DATA_MYSQL_CONNECTION_MAX_LIFETIME:1800s}"
+  redis:
+    address: "${DATA_REDIS_ADDRESS:127.0.0.1:6379}"
+    password: "${DATA_REDIS_PASSWORD:}"
+    database: "${DATA_REDIS_DATABASE:0}"
+
+logging:
+  format: "${LOGGING_FORMAT:json}"
+  level: "${LOGGING_LEVEL:info}"
+  add_source: "${LOGGING_ADD_SOURCE:false}"

@@ -2,8 +2,8 @@ server:
   listen_address: "0.0.0.0:8001"
   console_dir: "/opt/ingate/console/web"
 
-admin:
-  base_url: "http://admin:8002"
+admin_api:
+  base_url: "http://admin-api:8002"
 
 logging:
   format: "json"

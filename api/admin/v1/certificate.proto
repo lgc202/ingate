@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// CertificateService 提供网关 TLS 证书管理接口
+service CertificateService {
+  rpc ListCertificates(google.protobuf.Empty) returns (ListCertificatesReply) {
+    option (google.api.http) = {get: "/api/v1/certificates"};
+  }
+  rpc GetCertificate(ResourceRequest) returns (GetCertificateReply) {
+    option (google.api.http) = {get: "/api/v1/certificates/{id}"};
+  }
+  rpc CreateCertificate(CreateCertificateRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      post: "/api/v1/certificates"
+      body: "*"
+    };
+  }
+  rpc UpdateCertificate(UpdateCertificateRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      put: "/api/v1/certificates/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteCertificate(ResourceRequest) returns (MutationReply) {
+    option (google.api.http) = {delete: "/api/v1/certificates/{id}"};
+  }
+}
+
+message Certificate {
+  string id = 1;
+  string version = 2;
+  ResourceStatus status = 3;
+  string name = 4;
+  string description = 5;
+  string certificate_pem = 6 [json_name = "certificatePEM"];
+  repeated string dns_names = 7 [json_name = "dnsNames"];
+  google.protobuf.Timestamp not_before = 8;
+  google.protobuf.Timestamp not_after = 9;
+  google.protobuf.Timestamp created_at = 10;
+}
+
+message CreateCertificateRequest {
+  string name = 1;
+  string description = 2;
+  string certificate_pem = 3 [json_name = "certificatePEM"];
+  string private_key_pem = 4 [json_name = "privateKeyPEM"];
+}
+
+message UpdateCertificateRequest {
+  string id = 1;
+  string version = 2;
+  string name = 3;
+  string description = 4;
+  string certificate_pem = 5 [json_name = "certificatePEM"];
+  string private_key_pem = 6 [json_name = "privateKeyPEM"];
+}
+
+message ListCertificatesReply {
+  repeated Certificate certificates = 1;
+}
+
+message GetCertificateReply {
+  Certificate certificate = 1;
+}
+

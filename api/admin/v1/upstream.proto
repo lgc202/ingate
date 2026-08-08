@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// UpstreamService 提供应用、模型、MCP 和 Agent 服务管理接口
+service UpstreamService {
+  rpc ListUpstreams(google.protobuf.Empty) returns (ListUpstreamsReply) {
+    option (google.api.http) = {get: "/api/v1/upstreams"};
+  }
+  rpc GetUpstream(ResourceRequest) returns (Upstream) {
+    option (google.api.http) = {get: "/api/v1/upstreams/{id}"};
+  }
+  rpc CreateUpstream(CreateUpstreamRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      post: "/api/v1/upstreams"
+      body: "*"
+    };
+  }
+  rpc UpdateUpstream(UpdateUpstreamRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      put: "/api/v1/upstreams/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteUpstream(ResourceRequest) returns (MutationReply) {
+    option (google.api.http) = {delete: "/api/v1/upstreams/{id}"};
+  }
+}
+
+message APIKeyConfig {
+  string value = 1;
+}
+
+message UpstreamTLS {
+  string server_name = 1;
+}
+
+message ModelCatalogItem {
+  string name = 1;
+  string display_name = 2;
+  bool enabled = 3;
+}
+
+message ModelConfig {
+  string provider = 1;
+  string api_base_path = 2 [json_name = "apiBasePath"];
+  repeated ModelCatalogItem models = 3;
+}
+
+message UpstreamEndpoint {
+  string id = 1;
+  string address = 2;
+  int32 port = 3;
+  int32 weight = 4;
+  bool enabled = 5;
+}
+
+message UpstreamHealthCheck {
+  bool enabled = 1;
+  string path = 2;
+  int32 interval_seconds = 3;
+  int32 timeout_seconds = 4;
+}
+
+message Upstream {
+  string id = 1;
+  string version = 2;
+  ResourceStatus status = 3;
+  bool api_key_configured = 4 [json_name = "apiKeyConfigured"];
+  string name = 5;
+  string type = 6;
+  string protocol = 7;
+  UpstreamTLS tls = 8;
+  ModelConfig model = 9;
+  repeated UpstreamEndpoint endpoints = 10;
+  string load_balance_policy = 11;
+  UpstreamHealthCheck health_check = 12;
+  google.protobuf.Timestamp created_at = 13;
+}
+
+message CreateUpstreamRequest {
+  string name = 1;
+  string type = 2;
+  string protocol = 3;
+  UpstreamTLS tls = 4;
+  ModelConfig model = 5;
+  repeated UpstreamEndpoint endpoints = 6;
+  string load_balance_policy = 7;
+  UpstreamHealthCheck health_check = 8;
+  APIKeyConfig api_key = 9 [json_name = "apiKey"];
+}
+
+message UpdateUpstreamRequest {
+  string id = 1;
+  string version = 2;
+  string name = 3;
+  string type = 4;
+  string protocol = 5;
+  UpstreamTLS tls = 6;
+  ModelConfig model = 7;
+  repeated UpstreamEndpoint endpoints = 8;
+  string load_balance_policy = 9;
+  UpstreamHealthCheck health_check = 10;
+  APIKeyConfig api_key = 11 [json_name = "apiKey"];
+  bool remove_api_key = 12 [json_name = "removeAPIKey"];
+}
+
+message ListUpstreamsReply {
+  repeated Upstream upstreams = 1;
+}
+

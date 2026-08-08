@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// GatewayService 提供网关入口管理接口
+service GatewayService {
+  rpc ListGateways(google.protobuf.Empty) returns (ListGatewaysReply) {
+    option (google.api.http) = {get: "/api/v1/gateways"};
+  }
+  rpc GetGateway(ResourceRequest) returns (GetGatewayReply) {
+    option (google.api.http) = {get: "/api/v1/gateways/{id}"};
+  }
+  rpc CreateGateway(CreateGatewayRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      post: "/api/v1/gateways"
+      body: "*"
+    };
+  }
+  rpc UpdateGateway(UpdateGatewayRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      put: "/api/v1/gateways/{id}"
+      body: "*"
+    };
+  }
+  rpc SetGatewayEnabled(SetEnabledRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      patch: "/api/v1/gateways/{id}/enabled"
+      body: "*"
+    };
+  }
+  rpc DeleteGateway(ResourceRequest) returns (MutationReply) {
+    option (google.api.http) = {delete: "/api/v1/gateways/{id}"};
+  }
+}
+
+message GatewayListener {
+  string protocol = 1;
+  int32 port = 2;
+  string certificate_id = 3 [json_name = "certificateID"];
+}
+
+message Gateway {
+  string id = 1;
+  string version = 2;
+  ResourceStatus status = 3;
+  string name = 4;
+  string description = 5;
+  repeated GatewayListener listeners = 6;
+  repeated string hostnames = 7;
+  bool enabled = 8;
+  google.protobuf.Timestamp created_at = 9;
+}
+
+message CreateGatewayRequest {
+  string name = 1;
+  string description = 2;
+  repeated GatewayListener listeners = 3;
+  repeated string hostnames = 4;
+}
+
+message UpdateGatewayRequest {
+  string id = 1;
+  string version = 2;
+  string name = 3;
+  string description = 4;
+  repeated GatewayListener listeners = 5;
+  repeated string hostnames = 6;
+}
+
+message ListGatewaysReply {
+  repeated Gateway gateways = 1;
+}
+
+message GetGatewayReply {
+  Gateway gateway = 1;
+}
+

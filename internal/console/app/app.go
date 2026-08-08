@@ -20,7 +20,7 @@ const usage = `ingate-console 提供 Ingate 控制台
 
 职责：
   - 托管控制台静态资源
-  - 将控制台管理请求转发给 ingate-admin
+  - 将控制台管理请求转发给 ingate-admin-api
 `
 
 // Run 执行 ingate-console 服务
@@ -78,13 +78,13 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	logger.Info("service started", "config_file", configPath)
 
 	componentLogger := logger.With("component", "ingate-console")
-	adminProxy, err := consoleserver.NewAdminProxy(settings.Admin.BaseURL, componentLogger)
+	adminAPIProxy, err := consoleserver.NewAdminAPIProxy(settings.AdminAPI.BaseURL, componentLogger)
 	if err != nil {
 		return err
 	}
 
 	gin.SetMode(gin.ReleaseMode)
-	router := consoleserver.NewRouter(adminProxy, settings.Server.ConsoleDir, componentLogger)
+	router := consoleserver.NewRouter(adminAPIProxy, settings.Server.ConsoleDir, componentLogger)
 	server := httpserver.New(settings.Server.ListenAddress, router, componentLogger)
 
 	return server.Run(ctx)

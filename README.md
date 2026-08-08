@@ -5,7 +5,7 @@ Ingate 是面向 API 网关和 AI 网关的声明式 Envoy 控制面。应用服
 ## 架构
 
 ```text
-Console -> ingate-admin ---------+
+Console -> ingate-admin-api ---------+
 CLI / SDK -----------------------+-> ingate-apiserver -> etcd
                                       ^          |
                                       | status   | watch spec
@@ -23,7 +23,7 @@ CLI / SDK -----------------------+-> ingate-apiserver -> etcd
 主要组件：
 
 - `ingate-console`：控制台静态资源和管理 API 入口
-- `ingate-admin`：控制台产品 API
+- `ingate-admin-api`：控制台产品 API
 - `ingate-apiserver`：声明式资源 API，也是持久化数据的唯一入口
 - `ingate-controller`：资源收敛、Envoy 配置编译、Delivery、ADS xDS 和资源 status 更新
 - `ingate-ai-proxy`：通过 Envoy ExtProc 执行 AI 访问认证、模型选路、协议转换和响应归一化
@@ -86,8 +86,8 @@ hack/                        代码生成脚本
 
 ```text
 /opt/ingate/
-├── admin/
-│   ├── bin/ingate-admin
+├── admin-api/
+│   ├── bin/ingate-admin-api
 │   └── configs/config.yaml
 ├── ai-proxy/
 │   ├── bin/ingate-ai-proxy
@@ -143,7 +143,7 @@ Gateway HTTP: http://127.0.0.1:8080
 Gateway TLS:  https://127.0.0.1:8443
 ```
 
-开发环境由独立的 etcd、MySQL、Redis、ingate-apiserver、ingate-controller、ingate-ai-proxy、ingate-admin、ingate-console 和 Envoy 容器组成。
+开发环境由独立的 etcd、MySQL、Redis、ingate-apiserver、ingate-controller、ingate-ai-proxy、ingate-admin-api、ingate-console 和 Envoy 容器组成。
 
 Controller 和 Envoy 共享网络命名空间，xDS 继续只监听 `127.0.0.1`，不会因为拆分容器而暴露到开发网络。Compose 直接使用固定版本的 `lgc202/ingate-envoy:v0.2.0`；该镜像从 Higress Gateway `v2.2.3` 提取带 Redis ABI 的 Envoy 二进制，并加入 Ingate 内置 Wasm 插件和 ExtProc Bootstrap 配置。
 

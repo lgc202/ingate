@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// TokenQuotaPolicyService 提供模型 Token 配额策略管理接口
+service TokenQuotaPolicyService {
+  rpc ListTokenQuotaPolicies(google.protobuf.Empty) returns (ListTokenQuotaPoliciesReply) {
+    option (google.api.http) = {get: "/api/v1/token-quota-policies"};
+  }
+  rpc GetTokenQuotaPolicy(ResourceRequest) returns (TokenQuotaPolicy) {
+    option (google.api.http) = {get: "/api/v1/token-quota-policies/{id}"};
+  }
+  rpc CreateTokenQuotaPolicy(CreateTokenQuotaPolicyRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      post: "/api/v1/token-quota-policies"
+      body: "*"
+    };
+  }
+  rpc UpdateTokenQuotaPolicy(UpdateTokenQuotaPolicyRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      put: "/api/v1/token-quota-policies/{id}"
+      body: "*"
+    };
+  }
+  rpc SetTokenQuotaPolicyEnabled(SetEnabledRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      patch: "/api/v1/token-quota-policies/{id}/enabled"
+      body: "*"
+    };
+  }
+  rpc DeleteTokenQuotaPolicy(ResourceRequest) returns (MutationReply) {
+    option (google.api.http) = {delete: "/api/v1/token-quota-policies/{id}"};
+  }
+}
+
+message TokenQuotaSubject {
+  string type = 1;
+  string header_name = 2;
+}
+
+message TokenQuota {
+  int64 tokens = 1;
+  int64 window_seconds = 2;
+}
+
+message TokenQuotaResponse {
+  string message = 1;
+}
+
+message TokenQuotaPolicy {
+  string id = 1;
+  string version = 2;
+  ResourceStatus status = 3;
+  string name = 4;
+  string description = 5;
+  bool enabled = 6;
+  repeated PolicyTarget targets = 7;
+  TokenQuotaSubject subject = 8;
+  TokenQuota quota = 9;
+  string failure_policy = 10;
+  TokenQuotaResponse response = 11;
+  google.protobuf.Timestamp created_at = 12;
+}
+
+message CreateTokenQuotaPolicyRequest {
+  string name = 1;
+  string description = 2;
+  bool enabled = 3;
+  repeated PolicyTargetRef targets = 4;
+  TokenQuotaSubject subject = 5;
+  TokenQuota quota = 6;
+  string failure_policy = 7;
+  TokenQuotaResponse response = 8;
+}
+
+message UpdateTokenQuotaPolicyRequest {
+  string id = 1;
+  string version = 2;
+  string name = 3;
+  string description = 4;
+  bool enabled = 5;
+  repeated PolicyTargetRef targets = 6;
+  TokenQuotaSubject subject = 7;
+  TokenQuota quota = 8;
+  string failure_policy = 9;
+  TokenQuotaResponse response = 10;
+}
+
+message ListTokenQuotaPoliciesReply {
+  repeated TokenQuotaPolicy policies = 1;
+}
+

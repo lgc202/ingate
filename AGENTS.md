@@ -24,7 +24,7 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 当前服务和系统组件：
 
 - `ingate-console`：控制台静态资源和管理 API 反向代理入口
-- `ingate-admin`：前端管理 API
+- `ingate-admin-api`：前端管理 API
 - `ingate-apiserver`：声明式资源 API
 - `ingate-controller`：资源状态收敛、Envoy 配置编译和 xDS 服务
 - `ingate-ai-proxy`：通过 Envoy ExtProc 执行 AI 访问认证、模型选路、协议转换和响应归一化
@@ -66,7 +66,7 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - 当前项目没有需要兼容的生产历史数据时，错误的资源或配置设计直接重写，Git 负责保存历史。
 - 代码、生成协议、README 和架构文档只保留一套当前事实；撤销的设计直接删除，不在主文档中保留过程性 Plan。
 - Go 标识符和日志消息使用英文；代码注释使用中文，解释领域语义、设计约束和不明显的原因。
-- 日志消息和结构化字段中的错误文本都不能包含中文；中文错误只用于返回给前端的用户提示，`xerrors.UserError` 通过 `LogValue` 向日志提供稳定的英文语义。
+- 日志消息和结构化字段中的错误文本都不能包含中文；中文错误只用于返回给前端的用户提示。Admin API 使用 Kratos Error 的稳定英文 `reason/message` 表达日志语义，中文提示只放在响应元数据中。
 
 ## 部署边界
 
@@ -126,80 +126,68 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 
 ### Admin API 分层
 
-`ingate-admin` 按 `handler / dto / service / store` 分层，各层职责必须清楚：
+`ingate-admin-api` 完整采用 Kratos 的 `server / service / biz / data` 分层和 Wire 装配：
 
-- `handler` 是 HTTP 入口，只负责请求绑定、参数校验、调用 service 和写统一响应。
-- `dto` 定义控制台 API 的请求和响应模型，负责产品 DTO 与内部资源模型之间的纯转换。
-- `service` 承载用例和业务语义，负责调用 store、处理资源状态和跨资源协调。
-- `store` 只封装资源读写，不承载控制台产品语义。
-- 前端不直接依赖 Kubernetes 风格资源对象；ingate-admin 返回面向页面和操作的产品 DTO。
+- `api/admin/v1` 保存控制台 HTTP API 的 Proto 和 Buf 生成代码，是前端产品协议；前端不直接依赖 Kubernetes 风格资源对象。
+- `server` 只装配 Kratos HTTP transport、中间件、统一响应和错误编码，不写领域转换或业务规则。
+- `service` 实现生成的 HTTP service 接口，负责 Proto 请求校验、Proto 与 Ingate 资源之间的协议转换和调用 biz usecase。
+- `biz` 承载用例、业务语义和消费者侧 Repository 接口，负责同名校验、引用校验、资源状态和跨资源协调；不得依赖生成客户端、SQL、Redis 或 HTTP transport。
+- `data` 实现 biz 的 Repository 接口，屏蔽 API Server、MySQL 和 Redis，负责持久化、派生索引与真实跨数据源一致性。
+- `data/apiserver` 封装声明式资源读写，`data/dao` 封装 MySQL/sqlc，`data/cache` 封装 Redis 执行索引。
+- `conf` 使用 Proto 定义进程配置，通过 Kratos Config 加载；`cmd/ingate-admin-api` 使用 Kratos App 管理 transport、启动钩子和优雅退出。
+- Kratos 已提供的 Config、Error、Log、HTTP、Middleware 和生命周期能力优先直接使用，不再为 Admin API 维护 Gin、Cobra、自定义日志或自定义错误类型。
 
-### Handler 层
+### Admin API service 层
 
-- Handler 方法只做上层流程控制，不写业务逻辑、资源拼装细节或复杂参数转换。
-- 请求参数通过 `gin.Context` 的 `ShouldBindJSON`、`ShouldBindQuery`、`ShouldBindUri` 绑定。
-- 绑定失败属于用户输入错误，返回 `http.StatusBadRequest` 和 `err.Error()`，不记录错误日志。
-- 绑定成功后调用请求 DTO 的 `Validate` 方法做语义校验和必要的字段转换。
-- `Validate` 失败也属于用户输入错误，返回 `http.StatusBadRequest` 和 `err.Error()`，错误文本应尽量明确。
-- Handler 只向 service 传递已校验、已转换的参数或资源对象。
-- Service 返回错误时，进入 `if err != nil` 后先用项目统一 logging 入口记录 `Error` 日志，再判断是否为可展示错误。
-- 可展示业务错误统一使用 `xerrors.UserError` 表达，Handler 使用 `errors.AsType[*xerrors.UserError](err)` 判断并返回其错误文本。
-- 非 `UserError` 的 service 错误返回明确的通用失败文案，不把内部错误细节直接暴露给前端。
-- Handler 不需要按 `http.StatusConflict`、`http.StatusNotFound` 等细分业务失败状态；后台业务失败默认使用 `http.StatusInternalServerError` 放入统一响应体。
-- Service 层如果希望前端展示明确原因，应返回 `UserError`，例如同名冲突、引用不存在、规则冲突等。
-- Handler 中优先保持直接主流程，不为了少写几行代码抽 `writeServiceError` 这类 helper；如果未来出现真实共享边界，再提炼统一方法。
-- helper 函数中不允许调用 `response.GinJSONResponse`、`response.GinAbortJSONResponse`、`ctx.JSON` 等响应输出方法，可以返回 error 在主入口中处理。
-- 不再使用 `response.WriteResult`、`response.WriteError` 这类二次封装；统一使用 `response.GinJSONResponse` 和 `response.GinAbortJSONResponse`。
-- 不记录用户输入校验失败日志。
-- 操作日志、审计日志这类横切能力按产品需求接入，但不得把核心业务逻辑写进 Handler。
+- Service 方法只做协议入口流程：校验请求自身、转换为 biz 用例参数、调用 usecase、转换响应。
+- 请求绑定由 Buf 生成的 Kratos HTTP handler 完成；语义校验失败返回 Kratos `BadRequest`。
+- 同名、引用存在性、版本冲突和运行状态冲突等依赖系统状态的规则放在 biz，不放在 Proto 转换函数中。
+- Service 不直接访问 API Server、MySQL、Redis 或生成客户端。
+- 操作日志由 Kratos middleware 统一记录；Service 不重复记录错误。
+- API Key、私钥等敏感请求内容不得出现在请求日志或错误日志中。
 
 ### Admin API 错误响应与校验边界
 
-- Admin API 统一响应体为 `{ "code": number, "msg": string, "data": any }`，Handler 统一使用 `response.GinJSONResponse` 和 `response.GinAbortJSONResponse` 写出。
+- Admin API 统一响应体为 `{ "code": number, "msg": string, "data": any }`，由 Kratos HTTP response/error encoder 统一写出。
 - `msg` 是当前接口最小稳定错误文案，前端可以直接用于 Toast 或页面错误提示；不要把内部错误、底层存储错误或英文堆栈直接放进 `msg`。
-- 请求绑定失败、DTO `Validate` 失败属于请求自身错误，返回 `http.StatusBadRequest`，不记录错误日志。
-- Service 返回错误时，Handler 一进入 `if err != nil` 就记录 `Error` 日志，再判断是否是 `xerrors.UserError`。
-- `xerrors.UserError` 表示可以展示给用户的业务错误，例如同名冲突、引用不存在、版本冲突、运行状态冲突；非 `UserError` 统一返回通用失败文案。
-- 同名校验、跨资源引用存在性、版本冲突、权限、运行状态冲突等依赖系统状态的规则，必须以后端 Service 层结果为最终裁决。
+- 请求绑定和 service 校验失败属于请求自身错误，返回 `http.StatusBadRequest`。
+- 可展示业务错误使用 Kratos Error 的稳定英文 `reason/message`，中文用户提示放在 `user_message` metadata；非 Kratos 业务错误统一转换为内部错误并保留 cause 供日志记录。
+- 同名校验、跨资源引用存在性、版本冲突、权限、运行状态冲突等依赖系统状态的规则，必须以后端 biz 层结果为最终裁决。
 - 前端本地校验只做请求自身可确定的基础输入校验，例如必填、长度、格式、数字范围、同一个表单内重复项；不要根据列表快照对资源名称唯一性、引用存在性等系统状态做硬拦截。
 - 前端可以做低风险提示，但不能阻止用户提交依赖后端裁决的场景；保存失败后以前端收到的后端错误为准。
-- 如果需要字段级错误展示，后端应返回稳定字段路径，不使用展示文案作为字段标识。推荐将 `data` 约定为 `{ "fieldErrors": [{ "field": "name", "message": "路由名称已存在" }] }`，其中 `field` 使用请求 DTO 的 JSON 字段路径，例如 `name`、`rules[0].targets[0].upstreamID`。
-- 字段级错误只增强前端定位能力，不改变后端 Service 是系统状态校验权威这一原则。
+- 如果需要字段级错误展示，后端应返回稳定字段路径，不使用展示文案作为字段标识。推荐将 `data` 约定为 `{ "fieldErrors": [{ "field": "name", "message": "路由名称已存在" }] }`，其中 `field` 使用请求 Proto 的 JSON 字段路径，例如 `name`、`rules[0].targets[0].upstreamID`。
+- 字段级错误只增强前端定位能力，不改变后端 biz 是系统状态校验权威这一原则。
 
-### Admin API DTO
+### Admin API Proto
 
-- 新增接口的请求类型默认命名为 `{Method}Req`，响应类型默认命名为 `{Method}Resp`；已有稳定 DTO 可在重构时逐步迁移。
-- 不允许用户直接传入的派生字段使用 `json:"-"`。
-- 请求 DTO 如需校验或参数转换，统一实现 `Validate() error`；`Validate` 只返回 error，不返回转换结果。
-- `Validate` 只处理请求自身能判断的校验和纯转换，例如字符串拆分、枚举归一化、数字范围校验、跨字段约束。
-- 不允许把 store、service、client 等外部依赖传入 DTO `Validate`；同名校验、引用存在性、资源冲突等依赖系统状态的规则放在 service 层。
-- 请求 required 语义优先写在 `Validate` 中，只有确实需要依赖 gin binding 行为时才使用 `binding:"required"`。
-- 响应 DTO 可以提供 `New{Method}Resp` 构造函数；构造函数只做字段映射和格式整理，不写业务逻辑。
-- DTO 字段必须表达控制台产品契约，不要把内部资源字段、中文展示名或临时实现细节泄漏成协议主键。
+- Proto 字段表达控制台产品契约，不把内部资源字段或临时实现细节泄漏为外部协议。
+- Proto 和 `*.pb.go`、`*_http.pb.go` 使用 Buf `source_relative` 放在同一 API package；生成文件不得手工修改。
+- 请求自身能判断的必填、格式、范围和跨字段约束在 service 层校验并转换；不得把 data、client 或 usecase 传给纯转换函数。
+- API 中使用 `id` 表达不可变资源主键，使用 `name` 表达面向用户的展示名称。
 
 ### Admin API 资源标识
 
 - 控制台创建资源时，由后端生成 UUID 作为不可变资源 ID，并写入底层资源的 `metadata.name`。
 - Admin API 和前端协议字段统一使用 `id` 表达资源主键，不使用 `name` 表达不可变 ID。
-- Service 用例层参数按领域命名，例如 `gatewayID`、`routeID`、`upstreamID`；不要把存储层的 `metadata.name` 命名泄漏到用例语义中。
-- Store 和 Kubernetes generated client 边界可以继续使用 `name`，因为这里对接的是 apiserver 存储协议。
+- Biz 用例参数按领域命名，例如 `gatewayID`、`routeID`、`upstreamID`；不要把存储层的 `metadata.name` 命名泄漏到用例语义中。
+- Repository 和 Kubernetes generated client 边界可以继续使用 `name`，因为这里对接的是 apiserver 存储协议。
 - 不额外增加 `spec.id`；`metadata.name` 是底层资源主键，Admin API 的 `id` 是它在控制台产品语义中的映射。
 - 面向用户展示和编辑的名称使用 `spec.displayName`，Admin API 管理的资源必须填写，不使用展示名称作为资源 ID 或跨资源引用键。
 - 同一类资源内 `displayName` 必须唯一，避免控制台出现用户无法区分的重名资源。
-- `displayName` 的唯一性校验属于系统状态校验，放在 service 层，不放在 DTO `Validate`。
+- `displayName` 的唯一性校验属于系统状态校验，放在 biz 层，不放在 service 的请求转换中。
 - 资源之间的引用使用资源 ID，不使用 `displayName`。
 - 声明式 apiserver 可以保留调用方指定 `metadata.name` 的能力；Admin API 面向控制台体验，创建流程可以和声明式 API 不同。
 
 ### 治理策略与内置插件
 
 - 当前已落地执行链路保留 `RateLimitPolicy` 和 `AccessControlPolicy`；删除 `PolicyBinding` 和 `RedisStore`，鉴权等治理能力后续重新设计后再加入。
-- 核心治理能力可以在数据面通过内置插件执行，但用户协议和 ingate-admin 不能暴露为普通插件资源、插件绑定资源或插件私有 JSON。
+- 核心治理能力可以在数据面通过内置插件执行，但用户协议和 ingate-admin-api 不能暴露为普通插件资源、插件绑定资源或插件私有 JSON。
 - 内置治理插件由系统自动注入、自动配置并通过 Envoy xDS 配置生效；用户不需要独立安装插件，也不需要感知插件版本、phase、priority 或 Wasm 文件路径。
 - `RateLimitPolicy` 和 `AccessControlPolicy` 通过 `targetRefs[]` 表达策略应用到哪些 Gateway 或 Route；策略配置和目标引用都由对应强类型 Policy 承载。
 - Policy 的总体结果写入 `status.conditions`，每个目标的解析和生效结果写入 `status.targets[]`。缺失目标不影响其他有效目标继续发布；任一目标已生效时总体可视为已生效，部分生效和异常由 `status.targets[]` 表达；没有目标或所有目标都未接入流量时使用 `NotApplied`。
 - 外部服务、证书等可复用运行依赖按真实产品需求独立建模；系统 Redis 是安装级基础组件，不进入用户资源协议。
 - 内置治理插件可以参考 Higress 等项目的实现思路，但不能依赖第三方产品的 wrapper、matchRules 或高层配置协议；Redis hostcall 通过 Ingate 自己维护的最小 ABI adapter 隔离。
-- 后续新增策略时按资源类型拆分 ingate-admin 的 handler、dto、service、store，不把不同策略堆进一个大 `policy` 文件，也不写进 Route/Gateway 的用例层。
+- 后续新增策略时按资源类型拆分 ingate-admin-api 的 service、biz 和 data 文件，不把不同策略堆进一个大 `policy` 文件，也不写进 Route/Gateway 的用例层。
 - Envoy Config Compiler 负责解析强类型策略的 `targetRefs[]`，并生成 Envoy 与内置插件可执行配置；插件私有结构不能泄漏到用户 API。
 
 ### 标准库与依赖使用

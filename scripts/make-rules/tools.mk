@@ -16,10 +16,16 @@ KUBE_CODEGEN_PACKAGES := \
 
 SQLC_VERSION := v1.31.1
 SQLC_PACKAGE := github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
-WIRE_PACKAGE := github.com/google/wire/cmd/wire
-
+BUF_VERSION := v1.59.0
+BUF_PACKAGE := github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
+PROTOC_GEN_GO_VERSION := v1.36.11
+PROTOC_GEN_GO_PACKAGE := google.golang.org/protobuf/cmd/protoc-gen-go@$(PROTOC_GEN_GO_VERSION)
+PROTOC_GEN_GO_HTTP_VERSION := v3.0.0-20260526000039-30da04b769dc
+PROTOC_GEN_GO_HTTP_PACKAGE := github.com/go-kratos/kratos/cmd/protoc-gen-go-http/v3@$(PROTOC_GEN_GO_HTTP_VERSION)
+WIRE_VERSION := v0.7.0
+WIRE_PACKAGE := github.com/google/wire/cmd/wire@$(WIRE_VERSION)
 .PHONY: tools
-tools: $(TOOLS_DIR)/sqlc $(TOOLS_DIR)/wire ## 安装项目代码生成工具
+tools: $(TOOLS_DIR)/sqlc $(TOOLS_DIR)/buf $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire ## 安装项目代码生成工具
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(KUBE_CODEGEN_PACKAGES)
 
@@ -27,7 +33,19 @@ $(TOOLS_DIR)/sqlc: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(SQLC_PACKAGE)
 
-$(TOOLS_DIR)/wire: $(PROJECT_ROOT)/go.mod $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+$(TOOLS_DIR)/buf: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+	@mkdir -p $(TOOLS_DIR)
+	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(BUF_PACKAGE)
+
+$(TOOLS_DIR)/protoc-gen-go: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+	@mkdir -p $(TOOLS_DIR)
+	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(PROTOC_GEN_GO_PACKAGE)
+
+$(TOOLS_DIR)/protoc-gen-go-http: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+	@mkdir -p $(TOOLS_DIR)
+	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(PROTOC_GEN_GO_HTTP_PACKAGE)
+
+$(TOOLS_DIR)/wire: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(WIRE_PACKAGE)
 

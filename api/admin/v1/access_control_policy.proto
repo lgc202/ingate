@@ -1,0 +1,99 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// AccessControlPolicyService 提供访问控制策略管理接口
+service AccessControlPolicyService {
+  rpc ListAccessControlPolicies(google.protobuf.Empty) returns (ListAccessControlPoliciesReply) {
+    option (google.api.http) = {get: "/api/v1/access-control-policies"};
+  }
+  rpc GetAccessControlPolicy(ResourceRequest) returns (AccessControlPolicy) {
+    option (google.api.http) = {get: "/api/v1/access-control-policies/{id}"};
+  }
+  rpc CreateAccessControlPolicy(CreateAccessControlPolicyRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      post: "/api/v1/access-control-policies"
+      body: "*"
+    };
+  }
+  rpc UpdateAccessControlPolicy(UpdateAccessControlPolicyRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      put: "/api/v1/access-control-policies/{id}"
+      body: "*"
+    };
+  }
+  rpc SetAccessControlPolicyEnabled(SetEnabledRequest) returns (MutationReply) {
+    option (google.api.http) = {
+      patch: "/api/v1/access-control-policies/{id}/enabled"
+      body: "*"
+    };
+  }
+  rpc DeleteAccessControlPolicy(ResourceRequest) returns (MutationReply) {
+    option (google.api.http) = {delete: "/api/v1/access-control-policies/{id}"};
+  }
+}
+
+message AccessControlCondition {
+  string type = 1;
+  string name = 2;
+  string value = 3;
+}
+
+message AccessControlRule {
+  string name = 1;
+  string action = 2;
+  repeated AccessControlCondition conditions = 3;
+}
+
+message AccessControlDenyResponse {
+  int32 status_code = 1;
+  string message = 2;
+}
+
+message AccessControlPolicy {
+  string id = 1;
+  string version = 2;
+  ResourceStatus status = 3;
+  string name = 4;
+  string description = 5;
+  bool enabled = 6;
+  repeated PolicyTarget targets = 7;
+  string default_action = 8;
+  repeated AccessControlRule rules = 9;
+  AccessControlDenyResponse response = 10;
+  google.protobuf.Timestamp created_at = 11;
+}
+
+message CreateAccessControlPolicyRequest {
+  string name = 1;
+  string description = 2;
+  bool enabled = 3;
+  repeated PolicyTargetRef targets = 4;
+  string default_action = 5;
+  repeated AccessControlRule rules = 6;
+  AccessControlDenyResponse response = 7;
+}
+
+message UpdateAccessControlPolicyRequest {
+  string id = 1;
+  string version = 2;
+  string name = 3;
+  string description = 4;
+  bool enabled = 5;
+  repeated PolicyTargetRef targets = 6;
+  string default_action = 7;
+  repeated AccessControlRule rules = 8;
+  AccessControlDenyResponse response = 9;
+}
+
+message ListAccessControlPoliciesReply {
+  repeated AccessControlPolicy policies = 1;
+}
+

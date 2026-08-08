@@ -2,7 +2,7 @@ server:
   listen_address: ":8081"
   console_dir: "web/console/dist"
 
-admin:
+admin_api:
   base_url: "http://127.0.0.1:8082"
 
 logging:

@@ -13,7 +13,7 @@ Ingate 是面向 API 网关和 AI 网关的声明式 Envoy 控制面。
 ## 组件
 
 ```text
-Console --------> ingate-admin
+Console --------> ingate-admin-api
                          |
 CLI / SDK --------------+----> ingate-apiserver ----> etcd
                                   ^          |
@@ -31,7 +31,7 @@ CLI / SDK --------------+----> ingate-apiserver ----> etcd
 ```
 
 - `ingate-console` 提供控制台静态资源和管理 API 入口
-- `ingate-admin` 提供面向控制台用例的产品 DTO
+- `ingate-admin-api` 使用 Kratos 提供面向控制台用例的 Proto HTTP API
 - `ingate-apiserver` 提供声明式资源 API，是 etcd 的唯一访问者
 - `ingate-controller` 监听完整资源集合，编译并发布一份 Envoy 配置，并通过 status 子资源回写观察结果
 - `ingate-ai-proxy` 通过标准 ExtProc 执行 AI 访问认证、模型选路、协议转换和响应归一化
@@ -237,7 +237,7 @@ Compose 使用独立容器运行：
 - ingate-apiserver
 - ingate-controller
 - ingate-ai-proxy
-- ingate-admin 和 ingate-console
+- ingate-admin-api 和 ingate-console
 - Envoy
 
 Controller 与 Envoy 是独立容器，但共享网络命名空间。当前 xDS 没有启用 mTLS，因此继续只监听 `127.0.0.1:18000`；不能为了容器互联把敏感 xDS 直接开放到 Bridge Network。

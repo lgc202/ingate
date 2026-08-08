@@ -12,22 +12,22 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-// NewAdminProxy 创建到 ingate-admin 的反向代理，保持控制台现有 API 路径与响应不变
-func NewAdminProxy(baseURL string, logger *slog.Logger) (*httputil.ReverseProxy, error) {
+// NewAdminAPIProxy 创建到 ingate-admin-api 的反向代理，保持控制台现有 API 路径与响应不变
+func NewAdminAPIProxy(baseURL string, logger *slog.Logger) (*httputil.ReverseProxy, error) {
 	target, err := url.Parse(strings.TrimSpace(baseURL))
 	if err != nil {
-		return nil, fmt.Errorf("parse admin base URL: %w", err)
+		return nil, fmt.Errorf("parse admin API base URL: %w", err)
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	proxy.ModifyResponse = func(response *http.Response) error {
-		// Console 已将同一个请求 ID 写入响应，避免代理复制 Admin Header 后出现重复值
+		// Console 已将同一个请求 ID 写入响应，避免代理复制 Admin API Header 后出现重复值
 		response.Header.Del(requestid.Header)
 		return nil
 	}
 	proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, err error) {
 		logger.Error(
-			"admin proxy request failed",
+			"admin API proxy request failed",
 			"request_id", request.Header.Get(requestid.Header),
 			"method", request.Method,
 			"path", request.URL.Path,
@@ -41,7 +41,7 @@ func NewAdminProxy(baseURL string, logger *slog.Logger) (*httputil.ReverseProxy,
 			"data": nil,
 		}); encodeErr != nil {
 			logger.Error(
-				"write admin proxy error response failed",
+				"write admin API proxy error response failed",
 				"request_id", request.Header.Get(requestid.Header),
 				"err", encodeErr,
 			)
