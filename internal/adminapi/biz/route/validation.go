@@ -101,3 +101,27 @@ func upstreamDisplayName(upstream *resource.Upstream) string {
 	}
 	return upstream.Name
 }
+
+// supportsConsoleEditing 判断现有 Route 是否能由控制台完整表达，避免保存时静默覆盖声明式配置
+func supportsConsoleEditing(spec resource.RouteSpec) bool {
+	for _, rule := range spec.Rules {
+		if rule.Retry != nil && len(rule.Retry.RetryOn) > 0 {
+			return false
+		}
+		for _, filter := range rule.Filters {
+			switch filter.Type {
+			case resource.RouteFilterRequestHeaderModifier:
+				if filter.RequestHeaderModifier != nil && len(filter.RequestHeaderModifier.Add) > 0 {
+					return false
+				}
+			case resource.RouteFilterResponseHeaderModifier:
+				if filter.ResponseHeaderModifier != nil && len(filter.ResponseHeaderModifier.Add) > 0 {
+					return false
+				}
+			default:
+				return false
+			}
+		}
+	}
+	return true
+}

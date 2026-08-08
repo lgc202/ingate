@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/wire"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -14,9 +13,6 @@ import (
 	accesskeybiz "github.com/lgc202/ingate/internal/adminapi/biz/accesskey"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
-
-// ProviderSet 提供访问密钥协议服务
-var ProviderSet = wire.NewSet(NewService)
 
 // Service 实现客户端访问密钥管理 API
 type Service struct {

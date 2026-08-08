@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	sharedaccesskey "github.com/lgc202/ingate/internal/pkg/accesskey"
@@ -22,9 +21,6 @@ const (
 	secretPrefixLength = 12
 	secretSuffixLength = 4
 )
-
-// ProviderSet 提供访问密钥管理用例
-var ProviderSet = wire.NewSet(NewUsecase)
 
 // Key 是访问密钥业务对象，原始 Secret 不进入持久化层
 type Key struct {

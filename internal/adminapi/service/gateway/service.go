@@ -4,15 +4,11 @@ package gateway
 import (
 	"context"
 
-	"github.com/google/wire"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 )
-
-// ProviderSet 提供 Gateway 协议服务
-var ProviderSet = wire.NewSet(NewService)
 
 // Service 实现网关入口管理 API
 type Service struct {

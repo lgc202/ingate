@@ -4,15 +4,11 @@ package route
 import (
 	"context"
 
-	"github.com/google/wire"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	routebiz "github.com/lgc202/ingate/internal/adminapi/biz/route"
 )
-
-// ProviderSet 提供 Route 协议服务
-var ProviderSet = wire.NewSet(NewService)
 
 // Service 实现路由规则管理 API
 type Service struct {

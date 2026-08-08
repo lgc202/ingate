@@ -4,16 +4,12 @@ package health
 import (
 	"context"
 
-	"github.com/google/wire"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/go-kratos/kratos/v3/transport"
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
-
-// ProviderSet 提供健康检查协议服务
-var ProviderSet = wire.NewSet(NewService)
 
 // Service 实现进程存活检查
 type Service struct{}

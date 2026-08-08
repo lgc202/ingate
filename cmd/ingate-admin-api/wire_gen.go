@@ -69,7 +69,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, 
 	dao := accesskey.NewDAO(db, logger)
 	client := data.NewRedisClient(dataData)
 	credentialIndex := cache.NewCredentialIndex(client)
-	accessKeyRepository := data.NewAccessKeyRepository(dao, credentialIndex)
+	accessKeyRepository := data.NewAccessKeyRepository(dao, credentialIndex, logger)
 	accesskeyUsecase := accesskey2.NewUsecase(accessKeyRepository)
 	accesskeyService := accesskey3.NewService(accesskeyUsecase)
 	ratelimitUsecase := ratelimit.NewUsecase(rateLimitPolicyRepository, gatewayRepository, routeRepository)

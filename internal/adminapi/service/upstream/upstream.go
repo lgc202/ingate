@@ -4,16 +4,12 @@ package upstream
 import (
 	"context"
 
-	"github.com/google/wire"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	upstreambiz "github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
-
-// ProviderSet 提供 Upstream 协议服务
-var ProviderSet = wire.NewSet(NewService)
 
 // Service 实现服务管理 API
 type Service struct {

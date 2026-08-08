@@ -3,6 +3,7 @@ package data
 import (
 	"context"
 	"errors"
+	"log/slog"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	accesskeybiz "github.com/lgc202/ingate/internal/adminapi/biz/accesskey"
@@ -14,11 +15,16 @@ import (
 type accessKeyRepository struct {
 	dao         *accesskeydao.DAO
 	credentials *cache.CredentialIndex
+	logger      *slog.Logger
 }
 
 // NewAccessKeyRepository 创建访问密钥数据访问实现
-func NewAccessKeyRepository(dao *accesskeydao.DAO, credentials *cache.CredentialIndex) *accessKeyRepository {
-	return &accessKeyRepository{dao: dao, credentials: credentials}
+func NewAccessKeyRepository(
+	dao *accesskeydao.DAO,
+	credentials *cache.CredentialIndex,
+	logger *slog.Logger,
+) *accessKeyRepository {
+	return &accessKeyRepository{dao: dao, credentials: credentials, logger: logger}
 }
 
 func (r *accessKeyRepository) Reconcile(ctx context.Context) error {
@@ -46,7 +52,9 @@ func (r *accessKeyRepository) List(ctx context.Context) ([]accesskeybiz.Key, err
 	}
 	lastUsed, err := r.credentials.LastUsed(ctx, ids)
 	if err != nil {
-		return nil, err
+		// 最近使用时间是展示信息，Redis 短暂不可用时不应阻断 MySQL 中的访问密钥列表
+		r.logger.WarnContext(ctx, "read access key last used time failed", "err", err)
+		lastUsed = nil
 	}
 	accessKeys := make([]accesskeybiz.Key, 0, len(records))
 	for _, record := range records {

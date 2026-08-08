@@ -5,7 +5,6 @@ import (
 	"strings"
 )
 
-// validEndpointAddress 接受 IP 或 DNS 名称，供 Route Host 和 Upstream 地址共用
 // ValidEndpointAddress 判断服务端点是否为合法的 IP 或域名
 func ValidEndpointAddress(address string) bool {
 	if _, err := netip.ParseAddr(address); err == nil {

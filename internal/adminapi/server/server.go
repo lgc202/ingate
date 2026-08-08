@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	"github.com/google/wire"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
@@ -21,9 +20,6 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
 	"github.com/lgc202/ingate/internal/adminapi/service/upstream"
 )
-
-// ProviderSet 汇总 Admin API transport
-var ProviderSet = wire.NewSet(NewHTTPServer)
 
 // NewHTTPServer 创建并注册 Admin API 的 Kratos HTTP transport
 func NewHTTPServer(

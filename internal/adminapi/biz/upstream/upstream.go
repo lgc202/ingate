@@ -8,14 +8,10 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
-
-// ProviderSet 提供 Upstream 管理用例
-var ProviderSet = wire.NewSet(NewUsecase)
 
 // Repository 定义 Upstream 用例需要的持久化能力
 type Repository interface {
@@ -43,8 +39,8 @@ func NewUsecase(repository Repository, routes RouteRepository) *Usecase {
 }
 
 // List 查询 Upstream 列表
-func (s *Usecase) List(ctx context.Context) ([]resource.Upstream, error) {
-	upstreams, err := s.repository.List(ctx)
+func (u *Usecase) List(ctx context.Context) ([]resource.Upstream, error) {
+	upstreams, err := u.repository.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +48,8 @@ func (s *Usecase) List(ctx context.Context) ([]resource.Upstream, error) {
 }
 
 // Get 查询单个 Upstream
-func (s *Usecase) Get(ctx context.Context, upstreamID string) (*resource.Upstream, error) {
-	upstream, err := s.repository.Get(ctx, upstreamID)
+func (u *Usecase) Get(ctx context.Context, upstreamID string) (*resource.Upstream, error) {
+	upstream, err := u.repository.Get(ctx, upstreamID)
 	if err != nil {
 		return nil, err
 	}
@@ -61,33 +57,33 @@ func (s *Usecase) Get(ctx context.Context, upstreamID string) (*resource.Upstrea
 }
 
 // Create 创建 Upstream
-func (s *Usecase) Create(ctx context.Context, spec resource.UpstreamSpec) (string, error) {
-	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
+func (u *Usecase) Create(ctx context.Context, spec resource.UpstreamSpec) (string, error) {
+	if err := u.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
 	}
 	id := uuid.NewString()
-	if err := s.repository.Create(ctx, id, spec); err != nil {
+	if err := u.repository.Create(ctx, id, spec); err != nil {
 		return "", err
 	}
 	return id, nil
 }
 
 // Update 更新 Upstream
-func (s *Usecase) Update(
+func (u *Usecase) Update(
 	ctx context.Context,
 	upstreamID string,
 	version string,
 	spec resource.UpstreamSpec,
 	removeAPIKey bool,
 ) error {
-	current, err := s.repository.Get(ctx, upstreamID)
+	current, err := u.repository.Get(ctx, upstreamID)
 	if err != nil {
 		return err
 	}
 	if version != strconv.FormatInt(current.Generation, 10) {
 		return biz.NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 	}
-	if err := s.validateNameUnique(ctx, spec.DisplayName, upstreamID); err != nil {
+	if err := u.validateNameUnique(ctx, spec.DisplayName, upstreamID); err != nil {
 		return err
 	}
 
@@ -101,10 +97,10 @@ func (s *Usecase) Update(
 	if err := validateAuthentication(next); err != nil {
 		return err
 	}
-	if err := s.validateRouteCompatibility(ctx, upstreamID, next); err != nil {
+	if err := u.validateRouteCompatibility(ctx, upstreamID, next); err != nil {
 		return err
 	}
-	if err := s.repository.Update(ctx, upstreamID, current.Generation, spec); err != nil {
+	if err := u.repository.Update(ctx, upstreamID, current.Generation, spec); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return biz.NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
@@ -113,12 +109,12 @@ func (s *Usecase) Update(
 	return nil
 }
 
-func (s *Usecase) validateRouteCompatibility(
+func (u *Usecase) validateRouteCompatibility(
 	ctx context.Context,
 	upstreamID string,
 	next *resource.Upstream,
 ) error {
-	routes, err := s.routes.List(ctx)
+	routes, err := u.routes.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -153,8 +149,8 @@ func (s *Usecase) validateRouteCompatibility(
 }
 
 // Delete 删除 Upstream，仍有关联路由时拒绝删除
-func (s *Usecase) Delete(ctx context.Context, upstreamID string) error {
-	routes, err := s.routes.List(ctx)
+func (u *Usecase) Delete(ctx context.Context, upstreamID string) error {
+	routes, err := u.routes.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -174,7 +170,7 @@ func (s *Usecase) Delete(ctx context.Context, upstreamID string) error {
 			}
 		}
 	}
-	return s.repository.Delete(ctx, upstreamID)
+	return u.repository.Delete(ctx, upstreamID)
 }
 
 func routeDisplayName(route resource.Route) string {
@@ -184,8 +180,8 @@ func routeDisplayName(route resource.Route) string {
 	return route.Name
 }
 
-func (s *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
-	upstreams, err := s.repository.List(ctx)
+func (u *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
+	upstreams, err := u.repository.List(ctx)
 	if err != nil {
 		return err
 	}
