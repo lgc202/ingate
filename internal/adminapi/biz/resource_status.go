@@ -7,6 +7,14 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
+const (
+	statusPriorityError = iota
+	statusPriorityPending
+	statusPriorityReady
+	statusPriorityDisabled
+	statusPriorityUnknown
+)
+
 // ResourceState 表示声明式资源面向控制台的处理状态
 type ResourceState string
 
@@ -145,6 +153,78 @@ func ConfigurationApplied(generation int64, conditions []metav1.Condition) bool 
 	}
 	return programmed.Status == metav1.ConditionFalse &&
 		resource.ConditionReason(programmed.Reason) == resource.ReasonNotApplied
+}
+
+// EnabledResourceStatus 同时考虑资源开关和当前版本是否已被控制面处理
+func EnabledResourceStatus(generation int64, enabled bool, conditions []metav1.Condition) ResourceStatus {
+	if !enabled && ConfigurationApplied(generation, conditions) {
+		return DisabledResourceStatus()
+	}
+	return ResourceStatusFromConditions(generation, conditions)
+}
+
+// PolicyStatus 返回策略总体状态，停用配置只有进入 Active 后才显示为已停用
+func PolicyStatus(generation int64, enabled bool, targetCount int, conditions []metav1.Condition) ResourceStatus {
+	if !enabled && ConfigurationApplied(generation, conditions) {
+		return DisabledResourceStatus()
+	}
+	return PolicyResourceStatus(generation, targetCount, conditions)
+}
+
+// PolicyTargetStatus 返回指定策略目标的生效状态
+func PolicyTargetStatus(
+	generation int64,
+	disabled bool,
+	ref resource.PolicyTargetRef,
+	targets []resource.PolicyTargetStatus,
+) ResourceStatus {
+	if disabled {
+		return DisabledResourceStatus()
+	}
+	return PolicyTargetResourceStatus(generation, targetConditions(targets, ref))
+}
+
+// effectivePolicyStatus 以最严重的目标状态表示策略当前实际生效结果
+func effectivePolicyStatus(
+	generation int64,
+	enabled bool,
+	refs []resource.PolicyTargetRef,
+	conditions []metav1.Condition,
+	targets []resource.PolicyTargetStatus,
+) ResourceStatus {
+	status := PolicyStatus(generation, enabled, len(refs), conditions)
+	disabled := status.State == ResourceStateDisabled
+	for _, ref := range refs {
+		targetStatus := PolicyTargetStatus(generation, disabled, ref, targets)
+		if statusPriority(targetStatus.State) < statusPriority(status.State) {
+			status = targetStatus
+		}
+	}
+	return status
+}
+
+func targetConditions(targets []resource.PolicyTargetStatus, ref resource.PolicyTargetRef) []metav1.Condition {
+	for _, target := range targets {
+		if target.TargetRef.Kind == ref.Kind && target.TargetRef.Name == ref.Name {
+			return target.Conditions
+		}
+	}
+	return nil
+}
+
+func statusPriority(state ResourceState) int {
+	switch state {
+	case ResourceStateError:
+		return statusPriorityError
+	case ResourceStatePending:
+		return statusPriorityPending
+	case ResourceStateReady:
+		return statusPriorityReady
+	case ResourceStateDisabled:
+		return statusPriorityDisabled
+	default:
+		return statusPriorityUnknown
+	}
 }
 
 func conditionForGeneration(generation int64, conditions []metav1.Condition, conditionType resource.ConditionType) (*metav1.Condition, bool) {

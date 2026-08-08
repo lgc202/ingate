@@ -21,15 +21,17 @@ func NewAccessKeyRepository(dao *accesskeydao.DAO, credentials *cache.Credential
 }
 
 func (r *accessKeyRepository) Reconcile(ctx context.Context) error {
-	records, err := r.dao.List(ctx)
-	if err != nil {
-		return err
-	}
-	credentials := make([]cache.Credential, 0, len(records))
-	for _, record := range records {
-		credentials = append(credentials, credentialFromAccessKey(accessKeyFromRecord(record)))
-	}
-	return r.credentials.Reconcile(ctx, credentials)
+	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
+		records, err := dao.List(ctx)
+		if err != nil {
+			return err
+		}
+		credentials := make([]cache.Credential, 0, len(records))
+		for _, record := range records {
+			credentials = append(credentials, credentialFromAccessKey(accessKeyFromRecord(record)))
+		}
+		return r.credentials.Reconcile(ctx, credentials)
+	})
 }
 
 func (r *accessKeyRepository) List(ctx context.Context) ([]biz.AccessKey, error) {
@@ -69,73 +71,62 @@ func (r *accessKeyRepository) NameExists(ctx context.Context, name, excludeID st
 }
 
 func (r *accessKeyRepository) Create(ctx context.Context, accessKey biz.AccessKey) error {
-	credential := credentialFromAccessKey(accessKey)
-	// 新 Secret 不可猜测，可先发布；事实库失败时必须在返回前撤销
-	if err := r.credentials.Save(ctx, credential); err != nil {
-		return err
-	}
-	if err := r.dao.Create(ctx, recordFromAccessKey(accessKey)); err != nil {
-		_ = r.credentials.Delete(ctx, credential)
-		return accessKeyError(err)
-	}
-	return nil
+	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
+		// 新 Secret 仅随成功响应返回，先发布不会让调用方获得无持久化记录的凭据
+		if err := r.credentials.Save(ctx, credentialFromAccessKey(accessKey)); err != nil {
+			return err
+		}
+		return accessKeyError(dao.Create(ctx, recordFromAccessKey(accessKey)))
+	})
 }
 
 func (r *accessKeyRepository) Update(ctx context.Context, current, next biz.AccessKey) error {
-	// 权限收窄必须先进入数据面，避免接口成功后旧权限继续生效
-	if err := r.credentials.Save(ctx, credentialFromAccessKey(next)); err != nil {
-		return err
-	}
-	if err := r.dao.Update(ctx, recordFromAccessKey(next)); err != nil {
-		_ = r.credentials.Save(ctx, credentialFromAccessKey(current))
-		return accessKeyError(err)
-	}
-	return nil
+	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
+		// 配置变化前先撤销旧凭据，跨存储失败时保持拒绝访问，由周期同步恢复事实状态
+		if err := r.credentials.Save(ctx, revokedCredential(current)); err != nil {
+			return err
+		}
+		if err := dao.Update(ctx, recordFromAccessKey(next)); err != nil {
+			return accessKeyError(err)
+		}
+		return r.credentials.Save(ctx, credentialFromAccessKey(next))
+	})
 }
 
 func (r *accessKeyRepository) SetEnabled(ctx context.Context, current, next biz.AccessKey) error {
-	if next.Enabled {
-		if err := r.dao.SetEnabled(ctx, recordFromAccessKey(next)); err != nil {
-			return accessKeyError(err)
-		}
-		if err := r.credentials.Save(ctx, credentialFromAccessKey(next)); err != nil {
-			_ = r.dao.SetEnabled(ctx, recordFromAccessKey(current))
+	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
+		if err := r.credentials.Save(ctx, revokedCredential(current)); err != nil {
 			return err
 		}
-		return nil
-	}
-
-	if err := r.credentials.Save(ctx, credentialFromAccessKey(next)); err != nil {
-		return err
-	}
-	if err := r.dao.SetEnabled(ctx, recordFromAccessKey(next)); err != nil {
-		_ = r.credentials.Save(ctx, credentialFromAccessKey(current))
-		return accessKeyError(err)
-	}
-	return nil
+		if err := dao.SetEnabled(ctx, recordFromAccessKey(next)); err != nil {
+			return accessKeyError(err)
+		}
+		if !next.Enabled {
+			return nil
+		}
+		return r.credentials.Save(ctx, credentialFromAccessKey(next))
+	})
 }
 
 func (r *accessKeyRepository) Rotate(ctx context.Context, current, next biz.AccessKey) error {
-	if err := r.credentials.Rotate(ctx, current.SecretHash, credentialFromAccessKey(next)); err != nil {
-		return err
-	}
-	if err := r.dao.Rotate(ctx, recordFromAccessKey(next)); err != nil {
-		_ = r.credentials.Rotate(ctx, next.SecretHash, credentialFromAccessKey(current))
-		return accessKeyError(err)
-	}
-	return nil
+	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
+		if err := r.credentials.Save(ctx, revokedCredential(current)); err != nil {
+			return err
+		}
+		if err := dao.Rotate(ctx, recordFromAccessKey(next)); err != nil {
+			return accessKeyError(err)
+		}
+		return r.credentials.Save(ctx, credentialFromAccessKey(next))
+	})
 }
 
 func (r *accessKeyRepository) Delete(ctx context.Context, accessKey biz.AccessKey) error {
-	credential := credentialFromAccessKey(accessKey)
-	if err := r.credentials.Delete(ctx, credential); err != nil {
-		return err
-	}
-	if err := r.dao.Delete(ctx, accessKey.ID); err != nil {
-		_ = r.credentials.Save(ctx, credential)
-		return accessKeyError(err)
-	}
-	return nil
+	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
+		if err := r.credentials.Delete(ctx, credentialFromAccessKey(accessKey)); err != nil {
+			return err
+		}
+		return accessKeyError(dao.Delete(ctx, accessKey.ID))
+	})
 }
 
 func accessKeyError(err error) error {
@@ -187,4 +178,10 @@ func credentialFromAccessKey(accessKey biz.AccessKey) cache.Credential {
 		AllowedModels: append([]string(nil), accessKey.AllowedModels...),
 		ExpiresAt:     accessKey.ExpiresAt,
 	}
+}
+
+func revokedCredential(accessKey biz.AccessKey) cache.Credential {
+	credential := credentialFromAccessKey(accessKey)
+	credential.Enabled = false
+	return credential
 }

@@ -8,15 +8,6 @@ import (
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"golang.org/x/sync/errgroup"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-)
-
-const (
-	statusPriorityError = iota
-	statusPriorityPending
-	statusPriorityReady
-	statusPriorityDisabled
-	statusPriorityUnknown
 )
 
 const (
@@ -111,7 +102,7 @@ func (s *ConfigurationUsecase) Get(ctx context.Context) (*ConfigurationReport, e
 			Kind:   resource.KindGateway,
 			ID:     gateway.Name,
 			Name:   displayName(gateway.Spec.DisplayName, gateway.Name),
-			Status: enabledResourceStatus(gateway.Generation, gateway.Spec.Enabled, gateway.Status.Conditions),
+			Status: EnabledResourceStatus(gateway.Generation, gateway.Spec.Enabled, gateway.Status.Conditions),
 		})
 	}
 	for _, route := range resources.routes {
@@ -119,7 +110,7 @@ func (s *ConfigurationUsecase) Get(ctx context.Context) (*ConfigurationReport, e
 			Kind:   resource.KindRoute,
 			ID:     route.Name,
 			Name:   displayName(route.Spec.DisplayName, route.Name),
-			Status: enabledResourceStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions),
+			Status: EnabledResourceStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions),
 		})
 	}
 	for _, upstream := range resources.upstreams {
@@ -250,43 +241,6 @@ func (s *ConfigurationUsecase) listResources(ctx context.Context) (resourceLists
 	return resources, nil
 }
 
-func enabledResourceStatus(generation int64, enabled bool, conditions []metav1.Condition) ResourceStatus {
-	if !enabled && ConfigurationApplied(generation, conditions) {
-		return DisabledResourceStatus()
-	}
-	return ResourceStatusFromConditions(generation, conditions)
-}
-
-func effectivePolicyStatus(
-	generation int64,
-	enabled bool,
-	refs []resource.PolicyTargetRef,
-	conditions []metav1.Condition,
-	targets []resource.PolicyTargetStatus,
-) ResourceStatus {
-	if !enabled && ConfigurationApplied(generation, conditions) {
-		return DisabledResourceStatus()
-	}
-
-	status := PolicyResourceStatus(generation, len(refs), conditions)
-	for _, ref := range refs {
-		targetStatus := PolicyTargetResourceStatus(generation, targetConditions(targets, ref))
-		if statusPriority(targetStatus.State) < statusPriority(status.State) {
-			status = targetStatus
-		}
-	}
-	return status
-}
-
-func targetConditions(targets []resource.PolicyTargetStatus, ref resource.PolicyTargetRef) []metav1.Condition {
-	for _, target := range targets {
-		if target.TargetRef.Kind == ref.Kind && target.TargetRef.Name == ref.Name {
-			return target.Conditions
-		}
-	}
-	return nil
-}
-
 func summarize(items []ConfigurationItem) ConfigurationSummary {
 	summary := ConfigurationSummary{Total: len(items)}
 	for _, item := range items {
@@ -335,21 +289,6 @@ func kindPriority(kind resource.Kind) int {
 		return kindPriorityTokenQuotaPolicy
 	default:
 		return kindPriorityUnknown
-	}
-}
-
-func statusPriority(state ResourceState) int {
-	switch state {
-	case ResourceStateError:
-		return statusPriorityError
-	case ResourceStatePending:
-		return statusPriorityPending
-	case ResourceStateReady:
-		return statusPriorityReady
-	case ResourceStateDisabled:
-		return statusPriorityDisabled
-	default:
-		return statusPriorityUnknown
 	}
 }
 

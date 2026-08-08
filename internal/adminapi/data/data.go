@@ -40,6 +40,7 @@ var ProviderSet = wire.NewSet(
 	accesskeydao.New,
 	cache.NewCredentialIndex,
 	NewAccessKeyRepository,
+	NewAccessKeyIndexSync,
 	wire.Bind(new(biz.GatewayRepository), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(biz.RouteRepository), new(*apiserver.RouteRepository)),
 	wire.Bind(new(biz.UpstreamRepository), new(*apiserver.UpstreamRepository)),

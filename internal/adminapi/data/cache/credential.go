@@ -78,25 +78,6 @@ func (i *CredentialIndex) Save(ctx context.Context, credential Credential) error
 	return nil
 }
 
-// Rotate 原子撤销旧 Secret 并发布新 Secret
-func (i *CredentialIndex) Rotate(ctx context.Context, previousHash [32]byte, credential Credential) error {
-	previousKey := sharedaccesskey.CredentialKey(previousHash)
-	_, err := i.redis.TxPipelined(ctx, func(pipe redis.Pipeliner) error {
-		pipe.Del(ctx, previousKey)
-		pipe.SRem(ctx, sharedaccesskey.CredentialSetKey, previousKey)
-		if credential.active() {
-			if err := publish(pipe, ctx, credential); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("rotate access key index: %w", err)
-	}
-	return nil
-}
-
 // Delete 撤销访问密钥并删除它的最后使用时间
 func (i *CredentialIndex) Delete(ctx context.Context, credential Credential) error {
 	key := sharedaccesskey.CredentialKey(credential.SecretHash)
