@@ -15,8 +15,8 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"github.com/lgc202/go-kit/version"
 
-	"github.com/lgc202/ingate/internal/adminapi/biz"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
+	"github.com/lgc202/ingate/internal/adminapi/data"
 
 	_ "go.uber.org/automaxprocs"
 )
@@ -27,42 +27,43 @@ const (
 	configEnvPrefix   = "INGATE_ADMIN_API"
 )
 
-var (
-	configFile  string
-	showVersion bool
-	instanceID  string
-)
+type serviceInstanceID string
 
-func init() {
-	flag.StringVar(&configFile, "config", defaultConfigFile, "configuration file")
-	flag.BoolVar(&showVersion, "version", false, "print version")
-	instanceID, _ = os.Hostname()
-}
-
-func newApp(logger *slog.Logger, server *kratoshttp.Server, accessKeys *biz.AccessKeyUsecase) *kratos.App {
+func newApp(
+	logger *slog.Logger,
+	server *kratoshttp.Server,
+	accessKeySync *data.AccessKeyIndexSync,
+	instanceID serviceInstanceID,
+) *kratos.App {
 	return kratos.New(
-		kratos.ID(instanceID),
+		kratos.ID(string(instanceID)),
 		kratos.Name(serviceName),
 		kratos.Version(version.Get().String()),
 		kratos.Logger(logger),
-		kratos.Server(server),
-		kratos.BeforeStart(accessKeys.Reconcile),
+		kratos.Server(server, accessKeySync),
+		kratos.BeforeStart(accessKeySync.Reconcile),
 	)
 }
 
 func main() {
+	configFile := flag.String("config", defaultConfigFile, "configuration file")
+	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
-	if showVersion {
+	if *showVersion {
 		fmt.Println(version.Get().Text())
 		return
 	}
-	if err := run(); err != nil {
+	if err := run(*configFile); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+func run(configFile string) error {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return fmt.Errorf("read hostname: %w", err)
+	}
 	loaded := config.New(config.WithSource(
 		file.NewSource(configFile),
 		env.NewSource(configEnvPrefix),
@@ -80,11 +81,12 @@ func run() error {
 		return fmt.Errorf("validate configuration: %w", err)
 	}
 
-	logger, level := newLogger(bootstrap.GetLogging())
+	instanceID := serviceInstanceID(hostname)
+	logger, level := newLogger(bootstrap.GetLogging(), string(instanceID))
 	kratoslog.SetDefault(logger)
 	watchLogging(loaded, level, logger)
 
-	app, cleanup, err := wireApp(bootstrap.GetServer(), bootstrap.GetData(), logger)
+	app, cleanup, err := wireApp(bootstrap.GetServer(), bootstrap.GetData(), logger, instanceID)
 	if err != nil {
 		return err
 	}
@@ -93,7 +95,7 @@ func run() error {
 	return app.Run()
 }
 
-func newLogger(config *conf.Logging) (*slog.Logger, *kratoslog.LevelVar) {
+func newLogger(config *conf.Logging, instanceID string) (*slog.Logger, *kratoslog.LevelVar) {
 	level := new(kratoslog.LevelVar)
 	level.Set(kratoslog.ParseLevel(config.GetLevel()))
 	format := kratoslog.FormatText

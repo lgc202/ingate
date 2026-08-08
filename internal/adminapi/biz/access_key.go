@@ -37,7 +37,6 @@ type AccessKey struct {
 
 // AccessKeyRepository 定义访问密钥用例需要的持久化能力
 type AccessKeyRepository interface {
-	Reconcile(context.Context) error
 	List(context.Context) ([]AccessKey, error)
 	Get(context.Context, string) (AccessKey, error)
 	NameExists(context.Context, string, string) (bool, error)
@@ -56,11 +55,6 @@ type AccessKeyUsecase struct {
 // NewAccessKeyUsecase 创建访问密钥用例
 func NewAccessKeyUsecase(repository AccessKeyRepository) *AccessKeyUsecase {
 	return &AccessKeyUsecase{repository: repository}
-}
-
-// Reconcile 用 MySQL 中的当前事实重建 Redis 执行索引
-func (u *AccessKeyUsecase) Reconcile(ctx context.Context) error {
-	return u.repository.Reconcile(ctx)
 }
 
 // List 返回访问密钥列表，并合并 Redis 中的最后认证时间

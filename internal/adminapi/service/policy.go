@@ -6,7 +6,6 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func policyTargetRefs(targets []*adminv1.PolicyTargetRef) ([]resource.PolicyTargetRef, error) {
@@ -31,18 +30,6 @@ func policyTargetRefs(targets []*adminv1.PolicyTargetRef) ([]resource.PolicyTarg
 	return refs, nil
 }
 
-func policyStatus(
-	generation int64,
-	enabled bool,
-	targetCount int,
-	conditions []metav1.Condition,
-) biz.ResourceStatus {
-	if !enabled && biz.ConfigurationApplied(generation, conditions) {
-		return biz.DisabledResourceStatus()
-	}
-	return biz.PolicyResourceStatus(generation, targetCount, conditions)
-}
-
 func policyTargets(
 	generation int64,
 	disabled bool,
@@ -52,10 +39,7 @@ func policyTargets(
 ) []*adminv1.PolicyTarget {
 	targets := make([]*adminv1.PolicyTarget, 0, len(refs))
 	for _, ref := range refs {
-		status := biz.PolicyTargetResourceStatus(generation, targetConditions(statuses, ref))
-		if disabled {
-			status = biz.DisabledResourceStatus()
-		}
+		status := biz.PolicyTargetStatus(generation, disabled, ref, statuses)
 		targets = append(targets, &adminv1.PolicyTarget{
 			Kind:        string(ref.Kind),
 			Id:          ref.Name,
@@ -64,13 +48,4 @@ func policyTargets(
 		})
 	}
 	return targets
-}
-
-func targetConditions(statuses []resource.PolicyTargetStatus, ref resource.PolicyTargetRef) []metav1.Condition {
-	for _, status := range statuses {
-		if status.TargetRef.Kind == ref.Kind && status.TargetRef.Name == ref.Name {
-			return status.Conditions
-		}
-	}
-	return nil
 }

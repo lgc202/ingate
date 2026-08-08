@@ -2,10 +2,7 @@ package biz
 
 import (
 	"errors"
-
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
-
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+	"log/slog"
 )
 
 var (
@@ -19,9 +16,27 @@ var (
 	ErrAccessKeyNameConflict = errors.New("access key name already exists")
 )
 
-// NewUserError 使用 Kratos Error 表达可以直接展示给控制台用户的业务拒绝原因
+// UserError 表示可以向控制台用户说明的业务拒绝，不包含传输协议语义
+type UserError struct {
+	message string
+}
+
+// NewUserError 创建可展示的业务错误
 func NewUserError(message string) error {
-	return kratoserrors.New(500, adminv1.ErrorReason_BUSINESS_RULE_VIOLATION.String(), "request rejected").WithMetadata(map[string]string{
-		"user_message": message,
-	})
+	return &UserError{message: message}
+}
+
+// Error 返回业务拒绝的真实说明
+func (e *UserError) Error() string {
+	return e.message
+}
+
+// UserMessage 返回可以直接展示给控制台用户的错误说明
+func (e *UserError) UserMessage() string {
+	return e.message
+}
+
+// LogValue 防止用户提示进入结构化日志，只保留稳定的英文错误语义
+func (e *UserError) LogValue() slog.Value {
+	return slog.StringValue("business rule violation")
 }

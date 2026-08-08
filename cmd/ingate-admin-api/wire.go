@@ -15,6 +15,6 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service"
 )
 
-func wireApp(*conf.Server, *conf.Data, *slog.Logger) (*kratos.App, func(), error) {
+func wireApp(*conf.Server, *conf.Data, *slog.Logger, serviceInstanceID) (*kratos.App, func(), error) {
 	panic(wire.Build(server.ProviderSet, service.ProviderSet, biz.ProviderSet, data.ProviderSet, newApp))
 }

@@ -142,8 +142,8 @@ func tokenQuotaPolicySpec(
 }
 
 func tokenQuotaPolicyReply(policy *resource.TokenQuotaPolicy, names biz.PolicyTargetNames) *adminv1.TokenQuotaPolicy {
-	disabled := !policy.Spec.Enabled && biz.ConfigurationApplied(policy.Generation, policy.Status.Conditions)
-	status := policyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
+	status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
+	disabled := status.State == biz.ResourceStateDisabled
 	reply := &adminv1.TokenQuotaPolicy{
 		Id: policy.Name, Version: strconv.FormatInt(policy.Generation, 10), Status: resourceStatus(status),
 		Name: policy.Spec.DisplayName, Description: policy.Spec.Description, Enabled: policy.Spec.Enabled,

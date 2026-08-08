@@ -171,10 +171,7 @@ func gatewaySpec(
 }
 
 func gatewayReply(gateway *resource.Gateway) *adminv1.Gateway {
-	status := biz.ResourceStatusFromConditions(gateway.Generation, gateway.Status.Conditions)
-	if !gateway.Spec.Enabled && biz.ConfigurationApplied(gateway.Generation, gateway.Status.Conditions) {
-		status = biz.DisabledResourceStatus()
-	}
+	status := biz.EnabledResourceStatus(gateway.Generation, gateway.Spec.Enabled, gateway.Status.Conditions)
 	listeners := make([]*adminv1.GatewayListener, 0, len(gateway.Spec.Listeners))
 	for _, listener := range gateway.Spec.Listeners {
 		listeners = append(listeners, &adminv1.GatewayListener{

@@ -15,6 +15,14 @@ import (
 	accesskeysql "github.com/lgc202/ingate/internal/adminapi/data/dao/accesskey/sqlc"
 )
 
+const (
+	credentialIndexLockName           = "ingate:access-key-index"
+	credentialIndexLockAcquireSQL     = "SELECT GET_LOCK(?, ?)"
+	credentialIndexLockReleaseSQL     = "SELECT RELEASE_LOCK(?)"
+	credentialIndexLockTimeoutSeconds = 5
+	credentialIndexUnlockTimeout      = 5 * time.Second
+)
+
 var (
 	// ErrNotFound 表示访问密钥不存在
 	ErrNotFound = errors.New("access key not found")
@@ -38,12 +46,52 @@ type Record struct {
 
 // DAO 封装访问密钥的 sqlc 数据访问代码
 type DAO struct {
+	db      *sql.DB
 	queries *accesskeysql.Queries
 }
 
 // New 创建访问密钥 DAO
 func New(db *sql.DB) *DAO {
-	return &DAO{queries: accesskeysql.New(db)}
+	return &DAO{db: db, queries: accesskeysql.New(db)}
+}
+
+// WithCredentialIndexLock 跨 Admin API 实例串行化 MySQL 事实与 Redis 执行索引的变更
+func (d *DAO) WithCredentialIndexLock(ctx context.Context, operation func(*DAO) error) (resultErr error) {
+	connection, err := d.db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("open credential index lock connection: %w", err)
+	}
+	defer func() {
+		resultErr = errors.Join(resultErr, connection.Close())
+	}()
+
+	var acquired sql.NullInt64
+	if err := connection.QueryRowContext(
+		ctx,
+		credentialIndexLockAcquireSQL,
+		credentialIndexLockName,
+		credentialIndexLockTimeoutSeconds,
+	).Scan(&acquired); err != nil {
+		return fmt.Errorf("acquire credential index lock: %w", err)
+	}
+	if !acquired.Valid || acquired.Int64 != 1 {
+		return errors.New("credential index lock is unavailable")
+	}
+
+	defer func() {
+		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), credentialIndexUnlockTimeout)
+		defer cancel()
+		var released sql.NullInt64
+		if err := connection.QueryRowContext(releaseCtx, credentialIndexLockReleaseSQL, credentialIndexLockName).Scan(&released); err != nil {
+			resultErr = errors.Join(resultErr, fmt.Errorf("release credential index lock: %w", err))
+			return
+		}
+		if !released.Valid || released.Int64 != 1 {
+			resultErr = errors.Join(resultErr, errors.New("credential index lock was not released"))
+		}
+	}()
+
+	return operation(&DAO{db: d.db, queries: accesskeysql.New(connection)})
 }
 
 // List 返回全部访问密钥元数据
