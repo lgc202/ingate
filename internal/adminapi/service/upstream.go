@@ -39,9 +39,6 @@ func (s *UpstreamService) ListUpstreams(ctx context.Context, _ *emptypb.Empty) (
 }
 
 func (s *UpstreamService) GetUpstream(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.Upstream, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	item, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, operationError(err, "查询服务失败")
@@ -65,12 +62,6 @@ func (s *UpstreamService) CreateUpstream(ctx context.Context, request *adminv1.C
 }
 
 func (s *UpstreamService) UpdateUpstream(ctx context.Context, request *adminv1.UpdateUpstreamRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.GetVersion() == "" {
-		return nil, badRequest("服务版本不能为空")
-	}
 	if request.GetApiKey() != nil && request.GetRemoveApiKey() {
 		return nil, badRequest("不能同时设置和移除 API Key")
 	}
@@ -88,9 +79,6 @@ func (s *UpstreamService) UpdateUpstream(ctx context.Context, request *adminv1.U
 }
 
 func (s *UpstreamService) DeleteUpstream(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
 		return nil, operationError(err, "删除服务失败")
 	}

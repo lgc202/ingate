@@ -7,6 +7,7 @@
 package v1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -568,7 +569,7 @@ var File_admin_v1_token_quota_policy_proto protoreflect.FileDescriptor
 
 const file_admin_v1_token_quota_policy_proto_rawDesc = "" +
 	"\n" +
-	"!admin/v1/token_quota_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"H\n" +
+	"!admin/v1/token_quota_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"H\n" +
 	"\x11TokenQuotaSubject\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1f\n" +
 	"\vheader_name\x18\x02 \x01(\tR\n" +
@@ -593,26 +594,26 @@ const file_admin_v1_token_quota_policy_proto_rawDesc = "" +
 	" \x01(\tR\rfailurePolicy\x12?\n" +
 	"\bresponse\x18\v \x01(\v2#.ingate.admin.v1.TokenQuotaResponseR\bresponse\x129\n" +
 	"\n" +
-	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x84\x03\n" +
-	"\x1dCreateTokenQuotaPolicyRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xa6\x03\n" +
+	"\x1dCreateTokenQuotaPolicyRequest\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x18\n" +
 	"\aenabled\x18\x03 \x01(\bR\aenabled\x12:\n" +
-	"\atargets\x18\x04 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12<\n" +
-	"\asubject\x18\x05 \x01(\v2\".ingate.admin.v1.TokenQuotaSubjectR\asubject\x121\n" +
-	"\x05quota\x18\x06 \x01(\v2\x1b.ingate.admin.v1.TokenQuotaR\x05quota\x12%\n" +
-	"\x0efailure_policy\x18\a \x01(\tR\rfailurePolicy\x12?\n" +
-	"\bresponse\x18\b \x01(\v2#.ingate.admin.v1.TokenQuotaResponseR\bresponse\"\xae\x03\n" +
-	"\x1dUpdateTokenQuotaPolicyRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
+	"\atargets\x18\x04 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12D\n" +
+	"\asubject\x18\x05 \x01(\v2\".ingate.admin.v1.TokenQuotaSubjectB\x06\xbaH\x03\xc8\x01\x01R\asubject\x129\n" +
+	"\x05quota\x18\x06 \x01(\v2\x1b.ingate.admin.v1.TokenQuotaB\x06\xbaH\x03\xc8\x01\x01R\x05quota\x12.\n" +
+	"\x0efailure_policy\x18\a \x01(\tB\a\xbaH\x04r\x02\x10\x01R\rfailurePolicy\x12?\n" +
+	"\bresponse\x18\b \x01(\v2#.ingate.admin.v1.TokenQuotaResponseR\bresponse\"\xe4\x03\n" +
+	"\x1dUpdateTokenQuotaPolicyRequest\x12\x19\n" +
+	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12\x1b\n" +
+	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x18\n" +
 	"\aenabled\x18\x05 \x01(\bR\aenabled\x12:\n" +
-	"\atargets\x18\x06 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12<\n" +
-	"\asubject\x18\a \x01(\v2\".ingate.admin.v1.TokenQuotaSubjectR\asubject\x121\n" +
-	"\x05quota\x18\b \x01(\v2\x1b.ingate.admin.v1.TokenQuotaR\x05quota\x12%\n" +
-	"\x0efailure_policy\x18\t \x01(\tR\rfailurePolicy\x12?\n" +
+	"\atargets\x18\x06 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12D\n" +
+	"\asubject\x18\a \x01(\v2\".ingate.admin.v1.TokenQuotaSubjectB\x06\xbaH\x03\xc8\x01\x01R\asubject\x129\n" +
+	"\x05quota\x18\b \x01(\v2\x1b.ingate.admin.v1.TokenQuotaB\x06\xbaH\x03\xc8\x01\x01R\x05quota\x12.\n" +
+	"\x0efailure_policy\x18\t \x01(\tB\a\xbaH\x04r\x02\x10\x01R\rfailurePolicy\x12?\n" +
 	"\bresponse\x18\n" +
 	" \x01(\v2#.ingate.admin.v1.TokenQuotaResponseR\bresponse\"\\\n" +
 	"\x1bListTokenQuotaPoliciesReply\x12=\n" +

@@ -37,9 +37,6 @@ func (s *AccessControlPolicyService) ListAccessControlPolicies(ctx context.Conte
 }
 
 func (s *AccessControlPolicyService) GetAccessControlPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.AccessControlPolicy, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	result, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, operationError(err, "查询访问控制策略失败")
@@ -63,12 +60,6 @@ func (s *AccessControlPolicyService) CreateAccessControlPolicy(ctx context.Conte
 }
 
 func (s *AccessControlPolicyService) UpdateAccessControlPolicy(ctx context.Context, request *adminv1.UpdateAccessControlPolicyRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.GetVersion() == "" {
-		return nil, badRequest("版本不能为空")
-	}
 	spec, err := accessControlPolicySpec(
 		request.GetName(), request.GetDescription(), request.GetEnabled(), request.GetTargets(),
 		request.GetDefaultAction(), request.GetRules(), request.GetResponse(),
@@ -83,12 +74,6 @@ func (s *AccessControlPolicyService) UpdateAccessControlPolicy(ctx context.Conte
 }
 
 func (s *AccessControlPolicyService) SetAccessControlPolicyEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.Enabled == nil {
-		return nil, badRequest("启用状态不能为空")
-	}
 	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
 		return nil, operationError(err, "更新访问控制策略状态失败")
 	}
@@ -96,9 +81,6 @@ func (s *AccessControlPolicyService) SetAccessControlPolicyEnabled(ctx context.C
 }
 
 func (s *AccessControlPolicyService) DeleteAccessControlPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
 		return nil, operationError(err, "删除访问控制策略失败")
 	}

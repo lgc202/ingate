@@ -7,6 +7,7 @@
 package v1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -568,7 +569,7 @@ var File_admin_v1_access_control_policy_proto protoreflect.FileDescriptor
 
 const file_admin_v1_access_control_policy_proto_rawDesc = "" +
 	"\n" +
-	"$admin/v1/access_control_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"V\n" +
+	"$admin/v1/access_control_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"V\n" +
 	"\x16AccessControlCondition\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -596,19 +597,19 @@ const file_admin_v1_access_control_policy_proto_rawDesc = "" +
 	"\bresponse\x18\n" +
 	" \x01(\v2*.ingate.admin.v1.AccessControlDenyResponseR\bresponse\x129\n" +
 	"\n" +
-	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xd7\x02\n" +
-	" CreateAccessControlPolicyRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
+	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xe0\x02\n" +
+	" CreateAccessControlPolicyRequest\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x18\n" +
 	"\aenabled\x18\x03 \x01(\bR\aenabled\x12:\n" +
 	"\atargets\x18\x04 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12%\n" +
 	"\x0edefault_action\x18\x05 \x01(\tR\rdefaultAction\x128\n" +
 	"\x05rules\x18\x06 \x03(\v2\".ingate.admin.v1.AccessControlRuleR\x05rules\x12F\n" +
-	"\bresponse\x18\a \x01(\v2*.ingate.admin.v1.AccessControlDenyResponseR\bresponse\"\x81\x03\n" +
-	" UpdateAccessControlPolicyRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
+	"\bresponse\x18\a \x01(\v2*.ingate.admin.v1.AccessControlDenyResponseR\bresponse\"\x9e\x03\n" +
+	" UpdateAccessControlPolicyRequest\x12\x19\n" +
+	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12\x1b\n" +
+	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x18\n" +
 	"\aenabled\x18\x05 \x01(\bR\aenabled\x12:\n" +
 	"\atargets\x18\x06 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12%\n" +

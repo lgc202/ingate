@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -10,12 +11,18 @@ import (
 	"github.com/google/uuid"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 )
 
 const noExcludedGatewayID = ""
+
+// GatewayRepository 定义 Gateway 用例需要的持久化能力
+type GatewayRepository interface {
+	List(context.Context) ([]resource.Gateway, error)
+	Get(context.Context, string) (*resource.Gateway, error)
+	Create(context.Context, string, resource.GatewaySpec) error
+	Update(context.Context, string, int64, resource.GatewaySpec) error
+	Delete(context.Context, string) error
+}
 
 // GatewayUsecase 承载 Gateway 管理用例
 type GatewayUsecase struct {
@@ -48,7 +55,7 @@ func (s *GatewayUsecase) List(ctx context.Context) ([]resource.Gateway, error) {
 	if err != nil {
 		return nil, err
 	}
-	return gateways.Items, nil
+	return gateways, nil
 }
 
 // Get 查询单个 Gateway
@@ -69,25 +76,15 @@ func (s *GatewayUsecase) Create(ctx context.Context, spec resource.GatewaySpec) 
 	if err := s.validateNameUnique(ctx, spec.DisplayName, noExcludedGatewayID); err != nil {
 		return "", err
 	}
-	gateway := &resource.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindGateway),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: uuid.NewString(),
-		},
-		Spec: spec,
-	}
-	if err := s.validateGateway(ctx, gateway, noExcludedGatewayID); err != nil {
+	if err := s.validateGateway(ctx, spec, noExcludedGatewayID); err != nil {
 		return "", err
 	}
 
-	created, err := s.repository.Create(ctx, gateway)
-	if err != nil {
+	id := uuid.NewString()
+	if err := s.repository.Create(ctx, id, spec); err != nil {
 		return "", err
 	}
-	return created.Name, nil
+	return id, nil
 }
 
 // Update 更新 Gateway
@@ -95,32 +92,28 @@ func (s *GatewayUsecase) Update(ctx context.Context, gatewayID, version string, 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if version == "" {
-		return NewUserError("网关版本不能为空")
+	current, err := s.repository.Get(ctx, gatewayID)
+	if err != nil {
+		return err
+	}
+	if version != strconv.FormatInt(current.Generation, 10) {
+		return NewUserError(fmt.Sprintf("网关 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+	}
+	if err := s.validateNameUnique(ctx, spec.DisplayName, gatewayID); err != nil {
+		return err
 	}
 
-	// Generation 只随配置变化，重试时重新读取对象以避开 Controller 更新 status 引起的写冲突
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.repository.Get(ctx, gatewayID)
-		if err != nil {
-			return err
-		}
-		if version != strconv.FormatInt(current.Generation, 10) {
+	spec.Enabled = current.Spec.Enabled
+	if err := s.validateGateway(ctx, spec, gatewayID); err != nil {
+		return err
+	}
+	if err := s.repository.Update(ctx, gatewayID, current.Generation, spec); err != nil {
+		if errors.Is(err, ErrResourceVersionConflict) {
 			return NewUserError(fmt.Sprintf("网关 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		if err := s.validateNameUnique(ctx, spec.DisplayName, gatewayID); err != nil {
-			return err
-		}
-
-		next := current.DeepCopy()
-		next.Spec = spec
-		next.Spec.Enabled = current.Spec.Enabled
-		if err := s.validateGateway(ctx, next, gatewayID); err != nil {
-			return err
-		}
-		_, err = s.repository.Update(ctx, next)
 		return err
-	})
+	}
+	return nil
 }
 
 // SetEnabled 更新 Gateway 启停状态
@@ -128,21 +121,22 @@ func (s *GatewayUsecase) SetEnabled(ctx context.Context, gatewayID string, enabl
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.repository.Get(ctx, gatewayID)
-		if err != nil {
-			return err
-		}
-
-		next := current.DeepCopy()
-		next.Spec.Enabled = enabled
-		if err := s.validateGateway(ctx, next, gatewayID); err != nil {
-			return err
-		}
-
-		_, err = s.repository.Update(ctx, next)
+	current, err := s.repository.Get(ctx, gatewayID)
+	if err != nil {
 		return err
-	})
+	}
+	spec := current.Spec
+	spec.Enabled = enabled
+	if err := s.validateGateway(ctx, spec, gatewayID); err != nil {
+		return err
+	}
+	if err := s.repository.Update(ctx, gatewayID, current.Generation, spec); err != nil {
+		if errors.Is(err, ErrResourceVersionConflict) {
+			return NewUserError(fmt.Sprintf("网关 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		}
+		return err
+	}
+	return nil
 }
 
 // Delete 删除 Gateway，仍有关联路由时拒绝删除
@@ -155,7 +149,7 @@ func (s *GatewayUsecase) Delete(ctx context.Context, gatewayID string) error {
 	if err != nil {
 		return err
 	}
-	for _, route := range routes.Items {
+	for _, route := range routes {
 		if slices.ContainsFunc(route.Spec.ParentRefs, func(parentRef resource.ParentRef) bool {
 			return parentRef.Name == gatewayID
 		}) {
@@ -177,7 +171,7 @@ func (s *GatewayUsecase) validateNameUnique(ctx context.Context, name, excludeID
 	if err != nil {
 		return err
 	}
-	for _, gateway := range gateways.Items {
+	for _, gateway := range gateways {
 		if gateway.Name == excludeID {
 			continue
 		}
@@ -188,11 +182,11 @@ func (s *GatewayUsecase) validateNameUnique(ctx context.Context, name, excludeID
 	return nil
 }
 
-func (s *GatewayUsecase) validateGateway(ctx context.Context, gateway *resource.Gateway, excludeID string) error {
-	if !gateway.Spec.Enabled {
+func (s *GatewayUsecase) validateGateway(ctx context.Context, spec resource.GatewaySpec, excludeID string) error {
+	if !spec.Enabled {
 		return nil
 	}
-	if err := s.validateCertificateRefs(ctx, gateway); err != nil {
+	if err := s.validateCertificateRefs(ctx, spec); err != nil {
 		return err
 	}
 
@@ -201,12 +195,12 @@ func (s *GatewayUsecase) validateGateway(ctx context.Context, gateway *resource.
 		return err
 	}
 
-	for _, current := range gateways.Items {
+	for _, current := range gateways {
 		if current.Name == excludeID || !current.Spec.Enabled {
 			continue
 		}
 
-		for _, listener := range gateway.Spec.Listeners {
+		for _, listener := range spec.Listeners {
 			for _, currentListener := range current.Spec.Listeners {
 				if listener.Port != currentListener.Port {
 					continue
@@ -221,8 +215,8 @@ func (s *GatewayUsecase) validateGateway(ctx context.Context, gateway *resource.
 					))
 				}
 
-				for _, hostname := range listenerHostnames(gateway, listener.Name) {
-					for _, currentHostname := range listenerHostnames(&current, currentListener.Name) {
+				for _, hostname := range listenerHostnames(spec, listener.Name) {
+					for _, currentHostname := range listenerHostnames(current.Spec, currentListener.Name) {
 						if !hostnameutil.Overlaps(hostname, currentHostname) {
 							continue
 						}
@@ -242,9 +236,9 @@ func (s *GatewayUsecase) validateGateway(ctx context.Context, gateway *resource.
 	return nil
 }
 
-func (s *GatewayUsecase) validateCertificateRefs(ctx context.Context, gateway *resource.Gateway) error {
+func (s *GatewayUsecase) validateCertificateRefs(ctx context.Context, spec resource.GatewaySpec) error {
 	seen := make(map[string]struct{})
-	for _, listener := range gateway.Spec.Listeners {
+	for _, listener := range spec.Listeners {
 		if listener.Protocol != resource.ProtocolHTTPS {
 			continue
 		}
@@ -257,7 +251,7 @@ func (s *GatewayUsecase) validateCertificateRefs(ctx context.Context, gateway *r
 		if err == nil {
 			continue
 		}
-		if apierrors.IsNotFound(err) {
+		if errors.Is(err, ErrResourceNotFound) {
 			return NewUserError(fmt.Sprintf("HTTPS 证书 %q 不存在", listener.CertificateRef))
 		}
 		return err
@@ -265,9 +259,9 @@ func (s *GatewayUsecase) validateCertificateRefs(ctx context.Context, gateway *r
 	return nil
 }
 
-func listenerHostnames(gateway *resource.Gateway, listenerName string) []string {
+func listenerHostnames(spec resource.GatewaySpec, listenerName string) []string {
 	var hostnames []string
-	for _, binding := range gateway.Spec.HostBindings {
+	for _, binding := range spec.HostBindings {
 		if !slices.Contains(binding.ListenerRefs, listenerName) {
 			continue
 		}

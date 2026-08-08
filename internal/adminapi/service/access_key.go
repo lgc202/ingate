@@ -51,9 +51,6 @@ func (s *AccessKeyService) CreateAccessKey(ctx context.Context, request *adminv1
 }
 
 func (s *AccessKeyService) UpdateAccessKey(ctx context.Context, request *adminv1.UpdateAccessKeyRequest) (*adminv1.AccessKeyReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	name := strings.TrimSpace(request.GetName())
 	if name == "" {
 		return nil, badRequest("访问密钥名称不能为空")
@@ -70,12 +67,6 @@ func (s *AccessKeyService) UpdateAccessKey(ctx context.Context, request *adminv1
 }
 
 func (s *AccessKeyService) SetAccessKeyEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.AccessKeyReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.Enabled == nil {
-		return nil, badRequest("启用状态不能为空")
-	}
 	item, err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled())
 	if err != nil {
 		return nil, operationError(err, "更新访问密钥状态失败")
@@ -84,9 +75,6 @@ func (s *AccessKeyService) SetAccessKeyEnabled(ctx context.Context, request *adm
 }
 
 func (s *AccessKeyService) RotateAccessKey(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.AccessKeySecretReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	item, secret, err := s.usecase.Rotate(ctx, request.GetId())
 	if err != nil {
 		return nil, operationError(err, "轮换访问密钥失败")
@@ -95,9 +83,6 @@ func (s *AccessKeyService) RotateAccessKey(ctx context.Context, request *adminv1
 }
 
 func (s *AccessKeyService) DeleteAccessKey(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
 		return nil, operationError(err, "删除访问密钥失败")
 	}

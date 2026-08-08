@@ -35,6 +35,19 @@ type AccessKey struct {
 	UpdatedAt     time.Time
 }
 
+// AccessKeyRepository 定义访问密钥用例需要的持久化能力
+type AccessKeyRepository interface {
+	Reconcile(context.Context) error
+	List(context.Context) ([]AccessKey, error)
+	Get(context.Context, string) (AccessKey, error)
+	NameExists(context.Context, string, string) (bool, error)
+	Create(context.Context, AccessKey) error
+	Update(context.Context, AccessKey, AccessKey) error
+	SetEnabled(context.Context, AccessKey, AccessKey) error
+	Rotate(context.Context, AccessKey, AccessKey) error
+	Delete(context.Context, AccessKey) error
+}
+
 // AccessKeyUsecase 管理访问密钥的业务生命周期
 type AccessKeyUsecase struct {
 	repository AccessKeyRepository

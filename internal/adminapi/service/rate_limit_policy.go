@@ -36,9 +36,6 @@ func (s *RateLimitPolicyService) ListRateLimitPolicies(ctx context.Context, _ *e
 }
 
 func (s *RateLimitPolicyService) GetRateLimitPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.RateLimitPolicy, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	result, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, operationError(err, "查询限流策略失败")
@@ -62,12 +59,6 @@ func (s *RateLimitPolicyService) CreateRateLimitPolicy(ctx context.Context, requ
 }
 
 func (s *RateLimitPolicyService) UpdateRateLimitPolicy(ctx context.Context, request *adminv1.UpdateRateLimitPolicyRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.GetVersion() == "" {
-		return nil, badRequest("版本不能为空")
-	}
 	spec, err := rateLimitPolicySpec(
 		request.GetName(), request.GetDescription(), request.GetEnabled(), request.GetTargets(),
 		request.GetRules(), request.GetResponse(), request.GetFailurePolicy(),
@@ -82,12 +73,6 @@ func (s *RateLimitPolicyService) UpdateRateLimitPolicy(ctx context.Context, requ
 }
 
 func (s *RateLimitPolicyService) SetRateLimitPolicyEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.Enabled == nil {
-		return nil, badRequest("启用状态不能为空")
-	}
 	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
 		return nil, operationError(err, "更新限流策略状态失败")
 	}
@@ -95,9 +80,6 @@ func (s *RateLimitPolicyService) SetRateLimitPolicyEnabled(ctx context.Context, 
 }
 
 func (s *RateLimitPolicyService) DeleteRateLimitPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
 		return nil, operationError(err, "删除限流策略失败")
 	}

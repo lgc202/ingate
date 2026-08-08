@@ -3,6 +3,7 @@ syntax = "proto3";
 package ingate.admin.v1;
 
 import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -48,16 +49,22 @@ message Certificate {
 }
 
 message CreateCertificateRequest {
-  string name = 1;
+  string name = 1 [(buf.validate.field).string.min_len = 1];
   string description = 2;
-  string certificate_pem = 3 [json_name = "certificatePEM"];
-  string private_key_pem = 4 [json_name = "privateKeyPEM"];
+  string certificate_pem = 3 [
+    json_name = "certificatePEM",
+    (buf.validate.field).string.min_len = 1
+  ];
+  string private_key_pem = 4 [
+    json_name = "privateKeyPEM",
+    (buf.validate.field).string.min_len = 1
+  ];
 }
 
 message UpdateCertificateRequest {
-  string id = 1;
-  string version = 2;
-  string name = 3;
+  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
   string description = 4;
   string certificate_pem = 5 [json_name = "certificatePEM"];
   string private_key_pem = 6 [json_name = "privateKeyPEM"];
@@ -70,4 +77,3 @@ message ListCertificatesReply {
 message GetCertificateReply {
   Certificate certificate = 1;
 }
-

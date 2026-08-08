@@ -41,6 +41,29 @@ type ConfigurationUsecase struct {
 	tokenQuotaPolicies    TokenQuotaPolicyRepository
 }
 
+// ConfigurationSummary 汇总各类声明式资源的当前处理状态
+type ConfigurationSummary struct {
+	Total    int
+	Ready    int
+	Pending  int
+	Error    int
+	Disabled int
+}
+
+// ConfigurationItem 表示状态页中的一个声明式资源
+type ConfigurationItem struct {
+	Kind   resource.Kind
+	ID     string
+	Name   string
+	Status ResourceStatus
+}
+
+// ConfigurationReport 保存配置状态汇总和明细
+type ConfigurationReport struct {
+	Summary ConfigurationSummary
+	Items   []ConfigurationItem
+}
+
 type resourceLists struct {
 	gateways              []resource.Gateway
 	routes                []resource.Route
@@ -170,7 +193,7 @@ func (s *ConfigurationUsecase) listResources(ctx context.Context) (resourceLists
 		if err != nil {
 			return fmt.Errorf("list gateways: %w", err)
 		}
-		resources.gateways = gateways.Items
+		resources.gateways = gateways
 		return nil
 	})
 	group.Go(func() error {
@@ -178,7 +201,7 @@ func (s *ConfigurationUsecase) listResources(ctx context.Context) (resourceLists
 		if err != nil {
 			return fmt.Errorf("list routes: %w", err)
 		}
-		resources.routes = routes.Items
+		resources.routes = routes
 		return nil
 	})
 	group.Go(func() error {
@@ -186,7 +209,7 @@ func (s *ConfigurationUsecase) listResources(ctx context.Context) (resourceLists
 		if err != nil {
 			return fmt.Errorf("list upstreams: %w", err)
 		}
-		resources.upstreams = upstreams.Items
+		resources.upstreams = upstreams
 		return nil
 	})
 	group.Go(func() error {
@@ -194,7 +217,7 @@ func (s *ConfigurationUsecase) listResources(ctx context.Context) (resourceLists
 		if err != nil {
 			return fmt.Errorf("list certificates: %w", err)
 		}
-		resources.certificates = certificates.Items
+		resources.certificates = certificates
 		return nil
 	})
 	group.Go(func() error {
@@ -202,7 +225,7 @@ func (s *ConfigurationUsecase) listResources(ctx context.Context) (resourceLists
 		if err != nil {
 			return fmt.Errorf("list rate limit policies: %w", err)
 		}
-		resources.rateLimitPolicies = policies.Items
+		resources.rateLimitPolicies = policies
 		return nil
 	})
 	group.Go(func() error {
@@ -210,7 +233,7 @@ func (s *ConfigurationUsecase) listResources(ctx context.Context) (resourceLists
 		if err != nil {
 			return fmt.Errorf("list access control policies: %w", err)
 		}
-		resources.accessControlPolicies = policies.Items
+		resources.accessControlPolicies = policies
 		return nil
 	})
 	group.Go(func() error {
@@ -218,7 +241,7 @@ func (s *ConfigurationUsecase) listResources(ctx context.Context) (resourceLists
 		if err != nil {
 			return fmt.Errorf("list token quota policies: %w", err)
 		}
-		resources.tokenQuotaPolicies = policies.Items
+		resources.tokenQuotaPolicies = policies
 		return nil
 	})
 	if err := group.Wait(); err != nil {

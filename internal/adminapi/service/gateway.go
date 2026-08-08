@@ -43,9 +43,6 @@ func (s *GatewayService) ListGateways(ctx context.Context, _ *emptypb.Empty) (*a
 }
 
 func (s *GatewayService) GetGateway(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.GetGatewayReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	item, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, operationError(err, "查询网关失败")
@@ -66,12 +63,6 @@ func (s *GatewayService) CreateGateway(ctx context.Context, request *adminv1.Cre
 }
 
 func (s *GatewayService) UpdateGateway(ctx context.Context, request *adminv1.UpdateGatewayRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.GetVersion() == "" {
-		return nil, badRequest("网关版本不能为空")
-	}
 	spec, err := gatewaySpec(request.GetName(), request.GetDescription(), request.GetListeners(), request.GetHostnames())
 	if err != nil {
 		return nil, err
@@ -83,12 +74,6 @@ func (s *GatewayService) UpdateGateway(ctx context.Context, request *adminv1.Upd
 }
 
 func (s *GatewayService) SetGatewayEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.Enabled == nil {
-		return nil, badRequest("启用状态不能为空")
-	}
 	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
 		return nil, operationError(err, "更新网关状态失败")
 	}
@@ -96,9 +81,6 @@ func (s *GatewayService) SetGatewayEnabled(ctx context.Context, request *adminv1
 }
 
 func (s *GatewayService) DeleteGateway(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
 		return nil, operationError(err, "删除网关失败")
 	}

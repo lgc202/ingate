@@ -2,25 +2,44 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 const policyNotFoundMessage = "Token 配额策略不存在"
 
+// TokenQuotaPolicyRepository 定义 Token 配额策略用例需要的持久化能力
+type TokenQuotaPolicyRepository interface {
+	List(context.Context) ([]resource.TokenQuotaPolicy, error)
+	Get(context.Context, string) (*resource.TokenQuotaPolicy, error)
+	Create(context.Context, string, resource.TokenQuotaPolicySpec) error
+	Update(context.Context, string, int64, resource.TokenQuotaPolicySpec) error
+	Delete(context.Context, string) error
+}
+
 // TokenQuotaPolicyUsecase 承载 TokenQuotaPolicy 管理用例
 type TokenQuotaPolicyUsecase struct {
 	repository TokenQuotaPolicyRepository
 	targets    *PolicyTargetResolver
 	writeMu    sync.Mutex
+}
+
+// TokenQuotaPolicyList 保存策略列表及其目标展示名称
+type TokenQuotaPolicyList struct {
+	Policies    []resource.TokenQuotaPolicy
+	TargetNames PolicyTargetNames
+}
+
+// TokenQuotaPolicyResult 保存单个策略及其目标展示名称
+type TokenQuotaPolicyResult struct {
+	Policy      *resource.TokenQuotaPolicy
+	TargetNames PolicyTargetNames
 }
 
 // NewTokenQuotaPolicyUsecase 创建 Token 配额策略用例
@@ -38,18 +57,18 @@ func (s *TokenQuotaPolicyUsecase) List(ctx context.Context) (*TokenQuotaPolicyLi
 	if err != nil {
 		return nil, err
 	}
-	targetNames, err := s.targets.DisplayNames(ctx, tokenQuotaPolicyTargetRefs(policies.Items))
+	targetNames, err := s.targets.DisplayNames(ctx, tokenQuotaPolicyTargetRefs(policies))
 	if err != nil {
 		return nil, err
 	}
-	return &TokenQuotaPolicyList{Policies: policies.Items, TargetNames: targetNames}, nil
+	return &TokenQuotaPolicyList{Policies: policies, TargetNames: targetNames}, nil
 }
 
 // Get 查询单个 TokenQuotaPolicy
 func (s *TokenQuotaPolicyUsecase) Get(ctx context.Context, policyID string) (*TokenQuotaPolicyResult, error) {
 	policy, err := s.repository.Get(ctx, policyID)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
+		if errors.Is(err, ErrResourceNotFound) {
 			return nil, NewUserError(policyNotFoundMessage)
 		}
 		return nil, err
@@ -69,22 +88,14 @@ func (s *TokenQuotaPolicyUsecase) Create(ctx context.Context, spec resource.Toke
 	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
 	}
-	policy := &resource.TokenQuotaPolicy{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindTokenQuotaPolicy),
-		},
-		ObjectMeta: metav1.ObjectMeta{Name: uuid.NewString()},
-		Spec:       spec,
-	}
-	if err := s.targets.Validate(ctx, policy.Spec.TargetRefs); err != nil {
+	if err := s.targets.Validate(ctx, spec.TargetRefs); err != nil {
 		return "", err
 	}
-	created, err := s.repository.Create(ctx, policy)
-	if err != nil {
+	id := uuid.NewString()
+	if err := s.repository.Create(ctx, id, spec); err != nil {
 		return "", err
 	}
-	return created.Name, nil
+	return id, nil
 }
 
 // Update 更新 TokenQuotaPolicy
@@ -92,63 +103,63 @@ func (s *TokenQuotaPolicyUsecase) Update(ctx context.Context, policyID, version 
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if version == "" {
-		return NewUserError("Token 配额策略版本不能为空")
-	}
-
-	// Generation 只在期望配置变化时递增，status 更新造成的 ResourceVersion 冲突可以安全重试
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.repository.Get(ctx, policyID)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				return NewUserError(policyNotFoundMessage)
-			}
-			return err
-		}
-		if version != strconv.FormatInt(current.Generation, 10) {
-			return NewUserError(fmt.Sprintf("Token 配额策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
-		}
-		if err := s.validateNameUnique(ctx, spec.DisplayName, policyID); err != nil {
-			return err
-		}
-
-		next := current.DeepCopy()
-		next.Spec = spec
-		if err := s.targets.Validate(ctx, next.Spec.TargetRefs); err != nil {
-			return err
-		}
-		_, err = s.repository.Update(ctx, next)
-		if apierrors.IsNotFound(err) {
+	current, err := s.repository.Get(ctx, policyID)
+	if err != nil {
+		if errors.Is(err, ErrResourceNotFound) {
 			return NewUserError(policyNotFoundMessage)
 		}
 		return err
-	})
+	}
+	if version != strconv.FormatInt(current.Generation, 10) {
+		return NewUserError(fmt.Sprintf("Token 配额策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+	}
+	if err := s.validateNameUnique(ctx, spec.DisplayName, policyID); err != nil {
+		return err
+	}
+	if err := s.targets.Validate(ctx, spec.TargetRefs); err != nil {
+		return err
+	}
+	if err := s.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
+		switch {
+		case errors.Is(err, ErrResourceNotFound):
+			return NewUserError(policyNotFoundMessage)
+		case errors.Is(err, ErrResourceVersionConflict):
+			return NewUserError(fmt.Sprintf("Token 配额策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		default:
+			return err
+		}
+	}
+	return nil
 }
 
 // SetEnabled 设置 TokenQuotaPolicy 启用状态
 func (s *TokenQuotaPolicyUsecase) SetEnabled(ctx context.Context, policyID string, enabled bool) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.repository.Get(ctx, policyID)
-		if err != nil {
-			if apierrors.IsNotFound(err) {
-				return NewUserError(policyNotFoundMessage)
-			}
-			return err
-		}
-		next := current.DeepCopy()
-		next.Spec.Enabled = enabled
-		_, err = s.repository.Update(ctx, next)
-		if apierrors.IsNotFound(err) {
+	current, err := s.repository.Get(ctx, policyID)
+	if err != nil {
+		if errors.Is(err, ErrResourceNotFound) {
 			return NewUserError(policyNotFoundMessage)
 		}
 		return err
-	})
+	}
+	spec := current.Spec
+	spec.Enabled = enabled
+	if err := s.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
+		switch {
+		case errors.Is(err, ErrResourceNotFound):
+			return NewUserError(policyNotFoundMessage)
+		case errors.Is(err, ErrResourceVersionConflict):
+			return NewUserError(fmt.Sprintf("Token 配额策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		default:
+			return err
+		}
+	}
+	return nil
 }
 
 // Delete 删除 TokenQuotaPolicy
 func (s *TokenQuotaPolicyUsecase) Delete(ctx context.Context, policyID string) error {
 	err := s.repository.Delete(ctx, policyID)
-	if apierrors.IsNotFound(err) {
+	if errors.Is(err, ErrResourceNotFound) {
 		return NewUserError(policyNotFoundMessage)
 	}
 	return err
@@ -159,7 +170,7 @@ func (s *TokenQuotaPolicyUsecase) validateNameUnique(ctx context.Context, name, 
 	if err != nil {
 		return err
 	}
-	for _, current := range policies.Items {
+	for _, current := range policies {
 		if current.Name == excludeID {
 			continue
 		}

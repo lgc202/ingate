@@ -56,9 +56,6 @@ func (s *RouteService) ListRoutes(ctx context.Context, _ *emptypb.Empty) (*admin
 }
 
 func (s *RouteService) GetRoute(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.Route, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	item, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, operationError(err, "查询路由失败")
@@ -79,12 +76,6 @@ func (s *RouteService) CreateRoute(ctx context.Context, request *adminv1.CreateR
 }
 
 func (s *RouteService) UpdateRoute(ctx context.Context, request *adminv1.UpdateRouteRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.GetVersion() == "" {
-		return nil, badRequest("路由版本不能为空")
-	}
 	spec, err := routeSpec(request.GetName(), request.GetGatewayIds(), request.GetHostnames(), request.Enabled, request.GetRules())
 	if err != nil {
 		return nil, err
@@ -96,12 +87,6 @@ func (s *RouteService) UpdateRoute(ctx context.Context, request *adminv1.UpdateR
 }
 
 func (s *RouteService) SetRouteEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.Enabled == nil {
-		return nil, badRequest("启用状态不能为空")
-	}
 	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
 		return nil, operationError(err, "更新路由状态失败")
 	}
@@ -109,9 +94,6 @@ func (s *RouteService) SetRouteEnabled(ctx context.Context, request *adminv1.Set
 }
 
 func (s *RouteService) DeleteRoute(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
 		return nil, operationError(err, "删除路由失败")
 	}

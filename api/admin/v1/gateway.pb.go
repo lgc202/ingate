@@ -7,6 +7,7 @@
 package v1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -436,9 +437,9 @@ var File_admin_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\n" +
-	"\x16admin/v1/gateway.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"h\n" +
-	"\x0fGatewayListener\x12\x1a\n" +
-	"\bprotocol\x18\x01 \x01(\tR\bprotocol\x12\x12\n" +
+	"\x16admin/v1/gateway.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"q\n" +
+	"\x0fGatewayListener\x12#\n" +
+	"\bprotocol\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bprotocol\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\x05R\x04port\x12%\n" +
 	"\x0ecertificate_id\x18\x03 \x01(\tR\rcertificateID\"\xd5\x02\n" +
 	"\aGateway\x12\x0e\n" +
@@ -451,18 +452,18 @@ const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\thostnames\x18\a \x03(\tR\thostnames\x12\x18\n" +
 	"\aenabled\x18\b \x01(\bR\aenabled\x129\n" +
 	"\n" +
-	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xaa\x01\n" +
-	"\x14CreateGatewayRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\x12>\n" +
-	"\tlisteners\x18\x03 \x03(\v2 .ingate.admin.v1.GatewayListenerR\tlisteners\x12\x1c\n" +
-	"\thostnames\x18\x04 \x03(\tR\thostnames\"\xd4\x01\n" +
-	"\x14UpdateGatewayRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\x12>\n" +
-	"\tlisteners\x18\x05 \x03(\v2 .ingate.admin.v1.GatewayListenerR\tlisteners\x12\x1c\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xbd\x01\n" +
+	"\x14CreateGatewayRequest\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x12H\n" +
+	"\tlisteners\x18\x03 \x03(\v2 .ingate.admin.v1.GatewayListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlisteners\x12\x1c\n" +
+	"\thostnames\x18\x04 \x03(\tR\thostnames\"\xfb\x01\n" +
+	"\x14UpdateGatewayRequest\x12\x19\n" +
+	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12\x1b\n" +
+	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
+	"\vdescription\x18\x04 \x01(\tR\vdescription\x12H\n" +
+	"\tlisteners\x18\x05 \x03(\v2 .ingate.admin.v1.GatewayListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlisteners\x12\x1c\n" +
 	"\thostnames\x18\x06 \x03(\tR\thostnames\"I\n" +
 	"\x11ListGatewaysReply\x124\n" +
 	"\bgateways\x18\x01 \x03(\v2\x18.ingate.admin.v1.GatewayR\bgateways\"E\n" +

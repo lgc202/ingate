@@ -37,7 +37,11 @@ func NewHTTPServer(
 		kratoshttp.Address(httpConfig.GetAddr()),
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 		kratoshttp.Filter(requestIDFilter),
-		kratoshttp.Middleware(recoveryMiddleware(logger), requestLoggingMiddleware(logger)),
+		kratoshttp.Middleware(
+			recoveryMiddleware(logger),
+			requestLoggingMiddleware(logger),
+			requestValidationMiddleware,
+		),
 		kratoshttp.ResponseEncoder(responseEncoder),
 		kratoshttp.ErrorEncoder(errorEncoder),
 		kratoshttp.NotFoundHandler(http.HandlerFunc(notFound)),

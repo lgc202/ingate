@@ -3,6 +3,7 @@ syntax = "proto3";
 package ingate.admin.v1;
 
 import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -41,7 +42,7 @@ service GatewayService {
 }
 
 message GatewayListener {
-  string protocol = 1;
+  string protocol = 1 [(buf.validate.field).string.min_len = 1];
   int32 port = 2;
   string certificate_id = 3 [json_name = "certificateID"];
 }
@@ -59,18 +60,18 @@ message Gateway {
 }
 
 message CreateGatewayRequest {
-  string name = 1;
+  string name = 1 [(buf.validate.field).string.min_len = 1];
   string description = 2;
-  repeated GatewayListener listeners = 3;
+  repeated GatewayListener listeners = 3 [(buf.validate.field).repeated.min_items = 1];
   repeated string hostnames = 4;
 }
 
 message UpdateGatewayRequest {
-  string id = 1;
-  string version = 2;
-  string name = 3;
+  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
   string description = 4;
-  repeated GatewayListener listeners = 5;
+  repeated GatewayListener listeners = 5 [(buf.validate.field).repeated.min_items = 1];
   repeated string hostnames = 6;
 }
 
@@ -81,4 +82,3 @@ message ListGatewaysReply {
 message GetGatewayReply {
   Gateway gateway = 1;
 }
-

@@ -36,9 +36,6 @@ func (s *CertificateService) ListCertificates(ctx context.Context, _ *emptypb.Em
 }
 
 func (s *CertificateService) GetCertificate(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.GetCertificateReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	item, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, operationError(err, "查询证书失败")
@@ -59,12 +56,6 @@ func (s *CertificateService) CreateCertificate(ctx context.Context, request *adm
 }
 
 func (s *CertificateService) UpdateCertificate(ctx context.Context, request *adminv1.UpdateCertificateRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.GetVersion() == "" {
-		return nil, badRequest("证书版本不能为空")
-	}
 	spec, err := certificateSpec(request.GetName(), request.GetDescription(), request.GetCertificatePem(), request.GetPrivateKeyPem(), false)
 	if err != nil {
 		return nil, err
@@ -76,9 +67,6 @@ func (s *CertificateService) UpdateCertificate(ctx context.Context, request *adm
 }
 
 func (s *CertificateService) DeleteCertificate(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
 		return nil, operationError(err, "删除证书失败")
 	}

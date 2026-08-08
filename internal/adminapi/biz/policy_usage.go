@@ -38,7 +38,7 @@ func (f *PolicyUsageFinder) Find(ctx context.Context, target resource.PolicyTarg
 	if err != nil {
 		return nil, err
 	}
-	for _, policy := range rateLimitPolicies.Items {
+	for _, policy := range rateLimitPolicies {
 		if slices.Contains(policy.Spec.TargetRefs, target) {
 			return &PolicyUsage{DisplayName: policy.Spec.DisplayName}, nil
 		}
@@ -48,7 +48,7 @@ func (f *PolicyUsageFinder) Find(ctx context.Context, target resource.PolicyTarg
 	if err != nil {
 		return nil, err
 	}
-	for _, policy := range accessControlPolicies.Items {
+	for _, policy := range accessControlPolicies {
 		if slices.Contains(policy.Spec.TargetRefs, target) {
 			return &PolicyUsage{DisplayName: policy.Spec.DisplayName}, nil
 		}
@@ -58,7 +58,7 @@ func (f *PolicyUsageFinder) Find(ctx context.Context, target resource.PolicyTarg
 	if err != nil {
 		return nil, err
 	}
-	for _, policy := range tokenQuotaPolicies.Items {
+	for _, policy := range tokenQuotaPolicies {
 		if slices.Contains(policy.Spec.TargetRefs, target) {
 			return &PolicyUsage{DisplayName: policy.Spec.DisplayName}, nil
 		}
