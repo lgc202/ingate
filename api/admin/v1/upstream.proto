@@ -3,6 +3,7 @@ syntax = "proto3";
 package ingate.admin.v1;
 
 import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -86,27 +87,27 @@ message Upstream {
 }
 
 message CreateUpstreamRequest {
-  string name = 1;
-  string type = 2;
-  string protocol = 3;
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string type = 2 [(buf.validate.field).string.min_len = 1];
+  string protocol = 3 [(buf.validate.field).string.min_len = 1];
   UpstreamTLS tls = 4;
   ModelConfig model = 5;
-  repeated UpstreamEndpoint endpoints = 6;
-  string load_balance_policy = 7;
+  repeated UpstreamEndpoint endpoints = 6 [(buf.validate.field).repeated.min_items = 1];
+  string load_balance_policy = 7 [(buf.validate.field).string.min_len = 1];
   UpstreamHealthCheck health_check = 8;
   APIKeyConfig api_key = 9 [json_name = "apiKey"];
 }
 
 message UpdateUpstreamRequest {
-  string id = 1;
-  string version = 2;
-  string name = 3;
-  string type = 4;
-  string protocol = 5;
+  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string type = 4 [(buf.validate.field).string.min_len = 1];
+  string protocol = 5 [(buf.validate.field).string.min_len = 1];
   UpstreamTLS tls = 6;
   ModelConfig model = 7;
-  repeated UpstreamEndpoint endpoints = 8;
-  string load_balance_policy = 9;
+  repeated UpstreamEndpoint endpoints = 8 [(buf.validate.field).repeated.min_items = 1];
+  string load_balance_policy = 9 [(buf.validate.field).string.min_len = 1];
   UpstreamHealthCheck health_check = 10;
   APIKeyConfig api_key = 11 [json_name = "apiKey"];
   bool remove_api_key = 12 [json_name = "removeAPIKey"];
@@ -115,4 +116,3 @@ message UpdateUpstreamRequest {
 message ListUpstreamsReply {
   repeated Upstream upstreams = 1;
 }
-

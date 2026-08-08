@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"path"
@@ -11,10 +12,16 @@ import (
 	"github.com/google/uuid"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 )
+
+// RouteRepository 定义 Route 用例需要的持久化能力
+type RouteRepository interface {
+	List(context.Context) ([]resource.Route, error)
+	Get(context.Context, string) (*resource.Route, error)
+	Create(context.Context, string, resource.RouteSpec) error
+	Update(context.Context, string, int64, resource.RouteSpec) error
+	Delete(context.Context, string) error
+}
 
 // RouteUsecase 承载 Route 查询用例
 type RouteUsecase struct {
@@ -45,7 +52,7 @@ func (s *RouteUsecase) List(ctx context.Context) ([]resource.Route, error) {
 	if err != nil {
 		return nil, err
 	}
-	return routes.Items, nil
+	return routes, nil
 }
 
 // Get 查询单个 Route
@@ -65,69 +72,55 @@ func (s *RouteUsecase) Create(ctx context.Context, spec resource.RouteSpec) (str
 	if err := s.validateReferences(ctx, spec); err != nil {
 		return "", err
 	}
-	route := &resource.Route{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindRoute),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: uuid.NewString(),
-		},
-		Spec: spec,
-	}
-	_, err := s.repository.Create(ctx, route)
-	if apierrors.IsAlreadyExists(err) {
-		return "", NewUserError(fmt.Sprintf("路由 %q 已存在", route.Name))
-	}
-	if err != nil {
+	id := uuid.NewString()
+	if err := s.repository.Create(ctx, id, spec); err != nil {
 		return "", err
 	}
-	return route.Name, nil
+	return id, nil
 }
 
 // Update 更新 Route
 func (s *RouteUsecase) Update(ctx context.Context, routeID, version string, spec resource.RouteSpec) error {
-	if version == "" {
-		return NewUserError("路由版本不能为空")
+	current, err := s.repository.Get(ctx, routeID)
+	if err != nil {
+		return err
+	}
+	if version != strconv.FormatInt(current.Generation, 10) {
+		return NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+	}
+	if err := s.validateNameUnique(ctx, spec.DisplayName, routeID); err != nil {
+		return err
+	}
+	if err := s.validateReferences(ctx, spec); err != nil {
+		return err
 	}
 
-	// version 对应配置 Generation；status 写入只改变 ResourceVersion，因此写冲突可以安全重试
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.repository.Get(ctx, routeID)
-		if err != nil {
-			return err
-		}
-		if version != strconv.FormatInt(current.Generation, 10) {
+	nextSpec := current.Spec
+	s.applyRouteSpec(&nextSpec, spec)
+	if err := s.repository.Update(ctx, routeID, current.Generation, nextSpec); err != nil {
+		if errors.Is(err, ErrResourceVersionConflict) {
 			return NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		if err := s.validateNameUnique(ctx, spec.DisplayName, routeID); err != nil {
-			return err
-		}
-		if err := s.validateReferences(ctx, spec); err != nil {
-			return err
-		}
-
-		next := current.DeepCopy()
-		s.applyRouteSpec(&next.Spec, spec)
-		_, err = s.repository.Update(ctx, next)
 		return err
-	})
+	}
+	return nil
 }
 
 // SetEnabled 更新 Route 启停状态
 func (s *RouteUsecase) SetEnabled(ctx context.Context, routeID string, enabled bool) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.repository.Get(ctx, routeID)
-		if err != nil {
-			return err
-		}
-
-		next := current.DeepCopy()
-		next.Spec.Enabled = enabled
-
-		_, err = s.repository.Update(ctx, next)
+	current, err := s.repository.Get(ctx, routeID)
+	if err != nil {
 		return err
-	})
+	}
+	spec := current.Spec
+	spec.Enabled = enabled
+	if err := s.repository.Update(ctx, routeID, current.Generation, spec); err != nil {
+		if errors.Is(err, ErrResourceVersionConflict) {
+			return NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		}
+		return err
+	}
+	return nil
 }
 
 // Delete 删除 Route，仍被策略应用时拒绝删除
@@ -208,7 +201,7 @@ func (s *RouteUsecase) validateNameUnique(ctx context.Context, name, excludeID s
 	if err != nil {
 		return err
 	}
-	for _, route := range routes.Items {
+	for _, route := range routes {
 		if route.Name == excludeID {
 			continue
 		}
@@ -222,7 +215,7 @@ func (s *RouteUsecase) validateNameUnique(ctx context.Context, name, excludeID s
 func (s *RouteUsecase) validateReferences(ctx context.Context, spec resource.RouteSpec) error {
 	for _, parentRef := range spec.ParentRefs {
 		if _, err := s.gateways.Get(ctx, parentRef.Name); err != nil {
-			if apierrors.IsNotFound(err) {
+			if errors.Is(err, ErrResourceNotFound) {
 				return NewUserError(fmt.Sprintf("关联网关 %q 不存在", parentRef.Name))
 			}
 			return err
@@ -233,7 +226,7 @@ func (s *RouteUsecase) validateReferences(ctx context.Context, spec resource.Rou
 		for _, ref := range rule.UpstreamRefs {
 			upstream, err := s.getUpstream(ctx, upstreams, ref.Name)
 			if err != nil {
-				if apierrors.IsNotFound(err) {
+				if errors.Is(err, ErrResourceNotFound) {
 					return NewUserError(fmt.Sprintf("关联服务 %q 不存在", ref.Name))
 				}
 				return err
@@ -248,7 +241,7 @@ func (s *RouteUsecase) validateReferences(ctx context.Context, spec resource.Rou
 		for _, model := range rule.ModelRouting.Models {
 			upstream, err := s.getUpstream(ctx, upstreams, model.UpstreamRef)
 			if err != nil {
-				if apierrors.IsNotFound(err) {
+				if errors.Is(err, ErrResourceNotFound) {
 					return NewUserError(fmt.Sprintf("关联模型服务 %q 不存在", model.UpstreamRef))
 				}
 				return err

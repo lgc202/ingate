@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package ingate.admin.v1;
 
+import "buf/validate/validate.proto";
+
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
 // ResourceStatus 是控制台展示的声明式资源处理状态
@@ -12,8 +14,8 @@ message ResourceStatus {
 
 // PolicyTargetRef 是创建和更新策略时提交的作用目标
 message PolicyTargetRef {
-  string kind = 1;
-  string id = 2;
+  string kind = 1 [(buf.validate.field).string.min_len = 1];
+  string id = 2 [(buf.validate.field).string.pattern = "\\S"];
 }
 
 // PolicyTarget 是控制台展示的策略作用目标及其生效状态
@@ -26,13 +28,13 @@ message PolicyTarget {
 
 // ResourceRequest 通过资源 ID 定位单个管理对象
 message ResourceRequest {
-  string id = 1;
+  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
 }
 
 // SetEnabledRequest 修改资源的启停状态
 message SetEnabledRequest {
-  string id = 1;
-  optional bool enabled = 2;
+  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
+  optional bool enabled = 2 [(buf.validate.field).required = true];
 }
 
 // MutationReply 表示写操作已经完成
@@ -40,4 +42,3 @@ message MutationReply {
   bool success = 1;
   string id = 2;
 }
-

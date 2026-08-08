@@ -36,9 +36,6 @@ func (s *TokenQuotaPolicyService) ListTokenQuotaPolicies(ctx context.Context, _ 
 }
 
 func (s *TokenQuotaPolicyService) GetTokenQuotaPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.TokenQuotaPolicy, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	result, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, operationError(err, "查询 Token 配额策略失败")
@@ -62,12 +59,6 @@ func (s *TokenQuotaPolicyService) CreateTokenQuotaPolicy(ctx context.Context, re
 }
 
 func (s *TokenQuotaPolicyService) UpdateTokenQuotaPolicy(ctx context.Context, request *adminv1.UpdateTokenQuotaPolicyRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.GetVersion() == "" {
-		return nil, badRequest("版本不能为空")
-	}
 	spec, err := tokenQuotaPolicySpec(
 		request.GetName(), request.GetDescription(), request.GetEnabled(), request.GetTargets(),
 		request.GetSubject(), request.GetQuota(), request.GetFailurePolicy(), request.GetResponse(),
@@ -82,12 +73,6 @@ func (s *TokenQuotaPolicyService) UpdateTokenQuotaPolicy(ctx context.Context, re
 }
 
 func (s *TokenQuotaPolicyService) SetTokenQuotaPolicyEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
-	if request.Enabled == nil {
-		return nil, badRequest("启用状态不能为空")
-	}
 	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
 		return nil, operationError(err, "更新 Token 配额策略状态失败")
 	}
@@ -95,9 +80,6 @@ func (s *TokenQuotaPolicyService) SetTokenQuotaPolicyEnabled(ctx context.Context
 }
 
 func (s *TokenQuotaPolicyService) DeleteTokenQuotaPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := validateID(request.GetId()); err != nil {
-		return nil, err
-	}
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
 		return nil, operationError(err, "删除 Token 配额策略失败")
 	}

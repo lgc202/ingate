@@ -7,6 +7,7 @@
 package v1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -384,7 +385,7 @@ var File_admin_v1_certificate_proto protoreflect.FileDescriptor
 
 const file_admin_v1_certificate_proto_rawDesc = "" +
 	"\n" +
-	"\x1aadmin/v1/certificate.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x03\n" +
+	"\x1aadmin/v1/certificate.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x03\n" +
 	"\vCertificate\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x127\n" +
@@ -398,16 +399,16 @@ const file_admin_v1_certificate_proto_rawDesc = "" +
 	"\tnot_after\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\bnotAfter\x129\n" +
 	"\n" +
 	"created_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xa1\x01\n" +
-	"\x18CreateCertificateRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\x12'\n" +
-	"\x0fcertificate_pem\x18\x03 \x01(\tR\x0ecertificatePEM\x12&\n" +
-	"\x0fprivate_key_pem\x18\x04 \x01(\tR\rprivateKeyPEM\"\xcb\x01\n" +
-	"\x18UpdateCertificateRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12 \n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xbc\x01\n" +
+	"\x18CreateCertificateRequest\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
+	"\vdescription\x18\x02 \x01(\tR\vdescription\x120\n" +
+	"\x0fcertificate_pem\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x0ecertificatePEM\x12/\n" +
+	"\x0fprivate_key_pem\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\rprivateKeyPEM\"\xe8\x01\n" +
+	"\x18UpdateCertificateRequest\x12\x19\n" +
+	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12\x1b\n" +
+	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12'\n" +
 	"\x0fcertificate_pem\x18\x05 \x01(\tR\x0ecertificatePEM\x12&\n" +
 	"\x0fprivate_key_pem\x18\x06 \x01(\tR\rprivateKeyPEM\"Y\n" +

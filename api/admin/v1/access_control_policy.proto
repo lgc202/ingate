@@ -3,6 +3,7 @@ syntax = "proto3";
 package ingate.admin.v1;
 
 import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -72,7 +73,7 @@ message AccessControlPolicy {
 }
 
 message CreateAccessControlPolicyRequest {
-  string name = 1;
+  string name = 1 [(buf.validate.field).string.min_len = 1];
   string description = 2;
   bool enabled = 3;
   repeated PolicyTargetRef targets = 4;
@@ -82,9 +83,9 @@ message CreateAccessControlPolicyRequest {
 }
 
 message UpdateAccessControlPolicyRequest {
-  string id = 1;
-  string version = 2;
-  string name = 3;
+  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
   string description = 4;
   bool enabled = 5;
   repeated PolicyTargetRef targets = 6;
@@ -96,4 +97,3 @@ message UpdateAccessControlPolicyRequest {
 message ListAccessControlPoliciesReply {
   repeated AccessControlPolicy policies = 1;
 }
-

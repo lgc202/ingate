@@ -2,15 +2,23 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 
 	"github.com/google/uuid"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 )
+
+// UpstreamRepository 定义 Upstream 用例需要的持久化能力
+type UpstreamRepository interface {
+	List(context.Context) ([]resource.Upstream, error)
+	Get(context.Context, string) (*resource.Upstream, error)
+	Create(context.Context, string, resource.UpstreamSpec) error
+	Update(context.Context, string, int64, resource.UpstreamSpec) error
+	Delete(context.Context, string) error
+}
 
 // UpstreamUsecase 承载 Upstream 查询用例
 type UpstreamUsecase struct {
@@ -29,7 +37,7 @@ func (s *UpstreamUsecase) List(ctx context.Context) ([]resource.Upstream, error)
 	if err != nil {
 		return nil, err
 	}
-	return upstreams.Items, nil
+	return upstreams, nil
 }
 
 // Get 查询单个 Upstream
@@ -46,19 +54,11 @@ func (s *UpstreamUsecase) Create(ctx context.Context, spec resource.UpstreamSpec
 	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
 	}
-	upstream := &resource.Upstream{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindUpstream),
-		},
-		ObjectMeta: metav1.ObjectMeta{Name: uuid.NewString()},
-		Spec:       spec,
-	}
-	created, err := s.repository.Create(ctx, upstream)
-	if err != nil {
+	id := uuid.NewString()
+	if err := s.repository.Create(ctx, id, spec); err != nil {
 		return "", err
 	}
-	return created.Name, nil
+	return id, nil
 }
 
 // Update 更新 Upstream
@@ -69,40 +69,37 @@ func (s *UpstreamUsecase) Update(
 	spec resource.UpstreamSpec,
 	removeAPIKey bool,
 ) error {
-	if version == "" {
-		return NewUserError("服务版本不能为空")
+	current, err := s.repository.Get(ctx, upstreamID)
+	if err != nil {
+		return err
+	}
+	if version != strconv.FormatInt(current.Generation, 10) {
+		return NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+	}
+	if err := s.validateNameUnique(ctx, spec.DisplayName, upstreamID); err != nil {
+		return err
 	}
 
-	// Generation 只随配置变化，重试时重新读取对象以避开 Controller 更新 status 引起的写冲突
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.repository.Get(ctx, upstreamID)
-		if err != nil {
-			return err
-		}
-		if version != strconv.FormatInt(current.Generation, 10) {
+	currentAuthentication := current.Spec.Authentication
+	if removeAPIKey {
+		spec.Authentication = nil
+	} else if spec.Authentication == nil {
+		spec.Authentication = currentAuthentication
+	}
+	next := &resource.Upstream{Spec: spec}
+	if err := validateAuthentication(next); err != nil {
+		return err
+	}
+	if err := s.validateRouteCompatibility(ctx, upstreamID, next); err != nil {
+		return err
+	}
+	if err := s.repository.Update(ctx, upstreamID, current.Generation, spec); err != nil {
+		if errors.Is(err, ErrResourceVersionConflict) {
 			return NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		if err := s.validateNameUnique(ctx, spec.DisplayName, upstreamID); err != nil {
-			return err
-		}
-
-		next := current.DeepCopy()
-		currentAuthentication := next.Spec.Authentication
-		next.Spec = spec
-		if removeAPIKey {
-			next.Spec.Authentication = nil
-		} else if next.Spec.Authentication == nil {
-			next.Spec.Authentication = currentAuthentication
-		}
-		if err := validateAuthentication(next); err != nil {
-			return err
-		}
-		if err := s.validateRouteCompatibility(ctx, upstreamID, next); err != nil {
-			return err
-		}
-		_, err = s.repository.Update(ctx, next)
 		return err
-	})
+	}
+	return nil
 }
 
 func (s *UpstreamUsecase) validateRouteCompatibility(
@@ -114,7 +111,7 @@ func (s *UpstreamUsecase) validateRouteCompatibility(
 	if err != nil {
 		return err
 	}
-	for _, route := range routes.Items {
+	for _, route := range routes {
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
 				if ref.Name == upstreamID && (next.Spec.Type == resource.UpstreamTypeModel || next.Spec.Protocol != resource.UpstreamProtocolHTTP) {
@@ -150,7 +147,7 @@ func (s *UpstreamUsecase) Delete(ctx context.Context, upstreamID string) error {
 	if err != nil {
 		return err
 	}
-	for _, route := range routes.Items {
+	for _, route := range routes {
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
 				if ref.Name == upstreamID {
@@ -181,7 +178,7 @@ func (s *UpstreamUsecase) validateNameUnique(ctx context.Context, name, excludeI
 	if err != nil {
 		return err
 	}
-	for _, current := range upstreams.Items {
+	for _, current := range upstreams {
 		if current.Name == excludeID {
 			continue
 		}

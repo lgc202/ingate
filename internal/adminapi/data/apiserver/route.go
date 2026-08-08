@@ -4,7 +4,9 @@ import (
 	"context"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 
+	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
@@ -20,26 +22,50 @@ func NewRoute(client clientset.Interface) *RouteRepository {
 }
 
 // List 查询 Route 列表
-func (r *RouteRepository) List(ctx context.Context) (*resource.RouteList, error) {
-	return r.client.GatewayV1().Routes().List(ctx, metav1.ListOptions{})
+func (r *RouteRepository) List(ctx context.Context) ([]resource.Route, error) {
+	routes, err := r.client.GatewayV1().Routes().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, resourceError("list", "routes", "", err)
+	}
+	return routes.Items, nil
 }
 
 // Get 查询单个 Route
 func (r *RouteRepository) Get(ctx context.Context, name string) (*resource.Route, error) {
-	return r.client.GatewayV1().Routes().Get(ctx, name, metav1.GetOptions{})
+	route, err := r.client.GatewayV1().Routes().Get(ctx, name, metav1.GetOptions{})
+	return route, resourceError("get", "route", name, err)
 }
 
 // Create 创建 Route
-func (r *RouteRepository) Create(ctx context.Context, route *resource.Route) (*resource.Route, error) {
-	return r.client.GatewayV1().Routes().Create(ctx, route, metav1.CreateOptions{})
+func (r *RouteRepository) Create(ctx context.Context, id string, spec resource.RouteSpec) error {
+	route := &resource.Route{
+		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindRoute)},
+		ObjectMeta: metav1.ObjectMeta{Name: id},
+		Spec:       spec,
+	}
+	_, err := r.client.GatewayV1().Routes().Create(ctx, route, metav1.CreateOptions{})
+	return resourceError("create", "route", id, err)
 }
 
-// Update 更新 Route
-func (r *RouteRepository) Update(ctx context.Context, route *resource.Route) (*resource.Route, error) {
-	return r.client.GatewayV1().Routes().Update(ctx, route, metav1.UpdateOptions{})
+// Update 更新 Route，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
+func (r *RouteRepository) Update(ctx context.Context, id string, generation int64, spec resource.RouteSpec) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := r.client.GatewayV1().Routes().Get(ctx, id, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if current.Generation != generation {
+			return biz.ErrResourceVersionConflict
+		}
+		current.Spec = spec
+		_, err = r.client.GatewayV1().Routes().Update(ctx, current, metav1.UpdateOptions{})
+		return err
+	})
+	return resourceError("update", "route", id, err)
 }
 
 // Delete 删除 Route
 func (r *RouteRepository) Delete(ctx context.Context, name string) error {
-	return r.client.GatewayV1().Routes().Delete(ctx, name, metav1.DeleteOptions{})
+	err := r.client.GatewayV1().Routes().Delete(ctx, name, metav1.DeleteOptions{})
+	return resourceError("delete", "route", name, err)
 }

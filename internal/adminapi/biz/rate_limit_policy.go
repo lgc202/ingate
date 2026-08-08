@@ -2,22 +2,42 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
+
+// RateLimitPolicyRepository 定义限流策略用例需要的持久化能力
+type RateLimitPolicyRepository interface {
+	List(context.Context) ([]resource.RateLimitPolicy, error)
+	Get(context.Context, string) (*resource.RateLimitPolicy, error)
+	Create(context.Context, string, resource.RateLimitPolicySpec) error
+	Update(context.Context, string, int64, resource.RateLimitPolicySpec) error
+	Delete(context.Context, string) error
+}
 
 // RateLimitPolicyUsecase 承载 RateLimitPolicy 管理用例
 type RateLimitPolicyUsecase struct {
 	repository RateLimitPolicyRepository
 	targets    *PolicyTargetResolver
 	writeMu    sync.Mutex
+}
+
+// RateLimitPolicyList 保存策略列表及其目标展示名称
+type RateLimitPolicyList struct {
+	Policies    []resource.RateLimitPolicy
+	TargetNames PolicyTargetNames
+}
+
+// RateLimitPolicyResult 保存单个策略及其目标展示名称
+type RateLimitPolicyResult struct {
+	Policy      *resource.RateLimitPolicy
+	TargetNames PolicyTargetNames
 }
 
 // NewRateLimitPolicyUsecase 创建请求限流策略用例
@@ -35,11 +55,11 @@ func (s *RateLimitPolicyUsecase) List(ctx context.Context) (*RateLimitPolicyList
 	if err != nil {
 		return nil, err
 	}
-	targetNames, err := s.targets.DisplayNames(ctx, rateLimitPolicyTargetRefs(policies.Items))
+	targetNames, err := s.targets.DisplayNames(ctx, rateLimitPolicyTargetRefs(policies))
 	if err != nil {
 		return nil, err
 	}
-	return &RateLimitPolicyList{Policies: policies.Items, TargetNames: targetNames}, nil
+	return &RateLimitPolicyList{Policies: policies, TargetNames: targetNames}, nil
 }
 
 // Get 查询单个 RateLimitPolicy
@@ -63,22 +83,14 @@ func (s *RateLimitPolicyUsecase) Create(ctx context.Context, spec resource.RateL
 	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
 	}
-	policy := &resource.RateLimitPolicy{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: resource.SchemeGroupVersion.String(),
-			Kind:       string(resource.KindRateLimitPolicy),
-		},
-		ObjectMeta: metav1.ObjectMeta{Name: uuid.NewString()},
-		Spec:       spec,
-	}
-	if err := s.targets.Validate(ctx, policy.Spec.TargetRefs); err != nil {
+	if err := s.targets.Validate(ctx, spec.TargetRefs); err != nil {
 		return "", err
 	}
-	created, err := s.repository.Create(ctx, policy)
-	if err != nil {
+	id := uuid.NewString()
+	if err := s.repository.Create(ctx, id, spec); err != nil {
 		return "", err
 	}
-	return created.Name, nil
+	return id, nil
 }
 
 // Update 更新 RateLimitPolicy
@@ -86,45 +98,43 @@ func (s *RateLimitPolicyUsecase) Update(ctx context.Context, policyID, version s
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
-	if version == "" {
-		return NewUserError("限流策略版本不能为空")
+	current, err := s.repository.Get(ctx, policyID)
+	if err != nil {
+		return err
 	}
-
-	// Generation 只在期望配置变化时递增，status 更新造成的 ResourceVersion 冲突可以安全重试
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.repository.Get(ctx, policyID)
-		if err != nil {
-			return err
-		}
-		if version != strconv.FormatInt(current.Generation, 10) {
+	if version != strconv.FormatInt(current.Generation, 10) {
+		return NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+	}
+	if err := s.validateNameUnique(ctx, spec.DisplayName, policyID); err != nil {
+		return err
+	}
+	if err := s.targets.Validate(ctx, spec.TargetRefs); err != nil {
+		return err
+	}
+	if err := s.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
+		if errors.Is(err, ErrResourceVersionConflict) {
 			return NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		if err := s.validateNameUnique(ctx, spec.DisplayName, policyID); err != nil {
-			return err
-		}
-
-		next := current.DeepCopy()
-		next.Spec = spec
-		if err := s.targets.Validate(ctx, next.Spec.TargetRefs); err != nil {
-			return err
-		}
-		_, err = s.repository.Update(ctx, next)
 		return err
-	})
+	}
+	return nil
 }
 
 // SetEnabled 设置 RateLimitPolicy 启用状态
 func (s *RateLimitPolicyUsecase) SetEnabled(ctx context.Context, policyID string, enabled bool) error {
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := s.repository.Get(ctx, policyID)
-		if err != nil {
-			return err
-		}
-		next := current.DeepCopy()
-		next.Spec.Enabled = enabled
-		_, err = s.repository.Update(ctx, next)
+	current, err := s.repository.Get(ctx, policyID)
+	if err != nil {
 		return err
-	})
+	}
+	spec := current.Spec
+	spec.Enabled = enabled
+	if err := s.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
+		if errors.Is(err, ErrResourceVersionConflict) {
+			return NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		}
+		return err
+	}
+	return nil
 }
 
 // Delete 删除 RateLimitPolicy
@@ -137,7 +147,7 @@ func (s *RateLimitPolicyUsecase) validateNameUnique(ctx context.Context, name, e
 	if err != nil {
 		return err
 	}
-	for _, current := range policies.Items {
+	for _, current := range policies {
 		if current.Name == excludeID {
 			continue
 		}

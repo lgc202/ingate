@@ -8,13 +8,30 @@ import (
 	"runtime/debug"
 	"time"
 
+	"buf.build/go/protovalidate"
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"github.com/go-kratos/kratos/v3/middleware"
 	"github.com/go-kratos/kratos/v3/transport"
+	"google.golang.org/protobuf/proto"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
+
+func requestValidationMiddleware(next middleware.Handler) middleware.Handler {
+	return func(ctx context.Context, request any) (any, error) {
+		message, ok := request.(proto.Message)
+		if !ok {
+			return next(ctx, request)
+		}
+		if err := protovalidate.Validate(message); err != nil {
+			return nil, kratoserrors.BadRequest(adminv1.ErrorReason_INVALID_ARGUMENT.String(), "invalid request").
+				WithMetadata(map[string]string{userMessageMetadata: "请求参数不正确"}).
+				WithCause(err)
+		}
+		return next(ctx, request)
+	}
+}
 
 func requestIDFilter(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {

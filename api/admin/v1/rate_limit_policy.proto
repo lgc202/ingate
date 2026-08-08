@@ -3,6 +3,7 @@ syntax = "proto3";
 package ingate.admin.v1;
 
 import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -82,23 +83,23 @@ message RateLimitPolicy {
 }
 
 message CreateRateLimitPolicyRequest {
-  string name = 1;
+  string name = 1 [(buf.validate.field).string.min_len = 1];
   string description = 2;
   bool enabled = 3;
   repeated PolicyTargetRef targets = 4;
-  repeated RateLimitRule rules = 5;
+  repeated RateLimitRule rules = 5 [(buf.validate.field).repeated.min_items = 1];
   RateLimitResponse response = 6;
   string failure_policy = 7;
 }
 
 message UpdateRateLimitPolicyRequest {
-  string id = 1;
-  string version = 2;
-  string name = 3;
+  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
   string description = 4;
   bool enabled = 5;
   repeated PolicyTargetRef targets = 6;
-  repeated RateLimitRule rules = 7;
+  repeated RateLimitRule rules = 7 [(buf.validate.field).repeated.min_items = 1];
   RateLimitResponse response = 8;
   string failure_policy = 9;
 }
@@ -106,4 +107,3 @@ message UpdateRateLimitPolicyRequest {
 message ListRateLimitPoliciesReply {
   repeated RateLimitPolicy policies = 1;
 }
-

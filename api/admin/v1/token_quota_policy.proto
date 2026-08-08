@@ -3,6 +3,7 @@ syntax = "proto3";
 package ingate.admin.v1;
 
 import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -70,30 +71,29 @@ message TokenQuotaPolicy {
 }
 
 message CreateTokenQuotaPolicyRequest {
-  string name = 1;
+  string name = 1 [(buf.validate.field).string.min_len = 1];
   string description = 2;
   bool enabled = 3;
   repeated PolicyTargetRef targets = 4;
-  TokenQuotaSubject subject = 5;
-  TokenQuota quota = 6;
-  string failure_policy = 7;
+  TokenQuotaSubject subject = 5 [(buf.validate.field).required = true];
+  TokenQuota quota = 6 [(buf.validate.field).required = true];
+  string failure_policy = 7 [(buf.validate.field).string.min_len = 1];
   TokenQuotaResponse response = 8;
 }
 
 message UpdateTokenQuotaPolicyRequest {
-  string id = 1;
-  string version = 2;
-  string name = 3;
+  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
   string description = 4;
   bool enabled = 5;
   repeated PolicyTargetRef targets = 6;
-  TokenQuotaSubject subject = 7;
-  TokenQuota quota = 8;
-  string failure_policy = 9;
+  TokenQuotaSubject subject = 7 [(buf.validate.field).required = true];
+  TokenQuota quota = 8 [(buf.validate.field).required = true];
+  string failure_policy = 9 [(buf.validate.field).string.min_len = 1];
   TokenQuotaResponse response = 10;
 }
 
 message ListTokenQuotaPoliciesReply {
   repeated TokenQuotaPolicy policies = 1;
 }
-

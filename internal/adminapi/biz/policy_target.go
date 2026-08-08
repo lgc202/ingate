@@ -13,6 +13,20 @@ type PolicyTargetKey struct {
 	ID   string
 }
 
+// PolicyTargetNames 保存策略作用目标的展示名称
+type PolicyTargetNames map[PolicyTargetKey]string
+
+// Name 返回目标引用对应的展示名称
+func (n PolicyTargetNames) Name(ref resource.PolicyTargetRef) string {
+	return n[PolicyTargetKey{Kind: ref.Kind, ID: ref.Name}]
+}
+
+// Contains 判断目标引用当前是否存在
+func (n PolicyTargetNames) Contains(ref resource.PolicyTargetRef) bool {
+	_, exists := n[PolicyTargetKey{Kind: ref.Kind, ID: ref.Name}]
+	return exists
+}
+
 // PolicyTargetResolver 解析 Gateway 和 Route 策略作用目标
 type PolicyTargetResolver struct {
 	gateways GatewayRepository
@@ -65,7 +79,7 @@ func (r *PolicyTargetResolver) DisplayNames(ctx context.Context, refs []resource
 		if err != nil {
 			return nil, err
 		}
-		for _, gateway := range gateways.Items {
+		for _, gateway := range gateways {
 			names[PolicyTargetKey{Kind: resource.KindGateway, ID: gateway.Name}] = gateway.Spec.DisplayName
 		}
 	}
@@ -74,7 +88,7 @@ func (r *PolicyTargetResolver) DisplayNames(ctx context.Context, refs []resource
 		if err != nil {
 			return nil, err
 		}
-		for _, route := range routes.Items {
+		for _, route := range routes {
 			names[PolicyTargetKey{Kind: resource.KindRoute, ID: route.Name}] = route.Spec.DisplayName
 		}
 	}

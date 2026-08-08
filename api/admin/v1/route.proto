@@ -3,6 +3,7 @@ syntax = "proto3";
 package ingate.admin.v1;
 
 import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
@@ -105,24 +106,35 @@ message Route {
 }
 
 message CreateRouteRequest {
-  string name = 1;
-  repeated string gateway_ids = 2 [json_name = "gatewayIDs"];
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  repeated string gateway_ids = 2 [
+    json_name = "gatewayIDs",
+    (buf.validate.field).repeated = {
+      min_items: 1
+      items: {string: {pattern: "\\S"}}
+    }
+  ];
   repeated string hostnames = 3;
   optional bool enabled = 4;
-  repeated RouteRule rules = 5;
+  repeated RouteRule rules = 5 [(buf.validate.field).repeated.min_items = 1];
 }
 
 message UpdateRouteRequest {
-  string id = 1;
-  string version = 2;
-  string name = 3;
-  repeated string gateway_ids = 4 [json_name = "gatewayIDs"];
+  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
+  string version = 2 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  repeated string gateway_ids = 4 [
+    json_name = "gatewayIDs",
+    (buf.validate.field).repeated = {
+      min_items: 1
+      items: {string: {pattern: "\\S"}}
+    }
+  ];
   repeated string hostnames = 5;
   optional bool enabled = 6;
-  repeated RouteRule rules = 7;
+  repeated RouteRule rules = 7 [(buf.validate.field).repeated.min_items = 1];
 }
 
 message ListRoutesReply {
   repeated Route routes = 1;
 }
-

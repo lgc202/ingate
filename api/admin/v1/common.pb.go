@@ -7,6 +7,7 @@
 package v1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
@@ -351,23 +352,23 @@ var File_admin_v1_common_proto protoreflect.FileDescriptor
 
 const file_admin_v1_common_proto_rawDesc = "" +
 	"\n" +
-	"\x15admin/v1/common.proto\x12\x0fingate.admin.v1\"@\n" +
+	"\x15admin/v1/common.proto\x12\x0fingate.admin.v1\x1a\x1bbuf/validate/validate.proto\"@\n" +
 	"\x0eResourceStatus\x12\x14\n" +
 	"\x05state\x18\x01 \x01(\tR\x05state\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"5\n" +
-	"\x0fPolicyTargetRef\x12\x12\n" +
-	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"\x8e\x01\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"I\n" +
+	"\x0fPolicyTargetRef\x12\x1b\n" +
+	"\x04kind\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04kind\x12\x19\n" +
+	"\x02id\x18\x02 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\"\x8e\x01\n" +
 	"\fPolicyTarget\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12!\n" +
 	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x127\n" +
-	"\x06status\x18\x04 \x01(\v2\x1f.ingate.admin.v1.ResourceStatusR\x06status\"!\n" +
-	"\x0fResourceRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"N\n" +
-	"\x11SetEnabledRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
-	"\aenabled\x18\x02 \x01(\bH\x00R\aenabled\x88\x01\x01B\n" +
+	"\x06status\x18\x04 \x01(\v2\x1f.ingate.admin.v1.ResourceStatusR\x06status\",\n" +
+	"\x0fResourceRequest\x12\x19\n" +
+	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\"a\n" +
+	"\x11SetEnabledRequest\x12\x19\n" +
+	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12%\n" +
+	"\aenabled\x18\x02 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01B\n" +
 	"\n" +
 	"\b_enabled\"9\n" +
 	"\rMutationReply\x12\x18\n" +

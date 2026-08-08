@@ -7,6 +7,7 @@
 package v1
 
 import (
+	_ "buf.build/gen/go/bufbuild/protovalidate/protocolbuffers/go/buf/validate"
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
@@ -804,7 +805,7 @@ var File_admin_v1_upstream_proto protoreflect.FileDescriptor
 
 const file_admin_v1_upstream_proto_rawDesc = "" +
 	"\n" +
-	"\x17admin/v1/upstream.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"$\n" +
+	"\x17admin/v1/upstream.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"$\n" +
 	"\fAPIKeyConfig\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\".\n" +
 	"\vUpstreamTLS\x12\x1f\n" +
@@ -844,27 +845,27 @@ const file_admin_v1_upstream_proto_rawDesc = "" +
 	"\x13load_balance_policy\x18\v \x01(\tR\x11loadBalancePolicy\x12G\n" +
 	"\fhealth_check\x18\f \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x129\n" +
 	"\n" +
-	"created_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xb1\x03\n" +
-	"\x15CreateUpstreamRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12\x12\n" +
-	"\x04type\x18\x02 \x01(\tR\x04type\x12\x1a\n" +
-	"\bprotocol\x18\x03 \x01(\tR\bprotocol\x12.\n" +
+	"created_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xdf\x03\n" +
+	"\x15CreateUpstreamRequest\x12\x1b\n" +
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12\x1b\n" +
+	"\x04type\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04type\x12#\n" +
+	"\bprotocol\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bprotocol\x12.\n" +
 	"\x03tls\x18\x04 \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x122\n" +
-	"\x05model\x18\x05 \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12?\n" +
-	"\tendpoints\x18\x06 \x03(\v2!.ingate.admin.v1.UpstreamEndpointR\tendpoints\x12.\n" +
-	"\x13load_balance_policy\x18\a \x01(\tR\x11loadBalancePolicy\x12G\n" +
+	"\x05model\x18\x05 \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12I\n" +
+	"\tendpoints\x18\x06 \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x127\n" +
+	"\x13load_balance_policy\x18\a \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x11loadBalancePolicy\x12G\n" +
 	"\fhealth_check\x18\b \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x126\n" +
-	"\aapi_key\x18\t \x01(\v2\x1d.ingate.admin.v1.APIKeyConfigR\x06apiKey\"\x81\x04\n" +
-	"\x15UpdateUpstreamRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x12\x12\n" +
-	"\x04type\x18\x04 \x01(\tR\x04type\x12\x1a\n" +
-	"\bprotocol\x18\x05 \x01(\tR\bprotocol\x12.\n" +
+	"\aapi_key\x18\t \x01(\v2\x1d.ingate.admin.v1.APIKeyConfigR\x06apiKey\"\xc3\x04\n" +
+	"\x15UpdateUpstreamRequest\x12\x19\n" +
+	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12\x1b\n" +
+	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12\x1b\n" +
+	"\x04type\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04type\x12#\n" +
+	"\bprotocol\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bprotocol\x12.\n" +
 	"\x03tls\x18\x06 \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x122\n" +
-	"\x05model\x18\a \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12?\n" +
-	"\tendpoints\x18\b \x03(\v2!.ingate.admin.v1.UpstreamEndpointR\tendpoints\x12.\n" +
-	"\x13load_balance_policy\x18\t \x01(\tR\x11loadBalancePolicy\x12G\n" +
+	"\x05model\x18\a \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12I\n" +
+	"\tendpoints\x18\b \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x127\n" +
+	"\x13load_balance_policy\x18\t \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x11loadBalancePolicy\x12G\n" +
 	"\fhealth_check\x18\n" +
 	" \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x126\n" +
 	"\aapi_key\x18\v \x01(\v2\x1d.ingate.admin.v1.APIKeyConfigR\x06apiKey\x12$\n" +
