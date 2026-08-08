@@ -52,6 +52,11 @@ func errorMappingMiddleware(next middleware.Handler) middleware.Handler {
 				WithMetadata(map[string]string{userMessageMetadata: userError.UserMessage()}).
 				WithCause(err)
 		}
+		if errors.Is(err, biz.ErrResourceNotFound) {
+			return nil, kratoserrors.New(http.StatusInternalServerError, adminv1.ErrorReason_BUSINESS_RULE_VIOLATION.String(), "resource not found").
+				WithMetadata(map[string]string{userMessageMetadata: "资源不存在或已被删除"}).
+				WithCause(err)
+		}
 		if _, ok := errors.AsType[*kratoserrors.Error](err); ok {
 			return nil, err
 		}

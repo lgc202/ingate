@@ -8,14 +8,10 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
-
-// ProviderSet 提供 Route 管理用例
-var ProviderSet = wire.NewSet(NewUsecase)
 
 // Repository 定义 Route 用例需要的持久化能力
 type Repository interface {
@@ -93,6 +89,9 @@ func (u *Usecase) Update(ctx context.Context, routeID, version string, submitted
 	if version != strconv.FormatInt(current.Generation, 10) {
 		return biz.NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 	}
+	if !supportsConsoleEditing(current.Spec) {
+		return biz.NewUserError("该路由包含控制台暂不支持的配置，请通过声明式 API 修改")
+	}
 	if err := u.validateNameUnique(ctx, submitted.DisplayName, routeID); err != nil {
 		return err
 	}
@@ -100,8 +99,7 @@ func (u *Usecase) Update(ctx context.Context, routeID, version string, submitted
 		return err
 	}
 
-	next := mergeRouteSpec(current.Spec, submitted)
-	if err := u.repository.Update(ctx, routeID, current.Generation, next); err != nil {
+	if err := u.repository.Update(ctx, routeID, current.Generation, submitted); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return biz.NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
@@ -141,62 +139,4 @@ func (u *Usecase) Delete(ctx context.Context, routeID string) error {
 		return biz.NewUserError(fmt.Sprintf("路由 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
 	}
 	return u.repository.Delete(ctx, routeID)
-}
-
-// mergeRouteSpec 保留声明式 API 已开放但控制台暂不编辑的规则字段
-// 只有同名且仍保留对应能力的规则才继承 Add 和 RetryOn，删除或改名视为显式移除
-func mergeRouteSpec(current, submitted resource.RouteSpec) resource.RouteSpec {
-	currentByName := make(map[string]resource.RouteRule, len(current.Rules))
-	for _, rule := range current.Rules {
-		currentByName[rule.Name] = rule
-	}
-
-	rules := make([]resource.RouteRule, 0, len(submitted.Rules))
-	for _, rule := range submitted.Rules {
-		currentRule, exists := currentByName[rule.Name]
-		if !exists {
-			rules = append(rules, rule)
-			continue
-		}
-
-		currentFilters := make(map[resource.RouteFilterType]resource.RouteFilter, len(currentRule.Filters))
-		for _, filter := range currentRule.Filters {
-			currentFilters[filter.Type] = filter
-		}
-		filters := make([]resource.RouteFilter, 0, len(rule.Filters))
-		for _, filter := range rule.Filters {
-			currentFilter := currentFilters[filter.Type]
-			switch filter.Type {
-			case resource.RouteFilterRequestHeaderModifier:
-				if currentFilter.RequestHeaderModifier != nil && filter.RequestHeaderModifier != nil {
-					modifier := *filter.RequestHeaderModifier
-					modifier.Add = currentFilter.RequestHeaderModifier.Add
-					filter.RequestHeaderModifier = &modifier
-				}
-			case resource.RouteFilterResponseHeaderModifier:
-				if currentFilter.ResponseHeaderModifier != nil && filter.ResponseHeaderModifier != nil {
-					modifier := *filter.ResponseHeaderModifier
-					modifier.Add = currentFilter.ResponseHeaderModifier.Add
-					filter.ResponseHeaderModifier = &modifier
-				}
-			}
-			filters = append(filters, filter)
-		}
-
-		nextRule := rule
-		nextRule.Filters = filters
-		if currentRule.Retry != nil && rule.Retry != nil {
-			retry := *rule.Retry
-			retry.RetryOn = currentRule.Retry.RetryOn
-			nextRule.Retry = &retry
-		}
-		rules = append(rules, nextRule)
-	}
-
-	current.DisplayName = submitted.DisplayName
-	current.Enabled = submitted.Enabled
-	current.ParentRefs = submitted.ParentRefs
-	current.Hostnames = submitted.Hostnames
-	current.Rules = rules
-	return current
 }

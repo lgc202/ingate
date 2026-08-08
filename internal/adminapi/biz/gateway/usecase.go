@@ -7,17 +7,12 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
-	"sync"
 
 	"github.com/google/uuid"
-	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
-
-// ProviderSet 提供 Gateway 管理用例
-var ProviderSet = wire.NewSet(NewUsecase)
 
 // Repository 定义 Gateway 用例需要的持久化能力
 type Repository interface {
@@ -44,8 +39,6 @@ type Usecase struct {
 	routes       RouteRepository
 	certificates CertificateRepository
 	policyUsage  *biz.PolicyUsageFinder
-	// writeMu 保证当前 Usecase 实例内跨 Gateway 的读取校验和写入连续执行
-	writeMu sync.Mutex
 }
 
 // NewUsecase 创建网关管理用例
@@ -75,9 +68,6 @@ func (u *Usecase) Get(ctx context.Context, gatewayID string) (*resource.Gateway,
 
 // Create 创建 Gateway
 func (u *Usecase) Create(ctx context.Context, spec resource.GatewaySpec) (string, error) {
-	u.writeMu.Lock()
-	defer u.writeMu.Unlock()
-
 	spec.Enabled = true
 	if err := u.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
@@ -95,9 +85,6 @@ func (u *Usecase) Create(ctx context.Context, spec resource.GatewaySpec) (string
 
 // Update 更新控制台可表达的 Gateway 配置，启停状态只由 SetEnabled 修改
 func (u *Usecase) Update(ctx context.Context, gatewayID, version string, submitted resource.GatewaySpec) error {
-	u.writeMu.Lock()
-	defer u.writeMu.Unlock()
-
 	current, err := u.repository.Get(ctx, gatewayID)
 	if err != nil {
 		return err
@@ -127,9 +114,6 @@ func (u *Usecase) Update(ctx context.Context, gatewayID, version string, submitt
 
 // SetEnabled 更新 Gateway 启停状态
 func (u *Usecase) SetEnabled(ctx context.Context, gatewayID string, enabled bool) error {
-	u.writeMu.Lock()
-	defer u.writeMu.Unlock()
-
 	current, err := u.repository.Get(ctx, gatewayID)
 	if err != nil {
 		return err

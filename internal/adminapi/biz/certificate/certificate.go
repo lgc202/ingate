@@ -8,14 +8,10 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
-	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
-
-// ProviderSet 提供 Certificate 管理用例
-var ProviderSet = wire.NewSet(NewUsecase)
 
 // Repository 定义 Certificate 用例需要的持久化能力
 type Repository interface {
@@ -43,8 +39,8 @@ func NewUsecase(repository Repository, gateways GatewayRepository) *Usecase {
 }
 
 // List 查询 Certificate 列表
-func (s *Usecase) List(ctx context.Context) ([]resource.Certificate, error) {
-	certificates, err := s.repository.List(ctx)
+func (u *Usecase) List(ctx context.Context) ([]resource.Certificate, error) {
+	certificates, err := u.repository.List(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +48,8 @@ func (s *Usecase) List(ctx context.Context) ([]resource.Certificate, error) {
 }
 
 // Get 查询单个 Certificate
-func (s *Usecase) Get(ctx context.Context, certificateID string) (*resource.Certificate, error) {
-	certificate, err := s.repository.Get(ctx, certificateID)
+func (u *Usecase) Get(ctx context.Context, certificateID string) (*resource.Certificate, error) {
+	certificate, err := u.repository.Get(ctx, certificateID)
 	if err != nil {
 		return nil, err
 	}
@@ -61,34 +57,34 @@ func (s *Usecase) Get(ctx context.Context, certificateID string) (*resource.Cert
 }
 
 // Create 创建 Certificate
-func (s *Usecase) Create(ctx context.Context, spec resource.CertificateSpec) (string, error) {
-	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
+func (u *Usecase) Create(ctx context.Context, spec resource.CertificateSpec) (string, error) {
+	if err := u.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
 	}
 	id := uuid.NewString()
-	if err := s.repository.Create(ctx, id, spec); err != nil {
+	if err := u.repository.Create(ctx, id, spec); err != nil {
 		return "", err
 	}
 	return id, nil
 }
 
 // Update 更新 Certificate
-func (s *Usecase) Update(ctx context.Context, certificateID, version string, spec resource.CertificateSpec) error {
-	current, err := s.repository.Get(ctx, certificateID)
+func (u *Usecase) Update(ctx context.Context, certificateID, version string, spec resource.CertificateSpec) error {
+	current, err := u.repository.Get(ctx, certificateID)
 	if err != nil {
 		return err
 	}
 	if version != strconv.FormatInt(current.Generation, 10) {
 		return biz.NewUserError(fmt.Sprintf("证书 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 	}
-	if err := s.validateNameUnique(ctx, spec.DisplayName, certificateID); err != nil {
+	if err := u.validateNameUnique(ctx, spec.DisplayName, certificateID); err != nil {
 		return err
 	}
 	if spec.CertificatePEM == "" {
 		spec.CertificatePEM = current.Spec.CertificatePEM
 		spec.PrivateKeyPEM = current.Spec.PrivateKeyPEM
 	}
-	if err := s.repository.Update(ctx, certificateID, current.Generation, spec); err != nil {
+	if err := u.repository.Update(ctx, certificateID, current.Generation, spec); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return biz.NewUserError(fmt.Sprintf("证书 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
@@ -98,8 +94,8 @@ func (s *Usecase) Update(ctx context.Context, certificateID, version string, spe
 }
 
 // Delete 删除 Certificate，仍被 Gateway 引用时拒绝删除
-func (s *Usecase) Delete(ctx context.Context, certificateID string) error {
-	gateways, err := s.gateways.List(ctx)
+func (u *Usecase) Delete(ctx context.Context, certificateID string) error {
+	gateways, err := u.gateways.List(ctx)
 	if err != nil {
 		return err
 	}
@@ -110,11 +106,11 @@ func (s *Usecase) Delete(ctx context.Context, certificateID string) error {
 			}
 		}
 	}
-	return s.repository.Delete(ctx, certificateID)
+	return u.repository.Delete(ctx, certificateID)
 }
 
-func (s *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
-	certificates, err := s.repository.List(ctx)
+func (u *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
+	certificates, err := u.repository.List(ctx)
 	if err != nil {
 		return err
 	}

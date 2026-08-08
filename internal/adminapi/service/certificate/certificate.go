@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/google/wire"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
@@ -16,9 +15,6 @@ import (
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
-
-// ProviderSet 提供 Certificate 协议服务
-var ProviderSet = wire.NewSet(NewService)
 
 // Service 实现网关 TLS 证书管理 API
 type Service struct {

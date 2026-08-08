@@ -4,16 +4,12 @@ package configuration
 import (
 	"context"
 
-	"github.com/google/wire"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	configurationbiz "github.com/lgc202/ingate/internal/adminapi/biz/configuration"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
-
-// ProviderSet 提供配置发布状态协议服务
-var ProviderSet = wire.NewSet(NewService)
 
 // Service 实现配置生效状态查询 API
 type Service struct {
