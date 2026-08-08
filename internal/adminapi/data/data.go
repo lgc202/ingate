@@ -13,6 +13,15 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/accesscontrol"
+	"github.com/lgc202/ingate/internal/adminapi/biz/accesskey"
+	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
+	"github.com/lgc202/ingate/internal/adminapi/biz/configuration"
+	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
+	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
+	"github.com/lgc202/ingate/internal/adminapi/biz/route"
+	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
+	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
 	"github.com/lgc202/ingate/internal/adminapi/data/cache"
@@ -41,14 +50,34 @@ var ProviderSet = wire.NewSet(
 	cache.NewCredentialIndex,
 	NewAccessKeyRepository,
 	NewAccessKeyIndexSync,
-	wire.Bind(new(biz.GatewayRepository), new(*apiserver.GatewayRepository)),
-	wire.Bind(new(biz.RouteRepository), new(*apiserver.RouteRepository)),
-	wire.Bind(new(biz.UpstreamRepository), new(*apiserver.UpstreamRepository)),
-	wire.Bind(new(biz.CertificateRepository), new(*apiserver.CertificateRepository)),
-	wire.Bind(new(biz.RateLimitPolicyRepository), new(*apiserver.RateLimitPolicyRepository)),
-	wire.Bind(new(biz.AccessControlPolicyRepository), new(*apiserver.AccessControlPolicyRepository)),
-	wire.Bind(new(biz.TokenQuotaPolicyRepository), new(*apiserver.TokenQuotaPolicyRepository)),
-	wire.Bind(new(biz.AccessKeyRepository), new(*accessKeyRepository)),
+	// 根 biz 只保留跨领域策略能力所需的只读边界
+	wire.Bind(new(biz.GatewayLister), new(*apiserver.GatewayRepository)),
+	wire.Bind(new(biz.RouteLister), new(*apiserver.RouteRepository)),
+	wire.Bind(new(biz.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyRepository)),
+	wire.Bind(new(biz.AccessControlPolicyLister), new(*apiserver.AccessControlPolicyRepository)),
+	wire.Bind(new(biz.TokenQuotaPolicyLister), new(*apiserver.TokenQuotaPolicyRepository)),
+	// 每个领域声明自己真实消费的 Repository，避免 biz 子包相互依赖
+	wire.Bind(new(gateway.Repository), new(*apiserver.GatewayRepository)),
+	wire.Bind(new(gateway.RouteRepository), new(*apiserver.RouteRepository)),
+	wire.Bind(new(gateway.CertificateRepository), new(*apiserver.CertificateRepository)),
+	wire.Bind(new(route.Repository), new(*apiserver.RouteRepository)),
+	wire.Bind(new(route.GatewayRepository), new(*apiserver.GatewayRepository)),
+	wire.Bind(new(route.UpstreamRepository), new(*apiserver.UpstreamRepository)),
+	wire.Bind(new(upstream.Repository), new(*apiserver.UpstreamRepository)),
+	wire.Bind(new(upstream.RouteRepository), new(*apiserver.RouteRepository)),
+	wire.Bind(new(certificate.Repository), new(*apiserver.CertificateRepository)),
+	wire.Bind(new(certificate.GatewayRepository), new(*apiserver.GatewayRepository)),
+	wire.Bind(new(ratelimit.Repository), new(*apiserver.RateLimitPolicyRepository)),
+	wire.Bind(new(accesscontrol.Repository), new(*apiserver.AccessControlPolicyRepository)),
+	wire.Bind(new(tokenquota.Repository), new(*apiserver.TokenQuotaPolicyRepository)),
+	wire.Bind(new(accesskey.Repository), new(*accessKeyRepository)),
+	wire.Bind(new(configuration.GatewayRepository), new(*apiserver.GatewayRepository)),
+	wire.Bind(new(configuration.RouteRepository), new(*apiserver.RouteRepository)),
+	wire.Bind(new(configuration.UpstreamRepository), new(*apiserver.UpstreamRepository)),
+	wire.Bind(new(configuration.CertificateRepository), new(*apiserver.CertificateRepository)),
+	wire.Bind(new(configuration.RateLimitPolicyRepository), new(*apiserver.RateLimitPolicyRepository)),
+	wire.Bind(new(configuration.AccessControlPolicyRepository), new(*apiserver.AccessControlPolicyRepository)),
+	wire.Bind(new(configuration.TokenQuotaPolicyRepository), new(*apiserver.TokenQuotaPolicyRepository)),
 )
 
 // Data 持有 Admin API 使用的外部数据连接

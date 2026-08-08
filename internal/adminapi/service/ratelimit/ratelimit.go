@@ -1,32 +1,39 @@
-package service
+// Package ratelimit 实现请求限流策略管理 API
+package ratelimit
 
 import (
 	"context"
 	"strconv"
 	"strings"
 
+	"github.com/google/wire"
 	"google.golang.org/protobuf/types/known/emptypb"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	ratelimitbiz "github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// RateLimitPolicyService 实现请求限流策略管理 API
-type RateLimitPolicyService struct {
-	usecase *biz.RateLimitPolicyUsecase
+// ProviderSet 提供请求限流策略协议服务
+var ProviderSet = wire.NewSet(NewService)
+
+// Service 实现请求限流策略管理 API
+type Service struct {
+	usecase *ratelimitbiz.Usecase
 }
 
-// NewRateLimitPolicyService 创建限流策略协议服务
-func NewRateLimitPolicyService(usecase *biz.RateLimitPolicyUsecase) *RateLimitPolicyService {
-	return &RateLimitPolicyService{usecase: usecase}
+// NewService 创建限流策略协议服务
+func NewService(usecase *ratelimitbiz.Usecase) *Service {
+	return &Service{usecase: usecase}
 }
 
-func (s *RateLimitPolicyService) ListRateLimitPolicies(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListRateLimitPoliciesReply, error) {
+func (s *Service) ListRateLimitPolicies(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListRateLimitPoliciesReply, error) {
 	result, err := s.usecase.List(ctx)
 	if err != nil {
-		return nil, operationError(err, "查询限流策略失败")
+		return nil, adminservice.OperationError(err, "查询限流策略失败")
 	}
 	reply := &adminv1.ListRateLimitPoliciesReply{Policies: make([]*adminv1.RateLimitPolicy, 0, len(result.Policies))}
 	for i := range result.Policies {
@@ -35,15 +42,15 @@ func (s *RateLimitPolicyService) ListRateLimitPolicies(ctx context.Context, _ *e
 	return reply, nil
 }
 
-func (s *RateLimitPolicyService) GetRateLimitPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.RateLimitPolicy, error) {
+func (s *Service) GetRateLimitPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.RateLimitPolicy, error) {
 	result, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
-		return nil, operationError(err, "查询限流策略失败")
+		return nil, adminservice.OperationError(err, "查询限流策略失败")
 	}
 	return rateLimitPolicyReply(result.Policy, result.TargetNames), nil
 }
 
-func (s *RateLimitPolicyService) CreateRateLimitPolicy(ctx context.Context, request *adminv1.CreateRateLimitPolicyRequest) (*adminv1.MutationReply, error) {
+func (s *Service) CreateRateLimitPolicy(ctx context.Context, request *adminv1.CreateRateLimitPolicyRequest) (*adminv1.MutationReply, error) {
 	spec, err := rateLimitPolicySpec(
 		request.GetName(), request.GetDescription(), request.GetEnabled(), request.GetTargets(),
 		request.GetRules(), request.GetResponse(), request.GetFailurePolicy(),
@@ -53,12 +60,12 @@ func (s *RateLimitPolicyService) CreateRateLimitPolicy(ctx context.Context, requ
 	}
 	id, err := s.usecase.Create(ctx, spec)
 	if err != nil {
-		return nil, operationError(err, "创建限流策略失败")
+		return nil, adminservice.OperationError(err, "创建限流策略失败")
 	}
 	return &adminv1.MutationReply{Success: true, Id: id}, nil
 }
 
-func (s *RateLimitPolicyService) UpdateRateLimitPolicy(ctx context.Context, request *adminv1.UpdateRateLimitPolicyRequest) (*adminv1.MutationReply, error) {
+func (s *Service) UpdateRateLimitPolicy(ctx context.Context, request *adminv1.UpdateRateLimitPolicyRequest) (*adminv1.MutationReply, error) {
 	spec, err := rateLimitPolicySpec(
 		request.GetName(), request.GetDescription(), request.GetEnabled(), request.GetTargets(),
 		request.GetRules(), request.GetResponse(), request.GetFailurePolicy(),
@@ -67,21 +74,21 @@ func (s *RateLimitPolicyService) UpdateRateLimitPolicy(ctx context.Context, requ
 		return nil, err
 	}
 	if err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec); err != nil {
-		return nil, operationError(err, "更新限流策略失败")
+		return nil, adminservice.OperationError(err, "更新限流策略失败")
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
-func (s *RateLimitPolicyService) SetRateLimitPolicyEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
+func (s *Service) SetRateLimitPolicyEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
 	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
-		return nil, operationError(err, "更新限流策略状态失败")
+		return nil, adminservice.OperationError(err, "更新限流策略状态失败")
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
-func (s *RateLimitPolicyService) DeleteRateLimitPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
+func (s *Service) DeleteRateLimitPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
-		return nil, operationError(err, "删除限流策略失败")
+		return nil, adminservice.OperationError(err, "删除限流策略失败")
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
@@ -96,14 +103,14 @@ func rateLimitPolicySpec(
 ) (resource.RateLimitPolicySpec, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return resource.RateLimitPolicySpec{}, badRequest("名称不能为空")
+		return resource.RateLimitPolicySpec{}, adminservice.BadRequest("名称不能为空")
 	}
-	refs, err := policyTargetRefs(targets)
+	refs, err := adminservice.PolicyTargetRefs(targets)
 	if err != nil {
 		return resource.RateLimitPolicySpec{}, err
 	}
 	if len(rules) == 0 {
-		return resource.RateLimitPolicySpec{}, badRequest("至少需要一条限流规则")
+		return resource.RateLimitPolicySpec{}, adminservice.BadRequest("至少需要一条限流规则")
 	}
 	spec := resource.RateLimitPolicySpec{
 		DisplayName: name, Description: description, Enabled: enabled, TargetRefs: refs,
@@ -113,31 +120,31 @@ func rateLimitPolicySpec(
 		spec.FailurePolicy = resource.RateLimitFailurePolicyFailOpen
 	}
 	if spec.FailurePolicy != resource.RateLimitFailurePolicyFailOpen && spec.FailurePolicy != resource.RateLimitFailurePolicyFailClose {
-		return resource.RateLimitPolicySpec{}, badRequest("失败策略不正确")
+		return resource.RateLimitPolicySpec{}, adminservice.BadRequest("失败策略不正确")
 	}
 	seen := make(map[string]struct{}, len(rules))
 	for _, input := range rules {
 		if input == nil || strings.TrimSpace(input.GetName()) == "" || input.GetKey() == nil || input.GetLimit() == nil {
-			return resource.RateLimitPolicySpec{}, badRequest("限流规则配置不完整")
+			return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流规则配置不完整")
 		}
 		ruleName := strings.TrimSpace(input.GetName())
 		if _, exists := seen[ruleName]; exists {
-			return resource.RateLimitPolicySpec{}, badRequest("限流规则名称不能重复")
+			return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流规则名称不能重复")
 		}
 		seen[ruleName] = struct{}{}
 		limit := input.GetLimit()
 		if limit.GetRequests() <= 0 || limit.GetWindowSeconds() <= 0 || limit.GetBurst() < 0 {
-			return resource.RateLimitPolicySpec{}, badRequest("限流额度必须大于 0")
+			return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流额度必须大于 0")
 		}
 		rule := resource.RateLimitRule{Name: ruleName, Limit: resource.RateLimitQuota{
 			Requests: int(limit.GetRequests()), WindowSeconds: int(limit.GetWindowSeconds()), Burst: int(limit.GetBurst()),
 		}}
 		if len(input.GetKey().GetParts()) == 0 {
-			return resource.RateLimitPolicySpec{}, badRequest("限流规则必须配置计数维度")
+			return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流规则必须配置计数维度")
 		}
 		for _, inputPart := range input.GetKey().GetParts() {
 			if inputPart == nil {
-				return resource.RateLimitPolicySpec{}, badRequest("限流维度不能为空")
+				return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流维度不能为空")
 			}
 			part := resource.RateLimitKeyPart{Type: resource.RateLimitKeyType(inputPart.GetType()), Name: strings.TrimSpace(inputPart.GetName())}
 			switch part.Type {
@@ -145,17 +152,17 @@ func rateLimitPolicySpec(
 				part.Name = ""
 			case resource.RateLimitKeyTypeHeader:
 				if part.Name == "" {
-					return resource.RateLimitPolicySpec{}, badRequest("限流维度名称不能为空")
+					return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流维度名称不能为空")
 				}
 				if len(k8svalidation.IsHTTPHeaderName(part.Name)) > 0 {
-					return resource.RateLimitPolicySpec{}, badRequest("请求头名称不正确")
+					return resource.RateLimitPolicySpec{}, adminservice.BadRequest("请求头名称不正确")
 				}
 			case resource.RateLimitKeyTypeQuery, resource.RateLimitKeyTypeCookie:
 				if part.Name == "" {
-					return resource.RateLimitPolicySpec{}, badRequest("限流维度名称不能为空")
+					return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流维度名称不能为空")
 				}
 			default:
-				return resource.RateLimitPolicySpec{}, badRequest("限流维度不正确")
+				return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流维度不正确")
 			}
 			rule.Key.Parts = append(rule.Key.Parts, part)
 		}
@@ -163,7 +170,7 @@ func rateLimitPolicySpec(
 	}
 	if response != nil {
 		if response.GetStatusCode() != 0 && (response.GetStatusCode() < 400 || response.GetStatusCode() > 599) {
-			return resource.RateLimitPolicySpec{}, badRequest("超限响应状态码必须在 400 到 599 之间")
+			return resource.RateLimitPolicySpec{}, adminservice.BadRequest("超限响应状态码必须在 400 到 599 之间")
 		}
 		spec.Response = resource.RateLimitResponse{
 			StatusCode: int(response.GetStatusCode()), Message: response.GetMessage(),
@@ -177,10 +184,10 @@ func rateLimitPolicyReply(policy *resource.RateLimitPolicy, names biz.PolicyTarg
 	status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
 	disabled := status.State == biz.ResourceStateDisabled
 	reply := &adminv1.RateLimitPolicy{
-		Id: policy.Name, Version: strconv.FormatInt(policy.Generation, 10), Status: resourceStatus(status),
+		Id: policy.Name, Version: strconv.FormatInt(policy.Generation, 10), Status: adminservice.ResourceStatus(status),
 		Name: policy.Spec.DisplayName, Description: policy.Spec.Description, Enabled: policy.Spec.Enabled,
-		Targets:       policyTargets(policy.Generation, disabled, policy.Spec.TargetRefs, policy.Status.Targets, names),
-		FailurePolicy: string(policy.Spec.FailurePolicy), CreatedAt: timestamp(policy.CreationTimestamp.Time),
+		Targets:       adminservice.PolicyTargets(policy.Generation, disabled, policy.Spec.TargetRefs, policy.Status.Targets, names),
+		FailurePolicy: string(policy.Spec.FailurePolicy), CreatedAt: adminservice.Timestamp(policy.CreationTimestamp.Time),
 		Response: &adminv1.RateLimitResponse{
 			StatusCode: int32(policy.Spec.Response.StatusCode), Message: policy.Spec.Response.Message,
 			QuotaHeaderEnabled: policy.Spec.Response.QuotaHeaderEnabled,

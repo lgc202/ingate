@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	accesskeybiz "github.com/lgc202/ingate/internal/adminapi/biz/accesskey"
 	"github.com/lgc202/ingate/internal/adminapi/data/cache"
 	accesskeydao "github.com/lgc202/ingate/internal/adminapi/data/dao/accesskey"
 )
@@ -34,7 +35,7 @@ func (r *accessKeyRepository) Reconcile(ctx context.Context) error {
 	})
 }
 
-func (r *accessKeyRepository) List(ctx context.Context) ([]biz.AccessKey, error) {
+func (r *accessKeyRepository) List(ctx context.Context) ([]accesskeybiz.Key, error) {
 	records, err := r.dao.List(ctx)
 	if err != nil {
 		return nil, err
@@ -47,7 +48,7 @@ func (r *accessKeyRepository) List(ctx context.Context) ([]biz.AccessKey, error)
 	if err != nil {
 		return nil, err
 	}
-	accessKeys := make([]biz.AccessKey, 0, len(records))
+	accessKeys := make([]accesskeybiz.Key, 0, len(records))
 	for _, record := range records {
 		accessKey := accessKeyFromRecord(record)
 		if usedAt, exists := lastUsed[record.ID]; exists {
@@ -58,10 +59,10 @@ func (r *accessKeyRepository) List(ctx context.Context) ([]biz.AccessKey, error)
 	return accessKeys, nil
 }
 
-func (r *accessKeyRepository) Get(ctx context.Context, accessKeyID string) (biz.AccessKey, error) {
+func (r *accessKeyRepository) Get(ctx context.Context, accessKeyID string) (accesskeybiz.Key, error) {
 	record, err := r.dao.Get(ctx, accessKeyID)
 	if err != nil {
-		return biz.AccessKey{}, accessKeyError(err)
+		return accesskeybiz.Key{}, accessKeyError(err)
 	}
 	return accessKeyFromRecord(record), nil
 }
@@ -70,7 +71,7 @@ func (r *accessKeyRepository) NameExists(ctx context.Context, name, excludeID st
 	return r.dao.NameExists(ctx, name, excludeID)
 }
 
-func (r *accessKeyRepository) Create(ctx context.Context, accessKey biz.AccessKey) error {
+func (r *accessKeyRepository) Create(ctx context.Context, accessKey accesskeybiz.Key) error {
 	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
 		// 新 Secret 仅随成功响应返回，先发布不会让调用方获得无持久化记录的凭据
 		if err := r.credentials.Save(ctx, credentialFromAccessKey(accessKey)); err != nil {
@@ -80,7 +81,7 @@ func (r *accessKeyRepository) Create(ctx context.Context, accessKey biz.AccessKe
 	})
 }
 
-func (r *accessKeyRepository) Update(ctx context.Context, current, next biz.AccessKey) error {
+func (r *accessKeyRepository) Update(ctx context.Context, current, next accesskeybiz.Key) error {
 	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
 		// 配置变化前先撤销旧凭据，跨存储失败时保持拒绝访问，由周期同步恢复事实状态
 		if err := r.credentials.Save(ctx, revokedCredential(current)); err != nil {
@@ -93,7 +94,7 @@ func (r *accessKeyRepository) Update(ctx context.Context, current, next biz.Acce
 	})
 }
 
-func (r *accessKeyRepository) SetEnabled(ctx context.Context, current, next biz.AccessKey) error {
+func (r *accessKeyRepository) SetEnabled(ctx context.Context, current, next accesskeybiz.Key) error {
 	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
 		if err := r.credentials.Save(ctx, revokedCredential(current)); err != nil {
 			return err
@@ -108,7 +109,7 @@ func (r *accessKeyRepository) SetEnabled(ctx context.Context, current, next biz.
 	})
 }
 
-func (r *accessKeyRepository) Rotate(ctx context.Context, current, next biz.AccessKey) error {
+func (r *accessKeyRepository) Rotate(ctx context.Context, current, next accesskeybiz.Key) error {
 	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
 		if err := r.credentials.Save(ctx, revokedCredential(current)); err != nil {
 			return err
@@ -120,7 +121,7 @@ func (r *accessKeyRepository) Rotate(ctx context.Context, current, next biz.Acce
 	})
 }
 
-func (r *accessKeyRepository) Delete(ctx context.Context, accessKey biz.AccessKey) error {
+func (r *accessKeyRepository) Delete(ctx context.Context, accessKey accesskeybiz.Key) error {
 	return r.dao.WithCredentialIndexLock(ctx, func(dao *accesskeydao.DAO) error {
 		if err := r.credentials.Delete(ctx, credentialFromAccessKey(accessKey)); err != nil {
 			return err
@@ -140,8 +141,8 @@ func accessKeyError(err error) error {
 	}
 }
 
-func accessKeyFromRecord(record accesskeydao.Record) biz.AccessKey {
-	return biz.AccessKey{
+func accessKeyFromRecord(record accesskeydao.Record) accesskeybiz.Key {
+	return accesskeybiz.Key{
 		ID:            record.ID,
 		Name:          record.Name,
 		SecretHash:    record.SecretHash,
@@ -155,7 +156,7 @@ func accessKeyFromRecord(record accesskeydao.Record) biz.AccessKey {
 	}
 }
 
-func recordFromAccessKey(accessKey biz.AccessKey) accesskeydao.Record {
+func recordFromAccessKey(accessKey accesskeybiz.Key) accesskeydao.Record {
 	return accesskeydao.Record{
 		ID:            accessKey.ID,
 		Name:          accessKey.Name,
@@ -170,7 +171,7 @@ func recordFromAccessKey(accessKey biz.AccessKey) accesskeydao.Record {
 	}
 }
 
-func credentialFromAccessKey(accessKey biz.AccessKey) cache.Credential {
+func credentialFromAccessKey(accessKey accesskeybiz.Key) cache.Credential {
 	return cache.Credential{
 		ID:            accessKey.ID,
 		SecretHash:    accessKey.SecretHash,
@@ -180,7 +181,7 @@ func credentialFromAccessKey(accessKey biz.AccessKey) cache.Credential {
 	}
 }
 
-func revokedCredential(accessKey biz.AccessKey) cache.Credential {
+func revokedCredential(accessKey accesskeybiz.Key) cache.Credential {
 	credential := credentialFromAccessKey(accessKey)
 	credential.Enabled = false
 	return credential

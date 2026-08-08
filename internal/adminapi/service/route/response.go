@@ -1,19 +1,20 @@
-package service
+package route
 
 import (
 	"strconv"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 func routeReply(route *resource.Route) *adminv1.Route {
 	status := biz.EnabledResourceStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions)
 	reply := &adminv1.Route{
-		Id: route.Name, Version: strconv.FormatInt(route.Generation, 10), Status: resourceStatus(status),
+		Id: route.Name, Version: strconv.FormatInt(route.Generation, 10), Status: adminservice.ResourceStatus(status),
 		Name: route.Spec.DisplayName, Hostnames: append([]string(nil), route.Spec.Hostnames...),
-		Enabled: route.Spec.Enabled, CreatedAt: timestamp(route.CreationTimestamp.Time),
+		Enabled: route.Spec.Enabled, CreatedAt: adminservice.Timestamp(route.CreationTimestamp.Time),
 	}
 	for _, ref := range route.Spec.ParentRefs {
 		reply.GatewayIds = append(reply.GatewayIds, ref.Name)

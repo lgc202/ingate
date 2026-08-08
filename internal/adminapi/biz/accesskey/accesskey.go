@@ -1,4 +1,5 @@
-package biz
+// Package accesskey 实现访问密钥管理用例
+package accesskey
 
 import (
 	"context"
@@ -9,7 +10,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/google/wire"
 
+	"github.com/lgc202/ingate/internal/adminapi/biz"
 	sharedaccesskey "github.com/lgc202/ingate/internal/pkg/accesskey"
 )
 
@@ -20,8 +23,11 @@ const (
 	secretSuffixLength = 4
 )
 
-// AccessKey 是访问密钥业务对象，原始 Secret 不进入持久化层
-type AccessKey struct {
+// ProviderSet 提供访问密钥管理用例
+var ProviderSet = wire.NewSet(NewUsecase)
+
+// Key 是访问密钥业务对象，原始 Secret 不进入持久化层
+type Key struct {
 	ID            string
 	Name          string
 	SecretHash    [32]byte
@@ -35,49 +41,49 @@ type AccessKey struct {
 	UpdatedAt     time.Time
 }
 
-// AccessKeyRepository 定义访问密钥用例需要的持久化能力
-type AccessKeyRepository interface {
-	List(context.Context) ([]AccessKey, error)
-	Get(context.Context, string) (AccessKey, error)
+// Repository 定义访问密钥用例需要的持久化能力
+type Repository interface {
+	List(context.Context) ([]Key, error)
+	Get(context.Context, string) (Key, error)
 	NameExists(context.Context, string, string) (bool, error)
-	Create(context.Context, AccessKey) error
-	Update(context.Context, AccessKey, AccessKey) error
-	SetEnabled(context.Context, AccessKey, AccessKey) error
-	Rotate(context.Context, AccessKey, AccessKey) error
-	Delete(context.Context, AccessKey) error
+	Create(context.Context, Key) error
+	Update(context.Context, Key, Key) error
+	SetEnabled(context.Context, Key, Key) error
+	Rotate(context.Context, Key, Key) error
+	Delete(context.Context, Key) error
 }
 
-// AccessKeyUsecase 管理访问密钥的业务生命周期
-type AccessKeyUsecase struct {
-	repository AccessKeyRepository
+// Usecase 管理访问密钥的业务生命周期
+type Usecase struct {
+	repository Repository
 }
 
-// NewAccessKeyUsecase 创建访问密钥用例
-func NewAccessKeyUsecase(repository AccessKeyRepository) *AccessKeyUsecase {
-	return &AccessKeyUsecase{repository: repository}
+// NewUsecase 创建访问密钥用例
+func NewUsecase(repository Repository) *Usecase {
+	return &Usecase{repository: repository}
 }
 
 // List 返回访问密钥列表，并合并 Redis 中的最后认证时间
-func (u *AccessKeyUsecase) List(ctx context.Context) ([]AccessKey, error) {
+func (u *Usecase) List(ctx context.Context) ([]Key, error) {
 	return u.repository.List(ctx)
 }
 
 // Create 创建访问密钥，完整 Secret 只随本次调用返回
-func (u *AccessKeyUsecase) Create(
+func (u *Usecase) Create(
 	ctx context.Context,
 	name string,
 	allowedModels []string,
 	expiresAt *time.Time,
-) (AccessKey, string, error) {
+) (Key, string, error) {
 	if err := u.ensureNameAvailable(ctx, name, ""); err != nil {
-		return AccessKey{}, "", err
+		return Key{}, "", err
 	}
 	secret, hash, prefix, suffix, err := newSecret()
 	if err != nil {
-		return AccessKey{}, "", err
+		return Key{}, "", err
 	}
 	now := time.Now().UTC()
-	accessKey := AccessKey{
+	accessKey := Key{
 		ID:            uuid.NewString(),
 		Name:          name,
 		SecretHash:    hash,
@@ -91,28 +97,28 @@ func (u *AccessKeyUsecase) Create(
 	}
 
 	if err := u.repository.Create(ctx, accessKey); err != nil {
-		if errors.Is(err, ErrAccessKeyNameConflict) {
-			return AccessKey{}, "", NewUserError(fmt.Sprintf("访问密钥名称 %q 已存在", name))
+		if errors.Is(err, biz.ErrAccessKeyNameConflict) {
+			return Key{}, "", biz.NewUserError(fmt.Sprintf("访问密钥名称 %q 已存在", name))
 		}
-		return AccessKey{}, "", err
+		return Key{}, "", err
 	}
 	return accessKey, secret, nil
 }
 
 // Update 全量更新访问密钥的可编辑配置，不改变 Secret
-func (u *AccessKeyUsecase) Update(
+func (u *Usecase) Update(
 	ctx context.Context,
 	accessKeyID string,
 	name string,
 	allowedModels []string,
 	expiresAt *time.Time,
-) (AccessKey, error) {
+) (Key, error) {
 	current, err := u.get(ctx, accessKeyID)
 	if err != nil {
-		return AccessKey{}, err
+		return Key{}, err
 	}
 	if err := u.ensureNameAvailable(ctx, name, accessKeyID); err != nil {
-		return AccessKey{}, err
+		return Key{}, err
 	}
 	next := current
 	next.Name = name
@@ -121,19 +127,19 @@ func (u *AccessKeyUsecase) Update(
 	next.UpdatedAt = time.Now().UTC()
 
 	if err := u.repository.Update(ctx, current, next); err != nil {
-		if errors.Is(err, ErrAccessKeyNameConflict) {
-			return AccessKey{}, NewUserError(fmt.Sprintf("访问密钥名称 %q 已存在", name))
+		if errors.Is(err, biz.ErrAccessKeyNameConflict) {
+			return Key{}, biz.NewUserError(fmt.Sprintf("访问密钥名称 %q 已存在", name))
 		}
-		return AccessKey{}, err
+		return Key{}, err
 	}
 	return next, nil
 }
 
 // SetEnabled 启用或停用访问密钥
-func (u *AccessKeyUsecase) SetEnabled(ctx context.Context, accessKeyID string, enabled bool) (AccessKey, error) {
+func (u *Usecase) SetEnabled(ctx context.Context, accessKeyID string, enabled bool) (Key, error) {
 	current, err := u.get(ctx, accessKeyID)
 	if err != nil {
-		return AccessKey{}, err
+		return Key{}, err
 	}
 	if current.Enabled == enabled {
 		return current, nil
@@ -143,20 +149,20 @@ func (u *AccessKeyUsecase) SetEnabled(ctx context.Context, accessKeyID string, e
 	next.UpdatedAt = time.Now().UTC()
 
 	if err := u.repository.SetEnabled(ctx, current, next); err != nil {
-		return AccessKey{}, err
+		return Key{}, err
 	}
 	return next, nil
 }
 
 // Rotate 生成新 Secret 并立即撤销原 Secret
-func (u *AccessKeyUsecase) Rotate(ctx context.Context, accessKeyID string) (AccessKey, string, error) {
+func (u *Usecase) Rotate(ctx context.Context, accessKeyID string) (Key, string, error) {
 	current, err := u.get(ctx, accessKeyID)
 	if err != nil {
-		return AccessKey{}, "", err
+		return Key{}, "", err
 	}
 	secret, hash, prefix, suffix, err := newSecret()
 	if err != nil {
-		return AccessKey{}, "", err
+		return Key{}, "", err
 	}
 	next := current
 	next.SecretHash = hash
@@ -165,13 +171,13 @@ func (u *AccessKeyUsecase) Rotate(ctx context.Context, accessKeyID string) (Acce
 	next.UpdatedAt = time.Now().UTC()
 
 	if err := u.repository.Rotate(ctx, current, next); err != nil {
-		return AccessKey{}, "", err
+		return Key{}, "", err
 	}
 	return next, secret, nil
 }
 
 // Delete 删除访问密钥并立即撤销数据面权限
-func (u *AccessKeyUsecase) Delete(ctx context.Context, accessKeyID string) error {
+func (u *Usecase) Delete(ctx context.Context, accessKeyID string) error {
 	current, err := u.get(ctx, accessKeyID)
 	if err != nil {
 		return err
@@ -179,21 +185,21 @@ func (u *AccessKeyUsecase) Delete(ctx context.Context, accessKeyID string) error
 	return u.repository.Delete(ctx, current)
 }
 
-func (u *AccessKeyUsecase) get(ctx context.Context, accessKeyID string) (AccessKey, error) {
+func (u *Usecase) get(ctx context.Context, accessKeyID string) (Key, error) {
 	accessKey, err := u.repository.Get(ctx, accessKeyID)
-	if errors.Is(err, ErrAccessKeyNotFound) {
-		return AccessKey{}, NewUserError("访问密钥不存在")
+	if errors.Is(err, biz.ErrAccessKeyNotFound) {
+		return Key{}, biz.NewUserError("访问密钥不存在")
 	}
 	return accessKey, err
 }
 
-func (u *AccessKeyUsecase) ensureNameAvailable(ctx context.Context, name, excludeID string) error {
+func (u *Usecase) ensureNameAvailable(ctx context.Context, name, excludeID string) error {
 	exists, err := u.repository.NameExists(ctx, name, excludeID)
 	if err != nil {
 		return err
 	}
 	if exists {
-		return NewUserError(fmt.Sprintf("访问密钥名称 %q 已存在", name))
+		return biz.NewUserError(fmt.Sprintf("访问密钥名称 %q 已存在", name))
 	}
 	return nil
 }

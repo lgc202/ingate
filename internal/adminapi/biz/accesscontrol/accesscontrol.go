@@ -1,4 +1,5 @@
-package biz
+// Package accesscontrol 实现访问控制策略管理用例
+package accesscontrol
 
 import (
 	"context"
@@ -8,12 +9,17 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	"github.com/google/wire"
 
+	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// AccessControlPolicyRepository 定义访问控制策略用例需要的持久化能力
-type AccessControlPolicyRepository interface {
+// ProviderSet 提供访问控制策略管理用例
+var ProviderSet = wire.NewSet(NewUsecase)
+
+// Repository 定义访问控制策略用例需要的持久化能力
+type Repository interface {
 	List(context.Context) ([]resource.AccessControlPolicy, error)
 	Get(context.Context, string) (*resource.AccessControlPolicy, error)
 	Create(context.Context, string, resource.AccessControlPolicySpec) error
@@ -21,36 +27,36 @@ type AccessControlPolicyRepository interface {
 	Delete(context.Context, string) error
 }
 
-// AccessControlPolicyUsecase 承载 AccessControlPolicy 管理用例
-type AccessControlPolicyUsecase struct {
-	repository AccessControlPolicyRepository
-	targets    *PolicyTargetResolver
+// Usecase 承载 AccessControlPolicy 管理用例
+type Usecase struct {
+	repository Repository
+	targets    *biz.PolicyTargetResolver
 	writeMu    sync.Mutex
 }
 
-// AccessControlPolicyList 保存策略列表及其目标展示名称
-type AccessControlPolicyList struct {
+// ListResult 保存策略列表及其目标展示名称
+type ListResult struct {
 	Policies    []resource.AccessControlPolicy
-	TargetNames PolicyTargetNames
+	TargetNames biz.PolicyTargetNames
 }
 
-// AccessControlPolicyResult 保存单个策略及其目标展示名称
-type AccessControlPolicyResult struct {
+// Result 保存单个策略及其目标展示名称
+type Result struct {
 	Policy      *resource.AccessControlPolicy
-	TargetNames PolicyTargetNames
+	TargetNames biz.PolicyTargetNames
 }
 
-// NewAccessControlPolicyUsecase 创建访问控制策略用例
-func NewAccessControlPolicyUsecase(
-	repository AccessControlPolicyRepository,
-	gateways GatewayRepository,
-	routes RouteRepository,
-) *AccessControlPolicyUsecase {
-	return &AccessControlPolicyUsecase{repository: repository, targets: NewPolicyTargetResolver(gateways, routes)}
+// NewUsecase 创建访问控制策略用例
+func NewUsecase(
+	repository Repository,
+	gateways biz.GatewayLister,
+	routes biz.RouteLister,
+) *Usecase {
+	return &Usecase{repository: repository, targets: biz.NewPolicyTargetResolver(gateways, routes)}
 }
 
 // List 查询 AccessControlPolicy 列表
-func (s *AccessControlPolicyUsecase) List(ctx context.Context) (*AccessControlPolicyList, error) {
+func (s *Usecase) List(ctx context.Context) (*ListResult, error) {
 	policies, err := s.repository.List(ctx)
 	if err != nil {
 		return nil, err
@@ -59,11 +65,11 @@ func (s *AccessControlPolicyUsecase) List(ctx context.Context) (*AccessControlPo
 	if err != nil {
 		return nil, err
 	}
-	return &AccessControlPolicyList{Policies: policies, TargetNames: targetNames}, nil
+	return &ListResult{Policies: policies, TargetNames: targetNames}, nil
 }
 
 // Get 查询单个 AccessControlPolicy
-func (s *AccessControlPolicyUsecase) Get(ctx context.Context, policyID string) (*AccessControlPolicyResult, error) {
+func (s *Usecase) Get(ctx context.Context, policyID string) (*Result, error) {
 	policy, err := s.repository.Get(ctx, policyID)
 	if err != nil {
 		return nil, err
@@ -72,11 +78,11 @@ func (s *AccessControlPolicyUsecase) Get(ctx context.Context, policyID string) (
 	if err != nil {
 		return nil, err
 	}
-	return &AccessControlPolicyResult{Policy: policy, TargetNames: targetNames}, nil
+	return &Result{Policy: policy, TargetNames: targetNames}, nil
 }
 
 // Create 创建 AccessControlPolicy
-func (s *AccessControlPolicyUsecase) Create(ctx context.Context, spec resource.AccessControlPolicySpec) (string, error) {
+func (s *Usecase) Create(ctx context.Context, spec resource.AccessControlPolicySpec) (string, error) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
@@ -94,7 +100,7 @@ func (s *AccessControlPolicyUsecase) Create(ctx context.Context, spec resource.A
 }
 
 // Update 更新 AccessControlPolicy
-func (s *AccessControlPolicyUsecase) Update(ctx context.Context, policyID, version string, spec resource.AccessControlPolicySpec) error {
+func (s *Usecase) Update(ctx context.Context, policyID, version string, spec resource.AccessControlPolicySpec) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 
@@ -103,7 +109,7 @@ func (s *AccessControlPolicyUsecase) Update(ctx context.Context, policyID, versi
 		return err
 	}
 	if version != strconv.FormatInt(current.Generation, 10) {
-		return NewUserError(fmt.Sprintf("访问控制策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		return biz.NewUserError(fmt.Sprintf("访问控制策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 	}
 	if err := s.validateNameUnique(ctx, spec.DisplayName, policyID); err != nil {
 		return err
@@ -112,8 +118,8 @@ func (s *AccessControlPolicyUsecase) Update(ctx context.Context, policyID, versi
 		return err
 	}
 	if err := s.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
-		if errors.Is(err, ErrResourceVersionConflict) {
-			return NewUserError(fmt.Sprintf("访问控制策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		if errors.Is(err, biz.ErrResourceVersionConflict) {
+			return biz.NewUserError(fmt.Sprintf("访问控制策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
 		return err
 	}
@@ -121,7 +127,7 @@ func (s *AccessControlPolicyUsecase) Update(ctx context.Context, policyID, versi
 }
 
 // SetEnabled 设置 AccessControlPolicy 启用状态
-func (s *AccessControlPolicyUsecase) SetEnabled(ctx context.Context, policyID string, enabled bool) error {
+func (s *Usecase) SetEnabled(ctx context.Context, policyID string, enabled bool) error {
 	current, err := s.repository.Get(ctx, policyID)
 	if err != nil {
 		return err
@@ -129,8 +135,8 @@ func (s *AccessControlPolicyUsecase) SetEnabled(ctx context.Context, policyID st
 	spec := current.Spec
 	spec.Enabled = enabled
 	if err := s.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
-		if errors.Is(err, ErrResourceVersionConflict) {
-			return NewUserError(fmt.Sprintf("访问控制策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		if errors.Is(err, biz.ErrResourceVersionConflict) {
+			return biz.NewUserError(fmt.Sprintf("访问控制策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
 		return err
 	}
@@ -138,11 +144,11 @@ func (s *AccessControlPolicyUsecase) SetEnabled(ctx context.Context, policyID st
 }
 
 // Delete 删除 AccessControlPolicy
-func (s *AccessControlPolicyUsecase) Delete(ctx context.Context, policyID string) error {
+func (s *Usecase) Delete(ctx context.Context, policyID string) error {
 	return s.repository.Delete(ctx, policyID)
 }
 
-func (s *AccessControlPolicyUsecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
+func (s *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
 	policies, err := s.repository.List(ctx)
 	if err != nil {
 		return err
@@ -152,7 +158,7 @@ func (s *AccessControlPolicyUsecase) validateNameUnique(ctx context.Context, nam
 			continue
 		}
 		if current.Spec.DisplayName == name {
-			return NewUserError(fmt.Sprintf("访问控制策略名称 %q 已存在", name))
+			return biz.NewUserError(fmt.Sprintf("访问控制策略名称 %q 已存在", name))
 		}
 	}
 	return nil

@@ -3,16 +3,7 @@ package biz
 
 import "github.com/google/wire"
 
-// ProviderSet 汇总管理 API 的业务用例
+// ProviderSet 提供跨领域的业务能力
 var ProviderSet = wire.NewSet(
-	NewAccessKeyUsecase,
-	NewCertificateUsecase,
-	NewConfigurationUsecase,
-	NewGatewayUsecase,
-	NewRouteUsecase,
-	NewUpstreamUsecase,
-	NewAccessControlPolicyUsecase,
-	NewRateLimitPolicyUsecase,
-	NewTokenQuotaPolicyUsecase,
 	NewPolicyUsageFinder,
 )

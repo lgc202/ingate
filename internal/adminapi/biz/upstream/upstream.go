@@ -1,4 +1,5 @@
-package biz
+// Package upstream 实现 Upstream 管理用例
+package upstream
 
 import (
 	"context"
@@ -7,12 +8,17 @@ import (
 	"strconv"
 
 	"github.com/google/uuid"
+	"github.com/google/wire"
 
+	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// UpstreamRepository 定义 Upstream 用例需要的持久化能力
-type UpstreamRepository interface {
+// ProviderSet 提供 Upstream 管理用例
+var ProviderSet = wire.NewSet(NewUsecase)
+
+// Repository 定义 Upstream 用例需要的持久化能力
+type Repository interface {
 	List(context.Context) ([]resource.Upstream, error)
 	Get(context.Context, string) (*resource.Upstream, error)
 	Create(context.Context, string, resource.UpstreamSpec) error
@@ -20,19 +26,24 @@ type UpstreamRepository interface {
 	Delete(context.Context, string) error
 }
 
-// UpstreamUsecase 承载 Upstream 查询用例
-type UpstreamUsecase struct {
-	repository UpstreamRepository
+// RouteRepository 定义 Upstream 变更时需要的 Route 查询能力
+type RouteRepository interface {
+	List(context.Context) ([]resource.Route, error)
+}
+
+// Usecase 承载 Upstream 管理用例
+type Usecase struct {
+	repository Repository
 	routes     RouteRepository
 }
 
-// NewUpstreamUsecase 创建服务管理用例
-func NewUpstreamUsecase(repository UpstreamRepository, routes RouteRepository) *UpstreamUsecase {
-	return &UpstreamUsecase{repository: repository, routes: routes}
+// NewUsecase 创建服务管理用例
+func NewUsecase(repository Repository, routes RouteRepository) *Usecase {
+	return &Usecase{repository: repository, routes: routes}
 }
 
 // List 查询 Upstream 列表
-func (s *UpstreamUsecase) List(ctx context.Context) ([]resource.Upstream, error) {
+func (s *Usecase) List(ctx context.Context) ([]resource.Upstream, error) {
 	upstreams, err := s.repository.List(ctx)
 	if err != nil {
 		return nil, err
@@ -41,7 +52,7 @@ func (s *UpstreamUsecase) List(ctx context.Context) ([]resource.Upstream, error)
 }
 
 // Get 查询单个 Upstream
-func (s *UpstreamUsecase) Get(ctx context.Context, upstreamID string) (*resource.Upstream, error) {
+func (s *Usecase) Get(ctx context.Context, upstreamID string) (*resource.Upstream, error) {
 	upstream, err := s.repository.Get(ctx, upstreamID)
 	if err != nil {
 		return nil, err
@@ -50,7 +61,7 @@ func (s *UpstreamUsecase) Get(ctx context.Context, upstreamID string) (*resource
 }
 
 // Create 创建 Upstream
-func (s *UpstreamUsecase) Create(ctx context.Context, spec resource.UpstreamSpec) (string, error) {
+func (s *Usecase) Create(ctx context.Context, spec resource.UpstreamSpec) (string, error) {
 	if err := s.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
 		return "", err
 	}
@@ -62,7 +73,7 @@ func (s *UpstreamUsecase) Create(ctx context.Context, spec resource.UpstreamSpec
 }
 
 // Update 更新 Upstream
-func (s *UpstreamUsecase) Update(
+func (s *Usecase) Update(
 	ctx context.Context,
 	upstreamID string,
 	version string,
@@ -74,7 +85,7 @@ func (s *UpstreamUsecase) Update(
 		return err
 	}
 	if version != strconv.FormatInt(current.Generation, 10) {
-		return NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		return biz.NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 	}
 	if err := s.validateNameUnique(ctx, spec.DisplayName, upstreamID); err != nil {
 		return err
@@ -94,15 +105,15 @@ func (s *UpstreamUsecase) Update(
 		return err
 	}
 	if err := s.repository.Update(ctx, upstreamID, current.Generation, spec); err != nil {
-		if errors.Is(err, ErrResourceVersionConflict) {
-			return NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+		if errors.Is(err, biz.ErrResourceVersionConflict) {
+			return biz.NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
 		return err
 	}
 	return nil
 }
 
-func (s *UpstreamUsecase) validateRouteCompatibility(
+func (s *Usecase) validateRouteCompatibility(
 	ctx context.Context,
 	upstreamID string,
 	next *resource.Upstream,
@@ -115,7 +126,7 @@ func (s *UpstreamUsecase) validateRouteCompatibility(
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
 				if ref.Name == upstreamID && (next.Spec.Type == resource.UpstreamTypeModel || next.Spec.Protocol != resource.UpstreamProtocolHTTP) {
-					return NewUserError(fmt.Sprintf("服务仍被普通路由 %q 引用，不能改为模型服务", routeDisplayName(route)))
+					return biz.NewUserError(fmt.Sprintf("服务仍被普通路由 %q 引用，不能改为模型服务", routeDisplayName(route)))
 				}
 			}
 			if rule.ModelRouting == nil {
@@ -125,15 +136,15 @@ func (s *UpstreamUsecase) validateRouteCompatibility(
 				if model.UpstreamRef != upstreamID {
 					continue
 				}
-				if !validModelUpstream(next) {
-					return NewUserError(fmt.Sprintf("服务仍被模型路由 %q 引用，必须保持为有效的大模型服务", routeDisplayName(route)))
+				if !ValidModel(next) {
+					return biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 引用，必须保持为有效的大模型服务", routeDisplayName(route)))
 				}
 				upstreamModel := model.UpstreamModel
 				if upstreamModel == "" {
 					upstreamModel = model.Model
 				}
-				if !enabledModel(next.Spec.Model, upstreamModel) {
-					return NewUserError(fmt.Sprintf("服务仍被模型路由 %q 的公开模型 %q 引用，不能删除或禁用厂商模型 %q", routeDisplayName(route), model.Model, upstreamModel))
+				if !ModelEnabled(next.Spec.Model, upstreamModel) {
+					return biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 的公开模型 %q 引用，不能删除或禁用厂商模型 %q", routeDisplayName(route), model.Model, upstreamModel))
 				}
 			}
 		}
@@ -142,7 +153,7 @@ func (s *UpstreamUsecase) validateRouteCompatibility(
 }
 
 // Delete 删除 Upstream，仍有关联路由时拒绝删除
-func (s *UpstreamUsecase) Delete(ctx context.Context, upstreamID string) error {
+func (s *Usecase) Delete(ctx context.Context, upstreamID string) error {
 	routes, err := s.routes.List(ctx)
 	if err != nil {
 		return err
@@ -151,13 +162,13 @@ func (s *UpstreamUsecase) Delete(ctx context.Context, upstreamID string) error {
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
 				if ref.Name == upstreamID {
-					return NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", upstreamID, routeDisplayName(route)))
+					return biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", upstreamID, routeDisplayName(route)))
 				}
 			}
 			if rule.ModelRouting != nil {
 				for _, model := range rule.ModelRouting.Models {
 					if model.UpstreamRef == upstreamID {
-						return NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 的公开模型 %q 引用", upstreamID, routeDisplayName(route), model.Model))
+						return biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 的公开模型 %q 引用", upstreamID, routeDisplayName(route), model.Model))
 					}
 				}
 			}
@@ -173,7 +184,7 @@ func routeDisplayName(route resource.Route) string {
 	return route.Name
 }
 
-func (s *UpstreamUsecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
+func (s *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
 	upstreams, err := s.repository.List(ctx)
 	if err != nil {
 		return err
@@ -183,7 +194,7 @@ func (s *UpstreamUsecase) validateNameUnique(ctx context.Context, name, excludeI
 			continue
 		}
 		if current.Spec.DisplayName == name {
-			return NewUserError(fmt.Sprintf("服务名称 %q 已存在", name))
+			return biz.NewUserError(fmt.Sprintf("服务名称 %q 已存在", name))
 		}
 	}
 	return nil
@@ -194,10 +205,10 @@ func validateAuthentication(upstream *resource.Upstream) error {
 		return nil
 	}
 	if upstream.Spec.Type != resource.UpstreamTypeModel {
-		return NewUserError("服务已配置 API Key，必须保持为大模型服务")
+		return biz.NewUserError("服务已配置 API Key，必须保持为大模型服务")
 	}
 	if upstream.Spec.TLS == nil {
-		return NewUserError("服务已配置 API Key，关闭 HTTPS 前请先移除 API Key")
+		return biz.NewUserError("服务已配置 API Key，关闭 HTTPS 前请先移除 API Key")
 	}
 	return nil
 }
