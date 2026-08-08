@@ -11,8 +11,8 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// upstreamSpec 校验请求自身语义并转换为声明式 Upstream 配置
-func upstreamSpec(
+// buildUpstreamSpec 校验请求自身语义并构造声明式 Upstream 配置
+func buildUpstreamSpec(
 	name string,
 	upstreamType string,
 	protocol string,
@@ -57,7 +57,7 @@ func upstreamSpec(
 		result.TLS = &resource.UpstreamTLS{ServerName: serverName}
 	}
 	if kind == resource.UpstreamTypeModel {
-		modelSpec, err := modelSpec(model, upstreamProtocol)
+		modelSpec, err := buildModelSpec(model, upstreamProtocol)
 		if err != nil {
 			return resource.UpstreamSpec{}, err
 		}
@@ -126,7 +126,7 @@ func upstreamSpec(
 	return result, nil
 }
 
-func modelSpec(input *adminv1.ModelConfig, protocol resource.UpstreamProtocol) (*resource.ModelSpec, error) {
+func buildModelSpec(input *adminv1.ModelConfig, protocol resource.UpstreamProtocol) (*resource.ModelSpec, error) {
 	if input == nil {
 		return nil, adminservice.BadRequest("大模型服务必须配置厂商和模型目录")
 	}

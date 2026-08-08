@@ -4,9 +4,11 @@ package accesskey
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -48,21 +50,24 @@ type Record struct {
 type DAO struct {
 	db      *sql.DB
 	queries *accesskeysql.Queries
+	logger  *slog.Logger
 }
 
-// New 创建访问密钥 DAO
-func New(db *sql.DB) *DAO {
-	return &DAO{db: db, queries: accesskeysql.New(db)}
+// NewDAO 创建访问密钥 DAO
+func NewDAO(db *sql.DB, logger *slog.Logger) *DAO {
+	return &DAO{db: db, queries: accesskeysql.New(db), logger: logger}
 }
 
 // WithCredentialIndexLock 跨 Admin API 实例串行化 MySQL 事实与 Redis 执行索引的变更
-func (d *DAO) WithCredentialIndexLock(ctx context.Context, operation func(*DAO) error) (resultErr error) {
+func (d *DAO) WithCredentialIndexLock(ctx context.Context, operation func(*DAO) error) error {
 	connection, err := d.db.Conn(ctx)
 	if err != nil {
 		return fmt.Errorf("open credential index lock connection: %w", err)
 	}
 	defer func() {
-		resultErr = errors.Join(resultErr, connection.Close())
+		if err := connection.Close(); err != nil && !errors.Is(err, sql.ErrConnDone) {
+			d.logger.WarnContext(context.WithoutCancel(ctx), "close credential index lock connection", "error", err)
+		}
 	}()
 
 	var acquired sql.NullInt64
@@ -77,21 +82,28 @@ func (d *DAO) WithCredentialIndexLock(ctx context.Context, operation func(*DAO) 
 	if !acquired.Valid || acquired.Int64 != 1 {
 		return errors.New("credential index lock is unavailable")
 	}
+	defer d.releaseCredentialIndexLock(ctx, connection)
 
-	defer func() {
-		releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), credentialIndexUnlockTimeout)
-		defer cancel()
-		var released sql.NullInt64
-		if err := connection.QueryRowContext(releaseCtx, credentialIndexLockReleaseSQL, credentialIndexLockName).Scan(&released); err != nil {
-			resultErr = errors.Join(resultErr, fmt.Errorf("release credential index lock: %w", err))
-			return
-		}
-		if !released.Valid || released.Int64 != 1 {
-			resultErr = errors.Join(resultErr, errors.New("credential index lock was not released"))
-		}
-	}()
+	return operation(&DAO{db: d.db, queries: accesskeysql.New(connection), logger: d.logger})
+}
 
-	return operation(&DAO{db: d.db, queries: accesskeysql.New(connection)})
+// releaseCredentialIndexLock 只处理锁清理结果，不覆盖已经完成的业务写入
+// 释放失败时丢弃底层连接，避免 MySQL 命名锁随连接回到连接池
+func (d *DAO) releaseCredentialIndexLock(ctx context.Context, connection *sql.Conn) {
+	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), credentialIndexUnlockTimeout)
+	defer cancel()
+
+	var released sql.NullInt64
+	err := connection.QueryRowContext(releaseCtx, credentialIndexLockReleaseSQL, credentialIndexLockName).Scan(&released)
+	if err == nil && released.Valid && released.Int64 == 1 {
+		return
+	}
+	if err == nil {
+		err = errors.New("credential index lock was not released")
+	}
+	d.logger.ErrorContext(releaseCtx, "release credential index lock", "error", err)
+	// driver.ErrBadConn 通知 database/sql 销毁当前物理连接，不再放回连接池
+	_ = connection.Raw(func(any) error { return driver.ErrBadConn })
 }
 
 // List 返回全部访问密钥元数据

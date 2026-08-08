@@ -16,8 +16,8 @@ type GatewayRepository struct {
 	client clientset.Interface
 }
 
-// NewGateway 创建 Gateway Repository
-func NewGateway(client clientset.Interface) *GatewayRepository {
+// NewGatewayRepository 创建 Gateway Repository
+func NewGatewayRepository(client clientset.Interface) *GatewayRepository {
 	return &GatewayRepository{client: client}
 }
 

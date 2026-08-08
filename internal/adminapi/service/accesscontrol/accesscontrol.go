@@ -34,11 +34,11 @@ func NewService(usecase *accesscontrolbiz.Usecase) *Service {
 func (s *Service) ListAccessControlPolicies(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListAccessControlPoliciesReply, error) {
 	result, err := s.usecase.List(ctx)
 	if err != nil {
-		return nil, adminservice.OperationError(err, "查询访问控制策略失败")
+		return nil, err
 	}
 	reply := &adminv1.ListAccessControlPoliciesReply{Policies: make([]*adminv1.AccessControlPolicy, 0, len(result.Policies))}
 	for i := range result.Policies {
-		reply.Policies = append(reply.Policies, accessControlPolicyReply(&result.Policies[i], result.TargetNames))
+		reply.Policies = append(reply.Policies, newAccessControlPolicyReply(&result.Policies[i], result.TargetNames))
 	}
 	return reply, nil
 }
@@ -46,13 +46,13 @@ func (s *Service) ListAccessControlPolicies(ctx context.Context, _ *emptypb.Empt
 func (s *Service) GetAccessControlPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.AccessControlPolicy, error) {
 	result, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
-		return nil, adminservice.OperationError(err, "查询访问控制策略失败")
+		return nil, err
 	}
-	return accessControlPolicyReply(result.Policy, result.TargetNames), nil
+	return newAccessControlPolicyReply(result.Policy, result.TargetNames), nil
 }
 
 func (s *Service) CreateAccessControlPolicy(ctx context.Context, request *adminv1.CreateAccessControlPolicyRequest) (*adminv1.MutationReply, error) {
-	spec, err := accessControlPolicySpec(
+	spec, err := buildAccessControlPolicySpec(
 		request.GetName(), request.GetDescription(), request.GetEnabled(), request.GetTargets(),
 		request.GetDefaultAction(), request.GetRules(), request.GetResponse(),
 	)
@@ -61,13 +61,13 @@ func (s *Service) CreateAccessControlPolicy(ctx context.Context, request *adminv
 	}
 	id, err := s.usecase.Create(ctx, spec)
 	if err != nil {
-		return nil, adminservice.OperationError(err, "创建访问控制策略失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: id}, nil
 }
 
 func (s *Service) UpdateAccessControlPolicy(ctx context.Context, request *adminv1.UpdateAccessControlPolicyRequest) (*adminv1.MutationReply, error) {
-	spec, err := accessControlPolicySpec(
+	spec, err := buildAccessControlPolicySpec(
 		request.GetName(), request.GetDescription(), request.GetEnabled(), request.GetTargets(),
 		request.GetDefaultAction(), request.GetRules(), request.GetResponse(),
 	)
@@ -75,26 +75,26 @@ func (s *Service) UpdateAccessControlPolicy(ctx context.Context, request *adminv
 		return nil, err
 	}
 	if err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec); err != nil {
-		return nil, adminservice.OperationError(err, "更新访问控制策略失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
 func (s *Service) SetAccessControlPolicyEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
 	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
-		return nil, adminservice.OperationError(err, "更新访问控制策略状态失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
 func (s *Service) DeleteAccessControlPolicy(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
 	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
-		return nil, adminservice.OperationError(err, "删除访问控制策略失败")
+		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
 }
 
-func accessControlPolicySpec(
+func buildAccessControlPolicySpec(
 	name, description string,
 	enabled bool,
 	targets []*adminv1.PolicyTargetRef,
@@ -106,7 +106,7 @@ func accessControlPolicySpec(
 	if name == "" {
 		return resource.AccessControlPolicySpec{}, adminservice.BadRequest("名称不能为空")
 	}
-	refs, err := adminservice.PolicyTargetRefs(targets)
+	refs, err := adminservice.BuildPolicyTargetRefs(targets)
 	if err != nil {
 		return resource.AccessControlPolicySpec{}, err
 	}
@@ -178,14 +178,14 @@ func accessControlPolicySpec(
 	return spec, nil
 }
 
-func accessControlPolicyReply(policy *resource.AccessControlPolicy, names biz.PolicyTargetNames) *adminv1.AccessControlPolicy {
+func newAccessControlPolicyReply(policy *resource.AccessControlPolicy, names biz.PolicyTargetNames) *adminv1.AccessControlPolicy {
 	status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
 	disabled := status.State == biz.ResourceStateDisabled
 	reply := &adminv1.AccessControlPolicy{
-		Id: policy.Name, Version: strconv.FormatInt(policy.Generation, 10), Status: adminservice.ResourceStatus(status),
+		Id: policy.Name, Version: strconv.FormatInt(policy.Generation, 10), Status: adminservice.NewResourceStatus(status),
 		Name: policy.Spec.DisplayName, Description: policy.Spec.Description, Enabled: policy.Spec.Enabled,
-		Targets:       adminservice.PolicyTargets(policy.Generation, disabled, policy.Spec.TargetRefs, policy.Status.Targets, names),
-		DefaultAction: string(policy.Spec.DefaultAction), CreatedAt: adminservice.Timestamp(policy.CreationTimestamp.Time),
+		Targets:       adminservice.NewPolicyTargets(policy.Generation, disabled, policy.Spec.TargetRefs, policy.Status.Targets, names),
+		DefaultAction: string(policy.Spec.DefaultAction), CreatedAt: adminservice.NewTimestamp(policy.CreationTimestamp.Time),
 		Response: &adminv1.AccessControlDenyResponse{
 			StatusCode: int32(policy.Spec.Response.StatusCode), Message: policy.Spec.Response.Message,
 		},

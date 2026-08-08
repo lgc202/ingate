@@ -16,8 +16,8 @@ type UpstreamRepository struct {
 	client clientset.Interface
 }
 
-// NewUpstream 创建 Upstream Repository
-func NewUpstream(client clientset.Interface) *UpstreamRepository {
+// NewUpstreamRepository 创建 Upstream Repository
+func NewUpstreamRepository(client clientset.Interface) *UpstreamRepository {
 	return &UpstreamRepository{client: client}
 }
 

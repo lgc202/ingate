@@ -16,8 +16,8 @@ type RouteRepository struct {
 	client clientset.Interface
 }
 
-// NewRoute 创建 Route Repository
-func NewRoute(client clientset.Interface) *RouteRepository {
+// NewRouteRepository 创建 Route Repository
+func NewRouteRepository(client clientset.Interface) *RouteRepository {
 	return &RouteRepository{client: client}
 }
 
