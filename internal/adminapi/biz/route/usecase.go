@@ -15,7 +15,7 @@ import (
 
 // Repository 定义 Route 用例需要的持久化能力
 type Repository interface {
-	List(context.Context) ([]resource.Route, error)
+	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Route], error)
 	Get(context.Context, string) (*resource.Route, error)
 	Create(context.Context, string, resource.RouteSpec) error
 	Update(context.Context, string, int64, resource.RouteSpec) error
@@ -56,8 +56,8 @@ func NewUsecase(
 }
 
 // List 查询 Route 列表
-func (u *Usecase) List(ctx context.Context) ([]resource.Route, error) {
-	return u.repository.List(ctx)
+func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error) {
+	return u.repository.ListPage(ctx, page)
 }
 
 // Get 查询单个 Route
@@ -67,21 +67,23 @@ func (u *Usecase) Get(ctx context.Context, routeID string) (*resource.Route, err
 
 // Create 创建 Route
 func (u *Usecase) Create(ctx context.Context, spec resource.RouteSpec) (string, error) {
-	if err := u.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
-		return "", err
-	}
 	if err := u.validateReferences(ctx, spec); err != nil {
 		return "", err
 	}
 	id := uuid.NewString()
 	if err := u.repository.Create(ctx, id, spec); err != nil {
-		return "", err
+		return "", biz.DisplayNameConflict(err, "路由", spec.DisplayName)
 	}
 	return id, nil
 }
 
 // Update 更新 Route 配置
-func (u *Usecase) Update(ctx context.Context, routeID, version string, submitted resource.RouteSpec) error {
+func (u *Usecase) Update(
+	ctx context.Context,
+	routeID, version string,
+	submitted resource.RouteSpec,
+	updateEnabled bool,
+) error {
 	current, err := u.repository.Get(ctx, routeID)
 	if err != nil {
 		return err
@@ -92,8 +94,9 @@ func (u *Usecase) Update(ctx context.Context, routeID, version string, submitted
 	if !supportsConsoleEditing(current.Spec) {
 		return biz.NewUserError("该路由包含控制台暂不支持的配置，请通过声明式 API 修改")
 	}
-	if err := u.validateNameUnique(ctx, submitted.DisplayName, routeID); err != nil {
-		return err
+	if !updateEnabled {
+		// 启停状态有独立操作，旧客户端省略 enabled 时不能把已停用路由重新启用
+		submitted.Enabled = current.Spec.Enabled
 	}
 	if err := u.validateReferences(ctx, submitted); err != nil {
 		return err
@@ -103,7 +106,7 @@ func (u *Usecase) Update(ctx context.Context, routeID, version string, submitted
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return biz.NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		return err
+		return biz.DisplayNameConflict(err, "路由", submitted.DisplayName)
 	}
 	return nil
 }

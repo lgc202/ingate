@@ -5,14 +5,13 @@ package ingate.admin.v1;
 import "admin/v1/common.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
 // TokenQuotaPolicyService 提供模型 Token 配额策略管理接口
 service TokenQuotaPolicyService {
-  rpc ListTokenQuotaPolicies(google.protobuf.Empty) returns (ListTokenQuotaPoliciesReply) {
+  rpc ListTokenQuotaPolicies(ListRequest) returns (ListTokenQuotaPoliciesReply) {
     option (google.api.http) = {get: "/api/v1/token-quota-policies"};
   }
   rpc GetTokenQuotaPolicy(ResourceRequest) returns (TokenQuotaPolicy) {
@@ -96,4 +95,5 @@ message UpdateTokenQuotaPolicyRequest {
 
 message ListTokenQuotaPoliciesReply {
   repeated TokenQuotaPolicy policies = 1;
+  PageInfo page = 2;
 }

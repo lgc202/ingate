@@ -5,17 +5,6 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-const (
-	kindPriorityGateway = iota
-	kindPriorityRoute
-	kindPriorityUpstream
-	kindPriorityCertificate
-	kindPriorityRateLimitPolicy
-	kindPriorityAccessControlPolicy
-	kindPriorityTokenQuotaPolicy
-	kindPriorityUnknown
-)
-
 // Summary 汇总各类声明式资源的当前处理状态
 type Summary struct {
 	Total    int
@@ -31,10 +20,4 @@ type Item struct {
 	ID     string
 	Name   string
 	Status biz.ResourceStatus
-}
-
-// Report 保存配置状态汇总和明细
-type Report struct {
-	Summary Summary
-	Items   []Item
 }

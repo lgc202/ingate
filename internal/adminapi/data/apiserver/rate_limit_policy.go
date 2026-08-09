@@ -21,13 +21,13 @@ func NewRateLimitPolicyRepository(client clientset.Interface) *RateLimitPolicyRe
 	return &RateLimitPolicyRepository{client: client}
 }
 
-// List 查询 RateLimitPolicy 列表
-func (r *RateLimitPolicyRepository) List(ctx context.Context) ([]resource.RateLimitPolicy, error) {
-	policies, err := r.client.GatewayV1().RateLimitPolicies().List(ctx, metav1.ListOptions{})
+// ListPage 分页查询 RateLimitPolicy 列表
+func (r *RateLimitPolicyRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.RateLimitPolicy], error) {
+	policies, err := r.client.GatewayV1().RateLimitPolicies().List(ctx, pageOptions(page))
 	if err != nil {
-		return nil, resourceError("list", "rate limit policies", "", err)
+		return biz.PageResult[resource.RateLimitPolicy]{}, pageError("rate limit policies", err)
 	}
-	return policies.Items, nil
+	return biz.PageResult[resource.RateLimitPolicy]{Items: policies.Items, NextToken: policies.Continue}, nil
 }
 
 // Get 查询单个 RateLimitPolicy

@@ -1,4 +1,5 @@
-import { apiRequest } from './client';
+import { apiListAll, apiRequest } from './client';
+import type { PagedResponse } from './client';
 import { listGateways } from './gateways';
 import { listRoutes } from './routes';
 import type { GatewayListView } from '@/domain/gateway';
@@ -23,15 +24,15 @@ interface PolicyMutationResponse {
   id?: string;
 }
 
-interface RateLimitPolicyListResponse {
+interface RateLimitPolicyListResponse extends PagedResponse {
   policies?: RateLimitPolicy[];
 }
 
-interface AccessControlPolicyListResponse {
+interface AccessControlPolicyListResponse extends PagedResponse {
   policies?: AccessControlPolicy[];
 }
 
-interface TokenQuotaPolicyListResponse {
+interface TokenQuotaPolicyListResponse extends PagedResponse {
   policies?: TokenQuotaPolicy[];
 }
 
@@ -99,18 +100,15 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
 }
 
 export async function listRateLimitPolicies(): Promise<RateLimitPolicy[]> {
-  const response = await apiRequest<RateLimitPolicyListResponse>('/rate-limit-policies');
-  return response.policies ?? [];
+  return apiListAll<RateLimitPolicyListResponse, RateLimitPolicy>('/rate-limit-policies', (page) => page.policies ?? []);
 }
 
 export async function listAccessControlPolicies(): Promise<AccessControlPolicy[]> {
-  const response = await apiRequest<AccessControlPolicyListResponse>('/access-control-policies');
-  return response.policies ?? [];
+  return apiListAll<AccessControlPolicyListResponse, AccessControlPolicy>('/access-control-policies', (page) => page.policies ?? []);
 }
 
 export async function listTokenQuotaPolicies(): Promise<TokenQuotaPolicy[]> {
-  const response = await apiRequest<TokenQuotaPolicyListResponse>('/token-quota-policies');
-  return response.policies ?? [];
+  return apiListAll<TokenQuotaPolicyListResponse, TokenQuotaPolicy>('/token-quota-policies', (page) => page.policies ?? []);
 }
 
 export async function saveRateLimitPolicy(payload: RateLimitPolicyPayload) {

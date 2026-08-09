@@ -11,7 +11,6 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -348,6 +347,7 @@ func (x *UpdateGatewayRequest) GetHostnames() []string {
 type ListGatewaysReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Gateways      []*Gateway             `protobuf:"bytes,1,rep,name=gateways,proto3" json:"gateways,omitempty"`
+	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -385,6 +385,13 @@ func (*ListGatewaysReply) Descriptor() ([]byte, []int) {
 func (x *ListGatewaysReply) GetGateways() []*Gateway {
 	if x != nil {
 		return x.Gateways
+	}
+	return nil
+}
+
+func (x *ListGatewaysReply) GetPage() *PageInfo {
+	if x != nil {
+		return x.Page
 	}
 	return nil
 }
@@ -437,7 +444,7 @@ var File_admin_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\n" +
-	"\x16admin/v1/gateway.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"q\n" +
+	"\x16admin/v1/gateway.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"q\n" +
 	"\x0fGatewayListener\x12#\n" +
 	"\bprotocol\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bprotocol\x12\x12\n" +
 	"\x04port\x18\x02 \x01(\x05R\x04port\x12%\n" +
@@ -464,13 +471,14 @@ const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12H\n" +
 	"\tlisteners\x18\x05 \x03(\v2 .ingate.admin.v1.GatewayListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlisteners\x12\x1c\n" +
-	"\thostnames\x18\x06 \x03(\tR\thostnames\"I\n" +
+	"\thostnames\x18\x06 \x03(\tR\thostnames\"x\n" +
 	"\x11ListGatewaysReply\x124\n" +
-	"\bgateways\x18\x01 \x03(\v2\x18.ingate.admin.v1.GatewayR\bgateways\"E\n" +
+	"\bgateways\x18\x01 \x03(\v2\x18.ingate.admin.v1.GatewayR\bgateways\x12-\n" +
+	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page\"E\n" +
 	"\x0fGetGatewayReply\x122\n" +
-	"\agateway\x18\x01 \x01(\v2\x18.ingate.admin.v1.GatewayR\agateway2\xcc\x05\n" +
-	"\x0eGatewayService\x12d\n" +
-	"\fListGateways\x12\x16.google.protobuf.Empty\x1a\".ingate.admin.v1.ListGatewaysReply\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/api/v1/gateways\x12o\n" +
+	"\agateway\x18\x01 \x01(\v2\x18.ingate.admin.v1.GatewayR\agateway2\xd2\x05\n" +
+	"\x0eGatewayService\x12j\n" +
+	"\fListGateways\x12\x1c.ingate.admin.v1.ListRequest\x1a\".ingate.admin.v1.ListGatewaysReply\"\x18\x82\xd3\xe4\x93\x02\x12\x12\x10/api/v1/gateways\x12o\n" +
 	"\n" +
 	"GetGateway\x12 .ingate.admin.v1.ResourceRequest\x1a .ingate.admin.v1.GetGatewayReply\"\x1d\x82\xd3\xe4\x93\x02\x17\x12\x15/api/v1/gateways/{id}\x12s\n" +
 	"\rCreateGateway\x12%.ingate.admin.v1.CreateGatewayRequest\x1a\x1e.ingate.admin.v1.MutationReply\"\x1b\x82\xd3\xe4\x93\x02\x15:\x01*\"\x10/api/v1/gateways\x12x\n" +
@@ -500,10 +508,11 @@ var file_admin_v1_gateway_proto_goTypes = []any{
 	(*GetGatewayReply)(nil),       // 5: ingate.admin.v1.GetGatewayReply
 	(*ResourceStatus)(nil),        // 6: ingate.admin.v1.ResourceStatus
 	(*timestamppb.Timestamp)(nil), // 7: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 8: google.protobuf.Empty
-	(*ResourceRequest)(nil),       // 9: ingate.admin.v1.ResourceRequest
-	(*SetEnabledRequest)(nil),     // 10: ingate.admin.v1.SetEnabledRequest
-	(*MutationReply)(nil),         // 11: ingate.admin.v1.MutationReply
+	(*PageInfo)(nil),              // 8: ingate.admin.v1.PageInfo
+	(*ListRequest)(nil),           // 9: ingate.admin.v1.ListRequest
+	(*ResourceRequest)(nil),       // 10: ingate.admin.v1.ResourceRequest
+	(*SetEnabledRequest)(nil),     // 11: ingate.admin.v1.SetEnabledRequest
+	(*MutationReply)(nil),         // 12: ingate.admin.v1.MutationReply
 }
 var file_admin_v1_gateway_proto_depIdxs = []int32{
 	6,  // 0: ingate.admin.v1.Gateway.status:type_name -> ingate.admin.v1.ResourceStatus
@@ -512,24 +521,25 @@ var file_admin_v1_gateway_proto_depIdxs = []int32{
 	0,  // 3: ingate.admin.v1.CreateGatewayRequest.listeners:type_name -> ingate.admin.v1.GatewayListener
 	0,  // 4: ingate.admin.v1.UpdateGatewayRequest.listeners:type_name -> ingate.admin.v1.GatewayListener
 	1,  // 5: ingate.admin.v1.ListGatewaysReply.gateways:type_name -> ingate.admin.v1.Gateway
-	1,  // 6: ingate.admin.v1.GetGatewayReply.gateway:type_name -> ingate.admin.v1.Gateway
-	8,  // 7: ingate.admin.v1.GatewayService.ListGateways:input_type -> google.protobuf.Empty
-	9,  // 8: ingate.admin.v1.GatewayService.GetGateway:input_type -> ingate.admin.v1.ResourceRequest
-	2,  // 9: ingate.admin.v1.GatewayService.CreateGateway:input_type -> ingate.admin.v1.CreateGatewayRequest
-	3,  // 10: ingate.admin.v1.GatewayService.UpdateGateway:input_type -> ingate.admin.v1.UpdateGatewayRequest
-	10, // 11: ingate.admin.v1.GatewayService.SetGatewayEnabled:input_type -> ingate.admin.v1.SetEnabledRequest
-	9,  // 12: ingate.admin.v1.GatewayService.DeleteGateway:input_type -> ingate.admin.v1.ResourceRequest
-	4,  // 13: ingate.admin.v1.GatewayService.ListGateways:output_type -> ingate.admin.v1.ListGatewaysReply
-	5,  // 14: ingate.admin.v1.GatewayService.GetGateway:output_type -> ingate.admin.v1.GetGatewayReply
-	11, // 15: ingate.admin.v1.GatewayService.CreateGateway:output_type -> ingate.admin.v1.MutationReply
-	11, // 16: ingate.admin.v1.GatewayService.UpdateGateway:output_type -> ingate.admin.v1.MutationReply
-	11, // 17: ingate.admin.v1.GatewayService.SetGatewayEnabled:output_type -> ingate.admin.v1.MutationReply
-	11, // 18: ingate.admin.v1.GatewayService.DeleteGateway:output_type -> ingate.admin.v1.MutationReply
-	13, // [13:19] is the sub-list for method output_type
-	7,  // [7:13] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	8,  // 6: ingate.admin.v1.ListGatewaysReply.page:type_name -> ingate.admin.v1.PageInfo
+	1,  // 7: ingate.admin.v1.GetGatewayReply.gateway:type_name -> ingate.admin.v1.Gateway
+	9,  // 8: ingate.admin.v1.GatewayService.ListGateways:input_type -> ingate.admin.v1.ListRequest
+	10, // 9: ingate.admin.v1.GatewayService.GetGateway:input_type -> ingate.admin.v1.ResourceRequest
+	2,  // 10: ingate.admin.v1.GatewayService.CreateGateway:input_type -> ingate.admin.v1.CreateGatewayRequest
+	3,  // 11: ingate.admin.v1.GatewayService.UpdateGateway:input_type -> ingate.admin.v1.UpdateGatewayRequest
+	11, // 12: ingate.admin.v1.GatewayService.SetGatewayEnabled:input_type -> ingate.admin.v1.SetEnabledRequest
+	10, // 13: ingate.admin.v1.GatewayService.DeleteGateway:input_type -> ingate.admin.v1.ResourceRequest
+	4,  // 14: ingate.admin.v1.GatewayService.ListGateways:output_type -> ingate.admin.v1.ListGatewaysReply
+	5,  // 15: ingate.admin.v1.GatewayService.GetGateway:output_type -> ingate.admin.v1.GetGatewayReply
+	12, // 16: ingate.admin.v1.GatewayService.CreateGateway:output_type -> ingate.admin.v1.MutationReply
+	12, // 17: ingate.admin.v1.GatewayService.UpdateGateway:output_type -> ingate.admin.v1.MutationReply
+	12, // 18: ingate.admin.v1.GatewayService.SetGatewayEnabled:output_type -> ingate.admin.v1.MutationReply
+	12, // 19: ingate.admin.v1.GatewayService.DeleteGateway:output_type -> ingate.admin.v1.MutationReply
+	14, // [14:20] is the sub-list for method output_type
+	8,  // [8:14] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_gateway_proto_init() }

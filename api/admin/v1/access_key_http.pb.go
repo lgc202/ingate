@@ -9,7 +9,6 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -27,10 +26,10 @@ const OperationAccessKeyServiceUpdateAccessKey = "/ingate.admin.v1.AccessKeyServ
 
 type AccessKeyServiceHTTPServer interface {
 	CreateAccessKey(context.Context, *CreateAccessKeyRequest) (*AccessKeySecretReply, error)
-	DeleteAccessKey(context.Context, *ResourceRequest) (*MutationReply, error)
-	ListAccessKeys(context.Context, *emptypb.Empty) (*ListAccessKeysReply, error)
-	RotateAccessKey(context.Context, *ResourceRequest) (*AccessKeySecretReply, error)
-	SetAccessKeyEnabled(context.Context, *SetEnabledRequest) (*AccessKeyReply, error)
+	DeleteAccessKey(context.Context, *AccessKeyActionRequest) (*MutationReply, error)
+	ListAccessKeys(context.Context, *ListRequest) (*ListAccessKeysReply, error)
+	RotateAccessKey(context.Context, *AccessKeyActionRequest) (*AccessKeySecretReply, error)
+	SetAccessKeyEnabled(context.Context, *SetAccessKeyEnabledRequest) (*AccessKeyReply, error)
 	UpdateAccessKey(context.Context, *UpdateAccessKeyRequest) (*AccessKeyReply, error)
 }
 
@@ -46,13 +45,13 @@ func RegisterAccessKeyServiceHTTPServer(s *http.Server, srv AccessKeyServiceHTTP
 
 func _AccessKeyService_ListAccessKeys0_HTTP_Handler(srv AccessKeyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in emptypb.Empty
+		var in ListRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationAccessKeyServiceListAccessKeys)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListAccessKeys(ctx, req.(*emptypb.Empty))
+			return srv.ListAccessKeys(ctx, req.(*ListRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -106,7 +105,7 @@ func _AccessKeyService_UpdateAccessKey0_HTTP_Handler(srv AccessKeyServiceHTTPSer
 
 func _AccessKeyService_SetAccessKeyEnabled0_HTTP_Handler(srv AccessKeyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in SetEnabledRequest
+		var in SetAccessKeyEnabledRequest
 		if err := ctx.Bind(&in); err != nil {
 			return err
 		}
@@ -115,7 +114,7 @@ func _AccessKeyService_SetAccessKeyEnabled0_HTTP_Handler(srv AccessKeyServiceHTT
 		}
 		http.SetOperation(ctx, OperationAccessKeyServiceSetAccessKeyEnabled)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.SetAccessKeyEnabled(ctx, req.(*SetEnabledRequest))
+			return srv.SetAccessKeyEnabled(ctx, req.(*SetAccessKeyEnabledRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -128,8 +127,8 @@ func _AccessKeyService_SetAccessKeyEnabled0_HTTP_Handler(srv AccessKeyServiceHTT
 
 func _AccessKeyService_RotateAccessKey0_HTTP_Handler(srv AccessKeyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
-		if err := ctx.BindQuery(&in); err != nil {
+		var in AccessKeyActionRequest
+		if err := ctx.Bind(&in); err != nil {
 			return err
 		}
 		if err := ctx.BindVars(&in); err != nil {
@@ -137,7 +136,7 @@ func _AccessKeyService_RotateAccessKey0_HTTP_Handler(srv AccessKeyServiceHTTPSer
 		}
 		http.SetOperation(ctx, OperationAccessKeyServiceRotateAccessKey)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.RotateAccessKey(ctx, req.(*ResourceRequest))
+			return srv.RotateAccessKey(ctx, req.(*AccessKeyActionRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -150,7 +149,7 @@ func _AccessKeyService_RotateAccessKey0_HTTP_Handler(srv AccessKeyServiceHTTPSer
 
 func _AccessKeyService_DeleteAccessKey0_HTTP_Handler(srv AccessKeyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in AccessKeyActionRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -159,7 +158,7 @@ func _AccessKeyService_DeleteAccessKey0_HTTP_Handler(srv AccessKeyServiceHTTPSer
 		}
 		http.SetOperation(ctx, OperationAccessKeyServiceDeleteAccessKey)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.DeleteAccessKey(ctx, req.(*ResourceRequest))
+			return srv.DeleteAccessKey(ctx, req.(*AccessKeyActionRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -172,10 +171,10 @@ func _AccessKeyService_DeleteAccessKey0_HTTP_Handler(srv AccessKeyServiceHTTPSer
 
 type AccessKeyServiceHTTPClient interface {
 	CreateAccessKey(ctx context.Context, req *CreateAccessKeyRequest, opts ...http.CallOption) (rsp *AccessKeySecretReply, err error)
-	DeleteAccessKey(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	ListAccessKeys(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ListAccessKeysReply, err error)
-	RotateAccessKey(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *AccessKeySecretReply, err error)
-	SetAccessKeyEnabled(ctx context.Context, req *SetEnabledRequest, opts ...http.CallOption) (rsp *AccessKeyReply, err error)
+	DeleteAccessKey(ctx context.Context, req *AccessKeyActionRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
+	ListAccessKeys(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListAccessKeysReply, err error)
+	RotateAccessKey(ctx context.Context, req *AccessKeyActionRequest, opts ...http.CallOption) (rsp *AccessKeySecretReply, err error)
+	SetAccessKeyEnabled(ctx context.Context, req *SetAccessKeyEnabledRequest, opts ...http.CallOption) (rsp *AccessKeyReply, err error)
 	UpdateAccessKey(ctx context.Context, req *UpdateAccessKeyRequest, opts ...http.CallOption) (rsp *AccessKeyReply, err error)
 }
 
@@ -204,7 +203,7 @@ func (c *AccessKeyServiceHTTPClientImpl) CreateAccessKey(ctx context.Context, in
 	return &out, nil
 }
 
-func (c *AccessKeyServiceHTTPClientImpl) DeleteAccessKey(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*MutationReply, error) {
+func (c *AccessKeyServiceHTTPClientImpl) DeleteAccessKey(ctx context.Context, in *AccessKeyActionRequest, opts ...http.CallOption) (*MutationReply, error) {
 	var out MutationReply
 	pattern := "/api/v1/access-keys/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
@@ -220,7 +219,7 @@ func (c *AccessKeyServiceHTTPClientImpl) DeleteAccessKey(ctx context.Context, in
 	return &out, nil
 }
 
-func (c *AccessKeyServiceHTTPClientImpl) ListAccessKeys(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ListAccessKeysReply, error) {
+func (c *AccessKeyServiceHTTPClientImpl) ListAccessKeys(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListAccessKeysReply, error) {
 	var out ListAccessKeysReply
 	pattern := "/api/v1/access-keys"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
@@ -236,23 +235,24 @@ func (c *AccessKeyServiceHTTPClientImpl) ListAccessKeys(ctx context.Context, in 
 	return &out, nil
 }
 
-func (c *AccessKeyServiceHTTPClientImpl) RotateAccessKey(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*AccessKeySecretReply, error) {
+func (c *AccessKeyServiceHTTPClientImpl) RotateAccessKey(ctx context.Context, in *AccessKeyActionRequest, opts ...http.CallOption) (*AccessKeySecretReply, error) {
 	var out AccessKeySecretReply
 	pattern := "/api/v1/access-keys/{id}/rotate"
-	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
 		http.Operation(OperationAccessKeyServiceRotateAccessKey),
 		http.PathTemplate(pattern),
 	}, opts...)
-	err := c.cc.Invoke(ctx, "POST", path, nil, &out, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-func (c *AccessKeyServiceHTTPClientImpl) SetAccessKeyEnabled(ctx context.Context, in *SetEnabledRequest, opts ...http.CallOption) (*AccessKeyReply, error) {
+func (c *AccessKeyServiceHTTPClientImpl) SetAccessKeyEnabled(ctx context.Context, in *SetAccessKeyEnabledRequest, opts ...http.CallOption) (*AccessKeyReply, error) {
 	var out AccessKeyReply
 	pattern := "/api/v1/access-keys/{id}/enabled"
 	path := http.BuildPath(pattern, in)

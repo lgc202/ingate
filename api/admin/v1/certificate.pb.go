@@ -11,7 +11,6 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -296,6 +295,7 @@ func (x *UpdateCertificateRequest) GetPrivateKeyPem() string {
 type ListCertificatesReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Certificates  []*Certificate         `protobuf:"bytes,1,rep,name=certificates,proto3" json:"certificates,omitempty"`
+	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -333,6 +333,13 @@ func (*ListCertificatesReply) Descriptor() ([]byte, []int) {
 func (x *ListCertificatesReply) GetCertificates() []*Certificate {
 	if x != nil {
 		return x.Certificates
+	}
+	return nil
+}
+
+func (x *ListCertificatesReply) GetPage() *PageInfo {
+	if x != nil {
+		return x.Page
 	}
 	return nil
 }
@@ -385,7 +392,7 @@ var File_admin_v1_certificate_proto protoreflect.FileDescriptor
 
 const file_admin_v1_certificate_proto_rawDesc = "" +
 	"\n" +
-	"\x1aadmin/v1/certificate.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x03\n" +
+	"\x1aadmin/v1/certificate.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x03\n" +
 	"\vCertificate\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
 	"\aversion\x18\x02 \x01(\tR\aversion\x127\n" +
@@ -411,13 +418,14 @@ const file_admin_v1_certificate_proto_rawDesc = "" +
 	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
 	"\vdescription\x18\x04 \x01(\tR\vdescription\x12'\n" +
 	"\x0fcertificate_pem\x18\x05 \x01(\tR\x0ecertificatePEM\x12&\n" +
-	"\x0fprivate_key_pem\x18\x06 \x01(\tR\rprivateKeyPEM\"Y\n" +
+	"\x0fprivate_key_pem\x18\x06 \x01(\tR\rprivateKeyPEM\"\x88\x01\n" +
 	"\x15ListCertificatesReply\x12@\n" +
-	"\fcertificates\x18\x01 \x03(\v2\x1c.ingate.admin.v1.CertificateR\fcertificates\"U\n" +
+	"\fcertificates\x18\x01 \x03(\v2\x1c.ingate.admin.v1.CertificateR\fcertificates\x12-\n" +
+	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page\"U\n" +
 	"\x13GetCertificateReply\x12>\n" +
-	"\vcertificate\x18\x01 \x01(\v2\x1c.ingate.admin.v1.CertificateR\vcertificate2\x85\x05\n" +
-	"\x12CertificateService\x12p\n" +
-	"\x10ListCertificates\x12\x16.google.protobuf.Empty\x1a&.ingate.admin.v1.ListCertificatesReply\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/certificates\x12{\n" +
+	"\vcertificate\x18\x01 \x01(\v2\x1c.ingate.admin.v1.CertificateR\vcertificate2\x8b\x05\n" +
+	"\x12CertificateService\x12v\n" +
+	"\x10ListCertificates\x12\x1c.ingate.admin.v1.ListRequest\x1a&.ingate.admin.v1.ListCertificatesReply\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/certificates\x12{\n" +
 	"\x0eGetCertificate\x12 .ingate.admin.v1.ResourceRequest\x1a$.ingate.admin.v1.GetCertificateReply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/certificates/{id}\x12\x7f\n" +
 	"\x11CreateCertificate\x12).ingate.admin.v1.CreateCertificateRequest\x1a\x1e.ingate.admin.v1.MutationReply\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/api/v1/certificates\x12\x84\x01\n" +
 	"\x11UpdateCertificate\x12).ingate.admin.v1.UpdateCertificateRequest\x1a\x1e.ingate.admin.v1.MutationReply\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\x1a\x19/api/v1/certificates/{id}\x12x\n" +
@@ -444,9 +452,10 @@ var file_admin_v1_certificate_proto_goTypes = []any{
 	(*GetCertificateReply)(nil),      // 4: ingate.admin.v1.GetCertificateReply
 	(*ResourceStatus)(nil),           // 5: ingate.admin.v1.ResourceStatus
 	(*timestamppb.Timestamp)(nil),    // 6: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),            // 7: google.protobuf.Empty
-	(*ResourceRequest)(nil),          // 8: ingate.admin.v1.ResourceRequest
-	(*MutationReply)(nil),            // 9: ingate.admin.v1.MutationReply
+	(*PageInfo)(nil),                 // 7: ingate.admin.v1.PageInfo
+	(*ListRequest)(nil),              // 8: ingate.admin.v1.ListRequest
+	(*ResourceRequest)(nil),          // 9: ingate.admin.v1.ResourceRequest
+	(*MutationReply)(nil),            // 10: ingate.admin.v1.MutationReply
 }
 var file_admin_v1_certificate_proto_depIdxs = []int32{
 	5,  // 0: ingate.admin.v1.Certificate.status:type_name -> ingate.admin.v1.ResourceStatus
@@ -454,22 +463,23 @@ var file_admin_v1_certificate_proto_depIdxs = []int32{
 	6,  // 2: ingate.admin.v1.Certificate.not_after:type_name -> google.protobuf.Timestamp
 	6,  // 3: ingate.admin.v1.Certificate.created_at:type_name -> google.protobuf.Timestamp
 	0,  // 4: ingate.admin.v1.ListCertificatesReply.certificates:type_name -> ingate.admin.v1.Certificate
-	0,  // 5: ingate.admin.v1.GetCertificateReply.certificate:type_name -> ingate.admin.v1.Certificate
-	7,  // 6: ingate.admin.v1.CertificateService.ListCertificates:input_type -> google.protobuf.Empty
-	8,  // 7: ingate.admin.v1.CertificateService.GetCertificate:input_type -> ingate.admin.v1.ResourceRequest
-	1,  // 8: ingate.admin.v1.CertificateService.CreateCertificate:input_type -> ingate.admin.v1.CreateCertificateRequest
-	2,  // 9: ingate.admin.v1.CertificateService.UpdateCertificate:input_type -> ingate.admin.v1.UpdateCertificateRequest
-	8,  // 10: ingate.admin.v1.CertificateService.DeleteCertificate:input_type -> ingate.admin.v1.ResourceRequest
-	3,  // 11: ingate.admin.v1.CertificateService.ListCertificates:output_type -> ingate.admin.v1.ListCertificatesReply
-	4,  // 12: ingate.admin.v1.CertificateService.GetCertificate:output_type -> ingate.admin.v1.GetCertificateReply
-	9,  // 13: ingate.admin.v1.CertificateService.CreateCertificate:output_type -> ingate.admin.v1.MutationReply
-	9,  // 14: ingate.admin.v1.CertificateService.UpdateCertificate:output_type -> ingate.admin.v1.MutationReply
-	9,  // 15: ingate.admin.v1.CertificateService.DeleteCertificate:output_type -> ingate.admin.v1.MutationReply
-	11, // [11:16] is the sub-list for method output_type
-	6,  // [6:11] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	7,  // 5: ingate.admin.v1.ListCertificatesReply.page:type_name -> ingate.admin.v1.PageInfo
+	0,  // 6: ingate.admin.v1.GetCertificateReply.certificate:type_name -> ingate.admin.v1.Certificate
+	8,  // 7: ingate.admin.v1.CertificateService.ListCertificates:input_type -> ingate.admin.v1.ListRequest
+	9,  // 8: ingate.admin.v1.CertificateService.GetCertificate:input_type -> ingate.admin.v1.ResourceRequest
+	1,  // 9: ingate.admin.v1.CertificateService.CreateCertificate:input_type -> ingate.admin.v1.CreateCertificateRequest
+	2,  // 10: ingate.admin.v1.CertificateService.UpdateCertificate:input_type -> ingate.admin.v1.UpdateCertificateRequest
+	9,  // 11: ingate.admin.v1.CertificateService.DeleteCertificate:input_type -> ingate.admin.v1.ResourceRequest
+	3,  // 12: ingate.admin.v1.CertificateService.ListCertificates:output_type -> ingate.admin.v1.ListCertificatesReply
+	4,  // 13: ingate.admin.v1.CertificateService.GetCertificate:output_type -> ingate.admin.v1.GetCertificateReply
+	10, // 14: ingate.admin.v1.CertificateService.CreateCertificate:output_type -> ingate.admin.v1.MutationReply
+	10, // 15: ingate.admin.v1.CertificateService.UpdateCertificate:output_type -> ingate.admin.v1.MutationReply
+	10, // 16: ingate.admin.v1.CertificateService.DeleteCertificate:output_type -> ingate.admin.v1.MutationReply
+	12, // [12:17] is the sub-list for method output_type
+	7,  // [7:12] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_certificate_proto_init() }

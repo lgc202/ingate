@@ -5,6 +5,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	accesscontrolpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/accesscontrolpolicy"
 	certificatestorage "github.com/lgc202/ingate/internal/apiserver/registry/certificate"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
@@ -19,11 +20,13 @@ const serverName = "ingate-apiserver"
 
 // Config 表示 ingate-apiserver 完整配置
 type Config struct {
-	GenericConfig *genericapiserver.RecommendedConfig
+	GenericConfig    *genericapiserver.RecommendedConfig
+	DisplayNameGuard *apiregistry.DisplayNameGuard
 }
 
 type completedConfig struct {
-	GenericConfig genericapiserver.CompletedConfig
+	GenericConfig    genericapiserver.CompletedConfig
+	DisplayNameGuard *apiregistry.DisplayNameGuard
 }
 
 // CompletedConfig 表示补全后的 ingate-apiserver 配置
@@ -39,7 +42,8 @@ type Server struct {
 // Complete 补全 ingate-apiserver 配置
 func (c *Config) Complete() CompletedConfig {
 	return CompletedConfig{&completedConfig{
-		GenericConfig: c.GenericConfig.Complete(),
+		GenericConfig:    c.GenericConfig.Complete(),
+		DisplayNameGuard: c.DisplayNameGuard,
 	}}
 }
 
@@ -70,37 +74,37 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 
 	if err := installStatusStorage(gatewayv1.ResourceGateways, gatewayv1.ResourceGatewaysStatus, func() (rest.Storage, rest.Storage, error) {
-		return gatewaystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		return gatewaystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
 	}); err != nil {
 		return nil, err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceRoutes, gatewayv1.ResourceRoutesStatus, func() (rest.Storage, rest.Storage, error) {
-		return routestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		return routestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
 	}); err != nil {
 		return nil, err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceUpstreams, gatewayv1.ResourceUpstreamsStatus, func() (rest.Storage, rest.Storage, error) {
-		return upstreamstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		return upstreamstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
 	}); err != nil {
 		return nil, err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceCertificates, gatewayv1.ResourceCertificatesStatus, func() (rest.Storage, rest.Storage, error) {
-		return certificatestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		return certificatestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
 	}); err != nil {
 		return nil, err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceRateLimitPolicies, gatewayv1.ResourceRateLimitPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return ratelimitpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		return ratelimitpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
 	}); err != nil {
 		return nil, err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceAccessControlPolicies, gatewayv1.ResourceAccessControlPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return accesscontrolpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		return accesscontrolpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
 	}); err != nil {
 		return nil, err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceTokenQuotaPolicies, gatewayv1.ResourceTokenQuotaPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return tokenquotapolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme)
+		return tokenquotapolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
 	}); err != nil {
 		return nil, err
 	}

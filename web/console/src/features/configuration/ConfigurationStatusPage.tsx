@@ -57,7 +57,7 @@ export function ConfigurationStatusPage() {
   return (
     <PageFrame
       title="配置状态"
-      subtitle="实时监控声明式资源向 Envoy xDS Snapshot Cache 的转换与分发"
+      subtitle="查看网关、路由、服务和治理策略的当前生效结果"
       actions={
         <button
           type="button"
@@ -82,7 +82,7 @@ export function ConfigurationStatusPage() {
           <StatCard
             title="异常配置"
             value={summary.error}
-            subvalue="Envoy 或数据校验异常"
+            subvalue="存在校验或发布异常"
             icon={AlertTriangle}
           />
           <StatCard

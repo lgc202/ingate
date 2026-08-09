@@ -11,7 +11,6 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -828,6 +827,7 @@ func (x *UpdateRouteRequest) GetRules() []*RouteRule {
 type ListRoutesReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Routes        []*Route               `protobuf:"bytes,1,rep,name=routes,proto3" json:"routes,omitempty"`
+	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -869,11 +869,18 @@ func (x *ListRoutesReply) GetRoutes() []*Route {
 	return nil
 }
 
+func (x *ListRoutesReply) GetPage() *PageInfo {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_admin_v1_route_proto protoreflect.FileDescriptor
 
 const file_admin_v1_route_proto_rawDesc = "" +
 	"\n" +
-	"\x14admin/v1/route.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"7\n" +
+	"\x14admin/v1/route.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"7\n" +
 	"\vHeaderMatch\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value\"F\n" +
@@ -947,12 +954,13 @@ const file_admin_v1_route_proto_rawDesc = "" +
 	"\aenabled\x18\x06 \x01(\bH\x00R\aenabled\x88\x01\x01\x12:\n" +
 	"\x05rules\x18\a \x03(\v2\x1a.ingate.admin.v1.RouteRuleB\b\xbaH\x05\x92\x01\x02\b\x01R\x05rulesB\n" +
 	"\n" +
-	"\b_enabled\"A\n" +
+	"\b_enabled\"p\n" +
 	"\x0fListRoutesReply\x12.\n" +
-	"\x06routes\x18\x01 \x03(\v2\x16.ingate.admin.v1.RouteR\x06routes2\xa1\x05\n" +
-	"\fRouteService\x12^\n" +
+	"\x06routes\x18\x01 \x03(\v2\x16.ingate.admin.v1.RouteR\x06routes\x12-\n" +
+	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page2\xa7\x05\n" +
+	"\fRouteService\x12d\n" +
 	"\n" +
-	"ListRoutes\x12\x16.google.protobuf.Empty\x1a .ingate.admin.v1.ListRoutesReply\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/routes\x12a\n" +
+	"ListRoutes\x12\x1c.ingate.admin.v1.ListRequest\x1a .ingate.admin.v1.ListRoutesReply\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/routes\x12a\n" +
 	"\bGetRoute\x12 .ingate.admin.v1.ResourceRequest\x1a\x16.ingate.admin.v1.Route\"\x1b\x82\xd3\xe4\x93\x02\x15\x12\x13/api/v1/routes/{id}\x12m\n" +
 	"\vCreateRoute\x12#.ingate.admin.v1.CreateRouteRequest\x1a\x1e.ingate.admin.v1.MutationReply\"\x19\x82\xd3\xe4\x93\x02\x13:\x01*\"\x0e/api/v1/routes\x12r\n" +
 	"\vUpdateRoute\x12#.ingate.admin.v1.UpdateRouteRequest\x1a\x1e.ingate.admin.v1.MutationReply\"\x1e\x82\xd3\xe4\x93\x02\x18:\x01*\x1a\x13/api/v1/routes/{id}\x12}\n" +
@@ -988,10 +996,11 @@ var file_admin_v1_route_proto_goTypes = []any{
 	(*ListRoutesReply)(nil),       // 12: ingate.admin.v1.ListRoutesReply
 	(*ResourceStatus)(nil),        // 13: ingate.admin.v1.ResourceStatus
 	(*timestamppb.Timestamp)(nil), // 14: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 15: google.protobuf.Empty
-	(*ResourceRequest)(nil),       // 16: ingate.admin.v1.ResourceRequest
-	(*SetEnabledRequest)(nil),     // 17: ingate.admin.v1.SetEnabledRequest
-	(*MutationReply)(nil),         // 18: ingate.admin.v1.MutationReply
+	(*PageInfo)(nil),              // 15: ingate.admin.v1.PageInfo
+	(*ListRequest)(nil),           // 16: ingate.admin.v1.ListRequest
+	(*ResourceRequest)(nil),       // 17: ingate.admin.v1.ResourceRequest
+	(*SetEnabledRequest)(nil),     // 18: ingate.admin.v1.SetEnabledRequest
+	(*MutationReply)(nil),         // 19: ingate.admin.v1.MutationReply
 }
 var file_admin_v1_route_proto_depIdxs = []int32{
 	2,  // 0: ingate.admin.v1.HeaderModifier.set:type_name -> ingate.admin.v1.HeaderValue
@@ -1009,23 +1018,24 @@ var file_admin_v1_route_proto_depIdxs = []int32{
 	8,  // 12: ingate.admin.v1.CreateRouteRequest.rules:type_name -> ingate.admin.v1.RouteRule
 	8,  // 13: ingate.admin.v1.UpdateRouteRequest.rules:type_name -> ingate.admin.v1.RouteRule
 	9,  // 14: ingate.admin.v1.ListRoutesReply.routes:type_name -> ingate.admin.v1.Route
-	15, // 15: ingate.admin.v1.RouteService.ListRoutes:input_type -> google.protobuf.Empty
-	16, // 16: ingate.admin.v1.RouteService.GetRoute:input_type -> ingate.admin.v1.ResourceRequest
-	10, // 17: ingate.admin.v1.RouteService.CreateRoute:input_type -> ingate.admin.v1.CreateRouteRequest
-	11, // 18: ingate.admin.v1.RouteService.UpdateRoute:input_type -> ingate.admin.v1.UpdateRouteRequest
-	17, // 19: ingate.admin.v1.RouteService.SetRouteEnabled:input_type -> ingate.admin.v1.SetEnabledRequest
-	16, // 20: ingate.admin.v1.RouteService.DeleteRoute:input_type -> ingate.admin.v1.ResourceRequest
-	12, // 21: ingate.admin.v1.RouteService.ListRoutes:output_type -> ingate.admin.v1.ListRoutesReply
-	9,  // 22: ingate.admin.v1.RouteService.GetRoute:output_type -> ingate.admin.v1.Route
-	18, // 23: ingate.admin.v1.RouteService.CreateRoute:output_type -> ingate.admin.v1.MutationReply
-	18, // 24: ingate.admin.v1.RouteService.UpdateRoute:output_type -> ingate.admin.v1.MutationReply
-	18, // 25: ingate.admin.v1.RouteService.SetRouteEnabled:output_type -> ingate.admin.v1.MutationReply
-	18, // 26: ingate.admin.v1.RouteService.DeleteRoute:output_type -> ingate.admin.v1.MutationReply
-	21, // [21:27] is the sub-list for method output_type
-	15, // [15:21] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	15, // 15: ingate.admin.v1.ListRoutesReply.page:type_name -> ingate.admin.v1.PageInfo
+	16, // 16: ingate.admin.v1.RouteService.ListRoutes:input_type -> ingate.admin.v1.ListRequest
+	17, // 17: ingate.admin.v1.RouteService.GetRoute:input_type -> ingate.admin.v1.ResourceRequest
+	10, // 18: ingate.admin.v1.RouteService.CreateRoute:input_type -> ingate.admin.v1.CreateRouteRequest
+	11, // 19: ingate.admin.v1.RouteService.UpdateRoute:input_type -> ingate.admin.v1.UpdateRouteRequest
+	18, // 20: ingate.admin.v1.RouteService.SetRouteEnabled:input_type -> ingate.admin.v1.SetEnabledRequest
+	17, // 21: ingate.admin.v1.RouteService.DeleteRoute:input_type -> ingate.admin.v1.ResourceRequest
+	12, // 22: ingate.admin.v1.RouteService.ListRoutes:output_type -> ingate.admin.v1.ListRoutesReply
+	9,  // 23: ingate.admin.v1.RouteService.GetRoute:output_type -> ingate.admin.v1.Route
+	19, // 24: ingate.admin.v1.RouteService.CreateRoute:output_type -> ingate.admin.v1.MutationReply
+	19, // 25: ingate.admin.v1.RouteService.UpdateRoute:output_type -> ingate.admin.v1.MutationReply
+	19, // 26: ingate.admin.v1.RouteService.SetRouteEnabled:output_type -> ingate.admin.v1.MutationReply
+	19, // 27: ingate.admin.v1.RouteService.DeleteRoute:output_type -> ingate.admin.v1.MutationReply
+	22, // [22:28] is the sub-list for method output_type
+	16, // [16:22] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_route_proto_init() }

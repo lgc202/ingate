@@ -10,23 +10,8 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func (u *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
-	routes, err := u.repository.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, route := range routes {
-		if route.Name == excludeID {
-			continue
-		}
-		if route.Spec.DisplayName == name {
-			return biz.NewUserError(fmt.Sprintf("路由名称 %q 已存在", name))
-		}
-	}
-	return nil
-}
-
 func (u *Usecase) validateReferences(ctx context.Context, spec resource.RouteSpec) error {
+	// 引用预检只改善控制台的保存反馈，资源发布结果仍由 Controller status 表达
 	for _, parentRef := range spec.ParentRefs {
 		if _, err := u.gateways.Get(ctx, parentRef.Name); err != nil {
 			if errors.Is(err, biz.ErrResourceNotFound) {

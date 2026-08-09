@@ -47,12 +47,14 @@ export function CreatePolicyMenu({
 export function PolicyLibraryTable({
   policies,
   targets,
+  readOnly,
   onEdit,
   onToggle,
   onDelete,
 }: {
   policies: GovernancePolicy[];
   targets: PolicyTargetOption[];
+  readOnly: boolean;
   onEdit: (policy: GovernancePolicy) => void;
   onToggle: (policy: GovernancePolicy) => void;
   onDelete: (policy: GovernancePolicy) => void;
@@ -110,11 +112,11 @@ export function PolicyLibraryTable({
               </td>
               <td>{formatDateTime(policy.createdAt ?? '')}</td>
               <td>
-                <div className="row-actions">
+                {readOnly ? <span className="table-secondary">—</span> : <div className="row-actions">
                   <button className="link-button" type="button" onClick={() => onEdit(policy)}>编辑</button>
                   <button className="link-button" type="button" onClick={() => onToggle(policy)}>{policy.enabled ? '停用' : '启用'}</button>
                   <button className="link-button danger" type="button" onClick={() => onDelete(policy)}>删除</button>
-                </div>
+                </div>}
               </td>
             </tr>
             );

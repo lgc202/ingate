@@ -5,14 +5,13 @@ package ingate.admin.v1;
 import "admin/v1/common.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
 // UpstreamService 提供应用、模型、MCP 和 Agent 服务管理接口
 service UpstreamService {
-  rpc ListUpstreams(google.protobuf.Empty) returns (ListUpstreamsReply) {
+  rpc ListUpstreams(ListRequest) returns (ListUpstreamsReply) {
     option (google.api.http) = {get: "/api/v1/upstreams"};
   }
   rpc GetUpstream(ResourceRequest) returns (Upstream) {
@@ -115,4 +114,5 @@ message UpdateUpstreamRequest {
 
 message ListUpstreamsReply {
   repeated Upstream upstreams = 1;
+  PageInfo page = 2;
 }

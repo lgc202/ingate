@@ -13,7 +13,9 @@ import (
 	"k8s.io/klog/v2"
 	netutils "k8s.io/utils/net"
 
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	"github.com/lgc202/ingate/internal/apiserver/server"
+	"github.com/lgc202/ingate/pkg/etcdx"
 )
 
 const usage = `ingate-apiserver 是声明式资源 API
@@ -95,6 +97,12 @@ func Run(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	etcdClient, err := etcdx.NewClient(settings.Etcd)
+	if err != nil {
+		return fmt.Errorf("create etcd coordination client: %w", err)
+	}
+	defer etcdClient.Close()
+	serverConfig.DisplayNameGuard = apiregistry.NewDisplayNameGuard(etcdClient, settings.Etcd.Prefix)
 	apiServer, err := serverConfig.Complete().New(genericapiserver.NewEmptyDelegate())
 	if err != nil {
 		return err

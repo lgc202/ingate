@@ -9,7 +9,6 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -28,7 +27,7 @@ type UpstreamServiceHTTPServer interface {
 	CreateUpstream(context.Context, *CreateUpstreamRequest) (*MutationReply, error)
 	DeleteUpstream(context.Context, *ResourceRequest) (*MutationReply, error)
 	GetUpstream(context.Context, *ResourceRequest) (*Upstream, error)
-	ListUpstreams(context.Context, *emptypb.Empty) (*ListUpstreamsReply, error)
+	ListUpstreams(context.Context, *ListRequest) (*ListUpstreamsReply, error)
 	UpdateUpstream(context.Context, *UpdateUpstreamRequest) (*MutationReply, error)
 }
 
@@ -43,13 +42,13 @@ func RegisterUpstreamServiceHTTPServer(s *http.Server, srv UpstreamServiceHTTPSe
 
 func _UpstreamService_ListUpstreams0_HTTP_Handler(srv UpstreamServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in emptypb.Empty
+		var in ListRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationUpstreamServiceListUpstreams)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListUpstreams(ctx, req.(*emptypb.Empty))
+			return srv.ListUpstreams(ctx, req.(*ListRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -149,7 +148,7 @@ type UpstreamServiceHTTPClient interface {
 	CreateUpstream(ctx context.Context, req *CreateUpstreamRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	DeleteUpstream(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	GetUpstream(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *Upstream, err error)
-	ListUpstreams(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ListUpstreamsReply, err error)
+	ListUpstreams(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListUpstreamsReply, err error)
 	UpdateUpstream(ctx context.Context, req *UpdateUpstreamRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 }
 
@@ -210,7 +209,7 @@ func (c *UpstreamServiceHTTPClientImpl) GetUpstream(ctx context.Context, in *Res
 	return &out, nil
 }
 
-func (c *UpstreamServiceHTTPClientImpl) ListUpstreams(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ListUpstreamsReply, error) {
+func (c *UpstreamServiceHTTPClientImpl) ListUpstreams(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListUpstreamsReply, error) {
 	var out ListUpstreamsReply
 	pattern := "/api/v1/upstreams"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())

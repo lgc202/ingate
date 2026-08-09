@@ -4,10 +4,9 @@ package tokenquota
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	tokenquotabiz "github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
 // Service 实现模型 Token 配额策略管理 API
@@ -20,12 +19,12 @@ func NewService(usecase *tokenquotabiz.Usecase) *Service {
 	return &Service{usecase: usecase}
 }
 
-func (s *Service) ListTokenQuotaPolicies(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListTokenQuotaPoliciesReply, error) {
-	result, err := s.usecase.List(ctx)
+func (s *Service) ListTokenQuotaPolicies(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListTokenQuotaPoliciesReply, error) {
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListTokenQuotaPoliciesReply{Policies: make([]*adminv1.TokenQuotaPolicy, 0, len(result.Policies))}
+	reply := &adminv1.ListTokenQuotaPoliciesReply{Policies: make([]*adminv1.TokenQuotaPolicy, 0, len(result.Policies)), Page: adminservice.PageInfo(result.NextToken)}
 	for i := range result.Policies {
 		reply.Policies = append(reply.Policies, newTokenQuotaPolicyReply(&result.Policies[i], result.TargetNames))
 	}

@@ -1,13 +1,17 @@
-import { apiRequest } from './client';
-import type { UpstreamList, UpstreamMutationPayload, UpstreamMutationResult } from '@/domain/upstream';
+import { apiListAll, apiRequest } from './client';
+import type { PagedResponse } from './client';
+import type { Upstream, UpstreamList, UpstreamMutationPayload, UpstreamMutationResult } from '@/domain/upstream';
 
 interface UpstreamMutationResponse {
   success: boolean;
   id?: string;
 }
 
-export function listUpstreams() {
-  return apiRequest<UpstreamList>('/upstreams');
+interface UpstreamListResponse extends UpstreamList, PagedResponse {}
+
+export async function listUpstreams(): Promise<UpstreamList> {
+  const upstreams = await apiListAll<UpstreamListResponse, Upstream>('/upstreams', (page) => page.upstreams ?? []);
+  return { upstreams };
 }
 
 export async function saveUpstream(payload: UpstreamMutationPayload): Promise<UpstreamMutationResult> {

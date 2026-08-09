@@ -181,7 +181,7 @@ export function AccessKeyPage() {
     setSubmitting(true);
     try {
       if (editingKey) {
-        await updateAccessKey(editingKey.id, payload);
+        await updateAccessKey(editingKey.id, { ...payload, version: editingKey.version });
         setNotice({ message: `访问密钥“${trimmedName}”更新成功`, tone: 'success' });
         setDrawerOpen(false);
         try {
@@ -211,7 +211,7 @@ export function AccessKeyPage() {
     setActionBusy(true);
     const targetState = !toggleCandidate.enabled;
     try {
-      await setAccessKeyEnabled(toggleCandidate.id, targetState);
+      await setAccessKeyEnabled(toggleCandidate.id, toggleCandidate.version, targetState);
       setNotice({
         message: `访问密钥“${toggleCandidate.name}”已${targetState ? '启用' : '停用'}`,
         tone: 'success',
@@ -233,7 +233,7 @@ export function AccessKeyPage() {
     if (!rotateCandidate) return;
     setActionBusy(true);
     try {
-      const res = await rotateAccessKey(rotateCandidate.id);
+      const res = await rotateAccessKey(rotateCandidate.id, rotateCandidate.version);
       const name = rotateCandidate.name;
       setRotateCandidate(null);
       setSecretModalState({
@@ -256,7 +256,7 @@ export function AccessKeyPage() {
     if (!deleteCandidate) return;
     setActionBusy(true);
     try {
-      await deleteAccessKey(deleteCandidate.id);
+      await deleteAccessKey(deleteCandidate.id, deleteCandidate.version);
       setNotice({ message: `访问密钥“${deleteCandidate.name}”已删除`, tone: 'success' });
       setDeleteCandidate(null);
       workspace.reload();

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { updateGovernancePolicyTargets } from '@/api/policies';
+import { useAuth } from '@/auth/AuthContext';
 import { Badge, Button, Toast } from '@/components/ui';
 import type { ResourceStatus } from '@/domain/common';
 import type {
@@ -39,6 +40,7 @@ export function GovernancePolicyPanel({
   workspace: PolicyWorkspace;
   onChanged: () => Promise<void> | void;
 }) {
+  const { canWriteConfiguration } = useAuth();
   const [editorOpen, setEditorOpen] = useState(false);
   const [selectedPolicyKeys, setSelectedPolicyKeys] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -143,7 +145,9 @@ export function GovernancePolicyPanel({
           <h4>应用策略</h4>
           <span>{policyTargetKindLabel(targetKind)} / {targetName}</span>
         </div>
-        <Button variant="soft" type="button" disabled={submitting} onClick={openEditor}>应用已有策略</Button>
+        {canWriteConfiguration ? (
+          <Button variant="soft" type="button" disabled={submitting} onClick={openEditor}>应用已有策略</Button>
+        ) : null}
       </div>
 
       <PolicySection
@@ -151,6 +155,7 @@ export function GovernancePolicyPanel({
         empty="当前没有直接应用的策略"
         policies={directPolicies}
         disabled={submitting}
+        readOnly={!canWriteConfiguration}
         statusForPolicy={(policy) => policy.targets.find((target) => target.kind === targetKind && target.id === targetID)?.status ?? policy.status}
         onRemove={removePolicy}
       />
@@ -212,6 +217,7 @@ function PolicySection({
   empty,
   policies,
   disabled,
+  readOnly,
   statusForPolicy,
   onRemove,
 }: {
@@ -219,6 +225,7 @@ function PolicySection({
   empty: string;
   policies: GovernancePolicy[];
   disabled: boolean;
+  readOnly: boolean;
   statusForPolicy: (policy: GovernancePolicy) => ResourceStatus;
   onRemove: (policy: GovernancePolicy) => void;
 }) {
@@ -240,7 +247,9 @@ function PolicySection({
               </div>
               <div className="governance-policy-actions">
                 <Badge tone={policyStatusTone(status)}>{policyStatusLabel(status)}</Badge>
-                <button className="link-button danger" type="button" disabled={disabled} onClick={() => onRemove(policy)}>移除</button>
+                {readOnly ? null : (
+                  <button className="link-button danger" type="button" disabled={disabled} onClick={() => onRemove(policy)}>移除</button>
+                )}
               </div>
             </div>
           );

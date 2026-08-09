@@ -21,13 +21,13 @@ func NewRouteRepository(client clientset.Interface) *RouteRepository {
 	return &RouteRepository{client: client}
 }
 
-// List 查询 Route 列表
-func (r *RouteRepository) List(ctx context.Context) ([]resource.Route, error) {
-	routes, err := r.client.GatewayV1().Routes().List(ctx, metav1.ListOptions{})
+// ListPage 分页查询 Route 列表
+func (r *RouteRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error) {
+	routes, err := r.client.GatewayV1().Routes().List(ctx, pageOptions(page))
 	if err != nil {
-		return nil, resourceError("list", "routes", "", err)
+		return biz.PageResult[resource.Route]{}, pageError("routes", err)
 	}
-	return routes.Items, nil
+	return biz.PageResult[resource.Route]{Items: routes.Items, NextToken: routes.Continue}, nil
 }
 
 // Get 查询单个 Route

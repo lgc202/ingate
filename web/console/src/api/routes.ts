@@ -1,4 +1,5 @@
-import { apiRequest } from './client';
+import { apiListAll, apiRequest } from './client';
+import type { PagedResponse } from './client';
 import { listGateways } from './gateways';
 import { listUpstreams } from './upstreams';
 import type {
@@ -21,7 +22,7 @@ interface RouteMutationResponse {
   id?: string;
 }
 
-interface RouteListResponse {
+interface RouteListResponse extends PagedResponse {
   routes?: RouteResponse[];
 }
 
@@ -74,8 +75,8 @@ export async function getRouteWorkspace(): Promise<RouteWorkspace> {
 }
 
 export async function listRoutes(): Promise<RouteListView> {
-  const response = await apiRequest<RouteListResponse>('/routes');
-  return { routes: (response.routes ?? []).map(normalizeRoute) };
+  const routes = await apiListAll<RouteListResponse, RouteResponse>('/routes', (page) => page.routes ?? []);
+  return { routes: routes.map(normalizeRoute) };
 }
 
 export async function saveRoute(payload: RouteMutationPayload): Promise<RouteActionResult> {

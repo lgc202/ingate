@@ -9,7 +9,6 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -29,7 +28,7 @@ type AccessControlPolicyServiceHTTPServer interface {
 	CreateAccessControlPolicy(context.Context, *CreateAccessControlPolicyRequest) (*MutationReply, error)
 	DeleteAccessControlPolicy(context.Context, *ResourceRequest) (*MutationReply, error)
 	GetAccessControlPolicy(context.Context, *ResourceRequest) (*AccessControlPolicy, error)
-	ListAccessControlPolicies(context.Context, *emptypb.Empty) (*ListAccessControlPoliciesReply, error)
+	ListAccessControlPolicies(context.Context, *ListRequest) (*ListAccessControlPoliciesReply, error)
 	SetAccessControlPolicyEnabled(context.Context, *SetEnabledRequest) (*MutationReply, error)
 	UpdateAccessControlPolicy(context.Context, *UpdateAccessControlPolicyRequest) (*MutationReply, error)
 }
@@ -46,13 +45,13 @@ func RegisterAccessControlPolicyServiceHTTPServer(s *http.Server, srv AccessCont
 
 func _AccessControlPolicyService_ListAccessControlPolicies0_HTTP_Handler(srv AccessControlPolicyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in emptypb.Empty
+		var in ListRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationAccessControlPolicyServiceListAccessControlPolicies)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListAccessControlPolicies(ctx, req.(*emptypb.Empty))
+			return srv.ListAccessControlPolicies(ctx, req.(*ListRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -174,7 +173,7 @@ type AccessControlPolicyServiceHTTPClient interface {
 	CreateAccessControlPolicy(ctx context.Context, req *CreateAccessControlPolicyRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	DeleteAccessControlPolicy(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	GetAccessControlPolicy(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *AccessControlPolicy, err error)
-	ListAccessControlPolicies(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ListAccessControlPoliciesReply, err error)
+	ListAccessControlPolicies(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListAccessControlPoliciesReply, err error)
 	SetAccessControlPolicyEnabled(ctx context.Context, req *SetEnabledRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	UpdateAccessControlPolicy(ctx context.Context, req *UpdateAccessControlPolicyRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 }
@@ -236,7 +235,7 @@ func (c *AccessControlPolicyServiceHTTPClientImpl) GetAccessControlPolicy(ctx co
 	return &out, nil
 }
 
-func (c *AccessControlPolicyServiceHTTPClientImpl) ListAccessControlPolicies(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ListAccessControlPoliciesReply, error) {
+func (c *AccessControlPolicyServiceHTTPClientImpl) ListAccessControlPolicies(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListAccessControlPoliciesReply, error) {
 	var out ListAccessControlPoliciesReply
 	pattern := "/api/v1/access-control-policies"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())

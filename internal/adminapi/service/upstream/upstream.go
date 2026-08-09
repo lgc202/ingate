@@ -4,8 +4,6 @@ package upstream
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	upstreambiz "github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
@@ -21,14 +19,14 @@ func NewService(usecase *upstreambiz.Usecase) *Service {
 	return &Service{usecase: usecase}
 }
 
-func (s *Service) ListUpstreams(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListUpstreamsReply, error) {
-	items, err := s.usecase.List(ctx)
+func (s *Service) ListUpstreams(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListUpstreamsReply, error) {
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListUpstreamsReply{Upstreams: make([]*adminv1.Upstream, 0, len(items))}
-	for i := range items {
-		reply.Upstreams = append(reply.Upstreams, newUpstreamReply(&items[i]))
+	reply := &adminv1.ListUpstreamsReply{Upstreams: make([]*adminv1.Upstream, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextToken)}
+	for i := range result.Items {
+		reply.Upstreams = append(reply.Upstreams, newUpstreamReply(&result.Items[i]))
 	}
 	return reply, nil
 }

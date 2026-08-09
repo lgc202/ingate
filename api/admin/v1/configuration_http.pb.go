@@ -18,38 +18,61 @@ var _ = new(context.Context)
 
 const _ = http.SupportPackageIsVersion3
 
-const OperationConfigurationServiceGetConfigurationStatus = "/ingate.admin.v1.ConfigurationService/GetConfigurationStatus"
+const OperationConfigurationServiceGetConfigurationSummary = "/ingate.admin.v1.ConfigurationService/GetConfigurationSummary"
+const OperationConfigurationServiceListConfigurationItems = "/ingate.admin.v1.ConfigurationService/ListConfigurationItems"
 
 type ConfigurationServiceHTTPServer interface {
-	GetConfigurationStatus(context.Context, *emptypb.Empty) (*ConfigurationStatusReply, error)
+	GetConfigurationSummary(context.Context, *emptypb.Empty) (*ConfigurationSummary, error)
+	ListConfigurationItems(context.Context, *ListRequest) (*ListConfigurationItemsReply, error)
 }
 
 func RegisterConfigurationServiceHTTPServer(s *http.Server, srv ConfigurationServiceHTTPServer) {
 	r := s.Route("/")
-	r.Handle("GET", "/api/v1/configuration/status", _ConfigurationService_GetConfigurationStatus0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/configuration/summary", _ConfigurationService_GetConfigurationSummary0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/configuration/items", _ConfigurationService_ListConfigurationItems0_HTTP_Handler(srv))
 }
 
-func _ConfigurationService_GetConfigurationStatus0_HTTP_Handler(srv ConfigurationServiceHTTPServer) func(ctx http.Context) error {
+func _ConfigurationService_GetConfigurationSummary0_HTTP_Handler(srv ConfigurationServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in emptypb.Empty
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationConfigurationServiceGetConfigurationStatus)
+		http.SetOperation(ctx, OperationConfigurationServiceGetConfigurationSummary)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetConfigurationStatus(ctx, req.(*emptypb.Empty))
+			return srv.GetConfigurationSummary(ctx, req.(*emptypb.Empty))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*ConfigurationStatusReply)
+		reply := out.(*ConfigurationSummary)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _ConfigurationService_ListConfigurationItems0_HTTP_Handler(srv ConfigurationServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationConfigurationServiceListConfigurationItems)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListConfigurationItems(ctx, req.(*ListRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListConfigurationItemsReply)
 		return ctx.Result(200, reply)
 	}
 }
 
 type ConfigurationServiceHTTPClient interface {
-	GetConfigurationStatus(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ConfigurationStatusReply, err error)
+	GetConfigurationSummary(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ConfigurationSummary, err error)
+	ListConfigurationItems(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListConfigurationItemsReply, err error)
 }
 
 type ConfigurationServiceHTTPClientImpl struct {
@@ -60,13 +83,29 @@ func NewConfigurationServiceHTTPClient(client *http.Client) ConfigurationService
 	return &ConfigurationServiceHTTPClientImpl{client}
 }
 
-func (c *ConfigurationServiceHTTPClientImpl) GetConfigurationStatus(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ConfigurationStatusReply, error) {
-	var out ConfigurationStatusReply
-	pattern := "/api/v1/configuration/status"
+func (c *ConfigurationServiceHTTPClientImpl) GetConfigurationSummary(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ConfigurationSummary, error) {
+	var out ConfigurationSummary
+	pattern := "/api/v1/configuration/summary"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
-		http.Operation(OperationConfigurationServiceGetConfigurationStatus),
+		http.Operation(OperationConfigurationServiceGetConfigurationSummary),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *ConfigurationServiceHTTPClientImpl) ListConfigurationItems(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListConfigurationItemsReply, error) {
+	var out ListConfigurationItemsReply
+	pattern := "/api/v1/configuration/items"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationConfigurationServiceListConfigurationItems),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)

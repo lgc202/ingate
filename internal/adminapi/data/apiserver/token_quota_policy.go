@@ -21,13 +21,13 @@ func NewTokenQuotaPolicyRepository(client clientset.Interface) *TokenQuotaPolicy
 	return &TokenQuotaPolicyRepository{client: client}
 }
 
-// List 查询 TokenQuotaPolicy 列表
-func (r *TokenQuotaPolicyRepository) List(ctx context.Context) ([]resource.TokenQuotaPolicy, error) {
-	policies, err := r.client.GatewayV1().TokenQuotaPolicies().List(ctx, metav1.ListOptions{})
+// ListPage 分页查询 TokenQuotaPolicy 列表
+func (r *TokenQuotaPolicyRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.TokenQuotaPolicy], error) {
+	policies, err := r.client.GatewayV1().TokenQuotaPolicies().List(ctx, pageOptions(page))
 	if err != nil {
-		return nil, resourceError("list", "token quota policies", "", err)
+		return biz.PageResult[resource.TokenQuotaPolicy]{}, pageError("token quota policies", err)
 	}
-	return policies.Items, nil
+	return biz.PageResult[resource.TokenQuotaPolicy]{Items: policies.Items, NextToken: policies.Continue}, nil
 }
 
 // Get 查询单个 TokenQuotaPolicy

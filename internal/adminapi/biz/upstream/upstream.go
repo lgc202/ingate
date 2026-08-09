@@ -15,7 +15,7 @@ import (
 
 // Repository 定义 Upstream 用例需要的持久化能力
 type Repository interface {
-	List(context.Context) ([]resource.Upstream, error)
+	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Upstream], error)
 	Get(context.Context, string) (*resource.Upstream, error)
 	Create(context.Context, string, resource.UpstreamSpec) error
 	Update(context.Context, string, int64, resource.UpstreamSpec) error
@@ -24,7 +24,7 @@ type Repository interface {
 
 // RouteRepository 定义 Upstream 变更时需要的 Route 查询能力
 type RouteRepository interface {
-	List(context.Context) ([]resource.Route, error)
+	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Route], error)
 }
 
 // Usecase 承载 Upstream 管理用例
@@ -39,12 +39,8 @@ func NewUsecase(repository Repository, routes RouteRepository) *Usecase {
 }
 
 // List 查询 Upstream 列表
-func (u *Usecase) List(ctx context.Context) ([]resource.Upstream, error) {
-	upstreams, err := u.repository.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return upstreams, nil
+func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Upstream], error) {
+	return u.repository.ListPage(ctx, page)
 }
 
 // Get 查询单个 Upstream
@@ -58,12 +54,9 @@ func (u *Usecase) Get(ctx context.Context, upstreamID string) (*resource.Upstrea
 
 // Create 创建 Upstream
 func (u *Usecase) Create(ctx context.Context, spec resource.UpstreamSpec) (string, error) {
-	if err := u.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
-		return "", err
-	}
 	id := uuid.NewString()
 	if err := u.repository.Create(ctx, id, spec); err != nil {
-		return "", err
+		return "", biz.DisplayNameConflict(err, "服务", spec.DisplayName)
 	}
 	return id, nil
 }
@@ -83,10 +76,6 @@ func (u *Usecase) Update(
 	if version != strconv.FormatInt(current.Generation, 10) {
 		return biz.NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 	}
-	if err := u.validateNameUnique(ctx, spec.DisplayName, upstreamID); err != nil {
-		return err
-	}
-
 	currentAuthentication := current.Spec.Authentication
 	if removeAPIKey {
 		spec.Authentication = nil
@@ -104,7 +93,7 @@ func (u *Usecase) Update(
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return biz.NewUserError(fmt.Sprintf("服务 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		return err
+		return biz.DisplayNameConflict(err, "服务", spec.DisplayName)
 	}
 	return nil
 }
@@ -114,15 +103,11 @@ func (u *Usecase) validateRouteCompatibility(
 	upstreamID string,
 	next *resource.Upstream,
 ) error {
-	routes, err := u.routes.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, route := range routes {
+	return biz.VisitPages(ctx, u.routes.ListPage, func(route resource.Route) (bool, error) {
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
 				if ref.Name == upstreamID && (next.Spec.Type == resource.UpstreamTypeModel || next.Spec.Protocol != resource.UpstreamProtocolHTTP) {
-					return biz.NewUserError(fmt.Sprintf("服务仍被普通路由 %q 引用，不能改为模型服务", routeDisplayName(route)))
+					return true, biz.NewUserError(fmt.Sprintf("服务仍被普通路由 %q 引用，不能改为模型服务", routeDisplayName(route)))
 				}
 			}
 			if rule.ModelRouting == nil {
@@ -133,42 +118,41 @@ func (u *Usecase) validateRouteCompatibility(
 					continue
 				}
 				if !ValidModel(next) {
-					return biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 引用，必须保持为有效的大模型服务", routeDisplayName(route)))
+					return true, biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 引用，必须保持为有效的大模型服务", routeDisplayName(route)))
 				}
 				upstreamModel := model.UpstreamModel
 				if upstreamModel == "" {
 					upstreamModel = model.Model
 				}
 				if !ModelEnabled(next.Spec.Model, upstreamModel) {
-					return biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 的公开模型 %q 引用，不能删除或禁用厂商模型 %q", routeDisplayName(route), model.Model, upstreamModel))
+					return true, biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 的公开模型 %q 引用，不能删除或禁用厂商模型 %q", routeDisplayName(route), model.Model, upstreamModel))
 				}
 			}
 		}
-	}
-	return nil
+		return false, nil
+	})
 }
 
 // Delete 删除 Upstream，仍有关联路由时拒绝删除
 func (u *Usecase) Delete(ctx context.Context, upstreamID string) error {
-	routes, err := u.routes.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, route := range routes {
+	if err := biz.VisitPages(ctx, u.routes.ListPage, func(route resource.Route) (bool, error) {
 		for _, rule := range route.Spec.Rules {
 			for _, ref := range rule.UpstreamRefs {
 				if ref.Name == upstreamID {
-					return biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", upstreamID, routeDisplayName(route)))
+					return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", upstreamID, routeDisplayName(route)))
 				}
 			}
 			if rule.ModelRouting != nil {
 				for _, model := range rule.ModelRouting.Models {
 					if model.UpstreamRef == upstreamID {
-						return biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 的公开模型 %q 引用", upstreamID, routeDisplayName(route), model.Model))
+						return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 的公开模型 %q 引用", upstreamID, routeDisplayName(route), model.Model))
 					}
 				}
 			}
 		}
+		return false, nil
+	}); err != nil {
+		return err
 	}
 	return u.repository.Delete(ctx, upstreamID)
 }
@@ -178,22 +162,6 @@ func routeDisplayName(route resource.Route) string {
 		return route.Spec.DisplayName
 	}
 	return route.Name
-}
-
-func (u *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
-	upstreams, err := u.repository.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, current := range upstreams {
-		if current.Name == excludeID {
-			continue
-		}
-		if current.Spec.DisplayName == name {
-			return biz.NewUserError(fmt.Sprintf("服务名称 %q 已存在", name))
-		}
-	}
-	return nil
 }
 
 func validateAuthentication(upstream *resource.Upstream) error {

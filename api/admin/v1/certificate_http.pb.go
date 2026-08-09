@@ -9,7 +9,6 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -28,7 +27,7 @@ type CertificateServiceHTTPServer interface {
 	CreateCertificate(context.Context, *CreateCertificateRequest) (*MutationReply, error)
 	DeleteCertificate(context.Context, *ResourceRequest) (*MutationReply, error)
 	GetCertificate(context.Context, *ResourceRequest) (*GetCertificateReply, error)
-	ListCertificates(context.Context, *emptypb.Empty) (*ListCertificatesReply, error)
+	ListCertificates(context.Context, *ListRequest) (*ListCertificatesReply, error)
 	UpdateCertificate(context.Context, *UpdateCertificateRequest) (*MutationReply, error)
 }
 
@@ -43,13 +42,13 @@ func RegisterCertificateServiceHTTPServer(s *http.Server, srv CertificateService
 
 func _CertificateService_ListCertificates0_HTTP_Handler(srv CertificateServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in emptypb.Empty
+		var in ListRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationCertificateServiceListCertificates)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListCertificates(ctx, req.(*emptypb.Empty))
+			return srv.ListCertificates(ctx, req.(*ListRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -149,7 +148,7 @@ type CertificateServiceHTTPClient interface {
 	CreateCertificate(ctx context.Context, req *CreateCertificateRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	DeleteCertificate(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	GetCertificate(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *GetCertificateReply, err error)
-	ListCertificates(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ListCertificatesReply, err error)
+	ListCertificates(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListCertificatesReply, err error)
 	UpdateCertificate(ctx context.Context, req *UpdateCertificateRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 }
 
@@ -210,7 +209,7 @@ func (c *CertificateServiceHTTPClientImpl) GetCertificate(ctx context.Context, i
 	return &out, nil
 }
 
-func (c *CertificateServiceHTTPClientImpl) ListCertificates(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ListCertificatesReply, error) {
+func (c *CertificateServiceHTTPClientImpl) ListCertificates(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListCertificatesReply, error) {
 	var out ListCertificatesReply
 	pattern := "/api/v1/certificates"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())

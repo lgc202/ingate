@@ -22,3 +22,15 @@ logging:
   format: "${LOGGING_FORMAT:json}"
   level: "${LOGGING_LEVEL:info}"
   add_source: "${LOGGING_ADD_SOURCE:false}"
+
+authentication:
+  enabled: "${AUTHENTICATION_ENABLED:false}"
+  issuer: "${AUTHENTICATION_ISSUER:}"
+  audience: "${AUTHENTICATION_AUDIENCE:ingate-console}"
+  client_id: "${AUTHENTICATION_CLIENT_ID:ingate-console}"
+  scopes: ["openid", "profile", "email"]
+  roles_claim: "${AUTHENTICATION_ROLES_CLAIM:roles}"
+  admin_roles: ["ingate-admin"]
+  operator_roles: ["ingate-operator"]
+  viewer_roles: ["ingate-viewer"]
+  discovery_timeout: "${AUTHENTICATION_DISCOVERY_TIMEOUT:10s}"

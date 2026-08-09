@@ -42,3 +42,16 @@ message MutationReply {
   bool success = 1;
   string id = 2;
 }
+
+// ListRequest 使用 API Server Continue Token 分页读取资源
+message ListRequest {
+  int32 page_size = 1 [(buf.validate.field).int32 = {
+    gte: 0
+    lte: 200
+  }];
+  string page_token = 2;
+}
+
+message PageInfo {
+  string next_page_token = 1;
+}

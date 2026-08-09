@@ -4,6 +4,9 @@ package registry
 import (
 	"context"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metainternalversion "k8s.io/apimachinery/pkg/apis/meta/internalversion"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,11 +24,15 @@ type StorageDefinition struct {
 	SingularResource schema.GroupResource
 	Strategy         rest.CreateUpdateResetFieldsStrategy
 	StatusStrategy   rest.UpdateResetFieldsStrategy
+	DisplayName      func(runtime.Object) string
 }
 
 // REST 实现声明式资源的 generic-apiserver RESTStorage
 type REST struct {
 	*genericregistry.Store
+	displayName func(runtime.Object) string
+	guard       *DisplayNameGuard
+	resource    schema.GroupResource
 }
 
 // StatusREST 实现声明式资源的 status 子资源存储
@@ -37,6 +44,7 @@ type StatusREST struct {
 func NewStorage(
 	optsGetter generic.RESTOptionsGetter,
 	definition StorageDefinition,
+	guard *DisplayNameGuard,
 ) (*REST, *StatusREST, error) {
 	store := &genericregistry.Store{
 		NewFunc:                   definition.NewObject,
@@ -56,7 +64,107 @@ func NewStorage(
 	statusStore := *store
 	statusStore.UpdateStrategy = definition.StatusStrategy
 	statusStore.ResetFieldsStrategy = definition.StatusStrategy
-	return &REST{Store: store}, &StatusREST{store: &statusStore}, nil
+	return &REST{
+		Store:       store,
+		displayName: definition.DisplayName,
+		guard:       guard,
+		resource:    definition.Resource,
+	}, &StatusREST{store: &statusStore}, nil
+}
+
+// Create 在写入前对同类资源的 displayName 做跨实例唯一性裁决
+func (r *REST) Create(
+	ctx context.Context,
+	obj runtime.Object,
+	createValidation rest.ValidateObjectFunc,
+	options *metav1.CreateOptions,
+) (runtime.Object, error) {
+	var result runtime.Object
+	err := r.guard.lock(ctx, r.resource, func() error {
+		if err := r.validateDisplayName(ctx, obj); err != nil {
+			return err
+		}
+		var err error
+		result, err = r.Store.Create(ctx, obj, createValidation, options)
+		return err
+	})
+	return result, err
+}
+
+// Update 让 PUT、Patch 和 Server-Side Apply 共用相同的 displayName 唯一性边界
+func (r *REST) Update(
+	ctx context.Context,
+	name string,
+	objInfo rest.UpdatedObjectInfo,
+	createValidation rest.ValidateObjectFunc,
+	updateValidation rest.ValidateObjectUpdateFunc,
+	forceAllowCreate bool,
+	options *metav1.UpdateOptions,
+) (runtime.Object, bool, error) {
+	var result runtime.Object
+	var created bool
+	err := r.guard.lock(ctx, r.resource, func() error {
+		var err error
+		result, created, err = r.Store.Update(
+			ctx,
+			name,
+			displayNameUpdatedObjectInfo{UpdatedObjectInfo: objInfo, validate: r.validateDisplayName},
+			createValidation,
+			updateValidation,
+			forceAllowCreate,
+			options,
+		)
+		return err
+	})
+	return result, created, err
+}
+
+func (r *REST) validateDisplayName(ctx context.Context, obj runtime.Object) error {
+	displayName := r.displayName(obj)
+	if displayName == "" {
+		return nil
+	}
+	objectMeta, err := meta.Accessor(obj)
+	if err != nil {
+		return err
+	}
+	list, err := r.Store.List(ctx, &metainternalversion.ListOptions{})
+	if err != nil {
+		return err
+	}
+	items, err := meta.ExtractList(list)
+	if err != nil {
+		return err
+	}
+	for _, current := range items {
+		currentMeta, err := meta.Accessor(current)
+		if err != nil {
+			return err
+		}
+		if currentMeta.GetName() != objectMeta.GetName() && r.displayName(current) == displayName {
+			return apierrors.NewAlreadyExists(r.resource, displayName)
+		}
+	}
+	return nil
+}
+
+type displayNameUpdatedObjectInfo struct {
+	rest.UpdatedObjectInfo
+	validate func(context.Context, runtime.Object) error
+}
+
+func (i displayNameUpdatedObjectInfo) UpdatedObject(
+	ctx context.Context,
+	old runtime.Object,
+) (runtime.Object, error) {
+	obj, err := i.UpdatedObjectInfo.UpdatedObject(ctx, old)
+	if err != nil {
+		return nil, err
+	}
+	if err := i.validate(ctx, obj); err != nil {
+		return nil, err
+	}
+	return obj, nil
 }
 
 // New 创建对应的资源对象

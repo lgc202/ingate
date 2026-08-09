@@ -1,5 +1,6 @@
 CREATE TABLE access_keys (
     id CHAR(36) NOT NULL,
+    version BIGINT NOT NULL DEFAULT 1,
     name VARCHAR(128) NOT NULL,
     secret_hash BINARY(32) NOT NULL,
     secret_prefix VARCHAR(16) NOT NULL,

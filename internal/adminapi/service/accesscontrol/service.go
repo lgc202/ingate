@@ -4,10 +4,9 @@ package accesscontrol
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	accesscontrolbiz "github.com/lgc202/ingate/internal/adminapi/biz/accesscontrol"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
 // Service 实现访问控制策略管理 API
@@ -20,12 +19,12 @@ func NewService(usecase *accesscontrolbiz.Usecase) *Service {
 	return &Service{usecase: usecase}
 }
 
-func (s *Service) ListAccessControlPolicies(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListAccessControlPoliciesReply, error) {
-	result, err := s.usecase.List(ctx)
+func (s *Service) ListAccessControlPolicies(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListAccessControlPoliciesReply, error) {
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListAccessControlPoliciesReply{Policies: make([]*adminv1.AccessControlPolicy, 0, len(result.Policies))}
+	reply := &adminv1.ListAccessControlPoliciesReply{Policies: make([]*adminv1.AccessControlPolicy, 0, len(result.Policies)), Page: adminservice.PageInfo(result.NextToken)}
 	for i := range result.Policies {
 		reply.Policies = append(reply.Policies, newAccessControlPolicyReply(&result.Policies[i], result.TargetNames))
 	}

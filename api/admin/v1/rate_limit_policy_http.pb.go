@@ -9,7 +9,6 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -29,7 +28,7 @@ type RateLimitPolicyServiceHTTPServer interface {
 	CreateRateLimitPolicy(context.Context, *CreateRateLimitPolicyRequest) (*MutationReply, error)
 	DeleteRateLimitPolicy(context.Context, *ResourceRequest) (*MutationReply, error)
 	GetRateLimitPolicy(context.Context, *ResourceRequest) (*RateLimitPolicy, error)
-	ListRateLimitPolicies(context.Context, *emptypb.Empty) (*ListRateLimitPoliciesReply, error)
+	ListRateLimitPolicies(context.Context, *ListRequest) (*ListRateLimitPoliciesReply, error)
 	SetRateLimitPolicyEnabled(context.Context, *SetEnabledRequest) (*MutationReply, error)
 	UpdateRateLimitPolicy(context.Context, *UpdateRateLimitPolicyRequest) (*MutationReply, error)
 }
@@ -46,13 +45,13 @@ func RegisterRateLimitPolicyServiceHTTPServer(s *http.Server, srv RateLimitPolic
 
 func _RateLimitPolicyService_ListRateLimitPolicies0_HTTP_Handler(srv RateLimitPolicyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in emptypb.Empty
+		var in ListRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationRateLimitPolicyServiceListRateLimitPolicies)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListRateLimitPolicies(ctx, req.(*emptypb.Empty))
+			return srv.ListRateLimitPolicies(ctx, req.(*ListRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -174,7 +173,7 @@ type RateLimitPolicyServiceHTTPClient interface {
 	CreateRateLimitPolicy(ctx context.Context, req *CreateRateLimitPolicyRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	DeleteRateLimitPolicy(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	GetRateLimitPolicy(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *RateLimitPolicy, err error)
-	ListRateLimitPolicies(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ListRateLimitPoliciesReply, err error)
+	ListRateLimitPolicies(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListRateLimitPoliciesReply, err error)
 	SetRateLimitPolicyEnabled(ctx context.Context, req *SetEnabledRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	UpdateRateLimitPolicy(ctx context.Context, req *UpdateRateLimitPolicyRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 }
@@ -236,7 +235,7 @@ func (c *RateLimitPolicyServiceHTTPClientImpl) GetRateLimitPolicy(ctx context.Co
 	return &out, nil
 }
 
-func (c *RateLimitPolicyServiceHTTPClientImpl) ListRateLimitPolicies(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ListRateLimitPoliciesReply, error) {
+func (c *RateLimitPolicyServiceHTTPClientImpl) ListRateLimitPolicies(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListRateLimitPoliciesReply, error) {
 	var out ListRateLimitPoliciesReply
 	pattern := "/api/v1/rate-limit-policies"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())

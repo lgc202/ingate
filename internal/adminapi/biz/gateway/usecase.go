@@ -16,7 +16,7 @@ import (
 
 // Repository 定义 Gateway 用例需要的持久化能力
 type Repository interface {
-	List(context.Context) ([]resource.Gateway, error)
+	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Gateway], error)
 	Get(context.Context, string) (*resource.Gateway, error)
 	Create(context.Context, string, resource.GatewaySpec) error
 	Update(context.Context, string, int64, resource.GatewaySpec) error
@@ -25,7 +25,7 @@ type Repository interface {
 
 // RouteRepository 定义删除 Gateway 时需要的 Route 查询能力
 type RouteRepository interface {
-	List(context.Context) ([]resource.Route, error)
+	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Route], error)
 }
 
 // CertificateRepository 定义 Gateway 校验证书引用时需要的查询能力
@@ -57,8 +57,8 @@ func NewUsecase(
 }
 
 // List 查询 Gateway 列表
-func (u *Usecase) List(ctx context.Context) ([]resource.Gateway, error) {
-	return u.repository.List(ctx)
+func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Gateway], error) {
+	return u.repository.ListPage(ctx, page)
 }
 
 // Get 查询单个 Gateway
@@ -69,16 +69,13 @@ func (u *Usecase) Get(ctx context.Context, gatewayID string) (*resource.Gateway,
 // Create 创建 Gateway
 func (u *Usecase) Create(ctx context.Context, spec resource.GatewaySpec) (string, error) {
 	spec.Enabled = true
-	if err := u.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
-		return "", err
-	}
 	if err := u.validateGateway(ctx, spec, ""); err != nil {
 		return "", err
 	}
 
 	id := uuid.NewString()
 	if err := u.repository.Create(ctx, id, spec); err != nil {
-		return "", err
+		return "", biz.DisplayNameConflict(err, "网关", spec.DisplayName)
 	}
 	return id, nil
 }
@@ -95,10 +92,6 @@ func (u *Usecase) Update(ctx context.Context, gatewayID, version string, submitt
 	if !usesSharedHostBindings(current.Spec) {
 		return biz.NewUserError("该网关包含控制台暂不支持的入口域名配置，请通过声明式 API 修改")
 	}
-	if err := u.validateNameUnique(ctx, submitted.DisplayName, gatewayID); err != nil {
-		return err
-	}
-
 	submitted.Enabled = current.Spec.Enabled
 	if err := u.validateGateway(ctx, submitted, gatewayID); err != nil {
 		return err
@@ -107,7 +100,7 @@ func (u *Usecase) Update(ctx context.Context, gatewayID, version string, submitt
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return biz.NewUserError(fmt.Sprintf("网关 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		return err
+		return biz.DisplayNameConflict(err, "网关", submitted.DisplayName)
 	}
 	return nil
 }
@@ -138,16 +131,15 @@ func (u *Usecase) Delete(ctx context.Context, gatewayID string) error {
 	if err != nil {
 		return err
 	}
-	routes, err := u.routes.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, route := range routes {
+	if err := biz.VisitPages(ctx, u.routes.ListPage, func(route resource.Route) (bool, error) {
 		if slices.ContainsFunc(route.Spec.ParentRefs, func(parentRef resource.ParentRef) bool {
 			return parentRef.Name == gatewayID
 		}) {
-			return biz.NewUserError(fmt.Sprintf("网关 %q 仍有关联路由", current.Spec.DisplayName))
+			return true, biz.NewUserError(fmt.Sprintf("网关 %q 仍有关联路由", current.Spec.DisplayName))
 		}
+		return false, nil
+	}); err != nil {
+		return err
 	}
 	usage, err := u.policyUsage.Find(ctx, resource.PolicyTargetRef{Kind: resource.KindGateway, Name: gatewayID})
 	if err != nil {

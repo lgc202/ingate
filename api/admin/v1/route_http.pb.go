@@ -9,7 +9,6 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -29,7 +28,7 @@ type RouteServiceHTTPServer interface {
 	CreateRoute(context.Context, *CreateRouteRequest) (*MutationReply, error)
 	DeleteRoute(context.Context, *ResourceRequest) (*MutationReply, error)
 	GetRoute(context.Context, *ResourceRequest) (*Route, error)
-	ListRoutes(context.Context, *emptypb.Empty) (*ListRoutesReply, error)
+	ListRoutes(context.Context, *ListRequest) (*ListRoutesReply, error)
 	SetRouteEnabled(context.Context, *SetEnabledRequest) (*MutationReply, error)
 	UpdateRoute(context.Context, *UpdateRouteRequest) (*MutationReply, error)
 }
@@ -46,13 +45,13 @@ func RegisterRouteServiceHTTPServer(s *http.Server, srv RouteServiceHTTPServer) 
 
 func _RouteService_ListRoutes0_HTTP_Handler(srv RouteServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in emptypb.Empty
+		var in ListRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationRouteServiceListRoutes)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListRoutes(ctx, req.(*emptypb.Empty))
+			return srv.ListRoutes(ctx, req.(*ListRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -174,7 +173,7 @@ type RouteServiceHTTPClient interface {
 	CreateRoute(ctx context.Context, req *CreateRouteRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	DeleteRoute(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	GetRoute(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *Route, err error)
-	ListRoutes(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ListRoutesReply, err error)
+	ListRoutes(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListRoutesReply, err error)
 	SetRouteEnabled(ctx context.Context, req *SetEnabledRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	UpdateRoute(ctx context.Context, req *UpdateRouteRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 }
@@ -236,7 +235,7 @@ func (c *RouteServiceHTTPClientImpl) GetRoute(ctx context.Context, in *ResourceR
 	return &out, nil
 }
 
-func (c *RouteServiceHTTPClientImpl) ListRoutes(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ListRoutesReply, error) {
+func (c *RouteServiceHTTPClientImpl) ListRoutes(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListRoutesReply, error) {
 	var out ListRoutesReply
 	pattern := "/api/v1/routes"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { deleteUpstream, listUpstreams, saveUpstream } from '@/api/upstreams';
 import { useResource } from '@/api/useResource';
+import { useAuth } from '@/auth/AuthContext';
 import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { ModelProvider, Upstream, UpstreamType } from '@/domain/upstream';
@@ -25,6 +26,7 @@ import {
 import { Plus, Trash2, Edit3, Server, Sparkles, ChevronDown } from 'lucide-react';
 
 export function UpstreamPage() {
+  const { canWriteConfiguration } = useAuth();
   const upstreams = useResource(listUpstreams);
   const [selectedUpstreamId, setSelectedUpstreamId] = useState<string>('');
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -116,7 +118,7 @@ export function UpstreamPage() {
     <PageFrame
       title="上游服务"
       subtitle={`已配置 ${upstreamList.length} 个 AI 模型与应用微服务端点`}
-      actions={
+      actions={canWriteConfiguration ? (
         <button
           type="button"
           onClick={handleCreateNew}
@@ -125,7 +127,7 @@ export function UpstreamPage() {
           <Plus className="w-4 h-4" />
           创建服务
         </button>
-      }
+      ) : undefined}
     >
       <div className="space-y-6 mt-2">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -133,7 +135,10 @@ export function UpstreamPage() {
         {/* Clean High Density Upstream Table */}
         <Panel>
           {upstreamList.length === 0 ? (
-            <EmptyState title="暂无配置的上游服务" message="点击右上角按钮创建大模型服务或应用微服务端点" />
+            <EmptyState
+              title="暂无配置的服务"
+              message={canWriteConfiguration ? '点击右上角按钮创建模型服务或应用服务' : '当前环境还没有服务配置'}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
@@ -230,6 +235,8 @@ export function UpstreamPage() {
                         </td>
 
                         <td className="py-3 px-3 text-right space-x-1" onClick={(e) => e.stopPropagation()}>
+                          {canWriteConfiguration ? (
+                            <>
                           <button
                             type="button"
                             onClick={() => handleEdit(item)}
@@ -246,6 +253,8 @@ export function UpstreamPage() {
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
+                            </>
+                          ) : <span className="text-slate-400">—</span>}
                         </td>
                       </tr>
                     );

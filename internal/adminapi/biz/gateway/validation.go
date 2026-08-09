@@ -11,22 +11,6 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func (u *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
-	gateways, err := u.repository.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, gateway := range gateways {
-		if gateway.Name == excludeID {
-			continue
-		}
-		if gateway.Spec.DisplayName == name {
-			return biz.NewUserError(fmt.Sprintf("网关名称 %q 已存在", name))
-		}
-	}
-	return nil
-}
-
 func (u *Usecase) validateGateway(ctx context.Context, spec resource.GatewaySpec, excludeID string) error {
 	if !spec.Enabled {
 		return nil
@@ -35,19 +19,16 @@ func (u *Usecase) validateGateway(ctx context.Context, spec resource.GatewaySpec
 		return err
 	}
 
-	gateways, err := u.repository.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, current := range gateways {
+	// 这里为控制台提供立即冲突提示；声明式 API 并发写入仍以 Controller status 为最终裁决
+	return biz.VisitPages(ctx, u.repository.ListPage, func(current resource.Gateway) (bool, error) {
 		if current.Name == excludeID || !current.Spec.Enabled {
-			continue
+			return false, nil
 		}
 		if err := validateListenerClaims(spec, current); err != nil {
-			return err
+			return true, err
 		}
-	}
-	return nil
+		return false, nil
+	})
 }
 
 func (u *Usecase) validateCertificateRefs(ctx context.Context, spec resource.GatewaySpec) error {

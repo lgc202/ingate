@@ -1,3 +1,4 @@
+// Package service 实现 Admin API 的传输协议适配
 package service
 
 // RequestError 表示 service 在请求自身中发现的错误

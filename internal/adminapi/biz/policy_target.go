@@ -2,19 +2,20 @@ package biz
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// GatewayLister 定义跨策略目标解析所需的 Gateway 列表能力
-type GatewayLister interface {
-	List(context.Context) ([]resource.Gateway, error)
+// GatewayGetter 定义策略目标解析所需的 Gateway 查询能力
+type GatewayGetter interface {
+	Get(context.Context, string) (*resource.Gateway, error)
 }
 
-// RouteLister 定义跨策略目标解析所需的 Route 列表能力
-type RouteLister interface {
-	List(context.Context) ([]resource.Route, error)
+// RouteGetter 定义策略目标解析所需的 Route 查询能力
+type RouteGetter interface {
+	Get(context.Context, string) (*resource.Route, error)
 }
 
 // PolicyTargetKey 唯一标识一个策略作用目标
@@ -39,12 +40,12 @@ func (n PolicyTargetNames) Contains(ref resource.PolicyTargetRef) bool {
 
 // PolicyTargetResolver 解析 Gateway 和 Route 策略作用目标
 type PolicyTargetResolver struct {
-	gateways GatewayLister
-	routes   RouteLister
+	gateways GatewayGetter
+	routes   RouteGetter
 }
 
 // NewPolicyTargetResolver 创建策略作用目标解析器
-func NewPolicyTargetResolver(gateways GatewayLister, routes RouteLister) *PolicyTargetResolver {
+func NewPolicyTargetResolver(gateways GatewayGetter, routes RouteGetter) *PolicyTargetResolver {
 	return &PolicyTargetResolver{gateways: gateways, routes: routes}
 }
 
@@ -73,33 +74,32 @@ func (r *PolicyTargetResolver) Validate(ctx context.Context, refs []resource.Pol
 // DisplayNames 返回当前存在的策略作用目标展示名称，缺失引用保留为空名称供状态页展示
 func (r *PolicyTargetResolver) DisplayNames(ctx context.Context, refs []resource.PolicyTargetRef) (PolicyTargetNames, error) {
 	names := make(PolicyTargetNames)
-	needGateways := false
-	needRoutes := false
+	seen := make(map[PolicyTargetKey]struct{}, len(refs))
 	for _, ref := range refs {
+		key := PolicyTargetKey{Kind: ref.Kind, ID: ref.Name}
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = struct{}{}
 		switch ref.Kind {
 		case resource.KindGateway:
-			needGateways = true
+			gateway, err := r.gateways.Get(ctx, ref.Name)
+			if err != nil {
+				if errors.Is(err, ErrResourceNotFound) {
+					continue
+				}
+				return nil, err
+			}
+			names[key] = gateway.Spec.DisplayName
 		case resource.KindRoute:
-			needRoutes = true
-		}
-	}
-
-	if needGateways {
-		gateways, err := r.gateways.List(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, gateway := range gateways {
-			names[PolicyTargetKey{Kind: resource.KindGateway, ID: gateway.Name}] = gateway.Spec.DisplayName
-		}
-	}
-	if needRoutes {
-		routes, err := r.routes.List(ctx)
-		if err != nil {
-			return nil, err
-		}
-		for _, route := range routes {
-			names[PolicyTargetKey{Kind: resource.KindRoute, ID: route.Name}] = route.Spec.DisplayName
+			route, err := r.routes.Get(ctx, ref.Name)
+			if err != nil {
+				if errors.Is(err, ErrResourceNotFound) {
+					continue
+				}
+				return nil, err
+			}
+			names[key] = route.Spec.DisplayName
 		}
 	}
 	return names, nil

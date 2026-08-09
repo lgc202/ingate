@@ -13,6 +13,7 @@ import (
 func NewREST(
 	optsGetter generic.RESTOptionsGetter,
 	typer runtime.ObjectTyper,
+	guard *apiregistry.DisplayNameGuard,
 ) (*apiregistry.REST, *apiregistry.StatusREST, error) {
 	return apiregistry.NewStorage(optsGetter, apiregistry.StorageDefinition{
 		NewObject:        func() runtime.Object { return &resource.Route{} },
@@ -21,5 +22,6 @@ func NewREST(
 		SingularResource: resource.Resource(resource.ResourceRoute),
 		Strategy:         newStrategy(typer),
 		StatusStrategy:   newStatusStrategy(typer),
-	})
+		DisplayName:      func(obj runtime.Object) string { return obj.(*resource.Route).Spec.DisplayName },
+	}, guard)
 }
