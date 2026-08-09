@@ -1,10 +1,8 @@
 server:
   http:
-    network: "tcp"
     addr: "0.0.0.0:18082"
     timeout: "5s"
   grpc:
-    network: "tcp"
     addr: "0.0.0.0:18081"
   shutdown_timeout: "30s"
 

@@ -373,9 +373,8 @@ func (x *Authentication) GetScopes() []string {
 
 type Server_HTTP struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Network       string                 `protobuf:"bytes,1,opt,name=network,proto3" json:"network,omitempty"`
-	Addr          string                 `protobuf:"bytes,2,opt,name=addr,proto3" json:"addr,omitempty"`
-	Timeout       *durationpb.Duration   `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	Addr          string                 `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	Timeout       *durationpb.Duration   `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -408,13 +407,6 @@ func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Server_HTTP.ProtoReflect.Descriptor instead.
 func (*Server_HTTP) Descriptor() ([]byte, []int) {
 	return file_conf_proto_rawDescGZIP(), []int{1, 0}
-}
-
-func (x *Server_HTTP) GetNetwork() string {
-	if x != nil {
-		return x.Network
-	}
-	return ""
 }
 
 func (x *Server_HTTP) GetAddr() string {
@@ -621,13 +613,12 @@ const file_conf_proto_rawDesc = "" +
 	"\x06server\x18\x01 \x01(\v2\x19.ingate.admin.conf.ServerR\x06server\x12+\n" +
 	"\x04data\x18\x02 \x01(\v2\x17.ingate.admin.conf.DataR\x04data\x124\n" +
 	"\alogging\x18\x03 \x01(\v2\x1a.ingate.admin.conf.LoggingR\alogging\x12I\n" +
-	"\x0eauthentication\x18\x04 \x01(\v2!.ingate.admin.conf.AuthenticationR\x0eauthentication\"\xa7\x01\n" +
+	"\x0eauthentication\x18\x04 \x01(\v2!.ingate.admin.conf.AuthenticationR\x0eauthentication\"\x8d\x01\n" +
 	"\x06Server\x122\n" +
-	"\x04http\x18\x01 \x01(\v2\x1e.ingate.admin.conf.Server.HTTPR\x04http\x1ai\n" +
-	"\x04HTTP\x12\x18\n" +
-	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
-	"\x04addr\x18\x02 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xa4\x04\n" +
+	"\x04http\x18\x01 \x01(\v2\x1e.ingate.admin.conf.Server.HTTPR\x04http\x1aO\n" +
+	"\x04HTTP\x12\x12\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xa4\x04\n" +
 	"\x04Data\x12?\n" +
 	"\tapiserver\x18\x01 \x01(\v2!.ingate.admin.conf.Data.APIServerR\tapiserver\x123\n" +
 	"\x05mysql\x18\x02 \x01(\v2\x1d.ingate.admin.conf.Data.MySQLR\x05mysql\x123\n" +

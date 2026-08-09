@@ -9,7 +9,6 @@ import (
 
 	kratos "github.com/go-kratos/kratos/v3"
 	"github.com/go-kratos/kratos/v3/config"
-	"github.com/go-kratos/kratos/v3/config/env"
 	"github.com/go-kratos/kratos/v3/config/file"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
@@ -24,7 +23,6 @@ import (
 const (
 	serviceName       = "ingate-admin-api"
 	defaultConfigFile = "configs/ingate-admin-api.yaml"
-	configEnvPrefix   = "INGATE_ADMIN_API"
 )
 
 type serviceInstanceID string
@@ -64,10 +62,7 @@ func run(configFile string) error {
 	if err != nil {
 		return fmt.Errorf("read hostname: %w", err)
 	}
-	loaded := config.New(config.WithSource(
-		file.NewSource(configFile),
-		env.NewSource(configEnvPrefix),
-	), config.WithResolveActualTypes(true))
+	loaded := config.New(config.WithSource(file.NewSource(configFile)))
 	defer loaded.Close()
 	if err := loaded.Load(); err != nil {
 		return fmt.Errorf("load configuration: %w", err)

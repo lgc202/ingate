@@ -15,7 +15,7 @@ import (
 func NewGRPCServer(config *conf.Server, processor *extproc.Server) *kratosgrpc.Server {
 	grpcConfig := config.GetGrpc()
 	grpcServer := kratosgrpc.NewServer(
-		kratosgrpc.Network(grpcConfig.GetNetwork()),
+		kratosgrpc.Network(tcpNetwork),
 		kratosgrpc.Address(grpcConfig.GetAddr()),
 		kratosgrpc.DisableReflection(),
 		kratosgrpc.Options(

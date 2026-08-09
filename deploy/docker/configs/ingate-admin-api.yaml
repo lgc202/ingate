@@ -1,36 +1,35 @@
 server:
   http:
-    network: "${SERVER_HTTP_NETWORK:tcp}"
-    addr: "${SERVER_HTTP_ADDR:0.0.0.0:8002}"
-    timeout: "${SERVER_HTTP_TIMEOUT:30s}"
+    addr: "0.0.0.0:8002"
+    timeout: "30s"
 
 data:
   apiserver:
-    master: "${DATA_APISERVER_MASTER:}"
-    kubeconfig: "${DATA_APISERVER_KUBECONFIG:/opt/ingate/admin-api/configs/kubeconfig.yaml}"
+    master: ""
+    kubeconfig: "/opt/ingate/admin-api/configs/kubeconfig.yaml"
   mysql:
-    dsn: "${DATA_MYSQL_DSN:ingate:ingate@tcp(mysql:3306)/ingate?charset=utf8mb4&parseTime=true&loc=UTC&timeout=5s&readTimeout=5s&writeTimeout=5s}"
-    max_open_connections: "${DATA_MYSQL_MAX_OPEN_CONNECTIONS:20}"
-    max_idle_connections: "${DATA_MYSQL_MAX_IDLE_CONNECTIONS:10}"
-    connection_max_lifetime: "${DATA_MYSQL_CONNECTION_MAX_LIFETIME:1800s}"
+    dsn: "ingate:ingate@tcp(mysql:3306)/ingate?charset=utf8mb4&parseTime=true&loc=UTC&timeout=5s&readTimeout=5s&writeTimeout=5s"
+    max_open_connections: 20
+    max_idle_connections: 10
+    connection_max_lifetime: "1800s"
   redis:
-    address: "${DATA_REDIS_ADDRESS:redis:6379}"
-    password: "${DATA_REDIS_PASSWORD:}"
-    database: "${DATA_REDIS_DATABASE:0}"
+    address: "redis:6379"
+    password: ""
+    database: 0
 
 logging:
-  format: "${LOGGING_FORMAT:json}"
-  level: "${LOGGING_LEVEL:info}"
-  add_source: "${LOGGING_ADD_SOURCE:false}"
+  format: "json"
+  level: "info"
+  add_source: false
 
 authentication:
-  enabled: "${AUTHENTICATION_ENABLED:false}"
-  issuer: "${AUTHENTICATION_ISSUER:}"
-  audience: "${AUTHENTICATION_AUDIENCE:ingate-console}"
-  client_id: "${AUTHENTICATION_CLIENT_ID:ingate-console}"
+  enabled: false
+  issuer: ""
+  audience: "ingate-console"
+  client_id: "ingate-console"
   scopes: ["openid", "profile", "email"]
-  roles_claim: "${AUTHENTICATION_ROLES_CLAIM:roles}"
+  roles_claim: "roles"
   admin_roles: ["ingate-admin"]
   operator_roles: ["ingate-operator"]
   viewer_roles: ["ingate-viewer"]
-  discovery_timeout: "${AUTHENTICATION_DISCOVERY_TIMEOUT:10s}"
+  discovery_timeout: "10s"
