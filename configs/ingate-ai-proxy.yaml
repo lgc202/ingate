@@ -1,20 +1,18 @@
 server:
   http:
-    network: "${SERVER_HTTP_NETWORK:tcp}"
-    addr: "${SERVER_HTTP_ADDR:127.0.0.1:18082}"
-    timeout: "${SERVER_HTTP_TIMEOUT:5s}"
+    addr: "127.0.0.1:18082"
+    timeout: "5s"
   grpc:
-    network: "${SERVER_GRPC_NETWORK:tcp}"
-    addr: "${SERVER_GRPC_ADDR:127.0.0.1:18081}"
-  shutdown_timeout: "${SERVER_SHUTDOWN_TIMEOUT:30s}"
+    addr: "127.0.0.1:18081"
+  shutdown_timeout: "30s"
 
 data:
   redis:
-    address: "${DATA_REDIS_ADDRESS:127.0.0.1:6379}"
-    password: "${DATA_REDIS_PASSWORD:}"
-    database: "${DATA_REDIS_DATABASE:0}"
+    address: "127.0.0.1:6379"
+    password: ""
+    database: 0
 
 logging:
-  format: "${LOGGING_FORMAT:json}"
-  level: "${LOGGING_LEVEL:info}"
-  add_source: "${LOGGING_ADD_SOURCE:false}"
+  format: "json"
+  level: "info"
+  add_source: false

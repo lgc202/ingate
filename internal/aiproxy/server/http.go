@@ -9,11 +9,13 @@ import (
 	"github.com/lgc202/ingate/internal/aiproxy/conf"
 )
 
+const tcpNetwork = "tcp"
+
 // NewHTTPServer 创建 AI Proxy 的健康检查服务
 func NewHTTPServer(config *conf.Server, rdb *redis.Client) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
 	httpServer := kratoshttp.NewServer(
-		kratoshttp.Network(httpConfig.GetNetwork()),
+		kratoshttp.Network(tcpNetwork),
 		kratoshttp.Address(httpConfig.GetAddr()),
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 	)

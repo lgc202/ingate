@@ -42,7 +42,7 @@ func NewHTTPServer(
 ) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
 	options := []kratoshttp.ServerOption{
-		kratoshttp.Network(httpConfig.GetNetwork()),
+		kratoshttp.Network("tcp"),
 		kratoshttp.Address(httpConfig.GetAddr()),
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 		kratoshttp.Filter(requestIDFilter),

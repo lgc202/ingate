@@ -15,15 +15,15 @@ func (c *Bootstrap) Validate() error {
 		return errors.New("server config is incomplete")
 	}
 	http := c.GetServer().GetHttp()
-	if strings.TrimSpace(http.GetNetwork()) == "" || strings.TrimSpace(http.GetAddr()) == "" {
-		return errors.New("server HTTP network and address must not be empty")
+	if strings.TrimSpace(http.GetAddr()) == "" {
+		return errors.New("server HTTP address must not be empty")
 	}
 	if http.GetTimeout() == nil || http.GetTimeout().AsDuration() <= 0 {
 		return errors.New("server HTTP timeout must be greater than zero")
 	}
 	grpc := c.GetServer().GetGrpc()
-	if strings.TrimSpace(grpc.GetNetwork()) == "" || strings.TrimSpace(grpc.GetAddr()) == "" {
-		return errors.New("server gRPC network and address must not be empty")
+	if strings.TrimSpace(grpc.GetAddr()) == "" {
+		return errors.New("server gRPC address must not be empty")
 	}
 	if c.GetServer().GetShutdownTimeout() == nil || c.GetServer().GetShutdownTimeout().AsDuration() <= 0 {
 		return errors.New("server shutdown timeout must be greater than zero")

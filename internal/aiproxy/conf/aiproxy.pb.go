@@ -249,9 +249,8 @@ func (x *Logging) GetAddSource() bool {
 
 type Server_HTTP struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Network       string                 `protobuf:"bytes,1,opt,name=network,proto3" json:"network,omitempty"`
-	Addr          string                 `protobuf:"bytes,2,opt,name=addr,proto3" json:"addr,omitempty"`
-	Timeout       *durationpb.Duration   `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	Addr          string                 `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	Timeout       *durationpb.Duration   `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -286,13 +285,6 @@ func (*Server_HTTP) Descriptor() ([]byte, []int) {
 	return file_aiproxy_proto_rawDescGZIP(), []int{1, 0}
 }
 
-func (x *Server_HTTP) GetNetwork() string {
-	if x != nil {
-		return x.Network
-	}
-	return ""
-}
-
 func (x *Server_HTTP) GetAddr() string {
 	if x != nil {
 		return x.Addr
@@ -309,8 +301,7 @@ func (x *Server_HTTP) GetTimeout() *durationpb.Duration {
 
 type Server_GRPC struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Network       string                 `protobuf:"bytes,1,opt,name=network,proto3" json:"network,omitempty"`
-	Addr          string                 `protobuf:"bytes,2,opt,name=addr,proto3" json:"addr,omitempty"`
+	Addr          string                 `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -343,13 +334,6 @@ func (x *Server_GRPC) ProtoReflect() protoreflect.Message {
 // Deprecated: Use Server_GRPC.ProtoReflect.Descriptor instead.
 func (*Server_GRPC) Descriptor() ([]byte, []int) {
 	return file_aiproxy_proto_rawDescGZIP(), []int{1, 1}
-}
-
-func (x *Server_GRPC) GetNetwork() string {
-	if x != nil {
-		return x.Network
-	}
-	return ""
 }
 
 func (x *Server_GRPC) GetAddr() string {
@@ -427,18 +411,16 @@ const file_aiproxy_proto_rawDesc = "" +
 	"\tBootstrap\x123\n" +
 	"\x06server\x18\x01 \x01(\v2\x1b.ingate.aiproxy.conf.ServerR\x06server\x12-\n" +
 	"\x04data\x18\x02 \x01(\v2\x19.ingate.aiproxy.conf.DataR\x04data\x126\n" +
-	"\alogging\x18\x03 \x01(\v2\x1c.ingate.aiproxy.conf.LoggingR\alogging\"\xdb\x02\n" +
+	"\alogging\x18\x03 \x01(\v2\x1c.ingate.aiproxy.conf.LoggingR\alogging\"\xa7\x02\n" +
 	"\x06Server\x124\n" +
 	"\x04http\x18\x01 \x01(\v2 .ingate.aiproxy.conf.Server.HTTPR\x04http\x124\n" +
 	"\x04grpc\x18\x02 \x01(\v2 .ingate.aiproxy.conf.Server.GRPCR\x04grpc\x12D\n" +
-	"\x10shutdown_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1ai\n" +
-	"\x04HTTP\x12\x18\n" +
-	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
-	"\x04addr\x18\x02 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x1a4\n" +
-	"\x04GRPC\x12\x18\n" +
-	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
-	"\x04addr\x18\x02 \x01(\tR\x04addr\"\x98\x01\n" +
+	"\x10shutdown_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aO\n" +
+	"\x04HTTP\x12\x12\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x1a\x1a\n" +
+	"\x04GRPC\x12\x12\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr\"\x98\x01\n" +
 	"\x04Data\x125\n" +
 	"\x05redis\x18\x01 \x01(\v2\x1f.ingate.aiproxy.conf.Data.RedisR\x05redis\x1aY\n" +
 	"\x05Redis\x12\x18\n" +

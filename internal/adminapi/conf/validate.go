@@ -16,9 +16,6 @@ func (c *Bootstrap) Validate() error {
 		return errors.New("server http config is required")
 	}
 	http := c.GetServer().GetHttp()
-	if http.GetNetwork() == "" {
-		return errors.New("server http network must not be empty")
-	}
 	if strings.TrimSpace(http.GetAddr()) == "" {
 		return errors.New("server http address must not be empty")
 	}
