@@ -1,25 +1,20 @@
 server:
   http:
-    address: "127.0.0.1"
-    port: 18082
+    network: "${SERVER_HTTP_NETWORK:tcp}"
+    addr: "${SERVER_HTTP_ADDR:127.0.0.1:18082}"
+    timeout: "${SERVER_HTTP_TIMEOUT:5s}"
   grpc:
-    address: "127.0.0.1"
-    port: 18081
+    network: "${SERVER_GRPC_NETWORK:tcp}"
+    addr: "${SERVER_GRPC_ADDR:127.0.0.1:18081}"
+  shutdown_timeout: "${SERVER_SHUTDOWN_TIMEOUT:30s}"
 
-redis:
-  address: "127.0.0.1:6379"
-  password: ""
-  database: 0
+data:
+  redis:
+    address: "${DATA_REDIS_ADDRESS:127.0.0.1:6379}"
+    password: "${DATA_REDIS_PASSWORD:}"
+    database: "${DATA_REDIS_DATABASE:0}"
 
 logging:
-  format: "json"
-  level: "info"
-  add_source: false
-  stdout: false
-  file:
-    path: "_output/logs/ingate-ai-proxy.log"
-    max_size_mb: 100
-    max_backups: 10
-    max_age_days: 30
-    compress: false
-    local_time: false
+  format: "${LOGGING_FORMAT:json}"
+  level: "${LOGGING_LEVEL:info}"
+  add_source: "${LOGGING_ADD_SOURCE:false}"

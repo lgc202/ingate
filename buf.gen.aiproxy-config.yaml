@@ -1,0 +1,7 @@
+version: v2
+inputs:
+  - directory: internal/aiproxy/conf
+plugins:
+  - local: protoc-gen-go
+    out: internal/aiproxy/conf
+    opt: paths=source_relative
