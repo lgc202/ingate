@@ -1,25 +1,20 @@
 server:
   http:
-    address: "0.0.0.0"
-    port: 18082
+    network: "tcp"
+    addr: "0.0.0.0:18082"
+    timeout: "5s"
   grpc:
-    address: "0.0.0.0"
-    port: 18081
+    network: "tcp"
+    addr: "0.0.0.0:18081"
+  shutdown_timeout: "30s"
 
-redis:
-  address: "redis:6379"
-  password: ""
-  database: 0
+data:
+  redis:
+    address: "redis:6379"
+    password: ""
+    database: 0
 
 logging:
   format: "json"
   level: "info"
   add_source: false
-  stdout: true
-  file:
-    path: ""
-    max_size_mb: 0
-    max_backups: 0
-    max_age_days: 0
-    compress: false
-    local_time: false

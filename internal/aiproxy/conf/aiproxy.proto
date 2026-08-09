@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package ingate.aiproxy.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/aiproxy/conf;conf";
+
+// Bootstrap 定义 ingate-ai-proxy 的完整进程配置
+message Bootstrap {
+  Server server = 1;
+  Data data = 2;
+  Logging logging = 3;
+}
+
+message Server {
+  message HTTP {
+    string network = 1;
+    string addr = 2;
+    google.protobuf.Duration timeout = 3;
+  }
+  message GRPC {
+    string network = 1;
+    string addr = 2;
+  }
+  HTTP http = 1;
+  GRPC grpc = 2;
+  google.protobuf.Duration shutdown_timeout = 3;
+}
+
+message Data {
+  message Redis {
+    string address = 1;
+    string password = 2;
+    int32 database = 3;
+  }
+  Redis redis = 1;
+}
+
+message Logging {
+  string format = 1;
+  string level = 2;
+  bool add_source = 3;
+}
