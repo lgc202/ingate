@@ -5,14 +5,13 @@ package ingate.admin.v1;
 import "admin/v1/common.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
 // RateLimitPolicyService 提供请求限流策略管理接口
 service RateLimitPolicyService {
-  rpc ListRateLimitPolicies(google.protobuf.Empty) returns (ListRateLimitPoliciesReply) {
+  rpc ListRateLimitPolicies(ListRequest) returns (ListRateLimitPoliciesReply) {
     option (google.api.http) = {get: "/api/v1/rate-limit-policies"};
   }
   rpc GetRateLimitPolicy(ResourceRequest) returns (RateLimitPolicy) {
@@ -106,4 +105,5 @@ message UpdateRateLimitPolicyRequest {
 
 message ListRateLimitPoliciesReply {
   repeated RateLimitPolicy policies = 1;
+  PageInfo page = 2;
 }

@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// AuthenticationService 向 Console 提供公开登录参数和当前已验证身份
+service AuthenticationService {
+  rpc GetAuthenticationConfiguration(google.protobuf.Empty) returns (AuthenticationConfiguration) {
+    option (google.api.http) = {get: "/api/v1/auth/config"};
+  }
+  rpc GetCurrentPrincipal(google.protobuf.Empty) returns (CurrentPrincipal) {
+    option (google.api.http) = {get: "/api/v1/auth/me"};
+  }
+}
+
+message AuthenticationConfiguration {
+  bool enabled = 1;
+  string issuer = 2;
+  string client_id = 3 [json_name = "clientID"];
+  repeated string scopes = 4;
+}
+
+message CurrentPrincipal {
+  string subject = 1;
+  string name = 2;
+  string email = 3;
+  string role = 4;
+}

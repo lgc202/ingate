@@ -11,7 +11,6 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -524,6 +523,7 @@ func (x *UpdateAccessControlPolicyRequest) GetResponse() *AccessControlDenyRespo
 type ListAccessControlPoliciesReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Policies      []*AccessControlPolicy `protobuf:"bytes,1,rep,name=policies,proto3" json:"policies,omitempty"`
+	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -565,11 +565,18 @@ func (x *ListAccessControlPoliciesReply) GetPolicies() []*AccessControlPolicy {
 	return nil
 }
 
+func (x *ListAccessControlPoliciesReply) GetPage() *PageInfo {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_admin_v1_access_control_policy_proto protoreflect.FileDescriptor
 
 const file_admin_v1_access_control_policy_proto_rawDesc = "" +
 	"\n" +
-	"$admin/v1/access_control_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"V\n" +
+	"$admin/v1/access_control_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"V\n" +
 	"\x16AccessControlCondition\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
@@ -615,11 +622,12 @@ const file_admin_v1_access_control_policy_proto_rawDesc = "" +
 	"\atargets\x18\x06 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12%\n" +
 	"\x0edefault_action\x18\a \x01(\tR\rdefaultAction\x128\n" +
 	"\x05rules\x18\b \x03(\v2\".ingate.admin.v1.AccessControlRuleR\x05rules\x12F\n" +
-	"\bresponse\x18\t \x01(\v2*.ingate.admin.v1.AccessControlDenyResponseR\bresponse\"b\n" +
+	"\bresponse\x18\t \x01(\v2*.ingate.admin.v1.AccessControlDenyResponseR\bresponse\"\x91\x01\n" +
 	"\x1eListAccessControlPoliciesReply\x12@\n" +
-	"\bpolicies\x18\x01 \x03(\v2$.ingate.admin.v1.AccessControlPolicyR\bpolicies2\xa9\a\n" +
-	"\x1aAccessControlPolicyService\x12\x8d\x01\n" +
-	"\x19ListAccessControlPolicies\x12\x16.google.protobuf.Empty\x1a/.ingate.admin.v1.ListAccessControlPoliciesReply\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/access-control-policies\x12\x8e\x01\n" +
+	"\bpolicies\x18\x01 \x03(\v2$.ingate.admin.v1.AccessControlPolicyR\bpolicies\x12-\n" +
+	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page2\xaf\a\n" +
+	"\x1aAccessControlPolicyService\x12\x93\x01\n" +
+	"\x19ListAccessControlPolicies\x12\x1c.ingate.admin.v1.ListRequest\x1a/.ingate.admin.v1.ListAccessControlPoliciesReply\"'\x82\xd3\xe4\x93\x02!\x12\x1f/api/v1/access-control-policies\x12\x8e\x01\n" +
 	"\x16GetAccessControlPolicy\x12 .ingate.admin.v1.ResourceRequest\x1a$.ingate.admin.v1.AccessControlPolicy\",\x82\xd3\xe4\x93\x02&\x12$/api/v1/access-control-policies/{id}\x12\x9a\x01\n" +
 	"\x19CreateAccessControlPolicy\x121.ingate.admin.v1.CreateAccessControlPolicyRequest\x1a\x1e.ingate.admin.v1.MutationReply\"*\x82\xd3\xe4\x93\x02$:\x01*\"\x1f/api/v1/access-control-policies\x12\x9f\x01\n" +
 	"\x19UpdateAccessControlPolicy\x121.ingate.admin.v1.UpdateAccessControlPolicyRequest\x1a\x1e.ingate.admin.v1.MutationReply\"/\x82\xd3\xe4\x93\x02):\x01*\x1a$/api/v1/access-control-policies/{id}\x12\x9c\x01\n" +
@@ -651,10 +659,11 @@ var file_admin_v1_access_control_policy_proto_goTypes = []any{
 	(*PolicyTarget)(nil),                     // 8: ingate.admin.v1.PolicyTarget
 	(*timestamppb.Timestamp)(nil),            // 9: google.protobuf.Timestamp
 	(*PolicyTargetRef)(nil),                  // 10: ingate.admin.v1.PolicyTargetRef
-	(*emptypb.Empty)(nil),                    // 11: google.protobuf.Empty
-	(*ResourceRequest)(nil),                  // 12: ingate.admin.v1.ResourceRequest
-	(*SetEnabledRequest)(nil),                // 13: ingate.admin.v1.SetEnabledRequest
-	(*MutationReply)(nil),                    // 14: ingate.admin.v1.MutationReply
+	(*PageInfo)(nil),                         // 11: ingate.admin.v1.PageInfo
+	(*ListRequest)(nil),                      // 12: ingate.admin.v1.ListRequest
+	(*ResourceRequest)(nil),                  // 13: ingate.admin.v1.ResourceRequest
+	(*SetEnabledRequest)(nil),                // 14: ingate.admin.v1.SetEnabledRequest
+	(*MutationReply)(nil),                    // 15: ingate.admin.v1.MutationReply
 }
 var file_admin_v1_access_control_policy_proto_depIdxs = []int32{
 	0,  // 0: ingate.admin.v1.AccessControlRule.conditions:type_name -> ingate.admin.v1.AccessControlCondition
@@ -670,23 +679,24 @@ var file_admin_v1_access_control_policy_proto_depIdxs = []int32{
 	1,  // 10: ingate.admin.v1.UpdateAccessControlPolicyRequest.rules:type_name -> ingate.admin.v1.AccessControlRule
 	2,  // 11: ingate.admin.v1.UpdateAccessControlPolicyRequest.response:type_name -> ingate.admin.v1.AccessControlDenyResponse
 	3,  // 12: ingate.admin.v1.ListAccessControlPoliciesReply.policies:type_name -> ingate.admin.v1.AccessControlPolicy
-	11, // 13: ingate.admin.v1.AccessControlPolicyService.ListAccessControlPolicies:input_type -> google.protobuf.Empty
-	12, // 14: ingate.admin.v1.AccessControlPolicyService.GetAccessControlPolicy:input_type -> ingate.admin.v1.ResourceRequest
-	4,  // 15: ingate.admin.v1.AccessControlPolicyService.CreateAccessControlPolicy:input_type -> ingate.admin.v1.CreateAccessControlPolicyRequest
-	5,  // 16: ingate.admin.v1.AccessControlPolicyService.UpdateAccessControlPolicy:input_type -> ingate.admin.v1.UpdateAccessControlPolicyRequest
-	13, // 17: ingate.admin.v1.AccessControlPolicyService.SetAccessControlPolicyEnabled:input_type -> ingate.admin.v1.SetEnabledRequest
-	12, // 18: ingate.admin.v1.AccessControlPolicyService.DeleteAccessControlPolicy:input_type -> ingate.admin.v1.ResourceRequest
-	6,  // 19: ingate.admin.v1.AccessControlPolicyService.ListAccessControlPolicies:output_type -> ingate.admin.v1.ListAccessControlPoliciesReply
-	3,  // 20: ingate.admin.v1.AccessControlPolicyService.GetAccessControlPolicy:output_type -> ingate.admin.v1.AccessControlPolicy
-	14, // 21: ingate.admin.v1.AccessControlPolicyService.CreateAccessControlPolicy:output_type -> ingate.admin.v1.MutationReply
-	14, // 22: ingate.admin.v1.AccessControlPolicyService.UpdateAccessControlPolicy:output_type -> ingate.admin.v1.MutationReply
-	14, // 23: ingate.admin.v1.AccessControlPolicyService.SetAccessControlPolicyEnabled:output_type -> ingate.admin.v1.MutationReply
-	14, // 24: ingate.admin.v1.AccessControlPolicyService.DeleteAccessControlPolicy:output_type -> ingate.admin.v1.MutationReply
-	19, // [19:25] is the sub-list for method output_type
-	13, // [13:19] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	11, // 13: ingate.admin.v1.ListAccessControlPoliciesReply.page:type_name -> ingate.admin.v1.PageInfo
+	12, // 14: ingate.admin.v1.AccessControlPolicyService.ListAccessControlPolicies:input_type -> ingate.admin.v1.ListRequest
+	13, // 15: ingate.admin.v1.AccessControlPolicyService.GetAccessControlPolicy:input_type -> ingate.admin.v1.ResourceRequest
+	4,  // 16: ingate.admin.v1.AccessControlPolicyService.CreateAccessControlPolicy:input_type -> ingate.admin.v1.CreateAccessControlPolicyRequest
+	5,  // 17: ingate.admin.v1.AccessControlPolicyService.UpdateAccessControlPolicy:input_type -> ingate.admin.v1.UpdateAccessControlPolicyRequest
+	14, // 18: ingate.admin.v1.AccessControlPolicyService.SetAccessControlPolicyEnabled:input_type -> ingate.admin.v1.SetEnabledRequest
+	13, // 19: ingate.admin.v1.AccessControlPolicyService.DeleteAccessControlPolicy:input_type -> ingate.admin.v1.ResourceRequest
+	6,  // 20: ingate.admin.v1.AccessControlPolicyService.ListAccessControlPolicies:output_type -> ingate.admin.v1.ListAccessControlPoliciesReply
+	3,  // 21: ingate.admin.v1.AccessControlPolicyService.GetAccessControlPolicy:output_type -> ingate.admin.v1.AccessControlPolicy
+	15, // 22: ingate.admin.v1.AccessControlPolicyService.CreateAccessControlPolicy:output_type -> ingate.admin.v1.MutationReply
+	15, // 23: ingate.admin.v1.AccessControlPolicyService.UpdateAccessControlPolicy:output_type -> ingate.admin.v1.MutationReply
+	15, // 24: ingate.admin.v1.AccessControlPolicyService.SetAccessControlPolicyEnabled:output_type -> ingate.admin.v1.MutationReply
+	15, // 25: ingate.admin.v1.AccessControlPolicyService.DeleteAccessControlPolicy:output_type -> ingate.admin.v1.MutationReply
+	20, // [20:26] is the sub-list for method output_type
+	14, // [14:20] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_access_control_policy_proto_init() }

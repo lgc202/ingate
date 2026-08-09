@@ -15,6 +15,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+	"github.com/lgc202/ingate/internal/adminapi/auth"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
@@ -57,12 +58,55 @@ func errorMappingMiddleware(next middleware.Handler) middleware.Handler {
 				WithMetadata(map[string]string{userMessageMetadata: "资源不存在或已被删除"}).
 				WithCause(err)
 		}
+		if errors.Is(err, biz.ErrInvalidPageToken) {
+			return nil, kratoserrors.BadRequest(adminv1.ErrorReason_INVALID_ARGUMENT.String(), "invalid page token").
+				WithMetadata(map[string]string{userMessageMetadata: "分页游标无效或已过期"}).
+				WithCause(err)
+		}
 		if _, ok := errors.AsType[*kratoserrors.Error](err); ok {
 			return nil, err
 		}
 		return nil, kratoserrors.InternalServer(adminv1.ErrorReason_INTERNAL_ERROR.String(), "operation failed").
 			WithMetadata(map[string]string{userMessageMetadata: "请求处理失败"}).
 			WithCause(err)
+	}
+}
+
+func authenticationMiddleware(authenticator *auth.Authenticator) middleware.Middleware {
+	return func(next middleware.Handler) middleware.Handler {
+		return func(ctx context.Context, request any) (any, error) {
+			operation := serverOperation(ctx)
+			if auth.IsPublicOperation(operation) {
+				return next(ctx, request)
+			}
+			tr, ok := transport.FromServerContext(ctx)
+			if !ok {
+				return nil, kratoserrors.Unauthorized(adminv1.ErrorReason_UNAUTHENTICATED.String(), "authentication required").
+					WithMetadata(map[string]string{userMessageMetadata: "请先登录"})
+			}
+			principal, err := authenticator.Authenticate(ctx, tr.RequestHeader().Get("Authorization"))
+			if err != nil {
+				return nil, kratoserrors.Unauthorized(adminv1.ErrorReason_UNAUTHENTICATED.String(), "authentication failed").
+					WithMetadata(map[string]string{userMessageMetadata: "登录状态已失效，请重新登录"}).
+					WithCause(err)
+			}
+			return next(auth.NewContext(ctx, principal), request)
+		}
+	}
+}
+
+func authorizationMiddleware(next middleware.Handler) middleware.Handler {
+	return func(ctx context.Context, request any) (any, error) {
+		operation := serverOperation(ctx)
+		if auth.IsPublicOperation(operation) {
+			return next(ctx, request)
+		}
+		principal, ok := auth.FromContext(ctx)
+		if !ok || !auth.Allowed(principal.Role, operation) {
+			return nil, kratoserrors.Forbidden(adminv1.ErrorReason_PERMISSION_DENIED.String(), "permission denied").
+				WithMetadata(map[string]string{userMessageMetadata: "当前账号没有执行此操作的权限"})
+		}
+		return next(ctx, request)
 	}
 }
 
@@ -113,6 +157,10 @@ func requestLoggingMiddleware(logger *slog.Logger) middleware.Middleware {
 				code = int(serviceError.Code)
 				reason = serviceError.Reason
 			}
+			if code == http.StatusBadRequest && reason == adminv1.ErrorReason_INVALID_ARGUMENT.String() {
+				// 请求自身可判断的参数错误直接返回，不污染服务日志
+				return reply, err
+			}
 			attrs := []any{
 				"operation", operation,
 				"code", code,
@@ -132,4 +180,11 @@ func requestLoggingMiddleware(logger *slog.Logger) middleware.Middleware {
 			return reply, err
 		}
 	}
+}
+
+func serverOperation(ctx context.Context) string {
+	if tr, ok := transport.FromServerContext(ctx); ok {
+		return tr.Operation()
+	}
+	return ""
 }

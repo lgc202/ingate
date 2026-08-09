@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"golang.org/x/net/http/httpguts"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
@@ -95,15 +97,24 @@ func buildRouteRule(input *adminv1.RouteRule) (resource.RouteRule, error) {
 		}
 		rule.Methods = append(rule.Methods, method)
 	}
+	seenHeaders := make(map[string]struct{}, len(input.GetHeaders()))
 	for _, header := range input.GetHeaders() {
-		if header == nil || strings.TrimSpace(header.GetName()) == "" || strings.TrimSpace(header.GetValue()) == "" {
+		if header == nil {
 			return resource.RouteRule{}, adminservice.BadRequest("路由规则 Header 名称和值不能为空")
 		}
 		name := strings.ToLower(strings.TrimSpace(header.GetName()))
+		value := header.GetValue()
+		if !httpguts.ValidHeaderFieldName(name) || value == "" || !httpguts.ValidHeaderFieldValue(value) {
+			return resource.RouteRule{}, adminservice.BadRequest("路由规则 Header 名称或值格式不正确")
+		}
+		if _, exists := seenHeaders[name]; exists {
+			return resource.RouteRule{}, adminservice.BadRequest("同一条路由规则不能重复匹配相同 Header")
+		}
+		seenHeaders[name] = struct{}{}
 		if input.GetModelRouting() != nil && name == aiClusterHeader {
 			return resource.RouteRule{}, adminservice.BadRequest("模型路由不能匹配系统内部 Header")
 		}
-		rule.Headers = append(rule.Headers, resource.HeaderMatch{Name: name, Value: strings.TrimSpace(header.GetValue())})
+		rule.Headers = append(rule.Headers, resource.HeaderMatch{Name: name, Value: value})
 	}
 
 	if input.GetModelRouting() != nil {
@@ -212,19 +223,34 @@ func containsManagedHeader(modifier *resource.HeaderModifier) bool {
 
 func buildHeaderModifier(input *adminv1.HeaderModifier) (*resource.HeaderModifier, error) {
 	modifier := &resource.HeaderModifier{}
+	seen := make(map[string]string, len(input.GetSet())+len(input.GetRemove()))
 	for _, header := range input.GetSet() {
-		if header == nil || strings.TrimSpace(header.GetName()) == "" || strings.TrimSpace(header.GetValue()) == "" {
+		if header == nil {
 			return nil, adminservice.BadRequest("Header 名称和值不能为空")
 		}
+		name := strings.ToLower(strings.TrimSpace(header.GetName()))
+		value := header.GetValue()
+		if !httpguts.ValidHeaderFieldName(name) || value == "" || !httpguts.ValidHeaderFieldValue(value) {
+			return nil, adminservice.BadRequest("Header 名称或值格式不正确")
+		}
+		if _, exists := seen[name]; exists {
+			return nil, adminservice.BadRequest("同一个 Header 只能配置一次")
+		}
+		seen[name] = "set"
 		modifier.Set = append(modifier.Set, resource.HeaderValue{
-			Name: strings.ToLower(strings.TrimSpace(header.GetName())), Value: strings.TrimSpace(header.GetValue()),
+			Name: name, Value: value,
 		})
 	}
 	for _, name := range input.GetRemove() {
 		name = strings.ToLower(strings.TrimSpace(name))
-		if name != "" {
-			modifier.Remove = append(modifier.Remove, name)
+		if !httpguts.ValidHeaderFieldName(name) {
+			return nil, adminservice.BadRequest("待删除的 Header 名称格式不正确")
 		}
+		if _, exists := seen[name]; exists {
+			return nil, adminservice.BadRequest("同一个 Header 不能同时写入和删除")
+		}
+		seen[name] = "remove"
+		modifier.Remove = append(modifier.Remove, name)
 	}
 	if len(modifier.Set) == 0 && len(modifier.Remove) == 0 {
 		return nil, adminservice.BadRequest("至少需要配置一个 Header 写入或删除动作")

@@ -22,8 +22,8 @@ export function RouteList({
   upstreams,
   selectedRouteID,
   policyWorkspace,
+  readOnly,
   onSelect,
-  onCreate,
   onEdit,
   onRequestDisable,
   onRequestDelete,
@@ -34,8 +34,8 @@ export function RouteList({
   upstreams: UpstreamOption[];
   selectedRouteID: string;
   policyWorkspace?: PolicyWorkspace | null;
+  readOnly: boolean;
   onSelect: (id: string) => void;
-  onCreate: () => void;
   onEdit: (route: RouteResource) => void;
   onRequestDisable: (route: RouteResource) => void;
   onRequestDelete: (route: RouteResource) => void;
@@ -139,19 +139,26 @@ export function RouteList({
                     </td>
 
                     <td className="py-3 px-3">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onToggleEnabled(item);
-                        }}
-                        className="focus:outline-hidden cursor-pointer"
-                      >
+                      {readOnly ? (
                         <Badge tone={item.enabled ? 'success' : 'neutral'}>
                           <Power className="w-3 h-3" />
                           {item.enabled ? '已启用' : '已停用'}
                         </Badge>
-                      </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleEnabled(item);
+                          }}
+                          className="focus:outline-hidden cursor-pointer"
+                        >
+                          <Badge tone={item.enabled ? 'success' : 'neutral'}>
+                            <Power className="w-3 h-3" />
+                            {item.enabled ? '已启用' : '已停用'}
+                          </Badge>
+                        </button>
+                      )}
                     </td>
 
                     <td className="py-3 px-3">
@@ -197,6 +204,8 @@ export function RouteList({
                     </td>
 
                     <td className="py-3 px-3 text-right space-x-1" onClick={(e) => e.stopPropagation()}>
+                      {readOnly ? <span className="text-slate-400">—</span> : (
+                        <>
                       <button
                         type="button"
                         onClick={() => onEdit(item)}
@@ -213,6 +222,8 @@ export function RouteList({
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
+                        </>
+                      )}
                     </td>
                   </tr>
                 );

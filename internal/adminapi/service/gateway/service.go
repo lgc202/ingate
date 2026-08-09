@@ -4,10 +4,9 @@ package gateway
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
 // Service 实现网关入口管理 API
@@ -20,14 +19,14 @@ func NewService(usecase *gatewaybiz.Usecase) *Service {
 	return &Service{usecase: usecase}
 }
 
-func (s *Service) ListGateways(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListGatewaysReply, error) {
-	items, err := s.usecase.List(ctx)
+func (s *Service) ListGateways(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListGatewaysReply, error) {
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListGatewaysReply{Gateways: make([]*adminv1.Gateway, 0, len(items))}
-	for i := range items {
-		reply.Gateways = append(reply.Gateways, newGatewayReply(&items[i]))
+	reply := &adminv1.ListGatewaysReply{Gateways: make([]*adminv1.Gateway, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextToken)}
+	for i := range result.Items {
+		reply.Gateways = append(reply.Gateways, newGatewayReply(&result.Items[i]))
 	}
 	return reply, nil
 }

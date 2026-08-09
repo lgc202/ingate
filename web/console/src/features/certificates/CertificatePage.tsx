@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { deleteCertificate, listCertificates, saveCertificate } from '@/api/certificates';
 import { useResource } from '@/api/useResource';
+import { useAuth } from '@/auth/AuthContext';
 import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { Certificate, CertificateMutationPayload } from '@/domain/certificate';
@@ -18,6 +19,7 @@ interface CertificateNotice {
 const maxPEMFileSize = 1024 * 1024;
 
 export function CertificatePage() {
+  const { canWriteConfiguration } = useAuth();
   const certificates = useResource(listCertificates);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -139,7 +141,7 @@ export function CertificatePage() {
     <PageFrame
       title="TLS 证书"
       subtitle={`已录入 ${certificateList.length} 张 HTTPS 域名与 wildcard TLS 证书`}
-      actions={
+      actions={canWriteConfiguration ? (
         <button
           type="button"
           onClick={handleCreateNew}
@@ -148,7 +150,7 @@ export function CertificatePage() {
           <Plus className="w-4 h-4" />
           录入证书
         </button>
-      }
+      ) : undefined}
     >
       <div className="space-y-6 mt-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -156,7 +158,10 @@ export function CertificatePage() {
         {/* Certificate List High-Density Table */}
         <Panel>
           {certificateList.length === 0 ? (
-            <EmptyState title="暂无 TLS 证书" message="点击右上角按钮录入与绑定的 HTTPS 证书" />
+            <EmptyState
+              title="暂无 TLS 证书"
+              message={canWriteConfiguration ? '点击右上角按钮录入 HTTPS 证书' : '当前环境还没有证书'}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
@@ -203,6 +208,8 @@ export function CertificatePage() {
                       </td>
 
                       <td className="py-3 px-3 text-right space-x-1">
+                        {canWriteConfiguration ? (
+                          <>
                         <button
                           type="button"
                           onClick={() => handleEdit(item)}
@@ -219,6 +226,8 @@ export function CertificatePage() {
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
+                          </>
+                        ) : <span className="text-slate-400">—</span>}
                       </td>
                     </tr>
                   ))}

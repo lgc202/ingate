@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
@@ -79,6 +80,22 @@ func validateRoute(route *resource.Route) field.ErrorList {
 		for j, method := range rule.Methods {
 			if !validHTTPMethod(method) {
 				errs = append(errs, field.NotSupported(rulePath.Child("methods").Index(j), method, []string{"GET", "POST", "PUT", "PATCH", "DELETE"}))
+			}
+		}
+		seenHeaders := make(map[string]struct{}, len(rule.Headers))
+		for j, header := range rule.Headers {
+			headerPath := rulePath.Child("headers").Index(j)
+			name := strings.ToLower(header.Name)
+			if !httpguts.ValidHeaderFieldName(header.Name) {
+				errs = append(errs, field.Invalid(headerPath.Child("name"), header.Name, "header name is invalid"))
+			}
+			if header.Value == "" || !httpguts.ValidHeaderFieldValue(header.Value) {
+				errs = append(errs, field.Invalid(headerPath.Child("value"), header.Value, "header value is invalid"))
+			}
+			if _, exists := seenHeaders[name]; exists {
+				errs = append(errs, field.Duplicate(headerPath.Child("name"), header.Name))
+			} else {
+				seenHeaders[name] = struct{}{}
 			}
 		}
 		seenFilterTypes := make(map[resource.RouteFilterType]struct{}, len(rule.Filters))
@@ -225,25 +242,39 @@ func validateHeaderModifier(modifier *resource.HeaderModifier, path *field.Path)
 	if len(modifier.Set) == 0 && len(modifier.Add) == 0 && len(modifier.Remove) == 0 {
 		return append(errs, field.Required(path, "at least one header modifier action is required"))
 	}
-	errs = append(errs, validateHeaderValues(modifier.Set, path.Child("set"))...)
-	errs = append(errs, validateHeaderValues(modifier.Add, path.Child("add"))...)
+	seen := make(map[string]struct{}, len(modifier.Set)+len(modifier.Add)+len(modifier.Remove))
+	errs = append(errs, validateHeaderValues(modifier.Set, path.Child("set"), seen)...)
+	errs = append(errs, validateHeaderValues(modifier.Add, path.Child("add"), seen)...)
 	for i, name := range modifier.Remove {
-		if name == "" {
-			errs = append(errs, field.Required(path.Child("remove").Index(i), "header name is required"))
+		namePath := path.Child("remove").Index(i)
+		if !httpguts.ValidHeaderFieldName(name) {
+			errs = append(errs, field.Invalid(namePath, name, "header name is invalid"))
+		}
+		key := strings.ToLower(name)
+		if _, exists := seen[key]; exists {
+			errs = append(errs, field.Duplicate(namePath, name))
+		} else {
+			seen[key] = struct{}{}
 		}
 	}
 	return errs
 }
 
-func validateHeaderValues(values []resource.HeaderValue, path *field.Path) field.ErrorList {
+func validateHeaderValues(values []resource.HeaderValue, path *field.Path, seen map[string]struct{}) field.ErrorList {
 	errs := field.ErrorList{}
 	for i, value := range values {
 		valuePath := path.Index(i)
-		if value.Name == "" {
-			errs = append(errs, field.Required(valuePath.Child("name"), "header name is required"))
+		if !httpguts.ValidHeaderFieldName(value.Name) {
+			errs = append(errs, field.Invalid(valuePath.Child("name"), value.Name, "header name is invalid"))
 		}
-		if value.Value == "" {
-			errs = append(errs, field.Required(valuePath.Child("value"), "header value is required"))
+		if value.Value == "" || !httpguts.ValidHeaderFieldValue(value.Value) {
+			errs = append(errs, field.Invalid(valuePath.Child("value"), value.Value, "header value is invalid"))
+		}
+		key := strings.ToLower(value.Name)
+		if _, exists := seen[key]; exists {
+			errs = append(errs, field.Duplicate(valuePath.Child("name"), value.Name))
+		} else {
+			seen[key] = struct{}{}
 		}
 	}
 	return errs

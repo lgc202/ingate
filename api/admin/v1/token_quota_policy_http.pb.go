@@ -9,7 +9,6 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -29,7 +28,7 @@ type TokenQuotaPolicyServiceHTTPServer interface {
 	CreateTokenQuotaPolicy(context.Context, *CreateTokenQuotaPolicyRequest) (*MutationReply, error)
 	DeleteTokenQuotaPolicy(context.Context, *ResourceRequest) (*MutationReply, error)
 	GetTokenQuotaPolicy(context.Context, *ResourceRequest) (*TokenQuotaPolicy, error)
-	ListTokenQuotaPolicies(context.Context, *emptypb.Empty) (*ListTokenQuotaPoliciesReply, error)
+	ListTokenQuotaPolicies(context.Context, *ListRequest) (*ListTokenQuotaPoliciesReply, error)
 	SetTokenQuotaPolicyEnabled(context.Context, *SetEnabledRequest) (*MutationReply, error)
 	UpdateTokenQuotaPolicy(context.Context, *UpdateTokenQuotaPolicyRequest) (*MutationReply, error)
 }
@@ -46,13 +45,13 @@ func RegisterTokenQuotaPolicyServiceHTTPServer(s *http.Server, srv TokenQuotaPol
 
 func _TokenQuotaPolicyService_ListTokenQuotaPolicies0_HTTP_Handler(srv TokenQuotaPolicyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in emptypb.Empty
+		var in ListRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationTokenQuotaPolicyServiceListTokenQuotaPolicies)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListTokenQuotaPolicies(ctx, req.(*emptypb.Empty))
+			return srv.ListTokenQuotaPolicies(ctx, req.(*ListRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -174,7 +173,7 @@ type TokenQuotaPolicyServiceHTTPClient interface {
 	CreateTokenQuotaPolicy(ctx context.Context, req *CreateTokenQuotaPolicyRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	DeleteTokenQuotaPolicy(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	GetTokenQuotaPolicy(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *TokenQuotaPolicy, err error)
-	ListTokenQuotaPolicies(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ListTokenQuotaPoliciesReply, err error)
+	ListTokenQuotaPolicies(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListTokenQuotaPoliciesReply, err error)
 	SetTokenQuotaPolicyEnabled(ctx context.Context, req *SetEnabledRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 	UpdateTokenQuotaPolicy(ctx context.Context, req *UpdateTokenQuotaPolicyRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
 }
@@ -236,7 +235,7 @@ func (c *TokenQuotaPolicyServiceHTTPClientImpl) GetTokenQuotaPolicy(ctx context.
 	return &out, nil
 }
 
-func (c *TokenQuotaPolicyServiceHTTPClientImpl) ListTokenQuotaPolicies(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ListTokenQuotaPoliciesReply, error) {
+func (c *TokenQuotaPolicyServiceHTTPClientImpl) ListTokenQuotaPolicies(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListTokenQuotaPoliciesReply, error) {
 	var out ListTokenQuotaPoliciesReply
 	pattern := "/api/v1/token-quota-policies"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())

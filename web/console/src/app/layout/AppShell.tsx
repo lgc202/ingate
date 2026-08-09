@@ -1,10 +1,14 @@
 import { useState } from 'react';
+import { LogOut } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { primaryNav } from '@/app/navigation';
 import { StatusDot } from '@/components/ui';
+import { useAuth } from '@/auth/AuthContext';
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
+  const { enabled: authenticationEnabled, principal, signOut } = useAuth();
+  const navigation = primaryNav.filter((item) => item.key !== 'access-keys' || principal?.role === 'admin');
 
   return (
     <div className={`h-screen overflow-hidden grid transition-all duration-200 ${collapsed ? 'grid-cols-[64px_1fr]' : 'grid-cols-[220px_1fr]'}`}>
@@ -39,7 +43,7 @@ export function AppShell() {
 
           {/* Navigation */}
           <nav className="p-2 space-y-1" aria-label="主导航">
-            {primaryNav.map((item) => (
+            {navigation.map((item) => (
               <NavLink
                 key={item.key}
                 to={item.to}
@@ -59,21 +63,47 @@ export function AppShell() {
           </nav>
         </div>
 
-        {/* Footer Status Bar */}
-        <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 text-[11px] text-slate-400 flex items-center justify-between">
-          {!collapsed ? (
-            <>
-              <div className="flex items-center gap-2">
-                <StatusDot status="healthy" />
-                <span className="font-medium text-slate-300">网关运行中</span>
+        <div>
+          {authenticationEnabled && principal && (
+            <div className={`border-t border-slate-800 px-3 py-3 ${collapsed ? 'flex justify-center' : 'flex items-center gap-3'}`}>
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-semibold text-slate-200">
+                {(principal.name || principal.email || principal.subject).slice(0, 1).toUpperCase()}
               </div>
-              <span className="font-mono text-slate-500">v0.2</span>
-            </>
-          ) : (
-            <div className="mx-auto" title="网关运行中">
-              <StatusDot status="healthy" />
+              {!collapsed && (
+                <>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-xs font-medium text-slate-200">{principal.name || principal.email || principal.subject}</div>
+                    <div className="text-[10px] uppercase tracking-wide text-slate-500">{roleLabel(principal.role)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void signOut()}
+                    className="cursor-pointer rounded p-1.5 text-slate-500 transition hover:bg-slate-800 hover:text-slate-200"
+                    aria-label="退出登录"
+                    title="退出登录"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </>
+              )}
             </div>
           )}
+          {/* Footer Status Bar */}
+          <div className="p-3 border-t border-slate-800/80 bg-slate-950/40 text-[11px] text-slate-400 flex items-center justify-between">
+            {!collapsed ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <StatusDot status="healthy" />
+                  <span className="font-medium text-slate-300">网关运行中</span>
+                </div>
+                <span className="font-mono text-slate-500">v0.2</span>
+              </>
+            ) : (
+              <div className="mx-auto" title="网关运行中">
+                <StatusDot status="healthy" />
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
@@ -83,6 +113,12 @@ export function AppShell() {
       </main>
     </div>
   );
+}
+
+function roleLabel(role: string) {
+  if (role === 'admin') return '管理员';
+  if (role === 'operator') return '操作员';
+  return '查看者';
 }
 
 function BrandMark() {

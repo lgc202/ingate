@@ -1,4 +1,5 @@
-import { apiRequest } from './client';
+import { apiListAll, apiRequest } from './client';
+import type { PagedResponse } from './client';
 import type {
   Certificate,
   CertificateListView,
@@ -6,7 +7,7 @@ import type {
   CertificateMutationResult,
 } from '@/domain/certificate';
 
-interface CertificateListResponse {
+interface CertificateListResponse extends PagedResponse {
   certificates?: Certificate[];
 }
 
@@ -16,8 +17,11 @@ interface CertificateMutationResponse {
 }
 
 export async function listCertificates(): Promise<CertificateListView> {
-  const response = await apiRequest<CertificateListResponse>('/certificates');
-  return { certificates: response.certificates ?? [] };
+  const certificates = await apiListAll<CertificateListResponse, Certificate>(
+    '/certificates',
+    (page) => page.certificates ?? [],
+  );
+  return { certificates };
 }
 
 export async function saveCertificate(payload: CertificateMutationPayload): Promise<CertificateMutationResult> {

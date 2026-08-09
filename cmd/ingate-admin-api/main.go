@@ -86,7 +86,9 @@ func run(configFile string) error {
 	kratoslog.SetDefault(logger)
 	watchLogging(loaded, level, logger)
 
-	app, cleanup, err := wireApp(bootstrap.GetServer(), bootstrap.GetData(), logger, instanceID)
+	app, cleanup, err := wireApp(
+		bootstrap.GetServer(), bootstrap.GetData(), bootstrap.GetAuthentication(), logger, instanceID,
+	)
 	if err != nil {
 		return err
 	}

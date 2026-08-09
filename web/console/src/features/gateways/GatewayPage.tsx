@@ -4,6 +4,7 @@ import { listCertificates } from '@/api/certificates';
 import { deleteGateway, listGateways, saveGateway, setGatewayEnabled } from '@/api/gateways';
 import { getPolicyWorkspace } from '@/api/policies';
 import { useResource } from '@/api/useResource';
+import { useAuth } from '@/auth/AuthContext';
 import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { Gateway } from '@/domain/gateway';
@@ -17,6 +18,7 @@ import {
 import { Plus, Trash2, Edit3, Layers3, Power, Globe, KeyRound } from 'lucide-react';
 
 export function GatewayPage() {
+  const { canWriteConfiguration } = useAuth();
   const gateways = useResource(listGateways);
   const certificates = useResource(listCertificates);
   const policies = useResource(getPolicyWorkspace);
@@ -119,8 +121,8 @@ export function GatewayPage() {
   return (
     <PageFrame
       title="网关"
-      subtitle={`当前已接入 ${gatewayList.length} 个逻辑 Envoy 网关监听器`}
-      actions={
+      subtitle={`当前已配置 ${gatewayList.length} 个网关入口`}
+      actions={canWriteConfiguration ? (
         <button
           type="button"
           onClick={handleCreateNew}
@@ -129,7 +131,7 @@ export function GatewayPage() {
           <Plus className="w-4 h-4" />
           新建网关
         </button>
-      }
+      ) : undefined}
     >
       <div className="space-y-6 mt-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -137,7 +139,10 @@ export function GatewayPage() {
         {/* Gateways High-Density Table */}
         <Panel>
           {gatewayList.length === 0 ? (
-            <EmptyState title="暂无网关配置" message="点击右上角按钮创建 Envoy 入口网关" />
+            <EmptyState
+              title="暂无网关配置"
+              message={canWriteConfiguration ? '点击右上角按钮创建网关' : '当前环境还没有网关配置'}
+            />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
@@ -174,19 +179,26 @@ export function GatewayPage() {
                         </td>
 
                         <td className="py-3 px-3">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleGatewayStatus(item);
-                            }}
-                            className="focus:outline-hidden cursor-pointer"
-                          >
+                          {canWriteConfiguration ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleGatewayStatus(item);
+                              }}
+                              className="focus:outline-hidden cursor-pointer"
+                            >
+                              <Badge tone={item.enabled ? 'success' : 'neutral'}>
+                                <Power className="w-3 h-3" />
+                                {item.enabled ? '运行中' : '已禁用'}
+                              </Badge>
+                            </button>
+                          ) : (
                             <Badge tone={item.enabled ? 'success' : 'neutral'}>
                               <Power className="w-3 h-3" />
                               {item.enabled ? '运行中' : '已禁用'}
                             </Badge>
-                          </button>
+                          )}
                         </td>
 
                         <td className="py-3 px-3">
@@ -218,6 +230,8 @@ export function GatewayPage() {
                         </td>
 
                         <td className="py-3 px-3 text-right space-x-1" onClick={(e) => e.stopPropagation()}>
+                          {canWriteConfiguration ? (
+                            <>
                           <button
                             type="button"
                             onClick={() => handleEdit(item)}
@@ -234,6 +248,8 @@ export function GatewayPage() {
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
+                            </>
+                          ) : <span className="text-slate-400">—</span>}
                         </td>
                       </tr>
                     );

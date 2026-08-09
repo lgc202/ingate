@@ -10,8 +10,11 @@ option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
 // ConfigurationService 提供声明式配置整体生效状态
 service ConfigurationService {
-  rpc GetConfigurationStatus(google.protobuf.Empty) returns (ConfigurationStatusReply) {
-    option (google.api.http) = {get: "/api/v1/configuration/status"};
+  rpc GetConfigurationSummary(google.protobuf.Empty) returns (ConfigurationSummary) {
+    option (google.api.http) = {get: "/api/v1/configuration/summary"};
+  }
+  rpc ListConfigurationItems(ListRequest) returns (ListConfigurationItemsReply) {
+    option (google.api.http) = {get: "/api/v1/configuration/items"};
   }
 }
 
@@ -30,8 +33,7 @@ message ConfigurationItem {
   ResourceStatus status = 4;
 }
 
-message ConfigurationStatusReply {
-  ConfigurationSummary summary = 1;
-  repeated ConfigurationItem items = 2;
+message ListConfigurationItemsReply {
+  repeated ConfigurationItem items = 1;
+  PageInfo page = 2;
 }
-

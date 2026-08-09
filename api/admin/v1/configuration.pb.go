@@ -167,28 +167,28 @@ func (x *ConfigurationItem) GetStatus() *ResourceStatus {
 	return nil
 }
 
-type ConfigurationStatusReply struct {
+type ListConfigurationItemsReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Summary       *ConfigurationSummary  `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
-	Items         []*ConfigurationItem   `protobuf:"bytes,2,rep,name=items,proto3" json:"items,omitempty"`
+	Items         []*ConfigurationItem   `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ConfigurationStatusReply) Reset() {
-	*x = ConfigurationStatusReply{}
+func (x *ListConfigurationItemsReply) Reset() {
+	*x = ListConfigurationItemsReply{}
 	mi := &file_admin_v1_configuration_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ConfigurationStatusReply) String() string {
+func (x *ListConfigurationItemsReply) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ConfigurationStatusReply) ProtoMessage() {}
+func (*ListConfigurationItemsReply) ProtoMessage() {}
 
-func (x *ConfigurationStatusReply) ProtoReflect() protoreflect.Message {
+func (x *ListConfigurationItemsReply) ProtoReflect() protoreflect.Message {
 	mi := &file_admin_v1_configuration_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -200,21 +200,21 @@ func (x *ConfigurationStatusReply) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConfigurationStatusReply.ProtoReflect.Descriptor instead.
-func (*ConfigurationStatusReply) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListConfigurationItemsReply.ProtoReflect.Descriptor instead.
+func (*ListConfigurationItemsReply) Descriptor() ([]byte, []int) {
 	return file_admin_v1_configuration_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ConfigurationStatusReply) GetSummary() *ConfigurationSummary {
+func (x *ListConfigurationItemsReply) GetItems() []*ConfigurationItem {
 	if x != nil {
-		return x.Summary
+		return x.Items
 	}
 	return nil
 }
 
-func (x *ConfigurationStatusReply) GetItems() []*ConfigurationItem {
+func (x *ListConfigurationItemsReply) GetPage() *PageInfo {
 	if x != nil {
-		return x.Items
+		return x.Page
 	}
 	return nil
 }
@@ -234,12 +234,13 @@ const file_admin_v1_configuration_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x0e\n" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x127\n" +
-	"\x06status\x18\x04 \x01(\v2\x1f.ingate.admin.v1.ResourceStatusR\x06status\"\x95\x01\n" +
-	"\x18ConfigurationStatusReply\x12?\n" +
-	"\asummary\x18\x01 \x01(\v2%.ingate.admin.v1.ConfigurationSummaryR\asummary\x128\n" +
-	"\x05items\x18\x02 \x03(\v2\".ingate.admin.v1.ConfigurationItemR\x05items2\x9a\x01\n" +
-	"\x14ConfigurationService\x12\x81\x01\n" +
-	"\x16GetConfigurationStatus\x12\x16.google.protobuf.Empty\x1a).ingate.admin.v1.ConfigurationStatusReply\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/v1/configuration/statusB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x06status\x18\x04 \x01(\v2\x1f.ingate.admin.v1.ResourceStatusR\x06status\"\x86\x01\n" +
+	"\x1bListConfigurationItemsReply\x128\n" +
+	"\x05items\x18\x01 \x03(\v2\".ingate.admin.v1.ConfigurationItemR\x05items\x12-\n" +
+	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page2\xa3\x02\n" +
+	"\x14ConfigurationService\x12\x7f\n" +
+	"\x17GetConfigurationSummary\x12\x16.google.protobuf.Empty\x1a%.ingate.admin.v1.ConfigurationSummary\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/api/v1/configuration/summary\x12\x89\x01\n" +
+	"\x16ListConfigurationItems\x12\x1c.ingate.admin.v1.ListRequest\x1a,.ingate.admin.v1.ListConfigurationItemsReply\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/api/v1/configuration/itemsB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_configuration_proto_rawDescOnce sync.Once
@@ -255,20 +256,24 @@ func file_admin_v1_configuration_proto_rawDescGZIP() []byte {
 
 var file_admin_v1_configuration_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_admin_v1_configuration_proto_goTypes = []any{
-	(*ConfigurationSummary)(nil),     // 0: ingate.admin.v1.ConfigurationSummary
-	(*ConfigurationItem)(nil),        // 1: ingate.admin.v1.ConfigurationItem
-	(*ConfigurationStatusReply)(nil), // 2: ingate.admin.v1.ConfigurationStatusReply
-	(*ResourceStatus)(nil),           // 3: ingate.admin.v1.ResourceStatus
-	(*emptypb.Empty)(nil),            // 4: google.protobuf.Empty
+	(*ConfigurationSummary)(nil),        // 0: ingate.admin.v1.ConfigurationSummary
+	(*ConfigurationItem)(nil),           // 1: ingate.admin.v1.ConfigurationItem
+	(*ListConfigurationItemsReply)(nil), // 2: ingate.admin.v1.ListConfigurationItemsReply
+	(*ResourceStatus)(nil),              // 3: ingate.admin.v1.ResourceStatus
+	(*PageInfo)(nil),                    // 4: ingate.admin.v1.PageInfo
+	(*emptypb.Empty)(nil),               // 5: google.protobuf.Empty
+	(*ListRequest)(nil),                 // 6: ingate.admin.v1.ListRequest
 }
 var file_admin_v1_configuration_proto_depIdxs = []int32{
 	3, // 0: ingate.admin.v1.ConfigurationItem.status:type_name -> ingate.admin.v1.ResourceStatus
-	0, // 1: ingate.admin.v1.ConfigurationStatusReply.summary:type_name -> ingate.admin.v1.ConfigurationSummary
-	1, // 2: ingate.admin.v1.ConfigurationStatusReply.items:type_name -> ingate.admin.v1.ConfigurationItem
-	4, // 3: ingate.admin.v1.ConfigurationService.GetConfigurationStatus:input_type -> google.protobuf.Empty
-	2, // 4: ingate.admin.v1.ConfigurationService.GetConfigurationStatus:output_type -> ingate.admin.v1.ConfigurationStatusReply
-	4, // [4:5] is the sub-list for method output_type
-	3, // [3:4] is the sub-list for method input_type
+	1, // 1: ingate.admin.v1.ListConfigurationItemsReply.items:type_name -> ingate.admin.v1.ConfigurationItem
+	4, // 2: ingate.admin.v1.ListConfigurationItemsReply.page:type_name -> ingate.admin.v1.PageInfo
+	5, // 3: ingate.admin.v1.ConfigurationService.GetConfigurationSummary:input_type -> google.protobuf.Empty
+	6, // 4: ingate.admin.v1.ConfigurationService.ListConfigurationItems:input_type -> ingate.admin.v1.ListRequest
+	0, // 5: ingate.admin.v1.ConfigurationService.GetConfigurationSummary:output_type -> ingate.admin.v1.ConfigurationSummary
+	2, // 6: ingate.admin.v1.ConfigurationService.ListConfigurationItems:output_type -> ingate.admin.v1.ListConfigurationItemsReply
+	5, // [5:7] is the sub-list for method output_type
+	3, // [3:5] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name
 	3, // [3:3] is the sub-list for extension extendee
 	0, // [0:3] is the sub-list for field type_name

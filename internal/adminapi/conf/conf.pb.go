@@ -24,12 +24,13 @@ const (
 
 // Bootstrap 定义 ingate-admin-api 的完整进程配置
 type Bootstrap struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Server        *Server                `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	Data          *Data                  `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	Logging       *Logging               `protobuf:"bytes,3,opt,name=logging,proto3" json:"logging,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Server         *Server                `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	Data           *Data                  `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	Logging        *Logging               `protobuf:"bytes,3,opt,name=logging,proto3" json:"logging,omitempty"`
+	Authentication *Authentication        `protobuf:"bytes,4,opt,name=authentication,proto3" json:"authentication,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Bootstrap) Reset() {
@@ -79,6 +80,13 @@ func (x *Bootstrap) GetData() *Data {
 func (x *Bootstrap) GetLogging() *Logging {
 	if x != nil {
 		return x.Logging
+	}
+	return nil
+}
+
+func (x *Bootstrap) GetAuthentication() *Authentication {
+	if x != nil {
+		return x.Authentication
 	}
 	return nil
 }
@@ -247,6 +255,122 @@ func (x *Logging) GetAddSource() bool {
 	return false
 }
 
+type Authentication struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Enabled          bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Issuer           string                 `protobuf:"bytes,2,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	Audience         string                 `protobuf:"bytes,3,opt,name=audience,proto3" json:"audience,omitempty"`
+	RolesClaim       string                 `protobuf:"bytes,4,opt,name=roles_claim,json=rolesClaim,proto3" json:"roles_claim,omitempty"`
+	AdminRoles       []string               `protobuf:"bytes,5,rep,name=admin_roles,json=adminRoles,proto3" json:"admin_roles,omitempty"`
+	OperatorRoles    []string               `protobuf:"bytes,6,rep,name=operator_roles,json=operatorRoles,proto3" json:"operator_roles,omitempty"`
+	ViewerRoles      []string               `protobuf:"bytes,7,rep,name=viewer_roles,json=viewerRoles,proto3" json:"viewer_roles,omitempty"`
+	DiscoveryTimeout *durationpb.Duration   `protobuf:"bytes,8,opt,name=discovery_timeout,json=discoveryTimeout,proto3" json:"discovery_timeout,omitempty"`
+	ClientId         string                 `protobuf:"bytes,9,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
+	Scopes           []string               `protobuf:"bytes,10,rep,name=scopes,proto3" json:"scopes,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *Authentication) Reset() {
+	*x = Authentication{}
+	mi := &file_conf_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Authentication) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Authentication) ProtoMessage() {}
+
+func (x *Authentication) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Authentication.ProtoReflect.Descriptor instead.
+func (*Authentication) Descriptor() ([]byte, []int) {
+	return file_conf_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Authentication) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *Authentication) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
+}
+
+func (x *Authentication) GetAudience() string {
+	if x != nil {
+		return x.Audience
+	}
+	return ""
+}
+
+func (x *Authentication) GetRolesClaim() string {
+	if x != nil {
+		return x.RolesClaim
+	}
+	return ""
+}
+
+func (x *Authentication) GetAdminRoles() []string {
+	if x != nil {
+		return x.AdminRoles
+	}
+	return nil
+}
+
+func (x *Authentication) GetOperatorRoles() []string {
+	if x != nil {
+		return x.OperatorRoles
+	}
+	return nil
+}
+
+func (x *Authentication) GetViewerRoles() []string {
+	if x != nil {
+		return x.ViewerRoles
+	}
+	return nil
+}
+
+func (x *Authentication) GetDiscoveryTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.DiscoveryTimeout
+	}
+	return nil
+}
+
+func (x *Authentication) GetClientId() string {
+	if x != nil {
+		return x.ClientId
+	}
+	return ""
+}
+
+func (x *Authentication) GetScopes() []string {
+	if x != nil {
+		return x.Scopes
+	}
+	return nil
+}
+
 type Server_HTTP struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Network       string                 `protobuf:"bytes,1,opt,name=network,proto3" json:"network,omitempty"`
@@ -258,7 +382,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_conf_proto_msgTypes[4]
+	mi := &file_conf_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -270,7 +394,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_proto_msgTypes[4]
+	mi := &file_conf_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -317,7 +441,7 @@ type Data_APIServer struct {
 
 func (x *Data_APIServer) Reset() {
 	*x = Data_APIServer{}
-	mi := &file_conf_proto_msgTypes[5]
+	mi := &file_conf_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -329,7 +453,7 @@ func (x *Data_APIServer) String() string {
 func (*Data_APIServer) ProtoMessage() {}
 
 func (x *Data_APIServer) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_proto_msgTypes[5]
+	mi := &file_conf_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -371,7 +495,7 @@ type Data_MySQL struct {
 
 func (x *Data_MySQL) Reset() {
 	*x = Data_MySQL{}
-	mi := &file_conf_proto_msgTypes[6]
+	mi := &file_conf_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -383,7 +507,7 @@ func (x *Data_MySQL) String() string {
 func (*Data_MySQL) ProtoMessage() {}
 
 func (x *Data_MySQL) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_proto_msgTypes[6]
+	mi := &file_conf_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -438,7 +562,7 @@ type Data_Redis struct {
 
 func (x *Data_Redis) Reset() {
 	*x = Data_Redis{}
-	mi := &file_conf_proto_msgTypes[7]
+	mi := &file_conf_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -450,7 +574,7 @@ func (x *Data_Redis) String() string {
 func (*Data_Redis) ProtoMessage() {}
 
 func (x *Data_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_proto_msgTypes[7]
+	mi := &file_conf_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -492,11 +616,12 @@ var File_conf_proto protoreflect.FileDescriptor
 const file_conf_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"conf.proto\x12\x11ingate.admin.conf\x1a\x1egoogle/protobuf/duration.proto\"\xa1\x01\n" +
+	"conf.proto\x12\x11ingate.admin.conf\x1a\x1egoogle/protobuf/duration.proto\"\xec\x01\n" +
 	"\tBootstrap\x121\n" +
 	"\x06server\x18\x01 \x01(\v2\x19.ingate.admin.conf.ServerR\x06server\x12+\n" +
 	"\x04data\x18\x02 \x01(\v2\x17.ingate.admin.conf.DataR\x04data\x124\n" +
-	"\alogging\x18\x03 \x01(\v2\x1a.ingate.admin.conf.LoggingR\alogging\"\xa7\x01\n" +
+	"\alogging\x18\x03 \x01(\v2\x1a.ingate.admin.conf.LoggingR\alogging\x12I\n" +
+	"\x0eauthentication\x18\x04 \x01(\v2!.ingate.admin.conf.AuthenticationR\x0eauthentication\"\xa7\x01\n" +
 	"\x06Server\x122\n" +
 	"\x04http\x18\x01 \x01(\v2\x1e.ingate.admin.conf.Server.HTTPR\x04http\x1ai\n" +
 	"\x04HTTP\x12\x18\n" +
@@ -525,7 +650,21 @@ const file_conf_proto_rawDesc = "" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\tR\x05level\x12\x1d\n" +
 	"\n" +
-	"add_source\x18\x03 \x01(\bR\taddSourceB6Z4github.com/lgc202/ingate/internal/adminapi/conf;confb\x06proto3"
+	"add_source\x18\x03 \x01(\bR\taddSource\"\xe7\x02\n" +
+	"\x0eAuthentication\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x16\n" +
+	"\x06issuer\x18\x02 \x01(\tR\x06issuer\x12\x1a\n" +
+	"\baudience\x18\x03 \x01(\tR\baudience\x12\x1f\n" +
+	"\vroles_claim\x18\x04 \x01(\tR\n" +
+	"rolesClaim\x12\x1f\n" +
+	"\vadmin_roles\x18\x05 \x03(\tR\n" +
+	"adminRoles\x12%\n" +
+	"\x0eoperator_roles\x18\x06 \x03(\tR\roperatorRoles\x12!\n" +
+	"\fviewer_roles\x18\a \x03(\tR\vviewerRoles\x12F\n" +
+	"\x11discovery_timeout\x18\b \x01(\v2\x19.google.protobuf.DurationR\x10discoveryTimeout\x12\x1b\n" +
+	"\tclient_id\x18\t \x01(\tR\bclientId\x12\x16\n" +
+	"\x06scopes\x18\n" +
+	" \x03(\tR\x06scopesB6Z4github.com/lgc202/ingate/internal/adminapi/conf;confb\x06proto3"
 
 var (
 	file_conf_proto_rawDescOnce sync.Once
@@ -539,33 +678,36 @@ func file_conf_proto_rawDescGZIP() []byte {
 	return file_conf_proto_rawDescData
 }
 
-var file_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.admin.conf.Bootstrap
 	(*Server)(nil),              // 1: ingate.admin.conf.Server
 	(*Data)(nil),                // 2: ingate.admin.conf.Data
 	(*Logging)(nil),             // 3: ingate.admin.conf.Logging
-	(*Server_HTTP)(nil),         // 4: ingate.admin.conf.Server.HTTP
-	(*Data_APIServer)(nil),      // 5: ingate.admin.conf.Data.APIServer
-	(*Data_MySQL)(nil),          // 6: ingate.admin.conf.Data.MySQL
-	(*Data_Redis)(nil),          // 7: ingate.admin.conf.Data.Redis
-	(*durationpb.Duration)(nil), // 8: google.protobuf.Duration
+	(*Authentication)(nil),      // 4: ingate.admin.conf.Authentication
+	(*Server_HTTP)(nil),         // 5: ingate.admin.conf.Server.HTTP
+	(*Data_APIServer)(nil),      // 6: ingate.admin.conf.Data.APIServer
+	(*Data_MySQL)(nil),          // 7: ingate.admin.conf.Data.MySQL
+	(*Data_Redis)(nil),          // 8: ingate.admin.conf.Data.Redis
+	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
 }
 var file_conf_proto_depIdxs = []int32{
-	1, // 0: ingate.admin.conf.Bootstrap.server:type_name -> ingate.admin.conf.Server
-	2, // 1: ingate.admin.conf.Bootstrap.data:type_name -> ingate.admin.conf.Data
-	3, // 2: ingate.admin.conf.Bootstrap.logging:type_name -> ingate.admin.conf.Logging
-	4, // 3: ingate.admin.conf.Server.http:type_name -> ingate.admin.conf.Server.HTTP
-	5, // 4: ingate.admin.conf.Data.apiserver:type_name -> ingate.admin.conf.Data.APIServer
-	6, // 5: ingate.admin.conf.Data.mysql:type_name -> ingate.admin.conf.Data.MySQL
-	7, // 6: ingate.admin.conf.Data.redis:type_name -> ingate.admin.conf.Data.Redis
-	8, // 7: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	8, // 8: ingate.admin.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	1,  // 0: ingate.admin.conf.Bootstrap.server:type_name -> ingate.admin.conf.Server
+	2,  // 1: ingate.admin.conf.Bootstrap.data:type_name -> ingate.admin.conf.Data
+	3,  // 2: ingate.admin.conf.Bootstrap.logging:type_name -> ingate.admin.conf.Logging
+	4,  // 3: ingate.admin.conf.Bootstrap.authentication:type_name -> ingate.admin.conf.Authentication
+	5,  // 4: ingate.admin.conf.Server.http:type_name -> ingate.admin.conf.Server.HTTP
+	6,  // 5: ingate.admin.conf.Data.apiserver:type_name -> ingate.admin.conf.Data.APIServer
+	7,  // 6: ingate.admin.conf.Data.mysql:type_name -> ingate.admin.conf.Data.MySQL
+	8,  // 7: ingate.admin.conf.Data.redis:type_name -> ingate.admin.conf.Data.Redis
+	9,  // 8: ingate.admin.conf.Authentication.discovery_timeout:type_name -> google.protobuf.Duration
+	9,  // 9: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	9,  // 10: ingate.admin.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
+	11, // [11:11] is the sub-list for method output_type
+	11, // [11:11] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_conf_proto_init() }
@@ -579,7 +721,7 @@ func file_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_proto_rawDesc), len(file_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

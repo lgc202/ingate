@@ -11,7 +11,6 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -760,6 +759,7 @@ func (x *UpdateUpstreamRequest) GetRemoveApiKey() bool {
 type ListUpstreamsReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Upstreams     []*Upstream            `protobuf:"bytes,1,rep,name=upstreams,proto3" json:"upstreams,omitempty"`
+	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -801,11 +801,18 @@ func (x *ListUpstreamsReply) GetUpstreams() []*Upstream {
 	return nil
 }
 
+func (x *ListUpstreamsReply) GetPage() *PageInfo {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_admin_v1_upstream_proto protoreflect.FileDescriptor
 
 const file_admin_v1_upstream_proto_rawDesc = "" +
 	"\n" +
-	"\x17admin/v1/upstream.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"$\n" +
+	"\x17admin/v1/upstream.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"$\n" +
 	"\fAPIKeyConfig\x12\x14\n" +
 	"\x05value\x18\x01 \x01(\tR\x05value\".\n" +
 	"\vUpstreamTLS\x12\x1f\n" +
@@ -869,11 +876,12 @@ const file_admin_v1_upstream_proto_rawDesc = "" +
 	"\fhealth_check\x18\n" +
 	" \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x126\n" +
 	"\aapi_key\x18\v \x01(\v2\x1d.ingate.admin.v1.APIKeyConfigR\x06apiKey\x12$\n" +
-	"\x0eremove_api_key\x18\f \x01(\bR\fremoveAPIKey\"M\n" +
+	"\x0eremove_api_key\x18\f \x01(\bR\fremoveAPIKey\"|\n" +
 	"\x12ListUpstreamsReply\x127\n" +
-	"\tupstreams\x18\x01 \x03(\v2\x19.ingate.admin.v1.UpstreamR\tupstreams2\xcf\x04\n" +
-	"\x0fUpstreamService\x12g\n" +
-	"\rListUpstreams\x12\x16.google.protobuf.Empty\x1a#.ingate.admin.v1.ListUpstreamsReply\"\x19\x82\xd3\xe4\x93\x02\x13\x12\x11/api/v1/upstreams\x12j\n" +
+	"\tupstreams\x18\x01 \x03(\v2\x19.ingate.admin.v1.UpstreamR\tupstreams\x12-\n" +
+	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page2\xd5\x04\n" +
+	"\x0fUpstreamService\x12m\n" +
+	"\rListUpstreams\x12\x1c.ingate.admin.v1.ListRequest\x1a#.ingate.admin.v1.ListUpstreamsReply\"\x19\x82\xd3\xe4\x93\x02\x13\x12\x11/api/v1/upstreams\x12j\n" +
 	"\vGetUpstream\x12 .ingate.admin.v1.ResourceRequest\x1a\x19.ingate.admin.v1.Upstream\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/v1/upstreams/{id}\x12v\n" +
 	"\x0eCreateUpstream\x12&.ingate.admin.v1.CreateUpstreamRequest\x1a\x1e.ingate.admin.v1.MutationReply\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/api/v1/upstreams\x12{\n" +
 	"\x0eUpdateUpstream\x12&.ingate.admin.v1.UpdateUpstreamRequest\x1a\x1e.ingate.admin.v1.MutationReply\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\x1a\x16/api/v1/upstreams/{id}\x12r\n" +
@@ -905,9 +913,10 @@ var file_admin_v1_upstream_proto_goTypes = []any{
 	(*ListUpstreamsReply)(nil),    // 9: ingate.admin.v1.ListUpstreamsReply
 	(*ResourceStatus)(nil),        // 10: ingate.admin.v1.ResourceStatus
 	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 12: google.protobuf.Empty
-	(*ResourceRequest)(nil),       // 13: ingate.admin.v1.ResourceRequest
-	(*MutationReply)(nil),         // 14: ingate.admin.v1.MutationReply
+	(*PageInfo)(nil),              // 12: ingate.admin.v1.PageInfo
+	(*ListRequest)(nil),           // 13: ingate.admin.v1.ListRequest
+	(*ResourceRequest)(nil),       // 14: ingate.admin.v1.ResourceRequest
+	(*MutationReply)(nil),         // 15: ingate.admin.v1.MutationReply
 }
 var file_admin_v1_upstream_proto_depIdxs = []int32{
 	2,  // 0: ingate.admin.v1.ModelConfig.models:type_name -> ingate.admin.v1.ModelCatalogItem
@@ -928,21 +937,22 @@ var file_admin_v1_upstream_proto_depIdxs = []int32{
 	5,  // 15: ingate.admin.v1.UpdateUpstreamRequest.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
 	0,  // 16: ingate.admin.v1.UpdateUpstreamRequest.api_key:type_name -> ingate.admin.v1.APIKeyConfig
 	6,  // 17: ingate.admin.v1.ListUpstreamsReply.upstreams:type_name -> ingate.admin.v1.Upstream
-	12, // 18: ingate.admin.v1.UpstreamService.ListUpstreams:input_type -> google.protobuf.Empty
-	13, // 19: ingate.admin.v1.UpstreamService.GetUpstream:input_type -> ingate.admin.v1.ResourceRequest
-	7,  // 20: ingate.admin.v1.UpstreamService.CreateUpstream:input_type -> ingate.admin.v1.CreateUpstreamRequest
-	8,  // 21: ingate.admin.v1.UpstreamService.UpdateUpstream:input_type -> ingate.admin.v1.UpdateUpstreamRequest
-	13, // 22: ingate.admin.v1.UpstreamService.DeleteUpstream:input_type -> ingate.admin.v1.ResourceRequest
-	9,  // 23: ingate.admin.v1.UpstreamService.ListUpstreams:output_type -> ingate.admin.v1.ListUpstreamsReply
-	6,  // 24: ingate.admin.v1.UpstreamService.GetUpstream:output_type -> ingate.admin.v1.Upstream
-	14, // 25: ingate.admin.v1.UpstreamService.CreateUpstream:output_type -> ingate.admin.v1.MutationReply
-	14, // 26: ingate.admin.v1.UpstreamService.UpdateUpstream:output_type -> ingate.admin.v1.MutationReply
-	14, // 27: ingate.admin.v1.UpstreamService.DeleteUpstream:output_type -> ingate.admin.v1.MutationReply
-	23, // [23:28] is the sub-list for method output_type
-	18, // [18:23] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	12, // 18: ingate.admin.v1.ListUpstreamsReply.page:type_name -> ingate.admin.v1.PageInfo
+	13, // 19: ingate.admin.v1.UpstreamService.ListUpstreams:input_type -> ingate.admin.v1.ListRequest
+	14, // 20: ingate.admin.v1.UpstreamService.GetUpstream:input_type -> ingate.admin.v1.ResourceRequest
+	7,  // 21: ingate.admin.v1.UpstreamService.CreateUpstream:input_type -> ingate.admin.v1.CreateUpstreamRequest
+	8,  // 22: ingate.admin.v1.UpstreamService.UpdateUpstream:input_type -> ingate.admin.v1.UpdateUpstreamRequest
+	14, // 23: ingate.admin.v1.UpstreamService.DeleteUpstream:input_type -> ingate.admin.v1.ResourceRequest
+	9,  // 24: ingate.admin.v1.UpstreamService.ListUpstreams:output_type -> ingate.admin.v1.ListUpstreamsReply
+	6,  // 25: ingate.admin.v1.UpstreamService.GetUpstream:output_type -> ingate.admin.v1.Upstream
+	15, // 26: ingate.admin.v1.UpstreamService.CreateUpstream:output_type -> ingate.admin.v1.MutationReply
+	15, // 27: ingate.admin.v1.UpstreamService.UpdateUpstream:output_type -> ingate.admin.v1.MutationReply
+	15, // 28: ingate.admin.v1.UpstreamService.DeleteUpstream:output_type -> ingate.admin.v1.MutationReply
+	24, // [24:29] is the sub-list for method output_type
+	19, // [19:24] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_upstream_proto_init() }

@@ -348,6 +348,103 @@ func (x *MutationReply) GetId() string {
 	return ""
 }
 
+// ListRequest 使用 API Server Continue Token 分页读取资源
+type ListRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
+	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRequest) Reset() {
+	*x = ListRequest{}
+	mi := &file_admin_v1_common_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRequest) ProtoMessage() {}
+
+func (x *ListRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_common_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
+func (*ListRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_common_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.PageSize
+	}
+	return 0
+}
+
+func (x *ListRequest) GetPageToken() string {
+	if x != nil {
+		return x.PageToken
+	}
+	return ""
+}
+
+type PageInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NextPageToken string                 `protobuf:"bytes,1,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PageInfo) Reset() {
+	*x = PageInfo{}
+	mi := &file_admin_v1_common_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PageInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PageInfo) ProtoMessage() {}
+
+func (x *PageInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_common_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PageInfo.ProtoReflect.Descriptor instead.
+func (*PageInfo) Descriptor() ([]byte, []int) {
+	return file_admin_v1_common_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *PageInfo) GetNextPageToken() string {
+	if x != nil {
+		return x.NextPageToken
+	}
+	return ""
+}
+
 var File_admin_v1_common_proto protoreflect.FileDescriptor
 
 const file_admin_v1_common_proto_rawDesc = "" +
@@ -373,7 +470,14 @@ const file_admin_v1_common_proto_rawDesc = "" +
 	"\b_enabled\"9\n" +
 	"\rMutationReply\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02idB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x02id\x18\x02 \x01(\tR\x02id\"U\n" +
+	"\vListRequest\x12'\n" +
+	"\tpage_size\x18\x01 \x01(\x05B\n" +
+	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\"2\n" +
+	"\bPageInfo\x12&\n" +
+	"\x0fnext_page_token\x18\x01 \x01(\tR\rnextPageTokenB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_common_proto_rawDescOnce sync.Once
@@ -387,7 +491,7 @@ func file_admin_v1_common_proto_rawDescGZIP() []byte {
 	return file_admin_v1_common_proto_rawDescData
 }
 
-var file_admin_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_admin_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_admin_v1_common_proto_goTypes = []any{
 	(*ResourceStatus)(nil),    // 0: ingate.admin.v1.ResourceStatus
 	(*PolicyTargetRef)(nil),   // 1: ingate.admin.v1.PolicyTargetRef
@@ -395,6 +499,8 @@ var file_admin_v1_common_proto_goTypes = []any{
 	(*ResourceRequest)(nil),   // 3: ingate.admin.v1.ResourceRequest
 	(*SetEnabledRequest)(nil), // 4: ingate.admin.v1.SetEnabledRequest
 	(*MutationReply)(nil),     // 5: ingate.admin.v1.MutationReply
+	(*ListRequest)(nil),       // 6: ingate.admin.v1.ListRequest
+	(*PageInfo)(nil),          // 7: ingate.admin.v1.PageInfo
 }
 var file_admin_v1_common_proto_depIdxs = []int32{
 	0, // 0: ingate.admin.v1.PolicyTarget.status:type_name -> ingate.admin.v1.ResourceStatus
@@ -417,7 +523,7 @@ func file_admin_v1_common_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_common_proto_rawDesc), len(file_admin_v1_common_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -12,6 +12,7 @@ import (
 
 type AccessKey struct {
 	ID            string          `json:"id"`
+	Version       int64           `json:"version"`
 	Name          string          `json:"name"`
 	SecretHash    []byte          `json:"secret_hash"`
 	SecretPrefix  string          `json:"secret_prefix"`

@@ -22,13 +22,13 @@ func NewCertificateRepository(client clientset.Interface) *CertificateRepository
 	return &CertificateRepository{client: client}
 }
 
-// List 查询 Certificate 列表
-func (r *CertificateRepository) List(ctx context.Context) ([]resource.Certificate, error) {
-	certificates, err := r.client.GatewayV1().Certificates().List(ctx, metav1.ListOptions{})
+// ListPage 分页查询 Certificate 列表
+func (r *CertificateRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Certificate], error) {
+	certificates, err := r.client.GatewayV1().Certificates().List(ctx, pageOptions(page))
 	if err != nil {
-		return nil, resourceError("list", "certificates", "", err)
+		return biz.PageResult[resource.Certificate]{}, pageError("certificates", err)
 	}
-	return certificates.Items, nil
+	return biz.PageResult[resource.Certificate]{Items: certificates.Items, NextToken: certificates.Continue}, nil
 }
 
 // Get 查询单个 Certificate

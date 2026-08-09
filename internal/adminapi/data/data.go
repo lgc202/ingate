@@ -51,8 +51,8 @@ var ProviderSet = wire.NewSet(
 	NewAccessKeyRepository,
 	NewAccessKeyIndexSync,
 	// 根 biz 只保留跨领域策略能力所需的只读边界
-	wire.Bind(new(biz.GatewayLister), new(*apiserver.GatewayRepository)),
-	wire.Bind(new(biz.RouteLister), new(*apiserver.RouteRepository)),
+	wire.Bind(new(biz.GatewayGetter), new(*apiserver.GatewayRepository)),
+	wire.Bind(new(biz.RouteGetter), new(*apiserver.RouteRepository)),
 	wire.Bind(new(biz.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyRepository)),
 	wire.Bind(new(biz.AccessControlPolicyLister), new(*apiserver.AccessControlPolicyRepository)),
 	wire.Bind(new(biz.TokenQuotaPolicyLister), new(*apiserver.TokenQuotaPolicyRepository)),

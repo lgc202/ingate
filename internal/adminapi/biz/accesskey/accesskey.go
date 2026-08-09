@@ -25,6 +25,7 @@ const (
 // Key 是访问密钥业务对象，原始 Secret 不进入持久化层
 type Key struct {
 	ID            string
+	Version       int64
 	Name          string
 	SecretHash    [32]byte
 	SecretPrefix  string
@@ -37,16 +38,40 @@ type Key struct {
 	UpdatedAt     time.Time
 }
 
+// UpdateInput 是访问密钥可编辑配置的一次条件更新
+type UpdateInput struct {
+	Version       int64
+	Name          string
+	AllowedModels []string
+	ExpiresAt     *time.Time
+	UpdatedAt     time.Time
+}
+
+// EnabledInput 是访问密钥启停状态的一次条件更新
+type EnabledInput struct {
+	Version   int64
+	Enabled   bool
+	UpdatedAt time.Time
+}
+
+// RotationInput 是访问密钥 Secret 的一次条件替换
+type RotationInput struct {
+	Version      int64
+	SecretHash   [32]byte
+	SecretPrefix string
+	SecretSuffix string
+	UpdatedAt    time.Time
+}
+
 // Repository 定义访问密钥用例需要的持久化能力
 type Repository interface {
-	List(context.Context) ([]Key, error)
-	Get(context.Context, string) (Key, error)
+	List(context.Context, biz.PageRequest) (biz.PageResult[Key], error)
 	NameExists(context.Context, string, string) (bool, error)
 	Create(context.Context, Key) error
-	Update(context.Context, Key, Key) error
-	SetEnabled(context.Context, Key, Key) error
-	Rotate(context.Context, Key, Key) error
-	Delete(context.Context, Key) error
+	Update(context.Context, string, UpdateInput) (Key, error)
+	SetEnabled(context.Context, string, EnabledInput) (Key, error)
+	Rotate(context.Context, string, RotationInput) (Key, error)
+	Delete(context.Context, string, int64) error
 }
 
 // Usecase 管理访问密钥的业务生命周期
@@ -60,8 +85,8 @@ func NewUsecase(repository Repository) *Usecase {
 }
 
 // List 返回访问密钥列表，并合并 Redis 中的最后认证时间
-func (u *Usecase) List(ctx context.Context) ([]Key, error) {
-	return u.repository.List(ctx)
+func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[Key], error) {
+	return u.repository.List(ctx, page)
 }
 
 // Create 创建访问密钥，完整 Secret 只随本次调用返回
@@ -81,6 +106,7 @@ func (u *Usecase) Create(
 	now := time.Now().UTC()
 	accessKey := Key{
 		ID:            uuid.NewString(),
+		Version:       1,
 		Name:          name,
 		SecretHash:    hash,
 		SecretPrefix:  prefix,
@@ -105,88 +131,67 @@ func (u *Usecase) Create(
 func (u *Usecase) Update(
 	ctx context.Context,
 	accessKeyID string,
+	version int64,
 	name string,
 	allowedModels []string,
 	expiresAt *time.Time,
 ) (Key, error) {
-	current, err := u.get(ctx, accessKeyID)
-	if err != nil {
-		return Key{}, err
-	}
 	if err := u.ensureNameAvailable(ctx, name, accessKeyID); err != nil {
 		return Key{}, err
 	}
-	next := current
-	next.Name = name
-	next.AllowedModels = append([]string(nil), allowedModels...)
-	next.ExpiresAt = expiresAt
-	next.UpdatedAt = time.Now().UTC()
-
-	if err := u.repository.Update(ctx, current, next); err != nil {
+	next, err := u.repository.Update(ctx, accessKeyID, UpdateInput{
+		Version:       version,
+		Name:          name,
+		AllowedModels: append([]string(nil), allowedModels...),
+		ExpiresAt:     expiresAt,
+		UpdatedAt:     time.Now().UTC(),
+	})
+	if err != nil {
 		if errors.Is(err, biz.ErrAccessKeyNameConflict) {
 			return Key{}, biz.NewUserError(fmt.Sprintf("访问密钥名称 %q 已存在", name))
 		}
-		return Key{}, err
+		return Key{}, u.mutationError(err)
 	}
 	return next, nil
 }
 
 // SetEnabled 启用或停用访问密钥
-func (u *Usecase) SetEnabled(ctx context.Context, accessKeyID string, enabled bool) (Key, error) {
-	current, err := u.get(ctx, accessKeyID)
-	if err != nil {
-		return Key{}, err
-	}
-	if current.Enabled == enabled {
-		return current, nil
-	}
-	next := current
-	next.Enabled = enabled
-	next.UpdatedAt = time.Now().UTC()
-
-	if err := u.repository.SetEnabled(ctx, current, next); err != nil {
-		return Key{}, err
-	}
-	return next, nil
+func (u *Usecase) SetEnabled(ctx context.Context, accessKeyID string, version int64, enabled bool) (Key, error) {
+	next, err := u.repository.SetEnabled(ctx, accessKeyID, EnabledInput{
+		Version: version, Enabled: enabled, UpdatedAt: time.Now().UTC(),
+	})
+	return next, u.mutationError(err)
 }
 
 // Rotate 生成新 Secret 并立即撤销原 Secret
-func (u *Usecase) Rotate(ctx context.Context, accessKeyID string) (Key, string, error) {
-	current, err := u.get(ctx, accessKeyID)
-	if err != nil {
-		return Key{}, "", err
-	}
+func (u *Usecase) Rotate(ctx context.Context, accessKeyID string, version int64) (Key, string, error) {
 	secret, hash, prefix, suffix, err := newSecret()
 	if err != nil {
 		return Key{}, "", err
 	}
-	next := current
-	next.SecretHash = hash
-	next.SecretPrefix = prefix
-	next.SecretSuffix = suffix
-	next.UpdatedAt = time.Now().UTC()
-
-	if err := u.repository.Rotate(ctx, current, next); err != nil {
-		return Key{}, "", err
+	next, err := u.repository.Rotate(ctx, accessKeyID, RotationInput{
+		Version: version, SecretHash: hash, SecretPrefix: prefix, SecretSuffix: suffix, UpdatedAt: time.Now().UTC(),
+	})
+	if err != nil {
+		return Key{}, "", u.mutationError(err)
 	}
 	return next, secret, nil
 }
 
 // Delete 删除访问密钥并立即撤销数据面权限
-func (u *Usecase) Delete(ctx context.Context, accessKeyID string) error {
-	current, err := u.get(ctx, accessKeyID)
-	if err != nil {
-		return err
-	}
-	return u.repository.Delete(ctx, current)
+func (u *Usecase) Delete(ctx context.Context, accessKeyID string, version int64) error {
+	return u.mutationError(u.repository.Delete(ctx, accessKeyID, version))
 }
 
-func (u *Usecase) get(ctx context.Context, accessKeyID string) (Key, error) {
-	accessKey, err := u.repository.Get(ctx, accessKeyID)
-	if errors.Is(err, biz.ErrAccessKeyNotFound) {
-		return Key{}, biz.NewUserError("访问密钥不存在")
+func (u *Usecase) mutationError(err error) error {
+	switch {
+	case errors.Is(err, biz.ErrAccessKeyNotFound):
+		return biz.NewUserError("访问密钥不存在")
+	case errors.Is(err, biz.ErrResourceVersionConflict):
+		return biz.NewUserError("访问密钥已被更新，请刷新后重试")
+	default:
+		return err
 	}
-	return accessKey, err
 }
 
 func (u *Usecase) ensureNameAvailable(ctx context.Context, name, excludeID string) error {

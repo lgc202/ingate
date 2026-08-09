@@ -21,13 +21,13 @@ func NewAccessControlPolicyRepository(client clientset.Interface) *AccessControl
 	return &AccessControlPolicyRepository{client: client}
 }
 
-// List 查询 AccessControlPolicy 列表
-func (r *AccessControlPolicyRepository) List(ctx context.Context) ([]resource.AccessControlPolicy, error) {
-	policies, err := r.client.GatewayV1().AccessControlPolicies().List(ctx, metav1.ListOptions{})
+// ListPage 分页查询 AccessControlPolicy 列表
+func (r *AccessControlPolicyRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.AccessControlPolicy], error) {
+	policies, err := r.client.GatewayV1().AccessControlPolicies().List(ctx, pageOptions(page))
 	if err != nil {
-		return nil, resourceError("list", "access control policies", "", err)
+		return biz.PageResult[resource.AccessControlPolicy]{}, pageError("access control policies", err)
 	}
-	return policies.Items, nil
+	return biz.PageResult[resource.AccessControlPolicy]{Items: policies.Items, NextToken: policies.Continue}, nil
 }
 
 // Get 查询单个 AccessControlPolicy

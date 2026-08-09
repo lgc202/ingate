@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { getPolicyWorkspace } from '@/api/policies';
 import { deleteRoute, getRouteWorkspace, saveRoute, setRouteEnabled } from '@/api/routes';
 import { useResource } from '@/api/useResource';
+import { useAuth } from '@/auth/AuthContext';
 import { Button, Drawer, PageFrame, ResourceStatePanel, Toast } from '@/components/ui';
 import type { RouteResource } from '@/domain/route';
 import type { RouteComposerDraft } from './composer';
@@ -20,6 +21,7 @@ interface RouteNotice {
 }
 
 export function RoutePage() {
+  const { canWriteConfiguration } = useAuth();
   const workspace = useResource(getRouteWorkspace);
   const policyWorkspace = useResource(getPolicyWorkspace);
 
@@ -160,7 +162,7 @@ export function RoutePage() {
     <PageFrame
       title="路由"
       subtitle="定义请求匹配、AI 路由分发、目标服务和转发规则"
-      actions={<Button variant="primary" onClick={openCreate}>+ 新建路由</Button>}
+      actions={canWriteConfiguration ? <Button variant="primary" onClick={openCreate}>+ 新建路由</Button> : undefined}
     >
       <RouteList
         routes={routes}
@@ -172,7 +174,7 @@ export function RoutePage() {
           setSelectedRouteID(id);
           setMode('detail');
         }}
-        onCreate={openCreate}
+        readOnly={!canWriteConfiguration}
         onEdit={openEdit}
         onRequestDisable={setDisableCandidate}
         onRequestDelete={setDeleteCandidate}

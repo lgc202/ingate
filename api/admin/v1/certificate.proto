@@ -5,14 +5,13 @@ package ingate.admin.v1;
 import "admin/v1/common.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
 // CertificateService 提供网关 TLS 证书管理接口
 service CertificateService {
-  rpc ListCertificates(google.protobuf.Empty) returns (ListCertificatesReply) {
+  rpc ListCertificates(ListRequest) returns (ListCertificatesReply) {
     option (google.api.http) = {get: "/api/v1/certificates"};
   }
   rpc GetCertificate(ResourceRequest) returns (GetCertificateReply) {
@@ -72,6 +71,7 @@ message UpdateCertificateRequest {
 
 message ListCertificatesReply {
   repeated Certificate certificates = 1;
+  PageInfo page = 2;
 }
 
 message GetCertificateReply {

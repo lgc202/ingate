@@ -1,4 +1,5 @@
-import { apiRequest } from './client';
+import { apiListAll, apiRequest } from './client';
+import type { PagedResponse } from './client';
 import type { GatewayListView, GatewayMutationPayload, GatewayMutationResult } from '@/domain/gateway';
 
 interface GatewayMutationResponse {
@@ -6,7 +7,7 @@ interface GatewayMutationResponse {
   id?: string;
 }
 
-interface GatewayListResponse {
+interface GatewayListResponse extends PagedResponse {
   gateways?: Array<Omit<GatewayListView['gateways'][number], 'hostnames' | 'listeners'> & {
     hostnames?: string[];
     listeners?: GatewayListView['gateways'][number]['listeners'];
@@ -14,9 +15,12 @@ interface GatewayListResponse {
 }
 
 export async function listGateways(): Promise<GatewayListView> {
-  const response = await apiRequest<GatewayListResponse>('/gateways');
+  const gateways = await apiListAll<GatewayListResponse, NonNullable<GatewayListResponse['gateways']>[number]>(
+    '/gateways',
+    (page) => page.gateways ?? [],
+  );
   return {
-    gateways: (response.gateways ?? []).map((gateway) => ({
+    gateways: gateways.map((gateway) => ({
       ...gateway,
       hostnames: gateway.hostnames ?? [],
       listeners: gateway.listeners ?? [],

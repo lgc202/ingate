@@ -11,6 +11,7 @@ message Bootstrap {
   Server server = 1;
   Data data = 2;
   Logging logging = 3;
+  Authentication authentication = 4;
 }
 
 message Server {
@@ -47,4 +48,17 @@ message Logging {
   string format = 1;
   string level = 2;
   bool add_source = 3;
+}
+
+message Authentication {
+  bool enabled = 1;
+  string issuer = 2;
+  string audience = 3;
+  string roles_claim = 4;
+  repeated string admin_roles = 5;
+  repeated string operator_roles = 6;
+  repeated string viewer_roles = 7;
+  google.protobuf.Duration discovery_timeout = 8;
+  string client_id = 9;
+  repeated string scopes = 10;
 }

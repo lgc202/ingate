@@ -8,6 +8,7 @@ import (
 	kratos "github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
 
+	"github.com/lgc202/ingate/internal/adminapi/auth"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	accesscontrolbiz "github.com/lgc202/ingate/internal/adminapi/biz/accesscontrol"
 	accesskeybiz "github.com/lgc202/ingate/internal/adminapi/biz/accesskey"
@@ -23,6 +24,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/server"
 	accesscontrolservice "github.com/lgc202/ingate/internal/adminapi/service/accesscontrol"
 	accesskeyservice "github.com/lgc202/ingate/internal/adminapi/service/accesskey"
+	authenticationservice "github.com/lgc202/ingate/internal/adminapi/service/authentication"
 	certificateservice "github.com/lgc202/ingate/internal/adminapi/service/certificate"
 	configurationservice "github.com/lgc202/ingate/internal/adminapi/service/configuration"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
@@ -33,9 +35,10 @@ import (
 	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 )
 
-func wireApp(*conf.Server, *conf.Data, *slog.Logger, serviceInstanceID) (*kratos.App, func(), error) {
+func wireApp(*conf.Server, *conf.Data, *conf.Authentication, *slog.Logger, serviceInstanceID) (*kratos.App, func(), error) {
 	panic(wire.Build(
 		server.NewHTTPServer,
+		auth.NewAuthenticator,
 		data.ProviderSet,
 		biz.NewPolicyUsageFinder,
 		gatewaybiz.NewUsecase,
@@ -52,6 +55,7 @@ func wireApp(*conf.Server, *conf.Data, *slog.Logger, serviceInstanceID) (*kratos
 		upstreamservice.NewService,
 		certificateservice.NewService,
 		accesskeyservice.NewService,
+		authenticationservice.NewService,
 		ratelimitservice.NewService,
 		accesscontrolservice.NewService,
 		tokenquotaservice.NewService,

@@ -21,13 +21,13 @@ func NewUpstreamRepository(client clientset.Interface) *UpstreamRepository {
 	return &UpstreamRepository{client: client}
 }
 
-// List 查询 Upstream 列表
-func (r *UpstreamRepository) List(ctx context.Context) ([]resource.Upstream, error) {
-	upstreams, err := r.client.GatewayV1().Upstreams().List(ctx, metav1.ListOptions{})
+// ListPage 分页查询 Upstream 列表
+func (r *UpstreamRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Upstream], error) {
+	upstreams, err := r.client.GatewayV1().Upstreams().List(ctx, pageOptions(page))
 	if err != nil {
-		return nil, resourceError("list", "upstreams", "", err)
+		return biz.PageResult[resource.Upstream]{}, pageError("upstreams", err)
 	}
-	return upstreams.Items, nil
+	return biz.PageResult[resource.Upstream]{Items: upstreams.Items, NextToken: upstreams.Continue}, nil
 }
 
 // Get 查询单个 Upstream

@@ -11,7 +11,6 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -524,6 +523,7 @@ func (x *UpdateTokenQuotaPolicyRequest) GetResponse() *TokenQuotaResponse {
 type ListTokenQuotaPoliciesReply struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Policies      []*TokenQuotaPolicy    `protobuf:"bytes,1,rep,name=policies,proto3" json:"policies,omitempty"`
+	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -565,11 +565,18 @@ func (x *ListTokenQuotaPoliciesReply) GetPolicies() []*TokenQuotaPolicy {
 	return nil
 }
 
+func (x *ListTokenQuotaPoliciesReply) GetPage() *PageInfo {
+	if x != nil {
+		return x.Page
+	}
+	return nil
+}
+
 var File_admin_v1_token_quota_policy_proto protoreflect.FileDescriptor
 
 const file_admin_v1_token_quota_policy_proto_rawDesc = "" +
 	"\n" +
-	"!admin/v1/token_quota_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"H\n" +
+	"!admin/v1/token_quota_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"H\n" +
 	"\x11TokenQuotaSubject\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x1f\n" +
 	"\vheader_name\x18\x02 \x01(\tR\n" +
@@ -615,11 +622,12 @@ const file_admin_v1_token_quota_policy_proto_rawDesc = "" +
 	"\x05quota\x18\b \x01(\v2\x1b.ingate.admin.v1.TokenQuotaB\x06\xbaH\x03\xc8\x01\x01R\x05quota\x12.\n" +
 	"\x0efailure_policy\x18\t \x01(\tB\a\xbaH\x04r\x02\x10\x01R\rfailurePolicy\x12?\n" +
 	"\bresponse\x18\n" +
-	" \x01(\v2#.ingate.admin.v1.TokenQuotaResponseR\bresponse\"\\\n" +
+	" \x01(\v2#.ingate.admin.v1.TokenQuotaResponseR\bresponse\"\x8b\x01\n" +
 	"\x1bListTokenQuotaPoliciesReply\x12=\n" +
-	"\bpolicies\x18\x01 \x03(\v2!.ingate.admin.v1.TokenQuotaPolicyR\bpolicies2\xf6\x06\n" +
-	"\x17TokenQuotaPolicyService\x12\x84\x01\n" +
-	"\x16ListTokenQuotaPolicies\x12\x16.google.protobuf.Empty\x1a,.ingate.admin.v1.ListTokenQuotaPoliciesReply\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/v1/token-quota-policies\x12\x85\x01\n" +
+	"\bpolicies\x18\x01 \x03(\v2!.ingate.admin.v1.TokenQuotaPolicyR\bpolicies\x12-\n" +
+	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page2\xfc\x06\n" +
+	"\x17TokenQuotaPolicyService\x12\x8a\x01\n" +
+	"\x16ListTokenQuotaPolicies\x12\x1c.ingate.admin.v1.ListRequest\x1a,.ingate.admin.v1.ListTokenQuotaPoliciesReply\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/v1/token-quota-policies\x12\x85\x01\n" +
 	"\x13GetTokenQuotaPolicy\x12 .ingate.admin.v1.ResourceRequest\x1a!.ingate.admin.v1.TokenQuotaPolicy\")\x82\xd3\xe4\x93\x02#\x12!/api/v1/token-quota-policies/{id}\x12\x91\x01\n" +
 	"\x16CreateTokenQuotaPolicy\x12..ingate.admin.v1.CreateTokenQuotaPolicyRequest\x1a\x1e.ingate.admin.v1.MutationReply\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/api/v1/token-quota-policies\x12\x96\x01\n" +
 	"\x16UpdateTokenQuotaPolicy\x12..ingate.admin.v1.UpdateTokenQuotaPolicyRequest\x1a\x1e.ingate.admin.v1.MutationReply\",\x82\xd3\xe4\x93\x02&:\x01*\x1a!/api/v1/token-quota-policies/{id}\x12\x96\x01\n" +
@@ -651,10 +659,11 @@ var file_admin_v1_token_quota_policy_proto_goTypes = []any{
 	(*PolicyTarget)(nil),                  // 8: ingate.admin.v1.PolicyTarget
 	(*timestamppb.Timestamp)(nil),         // 9: google.protobuf.Timestamp
 	(*PolicyTargetRef)(nil),               // 10: ingate.admin.v1.PolicyTargetRef
-	(*emptypb.Empty)(nil),                 // 11: google.protobuf.Empty
-	(*ResourceRequest)(nil),               // 12: ingate.admin.v1.ResourceRequest
-	(*SetEnabledRequest)(nil),             // 13: ingate.admin.v1.SetEnabledRequest
-	(*MutationReply)(nil),                 // 14: ingate.admin.v1.MutationReply
+	(*PageInfo)(nil),                      // 11: ingate.admin.v1.PageInfo
+	(*ListRequest)(nil),                   // 12: ingate.admin.v1.ListRequest
+	(*ResourceRequest)(nil),               // 13: ingate.admin.v1.ResourceRequest
+	(*SetEnabledRequest)(nil),             // 14: ingate.admin.v1.SetEnabledRequest
+	(*MutationReply)(nil),                 // 15: ingate.admin.v1.MutationReply
 }
 var file_admin_v1_token_quota_policy_proto_depIdxs = []int32{
 	7,  // 0: ingate.admin.v1.TokenQuotaPolicy.status:type_name -> ingate.admin.v1.ResourceStatus
@@ -672,23 +681,24 @@ var file_admin_v1_token_quota_policy_proto_depIdxs = []int32{
 	1,  // 12: ingate.admin.v1.UpdateTokenQuotaPolicyRequest.quota:type_name -> ingate.admin.v1.TokenQuota
 	2,  // 13: ingate.admin.v1.UpdateTokenQuotaPolicyRequest.response:type_name -> ingate.admin.v1.TokenQuotaResponse
 	3,  // 14: ingate.admin.v1.ListTokenQuotaPoliciesReply.policies:type_name -> ingate.admin.v1.TokenQuotaPolicy
-	11, // 15: ingate.admin.v1.TokenQuotaPolicyService.ListTokenQuotaPolicies:input_type -> google.protobuf.Empty
-	12, // 16: ingate.admin.v1.TokenQuotaPolicyService.GetTokenQuotaPolicy:input_type -> ingate.admin.v1.ResourceRequest
-	4,  // 17: ingate.admin.v1.TokenQuotaPolicyService.CreateTokenQuotaPolicy:input_type -> ingate.admin.v1.CreateTokenQuotaPolicyRequest
-	5,  // 18: ingate.admin.v1.TokenQuotaPolicyService.UpdateTokenQuotaPolicy:input_type -> ingate.admin.v1.UpdateTokenQuotaPolicyRequest
-	13, // 19: ingate.admin.v1.TokenQuotaPolicyService.SetTokenQuotaPolicyEnabled:input_type -> ingate.admin.v1.SetEnabledRequest
-	12, // 20: ingate.admin.v1.TokenQuotaPolicyService.DeleteTokenQuotaPolicy:input_type -> ingate.admin.v1.ResourceRequest
-	6,  // 21: ingate.admin.v1.TokenQuotaPolicyService.ListTokenQuotaPolicies:output_type -> ingate.admin.v1.ListTokenQuotaPoliciesReply
-	3,  // 22: ingate.admin.v1.TokenQuotaPolicyService.GetTokenQuotaPolicy:output_type -> ingate.admin.v1.TokenQuotaPolicy
-	14, // 23: ingate.admin.v1.TokenQuotaPolicyService.CreateTokenQuotaPolicy:output_type -> ingate.admin.v1.MutationReply
-	14, // 24: ingate.admin.v1.TokenQuotaPolicyService.UpdateTokenQuotaPolicy:output_type -> ingate.admin.v1.MutationReply
-	14, // 25: ingate.admin.v1.TokenQuotaPolicyService.SetTokenQuotaPolicyEnabled:output_type -> ingate.admin.v1.MutationReply
-	14, // 26: ingate.admin.v1.TokenQuotaPolicyService.DeleteTokenQuotaPolicy:output_type -> ingate.admin.v1.MutationReply
-	21, // [21:27] is the sub-list for method output_type
-	15, // [15:21] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	11, // 15: ingate.admin.v1.ListTokenQuotaPoliciesReply.page:type_name -> ingate.admin.v1.PageInfo
+	12, // 16: ingate.admin.v1.TokenQuotaPolicyService.ListTokenQuotaPolicies:input_type -> ingate.admin.v1.ListRequest
+	13, // 17: ingate.admin.v1.TokenQuotaPolicyService.GetTokenQuotaPolicy:input_type -> ingate.admin.v1.ResourceRequest
+	4,  // 18: ingate.admin.v1.TokenQuotaPolicyService.CreateTokenQuotaPolicy:input_type -> ingate.admin.v1.CreateTokenQuotaPolicyRequest
+	5,  // 19: ingate.admin.v1.TokenQuotaPolicyService.UpdateTokenQuotaPolicy:input_type -> ingate.admin.v1.UpdateTokenQuotaPolicyRequest
+	14, // 20: ingate.admin.v1.TokenQuotaPolicyService.SetTokenQuotaPolicyEnabled:input_type -> ingate.admin.v1.SetEnabledRequest
+	13, // 21: ingate.admin.v1.TokenQuotaPolicyService.DeleteTokenQuotaPolicy:input_type -> ingate.admin.v1.ResourceRequest
+	6,  // 22: ingate.admin.v1.TokenQuotaPolicyService.ListTokenQuotaPolicies:output_type -> ingate.admin.v1.ListTokenQuotaPoliciesReply
+	3,  // 23: ingate.admin.v1.TokenQuotaPolicyService.GetTokenQuotaPolicy:output_type -> ingate.admin.v1.TokenQuotaPolicy
+	15, // 24: ingate.admin.v1.TokenQuotaPolicyService.CreateTokenQuotaPolicy:output_type -> ingate.admin.v1.MutationReply
+	15, // 25: ingate.admin.v1.TokenQuotaPolicyService.UpdateTokenQuotaPolicy:output_type -> ingate.admin.v1.MutationReply
+	15, // 26: ingate.admin.v1.TokenQuotaPolicyService.SetTokenQuotaPolicyEnabled:output_type -> ingate.admin.v1.MutationReply
+	15, // 27: ingate.admin.v1.TokenQuotaPolicyService.DeleteTokenQuotaPolicy:output_type -> ingate.admin.v1.MutationReply
+	22, // [22:28] is the sub-list for method output_type
+	16, // [16:22] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_token_quota_policy_proto_init() }

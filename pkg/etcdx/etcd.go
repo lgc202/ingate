@@ -4,7 +4,12 @@ package etcdx
 import (
 	"errors"
 	"strings"
+	"time"
+
+	clientv3 "go.etcd.io/etcd/client/v3"
 )
+
+const defaultDialTimeout = 5 * time.Second
 
 // Config 定义 etcd endpoints 和键空间前缀
 type Config struct {
@@ -26,4 +31,16 @@ func (c Config) Validate() error {
 		return errors.New("etcd prefix must start with /")
 	}
 	return nil
+}
+
+// NewClient 创建供 API Server 内部协调使用的 etcd 客户端
+func NewClient(config Config) (*clientv3.Client, error) {
+	client, err := clientv3.New(clientv3.Config{
+		Endpoints:   config.Endpoints,
+		DialTimeout: defaultDialTimeout,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }

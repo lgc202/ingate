@@ -4,10 +4,9 @@ package route
 import (
 	"context"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	routebiz "github.com/lgc202/ingate/internal/adminapi/biz/route"
+	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
 // Service 实现路由规则管理 API
@@ -20,14 +19,14 @@ func NewService(usecase *routebiz.Usecase) *Service {
 	return &Service{usecase: usecase}
 }
 
-func (s *Service) ListRoutes(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListRoutesReply, error) {
-	items, err := s.usecase.List(ctx)
+func (s *Service) ListRoutes(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListRoutesReply, error) {
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListRoutesReply{Routes: make([]*adminv1.Route, 0, len(items))}
-	for i := range items {
-		reply.Routes = append(reply.Routes, newRouteReply(&items[i]))
+	reply := &adminv1.ListRoutesReply{Routes: make([]*adminv1.Route, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextToken)}
+	for i := range result.Items {
+		reply.Routes = append(reply.Routes, newRouteReply(&result.Items[i]))
 	}
 	return reply, nil
 }
@@ -57,7 +56,7 @@ func (s *Service) UpdateRoute(ctx context.Context, request *adminv1.UpdateRouteR
 	if err != nil {
 		return nil, err
 	}
-	if err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec); err != nil {
+	if err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec, request.Enabled != nil); err != nil {
 		return nil, err
 	}
 	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil

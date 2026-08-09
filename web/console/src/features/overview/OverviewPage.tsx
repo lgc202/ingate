@@ -4,7 +4,7 @@ import { listGateways } from '@/api/gateways';
 import { listUpstreams } from '@/api/upstreams';
 import { listCertificates } from '@/api/certificates';
 import { getPolicyWorkspace } from '@/api/policies';
-import { getConfigurationStatus } from '@/api/configuration';
+import { getConfigurationSummary } from '@/api/configuration';
 import { useResource } from '@/api/useResource';
 import { Badge, PageFrame, Panel, StatCard, StatusDot } from '@/components/ui';
 import {
@@ -30,7 +30,7 @@ export function OverviewPage() {
   const upstreams = useResource(listUpstreams);
   const certificates = useResource(listCertificates);
   const policies = useResource(getPolicyWorkspace);
-  const status = useResource(getConfigurationStatus);
+  const status = useResource(getConfigurationSummary);
 
   const gatewayList = gateways.data?.gateways ?? [];
   const upstreamList = upstreams.data?.upstreams ?? [];
@@ -55,11 +55,19 @@ export function OverviewPage() {
         {/* Top Operational Metrics Row */}
         <div className="grid grid-cols-4 gap-4">
           <StatCard
-            title="Envoy xDS 控制面"
-            value="Active"
-            subvalue="快照服务正常同步"
+            title="配置发布状态"
+            value={statusData
+              ? statusData.error > 0
+                ? '需处理'
+                : statusData.pending > 0
+                  ? '同步中'
+                  : '正常'
+              : '检查中'}
+            subvalue={statusData
+              ? `${statusData.ready}/${statusData.total} 项配置已生效`
+              : '正在获取配置状态'}
             icon={Activity}
-            trend="100% 就绪"
+            trend={statusData?.error ? `${statusData.error} 项异常` : undefined}
           />
           <StatCard
             title="已接入 AI 大模型"

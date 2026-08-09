@@ -21,13 +21,13 @@ func NewGatewayRepository(client clientset.Interface) *GatewayRepository {
 	return &GatewayRepository{client: client}
 }
 
-// List 查询 Gateway 列表
-func (r *GatewayRepository) List(ctx context.Context) ([]resource.Gateway, error) {
-	gateways, err := r.client.GatewayV1().Gateways().List(ctx, metav1.ListOptions{})
+// ListPage 分页查询 Gateway 列表
+func (r *GatewayRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Gateway], error) {
+	gateways, err := r.client.GatewayV1().Gateways().List(ctx, pageOptions(page))
 	if err != nil {
-		return nil, resourceError("list", "gateways", "", err)
+		return biz.PageResult[resource.Gateway]{}, pageError("gateways", err)
 	}
-	return gateways.Items, nil
+	return biz.PageResult[resource.Gateway]{Items: gateways.Items, NextToken: gateways.Continue}, nil
 }
 
 // Get 查询单个 Gateway

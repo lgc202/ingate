@@ -12,6 +12,7 @@ import {
   setTokenQuotaPolicyEnabled,
 } from '@/api/policies';
 import { useResource } from '@/api/useResource';
+import { useAuth } from '@/auth/AuthContext';
 import { Drawer, Modal, PageFrame, ResourceStatePanel, Toast } from '@/components/ui';
 import type { GovernancePolicy, GovernancePolicyKind, PolicyMutationResult } from '@/domain/policy';
 import {
@@ -43,6 +44,7 @@ type PolicyEditorState =
   | { type: 'tokenQuota'; draft: TokenQuotaPolicyDraft };
 
 export function PolicyPage() {
+  const { canWriteConfiguration } = useAuth();
   const workspace = useResource(getPolicyWorkspace);
   const [editor, setEditor] = useState<PolicyEditorState | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GovernancePolicy | null>(null);
@@ -159,7 +161,7 @@ export function PolicyPage() {
     <PageFrame
       title="治理策略"
       subtitle={`全量声明式治理策略（已挂载 ${allPolicies.length} 个配置规则）`}
-      actions={
+      actions={canWriteConfiguration ? (
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -183,7 +185,7 @@ export function PolicyPage() {
             + AI Token 配额
           </button>
         </div>
-      }
+      ) : undefined}
     >
       <div className="space-y-6 mt-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -191,6 +193,7 @@ export function PolicyPage() {
         <PolicyLibraryTable
           policies={allPolicies}
           targets={data.targets}
+          readOnly={!canWriteConfiguration}
           onEdit={(policy) => {
             if (policy.kind === 'RateLimitPolicy') {
               setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft(policy.raw) });

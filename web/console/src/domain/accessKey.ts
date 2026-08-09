@@ -2,6 +2,7 @@ export type AccessKeyStatus = 'active' | 'disabled' | 'expired';
 
 export interface AccessKey {
   id: string;
+  version: string;
   name: string;
   prefix: string;
   suffix: string;
@@ -20,6 +21,10 @@ export interface AccessKeyMutationPayload {
   name: string;
   allowedModels: string[];
   expiresAt?: string;
+}
+
+export interface AccessKeyUpdatePayload extends AccessKeyMutationPayload {
+  version: string;
 }
 
 export interface AccessKeyMutationResponse {

@@ -32,13 +32,14 @@ func (q *Queries) CountAccessKeysByName(ctx context.Context, arg *CountAccessKey
 
 const createAccessKey = `-- name: CreateAccessKey :exec
 INSERT INTO access_keys (
-    id, name, secret_hash, secret_prefix, secret_suffix, enabled,
+    id, version, name, secret_hash, secret_prefix, secret_suffix, enabled,
     allowed_models, expires_at, created_at, updated_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type CreateAccessKeyParams struct {
 	ID            string          `json:"id"`
+	Version       int64           `json:"version"`
 	Name          string          `json:"name"`
 	SecretHash    []byte          `json:"secret_hash"`
 	SecretPrefix  string          `json:"secret_prefix"`
@@ -53,6 +54,7 @@ type CreateAccessKeyParams struct {
 func (q *Queries) CreateAccessKey(ctx context.Context, arg *CreateAccessKeyParams) error {
 	_, err := q.db.ExecContext(ctx, createAccessKey,
 		arg.ID,
+		arg.Version,
 		arg.Name,
 		arg.SecretHash,
 		arg.SecretPrefix,
@@ -68,15 +70,20 @@ func (q *Queries) CreateAccessKey(ctx context.Context, arg *CreateAccessKeyParam
 
 const deleteAccessKey = `-- name: DeleteAccessKey :execresult
 DELETE FROM access_keys
-WHERE id = ?
+WHERE id = ? AND version = ?
 `
 
-func (q *Queries) DeleteAccessKey(ctx context.Context, id string) (sql.Result, error) {
-	return q.db.ExecContext(ctx, deleteAccessKey, id)
+type DeleteAccessKeyParams struct {
+	ID              string `json:"id"`
+	ExpectedVersion int64  `json:"expected_version"`
+}
+
+func (q *Queries) DeleteAccessKey(ctx context.Context, arg *DeleteAccessKeyParams) (sql.Result, error) {
+	return q.db.ExecContext(ctx, deleteAccessKey, arg.ID, arg.ExpectedVersion)
 }
 
 const getAccessKey = `-- name: GetAccessKey :one
-SELECT id, name, secret_hash, secret_prefix, secret_suffix, enabled,
+SELECT id, version, name, secret_hash, secret_prefix, secret_suffix, enabled,
        allowed_models, expires_at, created_at, updated_at
 FROM access_keys
 WHERE id = ?
@@ -87,6 +94,7 @@ func (q *Queries) GetAccessKey(ctx context.Context, id string) (*AccessKey, erro
 	var i AccessKey
 	err := row.Scan(
 		&i.ID,
+		&i.Version,
 		&i.Name,
 		&i.SecretHash,
 		&i.SecretPrefix,
@@ -101,7 +109,7 @@ func (q *Queries) GetAccessKey(ctx context.Context, id string) (*AccessKey, erro
 }
 
 const listAccessKeys = `-- name: ListAccessKeys :many
-SELECT id, name, secret_hash, secret_prefix, secret_suffix, enabled,
+SELECT id, version, name, secret_hash, secret_prefix, secret_suffix, enabled,
        allowed_models, expires_at, created_at, updated_at
 FROM access_keys
 ORDER BY created_at DESC, id
@@ -118,6 +126,106 @@ func (q *Queries) ListAccessKeys(ctx context.Context) ([]*AccessKey, error) {
 		var i AccessKey
 		if err := rows.Scan(
 			&i.ID,
+			&i.Version,
+			&i.Name,
+			&i.SecretHash,
+			&i.SecretPrefix,
+			&i.SecretSuffix,
+			&i.Enabled,
+			&i.AllowedModels,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccessKeysAfter = `-- name: ListAccessKeysAfter :many
+SELECT id, version, name, secret_hash, secret_prefix, secret_suffix, enabled,
+       allowed_models, expires_at, created_at, updated_at
+FROM access_keys
+WHERE created_at < ?
+   OR (created_at = ? AND id > ?)
+ORDER BY created_at DESC, id
+LIMIT ?
+`
+
+type ListAccessKeysAfterParams struct {
+	CursorCreatedAt time.Time `json:"cursor_created_at"`
+	CursorID        string    `json:"cursor_id"`
+	Limit           int32     `json:"limit"`
+}
+
+func (q *Queries) ListAccessKeysAfter(ctx context.Context, arg *ListAccessKeysAfterParams) ([]*AccessKey, error) {
+	rows, err := q.db.QueryContext(ctx, listAccessKeysAfter,
+		arg.CursorCreatedAt,
+		arg.CursorCreatedAt,
+		arg.CursorID,
+		arg.Limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*AccessKey{}
+	for rows.Next() {
+		var i AccessKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.Version,
+			&i.Name,
+			&i.SecretHash,
+			&i.SecretPrefix,
+			&i.SecretSuffix,
+			&i.Enabled,
+			&i.AllowedModels,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAccessKeysPage = `-- name: ListAccessKeysPage :many
+SELECT id, version, name, secret_hash, secret_prefix, secret_suffix, enabled,
+       allowed_models, expires_at, created_at, updated_at
+FROM access_keys
+ORDER BY created_at DESC, id
+LIMIT ?
+`
+
+func (q *Queries) ListAccessKeysPage(ctx context.Context, limit int32) ([]*AccessKey, error) {
+	rows, err := q.db.QueryContext(ctx, listAccessKeysPage, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*AccessKey{}
+	for rows.Next() {
+		var i AccessKey
+		if err := rows.Scan(
+			&i.ID,
+			&i.Version,
 			&i.Name,
 			&i.SecretHash,
 			&i.SecretPrefix,
@@ -143,16 +251,21 @@ func (q *Queries) ListAccessKeys(ctx context.Context) ([]*AccessKey, error) {
 
 const rotateAccessKey = `-- name: RotateAccessKey :execresult
 UPDATE access_keys
-SET secret_hash = ?, secret_prefix = ?, secret_suffix = ?, updated_at = ?
-WHERE id = ?
+SET version = version + 1,
+    secret_hash = ?,
+    secret_prefix = ?,
+    secret_suffix = ?,
+    updated_at = ?
+WHERE id = ? AND version = ?
 `
 
 type RotateAccessKeyParams struct {
-	SecretHash   []byte    `json:"secret_hash"`
-	SecretPrefix string    `json:"secret_prefix"`
-	SecretSuffix string    `json:"secret_suffix"`
-	UpdatedAt    time.Time `json:"updated_at"`
-	ID           string    `json:"id"`
+	SecretHash      []byte    `json:"secret_hash"`
+	SecretPrefix    string    `json:"secret_prefix"`
+	SecretSuffix    string    `json:"secret_suffix"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	ExpectedVersion int64     `json:"expected_version"`
 }
 
 func (q *Queries) RotateAccessKey(ctx context.Context, arg *RotateAccessKeyParams) (sql.Result, error) {
@@ -162,37 +275,51 @@ func (q *Queries) RotateAccessKey(ctx context.Context, arg *RotateAccessKeyParam
 		arg.SecretSuffix,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.ExpectedVersion,
 	)
 }
 
 const setAccessKeyEnabled = `-- name: SetAccessKeyEnabled :execresult
 UPDATE access_keys
-SET enabled = ?, updated_at = ?
-WHERE id = ?
+SET version = version + 1,
+    enabled = ?,
+    updated_at = ?
+WHERE id = ? AND version = ?
 `
 
 type SetAccessKeyEnabledParams struct {
-	Enabled   bool      `json:"enabled"`
-	UpdatedAt time.Time `json:"updated_at"`
-	ID        string    `json:"id"`
+	Enabled         bool      `json:"enabled"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	ID              string    `json:"id"`
+	ExpectedVersion int64     `json:"expected_version"`
 }
 
 func (q *Queries) SetAccessKeyEnabled(ctx context.Context, arg *SetAccessKeyEnabledParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, setAccessKeyEnabled, arg.Enabled, arg.UpdatedAt, arg.ID)
+	return q.db.ExecContext(ctx, setAccessKeyEnabled,
+		arg.Enabled,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.ExpectedVersion,
+	)
 }
 
 const updateAccessKey = `-- name: UpdateAccessKey :execresult
 UPDATE access_keys
-SET name = ?, allowed_models = ?, expires_at = ?, updated_at = ?
-WHERE id = ?
+SET version = version + 1,
+    name = ?,
+    allowed_models = ?,
+    expires_at = ?,
+    updated_at = ?
+WHERE id = ? AND version = ?
 `
 
 type UpdateAccessKeyParams struct {
-	Name          string          `json:"name"`
-	AllowedModels json.RawMessage `json:"allowed_models"`
-	ExpiresAt     sql.NullTime    `json:"expires_at"`
-	UpdatedAt     time.Time       `json:"updated_at"`
-	ID            string          `json:"id"`
+	Name            string          `json:"name"`
+	AllowedModels   json.RawMessage `json:"allowed_models"`
+	ExpiresAt       sql.NullTime    `json:"expires_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	ID              string          `json:"id"`
+	ExpectedVersion int64           `json:"expected_version"`
 }
 
 func (q *Queries) UpdateAccessKey(ctx context.Context, arg *UpdateAccessKeyParams) (sql.Result, error) {
@@ -202,5 +329,6 @@ func (q *Queries) UpdateAccessKey(ctx context.Context, arg *UpdateAccessKeyParam
 		arg.ExpiresAt,
 		arg.UpdatedAt,
 		arg.ID,
+		arg.ExpectedVersion,
 	)
 }

@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"google.golang.org/protobuf/types/known/emptypb"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	certificatebiz "github.com/lgc202/ingate/internal/adminapi/biz/certificate"
@@ -26,14 +24,14 @@ func NewService(usecase *certificatebiz.Usecase) *Service {
 	return &Service{usecase: usecase}
 }
 
-func (s *Service) ListCertificates(ctx context.Context, _ *emptypb.Empty) (*adminv1.ListCertificatesReply, error) {
-	items, err := s.usecase.List(ctx)
+func (s *Service) ListCertificates(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListCertificatesReply, error) {
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListCertificatesReply{Certificates: make([]*adminv1.Certificate, 0, len(items))}
-	for i := range items {
-		reply.Certificates = append(reply.Certificates, newCertificateReply(&items[i], false))
+	reply := &adminv1.ListCertificatesReply{Certificates: make([]*adminv1.Certificate, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextToken)}
+	for i := range result.Items {
+		reply.Certificates = append(reply.Certificates, newCertificateReply(&result.Items[i], false))
 	}
 	return reply, nil
 }

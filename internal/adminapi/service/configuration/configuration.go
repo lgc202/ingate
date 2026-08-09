@@ -21,20 +21,31 @@ func NewService(usecase *configurationbiz.Usecase) *Service {
 	return &Service{usecase: usecase}
 }
 
-func (s *Service) GetConfigurationStatus(ctx context.Context, _ *emptypb.Empty) (*adminv1.ConfigurationStatusReply, error) {
-	report, err := s.usecase.Get(ctx)
+func (s *Service) GetConfigurationSummary(ctx context.Context, _ *emptypb.Empty) (*adminv1.ConfigurationSummary, error) {
+	summary, err := s.usecase.GetSummary(ctx)
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ConfigurationStatusReply{
-		Summary: &adminv1.ConfigurationSummary{
-			Total: int32(report.Summary.Total), Ready: int32(report.Summary.Ready),
-			Pending: int32(report.Summary.Pending), Error: int32(report.Summary.Error),
-			Disabled: int32(report.Summary.Disabled),
-		},
-		Items: make([]*adminv1.ConfigurationItem, 0, len(report.Items)),
+	return &adminv1.ConfigurationSummary{
+		Total: int32(summary.Total), Ready: int32(summary.Ready),
+		Pending: int32(summary.Pending), Error: int32(summary.Error),
+		Disabled: int32(summary.Disabled),
+	}, nil
+}
+
+func (s *Service) ListConfigurationItems(
+	ctx context.Context,
+	request *adminv1.ListRequest,
+) (*adminv1.ListConfigurationItemsReply, error) {
+	result, err := s.usecase.ListItems(ctx, adminservice.PageRequest(request))
+	if err != nil {
+		return nil, err
 	}
-	for _, item := range report.Items {
+	reply := &adminv1.ListConfigurationItemsReply{
+		Items: make([]*adminv1.ConfigurationItem, 0, len(result.Items)),
+		Page:  adminservice.PageInfo(result.NextToken),
+	}
+	for _, item := range result.Items {
 		reply.Items = append(reply.Items, &adminv1.ConfigurationItem{
 			Kind: string(item.Kind), Id: item.ID, Name: item.Name, Status: adminservice.NewResourceStatus(item.Status),
 		})

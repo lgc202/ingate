@@ -15,7 +15,7 @@ import (
 
 // Repository 定义访问控制策略用例需要的持久化能力
 type Repository interface {
-	List(context.Context) ([]resource.AccessControlPolicy, error)
+	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.AccessControlPolicy], error)
 	Get(context.Context, string) (*resource.AccessControlPolicy, error)
 	Create(context.Context, string, resource.AccessControlPolicySpec) error
 	Update(context.Context, string, int64, resource.AccessControlPolicySpec) error
@@ -32,6 +32,7 @@ type Usecase struct {
 type ListResult struct {
 	Policies    []resource.AccessControlPolicy
 	TargetNames biz.PolicyTargetNames
+	NextToken   string
 }
 
 // Result 保存单个策略及其目标展示名称
@@ -43,23 +44,23 @@ type Result struct {
 // NewUsecase 创建访问控制策略用例
 func NewUsecase(
 	repository Repository,
-	gateways biz.GatewayLister,
-	routes biz.RouteLister,
+	gateways biz.GatewayGetter,
+	routes biz.RouteGetter,
 ) *Usecase {
 	return &Usecase{repository: repository, targets: biz.NewPolicyTargetResolver(gateways, routes)}
 }
 
 // List 查询 AccessControlPolicy 列表
-func (u *Usecase) List(ctx context.Context) (*ListResult, error) {
-	policies, err := u.repository.List(ctx)
+func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (*ListResult, error) {
+	result, err := u.repository.ListPage(ctx, page)
 	if err != nil {
 		return nil, err
 	}
-	targetNames, err := u.targets.DisplayNames(ctx, accessControlPolicyTargetRefs(policies))
+	targetNames, err := u.targets.DisplayNames(ctx, accessControlPolicyTargetRefs(result.Items))
 	if err != nil {
 		return nil, err
 	}
-	return &ListResult{Policies: policies, TargetNames: targetNames}, nil
+	return &ListResult{Policies: result.Items, TargetNames: targetNames, NextToken: result.NextToken}, nil
 }
 
 // Get 查询单个 AccessControlPolicy
@@ -77,15 +78,12 @@ func (u *Usecase) Get(ctx context.Context, policyID string) (*Result, error) {
 
 // Create 创建 AccessControlPolicy
 func (u *Usecase) Create(ctx context.Context, spec resource.AccessControlPolicySpec) (string, error) {
-	if err := u.validateNameUnique(ctx, spec.DisplayName, ""); err != nil {
-		return "", err
-	}
 	if err := u.targets.Validate(ctx, spec.TargetRefs); err != nil {
 		return "", err
 	}
 	id := uuid.NewString()
 	if err := u.repository.Create(ctx, id, spec); err != nil {
-		return "", err
+		return "", biz.DisplayNameConflict(err, "访问控制策略", spec.DisplayName)
 	}
 	return id, nil
 }
@@ -99,9 +97,6 @@ func (u *Usecase) Update(ctx context.Context, policyID, version string, spec res
 	if version != strconv.FormatInt(current.Generation, 10) {
 		return biz.NewUserError(fmt.Sprintf("访问控制策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 	}
-	if err := u.validateNameUnique(ctx, spec.DisplayName, policyID); err != nil {
-		return err
-	}
 	if err := u.targets.Validate(ctx, spec.TargetRefs); err != nil {
 		return err
 	}
@@ -109,7 +104,7 @@ func (u *Usecase) Update(ctx context.Context, policyID, version string, spec res
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return biz.NewUserError(fmt.Sprintf("访问控制策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
 		}
-		return err
+		return biz.DisplayNameConflict(err, "访问控制策略", spec.DisplayName)
 	}
 	return nil
 }
@@ -134,22 +129,6 @@ func (u *Usecase) SetEnabled(ctx context.Context, policyID string, enabled bool)
 // Delete 删除 AccessControlPolicy
 func (u *Usecase) Delete(ctx context.Context, policyID string) error {
 	return u.repository.Delete(ctx, policyID)
-}
-
-func (u *Usecase) validateNameUnique(ctx context.Context, name, excludeID string) error {
-	policies, err := u.repository.List(ctx)
-	if err != nil {
-		return err
-	}
-	for _, current := range policies {
-		if current.Name == excludeID {
-			continue
-		}
-		if current.Spec.DisplayName == name {
-			return biz.NewUserError(fmt.Sprintf("访问控制策略名称 %q 已存在", name))
-		}
-	}
-	return nil
 }
 
 func accessControlPolicyTargetRefs(policies []resource.AccessControlPolicy) []resource.PolicyTargetRef {

@@ -5,14 +5,13 @@ package ingate.admin.v1;
 import "admin/v1/common.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
-import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
 // RouteService 提供路由规则管理接口
 service RouteService {
-  rpc ListRoutes(google.protobuf.Empty) returns (ListRoutesReply) {
+  rpc ListRoutes(ListRequest) returns (ListRoutesReply) {
     option (google.api.http) = {get: "/api/v1/routes"};
   }
   rpc GetRoute(ResourceRequest) returns (Route) {
@@ -137,4 +136,5 @@ message UpdateRouteRequest {
 
 message ListRoutesReply {
   repeated Route routes = 1;
+  PageInfo page = 2;
 }
