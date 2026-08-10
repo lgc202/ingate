@@ -47,9 +47,9 @@ OpenAI Client
 ```
 
 - 对外只处理 OpenAI-compatible `POST /v1/chat/completions`，客户端不需要感知不同厂商的请求路径、认证 Header 和响应事件格式
-- 模型服务仍使用 `Upstream(type=model)`；`protocol` 表达 OpenAI、Anthropic 或 Gemini 通信语义，`spec.model.provider` 表达厂商，`spec.model.models[]` 保存用户手工维护的可用模型目录
+- 模型服务仍使用 `Upstream(type=Model)`；`spec.model.provider` 同时表达厂商并推导 OpenAI、Anthropic 或 Gemini 通信语义，`spec.model.models[]` 保存用户手工维护的可用模型目录
 - 模型服务通过 `tls.serverName` 启用 HTTPS、SNI 和系统 CA 根证书包校验
-- 模型服务的 API Key 直接随 `Upstream` 配置，不再创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略密钥会保留原值，显式移除才会清除；配置 API Key 时必须使用 HTTPS
+- 模型服务的 API Key 直接保存在 `Upstream.spec.model.apiKey`，不再创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略密钥会保留原值，显式空字符串会清除；配置 API Key 时必须使用 HTTPS
 - 一条模型 Route 的 `modelRouting.models[]` 中，每个公开模型别名独立引用模型 Upstream 和厂商模型；同一路由可以按请求体 `model` 跨厂商选择目标
 - Envoy Config Compiler 把每条模型路由的 Cluster、上游 Host、协议、凭据和模型映射写入 ExtProc per-route 配置
 - `ingate-ai-proxy` 认证客户端访问密钥并校验公开模型权限；密钥索引从 MySQL 发布到 Redis，请求链路不访问 MySQL

@@ -3,6 +3,7 @@ package upstream
 import (
 	"net/url"
 	"path"
+	"slices"
 	"strings"
 
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
@@ -13,43 +14,33 @@ func ValidModel(upstream *resource.Upstream) bool {
 	if upstream.Spec.Type != resource.UpstreamTypeModel || upstream.Spec.Model == nil {
 		return false
 	}
-	providerProtocol, ok := upstream.Spec.Model.Provider.Protocol()
-	if !ok ||
-		upstream.Spec.Protocol != providerProtocol ||
-		!validAPIBasePath(upstream.Spec.Model.APIBasePath) ||
-		len(upstream.Spec.Model.Models) == 0 {
+	modelSpec := upstream.Spec.Model
+	if _, ok := modelSpec.Provider.Protocol(); !ok || !validBasePath(modelSpec.BasePath) || len(modelSpec.Models) == 0 {
+		return false
+	}
+	if modelSpec.APIKey != "" && upstream.Spec.TLS == nil {
 		return false
 	}
 
-	enabledModels := 0
-	modelNames := make(map[string]struct{}, len(upstream.Spec.Model.Models))
-	for _, model := range upstream.Spec.Model.Models {
-		if model.Name == "" || strings.TrimSpace(model.Name) != model.Name ||
-			model.DisplayName == "" || strings.TrimSpace(model.DisplayName) != model.DisplayName {
-			return false
-		}
-		if _, exists := modelNames[model.Name]; exists {
-			return false
-		}
-		modelNames[model.Name] = struct{}{}
-		if model.Enabled {
-			enabledModels++
-		}
-	}
-	return enabledModels > 0
-}
-
-// ModelEnabled 判断厂商模型是否仍允许被路由引用
-func ModelEnabled(modelSpec *resource.ModelSpec, name string) bool {
+	seen := make(map[string]struct{}, len(modelSpec.Models))
 	for _, model := range modelSpec.Models {
-		if model.Name == name {
-			return model.Enabled
+		if model == "" || strings.TrimSpace(model) != model {
+			return false
 		}
+		if _, exists := seen[model]; exists {
+			return false
+		}
+		seen[model] = struct{}{}
 	}
-	return false
+	return true
 }
 
-func validAPIBasePath(value string) bool {
+// HasModel 判断模型目录是否包含指定厂商模型
+func HasModel(modelSpec *resource.ModelSpec, name string) bool {
+	return modelSpec != nil && slices.Contains(modelSpec.Models, name)
+}
+
+func validBasePath(value string) bool {
 	if value == "" || strings.TrimSpace(value) != value || !strings.HasPrefix(value, "/") {
 		return false
 	}

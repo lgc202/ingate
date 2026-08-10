@@ -1,8 +1,9 @@
 package v1
 
 import (
-	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
 // UpstreamType 表示 Upstream 的业务分类
@@ -10,27 +11,13 @@ type UpstreamType string
 
 const (
 	// UpstreamTypeApplication 表示普通应用服务
-	UpstreamTypeApplication UpstreamType = "application"
+	UpstreamTypeApplication UpstreamType = "Application"
 	// UpstreamTypeModel 表示模型服务
-	UpstreamTypeModel UpstreamType = "model"
+	UpstreamTypeModel UpstreamType = "Model"
 	// UpstreamTypeAgent 表示 Agent 服务
-	UpstreamTypeAgent UpstreamType = "agent"
+	UpstreamTypeAgent UpstreamType = "Agent"
 	// UpstreamTypeMCP 表示 MCP 服务
-	UpstreamTypeMCP UpstreamType = "mcp"
-)
-
-// UpstreamProtocol 表示 Ingate 与 Upstream 之间使用的应用协议
-type UpstreamProtocol string
-
-const (
-	// UpstreamProtocolHTTP 表示普通 HTTP 服务
-	UpstreamProtocolHTTP UpstreamProtocol = "HTTP"
-	// UpstreamProtocolOpenAI 表示兼容 OpenAI API 的模型服务
-	UpstreamProtocolOpenAI UpstreamProtocol = "OpenAI"
-	// UpstreamProtocolAnthropic 表示使用 Anthropic 原生消息协议的模型服务
-	UpstreamProtocolAnthropic UpstreamProtocol = "Anthropic"
-	// UpstreamProtocolGemini 表示使用 Gemini 原生生成内容协议的模型服务
-	UpstreamProtocolGemini UpstreamProtocol = "Gemini"
+	UpstreamTypeMCP UpstreamType = "MCP"
 )
 
 // ModelProvider 表示模型服务所属的厂商或兼容实现
@@ -38,40 +25,45 @@ type ModelProvider string
 
 const (
 	// ModelProviderOpenAI 表示 OpenAI 官方服务
-	ModelProviderOpenAI ModelProvider = "openai"
+	ModelProviderOpenAI ModelProvider = "OpenAI"
 	// ModelProviderDeepSeek 表示 DeepSeek 官方服务
-	ModelProviderDeepSeek ModelProvider = "deepseek"
+	ModelProviderDeepSeek ModelProvider = "DeepSeek"
 	// ModelProviderQwen 表示通义千问兼容模式服务
-	ModelProviderQwen ModelProvider = "qwen"
+	ModelProviderQwen ModelProvider = "Qwen"
 	// ModelProviderAnthropic 表示 Anthropic 官方服务
-	ModelProviderAnthropic ModelProvider = "anthropic"
+	ModelProviderAnthropic ModelProvider = "Anthropic"
 	// ModelProviderGemini 表示 Gemini 官方服务
-	ModelProviderGemini ModelProvider = "gemini"
+	ModelProviderGemini ModelProvider = "Gemini"
 	// ModelProviderCustom 表示自定义 OpenAI-compatible 服务
-	ModelProviderCustom ModelProvider = "custom"
+	ModelProviderCustom ModelProvider = "Custom"
 )
 
-// Protocol 返回模型厂商预设对应的通信协议，仅用于校验资源组合
-func (p ModelProvider) Protocol() (UpstreamProtocol, bool) {
-	protocol, ok := resource.ModelProvider(p).Protocol()
-	return UpstreamProtocol(protocol), ok
-}
-
-// IsSupported 判断协议是否为 Ingate 支持的 Upstream 通信协议
-func (p UpstreamProtocol) IsSupported() bool {
-	return resource.UpstreamProtocol(p).IsSupported()
-}
-
-// UpstreamLoadBalancePolicy 表示 Upstream 的负载均衡策略
-type UpstreamLoadBalancePolicy string
+// ModelProtocol 表示模型厂商使用的请求协议
+type ModelProtocol string
 
 const (
-	// UpstreamLoadBalancePolicyRoundRobin 表示轮询
-	UpstreamLoadBalancePolicyRoundRobin UpstreamLoadBalancePolicy = "round_robin"
-	// UpstreamLoadBalancePolicyLeastRequest 表示最少请求
-	UpstreamLoadBalancePolicyLeastRequest UpstreamLoadBalancePolicy = "least_request"
-	// UpstreamLoadBalancePolicyRandom 表示随机
-	UpstreamLoadBalancePolicyRandom UpstreamLoadBalancePolicy = "random"
+	// ModelProtocolOpenAI 表示 OpenAI-compatible 协议
+	ModelProtocolOpenAI ModelProtocol = "OpenAI"
+	// ModelProtocolAnthropic 表示 Anthropic 原生消息协议
+	ModelProtocolAnthropic ModelProtocol = "Anthropic"
+	// ModelProtocolGemini 表示 Gemini 原生生成内容协议
+	ModelProtocolGemini ModelProtocol = "Gemini"
+)
+
+// Protocol 返回模型厂商对应的请求协议
+func (p ModelProvider) Protocol() (ModelProtocol, bool) {
+	protocol, ok := resource.ModelProvider(p).Protocol()
+	return ModelProtocol(protocol), ok
+}
+
+// LoadBalancingPolicy 表示 Upstream 端点的负载均衡策略
+type LoadBalancingPolicy string
+
+const (
+	// LoadBalancingRoundRobin 表示轮询
+	LoadBalancingRoundRobin LoadBalancingPolicy = "RoundRobin"
+	// LoadBalancingLeastRequest 表示最少请求
+	LoadBalancingLeastRequest LoadBalancingPolicy = "LeastRequest"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -96,82 +88,55 @@ type UpstreamList struct {
 	Items []Upstream `json:"items"`
 }
 
-// UpstreamSpec 定义 Upstream 的展示信息、流量策略和端点集合
+// UpstreamSpec 定义 Upstream 的业务分类、连接方式和端点集合
 type UpstreamSpec struct {
-	// DisplayName 保存控制台展示名称，不参与引用匹配
+	// DisplayName 保存控制台展示名称，不参与资源引用
 	DisplayName string `json:"displayName,omitempty"`
-	// Type 保存 Upstream 的业务分类，用于区分普通服务、模型服务和 Agent/MCP 服务
-	Type UpstreamType `json:"type,omitempty"`
-	// Protocol 描述 Ingate 与 Upstream 之间实际使用的应用协议
-	Protocol UpstreamProtocol `json:"protocol,omitempty"`
-	// TLS 描述访问 Upstream 时的 TLS 配置，未配置时使用明文连接
-	TLS *UpstreamTLS `json:"tls,omitempty"`
-	// Authentication 描述 Ingate 访问 Upstream 时使用的认证信息
-	Authentication *UpstreamAuthentication `json:"authentication,omitempty"`
-	// Model 描述模型厂商、API 基础路径和可供路由选择的模型目录
-	Model *ModelSpec `json:"model,omitempty"`
-	// LoadBalancePolicy 指定多个端点之间的负载均衡策略
-	LoadBalancePolicy UpstreamLoadBalancePolicy `json:"loadBalancePolicy,omitempty"`
-	// HealthCheck 描述 Upstream 端点的主动健康检查配置
-	HealthCheck *UpstreamHealthCheck `json:"healthCheck,omitempty"`
+	// Type 用于区分普通应用、模型、MCP 和 Agent 服务
+	Type UpstreamType `json:"type"`
+	// Endpoints 是当前服务可接收流量的网络端点
 	// +listType=atomic
 	Endpoints []Endpoint `json:"endpoints"`
+	// TLS 描述访问 Upstream 时的服务端身份校验，未配置时使用明文 HTTP
+	TLS *UpstreamTLS `json:"tls,omitempty"`
+	// LoadBalancing 指定多个端点之间的负载均衡策略
+	LoadBalancing LoadBalancingPolicy `json:"loadBalancing,omitempty"`
+	// HealthCheck 描述可选的 HTTP 主动健康检查，对象存在即启用
+	HealthCheck *UpstreamHealthCheck `json:"healthCheck,omitempty"`
+	// Model 只用于模型服务，保存厂商协议参数、模型目录和 API Key
+	Model *ModelSpec `json:"model,omitempty"`
 }
 
-// ModelSpec 定义模型服务的厂商协议参数和模型目录
-type ModelSpec struct {
-	// Provider 表示模型厂商或 OpenAI-compatible 实现类型，仅用于产品预设和协议组合校验
-	Provider ModelProvider `json:"provider"`
-	// APIBasePath 是追加到模型端点后的厂商 API 基础路径
-	APIBasePath string `json:"apiBasePath"`
-	// +listType=atomic
-	Models []ModelCatalogItem `json:"models"`
+// Endpoint 表示 Upstream 的一个网络地址及其相对容量
+type Endpoint struct {
+	Address string `json:"address"`
+	Port    int    `json:"port"`
+	// Weight 默认为 1，多个端点之间按相对权重分配流量
+	Weight int `json:"weight,omitempty"`
 }
 
-// ModelCatalogItem 表示模型服务对路由开放的一个厂商模型
-type ModelCatalogItem struct {
-	// Name 是发送给厂商 API 的模型名称，也是路由引用键
-	Name string `json:"name"`
-	// DisplayName 是控制台展示名称
-	DisplayName string `json:"displayName"`
-	// Enabled 控制该模型是否允许被模型路由引用
-	Enabled bool `json:"enabled"`
-}
-
-// UpstreamAuthentication 声明访问 Upstream 时使用的认证配置
-type UpstreamAuthentication struct {
-	// APIKey 保存静态 API Key 认证信息
-	APIKey *APIKeyAuthentication `json:"apiKey,omitempty"`
-}
-
-// APIKeyAuthentication 保存静态 API Key
-type APIKeyAuthentication struct {
-	// Value 保存发送给 Upstream 的完整 API Key
-	Value string `json:"value"`
-}
-
-// UpstreamTLS 声明访问 Upstream 时使用系统 CA 根证书包校验的 TLS 配置
+// UpstreamTLS 声明使用系统 CA 根证书包校验上游证书
 type UpstreamTLS struct {
 	// ServerName 用于 TLS SNI 和服务端证书身份校验
 	ServerName string `json:"serverName"`
 }
 
-// Endpoint 声明一个上游端点
-type Endpoint struct {
-	// Name 是端点在 Upstream 内的稳定标识
-	Name    string `json:"name,omitempty"`
-	Address string `json:"address"`
-	Port    int    `json:"port"`
-	// Weight 是端点参与负载均衡时的相对权重，取值范围为 1-100
-	Weight int `json:"weight,omitempty"`
-	// Enabled 控制端点是否参与运行时配置生成
-	Enabled bool `json:"enabled"`
-}
-
-// UpstreamHealthCheck 声明 Upstream 的主动健康检查配置
+// UpstreamHealthCheck 声明 Upstream 的 HTTP 主动健康检查
 type UpstreamHealthCheck struct {
-	Enabled         bool   `json:"enabled"`
-	Path            string `json:"path,omitempty"`
+	Path            string `json:"path"`
 	IntervalSeconds int    `json:"intervalSeconds,omitempty"`
 	TimeoutSeconds  int    `json:"timeoutSeconds,omitempty"`
+}
+
+// ModelSpec 定义模型服务的厂商、API 路径、模型目录和访问密钥
+type ModelSpec struct {
+	// Provider 决定模型请求协议及认证 Header 规则
+	Provider ModelProvider `json:"provider"`
+	// BasePath 是追加到模型端点后的厂商 API 基础路径
+	BasePath string `json:"basePath"`
+	// Models 保存允许 Route 引用的厂商模型名称
+	// +listType=atomic
+	Models []string `json:"models"`
+	// APIKey 保存发送给模型服务的完整 API Key
+	APIKey string `json:"apiKey,omitempty"`
 }

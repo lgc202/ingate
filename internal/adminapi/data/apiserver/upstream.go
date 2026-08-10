@@ -37,18 +37,24 @@ func (r *UpstreamRepository) Get(ctx context.Context, name string) (*resource.Up
 }
 
 // Create 创建 Upstream
-func (r *UpstreamRepository) Create(ctx context.Context, id string, spec resource.UpstreamSpec) error {
+func (r *UpstreamRepository) Create(ctx context.Context, id string, spec resource.UpstreamSpec) (*resource.Upstream, error) {
 	upstream := &resource.Upstream{
 		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindUpstream)},
 		ObjectMeta: metav1.ObjectMeta{Name: id},
 		Spec:       spec,
 	}
-	_, err := r.client.GatewayV1().Upstreams().Create(ctx, upstream, metav1.CreateOptions{})
-	return resourceError("create", "upstream", id, err)
+	created, err := r.client.GatewayV1().Upstreams().Create(ctx, upstream, metav1.CreateOptions{})
+	return created, resourceError("create", "upstream", id, err)
 }
 
 // Update 更新 Upstream，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
-func (r *UpstreamRepository) Update(ctx context.Context, id string, generation int64, spec resource.UpstreamSpec) error {
+func (r *UpstreamRepository) Update(
+	ctx context.Context,
+	id string,
+	generation int64,
+	spec resource.UpstreamSpec,
+) (*resource.Upstream, error) {
+	var updated *resource.Upstream
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current, err := r.client.GatewayV1().Upstreams().Get(ctx, id, metav1.GetOptions{})
 		if err != nil {
@@ -58,14 +64,26 @@ func (r *UpstreamRepository) Update(ctx context.Context, id string, generation i
 			return biz.ErrResourceVersionConflict
 		}
 		current.Spec = spec
-		_, err = r.client.GatewayV1().Upstreams().Update(ctx, current, metav1.UpdateOptions{})
+		updated, err = r.client.GatewayV1().Upstreams().Update(ctx, current, metav1.UpdateOptions{})
 		return err
 	})
-	return resourceError("update", "upstream", id, err)
+	return updated, resourceError("update", "upstream", id, err)
 }
 
 // Delete 删除 Upstream
-func (r *UpstreamRepository) Delete(ctx context.Context, name string) error {
-	err := r.client.GatewayV1().Upstreams().Delete(ctx, name, metav1.DeleteOptions{})
-	return resourceError("delete", "upstream", name, err)
+func (r *UpstreamRepository) Delete(ctx context.Context, id string, generation int64) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := r.client.GatewayV1().Upstreams().Get(ctx, id, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if current.Generation != generation {
+			return biz.ErrResourceVersionConflict
+		}
+		resourceVersion := current.ResourceVersion
+		return r.client.GatewayV1().Upstreams().Delete(ctx, id, metav1.DeleteOptions{
+			Preconditions: &metav1.Preconditions{ResourceVersion: &resourceVersion},
+		})
+	})
+	return resourceError("delete", "upstream", id, err)
 }

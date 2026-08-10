@@ -11,6 +11,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -24,48 +25,169 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type APIKeyConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+type UpstreamType int32
 
-func (x *APIKeyConfig) Reset() {
-	*x = APIKeyConfig{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
+const (
+	UpstreamType_UPSTREAM_TYPE_UNSPECIFIED UpstreamType = 0
+	UpstreamType_UPSTREAM_TYPE_APPLICATION UpstreamType = 1
+	UpstreamType_UPSTREAM_TYPE_MODEL       UpstreamType = 2
+	UpstreamType_UPSTREAM_TYPE_AGENT       UpstreamType = 3
+	UpstreamType_UPSTREAM_TYPE_MCP         UpstreamType = 4
+)
 
-func (x *APIKeyConfig) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*APIKeyConfig) ProtoMessage() {}
-
-func (x *APIKeyConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+// Enum value maps for UpstreamType.
+var (
+	UpstreamType_name = map[int32]string{
+		0: "UPSTREAM_TYPE_UNSPECIFIED",
+		1: "UPSTREAM_TYPE_APPLICATION",
+		2: "UPSTREAM_TYPE_MODEL",
+		3: "UPSTREAM_TYPE_AGENT",
+		4: "UPSTREAM_TYPE_MCP",
 	}
-	return mi.MessageOf(x)
+	UpstreamType_value = map[string]int32{
+		"UPSTREAM_TYPE_UNSPECIFIED": 0,
+		"UPSTREAM_TYPE_APPLICATION": 1,
+		"UPSTREAM_TYPE_MODEL":       2,
+		"UPSTREAM_TYPE_AGENT":       3,
+		"UPSTREAM_TYPE_MCP":         4,
+	}
+)
+
+func (x UpstreamType) Enum() *UpstreamType {
+	p := new(UpstreamType)
+	*p = x
+	return p
 }
 
-// Deprecated: Use APIKeyConfig.ProtoReflect.Descriptor instead.
-func (*APIKeyConfig) Descriptor() ([]byte, []int) {
+func (x UpstreamType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (UpstreamType) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_upstream_proto_enumTypes[0].Descriptor()
+}
+
+func (UpstreamType) Type() protoreflect.EnumType {
+	return &file_admin_v1_upstream_proto_enumTypes[0]
+}
+
+func (x UpstreamType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use UpstreamType.Descriptor instead.
+func (UpstreamType) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *APIKeyConfig) GetValue() string {
-	if x != nil {
-		return x.Value
+type ModelProvider int32
+
+const (
+	ModelProvider_MODEL_PROVIDER_UNSPECIFIED ModelProvider = 0
+	ModelProvider_MODEL_PROVIDER_OPENAI      ModelProvider = 1
+	ModelProvider_MODEL_PROVIDER_DEEPSEEK    ModelProvider = 2
+	ModelProvider_MODEL_PROVIDER_QWEN        ModelProvider = 3
+	ModelProvider_MODEL_PROVIDER_ANTHROPIC   ModelProvider = 4
+	ModelProvider_MODEL_PROVIDER_GEMINI      ModelProvider = 5
+	ModelProvider_MODEL_PROVIDER_CUSTOM      ModelProvider = 6
+)
+
+// Enum value maps for ModelProvider.
+var (
+	ModelProvider_name = map[int32]string{
+		0: "MODEL_PROVIDER_UNSPECIFIED",
+		1: "MODEL_PROVIDER_OPENAI",
+		2: "MODEL_PROVIDER_DEEPSEEK",
+		3: "MODEL_PROVIDER_QWEN",
+		4: "MODEL_PROVIDER_ANTHROPIC",
+		5: "MODEL_PROVIDER_GEMINI",
+		6: "MODEL_PROVIDER_CUSTOM",
 	}
-	return ""
+	ModelProvider_value = map[string]int32{
+		"MODEL_PROVIDER_UNSPECIFIED": 0,
+		"MODEL_PROVIDER_OPENAI":      1,
+		"MODEL_PROVIDER_DEEPSEEK":    2,
+		"MODEL_PROVIDER_QWEN":        3,
+		"MODEL_PROVIDER_ANTHROPIC":   4,
+		"MODEL_PROVIDER_GEMINI":      5,
+		"MODEL_PROVIDER_CUSTOM":      6,
+	}
+)
+
+func (x ModelProvider) Enum() *ModelProvider {
+	p := new(ModelProvider)
+	*p = x
+	return p
+}
+
+func (x ModelProvider) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ModelProvider) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_upstream_proto_enumTypes[1].Descriptor()
+}
+
+func (ModelProvider) Type() protoreflect.EnumType {
+	return &file_admin_v1_upstream_proto_enumTypes[1]
+}
+
+func (x ModelProvider) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ModelProvider.Descriptor instead.
+func (ModelProvider) EnumDescriptor() ([]byte, []int) {
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{1}
+}
+
+type LoadBalancingPolicy int32
+
+const (
+	LoadBalancingPolicy_LOAD_BALANCING_POLICY_UNSPECIFIED   LoadBalancingPolicy = 0
+	LoadBalancingPolicy_LOAD_BALANCING_POLICY_ROUND_ROBIN   LoadBalancingPolicy = 1
+	LoadBalancingPolicy_LOAD_BALANCING_POLICY_LEAST_REQUEST LoadBalancingPolicy = 2
+)
+
+// Enum value maps for LoadBalancingPolicy.
+var (
+	LoadBalancingPolicy_name = map[int32]string{
+		0: "LOAD_BALANCING_POLICY_UNSPECIFIED",
+		1: "LOAD_BALANCING_POLICY_ROUND_ROBIN",
+		2: "LOAD_BALANCING_POLICY_LEAST_REQUEST",
+	}
+	LoadBalancingPolicy_value = map[string]int32{
+		"LOAD_BALANCING_POLICY_UNSPECIFIED":   0,
+		"LOAD_BALANCING_POLICY_ROUND_ROBIN":   1,
+		"LOAD_BALANCING_POLICY_LEAST_REQUEST": 2,
+	}
+)
+
+func (x LoadBalancingPolicy) Enum() *LoadBalancingPolicy {
+	p := new(LoadBalancingPolicy)
+	*p = x
+	return p
+}
+
+func (x LoadBalancingPolicy) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (LoadBalancingPolicy) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_upstream_proto_enumTypes[2].Descriptor()
+}
+
+func (LoadBalancingPolicy) Type() protoreflect.EnumType {
+	return &file_admin_v1_upstream_proto_enumTypes[2]
+}
+
+func (x LoadBalancingPolicy) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use LoadBalancingPolicy.Descriptor instead.
+func (LoadBalancingPolicy) EnumDescriptor() ([]byte, []int) {
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{2}
 }
 
 type UpstreamTLS struct {
@@ -77,7 +199,7 @@ type UpstreamTLS struct {
 
 func (x *UpstreamTLS) Reset() {
 	*x = UpstreamTLS{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[1]
+	mi := &file_admin_v1_upstream_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -89,7 +211,7 @@ func (x *UpstreamTLS) String() string {
 func (*UpstreamTLS) ProtoMessage() {}
 
 func (x *UpstreamTLS) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[1]
+	mi := &file_admin_v1_upstream_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -102,7 +224,7 @@ func (x *UpstreamTLS) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamTLS.ProtoReflect.Descriptor instead.
 func (*UpstreamTLS) Descriptor() ([]byte, []int) {
-	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{1}
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *UpstreamTLS) GetServerName() string {
@@ -112,78 +234,18 @@ func (x *UpstreamTLS) GetServerName() string {
 	return ""
 }
 
-type ModelCatalogItem struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,2,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Enabled       bool                   `protobuf:"varint,3,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ModelCatalogItem) Reset() {
-	*x = ModelCatalogItem{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ModelCatalogItem) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ModelCatalogItem) ProtoMessage() {}
-
-func (x *ModelCatalogItem) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ModelCatalogItem.ProtoReflect.Descriptor instead.
-func (*ModelCatalogItem) Descriptor() ([]byte, []int) {
-	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *ModelCatalogItem) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *ModelCatalogItem) GetDisplayName() string {
-	if x != nil {
-		return x.DisplayName
-	}
-	return ""
-}
-
-func (x *ModelCatalogItem) GetEnabled() bool {
-	if x != nil {
-		return x.Enabled
-	}
-	return false
-}
-
 type ModelConfig struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Provider      string                 `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
-	ApiBasePath   string                 `protobuf:"bytes,2,opt,name=api_base_path,json=apiBasePath,proto3" json:"api_base_path,omitempty"`
-	Models        []*ModelCatalogItem    `protobuf:"bytes,3,rep,name=models,proto3" json:"models,omitempty"`
+	Provider      ModelProvider          `protobuf:"varint,1,opt,name=provider,proto3,enum=ingate.admin.v1.ModelProvider" json:"provider,omitempty"`
+	BasePath      string                 `protobuf:"bytes,2,opt,name=base_path,json=basePath,proto3" json:"base_path,omitempty"`
+	Models        []string               `protobuf:"bytes,3,rep,name=models,proto3" json:"models,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ModelConfig) Reset() {
 	*x = ModelConfig{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[3]
+	mi := &file_admin_v1_upstream_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -195,7 +257,7 @@ func (x *ModelConfig) String() string {
 func (*ModelConfig) ProtoMessage() {}
 
 func (x *ModelConfig) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[3]
+	mi := &file_admin_v1_upstream_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -208,24 +270,24 @@ func (x *ModelConfig) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelConfig.ProtoReflect.Descriptor instead.
 func (*ModelConfig) Descriptor() ([]byte, []int) {
-	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{3}
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *ModelConfig) GetProvider() string {
+func (x *ModelConfig) GetProvider() ModelProvider {
 	if x != nil {
 		return x.Provider
 	}
-	return ""
+	return ModelProvider_MODEL_PROVIDER_UNSPECIFIED
 }
 
-func (x *ModelConfig) GetApiBasePath() string {
+func (x *ModelConfig) GetBasePath() string {
 	if x != nil {
-		return x.ApiBasePath
+		return x.BasePath
 	}
 	return ""
 }
 
-func (x *ModelConfig) GetModels() []*ModelCatalogItem {
+func (x *ModelConfig) GetModels() []string {
 	if x != nil {
 		return x.Models
 	}
@@ -234,18 +296,16 @@ func (x *ModelConfig) GetModels() []*ModelCatalogItem {
 
 type UpstreamEndpoint struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Address       string                 `protobuf:"bytes,2,opt,name=address,proto3" json:"address,omitempty"`
-	Port          int32                  `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
-	Weight        int32                  `protobuf:"varint,4,opt,name=weight,proto3" json:"weight,omitempty"`
-	Enabled       bool                   `protobuf:"varint,5,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	Port          uint32                 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	Weight        uint32                 `protobuf:"varint,3,opt,name=weight,proto3" json:"weight,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpstreamEndpoint) Reset() {
 	*x = UpstreamEndpoint{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[4]
+	mi := &file_admin_v1_upstream_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -257,7 +317,7 @@ func (x *UpstreamEndpoint) String() string {
 func (*UpstreamEndpoint) ProtoMessage() {}
 
 func (x *UpstreamEndpoint) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[4]
+	mi := &file_admin_v1_upstream_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -270,14 +330,7 @@ func (x *UpstreamEndpoint) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamEndpoint.ProtoReflect.Descriptor instead.
 func (*UpstreamEndpoint) Descriptor() ([]byte, []int) {
-	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *UpstreamEndpoint) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *UpstreamEndpoint) GetAddress() string {
@@ -287,40 +340,32 @@ func (x *UpstreamEndpoint) GetAddress() string {
 	return ""
 }
 
-func (x *UpstreamEndpoint) GetPort() int32 {
+func (x *UpstreamEndpoint) GetPort() uint32 {
 	if x != nil {
 		return x.Port
 	}
 	return 0
 }
 
-func (x *UpstreamEndpoint) GetWeight() int32 {
+func (x *UpstreamEndpoint) GetWeight() uint32 {
 	if x != nil {
 		return x.Weight
 	}
 	return 0
 }
 
-func (x *UpstreamEndpoint) GetEnabled() bool {
-	if x != nil {
-		return x.Enabled
-	}
-	return false
-}
-
 type UpstreamHealthCheck struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
-	Enabled         bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	Path            string                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
-	IntervalSeconds int32                  `protobuf:"varint,3,opt,name=interval_seconds,json=intervalSeconds,proto3" json:"interval_seconds,omitempty"`
-	TimeoutSeconds  int32                  `protobuf:"varint,4,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	Path            string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	IntervalSeconds uint32                 `protobuf:"varint,2,opt,name=interval_seconds,json=intervalSeconds,proto3" json:"interval_seconds,omitempty"`
+	TimeoutSeconds  uint32                 `protobuf:"varint,3,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *UpstreamHealthCheck) Reset() {
 	*x = UpstreamHealthCheck{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[5]
+	mi := &file_admin_v1_upstream_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -332,7 +377,7 @@ func (x *UpstreamHealthCheck) String() string {
 func (*UpstreamHealthCheck) ProtoMessage() {}
 
 func (x *UpstreamHealthCheck) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[5]
+	mi := &file_admin_v1_upstream_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -345,14 +390,7 @@ func (x *UpstreamHealthCheck) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpstreamHealthCheck.ProtoReflect.Descriptor instead.
 func (*UpstreamHealthCheck) Descriptor() ([]byte, []int) {
-	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *UpstreamHealthCheck) GetEnabled() bool {
-	if x != nil {
-		return x.Enabled
-	}
-	return false
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *UpstreamHealthCheck) GetPath() string {
@@ -362,14 +400,14 @@ func (x *UpstreamHealthCheck) GetPath() string {
 	return ""
 }
 
-func (x *UpstreamHealthCheck) GetIntervalSeconds() int32 {
+func (x *UpstreamHealthCheck) GetIntervalSeconds() uint32 {
 	if x != nil {
 		return x.IntervalSeconds
 	}
 	return 0
 }
 
-func (x *UpstreamHealthCheck) GetTimeoutSeconds() int32 {
+func (x *UpstreamHealthCheck) GetTimeoutSeconds() uint32 {
 	if x != nil {
 		return x.TimeoutSeconds
 	}
@@ -377,27 +415,28 @@ func (x *UpstreamHealthCheck) GetTimeoutSeconds() int32 {
 }
 
 type Upstream struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Version           string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Status            *ResourceStatus        `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	ApiKeyConfigured  bool                   `protobuf:"varint,4,opt,name=api_key_configured,json=apiKeyConfigured,proto3" json:"api_key_configured,omitempty"`
-	Name              string                 `protobuf:"bytes,5,opt,name=name,proto3" json:"name,omitempty"`
-	Type              string                 `protobuf:"bytes,6,opt,name=type,proto3" json:"type,omitempty"`
-	Protocol          string                 `protobuf:"bytes,7,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	Tls               *UpstreamTLS           `protobuf:"bytes,8,opt,name=tls,proto3" json:"tls,omitempty"`
-	Model             *ModelConfig           `protobuf:"bytes,9,opt,name=model,proto3" json:"model,omitempty"`
-	Endpoints         []*UpstreamEndpoint    `protobuf:"bytes,10,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
-	LoadBalancePolicy string                 `protobuf:"bytes,11,opt,name=load_balance_policy,json=loadBalancePolicy,proto3" json:"load_balance_policy,omitempty"`
-	HealthCheck       *UpstreamHealthCheck   `protobuf:"bytes,12,opt,name=health_check,json=healthCheck,proto3" json:"health_check,omitempty"`
-	CreatedAt         *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Id               string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Name             string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Type             UpstreamType           `protobuf:"varint,3,opt,name=type,proto3,enum=ingate.admin.v1.UpstreamType" json:"type,omitempty"`
+	Endpoints        []*UpstreamEndpoint    `protobuf:"bytes,4,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	Tls              *UpstreamTLS           `protobuf:"bytes,5,opt,name=tls,proto3" json:"tls,omitempty"`
+	LoadBalancing    LoadBalancingPolicy    `protobuf:"varint,6,opt,name=load_balancing,json=loadBalancing,proto3,enum=ingate.admin.v1.LoadBalancingPolicy" json:"load_balancing,omitempty"`
+	HealthCheck      *UpstreamHealthCheck   `protobuf:"bytes,7,opt,name=health_check,json=healthCheck,proto3" json:"health_check,omitempty"`
+	Model            *ModelConfig           `protobuf:"bytes,8,opt,name=model,proto3" json:"model,omitempty"`
+	ApiKeyConfigured bool                   `protobuf:"varint,9,opt,name=api_key_configured,json=apiKeyConfigured,proto3" json:"api_key_configured,omitempty"`
+	State            ResourceState          `protobuf:"varint,10,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
+	Message          string                 `protobuf:"bytes,11,opt,name=message,proto3" json:"message,omitempty"`
+	Version          int64                  `protobuf:"varint,12,opt,name=version,proto3" json:"version,omitempty"`
+	CreatedAt        *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt        *timestamppb.Timestamp `protobuf:"bytes,14,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Upstream) Reset() {
 	*x = Upstream{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[6]
+	mi := &file_admin_v1_upstream_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -409,7 +448,7 @@ func (x *Upstream) String() string {
 func (*Upstream) ProtoMessage() {}
 
 func (x *Upstream) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[6]
+	mi := &file_admin_v1_upstream_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -422,7 +461,7 @@ func (x *Upstream) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Upstream.ProtoReflect.Descriptor instead.
 func (*Upstream) Descriptor() ([]byte, []int) {
-	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{6}
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Upstream) GetId() string {
@@ -432,27 +471,6 @@ func (x *Upstream) GetId() string {
 	return ""
 }
 
-func (x *Upstream) GetVersion() string {
-	if x != nil {
-		return x.Version
-	}
-	return ""
-}
-
-func (x *Upstream) GetStatus() *ResourceStatus {
-	if x != nil {
-		return x.Status
-	}
-	return nil
-}
-
-func (x *Upstream) GetApiKeyConfigured() bool {
-	if x != nil {
-		return x.ApiKeyConfigured
-	}
-	return false
-}
-
 func (x *Upstream) GetName() string {
 	if x != nil {
 		return x.Name
@@ -460,23 +478,37 @@ func (x *Upstream) GetName() string {
 	return ""
 }
 
-func (x *Upstream) GetType() string {
+func (x *Upstream) GetType() UpstreamType {
 	if x != nil {
 		return x.Type
 	}
-	return ""
+	return UpstreamType_UPSTREAM_TYPE_UNSPECIFIED
 }
 
-func (x *Upstream) GetProtocol() string {
+func (x *Upstream) GetEndpoints() []*UpstreamEndpoint {
 	if x != nil {
-		return x.Protocol
+		return x.Endpoints
 	}
-	return ""
+	return nil
 }
 
 func (x *Upstream) GetTls() *UpstreamTLS {
 	if x != nil {
 		return x.Tls
+	}
+	return nil
+}
+
+func (x *Upstream) GetLoadBalancing() LoadBalancingPolicy {
+	if x != nil {
+		return x.LoadBalancing
+	}
+	return LoadBalancingPolicy_LOAD_BALANCING_POLICY_UNSPECIFIED
+}
+
+func (x *Upstream) GetHealthCheck() *UpstreamHealthCheck {
+	if x != nil {
+		return x.HealthCheck
 	}
 	return nil
 }
@@ -488,25 +520,32 @@ func (x *Upstream) GetModel() *ModelConfig {
 	return nil
 }
 
-func (x *Upstream) GetEndpoints() []*UpstreamEndpoint {
+func (x *Upstream) GetApiKeyConfigured() bool {
 	if x != nil {
-		return x.Endpoints
+		return x.ApiKeyConfigured
 	}
-	return nil
+	return false
 }
 
-func (x *Upstream) GetLoadBalancePolicy() string {
+func (x *Upstream) GetState() ResourceState {
 	if x != nil {
-		return x.LoadBalancePolicy
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
+}
+
+func (x *Upstream) GetMessage() string {
+	if x != nil {
+		return x.Message
 	}
 	return ""
 }
 
-func (x *Upstream) GetHealthCheck() *UpstreamHealthCheck {
+func (x *Upstream) GetVersion() int64 {
 	if x != nil {
-		return x.HealthCheck
+		return x.Version
 	}
-	return nil
+	return 0
 }
 
 func (x *Upstream) GetCreatedAt() *timestamppb.Timestamp {
@@ -516,24 +555,178 @@ func (x *Upstream) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Upstream) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type ListUpstreamsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUpstreamsRequest) Reset() {
+	*x = ListUpstreamsRequest{}
+	mi := &file_admin_v1_upstream_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUpstreamsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUpstreamsRequest) ProtoMessage() {}
+
+func (x *ListUpstreamsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_upstream_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUpstreamsRequest.ProtoReflect.Descriptor instead.
+func (*ListUpstreamsRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ListUpstreamsRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListUpstreamsRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+type ListUpstreamsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Upstreams     []*Upstream            `protobuf:"bytes,1,rep,name=upstreams,proto3" json:"upstreams,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListUpstreamsResponse) Reset() {
+	*x = ListUpstreamsResponse{}
+	mi := &file_admin_v1_upstream_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListUpstreamsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListUpstreamsResponse) ProtoMessage() {}
+
+func (x *ListUpstreamsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_upstream_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListUpstreamsResponse.ProtoReflect.Descriptor instead.
+func (*ListUpstreamsResponse) Descriptor() ([]byte, []int) {
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ListUpstreamsResponse) GetUpstreams() []*Upstream {
+	if x != nil {
+		return x.Upstreams
+	}
+	return nil
+}
+
+func (x *ListUpstreamsResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
+}
+
+type GetUpstreamRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetUpstreamRequest) Reset() {
+	*x = GetUpstreamRequest{}
+	mi := &file_admin_v1_upstream_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetUpstreamRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetUpstreamRequest) ProtoMessage() {}
+
+func (x *GetUpstreamRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_upstream_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetUpstreamRequest.ProtoReflect.Descriptor instead.
+func (*GetUpstreamRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *GetUpstreamRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
 type CreateUpstreamRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Name              string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Type              string                 `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
-	Protocol          string                 `protobuf:"bytes,3,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	Tls               *UpstreamTLS           `protobuf:"bytes,4,opt,name=tls,proto3" json:"tls,omitempty"`
-	Model             *ModelConfig           `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`
-	Endpoints         []*UpstreamEndpoint    `protobuf:"bytes,6,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
-	LoadBalancePolicy string                 `protobuf:"bytes,7,opt,name=load_balance_policy,json=loadBalancePolicy,proto3" json:"load_balance_policy,omitempty"`
-	HealthCheck       *UpstreamHealthCheck   `protobuf:"bytes,8,opt,name=health_check,json=healthCheck,proto3" json:"health_check,omitempty"`
-	ApiKey            *APIKeyConfig          `protobuf:"bytes,9,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Type          UpstreamType           `protobuf:"varint,2,opt,name=type,proto3,enum=ingate.admin.v1.UpstreamType" json:"type,omitempty"`
+	Endpoints     []*UpstreamEndpoint    `protobuf:"bytes,3,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	Tls           *UpstreamTLS           `protobuf:"bytes,4,opt,name=tls,proto3" json:"tls,omitempty"`
+	LoadBalancing LoadBalancingPolicy    `protobuf:"varint,5,opt,name=load_balancing,json=loadBalancing,proto3,enum=ingate.admin.v1.LoadBalancingPolicy" json:"load_balancing,omitempty"`
+	HealthCheck   *UpstreamHealthCheck   `protobuf:"bytes,6,opt,name=health_check,json=healthCheck,proto3" json:"health_check,omitempty"`
+	Model         *ModelConfig           `protobuf:"bytes,7,opt,name=model,proto3" json:"model,omitempty"`
+	ApiKey        *string                `protobuf:"bytes,8,opt,name=api_key,json=apiKey,proto3,oneof" json:"api_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateUpstreamRequest) Reset() {
 	*x = CreateUpstreamRequest{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[7]
+	mi := &file_admin_v1_upstream_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -545,7 +738,7 @@ func (x *CreateUpstreamRequest) String() string {
 func (*CreateUpstreamRequest) ProtoMessage() {}
 
 func (x *CreateUpstreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[7]
+	mi := &file_admin_v1_upstream_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -558,7 +751,7 @@ func (x *CreateUpstreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateUpstreamRequest.ProtoReflect.Descriptor instead.
 func (*CreateUpstreamRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{7}
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CreateUpstreamRequest) GetName() string {
@@ -568,23 +761,37 @@ func (x *CreateUpstreamRequest) GetName() string {
 	return ""
 }
 
-func (x *CreateUpstreamRequest) GetType() string {
+func (x *CreateUpstreamRequest) GetType() UpstreamType {
 	if x != nil {
 		return x.Type
 	}
-	return ""
+	return UpstreamType_UPSTREAM_TYPE_UNSPECIFIED
 }
 
-func (x *CreateUpstreamRequest) GetProtocol() string {
+func (x *CreateUpstreamRequest) GetEndpoints() []*UpstreamEndpoint {
 	if x != nil {
-		return x.Protocol
+		return x.Endpoints
 	}
-	return ""
+	return nil
 }
 
 func (x *CreateUpstreamRequest) GetTls() *UpstreamTLS {
 	if x != nil {
 		return x.Tls
+	}
+	return nil
+}
+
+func (x *CreateUpstreamRequest) GetLoadBalancing() LoadBalancingPolicy {
+	if x != nil {
+		return x.LoadBalancing
+	}
+	return LoadBalancingPolicy_LOAD_BALANCING_POLICY_UNSPECIFIED
+}
+
+func (x *CreateUpstreamRequest) GetHealthCheck() *UpstreamHealthCheck {
+	if x != nil {
+		return x.HealthCheck
 	}
 	return nil
 }
@@ -596,55 +803,32 @@ func (x *CreateUpstreamRequest) GetModel() *ModelConfig {
 	return nil
 }
 
-func (x *CreateUpstreamRequest) GetEndpoints() []*UpstreamEndpoint {
-	if x != nil {
-		return x.Endpoints
-	}
-	return nil
-}
-
-func (x *CreateUpstreamRequest) GetLoadBalancePolicy() string {
-	if x != nil {
-		return x.LoadBalancePolicy
+func (x *CreateUpstreamRequest) GetApiKey() string {
+	if x != nil && x.ApiKey != nil {
+		return *x.ApiKey
 	}
 	return ""
 }
 
-func (x *CreateUpstreamRequest) GetHealthCheck() *UpstreamHealthCheck {
-	if x != nil {
-		return x.HealthCheck
-	}
-	return nil
-}
-
-func (x *CreateUpstreamRequest) GetApiKey() *APIKeyConfig {
-	if x != nil {
-		return x.ApiKey
-	}
-	return nil
-}
-
 type UpdateUpstreamRequest struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
-	Id                string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Version           string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Name              string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Type              string                 `protobuf:"bytes,4,opt,name=type,proto3" json:"type,omitempty"`
-	Protocol          string                 `protobuf:"bytes,5,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	Tls               *UpstreamTLS           `protobuf:"bytes,6,opt,name=tls,proto3" json:"tls,omitempty"`
-	Model             *ModelConfig           `protobuf:"bytes,7,opt,name=model,proto3" json:"model,omitempty"`
-	Endpoints         []*UpstreamEndpoint    `protobuf:"bytes,8,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
-	LoadBalancePolicy string                 `protobuf:"bytes,9,opt,name=load_balance_policy,json=loadBalancePolicy,proto3" json:"load_balance_policy,omitempty"`
-	HealthCheck       *UpstreamHealthCheck   `protobuf:"bytes,10,opt,name=health_check,json=healthCheck,proto3" json:"health_check,omitempty"`
-	ApiKey            *APIKeyConfig          `protobuf:"bytes,11,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
-	RemoveApiKey      bool                   `protobuf:"varint,12,opt,name=remove_api_key,json=removeAPIKey,proto3" json:"remove_api_key,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Version       int64                  `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	Type          UpstreamType           `protobuf:"varint,4,opt,name=type,proto3,enum=ingate.admin.v1.UpstreamType" json:"type,omitempty"`
+	Endpoints     []*UpstreamEndpoint    `protobuf:"bytes,5,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	Tls           *UpstreamTLS           `protobuf:"bytes,6,opt,name=tls,proto3" json:"tls,omitempty"`
+	LoadBalancing LoadBalancingPolicy    `protobuf:"varint,7,opt,name=load_balancing,json=loadBalancing,proto3,enum=ingate.admin.v1.LoadBalancingPolicy" json:"load_balancing,omitempty"`
+	HealthCheck   *UpstreamHealthCheck   `protobuf:"bytes,8,opt,name=health_check,json=healthCheck,proto3" json:"health_check,omitempty"`
+	Model         *ModelConfig           `protobuf:"bytes,9,opt,name=model,proto3" json:"model,omitempty"`
+	ApiKey        *string                `protobuf:"bytes,10,opt,name=api_key,json=apiKey,proto3,oneof" json:"api_key,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *UpdateUpstreamRequest) Reset() {
 	*x = UpdateUpstreamRequest{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[8]
+	mi := &file_admin_v1_upstream_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -656,7 +840,7 @@ func (x *UpdateUpstreamRequest) String() string {
 func (*UpdateUpstreamRequest) ProtoMessage() {}
 
 func (x *UpdateUpstreamRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[8]
+	mi := &file_admin_v1_upstream_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -669,7 +853,7 @@ func (x *UpdateUpstreamRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateUpstreamRequest.ProtoReflect.Descriptor instead.
 func (*UpdateUpstreamRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{8}
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *UpdateUpstreamRequest) GetId() string {
@@ -679,11 +863,11 @@ func (x *UpdateUpstreamRequest) GetId() string {
 	return ""
 }
 
-func (x *UpdateUpstreamRequest) GetVersion() string {
+func (x *UpdateUpstreamRequest) GetVersion() int64 {
 	if x != nil {
 		return x.Version
 	}
-	return ""
+	return 0
 }
 
 func (x *UpdateUpstreamRequest) GetName() string {
@@ -693,23 +877,37 @@ func (x *UpdateUpstreamRequest) GetName() string {
 	return ""
 }
 
-func (x *UpdateUpstreamRequest) GetType() string {
+func (x *UpdateUpstreamRequest) GetType() UpstreamType {
 	if x != nil {
 		return x.Type
 	}
-	return ""
+	return UpstreamType_UPSTREAM_TYPE_UNSPECIFIED
 }
 
-func (x *UpdateUpstreamRequest) GetProtocol() string {
+func (x *UpdateUpstreamRequest) GetEndpoints() []*UpstreamEndpoint {
 	if x != nil {
-		return x.Protocol
+		return x.Endpoints
 	}
-	return ""
+	return nil
 }
 
 func (x *UpdateUpstreamRequest) GetTls() *UpstreamTLS {
 	if x != nil {
 		return x.Tls
+	}
+	return nil
+}
+
+func (x *UpdateUpstreamRequest) GetLoadBalancing() LoadBalancingPolicy {
+	if x != nil {
+		return x.LoadBalancing
+	}
+	return LoadBalancingPolicy_LOAD_BALANCING_POLICY_UNSPECIFIED
+}
+
+func (x *UpdateUpstreamRequest) GetHealthCheck() *UpstreamHealthCheck {
+	if x != nil {
+		return x.HealthCheck
 	}
 	return nil
 }
@@ -721,64 +919,36 @@ func (x *UpdateUpstreamRequest) GetModel() *ModelConfig {
 	return nil
 }
 
-func (x *UpdateUpstreamRequest) GetEndpoints() []*UpstreamEndpoint {
-	if x != nil {
-		return x.Endpoints
-	}
-	return nil
-}
-
-func (x *UpdateUpstreamRequest) GetLoadBalancePolicy() string {
-	if x != nil {
-		return x.LoadBalancePolicy
+func (x *UpdateUpstreamRequest) GetApiKey() string {
+	if x != nil && x.ApiKey != nil {
+		return *x.ApiKey
 	}
 	return ""
 }
 
-func (x *UpdateUpstreamRequest) GetHealthCheck() *UpstreamHealthCheck {
-	if x != nil {
-		return x.HealthCheck
-	}
-	return nil
-}
-
-func (x *UpdateUpstreamRequest) GetApiKey() *APIKeyConfig {
-	if x != nil {
-		return x.ApiKey
-	}
-	return nil
-}
-
-func (x *UpdateUpstreamRequest) GetRemoveApiKey() bool {
-	if x != nil {
-		return x.RemoveApiKey
-	}
-	return false
-}
-
-type ListUpstreamsReply struct {
+type DeleteUpstreamRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Upstreams     []*Upstream            `protobuf:"bytes,1,rep,name=upstreams,proto3" json:"upstreams,omitempty"`
-	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Version       int64                  `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListUpstreamsReply) Reset() {
-	*x = ListUpstreamsReply{}
-	mi := &file_admin_v1_upstream_proto_msgTypes[9]
+func (x *DeleteUpstreamRequest) Reset() {
+	*x = DeleteUpstreamRequest{}
+	mi := &file_admin_v1_upstream_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListUpstreamsReply) String() string {
+func (x *DeleteUpstreamRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListUpstreamsReply) ProtoMessage() {}
+func (*DeleteUpstreamRequest) ProtoMessage() {}
 
-func (x *ListUpstreamsReply) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_upstream_proto_msgTypes[9]
+func (x *DeleteUpstreamRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_upstream_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -789,103 +959,124 @@ func (x *ListUpstreamsReply) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListUpstreamsReply.ProtoReflect.Descriptor instead.
-func (*ListUpstreamsReply) Descriptor() ([]byte, []int) {
-	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{9}
+// Deprecated: Use DeleteUpstreamRequest.ProtoReflect.Descriptor instead.
+func (*DeleteUpstreamRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{10}
 }
 
-func (x *ListUpstreamsReply) GetUpstreams() []*Upstream {
+func (x *DeleteUpstreamRequest) GetId() string {
 	if x != nil {
-		return x.Upstreams
+		return x.Id
 	}
-	return nil
+	return ""
 }
 
-func (x *ListUpstreamsReply) GetPage() *PageInfo {
+func (x *DeleteUpstreamRequest) GetVersion() int64 {
 	if x != nil {
-		return x.Page
+		return x.Version
 	}
-	return nil
+	return 0
 }
 
 var File_admin_v1_upstream_proto protoreflect.FileDescriptor
 
 const file_admin_v1_upstream_proto_rawDesc = "" +
 	"\n" +
-	"\x17admin/v1/upstream.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"$\n" +
-	"\fAPIKeyConfig\x12\x14\n" +
-	"\x05value\x18\x01 \x01(\tR\x05value\".\n" +
-	"\vUpstreamTLS\x12\x1f\n" +
-	"\vserver_name\x18\x01 \x01(\tR\n" +
-	"serverName\"c\n" +
-	"\x10ModelCatalogItem\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12!\n" +
-	"\fdisplay_name\x18\x02 \x01(\tR\vdisplayName\x12\x18\n" +
-	"\aenabled\x18\x03 \x01(\bR\aenabled\"\x88\x01\n" +
-	"\vModelConfig\x12\x1a\n" +
-	"\bprovider\x18\x01 \x01(\tR\bprovider\x12\"\n" +
-	"\rapi_base_path\x18\x02 \x01(\tR\vapiBasePath\x129\n" +
-	"\x06models\x18\x03 \x03(\v2!.ingate.admin.v1.ModelCatalogItemR\x06models\"\x82\x01\n" +
-	"\x10UpstreamEndpoint\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aaddress\x18\x02 \x01(\tR\aaddress\x12\x12\n" +
-	"\x04port\x18\x03 \x01(\x05R\x04port\x12\x16\n" +
-	"\x06weight\x18\x04 \x01(\x05R\x06weight\x12\x18\n" +
-	"\aenabled\x18\x05 \x01(\bR\aenabled\"\x97\x01\n" +
-	"\x13UpstreamHealthCheck\x12\x18\n" +
-	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x12\n" +
-	"\x04path\x18\x02 \x01(\tR\x04path\x12)\n" +
-	"\x10interval_seconds\x18\x03 \x01(\x05R\x0fintervalSeconds\x12'\n" +
-	"\x0ftimeout_seconds\x18\x04 \x01(\x05R\x0etimeoutSeconds\"\xb8\x04\n" +
+	"\x17admin/v1/upstream.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"7\n" +
+	"\vUpstreamTLS\x12(\n" +
+	"\vserver_name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\n" +
+	"serverName\"\x97\x01\n" +
+	"\vModelConfig\x12:\n" +
+	"\bprovider\x18\x01 \x01(\x0e2\x1e.ingate.admin.v1.ModelProviderR\bprovider\x12$\n" +
+	"\tbase_path\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bbasePath\x12&\n" +
+	"\x06models\x18\x03 \x03(\tB\x0e\xbaH\v\x92\x01\b\b\x01\"\x04r\x02\x10\x01R\x06models\"x\n" +
+	"\x10UpstreamEndpoint\x12!\n" +
+	"\aaddress\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aaddress\x12\x1f\n" +
+	"\x04port\x18\x02 \x01(\rB\v\xbaH\b*\x06\x18\xff\xff\x03(\x01R\x04port\x12 \n" +
+	"\x06weight\x18\x03 \x01(\rB\b\xbaH\x05*\x03\x18\xe8\aR\x06weight\"\x99\x01\n" +
+	"\x13UpstreamHealthCheck\x12\x1b\n" +
+	"\x04path\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04path\x123\n" +
+	"\x10interval_seconds\x18\x02 \x01(\rB\b\xbaH\x05*\x03\x18\xac\x02R\x0fintervalSeconds\x120\n" +
+	"\x0ftimeout_seconds\x18\x03 \x01(\rB\a\xbaH\x04*\x02\x18<R\x0etimeoutSeconds\"\xaa\x05\n" +
 	"\bUpstream\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x127\n" +
-	"\x06status\x18\x03 \x01(\v2\x1f.ingate.admin.v1.ResourceStatusR\x06status\x12,\n" +
-	"\x12api_key_configured\x18\x04 \x01(\bR\x10apiKeyConfigured\x12\x12\n" +
-	"\x04name\x18\x05 \x01(\tR\x04name\x12\x12\n" +
-	"\x04type\x18\x06 \x01(\tR\x04type\x12\x1a\n" +
-	"\bprotocol\x18\a \x01(\tR\bprotocol\x12.\n" +
-	"\x03tls\x18\b \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x122\n" +
-	"\x05model\x18\t \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12?\n" +
-	"\tendpoints\x18\n" +
-	" \x03(\v2!.ingate.admin.v1.UpstreamEndpointR\tendpoints\x12.\n" +
-	"\x13load_balance_policy\x18\v \x01(\tR\x11loadBalancePolicy\x12G\n" +
-	"\fhealth_check\x18\f \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x129\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x121\n" +
+	"\x04type\x18\x03 \x01(\x0e2\x1d.ingate.admin.v1.UpstreamTypeR\x04type\x12?\n" +
+	"\tendpoints\x18\x04 \x03(\v2!.ingate.admin.v1.UpstreamEndpointR\tendpoints\x12.\n" +
+	"\x03tls\x18\x05 \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x12K\n" +
+	"\x0eload_balancing\x18\x06 \x01(\x0e2$.ingate.admin.v1.LoadBalancingPolicyR\rloadBalancing\x12G\n" +
+	"\fhealth_check\x18\a \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x122\n" +
+	"\x05model\x18\b \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12,\n" +
+	"\x12api_key_configured\x18\t \x01(\bR\x10apiKeyConfigured\x124\n" +
+	"\x05state\x18\n" +
+	" \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateR\x05state\x12\x18\n" +
+	"\amessage\x18\v \x01(\tR\amessage\x12\x18\n" +
+	"\aversion\x18\f \x01(\x03R\aversion\x129\n" +
 	"\n" +
-	"created_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xdf\x03\n" +
+	"created_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\x0e \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"M\n" +
+	"\x14ListUpstreamsRequest\x12\x1d\n" +
+	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"q\n" +
+	"\x15ListUpstreamsResponse\x127\n" +
+	"\tupstreams\x18\x01 \x03(\v2\x19.ingate.admin.v1.UpstreamR\tupstreams\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\".\n" +
+	"\x12GetUpstreamRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xd6\x03\n" +
 	"\x15CreateUpstreamRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12\x1b\n" +
-	"\x04type\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04type\x12#\n" +
-	"\bprotocol\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bprotocol\x12.\n" +
-	"\x03tls\x18\x04 \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x122\n" +
-	"\x05model\x18\x05 \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12I\n" +
-	"\tendpoints\x18\x06 \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x127\n" +
-	"\x13load_balance_policy\x18\a \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x11loadBalancePolicy\x12G\n" +
-	"\fhealth_check\x18\b \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x126\n" +
-	"\aapi_key\x18\t \x01(\v2\x1d.ingate.admin.v1.APIKeyConfigR\x06apiKey\"\xc3\x04\n" +
-	"\x15UpdateUpstreamRequest\x12\x19\n" +
-	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12!\n" +
-	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12\x1b\n" +
-	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12\x1b\n" +
-	"\x04type\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04type\x12#\n" +
-	"\bprotocol\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bprotocol\x12.\n" +
-	"\x03tls\x18\x06 \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x122\n" +
-	"\x05model\x18\a \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12I\n" +
-	"\tendpoints\x18\b \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x127\n" +
-	"\x13load_balance_policy\x18\t \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x11loadBalancePolicy\x12G\n" +
-	"\fhealth_check\x18\n" +
-	" \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x126\n" +
-	"\aapi_key\x18\v \x01(\v2\x1d.ingate.admin.v1.APIKeyConfigR\x06apiKey\x12$\n" +
-	"\x0eremove_api_key\x18\f \x01(\bR\fremoveAPIKey\"|\n" +
-	"\x12ListUpstreamsReply\x127\n" +
-	"\tupstreams\x18\x01 \x03(\v2\x19.ingate.admin.v1.UpstreamR\tupstreams\x12-\n" +
-	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page2\xd5\x04\n" +
-	"\x0fUpstreamService\x12m\n" +
-	"\rListUpstreams\x12\x1c.ingate.admin.v1.ListRequest\x1a#.ingate.admin.v1.ListUpstreamsReply\"\x19\x82\xd3\xe4\x93\x02\x13\x12\x11/api/v1/upstreams\x12j\n" +
-	"\vGetUpstream\x12 .ingate.admin.v1.ResourceRequest\x1a\x19.ingate.admin.v1.Upstream\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/v1/upstreams/{id}\x12v\n" +
-	"\x0eCreateUpstream\x12&.ingate.admin.v1.CreateUpstreamRequest\x1a\x1e.ingate.admin.v1.MutationReply\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/api/v1/upstreams\x12{\n" +
-	"\x0eUpdateUpstream\x12&.ingate.admin.v1.UpdateUpstreamRequest\x1a\x1e.ingate.admin.v1.MutationReply\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\x1a\x16/api/v1/upstreams/{id}\x12r\n" +
-	"\x0eDeleteUpstream\x12 .ingate.admin.v1.ResourceRequest\x1a\x1e.ingate.admin.v1.MutationReply\"\x1e\x82\xd3\xe4\x93\x02\x18*\x16/api/v1/upstreams/{id}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x121\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x1d.ingate.admin.v1.UpstreamTypeR\x04type\x12I\n" +
+	"\tendpoints\x18\x03 \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x12.\n" +
+	"\x03tls\x18\x04 \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x12K\n" +
+	"\x0eload_balancing\x18\x05 \x01(\x0e2$.ingate.admin.v1.LoadBalancingPolicyR\rloadBalancing\x12G\n" +
+	"\fhealth_check\x18\x06 \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x122\n" +
+	"\x05model\x18\a \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12\x1c\n" +
+	"\aapi_key\x18\b \x01(\tH\x00R\x06apiKey\x88\x01\x01B\n" +
+	"\n" +
+	"\b_api_key\"\x93\x04\n" +
+	"\x15UpdateUpstreamRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1b\n" +
+	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x121\n" +
+	"\x04type\x18\x04 \x01(\x0e2\x1d.ingate.admin.v1.UpstreamTypeR\x04type\x12I\n" +
+	"\tendpoints\x18\x05 \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x12.\n" +
+	"\x03tls\x18\x06 \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x12K\n" +
+	"\x0eload_balancing\x18\a \x01(\x0e2$.ingate.admin.v1.LoadBalancingPolicyR\rloadBalancing\x12G\n" +
+	"\fhealth_check\x18\b \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x122\n" +
+	"\x05model\x18\t \x01(\v2\x1c.ingate.admin.v1.ModelConfigR\x05model\x12\x1c\n" +
+	"\aapi_key\x18\n" +
+	" \x01(\tH\x00R\x06apiKey\x88\x01\x01B\n" +
+	"\n" +
+	"\b_api_key\"T\n" +
+	"\x15DeleteUpstreamRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion*\x95\x01\n" +
+	"\fUpstreamType\x12\x1d\n" +
+	"\x19UPSTREAM_TYPE_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19UPSTREAM_TYPE_APPLICATION\x10\x01\x12\x17\n" +
+	"\x13UPSTREAM_TYPE_MODEL\x10\x02\x12\x17\n" +
+	"\x13UPSTREAM_TYPE_AGENT\x10\x03\x12\x15\n" +
+	"\x11UPSTREAM_TYPE_MCP\x10\x04*\xd4\x01\n" +
+	"\rModelProvider\x12\x1e\n" +
+	"\x1aMODEL_PROVIDER_UNSPECIFIED\x10\x00\x12\x19\n" +
+	"\x15MODEL_PROVIDER_OPENAI\x10\x01\x12\x1b\n" +
+	"\x17MODEL_PROVIDER_DEEPSEEK\x10\x02\x12\x17\n" +
+	"\x13MODEL_PROVIDER_QWEN\x10\x03\x12\x1c\n" +
+	"\x18MODEL_PROVIDER_ANTHROPIC\x10\x04\x12\x19\n" +
+	"\x15MODEL_PROVIDER_GEMINI\x10\x05\x12\x19\n" +
+	"\x15MODEL_PROVIDER_CUSTOM\x10\x06*\x8c\x01\n" +
+	"\x13LoadBalancingPolicy\x12%\n" +
+	"!LOAD_BALANCING_POLICY_UNSPECIFIED\x10\x00\x12%\n" +
+	"!LOAD_BALANCING_POLICY_ROUND_ROBIN\x10\x01\x12'\n" +
+	"#LOAD_BALANCING_POLICY_LEAST_REQUEST\x10\x022\xd8\x04\n" +
+	"\x0fUpstreamService\x12y\n" +
+	"\rListUpstreams\x12%.ingate.admin.v1.ListUpstreamsRequest\x1a&.ingate.admin.v1.ListUpstreamsResponse\"\x19\x82\xd3\xe4\x93\x02\x13\x12\x11/api/v1/upstreams\x12m\n" +
+	"\vGetUpstream\x12#.ingate.admin.v1.GetUpstreamRequest\x1a\x19.ingate.admin.v1.Upstream\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/v1/upstreams/{id}\x12q\n" +
+	"\x0eCreateUpstream\x12&.ingate.admin.v1.CreateUpstreamRequest\x1a\x19.ingate.admin.v1.Upstream\"\x1c\x82\xd3\xe4\x93\x02\x16:\x01*\"\x11/api/v1/upstreams\x12v\n" +
+	"\x0eUpdateUpstream\x12&.ingate.admin.v1.UpdateUpstreamRequest\x1a\x19.ingate.admin.v1.Upstream\"!\x82\xd3\xe4\x93\x02\x1b:\x01*\x1a\x16/api/v1/upstreams/{id}\x12p\n" +
+	"\x0eDeleteUpstream\x12&.ingate.admin.v1.DeleteUpstreamRequest\x1a\x16.google.protobuf.Empty\"\x1e\x82\xd3\xe4\x93\x02\x18*\x16/api/v1/upstreams/{id}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_upstream_proto_rawDescOnce sync.Once
@@ -899,60 +1090,66 @@ func file_admin_v1_upstream_proto_rawDescGZIP() []byte {
 	return file_admin_v1_upstream_proto_rawDescData
 }
 
-var file_admin_v1_upstream_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_admin_v1_upstream_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_admin_v1_upstream_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_admin_v1_upstream_proto_goTypes = []any{
-	(*APIKeyConfig)(nil),          // 0: ingate.admin.v1.APIKeyConfig
-	(*UpstreamTLS)(nil),           // 1: ingate.admin.v1.UpstreamTLS
-	(*ModelCatalogItem)(nil),      // 2: ingate.admin.v1.ModelCatalogItem
-	(*ModelConfig)(nil),           // 3: ingate.admin.v1.ModelConfig
-	(*UpstreamEndpoint)(nil),      // 4: ingate.admin.v1.UpstreamEndpoint
-	(*UpstreamHealthCheck)(nil),   // 5: ingate.admin.v1.UpstreamHealthCheck
-	(*Upstream)(nil),              // 6: ingate.admin.v1.Upstream
-	(*CreateUpstreamRequest)(nil), // 7: ingate.admin.v1.CreateUpstreamRequest
-	(*UpdateUpstreamRequest)(nil), // 8: ingate.admin.v1.UpdateUpstreamRequest
-	(*ListUpstreamsReply)(nil),    // 9: ingate.admin.v1.ListUpstreamsReply
-	(*ResourceStatus)(nil),        // 10: ingate.admin.v1.ResourceStatus
-	(*timestamppb.Timestamp)(nil), // 11: google.protobuf.Timestamp
-	(*PageInfo)(nil),              // 12: ingate.admin.v1.PageInfo
-	(*ListRequest)(nil),           // 13: ingate.admin.v1.ListRequest
-	(*ResourceRequest)(nil),       // 14: ingate.admin.v1.ResourceRequest
-	(*MutationReply)(nil),         // 15: ingate.admin.v1.MutationReply
+	(UpstreamType)(0),             // 0: ingate.admin.v1.UpstreamType
+	(ModelProvider)(0),            // 1: ingate.admin.v1.ModelProvider
+	(LoadBalancingPolicy)(0),      // 2: ingate.admin.v1.LoadBalancingPolicy
+	(*UpstreamTLS)(nil),           // 3: ingate.admin.v1.UpstreamTLS
+	(*ModelConfig)(nil),           // 4: ingate.admin.v1.ModelConfig
+	(*UpstreamEndpoint)(nil),      // 5: ingate.admin.v1.UpstreamEndpoint
+	(*UpstreamHealthCheck)(nil),   // 6: ingate.admin.v1.UpstreamHealthCheck
+	(*Upstream)(nil),              // 7: ingate.admin.v1.Upstream
+	(*ListUpstreamsRequest)(nil),  // 8: ingate.admin.v1.ListUpstreamsRequest
+	(*ListUpstreamsResponse)(nil), // 9: ingate.admin.v1.ListUpstreamsResponse
+	(*GetUpstreamRequest)(nil),    // 10: ingate.admin.v1.GetUpstreamRequest
+	(*CreateUpstreamRequest)(nil), // 11: ingate.admin.v1.CreateUpstreamRequest
+	(*UpdateUpstreamRequest)(nil), // 12: ingate.admin.v1.UpdateUpstreamRequest
+	(*DeleteUpstreamRequest)(nil), // 13: ingate.admin.v1.DeleteUpstreamRequest
+	(ResourceState)(0),            // 14: ingate.admin.v1.ResourceState
+	(*timestamppb.Timestamp)(nil), // 15: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 16: google.protobuf.Empty
 }
 var file_admin_v1_upstream_proto_depIdxs = []int32{
-	2,  // 0: ingate.admin.v1.ModelConfig.models:type_name -> ingate.admin.v1.ModelCatalogItem
-	10, // 1: ingate.admin.v1.Upstream.status:type_name -> ingate.admin.v1.ResourceStatus
-	1,  // 2: ingate.admin.v1.Upstream.tls:type_name -> ingate.admin.v1.UpstreamTLS
-	3,  // 3: ingate.admin.v1.Upstream.model:type_name -> ingate.admin.v1.ModelConfig
-	4,  // 4: ingate.admin.v1.Upstream.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
-	5,  // 5: ingate.admin.v1.Upstream.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
-	11, // 6: ingate.admin.v1.Upstream.created_at:type_name -> google.protobuf.Timestamp
-	1,  // 7: ingate.admin.v1.CreateUpstreamRequest.tls:type_name -> ingate.admin.v1.UpstreamTLS
-	3,  // 8: ingate.admin.v1.CreateUpstreamRequest.model:type_name -> ingate.admin.v1.ModelConfig
-	4,  // 9: ingate.admin.v1.CreateUpstreamRequest.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
-	5,  // 10: ingate.admin.v1.CreateUpstreamRequest.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
-	0,  // 11: ingate.admin.v1.CreateUpstreamRequest.api_key:type_name -> ingate.admin.v1.APIKeyConfig
-	1,  // 12: ingate.admin.v1.UpdateUpstreamRequest.tls:type_name -> ingate.admin.v1.UpstreamTLS
-	3,  // 13: ingate.admin.v1.UpdateUpstreamRequest.model:type_name -> ingate.admin.v1.ModelConfig
-	4,  // 14: ingate.admin.v1.UpdateUpstreamRequest.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
-	5,  // 15: ingate.admin.v1.UpdateUpstreamRequest.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
-	0,  // 16: ingate.admin.v1.UpdateUpstreamRequest.api_key:type_name -> ingate.admin.v1.APIKeyConfig
-	6,  // 17: ingate.admin.v1.ListUpstreamsReply.upstreams:type_name -> ingate.admin.v1.Upstream
-	12, // 18: ingate.admin.v1.ListUpstreamsReply.page:type_name -> ingate.admin.v1.PageInfo
-	13, // 19: ingate.admin.v1.UpstreamService.ListUpstreams:input_type -> ingate.admin.v1.ListRequest
-	14, // 20: ingate.admin.v1.UpstreamService.GetUpstream:input_type -> ingate.admin.v1.ResourceRequest
-	7,  // 21: ingate.admin.v1.UpstreamService.CreateUpstream:input_type -> ingate.admin.v1.CreateUpstreamRequest
-	8,  // 22: ingate.admin.v1.UpstreamService.UpdateUpstream:input_type -> ingate.admin.v1.UpdateUpstreamRequest
-	14, // 23: ingate.admin.v1.UpstreamService.DeleteUpstream:input_type -> ingate.admin.v1.ResourceRequest
-	9,  // 24: ingate.admin.v1.UpstreamService.ListUpstreams:output_type -> ingate.admin.v1.ListUpstreamsReply
-	6,  // 25: ingate.admin.v1.UpstreamService.GetUpstream:output_type -> ingate.admin.v1.Upstream
-	15, // 26: ingate.admin.v1.UpstreamService.CreateUpstream:output_type -> ingate.admin.v1.MutationReply
-	15, // 27: ingate.admin.v1.UpstreamService.UpdateUpstream:output_type -> ingate.admin.v1.MutationReply
-	15, // 28: ingate.admin.v1.UpstreamService.DeleteUpstream:output_type -> ingate.admin.v1.MutationReply
-	24, // [24:29] is the sub-list for method output_type
-	19, // [19:24] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	1,  // 0: ingate.admin.v1.ModelConfig.provider:type_name -> ingate.admin.v1.ModelProvider
+	0,  // 1: ingate.admin.v1.Upstream.type:type_name -> ingate.admin.v1.UpstreamType
+	5,  // 2: ingate.admin.v1.Upstream.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
+	3,  // 3: ingate.admin.v1.Upstream.tls:type_name -> ingate.admin.v1.UpstreamTLS
+	2,  // 4: ingate.admin.v1.Upstream.load_balancing:type_name -> ingate.admin.v1.LoadBalancingPolicy
+	6,  // 5: ingate.admin.v1.Upstream.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
+	4,  // 6: ingate.admin.v1.Upstream.model:type_name -> ingate.admin.v1.ModelConfig
+	14, // 7: ingate.admin.v1.Upstream.state:type_name -> ingate.admin.v1.ResourceState
+	15, // 8: ingate.admin.v1.Upstream.created_at:type_name -> google.protobuf.Timestamp
+	15, // 9: ingate.admin.v1.Upstream.updated_at:type_name -> google.protobuf.Timestamp
+	7,  // 10: ingate.admin.v1.ListUpstreamsResponse.upstreams:type_name -> ingate.admin.v1.Upstream
+	0,  // 11: ingate.admin.v1.CreateUpstreamRequest.type:type_name -> ingate.admin.v1.UpstreamType
+	5,  // 12: ingate.admin.v1.CreateUpstreamRequest.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
+	3,  // 13: ingate.admin.v1.CreateUpstreamRequest.tls:type_name -> ingate.admin.v1.UpstreamTLS
+	2,  // 14: ingate.admin.v1.CreateUpstreamRequest.load_balancing:type_name -> ingate.admin.v1.LoadBalancingPolicy
+	6,  // 15: ingate.admin.v1.CreateUpstreamRequest.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
+	4,  // 16: ingate.admin.v1.CreateUpstreamRequest.model:type_name -> ingate.admin.v1.ModelConfig
+	0,  // 17: ingate.admin.v1.UpdateUpstreamRequest.type:type_name -> ingate.admin.v1.UpstreamType
+	5,  // 18: ingate.admin.v1.UpdateUpstreamRequest.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
+	3,  // 19: ingate.admin.v1.UpdateUpstreamRequest.tls:type_name -> ingate.admin.v1.UpstreamTLS
+	2,  // 20: ingate.admin.v1.UpdateUpstreamRequest.load_balancing:type_name -> ingate.admin.v1.LoadBalancingPolicy
+	6,  // 21: ingate.admin.v1.UpdateUpstreamRequest.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
+	4,  // 22: ingate.admin.v1.UpdateUpstreamRequest.model:type_name -> ingate.admin.v1.ModelConfig
+	8,  // 23: ingate.admin.v1.UpstreamService.ListUpstreams:input_type -> ingate.admin.v1.ListUpstreamsRequest
+	10, // 24: ingate.admin.v1.UpstreamService.GetUpstream:input_type -> ingate.admin.v1.GetUpstreamRequest
+	11, // 25: ingate.admin.v1.UpstreamService.CreateUpstream:input_type -> ingate.admin.v1.CreateUpstreamRequest
+	12, // 26: ingate.admin.v1.UpstreamService.UpdateUpstream:input_type -> ingate.admin.v1.UpdateUpstreamRequest
+	13, // 27: ingate.admin.v1.UpstreamService.DeleteUpstream:input_type -> ingate.admin.v1.DeleteUpstreamRequest
+	9,  // 28: ingate.admin.v1.UpstreamService.ListUpstreams:output_type -> ingate.admin.v1.ListUpstreamsResponse
+	7,  // 29: ingate.admin.v1.UpstreamService.GetUpstream:output_type -> ingate.admin.v1.Upstream
+	7,  // 30: ingate.admin.v1.UpstreamService.CreateUpstream:output_type -> ingate.admin.v1.Upstream
+	7,  // 31: ingate.admin.v1.UpstreamService.UpdateUpstream:output_type -> ingate.admin.v1.Upstream
+	16, // 32: ingate.admin.v1.UpstreamService.DeleteUpstream:output_type -> google.protobuf.Empty
+	28, // [28:33] is the sub-list for method output_type
+	23, // [23:28] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_upstream_proto_init() }
@@ -961,18 +1158,21 @@ func file_admin_v1_upstream_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
+	file_admin_v1_upstream_proto_msgTypes[8].OneofWrappers = []any{}
+	file_admin_v1_upstream_proto_msgTypes[9].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_upstream_proto_rawDesc), len(file_admin_v1_upstream_proto_rawDesc)),
-			NumEnums:      0,
-			NumMessages:   10,
+			NumEnums:      3,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_admin_v1_upstream_proto_goTypes,
 		DependencyIndexes: file_admin_v1_upstream_proto_depIdxs,
+		EnumInfos:         file_admin_v1_upstream_proto_enumTypes,
 		MessageInfos:      file_admin_v1_upstream_proto_msgTypes,
 	}.Build()
 	File_admin_v1_upstream_proto = out.File
