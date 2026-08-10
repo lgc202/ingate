@@ -5,18 +5,24 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 )
 
-const defaultPageSize = 100
+const (
+	defaultPageLimit = 100
+	maxPageLimit     = 200
+)
 
 // PageRequest 把控制台分页参数转换为不依赖存储实现的用例参数
-func PageRequest(request *adminv1.ListRequest) biz.PageRequest {
-	size := int64(request.GetPageSize())
-	if size == 0 {
-		size = defaultPageSize
+func PageRequest(limit int32, cursor string) biz.PageRequest {
+	normalizedLimit := int64(limit)
+	if normalizedLimit == 0 {
+		normalizedLimit = defaultPageLimit
 	}
-	return biz.PageRequest{Size: size, Token: request.GetPageToken()}
+	if normalizedLimit > maxPageLimit {
+		normalizedLimit = maxPageLimit
+	}
+	return biz.PageRequest{Limit: normalizedLimit, Cursor: cursor}
 }
 
 // PageInfo 构造控制台分页响应
-func PageInfo(nextToken string) *adminv1.PageInfo {
-	return &adminv1.PageInfo{NextPageToken: nextToken}
+func PageInfo(nextCursor string) *adminv1.PageInfo {
+	return &adminv1.PageInfo{NextPageToken: nextCursor}
 }

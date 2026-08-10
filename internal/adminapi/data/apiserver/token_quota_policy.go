@@ -27,7 +27,7 @@ func (r *TokenQuotaPolicyRepository) ListPage(ctx context.Context, page biz.Page
 	if err != nil {
 		return biz.PageResult[resource.TokenQuotaPolicy]{}, pageError("token quota policies", err)
 	}
-	return biz.PageResult[resource.TokenQuotaPolicy]{Items: policies.Items, NextToken: policies.Continue}, nil
+	return biz.PageResult[resource.TokenQuotaPolicy]{Items: policies.Items, NextCursor: policies.Continue}, nil
 }
 
 // Get 查询单个 TokenQuotaPolicy

@@ -27,7 +27,7 @@ func (r *RateLimitPolicyRepository) ListPage(ctx context.Context, page biz.PageR
 	if err != nil {
 		return biz.PageResult[resource.RateLimitPolicy]{}, pageError("rate limit policies", err)
 	}
-	return biz.PageResult[resource.RateLimitPolicy]{Items: policies.Items, NextToken: policies.Continue}, nil
+	return biz.PageResult[resource.RateLimitPolicy]{Items: policies.Items, NextCursor: policies.Continue}, nil
 }
 
 // Get 查询单个 RateLimitPolicy

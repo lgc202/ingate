@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strconv"
 
 	"github.com/google/uuid"
 
@@ -18,9 +17,9 @@ import (
 type Repository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Gateway], error)
 	Get(context.Context, string) (*resource.Gateway, error)
-	Create(context.Context, string, resource.GatewaySpec) error
-	Update(context.Context, string, int64, resource.GatewaySpec) error
-	Delete(context.Context, string) error
+	Create(context.Context, string, resource.GatewaySpec) (*resource.Gateway, error)
+	Update(context.Context, string, int64, resource.GatewaySpec) (*resource.Gateway, error)
+	Delete(context.Context, string, int64) error
 }
 
 // RouteRepository 定义删除 Gateway 时需要的 Route 查询能力
@@ -67,69 +66,54 @@ func (u *Usecase) Get(ctx context.Context, gatewayID string) (*resource.Gateway,
 }
 
 // Create 创建 Gateway
-func (u *Usecase) Create(ctx context.Context, spec resource.GatewaySpec) (string, error) {
-	spec.Enabled = true
+func (u *Usecase) Create(ctx context.Context, spec resource.GatewaySpec) (*resource.Gateway, error) {
 	if err := u.validateGateway(ctx, spec, ""); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	id := uuid.NewString()
-	if err := u.repository.Create(ctx, id, spec); err != nil {
-		return "", biz.DisplayNameConflict(err, "网关", spec.DisplayName)
+	gateway, err := u.repository.Create(ctx, id, spec)
+	if err != nil {
+		return nil, biz.DisplayNameConflict(err, "网关", spec.DisplayName)
 	}
-	return id, nil
+	return gateway, nil
 }
 
-// Update 更新控制台可表达的 Gateway 配置，启停状态只由 SetEnabled 修改
-func (u *Usecase) Update(ctx context.Context, gatewayID, version string, submitted resource.GatewaySpec) error {
+// Update 使用配置版本乐观更新 Gateway
+func (u *Usecase) Update(
+	ctx context.Context,
+	gatewayID string,
+	version int64,
+	spec resource.GatewaySpec,
+) (*resource.Gateway, error) {
 	current, err := u.repository.Get(ctx, gatewayID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if version != strconv.FormatInt(current.Generation, 10) {
-		return biz.NewUserError(fmt.Sprintf("网关 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+	if version != current.Generation {
+		return nil, gatewayVersionConflict(current)
 	}
-	if !usesSharedHostBindings(current.Spec) {
-		return biz.NewUserError("该网关包含控制台暂不支持的入口域名配置，请通过声明式 API 修改")
+	if err := u.validateGateway(ctx, spec, gatewayID); err != nil {
+		return nil, err
 	}
-	submitted.Enabled = current.Spec.Enabled
-	if err := u.validateGateway(ctx, submitted, gatewayID); err != nil {
-		return err
-	}
-	if err := u.repository.Update(ctx, gatewayID, current.Generation, submitted); err != nil {
-		if errors.Is(err, biz.ErrResourceVersionConflict) {
-			return biz.NewUserError(fmt.Sprintf("网关 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
-		}
-		return biz.DisplayNameConflict(err, "网关", submitted.DisplayName)
-	}
-	return nil
-}
-
-// SetEnabled 更新 Gateway 启停状态
-func (u *Usecase) SetEnabled(ctx context.Context, gatewayID string, enabled bool) error {
-	current, err := u.repository.Get(ctx, gatewayID)
+	updated, err := u.repository.Update(ctx, gatewayID, current.Generation, spec)
 	if err != nil {
-		return err
-	}
-	next := current.Spec
-	next.Enabled = enabled
-	if err := u.validateGateway(ctx, next, gatewayID); err != nil {
-		return err
-	}
-	if err := u.repository.Update(ctx, gatewayID, current.Generation, next); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
-			return biz.NewUserError(fmt.Sprintf("网关 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+			return nil, gatewayVersionConflict(current)
 		}
-		return err
+		return nil, biz.DisplayNameConflict(err, "网关", spec.DisplayName)
 	}
-	return nil
+	return updated, nil
 }
 
 // Delete 删除 Gateway，仍有关联路由或策略时拒绝删除
-func (u *Usecase) Delete(ctx context.Context, gatewayID string) error {
+func (u *Usecase) Delete(ctx context.Context, gatewayID string, version int64) error {
 	current, err := u.repository.Get(ctx, gatewayID)
 	if err != nil {
 		return err
+	}
+	if version != current.Generation {
+		return gatewayVersionConflict(current)
 	}
 	if err := biz.VisitPages(ctx, u.routes.ListPage, func(route resource.Route) (bool, error) {
 		if slices.ContainsFunc(route.Spec.ParentRefs, func(parentRef resource.ParentRef) bool {
@@ -148,5 +132,18 @@ func (u *Usecase) Delete(ctx context.Context, gatewayID string) error {
 	if usage != nil {
 		return biz.NewUserError(fmt.Sprintf("网关 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
 	}
-	return u.repository.Delete(ctx, gatewayID)
+	if err := u.repository.Delete(ctx, gatewayID, current.Generation); err != nil {
+		if errors.Is(err, biz.ErrResourceVersionConflict) {
+			return gatewayVersionConflict(current)
+		}
+		return err
+	}
+	return nil
+}
+
+func gatewayVersionConflict(gateway *resource.Gateway) error {
+	return biz.NewVersionConflictError(
+		gateway.Name,
+		fmt.Sprintf("网关 %q 已被其他用户修改，请刷新后重试", gateway.Spec.DisplayName),
+	)
 }

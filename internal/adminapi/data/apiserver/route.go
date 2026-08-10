@@ -27,7 +27,7 @@ func (r *RouteRepository) ListPage(ctx context.Context, page biz.PageRequest) (b
 	if err != nil {
 		return biz.PageResult[resource.Route]{}, pageError("routes", err)
 	}
-	return biz.PageResult[resource.Route]{Items: routes.Items, NextToken: routes.Continue}, nil
+	return biz.PageResult[resource.Route]{Items: routes.Items, NextCursor: routes.Continue}, nil
 }
 
 // Get 查询单个 Route

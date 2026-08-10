@@ -11,6 +11,8 @@ const (
 	GroupName = "gateway.ingate.io"
 	// Version 表示 Ingate API 版本
 	Version = "v1"
+	// AnnotationUpdatedAt 保存资源期望配置最后一次变化的时间
+	AnnotationUpdatedAt = GroupName + "/updated-at"
 )
 
 // ResourceName 表示 gateway.ingate.io 下的资源名

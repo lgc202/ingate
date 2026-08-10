@@ -16,8 +16,8 @@ var (
 	ErrAccessKeyNotFound = errors.New("access key not found")
 	// ErrAccessKeyNameConflict 表示访问密钥名称违反唯一约束
 	ErrAccessKeyNameConflict = errors.New("access key name already exists")
-	// ErrInvalidPageToken 表示分页游标无法解析或已经失效
-	ErrInvalidPageToken = errors.New("invalid page token")
+	// ErrInvalidCursor 表示分页游标无法解析或已经失效
+	ErrInvalidCursor = errors.New("invalid cursor")
 	// ErrDisplayNameConflict 表示同类声明式资源已经使用该展示名称
 	ErrDisplayNameConflict = errors.New("display name conflict")
 )
@@ -27,9 +27,20 @@ type UserError struct {
 	message string
 }
 
+// VersionConflictError 表示用户提交的配置版本已经过期
+type VersionConflictError struct {
+	resourceID  string
+	userMessage string
+}
+
 // NewUserError 创建可展示的业务错误
 func NewUserError(message string) error {
 	return &UserError{message: message}
+}
+
+// NewVersionConflictError 创建可以向用户说明的乐观锁冲突
+func NewVersionConflictError(resourceID, userMessage string) error {
+	return &VersionConflictError{resourceID: resourceID, userMessage: userMessage}
 }
 
 // DisplayNameConflict 把 API Server 的唯一性裁决转换为控制台可展示的业务提示
@@ -53,4 +64,24 @@ func (e *UserError) UserMessage() string {
 // LogValue 防止用户提示进入结构化日志，只保留稳定的英文错误语义
 func (e *UserError) LogValue() slog.Value {
 	return slog.StringValue("business rule violation")
+}
+
+// Error 返回不包含用户展示文案的稳定错误语义
+func (e *VersionConflictError) Error() string {
+	return fmt.Sprintf("resource version conflict: %s", e.resourceID)
+}
+
+// Unwrap 支持调用方使用 errors.Is 判断版本冲突
+func (e *VersionConflictError) Unwrap() error {
+	return ErrResourceVersionConflict
+}
+
+// UserMessage 返回可以直接展示给控制台用户的冲突提示
+func (e *VersionConflictError) UserMessage() string {
+	return e.userMessage
+}
+
+// LogValue 只记录资源 ID，不把中文提示写入结构化日志
+func (e *VersionConflictError) LogValue() slog.Value {
+	return slog.StringValue(e.Error())
 }

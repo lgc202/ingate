@@ -28,7 +28,7 @@ func (r *CertificateRepository) ListPage(ctx context.Context, page biz.PageReque
 	if err != nil {
 		return biz.PageResult[resource.Certificate]{}, pageError("certificates", err)
 	}
-	return biz.PageResult[resource.Certificate]{Items: certificates.Items, NextToken: certificates.Continue}, nil
+	return biz.PageResult[resource.Certificate]{Items: certificates.Items, NextCursor: certificates.Continue}, nil
 }
 
 // Get 查询单个 Certificate

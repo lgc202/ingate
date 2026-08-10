@@ -4,6 +4,8 @@ package gateway
 import (
 	"context"
 
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
@@ -19,59 +21,56 @@ func NewService(usecase *gatewaybiz.Usecase) *Service {
 	return &Service{usecase: usecase}
 }
 
-func (s *Service) ListGateways(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListGatewaysReply, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
+func (s *Service) ListGateways(ctx context.Context, request *adminv1.ListGatewaysRequest) (*adminv1.ListGatewaysResponse, error) {
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListGatewaysReply{Gateways: make([]*adminv1.Gateway, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextToken)}
-	for i := range result.Items {
-		reply.Gateways = append(reply.Gateways, newGatewayReply(&result.Items[i]))
+	response := &adminv1.ListGatewaysResponse{
+		Gateways:   make([]*adminv1.Gateway, 0, len(result.Items)),
+		NextCursor: result.NextCursor,
 	}
-	return reply, nil
+	for i := range result.Items {
+		response.Gateways = append(response.Gateways, gatewayFromResource(&result.Items[i]))
+	}
+	return response, nil
 }
 
-func (s *Service) GetGateway(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.GetGatewayReply, error) {
+func (s *Service) GetGateway(ctx context.Context, request *adminv1.GetGatewayRequest) (*adminv1.Gateway, error) {
 	item, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
-	return &adminv1.GetGatewayReply{Gateway: newGatewayReply(item)}, nil
+	return gatewayFromResource(item), nil
 }
 
-func (s *Service) CreateGateway(ctx context.Context, request *adminv1.CreateGatewayRequest) (*adminv1.MutationReply, error) {
-	spec, err := buildGatewaySpec(request.GetName(), request.GetDescription(), request.GetListeners(), request.GetHostnames())
+func (s *Service) CreateGateway(ctx context.Context, request *adminv1.CreateGatewayRequest) (*adminv1.Gateway, error) {
+	spec, err := buildGatewaySpec(request.GetName(), request.GetEnabled(), request.GetListeners())
 	if err != nil {
 		return nil, err
 	}
-	id, err := s.usecase.Create(ctx, spec)
+	item, err := s.usecase.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
-	return &adminv1.MutationReply{Success: true, Id: id}, nil
+	return gatewayFromResource(item), nil
 }
 
-func (s *Service) UpdateGateway(ctx context.Context, request *adminv1.UpdateGatewayRequest) (*adminv1.MutationReply, error) {
-	spec, err := buildGatewaySpec(request.GetName(), request.GetDescription(), request.GetListeners(), request.GetHostnames())
+func (s *Service) UpdateGateway(ctx context.Context, request *adminv1.UpdateGatewayRequest) (*adminv1.Gateway, error) {
+	spec, err := buildGatewaySpec(request.GetName(), request.GetEnabled(), request.GetListeners())
 	if err != nil {
 		return nil, err
 	}
-	if err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec); err != nil {
+	item, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	if err != nil {
 		return nil, err
 	}
-	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
+	return gatewayFromResource(item), nil
 }
 
-func (s *Service) SetGatewayEnabled(ctx context.Context, request *adminv1.SetEnabledRequest) (*adminv1.MutationReply, error) {
-	if err := s.usecase.SetEnabled(ctx, request.GetId(), request.GetEnabled()); err != nil {
+func (s *Service) DeleteGateway(ctx context.Context, request *adminv1.DeleteGatewayRequest) (*emptypb.Empty, error) {
+	if err := s.usecase.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
-	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
-}
-
-func (s *Service) DeleteGateway(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
-		return nil, err
-	}
-	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
+	return &emptypb.Empty{}, nil
 }

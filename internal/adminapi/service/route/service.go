@@ -20,11 +20,11 @@ func NewService(usecase *routebiz.Usecase) *Service {
 }
 
 func (s *Service) ListRoutes(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListRoutesReply, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetPageSize(), request.GetPageToken()))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListRoutesReply{Routes: make([]*adminv1.Route, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextToken)}
+	reply := &adminv1.ListRoutesReply{Routes: make([]*adminv1.Route, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextCursor)}
 	for i := range result.Items {
 		reply.Routes = append(reply.Routes, newRouteReply(&result.Items[i]))
 	}

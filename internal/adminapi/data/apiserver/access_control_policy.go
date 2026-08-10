@@ -27,7 +27,7 @@ func (r *AccessControlPolicyRepository) ListPage(ctx context.Context, page biz.P
 	if err != nil {
 		return biz.PageResult[resource.AccessControlPolicy]{}, pageError("access control policies", err)
 	}
-	return biz.PageResult[resource.AccessControlPolicy]{Items: policies.Items, NextToken: policies.Continue}, nil
+	return biz.PageResult[resource.AccessControlPolicy]{Items: policies.Items, NextCursor: policies.Continue}, nil
 }
 
 // Get 查询单个 AccessControlPolicy

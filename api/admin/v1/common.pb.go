@@ -22,10 +22,66 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// ResourceState 是声明式资源面向控制台的生效状态
+type ResourceState int32
+
+const (
+	ResourceState_RESOURCE_STATE_UNSPECIFIED ResourceState = 0
+	ResourceState_DISABLED                   ResourceState = 1
+	ResourceState_PENDING                    ResourceState = 2
+	ResourceState_READY                      ResourceState = 3
+	ResourceState_ERROR                      ResourceState = 4
+)
+
+// Enum value maps for ResourceState.
+var (
+	ResourceState_name = map[int32]string{
+		0: "RESOURCE_STATE_UNSPECIFIED",
+		1: "DISABLED",
+		2: "PENDING",
+		3: "READY",
+		4: "ERROR",
+	}
+	ResourceState_value = map[string]int32{
+		"RESOURCE_STATE_UNSPECIFIED": 0,
+		"DISABLED":                   1,
+		"PENDING":                    2,
+		"READY":                      3,
+		"ERROR":                      4,
+	}
+)
+
+func (x ResourceState) Enum() *ResourceState {
+	p := new(ResourceState)
+	*p = x
+	return p
+}
+
+func (x ResourceState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ResourceState) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_common_proto_enumTypes[0].Descriptor()
+}
+
+func (ResourceState) Type() protoreflect.EnumType {
+	return &file_admin_v1_common_proto_enumTypes[0]
+}
+
+func (x ResourceState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ResourceState.Descriptor instead.
+func (ResourceState) EnumDescriptor() ([]byte, []int) {
+	return file_admin_v1_common_proto_rawDescGZIP(), []int{0}
+}
+
 // ResourceStatus 是控制台展示的声明式资源处理状态
 type ResourceStatus struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	State         string                 `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
+	State         ResourceState          `protobuf:"varint,1,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -61,11 +117,11 @@ func (*ResourceStatus) Descriptor() ([]byte, []int) {
 	return file_admin_v1_common_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *ResourceStatus) GetState() string {
+func (x *ResourceStatus) GetState() ResourceState {
 	if x != nil {
 		return x.State
 	}
-	return ""
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 func (x *ResourceStatus) GetMessage() string {
@@ -449,9 +505,9 @@ var File_admin_v1_common_proto protoreflect.FileDescriptor
 
 const file_admin_v1_common_proto_rawDesc = "" +
 	"\n" +
-	"\x15admin/v1/common.proto\x12\x0fingate.admin.v1\x1a\x1bbuf/validate/validate.proto\"@\n" +
-	"\x0eResourceStatus\x12\x14\n" +
-	"\x05state\x18\x01 \x01(\tR\x05state\x12\x18\n" +
+	"\x15admin/v1/common.proto\x12\x0fingate.admin.v1\x1a\x1bbuf/validate/validate.proto\"`\n" +
+	"\x0eResourceStatus\x124\n" +
+	"\x05state\x18\x01 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateR\x05state\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"I\n" +
 	"\x0fPolicyTargetRef\x12\x1b\n" +
 	"\x04kind\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04kind\x12\x19\n" +
@@ -477,7 +533,13 @@ const file_admin_v1_common_proto_rawDesc = "" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"2\n" +
 	"\bPageInfo\x12&\n" +
-	"\x0fnext_page_token\x18\x01 \x01(\tR\rnextPageTokenB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x0fnext_page_token\x18\x01 \x01(\tR\rnextPageToken*`\n" +
+	"\rResourceState\x12\x1e\n" +
+	"\x1aRESOURCE_STATE_UNSPECIFIED\x10\x00\x12\f\n" +
+	"\bDISABLED\x10\x01\x12\v\n" +
+	"\aPENDING\x10\x02\x12\t\n" +
+	"\x05READY\x10\x03\x12\t\n" +
+	"\x05ERROR\x10\x04B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_common_proto_rawDescOnce sync.Once
@@ -491,24 +553,27 @@ func file_admin_v1_common_proto_rawDescGZIP() []byte {
 	return file_admin_v1_common_proto_rawDescData
 }
 
+var file_admin_v1_common_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_admin_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_admin_v1_common_proto_goTypes = []any{
-	(*ResourceStatus)(nil),    // 0: ingate.admin.v1.ResourceStatus
-	(*PolicyTargetRef)(nil),   // 1: ingate.admin.v1.PolicyTargetRef
-	(*PolicyTarget)(nil),      // 2: ingate.admin.v1.PolicyTarget
-	(*ResourceRequest)(nil),   // 3: ingate.admin.v1.ResourceRequest
-	(*SetEnabledRequest)(nil), // 4: ingate.admin.v1.SetEnabledRequest
-	(*MutationReply)(nil),     // 5: ingate.admin.v1.MutationReply
-	(*ListRequest)(nil),       // 6: ingate.admin.v1.ListRequest
-	(*PageInfo)(nil),          // 7: ingate.admin.v1.PageInfo
+	(ResourceState)(0),        // 0: ingate.admin.v1.ResourceState
+	(*ResourceStatus)(nil),    // 1: ingate.admin.v1.ResourceStatus
+	(*PolicyTargetRef)(nil),   // 2: ingate.admin.v1.PolicyTargetRef
+	(*PolicyTarget)(nil),      // 3: ingate.admin.v1.PolicyTarget
+	(*ResourceRequest)(nil),   // 4: ingate.admin.v1.ResourceRequest
+	(*SetEnabledRequest)(nil), // 5: ingate.admin.v1.SetEnabledRequest
+	(*MutationReply)(nil),     // 6: ingate.admin.v1.MutationReply
+	(*ListRequest)(nil),       // 7: ingate.admin.v1.ListRequest
+	(*PageInfo)(nil),          // 8: ingate.admin.v1.PageInfo
 }
 var file_admin_v1_common_proto_depIdxs = []int32{
-	0, // 0: ingate.admin.v1.PolicyTarget.status:type_name -> ingate.admin.v1.ResourceStatus
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	0, // 0: ingate.admin.v1.ResourceStatus.state:type_name -> ingate.admin.v1.ResourceState
+	1, // 1: ingate.admin.v1.PolicyTarget.status:type_name -> ingate.admin.v1.ResourceStatus
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_common_proto_init() }
@@ -522,13 +587,14 @@ func file_admin_v1_common_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_common_proto_rawDesc), len(file_admin_v1_common_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
 		GoTypes:           file_admin_v1_common_proto_goTypes,
 		DependencyIndexes: file_admin_v1_common_proto_depIdxs,
+		EnumInfos:         file_admin_v1_common_proto_enumTypes,
 		MessageInfos:      file_admin_v1_common_proto_msgTypes,
 	}.Build()
 	File_admin_v1_common_proto = out.File

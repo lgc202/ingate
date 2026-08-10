@@ -10,12 +10,12 @@ import (
 )
 
 func pageOptions(page biz.PageRequest) metav1.ListOptions {
-	return metav1.ListOptions{Limit: page.Size, Continue: page.Token}
+	return metav1.ListOptions{Limit: page.Limit, Continue: page.Cursor}
 }
 
 func pageError(kind string, err error) error {
 	if apierrors.IsBadRequest(err) || apierrors.IsResourceExpired(err) {
-		return fmt.Errorf("%w: %v", biz.ErrInvalidPageToken, err)
+		return fmt.Errorf("%w: %v", biz.ErrInvalidCursor, err)
 	}
 	return resourceError("list", kind, "", err)
 }

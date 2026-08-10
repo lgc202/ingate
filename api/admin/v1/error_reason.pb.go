@@ -25,40 +25,46 @@ const (
 type ErrorReason int32
 
 const (
-	ErrorReason_ERROR_REASON_UNSPECIFIED ErrorReason = 0
-	ErrorReason_INVALID_ARGUMENT         ErrorReason = 1
-	ErrorReason_BUSINESS_RULE_VIOLATION  ErrorReason = 2
-	ErrorReason_INTERNAL_ERROR           ErrorReason = 3
-	ErrorReason_ROUTE_NOT_FOUND          ErrorReason = 4
-	ErrorReason_METHOD_NOT_ALLOWED       ErrorReason = 5
-	ErrorReason_PANIC                    ErrorReason = 6
-	ErrorReason_UNAUTHENTICATED          ErrorReason = 7
-	ErrorReason_PERMISSION_DENIED        ErrorReason = 8
+	ErrorReason_ERROR_REASON_UNSPECIFIED  ErrorReason = 0
+	ErrorReason_INVALID_ARGUMENT          ErrorReason = 1
+	ErrorReason_BUSINESS_RULE_VIOLATION   ErrorReason = 2
+	ErrorReason_INTERNAL_ERROR            ErrorReason = 3
+	ErrorReason_ROUTE_NOT_FOUND           ErrorReason = 4
+	ErrorReason_METHOD_NOT_ALLOWED        ErrorReason = 5
+	ErrorReason_PANIC                     ErrorReason = 6
+	ErrorReason_UNAUTHENTICATED           ErrorReason = 7
+	ErrorReason_PERMISSION_DENIED         ErrorReason = 8
+	ErrorReason_RESOURCE_VERSION_CONFLICT ErrorReason = 9
+	ErrorReason_RESOURCE_NOT_FOUND        ErrorReason = 10
 )
 
 // Enum value maps for ErrorReason.
 var (
 	ErrorReason_name = map[int32]string{
-		0: "ERROR_REASON_UNSPECIFIED",
-		1: "INVALID_ARGUMENT",
-		2: "BUSINESS_RULE_VIOLATION",
-		3: "INTERNAL_ERROR",
-		4: "ROUTE_NOT_FOUND",
-		5: "METHOD_NOT_ALLOWED",
-		6: "PANIC",
-		7: "UNAUTHENTICATED",
-		8: "PERMISSION_DENIED",
+		0:  "ERROR_REASON_UNSPECIFIED",
+		1:  "INVALID_ARGUMENT",
+		2:  "BUSINESS_RULE_VIOLATION",
+		3:  "INTERNAL_ERROR",
+		4:  "ROUTE_NOT_FOUND",
+		5:  "METHOD_NOT_ALLOWED",
+		6:  "PANIC",
+		7:  "UNAUTHENTICATED",
+		8:  "PERMISSION_DENIED",
+		9:  "RESOURCE_VERSION_CONFLICT",
+		10: "RESOURCE_NOT_FOUND",
 	}
 	ErrorReason_value = map[string]int32{
-		"ERROR_REASON_UNSPECIFIED": 0,
-		"INVALID_ARGUMENT":         1,
-		"BUSINESS_RULE_VIOLATION":  2,
-		"INTERNAL_ERROR":           3,
-		"ROUTE_NOT_FOUND":          4,
-		"METHOD_NOT_ALLOWED":       5,
-		"PANIC":                    6,
-		"UNAUTHENTICATED":          7,
-		"PERMISSION_DENIED":        8,
+		"ERROR_REASON_UNSPECIFIED":  0,
+		"INVALID_ARGUMENT":          1,
+		"BUSINESS_RULE_VIOLATION":   2,
+		"INTERNAL_ERROR":            3,
+		"ROUTE_NOT_FOUND":           4,
+		"METHOD_NOT_ALLOWED":        5,
+		"PANIC":                     6,
+		"UNAUTHENTICATED":           7,
+		"PERMISSION_DENIED":         8,
+		"RESOURCE_VERSION_CONFLICT": 9,
+		"RESOURCE_NOT_FOUND":        10,
 	}
 )
 
@@ -93,7 +99,7 @@ var File_admin_v1_error_reason_proto protoreflect.FileDescriptor
 
 const file_admin_v1_error_reason_proto_rawDesc = "" +
 	"\n" +
-	"\x1badmin/v1/error_reason.proto\x12\x0fingate.admin.v1*\xd6\x01\n" +
+	"\x1badmin/v1/error_reason.proto\x12\x0fingate.admin.v1*\x8d\x02\n" +
 	"\vErrorReason\x12\x1c\n" +
 	"\x18ERROR_REASON_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10INVALID_ARGUMENT\x10\x01\x12\x1b\n" +
@@ -103,7 +109,10 @@ const file_admin_v1_error_reason_proto_rawDesc = "" +
 	"\x12METHOD_NOT_ALLOWED\x10\x05\x12\t\n" +
 	"\x05PANIC\x10\x06\x12\x13\n" +
 	"\x0fUNAUTHENTICATED\x10\a\x12\x15\n" +
-	"\x11PERMISSION_DENIED\x10\bB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x11PERMISSION_DENIED\x10\b\x12\x1d\n" +
+	"\x19RESOURCE_VERSION_CONFLICT\x10\t\x12\x16\n" +
+	"\x12RESOURCE_NOT_FOUND\x10\n" +
+	"B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_error_reason_proto_rawDescOnce sync.Once

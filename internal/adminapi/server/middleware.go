@@ -48,18 +48,23 @@ func errorMappingMiddleware(next middleware.Handler) middleware.Handler {
 				WithMetadata(map[string]string{userMessageMetadata: requestError.UserMessage()}).
 				WithCause(err)
 		}
+		if conflictError, ok := errors.AsType[*biz.VersionConflictError](err); ok {
+			return nil, kratoserrors.New(http.StatusConflict, adminv1.ErrorReason_RESOURCE_VERSION_CONFLICT.String(), "resource version conflict").
+				WithMetadata(map[string]string{userMessageMetadata: conflictError.UserMessage()}).
+				WithCause(err)
+		}
 		if userError, ok := errors.AsType[*biz.UserError](err); ok {
-			return nil, kratoserrors.New(http.StatusInternalServerError, adminv1.ErrorReason_BUSINESS_RULE_VIOLATION.String(), "request rejected").
+			return nil, kratoserrors.New(http.StatusConflict, adminv1.ErrorReason_BUSINESS_RULE_VIOLATION.String(), "request rejected").
 				WithMetadata(map[string]string{userMessageMetadata: userError.UserMessage()}).
 				WithCause(err)
 		}
 		if errors.Is(err, biz.ErrResourceNotFound) {
-			return nil, kratoserrors.New(http.StatusInternalServerError, adminv1.ErrorReason_BUSINESS_RULE_VIOLATION.String(), "resource not found").
+			return nil, kratoserrors.New(http.StatusNotFound, adminv1.ErrorReason_RESOURCE_NOT_FOUND.String(), "resource not found").
 				WithMetadata(map[string]string{userMessageMetadata: "资源不存在或已被删除"}).
 				WithCause(err)
 		}
-		if errors.Is(err, biz.ErrInvalidPageToken) {
-			return nil, kratoserrors.BadRequest(adminv1.ErrorReason_INVALID_ARGUMENT.String(), "invalid page token").
+		if errors.Is(err, biz.ErrInvalidCursor) {
+			return nil, kratoserrors.BadRequest(adminv1.ErrorReason_INVALID_ARGUMENT.String(), "invalid cursor").
 				WithMetadata(map[string]string{userMessageMetadata: "分页游标无效或已过期"}).
 				WithCause(err)
 		}
