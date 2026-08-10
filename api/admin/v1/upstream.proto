@@ -5,114 +5,144 @@ package ingate.admin.v1;
 import "admin/v1/common.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
 // UpstreamService 提供应用、模型、MCP 和 Agent 服务管理接口
 service UpstreamService {
-  rpc ListUpstreams(ListRequest) returns (ListUpstreamsReply) {
+  rpc ListUpstreams(ListUpstreamsRequest) returns (ListUpstreamsResponse) {
     option (google.api.http) = {get: "/api/v1/upstreams"};
   }
-  rpc GetUpstream(ResourceRequest) returns (Upstream) {
+  rpc GetUpstream(GetUpstreamRequest) returns (Upstream) {
     option (google.api.http) = {get: "/api/v1/upstreams/{id}"};
   }
-  rpc CreateUpstream(CreateUpstreamRequest) returns (MutationReply) {
+  rpc CreateUpstream(CreateUpstreamRequest) returns (Upstream) {
     option (google.api.http) = {
       post: "/api/v1/upstreams"
       body: "*"
     };
   }
-  rpc UpdateUpstream(UpdateUpstreamRequest) returns (MutationReply) {
+  rpc UpdateUpstream(UpdateUpstreamRequest) returns (Upstream) {
     option (google.api.http) = {
       put: "/api/v1/upstreams/{id}"
       body: "*"
     };
   }
-  rpc DeleteUpstream(ResourceRequest) returns (MutationReply) {
+  rpc DeleteUpstream(DeleteUpstreamRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {delete: "/api/v1/upstreams/{id}"};
   }
 }
 
-message APIKeyConfig {
-  string value = 1;
+enum UpstreamType {
+  UPSTREAM_TYPE_UNSPECIFIED = 0;
+  UPSTREAM_TYPE_APPLICATION = 1;
+  UPSTREAM_TYPE_MODEL = 2;
+  UPSTREAM_TYPE_AGENT = 3;
+  UPSTREAM_TYPE_MCP = 4;
+}
+
+enum ModelProvider {
+  MODEL_PROVIDER_UNSPECIFIED = 0;
+  MODEL_PROVIDER_OPENAI = 1;
+  MODEL_PROVIDER_DEEPSEEK = 2;
+  MODEL_PROVIDER_QWEN = 3;
+  MODEL_PROVIDER_ANTHROPIC = 4;
+  MODEL_PROVIDER_GEMINI = 5;
+  MODEL_PROVIDER_CUSTOM = 6;
+}
+
+enum LoadBalancingPolicy {
+  LOAD_BALANCING_POLICY_UNSPECIFIED = 0;
+  LOAD_BALANCING_POLICY_ROUND_ROBIN = 1;
+  LOAD_BALANCING_POLICY_LEAST_REQUEST = 2;
 }
 
 message UpstreamTLS {
-  string server_name = 1;
-}
-
-message ModelCatalogItem {
-  string name = 1;
-  string display_name = 2;
-  bool enabled = 3;
+  string server_name = 1 [(buf.validate.field).string.min_len = 1];
 }
 
 message ModelConfig {
-  string provider = 1;
-  string api_base_path = 2 [json_name = "apiBasePath"];
-  repeated ModelCatalogItem models = 3;
+  ModelProvider provider = 1;
+  string base_path = 2 [(buf.validate.field).string.min_len = 1];
+  repeated string models = 3 [(buf.validate.field).repeated = {
+    min_items: 1
+    items: {string: {min_len: 1}}
+  }];
 }
 
 message UpstreamEndpoint {
-  string id = 1;
-  string address = 2;
-  int32 port = 3;
-  int32 weight = 4;
-  bool enabled = 5;
+  string address = 1 [(buf.validate.field).string.min_len = 1];
+  uint32 port = 2 [(buf.validate.field).uint32 = {
+    gte: 1
+    lte: 65535
+  }];
+  uint32 weight = 3 [(buf.validate.field).uint32.lte = 1000];
 }
 
 message UpstreamHealthCheck {
-  bool enabled = 1;
-  string path = 2;
-  int32 interval_seconds = 3;
-  int32 timeout_seconds = 4;
+  string path = 1 [(buf.validate.field).string.min_len = 1];
+  uint32 interval_seconds = 2 [(buf.validate.field).uint32.lte = 300];
+  uint32 timeout_seconds = 3 [(buf.validate.field).uint32.lte = 60];
 }
 
 message Upstream {
   string id = 1;
-  string version = 2;
-  ResourceStatus status = 3;
-  bool api_key_configured = 4 [json_name = "apiKeyConfigured"];
-  string name = 5;
-  string type = 6;
-  string protocol = 7;
-  UpstreamTLS tls = 8;
-  ModelConfig model = 9;
-  repeated UpstreamEndpoint endpoints = 10;
-  string load_balance_policy = 11;
-  UpstreamHealthCheck health_check = 12;
+  string name = 2;
+  UpstreamType type = 3;
+  repeated UpstreamEndpoint endpoints = 4;
+  UpstreamTLS tls = 5;
+  LoadBalancingPolicy load_balancing = 6;
+  UpstreamHealthCheck health_check = 7;
+  ModelConfig model = 8;
+  bool api_key_configured = 9 [json_name = "apiKeyConfigured"];
+  ResourceState state = 10;
+  string message = 11;
+  int64 version = 12;
   google.protobuf.Timestamp created_at = 13;
+  google.protobuf.Timestamp updated_at = 14;
+}
+
+message ListUpstreamsRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListUpstreamsResponse {
+  repeated Upstream upstreams = 1;
+  string next_cursor = 2;
+}
+
+message GetUpstreamRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 message CreateUpstreamRequest {
   string name = 1 [(buf.validate.field).string.min_len = 1];
-  string type = 2 [(buf.validate.field).string.min_len = 1];
-  string protocol = 3 [(buf.validate.field).string.min_len = 1];
+  UpstreamType type = 2;
+  repeated UpstreamEndpoint endpoints = 3 [(buf.validate.field).repeated.min_items = 1];
   UpstreamTLS tls = 4;
-  ModelConfig model = 5;
-  repeated UpstreamEndpoint endpoints = 6 [(buf.validate.field).repeated.min_items = 1];
-  string load_balance_policy = 7 [(buf.validate.field).string.min_len = 1];
-  UpstreamHealthCheck health_check = 8;
-  APIKeyConfig api_key = 9 [json_name = "apiKey"];
+  LoadBalancingPolicy load_balancing = 5;
+  UpstreamHealthCheck health_check = 6;
+  ModelConfig model = 7;
+  optional string api_key = 8 [json_name = "apiKey"];
 }
 
 message UpdateUpstreamRequest {
-  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
-  string version = 2 [(buf.validate.field).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
   string name = 3 [(buf.validate.field).string.min_len = 1];
-  string type = 4 [(buf.validate.field).string.min_len = 1];
-  string protocol = 5 [(buf.validate.field).string.min_len = 1];
+  UpstreamType type = 4;
+  repeated UpstreamEndpoint endpoints = 5 [(buf.validate.field).repeated.min_items = 1];
   UpstreamTLS tls = 6;
-  ModelConfig model = 7;
-  repeated UpstreamEndpoint endpoints = 8 [(buf.validate.field).repeated.min_items = 1];
-  string load_balance_policy = 9 [(buf.validate.field).string.min_len = 1];
-  UpstreamHealthCheck health_check = 10;
-  APIKeyConfig api_key = 11 [json_name = "apiKey"];
-  bool remove_api_key = 12 [json_name = "removeAPIKey"];
+  LoadBalancingPolicy load_balancing = 7;
+  UpstreamHealthCheck health_check = 8;
+  ModelConfig model = 9;
+  optional string api_key = 10 [json_name = "apiKey"];
 }
 
-message ListUpstreamsReply {
-  repeated Upstream upstreams = 1;
-  PageInfo page = 2;
+message DeleteUpstreamRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
 }

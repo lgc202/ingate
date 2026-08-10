@@ -9,6 +9,7 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -24,11 +25,11 @@ const OperationUpstreamServiceListUpstreams = "/ingate.admin.v1.UpstreamService/
 const OperationUpstreamServiceUpdateUpstream = "/ingate.admin.v1.UpstreamService/UpdateUpstream"
 
 type UpstreamServiceHTTPServer interface {
-	CreateUpstream(context.Context, *CreateUpstreamRequest) (*MutationReply, error)
-	DeleteUpstream(context.Context, *ResourceRequest) (*MutationReply, error)
-	GetUpstream(context.Context, *ResourceRequest) (*Upstream, error)
-	ListUpstreams(context.Context, *ListRequest) (*ListUpstreamsReply, error)
-	UpdateUpstream(context.Context, *UpdateUpstreamRequest) (*MutationReply, error)
+	CreateUpstream(context.Context, *CreateUpstreamRequest) (*Upstream, error)
+	DeleteUpstream(context.Context, *DeleteUpstreamRequest) (*emptypb.Empty, error)
+	GetUpstream(context.Context, *GetUpstreamRequest) (*Upstream, error)
+	ListUpstreams(context.Context, *ListUpstreamsRequest) (*ListUpstreamsResponse, error)
+	UpdateUpstream(context.Context, *UpdateUpstreamRequest) (*Upstream, error)
 }
 
 func RegisterUpstreamServiceHTTPServer(s *http.Server, srv UpstreamServiceHTTPServer) {
@@ -42,26 +43,26 @@ func RegisterUpstreamServiceHTTPServer(s *http.Server, srv UpstreamServiceHTTPSe
 
 func _UpstreamService_ListUpstreams0_HTTP_Handler(srv UpstreamServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ListRequest
+		var in ListUpstreamsRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationUpstreamServiceListUpstreams)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListUpstreams(ctx, req.(*ListRequest))
+			return srv.ListUpstreams(ctx, req.(*ListUpstreamsRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*ListUpstreamsReply)
+		reply := out.(*ListUpstreamsResponse)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _UpstreamService_GetUpstream0_HTTP_Handler(srv UpstreamServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in GetUpstreamRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -70,7 +71,7 @@ func _UpstreamService_GetUpstream0_HTTP_Handler(srv UpstreamServiceHTTPServer) f
 		}
 		http.SetOperation(ctx, OperationUpstreamServiceGetUpstream)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetUpstream(ctx, req.(*ResourceRequest))
+			return srv.GetUpstream(ctx, req.(*GetUpstreamRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -95,7 +96,7 @@ func _UpstreamService_CreateUpstream0_HTTP_Handler(srv UpstreamServiceHTTPServer
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*Upstream)
 		return ctx.Result(200, reply)
 	}
 }
@@ -117,14 +118,14 @@ func _UpstreamService_UpdateUpstream0_HTTP_Handler(srv UpstreamServiceHTTPServer
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*Upstream)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _UpstreamService_DeleteUpstream0_HTTP_Handler(srv UpstreamServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in DeleteUpstreamRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -133,23 +134,23 @@ func _UpstreamService_DeleteUpstream0_HTTP_Handler(srv UpstreamServiceHTTPServer
 		}
 		http.SetOperation(ctx, OperationUpstreamServiceDeleteUpstream)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.DeleteUpstream(ctx, req.(*ResourceRequest))
+			return srv.DeleteUpstream(ctx, req.(*DeleteUpstreamRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*emptypb.Empty)
 		return ctx.Result(200, reply)
 	}
 }
 
 type UpstreamServiceHTTPClient interface {
-	CreateUpstream(ctx context.Context, req *CreateUpstreamRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	DeleteUpstream(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	GetUpstream(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *Upstream, err error)
-	ListUpstreams(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListUpstreamsReply, err error)
-	UpdateUpstream(ctx context.Context, req *UpdateUpstreamRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
+	CreateUpstream(ctx context.Context, req *CreateUpstreamRequest, opts ...http.CallOption) (rsp *Upstream, err error)
+	DeleteUpstream(ctx context.Context, req *DeleteUpstreamRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	GetUpstream(ctx context.Context, req *GetUpstreamRequest, opts ...http.CallOption) (rsp *Upstream, err error)
+	ListUpstreams(ctx context.Context, req *ListUpstreamsRequest, opts ...http.CallOption) (rsp *ListUpstreamsResponse, err error)
+	UpdateUpstream(ctx context.Context, req *UpdateUpstreamRequest, opts ...http.CallOption) (rsp *Upstream, err error)
 }
 
 type UpstreamServiceHTTPClientImpl struct {
@@ -160,8 +161,8 @@ func NewUpstreamServiceHTTPClient(client *http.Client) UpstreamServiceHTTPClient
 	return &UpstreamServiceHTTPClientImpl{client}
 }
 
-func (c *UpstreamServiceHTTPClientImpl) CreateUpstream(ctx context.Context, in *CreateUpstreamRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *UpstreamServiceHTTPClientImpl) CreateUpstream(ctx context.Context, in *CreateUpstreamRequest, opts ...http.CallOption) (*Upstream, error) {
+	var out Upstream
 	pattern := "/api/v1/upstreams"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
@@ -177,8 +178,8 @@ func (c *UpstreamServiceHTTPClientImpl) CreateUpstream(ctx context.Context, in *
 	return &out, nil
 }
 
-func (c *UpstreamServiceHTTPClientImpl) DeleteUpstream(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *UpstreamServiceHTTPClientImpl) DeleteUpstream(ctx context.Context, in *DeleteUpstreamRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
+	var out emptypb.Empty
 	pattern := "/api/v1/upstreams/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -193,7 +194,7 @@ func (c *UpstreamServiceHTTPClientImpl) DeleteUpstream(ctx context.Context, in *
 	return &out, nil
 }
 
-func (c *UpstreamServiceHTTPClientImpl) GetUpstream(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*Upstream, error) {
+func (c *UpstreamServiceHTTPClientImpl) GetUpstream(ctx context.Context, in *GetUpstreamRequest, opts ...http.CallOption) (*Upstream, error) {
 	var out Upstream
 	pattern := "/api/v1/upstreams/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
@@ -209,8 +210,8 @@ func (c *UpstreamServiceHTTPClientImpl) GetUpstream(ctx context.Context, in *Res
 	return &out, nil
 }
 
-func (c *UpstreamServiceHTTPClientImpl) ListUpstreams(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListUpstreamsReply, error) {
-	var out ListUpstreamsReply
+func (c *UpstreamServiceHTTPClientImpl) ListUpstreams(ctx context.Context, in *ListUpstreamsRequest, opts ...http.CallOption) (*ListUpstreamsResponse, error) {
+	var out ListUpstreamsResponse
 	pattern := "/api/v1/upstreams"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -225,8 +226,8 @@ func (c *UpstreamServiceHTTPClientImpl) ListUpstreams(ctx context.Context, in *L
 	return &out, nil
 }
 
-func (c *UpstreamServiceHTTPClientImpl) UpdateUpstream(ctx context.Context, in *UpdateUpstreamRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *UpstreamServiceHTTPClientImpl) UpdateUpstream(ctx context.Context, in *UpdateUpstreamRequest, opts ...http.CallOption) (*Upstream, error) {
+	var out Upstream
 	pattern := "/api/v1/upstreams/{id}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{

@@ -33,9 +33,6 @@ func (u *Usecase) validateReferences(ctx context.Context, spec resource.RouteSpe
 		if upstream.Spec.Type == resource.UpstreamTypeModel {
 			return biz.NewUserError(fmt.Sprintf("模型服务 %q 只能用于模型路由", upstreamDisplayName(upstream)))
 		}
-		if upstream.Spec.Protocol != resource.UpstreamProtocolHTTP {
-			return biz.NewUserError(fmt.Sprintf("服务 %q 的协议不能用于普通 HTTP 路由", upstreamDisplayName(upstream)))
-		}
 	}
 	if spec.ModelRouting == nil {
 		return nil
@@ -55,8 +52,8 @@ func (u *Usecase) validateReferences(ctx context.Context, spec resource.RouteSpe
 		if upstreamModel == "" {
 			upstreamModel = model.Model
 		}
-		if !upstreambiz.ModelEnabled(upstream.Spec.Model, upstreamModel) {
-			return biz.NewUserError(fmt.Sprintf("模型服务 %q 未启用厂商模型 %q", upstreamDisplayName(upstream), upstreamModel))
+		if !upstreambiz.HasModel(upstream.Spec.Model, upstreamModel) {
+			return biz.NewUserError(fmt.Sprintf("模型服务 %q 未配置厂商模型 %q", upstreamDisplayName(upstream), upstreamModel))
 		}
 	}
 	return nil

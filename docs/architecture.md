@@ -134,13 +134,13 @@ OpenAI Client
 
 资源职责保持单一：
 
-- 模型服务仍是 `Upstream`，使用 `type=model` 表达业务分类，使用 `protocol` 表达 OpenAI、Anthropic 或 Gemini 通信语义，使用 `spec.model.provider` 表达具体厂商
+- 模型服务仍是 `Upstream`，使用 `type=Model` 表达业务分类，使用 `spec.model.provider` 表达具体厂商并推导 OpenAI、Anthropic 或 Gemini 通信语义
 - 用户在 `spec.model.models[]` 中手工维护厂商模型目录，不新增 Provider 或 Model 资源，也不自动同步厂商模型列表
-- API Key 直接保存在模型 `Upstream.spec.authentication.apiKey.value` 中，不再创建独立凭据资源或跨资源引用
-- Admin API 只返回 `apiKeyConfigured`，不回显密钥内容；更新时省略 API Key 表示保留，显式移除才会清除
+- API Key 直接保存在模型 `Upstream.spec.model.apiKey` 中，不再创建独立凭据资源或跨资源引用
+- Admin API 只返回 `apiKeyConfigured`，不回显密钥内容；更新时省略 API Key 表示保留，显式空字符串表示清除
 - 配置或保留 API Key 时模型 Upstream 必须启用 TLS，避免密钥通过明文 HTTP 发送
 - 一条模型 Route 的 `modelRouting.models[]` 中，每个客户端模型别名分别保存 `upstreamRef` 和 `upstreamModel`；同一路由可以按 `model` 跨多个模型 Upstream 选择目标
-- Compiler 为模型规则生成一个公开入口 Route，使用标准 Envoy `cluster_header` 接收 ExtProc 选出的目标 Cluster
+- Compiler 为模型 Route 生成一个公开入口，使用标准 Envoy `cluster_header` 接收 ExtProc 选出的目标 Cluster
 - Compiler 把目标 Cluster、上游 Host、协议、基础路径、认证执行计划和模型映射编译为 ExtProc per-route 配置，配置只随对应 Route 生效
 - `ingate-ai-proxy` 从 Redis 查询访问密钥执行索引，认证后按公开模型选择目标，改写上游路径、Host、凭据和请求体，并统一普通响应、错误和 SSE
 

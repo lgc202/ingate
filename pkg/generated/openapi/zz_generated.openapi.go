@@ -15,7 +15,6 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyAuthentication":      schema_pkg_apis_gateway_v1_APIKeyAuthentication(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlCondition":    schema_pkg_apis_gateway_v1_AccessControlCondition(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlDenyResponse": schema_pkg_apis_gateway_v1_AccessControlDenyResponse(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessControlPolicy":       schema_pkg_apis_gateway_v1_AccessControlPolicy(ref),
@@ -33,7 +32,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier":            schema_pkg_apis_gateway_v1_HeaderModifier(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":               schema_pkg_apis_gateway_v1_HeaderValue(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":                  schema_pkg_apis_gateway_v1_Listener(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelCatalogItem":          schema_pkg_apis_gateway_v1_ModelCatalogItem(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelMapping":              schema_pkg_apis_gateway_v1_ModelMapping(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting":              schema_pkg_apis_gateway_v1_ModelRouting(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec":                 schema_pkg_apis_gateway_v1_ModelSpec(ref),
@@ -63,7 +61,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaResponse":        schema_pkg_apis_gateway_v1_TokenQuotaResponse(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaSubject":         schema_pkg_apis_gateway_v1_TokenQuotaSubject(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream":                  schema_pkg_apis_gateway_v1_Upstream(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication":    schema_pkg_apis_gateway_v1_UpstreamAuthentication(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck":       schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamList":              schema_pkg_apis_gateway_v1_UpstreamList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef":               schema_pkg_apis_gateway_v1_UpstreamRef(ref),
@@ -122,28 +119,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                               schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
 		"k8s.io/apimachinery/pkg/runtime.Unknown":                                schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
 		"k8s.io/apimachinery/pkg/version.Info":                                   schema_k8sio_apimachinery_pkg_version_Info(ref),
-	}
-}
-
-func schema_pkg_apis_gateway_v1_APIKeyAuthentication(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "APIKeyAuthentication 保存静态 API Key",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"value": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Value 保存发送给 Upstream 的完整 API Key",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"value"},
-			},
-		},
 	}
 }
 
@@ -575,16 +550,9 @@ func schema_pkg_apis_gateway_v1_Endpoint(ref common.ReferenceCallback) common.Op
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Endpoint 声明一个上游端点",
+				Description: "Endpoint 表示 Upstream 的一个网络地址及其相对容量",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Name 是端点在 Upstream 内的稳定标识",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 					"address": {
 						SchemaProps: spec.SchemaProps{
 							Default: "",
@@ -601,21 +569,13 @@ func schema_pkg_apis_gateway_v1_Endpoint(ref common.ReferenceCallback) common.Op
 					},
 					"weight": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Weight 是端点参与负载均衡时的相对权重，取值范围为 1-100",
+							Description: "Weight 默认为 1，多个端点之间按相对权重分配流量",
 							Type:        []string{"integer"},
 							Format:      "int32",
 						},
 					},
-					"enabled": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 控制端点是否参与运行时配置生成",
-							Default:     false,
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
 				},
-				Required: []string{"address", "port", "enabled"},
+				Required: []string{"address", "port"},
 			},
 		},
 	}
@@ -939,44 +899,6 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 	}
 }
 
-func schema_pkg_apis_gateway_v1_ModelCatalogItem(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "ModelCatalogItem 表示模型服务对路由开放的一个厂商模型",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Name 是发送给厂商 API 的模型名称，也是路由引用键",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"displayName": {
-						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 是控制台展示名称",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"enabled": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Enabled 控制该模型是否允许被模型路由引用",
-							Default:     false,
-							Type:        []string{"boolean"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"name", "displayName", "enabled"},
-			},
-		},
-	}
-}
-
 func schema_pkg_apis_gateway_v1_ModelMapping(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1052,20 +974,20 @@ func schema_pkg_apis_gateway_v1_ModelSpec(ref common.ReferenceCallback) common.O
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ModelSpec 定义模型服务的厂商协议参数和模型目录",
+				Description: "ModelSpec 定义模型服务的厂商、API 路径、模型目录和访问密钥",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"provider": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Provider 表示模型厂商或 OpenAI-compatible 实现类型，仅用于产品预设和协议组合校验",
+							Description: "Provider 决定模型请求协议及认证 Header 规则",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
-					"apiBasePath": {
+					"basePath": {
 						SchemaProps: spec.SchemaProps{
-							Description: "APIBasePath 是追加到模型端点后的厂商 API 基础路径",
+							Description: "BasePath 是追加到模型端点后的厂商 API 基础路径",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1078,23 +1000,30 @@ func schema_pkg_apis_gateway_v1_ModelSpec(ref common.ReferenceCallback) common.O
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "Models 保存允许 Route 引用的厂商模型名称",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelCatalogItem"),
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
 									},
 								},
 							},
 						},
 					},
+					"apiKey": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIKey 保存发送给模型服务的完整 API Key",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 				},
-				Required: []string{"provider", "apiBasePath", "models"},
+				Required: []string{"provider", "basePath", "models"},
 			},
 		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelCatalogItem"},
 	}
 }
 
@@ -2252,45 +2181,18 @@ func schema_pkg_apis_gateway_v1_Upstream(ref common.ReferenceCallback) common.Op
 	}
 }
 
-func schema_pkg_apis_gateway_v1_UpstreamAuthentication(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamAuthentication 声明访问 Upstream 时使用的认证配置",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"apiKey": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIKey 保存静态 API Key 认证信息",
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyAuthentication"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.APIKeyAuthentication"},
-	}
-}
-
 func schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamHealthCheck 声明 Upstream 的主动健康检查配置",
+				Description: "UpstreamHealthCheck 声明 Upstream 的 HTTP 主动健康检查",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"enabled": {
-						SchemaProps: spec.SchemaProps{
-							Default: false,
-							Type:    []string{"boolean"},
-							Format:  "",
-						},
-					},
 					"path": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
 						},
 					},
 					"intervalSeconds": {
@@ -2306,7 +2208,7 @@ func schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref common.ReferenceCallback
 						},
 					},
 				},
-				Required: []string{"enabled"},
+				Required: []string{"path"},
 			},
 		},
 	}
@@ -2393,59 +2295,22 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamSpec 定义 Upstream 的展示信息、流量策略和端点集合",
+				Description: "UpstreamSpec 定义 Upstream 的业务分类、连接方式和端点集合",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与引用匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与资源引用",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 					"type": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Type 保存 Upstream 的业务分类，用于区分普通服务、模型服务和 Agent/MCP 服务",
+							Description: "Type 用于区分普通应用、模型、MCP 和 Agent 服务",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
-						},
-					},
-					"protocol": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Protocol 描述 Ingate 与 Upstream 之间实际使用的应用协议",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"tls": {
-						SchemaProps: spec.SchemaProps{
-							Description: "TLS 描述访问 Upstream 时的 TLS 配置，未配置时使用明文连接",
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"),
-						},
-					},
-					"authentication": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Authentication 描述 Ingate 访问 Upstream 时使用的认证信息",
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication"),
-						},
-					},
-					"model": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Model 描述模型厂商、API 基础路径和可供路由选择的模型目录",
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec"),
-						},
-					},
-					"loadBalancePolicy": {
-						SchemaProps: spec.SchemaProps{
-							Description: "LoadBalancePolicy 指定多个端点之间的负载均衡策略",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"healthCheck": {
-						SchemaProps: spec.SchemaProps{
-							Description: "HealthCheck 描述 Upstream 端点的主动健康检查配置",
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck"),
 						},
 					},
 					"endpoints": {
@@ -2455,7 +2320,8 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "Endpoints 是当前服务可接收流量的网络端点",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -2466,12 +2332,37 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 							},
 						},
 					},
+					"tls": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TLS 描述访问 Upstream 时的服务端身份校验，未配置时使用明文 HTTP",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"),
+						},
+					},
+					"loadBalancing": {
+						SchemaProps: spec.SchemaProps{
+							Description: "LoadBalancing 指定多个端点之间的负载均衡策略",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"healthCheck": {
+						SchemaProps: spec.SchemaProps{
+							Description: "HealthCheck 描述可选的 HTTP 主动健康检查，对象存在即启用",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck"),
+						},
+					},
+					"model": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Model 只用于模型服务，保存厂商协议参数、模型目录和 API Key",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec"),
+						},
+					},
 				},
-				Required: []string{"endpoints"},
+				Required: []string{"type", "endpoints"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamAuthentication", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
 	}
 }
 
@@ -2479,7 +2370,7 @@ func schema_pkg_apis_gateway_v1_UpstreamTLS(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamTLS 声明访问 Upstream 时使用系统 CA 根证书包校验的 TLS 配置",
+				Description: "UpstreamTLS 声明使用系统 CA 根证书包校验上游证书",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"serverName": {

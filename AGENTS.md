@@ -8,7 +8,7 @@
 - Envoy 是唯一数据平面，不为 Kong、Nginx 等假设提前设计 target 抽象。
 - Higress 只作为带 Redis 扩展 ABI 的 Envoy 二进制来源；生产 Go 代码不依赖 Higress 产品模型、wrapper 或高层 SDK。
 - 一套 Ingate 表示一个环境、一个配置域和一组配置完全相同的 Envoy 实例；一套 Ingate 可以包含多个逻辑 Gateway。
-- `Upstream` 统一表示应用、模型、MCP 和 Agent 等网络目标；`type` 表达业务分类，`protocol` 表达实际通信语义。
+- `Upstream` 统一表示应用、模型、MCP 和 Agent 等网络目标；`type` 表达业务分类，模型 `provider` 决定实际通信协议。
 - 命名要按新设计重新判断，不要被旧项目影响。例如使用 `Upstream`，不要使用 `Backend`。
 
 ## 当前范围
@@ -43,9 +43,9 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 
 - AI 请求继续使用现有 Controller 编译链路和 Envoy 数据面；`ingate-ai-proxy` 通过标准 ExtProc 接入请求链路，不直接对客户端监听模型 API
 - 对外统一支持 OpenAI-compatible `POST /v1/chat/completions`；当前上游支持 OpenAI、DeepSeek、通义千问兼容模式、Anthropic 原生协议、Gemini 原生协议和自定义 OpenAI-compatible 服务
-- 模型服务仍建模为 `Upstream(type=model)`，通过 `protocol` 表达 OpenAI、Anthropic 或 Gemini 通信语义，通过 `spec.model.provider` 表达具体厂商；不新增 Provider、Model、AIRoute 或 AIBackend 等平行资源
+- 模型服务仍建模为 `Upstream(type=Model)`，通过 `spec.model.provider` 同时表达具体厂商并推导 OpenAI、Anthropic 或 Gemini 通信语义；不新增 Provider、Model、AIRoute 或 AIBackend 等平行资源
 - 模型目录由用户在模型 Upstream 的 `spec.model.models[]` 中手工维护，不自动同步厂商模型列表
-- API Key 直接作为模型 Upstream 的认证配置，不创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略表示保留、显式移除才会清除
+- API Key 直接保存在模型 `Upstream.spec.model.apiKey`，不创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略表示保留、显式空字符串表示清除
 - 一条模型 Route 的 `modelRouting.models[]` 中每个客户端模型别名各自引用一个模型 Upstream 和 `upstreamModel`，同一路由可以按请求体 `model` 跨多个厂商和 Upstream 选择目标
 - Controller 把每条模型 Route 的目标 Cluster、上游 Host、协议、凭据和模型映射编译到 Envoy ExtProc per-route 配置；`ingate-ai-proxy` 读取配置后完成客户端认证、模型别名匹配、厂商协议转换、路径与上游认证 Header 改写、响应和 SSE 归一化
 - `pkg/llm` 是不依赖 Ingate、Envoy、ExtProc、Gin 或 Kubernetes 的纯 Go 协议包，不发送模型 HTTP 请求、不读取环境变量、不管理密钥持久化；Provider 协议适配按子包隔离

@@ -4,6 +4,8 @@ package upstream
 import (
 	"context"
 
+	"google.golang.org/protobuf/types/known/emptypb"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	upstreambiz "github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
@@ -19,61 +21,74 @@ func NewService(usecase *upstreambiz.Usecase) *Service {
 	return &Service{usecase: usecase}
 }
 
-func (s *Service) ListUpstreams(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListUpstreamsReply, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetPageSize(), request.GetPageToken()))
+func (s *Service) ListUpstreams(ctx context.Context, request *adminv1.ListUpstreamsRequest) (*adminv1.ListUpstreamsResponse, error) {
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListUpstreamsReply{Upstreams: make([]*adminv1.Upstream, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextCursor)}
-	for i := range result.Items {
-		reply.Upstreams = append(reply.Upstreams, newUpstreamReply(&result.Items[i]))
+	response := &adminv1.ListUpstreamsResponse{
+		Upstreams:  make([]*adminv1.Upstream, 0, len(result.Items)),
+		NextCursor: result.NextCursor,
 	}
-	return reply, nil
+	for i := range result.Items {
+		response.Upstreams = append(response.Upstreams, upstreamFromResource(&result.Items[i]))
+	}
+	return response, nil
 }
 
-func (s *Service) GetUpstream(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.Upstream, error) {
+func (s *Service) GetUpstream(ctx context.Context, request *adminv1.GetUpstreamRequest) (*adminv1.Upstream, error) {
 	item, err := s.usecase.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
-	return newUpstreamReply(item), nil
+	return upstreamFromResource(item), nil
 }
 
-func (s *Service) CreateUpstream(ctx context.Context, request *adminv1.CreateUpstreamRequest) (*adminv1.MutationReply, error) {
-	spec, err := buildUpstreamSpec(
-		request.GetName(), request.GetType(), request.GetProtocol(), request.GetTls(), request.GetModel(),
-		request.GetEndpoints(), request.GetLoadBalancePolicy(), request.GetHealthCheck(), request.GetApiKey(),
-	)
+func (s *Service) CreateUpstream(ctx context.Context, request *adminv1.CreateUpstreamRequest) (*adminv1.Upstream, error) {
+	spec, err := buildUpstreamSpec(upstreamInput{
+		name:          request.GetName(),
+		upstreamType:  request.GetType(),
+		endpoints:     request.GetEndpoints(),
+		tls:           request.GetTls(),
+		loadBalancing: request.GetLoadBalancing(),
+		healthCheck:   request.GetHealthCheck(),
+		model:         request.GetModel(),
+		apiKey:        request.ApiKey,
+	})
 	if err != nil {
 		return nil, err
 	}
-	id, err := s.usecase.Create(ctx, spec)
+	item, err := s.usecase.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
-	return &adminv1.MutationReply{Success: true, Id: id}, nil
+	return upstreamFromResource(item), nil
 }
 
-func (s *Service) UpdateUpstream(ctx context.Context, request *adminv1.UpdateUpstreamRequest) (*adminv1.MutationReply, error) {
-	if request.GetApiKey() != nil && request.GetRemoveApiKey() {
-		return nil, adminservice.BadRequest("不能同时设置和移除 API Key")
-	}
-	spec, err := buildUpstreamSpec(
-		request.GetName(), request.GetType(), request.GetProtocol(), request.GetTls(), request.GetModel(),
-		request.GetEndpoints(), request.GetLoadBalancePolicy(), request.GetHealthCheck(), request.GetApiKey(),
-	)
+func (s *Service) UpdateUpstream(ctx context.Context, request *adminv1.UpdateUpstreamRequest) (*adminv1.Upstream, error) {
+	spec, err := buildUpstreamSpec(upstreamInput{
+		name:          request.GetName(),
+		upstreamType:  request.GetType(),
+		endpoints:     request.GetEndpoints(),
+		tls:           request.GetTls(),
+		loadBalancing: request.GetLoadBalancing(),
+		healthCheck:   request.GetHealthCheck(),
+		model:         request.GetModel(),
+		apiKey:        request.ApiKey,
+	})
 	if err != nil {
 		return nil, err
 	}
-	if err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec, request.GetRemoveApiKey()); err != nil {
+	item, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec, request.ApiKey)
+	if err != nil {
 		return nil, err
 	}
-	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
+	return upstreamFromResource(item), nil
 }
 
-func (s *Service) DeleteUpstream(ctx context.Context, request *adminv1.ResourceRequest) (*adminv1.MutationReply, error) {
-	if err := s.usecase.Delete(ctx, request.GetId()); err != nil {
+func (s *Service) DeleteUpstream(ctx context.Context, request *adminv1.DeleteUpstreamRequest) (*emptypb.Empty, error) {
+	if err := s.usecase.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
-	return &adminv1.MutationReply{Success: true, Id: request.GetId()}, nil
+	return &emptypb.Empty{}, nil
 }

@@ -1,9 +1,11 @@
 package upstream
 
 import (
+	"net"
 	"net/netip"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -12,117 +14,133 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
-// validateUpstream 校验一个网络目标的协议、认证、健康检查和端点配置是否自洽
+// validateUpstream 校验一个网络目标的分类、连接配置和端点集合是否自洽
 func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 	specPath := field.NewPath("spec")
+	spec := upstream.Spec
 	errs := field.ErrorList{}
 
-	if len(upstream.Spec.Endpoints) == 0 {
-		errs = append(errs, field.Required(specPath.Child("endpoints"), "at least one endpoint is required"))
+	if spec.DisplayName == "" {
+		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
-	if upstream.Spec.Type == "" {
-		errs = append(errs, field.Required(specPath.Child("type"), "type is required"))
-	} else if !validUpstreamType(upstream.Spec.Type) {
-		errs = append(errs, field.NotSupported(specPath.Child("type"), upstream.Spec.Type, []string{
+	if !validUpstreamType(spec.Type) {
+		errs = append(errs, field.NotSupported(specPath.Child("type"), spec.Type, []string{
 			string(resource.UpstreamTypeApplication),
 			string(resource.UpstreamTypeModel),
 			string(resource.UpstreamTypeAgent),
 			string(resource.UpstreamTypeMCP),
 		}))
 	}
-	if upstream.Spec.Protocol == "" {
-		errs = append(errs, field.Required(specPath.Child("protocol"), "protocol is required"))
-	} else if !upstream.Spec.Protocol.IsSupported() {
-		errs = append(errs, field.NotSupported(specPath.Child("protocol"), upstream.Spec.Protocol, []string{
-			string(resource.UpstreamProtocolHTTP),
-			string(resource.UpstreamProtocolOpenAI),
-			string(resource.UpstreamProtocolAnthropic),
-			string(resource.UpstreamProtocolGemini),
+	if !validLoadBalancing(spec.LoadBalancing) {
+		errs = append(errs, field.NotSupported(specPath.Child("loadBalancing"), spec.LoadBalancing, []string{
+			string(resource.LoadBalancingRoundRobin),
+			string(resource.LoadBalancingLeastRequest),
 		}))
 	}
-	if upstream.Spec.Type == resource.UpstreamTypeModel {
-		if upstream.Spec.Model == nil {
+	if spec.Type == resource.UpstreamTypeModel {
+		if spec.Model == nil {
 			errs = append(errs, field.Required(specPath.Child("model"), "model is required for model upstreams"))
 		} else {
-			errs = append(errs, validateModelSpec(upstream.Spec.Model, upstream.Spec.Protocol, specPath.Child("model"), specPath.Child("protocol"))...)
+			errs = append(errs, validateModelSpec(spec.Model, specPath.Child("model"), spec.TLS != nil)...)
 		}
-	} else if upstream.Spec.Type != "" {
-		if upstream.Spec.Model != nil {
-			errs = append(errs, field.Forbidden(specPath.Child("model"), "model is only supported by model upstreams"))
-		}
-		if upstream.Spec.Protocol != "" && upstream.Spec.Protocol != resource.UpstreamProtocolHTTP {
-			errs = append(errs, field.Invalid(specPath.Child("protocol"), upstream.Spec.Protocol, "non-model upstreams must use the HTTP protocol"))
-		}
+	} else if spec.Model != nil {
+		errs = append(errs, field.Forbidden(specPath.Child("model"), "model is only supported by model upstreams"))
 	}
-	if upstream.Spec.Authentication != nil {
-		authenticationPath := specPath.Child("authentication")
-		if upstream.Spec.Authentication.APIKey == nil {
-			errs = append(errs, field.Required(authenticationPath.Child("apiKey"), "apiKey is required when authentication is configured"))
-		} else if upstream.Spec.Authentication.APIKey.Value == "" || !httpheader.ValidValue(upstream.Spec.Authentication.APIKey.Value) {
-			errs = append(errs, field.Invalid(authenticationPath.Child("apiKey", "value"), "<redacted>", "value must be safe for use in an HTTP header"))
-		}
-		if upstream.Spec.Type != resource.UpstreamTypeModel {
-			errs = append(errs, field.Forbidden(authenticationPath, "authentication is only supported by model upstreams"))
-		}
-		if upstream.Spec.TLS == nil {
-			errs = append(errs, field.Required(specPath.Child("tls"), "tls is required when authentication is configured"))
-		}
+	if spec.TLS != nil && !validServerName(spec.TLS.ServerName) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("tls", "serverName"),
+			spec.TLS.ServerName,
+			"serverName must be an IP address or DNS hostname",
+		))
 	}
-	if upstream.Spec.TLS != nil {
-		tlsPath := specPath.Child("tls")
-		if !validTLSServerName(upstream.Spec.TLS.ServerName) {
-			errs = append(errs, field.Invalid(tlsPath.Child("serverName"), upstream.Spec.TLS.ServerName, "serverName must be an IP address or DNS hostname"))
-		}
+	if spec.HealthCheck != nil {
+		errs = append(errs, validateHealthCheck(spec.HealthCheck, specPath.Child("healthCheck"))...)
 	}
-	if upstream.Spec.LoadBalancePolicy != "" && !validLoadBalancePolicy(upstream.Spec.LoadBalancePolicy) {
-		errs = append(errs, field.NotSupported(specPath.Child("loadBalancePolicy"), upstream.Spec.LoadBalancePolicy, []string{
-			string(resource.UpstreamLoadBalancePolicyRoundRobin),
-			string(resource.UpstreamLoadBalancePolicyLeastRequest),
-			string(resource.UpstreamLoadBalancePolicyRandom),
-		}))
-	}
-	if upstream.Spec.HealthCheck != nil {
-		healthCheckPath := specPath.Child("healthCheck")
-		if upstream.Spec.HealthCheck.Enabled {
-			if upstream.Spec.HealthCheck.Path == "" {
-				errs = append(errs, field.Required(healthCheckPath.Child("path"), "path is required when health check is enabled"))
-			}
-			if upstream.Spec.HealthCheck.IntervalSeconds < 1 || upstream.Spec.HealthCheck.IntervalSeconds > 300 {
-				errs = append(errs, field.Invalid(healthCheckPath.Child("intervalSeconds"), upstream.Spec.HealthCheck.IntervalSeconds, "intervalSeconds must be between 1 and 300"))
-			}
-			if upstream.Spec.HealthCheck.TimeoutSeconds < 1 || upstream.Spec.HealthCheck.TimeoutSeconds > 60 || upstream.Spec.HealthCheck.TimeoutSeconds >= upstream.Spec.HealthCheck.IntervalSeconds {
-				errs = append(errs, field.Invalid(healthCheckPath.Child("timeoutSeconds"), upstream.Spec.HealthCheck.TimeoutSeconds, "timeoutSeconds must be between 1 and 60 and less than intervalSeconds"))
-			}
-		}
+	errs = append(errs, validateEndpoints(spec.Endpoints, specPath.Child("endpoints"))...)
+	return errs
+}
+
+func validateEndpoints(endpoints []resource.Endpoint, endpointsPath *field.Path) field.ErrorList {
+	if len(endpoints) == 0 {
+		return field.ErrorList{field.Required(endpointsPath, "at least one endpoint is required")}
 	}
 
-	enabledEndpoints := 0
-	endpointNames := map[string]struct{}{}
-	for i, endpoint := range upstream.Spec.Endpoints {
-		endpointPath := specPath.Child("endpoints").Index(i)
-		if endpoint.Name != "" {
-			if _, ok := endpointNames[endpoint.Name]; ok {
-				errs = append(errs, field.Duplicate(endpointPath.Child("name"), endpoint.Name))
-			}
-			endpointNames[endpoint.Name] = struct{}{}
-		}
-		if endpoint.Address == "" {
-			errs = append(errs, field.Required(endpointPath.Child("address"), "address is required"))
+	errs := field.ErrorList{}
+	seen := make(map[string]struct{}, len(endpoints))
+	for i, endpoint := range endpoints {
+		endpointPath := endpointsPath.Index(i)
+		if !validAddress(endpoint.Address) {
+			errs = append(errs, field.Invalid(endpointPath.Child("address"), endpoint.Address, "address must be an IP address or DNS hostname"))
 		}
 		if endpoint.Port < 1 || endpoint.Port > 65535 {
 			errs = append(errs, field.Invalid(endpointPath.Child("port"), endpoint.Port, "port must be between 1 and 65535"))
 		}
-		if endpoint.Weight < 1 || endpoint.Weight > 100 {
-			errs = append(errs, field.Invalid(endpointPath.Child("weight"), endpoint.Weight, "weight must be between 1 and 100"))
+		if endpoint.Weight < 1 || endpoint.Weight > 1000 {
+			errs = append(errs, field.Invalid(endpointPath.Child("weight"), endpoint.Weight, "weight must be between 1 and 1000"))
 		}
-		if endpoint.Enabled {
-			enabledEndpoints++
-		}
-	}
-	if len(upstream.Spec.Endpoints) > 0 && enabledEndpoints == 0 {
-		errs = append(errs, field.Invalid(specPath.Child("endpoints"), upstream.Spec.Endpoints, "at least one endpoint must be enabled"))
-	}
 
+		key := net.JoinHostPort(endpoint.Address, strconv.Itoa(endpoint.Port))
+		if _, exists := seen[key]; exists {
+			errs = append(errs, field.Duplicate(endpointPath, key))
+		} else {
+			seen[key] = struct{}{}
+		}
+	}
+	return errs
+}
+
+func validateHealthCheck(healthCheck *resource.UpstreamHealthCheck, healthCheckPath *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+	if !validRequestPath(healthCheck.Path) {
+		errs = append(errs, field.Invalid(healthCheckPath.Child("path"), healthCheck.Path, "path must be an absolute request path without a query or fragment"))
+	}
+	if healthCheck.IntervalSeconds < 1 || healthCheck.IntervalSeconds > 300 {
+		errs = append(errs, field.Invalid(healthCheckPath.Child("intervalSeconds"), healthCheck.IntervalSeconds, "intervalSeconds must be between 1 and 300"))
+	}
+	if healthCheck.TimeoutSeconds < 1 || healthCheck.TimeoutSeconds > 60 || healthCheck.TimeoutSeconds >= healthCheck.IntervalSeconds {
+		errs = append(errs, field.Invalid(healthCheckPath.Child("timeoutSeconds"), healthCheck.TimeoutSeconds, "timeoutSeconds must be between 1 and 60 and less than intervalSeconds"))
+	}
+	return errs
+}
+
+func validateModelSpec(model *resource.ModelSpec, modelPath *field.Path, tlsEnabled bool) field.ErrorList {
+	errs := field.ErrorList{}
+	if _, ok := model.Provider.Protocol(); !ok {
+		errs = append(errs, field.NotSupported(modelPath.Child("provider"), model.Provider, []string{
+			string(resource.ModelProviderOpenAI),
+			string(resource.ModelProviderDeepSeek),
+			string(resource.ModelProviderQwen),
+			string(resource.ModelProviderAnthropic),
+			string(resource.ModelProviderGemini),
+			string(resource.ModelProviderCustom),
+		}))
+	}
+	if !validBasePath(model.BasePath) {
+		errs = append(errs, field.Invalid(modelPath.Child("basePath"), model.BasePath, "basePath must be a normalized absolute path without query, fragment, or trailing slash"))
+	}
+	if len(model.Models) == 0 {
+		errs = append(errs, field.Required(modelPath.Child("models"), "at least one model is required"))
+	} else {
+		seen := make(map[string]struct{}, len(model.Models))
+		for i, modelName := range model.Models {
+			namePath := modelPath.Child("models").Index(i)
+			if modelName == "" {
+				errs = append(errs, field.Required(namePath, "model name is required"))
+			} else if _, exists := seen[modelName]; exists {
+				errs = append(errs, field.Duplicate(namePath, modelName))
+			} else {
+				seen[modelName] = struct{}{}
+			}
+		}
+	}
+	if model.APIKey != "" {
+		if !httpheader.ValidValue(model.APIKey) {
+			errs = append(errs, field.Invalid(modelPath.Child("apiKey"), "<redacted>", "apiKey must be safe for use in an HTTP header"))
+		}
+		if !tlsEnabled {
+			errs = append(errs, field.Required(field.NewPath("spec", "tls"), "tls is required when apiKey is configured"))
+		}
+	}
 	return errs
 }
 
@@ -135,76 +153,17 @@ func validUpstreamType(value resource.UpstreamType) bool {
 	}
 }
 
-func validLoadBalancePolicy(value resource.UpstreamLoadBalancePolicy) bool {
+func validLoadBalancing(value resource.LoadBalancingPolicy) bool {
 	switch value {
-	case resource.UpstreamLoadBalancePolicyRoundRobin, resource.UpstreamLoadBalancePolicyLeastRequest, resource.UpstreamLoadBalancePolicyRandom:
+	case resource.LoadBalancingRoundRobin, resource.LoadBalancingLeastRequest:
 		return true
 	default:
 		return false
 	}
 }
 
-// validateModelSpec 保证模型厂商与上游协议一致，并校验用户维护的模型目录
-func validateModelSpec(
-	model *resource.ModelSpec,
-	protocol resource.UpstreamProtocol,
-	modelPath *field.Path,
-	protocolPath *field.Path,
-) field.ErrorList {
-	errs := field.ErrorList{}
-	providerProtocol, validProvider := model.Provider.Protocol()
-	if !validProvider {
-		errs = append(errs, field.NotSupported(modelPath.Child("provider"), model.Provider, []string{
-			string(resource.ModelProviderOpenAI),
-			string(resource.ModelProviderDeepSeek),
-			string(resource.ModelProviderQwen),
-			string(resource.ModelProviderAnthropic),
-			string(resource.ModelProviderGemini),
-			string(resource.ModelProviderCustom),
-		}))
-	} else if protocol != providerProtocol {
-		errs = append(errs, field.Invalid(protocolPath, protocol, "protocol does not match model provider"))
-	}
-	if !validAPIBasePath(model.APIBasePath) {
-		errs = append(errs, field.Invalid(modelPath.Child("apiBasePath"), model.APIBasePath, "apiBasePath must be a normalized absolute path without query, fragment, or trailing slash"))
-	}
-	if len(model.Models) == 0 {
-		return append(errs, field.Required(modelPath.Child("models"), "at least one model is required"))
-	}
-
-	enabledModels := 0
-	modelNames := make(map[string]struct{}, len(model.Models))
-	for i, item := range model.Models {
-		itemPath := modelPath.Child("models").Index(i)
-		if item.Name == "" {
-			errs = append(errs, field.Required(itemPath.Child("name"), "name is required"))
-		} else if strings.TrimSpace(item.Name) != item.Name {
-			errs = append(errs, field.Invalid(itemPath.Child("name"), item.Name, "name must not contain leading or trailing whitespace"))
-		} else if _, exists := modelNames[item.Name]; exists {
-			errs = append(errs, field.Duplicate(itemPath.Child("name"), item.Name))
-		} else {
-			modelNames[item.Name] = struct{}{}
-		}
-		if item.DisplayName == "" {
-			errs = append(errs, field.Required(itemPath.Child("displayName"), "displayName is required"))
-		} else if strings.TrimSpace(item.DisplayName) != item.DisplayName {
-			errs = append(errs, field.Invalid(itemPath.Child("displayName"), item.DisplayName, "displayName must not contain leading or trailing whitespace"))
-		}
-		if item.Enabled {
-			enabledModels++
-		}
-	}
-	if enabledModels == 0 {
-		errs = append(errs, field.Invalid(modelPath.Child("models"), model.Models, "at least one model must be enabled"))
-	}
-	return errs
-}
-
-func validAPIBasePath(value string) bool {
-	if value == "" || strings.TrimSpace(value) != value || !strings.HasPrefix(value, "/") {
-		return false
-	}
-	if value != "/" && strings.HasSuffix(value, "/") {
+func validBasePath(value string) bool {
+	if value == "" || !strings.HasPrefix(value, "/") || (value != "/" && strings.HasSuffix(value, "/")) {
 		return false
 	}
 	parsed, err := url.Parse(value)
@@ -214,14 +173,26 @@ func validAPIBasePath(value string) bool {
 	return path.Clean(value) == value
 }
 
-func validTLSServerName(value string) bool {
-	if value == "" || strings.TrimSpace(value) != value {
+func validRequestPath(value string) bool {
+	if !strings.HasPrefix(value, "/") || strings.ContainsAny(value, "?#") {
+		return false
+	}
+	_, err := url.ParseRequestURI(value)
+	return err == nil
+}
+
+func validAddress(value string) bool {
+	if value == "" {
 		return false
 	}
 	if _, err := netip.ParseAddr(value); err == nil {
 		return true
 	}
-	return validHostname(strings.ToLower(value))
+	return validHostname(value)
+}
+
+func validServerName(value string) bool {
+	return validAddress(value)
 }
 
 func validHostname(hostname string) bool {
