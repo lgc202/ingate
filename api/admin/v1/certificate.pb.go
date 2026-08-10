@@ -11,6 +11,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -27,15 +28,16 @@ const (
 type Certificate struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Version        string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Status         *ResourceStatus        `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	Name           string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
-	Description    string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
-	CertificatePem string                 `protobuf:"bytes,6,opt,name=certificate_pem,json=certificatePEM,proto3" json:"certificate_pem,omitempty"`
-	DnsNames       []string               `protobuf:"bytes,7,rep,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
-	NotBefore      *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
-	NotAfter       *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
+	Name           string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	CertificatePem string                 `protobuf:"bytes,3,opt,name=certificate_pem,json=certificatePEM,proto3" json:"certificate_pem,omitempty"`
+	DnsNames       []string               `protobuf:"bytes,4,rep,name=dns_names,json=dnsNames,proto3" json:"dns_names,omitempty"`
+	NotBefore      *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=not_before,json=notBefore,proto3" json:"not_before,omitempty"`
+	NotAfter       *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=not_after,json=notAfter,proto3" json:"not_after,omitempty"`
+	State          ResourceState          `protobuf:"varint,7,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
+	Message        string                 `protobuf:"bytes,8,opt,name=message,proto3" json:"message,omitempty"`
+	Version        int64                  `protobuf:"varint,9,opt,name=version,proto3" json:"version,omitempty"`
 	CreatedAt      *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt      *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -77,30 +79,9 @@ func (x *Certificate) GetId() string {
 	return ""
 }
 
-func (x *Certificate) GetVersion() string {
-	if x != nil {
-		return x.Version
-	}
-	return ""
-}
-
-func (x *Certificate) GetStatus() *ResourceStatus {
-	if x != nil {
-		return x.Status
-	}
-	return nil
-}
-
 func (x *Certificate) GetName() string {
 	if x != nil {
 		return x.Name
-	}
-	return ""
-}
-
-func (x *Certificate) GetDescription() string {
-	if x != nil {
-		return x.Description
 	}
 	return ""
 }
@@ -133,6 +114,27 @@ func (x *Certificate) GetNotAfter() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Certificate) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
+}
+
+func (x *Certificate) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *Certificate) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
 func (x *Certificate) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CreatedAt
@@ -140,19 +142,173 @@ func (x *Certificate) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Certificate) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type ListCertificatesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCertificatesRequest) Reset() {
+	*x = ListCertificatesRequest{}
+	mi := &file_admin_v1_certificate_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCertificatesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCertificatesRequest) ProtoMessage() {}
+
+func (x *ListCertificatesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_certificate_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCertificatesRequest.ProtoReflect.Descriptor instead.
+func (*ListCertificatesRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *ListCertificatesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListCertificatesRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+type ListCertificatesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Certificates  []*Certificate         `protobuf:"bytes,1,rep,name=certificates,proto3" json:"certificates,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListCertificatesResponse) Reset() {
+	*x = ListCertificatesResponse{}
+	mi := &file_admin_v1_certificate_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListCertificatesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListCertificatesResponse) ProtoMessage() {}
+
+func (x *ListCertificatesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_certificate_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListCertificatesResponse.ProtoReflect.Descriptor instead.
+func (*ListCertificatesResponse) Descriptor() ([]byte, []int) {
+	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ListCertificatesResponse) GetCertificates() []*Certificate {
+	if x != nil {
+		return x.Certificates
+	}
+	return nil
+}
+
+func (x *ListCertificatesResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
+}
+
+type GetCertificateRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCertificateRequest) Reset() {
+	*x = GetCertificateRequest{}
+	mi := &file_admin_v1_certificate_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCertificateRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCertificateRequest) ProtoMessage() {}
+
+func (x *GetCertificateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_certificate_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCertificateRequest.ProtoReflect.Descriptor instead.
+func (*GetCertificateRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetCertificateRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
 type CreateCertificateRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Name           string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Description    string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	CertificatePem string                 `protobuf:"bytes,3,opt,name=certificate_pem,json=certificatePEM,proto3" json:"certificate_pem,omitempty"`
-	PrivateKeyPem  string                 `protobuf:"bytes,4,opt,name=private_key_pem,json=privateKeyPEM,proto3" json:"private_key_pem,omitempty"`
+	CertificatePem string                 `protobuf:"bytes,2,opt,name=certificate_pem,json=certificatePEM,proto3" json:"certificate_pem,omitempty"`
+	PrivateKeyPem  string                 `protobuf:"bytes,3,opt,name=private_key_pem,json=privateKeyPEM,proto3" json:"private_key_pem,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CreateCertificateRequest) Reset() {
 	*x = CreateCertificateRequest{}
-	mi := &file_admin_v1_certificate_proto_msgTypes[1]
+	mi := &file_admin_v1_certificate_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -164,7 +320,7 @@ func (x *CreateCertificateRequest) String() string {
 func (*CreateCertificateRequest) ProtoMessage() {}
 
 func (x *CreateCertificateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_certificate_proto_msgTypes[1]
+	mi := &file_admin_v1_certificate_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -177,19 +333,12 @@ func (x *CreateCertificateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateCertificateRequest.ProtoReflect.Descriptor instead.
 func (*CreateCertificateRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{1}
+	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CreateCertificateRequest) GetName() string {
 	if x != nil {
 		return x.Name
-	}
-	return ""
-}
-
-func (x *CreateCertificateRequest) GetDescription() string {
-	if x != nil {
-		return x.Description
 	}
 	return ""
 }
@@ -211,18 +360,17 @@ func (x *CreateCertificateRequest) GetPrivateKeyPem() string {
 type UpdateCertificateRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Version        string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Version        int64                  `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
 	Name           string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Description    string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	CertificatePem string                 `protobuf:"bytes,5,opt,name=certificate_pem,json=certificatePEM,proto3" json:"certificate_pem,omitempty"`
-	PrivateKeyPem  string                 `protobuf:"bytes,6,opt,name=private_key_pem,json=privateKeyPEM,proto3" json:"private_key_pem,omitempty"`
+	CertificatePem *string                `protobuf:"bytes,4,opt,name=certificate_pem,json=certificatePEM,proto3,oneof" json:"certificate_pem,omitempty"`
+	PrivateKeyPem  *string                `protobuf:"bytes,5,opt,name=private_key_pem,json=privateKeyPEM,proto3,oneof" json:"private_key_pem,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
 
 func (x *UpdateCertificateRequest) Reset() {
 	*x = UpdateCertificateRequest{}
-	mi := &file_admin_v1_certificate_proto_msgTypes[2]
+	mi := &file_admin_v1_certificate_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -234,7 +382,7 @@ func (x *UpdateCertificateRequest) String() string {
 func (*UpdateCertificateRequest) ProtoMessage() {}
 
 func (x *UpdateCertificateRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_certificate_proto_msgTypes[2]
+	mi := &file_admin_v1_certificate_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -247,7 +395,7 @@ func (x *UpdateCertificateRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateCertificateRequest.ProtoReflect.Descriptor instead.
 func (*UpdateCertificateRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{2}
+	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UpdateCertificateRequest) GetId() string {
@@ -257,11 +405,11 @@ func (x *UpdateCertificateRequest) GetId() string {
 	return ""
 }
 
-func (x *UpdateCertificateRequest) GetVersion() string {
+func (x *UpdateCertificateRequest) GetVersion() int64 {
 	if x != nil {
 		return x.Version
 	}
-	return ""
+	return 0
 }
 
 func (x *UpdateCertificateRequest) GetName() string {
@@ -271,50 +419,43 @@ func (x *UpdateCertificateRequest) GetName() string {
 	return ""
 }
 
-func (x *UpdateCertificateRequest) GetDescription() string {
-	if x != nil {
-		return x.Description
-	}
-	return ""
-}
-
 func (x *UpdateCertificateRequest) GetCertificatePem() string {
-	if x != nil {
-		return x.CertificatePem
+	if x != nil && x.CertificatePem != nil {
+		return *x.CertificatePem
 	}
 	return ""
 }
 
 func (x *UpdateCertificateRequest) GetPrivateKeyPem() string {
-	if x != nil {
-		return x.PrivateKeyPem
+	if x != nil && x.PrivateKeyPem != nil {
+		return *x.PrivateKeyPem
 	}
 	return ""
 }
 
-type ListCertificatesReply struct {
+type DeleteCertificateRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Certificates  []*Certificate         `protobuf:"bytes,1,rep,name=certificates,proto3" json:"certificates,omitempty"`
-	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Version       int64                  `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListCertificatesReply) Reset() {
-	*x = ListCertificatesReply{}
-	mi := &file_admin_v1_certificate_proto_msgTypes[3]
+func (x *DeleteCertificateRequest) Reset() {
+	*x = DeleteCertificateRequest{}
+	mi := &file_admin_v1_certificate_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListCertificatesReply) String() string {
+func (x *DeleteCertificateRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListCertificatesReply) ProtoMessage() {}
+func (*DeleteCertificateRequest) ProtoMessage() {}
 
-func (x *ListCertificatesReply) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_certificate_proto_msgTypes[3]
+func (x *DeleteCertificateRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_certificate_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -325,111 +466,76 @@ func (x *ListCertificatesReply) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListCertificatesReply.ProtoReflect.Descriptor instead.
-func (*ListCertificatesReply) Descriptor() ([]byte, []int) {
-	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{3}
+// Deprecated: Use DeleteCertificateRequest.ProtoReflect.Descriptor instead.
+func (*DeleteCertificateRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{6}
 }
 
-func (x *ListCertificatesReply) GetCertificates() []*Certificate {
+func (x *DeleteCertificateRequest) GetId() string {
 	if x != nil {
-		return x.Certificates
+		return x.Id
 	}
-	return nil
+	return ""
 }
 
-func (x *ListCertificatesReply) GetPage() *PageInfo {
+func (x *DeleteCertificateRequest) GetVersion() int64 {
 	if x != nil {
-		return x.Page
+		return x.Version
 	}
-	return nil
-}
-
-type GetCertificateReply struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Certificate   *Certificate           `protobuf:"bytes,1,opt,name=certificate,proto3" json:"certificate,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *GetCertificateReply) Reset() {
-	*x = GetCertificateReply{}
-	mi := &file_admin_v1_certificate_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *GetCertificateReply) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*GetCertificateReply) ProtoMessage() {}
-
-func (x *GetCertificateReply) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_certificate_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetCertificateReply.ProtoReflect.Descriptor instead.
-func (*GetCertificateReply) Descriptor() ([]byte, []int) {
-	return file_admin_v1_certificate_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *GetCertificateReply) GetCertificate() *Certificate {
-	if x != nil {
-		return x.Certificate
-	}
-	return nil
+	return 0
 }
 
 var File_admin_v1_certificate_proto protoreflect.FileDescriptor
 
 const file_admin_v1_certificate_proto_rawDesc = "" +
 	"\n" +
-	"\x1aadmin/v1/certificate.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9b\x03\n" +
+	"\x1aadmin/v1/certificate.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xcb\x03\n" +
 	"\vCertificate\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x127\n" +
-	"\x06status\x18\x03 \x01(\v2\x1f.ingate.admin.v1.ResourceStatusR\x06status\x12\x12\n" +
-	"\x04name\x18\x04 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x05 \x01(\tR\vdescription\x12'\n" +
-	"\x0fcertificate_pem\x18\x06 \x01(\tR\x0ecertificatePEM\x12\x1b\n" +
-	"\tdns_names\x18\a \x03(\tR\bdnsNames\x129\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12'\n" +
+	"\x0fcertificate_pem\x18\x03 \x01(\tR\x0ecertificatePEM\x12\x1b\n" +
+	"\tdns_names\x18\x04 \x03(\tR\bdnsNames\x129\n" +
 	"\n" +
-	"not_before\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tnotBefore\x127\n" +
-	"\tnot_after\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\bnotAfter\x129\n" +
+	"not_before\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\tnotBefore\x127\n" +
+	"\tnot_after\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\bnotAfter\x124\n" +
+	"\x05state\x18\a \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateR\x05state\x12\x18\n" +
+	"\amessage\x18\b \x01(\tR\amessage\x12\x18\n" +
+	"\aversion\x18\t \x01(\x03R\aversion\x129\n" +
 	"\n" +
 	"created_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xbc\x01\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"P\n" +
+	"\x17ListCertificatesRequest\x12\x1d\n" +
+	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"}\n" +
+	"\x18ListCertificatesResponse\x12@\n" +
+	"\fcertificates\x18\x01 \x03(\v2\x1c.ingate.admin.v1.CertificateR\fcertificates\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"1\n" +
+	"\x15GetCertificateRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x9a\x01\n" +
 	"\x18CreateCertificateRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\x120\n" +
-	"\x0fcertificate_pem\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x0ecertificatePEM\x12/\n" +
-	"\x0fprivate_key_pem\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\rprivateKeyPEM\"\xe8\x01\n" +
-	"\x18UpdateCertificateRequest\x12\x19\n" +
-	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12!\n" +
-	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12\x1b\n" +
-	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\x12'\n" +
-	"\x0fcertificate_pem\x18\x05 \x01(\tR\x0ecertificatePEM\x12&\n" +
-	"\x0fprivate_key_pem\x18\x06 \x01(\tR\rprivateKeyPEM\"\x88\x01\n" +
-	"\x15ListCertificatesReply\x12@\n" +
-	"\fcertificates\x18\x01 \x03(\v2\x1c.ingate.admin.v1.CertificateR\fcertificates\x12-\n" +
-	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page\"U\n" +
-	"\x13GetCertificateReply\x12>\n" +
-	"\vcertificate\x18\x01 \x01(\v2\x1c.ingate.admin.v1.CertificateR\vcertificate2\x8b\x05\n" +
-	"\x12CertificateService\x12v\n" +
-	"\x10ListCertificates\x12\x1c.ingate.admin.v1.ListRequest\x1a&.ingate.admin.v1.ListCertificatesReply\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/certificates\x12{\n" +
-	"\x0eGetCertificate\x12 .ingate.admin.v1.ResourceRequest\x1a$.ingate.admin.v1.GetCertificateReply\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/certificates/{id}\x12\x7f\n" +
-	"\x11CreateCertificate\x12).ingate.admin.v1.CreateCertificateRequest\x1a\x1e.ingate.admin.v1.MutationReply\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/api/v1/certificates\x12\x84\x01\n" +
-	"\x11UpdateCertificate\x12).ingate.admin.v1.UpdateCertificateRequest\x1a\x1e.ingate.admin.v1.MutationReply\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\x1a\x19/api/v1/certificates/{id}\x12x\n" +
-	"\x11DeleteCertificate\x12 .ingate.admin.v1.ResourceRequest\x1a\x1e.ingate.admin.v1.MutationReply\"!\x82\xd3\xe4\x93\x02\x1b*\x19/api/v1/certificates/{id}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x120\n" +
+	"\x0fcertificate_pem\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x0ecertificatePEM\x12/\n" +
+	"\x0fprivate_key_pem\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\rprivateKeyPEM\"\x89\x02\n" +
+	"\x18UpdateCertificateRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1b\n" +
+	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x125\n" +
+	"\x0fcertificate_pem\x18\x04 \x01(\tB\a\xbaH\x04r\x02\x10\x01H\x00R\x0ecertificatePEM\x88\x01\x01\x124\n" +
+	"\x0fprivate_key_pem\x18\x05 \x01(\tB\a\xbaH\x04r\x02\x10\x01H\x01R\rprivateKeyPEM\x88\x01\x01B\x12\n" +
+	"\x10_certificate_pemB\x12\n" +
+	"\x10_private_key_pem\"W\n" +
+	"\x18DeleteCertificateRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion2\x96\x05\n" +
+	"\x12CertificateService\x12\x85\x01\n" +
+	"\x10ListCertificates\x12(.ingate.admin.v1.ListCertificatesRequest\x1a).ingate.admin.v1.ListCertificatesResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/certificates\x12y\n" +
+	"\x0eGetCertificate\x12&.ingate.admin.v1.GetCertificateRequest\x1a\x1c.ingate.admin.v1.Certificate\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/certificates/{id}\x12}\n" +
+	"\x11CreateCertificate\x12).ingate.admin.v1.CreateCertificateRequest\x1a\x1c.ingate.admin.v1.Certificate\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/api/v1/certificates\x12\x82\x01\n" +
+	"\x11UpdateCertificate\x12).ingate.admin.v1.UpdateCertificateRequest\x1a\x1c.ingate.admin.v1.Certificate\"$\x82\xd3\xe4\x93\x02\x1e:\x01*\x1a\x19/api/v1/certificates/{id}\x12y\n" +
+	"\x11DeleteCertificate\x12).ingate.admin.v1.DeleteCertificateRequest\x1a\x16.google.protobuf.Empty\"!\x82\xd3\xe4\x93\x02\x1b*\x19/api/v1/certificates/{id}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_certificate_proto_rawDescOnce sync.Once
@@ -443,43 +549,41 @@ func file_admin_v1_certificate_proto_rawDescGZIP() []byte {
 	return file_admin_v1_certificate_proto_rawDescData
 }
 
-var file_admin_v1_certificate_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_admin_v1_certificate_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_admin_v1_certificate_proto_goTypes = []any{
 	(*Certificate)(nil),              // 0: ingate.admin.v1.Certificate
-	(*CreateCertificateRequest)(nil), // 1: ingate.admin.v1.CreateCertificateRequest
-	(*UpdateCertificateRequest)(nil), // 2: ingate.admin.v1.UpdateCertificateRequest
-	(*ListCertificatesReply)(nil),    // 3: ingate.admin.v1.ListCertificatesReply
-	(*GetCertificateReply)(nil),      // 4: ingate.admin.v1.GetCertificateReply
-	(*ResourceStatus)(nil),           // 5: ingate.admin.v1.ResourceStatus
-	(*timestamppb.Timestamp)(nil),    // 6: google.protobuf.Timestamp
-	(*PageInfo)(nil),                 // 7: ingate.admin.v1.PageInfo
-	(*ListRequest)(nil),              // 8: ingate.admin.v1.ListRequest
-	(*ResourceRequest)(nil),          // 9: ingate.admin.v1.ResourceRequest
-	(*MutationReply)(nil),            // 10: ingate.admin.v1.MutationReply
+	(*ListCertificatesRequest)(nil),  // 1: ingate.admin.v1.ListCertificatesRequest
+	(*ListCertificatesResponse)(nil), // 2: ingate.admin.v1.ListCertificatesResponse
+	(*GetCertificateRequest)(nil),    // 3: ingate.admin.v1.GetCertificateRequest
+	(*CreateCertificateRequest)(nil), // 4: ingate.admin.v1.CreateCertificateRequest
+	(*UpdateCertificateRequest)(nil), // 5: ingate.admin.v1.UpdateCertificateRequest
+	(*DeleteCertificateRequest)(nil), // 6: ingate.admin.v1.DeleteCertificateRequest
+	(*timestamppb.Timestamp)(nil),    // 7: google.protobuf.Timestamp
+	(ResourceState)(0),               // 8: ingate.admin.v1.ResourceState
+	(*emptypb.Empty)(nil),            // 9: google.protobuf.Empty
 }
 var file_admin_v1_certificate_proto_depIdxs = []int32{
-	5,  // 0: ingate.admin.v1.Certificate.status:type_name -> ingate.admin.v1.ResourceStatus
-	6,  // 1: ingate.admin.v1.Certificate.not_before:type_name -> google.protobuf.Timestamp
-	6,  // 2: ingate.admin.v1.Certificate.not_after:type_name -> google.protobuf.Timestamp
-	6,  // 3: ingate.admin.v1.Certificate.created_at:type_name -> google.protobuf.Timestamp
-	0,  // 4: ingate.admin.v1.ListCertificatesReply.certificates:type_name -> ingate.admin.v1.Certificate
-	7,  // 5: ingate.admin.v1.ListCertificatesReply.page:type_name -> ingate.admin.v1.PageInfo
-	0,  // 6: ingate.admin.v1.GetCertificateReply.certificate:type_name -> ingate.admin.v1.Certificate
-	8,  // 7: ingate.admin.v1.CertificateService.ListCertificates:input_type -> ingate.admin.v1.ListRequest
-	9,  // 8: ingate.admin.v1.CertificateService.GetCertificate:input_type -> ingate.admin.v1.ResourceRequest
-	1,  // 9: ingate.admin.v1.CertificateService.CreateCertificate:input_type -> ingate.admin.v1.CreateCertificateRequest
-	2,  // 10: ingate.admin.v1.CertificateService.UpdateCertificate:input_type -> ingate.admin.v1.UpdateCertificateRequest
-	9,  // 11: ingate.admin.v1.CertificateService.DeleteCertificate:input_type -> ingate.admin.v1.ResourceRequest
-	3,  // 12: ingate.admin.v1.CertificateService.ListCertificates:output_type -> ingate.admin.v1.ListCertificatesReply
-	4,  // 13: ingate.admin.v1.CertificateService.GetCertificate:output_type -> ingate.admin.v1.GetCertificateReply
-	10, // 14: ingate.admin.v1.CertificateService.CreateCertificate:output_type -> ingate.admin.v1.MutationReply
-	10, // 15: ingate.admin.v1.CertificateService.UpdateCertificate:output_type -> ingate.admin.v1.MutationReply
-	10, // 16: ingate.admin.v1.CertificateService.DeleteCertificate:output_type -> ingate.admin.v1.MutationReply
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	7,  // 0: ingate.admin.v1.Certificate.not_before:type_name -> google.protobuf.Timestamp
+	7,  // 1: ingate.admin.v1.Certificate.not_after:type_name -> google.protobuf.Timestamp
+	8,  // 2: ingate.admin.v1.Certificate.state:type_name -> ingate.admin.v1.ResourceState
+	7,  // 3: ingate.admin.v1.Certificate.created_at:type_name -> google.protobuf.Timestamp
+	7,  // 4: ingate.admin.v1.Certificate.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 5: ingate.admin.v1.ListCertificatesResponse.certificates:type_name -> ingate.admin.v1.Certificate
+	1,  // 6: ingate.admin.v1.CertificateService.ListCertificates:input_type -> ingate.admin.v1.ListCertificatesRequest
+	3,  // 7: ingate.admin.v1.CertificateService.GetCertificate:input_type -> ingate.admin.v1.GetCertificateRequest
+	4,  // 8: ingate.admin.v1.CertificateService.CreateCertificate:input_type -> ingate.admin.v1.CreateCertificateRequest
+	5,  // 9: ingate.admin.v1.CertificateService.UpdateCertificate:input_type -> ingate.admin.v1.UpdateCertificateRequest
+	6,  // 10: ingate.admin.v1.CertificateService.DeleteCertificate:input_type -> ingate.admin.v1.DeleteCertificateRequest
+	2,  // 11: ingate.admin.v1.CertificateService.ListCertificates:output_type -> ingate.admin.v1.ListCertificatesResponse
+	0,  // 12: ingate.admin.v1.CertificateService.GetCertificate:output_type -> ingate.admin.v1.Certificate
+	0,  // 13: ingate.admin.v1.CertificateService.CreateCertificate:output_type -> ingate.admin.v1.Certificate
+	0,  // 14: ingate.admin.v1.CertificateService.UpdateCertificate:output_type -> ingate.admin.v1.Certificate
+	9,  // 15: ingate.admin.v1.CertificateService.DeleteCertificate:output_type -> google.protobuf.Empty
+	11, // [11:16] is the sub-list for method output_type
+	6,  // [6:11] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_certificate_proto_init() }
@@ -488,13 +592,14 @@ func file_admin_v1_certificate_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
+	file_admin_v1_certificate_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_certificate_proto_rawDesc), len(file_admin_v1_certificate_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

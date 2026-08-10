@@ -2,6 +2,9 @@ package certificate
 
 import (
 	"context"
+	"maps"
+	"strings"
+	"time"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -50,6 +53,8 @@ func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	certificate := obj.(*resource.Certificate)
 	certificate.Status = resource.ResourceStatus{}
 	certificate.Generation = 1
+	canonicalizeCertificateSpec(&certificate.Spec)
+	setUpdatedAt(&certificate.ObjectMeta, certificate.CreationTimestamp.Time)
 }
 
 func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
@@ -61,6 +66,8 @@ func (strategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []stri
 }
 
 func (strategy) Canonicalize(obj runtime.Object) {
+	certificate := obj.(*resource.Certificate)
+	canonicalizeCertificateSpec(&certificate.Spec)
 }
 
 func (strategy) AllowCreateOnUpdate() bool {
@@ -72,10 +79,14 @@ func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	oldCertificate := old.(*resource.Certificate)
 
 	newCertificate.Status = oldCertificate.Status
+	canonicalizeCertificateSpec(&newCertificate.Spec)
 	newCertificate.Generation = oldCertificate.Generation
 	if !apiequality.Semantic.DeepEqual(oldCertificate.Spec, newCertificate.Spec) {
 		newCertificate.Generation = oldCertificate.Generation + 1
+		setUpdatedAt(&newCertificate.ObjectMeta, time.Now().UTC())
+		return
 	}
+	preserveUpdatedAt(&newCertificate.ObjectMeta, &oldCertificate.ObjectMeta)
 }
 
 func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
@@ -139,4 +150,39 @@ func validateCertificate(certificate *resource.Certificate) field.ErrorList {
 		))
 	}
 	return errs
+}
+
+func canonicalizeCertificateSpec(spec *resource.CertificateSpec) {
+	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
+	spec.CertificatePEM = normalizePEM(spec.CertificatePEM)
+	spec.PrivateKeyPEM = normalizePEM(spec.PrivateKeyPEM)
+}
+
+func normalizePEM(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	return value + "\n"
+}
+
+func setUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
+	metadata.Annotations = maps.Clone(metadata.Annotations)
+	if metadata.Annotations == nil {
+		metadata.Annotations = make(map[string]string, 1)
+	}
+	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt.Format(time.RFC3339Nano)
+}
+
+func preserveUpdatedAt(metadata, oldMetadata *metav1.ObjectMeta) {
+	metadata.Annotations = maps.Clone(metadata.Annotations)
+	delete(metadata.Annotations, resource.AnnotationUpdatedAt)
+	updatedAt := oldMetadata.Annotations[resource.AnnotationUpdatedAt]
+	if updatedAt == "" {
+		return
+	}
+	if metadata.Annotations == nil {
+		metadata.Annotations = make(map[string]string, 1)
+	}
+	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt
 }
