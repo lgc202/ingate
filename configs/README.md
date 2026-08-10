@@ -4,7 +4,6 @@
 
 - `ingate-apiserver.yaml`
 - `ingate-admin-api.yaml`
-- `ingate-ai-proxy.yaml`
 - `ingate-controller.yaml`
 - `ingate-console.yaml`
 
@@ -22,7 +21,7 @@ Docker Compose 的容器专用配置放在 `deploy/docker/configs`，它们使�
 
 容器内的实际配置随各组件放在 `/opt/ingate/<component>/configs/config.yaml`。API Server 自身运行证书放在 `/opt/ingate/apiserver/certificates`；Gateway 使用的 Certificate 是声明式资源，由 API Server 持久化到 etcd，不从这个目录读取。
 
-应用日志由 Kratos Log 输出到标准错误流，容器、systemd 或日志采集器负责收集、落盘和轮转；etcd、MySQL 和 Redis 数据分别保存在独立 Volume。
+应用日志由 Kratos Log 输出到标准错误流，容器、systemd 或日志采集器负责收集、落盘和轮转；etcd 和 Redis 数据分别保存在独立 Volume。
 
 源码开发不要求创建 `/opt/ingate`，可以继续通过 `--config` 使用仓库内的相对路径。
 

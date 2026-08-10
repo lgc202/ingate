@@ -1,53 +1,32 @@
-import { apiListAll, apiRequest } from './client';
-import type { PagedResponse } from './client';
-import type { GatewayListView, GatewayMutationPayload, GatewayMutationResult } from '@/domain/gateway';
+import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './client';
+import { normalizeResourceState } from '@/domain/common';
+import type { Gateway, GatewayListView, GatewayMutationPayload } from '@/domain/gateway';
 
-interface GatewayMutationResponse {
-  success: boolean;
-  id?: string;
-}
-
-interface GatewayListResponse extends PagedResponse {
-  gateways?: Array<Omit<GatewayListView['gateways'][number], 'hostnames' | 'listeners'> & {
-    hostnames?: string[];
-    listeners?: GatewayListView['gateways'][number]['listeners'];
-  }>;
+interface GatewayListResponse extends CursorPagedResponse {
+  gateways?: Gateway[];
 }
 
 export async function listGateways(): Promise<GatewayListView> {
-  const gateways = await apiListAll<GatewayListResponse, NonNullable<GatewayListResponse['gateways']>[number]>(
-    '/gateways',
-    (page) => page.gateways ?? [],
-  );
+  const gateways = await apiListAllByCursor<GatewayListResponse, Gateway>('/gateways', (page) => page.gateways ?? []);
   return {
     gateways: gateways.map((gateway) => ({
       ...gateway,
-      hostnames: gateway.hostnames ?? [],
+      version: Number(gateway.version),
       listeners: gateway.listeners ?? [],
+      state: normalizeResourceState(gateway.state),
     })),
   };
 }
 
-export async function saveGateway(payload: GatewayMutationPayload): Promise<GatewayMutationResult> {
+export async function saveGateway(payload: GatewayMutationPayload): Promise<Gateway> {
   const path = payload.id ? `/gateways/${encodeURIComponent(payload.id)}` : '/gateways';
-  const response = await apiRequest<GatewayMutationResponse>(path, {
+  const gateway = await apiRequest<Gateway>(path, {
     method: payload.id ? 'PUT' : 'POST',
     body: JSON.stringify(payload),
   });
-
-  return {
-    message: `网关已保存：${payload.name}`,
-    changeId: response.id ?? payload.id,
-  };
+  return { ...gateway, version: Number(gateway.version), state: normalizeResourceState(gateway.state) };
 }
 
-export async function deleteGateway(id: string) {
-  await apiRequest<GatewayMutationResponse>(`/gateways/${encodeURIComponent(id)}`, { method: 'DELETE' });
-}
-
-export async function setGatewayEnabled(id: string, enabled: boolean) {
-  await apiRequest<GatewayMutationResponse>(`/gateways/${encodeURIComponent(id)}/enabled`, {
-    method: 'PATCH',
-    body: JSON.stringify({ enabled }),
-  });
+export async function deleteGateway(id: string, version: number) {
+  await apiRequest<Record<string, never>>(`/gateways/${encodeURIComponent(id)}?version=${version}`, { method: 'DELETE' });
 }

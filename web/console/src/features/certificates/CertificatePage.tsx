@@ -4,12 +4,18 @@ import { useResource } from '@/api/useResource';
 import { useAuth } from '@/auth/AuthContext';
 import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
-import type { Certificate, CertificateMutationPayload } from '@/domain/certificate';
+import type { Certificate } from '@/domain/certificate';
 import { KeyRound, Plus, Trash2, Edit3, FileText } from 'lucide-react';
 
 type CertificateInputMode = 'upload' | 'paste';
 
-interface CertificateDraft extends CertificateMutationPayload {}
+interface CertificateDraft {
+  id?: string;
+  version?: number;
+  name: string;
+  certificatePEM: string;
+  privateKeyPEM: string;
+}
 
 interface CertificateNotice {
   message: string;
@@ -65,8 +71,8 @@ export function CertificatePage() {
     setIsEditing(true);
     setDraft({
       id: cert.id,
+      version: cert.version,
       name: cert.name,
-      description: cert.description ?? '',
       certificatePEM: '',
       privateKeyPEM: '',
     });
@@ -105,10 +111,12 @@ export function CertificatePage() {
 
     setSubmitting(true);
     try {
-      await saveCertificate({
-        ...draft,
+      await saveCertificate(isEditing ? {
+        id: draft.id,
+        version: draft.version,
         name: draft.name.trim(),
-        description: draft.description.trim(),
+      } : {
+        name: draft.name.trim(),
         certificatePEM: draft.certificatePEM.trim(),
         privateKeyPEM: draft.privateKeyPEM.trim(),
       });
@@ -126,7 +134,7 @@ export function CertificatePage() {
     if (!deleteCandidate) return;
     setDeleting(true);
     try {
-      await deleteCertificate(deleteCandidate.id);
+      await deleteCertificate(deleteCandidate.id, deleteCandidate.version);
       await certificates.reload();
       setNotice({ message: `证书已删除：${deleteCandidate.name}`, tone: 'success' });
       setDeleteCandidate(null);
@@ -425,7 +433,6 @@ export function CertificatePage() {
 function emptyDraft(): CertificateDraft {
   return {
     name: '',
-    description: '',
     certificatePEM: '',
     privateKeyPEM: '',
   };

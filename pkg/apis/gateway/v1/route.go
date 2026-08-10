@@ -47,10 +47,9 @@ type RouteSpec struct {
 	// +listType=atomic
 	Hostnames []string   `json:"hostnames,omitempty"`
 	Match     RouteMatch `json:"match"`
-	// UpstreamRefs 和 ModelRouting 必须且只能配置一个
+	// UpstreamRefs 保存接收请求的上游服务及流量权重
 	// +listType=atomic
 	UpstreamRefs           []UpstreamRef   `json:"upstreamRefs,omitempty"`
-	ModelRouting           *ModelRouting   `json:"modelRouting,omitempty"`
 	RequestHeaderModifier  *HeaderModifier `json:"requestHeaderModifier,omitempty"`
 	ResponseHeaderModifier *HeaderModifier `json:"responseHeaderModifier,omitempty"`
 	Timeout                *RouteTimeout   `json:"timeout,omitempty"`
@@ -72,22 +71,6 @@ type RouteMatch struct {
 type PathMatch struct {
 	Type  PathMatchType `json:"type"`
 	Value string        `json:"value"`
-}
-
-// ModelRouting 声明公开模型名称与实际模型服务之间的映射
-type ModelRouting struct {
-	// +listType=atomic
-	Models []ModelMapping `json:"models"`
-}
-
-// ModelMapping 将客户端模型名称映射到一个模型 Upstream 及其厂商模型名称
-type ModelMapping struct {
-	// Model 是客户端请求中使用的公开模型名称
-	Model string `json:"model"`
-	// UpstreamRef 引用实际接收该模型请求的 Upstream
-	UpstreamRef string `json:"upstreamRef"`
-	// UpstreamModel 是发送给模型服务的模型名称，为空时沿用 Model
-	UpstreamModel string `json:"upstreamModel,omitempty"`
 }
 
 // HeaderModifier 表示 Header 写入和删除动作

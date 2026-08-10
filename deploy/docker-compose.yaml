@@ -41,23 +41,6 @@ services:
       retries: 20
       start_period: 5s
 
-  mysql:
-    image: mysql:8.4.10
-    environment:
-      MYSQL_DATABASE: ingate
-      MYSQL_USER: ingate
-      MYSQL_PASSWORD: ingate
-      MYSQL_ROOT_PASSWORD: ingate-root
-    volumes:
-      - ./internal/adminapi/data/dao/accesskey/sql/schema.sql:/docker-entrypoint-initdb.d/001-access-keys.sql:ro
-      - mysql-data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
-      interval: 5s
-      timeout: 3s
-      retries: 30
-      start_period: 20s
-
   apiserver:
     image: ingate/apiserver:${INGATE_IMAGE_TAG:-dev}
     build:
@@ -97,23 +80,6 @@ services:
       retries: 20
       start_period: 10s
 
-  ai-proxy:
-    image: ingate/ai-proxy:${INGATE_IMAGE_TAG:-dev}
-    build:
-      <<: *ingate-build
-      target: ai-proxy
-    depends_on:
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./deploy/docker/configs/ingate-ai-proxy.yaml:/opt/ingate/ai-proxy/configs/config.yaml:ro
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18082/readyz"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-      start_period: 10s
-
   envoy:
     image: lgc202/ingate-envoy:v0.2.0
     network_mode: service:controller
@@ -121,8 +87,6 @@ services:
       controller:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      ai-proxy:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:15000/ready"]
@@ -138,10 +102,6 @@ services:
       target: admin-api
     depends_on:
       apiserver:
-        condition: service_healthy
-      mysql:
-        condition: service_healthy
-      redis:
         condition: service_healthy
     volumes:
       - ./deploy/docker/configs/ingate-admin-api.yaml:/opt/ingate/admin-api/configs/config.yaml:ro
@@ -175,5 +135,4 @@ services:
 volumes:
   apiserver-certificates:
   etcd-data:
-  mysql-data:
   redis-data:

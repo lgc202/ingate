@@ -138,8 +138,6 @@ func (x *Server) GetHttp() *Server_HTTP {
 type Data struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Apiserver     *Data_APIServer        `protobuf:"bytes,1,opt,name=apiserver,proto3" json:"apiserver,omitempty"`
-	Mysql         *Data_MySQL            `protobuf:"bytes,2,opt,name=mysql,proto3" json:"mysql,omitempty"`
-	Redis         *Data_Redis            `protobuf:"bytes,3,opt,name=redis,proto3" json:"redis,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -177,20 +175,6 @@ func (*Data) Descriptor() ([]byte, []int) {
 func (x *Data) GetApiserver() *Data_APIServer {
 	if x != nil {
 		return x.Apiserver
-	}
-	return nil
-}
-
-func (x *Data) GetMysql() *Data_MySQL {
-	if x != nil {
-		return x.Mysql
-	}
-	return nil
-}
-
-func (x *Data) GetRedis() *Data_Redis {
-	if x != nil {
-		return x.Redis
 	}
 	return nil
 }
@@ -475,134 +459,6 @@ func (x *Data_APIServer) GetKubeconfig() string {
 	return ""
 }
 
-type Data_MySQL struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	Dsn                   string                 `protobuf:"bytes,1,opt,name=dsn,proto3" json:"dsn,omitempty"`
-	MaxOpenConnections    int32                  `protobuf:"varint,2,opt,name=max_open_connections,json=maxOpenConnections,proto3" json:"max_open_connections,omitempty"`
-	MaxIdleConnections    int32                  `protobuf:"varint,3,opt,name=max_idle_connections,json=maxIdleConnections,proto3" json:"max_idle_connections,omitempty"`
-	ConnectionMaxLifetime *durationpb.Duration   `protobuf:"bytes,4,opt,name=connection_max_lifetime,json=connectionMaxLifetime,proto3" json:"connection_max_lifetime,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
-}
-
-func (x *Data_MySQL) Reset() {
-	*x = Data_MySQL{}
-	mi := &file_conf_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Data_MySQL) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Data_MySQL) ProtoMessage() {}
-
-func (x *Data_MySQL) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Data_MySQL.ProtoReflect.Descriptor instead.
-func (*Data_MySQL) Descriptor() ([]byte, []int) {
-	return file_conf_proto_rawDescGZIP(), []int{2, 1}
-}
-
-func (x *Data_MySQL) GetDsn() string {
-	if x != nil {
-		return x.Dsn
-	}
-	return ""
-}
-
-func (x *Data_MySQL) GetMaxOpenConnections() int32 {
-	if x != nil {
-		return x.MaxOpenConnections
-	}
-	return 0
-}
-
-func (x *Data_MySQL) GetMaxIdleConnections() int32 {
-	if x != nil {
-		return x.MaxIdleConnections
-	}
-	return 0
-}
-
-func (x *Data_MySQL) GetConnectionMaxLifetime() *durationpb.Duration {
-	if x != nil {
-		return x.ConnectionMaxLifetime
-	}
-	return nil
-}
-
-type Data_Redis struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	Database      int32                  `protobuf:"varint,3,opt,name=database,proto3" json:"database,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *Data_Redis) Reset() {
-	*x = Data_Redis{}
-	mi := &file_conf_proto_msgTypes[8]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Data_Redis) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Data_Redis) ProtoMessage() {}
-
-func (x *Data_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_proto_msgTypes[8]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Data_Redis.ProtoReflect.Descriptor instead.
-func (*Data_Redis) Descriptor() ([]byte, []int) {
-	return file_conf_proto_rawDescGZIP(), []int{2, 2}
-}
-
-func (x *Data_Redis) GetAddress() string {
-	if x != nil {
-		return x.Address
-	}
-	return ""
-}
-
-func (x *Data_Redis) GetPassword() string {
-	if x != nil {
-		return x.Password
-	}
-	return ""
-}
-
-func (x *Data_Redis) GetDatabase() int32 {
-	if x != nil {
-		return x.Database
-	}
-	return 0
-}
-
 var File_conf_proto protoreflect.FileDescriptor
 
 const file_conf_proto_rawDesc = "" +
@@ -618,25 +474,14 @@ const file_conf_proto_rawDesc = "" +
 	"\x04http\x18\x01 \x01(\v2\x1e.ingate.admin.conf.Server.HTTPR\x04http\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xa4\x04\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x8c\x01\n" +
 	"\x04Data\x12?\n" +
-	"\tapiserver\x18\x01 \x01(\v2!.ingate.admin.conf.Data.APIServerR\tapiserver\x123\n" +
-	"\x05mysql\x18\x02 \x01(\v2\x1d.ingate.admin.conf.Data.MySQLR\x05mysql\x123\n" +
-	"\x05redis\x18\x03 \x01(\v2\x1d.ingate.admin.conf.Data.RedisR\x05redis\x1aC\n" +
+	"\tapiserver\x18\x01 \x01(\v2!.ingate.admin.conf.Data.APIServerR\tapiserver\x1aC\n" +
 	"\tAPIServer\x12\x16\n" +
 	"\x06master\x18\x01 \x01(\tR\x06master\x12\x1e\n" +
 	"\n" +
 	"kubeconfig\x18\x02 \x01(\tR\n" +
-	"kubeconfig\x1a\xd0\x01\n" +
-	"\x05MySQL\x12\x10\n" +
-	"\x03dsn\x18\x01 \x01(\tR\x03dsn\x120\n" +
-	"\x14max_open_connections\x18\x02 \x01(\x05R\x12maxOpenConnections\x120\n" +
-	"\x14max_idle_connections\x18\x03 \x01(\x05R\x12maxIdleConnections\x12Q\n" +
-	"\x17connection_max_lifetime\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\x15connectionMaxLifetime\x1aY\n" +
-	"\x05Redis\x12\x18\n" +
-	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1a\n" +
-	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1a\n" +
-	"\bdatabase\x18\x03 \x01(\x05R\bdatabase\"V\n" +
+	"kubeconfig\"V\n" +
 	"\aLogging\x12\x16\n" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\tR\x05level\x12\x1d\n" +
@@ -669,7 +514,7 @@ func file_conf_proto_rawDescGZIP() []byte {
 	return file_conf_proto_rawDescData
 }
 
-var file_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.admin.conf.Bootstrap
 	(*Server)(nil),              // 1: ingate.admin.conf.Server
@@ -678,27 +523,22 @@ var file_conf_proto_goTypes = []any{
 	(*Authentication)(nil),      // 4: ingate.admin.conf.Authentication
 	(*Server_HTTP)(nil),         // 5: ingate.admin.conf.Server.HTTP
 	(*Data_APIServer)(nil),      // 6: ingate.admin.conf.Data.APIServer
-	(*Data_MySQL)(nil),          // 7: ingate.admin.conf.Data.MySQL
-	(*Data_Redis)(nil),          // 8: ingate.admin.conf.Data.Redis
-	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
+	(*durationpb.Duration)(nil), // 7: google.protobuf.Duration
 }
 var file_conf_proto_depIdxs = []int32{
-	1,  // 0: ingate.admin.conf.Bootstrap.server:type_name -> ingate.admin.conf.Server
-	2,  // 1: ingate.admin.conf.Bootstrap.data:type_name -> ingate.admin.conf.Data
-	3,  // 2: ingate.admin.conf.Bootstrap.logging:type_name -> ingate.admin.conf.Logging
-	4,  // 3: ingate.admin.conf.Bootstrap.authentication:type_name -> ingate.admin.conf.Authentication
-	5,  // 4: ingate.admin.conf.Server.http:type_name -> ingate.admin.conf.Server.HTTP
-	6,  // 5: ingate.admin.conf.Data.apiserver:type_name -> ingate.admin.conf.Data.APIServer
-	7,  // 6: ingate.admin.conf.Data.mysql:type_name -> ingate.admin.conf.Data.MySQL
-	8,  // 7: ingate.admin.conf.Data.redis:type_name -> ingate.admin.conf.Data.Redis
-	9,  // 8: ingate.admin.conf.Authentication.discovery_timeout:type_name -> google.protobuf.Duration
-	9,  // 9: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	9,  // 10: ingate.admin.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
-	11, // [11:11] is the sub-list for method output_type
-	11, // [11:11] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	1, // 0: ingate.admin.conf.Bootstrap.server:type_name -> ingate.admin.conf.Server
+	2, // 1: ingate.admin.conf.Bootstrap.data:type_name -> ingate.admin.conf.Data
+	3, // 2: ingate.admin.conf.Bootstrap.logging:type_name -> ingate.admin.conf.Logging
+	4, // 3: ingate.admin.conf.Bootstrap.authentication:type_name -> ingate.admin.conf.Authentication
+	5, // 4: ingate.admin.conf.Server.http:type_name -> ingate.admin.conf.Server.HTTP
+	6, // 5: ingate.admin.conf.Data.apiserver:type_name -> ingate.admin.conf.Data.APIServer
+	7, // 6: ingate.admin.conf.Authentication.discovery_timeout:type_name -> google.protobuf.Duration
+	7, // 7: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_conf_proto_init() }
@@ -712,7 +552,7 @@ func file_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_proto_rawDesc), len(file_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -10,7 +10,7 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
-// UpstreamService 提供应用、模型、MCP 和 Agent 服务管理接口
+// UpstreamService 提供 HTTP 上游服务管理接口
 service UpstreamService {
   rpc ListUpstreams(ListUpstreamsRequest) returns (ListUpstreamsResponse) {
     option (google.api.http) = {get: "/api/v1/upstreams"};
@@ -35,24 +35,6 @@ service UpstreamService {
   }
 }
 
-enum UpstreamType {
-  UPSTREAM_TYPE_UNSPECIFIED = 0;
-  UPSTREAM_TYPE_APPLICATION = 1;
-  UPSTREAM_TYPE_MODEL = 2;
-  UPSTREAM_TYPE_AGENT = 3;
-  UPSTREAM_TYPE_MCP = 4;
-}
-
-enum ModelProvider {
-  MODEL_PROVIDER_UNSPECIFIED = 0;
-  MODEL_PROVIDER_OPENAI = 1;
-  MODEL_PROVIDER_DEEPSEEK = 2;
-  MODEL_PROVIDER_QWEN = 3;
-  MODEL_PROVIDER_ANTHROPIC = 4;
-  MODEL_PROVIDER_GEMINI = 5;
-  MODEL_PROVIDER_CUSTOM = 6;
-}
-
 enum LoadBalancingPolicy {
   LOAD_BALANCING_POLICY_UNSPECIFIED = 0;
   LOAD_BALANCING_POLICY_ROUND_ROBIN = 1;
@@ -61,15 +43,6 @@ enum LoadBalancingPolicy {
 
 message UpstreamTLS {
   string server_name = 1 [(buf.validate.field).string.min_len = 1];
-}
-
-message ModelConfig {
-  ModelProvider provider = 1;
-  string base_path = 2 [(buf.validate.field).string.min_len = 1];
-  repeated string models = 3 [(buf.validate.field).repeated = {
-    min_items: 1
-    items: {string: {min_len: 1}}
-  }];
 }
 
 message UpstreamEndpoint {
@@ -90,18 +63,15 @@ message UpstreamHealthCheck {
 message Upstream {
   string id = 1;
   string name = 2;
-  UpstreamType type = 3;
-  repeated UpstreamEndpoint endpoints = 4;
-  UpstreamTLS tls = 5;
-  LoadBalancingPolicy load_balancing = 6;
-  UpstreamHealthCheck health_check = 7;
-  ModelConfig model = 8;
-  bool api_key_configured = 9 [json_name = "apiKeyConfigured"];
-  ResourceState state = 10;
-  string message = 11;
-  int64 version = 12;
-  google.protobuf.Timestamp created_at = 13;
-  google.protobuf.Timestamp updated_at = 14;
+  repeated UpstreamEndpoint endpoints = 3;
+  UpstreamTLS tls = 4;
+  LoadBalancingPolicy load_balancing = 5;
+  UpstreamHealthCheck health_check = 6;
+  ResourceState state = 7;
+  string message = 8;
+  int64 version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
 }
 
 message ListUpstreamsRequest {
@@ -120,26 +90,20 @@ message GetUpstreamRequest {
 
 message CreateUpstreamRequest {
   string name = 1 [(buf.validate.field).string.min_len = 1];
-  UpstreamType type = 2;
-  repeated UpstreamEndpoint endpoints = 3 [(buf.validate.field).repeated.min_items = 1];
-  UpstreamTLS tls = 4;
-  LoadBalancingPolicy load_balancing = 5;
-  UpstreamHealthCheck health_check = 6;
-  ModelConfig model = 7;
-  optional string api_key = 8 [json_name = "apiKey"];
+  repeated UpstreamEndpoint endpoints = 2 [(buf.validate.field).repeated.min_items = 1];
+  UpstreamTLS tls = 3;
+  LoadBalancingPolicy load_balancing = 4;
+  UpstreamHealthCheck health_check = 5;
 }
 
 message UpdateUpstreamRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
   string name = 3 [(buf.validate.field).string.min_len = 1];
-  UpstreamType type = 4;
-  repeated UpstreamEndpoint endpoints = 5 [(buf.validate.field).repeated.min_items = 1];
-  UpstreamTLS tls = 6;
-  LoadBalancingPolicy load_balancing = 7;
-  UpstreamHealthCheck health_check = 8;
-  ModelConfig model = 9;
-  optional string api_key = 10 [json_name = "apiKey"];
+  repeated UpstreamEndpoint endpoints = 4 [(buf.validate.field).repeated.min_items = 1];
+  UpstreamTLS tls = 5;
+  LoadBalancingPolicy load_balancing = 6;
+  UpstreamHealthCheck health_check = 7;
 }
 
 message DeleteUpstreamRequest {

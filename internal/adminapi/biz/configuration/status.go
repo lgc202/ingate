@@ -33,9 +33,6 @@ func (u *Usecase) GetSummary(ctx context.Context) (Summary, error) {
 	group.Go(func() error {
 		return collectSummary(ctx, u.ipRestrictionPolicies.ListPage, ipRestrictionPolicyItem, &summaries[resourcePageIPRestrictionPolicy])
 	})
-	group.Go(func() error {
-		return collectSummary(ctx, u.tokenQuotaPolicies.ListPage, tokenQuotaPolicyItem, &summaries[resourcePageTokenQuotaPolicy])
-	})
 	if err := group.Wait(); err != nil {
 		return Summary{}, fmt.Errorf("collect configuration summary: %w", err)
 	}

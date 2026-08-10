@@ -2,15 +2,16 @@ import type { ResourceStatus } from './common';
 
 export interface Certificate {
   id: string;
-  version?: string;
   name: string;
-  description: string;
-  certificatePEM?: string;
+  certificatePEM: string;
   dnsNames: string[];
   notBefore: string;
   notAfter: string;
-  status: ResourceStatus;
+  state: ResourceStatus['state'];
+  message: string;
+  version: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface CertificateListView {
@@ -19,13 +20,8 @@ export interface CertificateListView {
 
 export interface CertificateMutationPayload {
   id?: string;
-  version?: string;
+  version?: number;
   name: string;
-  description: string;
-  certificatePEM: string;
-  privateKeyPEM: string;
-}
-
-export interface CertificateMutationResult {
-  id?: string;
+  certificatePEM?: string;
+  privateKeyPEM?: string;
 }

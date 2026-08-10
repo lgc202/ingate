@@ -12,7 +12,6 @@ var managedServices = map[string]struct{}{
 	"GatewayService":             {},
 	"RateLimitPolicyService":     {},
 	"RouteService":               {},
-	"TokenQuotaPolicyService":    {},
 	"UpstreamService":            {},
 }
 
@@ -36,9 +35,6 @@ func Allowed(role Role, operation string) bool {
 	}
 	if service == "HealthService" && method == "Check" {
 		return true
-	}
-	if service == "AccessKeyService" {
-		return role == RoleAdmin
 	}
 	if _, exists := managedServices[service]; !exists {
 		return false

@@ -169,8 +169,7 @@ func kindHasReferences(kind gatewayv1.Kind) bool {
 	case gatewayv1.KindGateway,
 		gatewayv1.KindRoute,
 		gatewayv1.KindRateLimitPolicy,
-		gatewayv1.KindIPRestrictionPolicy,
-		gatewayv1.KindTokenQuotaPolicy:
+		gatewayv1.KindIPRestrictionPolicy:
 		return true
 	default:
 		return false

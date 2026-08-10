@@ -7,16 +7,6 @@ data:
   apiserver:
     master: ""
     kubeconfig: "_output/kubeconfig"
-  mysql:
-    dsn: "ingate:ingate@tcp(127.0.0.1:3306)/ingate?charset=utf8mb4&parseTime=true&loc=UTC&timeout=5s&readTimeout=5s&writeTimeout=5s"
-    max_open_connections: 20
-    max_idle_connections: 10
-    connection_max_lifetime: "1800s"
-  redis:
-    address: "127.0.0.1:6379"
-    password: ""
-    database: 0
-
 logging:
   format: "json"
   level: "info"

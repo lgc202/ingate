@@ -24,13 +24,10 @@ type compilation struct {
 	upstreamClusters      map[string]string
 	rateLimitPolicies     map[string]*gatewayv1.RateLimitPolicy
 	ipRestrictionPolicies map[string]*gatewayv1.IPRestrictionPolicy
-	tokenQuotaPolicies    map[string]*gatewayv1.TokenQuotaPolicy
 
 	listenerGroups   map[listenerKey]*listenerGroup
 	gatewayListeners map[string][]gatewayListener
 	routeAttachments []routeAttachment
-	aiRoutes         map[aiRouteKey]compiledAIRoute
-	aiRouteEntries   map[attachedAIRouteKey][]*routev3.Route
 	policyTargetSet  map[CompiledPolicyTarget]bool
 	diagnostics      []Diagnostic
 	diagnosticSet    map[string]bool
@@ -48,11 +45,8 @@ func Compile(resources Resources) Result {
 		upstreamClusters:      make(map[string]string, len(resources.Upstreams)),
 		rateLimitPolicies:     make(map[string]*gatewayv1.RateLimitPolicy, len(resources.RateLimitPolicies)),
 		ipRestrictionPolicies: make(map[string]*gatewayv1.IPRestrictionPolicy, len(resources.IPRestrictionPolicies)),
-		tokenQuotaPolicies:    make(map[string]*gatewayv1.TokenQuotaPolicy, len(resources.TokenQuotaPolicies)),
 		listenerGroups:        make(map[listenerKey]*listenerGroup),
 		gatewayListeners:      make(map[string][]gatewayListener),
-		aiRoutes:              make(map[aiRouteKey]compiledAIRoute),
-		aiRouteEntries:        make(map[attachedAIRouteKey][]*routev3.Route),
 		policyTargetSet:       make(map[CompiledPolicyTarget]bool),
 		diagnosticSet:         make(map[string]bool),
 	}
@@ -62,7 +56,6 @@ func Compile(resources Resources) Result {
 	c.buildListenerGroups()
 	routes := c.buildRoutes()
 	filters := c.buildPolicyConfigs()
-	c.configureAIRoutes(filters)
 	listeners := c.buildListeners(filters)
 
 	envoyConfig := EnvoyConfig{
@@ -144,13 +137,6 @@ func (c *compilation) indexResources() {
 		}
 		c.indexIPRestrictionPolicy(policy)
 	}
-	for _, policy := range c.resources.TokenQuotaPolicies {
-		if policy == nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, "", ReasonInvalidSpec, "token quota policy resource is nil")
-			continue
-		}
-		c.indexTokenQuotaPolicy(policy)
-	}
 }
 
 func (c *compilation) indexCertificate(certificate *gatewayv1.Certificate) {
@@ -222,19 +208,6 @@ func (c *compilation) indexRoute(route *gatewayv1.Route) {
 		return
 	}
 	c.routes[id] = route
-
-	rules := make(map[string]bool, len(route.Spec.Rules))
-	for _, rule := range route.Spec.Rules {
-		if rule.Name == "" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, id, ReasonInvalidSpec, fmt.Sprintf("route %q has a rule without a name", id))
-			continue
-		}
-		if rules[rule.Name] {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, id, ReasonConflict, fmt.Sprintf("route %q has duplicate rule %q", id, rule.Name))
-			continue
-		}
-		rules[rule.Name] = true
-	}
 }
 
 func (c *compilation) indexUpstream(upstream *gatewayv1.Upstream) {
@@ -274,19 +247,6 @@ func (c *compilation) indexIPRestrictionPolicy(policy *gatewayv1.IPRestrictionPo
 		return
 	}
 	c.ipRestrictionPolicies[id] = policy
-}
-
-func (c *compilation) indexTokenQuotaPolicy(policy *gatewayv1.TokenQuotaPolicy) {
-	id := policy.Name
-	if id == "" {
-		c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, id, ReasonInvalidSpec, "token quota policy metadata.name is required")
-		return
-	}
-	if _, ok := c.tokenQuotaPolicies[id]; ok {
-		c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, id, ReasonConflict, fmt.Sprintf("duplicate token quota policy %q", id))
-		return
-	}
-	c.tokenQuotaPolicies[id] = policy
 }
 
 func (c *compilation) addDiagnostic(severity Severity, kind gatewayv1.Kind, id string, reason Reason, message string) {

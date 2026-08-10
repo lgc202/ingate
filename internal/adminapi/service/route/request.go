@@ -16,7 +16,6 @@ type routeInput struct {
 	hostnames              []string
 	match                  *adminv1.RouteMatch
 	upstreams              []*adminv1.RouteUpstream
-	modelRouting           *adminv1.ModelRouting
 	requestHeaderModifier  *adminv1.HeaderModifier
 	responseHeaderModifier *adminv1.HeaderModifier
 	timeout                *adminv1.RouteTimeout
@@ -49,7 +48,7 @@ func buildRouteSpec(input routeInput) (resource.RouteSpec, error) {
 		Hostnames:   hostnames,
 		Match:       match,
 	}
-	if err := buildForwarding(&spec, input.upstreams, input.modelRouting); err != nil {
+	if err := buildForwarding(&spec, input.upstreams); err != nil {
 		return resource.RouteSpec{}, err
 	}
 	if input.requestHeaderModifier != nil {

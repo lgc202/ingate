@@ -1,4 +1,5 @@
 import { apiListAll, apiRequest, type PagedResponse } from './client';
+import { normalizeResourceState } from '@/domain/common';
 import {
   sortConfigurationItems,
   type ConfigurationStatusItem,
@@ -22,5 +23,11 @@ export async function getConfigurationStatus(): Promise<ConfigurationStatusView>
       (page) => page.items ?? [],
     ),
   ]);
-  return { summary, items: sortConfigurationItems(items) };
+  return {
+    summary,
+    items: sortConfigurationItems(items.map((item) => ({
+      ...item,
+      status: { ...item.status, state: normalizeResourceState(item.status.state) },
+    }))),
+  };
 }

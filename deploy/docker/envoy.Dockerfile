@@ -14,13 +14,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 COPY pkg ./pkg
 COPY plugins ./plugins
-COPY internal/pkg/httpheader ./internal/pkg/httpheader
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     mkdir -p /out \
     && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/ratelimit.wasm ./plugins/ratelimit \
-    && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/tokenquota.wasm ./plugins/tokenquota \
     && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o /out/iprestriction.wasm ./plugins/iprestriction
 
 FROM higress-registry.cn-hangzhou.cr.aliyuncs.com/higress/gateway:v2.2.3 AS higress-envoy

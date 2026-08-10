@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"net/netip"
-	"path"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +14,6 @@ import (
 	endpointv3 "github.com/envoyproxy/go-control-plane/envoy/config/endpoint/v3"
 	tlsv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/transport_sockets/tls/v3"
 	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
-	"github.com/lgc202/ingate/internal/pkg/httpheader"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -32,7 +29,6 @@ const (
 )
 
 func (c *compilation) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.ClusterLoadAssignment) {
-	// 普通 Upstream 直接使用资源 ID；模型 Upstream 使用连接配置指纹隔离新旧 CDS/EDS 资源
 	ids := slices.Sorted(maps.Keys(c.upstreams))
 	clusters := make([]*clusterv3.Cluster, 0, len(ids))
 	assignments := make([]*endpointv3.ClusterLoadAssignment, 0, len(ids))
@@ -40,13 +36,7 @@ func (c *compilation) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.Clus
 	for _, id := range ids {
 		upstream := c.upstreams[id]
 		if strings.HasPrefix(id, systemClusterPrefix) {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				id,
-				ReasonConflict,
-				fmt.Sprintf("upstream %q uses reserved system cluster prefix %q", id, systemClusterPrefix),
-			)
+			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, id, ReasonConflict, fmt.Sprintf("upstream %q uses reserved system cluster prefix %q", id, systemClusterPrefix))
 			continue
 		}
 
@@ -54,30 +44,9 @@ func (c *compilation) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.Clus
 		if !ok {
 			continue
 		}
-		if !c.validUpstreamProtocol(upstream) {
-			continue
-		}
-		if upstream.Spec.HealthCheck != nil && upstream.Spec.HealthCheck.Enabled {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				id,
-				ReasonUnsupported,
-				fmt.Sprintf("upstream %q enables unsupported active health checks", id),
-			)
-		}
-
 		endpoints, usesDNS := c.buildUpstreamEndpoints(upstream)
-		clusterName := id
-		if upstream.Spec.Type == gatewayv1.UpstreamTypeModel {
-			apiKey, credentialValid := c.upstreamAPIKey(upstream)
-			if !credentialValid {
-				continue
-			}
-			clusterName = modelClusterName(upstream, lbPolicy, apiKey)
-		}
 		cluster := &clusterv3.Cluster{
-			Name:           clusterName,
+			Name:           id,
 			ConnectTimeout: durationpb.New(defaultUpstreamConnectTimeout),
 			LbPolicy:       lbPolicy,
 		}
@@ -86,15 +55,15 @@ func (c *compilation) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.Clus
 			continue
 		}
 		cluster.TransportSocket = transportSocket
-		c.upstreamClusters[id] = clusterName
+		if upstream.Spec.HealthCheck != nil {
+			cluster.HealthChecks = []*corev3.HealthCheck{buildHealthCheck(upstream.Spec.HealthCheck)}
+		}
+
 		assignment := &endpointv3.ClusterLoadAssignment{
-			ClusterName: clusterName,
-			Endpoints: []*endpointv3.LocalityLbEndpoints{
-				{LbEndpoints: endpoints},
-			},
+			ClusterName: id,
+			Endpoints:   []*endpointv3.LocalityLbEndpoints{{LbEndpoints: endpoints}},
 		}
 		if usesDNS {
-			// hostname 优先使用通常可达的 IPv4；没有 A 记录时仍可使用 IPv6
 			cluster.ClusterDiscoveryType = &clusterv3.Cluster_Type{Type: clusterv3.Cluster_STRICT_DNS}
 			cluster.DnsLookupFamily = hostnameDNSLookupFamily
 			cluster.LoadAssignment = assignment
@@ -102,259 +71,26 @@ func (c *compilation) buildUpstreams() ([]*clusterv3.Cluster, []*endpointv3.Clus
 			cluster.ClusterDiscoveryType = &clusterv3.Cluster_Type{Type: clusterv3.Cluster_EDS}
 			cluster.EdsClusterConfig = &clusterv3.Cluster_EdsClusterConfig{
 				EdsConfig:   adsConfigSource(),
-				ServiceName: clusterName,
+				ServiceName: id,
 			}
 			assignments = append(assignments, assignment)
 		}
+		c.upstreamClusters[id] = id
 		clusters = append(clusters, cluster)
 	}
-
 	return clusters, assignments
 }
 
-func modelClusterName(upstream *gatewayv1.Upstream, lbPolicy clusterv3.Cluster_LbPolicy, apiKey string) string {
-	fields := []string{
-		"protocol", string(upstream.Spec.Protocol),
-		"connectTimeout", defaultUpstreamConnectTimeout.String(),
-		"dnsLookupFamily", hostnameDNSLookupFamily.String(),
-		"loadBalancePolicy", lbPolicy.String(),
-		"apiKey", apiKey,
+func buildHealthCheck(config *gatewayv1.UpstreamHealthCheck) *corev3.HealthCheck {
+	return &corev3.HealthCheck{
+		Timeout:            durationpb.New(time.Duration(config.TimeoutSeconds) * time.Second),
+		Interval:           durationpb.New(time.Duration(config.IntervalSeconds) * time.Second),
+		UnhealthyThreshold: wrapperspb.UInt32(3),
+		HealthyThreshold:   wrapperspb.UInt32(2),
+		HealthChecker: &corev3.HealthCheck_HttpHealthCheck_{
+			HttpHealthCheck: &corev3.HealthCheck_HttpHealthCheck{Path: config.Path},
+		},
 	}
-	if upstream.Spec.Model != nil {
-		fields = append(fields,
-			"apiBasePath", upstream.Spec.Model.APIBasePath,
-		)
-	}
-	if upstream.Spec.TLS == nil {
-		fields = append(fields, "tls", "disabled")
-	} else {
-		fields = append(fields,
-			"tls", "enabled",
-			"serverName", normalizedTLSServerName(upstream.Spec.TLS.ServerName),
-			"trustedCA", systemCABundlePath,
-			"alpn", "http/1.1",
-		)
-	}
-
-	endpoints := make([]gatewayv1.Endpoint, 0, len(upstream.Spec.Endpoints))
-	for _, endpoint := range upstream.Spec.Endpoints {
-		if endpoint.Enabled {
-			endpoints = append(endpoints, endpoint)
-		}
-	}
-	slices.SortFunc(endpoints, func(a, b gatewayv1.Endpoint) int {
-		if a.Address != b.Address {
-			return cmp.Compare(a.Address, b.Address)
-		}
-		if a.Port != b.Port {
-			return cmp.Compare(a.Port, b.Port)
-		}
-		if a.Weight != b.Weight {
-			return cmp.Compare(a.Weight, b.Weight)
-		}
-		return cmp.Compare(a.Name, b.Name)
-	})
-	for _, endpoint := range endpoints {
-		fields = append(fields,
-			"endpoint",
-			endpoint.Name,
-			endpoint.Address,
-			strconv.Itoa(endpoint.Port),
-			strconv.Itoa(endpoint.Weight),
-		)
-	}
-	return upstream.Name + "/ai/" + configFingerprint(fields...)
-}
-
-func (c *compilation) validUpstreamProtocol(upstream *gatewayv1.Upstream) bool {
-	protocolValid := true
-	if upstream.Spec.Type == "" {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("upstream %q must declare a type", upstream.Name),
-		)
-		protocolValid = false
-	} else {
-		switch upstream.Spec.Type {
-		case gatewayv1.UpstreamTypeApplication, gatewayv1.UpstreamTypeModel, gatewayv1.UpstreamTypeAgent, gatewayv1.UpstreamTypeMCP:
-		default:
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				upstream.Name,
-				ReasonUnsupported,
-				fmt.Sprintf("upstream %q uses unsupported type %q", upstream.Name, upstream.Spec.Type),
-			)
-			protocolValid = false
-		}
-	}
-	switch upstream.Spec.Protocol {
-	case gatewayv1.UpstreamProtocolHTTP:
-		if upstream.Spec.Type == gatewayv1.UpstreamTypeModel {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				upstream.Name,
-				ReasonInvalidSpec,
-				fmt.Sprintf("model upstream %q cannot use the HTTP protocol", upstream.Name),
-			)
-			protocolValid = false
-		}
-	case gatewayv1.UpstreamProtocolOpenAI, gatewayv1.UpstreamProtocolAnthropic, gatewayv1.UpstreamProtocolGemini:
-		if upstream.Spec.Type != gatewayv1.UpstreamTypeModel {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				upstream.Name,
-				ReasonInvalidSpec,
-				fmt.Sprintf("upstream %q uses model protocol %q without model type", upstream.Name, upstream.Spec.Protocol),
-			)
-			protocolValid = false
-		}
-	default:
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonUnsupported,
-			fmt.Sprintf("upstream %q uses unsupported protocol %q", upstream.Name, upstream.Spec.Protocol),
-		)
-		protocolValid = false
-	}
-	if upstream.Spec.Type == gatewayv1.UpstreamTypeModel {
-		if !c.validModelUpstream(upstream) {
-			protocolValid = false
-		}
-	} else if upstream.Spec.Model != nil {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("non-model upstream %q must not declare model configuration", upstream.Name),
-		)
-		protocolValid = false
-	}
-	if upstream.Spec.Authentication != nil && upstream.Spec.Type != gatewayv1.UpstreamTypeModel {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("non-model upstream %q must not declare authentication", upstream.Name),
-		)
-		protocolValid = false
-	}
-	if upstream.Spec.Authentication != nil && upstream.Spec.TLS == nil {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("upstream %q must use TLS when authentication is configured", upstream.Name),
-		)
-		protocolValid = false
-	}
-	if upstream.Spec.Authentication != nil &&
-		(upstream.Spec.Authentication.APIKey == nil || upstream.Spec.Authentication.APIKey.Value == "" || !httpheader.ValidValue(upstream.Spec.Authentication.APIKey.Value)) {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("upstream %q API key is missing or invalid", upstream.Name),
-		)
-		protocolValid = false
-	}
-	return protocolValid
-}
-
-func (c *compilation) validModelUpstream(upstream *gatewayv1.Upstream) bool {
-	if upstream.Spec.Model == nil {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("model upstream %q must declare model configuration", upstream.Name),
-		)
-		return false
-	}
-
-	valid := true
-	providerProtocol, providerValid := upstream.Spec.Model.Provider.Protocol()
-	if !providerValid {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonUnsupported,
-			fmt.Sprintf("model upstream %q uses unsupported provider %q", upstream.Name, upstream.Spec.Model.Provider),
-		)
-		valid = false
-	} else if providerProtocol != upstream.Spec.Protocol {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("model upstream %q provider %q requires protocol %q", upstream.Name, upstream.Spec.Model.Provider, providerProtocol),
-		)
-		valid = false
-	}
-
-	basePath := upstream.Spec.Model.APIBasePath
-	if basePath == "" || !strings.HasPrefix(basePath, "/") || strings.ContainsAny(basePath, "?#") || path.Clean(basePath) != basePath || (basePath != "/" && strings.HasSuffix(basePath, "/")) {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("model upstream %q has invalid API base path %q", upstream.Name, basePath),
-		)
-		valid = false
-	}
-
-	if len(upstream.Spec.Model.Models) == 0 {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("model upstream %q must declare at least one model", upstream.Name),
-		)
-		return false
-	}
-	seenModels := make(map[string]bool, len(upstream.Spec.Model.Models))
-	enabledModels := 0
-	for _, model := range upstream.Spec.Model.Models {
-		if model.Name == "" || strings.TrimSpace(model.Name) != model.Name {
-			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("model upstream %q contains an invalid model name %q", upstream.Name, model.Name))
-			valid = false
-			continue
-		}
-		if seenModels[model.Name] {
-			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonConflict, fmt.Sprintf("model upstream %q declares model %q more than once", upstream.Name, model.Name))
-			valid = false
-			continue
-		}
-		seenModels[model.Name] = true
-		if model.DisplayName == "" || strings.TrimSpace(model.DisplayName) != model.DisplayName {
-			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("model upstream %q model %q has an invalid display name", upstream.Name, model.Name))
-			valid = false
-		}
-		if model.Enabled {
-			enabledModels++
-		}
-	}
-	if enabledModels == 0 {
-		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("model upstream %q must enable at least one model", upstream.Name))
-		valid = false
-	}
-	return valid
 }
 
 func (c *compilation) upstreamTransportSocket(upstream *gatewayv1.Upstream) (*corev3.TransportSocket, bool) {
@@ -364,13 +100,7 @@ func (c *compilation) upstreamTransportSocket(upstream *gatewayv1.Upstream) (*co
 
 	serverName := normalizedTLSServerName(upstream.Spec.TLS.ServerName)
 	if !validEndpointAddress(serverName) {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("upstream %q has invalid TLS server name %q", upstream.Name, serverName),
-		)
+		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("upstream %q has invalid TLS server name %q", upstream.Name, serverName))
 		return nil, false
 	}
 
@@ -383,18 +113,12 @@ func (c *compilation) upstreamTransportSocket(upstream *gatewayv1.Upstream) (*co
 			AlpnProtocols: []string{"http/1.1"},
 			ValidationContextType: &tlsv3.CommonTlsContext_ValidationContext{
 				ValidationContext: &tlsv3.CertificateValidationContext{
-					// Envoy 1.36 尚未实现 system_root_certs，显式读取数据面镜像中的系统 CA 根证书包
-					TrustedCa: &corev3.DataSource{
-						Specifier: &corev3.DataSource_Filename{Filename: systemCABundlePath},
-					},
-					MatchTypedSubjectAltNames: []*tlsv3.SubjectAltNameMatcher{
-						{
-							SanType: sanType,
-							Matcher: &matcherv3.StringMatcher{
-								MatchPattern: &matcherv3.StringMatcher_Exact{Exact: serverName},
-							},
-						},
-					},
+					// Envoy 读取镜像中的系统 CA，并同时校验证书身份
+					TrustedCa: &corev3.DataSource{Specifier: &corev3.DataSource_Filename{Filename: systemCABundlePath}},
+					MatchTypedSubjectAltNames: []*tlsv3.SubjectAltNameMatcher{{
+						SanType: sanType,
+						Matcher: &matcherv3.StringMatcher{MatchPattern: &matcherv3.StringMatcher_Exact{Exact: serverName}},
+					}},
 				},
 			},
 		},
@@ -403,50 +127,28 @@ func (c *compilation) upstreamTransportSocket(upstream *gatewayv1.Upstream) (*co
 		tlsContext.Sni = serverName
 	}
 	if err := tlsContext.ValidateAll(); err != nil {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonCompileFailed,
-			fmt.Sprintf("validate TLS context for upstream %q: %v", upstream.Name, err),
-		)
+		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonCompileFailed, fmt.Sprintf("validate TLS context for upstream %q: %v", upstream.Name, err))
 		return nil, false
 	}
 	typedTLSContext, err := anypb.New(tlsContext)
 	if err != nil {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonCompileFailed,
-			fmt.Sprintf("encode TLS context for upstream %q: %v", upstream.Name, err),
-		)
+		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonCompileFailed, fmt.Sprintf("encode TLS context for upstream %q: %v", upstream.Name, err))
 		return nil, false
 	}
 	return &corev3.TransportSocket{
-		Name: tlsTransportSocketName,
-		ConfigType: &corev3.TransportSocket_TypedConfig{
-			TypedConfig: typedTLSContext,
-		},
+		Name:       tlsTransportSocketName,
+		ConfigType: &corev3.TransportSocket_TypedConfig{TypedConfig: typedTLSContext},
 	}, true
 }
 
 func (c *compilation) upstreamLBPolicy(upstream *gatewayv1.Upstream) (clusterv3.Cluster_LbPolicy, bool) {
-	switch upstream.Spec.LoadBalancePolicy {
-	case "", gatewayv1.UpstreamLoadBalancePolicyRoundRobin:
+	switch upstream.Spec.LoadBalancing {
+	case "", gatewayv1.LoadBalancingRoundRobin:
 		return clusterv3.Cluster_ROUND_ROBIN, true
-	case gatewayv1.UpstreamLoadBalancePolicyLeastRequest:
+	case gatewayv1.LoadBalancingLeastRequest:
 		return clusterv3.Cluster_LEAST_REQUEST, true
-	case gatewayv1.UpstreamLoadBalancePolicyRandom:
-		return clusterv3.Cluster_RANDOM, true
 	default:
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonUnsupported,
-			fmt.Sprintf("upstream %q uses unsupported load balance policy %q", upstream.Name, upstream.Spec.LoadBalancePolicy),
-		)
+		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonUnsupported, fmt.Sprintf("upstream %q uses unsupported load balancing policy %q", upstream.Name, upstream.Spec.LoadBalancing))
 		return clusterv3.Cluster_ROUND_ROBIN, false
 	}
 }
@@ -460,94 +162,36 @@ func (c *compilation) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) ([]*e
 		if a.Port != b.Port {
 			return cmp.Compare(a.Port, b.Port)
 		}
-		return cmp.Compare(a.Name, b.Name)
+		return cmp.Compare(a.Weight, b.Weight)
 	})
 
 	result := make([]*endpointv3.LbEndpoint, 0, len(items))
-	seenNames := make(map[string]bool, len(items))
-	enabledCount := 0
+	seen := make(map[string]bool, len(items))
 	usesDNS := false
 	for _, endpoint := range items {
-		valid := true
-		if endpoint.Name != "" && seenNames[endpoint.Name] {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				upstream.Name,
-				ReasonConflict,
-				fmt.Sprintf("upstream %q has duplicate endpoint %q", upstream.Name, endpoint.Name),
-			)
-			valid = false
-		}
-		seenNames[endpoint.Name] = endpoint.Name != ""
-
-		if !validEndpointAddress(endpoint.Address) {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				upstream.Name,
-				ReasonInvalidSpec,
-				fmt.Sprintf("upstream %q endpoint %q address %q must be an IP address or DNS hostname", upstream.Name, endpoint.Name, endpoint.Address),
-			)
-			valid = false
-		}
-		if endpoint.Port < 1 || endpoint.Port > 65535 {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				upstream.Name,
-				ReasonInvalidSpec,
-				fmt.Sprintf("upstream %q endpoint %q port must be between 1 and 65535", upstream.Name, endpoint.Name),
-			)
-			valid = false
-		}
-		if endpoint.Weight < 1 || endpoint.Weight > 100 {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindUpstream,
-				upstream.Name,
-				ReasonInvalidSpec,
-				fmt.Sprintf("upstream %q endpoint %q weight must be between 1 and 100", upstream.Name, endpoint.Name),
-			)
-			valid = false
-		}
-		if !endpoint.Enabled {
+		key := fmt.Sprintf("%s:%d", endpoint.Address, endpoint.Port)
+		if seen[key] {
+			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonConflict, fmt.Sprintf("upstream %q declares endpoint %q more than once", upstream.Name, key))
 			continue
 		}
-		enabledCount++
-		if !valid {
+		seen[key] = true
+		if !validEndpointAddress(endpoint.Address) {
+			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("upstream %q endpoint address %q must be an IP address or DNS hostname", upstream.Name, endpoint.Address))
+			continue
+		}
+		if endpoint.Port < 1 || endpoint.Port > 65535 || endpoint.Weight < 1 || endpoint.Weight > 1000 {
+			c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("upstream %q endpoint %q has invalid port or weight", upstream.Name, key))
 			continue
 		}
 		usesDNS = usesDNS || !isIPAddress(endpoint.Address)
-
 		result = append(result, &endpointv3.LbEndpoint{
-			HostIdentifier: &endpointv3.LbEndpoint_Endpoint{
-				Endpoint: &endpointv3.Endpoint{
-					Address: socketAddress(endpoint.Address, endpoint.Port),
-				},
-			},
+			HostIdentifier:      &endpointv3.LbEndpoint_Endpoint{Endpoint: &endpointv3.Endpoint{Address: socketAddress(endpoint.Address, endpoint.Port)}},
 			LoadBalancingWeight: wrapperspb.UInt32(uint32(endpoint.Weight)),
 		})
 	}
-
 	if len(items) == 0 {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("upstream %q must declare at least one endpoint", upstream.Name),
-		)
-	} else if enabledCount == 0 {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindUpstream,
-			upstream.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("upstream %q must have at least one enabled endpoint", upstream.Name),
-		)
+		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("upstream %q must declare at least one endpoint", upstream.Name))
 	}
-
 	return result, usesDNS
 }
 
@@ -577,10 +221,8 @@ func socketAddress(address string, port int) *corev3.Address {
 	return &corev3.Address{
 		Address: &corev3.Address_SocketAddress{
 			SocketAddress: &corev3.SocketAddress{
-				Address: address,
-				PortSpecifier: &corev3.SocketAddress_PortValue{
-					PortValue: uint32(port),
-				},
+				Address:       address,
+				PortSpecifier: &corev3.SocketAddress_PortValue{PortValue: uint32(port)},
 			},
 		},
 	}

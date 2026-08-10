@@ -17,11 +17,6 @@ type IPRestrictionPolicyLister interface {
 	ListPage(context.Context, PageRequest) (PageResult[resource.IPRestrictionPolicy], error)
 }
 
-// TokenQuotaPolicyLister 定义策略引用检查需要的 Token 配额策略分页能力
-type TokenQuotaPolicyLister interface {
-	ListPage(context.Context, PageRequest) (PageResult[resource.TokenQuotaPolicy], error)
-}
-
 // PolicyUsage 表示一个目标当前被哪条策略应用
 type PolicyUsage struct {
 	DisplayName string
@@ -31,19 +26,16 @@ type PolicyUsage struct {
 type PolicyUsageFinder struct {
 	rateLimitPolicies     RateLimitPolicyLister
 	ipRestrictionPolicies IPRestrictionPolicyLister
-	tokenQuotaPolicies    TokenQuotaPolicyLister
 }
 
 // NewPolicyUsageFinder 创建策略目标引用查询器
 func NewPolicyUsageFinder(
 	rateLimitPolicies RateLimitPolicyLister,
 	ipRestrictionPolicies IPRestrictionPolicyLister,
-	tokenQuotaPolicies TokenQuotaPolicyLister,
 ) *PolicyUsageFinder {
 	return &PolicyUsageFinder{
 		rateLimitPolicies:     rateLimitPolicies,
 		ipRestrictionPolicies: ipRestrictionPolicies,
-		tokenQuotaPolicies:    tokenQuotaPolicies,
 	}
 }
 
@@ -76,17 +68,6 @@ func (f *PolicyUsageFinder) Find(ctx context.Context, target resource.PolicyTarg
 	}
 	if usage != nil {
 		return usage, nil
-	}
-
-	err = VisitPages(ctx, f.tokenQuotaPolicies.ListPage, func(policy resource.TokenQuotaPolicy) (bool, error) {
-		if slices.Contains(policy.Spec.TargetRefs, target) {
-			usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
-			return true, nil
-		}
-		return false, nil
-	})
-	if err != nil {
-		return nil, err
 	}
 	return usage, nil
 }

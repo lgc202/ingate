@@ -4,11 +4,11 @@
 
 ## 项目方向
 
-- 构建一个面向 API 网关和 AI 网关的声明式 Envoy 控制面。
+- 构建一个声明式 Envoy API 网关控制面。
 - Envoy 是唯一数据平面，不为 Kong、Nginx 等假设提前设计 target 抽象。
 - Higress 只作为带 Redis 扩展 ABI 的 Envoy 二进制来源；生产 Go 代码不依赖 Higress 产品模型、wrapper 或高层 SDK。
 - 一套 Ingate 表示一个环境、一个配置域和一组配置完全相同的 Envoy 实例；一套 Ingate 可以包含多个逻辑 Gateway。
-- `Upstream` 统一表示应用、模型、MCP 和 Agent 等网络目标；`type` 表达业务分类，模型 `provider` 决定实际通信协议。
+- `Upstream` 表示普通 HTTP 上游服务，通过端点、TLS、负载均衡和健康检查描述连接方式。
 - 命名要按新设计重新判断，不要被旧项目影响。例如使用 `Upstream`，不要使用 `Backend`。
 
 ## 当前范围
@@ -27,34 +27,11 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - `ingate-admin-api`：前端管理 API
 - `ingate-apiserver`：声明式资源 API
 - `ingate-controller`：资源状态收敛、Envoy 配置编译和 xDS 服务
-- `ingate-ai-proxy`：通过 Envoy ExtProc 执行 AI 访问认证、模型选路、协议转换和响应归一化
 - `Envoy`：唯一数据平面
 - `etcd`：声明式资源持久化，仅由 ingate-apiserver 访问
-- `MySQL`：访问密钥等管理业务数据
-- `Redis`：访问密钥执行索引、限流和 Token 配额等请求路径共享状态
+- `Redis`：内置限流插件的共享计数存储
 
-当前不包含：
-
-- AI runtime
-- data-plane agent
-- Kubernetes operator
-
-## AI Gateway 当前范围
-
-- AI 请求继续使用现有 Controller 编译链路和 Envoy 数据面；`ingate-ai-proxy` 通过标准 ExtProc 接入请求链路，不直接对客户端监听模型 API
-- 对外统一支持 OpenAI-compatible `POST /v1/chat/completions`；当前上游支持 OpenAI、DeepSeek、通义千问兼容模式、Anthropic 原生协议、Gemini 原生协议和自定义 OpenAI-compatible 服务
-- 模型服务仍建模为 `Upstream(type=Model)`，通过 `spec.model.provider` 同时表达具体厂商并推导 OpenAI、Anthropic 或 Gemini 通信语义；不新增 Provider、Model、AIRoute 或 AIBackend 等平行资源
-- 模型目录由用户在模型 Upstream 的 `spec.model.models[]` 中手工维护，不自动同步厂商模型列表
-- API Key 直接保存在模型 `Upstream.spec.model.apiKey`，不创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略表示保留、显式空字符串表示清除
-- 一条模型 Route 的 `modelRouting.models[]` 中每个客户端模型别名各自引用一个模型 Upstream 和 `upstreamModel`，同一路由可以按请求体 `model` 跨多个厂商和 Upstream 选择目标
-- Controller 把每条模型 Route 的目标 Cluster、上游 Host、协议、凭据和模型映射编译到 Envoy ExtProc per-route 配置；`ingate-ai-proxy` 读取配置后完成客户端认证、模型别名匹配、厂商协议转换、路径与上游认证 Header 改写、响应和 SSE 归一化
-- `pkg/llm` 是不依赖 Ingate、Envoy、ExtProc、Gin 或 Kubernetes 的纯 Go 协议包，不发送模型 HTTP 请求、不读取环境变量、不管理密钥持久化；Provider 协议适配按子包隔离
-- 模型 Upstream 通过 `tls.serverName` 使用 HTTPS、SNI 和系统 CA 根证书包校验；配置或保留 API Key 时必须启用 HTTPS
-- 当前只支持文本 `system`、`user`、`assistant` 消息，以及 `model`、`messages`、`stream`、`temperature`、`top_p`、`max_tokens`、`stop`；普通响应、SSE、错误和 Token usage 统一为 OpenAI-compatible 结构，响应 `model` 返回客户端公开别名
-- 当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动模型同步、多 Provider fallback/retry、模型级重试、OAuth/IAM 云认证或大文件请求；单次请求体上限为 1 MiB
-- `TokenQuotaPolicy` 为一个策略定义一个共享预算池，只应用到目标 Gateway 或模型 Route；支持所有请求共享、按客户端 IP 和按请求 Header 值区分预算池
-- Token 配额固定统计归一化响应中的输入与输出 `total_tokens`，请求前检查当前固定窗口已用额度，响应结束后按实际 usage 记账；并发中的请求可能造成有限超额，不把当前能力描述为严格预扣的硬额度
-- 受 Token 配额保护的 OpenAI-compatible 流式请求由 `ingate-ai-proxy` 内部注入 usage 请求参数，客户端协议仍不开放 `stream_options`
+当前只保留 Gateway、Route、Upstream、Certificate、RateLimitPolicy 和 IPRestrictionPolicy。AI 网关、Agent、访问密钥、Token 配额、数据面 Agent 和 Kubernetes Operator 不在当前范围内，不保留占位代码或兼容层。
 
 ## 工程实现原则
 
@@ -81,11 +58,11 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 
 ## 内置治理插件
 
-- 限流、鉴权、访问控制、AI token 配额这类核心治理能力可以使用数据面插件执行，但控制面产品模型必须保持强类型资源，不让用户直接编辑插件私有 JSON。
+- 限流和 IP 访问限制使用数据面插件执行，但控制面产品模型必须保持强类型资源，不让用户直接编辑插件私有 JSON。
 - 内置治理插件不建模为用户创建的通用插件资源或插件绑定资源；用户配置的是对应的强类型 Policy 和必要的依赖资源。
 - 强类型 Policy 通过自身的 `targetRefs[]` 直接引用 Gateway 或 Route，不再使用独立 `PolicyBinding`。`targetRefs[]` 允许为空，表示策略已保存但当前不应用到流量。
 - xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次内置 Wasm filter，filter 配置携带 Envoy Config Compiler 生成的可执行策略索引，插件通过当前 xDS route name 定位 route/rule 配置。
-- Redis 是系统组件，不建模为 RedisStore 资源；RateLimitPolicy 和 TokenQuotaPolicy 自动使用 Envoy bootstrap 中的 `ingate-system-redis`。RateLimitPolicy 不向用户暴露 Local/Global 计数模式或限流算法，实际执行方式由 Ingate 内部统一选择。
+- Redis 是系统组件，不建模为用户资源；RateLimitPolicy 自动使用 Envoy bootstrap 中的 `ingate-system-redis`。RateLimitPolicy 不向用户暴露 Local/Global 计数模式或限流算法，实际执行方式由 Ingate 内部统一选择。
 - Redis 扩展由 Ingate 自己维护最小 ABI adapter，现有插件继续使用标准 Proxy-Wasm SDK，生产代码不 import `github.com/higress-group/...`。
 - 内置插件随 Ingate 数据面镜像发布，默认放在 `/opt/ingate/plugins`。
 - 用户自定义插件仍走普通插件模型，不和内置治理插件混用同一套产品协议。
@@ -131,9 +108,9 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - `api/admin/v1` 保存控制台 HTTP API 的 Proto 和 Buf 生成代码，是前端产品协议；前端不直接依赖 Kubernetes 风格资源对象。
 - `server` 只装配 Kratos HTTP transport、中间件、统一响应和错误编码，不写领域转换或业务规则。
 - `service` 实现生成的 HTTP service 接口，负责 Proto 请求校验、Proto 与 Ingate 资源之间的协议转换和调用 biz usecase。
-- `biz` 承载用例、业务语义和消费者侧 Repository 接口，负责同名校验、引用校验、资源状态和跨资源协调；不得依赖生成客户端、SQL、Redis 或 HTTP transport。
-- `data` 实现 biz 的 Repository 接口，屏蔽 API Server、MySQL 和 Redis，负责持久化、派生索引与真实跨数据源一致性。
-- `data/apiserver` 封装声明式资源读写，`data/dao` 封装 MySQL/sqlc，`data/cache` 封装 Redis 执行索引。
+- `biz` 承载用例、业务语义和消费者侧 Repository 接口，负责同名校验、引用校验、资源状态和跨资源协调；不得依赖生成客户端或 HTTP transport。
+- `data` 实现 biz 的 Repository 接口并屏蔽 API Server 客户端细节。
+- `data/apiserver` 封装声明式资源读写，Admin API 不直接访问 etcd、Redis 或关系数据库。
 - `conf` 使用 Proto 定义进程配置，通过 Kratos Config 加载；`cmd/ingate-admin-api` 使用 Kratos App 管理 transport、启动钩子和优雅退出。
 - Kratos 已提供的 Config、Error、Log、HTTP、Middleware 和生命周期能力优先直接使用，不再为 Admin API 维护 Gin、Cobra、自定义日志或自定义错误类型。
 
@@ -142,9 +119,9 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - Service 方法只做协议入口流程：校验请求自身、转换为 biz 用例参数、调用 usecase、转换响应。
 - 请求绑定由 Buf 生成的 Kratos HTTP handler 完成；语义校验失败返回 Kratos `BadRequest`。
 - 同名、引用存在性、版本冲突和运行状态冲突等依赖系统状态的规则放在 biz，不放在 Proto 转换函数中。
-- Service 不直接访问 API Server、MySQL、Redis 或生成客户端。
+- Service 不直接访问 API Server 或生成客户端。
 - 操作日志由 Kratos middleware 统一记录；Service 不重复记录错误。
-- API Key、私钥等敏感请求内容不得出现在请求日志或错误日志中。
+- 私钥等敏感请求内容不得出现在请求日志或错误日志中。
 
 ### Admin API 错误响应与校验边界
 
@@ -247,8 +224,8 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 
 - 代码注释使用中文，包括 package comment、导出类型注释、导出函数注释和必要的实现说明。
 - 注释要解释领域含义、设计约束或不明显的原因，不要复述代码本身。
-- 涉及核心链路、跨层转换、协议适配、AI 网关配置生效逻辑等关键或难懂的地方，要主动补充说明性注释。
-- 注释要讲清楚“为什么这样做”和“配置如何生效”，尤其要说明普通网关配置与 AI 网关配置的差异。
+- 涉及核心链路、跨层转换、协议适配和配置生效逻辑等关键或难懂的地方，要主动补充说明性注释。
+- 注释要讲清楚“为什么这样做”和“配置如何生效”。
 - 注释不需要以句号结尾，保持简洁即可。
 - 英文专有名词可以保留英文，例如 Envoy、xDS、Gateway、Route、Upstream。
 - 对外协议字段、错误文本、CLI 输出等用户可见字符串，按实际产品语境决定中英文，不受代码注释语言限制。

@@ -69,19 +69,6 @@ func ipRestrictionPolicyItem(policy resource.IPRestrictionPolicy) Item {
 	)
 }
 
-func tokenQuotaPolicyItem(policy resource.TokenQuotaPolicy) Item {
-	return policyItem(
-		resource.KindTokenQuotaPolicy,
-		policy.Name,
-		policy.Spec.DisplayName,
-		policy.Generation,
-		policy.Spec.Enabled,
-		policy.Spec.TargetRefs,
-		policy.Status.Conditions,
-		policy.Status.Targets,
-	)
-}
-
 func policyItem(
 	kind resource.Kind,
 	id string,

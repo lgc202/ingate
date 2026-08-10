@@ -1,38 +1,32 @@
-import { apiListAll, apiRequest } from './client';
-import type { PagedResponse } from './client';
-import type {
-  Certificate,
-  CertificateListView,
-  CertificateMutationPayload,
-  CertificateMutationResult,
-} from '@/domain/certificate';
+import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './client';
+import { normalizeResourceState } from '@/domain/common';
+import type { Certificate, CertificateListView, CertificateMutationPayload } from '@/domain/certificate';
 
-interface CertificateListResponse extends PagedResponse {
+interface CertificateListResponse extends CursorPagedResponse {
   certificates?: Certificate[];
 }
 
-interface CertificateMutationResponse {
-  success: boolean;
-  id?: string;
-}
-
 export async function listCertificates(): Promise<CertificateListView> {
-  const certificates = await apiListAll<CertificateListResponse, Certificate>(
-    '/certificates',
-    (page) => page.certificates ?? [],
-  );
-  return { certificates };
+  const certificates = await apiListAllByCursor<CertificateListResponse, Certificate>('/certificates', (page) => page.certificates ?? []);
+  return {
+    certificates: certificates.map((certificate) => ({
+      ...certificate,
+      version: Number(certificate.version),
+      dnsNames: certificate.dnsNames ?? [],
+      state: normalizeResourceState(certificate.state),
+    })),
+  };
 }
 
-export async function saveCertificate(payload: CertificateMutationPayload): Promise<CertificateMutationResult> {
+export async function saveCertificate(payload: CertificateMutationPayload): Promise<Certificate> {
   const path = payload.id ? `/certificates/${encodeURIComponent(payload.id)}` : '/certificates';
-  const response = await apiRequest<CertificateMutationResponse>(path, {
+  const certificate = await apiRequest<Certificate>(path, {
     method: payload.id ? 'PUT' : 'POST',
     body: JSON.stringify(payload),
   });
-  return { id: response.id ?? payload.id };
+  return { ...certificate, version: Number(certificate.version), state: normalizeResourceState(certificate.state) };
 }
 
-export async function deleteCertificate(id: string) {
-  await apiRequest<CertificateMutationResponse>(`/certificates/${encodeURIComponent(id)}`, { method: 'DELETE' });
+export async function deleteCertificate(id: string, version: number) {
+  await apiRequest<Record<string, never>>(`/certificates/${encodeURIComponent(id)}?version=${version}`, { method: 'DELETE' });
 }

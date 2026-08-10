@@ -15,7 +15,6 @@ import (
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	pluginiprestriction "github.com/lgc202/ingate/pkg/plugin/iprestriction"
 	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
-	plugintokenquota "github.com/lgc202/ingate/pkg/plugin/tokenquota"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	k8svalidation "k8s.io/apimachinery/pkg/util/validation"
@@ -28,9 +27,6 @@ const (
 	rateLimitHTTPFilterName     = "ingate.filters.http.ratelimit"
 	rateLimitPluginName         = "ingate.ratelimit"
 	rateLimitPluginPath         = "/opt/ingate/plugins/ratelimit.wasm"
-	tokenQuotaHTTPFilterName    = "ingate.filters.http.tokenquota"
-	tokenQuotaPluginName        = "ingate.tokenquota"
-	tokenQuotaPluginPath        = "/opt/ingate/plugins/tokenquota.wasm"
 	wasmRuntime                 = "envoy.wasm.runtime.v8"
 	rateLimitRuleName           = "limit"
 )
@@ -45,26 +41,16 @@ type compiledRateLimitPolicy struct {
 	targets []gatewayv1.PolicyTargetRef
 }
 
-type compiledTokenQuotaPolicy struct {
-	policy  plugintokenquota.Policy
-	targets []gatewayv1.PolicyTargetRef
-}
-
 type policyRouteKey struct {
 	listenerKey listenerKey
 	gatewayID   string
 	routeID     string
 }
 
-type wasmHTTPFilterOptions struct {
-	allowOnHeadersStopIteration bool
-}
-
 func (c *compilation) buildPolicyConfigs() map[listenerKey]listenerFilterConfig {
 	// 编译阶段已经把 Gateway/Route 应用范围展开成最终执行清单，Wasm 不再理解用户层绑定模型
 	ipRestrictionPolicies := c.compileIPRestrictionPolicies()
 	rateLimitPolicies := c.compileRateLimitPolicies()
-	tokenQuotaPolicies := c.compileTokenQuotaPolicies()
 	result := make(map[listenerKey]listenerFilterConfig)
 
 	routeKeySet := make(map[policyRouteKey]bool)
@@ -128,44 +114,6 @@ func (c *compilation) buildPolicyConfigs() map[listenerKey]listenerFilterConfig 
 			result[key.listenerKey] = config
 		}
 	}
-
-	// Token 配额只接入模型 RouteRule；普通 HTTP Route 即使命中 targetRefs 也不执行和不标记为已应用
-	for _, attachment := range c.routeAttachments {
-		if _, exists := c.aiRoutes[aiRouteKey{routeID: attachment.routeID, ruleName: attachment.ruleName}]; !exists {
-			continue
-		}
-		key := policyRouteKey{
-			listenerKey: attachment.listenerKey,
-			gatewayID:   attachment.gatewayID,
-			routeID:     attachment.routeID,
-		}
-		policies := make([]plugintokenquota.Policy, 0)
-		for _, policyID := range slices.Sorted(maps.Keys(tokenQuotaPolicies)) {
-			compiled := tokenQuotaPolicies[policyID]
-			_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
-			if len(matchedTargets) == 0 {
-				continue
-			}
-			c.recordPolicyTargets(gatewayv1.KindTokenQuotaPolicy, policyID, matchedTargets)
-			policies = append(policies, compiled.policy)
-		}
-		if len(policies) == 0 {
-			continue
-		}
-
-		config := result[attachment.listenerKey]
-		if config.tokenQuota == nil {
-			config.tokenQuota = &plugintokenquota.PluginConfig{}
-		}
-		config.tokenQuota.Routes = append(config.tokenQuota.Routes, plugintokenquota.RouteConfig{
-			GatewayName: attachment.gatewayID,
-			RouteName:   attachment.routeID,
-			RuleName:    attachment.ruleName,
-			Policies:    policies,
-		})
-		result[attachment.listenerKey] = config
-	}
-
 	return result
 }
 
@@ -205,23 +153,6 @@ func (c *compilation) compileRateLimitPolicies() map[string]compiledRateLimitPol
 			policy:  pluginPolicy,
 			targets: targets,
 		}
-	}
-	return result
-}
-
-func (c *compilation) compileTokenQuotaPolicies() map[string]compiledTokenQuotaPolicy {
-	result := make(map[string]compiledTokenQuotaPolicy)
-	for _, policyID := range slices.Sorted(maps.Keys(c.tokenQuotaPolicies)) {
-		policy := c.tokenQuotaPolicies[policyID]
-		targets := c.validPolicyTargets(gatewayv1.KindTokenQuotaPolicy, policyID, policy.Spec.TargetRefs)
-		if !policy.Spec.Enabled {
-			continue
-		}
-		pluginPolicy, valid := c.tokenQuotaPolicy(policy)
-		if !valid {
-			continue
-		}
-		result[policyID] = compiledTokenQuotaPolicy{policy: pluginPolicy, targets: targets}
 	}
 	return result
 }
@@ -331,9 +262,6 @@ func (c *compilation) recordPolicyTargets(
 		policy = newResourceGeneration(policyKind, resource.Name, resource.UID, resource.Generation)
 	case gatewayv1.KindIPRestrictionPolicy:
 		resource := c.ipRestrictionPolicies[policyName]
-		policy = newResourceGeneration(policyKind, resource.Name, resource.UID, resource.Generation)
-	case gatewayv1.KindTokenQuotaPolicy:
-		resource := c.tokenQuotaPolicies[policyName]
 		policy = newResourceGeneration(policyKind, resource.Name, resource.UID, resource.Generation)
 	default:
 		return
@@ -458,57 +386,6 @@ func (c *compilation) rateLimitPolicy(policy *gatewayv1.RateLimitPolicy) (plugin
 	}, valid
 }
 
-func (c *compilation) tokenQuotaPolicy(policy *gatewayv1.TokenQuotaPolicy) (plugintokenquota.Policy, bool) {
-	valid := true
-	if policy.UID == "" {
-		c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("token quota policy %q UID is required", policy.Name))
-		valid = false
-	}
-	subject := plugintokenquota.Subject{
-		Type:       plugintokenquota.SubjectType(policy.Spec.Subject.Type),
-		HeaderName: policy.Spec.Subject.HeaderName,
-	}
-	switch policy.Spec.Subject.Type {
-	case gatewayv1.TokenQuotaSubjectTypeShared, gatewayv1.TokenQuotaSubjectTypeIP:
-		if policy.Spec.Subject.HeaderName != "" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("token quota policy %q subject must not declare a header name", policy.Name))
-			valid = false
-		}
-	case gatewayv1.TokenQuotaSubjectTypeHeader:
-		if policy.Spec.Subject.HeaderName == "" || len(k8svalidation.IsHTTPHeaderName(policy.Spec.Subject.HeaderName)) > 0 {
-			c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("token quota policy %q has an invalid subject header name", policy.Name))
-			valid = false
-		}
-	default:
-		c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("token quota policy %q uses unsupported subject type %q", policy.Name, policy.Spec.Subject.Type))
-		valid = false
-	}
-	if policy.Spec.Quota.Tokens <= 0 || policy.Spec.Quota.Tokens > gatewayv1.TokenQuotaMaxTokens ||
-		policy.Spec.Quota.WindowSeconds <= 0 || policy.Spec.Quota.WindowSeconds > gatewayv1.TokenQuotaMaxWindowSeconds {
-		c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("token quota policy %q has invalid quota", policy.Name))
-		valid = false
-	}
-	switch policy.Spec.FailurePolicy {
-	case gatewayv1.TokenQuotaFailurePolicyFailOpen, gatewayv1.TokenQuotaFailurePolicyFailClose:
-	default:
-		c.addDiagnostic(SeverityError, gatewayv1.KindTokenQuotaPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("token quota policy %q uses unsupported failure policy %q", policy.Name, policy.Spec.FailurePolicy))
-		valid = false
-	}
-	return plugintokenquota.Policy{
-		Name:     policy.Name,
-		BudgetID: string(policy.UID),
-		Subject:  subject,
-		Quota: plugintokenquota.Quota{
-			Tokens:        policy.Spec.Quota.Tokens,
-			WindowSeconds: policy.Spec.Quota.WindowSeconds,
-		},
-		FailurePolicy: plugintokenquota.FailurePolicy(policy.Spec.FailurePolicy),
-		Response: plugintokenquota.Response{
-			Message: policy.Spec.Response.Message,
-		},
-	}, valid
-}
-
 func comparePolicyRouteKeys(a, b policyRouteKey) int {
 	if result := compareListenerKeys(a.listenerKey, b.listenerKey); result != 0 {
 		return result
@@ -538,7 +415,6 @@ func buildIPRestrictionHTTPFilter(config *pluginiprestriction.PluginConfig) (*hc
 		ipRestrictionPluginName,
 		ipRestrictionPluginPath,
 		raw,
-		wasmHTTPFilterOptions{},
 	)
 }
 
@@ -552,21 +428,6 @@ func buildRateLimitHTTPFilter(config *pluginratelimit.PluginConfig) (*hcmv3.Http
 		rateLimitPluginName,
 		rateLimitPluginPath,
 		raw,
-		wasmHTTPFilterOptions{},
-	)
-}
-
-func buildTokenQuotaHTTPFilter(config *plugintokenquota.PluginConfig) (*hcmv3.HttpFilter, error) {
-	raw, err := json.Marshal(config)
-	if err != nil {
-		return nil, fmt.Errorf("encode token quota plugin config: %w", err)
-	}
-	return buildWasmHTTPFilter(
-		tokenQuotaHTTPFilterName,
-		tokenQuotaPluginName,
-		tokenQuotaPluginPath,
-		raw,
-		wasmHTTPFilterOptions{},
 	)
 }
 
@@ -575,7 +436,6 @@ func buildWasmHTTPFilter(
 	pluginName string,
 	pluginPath string,
 	raw []byte,
-	options wasmHTTPFilterOptions,
 ) (*hcmv3.HttpFilter, error) {
 	configuration, err := anypb.New(&wrapperspb.StringValue{Value: string(raw)})
 	if err != nil {
@@ -601,10 +461,6 @@ func buildWasmHTTPFilter(
 				},
 			},
 		},
-	}
-	if options.allowOnHeadersStopIteration {
-		// AI Proxy 必须在 Header 阶段暂停后继续接收 Body；Envoy 默认兼容模式不会回调请求体
-		pluginConfig.AllowOnHeadersStopIteration = wrapperspb.Bool(true)
 	}
 	wasmConfig := &httpwasmv3.Wasm{Config: pluginConfig}
 	if err := wasmConfig.ValidateAll(); err != nil {

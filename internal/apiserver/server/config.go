@@ -11,7 +11,6 @@ import (
 	iprestrictionpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/iprestrictionpolicy"
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
-	tokenquotapolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/tokenquotapolicy"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
@@ -100,11 +99,6 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 	if err := installStatusStorage(gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
 		return iprestrictionpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
-	}); err != nil {
-		return nil, err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceTokenQuotaPolicies, gatewayv1.ResourceTokenQuotaPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return tokenquotapolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
 	}); err != nil {
 		return nil, err
 	}

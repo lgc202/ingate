@@ -62,8 +62,6 @@ const (
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
 	// KindIPRestrictionPolicy 表示 IPRestrictionPolicy 资源类型
 	KindIPRestrictionPolicy Kind = "IPRestrictionPolicy"
-	// KindTokenQuotaPolicy 表示 TokenQuotaPolicy 资源类型
-	KindTokenQuotaPolicy Kind = "TokenQuotaPolicy"
 )
 
 // PolicyTargetRef 表示策略的生效目标
