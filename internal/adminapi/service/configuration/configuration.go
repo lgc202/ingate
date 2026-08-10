@@ -37,13 +37,13 @@ func (s *Service) ListConfigurationItems(
 	ctx context.Context,
 	request *adminv1.ListRequest,
 ) (*adminv1.ListConfigurationItemsReply, error) {
-	result, err := s.usecase.ListItems(ctx, adminservice.PageRequest(request))
+	result, err := s.usecase.ListItems(ctx, adminservice.PageRequest(request.GetPageSize(), request.GetPageToken()))
 	if err != nil {
 		return nil, err
 	}
 	reply := &adminv1.ListConfigurationItemsReply{
 		Items: make([]*adminv1.ConfigurationItem, 0, len(result.Items)),
-		Page:  adminservice.PageInfo(result.NextToken),
+		Page:  adminservice.PageInfo(result.NextCursor),
 	}
 	for _, item := range result.Items {
 		reply.Items = append(reply.Items, &adminv1.ConfigurationItem{

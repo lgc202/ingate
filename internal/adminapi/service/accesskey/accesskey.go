@@ -25,11 +25,11 @@ func NewService(usecase *accesskeybiz.Usecase) *Service {
 }
 
 func (s *Service) ListAccessKeys(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListAccessKeysReply, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetPageSize(), request.GetPageToken()))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListAccessKeysReply{AccessKeys: make([]*adminv1.AccessKey, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextToken)}
+	reply := &adminv1.ListAccessKeysReply{AccessKeys: make([]*adminv1.AccessKey, 0, len(result.Items)), Page: adminservice.PageInfo(result.NextCursor)}
 	for i := range result.Items {
 		reply.AccessKeys = append(reply.AccessKeys, newAccessKeyReply(result.Items[i]))
 	}

@@ -20,11 +20,11 @@ func NewService(usecase *accesscontrolbiz.Usecase) *Service {
 }
 
 func (s *Service) ListAccessControlPolicies(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListAccessControlPoliciesReply, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetPageSize(), request.GetPageToken()))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListAccessControlPoliciesReply{Policies: make([]*adminv1.AccessControlPolicy, 0, len(result.Policies)), Page: adminservice.PageInfo(result.NextToken)}
+	reply := &adminv1.ListAccessControlPoliciesReply{Policies: make([]*adminv1.AccessControlPolicy, 0, len(result.Policies)), Page: adminservice.PageInfo(result.NextCursor)}
 	for i := range result.Policies {
 		reply.Policies = append(reply.Policies, newAccessControlPolicyReply(&result.Policies[i], result.TargetNames))
 	}

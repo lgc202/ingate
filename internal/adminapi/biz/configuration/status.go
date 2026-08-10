@@ -53,7 +53,7 @@ func collectSummary[T any](
 	toItem func(T) Item,
 	summary *Summary,
 ) error {
-	page := biz.PageRequest{Size: summaryPageSize}
+	page := biz.PageRequest{Limit: summaryPageSize}
 	for {
 		result, err := list(ctx, page)
 		if err != nil {
@@ -62,10 +62,10 @@ func collectSummary[T any](
 		for _, current := range result.Items {
 			summary.add(toItem(current).Status)
 		}
-		if result.NextToken == "" {
+		if result.NextCursor == "" {
 			return nil
 		}
-		page.Token = result.NextToken
+		page.Cursor = result.NextCursor
 	}
 }
 

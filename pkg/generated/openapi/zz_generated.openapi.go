@@ -32,7 +32,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch":               schema_pkg_apis_gateway_v1_HeaderMatch(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier":            schema_pkg_apis_gateway_v1_HeaderModifier(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":               schema_pkg_apis_gateway_v1_HeaderValue(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HostBinding":               schema_pkg_apis_gateway_v1_HostBinding(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":                  schema_pkg_apis_gateway_v1_Listener(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelCatalogItem":          schema_pkg_apis_gateway_v1_ModelCatalogItem(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRoute":                schema_pkg_apis_gateway_v1_ModelRoute(ref),
@@ -723,19 +722,12 @@ func schema_pkg_apis_gateway_v1_GatewaySpec(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "GatewaySpec 定义 Gateway 的入口监听和域名绑定",
+				Description: "GatewaySpec 定义 Gateway 的期望入口配置",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DisplayName 保存控制台展示名称，不参与引用和运行时匹配",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"description": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Description 保存控制台展示和运维识别用的说明，不参与运行时匹配",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -766,30 +758,12 @@ func schema_pkg_apis_gateway_v1_GatewaySpec(ref common.ReferenceCallback) common
 							},
 						},
 					},
-					"hostBindings": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HostBinding"),
-									},
-								},
-							},
-						},
-					},
 				},
 				Required: []string{"enabled", "listeners"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HostBinding", "github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener"},
 	}
 }
 
@@ -919,49 +893,11 @@ func schema_pkg_apis_gateway_v1_HeaderValue(ref common.ReferenceCallback) common
 	}
 }
 
-func schema_pkg_apis_gateway_v1_HostBinding(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "HostBinding 声明 Host 到 Gateway 监听器的绑定关系",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"hostname": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"listenerRefs": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
 func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Listener 声明一个 Gateway 监听端口",
+				Description: "Listener 声明一个 Gateway 对外提供的流量入口",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
@@ -983,6 +919,12 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 							Default: 0,
 							Type:    []string{"integer"},
 							Format:  "int32",
+						},
+					},
+					"hostname": {
+						SchemaProps: spec.SchemaProps{
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 					"certificateRef": {

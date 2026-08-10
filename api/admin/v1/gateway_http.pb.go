@@ -9,6 +9,7 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -21,16 +22,14 @@ const OperationGatewayServiceCreateGateway = "/ingate.admin.v1.GatewayService/Cr
 const OperationGatewayServiceDeleteGateway = "/ingate.admin.v1.GatewayService/DeleteGateway"
 const OperationGatewayServiceGetGateway = "/ingate.admin.v1.GatewayService/GetGateway"
 const OperationGatewayServiceListGateways = "/ingate.admin.v1.GatewayService/ListGateways"
-const OperationGatewayServiceSetGatewayEnabled = "/ingate.admin.v1.GatewayService/SetGatewayEnabled"
 const OperationGatewayServiceUpdateGateway = "/ingate.admin.v1.GatewayService/UpdateGateway"
 
 type GatewayServiceHTTPServer interface {
-	CreateGateway(context.Context, *CreateGatewayRequest) (*MutationReply, error)
-	DeleteGateway(context.Context, *ResourceRequest) (*MutationReply, error)
-	GetGateway(context.Context, *ResourceRequest) (*GetGatewayReply, error)
-	ListGateways(context.Context, *ListRequest) (*ListGatewaysReply, error)
-	SetGatewayEnabled(context.Context, *SetEnabledRequest) (*MutationReply, error)
-	UpdateGateway(context.Context, *UpdateGatewayRequest) (*MutationReply, error)
+	CreateGateway(context.Context, *CreateGatewayRequest) (*Gateway, error)
+	DeleteGateway(context.Context, *DeleteGatewayRequest) (*emptypb.Empty, error)
+	GetGateway(context.Context, *GetGatewayRequest) (*Gateway, error)
+	ListGateways(context.Context, *ListGatewaysRequest) (*ListGatewaysResponse, error)
+	UpdateGateway(context.Context, *UpdateGatewayRequest) (*Gateway, error)
 }
 
 func RegisterGatewayServiceHTTPServer(s *http.Server, srv GatewayServiceHTTPServer) {
@@ -39,32 +38,31 @@ func RegisterGatewayServiceHTTPServer(s *http.Server, srv GatewayServiceHTTPServ
 	r.Handle("GET", "/api/v1/gateways/{id}", _GatewayService_GetGateway0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/gateways", _GatewayService_CreateGateway0_HTTP_Handler(srv))
 	r.Handle("PUT", "/api/v1/gateways/{id}", _GatewayService_UpdateGateway0_HTTP_Handler(srv))
-	r.Handle("PATCH", "/api/v1/gateways/{id}/enabled", _GatewayService_SetGatewayEnabled0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/api/v1/gateways/{id}", _GatewayService_DeleteGateway0_HTTP_Handler(srv))
 }
 
 func _GatewayService_ListGateways0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ListRequest
+		var in ListGatewaysRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationGatewayServiceListGateways)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListGateways(ctx, req.(*ListRequest))
+			return srv.ListGateways(ctx, req.(*ListGatewaysRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*ListGatewaysReply)
+		reply := out.(*ListGatewaysResponse)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _GatewayService_GetGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in GetGatewayRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -73,13 +71,13 @@ func _GatewayService_GetGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) func
 		}
 		http.SetOperation(ctx, OperationGatewayServiceGetGateway)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetGateway(ctx, req.(*ResourceRequest))
+			return srv.GetGateway(ctx, req.(*GetGatewayRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*GetGatewayReply)
+		reply := out.(*Gateway)
 		return ctx.Result(200, reply)
 	}
 }
@@ -98,7 +96,7 @@ func _GatewayService_CreateGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) f
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*Gateway)
 		return ctx.Result(200, reply)
 	}
 }
@@ -120,36 +118,14 @@ func _GatewayService_UpdateGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) f
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _GatewayService_SetGatewayEnabled0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in SetEnabledRequest
-		if err := ctx.Bind(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationGatewayServiceSetGatewayEnabled)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.SetGatewayEnabled(ctx, req.(*SetEnabledRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*MutationReply)
+		reply := out.(*Gateway)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _GatewayService_DeleteGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in DeleteGatewayRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -158,24 +134,23 @@ func _GatewayService_DeleteGateway0_HTTP_Handler(srv GatewayServiceHTTPServer) f
 		}
 		http.SetOperation(ctx, OperationGatewayServiceDeleteGateway)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.DeleteGateway(ctx, req.(*ResourceRequest))
+			return srv.DeleteGateway(ctx, req.(*DeleteGatewayRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*emptypb.Empty)
 		return ctx.Result(200, reply)
 	}
 }
 
 type GatewayServiceHTTPClient interface {
-	CreateGateway(ctx context.Context, req *CreateGatewayRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	DeleteGateway(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	GetGateway(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *GetGatewayReply, err error)
-	ListGateways(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListGatewaysReply, err error)
-	SetGatewayEnabled(ctx context.Context, req *SetEnabledRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	UpdateGateway(ctx context.Context, req *UpdateGatewayRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
+	CreateGateway(ctx context.Context, req *CreateGatewayRequest, opts ...http.CallOption) (rsp *Gateway, err error)
+	DeleteGateway(ctx context.Context, req *DeleteGatewayRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	GetGateway(ctx context.Context, req *GetGatewayRequest, opts ...http.CallOption) (rsp *Gateway, err error)
+	ListGateways(ctx context.Context, req *ListGatewaysRequest, opts ...http.CallOption) (rsp *ListGatewaysResponse, err error)
+	UpdateGateway(ctx context.Context, req *UpdateGatewayRequest, opts ...http.CallOption) (rsp *Gateway, err error)
 }
 
 type GatewayServiceHTTPClientImpl struct {
@@ -186,8 +161,8 @@ func NewGatewayServiceHTTPClient(client *http.Client) GatewayServiceHTTPClient {
 	return &GatewayServiceHTTPClientImpl{client}
 }
 
-func (c *GatewayServiceHTTPClientImpl) CreateGateway(ctx context.Context, in *CreateGatewayRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *GatewayServiceHTTPClientImpl) CreateGateway(ctx context.Context, in *CreateGatewayRequest, opts ...http.CallOption) (*Gateway, error) {
+	var out Gateway
 	pattern := "/api/v1/gateways"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
@@ -203,8 +178,8 @@ func (c *GatewayServiceHTTPClientImpl) CreateGateway(ctx context.Context, in *Cr
 	return &out, nil
 }
 
-func (c *GatewayServiceHTTPClientImpl) DeleteGateway(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *GatewayServiceHTTPClientImpl) DeleteGateway(ctx context.Context, in *DeleteGatewayRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
+	var out emptypb.Empty
 	pattern := "/api/v1/gateways/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -219,8 +194,8 @@ func (c *GatewayServiceHTTPClientImpl) DeleteGateway(ctx context.Context, in *Re
 	return &out, nil
 }
 
-func (c *GatewayServiceHTTPClientImpl) GetGateway(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*GetGatewayReply, error) {
-	var out GetGatewayReply
+func (c *GatewayServiceHTTPClientImpl) GetGateway(ctx context.Context, in *GetGatewayRequest, opts ...http.CallOption) (*Gateway, error) {
+	var out Gateway
 	pattern := "/api/v1/gateways/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -235,8 +210,8 @@ func (c *GatewayServiceHTTPClientImpl) GetGateway(ctx context.Context, in *Resou
 	return &out, nil
 }
 
-func (c *GatewayServiceHTTPClientImpl) ListGateways(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListGatewaysReply, error) {
-	var out ListGatewaysReply
+func (c *GatewayServiceHTTPClientImpl) ListGateways(ctx context.Context, in *ListGatewaysRequest, opts ...http.CallOption) (*ListGatewaysResponse, error) {
+	var out ListGatewaysResponse
 	pattern := "/api/v1/gateways"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -251,25 +226,8 @@ func (c *GatewayServiceHTTPClientImpl) ListGateways(ctx context.Context, in *Lis
 	return &out, nil
 }
 
-func (c *GatewayServiceHTTPClientImpl) SetGatewayEnabled(ctx context.Context, in *SetEnabledRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
-	pattern := "/api/v1/gateways/{id}/enabled"
-	path := http.BuildPath(pattern, in)
-	opts = append([]http.CallOption{
-		http.Accept("application/protojson"),
-		http.ContentType("application/protojson"),
-		http.Operation(OperationGatewayServiceSetGatewayEnabled),
-		http.PathTemplate(pattern),
-	}, opts...)
-	err := c.cc.Invoke(ctx, "PATCH", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *GatewayServiceHTTPClientImpl) UpdateGateway(ctx context.Context, in *UpdateGatewayRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *GatewayServiceHTTPClientImpl) UpdateGateway(ctx context.Context, in *UpdateGatewayRequest, opts ...http.CallOption) (*Gateway, error) {
+	var out Gateway
 	pattern := "/api/v1/gateways/{id}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{

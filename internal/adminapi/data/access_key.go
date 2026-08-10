@@ -45,19 +45,19 @@ func (r *accessKeyRepository) Reconcile(ctx context.Context) error {
 }
 
 func (r *accessKeyRepository) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[accesskeybiz.Key], error) {
-	cursor, err := decodeAccessKeyPageToken(page.Token)
+	cursor, err := decodeAccessKeyCursor(page.Cursor)
 	if err != nil {
 		return biz.PageResult[accesskeybiz.Key]{}, err
 	}
-	records, err := r.dao.ListPage(ctx, page.Size+1, cursor)
+	records, err := r.dao.ListPage(ctx, page.Limit+1, cursor)
 	if err != nil {
 		return biz.PageResult[accesskeybiz.Key]{}, err
 	}
-	nextToken := ""
-	if int64(len(records)) > page.Size {
-		last := records[page.Size-1]
-		records = records[:page.Size]
-		nextToken, err = encodeAccessKeyPageToken(accesskeydao.PageCursor{CreatedAt: last.CreatedAt, ID: last.ID})
+	nextCursor := ""
+	if int64(len(records)) > page.Limit {
+		last := records[page.Limit-1]
+		records = records[:page.Limit]
+		nextCursor, err = encodeAccessKeyCursor(accesskeydao.PageCursor{CreatedAt: last.CreatedAt, ID: last.ID})
 		if err != nil {
 			return biz.PageResult[accesskeybiz.Key]{}, err
 		}
@@ -80,25 +80,25 @@ func (r *accessKeyRepository) List(ctx context.Context, page biz.PageRequest) (b
 		}
 		accessKeys = append(accessKeys, accessKey)
 	}
-	return biz.PageResult[accesskeybiz.Key]{Items: accessKeys, NextToken: nextToken}, nil
+	return biz.PageResult[accesskeybiz.Key]{Items: accessKeys, NextCursor: nextCursor}, nil
 }
 
-func decodeAccessKeyPageToken(token string) (*accesskeydao.PageCursor, error) {
-	if token == "" {
+func decodeAccessKeyCursor(value string) (*accesskeydao.PageCursor, error) {
+	if value == "" {
 		return nil, nil
 	}
-	decoded, err := base64.RawURLEncoding.DecodeString(token)
+	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
-		return nil, fmt.Errorf("%w: decode access key cursor", biz.ErrInvalidPageToken)
+		return nil, fmt.Errorf("%w: decode access key cursor", biz.ErrInvalidCursor)
 	}
 	var cursor accesskeydao.PageCursor
 	if err := json.Unmarshal(decoded, &cursor); err != nil || cursor.CreatedAt.IsZero() || cursor.ID == "" {
-		return nil, fmt.Errorf("%w: parse access key cursor", biz.ErrInvalidPageToken)
+		return nil, fmt.Errorf("%w: parse access key cursor", biz.ErrInvalidCursor)
 	}
 	return &cursor, nil
 }
 
-func encodeAccessKeyPageToken(cursor accesskeydao.PageCursor) (string, error) {
+func encodeAccessKeyCursor(cursor accesskeydao.PageCursor) (string, error) {
 	encoded, err := json.Marshal(cursor)
 	if err != nil {
 		return "", fmt.Errorf("encode access key cursor: %w", err)

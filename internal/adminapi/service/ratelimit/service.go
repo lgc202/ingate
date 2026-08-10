@@ -20,11 +20,11 @@ func NewService(usecase *ratelimitbiz.Usecase) *Service {
 }
 
 func (s *Service) ListRateLimitPolicies(ctx context.Context, request *adminv1.ListRequest) (*adminv1.ListRateLimitPoliciesReply, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request))
+	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetPageSize(), request.GetPageToken()))
 	if err != nil {
 		return nil, err
 	}
-	reply := &adminv1.ListRateLimitPoliciesReply{Policies: make([]*adminv1.RateLimitPolicy, 0, len(result.Policies)), Page: adminservice.PageInfo(result.NextToken)}
+	reply := &adminv1.ListRateLimitPoliciesReply{Policies: make([]*adminv1.RateLimitPolicy, 0, len(result.Policies)), Page: adminservice.PageInfo(result.NextCursor)}
 	for i := range result.Policies {
 		reply.Policies = append(reply.Policies, newRateLimitPolicyReply(&result.Policies[i], result.TargetNames))
 	}

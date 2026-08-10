@@ -2,10 +2,14 @@ package gateway
 
 import (
 	"context"
+	"maps"
+	"strings"
+	"time"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
@@ -50,6 +54,8 @@ func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	gateway := obj.(*resource.Gateway)
 	gateway.Status = resource.ResourceStatus{}
 	gateway.Generation = 1
+	canonicalizeGatewaySpec(&gateway.Spec)
+	setUpdatedAt(&gateway.ObjectMeta, gateway.CreationTimestamp.Time)
 }
 
 func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
@@ -61,6 +67,8 @@ func (strategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []stri
 }
 
 func (strategy) Canonicalize(obj runtime.Object) {
+	gateway := obj.(*resource.Gateway)
+	canonicalizeGatewaySpec(&gateway.Spec)
 }
 
 func (strategy) AllowCreateOnUpdate() bool {
@@ -72,10 +80,14 @@ func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	oldGateway := old.(*resource.Gateway)
 
 	newGateway.Status = oldGateway.Status
+	canonicalizeGatewaySpec(&newGateway.Spec)
 	newGateway.Generation = oldGateway.Generation
 	if !apiequality.Semantic.DeepEqual(oldGateway.Spec, newGateway.Spec) {
 		newGateway.Generation = oldGateway.Generation + 1
+		setUpdatedAt(&newGateway.ObjectMeta, time.Now().UTC())
+		return
 	}
+	preserveUpdatedAt(&newGateway.ObjectMeta, &oldGateway.ObjectMeta)
 }
 
 func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
@@ -118,7 +130,7 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 	specPath := field.NewPath("spec")
 	errs := field.ErrorList{}
 
-	if gateway.Spec.DisplayName == "" {
+	if strings.TrimSpace(gateway.Spec.DisplayName) == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
 	if len(gateway.Spec.Listeners) == 0 {
@@ -127,14 +139,17 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 	}
 
 	listenerNames := make(map[string]struct{}, len(gateway.Spec.Listeners))
-	ports := map[int]*field.Path{}
 	for i, listener := range gateway.Spec.Listeners {
 		listenerPath := specPath.Child("listeners").Index(i)
 		if listener.Name == "" {
 			errs = append(errs, field.Required(listenerPath.Child("name"), "listener name is required"))
 		} else if _, ok := listenerNames[listener.Name]; ok {
 			errs = append(errs, field.Duplicate(listenerPath.Child("name"), listener.Name))
+		} else if messages := utilvalidation.IsDNS1123Label(listener.Name); len(messages) > 0 {
+			errs = append(errs, field.Invalid(listenerPath.Child("name"), listener.Name, strings.Join(messages, "; ")))
 		}
+		listenerNames[listener.Name] = struct{}{}
+
 		switch listener.Protocol {
 		case resource.ProtocolHTTP:
 			if listener.CertificateRef != "" {
@@ -152,59 +167,73 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 		}
 		if listener.Port < 1 || listener.Port > 65535 {
 			errs = append(errs, field.Invalid(listenerPath.Child("port"), listener.Port, "listener port must be between 1 and 65535"))
-		} else if firstPath, ok := ports[listener.Port]; ok {
-			errs = append(errs, field.Duplicate(listenerPath.Child("port"), listener.Port))
-			errs = append(errs, field.Duplicate(firstPath, listener.Port))
 		}
 
-		listenerNames[listener.Name] = struct{}{}
-		ports[listener.Port] = listenerPath.Child("port")
-	}
-
-	hostnamesByListener := make(map[string][]string, len(gateway.Spec.Listeners))
-	for i, binding := range gateway.Spec.HostBindings {
-		bindingPath := specPath.Child("hostBindings").Index(i)
-		normalizedHostname, hostnameValid := hostnameutil.Normalize(binding.Hostname)
-		hostnameValid = hostnameValid && binding.Hostname != "*"
+		normalizedHostname, hostnameValid := hostnameutil.Normalize(listener.Hostname)
+		hostnameValid = hostnameValid && listener.Hostname != "*"
 		if !hostnameValid {
-			errs = append(errs, field.Invalid(bindingPath.Child("hostname"), binding.Hostname, "hostname is invalid"))
+			errs = append(errs, field.Invalid(listenerPath.Child("hostname"), listener.Hostname, "hostname is invalid"))
 		}
 
-		if len(binding.ListenerRefs) == 0 {
-			errs = append(errs, field.Required(bindingPath.Child("listenerRefs"), "listenerRefs is required"))
-		}
-		seenListenerRefs := make(map[string]struct{}, len(binding.ListenerRefs))
-		for j, listenerRef := range binding.ListenerRefs {
-			listenerRefPath := bindingPath.Child("listenerRefs").Index(j)
-			if listenerRef == "" {
-				errs = append(errs, field.Required(listenerRefPath, "listenerRef cannot be empty"))
+		for j := range i {
+			previous := gateway.Spec.Listeners[j]
+			if listener.Port != previous.Port {
 				continue
 			}
-			if _, exists := seenListenerRefs[listenerRef]; exists {
-				errs = append(errs, field.Duplicate(listenerRefPath, listenerRef))
+			if listener.Protocol != previous.Protocol {
+				errs = append(errs, field.Invalid(
+					listenerPath.Child("port"),
+					listener.Port,
+					"listeners sharing a port must use the same protocol",
+				))
 				continue
 			}
-			seenListenerRefs[listenerRef] = struct{}{}
-			if _, ok := listenerNames[listenerRef]; !ok {
-				errs = append(errs, field.Invalid(listenerRefPath, listenerRef, "listenerRef references unknown listener"))
-				continue
+			previousHostname, previousValid := hostnameutil.Normalize(previous.Hostname)
+			if hostnameValid && previousValid && hostnameutil.Overlaps(normalizedHostname, previousHostname) {
+				errs = append(errs, field.Invalid(
+					listenerPath.Child("hostname"),
+					listener.Hostname,
+					"hostname overlaps another listener on the same port",
+				))
 			}
-			if !hostnameValid {
-				continue
-			}
-
-			for _, existingHostname := range hostnamesByListener[listenerRef] {
-				if hostnameutil.Overlaps(normalizedHostname, existingHostname) {
-					errs = append(errs, field.Invalid(
-						bindingPath.Child("hostname"),
-						binding.Hostname,
-						"hostname overlaps another binding for the same listener",
-					))
-					break
-				}
-			}
-			hostnamesByListener[listenerRef] = append(hostnamesByListener[listenerRef], normalizedHostname)
 		}
 	}
 	return errs
+}
+
+func canonicalizeGatewaySpec(spec *resource.GatewaySpec) {
+	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
+	for i := range spec.Listeners {
+		spec.Listeners[i].Name = strings.TrimSpace(spec.Listeners[i].Name)
+		spec.Listeners[i].CertificateRef = strings.TrimSpace(spec.Listeners[i].CertificateRef)
+		hostname, ok := hostnameutil.Normalize(spec.Listeners[i].Hostname)
+		if !ok {
+			continue
+		}
+		if hostname == "*" {
+			hostname = ""
+		}
+		spec.Listeners[i].Hostname = hostname
+	}
+}
+
+func setUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
+	metadata.Annotations = maps.Clone(metadata.Annotations)
+	if metadata.Annotations == nil {
+		metadata.Annotations = make(map[string]string, 1)
+	}
+	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt.Format(time.RFC3339Nano)
+}
+
+func preserveUpdatedAt(metadata, oldMetadata *metav1.ObjectMeta) {
+	metadata.Annotations = maps.Clone(metadata.Annotations)
+	delete(metadata.Annotations, resource.AnnotationUpdatedAt)
+	updatedAt := oldMetadata.Annotations[resource.AnnotationUpdatedAt]
+	if updatedAt == "" {
+		return
+	}
+	if metadata.Annotations == nil {
+		metadata.Annotations = make(map[string]string, 1)
+	}
+	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt
 }

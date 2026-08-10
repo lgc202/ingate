@@ -32,7 +32,7 @@ type Usecase struct {
 type ListResult struct {
 	Policies    []resource.AccessControlPolicy
 	TargetNames biz.PolicyTargetNames
-	NextToken   string
+	NextCursor  string
 }
 
 // Result 保存单个策略及其目标展示名称
@@ -60,7 +60,7 @@ func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (*ListResult, 
 	if err != nil {
 		return nil, err
 	}
-	return &ListResult{Policies: result.Items, TargetNames: targetNames, NextToken: result.NextToken}, nil
+	return &ListResult{Policies: result.Items, TargetNames: targetNames, NextCursor: result.NextCursor}, nil
 }
 
 // Get 查询单个 AccessControlPolicy

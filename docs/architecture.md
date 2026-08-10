@@ -180,7 +180,7 @@ OpenAI-compatible、Anthropic 和 Gemini 上游都只接受当前公开的文本
 - 不支持 OAuth、IAM、Azure Entra、AWS SigV4 等云认证
 - `ingate-ai-proxy` 只承接网关请求路径能力，不是 Agent 或通用模型调用服务
 
-standalone 默认提供 HTTP `8080` 和 HTTPS `8443` 两个固定数据面入口。相同协议和端口的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Gateway 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。
+Gateway Listener 声明数据面实际监听协议、端口和 Host 范围。相同协议和端口且 Host 范围不重叠的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Listener 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。Gateway 的完整产品协议见 [Gateway 资源](resources/gateway.md)。
 
 RateLimitPolicy 统一使用系统 Redis，用户协议不包含 Local/Global 模式、限流算法、RedisStore、redisRef 或私有插件 JSON。数据面当前使用系统选定的令牌桶实现，`burst` 为 0 时使用 `requests` 作为桶容量，正数表示显式桶容量。
 

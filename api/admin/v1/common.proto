@@ -6,9 +6,18 @@ import "buf/validate/validate.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
+// ResourceState 是声明式资源面向控制台的生效状态
+enum ResourceState {
+  RESOURCE_STATE_UNSPECIFIED = 0;
+  DISABLED = 1;
+  PENDING = 2;
+  READY = 3;
+  ERROR = 4;
+}
+
 // ResourceStatus 是控制台展示的声明式资源处理状态
 message ResourceStatus {
-  string state = 1;
+  ResourceState state = 1;
   string message = 2;
 }
 

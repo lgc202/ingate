@@ -27,7 +27,7 @@ func (r *UpstreamRepository) ListPage(ctx context.Context, page biz.PageRequest)
 	if err != nil {
 		return biz.PageResult[resource.Upstream]{}, pageError("upstreams", err)
 	}
-	return biz.PageResult[resource.Upstream]{Items: upstreams.Items, NextToken: upstreams.Continue}, nil
+	return biz.PageResult[resource.Upstream]{Items: upstreams.Items, NextCursor: upstreams.Continue}, nil
 }
 
 // Get 查询单个 Upstream

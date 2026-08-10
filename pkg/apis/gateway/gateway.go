@@ -32,31 +32,21 @@ type GatewayList struct {
 	Items []Gateway `json:"items"`
 }
 
-// GatewaySpec 定义 Gateway 的入口监听和域名绑定
+// GatewaySpec 定义 Gateway 的期望入口配置
 type GatewaySpec struct {
 	// DisplayName 保存控制台展示名称，不参与引用和运行时匹配
 	DisplayName string `json:"displayName,omitempty"`
-	// Description 保存控制台展示和运维识别用的说明，不参与运行时匹配
-	Description string `json:"description,omitempty"`
 	// Enabled 表示 Gateway 是否参与编译和下发
 	Enabled bool `json:"enabled"`
 	// +listType=atomic
 	Listeners []Listener `json:"listeners"`
-	// +listType=atomic
-	HostBindings []HostBinding `json:"hostBindings,omitempty"`
 }
 
-// Listener 声明一个 Gateway 监听端口
+// Listener 声明一个 Gateway 对外提供的流量入口
 type Listener struct {
 	Name           string   `json:"name"`
 	Protocol       Protocol `json:"protocol"`
 	Port           int      `json:"port"`
+	Hostname       string   `json:"hostname,omitempty"`
 	CertificateRef string   `json:"certificateRef,omitempty"`
-}
-
-// HostBinding 声明 Host 到 Gateway 监听器的绑定关系
-type HostBinding struct {
-	Hostname string `json:"hostname,omitempty"`
-	// +listType=atomic
-	ListenerRefs []string `json:"listenerRefs,omitempty"`
 }

@@ -27,7 +27,7 @@ func (r *GatewayRepository) ListPage(ctx context.Context, page biz.PageRequest) 
 	if err != nil {
 		return biz.PageResult[resource.Gateway]{}, pageError("gateways", err)
 	}
-	return biz.PageResult[resource.Gateway]{Items: gateways.Items, NextToken: gateways.Continue}, nil
+	return biz.PageResult[resource.Gateway]{Items: gateways.Items, NextCursor: gateways.Continue}, nil
 }
 
 // Get 查询单个 Gateway
@@ -37,18 +37,24 @@ func (r *GatewayRepository) Get(ctx context.Context, name string) (*resource.Gat
 }
 
 // Create 创建 Gateway
-func (r *GatewayRepository) Create(ctx context.Context, id string, spec resource.GatewaySpec) error {
+func (r *GatewayRepository) Create(ctx context.Context, id string, spec resource.GatewaySpec) (*resource.Gateway, error) {
 	gateway := &resource.Gateway{
 		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindGateway)},
 		ObjectMeta: metav1.ObjectMeta{Name: id},
 		Spec:       spec,
 	}
-	_, err := r.client.GatewayV1().Gateways().Create(ctx, gateway, metav1.CreateOptions{})
-	return resourceError("create", "gateway", id, err)
+	created, err := r.client.GatewayV1().Gateways().Create(ctx, gateway, metav1.CreateOptions{})
+	return created, resourceError("create", "gateway", id, err)
 }
 
 // Update 更新 Gateway，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
-func (r *GatewayRepository) Update(ctx context.Context, id string, generation int64, spec resource.GatewaySpec) error {
+func (r *GatewayRepository) Update(
+	ctx context.Context,
+	id string,
+	generation int64,
+	spec resource.GatewaySpec,
+) (*resource.Gateway, error) {
+	var updated *resource.Gateway
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current, err := r.client.GatewayV1().Gateways().Get(ctx, id, metav1.GetOptions{})
 		if err != nil {
@@ -58,14 +64,26 @@ func (r *GatewayRepository) Update(ctx context.Context, id string, generation in
 			return biz.ErrResourceVersionConflict
 		}
 		current.Spec = spec
-		_, err = r.client.GatewayV1().Gateways().Update(ctx, current, metav1.UpdateOptions{})
+		updated, err = r.client.GatewayV1().Gateways().Update(ctx, current, metav1.UpdateOptions{})
 		return err
 	})
-	return resourceError("update", "gateway", id, err)
+	return updated, resourceError("update", "gateway", id, err)
 }
 
 // Delete 删除 Gateway
-func (r *GatewayRepository) Delete(ctx context.Context, name string) error {
-	err := r.client.GatewayV1().Gateways().Delete(ctx, name, metav1.DeleteOptions{})
-	return resourceError("delete", "gateway", name, err)
+func (r *GatewayRepository) Delete(ctx context.Context, id string, generation int64) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := r.client.GatewayV1().Gateways().Get(ctx, id, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if current.Generation != generation {
+			return biz.ErrResourceVersionConflict
+		}
+		resourceVersion := current.ResourceVersion
+		return r.client.GatewayV1().Gateways().Delete(ctx, id, metav1.DeleteOptions{
+			Preconditions: &metav1.Preconditions{ResourceVersion: &resourceVersion},
+		})
+	})
+	return resourceError("delete", "gateway", id, err)
 }
