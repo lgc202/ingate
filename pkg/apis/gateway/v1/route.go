@@ -2,21 +2,21 @@ package v1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-// RouteFilterType 表示 Route 原生请求处理能力类型
-type RouteFilterType string
+// PathMatchType 表示 Route 路径匹配方式
+type PathMatchType string
 
 const (
-	// RouteFilterRequestHeaderModifier 表示修改上游请求 header
-	RouteFilterRequestHeaderModifier RouteFilterType = "RequestHeaderModifier"
-	// RouteFilterResponseHeaderModifier 表示修改下游响应 header
-	RouteFilterResponseHeaderModifier RouteFilterType = "ResponseHeaderModifier"
+	// PathMatchPrefix 表示按路径前缀匹配
+	PathMatchPrefix PathMatchType = "Prefix"
+	// PathMatchExact 表示按完整路径匹配
+	PathMatchExact PathMatchType = "Exact"
 )
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 // +genclient:nonNamespaced
 
-// Route 声明请求匹配规则和 Upstream 引用
+// Route 声明一组请求匹配条件和对应的转发行为
 type Route struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -34,52 +34,55 @@ type RouteList struct {
 	Items []Route `json:"items"`
 }
 
-// RouteSpec 定义 Route 如何挂载到 Gateway
+// RouteSpec 定义 Route 的挂载范围、匹配条件和转发行为
 type RouteSpec struct {
-	// DisplayName 保存控制台展示名称，不参与引用和运行时匹配
+	// DisplayName 保存控制台展示名称，不参与引用和请求匹配
 	DisplayName string `json:"displayName,omitempty"`
 	// Enabled 表示 Route 是否参与编译和下发
 	Enabled bool `json:"enabled"`
+	// GatewayRefs 保存承载当前 Route 的 Gateway ID
 	// +listType=atomic
-	ParentRefs []ParentRef `json:"parentRefs"`
+	GatewayRefs []string `json:"gatewayRefs"`
+	// Hostnames 为空时不限制请求 Host，多个值之间是 OR 关系
 	// +listType=atomic
-	Hostnames []string `json:"hostnames"`
+	Hostnames []string   `json:"hostnames,omitempty"`
+	Match     RouteMatch `json:"match"`
+	// UpstreamRefs 和 ModelRouting 必须且只能配置一个
 	// +listType=atomic
-	Rules []RouteRule `json:"rules"`
+	UpstreamRefs           []UpstreamRef   `json:"upstreamRefs,omitempty"`
+	ModelRouting           *ModelRouting   `json:"modelRouting,omitempty"`
+	RequestHeaderModifier  *HeaderModifier `json:"requestHeaderModifier,omitempty"`
+	ResponseHeaderModifier *HeaderModifier `json:"responseHeaderModifier,omitempty"`
+	Timeout                *RouteTimeout   `json:"timeout,omitempty"`
+	Retry                  *RouteRetry     `json:"retry,omitempty"`
 }
 
-// ParentRef 引用承载当前 Route 的 Gateway
-type ParentRef struct {
-	Name string `json:"name"`
+// RouteMatch 表示必须同时满足的请求匹配条件
+type RouteMatch struct {
+	Path PathMatch `json:"path"`
+	// Methods 为空时匹配所有 HTTP 方法，多个值之间是 OR 关系
+	// +listType=atomic
+	Methods []string `json:"methods,omitempty"`
+	// Headers 必须全部匹配
+	// +listType=atomic
+	Headers []HeaderMatch `json:"headers,omitempty"`
 }
 
-// RouteRule 声明一条路由匹配规则以及普通或模型 Upstream 转发配置
-type RouteRule struct {
-	Name       string `json:"name"`
-	PathPrefix string `json:"pathPrefix"`
-	// +listType=atomic
-	Methods []string `json:"methods"`
-	// +listType=atomic
-	Headers []HeaderMatch `json:"headers"`
-	// +listType=atomic
-	Filters []RouteFilter `json:"filters,omitempty"`
-	Timeout *RouteTimeout `json:"timeout,omitempty"`
-	Retry   *RouteRetry   `json:"retry,omitempty"`
-	// +listType=atomic
-	UpstreamRefs []UpstreamRef `json:"upstreamRefs,omitempty"`
-	// ModelRouting 声明将 OpenAI-compatible 请求中的 model 映射到对应模型 Upstream
-	ModelRouting *ModelRouting `json:"modelRouting,omitempty"`
+// PathMatch 表示请求路径匹配条件
+type PathMatch struct {
+	Type  PathMatchType `json:"type"`
+	Value string        `json:"value"`
 }
 
-// ModelRouting 声明一条 RouteRule 的公开模型和实际模型目标
+// ModelRouting 声明公开模型名称与实际模型服务之间的映射
 type ModelRouting struct {
 	// +listType=atomic
-	Models []ModelRoute `json:"models"`
+	Models []ModelMapping `json:"models"`
 }
 
-// ModelRoute 将客户端模型名称映射到一个模型 Upstream 及其厂商模型名称
-type ModelRoute struct {
-	// Model 是客户端请求中使用的模型名称
+// ModelMapping 将客户端模型名称映射到一个模型 Upstream 及其厂商模型名称
+type ModelMapping struct {
+	// Model 是客户端请求中使用的公开模型名称
 	Model string `json:"model"`
 	// UpstreamRef 引用实际接收该模型请求的 Upstream
 	UpstreamRef string `json:"upstreamRef"`
@@ -87,14 +90,7 @@ type ModelRoute struct {
 	UpstreamModel string `json:"upstreamModel,omitempty"`
 }
 
-// RouteFilter 声明命中 RouteRule 后执行的原生请求处理能力
-type RouteFilter struct {
-	Type                   RouteFilterType `json:"type"`
-	RequestHeaderModifier  *HeaderModifier `json:"requestHeaderModifier,omitempty"`
-	ResponseHeaderModifier *HeaderModifier `json:"responseHeaderModifier,omitempty"`
-}
-
-// HeaderModifier 表示 header 写入和删除动作
+// HeaderModifier 表示 Header 写入和删除动作
 type HeaderModifier struct {
 	// +listType=atomic
 	Set []HeaderValue `json:"set,omitempty"`
@@ -104,32 +100,30 @@ type HeaderModifier struct {
 	Remove []string `json:"remove,omitempty"`
 }
 
-// HeaderValue 表示 header 名和值
+// HeaderValue 表示 Header 名和值
 type HeaderValue struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
-// RouteTimeout 表示当前 RouteRule 的请求总超时
+// RouteTimeout 表示 Route 的请求总超时
 type RouteTimeout struct {
-	RequestMillis int `json:"requestMillis,omitempty"`
+	RequestMillis int `json:"requestMillis"`
 }
 
-// RouteRetry 表示当前 RouteRule 的失败重试策略
+// RouteRetry 表示 Route 的失败重试配置
 type RouteRetry struct {
-	Attempts            int `json:"attempts,omitempty"`
-	PerTryTimeoutMillis int `json:"perTryTimeoutMillis,omitempty"`
-	// +listType=atomic
-	RetryOn []string `json:"retryOn,omitempty"`
+	Attempts            int `json:"attempts"`
+	PerTryTimeoutMillis int `json:"perTryTimeoutMillis"`
 }
 
-// HeaderMatch 表示 HTTP header 精确匹配条件
+// HeaderMatch 表示 HTTP Header 精确匹配条件
 type HeaderMatch struct {
 	Name  string `json:"name"`
 	Value string `json:"value"`
 }
 
-// UpstreamRef 表示 RouteRule 中的 Upstream 引用
+// UpstreamRef 表示 Route 转发到的 Upstream 及其相对权重
 type UpstreamRef struct {
 	Name   string `json:"name"`
 	Weight int    `json:"weight"`

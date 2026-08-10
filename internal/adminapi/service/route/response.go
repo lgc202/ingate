@@ -1,7 +1,8 @@
 package route
 
 import (
-	"strconv"
+	"net/http"
+	"time"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -9,66 +10,118 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func newRouteReply(route *resource.Route) *adminv1.Route {
+func routeFromResource(route *resource.Route) *adminv1.Route {
 	status := biz.EnabledResourceStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions)
-	reply := &adminv1.Route{
-		Id: route.Name, Version: strconv.FormatInt(route.Generation, 10), Status: adminservice.NewResourceStatus(status),
-		Name: route.Spec.DisplayName, Hostnames: append([]string(nil), route.Spec.Hostnames...),
-		Enabled: route.Spec.Enabled, CreatedAt: adminservice.NewTimestamp(route.CreationTimestamp.Time),
+	response := &adminv1.Route{
+		Id:                     route.Name,
+		Name:                   route.Spec.DisplayName,
+		Enabled:                route.Spec.Enabled,
+		GatewayIds:             append([]string(nil), route.Spec.GatewayRefs...),
+		Hostnames:              append([]string(nil), route.Spec.Hostnames...),
+		Match:                  routeMatchFromResource(route.Spec.Match),
+		RequestHeaderModifier:  headerModifierFromResource(route.Spec.RequestHeaderModifier),
+		ResponseHeaderModifier: headerModifierFromResource(route.Spec.ResponseHeaderModifier),
+		State:                  adminservice.NewResourceState(status.State),
+		Message:                adminservice.ResourceMessage(status.Reason),
+		Version:                route.Generation,
+		CreatedAt:              adminservice.NewTimestamp(route.CreationTimestamp.Time),
+		UpdatedAt:              adminservice.NewTimestamp(routeUpdatedAt(route)),
 	}
-	for _, ref := range route.Spec.ParentRefs {
-		reply.GatewayIds = append(reply.GatewayIds, ref.Name)
+	for _, upstream := range route.Spec.UpstreamRefs {
+		response.Upstreams = append(response.Upstreams, &adminv1.RouteUpstream{
+			UpstreamId: upstream.Name,
+			Weight:     uint32(upstream.Weight),
+		})
 	}
-	for _, rule := range route.Spec.Rules {
-		reply.Rules = append(reply.Rules, newRouteRuleReply(rule))
-	}
-	return reply
-}
-
-func newRouteRuleReply(rule resource.RouteRule) *adminv1.RouteRule {
-	reply := &adminv1.RouteRule{
-		Name: rule.Name, PathPrefix: rule.PathPrefix, Methods: append([]string(nil), rule.Methods...),
-	}
-	for _, header := range rule.Headers {
-		reply.Headers = append(reply.Headers, &adminv1.HeaderMatch{Name: header.Name, Value: header.Value})
-	}
-	for _, target := range rule.UpstreamRefs {
-		reply.Targets = append(reply.Targets, &adminv1.RouteTarget{UpstreamId: target.Name, Weight: int32(target.Weight)})
-	}
-	if rule.ModelRouting != nil {
-		reply.ModelRouting = &adminv1.ModelRouting{}
-		for _, model := range rule.ModelRouting.Models {
-			reply.ModelRouting.Models = append(reply.ModelRouting.Models, &adminv1.ModelRoute{
-				Model: model.Model, UpstreamId: model.UpstreamRef, UpstreamModel: model.UpstreamModel,
+	if route.Spec.ModelRouting != nil {
+		response.ModelRouting = &adminv1.ModelRouting{Models: make([]*adminv1.ModelMapping, 0, len(route.Spec.ModelRouting.Models))}
+		for _, model := range route.Spec.ModelRouting.Models {
+			response.ModelRouting.Models = append(response.ModelRouting.Models, &adminv1.ModelMapping{
+				Model:         model.Model,
+				UpstreamId:    model.UpstreamRef,
+				UpstreamModel: model.UpstreamModel,
 			})
 		}
 	}
-	for _, filter := range rule.Filters {
-		switch filter.Type {
-		case resource.RouteFilterRequestHeaderModifier:
-			reply.RequestHeaderModifier = newHeaderModifierReply(filter.RequestHeaderModifier)
-		case resource.RouteFilterResponseHeaderModifier:
-			reply.ResponseHeaderModifier = newHeaderModifierReply(filter.ResponseHeaderModifier)
+	if route.Spec.Timeout != nil {
+		response.Timeout = &adminv1.RouteTimeout{RequestMillis: uint32(route.Spec.Timeout.RequestMillis)}
+	}
+	if route.Spec.Retry != nil {
+		response.Retry = &adminv1.RouteRetry{
+			Attempts:            uint32(route.Spec.Retry.Attempts),
+			PerTryTimeoutMillis: uint32(route.Spec.Retry.PerTryTimeoutMillis),
 		}
 	}
-	if rule.Timeout != nil {
-		reply.Timeout = &adminv1.RouteTimeout{RequestMillis: int32(rule.Timeout.RequestMillis)}
-	}
-	if rule.Retry != nil {
-		reply.Retry = &adminv1.RouteRetry{
-			Attempts: int32(rule.Retry.Attempts), PerTryTimeoutMillis: int32(rule.Retry.PerTryTimeoutMillis),
-		}
-	}
-	return reply
+	return response
 }
 
-func newHeaderModifierReply(modifier *resource.HeaderModifier) *adminv1.HeaderModifier {
+func routeMatchFromResource(match resource.RouteMatch) *adminv1.RouteMatch {
+	response := &adminv1.RouteMatch{
+		Path: &adminv1.RoutePathMatch{
+			Type:  pathMatchTypeFromResource(match.Path.Type),
+			Value: match.Path.Value,
+		},
+	}
+	for _, method := range match.Methods {
+		response.Methods = append(response.Methods, httpMethodFromResource(method))
+	}
+	for _, header := range match.Headers {
+		response.Headers = append(response.Headers, &adminv1.HeaderMatch{Name: header.Name, Value: header.Value})
+	}
+	return response
+}
+
+func headerModifierFromResource(modifier *resource.HeaderModifier) *adminv1.HeaderModifier {
 	if modifier == nil {
 		return nil
 	}
-	reply := &adminv1.HeaderModifier{Remove: append([]string(nil), modifier.Remove...)}
+	response := &adminv1.HeaderModifier{Remove: append([]string(nil), modifier.Remove...)}
 	for _, header := range modifier.Set {
-		reply.Set = append(reply.Set, &adminv1.HeaderValue{Name: header.Name, Value: header.Value})
+		response.Set = append(response.Set, &adminv1.HeaderValue{Name: header.Name, Value: header.Value})
 	}
-	return reply
+	for _, header := range modifier.Add {
+		response.Add = append(response.Add, &adminv1.HeaderValue{Name: header.Name, Value: header.Value})
+	}
+	return response
+}
+
+func pathMatchTypeFromResource(matchType resource.PathMatchType) adminv1.RoutePathMatchType {
+	switch matchType {
+	case resource.PathMatchPrefix:
+		return adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_PREFIX
+	case resource.PathMatchExact:
+		return adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_EXACT
+	default:
+		return adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_TYPE_UNSPECIFIED
+	}
+}
+
+func httpMethodFromResource(method string) adminv1.HTTPMethod {
+	switch method {
+	case http.MethodGet:
+		return adminv1.HTTPMethod_HTTP_METHOD_GET
+	case http.MethodHead:
+		return adminv1.HTTPMethod_HTTP_METHOD_HEAD
+	case http.MethodPost:
+		return adminv1.HTTPMethod_HTTP_METHOD_POST
+	case http.MethodPut:
+		return adminv1.HTTPMethod_HTTP_METHOD_PUT
+	case http.MethodPatch:
+		return adminv1.HTTPMethod_HTTP_METHOD_PATCH
+	case http.MethodDelete:
+		return adminv1.HTTPMethod_HTTP_METHOD_DELETE
+	case http.MethodOptions:
+		return adminv1.HTTPMethod_HTTP_METHOD_OPTIONS
+	default:
+		return adminv1.HTTPMethod_HTTP_METHOD_UNSPECIFIED
+	}
+}
+
+func routeUpdatedAt(route *resource.Route) time.Time {
+	value := route.Annotations[resource.AnnotationUpdatedAt]
+	if value == "" {
+		return time.Time{}
+	}
+	parsed, _ := time.Parse(time.RFC3339Nano, value)
+	return parsed
 }

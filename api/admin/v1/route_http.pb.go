@@ -9,6 +9,7 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -21,16 +22,14 @@ const OperationRouteServiceCreateRoute = "/ingate.admin.v1.RouteService/CreateRo
 const OperationRouteServiceDeleteRoute = "/ingate.admin.v1.RouteService/DeleteRoute"
 const OperationRouteServiceGetRoute = "/ingate.admin.v1.RouteService/GetRoute"
 const OperationRouteServiceListRoutes = "/ingate.admin.v1.RouteService/ListRoutes"
-const OperationRouteServiceSetRouteEnabled = "/ingate.admin.v1.RouteService/SetRouteEnabled"
 const OperationRouteServiceUpdateRoute = "/ingate.admin.v1.RouteService/UpdateRoute"
 
 type RouteServiceHTTPServer interface {
-	CreateRoute(context.Context, *CreateRouteRequest) (*MutationReply, error)
-	DeleteRoute(context.Context, *ResourceRequest) (*MutationReply, error)
-	GetRoute(context.Context, *ResourceRequest) (*Route, error)
-	ListRoutes(context.Context, *ListRequest) (*ListRoutesReply, error)
-	SetRouteEnabled(context.Context, *SetEnabledRequest) (*MutationReply, error)
-	UpdateRoute(context.Context, *UpdateRouteRequest) (*MutationReply, error)
+	CreateRoute(context.Context, *CreateRouteRequest) (*Route, error)
+	DeleteRoute(context.Context, *DeleteRouteRequest) (*emptypb.Empty, error)
+	GetRoute(context.Context, *GetRouteRequest) (*Route, error)
+	ListRoutes(context.Context, *ListRoutesRequest) (*ListRoutesResponse, error)
+	UpdateRoute(context.Context, *UpdateRouteRequest) (*Route, error)
 }
 
 func RegisterRouteServiceHTTPServer(s *http.Server, srv RouteServiceHTTPServer) {
@@ -39,32 +38,31 @@ func RegisterRouteServiceHTTPServer(s *http.Server, srv RouteServiceHTTPServer) 
 	r.Handle("GET", "/api/v1/routes/{id}", _RouteService_GetRoute0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/routes", _RouteService_CreateRoute0_HTTP_Handler(srv))
 	r.Handle("PUT", "/api/v1/routes/{id}", _RouteService_UpdateRoute0_HTTP_Handler(srv))
-	r.Handle("PATCH", "/api/v1/routes/{id}/enabled", _RouteService_SetRouteEnabled0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/api/v1/routes/{id}", _RouteService_DeleteRoute0_HTTP_Handler(srv))
 }
 
 func _RouteService_ListRoutes0_HTTP_Handler(srv RouteServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ListRequest
+		var in ListRoutesRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationRouteServiceListRoutes)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListRoutes(ctx, req.(*ListRequest))
+			return srv.ListRoutes(ctx, req.(*ListRoutesRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*ListRoutesReply)
+		reply := out.(*ListRoutesResponse)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _RouteService_GetRoute0_HTTP_Handler(srv RouteServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in GetRouteRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -73,7 +71,7 @@ func _RouteService_GetRoute0_HTTP_Handler(srv RouteServiceHTTPServer) func(ctx h
 		}
 		http.SetOperation(ctx, OperationRouteServiceGetRoute)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetRoute(ctx, req.(*ResourceRequest))
+			return srv.GetRoute(ctx, req.(*GetRouteRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -98,7 +96,7 @@ func _RouteService_CreateRoute0_HTTP_Handler(srv RouteServiceHTTPServer) func(ct
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*Route)
 		return ctx.Result(200, reply)
 	}
 }
@@ -120,36 +118,14 @@ func _RouteService_UpdateRoute0_HTTP_Handler(srv RouteServiceHTTPServer) func(ct
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _RouteService_SetRouteEnabled0_HTTP_Handler(srv RouteServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in SetEnabledRequest
-		if err := ctx.Bind(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationRouteServiceSetRouteEnabled)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.SetRouteEnabled(ctx, req.(*SetEnabledRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*MutationReply)
+		reply := out.(*Route)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _RouteService_DeleteRoute0_HTTP_Handler(srv RouteServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in DeleteRouteRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -158,24 +134,23 @@ func _RouteService_DeleteRoute0_HTTP_Handler(srv RouteServiceHTTPServer) func(ct
 		}
 		http.SetOperation(ctx, OperationRouteServiceDeleteRoute)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.DeleteRoute(ctx, req.(*ResourceRequest))
+			return srv.DeleteRoute(ctx, req.(*DeleteRouteRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*emptypb.Empty)
 		return ctx.Result(200, reply)
 	}
 }
 
 type RouteServiceHTTPClient interface {
-	CreateRoute(ctx context.Context, req *CreateRouteRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	DeleteRoute(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	GetRoute(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *Route, err error)
-	ListRoutes(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListRoutesReply, err error)
-	SetRouteEnabled(ctx context.Context, req *SetEnabledRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	UpdateRoute(ctx context.Context, req *UpdateRouteRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
+	CreateRoute(ctx context.Context, req *CreateRouteRequest, opts ...http.CallOption) (rsp *Route, err error)
+	DeleteRoute(ctx context.Context, req *DeleteRouteRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	GetRoute(ctx context.Context, req *GetRouteRequest, opts ...http.CallOption) (rsp *Route, err error)
+	ListRoutes(ctx context.Context, req *ListRoutesRequest, opts ...http.CallOption) (rsp *ListRoutesResponse, err error)
+	UpdateRoute(ctx context.Context, req *UpdateRouteRequest, opts ...http.CallOption) (rsp *Route, err error)
 }
 
 type RouteServiceHTTPClientImpl struct {
@@ -186,8 +161,8 @@ func NewRouteServiceHTTPClient(client *http.Client) RouteServiceHTTPClient {
 	return &RouteServiceHTTPClientImpl{client}
 }
 
-func (c *RouteServiceHTTPClientImpl) CreateRoute(ctx context.Context, in *CreateRouteRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *RouteServiceHTTPClientImpl) CreateRoute(ctx context.Context, in *CreateRouteRequest, opts ...http.CallOption) (*Route, error) {
+	var out Route
 	pattern := "/api/v1/routes"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
@@ -203,8 +178,8 @@ func (c *RouteServiceHTTPClientImpl) CreateRoute(ctx context.Context, in *Create
 	return &out, nil
 }
 
-func (c *RouteServiceHTTPClientImpl) DeleteRoute(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *RouteServiceHTTPClientImpl) DeleteRoute(ctx context.Context, in *DeleteRouteRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
+	var out emptypb.Empty
 	pattern := "/api/v1/routes/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -219,7 +194,7 @@ func (c *RouteServiceHTTPClientImpl) DeleteRoute(ctx context.Context, in *Resour
 	return &out, nil
 }
 
-func (c *RouteServiceHTTPClientImpl) GetRoute(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*Route, error) {
+func (c *RouteServiceHTTPClientImpl) GetRoute(ctx context.Context, in *GetRouteRequest, opts ...http.CallOption) (*Route, error) {
 	var out Route
 	pattern := "/api/v1/routes/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
@@ -235,8 +210,8 @@ func (c *RouteServiceHTTPClientImpl) GetRoute(ctx context.Context, in *ResourceR
 	return &out, nil
 }
 
-func (c *RouteServiceHTTPClientImpl) ListRoutes(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListRoutesReply, error) {
-	var out ListRoutesReply
+func (c *RouteServiceHTTPClientImpl) ListRoutes(ctx context.Context, in *ListRoutesRequest, opts ...http.CallOption) (*ListRoutesResponse, error) {
+	var out ListRoutesResponse
 	pattern := "/api/v1/routes"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -251,25 +226,8 @@ func (c *RouteServiceHTTPClientImpl) ListRoutes(ctx context.Context, in *ListReq
 	return &out, nil
 }
 
-func (c *RouteServiceHTTPClientImpl) SetRouteEnabled(ctx context.Context, in *SetEnabledRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
-	pattern := "/api/v1/routes/{id}/enabled"
-	path := http.BuildPath(pattern, in)
-	opts = append([]http.CallOption{
-		http.Accept("application/protojson"),
-		http.ContentType("application/protojson"),
-		http.Operation(OperationRouteServiceSetRouteEnabled),
-		http.PathTemplate(pattern),
-	}, opts...)
-	err := c.cc.Invoke(ctx, "PATCH", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *RouteServiceHTTPClientImpl) UpdateRoute(ctx context.Context, in *UpdateRouteRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *RouteServiceHTTPClientImpl) UpdateRoute(ctx context.Context, in *UpdateRouteRequest, opts ...http.CallOption) (*Route, error) {
+	var out Route
 	pattern := "/api/v1/routes/{id}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{

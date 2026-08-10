@@ -116,9 +116,7 @@ func (u *Usecase) Delete(ctx context.Context, gatewayID string, version int64) e
 		return gatewayVersionConflict(current)
 	}
 	if err := biz.VisitPages(ctx, u.routes.ListPage, func(route resource.Route) (bool, error) {
-		if slices.ContainsFunc(route.Spec.ParentRefs, func(parentRef resource.ParentRef) bool {
-			return parentRef.Name == gatewayID
-		}) {
+		if slices.Contains(route.Spec.GatewayRefs, gatewayID) {
 			return true, biz.NewUserError(fmt.Sprintf("网关 %q 仍有关联路由", current.Spec.DisplayName))
 		}
 		return false, nil

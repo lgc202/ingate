@@ -5,136 +5,199 @@ package ingate.admin.v1;
 import "admin/v1/common.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 
-// RouteService 提供路由规则管理接口
+// RouteService 提供路由管理接口
 service RouteService {
-  rpc ListRoutes(ListRequest) returns (ListRoutesReply) {
+  rpc ListRoutes(ListRoutesRequest) returns (ListRoutesResponse) {
     option (google.api.http) = {get: "/api/v1/routes"};
   }
-  rpc GetRoute(ResourceRequest) returns (Route) {
+  rpc GetRoute(GetRouteRequest) returns (Route) {
     option (google.api.http) = {get: "/api/v1/routes/{id}"};
   }
-  rpc CreateRoute(CreateRouteRequest) returns (MutationReply) {
+  rpc CreateRoute(CreateRouteRequest) returns (Route) {
     option (google.api.http) = {
       post: "/api/v1/routes"
       body: "*"
     };
   }
-  rpc UpdateRoute(UpdateRouteRequest) returns (MutationReply) {
+  rpc UpdateRoute(UpdateRouteRequest) returns (Route) {
     option (google.api.http) = {
       put: "/api/v1/routes/{id}"
       body: "*"
     };
   }
-  rpc SetRouteEnabled(SetEnabledRequest) returns (MutationReply) {
-    option (google.api.http) = {
-      patch: "/api/v1/routes/{id}/enabled"
-      body: "*"
-    };
-  }
-  rpc DeleteRoute(ResourceRequest) returns (MutationReply) {
+  rpc DeleteRoute(DeleteRouteRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {delete: "/api/v1/routes/{id}"};
   }
 }
 
-message HeaderMatch {
-  string name = 1;
-  string value = 2;
+enum RoutePathMatchType {
+  ROUTE_PATH_MATCH_TYPE_UNSPECIFIED = 0;
+  ROUTE_PATH_MATCH_PREFIX = 1;
+  ROUTE_PATH_MATCH_EXACT = 2;
 }
 
-message RouteTarget {
-  string upstream_id = 1 [json_name = "upstreamID"];
-  int32 weight = 2;
+enum HTTPMethod {
+  HTTP_METHOD_UNSPECIFIED = 0;
+  HTTP_METHOD_GET = 1;
+  HTTP_METHOD_HEAD = 2;
+  HTTP_METHOD_POST = 3;
+  HTTP_METHOD_PUT = 4;
+  HTTP_METHOD_PATCH = 5;
+  HTTP_METHOD_DELETE = 6;
+  HTTP_METHOD_OPTIONS = 7;
+}
+
+message RoutePathMatch {
+  RoutePathMatchType type = 1;
+  string value = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message HeaderMatch {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string value = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message RouteMatch {
+  RoutePathMatch path = 1 [(buf.validate.field).required = true];
+  repeated HTTPMethod methods = 2;
+  repeated HeaderMatch headers = 3;
+}
+
+message RouteUpstream {
+  string upstream_id = 1 [
+    json_name = "upstreamID",
+    (buf.validate.field).string.uuid = true
+  ];
+  uint32 weight = 2 [(buf.validate.field).uint32 = {
+    gte: 1
+    lte: 1000
+  }];
 }
 
 message HeaderValue {
-  string name = 1;
-  string value = 2;
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string value = 2 [(buf.validate.field).string.min_len = 1];
 }
 
 message HeaderModifier {
   repeated HeaderValue set = 1;
-  repeated string remove = 2;
+  repeated HeaderValue add = 2;
+  repeated string remove = 3;
 }
 
 message RouteTimeout {
-  int32 request_millis = 1;
+  uint32 request_millis = 1 [(buf.validate.field).uint32 = {
+    gte: 100
+    lte: 300000
+  }];
 }
 
 message RouteRetry {
-  int32 attempts = 1;
-  int32 per_try_timeout_millis = 2;
+  uint32 attempts = 1 [(buf.validate.field).uint32 = {
+    gte: 1
+    lte: 5
+  }];
+  uint32 per_try_timeout_millis = 2 [(buf.validate.field).uint32 = {
+    gte: 100
+    lte: 60000
+  }];
 }
 
-message ModelRoute {
-  string model = 1;
-  string upstream_id = 2 [json_name = "upstreamID"];
+message ModelMapping {
+  string model = 1 [(buf.validate.field).string.min_len = 1];
+  string upstream_id = 2 [
+    json_name = "upstreamID",
+    (buf.validate.field).string.uuid = true
+  ];
   string upstream_model = 3;
 }
 
 message ModelRouting {
-  repeated ModelRoute models = 1;
-}
-
-message RouteRule {
-  string name = 1;
-  string path_prefix = 2;
-  repeated string methods = 3;
-  repeated HeaderMatch headers = 4;
-  repeated RouteTarget targets = 5;
-  ModelRouting model_routing = 6;
-  HeaderModifier request_header_modifier = 7;
-  HeaderModifier response_header_modifier = 8;
-  RouteTimeout timeout = 9;
-  RouteRetry retry = 10;
+  repeated ModelMapping models = 1 [(buf.validate.field).repeated.min_items = 1];
 }
 
 message Route {
   string id = 1;
-  string version = 2;
-  ResourceStatus status = 3;
-  string name = 4;
-  repeated string gateway_ids = 5 [json_name = "gatewayIDs"];
-  repeated string hostnames = 6;
-  repeated RouteRule rules = 7;
-  bool enabled = 8;
-  google.protobuf.Timestamp created_at = 9;
+  string name = 2;
+  bool enabled = 3;
+  repeated string gateway_ids = 4 [json_name = "gatewayIDs"];
+  repeated string hostnames = 5;
+  RouteMatch match = 6;
+  repeated RouteUpstream upstreams = 7;
+  ModelRouting model_routing = 8;
+  HeaderModifier request_header_modifier = 9;
+  HeaderModifier response_header_modifier = 10;
+  RouteTimeout timeout = 11;
+  RouteRetry retry = 12;
+  ResourceState state = 13;
+  string message = 14;
+  int64 version = 15;
+  google.protobuf.Timestamp created_at = 16;
+  google.protobuf.Timestamp updated_at = 17;
+}
+
+message ListRoutesRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListRoutesResponse {
+  repeated Route routes = 1;
+  string next_cursor = 2;
+}
+
+message GetRouteRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 message CreateRouteRequest {
   string name = 1 [(buf.validate.field).string.min_len = 1];
-  repeated string gateway_ids = 2 [
+  optional bool enabled = 2 [(buf.validate.field).required = true];
+  repeated string gateway_ids = 3 [
     json_name = "gatewayIDs",
     (buf.validate.field).repeated = {
       min_items: 1
-      items: {string: {pattern: "\\S"}}
+      items: {string: {uuid: true}}
     }
   ];
-  repeated string hostnames = 3;
-  optional bool enabled = 4;
-  repeated RouteRule rules = 5 [(buf.validate.field).repeated.min_items = 1];
+  repeated string hostnames = 4;
+  RouteMatch match = 5 [(buf.validate.field).required = true];
+  repeated RouteUpstream upstreams = 6;
+  ModelRouting model_routing = 7;
+  HeaderModifier request_header_modifier = 8;
+  HeaderModifier response_header_modifier = 9;
+  RouteTimeout timeout = 10;
+  RouteRetry retry = 11;
 }
 
 message UpdateRouteRequest {
-  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
-  string version = 2 [(buf.validate.field).string.min_len = 1];
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
   string name = 3 [(buf.validate.field).string.min_len = 1];
-  repeated string gateway_ids = 4 [
+  optional bool enabled = 4 [(buf.validate.field).required = true];
+  repeated string gateway_ids = 5 [
     json_name = "gatewayIDs",
     (buf.validate.field).repeated = {
       min_items: 1
-      items: {string: {pattern: "\\S"}}
+      items: {string: {uuid: true}}
     }
   ];
-  repeated string hostnames = 5;
-  optional bool enabled = 6;
-  repeated RouteRule rules = 7 [(buf.validate.field).repeated.min_items = 1];
+  repeated string hostnames = 6;
+  RouteMatch match = 7 [(buf.validate.field).required = true];
+  repeated RouteUpstream upstreams = 8;
+  ModelRouting model_routing = 9;
+  HeaderModifier request_header_modifier = 10;
+  HeaderModifier response_header_modifier = 11;
+  RouteTimeout timeout = 12;
+  RouteRetry retry = 13;
 }
 
-message ListRoutesReply {
-  repeated Route routes = 1;
-  PageInfo page = 2;
+message DeleteRouteRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
 }

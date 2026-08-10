@@ -2,15 +2,18 @@ package route
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
 const (
+	defaultRouteTimeoutMillis = 30000
 	minRouteTimeoutMillis     = 100
 	maxRouteTimeoutMillis     = 300000
 	minRetryAttempts          = 1
@@ -21,223 +24,208 @@ const (
 	aiClusterHeader           = "x-ingate-ai-cluster-v1"
 )
 
-var aiManagedRequestHeaders = []string{
-	":authority",
-	":path",
-	"accept-encoding",
-	"anthropic-version",
-	"authorization",
-	"content-encoding",
-	"content-length",
-	"content-type",
-	aiClusterHeader,
-	"x-api-key",
-	"x-goog-api-key",
-}
-
-// validateRoute 只校验资源自身结构，Gateway、Upstream 引用是否存在由编译阶段判断
+// validateRoute 只校验资源自身结构，Gateway 和 Upstream 引用由 Controller 最终裁决
 func validateRoute(route *resource.Route) field.ErrorList {
 	specPath := field.NewPath("spec")
+	spec := route.Spec
 	errs := field.ErrorList{}
 
-	if len(route.Spec.ParentRefs) == 0 {
-		errs = append(errs, field.Required(specPath.Child("parentRefs"), "at least one parentRef is required"))
+	if spec.DisplayName == "" {
+		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
-	for i, parentRef := range route.Spec.ParentRefs {
-		if parentRef.Name == "" {
-			errs = append(errs, field.Required(specPath.Child("parentRefs").Index(i).Child("name"), "parentRef.name is required"))
-		}
-	}
+	errs = append(errs, validateGatewayRefs(spec.GatewayRefs, specPath.Child("gatewayRefs"))...)
+	errs = append(errs, validateHostnames(spec.Hostnames, specPath.Child("hostnames"))...)
+	errs = append(errs, validateRouteMatch(spec.Match, specPath.Child("match"))...)
+	errs = append(errs, validateHeaderModifier(spec.RequestHeaderModifier, specPath.Child("requestHeaderModifier"))...)
+	errs = append(errs, validateHeaderModifier(spec.ResponseHeaderModifier, specPath.Child("responseHeaderModifier"))...)
+	errs = append(errs, validateForwarding(spec, specPath)...)
+	errs = append(errs, validateTimeoutAndRetry(spec, specPath)...)
 
-	for i, hostname := range route.Spec.Hostnames {
-		if hostname == "" {
-			errs = append(errs, field.Required(specPath.Child("hostnames").Index(i), "hostname cannot be empty"))
-		} else if !validHostname(hostname) {
-			errs = append(errs, field.Invalid(specPath.Child("hostnames").Index(i), hostname, "hostname is invalid"))
-		}
+	if spec.ModelRouting != nil {
+		errs = append(errs, validateModelRouting(spec, specPath)...)
 	}
+	return errs
+}
 
-	if len(route.Spec.Rules) == 0 {
-		errs = append(errs, field.Required(specPath.Child("rules"), "at least one rule is required"))
-		return errs
+func validateGatewayRefs(refs []string, path *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+	if len(refs) == 0 {
+		return append(errs, field.Required(path, "at least one gatewayRef is required"))
 	}
-
-	seenRuleNames := make(map[string]struct{}, len(route.Spec.Rules))
-	for i, rule := range route.Spec.Rules {
-		rulePath := specPath.Child("rules").Index(i)
-		if rule.Name == "" {
-			errs = append(errs, field.Required(rulePath.Child("name"), "name is required"))
-		} else if _, ok := seenRuleNames[rule.Name]; ok {
-			errs = append(errs, field.Duplicate(rulePath.Child("name"), rule.Name))
+	seen := make(map[string]struct{}, len(refs))
+	for i, ref := range refs {
+		refPath := path.Index(i)
+		if ref == "" {
+			errs = append(errs, field.Required(refPath, "gatewayRef is required"))
+		} else if _, exists := seen[ref]; exists {
+			errs = append(errs, field.Duplicate(refPath, ref))
 		} else {
-			seenRuleNames[rule.Name] = struct{}{}
-		}
-		if rule.PathPrefix == "" {
-			errs = append(errs, field.Required(rulePath.Child("pathPrefix"), "pathPrefix is required"))
-		} else if !strings.HasPrefix(rule.PathPrefix, "/") {
-			errs = append(errs, field.Invalid(rulePath.Child("pathPrefix"), rule.PathPrefix, "pathPrefix must start with /"))
-		}
-		for j, method := range rule.Methods {
-			if !validHTTPMethod(method) {
-				errs = append(errs, field.NotSupported(rulePath.Child("methods").Index(j), method, []string{"GET", "POST", "PUT", "PATCH", "DELETE"}))
-			}
-		}
-		seenHeaders := make(map[string]struct{}, len(rule.Headers))
-		for j, header := range rule.Headers {
-			headerPath := rulePath.Child("headers").Index(j)
-			name := strings.ToLower(header.Name)
-			if !httpguts.ValidHeaderFieldName(header.Name) {
-				errs = append(errs, field.Invalid(headerPath.Child("name"), header.Name, "header name is invalid"))
-			}
-			if header.Value == "" || !httpguts.ValidHeaderFieldValue(header.Value) {
-				errs = append(errs, field.Invalid(headerPath.Child("value"), header.Value, "header value is invalid"))
-			}
-			if _, exists := seenHeaders[name]; exists {
-				errs = append(errs, field.Duplicate(headerPath.Child("name"), header.Name))
-			} else {
-				seenHeaders[name] = struct{}{}
-			}
-		}
-		seenFilterTypes := make(map[resource.RouteFilterType]struct{}, len(rule.Filters))
-		for j, filter := range rule.Filters {
-			filterPath := rulePath.Child("filters").Index(j)
-			if _, exists := seenFilterTypes[filter.Type]; exists {
-				errs = append(errs, field.Duplicate(filterPath.Child("type"), filter.Type))
-			} else {
-				seenFilterTypes[filter.Type] = struct{}{}
-			}
-			switch filter.Type {
-			case resource.RouteFilterRequestHeaderModifier:
-				if filter.RequestHeaderModifier == nil {
-					errs = append(errs, field.Required(filterPath.Child("requestHeaderModifier"), "requestHeaderModifier is required"))
-				} else {
-					errs = append(errs, validateHeaderModifier(filter.RequestHeaderModifier, filterPath.Child("requestHeaderModifier"))...)
-					if rule.ModelRouting != nil {
-						for _, name := range aiManagedRequestHeaders {
-							if headerModifierContains(filter.RequestHeaderModifier, name) {
-								errs = append(errs, field.Forbidden(filterPath.Child("requestHeaderModifier"), "AI request authentication and body framing headers are managed by Ingate"))
-								break
-							}
-						}
-					}
-				}
-			case resource.RouteFilterResponseHeaderModifier:
-				if filter.ResponseHeaderModifier == nil {
-					errs = append(errs, field.Required(filterPath.Child("responseHeaderModifier"), "responseHeaderModifier is required"))
-				} else {
-					errs = append(errs, validateHeaderModifier(filter.ResponseHeaderModifier, filterPath.Child("responseHeaderModifier"))...)
-				}
-			default:
-				errs = append(errs, field.NotSupported(filterPath.Child("type"), filter.Type, []string{
-					string(resource.RouteFilterRequestHeaderModifier),
-					string(resource.RouteFilterResponseHeaderModifier),
-				}))
-			}
-		}
-		if rule.Timeout != nil {
-			if rule.Timeout.RequestMillis < minRouteTimeoutMillis || rule.Timeout.RequestMillis > maxRouteTimeoutMillis {
-				errs = append(errs, field.Invalid(rulePath.Child("timeout").Child("requestMillis"), rule.Timeout.RequestMillis, "timeout.requestMillis is out of range"))
-			}
-		}
-		if rule.Retry != nil {
-			if rule.Retry.Attempts < minRetryAttempts || rule.Retry.Attempts > maxRetryAttempts {
-				errs = append(errs, field.Invalid(rulePath.Child("retry").Child("attempts"), rule.Retry.Attempts, "retry.attempts is out of range"))
-			}
-			if rule.Retry.PerTryTimeoutMillis < minPerTryTimeoutMillis || rule.Retry.PerTryTimeoutMillis > maxPerTryTimeoutMillis {
-				errs = append(errs, field.Invalid(rulePath.Child("retry").Child("perTryTimeoutMillis"), rule.Retry.PerTryTimeoutMillis, "retry.perTryTimeoutMillis is out of range"))
-			}
-			if rule.Timeout != nil && rule.Retry.PerTryTimeoutMillis > rule.Timeout.RequestMillis {
-				errs = append(errs, field.Invalid(rulePath.Child("retry").Child("perTryTimeoutMillis"), rule.Retry.PerTryTimeoutMillis, "retry.perTryTimeoutMillis must be less than or equal to timeout.requestMillis"))
-			}
-		}
-		if len(rule.UpstreamRefs) > 0 && rule.ModelRouting != nil {
-			errs = append(errs, field.Forbidden(rulePath.Child("modelRouting"), "modelRouting and upstreamRefs cannot be configured together"))
-		}
-		if len(rule.UpstreamRefs) == 0 && rule.ModelRouting == nil {
-			errs = append(errs, field.Required(rulePath.Child("upstreamRefs"), "upstreamRefs or modelRouting is required"))
-		}
-		for j, upstreamRef := range rule.UpstreamRefs {
-			upstreamPath := rulePath.Child("upstreamRefs").Index(j)
-			if upstreamRef.Name == "" {
-				errs = append(errs, field.Required(upstreamPath.Child("name"), "upstreamRef.name is required"))
-			}
-			if upstreamRef.Weight < 1 || upstreamRef.Weight > 1000 {
-				errs = append(errs, field.Invalid(upstreamPath.Child("weight"), upstreamRef.Weight, "upstreamRef.weight must be between 1 and 1000"))
-			}
-		}
-		if rule.ModelRouting != nil {
-			errs = append(errs, validateModelRouting(rule, rulePath)...)
+			seen[ref] = struct{}{}
 		}
 	}
 	return errs
 }
 
-func headerModifierContains(modifier *resource.HeaderModifier, name string) bool {
-	for _, header := range modifier.Set {
-		if strings.EqualFold(header.Name, name) {
-			return true
+func validateHostnames(hostnames []string, path *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+	seen := make(map[string]struct{}, len(hostnames))
+	for i, hostname := range hostnames {
+		hostnamePath := path.Index(i)
+		normalized, ok := hostnameutil.Normalize(hostname)
+		if !ok || normalized == "*" {
+			errs = append(errs, field.Invalid(hostnamePath, hostname, "hostname is invalid"))
+			continue
+		}
+		if _, exists := seen[normalized]; exists {
+			errs = append(errs, field.Duplicate(hostnamePath, hostname))
+		} else {
+			seen[normalized] = struct{}{}
 		}
 	}
-	for _, header := range modifier.Add {
-		if strings.EqualFold(header.Name, name) {
-			return true
-		}
-	}
-	for _, header := range modifier.Remove {
-		if strings.EqualFold(header, name) {
-			return true
-		}
-	}
-	return false
+	return errs
 }
 
-// validateModelRouting 固定 OpenAI-compatible 入口，并禁止用户覆盖 Ingate 的内部选路信息
-func validateModelRouting(rule resource.RouteRule, path *field.Path) field.ErrorList {
-	modelRoutingPath := path.Child("modelRouting")
-	errList := field.ErrorList{}
-	if rule.PathPrefix != openAIChatCompletionsPath {
-		errList = append(errList, field.Invalid(path.Child("pathPrefix"), rule.PathPrefix, "model routing pathPrefix must be /v1/chat/completions"))
+func validateRouteMatch(match resource.RouteMatch, path *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+	switch match.Path.Type {
+	case resource.PathMatchPrefix, resource.PathMatchExact:
+	default:
+		errs = append(errs, field.NotSupported(path.Child("path").Child("type"), match.Path.Type, []string{
+			string(resource.PathMatchPrefix),
+			string(resource.PathMatchExact),
+		}))
 	}
-	if len(rule.ModelRouting.Models) == 0 {
-		errList = append(errList, field.Required(modelRoutingPath.Child("models"), "at least one model is required"))
-	}
-	if len(rule.Methods) != 1 || rule.Methods[0] != http.MethodPost {
-		errList = append(errList, field.Invalid(path.Child("methods"), rule.Methods, "model routing requires POST as the only method"))
-	}
-	if rule.Retry != nil {
-		errList = append(errList, field.Forbidden(path.Child("retry"), "retry is not supported by model routing"))
+	if !validPath(match.Path.Value) {
+		errs = append(errs, field.Invalid(path.Child("path").Child("value"), match.Path.Value, "path must be an absolute request path without a query or fragment"))
 	}
 
-	models := make(map[string]struct{}, len(rule.ModelRouting.Models))
-	for i, model := range rule.ModelRouting.Models {
-		modelPath := modelRoutingPath.Child("models").Index(i)
+	seenMethods := make(map[string]struct{}, len(match.Methods))
+	for i, method := range match.Methods {
+		methodPath := path.Child("methods").Index(i)
+		if !validHTTPMethod(method) {
+			errs = append(errs, field.NotSupported(methodPath, method, supportedHTTPMethods()))
+		} else if _, exists := seenMethods[method]; exists {
+			errs = append(errs, field.Duplicate(methodPath, method))
+		} else {
+			seenMethods[method] = struct{}{}
+		}
+	}
+
+	seenHeaders := make(map[string]struct{}, len(match.Headers))
+	for i, header := range match.Headers {
+		headerPath := path.Child("headers").Index(i)
+		if !httpguts.ValidHeaderFieldName(header.Name) {
+			errs = append(errs, field.Invalid(headerPath.Child("name"), header.Name, "header name is invalid"))
+		}
+		if header.Value == "" || !httpguts.ValidHeaderFieldValue(header.Value) {
+			errs = append(errs, field.Invalid(headerPath.Child("value"), header.Value, "header value is invalid"))
+		}
+		key := strings.ToLower(header.Name)
+		if _, exists := seenHeaders[key]; exists {
+			errs = append(errs, field.Duplicate(headerPath.Child("name"), header.Name))
+		} else {
+			seenHeaders[key] = struct{}{}
+		}
+	}
+	return errs
+}
+
+func validateForwarding(spec resource.RouteSpec, path *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+	if len(spec.UpstreamRefs) > 0 && spec.ModelRouting != nil {
+		return append(errs, field.Forbidden(path.Child("modelRouting"), "modelRouting and upstreamRefs cannot be configured together"))
+	}
+	if len(spec.UpstreamRefs) == 0 && spec.ModelRouting == nil {
+		return append(errs, field.Required(path.Child("upstreamRefs"), "upstreamRefs or modelRouting is required"))
+	}
+
+	seen := make(map[string]struct{}, len(spec.UpstreamRefs))
+	for i, ref := range spec.UpstreamRefs {
+		refPath := path.Child("upstreamRefs").Index(i)
+		if ref.Name == "" {
+			errs = append(errs, field.Required(refPath.Child("name"), "upstreamRef.name is required"))
+		} else if _, exists := seen[ref.Name]; exists {
+			errs = append(errs, field.Duplicate(refPath.Child("name"), ref.Name))
+		} else {
+			seen[ref.Name] = struct{}{}
+		}
+		if ref.Weight < 1 || ref.Weight > 1000 {
+			errs = append(errs, field.Invalid(refPath.Child("weight"), ref.Weight, "upstreamRef.weight must be between 1 and 1000"))
+		}
+	}
+	return errs
+}
+
+func validateTimeoutAndRetry(spec resource.RouteSpec, path *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+	requestTimeout := defaultRouteTimeoutMillis
+	if spec.Timeout != nil {
+		requestTimeout = spec.Timeout.RequestMillis
+		if requestTimeout < minRouteTimeoutMillis || requestTimeout > maxRouteTimeoutMillis {
+			errs = append(errs, field.Invalid(path.Child("timeout").Child("requestMillis"), requestTimeout, "timeout.requestMillis is out of range"))
+		}
+	}
+	if spec.Retry == nil {
+		return errs
+	}
+	if spec.Retry.Attempts < minRetryAttempts || spec.Retry.Attempts > maxRetryAttempts {
+		errs = append(errs, field.Invalid(path.Child("retry").Child("attempts"), spec.Retry.Attempts, "retry.attempts is out of range"))
+	}
+	if spec.Retry.PerTryTimeoutMillis < minPerTryTimeoutMillis || spec.Retry.PerTryTimeoutMillis > maxPerTryTimeoutMillis {
+		errs = append(errs, field.Invalid(path.Child("retry").Child("perTryTimeoutMillis"), spec.Retry.PerTryTimeoutMillis, "retry.perTryTimeoutMillis is out of range"))
+	}
+	if spec.Retry.PerTryTimeoutMillis > requestTimeout {
+		errs = append(errs, field.Invalid(path.Child("retry").Child("perTryTimeoutMillis"), spec.Retry.PerTryTimeoutMillis, "retry.perTryTimeoutMillis must not exceed timeout.requestMillis"))
+	}
+	return errs
+}
+
+// validateModelRouting 固定 OpenAI-compatible 入口，并禁止用户覆盖 Ingate 内部选路信息
+func validateModelRouting(spec resource.RouteSpec, path *field.Path) field.ErrorList {
+	modelPath := path.Child("modelRouting")
+	errs := field.ErrorList{}
+	if spec.Match.Path.Type != resource.PathMatchExact || spec.Match.Path.Value != openAIChatCompletionsPath {
+		errs = append(errs, field.Invalid(path.Child("match").Child("path"), spec.Match.Path, "model routing requires exact path /v1/chat/completions"))
+	}
+	if len(spec.Match.Methods) != 1 || spec.Match.Methods[0] != http.MethodPost {
+		errs = append(errs, field.Invalid(path.Child("match").Child("methods"), spec.Match.Methods, "model routing requires POST as the only method"))
+	}
+	if spec.Retry != nil {
+		errs = append(errs, field.Forbidden(path.Child("retry"), "retry is not supported by model routing"))
+	}
+	if len(spec.ModelRouting.Models) == 0 {
+		errs = append(errs, field.Required(modelPath.Child("models"), "at least one model mapping is required"))
+	}
+
+	models := make(map[string]struct{}, len(spec.ModelRouting.Models))
+	for i, model := range spec.ModelRouting.Models {
+		mappingPath := modelPath.Child("models").Index(i)
 		if model.Model == "" {
-			errList = append(errList, field.Required(modelPath.Child("model"), "model is required"))
-		} else if strings.TrimSpace(model.Model) != model.Model {
-			errList = append(errList, field.Invalid(modelPath.Child("model"), model.Model, "model must not contain leading or trailing whitespace"))
+			errs = append(errs, field.Required(mappingPath.Child("model"), "model is required"))
 		} else if _, exists := models[model.Model]; exists {
-			errList = append(errList, field.Duplicate(modelPath.Child("model"), model.Model))
+			errs = append(errs, field.Duplicate(mappingPath.Child("model"), model.Model))
 		} else {
 			models[model.Model] = struct{}{}
 		}
 		if model.UpstreamRef == "" {
-			errList = append(errList, field.Required(modelPath.Child("upstreamRef"), "upstreamRef is required"))
-		} else if strings.TrimSpace(model.UpstreamRef) != model.UpstreamRef {
-			errList = append(errList, field.Invalid(modelPath.Child("upstreamRef"), model.UpstreamRef, "upstreamRef must not contain leading or trailing whitespace"))
-		}
-		if strings.TrimSpace(model.UpstreamModel) != model.UpstreamModel {
-			errList = append(errList, field.Invalid(modelPath.Child("upstreamModel"), model.UpstreamModel, "upstreamModel must not contain leading or trailing whitespace"))
+			errs = append(errs, field.Required(mappingPath.Child("upstreamRef"), "upstreamRef is required"))
 		}
 	}
-	for i, header := range rule.Headers {
+	for i, header := range spec.Match.Headers {
 		if strings.EqualFold(header.Name, aiClusterHeader) {
-			errList = append(errList, field.Forbidden(path.Child("headers").Index(i), "internal AI routing headers are managed by Ingate"))
+			errs = append(errs, field.Forbidden(path.Child("match").Child("headers").Index(i), "internal AI routing headers are managed by Ingate"))
 		}
 	}
-	return errList
+	if containsManagedHeader(spec.RequestHeaderModifier) {
+		errs = append(errs, field.Forbidden(path.Child("requestHeaderModifier"), "AI request authentication and body framing headers are managed by Ingate"))
+	}
+	return errs
 }
 
 func validateHeaderModifier(modifier *resource.HeaderModifier, path *field.Path) field.ErrorList {
+	if modifier == nil {
+		return nil
+	}
 	errs := field.ErrorList{}
 	if len(modifier.Set) == 0 && len(modifier.Add) == 0 && len(modifier.Remove) == 0 {
 		return append(errs, field.Required(path, "at least one header modifier action is required"))
@@ -280,43 +268,64 @@ func validateHeaderValues(values []resource.HeaderValue, path *field.Path, seen 
 	return errs
 }
 
-func validHTTPMethod(method string) bool {
-	switch method {
-	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+func containsManagedHeader(modifier *resource.HeaderModifier) bool {
+	if modifier == nil {
+		return false
+	}
+	for _, header := range modifier.Set {
+		if isAIManagedRequestHeader(header.Name) {
+			return true
+		}
+	}
+	for _, header := range modifier.Add {
+		if isAIManagedRequestHeader(header.Name) {
+			return true
+		}
+	}
+	for _, name := range modifier.Remove {
+		if isAIManagedRequestHeader(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func isAIManagedRequestHeader(name string) bool {
+	switch strings.ToLower(name) {
+	case ":authority", ":path", "accept-encoding", "anthropic-version", "authorization",
+		"content-encoding", "content-length", "content-type", aiClusterHeader, "x-api-key", "x-goog-api-key":
 		return true
 	default:
 		return false
 	}
 }
 
-func validHostname(hostname string) bool {
-	if len(hostname) > 2 && hostname[:2] == "*." {
-		hostname = hostname[2:]
-	}
-	hostname = strings.ToLower(hostname)
-	if hostname == "" || len(hostname) > 253 {
+func validPath(value string) bool {
+	if !strings.HasPrefix(value, "/") || strings.ContainsAny(value, "?#") {
 		return false
 	}
-	for label := range strings.SplitSeq(hostname, ".") {
-		if !validDNSLabel(label) {
-			return false
-		}
-	}
-	return true
+	_, err := url.ParseRequestURI(value)
+	return err == nil
 }
 
-func validDNSLabel(label string) bool {
-	if label == "" || len(label) > 63 {
+func validHTTPMethod(method string) bool {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
+		http.MethodPatch, http.MethodDelete, http.MethodOptions:
+		return true
+	default:
 		return false
 	}
-	for i, r := range label {
-		valid := r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-'
-		if !valid {
-			return false
-		}
-		if (i == 0 || i == len(label)-1) && r == '-' {
-			return false
-		}
+}
+
+func supportedHTTPMethods() []string {
+	return []string{
+		http.MethodGet,
+		http.MethodHead,
+		http.MethodPost,
+		http.MethodPut,
+		http.MethodPatch,
+		http.MethodDelete,
+		http.MethodOptions,
 	}
-	return true
 }

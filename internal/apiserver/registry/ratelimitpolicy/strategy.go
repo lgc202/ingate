@@ -196,8 +196,7 @@ func validateRateLimitKeyPart(part resource.RateLimitKeyPart, path *field.Path) 
 		}
 	case resource.RateLimitKeyTypeIP,
 		resource.RateLimitKeyTypeRoute,
-		resource.RateLimitKeyTypeGateway,
-		resource.RateLimitKeyTypeRouteRule:
+		resource.RateLimitKeyTypeGateway:
 		if part.Name != "" {
 			errs = append(errs, field.Invalid(path.Child("name"), part.Name, "name must be empty for this key type"))
 		}
@@ -209,7 +208,6 @@ func validateRateLimitKeyPart(part resource.RateLimitKeyPart, path *field.Path) 
 			string(resource.RateLimitKeyTypeCookie),
 			string(resource.RateLimitKeyTypeRoute),
 			string(resource.RateLimitKeyTypeGateway),
-			string(resource.RateLimitKeyTypeRouteRule),
 		}))
 	}
 	return errs

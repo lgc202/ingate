@@ -65,7 +65,7 @@ func buildRateLimitPolicySpec(
 			}
 			part := resource.RateLimitKeyPart{Type: resource.RateLimitKeyType(inputPart.GetType()), Name: strings.TrimSpace(inputPart.GetName())}
 			switch part.Type {
-			case resource.RateLimitKeyTypeIP, resource.RateLimitKeyTypeRoute, resource.RateLimitKeyTypeGateway, resource.RateLimitKeyTypeRouteRule:
+			case resource.RateLimitKeyTypeIP, resource.RateLimitKeyTypeRoute, resource.RateLimitKeyTypeGateway:
 				part.Name = ""
 			case resource.RateLimitKeyTypeHeader:
 				if part.Name == "" {

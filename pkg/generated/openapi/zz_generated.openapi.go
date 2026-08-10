@@ -34,10 +34,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":               schema_pkg_apis_gateway_v1_HeaderValue(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":                  schema_pkg_apis_gateway_v1_Listener(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelCatalogItem":          schema_pkg_apis_gateway_v1_ModelCatalogItem(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRoute":                schema_pkg_apis_gateway_v1_ModelRoute(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelMapping":              schema_pkg_apis_gateway_v1_ModelMapping(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting":              schema_pkg_apis_gateway_v1_ModelRouting(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec":                 schema_pkg_apis_gateway_v1_ModelSpec(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ParentRef":                 schema_pkg_apis_gateway_v1_ParentRef(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PathMatch":                 schema_pkg_apis_gateway_v1_PathMatch(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus":              schema_pkg_apis_gateway_v1_PolicyStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef":           schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetStatus":        schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref),
@@ -51,10 +51,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitRule":             schema_pkg_apis_gateway_v1_RateLimitRule(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus":            schema_pkg_apis_gateway_v1_ResourceStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Route":                     schema_pkg_apis_gateway_v1_Route(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteFilter":               schema_pkg_apis_gateway_v1_RouteFilter(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteList":                 schema_pkg_apis_gateway_v1_RouteList(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteMatch":                schema_pkg_apis_gateway_v1_RouteMatch(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry":                schema_pkg_apis_gateway_v1_RouteRetry(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule":                 schema_pkg_apis_gateway_v1_RouteRule(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteSpec":                 schema_pkg_apis_gateway_v1_RouteSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout":              schema_pkg_apis_gateway_v1_RouteTimeout(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuota":                schema_pkg_apis_gateway_v1_TokenQuota(ref),
@@ -771,7 +770,7 @@ func schema_pkg_apis_gateway_v1_HeaderMatch(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderMatch 表示 HTTP header 精确匹配条件",
+				Description: "HeaderMatch 表示 HTTP Header 精确匹配条件",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
@@ -799,7 +798,7 @@ func schema_pkg_apis_gateway_v1_HeaderModifier(ref common.ReferenceCallback) com
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderModifier 表示 header 写入和删除动作",
+				Description: "HeaderModifier 表示 Header 写入和删除动作",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"set": {
@@ -869,7 +868,7 @@ func schema_pkg_apis_gateway_v1_HeaderValue(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "HeaderValue 表示 header 名和值",
+				Description: "HeaderValue 表示 Header 名和值",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {
@@ -978,16 +977,16 @@ func schema_pkg_apis_gateway_v1_ModelCatalogItem(ref common.ReferenceCallback) c
 	}
 }
 
-func schema_pkg_apis_gateway_v1_ModelRoute(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_gateway_v1_ModelMapping(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ModelRoute 将客户端模型名称映射到一个模型 Upstream 及其厂商模型名称",
+				Description: "ModelMapping 将客户端模型名称映射到一个模型 Upstream 及其厂商模型名称",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"model": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Model 是客户端请求中使用的模型名称",
+							Description: "Model 是客户端请求中使用的公开模型名称",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1019,7 +1018,7 @@ func schema_pkg_apis_gateway_v1_ModelRouting(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ModelRouting 声明一条 RouteRule 的公开模型和实际模型目标",
+				Description: "ModelRouting 声明公开模型名称与实际模型服务之间的映射",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"models": {
@@ -1034,7 +1033,7 @@ func schema_pkg_apis_gateway_v1_ModelRouting(ref common.ReferenceCallback) commo
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRoute"),
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelMapping"),
 									},
 								},
 							},
@@ -1045,7 +1044,7 @@ func schema_pkg_apis_gateway_v1_ModelRouting(ref common.ReferenceCallback) commo
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRoute"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelMapping"},
 	}
 }
 
@@ -1099,14 +1098,21 @@ func schema_pkg_apis_gateway_v1_ModelSpec(ref common.ReferenceCallback) common.O
 	}
 }
 
-func schema_pkg_apis_gateway_v1_ParentRef(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_gateway_v1_PathMatch(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "ParentRef 引用承载当前 Route 的 Gateway",
+				Description: "PathMatch 表示请求路径匹配条件",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"name": {
+					"type": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"value": {
 						SchemaProps: spec.SchemaProps{
 							Default: "",
 							Type:    []string{"string"},
@@ -1114,7 +1120,7 @@ func schema_pkg_apis_gateway_v1_ParentRef(ref common.ReferenceCallback) common.O
 						},
 					},
 				},
-				Required: []string{"name"},
+				Required: []string{"type", "value"},
 			},
 		},
 	}
@@ -1627,7 +1633,7 @@ func schema_pkg_apis_gateway_v1_Route(ref common.ReferenceCallback) common.OpenA
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "Route 声明请求匹配规则和 Upstream 引用",
+				Description: "Route 声明一组请求匹配条件和对应的转发行为",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"kind": {
@@ -1667,39 +1673,6 @@ func schema_pkg_apis_gateway_v1_Route(ref common.ReferenceCallback) common.OpenA
 		},
 		Dependencies: []string{
 			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RouteFilter(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RouteFilter 声明命中 RouteRule 后执行的原生请求处理能力",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"requestHeaderModifier": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier"),
-						},
-					},
-					"responseHeaderModifier": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier"),
-						},
-					},
-				},
-				Required: []string{"type"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier"},
 	}
 }
 
@@ -1752,69 +1725,17 @@ func schema_pkg_apis_gateway_v1_RouteList(ref common.ReferenceCallback) common.O
 	}
 }
 
-func schema_pkg_apis_gateway_v1_RouteRetry(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_gateway_v1_RouteMatch(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RouteRetry 表示当前 RouteRule 的失败重试策略",
+				Description: "RouteMatch 表示必须同时满足的请求匹配条件",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"attempts": {
+					"path": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"perTryTimeoutMillis": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"retryOn": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RouteRule 声明一条路由匹配规则以及普通或模型 Upstream 转发配置",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"pathPrefix": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PathMatch"),
 						},
 					},
 					"methods": {
@@ -1824,7 +1745,8 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "Methods 为空时匹配所有 HTTP 方法，多个值之间是 OR 关系",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -1843,7 +1765,8 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "Headers 必须全部匹配",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -1854,64 +1777,40 @@ func schema_pkg_apis_gateway_v1_RouteRule(ref common.ReferenceCallback) common.O
 							},
 						},
 					},
-					"filters": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteFilter"),
-									},
-								},
-							},
-						},
-					},
-					"timeout": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout"),
-						},
-					},
-					"retry": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry"),
-						},
-					},
-					"upstreamRefs": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"),
-									},
-								},
-							},
-						},
-					},
-					"modelRouting": {
-						SchemaProps: spec.SchemaProps{
-							Description: "ModelRouting 声明将 OpenAI-compatible 请求中的 model 映射到对应模型 Upstream",
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting"),
-						},
-					},
 				},
-				Required: []string{"name", "pathPrefix", "methods", "headers"},
+				Required: []string{"path"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteFilter", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.PathMatch"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_RouteRetry(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "RouteRetry 表示 Route 的失败重试配置",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"attempts": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int32",
+						},
+					},
+					"perTryTimeoutMillis": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int32",
+						},
+					},
+				},
+				Required: []string{"attempts", "perTryTimeoutMillis"},
+			},
+		},
 	}
 }
 
@@ -1919,12 +1818,12 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RouteSpec 定义 Route 如何挂载到 Gateway",
+				Description: "RouteSpec 定义 Route 的挂载范围、匹配条件和转发行为",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
-							Description: "DisplayName 保存控制台展示名称，不参与引用和运行时匹配",
+							Description: "DisplayName 保存控制台展示名称，不参与引用和请求匹配",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -1937,19 +1836,21 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							Format:      "",
 						},
 					},
-					"parentRefs": {
+					"gatewayRefs": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
 								"x-kubernetes-list-type": "atomic",
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "GatewayRefs 保存承载当前 Route 的 Gateway ID",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ParentRef"),
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
 									},
 								},
 							},
@@ -1962,7 +1863,8 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "Hostnames 为空时不限制请求 Host，多个值之间是 OR 关系",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
@@ -1974,30 +1876,62 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							},
 						},
 					},
-					"rules": {
+					"match": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteMatch"),
+						},
+					},
+					"upstreamRefs": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
 								"x-kubernetes-list-type": "atomic",
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
+							Description: "UpstreamRefs 和 ModelRouting 必须且只能配置一个",
+							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
 									SchemaProps: spec.SchemaProps{
 										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule"),
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"),
 									},
 								},
 							},
 						},
 					},
+					"modelRouting": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting"),
+						},
+					},
+					"requestHeaderModifier": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier"),
+						},
+					},
+					"responseHeaderModifier": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier"),
+						},
+					},
+					"timeout": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout"),
+						},
+					},
+					"retry": {
+						SchemaProps: spec.SchemaProps{
+							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry"),
+						},
+					},
 				},
-				Required: []string{"enabled", "parentRefs", "hostnames", "rules"},
+				Required: []string{"enabled", "gatewayRefs", "match"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ParentRef", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRule"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
 	}
 }
 
@@ -2005,16 +1939,18 @@ func schema_pkg_apis_gateway_v1_RouteTimeout(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RouteTimeout 表示当前 RouteRule 的请求总超时",
+				Description: "RouteTimeout 表示 Route 的请求总超时",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"requestMillis": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int32",
 						},
 					},
 				},
+				Required: []string{"requestMillis"},
 			},
 		},
 	}
@@ -2429,7 +2365,7 @@ func schema_pkg_apis_gateway_v1_UpstreamRef(ref common.ReferenceCallback) common
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamRef 表示 RouteRule 中的 Upstream 引用",
+				Description: "UpstreamRef 表示 Route 转发到的 Upstream 及其相对权重",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"name": {

@@ -104,29 +104,27 @@ func (u *Usecase) validateRouteCompatibility(
 	next *resource.Upstream,
 ) error {
 	return biz.VisitPages(ctx, u.routes.ListPage, func(route resource.Route) (bool, error) {
-		for _, rule := range route.Spec.Rules {
-			for _, ref := range rule.UpstreamRefs {
-				if ref.Name == upstreamID && (next.Spec.Type == resource.UpstreamTypeModel || next.Spec.Protocol != resource.UpstreamProtocolHTTP) {
-					return true, biz.NewUserError(fmt.Sprintf("服务仍被普通路由 %q 引用，不能改为模型服务", routeDisplayName(route)))
-				}
+		for _, ref := range route.Spec.UpstreamRefs {
+			if ref.Name == upstreamID && (next.Spec.Type == resource.UpstreamTypeModel || next.Spec.Protocol != resource.UpstreamProtocolHTTP) {
+				return true, biz.NewUserError(fmt.Sprintf("服务仍被普通路由 %q 引用，不能改为模型服务", routeDisplayName(route)))
 			}
-			if rule.ModelRouting == nil {
+		}
+		if route.Spec.ModelRouting == nil {
+			return false, nil
+		}
+		for _, model := range route.Spec.ModelRouting.Models {
+			if model.UpstreamRef != upstreamID {
 				continue
 			}
-			for _, model := range rule.ModelRouting.Models {
-				if model.UpstreamRef != upstreamID {
-					continue
-				}
-				if !ValidModel(next) {
-					return true, biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 引用，必须保持为有效的大模型服务", routeDisplayName(route)))
-				}
-				upstreamModel := model.UpstreamModel
-				if upstreamModel == "" {
-					upstreamModel = model.Model
-				}
-				if !ModelEnabled(next.Spec.Model, upstreamModel) {
-					return true, biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 的公开模型 %q 引用，不能删除或禁用厂商模型 %q", routeDisplayName(route), model.Model, upstreamModel))
-				}
+			if !ValidModel(next) {
+				return true, biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 引用，必须保持为有效的大模型服务", routeDisplayName(route)))
+			}
+			upstreamModel := model.UpstreamModel
+			if upstreamModel == "" {
+				upstreamModel = model.Model
+			}
+			if !ModelEnabled(next.Spec.Model, upstreamModel) {
+				return true, biz.NewUserError(fmt.Sprintf("服务仍被模型路由 %q 的公开模型 %q 引用，不能删除或禁用厂商模型 %q", routeDisplayName(route), model.Model, upstreamModel))
 			}
 		}
 		return false, nil
@@ -136,17 +134,15 @@ func (u *Usecase) validateRouteCompatibility(
 // Delete 删除 Upstream，仍有关联路由时拒绝删除
 func (u *Usecase) Delete(ctx context.Context, upstreamID string) error {
 	if err := biz.VisitPages(ctx, u.routes.ListPage, func(route resource.Route) (bool, error) {
-		for _, rule := range route.Spec.Rules {
-			for _, ref := range rule.UpstreamRefs {
-				if ref.Name == upstreamID {
-					return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", upstreamID, routeDisplayName(route)))
-				}
+		for _, ref := range route.Spec.UpstreamRefs {
+			if ref.Name == upstreamID {
+				return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", upstreamID, routeDisplayName(route)))
 			}
-			if rule.ModelRouting != nil {
-				for _, model := range rule.ModelRouting.Models {
-					if model.UpstreamRef == upstreamID {
-						return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 的公开模型 %q 引用", upstreamID, routeDisplayName(route), model.Model))
-					}
+		}
+		if route.Spec.ModelRouting != nil {
+			for _, model := range route.Spec.ModelRouting.Models {
+				if model.UpstreamRef == upstreamID {
+					return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 的公开模型 %q 引用", upstreamID, routeDisplayName(route), model.Model))
 				}
 			}
 		}

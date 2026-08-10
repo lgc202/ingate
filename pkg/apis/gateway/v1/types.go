@@ -82,8 +82,6 @@ const (
 	RateLimitKeyTypeRoute RateLimitKeyType = "Route"
 	// RateLimitKeyTypeGateway 表示按 Gateway 生成限流 key
 	RateLimitKeyTypeGateway RateLimitKeyType = "Gateway"
-	// RateLimitKeyTypeRouteRule 表示按 RouteRule 生成限流 key
-	RateLimitKeyTypeRouteRule RateLimitKeyType = "RouteRule"
 )
 
 // RateLimitFailurePolicy 表示限流执行异常时的处理方式
