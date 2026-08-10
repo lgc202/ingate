@@ -15,7 +15,7 @@
 
 环境变量名称由 YAML 路径转为大写并将 `.` 替换为 `_`，例如 `logging.level` 对应 `INGATE_CONTROLLER_LOGGING_LEVEL`。
 
-Admin API 和 AI Proxy 直接读取完整 YAML，不再为每个字段维护环境变量占位符。不同部署环境应提供对应配置文件，敏感配置由部署系统生成或挂载到配置文件中。
+Admin API 直接读取完整 YAML，不再为每个字段维护环境变量占位符。不同部署环境应提供对应配置文件，敏感配置由部署系统生成或挂载到配置文件中。
 
 Docker Compose 的容器专用配置放在 `deploy/docker/configs`，它们使用容器服务名连接依赖。不要把容器地址写回这里的直接运行配置。
 
