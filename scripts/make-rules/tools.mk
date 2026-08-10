@@ -14,8 +14,6 @@ KUBE_CODEGEN_PACKAGES := \
 	k8s.io/code-generator/cmd/validation-gen \
 	k8s.io/kube-openapi/cmd/openapi-gen
 
-SQLC_VERSION := v1.31.1
-SQLC_PACKAGE := github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
 BUF_VERSION := v1.59.0
 BUF_PACKAGE := github.com/bufbuild/buf/cmd/buf@$(BUF_VERSION)
 PROTOC_GEN_GO_VERSION := v1.36.11
@@ -25,13 +23,9 @@ PROTOC_GEN_GO_HTTP_PACKAGE := github.com/go-kratos/kratos/cmd/protoc-gen-go-http
 WIRE_VERSION := v0.7.0
 WIRE_PACKAGE := github.com/google/wire/cmd/wire@$(WIRE_VERSION)
 .PHONY: tools
-tools: $(TOOLS_DIR)/sqlc $(TOOLS_DIR)/buf $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire ## 安装项目代码生成工具
+tools: $(TOOLS_DIR)/buf $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire ## 安装项目代码生成工具
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(KUBE_CODEGEN_PACKAGES)
-
-$(TOOLS_DIR)/sqlc: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
-	@mkdir -p $(TOOLS_DIR)
-	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(SQLC_PACKAGE)
 
 $(TOOLS_DIR)/buf: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
 	@mkdir -p $(TOOLS_DIR)

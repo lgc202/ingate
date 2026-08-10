@@ -186,7 +186,6 @@ function kindRouteLink(kind: string): string {
     case 'Certificate': return '/certificates';
     case 'RateLimitPolicy':
     case 'IPRestrictionPolicy':
-    case 'TokenQuotaPolicy':
       return '/policies';
     default: return '/status';
   }

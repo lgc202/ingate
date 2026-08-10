@@ -38,11 +38,6 @@ type IPRestrictionPolicyRepository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.IPRestrictionPolicy], error)
 }
 
-// TokenQuotaPolicyRepository 定义配置状态聚合需要的 Token 配额策略查询能力
-type TokenQuotaPolicyRepository interface {
-	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.TokenQuotaPolicy], error)
-}
-
 // Usecase 承载配置状态聚合用例
 type Usecase struct {
 	gateways              GatewayRepository
@@ -51,7 +46,6 @@ type Usecase struct {
 	certificates          CertificateRepository
 	rateLimitPolicies     RateLimitPolicyRepository
 	ipRestrictionPolicies IPRestrictionPolicyRepository
-	tokenQuotaPolicies    TokenQuotaPolicyRepository
 }
 
 // NewUsecase 创建配置发布状态查询用例
@@ -62,7 +56,6 @@ func NewUsecase(
 	certificates CertificateRepository,
 	rateLimitPolicies RateLimitPolicyRepository,
 	ipRestrictionPolicies IPRestrictionPolicyRepository,
-	tokenQuotaPolicies TokenQuotaPolicyRepository,
 ) *Usecase {
 	return &Usecase{
 		gateways:              gateways,
@@ -71,6 +64,5 @@ func NewUsecase(
 		certificates:          certificates,
 		rateLimitPolicies:     rateLimitPolicies,
 		ipRestrictionPolicies: ipRestrictionPolicies,
-		tokenQuotaPolicies:    tokenQuotaPolicies,
 	}
 }

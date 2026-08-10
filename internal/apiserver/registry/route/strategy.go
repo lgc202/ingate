@@ -146,13 +146,6 @@ func canonicalizeRouteSpec(spec *resource.RouteSpec) {
 	for i := range spec.UpstreamRefs {
 		spec.UpstreamRefs[i].Name = strings.TrimSpace(spec.UpstreamRefs[i].Name)
 	}
-	if spec.ModelRouting != nil {
-		for i := range spec.ModelRouting.Models {
-			spec.ModelRouting.Models[i].Model = strings.TrimSpace(spec.ModelRouting.Models[i].Model)
-			spec.ModelRouting.Models[i].UpstreamRef = strings.TrimSpace(spec.ModelRouting.Models[i].UpstreamRef)
-			spec.ModelRouting.Models[i].UpstreamModel = strings.TrimSpace(spec.ModelRouting.Models[i].UpstreamModel)
-		}
-	}
 	canonicalizeHeaderModifier(spec.RequestHeaderModifier)
 	canonicalizeHeaderModifier(spec.ResponseHeaderModifier)
 }

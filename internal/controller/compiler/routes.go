@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
-	"net/url"
 	"slices"
 	"strings"
 	"time"
@@ -13,9 +12,9 @@ import (
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
-	"github.com/lgc202/ingate/internal/pkg/aiproxyconfig"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -36,24 +35,18 @@ type routeAttachment struct {
 	listenerKey listenerKey
 	gatewayID   string
 	routeID     string
-	ruleName    string
 }
 
 type routeEntry struct {
-	gatewayID   string
 	routeID     string
-	ruleName    string
-	pathPrefix  string
+	path        string
 	exactPath   bool
-	aiRoute     bool
 	method      string
 	headerCount int
 	route       *routev3.Route
 }
 
 func (c *compilation) buildRoutes() []*routev3.RouteConfiguration {
-	// Route 会按 ParentRef、Listener 和有效 Host 展开，最终直接形成 Envoy VirtualHost/Route
-	// 这里不保留可跨包消费的中间表示，策略索引只记录运行时 route name 中的资源身份
 	routesByListener := make(map[listenerKey]map[string][]routeEntry, len(c.listenerGroups))
 	matchOwners := make(map[listenerKey]map[string]map[string]routeEntry, len(c.listenerGroups))
 	attachmentSet := make(map[string]bool)
@@ -64,81 +57,32 @@ func (c *compilation) buildRoutes() []*routev3.RouteConfiguration {
 			continue
 		}
 		hostnames, explicitHostnames := c.routeHostnames(route)
-		if len(route.Spec.Rules) == 0 {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonInvalidSpec,
-				fmt.Sprintf("route %q must declare at least one rule", routeID),
-			)
+		gatewayIDs := uniqueStrings(route.Spec.GatewayRefs)
+		if len(gatewayIDs) == 0 {
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonInvalidSpec, fmt.Sprintf("route %q must reference at least one gateway", routeID))
+			continue
 		}
-
-		parents := make(map[string]bool, len(route.Spec.ParentRefs))
-		for _, parentRef := range route.Spec.ParentRefs {
-			if parentRef.Name == "" {
-				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindRoute,
-					routeID,
-					ReasonInvalidSpec,
-					fmt.Sprintf("route %q has an empty parent reference", routeID),
-				)
-				continue
-			}
-			if parents[parentRef.Name] {
-				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindRoute,
-					routeID,
-					ReasonConflict,
-					fmt.Sprintf("route %q references gateway %q more than once", routeID, parentRef.Name),
-				)
-				continue
-			}
-			parents[parentRef.Name] = true
-		}
-		if len(parents) == 0 {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonConflict,
-				fmt.Sprintf("route %q has no attachable gateway", routeID),
-			)
+		entries := c.buildRouteEntries(route)
+		if len(entries) == 0 {
 			continue
 		}
 
-		attachedToGateway := false
-		for _, gatewayID := range slices.Sorted(maps.Keys(parents)) {
+		attached := false
+		for _, gatewayID := range gatewayIDs {
 			gateway, exists := c.gateways[gatewayID]
 			if !exists {
-				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindRoute,
-					routeID,
-					ReasonReferenceNotFound,
-					fmt.Sprintf("route %q references missing gateway %q", routeID, gatewayID),
-				)
+				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonReferenceNotFound, fmt.Sprintf("route %q references missing gateway %q", routeID, gatewayID))
 				continue
 			}
 			if !gateway.Spec.Enabled {
 				continue
 			}
-
 			domainsByListener := c.routeDomainsByListener(route, gatewayID, hostnames, explicitHostnames)
 			if len(domainsByListener) == 0 {
-				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindRoute,
-					routeID,
-					ReasonConflict,
-					fmt.Sprintf("route %q has no attachable listener on gateway %q", routeID, gatewayID),
-				)
+				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonConflict, fmt.Sprintf("route %q has no attachable listener on gateway %q", routeID, gatewayID))
 				continue
 			}
-			attachedToGateway = true
-
+			attached = true
 			for _, key := range sortedListenerKeySet(domainsByListener) {
 				if routesByListener[key] == nil {
 					routesByListener[key] = make(map[string][]routeEntry)
@@ -150,62 +94,31 @@ func (c *compilation) buildRoutes() []*routev3.RouteConfiguration {
 					if matchOwners[key][domain] == nil {
 						matchOwners[key][domain] = make(map[string]routeEntry)
 					}
-					for _, rule := range route.Spec.Rules {
-						entries := c.buildRouteEntries(gatewayID, routeID, rule)
-						for _, entry := range entries {
-							matchKey := routeMatchKey(entry.route.GetMatch())
-							if previous, conflict := matchOwners[key][domain][matchKey]; conflict {
-								if previous.route.GetName() == entry.route.GetName() {
-									continue
-								}
-								message := fmt.Sprintf(
-									"listener %s hostname %q has the same route match in %q/%q and %q/%q",
-									listenerName(key),
-									domain,
-									previous.routeID,
-									previous.ruleName,
-									entry.routeID,
-									entry.ruleName,
-								)
-								c.addDiagnostic(SeverityError, gatewayv1.KindRoute, previous.routeID, ReasonConflict, message)
-								c.addDiagnostic(SeverityError, gatewayv1.KindRoute, entry.routeID, ReasonConflict, message)
-								continue
-							}
-							matchOwners[key][domain][matchKey] = entry
-							routesByListener[key][domain] = append(routesByListener[key][domain], entry)
-							if entry.aiRoute {
-								aiKey := attachedAIRouteKey{
-									listenerKey: key,
-									gatewayID:   gatewayID,
-									routeID:     routeID,
-									ruleName:    rule.Name,
-								}
-								c.aiRouteEntries[aiKey] = append(c.aiRouteEntries[aiKey], entry.route)
-							}
-
-							attachmentKey := fmt.Sprintf("%s\x00%s\x00%s\x00%s", listenerName(key), gatewayID, routeID, rule.Name)
-							if !attachmentSet[attachmentKey] {
-								attachmentSet[attachmentKey] = true
-								c.routeAttachments = append(c.routeAttachments, routeAttachment{
-									listenerKey: key,
-									gatewayID:   gatewayID,
-									routeID:     routeID,
-									ruleName:    rule.Name,
-								})
-							}
+					for _, entry := range entries {
+						current := entry
+						current.route = proto.Clone(entry.route).(*routev3.Route)
+						current.route.Name = envoyRouteName(gatewayID, routeID, entry.method)
+						matchKey := routeMatchKey(current.route.Match)
+						if previous, conflict := matchOwners[key][domain][matchKey]; conflict {
+							message := fmt.Sprintf("listener %s hostname %q has the same route match in %q and %q", listenerName(key), domain, previous.routeID, routeID)
+							c.addDiagnostic(SeverityError, gatewayv1.KindRoute, previous.routeID, ReasonConflict, message)
+							c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonConflict, message)
+							continue
 						}
+						matchOwners[key][domain][matchKey] = current
+						routesByListener[key][domain] = append(routesByListener[key][domain], current)
 					}
+				}
+
+				attachmentKey := listenerName(key) + "\x00" + gatewayID + "\x00" + routeID
+				if !attachmentSet[attachmentKey] {
+					attachmentSet[attachmentKey] = true
+					c.routeAttachments = append(c.routeAttachments, routeAttachment{listenerKey: key, gatewayID: gatewayID, routeID: routeID})
 				}
 			}
 		}
-		if !attachedToGateway {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonConflict,
-				fmt.Sprintf("route %q has no attachable listener", routeID),
-			)
+		if !attached {
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonConflict, fmt.Sprintf("route %q has no attachable listener", routeID))
 		}
 	}
 
@@ -226,11 +139,7 @@ func (c *compilation) buildRoutes() []*routev3.RouteConfiguration {
 				Routes:  routes,
 			})
 		}
-		configs = append(configs, &routev3.RouteConfiguration{
-			Name:                routeConfigName(key),
-			VirtualHosts:        virtualHosts,
-			InternalOnlyHeaders: []string{aiClusterHeader},
-		})
+		configs = append(configs, &routev3.RouteConfiguration{Name: routeConfigName(key), VirtualHosts: virtualHosts})
 	}
 	return configs
 }
@@ -239,28 +148,15 @@ func (c *compilation) routeHostnames(route *gatewayv1.Route) ([]string, bool) {
 	if len(route.Spec.Hostnames) == 0 {
 		return nil, false
 	}
-
 	hostnames := make(map[string]bool, len(route.Spec.Hostnames))
 	for _, value := range route.Spec.Hostnames {
 		hostname, ok := hostnameutil.Normalize(value)
 		if !ok || hostname == "*" {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				route.Name,
-				ReasonInvalidSpec,
-				fmt.Sprintf("route %q has invalid hostname %q", route.Name, value),
-			)
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has invalid hostname %q", route.Name, value))
 			continue
 		}
 		if hostnames[hostname] {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				route.Name,
-				ReasonConflict,
-				fmt.Sprintf("route %q declares hostname %q more than once", route.Name, hostname),
-			)
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonConflict, fmt.Sprintf("route %q declares hostname %q more than once", route.Name, hostname))
 			continue
 		}
 		hostnames[hostname] = true
@@ -268,15 +164,9 @@ func (c *compilation) routeHostnames(route *gatewayv1.Route) ([]string, bool) {
 	return slices.Sorted(maps.Keys(hostnames)), true
 }
 
-func (c *compilation) routeDomainsByListener(
-	route *gatewayv1.Route,
-	gatewayID string,
-	hostnames []string,
-	explicitHostnames bool,
-) map[listenerKey]map[string]bool {
+func (c *compilation) routeDomainsByListener(route *gatewayv1.Route, gatewayID string, hostnames []string, explicit bool) map[listenerKey]map[string]bool {
 	result := make(map[listenerKey]map[string]bool)
-	if !explicitHostnames {
-		// Route 未声明 Hostname 时继承 Listener 的 Host 所有权，而不是扩大成全局 catch-all
+	if !explicit {
 		for _, listener := range c.gatewayListeners[gatewayID] {
 			if result[listener.key] == nil {
 				result[listener.key] = make(map[string]bool)
@@ -300,172 +190,91 @@ func (c *compilation) routeDomainsByListener(
 				}
 				result[listener.key][hostname] = true
 				matched = true
-				break
 			}
 		}
 		if !matched {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				route.Name,
-				ReasonConflict,
-				fmt.Sprintf("route %q hostname %q does not belong to a listener on gateway %q", route.Name, hostname, gatewayID),
-			)
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonConflict, fmt.Sprintf("route %q hostname %q does not belong to a listener on gateway %q", route.Name, hostname, gatewayID))
 		}
 	}
 	return result
 }
 
-func (c *compilation) buildRouteEntries(
-	gatewayID string,
-	routeID string,
-	rule gatewayv1.RouteRule,
-) []routeEntry {
-	if rule.Name == "" {
+func (c *compilation) buildRouteEntries(route *gatewayv1.Route) []routeEntry {
+	path := strings.TrimSpace(route.Spec.Match.Path.Value)
+	if path == "" || !strings.HasPrefix(path, "/") {
+		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q path must start with /", route.Name))
 		return nil
 	}
-	pathPrefix := rule.PathPrefix
-	if pathPrefix == "" || !strings.HasPrefix(pathPrefix, "/") {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindRoute,
-			routeID,
-			ReasonInvalidSpec,
-			fmt.Sprintf("route %q rule %q pathPrefix must start with /", routeID, rule.Name),
-		)
+	exactPath := route.Spec.Match.Path.Type == gatewayv1.PathMatchExact
+	if !exactPath && route.Spec.Match.Path.Type != gatewayv1.PathMatchPrefix {
+		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonUnsupported, fmt.Sprintf("route %q uses unsupported path match type %q", route.Name, route.Spec.Match.Path.Type))
 		return nil
 	}
 
-	methods, methodsValid := c.routeMethods(routeID, rule)
-	requestHeadersToAdd, requestHeadersToRemove, responseHeadersToAdd, responseHeadersToRemove, filtersValid := c.routeFilters(routeID, rule)
-	headers, headersValid := c.routeHeaderMatches(routeID, rule)
-	if !methodsValid || !filtersValid || !headersValid {
+	methods, methodsValid := c.routeMethods(route)
+	headers, headersValid := c.routeHeaderMatches(route)
+	clusters, clustersValid := c.weightedClusters(route)
+	requestAdd, requestRemove, requestValid := c.headerModifier(route, route.Spec.RequestHeaderModifier)
+	responseAdd, responseRemove, responseValid := c.headerModifier(route, route.Spec.ResponseHeaderModifier)
+	if !methodsValid || !headersValid || !clustersValid || !requestValid || !responseValid {
 		return nil
 	}
 
-	action := &routev3.RouteAction{}
-	if rule.ModelRouting != nil {
-		var valid bool
-		_, valid = c.compileAIModels(routeID, rule, methods)
-		if !valid {
+	action := &routev3.RouteAction{ClusterSpecifier: &routev3.RouteAction_WeightedClusters{
+		WeightedClusters: &routev3.WeightedCluster{Clusters: clusters},
+	}}
+	if route.Spec.Timeout != nil {
+		if route.Spec.Timeout.RequestMillis < minRouteTimeoutMillis || route.Spec.Timeout.RequestMillis > maxRouteTimeoutMillis {
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q timeout is out of range", route.Name))
 			return nil
 		}
-		action.ClusterSpecifier = &routev3.RouteAction_ClusterHeader{ClusterHeader: aiClusterHeader}
-		// ExtProc 在 Router 执行前写入目标 Cluster，Router 读取后移除私有 Header
-		if !slices.Contains(requestHeadersToRemove, aiClusterHeader) {
-			requestHeadersToRemove = append(requestHeadersToRemove, aiClusterHeader)
-		}
-	} else {
-		clusters, clustersValid := c.weightedClusters(routeID, rule)
-		if !clustersValid {
-			return nil
-		}
-		action.ClusterSpecifier = &routev3.RouteAction_WeightedClusters{
-			WeightedClusters: &routev3.WeightedCluster{Clusters: clusters},
-		}
+		action.Timeout = durationpb.New(time.Duration(route.Spec.Timeout.RequestMillis) * time.Millisecond)
 	}
-	if rule.Timeout != nil {
-		if rule.Timeout.RequestMillis < minRouteTimeoutMillis ||
-			rule.Timeout.RequestMillis > maxRouteTimeoutMillis {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonInvalidSpec,
-				fmt.Sprintf(
-					"route %q rule %q timeout must be between %d and %d milliseconds",
-					routeID,
-					rule.Name,
-					minRouteTimeoutMillis,
-					maxRouteTimeoutMillis,
-				),
-			)
-			return nil
-		}
-		action.Timeout = durationpb.New(time.Duration(rule.Timeout.RequestMillis) * time.Millisecond)
-	} else if rule.ModelRouting != nil {
-		// 模型响应可能长时间流式输出，未显式配置时关闭普通 HTTP Route 的总超时
-		action.Timeout = durationpb.New(0)
-	}
-	if rule.Retry != nil {
-		retryPolicy, ok := c.routeRetryPolicy(routeID, rule)
+	if route.Spec.Retry != nil {
+		retry, ok := c.routeRetryPolicy(route)
 		if !ok {
 			return nil
 		}
-		action.RetryPolicy = retryPolicy
+		action.RetryPolicy = retry
 	}
 
-	methodValues := methods
-	if len(methodValues) == 0 {
-		methodValues = []string{""}
+	if len(methods) == 0 {
+		methods = []string{""}
 	}
-	entries := make([]routeEntry, 0, len(methodValues))
-	for _, method := range methodValues {
-		routeName := envoyRouteName(gatewayID, routeID, rule.Name, method)
+	entries := make([]routeEntry, 0, len(methods))
+	for _, method := range methods {
 		routeHeaders := slices.Clone(headers)
 		if method != "" {
-			routeHeaders = append([]*routev3.HeaderMatcher{
-				exactHeaderMatcher(":method", method),
-			}, routeHeaders...)
+			routeHeaders = append([]*routev3.HeaderMatcher{exactHeaderMatcher(":method", method)}, routeHeaders...)
 		}
 		match := &routev3.RouteMatch{Headers: routeHeaders}
-		if rule.ModelRouting != nil {
-			match.PathSpecifier = &routev3.RouteMatch_Path{Path: pathPrefix}
+		if exactPath {
+			match.PathSpecifier = &routev3.RouteMatch_Path{Path: path}
 		} else {
-			match.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: pathPrefix}
-		}
-		var requestBodyBufferLimit *wrapperspb.UInt64Value
-		if rule.ModelRouting != nil {
-			requestBodyBufferLimit = wrapperspb.UInt64(aiproxyconfig.MaxRequestBodyBytes)
+			match.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: path}
 		}
 		entries = append(entries, routeEntry{
-			gatewayID:   gatewayID,
-			routeID:     routeID,
-			ruleName:    rule.Name,
-			pathPrefix:  pathPrefix,
-			exactPath:   rule.ModelRouting != nil,
-			aiRoute:     rule.ModelRouting != nil,
-			method:      method,
-			headerCount: len(headers),
+			routeID: route.Name, path: path, exactPath: exactPath, method: method, headerCount: len(headers),
 			route: &routev3.Route{
-				Name:                    routeName,
 				Match:                   match,
-				Action:                  &routev3.Route_Route{Route: action},
-				RequestBodyBufferLimit:  requestBodyBufferLimit,
-				RequestHeadersToAdd:     requestHeadersToAdd,
-				RequestHeadersToRemove:  requestHeadersToRemove,
-				ResponseHeadersToAdd:    responseHeadersToAdd,
-				ResponseHeadersToRemove: responseHeadersToRemove,
+				Action:                  &routev3.Route_Route{Route: proto.Clone(action).(*routev3.RouteAction)},
+				RequestHeadersToAdd:     requestAdd,
+				RequestHeadersToRemove:  requestRemove,
+				ResponseHeadersToAdd:    responseAdd,
+				ResponseHeadersToRemove: responseRemove,
 			},
 		})
 	}
 	return entries
 }
 
-func (c *compilation) routeMethods(routeID string, rule gatewayv1.RouteRule) ([]string, bool) {
-	methods := make(map[string]bool, len(rule.Methods))
+func (c *compilation) routeMethods(route *gatewayv1.Route) ([]string, bool) {
+	methods := make(map[string]bool, len(route.Spec.Match.Methods))
 	valid := true
-	for _, value := range rule.Methods {
+	for _, value := range route.Spec.Match.Methods {
 		method := strings.ToUpper(strings.TrimSpace(value))
-		if !validRouteMethod(method) {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonInvalidSpec,
-				fmt.Sprintf("route %q rule %q has invalid method %q", routeID, rule.Name, value),
-			)
-			valid = false
-			continue
-		}
-		if methods[method] {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonConflict,
-				fmt.Sprintf("route %q rule %q declares method %q more than once", routeID, rule.Name, method),
-			)
+		if !validRouteMethod(method) || methods[method] {
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has invalid or duplicate method %q", route.Name, value))
 			valid = false
 			continue
 		}
@@ -474,63 +283,21 @@ func (c *compilation) routeMethods(routeID string, rule gatewayv1.RouteRule) ([]
 	return slices.Sorted(maps.Keys(methods)), valid
 }
 
-func (c *compilation) routeHeaderMatches(routeID string, rule gatewayv1.RouteRule) ([]*routev3.HeaderMatcher, bool) {
-	items := slices.Clone(rule.Headers)
+func (c *compilation) routeHeaderMatches(route *gatewayv1.Route) ([]*routev3.HeaderMatcher, bool) {
+	items := slices.Clone(route.Spec.Match.Headers)
 	slices.SortFunc(items, func(a, b gatewayv1.HeaderMatch) int {
-		aName := strings.ToLower(a.Name)
-		bName := strings.ToLower(b.Name)
-		if aName != bName {
-			return cmp.Compare(aName, bName)
+		if result := cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); result != 0 {
+			return result
 		}
 		return cmp.Compare(a.Value, b.Value)
 	})
-
 	result := make([]*routev3.HeaderMatcher, 0, len(items))
 	seen := make(map[string]bool, len(items))
 	valid := true
 	for _, header := range items {
-		if header.Name == "" {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonInvalidSpec,
-				fmt.Sprintf("route %q rule %q has a header match without a name", routeID, rule.Name),
-			)
-			valid = false
-			continue
-		}
-		if header.Value == "" {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonInvalidSpec,
-				fmt.Sprintf("route %q rule %q header match %q has an empty value", routeID, rule.Name, header.Name),
-			)
-			valid = false
-			continue
-		}
-		if rule.ModelRouting != nil && strings.EqualFold(header.Name, aiClusterHeader) {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonInvalidSpec,
-				fmt.Sprintf("route %q rule %q cannot match internal AI routing header %q", routeID, rule.Name, header.Name),
-			)
-			valid = false
-			continue
-		}
-		key := strings.ToLower(header.Name) + "\x00" + header.Value
-		if seen[key] {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonConflict,
-				fmt.Sprintf("route %q rule %q repeats header match %q", routeID, rule.Name, header.Name),
-			)
+		key := strings.ToLower(header.Name)
+		if header.Name == "" || header.Value == "" || seen[key] {
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has an invalid or duplicate header match %q", route.Name, header.Name))
 			valid = false
 			continue
 		}
@@ -540,217 +307,41 @@ func (c *compilation) routeHeaderMatches(routeID string, rule gatewayv1.RouteRul
 	return result, valid
 }
 
-func (c *compilation) weightedClusters(
-	routeID string,
-	rule gatewayv1.RouteRule,
-) ([]*routev3.WeightedCluster_ClusterWeight, bool) {
-	if len(rule.UpstreamRefs) == 0 {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindRoute,
-			routeID,
-			ReasonInvalidSpec,
-			fmt.Sprintf("route %q rule %q must reference at least one upstream", routeID, rule.Name),
-		)
+func (c *compilation) weightedClusters(route *gatewayv1.Route) ([]*routev3.WeightedCluster_ClusterWeight, bool) {
+	if len(route.Spec.UpstreamRefs) == 0 {
+		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q must reference at least one upstream", route.Name))
 		return nil, false
 	}
-
-	refs := slices.Clone(rule.UpstreamRefs)
-	slices.SortFunc(refs, func(a, b gatewayv1.UpstreamRef) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
+	refs := slices.Clone(route.Spec.UpstreamRefs)
+	slices.SortFunc(refs, func(a, b gatewayv1.UpstreamRef) int { return cmp.Compare(a.Name, b.Name) })
 	clusters := make([]*routev3.WeightedCluster_ClusterWeight, 0, len(refs))
 	seen := make(map[string]bool, len(refs))
 	valid := true
 	for _, ref := range refs {
-		if ref.Name == "" {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonInvalidSpec,
-				fmt.Sprintf("route %q rule %q has an empty upstream reference", routeID, rule.Name),
-			)
-			valid = false
-			continue
-		}
-		if seen[ref.Name] {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonConflict,
-				fmt.Sprintf("route %q rule %q references upstream %q more than once", routeID, rule.Name, ref.Name),
-			)
+		clusterName, exists := c.upstreamClusters[ref.Name]
+		if ref.Name == "" || seen[ref.Name] || !exists || ref.Weight < 1 || ref.Weight > 1000 {
+			reason := ReasonInvalidSpec
+			if ref.Name != "" && !exists {
+				reason = ReasonReferenceNotFound
+			}
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, reason, fmt.Sprintf("route %q has an invalid upstream reference %q", route.Name, ref.Name))
 			valid = false
 			continue
 		}
 		seen[ref.Name] = true
-		upstream, exists := c.upstreams[ref.Name]
-		if !exists {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonReferenceNotFound,
-				fmt.Sprintf("route %q rule %q references missing upstream %q", routeID, rule.Name, ref.Name),
-			)
-			valid = false
-			continue
-		}
-		if upstream.Spec.Type == gatewayv1.UpstreamTypeModel || upstream.Spec.Protocol != gatewayv1.UpstreamProtocolHTTP {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonInvalidReference,
-				fmt.Sprintf("route %q rule %q must reference model upstream %q through modelRouting", routeID, rule.Name, ref.Name),
-			)
-			valid = false
-			continue
-		}
-		if ref.Weight < 1 || ref.Weight > 1000 {
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonInvalidSpec,
-				fmt.Sprintf("route %q rule %q upstream %q weight must be between 1 and 1000", routeID, rule.Name, ref.Name),
-			)
-			valid = false
-			continue
-		}
-		clusters = append(clusters, &routev3.WeightedCluster_ClusterWeight{
-			Name:   ref.Name,
-			Weight: wrapperspb.UInt32(uint32(ref.Weight)),
-		})
+		clusters = append(clusters, &routev3.WeightedCluster_ClusterWeight{Name: clusterName, Weight: wrapperspb.UInt32(uint32(ref.Weight))})
 	}
 	return clusters, valid
 }
 
-func (c *compilation) routeFilters(
-	routeID string,
-	rule gatewayv1.RouteRule,
-) (
-	[]*corev3.HeaderValueOption,
-	[]string,
-	[]*corev3.HeaderValueOption,
-	[]string,
-	bool,
-) {
-	var requestHeadersToAdd []*corev3.HeaderValueOption
-	var requestHeadersToRemove []string
-	var responseHeadersToAdd []*corev3.HeaderValueOption
-	var responseHeadersToRemove []string
-	valid := true
-
-	for _, filter := range rule.Filters {
-		switch filter.Type {
-		case gatewayv1.RouteFilterRequestHeaderModifier:
-			if filter.RequestHeaderModifier == nil {
-				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindRoute,
-					routeID,
-					ReasonInvalidSpec,
-					fmt.Sprintf("route %q rule %q request header modifier is empty", routeID, rule.Name),
-				)
-				valid = false
-				continue
-			}
-			if rule.ModelRouting != nil {
-				reserved := ""
-				for _, name := range aiManagedRequestHeaders {
-					if headerModifierContains(filter.RequestHeaderModifier, name) {
-						reserved = name
-						break
-					}
-				}
-				if reserved != "" {
-					c.addDiagnostic(
-						SeverityError,
-						gatewayv1.KindRoute,
-						routeID,
-						ReasonInvalidSpec,
-						fmt.Sprintf("route %q rule %q cannot modify AI-managed request header %q", routeID, rule.Name, reserved),
-					)
-					valid = false
-					continue
-				}
-			}
-			values, remove, ok := c.headerModifier(routeID, rule.Name, filter.RequestHeaderModifier)
-			requestHeadersToAdd = append(requestHeadersToAdd, values...)
-			requestHeadersToRemove = append(requestHeadersToRemove, remove...)
-			valid = valid && ok
-		case gatewayv1.RouteFilterResponseHeaderModifier:
-			if filter.ResponseHeaderModifier == nil {
-				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindRoute,
-					routeID,
-					ReasonInvalidSpec,
-					fmt.Sprintf("route %q rule %q response header modifier is empty", routeID, rule.Name),
-				)
-				valid = false
-				continue
-			}
-			values, remove, ok := c.headerModifier(routeID, rule.Name, filter.ResponseHeaderModifier)
-			responseHeadersToAdd = append(responseHeadersToAdd, values...)
-			responseHeadersToRemove = append(responseHeadersToRemove, remove...)
-			valid = valid && ok
-		default:
-			c.addDiagnostic(
-				SeverityError,
-				gatewayv1.KindRoute,
-				routeID,
-				ReasonUnsupported,
-				fmt.Sprintf("route %q rule %q uses unsupported filter %q", routeID, rule.Name, filter.Type),
-			)
-			valid = false
-		}
+func (c *compilation) headerModifier(route *gatewayv1.Route, modifier *gatewayv1.HeaderModifier) ([]*corev3.HeaderValueOption, []string, bool) {
+	if modifier == nil {
+		return nil, nil, true
 	}
-	return requestHeadersToAdd, requestHeadersToRemove, responseHeadersToAdd, responseHeadersToRemove, valid
-}
-
-func headerModifierContains(modifier *gatewayv1.HeaderModifier, name string) bool {
-	for _, header := range modifier.Set {
-		if strings.EqualFold(header.Name, name) {
-			return true
-		}
-	}
-	for _, header := range modifier.Add {
-		if strings.EqualFold(header.Name, name) {
-			return true
-		}
-	}
-	for _, header := range modifier.Remove {
-		if strings.EqualFold(header, name) {
-			return true
-		}
-	}
-	return false
-}
-
-func (c *compilation) headerModifier(
-	routeID string,
-	ruleName string,
-	modifier *gatewayv1.HeaderModifier,
-) ([]*corev3.HeaderValueOption, []string, bool) {
 	values := make([]*corev3.HeaderValueOption, 0, len(modifier.Set)+len(modifier.Add))
-	valid := true
-	if len(modifier.Set) == 0 && len(modifier.Add) == 0 && len(modifier.Remove) == 0 {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindRoute,
-			routeID,
-			ReasonInvalidSpec,
-			fmt.Sprintf("route %q rule %q header modifier has no actions", routeID, ruleName),
-		)
-		valid = false
-	}
+	valid := len(modifier.Set)+len(modifier.Add)+len(modifier.Remove) > 0
 	for _, header := range modifier.Set {
 		if header.Name == "" || header.Value == "" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonInvalidSpec, fmt.Sprintf("route %q rule %q has an invalid Set header", routeID, ruleName))
 			valid = false
 			continue
 		}
@@ -758,101 +349,54 @@ func (c *compilation) headerModifier(
 	}
 	for _, header := range modifier.Add {
 		if header.Name == "" || header.Value == "" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonInvalidSpec, fmt.Sprintf("route %q rule %q has an invalid Add header", routeID, ruleName))
 			valid = false
 			continue
 		}
 		values = append(values, headerValueOption(header, corev3.HeaderValueOption_APPEND_IF_EXISTS_OR_ADD))
 	}
-	remove := slices.Clone(modifier.Remove)
-	for _, name := range remove {
-		if name != "" {
-			continue
+	for _, name := range modifier.Remove {
+		if name == "" {
+			valid = false
 		}
-		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonInvalidSpec, fmt.Sprintf("route %q rule %q has an empty Remove header name", routeID, ruleName))
-		valid = false
 	}
-	return values, remove, valid
+	if !valid {
+		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has an invalid header modifier", route.Name))
+	}
+	return values, slices.Clone(modifier.Remove), valid
 }
 
-func (c *compilation) routeRetryPolicy(routeID string, rule gatewayv1.RouteRule) (*routev3.RetryPolicy, bool) {
-	if rule.Retry.Attempts < minRetryAttempts || rule.Retry.Attempts > maxRetryAttempts {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindRoute,
-			routeID,
-			ReasonInvalidSpec,
-			fmt.Sprintf(
-				"route %q rule %q retry attempts must be between %d and %d",
-				routeID,
-				rule.Name,
-				minRetryAttempts,
-				maxRetryAttempts,
-			),
-		)
+func (c *compilation) routeRetryPolicy(route *gatewayv1.Route) (*routev3.RetryPolicy, bool) {
+	retry := route.Spec.Retry
+	if retry.Attempts < minRetryAttempts || retry.Attempts > maxRetryAttempts ||
+		retry.PerTryTimeoutMillis < minPerTryTimeoutMillis || retry.PerTryTimeoutMillis > maxPerTryTimeoutMillis ||
+		(route.Spec.Timeout != nil && retry.PerTryTimeoutMillis > route.Spec.Timeout.RequestMillis) {
+		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has an invalid retry policy", route.Name))
 		return nil, false
 	}
-	if rule.Retry.PerTryTimeoutMillis < minPerTryTimeoutMillis ||
-		rule.Retry.PerTryTimeoutMillis > maxPerTryTimeoutMillis {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindRoute,
-			routeID,
-			ReasonInvalidSpec,
-			fmt.Sprintf(
-				"route %q rule %q retry per-try timeout must be between %d and %d milliseconds",
-				routeID,
-				rule.Name,
-				minPerTryTimeoutMillis,
-				maxPerTryTimeoutMillis,
-			),
-		)
-		return nil, false
-	}
-	if rule.Timeout != nil && rule.Retry.PerTryTimeoutMillis > rule.Timeout.RequestMillis {
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindRoute,
-			routeID,
-			ReasonInvalidSpec,
-			fmt.Sprintf("route %q rule %q retry per-try timeout exceeds request timeout", routeID, rule.Name),
-		)
-		return nil, false
-	}
+	return &routev3.RetryPolicy{
+		RetryOn:       defaultRetryOn,
+		NumRetries:    wrapperspb.UInt32(uint32(retry.Attempts)),
+		PerTryTimeout: durationpb.New(time.Duration(retry.PerTryTimeoutMillis) * time.Millisecond),
+	}, true
+}
 
-	retryOn := defaultRetryOn
-	if len(rule.Retry.RetryOn) > 0 {
-		values := make(map[string]bool, len(rule.Retry.RetryOn))
-		for _, value := range rule.Retry.RetryOn {
-			value = strings.TrimSpace(value)
-			if value == "" || strings.Contains(value, ",") {
-				c.addDiagnostic(
-					SeverityError,
-					gatewayv1.KindRoute,
-					routeID,
-					ReasonInvalidSpec,
-					fmt.Sprintf("route %q rule %q has invalid retryOn value %q", routeID, rule.Name, value),
-				)
-				return nil, false
-			}
-			values[value] = true
+func uniqueStrings(values []string) []string {
+	seen := make(map[string]bool, len(values))
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == "" || seen[value] {
+			continue
 		}
-		retryOn = strings.Join(slices.Sorted(maps.Keys(values)), ",")
+		seen[value] = true
+		result = append(result, value)
 	}
-
-	policy := &routev3.RetryPolicy{
-		RetryOn:    retryOn,
-		NumRetries: wrapperspb.UInt32(uint32(rule.Retry.Attempts)),
-	}
-	if rule.Retry.PerTryTimeoutMillis > 0 {
-		policy.PerTryTimeout = durationpb.New(time.Duration(rule.Retry.PerTryTimeoutMillis) * time.Millisecond)
-	}
-	return policy, true
+	slices.Sort(result)
+	return result
 }
 
 func validRouteMethod(method string) bool {
 	switch method {
-	case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions:
 		return true
 	default:
 		return false
@@ -861,10 +405,7 @@ func validRouteMethod(method string) bool {
 
 func headerValueOption(value gatewayv1.HeaderValue, action corev3.HeaderValueOption_HeaderAppendAction) *corev3.HeaderValueOption {
 	return &corev3.HeaderValueOption{
-		Header: &corev3.HeaderValue{
-			Key:   value.Name,
-			Value: value.Value,
-		},
+		Header:       &corev3.HeaderValue{Key: value.Name, Value: value.Value},
 		AppendAction: action,
 	}
 }
@@ -873,9 +414,7 @@ func exactHeaderMatcher(name, value string) *routev3.HeaderMatcher {
 	return &routev3.HeaderMatcher{
 		Name: name,
 		HeaderMatchSpecifier: &routev3.HeaderMatcher_StringMatch{
-			StringMatch: &matcherv3.StringMatcher{
-				MatchPattern: &matcherv3.StringMatcher_Exact{Exact: value},
-			},
+			StringMatch: &matcherv3.StringMatcher{MatchPattern: &matcherv3.StringMatcher_Exact{Exact: value}},
 		},
 	}
 }
@@ -893,8 +432,8 @@ func routeMatchKey(match *routev3.RouteMatch) string {
 }
 
 func compareRouteEntries(a, b routeEntry) int {
-	if len(a.pathPrefix) != len(b.pathPrefix) {
-		return cmp.Compare(len(b.pathPrefix), len(a.pathPrefix))
+	if len(a.path) != len(b.path) {
+		return cmp.Compare(len(b.path), len(a.path))
 	}
 	if a.exactPath != b.exactPath {
 		if a.exactPath {
@@ -911,11 +450,8 @@ func compareRouteEntries(a, b routeEntry) int {
 		}
 		return 1
 	}
-	if a.routeID != b.routeID {
-		return cmp.Compare(a.routeID, b.routeID)
-	}
-	if a.ruleName != b.ruleName {
-		return cmp.Compare(a.ruleName, b.ruleName)
+	if result := cmp.Compare(a.routeID, b.routeID); result != 0 {
+		return result
 	}
 	return cmp.Compare(a.method, b.method)
 }
@@ -924,13 +460,10 @@ func compareRouteAttachments(a, b routeAttachment) int {
 	if result := compareListenerKeys(a.listenerKey, b.listenerKey); result != 0 {
 		return result
 	}
-	if a.gatewayID != b.gatewayID {
-		return cmp.Compare(a.gatewayID, b.gatewayID)
+	if result := cmp.Compare(a.gatewayID, b.gatewayID); result != 0 {
+		return result
 	}
-	if a.routeID != b.routeID {
-		return cmp.Compare(a.routeID, b.routeID)
-	}
-	return cmp.Compare(a.ruleName, b.ruleName)
+	return cmp.Compare(a.routeID, b.routeID)
 }
 
 func sortedListenerKeySet(values map[listenerKey]map[string]bool) []listenerKey {
@@ -939,17 +472,14 @@ func sortedListenerKeySet(values map[listenerKey]map[string]bool) []listenerKey 
 	return keys
 }
 
-func envoyRouteName(gatewayID, routeID, ruleName, method string) string {
-	return fmt.Sprintf(
-		"%s/%s/%s/%s/%s",
-		envoyRouteNamePrefix,
-		url.PathEscape(gatewayID),
-		url.PathEscape(routeID),
-		url.PathEscape(ruleName),
-		url.PathEscape(method),
-	)
+func envoyRouteName(gatewayID, routeID, method string) string {
+	name := fmt.Sprintf("%s/%s/%s", envoyRouteNamePrefix, gatewayID, routeID)
+	if method != "" {
+		name += "/" + strings.ToLower(method)
+	}
+	return name
 }
 
 func virtualHostName(key listenerKey, domain string) string {
-	return fmt.Sprintf("%s/%s/%s", virtualHostNamePrefix, url.PathEscape(listenerName(key)), url.PathEscape(domain))
+	return fmt.Sprintf("%s/%s/%s", virtualHostNamePrefix, listenerName(key), domain)
 }

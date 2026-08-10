@@ -27,7 +27,6 @@ type resourceCache struct {
 	upstreams             gatewaylisters.UpstreamLister
 	rateLimitPolicies     gatewaylisters.RateLimitPolicyLister
 	ipRestrictionPolicies gatewaylisters.IPRestrictionPolicyLister
-	tokenQuotaPolicies    gatewaylisters.TokenQuotaPolicyLister
 }
 
 func newResourceCache(
@@ -43,7 +42,6 @@ func newResourceCache(
 	upstreamInformer := gatewayInformers.Upstreams()
 	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
 	ipRestrictionPolicyInformer := gatewayInformers.IPRestrictionPolicies()
-	tokenQuotaPolicyInformer := gatewayInformers.TokenQuotaPolicies()
 
 	resources := &resourceCache{
 		factory:               factory,
@@ -54,7 +52,6 @@ func newResourceCache(
 		upstreams:             upstreamInformer.Lister(),
 		rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
 		ipRestrictionPolicies: ipRestrictionPolicyInformer.Lister(),
-		tokenQuotaPolicies:    tokenQuotaPolicyInformer.Lister(),
 	}
 	if err := resources.registerEventHandlers([]eventRegistration{
 		{name: "Gateway", informer: gatewayInformer.Informer()},
@@ -63,7 +60,6 @@ func newResourceCache(
 		{name: "Upstream", informer: upstreamInformer.Informer()},
 		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
 		{name: "IPRestrictionPolicy", informer: ipRestrictionPolicyInformer.Informer()},
-		{name: "TokenQuotaPolicy", informer: tokenQuotaPolicyInformer.Informer()},
 	}); err != nil {
 		return nil, err
 	}
@@ -114,10 +110,6 @@ func (c *resourceCache) list() (compiler.Resources, error) {
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list IPRestrictionPolicies: %w", err)
 	}
-	tokenQuotaPolicies, err := c.tokenQuotaPolicies.List(labels.Everything())
-	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list TokenQuotaPolicies: %w", err)
-	}
 	resources := compiler.Resources{
 		Gateways:              make([]*gatewayv1.Gateway, 0, len(gateways)),
 		Certificates:          make([]*gatewayv1.Certificate, 0, len(certificates)),
@@ -125,7 +117,6 @@ func (c *resourceCache) list() (compiler.Resources, error) {
 		Upstreams:             make([]*gatewayv1.Upstream, 0, len(upstreams)),
 		RateLimitPolicies:     make([]*gatewayv1.RateLimitPolicy, 0, len(rateLimitPolicies)),
 		IPRestrictionPolicies: make([]*gatewayv1.IPRestrictionPolicy, 0, len(ipRestrictionPolicies)),
-		TokenQuotaPolicies:    make([]*gatewayv1.TokenQuotaPolicy, 0, len(tokenQuotaPolicies)),
 	}
 	for _, resource := range gateways {
 		resources.Gateways = append(resources.Gateways, resource.DeepCopy())
@@ -145,9 +136,6 @@ func (c *resourceCache) list() (compiler.Resources, error) {
 	for _, resource := range ipRestrictionPolicies {
 		resources.IPRestrictionPolicies = append(resources.IPRestrictionPolicies, resource.DeepCopy())
 	}
-	for _, resource := range tokenQuotaPolicies {
-		resources.TokenQuotaPolicies = append(resources.TokenQuotaPolicies, resource.DeepCopy())
-	}
 
 	slices.SortFunc(resources.Gateways, func(a, b *gatewayv1.Gateway) int {
 		return cmp.Compare(a.Name, b.Name)
@@ -165,9 +153,6 @@ func (c *resourceCache) list() (compiler.Resources, error) {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	slices.SortFunc(resources.IPRestrictionPolicies, func(a, b *gatewayv1.IPRestrictionPolicy) int {
-		return cmp.Compare(a.Name, b.Name)
-	})
-	slices.SortFunc(resources.TokenQuotaPolicies, func(a, b *gatewayv1.TokenQuotaPolicy) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	return resources, nil

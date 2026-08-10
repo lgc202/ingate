@@ -43,23 +43,6 @@ message PolicyTarget {
   string message = 5;
 }
 
-// ResourceRequest 通过资源 ID 定位单个管理对象
-message ResourceRequest {
-  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
-}
-
-// SetEnabledRequest 修改资源的启停状态
-message SetEnabledRequest {
-  string id = 1 [(buf.validate.field).string.pattern = "\\S"];
-  optional bool enabled = 2 [(buf.validate.field).required = true];
-}
-
-// MutationReply 表示写操作已经完成
-message MutationReply {
-  bool success = 1;
-  string id = 2;
-}
-
 // ListRequest 使用 API Server Continue Token 分页读取资源
 message ListRequest {
   int32 page_size = 1 [(buf.validate.field).int32 = {

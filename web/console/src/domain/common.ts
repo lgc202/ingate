@@ -99,3 +99,13 @@ export function formatDateTime(value: string) {
 
   return `${year}-${month}-${day} ${hour}:${minute}`;
 }
+
+export function normalizeResourceState(value: unknown): ResourceState {
+  const states: Record<string, ResourceState> = {
+    DISABLED: 'Disabled',
+    PENDING: 'Pending',
+    READY: 'Ready',
+    ERROR: 'Error',
+  };
+  return states[String(value)] ?? 'Pending';
+}

@@ -47,13 +47,10 @@ func (s *Service) GetUpstream(ctx context.Context, request *adminv1.GetUpstreamR
 func (s *Service) CreateUpstream(ctx context.Context, request *adminv1.CreateUpstreamRequest) (*adminv1.Upstream, error) {
 	spec, err := buildUpstreamSpec(upstreamInput{
 		name:          request.GetName(),
-		upstreamType:  request.GetType(),
 		endpoints:     request.GetEndpoints(),
 		tls:           request.GetTls(),
 		loadBalancing: request.GetLoadBalancing(),
 		healthCheck:   request.GetHealthCheck(),
-		model:         request.GetModel(),
-		apiKey:        request.ApiKey,
 	})
 	if err != nil {
 		return nil, err
@@ -68,18 +65,15 @@ func (s *Service) CreateUpstream(ctx context.Context, request *adminv1.CreateUps
 func (s *Service) UpdateUpstream(ctx context.Context, request *adminv1.UpdateUpstreamRequest) (*adminv1.Upstream, error) {
 	spec, err := buildUpstreamSpec(upstreamInput{
 		name:          request.GetName(),
-		upstreamType:  request.GetType(),
 		endpoints:     request.GetEndpoints(),
 		tls:           request.GetTls(),
 		loadBalancing: request.GetLoadBalancing(),
 		healthCheck:   request.GetHealthCheck(),
-		model:         request.GetModel(),
-		apiKey:        request.ApiKey,
 	})
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec, request.ApiKey)
+	item, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec)
 	if err != nil {
 		return nil, err
 	}

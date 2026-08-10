@@ -29,9 +29,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.IPRestrictionPolicyList": schema_pkg_apis_gateway_v1_IPRestrictionPolicyList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.IPRestrictionPolicySpec": schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":                schema_pkg_apis_gateway_v1_Listener(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelMapping":            schema_pkg_apis_gateway_v1_ModelMapping(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting":            schema_pkg_apis_gateway_v1_ModelRouting(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec":               schema_pkg_apis_gateway_v1_ModelSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PathMatch":               schema_pkg_apis_gateway_v1_PathMatch(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus":            schema_pkg_apis_gateway_v1_PolicyStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef":         schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
@@ -48,12 +45,6 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry":              schema_pkg_apis_gateway_v1_RouteRetry(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteSpec":               schema_pkg_apis_gateway_v1_RouteSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout":            schema_pkg_apis_gateway_v1_RouteTimeout(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuota":              schema_pkg_apis_gateway_v1_TokenQuota(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicy":        schema_pkg_apis_gateway_v1_TokenQuotaPolicy(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicyList":    schema_pkg_apis_gateway_v1_TokenQuotaPolicyList(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicySpec":    schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaResponse":      schema_pkg_apis_gateway_v1_TokenQuotaResponse(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaSubject":       schema_pkg_apis_gateway_v1_TokenQuotaSubject(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Upstream":                schema_pkg_apis_gateway_v1_Upstream(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck":     schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamList":            schema_pkg_apis_gateway_v1_UpstreamList(ref),
@@ -788,134 +779,6 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 	}
 }
 
-func schema_pkg_apis_gateway_v1_ModelMapping(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "ModelMapping 将客户端模型名称映射到一个模型 Upstream 及其厂商模型名称",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"model": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Model 是客户端请求中使用的公开模型名称",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"upstreamRef": {
-						SchemaProps: spec.SchemaProps{
-							Description: "UpstreamRef 引用实际接收该模型请求的 Upstream",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"upstreamModel": {
-						SchemaProps: spec.SchemaProps{
-							Description: "UpstreamModel 是发送给模型服务的模型名称，为空时沿用 Model",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"model", "upstreamRef"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_ModelRouting(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "ModelRouting 声明公开模型名称与实际模型服务之间的映射",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"models": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelMapping"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"models"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelMapping"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_ModelSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "ModelSpec 定义模型服务的厂商、API 路径、模型目录和访问密钥",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"provider": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Provider 决定模型请求协议及认证 Header 规则",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"basePath": {
-						SchemaProps: spec.SchemaProps{
-							Description: "BasePath 是追加到模型端点后的厂商 API 基础路径",
-							Default:     "",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"models": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Description: "Models 保存允许 Route 引用的厂商模型名称",
-							Type:        []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: "",
-										Type:    []string{"string"},
-										Format:  "",
-									},
-								},
-							},
-						},
-					},
-					"apiKey": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIKey 保存发送给模型服务的完整 API Key",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-				},
-				Required: []string{"provider", "basePath", "models"},
-			},
-		},
-	}
-}
-
 func schema_pkg_apis_gateway_v1_PathMatch(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1580,7 +1443,7 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "UpstreamRefs 和 ModelRouting 必须且只能配置一个",
+							Description: "UpstreamRefs 保存接收请求的上游服务及流量权重",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1590,11 +1453,6 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 									},
 								},
 							},
-						},
-					},
-					"modelRouting": {
-						SchemaProps: spec.SchemaProps{
-							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting"),
 						},
 					},
 					"requestHeaderModifier": {
@@ -1622,7 +1480,7 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelRouting", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
 	}
 }
 
@@ -1642,255 +1500,6 @@ func schema_pkg_apis_gateway_v1_RouteTimeout(ref common.ReferenceCallback) commo
 					},
 				},
 				Required: []string{"requestMillis"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_TokenQuota(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuota 定义一个时间窗口内允许消费的 Token 数量",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"tokens": {
-						SchemaProps: spec.SchemaProps{
-							Default: 0,
-							Type:    []string{"integer"},
-							Format:  "int64",
-						},
-					},
-					"windowSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Default: 0,
-							Type:    []string{"integer"},
-							Format:  "int64",
-						},
-					},
-				},
-				Required: []string{"tokens", "windowSeconds"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_TokenQuotaPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuotaPolicy 声明 AI 模型流量的 Token 配额策略",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
-						},
-					},
-					"spec": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicySpec"),
-						},
-					},
-					"status": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus"),
-						},
-					},
-				},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus", "github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicySpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_TokenQuotaPolicyList(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuotaPolicyList 表示 TokenQuotaPolicy 资源列表",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"kind": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"apiVersion": {
-						SchemaProps: spec.SchemaProps{
-							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"metadata": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
-						},
-					},
-					"items": {
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicy"),
-									},
-								},
-							},
-						},
-					},
-				},
-				Required: []string{"items"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaPolicy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuotaPolicySpec 定义单个共享预算池及其生效目标",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"displayName": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"description": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"enabled": {
-						SchemaProps: spec.SchemaProps{
-							Default: false,
-							Type:    []string{"boolean"},
-							Format:  "",
-						},
-					},
-					"targetRefs": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef"),
-									},
-								},
-							},
-						},
-					},
-					"subject": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaSubject"),
-						},
-					},
-					"quota": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuota"),
-						},
-					},
-					"failurePolicy": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"response": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaResponse"),
-						},
-					},
-				},
-				Required: []string{"displayName", "enabled", "subject", "quota", "failurePolicy"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef", "github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuota", "github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaResponse", "github.com/lgc202/ingate/pkg/apis/gateway/v1.TokenQuotaSubject"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_TokenQuotaResponse(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuotaResponse 定义超过 Token 配额时返回给调用方的响应",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"message": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_TokenQuotaSubject(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "TokenQuotaSubject 定义请求如何映射到预算池",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"headerName": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-				Required: []string{"type"},
 			},
 		},
 	}
@@ -2057,20 +1666,12 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "UpstreamSpec 定义 Upstream 的业务分类、连接方式和端点集合",
+				Description: "UpstreamSpec 定义 HTTP 上游服务的连接方式和端点集合",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DisplayName 保存控制台展示名称，不参与资源引用",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Type 用于区分普通应用、模型、MCP 和 Agent 服务",
-							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -2113,18 +1714,12 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck"),
 						},
 					},
-					"model": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Model 只用于模型服务，保存厂商协议参数、模型目录和 API Key",
-							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec"),
-						},
-					},
 				},
-				Required: []string{"type", "endpoints"},
+				Required: []string{"endpoints"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelSpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
 	}
 }
 

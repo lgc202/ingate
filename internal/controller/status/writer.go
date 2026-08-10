@@ -82,8 +82,6 @@ func (w *Writer) updateResource(
 		return w.updateRateLimitPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
 	case gatewayv1.KindIPRestrictionPolicy:
 		return w.updateIPRestrictionPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
-	case gatewayv1.KindTokenQuotaPolicy:
-		return w.updateTokenQuotaPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
 	default:
 		return fmt.Errorf("update unsupported resource kind %q", resource.Kind)
 	}

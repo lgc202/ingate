@@ -2,11 +2,9 @@ import { useState } from 'react';
 import {
   deleteIPRestrictionPolicy,
   deleteRateLimitPolicy,
-  deleteTokenQuotaPolicy,
   getPolicyWorkspace,
   saveIPRestrictionPolicy,
   saveRateLimitPolicy,
-  saveTokenQuotaPolicy,
   setGovernancePolicyEnabled,
 } from '@/api/policies';
 import { useResource } from '@/api/useResource';
@@ -28,18 +26,10 @@ import {
   validateRateLimitPolicyDraft,
   type RateLimitPolicyDraft,
 } from './RateLimitPolicyEditor';
-import {
-  createTokenQuotaPolicyDraft,
-  TokenQuotaPolicyEditor,
-  tokenQuotaPolicyPayload,
-  validateTokenQuotaPolicyDraft,
-  type TokenQuotaPolicyDraft,
-} from './TokenQuotaPolicyEditor';
 
 type PolicyEditorState =
-  | { type: 'rateLimit'; draft: RateLimitPolicyDraft }
-  | { type: 'ipRestriction'; draft: IPRestrictionPolicyDraft }
-  | { type: 'tokenQuota'; draft: TokenQuotaPolicyDraft };
+	| { type: 'rateLimit'; draft: RateLimitPolicyDraft }
+	| { type: 'ipRestriction'; draft: IPRestrictionPolicyDraft };
 
 export function PolicyPage() {
   const { canWriteConfiguration } = useAuth();
@@ -115,7 +105,7 @@ export function PolicyPage() {
   return (
     <PageFrame
       title="治理策略"
-      subtitle={`统一管理限流、IP 访问限制和 AI Token 配额（共 ${allPolicies.length} 条策略）`}
+		subtitle={`统一管理限流和 IP 访问限制（共 ${allPolicies.length} 条策略）`}
       actions={canWriteConfiguration ? (
         <div className="flex items-center gap-2">
           <button
@@ -132,13 +122,6 @@ export function PolicyPage() {
           >
             + IP 访问限制
           </button>
-          <button
-            type="button"
-            onClick={() => setEditor({ type: 'tokenQuota', draft: createTokenQuotaPolicyDraft() })}
-            className="px-3 py-1.5 text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 rounded-lg shadow-xs transition-colors cursor-pointer"
-          >
-            + AI Token 配额
-          </button>
         </div>
       ) : undefined}
     >
@@ -154,9 +137,7 @@ export function PolicyPage() {
               setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft(policy.raw) });
             } else if (policy.kind === 'IPRestrictionPolicy') {
               setEditor({ type: 'ipRestriction', draft: createIPRestrictionPolicyDraft(policy.raw) });
-            } else {
-              setEditor({ type: 'tokenQuota', draft: createTokenQuotaPolicyDraft(policy.raw) });
-            }
+			}
           }}
           onToggle={togglePolicyStatus}
           onDelete={(policy) => setDeleteCandidate(policy)}
@@ -178,21 +159,14 @@ export function PolicyPage() {
                 validation={validateRateLimitPolicyDraft(editor.draft)}
                 onChange={(draft) => setEditor({ type: 'rateLimit', draft })}
               />
-            ) : editor.type === 'ipRestriction' ? (
+			) : (
               <IPRestrictionPolicyEditor
                 draft={editor.draft}
                 targets={data.targets}
                 validation={validateIPRestrictionPolicyDraft(editor.draft)}
                 onChange={(draft) => setEditor({ type: 'ipRestriction', draft })}
               />
-            ) : (
-              <TokenQuotaPolicyEditor
-                draft={editor.draft}
-                targets={data.targets}
-                validation={validateTokenQuotaPolicyDraft(editor.draft)}
-                onChange={(draft) => setEditor({ type: 'tokenQuota', draft })}
-              />
-            )}
+			)}
 
             <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
               <button
@@ -251,24 +225,20 @@ function editorTypeTitle(type: PolicyEditorState['type']) {
   switch (type) {
     case 'rateLimit': return '限流策略';
     case 'ipRestriction': return 'IP 访问限制策略';
-    case 'tokenQuota': return 'AI Token 配额策略';
   }
 }
 
 function editorIsValid(editor: PolicyEditorState): boolean {
-  if (editor.type === 'rateLimit') return validateRateLimitPolicyDraft(editor.draft).valid;
-  if (editor.type === 'ipRestriction') return validateIPRestrictionPolicyDraft(editor.draft).valid;
-  return validateTokenQuotaPolicyDraft(editor.draft).valid;
+	if (editor.type === 'rateLimit') return validateRateLimitPolicyDraft(editor.draft).valid;
+	return validateIPRestrictionPolicyDraft(editor.draft).valid;
 }
 
 function savePolicyEditor(editor: PolicyEditorState): Promise<PolicyMutationResult> {
-  if (editor.type === 'rateLimit') return saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft));
-  if (editor.type === 'ipRestriction') return saveIPRestrictionPolicy(ipRestrictionPolicyPayload(editor.draft));
-  return saveTokenQuotaPolicy(tokenQuotaPolicyPayload(editor.draft));
+	if (editor.type === 'rateLimit') return saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft));
+	return saveIPRestrictionPolicy(ipRestrictionPolicyPayload(editor.draft));
 }
 
 function deletePolicyByKind(kind: GovernancePolicyKind, id: string, version?: string | number): Promise<PolicyMutationResult> {
-  if (kind === 'RateLimitPolicy') return deleteRateLimitPolicy(id, Number(version));
-  if (kind === 'IPRestrictionPolicy') return deleteIPRestrictionPolicy(id, Number(version));
-  return deleteTokenQuotaPolicy(id);
+	if (kind === 'RateLimitPolicy') return deleteRateLimitPolicy(id, Number(version));
+	return deleteIPRestrictionPolicy(id, Number(version));
 }

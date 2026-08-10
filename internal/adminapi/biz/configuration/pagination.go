@@ -18,7 +18,6 @@ const (
 	resourcePageCertificate
 	resourcePageRateLimitPolicy
 	resourcePageIPRestrictionPolicy
-	resourcePageTokenQuotaPolicy
 	resourcePageCount
 )
 
@@ -77,8 +76,6 @@ func (u *Usecase) listItemPage(
 		return mapPage(ctx, page, u.rateLimitPolicies.ListPage, rateLimitPolicyItem)
 	case resourcePageIPRestrictionPolicy:
 		return mapPage(ctx, page, u.ipRestrictionPolicies.ListPage, ipRestrictionPolicyItem)
-	case resourcePageTokenQuotaPolicy:
-		return mapPage(ctx, page, u.tokenQuotaPolicies.ListPage, tokenQuotaPolicyItem)
 	default:
 		return biz.PageResult[Item]{}, fmt.Errorf("%w: unknown resource page", biz.ErrInvalidCursor)
 	}

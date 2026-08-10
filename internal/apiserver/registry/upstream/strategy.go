@@ -153,12 +153,6 @@ func canonicalizeUpstreamSpec(spec *resource.UpstreamSpec) {
 			spec.HealthCheck.TimeoutSeconds = defaultHealthCheckTimeoutSeconds
 		}
 	}
-	if spec.Model != nil {
-		spec.Model.BasePath = strings.TrimSpace(spec.Model.BasePath)
-		for i := range spec.Model.Models {
-			spec.Model.Models[i] = strings.TrimSpace(spec.Model.Models[i])
-		}
-	}
 }
 
 func setUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {

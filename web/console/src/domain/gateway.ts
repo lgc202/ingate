@@ -1,23 +1,25 @@
-import type { HealthStatus, ResourceStatus } from './common';
+import type { ResourceStatus } from './common';
 
-export type GatewayProtocol = 'HTTP' | 'HTTPS';
+export type GatewayProtocol = 'GATEWAY_PROTOCOL_HTTP' | 'GATEWAY_PROTOCOL_HTTPS';
 
 export interface GatewayListener {
+  name: string;
   protocol: GatewayProtocol;
   port: number;
-  certificateID?: string;
+  hostname: string;
+  certificateID: string;
 }
 
 export interface Gateway {
   id: string;
-  version?: string;
   name: string;
-  description: string;
-  listeners: GatewayListener[];
-  hostnames: string[];
   enabled: boolean;
-  status: ResourceStatus;
+  listeners: GatewayListener[];
+  state: ResourceStatus['state'];
+  message: string;
+  version: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface GatewayListView {
@@ -26,26 +28,12 @@ export interface GatewayListView {
 
 export interface GatewayMutationPayload {
   id?: string;
-  version?: string;
+  version?: number;
   name: string;
-  description: string;
+  enabled: boolean;
   listeners: GatewayListener[];
-  hostnames: string[];
 }
 
-export interface GatewayMutationResult {
-  message: string;
-  changeId?: string;
-}
-
-export interface GatewayValidationItem {
-  label: string;
-  status: HealthStatus;
-  message: string;
-}
-
-export interface GatewayValidationReport {
-  valid: boolean;
-  summary: string;
-  items: GatewayValidationItem[];
+export function gatewayProtocolLabel(protocol: GatewayProtocol): string {
+  return protocol === 'GATEWAY_PROTOCOL_HTTPS' ? 'HTTPS' : 'HTTP';
 }

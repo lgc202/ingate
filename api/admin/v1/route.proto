@@ -108,19 +108,6 @@ message RouteRetry {
   }];
 }
 
-message ModelMapping {
-  string model = 1 [(buf.validate.field).string.min_len = 1];
-  string upstream_id = 2 [
-    json_name = "upstreamID",
-    (buf.validate.field).string.uuid = true
-  ];
-  string upstream_model = 3;
-}
-
-message ModelRouting {
-  repeated ModelMapping models = 1 [(buf.validate.field).repeated.min_items = 1];
-}
-
 message Route {
   string id = 1;
   string name = 2;
@@ -129,16 +116,15 @@ message Route {
   repeated string hostnames = 5;
   RouteMatch match = 6;
   repeated RouteUpstream upstreams = 7;
-  ModelRouting model_routing = 8;
-  HeaderModifier request_header_modifier = 9;
-  HeaderModifier response_header_modifier = 10;
-  RouteTimeout timeout = 11;
-  RouteRetry retry = 12;
-  ResourceState state = 13;
-  string message = 14;
-  int64 version = 15;
-  google.protobuf.Timestamp created_at = 16;
-  google.protobuf.Timestamp updated_at = 17;
+  HeaderModifier request_header_modifier = 8;
+  HeaderModifier response_header_modifier = 9;
+  RouteTimeout timeout = 10;
+  RouteRetry retry = 11;
+  ResourceState state = 12;
+  string message = 13;
+  int64 version = 14;
+  google.protobuf.Timestamp created_at = 15;
+  google.protobuf.Timestamp updated_at = 16;
 }
 
 message ListRoutesRequest {
@@ -167,12 +153,11 @@ message CreateRouteRequest {
   ];
   repeated string hostnames = 4;
   RouteMatch match = 5 [(buf.validate.field).required = true];
-  repeated RouteUpstream upstreams = 6;
-  ModelRouting model_routing = 7;
-  HeaderModifier request_header_modifier = 8;
-  HeaderModifier response_header_modifier = 9;
-  RouteTimeout timeout = 10;
-  RouteRetry retry = 11;
+  repeated RouteUpstream upstreams = 6 [(buf.validate.field).repeated.min_items = 1];
+  HeaderModifier request_header_modifier = 7;
+  HeaderModifier response_header_modifier = 8;
+  RouteTimeout timeout = 9;
+  RouteRetry retry = 10;
 }
 
 message UpdateRouteRequest {
@@ -189,12 +174,11 @@ message UpdateRouteRequest {
   ];
   repeated string hostnames = 6;
   RouteMatch match = 7 [(buf.validate.field).required = true];
-  repeated RouteUpstream upstreams = 8;
-  ModelRouting model_routing = 9;
-  HeaderModifier request_header_modifier = 10;
-  HeaderModifier response_header_modifier = 11;
-  RouteTimeout timeout = 12;
-  RouteRetry retry = 13;
+  repeated RouteUpstream upstreams = 8 [(buf.validate.field).repeated.min_items = 1];
+  HeaderModifier request_header_modifier = 9;
+  HeaderModifier response_header_modifier = 10;
+  RouteTimeout timeout = 11;
+  RouteRetry retry = 12;
 }
 
 message DeleteRouteRequest {

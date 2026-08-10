@@ -15,7 +15,6 @@ import (
 	"github.com/lgc202/go-kit/version"
 
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	"github.com/lgc202/ingate/internal/adminapi/data"
 
 	_ "go.uber.org/automaxprocs"
 )
@@ -30,7 +29,6 @@ type serviceInstanceID string
 func newApp(
 	logger *slog.Logger,
 	server *kratoshttp.Server,
-	accessKeySync *data.AccessKeyIndexSync,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -38,8 +36,7 @@ func newApp(
 		kratos.Name(serviceName),
 		kratos.Version(version.Get().String()),
 		kratos.Logger(logger),
-		kratos.Server(server, accessKeySync),
-		kratos.BeforeStart(accessKeySync.Reconcile),
+		kratos.Server(server),
 	)
 }
 

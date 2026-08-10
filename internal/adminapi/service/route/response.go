@@ -33,16 +33,6 @@ func routeFromResource(route *resource.Route) *adminv1.Route {
 			Weight:     uint32(upstream.Weight),
 		})
 	}
-	if route.Spec.ModelRouting != nil {
-		response.ModelRouting = &adminv1.ModelRouting{Models: make([]*adminv1.ModelMapping, 0, len(route.Spec.ModelRouting.Models))}
-		for _, model := range route.Spec.ModelRouting.Models {
-			response.ModelRouting.Models = append(response.ModelRouting.Models, &adminv1.ModelMapping{
-				Model:         model.Model,
-				UpstreamId:    model.UpstreamRef,
-				UpstreamModel: model.UpstreamModel,
-			})
-		}
-	}
 	if route.Spec.Timeout != nil {
 		response.Timeout = &adminv1.RouteTimeout{RequestMillis: uint32(route.Spec.Timeout.RequestMillis)}
 	}

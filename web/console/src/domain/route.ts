@@ -1,24 +1,50 @@
 import type { ResourceStatus } from './common';
-import type { ModelCatalogItem, ModelProvider, UpstreamProtocol } from './upstream';
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+export type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS';
+export type RoutePathMatchType = 'ROUTE_PATH_MATCH_PREFIX' | 'ROUTE_PATH_MATCH_EXACT';
+
+export interface HeaderMatch {
+  name: string;
+  value: string;
+}
+
+export interface HeaderValue {
+  name: string;
+  value: string;
+}
+
+export interface HeaderModifier {
+  set: HeaderValue[];
+  add: HeaderValue[];
+  remove: string[];
+}
+
+export interface WeightedUpstream {
+  upstreamID: string;
+  weight: number;
+}
 
 export interface RouteResource {
   id: string;
-  version?: string;
   name: string;
+  enabled: boolean;
   gatewayIDs: string[];
   hostnames: string[];
-  rules: RouteRule[];
-  enabled: boolean;
-  status: ResourceStatus;
+  match: {
+    path: { type: RoutePathMatchType; value: string };
+    methods: HttpMethod[];
+    headers: HeaderMatch[];
+  };
+  upstreams: WeightedUpstream[];
+  requestHeaderModifier?: HeaderModifier;
+  responseHeaderModifier?: HeaderModifier;
+  timeout?: { requestMillis: number };
+  retry?: { attempts: number; perTryTimeoutMillis: number };
+  state: ResourceStatus['state'];
+  message: string;
+  version: number;
   createdAt: string;
-}
-
-export interface RouteWorkspace {
-  routes: RouteResource[];
-  gateways: RouteGatewayOption[];
-  upstreams: UpstreamOption[];
+  updatedAt: string;
 }
 
 export interface RouteListView {
@@ -33,86 +59,25 @@ export interface RouteGatewayOption {
 export interface UpstreamOption {
   id: string;
   name: string;
-  type: string;
-  protocol: UpstreamProtocol;
-  provider?: ModelProvider;
-  models: ModelCatalogItem[];
-  endpoint?: string;
-  meta: string;
+  endpoint: string;
 }
 
-export interface RouteRule {
-  name: string;
-  pathPrefix: string;
-  methods: HttpMethod[];
-  headers: HeaderMatch[];
-  upstreams: WeightedUpstream[];
-  modelRouting?: ModelRouting;
-  requestHeaderModifier?: HeaderModifier;
-  responseHeaderModifier?: HeaderModifier;
-  timeout?: RouteTimeout;
-  retry?: RouteRetry;
-}
-
-export interface ModelRouting {
-  models: ModelRoute[];
-}
-
-export interface ModelRoute {
-  model: string;
-  upstreamID: string;
-  upstreamModel?: string;
-}
-
-export interface WeightedUpstream {
-  upstreamID: string;
-  weight: number;
-}
-
-export interface HeaderMatch {
-  name: string;
-  value: string;
-}
-
-export interface HeaderModifier {
-  set: HeaderValue[];
-  remove: string[];
-}
-
-export interface HeaderValue {
-  name: string;
-  value: string;
-}
-
-export interface RouteTimeout {
-  requestMillis: number;
-}
-
-export interface RouteRetry {
-  attempts: number;
-  perTryTimeoutMillis: number;
+export interface RouteWorkspace extends RouteListView {
+  gateways: RouteGatewayOption[];
+  upstreams: UpstreamOption[];
 }
 
 export interface RouteMutationPayload {
   id?: string;
-  version?: string;
+  version?: number;
   name: string;
+  enabled: boolean;
   gatewayIDs: string[];
   hostnames: string[];
-  enabled: boolean;
-  rules: RouteRulePayload[];
-}
-
-// RouteRulePayload 只在 Console API 边界保留 targets 字段名
-export interface RouteRulePayload extends Omit<RouteRule, 'upstreams'> {
-  targets?: WeightedUpstream[];
-}
-
-export interface RouteActionResult {
-  message: string;
-  changeId?: string;
-}
-
-export function isModelRoute(route: Pick<RouteResource, 'rules'>) {
-  return route.rules.some((rule) => Boolean(rule.modelRouting?.models.length));
+  match: RouteResource['match'];
+  upstreams: WeightedUpstream[];
+  requestHeaderModifier?: HeaderModifier;
+  responseHeaderModifier?: HeaderModifier;
+  timeout?: RouteResource['timeout'];
+  retry?: RouteResource['retry'];
 }

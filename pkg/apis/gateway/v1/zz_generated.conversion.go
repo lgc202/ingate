@@ -163,36 +163,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*ModelMapping)(nil), (*gateway.ModelMapping)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_ModelMapping_To_gateway_ModelMapping(a.(*ModelMapping), b.(*gateway.ModelMapping), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.ModelMapping)(nil), (*ModelMapping)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_ModelMapping_To_v1_ModelMapping(a.(*gateway.ModelMapping), b.(*ModelMapping), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*ModelRouting)(nil), (*gateway.ModelRouting)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_ModelRouting_To_gateway_ModelRouting(a.(*ModelRouting), b.(*gateway.ModelRouting), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.ModelRouting)(nil), (*ModelRouting)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_ModelRouting_To_v1_ModelRouting(a.(*gateway.ModelRouting), b.(*ModelRouting), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*ModelSpec)(nil), (*gateway.ModelSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_ModelSpec_To_gateway_ModelSpec(a.(*ModelSpec), b.(*gateway.ModelSpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.ModelSpec)(nil), (*ModelSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_ModelSpec_To_v1_ModelSpec(a.(*gateway.ModelSpec), b.(*ModelSpec), scope)
-	}); err != nil {
-		return err
-	}
 	if err := s.AddGeneratedConversionFunc((*PathMatch)(nil), (*gateway.PathMatch)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_PathMatch_To_gateway_PathMatch(a.(*PathMatch), b.(*gateway.PathMatch), scope)
 	}); err != nil {
@@ -350,66 +320,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.RouteTimeout)(nil), (*RouteTimeout)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_RouteTimeout_To_v1_RouteTimeout(a.(*gateway.RouteTimeout), b.(*RouteTimeout), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*TokenQuota)(nil), (*gateway.TokenQuota)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_TokenQuota_To_gateway_TokenQuota(a.(*TokenQuota), b.(*gateway.TokenQuota), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.TokenQuota)(nil), (*TokenQuota)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_TokenQuota_To_v1_TokenQuota(a.(*gateway.TokenQuota), b.(*TokenQuota), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*TokenQuotaPolicy)(nil), (*gateway.TokenQuotaPolicy)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_TokenQuotaPolicy_To_gateway_TokenQuotaPolicy(a.(*TokenQuotaPolicy), b.(*gateway.TokenQuotaPolicy), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.TokenQuotaPolicy)(nil), (*TokenQuotaPolicy)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_TokenQuotaPolicy_To_v1_TokenQuotaPolicy(a.(*gateway.TokenQuotaPolicy), b.(*TokenQuotaPolicy), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*TokenQuotaPolicyList)(nil), (*gateway.TokenQuotaPolicyList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_TokenQuotaPolicyList_To_gateway_TokenQuotaPolicyList(a.(*TokenQuotaPolicyList), b.(*gateway.TokenQuotaPolicyList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.TokenQuotaPolicyList)(nil), (*TokenQuotaPolicyList)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_TokenQuotaPolicyList_To_v1_TokenQuotaPolicyList(a.(*gateway.TokenQuotaPolicyList), b.(*TokenQuotaPolicyList), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*TokenQuotaPolicySpec)(nil), (*gateway.TokenQuotaPolicySpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_TokenQuotaPolicySpec_To_gateway_TokenQuotaPolicySpec(a.(*TokenQuotaPolicySpec), b.(*gateway.TokenQuotaPolicySpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.TokenQuotaPolicySpec)(nil), (*TokenQuotaPolicySpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_TokenQuotaPolicySpec_To_v1_TokenQuotaPolicySpec(a.(*gateway.TokenQuotaPolicySpec), b.(*TokenQuotaPolicySpec), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*TokenQuotaResponse)(nil), (*gateway.TokenQuotaResponse)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_TokenQuotaResponse_To_gateway_TokenQuotaResponse(a.(*TokenQuotaResponse), b.(*gateway.TokenQuotaResponse), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.TokenQuotaResponse)(nil), (*TokenQuotaResponse)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_TokenQuotaResponse_To_v1_TokenQuotaResponse(a.(*gateway.TokenQuotaResponse), b.(*TokenQuotaResponse), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*TokenQuotaSubject)(nil), (*gateway.TokenQuotaSubject)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_TokenQuotaSubject_To_gateway_TokenQuotaSubject(a.(*TokenQuotaSubject), b.(*gateway.TokenQuotaSubject), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.TokenQuotaSubject)(nil), (*TokenQuotaSubject)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_TokenQuotaSubject_To_v1_TokenQuotaSubject(a.(*gateway.TokenQuotaSubject), b.(*TokenQuotaSubject), scope)
 	}); err != nil {
 		return err
 	}
@@ -834,76 +744,6 @@ func Convert_gateway_Listener_To_v1_Listener(in *gateway.Listener, out *Listener
 	return autoConvert_gateway_Listener_To_v1_Listener(in, out, s)
 }
 
-func autoConvert_v1_ModelMapping_To_gateway_ModelMapping(in *ModelMapping, out *gateway.ModelMapping, s conversion.Scope) error {
-	out.Model = in.Model
-	out.UpstreamRef = in.UpstreamRef
-	out.UpstreamModel = in.UpstreamModel
-	return nil
-}
-
-// Convert_v1_ModelMapping_To_gateway_ModelMapping is an autogenerated conversion function.
-func Convert_v1_ModelMapping_To_gateway_ModelMapping(in *ModelMapping, out *gateway.ModelMapping, s conversion.Scope) error {
-	return autoConvert_v1_ModelMapping_To_gateway_ModelMapping(in, out, s)
-}
-
-func autoConvert_gateway_ModelMapping_To_v1_ModelMapping(in *gateway.ModelMapping, out *ModelMapping, s conversion.Scope) error {
-	out.Model = in.Model
-	out.UpstreamRef = in.UpstreamRef
-	out.UpstreamModel = in.UpstreamModel
-	return nil
-}
-
-// Convert_gateway_ModelMapping_To_v1_ModelMapping is an autogenerated conversion function.
-func Convert_gateway_ModelMapping_To_v1_ModelMapping(in *gateway.ModelMapping, out *ModelMapping, s conversion.Scope) error {
-	return autoConvert_gateway_ModelMapping_To_v1_ModelMapping(in, out, s)
-}
-
-func autoConvert_v1_ModelRouting_To_gateway_ModelRouting(in *ModelRouting, out *gateway.ModelRouting, s conversion.Scope) error {
-	out.Models = *(*[]gateway.ModelMapping)(unsafe.Pointer(&in.Models))
-	return nil
-}
-
-// Convert_v1_ModelRouting_To_gateway_ModelRouting is an autogenerated conversion function.
-func Convert_v1_ModelRouting_To_gateway_ModelRouting(in *ModelRouting, out *gateway.ModelRouting, s conversion.Scope) error {
-	return autoConvert_v1_ModelRouting_To_gateway_ModelRouting(in, out, s)
-}
-
-func autoConvert_gateway_ModelRouting_To_v1_ModelRouting(in *gateway.ModelRouting, out *ModelRouting, s conversion.Scope) error {
-	out.Models = *(*[]ModelMapping)(unsafe.Pointer(&in.Models))
-	return nil
-}
-
-// Convert_gateway_ModelRouting_To_v1_ModelRouting is an autogenerated conversion function.
-func Convert_gateway_ModelRouting_To_v1_ModelRouting(in *gateway.ModelRouting, out *ModelRouting, s conversion.Scope) error {
-	return autoConvert_gateway_ModelRouting_To_v1_ModelRouting(in, out, s)
-}
-
-func autoConvert_v1_ModelSpec_To_gateway_ModelSpec(in *ModelSpec, out *gateway.ModelSpec, s conversion.Scope) error {
-	out.Provider = gateway.ModelProvider(in.Provider)
-	out.BasePath = in.BasePath
-	out.Models = *(*[]string)(unsafe.Pointer(&in.Models))
-	out.APIKey = in.APIKey
-	return nil
-}
-
-// Convert_v1_ModelSpec_To_gateway_ModelSpec is an autogenerated conversion function.
-func Convert_v1_ModelSpec_To_gateway_ModelSpec(in *ModelSpec, out *gateway.ModelSpec, s conversion.Scope) error {
-	return autoConvert_v1_ModelSpec_To_gateway_ModelSpec(in, out, s)
-}
-
-func autoConvert_gateway_ModelSpec_To_v1_ModelSpec(in *gateway.ModelSpec, out *ModelSpec, s conversion.Scope) error {
-	out.Provider = ModelProvider(in.Provider)
-	out.BasePath = in.BasePath
-	out.Models = *(*[]string)(unsafe.Pointer(&in.Models))
-	out.APIKey = in.APIKey
-	return nil
-}
-
-// Convert_gateway_ModelSpec_To_v1_ModelSpec is an autogenerated conversion function.
-func Convert_gateway_ModelSpec_To_v1_ModelSpec(in *gateway.ModelSpec, out *ModelSpec, s conversion.Scope) error {
-	return autoConvert_gateway_ModelSpec_To_v1_ModelSpec(in, out, s)
-}
-
 func autoConvert_v1_PathMatch_To_gateway_PathMatch(in *PathMatch, out *gateway.PathMatch, s conversion.Scope) error {
 	out.Type = gateway.PathMatchType(in.Type)
 	out.Value = in.Value
@@ -1263,7 +1103,6 @@ func autoConvert_v1_RouteSpec_To_gateway_RouteSpec(in *RouteSpec, out *gateway.R
 		return err
 	}
 	out.UpstreamRefs = *(*[]gateway.UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
-	out.ModelRouting = (*gateway.ModelRouting)(unsafe.Pointer(in.ModelRouting))
 	out.RequestHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
 	out.ResponseHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
 	out.Timeout = (*gateway.RouteTimeout)(unsafe.Pointer(in.Timeout))
@@ -1285,7 +1124,6 @@ func autoConvert_gateway_RouteSpec_To_v1_RouteSpec(in *gateway.RouteSpec, out *R
 		return err
 	}
 	out.UpstreamRefs = *(*[]UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
-	out.ModelRouting = (*ModelRouting)(unsafe.Pointer(in.ModelRouting))
 	out.RequestHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
 	out.ResponseHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
 	out.Timeout = (*RouteTimeout)(unsafe.Pointer(in.Timeout))
@@ -1316,170 +1154,6 @@ func autoConvert_gateway_RouteTimeout_To_v1_RouteTimeout(in *gateway.RouteTimeou
 // Convert_gateway_RouteTimeout_To_v1_RouteTimeout is an autogenerated conversion function.
 func Convert_gateway_RouteTimeout_To_v1_RouteTimeout(in *gateway.RouteTimeout, out *RouteTimeout, s conversion.Scope) error {
 	return autoConvert_gateway_RouteTimeout_To_v1_RouteTimeout(in, out, s)
-}
-
-func autoConvert_v1_TokenQuota_To_gateway_TokenQuota(in *TokenQuota, out *gateway.TokenQuota, s conversion.Scope) error {
-	out.Tokens = in.Tokens
-	out.WindowSeconds = in.WindowSeconds
-	return nil
-}
-
-// Convert_v1_TokenQuota_To_gateway_TokenQuota is an autogenerated conversion function.
-func Convert_v1_TokenQuota_To_gateway_TokenQuota(in *TokenQuota, out *gateway.TokenQuota, s conversion.Scope) error {
-	return autoConvert_v1_TokenQuota_To_gateway_TokenQuota(in, out, s)
-}
-
-func autoConvert_gateway_TokenQuota_To_v1_TokenQuota(in *gateway.TokenQuota, out *TokenQuota, s conversion.Scope) error {
-	out.Tokens = in.Tokens
-	out.WindowSeconds = in.WindowSeconds
-	return nil
-}
-
-// Convert_gateway_TokenQuota_To_v1_TokenQuota is an autogenerated conversion function.
-func Convert_gateway_TokenQuota_To_v1_TokenQuota(in *gateway.TokenQuota, out *TokenQuota, s conversion.Scope) error {
-	return autoConvert_gateway_TokenQuota_To_v1_TokenQuota(in, out, s)
-}
-
-func autoConvert_v1_TokenQuotaPolicy_To_gateway_TokenQuotaPolicy(in *TokenQuotaPolicy, out *gateway.TokenQuotaPolicy, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_v1_TokenQuotaPolicySpec_To_gateway_TokenQuotaPolicySpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	if err := Convert_v1_PolicyStatus_To_gateway_PolicyStatus(&in.Status, &out.Status, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_v1_TokenQuotaPolicy_To_gateway_TokenQuotaPolicy is an autogenerated conversion function.
-func Convert_v1_TokenQuotaPolicy_To_gateway_TokenQuotaPolicy(in *TokenQuotaPolicy, out *gateway.TokenQuotaPolicy, s conversion.Scope) error {
-	return autoConvert_v1_TokenQuotaPolicy_To_gateway_TokenQuotaPolicy(in, out, s)
-}
-
-func autoConvert_gateway_TokenQuotaPolicy_To_v1_TokenQuotaPolicy(in *gateway.TokenQuotaPolicy, out *TokenQuotaPolicy, s conversion.Scope) error {
-	out.ObjectMeta = in.ObjectMeta
-	if err := Convert_gateway_TokenQuotaPolicySpec_To_v1_TokenQuotaPolicySpec(&in.Spec, &out.Spec, s); err != nil {
-		return err
-	}
-	if err := Convert_gateway_PolicyStatus_To_v1_PolicyStatus(&in.Status, &out.Status, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_gateway_TokenQuotaPolicy_To_v1_TokenQuotaPolicy is an autogenerated conversion function.
-func Convert_gateway_TokenQuotaPolicy_To_v1_TokenQuotaPolicy(in *gateway.TokenQuotaPolicy, out *TokenQuotaPolicy, s conversion.Scope) error {
-	return autoConvert_gateway_TokenQuotaPolicy_To_v1_TokenQuotaPolicy(in, out, s)
-}
-
-func autoConvert_v1_TokenQuotaPolicyList_To_gateway_TokenQuotaPolicyList(in *TokenQuotaPolicyList, out *gateway.TokenQuotaPolicyList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]gateway.TokenQuotaPolicy)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_v1_TokenQuotaPolicyList_To_gateway_TokenQuotaPolicyList is an autogenerated conversion function.
-func Convert_v1_TokenQuotaPolicyList_To_gateway_TokenQuotaPolicyList(in *TokenQuotaPolicyList, out *gateway.TokenQuotaPolicyList, s conversion.Scope) error {
-	return autoConvert_v1_TokenQuotaPolicyList_To_gateway_TokenQuotaPolicyList(in, out, s)
-}
-
-func autoConvert_gateway_TokenQuotaPolicyList_To_v1_TokenQuotaPolicyList(in *gateway.TokenQuotaPolicyList, out *TokenQuotaPolicyList, s conversion.Scope) error {
-	out.ListMeta = in.ListMeta
-	out.Items = *(*[]TokenQuotaPolicy)(unsafe.Pointer(&in.Items))
-	return nil
-}
-
-// Convert_gateway_TokenQuotaPolicyList_To_v1_TokenQuotaPolicyList is an autogenerated conversion function.
-func Convert_gateway_TokenQuotaPolicyList_To_v1_TokenQuotaPolicyList(in *gateway.TokenQuotaPolicyList, out *TokenQuotaPolicyList, s conversion.Scope) error {
-	return autoConvert_gateway_TokenQuotaPolicyList_To_v1_TokenQuotaPolicyList(in, out, s)
-}
-
-func autoConvert_v1_TokenQuotaPolicySpec_To_gateway_TokenQuotaPolicySpec(in *TokenQuotaPolicySpec, out *gateway.TokenQuotaPolicySpec, s conversion.Scope) error {
-	out.DisplayName = in.DisplayName
-	out.Description = in.Description
-	out.Enabled = in.Enabled
-	out.TargetRefs = *(*[]gateway.PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
-	if err := Convert_v1_TokenQuotaSubject_To_gateway_TokenQuotaSubject(&in.Subject, &out.Subject, s); err != nil {
-		return err
-	}
-	if err := Convert_v1_TokenQuota_To_gateway_TokenQuota(&in.Quota, &out.Quota, s); err != nil {
-		return err
-	}
-	out.FailurePolicy = gateway.TokenQuotaFailurePolicy(in.FailurePolicy)
-	if err := Convert_v1_TokenQuotaResponse_To_gateway_TokenQuotaResponse(&in.Response, &out.Response, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_v1_TokenQuotaPolicySpec_To_gateway_TokenQuotaPolicySpec is an autogenerated conversion function.
-func Convert_v1_TokenQuotaPolicySpec_To_gateway_TokenQuotaPolicySpec(in *TokenQuotaPolicySpec, out *gateway.TokenQuotaPolicySpec, s conversion.Scope) error {
-	return autoConvert_v1_TokenQuotaPolicySpec_To_gateway_TokenQuotaPolicySpec(in, out, s)
-}
-
-func autoConvert_gateway_TokenQuotaPolicySpec_To_v1_TokenQuotaPolicySpec(in *gateway.TokenQuotaPolicySpec, out *TokenQuotaPolicySpec, s conversion.Scope) error {
-	out.DisplayName = in.DisplayName
-	out.Description = in.Description
-	out.Enabled = in.Enabled
-	out.TargetRefs = *(*[]PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
-	if err := Convert_gateway_TokenQuotaSubject_To_v1_TokenQuotaSubject(&in.Subject, &out.Subject, s); err != nil {
-		return err
-	}
-	if err := Convert_gateway_TokenQuota_To_v1_TokenQuota(&in.Quota, &out.Quota, s); err != nil {
-		return err
-	}
-	out.FailurePolicy = TokenQuotaFailurePolicy(in.FailurePolicy)
-	if err := Convert_gateway_TokenQuotaResponse_To_v1_TokenQuotaResponse(&in.Response, &out.Response, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_gateway_TokenQuotaPolicySpec_To_v1_TokenQuotaPolicySpec is an autogenerated conversion function.
-func Convert_gateway_TokenQuotaPolicySpec_To_v1_TokenQuotaPolicySpec(in *gateway.TokenQuotaPolicySpec, out *TokenQuotaPolicySpec, s conversion.Scope) error {
-	return autoConvert_gateway_TokenQuotaPolicySpec_To_v1_TokenQuotaPolicySpec(in, out, s)
-}
-
-func autoConvert_v1_TokenQuotaResponse_To_gateway_TokenQuotaResponse(in *TokenQuotaResponse, out *gateway.TokenQuotaResponse, s conversion.Scope) error {
-	out.Message = in.Message
-	return nil
-}
-
-// Convert_v1_TokenQuotaResponse_To_gateway_TokenQuotaResponse is an autogenerated conversion function.
-func Convert_v1_TokenQuotaResponse_To_gateway_TokenQuotaResponse(in *TokenQuotaResponse, out *gateway.TokenQuotaResponse, s conversion.Scope) error {
-	return autoConvert_v1_TokenQuotaResponse_To_gateway_TokenQuotaResponse(in, out, s)
-}
-
-func autoConvert_gateway_TokenQuotaResponse_To_v1_TokenQuotaResponse(in *gateway.TokenQuotaResponse, out *TokenQuotaResponse, s conversion.Scope) error {
-	out.Message = in.Message
-	return nil
-}
-
-// Convert_gateway_TokenQuotaResponse_To_v1_TokenQuotaResponse is an autogenerated conversion function.
-func Convert_gateway_TokenQuotaResponse_To_v1_TokenQuotaResponse(in *gateway.TokenQuotaResponse, out *TokenQuotaResponse, s conversion.Scope) error {
-	return autoConvert_gateway_TokenQuotaResponse_To_v1_TokenQuotaResponse(in, out, s)
-}
-
-func autoConvert_v1_TokenQuotaSubject_To_gateway_TokenQuotaSubject(in *TokenQuotaSubject, out *gateway.TokenQuotaSubject, s conversion.Scope) error {
-	out.Type = gateway.TokenQuotaSubjectType(in.Type)
-	out.HeaderName = in.HeaderName
-	return nil
-}
-
-// Convert_v1_TokenQuotaSubject_To_gateway_TokenQuotaSubject is an autogenerated conversion function.
-func Convert_v1_TokenQuotaSubject_To_gateway_TokenQuotaSubject(in *TokenQuotaSubject, out *gateway.TokenQuotaSubject, s conversion.Scope) error {
-	return autoConvert_v1_TokenQuotaSubject_To_gateway_TokenQuotaSubject(in, out, s)
-}
-
-func autoConvert_gateway_TokenQuotaSubject_To_v1_TokenQuotaSubject(in *gateway.TokenQuotaSubject, out *TokenQuotaSubject, s conversion.Scope) error {
-	out.Type = TokenQuotaSubjectType(in.Type)
-	out.HeaderName = in.HeaderName
-	return nil
-}
-
-// Convert_gateway_TokenQuotaSubject_To_v1_TokenQuotaSubject is an autogenerated conversion function.
-func Convert_gateway_TokenQuotaSubject_To_v1_TokenQuotaSubject(in *gateway.TokenQuotaSubject, out *TokenQuotaSubject, s conversion.Scope) error {
-	return autoConvert_gateway_TokenQuotaSubject_To_v1_TokenQuotaSubject(in, out, s)
 }
 
 func autoConvert_v1_Upstream_To_gateway_Upstream(in *Upstream, out *gateway.Upstream, s conversion.Scope) error {
@@ -1584,12 +1258,10 @@ func Convert_gateway_UpstreamRef_To_v1_UpstreamRef(in *gateway.UpstreamRef, out 
 
 func autoConvert_v1_UpstreamSpec_To_gateway_UpstreamSpec(in *UpstreamSpec, out *gateway.UpstreamSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
-	out.Type = gateway.UpstreamType(in.Type)
 	out.Endpoints = *(*[]gateway.Endpoint)(unsafe.Pointer(&in.Endpoints))
 	out.TLS = (*gateway.UpstreamTLS)(unsafe.Pointer(in.TLS))
 	out.LoadBalancing = gateway.LoadBalancingPolicy(in.LoadBalancing)
 	out.HealthCheck = (*gateway.UpstreamHealthCheck)(unsafe.Pointer(in.HealthCheck))
-	out.Model = (*gateway.ModelSpec)(unsafe.Pointer(in.Model))
 	return nil
 }
 
@@ -1600,12 +1272,10 @@ func Convert_v1_UpstreamSpec_To_gateway_UpstreamSpec(in *UpstreamSpec, out *gate
 
 func autoConvert_gateway_UpstreamSpec_To_v1_UpstreamSpec(in *gateway.UpstreamSpec, out *UpstreamSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
-	out.Type = UpstreamType(in.Type)
 	out.Endpoints = *(*[]Endpoint)(unsafe.Pointer(&in.Endpoints))
 	out.TLS = (*UpstreamTLS)(unsafe.Pointer(in.TLS))
 	out.LoadBalancing = LoadBalancingPolicy(in.LoadBalancing)
 	out.HealthCheck = (*UpstreamHealthCheck)(unsafe.Pointer(in.HealthCheck))
-	out.Model = (*ModelSpec)(unsafe.Pointer(in.Model))
 	return nil
 }
 

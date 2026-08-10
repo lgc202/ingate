@@ -20,8 +20,6 @@ const (
 	maxRetryAttempts          = 5
 	minPerTryTimeoutMillis    = 100
 	maxPerTryTimeoutMillis    = 60000
-	openAIChatCompletionsPath = "/v1/chat/completions"
-	aiClusterHeader           = "x-ingate-ai-cluster-v1"
 )
 
 // validateRoute 只校验资源自身结构，Gateway 和 Upstream 引用由 Controller 最终裁决
@@ -40,10 +38,6 @@ func validateRoute(route *resource.Route) field.ErrorList {
 	errs = append(errs, validateHeaderModifier(spec.ResponseHeaderModifier, specPath.Child("responseHeaderModifier"))...)
 	errs = append(errs, validateForwarding(spec, specPath)...)
 	errs = append(errs, validateTimeoutAndRetry(spec, specPath)...)
-
-	if spec.ModelRouting != nil {
-		errs = append(errs, validateModelRouting(spec, specPath)...)
-	}
 	return errs
 }
 
@@ -132,11 +126,8 @@ func validateRouteMatch(match resource.RouteMatch, path *field.Path) field.Error
 
 func validateForwarding(spec resource.RouteSpec, path *field.Path) field.ErrorList {
 	errs := field.ErrorList{}
-	if len(spec.UpstreamRefs) > 0 && spec.ModelRouting != nil {
-		return append(errs, field.Forbidden(path.Child("modelRouting"), "modelRouting and upstreamRefs cannot be configured together"))
-	}
-	if len(spec.UpstreamRefs) == 0 && spec.ModelRouting == nil {
-		return append(errs, field.Required(path.Child("upstreamRefs"), "upstreamRefs or modelRouting is required"))
+	if len(spec.UpstreamRefs) == 0 {
+		return append(errs, field.Required(path.Child("upstreamRefs"), "at least one upstreamRef is required"))
 	}
 
 	seen := make(map[string]struct{}, len(spec.UpstreamRefs))
@@ -176,48 +167,6 @@ func validateTimeoutAndRetry(spec resource.RouteSpec, path *field.Path) field.Er
 	}
 	if spec.Retry.PerTryTimeoutMillis > requestTimeout {
 		errs = append(errs, field.Invalid(path.Child("retry").Child("perTryTimeoutMillis"), spec.Retry.PerTryTimeoutMillis, "retry.perTryTimeoutMillis must not exceed timeout.requestMillis"))
-	}
-	return errs
-}
-
-// validateModelRouting 固定 OpenAI-compatible 入口，并禁止用户覆盖 Ingate 内部选路信息
-func validateModelRouting(spec resource.RouteSpec, path *field.Path) field.ErrorList {
-	modelPath := path.Child("modelRouting")
-	errs := field.ErrorList{}
-	if spec.Match.Path.Type != resource.PathMatchExact || spec.Match.Path.Value != openAIChatCompletionsPath {
-		errs = append(errs, field.Invalid(path.Child("match").Child("path"), spec.Match.Path, "model routing requires exact path /v1/chat/completions"))
-	}
-	if len(spec.Match.Methods) != 1 || spec.Match.Methods[0] != http.MethodPost {
-		errs = append(errs, field.Invalid(path.Child("match").Child("methods"), spec.Match.Methods, "model routing requires POST as the only method"))
-	}
-	if spec.Retry != nil {
-		errs = append(errs, field.Forbidden(path.Child("retry"), "retry is not supported by model routing"))
-	}
-	if len(spec.ModelRouting.Models) == 0 {
-		errs = append(errs, field.Required(modelPath.Child("models"), "at least one model mapping is required"))
-	}
-
-	models := make(map[string]struct{}, len(spec.ModelRouting.Models))
-	for i, model := range spec.ModelRouting.Models {
-		mappingPath := modelPath.Child("models").Index(i)
-		if model.Model == "" {
-			errs = append(errs, field.Required(mappingPath.Child("model"), "model is required"))
-		} else if _, exists := models[model.Model]; exists {
-			errs = append(errs, field.Duplicate(mappingPath.Child("model"), model.Model))
-		} else {
-			models[model.Model] = struct{}{}
-		}
-		if model.UpstreamRef == "" {
-			errs = append(errs, field.Required(mappingPath.Child("upstreamRef"), "upstreamRef is required"))
-		}
-	}
-	for i, header := range spec.Match.Headers {
-		if strings.EqualFold(header.Name, aiClusterHeader) {
-			errs = append(errs, field.Forbidden(path.Child("match").Child("headers").Index(i), "internal AI routing headers are managed by Ingate"))
-		}
-	}
-	if containsManagedHeader(spec.RequestHeaderModifier) {
-		errs = append(errs, field.Forbidden(path.Child("requestHeaderModifier"), "AI request authentication and body framing headers are managed by Ingate"))
 	}
 	return errs
 }
@@ -266,38 +215,6 @@ func validateHeaderValues(values []resource.HeaderValue, path *field.Path, seen 
 		}
 	}
 	return errs
-}
-
-func containsManagedHeader(modifier *resource.HeaderModifier) bool {
-	if modifier == nil {
-		return false
-	}
-	for _, header := range modifier.Set {
-		if isAIManagedRequestHeader(header.Name) {
-			return true
-		}
-	}
-	for _, header := range modifier.Add {
-		if isAIManagedRequestHeader(header.Name) {
-			return true
-		}
-	}
-	for _, name := range modifier.Remove {
-		if isAIManagedRequestHeader(name) {
-			return true
-		}
-	}
-	return false
-}
-
-func isAIManagedRequestHeader(name string) bool {
-	switch strings.ToLower(name) {
-	case ":authority", ":path", "accept-encoding", "anthropic-version", "authorization",
-		"content-encoding", "content-length", "content-type", aiClusterHeader, "x-api-key", "x-goog-api-key":
-		return true
-	default:
-		return false
-	}
 }
 
 func validPath(value string) bool {

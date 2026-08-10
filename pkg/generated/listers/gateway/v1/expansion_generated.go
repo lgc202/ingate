@@ -24,10 +24,6 @@ type RateLimitPolicyListerExpansion interface{}
 // RouteLister.
 type RouteListerExpansion interface{}
 
-// TokenQuotaPolicyListerExpansion allows custom methods to be added to
-// TokenQuotaPolicyLister.
-type TokenQuotaPolicyListerExpansion interface{}
-
 // UpstreamListerExpansion allows custom methods to be added to
 // UpstreamLister.
 type UpstreamListerExpansion interface{}

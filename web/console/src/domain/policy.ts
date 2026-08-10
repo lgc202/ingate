@@ -1,10 +1,8 @@
 import type { ResourceState, ResourceStatus } from './common';
 
-export type GovernancePolicyKind = 'RateLimitPolicy' | 'IPRestrictionPolicy' | 'TokenQuotaPolicy';
+export type GovernancePolicyKind = 'RateLimitPolicy' | 'IPRestrictionPolicy';
 export type PolicyTargetKind = 'Gateway' | 'Route';
 export type RateLimitSubjectType = 'Shared' | 'IP' | 'Header';
-export type TokenQuotaSubjectType = 'Shared' | 'IP' | 'Header';
-export type TokenQuotaFailurePolicy = 'FailOpen' | 'FailClose';
 
 export interface PolicyTargetRef {
   kind: PolicyTargetKind;
@@ -54,40 +52,10 @@ export interface IPRestrictionPolicy {
   updatedAt?: string;
 }
 
-export interface TokenQuotaPolicy {
-  id: string;
-  version: string;
-  name: string;
-  description?: string;
-  enabled: boolean;
-  targets: PolicyTargetRef[];
-  subject: TokenQuotaSubject;
-  quota: TokenQuota;
-  failurePolicy: TokenQuotaFailurePolicy;
-  response: TokenQuotaResponse;
-  status: ResourceStatus;
-  createdAt?: string;
-}
-
-export interface TokenQuotaSubject {
-  type: TokenQuotaSubjectType;
-  headerName?: string;
-}
-
-export interface TokenQuota {
-  tokens: number;
-  windowSeconds: number;
-}
-
-export interface TokenQuotaResponse {
-  message: string;
-}
-
 export interface PolicyTargetOption {
   id: string;
   name: string;
   kind: PolicyTargetKind;
-  supportsTokenQuota: boolean;
 }
 
 interface GovernancePolicyBase {
@@ -105,14 +73,12 @@ interface GovernancePolicyBase {
 
 export type GovernancePolicy =
   | GovernancePolicyBase & { kind: 'RateLimitPolicy'; raw: RateLimitPolicy }
-  | GovernancePolicyBase & { kind: 'IPRestrictionPolicy'; raw: IPRestrictionPolicy }
-  | GovernancePolicyBase & { kind: 'TokenQuotaPolicy'; raw: TokenQuotaPolicy };
+	| GovernancePolicyBase & { kind: 'IPRestrictionPolicy'; raw: IPRestrictionPolicy };
 
 export interface PolicyWorkspace {
   policies: GovernancePolicy[];
   rateLimitPolicies: RateLimitPolicy[];
   ipRestrictionPolicies: IPRestrictionPolicy[];
-  tokenQuotaPolicies: TokenQuotaPolicy[];
   targets: PolicyTargetOption[];
 }
 
@@ -136,17 +102,6 @@ interface IPRestrictionPolicyConfigPayload {
   deny: string[];
 }
 
-interface TokenQuotaPolicyConfigPayload {
-  name: string;
-  description?: string;
-  enabled: boolean;
-  targets: PolicyTargetPayload[];
-  subject: TokenQuotaSubject;
-  quota: TokenQuota;
-  failurePolicy: TokenQuotaFailurePolicy;
-  response: TokenQuotaResponse;
-}
-
 type CreatePolicyIdentity = { id?: never; version?: never };
 type VersionedPolicyIdentity<T extends string | number> = { id: string; version: T };
 
@@ -154,13 +109,11 @@ export type RateLimitPolicyPayload = RateLimitPolicyConfigPayload & (CreatePolic
 export type IPRestrictionPolicyPayload =
   | IPRestrictionPolicyConfigPayload & CreatePolicyIdentity
   | IPRestrictionPolicyConfigPayload & { enabled: boolean } & VersionedPolicyIdentity<number>;
-export type TokenQuotaPolicyPayload = TokenQuotaPolicyConfigPayload & (CreatePolicyIdentity | VersionedPolicyIdentity<string>);
 
 export function policyKindLabel(kind: GovernancePolicyKind) {
   const labels: Record<GovernancePolicyKind, string> = {
     RateLimitPolicy: '限流',
     IPRestrictionPolicy: 'IP 访问限制',
-    TokenQuotaPolicy: 'Token 配额',
   };
   return labels[kind];
 }

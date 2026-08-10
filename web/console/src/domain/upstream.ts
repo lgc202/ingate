@@ -1,125 +1,40 @@
 import type { ResourceStatus } from './common';
 
-export type UpstreamType = 'application' | 'model' | 'agent' | 'mcp';
-export type UpstreamProtocol = 'HTTP' | 'OpenAI' | 'Anthropic' | 'Gemini';
-export type UpstreamLoadBalancePolicy = 'round_robin' | 'least_request' | 'random';
-export type ModelProvider = 'openai' | 'deepseek' | 'qwen' | 'anthropic' | 'gemini' | 'custom';
+export type UpstreamLoadBalancing = 'LOAD_BALANCING_POLICY_ROUND_ROBIN' | 'LOAD_BALANCING_POLICY_LEAST_REQUEST';
 
-export interface ModelProviderDefinition {
-  value: ModelProvider;
-  label: string;
-  description: string;
-  monogram: string;
-  protocol: Exclude<UpstreamProtocol, 'HTTP'>;
-  defaultBaseURL: string;
-}
-
-export const upstreamTypeOptions: { value: UpstreamType; label: string }[] = [
-  { value: 'application', label: '应用服务' },
-  { value: 'model', label: '大模型' },
-  { value: 'agent', label: 'Agent' },
-  { value: 'mcp', label: 'MCP' },
+export const upstreamLoadBalancingOptions: Array<{ value: UpstreamLoadBalancing; label: string }> = [
+  { value: 'LOAD_BALANCING_POLICY_ROUND_ROBIN', label: '轮询' },
+  { value: 'LOAD_BALANCING_POLICY_LEAST_REQUEST', label: '最少请求' },
 ];
 
-export const upstreamLoadBalancePolicyOptions: { value: UpstreamLoadBalancePolicy; label: string }[] = [
-  { value: 'round_robin', label: '轮询' },
-  { value: 'least_request', label: '最少请求' },
-  { value: 'random', label: '随机' },
-];
-
-export const upstreamProtocolOptions: { value: UpstreamProtocol; label: string }[] = [
-  { value: 'HTTP', label: 'HTTP' },
-  { value: 'OpenAI', label: 'OpenAI 兼容' },
-  { value: 'Anthropic', label: 'Anthropic 原生' },
-  { value: 'Gemini', label: 'Gemini 原生' },
-];
-
-export const modelProviderDefinitions: ModelProviderDefinition[] = [
-  {
-    value: 'openai',
-    label: 'OpenAI',
-    description: '官方接口',
-    monogram: 'O',
-    protocol: 'OpenAI',
-    defaultBaseURL: 'https://api.openai.com/v1',
-  },
-  {
-    value: 'deepseek',
-    label: 'DeepSeek',
-    description: 'OpenAI 兼容',
-    monogram: 'D',
-    protocol: 'OpenAI',
-    defaultBaseURL: 'https://api.deepseek.com/v1',
-  },
-  {
-    value: 'qwen',
-    label: '通义千问',
-    description: '兼容模式',
-    monogram: 'Q',
-    protocol: 'OpenAI',
-    defaultBaseURL: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-  },
-  {
-    value: 'anthropic',
-    label: 'Anthropic',
-    description: '原生协议',
-    monogram: 'A',
-    protocol: 'Anthropic',
-    defaultBaseURL: 'https://api.anthropic.com/v1',
-  },
-  {
-    value: 'gemini',
-    label: 'Gemini',
-    description: '原生协议',
-    monogram: 'G',
-    protocol: 'Gemini',
-    defaultBaseURL: 'https://generativelanguage.googleapis.com/v1beta',
-  },
-  {
-    value: 'custom',
-    label: '自定义兼容',
-    description: 'Ollama / vLLM 等',
-    monogram: '+',
-    protocol: 'OpenAI',
-    defaultBaseURL: '',
-  },
-];
-
-export function upstreamTypeLabel(type: UpstreamType | string): string {
-  return upstreamTypeOptions.find((option) => option.value === type)?.label ?? type;
+export interface UpstreamEndpoint {
+  address: string;
+  port: number;
+  weight: number;
 }
 
-export function upstreamLoadBalancePolicyLabel(policy: UpstreamLoadBalancePolicy | string): string {
-  return upstreamLoadBalancePolicyOptions.find((option) => option.value === policy)?.label ?? policy;
+export interface UpstreamTLS {
+  serverName: string;
 }
 
-export function upstreamProtocolLabel(protocol: UpstreamProtocol | string): string {
-  return upstreamProtocolOptions.find((option) => option.value === protocol)?.label ?? protocol;
-}
-
-export function modelProviderDefinition(provider: ModelProvider | string): ModelProviderDefinition {
-  return modelProviderDefinitions.find((item) => item.value === provider)
-    ?? modelProviderDefinitions.find((item) => item.value === 'custom')!;
-}
-
-export function modelProviderLabel(provider: ModelProvider | string): string {
-  return modelProviderDefinition(provider).label;
+export interface UpstreamHealthCheck {
+  path: string;
+  intervalSeconds: number;
+  timeoutSeconds: number;
 }
 
 export interface Upstream {
   id: string;
-  version?: string;
   name: string;
-  type: UpstreamType;
-  protocol: UpstreamProtocol;
-  model?: ModelServiceConfig;
-  tls?: UpstreamTLS;
-  apiKeyConfigured: boolean;
   endpoints: UpstreamEndpoint[];
-  loadBalancePolicy: UpstreamLoadBalancePolicy;
+  tls?: UpstreamTLS;
+  loadBalancing: UpstreamLoadBalancing;
   healthCheck?: UpstreamHealthCheck;
-  status: ResourceStatus;
+  state: ResourceStatus['state'];
+  message: string;
+  version: number;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface UpstreamList {
@@ -128,55 +43,14 @@ export interface UpstreamList {
 
 export interface UpstreamMutationPayload {
   id?: string;
-  version?: string;
+  version?: number;
   name: string;
-  type: UpstreamType;
-  protocol: UpstreamProtocol;
-  model?: ModelServiceConfig;
-  tls?: UpstreamTLS;
-  apiKey?: UpstreamAPIKey;
-  removeAPIKey?: boolean;
   endpoints: UpstreamEndpoint[];
-  loadBalancePolicy: UpstreamLoadBalancePolicy;
+  tls?: UpstreamTLS;
+  loadBalancing: UpstreamLoadBalancing;
   healthCheck?: UpstreamHealthCheck;
 }
 
-export interface UpstreamAPIKey {
-  value: string;
-}
-
-export interface ModelServiceConfig {
-  provider: ModelProvider;
-  apiBasePath: string;
-  models: ModelCatalogItem[];
-}
-
-export interface ModelCatalogItem {
-  name: string;
-  displayName: string;
-  enabled: boolean;
-}
-
-export interface UpstreamEndpoint {
-  id: string;
-  address: string;
-  port: number;
-  weight: number;
-  enabled: boolean;
-}
-
-export interface UpstreamTLS {
-  serverName: string;
-}
-
-export interface UpstreamHealthCheck {
-  enabled: boolean;
-  path?: string;
-  intervalSeconds?: number;
-  timeoutSeconds?: number;
-}
-
-export interface UpstreamMutationResult {
-  message: string;
-  changeId?: string;
+export function upstreamLoadBalancingLabel(value: UpstreamLoadBalancing): string {
+  return upstreamLoadBalancingOptions.find((option) => option.value === value)?.label ?? value;
 }

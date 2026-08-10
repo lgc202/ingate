@@ -59,35 +59,3 @@ func buildHeaderValues(inputs []*adminv1.HeaderValue, seen map[string]struct{}) 
 	}
 	return values, nil
 }
-
-func containsManagedHeader(modifier *resource.HeaderModifier) bool {
-	if modifier == nil {
-		return false
-	}
-	for _, header := range modifier.Set {
-		if isAIManagedRequestHeader(header.Name) {
-			return true
-		}
-	}
-	for _, header := range modifier.Add {
-		if isAIManagedRequestHeader(header.Name) {
-			return true
-		}
-	}
-	for _, name := range modifier.Remove {
-		if isAIManagedRequestHeader(name) {
-			return true
-		}
-	}
-	return false
-}
-
-func isAIManagedRequestHeader(name string) bool {
-	switch name {
-	case ":authority", ":path", "accept-encoding", "anthropic-version", "authorization",
-		"content-encoding", "content-length", "content-type", aiClusterHeader, "x-api-key", "x-goog-api-key":
-		return true
-	default:
-		return false
-	}
-}

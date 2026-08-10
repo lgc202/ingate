@@ -8,7 +8,6 @@ import { useAuth } from '@/auth/AuthContext';
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
   const { enabled: authenticationEnabled, principal, signOut } = useAuth();
-  const navigation = primaryNav.filter((item) => item.key !== 'access-keys' || principal?.role === 'admin');
 
   return (
     <div className={`h-screen overflow-hidden grid transition-all duration-200 ${collapsed ? 'grid-cols-[64px_1fr]' : 'grid-cols-[220px_1fr]'}`}>
@@ -21,7 +20,7 @@ export function AppShell() {
               {!collapsed && (
                 <div className="truncate">
                   <div className="text-sm font-semibold text-white tracking-tight leading-none">Ingate</div>
-                  <span className="text-[10px] font-mono text-slate-400">API 与 AI 网关</span>
+                  <span className="text-[10px] font-mono text-slate-400">API 网关</span>
                 </div>
               )}
             </div>
@@ -43,7 +42,7 @@ export function AppShell() {
 
           {/* Navigation */}
           <nav className="p-2 space-y-1" aria-label="主导航">
-            {navigation.map((item) => (
+            {primaryNav.map((item) => (
               <NavLink
                 key={item.key}
                 to={item.to}

@@ -4,17 +4,15 @@ import (
 	"net"
 	"net/netip"
 	"net/url"
-	"path"
 	"strconv"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	"github.com/lgc202/ingate/internal/pkg/httpheader"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
-// validateUpstream 校验一个网络目标的分类、连接配置和端点集合是否自洽
+// validateUpstream 校验 HTTP 上游的连接配置和端点集合是否自洽
 func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 	specPath := field.NewPath("spec")
 	spec := upstream.Spec
@@ -23,28 +21,11 @@ func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 	if spec.DisplayName == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
-	if !validUpstreamType(spec.Type) {
-		errs = append(errs, field.NotSupported(specPath.Child("type"), spec.Type, []string{
-			string(resource.UpstreamTypeApplication),
-			string(resource.UpstreamTypeModel),
-			string(resource.UpstreamTypeAgent),
-			string(resource.UpstreamTypeMCP),
-		}))
-	}
 	if !validLoadBalancing(spec.LoadBalancing) {
 		errs = append(errs, field.NotSupported(specPath.Child("loadBalancing"), spec.LoadBalancing, []string{
 			string(resource.LoadBalancingRoundRobin),
 			string(resource.LoadBalancingLeastRequest),
 		}))
-	}
-	if spec.Type == resource.UpstreamTypeModel {
-		if spec.Model == nil {
-			errs = append(errs, field.Required(specPath.Child("model"), "model is required for model upstreams"))
-		} else {
-			errs = append(errs, validateModelSpec(spec.Model, specPath.Child("model"), spec.TLS != nil)...)
-		}
-	} else if spec.Model != nil {
-		errs = append(errs, field.Forbidden(specPath.Child("model"), "model is only supported by model upstreams"))
 	}
 	if spec.TLS != nil && !validServerName(spec.TLS.ServerName) {
 		errs = append(errs, field.Invalid(
@@ -103,56 +84,6 @@ func validateHealthCheck(healthCheck *resource.UpstreamHealthCheck, healthCheckP
 	return errs
 }
 
-func validateModelSpec(model *resource.ModelSpec, modelPath *field.Path, tlsEnabled bool) field.ErrorList {
-	errs := field.ErrorList{}
-	if _, ok := model.Provider.Protocol(); !ok {
-		errs = append(errs, field.NotSupported(modelPath.Child("provider"), model.Provider, []string{
-			string(resource.ModelProviderOpenAI),
-			string(resource.ModelProviderDeepSeek),
-			string(resource.ModelProviderQwen),
-			string(resource.ModelProviderAnthropic),
-			string(resource.ModelProviderGemini),
-			string(resource.ModelProviderCustom),
-		}))
-	}
-	if !validBasePath(model.BasePath) {
-		errs = append(errs, field.Invalid(modelPath.Child("basePath"), model.BasePath, "basePath must be a normalized absolute path without query, fragment, or trailing slash"))
-	}
-	if len(model.Models) == 0 {
-		errs = append(errs, field.Required(modelPath.Child("models"), "at least one model is required"))
-	} else {
-		seen := make(map[string]struct{}, len(model.Models))
-		for i, modelName := range model.Models {
-			namePath := modelPath.Child("models").Index(i)
-			if modelName == "" {
-				errs = append(errs, field.Required(namePath, "model name is required"))
-			} else if _, exists := seen[modelName]; exists {
-				errs = append(errs, field.Duplicate(namePath, modelName))
-			} else {
-				seen[modelName] = struct{}{}
-			}
-		}
-	}
-	if model.APIKey != "" {
-		if !httpheader.ValidValue(model.APIKey) {
-			errs = append(errs, field.Invalid(modelPath.Child("apiKey"), "<redacted>", "apiKey must be safe for use in an HTTP header"))
-		}
-		if !tlsEnabled {
-			errs = append(errs, field.Required(field.NewPath("spec", "tls"), "tls is required when apiKey is configured"))
-		}
-	}
-	return errs
-}
-
-func validUpstreamType(value resource.UpstreamType) bool {
-	switch value {
-	case resource.UpstreamTypeApplication, resource.UpstreamTypeModel, resource.UpstreamTypeAgent, resource.UpstreamTypeMCP:
-		return true
-	default:
-		return false
-	}
-}
-
 func validLoadBalancing(value resource.LoadBalancingPolicy) bool {
 	switch value {
 	case resource.LoadBalancingRoundRobin, resource.LoadBalancingLeastRequest:
@@ -160,17 +91,6 @@ func validLoadBalancing(value resource.LoadBalancingPolicy) bool {
 	default:
 		return false
 	}
-}
-
-func validBasePath(value string) bool {
-	if value == "" || !strings.HasPrefix(value, "/") || (value != "/" && strings.HasSuffix(value, "/")) {
-		return false
-	}
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path != value {
-		return false
-	}
-	return path.Clean(value) == value
 }
 
 func validRequestPath(value string) bool {

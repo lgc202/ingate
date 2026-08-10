@@ -66,13 +66,6 @@ COPY --from=service-builder /out/ingate-admin-api /opt/ingate/admin-api/bin/inga
 ENTRYPOINT ["/opt/ingate/admin-api/bin/ingate-admin-api"]
 CMD ["--config", "/opt/ingate/admin-api/configs/config.yaml"]
 
-FROM service-runtime AS ai-proxy
-
-COPY --from=service-builder /out/ingate-ai-proxy /opt/ingate/ai-proxy/bin/ingate-ai-proxy
-
-ENTRYPOINT ["/opt/ingate/ai-proxy/bin/ingate-ai-proxy"]
-CMD ["--config", "/opt/ingate/ai-proxy/configs/config.yaml"]
-
 FROM service-runtime AS console
 
 COPY --from=service-builder /out/ingate-console /opt/ingate/console/bin/ingate-console

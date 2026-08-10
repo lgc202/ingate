@@ -19,7 +19,6 @@ type GatewayV1Interface interface {
 	IPRestrictionPoliciesGetter
 	RateLimitPoliciesGetter
 	RoutesGetter
-	TokenQuotaPoliciesGetter
 	UpstreamsGetter
 }
 
@@ -46,10 +45,6 @@ func (c *GatewayV1Client) RateLimitPolicies() RateLimitPolicyInterface {
 
 func (c *GatewayV1Client) Routes() RouteInterface {
 	return newRoutes(c)
-}
-
-func (c *GatewayV1Client) TokenQuotaPolicies() TokenQuotaPolicyInterface {
-	return newTokenQuotaPolicies(c)
 }
 
 func (c *GatewayV1Client) Upstreams() UpstreamInterface {

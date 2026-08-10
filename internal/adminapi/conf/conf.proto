@@ -27,20 +27,7 @@ message Data {
     string master = 1;
     string kubeconfig = 2;
   }
-  message MySQL {
-    string dsn = 1;
-    int32 max_open_connections = 2;
-    int32 max_idle_connections = 3;
-    google.protobuf.Duration connection_max_lifetime = 4;
-  }
-  message Redis {
-    string address = 1;
-    string password = 2;
-    int32 database = 3;
-  }
   APIServer apiserver = 1;
-  MySQL mysql = 2;
-  Redis redis = 3;
 }
 
 message Logging {

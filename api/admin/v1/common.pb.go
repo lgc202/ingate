@@ -311,157 +311,6 @@ func (x *PolicyTarget) GetMessage() string {
 	return ""
 }
 
-// ResourceRequest 通过资源 ID 定位单个管理对象
-type ResourceRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResourceRequest) Reset() {
-	*x = ResourceRequest{}
-	mi := &file_admin_v1_common_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResourceRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResourceRequest) ProtoMessage() {}
-
-func (x *ResourceRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResourceRequest.ProtoReflect.Descriptor instead.
-func (*ResourceRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *ResourceRequest) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-// SetEnabledRequest 修改资源的启停状态
-type SetEnabledRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Enabled       *bool                  `protobuf:"varint,2,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *SetEnabledRequest) Reset() {
-	*x = SetEnabledRequest{}
-	mi := &file_admin_v1_common_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *SetEnabledRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*SetEnabledRequest) ProtoMessage() {}
-
-func (x *SetEnabledRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SetEnabledRequest.ProtoReflect.Descriptor instead.
-func (*SetEnabledRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *SetEnabledRequest) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
-func (x *SetEnabledRequest) GetEnabled() bool {
-	if x != nil && x.Enabled != nil {
-		return *x.Enabled
-	}
-	return false
-}
-
-// MutationReply 表示写操作已经完成
-type MutationReply struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *MutationReply) Reset() {
-	*x = MutationReply{}
-	mi := &file_admin_v1_common_proto_msgTypes[5]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *MutationReply) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*MutationReply) ProtoMessage() {}
-
-func (x *MutationReply) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[5]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MutationReply.ProtoReflect.Descriptor instead.
-func (*MutationReply) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{5}
-}
-
-func (x *MutationReply) GetSuccess() bool {
-	if x != nil {
-		return x.Success
-	}
-	return false
-}
-
-func (x *MutationReply) GetId() string {
-	if x != nil {
-		return x.Id
-	}
-	return ""
-}
-
 // ListRequest 使用 API Server Continue Token 分页读取资源
 type ListRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -473,7 +322,7 @@ type ListRequest struct {
 
 func (x *ListRequest) Reset() {
 	*x = ListRequest{}
-	mi := &file_admin_v1_common_proto_msgTypes[6]
+	mi := &file_admin_v1_common_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -485,7 +334,7 @@ func (x *ListRequest) String() string {
 func (*ListRequest) ProtoMessage() {}
 
 func (x *ListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[6]
+	mi := &file_admin_v1_common_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -498,7 +347,7 @@ func (x *ListRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
 func (*ListRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{6}
+	return file_admin_v1_common_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListRequest) GetPageSize() int32 {
@@ -524,7 +373,7 @@ type PageInfo struct {
 
 func (x *PageInfo) Reset() {
 	*x = PageInfo{}
-	mi := &file_admin_v1_common_proto_msgTypes[7]
+	mi := &file_admin_v1_common_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -536,7 +385,7 @@ func (x *PageInfo) String() string {
 func (*PageInfo) ProtoMessage() {}
 
 func (x *PageInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[7]
+	mi := &file_admin_v1_common_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -549,7 +398,7 @@ func (x *PageInfo) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PageInfo.ProtoReflect.Descriptor instead.
 func (*PageInfo) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{7}
+	return file_admin_v1_common_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PageInfo) GetNextPageToken() string {
@@ -575,17 +424,7 @@ const file_admin_v1_common_proto_rawDesc = "" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x124\n" +
 	"\x05state\x18\x04 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateR\x05state\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage\",\n" +
-	"\x0fResourceRequest\x12\x19\n" +
-	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\"a\n" +
-	"\x11SetEnabledRequest\x12\x19\n" +
-	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12%\n" +
-	"\aenabled\x18\x02 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01B\n" +
-	"\n" +
-	"\b_enabled\"9\n" +
-	"\rMutationReply\x12\x18\n" +
-	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\"U\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\"U\n" +
 	"\vListRequest\x12'\n" +
 	"\tpage_size\x18\x01 \x01(\x05B\n" +
 	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\x1d\n" +
@@ -617,18 +456,15 @@ func file_admin_v1_common_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_admin_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_admin_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_admin_v1_common_proto_goTypes = []any{
-	(ResourceState)(0),        // 0: ingate.admin.v1.ResourceState
-	(PolicyTargetKind)(0),     // 1: ingate.admin.v1.PolicyTargetKind
-	(*ResourceStatus)(nil),    // 2: ingate.admin.v1.ResourceStatus
-	(*PolicyTargetRef)(nil),   // 3: ingate.admin.v1.PolicyTargetRef
-	(*PolicyTarget)(nil),      // 4: ingate.admin.v1.PolicyTarget
-	(*ResourceRequest)(nil),   // 5: ingate.admin.v1.ResourceRequest
-	(*SetEnabledRequest)(nil), // 6: ingate.admin.v1.SetEnabledRequest
-	(*MutationReply)(nil),     // 7: ingate.admin.v1.MutationReply
-	(*ListRequest)(nil),       // 8: ingate.admin.v1.ListRequest
-	(*PageInfo)(nil),          // 9: ingate.admin.v1.PageInfo
+	(ResourceState)(0),      // 0: ingate.admin.v1.ResourceState
+	(PolicyTargetKind)(0),   // 1: ingate.admin.v1.PolicyTargetKind
+	(*ResourceStatus)(nil),  // 2: ingate.admin.v1.ResourceStatus
+	(*PolicyTargetRef)(nil), // 3: ingate.admin.v1.PolicyTargetRef
+	(*PolicyTarget)(nil),    // 4: ingate.admin.v1.PolicyTarget
+	(*ListRequest)(nil),     // 5: ingate.admin.v1.ListRequest
+	(*PageInfo)(nil),        // 6: ingate.admin.v1.PageInfo
 }
 var file_admin_v1_common_proto_depIdxs = []int32{
 	0, // 0: ingate.admin.v1.ResourceStatus.state:type_name -> ingate.admin.v1.ResourceState
@@ -647,14 +483,13 @@ func file_admin_v1_common_proto_init() {
 	if File_admin_v1_common_proto != nil {
 		return
 	}
-	file_admin_v1_common_proto_msgTypes[4].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_common_proto_rawDesc), len(file_admin_v1_common_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   8,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

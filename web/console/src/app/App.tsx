@@ -4,13 +4,10 @@ import { GatewayPage } from '@/features/gateways/GatewayPage';
 import { RoutePage } from '@/features/routes/RoutePage';
 import { UpstreamPage } from '@/features/upstreams/UpstreamPage';
 import { CertificatePage } from '@/features/certificates/CertificatePage';
-import { AccessKeyPage } from '@/features/accessKeys/AccessKeyPage';
 import { PolicyPage } from '@/features/policies/PolicyPage';
 import { ConfigurationStatusPage } from '@/features/configuration/ConfigurationStatusPage';
-import { useAuth } from '@/auth/AuthContext';
 
 export default function App() {
-  const { isAdmin } = useAuth();
   return (
     <Routes>
       <Route element={<AppShell />}>
@@ -19,7 +16,6 @@ export default function App() {
         <Route path="routes" element={<RoutePage />} />
         <Route path="services" element={<UpstreamPage />} />
         <Route path="certificates" element={<CertificatePage />} />
-        {isAdmin && <Route path="access-keys" element={<AccessKeyPage />} />}
         <Route path="policies" element={<PolicyPage />} />
         <Route path="status" element={<ConfigurationStatusPage />} />
       </Route>

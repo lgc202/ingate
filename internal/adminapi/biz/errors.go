@@ -12,10 +12,6 @@ var (
 	ErrResourceNotFound = errors.New("resource not found")
 	// ErrResourceVersionConflict 表示声明式资源已被其他请求修改
 	ErrResourceVersionConflict = errors.New("resource version conflict")
-	// ErrAccessKeyNotFound 表示访问密钥不存在
-	ErrAccessKeyNotFound = errors.New("access key not found")
-	// ErrAccessKeyNameConflict 表示访问密钥名称违反唯一约束
-	ErrAccessKeyNameConflict = errors.New("access key name already exists")
 	// ErrInvalidCursor 表示分页游标无法解析或已经失效
 	ErrInvalidCursor = errors.New("invalid cursor")
 	// ErrDisplayNameConflict 表示同类声明式资源已经使用该展示名称

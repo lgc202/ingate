@@ -96,8 +96,5 @@ function policyContentCount(policy: GovernancePolicy) {
   if (policy.kind === 'IPRestrictionPolicy') {
     return `${policy.ruleCount} 个地址或网段`;
   }
-  if (policy.kind === 'TokenQuotaPolicy') {
-    return '1 个预算池';
-  }
   return '1 项请求额度';
 }
