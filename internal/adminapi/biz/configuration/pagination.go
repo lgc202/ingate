@@ -17,7 +17,7 @@ const (
 	resourcePageUpstream
 	resourcePageCertificate
 	resourcePageRateLimitPolicy
-	resourcePageAccessControlPolicy
+	resourcePageIPRestrictionPolicy
 	resourcePageTokenQuotaPolicy
 	resourcePageCount
 )
@@ -75,8 +75,8 @@ func (u *Usecase) listItemPage(
 		return mapPage(ctx, page, u.certificates.ListPage, certificateItem)
 	case resourcePageRateLimitPolicy:
 		return mapPage(ctx, page, u.rateLimitPolicies.ListPage, rateLimitPolicyItem)
-	case resourcePageAccessControlPolicy:
-		return mapPage(ctx, page, u.accessControlPolicies.ListPage, accessControlPolicyItem)
+	case resourcePageIPRestrictionPolicy:
+		return mapPage(ctx, page, u.ipRestrictionPolicies.ListPage, ipRestrictionPolicyItem)
 	case resourcePageTokenQuotaPolicy:
 		return mapPage(ctx, page, u.tokenQuotaPolicies.ListPage, tokenQuotaPolicyItem)
 	default:

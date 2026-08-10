@@ -6,9 +6,9 @@ import (
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
-	accesscontrolpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/accesscontrolpolicy"
 	certificatestorage "github.com/lgc202/ingate/internal/apiserver/registry/certificate"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
+	iprestrictionpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/iprestrictionpolicy"
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
 	tokenquotapolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/tokenquotapolicy"
@@ -98,8 +98,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}); err != nil {
 		return nil, err
 	}
-	if err := installStatusStorage(gatewayv1.ResourceAccessControlPolicies, gatewayv1.ResourceAccessControlPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return accesscontrolpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
+	if err := installStatusStorage(gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
+		return iprestrictionpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
 	}); err != nil {
 		return nil, err
 	}

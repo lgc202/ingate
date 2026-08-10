@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"net/netip"
 	"slices"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -12,7 +13,7 @@ import (
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	wasmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	pluginacl "github.com/lgc202/ingate/pkg/plugin/acl"
+	pluginiprestriction "github.com/lgc202/ingate/pkg/plugin/iprestriction"
 	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	plugintokenquota "github.com/lgc202/ingate/pkg/plugin/tokenquota"
 	"google.golang.org/protobuf/types/known/anypb"
@@ -21,9 +22,9 @@ import (
 )
 
 const (
-	accessControlHTTPFilterName = "ingate.filters.http.acl"
-	accessControlPluginName     = "ingate.acl"
-	accessControlPluginPath     = "/opt/ingate/plugins/acl.wasm"
+	ipRestrictionHTTPFilterName = "ingate.filters.http.iprestriction"
+	ipRestrictionPluginName     = "ingate.iprestriction"
+	ipRestrictionPluginPath     = "/opt/ingate/plugins/iprestriction.wasm"
 	rateLimitHTTPFilterName     = "ingate.filters.http.ratelimit"
 	rateLimitPluginName         = "ingate.ratelimit"
 	rateLimitPluginPath         = "/opt/ingate/plugins/ratelimit.wasm"
@@ -32,12 +33,10 @@ const (
 	tokenQuotaPluginPath        = "/opt/ingate/plugins/tokenquota.wasm"
 	wasmRuntime                 = "envoy.wasm.runtime.v8"
 	rateLimitRuleName           = "limit"
-	minPolicyResponseStatusCode = 400
-	maxPolicyResponseStatusCode = 599
 )
 
-type compiledAccessControlPolicy struct {
-	policy  pluginacl.Policy
+type compiledIPRestrictionPolicy struct {
+	policy  pluginiprestriction.Policy
 	targets []gatewayv1.PolicyTargetRef
 }
 
@@ -63,7 +62,7 @@ type wasmHTTPFilterOptions struct {
 
 func (c *compilation) buildPolicyConfigs() map[listenerKey]listenerFilterConfig {
 	// 编译阶段已经把 Gateway/Route 应用范围展开成最终执行清单，Wasm 不再理解用户层绑定模型
-	accessControlPolicies := c.compileAccessControlPolicies()
+	ipRestrictionPolicies := c.compileIPRestrictionPolicies()
 	rateLimitPolicies := c.compileRateLimitPolicies()
 	tokenQuotaPolicies := c.compileTokenQuotaPolicies()
 	result := make(map[listenerKey]listenerFilterConfig)
@@ -80,15 +79,15 @@ func (c *compilation) buildPolicyConfigs() map[listenerKey]listenerFilterConfig 
 	slices.SortFunc(routeKeys, comparePolicyRouteKeys)
 
 	for _, key := range routeKeys {
-		aclPolicies := make([]pluginacl.Policy, 0)
-		for _, policyID := range slices.Sorted(maps.Keys(accessControlPolicies)) {
-			compiled := accessControlPolicies[policyID]
+		restrictionPolicies := make([]pluginiprestriction.Policy, 0)
+		for _, policyID := range slices.Sorted(maps.Keys(ipRestrictionPolicies)) {
+			compiled := ipRestrictionPolicies[policyID]
 			_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
 			if len(matchedTargets) == 0 {
 				continue
 			}
-			c.recordPolicyTargets(gatewayv1.KindAccessControlPolicy, policyID, matchedTargets)
-			aclPolicies = append(aclPolicies, compiled.policy)
+			c.recordPolicyTargets(gatewayv1.KindIPRestrictionPolicy, policyID, matchedTargets)
+			restrictionPolicies = append(restrictionPolicies, compiled.policy)
 		}
 
 		ratePolicies := make([]pluginratelimit.Policy, 0)
@@ -105,14 +104,14 @@ func (c *compilation) buildPolicyConfigs() map[listenerKey]listenerFilterConfig 
 		}
 
 		config := result[key.listenerKey]
-		if len(aclPolicies) > 0 {
-			if config.accessControl == nil {
-				config.accessControl = &pluginacl.PluginConfig{}
+		if len(restrictionPolicies) > 0 {
+			if config.ipRestriction == nil {
+				config.ipRestriction = &pluginiprestriction.PluginConfig{}
 			}
-			config.accessControl.Routes = append(config.accessControl.Routes, pluginacl.RouteConfig{
+			config.ipRestriction.Routes = append(config.ipRestriction.Routes, pluginiprestriction.RouteConfig{
 				GatewayName: key.gatewayID,
 				RouteName:   key.routeID,
-				Policies:    aclPolicies,
+				Policies:    restrictionPolicies,
 			})
 		}
 		if len(ratePolicies) > 0 {
@@ -125,7 +124,7 @@ func (c *compilation) buildPolicyConfigs() map[listenerKey]listenerFilterConfig 
 				Policies:    ratePolicies,
 			})
 		}
-		if len(aclPolicies) > 0 || len(ratePolicies) > 0 {
+		if len(restrictionPolicies) > 0 || len(ratePolicies) > 0 {
 			result[key.listenerKey] = config
 		}
 	}
@@ -170,19 +169,19 @@ func (c *compilation) buildPolicyConfigs() map[listenerKey]listenerFilterConfig 
 	return result
 }
 
-func (c *compilation) compileAccessControlPolicies() map[string]compiledAccessControlPolicy {
-	result := make(map[string]compiledAccessControlPolicy)
-	for _, policyID := range slices.Sorted(maps.Keys(c.accessControlPolicies)) {
-		policy := c.accessControlPolicies[policyID]
-		targets := c.validPolicyTargets(gatewayv1.KindAccessControlPolicy, policyID, policy.Spec.TargetRefs)
+func (c *compilation) compileIPRestrictionPolicies() map[string]compiledIPRestrictionPolicy {
+	result := make(map[string]compiledIPRestrictionPolicy)
+	for _, policyID := range slices.Sorted(maps.Keys(c.ipRestrictionPolicies)) {
+		policy := c.ipRestrictionPolicies[policyID]
+		targets := c.validPolicyTargets(gatewayv1.KindIPRestrictionPolicy, policyID, policy.Spec.TargetRefs)
 		if !policy.Spec.Enabled {
 			continue
 		}
-		pluginPolicy, valid := c.accessControlPolicy(policy)
+		pluginPolicy, valid := c.ipRestrictionPolicy(policy)
 		if !valid {
 			continue
 		}
-		result[policyID] = compiledAccessControlPolicy{
+		result[policyID] = compiledIPRestrictionPolicy{
 			policy:  pluginPolicy,
 			targets: targets,
 		}
@@ -330,8 +329,8 @@ func (c *compilation) recordPolicyTargets(
 	case gatewayv1.KindRateLimitPolicy:
 		resource := c.rateLimitPolicies[policyName]
 		policy = newResourceGeneration(policyKind, resource.Name, resource.UID, resource.Generation)
-	case gatewayv1.KindAccessControlPolicy:
-		resource := c.accessControlPolicies[policyName]
+	case gatewayv1.KindIPRestrictionPolicy:
+		resource := c.ipRestrictionPolicies[policyName]
 		policy = newResourceGeneration(policyKind, resource.Name, resource.UID, resource.Generation)
 	case gatewayv1.KindTokenQuotaPolicy:
 		resource := c.tokenQuotaPolicies[policyName]
@@ -380,89 +379,35 @@ func compareResourceGeneration(a, b ResourceGeneration) int {
 	return cmp.Compare(a.Generation, b.Generation)
 }
 
-func (c *compilation) accessControlPolicy(policy *gatewayv1.AccessControlPolicy) (pluginacl.Policy, bool) {
+func (c *compilation) ipRestrictionPolicy(policy *gatewayv1.IPRestrictionPolicy) (pluginiprestriction.Policy, bool) {
 	valid := true
-	switch policy.Spec.DefaultAction {
-	case "", gatewayv1.AccessControlActionAllow, gatewayv1.AccessControlActionDeny:
-	default:
-		c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("access control policy %q uses unsupported default action %q", policy.Name, policy.Spec.DefaultAction))
+	if (len(policy.Spec.Allow) > 0) == (len(policy.Spec.Deny) > 0) {
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindIPRestrictionPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("IP restriction policy %q must configure exactly one of allow or deny", policy.Name),
+		)
 		valid = false
 	}
-	if len(policy.Spec.Rules) == 0 && policy.Spec.DefaultAction != gatewayv1.AccessControlActionDeny {
-		c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q must have a rule or deny by default", policy.Name))
+	for _, value := range append(slices.Clone(policy.Spec.Allow), policy.Spec.Deny...) {
+		if _, err := netip.ParsePrefix(value); err == nil {
+			continue
+		}
+		c.addDiagnostic(
+			SeverityError,
+			gatewayv1.KindIPRestrictionPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("IP restriction policy %q contains invalid IP prefix %q", policy.Name, value),
+		)
 		valid = false
 	}
-
-	rules := make([]pluginacl.Rule, 0, len(policy.Spec.Rules))
-	seenRules := make(map[string]bool, len(policy.Spec.Rules))
-	for _, rule := range policy.Spec.Rules {
-		if rule.Name == "" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q has a rule without a name", policy.Name))
-			valid = false
-			continue
-		}
-		if seenRules[rule.Name] {
-			c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonConflict, fmt.Sprintf("access control policy %q has duplicate rule %q", policy.Name, rule.Name))
-			valid = false
-			continue
-		}
-		seenRules[rule.Name] = true
-		if rule.Action != gatewayv1.AccessControlActionAllow && rule.Action != gatewayv1.AccessControlActionDeny {
-			c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("access control policy %q rule %q uses unsupported action %q", policy.Name, rule.Name, rule.Action))
-			valid = false
-			continue
-		}
-
-		conditions := make([]pluginacl.Condition, 0, len(rule.Conditions))
-		for _, condition := range rule.Conditions {
-			if condition.Value == "" {
-				c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q rule %q has a condition without a value", policy.Name, rule.Name))
-				valid = false
-				continue
-			}
-			switch condition.Type {
-			case gatewayv1.AccessControlConditionTypeIP:
-				if condition.Name != "" {
-					c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q rule %q IP condition must not declare a name", policy.Name, rule.Name))
-					valid = false
-					continue
-				}
-			case gatewayv1.AccessControlConditionTypeHeader:
-				if condition.Name == "" {
-					c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q rule %q has a Header condition without a name", policy.Name, rule.Name))
-					valid = false
-					continue
-				}
-			default:
-				c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("access control policy %q rule %q uses unsupported condition type %q", policy.Name, rule.Name, condition.Type))
-				valid = false
-				continue
-			}
-			conditions = append(conditions, pluginacl.Condition{
-				Type:  pluginacl.ConditionType(condition.Type),
-				Name:  condition.Name,
-				Value: condition.Value,
-			})
-		}
-		rules = append(rules, pluginacl.Rule{
-			Name:       rule.Name,
-			Action:     pluginacl.Action(rule.Action),
-			Conditions: conditions,
-		})
-	}
-	if policy.Spec.Response.StatusCode != 0 &&
-		(policy.Spec.Response.StatusCode < minPolicyResponseStatusCode || policy.Spec.Response.StatusCode > maxPolicyResponseStatusCode) {
-		c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("access control policy %q response status code must be between 400 and 599", policy.Name))
-		valid = false
-	}
-	return pluginacl.Policy{
-		Name:          policy.Name,
-		DefaultAction: pluginacl.Action(policy.Spec.DefaultAction),
-		Rules:         rules,
-		Response: pluginacl.Response{
-			StatusCode: policy.Spec.Response.StatusCode,
-			Message:    policy.Spec.Response.Message,
-		},
+	return pluginiprestriction.Policy{
+		Name:  policy.Name,
+		Allow: slices.Clone(policy.Spec.Allow),
+		Deny:  slices.Clone(policy.Spec.Deny),
 	}, valid
 }
 
@@ -583,15 +528,15 @@ func comparePolicyRouteKeys(a, b policyRouteKey) int {
 	return 0
 }
 
-func buildAccessControlHTTPFilter(config *pluginacl.PluginConfig) (*hcmv3.HttpFilter, error) {
+func buildIPRestrictionHTTPFilter(config *pluginiprestriction.PluginConfig) (*hcmv3.HttpFilter, error) {
 	raw, err := json.Marshal(config)
 	if err != nil {
-		return nil, fmt.Errorf("encode access control plugin config: %w", err)
+		return nil, fmt.Errorf("encode IP restriction plugin config: %w", err)
 	}
 	return buildWasmHTTPFilter(
-		accessControlHTTPFilterName,
-		accessControlPluginName,
-		accessControlPluginPath,
+		ipRestrictionHTTPFilterName,
+		ipRestrictionPluginName,
+		ipRestrictionPluginPath,
 		raw,
 		wasmHTTPFilterOptions{},
 	)

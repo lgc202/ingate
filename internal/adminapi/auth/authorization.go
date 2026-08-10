@@ -5,7 +5,7 @@ import "strings"
 const operationPrefix = "/ingate.admin.v1."
 
 var managedServices = map[string]struct{}{
-	"AccessControlPolicyService": {},
+	"IPRestrictionPolicyService": {},
 	"AuthenticationService":      {},
 	"CertificateService":         {},
 	"ConfigurationService":       {},

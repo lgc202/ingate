@@ -10,11 +10,11 @@ import (
 
 	"github.com/lgc202/ingate/internal/adminapi/auth"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
-	accesscontrolbiz "github.com/lgc202/ingate/internal/adminapi/biz/accesscontrol"
 	accesskeybiz "github.com/lgc202/ingate/internal/adminapi/biz/accesskey"
 	certificatebiz "github.com/lgc202/ingate/internal/adminapi/biz/certificate"
 	configurationbiz "github.com/lgc202/ingate/internal/adminapi/biz/configuration"
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
+	iprestrictionbiz "github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
 	ratelimitbiz "github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	routebiz "github.com/lgc202/ingate/internal/adminapi/biz/route"
 	tokenquotabiz "github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
@@ -22,13 +22,13 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data"
 	"github.com/lgc202/ingate/internal/adminapi/server"
-	accesscontrolservice "github.com/lgc202/ingate/internal/adminapi/service/accesscontrol"
 	accesskeyservice "github.com/lgc202/ingate/internal/adminapi/service/accesskey"
 	authenticationservice "github.com/lgc202/ingate/internal/adminapi/service/authentication"
 	certificateservice "github.com/lgc202/ingate/internal/adminapi/service/certificate"
 	configurationservice "github.com/lgc202/ingate/internal/adminapi/service/configuration"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	healthservice "github.com/lgc202/ingate/internal/adminapi/service/health"
+	iprestrictionservice "github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
 	ratelimitservice "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
 	tokenquotaservice "github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
@@ -47,7 +47,7 @@ func wireApp(*conf.Server, *conf.Data, *conf.Authentication, *slog.Logger, servi
 		certificatebiz.NewUsecase,
 		accesskeybiz.NewUsecase,
 		ratelimitbiz.NewUsecase,
-		accesscontrolbiz.NewUsecase,
+		iprestrictionbiz.NewUsecase,
 		tokenquotabiz.NewUsecase,
 		configurationbiz.NewUsecase,
 		gatewayservice.NewService,
@@ -57,7 +57,7 @@ func wireApp(*conf.Server, *conf.Data, *conf.Authentication, *slog.Logger, servi
 		accesskeyservice.NewService,
 		authenticationservice.NewService,
 		ratelimitservice.NewService,
-		accesscontrolservice.NewService,
+		iprestrictionservice.NewService,
 		tokenquotaservice.NewService,
 		configurationservice.NewService,
 		healthservice.NewService,

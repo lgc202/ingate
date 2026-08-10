@@ -46,12 +46,12 @@ const (
 	ResourceRateLimitPolicies ResourceName = "ratelimitpolicies"
 	// ResourceRateLimitPoliciesStatus 表示 RateLimitPolicy status 子资源名
 	ResourceRateLimitPoliciesStatus ResourceName = "ratelimitpolicies/status"
-	// ResourceAccessControlPolicy 表示 AccessControlPolicy 单数资源名
-	ResourceAccessControlPolicy ResourceName = "accesscontrolpolicy"
-	// ResourceAccessControlPolicies 表示 AccessControlPolicy 复数资源名
-	ResourceAccessControlPolicies ResourceName = "accesscontrolpolicies"
-	// ResourceAccessControlPoliciesStatus 表示 AccessControlPolicy status 子资源名
-	ResourceAccessControlPoliciesStatus ResourceName = "accesscontrolpolicies/status"
+	// ResourceIPRestrictionPolicy 表示 IPRestrictionPolicy 单数资源名
+	ResourceIPRestrictionPolicy ResourceName = "iprestrictionpolicy"
+	// ResourceIPRestrictionPolicies 表示 IPRestrictionPolicy 复数资源名
+	ResourceIPRestrictionPolicies ResourceName = "iprestrictionpolicies"
+	// ResourceIPRestrictionPoliciesStatus 表示 IPRestrictionPolicy status 子资源名
+	ResourceIPRestrictionPoliciesStatus ResourceName = "iprestrictionpolicies/status"
 	// ResourceTokenQuotaPolicy 表示 TokenQuotaPolicy 单数资源名
 	ResourceTokenQuotaPolicy ResourceName = "tokenquotapolicy"
 	// ResourceTokenQuotaPolicies 表示 TokenQuotaPolicy 复数资源名
@@ -86,8 +86,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&CertificateList{},
 		&RateLimitPolicy{},
 		&RateLimitPolicyList{},
-		&AccessControlPolicy{},
-		&AccessControlPolicyList{},
+		&IPRestrictionPolicy{},
+		&IPRestrictionPolicyList{},
 		&TokenQuotaPolicy{},
 		&TokenQuotaPolicyList{},
 	)

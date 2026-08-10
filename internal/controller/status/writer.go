@@ -80,8 +80,8 @@ func (w *Writer) updateResource(
 		return w.updateUpstream(ctx, resource, compile, deliveryStatus)
 	case gatewayv1.KindRateLimitPolicy:
 		return w.updateRateLimitPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
-	case gatewayv1.KindAccessControlPolicy:
-		return w.updateAccessControlPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
+	case gatewayv1.KindIPRestrictionPolicy:
+		return w.updateIPRestrictionPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
 	case gatewayv1.KindTokenQuotaPolicy:
 		return w.updateTokenQuotaPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
 	default:

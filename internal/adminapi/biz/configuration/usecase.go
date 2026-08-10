@@ -33,9 +33,9 @@ type RateLimitPolicyRepository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.RateLimitPolicy], error)
 }
 
-// AccessControlPolicyRepository 定义配置状态聚合需要的访问控制策略查询能力
-type AccessControlPolicyRepository interface {
-	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.AccessControlPolicy], error)
+// IPRestrictionPolicyRepository 定义配置状态聚合需要的 IP 访问限制策略查询能力
+type IPRestrictionPolicyRepository interface {
+	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.IPRestrictionPolicy], error)
 }
 
 // TokenQuotaPolicyRepository 定义配置状态聚合需要的 Token 配额策略查询能力
@@ -50,7 +50,7 @@ type Usecase struct {
 	upstreams             UpstreamRepository
 	certificates          CertificateRepository
 	rateLimitPolicies     RateLimitPolicyRepository
-	accessControlPolicies AccessControlPolicyRepository
+	ipRestrictionPolicies IPRestrictionPolicyRepository
 	tokenQuotaPolicies    TokenQuotaPolicyRepository
 }
 
@@ -61,7 +61,7 @@ func NewUsecase(
 	upstreams UpstreamRepository,
 	certificates CertificateRepository,
 	rateLimitPolicies RateLimitPolicyRepository,
-	accessControlPolicies AccessControlPolicyRepository,
+	ipRestrictionPolicies IPRestrictionPolicyRepository,
 	tokenQuotaPolicies TokenQuotaPolicyRepository,
 ) *Usecase {
 	return &Usecase{
@@ -70,7 +70,7 @@ func NewUsecase(
 		upstreams:             upstreams,
 		certificates:          certificates,
 		rateLimitPolicies:     rateLimitPolicies,
-		accessControlPolicies: accessControlPolicies,
+		ipRestrictionPolicies: ipRestrictionPolicies,
 		tokenQuotaPolicies:    tokenQuotaPolicies,
 	}
 }

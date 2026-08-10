@@ -56,9 +56,9 @@ func rateLimitPolicyItem(policy resource.RateLimitPolicy) Item {
 	)
 }
 
-func accessControlPolicyItem(policy resource.AccessControlPolicy) Item {
+func ipRestrictionPolicyItem(policy resource.IPRestrictionPolicy) Item {
 	return policyItem(
-		resource.KindAccessControlPolicy,
+		resource.KindIPRestrictionPolicy,
 		policy.Name,
 		policy.Spec.DisplayName,
 		policy.Generation,

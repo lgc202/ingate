@@ -1,11 +1,8 @@
 import type { ResourceState, ResourceStatus } from './common';
 
-export type GovernancePolicyKind = 'RateLimitPolicy' | 'AccessControlPolicy' | 'TokenQuotaPolicy';
+export type GovernancePolicyKind = 'RateLimitPolicy' | 'IPRestrictionPolicy' | 'TokenQuotaPolicy';
 export type PolicyTargetKind = 'Gateway' | 'Route';
-export type RateLimitKeyType = 'IP' | 'Header' | 'Query' | 'Cookie' | 'Route' | 'Gateway' | 'RouteRule';
-export type RateLimitFailurePolicy = '' | 'FailOpen' | 'FailClose';
-export type AccessControlAction = '' | 'Allow' | 'Deny';
-export type AccessControlConditionType = 'IP' | 'Header';
+export type RateLimitSubjectType = 'Shared' | 'IP' | 'Header';
 export type TokenQuotaSubjectType = 'Shared' | 'IP' | 'Header';
 export type TokenQuotaFailurePolicy = 'FailOpen' | 'FailClose';
 
@@ -23,74 +20,38 @@ export interface PolicyTargetPayload {
 
 export interface RateLimitPolicy {
   id: string;
-  version: string;
+  version: number;
   name: string;
-  description?: string;
   enabled: boolean;
   targets: PolicyTargetRef[];
-  rules: RateLimitRule[];
-  response?: RateLimitResponse;
-  failurePolicy?: RateLimitFailurePolicy;
+  subject: RateLimitSubject;
+  limit: RateLimit;
   status: ResourceStatus;
   createdAt?: string;
+  updatedAt?: string;
 }
 
-export interface RateLimitRule {
-  name: string;
-  key: RateLimitKey;
-  limit: RateLimitQuota;
+export interface RateLimitSubject {
+  type: RateLimitSubjectType;
+  headerName?: string;
 }
 
-export interface RateLimitKey {
-  parts: RateLimitKeyPart[];
-}
-
-export interface RateLimitKeyPart {
-  type: RateLimitKeyType;
-  name?: string;
-}
-
-export interface RateLimitQuota {
+export interface RateLimit {
   requests: number;
   windowSeconds: number;
-  burst?: number;
 }
 
-export interface RateLimitResponse {
-  statusCode?: number;
-  message?: string;
-  quotaHeaderEnabled?: boolean;
-}
-
-export interface AccessControlPolicy {
+export interface IPRestrictionPolicy {
   id: string;
-  version: string;
+  version: number;
   name: string;
-  description?: string;
   enabled: boolean;
   targets: PolicyTargetRef[];
-  defaultAction?: AccessControlAction;
-  rules?: AccessControlRule[];
-  response?: AccessControlDenyResponse;
+  allow: string[];
+  deny: string[];
   status: ResourceStatus;
   createdAt?: string;
-}
-
-export interface AccessControlRule {
-  name: string;
-  action: AccessControlAction;
-  conditions?: AccessControlCondition[];
-}
-
-export interface AccessControlCondition {
-  type: AccessControlConditionType;
-  name?: string;
-  value: string;
-}
-
-export interface AccessControlDenyResponse {
-  statusCode?: number;
-  message?: string;
+  updatedAt?: string;
 }
 
 export interface TokenQuotaPolicy {
@@ -131,7 +92,7 @@ export interface PolicyTargetOption {
 
 interface GovernancePolicyBase {
   id: string;
-  version: string;
+  version: string | number;
   name: string;
   description?: string;
   enabled: boolean;
@@ -144,13 +105,13 @@ interface GovernancePolicyBase {
 
 export type GovernancePolicy =
   | GovernancePolicyBase & { kind: 'RateLimitPolicy'; raw: RateLimitPolicy }
-  | GovernancePolicyBase & { kind: 'AccessControlPolicy'; raw: AccessControlPolicy }
+  | GovernancePolicyBase & { kind: 'IPRestrictionPolicy'; raw: IPRestrictionPolicy }
   | GovernancePolicyBase & { kind: 'TokenQuotaPolicy'; raw: TokenQuotaPolicy };
 
 export interface PolicyWorkspace {
   policies: GovernancePolicy[];
   rateLimitPolicies: RateLimitPolicy[];
-  accessControlPolicies: AccessControlPolicy[];
+  ipRestrictionPolicies: IPRestrictionPolicy[];
   tokenQuotaPolicies: TokenQuotaPolicy[];
   targets: PolicyTargetOption[];
 }
@@ -162,22 +123,17 @@ export interface PolicyMutationResult {
 
 interface RateLimitPolicyConfigPayload {
   name: string;
-  description?: string;
   enabled: boolean;
   targets: PolicyTargetPayload[];
-  rules: RateLimitRule[];
-  response?: RateLimitResponse;
-  failurePolicy?: RateLimitFailurePolicy;
+  subject: RateLimitSubject;
+  limit: RateLimit;
 }
 
-interface AccessControlPolicyConfigPayload {
+interface IPRestrictionPolicyConfigPayload {
   name: string;
-  description?: string;
-  enabled: boolean;
   targets: PolicyTargetPayload[];
-  defaultAction?: AccessControlAction;
-  rules: AccessControlRule[];
-  response?: AccessControlDenyResponse;
+  allow: string[];
+  deny: string[];
 }
 
 interface TokenQuotaPolicyConfigPayload {
@@ -192,16 +148,18 @@ interface TokenQuotaPolicyConfigPayload {
 }
 
 type CreatePolicyIdentity = { id?: never; version?: never };
-type UpdatePolicyIdentity = { id: string; version: string };
+type VersionedPolicyIdentity<T extends string | number> = { id: string; version: T };
 
-export type RateLimitPolicyPayload = RateLimitPolicyConfigPayload & (CreatePolicyIdentity | UpdatePolicyIdentity);
-export type AccessControlPolicyPayload = AccessControlPolicyConfigPayload & (CreatePolicyIdentity | UpdatePolicyIdentity);
-export type TokenQuotaPolicyPayload = TokenQuotaPolicyConfigPayload & (CreatePolicyIdentity | UpdatePolicyIdentity);
+export type RateLimitPolicyPayload = RateLimitPolicyConfigPayload & (CreatePolicyIdentity | VersionedPolicyIdentity<number>);
+export type IPRestrictionPolicyPayload =
+  | IPRestrictionPolicyConfigPayload & CreatePolicyIdentity
+  | IPRestrictionPolicyConfigPayload & { enabled: boolean } & VersionedPolicyIdentity<number>;
+export type TokenQuotaPolicyPayload = TokenQuotaPolicyConfigPayload & (CreatePolicyIdentity | VersionedPolicyIdentity<string>);
 
 export function policyKindLabel(kind: GovernancePolicyKind) {
   const labels: Record<GovernancePolicyKind, string> = {
     RateLimitPolicy: '限流',
-    AccessControlPolicy: '访问控制',
+    IPRestrictionPolicy: 'IP 访问限制',
     TokenQuotaPolicy: 'Token 配额',
   };
   return labels[kind];

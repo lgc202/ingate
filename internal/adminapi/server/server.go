@@ -10,13 +10,13 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/auth"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	"github.com/lgc202/ingate/internal/adminapi/service/accesscontrol"
 	"github.com/lgc202/ingate/internal/adminapi/service/accesskey"
 	"github.com/lgc202/ingate/internal/adminapi/service/authentication"
 	"github.com/lgc202/ingate/internal/adminapi/service/certificate"
 	"github.com/lgc202/ingate/internal/adminapi/service/configuration"
 	"github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/service/health"
+	"github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
 	"github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	"github.com/lgc202/ingate/internal/adminapi/service/route"
 	"github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
@@ -35,7 +35,7 @@ func NewHTTPServer(
 	certificateService *certificate.Service,
 	accessKeyService *accesskey.Service,
 	rateLimitService *ratelimit.Service,
-	accessControlService *accesscontrol.Service,
+	ipRestrictionService *iprestriction.Service,
 	tokenQuotaService *tokenquota.Service,
 	configurationService *configuration.Service,
 	healthService *health.Service,
@@ -68,7 +68,7 @@ func NewHTTPServer(
 	adminv1.RegisterCertificateServiceHTTPServer(httpServer, certificateService)
 	adminv1.RegisterAccessKeyServiceHTTPServer(httpServer, accessKeyService)
 	adminv1.RegisterRateLimitPolicyServiceHTTPServer(httpServer, rateLimitService)
-	adminv1.RegisterAccessControlPolicyServiceHTTPServer(httpServer, accessControlService)
+	adminv1.RegisterIPRestrictionPolicyServiceHTTPServer(httpServer, ipRestrictionService)
 	adminv1.RegisterTokenQuotaPolicyServiceHTTPServer(httpServer, tokenQuotaService)
 	adminv1.RegisterConfigurationServiceHTTPServer(httpServer, configurationService)
 	adminv1.RegisterHealthServiceHTTPServer(httpServer, healthService)

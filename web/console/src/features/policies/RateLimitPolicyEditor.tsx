@@ -1,65 +1,39 @@
 import type {
   PolicyTargetOption,
   PolicyTargetRef,
-  RateLimitFailurePolicy,
-  RateLimitKeyPart,
-  RateLimitKeyType,
   RateLimitPolicy,
   RateLimitPolicyPayload,
-  RateLimitRule,
+  RateLimitSubjectType,
 } from '@/domain/policy';
 import { PolicyInputField, PolicySelectField } from './PolicyEditorFields';
 import { PolicyTargetSelect } from './PolicySelectors';
 
 export interface RateLimitPolicyDraft {
   id?: string;
-  version?: string;
+  version?: number;
   name: string;
-  description: string;
   enabled: boolean;
   targets: PolicyTargetRef[];
-  ruleName: string;
-  keyType: RateLimitKeyType;
-  keyName: string;
+  subjectType: RateLimitSubjectType;
+  headerName: string;
   requests: string;
   windowSeconds: string;
-  burst: string;
-  failurePolicy: RateLimitFailurePolicy;
-  responseStatusCode: string;
-  responseMessage: string;
-  quotaHeaderEnabled: boolean;
-  preservedKeyParts: RateLimitKeyPart[];
-  preservedRules: RateLimitRule[];
 }
 
-const rateLimitPolicyFields = {
+const fields = {
   name: 'name',
-  ruleName: 'rules[0].name',
-  keyName: 'rules[0].key.parts[0].name',
-  requests: 'rules[0].limit.requests',
-  windowSeconds: 'rules[0].limit.windowSeconds',
-  burst: 'rules[0].limit.burst',
-  responseStatusCode: 'response.statusCode',
+  headerName: 'subject.headerName',
+  requests: 'limit.requests',
+  windowSeconds: 'limit.windowSeconds',
 } as const;
 
-type RateLimitPolicyFieldPath = typeof rateLimitPolicyFields[keyof typeof rateLimitPolicyFields];
+type FieldPath = typeof fields[keyof typeof fields];
 
 export interface RateLimitPolicyValidation {
   valid: boolean;
-  errors: Partial<Record<RateLimitPolicyFieldPath, string>>;
+  errors: Partial<Record<FieldPath, string>>;
 }
 
-const rateLimitKeyTypes: RateLimitKeyType[] = [
-  'IP',
-  'Header',
-  'Query',
-  'Cookie',
-  'Route',
-  'Gateway',
-  'RouteRule',
-];
-
-const namedRateLimitKeyTypes: RateLimitKeyType[] = ['Header', 'Query', 'Cookie'];
 const maxPluginInteger = 2_147_483_647;
 const httpHeaderNamePattern = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 
@@ -74,30 +48,15 @@ export function RateLimitPolicyEditor({
   validation: RateLimitPolicyValidation;
   onChange: (draft: RateLimitPolicyDraft) => void;
 }) {
-  const needsKeyName = rateLimitKeyNeedsName(draft.keyType);
-  const advancedErrorCount = [
-    validation.errors[rateLimitPolicyFields.ruleName],
-    validation.errors[rateLimitPolicyFields.burst],
-    validation.errors[rateLimitPolicyFields.responseStatusCode],
-  ].filter(Boolean).length;
-
   return (
     <div className="editor-main-stack">
-      {draft.preservedKeyParts.length > 0 || draft.preservedRules.length > 0 ? (
-        <div className="mini-card policy-preserved-note">
-          <div className="mini-card-title">保留已有高级规则</div>
-          <div className="mini-card-meta">当前页面编辑第一条规则的第一个计数维度；其余 {draft.preservedKeyParts.length} 个维度和 {draft.preservedRules.length} 条规则会原样保存。</div>
-        </div>
-      ) : null}
-
       <section className="form-section">
         <div className="form-section-title">
           <h3>基础信息</h3>
-          <p>策略保存后，在当前环境内统一共享计数状态。</p>
+          <p>所有网关实例通过系统 Redis 共享计数，不需要选择计数模式。</p>
         </div>
         <div className="policy-editor-grid">
-          <PolicyInputField label="策略名称" value={draft.name} error={validation.errors[rateLimitPolicyFields.name]} onChange={(name) => onChange({ ...draft, name })} />
-          <PolicyInputField label="描述" value={draft.description} onChange={(description) => onChange({ ...draft, description })} />
+          <PolicyInputField label="策略名称" value={draft.name} error={validation.errors[fields.name]} onChange={(name) => onChange({ ...draft, name })} />
           <label className="policy-check-row">
             <input type="checkbox" checked={draft.enabled} onChange={(event) => onChange({ ...draft, enabled: event.target.checked })} />
             <span>启用策略</span>
@@ -108,7 +67,7 @@ export function RateLimitPolicyEditor({
       <section className="form-section">
         <div className="form-section-title">
           <h3>应用目标</h3>
-          <p>可同时应用到多个网关或路由；留空时仅保存策略，不会处理请求。</p>
+          <p>可同时应用到多个网关或路由；留空时仅保存策略。</p>
         </div>
         <div className="policy-editor-grid">
           <PolicyTargetSelect options={targets} value={draft.targets} onChange={(nextTargets) => onChange({ ...draft, targets: nextTargets })} />
@@ -118,141 +77,83 @@ export function RateLimitPolicyEditor({
       <section className="form-section">
         <div className="form-section-title">
           <h3>请求额度</h3>
-          <p>按指定维度统计请求，并在时间窗口内执行共享限流。</p>
+          <p>选择哪些请求共享同一个计数器，并设置固定时间窗口内的请求上限。</p>
         </div>
         <div className="policy-editor-grid">
           <PolicySelectField
-            label="计数维度"
-            value={draft.keyType}
-            options={rateLimitKeyTypes.map((type) => [type, rateLimitKeyLabel(type)])}
-            onChange={(keyType) => {
-              const nextKeyType = keyType as RateLimitKeyType;
-              onChange({
-                ...draft,
-                keyType: nextKeyType,
-                keyName: rateLimitKeyNeedsName(nextKeyType) ? draft.keyName : '',
-              });
-            }}
+            label="计数对象"
+            value={draft.subjectType}
+            options={[
+              ['Shared', '所有请求共用'],
+              ['IP', '每个客户端 IP 独立'],
+              ['Header', '每个请求头值独立'],
+            ]}
+            onChange={(subjectType) => onChange({
+              ...draft,
+              subjectType: subjectType as RateLimitSubjectType,
+              headerName: subjectType === 'Header' ? draft.headerName : '',
+            })}
           />
-          {needsKeyName ? <PolicyInputField label="维度名称" value={draft.keyName} error={validation.errors[rateLimitPolicyFields.keyName]} onChange={(keyName) => onChange({ ...draft, keyName })} /> : null}
-          <PolicyInputField label="请求数" value={draft.requests} type="number" error={validation.errors[rateLimitPolicyFields.requests]} onChange={(requests) => onChange({ ...draft, requests })} />
-          <PolicyInputField label="时间窗口（秒）" value={draft.windowSeconds} type="number" error={validation.errors[rateLimitPolicyFields.windowSeconds]} onChange={(windowSeconds) => onChange({ ...draft, windowSeconds })} />
+          {draft.subjectType === 'Header' ? (
+            <PolicyInputField
+              label="请求头名称"
+              value={draft.headerName}
+              placeholder="例如 x-client-id"
+              error={validation.errors[fields.headerName]}
+              onChange={(headerName) => onChange({ ...draft, headerName })}
+            />
+          ) : null}
+          <PolicyInputField label="请求数" value={draft.requests} type="number" error={validation.errors[fields.requests]} onChange={(requests) => onChange({ ...draft, requests })} />
+          <PolicyInputField label="时间窗口（秒）" value={draft.windowSeconds} type="number" error={validation.errors[fields.windowSeconds]} onChange={(windowSeconds) => onChange({ ...draft, windowSeconds })} />
         </div>
       </section>
-
-      <details className="policy-advanced">
-        <summary>
-          高级设置
-          {advancedErrorCount > 0 ? <span className="policy-advanced-error">{advancedErrorCount} 项需要修正</span> : null}
-        </summary>
-        <div className="policy-advanced-body">
-          <div className="form-section-title">
-            <h3>执行与响应</h3>
-            <p>仅在需要自定义故障处理、突发额度或超限响应时调整。</p>
-          </div>
-          <div className="policy-editor-grid">
-            <PolicyInputField label="规则名称" value={draft.ruleName} error={validation.errors[rateLimitPolicyFields.ruleName]} onChange={(ruleName) => onChange({ ...draft, ruleName })} />
-            <PolicyInputField label="突发额度" value={draft.burst} type="number" error={validation.errors[rateLimitPolicyFields.burst]} onChange={(burst) => onChange({ ...draft, burst })} />
-            <PolicySelectField
-              label="执行异常时"
-              value={draft.failurePolicy}
-              options={[['FailOpen', '放行请求'], ['FailClose', '拒绝请求']]}
-              onChange={(failurePolicy) => onChange({ ...draft, failurePolicy: failurePolicy as RateLimitFailurePolicy })}
-            />
-            <PolicyInputField label="超限状态码" value={draft.responseStatusCode} type="number" error={validation.errors[rateLimitPolicyFields.responseStatusCode]} onChange={(responseStatusCode) => onChange({ ...draft, responseStatusCode })} />
-            <PolicyInputField label="超限消息" value={draft.responseMessage} onChange={(responseMessage) => onChange({ ...draft, responseMessage })} />
-            <label className="policy-check-row">
-              <input type="checkbox" checked={draft.quotaHeaderEnabled} onChange={(event) => onChange({ ...draft, quotaHeaderEnabled: event.target.checked })} />
-              <span>返回配额响应头</span>
-            </label>
-          </div>
-        </div>
-      </details>
     </div>
   );
 }
 
 export function createRateLimitPolicyDraft(policy?: RateLimitPolicy): RateLimitPolicyDraft {
-  const rule = policy?.rules[0];
-  const keyPart = rule?.key.parts[0];
   return {
     id: policy?.id,
     version: policy?.version,
     name: policy?.name ?? '',
-    description: policy?.description ?? '',
     enabled: policy?.enabled ?? true,
     targets: policy?.targets ?? [],
-    ruleName: rule?.name ?? 'default',
-    keyType: keyPart?.type ?? 'IP',
-    keyName: keyPart?.name ?? '',
-    requests: String(rule?.limit.requests ?? 100),
-    windowSeconds: String(rule?.limit.windowSeconds ?? 60),
-    burst: String(rule?.limit.burst ?? 0),
-    failurePolicy: policy?.failurePolicy ?? 'FailOpen',
-    responseStatusCode: String(policy?.response?.statusCode ?? 429),
-    responseMessage: policy?.response?.message ?? 'Too many requests',
-    quotaHeaderEnabled: policy?.response?.quotaHeaderEnabled ?? true,
-    preservedKeyParts: rule?.key.parts.slice(1) ?? [],
-    preservedRules: policy?.rules.slice(1) ?? [],
+    subjectType: policy?.subject.type ?? 'Shared',
+    headerName: policy?.subject.headerName ?? '',
+    requests: String(policy?.limit.requests ?? 100),
+    windowSeconds: String(policy?.limit.windowSeconds ?? 60),
   };
 }
 
 export function validateRateLimitPolicyDraft(draft: RateLimitPolicyDraft): RateLimitPolicyValidation {
   const errors: RateLimitPolicyValidation['errors'] = {};
   if (!draft.name.trim()) {
-    errors[rateLimitPolicyFields.name] = '请输入策略名称';
+    errors[fields.name] = '请输入策略名称';
   }
-  if (!draft.ruleName.trim()) {
-    errors[rateLimitPolicyFields.ruleName] = '请输入规则名称';
-  } else if (draft.preservedRules.some((rule) => rule.name === draft.ruleName.trim())) {
-    errors[rateLimitPolicyFields.ruleName] = '规则名称不能与保留的高级规则重复';
-  }
-  if (rateLimitKeyNeedsName(draft.keyType)) {
-    const keyName = draft.keyName.trim();
-    if (!keyName) {
-      errors[rateLimitPolicyFields.keyName] = `${rateLimitKeyLabel(draft.keyType)}名称不能为空`;
-    } else if (draft.keyType === 'Header' && !httpHeaderNamePattern.test(keyName)) {
-      errors[rateLimitPolicyFields.keyName] = '请求头名称格式不正确';
+  if (draft.subjectType === 'Header') {
+    const headerName = draft.headerName.trim();
+    if (!headerName || !httpHeaderNamePattern.test(headerName)) {
+      errors[fields.headerName] = '请输入正确的请求头名称';
     }
   }
-  errors[rateLimitPolicyFields.requests] = integerFieldError(draft.requests, '请求数', 1, maxPluginInteger);
-  errors[rateLimitPolicyFields.windowSeconds] = integerFieldError(draft.windowSeconds, '时间窗口', 1, maxPluginInteger);
-  errors[rateLimitPolicyFields.burst] = integerFieldError(draft.burst, '突发额度', 0, maxPluginInteger, true);
-  errors[rateLimitPolicyFields.responseStatusCode] = integerFieldError(draft.responseStatusCode, '超限状态码', 400, 599, true);
-  return {
-    valid: Object.values(errors).every((message) => !message),
-    errors,
-  };
+  errors[fields.requests] = integerFieldError(draft.requests, '请求数');
+  errors[fields.windowSeconds] = integerFieldError(draft.windowSeconds, '时间窗口');
+  return { valid: Object.values(errors).every((message) => !message), errors };
 }
 
 export function rateLimitPolicyPayload(draft: RateLimitPolicyDraft): RateLimitPolicyPayload {
-  const keyPart = {
-    type: draft.keyType,
-    ...(rateLimitKeyNeedsName(draft.keyType) && draft.keyName ? { name: draft.keyName } : {}),
-  };
   const config = {
-    name: draft.name,
-    description: draft.description,
+    name: draft.name.trim(),
     enabled: draft.enabled,
     targets: draft.targets.map((target) => ({ kind: target.kind, id: target.id })),
-    rules: [
-      {
-        name: draft.ruleName,
-        key: { parts: [keyPart, ...draft.preservedKeyParts] },
-        limit: {
-          requests: Number(draft.requests),
-          windowSeconds: Number(draft.windowSeconds),
-          burst: Number(draft.burst || 0),
-        },
-      },
-      ...draft.preservedRules,
-    ],
-    response: {
-      statusCode: Number(draft.responseStatusCode || 429),
-      message: draft.responseMessage,
-      quotaHeaderEnabled: draft.quotaHeaderEnabled,
+    subject: {
+      type: draft.subjectType,
+      ...(draft.subjectType === 'Header' ? { headerName: draft.headerName.trim().toLowerCase() } : {}),
     },
-    failurePolicy: draft.failurePolicy,
+    limit: {
+      requests: Number(draft.requests),
+      windowSeconds: Number(draft.windowSeconds),
+    },
   };
   if (!draft.id) {
     return config;
@@ -263,34 +164,10 @@ export function rateLimitPolicyPayload(draft: RateLimitPolicyDraft): RateLimitPo
   return { ...config, id: draft.id, version: draft.version };
 }
 
-function rateLimitKeyNeedsName(type: RateLimitKeyType) {
-  return namedRateLimitKeyTypes.includes(type);
-}
-
-function integerFieldError(value: string, label: string, min: number, max: number, optional = false) {
-  const normalized = value.trim();
-  if (!normalized) {
-    return optional ? undefined : `请输入${label}`;
-  }
-  const parsed = Number(normalized);
-  if (!Number.isInteger(parsed)) {
-    return `${label}必须是整数`;
-  }
-  if (parsed < min || parsed > max) {
-    return `${label}必须在 ${min} 到 ${max} 之间`;
+function integerFieldError(value: string, label: string) {
+  const parsed = Number(value.trim());
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > maxPluginInteger) {
+    return `${label}必须是 1 到 ${maxPluginInteger.toLocaleString('zh-CN')} 之间的整数`;
   }
   return undefined;
-}
-
-function rateLimitKeyLabel(type: RateLimitKeyType) {
-  const labels: Record<RateLimitKeyType, string> = {
-    IP: '客户端 IP',
-    Header: '请求头',
-    Query: '查询参数',
-    Cookie: 'Cookie',
-    Route: '路由',
-    Gateway: '网关',
-    RouteRule: '路由规则',
-  };
-  return labels[type];
 }

@@ -31,7 +31,7 @@ func (u *Usecase) GetSummary(ctx context.Context) (Summary, error) {
 		return collectSummary(ctx, u.rateLimitPolicies.ListPage, rateLimitPolicyItem, &summaries[resourcePageRateLimitPolicy])
 	})
 	group.Go(func() error {
-		return collectSummary(ctx, u.accessControlPolicies.ListPage, accessControlPolicyItem, &summaries[resourcePageAccessControlPolicy])
+		return collectSummary(ctx, u.ipRestrictionPolicies.ListPage, ipRestrictionPolicyItem, &summaries[resourcePageIPRestrictionPolicy])
 	})
 	group.Go(func() error {
 		return collectSummary(ctx, u.tokenQuotaPolicies.ListPage, tokenQuotaPolicyItem, &summaries[resourcePageTokenQuotaPolicy])

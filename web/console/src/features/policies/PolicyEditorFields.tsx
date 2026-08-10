@@ -67,3 +67,37 @@ export function PolicySelectField({
     </div>
   );
 }
+
+export function PolicyTextareaField({
+  label,
+  value,
+  placeholder,
+  hint,
+  error,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  hint?: string;
+  error?: string;
+  onChange: (value: string) => void;
+}) {
+  const inputID = useId();
+  const errorID = `${inputID}-error`;
+  return (
+    <div className={`field field-wide ${error ? 'invalid' : ''}`.trim()}>
+      <label htmlFor={inputID}>{label}</label>
+      <textarea
+        id={inputID}
+        value={value}
+        placeholder={placeholder}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorID : undefined}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {hint && !error ? <div className="field-hint">{hint}</div> : null}
+      {error ? <div id={errorID} className="form-error" role="alert">{error}</div> : null}
+    </div>
+  );
+}

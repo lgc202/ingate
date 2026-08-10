@@ -60,8 +60,8 @@ const (
 	KindCertificate Kind = "Certificate"
 	// KindRateLimitPolicy 表示 RateLimitPolicy 资源类型
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
-	// KindAccessControlPolicy 表示 AccessControlPolicy 资源类型
-	KindAccessControlPolicy Kind = "AccessControlPolicy"
+	// KindIPRestrictionPolicy 表示 IPRestrictionPolicy 资源类型
+	KindIPRestrictionPolicy Kind = "IPRestrictionPolicy"
 	// KindTokenQuotaPolicy 表示 TokenQuotaPolicy 资源类型
 	KindTokenQuotaPolicy Kind = "TokenQuotaPolicy"
 )

@@ -6,7 +6,7 @@ export type ConfigurationResourceKind =
   | 'Upstream'
   | 'Certificate'
   | 'RateLimitPolicy'
-  | 'AccessControlPolicy'
+  | 'IPRestrictionPolicy'
   | 'TokenQuotaPolicy';
 
 export interface ConfigurationStatusItem {
@@ -42,7 +42,7 @@ const kindPriority: Record<ConfigurationResourceKind, number> = {
   Upstream: 2,
   Certificate: 3,
   RateLimitPolicy: 4,
-  AccessControlPolicy: 5,
+  IPRestrictionPolicy: 5,
   TokenQuotaPolicy: 6,
 };
 
@@ -62,7 +62,7 @@ export function configurationResourceKindLabel(kind: ConfigurationResourceKind) 
     Upstream: '服务',
     Certificate: '证书',
     RateLimitPolicy: '限流策略',
-    AccessControlPolicy: '访问控制策略',
+    IPRestrictionPolicy: 'IP 访问限制',
     TokenQuotaPolicy: 'Token 配额策略',
   };
 

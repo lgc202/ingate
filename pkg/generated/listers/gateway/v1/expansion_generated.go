@@ -4,10 +4,6 @@
 
 package v1
 
-// AccessControlPolicyListerExpansion allows custom methods to be added to
-// AccessControlPolicyLister.
-type AccessControlPolicyListerExpansion interface{}
-
 // CertificateListerExpansion allows custom methods to be added to
 // CertificateLister.
 type CertificateListerExpansion interface{}
@@ -15,6 +11,10 @@ type CertificateListerExpansion interface{}
 // GatewayListerExpansion allows custom methods to be added to
 // GatewayLister.
 type GatewayListerExpansion interface{}
+
+// IPRestrictionPolicyListerExpansion allows custom methods to be added to
+// IPRestrictionPolicyLister.
+type IPRestrictionPolicyListerExpansion interface{}
 
 // RateLimitPolicyListerExpansion allows custom methods to be added to
 // RateLimitPolicyLister.

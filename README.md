@@ -32,7 +32,7 @@ CLI / SDK -----------------------+-> ingate-apiserver -> etcd
 - `MySQL`：访问密钥等管理业务数据
 - `Redis`：访问密钥执行索引、限流及 Token 配额等请求路径共享状态
 
-内置限流、访问控制和 Token 配额以强类型 Policy 对外提供，策略通过自身的 `targetRefs[]` 直接声明生效的 Gateway 或 Route。用户不需要安装内置 Wasm 插件，也不需要选择本地或全局计数模式、算法或 Redis 地址；请求路径共享状态统一使用 Envoy bootstrap 中固定的 `ingate-system-redis`。
+内置限流、IP 访问限制和 Token 配额以强类型 Policy 对外提供，策略通过自身的 `targetRefs[]` 直接声明生效的 Gateway 或 Route。用户不需要安装内置 Wasm 插件，也不需要选择本地或全局计数模式、算法或 Redis 地址；请求路径共享状态统一使用 Envoy bootstrap 中固定的 `ingate-system-redis`。
 
 ## AI Gateway
 

@@ -1,7 +1,7 @@
 package compiler
 
 import (
-	pluginacl "github.com/lgc202/ingate/pkg/plugin/acl"
+	pluginiprestriction "github.com/lgc202/ingate/pkg/plugin/iprestriction"
 	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	plugintokenquota "github.com/lgc202/ingate/pkg/plugin/tokenquota"
 )
@@ -9,7 +9,7 @@ import (
 // listenerFilterConfig 汇总一个 Listener 需要注入的治理插件和 AI ExtProc 配置
 type listenerFilterConfig struct {
 	aiProxy       bool
-	accessControl *pluginacl.PluginConfig
+	ipRestriction *pluginiprestriction.PluginConfig
 	rateLimit     *pluginratelimit.PluginConfig
 	tokenQuota    *plugintokenquota.PluginConfig
 }

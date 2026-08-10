@@ -1,4 +1,3 @@
-import { ChevronDown, Plus } from 'lucide-react';
 import { Badge, EmptyState } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { GovernancePolicy, PolicyTargetOption } from '@/domain/policy';
@@ -9,40 +8,6 @@ import {
   policyStatusTone,
   policyTargetLabel,
 } from '@/domain/policy';
-
-export function CreatePolicyMenu({
-  onCreateRateLimit,
-  onCreateAccessControl,
-  onCreateTokenQuota,
-}: {
-  onCreateRateLimit: () => void;
-  onCreateAccessControl: () => void;
-  onCreateTokenQuota: () => void;
-}) {
-  return (
-    <details className="policy-create-menu">
-      <summary className="button primary">
-        <Plus size={15} aria-hidden="true" />
-        新建策略
-        <ChevronDown size={15} aria-hidden="true" />
-      </summary>
-      <div className="policy-create-menu-popover">
-        <button type="button" onClick={onCreateRateLimit}>
-          <strong>限流策略</strong>
-          <span>控制请求速率，并在当前环境内共享计数</span>
-        </button>
-        <button type="button" onClick={onCreateAccessControl}>
-          <strong>访问控制</strong>
-          <span>按 IP 或请求特征放行、拒绝访问</span>
-        </button>
-        <button type="button" onClick={onCreateTokenQuota}>
-          <strong>Token 配额</strong>
-          <span>限制模型请求在统计周期内可消耗的输入与输出 Token</span>
-        </button>
-      </div>
-    </details>
-  );
-}
 
 export function PolicyLibraryTable({
   policies,
@@ -86,11 +51,11 @@ export function PolicyLibraryTable({
             <tr key={governancePolicyKey(policy)}>
               <td>
                 <div className="table-primary">{policy.name}</div>
-                <div className="table-secondary">{policyKindLabel(policy.kind)} · {policy.description || '暂无描述'}</div>
+                <div className="table-secondary">{policyKindLabel(policy.kind)}{policy.description ? ` · ${policy.description}` : ''}</div>
               </td>
               <td>
                 <div className="table-primary">{policy.summary}</div>
-                <div className="table-secondary">{policy.kind === 'TokenQuotaPolicy' ? '1 个预算池' : `${policy.ruleCount} 条规则`}</div>
+                <div className="table-secondary">{policyContentCount(policy)}</div>
               </td>
               <td>
                 <div className="table-primary">{policy.targets.length > 0 ? `${policy.targets.length} 个` : '未应用'}</div>
@@ -125,4 +90,14 @@ export function PolicyLibraryTable({
       </table>
     </div>
   );
+}
+
+function policyContentCount(policy: GovernancePolicy) {
+  if (policy.kind === 'IPRestrictionPolicy') {
+    return `${policy.ruleCount} 个地址或网段`;
+  }
+  if (policy.kind === 'TokenQuotaPolicy') {
+    return '1 个预算池';
+  }
+  return '1 项请求额度';
 }
