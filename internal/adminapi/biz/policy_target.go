@@ -51,9 +51,15 @@ func NewPolicyTargetResolver(gateways GatewayGetter, routes RouteGetter) *Policy
 
 // Validate 校验所有策略作用目标是否存在
 func (r *PolicyTargetResolver) Validate(ctx context.Context, refs []resource.PolicyTargetRef) error {
+	_, err := r.Resolve(ctx, refs)
+	return err
+}
+
+// Resolve 校验策略作用目标并返回当前展示名称
+func (r *PolicyTargetResolver) Resolve(ctx context.Context, refs []resource.PolicyTargetRef) (PolicyTargetNames, error) {
 	names, err := r.DisplayNames(ctx, refs)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, ref := range refs {
 		if names.Contains(ref) {
@@ -61,14 +67,14 @@ func (r *PolicyTargetResolver) Validate(ctx context.Context, refs []resource.Pol
 		}
 		switch ref.Kind {
 		case resource.KindGateway:
-			return NewUserError(fmt.Sprintf("网关 %q 不存在", ref.Name))
+			return nil, NewUserError(fmt.Sprintf("网关 %q 不存在", ref.Name))
 		case resource.KindRoute:
-			return NewUserError(fmt.Sprintf("路由 %q 不存在", ref.Name))
+			return nil, NewUserError(fmt.Sprintf("路由 %q 不存在", ref.Name))
 		default:
-			return NewUserError("策略作用目标只支持网关或路由")
+			return nil, NewUserError("策略作用目标只支持网关或路由")
 		}
 	}
-	return nil
+	return names, nil
 }
 
 // DisplayNames 返回当前存在的策略作用目标展示名称，缺失引用保留为空名称供状态页展示

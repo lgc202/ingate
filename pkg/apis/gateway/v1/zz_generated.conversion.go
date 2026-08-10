@@ -263,23 +263,13 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*RateLimitKey)(nil), (*gateway.RateLimitKey)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RateLimitKey_To_gateway_RateLimitKey(a.(*RateLimitKey), b.(*gateway.RateLimitKey), scope)
+	if err := s.AddGeneratedConversionFunc((*RateLimit)(nil), (*gateway.RateLimit)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RateLimit_To_gateway_RateLimit(a.(*RateLimit), b.(*gateway.RateLimit), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitKey)(nil), (*RateLimitKey)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RateLimitKey_To_v1_RateLimitKey(a.(*gateway.RateLimitKey), b.(*RateLimitKey), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RateLimitKeyPart)(nil), (*gateway.RateLimitKeyPart)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart(a.(*RateLimitKeyPart), b.(*gateway.RateLimitKeyPart), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitKeyPart)(nil), (*RateLimitKeyPart)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart(a.(*gateway.RateLimitKeyPart), b.(*RateLimitKeyPart), scope)
+	if err := s.AddGeneratedConversionFunc((*gateway.RateLimit)(nil), (*RateLimit)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RateLimit_To_v1_RateLimit(a.(*gateway.RateLimit), b.(*RateLimit), scope)
 	}); err != nil {
 		return err
 	}
@@ -313,33 +303,13 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*RateLimitQuota)(nil), (*gateway.RateLimitQuota)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota(a.(*RateLimitQuota), b.(*gateway.RateLimitQuota), scope)
+	if err := s.AddGeneratedConversionFunc((*RateLimitSubject)(nil), (*gateway.RateLimitSubject)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RateLimitSubject_To_gateway_RateLimitSubject(a.(*RateLimitSubject), b.(*gateway.RateLimitSubject), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitQuota)(nil), (*RateLimitQuota)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RateLimitQuota_To_v1_RateLimitQuota(a.(*gateway.RateLimitQuota), b.(*RateLimitQuota), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RateLimitResponse)(nil), (*gateway.RateLimitResponse)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse(a.(*RateLimitResponse), b.(*gateway.RateLimitResponse), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitResponse)(nil), (*RateLimitResponse)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse(a.(*gateway.RateLimitResponse), b.(*RateLimitResponse), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RateLimitRule)(nil), (*gateway.RateLimitRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RateLimitRule_To_gateway_RateLimitRule(a.(*RateLimitRule), b.(*gateway.RateLimitRule), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitRule)(nil), (*RateLimitRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RateLimitRule_To_v1_RateLimitRule(a.(*gateway.RateLimitRule), b.(*RateLimitRule), scope)
+	if err := s.AddGeneratedConversionFunc((*gateway.RateLimitSubject)(nil), (*RateLimitSubject)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RateLimitSubject_To_v1_RateLimitSubject(a.(*gateway.RateLimitSubject), b.(*RateLimitSubject), scope)
 	}); err != nil {
 		return err
 	}
@@ -1134,46 +1104,26 @@ func Convert_gateway_PolicyTargetStatus_To_v1_PolicyTargetStatus(in *gateway.Pol
 	return autoConvert_gateway_PolicyTargetStatus_To_v1_PolicyTargetStatus(in, out, s)
 }
 
-func autoConvert_v1_RateLimitKey_To_gateway_RateLimitKey(in *RateLimitKey, out *gateway.RateLimitKey, s conversion.Scope) error {
-	out.Parts = *(*[]gateway.RateLimitKeyPart)(unsafe.Pointer(&in.Parts))
+func autoConvert_v1_RateLimit_To_gateway_RateLimit(in *RateLimit, out *gateway.RateLimit, s conversion.Scope) error {
+	out.Requests = in.Requests
+	out.WindowSeconds = in.WindowSeconds
 	return nil
 }
 
-// Convert_v1_RateLimitKey_To_gateway_RateLimitKey is an autogenerated conversion function.
-func Convert_v1_RateLimitKey_To_gateway_RateLimitKey(in *RateLimitKey, out *gateway.RateLimitKey, s conversion.Scope) error {
-	return autoConvert_v1_RateLimitKey_To_gateway_RateLimitKey(in, out, s)
+// Convert_v1_RateLimit_To_gateway_RateLimit is an autogenerated conversion function.
+func Convert_v1_RateLimit_To_gateway_RateLimit(in *RateLimit, out *gateway.RateLimit, s conversion.Scope) error {
+	return autoConvert_v1_RateLimit_To_gateway_RateLimit(in, out, s)
 }
 
-func autoConvert_gateway_RateLimitKey_To_v1_RateLimitKey(in *gateway.RateLimitKey, out *RateLimitKey, s conversion.Scope) error {
-	out.Parts = *(*[]RateLimitKeyPart)(unsafe.Pointer(&in.Parts))
+func autoConvert_gateway_RateLimit_To_v1_RateLimit(in *gateway.RateLimit, out *RateLimit, s conversion.Scope) error {
+	out.Requests = in.Requests
+	out.WindowSeconds = in.WindowSeconds
 	return nil
 }
 
-// Convert_gateway_RateLimitKey_To_v1_RateLimitKey is an autogenerated conversion function.
-func Convert_gateway_RateLimitKey_To_v1_RateLimitKey(in *gateway.RateLimitKey, out *RateLimitKey, s conversion.Scope) error {
-	return autoConvert_gateway_RateLimitKey_To_v1_RateLimitKey(in, out, s)
-}
-
-func autoConvert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart(in *RateLimitKeyPart, out *gateway.RateLimitKeyPart, s conversion.Scope) error {
-	out.Type = gateway.RateLimitKeyType(in.Type)
-	out.Name = in.Name
-	return nil
-}
-
-// Convert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart is an autogenerated conversion function.
-func Convert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart(in *RateLimitKeyPart, out *gateway.RateLimitKeyPart, s conversion.Scope) error {
-	return autoConvert_v1_RateLimitKeyPart_To_gateway_RateLimitKeyPart(in, out, s)
-}
-
-func autoConvert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart(in *gateway.RateLimitKeyPart, out *RateLimitKeyPart, s conversion.Scope) error {
-	out.Type = RateLimitKeyType(in.Type)
-	out.Name = in.Name
-	return nil
-}
-
-// Convert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart is an autogenerated conversion function.
-func Convert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart(in *gateway.RateLimitKeyPart, out *RateLimitKeyPart, s conversion.Scope) error {
-	return autoConvert_gateway_RateLimitKeyPart_To_v1_RateLimitKeyPart(in, out, s)
+// Convert_gateway_RateLimit_To_v1_RateLimit is an autogenerated conversion function.
+func Convert_gateway_RateLimit_To_v1_RateLimit(in *gateway.RateLimit, out *RateLimit, s conversion.Scope) error {
+	return autoConvert_gateway_RateLimit_To_v1_RateLimit(in, out, s)
 }
 
 func autoConvert_v1_RateLimitPolicy_To_gateway_RateLimitPolicy(in *RateLimitPolicy, out *gateway.RateLimitPolicy, s conversion.Scope) error {
@@ -1232,14 +1182,14 @@ func Convert_gateway_RateLimitPolicyList_To_v1_RateLimitPolicyList(in *gateway.R
 
 func autoConvert_v1_RateLimitPolicySpec_To_gateway_RateLimitPolicySpec(in *RateLimitPolicySpec, out *gateway.RateLimitPolicySpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
-	out.Description = in.Description
 	out.Enabled = in.Enabled
 	out.TargetRefs = *(*[]gateway.PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
-	out.Rules = *(*[]gateway.RateLimitRule)(unsafe.Pointer(&in.Rules))
-	if err := Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse(&in.Response, &out.Response, s); err != nil {
+	if err := Convert_v1_RateLimitSubject_To_gateway_RateLimitSubject(&in.Subject, &out.Subject, s); err != nil {
 		return err
 	}
-	out.FailurePolicy = gateway.RateLimitFailurePolicy(in.FailurePolicy)
+	if err := Convert_v1_RateLimit_To_gateway_RateLimit(&in.Limit, &out.Limit, s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1250,14 +1200,14 @@ func Convert_v1_RateLimitPolicySpec_To_gateway_RateLimitPolicySpec(in *RateLimit
 
 func autoConvert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(in *gateway.RateLimitPolicySpec, out *RateLimitPolicySpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
-	out.Description = in.Description
 	out.Enabled = in.Enabled
 	out.TargetRefs = *(*[]PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
-	out.Rules = *(*[]RateLimitRule)(unsafe.Pointer(&in.Rules))
-	if err := Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse(&in.Response, &out.Response, s); err != nil {
+	if err := Convert_gateway_RateLimitSubject_To_v1_RateLimitSubject(&in.Subject, &out.Subject, s); err != nil {
 		return err
 	}
-	out.FailurePolicy = RateLimitFailurePolicy(in.FailurePolicy)
+	if err := Convert_gateway_RateLimit_To_v1_RateLimit(&in.Limit, &out.Limit, s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1266,84 +1216,26 @@ func Convert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(in *gateway.R
 	return autoConvert_gateway_RateLimitPolicySpec_To_v1_RateLimitPolicySpec(in, out, s)
 }
 
-func autoConvert_v1_RateLimitQuota_To_gateway_RateLimitQuota(in *RateLimitQuota, out *gateway.RateLimitQuota, s conversion.Scope) error {
-	out.Requests = in.Requests
-	out.WindowSeconds = in.WindowSeconds
-	out.Burst = in.Burst
+func autoConvert_v1_RateLimitSubject_To_gateway_RateLimitSubject(in *RateLimitSubject, out *gateway.RateLimitSubject, s conversion.Scope) error {
+	out.Type = gateway.RateLimitSubjectType(in.Type)
+	out.HeaderName = in.HeaderName
 	return nil
 }
 
-// Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota is an autogenerated conversion function.
-func Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota(in *RateLimitQuota, out *gateway.RateLimitQuota, s conversion.Scope) error {
-	return autoConvert_v1_RateLimitQuota_To_gateway_RateLimitQuota(in, out, s)
+// Convert_v1_RateLimitSubject_To_gateway_RateLimitSubject is an autogenerated conversion function.
+func Convert_v1_RateLimitSubject_To_gateway_RateLimitSubject(in *RateLimitSubject, out *gateway.RateLimitSubject, s conversion.Scope) error {
+	return autoConvert_v1_RateLimitSubject_To_gateway_RateLimitSubject(in, out, s)
 }
 
-func autoConvert_gateway_RateLimitQuota_To_v1_RateLimitQuota(in *gateway.RateLimitQuota, out *RateLimitQuota, s conversion.Scope) error {
-	out.Requests = in.Requests
-	out.WindowSeconds = in.WindowSeconds
-	out.Burst = in.Burst
+func autoConvert_gateway_RateLimitSubject_To_v1_RateLimitSubject(in *gateway.RateLimitSubject, out *RateLimitSubject, s conversion.Scope) error {
+	out.Type = RateLimitSubjectType(in.Type)
+	out.HeaderName = in.HeaderName
 	return nil
 }
 
-// Convert_gateway_RateLimitQuota_To_v1_RateLimitQuota is an autogenerated conversion function.
-func Convert_gateway_RateLimitQuota_To_v1_RateLimitQuota(in *gateway.RateLimitQuota, out *RateLimitQuota, s conversion.Scope) error {
-	return autoConvert_gateway_RateLimitQuota_To_v1_RateLimitQuota(in, out, s)
-}
-
-func autoConvert_v1_RateLimitResponse_To_gateway_RateLimitResponse(in *RateLimitResponse, out *gateway.RateLimitResponse, s conversion.Scope) error {
-	out.StatusCode = in.StatusCode
-	out.Message = in.Message
-	out.QuotaHeaderEnabled = in.QuotaHeaderEnabled
-	return nil
-}
-
-// Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse is an autogenerated conversion function.
-func Convert_v1_RateLimitResponse_To_gateway_RateLimitResponse(in *RateLimitResponse, out *gateway.RateLimitResponse, s conversion.Scope) error {
-	return autoConvert_v1_RateLimitResponse_To_gateway_RateLimitResponse(in, out, s)
-}
-
-func autoConvert_gateway_RateLimitResponse_To_v1_RateLimitResponse(in *gateway.RateLimitResponse, out *RateLimitResponse, s conversion.Scope) error {
-	out.StatusCode = in.StatusCode
-	out.Message = in.Message
-	out.QuotaHeaderEnabled = in.QuotaHeaderEnabled
-	return nil
-}
-
-// Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse is an autogenerated conversion function.
-func Convert_gateway_RateLimitResponse_To_v1_RateLimitResponse(in *gateway.RateLimitResponse, out *RateLimitResponse, s conversion.Scope) error {
-	return autoConvert_gateway_RateLimitResponse_To_v1_RateLimitResponse(in, out, s)
-}
-
-func autoConvert_v1_RateLimitRule_To_gateway_RateLimitRule(in *RateLimitRule, out *gateway.RateLimitRule, s conversion.Scope) error {
-	out.Name = in.Name
-	if err := Convert_v1_RateLimitKey_To_gateway_RateLimitKey(&in.Key, &out.Key, s); err != nil {
-		return err
-	}
-	if err := Convert_v1_RateLimitQuota_To_gateway_RateLimitQuota(&in.Limit, &out.Limit, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_v1_RateLimitRule_To_gateway_RateLimitRule is an autogenerated conversion function.
-func Convert_v1_RateLimitRule_To_gateway_RateLimitRule(in *RateLimitRule, out *gateway.RateLimitRule, s conversion.Scope) error {
-	return autoConvert_v1_RateLimitRule_To_gateway_RateLimitRule(in, out, s)
-}
-
-func autoConvert_gateway_RateLimitRule_To_v1_RateLimitRule(in *gateway.RateLimitRule, out *RateLimitRule, s conversion.Scope) error {
-	out.Name = in.Name
-	if err := Convert_gateway_RateLimitKey_To_v1_RateLimitKey(&in.Key, &out.Key, s); err != nil {
-		return err
-	}
-	if err := Convert_gateway_RateLimitQuota_To_v1_RateLimitQuota(&in.Limit, &out.Limit, s); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Convert_gateway_RateLimitRule_To_v1_RateLimitRule is an autogenerated conversion function.
-func Convert_gateway_RateLimitRule_To_v1_RateLimitRule(in *gateway.RateLimitRule, out *RateLimitRule, s conversion.Scope) error {
-	return autoConvert_gateway_RateLimitRule_To_v1_RateLimitRule(in, out, s)
+// Convert_gateway_RateLimitSubject_To_v1_RateLimitSubject is an autogenerated conversion function.
+func Convert_gateway_RateLimitSubject_To_v1_RateLimitSubject(in *gateway.RateLimitSubject, out *RateLimitSubject, s conversion.Scope) error {
+	return autoConvert_gateway_RateLimitSubject_To_v1_RateLimitSubject(in, out, s)
 }
 
 func autoConvert_v1_ResourceStatus_To_gateway_ResourceStatus(in *ResourceStatus, out *gateway.ResourceStatus, s conversion.Scope) error {

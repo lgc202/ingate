@@ -2,6 +2,25 @@ package v1
 
 import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+const (
+	// RateLimitMaxRequests 是数据面单条限流额度支持的最大请求数
+	RateLimitMaxRequests int64 = 1<<31 - 1
+	// RateLimitMaxWindowSeconds 是数据面单条限流窗口支持的最大秒数
+	RateLimitMaxWindowSeconds int64 = 1<<31 - 1
+)
+
+// RateLimitSubjectType 表示额度在目标内如何划分计数对象
+type RateLimitSubjectType string
+
+const (
+	// RateLimitSubjectShared 表示目标内所有请求共享额度
+	RateLimitSubjectShared RateLimitSubjectType = "Shared"
+	// RateLimitSubjectIP 表示每个客户端 IP 独立使用额度
+	RateLimitSubjectIP RateLimitSubjectType = "IP"
+	// RateLimitSubjectHeader 表示每个请求 Header 值独立使用额度
+	RateLimitSubjectHeader RateLimitSubjectType = "Header"
+)
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 // +genclient:nonNamespaced
@@ -27,46 +46,23 @@ type RateLimitPolicyList struct {
 // RateLimitPolicySpec 定义限流策略配置
 type RateLimitPolicySpec struct {
 	DisplayName string `json:"displayName"`
-	Description string `json:"description,omitempty"`
 	Enabled     bool   `json:"enabled"`
-	// +listType=atomic
+	// +listType=map
+	// +listMapKey=kind
+	// +listMapKey=name
 	TargetRefs []PolicyTargetRef `json:"targetRefs,omitempty"`
-	// +listType=atomic
-	Rules         []RateLimitRule        `json:"rules"`
-	Response      RateLimitResponse      `json:"response,omitempty"`
-	FailurePolicy RateLimitFailurePolicy `json:"failurePolicy,omitempty"`
+	Subject    RateLimitSubject  `json:"subject"`
+	Limit      RateLimit         `json:"limit"`
 }
 
-// RateLimitRule 定义一条限流规则
-type RateLimitRule struct {
-	Name  string         `json:"name"`
-	Key   RateLimitKey   `json:"key"`
-	Limit RateLimitQuota `json:"limit"`
+// RateLimitSubject 定义目标内共享额度的请求主体
+type RateLimitSubject struct {
+	Type       RateLimitSubjectType `json:"type"`
+	HeaderName string               `json:"headerName,omitempty"`
 }
 
-// RateLimitKey 定义限流计数 key
-type RateLimitKey struct {
-	// +listType=atomic
-	Parts []RateLimitKeyPart `json:"parts"`
-}
-
-// RateLimitKeyPart 定义限流 key 的一个组成部分
-type RateLimitKeyPart struct {
-	Type RateLimitKeyType `json:"type"`
-	Name string           `json:"name,omitempty"`
-}
-
-// RateLimitQuota 定义限流额度
-type RateLimitQuota struct {
-	Requests      int `json:"requests"`
-	WindowSeconds int `json:"windowSeconds"`
-	// Burst 表示令牌桶容量，0 表示使用 Requests 作为容量
-	Burst int `json:"burst,omitempty"`
-}
-
-// RateLimitResponse 定义超限响应
-type RateLimitResponse struct {
-	StatusCode         int    `json:"statusCode,omitempty"`
-	Message            string `json:"message,omitempty"`
-	QuotaHeaderEnabled bool   `json:"quotaHeaderEnabled,omitempty"`
+// RateLimit 定义指定时间窗口内允许的请求数
+type RateLimit struct {
+	Requests      int64 `json:"requests"`
+	WindowSeconds int64 `json:"windowSeconds"`
 }

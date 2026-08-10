@@ -78,6 +78,56 @@ func (ResourceState) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_common_proto_rawDescGZIP(), []int{0}
 }
 
+// PolicyTargetKind 是治理策略支持的作用目标类型
+type PolicyTargetKind int32
+
+const (
+	PolicyTargetKind_POLICY_TARGET_KIND_UNSPECIFIED PolicyTargetKind = 0
+	PolicyTargetKind_POLICY_TARGET_KIND_GATEWAY     PolicyTargetKind = 1
+	PolicyTargetKind_POLICY_TARGET_KIND_ROUTE       PolicyTargetKind = 2
+)
+
+// Enum value maps for PolicyTargetKind.
+var (
+	PolicyTargetKind_name = map[int32]string{
+		0: "POLICY_TARGET_KIND_UNSPECIFIED",
+		1: "POLICY_TARGET_KIND_GATEWAY",
+		2: "POLICY_TARGET_KIND_ROUTE",
+	}
+	PolicyTargetKind_value = map[string]int32{
+		"POLICY_TARGET_KIND_UNSPECIFIED": 0,
+		"POLICY_TARGET_KIND_GATEWAY":     1,
+		"POLICY_TARGET_KIND_ROUTE":       2,
+	}
+)
+
+func (x PolicyTargetKind) Enum() *PolicyTargetKind {
+	p := new(PolicyTargetKind)
+	*p = x
+	return p
+}
+
+func (x PolicyTargetKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (PolicyTargetKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_common_proto_enumTypes[1].Descriptor()
+}
+
+func (PolicyTargetKind) Type() protoreflect.EnumType {
+	return &file_admin_v1_common_proto_enumTypes[1]
+}
+
+func (x PolicyTargetKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use PolicyTargetKind.Descriptor instead.
+func (PolicyTargetKind) EnumDescriptor() ([]byte, []int) {
+	return file_admin_v1_common_proto_rawDescGZIP(), []int{1}
+}
+
 // ResourceStatus 是控制台展示的声明式资源处理状态
 type ResourceStatus struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -134,7 +184,7 @@ func (x *ResourceStatus) GetMessage() string {
 // PolicyTargetRef 是创建和更新策略时提交的作用目标
 type PolicyTargetRef struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Kind          PolicyTargetKind       `protobuf:"varint,1,opt,name=kind,proto3,enum=ingate.admin.v1.PolicyTargetKind" json:"kind,omitempty"`
 	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -170,11 +220,11 @@ func (*PolicyTargetRef) Descriptor() ([]byte, []int) {
 	return file_admin_v1_common_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *PolicyTargetRef) GetKind() string {
+func (x *PolicyTargetRef) GetKind() PolicyTargetKind {
 	if x != nil {
 		return x.Kind
 	}
-	return ""
+	return PolicyTargetKind_POLICY_TARGET_KIND_UNSPECIFIED
 }
 
 func (x *PolicyTargetRef) GetId() string {
@@ -187,10 +237,11 @@ func (x *PolicyTargetRef) GetId() string {
 // PolicyTarget 是控制台展示的策略作用目标及其生效状态
 type PolicyTarget struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
+	Kind          PolicyTargetKind       `protobuf:"varint,1,opt,name=kind,proto3,enum=ingate.admin.v1.PolicyTargetKind" json:"kind,omitempty"`
 	Id            string                 `protobuf:"bytes,2,opt,name=id,proto3" json:"id,omitempty"`
-	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
-	Status        *ResourceStatus        `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	State         ResourceState          `protobuf:"varint,4,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
+	Message       string                 `protobuf:"bytes,5,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -225,11 +276,11 @@ func (*PolicyTarget) Descriptor() ([]byte, []int) {
 	return file_admin_v1_common_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *PolicyTarget) GetKind() string {
+func (x *PolicyTarget) GetKind() PolicyTargetKind {
 	if x != nil {
 		return x.Kind
 	}
-	return ""
+	return PolicyTargetKind_POLICY_TARGET_KIND_UNSPECIFIED
 }
 
 func (x *PolicyTarget) GetId() string {
@@ -239,18 +290,25 @@ func (x *PolicyTarget) GetId() string {
 	return ""
 }
 
-func (x *PolicyTarget) GetDisplayName() string {
+func (x *PolicyTarget) GetName() string {
 	if x != nil {
-		return x.DisplayName
+		return x.Name
 	}
 	return ""
 }
 
-func (x *PolicyTarget) GetStatus() *ResourceStatus {
+func (x *PolicyTarget) GetState() ResourceState {
 	if x != nil {
-		return x.Status
+		return x.State
 	}
-	return nil
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
+}
+
+func (x *PolicyTarget) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
 }
 
 // ResourceRequest 通过资源 ID 定位单个管理对象
@@ -508,15 +566,16 @@ const file_admin_v1_common_proto_rawDesc = "" +
 	"\x15admin/v1/common.proto\x12\x0fingate.admin.v1\x1a\x1bbuf/validate/validate.proto\"`\n" +
 	"\x0eResourceStatus\x124\n" +
 	"\x05state\x18\x01 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateR\x05state\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"I\n" +
-	"\x0fPolicyTargetRef\x12\x1b\n" +
-	"\x04kind\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04kind\x12\x19\n" +
-	"\x02id\x18\x02 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\"\x8e\x01\n" +
-	"\fPolicyTarget\x12\x12\n" +
-	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x0e\n" +
-	"\x02id\x18\x02 \x01(\tR\x02id\x12!\n" +
-	"\fdisplay_name\x18\x03 \x01(\tR\vdisplayName\x127\n" +
-	"\x06status\x18\x04 \x01(\v2\x1f.ingate.admin.v1.ResourceStatusR\x06status\",\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"l\n" +
+	"\x0fPolicyTargetRef\x12?\n" +
+	"\x04kind\x18\x01 \x01(\x0e2!.ingate.admin.v1.PolicyTargetKindB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04kind\x12\x18\n" +
+	"\x02id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xb9\x01\n" +
+	"\fPolicyTarget\x125\n" +
+	"\x04kind\x18\x01 \x01(\x0e2!.ingate.admin.v1.PolicyTargetKindR\x04kind\x12\x0e\n" +
+	"\x02id\x18\x02 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x124\n" +
+	"\x05state\x18\x04 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateR\x05state\x12\x18\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage\",\n" +
 	"\x0fResourceRequest\x12\x19\n" +
 	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\"a\n" +
 	"\x11SetEnabledRequest\x12\x19\n" +
@@ -539,7 +598,11 @@ const file_admin_v1_common_proto_rawDesc = "" +
 	"\bDISABLED\x10\x01\x12\v\n" +
 	"\aPENDING\x10\x02\x12\t\n" +
 	"\x05READY\x10\x03\x12\t\n" +
-	"\x05ERROR\x10\x04B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x05ERROR\x10\x04*t\n" +
+	"\x10PolicyTargetKind\x12\"\n" +
+	"\x1ePOLICY_TARGET_KIND_UNSPECIFIED\x10\x00\x12\x1e\n" +
+	"\x1aPOLICY_TARGET_KIND_GATEWAY\x10\x01\x12\x1c\n" +
+	"\x18POLICY_TARGET_KIND_ROUTE\x10\x02B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_common_proto_rawDescOnce sync.Once
@@ -553,27 +616,30 @@ func file_admin_v1_common_proto_rawDescGZIP() []byte {
 	return file_admin_v1_common_proto_rawDescData
 }
 
-var file_admin_v1_common_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_admin_v1_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_admin_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_admin_v1_common_proto_goTypes = []any{
 	(ResourceState)(0),        // 0: ingate.admin.v1.ResourceState
-	(*ResourceStatus)(nil),    // 1: ingate.admin.v1.ResourceStatus
-	(*PolicyTargetRef)(nil),   // 2: ingate.admin.v1.PolicyTargetRef
-	(*PolicyTarget)(nil),      // 3: ingate.admin.v1.PolicyTarget
-	(*ResourceRequest)(nil),   // 4: ingate.admin.v1.ResourceRequest
-	(*SetEnabledRequest)(nil), // 5: ingate.admin.v1.SetEnabledRequest
-	(*MutationReply)(nil),     // 6: ingate.admin.v1.MutationReply
-	(*ListRequest)(nil),       // 7: ingate.admin.v1.ListRequest
-	(*PageInfo)(nil),          // 8: ingate.admin.v1.PageInfo
+	(PolicyTargetKind)(0),     // 1: ingate.admin.v1.PolicyTargetKind
+	(*ResourceStatus)(nil),    // 2: ingate.admin.v1.ResourceStatus
+	(*PolicyTargetRef)(nil),   // 3: ingate.admin.v1.PolicyTargetRef
+	(*PolicyTarget)(nil),      // 4: ingate.admin.v1.PolicyTarget
+	(*ResourceRequest)(nil),   // 5: ingate.admin.v1.ResourceRequest
+	(*SetEnabledRequest)(nil), // 6: ingate.admin.v1.SetEnabledRequest
+	(*MutationReply)(nil),     // 7: ingate.admin.v1.MutationReply
+	(*ListRequest)(nil),       // 8: ingate.admin.v1.ListRequest
+	(*PageInfo)(nil),          // 9: ingate.admin.v1.PageInfo
 }
 var file_admin_v1_common_proto_depIdxs = []int32{
 	0, // 0: ingate.admin.v1.ResourceStatus.state:type_name -> ingate.admin.v1.ResourceState
-	1, // 1: ingate.admin.v1.PolicyTarget.status:type_name -> ingate.admin.v1.ResourceStatus
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	1, // 1: ingate.admin.v1.PolicyTargetRef.kind:type_name -> ingate.admin.v1.PolicyTargetKind
+	1, // 2: ingate.admin.v1.PolicyTarget.kind:type_name -> ingate.admin.v1.PolicyTargetKind
+	0, // 3: ingate.admin.v1.PolicyTarget.state:type_name -> ingate.admin.v1.ResourceState
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_common_proto_init() }
@@ -587,7 +653,7 @@ func file_admin_v1_common_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_common_proto_rawDesc), len(file_admin_v1_common_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,

@@ -11,6 +11,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -24,79 +25,132 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-type RateLimitKeyPart struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
+type RateLimitSubjectType int32
 
-func (x *RateLimitKeyPart) Reset() {
-	*x = RateLimitKeyPart{}
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
+const (
+	RateLimitSubjectType_RATE_LIMIT_SUBJECT_TYPE_UNSPECIFIED RateLimitSubjectType = 0
+	RateLimitSubjectType_RATE_LIMIT_SUBJECT_TYPE_SHARED      RateLimitSubjectType = 1
+	RateLimitSubjectType_RATE_LIMIT_SUBJECT_TYPE_IP          RateLimitSubjectType = 2
+	RateLimitSubjectType_RATE_LIMIT_SUBJECT_TYPE_HEADER      RateLimitSubjectType = 3
+)
 
-func (x *RateLimitKeyPart) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RateLimitKeyPart) ProtoMessage() {}
-
-func (x *RateLimitKeyPart) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
+// Enum value maps for RateLimitSubjectType.
+var (
+	RateLimitSubjectType_name = map[int32]string{
+		0: "RATE_LIMIT_SUBJECT_TYPE_UNSPECIFIED",
+		1: "RATE_LIMIT_SUBJECT_TYPE_SHARED",
+		2: "RATE_LIMIT_SUBJECT_TYPE_IP",
+		3: "RATE_LIMIT_SUBJECT_TYPE_HEADER",
 	}
-	return mi.MessageOf(x)
+	RateLimitSubjectType_value = map[string]int32{
+		"RATE_LIMIT_SUBJECT_TYPE_UNSPECIFIED": 0,
+		"RATE_LIMIT_SUBJECT_TYPE_SHARED":      1,
+		"RATE_LIMIT_SUBJECT_TYPE_IP":          2,
+		"RATE_LIMIT_SUBJECT_TYPE_HEADER":      3,
+	}
+)
+
+func (x RateLimitSubjectType) Enum() *RateLimitSubjectType {
+	p := new(RateLimitSubjectType)
+	*p = x
+	return p
 }
 
-// Deprecated: Use RateLimitKeyPart.ProtoReflect.Descriptor instead.
-func (*RateLimitKeyPart) Descriptor() ([]byte, []int) {
+func (x RateLimitSubjectType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RateLimitSubjectType) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_rate_limit_policy_proto_enumTypes[0].Descriptor()
+}
+
+func (RateLimitSubjectType) Type() protoreflect.EnumType {
+	return &file_admin_v1_rate_limit_policy_proto_enumTypes[0]
+}
+
+func (x RateLimitSubjectType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RateLimitSubjectType.Descriptor instead.
+func (RateLimitSubjectType) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{0}
 }
 
-func (x *RateLimitKeyPart) GetType() string {
+type RateLimitSubject struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          RateLimitSubjectType   `protobuf:"varint,1,opt,name=type,proto3,enum=ingate.admin.v1.RateLimitSubjectType" json:"type,omitempty"`
+	HeaderName    string                 `protobuf:"bytes,2,opt,name=header_name,json=headerName,proto3" json:"header_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RateLimitSubject) Reset() {
+	*x = RateLimitSubject{}
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RateLimitSubject) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RateLimitSubject) ProtoMessage() {}
+
+func (x *RateLimitSubject) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RateLimitSubject.ProtoReflect.Descriptor instead.
+func (*RateLimitSubject) Descriptor() ([]byte, []int) {
+	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *RateLimitSubject) GetType() RateLimitSubjectType {
 	if x != nil {
 		return x.Type
 	}
-	return ""
+	return RateLimitSubjectType_RATE_LIMIT_SUBJECT_TYPE_UNSPECIFIED
 }
 
-func (x *RateLimitKeyPart) GetName() string {
+func (x *RateLimitSubject) GetHeaderName() string {
 	if x != nil {
-		return x.Name
+		return x.HeaderName
 	}
 	return ""
 }
 
-type RateLimitKey struct {
+type RateLimit struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Parts         []*RateLimitKeyPart    `protobuf:"bytes,1,rep,name=parts,proto3" json:"parts,omitempty"`
+	Requests      int64                  `protobuf:"varint,1,opt,name=requests,proto3" json:"requests,omitempty"`
+	WindowSeconds int64                  `protobuf:"varint,2,opt,name=window_seconds,json=windowSeconds,proto3" json:"window_seconds,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RateLimitKey) Reset() {
-	*x = RateLimitKey{}
+func (x *RateLimit) Reset() {
+	*x = RateLimit{}
 	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RateLimitKey) String() string {
+func (x *RateLimit) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RateLimitKey) ProtoMessage() {}
+func (*RateLimit) ProtoMessage() {}
 
-func (x *RateLimitKey) ProtoReflect() protoreflect.Message {
+func (x *RateLimit) ProtoReflect() protoreflect.Message {
 	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -108,218 +162,45 @@ func (x *RateLimitKey) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RateLimitKey.ProtoReflect.Descriptor instead.
-func (*RateLimitKey) Descriptor() ([]byte, []int) {
+// Deprecated: Use RateLimit.ProtoReflect.Descriptor instead.
+func (*RateLimit) Descriptor() ([]byte, []int) {
 	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{1}
 }
 
-func (x *RateLimitKey) GetParts() []*RateLimitKeyPart {
-	if x != nil {
-		return x.Parts
-	}
-	return nil
-}
-
-type RateLimitQuota struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Requests      int32                  `protobuf:"varint,1,opt,name=requests,proto3" json:"requests,omitempty"`
-	WindowSeconds int32                  `protobuf:"varint,2,opt,name=window_seconds,json=windowSeconds,proto3" json:"window_seconds,omitempty"`
-	Burst         int32                  `protobuf:"varint,3,opt,name=burst,proto3" json:"burst,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RateLimitQuota) Reset() {
-	*x = RateLimitQuota{}
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[2]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RateLimitQuota) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RateLimitQuota) ProtoMessage() {}
-
-func (x *RateLimitQuota) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[2]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RateLimitQuota.ProtoReflect.Descriptor instead.
-func (*RateLimitQuota) Descriptor() ([]byte, []int) {
-	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{2}
-}
-
-func (x *RateLimitQuota) GetRequests() int32 {
+func (x *RateLimit) GetRequests() int64 {
 	if x != nil {
 		return x.Requests
 	}
 	return 0
 }
 
-func (x *RateLimitQuota) GetWindowSeconds() int32 {
+func (x *RateLimit) GetWindowSeconds() int64 {
 	if x != nil {
 		return x.WindowSeconds
 	}
 	return 0
 }
 
-func (x *RateLimitQuota) GetBurst() int32 {
-	if x != nil {
-		return x.Burst
-	}
-	return 0
-}
-
-type RateLimitRule struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Key           *RateLimitKey          `protobuf:"bytes,2,opt,name=key,proto3" json:"key,omitempty"`
-	Limit         *RateLimitQuota        `protobuf:"bytes,3,opt,name=limit,proto3" json:"limit,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RateLimitRule) Reset() {
-	*x = RateLimitRule{}
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RateLimitRule) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RateLimitRule) ProtoMessage() {}
-
-func (x *RateLimitRule) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RateLimitRule.ProtoReflect.Descriptor instead.
-func (*RateLimitRule) Descriptor() ([]byte, []int) {
-	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *RateLimitRule) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *RateLimitRule) GetKey() *RateLimitKey {
-	if x != nil {
-		return x.Key
-	}
-	return nil
-}
-
-func (x *RateLimitRule) GetLimit() *RateLimitQuota {
-	if x != nil {
-		return x.Limit
-	}
-	return nil
-}
-
-type RateLimitResponse struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
-	StatusCode         int32                  `protobuf:"varint,1,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
-	Message            string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	QuotaHeaderEnabled bool                   `protobuf:"varint,3,opt,name=quota_header_enabled,json=quotaHeaderEnabled,proto3" json:"quota_header_enabled,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
-}
-
-func (x *RateLimitResponse) Reset() {
-	*x = RateLimitResponse{}
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RateLimitResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RateLimitResponse) ProtoMessage() {}
-
-func (x *RateLimitResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RateLimitResponse.ProtoReflect.Descriptor instead.
-func (*RateLimitResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *RateLimitResponse) GetStatusCode() int32 {
-	if x != nil {
-		return x.StatusCode
-	}
-	return 0
-}
-
-func (x *RateLimitResponse) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
-func (x *RateLimitResponse) GetQuotaHeaderEnabled() bool {
-	if x != nil {
-		return x.QuotaHeaderEnabled
-	}
-	return false
-}
-
 type RateLimitPolicy struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Status        *ResourceStatus        `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
-	Name          string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
-	Description   string                 `protobuf:"bytes,5,opt,name=description,proto3" json:"description,omitempty"`
-	Enabled       bool                   `protobuf:"varint,6,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	Targets       []*PolicyTarget        `protobuf:"bytes,7,rep,name=targets,proto3" json:"targets,omitempty"`
-	Rules         []*RateLimitRule       `protobuf:"bytes,8,rep,name=rules,proto3" json:"rules,omitempty"`
-	Response      *RateLimitResponse     `protobuf:"bytes,9,opt,name=response,proto3" json:"response,omitempty"`
-	FailurePolicy string                 `protobuf:"bytes,10,opt,name=failure_policy,json=failurePolicy,proto3" json:"failure_policy,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	Enabled       bool                   `protobuf:"varint,3,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	Targets       []*PolicyTarget        `protobuf:"bytes,4,rep,name=targets,proto3" json:"targets,omitempty"`
+	Subject       *RateLimitSubject      `protobuf:"bytes,5,opt,name=subject,proto3" json:"subject,omitempty"`
+	Limit         *RateLimit             `protobuf:"bytes,6,opt,name=limit,proto3" json:"limit,omitempty"`
+	State         ResourceState          `protobuf:"varint,7,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
+	Message       string                 `protobuf:"bytes,8,opt,name=message,proto3" json:"message,omitempty"`
+	Version       int64                  `protobuf:"varint,9,opt,name=version,proto3" json:"version,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RateLimitPolicy) Reset() {
 	*x = RateLimitPolicy{}
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[5]
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -331,7 +212,7 @@ func (x *RateLimitPolicy) String() string {
 func (*RateLimitPolicy) ProtoMessage() {}
 
 func (x *RateLimitPolicy) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[5]
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -344,7 +225,7 @@ func (x *RateLimitPolicy) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RateLimitPolicy.ProtoReflect.Descriptor instead.
 func (*RateLimitPolicy) Descriptor() ([]byte, []int) {
-	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{5}
+	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RateLimitPolicy) GetId() string {
@@ -354,30 +235,9 @@ func (x *RateLimitPolicy) GetId() string {
 	return ""
 }
 
-func (x *RateLimitPolicy) GetVersion() string {
-	if x != nil {
-		return x.Version
-	}
-	return ""
-}
-
-func (x *RateLimitPolicy) GetStatus() *ResourceStatus {
-	if x != nil {
-		return x.Status
-	}
-	return nil
-}
-
 func (x *RateLimitPolicy) GetName() string {
 	if x != nil {
 		return x.Name
-	}
-	return ""
-}
-
-func (x *RateLimitPolicy) GetDescription() string {
-	if x != nil {
-		return x.Description
 	}
 	return ""
 }
@@ -396,25 +256,39 @@ func (x *RateLimitPolicy) GetTargets() []*PolicyTarget {
 	return nil
 }
 
-func (x *RateLimitPolicy) GetRules() []*RateLimitRule {
+func (x *RateLimitPolicy) GetSubject() *RateLimitSubject {
 	if x != nil {
-		return x.Rules
+		return x.Subject
 	}
 	return nil
 }
 
-func (x *RateLimitPolicy) GetResponse() *RateLimitResponse {
+func (x *RateLimitPolicy) GetLimit() *RateLimit {
 	if x != nil {
-		return x.Response
+		return x.Limit
 	}
 	return nil
 }
 
-func (x *RateLimitPolicy) GetFailurePolicy() string {
+func (x *RateLimitPolicy) GetState() ResourceState {
 	if x != nil {
-		return x.FailurePolicy
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
+}
+
+func (x *RateLimitPolicy) GetMessage() string {
+	if x != nil {
+		return x.Message
 	}
 	return ""
+}
+
+func (x *RateLimitPolicy) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
 }
 
 func (x *RateLimitPolicy) GetCreatedAt() *timestamppb.Timestamp {
@@ -424,15 +298,168 @@ func (x *RateLimitPolicy) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *RateLimitPolicy) GetUpdatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return nil
+}
+
+type ListRateLimitPoliciesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRateLimitPoliciesRequest) Reset() {
+	*x = ListRateLimitPoliciesRequest{}
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRateLimitPoliciesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRateLimitPoliciesRequest) ProtoMessage() {}
+
+func (x *ListRateLimitPoliciesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRateLimitPoliciesRequest.ProtoReflect.Descriptor instead.
+func (*ListRateLimitPoliciesRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListRateLimitPoliciesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListRateLimitPoliciesRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+type ListRateLimitPoliciesResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Policies      []*RateLimitPolicy     `protobuf:"bytes,1,rep,name=policies,proto3" json:"policies,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListRateLimitPoliciesResponse) Reset() {
+	*x = ListRateLimitPoliciesResponse{}
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListRateLimitPoliciesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListRateLimitPoliciesResponse) ProtoMessage() {}
+
+func (x *ListRateLimitPoliciesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListRateLimitPoliciesResponse.ProtoReflect.Descriptor instead.
+func (*ListRateLimitPoliciesResponse) Descriptor() ([]byte, []int) {
+	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ListRateLimitPoliciesResponse) GetPolicies() []*RateLimitPolicy {
+	if x != nil {
+		return x.Policies
+	}
+	return nil
+}
+
+func (x *ListRateLimitPoliciesResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
+}
+
+type GetRateLimitPolicyRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRateLimitPolicyRequest) Reset() {
+	*x = GetRateLimitPolicyRequest{}
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRateLimitPolicyRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRateLimitPolicyRequest) ProtoMessage() {}
+
+func (x *GetRateLimitPolicyRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRateLimitPolicyRequest.ProtoReflect.Descriptor instead.
+func (*GetRateLimitPolicyRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *GetRateLimitPolicyRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
 type CreateRateLimitPolicyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	Description   string                 `protobuf:"bytes,2,opt,name=description,proto3" json:"description,omitempty"`
-	Enabled       bool                   `protobuf:"varint,3,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	Targets       []*PolicyTargetRef     `protobuf:"bytes,4,rep,name=targets,proto3" json:"targets,omitempty"`
-	Rules         []*RateLimitRule       `protobuf:"bytes,5,rep,name=rules,proto3" json:"rules,omitempty"`
-	Response      *RateLimitResponse     `protobuf:"bytes,6,opt,name=response,proto3" json:"response,omitempty"`
-	FailurePolicy string                 `protobuf:"bytes,7,opt,name=failure_policy,json=failurePolicy,proto3" json:"failure_policy,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,2,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	Targets       []*PolicyTargetRef     `protobuf:"bytes,3,rep,name=targets,proto3" json:"targets,omitempty"`
+	Subject       *RateLimitSubject      `protobuf:"bytes,4,opt,name=subject,proto3" json:"subject,omitempty"`
+	Limit         *RateLimit             `protobuf:"bytes,5,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -474,16 +501,9 @@ func (x *CreateRateLimitPolicyRequest) GetName() string {
 	return ""
 }
 
-func (x *CreateRateLimitPolicyRequest) GetDescription() string {
-	if x != nil {
-		return x.Description
-	}
-	return ""
-}
-
 func (x *CreateRateLimitPolicyRequest) GetEnabled() bool {
-	if x != nil {
-		return x.Enabled
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
 	}
 	return false
 }
@@ -495,38 +515,29 @@ func (x *CreateRateLimitPolicyRequest) GetTargets() []*PolicyTargetRef {
 	return nil
 }
 
-func (x *CreateRateLimitPolicyRequest) GetRules() []*RateLimitRule {
+func (x *CreateRateLimitPolicyRequest) GetSubject() *RateLimitSubject {
 	if x != nil {
-		return x.Rules
+		return x.Subject
 	}
 	return nil
 }
 
-func (x *CreateRateLimitPolicyRequest) GetResponse() *RateLimitResponse {
+func (x *CreateRateLimitPolicyRequest) GetLimit() *RateLimit {
 	if x != nil {
-		return x.Response
+		return x.Limit
 	}
 	return nil
-}
-
-func (x *CreateRateLimitPolicyRequest) GetFailurePolicy() string {
-	if x != nil {
-		return x.FailurePolicy
-	}
-	return ""
 }
 
 type UpdateRateLimitPolicyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Version       string                 `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
+	Version       int64                  `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
 	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Description   string                 `protobuf:"bytes,4,opt,name=description,proto3" json:"description,omitempty"`
-	Enabled       bool                   `protobuf:"varint,5,opt,name=enabled,proto3" json:"enabled,omitempty"`
-	Targets       []*PolicyTargetRef     `protobuf:"bytes,6,rep,name=targets,proto3" json:"targets,omitempty"`
-	Rules         []*RateLimitRule       `protobuf:"bytes,7,rep,name=rules,proto3" json:"rules,omitempty"`
-	Response      *RateLimitResponse     `protobuf:"bytes,8,opt,name=response,proto3" json:"response,omitempty"`
-	FailurePolicy string                 `protobuf:"bytes,9,opt,name=failure_policy,json=failurePolicy,proto3" json:"failure_policy,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,4,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	Targets       []*PolicyTargetRef     `protobuf:"bytes,5,rep,name=targets,proto3" json:"targets,omitempty"`
+	Subject       *RateLimitSubject      `protobuf:"bytes,6,opt,name=subject,proto3" json:"subject,omitempty"`
+	Limit         *RateLimit             `protobuf:"bytes,7,opt,name=limit,proto3" json:"limit,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -568,11 +579,11 @@ func (x *UpdateRateLimitPolicyRequest) GetId() string {
 	return ""
 }
 
-func (x *UpdateRateLimitPolicyRequest) GetVersion() string {
+func (x *UpdateRateLimitPolicyRequest) GetVersion() int64 {
 	if x != nil {
 		return x.Version
 	}
-	return ""
+	return 0
 }
 
 func (x *UpdateRateLimitPolicyRequest) GetName() string {
@@ -582,16 +593,9 @@ func (x *UpdateRateLimitPolicyRequest) GetName() string {
 	return ""
 }
 
-func (x *UpdateRateLimitPolicyRequest) GetDescription() string {
-	if x != nil {
-		return x.Description
-	}
-	return ""
-}
-
 func (x *UpdateRateLimitPolicyRequest) GetEnabled() bool {
-	if x != nil {
-		return x.Enabled
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
 	}
 	return false
 }
@@ -603,49 +607,42 @@ func (x *UpdateRateLimitPolicyRequest) GetTargets() []*PolicyTargetRef {
 	return nil
 }
 
-func (x *UpdateRateLimitPolicyRequest) GetRules() []*RateLimitRule {
+func (x *UpdateRateLimitPolicyRequest) GetSubject() *RateLimitSubject {
 	if x != nil {
-		return x.Rules
+		return x.Subject
 	}
 	return nil
 }
 
-func (x *UpdateRateLimitPolicyRequest) GetResponse() *RateLimitResponse {
+func (x *UpdateRateLimitPolicyRequest) GetLimit() *RateLimit {
 	if x != nil {
-		return x.Response
+		return x.Limit
 	}
 	return nil
 }
 
-func (x *UpdateRateLimitPolicyRequest) GetFailurePolicy() string {
-	if x != nil {
-		return x.FailurePolicy
-	}
-	return ""
-}
-
-type ListRateLimitPoliciesReply struct {
+type DeleteRateLimitPolicyRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Policies      []*RateLimitPolicy     `protobuf:"bytes,1,rep,name=policies,proto3" json:"policies,omitempty"`
-	Page          *PageInfo              `protobuf:"bytes,2,opt,name=page,proto3" json:"page,omitempty"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Version       int64                  `protobuf:"varint,2,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListRateLimitPoliciesReply) Reset() {
-	*x = ListRateLimitPoliciesReply{}
+func (x *DeleteRateLimitPolicyRequest) Reset() {
+	*x = DeleteRateLimitPolicyRequest{}
 	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListRateLimitPoliciesReply) String() string {
+func (x *DeleteRateLimitPolicyRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListRateLimitPoliciesReply) ProtoMessage() {}
+func (*DeleteRateLimitPolicyRequest) ProtoMessage() {}
 
-func (x *ListRateLimitPoliciesReply) ProtoReflect() protoreflect.Message {
+func (x *DeleteRateLimitPolicyRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_admin_v1_rate_limit_policy_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -657,90 +654,95 @@ func (x *ListRateLimitPoliciesReply) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRateLimitPoliciesReply.ProtoReflect.Descriptor instead.
-func (*ListRateLimitPoliciesReply) Descriptor() ([]byte, []int) {
+// Deprecated: Use DeleteRateLimitPolicyRequest.ProtoReflect.Descriptor instead.
+func (*DeleteRateLimitPolicyRequest) Descriptor() ([]byte, []int) {
 	return file_admin_v1_rate_limit_policy_proto_rawDescGZIP(), []int{8}
 }
 
-func (x *ListRateLimitPoliciesReply) GetPolicies() []*RateLimitPolicy {
+func (x *DeleteRateLimitPolicyRequest) GetId() string {
 	if x != nil {
-		return x.Policies
+		return x.Id
 	}
-	return nil
+	return ""
 }
 
-func (x *ListRateLimitPoliciesReply) GetPage() *PageInfo {
+func (x *DeleteRateLimitPolicyRequest) GetVersion() int64 {
 	if x != nil {
-		return x.Page
+		return x.Version
 	}
-	return nil
+	return 0
 }
 
 var File_admin_v1_rate_limit_policy_proto protoreflect.FileDescriptor
 
 const file_admin_v1_rate_limit_policy_proto_rawDesc = "" +
 	"\n" +
-	" admin/v1/rate_limit_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\":\n" +
-	"\x10RateLimitKeyPart\x12\x12\n" +
-	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
-	"\x04name\x18\x02 \x01(\tR\x04name\"G\n" +
-	"\fRateLimitKey\x127\n" +
-	"\x05parts\x18\x01 \x03(\v2!.ingate.admin.v1.RateLimitKeyPartR\x05parts\"i\n" +
-	"\x0eRateLimitQuota\x12\x1a\n" +
-	"\brequests\x18\x01 \x01(\x05R\brequests\x12%\n" +
-	"\x0ewindow_seconds\x18\x02 \x01(\x05R\rwindowSeconds\x12\x14\n" +
-	"\x05burst\x18\x03 \x01(\x05R\x05burst\"\x8b\x01\n" +
-	"\rRateLimitRule\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12/\n" +
-	"\x03key\x18\x02 \x01(\v2\x1d.ingate.admin.v1.RateLimitKeyR\x03key\x125\n" +
-	"\x05limit\x18\x03 \x01(\v2\x1f.ingate.admin.v1.RateLimitQuotaR\x05limit\"\x80\x01\n" +
-	"\x11RateLimitResponse\x12\x1f\n" +
-	"\vstatus_code\x18\x01 \x01(\x05R\n" +
-	"statusCode\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\x120\n" +
-	"\x14quota_header_enabled\x18\x03 \x01(\bR\x12quotaHeaderEnabled\"\xd5\x03\n" +
+	" admin/v1/rate_limit_policy.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"x\n" +
+	"\x10RateLimitSubject\x12C\n" +
+	"\x04type\x18\x01 \x01(\x0e2%.ingate.admin.v1.RateLimitSubjectTypeB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04type\x12\x1f\n" +
+	"\vheader_name\x18\x02 \x01(\tR\n" +
+	"headerName\"l\n" +
+	"\tRateLimit\x12)\n" +
+	"\brequests\x18\x01 \x01(\x03B\r\xbaH\n" +
+	"\"\b\x18\xff\xff\xff\xff\a \x00R\brequests\x124\n" +
+	"\x0ewindow_seconds\x18\x02 \x01(\x03B\r\xbaH\n" +
+	"\"\b\x18\xff\xff\xff\xff\a \x00R\rwindowSeconds\"\xd7\x03\n" +
 	"\x0fRateLimitPolicy\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x18\n" +
-	"\aversion\x18\x02 \x01(\tR\aversion\x127\n" +
-	"\x06status\x18\x03 \x01(\v2\x1f.ingate.admin.v1.ResourceStatusR\x06status\x12\x12\n" +
-	"\x04name\x18\x04 \x01(\tR\x04name\x12 \n" +
-	"\vdescription\x18\x05 \x01(\tR\vdescription\x12\x18\n" +
-	"\aenabled\x18\x06 \x01(\bR\aenabled\x127\n" +
-	"\atargets\x18\a \x03(\v2\x1d.ingate.admin.v1.PolicyTargetR\atargets\x124\n" +
-	"\x05rules\x18\b \x03(\v2\x1e.ingate.admin.v1.RateLimitRuleR\x05rules\x12>\n" +
-	"\bresponse\x18\t \x01(\v2\".ingate.admin.v1.RateLimitResponseR\bresponse\x12%\n" +
-	"\x0efailure_policy\x18\n" +
-	" \x01(\tR\rfailurePolicy\x129\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
+	"\aenabled\x18\x03 \x01(\bR\aenabled\x127\n" +
+	"\atargets\x18\x04 \x03(\v2\x1d.ingate.admin.v1.PolicyTargetR\atargets\x12;\n" +
+	"\asubject\x18\x05 \x01(\v2!.ingate.admin.v1.RateLimitSubjectR\asubject\x120\n" +
+	"\x05limit\x18\x06 \x01(\v2\x1a.ingate.admin.v1.RateLimitR\x05limit\x124\n" +
+	"\x05state\x18\a \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateR\x05state\x12\x18\n" +
+	"\amessage\x18\b \x01(\tR\amessage\x12\x18\n" +
+	"\aversion\x18\t \x01(\x03R\aversion\x129\n" +
 	"\n" +
-	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xda\x02\n" +
+	"created_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"U\n" +
+	"\x1cListRateLimitPoliciesRequest\x12\x1d\n" +
+	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"~\n" +
+	"\x1dListRateLimitPoliciesResponse\x12<\n" +
+	"\bpolicies\x18\x01 \x03(\v2 .ingate.admin.v1.RateLimitPolicyR\bpolicies\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"5\n" +
+	"\x19GetRateLimitPolicyRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xa9\x02\n" +
 	"\x1cCreateRateLimitPolicyRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
-	"\vdescription\x18\x02 \x01(\tR\vdescription\x12\x18\n" +
-	"\aenabled\x18\x03 \x01(\bR\aenabled\x12:\n" +
-	"\atargets\x18\x04 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12>\n" +
-	"\x05rules\x18\x05 \x03(\v2\x1e.ingate.admin.v1.RateLimitRuleB\b\xbaH\x05\x92\x01\x02\b\x01R\x05rules\x12>\n" +
-	"\bresponse\x18\x06 \x01(\v2\".ingate.admin.v1.RateLimitResponseR\bresponse\x12%\n" +
-	"\x0efailure_policy\x18\a \x01(\tR\rfailurePolicy\"\x98\x03\n" +
-	"\x1cUpdateRateLimitPolicyRequest\x12\x19\n" +
-	"\x02id\x18\x01 \x01(\tB\t\xbaH\x06r\x042\x02\\SR\x02id\x12!\n" +
-	"\aversion\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\aversion\x12\x1b\n" +
-	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12 \n" +
-	"\vdescription\x18\x04 \x01(\tR\vdescription\x12\x18\n" +
-	"\aenabled\x18\x05 \x01(\bR\aenabled\x12:\n" +
-	"\atargets\x18\x06 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12>\n" +
-	"\x05rules\x18\a \x03(\v2\x1e.ingate.admin.v1.RateLimitRuleB\b\xbaH\x05\x92\x01\x02\b\x01R\x05rules\x12>\n" +
-	"\bresponse\x18\b \x01(\v2\".ingate.admin.v1.RateLimitResponseR\bresponse\x12%\n" +
-	"\x0efailure_policy\x18\t \x01(\tR\rfailurePolicy\"\x89\x01\n" +
-	"\x1aListRateLimitPoliciesReply\x12<\n" +
-	"\bpolicies\x18\x01 \x03(\v2 .ingate.admin.v1.RateLimitPolicyR\bpolicies\x12-\n" +
-	"\x04page\x18\x02 \x01(\v2\x19.ingate.admin.v1.PageInfoR\x04page2\xeb\x06\n" +
-	"\x16RateLimitPolicyService\x12\x87\x01\n" +
-	"\x15ListRateLimitPolicies\x12\x1c.ingate.admin.v1.ListRequest\x1a+.ingate.admin.v1.ListRateLimitPoliciesReply\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/api/v1/rate-limit-policies\x12\x82\x01\n" +
-	"\x12GetRateLimitPolicy\x12 .ingate.admin.v1.ResourceRequest\x1a .ingate.admin.v1.RateLimitPolicy\"(\x82\xd3\xe4\x93\x02\"\x12 /api/v1/rate-limit-policies/{id}\x12\x8e\x01\n" +
-	"\x15CreateRateLimitPolicy\x12-.ingate.admin.v1.CreateRateLimitPolicyRequest\x1a\x1e.ingate.admin.v1.MutationReply\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/api/v1/rate-limit-policies\x12\x93\x01\n" +
-	"\x15UpdateRateLimitPolicy\x12-.ingate.admin.v1.UpdateRateLimitPolicyRequest\x1a\x1e.ingate.admin.v1.MutationReply\"+\x82\xd3\xe4\x93\x02%:\x01*\x1a /api/v1/rate-limit-policies/{id}\x12\x94\x01\n" +
-	"\x19SetRateLimitPolicyEnabled\x12\".ingate.admin.v1.SetEnabledRequest\x1a\x1e.ingate.admin.v1.MutationReply\"3\x82\xd3\xe4\x93\x02-:\x01*2(/api/v1/rate-limit-policies/{id}/enabled\x12\x83\x01\n" +
-	"\x15DeleteRateLimitPolicy\x12 .ingate.admin.v1.ResourceRequest\x1a\x1e.ingate.admin.v1.MutationReply\"(\x82\xd3\xe4\x93\x02\"* /api/v1/rate-limit-policies/{id}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12%\n" +
+	"\aenabled\x18\x02 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12:\n" +
+	"\atargets\x18\x03 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12C\n" +
+	"\asubject\x18\x04 \x01(\v2!.ingate.admin.v1.RateLimitSubjectB\x06\xbaH\x03\xc8\x01\x01R\asubject\x128\n" +
+	"\x05limit\x18\x05 \x01(\v2\x1a.ingate.admin.v1.RateLimitB\x06\xbaH\x03\xc8\x01\x01R\x05limitB\n" +
+	"\n" +
+	"\b_enabled\"\xe6\x02\n" +
+	"\x1cUpdateRateLimitPolicyRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1b\n" +
+	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12%\n" +
+	"\aenabled\x18\x04 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12:\n" +
+	"\atargets\x18\x05 \x03(\v2 .ingate.admin.v1.PolicyTargetRefR\atargets\x12C\n" +
+	"\asubject\x18\x06 \x01(\v2!.ingate.admin.v1.RateLimitSubjectB\x06\xbaH\x03\xc8\x01\x01R\asubject\x128\n" +
+	"\x05limit\x18\a \x01(\v2\x1a.ingate.admin.v1.RateLimitB\x06\xbaH\x03\xc8\x01\x01R\x05limitB\n" +
+	"\n" +
+	"\b_enabled\"[\n" +
+	"\x1cDeleteRateLimitPolicyRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion*\xa7\x01\n" +
+	"\x14RateLimitSubjectType\x12'\n" +
+	"#RATE_LIMIT_SUBJECT_TYPE_UNSPECIFIED\x10\x00\x12\"\n" +
+	"\x1eRATE_LIMIT_SUBJECT_TYPE_SHARED\x10\x01\x12\x1e\n" +
+	"\x1aRATE_LIMIT_SUBJECT_TYPE_IP\x10\x02\x12\"\n" +
+	"\x1eRATE_LIMIT_SUBJECT_TYPE_HEADER\x10\x032\xfb\x05\n" +
+	"\x16RateLimitPolicyService\x12\x9b\x01\n" +
+	"\x15ListRateLimitPolicies\x12-.ingate.admin.v1.ListRateLimitPoliciesRequest\x1a..ingate.admin.v1.ListRateLimitPoliciesResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/api/v1/rate-limit-policies\x12\x8c\x01\n" +
+	"\x12GetRateLimitPolicy\x12*.ingate.admin.v1.GetRateLimitPolicyRequest\x1a .ingate.admin.v1.RateLimitPolicy\"(\x82\xd3\xe4\x93\x02\"\x12 /api/v1/rate-limit-policies/{id}\x12\x90\x01\n" +
+	"\x15CreateRateLimitPolicy\x12-.ingate.admin.v1.CreateRateLimitPolicyRequest\x1a .ingate.admin.v1.RateLimitPolicy\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/api/v1/rate-limit-policies\x12\x95\x01\n" +
+	"\x15UpdateRateLimitPolicy\x12-.ingate.admin.v1.UpdateRateLimitPolicyRequest\x1a .ingate.admin.v1.RateLimitPolicy\"+\x82\xd3\xe4\x93\x02%:\x01*\x1a /api/v1/rate-limit-policies/{id}\x12\x88\x01\n" +
+	"\x15DeleteRateLimitPolicy\x12-.ingate.admin.v1.DeleteRateLimitPolicyRequest\x1a\x16.google.protobuf.Empty\"(\x82\xd3\xe4\x93\x02\"* /api/v1/rate-limit-policies/{id}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_rate_limit_policy_proto_rawDescOnce sync.Once
@@ -754,61 +756,55 @@ func file_admin_v1_rate_limit_policy_proto_rawDescGZIP() []byte {
 	return file_admin_v1_rate_limit_policy_proto_rawDescData
 }
 
+var file_admin_v1_rate_limit_policy_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_admin_v1_rate_limit_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_admin_v1_rate_limit_policy_proto_goTypes = []any{
-	(*RateLimitKeyPart)(nil),             // 0: ingate.admin.v1.RateLimitKeyPart
-	(*RateLimitKey)(nil),                 // 1: ingate.admin.v1.RateLimitKey
-	(*RateLimitQuota)(nil),               // 2: ingate.admin.v1.RateLimitQuota
-	(*RateLimitRule)(nil),                // 3: ingate.admin.v1.RateLimitRule
-	(*RateLimitResponse)(nil),            // 4: ingate.admin.v1.RateLimitResponse
-	(*RateLimitPolicy)(nil),              // 5: ingate.admin.v1.RateLimitPolicy
-	(*CreateRateLimitPolicyRequest)(nil), // 6: ingate.admin.v1.CreateRateLimitPolicyRequest
-	(*UpdateRateLimitPolicyRequest)(nil), // 7: ingate.admin.v1.UpdateRateLimitPolicyRequest
-	(*ListRateLimitPoliciesReply)(nil),   // 8: ingate.admin.v1.ListRateLimitPoliciesReply
-	(*ResourceStatus)(nil),               // 9: ingate.admin.v1.ResourceStatus
-	(*PolicyTarget)(nil),                 // 10: ingate.admin.v1.PolicyTarget
-	(*timestamppb.Timestamp)(nil),        // 11: google.protobuf.Timestamp
-	(*PolicyTargetRef)(nil),              // 12: ingate.admin.v1.PolicyTargetRef
-	(*PageInfo)(nil),                     // 13: ingate.admin.v1.PageInfo
-	(*ListRequest)(nil),                  // 14: ingate.admin.v1.ListRequest
-	(*ResourceRequest)(nil),              // 15: ingate.admin.v1.ResourceRequest
-	(*SetEnabledRequest)(nil),            // 16: ingate.admin.v1.SetEnabledRequest
-	(*MutationReply)(nil),                // 17: ingate.admin.v1.MutationReply
+	(RateLimitSubjectType)(0),             // 0: ingate.admin.v1.RateLimitSubjectType
+	(*RateLimitSubject)(nil),              // 1: ingate.admin.v1.RateLimitSubject
+	(*RateLimit)(nil),                     // 2: ingate.admin.v1.RateLimit
+	(*RateLimitPolicy)(nil),               // 3: ingate.admin.v1.RateLimitPolicy
+	(*ListRateLimitPoliciesRequest)(nil),  // 4: ingate.admin.v1.ListRateLimitPoliciesRequest
+	(*ListRateLimitPoliciesResponse)(nil), // 5: ingate.admin.v1.ListRateLimitPoliciesResponse
+	(*GetRateLimitPolicyRequest)(nil),     // 6: ingate.admin.v1.GetRateLimitPolicyRequest
+	(*CreateRateLimitPolicyRequest)(nil),  // 7: ingate.admin.v1.CreateRateLimitPolicyRequest
+	(*UpdateRateLimitPolicyRequest)(nil),  // 8: ingate.admin.v1.UpdateRateLimitPolicyRequest
+	(*DeleteRateLimitPolicyRequest)(nil),  // 9: ingate.admin.v1.DeleteRateLimitPolicyRequest
+	(*PolicyTarget)(nil),                  // 10: ingate.admin.v1.PolicyTarget
+	(ResourceState)(0),                    // 11: ingate.admin.v1.ResourceState
+	(*timestamppb.Timestamp)(nil),         // 12: google.protobuf.Timestamp
+	(*PolicyTargetRef)(nil),               // 13: ingate.admin.v1.PolicyTargetRef
+	(*emptypb.Empty)(nil),                 // 14: google.protobuf.Empty
 }
 var file_admin_v1_rate_limit_policy_proto_depIdxs = []int32{
-	0,  // 0: ingate.admin.v1.RateLimitKey.parts:type_name -> ingate.admin.v1.RateLimitKeyPart
-	1,  // 1: ingate.admin.v1.RateLimitRule.key:type_name -> ingate.admin.v1.RateLimitKey
-	2,  // 2: ingate.admin.v1.RateLimitRule.limit:type_name -> ingate.admin.v1.RateLimitQuota
-	9,  // 3: ingate.admin.v1.RateLimitPolicy.status:type_name -> ingate.admin.v1.ResourceStatus
-	10, // 4: ingate.admin.v1.RateLimitPolicy.targets:type_name -> ingate.admin.v1.PolicyTarget
-	3,  // 5: ingate.admin.v1.RateLimitPolicy.rules:type_name -> ingate.admin.v1.RateLimitRule
-	4,  // 6: ingate.admin.v1.RateLimitPolicy.response:type_name -> ingate.admin.v1.RateLimitResponse
-	11, // 7: ingate.admin.v1.RateLimitPolicy.created_at:type_name -> google.protobuf.Timestamp
-	12, // 8: ingate.admin.v1.CreateRateLimitPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	3,  // 9: ingate.admin.v1.CreateRateLimitPolicyRequest.rules:type_name -> ingate.admin.v1.RateLimitRule
-	4,  // 10: ingate.admin.v1.CreateRateLimitPolicyRequest.response:type_name -> ingate.admin.v1.RateLimitResponse
-	12, // 11: ingate.admin.v1.UpdateRateLimitPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	3,  // 12: ingate.admin.v1.UpdateRateLimitPolicyRequest.rules:type_name -> ingate.admin.v1.RateLimitRule
-	4,  // 13: ingate.admin.v1.UpdateRateLimitPolicyRequest.response:type_name -> ingate.admin.v1.RateLimitResponse
-	5,  // 14: ingate.admin.v1.ListRateLimitPoliciesReply.policies:type_name -> ingate.admin.v1.RateLimitPolicy
-	13, // 15: ingate.admin.v1.ListRateLimitPoliciesReply.page:type_name -> ingate.admin.v1.PageInfo
-	14, // 16: ingate.admin.v1.RateLimitPolicyService.ListRateLimitPolicies:input_type -> ingate.admin.v1.ListRequest
-	15, // 17: ingate.admin.v1.RateLimitPolicyService.GetRateLimitPolicy:input_type -> ingate.admin.v1.ResourceRequest
-	6,  // 18: ingate.admin.v1.RateLimitPolicyService.CreateRateLimitPolicy:input_type -> ingate.admin.v1.CreateRateLimitPolicyRequest
-	7,  // 19: ingate.admin.v1.RateLimitPolicyService.UpdateRateLimitPolicy:input_type -> ingate.admin.v1.UpdateRateLimitPolicyRequest
-	16, // 20: ingate.admin.v1.RateLimitPolicyService.SetRateLimitPolicyEnabled:input_type -> ingate.admin.v1.SetEnabledRequest
-	15, // 21: ingate.admin.v1.RateLimitPolicyService.DeleteRateLimitPolicy:input_type -> ingate.admin.v1.ResourceRequest
-	8,  // 22: ingate.admin.v1.RateLimitPolicyService.ListRateLimitPolicies:output_type -> ingate.admin.v1.ListRateLimitPoliciesReply
-	5,  // 23: ingate.admin.v1.RateLimitPolicyService.GetRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
-	17, // 24: ingate.admin.v1.RateLimitPolicyService.CreateRateLimitPolicy:output_type -> ingate.admin.v1.MutationReply
-	17, // 25: ingate.admin.v1.RateLimitPolicyService.UpdateRateLimitPolicy:output_type -> ingate.admin.v1.MutationReply
-	17, // 26: ingate.admin.v1.RateLimitPolicyService.SetRateLimitPolicyEnabled:output_type -> ingate.admin.v1.MutationReply
-	17, // 27: ingate.admin.v1.RateLimitPolicyService.DeleteRateLimitPolicy:output_type -> ingate.admin.v1.MutationReply
-	22, // [22:28] is the sub-list for method output_type
-	16, // [16:22] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	0,  // 0: ingate.admin.v1.RateLimitSubject.type:type_name -> ingate.admin.v1.RateLimitSubjectType
+	10, // 1: ingate.admin.v1.RateLimitPolicy.targets:type_name -> ingate.admin.v1.PolicyTarget
+	1,  // 2: ingate.admin.v1.RateLimitPolicy.subject:type_name -> ingate.admin.v1.RateLimitSubject
+	2,  // 3: ingate.admin.v1.RateLimitPolicy.limit:type_name -> ingate.admin.v1.RateLimit
+	11, // 4: ingate.admin.v1.RateLimitPolicy.state:type_name -> ingate.admin.v1.ResourceState
+	12, // 5: ingate.admin.v1.RateLimitPolicy.created_at:type_name -> google.protobuf.Timestamp
+	12, // 6: ingate.admin.v1.RateLimitPolicy.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 7: ingate.admin.v1.ListRateLimitPoliciesResponse.policies:type_name -> ingate.admin.v1.RateLimitPolicy
+	13, // 8: ingate.admin.v1.CreateRateLimitPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	1,  // 9: ingate.admin.v1.CreateRateLimitPolicyRequest.subject:type_name -> ingate.admin.v1.RateLimitSubject
+	2,  // 10: ingate.admin.v1.CreateRateLimitPolicyRequest.limit:type_name -> ingate.admin.v1.RateLimit
+	13, // 11: ingate.admin.v1.UpdateRateLimitPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	1,  // 12: ingate.admin.v1.UpdateRateLimitPolicyRequest.subject:type_name -> ingate.admin.v1.RateLimitSubject
+	2,  // 13: ingate.admin.v1.UpdateRateLimitPolicyRequest.limit:type_name -> ingate.admin.v1.RateLimit
+	4,  // 14: ingate.admin.v1.RateLimitPolicyService.ListRateLimitPolicies:input_type -> ingate.admin.v1.ListRateLimitPoliciesRequest
+	6,  // 15: ingate.admin.v1.RateLimitPolicyService.GetRateLimitPolicy:input_type -> ingate.admin.v1.GetRateLimitPolicyRequest
+	7,  // 16: ingate.admin.v1.RateLimitPolicyService.CreateRateLimitPolicy:input_type -> ingate.admin.v1.CreateRateLimitPolicyRequest
+	8,  // 17: ingate.admin.v1.RateLimitPolicyService.UpdateRateLimitPolicy:input_type -> ingate.admin.v1.UpdateRateLimitPolicyRequest
+	9,  // 18: ingate.admin.v1.RateLimitPolicyService.DeleteRateLimitPolicy:input_type -> ingate.admin.v1.DeleteRateLimitPolicyRequest
+	5,  // 19: ingate.admin.v1.RateLimitPolicyService.ListRateLimitPolicies:output_type -> ingate.admin.v1.ListRateLimitPoliciesResponse
+	3,  // 20: ingate.admin.v1.RateLimitPolicyService.GetRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
+	3,  // 21: ingate.admin.v1.RateLimitPolicyService.CreateRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
+	3,  // 22: ingate.admin.v1.RateLimitPolicyService.UpdateRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
+	14, // 23: ingate.admin.v1.RateLimitPolicyService.DeleteRateLimitPolicy:output_type -> google.protobuf.Empty
+	19, // [19:24] is the sub-list for method output_type
+	14, // [14:19] is the sub-list for method input_type
+	14, // [14:14] is the sub-list for extension type_name
+	14, // [14:14] is the sub-list for extension extendee
+	0,  // [0:14] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_rate_limit_policy_proto_init() }
@@ -817,18 +813,21 @@ func file_admin_v1_rate_limit_policy_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
+	file_admin_v1_rate_limit_policy_proto_msgTypes[6].OneofWrappers = []any{}
+	file_admin_v1_rate_limit_policy_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_rate_limit_policy_proto_rawDesc), len(file_admin_v1_rate_limit_policy_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      1,
 			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_admin_v1_rate_limit_policy_proto_goTypes,
 		DependencyIndexes: file_admin_v1_rate_limit_policy_proto_depIdxs,
+		EnumInfos:         file_admin_v1_rate_limit_policy_proto_enumTypes,
 		MessageInfos:      file_admin_v1_rate_limit_policy_proto_msgTypes,
 	}.Build()
 	File_admin_v1_rate_limit_policy_proto = out.File

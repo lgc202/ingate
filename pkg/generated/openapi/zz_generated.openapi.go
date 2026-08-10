@@ -39,14 +39,11 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus":              schema_pkg_apis_gateway_v1_PolicyStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef":           schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetStatus":        schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitKey":              schema_pkg_apis_gateway_v1_RateLimitKey(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitKeyPart":          schema_pkg_apis_gateway_v1_RateLimitKeyPart(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimit":                 schema_pkg_apis_gateway_v1_RateLimit(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicy":           schema_pkg_apis_gateway_v1_RateLimitPolicy(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicyList":       schema_pkg_apis_gateway_v1_RateLimitPolicyList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitPolicySpec":       schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitQuota":            schema_pkg_apis_gateway_v1_RateLimitQuota(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitResponse":         schema_pkg_apis_gateway_v1_RateLimitResponse(ref),
-		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitRule":             schema_pkg_apis_gateway_v1_RateLimitRule(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitSubject":          schema_pkg_apis_gateway_v1_RateLimitSubject(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus":            schema_pkg_apis_gateway_v1_ResourceStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Route":                     schema_pkg_apis_gateway_v1_Route(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteList":                 schema_pkg_apis_gateway_v1_RouteList(ref),
@@ -1176,62 +1173,29 @@ func schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref common.ReferenceCallback)
 	}
 }
 
-func schema_pkg_apis_gateway_v1_RateLimitKey(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_gateway_v1_RateLimit(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RateLimitKey 定义限流计数 key",
+				Description: "RateLimit 定义指定时间窗口内允许的请求数",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"parts": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
+					"requests": {
 						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitKeyPart"),
-									},
-								},
-							},
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int64",
+						},
+					},
+					"windowSeconds": {
+						SchemaProps: spec.SchemaProps{
+							Default: 0,
+							Type:    []string{"integer"},
+							Format:  "int64",
 						},
 					},
 				},
-				Required: []string{"parts"},
-			},
-		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitKeyPart"},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RateLimitKeyPart(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RateLimitKeyPart 定义限流 key 的一个组成部分",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"type": {
-						SchemaProps: spec.SchemaProps{
-							Default: "",
-							Type:    []string{"string"},
-							Format:  "",
-						},
-					},
-					"name": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-				},
-				Required: []string{"type"},
+				Required: []string{"requests", "windowSeconds"},
 			},
 		},
 	}
@@ -1347,12 +1311,6 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 							Format:  "",
 						},
 					},
-					"description": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
 					"enabled": {
 						SchemaProps: spec.SchemaProps{
 							Default: false,
@@ -1363,7 +1321,11 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 					"targetRefs": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
+								"x-kubernetes-list-map-keys": []interface{}{
+									"kind",
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
 							},
 						},
 						SchemaProps: spec.SchemaProps{
@@ -1378,143 +1340,51 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 							},
 						},
 					},
-					"rules": {
-						VendorExtensible: spec.VendorExtensible{
-							Extensions: spec.Extensions{
-								"x-kubernetes-list-type": "atomic",
-							},
-						},
-						SchemaProps: spec.SchemaProps{
-							Type: []string{"array"},
-							Items: &spec.SchemaOrArray{
-								Schema: &spec.Schema{
-									SchemaProps: spec.SchemaProps{
-										Default: map[string]interface{}{},
-										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitRule"),
-									},
-								},
-							},
-						},
-					},
-					"response": {
+					"subject": {
 						SchemaProps: spec.SchemaProps{
 							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitResponse"),
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitSubject"),
 						},
 					},
-					"failurePolicy": {
+					"limit": {
 						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimit"),
 						},
 					},
 				},
-				Required: []string{"displayName", "enabled", "rules"},
+				Required: []string{"displayName", "enabled", "subject", "limit"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitResponse", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitRule"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimit", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitSubject"},
 	}
 }
 
-func schema_pkg_apis_gateway_v1_RateLimitQuota(ref common.ReferenceCallback) common.OpenAPIDefinition {
+func schema_pkg_apis_gateway_v1_RateLimitSubject(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RateLimitQuota 定义限流额度",
+				Description: "RateLimitSubject 定义目标内共享额度的请求主体",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
-					"requests": {
-						SchemaProps: spec.SchemaProps{
-							Default: 0,
-							Type:    []string{"integer"},
-							Format:  "int32",
-						},
-					},
-					"windowSeconds": {
-						SchemaProps: spec.SchemaProps{
-							Default: 0,
-							Type:    []string{"integer"},
-							Format:  "int32",
-						},
-					},
-					"burst": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Burst 表示令牌桶容量，0 表示使用 Requests 作为容量",
-							Type:        []string{"integer"},
-							Format:      "int32",
-						},
-					},
-				},
-				Required: []string{"requests", "windowSeconds"},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RateLimitResponse(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RateLimitResponse 定义超限响应",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"statusCode": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"integer"},
-							Format: "int32",
-						},
-					},
-					"message": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"string"},
-							Format: "",
-						},
-					},
-					"quotaHeaderEnabled": {
-						SchemaProps: spec.SchemaProps{
-							Type:   []string{"boolean"},
-							Format: "",
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func schema_pkg_apis_gateway_v1_RateLimitRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
-	return common.OpenAPIDefinition{
-		Schema: spec.Schema{
-			SchemaProps: spec.SchemaProps{
-				Description: "RateLimitRule 定义一条限流规则",
-				Type:        []string{"object"},
-				Properties: map[string]spec.Schema{
-					"name": {
+					"type": {
 						SchemaProps: spec.SchemaProps{
 							Default: "",
 							Type:    []string{"string"},
 							Format:  "",
 						},
 					},
-					"key": {
+					"headerName": {
 						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitKey"),
-						},
-					},
-					"limit": {
-						SchemaProps: spec.SchemaProps{
-							Default: map[string]interface{}{},
-							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitQuota"),
+							Type:   []string{"string"},
+							Format: "",
 						},
 					},
 				},
-				Required: []string{"name", "key", "limit"},
+				Required: []string{"type"},
 			},
 		},
-		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitKey", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RateLimitQuota"},
 	}
 }
 

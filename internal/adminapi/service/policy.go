@@ -16,11 +16,11 @@ func BuildPolicyTargetRefs(targets []*adminv1.PolicyTargetRef) ([]resource.Polic
 		if target == nil {
 			return nil, BadRequest("策略作用目标不能为空")
 		}
-		kind := resource.Kind(target.GetKind())
-		id := strings.TrimSpace(target.GetId())
-		if kind != resource.KindGateway && kind != resource.KindRoute {
-			return nil, BadRequest("策略作用目标只支持网关或路由")
+		kind, err := policyTargetKind(target.GetKind())
+		if err != nil {
+			return nil, err
 		}
+		id := strings.TrimSpace(target.GetId())
 		key := string(kind) + "\x00" + id
 		if _, exists := seen[key]; exists {
 			return nil, BadRequest("策略作用目标不能重复")
@@ -43,11 +43,34 @@ func NewPolicyTargets(
 	for _, ref := range refs {
 		status := biz.PolicyTargetStatus(generation, disabled, ref, statuses)
 		targets = append(targets, &adminv1.PolicyTarget{
-			Kind:        string(ref.Kind),
-			Id:          ref.Name,
-			DisplayName: names.Name(ref),
-			Status:      NewResourceStatus(status),
+			Kind:    newPolicyTargetKind(ref.Kind),
+			Id:      ref.Name,
+			Name:    names.Name(ref),
+			State:   NewResourceState(status.State),
+			Message: ResourceMessage(status.Reason),
 		})
 	}
 	return targets
+}
+
+func policyTargetKind(kind adminv1.PolicyTargetKind) (resource.Kind, error) {
+	switch kind {
+	case adminv1.PolicyTargetKind_POLICY_TARGET_KIND_GATEWAY:
+		return resource.KindGateway, nil
+	case adminv1.PolicyTargetKind_POLICY_TARGET_KIND_ROUTE:
+		return resource.KindRoute, nil
+	default:
+		return "", BadRequest("策略作用目标只支持网关或路由")
+	}
+}
+
+func newPolicyTargetKind(kind resource.Kind) adminv1.PolicyTargetKind {
+	switch kind {
+	case resource.KindGateway:
+		return adminv1.PolicyTargetKind_POLICY_TARGET_KIND_GATEWAY
+	case resource.KindRoute:
+		return adminv1.PolicyTargetKind_POLICY_TARGET_KIND_ROUTE
+	default:
+		return adminv1.PolicyTargetKind_POLICY_TARGET_KIND_UNSPECIFIED
+	}
 }
