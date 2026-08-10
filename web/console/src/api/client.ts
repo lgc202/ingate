@@ -10,6 +10,10 @@ export interface PagedResponse {
   };
 }
 
+export interface CursorPagedResponse {
+  nextCursor?: string;
+}
+
 const apiBaseUrl = (import.meta.env.VITE_INGATE_API_BASE_URL as string | undefined) ?? '/api/v1';
 
 let accessTokenProvider: () => Promise<string | undefined> = async () => undefined;
@@ -72,6 +76,22 @@ export async function apiListAll<TPage extends PagedResponse, TItem>(
     result.push(...items(page));
     pageToken = page.page?.nextPageToken ?? '';
   } while (pageToken);
+  return result;
+}
+
+export async function apiListAllByCursor<TPage extends CursorPagedResponse, TItem>(
+  path: string,
+  items: (page: TPage) => TItem[],
+): Promise<TItem[]> {
+  const result: TItem[] = [];
+  let cursor = '';
+  do {
+    const query = new URLSearchParams({ limit: '200' });
+    if (cursor) query.set('cursor', cursor);
+    const page = await apiRequest<TPage>(`${path}?${query}`);
+    result.push(...items(page));
+    cursor = page.nextCursor ?? '';
+  } while (cursor);
   return result;
 }
 

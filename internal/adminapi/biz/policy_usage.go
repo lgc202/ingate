@@ -12,9 +12,9 @@ type RateLimitPolicyLister interface {
 	ListPage(context.Context, PageRequest) (PageResult[resource.RateLimitPolicy], error)
 }
 
-// AccessControlPolicyLister 定义策略引用检查需要的访问控制策略分页能力
-type AccessControlPolicyLister interface {
-	ListPage(context.Context, PageRequest) (PageResult[resource.AccessControlPolicy], error)
+// IPRestrictionPolicyLister 定义策略引用检查需要的 IP 访问限制策略分页能力
+type IPRestrictionPolicyLister interface {
+	ListPage(context.Context, PageRequest) (PageResult[resource.IPRestrictionPolicy], error)
 }
 
 // TokenQuotaPolicyLister 定义策略引用检查需要的 Token 配额策略分页能力
@@ -30,19 +30,19 @@ type PolicyUsage struct {
 // PolicyUsageFinder 查询 Gateway 或 Route 是否仍被策略引用
 type PolicyUsageFinder struct {
 	rateLimitPolicies     RateLimitPolicyLister
-	accessControlPolicies AccessControlPolicyLister
+	ipRestrictionPolicies IPRestrictionPolicyLister
 	tokenQuotaPolicies    TokenQuotaPolicyLister
 }
 
 // NewPolicyUsageFinder 创建策略目标引用查询器
 func NewPolicyUsageFinder(
 	rateLimitPolicies RateLimitPolicyLister,
-	accessControlPolicies AccessControlPolicyLister,
+	ipRestrictionPolicies IPRestrictionPolicyLister,
 	tokenQuotaPolicies TokenQuotaPolicyLister,
 ) *PolicyUsageFinder {
 	return &PolicyUsageFinder{
 		rateLimitPolicies:     rateLimitPolicies,
-		accessControlPolicies: accessControlPolicies,
+		ipRestrictionPolicies: ipRestrictionPolicies,
 		tokenQuotaPolicies:    tokenQuotaPolicies,
 	}
 }
@@ -64,7 +64,7 @@ func (f *PolicyUsageFinder) Find(ctx context.Context, target resource.PolicyTarg
 		return usage, nil
 	}
 
-	err = VisitPages(ctx, f.accessControlPolicies.ListPage, func(policy resource.AccessControlPolicy) (bool, error) {
+	err = VisitPages(ctx, f.ipRestrictionPolicies.ListPage, func(policy resource.IPRestrictionPolicy) (bool, error) {
 		if slices.Contains(policy.Spec.TargetRefs, target) {
 			usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
 			return true, nil

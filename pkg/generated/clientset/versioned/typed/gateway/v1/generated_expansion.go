@@ -4,11 +4,11 @@
 
 package v1
 
-type AccessControlPolicyExpansion interface{}
-
 type CertificateExpansion interface{}
 
 type GatewayExpansion interface{}
+
+type IPRestrictionPolicyExpansion interface{}
 
 type RateLimitPolicyExpansion interface{}
 

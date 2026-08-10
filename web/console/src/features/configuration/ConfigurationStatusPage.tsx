@@ -185,7 +185,7 @@ function kindRouteLink(kind: string): string {
     case 'Upstream': return '/services';
     case 'Certificate': return '/certificates';
     case 'RateLimitPolicy':
-    case 'AccessControlPolicy':
+    case 'IPRestrictionPolicy':
     case 'TokenQuotaPolicy':
       return '/policies';
     default: return '/status';

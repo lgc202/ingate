@@ -100,12 +100,12 @@ Controller 内嵌标准 go-control-plane State-of-the-World ADS：
 - Route
 - Upstream
 - RateLimitPolicy
-- AccessControlPolicy
+- IPRestrictionPolicy
 - TokenQuotaPolicy
 
 资源之间使用不可变 ID 引用。Admin API 创建资源时生成 UUID 并映射为底层 `metadata.name`；用户可编辑名称使用 `spec.displayName`。
 
-`RateLimitPolicy`、`AccessControlPolicy` 和 `TokenQuotaPolicy` 通过 `spec.targetRefs[]` 直接引用 Gateway 或 Route，不再使用独立策略绑定资源。`targetRefs[]` 可以为空，表示策略已保存但当前不应用到流量。
+`RateLimitPolicy`、`IPRestrictionPolicy` 和 `TokenQuotaPolicy` 通过 `spec.targetRefs[]` 直接引用 Gateway 或 Route，不再使用独立策略绑定资源。`targetRefs[]` 可以为空，表示策略已保存但当前不应用到流量。
 
 每个资源遵循标准的 `spec/status` 分离：
 
@@ -189,6 +189,8 @@ Route 以“一组请求匹配条件 + 一个转发行为”为资源粒度，�
 
 RateLimitPolicy 统一使用系统 Redis，一条策略定义一个计数对象和一个额度，并可复用到多个 Gateway 或 Route。用户协议不包含 Local/Global 模式、限流算法、Burst、RedisStore、redisRef 或私有插件 JSON。数据面使用系统选定的令牌桶实现，桶容量固定为请求额度。完整产品协议见 [RateLimitPolicy 资源](resources/rate-limit-policy.md)。
 
+IPRestrictionPolicy 通过客户端 IP 或 CIDR 的允许列表、拒绝列表限制访问，一条策略可以复用到多个 Gateway 或 Route。两种列表必须且只能配置一种，拒绝请求固定返回 HTTP 403。完整产品协议见 [IPRestrictionPolicy 资源](resources/ip-restriction-policy.md)。
+
 TokenQuotaPolicy 为一个策略定义一个 Token 预算池，仅展开到目标 Gateway 或模型 Route。预算池可以由所有命中请求共享，也可以按网关看到的来源 IP 或指定请求 Header 值区分；Header 和 IP 原始值经过哈希后才进入 Redis key。多个 targetRef 命中同一策略时仍共享同一预算池，需要独立预算时应创建多条策略。
 
 数据面在请求进入模型服务前检查当前固定窗口的已用额度，在 AI Proxy 完成普通响应或 SSE 归一化后读取最后一个 `usage.total_tokens` 并记账。OpenAI-compatible 流式上游在策略生效时由 AI Proxy 内部请求最终 usage，客户端协议不开放 `stream_options`。当前不做字符估算和模型 tokenizer 预扣；并发中的在途请求可能造成有限超额，因此这是 best-effort 的后付费软额度，不是严格硬额度，也不能替代计费系统。
@@ -202,7 +204,7 @@ Token 配额的主体划分和流式记账有以下运行约束：
 
 ## 内置治理插件
 
-限流、访问控制和 Token 配额以强类型 Policy 对外提供。Compiler 解析每个 Policy 的 `targetRefs[]`，展开成按 Gateway 和 Route 索引的插件执行配置，并在 Listener/HCM 中注入一次内置 Wasm filter。
+限流、IP 访问限制和 Token 配额以强类型 Policy 对外提供。`IPRestrictionPolicy` 只支持客户端 IP 或 CIDR 的允许列表、拒绝列表，不承载身份认证、用户权限等其他访问控制概念。Compiler 解析每个 Policy 的 `targetRefs[]`，展开成按 Gateway 和 Route 索引的插件执行配置，并在 Listener/HCM 中注入一次内置 Wasm filter。
 
 内置插件：
 

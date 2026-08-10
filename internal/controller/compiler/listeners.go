@@ -582,8 +582,8 @@ func inlineStringDataSource(value string) *corev3.DataSource {
 
 func (c *compilation) buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) {
 	filters := make([]*hcmv3.HttpFilter, 0, 6)
-	if config.accessControl != nil {
-		filter, err := buildAccessControlHTTPFilter(config.accessControl)
+	if config.ipRestriction != nil {
+		filter, err := buildIPRestrictionHTTPFilter(config.ipRestriction)
 		if err != nil {
 			return nil, err
 		}

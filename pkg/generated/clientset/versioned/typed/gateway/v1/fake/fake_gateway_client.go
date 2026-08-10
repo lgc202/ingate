@@ -14,16 +14,16 @@ type FakeGatewayV1 struct {
 	*testing.Fake
 }
 
-func (c *FakeGatewayV1) AccessControlPolicies() v1.AccessControlPolicyInterface {
-	return newFakeAccessControlPolicies(c)
-}
-
 func (c *FakeGatewayV1) Certificates() v1.CertificateInterface {
 	return newFakeCertificates(c)
 }
 
 func (c *FakeGatewayV1) Gateways() v1.GatewayInterface {
 	return newFakeGateways(c)
+}
+
+func (c *FakeGatewayV1) IPRestrictionPolicies() v1.IPRestrictionPolicyInterface {
+	return newFakeIPRestrictionPolicies(c)
 }
 
 func (c *FakeGatewayV1) RateLimitPolicies() v1.RateLimitPolicyInterface {

@@ -14,9 +14,9 @@ import (
 
 type GatewayV1Interface interface {
 	RESTClient() rest.Interface
-	AccessControlPoliciesGetter
 	CertificatesGetter
 	GatewaysGetter
+	IPRestrictionPoliciesGetter
 	RateLimitPoliciesGetter
 	RoutesGetter
 	TokenQuotaPoliciesGetter
@@ -28,16 +28,16 @@ type GatewayV1Client struct {
 	restClient rest.Interface
 }
 
-func (c *GatewayV1Client) AccessControlPolicies() AccessControlPolicyInterface {
-	return newAccessControlPolicies(c)
-}
-
 func (c *GatewayV1Client) Certificates() CertificateInterface {
 	return newCertificates(c)
 }
 
 func (c *GatewayV1Client) Gateways() GatewayInterface {
 	return newGateways(c)
+}
+
+func (c *GatewayV1Client) IPRestrictionPolicies() IPRestrictionPolicyInterface {
+	return newIPRestrictionPolicies(c)
 }
 
 func (c *GatewayV1Client) RateLimitPolicies() RateLimitPolicyInterface {

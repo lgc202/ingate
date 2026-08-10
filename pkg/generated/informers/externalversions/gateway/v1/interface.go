@@ -10,12 +10,12 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
-	// AccessControlPolicies returns a AccessControlPolicyInformer.
-	AccessControlPolicies() AccessControlPolicyInformer
 	// Certificates returns a CertificateInformer.
 	Certificates() CertificateInformer
 	// Gateways returns a GatewayInformer.
 	Gateways() GatewayInformer
+	// IPRestrictionPolicies returns a IPRestrictionPolicyInformer.
+	IPRestrictionPolicies() IPRestrictionPolicyInformer
 	// RateLimitPolicies returns a RateLimitPolicyInformer.
 	RateLimitPolicies() RateLimitPolicyInformer
 	// Routes returns a RouteInformer.
@@ -37,11 +37,6 @@ func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakList
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
 }
 
-// AccessControlPolicies returns a AccessControlPolicyInformer.
-func (v *version) AccessControlPolicies() AccessControlPolicyInformer {
-	return &accessControlPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
-}
-
 // Certificates returns a CertificateInformer.
 func (v *version) Certificates() CertificateInformer {
 	return &certificateInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
@@ -50,6 +45,11 @@ func (v *version) Certificates() CertificateInformer {
 // Gateways returns a GatewayInformer.
 func (v *version) Gateways() GatewayInformer {
 	return &gatewayInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// IPRestrictionPolicies returns a IPRestrictionPolicyInformer.
+func (v *version) IPRestrictionPolicies() IPRestrictionPolicyInformer {
+	return &iPRestrictionPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // RateLimitPolicies returns a RateLimitPolicyInformer.

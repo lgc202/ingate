@@ -23,7 +23,7 @@ type compilation struct {
 	upstreams             map[string]*gatewayv1.Upstream
 	upstreamClusters      map[string]string
 	rateLimitPolicies     map[string]*gatewayv1.RateLimitPolicy
-	accessControlPolicies map[string]*gatewayv1.AccessControlPolicy
+	ipRestrictionPolicies map[string]*gatewayv1.IPRestrictionPolicy
 	tokenQuotaPolicies    map[string]*gatewayv1.TokenQuotaPolicy
 
 	listenerGroups   map[listenerKey]*listenerGroup
@@ -47,7 +47,7 @@ func Compile(resources Resources) Result {
 		upstreams:             make(map[string]*gatewayv1.Upstream, len(resources.Upstreams)),
 		upstreamClusters:      make(map[string]string, len(resources.Upstreams)),
 		rateLimitPolicies:     make(map[string]*gatewayv1.RateLimitPolicy, len(resources.RateLimitPolicies)),
-		accessControlPolicies: make(map[string]*gatewayv1.AccessControlPolicy, len(resources.AccessControlPolicies)),
+		ipRestrictionPolicies: make(map[string]*gatewayv1.IPRestrictionPolicy, len(resources.IPRestrictionPolicies)),
 		tokenQuotaPolicies:    make(map[string]*gatewayv1.TokenQuotaPolicy, len(resources.TokenQuotaPolicies)),
 		listenerGroups:        make(map[listenerKey]*listenerGroup),
 		gatewayListeners:      make(map[string][]gatewayListener),
@@ -137,12 +137,12 @@ func (c *compilation) indexResources() {
 		}
 		c.indexRateLimitPolicy(policy)
 	}
-	for _, policy := range c.resources.AccessControlPolicies {
+	for _, policy := range c.resources.IPRestrictionPolicies {
 		if policy == nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, "", ReasonInvalidSpec, "access control policy resource is nil")
+			c.addDiagnostic(SeverityError, gatewayv1.KindIPRestrictionPolicy, "", ReasonInvalidSpec, "IP restriction policy resource is nil")
 			continue
 		}
-		c.indexAccessControlPolicy(policy)
+		c.indexIPRestrictionPolicy(policy)
 	}
 	for _, policy := range c.resources.TokenQuotaPolicies {
 		if policy == nil {
@@ -263,17 +263,17 @@ func (c *compilation) indexRateLimitPolicy(policy *gatewayv1.RateLimitPolicy) {
 	c.rateLimitPolicies[id] = policy
 }
 
-func (c *compilation) indexAccessControlPolicy(policy *gatewayv1.AccessControlPolicy) {
+func (c *compilation) indexIPRestrictionPolicy(policy *gatewayv1.IPRestrictionPolicy) {
 	id := policy.Name
 	if id == "" {
-		c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, id, ReasonInvalidSpec, "access control policy metadata.name is required")
+		c.addDiagnostic(SeverityError, gatewayv1.KindIPRestrictionPolicy, id, ReasonInvalidSpec, "IP restriction policy metadata.name is required")
 		return
 	}
-	if _, ok := c.accessControlPolicies[id]; ok {
-		c.addDiagnostic(SeverityError, gatewayv1.KindAccessControlPolicy, id, ReasonConflict, fmt.Sprintf("duplicate access control policy %q", id))
+	if _, ok := c.ipRestrictionPolicies[id]; ok {
+		c.addDiagnostic(SeverityError, gatewayv1.KindIPRestrictionPolicy, id, ReasonConflict, fmt.Sprintf("duplicate IP restriction policy %q", id))
 		return
 	}
-	c.accessControlPolicies[id] = policy
+	c.ipRestrictionPolicies[id] = policy
 }
 
 func (c *compilation) indexTokenQuotaPolicy(policy *gatewayv1.TokenQuotaPolicy) {

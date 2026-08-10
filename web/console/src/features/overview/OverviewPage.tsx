@@ -41,10 +41,7 @@ export function OverviewPage() {
   const modelUpstreams = upstreamList.filter((u) => u.type === 'model');
   const appUpstreams = upstreamList.filter((u) => u.type !== 'model');
 
-  const totalPolicies =
-    (policyData?.rateLimitPolicies.length ?? 0) +
-    (policyData?.accessControlPolicies.length ?? 0) +
-    (policyData?.tokenQuotaPolicies.length ?? 0);
+  const totalPolicies = policyData?.policies.length ?? 0;
 
   return (
     <PageFrame
@@ -82,9 +79,9 @@ export function OverviewPage() {
             icon={Layers3}
           />
           <StatCard
-            title="生效应速治理策略"
+            title="治理策略"
             value={totalPolicies}
-            subvalue="限流 / ACL / Token 配额"
+            subvalue="限流 / IP 访问限制 / Token 配额"
             icon={ShieldCheck}
           />
         </div>
@@ -136,7 +133,6 @@ export function OverviewPage() {
               </p>
             </button>
 
-            {/* Scenario 3: IP ACL WhiteList */}
             <button
               type="button"
               onClick={() => navigate('/policies')}
@@ -233,7 +229,7 @@ export function OverviewPage() {
               >
                 <div className="flex items-center gap-2">
                   <ShieldCheck className="w-4 h-4 text-emerald-600" />
-                  <span>设置限流、ACL 与 Token 配额治理策略</span>
+                  <span>设置限流、IP 访问限制与 Token 配额策略</span>
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-400" />
               </Link>

@@ -65,7 +65,7 @@ type Resources struct {
 	Routes                []*gatewayv1.Route
 	Upstreams             []*gatewayv1.Upstream
 	RateLimitPolicies     []*gatewayv1.RateLimitPolicy
-	AccessControlPolicies []*gatewayv1.AccessControlPolicy
+	IPRestrictionPolicies []*gatewayv1.IPRestrictionPolicy
 	TokenQuotaPolicies    []*gatewayv1.TokenQuotaPolicy
 }
 
@@ -73,7 +73,7 @@ type Resources struct {
 func (r Resources) Generations() []ResourceGeneration {
 	result := make([]ResourceGeneration, 0,
 		len(r.Gateways)+len(r.Certificates)+len(r.Routes)+len(r.Upstreams)+
-			len(r.RateLimitPolicies)+len(r.AccessControlPolicies)+len(r.TokenQuotaPolicies),
+			len(r.RateLimitPolicies)+len(r.IPRestrictionPolicies)+len(r.TokenQuotaPolicies),
 	)
 	for _, resource := range r.Gateways {
 		if resource != nil {
@@ -100,9 +100,9 @@ func (r Resources) Generations() []ResourceGeneration {
 			result = append(result, newResourceGeneration(gatewayv1.KindRateLimitPolicy, resource.Name, resource.UID, resource.Generation))
 		}
 	}
-	for _, resource := range r.AccessControlPolicies {
+	for _, resource := range r.IPRestrictionPolicies {
 		if resource != nil {
-			result = append(result, newResourceGeneration(gatewayv1.KindAccessControlPolicy, resource.Name, resource.UID, resource.Generation))
+			result = append(result, newResourceGeneration(gatewayv1.KindIPRestrictionPolicy, resource.Name, resource.UID, resource.Generation))
 		}
 	}
 	for _, resource := range r.TokenQuotaPolicies {

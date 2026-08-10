@@ -63,7 +63,7 @@ func (w *Writer) updateRateLimitPolicy(
 	return nil
 }
 
-func (w *Writer) updateAccessControlPolicy(
+func (w *Writer) updateIPRestrictionPolicy(
 	ctx context.Context,
 	source compiler.ResourceGeneration,
 	compile *compileDecision,
@@ -72,7 +72,7 @@ func (w *Writer) updateAccessControlPolicy(
 	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		resource, err := w.client.AccessControlPolicies().Get(ctx, source.Name, metav1.GetOptions{})
+		resource, err := w.client.IPRestrictionPolicies().Get(ctx, source.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
@@ -101,14 +101,14 @@ func (w *Writer) updateAccessControlPolicy(
 		updated := resource.DeepCopy()
 		updated.Status.Conditions = conditions
 		updated.Status.Targets = targetStatuses
-		_, err = w.client.AccessControlPolicies().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
+		_, err = w.client.IPRestrictionPolicies().UpdateStatus(ctx, updated, metav1.UpdateOptions{})
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("update AccessControlPolicy %q conditions: %w", source.Name, err)
+		return fmt.Errorf("update IPRestrictionPolicy %q conditions: %w", source.Name, err)
 	}
 	return nil
 }

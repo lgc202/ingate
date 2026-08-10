@@ -13,11 +13,11 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
-	"github.com/lgc202/ingate/internal/adminapi/biz/accesscontrol"
 	"github.com/lgc202/ingate/internal/adminapi/biz/accesskey"
 	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
 	"github.com/lgc202/ingate/internal/adminapi/biz/configuration"
 	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
+	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
 	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
@@ -44,7 +44,7 @@ var ProviderSet = wire.NewSet(
 	apiserver.NewUpstreamRepository,
 	apiserver.NewCertificateRepository,
 	apiserver.NewRateLimitPolicyRepository,
-	apiserver.NewAccessControlPolicyRepository,
+	apiserver.NewIPRestrictionPolicyRepository,
 	apiserver.NewTokenQuotaPolicyRepository,
 	accesskeydao.NewDAO,
 	cache.NewCredentialIndex,
@@ -54,7 +54,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(biz.GatewayGetter), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(biz.RouteGetter), new(*apiserver.RouteRepository)),
 	wire.Bind(new(biz.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyRepository)),
-	wire.Bind(new(biz.AccessControlPolicyLister), new(*apiserver.AccessControlPolicyRepository)),
+	wire.Bind(new(biz.IPRestrictionPolicyLister), new(*apiserver.IPRestrictionPolicyRepository)),
 	wire.Bind(new(biz.TokenQuotaPolicyLister), new(*apiserver.TokenQuotaPolicyRepository)),
 	// 每个领域声明自己真实消费的 Repository，避免 biz 子包相互依赖
 	wire.Bind(new(gateway.Repository), new(*apiserver.GatewayRepository)),
@@ -68,7 +68,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(certificate.Repository), new(*apiserver.CertificateRepository)),
 	wire.Bind(new(certificate.GatewayRepository), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(ratelimit.Repository), new(*apiserver.RateLimitPolicyRepository)),
-	wire.Bind(new(accesscontrol.Repository), new(*apiserver.AccessControlPolicyRepository)),
+	wire.Bind(new(iprestriction.Repository), new(*apiserver.IPRestrictionPolicyRepository)),
 	wire.Bind(new(tokenquota.Repository), new(*apiserver.TokenQuotaPolicyRepository)),
 	wire.Bind(new(accesskey.Repository), new(*accessKeyRepository)),
 	wire.Bind(new(configuration.GatewayRepository), new(*apiserver.GatewayRepository)),
@@ -76,7 +76,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(configuration.UpstreamRepository), new(*apiserver.UpstreamRepository)),
 	wire.Bind(new(configuration.CertificateRepository), new(*apiserver.CertificateRepository)),
 	wire.Bind(new(configuration.RateLimitPolicyRepository), new(*apiserver.RateLimitPolicyRepository)),
-	wire.Bind(new(configuration.AccessControlPolicyRepository), new(*apiserver.AccessControlPolicyRepository)),
+	wire.Bind(new(configuration.IPRestrictionPolicyRepository), new(*apiserver.IPRestrictionPolicyRepository)),
 	wire.Bind(new(configuration.TokenQuotaPolicyRepository), new(*apiserver.TokenQuotaPolicyRepository)),
 )
 

@@ -26,7 +26,7 @@ type resourceCache struct {
 	routes                gatewaylisters.RouteLister
 	upstreams             gatewaylisters.UpstreamLister
 	rateLimitPolicies     gatewaylisters.RateLimitPolicyLister
-	accessControlPolicies gatewaylisters.AccessControlPolicyLister
+	ipRestrictionPolicies gatewaylisters.IPRestrictionPolicyLister
 	tokenQuotaPolicies    gatewaylisters.TokenQuotaPolicyLister
 }
 
@@ -42,7 +42,7 @@ func newResourceCache(
 	routeInformer := gatewayInformers.Routes()
 	upstreamInformer := gatewayInformers.Upstreams()
 	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
-	accessControlPolicyInformer := gatewayInformers.AccessControlPolicies()
+	ipRestrictionPolicyInformer := gatewayInformers.IPRestrictionPolicies()
 	tokenQuotaPolicyInformer := gatewayInformers.TokenQuotaPolicies()
 
 	resources := &resourceCache{
@@ -53,7 +53,7 @@ func newResourceCache(
 		routes:                routeInformer.Lister(),
 		upstreams:             upstreamInformer.Lister(),
 		rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
-		accessControlPolicies: accessControlPolicyInformer.Lister(),
+		ipRestrictionPolicies: ipRestrictionPolicyInformer.Lister(),
 		tokenQuotaPolicies:    tokenQuotaPolicyInformer.Lister(),
 	}
 	if err := resources.registerEventHandlers([]eventRegistration{
@@ -62,7 +62,7 @@ func newResourceCache(
 		{name: "Route", informer: routeInformer.Informer()},
 		{name: "Upstream", informer: upstreamInformer.Informer()},
 		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
-		{name: "AccessControlPolicy", informer: accessControlPolicyInformer.Informer()},
+		{name: "IPRestrictionPolicy", informer: ipRestrictionPolicyInformer.Informer()},
 		{name: "TokenQuotaPolicy", informer: tokenQuotaPolicyInformer.Informer()},
 	}); err != nil {
 		return nil, err
@@ -110,9 +110,9 @@ func (c *resourceCache) list() (compiler.Resources, error) {
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list RateLimitPolicies: %w", err)
 	}
-	accessControlPolicies, err := c.accessControlPolicies.List(labels.Everything())
+	ipRestrictionPolicies, err := c.ipRestrictionPolicies.List(labels.Everything())
 	if err != nil {
-		return compiler.Resources{}, fmt.Errorf("list AccessControlPolicies: %w", err)
+		return compiler.Resources{}, fmt.Errorf("list IPRestrictionPolicies: %w", err)
 	}
 	tokenQuotaPolicies, err := c.tokenQuotaPolicies.List(labels.Everything())
 	if err != nil {
@@ -124,7 +124,7 @@ func (c *resourceCache) list() (compiler.Resources, error) {
 		Routes:                make([]*gatewayv1.Route, 0, len(routes)),
 		Upstreams:             make([]*gatewayv1.Upstream, 0, len(upstreams)),
 		RateLimitPolicies:     make([]*gatewayv1.RateLimitPolicy, 0, len(rateLimitPolicies)),
-		AccessControlPolicies: make([]*gatewayv1.AccessControlPolicy, 0, len(accessControlPolicies)),
+		IPRestrictionPolicies: make([]*gatewayv1.IPRestrictionPolicy, 0, len(ipRestrictionPolicies)),
 		TokenQuotaPolicies:    make([]*gatewayv1.TokenQuotaPolicy, 0, len(tokenQuotaPolicies)),
 	}
 	for _, resource := range gateways {
@@ -142,8 +142,8 @@ func (c *resourceCache) list() (compiler.Resources, error) {
 	for _, resource := range rateLimitPolicies {
 		resources.RateLimitPolicies = append(resources.RateLimitPolicies, resource.DeepCopy())
 	}
-	for _, resource := range accessControlPolicies {
-		resources.AccessControlPolicies = append(resources.AccessControlPolicies, resource.DeepCopy())
+	for _, resource := range ipRestrictionPolicies {
+		resources.IPRestrictionPolicies = append(resources.IPRestrictionPolicies, resource.DeepCopy())
 	}
 	for _, resource := range tokenQuotaPolicies {
 		resources.TokenQuotaPolicies = append(resources.TokenQuotaPolicies, resource.DeepCopy())
@@ -164,7 +164,7 @@ func (c *resourceCache) list() (compiler.Resources, error) {
 	slices.SortFunc(resources.RateLimitPolicies, func(a, b *gatewayv1.RateLimitPolicy) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
-	slices.SortFunc(resources.AccessControlPolicies, func(a, b *gatewayv1.AccessControlPolicy) int {
+	slices.SortFunc(resources.IPRestrictionPolicies, func(a, b *gatewayv1.IPRestrictionPolicy) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	slices.SortFunc(resources.TokenQuotaPolicies, func(a, b *gatewayv1.TokenQuotaPolicy) int {
