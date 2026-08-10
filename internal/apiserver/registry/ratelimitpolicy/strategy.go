@@ -2,6 +2,9 @@ package ratelimitpolicy
 
 import (
 	"context"
+	"maps"
+	"strings"
+	"time"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,13 +20,7 @@ import (
 
 const gatewayAPIVersion = "gateway.ingate.io/v1"
 
-const (
-	minResponseStatusCode = 400
-	maxResponseStatusCode = 599
-	maxPluginInteger      = 1<<31 - 1
-)
-
-// strategy 定义 RateLimitPolicy 资源在 apiserver 存储前后的处理规则
+// strategy 定义 RateLimitPolicy 资源在 API Server 存储前后的处理规则
 type strategy struct {
 	runtime.ObjectTyper
 	names.NameGenerator
@@ -57,10 +54,12 @@ func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	policy := obj.(*resource.RateLimitPolicy)
 	policy.Status = resource.PolicyStatus{}
 	policy.Generation = 1
+	canonicalizeSpec(&policy.Spec)
+	setUpdatedAt(&policy.ObjectMeta, policy.CreationTimestamp.Time)
 }
 
 func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
-	return validateRateLimitPolicy(obj.(*resource.RateLimitPolicy))
+	return validatePolicy(obj.(*resource.RateLimitPolicy))
 }
 
 func (strategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
@@ -68,6 +67,8 @@ func (strategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []stri
 }
 
 func (strategy) Canonicalize(obj runtime.Object) {
+	policy := obj.(*resource.RateLimitPolicy)
+	canonicalizeSpec(&policy.Spec)
 }
 
 func (strategy) AllowCreateOnUpdate() bool {
@@ -79,14 +80,18 @@ func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	oldPolicy := old.(*resource.RateLimitPolicy)
 
 	newPolicy.Status = oldPolicy.Status
+	canonicalizeSpec(&newPolicy.Spec)
 	newPolicy.Generation = oldPolicy.Generation
 	if !apiequality.Semantic.DeepEqual(oldPolicy.Spec, newPolicy.Spec) {
 		newPolicy.Generation = oldPolicy.Generation + 1
+		setUpdatedAt(&newPolicy.ObjectMeta, time.Now().UTC())
+		return
 	}
+	preserveUpdatedAt(&newPolicy.ObjectMeta, &oldPolicy.ObjectMeta)
 }
 
 func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
-	return validateRateLimitPolicy(obj.(*resource.RateLimitPolicy))
+	return validatePolicy(obj.(*resource.RateLimitPolicy))
 }
 
 func (strategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
@@ -121,94 +126,69 @@ func (statusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Objec
 	return nil
 }
 
-func validateRateLimitPolicy(policy *resource.RateLimitPolicy) field.ErrorList {
+func validatePolicy(policy *resource.RateLimitPolicy) field.ErrorList {
 	specPath := field.NewPath("spec")
-	errs := field.ErrorList{}
+	var errs field.ErrorList
 	if policy.Spec.DisplayName == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
 	errs = append(errs, policytarget.ValidateRefs(policy.Spec.TargetRefs, specPath.Child("targetRefs"))...)
-	if len(policy.Spec.Rules) == 0 {
-		errs = append(errs, field.Required(specPath.Child("rules"), "at least one rule is required"))
-	}
 
-	seenRuleNames := make(map[string]bool, len(policy.Spec.Rules))
-	for i, rule := range policy.Spec.Rules {
-		rulePath := specPath.Child("rules").Index(i)
-		if rule.Name == "" {
-			errs = append(errs, field.Required(rulePath.Child("name"), "rule name is required"))
-		} else if seenRuleNames[rule.Name] {
-			errs = append(errs, field.Duplicate(rulePath.Child("name"), rule.Name))
-		} else {
-			seenRuleNames[rule.Name] = true
+	subjectPath := specPath.Child("subject")
+	switch policy.Spec.Subject.Type {
+	case resource.RateLimitSubjectShared, resource.RateLimitSubjectIP:
+		if policy.Spec.Subject.HeaderName != "" {
+			errs = append(errs, field.Forbidden(subjectPath.Child("headerName"), "headerName is only supported by Header subjects"))
 		}
-		if len(rule.Key.Parts) == 0 {
-			errs = append(errs, field.Required(rulePath.Child("key").Child("parts"), "at least one key part is required"))
+	case resource.RateLimitSubjectHeader:
+		if policy.Spec.Subject.HeaderName == "" {
+			errs = append(errs, field.Required(subjectPath.Child("headerName"), "headerName is required for Header subjects"))
+		} else if messages := k8svalidation.IsHTTPHeaderName(policy.Spec.Subject.HeaderName); len(messages) > 0 {
+			errs = append(errs, field.Invalid(subjectPath.Child("headerName"), policy.Spec.Subject.HeaderName, messages[0]))
 		}
-		for j, part := range rule.Key.Parts {
-			errs = append(errs, validateRateLimitKeyPart(part, rulePath.Child("key").Child("parts").Index(j))...)
-		}
-		if rule.Limit.Requests <= 0 {
-			errs = append(errs, field.Invalid(rulePath.Child("limit").Child("requests"), rule.Limit.Requests, "requests must be greater than zero"))
-		} else if rule.Limit.Requests > maxPluginInteger {
-			errs = append(errs, field.Invalid(rulePath.Child("limit").Child("requests"), rule.Limit.Requests, "requests exceeds the data plane integer range"))
-		}
-		if rule.Limit.WindowSeconds <= 0 {
-			errs = append(errs, field.Invalid(rulePath.Child("limit").Child("windowSeconds"), rule.Limit.WindowSeconds, "windowSeconds must be greater than zero"))
-		} else if rule.Limit.WindowSeconds > maxPluginInteger {
-			errs = append(errs, field.Invalid(rulePath.Child("limit").Child("windowSeconds"), rule.Limit.WindowSeconds, "windowSeconds exceeds the data plane integer range"))
-		}
-		if rule.Limit.Burst < 0 {
-			errs = append(errs, field.Invalid(rulePath.Child("limit").Child("burst"), rule.Limit.Burst, "burst must not be negative"))
-		} else if rule.Limit.Burst > maxPluginInteger {
-			errs = append(errs, field.Invalid(rulePath.Child("limit").Child("burst"), rule.Limit.Burst, "burst exceeds the data plane integer range"))
-		}
-	}
-
-	statusCode := policy.Spec.Response.StatusCode
-	if statusCode != 0 && (statusCode < minResponseStatusCode || statusCode > maxResponseStatusCode) {
-		errs = append(errs, field.Invalid(specPath.Child("response").Child("statusCode"), statusCode, "statusCode must be between 400 and 599"))
-	}
-	switch policy.Spec.FailurePolicy {
-	case "", resource.RateLimitFailurePolicyFailOpen, resource.RateLimitFailurePolicyFailClose:
 	default:
-		errs = append(errs, field.NotSupported(specPath.Child("failurePolicy"), policy.Spec.FailurePolicy, []string{
-			string(resource.RateLimitFailurePolicyFailOpen),
-			string(resource.RateLimitFailurePolicyFailClose),
+		errs = append(errs, field.NotSupported(subjectPath.Child("type"), policy.Spec.Subject.Type, []string{
+			string(resource.RateLimitSubjectShared),
+			string(resource.RateLimitSubjectIP),
+			string(resource.RateLimitSubjectHeader),
 		}))
+	}
+
+	limitPath := specPath.Child("limit")
+	if policy.Spec.Limit.Requests <= 0 || policy.Spec.Limit.Requests > resource.RateLimitMaxRequests {
+		errs = append(errs, field.Invalid(limitPath.Child("requests"), policy.Spec.Limit.Requests, "requests is outside the supported range"))
+	}
+	if policy.Spec.Limit.WindowSeconds <= 0 || policy.Spec.Limit.WindowSeconds > resource.RateLimitMaxWindowSeconds {
+		errs = append(errs, field.Invalid(limitPath.Child("windowSeconds"), policy.Spec.Limit.WindowSeconds, "windowSeconds is outside the supported range"))
 	}
 	return errs
 }
 
-func validateRateLimitKeyPart(part resource.RateLimitKeyPart, path *field.Path) field.ErrorList {
-	errs := field.ErrorList{}
-	switch part.Type {
-	case resource.RateLimitKeyTypeHeader:
-		if part.Name == "" {
-			errs = append(errs, field.Required(path.Child("name"), "name is required for Header key parts"))
-		} else if messages := k8svalidation.IsHTTPHeaderName(part.Name); len(messages) > 0 {
-			errs = append(errs, field.Invalid(path.Child("name"), part.Name, messages[0]))
-		}
-	case resource.RateLimitKeyTypeQuery,
-		resource.RateLimitKeyTypeCookie:
-		if part.Name == "" {
-			errs = append(errs, field.Required(path.Child("name"), "name is required for this key type"))
-		}
-	case resource.RateLimitKeyTypeIP,
-		resource.RateLimitKeyTypeRoute,
-		resource.RateLimitKeyTypeGateway:
-		if part.Name != "" {
-			errs = append(errs, field.Invalid(path.Child("name"), part.Name, "name must be empty for this key type"))
-		}
-	default:
-		errs = append(errs, field.NotSupported(path.Child("type"), part.Type, []string{
-			string(resource.RateLimitKeyTypeIP),
-			string(resource.RateLimitKeyTypeHeader),
-			string(resource.RateLimitKeyTypeQuery),
-			string(resource.RateLimitKeyTypeCookie),
-			string(resource.RateLimitKeyTypeRoute),
-			string(resource.RateLimitKeyTypeGateway),
-		}))
+func canonicalizeSpec(spec *resource.RateLimitPolicySpec) {
+	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
+	spec.Subject.HeaderName = strings.ToLower(strings.TrimSpace(spec.Subject.HeaderName))
+	for i := range spec.TargetRefs {
+		spec.TargetRefs[i].Name = strings.TrimSpace(spec.TargetRefs[i].Name)
 	}
-	return errs
+}
+
+func setUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
+	metadata.Annotations = maps.Clone(metadata.Annotations)
+	if metadata.Annotations == nil {
+		metadata.Annotations = make(map[string]string, 1)
+	}
+	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt.Format(time.RFC3339Nano)
+}
+
+func preserveUpdatedAt(metadata, oldMetadata *metav1.ObjectMeta) {
+	metadata.Annotations = maps.Clone(metadata.Annotations)
+	delete(metadata.Annotations, resource.AnnotationUpdatedAt)
+	updatedAt := oldMetadata.Annotations[resource.AnnotationUpdatedAt]
+	if updatedAt == "" {
+		return
+	}
+	if metadata.Annotations == nil {
+		metadata.Annotations = make(map[string]string, 1)
+	}
+	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt
 }

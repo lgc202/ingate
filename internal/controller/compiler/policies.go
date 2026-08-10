@@ -31,7 +31,7 @@ const (
 	tokenQuotaPluginName        = "ingate.tokenquota"
 	tokenQuotaPluginPath        = "/opt/ingate/plugins/tokenquota.wasm"
 	wasmRuntime                 = "envoy.wasm.runtime.v8"
-	maxPluginInteger            = 1<<31 - 1
+	rateLimitRuleName           = "limit"
 	minPolicyResponseStatusCode = 400
 	maxPolicyResponseStatusCode = 599
 )
@@ -468,100 +468,49 @@ func (c *compilation) accessControlPolicy(policy *gatewayv1.AccessControlPolicy)
 
 func (c *compilation) rateLimitPolicy(policy *gatewayv1.RateLimitPolicy) (pluginratelimit.Policy, bool) {
 	valid := true
-	if len(policy.Spec.Rules) == 0 {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q must declare at least one rule", policy.Name))
-		valid = false
-	}
-
-	rules := make([]pluginratelimit.Rule, 0, len(policy.Spec.Rules))
-	seenRules := make(map[string]bool, len(policy.Spec.Rules))
-	for _, rule := range policy.Spec.Rules {
-		if rule.Name == "" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q has a rule without a name", policy.Name))
-			valid = false
-			continue
-		}
-		if seenRules[rule.Name] {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonConflict, fmt.Sprintf("rate limit policy %q has duplicate rule %q", policy.Name, rule.Name))
-			valid = false
-			continue
-		}
-		seenRules[rule.Name] = true
-		if len(rule.Key.Parts) == 0 {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q rule %q must declare at least one key part", policy.Name, rule.Name))
-			valid = false
-			continue
-		}
-
-		parts := make([]pluginratelimit.KeyPart, 0, len(rule.Key.Parts))
-		for _, part := range rule.Key.Parts {
-			if !c.validRateLimitKeyPart(policy.Name, rule.Name, part) {
-				valid = false
-				continue
-			}
-			parts = append(parts, pluginratelimit.KeyPart{
-				Type: pluginratelimit.KeyType(part.Type),
-				Name: part.Name,
-			})
-		}
-		if rule.Limit.Requests <= 0 || rule.Limit.Requests > maxPluginInteger ||
-			rule.Limit.WindowSeconds <= 0 || rule.Limit.WindowSeconds > maxPluginInteger ||
-			rule.Limit.Burst < 0 || rule.Limit.Burst > maxPluginInteger {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q rule %q has invalid quota", policy.Name, rule.Name))
+	var key pluginratelimit.KeyPart
+	switch policy.Spec.Subject.Type {
+	case gatewayv1.RateLimitSubjectShared:
+		// Scope 已区分 Gateway 或 Route，Gateway 维度只提供一个稳定的共享 key 值
+		key.Type = pluginratelimit.KeyTypeGateway
+	case gatewayv1.RateLimitSubjectIP:
+		key.Type = pluginratelimit.KeyTypeIP
+	case gatewayv1.RateLimitSubjectHeader:
+		key.Type = pluginratelimit.KeyTypeHeader
+		key.Name = policy.Spec.Subject.HeaderName
+		if key.Name == "" || len(k8svalidation.IsHTTPHeaderName(key.Name)) > 0 {
+			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q has an invalid subject header name", policy.Name))
 			valid = false
 		}
-		rules = append(rules, pluginratelimit.Rule{
-			Name:  rule.Name,
-			Key:   parts,
-			Limit: pluginratelimit.Quota(rule.Limit),
-		})
-	}
-	if policy.Spec.Response.StatusCode != 0 &&
-		(policy.Spec.Response.StatusCode < minPolicyResponseStatusCode || policy.Spec.Response.StatusCode > maxPolicyResponseStatusCode) {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q response status code must be between 400 and 599", policy.Name))
-		valid = false
-	}
-	switch policy.Spec.FailurePolicy {
-	case "", gatewayv1.RateLimitFailurePolicyFailOpen, gatewayv1.RateLimitFailurePolicyFailClose:
 	default:
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("rate limit policy %q uses unsupported failure policy %q", policy.Name, policy.Spec.FailurePolicy))
+		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("rate limit policy %q uses unsupported subject type %q", policy.Name, policy.Spec.Subject.Type))
 		valid = false
 	}
+	if policy.Spec.Subject.Type != gatewayv1.RateLimitSubjectHeader && policy.Spec.Subject.HeaderName != "" {
+		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q must not declare a subject header name", policy.Name))
+		valid = false
+	}
+	if policy.Spec.Limit.Requests <= 0 || policy.Spec.Limit.Requests > gatewayv1.RateLimitMaxRequests ||
+		policy.Spec.Limit.WindowSeconds <= 0 || policy.Spec.Limit.WindowSeconds > gatewayv1.RateLimitMaxWindowSeconds {
+		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q has an invalid limit", policy.Name))
+		valid = false
+	}
+
 	return pluginratelimit.Policy{
-		Name:  policy.Name,
-		Rules: rules,
+		Name: policy.Name,
+		Rules: []pluginratelimit.Rule{{
+			Name: rateLimitRuleName,
+			Key:  []pluginratelimit.KeyPart{key},
+			Limit: pluginratelimit.Quota{
+				Requests:      int(policy.Spec.Limit.Requests),
+				WindowSeconds: int(policy.Spec.Limit.WindowSeconds),
+			},
+		}},
 		Response: pluginratelimit.Response{
-			StatusCode:         policy.Spec.Response.StatusCode,
-			Message:            policy.Spec.Response.Message,
-			QuotaHeaderEnabled: policy.Spec.Response.QuotaHeaderEnabled,
+			QuotaHeaderEnabled: true,
 		},
-		FailurePolicy: pluginratelimit.FailurePolicy(policy.Spec.FailurePolicy),
+		FailurePolicy: pluginratelimit.FailurePolicyFailOpen,
 	}, valid
-}
-
-func (c *compilation) validRateLimitKeyPart(policyID, ruleName string, part gatewayv1.RateLimitKeyPart) bool {
-	switch part.Type {
-	case gatewayv1.RateLimitKeyTypeHeader,
-		gatewayv1.RateLimitKeyTypeQuery,
-		gatewayv1.RateLimitKeyTypeCookie:
-		if part.Name != "" {
-			return true
-		}
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policyID, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q rule %q key type %q requires a name", policyID, ruleName, part.Type))
-		return false
-	case gatewayv1.RateLimitKeyTypeIP,
-		gatewayv1.RateLimitKeyTypeRoute,
-		gatewayv1.RateLimitKeyTypeGateway,
-		gatewayv1.RateLimitKeyTypeRouteRule:
-		if part.Name != "" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policyID, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q rule %q key type %q must not declare a name", policyID, ruleName, part.Type))
-			return false
-		}
-		return true
-	default:
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policyID, ReasonUnsupported, fmt.Sprintf("rate limit policy %q rule %q uses unsupported key type %q", policyID, ruleName, part.Type))
-		return false
-	}
 }
 
 func (c *compilation) tokenQuotaPolicy(policy *gatewayv1.TokenQuotaPolicy) (plugintokenquota.Policy, bool) {

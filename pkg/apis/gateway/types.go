@@ -22,34 +22,6 @@ const (
 	KindTokenQuotaPolicy Kind = "TokenQuotaPolicy"
 )
 
-// RateLimitKeyType 表示限流 key 的组成维度
-type RateLimitKeyType string
-
-const (
-	// RateLimitKeyTypeIP 表示按客户端 IP 生成限流 key
-	RateLimitKeyTypeIP RateLimitKeyType = "IP"
-	// RateLimitKeyTypeHeader 表示按请求 header 生成限流 key
-	RateLimitKeyTypeHeader RateLimitKeyType = "Header"
-	// RateLimitKeyTypeQuery 表示按 query 参数生成限流 key
-	RateLimitKeyTypeQuery RateLimitKeyType = "Query"
-	// RateLimitKeyTypeCookie 表示按 cookie 生成限流 key
-	RateLimitKeyTypeCookie RateLimitKeyType = "Cookie"
-	// RateLimitKeyTypeRoute 表示按 Route 生成限流 key
-	RateLimitKeyTypeRoute RateLimitKeyType = "Route"
-	// RateLimitKeyTypeGateway 表示按 Gateway 生成限流 key
-	RateLimitKeyTypeGateway RateLimitKeyType = "Gateway"
-)
-
-// RateLimitFailurePolicy 表示限流执行异常时的处理方式
-type RateLimitFailurePolicy string
-
-const (
-	// RateLimitFailurePolicyFailOpen 表示限流执行失败时放行请求
-	RateLimitFailurePolicyFailOpen RateLimitFailurePolicy = "FailOpen"
-	// RateLimitFailurePolicyFailClose 表示限流执行失败时拒绝请求
-	RateLimitFailurePolicyFailClose RateLimitFailurePolicy = "FailClose"
-)
-
 // PolicyTargetRef 表示策略的生效目标
 type PolicyTargetRef struct {
 	Kind Kind   `json:"kind"`

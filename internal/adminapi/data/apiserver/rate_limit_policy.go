@@ -37,18 +37,24 @@ func (r *RateLimitPolicyRepository) Get(ctx context.Context, name string) (*reso
 }
 
 // Create 创建 RateLimitPolicy
-func (r *RateLimitPolicyRepository) Create(ctx context.Context, id string, spec resource.RateLimitPolicySpec) error {
+func (r *RateLimitPolicyRepository) Create(ctx context.Context, id string, spec resource.RateLimitPolicySpec) (*resource.RateLimitPolicy, error) {
 	policy := &resource.RateLimitPolicy{
 		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindRateLimitPolicy)},
 		ObjectMeta: metav1.ObjectMeta{Name: id},
 		Spec:       spec,
 	}
-	_, err := r.client.GatewayV1().RateLimitPolicies().Create(ctx, policy, metav1.CreateOptions{})
-	return resourceError("create", "rate limit policy", id, err)
+	created, err := r.client.GatewayV1().RateLimitPolicies().Create(ctx, policy, metav1.CreateOptions{})
+	return created, resourceError("create", "rate limit policy", id, err)
 }
 
 // Update 更新 RateLimitPolicy，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
-func (r *RateLimitPolicyRepository) Update(ctx context.Context, id string, generation int64, spec resource.RateLimitPolicySpec) error {
+func (r *RateLimitPolicyRepository) Update(
+	ctx context.Context,
+	id string,
+	generation int64,
+	spec resource.RateLimitPolicySpec,
+) (*resource.RateLimitPolicy, error) {
+	var updated *resource.RateLimitPolicy
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current, err := r.client.GatewayV1().RateLimitPolicies().Get(ctx, id, metav1.GetOptions{})
 		if err != nil {
@@ -58,14 +64,26 @@ func (r *RateLimitPolicyRepository) Update(ctx context.Context, id string, gener
 			return biz.ErrResourceVersionConflict
 		}
 		current.Spec = spec
-		_, err = r.client.GatewayV1().RateLimitPolicies().Update(ctx, current, metav1.UpdateOptions{})
+		updated, err = r.client.GatewayV1().RateLimitPolicies().Update(ctx, current, metav1.UpdateOptions{})
 		return err
 	})
-	return resourceError("update", "rate limit policy", id, err)
+	return updated, resourceError("update", "rate limit policy", id, err)
 }
 
 // Delete 删除 RateLimitPolicy
-func (r *RateLimitPolicyRepository) Delete(ctx context.Context, name string) error {
-	err := r.client.GatewayV1().RateLimitPolicies().Delete(ctx, name, metav1.DeleteOptions{})
-	return resourceError("delete", "rate limit policy", name, err)
+func (r *RateLimitPolicyRepository) Delete(ctx context.Context, id string, generation int64) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := r.client.GatewayV1().RateLimitPolicies().Get(ctx, id, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if current.Generation != generation {
+			return biz.ErrResourceVersionConflict
+		}
+		resourceVersion := current.ResourceVersion
+		return r.client.GatewayV1().RateLimitPolicies().Delete(ctx, id, metav1.DeleteOptions{
+			Preconditions: &metav1.Preconditions{ResourceVersion: &resourceVersion},
+		})
+	})
+	return resourceError("delete", "rate limit policy", id, err)
 }

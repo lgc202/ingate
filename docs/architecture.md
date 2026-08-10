@@ -187,7 +187,7 @@ Gateway Listener 声明数据面实际监听协议、端口和 Host 范围。相
 
 Route 以“一组请求匹配条件 + 一个转发行为”为资源粒度，不再嵌套 `rules[]`。不同匹配或转发行为使用多个 Route 表达；一个 Route 可以挂载到多个 Gateway。Route 的完整产品协议见 [Route 资源](resources/route.md)。
 
-RateLimitPolicy 统一使用系统 Redis，用户协议不包含 Local/Global 模式、限流算法、RedisStore、redisRef 或私有插件 JSON。数据面当前使用系统选定的令牌桶实现，`burst` 为 0 时使用 `requests` 作为桶容量，正数表示显式桶容量。
+RateLimitPolicy 统一使用系统 Redis，一条策略定义一个计数对象和一个额度，并可复用到多个 Gateway 或 Route。用户协议不包含 Local/Global 模式、限流算法、Burst、RedisStore、redisRef 或私有插件 JSON。数据面使用系统选定的令牌桶实现，桶容量固定为请求额度。完整产品协议见 [RateLimitPolicy 资源](resources/rate-limit-policy.md)。
 
 TokenQuotaPolicy 为一个策略定义一个 Token 预算池，仅展开到目标 Gateway 或模型 Route。预算池可以由所有命中请求共享，也可以按网关看到的来源 IP 或指定请求 Header 值区分；Header 和 IP 原始值经过哈希后才进入 Redis key。多个 targetRef 命中同一策略时仍共享同一预算池，需要独立预算时应创建多条策略。
 

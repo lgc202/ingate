@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/google/uuid"
 
@@ -17,9 +16,9 @@ import (
 type Repository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.RateLimitPolicy], error)
 	Get(context.Context, string) (*resource.RateLimitPolicy, error)
-	Create(context.Context, string, resource.RateLimitPolicySpec) error
-	Update(context.Context, string, int64, resource.RateLimitPolicySpec) error
-	Delete(context.Context, string) error
+	Create(context.Context, string, resource.RateLimitPolicySpec) (*resource.RateLimitPolicy, error)
+	Update(context.Context, string, int64, resource.RateLimitPolicySpec) (*resource.RateLimitPolicy, error)
+	Delete(context.Context, string, int64) error
 }
 
 // Usecase 承载 RateLimitPolicy 管理用例
@@ -56,7 +55,7 @@ func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (*ListResult, 
 	if err != nil {
 		return nil, err
 	}
-	targetNames, err := u.targets.DisplayNames(ctx, rateLimitPolicyTargetRefs(result.Items))
+	targetNames, err := u.targets.DisplayNames(ctx, targetRefs(result.Items))
 	if err != nil {
 		return nil, err
 	}
@@ -77,64 +76,75 @@ func (u *Usecase) Get(ctx context.Context, policyID string) (*Result, error) {
 }
 
 // Create 创建 RateLimitPolicy
-func (u *Usecase) Create(ctx context.Context, spec resource.RateLimitPolicySpec) (string, error) {
-	if err := u.targets.Validate(ctx, spec.TargetRefs); err != nil {
-		return "", err
+func (u *Usecase) Create(ctx context.Context, spec resource.RateLimitPolicySpec) (*Result, error) {
+	targetNames, err := u.targets.Resolve(ctx, spec.TargetRefs)
+	if err != nil {
+		return nil, err
 	}
-	id := uuid.NewString()
-	if err := u.repository.Create(ctx, id, spec); err != nil {
-		return "", biz.DisplayNameConflict(err, "限流策略", spec.DisplayName)
+	policy, err := u.repository.Create(ctx, uuid.NewString(), spec)
+	if err != nil {
+		return nil, biz.DisplayNameConflict(err, "限流策略", spec.DisplayName)
 	}
-	return id, nil
+	return &Result{Policy: policy, TargetNames: targetNames}, nil
 }
 
-// Update 更新 RateLimitPolicy
-func (u *Usecase) Update(ctx context.Context, policyID, version string, spec resource.RateLimitPolicySpec) error {
+// Update 使用配置版本乐观更新 RateLimitPolicy
+func (u *Usecase) Update(
+	ctx context.Context,
+	policyID string,
+	version int64,
+	spec resource.RateLimitPolicySpec,
+) (*Result, error) {
+	current, err := u.repository.Get(ctx, policyID)
+	if err != nil {
+		return nil, err
+	}
+	if version != current.Generation {
+		return nil, versionConflict(current)
+	}
+	targetNames, err := u.targets.Resolve(ctx, spec.TargetRefs)
+	if err != nil {
+		return nil, err
+	}
+	updated, err := u.repository.Update(ctx, policyID, current.Generation, spec)
+	if err != nil {
+		if errors.Is(err, biz.ErrResourceVersionConflict) {
+			return nil, versionConflict(current)
+		}
+		return nil, biz.DisplayNameConflict(err, "限流策略", spec.DisplayName)
+	}
+	return &Result{Policy: updated, TargetNames: targetNames}, nil
+}
+
+// Delete 使用配置版本删除 RateLimitPolicy
+func (u *Usecase) Delete(ctx context.Context, policyID string, version int64) error {
 	current, err := u.repository.Get(ctx, policyID)
 	if err != nil {
 		return err
 	}
-	if version != strconv.FormatInt(current.Generation, 10) {
-		return biz.NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+	if version != current.Generation {
+		return versionConflict(current)
 	}
-	if err := u.targets.Validate(ctx, spec.TargetRefs); err != nil {
-		return err
-	}
-	if err := u.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
+	if err := u.repository.Delete(ctx, policyID, current.Generation); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
-			return biz.NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
-		}
-		return biz.DisplayNameConflict(err, "限流策略", spec.DisplayName)
-	}
-	return nil
-}
-
-// SetEnabled 设置 RateLimitPolicy 启用状态
-func (u *Usecase) SetEnabled(ctx context.Context, policyID string, enabled bool) error {
-	current, err := u.repository.Get(ctx, policyID)
-	if err != nil {
-		return err
-	}
-	spec := current.Spec
-	spec.Enabled = enabled
-	if err := u.repository.Update(ctx, policyID, current.Generation, spec); err != nil {
-		if errors.Is(err, biz.ErrResourceVersionConflict) {
-			return biz.NewUserError(fmt.Sprintf("限流策略 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+			return versionConflict(current)
 		}
 		return err
 	}
 	return nil
 }
 
-// Delete 删除 RateLimitPolicy
-func (u *Usecase) Delete(ctx context.Context, policyID string) error {
-	return u.repository.Delete(ctx, policyID)
-}
-
-func rateLimitPolicyTargetRefs(policies []resource.RateLimitPolicy) []resource.PolicyTargetRef {
+func targetRefs(policies []resource.RateLimitPolicy) []resource.PolicyTargetRef {
 	var refs []resource.PolicyTargetRef
 	for _, policy := range policies {
 		refs = append(refs, policy.Spec.TargetRefs...)
 	}
 	return refs
+}
+
+func versionConflict(policy *resource.RateLimitPolicy) error {
+	return biz.NewVersionConflictError(
+		policy.Name,
+		fmt.Sprintf("限流策略 %q 已被其他用户修改，请刷新后重试", policy.Spec.DisplayName),
+	)
 }

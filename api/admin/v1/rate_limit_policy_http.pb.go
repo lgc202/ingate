@@ -9,6 +9,7 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -21,16 +22,14 @@ const OperationRateLimitPolicyServiceCreateRateLimitPolicy = "/ingate.admin.v1.R
 const OperationRateLimitPolicyServiceDeleteRateLimitPolicy = "/ingate.admin.v1.RateLimitPolicyService/DeleteRateLimitPolicy"
 const OperationRateLimitPolicyServiceGetRateLimitPolicy = "/ingate.admin.v1.RateLimitPolicyService/GetRateLimitPolicy"
 const OperationRateLimitPolicyServiceListRateLimitPolicies = "/ingate.admin.v1.RateLimitPolicyService/ListRateLimitPolicies"
-const OperationRateLimitPolicyServiceSetRateLimitPolicyEnabled = "/ingate.admin.v1.RateLimitPolicyService/SetRateLimitPolicyEnabled"
 const OperationRateLimitPolicyServiceUpdateRateLimitPolicy = "/ingate.admin.v1.RateLimitPolicyService/UpdateRateLimitPolicy"
 
 type RateLimitPolicyServiceHTTPServer interface {
-	CreateRateLimitPolicy(context.Context, *CreateRateLimitPolicyRequest) (*MutationReply, error)
-	DeleteRateLimitPolicy(context.Context, *ResourceRequest) (*MutationReply, error)
-	GetRateLimitPolicy(context.Context, *ResourceRequest) (*RateLimitPolicy, error)
-	ListRateLimitPolicies(context.Context, *ListRequest) (*ListRateLimitPoliciesReply, error)
-	SetRateLimitPolicyEnabled(context.Context, *SetEnabledRequest) (*MutationReply, error)
-	UpdateRateLimitPolicy(context.Context, *UpdateRateLimitPolicyRequest) (*MutationReply, error)
+	CreateRateLimitPolicy(context.Context, *CreateRateLimitPolicyRequest) (*RateLimitPolicy, error)
+	DeleteRateLimitPolicy(context.Context, *DeleteRateLimitPolicyRequest) (*emptypb.Empty, error)
+	GetRateLimitPolicy(context.Context, *GetRateLimitPolicyRequest) (*RateLimitPolicy, error)
+	ListRateLimitPolicies(context.Context, *ListRateLimitPoliciesRequest) (*ListRateLimitPoliciesResponse, error)
+	UpdateRateLimitPolicy(context.Context, *UpdateRateLimitPolicyRequest) (*RateLimitPolicy, error)
 }
 
 func RegisterRateLimitPolicyServiceHTTPServer(s *http.Server, srv RateLimitPolicyServiceHTTPServer) {
@@ -39,32 +38,31 @@ func RegisterRateLimitPolicyServiceHTTPServer(s *http.Server, srv RateLimitPolic
 	r.Handle("GET", "/api/v1/rate-limit-policies/{id}", _RateLimitPolicyService_GetRateLimitPolicy0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/rate-limit-policies", _RateLimitPolicyService_CreateRateLimitPolicy0_HTTP_Handler(srv))
 	r.Handle("PUT", "/api/v1/rate-limit-policies/{id}", _RateLimitPolicyService_UpdateRateLimitPolicy0_HTTP_Handler(srv))
-	r.Handle("PATCH", "/api/v1/rate-limit-policies/{id}/enabled", _RateLimitPolicyService_SetRateLimitPolicyEnabled0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/api/v1/rate-limit-policies/{id}", _RateLimitPolicyService_DeleteRateLimitPolicy0_HTTP_Handler(srv))
 }
 
 func _RateLimitPolicyService_ListRateLimitPolicies0_HTTP_Handler(srv RateLimitPolicyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ListRequest
+		var in ListRateLimitPoliciesRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationRateLimitPolicyServiceListRateLimitPolicies)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListRateLimitPolicies(ctx, req.(*ListRequest))
+			return srv.ListRateLimitPolicies(ctx, req.(*ListRateLimitPoliciesRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*ListRateLimitPoliciesReply)
+		reply := out.(*ListRateLimitPoliciesResponse)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _RateLimitPolicyService_GetRateLimitPolicy0_HTTP_Handler(srv RateLimitPolicyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in GetRateLimitPolicyRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -73,7 +71,7 @@ func _RateLimitPolicyService_GetRateLimitPolicy0_HTTP_Handler(srv RateLimitPolic
 		}
 		http.SetOperation(ctx, OperationRateLimitPolicyServiceGetRateLimitPolicy)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetRateLimitPolicy(ctx, req.(*ResourceRequest))
+			return srv.GetRateLimitPolicy(ctx, req.(*GetRateLimitPolicyRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -98,7 +96,7 @@ func _RateLimitPolicyService_CreateRateLimitPolicy0_HTTP_Handler(srv RateLimitPo
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*RateLimitPolicy)
 		return ctx.Result(200, reply)
 	}
 }
@@ -120,36 +118,14 @@ func _RateLimitPolicyService_UpdateRateLimitPolicy0_HTTP_Handler(srv RateLimitPo
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _RateLimitPolicyService_SetRateLimitPolicyEnabled0_HTTP_Handler(srv RateLimitPolicyServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in SetEnabledRequest
-		if err := ctx.Bind(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationRateLimitPolicyServiceSetRateLimitPolicyEnabled)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.SetRateLimitPolicyEnabled(ctx, req.(*SetEnabledRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*MutationReply)
+		reply := out.(*RateLimitPolicy)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _RateLimitPolicyService_DeleteRateLimitPolicy0_HTTP_Handler(srv RateLimitPolicyServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in DeleteRateLimitPolicyRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -158,24 +134,23 @@ func _RateLimitPolicyService_DeleteRateLimitPolicy0_HTTP_Handler(srv RateLimitPo
 		}
 		http.SetOperation(ctx, OperationRateLimitPolicyServiceDeleteRateLimitPolicy)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.DeleteRateLimitPolicy(ctx, req.(*ResourceRequest))
+			return srv.DeleteRateLimitPolicy(ctx, req.(*DeleteRateLimitPolicyRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*emptypb.Empty)
 		return ctx.Result(200, reply)
 	}
 }
 
 type RateLimitPolicyServiceHTTPClient interface {
-	CreateRateLimitPolicy(ctx context.Context, req *CreateRateLimitPolicyRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	DeleteRateLimitPolicy(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	GetRateLimitPolicy(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *RateLimitPolicy, err error)
-	ListRateLimitPolicies(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListRateLimitPoliciesReply, err error)
-	SetRateLimitPolicyEnabled(ctx context.Context, req *SetEnabledRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	UpdateRateLimitPolicy(ctx context.Context, req *UpdateRateLimitPolicyRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
+	CreateRateLimitPolicy(ctx context.Context, req *CreateRateLimitPolicyRequest, opts ...http.CallOption) (rsp *RateLimitPolicy, err error)
+	DeleteRateLimitPolicy(ctx context.Context, req *DeleteRateLimitPolicyRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	GetRateLimitPolicy(ctx context.Context, req *GetRateLimitPolicyRequest, opts ...http.CallOption) (rsp *RateLimitPolicy, err error)
+	ListRateLimitPolicies(ctx context.Context, req *ListRateLimitPoliciesRequest, opts ...http.CallOption) (rsp *ListRateLimitPoliciesResponse, err error)
+	UpdateRateLimitPolicy(ctx context.Context, req *UpdateRateLimitPolicyRequest, opts ...http.CallOption) (rsp *RateLimitPolicy, err error)
 }
 
 type RateLimitPolicyServiceHTTPClientImpl struct {
@@ -186,8 +161,8 @@ func NewRateLimitPolicyServiceHTTPClient(client *http.Client) RateLimitPolicySer
 	return &RateLimitPolicyServiceHTTPClientImpl{client}
 }
 
-func (c *RateLimitPolicyServiceHTTPClientImpl) CreateRateLimitPolicy(ctx context.Context, in *CreateRateLimitPolicyRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *RateLimitPolicyServiceHTTPClientImpl) CreateRateLimitPolicy(ctx context.Context, in *CreateRateLimitPolicyRequest, opts ...http.CallOption) (*RateLimitPolicy, error) {
+	var out RateLimitPolicy
 	pattern := "/api/v1/rate-limit-policies"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
@@ -203,8 +178,8 @@ func (c *RateLimitPolicyServiceHTTPClientImpl) CreateRateLimitPolicy(ctx context
 	return &out, nil
 }
 
-func (c *RateLimitPolicyServiceHTTPClientImpl) DeleteRateLimitPolicy(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *RateLimitPolicyServiceHTTPClientImpl) DeleteRateLimitPolicy(ctx context.Context, in *DeleteRateLimitPolicyRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
+	var out emptypb.Empty
 	pattern := "/api/v1/rate-limit-policies/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -219,7 +194,7 @@ func (c *RateLimitPolicyServiceHTTPClientImpl) DeleteRateLimitPolicy(ctx context
 	return &out, nil
 }
 
-func (c *RateLimitPolicyServiceHTTPClientImpl) GetRateLimitPolicy(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*RateLimitPolicy, error) {
+func (c *RateLimitPolicyServiceHTTPClientImpl) GetRateLimitPolicy(ctx context.Context, in *GetRateLimitPolicyRequest, opts ...http.CallOption) (*RateLimitPolicy, error) {
 	var out RateLimitPolicy
 	pattern := "/api/v1/rate-limit-policies/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
@@ -235,8 +210,8 @@ func (c *RateLimitPolicyServiceHTTPClientImpl) GetRateLimitPolicy(ctx context.Co
 	return &out, nil
 }
 
-func (c *RateLimitPolicyServiceHTTPClientImpl) ListRateLimitPolicies(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListRateLimitPoliciesReply, error) {
-	var out ListRateLimitPoliciesReply
+func (c *RateLimitPolicyServiceHTTPClientImpl) ListRateLimitPolicies(ctx context.Context, in *ListRateLimitPoliciesRequest, opts ...http.CallOption) (*ListRateLimitPoliciesResponse, error) {
+	var out ListRateLimitPoliciesResponse
 	pattern := "/api/v1/rate-limit-policies"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -251,25 +226,8 @@ func (c *RateLimitPolicyServiceHTTPClientImpl) ListRateLimitPolicies(ctx context
 	return &out, nil
 }
 
-func (c *RateLimitPolicyServiceHTTPClientImpl) SetRateLimitPolicyEnabled(ctx context.Context, in *SetEnabledRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
-	pattern := "/api/v1/rate-limit-policies/{id}/enabled"
-	path := http.BuildPath(pattern, in)
-	opts = append([]http.CallOption{
-		http.Accept("application/protojson"),
-		http.ContentType("application/protojson"),
-		http.Operation(OperationRateLimitPolicyServiceSetRateLimitPolicyEnabled),
-		http.PathTemplate(pattern),
-	}, opts...)
-	err := c.cc.Invoke(ctx, "PATCH", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *RateLimitPolicyServiceHTTPClientImpl) UpdateRateLimitPolicy(ctx context.Context, in *UpdateRateLimitPolicyRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *RateLimitPolicyServiceHTTPClientImpl) UpdateRateLimitPolicy(ctx context.Context, in *UpdateRateLimitPolicyRequest, opts ...http.CallOption) (*RateLimitPolicy, error) {
+	var out RateLimitPolicy
 	pattern := "/api/v1/rate-limit-policies/{id}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
