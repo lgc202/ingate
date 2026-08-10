@@ -213,13 +213,13 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*ModelRoute)(nil), (*gateway.ModelRoute)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_ModelRoute_To_gateway_ModelRoute(a.(*ModelRoute), b.(*gateway.ModelRoute), scope)
+	if err := s.AddGeneratedConversionFunc((*ModelMapping)(nil), (*gateway.ModelMapping)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_ModelMapping_To_gateway_ModelMapping(a.(*ModelMapping), b.(*gateway.ModelMapping), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*gateway.ModelRoute)(nil), (*ModelRoute)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_ModelRoute_To_v1_ModelRoute(a.(*gateway.ModelRoute), b.(*ModelRoute), scope)
+	if err := s.AddGeneratedConversionFunc((*gateway.ModelMapping)(nil), (*ModelMapping)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_ModelMapping_To_v1_ModelMapping(a.(*gateway.ModelMapping), b.(*ModelMapping), scope)
 	}); err != nil {
 		return err
 	}
@@ -243,13 +243,13 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*ParentRef)(nil), (*gateway.ParentRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_ParentRef_To_gateway_ParentRef(a.(*ParentRef), b.(*gateway.ParentRef), scope)
+	if err := s.AddGeneratedConversionFunc((*PathMatch)(nil), (*gateway.PathMatch)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_PathMatch_To_gateway_PathMatch(a.(*PathMatch), b.(*gateway.PathMatch), scope)
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*gateway.ParentRef)(nil), (*ParentRef)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_ParentRef_To_v1_ParentRef(a.(*gateway.ParentRef), b.(*ParentRef), scope)
+	if err := s.AddGeneratedConversionFunc((*gateway.PathMatch)(nil), (*PathMatch)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_PathMatch_To_v1_PathMatch(a.(*gateway.PathMatch), b.(*PathMatch), scope)
 	}); err != nil {
 		return err
 	}
@@ -383,16 +383,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
-	if err := s.AddGeneratedConversionFunc((*RouteFilter)(nil), (*gateway.RouteFilter)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RouteFilter_To_gateway_RouteFilter(a.(*RouteFilter), b.(*gateway.RouteFilter), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RouteFilter)(nil), (*RouteFilter)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RouteFilter_To_v1_RouteFilter(a.(*gateway.RouteFilter), b.(*RouteFilter), scope)
-	}); err != nil {
-		return err
-	}
 	if err := s.AddGeneratedConversionFunc((*RouteList)(nil), (*gateway.RouteList)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_RouteList_To_gateway_RouteList(a.(*RouteList), b.(*gateway.RouteList), scope)
 	}); err != nil {
@@ -403,6 +393,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*RouteMatch)(nil), (*gateway.RouteMatch)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_RouteMatch_To_gateway_RouteMatch(a.(*RouteMatch), b.(*gateway.RouteMatch), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.RouteMatch)(nil), (*RouteMatch)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_RouteMatch_To_v1_RouteMatch(a.(*gateway.RouteMatch), b.(*RouteMatch), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*RouteRetry)(nil), (*gateway.RouteRetry)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_RouteRetry_To_gateway_RouteRetry(a.(*RouteRetry), b.(*gateway.RouteRetry), scope)
 	}); err != nil {
@@ -410,16 +410,6 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.RouteRetry)(nil), (*RouteRetry)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_RouteRetry_To_v1_RouteRetry(a.(*gateway.RouteRetry), b.(*RouteRetry), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*RouteRule)(nil), (*gateway.RouteRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_v1_RouteRule_To_gateway_RouteRule(a.(*RouteRule), b.(*gateway.RouteRule), scope)
-	}); err != nil {
-		return err
-	}
-	if err := s.AddGeneratedConversionFunc((*gateway.RouteRule)(nil), (*RouteRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
-		return Convert_gateway_RouteRule_To_v1_RouteRule(a.(*gateway.RouteRule), b.(*RouteRule), scope)
 	}); err != nil {
 		return err
 	}
@@ -1062,32 +1052,32 @@ func Convert_gateway_ModelCatalogItem_To_v1_ModelCatalogItem(in *gateway.ModelCa
 	return autoConvert_gateway_ModelCatalogItem_To_v1_ModelCatalogItem(in, out, s)
 }
 
-func autoConvert_v1_ModelRoute_To_gateway_ModelRoute(in *ModelRoute, out *gateway.ModelRoute, s conversion.Scope) error {
+func autoConvert_v1_ModelMapping_To_gateway_ModelMapping(in *ModelMapping, out *gateway.ModelMapping, s conversion.Scope) error {
 	out.Model = in.Model
 	out.UpstreamRef = in.UpstreamRef
 	out.UpstreamModel = in.UpstreamModel
 	return nil
 }
 
-// Convert_v1_ModelRoute_To_gateway_ModelRoute is an autogenerated conversion function.
-func Convert_v1_ModelRoute_To_gateway_ModelRoute(in *ModelRoute, out *gateway.ModelRoute, s conversion.Scope) error {
-	return autoConvert_v1_ModelRoute_To_gateway_ModelRoute(in, out, s)
+// Convert_v1_ModelMapping_To_gateway_ModelMapping is an autogenerated conversion function.
+func Convert_v1_ModelMapping_To_gateway_ModelMapping(in *ModelMapping, out *gateway.ModelMapping, s conversion.Scope) error {
+	return autoConvert_v1_ModelMapping_To_gateway_ModelMapping(in, out, s)
 }
 
-func autoConvert_gateway_ModelRoute_To_v1_ModelRoute(in *gateway.ModelRoute, out *ModelRoute, s conversion.Scope) error {
+func autoConvert_gateway_ModelMapping_To_v1_ModelMapping(in *gateway.ModelMapping, out *ModelMapping, s conversion.Scope) error {
 	out.Model = in.Model
 	out.UpstreamRef = in.UpstreamRef
 	out.UpstreamModel = in.UpstreamModel
 	return nil
 }
 
-// Convert_gateway_ModelRoute_To_v1_ModelRoute is an autogenerated conversion function.
-func Convert_gateway_ModelRoute_To_v1_ModelRoute(in *gateway.ModelRoute, out *ModelRoute, s conversion.Scope) error {
-	return autoConvert_gateway_ModelRoute_To_v1_ModelRoute(in, out, s)
+// Convert_gateway_ModelMapping_To_v1_ModelMapping is an autogenerated conversion function.
+func Convert_gateway_ModelMapping_To_v1_ModelMapping(in *gateway.ModelMapping, out *ModelMapping, s conversion.Scope) error {
+	return autoConvert_gateway_ModelMapping_To_v1_ModelMapping(in, out, s)
 }
 
 func autoConvert_v1_ModelRouting_To_gateway_ModelRouting(in *ModelRouting, out *gateway.ModelRouting, s conversion.Scope) error {
-	out.Models = *(*[]gateway.ModelRoute)(unsafe.Pointer(&in.Models))
+	out.Models = *(*[]gateway.ModelMapping)(unsafe.Pointer(&in.Models))
 	return nil
 }
 
@@ -1097,7 +1087,7 @@ func Convert_v1_ModelRouting_To_gateway_ModelRouting(in *ModelRouting, out *gate
 }
 
 func autoConvert_gateway_ModelRouting_To_v1_ModelRouting(in *gateway.ModelRouting, out *ModelRouting, s conversion.Scope) error {
-	out.Models = *(*[]ModelRoute)(unsafe.Pointer(&in.Models))
+	out.Models = *(*[]ModelMapping)(unsafe.Pointer(&in.Models))
 	return nil
 }
 
@@ -1130,24 +1120,26 @@ func Convert_gateway_ModelSpec_To_v1_ModelSpec(in *gateway.ModelSpec, out *Model
 	return autoConvert_gateway_ModelSpec_To_v1_ModelSpec(in, out, s)
 }
 
-func autoConvert_v1_ParentRef_To_gateway_ParentRef(in *ParentRef, out *gateway.ParentRef, s conversion.Scope) error {
-	out.Name = in.Name
+func autoConvert_v1_PathMatch_To_gateway_PathMatch(in *PathMatch, out *gateway.PathMatch, s conversion.Scope) error {
+	out.Type = gateway.PathMatchType(in.Type)
+	out.Value = in.Value
 	return nil
 }
 
-// Convert_v1_ParentRef_To_gateway_ParentRef is an autogenerated conversion function.
-func Convert_v1_ParentRef_To_gateway_ParentRef(in *ParentRef, out *gateway.ParentRef, s conversion.Scope) error {
-	return autoConvert_v1_ParentRef_To_gateway_ParentRef(in, out, s)
+// Convert_v1_PathMatch_To_gateway_PathMatch is an autogenerated conversion function.
+func Convert_v1_PathMatch_To_gateway_PathMatch(in *PathMatch, out *gateway.PathMatch, s conversion.Scope) error {
+	return autoConvert_v1_PathMatch_To_gateway_PathMatch(in, out, s)
 }
 
-func autoConvert_gateway_ParentRef_To_v1_ParentRef(in *gateway.ParentRef, out *ParentRef, s conversion.Scope) error {
-	out.Name = in.Name
+func autoConvert_gateway_PathMatch_To_v1_PathMatch(in *gateway.PathMatch, out *PathMatch, s conversion.Scope) error {
+	out.Type = PathMatchType(in.Type)
+	out.Value = in.Value
 	return nil
 }
 
-// Convert_gateway_ParentRef_To_v1_ParentRef is an autogenerated conversion function.
-func Convert_gateway_ParentRef_To_v1_ParentRef(in *gateway.ParentRef, out *ParentRef, s conversion.Scope) error {
-	return autoConvert_gateway_ParentRef_To_v1_ParentRef(in, out, s)
+// Convert_gateway_PathMatch_To_v1_PathMatch is an autogenerated conversion function.
+func Convert_gateway_PathMatch_To_v1_PathMatch(in *gateway.PathMatch, out *PathMatch, s conversion.Scope) error {
+	return autoConvert_gateway_PathMatch_To_v1_PathMatch(in, out, s)
 }
 
 func autoConvert_v1_PolicyStatus_To_gateway_PolicyStatus(in *PolicyStatus, out *gateway.PolicyStatus, s conversion.Scope) error {
@@ -1484,30 +1476,6 @@ func Convert_gateway_Route_To_v1_Route(in *gateway.Route, out *Route, s conversi
 	return autoConvert_gateway_Route_To_v1_Route(in, out, s)
 }
 
-func autoConvert_v1_RouteFilter_To_gateway_RouteFilter(in *RouteFilter, out *gateway.RouteFilter, s conversion.Scope) error {
-	out.Type = gateway.RouteFilterType(in.Type)
-	out.RequestHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
-	out.ResponseHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
-	return nil
-}
-
-// Convert_v1_RouteFilter_To_gateway_RouteFilter is an autogenerated conversion function.
-func Convert_v1_RouteFilter_To_gateway_RouteFilter(in *RouteFilter, out *gateway.RouteFilter, s conversion.Scope) error {
-	return autoConvert_v1_RouteFilter_To_gateway_RouteFilter(in, out, s)
-}
-
-func autoConvert_gateway_RouteFilter_To_v1_RouteFilter(in *gateway.RouteFilter, out *RouteFilter, s conversion.Scope) error {
-	out.Type = RouteFilterType(in.Type)
-	out.RequestHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
-	out.ResponseHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
-	return nil
-}
-
-// Convert_gateway_RouteFilter_To_v1_RouteFilter is an autogenerated conversion function.
-func Convert_gateway_RouteFilter_To_v1_RouteFilter(in *gateway.RouteFilter, out *RouteFilter, s conversion.Scope) error {
-	return autoConvert_gateway_RouteFilter_To_v1_RouteFilter(in, out, s)
-}
-
 func autoConvert_v1_RouteList_To_gateway_RouteList(in *RouteList, out *gateway.RouteList, s conversion.Scope) error {
 	out.ListMeta = in.ListMeta
 	out.Items = *(*[]gateway.Route)(unsafe.Pointer(&in.Items))
@@ -1530,10 +1498,37 @@ func Convert_gateway_RouteList_To_v1_RouteList(in *gateway.RouteList, out *Route
 	return autoConvert_gateway_RouteList_To_v1_RouteList(in, out, s)
 }
 
+func autoConvert_v1_RouteMatch_To_gateway_RouteMatch(in *RouteMatch, out *gateway.RouteMatch, s conversion.Scope) error {
+	if err := Convert_v1_PathMatch_To_gateway_PathMatch(&in.Path, &out.Path, s); err != nil {
+		return err
+	}
+	out.Methods = *(*[]string)(unsafe.Pointer(&in.Methods))
+	out.Headers = *(*[]gateway.HeaderMatch)(unsafe.Pointer(&in.Headers))
+	return nil
+}
+
+// Convert_v1_RouteMatch_To_gateway_RouteMatch is an autogenerated conversion function.
+func Convert_v1_RouteMatch_To_gateway_RouteMatch(in *RouteMatch, out *gateway.RouteMatch, s conversion.Scope) error {
+	return autoConvert_v1_RouteMatch_To_gateway_RouteMatch(in, out, s)
+}
+
+func autoConvert_gateway_RouteMatch_To_v1_RouteMatch(in *gateway.RouteMatch, out *RouteMatch, s conversion.Scope) error {
+	if err := Convert_gateway_PathMatch_To_v1_PathMatch(&in.Path, &out.Path, s); err != nil {
+		return err
+	}
+	out.Methods = *(*[]string)(unsafe.Pointer(&in.Methods))
+	out.Headers = *(*[]HeaderMatch)(unsafe.Pointer(&in.Headers))
+	return nil
+}
+
+// Convert_gateway_RouteMatch_To_v1_RouteMatch is an autogenerated conversion function.
+func Convert_gateway_RouteMatch_To_v1_RouteMatch(in *gateway.RouteMatch, out *RouteMatch, s conversion.Scope) error {
+	return autoConvert_gateway_RouteMatch_To_v1_RouteMatch(in, out, s)
+}
+
 func autoConvert_v1_RouteRetry_To_gateway_RouteRetry(in *RouteRetry, out *gateway.RouteRetry, s conversion.Scope) error {
 	out.Attempts = in.Attempts
 	out.PerTryTimeoutMillis = in.PerTryTimeoutMillis
-	out.RetryOn = *(*[]string)(unsafe.Pointer(&in.RetryOn))
 	return nil
 }
 
@@ -1545,7 +1540,6 @@ func Convert_v1_RouteRetry_To_gateway_RouteRetry(in *RouteRetry, out *gateway.Ro
 func autoConvert_gateway_RouteRetry_To_v1_RouteRetry(in *gateway.RouteRetry, out *RouteRetry, s conversion.Scope) error {
 	out.Attempts = in.Attempts
 	out.PerTryTimeoutMillis = in.PerTryTimeoutMillis
-	out.RetryOn = *(*[]string)(unsafe.Pointer(&in.RetryOn))
 	return nil
 }
 
@@ -1554,48 +1548,20 @@ func Convert_gateway_RouteRetry_To_v1_RouteRetry(in *gateway.RouteRetry, out *Ro
 	return autoConvert_gateway_RouteRetry_To_v1_RouteRetry(in, out, s)
 }
 
-func autoConvert_v1_RouteRule_To_gateway_RouteRule(in *RouteRule, out *gateway.RouteRule, s conversion.Scope) error {
-	out.Name = in.Name
-	out.PathPrefix = in.PathPrefix
-	out.Methods = *(*[]string)(unsafe.Pointer(&in.Methods))
-	out.Headers = *(*[]gateway.HeaderMatch)(unsafe.Pointer(&in.Headers))
-	out.Filters = *(*[]gateway.RouteFilter)(unsafe.Pointer(&in.Filters))
-	out.Timeout = (*gateway.RouteTimeout)(unsafe.Pointer(in.Timeout))
-	out.Retry = (*gateway.RouteRetry)(unsafe.Pointer(in.Retry))
-	out.UpstreamRefs = *(*[]gateway.UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
-	out.ModelRouting = (*gateway.ModelRouting)(unsafe.Pointer(in.ModelRouting))
-	return nil
-}
-
-// Convert_v1_RouteRule_To_gateway_RouteRule is an autogenerated conversion function.
-func Convert_v1_RouteRule_To_gateway_RouteRule(in *RouteRule, out *gateway.RouteRule, s conversion.Scope) error {
-	return autoConvert_v1_RouteRule_To_gateway_RouteRule(in, out, s)
-}
-
-func autoConvert_gateway_RouteRule_To_v1_RouteRule(in *gateway.RouteRule, out *RouteRule, s conversion.Scope) error {
-	out.Name = in.Name
-	out.PathPrefix = in.PathPrefix
-	out.Methods = *(*[]string)(unsafe.Pointer(&in.Methods))
-	out.Headers = *(*[]HeaderMatch)(unsafe.Pointer(&in.Headers))
-	out.Filters = *(*[]RouteFilter)(unsafe.Pointer(&in.Filters))
-	out.Timeout = (*RouteTimeout)(unsafe.Pointer(in.Timeout))
-	out.Retry = (*RouteRetry)(unsafe.Pointer(in.Retry))
-	out.UpstreamRefs = *(*[]UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
-	out.ModelRouting = (*ModelRouting)(unsafe.Pointer(in.ModelRouting))
-	return nil
-}
-
-// Convert_gateway_RouteRule_To_v1_RouteRule is an autogenerated conversion function.
-func Convert_gateway_RouteRule_To_v1_RouteRule(in *gateway.RouteRule, out *RouteRule, s conversion.Scope) error {
-	return autoConvert_gateway_RouteRule_To_v1_RouteRule(in, out, s)
-}
-
 func autoConvert_v1_RouteSpec_To_gateway_RouteSpec(in *RouteSpec, out *gateway.RouteSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
 	out.Enabled = in.Enabled
-	out.ParentRefs = *(*[]gateway.ParentRef)(unsafe.Pointer(&in.ParentRefs))
+	out.GatewayRefs = *(*[]string)(unsafe.Pointer(&in.GatewayRefs))
 	out.Hostnames = *(*[]string)(unsafe.Pointer(&in.Hostnames))
-	out.Rules = *(*[]gateway.RouteRule)(unsafe.Pointer(&in.Rules))
+	if err := Convert_v1_RouteMatch_To_gateway_RouteMatch(&in.Match, &out.Match, s); err != nil {
+		return err
+	}
+	out.UpstreamRefs = *(*[]gateway.UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
+	out.ModelRouting = (*gateway.ModelRouting)(unsafe.Pointer(in.ModelRouting))
+	out.RequestHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
+	out.ResponseHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
+	out.Timeout = (*gateway.RouteTimeout)(unsafe.Pointer(in.Timeout))
+	out.Retry = (*gateway.RouteRetry)(unsafe.Pointer(in.Retry))
 	return nil
 }
 
@@ -1607,9 +1573,17 @@ func Convert_v1_RouteSpec_To_gateway_RouteSpec(in *RouteSpec, out *gateway.Route
 func autoConvert_gateway_RouteSpec_To_v1_RouteSpec(in *gateway.RouteSpec, out *RouteSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
 	out.Enabled = in.Enabled
-	out.ParentRefs = *(*[]ParentRef)(unsafe.Pointer(&in.ParentRefs))
+	out.GatewayRefs = *(*[]string)(unsafe.Pointer(&in.GatewayRefs))
 	out.Hostnames = *(*[]string)(unsafe.Pointer(&in.Hostnames))
-	out.Rules = *(*[]RouteRule)(unsafe.Pointer(&in.Rules))
+	if err := Convert_gateway_RouteMatch_To_v1_RouteMatch(&in.Match, &out.Match, s); err != nil {
+		return err
+	}
+	out.UpstreamRefs = *(*[]UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
+	out.ModelRouting = (*ModelRouting)(unsafe.Pointer(in.ModelRouting))
+	out.RequestHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
+	out.ResponseHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
+	out.Timeout = (*RouteTimeout)(unsafe.Pointer(in.Timeout))
+	out.Retry = (*RouteRetry)(unsafe.Pointer(in.Retry))
 	return nil
 }
 

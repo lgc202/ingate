@@ -139,7 +139,7 @@ OpenAI Client
 - API Key 直接保存在模型 `Upstream.spec.authentication.apiKey.value` 中，不再创建独立凭据资源或跨资源引用
 - Admin API 只返回 `apiKeyConfigured`，不回显密钥内容；更新时省略 API Key 表示保留，显式移除才会清除
 - 配置或保留 API Key 时模型 Upstream 必须启用 TLS，避免密钥通过明文 HTTP 发送
-- 一条模型 RouteRule 的 `modelRouting.models[]` 中，每个客户端模型别名分别保存 `upstreamRef` 和 `upstreamModel`；同一路由可以按 `model` 跨多个模型 Upstream 选择目标
+- 一条模型 Route 的 `modelRouting.models[]` 中，每个客户端模型别名分别保存 `upstreamRef` 和 `upstreamModel`；同一路由可以按 `model` 跨多个模型 Upstream 选择目标
 - Compiler 为模型规则生成一个公开入口 Route，使用标准 Envoy `cluster_header` 接收 ExtProc 选出的目标 Cluster
 - Compiler 把目标 Cluster、上游 Host、协议、基础路径、认证执行计划和模型映射编译为 ExtProc per-route 配置，配置只随对应 Route 生效
 - `ingate-ai-proxy` 从 Redis 查询访问密钥执行索引，认证后按公开模型选择目标，改写上游路径、Host、凭据和请求体，并统一普通响应、错误和 SSE
@@ -147,9 +147,12 @@ OpenAI Client
 声明式资源示例：
 
 ```yaml
-pathPrefix: /v1/chat/completions
-methods:
-  - POST
+match:
+  path:
+    type: Exact
+    value: /v1/chat/completions
+  methods:
+    - POST
 modelRouting:
   models:
     - model: chat-default
@@ -182,9 +185,11 @@ OpenAI-compatible、Anthropic 和 Gemini 上游都只接受当前公开的文本
 
 Gateway Listener 声明数据面实际监听协议、端口和 Host 范围。相同协议和端口且 Host 范围不重叠的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Listener 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。Gateway 的完整产品协议见 [Gateway 资源](resources/gateway.md)。
 
+Route 以“一组请求匹配条件 + 一个转发行为”为资源粒度，不再嵌套 `rules[]`。不同匹配或转发行为使用多个 Route 表达；一个 Route 可以挂载到多个 Gateway。Route 的完整产品协议见 [Route 资源](resources/route.md)。
+
 RateLimitPolicy 统一使用系统 Redis，用户协议不包含 Local/Global 模式、限流算法、RedisStore、redisRef 或私有插件 JSON。数据面当前使用系统选定的令牌桶实现，`burst` 为 0 时使用 `requests` 作为桶容量，正数表示显式桶容量。
 
-TokenQuotaPolicy 为一个策略定义一个 Token 预算池，仅展开到目标 Gateway 或 Route 下的模型 RouteRule。预算池可以由所有命中请求共享，也可以按网关看到的来源 IP 或指定请求 Header 值区分；Header 和 IP 原始值经过哈希后才进入 Redis key。多个 targetRef 命中同一策略时仍共享同一预算池，需要独立预算时应创建多条策略。
+TokenQuotaPolicy 为一个策略定义一个 Token 预算池，仅展开到目标 Gateway 或模型 Route。预算池可以由所有命中请求共享，也可以按网关看到的来源 IP 或指定请求 Header 值区分；Header 和 IP 原始值经过哈希后才进入 Redis key。多个 targetRef 命中同一策略时仍共享同一预算池，需要独立预算时应创建多条策略。
 
 数据面在请求进入模型服务前检查当前固定窗口的已用额度，在 AI Proxy 完成普通响应或 SSE 归一化后读取最后一个 `usage.total_tokens` 并记账。OpenAI-compatible 流式上游在策略生效时由 AI Proxy 内部请求最终 usage，客户端协议不开放 `stream_options`。当前不做字符估算和模型 tokenizer 预扣；并发中的在途请求可能造成有限超额，因此这是 best-effort 的后付费软额度，不是严格硬额度，也不能替代计费系统。
 
@@ -197,7 +202,7 @@ Token 配额的主体划分和流式记账有以下运行约束：
 
 ## 内置治理插件
 
-限流、访问控制和 Token 配额以强类型 Policy 对外提供。Compiler 解析每个 Policy 的 `targetRefs[]`，展开成按 Gateway、Route 和必要 RouteRule 索引的插件执行配置，并在 Listener/HCM 中注入一次内置 Wasm filter。
+限流、访问控制和 Token 配额以强类型 Policy 对外提供。Compiler 解析每个 Policy 的 `targetRefs[]`，展开成按 Gateway 和 Route 索引的插件执行配置，并在 Listener/HCM 中注入一次内置 Wasm filter。
 
 内置插件：
 

@@ -46,13 +46,13 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - 模型服务仍建模为 `Upstream(type=model)`，通过 `protocol` 表达 OpenAI、Anthropic 或 Gemini 通信语义，通过 `spec.model.provider` 表达具体厂商；不新增 Provider、Model、AIRoute 或 AIBackend 等平行资源
 - 模型目录由用户在模型 Upstream 的 `spec.model.models[]` 中手工维护，不自动同步厂商模型列表
 - API Key 直接作为模型 Upstream 的认证配置，不创建独立凭据资源；Admin API 不回显密钥，只返回是否已配置，更新时省略表示保留、显式移除才会清除
-- 一条模型 RouteRule 的 `modelRouting.models[]` 中每个客户端模型别名各自引用一个模型 Upstream 和 `upstreamModel`，同一路由可以按请求体 `model` 跨多个厂商和 Upstream 选择目标
-- Controller 把每条模型 RouteRule 的目标 Cluster、上游 Host、协议、凭据和模型映射编译到 Envoy ExtProc per-route 配置；`ingate-ai-proxy` 读取配置后完成客户端认证、模型别名匹配、厂商协议转换、路径与上游认证 Header 改写、响应和 SSE 归一化
+- 一条模型 Route 的 `modelRouting.models[]` 中每个客户端模型别名各自引用一个模型 Upstream 和 `upstreamModel`，同一路由可以按请求体 `model` 跨多个厂商和 Upstream 选择目标
+- Controller 把每条模型 Route 的目标 Cluster、上游 Host、协议、凭据和模型映射编译到 Envoy ExtProc per-route 配置；`ingate-ai-proxy` 读取配置后完成客户端认证、模型别名匹配、厂商协议转换、路径与上游认证 Header 改写、响应和 SSE 归一化
 - `pkg/llm` 是不依赖 Ingate、Envoy、ExtProc、Gin 或 Kubernetes 的纯 Go 协议包，不发送模型 HTTP 请求、不读取环境变量、不管理密钥持久化；Provider 协议适配按子包隔离
 - 模型 Upstream 通过 `tls.serverName` 使用 HTTPS、SNI 和系统 CA 根证书包校验；配置或保留 API Key 时必须启用 HTTPS
 - 当前只支持文本 `system`、`user`、`assistant` 消息，以及 `model`、`messages`、`stream`、`temperature`、`top_p`、`max_tokens`、`stop`；普通响应、SSE、错误和 Token usage 统一为 OpenAI-compatible 结构，响应 `model` 返回客户端公开别名
 - 当前不支持 Tools/function calling、多模态、Responses、Embeddings、自动模型同步、多 Provider fallback/retry、模型级重试、OAuth/IAM 云认证或大文件请求；单次请求体上限为 1 MiB
-- `TokenQuotaPolicy` 为一个策略定义一个共享预算池，只应用到目标 Gateway 或 Route 下的模型 RouteRule；支持所有请求共享、按客户端 IP 和按请求 Header 值区分预算池
+- `TokenQuotaPolicy` 为一个策略定义一个共享预算池，只应用到目标 Gateway 或模型 Route；支持所有请求共享、按客户端 IP 和按请求 Header 值区分预算池
 - Token 配额固定统计归一化响应中的输入与输出 `total_tokens`，请求前检查当前固定窗口已用额度，响应结束后按实际 usage 记账；并发中的请求可能造成有限超额，不把当前能力描述为严格预扣的硬额度
 - 受 Token 配额保护的 OpenAI-compatible 流式请求由 `ingate-ai-proxy` 内部注入 usage 请求参数，客户端协议仍不开放 `stream_options`
 

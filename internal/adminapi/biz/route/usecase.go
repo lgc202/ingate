@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/google/uuid"
 
@@ -17,12 +16,12 @@ import (
 type Repository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Route], error)
 	Get(context.Context, string) (*resource.Route, error)
-	Create(context.Context, string, resource.RouteSpec) error
-	Update(context.Context, string, int64, resource.RouteSpec) error
-	Delete(context.Context, string) error
+	Create(context.Context, string, resource.RouteSpec) (*resource.Route, error)
+	Update(context.Context, string, int64, resource.RouteSpec) (*resource.Route, error)
+	Delete(context.Context, string, int64) error
 }
 
-// GatewayRepository 定义 Route 校验父级引用时需要的查询能力
+// GatewayRepository 定义 Route 校验 Gateway 引用时需要的查询能力
 type GatewayRepository interface {
 	Get(context.Context, string) (*resource.Gateway, error)
 }
@@ -66,73 +65,55 @@ func (u *Usecase) Get(ctx context.Context, routeID string) (*resource.Route, err
 }
 
 // Create 创建 Route
-func (u *Usecase) Create(ctx context.Context, spec resource.RouteSpec) (string, error) {
+func (u *Usecase) Create(ctx context.Context, spec resource.RouteSpec) (*resource.Route, error) {
 	if err := u.validateReferences(ctx, spec); err != nil {
-		return "", err
+		return nil, err
 	}
+
 	id := uuid.NewString()
-	if err := u.repository.Create(ctx, id, spec); err != nil {
-		return "", biz.DisplayNameConflict(err, "路由", spec.DisplayName)
+	route, err := u.repository.Create(ctx, id, spec)
+	if err != nil {
+		return nil, biz.DisplayNameConflict(err, "路由", spec.DisplayName)
 	}
-	return id, nil
+	return route, nil
 }
 
-// Update 更新 Route 配置
+// Update 使用配置版本乐观更新 Route
 func (u *Usecase) Update(
 	ctx context.Context,
-	routeID, version string,
-	submitted resource.RouteSpec,
-	updateEnabled bool,
-) error {
+	routeID string,
+	version int64,
+	spec resource.RouteSpec,
+) (*resource.Route, error) {
 	current, err := u.repository.Get(ctx, routeID)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if version != strconv.FormatInt(current.Generation, 10) {
-		return biz.NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+	if version != current.Generation {
+		return nil, routeVersionConflict(current)
 	}
-	if !supportsConsoleEditing(current.Spec) {
-		return biz.NewUserError("该路由包含控制台暂不支持的配置，请通过声明式 API 修改")
-	}
-	if !updateEnabled {
-		// 启停状态有独立操作，旧客户端省略 enabled 时不能把已停用路由重新启用
-		submitted.Enabled = current.Spec.Enabled
-	}
-	if err := u.validateReferences(ctx, submitted); err != nil {
-		return err
+	if err := u.validateReferences(ctx, spec); err != nil {
+		return nil, err
 	}
 
-	if err := u.repository.Update(ctx, routeID, current.Generation, submitted); err != nil {
-		if errors.Is(err, biz.ErrResourceVersionConflict) {
-			return biz.NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
-		}
-		return biz.DisplayNameConflict(err, "路由", submitted.DisplayName)
-	}
-	return nil
-}
-
-// SetEnabled 更新 Route 启停状态
-func (u *Usecase) SetEnabled(ctx context.Context, routeID string, enabled bool) error {
-	current, err := u.repository.Get(ctx, routeID)
+	updated, err := u.repository.Update(ctx, routeID, current.Generation, spec)
 	if err != nil {
-		return err
-	}
-	next := current.Spec
-	next.Enabled = enabled
-	if err := u.repository.Update(ctx, routeID, current.Generation, next); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
-			return biz.NewUserError(fmt.Sprintf("路由 %q 已被更新，请刷新后重试", current.Spec.DisplayName))
+			return nil, routeVersionConflict(current)
 		}
-		return err
+		return nil, biz.DisplayNameConflict(err, "路由", spec.DisplayName)
 	}
-	return nil
+	return updated, nil
 }
 
 // Delete 删除 Route，仍被策略应用时拒绝删除
-func (u *Usecase) Delete(ctx context.Context, routeID string) error {
+func (u *Usecase) Delete(ctx context.Context, routeID string, version int64) error {
 	current, err := u.repository.Get(ctx, routeID)
 	if err != nil {
 		return err
+	}
+	if version != current.Generation {
+		return routeVersionConflict(current)
 	}
 	usage, err := u.policyUsage.Find(ctx, resource.PolicyTargetRef{Kind: resource.KindRoute, Name: routeID})
 	if err != nil {
@@ -141,5 +122,18 @@ func (u *Usecase) Delete(ctx context.Context, routeID string) error {
 	if usage != nil {
 		return biz.NewUserError(fmt.Sprintf("路由 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
 	}
-	return u.repository.Delete(ctx, routeID)
+	if err := u.repository.Delete(ctx, routeID, current.Generation); err != nil {
+		if errors.Is(err, biz.ErrResourceVersionConflict) {
+			return routeVersionConflict(current)
+		}
+		return err
+	}
+	return nil
+}
+
+func routeVersionConflict(route *resource.Route) error {
+	return biz.NewVersionConflictError(
+		route.Name,
+		fmt.Sprintf("路由 %q 已被其他用户修改，请刷新后重试", route.Spec.DisplayName),
+	)
 }
