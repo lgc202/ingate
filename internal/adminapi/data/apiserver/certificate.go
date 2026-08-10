@@ -38,18 +38,24 @@ func (r *CertificateRepository) Get(ctx context.Context, name string) (*resource
 }
 
 // Create 创建 Certificate
-func (r *CertificateRepository) Create(ctx context.Context, id string, spec resource.CertificateSpec) error {
+func (r *CertificateRepository) Create(ctx context.Context, id string, spec resource.CertificateSpec) (*resource.Certificate, error) {
 	certificate := &resource.Certificate{
 		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindCertificate)},
 		ObjectMeta: metav1.ObjectMeta{Name: id},
 		Spec:       spec,
 	}
-	_, err := r.client.GatewayV1().Certificates().Create(ctx, certificate, metav1.CreateOptions{})
-	return resourceError("create", "certificate", id, err)
+	created, err := r.client.GatewayV1().Certificates().Create(ctx, certificate, metav1.CreateOptions{})
+	return created, resourceError("create", "certificate", id, err)
 }
 
 // Update 更新 Certificate，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
-func (r *CertificateRepository) Update(ctx context.Context, id string, generation int64, spec resource.CertificateSpec) error {
+func (r *CertificateRepository) Update(
+	ctx context.Context,
+	id string,
+	generation int64,
+	spec resource.CertificateSpec,
+) (*resource.Certificate, error) {
+	var updated *resource.Certificate
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		current, err := r.client.GatewayV1().Certificates().Get(ctx, id, metav1.GetOptions{})
 		if err != nil {
@@ -59,14 +65,26 @@ func (r *CertificateRepository) Update(ctx context.Context, id string, generatio
 			return biz.ErrResourceVersionConflict
 		}
 		current.Spec = spec
-		_, err = r.client.GatewayV1().Certificates().Update(ctx, current, metav1.UpdateOptions{})
+		updated, err = r.client.GatewayV1().Certificates().Update(ctx, current, metav1.UpdateOptions{})
 		return err
 	})
-	return resourceError("update", "certificate", id, err)
+	return updated, resourceError("update", "certificate", id, err)
 }
 
 // Delete 删除 Certificate
-func (r *CertificateRepository) Delete(ctx context.Context, name string) error {
-	err := r.client.GatewayV1().Certificates().Delete(ctx, name, metav1.DeleteOptions{})
-	return resourceError("delete", "certificate", name, err)
+func (r *CertificateRepository) Delete(ctx context.Context, id string, generation int64) error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		current, err := r.client.GatewayV1().Certificates().Get(ctx, id, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if current.Generation != generation {
+			return biz.ErrResourceVersionConflict
+		}
+		resourceVersion := current.ResourceVersion
+		return r.client.GatewayV1().Certificates().Delete(ctx, id, metav1.DeleteOptions{
+			Preconditions: &metav1.Preconditions{ResourceVersion: &resourceVersion},
+		})
+	})
+	return resourceError("delete", "certificate", id, err)
 }

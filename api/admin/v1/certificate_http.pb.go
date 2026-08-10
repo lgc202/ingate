@@ -9,6 +9,7 @@ package v1
 import (
 	context "context"
 	http "github.com/go-kratos/kratos/v3/transport/http"
+	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -24,11 +25,11 @@ const OperationCertificateServiceListCertificates = "/ingate.admin.v1.Certificat
 const OperationCertificateServiceUpdateCertificate = "/ingate.admin.v1.CertificateService/UpdateCertificate"
 
 type CertificateServiceHTTPServer interface {
-	CreateCertificate(context.Context, *CreateCertificateRequest) (*MutationReply, error)
-	DeleteCertificate(context.Context, *ResourceRequest) (*MutationReply, error)
-	GetCertificate(context.Context, *ResourceRequest) (*GetCertificateReply, error)
-	ListCertificates(context.Context, *ListRequest) (*ListCertificatesReply, error)
-	UpdateCertificate(context.Context, *UpdateCertificateRequest) (*MutationReply, error)
+	CreateCertificate(context.Context, *CreateCertificateRequest) (*Certificate, error)
+	DeleteCertificate(context.Context, *DeleteCertificateRequest) (*emptypb.Empty, error)
+	GetCertificate(context.Context, *GetCertificateRequest) (*Certificate, error)
+	ListCertificates(context.Context, *ListCertificatesRequest) (*ListCertificatesResponse, error)
+	UpdateCertificate(context.Context, *UpdateCertificateRequest) (*Certificate, error)
 }
 
 func RegisterCertificateServiceHTTPServer(s *http.Server, srv CertificateServiceHTTPServer) {
@@ -42,26 +43,26 @@ func RegisterCertificateServiceHTTPServer(s *http.Server, srv CertificateService
 
 func _CertificateService_ListCertificates0_HTTP_Handler(srv CertificateServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ListRequest
+		var in ListCertificatesRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		http.SetOperation(ctx, OperationCertificateServiceListCertificates)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListCertificates(ctx, req.(*ListRequest))
+			return srv.ListCertificates(ctx, req.(*ListCertificatesRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*ListCertificatesReply)
+		reply := out.(*ListCertificatesResponse)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _CertificateService_GetCertificate0_HTTP_Handler(srv CertificateServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in GetCertificateRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -70,13 +71,13 @@ func _CertificateService_GetCertificate0_HTTP_Handler(srv CertificateServiceHTTP
 		}
 		http.SetOperation(ctx, OperationCertificateServiceGetCertificate)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetCertificate(ctx, req.(*ResourceRequest))
+			return srv.GetCertificate(ctx, req.(*GetCertificateRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*GetCertificateReply)
+		reply := out.(*Certificate)
 		return ctx.Result(200, reply)
 	}
 }
@@ -95,7 +96,7 @@ func _CertificateService_CreateCertificate0_HTTP_Handler(srv CertificateServiceH
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*Certificate)
 		return ctx.Result(200, reply)
 	}
 }
@@ -117,14 +118,14 @@ func _CertificateService_UpdateCertificate0_HTTP_Handler(srv CertificateServiceH
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*Certificate)
 		return ctx.Result(200, reply)
 	}
 }
 
 func _CertificateService_DeleteCertificate0_HTTP_Handler(srv CertificateServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in ResourceRequest
+		var in DeleteCertificateRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
@@ -133,23 +134,23 @@ func _CertificateService_DeleteCertificate0_HTTP_Handler(srv CertificateServiceH
 		}
 		http.SetOperation(ctx, OperationCertificateServiceDeleteCertificate)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.DeleteCertificate(ctx, req.(*ResourceRequest))
+			return srv.DeleteCertificate(ctx, req.(*DeleteCertificateRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*MutationReply)
+		reply := out.(*emptypb.Empty)
 		return ctx.Result(200, reply)
 	}
 }
 
 type CertificateServiceHTTPClient interface {
-	CreateCertificate(ctx context.Context, req *CreateCertificateRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	DeleteCertificate(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
-	GetCertificate(ctx context.Context, req *ResourceRequest, opts ...http.CallOption) (rsp *GetCertificateReply, err error)
-	ListCertificates(ctx context.Context, req *ListRequest, opts ...http.CallOption) (rsp *ListCertificatesReply, err error)
-	UpdateCertificate(ctx context.Context, req *UpdateCertificateRequest, opts ...http.CallOption) (rsp *MutationReply, err error)
+	CreateCertificate(ctx context.Context, req *CreateCertificateRequest, opts ...http.CallOption) (rsp *Certificate, err error)
+	DeleteCertificate(ctx context.Context, req *DeleteCertificateRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	GetCertificate(ctx context.Context, req *GetCertificateRequest, opts ...http.CallOption) (rsp *Certificate, err error)
+	ListCertificates(ctx context.Context, req *ListCertificatesRequest, opts ...http.CallOption) (rsp *ListCertificatesResponse, err error)
+	UpdateCertificate(ctx context.Context, req *UpdateCertificateRequest, opts ...http.CallOption) (rsp *Certificate, err error)
 }
 
 type CertificateServiceHTTPClientImpl struct {
@@ -160,8 +161,8 @@ func NewCertificateServiceHTTPClient(client *http.Client) CertificateServiceHTTP
 	return &CertificateServiceHTTPClientImpl{client}
 }
 
-func (c *CertificateServiceHTTPClientImpl) CreateCertificate(ctx context.Context, in *CreateCertificateRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *CertificateServiceHTTPClientImpl) CreateCertificate(ctx context.Context, in *CreateCertificateRequest, opts ...http.CallOption) (*Certificate, error) {
+	var out Certificate
 	pattern := "/api/v1/certificates"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{
@@ -177,8 +178,8 @@ func (c *CertificateServiceHTTPClientImpl) CreateCertificate(ctx context.Context
 	return &out, nil
 }
 
-func (c *CertificateServiceHTTPClientImpl) DeleteCertificate(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *CertificateServiceHTTPClientImpl) DeleteCertificate(ctx context.Context, in *DeleteCertificateRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
+	var out emptypb.Empty
 	pattern := "/api/v1/certificates/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -193,8 +194,8 @@ func (c *CertificateServiceHTTPClientImpl) DeleteCertificate(ctx context.Context
 	return &out, nil
 }
 
-func (c *CertificateServiceHTTPClientImpl) GetCertificate(ctx context.Context, in *ResourceRequest, opts ...http.CallOption) (*GetCertificateReply, error) {
-	var out GetCertificateReply
+func (c *CertificateServiceHTTPClientImpl) GetCertificate(ctx context.Context, in *GetCertificateRequest, opts ...http.CallOption) (*Certificate, error) {
+	var out Certificate
 	pattern := "/api/v1/certificates/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -209,8 +210,8 @@ func (c *CertificateServiceHTTPClientImpl) GetCertificate(ctx context.Context, i
 	return &out, nil
 }
 
-func (c *CertificateServiceHTTPClientImpl) ListCertificates(ctx context.Context, in *ListRequest, opts ...http.CallOption) (*ListCertificatesReply, error) {
-	var out ListCertificatesReply
+func (c *CertificateServiceHTTPClientImpl) ListCertificates(ctx context.Context, in *ListCertificatesRequest, opts ...http.CallOption) (*ListCertificatesResponse, error) {
+	var out ListCertificatesResponse
 	pattern := "/api/v1/certificates"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
@@ -225,8 +226,8 @@ func (c *CertificateServiceHTTPClientImpl) ListCertificates(ctx context.Context,
 	return &out, nil
 }
 
-func (c *CertificateServiceHTTPClientImpl) UpdateCertificate(ctx context.Context, in *UpdateCertificateRequest, opts ...http.CallOption) (*MutationReply, error) {
-	var out MutationReply
+func (c *CertificateServiceHTTPClientImpl) UpdateCertificate(ctx context.Context, in *UpdateCertificateRequest, opts ...http.CallOption) (*Certificate, error) {
+	var out Certificate
 	pattern := "/api/v1/certificates/{id}"
 	path := http.BuildPath(pattern, in)
 	opts = append([]http.CallOption{

@@ -752,7 +752,6 @@ func Convert_gateway_CertificateList_To_v1_CertificateList(in *gateway.Certifica
 
 func autoConvert_v1_CertificateSpec_To_gateway_CertificateSpec(in *CertificateSpec, out *gateway.CertificateSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
-	out.Description = in.Description
 	out.CertificatePEM = in.CertificatePEM
 	out.PrivateKeyPEM = in.PrivateKeyPEM
 	return nil
@@ -765,7 +764,6 @@ func Convert_v1_CertificateSpec_To_gateway_CertificateSpec(in *CertificateSpec, 
 
 func autoConvert_gateway_CertificateSpec_To_v1_CertificateSpec(in *gateway.CertificateSpec, out *CertificateSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
-	out.Description = in.Description
 	out.CertificatePEM = in.CertificatePEM
 	out.PrivateKeyPEM = in.PrivateKeyPEM
 	return nil

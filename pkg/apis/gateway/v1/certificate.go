@@ -28,10 +28,8 @@ type CertificateList struct {
 type CertificateSpec struct {
 	// DisplayName 保存控制台展示名称，不参与 Gateway 引用
 	DisplayName string `json:"displayName,omitempty"`
-	// Description 保存控制台展示和运维识别用的说明
-	Description string `json:"description,omitempty"`
 	// CertificatePEM 保存叶子证书以及可选的中间证书链
-	CertificatePEM string `json:"certificatePEM,omitempty"`
+	CertificatePEM string `json:"certificatePEM"`
 	// PrivateKeyPEM 保存与叶子证书匹配的私钥
-	PrivateKeyPEM string `json:"privateKeyPEM,omitempty"`
+	PrivateKeyPEM string `json:"privateKeyPEM"`
 }

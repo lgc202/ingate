@@ -519,16 +519,10 @@ func schema_pkg_apis_gateway_v1_CertificateSpec(ref common.ReferenceCallback) co
 							Format:      "",
 						},
 					},
-					"description": {
-						SchemaProps: spec.SchemaProps{
-							Description: "Description 保存控制台展示和运维识别用的说明",
-							Type:        []string{"string"},
-							Format:      "",
-						},
-					},
 					"certificatePEM": {
 						SchemaProps: spec.SchemaProps{
 							Description: "CertificatePEM 保存叶子证书以及可选的中间证书链",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
@@ -536,11 +530,13 @@ func schema_pkg_apis_gateway_v1_CertificateSpec(ref common.ReferenceCallback) co
 					"privateKeyPEM": {
 						SchemaProps: spec.SchemaProps{
 							Description: "PrivateKeyPEM 保存与叶子证书匹配的私钥",
+							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
 						},
 					},
 				},
+				Required: []string{"certificatePEM", "privateKeyPEM"},
 			},
 		},
 	}

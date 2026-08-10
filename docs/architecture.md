@@ -183,7 +183,7 @@ OpenAI-compatible、Anthropic 和 Gemini 上游都只接受当前公开的文本
 - 不支持 OAuth、IAM、Azure Entra、AWS SigV4 等云认证
 - `ingate-ai-proxy` 只承接网关请求路径能力，不是 Agent 或通用模型调用服务
 
-Gateway Listener 声明数据面实际监听协议、端口和 Host 范围。相同协议和端口且 Host 范围不重叠的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Listener 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。Gateway 的完整产品协议见 [Gateway 资源](resources/gateway.md)。
+Gateway Listener 声明数据面实际监听协议、端口和 Host 范围。相同协议和端口且 Host 范围不重叠的逻辑 Gateway 会合并为一个 Envoy Listener；HTTP 通过 Host 分流，HTTPS 通过 SNI filter chain 选择 Listener 引用的 Certificate。证书 PEM 当前随 LDS 内联下发，后续只有在需要独立密钥轮转时才引入 SDS。完整产品协议见 [Gateway 资源](resources/gateway.md) 和 [Certificate 资源](resources/certificate.md)。
 
 Route 以“一组请求匹配条件 + 一个转发行为”为资源粒度，不再嵌套 `rules[]`。不同匹配或转发行为使用多个 Route 表达；一个 Route 可以挂载到多个 Gateway。Route 的完整产品协议见 [Route 资源](resources/route.md)。
 
