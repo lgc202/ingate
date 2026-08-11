@@ -23,20 +23,13 @@ export default function App() {
         <Route path="routes" element={<RoutePage />} />
         <Route path="services" element={<UpstreamPage />} />
         <Route path="certificates" element={<CertificatePage />} />
-        <Route path="models" element={<Navigate to="/services?type=model" replace />} />
         <Route path="playground" element={<PlaygroundPage />} />
         <Route path="callers" element={<CallerPage />} />
-        <Route path="applications" element={<Navigate to="/callers" replace />} />
         <Route path="policies" element={<PolicyPage />} />
-        <Route path="quotas" element={<Navigate to="/callers" replace />} />
         <Route path="audit" element={<AuditLogPage />} />
         <Route path="requests" element={<ObservabilityPage />} />
-        <Route path="traces" element={<Navigate to="/requests" replace />} />
-        <Route path="observability" element={<Navigate to="/requests" replace />} />
         <Route path="analysis" element={<TrafficAnalysisPage />} />
-        <Route path="usage" element={<Navigate to="/analysis" replace />} />
         <Route path="health" element={<HealthAlertPage />} />
-        <Route path="status" element={<Navigate to="/health" replace />} />
       </Route>
       <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>
