@@ -31,7 +31,17 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - `etcd`：声明式资源持久化，仅由 ingate-apiserver 访问
 - `Redis`：内置限流插件的共享计数存储
 
-当前只保留 Gateway、Route、Upstream、Certificate、RateLimitPolicy 和 IPRestrictionPolicy。AI 网关、Agent、访问密钥、Token 配额、数据面 Agent 和 Kubernetes Operator 不在当前范围内，不保留占位代码或兼容层。
+当前已经落地的控制面资源包括 Gateway、Route、Upstream、Certificate、RateLimitPolicy 和 IPRestrictionPolicy。在此基础上，产品将扩展为统一的 API 与 AI 网关，围绕模型服务接入、对外模型发布、调用方授权、用量治理和请求分析形成完整链路。
+
+AI 网关的产品对象保持克制：
+
+- `Service` 表示实际连接的普通 HTTP、模型或 MCP 服务；现有 `Upstream` 如何演进为统一 Service 需要在后端协议设计时一次性确定，不建立并行兼容层。
+- `Model` 表示客户端使用的稳定对外模型名，并引用一个或多个模型服务线路；厂商、凭据和真实模型属于 Service，不单独创建 Provider、ProviderModel 或 Credential 资源。
+- `Caller` 表示调用网关的应用或服务，承载访问密钥、模型与 Route 权限、额度和用量归属。
+- AI 限额、内容安全、参数约束和缓存继续采用有明确业务语义的强类型 Policy，不暴露数据面插件私有配置。
+- 请求明细、Token、成本和线路尝试属于运行记录，不建模为声明式资源。
+
+当前先使用 Mock 数据完成控制台产品体验，确认模型接入、发布、授权、调用和排障流程后再设计后端资源与执行链路。Agent 编排、Prompt 管理、数据集、模型训练、计费开票和复杂审批流不属于网关核心范围；后续 Agent 服务作为 Caller 使用 Ingate 的模型与 MCP 能力。
 
 ## 工程实现原则
 

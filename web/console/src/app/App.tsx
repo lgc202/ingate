@@ -5,21 +5,40 @@ import { RoutePage } from '@/features/routes/RoutePage';
 import { UpstreamPage } from '@/features/upstreams/UpstreamPage';
 import { CertificatePage } from '@/features/certificates/CertificatePage';
 import { PolicyPage } from '@/features/policies/PolicyPage';
-import { ConfigurationStatusPage } from '@/features/configuration/ConfigurationStatusPage';
+import { OverviewPage } from '@/features/overview/OverviewPage';
+import { PlaygroundPage } from '@/features/playground/PlaygroundPage';
+import { CallerPage } from '@/features/callers/CallerPage';
+import { ObservabilityPage } from '@/features/observability/ObservabilityPage';
+import { AuditLogPage } from '@/features/product/AuditLogPage';
+import { TrafficAnalysisPage } from '@/features/product/TrafficAnalysisPage';
+import { HealthAlertPage } from '@/features/product/HealthAlertPage';
 
 export default function App() {
   return (
     <Routes>
       <Route element={<AppShell />}>
-        <Route index element={<Navigate to="/gateways" replace />} />
+        <Route index element={<Navigate to="/overview" replace />} />
+        <Route path="overview" element={<OverviewPage />} />
         <Route path="gateways" element={<GatewayPage />} />
         <Route path="routes" element={<RoutePage />} />
         <Route path="services" element={<UpstreamPage />} />
         <Route path="certificates" element={<CertificatePage />} />
+        <Route path="models" element={<Navigate to="/services?type=model" replace />} />
+        <Route path="playground" element={<PlaygroundPage />} />
+        <Route path="callers" element={<CallerPage />} />
+        <Route path="applications" element={<Navigate to="/callers" replace />} />
         <Route path="policies" element={<PolicyPage />} />
-        <Route path="status" element={<ConfigurationStatusPage />} />
+        <Route path="quotas" element={<Navigate to="/callers" replace />} />
+        <Route path="audit" element={<AuditLogPage />} />
+        <Route path="requests" element={<ObservabilityPage />} />
+        <Route path="traces" element={<Navigate to="/requests" replace />} />
+        <Route path="observability" element={<Navigate to="/requests" replace />} />
+        <Route path="analysis" element={<TrafficAnalysisPage />} />
+        <Route path="usage" element={<Navigate to="/analysis" replace />} />
+        <Route path="health" element={<HealthAlertPage />} />
+        <Route path="status" element={<Navigate to="/health" replace />} />
       </Route>
-      <Route path="*" element={<Navigate to="/gateways" replace />} />
+      <Route path="*" element={<Navigate to="/overview" replace />} />
     </Routes>
   );
 }
