@@ -1,8 +1,6 @@
 package biz
 
 import (
-	"cmp"
-
 	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -203,11 +201,6 @@ func EffectivePolicyStatus(
 		}
 	}
 	return status
-}
-
-// CompareResourceState 按错误、处理中、已生效、已停用的展示顺序比较资源状态
-func CompareResourceState(a, b ResourceState) int {
-	return cmp.Compare(statusPriority(a), statusPriority(b))
 }
 
 func targetConditions(targets []resource.PolicyTargetStatus, ref resource.PolicyTargetRef) []metav1.Condition {

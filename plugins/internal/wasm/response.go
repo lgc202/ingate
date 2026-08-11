@@ -2,15 +2,6 @@ package wasm
 
 import "github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 
-// ResponseHeader 读取 HTTP 响应 header，读取失败时返回空字符串
-func ResponseHeader(name string) string {
-	value, err := proxywasm.GetHttpResponseHeader(name)
-	if err != nil {
-		return ""
-	}
-	return value
-}
-
 // ReplaceResponseHeaders 覆盖 HTTP 响应 header
 func ReplaceResponseHeaders(headers map[string]string) {
 	for name, value := range headers {
