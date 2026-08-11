@@ -251,7 +251,7 @@ export function CertificatePage() {
         title={isEditing ? `修改证书信息: ${draft.name}` : '录入新 TLS 证书'}
         subtitle="上传 PEM 格式公私钥文本，用于 HTTPS Listener SNI 握手"
         isOpen={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={() => { setSubmitError(null); setDrawerOpen(false); }}
       >
         <div className="space-y-5">
           {submitError && (

@@ -145,6 +145,7 @@ export function ipRestrictionPolicyPayload(draft: IPRestrictionPolicyDraft): IPR
   const ranges = parseRanges(draft.ranges);
   const config = {
     name: draft.name.trim(),
+    enabled: draft.enabled,
     targets: draft.targets.map((target) => ({ kind: target.kind, id: target.id })),
     allow: draft.mode === 'allow' ? ranges : [],
     deny: draft.mode === 'deny' ? ranges : [],
