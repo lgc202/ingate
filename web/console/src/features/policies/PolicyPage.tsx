@@ -42,15 +42,15 @@ export function PolicyPage() {
 
   if (workspace.loading && !workspace.data) {
     return (
-      <PageFrame title="治理策略">
-        <ResourceStatePanel title="正在加载治理策略..." message="从管理 API 获取策略列表与关联目标" />
+      <PageFrame title="流量策略">
+        <ResourceStatePanel title="正在加载流量策略..." message="从管理 API 获取策略列表与关联目标" />
       </PageFrame>
     );
   }
 
   if (workspace.error || !workspace.data) {
     return (
-      <PageFrame title="治理策略">
+      <PageFrame title="流量策略">
         <ResourceStatePanel title="策略加载失败" message={workspace.error?.message ?? '请稍后重试。'} />
       </PageFrame>
     );
@@ -104,8 +104,8 @@ export function PolicyPage() {
 
   return (
     <PageFrame
-      title="治理策略"
-		subtitle={`统一管理限流和 IP 访问限制（共 ${allPolicies.length} 条策略）`}
+      title="流量策略"
+		subtitle={`统一管理普通 API 和 AI 请求的限流与 IP 访问限制（共 ${allPolicies.length} 条策略）`}
       actions={canWriteConfiguration ? (
         <div className="flex items-center gap-2">
           <button
