@@ -20,6 +20,11 @@ kube::codegen::gen_client \
   --boilerplate "${repo_root}/hack/boilerplate.go.txt" \
   "${repo_root}/pkg/apis"
 
+# client-gen 默认生成测试专用 fake client；当前项目不维护单元测试，不保留没有生产调用方的生成包
+rm -rf \
+  "${repo_root}/pkg/generated/clientset/versioned/fake" \
+  "${repo_root}/pkg/generated/clientset/versioned/typed/gateway/v1/fake"
+
 kube::codegen::gen_openapi \
   --output-dir "${repo_root}/pkg/generated/openapi" \
   --output-pkg "github.com/lgc202/ingate/pkg/generated/openapi" \

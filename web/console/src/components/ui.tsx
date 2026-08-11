@@ -111,38 +111,6 @@ export function Badge({
   );
 }
 
-export function Tabs({
-  tabs,
-  activeKey,
-  active,
-  onChange,
-}: {
-  tabs: { key: string; label: string }[];
-  activeKey?: string;
-  active?: string;
-  onChange: (key: string) => void;
-}) {
-  const currentKey = activeKey ?? active ?? tabs[0]?.key;
-  return (
-    <div className="flex items-center gap-1 border-b border-slate-200 mb-4">
-      {tabs.map((tab) => (
-        <button
-          key={tab.key}
-          type="button"
-          onClick={() => onChange(tab.key)}
-          className={`px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-colors ${
-            currentKey === tab.key
-              ? 'border-blue-600 text-blue-600 font-semibold'
-              : 'border-transparent text-slate-500 hover:text-slate-700'
-          }`}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 export function Drawer({
   title,
   subtitle,

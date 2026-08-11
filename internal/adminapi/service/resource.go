@@ -17,18 +17,6 @@ func NewTimestamp(value time.Time) *timestamppb.Timestamp {
 	return timestamppb.New(value)
 }
 
-// TimeFromProto 校验并转换可选协议时间
-func TimeFromProto(value *timestamppb.Timestamp) (*time.Time, error) {
-	if value == nil {
-		return nil, nil
-	}
-	if err := value.CheckValid(); err != nil {
-		return nil, BadRequest("时间格式不正确")
-	}
-	result := value.AsTime()
-	return &result, nil
-}
-
 // NewResourceStatus 把领域状态转换为控制台状态
 func NewResourceStatus(status biz.ResourceStatus) *adminv1.ResourceStatus {
 	return &adminv1.ResourceStatus{State: NewResourceState(status.State), Message: ResourceMessage(status.Reason)}

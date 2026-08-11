@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { deleteCertificate, listCertificates, saveCertificate } from '@/api/certificates';
 import { useResource } from '@/api/useResource';
 import { useAuth } from '@/auth/AuthContext';
-import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
+import { Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { Certificate } from '@/domain/certificate';
 import { KeyRound, Plus, Trash2, Edit3, FileText } from 'lucide-react';

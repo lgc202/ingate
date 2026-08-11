@@ -90,14 +90,6 @@ func ResumeHTTPRequest(httpContextID uint32) error {
 	return hostResumeHTTPRequest()
 }
 
-// ResumeHTTPResponse 在显式 HTTP context 中恢复暂停的响应流
-func ResumeHTTPResponse(httpContextID uint32) error {
-	if err := hostSetEffectiveContext(httpContextID); err != nil {
-		return err
-	}
-	return hostResumeHTTPResponse()
-}
-
 // SendHTTPResponse 在显式 HTTP context 中返回本地响应
 func SendHTTPResponse(httpContextID uint32, statusCode int, headers map[string]string, body string) error {
 	if statusCode <= 0 || uint64(statusCode) > uint64(^uint32(0)) {
