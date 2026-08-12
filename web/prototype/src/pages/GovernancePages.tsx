@@ -198,7 +198,7 @@ export function CallerPage() {
             </button>
           </header>
           <p className="caller-purpose">{selected.purpose}</p>
-          <div className="detail-jump"><div><strong>用量与拒绝记录</strong><span>在运行中心查看该调用方的额度、Token 和成本</span></div><Link className="button button-secondary" to={`/usage?caller=${selected.id}`}>查看用量与成本 <ChevronRight /></Link></div>
+          <div className="detail-jump"><div><strong>用量与拒绝记录</strong><span>查看该调用方的额度、Token 和成本</span></div><Link className="button button-secondary" to={`/usage?caller=${selected.id}`}>查看用量与成本 <ChevronRight /></Link></div>
 
           <section className="detail-section key-section">
             <header>
@@ -520,7 +520,10 @@ function CallExample({
       ?.scopes[0] ?? route.published[0];
   const path =
     route.type === "API"
-      ? route.path
+      ? route.published[0]
+          ?.replace(/^[A-Z]+\s+/, "")
+          .replace("{id}", "78421")
+          .replace(/\/\*$/, "/example") ?? route.path
       : route.type === "AI"
         ? `${route.path}/chat/completions`
         : route.path;
@@ -530,7 +533,14 @@ function CallExample({
       : route.type === "MCP"
         ? ` -d '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"${scope}"}}'`
         : "";
-  const command = `curl 'https://${route.host}${path}' \\\n  -H 'Authorization: Bearer <${caller.name}密钥>'${route.type !== "API" ? ` \\\n  -H 'Content-Type: application/json' \\\n ${body}` : ""}`;
+  const matchHeaders = (route.conditions ?? [])
+    .filter((condition) => condition.kind === "Header")
+    .map(
+      (condition) =>
+        ` \\\n  -H '${condition.name}: ${condition.mode === "存在" ? "<值>" : condition.value}'`,
+    )
+    .join("");
+  const command = `curl 'https://${route.host}${path}' \\\n  -H 'Authorization: Bearer <${caller.name}密钥>'${matchHeaders}${route.type !== "API" ? ` \\\n  -H 'Content-Type: application/json' \\\n ${body}` : ""}`;
   return (
     <Drawer
       title="调用示例"
@@ -1268,7 +1278,7 @@ function formatUsage(value: number, type: TrafficType) {
   return `${value.toLocaleString("zh-CN")}${suffix}`;
 }
 
-type PolicyGroup = "ALL" | "访问控制" | "流量控制" | "AI 约束";
+type PolicyGroup = "ALL" | "访问控制" | "流量控制";
 
 type TargetTrafficFilter = "ALL" | TrafficType;
 
@@ -1287,8 +1297,7 @@ const targetPageSize = 10;
 
 function policyGroup(type: Policy["type"]): Exclude<PolicyGroup, "ALL"> {
   if (type === "IP 访问限制") return "访问控制";
-  if (type === "请求限流") return "流量控制";
-  return "AI 约束";
+  return "流量控制";
 }
 
 export function PolicyPage() {
@@ -1310,7 +1319,7 @@ export function PolicyPage() {
   );
   const groups: Array<{ value: PolicyGroup; label: string; count?: number }> = [
     { value: "ALL", label: "全部", count: policies.length },
-    ...(["访问控制", "流量控制", "AI 约束"] as const).map((value) => ({
+    ...(["访问控制", "流量控制"] as const).map((value) => ({
       value,
       label: value,
       count: policies.filter((policy) => policyGroup(policy.type) === value)
@@ -1405,7 +1414,7 @@ export function PolicyPage() {
                 }
               />
               <h3>{selected.rule}</h3>
-              <p>执行结果与拒绝明细请到运行中心查看</p>
+              <p>执行结果与拒绝明细可在请求记录中查看</p>
             </div>
           </div>
           <section className="detail-section">
@@ -1452,7 +1461,7 @@ export function PolicyPage() {
             setCreating(false);
             setToast(
               policy.targets.length
-                ? "流量策略已保存，正在发布"
+                ? "流量策略已保存"
                 : "流量策略已保存，尚未应用",
             );
           }}
@@ -1469,7 +1478,7 @@ export function PolicyPage() {
             setEditing(null);
             setToast(
               policy.targets.length
-                ? "策略修改已保存，正在发布"
+                ? "策略修改已保存"
                 : "策略修改已保存，当前未应用",
             );
           }}
@@ -1483,7 +1492,7 @@ export function PolicyPage() {
           onConfirm={() => {
             deletePolicy(deleting.id);
             setDeleting(null);
-            setToast("流量策略已删除，正在发布");
+            setToast("流量策略已删除");
           }}
         />
       ) : null}
@@ -1495,7 +1504,6 @@ export function PolicyPage() {
 const defaultPolicyNames: Record<Policy["type"], string> = {
   请求限流: "新请求限流策略",
   "IP 访问限制": "新 IP 访问限制",
-  "AI 参数约束": "新 AI 参数约束",
 };
 
 function CreatePolicy({
@@ -1557,31 +1565,8 @@ function CreatePolicy({
   const [ipRanges, setIPRanges] = useState(
     initial?.settings?.ipRanges ?? "10.0.0.0/8\n192.168.0.0/16",
   );
-  const [maxTokens, setMaxTokens] = useState(
-    initial?.settings?.maxTokens ??
-      initial?.rule.match(/max_tokens ≤ ([\d,]+)/)?.[1].replaceAll(",", "") ??
-      "8192",
-  );
-  const [maxTemperature, setMaxTemperature] = useState(
-    initial?.settings?.maxTemperature ??
-      initial?.rule.match(/temperature ≤ ([\d.]+)/)?.[1] ??
-      "1.2",
-  );
   const candidates: PolicyTargetCandidate[] =
-    type === "AI 参数约束"
-      ? routes
-          .filter((route) => route.type === "AI")
-          .map((route) => ({
-            key: `route:${route.id}`,
-            kind: "路由" as const,
-            id: route.id,
-            name: route.name,
-            gatewayID: route.gatewayID,
-            gatewayName: route.gatewayName,
-            trafficType: route.type,
-            detail: `${route.host}${route.path}`,
-          }))
-      : type === "请求限流" && rateDimension === "每个调用方"
+    type === "请求限流" && rateDimension === "每个调用方"
         ? routes
             .filter((route) => route.accessMode === "需要调用方密钥")
             .map((route) => ({
@@ -1660,9 +1645,7 @@ function CreatePolicy({
   const rule =
     type === "请求限流"
       ? `${rateDimension}每${ratePeriod} ${Number(rateLimit).toLocaleString("zh-CN")} 次${effectiveTargets.length > 1 ? "，各目标独立计数" : ""}`
-      : type === "IP 访问限制"
-        ? `${ipMode} ${ipRangeCount} 个网段`
-        : `max_tokens ≤ ${Number(maxTokens).toLocaleString("zh-CN")}，temperature ≤ ${maxTemperature}`;
+      : `${ipMode} ${ipRangeCount} 个网段`;
   const save = () =>
     onSave({
       id: initial?.id ?? `policy-${Date.now()}`,
@@ -1677,15 +1660,13 @@ function CreatePolicy({
         })),
       rule,
       effect: initial?.effect ?? "暂无执行记录",
-      state: effectiveTargets.length ? "pending" : "disabled",
+      state: effectiveTargets.length ? "healthy" : "disabled",
       settings: {
         rateLimit,
         ratePeriod,
         rateDimension,
         ipMode,
         ipRanges,
-        maxTokens,
-        maxTemperature,
       },
     });
   const changeType = (next: Policy["type"]) => {
@@ -1737,7 +1718,6 @@ function CreatePolicy({
             >
               <option>请求限流</option>
               <option>IP 访问限制</option>
-              <option>AI 参数约束</option>
             </select>
           </label>
           {type === "请求限流" ? (
@@ -1808,32 +1788,6 @@ function CreatePolicy({
                   required
                   value={ipRanges}
                   onChange={(event) => setIPRanges(event.target.value)}
-                />
-              </label>
-            </>
-          ) : null}
-          {type === "AI 参数约束" ? (
-            <>
-              <label>
-                <span>max_tokens 上限</span>
-                <input
-                  required
-                  type="number"
-                  min="1"
-                  value={maxTokens}
-                  onChange={(event) => setMaxTokens(event.target.value)}
-                />
-              </label>
-              <label>
-                <span>temperature 上限</span>
-                <input
-                  required
-                  type="number"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  value={maxTemperature}
-                  onChange={(event) => setMaxTemperature(event.target.value)}
                 />
               </label>
             </>
@@ -2041,9 +1995,6 @@ function CreatePolicy({
         <div className="form-note">
           <ShieldCheck />
           将生成规则：{rule}
-          {type === "AI 参数约束"
-            ? "；超出上限的请求将被拒绝，客户端参数保持不变"
-            : ""}
         </div>
         <FormActions
           submitLabel={initial ? "保存修改" : "保存流量策略"}

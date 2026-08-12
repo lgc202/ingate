@@ -7,20 +7,7 @@ export type HealthState =
   | "disabled"
   | "pending"
   | "unverified";
-export type ConfigState = "active" | "publishing" | "failed" | "not-applied";
-export type ReleaseState = "发布中" | "已生效" | "发布失败";
-
-export interface ReleaseRecord {
-  version: number;
-  time: string;
-  summary: string;
-  resources: string;
-  state: ReleaseState;
-  syncedInstances: number;
-  totalInstances: number;
-  changes: string[];
-  error?: string;
-}
+export type ConfigState = "active" | "failed" | "not-applied";
 
 export interface AuditRecord {
   id: string;
@@ -33,21 +20,10 @@ export interface AuditRecord {
     | "服务"
     | "证书"
     | "调用方"
-    | "流量策略"
-    | "配置发布";
+    | "流量策略";
   resource: string;
   detail: string;
   result: "成功" | "失败";
-}
-
-export interface ProxyInstance {
-  id: string;
-  address: string;
-  zone: string;
-  version: string;
-  activeConfigVersion: number;
-  state: HealthState;
-  lastSeen: string;
 }
 
 export interface GatewayListenerBinding {
@@ -113,14 +89,13 @@ export interface GatewayRoute {
   gatewayName: string;
   host: string;
   path: string;
-  accessMode: "需要调用方密钥" | "JWT / OIDC" | "公开访问";
+  accessMode: "需要调用方密钥" | "公开访问";
   match: string;
   published: string[];
   targets: RouteTarget[];
   forwarding: RouteForwarding;
   conditions?: RouteMatchCondition[];
   rewrite?: RouteRewrite;
-  jwt?: { issuer: string; audience: string; jwksURI: string };
   requests: string;
   successRate: string;
   latency: string;
@@ -228,7 +203,7 @@ export interface Caller {
 export interface Policy {
   id: string;
   name: string;
-  type: "请求限流" | "IP 访问限制" | "AI 参数约束";
+  type: "请求限流" | "IP 访问限制";
   targets: Array<{ kind: "网关" | "路由"; id: string; name: string }>;
   rule: string;
   effect: string;
@@ -240,8 +215,6 @@ export interface Policy {
     rateDimension?: string;
     ipMode?: string;
     ipRanges?: string;
-    maxTokens?: string;
-    maxTemperature?: string;
   };
 }
 
@@ -320,54 +293,6 @@ export const initialGateways: Gateway[] = [
       },
     ],
     state: "healthy",
-  },
-];
-
-export const initialProxyInstances: ProxyInstance[] = [
-  {
-    id: "proxy-a1",
-    address: "10.8.1.21:19000",
-    zone: "可用区 A",
-    version: "1.34.1-ingate.3",
-    activeConfigVersion: 142,
-    state: "healthy",
-    lastSeen: "4 秒前",
-  },
-  {
-    id: "proxy-a2",
-    address: "10.8.1.22:19000",
-    zone: "可用区 A",
-    version: "1.34.1-ingate.3",
-    activeConfigVersion: 142,
-    state: "healthy",
-    lastSeen: "5 秒前",
-  },
-  {
-    id: "proxy-b1",
-    address: "10.8.2.21:19000",
-    zone: "可用区 B",
-    version: "1.34.1-ingate.3",
-    activeConfigVersion: 142,
-    state: "healthy",
-    lastSeen: "3 秒前",
-  },
-  {
-    id: "proxy-b2",
-    address: "10.8.2.22:19000",
-    zone: "可用区 B",
-    version: "1.34.1-ingate.3",
-    activeConfigVersion: 142,
-    state: "healthy",
-    lastSeen: "6 秒前",
-  },
-  {
-    id: "proxy-c1",
-    address: "10.8.3.21:19000",
-    zone: "可用区 C",
-    version: "1.34.1-ingate.3",
-    activeConfigVersion: 142,
-    state: "healthy",
-    lastSeen: "4 秒前",
   },
 ];
 
@@ -1080,16 +1005,6 @@ export const initialPolicies: Policy[] = [
       ipRanges: "10.20.0.0/16\n10.21.0.0/16\n172.22.8.14/32",
     },
   },
-  {
-    id: "policy-params",
-    name: "AI 参数基线",
-    type: "AI 参数约束",
-    targets: [{ kind: "路由", id: "route-ai-prod", name: "生产 AI 路由" }],
-    rule: "max_tokens ≤ 8,192，temperature ≤ 1.2",
-    effect: "今日拒绝 126 次",
-    state: "healthy",
-    settings: { maxTokens: "8192", maxTemperature: "1.2" },
-  },
 ];
 
 export const initialRequests: RequestRecord[] = [
@@ -1341,42 +1256,27 @@ export const initialRequests: RequestRecord[] = [
       },
     ],
   },
-];
-
-export const initialReleaseHistory: ReleaseRecord[] = [
   {
-    version: 142,
-    time: "今天 14:31:08",
-    summary: "更新生产 AI 路由的 Claude 备用线路",
-    resources: "2 项资源",
-    state: "已生效",
-    syncedInstances: 5,
-    totalInstances: 5,
-    changes: [
-      "生产 AI 路由：新增 Bedrock 灾备线路",
-      "Anthropic 公网：更新故障切换条件",
+    id: "req_8Dn5Rt",
+    time: "14:29:44",
+    type: "API",
+    caller: "未知调用方",
+    route: "订单查询 API",
+    request: "GET /api/orders/78421",
+    target: "—",
+    result: "策略拒绝",
+    code: "403",
+    latency: "3 ms",
+    usage: "—",
+    cost: "—",
+    attempts: [],
+    decisions: [
+      {
+        name: "IP 访问限制",
+        detail: "203.0.113.18 不在办公网与 VPN 允许范围内",
+        state: "error",
+      },
     ],
-  },
-  {
-    version: 141,
-    time: "今天 11:04:09",
-    summary: "轮换 example.com 泛域名证书",
-    resources: "1 项资源",
-    state: "已生效",
-    syncedInstances: 5,
-    totalInstances: 5,
-    changes: ["example.com 泛域名证书：替换证书链和私钥"],
-  },
-  {
-    version: 140,
-    time: "今天 09:42:31",
-    summary: "更新内部自动化用量上限",
-    resources: "1 项资源",
-    state: "发布失败",
-    syncedInstances: 3,
-    totalInstances: 5,
-    changes: ["内部自动化：Token 月度上限 10M → 20M"],
-    error: "3 个代理实例已应用 v140，2 个实例在 30 秒内未确认",
   },
 ];
 
@@ -1399,16 +1299,6 @@ export const initialAuditRecords: AuditRecord[] = [
     resourceType: "调用方",
     resource: "客服助手",
     detail: "签发“客服生产环境”访问密钥，有效期 90 天",
-    result: "成功",
-  },
-  {
-    id: "audit-release-141",
-    time: "11:04:09",
-    actor: "系统",
-    action: "发布配置",
-    resourceType: "配置发布",
-    resource: "版本 141",
-    detail: "证书变更已同步到全部网关实例",
     result: "成功",
   },
   {
