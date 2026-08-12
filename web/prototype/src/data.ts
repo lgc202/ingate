@@ -134,29 +134,6 @@ export interface ServiceEndpoint {
   state: HealthState;
 }
 
-export interface ServiceModel {
-  name: string;
-  displayName: string;
-  contextWindow: string;
-  maxOutputTokens: string;
-  inputModes: string[];
-  outputModes: string[];
-  features: string[];
-  supportedParameters: string[];
-  state: HealthState;
-  lastSyncedAt: string;
-}
-
-export interface ServiceRecovery {
-  state: "ready" | "ejected" | "cooling" | "probing";
-  consecutiveFailures: number;
-  failureThreshold: number;
-  cooldown: string;
-  lastFailure?: string;
-  ejectedAt?: string;
-  retryAt?: string;
-}
-
 export interface Service {
   id: string;
   name: string;
@@ -173,7 +150,6 @@ export interface Service {
   trustCertificateID?: string;
   provider: string;
   capabilities: string[];
-  models?: ServiceModel[];
   modelPrices?: Record<
     string,
     {
@@ -184,14 +160,6 @@ export interface Service {
       updatedAt: string;
     }
   >;
-  capabilityChanges?: {
-    added: string[];
-    removed: string[];
-    detectedAt: string;
-    reviewed: boolean;
-  };
-  resilience?: { consecutiveFailures: number; ejectionTime: string };
-  recovery?: ServiceRecovery;
   successRate: string;
   latency: string;
   state: HealthState;
@@ -305,10 +273,9 @@ export interface RequestRecord {
     error?: string;
     state: HealthState;
   }>;
-  steps: Array<{
+  decisions: Array<{
     name: string;
     detail: string;
-    duration: string;
     state: HealthState;
   }>;
 }
@@ -484,44 +451,6 @@ export const initialServices: Service[] = [
     serverName: "dashscope.aliyuncs.com",
     provider: "阿里云百炼",
     capabilities: ["qwen-max", "qwen-plus", "text-embedding-v3"],
-    models: [
-      {
-        name: "qwen-max",
-        displayName: "通义千问 Max",
-        contextWindow: "32K Token",
-        maxOutputTokens: "8K Token",
-        inputModes: ["文本", "图片"],
-        outputModes: ["文本"],
-        features: ["对话", "工具调用", "结构化输出"],
-        supportedParameters: ["temperature", "top_p", "tools", "response_format"],
-        state: "healthy",
-        lastSyncedAt: "今天 14:28",
-      },
-      {
-        name: "qwen-plus",
-        displayName: "通义千问 Plus",
-        contextWindow: "128K Token",
-        maxOutputTokens: "8K Token",
-        inputModes: ["文本"],
-        outputModes: ["文本"],
-        features: ["对话", "工具调用", "结构化输出"],
-        supportedParameters: ["temperature", "top_p", "tools", "response_format"],
-        state: "healthy",
-        lastSyncedAt: "今天 14:28",
-      },
-      {
-        name: "text-embedding-v3",
-        displayName: "文本向量 V3",
-        contextWindow: "8K Token",
-        maxOutputTokens: "—",
-        inputModes: ["文本"],
-        outputModes: ["向量"],
-        features: ["文本向量"],
-        supportedParameters: ["dimensions", "encoding_format"],
-        state: "healthy",
-        lastSyncedAt: "今天 14:28",
-      },
-    ],
     modelPrices: {
       "qwen-max": {
         input: 20,
@@ -546,12 +475,6 @@ export const initialServices: Service[] = [
     },
     successRate: "99.98%",
     latency: "TTFT 620 ms",
-    recovery: {
-      state: "ready",
-      consecutiveFailures: 0,
-      failureThreshold: 5,
-      cooldown: "30 秒",
-    },
     state: "healthy",
     verificationState: "verified",
   },
@@ -570,20 +493,6 @@ export const initialServices: Service[] = [
     serverName: "api.anthropic.com",
     provider: "Anthropic",
     capabilities: ["claude-sonnet-4"],
-    models: [
-      {
-        name: "claude-sonnet-4",
-        displayName: "Claude Sonnet 4",
-        contextWindow: "200K Token",
-        maxOutputTokens: "64K Token",
-        inputModes: ["文本", "图片", "文档"],
-        outputModes: ["文本"],
-        features: ["对话", "工具调用", "扩展思考"],
-        supportedParameters: ["max_tokens", "temperature", "top_p", "tools"],
-        state: "healthy",
-        lastSyncedAt: "今天 14:27",
-      },
-    ],
     modelPrices: {
       "claude-sonnet-4": {
         input: 21,
@@ -592,16 +501,6 @@ export const initialServices: Service[] = [
         unit: "每百万 Token",
         updatedAt: "2026-08-01",
       },
-    },
-    resilience: { consecutiveFailures: 5, ejectionTime: "30 秒" },
-    recovery: {
-      state: "cooling",
-      consecutiveFailures: 5,
-      failureThreshold: 5,
-      cooldown: "30 秒",
-      lastFailure: "连接超时",
-      ejectedAt: "14:31:56",
-      retryAt: "14:32:26",
     },
     successRate: "99.72%",
     latency: "TTFT 2.8 s",
@@ -627,20 +526,6 @@ export const initialServices: Service[] = [
     serverName: "bedrock-runtime.us-east-1.amazonaws.com",
     provider: "AWS",
     capabilities: ["claude-sonnet-4"],
-    models: [
-      {
-        name: "claude-sonnet-4",
-        displayName: "Claude Sonnet 4",
-        contextWindow: "200K Token",
-        maxOutputTokens: "64K Token",
-        inputModes: ["文本", "图片", "文档"],
-        outputModes: ["文本"],
-        features: ["对话", "工具调用", "扩展思考"],
-        supportedParameters: ["max_tokens", "temperature", "top_p", "tools"],
-        state: "healthy",
-        lastSyncedAt: "今天 14:26",
-      },
-    ],
     modelPrices: {
       "claude-sonnet-4": {
         input: 21,
@@ -652,12 +537,6 @@ export const initialServices: Service[] = [
     },
     successRate: "99.95%",
     latency: "TTFT 1.7 s",
-    recovery: {
-      state: "ready",
-      consecutiveFailures: 0,
-      failureThreshold: 5,
-      cooldown: "30 秒",
-    },
     state: "healthy",
     verificationState: "verified",
   },
@@ -681,12 +560,6 @@ export const initialServices: Service[] = [
     trustCertificateID: "cert-internal-ca",
     provider: "内部 MCP",
     capabilities: ["web_search", "fetch_page", "extract_text"],
-    capabilityChanges: {
-      added: ["extract_text"],
-      removed: [],
-      detectedAt: "今天 10:42",
-      reviewed: false,
-    },
     successRate: "99.90%",
     latency: "238 ms",
     state: "healthy",
@@ -1242,29 +1115,20 @@ export const initialRequests: RequestRecord[] = [
         state: "healthy",
       },
     ],
-    steps: [
+    decisions: [
       {
         name: "调用方认证",
         detail: "电商 Web · 生产密钥",
-        duration: "2 ms",
         state: "healthy",
       },
       {
         name: "访问策略",
         detail: "权限、请求限流和 IP 限制通过",
-        duration: "4 ms",
         state: "healthy",
       },
       {
         name: "订单查询 API",
         detail: "GET /api/orders/78421 → 订单服务",
-        duration: "1 ms",
-        state: "healthy",
-      },
-      {
-        name: "订单服务",
-        detail: "HTTP 200 · 12.4 KB",
-        duration: "79 ms",
         state: "healthy",
       },
     ],
@@ -1298,29 +1162,20 @@ export const initialRequests: RequestRecord[] = [
         state: "healthy",
       },
     ],
-    steps: [
+    decisions: [
       {
         name: "调用方认证",
         detail: "客服助手 · 生产密钥",
-        duration: "2 ms",
         state: "healthy",
       },
       {
         name: "访问策略",
         detail: "模型权限、Token 用量上限和参数约束通过",
-        duration: "12 ms",
         state: "healthy",
       },
       {
         name: "生产 AI 路由",
         detail: "qwen-max → 通义千问生产 / qwen-max",
-        duration: "1 ms",
-        state: "healthy",
-      },
-      {
-        name: "通义千问生产",
-        detail: "输入 1,246 · 输出 596 · 缓存 312 Token",
-        duration: "1.79 s",
         state: "healthy",
       },
     ],
@@ -1337,7 +1192,7 @@ export const initialRequests: RequestRecord[] = [
     code: "200",
     latency: "TTFT 1.9 s · 总计 3.4 s",
     usage: "3,106 Token",
-    cost: "¥0.19",
+    cost: "¥0.15",
     attempts: [
       {
         service: "Anthropic 公网",
@@ -1347,11 +1202,7 @@ export const initialRequests: RequestRecord[] = [
         code: "UPSTREAM_TIMEOUT",
         latency: "2.0 s",
         ttft: "—",
-        inputTokens: 2110,
-        outputTokens: 0,
-        cachedTokens: 0,
-        cost: "¥0.04",
-        error: "连接超时，服务已进入冷却期",
+        error: "连接超时，路由已切换备用线路",
         state: "error",
       },
       {
@@ -1369,30 +1220,21 @@ export const initialRequests: RequestRecord[] = [
         state: "healthy",
       },
     ],
-    steps: [
+    decisions: [
       {
         name: "调用方认证",
         detail: "研发知识库 · 生产密钥",
-        duration: "2 ms",
         state: "healthy",
       },
       {
         name: "访问策略",
         detail: "模型权限、Token 用量上限和参数约束通过",
-        duration: "11 ms",
         state: "healthy",
       },
       {
-        name: "Anthropic 公网",
-        detail: "主服务连接超时，准备切换",
-        duration: "2.0 s",
+        name: "生产 AI 路由",
+        detail: "主线路超时后切换至 Bedrock 灾备",
         state: "warning",
-      },
-      {
-        name: "Bedrock 灾备",
-        detail: "备用服务成功响应",
-        duration: "1.4 s",
-        state: "healthy",
       },
     ],
   },
@@ -1410,17 +1252,15 @@ export const initialRequests: RequestRecord[] = [
     usage: "—",
     cost: "—",
     attempts: [],
-    steps: [
+    decisions: [
       {
         name: "调用方认证",
         detail: "内部自动化 · 生产密钥",
-        duration: "2 ms",
         state: "healthy",
       },
       {
         name: "用量控制",
         detail: "月度 20M Token 已全部使用",
-        duration: "5 ms",
         state: "error",
       },
     ],
@@ -1447,29 +1287,20 @@ export const initialRequests: RequestRecord[] = [
         state: "healthy",
       },
     ],
-    steps: [
+    decisions: [
       {
         name: "调用方认证",
         detail: "客服助手 · 生产密钥",
-        duration: "2 ms",
         state: "healthy",
       },
       {
         name: "工具权限",
         detail: "允许调用 web_search",
-        duration: "3 ms",
         state: "healthy",
       },
       {
         name: "研究工具 MCP",
         detail: "tools/call → 搜索工具服务",
-        duration: "1 ms",
-        state: "healthy",
-      },
-      {
-        name: "web_search",
-        detail: "返回 8 条搜索结果",
-        duration: "232 ms",
         state: "healthy",
       },
     ],
@@ -1497,24 +1328,16 @@ export const initialRequests: RequestRecord[] = [
         state: "error",
       },
     ],
-    steps: [
+    decisions: [
       {
         name: "调用方认证",
         detail: "电商 Web · 生产密钥",
-        duration: "2 ms",
         state: "healthy",
       },
       {
         name: "文件上传 API",
         detail: "POST /api/files → 文件服务",
-        duration: "1 ms",
         state: "healthy",
-      },
-      {
-        name: "文件服务",
-        detail: "上游连接超时",
-        duration: "1.19 s",
-        state: "error",
       },
     ],
   },

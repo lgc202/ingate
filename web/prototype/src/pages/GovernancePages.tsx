@@ -27,11 +27,11 @@ import {
   Metric,
   PageHeader,
   PrimaryButton,
+  RouteTypeBadge,
   RowActions,
   SearchField,
   StatusBadge,
   Toast,
-  TypeBadge,
   submitForm,
 } from "../components/ui";
 import type {
@@ -51,7 +51,6 @@ export function CallerPage() {
   const {
     callers,
     routes,
-    sendDemoRequest,
     addCaller,
     updateCallerPermissions,
     setCallerQuota,
@@ -199,7 +198,7 @@ export function CallerPage() {
             </button>
           </header>
           <p className="caller-purpose">{selected.purpose}</p>
-          <div className="detail-jump"><div><strong>实际用量与拒绝记录已移到运行中心</strong><span>这里仅配置调用身份、访问密钥、路由权限和额度上限</span></div><Link className="button button-secondary" to={`/usage?caller=${selected.id}`}>查看用量与成本 <ChevronRight /></Link></div>
+          <div className="detail-jump"><div><strong>用量与拒绝记录</strong><span>在运行中心查看该调用方的额度、Token 和成本</span></div><Link className="button button-secondary" to={`/usage?caller=${selected.id}`}>查看用量与成本 <ChevronRight /></Link></div>
 
           <section className="detail-section key-section">
             <header>
@@ -314,7 +313,7 @@ export function CallerPage() {
               <div className="model-list-example">
                 <div>
                   <strong>获取已授权模型</strong>
-                  <span>返回结果随当前调用方的路由权限变化</span>
+                  <span>仅返回该调用方已授权的客户端模型名</span>
                 </div>
                 <code>{`curl 'https://${visibleModels[0].route.host}${visibleModels[0].route.path}/models' \\\n  -H 'Authorization: Bearer <${selected.name}密钥>'`}</code>
                 <CopyButton
@@ -342,7 +341,7 @@ export function CallerPage() {
             {selectedRoutes.length ? (
               selectedRoutes.map(({ permission, route }) => (
                 <div className="permission-row" key={permission.routeID}>
-                  <TypeBadge type={route.type} />
+                  <RouteTypeBadge type={route.type} />
                   <div>
                     <strong>{route.name}</strong>
                     <small>
@@ -359,11 +358,11 @@ export function CallerPage() {
             ) : (
               <EmptyState
                 title="尚未授权路由"
-                description="该身份即使持有有效密钥，也不能访问任何受保护路由。"
+                description="访问密钥尚未获得受保护路由的访问权限。"
               />
             )}
             <p className="section-explanation">
-              多条权限取并集。一次请求只会命中一条路由，再校验该路由下的接口、模型或工具，不会同时访问多条路由。
+              路由权限取并集；请求命中路由后，再校验对应接口、模型或工具权限。
             </p>
           </section>
 
@@ -385,14 +384,14 @@ export function CallerPage() {
                     >
                       <div>
                         <span>
-                          <TypeBadge type={route.type} />
+                          <RouteTypeBadge type={route.type} />
                           {route.name}
                         </span>
                         <strong>{quota ? `${quota.period}上限 ${formatUsage(quota.limit, route.type)}` : "不限制累计用量"}</strong>
                       </div>
                       <p>
                         {quota
-                          ? `${quota.period === "每日" ? "每日 0 点" : "每月 1 日"}重置 · 实际消耗请到“用量与成本”查看`
+                          ? `${quota.period === "每日" ? "每日 0 点" : "每月 1 日"}重置 · 消耗明细见“用量与成本”`
                           : `${quotaUnit(route.type)} · 仍受权限与短时限流约束`}
                       </p>
                       <div className="quota-actions">
@@ -499,7 +498,6 @@ export function CallerPage() {
         <CallExample
           caller={selected}
           route={tryingRoute}
-          onSend={() => sendDemoRequest(selected, tryingRoute)}
           onClose={() => setTryingRouteID("")}
         />
       ) : null}
@@ -511,15 +509,12 @@ export function CallerPage() {
 function CallExample({
   caller,
   route,
-  onSend,
   onClose,
 }: {
   caller: Caller;
   route: GatewayRoute;
-  onSend: () => string;
   onClose: () => void;
 }) {
-  const [requestID, setRequestID] = useState("");
   const scope =
     caller.permissions.find((permission) => permission.routeID === route.id)
       ?.scopes[0] ?? route.published[0];
@@ -545,7 +540,7 @@ function CallExample({
     >
       <div className="call-example">
         <header>
-          <TypeBadge type={route.type} />
+          <RouteTypeBadge type={route.type} />
           <div>
             <strong>
               {route.host}
@@ -558,30 +553,10 @@ function CallExample({
           <code>{command}</code>
           <CopyButton value={command} />
         </div>
-        <button
-          className={`connection-test ${requestID ? "is-success" : ""}`}
-          type="button"
-          onClick={() => setRequestID(onSend())}
-        >
-          {requestID ? <ShieldCheck /> : <Play />}
-          <div>
-            <strong>{requestID ? "演示请求已完成" : "发送演示请求"}</strong>
-            <span>
-              {requestID
-                ? `HTTP 200 · 请求编号 ${requestID}`
-                : "使用演示密钥发送请求，并生成可检索记录"}
-            </span>
-          </div>
-        </button>
-        {requestID ? (
-          <div className="form-note">
-            <ShieldCheck />
-            请求记录已生成：
-            <Link to={`/requests?query=${requestID}`}>
-              {requestID} · 查看完整执行过程
-            </Link>
-          </div>
-        ) : null}
+        <div className="form-note">
+          <ShieldCheck />
+          访问密钥仅在签发时展示，复制命令后请替换占位符再执行
+        </div>
         <footer className="form-actions">
           <PrimaryButton onClick={onClose}>完成</PrimaryButton>
         </footer>
@@ -636,7 +611,7 @@ function IssueCallerKey({
           <div>
             <strong>立即复制并妥善保存</strong>
             <p>
-              完整密钥只显示这一次。系统仅保留密钥标识和管理信息，无法再次查看明文。
+              完整密钥仅显示一次。系统只保留密钥标识和管理信息，无法再次查看明文。
             </p>
           </div>
         </div>
@@ -695,7 +670,7 @@ function IssueCallerKey({
         </div>
         <div className="form-note">
           <CalendarDays />
-          签发后会生成新的密钥；完整明文只展示一次，之后只能查看名称、标识和使用状态。
+          签发后生成新的访问密钥；完整密钥仅显示一次，之后只能查看名称、标识和使用状态。
         </div>
         <FormActions submitLabel="签发密钥" onCancel={onClose} />
       </form>
@@ -755,7 +730,7 @@ function RotateCallerKey({
           <div>
             <strong>先部署新密钥，再停用旧密钥</strong>
             <p>
-              新旧密钥会同时有效至 {graceUntil}。完整新密钥只显示这一次。
+              新旧密钥同时有效至 {graceUntil}。完整新密钥仅显示一次。
             </p>
           </div>
         </div>
@@ -818,12 +793,12 @@ function RotateCallerKey({
               <option value="14">14 天</option>
               <option value="30">30 天</option>
             </select>
-            <small>宽限期内新旧密钥同时有效，便于无中断迁移</small>
+            <small>宽限期内新旧密钥同时有效</small>
           </label>
         </div>
         <div className="form-note">
           <ShieldCheck />
-          新密钥生效不会修改现有路由权限和用量归属；宽限期结束后旧密钥自动失效。
+          路由权限和用量归属保持不变；宽限期结束后旧密钥自动失效。
         </div>
         <FormActions submitLabel="生成新密钥" onCancel={onClose} />
       </form>
@@ -918,7 +893,7 @@ function CreateCaller({
               required
               value={purpose}
               onChange={(event) => setPurpose(event.target.value)}
-              placeholder="说明调用场景，便于后续授权和审计"
+              placeholder="例如客服助手调用生产模型"
             />
           </label>
         </div>
@@ -929,7 +904,7 @@ function CreateCaller({
         />
         <div className="form-note">
           <KeyRound />
-          资源标识由系统生成。可以先不授权，但该调用方的密钥将无法访问受保护路由。
+          资源标识由系统生成。未授权路由时，访问密钥不能用于受保护流量。
         </div>
         <FormActions submitLabel="创建调用方" onCancel={onClose} />
       </form>
@@ -975,7 +950,7 @@ function ManagePermissions({
         />
         <div className="form-note">
           <ShieldCheck />
-          移除路由权限时，该路由上的用量上限也会一并移除；已经签发的密钥无需更换。
+          移除路由权限将同时删除对应的用量上限；已签发密钥保持有效。
         </div>
         <FormActions submitLabel="保存权限" onCancel={onClose} />
       </form>
@@ -1029,7 +1004,7 @@ function PermissionSelector({
         </span>
         <div>
           <strong>路由权限</strong>
-          <small>公开路由无需授权，因此不会出现在这里</small>
+          <small>仅显示需要调用方密钥的路由</small>
         </div>
         <b>{selectedRoutes.length} 条已授权</b>
       </header>
@@ -1037,7 +1012,7 @@ function PermissionSelector({
         <div className="permission-selected">
           {selectedRoutes.map((route) => (
             <span key={route.id}>
-              <TypeBadge type={route.type} />
+              <RouteTypeBadge type={route.type} />
               <strong>{route.name}</strong>
               <small>{value[route.id]?.length ?? 0} 项能力</small>
               <button
@@ -1052,7 +1027,7 @@ function PermissionSelector({
         </div>
       ) : (
         <div className="permission-selected-empty">
-          尚未选择路由，调用方将无法访问受保护流量
+          未选择路由，调用方不能访问受保护流量
         </div>
       )}
       <div className="permission-toolbar">
@@ -1069,19 +1044,19 @@ function PermissionSelector({
             { value: "ALL", label: "全部", count: protectedRoutes.length },
             {
               value: "API",
-              label: "API",
+              label: "API 路由",
               count: protectedRoutes.filter((route) => route.type === "API")
                 .length,
             },
             {
               value: "AI",
-              label: "AI",
+              label: "AI 路由",
               count: protectedRoutes.filter((route) => route.type === "AI")
                 .length,
             },
             {
               value: "MCP",
-              label: "MCP",
+              label: "MCP 路由",
               count: protectedRoutes.filter((route) => route.type === "MCP")
                 .length,
             },
@@ -1099,7 +1074,7 @@ function PermissionSelector({
                   checked={selected}
                   onChange={() => toggleRoute(route)}
                 />
-                <TypeBadge type={route.type} />
+                <RouteTypeBadge type={route.type} />
                 <span>
                   <strong>{route.name}</strong>
                   <small>
@@ -1199,7 +1174,7 @@ function ManageQuota({
         }
       >
         <div className="quota-preview">
-          <TypeBadge type={route.type} />
+          <RouteTypeBadge type={route.type} />
           <span>{caller.name}</span>
           <ChevronRight />
           <span>{route.name}</span>
@@ -1238,7 +1213,7 @@ function ManageQuota({
         <dl className="definition-list quota-definition">
           <div>
             <dt>计量范围</dt>
-            <dd>该调用方在此路由下的全部已授权能力合计</dd>
+            <dd>调用方在该路由下全部已授权能力的合计值</dd>
           </div>
           <div>
             <dt>超过上限</dt>
@@ -1873,7 +1848,7 @@ function CreatePolicy({
                   ? `已选择 ${effectiveTargets.length} 个目标`
                   : "尚未选择目标"}
               </strong>
-              <span>不选择也可以保存，策略将处于“未应用”状态</span>
+              <span>未选择目标时保存为“未应用”</span>
             </div>
             {effectiveTargets.length ? (
               <button
@@ -1902,7 +1877,7 @@ function CreatePolicy({
             </div>
           ) : (
             <div className="selected-targets-empty">
-              保存后不会作用到任何流量，可稍后编辑并添加生效目标
+              策略尚未关联流量目标
             </div>
           )}
           <div className="target-picker-toolbar">
@@ -1978,7 +1953,7 @@ function CreatePolicy({
                   },
                   ...(["API", "AI", "MCP"] as const).map((trafficType) => ({
                     value: trafficType,
-                    label: trafficType,
+                    label: `${trafficType} 路由`,
                     count: routeCandidates.filter(
                       (candidate) => candidate.trafficType === trafficType,
                     ).length,
@@ -2017,7 +1992,7 @@ function CreatePolicy({
                     onChange={() => toggleTarget(candidate.key)}
                   />
                   {candidate.trafficType ? (
-                    <TypeBadge type={candidate.trafficType} />
+                    <RouteTypeBadge type={candidate.trafficType} />
                   ) : (
                     <span className="target-gateway-badge">网关</span>
                   )}
@@ -2067,7 +2042,7 @@ function CreatePolicy({
           <ShieldCheck />
           将生成规则：{rule}
           {type === "AI 参数约束"
-            ? "；超过上限时拒绝请求，不会静默改写客户端参数"
+            ? "；超出上限的请求将被拒绝，客户端参数保持不变"
             : ""}
         </div>
         <FormActions

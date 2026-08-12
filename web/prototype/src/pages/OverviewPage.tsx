@@ -9,7 +9,12 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Metric, PageHeader, StatusBadge, TypeBadge } from "../components/ui";
+import {
+  Metric,
+  PageHeader,
+  RouteTypeBadge,
+  StatusBadge,
+} from "../components/ui";
 import { usePrototype } from "../prototype-context";
 
 export function OverviewPage() {
@@ -89,7 +94,7 @@ export function OverviewPage() {
         <Metric
           label="AI 请求"
           value="44.4K"
-          note="19.7M Token · 估算 ¥1,330"
+          note="50.8M Token · 预估 ¥1,785"
         />
         <Metric
           label="异常请求"
@@ -261,7 +266,7 @@ export function OverviewPage() {
           <div className="recent-list">
             {requests.slice(0, 4).map((request) => (
               <Link key={request.id} to={`/requests?query=${request.id}`}>
-                <TypeBadge type={request.type} />
+                <RouteTypeBadge type={request.type} />
                 <div>
                   <strong>{request.route}</strong>
                   <span>
@@ -294,7 +299,7 @@ function TopRoute({
 }) {
   return (
     <div className="flow-lane">
-      <TypeBadge type={type} />
+      <RouteTypeBadge type={type} />
       <div className="route-node">
         <small>路由</small>
         <strong>{route}</strong>
