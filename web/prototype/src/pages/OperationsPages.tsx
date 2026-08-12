@@ -19,6 +19,7 @@ import type { AuditRecord, RequestRecord, TrafficType } from "../data";
 import {
   Drawer,
   EmptyState,
+  FilterSelect,
   FilterTabs,
   Metric,
   PageHeader,
@@ -279,11 +280,19 @@ function RequestDetail({
     ["调用方", request.caller],
     ["路由", request.route],
     ["请求", request.request],
-    ["最终服务", request.target],
+    ["最终结果", request.target],
     ["总耗时", request.latency],
-    [usageLabel, request.usage],
-    ...(request.type === "AI" ? [["估算成本", request.cost]] : []),
+    [
+      request.type === "AI" ? "Token / 成本" : usageLabel,
+      request.type === "AI" ? `${request.usage} · ${request.cost}` : request.usage,
+    ],
   ];
+  const serviceNames = new Set(
+    request.attempts.map((attempt) => attempt.service),
+  );
+  const gatewaySteps = request.steps.filter(
+    (step) => !serviceNames.has(step.name),
+  );
 
   return (
     <Drawer
@@ -326,12 +335,101 @@ function RequestDetail({
           </div>
         ))}
       </div>
+      <section className="service-attempts">
+        <header>
+          <div>
+            <span className="eyebrow">服务调用</span>
+            <h3>服务尝试</h3>
+          </div>
+          <span>
+            {request.attempts.length
+              ? `${request.attempts.length} 次尝试`
+              : "未到达服务"}
+          </span>
+        </header>
+        {request.attempts.length ? (
+          request.attempts.map((attempt, index) => (
+            <article
+              className={`attempt-card state-${attempt.state}`}
+              key={`${attempt.service}-${index}`}
+            >
+              <span className="attempt-index">{index + 1}</span>
+              <div className="attempt-main">
+                <header>
+                  <div>
+                    <strong>{attempt.service}</strong>
+                    <span>
+                      {[attempt.provider, attempt.actualModel]
+                        .filter(Boolean)
+                        .join(" · ") || "目标服务"}
+                    </span>
+                  </div>
+                  <StatusBadge
+                    state={attempt.state}
+                    label={`${attempt.code} · ${attempt.result}`}
+                  />
+                </header>
+                <div className="attempt-facts">
+                  <span>
+                    <small>耗时</small>
+                    <strong>{attempt.latency}</strong>
+                  </span>
+                  {attempt.ttft ? (
+                    <span>
+                      <small>首个 Token</small>
+                      <strong>{attempt.ttft}</strong>
+                    </span>
+                  ) : null}
+                  {attempt.inputTokens !== undefined ? (
+                    <span>
+                      <small>输入 Token</small>
+                      <strong>{attempt.inputTokens.toLocaleString("zh-CN")}</strong>
+                    </span>
+                  ) : null}
+                  {attempt.outputTokens !== undefined ? (
+                    <span>
+                      <small>输出 Token</small>
+                      <strong>{attempt.outputTokens.toLocaleString("zh-CN")}</strong>
+                    </span>
+                  ) : null}
+                  {attempt.cachedTokens !== undefined ? (
+                    <span>
+                      <small>缓存 Token</small>
+                      <strong>{attempt.cachedTokens.toLocaleString("zh-CN")}</strong>
+                    </span>
+                  ) : null}
+                  {attempt.cost ? (
+                    <span>
+                      <small>本次成本</small>
+                      <strong>{attempt.cost}</strong>
+                    </span>
+                  ) : null}
+                </div>
+                {attempt.error ? (
+                  <p>
+                    <AlertTriangle />
+                    {attempt.error}
+                  </p>
+                ) : null}
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="attempt-empty">
+            <ShieldCheck />
+            <div>
+              <strong>请求在网关内结束</strong>
+              <span>没有向任何服务发送流量，也没有产生服务侧 Token 或成本</span>
+            </div>
+          </div>
+        )}
+      </section>
       <section className="execution-timeline">
         <header>
-          <span className="eyebrow">执行过程</span>
-          <h3>请求时间线</h3>
+          <span className="eyebrow">网关处理</span>
+          <h3>认证、策略与路由</h3>
         </header>
-        {request.steps.map((step, index) => (
+        {gatewaySteps.map((step, index) => (
           <div className="timeline-step" key={`${step.name}-${index}`}>
             <span className={`timeline-dot state-${step.state}`}>
               {index + 1}
@@ -709,21 +807,22 @@ export function UsagePage() {
         </button>
       </div>
       <div className="usage-filter-bar">
-        <span>
+        <div className="usage-period">
           <strong>本月</strong>
-          8 月 1 日至今天
-        </span>
-      <FilterTabs
-        value={selectedCallerID}
-        onChange={setSelectedCallerID}
-        options={[
-          { value: "ALL", label: "全部调用方", count: callers.length },
-          ...callers.map((caller) => ({
-            value: caller.id,
-            label: caller.name,
-          })),
-        ]}
-      />
+          <span>8 月 1 日至今天</span>
+        </div>
+        <FilterSelect
+          label="调用方"
+          value={selectedCallerID}
+          onChange={setSelectedCallerID}
+          options={[
+            { value: "ALL", label: "全部调用方", count: callers.length },
+            ...callers.map((caller) => ({
+              value: caller.id,
+              label: caller.name,
+            })),
+          ]}
+        />
       </div>
       {view === "QUOTA" ? (
         <QuotaUsageView
@@ -1147,6 +1246,15 @@ function formatCount(value: number) {
     : value.toLocaleString("zh-CN");
 }
 
+function recoveryLabel(state: "ready" | "ejected" | "cooling" | "probing") {
+  return {
+    ready: "正常承载",
+    ejected: "已摘除",
+    cooling: "冷却中",
+    probing: "试探恢复",
+  }[state];
+}
+
 export function HealthPage() {
   const { gateways, services, proxyInstances } = usePrototype();
   const serviceWarnings = services.filter(
@@ -1156,9 +1264,9 @@ export function HealthPage() {
   const offlineInstances = proxyInstances.filter(
     (instance) => instance.state !== "healthy",
   );
-  const criticalAlerts =
-    serviceWarnings.filter((service) => service.state === "error").length +
-    offlineInstances.length;
+  const recoveringServices = services.filter(
+    (service) => service.recovery && service.recovery.state !== "ready",
+  );
 
   return (
     <div className="page-stack page-enter">
@@ -1220,9 +1328,13 @@ export function HealthPage() {
           tone="good"
         />
         <Metric
-          label="运行告警"
-          value={String(serviceWarnings.length + offlineInstances.length)}
-          note={`${criticalAlerts} 紧急 · ${serviceWarnings.length + offlineInstances.length - criticalAlerts} 警告`}
+          label="自动恢复"
+          value={String(recoveringServices.length)}
+          note={
+            recoveringServices.length
+              ? `${recoveringServices.map((service) => service.name).join("、")} 正在恢复`
+              : "所有服务正常承载"
+          }
           tone="warning"
         />
       </section>
@@ -1268,7 +1380,11 @@ export function HealthPage() {
                   </small>
                 </div>
                 <strong>{service.successRate}</strong>
-                <span>{service.latency}</span>
+                <span>
+                  {service.recovery && service.recovery.state !== "ready"
+                    ? recoveryLabel(service.recovery.state)
+                    : service.latency}
+                </span>
                 <StatusBadge state={service.state} />
               </div>
             );
@@ -1291,7 +1407,9 @@ export function HealthPage() {
                 </strong>
                 <span>
                   {service.type === "MODEL"
-                    ? `首个 Token ${service.latency}，路由会按条件切换备用线路`
+                    ? service.recovery && service.recovery.state !== "ready"
+                      ? `${recoveryLabel(service.recovery.state)}，${service.recovery.retryAt ? `${service.recovery.retryAt} 发起恢复探测` : "等待恢复探测"}`
+                      : `首个 Token ${service.latency}，路由会按条件切换备用线路`
                     : `成功率 ${service.successRate}，健康端点继续承载流量`}
                 </span>
                 <small>
