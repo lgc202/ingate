@@ -11,8 +11,6 @@ import { CallerPage, PolicyPage } from "./pages/GovernancePages";
 import {
   AnalysisPage,
   AuditPage,
-  HealthPage,
-  ReleasePage,
   RequestPage,
   UsagePage,
 } from "./pages/OperationsPages";
@@ -32,8 +30,6 @@ export default function App() {
         <Route path="requests" element={<RequestPage />} />
         <Route path="analysis" element={<AnalysisPage />} />
         <Route path="usage" element={<UsagePage />} />
-        <Route path="health" element={<HealthPage />} />
-        <Route path="releases" element={<ReleasePage />} />
         <Route path="audit" element={<AuditPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/overview" replace />} />

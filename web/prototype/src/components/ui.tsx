@@ -108,7 +108,7 @@ export function StatusBadge({
         warning: "需关注",
         error: "异常",
         disabled: "未应用",
-        pending: "发布中",
+        pending: "生效中",
         unverified: "待验证",
       } as const
     )[state];
@@ -123,13 +123,11 @@ export function StatusBadge({
 export function ConfigBadge({ state = "active" }: { state?: ConfigState }) {
   const labels: Record<ConfigState, string> = {
     active: "已生效",
-    publishing: "发布中",
     failed: "未生效",
     "not-applied": "未应用",
   };
   const health: Record<ConfigState, HealthState> = {
     active: "healthy",
-    publishing: "pending",
     failed: "error",
     "not-applied": "disabled",
   };

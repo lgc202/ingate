@@ -6,12 +6,7 @@ import {
   CircleDollarSign,
   Download,
   FileClock,
-  History,
-  Network,
-  Server,
   ShieldCheck,
-  RefreshCw,
-  Wrench,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -165,7 +160,7 @@ export function RequestPage() {
             : request.type === filter);
         return (
           matchesType &&
-          `${request.id}${request.caller}${request.route}${request.request}${request.target}${request.result}${request.code}`
+          `${request.id}${request.caller}${request.route}${request.request}${request.target}${request.result}${request.code}${request.attempts.map((attempt) => `${attempt.service}${attempt.code}${attempt.error ?? ""}`).join("")}${request.decisions.map((decision) => `${decision.name}${decision.detail}`).join("")}`
             .toLowerCase()
             .includes(query.toLowerCase())
         );
@@ -176,7 +171,7 @@ export function RequestPage() {
   return (
     <div className="page-stack page-enter">
       <PageHeader
-        eyebrow="运行中心"
+        eyebrow="观测分析"
         title="请求记录"
         description="查找单次请求的路由、策略与服务执行结果"
       />
@@ -280,6 +275,10 @@ function RequestDetail({
   onClose: () => void;
 }) {
   const failed = request.result === "失败" || request.result === "策略拒绝";
+  const relatedService = request.attempts[0]?.service;
+  const quotaRejected = request.decisions.some((decision) =>
+    decision.name.includes("用量"),
+  );
   const usageLabel =
     request.type === "AI"
       ? "Token 用量"
@@ -338,6 +337,33 @@ function RequestDetail({
           </div>
         ))}
       </div>
+      {quotaRejected ? (
+        <div className="detail-jump">
+          <div>
+            <strong>该调用方的用量上限已触发</strong>
+            <span>查看本期使用量，必要时调整调用方上限</span>
+          </div>
+          <Link
+            className="button button-secondary"
+            to={`/usage?caller=${request.caller === "内部自动化" ? "caller-automation" : "ALL"}`}
+          >
+            查看调用方用量 <ChevronRight />
+          </Link>
+        </div>
+      ) : relatedService ? (
+        <div className="detail-jump">
+          <div>
+            <strong>{relatedService}</strong>
+            <span>查看服务端点与同类流量异常</span>
+          </div>
+          <Link
+            className="button button-secondary"
+            to={`/services?query=${encodeURIComponent(relatedService)}`}
+          >
+            查看服务 <ChevronRight />
+          </Link>
+        </div>
+      ) : null}
       <section className="service-attempts">
         <header>
           <div>
@@ -596,22 +622,63 @@ const analysisViews = {
 } as const;
 
 export function AnalysisPage() {
-  const { routes } = usePrototype();
+  const { routes, services } = usePrototype();
   const [params] = useSearchParams();
-  const requestedRoute = params.get("query");
-  const requestedType = routes.find(
-    (route) => route.name === requestedRoute,
-  )?.type;
+  const requestedRoute = params.get("route");
+  const requestedService = params.get("service");
+  const service = services.find((item) => item.name === requestedService);
+  const requestedType =
+    routes.find((route) => route.name === requestedRoute)?.type ??
+    (service?.type === "MODEL"
+      ? "AI"
+      : service?.type === "MCP"
+        ? "MCP"
+        : service
+          ? "API"
+          : undefined);
   const [filter, setFilter] = useState<AnalysisFilter>(
     requestedType === "AI" || requestedType === "MCP" ? requestedType : "API",
   );
   const view = analysisViews[filter];
+  const relatedRouteNames = new Set(
+    service
+      ? routes
+          .filter((route) =>
+            route.targets.some((target) => target.serviceID === service.id),
+          )
+          .map((route) => route.name)
+      : [],
+  );
   const visibleRows = requestedRoute
     ? view.rows.filter((row) => row[0] === requestedRoute)
-    : view.rows;
+    : service
+      ? view.rows.filter(
+          (row) =>
+            relatedRouteNames.has(row[0]) ||
+            row[2] === service.name ||
+            (filter === "MCP" && service.capabilities.includes(row[0])),
+        )
+      : view.rows;
+  const serviceMetrics = service
+    ? [
+        ["关联路由", String(relatedRouteNames.size), "当前服务"],
+        ["成功率", service.successRate, "过去 12 小时"],
+        [service.type === "MODEL" ? "首个 Token" : "P95 延迟", service.latency, "过去 12 小时"],
+        [
+          "异常端点",
+          String(service.endpoints.filter((endpoint) => endpoint.state !== "healthy").length),
+          `${service.endpoints.filter((endpoint) => endpoint.state === "healthy").length}/${service.endpoints.length} 健康`,
+        ],
+      ]
+    : view.metrics;
+  const focusDescription = requestedRoute
+    ? `已定位到路由“${requestedRoute}”的运行数据`
+    : service
+      ? `已定位到服务“${service.name}”承载的流量`
+      : "按 API、AI 与 MCP 查看吞吐、成功率和延迟";
   return (
     <div className="page-stack page-enter">
-      <PageHeader eyebrow="运行中心" title="流量分析" description={requestedRoute ? `已定位到路由“${requestedRoute}”的运行数据` : "按 API、AI 与 MCP 查看吞吐、成功率和延迟"} />
+      <PageHeader eyebrow="观测分析" title="流量分析" description={focusDescription} />
       <FilterTabs
         value={filter}
         onChange={setFilter}
@@ -622,7 +689,7 @@ export function AnalysisPage() {
         ]}
       />
       <section className="metric-grid four">
-        {view.metrics.map(([label, value, note]) => (
+        {serviceMetrics.map(([label, value, note]) => (
           <Metric key={label} label={label} value={value} note={note} />
         ))}
       </section>
@@ -631,7 +698,7 @@ export function AnalysisPage() {
           <header className="card-header">
             <div>
               <span className="eyebrow">过去 12 小时</span>
-              <h3>{view.title}趋势</h3>
+              <h3>{service ? `${service.name}请求趋势` : `${view.title}趋势`}</h3>
             </div>
             <span>{view.unit}</span>
           </header>
@@ -646,21 +713,27 @@ export function AnalysisPage() {
         </article>
         <article className="card composition-card">
           <header>
-            <span className="eyebrow">构成</span>
-            <h3>{view.composition.title}</h3>
+            <span className="eyebrow">{service ? "服务范围" : "构成"}</span>
+            <h3>{service ? "端点状态" : view.composition.title}</h3>
           </header>
           <div
             className="donut"
             style={{
-              background: `radial-gradient(circle,#fffef9 0 52%,transparent 53%), conic-gradient(${view.composition.gradient})`,
+              background: `radial-gradient(circle,#fffef9 0 52%,transparent 53%), conic-gradient(${service ? `var(--teal) 0 ${(service.endpoints.filter((endpoint) => endpoint.state === "healthy").length / service.endpoints.length) * 100}%, var(--red) 0 100%` : view.composition.gradient})`,
             }}
           >
             <div>
-              <strong>{view.composition.total}</strong>
-              <span>{view.composition.label}</span>
+              <strong>{service ? service.endpoints.length : view.composition.total}</strong>
+              <span>{service ? "服务端点" : view.composition.label}</span>
             </div>
           </div>
-          {view.composition.segments.map(([label, value, tone]) => (
+          {(service
+            ? [
+                ["健康", String(service.endpoints.filter((endpoint) => endpoint.state === "healthy").length), "api"],
+                ["异常", String(service.endpoints.filter((endpoint) => endpoint.state !== "healthy").length), "mcp"],
+              ]
+            : view.composition.segments
+          ).map(([label, value, tone]) => (
             <p key={label}>
               <i className={tone} />
               {label}
@@ -676,7 +749,7 @@ export function AnalysisPage() {
             <h3>{view.title}</h3>
           </div>
           <Link
-            to={`/requests?query=${encodeURIComponent(visibleRows[0]?.[0] ?? filter)}`}
+            to={`/requests?query=${encodeURIComponent(service?.name ?? visibleRows[0]?.[0] ?? filter)}`}
           >
             查看请求 <ChevronRight />
           </Link>
@@ -689,7 +762,7 @@ export function AnalysisPage() {
         {visibleRows.map((row) => (
           <Link
             className="ranking-row"
-            to={`/requests?query=${encodeURIComponent(row[0])}`}
+            to={`/requests?query=${encodeURIComponent(service?.name ?? row[0])}`}
             key={row[0]}
           >
             {row.map((cell, index) =>
@@ -779,7 +852,7 @@ export function UsagePage() {
   return (
     <div className="page-stack page-enter">
       <PageHeader
-        eyebrow="运行中心"
+        eyebrow="观测分析"
         title="用量与成本"
         description="分别查看额度归属、AI Token 消耗和模型服务成本"
         actions={
@@ -1083,7 +1156,7 @@ function CostUsageView({
         <strong>输出 Token × 单价</strong>
         <i>+</i>
         <strong>缓存输入 × 缓存单价</strong>
-        <p>只计算返回 Token 用量且已配置单价的服务调用，最终费用以模型厂商账单为准</p>
+        <p>按调用发生时记录的单价快照估算；缺少用量或单价的调用不计入，最终费用以模型厂商账单为准</p>
       </section>
       <section className="usage-layout">
         <article className="card usage-breakdown-card">
@@ -1142,7 +1215,7 @@ function CostUsageView({
                 ),
               ),
             )}
-          <footer>人民币 / 百万 Token · 未配置单价时不计算成本</footer>
+          <footer>人民币 / 百万 Token · 调用时记录单价快照，未配置单价时不计算成本</footer>
         </aside>
       </section>
       <section className="card ranking-card">
@@ -1262,428 +1335,32 @@ function formatCount(value: number) {
     : value.toLocaleString("zh-CN");
 }
 
-export function HealthPage() {
-  const { gateways, services, proxyInstances } = usePrototype();
-  const serviceWarnings = services.filter(
-    (service) =>
-      service.state === "warning" || service.state === "error",
-  );
-  const offlineInstances = proxyInstances.filter(
-    (instance) => instance.state !== "healthy",
-  );
-  const unhealthyEndpoints = services.flatMap((service) => service.endpoints)
-    .filter((endpoint) => endpoint.state !== "healthy");
-
-  return (
-    <div className="page-stack page-enter">
-      <PageHeader
-        eyebrow="运行中心"
-        title="运行健康"
-        description="最近 5 分钟的代理连接、入口流量与服务调用状态"
-        actions={
-          <Link className="button button-secondary" to="/releases">
-            查看配置发布 <ChevronRight />
-          </Link>
-        }
-      />
-      <section className="health-hero">
-        <span>
-          <AlertTriangle />
-        </span>
-        <div>
-          <small>生产环境</small>
-          <h2>
-            {serviceWarnings.length + offlineInstances.length}{" "}
-            项运行问题需要关注
-          </h2>
-          <p>本页展示实时流量与连接健康；配置交付状态请前往“配置发布”</p>
-        </div>
-        <StatusBadge
-          state={
-            serviceWarnings.length || offlineInstances.length
-              ? "warning"
-              : "healthy"
-          }
-          label={
-            serviceWarnings.length || offlineInstances.length
-              ? "需要关注"
-              : "运行正常"
-          }
-        />
-      </section>
-      <section className="metric-grid four">
-        <Metric
-          label="在线代理"
-          value={`${proxyInstances.length - offlineInstances.length} / ${proxyInstances.length}`}
-          note={
-            offlineInstances.length
-              ? `${offlineInstances.length} 个实例离线`
-              : "全部在线"
-          }
-          tone={offlineInstances.length ? "warning" : "good"}
-        />
-        <Metric
-          label="健康服务"
-          value={`${services.length - serviceWarnings.length} / ${services.length}`}
-          note={`${serviceWarnings.length} 个需要关注`}
-        />
-        <Metric
-          label="入口成功率"
-          value="99.99%"
-          note={`${gateways.length} 个网关有请求`}
-          tone="good"
-        />
-        <Metric
-          label="异常端点"
-          value={String(unhealthyEndpoints.length)}
-          note="至少被一个代理实例判定异常"
-          tone={unhealthyEndpoints.length ? "warning" : "good"}
-        />
-      </section>
-      <section className="health-layout">
-        <article className="card component-card">
-          <header className="card-header">
-            <div>
-              <span className="eyebrow">服务与入口</span>
-              <h3>流量路径健康</h3>
-            </div>
-          </header>
-          {gateways.map((gateway) => (
-            <div className="component-row" key={gateway.id}>
-              <span>
-                <Network />
-              </span>
-              <div>
-                <strong>{gateway.name}</strong>
-                <small>逻辑网关 · {gateway.listeners.length} 个监听入口</small>
-              </div>
-              <strong>99.99%</strong>
-              <span>P95 4 ms</span>
-              <StatusBadge state={gateway.state} />
-            </div>
-          ))}
-          {services.map((service) => {
-            const detail =
-              service.type === "HTTP"
-                ? `${service.endpoints.length} 个端点`
-                : (service.capabilities[0] ?? "尚未发现能力");
-            return (
-              <div className="component-row" key={service.id}>
-                <span>{service.type === "MCP" ? <Wrench /> : <Server />}</span>
-                <div>
-                  <strong>{service.name}</strong>
-                  <small>
-                    {service.type === "MODEL"
-                      ? "大模型服务"
-                      : service.type === "MCP"
-                        ? "MCP 服务"
-                        : "HTTP 服务"}{" "}
-                    · {detail}
-                  </small>
-                </div>
-                <strong>{service.successRate}</strong>
-                <span>{service.latency}</span>
-                <StatusBadge state={service.state} />
-              </div>
-            );
-          })}
-        </article>
-        <aside className="card alert-card">
-          <header>
-            <span className="eyebrow">运行告警</span>
-            <h3>需要处理</h3>
-          </header>
-          {serviceWarnings.map((service, index) => (
-            <div key={service.id}>
-              <AlertTriangle />
-              <p>
-                <strong>
-                  {service.name}
-                  {service.type === "MODEL"
-                    ? "响应变慢"
-                    : "错误率升高"}
-                </strong>
-                <span>
-                  {service.type === "MODEL"
-                    ? `首个 Token ${service.latency}，符合条件时路由切换备用线路`
-                    : `成功率 ${service.successRate}，健康端点继续承载流量`}
-                </span>
-                <small>
-                  <Clock3 />
-                  持续 {8 + index * 3} 分钟
-                </small>
-              </p>
-            </div>
-          ))}
-          <footer>
-            <CheckCircle2 />
-            <span>
-              <strong>今天已恢复 3 项</strong>
-              <small>最近恢复：搜索工具服务连接</small>
-            </span>
-          </footer>
-        </aside>
-      </section>
-      <section className="card proxy-card">
-        <header className="card-header">
-          <div>
-            <span className="eyebrow">代理实例</span>
-            <h3>在线状态</h3>
-          </div>
-        </header>
-        {proxyInstances.map((instance) => (
-          <div className="proxy-row" key={instance.id}>
-            <span>
-              <Network />
-            </span>
-            <div>
-              <strong>{instance.id}</strong>
-              <small>
-                {instance.address} · {instance.zone}
-              </small>
-            </div>
-            <code>{instance.version}</code>
-            <span>配置 v{instance.activeConfigVersion}</span>
-            <small>{instance.lastSeen}</small>
-            <StatusBadge
-              state={instance.state}
-              label={instance.state === "healthy" ? "在线" : "离线"}
-            />
-          </div>
-        ))}
-      </section>
-    </div>
-  );
-}
-
-export function ReleasePage() {
-  const {
-    gateways,
-    routes,
-    services,
-    certificates,
-    policies,
-    proxyInstances,
-    currentVersion,
-    candidateVersion,
-    releaseHistory,
-  } = usePrototype();
-  const [selectedVersion, setSelectedVersion] = useState(
-    releaseHistory[0]?.version ?? currentVersion,
-  );
-  const selected =
-    releaseHistory.find((release) => release.version === selectedVersion) ??
-    releaseHistory[0];
-  const failedCount = releaseHistory.filter(
-    (release) => release.state === "发布失败",
-  ).length;
-  const proxyConfigVersions = new Set(
-    proxyInstances.map((instance) => instance.activeConfigVersion),
-  ).size;
-  return (
-    <div className="page-stack page-enter">
-      <PageHeader
-        eyebrow="变更管理"
-        title="配置发布"
-        description="从声明变更到全部代理实例确认的完整交付记录"
-        actions={
-          <Link className="button button-secondary" to="/health">
-            查看运行健康 <ChevronRight />
-          </Link>
-        }
-      />
-      <section
-        className={`release-hero ${candidateVersion ? "is-publishing" : ""}`}
-      >
-        <span>{candidateVersion ? <RefreshCw /> : <CheckCircle2 />}</span>
-        <div>
-          <small>最近完整生效版本</small>
-          <h2>
-            v{currentVersion}
-            {candidateVersion
-              ? ` · v${candidateVersion} 正在确认`
-              : " · 全部实例已确认"}
-          </h2>
-          <p>
-            {candidateVersion
-              ? "代理实例会逐个应用候选配置，全部确认后更新完整生效版本"
-              : `${proxyInstances.length} 个代理实例配置一致`}
-          </p>
-        </div>
-        <StatusBadge
-          state={candidateVersion ? "pending" : "healthy"}
-          label={candidateVersion ? "发布中" : "已生效"}
-        />
-      </section>
-      <section className="metric-grid four">
-        <Metric
-          label="完整生效版本"
-          value={`v${currentVersion}`}
-          note="全部代理实例都已确认"
-          tone="good"
-        />
-        <Metric
-          label="待确认版本"
-          value={candidateVersion ? `v${candidateVersion}` : "—"}
-          note={candidateVersion ? "实例正在逐个确认" : "没有发布任务"}
-        />
-        <Metric
-          label="代理一致性"
-          value={proxyConfigVersions === 1 ? "一致" : "不一致"}
-          note={`${proxyConfigVersions} 个配置版本`}
-          tone={proxyConfigVersions === 1 ? "good" : "warning"}
-        />
-        <Metric
-          label="发布失败"
-          value={String(failedCount)}
-          note="近期版本记录"
-          tone={failedCount ? "warning" : "good"}
-        />
-      </section>
-      <section className="release-layout">
-        <article className="card release-card">
-          <header className="card-header">
-            <div>
-              <span className="eyebrow">版本记录</span>
-              <h3>配置交付</h3>
-            </div>
-          </header>
-          <div className="release-history">
-            {releaseHistory.map((release) => (
-              <button
-                type="button"
-                className={
-                  selected.version === release.version ? "is-selected" : ""
-                }
-                key={release.version}
-                onClick={() => setSelectedVersion(release.version)}
-              >
-                <span>
-                  {release.state === "发布中" ? (
-                    <Clock3 />
-                  ) : release.state === "发布失败" ? (
-                    <AlertTriangle />
-                  ) : (
-                    <CheckCircle2 />
-                  )}
-                </span>
-                <p>
-                  <strong>版本 {release.version}</strong>
-                  <small>
-                    {release.summary} · {release.resources}
-                  </small>
-                </p>
-                <time>{release.time}</time>
-                <StatusBadge
-                  state={
-                    release.state === "发布中"
-                      ? "pending"
-                      : release.state === "发布失败"
-                        ? "error"
-                        : "healthy"
-                  }
-                  label={release.state}
-                />
-              </button>
-            ))}
-          </div>
-        </article>
-        <aside className="card release-detail">
-          <header>
-            <span className="eyebrow">版本 v{selected.version}</span>
-            <h3>{selected.summary}</h3>
-            <StatusBadge
-              state={
-                selected.state === "发布中"
-                  ? "pending"
-                  : selected.state === "发布失败"
-                    ? "error"
-                    : "healthy"
-              }
-              label={selected.state}
-            />
-          </header>
-          <div className="sync-progress">
-            <span>
-              <strong>
-                {selected.syncedInstances} / {selected.totalInstances}
-              </strong>{" "}
-              个实例已确认
-            </span>
-            <i>
-              <b
-                style={{
-                  width: `${(selected.syncedInstances / selected.totalInstances) * 100}%`,
-                }}
-              />
-            </i>
-          </div>
-          {selected.error ? (
-            <div className="release-error">
-              <AlertTriangle />
-              <div>
-                <strong>未形成完整生效版本</strong>
-                <p>{selected.error}</p>
-              </div>
-            </div>
-          ) : null}
-          <section>
-            <h4>变更影响</h4>
-            {selected.changes.map((change) => (
-              <p key={change}>
-                <History />
-                {change}
-              </p>
-            ))}
-          </section>
-          <dl className="definition-list">
-            <div>
-              <dt>生效策略</dt>
-              <dd>实例逐个应用，全部确认后标记发布成功</dd>
-            </div>
-            <div>
-              <dt>失败处理</dt>
-              <dd>修正相关资源后生成新版本，失败记录保留用于排障</dd>
-            </div>
-            <div>
-              <dt>声明资源</dt>
-              <dd>
-                {gateways.length +
-                  routes.length +
-                  services.length +
-                  certificates.length +
-                  policies.length}{" "}
-                项
-              </dd>
-            </div>
-          </dl>
-        </aside>
-      </section>
-    </div>
-  );
-}
-
 export function AuditPage() {
   const { auditRecords } = usePrototype();
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<AuditRecord | null>(null);
+  const [result, setResult] = useState<"ALL" | AuditRecord["result"]>("ALL");
   const [resourceType, setResourceType] = useState<
     "ALL" | AuditRecord["resourceType"]
   >("ALL");
   const visible = auditRecords.filter(
     (record) =>
       (resourceType === "ALL" || record.resourceType === resourceType) &&
+      (result === "ALL" || record.result === result) &&
       `${record.actor}${record.action}${record.resource}${record.detail}`.includes(
         query,
       ),
   );
   const exportRecords = () => {
     const rows = [
-      ["时间", "操作者", "动作", "资源", "详情"],
+      ["记录编号", "时间", "操作者", "动作", "资源", "结果", "详情"],
       ...visible.map((record) => [
+        record.id,
         record.time,
         record.actor,
         record.action,
         record.resource,
+        record.result,
         record.detail,
       ]),
     ];
@@ -1705,7 +1382,7 @@ export function AuditPage() {
   return (
     <div className="page-stack page-enter">
       <PageHeader
-        eyebrow="变更管理"
+        eyebrow="系统管理"
         title="审计日志"
         description="配置、权限与凭据操作"
         actions={
@@ -1732,12 +1409,22 @@ export function AuditPage() {
             value={resourceType}
             onChange={setResourceType}
             options={[
-              { value: "ALL", label: "全部", count: auditRecords.length },
+            { value: "ALL", label: "全部", count: auditRecords.length },
               { value: "网关", label: "网关" },
               { value: "路由", label: "路由" },
               { value: "服务", label: "服务" },
               { value: "调用方", label: "调用方" },
               { value: "流量策略", label: "策略" },
+            ]}
+          />
+          <FilterSelect
+            label="操作结果"
+            value={result}
+            onChange={setResult}
+            options={[
+              { value: "ALL", label: "全部结果" },
+              { value: "成功", label: "成功" },
+              { value: "失败", label: "失败" },
             ]}
           />
         </header>
@@ -1747,7 +1434,12 @@ export function AuditPage() {
         </div>
         {visible.length ? (
           visible.map((record, index) => (
-            <article className="audit-row" key={record.id}>
+            <button
+              className="audit-row"
+              type="button"
+              onClick={() => setSelected(record)}
+              key={record.id}
+            >
               <span>
                 <FileClock />
               </span>
@@ -1769,7 +1461,7 @@ export function AuditPage() {
                 <time>{record.time}</time>
               </div>
               {index < visible.length - 1 ? <i /> : null}
-            </article>
+            </button>
           ))
         ) : (
           <EmptyState
@@ -1778,6 +1470,30 @@ export function AuditPage() {
           />
         )}
       </section>
+      {selected ? (
+        <Drawer
+          title={selected.action}
+          description={`${selected.actor} · ${selected.time}`}
+          onClose={() => setSelected(null)}
+        >
+          <div className="detail-hero">
+            <span><FileClock /></span>
+            <div>
+              <StatusBadge state={selected.result === "成功" ? "healthy" : "error"} label={selected.result} />
+              <h3>{selected.resource}</h3>
+              <p>{selected.resourceType} · 记录编号 {selected.id}</p>
+            </div>
+          </div>
+          <section className="detail-section">
+            <header><h3>变更摘要</h3></header>
+            <div className="detail-line">
+              <span><FileClock /></span>
+              <div><strong>{selected.detail}</strong><small>敏感凭据不会写入审计内容</small></div>
+              <span>{selected.time}</span>
+            </div>
+          </section>
+        </Drawer>
+      ) : null}
     </div>
   );
 }

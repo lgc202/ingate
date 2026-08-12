@@ -1,7 +1,6 @@
 import {
   createContext,
   useContext,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -11,8 +10,6 @@ import {
   initialCertificates,
   initialGateways,
   initialPolicies,
-  initialProxyInstances,
-  initialReleaseHistory,
   initialRequests,
   initialRoutes,
   initialServices,
@@ -25,9 +22,7 @@ import {
   type Gateway,
   type GatewayRoute,
   type Policy,
-  type ProxyInstance,
   type RequestRecord,
-  type ReleaseRecord,
   type Service,
 } from "./data";
 
@@ -39,16 +34,11 @@ interface PrototypeState {
   callers: Caller[];
   policies: Policy[];
   requests: RequestRecord[];
-  proxyInstances: ProxyInstance[];
-  currentVersion: number;
-  candidateVersion?: number;
-  releaseHistory: ReleaseRecord[];
   auditRecords: AuditRecord[];
   addGateway: (gateway: Gateway) => void;
   updateGateway: (gateway: Gateway) => void;
   deleteGateway: (gatewayID: string) => void;
   addRoute: (route: GatewayRoute) => void;
-  addRoutes: (routes: GatewayRoute[]) => void;
   updateRoute: (route: GatewayRoute) => void;
   deleteRoute: (routeID: string) => void;
   addService: (service: Service) => void;
@@ -93,12 +83,7 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
   const [callers, setCallers] = useState(initialCallers);
   const [policies, setPolicies] = useState(initialPolicies);
   const [requests, setRequests] = useState(initialRequests);
-  const [proxyInstances, setProxyInstances] = useState(initialProxyInstances);
-  const [currentVersion, setCurrentVersion] = useState(142);
-  const [candidateVersion, setCandidateVersion] = useState<number>();
-  const [releaseHistory, setReleaseHistory] = useState(initialReleaseHistory);
   const [auditRecords, setAuditRecords] = useState(initialAuditRecords);
-  const nextVersion = useRef(143);
 
   const recordAudit = (
     action: string,
@@ -121,54 +106,6 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
     ]);
   };
 
-  const publish = (
-    summary: string,
-    resourceType: AuditRecord["resourceType"],
-    resource: string,
-    detail: string,
-    complete: () => void,
-  ) => {
-    const version = nextVersion.current++;
-    setCandidateVersion(version);
-    setReleaseHistory((records) => [
-      {
-        version,
-        time: `今天 ${currentTime()}`,
-        summary,
-        resources: "1 项资源",
-        state: "发布中",
-        syncedInstances: 0,
-        totalInstances: 5,
-        changes: [detail],
-      },
-      ...records,
-    ]);
-    recordAudit(summary, resourceType, resource, detail);
-    window.setTimeout(() => {
-      complete();
-      setCurrentVersion(version);
-      setCandidateVersion(undefined);
-      setReleaseHistory((records) =>
-        records.map((record) =>
-          record.version === version
-            ? {
-                ...record,
-                state: "已生效",
-                syncedInstances: record.totalInstances,
-                error: undefined,
-              }
-            : record,
-        ),
-      );
-      setProxyInstances((instances) =>
-        instances.map((instance) => ({
-          ...instance,
-          activeConfigVersion: version,
-        })),
-      );
-    }, 900);
-  };
-
   const value: PrototypeState = {
     gateways,
     routes,
@@ -177,36 +114,21 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
     callers,
     policies,
     requests,
-    proxyInstances,
-    currentVersion,
-    candidateVersion,
-    releaseHistory,
     auditRecords,
     addGateway: (gateway) => {
-      setGateways((items) => [
-        ...items,
-        { ...gateway, configState: "publishing" },
-      ]);
-      publish(
+      setGateways((items) => [...items, { ...gateway, configState: "active" }]);
+      recordAudit(
         `创建网关“${gateway.name}”`,
         "网关",
         gateway.name,
-        "网关配置已提交，正在同步到代理实例",
-        () =>
-          setGateways((items) =>
-            items.map((item) =>
-              item.id === gateway.id
-                ? { ...item, configState: "active" }
-                : item,
-            ),
-          ),
+        "网关配置已保存",
       );
     },
     updateGateway: (gateway) => {
       setGateways((items) =>
         items.map((item) =>
           item.id === gateway.id
-            ? { ...gateway, configState: "publishing" }
+            ? { ...gateway, configState: "active" }
             : item,
         ),
       );
@@ -227,75 +149,37 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
           ),
         })),
       );
-      publish(
+      recordAudit(
         `更新网关“${gateway.name}”`,
         "网关",
         gateway.name,
-        "网关配置已提交，正在同步到代理实例",
-        () =>
-          setGateways((items) =>
-            items.map((item) =>
-              item.id === gateway.id
-                ? { ...item, configState: "active" }
-                : item,
-            ),
-          ),
+        "网关配置已更新",
       );
     },
     deleteGateway: (gatewayID) => {
       const gateway = gateways.find((item) => item.id === gatewayID);
       if (!gateway) return;
       setGateways((items) => items.filter((item) => item.id !== gatewayID));
-      publish(
+      recordAudit(
         `删除网关“${gateway.name}”`,
         "网关",
         gateway.name,
         "网关已从当前环境移除",
-        () => undefined,
       );
     },
     addRoute: (route) => {
-      setRoutes((items) => [...items, { ...route, configState: "publishing" }]);
-      publish(
+      setRoutes((items) => [...items, { ...route, configState: "active" }]);
+      recordAudit(
         `创建路由“${route.name}”`,
         "路由",
         route.name,
-        `${route.host}${route.path} 已提交发布`,
-        () =>
-          setRoutes((items) =>
-            items.map((item) =>
-              item.id === route.id ? { ...item, configState: "active" } : item,
-            ),
-          ),
-      );
-    },
-    addRoutes: (newRoutes) => {
-      if (!newRoutes.length) return;
-      const routeIDs = new Set(newRoutes.map((route) => route.id));
-      setRoutes((items) => [
-        ...items,
-        ...newRoutes.map((route) => ({
-          ...route,
-          configState: "publishing" as const,
-        })),
-      ]);
-      publish(
-        `导入 ${newRoutes.length} 条 API 路由`,
-        "路由",
-        newRoutes.map((route) => route.name).join("、"),
-        `OpenAPI 定义已生成 ${newRoutes.length} 条路由并作为同一版本发布`,
-        () =>
-          setRoutes((items) =>
-            items.map((item) =>
-              routeIDs.has(item.id) ? { ...item, configState: "active" } : item,
-            ),
-          ),
+        `${route.host}${route.path} 已保存`,
       );
     },
     updateRoute: (route) => {
       setRoutes((items) =>
         items.map((item) =>
-          item.id === route.id ? { ...route, configState: "publishing" } : item,
+          item.id === route.id ? { ...route, configState: "active" } : item,
         ),
       );
       setPolicies((items) =>
@@ -308,56 +192,38 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
           ),
         })),
       );
-      publish(
+      recordAudit(
         `更新路由“${route.name}”`,
         "路由",
         route.name,
-        `${route.host}${route.path} 已提交发布`,
-        () =>
-          setRoutes((items) =>
-            items.map((item) =>
-              item.id === route.id ? { ...item, configState: "active" } : item,
-            ),
-          ),
+        `${route.host}${route.path} 已更新`,
       );
     },
     deleteRoute: (routeID) => {
       const route = routes.find((item) => item.id === routeID);
       if (!route) return;
       setRoutes((items) => items.filter((item) => item.id !== routeID));
-      publish(
+      recordAudit(
         `删除路由“${route.name}”`,
         "路由",
         route.name,
         "路由已从当前环境移除",
-        () => undefined,
       );
     },
     addService: (service) => {
-      setServices((items) => [
-        ...items,
-        { ...service, configState: "publishing" },
-      ]);
-      publish(
+      setServices((items) => [...items, { ...service, configState: "active" }]);
+      recordAudit(
         `创建服务“${service.name}”`,
         "服务",
         service.name,
         `${service.type === "MODEL" ? "模型" : service.type} 服务连接配置已保存`,
-        () =>
-          setServices((items) =>
-            items.map((item) =>
-              item.id === service.id
-                ? { ...item, configState: "active" }
-                : item,
-            ),
-          ),
       );
     },
     updateService: (service) => {
       setServices((items) =>
         items.map((item) =>
           item.id === service.id
-            ? { ...service, configState: "publishing" }
+            ? { ...service, configState: "active" }
             : item,
         ),
       );
@@ -371,31 +237,22 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
           ),
         })),
       );
-      publish(
+      recordAudit(
         `更新服务“${service.name}”`,
         "服务",
         service.name,
         "服务连接配置已保存",
-        () =>
-          setServices((items) =>
-            items.map((item) =>
-              item.id === service.id
-                ? { ...item, configState: "active" }
-                : item,
-            ),
-          ),
       );
     },
     deleteService: (serviceID) => {
       const service = services.find((item) => item.id === serviceID);
       if (!service) return;
       setServices((items) => items.filter((item) => item.id !== serviceID));
-      publish(
+      recordAudit(
         `删除服务“${service.name}”`,
         "服务",
         service.name,
         "服务连接配置已移除",
-        () => undefined,
       );
     },
     verifyService: (serviceID) => {
@@ -415,7 +272,7 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
           item.id === serviceID
             ? {
                 ...item,
-                configState: "publishing",
+                configState: "active",
                 clientCertificateID:
                   clientCertificateID ?? item.clientCertificateID,
                 credentialUpdatedAt: "刚刚",
@@ -423,60 +280,38 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
             : item,
         ),
       );
-      publish(
+      recordAudit(
         `更新服务“${service.name}”凭据`,
         "服务",
         service.name,
         "新凭据已验证并提交切换",
-        () =>
-          setServices((items) =>
-            items.map((item) =>
-              item.id === serviceID ? { ...item, configState: "active" } : item,
-            ),
-          ),
       );
     },
     addCertificate: (certificate) => {
       setCertificates((items) => [
         ...items,
-        { ...certificate, configState: "publishing" },
+        { ...certificate, configState: "active" },
       ]);
-      publish(
+      recordAudit(
         `导入证书“${certificate.name}”`,
         "证书",
         certificate.name,
         "证书已校验并提交配置",
-        () =>
-          setCertificates((items) =>
-            items.map((item) =>
-              item.id === certificate.id
-                ? { ...item, configState: "active" }
-                : item,
-            ),
-          ),
       );
     },
     updateCertificate: (certificate) => {
       setCertificates((items) =>
         items.map((item) =>
           item.id === certificate.id
-            ? { ...certificate, configState: "publishing" }
+            ? { ...certificate, configState: "active" }
             : item,
         ),
       );
-      publish(
+      recordAudit(
         `更新证书“${certificate.name}”`,
         "证书",
         certificate.name,
         "新证书已校验并提交替换",
-        () =>
-          setCertificates((items) =>
-            items.map((item) =>
-              item.id === certificate.id
-                ? { ...item, configState: "active" }
-                : item,
-            ),
-          ),
       );
     },
     deleteCertificate: (certificateID) => {
@@ -487,12 +322,11 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
       setCertificates((items) =>
         items.filter((item) => item.id !== certificateID),
       );
-      publish(
+      recordAudit(
         `删除证书“${certificate.name}”`,
         "证书",
         certificate.name,
         "证书已从当前环境移除",
-        () => undefined,
       );
     },
     addCaller: (caller) => {
@@ -519,12 +353,11 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
           return { ...caller, permissions, quotas, state: callerState(quotas) };
         }),
       );
-      publish(
+      recordAudit(
         `更新“${callers.find((item) => item.id === callerID)?.name ?? "调用方"}”权限`,
         "调用方",
         callers.find((item) => item.id === callerID)?.name ?? callerID,
         "路由访问权限已提交",
-        () => undefined,
       );
     },
     setCallerQuota: (callerID, quota) => {
@@ -543,12 +376,11 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
           return { ...caller, quotas, state: callerState(quotas) };
         }),
       );
-      publish(
+      recordAudit(
         `更新“${callers.find((item) => item.id === callerID)?.name ?? "调用方"}”用量上限`,
         "调用方",
         callers.find((item) => item.id === callerID)?.name ?? callerID,
         "累计用量上限已提交",
-        () => undefined,
       );
     },
     removeCallerQuota: (callerID, routeID) => {
@@ -561,12 +393,11 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
           return { ...caller, quotas, state: callerState(quotas) };
         }),
       );
-      publish(
+      recordAudit(
         `移除“${callers.find((item) => item.id === callerID)?.name ?? "调用方"}”用量上限`,
         "调用方",
         callers.find((item) => item.id === callerID)?.name ?? callerID,
         "累计用量上限已移除",
-        () => undefined,
       );
     },
     issueCallerKey: (callerID, key) => {
@@ -646,7 +477,7 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
         ...items,
         {
           ...policy,
-          configState: policy.targets.length ? "publishing" : "not-applied",
+          configState: policy.targets.length ? "active" : "not-applied",
         },
       ]);
       if (!policy.targets.length) {
@@ -658,17 +489,11 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
         );
         return;
       }
-      publish(
+      recordAudit(
         `创建流量策略“${policy.name}”`,
         "流量策略",
         policy.name,
         `已选择 ${policy.targets.length} 个生效目标`,
-        () =>
-          setPolicies((items) =>
-            items.map((item) =>
-              item.id === policy.id ? { ...item, configState: "active" } : item,
-            ),
-          ),
       );
     },
     updatePolicy: (policy) => {
@@ -677,9 +502,7 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
           item.id === policy.id
             ? {
                 ...policy,
-                configState: policy.targets.length
-                  ? "publishing"
-                  : "not-applied",
+                configState: policy.targets.length ? "active" : "not-applied",
               }
             : item,
         ),
@@ -693,29 +516,22 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
         );
         return;
       }
-      publish(
+      recordAudit(
         `更新流量策略“${policy.name}”`,
         "流量策略",
         policy.name,
         `已选择 ${policy.targets.length} 个生效目标`,
-        () =>
-          setPolicies((items) =>
-            items.map((item) =>
-              item.id === policy.id ? { ...item, configState: "active" } : item,
-            ),
-          ),
       );
     },
     deletePolicy: (policyID) => {
       const policy = policies.find((item) => item.id === policyID);
       if (!policy) return;
       setPolicies((items) => items.filter((item) => item.id !== policyID));
-      publish(
+      recordAudit(
         `删除流量策略“${policy.name}”`,
         "流量策略",
         policy.name,
         "策略已从当前环境移除",
-        () => undefined,
       );
     },
     resetDemo: () => {
@@ -726,12 +542,7 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
       setCallers(initialCallers);
       setPolicies(initialPolicies);
       setRequests(initialRequests);
-      setCurrentVersion(142);
-      setCandidateVersion(undefined);
-      setReleaseHistory(initialReleaseHistory);
-      setProxyInstances(initialProxyInstances);
       setAuditRecords(initialAuditRecords);
-      nextVersion.current = 143;
     },
   };
 

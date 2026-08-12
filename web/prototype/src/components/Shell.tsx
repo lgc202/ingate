@@ -3,7 +3,6 @@ import {
   ChartNoAxesCombined,
   ChevronRight,
   FileClock,
-  HeartPulse,
   KeyRound,
   LayoutDashboard,
   CircleDollarSign,
@@ -11,7 +10,6 @@ import {
   PanelLeftOpen,
   Route,
   Server,
-  Send,
   ShieldCheck,
   UsersRound,
   Waypoints,
@@ -43,28 +41,23 @@ const navigation = [
     ],
   },
   {
-    label: "运行中心",
+    label: "观测分析",
     items: [
-      { label: "运行健康", to: "/health", icon: HeartPulse },
       { label: "请求记录", to: "/requests", icon: Activity },
       { label: "流量分析", to: "/analysis", icon: ChartNoAxesCombined },
       { label: "用量与成本", to: "/usage", icon: CircleDollarSign },
     ],
   },
   {
-    label: "变更管理",
-    items: [
-      { label: "配置发布", to: "/releases", icon: Send },
-      { label: "审计日志", to: "/audit", icon: FileClock },
-    ],
+    label: "系统管理",
+    items: [{ label: "审计日志", to: "/audit", icon: FileClock }],
   },
 ];
 
 export function Shell() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { currentVersion, candidateVersion, releaseHistory, resetDemo } =
-    usePrototype();
+  const { resetDemo } = usePrototype();
   const page = navigation
     .flatMap((group) =>
       group.items.map((item) => ({ ...item, group: group.label })),
@@ -134,20 +127,6 @@ export function Shell() {
             <span>{page?.group ?? "Ingate"}</span>
             <ChevronRight />
             <strong>{page?.label ?? "概览"}</strong>
-          </div>
-          <div className="workspace-actions">
-            <NavLink to="/releases" className="active-release">
-              <span>
-                {candidateVersion
-                  ? "发布中"
-                  : (releaseHistory.find(
-                      (release) => release.version === currentVersion,
-                    )?.state ?? "已生效")}
-              </span>
-              {candidateVersion
-                ? `候选 v${candidateVersion} · 完整 v${currentVersion}`
-                : `v${currentVersion}`}
-            </NavLink>
           </div>
         </header>
         <main>

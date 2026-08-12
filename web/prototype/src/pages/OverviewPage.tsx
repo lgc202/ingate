@@ -22,9 +22,6 @@ export function OverviewPage() {
     services,
     callers,
     requests,
-    currentVersion,
-    candidateVersion,
-    proxyInstances,
   } = usePrototype();
   const runtimeAlerts = services.filter(
     (service) =>
@@ -50,16 +47,13 @@ export function OverviewPage() {
         <div className="hero-copy">
           <span className="hero-kicker">
             <i />
-            完整生效配置 v{currentVersion}
-            {candidateVersion
-              ? ` · v${candidateVersion} 发布中`
-              : " · 全部实例已确认"}
+            最近保留 {requests.length} 条示例请求用于体验排障
           </span>
           <h2>流量稳定，{runtimeAlerts} 项服务需要关注</h2>
           <p>Anthropic 公网首个 Token 响应变慢 · 文件服务错误率升高</p>
           <div className="hero-actions">
-            <Link to="/health" className="button button-light">
-              查看运行告警
+            <Link to="/services" className="button button-light">
+              查看异常服务
             </Link>
             <Link to="/requests" className="button button-ghost">
               排查请求
@@ -110,15 +104,16 @@ export function OverviewPage() {
         />
       </section>
 
-      <section className="card quick-start-card">
-        <header className="card-header">
-          <div>
-            <span className="eyebrow">首次接入</span>
-            <h3>从接入到验证，一条链路完成</h3>
-          </div>
-          <span>4 个步骤</span>
-        </header>
-        <div className="quick-start-steps">
+      {services.length === 0 || callers.length === 0 ? (
+        <section className="card quick-start-card">
+          <header className="card-header">
+            <div>
+              <span className="eyebrow">首次接入</span>
+              <h3>从接入到验证，一条链路完成</h3>
+            </div>
+            <span>4 个步骤</span>
+          </header>
+          <div className="quick-start-steps">
           <Link to="/services">
             <i>1</i>
             <div>
@@ -130,7 +125,7 @@ export function OverviewPage() {
           <Link to="/routes">
             <i>2</i>
             <div>
-              <strong>发布路由</strong>
+              <strong>创建路由</strong>
               <small>决定客户端如何访问服务</small>
             </div>
             <ArrowRight />
@@ -151,8 +146,9 @@ export function OverviewPage() {
             </div>
             <ArrowRight />
           </Link>
-        </div>
-      </section>
+          </div>
+        </section>
+      ) : null}
 
       <section className="overview-grid">
         <article className="card flow-card">
@@ -190,12 +186,12 @@ export function OverviewPage() {
         <article className="card attention-card">
           <header className="card-header">
             <div>
-              <span className="eyebrow">运行告警</span>
+              <span className="eyebrow">服务异常</span>
               <h3>{runtimeAlerts} 项需要处理</h3>
             </div>
-            <Link to="/health">查看全部</Link>
+            <Link to="/services">查看全部</Link>
           </header>
-          <Link to="/health" className="attention-row">
+          <Link to="/services?query=Anthropic%20公网" className="attention-row">
             <span className="attention-icon warning">
               <Clock3 />
             </span>
@@ -205,7 +201,7 @@ export function OverviewPage() {
             </div>
             <StatusBadge state="warning" />
           </Link>
-          <Link to="/health" className="attention-row">
+          <Link to="/services?query=文件服务" className="attention-row">
             <span className="attention-icon warning">
               <AlertTriangle />
             </span>
@@ -217,7 +213,7 @@ export function OverviewPage() {
           </Link>
           <div className="attention-foot">
             <CheckCircle2 />
-            {proxyInstances.length} 个代理实例运行正常
+            其余 {Math.max(services.length - runtimeAlerts, 0)} 个服务运行正常
           </div>
         </article>
       </section>
@@ -244,7 +240,7 @@ export function OverviewPage() {
             </div>
             <StatusBadge state="error" label="已用尽" />
           </Link>
-          <Link to="/requests?query=req_9Ab4Xe" className="attention-row">
+          <Link to="/requests?query=req_8Dn5Rt" className="attention-row">
             <span className="attention-icon warning">
               <ShieldCheck />
             </span>

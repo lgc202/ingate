@@ -6,7 +6,6 @@ import {
   ChevronRight,
   CircleGauge,
   Clock3,
-  FileUp,
   Globe2,
   KeyRound,
   LockKeyhole,
@@ -21,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   CompactTagList,
   Drawer,
@@ -94,7 +93,7 @@ export function GatewayPage() {
           value={String(gateways.length)}
           note={`${gateways.filter((gateway) => (gateway.configState ?? "active") === "active").length} 个配置正常`}
         />
-        <Metric label="配置异常" value={String(gateways.filter((gateway) => gateway.configState === "failed").length)} note="尚未应用到全部代理实例" tone={gateways.some((gateway) => gateway.configState === "failed") ? "warning" : "good"} />
+        <Metric label="配置异常" value={String(gateways.filter((gateway) => gateway.configState === "failed").length)} note="需要检查相关网关配置" tone={gateways.some((gateway) => gateway.configState === "failed") ? "warning" : "good"} />
         <Metric
           label="监听入口"
           value={String(
@@ -106,13 +105,13 @@ export function GatewayPage() {
           note={`${gateways.flatMap((gateway) => gateway.listeners).filter((listener) => listener.protocol === "HTTPS").length} 个 HTTPS`}
         />
         <Metric
-          label="已发布路由"
+          label="已生效路由"
           value={String(
             routes.filter(
               (route) => (route.configState ?? "active") === "active",
             ).length,
           )}
-          note="最近完整生效版本"
+          note="当前配置已生效"
         />
       </section>
       <section className="card table-card">
@@ -191,7 +190,7 @@ export function GatewayPage() {
           onSave={(gateway) => {
             addGateway(gateway);
             setCreating(false);
-            setToast("网关已保存，正在发布");
+            setToast("网关已保存");
           }}
         />
       ) : null}
@@ -204,7 +203,7 @@ export function GatewayPage() {
           onSave={(gateway) => {
             updateGateway(gateway);
             setEditing(null);
-            setToast("网关修改已保存，正在发布");
+            setToast("网关修改已保存");
           }}
         />
       ) : null}
@@ -228,7 +227,7 @@ export function GatewayPage() {
           onConfirm={() => {
             deleteGateway(deleting.id);
             setDeleting(null);
-            setToast("网关已删除，正在发布");
+            setToast("网关已删除");
           }}
         />
       ) : null}
@@ -268,7 +267,7 @@ function GatewayDetail({
         <div>
           <ConfigBadge state={gateway.configState} />
           <h3>{gatewayDomains(gateway).join(" · ")}</h3>
-          <p>{gateway.listeners.length} 个监听入口 · 配置已发布到当前环境</p>
+          <p>{gateway.listeners.length} 个监听入口 · 配置已在当前环境生效</p>
         </div>
       </div>
       <div className="detail-kpis">
@@ -803,17 +802,28 @@ export function RoutePage() {
     policies,
     callers,
     addRoute,
-    addRoutes,
     updateRoute,
     deleteRoute,
   } = usePrototype();
-  const [filter, setFilter] = useState<RouteFilter>("ALL");
+  const [params] = useSearchParams();
+  const preferredServiceID = params.get("service") ?? undefined;
+  const preferredService = services.find(
+    (service) => service.id === preferredServiceID,
+  );
+  const [filter, setFilter] = useState<RouteFilter>(
+    preferredService?.type === "MODEL"
+      ? "AI"
+      : preferredService?.type === "MCP"
+        ? "MCP"
+        : preferredService
+          ? "API"
+          : "ALL",
+  );
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<GatewayRoute | null>(null);
   const [editing, setEditing] = useState<GatewayRoute | null>(null);
   const [deleting, setDeleting] = useState<GatewayRoute | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [importing, setImporting] = useState(false);
+  const [creating, setCreating] = useState(params.get("create") === "1");
   const [toast, setToast] = useState("");
   const visible = routes.filter(
     (route) =>
@@ -828,20 +838,10 @@ export function RoutePage() {
         eyebrow="流量配置"
         title="路由"
         actions={
-          <>
-            <button
-              className="button button-secondary"
-              type="button"
-              onClick={() => setImporting(true)}
-            >
-              <FileUp />
-              导入 OpenAPI
-            </button>
-            <PrimaryButton onClick={() => setCreating(true)}>
-              <Plus />
-              创建路由
-            </PrimaryButton>
-          </>
+          <PrimaryButton onClick={() => setCreating(true)}>
+            <Plus />
+            创建路由
+          </PrimaryButton>
         }
       />
       <section className="card table-card">
@@ -849,7 +849,7 @@ export function RoutePage() {
           <SearchField
             value={query}
             onChange={setQuery}
-            placeholder="搜索路由、域名或发布能力"
+            placeholder="搜索路由、域名、模型或工具"
           />
           <FilterTabs
             value={filter}
@@ -936,6 +936,11 @@ export function RoutePage() {
         <RouteDetail
           route={selected}
           policies={policies}
+          authorizedCallerCount={callers.filter((caller) =>
+            caller.permissions.some(
+              (permission) => permission.routeID === selected.id,
+            ),
+          ).length}
           onClose={() => setSelected(null)}
         />
       ) : null}
@@ -944,11 +949,13 @@ export function RoutePage() {
           routes={routes}
           gateways={gateways}
           services={services}
+          preferredServiceID={preferredServiceID}
           onClose={() => setCreating(false)}
           onSave={(route) => {
             addRoute(route);
             setCreating(false);
-            setToast("路由已保存，正在发布");
+            setSelected(route);
+            setToast("路由已保存");
           }}
         />
       ) : null}
@@ -962,7 +969,7 @@ export function RoutePage() {
           onSave={(route) => {
             updateRoute(route);
             setEditing(null);
-            setToast("路由修改已保存，正在发布");
+            setToast("路由修改已保存");
           }}
         />
       ) : null}
@@ -990,19 +997,7 @@ export function RoutePage() {
           onConfirm={() => {
             deleteRoute(deleting.id);
             setDeleting(null);
-            setToast("路由已删除，正在发布");
-          }}
-        />
-      ) : null}
-      {importing ? (
-        <ImportOpenAPI
-          gateways={gateways}
-          services={services}
-          onClose={() => setImporting(false)}
-          onImport={(newRoutes) => {
-            addRoutes(newRoutes);
-            setImporting(false);
-            setToast(`已创建 ${newRoutes.length} 条 API 路由，正在发布`);
+            setToast("路由已删除");
           }}
         />
       ) : null}
@@ -1010,181 +1005,15 @@ export function RoutePage() {
     </div>
   );
 }
-function ImportOpenAPI({
-  gateways,
-  services,
-  onClose,
-  onImport,
-}: {
-  gateways: Gateway[];
-  services: Service[];
-  onClose: () => void;
-  onImport: (routes: GatewayRoute[]) => void;
-}) {
-  const [fileName, setFileName] = useState("");
-  const [parsed, setParsed] = useState(false);
-  const [gatewayID, setGatewayID] = useState(gateways[0]?.id ?? "");
-  const [serviceID, setServiceID] = useState(
-    services.find((service) => service.type === "HTTP")?.id ?? "",
-  );
-  const gateway = gateways.find((item) => item.id === gatewayID);
-  const service = services.find((item) => item.id === serviceID);
-  const operations = [
-    {
-      name: "查询订单",
-      method: "GET",
-      path: "/api/orders/{id}",
-    },
-    {
-      name: "创建订单",
-      method: "POST",
-      path: "/api/orders",
-    },
-    {
-      name: "取消订单",
-      method: "DELETE",
-      path: "/api/orders/{id}",
-    },
-  ];
-  const submit = () => {
-    if (!gateway || !service) return;
-    onImport(
-      operations.map((operation) => ({
-        id: `route-${crypto.randomUUID()}`,
-        name: operation.name,
-        type: "API",
-        gatewayID: gateway.id,
-        gatewayName: gateway.name,
-        host: gatewayDomains(gateway)[0] ?? "",
-        path: operation.path.replace("/{id}", ""),
-        accessMode: "需要调用方密钥",
-        match: `${operation.method} ${operation.path}`,
-        published: [`${operation.method} ${operation.path}`],
-        targets: [
-          {
-            serviceID: service.id,
-            serviceName: service.name,
-            publishedCapability: `${operation.method} ${operation.path}`,
-            detail: `${service.endpoints.length} 个端点`,
-            role: "主线路",
-          },
-        ],
-        forwarding: {
-          strategy: "单线路",
-          timeout: "30 秒",
-          retries: 1,
-          pathHandling: "保持原路径",
-          hostRewrite: "使用服务地址",
-          circuitBreaker: {
-            consecutiveFailures: 5,
-            ejectionTime: "30 秒",
-          },
-        },
-        requests: "0",
-        successRate: "—",
-        latency: "—",
-        state: "healthy",
-      })),
-    );
-  };
-  return (
-    <Drawer
-      title="导入 OpenAPI"
-      description="从 API 契约批量创建基础路由，导入后仍可逐条编辑"
-      onClose={onClose}
-      width="wide"
-    >
-      <form onSubmit={(event) => submitForm(event, submit)}>
-        <div className="form-grid">
-          <label className="field-wide">
-            <span>OpenAPI 文件</span>
-            <input
-              type="file"
-              accept=".json,.yaml,.yml"
-              required
-              onChange={(event) => {
-                setFileName(event.target.files?.[0]?.name ?? "");
-                setParsed(false);
-              }}
-            />
-            <small>支持 OpenAPI 3.0 JSON 或 YAML</small>
-          </label>
-          <label>
-            <span>生效网关</span>
-            <select
-              value={gatewayID}
-              onChange={(event) => setGatewayID(event.target.value)}
-            >
-              {gateways.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>目标 HTTP 服务</span>
-            <select
-              value={serviceID}
-              onChange={(event) => setServiceID(event.target.value)}
-            >
-              {services
-                .filter((item) => item.type === "HTTP")
-                .map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-            </select>
-          </label>
-        </div>
-        <button
-          className={`connection-test ${parsed ? "is-success" : ""}`}
-          type="button"
-          disabled={!fileName}
-          onClick={() => setParsed(true)}
-        >
-          {parsed ? <CheckCircle2 /> : <FileUp />}
-          <div>
-            <strong>{parsed ? "契约解析完成" : "解析并检查契约"}</strong>
-            <span>
-              {parsed
-                ? `发现 ${operations.length} 个操作，无路由冲突`
-                : "检查格式、操作标识和目标网关中的路由冲突"}
-            </span>
-          </div>
-        </button>
-        {parsed ? (
-          <section className="import-preview">
-            <header>
-              <strong>即将创建 {operations.length} 条路由</strong>
-              <span>{fileName}</span>
-            </header>
-            {operations.map((operation) => (
-              <div key={`${operation.method}-${operation.path}`}>
-                <code>{operation.method}</code>
-                <strong>{operation.path}</strong>
-                <span>{operation.name}</span>
-              </div>
-            ))}
-          </section>
-        ) : null}
-        <FormActions
-          submitLabel="创建并发布路由"
-          submitDisabled={!parsed || !gateway || !service}
-          onCancel={onClose}
-        />
-      </form>
-    </Drawer>
-  );
-}
 function RouteDetail({
   route,
   policies,
+  authorizedCallerCount,
   onClose,
 }: {
   route: GatewayRoute;
   policies: Policy[];
+  authorizedCallerCount: number;
   onClose: () => void;
 }) {
   const accessMode = route.accessMode ?? "需要调用方密钥";
@@ -1212,10 +1041,25 @@ function RouteDetail({
         service={route.targets[0]?.serviceName ?? "未选择"}
         detail={route.targets[0]?.detail}
       />
-      <div className="detail-jump"><div><strong>路由运行数据</strong><span>请求量、成功率、延迟和失败原因</span></div><Link className="button button-secondary" to={`/analysis?query=${encodeURIComponent(route.name)}`}>查看运行数据 <ChevronRight /></Link></div>
+      {accessMode === "需要调用方密钥" ? (
+        <div className="detail-jump">
+          <div>
+            <strong>
+              {authorizedCallerCount
+                ? `${authorizedCallerCount} 个调用方可访问`
+                : "还没有调用方可访问"}
+            </strong>
+            <span>为调用方授权后可签发密钥并复制调用示例</span>
+          </div>
+          <Link className="button button-secondary" to="/callers">
+            管理调用方 <ChevronRight />
+          </Link>
+        </div>
+      ) : null}
+      <div className="detail-jump"><div><strong>路由运行数据</strong><span>请求量、成功率、延迟和失败原因</span></div><Link className="button button-secondary" to={`/analysis?route=${encodeURIComponent(route.name)}`}>查看运行数据 <ChevronRight /></Link></div>
       <section className="detail-section">
         <header>
-          <h3>匹配与发布</h3>
+          <h3>匹配与能力</h3>
         </header>
         <dl className="definition-list">
           <div>
@@ -1400,6 +1244,7 @@ function CreateRoute({
   routes,
   gateways,
   services,
+  preferredServiceID,
   onClose,
   onSave,
 }: {
@@ -1407,10 +1252,20 @@ function CreateRoute({
   routes: GatewayRoute[];
   gateways: Gateway[];
   services: Service[];
+  preferredServiceID?: string;
   onClose: () => void;
   onSave: (route: GatewayRoute) => void;
 }) {
-  const [type, setType] = useState<TrafficType>(initial?.type ?? "API");
+  const preferredService = services.find(
+    (service) => service.id === preferredServiceID,
+  );
+  const preferredType: TrafficType =
+    preferredService?.type === "MODEL"
+      ? "AI"
+      : preferredService?.type === "MCP"
+        ? "MCP"
+        : "API";
+  const [type, setType] = useState<TrafficType>(initial?.type ?? preferredType);
   const [name, setName] = useState(initial?.name ?? "新路由");
   const [gatewayID, setGatewayID] = useState(
     initial?.gatewayID ?? gateways[0]?.id ?? "",
@@ -1431,11 +1286,11 @@ function CreateRoute({
   const [accessMode, setAccessMode] = useState<GatewayRoute["accessMode"]>(
     initial?.accessMode ?? "需要调用方密钥",
   );
-  const [jwtIssuer, setJWTIssuer] = useState(initial?.jwt?.issuer ?? "");
-  const [jwtAudience, setJWTAudience] = useState(initial?.jwt?.audience ?? "");
-  const [jwksURI, setJWKSURI] = useState(initial?.jwt?.jwksURI ?? "");
   const [serviceID, setServiceID] = useState(
-    initial?.targets[0]?.serviceID ?? "",
+    initial?.targets[0]?.serviceID ??
+      (preferredService?.type === "HTTP" || preferredService?.type === "MCP"
+        ? preferredService.id
+        : ""),
   );
   const [selectedTools, setSelectedTools] = useState<string[]>(
     initial?.type === "MCP" ? initial.published : [],
@@ -1456,7 +1311,7 @@ function CreateRoute({
   const [modelMappings, setModelMappings] = useState<ModelMappingDraft[]>(
     initial?.type === "AI"
       ? modelMappingsFromRoute(initial)
-      : [newModelMapping(services)],
+      : [newModelMapping(services, preferredServiceID)],
   );
   const [timeout, setTimeout] = useState(
     initial?.forwarding.timeout.replace(/\D/g, "") || "30",
@@ -1678,14 +1533,6 @@ function CreateRoute({
             : "Streamable HTTP · tools/call",
       published,
       targets,
-      jwt:
-        accessMode === "JWT / OIDC"
-          ? {
-              issuer: jwtIssuer,
-              audience: jwtAudience,
-              jwksURI,
-            }
-          : undefined,
       conditions:
         type === "API" && conditionName.trim()
           ? [
@@ -1841,48 +1688,14 @@ function CreateRoute({
                 }
               >
                 <option>需要调用方密钥</option>
-                {type === "API" ? <option>JWT / OIDC</option> : null}
                 <option>公开访问</option>
               </select>
               <small>
                 {accessMode === "需要调用方密钥"
                   ? "校验密钥及该调用方在本路由下的接口、模型或工具权限"
-                  : accessMode === "JWT / OIDC"
-                    ? "校验标准 JWT 的签发方、受众和签名"
-                    : "不识别调用方，调用方权限与用量上限不适用"}
+                  : "不识别调用方，调用方权限与用量上限不适用"}
               </small>
             </label>
-            {accessMode === "JWT / OIDC" ? (
-              <>
-                <label>
-                  <span>Issuer</span>
-                  <input
-                    required
-                    value={jwtIssuer}
-                    onChange={(event) => setJWTIssuer(event.target.value)}
-                    placeholder="https://login.example.com/"
-                  />
-                </label>
-                <label>
-                  <span>Audience</span>
-                  <input
-                    required
-                    value={jwtAudience}
-                    onChange={(event) => setJWTAudience(event.target.value)}
-                    placeholder="ingate-api"
-                  />
-                </label>
-                <label className="field-wide">
-                  <span>JWKS 地址</span>
-                  <input
-                    required
-                    value={jwksURI}
-                    onChange={(event) => setJWKSURI(event.target.value)}
-                    placeholder="https://login.example.com/.well-known/jwks.json"
-                  />
-                </label>
-              </>
-            ) : null}
             {type === "API" ? (
               <>
                 <label>
@@ -2426,8 +2239,15 @@ function CreateRoute({
     </Drawer>
   );
 }
-function newModelMapping(services: Service[]): ModelMappingDraft {
-  const primary = services.find((service) => service.type === "MODEL");
+function newModelMapping(
+  services: Service[],
+  preferredServiceID?: string,
+): ModelMappingDraft {
+  const primary =
+    services.find(
+      (service) =>
+        service.id === preferredServiceID && service.type === "MODEL",
+    ) ?? services.find((service) => service.type === "MODEL");
   return {
     id: crypto.randomUUID(),
     published: "",
@@ -2501,8 +2321,9 @@ export function ServicePage() {
     verifyService,
     updateServiceCredential,
   } = usePrototype();
+  const [params] = useSearchParams();
   const [filter, setFilter] = useState<ServiceFilter>("ALL");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(params.get("query") ?? "");
   const [selected, setSelected] = useState<Service | null>(null);
   const [editing, setEditing] = useState<Service | null>(null);
   const [deleting, setDeleting] = useState<Service | null>(null);
@@ -2561,9 +2382,9 @@ export function ServicePage() {
           note={`${toolCount} 个已发现工具`}
         />
         <Metric
-          label="已验证连接"
+          label="配置已校验"
           value={`${verifiedServices} / ${services.length}`}
-          note="端点、认证与协议验证"
+          note="端点、认证与协议校验"
           tone={verifiedServices === services.length ? "good" : "warning"}
         />
       </section>
@@ -2606,7 +2427,7 @@ export function ServicePage() {
           <span>协议与地址</span>
           <span>端点 / 模型 / 工具</span>
           <span>引用路由</span>
-          <span>连接验证</span>
+          <span>配置校验</span>
           <span>配置状态</span>
           <span>操作</span>
         </div>
@@ -2647,22 +2468,27 @@ export function ServicePage() {
                 }{" "}
                 条
               </strong>
-              <StatusBadge
-                state={
-                  service.verificationState === "failed"
-                    ? "error"
-                    : service.verificationState === "unverified"
-                      ? "unverified"
-                      : "healthy"
-                }
-                label={
-                  service.verificationState === "failed"
-                    ? "验证失败"
-                    : service.verificationState === "unverified"
-                      ? "待验证"
-                      : "已验证"
-                }
-              />
+              <div className="service-signal">
+                <StatusBadge
+                  state={
+                    service.verificationState === "failed"
+                      ? "error"
+                      : service.verificationState === "unverified"
+                        ? "unverified"
+                        : "healthy"
+                  }
+                  label={
+                    service.verificationState === "failed"
+                      ? "校验失败"
+                      : service.verificationState === "unverified"
+                        ? "待校验"
+                        : "配置已校验"
+                  }
+                />
+                {service.state === "warning" || service.state === "error" ? (
+                  <small>{service.successRate} · {service.latency}</small>
+                ) : null}
+              </div>
               <ConfigBadge state={service.configState} />
               <RowActions
                 onDetail={() => setSelected(service)}
@@ -2705,6 +2531,7 @@ export function ServicePage() {
           onSave={(service) => {
             addService(service);
             setCreating(false);
+            setSelected(service);
             setToast("服务已创建");
           }}
         />
@@ -2717,7 +2544,7 @@ export function ServicePage() {
           onSave={(service) => {
             updateService(service);
             setEditing(null);
-            setToast("服务修改已保存，正在发布");
+            setToast("服务修改已保存");
           }}
         />
       ) : null}
@@ -2748,7 +2575,7 @@ export function ServicePage() {
           onConfirm={() => {
             deleteService(deleting.id);
             setDeleting(null);
-            setToast("服务已删除，正在发布");
+            setToast("服务已删除");
           }}
         />
       ) : null}
@@ -2811,7 +2638,7 @@ function ServiceDetail({
           }}
         >
           {checked ? <CheckCircle2 /> : <RotateCw />}
-          {checked ? "检测通过" : "重新检测"}
+          {checked ? "校验通过" : "重新校验"}
         </button>
       </div>
       <div className="detail-hero">
@@ -2835,10 +2662,10 @@ function ServiceDetail({
             }
             label={
               checked || service.verificationState === "verified"
-                ? "连接已验证"
+                ? "配置已校验"
                 : service.verificationState === "failed"
-                  ? "连接验证失败"
-                  : "连接待验证"
+                  ? "配置校验失败"
+                  : "配置待校验"
             }
           />
           <h3>{service.endpoints[0]?.address}</h3>
@@ -2847,7 +2674,18 @@ function ServiceDetail({
           </p>
         </div>
       </div>
-      <div className="detail-jump"><div><strong>{routes.length} 条路由引用此服务</strong><span>成功率、延迟和端点异常</span></div><Link className="button button-secondary" to="/health">查看运行健康 <ChevronRight /></Link></div>
+      <div className="detail-jump">
+        <div>
+          <strong>{routes.length ? `${routes.length} 条路由引用此服务` : "此服务尚未对外开放"}</strong>
+          <span>{routes.length ? `成功率 ${service.successRate} · 延迟 ${service.latency}` : "创建路由后，外部请求才能转发到此服务"}</span>
+        </div>
+        <Link
+          className="button button-secondary"
+          to={routes.length ? `/analysis?service=${encodeURIComponent(service.name)}` : `/routes?create=1&service=${service.id}`}
+        >
+          {routes.length ? "查看运行数据" : "创建路由"} <ChevronRight />
+        </Link>
+      </div>
       <section className="detail-section">
         <header>
           <h3>服务端点</h3>
@@ -2868,7 +2706,13 @@ function ServiceDetail({
                   : service.protocol}
               </small>
             </div>
-            <span className="endpoint-weight">{service.endpoints.length > 1 ? `${endpoint.weight}%` : "已配置"}</span>
+            <span className="endpoint-weight">
+              {service.endpoints.length > 1 ? `${endpoint.weight}%` : "单端点"}
+            </span>
+            <StatusBadge
+              state={endpoint.state}
+              label={endpoint.state === "healthy" ? "健康" : "异常"}
+            />
           </div>
         ))}
         <dl className="definition-list">
@@ -2921,7 +2765,7 @@ function ServiceDetail({
           <header>
             <div>
               <h3>实际模型</h3>
-              <small>连接验证返回或人工填写的厂商模型 ID</small>
+              <small>配置校验返回或人工填写的厂商模型 ID</small>
             </div>
             <div className="service-capability-tools">
               <SearchField
@@ -4005,7 +3849,7 @@ function CreateService({
           <div>
             <strong>
               {tested
-                ? "连接验证通过"
+                ? "配置校验通过"
                 : type === "MCP"
                   ? "测试连接并发现工具"
                   : type === "MODEL"
@@ -4020,8 +3864,8 @@ function CreateService({
                     ? capabilities.length
                       ? `已确认 ${capabilities.length} 个实际模型 ID`
                       : "连接通过，请手动填写实际模型 ID"
-                    : `已验证 ${endpoints.length} 个端点、认证和 TLS`
-                : "验证端点、认证、TLS 和协议兼容性"}
+                    : `已校验 ${endpoints.length} 个端点、认证和 TLS`
+                : "校验端点、认证、TLS 和协议兼容性"}
             </span>
           </div>
         </button>
@@ -4230,7 +4074,12 @@ export function CertificatePage() {
           <Clock3 />
           <span>
             <strong>
-              {certificates.filter((item) => item.remainingDays < 30).length}
+              {
+                certificates.filter(
+                  (item) =>
+                    item.remainingDays < 30 && referencesFor(item.id).length,
+                ).length
+              }
             </strong>{" "}
             张将在 30 天内过期
           </span>
@@ -4281,7 +4130,7 @@ export function CertificatePage() {
                   items={references.map((reference) => reference.name)}
                   empty="未引用"
                 />
-                <div className="certificate-state"><StatusBadge state={certificate.state} label={certificate.state === "warning" ? "即将到期" : certificate.state === "error" ? "不可用" : "有效"} /><ConfigBadge state={certificate.configState} /></div>
+                <div className="certificate-state"><StatusBadge state={!references.length ? "disabled" : certificate.state} label={!references.length ? "未引用" : certificate.state === "warning" ? "即将到期" : certificate.state === "error" ? "不可用" : "有效"} /><ConfigBadge state={certificate.configState} /></div>
                 <RowActions
                   onDetail={() => setSelected(certificate)}
                   onEdit={() => setEditing(certificate)}
@@ -4307,9 +4156,11 @@ export function CertificatePage() {
             <div>
               <div className="certificate-state">
                 <StatusBadge
-                  state={selected.state}
+                  state={referencesFor(selected.id).length ? selected.state : "disabled"}
                   label={
-                    selected.state === "warning"
+                    !referencesFor(selected.id).length
+                      ? "未引用"
+                      : selected.state === "warning"
                       ? "即将到期"
                       : selected.state === "error"
                         ? "不可用"
@@ -4352,13 +4203,7 @@ export function CertificatePage() {
             ) : (
               <EmptyState
                 title="证书未被引用"
-                description={
-                  selected.usage === "服务器证书"
-                    ? "可绑定到 HTTPS 监听入口的域名。"
-                    : selected.usage === "客户端证书"
-                      ? "可作为服务的 mTLS 客户端身份。"
-                      : "可校验上游 TLS 服务端证书。"
-                }
+                description="当前可以安全删除；需要时也可在网关或服务配置中重新选择。"
               />
             )}
           </section>
@@ -4376,7 +4221,7 @@ export function CertificatePage() {
           onSave={(certificate) => {
             addCertificate(certificate);
             setCreating(false);
-            setToast("证书已导入，正在发布");
+            setToast("证书已导入");
           }}
         />
       ) : null}
@@ -4387,7 +4232,7 @@ export function CertificatePage() {
           onSave={(certificate) => {
             updateCertificate(certificate);
             setEditing(null);
-            setToast("证书已更新，正在发布");
+            setToast("证书已更新");
           }}
         />
       ) : null}
@@ -4406,7 +4251,7 @@ export function CertificatePage() {
           onConfirm={() => {
             deleteCertificate(deleting.id);
             setDeleting(null);
-            setToast("证书已删除，正在发布");
+            setToast("证书已删除");
           }}
         />
       ) : null}
