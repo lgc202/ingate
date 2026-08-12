@@ -33,12 +33,13 @@ import {
   Metric,
   PageHeader,
   PrimaryButton,
+  RouteTypeBadge,
   RowActions,
   SearchField,
   StatusBadge,
+  ServiceTypeBadge,
   Toast,
   Topology,
-  TypeBadge,
   submitForm,
 } from "../components/ui";
 import type {
@@ -93,7 +94,7 @@ export function GatewayPage() {
           value={String(gateways.length)}
           note={`${gateways.filter((gateway) => (gateway.configState ?? "active") === "active").length} 个配置正常`}
         />
-        <Metric label="配置异常" value={String(gateways.filter((gateway) => gateway.configState === "failed").length)} note="发布失败的网关配置" tone={gateways.some((gateway) => gateway.configState === "failed") ? "warning" : "good"} />
+        <Metric label="配置异常" value={String(gateways.filter((gateway) => gateway.configState === "failed").length)} note="尚未应用到全部代理实例" tone={gateways.some((gateway) => gateway.configState === "failed") ? "warning" : "good"} />
         <Metric
           label="监听入口"
           value={String(
@@ -325,7 +326,7 @@ function GatewayDetail({
         </header>
         {routes.map((route) => (
           <div className="detail-line" key={route.id}>
-            <TypeBadge type={route.type} />
+            <RouteTypeBadge type={route.type} />
             <div>
               <strong>{route.name}</strong>
               <small>
@@ -362,7 +363,7 @@ function GatewayDetail({
         ) : (
           <EmptyState
             title="未应用入口策略"
-            description="路由级策略仍会在对应路由上执行。"
+            description="路由级策略不受网关策略影响。"
           />
         )}
       </section>
@@ -861,17 +862,17 @@ export function RoutePage() {
               },
               {
                 value: "API",
-                label: "API",
+                label: "API 路由",
                 count: routes.filter((item) => item.type === "API").length,
               },
               {
                 value: "AI",
-                label: "AI",
+                label: "AI 路由",
                 count: routes.filter((item) => item.type === "AI").length,
               },
               {
                 value: "MCP",
-                label: "MCP",
+                label: "MCP 路由",
                 count: routes.filter((item) => item.type === "MCP").length,
               },
             ]}
@@ -890,7 +891,7 @@ export function RoutePage() {
           visible.map((route) => (
             <div key={route.id} className="table-row route-columns">
               <div className="name-cell">
-                <TypeBadge type={route.type} />
+                <RouteTypeBadge type={route.type} />
                 <div>
                   <strong>{route.name}</strong>
                   <small>
@@ -1202,7 +1203,7 @@ function RouteDetail({
       width="wide"
     >
       <div className="drawer-actions">
-        <TypeBadge type={route.type} />
+        <RouteTypeBadge type={route.type} />
         <ConfigBadge state={route.configState} />
       </div>
       <Topology
@@ -1211,7 +1212,7 @@ function RouteDetail({
         service={route.targets[0]?.serviceName ?? "未选择"}
         detail={route.targets[0]?.detail}
       />
-      <div className="detail-jump"><div><strong>需要查看这条路由的实时表现？</strong><span>请求量、成功率、延迟和失败原因统一在运行中心分析</span></div><Link className="button button-secondary" to={`/analysis?query=${encodeURIComponent(route.name)}`}>查看运行数据 <ChevronRight /></Link></div>
+      <div className="detail-jump"><div><strong>路由运行数据</strong><span>请求量、成功率、延迟和失败原因</span></div><Link className="button button-secondary" to={`/analysis?query=${encodeURIComponent(route.name)}`}>查看运行数据 <ChevronRight /></Link></div>
       <section className="detail-section">
         <header>
           <h3>匹配与发布</h3>
@@ -1755,13 +1756,13 @@ function CreateRoute({
               className={type === item ? "is-selected" : ""}
               onClick={() => changeType(item)}
             >
-              <TypeBadge type={item} />
+              <RouteTypeBadge type={item} />
               <strong>
                 {item === "API"
-                  ? "HTTP API"
+                  ? "普通 HTTP API"
                   : item === "AI"
-                    ? "模型 API"
-                    : "MCP 工具"}
+                    ? "统一大模型接口"
+                    : "远程工具调用"}
               </strong>
               <small>
                 {item === "API"
@@ -1778,7 +1779,7 @@ function CreateRoute({
             <span>1</span>
             <div>
               <strong>请求入口</strong>
-              <small>请求只会命中符合域名和路径的一条路由</small>
+              <small>请求按域名和路径匹配唯一一条路由</small>
             </div>
           </header>
           <div className="form-grid">
@@ -2204,7 +2205,7 @@ function CreateRoute({
                       </div>
                     ) : (
                       <div className="tool-picker-empty">
-                        尚未开放工具，该路由暂时不能调用 MCP 能力
+                        未开放工具，MCP 请求将被拒绝
                       </div>
                     )}
                     <div className="tool-picker-toolbar">
@@ -2395,7 +2396,7 @@ function CreateRoute({
           normalizedMappings.some((mapping) => mapping.backupEnabled) ? (
             <fieldset className="failover-picker">
               <legend>切换到备用线路的条件</legend>
-              {["连接失败", "超时", "HTTP 429", "HTTP 5xx", "内容安全拒绝"].map(
+              {["连接失败", "超时", "HTTP 429", "HTTP 5xx"].map(
                 (reason) => (
                   <label key={reason}>
                     <input
@@ -2499,7 +2500,6 @@ export function ServicePage() {
     deleteService,
     verifyService,
     updateServiceCredential,
-    reviewServiceChanges,
   } = usePrototype();
   const [filter, setFilter] = useState<ServiceFilter>("ALL");
   const [query, setQuery] = useState("");
@@ -2534,7 +2534,7 @@ export function ServicePage() {
       <PageHeader
         eyebrow="流量配置"
         title="服务"
-        description="HTTP、模型与 MCP 服务连接"
+        description="HTTP、大模型与 MCP 服务连接"
         actions={
           <PrimaryButton onClick={() => setCreating(true)}>
             <Plus />
@@ -2549,7 +2549,7 @@ export function ServicePage() {
           note="普通业务与开放 API"
         />
         <Metric
-          label="模型服务"
+          label="大模型服务"
           value={String(
             services.filter((item) => item.type === "MODEL").length,
           )}
@@ -2567,45 +2567,6 @@ export function ServicePage() {
           tone={verifiedServices === services.length ? "good" : "warning"}
         />
       </section>
-      {services.filter((service) => service.capabilityChanges && !service.capabilityChanges.reviewed).map((service) => {
-        const changes = service.capabilityChanges!;
-        const affectedRoutes = routes.filter((route) =>
-          route.targets.some((target) => target.serviceID === service.id),
-        );
-        const capabilityName = service.type === "MCP" ? "工具" : "模型";
-        return (
-          <section className="capability-alert" key={service.id}>
-            <span>{service.type === "MCP" ? <Wrench /> : <Sparkles />}</span>
-            <div>
-              <small>服务能力发生变化 · {changes.detectedAt}</small>
-              <h3>{service.name} 的{capabilityName}清单需要确认</h3>
-              <p>
-                {changes.added.length
-                  ? `新增 ${summarizeItems(changes.added)}`
-                  : ""}
-                {changes.added.length && changes.removed.length ? "；" : ""}
-                {changes.removed.length
-                  ? `移除 ${summarizeItems(changes.removed)}`
-                  : ""}
-              </p>
-              <p>
-                影响 {affectedRoutes.length} 条路由：
-                {affectedRoutes.length
-                  ? summarizeItems(affectedRoutes.map((route) => route.name))
-                  : "尚无路由引用"}
-              </p>
-            </div>
-            <button
-              className="button button-secondary"
-              type="button"
-              onClick={() => reviewServiceChanges(service.id)}
-            >
-              <CheckCircle2 />
-              确认服务能力
-            </button>
-          </section>
-        );
-      })}
       <section className="card table-card">
         <header className="table-toolbar">
           <SearchField
@@ -2624,17 +2585,17 @@ export function ServicePage() {
               },
               {
                 value: "HTTP",
-                label: "HTTP",
+                label: "HTTP 服务",
                 count: services.filter((item) => item.type === "HTTP").length,
               },
               {
                 value: "MODEL",
-                label: "模型",
+                label: "大模型服务",
                 count: services.filter((item) => item.type === "MODEL").length,
               },
               {
                 value: "MCP",
-                label: "MCP",
+                label: "MCP 服务",
                 count: services.filter((item) => item.type === "MCP").length,
               },
             ]}
@@ -2653,7 +2614,7 @@ export function ServicePage() {
           visible.map((service) => (
             <div key={service.id} className="table-row service-columns">
               <div className="name-cell">
-                <TypeBadge type={service.type} />
+                <ServiceTypeBadge type={service.type} />
                 <div>
                   <strong>{service.name}</strong>
                   <small>{service.provider}</small>
@@ -2818,11 +2779,6 @@ function ServiceDetail({
   const trustCertificate = certificates.find(
     (certificate) => certificate.id === service.trustCertificateID,
   );
-  const visibleModels = (service.models ?? []).filter((model) =>
-    `${model.name}${model.displayName}`
-      .toLowerCase()
-      .includes(capabilityQuery.toLowerCase()),
-  );
   const visibleCapabilities = service.capabilities.filter((capability) =>
     capability.toLowerCase().includes(capabilityQuery.toLowerCase()),
   );
@@ -2834,7 +2790,7 @@ function ServiceDetail({
       width="wide"
     >
       <div className="drawer-actions">
-        <TypeBadge type={service.type} />
+        <ServiceTypeBadge type={service.type} />
         <ConfigBadge state={service.configState} />
         {service.authentication !== "无认证" ? (
           <button
@@ -2891,67 +2847,7 @@ function ServiceDetail({
           </p>
         </div>
       </div>
-      <div className="detail-jump"><div><strong>{routes.length} 条路由引用此服务</strong><span>线上成功率、延迟和端点异常统一在运行健康中查看</span></div><Link className="button button-secondary" to="/health">查看运行健康 <ChevronRight /></Link></div>
-      {service.recovery ? (
-        <section className="detail-section recovery-section">
-          <header>
-            <div>
-              <h3>自动故障恢复</h3>
-              <small>连续失败后自动摘除，冷却结束再用少量请求探测</small>
-            </div>
-            <StatusBadge
-              state={
-                service.recovery.state === "ready"
-                  ? "healthy"
-                  : service.recovery.state === "probing"
-                    ? "warning"
-                    : "error"
-              }
-              label={recoveryStateLabel(service.recovery.state)}
-            />
-          </header>
-          <div className="recovery-flow">
-            {(["ready", "ejected", "cooling", "probing"] as const).map(
-              (state, index) => (
-                <div
-                  className={
-                    service.recovery?.state === state ? "is-current" : ""
-                  }
-                  key={state}
-                >
-                  <span>{index + 1}</span>
-                  <strong>{recoveryStateLabel(state)}</strong>
-                </div>
-              ),
-            )}
-          </div>
-          <dl className="definition-list recovery-facts">
-            <div>
-              <dt>连续失败</dt>
-              <dd>
-                {service.recovery.consecutiveFailures} /{" "}
-                {service.recovery.failureThreshold}
-              </dd>
-            </div>
-            <div>
-              <dt>冷却时间</dt>
-              <dd>{service.recovery.cooldown}</dd>
-            </div>
-            {service.recovery.lastFailure ? (
-              <div>
-                <dt>最近失败</dt>
-                <dd>{service.recovery.lastFailure}</dd>
-              </div>
-            ) : null}
-            {service.recovery.retryAt ? (
-              <div>
-                <dt>下次探测</dt>
-                <dd>{service.recovery.retryAt}</dd>
-              </div>
-            ) : null}
-          </dl>
-        </section>
-      ) : null}
+      <div className="detail-jump"><div><strong>{routes.length} 条路由引用此服务</strong><span>成功率、延迟和端点异常</span></div><Link className="button button-secondary" to="/health">查看运行健康 <ChevronRight /></Link></div>
       <section className="detail-section">
         <header>
           <h3>服务端点</h3>
@@ -3020,12 +2916,12 @@ function ServiceDetail({
           ) : null}
         </dl>
       </section>
-      {service.type === "MODEL" && service.models?.length ? (
-        <section className="detail-section service-model-section">
+      {service.type === "MODEL" && service.capabilities.length ? (
+        <section className="detail-section service-capability-section">
           <header>
             <div>
-              <h3>已发现模型</h3>
-              <small>来自服务的能力探测，客户端模型名仍在 AI 路由中发布</small>
+              <h3>实际模型</h3>
+              <small>连接验证返回或人工填写的厂商模型 ID</small>
             </div>
             <div className="service-capability-tools">
               <SearchField
@@ -3034,71 +2930,29 @@ function ServiceDetail({
                 placeholder="搜索实际模型"
               />
               <span>
-                {visibleModels.length} / {service.models.length} · 最近同步{" "}
-                {service.models[0].lastSyncedAt}
+                {visibleCapabilities.length} / {service.capabilities.length}
               </span>
             </div>
           </header>
-          <div className="service-model-list">
-            {visibleModels.map((model) => {
-              const price = service.modelPrices?.[model.name];
+          <div className="service-capability-list">
+            {visibleCapabilities.map((model) => {
+              const price = service.modelPrices?.[model];
               return (
-                <article key={model.name}>
-                  <header>
-                    <span>
-                      <Sparkles />
-                    </span>
-                    <div>
-                      <strong>{model.displayName}</strong>
-                      <code>{model.name}</code>
-                    </div>
-                    <StatusBadge state={model.state} label="可用" />
-                  </header>
-                  <dl>
-                    <div>
-                      <dt>上下文</dt>
-                      <dd>{model.contextWindow}</dd>
-                    </div>
-                    <div>
-                      <dt>最大输出</dt>
-                      <dd>{model.maxOutputTokens}</dd>
-                    </div>
-                    <div>
-                      <dt>输入 / 输出</dt>
-                      <dd>
-                        {model.inputModes.join("、")} →{" "}
-                        {model.outputModes.join("、")}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>价格</dt>
-                      <dd>
-                        {price
-                          ? `输入 ¥${price.input} · 输出 ¥${price.output} / 百万 Token`
-                          : "未配置"}
-                      </dd>
-                    </div>
-                  </dl>
-                  <div className="model-capability-row">
-                    <span>能力</span>
-                    <div>
-                      {model.features.map((feature) => (
-                        <code key={feature}>{feature}</code>
-                      ))}
-                    </div>
+                <div className="service-capability-item" key={model}>
+                  <span><Sparkles /></span>
+                  <div>
+                    <strong>{model}</strong>
+                    <small>
+                      {price
+                        ? `输入 ¥${price.input} · 输出 ¥${price.output} / 百万 Token`
+                        : "未配置单价，成本将标记为未知"}
+                    </small>
                   </div>
-                  <div className="model-capability-row">
-                    <span>参数</span>
-                    <div>
-                      {model.supportedParameters.map((parameter) => (
-                        <code key={parameter}>{parameter}</code>
-                      ))}
-                    </div>
-                  </div>
-                </article>
+                  <StatusBadge state="healthy" label="已配置" />
+                </div>
               );
             })}
-            {!visibleModels.length ? (
+            {!visibleCapabilities.length ? (
               <EmptyState
                 title="没有匹配的模型"
                 description="请调整搜索条件。"
@@ -3159,7 +3013,7 @@ function ServiceDetail({
                   className="detail-line"
                   key={`${route.id}-${target.publishedCapability}-${target.role}`}
                 >
-                  <TypeBadge type={route.type} />
+                  <RouteTypeBadge type={route.type} />
                   <div>
                     <strong>{route.name}</strong>
                     <small>
@@ -3177,23 +3031,12 @@ function ServiceDetail({
         ) : (
           <EmptyState
             title="尚未被路由使用"
-            description="可以在创建路由时选择该服务。"
+            description="创建路由后可引用该服务。"
           />
         )}
       </section>
     </Drawer>
   );
-}
-
-function recoveryStateLabel(
-  state: "ready" | "ejected" | "cooling" | "probing",
-) {
-  return {
-    ready: "正常承载",
-    ejected: "已摘除",
-    cooling: "冷却中",
-    probing: "试探恢复",
-  }[state];
 }
 
 function RotateServiceCredential({
@@ -3314,12 +3157,12 @@ function RotateServiceCredential({
           {tested ? <CheckCircle2 /> : <CircleGauge />}
           <div>
             <strong>{tested ? "新凭据验证通过" : "验证新凭据"}</strong>
-            <span>旧凭据会继续使用，直到新凭据验证通过并保存</span>
+            <span>新凭据验证并保存前继续使用旧凭据</span>
           </div>
         </button>
         <div className="form-note">
           <KeyRound />
-          保存后立即切换到新凭据；敏感值不会再次显示，也不会进入操作日志。
+          保存后立即切换凭据；敏感值仅提交一次，且不写入操作日志。
         </div>
         <FormActions
           submitLabel="保存并切换"
@@ -3405,6 +3248,7 @@ function CreateService({
       string,
       {
         input: number;
+        cachedInput?: number;
         output: number;
       }
     >
@@ -3414,6 +3258,7 @@ function CreateService({
         model,
         {
           input: price.input,
+          cachedInput: price.cachedInput,
           output: price.output,
         },
       ]),
@@ -3543,13 +3388,12 @@ function CreateService({
     setTested(false);
   };
   const testConnection = () => {
-    if (type === "MODEL" && !models.trim()) {
-      const discoveredModels =
-        protocol === "Anthropic Messages"
-          ? ["claude-sonnet-4", "claude-haiku-4"]
-          : protocol === "AWS Bedrock"
-            ? ["anthropic.claude-sonnet-4", "amazon.nova-pro"]
-            : ["qwen-max", "qwen-plus"];
+    if (
+      type === "MODEL" &&
+      protocol === "OpenAI 兼容 API" &&
+      !models.trim()
+    ) {
+      const discoveredModels = ["qwen-max", "qwen-plus"];
       setModels(discoveredModels.join(", "));
       setModelPrices((prices) =>
         Object.fromEntries(
@@ -3595,6 +3439,7 @@ function CreateService({
     endpoints.every((item) => item.address.trim()) &&
     credentialComplete &&
     tlsComplete;
+  const canSave = type !== "MODEL" || capabilities.length > 0;
   const endpointRecords: ServiceEndpoint[] = endpoints.map((item) => ({
     ...item,
     weight: endpoints.length === 1 ? 100 : item.weight,
@@ -3631,24 +3476,6 @@ function CreateService({
       loadBalancing,
       healthCheck,
       capabilities,
-      models:
-        type === "MODEL"
-          ? capabilities.map(
-              (model) =>
-                initial?.models?.find((item) => item.name === model) ?? {
-                  name: model,
-                  displayName: model,
-                  contextWindow: "待服务同步",
-                  maxOutputTokens: "待服务同步",
-                  inputModes: ["文本"],
-                  outputModes: ["文本"],
-                  features: ["对话"],
-                  supportedParameters: ["temperature", "max_tokens"],
-                  state: "healthy" as const,
-                  lastSyncedAt: "刚刚",
-                },
-            )
-          : undefined,
       modelPrices:
         type === "MODEL"
           ? Object.fromEntries(
@@ -3665,17 +3492,6 @@ function CreateService({
               ]),
             )
           : undefined,
-      resilience: initial?.resilience,
-      recovery:
-        initial?.recovery ??
-        (type === "MODEL"
-          ? {
-              state: "ready" as const,
-              consecutiveFailures: 0,
-              failureThreshold: 5,
-              cooldown: "30 秒",
-            }
-          : undefined),
       successRate: initial?.successRate ?? "—",
       latency: initial?.latency ?? "—",
       state: tested ? "healthy" : "unverified",
@@ -3697,13 +3513,13 @@ function CreateService({
               className={type === item ? "is-selected" : ""}
               onClick={() => changeType(item)}
             >
-              <TypeBadge type={item} />
+              <ServiceTypeBadge type={item} />
               <strong>
                 {item === "HTTP"
-                  ? "HTTP 服务"
+                  ? "普通业务服务"
                   : item === "MODEL"
-                    ? "模型服务"
-                    : "MCP 服务"}
+                    ? "模型厂商或推理服务"
+                    : "远程工具服务"}
               </strong>
               <small>
                 {item === "HTTP"
@@ -3941,17 +3757,17 @@ function CreateService({
             ) : null}
             {type === "MODEL" ? (
               <label className="field-wide">
-                <span>实际模型（可选）</span>
+                <span>实际模型 ID（可选）</span>
                 <input
                   value={models}
                   onChange={(event) => {
                     setModels(event.target.value);
                     setTested(false);
                   }}
-                  placeholder="测试连接后自动发现，也可手动填写"
+                  placeholder="多个模型用逗号分隔；也可在验证连接时读取"
                 />
                 <small>
-                  这是厂商接口中的真实名称；对外的稳定模型名在 AI 路由中设置
+                  部分厂商不提供模型列表接口，此时需要手动填写
                 </small>
               </label>
             ) : null}
@@ -4193,7 +4009,7 @@ function CreateService({
                 : type === "MCP"
                   ? "测试连接并发现工具"
                   : type === "MODEL"
-                    ? "测试连接并发现模型"
+                    ? "测试连接并读取模型 ID"
                     : "测试连接"}
             </strong>
             <span>
@@ -4201,7 +4017,9 @@ function CreateService({
                 ? type === "MCP"
                   ? `已发现 ${discoveredTools.length} 个工具`
                   : type === "MODEL"
-                    ? `已发现 ${capabilities.length} 个实际模型`
+                    ? capabilities.length
+                      ? `已确认 ${capabilities.length} 个实际模型 ID`
+                      : "连接通过，请手动填写实际模型 ID"
                     : `已验证 ${endpoints.length} 个端点、认证和 TLS`
                 : "验证端点、认证、TLS 和协议兼容性"}
             </span>
@@ -4209,7 +4027,7 @@ function CreateService({
         </button>
         {tested && type !== "HTTP" ? (
           <div className="discovery-result">
-            <strong>已发现{type === "MODEL" ? "模型" : "工具"}</strong>
+            <strong>{type === "MODEL" ? "实际模型 ID" : "已发现工具"}</strong>
             <CompactTagList items={capabilities} limit={5} />
           </div>
         ) : null}
@@ -4219,7 +4037,7 @@ function CreateService({
               <div>
                 <strong>模型单价</strong>
                 <small>
-                  成本分析按实际模型的输入、输出 Token 和这里维护的单价估算
+                  仅对返回 Token 用量的调用预估成本
                 </small>
               </div>
               <span>人民币 / 百万 Token</span>
@@ -4250,6 +4068,26 @@ function CreateService({
                           ...prices,
                           [model]: {
                             input: Number(event.target.value),
+                            cachedInput: prices[model]?.cachedInput,
+                            output: prices[model]?.output ?? 0,
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>缓存输入</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={modelPrices[model]?.cachedInput ?? 0}
+                      onChange={(event) =>
+                        setModelPrices((prices) => ({
+                          ...prices,
+                          [model]: {
+                            input: prices[model]?.input ?? 0,
+                            cachedInput: Number(event.target.value),
                             output: prices[model]?.output ?? 0,
                           },
                         }))
@@ -4268,6 +4106,7 @@ function CreateService({
                           ...prices,
                           [model]: {
                             input: prices[model]?.input ?? 0,
+                            cachedInput: prices[model]?.cachedInput,
                             output: Number(event.target.value),
                           },
                         }))
@@ -4282,7 +4121,7 @@ function CreateService({
         {!tested ? (
           <div className="form-note">
             <CircleGauge />
-            可以先保存，但服务会标记为“待验证”，验证通过前不能被新路由选用。
+            未验证的服务可保存为“待验证”，但不能被新路由引用。
           </div>
         ) : null}
         <FormActions
@@ -4290,7 +4129,7 @@ function CreateService({
             initial ? "保存修改" : tested ? "保存服务" : "保存为待验证"
           }
           submitDisabled={
-            !canTest ||
+            !canTest || !canSave ||
             (endpoints.length > 1 &&
               endpoints.reduce((sum, item) => sum + item.weight, 0) !== 100)
           }
@@ -4515,10 +4354,10 @@ export function CertificatePage() {
                 title="证书未被引用"
                 description={
                   selected.usage === "服务器证书"
-                    ? "可以绑定到 HTTPS 监听入口的域名。"
+                    ? "可绑定到 HTTPS 监听入口的域名。"
                     : selected.usage === "客户端证书"
-                      ? "可以用于服务的 mTLS 客户端身份。"
-                      : "可以用于校验上游 TLS 服务端证书。"
+                      ? "可作为服务的 mTLS 客户端身份。"
+                      : "可校验上游 TLS 服务端证书。"
                 }
               />
             )}
@@ -4527,7 +4366,7 @@ export function CertificatePage() {
             <LockKeyhole />
             {selected.usage === "信任证书"
               ? "信任证书不包含私钥。"
-              : "私钥仅在导入时提交，不会再次显示，也不会写入审计详情。"}
+              : "私钥仅在导入时提交，不再显示且不写入审计详情。"}
           </div>
         </Drawer>
       ) : null}
@@ -4718,7 +4557,7 @@ function CreateCertificate({
                   }}
                 />
                 <small>
-                  {privateKeyFileName || "支持 PEM 或 KEY，不会再次显示内容"}
+                  {privateKeyFileName || "支持 PEM 或 KEY；导入后不再显示内容"}
                 </small>
               </label>
             ) : null}

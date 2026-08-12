@@ -23,10 +23,9 @@ import {
   FilterTabs,
   Metric,
   PageHeader,
-  PrimaryButton,
+  RouteTypeBadge,
   SearchField,
   StatusBadge,
-  TypeBadge,
 } from "../components/ui";
 import { usePrototype } from "../prototype-context";
 
@@ -53,8 +52,8 @@ interface ModelCostFact {
   actualModel: string;
   requests: number;
   attempts: number;
+  costedAttempts: number;
   cost: number;
-  failedCost: number;
 }
 
 const aiUsageFacts: AIUsageFact[] = [
@@ -85,11 +84,22 @@ const aiUsageFacts: AIUsageFact[] = [
     route: "生产 AI 路由",
     clientModel: "claude-sonnet",
     actualModel: "claude-sonnet-4",
-    service: "Bedrock 灾备",
-    requests: 16000,
-    inputTokens: 13000000,
-    outputTokens: 5200000,
+    service: "Anthropic 公网",
+    requests: 13900,
+    inputTokens: 11300000,
+    outputTokens: 4500000,
     cacheTokens: 400000,
+  },
+  {
+    callerID: "caller-rd",
+    route: "生产 AI 路由",
+    clientModel: "claude-sonnet",
+    actualModel: "claude-sonnet-4",
+    service: "Bedrock 灾备",
+    requests: 2100,
+    inputTokens: 1700000,
+    outputTokens: 700000,
+    cacheTokens: 0,
   },
 ];
 
@@ -101,8 +111,8 @@ const modelCostFacts: ModelCostFact[] = [
     actualModel: "qwen-max",
     requests: 13200,
     attempts: 13200,
-    cost: 350.8,
-    failedCost: 0,
+    costedAttempts: 13200,
+    cost: 375.5,
   },
   {
     callerID: "caller-automation",
@@ -111,8 +121,8 @@ const modelCostFacts: ModelCostFact[] = [
     actualModel: "qwen-max",
     requests: 15200,
     attempts: 15200,
-    cost: 290,
-    failedCost: 0,
+    costedAttempts: 15200,
+    cost: 598,
   },
   {
     callerID: "caller-rd",
@@ -121,8 +131,8 @@ const modelCostFacts: ModelCostFact[] = [
     actualModel: "claude-sonnet-4",
     requests: 16000,
     attempts: 16000,
-    cost: 244.6,
-    failedCost: 47.6,
+    costedAttempts: 13900,
+    cost: 702.24,
   },
   {
     callerID: "caller-rd",
@@ -131,8 +141,8 @@ const modelCostFacts: ModelCostFact[] = [
     actualModel: "claude-sonnet-4",
     requests: 2100,
     attempts: 2100,
-    cost: 444.6,
-    failedCost: 0,
+    costedAttempts: 2100,
+    cost: 109.2,
   },
 ];
 
@@ -155,7 +165,7 @@ export function RequestPage() {
             : request.type === filter);
         return (
           matchesType &&
-          `${request.id}${request.caller}${request.route}${request.request}${request.target}`
+          `${request.id}${request.caller}${request.route}${request.request}${request.target}${request.result}${request.code}`
             .toLowerCase()
             .includes(query.toLowerCase())
         );
@@ -172,7 +182,7 @@ export function RequestPage() {
       />
       <section className="metric-grid four">
         <Metric label="API 请求" value="98.3K" note="成功率 99.91%" />
-        <Metric label="AI 请求" value="44.4K" note="19.7M Token" />
+        <Metric label="AI 请求" value="44.4K" note="50.8M Token" />
         <Metric label="MCP 工具调用" value="8.2K" note="成功率 99.90%" />
         <Metric
           label="异常与拒绝"
@@ -183,7 +193,7 @@ export function RequestPage() {
       </section>
       <p className="privacy-note">
         <ShieldCheck />
-        默认不记录请求正文
+        请求正文记录：关闭
       </p>
       <section className="card table-card">
         <header className="table-toolbar">
@@ -197,9 +207,9 @@ export function RequestPage() {
             onChange={setFilter}
             options={[
               { value: "ALL", label: "全部", count: requests.length },
-              { value: "API", label: "API" },
-              { value: "AI", label: "AI" },
-              { value: "MCP", label: "MCP" },
+              { value: "API", label: "API 路由" },
+              { value: "AI", label: "AI 路由" },
+              { value: "MCP", label: "MCP 路由" },
               { value: "ERROR", label: "异常" },
             ]}
           />
@@ -228,7 +238,7 @@ export function RequestPage() {
               <strong>{request.caller}</strong>
               <div className="request-route">
                 <span>
-                  <TypeBadge type={request.type} />
+                  <RouteTypeBadge type={request.type} />
                   <strong>{request.route}</strong>
                 </span>
                 <small>{request.request}</small>
@@ -287,13 +297,6 @@ function RequestDetail({
       request.type === "AI" ? `${request.usage} · ${request.cost}` : request.usage,
     ],
   ];
-  const serviceNames = new Set(
-    request.attempts.map((attempt) => attempt.service),
-  );
-  const gatewaySteps = request.steps.filter(
-    (step) => !serviceNames.has(step.name),
-  );
-
   return (
     <Drawer
       title={`请求 ${request.id}`}
@@ -339,7 +342,7 @@ function RequestDetail({
         <header>
           <div>
             <span className="eyebrow">服务调用</span>
-            <h3>服务尝试</h3>
+            <h3>服务调用</h3>
           </div>
           <span>
             {request.attempts.length
@@ -426,10 +429,10 @@ function RequestDetail({
       </section>
       <section className="execution-timeline">
         <header>
-          <span className="eyebrow">网关处理</span>
-          <h3>认证、策略与路由</h3>
+          <span className="eyebrow">网关判定</span>
+          <h3>认证、策略与路由结果</h3>
         </header>
-        {gatewaySteps.map((step, index) => (
+        {request.decisions.map((step, index) => (
           <div className="timeline-step" key={`${step.name}-${index}`}>
             <span className={`timeline-dot state-${step.state}`}>
               {index + 1}
@@ -438,7 +441,6 @@ function RequestDetail({
               <strong>{step.name}</strong>
               <p>{step.detail}</p>
             </div>
-            <small>{step.duration}</small>
           </div>
         ))}
       </section>
@@ -614,9 +616,9 @@ export function AnalysisPage() {
         value={filter}
         onChange={setFilter}
         options={[
-          { value: "API", label: "API" },
-          { value: "AI", label: "AI" },
-          { value: "MCP", label: "MCP" },
+          { value: "API", label: "API 路由" },
+          { value: "AI", label: "AI 路由" },
+          { value: "MCP", label: "MCP 路由" },
         ]}
       />
       <section className="metric-grid four">
@@ -692,7 +694,7 @@ export function AnalysisPage() {
           >
             {row.map((cell, index) =>
               index === 1 ? (
-                <TypeBadge
+                <RouteTypeBadge
                   key={`${row[0]}-${cell}`}
                   type={cell as TrafficType}
                 />
@@ -756,12 +758,18 @@ export function UsagePage() {
     (sum, fact) => sum + fact.attempts,
     0,
   );
-  const failedAttemptCost = costFacts.reduce(
-    (sum, fact) => sum + fact.failedCost,
+  const costedAttempts = costFacts.reduce(
+    (sum, fact) => sum + fact.costedAttempts,
     0,
   );
-  const quotaUsed = quotas.reduce((sum, item) => sum + item.quota.used, 0);
-  const quotaLimit = quotas.reduce((sum, item) => sum + item.quota.limit, 0);
+  const exhaustedQuotas = quotas.filter(
+    (item) => item.quota.used >= item.quota.limit,
+  ).length;
+  const warningQuotas = quotas.filter(
+    (item) =>
+      item.quota.used < item.quota.limit &&
+      item.quota.used / item.quota.limit >= 0.8,
+  ).length;
   const quotaRejections = selectedCaller
     ? selectedCaller.state === "warning"
       ? "124"
@@ -803,7 +811,7 @@ export function UsagePage() {
           onClick={() => setView("COST")}
         >
           <strong>成本分析</strong>
-          <span>所有模型服务尝试</span>
+          <span>包含重试与备用线路调用</span>
         </button>
       </div>
       <div className="usage-filter-bar">
@@ -827,8 +835,8 @@ export function UsagePage() {
       {view === "QUOTA" ? (
         <QuotaUsageView
           quotas={quotas}
-          used={quotaUsed}
-          limit={quotaLimit}
+          exhausted={exhaustedQuotas}
+          warning={warningQuotas}
           rejections={quotaRejections}
         />
       ) : null}
@@ -851,7 +859,7 @@ export function UsagePage() {
           totalCost={totalCost}
           gatewayRequests={requestCount}
           serviceAttempts={serviceAttempts}
-          failedAttemptCost={failedAttemptCost}
+          costedAttempts={costedAttempts}
         />
       ) : null}
     </div>
@@ -860,8 +868,8 @@ export function UsagePage() {
 
 function QuotaUsageView({
   quotas,
-  used,
-  limit,
+  exhausted,
+  warning,
   rejections,
 }: {
   quotas: Array<{
@@ -869,27 +877,29 @@ function QuotaUsageView({
     quota: ReturnType<typeof usePrototype>["callers"][number]["quotas"][number];
     route: ReturnType<typeof usePrototype>["routes"][number] | undefined;
   }>;
-  used: number;
-  limit: number;
+  exhausted: number;
+  warning: number;
   rejections: string;
 }) {
   return (
     <>
       <section className="metric-grid four">
         <Metric
-          label="已消耗额度"
-          value={formatTokenCount(used)}
-          note="客户端成功使用的 Token"
+          label="额度规则"
+          value={String(quotas.length)}
+          note="按调用方与路由独立统计"
         />
         <Metric
-          label="额度上限"
-          value={formatTokenCount(limit)}
-          note="当前筛选范围合计"
+          label="已用尽"
+          value={String(exhausted)}
+          note="后续请求将被拒绝"
+          tone={exhausted ? "warning" : "good"}
         />
         <Metric
-          label="剩余额度"
-          value={formatTokenCount(Math.max(limit - used, 0))}
-          note={limit ? `${Math.round(((limit - used) / limit) * 100)}% 可用` : "未配置额度"}
+          label="接近上限"
+          value={String(warning)}
+          note="使用率达到 80%"
+          tone={warning ? "warning" : "good"}
         />
         <Metric
           label="额度拒绝"
@@ -899,13 +909,13 @@ function QuotaUsageView({
         />
       </section>
       <section className="usage-explain">
-        <span>额度归属口径</span>
+        <span>额度维度</span>
         <strong>调用方</strong>
         <i>+</i>
         <strong>路由</strong>
         <i>+</i>
         <strong>统计周期</strong>
-        <p>底层模型发生重试或主备切换，不会重复扣减调用方额度</p>
+        <p>服务重试或线路切换不重复扣减额度</p>
       </section>
       <section className="card usage-card">
           <header className="card-header">
@@ -955,7 +965,7 @@ function QuotaUsageView({
                 />
               </div>
             );
-          }) : <EmptyState title="没有配置额度" description="当前调用方不限制累计用量。" />}
+          }) : <EmptyState title="没有配置额度" description="所选调用方未设置累计用量上限。" />}
       </section>
     </>
   );
@@ -982,13 +992,13 @@ function TokenUsageView({
   return (
     <>
       <section className="metric-grid four">
-        <Metric label="AI 请求" value={formatCount(requestCount)} note="一次客户端调用计一次" />
+        <Metric label="AI 请求" value={formatCount(requestCount)} note="按客户端请求计数" />
         <Metric label="输入 Token" value={formatTokenCount(inputTokens)} note="包含缓存命中部分" />
         <Metric label="输出 Token" value={formatTokenCount(outputTokens)} note="模型实际生成" />
         <Metric label="缓存命中 Token" value={formatTokenCount(cacheTokens)} note="输入 Token 的子集" tone="good" />
       </section>
       <section className="usage-explain">
-        <span>用量归属链路</span>
+        <span>用量归属</span>
         <strong>调用方</strong>
         <i>→</i>
         <strong>路由</strong>
@@ -996,7 +1006,7 @@ function TokenUsageView({
         <strong>客户端模型</strong>
         <i>→</i>
         <strong>实际模型</strong>
-        <p>缓存 Token 单独展示，但不与输入 Token 重复相加</p>
+        <p>缓存命中 Token 已包含在输入 Token 中</p>
       </section>
       <section className="card usage-breakdown-card">
         <header className="card-header">
@@ -1010,7 +1020,7 @@ function TokenUsageView({
             options={[
               { value: "CLIENT_MODEL", label: "客户端模型" },
               { value: "ACTUAL_MODEL", label: "实际模型" },
-              { value: "SERVICE", label: "模型服务" },
+              { value: "SERVICE", label: "大模型服务" },
             ]}
           />
         </header>
@@ -1034,7 +1044,7 @@ function TokenUsageView({
             <span>{formatTokenCount(fact.cacheTokens)}</span>
             <strong>{formatTokenCount(fact.inputTokens + fact.outputTokens)}</strong>
           </div>
-        )) : <EmptyState title="没有 AI 用量" description="当前调用方在所选周期内没有 AI 请求。" />}
+        )) : <EmptyState title="没有 AI 用量" description="所选调用方在该周期内没有 AI 请求。" />}
       </section>
     </>
   );
@@ -1047,7 +1057,7 @@ function CostUsageView({
   totalCost,
   gatewayRequests,
   serviceAttempts,
-  failedAttemptCost,
+  costedAttempts,
 }: {
   facts: ModelCostFact[];
   requests: RequestRecord[];
@@ -1055,50 +1065,50 @@ function CostUsageView({
   totalCost: number;
   gatewayRequests: number;
   serviceAttempts: number;
-  failedAttemptCost: number;
+  costedAttempts: number;
 }) {
   const groupedFacts = aggregateCostFacts(facts);
   return (
     <>
       <section className="metric-grid four">
-        <Metric label="估算成本" value={`¥${totalCost.toFixed(2)}`} note="所有模型服务尝试合计" />
+        <Metric label="预估成本" value={`¥${totalCost.toFixed(2)}`} note="仅统计用量与单价完整的调用" />
         <Metric label="网关请求" value={formatCount(gatewayRequests)} note="客户端发起的 AI 请求" />
-        <Metric label="服务尝试" value={formatCount(serviceAttempts)} note={`${Math.max(serviceAttempts - gatewayRequests, 0).toLocaleString("zh-CN")} 次重试或切换`} />
-        <Metric label="失败尝试成本" value={`¥${failedAttemptCost.toFixed(2)}`} note="失败线路仍可能产生费用" tone={failedAttemptCost ? "warning" : "good"} />
+        <Metric label="服务调用" value={formatCount(serviceAttempts)} note={`${Math.max(serviceAttempts - gatewayRequests, 0).toLocaleString("zh-CN")} 次重试或切换`} />
+        <Metric label="成本未知" value={formatCount(Math.max(serviceAttempts - costedAttempts, 0))} note="缺少 Token 用量或服务单价" tone={serviceAttempts === costedAttempts ? "good" : "warning"} />
       </section>
       <section className="usage-explain cost-explain">
-        <span>成本计算口径</span>
-        <strong>输入 Token × 单价</strong>
+        <span>成本计算</span>
+        <strong>非缓存输入 × 单价</strong>
         <i>+</i>
         <strong>输出 Token × 单价</strong>
         <i>+</i>
-        <strong>其它厂商计费项</strong>
-        <p>全部服务尝试累加；没有配置单价时显示成本未知，不按零元计算</p>
+        <strong>缓存输入 × 缓存单价</strong>
+        <p>只计算返回 Token 用量且已配置单价的服务调用，最终费用以模型厂商账单为准</p>
       </section>
       <section className="usage-layout">
         <article className="card usage-breakdown-card">
           <header className="card-header">
             <div>
               <span className="eyebrow">服务成本</span>
-              <h3>模型服务尝试</h3>
+              <h3>模型服务调用</h3>
             </div>
           </header>
           <div className="cost-breakdown-head">
             <span>服务与实际模型</span>
-            <span>网关请求</span>
-            <span>服务尝试</span>
-            <span>估算成本</span>
-            <span>失败成本</span>
+            <span>涉及请求</span>
+            <span>服务调用</span>
+            <span>已计价</span>
+            <span>预估成本</span>
           </div>
           {groupedFacts.length ? groupedFacts.map((fact) => (
             <div className="cost-breakdown-row" key={`${fact.service}-${fact.actualModel}`}>
               <div><strong>{fact.service}</strong><small>{fact.provider} · {fact.actualModel}</small></div>
               <span>{formatCount(fact.requests)}</span>
               <span>{formatCount(fact.attempts)}</span>
+              <span>{formatCount(fact.costedAttempts)}</span>
               <strong>¥{fact.cost.toFixed(2)}</strong>
-              <span className={fact.failedCost ? "is-warning" : ""}>¥{fact.failedCost.toFixed(2)}</span>
             </div>
-          )) : <EmptyState title="没有成本数据" description="当前调用方在所选周期内没有模型服务调用。" />}
+          )) : <EmptyState title="没有成本数据" description="所选调用方在该周期内没有大模型服务调用。" />}
         </article>
         <aside className="card cost-card">
           <header>
@@ -1119,6 +1129,12 @@ function CostUsageView({
                     </span>
                     <p>
                       输入 ¥{price.input}
+                      {price.cachedInput !== undefined ? (
+                        <>
+                          <br />
+                          缓存输入 ¥{price.cachedInput}
+                        </>
+                      ) : null}
                       <br />
                       输出 ¥{price.output}
                     </p>
@@ -1126,14 +1142,14 @@ function CostUsageView({
                 ),
               ),
             )}
-          <footer>人民币 / 百万 Token · 实际账单以模型厂商为准</footer>
+          <footer>人民币 / 百万 Token · 未配置单价时不计算成本</footer>
         </aside>
       </section>
       <section className="card ranking-card">
         <header className="card-header">
           <div>
             <span className="eyebrow">请求下钻</span>
-            <h3>网关请求与服务尝试</h3>
+            <h3>网关请求与服务调用</h3>
           </div>
           <Link to="/requests?query=AI">
             查看请求 <ChevronRight />
@@ -1143,9 +1159,9 @@ function CostUsageView({
           <span>请求编号</span>
           <span>调用方</span>
           <span>客户端模型与实际线路</span>
-          <span>服务尝试</span>
+          <span>服务调用</span>
           <span>Token</span>
-          <span>估算成本</span>
+          <span>预估成本</span>
         </div>
         {requests.map((request) => (
           <Link
@@ -1220,15 +1236,15 @@ function aggregateCostFacts(facts: ModelCostFact[]) {
     const key = `${fact.service}-${fact.actualModel}`;
     const current = grouped.get(key) ?? {
       ...fact,
-      requests: 0,
-      attempts: 0,
-      cost: 0,
-      failedCost: 0,
-    };
+          requests: 0,
+          attempts: 0,
+          costedAttempts: 0,
+          cost: 0,
+        };
     current.requests += fact.requests;
     current.attempts += fact.attempts;
+    current.costedAttempts += fact.costedAttempts;
     current.cost += fact.cost;
-    current.failedCost += fact.failedCost;
     grouped.set(key, current);
   });
   return [...grouped.values()].sort((left, right) => right.cost - left.cost);
@@ -1246,15 +1262,6 @@ function formatCount(value: number) {
     : value.toLocaleString("zh-CN");
 }
 
-function recoveryLabel(state: "ready" | "ejected" | "cooling" | "probing") {
-  return {
-    ready: "正常承载",
-    ejected: "已摘除",
-    cooling: "冷却中",
-    probing: "试探恢复",
-  }[state];
-}
-
 export function HealthPage() {
   const { gateways, services, proxyInstances } = usePrototype();
   const serviceWarnings = services.filter(
@@ -1264,16 +1271,15 @@ export function HealthPage() {
   const offlineInstances = proxyInstances.filter(
     (instance) => instance.state !== "healthy",
   );
-  const recoveringServices = services.filter(
-    (service) => service.recovery && service.recovery.state !== "ready",
-  );
+  const unhealthyEndpoints = services.flatMap((service) => service.endpoints)
+    .filter((endpoint) => endpoint.state !== "healthy");
 
   return (
     <div className="page-stack page-enter">
       <PageHeader
         eyebrow="运行中心"
         title="运行健康"
-        description="代理实例、网关入口与服务连接的实时健康状态"
+        description="最近 5 分钟的代理连接、入口流量与服务调用状态"
         actions={
           <Link className="button button-secondary" to="/releases">
             查看配置发布 <ChevronRight />
@@ -1290,7 +1296,7 @@ export function HealthPage() {
             {serviceWarnings.length + offlineInstances.length}{" "}
             项运行问题需要关注
           </h2>
-          <p>配置交付状态已独立到“配置发布”，这里仅展示真实流量与连接健康</p>
+          <p>本页展示实时流量与连接健康；配置交付状态请前往“配置发布”</p>
         </div>
         <StatusBadge
           state={
@@ -1322,20 +1328,16 @@ export function HealthPage() {
           note={`${serviceWarnings.length} 个需要关注`}
         />
         <Metric
-          label="健康网关"
-          value={`${gateways.filter((gateway) => gateway.state === "healthy").length} / ${gateways.length}`}
-          note="入口可用性 99.99%"
+          label="入口成功率"
+          value="99.99%"
+          note={`${gateways.length} 个网关有请求`}
           tone="good"
         />
         <Metric
-          label="自动恢复"
-          value={String(recoveringServices.length)}
-          note={
-            recoveringServices.length
-              ? `${recoveringServices.map((service) => service.name).join("、")} 正在恢复`
-              : "所有服务正常承载"
-          }
-          tone="warning"
+          label="异常端点"
+          value={String(unhealthyEndpoints.length)}
+          note="至少被一个代理实例判定异常"
+          tone={unhealthyEndpoints.length ? "warning" : "good"}
         />
       </section>
       <section className="health-layout">
@@ -1372,7 +1374,7 @@ export function HealthPage() {
                   <strong>{service.name}</strong>
                   <small>
                     {service.type === "MODEL"
-                      ? "模型服务"
+                      ? "大模型服务"
                       : service.type === "MCP"
                         ? "MCP 服务"
                         : "HTTP 服务"}{" "}
@@ -1380,11 +1382,7 @@ export function HealthPage() {
                   </small>
                 </div>
                 <strong>{service.successRate}</strong>
-                <span>
-                  {service.recovery && service.recovery.state !== "ready"
-                    ? recoveryLabel(service.recovery.state)
-                    : service.latency}
-                </span>
+                <span>{service.latency}</span>
                 <StatusBadge state={service.state} />
               </div>
             );
@@ -1407,9 +1405,7 @@ export function HealthPage() {
                 </strong>
                 <span>
                   {service.type === "MODEL"
-                    ? service.recovery && service.recovery.state !== "ready"
-                      ? `${recoveryLabel(service.recovery.state)}，${service.recovery.retryAt ? `${service.recovery.retryAt} 发起恢复探测` : "等待恢复探测"}`
-                      : `首个 Token ${service.latency}，路由会按条件切换备用线路`
+                    ? `首个 Token ${service.latency}，符合条件时路由切换备用线路`
                     : `成功率 ${service.successRate}，健康端点继续承载流量`}
                 </span>
                 <small>
@@ -1471,9 +1467,6 @@ export function ReleasePage() {
     currentVersion,
     candidateVersion,
     releaseHistory,
-    retryRelease,
-    simulateReleaseFailure,
-    setSimulateReleaseFailure,
   } = usePrototype();
   const [selectedVersion, setSelectedVersion] = useState(
     releaseHistory[0]?.version ?? currentVersion,
@@ -1543,7 +1536,7 @@ export function ReleasePage() {
         <Metric
           label="发布失败"
           value={String(failedCount)}
-          note="历史记录，可重试"
+          note="近期版本记录"
           tone={failedCount ? "warning" : "good"}
         />
       </section>
@@ -1554,16 +1547,6 @@ export function ReleasePage() {
               <span className="eyebrow">版本记录</span>
               <h3>配置交付</h3>
             </div>
-            <label className="demo-switch">
-              <input
-                type="checkbox"
-                checked={simulateReleaseFailure}
-                onChange={(event) =>
-                  setSimulateReleaseFailure(event.target.checked)
-                }
-              />
-              下次发布模拟失败
-            </label>
           </header>
           <div className="release-history">
             {releaseHistory.map((release) => (
@@ -1660,7 +1643,7 @@ export function ReleasePage() {
             </div>
             <div>
               <dt>失败处理</dt>
-              <dd>展示版本差异，可重试使实例重新一致</dd>
+              <dd>修正相关资源后生成新版本，失败记录保留用于排障</dd>
             </div>
             <div>
               <dt>声明资源</dt>
@@ -1674,12 +1657,6 @@ export function ReleasePage() {
               </dd>
             </div>
           </dl>
-          {selected.state === "发布失败" ? (
-            <PrimaryButton onClick={() => retryRelease(selected.version)}>
-              <RefreshCw />
-              重试发布
-            </PrimaryButton>
-          ) : null}
         </aside>
       </section>
     </div>
@@ -1765,7 +1742,7 @@ export function AuditPage() {
           />
         </header>
         <div className="audit-date">
-          <span>最近 180 天 · 当前显示 {visible.length} 项</span>
+          <span>当前记录 · {visible.length} 项</span>
           <i />
         </div>
         {visible.length ? (

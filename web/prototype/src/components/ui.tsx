@@ -124,7 +124,7 @@ export function ConfigBadge({ state = "active" }: { state?: ConfigState }) {
   const labels: Record<ConfigState, string> = {
     active: "已生效",
     publishing: "发布中",
-    failed: "发布失败",
+    failed: "未生效",
     "not-applied": "未应用",
   };
   const health: Record<ConfigState, HealthState> = {
@@ -136,19 +136,36 @@ export function ConfigBadge({ state = "active" }: { state?: ConfigState }) {
   return <StatusBadge state={health[state]} label={labels[state]} />;
 }
 
-export function TypeBadge({ type }: { type: TrafficType | ServiceType }) {
-  const labels: Record<TrafficType | ServiceType, string> = {
-    API: "API",
-    AI: "AI",
-    MCP: "MCP",
-    HTTP: "HTTP",
-    MODEL: "模型",
-  };
+function TypeBadge({
+  type,
+  label,
+}: {
+  type: TrafficType | ServiceType;
+  label: string;
+}) {
   return (
     <span className={`type-badge type-${type.toLowerCase()}`}>
-      {labels[type]}
+      {label}
     </span>
   );
+}
+
+export function RouteTypeBadge({ type }: { type: TrafficType }) {
+  const labels: Record<TrafficType, string> = {
+    API: "API 路由",
+    AI: "AI 路由",
+    MCP: "MCP 路由",
+  };
+  return <TypeBadge type={type} label={labels[type]} />;
+}
+
+export function ServiceTypeBadge({ type }: { type: ServiceType }) {
+  const labels: Record<ServiceType, string> = {
+    HTTP: "HTTP 服务",
+    MODEL: "大模型服务",
+    MCP: "MCP 服务",
+  };
+  return <TypeBadge type={type} label={labels[type]} />;
 }
 
 export function Metric({

@@ -22,7 +22,6 @@ import {
   type CallerPermission,
   type CallerQuota,
   type Certificate,
-  type ConfigState,
   type Gateway,
   type GatewayRoute,
   type Policy,
@@ -81,11 +80,6 @@ interface PrototypeState {
   addPolicy: (policy: Policy) => void;
   updatePolicy: (policy: Policy) => void;
   deletePolicy: (policyID: string) => void;
-  retryRelease: (version: number) => void;
-  simulateReleaseFailure: boolean;
-  setSimulateReleaseFailure: (enabled: boolean) => void;
-  reviewServiceChanges: (serviceID: string) => void;
-  sendDemoRequest: (caller: Caller, route: GatewayRoute) => string;
   resetDemo: () => void;
 }
 
@@ -102,7 +96,6 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
   const [proxyInstances, setProxyInstances] = useState(initialProxyInstances);
   const [currentVersion, setCurrentVersion] = useState(142);
   const [candidateVersion, setCandidateVersion] = useState<number>();
-  const [simulateReleaseFailure, setSimulateReleaseFailure] = useState(false);
   const [releaseHistory, setReleaseHistory] = useState(initialReleaseHistory);
   const [auditRecords, setAuditRecords] = useState(initialAuditRecords);
   const nextVersion = useRef(143);
@@ -152,48 +145,6 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
     ]);
     recordAudit(summary, resourceType, resource, detail);
     window.setTimeout(() => {
-      if (simulateReleaseFailure) {
-        setCandidateVersion(undefined);
-        setGateways((items) => items.map(markPublishingAsFailed));
-        setRoutes((items) => items.map(markPublishingAsFailed));
-        setServices((items) => items.map(markPublishingAsFailed));
-        setCertificates((items) => items.map(markPublishingAsFailed));
-        setPolicies((items) => items.map(markPublishingAsFailed));
-        setProxyInstances((instances) =>
-          instances.map((instance, index) =>
-            index < 3
-              ? { ...instance, activeConfigVersion: version }
-              : instance,
-          ),
-        );
-        setReleaseHistory((records) =>
-          records.map((record) =>
-            record.version === version
-              ? {
-                  ...record,
-                  state: "发布失败",
-                  syncedInstances: 3,
-                  error:
-                    `3 个代理实例已应用 v${version}，2 个实例在 30 秒内未确认`,
-                }
-              : record,
-          ),
-        );
-        setAuditRecords((records) => [
-          {
-            id: crypto.randomUUID(),
-            time: currentTime(),
-            actor: "系统",
-            action: "发布配置",
-            resourceType: "配置发布",
-            resource: `版本 ${version}`,
-            detail: `3 个实例已应用 v${version}，2 个实例仍使用上一版本`,
-            result: "失败",
-          },
-          ...records,
-        ]);
-        return;
-      }
       complete();
       setCurrentVersion(version);
       setCandidateVersion(undefined);
@@ -767,162 +718,6 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
         () => undefined,
       );
     },
-    retryRelease: (version) => {
-      const failed = releaseHistory.find(
-        (release) =>
-          release.version === version && release.state === "发布失败",
-      );
-      if (!failed) return;
-      const retryVersion = nextVersion.current++;
-      setCandidateVersion(retryVersion);
-      setReleaseHistory((records) => [
-        {
-          ...failed,
-          version: retryVersion,
-          time: `今天 ${currentTime()}`,
-          summary: `重试：${failed.summary}`,
-          state: "发布中",
-          syncedInstances: 0,
-          error: undefined,
-        },
-        ...records,
-      ]);
-      window.setTimeout(() => {
-        setCurrentVersion(retryVersion);
-        setCandidateVersion(undefined);
-        setReleaseHistory((records) =>
-          records.map((record) =>
-            record.version === retryVersion
-              ? {
-                  ...record,
-                  state: "已生效",
-                  syncedInstances: record.totalInstances,
-                }
-              : record,
-          ),
-        );
-        setProxyInstances((instances) =>
-          instances.map((instance) => ({
-            ...instance,
-            activeConfigVersion: retryVersion,
-          })),
-        );
-        setGateways((items) => items.map(markFailedAsActive));
-        setRoutes((items) => items.map(markFailedAsActive));
-        setServices((items) => items.map(markFailedAsActive));
-        setCertificates((items) => items.map(markFailedAsActive));
-        setPolicies((items) => items.map(markFailedAsActive));
-        setAuditRecords((records) => [
-          {
-            id: crypto.randomUUID(),
-            time: currentTime(),
-            actor: "林工程师",
-            action: "重试发布",
-            resourceType: "配置发布",
-            resource: `版本 ${retryVersion}`,
-            detail: `基于失败版本 ${version} 重新生成配置，全部代理实例已确认`,
-            result: "成功",
-          },
-          ...records,
-        ]);
-      }, 900);
-    },
-    simulateReleaseFailure,
-    setSimulateReleaseFailure,
-    reviewServiceChanges: (serviceID) =>
-      setServices((items) =>
-        items.map((service) =>
-          service.id === serviceID && service.capabilityChanges
-            ? {
-                ...service,
-                capabilityChanges: {
-                  ...service.capabilityChanges,
-                  reviewed: true,
-                },
-              }
-            : service,
-        ),
-      ),
-    sendDemoRequest: (caller, route) => {
-      const id = `req_demo_${Date.now().toString().slice(-6)}`;
-      const target = route.targets[0];
-      const capability =
-        caller.permissions.find((permission) => permission.routeID === route.id)
-          ?.scopes[0] ?? route.published[0];
-      const request =
-        route.type === "API"
-          ? capability
-          : route.type === "AI"
-            ? `${capability} · chat/completions`
-            : `tools/call · ${capability}`;
-      setRequests((items) => [
-        {
-          id,
-          time: currentTime(),
-          type: route.type,
-          caller: caller.name,
-          route: route.name,
-          request,
-          target: target
-            ? `${target.serviceName}${route.type === "AI" ? ` / ${target.detail}` : ""}`
-            : "—",
-          result: "成功",
-          code: "200",
-          latency:
-            route.type === "AI"
-              ? "TTFT 540 ms · 总计 1.4 s"
-              : route.type === "MCP"
-                ? "214 ms"
-                : "74 ms",
-          usage:
-            route.type === "AI"
-              ? "126 Token"
-              : route.type === "MCP"
-                ? "1 次工具调用"
-                : "2.1 KB",
-          cost: route.type === "AI" ? "¥0.01" : "—",
-          attempts: target
-            ? [
-                {
-                  service: target.serviceName,
-                  actualModel: route.type === "AI" ? target.detail : undefined,
-                  result: "成功" as const,
-                  code: "200",
-                  latency: route.type === "AI" ? "1.39 s" : "71 ms",
-                  ttft: route.type === "AI" ? "540 ms" : undefined,
-                  inputTokens: route.type === "AI" ? 84 : undefined,
-                  outputTokens: route.type === "AI" ? 42 : undefined,
-                  cachedTokens: route.type === "AI" ? 16 : undefined,
-                  cost: route.type === "AI" ? "¥0.01" : undefined,
-                  state: "healthy" as const,
-                },
-              ]
-            : [],
-          steps: [
-            {
-              name: "调用方认证",
-              detail: `${caller.name} · 演示密钥`,
-              duration: "2 ms",
-              state: "healthy",
-            },
-            {
-              name: route.name,
-              detail: `${request} → ${target?.serviceName ?? "目标服务"}`,
-              duration: "1 ms",
-              state: "healthy",
-            },
-            {
-              name: target?.serviceName ?? "目标服务",
-              detail: "HTTP 200 · 演示请求成功",
-              duration: route.type === "AI" ? "1.39 s" : "71 ms",
-              state: "healthy",
-            },
-          ],
-        },
-        ...items,
-      ]);
-      return id;
-    },
     resetDemo: () => {
       setGateways(initialGateways);
       setRoutes(initialRoutes);
@@ -933,7 +728,6 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
       setRequests(initialRequests);
       setCurrentVersion(142);
       setCandidateVersion(undefined);
-      setSimulateReleaseFailure(false);
       setReleaseHistory(initialReleaseHistory);
       setProxyInstances(initialProxyInstances);
       setAuditRecords(initialAuditRecords);
@@ -962,20 +756,4 @@ function callerState(quotas: CallerQuota[]) {
   return quotas.some((quota) => quota.used >= quota.limit)
     ? ("warning" as const)
     : ("healthy" as const);
-}
-
-function markPublishingAsFailed<T extends { configState?: ConfigState }>(
-  resource: T,
-): T {
-  return resource.configState === "publishing"
-    ? { ...resource, configState: "failed" }
-    : resource;
-}
-
-function markFailedAsActive<T extends { configState?: ConfigState }>(
-  resource: T,
-): T {
-  return resource.configState === "failed"
-    ? { ...resource, configState: "active" }
-    : resource;
 }
