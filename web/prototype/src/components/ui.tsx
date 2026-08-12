@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  ChevronDown,
   CircleOff,
   Copy,
   Eye,
@@ -209,6 +210,39 @@ export function FilterTabs<T extends string>({
         </button>
       ))}
     </div>
+  );
+}
+
+export function FilterSelect<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: Array<{ value: T; label: string; count?: number }>;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <label className="filter-select">
+      <span>{label}</span>
+      <div>
+        <select
+          aria-label={label}
+          value={value}
+          onChange={(event) => onChange(event.target.value as T)}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+              {option.count === undefined ? "" : `（${option.count}）`}
+            </option>
+          ))}
+        </select>
+        <ChevronDown />
+      </div>
+    </label>
   );
 }
 

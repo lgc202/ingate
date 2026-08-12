@@ -2511,7 +2511,39 @@ export function ServicePage() {
           tone={verifiedServices === services.length ? "good" : "warning"}
         />
       </section>
-      {services.filter((service) => service.capabilityChanges && !service.capabilityChanges.reviewed).map((service) => { const changes = service.capabilityChanges!; const affectedRoutes = routes.filter((route) => route.targets.some((target) => target.serviceID === service.id)); return <section className="capability-alert" key={service.id}><span><Wrench /></span><div><small>服务定义发生变化 · {changes.detectedAt}</small><h3>{service.name} 的 MCP 工具清单需要确认</h3><p>{changes.added.length ? `新增 ${changes.added.join("、")}` : ""}{changes.added.length && changes.removed.length ? "；" : ""}{changes.removed.length ? `移除 ${changes.removed.join("、")}` : ""}</p><p>影响 {affectedRoutes.length} 条路由：{affectedRoutes.map((route) => route.name).join("、") || "尚无路由引用"}</p></div><button className="button button-secondary" type="button" onClick={() => reviewServiceChanges(service.id)}><CheckCircle2 />确认服务定义</button></section>; })}
+      {services.filter((service) => service.capabilityChanges && !service.capabilityChanges.reviewed).map((service) => {
+        const changes = service.capabilityChanges!;
+        const affectedRoutes = routes.filter((route) =>
+          route.targets.some((target) => target.serviceID === service.id),
+        );
+        const capabilityName = service.type === "MCP" ? "工具" : "模型";
+        return (
+          <section className="capability-alert" key={service.id}>
+            <span>{service.type === "MCP" ? <Wrench /> : <Sparkles />}</span>
+            <div>
+              <small>服务能力发生变化 · {changes.detectedAt}</small>
+              <h3>{service.name} 的{capabilityName}清单需要确认</h3>
+              <p>
+                {changes.added.length ? `新增 ${changes.added.join("、")}` : ""}
+                {changes.added.length && changes.removed.length ? "；" : ""}
+                {changes.removed.length ? `移除 ${changes.removed.join("、")}` : ""}
+              </p>
+              <p>
+                影响 {affectedRoutes.length} 条路由：
+                {affectedRoutes.map((route) => route.name).join("、") || "尚无路由引用"}
+              </p>
+            </div>
+            <button
+              className="button button-secondary"
+              type="button"
+              onClick={() => reviewServiceChanges(service.id)}
+            >
+              <CheckCircle2 />
+              确认服务能力
+            </button>
+          </section>
+        );
+      })}
       <section className="card table-card">
         <header className="table-toolbar">
           <SearchField
@@ -2791,6 +2823,66 @@ function ServiceDetail({
         </div>
       </div>
       <div className="detail-jump"><div><strong>{routes.length} 条路由引用此服务</strong><span>线上成功率、延迟和端点异常统一在运行健康中查看</span></div><Link className="button button-secondary" to="/health">查看运行健康 <ChevronRight /></Link></div>
+      {service.recovery ? (
+        <section className="detail-section recovery-section">
+          <header>
+            <div>
+              <h3>自动故障恢复</h3>
+              <small>连续失败后自动摘除，冷却结束再用少量请求探测</small>
+            </div>
+            <StatusBadge
+              state={
+                service.recovery.state === "ready"
+                  ? "healthy"
+                  : service.recovery.state === "probing"
+                    ? "warning"
+                    : "error"
+              }
+              label={recoveryStateLabel(service.recovery.state)}
+            />
+          </header>
+          <div className="recovery-flow">
+            {(["ready", "ejected", "cooling", "probing"] as const).map(
+              (state, index) => (
+                <div
+                  className={
+                    service.recovery?.state === state ? "is-current" : ""
+                  }
+                  key={state}
+                >
+                  <span>{index + 1}</span>
+                  <strong>{recoveryStateLabel(state)}</strong>
+                </div>
+              ),
+            )}
+          </div>
+          <dl className="definition-list recovery-facts">
+            <div>
+              <dt>连续失败</dt>
+              <dd>
+                {service.recovery.consecutiveFailures} /{" "}
+                {service.recovery.failureThreshold}
+              </dd>
+            </div>
+            <div>
+              <dt>冷却时间</dt>
+              <dd>{service.recovery.cooldown}</dd>
+            </div>
+            {service.recovery.lastFailure ? (
+              <div>
+                <dt>最近失败</dt>
+                <dd>{service.recovery.lastFailure}</dd>
+              </div>
+            ) : null}
+            {service.recovery.retryAt ? (
+              <div>
+                <dt>下次探测</dt>
+                <dd>{service.recovery.retryAt}</dd>
+              </div>
+            ) : null}
+          </dl>
+        </section>
+      ) : null}
       <section className="detail-section">
         <header>
           <h3>服务端点</h3>
@@ -2859,23 +2951,91 @@ function ServiceDetail({
           ) : null}
         </dl>
       </section>
-      {service.type !== "HTTP" ? (
+      {service.type === "MODEL" && service.models?.length ? (
+        <section className="detail-section service-model-section">
+          <header>
+            <div>
+              <h3>已发现模型</h3>
+              <small>来自服务的能力探测，客户端模型名仍在 AI 路由中发布</small>
+            </div>
+            <span>最近同步 {service.models[0].lastSyncedAt}</span>
+          </header>
+          <div className="service-model-list">
+            {service.models.map((model) => {
+              const price = service.modelPrices?.[model.name];
+              return (
+                <article key={model.name}>
+                  <header>
+                    <span>
+                      <Sparkles />
+                    </span>
+                    <div>
+                      <strong>{model.displayName}</strong>
+                      <code>{model.name}</code>
+                    </div>
+                    <StatusBadge state={model.state} label="可用" />
+                  </header>
+                  <dl>
+                    <div>
+                      <dt>上下文</dt>
+                      <dd>{model.contextWindow}</dd>
+                    </div>
+                    <div>
+                      <dt>最大输出</dt>
+                      <dd>{model.maxOutputTokens}</dd>
+                    </div>
+                    <div>
+                      <dt>输入 / 输出</dt>
+                      <dd>
+                        {model.inputModes.join("、")} →{" "}
+                        {model.outputModes.join("、")}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>价格</dt>
+                      <dd>
+                        {price
+                          ? `输入 ¥${price.input} · 输出 ¥${price.output} / 百万 Token`
+                          : "未配置"}
+                      </dd>
+                    </div>
+                  </dl>
+                  <div className="model-capability-row">
+                    <span>能力</span>
+                    <div>
+                      {model.features.map((feature) => (
+                        <code key={feature}>{feature}</code>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="model-capability-row">
+                    <span>参数</span>
+                    <div>
+                      {model.supportedParameters.map((parameter) => (
+                        <code key={parameter}>{parameter}</code>
+                      ))}
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : service.type === "MCP" ? (
         <section className="detail-section">
           <header>
-            <h3>{service.type === "MODEL" ? "实际模型" : "已发现工具"}</h3>
+            <h3>已发现工具</h3>
             <span>{service.capabilities.length} 项</span>
           </header>
           {service.capabilities.map((capability) => (
             <div className="detail-line" key={capability}>
               <span>
-                {service.type === "MODEL" ? <Sparkles /> : <Wrench />}
+                <Wrench />
               </span>
               <div>
                 <strong>{capability}</strong>
                 <small>
-                  {service.type === "MODEL"
-                    ? "可映射为客户端模型名"
-                    : "可在路由中选择对外开放"}
+                  可在路由中选择对外开放
                 </small>
               </div>
               <StatusBadge state="healthy" label="可用" />
@@ -2921,6 +3081,18 @@ function ServiceDetail({
     </Drawer>
   );
 }
+
+function recoveryStateLabel(
+  state: "ready" | "ejected" | "cooling" | "probing",
+) {
+  return {
+    ready: "正常承载",
+    ejected: "已摘除",
+    cooling: "冷却中",
+    probing: "试探恢复",
+  }[state];
+}
+
 function RotateServiceCredential({
   service,
   certificates,
@@ -3351,6 +3523,24 @@ function CreateService({
       loadBalancing,
       healthCheck,
       capabilities,
+      models:
+        type === "MODEL"
+          ? capabilities.map(
+              (model) =>
+                initial?.models?.find((item) => item.name === model) ?? {
+                  name: model,
+                  displayName: model,
+                  contextWindow: "待服务同步",
+                  maxOutputTokens: "待服务同步",
+                  inputModes: ["文本"],
+                  outputModes: ["文本"],
+                  features: ["对话"],
+                  supportedParameters: ["temperature", "max_tokens"],
+                  state: "healthy" as const,
+                  lastSyncedAt: "刚刚",
+                },
+            )
+          : undefined,
       modelPrices:
         type === "MODEL"
           ? Object.fromEntries(
@@ -3367,6 +3557,17 @@ function CreateService({
               ]),
             )
           : undefined,
+      resilience: initial?.resilience,
+      recovery:
+        initial?.recovery ??
+        (type === "MODEL"
+          ? {
+              state: "ready" as const,
+              consecutiveFailures: 0,
+              failureThreshold: 5,
+              cooldown: "30 秒",
+            }
+          : undefined),
       successRate: initial?.successRate ?? "—",
       latency: initial?.latency ?? "—",
       state: tested ? "healthy" : "unverified",

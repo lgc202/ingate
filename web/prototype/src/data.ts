@@ -134,6 +134,29 @@ export interface ServiceEndpoint {
   state: HealthState;
 }
 
+export interface ServiceModel {
+  name: string;
+  displayName: string;
+  contextWindow: string;
+  maxOutputTokens: string;
+  inputModes: string[];
+  outputModes: string[];
+  features: string[];
+  supportedParameters: string[];
+  state: HealthState;
+  lastSyncedAt: string;
+}
+
+export interface ServiceRecovery {
+  state: "ready" | "ejected" | "cooling" | "probing";
+  consecutiveFailures: number;
+  failureThreshold: number;
+  cooldown: string;
+  lastFailure?: string;
+  ejectedAt?: string;
+  retryAt?: string;
+}
+
 export interface Service {
   id: string;
   name: string;
@@ -150,9 +173,16 @@ export interface Service {
   trustCertificateID?: string;
   provider: string;
   capabilities: string[];
+  models?: ServiceModel[];
   modelPrices?: Record<
     string,
-    { input: number; output: number; unit: "每百万 Token"; updatedAt: string }
+    {
+      input: number;
+      cachedInput?: number;
+      output: number;
+      unit: "每百万 Token";
+      updatedAt: string;
+    }
   >;
   capabilityChanges?: {
     added: string[];
@@ -161,6 +191,7 @@ export interface Service {
     reviewed: boolean;
   };
   resilience?: { consecutiveFailures: number; ejectionTime: string };
+  recovery?: ServiceRecovery;
   successRate: string;
   latency: string;
   state: HealthState;
@@ -207,6 +238,9 @@ export interface CallerAccessKey {
   expiresAt: string;
   lastUsed: string;
   state: HealthState;
+  graceUntil?: string;
+  rotatedFromID?: string;
+  replacedByID?: string;
 }
 
 export interface Caller {
@@ -256,6 +290,21 @@ export interface RequestRecord {
   latency: string;
   usage: string;
   cost: string;
+  attempts: Array<{
+    service: string;
+    provider?: string;
+    actualModel?: string;
+    result: "成功" | "失败";
+    code: string;
+    latency: string;
+    ttft?: string;
+    inputTokens?: number;
+    outputTokens?: number;
+    cachedTokens?: number;
+    cost?: string;
+    error?: string;
+    state: HealthState;
+  }>;
   steps: Array<{
     name: string;
     detail: string;
@@ -435,15 +484,55 @@ export const initialServices: Service[] = [
     serverName: "dashscope.aliyuncs.com",
     provider: "阿里云百炼",
     capabilities: ["qwen-max", "qwen-plus", "text-embedding-v3"],
+    models: [
+      {
+        name: "qwen-max",
+        displayName: "通义千问 Max",
+        contextWindow: "32K Token",
+        maxOutputTokens: "8K Token",
+        inputModes: ["文本", "图片"],
+        outputModes: ["文本"],
+        features: ["对话", "工具调用", "结构化输出"],
+        supportedParameters: ["temperature", "top_p", "tools", "response_format"],
+        state: "healthy",
+        lastSyncedAt: "今天 14:28",
+      },
+      {
+        name: "qwen-plus",
+        displayName: "通义千问 Plus",
+        contextWindow: "128K Token",
+        maxOutputTokens: "8K Token",
+        inputModes: ["文本"],
+        outputModes: ["文本"],
+        features: ["对话", "工具调用", "结构化输出"],
+        supportedParameters: ["temperature", "top_p", "tools", "response_format"],
+        state: "healthy",
+        lastSyncedAt: "今天 14:28",
+      },
+      {
+        name: "text-embedding-v3",
+        displayName: "文本向量 V3",
+        contextWindow: "8K Token",
+        maxOutputTokens: "—",
+        inputModes: ["文本"],
+        outputModes: ["向量"],
+        features: ["文本向量"],
+        supportedParameters: ["dimensions", "encoding_format"],
+        state: "healthy",
+        lastSyncedAt: "今天 14:28",
+      },
+    ],
     modelPrices: {
       "qwen-max": {
         input: 20,
+        cachedInput: 5,
         output: 60,
         unit: "每百万 Token",
         updatedAt: "2026-08-01",
       },
       "qwen-plus": {
         input: 4,
+        cachedInput: 1,
         output: 12,
         unit: "每百万 Token",
         updatedAt: "2026-08-01",
@@ -457,6 +546,12 @@ export const initialServices: Service[] = [
     },
     successRate: "99.98%",
     latency: "TTFT 620 ms",
+    recovery: {
+      state: "ready",
+      consecutiveFailures: 0,
+      failureThreshold: 5,
+      cooldown: "30 秒",
+    },
     state: "healthy",
     verificationState: "verified",
   },
@@ -475,15 +570,39 @@ export const initialServices: Service[] = [
     serverName: "api.anthropic.com",
     provider: "Anthropic",
     capabilities: ["claude-sonnet-4"],
+    models: [
+      {
+        name: "claude-sonnet-4",
+        displayName: "Claude Sonnet 4",
+        contextWindow: "200K Token",
+        maxOutputTokens: "64K Token",
+        inputModes: ["文本", "图片", "文档"],
+        outputModes: ["文本"],
+        features: ["对话", "工具调用", "扩展思考"],
+        supportedParameters: ["max_tokens", "temperature", "top_p", "tools"],
+        state: "healthy",
+        lastSyncedAt: "今天 14:27",
+      },
+    ],
     modelPrices: {
       "claude-sonnet-4": {
         input: 21,
+        cachedInput: 2.1,
         output: 105,
         unit: "每百万 Token",
         updatedAt: "2026-08-01",
       },
     },
     resilience: { consecutiveFailures: 5, ejectionTime: "30 秒" },
+    recovery: {
+      state: "cooling",
+      consecutiveFailures: 5,
+      failureThreshold: 5,
+      cooldown: "30 秒",
+      lastFailure: "连接超时",
+      ejectedAt: "14:31:56",
+      retryAt: "14:32:26",
+    },
     successRate: "99.72%",
     latency: "TTFT 2.8 s",
     state: "warning",
@@ -508,9 +627,24 @@ export const initialServices: Service[] = [
     serverName: "bedrock-runtime.us-east-1.amazonaws.com",
     provider: "AWS",
     capabilities: ["claude-sonnet-4"],
+    models: [
+      {
+        name: "claude-sonnet-4",
+        displayName: "Claude Sonnet 4",
+        contextWindow: "200K Token",
+        maxOutputTokens: "64K Token",
+        inputModes: ["文本", "图片", "文档"],
+        outputModes: ["文本"],
+        features: ["对话", "工具调用", "扩展思考"],
+        supportedParameters: ["max_tokens", "temperature", "top_p", "tools"],
+        state: "healthy",
+        lastSyncedAt: "今天 14:26",
+      },
+    ],
     modelPrices: {
       "claude-sonnet-4": {
         input: 21,
+        cachedInput: 2.1,
         output: 105,
         unit: "每百万 Token",
         updatedAt: "2026-08-01",
@@ -518,6 +652,12 @@ export const initialServices: Service[] = [
     },
     successRate: "99.95%",
     latency: "TTFT 1.7 s",
+    recovery: {
+      state: "ready",
+      consecutiveFailures: 0,
+      failureThreshold: 5,
+      cooldown: "30 秒",
+    },
     state: "healthy",
     verificationState: "verified",
   },
@@ -1093,6 +1233,15 @@ export const initialRequests: RequestRecord[] = [
     latency: "86 ms",
     usage: "12.4 KB",
     cost: "—",
+    attempts: [
+      {
+        service: "订单服务",
+        result: "成功",
+        code: "200",
+        latency: "79 ms",
+        state: "healthy",
+      },
+    ],
     steps: [
       {
         name: "调用方认证",
@@ -1132,7 +1281,23 @@ export const initialRequests: RequestRecord[] = [
     code: "200",
     latency: "TTFT 612 ms · 总计 1.8 s",
     usage: "1,842 Token",
-    cost: "¥0.08",
+    cost: "¥0.06",
+    attempts: [
+      {
+        service: "通义千问生产",
+        provider: "阿里云百炼",
+        actualModel: "qwen-max",
+        result: "成功",
+        code: "200",
+        latency: "1.79 s",
+        ttft: "612 ms",
+        inputTokens: 1246,
+        outputTokens: 596,
+        cachedTokens: 312,
+        cost: "¥0.06",
+        state: "healthy",
+      },
+    ],
     steps: [
       {
         name: "调用方认证",
@@ -1172,7 +1337,38 @@ export const initialRequests: RequestRecord[] = [
     code: "200",
     latency: "TTFT 1.9 s · 总计 3.4 s",
     usage: "3,106 Token",
-    cost: "¥0.32",
+    cost: "¥0.19",
+    attempts: [
+      {
+        service: "Anthropic 公网",
+        provider: "Anthropic",
+        actualModel: "claude-sonnet-4",
+        result: "失败",
+        code: "UPSTREAM_TIMEOUT",
+        latency: "2.0 s",
+        ttft: "—",
+        inputTokens: 2110,
+        outputTokens: 0,
+        cachedTokens: 0,
+        cost: "¥0.04",
+        error: "连接超时，服务已进入冷却期",
+        state: "error",
+      },
+      {
+        service: "Bedrock 灾备",
+        provider: "AWS",
+        actualModel: "claude-sonnet-4",
+        result: "成功",
+        code: "200",
+        latency: "1.4 s",
+        ttft: "1.9 s",
+        inputTokens: 2110,
+        outputTokens: 996,
+        cachedTokens: 0,
+        cost: "¥0.15",
+        state: "healthy",
+      },
+    ],
     steps: [
       {
         name: "调用方认证",
@@ -1213,6 +1409,7 @@ export const initialRequests: RequestRecord[] = [
     latency: "18 ms",
     usage: "—",
     cost: "—",
+    attempts: [],
     steps: [
       {
         name: "调用方认证",
@@ -1241,6 +1438,15 @@ export const initialRequests: RequestRecord[] = [
     latency: "238 ms",
     usage: "1 次工具调用",
     cost: "—",
+    attempts: [
+      {
+        service: "搜索工具服务",
+        result: "成功",
+        code: "200",
+        latency: "232 ms",
+        state: "healthy",
+      },
+    ],
     steps: [
       {
         name: "调用方认证",
@@ -1281,6 +1487,16 @@ export const initialRequests: RequestRecord[] = [
     latency: "1.2 s",
     usage: "0 KB",
     cost: "—",
+    attempts: [
+      {
+        service: "文件服务",
+        result: "失败",
+        code: "UPSTREAM_TIMEOUT",
+        latency: "1.19 s",
+        error: "上游连接超时",
+        state: "error",
+      },
+    ],
     steps: [
       {
         name: "调用方认证",

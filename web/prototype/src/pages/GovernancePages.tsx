@@ -6,6 +6,7 @@ import {
   Pencil,
   Play,
   Plus,
+  RotateCw,
   ShieldCheck,
   Trash2,
 } from "lucide-react";
@@ -52,6 +53,7 @@ export function CallerPage() {
     setCallerQuota,
     removeCallerQuota,
     issueCallerKey,
+    rotateCallerKey,
     revokeCallerKey,
   } = usePrototype();
   const [searchParams] = useSearchParams();
@@ -63,6 +65,7 @@ export function CallerPage() {
   const [editingPermissions, setEditingPermissions] = useState(false);
   const [quotaRouteID, setQuotaRouteID] = useState("");
   const [issuingKey, setIssuingKey] = useState(false);
+  const [rotatingKey, setRotatingKey] = useState<CallerAccessKey | null>(null);
   const [tryingRouteID, setTryingRouteID] = useState("");
   const [toast, setToast] = useState("");
   const [revokeCandidateID, setRevokeCandidateID] = useState("");
@@ -94,6 +97,11 @@ export function CallerPage() {
     );
   const quotaRoute = routes.find((route) => route.id === quotaRouteID);
   const tryingRoute = routes.find((route) => route.id === tryingRouteID);
+  const visibleModels = selectedRoutes.flatMap(({ permission, route }) =>
+    route.type === "AI"
+      ? permission.scopes.map((model) => ({ model, route }))
+      : [],
+  );
 
   return (
     <div className="page-stack page-enter">
@@ -210,6 +218,7 @@ export function CallerPage() {
                       <small>
                         创建于 {key.createdAt} · 到期 {key.expiresAt} · 最后使用{" "}
                         {key.lastUsed}
+                        {key.graceUntil ? ` · 旧密钥宽限至 ${key.graceUntil}` : ""}
                       </small>
                     </div>
                     <StatusBadge
@@ -218,7 +227,9 @@ export function CallerPage() {
                         key.state === "healthy"
                           ? "有效"
                           : key.state === "warning"
-                            ? "即将到期"
+                            ? key.graceUntil
+                              ? "轮换宽限期"
+                              : "即将到期"
                             : "已停用"
                       }
                     />
@@ -244,14 +255,25 @@ export function CallerPage() {
                           </button>
                         </div>
                       ) : (
-                        <button
-                          className="key-revoke"
-                          type="button"
-                          onClick={() => setRevokeCandidateID(key.id)}
-                        >
-                          <Ban />
-                          停用
-                        </button>
+                        <div className="key-actions">
+                          {!key.replacedByID ? (
+                            <button
+                              type="button"
+                              onClick={() => setRotatingKey(key)}
+                            >
+                              <RotateCw />
+                              轮换
+                            </button>
+                          ) : null}
+                          <button
+                            className="key-revoke"
+                            type="button"
+                            onClick={() => setRevokeCandidateID(key.id)}
+                          >
+                            <Ban />
+                            停用
+                          </button>
+                        </div>
                       )
                     ) : (
                       <span className="key-disabled-note">不可恢复</span>
@@ -266,6 +288,37 @@ export function CallerPage() {
               )}
             </div>
           </section>
+
+          {visibleModels.length ? (
+            <section className="detail-section visible-model-section">
+              <header>
+                <div>
+                  <h3>可见模型</h3>
+                  <small>调用方通过标准模型列表接口看到的客户端模型名</small>
+                </div>
+                <span>{visibleModels.length} 个模型</span>
+              </header>
+              <div className="visible-model-list">
+                {visibleModels.map(({ model, route }) => (
+                  <div key={`${route.id}-${model}`}>
+                    <code>{model}</code>
+                    <span>{route.name}</span>
+                    <StatusBadge state="healthy" label="可调用" />
+                  </div>
+                ))}
+              </div>
+              <div className="model-list-example">
+                <div>
+                  <strong>获取已授权模型</strong>
+                  <span>返回结果随当前调用方的路由权限变化</span>
+                </div>
+                <code>{`curl 'https://${visibleModels[0].route.host}${visibleModels[0].route.path}/models' \\\n  -H 'Authorization: Bearer <${selected.name}密钥>'`}</code>
+                <CopyButton
+                  value={`curl 'https://${visibleModels[0].route.host}${visibleModels[0].route.path}/models' -H 'Authorization: Bearer <${selected.name}密钥>'`}
+                />
+              </div>
+            </section>
+          ) : null}
 
           <section className="detail-section">
             <header>
@@ -429,6 +482,17 @@ export function CallerPage() {
           caller={selected}
           onClose={() => setIssuingKey(false)}
           onIssue={(key) => issueCallerKey(selected.id, key)}
+        />
+      ) : null}
+      {rotatingKey ? (
+        <RotateCallerKey
+          caller={selected}
+          currentKey={rotatingKey}
+          onClose={() => setRotatingKey(null)}
+          onRotate={(key, graceUntil) => {
+            rotateCallerKey(selected.id, rotatingKey.id, key, graceUntil);
+            setToast("新密钥已生成，旧密钥进入宽限期");
+          }}
         />
       ) : null}
       {tryingRoute ? (
@@ -634,6 +698,134 @@ function IssueCallerKey({
           签发后会生成新的密钥；完整明文只展示一次，之后只能查看名称、标识和使用状态。
         </div>
         <FormActions submitLabel="签发密钥" onCancel={onClose} />
+      </form>
+    </Drawer>
+  );
+}
+
+function RotateCallerKey({
+  caller,
+  currentKey,
+  onClose,
+  onRotate,
+}: {
+  caller: Caller;
+  currentKey: CallerAccessKey;
+  onClose: () => void;
+  onRotate: (key: CallerAccessKey, graceUntil: string) => void;
+}) {
+  const [graceDays, setGraceDays] = useState("7");
+  const [secret, setSecret] = useState("");
+  const [newKey, setNewKey] = useState<CallerAccessKey | null>(null);
+  const [graceUntil, setGraceUntil] = useState("");
+  const rotate = () => {
+    const value = `ig_live_${crypto.randomUUID().replaceAll("-", "")}`;
+    const created = new Date();
+    const expires = new Date(created);
+    expires.setDate(expires.getDate() + 90);
+    const graceEnd = new Date(created);
+    graceEnd.setDate(graceEnd.getDate() + Number(graceDays));
+    const createdKey: CallerAccessKey = {
+      id: `key-${crypto.randomUUID()}`,
+      name: `${currentKey.name} · 新密钥`,
+      prefix: `${value.slice(0, 16)}…`,
+      createdAt: created.toISOString().slice(0, 10),
+      expiresAt: expires.toISOString().slice(0, 10),
+      lastUsed: "尚未使用",
+      state: "healthy",
+    };
+    const graceDate = graceEnd.toISOString().slice(0, 10);
+    onRotate(createdKey, graceDate);
+    setNewKey(createdKey);
+    setGraceUntil(graceDate);
+    setSecret(value);
+  };
+
+  if (secret && newKey)
+    return (
+      <Drawer
+        title="密钥轮换已开始"
+        description={`${caller.name} · ${currentKey.name}`}
+        onClose={onClose}
+      >
+        <div className="secret-result">
+          <span>
+            <RotateCw />
+          </span>
+          <div>
+            <strong>先部署新密钥，再停用旧密钥</strong>
+            <p>
+              新旧密钥会同时有效至 {graceUntil}。完整新密钥只显示这一次。
+            </p>
+          </div>
+        </div>
+        <div className="secret-value">
+          <code>{secret}</code>
+          <CopyButton value={secret} />
+        </div>
+        <dl className="definition-list secret-metadata">
+          <div>
+            <dt>新密钥</dt>
+            <dd>{newKey.name}</dd>
+          </div>
+          <div>
+            <dt>旧密钥宽限期</dt>
+            <dd>截至 {graceUntil}</dd>
+          </div>
+          <div>
+            <dt>下一步</dt>
+            <dd>确认调用已切换后，可提前停用旧密钥</dd>
+          </div>
+        </dl>
+        <footer className="form-actions">
+          <PrimaryButton onClick={onClose}>我已保存新密钥</PrimaryButton>
+        </footer>
+      </Drawer>
+    );
+
+  return (
+    <Drawer
+      title="轮换访问密钥"
+      description={`${caller.name} · ${currentKey.name}`}
+      onClose={onClose}
+    >
+      <form onSubmit={(event) => submitForm(event, rotate)}>
+        <div className="rotation-path">
+          <div>
+            <span>1</span>
+            <strong>生成新密钥</strong>
+          </div>
+          <i />
+          <div>
+            <span>2</span>
+            <strong>迁移调用方</strong>
+          </div>
+          <i />
+          <div>
+            <span>3</span>
+            <strong>停用旧密钥</strong>
+          </div>
+        </div>
+        <div className="form-grid">
+          <label className="field-wide">
+            <span>旧密钥宽限期</span>
+            <select
+              value={graceDays}
+              onChange={(event) => setGraceDays(event.target.value)}
+            >
+              <option value="1">1 天</option>
+              <option value="7">7 天</option>
+              <option value="14">14 天</option>
+              <option value="30">30 天</option>
+            </select>
+            <small>宽限期内新旧密钥同时有效，便于无中断迁移</small>
+          </label>
+        </div>
+        <div className="form-note">
+          <ShieldCheck />
+          新密钥生效不会修改现有路由权限和用量归属；宽限期结束后旧密钥自动失效。
+        </div>
+        <FormActions submitLabel="生成新密钥" onCancel={onClose} />
       </form>
     </Drawer>
   );

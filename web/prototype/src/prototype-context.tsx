@@ -71,6 +71,12 @@ interface PrototypeState {
   setCallerQuota: (callerID: string, quota: CallerQuota) => void;
   removeCallerQuota: (callerID: string, routeID: string) => void;
   issueCallerKey: (callerID: string, key: CallerAccessKey) => void;
+  rotateCallerKey: (
+    callerID: string,
+    keyID: string,
+    key: CallerAccessKey,
+    graceUntil: string,
+  ) => void;
   revokeCallerKey: (callerID: string, keyID: string) => void;
   addPolicy: (policy: Policy) => void;
   updatePolicy: (policy: Policy) => void;
@@ -628,6 +634,38 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
         `签发“${key.name}”访问密钥，有效期至 ${key.expiresAt}`,
       );
     },
+    rotateCallerKey: (callerID, keyID, key, graceUntil) => {
+      const caller = callers.find((item) => item.id === callerID);
+      const previousKey = caller?.keys.find((item) => item.id === keyID);
+      setCallers((items) =>
+        items.map((item) =>
+          item.id === callerID
+            ? {
+                ...item,
+                keys: [
+                  ...item.keys.map((current) =>
+                    current.id === keyID
+                      ? {
+                          ...current,
+                          state: "warning" as const,
+                          graceUntil,
+                          replacedByID: key.id,
+                        }
+                      : current,
+                  ),
+                  { ...key, rotatedFromID: keyID },
+                ],
+              }
+            : item,
+        ),
+      );
+      recordAudit(
+        "轮换密钥",
+        "调用方",
+        caller?.name ?? callerID,
+        `以“${key.name}”替换“${previousKey?.name ?? keyID}”，旧密钥可用至 ${graceUntil}`,
+      );
+    },
     revokeCallerKey: (callerID, keyID) => {
       const caller = callers.find((item) => item.id === callerID);
       const key = caller?.keys.find((item) => item.id === keyID);
@@ -843,6 +881,23 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
                 ? "1 次工具调用"
                 : "2.1 KB",
           cost: route.type === "AI" ? "¥0.01" : "—",
+          attempts: target
+            ? [
+                {
+                  service: target.serviceName,
+                  actualModel: route.type === "AI" ? target.detail : undefined,
+                  result: "成功" as const,
+                  code: "200",
+                  latency: route.type === "AI" ? "1.39 s" : "71 ms",
+                  ttft: route.type === "AI" ? "540 ms" : undefined,
+                  inputTokens: route.type === "AI" ? 84 : undefined,
+                  outputTokens: route.type === "AI" ? 42 : undefined,
+                  cachedTokens: route.type === "AI" ? 16 : undefined,
+                  cost: route.type === "AI" ? "¥0.01" : undefined,
+                  state: "healthy" as const,
+                },
+              ]
+            : [],
           steps: [
             {
               name: "调用方认证",
