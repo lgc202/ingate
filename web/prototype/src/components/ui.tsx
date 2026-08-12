@@ -187,6 +187,28 @@ export function EmptyState({
   );
 }
 
+export function CompactTagList({
+  items,
+  limit = 2,
+  empty = "暂无",
+}: {
+  items: string[];
+  limit?: number;
+  empty?: string;
+}) {
+  if (!items.length) return <small>{empty}</small>;
+  return (
+    <div className="tag-cell compact-tag-list">
+      {items.slice(0, limit).map((item, index) => (
+        <code key={`${item}-${index}`}>{item}</code>
+      ))}
+      {items.length > limit ? (
+        <span className="tag-overflow">+{items.length - limit}</span>
+      ) : null}
+    </div>
+  );
+}
+
 export function FilterTabs<T extends string>({
   value,
   options,

@@ -18,10 +18,12 @@ import {
   Sparkles,
   Trash2,
   Wrench,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  CompactTagList,
   Drawer,
   DeleteConfirm,
   EmptyState,
@@ -142,12 +144,17 @@ export function GatewayPage() {
                   <small>{gatewayDomains(gateway)[0]}</small>
                 </div>
               </div>
-              <span>{gateway.listeners.map(listenerLabel).join(" · ")}</span>
-              <span>{gatewayDomains(gateway).join("、")}</span>
               <span>
-                {gatewayCertificateNames(gateway, certificates).join("、") ||
-                  "—"}
+                {gateway.listeners.slice(0, 2).map(listenerLabel).join(" · ")}
+                {gateway.listeners.length > 2
+                  ? ` 等 ${gateway.listeners.length} 个`
+                  : ""}
               </span>
+              <CompactTagList items={gatewayDomains(gateway)} />
+              <CompactTagList
+                items={gatewayCertificateNames(gateway, certificates)}
+                empty="—"
+              />
               <strong>
                 {
                   routes.filter((route) => route.gatewayID === gateway.id)
@@ -886,7 +893,12 @@ export function RoutePage() {
                 <TypeBadge type={route.type} />
                 <div>
                   <strong>{route.name}</strong>
-                  <small>{route.published.join("、")}</small>
+                  <small>
+                    {route.published.slice(0, 2).join("、")}
+                    {route.published.length > 2
+                      ? ` 等 ${route.published.length} 项`
+                      : ""}
+                  </small>
                 </div>
               </div>
               <div>
@@ -1427,6 +1439,7 @@ function CreateRoute({
   const [selectedTools, setSelectedTools] = useState<string[]>(
     initial?.type === "MCP" ? initial.published : [],
   );
+  const [toolQuery, setToolQuery] = useState("");
   const [secondLineEnabled, setSecondLineEnabled] = useState(
     Boolean(initial && initial.type !== "AI" && initial.targets.length > 1),
   );
@@ -1506,6 +1519,9 @@ function CreateRoute({
   );
   const effectiveTools = selectedTools.filter((tool) =>
     primaryService?.capabilities.includes(tool),
+  );
+  const visibleTools = (primaryService?.capabilities ?? []).filter((tool) =>
+    tool.toLowerCase().includes(toolQuery.toLowerCase()),
   );
   const secondCandidates = compatible.filter(
     (service) => service.id !== effectiveServiceID,
@@ -2149,6 +2165,7 @@ function CreateRoute({
                     onChange={(event) => {
                       setServiceID(event.target.value);
                       setSelectedTools([]);
+                      setToolQuery("");
                       setSecondServiceID("");
                     }}
                     required
@@ -2166,24 +2183,63 @@ function CreateRoute({
                 {type === "MCP" ? (
                   <fieldset className="field-wide tool-picker">
                     <legend>开放工具</legend>
-                    {primaryService?.capabilities.map((tool) => (
-                      <label key={tool}>
-                        <input
-                          type="checkbox"
-                          checked={effectiveTools.includes(tool)}
-                          onChange={() =>
-                            setSelectedTools((items) =>
-                              items.includes(tool)
-                                ? items.filter((item) => item !== tool)
-                                : [...items, tool],
-                            )
-                          }
-                        />
-                        <span>
-                          <code>{tool}</code>
-                        </span>
-                      </label>
-                    ))}
+                    {effectiveTools.length ? (
+                      <div className="tool-picker-selected">
+                        {effectiveTools.map((tool) => (
+                          <span key={tool}>
+                            <code>{tool}</code>
+                            <button
+                              type="button"
+                              aria-label={`移除${tool}`}
+                              onClick={() =>
+                                setSelectedTools((items) =>
+                                  items.filter((item) => item !== tool),
+                                )
+                              }
+                            >
+                              <X />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="tool-picker-empty">
+                        尚未开放工具，该路由暂时不能调用 MCP 能力
+                      </div>
+                    )}
+                    <div className="tool-picker-toolbar">
+                      <SearchField
+                        value={toolQuery}
+                        onChange={setToolQuery}
+                        placeholder="搜索已发现工具"
+                      />
+                      <span>
+                        已选 {effectiveTools.length} / {primaryService?.capabilities.length ?? 0}
+                      </span>
+                    </div>
+                    <div className="tool-picker-list">
+                      {visibleTools.map((tool) => (
+                        <label key={tool}>
+                          <input
+                            type="checkbox"
+                            checked={effectiveTools.includes(tool)}
+                            onChange={() =>
+                              setSelectedTools((items) =>
+                                items.includes(tool)
+                                  ? items.filter((item) => item !== tool)
+                                  : [...items, tool],
+                              )
+                            }
+                          />
+                          <span>
+                            <code>{tool}</code>
+                          </span>
+                        </label>
+                      ))}
+                      {!visibleTools.length ? (
+                        <small>没有匹配的工具</small>
+                      ) : null}
+                    </div>
                   </fieldset>
                 ) : null}
               </div>
@@ -2524,13 +2580,19 @@ export function ServicePage() {
               <small>服务能力发生变化 · {changes.detectedAt}</small>
               <h3>{service.name} 的{capabilityName}清单需要确认</h3>
               <p>
-                {changes.added.length ? `新增 ${changes.added.join("、")}` : ""}
+                {changes.added.length
+                  ? `新增 ${summarizeItems(changes.added)}`
+                  : ""}
                 {changes.added.length && changes.removed.length ? "；" : ""}
-                {changes.removed.length ? `移除 ${changes.removed.join("、")}` : ""}
+                {changes.removed.length
+                  ? `移除 ${summarizeItems(changes.removed)}`
+                  : ""}
               </p>
               <p>
                 影响 {affectedRoutes.length} 条路由：
-                {affectedRoutes.map((route) => route.name).join("、") || "尚无路由引用"}
+                {affectedRoutes.length
+                  ? summarizeItems(affectedRoutes.map((route) => route.name))
+                  : "尚无路由引用"}
               </p>
             </div>
             <button
@@ -2606,16 +2668,14 @@ export function ServicePage() {
                     : ""}
                 </small>
               </div>
-              <div className="tag-cell">
-                {(service.type === "HTTP"
-                  ? service.endpoints.map((item) => item.address)
-                  : service.capabilities
-                )
-                  .slice(0, 3)
-                  .map((item) => (
-                    <code key={item}>{item}</code>
-                  ))}
-              </div>
+              <CompactTagList
+                items={
+                  service.type === "HTTP"
+                    ? service.endpoints.map((item) => item.address)
+                    : service.capabilities
+                }
+                limit={3}
+              />
               <strong>
                 {
                   routes.filter((route) =>
@@ -2751,11 +2811,20 @@ function ServiceDetail({
   onClose: () => void;
 }) {
   const [checked, setChecked] = useState(false);
+  const [capabilityQuery, setCapabilityQuery] = useState("");
   const clientCertificate = certificates.find(
     (certificate) => certificate.id === service.clientCertificateID,
   );
   const trustCertificate = certificates.find(
     (certificate) => certificate.id === service.trustCertificateID,
+  );
+  const visibleModels = (service.models ?? []).filter((model) =>
+    `${model.name}${model.displayName}`
+      .toLowerCase()
+      .includes(capabilityQuery.toLowerCase()),
+  );
+  const visibleCapabilities = service.capabilities.filter((capability) =>
+    capability.toLowerCase().includes(capabilityQuery.toLowerCase()),
   );
   return (
     <Drawer
@@ -2958,10 +3027,20 @@ function ServiceDetail({
               <h3>已发现模型</h3>
               <small>来自服务的能力探测，客户端模型名仍在 AI 路由中发布</small>
             </div>
-            <span>最近同步 {service.models[0].lastSyncedAt}</span>
+            <div className="service-capability-tools">
+              <SearchField
+                value={capabilityQuery}
+                onChange={setCapabilityQuery}
+                placeholder="搜索实际模型"
+              />
+              <span>
+                {visibleModels.length} / {service.models.length} · 最近同步{" "}
+                {service.models[0].lastSyncedAt}
+              </span>
+            </div>
           </header>
           <div className="service-model-list">
-            {service.models.map((model) => {
+            {visibleModels.map((model) => {
               const price = service.modelPrices?.[model.name];
               return (
                 <article key={model.name}>
@@ -3019,28 +3098,52 @@ function ServiceDetail({
                 </article>
               );
             })}
+            {!visibleModels.length ? (
+              <EmptyState
+                title="没有匹配的模型"
+                description="请调整搜索条件。"
+              />
+            ) : null}
           </div>
         </section>
       ) : service.type === "MCP" ? (
-        <section className="detail-section">
+        <section className="detail-section service-capability-section">
           <header>
-            <h3>已发现工具</h3>
-            <span>{service.capabilities.length} 项</span>
-          </header>
-          {service.capabilities.map((capability) => (
-            <div className="detail-line" key={capability}>
-              <span>
-                <Wrench />
-              </span>
-              <div>
-                <strong>{capability}</strong>
-                <small>
-                  可在路由中选择对外开放
-                </small>
-              </div>
-              <StatusBadge state="healthy" label="可用" />
+            <div>
+              <h3>已发现工具</h3>
+              <small>可在 MCP 路由中选择对外开放</small>
             </div>
-          ))}
+            <div className="service-capability-tools">
+              <SearchField
+                value={capabilityQuery}
+                onChange={setCapabilityQuery}
+                placeholder="搜索已发现工具"
+              />
+              <span>
+                {visibleCapabilities.length} / {service.capabilities.length}
+              </span>
+            </div>
+          </header>
+          <div className="service-capability-list">
+            {visibleCapabilities.map((capability) => (
+              <div className="detail-line" key={capability}>
+                <span>
+                  <Wrench />
+                </span>
+                <div>
+                  <strong>{capability}</strong>
+                  <small>可在路由中选择对外开放</small>
+                </div>
+                <StatusBadge state="healthy" label="可用" />
+              </div>
+            ))}
+            {!visibleCapabilities.length ? (
+              <EmptyState
+                title="没有匹配的工具"
+                description="请调整搜索条件。"
+              />
+            ) : null}
+          </div>
         </section>
       ) : null}
       <section className="detail-section">
@@ -3316,6 +3419,7 @@ function CreateService({
       ]),
     ),
   );
+  const [modelPriceQuery, setModelPriceQuery] = useState("");
   const [discoveredTools, setDiscoveredTools] = useState<string[]>(
     initial?.type === "MCP" ? initial.capabilities : [],
   );
@@ -3359,6 +3463,9 @@ function CreateService({
       : type === "MCP"
         ? discoveredTools
         : [];
+  const visiblePriceModels = capabilities.filter((model) =>
+    model.toLowerCase().includes(modelPriceQuery.toLowerCase()),
+  );
   const balanceWeights = (
     items: Array<{
       address: string;
@@ -3430,6 +3537,7 @@ function CreateService({
     setTrustMode("系统信任");
     setTrustCertificateID("");
     setModels("");
+    setModelPriceQuery("");
     setDiscoveredTools([]);
     setHealthMode(next === "MODEL" ? "被动检查" : "HTTP");
     setTested(false);
@@ -4102,11 +4210,7 @@ function CreateService({
         {tested && type !== "HTTP" ? (
           <div className="discovery-result">
             <strong>已发现{type === "MODEL" ? "模型" : "工具"}</strong>
-            <div className="tag-cell">
-              {capabilities.map((capability) => (
-                <code key={capability}>{capability}</code>
-              ))}
-            </div>
+            <CompactTagList items={capabilities} limit={5} />
           </div>
         ) : null}
         {tested && type === "MODEL" ? (
@@ -4120,47 +4224,59 @@ function CreateService({
               </div>
               <span>人民币 / 百万 Token</span>
             </header>
-            {capabilities.map((model) => (
-              <div key={model}>
-                <code>{model}</code>
-                <label>
-                  <span>输入</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={modelPrices[model]?.input ?? 0}
-                    onChange={(event) =>
-                      setModelPrices((prices) => ({
-                        ...prices,
-                        [model]: {
-                          input: Number(event.target.value),
-                          output: prices[model]?.output ?? 0,
-                        },
-                      }))
-                    }
-                  />
-                </label>
-                <label>
-                  <span>输出</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={modelPrices[model]?.output ?? 0}
-                    onChange={(event) =>
-                      setModelPrices((prices) => ({
-                        ...prices,
-                        [model]: {
-                          input: prices[model]?.input ?? 0,
-                          output: Number(event.target.value),
-                        },
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-            ))}
+            <div className="model-price-toolbar">
+              <SearchField
+                value={modelPriceQuery}
+                onChange={setModelPriceQuery}
+                placeholder="搜索实际模型"
+              />
+              <span>
+                显示 {visiblePriceModels.length} / {capabilities.length}
+              </span>
+            </div>
+            <div className="model-price-list">
+              {visiblePriceModels.map((model) => (
+                <div key={model}>
+                  <code>{model}</code>
+                  <label>
+                    <span>输入</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={modelPrices[model]?.input ?? 0}
+                      onChange={(event) =>
+                        setModelPrices((prices) => ({
+                          ...prices,
+                          [model]: {
+                            input: Number(event.target.value),
+                            output: prices[model]?.output ?? 0,
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                  <label>
+                    <span>输出</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={modelPrices[model]?.output ?? 0}
+                      onChange={(event) =>
+                        setModelPrices((prices) => ({
+                          ...prices,
+                          [model]: {
+                            input: prices[model]?.input ?? 0,
+                            output: Number(event.target.value),
+                          },
+                        }))
+                      }
+                    />
+                  </label>
+                </div>
+              ))}
+            </div>
           </section>
         ) : null}
         {!tested ? (
@@ -4188,6 +4304,12 @@ function normalizedAuthentication(authentication?: string) {
   if (authentication?.startsWith("mTLS")) return "mTLS";
   return authentication ?? "无认证";
 }
+
+function summarizeItems(items: string[], limit = 3) {
+  const visible = items.slice(0, limit).join("、");
+  return items.length > limit ? `${visible} 等 ${items.length} 项` : visible;
+}
+
 export function CertificatePage() {
   const {
     certificates,
@@ -4310,21 +4432,16 @@ export function CertificatePage() {
                     <small>{certificate.usage}</small>
                   </div>
                 </div>
-                <div className="tag-cell">
-                  {certificate.identities.map((identity) => (
-                    <code key={identity}>{identity}</code>
-                  ))}
-                </div>
+                <CompactTagList items={certificate.identities} />
                 <span>{certificate.issuer}</span>
                 <div>
                   <strong>{certificate.expiresAt}</strong>
                   <small>剩余 {certificate.remainingDays} 天</small>
                 </div>
-                <span>
-                  {references.length
-                    ? references.map((reference) => reference.name).join("、")
-                    : "未引用"}
-                </span>
+                <CompactTagList
+                  items={references.map((reference) => reference.name)}
+                  empty="未引用"
+                />
                 <div className="certificate-state"><StatusBadge state={certificate.state} label={certificate.state === "warning" ? "即将到期" : certificate.state === "error" ? "不可用" : "有效"} /><ConfigBadge state={certificate.configState} /></div>
                 <RowActions
                   onDetail={() => setSelected(certificate)}
@@ -4362,10 +4479,15 @@ export function CertificatePage() {
                 />
                 <ConfigBadge state={selected.configState} />
               </div>
-              <h3>{selected.identities.join("、")}</h3>
+              <h3>{summarizeItems(selected.identities, 4)}</h3>
               <p>
                 {selected.issuer} · {selected.expiresAt} 到期
               </p>
+              <div className="certificate-identities">
+                {selected.identities.map((identity) => (
+                  <code key={identity}>{identity}</code>
+                ))}
+              </div>
             </div>
           </div>
           <section className="detail-section">

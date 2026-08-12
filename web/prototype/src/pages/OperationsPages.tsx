@@ -1750,7 +1750,8 @@ export function AuditPage() {
             onChange={setQuery}
             placeholder="搜索操作者、动作或资源"
           />
-          <FilterTabs
+          <FilterSelect
+            label="资源类型"
             value={resourceType}
             onChange={setResourceType}
             options={[

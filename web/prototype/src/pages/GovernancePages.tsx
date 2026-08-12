@@ -1,6 +1,7 @@
 import {
   Ban,
   CalendarDays,
+  ChevronLeft,
   ChevronRight,
   KeyRound,
   Pencil,
@@ -9,15 +10,18 @@ import {
   RotateCw,
   ShieldCheck,
   Trash2,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
+  CompactTagList,
   CopyButton,
   ConfigBadge,
   DeleteConfirm,
   Drawer,
   EmptyState,
+  FilterSelect,
   FilterTabs,
   FormActions,
   Metric,
@@ -349,11 +353,7 @@ export function CallerPage() {
                           : "允许调用的工具"}
                     </small>
                   </div>
-                  <div className="tag-cell">
-                    {permission.scopes.map((scope) => (
-                      <code key={scope}>{scope}</code>
-                    ))}
-                  </div>
+                  <CompactTagList items={permission.scopes} limit={3} />
                 </div>
               ))
             ) : (
@@ -992,8 +992,18 @@ function PermissionSelector({
   value: PermissionDraft;
   onChange: (value: PermissionDraft) => void;
 }) {
+  const [query, setQuery] = useState("");
+  const [type, setType] = useState<"ALL" | TrafficType>("ALL");
   const protectedRoutes = routes.filter(
     (route) => route.accessMode === "需要调用方密钥",
+  );
+  const selectedRoutes = protectedRoutes.filter((route) => value[route.id]);
+  const visibleRoutes = protectedRoutes.filter(
+    (route) =>
+      (type === "ALL" || route.type === type) &&
+      `${route.name}${route.host}${route.path}${route.published.join("")}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
   );
   const toggleRoute = (route: GatewayRoute) => {
     const next = { ...value };
@@ -1021,9 +1031,65 @@ function PermissionSelector({
           <strong>路由权限</strong>
           <small>公开路由无需授权，因此不会出现在这里</small>
         </div>
+        <b>{selectedRoutes.length} 条已授权</b>
       </header>
+      {selectedRoutes.length ? (
+        <div className="permission-selected">
+          {selectedRoutes.map((route) => (
+            <span key={route.id}>
+              <TypeBadge type={route.type} />
+              <strong>{route.name}</strong>
+              <small>{value[route.id]?.length ?? 0} 项能力</small>
+              <button
+                type="button"
+                aria-label={`移除${route.name}`}
+                onClick={() => toggleRoute(route)}
+              >
+                <X />
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <div className="permission-selected-empty">
+          尚未选择路由，调用方将无法访问受保护流量
+        </div>
+      )}
+      <div className="permission-toolbar">
+        <SearchField
+          value={query}
+          onChange={setQuery}
+          placeholder="搜索路由、域名或开放能力"
+        />
+        <FilterSelect
+          label="流量类型"
+          value={type}
+          onChange={setType}
+          options={[
+            { value: "ALL", label: "全部", count: protectedRoutes.length },
+            {
+              value: "API",
+              label: "API",
+              count: protectedRoutes.filter((route) => route.type === "API")
+                .length,
+            },
+            {
+              value: "AI",
+              label: "AI",
+              count: protectedRoutes.filter((route) => route.type === "AI")
+                .length,
+            },
+            {
+              value: "MCP",
+              label: "MCP",
+              count: protectedRoutes.filter((route) => route.type === "MCP")
+                .length,
+            },
+          ]}
+        />
+      </div>
       <div className="permission-options">
-        {protectedRoutes.map((route) => {
+        {visibleRoutes.map((route) => {
           const selected = Boolean(value[route.id]);
           return (
             <article key={route.id} className={selected ? "is-selected" : ""}>
@@ -1066,6 +1132,12 @@ function PermissionSelector({
             </article>
           );
         })}
+        {!visibleRoutes.length ? (
+          <EmptyState
+            title="没有匹配的受保护路由"
+            description="请调整搜索或流量类型。"
+          />
+        ) : null}
       </div>
       <p className="section-explanation">
         选中只有一项能力的路由时直接授权；包含多个接口、模型或工具时，再继续精选。
@@ -1223,6 +1295,21 @@ function formatUsage(value: number, type: TrafficType) {
 
 type PolicyGroup = "ALL" | "访问控制" | "流量控制" | "AI 约束";
 
+type TargetTrafficFilter = "ALL" | TrafficType;
+
+interface PolicyTargetCandidate {
+  key: string;
+  kind: "网关" | "路由";
+  id: string;
+  name: string;
+  gatewayID?: string;
+  gatewayName?: string;
+  trafficType?: TrafficType;
+  detail: string;
+}
+
+const targetPageSize = 10;
+
 function policyGroup(type: Policy["type"]): Exclude<PolicyGroup, "ALL"> {
   if (type === "IP 访问限制") return "访问控制";
   if (type === "请求限流") return "流量控制";
@@ -1275,7 +1362,12 @@ export function PolicyPage() {
             onChange={setQuery}
             placeholder="搜索策略或生效范围"
           />
-          <FilterTabs value={filter} onChange={setFilter} options={groups} />
+          <FilterSelect
+            label="策略分类"
+            value={filter}
+            onChange={setFilter}
+            options={groups}
+          />
         </header>
         <div className="table-head policy-columns">
           <span>策略</span>
@@ -1298,17 +1390,10 @@ export function PolicyPage() {
                 </div>
               </div>
               <span>{policyGroup(policy.type)}</span>
-              <div className="tag-cell">
-                {policy.targets.length ? (
-                  policy.targets.map((target) => (
-                    <code key={`${target.kind}-${target.id}`}>
-                      {target.name}
-                    </code>
-                  ))
-                ) : (
-                  <small>尚未应用</small>
-                )}
-              </div>
+              <CompactTagList
+                items={policy.targets.map((target) => target.name)}
+                empty="尚未应用"
+              />
               <span>{policy.rule}</span>
               <ConfigBadge
                 state={
@@ -1461,6 +1546,14 @@ function CreatePolicy({
         `${target.kind === "网关" ? "gateway" : "route"}:${target.id}`,
     ) ?? [],
   );
+  const [targetQuery, setTargetQuery] = useState("");
+  const [targetKind, setTargetKind] = useState<"ALL" | "网关" | "路由">(
+    "ALL",
+  );
+  const [targetGatewayID, setTargetGatewayID] = useState("ALL");
+  const [targetTraffic, setTargetTraffic] =
+    useState<TargetTrafficFilter>("ALL");
+  const [targetPage, setTargetPage] = useState(1);
   const [rateLimit, setRateLimit] = useState(
     initial?.settings?.rateLimit ??
       initial?.rule.match(/[\d,]+(?= 次)/)?.[0].replaceAll(",", "") ??
@@ -1499,7 +1592,7 @@ function CreatePolicy({
       initial?.rule.match(/temperature ≤ ([\d.]+)/)?.[1] ??
       "1.2",
   );
-  const candidates =
+  const candidates: PolicyTargetCandidate[] =
     type === "AI 参数约束"
       ? routes
           .filter((route) => route.type === "AI")
@@ -1508,6 +1601,10 @@ function CreatePolicy({
             kind: "路由" as const,
             id: route.id,
             name: route.name,
+            gatewayID: route.gatewayID,
+            gatewayName: route.gatewayName,
+            trafficType: route.type,
+            detail: `${route.host}${route.path}`,
           }))
       : type === "请求限流" && rateDimension === "每个调用方"
         ? routes
@@ -1517,6 +1614,10 @@ function CreatePolicy({
               kind: "路由" as const,
               id: route.id,
               name: route.name,
+              gatewayID: route.gatewayID,
+              gatewayName: route.gatewayName,
+              trafficType: route.type,
+              detail: `${route.host}${route.path}`,
             }))
         : [
             ...gateways.map((gateway) => ({
@@ -1524,17 +1625,59 @@ function CreatePolicy({
               kind: "网关" as const,
               id: gateway.id,
               name: gateway.name,
+              gatewayID: gateway.id,
+              gatewayName: gateway.name,
+              detail: "该网关下的全部流量",
             })),
             ...routes.map((route) => ({
               key: `route:${route.id}`,
               kind: "路由" as const,
               id: route.id,
               name: route.name,
+              gatewayID: route.gatewayID,
+              gatewayName: route.gatewayName,
+              trafficType: route.type,
+              detail: `${route.host}${route.path}`,
             })),
           ];
   const effectiveTargets = selectedTargets.filter((key) =>
     candidates.some((candidate) => candidate.key === key),
   );
+  const selectedCandidates = candidates.filter((candidate) =>
+    effectiveTargets.includes(candidate.key),
+  );
+  const filteredCandidates = candidates.filter(
+    (candidate) =>
+      (targetKind === "ALL" || candidate.kind === targetKind) &&
+      (targetGatewayID === "ALL" ||
+        candidate.gatewayID === targetGatewayID) &&
+      (targetTraffic === "ALL" ||
+        candidate.trafficType === targetTraffic) &&
+      `${candidate.name}${candidate.gatewayName}${candidate.detail}${candidate.trafficType ?? ""}`
+        .toLowerCase()
+        .includes(targetQuery.toLowerCase()),
+  );
+  const targetPageCount = Math.max(
+    1,
+    Math.ceil(filteredCandidates.length / targetPageSize),
+  );
+  const effectiveTargetPage = Math.min(targetPage, targetPageCount);
+  const visibleCandidates = filteredCandidates.slice(
+    (effectiveTargetPage - 1) * targetPageSize,
+    effectiveTargetPage * targetPageSize,
+  );
+  const candidateKinds = new Set(candidates.map((candidate) => candidate.kind));
+  const routeCandidates = candidates.filter(
+    (candidate) => candidate.kind === "路由",
+  );
+  const availableGateways = gateways.filter((gateway) =>
+    routeCandidates.some((candidate) => candidate.gatewayID === gateway.id),
+  );
+  const allVisibleSelected =
+    visibleCandidates.length > 0 &&
+    visibleCandidates.every((candidate) =>
+      effectiveTargets.includes(candidate.key),
+    );
   const ipRangeCount = ipRanges
     .split("\n")
     .map((item) => item.trim())
@@ -1574,6 +1717,11 @@ function CreatePolicy({
     setType(next);
     setName(defaultPolicyNames[next]);
     setSelectedTargets([]);
+    setTargetQuery("");
+    setTargetKind("ALL");
+    setTargetGatewayID("ALL");
+    setTargetTraffic("ALL");
+    setTargetPage(1);
   };
   const toggleTarget = (key: string) =>
     setSelectedTargets((items) =>
@@ -1581,6 +1729,12 @@ function CreatePolicy({
         ? items.filter((item) => item !== key)
         : [...items, key],
     );
+  const toggleVisibleTargets = () =>
+    setSelectedTargets((items) => {
+      const visibleKeys = new Set(visibleCandidates.map((candidate) => candidate.key));
+      if (allVisibleSelected) return items.filter((item) => !visibleKeys.has(item));
+      return [...new Set([...items, ...visibleKeys])];
+    });
   return (
     <Drawer
       title={initial ? "编辑流量策略" : "创建流量策略"}
@@ -1620,6 +1774,11 @@ function CreatePolicy({
                   onChange={(event) => {
                     setRateDimension(event.target.value);
                     setSelectedTargets([]);
+                    setTargetQuery("");
+                    setTargetKind("ALL");
+                    setTargetGatewayID("ALL");
+                    setTargetTraffic("ALL");
+                    setTargetPage(1);
                   }}
                 >
                   <option>每个调用方</option>
@@ -1706,23 +1865,203 @@ function CreatePolicy({
           ) : null}
         </div>
         <fieldset className="target-picker">
-          <legend>生效范围（可多选）</legend>
-          <p>不选择也可以保存，策略将处于“未应用”状态。</p>
-          <div>
-            {candidates.map((candidate) => (
-              <label key={candidate.key}>
-                <input
-                  type="checkbox"
-                  checked={effectiveTargets.includes(candidate.key)}
-                  onChange={() => toggleTarget(candidate.key)}
-                />
-                <span>
+          <legend>生效范围</legend>
+          <header className="target-picker-header">
+            <div>
+              <strong>
+                {effectiveTargets.length
+                  ? `已选择 ${effectiveTargets.length} 个目标`
+                  : "尚未选择目标"}
+              </strong>
+              <span>不选择也可以保存，策略将处于“未应用”状态</span>
+            </div>
+            {effectiveTargets.length ? (
+              <button
+                type="button"
+                onClick={() => setSelectedTargets([])}
+              >
+                清空选择
+              </button>
+            ) : null}
+          </header>
+          {selectedCandidates.length ? (
+            <div className="selected-targets" aria-label="已选生效目标">
+              {selectedCandidates.map((candidate) => (
+                <span key={candidate.key}>
                   <small>{candidate.kind}</small>
                   <strong>{candidate.name}</strong>
+                  <button
+                    type="button"
+                    aria-label={`移除${candidate.name}`}
+                    onClick={() => toggleTarget(candidate.key)}
+                  >
+                    <X />
+                  </button>
                 </span>
-              </label>
-            ))}
+              ))}
+            </div>
+          ) : (
+            <div className="selected-targets-empty">
+              保存后不会作用到任何流量，可稍后编辑并添加生效目标
+            </div>
+          )}
+          <div className="target-picker-toolbar">
+            <SearchField
+              value={targetQuery}
+              onChange={(value) => {
+                setTargetQuery(value);
+                setTargetPage(1);
+              }}
+              placeholder="搜索目标名称、域名或路径"
+            />
+            {candidateKinds.size > 1 ? (
+              <FilterSelect
+                label="资源类型"
+                value={targetKind}
+                onChange={(value) => {
+                  setTargetKind(value);
+                  if (value === "网关") setTargetTraffic("ALL");
+                  setTargetPage(1);
+                }}
+                options={[
+                  { value: "ALL", label: "全部类型", count: candidates.length },
+                  {
+                    value: "网关",
+                    label: "网关",
+                    count: candidates.filter((item) => item.kind === "网关").length,
+                  },
+                  {
+                    value: "路由",
+                    label: "路由",
+                    count: candidates.filter((item) => item.kind === "路由").length,
+                  },
+                ]}
+              />
+            ) : null}
+            {routeCandidates.length ? (
+              <FilterSelect
+                label="所属网关"
+                value={targetGatewayID}
+                onChange={(value) => {
+                  setTargetGatewayID(value);
+                  setTargetPage(1);
+                }}
+                options={[
+                  {
+                    value: "ALL",
+                    label: "全部网关",
+                    count: routeCandidates.length,
+                  },
+                  ...availableGateways.map((gateway) => ({
+                    value: gateway.id,
+                    label: gateway.name,
+                    count: routeCandidates.filter(
+                      (candidate) => candidate.gatewayID === gateway.id,
+                    ).length,
+                  })),
+                ]}
+              />
+            ) : null}
+            {routeCandidates.length ? (
+              <FilterSelect
+                label="流量类型"
+                value={targetTraffic}
+                onChange={(value) => {
+                  setTargetTraffic(value);
+                  setTargetPage(1);
+                }}
+                options={[
+                  {
+                    value: "ALL",
+                    label: "全部流量",
+                    count: routeCandidates.length,
+                  },
+                  ...(["API", "AI", "MCP"] as const).map((trafficType) => ({
+                    value: trafficType,
+                    label: trafficType,
+                    count: routeCandidates.filter(
+                      (candidate) => candidate.trafficType === trafficType,
+                    ).length,
+                  })),
+                ]}
+              />
+            ) : null}
           </div>
+          <div className="target-candidate-heading">
+            <span>
+              匹配 {filteredCandidates.length} 项 · 第 {effectiveTargetPage} /{" "}
+              {targetPageCount} 页
+            </span>
+            {visibleCandidates.length ? (
+              <button type="button" onClick={toggleVisibleTargets}>
+                {allVisibleSelected
+                  ? "取消选择本页"
+                  : `选择本页 ${visibleCandidates.length} 项`}
+              </button>
+            ) : null}
+          </div>
+          <div className="target-candidate-list">
+            {visibleCandidates.length ? (
+              visibleCandidates.map((candidate) => (
+                <label
+                  className={
+                    effectiveTargets.includes(candidate.key)
+                      ? "is-selected"
+                      : ""
+                  }
+                  key={candidate.key}
+                >
+                  <input
+                    type="checkbox"
+                    checked={effectiveTargets.includes(candidate.key)}
+                    onChange={() => toggleTarget(candidate.key)}
+                  />
+                  {candidate.trafficType ? (
+                    <TypeBadge type={candidate.trafficType} />
+                  ) : (
+                    <span className="target-gateway-badge">网关</span>
+                  )}
+                  <span>
+                    <strong>{candidate.name}</strong>
+                    <small>
+                      {candidate.kind === "路由"
+                        ? `${candidate.gatewayName} · ${candidate.detail}`
+                        : candidate.detail}
+                    </small>
+                  </span>
+                </label>
+              ))
+            ) : (
+              <div className="target-candidate-empty">
+                没有匹配的生效目标，请调整搜索条件
+              </div>
+            )}
+          </div>
+          {targetPageCount > 1 ? (
+            <div className="target-pagination">
+              <button
+                type="button"
+                disabled={effectiveTargetPage === 1}
+                onClick={() => setTargetPage((page) => Math.max(1, page - 1))}
+              >
+                <ChevronLeft />
+                上一页
+              </button>
+              <span>
+                本页 {visibleCandidates.length} 项，已选 {effectiveTargets.length} 项
+              </span>
+              <button
+                type="button"
+                disabled={effectiveTargetPage === targetPageCount}
+                onClick={() =>
+                  setTargetPage((page) => Math.min(targetPageCount, page + 1))
+                }
+              >
+                下一页
+                <ChevronRight />
+              </button>
+            </div>
+          ) : null}
         </fieldset>
         <div className="form-note">
           <ShieldCheck />
