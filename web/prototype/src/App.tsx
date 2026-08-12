@@ -1,9 +1,21 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
-import { Shell } from './components/Shell';
-import { OverviewPage } from './pages/OverviewPage';
-import { CertificatePage, GatewayPage, RoutePage, ServicePage } from './pages/TrafficPages';
-import { CallerPage, PolicyPage } from './pages/GovernancePages';
-import { AnalysisPage, AuditPage, HealthPage, RequestPage } from './pages/OperationsPages';
+import { Navigate, Route, Routes } from "react-router-dom";
+import { Shell } from "./components/Shell";
+import { OverviewPage } from "./pages/OverviewPage";
+import {
+  CertificatePage,
+  GatewayPage,
+  RoutePage,
+  ServicePage,
+} from "./pages/TrafficPages";
+import { CallerPage, PolicyPage } from "./pages/GovernancePages";
+import {
+  AnalysisPage,
+  AuditPage,
+  HealthPage,
+  ReleasePage,
+  RequestPage,
+  UsagePage,
+} from "./pages/OperationsPages";
 
 export default function App() {
   return (
@@ -19,7 +31,9 @@ export default function App() {
         <Route path="policies" element={<PolicyPage />} />
         <Route path="requests" element={<RequestPage />} />
         <Route path="analysis" element={<AnalysisPage />} />
+        <Route path="usage" element={<UsagePage />} />
         <Route path="health" element={<HealthPage />} />
+        <Route path="releases" element={<ReleasePage />} />
         <Route path="audit" element={<AuditPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/overview" replace />} />
