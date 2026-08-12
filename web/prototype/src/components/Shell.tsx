@@ -29,20 +29,22 @@ const navigation = [
   ] },
   { label: '访问治理', items: [
     { label: '调用方', to: '/callers', icon: UsersRound },
-    { label: '策略', to: '/policies', icon: ShieldCheck },
+    { label: '流量策略', to: '/policies', icon: ShieldCheck },
   ] },
   { label: '运行分析', items: [
-    { label: '请求', to: '/requests', icon: Activity },
+    { label: '请求记录', to: '/requests', icon: Activity },
     { label: '流量分析', to: '/analysis', icon: ChartNoAxesCombined },
-    { label: '运行状态', to: '/health', icon: HeartPulse },
-    { label: '审计', to: '/audit', icon: FileClock },
+    { label: '健康与发布', to: '/health', icon: HeartPulse },
+  ] },
+  { label: '系统管理', items: [
+    { label: '审计日志', to: '/audit', icon: FileClock },
   ] },
 ];
 
 export function Shell() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
-  const { resetDemo } = usePrototype();
+  const { currentVersion, releaseHistory, resetDemo } = usePrototype();
   const page = navigation.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label }))).find((item) => location.pathname.startsWith(item.to));
 
   return (
@@ -79,7 +81,7 @@ export function Shell() {
         <header className="workspace-header">
           <div className="breadcrumb"><span>{page?.group ?? 'Ingate'}</span><ChevronRight /><strong>{page?.label ?? '概览'}</strong></div>
           <div className="workspace-actions">
-            <NavLink to="/health" className="active-release"><span>生效中</span>v142</NavLink>
+            <NavLink to="/health" className="active-release"><span>{releaseHistory[0]?.state ?? '已生效'}</span>v{currentVersion}</NavLink>
           </div>
         </header>
         <main><Outlet /></main>

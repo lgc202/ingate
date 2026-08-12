@@ -7,15 +7,14 @@ import {
   CircleDollarSign,
   Clock3,
   ShieldCheck,
-  Wrench,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Metric, PageHeader, StatusBadge, TypeBadge } from '../components/ui';
 import { usePrototype } from '../prototype-context';
 
 export function OverviewPage() {
-  const { services, callers, requests } = usePrototype();
-  const runtimeAlerts = services.filter((service) => service.state === 'warning').length;
+  const { services, callers, requests, currentVersion, releaseHistory } = usePrototype();
+  const runtimeAlerts = services.filter((service) => service.state === 'warning' || service.state === 'error' || service.state === 'unverified').length;
   const quotaAlerts = callers.flatMap((caller) => caller.quotas).filter((quota) => quota.used / quota.limit >= 0.9).length;
 
   return (
@@ -28,7 +27,7 @@ export function OverviewPage() {
 
       <section className="overview-hero">
         <div className="hero-copy">
-          <span className="hero-kicker"><i />配置版本 142 已生效</span>
+          <span className="hero-kicker"><i />配置版本 {currentVersion} {releaseHistory[0]?.state ?? '已生效'}</span>
           <h2>流量稳定，{runtimeAlerts} 项服务需要关注</h2>
           <p>Anthropic 公网首个 Token 响应变慢 · 文件服务错误率升高</p>
           <div className="hero-actions"><Link to="/health" className="button button-light">查看运行告警</Link><Link to="/requests" className="button button-ghost">排查请求</Link></div>
@@ -38,14 +37,13 @@ export function OverviewPage() {
           <div className="orbit-core"><CheckCircle2 /><strong>99.85%</strong><span>请求成功率</span></div>
           <span className="orbit-label orbit-api"><Braces />API 99.91%</span>
           <span className="orbit-label orbit-ai"><Bot />AI 99.72%</span>
-          <span className="orbit-label orbit-mcp"><Wrench />MCP 99.90%</span>
         </div>
       </section>
 
       <section className="metric-grid four">
         <Metric label="API 请求" value="98.3K" note="成功率 99.91% · P95 124 ms" />
         <Metric label="AI 请求" value="44.4K" note="19.7M Token · 估算 ¥1,330" />
-        <Metric label="MCP 工具调用" value="8.2K" note="成功率 99.90% · P95 238 ms" />
+        <Metric label="异常请求" value="257" note="服务异常 66 · 策略拒绝 191" tone="warning" />
         <Metric label="策略拒绝" value="191" note="用量上限 124 · 访问 49 · 限流 18" tone="warning" />
       </section>
 
@@ -55,7 +53,7 @@ export function OverviewPage() {
           <div className="flow-lanes">
             <TopRoute type="API" route="订单查询 API" service="订单服务" usage="58.4K 请求" />
             <TopRoute type="AI" route="生产 AI 路由" service="通义千问生产" usage="28.4K 请求" />
-            <TopRoute type="MCP" route="研究工具 MCP" service="搜索工具服务" usage="8.2K 调用" />
+            <TopRoute type="API" route="客户资料 API" service="客户中心" usage="33.8K 请求" />
           </div>
         </article>
 

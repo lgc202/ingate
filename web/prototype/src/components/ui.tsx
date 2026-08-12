@@ -4,8 +4,11 @@ import {
   CheckCircle2,
   CircleOff,
   Copy,
+  Eye,
+  Pencil,
   RotateCcw,
   Search,
+  Trash2,
   X,
   XCircle,
 } from 'lucide-react';
@@ -34,8 +37,8 @@ export function SecondaryButton({ children, onClick, type = 'button' }: { childr
 }
 
 export function StatusBadge({ state, label }: { state: HealthState; label?: string }) {
-  const icon = state === 'healthy' ? <CheckCircle2 /> : state === 'warning' ? <AlertTriangle /> : state === 'error' ? <XCircle /> : <CircleOff />;
-  const text = label ?? ({ healthy: '正常', warning: '需关注', error: '异常', disabled: '未应用' } as const)[state];
+  const icon = state === 'healthy' ? <CheckCircle2 /> : state === 'warning' || state === 'pending' ? <AlertTriangle /> : state === 'error' ? <XCircle /> : <CircleOff />;
+  const text = label ?? ({ healthy: '正常', warning: '需关注', error: '异常', disabled: '未应用', pending: '发布中', unverified: '待验证' } as const)[state];
   return <span className={`status status-${state}`}>{icon}{text}</span>;
 }
 
@@ -96,6 +99,35 @@ export function Drawer({ title, description, children, onClose, width = 'regular
 
 export function FormActions({ submitLabel, onCancel, submitDisabled = false }: { submitLabel: string; onCancel: () => void; submitDisabled?: boolean }) {
   return <footer className="form-actions"><SecondaryButton onClick={onCancel}>取消</SecondaryButton><PrimaryButton type="submit" disabled={submitDisabled}>{submitLabel}</PrimaryButton></footer>;
+}
+
+export function RowActions({ onDetail, onEdit, onDelete }: { onDetail: () => void; onEdit: () => void; onDelete: () => void }) {
+  return (
+    <div className="row-actions" aria-label="资源操作">
+      <button type="button" onClick={onDetail}><Eye />详情</button>
+      <button type="button" onClick={onEdit}><Pencil />编辑</button>
+      <button className="is-danger" type="button" onClick={onDelete}><Trash2 />删除</button>
+    </div>
+  );
+}
+
+export function DeleteConfirm({ resourceType, resourceName, blockedReason, onCancel, onConfirm }: { resourceType: string; resourceName: string; blockedReason?: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="confirm-layer" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onCancel()}>
+      <section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-confirm-title">
+        <span className="confirm-icon"><AlertTriangle /></span>
+        <div className="confirm-copy">
+          <span className="eyebrow">删除{resourceType}</span>
+          <h2 id="delete-confirm-title">{blockedReason ? '暂时无法删除' : `确认删除“${resourceName}”？`}</h2>
+          <p>{blockedReason ?? `删除后，该${resourceType}将从当前环境移除。此操作不能撤销。`}</p>
+        </div>
+        <footer>
+          <SecondaryButton onClick={onCancel}>{blockedReason ? '知道了' : '取消'}</SecondaryButton>
+          {blockedReason ? null : <button className="button button-danger" type="button" onClick={onConfirm}><Trash2 />确认删除</button>}
+        </footer>
+      </section>
+    </div>
+  );
 }
 
 export function CopyButton({ value }: { value: string }) {
