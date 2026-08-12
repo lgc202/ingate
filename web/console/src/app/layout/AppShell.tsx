@@ -1,27 +1,17 @@
-import { ChevronLeft, CircleCheck, LogOut, PanelLeftClose, PanelLeftOpen, Search } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { ChevronLeft, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { navigation, navigationItems } from '@/app/navigation';
 import { useAuth } from '@/auth/AuthContext';
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
-  const [query, setQuery] = useState('');
   const location = useLocation();
-  const navigate = useNavigate();
   const currentPage = navigationItems.find((item) => location.pathname.startsWith(item.to));
   const currentGroup = navigation.find((group) => group.items.some((item) => item.key === currentPage?.key));
-  const isRouteDebugger = location.pathname.startsWith('/playground');
-  const currentPageLabel = currentPage?.label ?? (isRouteDebugger ? '调试请求' : '概览');
-  const currentGroupLabel = currentGroup?.label ?? (isRouteDebugger ? '流量管理' : 'Ingate');
+  const currentPageLabel = currentPage?.label ?? '网关';
+  const currentGroupLabel = currentGroup?.label ?? 'Ingate';
   const { enabled: authenticationEnabled, principal, signOut } = useAuth();
-
-  const search = (event: FormEvent) => {
-    event.preventDefault();
-    const value = query.trim();
-    if (!value) return;
-    navigate(`/requests?query=${encodeURIComponent(value)}`);
-  };
 
   return (
     <div className={`console-shell ${collapsed ? 'is-collapsed' : ''}`}>
@@ -94,14 +84,7 @@ export function AppShell() {
             <strong>{currentPageLabel}</strong>
           </div>
           <div className="workspace-actions">
-            <form className="command-search" onSubmit={search}>
-              <Search />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索请求、路由、调用方或服务" aria-label="全局搜索" />
-            </form>
-            <Link to="/health" className="delivery-status" title="查看健康与发布状态">
-              <CircleCheck />
-              <span>运行正常</span>
-            </Link>
+            <span className="console-live-source">Admin API</span>
           </div>
         </header>
 

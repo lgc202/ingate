@@ -36,12 +36,14 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 AI 网关的产品对象保持克制：
 
 - `Service` 表示实际连接的普通 HTTP、模型或 MCP 服务；现有 `Upstream` 如何演进为统一 Service 需要在后端协议设计时一次性确定，不建立并行兼容层。
-- `Model` 表示客户端使用的稳定对外模型名，并引用一个或多个模型服务线路；厂商、凭据和真实模型属于 Service，不单独创建 Provider、ProviderModel 或 Credential 资源。
-- `Caller` 表示调用网关的应用或服务，承载访问密钥、模型与 Route 权限、额度和用量归属。
+- 所有流量统一使用 `Gateway -> Route -> Service` 访问路径。API、AI 和 MCP 是 Route 与 Service 的类型，不建立平行产品体系。
+- AI Route 负责发布客户端使用的稳定模型名，并把它映射到一个或多个模型 Service 线路；厂商、凭据和真实模型属于 Service，不单独创建 Model、Provider、ProviderModel 或 Credential 资源。
+- MCP Service 负责连接 MCP Server 并发现工具，MCP Route 负责选择对外暴露的工具；工具不建模为独立资源。
+- `Caller` 表示调用网关的应用或服务，承载访问密钥、Route 权限、Route 内的模型或工具权限、额度和用量归属。
 - AI 限额、内容安全、参数约束和缓存继续采用有明确业务语义的强类型 Policy，不暴露数据面插件私有配置。
 - 请求明细、Token、成本和线路尝试属于运行记录，不建模为声明式资源。
 
-当前先使用 Mock 数据完成控制台产品体验，确认模型接入、发布、授权、调用和排障流程后再设计后端资源与执行链路。Agent 编排、Prompt 管理、数据集、模型训练、计费开票和复杂审批流不属于网关核心范围；后续 Agent 服务作为 Caller 使用 Ingate 的模型与 MCP 能力。
+产品原型与正式前端必须使用独立代码。`web/prototype` 使用统一 Mock 数据验证服务接入、路由发布、调用方授权、调用、观测和排障流程，只作为正式前端与后端协议设计的产品参考；`web/console` 只实现 Admin API 已提供的真实能力，不得导入原型组件或 Mock 数据。Agent 编排、Prompt 管理、数据集、模型训练、计费开票和复杂审批流不属于网关核心范围；后续 Agent 服务作为 Caller 使用 Ingate 的模型与 MCP 能力。
 
 ## 工程实现原则
 

@@ -2,6 +2,8 @@
 
 Ingate 是以 Envoy 为唯一数据平面的声明式 API 网关控制面。当前仓库只保留可以完整运行的 HTTP/HTTPS 网关能力，不包含 AI 网关、Agent、访问密钥或计费能力。
 
+`web/prototype` 是独立的 API、AI 与 MCP 网关产品原型，只使用 Mock 数据作为产品设计参考；生产 Console 位于 `web/console`，两者不共享业务代码或运行数据。
+
 ## 架构
 
 ```text
@@ -81,5 +83,15 @@ make docker-down
 make generate
 make verify
 ```
+
+独立运行产品原型：
+
+```bash
+cd web/prototype
+npm ci
+npm run dev
+```
+
+默认地址为 `http://127.0.0.1:5174`，无需登录，页面始终标记为演示数据。
 
 生成工具安装在 `_output/tools`，构建产物写入 `_output`。资源协议见 [docs/resources](docs/resources)，组件关系见 [docs/architecture.md](docs/architecture.md)。

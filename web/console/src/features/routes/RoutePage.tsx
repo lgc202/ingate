@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ArrowRight, Bot, Edit3, FlaskConical, Plus, Route as RouteIcon, ShieldCheck, Trash2 } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Edit3, Plus, Route as RouteIcon, Trash2 } from 'lucide-react';
 import { deleteRoute, getRouteWorkspace, saveRoute } from '@/api/routes';
 import { useResource } from '@/api/useResource';
 import { useAuth } from '@/auth/AuthContext';
@@ -54,14 +53,10 @@ function createDraft(route?: RouteResource): RouteDraft {
 }
 
 export function RoutePage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const { canWriteConfiguration } = useAuth();
   const resource = useResource(getRouteWorkspace);
   const [draft, setDraft] = useState<RouteDraft>(() => createDraft());
   const [editorOpen, setEditorOpen] = useState(false);
-  const [activeKind, setActiveKind] = useState<'api' | 'ai'>(searchParams.get('type') === 'ai' ? 'ai' : 'api');
-  const [aiEditorOpen, setAIEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<RouteResource | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
@@ -107,11 +102,10 @@ export function RoutePage() {
   };
 
   return (
-    <PageFrame title="路由" subtitle="将网关收到的普通 API 或 AI 请求转发到对应服务" actions={<div className="flex items-center gap-2"><Button variant="outline" onClick={() => navigate(`/playground?type=${activeKind}`)}><FlaskConical className="w-4 h-4" />调试请求</Button>{canWriteConfiguration ? <Button onClick={() => activeKind === 'api' ? openEditor() : setAIEditorOpen(true)}><Plus className="w-4 h-4" />创建{activeKind === 'api' ? ' API' : ' AI'} 路由</Button> : null}</div>}>
-      <nav className="resource-kind-tabs"><button type="button" className={activeKind === 'api' ? 'is-active' : ''} onClick={() => { setActiveKind('api'); setSearchParams({ type: 'api' }); }}><RouteIcon />API 路由<span>{resource.data.routes.length}</span></button><button type="button" className={activeKind === 'ai' ? 'is-active' : ''} onClick={() => { setActiveKind('ai'); setSearchParams({ type: 'ai' }); }}><Bot />AI 路由<span>2</span></button></nav>
-      {activeKind === 'api' ? <Panel>
+    <PageFrame title="路由" subtitle="管理 Admin API 已支持的 HTTP 路由" actions={canWriteConfiguration ? <Button onClick={() => openEditor()}><Plus className="w-4 h-4" />创建路由</Button> : undefined}>
+      <Panel>
         {resource.data.routes.length === 0 ? <EmptyState title="暂无路由" message="创建路由，将网关入口连接到服务" /> : <div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">匹配</th><th className="p-3">网关</th><th className="p-3">目标服务</th><th className="p-3">状态</th><th className="p-3 text-right">操作</th></tr></thead><tbody className="divide-y divide-slate-100">{resource.data.routes.map((route) => <tr key={route.id}><td className="p-3"><div className="flex items-center gap-2"><RouteIcon className="w-4 h-4 text-blue-600" /><div><strong>{route.name}</strong><div className="font-mono text-[10px] text-slate-400">{route.id}</div></div></div></td><td className="p-3"><div className="font-mono">{route.match.path.type === 'ROUTE_PATH_MATCH_EXACT' ? '=' : '^'} {route.match.path.value}</div><div className="text-slate-400">{route.match.methods.length ? route.match.methods.join('、') : '所有方法'}</div></td><td className="p-3">{route.gatewayIDs.map((id) => resource.data!.gateways.find((gateway) => gateway.id === id)?.name ?? id).join('、')}</td><td className="p-3">{route.upstreams.map((target) => resource.data!.upstreams.find((upstream) => upstream.id === target.upstreamID)?.name ?? target.upstreamID).join('、')}</td><td className="p-3"><Badge tone={route.state === 'Ready' ? 'success' : route.state === 'Error' ? 'error' : 'neutral'}>{route.enabled ? route.state : 'Disabled'}</Badge></td><td className="p-3 text-right">{canWriteConfiguration ? <div className="inline-flex gap-1"><Button variant="ghost" size="sm" onClick={() => openEditor(route)}><Edit3 className="w-3.5 h-3.5" /></Button><Button variant="ghost" size="sm" onClick={() => setDeleteCandidate(route)}><Trash2 className="w-3.5 h-3.5 text-rose-600" /></Button></div> : '—'}</td></tr>)}</tbody></table></div>}
-      </Panel> : <AIRoutePrototype onTest={(route) => navigate(`/playground?type=ai&route=${encodeURIComponent(route)}`)} />}
+      </Panel>
 
       <Drawer title={draft.id ? `编辑路由：${draft.name}` : '创建路由'} subtitle="一条路由对应一组请求条件和转发目标" isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
         <div className="space-y-5">
@@ -127,30 +121,10 @@ export function RoutePage() {
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-200"><Button variant="ghost" onClick={() => setEditorOpen(false)}>取消</Button><Button disabled={busy} onClick={save}>{busy ? '保存中...' : '保存路由'}</Button></div>
         </div>
       </Drawer>
-      <Drawer title="创建 AI 路由" subtitle="通过 OpenAI 兼容入口，把客户端模型名转发到大模型服务中的实际模型" isOpen={aiEditorOpen} onClose={() => setAIEditorOpen(false)}>
-        <div className="space-y-5">
-          <Field label="路由名称"><input className="input" placeholder="例如 生产 AI 路由" /></Field>
-          <Field label="生效网关"><select className="select"><option>生产网关</option><option>内部网关</option></select></Field>
-          <div className="grid grid-cols-2 gap-3"><Field label="请求域名"><input className="input font-mono" defaultValue="api.example.com" /></Field><Field label="请求路径"><input className="input font-mono" defaultValue="/v1" /></Field></div>
-          <Field label="兼容协议"><select className="select"><option>OpenAI API</option></select></Field>
-          <Field label="模型转发">
-            <div className="ai-model-mappings">
-              <article><div><small>客户端模型名</small><strong>qwen-max</strong></div><ArrowRight /><div><small>主模型</small><strong>通义千问生产 / qwen-max</strong></div><div><small>失败后切换</small><strong>通义千问灾备 / qwen-max</strong></div></article>
-              <article><div><small>客户端模型名</small><strong>claude-sonnet</strong></div><ArrowRight /><div><small>主模型</small><strong>Anthropic 公网 / claude-sonnet-4</strong></div><div><small>失败后切换</small><strong>Bedrock 灾备 / claude-sonnet-4</strong></div></article>
-              <Button variant="soft" size="sm">添加模型转发</Button>
-            </div>
-          </Field>
-          <div className="flex justify-end gap-2 pt-3 border-t border-slate-200"><Button variant="ghost" onClick={() => setAIEditorOpen(false)}>取消</Button><Button onClick={() => { setAIEditorOpen(false); setNotice({ message: 'AI 路由已添加到当前原型', tone: 'success' }); }}>保存 AI 路由</Button></div>
-        </div>
-      </Drawer>
       <Modal title="删除路由" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}><div className="p-6 space-y-5"><p className="text-sm">确定删除路由“{deleteCandidate?.name}”吗？</p><div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy} onClick={remove}>确认删除</Button></div></div></Modal>
       <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
     </PageFrame>
   );
-}
-
-function AIRoutePrototype({ onTest }: { onTest: (route: string) => void }) {
-  return <section className="ai-route-list"><article><span><Bot /></span><div><strong>生产 AI 路由</strong><code>api.example.com/v1</code></div><div><small>生效网关</small><strong>生产网关</strong></div><ArrowRight /><div><small>模型转发</small><strong>qwen-max、claude-sonnet</strong></div><div><small>目标服务</small><strong>4 个大模型服务</strong></div><Badge tone="success"><ShieldCheck />运行正常</Badge><Button variant="ghost" size="sm" onClick={() => onTest('生产 AI 路由')}><FlaskConical />调试</Button></article><article><span><Bot /></span><div><strong>内部 AI 路由</strong><code>inside.example.com/v1</code></div><div><small>生效网关</small><strong>内部网关</strong></div><ArrowRight /><div><small>模型转发</small><strong>text-embedding</strong></div><div><small>目标服务</small><strong>内部向量服务</strong></div><Badge tone="success"><ShieldCheck />运行正常</Badge><Button variant="ghost" size="sm" onClick={() => onTest('内部 AI 路由')}><FlaskConical />调试</Button></article></section>;
 }
 
 function validateDraft(draft: RouteDraft): string | undefined {
