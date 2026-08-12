@@ -1,0 +1,136 @@
+import {
+  AlertTriangle,
+  ArrowRight,
+  CheckCircle2,
+  CircleOff,
+  Copy,
+  RotateCcw,
+  Search,
+  X,
+  XCircle,
+} from 'lucide-react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import type { HealthState, ServiceType, TrafficType } from '../data';
+
+export function PageHeader({ eyebrow, title, description, actions }: { eyebrow: string; title: string; description?: string; actions?: ReactNode }) {
+  return (
+    <header className="page-header">
+      <div>
+        <span className="eyebrow">{eyebrow}</span>
+        <h1>{title}</h1>
+        {description ? <p>{description}</p> : null}
+      </div>
+      {actions ? <div className="page-actions">{actions}</div> : null}
+    </header>
+  );
+}
+
+export function PrimaryButton({ children, onClick, type = 'button', disabled = false }: { children: ReactNode; onClick?: () => void; type?: 'button' | 'submit'; disabled?: boolean }) {
+  return <button className="button button-primary" type={type} onClick={onClick} disabled={disabled}>{children}</button>;
+}
+
+export function SecondaryButton({ children, onClick, type = 'button' }: { children: ReactNode; onClick?: () => void; type?: 'button' | 'submit' }) {
+  return <button className="button button-secondary" type={type} onClick={onClick}>{children}</button>;
+}
+
+export function StatusBadge({ state, label }: { state: HealthState; label?: string }) {
+  const icon = state === 'healthy' ? <CheckCircle2 /> : state === 'warning' ? <AlertTriangle /> : state === 'error' ? <XCircle /> : <CircleOff />;
+  const text = label ?? ({ healthy: '正常', warning: '需关注', error: '异常', disabled: '未应用' } as const)[state];
+  return <span className={`status status-${state}`}>{icon}{text}</span>;
+}
+
+export function TypeBadge({ type }: { type: TrafficType | ServiceType }) {
+  const labels: Record<TrafficType | ServiceType, string> = { API: 'API', AI: 'AI', MCP: 'MCP', HTTP: 'HTTP', MODEL: '模型' };
+  return <span className={`type-badge type-${type.toLowerCase()}`}>{labels[type]}</span>;
+}
+
+export function Metric({ label, value, note, tone = 'default' }: { label: string; value: string; note: string; tone?: 'default' | 'good' | 'warning' }) {
+  return (
+    <article className={`metric metric-${tone}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{note}</small>
+    </article>
+  );
+}
+
+export function EmptyState({ title, description }: { title: string; description: string }) {
+  return <div className="empty-state"><CircleOff /><strong>{title}</strong><p>{description}</p></div>;
+}
+
+export function FilterTabs<T extends string>({ value, options, onChange }: { value: T; options: Array<{ value: T; label: string; count?: number }>; onChange: (value: T) => void }) {
+  return (
+    <div className="filter-tabs" role="tablist">
+      {options.map((option) => (
+        <button key={option.value} className={value === option.value ? 'is-active' : ''} type="button" onClick={() => onChange(option.value)}>
+          {option.label}{option.count === undefined ? null : <span>{option.count}</span>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function SearchField({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  return <label className="search-field"><Search /><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} /></label>;
+}
+
+export function Drawer({ title, description, children, onClose, width = 'regular' }: { title: string; description?: string; children: ReactNode; onClose: () => void; width?: 'regular' | 'wide' }) {
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [onClose]);
+
+  return (
+    <div className="drawer-layer" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <section className={`drawer drawer-${width}`} role="dialog" aria-modal="true" aria-label={title}>
+        <header>
+          <div><h2>{title}</h2>{description ? <p>{description}</p> : null}</div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="关闭"><X /></button>
+        </header>
+        <div className="drawer-body">{children}</div>
+      </section>
+    </div>
+  );
+}
+
+export function FormActions({ submitLabel, onCancel, submitDisabled = false }: { submitLabel: string; onCancel: () => void; submitDisabled?: boolean }) {
+  return <footer className="form-actions"><SecondaryButton onClick={onCancel}>取消</SecondaryButton><PrimaryButton type="submit" disabled={submitDisabled}>{submitLabel}</PrimaryButton></footer>;
+}
+
+export function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard?.writeText(value);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1200);
+  };
+  return <button className="copy-button" type="button" onClick={copy}>{copied ? <CheckCircle2 /> : <Copy />}{copied ? '已复制' : '复制'}</button>;
+}
+
+export function Toast({ message, onDone }: { message: string; onDone: () => void }) {
+  useEffect(() => {
+    const timer = window.setTimeout(onDone, 2200);
+    return () => window.clearTimeout(timer);
+  }, [onDone]);
+  return <div className="toast"><CheckCircle2 />{message}</div>;
+}
+
+export function Topology({ gateway, route, service, detail }: { gateway: string; route: string; service: string; detail?: string }) {
+  return (
+    <div className="topology">
+      <div><small>网关</small><strong>{gateway}</strong></div><ArrowRight />
+      <div className="is-route"><small>路由</small><strong>{route}</strong></div><ArrowRight />
+      <div><small>服务</small><strong>{service}</strong>{detail ? <span>{detail}</span> : null}</div>
+    </div>
+  );
+}
+
+export function ResetDemoButton({ onReset }: { onReset: () => void }) {
+  return <button className="demo-reset" type="button" onClick={onReset}><RotateCcw />重置演示数据</button>;
+}
+
+export function submitForm(event: FormEvent, submit: () => void) {
+  event.preventDefault();
+  submit();
+}
