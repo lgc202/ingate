@@ -1,6 +1,25 @@
 export type TrafficType = 'API' | 'AI' | 'MCP';
 export type ServiceType = 'HTTP' | 'MODEL' | 'MCP';
-export type HealthState = 'healthy' | 'warning' | 'error' | 'disabled';
+export type HealthState = 'healthy' | 'warning' | 'error' | 'disabled' | 'pending' | 'unverified';
+
+export interface ReleaseRecord {
+  version: number;
+  time: string;
+  summary: string;
+  resources: string;
+  state: '发布中' | '已生效' | '发布失败';
+}
+
+export interface AuditRecord {
+  id: string;
+  time: string;
+  actor: string;
+  action: string;
+  resourceType: '网关' | '路由' | '服务' | '证书' | '调用方' | '流量策略' | '配置发布';
+  resource: string;
+  detail: string;
+  result: '成功' | '失败';
+}
 
 export interface GatewayListenerBinding {
   domain: string;
@@ -92,6 +111,7 @@ export interface Certificate {
   usage: '服务器证书' | '客户端证书' | '信任证书';
   expiresAt: string;
   remainingDays: number;
+  sourceName?: string;
   state: HealthState;
 }
 
@@ -145,6 +165,15 @@ export interface Policy {
   rule: string;
   effect: string;
   state: HealthState;
+  settings?: {
+    rateLimit?: string;
+    ratePeriod?: string;
+    rateDimension?: string;
+    ipMode?: string;
+    ipRanges?: string;
+    maxTokens?: string;
+    maxTemperature?: string;
+  };
 }
 
 export interface RequestRecord {
@@ -209,9 +238,9 @@ export const initialCallers: Caller[] = [
 ];
 
 export const initialPolicies: Policy[] = [
-  { id: 'policy-api-rate', name: '外部 API 限流', type: '请求限流', targets: [{ kind: '路由', id: 'route-orders', name: '订单查询 API' }, { kind: '路由', id: 'route-customers', name: '客户资料 API' }], rule: '每个调用方每分钟 1,000 次，各路由独立计数', effect: '今日拒绝 18 次', state: 'healthy' },
-  { id: 'policy-ip', name: '办公网访问限制', type: 'IP 访问限制', targets: [{ kind: '网关', id: 'gw-prod', name: '生产网关' }], rule: '仅允许办公网与 VPN 出口', effect: '今日拒绝 42 次', state: 'healthy' },
-  { id: 'policy-params', name: 'AI 参数基线', type: 'AI 参数约束', targets: [{ kind: '路由', id: 'route-ai-prod', name: '生产 AI 路由' }], rule: 'max_tokens ≤ 8,192，temperature ≤ 1.2', effect: '今日修正 126 次', state: 'healthy' },
+  { id: 'policy-api-rate', name: '外部 API 限流', type: '请求限流', targets: [{ kind: '路由', id: 'route-orders', name: '订单查询 API' }, { kind: '路由', id: 'route-customers', name: '客户资料 API' }], rule: '每个调用方每分钟 1,000 次，各路由独立计数', effect: '今日拒绝 18 次', state: 'healthy', settings: { rateLimit: '1000', ratePeriod: '分钟', rateDimension: '每个调用方' } },
+  { id: 'policy-ip', name: '办公网访问限制', type: 'IP 访问限制', targets: [{ kind: '网关', id: 'gw-prod', name: '生产网关' }], rule: '仅允许办公网与 VPN 出口', effect: '今日拒绝 42 次', state: 'healthy', settings: { ipMode: '仅允许', ipRanges: '10.20.0.0/16\n10.21.0.0/16\n172.22.8.14/32' } },
+  { id: 'policy-params', name: 'AI 参数基线', type: 'AI 参数约束', targets: [{ kind: '路由', id: 'route-ai-prod', name: '生产 AI 路由' }], rule: 'max_tokens ≤ 8,192，temperature ≤ 1.2', effect: '今日拒绝 126 次', state: 'healthy', settings: { maxTokens: '8192', maxTemperature: '1.2' } },
 ];
 
 export const initialRequests: RequestRecord[] = [
@@ -223,16 +252,16 @@ export const initialRequests: RequestRecord[] = [
   { id: 'req_6Ce2Np', time: '14:30:07', type: 'API', caller: '电商 Web', route: '文件上传 API', request: 'POST /api/files', target: '文件服务', result: '失败', code: '502', latency: '1.2 s', usage: '0 KB', cost: '—', steps: [{ name: '调用方认证', detail: '电商 Web · 生产密钥', duration: '2 ms', state: 'healthy' }, { name: '文件上传 API', detail: 'POST /api/files → 文件服务', duration: '1 ms', state: 'healthy' }, { name: '文件服务', detail: '上游连接超时', duration: '1.19 s', state: 'error' }] },
 ];
 
-export const releaseHistory = [
+export const initialReleaseHistory: ReleaseRecord[] = [
   { version: 142, time: '今天 14:31:08', summary: '更新生产 AI 路由的 Claude 备用线路', resources: '2 项资源', state: '已生效' },
   { version: 141, time: '今天 11:04:09', summary: '轮换 example.com 泛域名证书', resources: '1 项资源', state: '已生效' },
   { version: 140, time: '今天 09:42:31', summary: '更新内部自动化用量上限', resources: '1 项资源', state: '已生效' },
 ];
 
-export const auditRecords = [
-  { time: '14:28:42', actor: '林工程师', action: '更新路由', resource: '生产 AI 路由', detail: 'claude-sonnet 备用线路由 Anthropic 灾备调整为 Bedrock 灾备' },
-  { time: '13:56:17', actor: '王管理员', action: '签发密钥', resource: '客服助手', detail: '签发“客服生产环境”访问密钥，有效期 90 天' },
-  { time: '11:04:09', actor: '系统', action: '发布配置', resource: '版本 141', detail: '证书变更已同步到全部网关实例' },
-  { time: '09:42:31', actor: '赵开发', action: '创建服务', resource: 'Bedrock 灾备', detail: '接入 AWS Bedrock，发现 claude-sonnet-4' },
-  { time: '昨天 18:12', actor: '王管理员', action: '更新策略', resource: '办公网访问限制', detail: '新增办公网出口地址 203.0.113.0/24' },
+export const initialAuditRecords: AuditRecord[] = [
+  { id: 'audit-route-142', time: '14:28:42', actor: '林工程师', action: '更新路由', resourceType: '路由', resource: '生产 AI 路由', detail: 'claude-sonnet 备用线路由 Anthropic 灾备调整为 Bedrock 灾备', result: '成功' },
+  { id: 'audit-key-support', time: '13:56:17', actor: '王管理员', action: '签发密钥', resourceType: '调用方', resource: '客服助手', detail: '签发“客服生产环境”访问密钥，有效期 90 天', result: '成功' },
+  { id: 'audit-release-141', time: '11:04:09', actor: '系统', action: '发布配置', resourceType: '配置发布', resource: '版本 141', detail: '证书变更已同步到全部网关实例', result: '成功' },
+  { id: 'audit-bedrock', time: '09:42:31', actor: '赵开发', action: '创建服务', resourceType: '服务', resource: 'Bedrock 灾备', detail: '接入 AWS Bedrock，发现 claude-sonnet-4', result: '成功' },
+  { id: 'audit-policy-ip', time: '昨天 18:12', actor: '王管理员', action: '更新策略', resourceType: '流量策略', resource: '办公网访问限制', detail: '新增办公网出口地址 203.0.113.0/24', result: '成功' },
 ];

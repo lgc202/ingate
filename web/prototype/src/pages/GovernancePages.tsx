@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   CopyButton,
+  DeleteConfirm,
   Drawer,
   EmptyState,
   FilterTabs,
@@ -10,6 +11,7 @@ import {
   Metric,
   PageHeader,
   PrimaryButton,
+  RowActions,
   SearchField,
   StatusBadge,
   Toast,
@@ -126,10 +128,9 @@ function IssueCallerKey({ caller, onClose, onIssue }: { caller: Caller; onClose:
 }
 
 function CreateCaller({ routes, onClose, onSave }: { routes: GatewayRoute[]; onClose: () => void; onSave: (caller: Caller) => void }) {
-  const [name, setName] = useState('新调用方');
-  const [slug, setSlug] = useState('new-caller');
-  const [owner, setOwner] = useState('应用团队');
-  const [purpose, setPurpose] = useState('访问企业 API 与 AI 能力');
+  const [name, setName] = useState('');
+  const [owner, setOwner] = useState('');
+  const [purpose, setPurpose] = useState('');
   const [permissions, setPermissions] = useState<PermissionDraft>({});
   const save = () => {
     const granted = permissionRecords(permissions);
@@ -140,9 +141,22 @@ function CreateCaller({ routes, onClose, onSave }: { routes: GatewayRoute[]; onC
       grantedTypes.has('MCP') ? { label: 'MCP 工具调用', value: '0', note: '今天' } : null,
     ].filter((item): item is { label: string; value: string; note: string } => Boolean(item));
     while (metrics.length < 3) metrics.push({ label: metrics.length ? '策略拒绝' : '请求', value: '0', note: '今天' });
-    onSave({ id: `caller-${Date.now()}`, name, slug, owner, purpose, keys: [], permissions: granted, metrics, quotas: [], state: 'healthy', lastActive: '从未调用' });
+    onSave({ id: `caller-${Date.now()}`, name, slug: `caller-${crypto.randomUUID().slice(0, 8)}`, owner, purpose, keys: [], permissions: granted, metrics, quotas: [], state: 'healthy', lastActive: '从未调用' });
   };
-  return <Drawer title="创建调用方" description="创建身份，可同时授予多条路由权限" onClose={onClose} width="wide"><form onSubmit={(event) => submitForm(event, save)}><div className="form-grid"><label><span>调用方名称</span><input required value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>唯一标识</span><input required pattern="[a-z0-9-]+" value={slug} onChange={(event) => setSlug(event.target.value)} /><small>仅使用小写字母、数字和连字符</small></label><label><span>负责人</span><input required value={owner} onChange={(event) => setOwner(event.target.value)} /></label><label className="field-wide"><span>用途说明</span><textarea required value={purpose} onChange={(event) => setPurpose(event.target.value)} /></label></div><PermissionSelector routes={routes} value={permissions} onChange={setPermissions} /><div className="form-note"><KeyRound />允许先创建没有权限的身份；保存后再签发密钥。没有路由权限时，密钥不能访问任何受保护路由。</div><FormActions submitLabel="创建调用方" onCancel={onClose} /></form></Drawer>;
+  return (
+    <Drawer title="创建调用方" description="创建身份，并授予需要的路由权限" onClose={onClose} width="wide">
+      <form onSubmit={(event) => submitForm(event, save)}>
+        <div className="form-grid">
+          <label><span>调用方名称</span><input required value={name} onChange={(event) => setName(event.target.value)} placeholder="例如客服助手" /></label>
+          <label><span>负责人</span><input required value={owner} onChange={(event) => setOwner(event.target.value)} placeholder="团队或负责人" /></label>
+          <label className="field-wide"><span>用途说明</span><textarea required value={purpose} onChange={(event) => setPurpose(event.target.value)} placeholder="说明调用场景，便于后续授权和审计" /></label>
+        </div>
+        <PermissionSelector routes={routes} value={permissions} onChange={setPermissions} />
+        <div className="form-note"><KeyRound />资源标识由系统生成。可以先不授权，但该调用方的密钥将无法访问受保护路由。</div>
+        <FormActions submitLabel="创建调用方" onCancel={onClose} />
+      </form>
+    </Drawer>
+  );
 }
 
 function ManagePermissions({ caller, routes, onClose, onSave }: { caller: Caller; routes: GatewayRoute[]; onClose: () => void; onSave: (permissions: CallerPermission[]) => void }) {
@@ -163,7 +177,21 @@ function PermissionSelector({ routes, value, onChange }: { routes: GatewayRoute[
     if (current.includes(scope) && current.length === 1) return;
     onChange({ ...value, [route.id]: current.includes(scope) ? current.filter((item) => item !== scope) : [...current, scope] });
   };
-  return <section className="form-section permission-editor"><header><span><ShieldCheck /></span><div><strong>路由权限</strong><small>公开路由无需授权，因此不会出现在这里</small></div></header><div className="permission-options">{protectedRoutes.map((route) => { const selected = Boolean(value[route.id]); return <article key={route.id} className={selected ? 'is-selected' : ''}><label><input type="checkbox" checked={selected} onChange={() => toggleRoute(route)} /><TypeBadge type={route.type} /><span><strong>{route.name}</strong><small>{route.host}{route.path}</small></span></label>{selected ? <fieldset><legend>{route.type === 'API' ? '允许的接口' : route.type === 'AI' ? '允许的客户端模型名' : '允许调用的工具'}</legend>{route.published.map((scope) => <label key={scope}><input type="checkbox" checked={value[route.id]?.includes(scope) ?? false} onChange={() => toggleScope(route, scope)} /><code>{scope}</code></label>)}</fieldset> : null}</article>; })}</div><p className="section-explanation">勾选多条路由表示权限并集；请求仍按域名和路径匹配唯一的路由，不会形成转发编排。</p></section>;
+  return (
+    <section className="form-section permission-editor">
+      <header><span><ShieldCheck /></span><div><strong>路由权限</strong><small>公开路由无需授权，因此不会出现在这里</small></div></header>
+      <div className="permission-options">{protectedRoutes.map((route) => {
+        const selected = Boolean(value[route.id]);
+        return (
+          <article key={route.id} className={selected ? 'is-selected' : ''}>
+            <label><input type="checkbox" checked={selected} onChange={() => toggleRoute(route)} /><TypeBadge type={route.type} /><span><strong>{route.name}</strong><small>{route.host}{route.path}</small></span></label>
+            {selected && route.published.length > 1 ? <fieldset><legend>{route.type === 'API' ? '允许的接口' : route.type === 'AI' ? '允许的客户端模型名' : '允许调用的工具'}</legend>{route.published.map((scope) => <label key={scope}><input type="checkbox" checked={value[route.id]?.includes(scope) ?? false} onChange={() => toggleScope(route, scope)} /><code>{scope}</code></label>)}</fieldset> : null}
+          </article>
+        );
+      })}</div>
+      <p className="section-explanation">选中只有一项能力的路由时直接授权；包含多个接口、模型或工具时，再继续精选。</p>
+    </section>
+  );
 }
 
 function permissionRecords(draft: PermissionDraft): CallerPermission[] {
@@ -196,30 +224,32 @@ function policyGroup(type: Policy['type']): Exclude<PolicyGroup, 'ALL'> {
 }
 
 export function PolicyPage() {
-  const { policies, routes, gateways, addPolicy } = usePrototype();
+  const { policies, routes, gateways, addPolicy, updatePolicy, deletePolicy } = usePrototype();
   const [filter, setFilter] = useState<PolicyGroup>('ALL');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Policy | null>(null);
+  const [editing, setEditing] = useState<Policy | null>(null);
+  const [deleting, setDeleting] = useState<Policy | null>(null);
   const [creating, setCreating] = useState(false);
   const [toast, setToast] = useState('');
   const visible = policies.filter((policy) => (filter === 'ALL' || policyGroup(policy.type) === filter) && `${policy.name}${policy.type}${policy.targets.map((target) => target.name).join('')}`.toLowerCase().includes(query.toLowerCase()));
   const groups: Array<{ value: PolicyGroup; label: string; count?: number }> = [{ value: 'ALL', label: '全部', count: policies.length }, ...(['访问控制', '流量控制', 'AI 约束'] as const).map((value) => ({ value, label: value, count: policies.filter((policy) => policyGroup(policy.type) === value).length }))];
-  return <div className="page-stack page-enter"><PageHeader eyebrow="访问治理" title="策略" description="可复用于网关或路由的运行规则" actions={<PrimaryButton onClick={() => setCreating(true)}><Plus />创建策略</PrimaryButton>} /><section className="card table-card"><header className="table-toolbar"><SearchField value={query} onChange={setQuery} placeholder="搜索策略或生效范围" /><FilterTabs value={filter} onChange={setFilter} options={groups} /></header><div className="table-head policy-columns"><span>策略</span><span>分类</span><span>生效范围</span><span>规则</span><span>今日结果</span><span>状态</span><span /></div>{visible.length ? visible.map((policy) => <button key={policy.id} className="table-row policy-columns" type="button" onClick={() => setSelected(policy)}><div className="name-cell"><span><ShieldCheck /></span><div><strong>{policy.name}</strong><small>{policy.type}</small></div></div><span>{policyGroup(policy.type)}</span><div className="tag-cell">{policy.targets.length ? policy.targets.map((target) => <code key={`${target.kind}-${target.id}`}>{target.name}</code>) : <small>尚未应用</small>}</div><span>{policy.rule}</span><span>{policy.effect}</span><StatusBadge state={policy.state} label={policy.state === 'healthy' ? '已生效' : '未应用'} /><ChevronRight /></button>) : <EmptyState title="没有匹配的策略" description="请调整筛选条件。" />}</section>{selected ? <Drawer title={selected.name} description={`${policyGroup(selected.type)} · ${selected.type}`} onClose={() => setSelected(null)}><div className="detail-hero"><span><ShieldCheck /></span><div><StatusBadge state={selected.state} label={selected.state === 'healthy' ? '已生效' : '未应用'} /><h3>{selected.rule}</h3><p>{selected.effect}</p></div></div><section className="detail-section"><header><h3>生效范围</h3></header>{selected.targets.length ? selected.targets.map((target) => <div className="detail-line" key={`${target.kind}-${target.id}`}><span><ShieldCheck /></span><div><strong>{target.name}</strong><small>{target.kind} · 同一策略的各目标独立执行</small></div><StatusBadge state="healthy" label="已生效" /></div>) : <EmptyState title="尚未应用" description="策略已保存，但当前不影响任何流量。" />}</section></Drawer> : null}{creating ? <CreatePolicy gateways={gateways} routes={routes} onClose={() => setCreating(false)} onSave={(policy) => { addPolicy(policy); setCreating(false); setToast('策略已创建'); }} /> : null}{toast ? <Toast message={toast} onDone={() => setToast('')} /> : null}</div>;
+  return <div className="page-stack page-enter"><PageHeader eyebrow="访问治理" title="流量策略" description="可复用于网关或路由的访问与流量规则" actions={<PrimaryButton onClick={() => setCreating(true)}><Plus />创建流量策略</PrimaryButton>} /><section className="card table-card"><header className="table-toolbar"><SearchField value={query} onChange={setQuery} placeholder="搜索策略或生效范围" /><FilterTabs value={filter} onChange={setFilter} options={groups} /></header><div className="table-head policy-columns"><span>策略</span><span>分类</span><span>生效范围</span><span>规则</span><span>今日结果</span><span>状态</span><span>操作</span></div>{visible.length ? visible.map((policy) => <div key={policy.id} className="table-row policy-columns"><div className="name-cell"><span><ShieldCheck /></span><div><strong>{policy.name}</strong><small>{policy.type}</small></div></div><span>{policyGroup(policy.type)}</span><div className="tag-cell">{policy.targets.length ? policy.targets.map((target) => <code key={`${target.kind}-${target.id}`}>{target.name}</code>) : <small>尚未应用</small>}</div><span>{policy.rule}</span><span>{policy.effect}</span><StatusBadge state={policy.state} label={policy.state === 'healthy' ? '已生效' : policy.state === 'pending' ? '发布中' : '未应用'} /><RowActions onDetail={() => setSelected(policy)} onEdit={() => setEditing(policy)} onDelete={() => setDeleting(policy)} /></div>) : <EmptyState title="没有匹配的策略" description="请调整筛选条件。" />}</section>{selected ? <Drawer title={selected.name} description={`${policyGroup(selected.type)} · ${selected.type}`} onClose={() => setSelected(null)}><div className="detail-hero"><span><ShieldCheck /></span><div><StatusBadge state={selected.state} label={selected.state === 'healthy' ? '已生效' : selected.state === 'pending' ? '发布中' : '未应用'} /><h3>{selected.rule}</h3><p>{selected.effect}</p></div></div><section className="detail-section"><header><h3>生效范围</h3></header>{selected.targets.length ? selected.targets.map((target) => <div className="detail-line" key={`${target.kind}-${target.id}`}><span><ShieldCheck /></span><div><strong>{target.name}</strong><small>{target.kind} · 同一策略的各目标独立执行</small></div><StatusBadge state={selected.state === 'pending' ? 'pending' : 'healthy'} label={selected.state === 'pending' ? '发布中' : '已生效'} /></div>) : <EmptyState title="尚未应用" description="策略已保存，但当前不影响任何流量。" />}</section></Drawer> : null}{creating ? <CreatePolicy gateways={gateways} routes={routes} onClose={() => setCreating(false)} onSave={(policy) => { addPolicy(policy); setCreating(false); setToast(policy.targets.length ? '流量策略已保存，正在发布' : '流量策略已保存，尚未应用'); }} /> : null}{editing ? <CreatePolicy initial={editing} gateways={gateways} routes={routes} onClose={() => setEditing(null)} onSave={(policy) => { updatePolicy(policy); setEditing(null); setToast(policy.targets.length ? '策略修改已保存，正在发布' : '策略修改已保存，当前未应用'); }} /> : null}{deleting ? <DeleteConfirm resourceType="流量策略" resourceName={deleting.name} onCancel={() => setDeleting(null)} onConfirm={() => { deletePolicy(deleting.id); setDeleting(null); setToast('流量策略已删除，正在发布'); }} /> : null}{toast ? <Toast message={toast} onDone={() => setToast('')} /> : null}</div>;
 }
 
 const defaultPolicyNames: Record<Policy['type'], string> = { '请求限流': '新请求限流策略', 'IP 访问限制': '新 IP 访问限制', 'AI 参数约束': '新 AI 参数约束' };
 
-function CreatePolicy({ gateways, routes, onClose, onSave }: { gateways: Array<{ id: string; name: string }>; routes: GatewayRoute[]; onClose: () => void; onSave: (policy: Policy) => void }) {
-  const [type, setType] = useState<Policy['type']>('请求限流');
-  const [name, setName] = useState(defaultPolicyNames['请求限流']);
-  const [selectedTargets, setSelectedTargets] = useState<string[]>([]);
-  const [rateLimit, setRateLimit] = useState('1000');
-  const [ratePeriod, setRatePeriod] = useState('分钟');
-  const [rateDimension, setRateDimension] = useState('每个调用方');
-  const [ipMode, setIPMode] = useState('仅允许');
-  const [ipRanges, setIPRanges] = useState('10.0.0.0/8\n192.168.0.0/16');
-  const [maxTokens, setMaxTokens] = useState('8192');
-  const [maxTemperature, setMaxTemperature] = useState('1.2');
+function CreatePolicy({ initial, gateways, routes, onClose, onSave }: { initial?: Policy; gateways: Array<{ id: string; name: string }>; routes: GatewayRoute[]; onClose: () => void; onSave: (policy: Policy) => void }) {
+  const [type, setType] = useState<Policy['type']>(initial?.type ?? '请求限流');
+  const [name, setName] = useState(initial?.name ?? defaultPolicyNames['请求限流']);
+  const [selectedTargets, setSelectedTargets] = useState<string[]>(initial?.targets.map((target) => `${target.kind === '网关' ? 'gateway' : 'route'}:${target.id}`) ?? []);
+  const [rateLimit, setRateLimit] = useState(initial?.settings?.rateLimit ?? initial?.rule.match(/[\d,]+(?= 次)/)?.[0].replaceAll(',', '') ?? '1000');
+  const [ratePeriod, setRatePeriod] = useState(initial?.settings?.ratePeriod ?? (initial?.rule.includes('每小时') ? '小时' : initial?.rule.includes('每秒') ? '秒' : '分钟'));
+  const [rateDimension, setRateDimension] = useState(initial?.settings?.rateDimension ?? (initial?.rule.startsWith('全部请求') ? '全部请求共享' : initial?.rule.startsWith('每个客户端 IP') ? '每个客户端 IP' : '每个调用方'));
+  const [ipMode, setIPMode] = useState(initial?.settings?.ipMode ?? (initial?.rule.startsWith('拒绝') ? '拒绝' : '仅允许'));
+  const [ipRanges, setIPRanges] = useState(initial?.settings?.ipRanges ?? '10.0.0.0/8\n192.168.0.0/16');
+  const [maxTokens, setMaxTokens] = useState(initial?.settings?.maxTokens ?? initial?.rule.match(/max_tokens ≤ ([\d,]+)/)?.[1].replaceAll(',', '') ?? '8192');
+  const [maxTemperature, setMaxTemperature] = useState(initial?.settings?.maxTemperature ?? initial?.rule.match(/temperature ≤ ([\d.]+)/)?.[1] ?? '1.2');
   const candidates = type === 'AI 参数约束'
     ? routes.filter((route) => route.type === 'AI').map((route) => ({ key: `route:${route.id}`, kind: '路由' as const, id: route.id, name: route.name }))
     : type === '请求限流' && rateDimension === '每个调用方'
@@ -228,8 +258,8 @@ function CreatePolicy({ gateways, routes, onClose, onSave }: { gateways: Array<{
   const effectiveTargets = selectedTargets.filter((key) => candidates.some((candidate) => candidate.key === key));
   const ipRangeCount = ipRanges.split('\n').map((item) => item.trim()).filter(Boolean).length;
   const rule = type === '请求限流' ? `${rateDimension}每${ratePeriod} ${Number(rateLimit).toLocaleString('zh-CN')} 次${effectiveTargets.length > 1 ? '，各目标独立计数' : ''}` : type === 'IP 访问限制' ? `${ipMode} ${ipRangeCount} 个网段` : `max_tokens ≤ ${Number(maxTokens).toLocaleString('zh-CN')}，temperature ≤ ${maxTemperature}`;
-  const save = () => onSave({ id: `policy-${Date.now()}`, name, type, targets: candidates.filter((candidate) => effectiveTargets.includes(candidate.key)).map(({ kind, id, name: targetName }) => ({ kind, id, name: targetName })), rule, effect: '暂无执行记录', state: effectiveTargets.length ? 'healthy' : 'disabled' });
+  const save = () => onSave({ id: initial?.id ?? `policy-${Date.now()}`, name, type, targets: candidates.filter((candidate) => effectiveTargets.includes(candidate.key)).map(({ kind, id, name: targetName }) => ({ kind, id, name: targetName })), rule, effect: initial?.effect ?? '暂无执行记录', state: effectiveTargets.length ? 'pending' : 'disabled', settings: { rateLimit, ratePeriod, rateDimension, ipMode, ipRanges, maxTokens, maxTemperature } });
   const changeType = (next: Policy['type']) => { setType(next); setName(defaultPolicyNames[next]); setSelectedTargets([]); };
   const toggleTarget = (key: string) => setSelectedTargets((items) => items.includes(key) ? items.filter((item) => item !== key) : [...items, key]);
-  return <Drawer title="创建策略" description={policyGroup(type)} onClose={onClose} width="wide"><form onSubmit={(event) => submitForm(event, save)}><div className="form-grid"><label><span>策略名称</span><input required value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>策略类型</span><select value={type} onChange={(event) => changeType(event.target.value as Policy['type'])}><option>请求限流</option><option>IP 访问限制</option><option>AI 参数约束</option></select></label>{type === '请求限流' ? <><label><span>计数维度</span><select value={rateDimension} onChange={(event) => { setRateDimension(event.target.value); setSelectedTargets([]); }}><option>每个调用方</option><option>全部请求共享</option><option>每个客户端 IP</option></select><small>{rateDimension === '每个调用方' ? '只可应用到需要密钥的路由' : '可应用到网关或路由'}</small></label><label><span>时间窗口</span><select value={ratePeriod} onChange={(event) => setRatePeriod(event.target.value)}><option>秒</option><option>分钟</option><option>小时</option></select></label><label className="field-wide"><span>最大请求数</span><input required type="number" min="1" step="1" value={rateLimit} onChange={(event) => setRateLimit(event.target.value)} /></label></> : null}{type === 'IP 访问限制' ? <><label><span>处理方式</span><select value={ipMode} onChange={(event) => setIPMode(event.target.value)}><option>仅允许</option><option>拒绝</option></select></label><label className="field-wide"><span>IP 或 CIDR（每行一个）</span><textarea required value={ipRanges} onChange={(event) => setIPRanges(event.target.value)} /></label></> : null}{type === 'AI 参数约束' ? <><label><span>max_tokens 上限</span><input required type="number" min="1" value={maxTokens} onChange={(event) => setMaxTokens(event.target.value)} /></label><label><span>temperature 上限</span><input required type="number" min="0" max="2" step="0.1" value={maxTemperature} onChange={(event) => setMaxTemperature(event.target.value)} /></label></> : null}</div><fieldset className="target-picker"><legend>生效范围（可多选）</legend><p>不选择也可以保存，策略将处于“未应用”状态。</p><div>{candidates.map((candidate) => <label key={candidate.key}><input type="checkbox" checked={effectiveTargets.includes(candidate.key)} onChange={() => toggleTarget(candidate.key)} /><span><small>{candidate.kind}</small><strong>{candidate.name}</strong></span></label>)}</div></fieldset><div className="form-note"><ShieldCheck />将生成规则：{rule}</div><FormActions submitLabel="保存策略" submitDisabled={type === 'IP 访问限制' && ipRangeCount === 0} onCancel={onClose} /></form></Drawer>;
+  return <Drawer title={initial ? '编辑流量策略' : '创建流量策略'} description={policyGroup(type)} onClose={onClose} width="wide"><form onSubmit={(event) => submitForm(event, save)}><div className="form-grid"><label><span>策略名称</span><input required value={name} onChange={(event) => setName(event.target.value)} /></label><label><span>策略类型</span><select value={type} onChange={(event) => changeType(event.target.value as Policy['type'])}><option>请求限流</option><option>IP 访问限制</option><option>AI 参数约束</option></select></label>{type === '请求限流' ? <><label><span>计数维度</span><select value={rateDimension} onChange={(event) => { setRateDimension(event.target.value); setSelectedTargets([]); }}><option>每个调用方</option><option>全部请求共享</option><option>每个客户端 IP</option></select><small>{rateDimension === '每个调用方' ? '只可应用到需要密钥的路由' : '可应用到网关或路由'}</small></label><label><span>时间窗口</span><select value={ratePeriod} onChange={(event) => setRatePeriod(event.target.value)}><option>秒</option><option>分钟</option><option>小时</option></select></label><label className="field-wide"><span>最大请求数</span><input required type="number" min="1" step="1" value={rateLimit} onChange={(event) => setRateLimit(event.target.value)} /></label></> : null}{type === 'IP 访问限制' ? <><label><span>处理方式</span><select value={ipMode} onChange={(event) => setIPMode(event.target.value)}><option>仅允许</option><option>拒绝</option></select></label><label className="field-wide"><span>IP 或 CIDR（每行一个）</span><textarea required value={ipRanges} onChange={(event) => setIPRanges(event.target.value)} /></label></> : null}{type === 'AI 参数约束' ? <><label><span>max_tokens 上限</span><input required type="number" min="1" value={maxTokens} onChange={(event) => setMaxTokens(event.target.value)} /></label><label><span>temperature 上限</span><input required type="number" min="0" max="2" step="0.1" value={maxTemperature} onChange={(event) => setMaxTemperature(event.target.value)} /></label></> : null}</div><fieldset className="target-picker"><legend>生效范围（可多选）</legend><p>不选择也可以保存，策略将处于“未应用”状态。</p><div>{candidates.map((candidate) => <label key={candidate.key}><input type="checkbox" checked={effectiveTargets.includes(candidate.key)} onChange={() => toggleTarget(candidate.key)} /><span><small>{candidate.kind}</small><strong>{candidate.name}</strong></span></label>)}</div></fieldset><div className="form-note"><ShieldCheck />将生成规则：{rule}{type === 'AI 参数约束' ? '；超过上限时拒绝请求，不会静默改写客户端参数' : ''}</div><FormActions submitLabel={initial ? '保存修改' : '保存流量策略'} submitDisabled={type === 'IP 访问限制' && ipRangeCount === 0} onCancel={onClose} /></form></Drawer>;
 }

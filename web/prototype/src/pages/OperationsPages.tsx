@@ -11,8 +11,8 @@ import {
   Wrench,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { auditRecords, releaseHistory, type RequestRecord, type TrafficType } from '../data';
+import { Link, useSearchParams } from 'react-router-dom';
+import type { AuditRecord, RequestRecord, TrafficType } from '../data';
 import {
   Drawer,
   EmptyState,
@@ -41,7 +41,7 @@ export function RequestPage() {
 
   return (
     <div className="page-stack page-enter">
-      <PageHeader eyebrow="运行分析" title="请求" />
+      <PageHeader eyebrow="运行分析" title="请求记录" description="查找单次请求的路由、策略与服务执行结果" />
       <section className="metric-grid four"><Metric label="API 请求" value="98.3K" note="成功率 99.91%" /><Metric label="AI 请求" value="44.4K" note="19.7M Token" /><Metric label="MCP 工具调用" value="8.2K" note="成功率 99.90%" /><Metric label="异常与拒绝" value="257" note="服务异常 66 · 策略拒绝 191" tone="warning" /></section>
       <p className="privacy-note"><ShieldCheck />默认不记录请求正文</p>
       <section className="card table-card">
@@ -105,19 +105,19 @@ const analysisViews = {
 export function AnalysisPage() {
   const [filter, setFilter] = useState<AnalysisFilter>('API');
   const view = analysisViews[filter];
-  return <div className="page-stack page-enter"><PageHeader eyebrow="运行分析" title="流量分析" /><FilterTabs value={filter} onChange={setFilter} options={[{ value: 'API', label: 'API' }, { value: 'AI', label: 'AI' }, { value: 'MCP', label: 'MCP' }]} /><section className="metric-grid four">{view.metrics.map(([label, value, note]) => <Metric key={label} label={label} value={value} note={note} />)}</section><section className="analysis-layout"><article className="card chart-card"><header className="card-header"><div><span className="eyebrow">过去 12 小时</span><h3>{view.title}趋势</h3></div><span>{view.unit}</span></header><div className="bar-chart">{view.bars.map((height, index) => <i key={index}><b style={{ height: `${height}%` }} /><span>{index % 2 === 0 ? `${index + 3}:00` : ''}</span></i>)}</div></article><article className="card composition-card"><header><span className="eyebrow">构成</span><h3>{view.composition.title}</h3></header><div className="donut" style={{ background: `radial-gradient(circle,#fffef9 0 52%,transparent 53%), conic-gradient(${view.composition.gradient})` }}><div><strong>{view.composition.total}</strong><span>{view.composition.label}</span></div></div>{view.composition.segments.map(([label, value, tone]) => <p key={label}><i className={tone} />{label}<strong>{value}</strong></p>)}</article></section><section className="card ranking-card"><header className="card-header"><div><span className="eyebrow">明细排名</span><h3>{view.title}</h3></div></header><div className="ranking-row ranking-head">{view.headers.map((header) => <span key={header}>{header}</span>)}</div>{view.rows.map((row) => <div className="ranking-row" key={row[0]}>{row.map((cell, index) => index === 1 ? <TypeBadge key={`${row[0]}-${cell}`} type={cell as TrafficType} /> : <span key={`${row[0]}-${cell}-${index}`}>{cell}</span>)}</div>)}</section></div>;
+  return <div className="page-stack page-enter"><PageHeader eyebrow="运行分析" title="流量分析" /><FilterTabs value={filter} onChange={setFilter} options={[{ value: 'API', label: 'API' }, { value: 'AI', label: 'AI' }, { value: 'MCP', label: 'MCP' }]} /><section className="metric-grid four">{view.metrics.map(([label, value, note]) => <Metric key={label} label={label} value={value} note={note} />)}</section><section className="analysis-layout"><article className="card chart-card"><header className="card-header"><div><span className="eyebrow">过去 12 小时</span><h3>{view.title}趋势</h3></div><span>{view.unit}</span></header><div className="bar-chart">{view.bars.map((height, index) => <i key={index}><b style={{ height: `${height}%` }} /><span>{index % 2 === 0 ? `${index + 3}:00` : ''}</span></i>)}</div></article><article className="card composition-card"><header><span className="eyebrow">构成</span><h3>{view.composition.title}</h3></header><div className="donut" style={{ background: `radial-gradient(circle,#fffef9 0 52%,transparent 53%), conic-gradient(${view.composition.gradient})` }}><div><strong>{view.composition.total}</strong><span>{view.composition.label}</span></div></div>{view.composition.segments.map(([label, value, tone]) => <p key={label}><i className={tone} />{label}<strong>{value}</strong></p>)}</article></section><section className="card ranking-card"><header className="card-header"><div><span className="eyebrow">明细排名</span><h3>{view.title}</h3></div><Link to={`/requests?query=${encodeURIComponent(view.rows[0][0])}`}>查看请求 <ChevronRight /></Link></header><div className="ranking-row ranking-head">{view.headers.map((header) => <span key={header}>{header}</span>)}</div>{view.rows.map((row) => <Link className="ranking-row" to={`/requests?query=${encodeURIComponent(row[0])}`} key={row[0]}>{row.map((cell, index) => index === 1 ? <TypeBadge key={`${row[0]}-${cell}`} type={cell as TrafficType} /> : <span key={`${row[0]}-${cell}-${index}`}>{cell}</span>)}</Link>)}</section></div>;
 }
 
 export function HealthPage() {
-  const { gateways, services } = usePrototype();
-  const serviceWarnings = services.filter((service) => service.state === 'warning');
+  const { gateways, routes, services, certificates, policies, currentVersion, releaseHistory } = usePrototype();
+  const serviceWarnings = services.filter((service) => service.state === 'warning' || service.state === 'error' || service.state === 'unverified');
   const visibleServices = services;
 
   return (
     <div className="page-stack page-enter">
-      <PageHeader eyebrow="运行分析" title="运行状态" />
+      <PageHeader eyebrow="运行分析" title="健康与发布" description="代理实例、服务连接和配置生效状态" />
       <section className="health-hero"><span><AlertTriangle /></span><div><small>生产环境</small><h2>{serviceWarnings.length} 项服务性能下降</h2><p>网关实例和配置发布均正常</p></div><StatusBadge state="warning" label="需要关注" /></section>
-      <section className="metric-grid four"><Metric label="网关实例" value="5 / 5" note="全部在线" tone="good" /><Metric label="健康服务" value={`${services.length - serviceWarnings.length} / ${services.length}`} note={`${serviceWarnings.length} 个性能下降`} /><Metric label="配置状态" value="已同步" note="生效版本 142" tone="good" /><Metric label="运行告警" value={String(serviceWarnings.length)} note={`0 紧急 · ${serviceWarnings.length} 警告`} tone="warning" /></section>
+      <section className="metric-grid four"><Metric label="代理实例" value="5 / 5" note="全部在线" tone="good" /><Metric label="健康服务" value={`${services.length - serviceWarnings.length} / ${services.length}`} note={`${serviceWarnings.length} 个性能下降`} /><Metric label="配置状态" value={releaseHistory[0]?.state ?? '已生效'} note={`当前版本 ${currentVersion}`} tone={releaseHistory[0]?.state === '发布中' ? 'warning' : 'good'} /><Metric label="运行告警" value={String(serviceWarnings.length)} note={`0 紧急 · ${serviceWarnings.length} 警告`} tone="warning" /></section>
       <section className="health-layout">
         <article className="card component-card">
           <header className="card-header"><div><span className="eyebrow">关键组件</span><h3>当前状态</h3></div></header>
@@ -129,14 +129,16 @@ export function HealthPage() {
         </article>
         <aside className="card alert-card"><header><span className="eyebrow">运行告警</span><h3>需要处理</h3></header><div><AlertTriangle /><p><strong>Anthropic 公网响应变慢</strong><span>首个 Token P95 2.8 秒，备用线路正常</span><small><Clock3 />持续 8 分钟</small></p></div><div><AlertTriangle /><p><strong>文件服务错误率升高</strong><span>成功率 99.42%，正在观察</span><small><Clock3 />持续 11 分钟</small></p></div><footer><CheckCircle2 /><span><strong>今天已恢复 3 项</strong><small>最近恢复：搜索工具服务连接</small></span></footer></aside>
       </section>
-      <section className="card release-card"><header className="card-header"><div><span className="eyebrow">配置发布</span><h3>当前生效版本</h3></div><StatusBadge state="healthy" label="全部实例已同步" /></header><div className="release-summary"><div><span>生效版本</span><strong>v142</strong></div><div><span>生效时间</span><strong>今天 14:31:08</strong></div><div><span>网关实例</span><strong>5 / 5</strong></div><div><span>配置资源</span><strong>28</strong></div></div><div className="release-history">{releaseHistory.map((release) => <div key={release.version}><span><CheckCircle2 /></span><p><strong>版本 {release.version}</strong><small>{release.summary} · {release.resources}</small></p><time>{release.time}</time><StatusBadge state="healthy" label={release.state} /></div>)}</div></section>
+      <section className="card release-card"><header className="card-header"><div><span className="eyebrow">配置发布</span><h3>版本记录</h3></div><StatusBadge state={releaseHistory[0]?.state === '发布中' ? 'pending' : 'healthy'} label={releaseHistory[0]?.state === '发布中' ? '正在同步' : '全部实例已同步'} /></header><div className="release-summary"><div><span>当前版本</span><strong>v{currentVersion}</strong></div><div><span>最近变更</span><strong>{releaseHistory[0]?.time ?? '—'}</strong></div><div><span>代理实例</span><strong>5 / 5</strong></div><div><span>声明资源</span><strong>{gateways.length + routes.length + services.length + certificates.length + policies.length}</strong></div></div><div className="release-history">{releaseHistory.map((release) => <div key={release.version}><span>{release.state === '发布中' ? <Clock3 /> : <CheckCircle2 />}</span><p><strong>版本 {release.version}</strong><small>{release.summary} · {release.resources}</small></p><time>{release.time}</time><StatusBadge state={release.state === '发布中' ? 'pending' : 'healthy'} label={release.state} /></div>)}</div></section>
     </div>
   );
 }
 
 export function AuditPage() {
+  const { auditRecords } = usePrototype();
   const [query, setQuery] = useState('');
-  const visible = auditRecords.filter((record) => `${record.actor}${record.action}${record.resource}${record.detail}`.includes(query));
+  const [resourceType, setResourceType] = useState<'ALL' | AuditRecord['resourceType']>('ALL');
+  const visible = auditRecords.filter((record) => (resourceType === 'ALL' || record.resourceType === resourceType) && `${record.actor}${record.action}${record.resource}${record.detail}`.includes(query));
   const exportRecords = () => {
     const rows = [['时间', '操作者', '动作', '资源', '详情'], ...visible.map((record) => [record.time, record.actor, record.action, record.resource, record.detail])];
     const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(',')).join('\n');
@@ -148,5 +150,5 @@ export function AuditPage() {
     URL.revokeObjectURL(url);
   };
 
-  return <div className="page-stack page-enter"><PageHeader eyebrow="运行分析" title="审计" description="配置、权限与凭据操作" actions={<button className="button button-secondary" type="button" onClick={exportRecords} disabled={!visible.length}><Download />导出日志</button>} /><section className="card audit-card"><header className="table-toolbar"><SearchField value={query} onChange={setQuery} placeholder="搜索操作者、动作或资源" /><span>保留最近 180 天 · 今天 46 项变更</span></header><div className="audit-date"><span>今天 · 2026 年 8 月 12 日</span><i /></div>{visible.length ? visible.map((record, index) => <article className="audit-row" key={`${record.time}-${record.resource}`}><span><FileClock /></span><div><div><strong>{record.action}</strong><StatusBadge state="healthy" label="成功" /></div><p>{record.detail}</p><small>{record.resource}</small></div><div><strong>{record.actor}</strong><time>{record.time}</time></div>{index < visible.length - 1 ? <i /> : null}</article>) : <EmptyState title="没有匹配的审计记录" description="请调整搜索条件。" />}</section></div>;
+  return <div className="page-stack page-enter"><PageHeader eyebrow="系统管理" title="审计日志" description="配置、权限与凭据操作" actions={<button className="button button-secondary" type="button" onClick={exportRecords} disabled={!visible.length}><Download />导出日志</button>} /><section className="card audit-card"><header className="table-toolbar"><SearchField value={query} onChange={setQuery} placeholder="搜索操作者、动作或资源" /><FilterTabs value={resourceType} onChange={setResourceType} options={[{ value: 'ALL', label: '全部', count: auditRecords.length }, { value: '网关', label: '网关' }, { value: '路由', label: '路由' }, { value: '服务', label: '服务' }, { value: '调用方', label: '调用方' }, { value: '流量策略', label: '策略' }]} /></header><div className="audit-date"><span>最近 180 天 · 当前显示 {visible.length} 项</span><i /></div>{visible.length ? visible.map((record, index) => <article className="audit-row" key={record.id}><span><FileClock /></span><div><div><strong>{record.action}</strong><StatusBadge state={record.result === '成功' ? 'healthy' : 'error'} label={record.result} /></div><p>{record.detail}</p><small>{record.resourceType} · {record.resource}</small></div><div><strong>{record.actor}</strong><time>{record.time}</time></div>{index < visible.length - 1 ? <i /> : null}</article>) : <EmptyState title="没有匹配的审计记录" description="请调整搜索或资源类型。" />}</section></div>;
 }
