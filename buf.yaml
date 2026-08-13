@@ -2,6 +2,7 @@ version: v2
 modules:
   - path: api
   - path: internal/adminapi/conf
+  - path: internal/als
 deps:
   - buf.build/bufbuild/protovalidate
   - buf.build/googleapis/googleapis
