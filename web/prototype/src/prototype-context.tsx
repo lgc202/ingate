@@ -53,6 +53,8 @@ interface PrototypeState {
   updateCertificate: (certificate: Certificate) => void;
   deleteCertificate: (certificateID: string) => void;
   addCaller: (caller: Caller) => void;
+  updateCaller: (caller: Caller) => void;
+  deleteCaller: (callerID: string) => void;
   updateCallerPermissions: (
     callerID: string,
     permissions: CallerPermission[],
@@ -338,6 +340,28 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
         caller.permissions.length
           ? `已授予 ${caller.permissions.length} 条路由权限`
           : "尚未授予路由权限",
+      );
+    },
+    updateCaller: (caller) => {
+      setCallers((items) =>
+        items.map((item) => (item.id === caller.id ? caller : item)),
+      );
+      recordAudit(
+        `更新调用方“${caller.name}”`,
+        "调用方",
+        caller.name,
+        "基本信息已更新",
+      );
+    },
+    deleteCaller: (callerID) => {
+      const caller = callers.find((item) => item.id === callerID);
+      if (!caller) return;
+      setCallers((items) => items.filter((item) => item.id !== callerID));
+      recordAudit(
+        `删除调用方“${caller.name}”`,
+        "调用方",
+        caller.name,
+        "密钥、权限和额度已一并移除",
       );
     },
     updateCallerPermissions: (callerID, permissions) => {
