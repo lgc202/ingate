@@ -6,6 +6,7 @@ import {
   KeyRound,
   LayoutDashboard,
   CircleDollarSign,
+  Fingerprint,
   PanelLeftClose,
   PanelLeftOpen,
   Route,
@@ -37,6 +38,7 @@ const navigation = [
     label: "访问治理",
     items: [
       { label: "调用方", to: "/callers", icon: UsersRound },
+      { label: "身份源", to: "/identity-sources", icon: Fingerprint },
       { label: "流量策略", to: "/policies", icon: ShieldCheck },
     ],
   },

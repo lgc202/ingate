@@ -7,7 +7,11 @@ import {
   RoutePage,
   ServicePage,
 } from "./pages/TrafficPages";
-import { CallerPage, PolicyPage } from "./pages/GovernancePages";
+import {
+  CallerPage,
+  IdentitySourcePage,
+  PolicyPage,
+} from "./pages/GovernancePages";
 import {
   AnalysisPage,
   AuditPage,
@@ -26,6 +30,7 @@ export default function App() {
         <Route path="services" element={<ServicePage />} />
         <Route path="certificates" element={<CertificatePage />} />
         <Route path="callers" element={<CallerPage />} />
+        <Route path="identity-sources" element={<IdentitySourcePage />} />
         <Route path="policies" element={<PolicyPage />} />
         <Route path="requests" element={<RequestPage />} />
         <Route path="analysis" element={<AnalysisPage />} />

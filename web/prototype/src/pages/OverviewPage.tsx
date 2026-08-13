@@ -264,9 +264,9 @@ export function OverviewPage() {
               <Link key={request.id} to={`/requests?query=${request.id}`}>
                 <RouteTypeBadge type={request.type} />
                 <div>
-                  <strong>{request.route}</strong>
+                  <strong>{request.method} {request.path}</strong>
                   <span>
-                    {request.caller} · {request.request}
+                    {request.caller} · {request.route}
                   </span>
                 </div>
                 <div>

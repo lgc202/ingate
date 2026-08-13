@@ -1,4 +1,6 @@
 import {
+  Activity,
+  AlertTriangle,
   Ban,
   CalendarDays,
   ChevronLeft,
@@ -41,18 +43,156 @@ import type {
   CallerPermission,
   CallerQuota,
   GatewayRoute,
+  IdentitySource,
   Policy,
+  RequestRecord,
   TrafficType,
 } from "../data";
 import { usePrototype } from "../prototype-context";
 
 type PermissionDraft = Record<string, string[]>;
-type CallerSection = "permissions" | "keys" | "quotas";
+type CallerSection = "identity" | "permissions" | "quotas" | "activity";
+type CallerStatusFilter = "ALL" | "ENABLED" | "DISABLED";
+type CallerAttentionFilter = "ALL" | "NEEDS_ATTENTION";
+
+interface CallerAttention {
+  section: "identity" | "permissions" | "quotas";
+  label: string;
+  detail: string;
+}
+
+export function IdentitySourcePage() {
+  const {
+    identitySources,
+    routes,
+    addIdentitySource,
+    updateIdentitySource,
+    deleteIdentitySource,
+  } = usePrototype();
+  const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<IdentitySource | null>(null);
+  const [editing, setEditing] = useState<IdentitySource | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState<IdentitySource | null>(null);
+  const visible = identitySources.filter((source) =>
+    `${source.name}${source.provider}${source.discoveryURL}`
+      .toLowerCase()
+      .includes(query.toLowerCase()),
+  );
+  return (
+    <div className="page-stack page-enter">
+      <PageHeader
+        eyebrow="访问治理"
+        title="身份源"
+        description="统一管理路由信任的企业身份系统"
+        actions={
+          <PrimaryButton onClick={() => setCreating(true)}>
+            <Plus />
+            添加身份源
+          </PrimaryButton>
+        }
+      />
+      <section className="identity-source-intro">
+        <span><ShieldCheck /></span>
+        <div>
+          <strong>路由选择身份源，身份源负责验证 Token 和登录会话</strong>
+          <p>API Key 由调用方管理；JWT 访问令牌与浏览器登录才需要身份源。</p>
+        </div>
+      </section>
+      <section className="card table-card">
+        <header className="table-toolbar">
+          <SearchField value={query} onChange={setQuery} placeholder="搜索名称、厂商或发现地址" />
+          <span>{visible.length} 个身份源</span>
+        </header>
+        <div className="table-head identity-source-columns">
+          <span>身份源</span><span>发现地址</span><span>Audience</span><span>引用路由</span><span>状态</span><span>操作</span>
+        </div>
+        {visible.map((source) => {
+          const references = routes.filter((route) => route.identitySourceID === source.id);
+          return (
+            <div className="table-row identity-source-columns" key={source.id}>
+              <div className="name-cell"><span><ShieldCheck /></span><div><strong>{source.name}</strong><small>{source.provider}</small></div></div>
+              <code>{source.discoveryURL}</code>
+              <span>{source.audiences.join("、")}</span>
+              <strong>{references.length} 条</strong>
+              <StatusBadge state={source.state} label={source.state === "healthy" ? "连接正常" : "需要检查"} />
+              <RowActions onDetail={() => setSelected(source)} onEdit={() => setEditing(source)} onDelete={() => setDeleting(source)} />
+            </div>
+          );
+        })}
+      </section>
+      {selected ? <IdentitySourceDetail source={selected} routes={routes.filter((route) => route.identitySourceID === selected.id)} onClose={() => setSelected(null)} /> : null}
+      {creating || editing ? (
+        <IdentitySourceForm
+          initial={editing ?? undefined}
+          onClose={() => { setCreating(false); setEditing(null); }}
+          onSave={(source) => {
+            if (editing) updateIdentitySource(source);
+            else addIdentitySource(source);
+            setCreating(false);
+            setEditing(null);
+            setSelected(source);
+          }}
+        />
+      ) : null}
+      {deleting ? (
+        <DeleteConfirm
+          resourceType="身份源"
+          resourceName={deleting.name}
+          blockedReason={routes.some((route) => route.identitySourceID === deleting.id) ? "仍有路由引用该身份源，请先调整路由访问控制。" : undefined}
+          onCancel={() => setDeleting(null)}
+          onConfirm={() => { deleteIdentitySource(deleting.id); setDeleting(null); }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function IdentitySourceDetail({ source, routes, onClose }: { source: IdentitySource; routes: GatewayRoute[]; onClose: () => void }) {
+  return (
+    <Drawer title={source.name} description={source.provider} onClose={onClose} width="wide">
+      <section className="detail-section">
+        <header><h3>信任配置</h3><StatusBadge state={source.state} label="连接正常" /></header>
+        <dl className="definition-list">
+          <div><dt>OIDC Discovery</dt><dd><code>{source.discoveryURL}</code></dd></div>
+          <div><dt>允许的 Audience</dt><dd>{source.audiences.join("、")}</dd></div>
+          <div><dt>最近验证</dt><dd>{source.lastVerified}</dd></div>
+        </dl>
+      </section>
+      <section className="detail-section">
+        <header><h3>引用路由</h3><span>{routes.length} 条</span></header>
+        {routes.length ? <div className="chip-list">{routes.map((route) => <span key={route.id}><RouteTypeBadge type={route.type} />{route.name} · {route.accessMode}</span>)}</div> : <EmptyState title="尚未被路由引用" description="创建或编辑路由时可选择该身份源。" />}
+      </section>
+    </Drawer>
+  );
+}
+
+function IdentitySourceForm({ initial, onClose, onSave }: { initial?: IdentitySource; onClose: () => void; onSave: (source: IdentitySource) => void }) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [provider, setProvider] = useState(initial?.provider ?? "Keycloak");
+  const [discoveryURL, setDiscoveryURL] = useState(initial?.discoveryURL ?? "");
+  const [audience, setAudience] = useState(initial?.audiences.join(", ") ?? "");
+  return (
+    <Drawer title={initial ? "编辑身份源" : "添加身份源"} description="OIDC / JWT 信任配置" onClose={onClose} width="wide">
+      <form onSubmit={(event) => submitForm(event, () => onSave({ id: initial?.id ?? `idp-${Date.now()}`, name, provider, discoveryURL, audiences: audience.split(",").map((item) => item.trim()).filter(Boolean), state: "healthy", lastVerified: "刚刚" }))}>
+        <div className="form-grid">
+          <label><span>名称</span><input required value={name} onChange={(event) => setName(event.target.value)} placeholder="例如企业统一身份" /></label>
+          <label><span>身份系统</span><input required value={provider} onChange={(event) => setProvider(event.target.value)} placeholder="Keycloak、Entra ID、Auth0" /></label>
+          <label className="field-wide"><span>OIDC Discovery 地址</span><input required type="url" value={discoveryURL} onChange={(event) => setDiscoveryURL(event.target.value)} placeholder="https://.../.well-known/openid-configuration" /></label>
+          <label className="field-wide"><span>允许的 Audience</span><input required value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="多个值使用逗号分隔" /></label>
+        </div>
+        <div className="form-note"><ShieldCheck />保存时验证发现文档、JWKS 地址及 Audience 配置；客户端密钥等敏感信息不在此页展示。</div>
+        <FormActions submitLabel="验证并保存" onCancel={onClose} />
+      </form>
+    </Drawer>
+  );
+}
 
 export function CallerPage() {
   const {
     callers,
     routes,
+    requests,
     addCaller,
     updateCaller,
     deleteCaller,
@@ -68,7 +208,11 @@ export function CallerPage() {
     searchParams.get("selected") ?? callers[0]?.id ?? "",
   );
   const [query, setQuery] = useState("");
-  const [section, setSection] = useState<CallerSection>("permissions");
+  const [statusFilter, setStatusFilter] =
+    useState<CallerStatusFilter>("ALL");
+  const [attentionFilter, setAttentionFilter] =
+    useState<CallerAttentionFilter>("ALL");
+  const [section, setSection] = useState<CallerSection>("identity");
   const [viewing, setViewing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [editingCaller, setEditingCaller] = useState(false);
@@ -82,11 +226,22 @@ export function CallerPage() {
   const [revokeCandidateID, setRevokeCandidateID] = useState("");
   const selected =
     callers.find((caller) => caller.id === selectedID) ?? callers[0] ?? null;
-  const visibleCallers = callers.filter((caller) =>
-    `${caller.name}${caller.owner}${caller.slug}`
-      .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
+  const visibleCallers = callers.filter((caller) => {
+    const attentions = callerAttentions(caller, routes);
+    const matchesStatus =
+      statusFilter === "ALL" ||
+      (statusFilter === "ENABLED" && caller.enabled) ||
+      (statusFilter === "DISABLED" && !caller.enabled);
+    const matchesAttention =
+      attentionFilter === "ALL" || attentions.length > 0;
+    return (
+      matchesStatus &&
+      matchesAttention &&
+      `${caller.name}${caller.owner}${caller.slug}${attentions.map((item) => item.label).join("")}`
+        .toLowerCase()
+        .includes(query.toLowerCase())
+    );
+  });
   const selectedRoutes = selected
     ? selected.permissions
         .map((permission) => ({
@@ -106,7 +261,10 @@ export function CallerPage() {
   const tryingRoute = routes.find((route) => route.id === tryingRouteID);
   const selectedActiveKeys =
     selected?.keys.filter((key) => key.state !== "disabled") ?? [];
-  const selectedStatus = selected ? callerAvailability(selected) : null;
+  const selectedRequests = selected
+    ? requests.filter((request) => request.caller === selected.name)
+    : [];
+  const selectedAttentions = selected ? callerAttentions(selected, routes) : [];
 
   return (
     <div className="page-stack page-enter">
@@ -121,48 +279,107 @@ export function CallerPage() {
           </PrimaryButton>
         }
       />
-      <section className="card table-card">
+      <section className="card table-card caller-table-card">
           <header className="table-toolbar">
             <SearchField
               value={query}
               onChange={setQuery}
-              placeholder="搜索名称或负责人"
+              placeholder="搜索名称、负责人或待处理事项"
+            />
+            <FilterSelect
+              label="账号状态"
+              value={statusFilter}
+              onChange={setStatusFilter}
+              options={[
+                { value: "ALL", label: "全部状态", count: callers.length },
+                {
+                  value: "ENABLED",
+                  label: "已启用",
+                  count: callers.filter((caller) => caller.enabled).length,
+                },
+                {
+                  value: "DISABLED",
+                  label: "已停用",
+                  count: callers.filter((caller) => !caller.enabled).length,
+                },
+              ]}
+            />
+            <FilterSelect
+              label="处理提醒"
+              value={attentionFilter}
+              onChange={setAttentionFilter}
+              options={[
+                { value: "ALL", label: "全部调用方" },
+                {
+                  value: "NEEDS_ATTENTION",
+                  label: "需要处理",
+                  count: callers.filter((caller) => callerAttentions(caller, routes).length).length,
+                },
+              ]}
             />
             <span>{visibleCallers.length} 个调用方</span>
           </header>
           <div className="table-head caller-columns">
             <span>调用方</span>
-            <span>负责人</span>
-            <span>状态</span>
-            <span>权限</span>
-            <span>密钥</span>
+            <span>账号状态</span>
+            <span>身份方式</span>
+            <span>授权范围</span>
+            <span>需要处理</span>
             <span>最近调用</span>
             <span>操作</span>
           </div>
           {visibleCallers.length ? (
-            visibleCallers.map((caller) => (
+            visibleCallers.map((caller) => {
+              const attentions = callerAttentions(caller, routes);
+              return (
                 <div key={caller.id} className="table-row caller-columns">
                   <div className="name-cell">
                     <span><UserRound /></span>
                     <div>
                       <strong>{caller.name}</strong>
-                      <small>{caller.slug}</small>
+                      <small>{caller.owner} · {caller.slug}</small>
                     </div>
                   </div>
-                  <span>{caller.owner}</span>
                   <StatusBadge
-                    state={callerAvailability(caller).state}
-                    label={callerAvailability(caller).label}
+                    state={caller.enabled ? "healthy" : "disabled"}
+                    label={caller.enabled ? "已启用" : "已停用"}
                   />
-                  <strong>{caller.permissions.length}</strong>
-                  <strong>
-                    {caller.keys.filter((key) => key.state !== "disabled").length}
-                  </strong>
+                  <div className="caller-identity-mode">
+                    <strong>API Key</strong>
+                    <small>{caller.keys.filter((key) => key.state !== "disabled").length} 个有效凭据</small>
+                  </div>
+                  <div className="caller-permission-count">
+                    <strong>{caller.permissions.length} 条路由</strong>
+                    <small>{callerScopeCount(caller)} 项能力</small>
+                  </div>
+                  {attentions.length ? (
+                    <button
+                      className="caller-attention-link"
+                      type="button"
+                      onClick={() => {
+                        setSelectedID(caller.id);
+                        setSection(attentions[0].section);
+                        setViewing(true);
+                      }}
+                    >
+                      <AlertTriangle />
+                      <span>
+                        <strong>{attentions[0].label}</strong>
+                        <small>
+                          {attentions.length > 1
+                            ? `另有 ${attentions.length - 1} 项需要处理`
+                            : attentions[0].detail}
+                        </small>
+                      </span>
+                    </button>
+                  ) : (
+                    <span className="caller-attention-empty">无</span>
+                  )}
                   <span>{caller.lastActive}</span>
                   <RowActions
                     onDetail={() => {
                       setSelectedID(caller.id);
-                      setSection("permissions");
+                      setSection("identity");
                       setViewing(true);
                       setRevokeCandidateID("");
                     }}
@@ -176,7 +393,8 @@ export function CallerPage() {
                     }}
                   />
                 </div>
-            ))
+              );
+            })
           ) : (
             <EmptyState
               title="没有匹配的调用方"
@@ -184,7 +402,7 @@ export function CallerPage() {
             />
           )}
 
-        {viewing && selected && selectedStatus ? (
+        {viewing && selected ? (
         <Drawer
           title={selected.name}
           description={`${selected.owner} · ${selected.slug}`}
@@ -192,44 +410,57 @@ export function CallerPage() {
           width="wide"
         >
           <article className="caller-detail-panel">
-            <div className="drawer-actions">
-              <button
-                className="button button-secondary"
-                type="button"
-                onClick={() => setEditingCaller(true)}
-              >
-                <Pencil />
-                编辑
-              </button>
-              <button
-                className="button button-danger"
-                type="button"
-                onClick={() => setDeletingCaller(true)}
-              >
-                <Trash2 />
-                删除
-              </button>
-            </div>
             <div className="detail-hero">
               <span>
                 <UserRound />
               </span>
               <div>
                 <StatusBadge
-                  state={selectedStatus.state}
-                  label={selectedStatus.label}
+                  state={selected.enabled ? "healthy" : "disabled"}
+                  label={selected.enabled ? "已启用" : "已停用"}
                 />
+                <span className="caller-access-reason">
+                  API Key 客户端 · {selectedActiveKeys.length} 个有效凭据
+                </span>
                 <h3>{selected.purpose || "未填写用途"}</h3>
                 <p>
                   {selected.owner} · {selected.slug}
                 </p>
               </div>
             </div>
+            {selectedAttentions.length ? (
+              <section className="caller-attention-panel">
+                <header>
+                  <span><AlertTriangle /></span>
+                  <div>
+                    <strong>{selectedAttentions.length} 项需要处理</strong>
+                    <small>
+                      处理结果仅影响对应凭据或授权范围
+                    </small>
+                  </div>
+                </header>
+                <div>
+                  {selectedAttentions.map((attention) => (
+                    <button
+                      type="button"
+                      key={`${attention.section}-${attention.label}`}
+                      onClick={() => setSection(attention.section)}
+                    >
+                      <span>
+                        <strong>{attention.label}</strong>
+                        <small>{attention.detail}</small>
+                      </span>
+                      <ChevronRight />
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
             <div className="detail-kpis">
               <Metric
-                label="访问权限"
+                label="授权路由"
                 value={String(selectedRoutes.length)}
-                note="可调用的路由"
+                note={`${callerScopeCount(selected)} 项接口、模型或工具`}
               />
               <Metric
                 label="有效密钥"
@@ -241,21 +472,26 @@ export function CallerPage() {
                 value={String(selected.quotas.length)}
                 note="未设置则仅记录用量"
               />
+              <Metric
+                label="最近请求"
+                value={String(selectedRequests.length)}
+                note={`${selectedRequests.filter((request) => request.result !== "成功").length} 条异常或拒绝`}
+              />
             </div>
             <nav className="caller-tabs" aria-label="调用方管理内容">
+              <button
+                type="button"
+                className={section === "identity" ? "is-active" : ""}
+                onClick={() => setSection("identity")}
+              >
+                身份与凭据 <span>{selectedActiveKeys.length}</span>
+              </button>
               <button
                 type="button"
                 className={section === "permissions" ? "is-active" : ""}
                 onClick={() => setSection("permissions")}
               >
-                访问权限 <span>{selectedRoutes.length}</span>
-              </button>
-              <button
-                type="button"
-                className={section === "keys" ? "is-active" : ""}
-                onClick={() => setSection("keys")}
-              >
-                访问密钥 <span>{selectedActiveKeys.length}</span>
+                访问授权 <span>{selectedRoutes.length}</span>
               </button>
               <button
                 type="button"
@@ -264,12 +500,20 @@ export function CallerPage() {
               >
                 用量额度 <span>{selected.quotas.length}</span>
               </button>
+              <button
+                type="button"
+                className={section === "activity" ? "is-active" : ""}
+                onClick={() => setSection("activity")}
+              >
+                最近请求 <span>{selectedRequests.length}</span>
+              </button>
             </nav>
 
           <CallerSectionContent
             section={section}
             caller={selected}
             routes={selectedRoutes}
+            requests={selectedRequests}
             revokeCandidateID={revokeCandidateID}
             onManagePermissions={() => setEditingPermissions(true)}
             onIssueKey={() => setIssuingKey(true)}
@@ -296,7 +540,7 @@ export function CallerPage() {
           onSave={(caller) => {
             addCaller(caller);
             setSelectedID(caller.id);
-            setSection("permissions");
+            setSection("identity");
             setViewing(true);
             setToast("调用方已创建");
           }}
@@ -387,15 +631,50 @@ export function CallerPage() {
   );
 }
 
-function callerAvailability(caller: Caller) {
+function callerAttentions(caller: Caller, routes: GatewayRoute[]) {
   const activeKeys = caller.keys.filter((key) => key.state !== "disabled");
+  const accessAttentions: CallerAttention[] = [];
   if (!caller.permissions.length)
-    return { state: "disabled" as const, label: "未授权" };
+    accessAttentions.push({
+      section: "permissions",
+      label: "尚未授予访问权限",
+      detail: "授权路由后才能调用",
+    });
   if (!activeKeys.length)
-    return { state: "warning" as const, label: "缺少密钥" };
-  if (activeKeys.some((key) => key.state === "warning"))
-    return { state: "warning" as const, label: "密钥待处理" };
-  return { state: "healthy" as const, label: "可调用" };
+    accessAttentions.push({
+      section: "identity",
+      label: "没有可用的访问密钥",
+      detail: "签发新密钥后才能调用",
+    });
+  const quotaAttentions: CallerAttention[] = caller.quotas
+    .filter((quota) => quota.used >= quota.limit)
+    .map((quota) => {
+      const route = routes.find((item) => item.id === quota.routeID);
+      return {
+        section: "quotas",
+        label: `${route?.name ?? "未知路由"}额度已用尽`,
+        detail: `${formatUsage(quota.used, route?.type ?? "API")} / ${formatUsage(quota.limit, route?.type ?? "API")} · ${quota.period}重置`,
+      };
+    });
+  const keyAttentions: CallerAttention[] = caller.keys
+    .filter((key) => key.state === "warning")
+    .map((key) => ({
+      section: "identity",
+      label: key.graceUntil
+        ? `${key.name}正在轮换`
+        : `${key.name}即将到期`,
+      detail: key.graceUntil
+        ? `旧密钥宽限至 ${key.graceUntil}`
+        : `${key.expiresAt} 到期`,
+    }));
+  return [...accessAttentions, ...quotaAttentions, ...keyAttentions];
+}
+
+function callerScopeCount(caller: Caller) {
+  return caller.permissions.reduce(
+    (count, permission) => count + permission.scopes.length,
+    0,
+  );
 }
 
 function EditCaller({
@@ -410,11 +689,12 @@ function EditCaller({
   const [name, setName] = useState(caller.name);
   const [owner, setOwner] = useState(caller.owner);
   const [purpose, setPurpose] = useState(caller.purpose);
+  const [enabled, setEnabled] = useState(caller.enabled);
   return (
     <Drawer title="编辑调用方" description={caller.name} onClose={onClose}>
       <form
         onSubmit={(event) =>
-          submitForm(event, () => onSave({ ...caller, name, owner, purpose }))
+          submitForm(event, () => onSave({ ...caller, name, owner, purpose, enabled }))
         }
       >
         <div className="form-grid">
@@ -430,6 +710,10 @@ function EditCaller({
             <span>用途</span>
             <textarea required value={purpose} onChange={(event) => setPurpose(event.target.value)} />
           </label>
+          <label className="field-wide toggle-line">
+            <input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} />
+            <span><strong>启用调用方</strong><small>停用后其全部 API Key 立即拒绝访问，不删除凭据、授权和用量记录</small></span>
+          </label>
         </div>
         <FormActions submitLabel="保存" onCancel={onClose} />
       </form>
@@ -441,6 +725,7 @@ function CallerSectionContent({
   section,
   caller,
   routes,
+  requests,
   revokeCandidateID,
   onManagePermissions,
   onIssueKey,
@@ -454,6 +739,7 @@ function CallerSectionContent({
   section: CallerSection;
   caller: Caller;
   routes: Array<{ permission: CallerPermission; route: GatewayRoute }>;
+  requests: RequestRecord[];
   revokeCandidateID: string;
   onManagePermissions: () => void;
   onIssueKey: () => void;
@@ -464,13 +750,67 @@ function CallerSectionContent({
   onTry: (routeID: string) => void;
   onQuota: (routeID: string) => void;
 }) {
+  if (section === "activity")
+    return (
+      <section className="caller-resource-section">
+        <header>
+          <div>
+            <h3>最近请求</h3>
+            <span>验证权限、策略和目标服务的实际执行结果</span>
+          </div>
+          <Link
+            className="button button-secondary"
+            to={`/requests?caller=${caller.id}`}
+          >
+            查看全部请求
+            <ChevronRight />
+          </Link>
+        </header>
+        {requests.length ? (
+          <div className="caller-request-list">
+            {requests.slice(0, 6).map((request) => (
+              <Link
+                className="caller-request-row"
+                to={`/requests?query=${request.id}`}
+                key={request.id}
+              >
+                <span><Activity /></span>
+                <div>
+                  <strong>{request.method} {request.path}</strong>
+                  <small>{request.route}{request.detail ? ` · ${request.detail}` : ""}</small>
+                </div>
+                <code>{request.id}</code>
+                <StatusBadge
+                  state={
+                    request.result === "成功"
+                      ? "healthy"
+                      : request.result === "主备切换"
+                        ? "warning"
+                        : "error"
+                  }
+                  label={`${request.code} · ${request.result}`}
+                />
+                <span>{request.time} · {request.latency}</span>
+                <ChevronRight />
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            title="尚无请求记录"
+            description="使用访问密钥发起请求后，可在这里查看执行结果。"
+          />
+        )}
+      </section>
+    );
+
   if (section === "permissions")
     return (
       <section className="caller-resource-section">
         <header>
           <div>
-            <h3>访问权限</h3>
-            <span>密钥可调用的 API、模型和工具</span>
+            <h3>访问授权</h3>
+            <span>允许该客户端访问的路由；AI 与 MCP 可继续限制模型和工具</span>
           </div>
           <button
             className="button button-secondary"
@@ -517,13 +857,13 @@ function CallerSectionContent({
       </section>
     );
 
-  if (section === "keys")
+  if (section === "identity")
     return (
       <section className="caller-resource-section">
         <header>
           <div>
-            <h3>访问密钥</h3>
-            <span>每个运行环境或任务使用独立密钥</span>
+            <h3>身份与凭据</h3>
+            <span>当前通过 API Key 识别该客户端；每个运行环境使用独立凭据</span>
           </div>
           <button
             className="button button-secondary"
@@ -531,7 +871,7 @@ function CallerSectionContent({
             onClick={onIssueKey}
           >
             <KeyRound />
-            签发密钥
+            签发 API Key
           </button>
         </header>
         <div className="key-list">
@@ -630,11 +970,15 @@ function CallerSectionContent({
             const quota = caller.quotas.find(
               (item) => item.routeID === route.id,
             );
+            const exhausted = Boolean(quota && quota.used >= quota.limit);
             const percent = quota
               ? Math.min(100, Math.round((quota.used / quota.limit) * 100))
               : 0;
             return (
-              <article className="caller-quota-row" key={route.id}>
+              <article
+                className={`caller-quota-row ${exhausted ? "is-exhausted" : ""}`}
+                key={route.id}
+              >
                 <div className="caller-quota-title">
                   <span
                     className={`type-badge type-${route.type.toLowerCase()}`}
@@ -642,6 +986,9 @@ function CallerSectionContent({
                     {route.type}
                   </span>
                   <strong>{route.name}</strong>
+                  {exhausted ? (
+                    <StatusBadge state="error" label="已用尽" />
+                  ) : null}
                 </div>
                 <div className="caller-quota-value">
                   <strong>
@@ -655,7 +1002,9 @@ function CallerSectionContent({
                         <b style={{ width: `${percent}%` }} />
                       </i>
                       <small>
-                        {quota.period}重置 · 已使用 {percent}%
+                        {exhausted
+                          ? `该路由的新请求将被拒绝，其他路由不受影响 · ${quota.period}重置`
+                          : `${quota.period}重置 · 已使用 ${percent}%`}
                       </small>
                     </>
                   ) : (
@@ -1015,6 +1364,9 @@ function CreateCaller({
   const [validityDays, setValidityDays] = useState("90");
   const [createdKey, setCreatedKey] = useState<CallerAccessKey | null>(null);
   const [secret, setSecret] = useState("");
+  const [activeSection, setActiveSection] = useState<"identity" | "permissions" | "key">(
+    "identity",
+  );
   const save = () => {
     const granted = permissionRecords(permissions);
     const grantedTypes = new Set(
@@ -1061,6 +1413,7 @@ function CreateCaller({
       slug: `caller-${crypto.randomUUID().slice(0, 8)}`,
       owner,
       purpose,
+      enabled: true,
       keys: [key],
       permissions: granted,
       metrics,
@@ -1108,19 +1461,29 @@ function CreateCaller({
         className="caller-create-form"
         onSubmit={(event) => submitForm(event, save)}
       >
-        <section className="form-section">
-          <header>
+        <section className="form-section caller-create-section">
+          <button
+            className="caller-create-section-toggle"
+            type="button"
+            onClick={() => setActiveSection("identity")}
+            aria-expanded={activeSection === "identity"}
+          >
             <span>1</span>
             <div>
               <strong>基本信息</strong>
-              <small>用于识别实际发起请求的应用或服务</small>
+              <small>
+                {name && owner ? `${name} · ${owner}` : "用于识别实际发起请求的应用或服务"}
+              </small>
             </div>
-          </header>
-          <div className="form-grid">
+            <ChevronRight />
+          </button>
+          <div
+            className="caller-create-section-body form-grid"
+            hidden={activeSection !== "identity"}
+          >
             <label>
               <span>调用方名称</span>
               <input
-                required
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="例如客服助手"
@@ -1129,7 +1492,6 @@ function CreateCaller({
             <label>
               <span>负责人</span>
               <input
-                required
                 value={owner}
                 onChange={(event) => setOwner(event.target.value)}
                 placeholder="团队或负责人"
@@ -1138,7 +1500,6 @@ function CreateCaller({
             <label className="field-wide">
               <span>用途</span>
               <textarea
-                required
                 value={purpose}
                 onChange={(event) => setPurpose(event.target.value)}
                 placeholder="例如客服工作台查询订单并生成辅助回复"
@@ -1152,17 +1513,28 @@ function CreateCaller({
           routes={routes}
           value={permissions}
           onChange={setPermissions}
+          expanded={activeSection === "permissions"}
+          onToggle={() => setActiveSection("permissions")}
         />
 
-        <section className="form-section">
-          <header>
+        <section className="form-section caller-create-section">
+          <button
+            className="caller-create-section-toggle"
+            type="button"
+            onClick={() => setActiveSection("key")}
+            aria-expanded={activeSection === "key"}
+          >
             <span>3</span>
             <div>
               <strong>访问密钥</strong>
-              <small>创建后完整密钥仅显示一次</small>
+              <small>{keyName || `有效期 ${validityDays} 天 · 创建后仅显示一次`}</small>
             </div>
-          </header>
-          <div className="form-grid">
+            <ChevronRight />
+          </button>
+          <div
+            className="caller-create-section-body form-grid"
+            hidden={activeSection !== "key"}
+          >
             <label>
               <span>密钥名称</span>
               <input
@@ -1186,7 +1558,11 @@ function CreateCaller({
           </div>
         </section>
 
-        <FormActions submitLabel="创建并签发密钥" onCancel={onClose} />
+        <FormActions
+          submitLabel="创建并签发密钥"
+          submitDisabled={!name.trim() || !owner.trim() || !purpose.trim()}
+          onCancel={onClose}
+        />
       </form>
     </Drawer>
   );
@@ -1230,7 +1606,7 @@ function ManagePermissions({
         />
         <div className="form-note">
           <ShieldCheck />
-          移除访问项会同时删除对应额度；现有密钥保持有效。
+          移除访问项会同时删除对应额度；密钥本身保持有效，但后续请求立即按最新权限校验。
         </div>
         <FormActions submitLabel="保存权限" onCancel={onClose} />
       </form>
@@ -1243,16 +1619,20 @@ function PermissionSelector({
   routes,
   value,
   onChange,
+  expanded,
+  onToggle,
 }: {
   sectionNumber?: string;
   routes: GatewayRoute[];
   value: PermissionDraft;
   onChange: (value: PermissionDraft) => void;
+  expanded?: boolean;
+  onToggle?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [type, setType] = useState<"ALL" | TrafficType>("ALL");
   const protectedRoutes = routes.filter(
-    (route) => route.accessMode === "需要调用方密钥",
+    (route) => route.accessMode === "API Key",
   );
   const selectedRoutes = protectedRoutes.filter((route) => value[route.id]);
   const visibleRoutes = protectedRoutes.filter(
@@ -1279,17 +1659,38 @@ function PermissionSelector({
     });
   };
   return (
-    <section className="form-section permission-editor">
-      <header>
-        <span>
-          {sectionNumber ?? <ShieldCheck />}
-        </span>
-        <div>
-          <strong>访问权限</strong>
-          <small>选择可调用能力</small>
-        </div>
-        <b>{selectedRoutes.length} 项已授权</b>
-      </header>
+    <section className={`form-section permission-editor ${onToggle ? "caller-create-section" : ""}`}>
+      {onToggle ? (
+        <button
+          className="caller-create-section-toggle"
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+        >
+          <span>{sectionNumber}</span>
+          <div>
+            <strong>访问权限</strong>
+            <small>
+              {selectedRoutes.length
+                ? `${selectedRoutes.length} 条路由 · ${permissionScopeCount(value)} 项能力`
+                : "选择可调用的 API、模型和工具"}
+            </small>
+          </div>
+          <ChevronRight />
+        </button>
+      ) : (
+        <header>
+          <span><ShieldCheck /></span>
+          <div>
+            <strong>访问权限</strong>
+            <small>选择可调用能力</small>
+          </div>
+          <b>
+            {selectedRoutes.length} 条路由 · {permissionScopeCount(value)} 项能力
+          </b>
+        </header>
+      )}
+      <div className="permission-editor-body" hidden={expanded === false}>
       {selectedRoutes.length ? (
         <div className="permission-selected">
           {selectedRoutes.map((route) => (
@@ -1393,6 +1794,7 @@ function PermissionSelector({
           />
         ) : null}
       </div>
+      </div>
     </section>
   );
 }
@@ -1401,6 +1803,10 @@ function permissionRecords(draft: PermissionDraft): CallerPermission[] {
   return Object.entries(draft)
     .filter(([, scopes]) => scopes.length)
     .map(([routeID, scopes]) => ({ routeID, scopes }));
+}
+
+function permissionScopeCount(draft: PermissionDraft) {
+  return Object.values(draft).reduce((count, scopes) => count + scopes.length, 0);
 }
 
 function ManageQuota({
@@ -1834,7 +2240,7 @@ function CreatePolicy({
   const candidates: PolicyTargetCandidate[] =
     type === "请求限流" && rateDimension === "每个调用方"
         ? routes
-            .filter((route) => route.accessMode === "需要调用方密钥")
+            .filter((route) => route.accessMode === "API Key")
             .map((route) => ({
               key: `route:${route.id}`,
               kind: "路由" as const,
