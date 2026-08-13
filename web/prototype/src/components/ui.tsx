@@ -122,7 +122,7 @@ export function StatusBadge({
 
 export function ConfigBadge({ state = "active" }: { state?: ConfigState }) {
   const labels: Record<ConfigState, string> = {
-    active: "已生效",
+    active: "配置正常",
     failed: "未生效",
     "not-applied": "未应用",
   };

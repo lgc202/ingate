@@ -145,8 +145,18 @@ export function RequestPage() {
   const { requests } = usePrototype();
   const [params] = useSearchParams();
   const initialQuery = params.get("query") ?? "";
+  const routeID = params.get("route");
+  const serviceID = params.get("service");
+  const callerID = params.get("caller");
+  const gatewayID = params.get("gateway");
+  const requestedResult = params.get("result");
+  const requestedType = params.get("type");
   const [query, setQuery] = useState(initialQuery);
-  const [filter, setFilter] = useState<RequestFilter>("ALL");
+  const [filter, setFilter] = useState<RequestFilter>(
+    requestedType === "API" || requestedType === "AI" || requestedType === "MCP"
+      ? requestedType
+      : "ALL",
+  );
   const [selected, setSelected] = useState<RequestRecord | null>(
     () => requests.find((item) => item.id === initialQuery) ?? null,
   );
@@ -158,64 +168,80 @@ export function RequestPage() {
           (filter === "ERROR"
             ? request.result === "失败" || request.result === "策略拒绝"
             : request.type === filter);
+        const matchesContext =
+          (!routeID || request.routeID === routeID) &&
+          (!serviceID ||
+            request.attempts.some((attempt) => attempt.serviceID === serviceID)) &&
+          (!callerID || request.callerID === callerID) &&
+          (!gatewayID || request.gatewayID === gatewayID) &&
+          (!requestedResult || request.result === requestedResult);
+        const actualRequest = `${request.method} ${request.host}${request.path}${request.query ? `?${request.query}` : ""}`;
         return (
           matchesType &&
-          `${request.id}${request.caller}${request.route}${request.request}${request.target}${request.result}${request.code}${request.attempts.map((attempt) => `${attempt.service}${attempt.code}${attempt.error ?? ""}`).join("")}${request.decisions.map((decision) => `${decision.name}${decision.detail}`).join("")}`
+          matchesContext &&
+          `${request.id}${actualRequest}${request.detail ?? ""}${request.clientIP}${request.gateway}${request.caller}${request.route}${request.target}${request.result}${request.code}${request.attempts.map((attempt) => `${attempt.service}${attempt.endpoint}${attempt.code}${attempt.error ?? ""}`).join("")}${request.decisions.map((decision) => `${decision.name}${decision.detail}`).join("")}`
             .toLowerCase()
             .includes(query.toLowerCase())
         );
       }),
-    [filter, query, requests],
+    [callerID, filter, gatewayID, query, requestedResult, requests, routeID, serviceID],
   );
+  const contextLabel = routeID
+    ? `路由：${requests.find((request) => request.routeID === routeID)?.route ?? routeID}`
+    : serviceID
+      ? `服务：${requests.flatMap((request) => request.attempts).find((attempt) => attempt.serviceID === serviceID)?.service ?? serviceID}`
+      : callerID
+        ? `调用方：${requests.find((request) => request.callerID === callerID)?.caller ?? callerID}`
+        : gatewayID
+          ? `网关：${requests.find((request) => request.gatewayID === gatewayID)?.gateway ?? gatewayID}`
+          : requestedResult
+            ? `结果：${requestedResult}`
+            : "";
 
   return (
     <div className="page-stack page-enter">
       <PageHeader
         eyebrow="观测分析"
         title="请求记录"
-        description="查找单次请求的路由、策略与服务执行结果"
+        description="逐次查看进入网关的真实请求、匹配过程与服务响应"
       />
-      <section className="metric-grid four">
-        <Metric label="API 请求" value="98.3K" note="成功率 99.91%" />
-        <Metric label="AI 请求" value="44.4K" note="50.8M Token" />
-        <Metric label="MCP 工具调用" value="8.2K" note="成功率 99.90%" />
-        <Metric
-          label="异常与拒绝"
-          value="257"
-          note="服务异常 66 · 策略拒绝 191"
-          tone="warning"
-        />
-      </section>
       <p className="privacy-note">
         <ShieldCheck />
-        请求正文记录：关闭
+        不持久化请求正文，仅记录排障所需的请求元数据
       </p>
       <section className="card table-card">
         <header className="table-toolbar">
           <SearchField
             value={query}
             onChange={setQuery}
-            placeholder="搜索请求编号、路由、调用方或服务"
+            placeholder="搜索请求编号、Host、Path、调用方或服务"
           />
           <FilterTabs
             value={filter}
             onChange={setFilter}
             options={[
               { value: "ALL", label: "全部", count: requests.length },
-              { value: "API", label: "API 路由" },
-              { value: "AI", label: "AI 路由" },
-              { value: "MCP", label: "MCP 路由" },
+              { value: "API", label: "API 请求" },
+              { value: "AI", label: "AI 请求" },
+              { value: "MCP", label: "MCP 调用" },
               { value: "ERROR", label: "异常" },
             ]}
           />
         </header>
+        {contextLabel ? (
+          <div className="request-context-filter">
+            <span>当前范围</span>
+            <strong>{contextLabel}</strong>
+            <Link to="/requests">清除筛选</Link>
+          </div>
+        ) : null}
         <div className="table-head request-columns">
           <span>时间 / 请求编号</span>
-          <span>调用方</span>
-          <span>路由 / 请求</span>
-          <span>结果</span>
-          <span>最终服务</span>
-          <span>耗时</span>
+          <span>实际请求</span>
+          <span>响应</span>
+          <span>调用身份</span>
+          <span>匹配与转发</span>
+          <span>总耗时</span>
           <span />
         </div>
         {visible.length ? (
@@ -230,13 +256,15 @@ export function RequestPage() {
                 <strong>{request.time}</strong>
                 <code>{request.id}</code>
               </div>
-              <strong>{request.caller}</strong>
-              <div className="request-route">
+              <div className="request-address">
                 <span>
-                  <RouteTypeBadge type={request.type} />
-                  <strong>{request.route}</strong>
+                  <strong className={`method method-${request.method.toLowerCase()}`}>
+                    {request.method}
+                  </strong>
+                  <code>{request.host}</code>
                 </span>
-                <small>{request.request}</small>
+                <strong>{request.path}{request.query ? `?${request.query}` : ""}</strong>
+                {request.detail ? <small>{request.detail}</small> : null}
               </div>
               <StatusBadge
                 state={
@@ -248,7 +276,20 @@ export function RequestPage() {
                 }
                 label={`${request.code} · ${request.result}`}
               />
-              <strong>{request.target}</strong>
+              <div className="request-identity">
+                <strong>{request.caller}</strong>
+                <small>{request.clientIP}</small>
+              </div>
+              <div className="request-route">
+                <span>
+                  <RouteTypeBadge type={request.type} />
+                  <strong>{request.route}</strong>
+                </span>
+                <small>
+                  → {request.attempts.at(-1)?.service ?? "未访问服务"}
+                  {request.attempts.at(-1)?.endpoint ? ` · ${request.attempts.at(-1)?.endpoint}` : " · 在网关内结束"}
+                </small>
+              </div>
               <span>{request.latency}</span>
               <ChevronRight />
             </button>
@@ -275,7 +316,7 @@ function RequestDetail({
   onClose: () => void;
 }) {
   const failed = request.result === "失败" || request.result === "策略拒绝";
-  const relatedService = request.attempts[0]?.service;
+  const relatedService = request.attempts.at(-1);
   const quotaRejected = request.decisions.some((decision) =>
     decision.name.includes("用量"),
   );
@@ -285,11 +326,12 @@ function RequestDetail({
       : request.type === "MCP"
         ? "工具调用"
         : "响应流量";
+  const requestURL = `https://${request.host}${request.path}${request.query ? `?${request.query}` : ""}`;
   const facts = [
-    ["调用方", request.caller],
-    ["路由", request.route],
-    ["请求", request.request],
-    ["最终结果", request.target],
+    ["实际请求", `${request.method} ${request.host}${request.path}${request.query ? `?${request.query}` : ""}`],
+    ["来源", `${request.caller} · ${request.clientIP}`],
+    ["匹配入口", `${request.gateway} · ${request.route}`],
+    ["实际目标", request.target],
     ["总耗时", request.latency],
     [
       request.type === "AI" ? "Token / 成本" : usageLabel,
@@ -327,6 +369,7 @@ function RequestDetail({
                   ? "目标服务没有成功响应"
                   : "请求已成功完成"}
           </h3>
+          <code>{request.method} {requestURL}</code>
         </div>
       </div>
       <div className="request-facts">
@@ -353,112 +396,45 @@ function RequestDetail({
       ) : relatedService ? (
         <div className="detail-jump">
           <div>
-            <strong>{relatedService}</strong>
-            <span>查看服务端点与同类流量异常</span>
+            <strong>{relatedService.service}</strong>
+            <span>{relatedService.endpoint} · 查看端点与同类请求</span>
           </div>
           <Link
             className="button button-secondary"
-            to={`/services?query=${encodeURIComponent(relatedService)}`}
+            to={`/services?query=${encodeURIComponent(relatedService.service)}`}
           >
             查看服务 <ChevronRight />
           </Link>
         </div>
       ) : null}
-      <section className="service-attempts">
+      <section className="execution-timeline request-flow">
         <header>
-          <div>
-            <span className="eyebrow">服务调用</span>
-            <h3>服务调用</h3>
-          </div>
-          <span>
-            {request.attempts.length
-              ? `${request.attempts.length} 次尝试`
-              : "未到达服务"}
-          </span>
+          <span className="eyebrow">处理链路</span>
+          <h3>这次请求经过了什么</h3>
         </header>
-        {request.attempts.length ? (
-          request.attempts.map((attempt, index) => (
-            <article
-              className={`attempt-card state-${attempt.state}`}
-              key={`${attempt.service}-${index}`}
-            >
-              <span className="attempt-index">{index + 1}</span>
-              <div className="attempt-main">
-                <header>
-                  <div>
-                    <strong>{attempt.service}</strong>
-                    <span>
-                      {[attempt.provider, attempt.actualModel]
-                        .filter(Boolean)
-                        .join(" · ") || "目标服务"}
-                    </span>
-                  </div>
-                  <StatusBadge
-                    state={attempt.state}
-                    label={`${attempt.code} · ${attempt.result}`}
-                  />
-                </header>
-                <div className="attempt-facts">
-                  <span>
-                    <small>耗时</small>
-                    <strong>{attempt.latency}</strong>
-                  </span>
-                  {attempt.ttft ? (
-                    <span>
-                      <small>首个 Token</small>
-                      <strong>{attempt.ttft}</strong>
-                    </span>
-                  ) : null}
-                  {attempt.inputTokens !== undefined ? (
-                    <span>
-                      <small>输入 Token</small>
-                      <strong>{attempt.inputTokens.toLocaleString("zh-CN")}</strong>
-                    </span>
-                  ) : null}
-                  {attempt.outputTokens !== undefined ? (
-                    <span>
-                      <small>输出 Token</small>
-                      <strong>{attempt.outputTokens.toLocaleString("zh-CN")}</strong>
-                    </span>
-                  ) : null}
-                  {attempt.cachedTokens !== undefined ? (
-                    <span>
-                      <small>缓存 Token</small>
-                      <strong>{attempt.cachedTokens.toLocaleString("zh-CN")}</strong>
-                    </span>
-                  ) : null}
-                  {attempt.cost ? (
-                    <span>
-                      <small>本次成本</small>
-                      <strong>{attempt.cost}</strong>
-                    </span>
-                  ) : null}
-                </div>
-                {attempt.error ? (
-                  <p>
-                    <AlertTriangle />
-                    {attempt.error}
-                  </p>
-                ) : null}
-              </div>
-            </article>
-          ))
-        ) : (
-          <div className="attempt-empty">
-            <ShieldCheck />
-            <div>
-              <strong>请求在网关内结束</strong>
-              <span>没有向任何服务发送流量，也没有产生服务侧 Token 或成本</span>
-            </div>
-          </div>
-        )}
-      </section>
-      <section className="execution-timeline">
-        <header>
-          <span className="eyebrow">网关判定</span>
-          <h3>认证、策略与路由结果</h3>
-        </header>
-        {request.decisions.map((step, index) => (
+        {[
+          {
+            name: "接收请求",
+            detail: `${request.method} ${request.host}${request.path}${request.query ? `?${request.query}` : ""} · 来源 ${request.clientIP}`,
+            state: "healthy" as const,
+          },
+          {
+            name: "匹配入口与路由",
+            detail: `${request.gateway} → ${request.route}`,
+            state: "healthy" as const,
+          },
+          ...request.decisions,
+          ...request.attempts.map((attempt, index) => ({
+            name: `服务调用${request.attempts.length > 1 ? ` ${index + 1}` : ""} · ${attempt.service}`,
+            detail: `${attempt.endpoint} · ${attempt.code} · ${attempt.latency}${attempt.error ? ` · ${attempt.error}` : ""}`,
+            state: attempt.state,
+          })),
+          {
+            name: "返回响应",
+            detail: `${request.code} · ${request.result} · 总耗时 ${request.latency}`,
+            state: failed ? ("error" as const) : request.result === "主备切换" ? ("warning" as const) : ("healthy" as const),
+          },
+        ].map((step, index) => (
           <div className="timeline-step" key={`${step.name}-${index}`}>
             <span className={`timeline-dot state-${step.state}`}>
               {index + 1}
@@ -470,9 +446,38 @@ function RequestDetail({
           </div>
         ))}
       </section>
+      {request.attempts.length ? (
+        <section className="service-attempts">
+          <header>
+            <div><span className="eyebrow">服务明细</span><h3>端点尝试</h3></div>
+            <span>{request.attempts.length} 次尝试</span>
+          </header>
+          {request.attempts.map((attempt, index) => (
+            <article className={`attempt-card state-${attempt.state}`} key={`${attempt.service}-${index}`}>
+              <span className="attempt-index">{index + 1}</span>
+              <div className="attempt-main">
+                <header>
+                  <div><strong>{attempt.service}</strong><span>{attempt.endpoint} · {[attempt.provider, attempt.actualModel].filter(Boolean).join(" · ") || "HTTP 服务"}</span></div>
+                  <StatusBadge state={attempt.state} label={`${attempt.code} · ${attempt.result}`} />
+                </header>
+                <div className="attempt-facts">
+                  <span><small>服务耗时</small><strong>{attempt.latency}</strong></span>
+                  {attempt.ttft ? <span><small>首个 Token</small><strong>{attempt.ttft}</strong></span> : null}
+                  {attempt.inputTokens !== undefined ? <span><small>输入 Token</small><strong>{attempt.inputTokens.toLocaleString("zh-CN")}</strong></span> : null}
+                  {attempt.outputTokens !== undefined ? <span><small>输出 Token</small><strong>{attempt.outputTokens.toLocaleString("zh-CN")}</strong></span> : null}
+                  {attempt.cachedTokens !== undefined ? <span><small>缓存 Token</small><strong>{attempt.cachedTokens.toLocaleString("zh-CN")}</strong></span> : null}
+                  {attempt.cost ? <span><small>本次成本</small><strong>{attempt.cost}</strong></span> : null}
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+      ) : (
+        <div className="attempt-empty"><ShieldCheck /><div><strong>未访问服务</strong><span>请求在网关内被拒绝，没有向后端发送流量</span></div></div>
+      )}
       <p className="privacy-note">
         <ShieldCheck />
-        未记录请求正文
+        未持久化请求正文；AI 模型名和 MCP 工具名作为结构化元数据保留
       </p>
     </Drawer>
   );
@@ -1224,7 +1229,7 @@ function CostUsageView({
             <span className="eyebrow">请求下钻</span>
             <h3>网关请求与服务调用</h3>
           </div>
-          <Link to="/requests?query=AI">
+          <Link to="/requests?type=AI">
             查看请求 <ChevronRight />
           </Link>
         </header>
@@ -1245,7 +1250,7 @@ function CostUsageView({
             <code>{request.id}</code>
             <strong>{request.caller}</strong>
             <span>
-              {request.request} → {request.target}
+              {request.detail ?? `${request.method} ${request.path}`} → {request.target}
             </span>
             <span>{request.result === "主备切换" ? "2 次" : request.result === "策略拒绝" ? "0 次" : "1 次"}</span>
             <span>{request.usage}</span>

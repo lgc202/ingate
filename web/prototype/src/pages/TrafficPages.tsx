@@ -51,6 +51,7 @@ import type {
   ServiceEndpoint,
   ServiceType,
   TrafficType,
+  RouteAccessMode,
 } from "../data";
 import { usePrototype } from "../prototype-context";
 export function GatewayPage() {
@@ -801,6 +802,7 @@ export function RoutePage() {
     services,
     policies,
     callers,
+    identitySources,
     addRoute,
     updateRoute,
     deleteRoute,
@@ -949,6 +951,7 @@ export function RoutePage() {
           routes={routes}
           gateways={gateways}
           services={services}
+          identitySources={identitySources}
           preferredServiceID={preferredServiceID}
           onClose={() => setCreating(false)}
           onSave={(route) => {
@@ -965,6 +968,7 @@ export function RoutePage() {
           routes={routes}
           gateways={gateways}
           services={services}
+          identitySources={identitySources}
           onClose={() => setEditing(null)}
           onSave={(route) => {
             updateRoute(route);
@@ -1016,7 +1020,7 @@ function RouteDetail({
   authorizedCallerCount: number;
   onClose: () => void;
 }) {
-  const accessMode = route.accessMode ?? "需要调用方密钥";
+  const accessMode = route.accessMode ?? "API Key";
   const appliedPolicies = policies.filter((policy) =>
     policy.targets.some(
       (target) =>
@@ -1041,7 +1045,7 @@ function RouteDetail({
         service={route.targets[0]?.serviceName ?? "未选择"}
         detail={route.targets[0]?.detail}
       />
-      {accessMode === "需要调用方密钥" ? (
+      {accessMode === "API Key" ? (
         <div className="detail-jump">
           <div>
             <strong>
@@ -1056,7 +1060,13 @@ function RouteDetail({
           </Link>
         </div>
       ) : null}
-      <div className="detail-jump"><div><strong>路由运行数据</strong><span>请求量、成功率、延迟和失败原因</span></div><Link className="button button-secondary" to={`/analysis?route=${encodeURIComponent(route.name)}`}>查看运行数据 <ChevronRight /></Link></div>
+      <div className="detail-jump detail-jump-actions">
+        <div><strong>路由运行数据</strong><span>查看聚合趋势，或下钻到这个路由匹配的每一次实际请求</span></div>
+        <span>
+          <Link className="button button-secondary" to={`/requests?route=${route.id}`}>查看请求 <ChevronRight /></Link>
+          <Link className="button button-secondary" to={`/analysis?route=${encodeURIComponent(route.name)}`}>查看趋势 <ChevronRight /></Link>
+        </span>
+      </div>
       <section className="detail-section">
         <header>
           <h3>匹配与能力</h3>
@@ -1244,6 +1254,7 @@ function CreateRoute({
   routes,
   gateways,
   services,
+  identitySources,
   preferredServiceID,
   onClose,
   onSave,
@@ -1252,6 +1263,7 @@ function CreateRoute({
   routes: GatewayRoute[];
   gateways: Gateway[];
   services: Service[];
+  identitySources: import("../data").IdentitySource[];
   preferredServiceID?: string;
   onClose: () => void;
   onSave: (route: GatewayRoute) => void;
@@ -1284,7 +1296,10 @@ function CreateRoute({
       : "前缀匹配",
   );
   const [accessMode, setAccessMode] = useState<GatewayRoute["accessMode"]>(
-    initial?.accessMode ?? "需要调用方密钥",
+    initial?.accessMode ?? "API Key",
+  );
+  const [identitySourceID, setIdentitySourceID] = useState(
+    initial?.identitySourceID ?? identitySources[0]?.id ?? "",
   );
   const [serviceID, setServiceID] = useState(
     initial?.targets[0]?.serviceID ??
@@ -1525,6 +1540,10 @@ function CreateRoute({
       host: effectiveHost,
       path,
       accessMode,
+      identitySourceID:
+        accessMode === "JWT 访问令牌" || accessMode === "浏览器登录"
+          ? identitySourceID
+          : undefined,
       match:
         type === "API"
           ? apiCapability
@@ -1677,25 +1696,6 @@ function CreateRoute({
                 onChange={(event) => setPath(event.target.value)}
               />
             </label>
-            <label className="field-wide">
-              <span>访问方式</span>
-              <select
-                value={accessMode}
-                onChange={(event) =>
-                  setAccessMode(
-                    event.target.value as GatewayRoute["accessMode"],
-                  )
-                }
-              >
-                <option>需要调用方密钥</option>
-                <option>公开访问</option>
-              </select>
-              <small>
-                {accessMode === "需要调用方密钥"
-                  ? "校验密钥及该调用方在本路由下的接口、模型或工具权限"
-                  : "不识别调用方，调用方权限与用量上限不适用"}
-              </small>
-            </label>
             {type === "API" ? (
               <>
                 <label>
@@ -1794,9 +1794,79 @@ function CreateRoute({
             </details>
           ) : null}
         </section>
-        <section className="form-section">
+        <section className="form-section route-access-section">
           <header>
             <span>2</span>
+            <div>
+              <strong>访问控制</strong>
+              <small>决定客户端如何证明身份；公开接口无需身份</small>
+            </div>
+          </header>
+          <div className="route-access-options">
+            {([
+              ["公开访问", "无需凭据", "适合公开 API 与 Webhook"],
+              ["API Key", "识别客户端应用", "适合服务、合作方和 AI SDK"],
+              ["JWT 访问令牌", "验证 Bearer Token", "适合 SPA、移动端和企业 API"],
+              ["浏览器登录", "网关发起 OIDC 登录", "适合需要登录态的 Web 页面"],
+              ["客户端证书", "校验 mTLS 证书", "适合高信任服务间调用"],
+            ] as Array<[RouteAccessMode, string, string]>).map(
+              ([mode, title, description]) => (
+                <button
+                  type="button"
+                  key={mode}
+                  className={accessMode === mode ? "is-selected" : ""}
+                  onClick={() => setAccessMode(mode)}
+                >
+                  <span>{mode === "公开访问" ? <Globe2 /> : mode === "API Key" ? <KeyRound /> : mode === "客户端证书" ? <LockKeyhole /> : <ShieldCheck />}</span>
+                  <strong>{mode}</strong>
+                  <small>{title}</small>
+                  <p>{description}</p>
+                </button>
+              ),
+            )}
+          </div>
+          {accessMode === "API Key" ? (
+            <div className="route-access-config">
+              <div>
+                <strong>请求凭据</strong>
+                <span>{type === "AI" ? "Authorization: Bearer <API_KEY>" : "X-API-Key: <API_KEY>"}</span>
+              </div>
+              <p>请求通过密钥识别调用方，再按本路由下的接口、模型或工具授权进行校验。</p>
+            </div>
+          ) : null}
+          {accessMode === "JWT 访问令牌" || accessMode === "浏览器登录" ? (
+            <div className="form-grid route-identity-config">
+              <label className="field-wide">
+                <span>身份源</span>
+                <select
+                  value={identitySourceID}
+                  onChange={(event) => setIdentitySourceID(event.target.value)}
+                  required
+                >
+                  {identitySources.map((source) => (
+                    <option key={source.id} value={source.id}>
+                      {source.name} · {source.provider}
+                    </option>
+                  ))}
+                </select>
+                <small>
+                  {accessMode === "JWT 访问令牌"
+                    ? "验证签名、签发方、有效期和 Audience；授权可继续使用 Scope 或角色"
+                    : "未登录浏览器将跳转到身份源，登录成功后由网关维护会话"}
+                </small>
+              </label>
+            </div>
+          ) : null}
+          {accessMode === "客户端证书" ? (
+            <div className="route-access-config">
+              <div><strong>客户端身份</strong><span>从通过校验的证书 Subject / SAN 提取</span></div>
+              <p>证书信任链在网关监听入口配置；本路由可继续按证书身份执行授权。</p>
+            </div>
+          ) : null}
+        </section>
+        <section className="form-section">
+          <header>
+            <span>3</span>
             <div>
               <strong>{type === "AI" ? "模型映射" : "目标服务"}</strong>
               <small>
@@ -2679,12 +2749,14 @@ function ServiceDetail({
           <strong>{routes.length ? `${routes.length} 条路由引用此服务` : "此服务尚未对外开放"}</strong>
           <span>{routes.length ? `成功率 ${service.successRate} · 延迟 ${service.latency}` : "创建路由后，外部请求才能转发到此服务"}</span>
         </div>
-        <Link
-          className="button button-secondary"
-          to={routes.length ? `/analysis?service=${encodeURIComponent(service.name)}` : `/routes?create=1&service=${service.id}`}
-        >
-          {routes.length ? "查看运行数据" : "创建路由"} <ChevronRight />
-        </Link>
+        {routes.length ? (
+          <span className="detail-jump-actions-inline">
+            <Link className="button button-secondary" to={`/requests?service=${service.id}`}>查看请求 <ChevronRight /></Link>
+            <Link className="button button-secondary" to={`/analysis?service=${encodeURIComponent(service.name)}`}>查看趋势 <ChevronRight /></Link>
+          </span>
+        ) : (
+          <Link className="button button-secondary" to={`/routes?create=1&service=${service.id}`}>创建路由 <ChevronRight /></Link>
+        )}
       </div>
       <section className="detail-section">
         <header>

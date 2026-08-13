@@ -9,6 +9,7 @@ import {
   initialCallers,
   initialCertificates,
   initialGateways,
+  initialIdentitySources,
   initialPolicies,
   initialRequests,
   initialRoutes,
@@ -21,6 +22,7 @@ import {
   type Certificate,
   type Gateway,
   type GatewayRoute,
+  type IdentitySource,
   type Policy,
   type RequestRecord,
   type Service,
@@ -32,6 +34,7 @@ interface PrototypeState {
   services: Service[];
   certificates: Certificate[];
   callers: Caller[];
+  identitySources: IdentitySource[];
   policies: Policy[];
   requests: RequestRecord[];
   auditRecords: AuditRecord[];
@@ -69,6 +72,9 @@ interface PrototypeState {
     graceUntil: string,
   ) => void;
   revokeCallerKey: (callerID: string, keyID: string) => void;
+  addIdentitySource: (identitySource: IdentitySource) => void;
+  updateIdentitySource: (identitySource: IdentitySource) => void;
+  deleteIdentitySource: (identitySourceID: string) => void;
   addPolicy: (policy: Policy) => void;
   updatePolicy: (policy: Policy) => void;
   deletePolicy: (policyID: string) => void;
@@ -83,6 +89,7 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
   const [services, setServices] = useState(initialServices);
   const [certificates, setCertificates] = useState(initialCertificates);
   const [callers, setCallers] = useState(initialCallers);
+  const [identitySources, setIdentitySources] = useState(initialIdentitySources);
   const [policies, setPolicies] = useState(initialPolicies);
   const [requests, setRequests] = useState(initialRequests);
   const [auditRecords, setAuditRecords] = useState(initialAuditRecords);
@@ -114,6 +121,7 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
     services,
     certificates,
     callers,
+    identitySources,
     policies,
     requests,
     auditRecords,
@@ -496,6 +504,21 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
         `停用“${key?.name ?? keyID}”访问密钥`,
       );
     },
+    addIdentitySource: (identitySource) => {
+      setIdentitySources((items) => [...items, identitySource]);
+    },
+    updateIdentitySource: (identitySource) => {
+      setIdentitySources((items) =>
+        items.map((item) =>
+          item.id === identitySource.id ? identitySource : item,
+        ),
+      );
+    },
+    deleteIdentitySource: (identitySourceID) => {
+      setIdentitySources((items) =>
+        items.filter((item) => item.id !== identitySourceID),
+      );
+    },
     addPolicy: (policy) => {
       setPolicies((items) => [
         ...items,
@@ -564,6 +587,7 @@ export function PrototypeProvider({ children }: { children: ReactNode }) {
       setServices(initialServices);
       setCertificates(initialCertificates);
       setCallers(initialCallers);
+      setIdentitySources(initialIdentitySources);
       setPolicies(initialPolicies);
       setRequests(initialRequests);
       setAuditRecords(initialAuditRecords);

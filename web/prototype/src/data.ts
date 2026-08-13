@@ -8,6 +8,12 @@ export type HealthState =
   | "pending"
   | "unverified";
 export type ConfigState = "active" | "failed" | "not-applied";
+export type RouteAccessMode =
+  | "公开访问"
+  | "API Key"
+  | "JWT 访问令牌"
+  | "浏览器登录"
+  | "客户端证书";
 
 export interface AuditRecord {
   id: string;
@@ -89,7 +95,8 @@ export interface GatewayRoute {
   gatewayName: string;
   host: string;
   path: string;
-  accessMode: "需要调用方密钥" | "公开访问";
+  accessMode: RouteAccessMode;
+  identitySourceID?: string;
   match: string;
   published: string[];
   targets: RouteTarget[];
@@ -192,12 +199,23 @@ export interface Caller {
   slug: string;
   owner: string;
   purpose: string;
+  enabled: boolean;
   keys: CallerAccessKey[];
   permissions: CallerPermission[];
   metrics: CallerMetric[];
   quotas: CallerQuota[];
   state: HealthState;
   lastActive: string;
+}
+
+export interface IdentitySource {
+  id: string;
+  name: string;
+  provider: string;
+  discoveryURL: string;
+  audiences: string[];
+  state: HealthState;
+  lastVerified: string;
 }
 
 export interface Policy {
@@ -222,9 +240,18 @@ export interface RequestRecord {
   id: string;
   time: string;
   type: TrafficType;
+  method: string;
+  host: string;
+  path: string;
+  query?: string;
+  detail?: string;
+  clientIP: string;
+  gatewayID: string;
+  gateway: string;
+  routeID: string;
   caller: string;
+  callerID?: string;
   route: string;
-  request: string;
   target: string;
   result: "成功" | "主备切换" | "策略拒绝" | "失败";
   code: string;
@@ -232,7 +259,9 @@ export interface RequestRecord {
   usage: string;
   cost: string;
   attempts: Array<{
+    serviceID: string;
     service: string;
+    endpoint: string;
     provider?: string;
     actualModel?: string;
     result: "成功" | "失败";
@@ -526,7 +555,7 @@ export const initialRoutes: GatewayRoute[] = [
     gatewayName: "生产网关",
     host: "api.example.com",
     path: "/api/orders",
-    accessMode: "需要调用方密钥",
+    accessMode: "API Key",
     match: "GET /api/orders/*",
     published: ["GET /api/orders/{id}"],
     targets: [
@@ -567,7 +596,8 @@ export const initialRoutes: GatewayRoute[] = [
     gatewayName: "生产网关",
     host: "api.example.com",
     path: "/api/customers",
-    accessMode: "需要调用方密钥",
+    accessMode: "JWT 访问令牌",
+    identitySourceID: "idp-enterprise",
     match: "GET /api/customers/*",
     published: ["GET /api/customers/{id}"],
     targets: [
@@ -598,7 +628,7 @@ export const initialRoutes: GatewayRoute[] = [
     gatewayName: "生产网关",
     host: "api.example.com",
     path: "/api/files",
-    accessMode: "需要调用方密钥",
+    accessMode: "API Key",
     match: "POST /api/files",
     published: ["POST /api/files"],
     targets: [
@@ -629,7 +659,7 @@ export const initialRoutes: GatewayRoute[] = [
     gatewayName: "生产网关",
     host: "api.example.com",
     path: "/v1",
-    accessMode: "需要调用方密钥",
+    accessMode: "API Key",
     match: "OpenAI API · 请求体 model",
     published: ["qwen-max", "claude-sonnet"],
     targets: [
@@ -676,7 +706,7 @@ export const initialRoutes: GatewayRoute[] = [
     gatewayName: "内部网关",
     host: "inside.example.com",
     path: "/v1",
-    accessMode: "需要调用方密钥",
+    accessMode: "API Key",
     match: "OpenAI API · embeddings",
     published: ["text-embedding"],
     targets: [
@@ -708,7 +738,7 @@ export const initialRoutes: GatewayRoute[] = [
     gatewayName: "生产网关",
     host: "mcp.example.com",
     path: "/research",
-    accessMode: "需要调用方密钥",
+    accessMode: "API Key",
     match: "Streamable HTTP · tools/call",
     published: ["web_search", "fetch_page"],
     targets: [
@@ -794,6 +824,7 @@ export const initialCallers: Caller[] = [
     slug: "customer-support",
     owner: "客户体验团队",
     purpose: "客服工作台中的订单查询与 AI 辅助回复",
+    enabled: true,
     keys: [
       {
         id: "key-support-prod",
@@ -841,6 +872,7 @@ export const initialCallers: Caller[] = [
     slug: "rd-knowledge",
     owner: "研发效能团队",
     purpose: "内部知识检索和代码解释",
+    enabled: true,
     keys: [
       {
         id: "key-rd-prod",
@@ -896,6 +928,7 @@ export const initialCallers: Caller[] = [
     slug: "platform-automation",
     owner: "平台工程团队",
     purpose: "自动化巡检与批量处理",
+    enabled: true,
     keys: [
       {
         id: "key-auto-prod",
@@ -935,10 +968,11 @@ export const initialCallers: Caller[] = [
   },
   {
     id: "caller-web",
-    name: "电商 Web",
-    slug: "commerce-web",
+    name: "电商 BFF",
+    slug: "commerce-bff",
     owner: "电商应用团队",
-    purpose: "面向消费者的订单和客户资料访问",
+    purpose: "代表商城前端访问订单和客户资料 API",
+    enabled: true,
     keys: [
       {
         id: "key-web-prod",
@@ -971,6 +1005,29 @@ export const initialCallers: Caller[] = [
     quotas: [],
     state: "healthy",
     lastActive: "刚刚",
+  },
+];
+
+export const initialIdentitySources: IdentitySource[] = [
+  {
+    id: "idp-enterprise",
+    name: "企业统一身份",
+    provider: "Microsoft Entra ID",
+    discoveryURL:
+      "https://login.microsoftonline.com/example/v2.0/.well-known/openid-configuration",
+    audiences: ["api://ingate-production"],
+    state: "healthy",
+    lastVerified: "5 分钟前",
+  },
+  {
+    id: "idp-partner",
+    name: "合作方身份中心",
+    provider: "Keycloak",
+    discoveryURL:
+      "https://identity.partner.example.com/realms/api/.well-known/openid-configuration",
+    audiences: ["partner-api"],
+    state: "healthy",
+    lastVerified: "昨天",
   },
 ];
 
@@ -1012,9 +1069,17 @@ export const initialRequests: RequestRecord[] = [
     id: "req_4Ft7Xs",
     time: "14:32:31",
     type: "API",
-    caller: "电商 Web",
+    method: "GET",
+    host: "api.example.com",
+    path: "/api/orders/78421",
+    query: "include=items",
+    clientIP: "10.20.18.42",
+    gatewayID: "gw-prod",
+    gateway: "生产网关",
+    routeID: "route-orders",
+    caller: "电商 BFF",
+    callerID: "caller-web",
     route: "订单查询 API",
-    request: "GET /api/orders/78421",
     target: "订单服务",
     result: "成功",
     code: "200",
@@ -1023,7 +1088,9 @@ export const initialRequests: RequestRecord[] = [
     cost: "—",
     attempts: [
       {
+        serviceID: "svc-orders",
         service: "订单服务",
+        endpoint: "10.24.8.17:8080",
         result: "成功",
         code: "200",
         latency: "79 ms",
@@ -1033,7 +1100,7 @@ export const initialRequests: RequestRecord[] = [
     decisions: [
       {
         name: "调用方认证",
-        detail: "电商 Web · 生产密钥",
+        detail: "电商 BFF · 生产密钥",
         state: "healthy",
       },
       {
@@ -1042,8 +1109,8 @@ export const initialRequests: RequestRecord[] = [
         state: "healthy",
       },
       {
-        name: "订单查询 API",
-        detail: "GET /api/orders/78421 → 订单服务",
+        name: "选择服务",
+        detail: "GET /api/orders/* 匹配成功，请求转发至订单服务",
         state: "healthy",
       },
     ],
@@ -1052,9 +1119,17 @@ export const initialRequests: RequestRecord[] = [
     id: "req_7Jv1Kq",
     time: "14:32:18",
     type: "AI",
+    method: "POST",
+    host: "api.example.com",
+    path: "/v1/chat/completions",
+    detail: "model: qwen-max",
+    clientIP: "10.20.32.16",
+    gatewayID: "gw-prod",
+    gateway: "生产网关",
+    routeID: "route-ai-prod",
     caller: "客服助手",
+    callerID: "caller-support",
     route: "生产 AI 路由",
-    request: "qwen-max · chat/completions",
     target: "通义千问生产 / qwen-max",
     result: "成功",
     code: "200",
@@ -1063,7 +1138,9 @@ export const initialRequests: RequestRecord[] = [
     cost: "¥0.06",
     attempts: [
       {
+        serviceID: "svc-qwen",
         service: "通义千问生产",
+        endpoint: "dashscope.aliyuncs.com:443",
         provider: "阿里云百炼",
         actualModel: "qwen-max",
         result: "成功",
@@ -1085,11 +1162,11 @@ export const initialRequests: RequestRecord[] = [
       },
       {
         name: "访问策略",
-        detail: "模型权限、Token 用量上限和参数约束通过",
+        detail: "模型权限和 Token 用量上限通过",
         state: "healthy",
       },
       {
-        name: "生产 AI 路由",
+        name: "选择模型线路",
         detail: "qwen-max → 通义千问生产 / qwen-max",
         state: "healthy",
       },
@@ -1099,9 +1176,17 @@ export const initialRequests: RequestRecord[] = [
     id: "req_2Pq9Lm",
     time: "14:31:56",
     type: "AI",
+    method: "POST",
+    host: "api.example.com",
+    path: "/v1/chat/completions",
+    detail: "model: claude-sonnet",
+    clientIP: "10.20.35.91",
+    gatewayID: "gw-prod",
+    gateway: "生产网关",
+    routeID: "route-ai-prod",
     caller: "研发知识库",
+    callerID: "caller-rd",
     route: "生产 AI 路由",
-    request: "claude-sonnet · chat/completions",
     target: "Bedrock 灾备 / claude-sonnet-4",
     result: "主备切换",
     code: "200",
@@ -1110,7 +1195,9 @@ export const initialRequests: RequestRecord[] = [
     cost: "¥0.15",
     attempts: [
       {
+        serviceID: "svc-anthropic",
         service: "Anthropic 公网",
+        endpoint: "api.anthropic.com:443",
         provider: "Anthropic",
         actualModel: "claude-sonnet-4",
         result: "失败",
@@ -1121,7 +1208,9 @@ export const initialRequests: RequestRecord[] = [
         state: "error",
       },
       {
+        serviceID: "svc-bedrock",
         service: "Bedrock 灾备",
+        endpoint: "bedrock-runtime.us-east-1.amazonaws.com:443",
         provider: "AWS",
         actualModel: "claude-sonnet-4",
         result: "成功",
@@ -1143,11 +1232,11 @@ export const initialRequests: RequestRecord[] = [
       },
       {
         name: "访问策略",
-        detail: "模型权限、Token 用量上限和参数约束通过",
+        detail: "模型权限和 Token 用量上限通过",
         state: "healthy",
       },
       {
-        name: "生产 AI 路由",
+        name: "选择模型线路",
         detail: "主线路超时后切换至 Bedrock 灾备",
         state: "warning",
       },
@@ -1157,9 +1246,17 @@ export const initialRequests: RequestRecord[] = [
     id: "req_9Ab4Xe",
     time: "14:31:42",
     type: "AI",
+    method: "POST",
+    host: "api.example.com",
+    path: "/v1/chat/completions",
+    detail: "model: qwen-max",
+    clientIP: "10.21.12.28",
+    gatewayID: "gw-prod",
+    gateway: "生产网关",
+    routeID: "route-ai-prod",
     caller: "内部自动化",
+    callerID: "caller-automation",
     route: "生产 AI 路由",
-    request: "qwen-max · chat/completions",
     target: "—",
     result: "策略拒绝",
     code: "429",
@@ -1184,9 +1281,17 @@ export const initialRequests: RequestRecord[] = [
     id: "req_3Mc8Ua",
     time: "14:31:19",
     type: "MCP",
+    method: "POST",
+    host: "mcp.example.com",
+    path: "/research",
+    detail: "tools/call · web_search",
+    clientIP: "10.20.32.16",
+    gatewayID: "gw-prod",
+    gateway: "生产网关",
+    routeID: "route-mcp-research",
     caller: "客服助手",
+    callerID: "caller-support",
     route: "研究工具 MCP",
-    request: "tools/call · web_search",
     target: "搜索工具服务 / web_search",
     result: "成功",
     code: "200",
@@ -1195,7 +1300,9 @@ export const initialRequests: RequestRecord[] = [
     cost: "—",
     attempts: [
       {
+        serviceID: "svc-search-mcp",
         service: "搜索工具服务",
+        endpoint: "10.24.22.15:3000",
         result: "成功",
         code: "200",
         latency: "232 ms",
@@ -1214,7 +1321,7 @@ export const initialRequests: RequestRecord[] = [
         state: "healthy",
       },
       {
-        name: "研究工具 MCP",
+        name: "选择工具服务",
         detail: "tools/call → 搜索工具服务",
         state: "healthy",
       },
@@ -1224,9 +1331,16 @@ export const initialRequests: RequestRecord[] = [
     id: "req_6Ce2Np",
     time: "14:30:07",
     type: "API",
-    caller: "电商 Web",
+    method: "POST",
+    host: "api.example.com",
+    path: "/api/files",
+    clientIP: "10.20.18.42",
+    gatewayID: "gw-prod",
+    gateway: "生产网关",
+    routeID: "route-files",
+    caller: "电商 BFF",
+    callerID: "caller-web",
     route: "文件上传 API",
-    request: "POST /api/files",
     target: "文件服务",
     result: "失败",
     code: "502",
@@ -1235,7 +1349,9 @@ export const initialRequests: RequestRecord[] = [
     cost: "—",
     attempts: [
       {
+        serviceID: "svc-files",
         service: "文件服务",
+        endpoint: "10.24.16.21:8080",
         result: "失败",
         code: "UPSTREAM_TIMEOUT",
         latency: "1.19 s",
@@ -1246,11 +1362,11 @@ export const initialRequests: RequestRecord[] = [
     decisions: [
       {
         name: "调用方认证",
-        detail: "电商 Web · 生产密钥",
+        detail: "电商 BFF · 生产密钥",
         state: "healthy",
       },
       {
-        name: "文件上传 API",
+        name: "选择服务",
         detail: "POST /api/files → 文件服务",
         state: "healthy",
       },
@@ -1260,9 +1376,15 @@ export const initialRequests: RequestRecord[] = [
     id: "req_8Dn5Rt",
     time: "14:29:44",
     type: "API",
+    method: "GET",
+    host: "api.example.com",
+    path: "/api/orders/90142",
+    clientIP: "203.0.113.18",
+    gatewayID: "gw-prod",
+    gateway: "生产网关",
+    routeID: "route-orders",
     caller: "未知调用方",
     route: "订单查询 API",
-    request: "GET /api/orders/78421",
     target: "—",
     result: "策略拒绝",
     code: "403",
