@@ -27,7 +27,7 @@ type Writer struct {
 // NewWriter 创建具备幂等生产语义的 Kafka 写入端
 //
 // franz-go 默认启用幂等 producer；AllISRAcks 使成功返回代表当前 ISR 已确认，
-// ALS 才能据此安全删除本地 WAL 中对应的积压记录
+// ALS 才能据此安全删除磁盘队列中对应的积压记录
 func NewWriter(config *conf.Data_Kafka) (*Writer, error) {
 	client, err := kafkax.NewClient(kafkax.Config{
 		Brokers:     config.GetBrokers(),
@@ -66,7 +66,7 @@ func (w *Writer) Ping(ctx context.Context) error {
 
 // Write 同步等待整批记录得到 Kafka 的最终投递结果
 //
-// 一批消息可能部分成功后返回错误，调用方会把整批写入 WAL，因此消费者仍需按 RequestRecord.id 去重
+// 一批消息可能部分成功后返回错误，调用方会把整批写入磁盘队列，因此消费者仍需按 RequestRecord.id 去重
 func (w *Writer) Write(ctx context.Context, records []*alsv1.RequestRecord) error {
 	messages := make([]*kgo.Record, 0, len(records))
 	for _, record := range records {

@@ -87,9 +87,9 @@ message Data {
     TLS tls = 7;
   }
   message DiskQueue {
-    // path 是 Kafka 故障期间保存未投递记录的 WAL 目录
+    // path 是 Kafka 故障期间保存未投递记录的磁盘队列目录
     string path = 1;
-    // segment_bytes 是单个 WAL 分段的目标大小
+    // segment_bytes 是单个磁盘队列分段的目标大小
     int64 segment_bytes = 2;
     // replay_batch_size 是每次重投 Kafka 的最大记录数
     uint32 replay_batch_size = 3;
@@ -97,7 +97,7 @@ message Data {
     google.protobuf.Duration replay_interval = 4;
     // sync 控制每批追加成功前是否执行 fsync；开启后进程崩溃不会丢已确认记录
     bool sync = 5;
-    // max_bytes 限制未投递 protobuf 记录的逻辑总字节数，不代表 WAL 文件物理占用上限
+    // max_bytes 限制未投递 protobuf 记录的逻辑总字节数，不代表磁盘文件物理占用上限
     int64 max_bytes = 6;
   }
   // kafka 是请求记录的主投递链路
@@ -110,7 +110,7 @@ message Data {
 message Logging {
   // format 支持 json 和 text
   string format = 1;
-  // level 支持 debug、info、warn 和 error，可在运行中热更新
+  // level 支持 debug、info、warn 和 error
   string level = 2;
   // add_source 控制日志是否包含调用位置
   bool add_source = 3;

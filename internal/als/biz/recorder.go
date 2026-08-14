@@ -16,7 +16,7 @@ var ErrQueueEmpty = errors.New("disk queue is empty")
 
 // QueuedBatch 表示从本地磁盘队列读取的一段连续记录
 type QueuedBatch struct {
-	// Records 保持 WAL 中的原始顺序，Kafka 写入成功前不能跳过其中任一记录
+	// Records 保持磁盘队列中的原始顺序，Kafka 写入成功前不能跳过其中任一记录
 	Records []*alsv1.RequestRecord
 	// LastSequence 是本批记录成功写入 Kafka 后可以确认到的队列位置
 	LastSequence uint64
@@ -46,9 +46,9 @@ type RecordQueue interface {
 type DeliveryStatus struct {
 	// KafkaReachable 反映最近一次 Kafka 投递结果，不主动发起网络探测
 	KafkaReachable bool
-	// QueueWritable 反映最近一次本地 WAL 读写或确认结果
+	// QueueWritable 反映最近一次磁盘队列读写或确认结果
 	QueueWritable bool
-	// Spooling 表示新记录当前直接进入 WAL，避免 Kafka 故障期间每批都等待网络超时
+	// Spooling 表示新记录当前直接进入磁盘队列，避免 Kafka 故障期间每批都等待网络超时
 	Spooling bool
 	// PendingRecords 是等待投递到 Kafka 的本地记录数
 	PendingRecords int64
@@ -58,13 +58,13 @@ type DeliveryStatus struct {
 
 // DeliveryCounters 是 ALS 进程启动后累计的请求记录投递计数
 type DeliveryCounters struct {
-	// Accepted 是已经被 Kafka 或本地 WAL 可靠接收的记录总数
+	// Accepted 是已经被 Kafka 或磁盘队列可靠接收的记录总数
 	Accepted uint64
-	// Queued 是因 Kafka 不可用而进入本地 WAL 的记录总数
+	// Queued 是因 Kafka 不可用而进入磁盘队列的记录总数
 	Queued uint64
-	// Replayed 是从 WAL 成功重新投递并确认的记录总数
+	// Replayed 是从磁盘队列成功重新投递并确认的记录总数
 	Replayed uint64
-	// Rejected 是 Kafka 与 WAL 都无法接收时拒绝的记录总数
+	// Rejected 是 Kafka 与磁盘队列都无法接收时拒绝的记录总数
 	Rejected uint64
 	// Discarded 是协议边界丢弃的不完整记录和非 HTTP 记录总数
 	Discarded uint64
@@ -72,7 +72,7 @@ type DeliveryCounters struct {
 
 // Recorder 负责 Kafka 优先、磁盘队列兜底以及积压记录回放
 //
-// 该链路采用至少一次投递：只有 Kafka 确认成功后才删除 WAL 记录；如果 Kafka 已确认而本地确认失败，
+// 该链路采用至少一次投递：只有 Kafka 确认成功后才删除磁盘队列记录；如果 Kafka 已确认而本地确认失败，
 // 同一记录可能再次发布，下游必须使用稳定的 RequestRecord.id 幂等入库
 type Recorder struct {
 	writer    RecordWriter
@@ -140,8 +140,8 @@ func (r *Recorder) Write(ctx context.Context, records []*alsv1.RequestRecord) er
 	return nil
 }
 
-// FlushBacklog 将一批磁盘积压重新写入 Kafka，返回是否实际回放了一批记录
-func (r *Recorder) FlushBacklog(ctx context.Context, limit int) (bool, error) {
+// ReplayBatch 将一批磁盘队列记录重新写入 Kafka，返回是否实际回放了一批记录
+func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (bool, error) {
 	batch, err := r.queue.Read(ctx, limit)
 	if errors.Is(err, ErrQueueEmpty) {
 		r.queueOK.Store(true)

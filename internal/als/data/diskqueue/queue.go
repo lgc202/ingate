@@ -28,9 +28,9 @@ type Queue struct {
 	bytes    atomic.Int64
 }
 
-// NewQueue 打开本地 WAL，允许已确认记录全部清空
+// NewQueue 打开本地磁盘队列，允许已确认记录全部清空
 //
-// 启动时扫描未确认记录恢复计数；WAL 损坏会直接阻止服务启动，避免悄悄跳过尚未投递的数据
+// 启动时扫描未确认记录恢复计数；队列损坏会直接阻止服务启动，避免悄悄跳过尚未投递的数据
 func NewQueue(config *conf.Data_DiskQueue) (*Queue, error) {
 	log, err := wal.Open(config.GetPath(), &wal.Options{
 		NoSync:           !config.GetSync(),
@@ -55,7 +55,7 @@ func NewQueue(config *conf.Data_DiskQueue) (*Queue, error) {
 
 // Write 以连续序号把一批请求记录原子追加到磁盘
 //
-// max_bytes 约束的是尚未确认记录的 protobuf 字节数，WAL 索引和预分配空间不计入该逻辑配额
+// max_bytes 约束的是尚未确认记录的 protobuf 字节数，队列索引和预分配空间不计入该逻辑配额
 func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -90,7 +90,7 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 
 // Read 从队首读取最多 limit 条记录，只有 Commit 后记录才会移除
 //
-// Read 和 Commit 分离使 Kafka 写入失败时记录仍留在 WAL；Kafka 已成功而 Commit 失败时可能重复投递，
+// Read 和 Commit 分离使 Kafka 写入失败时记录仍留在磁盘队列；Kafka 已成功而 Commit 失败时可能重复投递，
 // 下游应使用 RequestRecord.id 幂等入库，这是该链路明确选择的至少一次语义
 func (q *Queue) Read(ctx context.Context, limit int) (biz.QueuedBatch, error) {
 	if err := ctx.Err(); err != nil {
@@ -160,7 +160,7 @@ func (q *Queue) Pending() (int64, int64) {
 	return q.records.Load(), q.bytes.Load()
 }
 
-// Close 将 WAL 缓冲同步并关闭文件
+// Close 将磁盘队列缓冲同步并关闭文件
 func (q *Queue) Close() error {
 	return q.log.Close()
 }
