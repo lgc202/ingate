@@ -42,23 +42,13 @@ const requestColumns = `
 
 // SaveRequestBatch 批量保存请求事实
 //
-// idempotencyKey 在完全相同的 facts 重试时必须保持不变，使常见的
-// “ClickHouse 已写入但上游位点未提交”重试不会重复更新请求明细和分钟聚合视图
-//
-// 该机制是 At Least Once 下的幂等重试，不宣称跨任意批次边界的 Exactly Once
-func (s *Store) SaveRequestBatch(ctx context.Context, idempotencyKey string, facts []request.Fact) (err error) {
+// Kafka 重投可能追加相同事件，明细查询通过稳定事件 ID 和 FINAL 收敛
+func (s *Store) SaveRequestBatch(ctx context.Context, facts []request.Fact) (err error) {
 	if len(facts) == 0 {
 		return nil
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, s.writeTimeout)
 	defer cancel()
-	// Kafka 只有在入库成功后才提交 offset，两步之间崩溃会重投同一批消息
-	// 稳定 Token 让明细表拒绝重复 Block；第二个设置让依赖的分钟物化视图同样去重
-	// 它们只对内容和顺序完全相同的重试有效，不等于 Kafka 与 ClickHouse 的分布式事务
-	writeCtx = clickhousego.Context(writeCtx, clickhousego.WithSettings(clickhousego.Settings{
-		"insert_deduplication_token":                         idempotencyKey,
-		"deduplicate_blocks_in_dependent_materialized_views": 1,
-	}))
 
 	statement := fmt.Sprintf("INSERT INTO %s (%s)", s.requestTable, requestColumns)
 	batch, err := s.connection.PrepareBatch(writeCtx, statement)

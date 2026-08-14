@@ -2,9 +2,6 @@ package server
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -27,39 +24,11 @@ type recordCounters struct {
 	invalid  uint64
 }
 
-// partitionBatch 保存同一个 Kafka Topic 和 Partition 的请求记录
-//
-// ClickHouse 幂等 Token 以 Kafka Partition 为边界，避免不同 Partition 的
-// 拉取顺序变化影响常见故障重试
-type partitionBatch struct {
-	topic     string
-	partition int32
-	offsets   []int64
-	records   []*alsv1.RequestRecord
-}
-
-// idempotencyKey 对 Topic、Partition 和有效消息 offset 的精确序列敏感
-// 因此只有完全相同的 Kafka 批次才会共用 ClickHouse 去重标识
-func (b partitionBatch) idempotencyKey() string {
-	digest := sha256.New()
-	var number [8]byte
-	binary.BigEndian.PutUint32(number[:4], uint32(len(b.topic)))
-	_, _ = digest.Write(number[:4])
-	_, _ = digest.Write([]byte(b.topic))
-	binary.BigEndian.PutUint32(number[:4], uint32(b.partition))
-	_, _ = digest.Write(number[:4])
-	for _, offset := range b.offsets {
-		binary.BigEndian.PutUint64(number[:], uint64(offset))
-		_, _ = digest.Write(number[:])
-	}
-	return hex.EncodeToString(digest.Sum(nil))
-}
-
 // Consumer 从 Kafka 批量读取 ALS RequestRecord
 //
-// Consumer 使用 At Least Once 语义：ClickHouse 成功保存全部 Partition 批次后
-// 才提交 Kafka offset。进程在两者之间退出时 Kafka 会重投，Store 负责吸收
-// 完全相同批次的重复写入
+// Consumer 使用 At Least Once 语义：ClickHouse 成功保存整批请求后才提交
+// Kafka offset。进程在两者之间退出时会重投，请求明细依靠稳定事件 ID
+// 和 ReplacingMergeTree 最终收敛
 type Consumer struct {
 	client          *kgo.Client
 	recorder        *requestbiz.Recorder
@@ -157,26 +126,17 @@ func (c *Consumer) Start(ctx context.Context) error {
 		}
 		c.received.Add(uint64(len(messages)))
 
-		batches, invalid := requestBatches(messages)
+		records, invalid := requestRecords(messages)
 		if invalid > 0 {
 			// 无法解析的消息不可能通过重试恢复，提交其 offset 防止毒消息永久阻塞分区
 			c.invalid.Add(uint64(invalid))
 			c.logger.Warn("invalid request record messages discarded", "count", invalid)
 		}
-		stored := 0
-		for _, batch := range batches {
-			if err := c.recorder.Record(ctx, batch.idempotencyKey(), batch.records); err != nil {
-				return fmt.Errorf(
-					"record Kafka topic %q partition %d: %w",
-					batch.topic,
-					batch.partition,
-					err,
-				)
-			}
-			stored += len(batch.records)
+		if err := c.recorder.Record(ctx, records); err != nil {
+			return fmt.Errorf("record requests: %w", err)
 		}
-		c.stored.Add(uint64(stored))
-		// 所有 Partition 批次入库后再提交，任何中途失败都会让本轮消息整体重投
+		c.stored.Add(uint64(len(records)))
+		// 整批入库后再提交，中途失败会让本轮消息整体重投
 		if err := c.client.CommitUncommittedOffsets(ctx); err != nil {
 			return fmt.Errorf("commit Kafka offsets: %w", err)
 		}
@@ -184,18 +144,8 @@ func (c *Consumer) Start(ctx context.Context) error {
 	}
 }
 
-// requestBatches 解码 Kafka 消息，并按 Topic 和 Partition 生成稳定入库批次
-//
-// 同一 Partition 内保持 Kafka offset 顺序，使相同消息集合重试时
-// 生成相同的 ClickHouse 幂等 Token
-func requestBatches(messages []*kgo.Record) ([]partitionBatch, int) {
-	type topicPartition struct {
-		topic     string
-		partition int32
-	}
-
-	batches := make([]partitionBatch, 0)
-	batchIndexes := make(map[topicPartition]int)
+func requestRecords(messages []*kgo.Record) ([]*alsv1.RequestRecord, int) {
+	records := make([]*alsv1.RequestRecord, 0, len(messages))
 	invalid := 0
 	for _, message := range messages {
 		record := new(alsv1.RequestRecord)
@@ -203,18 +153,9 @@ func requestBatches(messages []*kgo.Record) ([]partitionBatch, int) {
 			invalid++
 			continue
 		}
-		key := topicPartition{topic: message.Topic, partition: message.Partition}
-		index, exists := batchIndexes[key]
-		if !exists {
-			index = len(batches)
-			batchIndexes[key] = index
-			batches = append(batches, partitionBatch{topic: key.topic, partition: key.partition})
-		}
-		batch := &batches[index]
-		batch.offsets = append(batch.offsets, message.Offset)
-		batch.records = append(batch.records, record)
+		records = append(records, record)
 	}
-	return batches, invalid
+	return records, invalid
 }
 
 // Stop 停止拉取并等待当前批次处理结束
