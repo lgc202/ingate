@@ -1,6 +1,6 @@
 //go:build wireinject
 
-package main
+package analytics
 
 import (
 	"log/slog"
@@ -26,6 +26,6 @@ func wireApp(
 		biz.ProviderSet,
 		service.ProviderSet,
 		server.ProviderSet,
-		newApp,
+		newKratosApp,
 	))
 }
