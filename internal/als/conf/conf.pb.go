@@ -210,7 +210,7 @@ type Logging struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// format 支持 json 和 text
 	Format string `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
-	// level 支持 debug、info、warn 和 error，可在运行中热更新
+	// level 支持 debug、info、warn 和 error
 	Level string `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
 	// add_source 控制日志是否包含调用位置
 	AddSource     bool `protobuf:"varint,3,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`
@@ -550,9 +550,9 @@ func (x *Data_Kafka) GetTls() *Data_Kafka_TLS {
 
 type Data_DiskQueue struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// path 是 Kafka 故障期间保存未投递记录的 WAL 目录
+	// path 是 Kafka 故障期间保存未投递记录的磁盘队列目录
 	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
-	// segment_bytes 是单个 WAL 分段的目标大小
+	// segment_bytes 是单个磁盘队列分段的目标大小
 	SegmentBytes int64 `protobuf:"varint,2,opt,name=segment_bytes,json=segmentBytes,proto3" json:"segment_bytes,omitempty"`
 	// replay_batch_size 是每次重投 Kafka 的最大记录数
 	ReplayBatchSize uint32 `protobuf:"varint,3,opt,name=replay_batch_size,json=replayBatchSize,proto3" json:"replay_batch_size,omitempty"`
@@ -560,7 +560,7 @@ type Data_DiskQueue struct {
 	ReplayInterval *durationpb.Duration `protobuf:"bytes,4,opt,name=replay_interval,json=replayInterval,proto3" json:"replay_interval,omitempty"`
 	// sync 控制每批追加成功前是否执行 fsync；开启后进程崩溃不会丢已确认记录
 	Sync bool `protobuf:"varint,5,opt,name=sync,proto3" json:"sync,omitempty"`
-	// max_bytes 限制未投递 protobuf 记录的逻辑总字节数，不代表 WAL 文件物理占用上限
+	// max_bytes 限制未投递 protobuf 记录的逻辑总字节数，不代表磁盘文件物理占用上限
 	MaxBytes      int64 `protobuf:"varint,6,opt,name=max_bytes,json=maxBytes,proto3" json:"max_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
