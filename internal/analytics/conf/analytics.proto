@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package ingate.analytics.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/analytics/conf;conf";
+
+// Bootstrap 定义 ingate-analytics 的完整进程配置
+message Bootstrap {
+  // server 定义运维 HTTP 服务和进程停止期限
+  Server server = 1;
+  // data 定义请求记录的 Kafka 来源和 ClickHouse 存储
+  Data data = 2;
+  // logging 定义进程日志行为
+  Logging logging = 3;
+}
+
+// Server 定义 Analytics 的查询 gRPC 和运维 HTTP 服务
+message Server {
+  message GRPC {
+    // addr 是请求分析查询 API 的 gRPC 监听地址
+    string addr = 1;
+    // timeout 限制单次查询请求处理时间
+    google.protobuf.Duration timeout = 2;
+  }
+  message HTTP {
+    // addr 是健康检查和指标的 HTTP 监听地址
+    string addr = 1;
+    // timeout 限制单次运维 HTTP 请求处理时间
+    google.protobuf.Duration timeout = 2;
+  }
+  // http 暴露 healthz、readyz 和 metrics
+  HTTP http = 1;
+  // shutdown_timeout 是等待 Kafka 批次处理结束的最长时间
+  google.protobuf.Duration shutdown_timeout = 2;
+  // grpc 暴露供 Admin API 调用的请求分析查询接口
+  GRPC grpc = 3;
+}
+
+// Data 定义请求记录消费和存储依赖
+message Data {
+  message Kafka {
+    message SASL {
+      // mechanism 支持 PLAIN、SCRAM-SHA-256 和 SCRAM-SHA-512，空值表示不启用 SASL
+      string mechanism = 1;
+      // username 是 Kafka SASL 用户名
+      string username = 2;
+      // password 是 Kafka SASL 密码
+      string password = 3;
+    }
+    message TLS {
+      // enabled 控制 Kafka 连接是否启用 TLS
+      bool enabled = 1;
+      // ca_file 是可选的 Kafka 服务端 CA 证书文件，为空时使用系统根证书
+      string ca_file = 2;
+      // cert_file 是可选的 Kafka 客户端证书文件
+      string cert_file = 3;
+      // key_file 与 cert_file 配对，用于 Kafka mTLS
+      string key_file = 4;
+      // server_name 覆盖 TLS 证书校验使用的服务端名称
+      string server_name = 5;
+    }
+    // brokers 是 Kafka bootstrap broker 地址列表
+    repeated string brokers = 1;
+    // topic 是 ALS 写入 RequestRecord 的来源 Topic
+    string topic = 2;
+    // group_id 是 Analytics 独占的消费者组标识
+    string group_id = 3;
+    // client_id 标识当前 Analytics 进程的 Kafka 客户端
+    string client_id = 4;
+    // batch_size 限制单轮写入 ClickHouse 的最大记录数
+    uint32 batch_size = 5;
+    // dial_timeout 是单次 Kafka broker 建连超时
+    google.protobuf.Duration dial_timeout = 6;
+    // sasl 配置 Kafka 身份认证
+    SASL sasl = 7;
+    // tls 配置 Kafka 传输加密和双向认证
+    TLS tls = 8;
+  }
+  message ClickHouse {
+    message TLS {
+      // enabled 控制 ClickHouse native 连接是否启用 TLS
+      bool enabled = 1;
+      // ca_file 是可选的 ClickHouse 服务端 CA 证书文件，为空时使用系统根证书
+      string ca_file = 2;
+      // cert_file 是可选的 ClickHouse 客户端证书文件
+      string cert_file = 3;
+      // key_file 与 cert_file 配对，用于 ClickHouse mTLS
+      string key_file = 4;
+      // server_name 覆盖 TLS 证书校验使用的服务端名称
+      string server_name = 5;
+    }
+    // addresses 是 ClickHouse native 协议节点地址列表
+    repeated string addresses = 1;
+    // database 是保存请求记录的数据库名称
+    string database = 2;
+    // request_table 是保存请求记录的表名称
+    string request_table = 3;
+    // username 是 ClickHouse 用户名
+    string username = 4;
+    // password 是 ClickHouse 密码
+    string password = 5;
+    // dial_timeout 是单次 ClickHouse 建连超时
+    google.protobuf.Duration dial_timeout = 6;
+    // write_timeout 限制单批请求记录的入库时间
+    google.protobuf.Duration write_timeout = 7;
+    // max_open_connections 限制 ClickHouse 连接池总连接数
+    uint32 max_open_connections = 8;
+    // max_idle_connections 限制连接池保留的空闲连接数
+    uint32 max_idle_connections = 9;
+    // connection_max_lifetime 限制单个连接的复用时间
+    google.protobuf.Duration connection_max_lifetime = 10;
+    // tls 配置 ClickHouse 传输加密和双向认证
+    TLS tls = 11;
+    // query_timeout 限制单次 ClickHouse 查询时间
+    google.protobuf.Duration query_timeout = 12;
+    // minute_metrics_table 是保存分钟流量统计的表名称
+    string minute_metrics_table = 13;
+  }
+  // kafka 提供 ALS 已可靠接收的请求记录
+  Kafka kafka = 1;
+  // clickhouse 保存请求明细并为后续聚合分析提供数据源
+  ClickHouse click_house = 2 [json_name = "clickhouse"];
+}
+
+// Logging 定义结构化日志格式与级别
+message Logging {
+  // format 支持 json 和 text
+  string format = 1;
+  // level 支持 debug、info、warn 和 error，可在运行中热更新
+  string level = 2;
+  // add_source 控制日志是否包含调用位置
+  bool add_source = 3;
+}
