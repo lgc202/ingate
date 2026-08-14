@@ -144,9 +144,9 @@ func (TrafficDimension) EnumDescriptor() ([]byte, []int) {
 // TrafficFilter 是流量聚合查询的结构化过滤条件。
 type TrafficFilter struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// start_time 是查询时间范围的起点，包含该时刻。
+	// start_time 是查询时间范围的起点，包含该时刻并且必须对齐到整分钟。
 	StartTime *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
-	// end_time 是查询时间范围的终点，不包含该时刻。
+	// end_time 是查询时间范围的终点，不包含该时刻并且必须对齐到整分钟。
 	EndTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
 	// gateway_id 只统计经过指定 Gateway 的请求。
 	GatewayId string `protobuf:"bytes,3,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`

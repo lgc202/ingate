@@ -2,6 +2,7 @@
 package clickhousex
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -28,6 +29,28 @@ type Config struct {
 
 // NewClient 创建启用 LZ4 压缩的 ClickHouse 客户端连接池
 func NewClient(config Config) (driver.Conn, error) {
+	options, err := options(config)
+	if err != nil {
+		return nil, err
+	}
+	client, err := clickhouse.Open(options)
+	if err != nil {
+		return nil, fmt.Errorf("open ClickHouse: %w", err)
+	}
+	return client, nil
+}
+
+// NewDB 创建使用 database/sql 接口的 ClickHouse 连接池
+// 迁移工具使用标准接口，业务读写继续使用支持原生批处理的 NewClient
+func NewDB(config Config) (*sql.DB, error) {
+	options, err := options(config)
+	if err != nil {
+		return nil, err
+	}
+	return clickhouse.OpenDB(options), nil
+}
+
+func options(config Config) (*clickhouse.Options, error) {
 	if len(config.Addresses) == 0 {
 		return nil, errors.New("ClickHouse addresses must not be empty")
 	}
@@ -46,7 +69,7 @@ func NewClient(config Config) (driver.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("configure ClickHouse TLS: %w", err)
 	}
-	client, err := clickhouse.Open(&clickhouse.Options{
+	return &clickhouse.Options{
 		Addr: config.Addresses,
 		Auth: clickhouse.Auth{
 			Database: config.Database,
@@ -60,9 +83,5 @@ func NewClient(config Config) (driver.Conn, error) {
 		MaxOpenConns:    config.MaxOpenConnections,
 		MaxIdleConns:    config.MaxIdleConnections,
 		ConnMaxLifetime: config.ConnectionMaxLifetime,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("open ClickHouse: %w", err)
-	}
-	return client, nil
+	}, nil
 }

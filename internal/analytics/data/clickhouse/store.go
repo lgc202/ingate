@@ -1,4 +1,4 @@
-// Package clickhouse 实现 Analytics 的请求事实和流量统计存储边界。
+// Package clickhouse 实现 Analytics 的请求事实和流量统计存储边界
 package clickhouse
 
 import (
@@ -14,28 +14,97 @@ import (
 	"github.com/lgc202/ingate/pkg/tlsx"
 )
 
-var errNotImplemented = errors.New("ClickHouse analytics storage is not implemented")
+const (
+	requestTableName       = "request_records"
+	minuteMetricsTableName = "request_metrics_1m"
+	minuteMetricsViewName  = "request_metrics_1m_mv"
+	requiredSchemaObjects  = 3
+)
 
-// Store 保存请求事实并查询 ClickHouse 生成的流量统计。
+// Store 保存请求事实并查询 ClickHouse 生成的流量统计
 //
-// 连接和表名在这里收口，biz 不感知 ClickHouse client、SQL 或表结构。
+// 表名是 Analytics 的内部存储契约，不属于部署配置或用户协议
 type Store struct {
 	connection         driver.Conn
+	database           string
 	requestTable       string
 	minuteMetricsTable string
 	writeTimeout       time.Duration
 	queryTimeout       time.Duration
 }
 
-// NewStore 创建 ClickHouse 存储。
+// NewStore 创建 ClickHouse 存储并确认迁移已经执行
 func NewStore(config *conf.Data_ClickHouse) (*Store, error) {
-	connection, err := clickhousex.NewClient(clickhousex.Config{
+	writeTimeout := config.GetWriteTimeout().AsDuration()
+	queryTimeout := config.GetQueryTimeout().AsDuration()
+	connection, err := clickhousex.NewClient(clientConfig(config))
+	if err != nil {
+		return nil, err
+	}
+	store := &Store{
+		connection:         connection,
+		database:           config.GetDatabase(),
+		requestTable:       config.GetDatabase() + "." + requestTableName,
+		minuteMetricsTable: config.GetDatabase() + "." + minuteMetricsTableName,
+		writeTimeout:       writeTimeout,
+		queryTimeout:       queryTimeout,
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	defer cancel()
+	if err := store.checkSchema(ctx); err != nil {
+		if closeErr := connection.Close(); closeErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("close ClickHouse after schema check failed: %w", closeErr))
+		}
+		return nil, err
+	}
+	return store, nil
+}
+
+// Ping 验证至少一个 ClickHouse 节点可以完成连接和鉴权
+func (s *Store) Ping(ctx context.Context) error {
+	if err := s.connection.Ping(ctx); err != nil {
+		return fmt.Errorf("ping ClickHouse: %w", err)
+	}
+	return nil
+}
+
+// Close 释放 ClickHouse 连接池
+func (s *Store) Close() error {
+	if err := s.connection.Close(); err != nil {
+		return fmt.Errorf("close ClickHouse: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) checkSchema(ctx context.Context) error {
+	var objects uint64
+	if err := s.connection.QueryRow(ctx, `
+SELECT count()
+FROM system.tables
+WHERE database = ? AND name IN (?, ?, ?)`,
+		s.database,
+		requestTableName,
+		minuteMetricsTableName,
+		minuteMetricsViewName,
+	).Scan(&objects); err != nil {
+		return fmt.Errorf("check ClickHouse analytics schema: %w", err)
+	}
+	if objects != requiredSchemaObjects {
+		return errors.New("ClickHouse analytics schema is incomplete; run ingate-analytics -migrate")
+	}
+	return nil
+}
+
+func clientConfig(config *conf.Data_ClickHouse) clickhousex.Config {
+	writeTimeout := config.GetWriteTimeout().AsDuration()
+	queryTimeout := config.GetQueryTimeout().AsDuration()
+	return clickhousex.Config{
 		Addresses:             config.GetAddresses(),
 		Database:              config.GetDatabase(),
 		Username:              config.GetUsername(),
 		Password:              config.GetPassword(),
 		DialTimeout:           config.GetDialTimeout().AsDuration(),
-		ReadTimeout:           config.GetWriteTimeout().AsDuration(),
+		ReadTimeout:           max(writeTimeout, queryTimeout),
 		MaxOpenConnections:    int(config.GetMaxOpenConnections()),
 		MaxIdleConnections:    int(config.GetMaxIdleConnections()),
 		ConnectionMaxLifetime: config.GetConnectionMaxLifetime().AsDuration(),
@@ -46,31 +115,5 @@ func NewStore(config *conf.Data_ClickHouse) (*Store, error) {
 			PrivateKeyFile:  config.GetTls().GetKeyFile(),
 			ServerName:      config.GetTls().GetServerName(),
 		},
-	})
-	if err != nil {
-		return nil, err
 	}
-	return &Store{
-		connection:         connection,
-		requestTable:       config.GetDatabase() + "." + config.GetRequestTable(),
-		minuteMetricsTable: config.GetDatabase() + "." + config.GetMinuteMetricsTable(),
-		writeTimeout:       config.GetWriteTimeout().AsDuration(),
-		queryTimeout:       config.GetQueryTimeout().AsDuration(),
-	}, nil
-}
-
-// Ping 验证至少一个 ClickHouse 节点可以完成连接和鉴权。
-func (s *Store) Ping(ctx context.Context) error {
-	if err := s.connection.Ping(ctx); err != nil {
-		return fmt.Errorf("ping ClickHouse: %w", err)
-	}
-	return nil
-}
-
-// Close 释放 ClickHouse 连接池。
-func (s *Store) Close() error {
-	if err := s.connection.Close(); err != nil {
-		return fmt.Errorf("close ClickHouse: %w", err)
-	}
-	return nil
 }

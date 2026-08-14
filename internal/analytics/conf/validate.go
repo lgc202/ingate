@@ -72,8 +72,14 @@ func validateKafka(config *Data_Kafka) error {
 	if strings.TrimSpace(config.GetClientId()) == "" {
 		return errors.New("Kafka client ID must not be empty")
 	}
-	if config.GetBatchSize() == 0 {
-		return errors.New("Kafka batch size must be greater than zero")
+	if config.GetBatchMaxRecords() == 0 {
+		return errors.New("Kafka batch max records must be greater than zero")
+	}
+	if config.GetFetchMinBytes() <= 0 {
+		return errors.New("Kafka fetch min bytes must be greater than zero")
+	}
+	if config.GetFetchMaxWait() == nil || config.GetFetchMaxWait().AsDuration() <= 0 {
+		return errors.New("Kafka fetch max wait must be greater than zero")
 	}
 	if config.GetDialTimeout() == nil || config.GetDialTimeout().AsDuration() <= 0 {
 		return errors.New("Kafka dial timeout must be greater than zero")
@@ -100,12 +106,6 @@ func validateClickHouse(config *Data_ClickHouse) error {
 	}
 	if !clickHouseIdentifier.MatchString(config.GetDatabase()) {
 		return errors.New("ClickHouse database must be a valid identifier")
-	}
-	if !clickHouseIdentifier.MatchString(config.GetRequestTable()) {
-		return errors.New("ClickHouse request table must be a valid identifier")
-	}
-	if !clickHouseIdentifier.MatchString(config.GetMinuteMetricsTable()) {
-		return errors.New("ClickHouse minute metrics table must be a valid identifier")
 	}
 	if config.GetDialTimeout() == nil || config.GetDialTimeout().AsDuration() <= 0 {
 		return errors.New("ClickHouse dial timeout must be greater than zero")

@@ -2,6 +2,7 @@
 package analytics
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -16,6 +17,7 @@ import (
 	"github.com/lgc202/go-kit/version"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
+	clickhousedata "github.com/lgc202/ingate/internal/analytics/data/clickhouse"
 	"github.com/lgc202/ingate/internal/analytics/server"
 )
 
@@ -62,6 +64,19 @@ func NewApp(configFile string) (*App, error) {
 func (a *App) Run() error {
 	defer a.cleanup()
 	return a.kratos.Run()
+}
+
+// Migrate 应用 Analytics 的 ClickHouse 表结构变更后退出
+func Migrate(ctx context.Context, configFile string) (int, error) {
+	var bootstrap conf.Bootstrap
+	if err := loadConfig(configFile, &bootstrap); err != nil {
+		return 0, err
+	}
+	applied, err := clickhousedata.Migrate(ctx, bootstrap.GetData().GetClickHouse())
+	if err != nil {
+		return 0, err
+	}
+	return applied, nil
 }
 
 func newKratosApp(

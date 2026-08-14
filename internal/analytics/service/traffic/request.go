@@ -1,6 +1,8 @@
 package traffic
 
 import (
+	"time"
+
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
@@ -51,6 +53,10 @@ func buildFilter(filter *analyticsv1.TrafficFilter) (trafficbiz.Filter, error) {
 	}
 	if !start.AsTime().Before(end.AsTime()) {
 		return trafficbiz.Filter{}, invalidArgument("start_time must be before end_time")
+	}
+	if !start.AsTime().Equal(start.AsTime().Truncate(time.Minute)) ||
+		!end.AsTime().Equal(end.AsTime().Truncate(time.Minute)) {
+		return trafficbiz.Filter{}, invalidArgument("start_time and end_time must align to minute boundaries")
 	}
 	return trafficbiz.Filter{
 		StartTime:  start.AsTime(),

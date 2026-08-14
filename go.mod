@@ -13,6 +13,7 @@ require (
 	github.com/go-kratos/kratos/v3 v3.0.0
 	github.com/google/wire v0.7.0
 	github.com/lgc202/go-kit v0.0.0-20260608113601-338cc7dcde97
+	github.com/pressly/goose/v3 v3.26.0
 	github.com/proxy-wasm/proxy-wasm-go-sdk v0.0.0-20260105142703-44c7d5847745
 	github.com/spf13/pflag v1.0.10
 	github.com/tidwall/wal v1.2.2-0.20250831125338-4b09f9519cba
@@ -57,6 +58,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-runewidth v0.0.19 // indirect
+	github.com/mfridman/interpolate v0.0.2 // indirect
 	github.com/paulmach/orb v0.12.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
@@ -65,6 +67,7 @@ require (
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/sagikazarmark/locafero v0.11.0 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
+	github.com/sethvargo/go-retry v0.4.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
 	github.com/spf13/afero v1.15.0 // indirect
