@@ -7,7 +7,7 @@ import (
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 )
 
-// Recorder 将 ALS 请求记录转换为稳定事实并持久化
+// Recorder 将已校验的 ALS 请求记录转换为稳定事实并持久化
 type Recorder struct {
 	store RecordStore
 }
@@ -17,8 +17,10 @@ func NewRecorder(store RecordStore) *Recorder {
 	return &Recorder{store: store}
 }
 
-// Record 保存一批已经通过 Kafka 协议边界校验的请求记录
-func (r *Recorder) Record(ctx context.Context, records []*alsv1.RequestRecord) error {
+// Record 保存一批已经通过协议边界校验的请求记录
+//
+// idempotencyKey 由接入端根据消息来源生成，完全相同的批次重试必须传入同一个值
+func (r *Recorder) Record(ctx context.Context, idempotencyKey string, records []*alsv1.RequestRecord) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -29,7 +31,7 @@ func (r *Recorder) Record(ctx context.Context, records []*alsv1.RequestRecord) e
 			StatusClass: classifyStatus(record.GetStatusCode()),
 		})
 	}
-	return r.store.SaveRequestBatch(ctx, facts)
+	return r.store.SaveRequestBatch(ctx, idempotencyKey, facts)
 }
 
 func classifyStatus(status uint32) StatusClass {

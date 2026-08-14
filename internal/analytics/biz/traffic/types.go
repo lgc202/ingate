@@ -6,9 +6,13 @@ import "time"
 type TimeBucket uint8
 
 const (
+	// TimeBucketMinute 表示每分钟一个趋势点
 	TimeBucketMinute TimeBucket = iota + 1
+	// TimeBucketFiveMinutes 表示每五分钟一个趋势点
 	TimeBucketFiveMinutes
+	// TimeBucketHour 表示每小时一个趋势点
 	TimeBucketHour
+	// TimeBucketDay 表示每天一个趋势点
 	TimeBucketDay
 )
 
@@ -16,12 +20,15 @@ const (
 type Dimension uint8
 
 const (
+	// DimensionGateway 按接收请求的 Gateway 分组
 	DimensionGateway Dimension = iota + 1
+	// DimensionRoute 按命中的 Route 分组
 	DimensionRoute
+	// DimensionUpstream 按最终承载请求的 Upstream 分组
 	DimensionUpstream
 )
 
-// Filter 是流量统计的过滤条件
+// Filter 是流量统计的过滤条件，时间范围为左闭右开且必须对齐到整分钟
 type Filter struct {
 	StartTime  time.Time
 	EndTime    time.Time

@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	// 表名由内置迁移和查询代码共同维护，不允许部署配置任意替换
 	requestTableName       = "request_records"
 	minuteMetricsTableName = "request_metrics_1m"
 	minuteMetricsViewName  = "request_metrics_1m_mv"
@@ -23,7 +24,8 @@ const (
 
 // Store 保存请求事实并查询 ClickHouse 生成的流量统计
 //
-// 表名是 Analytics 的内部存储契约，不属于部署配置或用户协议
+// 表名是 Analytics 的内部存储契约，不属于部署配置或用户协议。Store 同时实现
+// request.RecordStore、request.QueryStore 和 traffic.QueryStore
 type Store struct {
 	connection         driver.Conn
 	database           string
@@ -34,6 +36,8 @@ type Store struct {
 }
 
 // NewStore 创建 ClickHouse 存储并确认迁移已经执行
+//
+// 服务启动只验证表结构是否存在，不隐式执行 DDL；部署过程应先运行 -migrate
 func NewStore(config *conf.Data_ClickHouse) (*Store, error) {
 	writeTimeout := config.GetWriteTimeout().AsDuration()
 	queryTimeout := config.GetQueryTimeout().AsDuration()
@@ -95,6 +99,10 @@ WHERE database = ? AND name IN (?, ?, ?)`,
 	return nil
 }
 
+// clientConfig 把 Analytics 进程配置转换为公共 ClickHouse 客户端配置
+//
+// 底层连接的读取期限覆盖写入和查询两类操作中更长的一方，各方法仍通过 Context
+// 施加自己的业务超时
 func clientConfig(config *conf.Data_ClickHouse) clickhousex.Config {
 	writeTimeout := config.GetWriteTimeout().AsDuration()
 	queryTimeout := config.GetQueryTimeout().AsDuration()

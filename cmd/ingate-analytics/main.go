@@ -1,4 +1,4 @@
-// ingate-analytics 将 ALS 请求记录持久化到 ClickHouse
+// ingate-analytics 消费 ALS 请求记录，写入 ClickHouse，并提供分析查询服务
 package main
 
 import (

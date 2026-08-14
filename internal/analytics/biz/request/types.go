@@ -10,19 +10,23 @@ import (
 type StatusClass uint8
 
 const (
+	// StatusClassUnknown 表示请求没有可识别的 HTTP 结果
 	StatusClassUnknown StatusClass = iota
+	// StatusClassSuccess 表示状态码位于 1xx 到 3xx
 	StatusClassSuccess
+	// StatusClassClientError 表示状态码位于 4xx
 	StatusClassClientError
+	// StatusClassServerError 表示状态码位于 5xx 及以上
 	StatusClassServerError
 )
 
-// Fact 保存 ALS 原始请求记录和 Analytics 在接收时派生的稳定事实
+// Fact 保存 ALS 原始请求元数据和 Analytics 派生字段
 type Fact struct {
 	Record      *alsv1.RequestRecord
 	StatusClass StatusClass
 }
 
-// Filter 是请求明细查询的结构化过滤条件
+// Filter 是请求明细查询的结构化过滤条件，时间范围为左闭右开
 type Filter struct {
 	StartTime   time.Time
 	EndTime     time.Time
@@ -50,7 +54,7 @@ type ListOptions struct {
 	Cursor   *Cursor
 }
 
-// Page 是请求明细分页结果
+// Page 是按 started_at 和 id 倒序排列的请求明细分页结果
 type Page struct {
 	Records    []*alsv1.RequestRecord
 	NextCursor *Cursor

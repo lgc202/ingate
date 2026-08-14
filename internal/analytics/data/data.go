@@ -12,7 +12,7 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/data/clickhouse"
 )
 
-// ProviderSet 汇总 Analytics 的数据访问实现
+// ProviderSet 把同一个 ClickHouse Store 绑定为请求写入、请求查询和流量查询实现
 var ProviderSet = wire.NewSet(
 	NewClickHouseStore,
 	wire.Bind(new(request.RecordStore), new(*clickhouse.Store)),
@@ -21,6 +21,8 @@ var ProviderSet = wire.NewSet(
 )
 
 // NewClickHouseStore 创建 ClickHouse 存储，并把连接释放交给 Wire cleanup
+//
+// Kratos 只停止 Server，Wire cleanup 负责关闭不属于 Server 的数据库连接池
 func NewClickHouseStore(
 	config *conf.Data_ClickHouse,
 	logger *slog.Logger,

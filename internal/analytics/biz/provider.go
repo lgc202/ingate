@@ -1,3 +1,6 @@
+// Package biz 装配 Analytics 的请求记录和流量分析用例
+//
+// biz 只依赖消费者侧存储接口，不感知 Kafka、ClickHouse 或 gRPC 实现
 package biz
 
 import (

@@ -10,6 +10,7 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/biz/traffic"
 )
 
+// trafficAggregates 合并 AggregatingMergeTree 中跨分钟或跨数据 Part 的聚合状态
 const trafficAggregates = `
     sum(request_count) AS request_count,
     sum(client_error_count) AS client_error_count,
@@ -18,6 +19,8 @@ const trafficAggregates = `
     toUInt64(round(coalesce(quantileTDigestMerge(0.95)(duration_p95), 0))) AS p95_duration_ns`
 
 // QueryTrafficTrend 从分钟聚合状态查询流量和延迟趋势
+//
+// 分钟表是唯一预聚合事实，更大的时间粒度在查询时继续合并，避免维护小时表和日表
 func (s *Store) QueryTrafficTrend(
 	ctx context.Context,
 	query traffic.TrendQuery,
@@ -78,6 +81,8 @@ func (s *Store) QueryTrafficTrend(
 }
 
 // QueryTrafficBreakdown 从分钟聚合状态查询资源维度的流量和延迟分布
+//
+// Dimension 只会映射到代码内固定列名，资源 ID 和时间范围始终使用查询参数
 func (s *Store) QueryTrafficBreakdown(
 	ctx context.Context,
 	query traffic.BreakdownQuery,
@@ -139,6 +144,7 @@ func (s *Store) QueryTrafficBreakdown(
 	return items, nil
 }
 
+// appendTrafficFilters 追加 Gateway、Route 和 Upstream 的可选资源过滤条件
 func appendTrafficFilters(statement *strings.Builder, args []any, filter traffic.Filter) []any {
 	if filter.GatewayID != "" {
 		statement.WriteString(" AND gateway_id = ?")
@@ -155,6 +161,7 @@ func appendTrafficFilters(statement *strings.Builder, args []any, filter traffic
 	return args
 }
 
+// timeBucketExpression 把受控枚举映射为 ClickHouse 时间分桶表达式
 func timeBucketExpression(bucket traffic.TimeBucket) (string, error) {
 	switch bucket {
 	case traffic.TimeBucketMinute:
@@ -170,6 +177,7 @@ func timeBucketExpression(bucket traffic.TimeBucket) (string, error) {
 	}
 }
 
+// trafficDimensionColumn 把受控资源维度映射为 ClickHouse 列名
 func trafficDimensionColumn(dimension traffic.Dimension) (string, error) {
 	switch dimension {
 	case traffic.DimensionGateway:

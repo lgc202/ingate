@@ -39,9 +39,11 @@ func NewHTTPServer(
 }
 
 func health(response http.ResponseWriter, _ *http.Request) {
+	// healthz 只表示进程仍能处理 HTTP，不探测外部依赖
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// ready 在同一个请求期限内确认 Kafka 和 ClickHouse 当前都可访问
 func ready(timeout time.Duration, kafka pinger, clickHouse pinger) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
 		ctx, cancel := context.WithTimeout(request.Context(), timeout)
@@ -64,6 +66,7 @@ func ready(timeout time.Duration, kafka pinger, clickHouse pinger) http.HandlerF
 	}
 }
 
+// metricsHandler 使用进程独立 Registry 暴露 Go 指标和请求记录处理计数
 func metricsHandler(counters func() recordCounters) http.Handler {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(

@@ -21,7 +21,9 @@ const schemaMigrationTableName = "ingate_schema_migrations"
 var migrationFiles embed.FS
 
 // Migrate 按版本应用 Analytics 的 ClickHouse 表结构变更
-// 正常服务进程不执行 DDL，生产环境可以为运行账号移除建表权限
+//
+// 正常服务进程不执行 DDL，生产环境可以为运行账号移除建表权限。调用方负责在
+// 服务启动前完成迁移，Migrate 返回本次实际应用的版本数量
 func Migrate(ctx context.Context, config *conf.Data_ClickHouse) (applied int, err error) {
 	db, err := clickhousex.NewDB(clientConfig(config))
 	if err != nil {

@@ -3,7 +3,7 @@ package traffic
 
 import "context"
 
-// Queries 提供流量趋势和资源分布查询
+// Queries 提供不依赖 ClickHouse 协议的流量趋势和资源分布查询
 type Queries struct {
 	store QueryStore
 }

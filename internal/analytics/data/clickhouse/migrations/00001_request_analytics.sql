@@ -1,6 +1,8 @@
 -- +goose NO TRANSACTION
 -- +goose Up
 
+-- request_records 保存不可变的请求元数据，不保存 Header、请求体或响应体。
+-- ReplacingMergeTree 负责最终合并相同请求 ID。
 CREATE TABLE IF NOT EXISTS request_records
 (
     id String,
@@ -28,8 +30,11 @@ CREATE TABLE IF NOT EXISTS request_records
 ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(started_at)
 ORDER BY (started_at, id)
+-- 单机 ClickHouse 在本地保留最近 1000 个插入 Block 的去重标识，只覆盖短期原批重试。
 SETTINGS non_replicated_deduplication_window = 1000;
 
+-- request_metrics_1m 保存物化视图产生的分钟级聚合状态。
+-- 更大的查询时间粒度在查询时由这些分钟状态继续合并，无需重复保存多套事实。
 CREATE TABLE IF NOT EXISTS request_metrics_1m
 (
     started_at DateTime('UTC'),
@@ -46,6 +51,8 @@ ENGINE = AggregatingMergeTree
 PARTITION BY toYYYYMM(started_at)
 ORDER BY (started_at, gateway_id, route_id, upstream_id);
 
+-- 增量物化视图只处理新插入的请求批次，为控制台实时趋势减少明细扫描量。
+-- 入库端对完全相同的重试批次启用 dependent materialized view 去重。
 CREATE MATERIALIZED VIEW IF NOT EXISTS request_metrics_1m_mv TO request_metrics_1m
 AS SELECT
     toStartOfMinute(started_at) AS started_at,
