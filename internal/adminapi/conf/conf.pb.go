@@ -92,10 +92,12 @@ func (x *Bootstrap) GetAuthentication() *Authentication {
 }
 
 type Server struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Http          *Server_HTTP           `protobuf:"bytes,1,opt,name=http,proto3" json:"http,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Http  *Server_HTTP           `protobuf:"bytes,1,opt,name=http,proto3" json:"http,omitempty"`
+	// shutdown_timeout 是等待在途管理请求结束的最长时间
+	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
@@ -131,6 +133,13 @@ func (*Server) Descriptor() ([]byte, []int) {
 func (x *Server) GetHttp() *Server_HTTP {
 	if x != nil {
 		return x.Http
+	}
+	return nil
+}
+
+func (x *Server) GetShutdownTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.ShutdownTimeout
 	}
 	return nil
 }
@@ -469,9 +478,10 @@ const file_conf_proto_rawDesc = "" +
 	"\x06server\x18\x01 \x01(\v2\x19.ingate.admin.conf.ServerR\x06server\x12+\n" +
 	"\x04data\x18\x02 \x01(\v2\x17.ingate.admin.conf.DataR\x04data\x124\n" +
 	"\alogging\x18\x03 \x01(\v2\x1a.ingate.admin.conf.LoggingR\alogging\x12I\n" +
-	"\x0eauthentication\x18\x04 \x01(\v2!.ingate.admin.conf.AuthenticationR\x0eauthentication\"\x8d\x01\n" +
+	"\x0eauthentication\x18\x04 \x01(\v2!.ingate.admin.conf.AuthenticationR\x0eauthentication\"\xd3\x01\n" +
 	"\x06Server\x122\n" +
-	"\x04http\x18\x01 \x01(\v2\x1e.ingate.admin.conf.Server.HTTPR\x04http\x1aO\n" +
+	"\x04http\x18\x01 \x01(\v2\x1e.ingate.admin.conf.Server.HTTPR\x04http\x12D\n" +
+	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
 	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x8c\x01\n" +
@@ -531,14 +541,15 @@ var file_conf_proto_depIdxs = []int32{
 	3, // 2: ingate.admin.conf.Bootstrap.logging:type_name -> ingate.admin.conf.Logging
 	4, // 3: ingate.admin.conf.Bootstrap.authentication:type_name -> ingate.admin.conf.Authentication
 	5, // 4: ingate.admin.conf.Server.http:type_name -> ingate.admin.conf.Server.HTTP
-	6, // 5: ingate.admin.conf.Data.apiserver:type_name -> ingate.admin.conf.Data.APIServer
-	7, // 6: ingate.admin.conf.Authentication.discovery_timeout:type_name -> google.protobuf.Duration
-	7, // 7: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	7, // 5: ingate.admin.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	6, // 6: ingate.admin.conf.Data.apiserver:type_name -> ingate.admin.conf.Data.APIServer
+	7, // 7: ingate.admin.conf.Authentication.discovery_timeout:type_name -> google.protobuf.Duration
+	7, // 8: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_conf_proto_init() }

@@ -20,6 +20,8 @@ message Server {
     google.protobuf.Duration timeout = 2;
   }
   HTTP http = 1;
+  // shutdown_timeout 是等待在途管理请求结束的最长时间
+  google.protobuf.Duration shutdown_timeout = 2;
 }
 
 message Data {
