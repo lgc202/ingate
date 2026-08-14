@@ -3,6 +3,7 @@ modules:
   - path: api
   - path: internal/adminapi/conf
   - path: internal/als
+  - path: internal/analytics
 deps:
   - buf.build/bufbuild/protovalidate
   - buf.build/googleapis/googleapis

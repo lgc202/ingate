@@ -1,7 +1,0 @@
-version: v2
-inputs:
-  - directory: internal/als
-plugins:
-  - local: protoc-gen-go
-    out: internal/als
-    opt: paths=source_relative
