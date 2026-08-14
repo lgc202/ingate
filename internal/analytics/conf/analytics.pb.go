@@ -387,14 +387,18 @@ type Data_Kafka struct {
 	GroupId string `protobuf:"bytes,3,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	// client_id 标识当前 Analytics 进程的 Kafka 客户端
 	ClientId string `protobuf:"bytes,4,opt,name=client_id,json=clientId,proto3" json:"client_id,omitempty"`
-	// batch_size 限制单轮写入 ClickHouse 的最大记录数
-	BatchSize uint32 `protobuf:"varint,5,opt,name=batch_size,json=batchSize,proto3" json:"batch_size,omitempty"`
+	// batch_max_records 限制单次从 franz-go 取出并写入 ClickHouse 的最大记录数
+	BatchMaxRecords uint32 `protobuf:"varint,5,opt,name=batch_max_records,json=batchMaxRecords,proto3" json:"batch_max_records,omitempty"`
 	// dial_timeout 是单次 Kafka broker 建连超时
 	DialTimeout *durationpb.Duration `protobuf:"bytes,6,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
 	// sasl 配置 Kafka 身份认证
 	Sasl *Data_Kafka_SASL `protobuf:"bytes,7,opt,name=sasl,proto3" json:"sasl,omitempty"`
 	// tls 配置 Kafka 传输加密和双向认证
-	Tls           *Data_Kafka_TLS `protobuf:"bytes,8,opt,name=tls,proto3" json:"tls,omitempty"`
+	Tls *Data_Kafka_TLS `protobuf:"bytes,8,opt,name=tls,proto3" json:"tls,omitempty"`
+	// fetch_max_wait 是 Kafka broker 等待达到最小拉取字节数的最长时间
+	FetchMaxWait *durationpb.Duration `protobuf:"bytes,9,opt,name=fetch_max_wait,json=fetchMaxWait,proto3" json:"fetch_max_wait,omitempty"`
+	// fetch_min_bytes 是 Kafka broker 尝试为单次拉取累积的最小数据量
+	FetchMinBytes int32 `protobuf:"varint,10,opt,name=fetch_min_bytes,json=fetchMinBytes,proto3" json:"fetch_min_bytes,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -457,9 +461,9 @@ func (x *Data_Kafka) GetClientId() string {
 	return ""
 }
 
-func (x *Data_Kafka) GetBatchSize() uint32 {
+func (x *Data_Kafka) GetBatchMaxRecords() uint32 {
 	if x != nil {
-		return x.BatchSize
+		return x.BatchMaxRecords
 	}
 	return 0
 }
@@ -485,36 +489,46 @@ func (x *Data_Kafka) GetTls() *Data_Kafka_TLS {
 	return nil
 }
 
+func (x *Data_Kafka) GetFetchMaxWait() *durationpb.Duration {
+	if x != nil {
+		return x.FetchMaxWait
+	}
+	return nil
+}
+
+func (x *Data_Kafka) GetFetchMinBytes() int32 {
+	if x != nil {
+		return x.FetchMinBytes
+	}
+	return 0
+}
+
 type Data_ClickHouse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// addresses 是 ClickHouse native 协议节点地址列表
 	Addresses []string `protobuf:"bytes,1,rep,name=addresses,proto3" json:"addresses,omitempty"`
 	// database 是保存请求记录的数据库名称
 	Database string `protobuf:"bytes,2,opt,name=database,proto3" json:"database,omitempty"`
-	// request_table 是保存请求记录的表名称
-	RequestTable string `protobuf:"bytes,3,opt,name=request_table,json=requestTable,proto3" json:"request_table,omitempty"`
 	// username 是 ClickHouse 用户名
-	Username string `protobuf:"bytes,4,opt,name=username,proto3" json:"username,omitempty"`
+	Username string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
 	// password 是 ClickHouse 密码
-	Password string `protobuf:"bytes,5,opt,name=password,proto3" json:"password,omitempty"`
+	Password string `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
 	// dial_timeout 是单次 ClickHouse 建连超时
-	DialTimeout *durationpb.Duration `protobuf:"bytes,6,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
+	DialTimeout *durationpb.Duration `protobuf:"bytes,5,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
 	// write_timeout 限制单批请求记录的入库时间
-	WriteTimeout *durationpb.Duration `protobuf:"bytes,7,opt,name=write_timeout,json=writeTimeout,proto3" json:"write_timeout,omitempty"`
+	WriteTimeout *durationpb.Duration `protobuf:"bytes,6,opt,name=write_timeout,json=writeTimeout,proto3" json:"write_timeout,omitempty"`
 	// max_open_connections 限制 ClickHouse 连接池总连接数
-	MaxOpenConnections uint32 `protobuf:"varint,8,opt,name=max_open_connections,json=maxOpenConnections,proto3" json:"max_open_connections,omitempty"`
+	MaxOpenConnections uint32 `protobuf:"varint,7,opt,name=max_open_connections,json=maxOpenConnections,proto3" json:"max_open_connections,omitempty"`
 	// max_idle_connections 限制连接池保留的空闲连接数
-	MaxIdleConnections uint32 `protobuf:"varint,9,opt,name=max_idle_connections,json=maxIdleConnections,proto3" json:"max_idle_connections,omitempty"`
+	MaxIdleConnections uint32 `protobuf:"varint,8,opt,name=max_idle_connections,json=maxIdleConnections,proto3" json:"max_idle_connections,omitempty"`
 	// connection_max_lifetime 限制单个连接的复用时间
-	ConnectionMaxLifetime *durationpb.Duration `protobuf:"bytes,10,opt,name=connection_max_lifetime,json=connectionMaxLifetime,proto3" json:"connection_max_lifetime,omitempty"`
+	ConnectionMaxLifetime *durationpb.Duration `protobuf:"bytes,9,opt,name=connection_max_lifetime,json=connectionMaxLifetime,proto3" json:"connection_max_lifetime,omitempty"`
 	// tls 配置 ClickHouse 传输加密和双向认证
-	Tls *Data_ClickHouse_TLS `protobuf:"bytes,11,opt,name=tls,proto3" json:"tls,omitempty"`
+	Tls *Data_ClickHouse_TLS `protobuf:"bytes,10,opt,name=tls,proto3" json:"tls,omitempty"`
 	// query_timeout 限制单次 ClickHouse 查询时间
-	QueryTimeout *durationpb.Duration `protobuf:"bytes,12,opt,name=query_timeout,json=queryTimeout,proto3" json:"query_timeout,omitempty"`
-	// minute_metrics_table 是保存分钟流量统计的表名称
-	MinuteMetricsTable string `protobuf:"bytes,13,opt,name=minute_metrics_table,json=minuteMetricsTable,proto3" json:"minute_metrics_table,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	QueryTimeout  *durationpb.Duration `protobuf:"bytes,11,opt,name=query_timeout,json=queryTimeout,proto3" json:"query_timeout,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Data_ClickHouse) Reset() {
@@ -557,13 +571,6 @@ func (x *Data_ClickHouse) GetAddresses() []string {
 func (x *Data_ClickHouse) GetDatabase() string {
 	if x != nil {
 		return x.Database
-	}
-	return ""
-}
-
-func (x *Data_ClickHouse) GetRequestTable() string {
-	if x != nil {
-		return x.RequestTable
 	}
 	return ""
 }
@@ -629,13 +636,6 @@ func (x *Data_ClickHouse) GetQueryTimeout() *durationpb.Duration {
 		return x.QueryTimeout
 	}
 	return nil
-}
-
-func (x *Data_ClickHouse) GetMinuteMetricsTable() string {
-	if x != nil {
-		return x.MinuteMetricsTable
-	}
-	return ""
 }
 
 type Data_Kafka_SASL struct {
@@ -881,21 +881,23 @@ const file_conf_analytics_proto_rawDesc = "" +
 	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xdd\v\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xfc\v\n" +
 	"\x04Data\x127\n" +
 	"\x05kafka\x18\x01 \x01(\v2!.ingate.analytics.conf.Data.KafkaR\x05kafka\x12G\n" +
 	"\vclick_house\x18\x02 \x01(\v2&.ingate.analytics.conf.Data.ClickHouseR\n" +
-	"clickhouse\x1a\xb3\x04\n" +
+	"clickhouse\x1a\xa9\x05\n" +
 	"\x05Kafka\x12\x18\n" +
 	"\abrokers\x18\x01 \x03(\tR\abrokers\x12\x14\n" +
 	"\x05topic\x18\x02 \x01(\tR\x05topic\x12\x19\n" +
 	"\bgroup_id\x18\x03 \x01(\tR\agroupId\x12\x1b\n" +
-	"\tclient_id\x18\x04 \x01(\tR\bclientId\x12\x1d\n" +
-	"\n" +
-	"batch_size\x18\x05 \x01(\rR\tbatchSize\x12<\n" +
+	"\tclient_id\x18\x04 \x01(\tR\bclientId\x12*\n" +
+	"\x11batch_max_records\x18\x05 \x01(\rR\x0fbatchMaxRecords\x12<\n" +
 	"\fdial_timeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vdialTimeout\x12:\n" +
 	"\x04sasl\x18\a \x01(\v2&.ingate.analytics.conf.Data.Kafka.SASLR\x04sasl\x127\n" +
-	"\x03tls\x18\b \x01(\v2%.ingate.analytics.conf.Data.Kafka.TLSR\x03tls\x1a\\\n" +
+	"\x03tls\x18\b \x01(\v2%.ingate.analytics.conf.Data.Kafka.TLSR\x03tls\x12?\n" +
+	"\x0efetch_max_wait\x18\t \x01(\v2\x19.google.protobuf.DurationR\ffetchMaxWait\x12&\n" +
+	"\x0ffetch_min_bytes\x18\n" +
+	" \x01(\x05R\rfetchMinBytes\x1a\\\n" +
 	"\x04SASL\x12\x1c\n" +
 	"\tmechanism\x18\x01 \x01(\tR\tmechanism\x12\x1a\n" +
 	"\busername\x18\x02 \x01(\tR\busername\x12\x1a\n" +
@@ -906,23 +908,21 @@ const file_conf_analytics_proto_rawDesc = "" +
 	"\tcert_file\x18\x03 \x01(\tR\bcertFile\x12\x19\n" +
 	"\bkey_file\x18\x04 \x01(\tR\akeyFile\x12\x1f\n" +
 	"\vserver_name\x18\x05 \x01(\tR\n" +
-	"serverName\x1a\x9c\x06\n" +
+	"serverName\x1a\xc5\x05\n" +
 	"\n" +
 	"ClickHouse\x12\x1c\n" +
 	"\taddresses\x18\x01 \x03(\tR\taddresses\x12\x1a\n" +
-	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12#\n" +
-	"\rrequest_table\x18\x03 \x01(\tR\frequestTable\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\x12\x1a\n" +
-	"\bpassword\x18\x05 \x01(\tR\bpassword\x12<\n" +
-	"\fdial_timeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vdialTimeout\x12>\n" +
-	"\rwrite_timeout\x18\a \x01(\v2\x19.google.protobuf.DurationR\fwriteTimeout\x120\n" +
-	"\x14max_open_connections\x18\b \x01(\rR\x12maxOpenConnections\x120\n" +
-	"\x14max_idle_connections\x18\t \x01(\rR\x12maxIdleConnections\x12Q\n" +
-	"\x17connection_max_lifetime\x18\n" +
-	" \x01(\v2\x19.google.protobuf.DurationR\x15connectionMaxLifetime\x12<\n" +
-	"\x03tls\x18\v \x01(\v2*.ingate.analytics.conf.Data.ClickHouse.TLSR\x03tls\x12>\n" +
-	"\rquery_timeout\x18\f \x01(\v2\x19.google.protobuf.DurationR\fqueryTimeout\x120\n" +
-	"\x14minute_metrics_table\x18\r \x01(\tR\x12minuteMetricsTable\x1a\x91\x01\n" +
+	"\bdatabase\x18\x02 \x01(\tR\bdatabase\x12\x1a\n" +
+	"\busername\x18\x03 \x01(\tR\busername\x12\x1a\n" +
+	"\bpassword\x18\x04 \x01(\tR\bpassword\x12<\n" +
+	"\fdial_timeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\vdialTimeout\x12>\n" +
+	"\rwrite_timeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\fwriteTimeout\x120\n" +
+	"\x14max_open_connections\x18\a \x01(\rR\x12maxOpenConnections\x120\n" +
+	"\x14max_idle_connections\x18\b \x01(\rR\x12maxIdleConnections\x12Q\n" +
+	"\x17connection_max_lifetime\x18\t \x01(\v2\x19.google.protobuf.DurationR\x15connectionMaxLifetime\x12<\n" +
+	"\x03tls\x18\n" +
+	" \x01(\v2*.ingate.analytics.conf.Data.ClickHouse.TLSR\x03tls\x12>\n" +
+	"\rquery_timeout\x18\v \x01(\v2\x19.google.protobuf.DurationR\fqueryTimeout\x1a\x91\x01\n" +
 	"\x03TLS\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x17\n" +
 	"\aca_file\x18\x02 \x01(\tR\x06caFile\x12\x1b\n" +
@@ -977,16 +977,17 @@ var file_conf_analytics_proto_depIdxs = []int32{
 	11, // 10: ingate.analytics.conf.Data.Kafka.dial_timeout:type_name -> google.protobuf.Duration
 	8,  // 11: ingate.analytics.conf.Data.Kafka.sasl:type_name -> ingate.analytics.conf.Data.Kafka.SASL
 	9,  // 12: ingate.analytics.conf.Data.Kafka.tls:type_name -> ingate.analytics.conf.Data.Kafka.TLS
-	11, // 13: ingate.analytics.conf.Data.ClickHouse.dial_timeout:type_name -> google.protobuf.Duration
-	11, // 14: ingate.analytics.conf.Data.ClickHouse.write_timeout:type_name -> google.protobuf.Duration
-	11, // 15: ingate.analytics.conf.Data.ClickHouse.connection_max_lifetime:type_name -> google.protobuf.Duration
-	10, // 16: ingate.analytics.conf.Data.ClickHouse.tls:type_name -> ingate.analytics.conf.Data.ClickHouse.TLS
-	11, // 17: ingate.analytics.conf.Data.ClickHouse.query_timeout:type_name -> google.protobuf.Duration
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	11, // 13: ingate.analytics.conf.Data.Kafka.fetch_max_wait:type_name -> google.protobuf.Duration
+	11, // 14: ingate.analytics.conf.Data.ClickHouse.dial_timeout:type_name -> google.protobuf.Duration
+	11, // 15: ingate.analytics.conf.Data.ClickHouse.write_timeout:type_name -> google.protobuf.Duration
+	11, // 16: ingate.analytics.conf.Data.ClickHouse.connection_max_lifetime:type_name -> google.protobuf.Duration
+	10, // 17: ingate.analytics.conf.Data.ClickHouse.tls:type_name -> ingate.analytics.conf.Data.ClickHouse.TLS
+	11, // 18: ingate.analytics.conf.Data.ClickHouse.query_timeout:type_name -> google.protobuf.Duration
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_conf_analytics_proto_init() }

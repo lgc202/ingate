@@ -43,9 +43,9 @@ enum TrafficDimension {
 
 // TrafficFilter 是流量聚合查询的结构化过滤条件。
 message TrafficFilter {
-  // start_time 是查询时间范围的起点，包含该时刻。
+  // start_time 是查询时间范围的起点，包含该时刻并且必须对齐到整分钟。
   google.protobuf.Timestamp start_time = 1;
-  // end_time 是查询时间范围的终点，不包含该时刻。
+  // end_time 是查询时间范围的终点，不包含该时刻并且必须对齐到整分钟。
   google.protobuf.Timestamp end_time = 2;
   // gateway_id 只统计经过指定 Gateway 的请求。
   string gateway_id = 3;

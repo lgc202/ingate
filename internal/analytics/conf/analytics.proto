@@ -69,14 +69,18 @@ message Data {
     string group_id = 3;
     // client_id 标识当前 Analytics 进程的 Kafka 客户端
     string client_id = 4;
-    // batch_size 限制单轮写入 ClickHouse 的最大记录数
-    uint32 batch_size = 5;
+    // batch_max_records 限制单次从 franz-go 取出并写入 ClickHouse 的最大记录数
+    uint32 batch_max_records = 5;
     // dial_timeout 是单次 Kafka broker 建连超时
     google.protobuf.Duration dial_timeout = 6;
     // sasl 配置 Kafka 身份认证
     SASL sasl = 7;
     // tls 配置 Kafka 传输加密和双向认证
     TLS tls = 8;
+    // fetch_max_wait 是 Kafka broker 等待达到最小拉取字节数的最长时间
+    google.protobuf.Duration fetch_max_wait = 9;
+    // fetch_min_bytes 是 Kafka broker 尝试为单次拉取累积的最小数据量
+    int32 fetch_min_bytes = 10;
   }
   message ClickHouse {
     message TLS {
@@ -95,28 +99,24 @@ message Data {
     repeated string addresses = 1;
     // database 是保存请求记录的数据库名称
     string database = 2;
-    // request_table 是保存请求记录的表名称
-    string request_table = 3;
     // username 是 ClickHouse 用户名
-    string username = 4;
+    string username = 3;
     // password 是 ClickHouse 密码
-    string password = 5;
+    string password = 4;
     // dial_timeout 是单次 ClickHouse 建连超时
-    google.protobuf.Duration dial_timeout = 6;
+    google.protobuf.Duration dial_timeout = 5;
     // write_timeout 限制单批请求记录的入库时间
-    google.protobuf.Duration write_timeout = 7;
+    google.protobuf.Duration write_timeout = 6;
     // max_open_connections 限制 ClickHouse 连接池总连接数
-    uint32 max_open_connections = 8;
+    uint32 max_open_connections = 7;
     // max_idle_connections 限制连接池保留的空闲连接数
-    uint32 max_idle_connections = 9;
+    uint32 max_idle_connections = 8;
     // connection_max_lifetime 限制单个连接的复用时间
-    google.protobuf.Duration connection_max_lifetime = 10;
+    google.protobuf.Duration connection_max_lifetime = 9;
     // tls 配置 ClickHouse 传输加密和双向认证
-    TLS tls = 11;
+    TLS tls = 10;
     // query_timeout 限制单次 ClickHouse 查询时间
-    google.protobuf.Duration query_timeout = 12;
-    // minute_metrics_table 是保存分钟流量统计的表名称
-    string minute_metrics_table = 13;
+    google.protobuf.Duration query_timeout = 11;
   }
   // kafka 提供 ALS 已可靠接收的请求记录
   Kafka kafka = 1;

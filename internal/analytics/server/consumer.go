@@ -26,19 +26,19 @@ type recordCounters struct {
 
 // Consumer 从 Kafka 批量读取 ALS RequestRecord。
 type Consumer struct {
-	client    *kgo.Client
-	recorder  *requestbiz.Recorder
-	logger    *slog.Logger
-	batch     int
-	done      chan struct{}
-	start     chan struct{}
-	cancel    context.CancelFunc
-	stopping  atomic.Bool
-	startOnce sync.Once
-	stopOnce  sync.Once
-	received  atomic.Uint64
-	stored    atomic.Uint64
-	invalid   atomic.Uint64
+	client          *kgo.Client
+	recorder        *requestbiz.Recorder
+	logger          *slog.Logger
+	batchMaxRecords int
+	done            chan struct{}
+	start           chan struct{}
+	cancel          context.CancelFunc
+	stopping        atomic.Bool
+	startOnce       sync.Once
+	stopOnce        sync.Once
+	received        atomic.Uint64
+	stored          atomic.Uint64
+	invalid         atomic.Uint64
 }
 
 // NewConsumer 创建使用手动 offset 提交的消费者组成员。
@@ -69,17 +69,19 @@ func NewConsumer(
 		kgo.DisableAutoCommit(),
 		kgo.BlockRebalanceOnPoll(),
 		kgo.ConsumeResetOffset(kgo.NewOffset().AtStart()),
+		kgo.FetchMinBytes(config.GetFetchMinBytes()),
+		kgo.FetchMaxWait(config.GetFetchMaxWait().AsDuration()),
 	)
 	if err != nil {
 		return nil, err
 	}
 	return &Consumer{
-		client:   client,
-		recorder: recorder,
-		logger:   logger,
-		batch:    int(config.GetBatchSize()),
-		done:     make(chan struct{}),
-		start:    make(chan struct{}),
+		client:          client,
+		recorder:        recorder,
+		logger:          logger,
+		batchMaxRecords: int(config.GetBatchMaxRecords()),
+		done:            make(chan struct{}),
+		start:           make(chan struct{}),
 	}, nil
 }
 
@@ -93,13 +95,18 @@ func (c *Consumer) Start(ctx context.Context) error {
 	defer close(c.done)
 	defer c.client.CloseAllowingRebalance()
 	for {
-		fetches := c.client.PollRecords(ctx, c.batch)
+		fetches := c.client.PollRecords(ctx, c.batchMaxRecords)
 		if ctx.Err() != nil || fetches.IsClientClosed() {
 			return nil
 		}
 		if fetchErrors := fetches.Errors(); len(fetchErrors) > 0 {
 			fetchErr := fetchErrors[0]
-			return fmt.Errorf("fetch Kafka topic %q partition %d: %w", fetchErr.Topic, fetchErr.Partition, fetchErr.Err)
+			return fmt.Errorf(
+				"fetch Kafka topic %q partition %d: %w",
+				fetchErr.Topic,
+				fetchErr.Partition,
+				fetchErr.Err,
+			)
 		}
 		messages := fetches.Records()
 		if len(messages) == 0 {

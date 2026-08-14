@@ -13,7 +13,9 @@ data:
     topic: "ingate.request-records"
     group_id: "ingate-analytics"
     client_id: "ingate-analytics"
-    batch_size: 1000
+    batch_max_records: 5000
+    fetch_min_bytes: 262144
+    fetch_max_wait: "1s"
     dial_timeout: "5s"
     sasl:
       mechanism: ""
@@ -28,8 +30,6 @@ data:
   clickhouse:
     addresses: ["127.0.0.1:9000"]
     database: "ingate"
-    request_table: "request_records"
-    minute_metrics_table: "request_metrics_1m"
     username: "default"
     password: ""
     dial_timeout: "5s"
