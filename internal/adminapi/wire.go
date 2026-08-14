@@ -1,6 +1,6 @@
 //go:build wireinject
 
-package main
+package adminapi
 
 import (
 	"log/slog"
@@ -31,9 +31,14 @@ import (
 	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 )
 
-func wireApp(*conf.Server, *conf.Data, *conf.Authentication, *slog.Logger, serviceInstanceID) (*kratos.App, func(), error) {
+func wireApp(
+	*conf.Server,
+	*conf.Data,
+	*conf.Authentication,
+	*slog.Logger,
+	serviceInstanceID,
+) (*kratos.App, error) {
 	panic(wire.Build(
-		server.NewHTTPServer,
 		auth.NewAuthenticator,
 		data.ProviderSet,
 		biz.NewPolicyUsageFinder,
@@ -44,15 +49,16 @@ func wireApp(*conf.Server, *conf.Data, *conf.Authentication, *slog.Logger, servi
 		ratelimitbiz.NewUsecase,
 		iprestrictionbiz.NewUsecase,
 		configurationbiz.NewUsecase,
+		authenticationservice.NewService,
 		gatewayservice.NewService,
 		routeservice.NewService,
 		upstreamservice.NewService,
 		certificateservice.NewService,
-		authenticationservice.NewService,
 		ratelimitservice.NewService,
 		iprestrictionservice.NewService,
 		configurationservice.NewService,
 		healthservice.NewService,
-		newApp,
+		server.NewHTTPServer,
+		newKratosApp,
 	))
 }

@@ -19,6 +19,9 @@ func (c *Bootstrap) Validate() error {
 	if http.GetTimeout() == nil || http.GetTimeout().AsDuration() <= 0 {
 		return errors.New("server http timeout must be greater than zero")
 	}
+	if c.GetServer().GetShutdownTimeout() == nil || c.GetServer().GetShutdownTimeout().AsDuration() <= 0 {
+		return errors.New("server shutdown timeout must be greater than zero")
+	}
 	if c.GetData() == nil || c.GetData().GetApiserver() == nil {
 		return errors.New("apiserver config is required")
 	}

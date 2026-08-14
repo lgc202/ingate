@@ -4,7 +4,7 @@
 //go:build !wireinject
 // +build !wireinject
 
-package main
+package adminapi
 
 import (
 	"github.com/go-kratos/kratos/v3"
@@ -33,21 +33,17 @@ import (
 	"log/slog"
 )
 
-import (
-	_ "go.uber.org/automaxprocs"
-)
-
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *conf.Authentication, logger *slog.Logger, mainServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *conf.Authentication, logger *slog.Logger, adminapiServiceInstanceID serviceInstanceID) (*kratos.App, error) {
 	authenticator, err := auth.NewAuthenticator(confAuthentication)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	service := authentication.NewService(confAuthentication)
 	dataData, err := data.NewData(confData)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	versionedInterface := data.NewResourceClient(dataData)
 	gatewayRepository := apiserver.NewGatewayRepository(versionedInterface)
@@ -73,7 +69,6 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *c
 	configurationService := configuration2.NewService(configurationUsecase)
 	healthService := health.NewService()
 	httpServer := server.NewHTTPServer(confServer, logger, authenticator, service, gatewayService, routeService, upstreamService, certificateService, ratelimitService, iprestrictionService, configurationService, healthService)
-	app := newApp(logger, httpServer, mainServiceInstanceID)
-	return app, func() {
-	}, nil
+	app := newKratosApp(logger, confServer, httpServer, adminapiServiceInstanceID)
+	return app, nil
 }

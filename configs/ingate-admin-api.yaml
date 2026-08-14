@@ -2,6 +2,7 @@ server:
   http:
     addr: ":8082"
     timeout: "30s"
+  shutdown_timeout: "30s"
 
 data:
   apiserver:
