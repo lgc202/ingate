@@ -4,7 +4,7 @@
 //go:build !wireinject
 // +build !wireinject
 
-package main
+package analytics
 
 import (
 	"github.com/go-kratos/kratos/v3"
@@ -18,13 +18,9 @@ import (
 	"log/slog"
 )
 
-import (
-	_ "go.uber.org/automaxprocs"
-)
-
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, mainServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, analyticsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
 	store, cleanup, err := data.NewClickHouseStore(confData, logger)
 	if err != nil {
 		return nil, nil, err
@@ -41,7 +37,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, 
 	trafficQueries := traffic.NewQueries(store)
 	trafficService := traffic2.NewService(trafficQueries)
 	grpcServer := server.NewGRPCServer(confServer, service, trafficService)
-	app := newApp(logger, confServer, httpServer, grpcServer, consumer, mainServiceInstanceID)
+	app := newKratosApp(logger, confServer, httpServer, grpcServer, consumer, analyticsServiceInstanceID)
 	return app, func() {
 		cleanup()
 	}, nil
