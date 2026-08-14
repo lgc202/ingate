@@ -46,7 +46,8 @@ func NewApp(configFile string) (*App, error) {
 
 	kratosApp, cleanup, err := wireApp(
 		bootstrap.GetServer(),
-		bootstrap.GetData(),
+		bootstrap.GetData().GetKafka(),
+		bootstrap.GetData().GetClickHouse(),
 		logger,
 		instanceID,
 	)

@@ -22,10 +22,10 @@ var ProviderSet = wire.NewSet(
 
 // NewClickHouseStore 创建 ClickHouse 存储，并把连接释放交给 Wire cleanup
 func NewClickHouseStore(
-	config *conf.Data,
+	config *conf.Data_ClickHouse,
 	logger *slog.Logger,
 ) (*clickhouse.Store, func(), error) {
-	store, err := clickhouse.NewStore(config.GetClickHouse())
+	store, err := clickhouse.NewStore(config)
 	if err != nil {
 		return nil, nil, err
 	}

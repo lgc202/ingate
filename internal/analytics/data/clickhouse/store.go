@@ -3,17 +3,15 @@ package clickhouse
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
-	clickhousego "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
+	"github.com/lgc202/ingate/pkg/clickhousex"
+	"github.com/lgc202/ingate/pkg/tlsx"
 )
 
 var errNotImplemented = errors.New("ClickHouse analytics storage is not implemented")
@@ -31,27 +29,26 @@ type Store struct {
 
 // NewStore 创建 ClickHouse 存储。
 func NewStore(config *conf.Data_ClickHouse) (*Store, error) {
-	tlsConfig, err := newTLSConfig(config.GetTls())
-	if err != nil {
-		return nil, err
-	}
-	connection, err := clickhousego.Open(&clickhousego.Options{
-		Addr: config.GetAddresses(),
-		Auth: clickhousego.Auth{
-			Database: config.GetDatabase(),
-			Username: config.GetUsername(),
-			Password: config.GetPassword(),
+	connection, err := clickhousex.NewClient(clickhousex.Config{
+		Addresses:             config.GetAddresses(),
+		Database:              config.GetDatabase(),
+		Username:              config.GetUsername(),
+		Password:              config.GetPassword(),
+		DialTimeout:           config.GetDialTimeout().AsDuration(),
+		ReadTimeout:           config.GetWriteTimeout().AsDuration(),
+		MaxOpenConnections:    int(config.GetMaxOpenConnections()),
+		MaxIdleConnections:    int(config.GetMaxIdleConnections()),
+		ConnectionMaxLifetime: config.GetConnectionMaxLifetime().AsDuration(),
+		TLS: tlsx.ClientConfig{
+			Enabled:         config.GetTls().GetEnabled(),
+			CAFile:          config.GetTls().GetCaFile(),
+			CertificateFile: config.GetTls().GetCertFile(),
+			PrivateKeyFile:  config.GetTls().GetKeyFile(),
+			ServerName:      config.GetTls().GetServerName(),
 		},
-		TLS:             tlsConfig,
-		Compression:     &clickhousego.Compression{Method: clickhousego.CompressionLZ4},
-		DialTimeout:     config.GetDialTimeout().AsDuration(),
-		ReadTimeout:     config.GetWriteTimeout().AsDuration(),
-		MaxOpenConns:    int(config.GetMaxOpenConnections()),
-		MaxIdleConns:    int(config.GetMaxIdleConnections()),
-		ConnMaxLifetime: config.GetConnectionMaxLifetime().AsDuration(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("open ClickHouse: %w", err)
+		return nil, err
 	}
 	return &Store{
 		connection:         connection,
@@ -76,33 +73,4 @@ func (s *Store) Close() error {
 		return fmt.Errorf("close ClickHouse: %w", err)
 	}
 	return nil
-}
-
-func newTLSConfig(config *conf.Data_ClickHouse_TLS) (*tls.Config, error) {
-	if config == nil || !config.GetEnabled() {
-		return nil, nil
-	}
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		ServerName: config.GetServerName(),
-	}
-	if config.GetCaFile() != "" {
-		pem, err := os.ReadFile(config.GetCaFile())
-		if err != nil {
-			return nil, fmt.Errorf("read ClickHouse CA certificate: %w", err)
-		}
-		roots := x509.NewCertPool()
-		if !roots.AppendCertsFromPEM(pem) {
-			return nil, errors.New("parse ClickHouse CA certificate")
-		}
-		tlsConfig.RootCAs = roots
-	}
-	if config.GetCertFile() != "" {
-		certificate, err := tls.LoadX509KeyPair(config.GetCertFile(), config.GetKeyFile())
-		if err != nil {
-			return nil, fmt.Errorf("load ClickHouse client certificate: %w", err)
-		}
-		tlsConfig.Certificates = []tls.Certificate{certificate}
-	}
-	return tlsConfig, nil
 }
