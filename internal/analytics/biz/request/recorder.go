@@ -18,9 +18,7 @@ func NewRecorder(store RecordStore) *Recorder {
 }
 
 // Record 保存一批已经通过协议边界校验的请求记录
-//
-// idempotencyKey 由接入端根据消息来源生成，完全相同的批次重试必须传入同一个值
-func (r *Recorder) Record(ctx context.Context, idempotencyKey string, records []*alsv1.RequestRecord) error {
+func (r *Recorder) Record(ctx context.Context, records []*alsv1.RequestRecord) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -31,7 +29,7 @@ func (r *Recorder) Record(ctx context.Context, idempotencyKey string, records []
 			StatusClass: classifyStatus(record.GetStatusCode()),
 		})
 	}
-	return r.store.SaveRequestBatch(ctx, idempotencyKey, facts)
+	return r.store.SaveRequestBatch(ctx, facts)
 }
 
 func classifyStatus(status uint32) StatusClass {
