@@ -2,7 +2,7 @@ package request
 
 import "context"
 
-// Queries 提供请求明细查询
+// Queries 提供不依赖 ClickHouse 协议的请求明细查询入口
 type Queries struct {
 	store QueryStore
 }

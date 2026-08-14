@@ -16,6 +16,9 @@ const (
 	maxPageSize     = 200
 )
 
+// pageTokenPayload 是管理面不可解释的分页 Token 内部载荷
+//
+// StartedAt 和 ID 对应 ClickHouse 的倒序排序键，避免 OFFSET 深分页扫描
 type pageTokenPayload struct {
 	StartedAt int64  `json:"started_at"`
 	ID        string `json:"id"`

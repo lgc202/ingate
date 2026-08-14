@@ -1,4 +1,6 @@
-// Package request 实现请求明细查询协议
+// Package request 实现请求明细查询的 gRPC 协议转换
+//
+// 该层只负责请求校验、分页 Token 和 Proto 转换，查询语义由 biz/request 承载
 package request
 
 import (
@@ -10,7 +12,7 @@ import (
 	requestbiz "github.com/lgc202/ingate/internal/analytics/biz/request"
 )
 
-// Service 实现请求明细查询 API
+// Service 实现 Analytics RequestService gRPC API
 type Service struct {
 	queries *requestbiz.Queries
 }
@@ -21,6 +23,8 @@ func NewService(queries *requestbiz.Queries) *Service {
 }
 
 // ListRequests 按时间倒序分页查询请求明细
+//
+// 返回值沿用 ALS RequestRecord，避免同一条请求元数据维护两套公共协议
 func (s *Service) ListRequests(
 	ctx context.Context,
 	request *analyticsv1.ListRequestsRequest,

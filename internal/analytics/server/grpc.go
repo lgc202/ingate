@@ -9,7 +9,9 @@ import (
 	trafficservice "github.com/lgc202/ingate/internal/analytics/service/traffic"
 )
 
-// NewGRPCServer 创建供管理面查询请求分析结果的 gRPC 服务。
+// NewGRPCServer 创建供 Admin API 查询请求明细和流量分析结果的 gRPC 服务
+//
+// Analytics 不直接向控制台浏览器开放，资源名称和前端响应组装由 Admin API 负责
 func NewGRPCServer(
 	config *conf.Server,
 	requestService *requestservice.Service,

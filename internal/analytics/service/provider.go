@@ -8,7 +8,7 @@ import (
 	trafficservice "github.com/lgc202/ingate/internal/analytics/service/traffic"
 )
 
-// ProviderSet 汇总 Analytics 的协议服务
+// ProviderSet 汇总请求明细和流量分析两组 gRPC 协议实现
 var ProviderSet = wire.NewSet(
 	requestservice.NewService,
 	trafficservice.NewService,

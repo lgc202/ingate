@@ -2,11 +2,8 @@ package clickhouse
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -19,6 +16,7 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 )
 
+// requestColumns 同时用于 INSERT 和 SELECT，顺序必须与 Append 及 Scan 一致
 const requestColumns = `
     id,
     request_id,
@@ -44,15 +42,21 @@ const requestColumns = `
 
 // SaveRequestBatch 批量保存请求事实
 //
-// 相同记录集合使用稳定 token，使 Kafka 在未收到确认时重投同一批数据不会重复更新分钟聚合视图
-func (s *Store) SaveRequestBatch(ctx context.Context, facts []request.Fact) (err error) {
+// idempotencyKey 在完全相同的 facts 重试时必须保持不变，使常见的
+// “ClickHouse 已写入但上游位点未提交”重试不会重复更新请求明细和分钟聚合视图
+//
+// 该机制是 At Least Once 下的幂等重试，不宣称跨任意批次边界的 Exactly Once
+func (s *Store) SaveRequestBatch(ctx context.Context, idempotencyKey string, facts []request.Fact) (err error) {
 	if len(facts) == 0 {
 		return nil
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, s.writeTimeout)
 	defer cancel()
+	// Kafka 只有在入库成功后才提交 offset，两步之间崩溃会重投同一批消息
+	// 稳定 Token 让明细表拒绝重复 Block；第二个设置让依赖的分钟物化视图同样去重
+	// 它们只对内容和顺序完全相同的重试有效，不等于 Kafka 与 ClickHouse 的分布式事务
 	writeCtx = clickhousego.Context(writeCtx, clickhousego.WithSettings(clickhousego.Settings{
-		"insert_deduplication_token":                         requestBatchToken(facts),
+		"insert_deduplication_token":                         idempotencyKey,
 		"deduplicate_blocks_in_dependent_materialized_views": 1,
 	}))
 
@@ -105,9 +109,14 @@ func (s *Store) SaveRequestBatch(ctx context.Context, facts []request.Fact) (err
 }
 
 // ListRequests 按时间和 ID 倒序分页查询短期保留的请求明细
+//
+// FINAL 保证 ReplacingMergeTree 尚未后台合并时也只返回一个请求事实；时间和 ID
+// 游标避免高页码 OFFSET 在 ClickHouse 中重复扫描旧记录
 func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (page request.Page, err error) {
 	queryCtx, cancel := context.WithTimeout(ctx, s.queryTimeout)
 	defer cancel()
+	// 同一请求的重投记录保持 started_at 不变，必然落在同一月分区；FINAL 可以安全地
+	// 分区内并行去重，无需跨分区合并全部结果
 	queryCtx = clickhousego.Context(queryCtx, clickhousego.WithSettings(clickhousego.Settings{
 		"do_not_merge_across_partitions_select_final": 1,
 	}))
@@ -155,6 +164,7 @@ func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (
 	return page, nil
 }
 
+// appendRequestFilters 只拼接预定义列，所有用户输入继续作为 ClickHouse 参数传递
 func appendRequestFilters(statement *strings.Builder, args []any, options request.ListOptions) []any {
 	filter := options.Filter
 	if filter.GatewayID != "" {
@@ -200,6 +210,7 @@ func appendRequestFilters(statement *strings.Builder, args []any, options reques
 	return args
 }
 
+// scanRequestRecord 把 ClickHouse 的紧凑数值类型还原为公共 ALS Proto 类型
 func scanRequestRecord(rows driver.Rows) (*alsv1.RequestRecord, error) {
 	var (
 		record            alsv1.RequestRecord
@@ -241,16 +252,6 @@ func scanRequestRecord(rows driver.Rows) (*alsv1.RequestRecord, error) {
 	record.UpstreamAttempts = uint32(upstreamAttempts)
 	record.TimeToFirstByte = protobufDuration(timeToFirstByteNS)
 	return &record, nil
-}
-
-func requestBatchToken(facts []request.Fact) string {
-	ids := make([]string, 0, len(facts))
-	for _, fact := range facts {
-		ids = append(ids, fact.Record.GetId())
-	}
-	slices.Sort(ids)
-	sum := sha256.Sum256([]byte(strings.Join(ids, "\x00")))
-	return hex.EncodeToString(sum[:])
 }
 
 func durationNanoseconds(duration *durationpb.Duration) *uint64 {

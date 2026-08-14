@@ -45,6 +45,7 @@ func buildBreakdownQuery(request *analyticsv1.ListTrafficBreakdownRequest) (traf
 	return trafficbiz.BreakdownQuery{Filter: filter, Dimension: dimension, Limit: limit}, nil
 }
 
+// 分钟聚合表无法准确表达分钟内的局部时间范围，因此协议边界必须对齐到整分钟
 func buildFilter(filter *analyticsv1.TrafficFilter) (trafficbiz.Filter, error) {
 	start := filter.GetStartTime()
 	end := filter.GetEndTime()

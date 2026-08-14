@@ -1,4 +1,6 @@
-// Package traffic 实现流量和延迟聚合查询协议
+// Package traffic 实现流量和延迟聚合查询的 gRPC 协议转换
+//
+// 该层把公共时间粒度和资源维度转换为 biz 类型，不拼接 ClickHouse 查询
 package traffic
 
 import (
@@ -11,7 +13,7 @@ import (
 	trafficbiz "github.com/lgc202/ingate/internal/analytics/biz/traffic"
 )
 
-// Service 实现流量分析查询 API
+// Service 实现 Analytics TrafficService gRPC API
 type Service struct {
 	queries *trafficbiz.Queries
 }
