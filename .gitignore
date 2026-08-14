@@ -4,6 +4,9 @@
 /web/console/node_modules/
 /web/console/dist/
 /web/console/*.tsbuildinfo
+/web/prototype/node_modules/
+/web/prototype/dist/
+/web/prototype/*.tsbuildinfo
 .env
 .DS_Store
 *.log
