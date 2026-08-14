@@ -17,7 +17,8 @@ import (
 
 func wireApp(
 	*conf.Server,
-	*conf.Data,
+	*conf.Data_Kafka,
+	*conf.Data_ClickHouse,
 	*slog.Logger,
 	serviceInstanceID,
 ) (*kratos.App, func(), error) {

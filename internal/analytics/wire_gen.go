@@ -20,13 +20,13 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, analyticsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
-	store, cleanup, err := data.NewClickHouseStore(confData, logger)
+func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_ClickHouse *conf.Data_ClickHouse, logger *slog.Logger, analyticsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+	store, cleanup, err := data.NewClickHouseStore(data_ClickHouse, logger)
 	if err != nil {
 		return nil, nil, err
 	}
 	recorder := request.NewRecorder(store)
-	consumer, err := server.NewConsumer(confData, recorder, logger)
+	consumer, err := server.NewConsumer(data_Kafka, recorder, logger)
 	if err != nil {
 		cleanup()
 		return nil, nil, err

@@ -3,20 +3,15 @@ package kafka
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/twmb/franz-go/pkg/kgo"
-	"github.com/twmb/franz-go/pkg/sasl"
-	"github.com/twmb/franz-go/pkg/sasl/plain"
-	"github.com/twmb/franz-go/pkg/sasl/scram"
 	"google.golang.org/protobuf/proto"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/als/conf"
+	"github.com/lgc202/ingate/pkg/kafkax"
+	"github.com/lgc202/ingate/pkg/tlsx"
 )
 
 const (
@@ -34,31 +29,29 @@ type Writer struct {
 // franz-go 默认启用幂等 producer；AllISRAcks 使成功返回代表当前 ISR 已确认，
 // ALS 才能据此安全删除本地 WAL 中对应的积压记录
 func NewWriter(config *conf.Data_Kafka) (*Writer, error) {
-	options := []kgo.Opt{
-		kgo.SeedBrokers(config.GetBrokers()...),
+	client, err := kafkax.NewClient(kafkax.Config{
+		Brokers:     config.GetBrokers(),
+		DialTimeout: config.GetDialTimeout().AsDuration(),
+		SASL: kafkax.SASL{
+			Mechanism: config.GetSasl().GetMechanism(),
+			Username:  config.GetSasl().GetUsername(),
+			Password:  config.GetSasl().GetPassword(),
+		},
+		TLS: tlsx.ClientConfig{
+			Enabled:         config.GetTls().GetEnabled(),
+			CAFile:          config.GetTls().GetCaFile(),
+			CertificateFile: config.GetTls().GetCertFile(),
+			PrivateKeyFile:  config.GetTls().GetKeyFile(),
+			ServerName:      config.GetTls().GetServerName(),
+		},
+	},
 		kgo.DefaultProduceTopic(config.GetTopic()),
 		kgo.RequiredAcks(kgo.AllISRAcks()),
 		kgo.ProducerBatchCompression(kgo.ZstdCompression()),
 		kgo.RecordDeliveryTimeout(config.GetWriteTimeout().AsDuration()),
-		kgo.DialTimeout(config.GetDialTimeout().AsDuration()),
-	}
-	mechanism, err := saslMechanism(config.GetSasl())
+	)
 	if err != nil {
 		return nil, err
-	}
-	if mechanism != nil {
-		options = append(options, kgo.SASL(mechanism))
-	}
-	tlsConfig, err := kafkaTLSConfig(config.GetTls())
-	if err != nil {
-		return nil, err
-	}
-	if tlsConfig != nil {
-		options = append(options, kgo.DialTLSConfig(tlsConfig))
-	}
-	client, err := kgo.NewClient(options...)
-	if err != nil {
-		return nil, fmt.Errorf("create Kafka client: %w", err)
 	}
 	return &Writer{client: client}, nil
 }
@@ -99,49 +92,4 @@ func (w *Writer) Write(ctx context.Context, records []*alsv1.RequestRecord) erro
 // Close 等待客户端结束内部工作并释放连接
 func (w *Writer) Close() {
 	w.client.Close()
-}
-
-func saslMechanism(config *conf.Data_Kafka_SASL) (sasl.Mechanism, error) {
-	if config == nil || config.GetMechanism() == "" {
-		return nil, nil
-	}
-	switch strings.ToUpper(config.GetMechanism()) {
-	case "PLAIN":
-		return plain.Auth{User: config.GetUsername(), Pass: config.GetPassword()}.AsMechanism(), nil
-	case "SCRAM-SHA-256":
-		return scram.Auth{User: config.GetUsername(), Pass: config.GetPassword()}.AsSha256Mechanism(), nil
-	case "SCRAM-SHA-512":
-		return scram.Auth{User: config.GetUsername(), Pass: config.GetPassword()}.AsSha512Mechanism(), nil
-	default:
-		return nil, fmt.Errorf("unsupported Kafka SASL mechanism %q", config.GetMechanism())
-	}
-}
-
-func kafkaTLSConfig(config *conf.Data_Kafka_TLS) (*tls.Config, error) {
-	if config == nil || !config.GetEnabled() {
-		return nil, nil
-	}
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		ServerName: config.GetServerName(),
-	}
-	if config.GetCaFile() != "" {
-		pem, err := os.ReadFile(config.GetCaFile())
-		if err != nil {
-			return nil, fmt.Errorf("read Kafka CA certificate: %w", err)
-		}
-		roots := x509.NewCertPool()
-		if !roots.AppendCertsFromPEM(pem) {
-			return nil, fmt.Errorf("parse Kafka CA certificate")
-		}
-		tlsConfig.RootCAs = roots
-	}
-	if config.GetCertFile() != "" {
-		certificate, err := tls.LoadX509KeyPair(config.GetCertFile(), config.GetKeyFile())
-		if err != nil {
-			return nil, fmt.Errorf("load Kafka client certificate: %w", err)
-		}
-		tlsConfig.Certificates = []tls.Certificate{certificate}
-	}
-	return tlsConfig, nil
 }
