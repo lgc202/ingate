@@ -17,7 +17,8 @@ import (
 
 func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, delivery *conf.Delivery, resourceWatch *conf.ResourceWatch, logger *slog.Logger, controllerServiceInstanceID serviceInstanceID) (*kratos.App, error) {
 	snapshotCache := newSnapshotCache(logger)
-	deliveryDelivery, err := newDelivery(delivery, snapshotCache)
+	publisher := newXDSPublisher(snapshotCache)
+	deliveryDelivery, err := newDelivery(delivery, publisher)
 	if err != nil {
 		return nil, err
 	}
@@ -28,10 +29,12 @@ func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, deliv
 	if err != nil {
 		return nil, err
 	}
-	reconciler, err := newReconciler(resourceWatch, versionedInterface, deliveryDelivery, logger)
+	resourceWatcher, err := newResourceWatcher(resourceWatch, versionedInterface)
 	if err != nil {
 		return nil, err
 	}
-	app := newKratosApp(logger, confServer, httpServer, grpcServer, deliveryDelivery, reconciler, controllerServiceInstanceID)
+	writer := newStatusWriter(versionedInterface)
+	controller := newController(resourceWatcher, writer, deliveryDelivery, logger)
+	app := newKratosApp(logger, confServer, httpServer, grpcServer, deliveryDelivery, controller, controllerServiceInstanceID)
 	return app, nil
 }

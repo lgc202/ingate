@@ -2,53 +2,60 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
-	"k8s.io/client-go/tools/clientcmd"
 
+	"github.com/lgc202/ingate/internal/controller/biz"
+	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 	"github.com/lgc202/ingate/internal/controller/conf"
-	"github.com/lgc202/ingate/internal/controller/delivery"
-	"github.com/lgc202/ingate/internal/controller/reconcile"
-	"github.com/lgc202/ingate/internal/controller/xds"
+	controllerdata "github.com/lgc202/ingate/internal/controller/data/apiserver"
+	controllerstatus "github.com/lgc202/ingate/internal/controller/data/apiserver/status"
+	"github.com/lgc202/ingate/internal/controller/server/xds"
 	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
 func newAPIClient(config *conf.Data_APIServer) (clientset.Interface, error) {
-	restConfig, err := clientcmd.BuildConfigFromFlags(config.GetMaster(), config.GetKubeconfig())
-	if err != nil {
-		return nil, fmt.Errorf("build API Server client config: %w", err)
-	}
-	client, err := clientset.NewForConfig(restConfig)
-	if err != nil {
-		return nil, fmt.Errorf("create API Server resource client: %w", err)
-	}
-	return client, nil
+	return controllerdata.NewClient(config.GetMaster(), config.GetKubeconfig())
+}
+
+func newResourceWatcher(
+	config *conf.ResourceWatch,
+	client clientset.Interface,
+) (*controllerdata.ResourceWatcher, error) {
+	return controllerdata.NewResourceWatcher(client, config.GetResyncPeriod().AsDuration())
+}
+
+func newStatusWriter(client clientset.Interface) *controllerstatus.Writer {
+	return controllerstatus.NewWriter(client.GatewayV1())
 }
 
 func newSnapshotCache(logger *slog.Logger) cachev3.SnapshotCache {
 	return xds.NewSnapshotCache(xds.NewSlogLogger(logger.With("component", "xds")))
 }
 
-func newDelivery(config *conf.Delivery, cache cachev3.SnapshotCache) (*delivery.Delivery, error) {
-	return delivery.New(cache, delivery.Options{
+func newXDSPublisher(cache cachev3.SnapshotCache) *xds.Publisher {
+	return xds.NewPublisher(cache)
+}
+
+func newDelivery(config *conf.Delivery, publisher *xds.Publisher) (*delivery.Delivery, error) {
+	return delivery.New(publisher, delivery.Options{
 		ACKTimeout:          config.GetCandidateAckTimeout().AsDuration(),
 		NACKRollbackTimeout: config.GetNackRollbackTimeout().AsDuration(),
 	})
 }
 
-func newReconciler(
-	config *conf.ResourceWatch,
-	client clientset.Interface,
+func newController(
+	resources *controllerdata.ResourceWatcher,
+	statusWriter *controllerstatus.Writer,
 	configDelivery *delivery.Delivery,
 	logger *slog.Logger,
-) (*reconcile.Reconciler, error) {
-	return reconcile.New(
-		client,
-		config.GetResyncPeriod().AsDuration(),
+) *biz.Controller {
+	return biz.NewController(
+		resources,
+		statusWriter,
 		configDelivery,
-		logger.With("component", "reconcile"),
+		logger.With("component", "controller"),
 	)
 }
 

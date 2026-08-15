@@ -22,9 +22,12 @@ func wireApp(
 ) (*kratos.App, error) {
 	panic(wire.Build(
 		newAPIClient,
+		newResourceWatcher,
+		newStatusWriter,
 		newSnapshotCache,
+		newXDSPublisher,
 		newDelivery,
-		newReconciler,
+		newController,
 		newXDSService,
 		controllerserver.NewHTTPServer,
 		controllerserver.NewGRPCServer,

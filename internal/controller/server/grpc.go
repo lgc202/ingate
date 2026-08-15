@@ -6,7 +6,7 @@ import (
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 
 	"github.com/lgc202/ingate/internal/controller/conf"
-	"github.com/lgc202/ingate/internal/controller/xds"
+	"github.com/lgc202/ingate/internal/controller/server/xds"
 )
 
 // NewGRPCServer 创建并注册 Envoy ADS 服务
