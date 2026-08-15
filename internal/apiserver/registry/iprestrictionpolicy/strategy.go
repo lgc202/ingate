@@ -15,7 +15,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	"github.com/lgc202/ingate/internal/apiserver/registry/policytarget"
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
@@ -125,7 +125,7 @@ func validatePolicy(policy *resource.IPRestrictionPolicy) field.ErrorList {
 	if policy.Spec.DisplayName == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
-	errs = append(errs, policytarget.ValidateRefs(policy.Spec.TargetRefs, specPath.Child("targetRefs"))...)
+	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(policy.Spec.TargetRefs, specPath.Child("targetRefs"))...)
 
 	hasAllow := len(policy.Spec.Allow) > 0
 	hasDeny := len(policy.Spec.Deny) > 0

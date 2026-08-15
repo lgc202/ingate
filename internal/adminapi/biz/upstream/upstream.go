@@ -49,12 +49,11 @@ func (u *Usecase) Get(ctx context.Context, upstreamID string) (*resource.Upstrea
 
 // Create 创建 Upstream
 func (u *Usecase) Create(ctx context.Context, spec resource.UpstreamSpec) (*resource.Upstream, error) {
-	id := uuid.NewString()
-	upstream, err := u.repository.Create(ctx, id, spec)
-	if err != nil {
-		return nil, biz.DisplayNameConflict(err, "服务", spec.DisplayName)
+	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+		return nil, err
 	}
-	return upstream, nil
+	id := uuid.NewString()
+	return u.repository.Create(ctx, id, spec)
 }
 
 // Update 使用配置版本乐观更新 Upstream
@@ -71,12 +70,17 @@ func (u *Usecase) Update(
 	if version != current.Generation {
 		return nil, upstreamVersionConflict(current)
 	}
+	if spec.DisplayName != current.Spec.DisplayName {
+		if err := u.validateDisplayName(ctx, upstreamID, spec.DisplayName); err != nil {
+			return nil, err
+		}
+	}
 	updated, err := u.repository.Update(ctx, upstreamID, current.Generation, spec)
 	if err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, upstreamVersionConflict(current)
 		}
-		return nil, biz.DisplayNameConflict(err, "服务", spec.DisplayName)
+		return nil, err
 	}
 	return updated, nil
 }
@@ -107,6 +111,15 @@ func (u *Usecase) Delete(ctx context.Context, upstreamID string, version int64) 
 		return err
 	}
 	return nil
+}
+
+func (u *Usecase) validateDisplayName(ctx context.Context, upstreamID, displayName string) error {
+	return biz.VisitPages(ctx, u.repository.ListPage, func(upstream resource.Upstream) (bool, error) {
+		if upstream.Name != upstreamID && upstream.Spec.DisplayName == displayName {
+			return true, biz.NewUserError(fmt.Sprintf("服务名称 %q 已存在", displayName))
+		}
+		return false, nil
+	})
 }
 
 func routeDisplayName(route resource.Route) string {

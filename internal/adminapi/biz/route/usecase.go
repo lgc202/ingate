@@ -66,16 +66,15 @@ func (u *Usecase) Get(ctx context.Context, routeID string) (*resource.Route, err
 
 // Create 创建 Route
 func (u *Usecase) Create(ctx context.Context, spec resource.RouteSpec) (*resource.Route, error) {
+	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+		return nil, err
+	}
 	if err := u.validateReferences(ctx, spec); err != nil {
 		return nil, err
 	}
 
 	id := uuid.NewString()
-	route, err := u.repository.Create(ctx, id, spec)
-	if err != nil {
-		return nil, biz.DisplayNameConflict(err, "路由", spec.DisplayName)
-	}
-	return route, nil
+	return u.repository.Create(ctx, id, spec)
 }
 
 // Update 使用配置版本乐观更新 Route
@@ -92,6 +91,11 @@ func (u *Usecase) Update(
 	if version != current.Generation {
 		return nil, routeVersionConflict(current)
 	}
+	if spec.DisplayName != current.Spec.DisplayName {
+		if err := u.validateDisplayName(ctx, routeID, spec.DisplayName); err != nil {
+			return nil, err
+		}
+	}
 	if err := u.validateReferences(ctx, spec); err != nil {
 		return nil, err
 	}
@@ -101,7 +105,7 @@ func (u *Usecase) Update(
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, routeVersionConflict(current)
 		}
-		return nil, biz.DisplayNameConflict(err, "路由", spec.DisplayName)
+		return nil, err
 	}
 	return updated, nil
 }
@@ -129,6 +133,15 @@ func (u *Usecase) Delete(ctx context.Context, routeID string, version int64) err
 		return err
 	}
 	return nil
+}
+
+func (u *Usecase) validateDisplayName(ctx context.Context, routeID, displayName string) error {
+	return biz.VisitPages(ctx, u.repository.ListPage, func(route resource.Route) (bool, error) {
+		if route.Name != routeID && route.Spec.DisplayName == displayName {
+			return true, biz.NewUserError(fmt.Sprintf("路由名称 %q 已存在", displayName))
+		}
+		return false, nil
+	})
 }
 
 func routeVersionConflict(route *resource.Route) error {

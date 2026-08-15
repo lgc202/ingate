@@ -5,7 +5,6 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
-	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	certificatestorage "github.com/lgc202/ingate/internal/apiserver/registry/certificate"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
 	iprestrictionpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/iprestrictionpolicy"
@@ -19,7 +18,6 @@ import (
 func installResources(
 	genericServer *genericapiserver.GenericAPIServer,
 	config genericapiserver.CompletedConfig,
-	displayNameGuard *apiregistry.DisplayNameGuard,
 ) error {
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
 		gatewayv1.GroupName,
@@ -43,32 +41,32 @@ func installResources(
 	}
 
 	if err := installStatusStorage(gatewayv1.ResourceGateways, gatewayv1.ResourceGatewaysStatus, func() (rest.Storage, rest.Storage, error) {
-		return gatewaystorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
+		return gatewaystorage.NewREST(config.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceRoutes, gatewayv1.ResourceRoutesStatus, func() (rest.Storage, rest.Storage, error) {
-		return routestorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
+		return routestorage.NewREST(config.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceUpstreams, gatewayv1.ResourceUpstreamsStatus, func() (rest.Storage, rest.Storage, error) {
-		return upstreamstorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
+		return upstreamstorage.NewREST(config.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceCertificates, gatewayv1.ResourceCertificatesStatus, func() (rest.Storage, rest.Storage, error) {
-		return certificatestorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
+		return certificatestorage.NewREST(config.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceRateLimitPolicies, gatewayv1.ResourceRateLimitPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return ratelimitpolicystorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
+		return ratelimitpolicystorage.NewREST(config.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return iprestrictionpolicystorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
+		return iprestrictionpolicystorage.NewREST(config.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return err
 	}
