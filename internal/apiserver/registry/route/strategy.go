@@ -2,7 +2,6 @@ package route
 
 import (
 	"context"
-	"maps"
 	"strings"
 	"time"
 
@@ -13,11 +12,10 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
-
-const gatewayAPIVersion = "gateway.ingate.io/v1"
 
 // strategy 定义 Route 资源在 apiserver 存储前后的处理规则
 type strategy struct {
@@ -43,7 +41,7 @@ func (strategy) NamespaceScoped() bool {
 
 func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
+		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("status"),
 		),
 	}
@@ -54,7 +52,7 @@ func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	route.Status = resource.ResourceStatus{}
 	route.Generation = 1
 	canonicalizeRouteSpec(&route.Spec)
-	setUpdatedAt(&route.ObjectMeta, route.CreationTimestamp.Time)
+	apiregistry.SetUpdatedAt(&route.ObjectMeta, route.CreationTimestamp.Time)
 }
 
 func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
@@ -83,10 +81,10 @@ func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	newRoute.Generation = oldRoute.Generation
 	if !apiequality.Semantic.DeepEqual(oldRoute.Spec, newRoute.Spec) {
 		newRoute.Generation = oldRoute.Generation + 1
-		setUpdatedAt(&newRoute.ObjectMeta, time.Now().UTC())
+		apiregistry.SetUpdatedAt(&newRoute.ObjectMeta, time.Now().UTC())
 		return
 	}
-	preserveUpdatedAt(&newRoute.ObjectMeta, &oldRoute.ObjectMeta)
+	apiregistry.PreserveUpdatedAt(&newRoute.ObjectMeta, &oldRoute.ObjectMeta)
 }
 
 func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
@@ -107,7 +105,7 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
+		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("spec"),
 		),
 	}
@@ -163,25 +161,4 @@ func canonicalizeHeaderModifier(modifier *resource.HeaderModifier) {
 	for i := range modifier.Remove {
 		modifier.Remove[i] = strings.ToLower(strings.TrimSpace(modifier.Remove[i]))
 	}
-}
-
-func setUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
-	metadata.Annotations = maps.Clone(metadata.Annotations)
-	if metadata.Annotations == nil {
-		metadata.Annotations = make(map[string]string, 1)
-	}
-	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt.Format(time.RFC3339Nano)
-}
-
-func preserveUpdatedAt(metadata, oldMetadata *metav1.ObjectMeta) {
-	metadata.Annotations = maps.Clone(metadata.Annotations)
-	delete(metadata.Annotations, resource.AnnotationUpdatedAt)
-	updatedAt := oldMetadata.Annotations[resource.AnnotationUpdatedAt]
-	if updatedAt == "" {
-		return
-	}
-	if metadata.Annotations == nil {
-		metadata.Annotations = make(map[string]string, 1)
-	}
-	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt
 }

@@ -23,9 +23,6 @@ type StorageDefinition struct {
 	StatusStrategy   rest.UpdateResetFieldsStrategy
 }
 
-// REST 实现声明式资源的 generic-apiserver RESTStorage
-type REST = genericregistry.Store
-
 // StatusREST 实现声明式资源的 status 子资源存储
 type StatusREST struct {
 	store *genericregistry.Store
@@ -35,7 +32,7 @@ type StatusREST struct {
 func NewStorage(
 	optsGetter generic.RESTOptionsGetter,
 	definition StorageDefinition,
-) (*REST, *StatusREST, error) {
+) (*genericregistry.Store, *StatusREST, error) {
 	store := &genericregistry.Store{
 		NewFunc:                   definition.NewObject,
 		NewListFunc:               definition.NewList,

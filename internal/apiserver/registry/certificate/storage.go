@@ -4,6 +4,7 @@ package certificate
 import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/registry/generic"
+	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
@@ -13,7 +14,7 @@ import (
 func NewREST(
 	optsGetter generic.RESTOptionsGetter,
 	typer runtime.ObjectTyper,
-) (*apiregistry.REST, *apiregistry.StatusREST, error) {
+) (*genericregistry.Store, *apiregistry.StatusREST, error) {
 	return apiregistry.NewStorage(optsGetter, apiregistry.StorageDefinition{
 		NewObject:        func() runtime.Object { return &resource.Certificate{} },
 		NewList:          func() runtime.Object { return &resource.CertificateList{} },

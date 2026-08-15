@@ -144,7 +144,7 @@ func (x *Server) GetShutdownTimeout() *durationpb.Duration {
 // Data 定义 API Server 的存储依赖
 type Data struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// etcd 保存声明式资源和展示名称唯一索引
+	// etcd 保存声明式资源
 	Etcd          *Data_Etcd `protobuf:"bytes,1,opt,name=etcd,proto3" json:"etcd,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

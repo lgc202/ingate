@@ -2,7 +2,6 @@ package upstream
 
 import (
 	"context"
-	"maps"
 	"strings"
 	"time"
 
@@ -13,10 +12,9 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
-
-const gatewayAPIVersion = "gateway.ingate.io/v1"
 
 const (
 	defaultEndpointWeight             = 1
@@ -48,7 +46,7 @@ func (strategy) NamespaceScoped() bool {
 
 func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
+		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("status"),
 		),
 	}
@@ -59,7 +57,7 @@ func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	upstream.Status = resource.ResourceStatus{}
 	upstream.Generation = 1
 	canonicalizeUpstreamSpec(&upstream.Spec)
-	setUpdatedAt(&upstream.ObjectMeta, upstream.CreationTimestamp.Time)
+	apiregistry.SetUpdatedAt(&upstream.ObjectMeta, upstream.CreationTimestamp.Time)
 }
 
 func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
@@ -88,10 +86,10 @@ func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	newUpstream.Generation = oldUpstream.Generation
 	if !apiequality.Semantic.DeepEqual(oldUpstream.Spec, newUpstream.Spec) {
 		newUpstream.Generation = oldUpstream.Generation + 1
-		setUpdatedAt(&newUpstream.ObjectMeta, time.Now().UTC())
+		apiregistry.SetUpdatedAt(&newUpstream.ObjectMeta, time.Now().UTC())
 		return
 	}
-	preserveUpdatedAt(&newUpstream.ObjectMeta, &oldUpstream.ObjectMeta)
+	apiregistry.PreserveUpdatedAt(&newUpstream.ObjectMeta, &oldUpstream.ObjectMeta)
 }
 
 func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
@@ -112,7 +110,7 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
+		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("spec"),
 		),
 	}
@@ -153,25 +151,4 @@ func canonicalizeUpstreamSpec(spec *resource.UpstreamSpec) {
 			spec.HealthCheck.TimeoutSeconds = defaultHealthCheckTimeoutSeconds
 		}
 	}
-}
-
-func setUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
-	metadata.Annotations = maps.Clone(metadata.Annotations)
-	if metadata.Annotations == nil {
-		metadata.Annotations = make(map[string]string, 1)
-	}
-	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt.Format(time.RFC3339Nano)
-}
-
-func preserveUpdatedAt(metadata, oldMetadata *metav1.ObjectMeta) {
-	metadata.Annotations = maps.Clone(metadata.Annotations)
-	delete(metadata.Annotations, resource.AnnotationUpdatedAt)
-	updatedAt := oldMetadata.Annotations[resource.AnnotationUpdatedAt]
-	if updatedAt == "" {
-		return
-	}
-	if metadata.Annotations == nil {
-		metadata.Annotations = make(map[string]string, 1)
-	}
-	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt
 }
