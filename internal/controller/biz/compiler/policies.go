@@ -25,11 +25,7 @@ func (c *compilation) buildPolicyConfigs(
 
 	routeKeySet := make(map[policyRouteKey]bool)
 	for _, attachment := range attachments {
-		routeKeySet[policyRouteKey{
-			listenerKey: attachment.listenerKey,
-			gatewayID:   attachment.gatewayID,
-			routeID:     attachment.routeID,
-		}] = true
+		routeKeySet[policyRouteKey(attachment)] = true
 	}
 	routeKeys := slices.Collect(maps.Keys(routeKeySet))
 	slices.SortFunc(routeKeys, comparePolicyRouteKeys)

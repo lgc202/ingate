@@ -24,7 +24,7 @@ const usage = `ingate-console 提供 Ingate 控制台
 `
 
 // Run 执行 ingate-console 服务
-func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+func Run(ctx context.Context, args []string, stdout, stderr io.Writer) (err error) {
 	flags := pflag.NewFlagSet("ingate-console", pflag.ContinueOnError)
 	flags.SetOutput(stderr)
 
@@ -32,21 +32,29 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	showVersion := false
 	flags.StringVar(&configPath, "config", configPath, "配置文件路径")
 	flags.BoolVar(&showVersion, "version", showVersion, "显示版本信息")
+	var usageErr error
 	flags.Usage = func() {
-		fmt.Fprint(stdout, usage)
-		fmt.Fprintln(stdout)
+		if _, writeErr := io.WriteString(stdout, usage+"\n"); writeErr != nil {
+			usageErr = writeErr
+			return
+		}
 		flags.SetOutput(stdout)
 		flags.PrintDefaults()
 		flags.SetOutput(stderr)
 	}
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, pflag.ErrHelp) {
+	if parseErr := flags.Parse(args); parseErr != nil {
+		if usageErr != nil {
+			return fmt.Errorf("write command usage: %w", usageErr)
+		}
+		if errors.Is(parseErr, pflag.ErrHelp) {
 			return nil
 		}
-		return err
+		return parseErr
 	}
 	if showVersion {
-		fmt.Fprintln(stdout, version.Get().Text())
+		if _, err := fmt.Fprintln(stdout, version.Get().Text()); err != nil {
+			return fmt.Errorf("write version: %w", err)
+		}
 		return nil
 	}
 
@@ -63,7 +71,11 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer logger.Close()
+	defer func() {
+		if closeErr := logger.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close console logger: %w", closeErr))
+		}
+	}()
 	loaded.OnChange(func(old, next Config) {
 		if err := next.Validate(); err != nil {
 			logger.Error("ignoring invalid configuration change", "err", err)

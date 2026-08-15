@@ -1,3 +1,4 @@
+// Package requestid 生成并传递管理请求的链路标识
 package requestid
 
 import (

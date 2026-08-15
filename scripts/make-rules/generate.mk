@@ -1,7 +1,20 @@
+BUF := $(TOOLS_DIR)/buf
+BUF_CACHE_DIR := $(OUTPUT_DIR)/cache/buf
+
+.PHONY: proto-fmt
+proto-fmt: $(BUF) ## 格式化 Proto 文件
+	@$(BUF) format -w
+
+.PHONY: proto-lint
+proto-lint: $(BUF) ## 运行 Proto 静态检查
+	@mkdir -p $(BUF_CACHE_DIR)
+	@BUF_CACHE_DIR=$(BUF_CACHE_DIR) $(BUF) lint
+	@$(BUF) format --diff --exit-code
+
 .PHONY: generate
-generate: $(TOOLS_DIR)/buf $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-grpc $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire ## 生成 API、Client 和依赖装配代码
+generate: $(BUF) $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-grpc $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire ## 生成 API、Client 和依赖装配代码
 	@mkdir -p $(TOOLS_DIR)
-	@PATH="$(TOOLS_DIR):$$PATH" $(TOOLS_DIR)/buf generate --template buf.gen.yaml
+	@PATH="$(TOOLS_DIR):$$PATH" $(BUF) generate --template buf.gen.yaml
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) bash hack/update-codegen.sh
 	@$(GO_ENV) $(TOOLS_DIR)/wire ./internal/apiserver
 	@$(GO_ENV) $(TOOLS_DIR)/wire ./internal/adminapi

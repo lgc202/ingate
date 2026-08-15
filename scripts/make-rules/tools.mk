@@ -24,8 +24,10 @@ PROTOC_GEN_GO_HTTP_VERSION := v3.0.0-20260526000039-30da04b769dc
 PROTOC_GEN_GO_HTTP_PACKAGE := github.com/go-kratos/kratos/cmd/protoc-gen-go-http/v3@$(PROTOC_GEN_GO_HTTP_VERSION)
 WIRE_VERSION := v0.7.0
 WIRE_PACKAGE := github.com/google/wire/cmd/wire@$(WIRE_VERSION)
+GOLANGCI_LINT_VERSION := v2.11.4
+GOLANGCI_LINT_PACKAGE := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 .PHONY: tools
-tools: $(TOOLS_DIR)/buf $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-grpc $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire ## 安装项目代码生成工具
+tools: $(TOOLS_DIR)/buf $(TOOLS_DIR)/protoc-gen-go $(TOOLS_DIR)/protoc-gen-go-grpc $(TOOLS_DIR)/protoc-gen-go-http $(TOOLS_DIR)/wire $(TOOLS_DIR)/golangci-lint ## 安装项目开发工具
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(KUBE_CODEGEN_PACKAGES)
 
@@ -48,6 +50,10 @@ $(TOOLS_DIR)/protoc-gen-go-http: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
 $(TOOLS_DIR)/wire: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
 	@mkdir -p $(TOOLS_DIR)
 	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(WIRE_PACKAGE)
+
+$(TOOLS_DIR)/golangci-lint: $(PROJECT_ROOT)/scripts/make-rules/tools.mk
+	@mkdir -p $(TOOLS_DIR)
+	@$(GO_ENV) GOBIN=$(TOOLS_DIR) $(GO) install $(GOLANGCI_LINT_PACKAGE)
 
 .PHONY: check-tools
 check-tools: ## 检查本地开发工具

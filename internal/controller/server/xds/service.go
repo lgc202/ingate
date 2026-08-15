@@ -1,3 +1,4 @@
+// Package xds 提供 Envoy 配置发布所需的 ADS 服务
 package xds
 
 import (

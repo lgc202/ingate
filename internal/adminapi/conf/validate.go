@@ -1,3 +1,4 @@
+// Package conf 定义并校验 ingate-admin-api 进程配置
 package conf
 
 import (

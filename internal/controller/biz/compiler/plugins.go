@@ -8,10 +8,11 @@ import (
 	httpwasmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/wasm/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	wasmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
-	pluginiprestriction "github.com/lgc202/ingate/pkg/plugin/iprestriction"
-	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	pluginiprestriction "github.com/lgc202/ingate/pkg/plugin/iprestriction"
+	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 )
 
 const (

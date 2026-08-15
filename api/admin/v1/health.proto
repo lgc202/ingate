@@ -18,4 +18,3 @@ message HealthReply {
   string status = 1;
   string request_id = 2 [json_name = "requestID"];
 }
-

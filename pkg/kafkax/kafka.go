@@ -34,10 +34,10 @@ type Config struct {
 // NewClient 创建 franz-go 客户端，并在公共连接参数之后应用组件专用 options
 func NewClient(config Config, options ...kgo.Opt) (*kgo.Client, error) {
 	if len(config.Brokers) == 0 {
-		return nil, errors.New("Kafka brokers must not be empty")
+		return nil, errors.New("kafka brokers must not be empty")
 	}
 	if config.DialTimeout <= 0 {
-		return nil, errors.New("Kafka dial timeout must be greater than zero")
+		return nil, errors.New("kafka dial timeout must be greater than zero")
 	}
 
 	clientOptions := []kgo.Opt{
@@ -68,7 +68,7 @@ func NewClient(config Config, options ...kgo.Opt) (*kgo.Client, error) {
 func saslMechanism(config SASL) (sasl.Mechanism, error) {
 	mechanism := strings.ToUpper(config.Mechanism)
 	if mechanism != "" && (config.Username == "" || config.Password == "") {
-		return nil, errors.New("Kafka SASL username and password are required")
+		return nil, errors.New("kafka SASL username and password are required")
 	}
 	switch mechanism {
 	case "":

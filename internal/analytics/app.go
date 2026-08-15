@@ -13,8 +13,6 @@ import (
 	"strings"
 
 	kratos "github.com/go-kratos/kratos/v3"
-	"github.com/go-kratos/kratos/v3/config"
-	"github.com/go-kratos/kratos/v3/config/file"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
@@ -23,6 +21,7 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/conf"
 	clickhousedata "github.com/lgc202/ingate/internal/analytics/data/clickhouse"
 	"github.com/lgc202/ingate/internal/analytics/server"
+	"github.com/lgc202/ingate/internal/pkg/appconfig"
 )
 
 const name = "ingate-analytics"
@@ -41,7 +40,7 @@ type App struct {
 // 配置只在启动时读取，修改后需要重启组件才会生效
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
-	if err := loadConfig(configFile, &bootstrap); err != nil {
+	if err := appconfig.Load(configFile, &bootstrap); err != nil {
 		return nil, err
 	}
 	hostname, err := os.Hostname()
@@ -75,7 +74,7 @@ func (a *App) Run() error {
 // Migrate 应用 Analytics 的 ClickHouse 表结构变更后退出
 func Migrate(ctx context.Context, configFile string) (int, error) {
 	var bootstrap conf.Bootstrap
-	if err := loadConfig(configFile, &bootstrap); err != nil {
+	if err := appconfig.Load(configFile, &bootstrap); err != nil {
 		return 0, err
 	}
 	applied, err := clickhousedata.Migrate(ctx, bootstrap.GetData().GetClickHouse())
@@ -102,21 +101,6 @@ func newKratosApp(
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		kratos.Server(httpServer, grpcServer, consumer),
 	)
-}
-
-func loadConfig(configFile string, bootstrap *conf.Bootstrap) error {
-	loaded := config.New(config.WithSource(file.NewSource(configFile)))
-	defer loaded.Close()
-	if err := loaded.Load(); err != nil {
-		return fmt.Errorf("load configuration %q: %w", configFile, err)
-	}
-	if err := loaded.Scan(bootstrap); err != nil {
-		return fmt.Errorf("scan configuration %q: %w", configFile, err)
-	}
-	if err := bootstrap.Validate(); err != nil {
-		return fmt.Errorf("validate configuration %q: %w", configFile, err)
-	}
-	return nil
 }
 
 func newLogger(config *conf.Logging, instanceID string) *slog.Logger {

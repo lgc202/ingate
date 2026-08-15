@@ -1,3 +1,4 @@
+// Package server 提供控制台静态资源服务和管理 API 反向代理
 package server
 
 import (

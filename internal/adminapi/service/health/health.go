@@ -4,9 +4,9 @@ package health
 import (
 	"context"
 
+	"github.com/go-kratos/kratos/v3/transport"
 	"google.golang.org/protobuf/types/known/emptypb"
 
-	"github.com/go-kratos/kratos/v3/transport"
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )

@@ -30,7 +30,7 @@ func (c *Bootstrap) Validate() error {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}
 	if c.GetData() == nil || c.GetData().GetKafka() == nil || c.GetData().GetClickHouse() == nil {
-		return errors.New("Kafka and ClickHouse config are required")
+		return errors.New("kafka and ClickHouse config are required")
 	}
 	if err := validateKafka(c.GetData().GetKafka()); err != nil {
 		return err
@@ -56,33 +56,33 @@ func (c *Bootstrap) Validate() error {
 
 func validateKafka(config *Data_Kafka) error {
 	if len(config.GetBrokers()) == 0 {
-		return errors.New("Kafka brokers must not be empty")
+		return errors.New("kafka brokers must not be empty")
 	}
 	for _, broker := range config.GetBrokers() {
 		if strings.TrimSpace(broker) == "" {
-			return errors.New("Kafka broker address must not be empty")
+			return errors.New("kafka broker address must not be empty")
 		}
 	}
 	if strings.TrimSpace(config.GetTopic()) == "" {
-		return errors.New("Kafka topic must not be empty")
+		return errors.New("kafka topic must not be empty")
 	}
 	if strings.TrimSpace(config.GetGroupId()) == "" {
-		return errors.New("Kafka consumer group ID must not be empty")
+		return errors.New("kafka consumer group ID must not be empty")
 	}
 	if strings.TrimSpace(config.GetClientId()) == "" {
-		return errors.New("Kafka client ID must not be empty")
+		return errors.New("kafka client ID must not be empty")
 	}
 	if config.GetBatchMaxRecords() == 0 {
-		return errors.New("Kafka batch max records must be greater than zero")
+		return errors.New("kafka batch max records must be greater than zero")
 	}
 	if config.GetFetchMinBytes() <= 0 {
-		return errors.New("Kafka fetch min bytes must be greater than zero")
+		return errors.New("kafka fetch min bytes must be greater than zero")
 	}
 	if config.GetFetchMaxWait() == nil || config.GetFetchMaxWait().AsDuration() <= 0 {
-		return errors.New("Kafka fetch max wait must be greater than zero")
+		return errors.New("kafka fetch max wait must be greater than zero")
 	}
 	if config.GetDialTimeout() == nil || config.GetDialTimeout().AsDuration() <= 0 {
-		return errors.New("Kafka dial timeout must be greater than zero")
+		return errors.New("kafka dial timeout must be greater than zero")
 	}
 	if err := validateKafkaSASL(config.GetSasl()); err != nil {
 		return err
@@ -140,10 +140,10 @@ func validateKafkaSASL(config *Data_Kafka_SASL) error {
 	switch strings.ToUpper(config.GetMechanism()) {
 	case "PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512":
 	default:
-		return errors.New("Kafka SASL mechanism must be PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512")
+		return errors.New("kafka SASL mechanism must be PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512")
 	}
 	if config.GetUsername() == "" || config.GetPassword() == "" {
-		return errors.New("Kafka SASL username and password are required")
+		return errors.New("kafka SASL username and password are required")
 	}
 	return nil
 }

@@ -8,14 +8,13 @@ import (
 	"strings"
 
 	kratos "github.com/go-kratos/kratos/v3"
-	kratosconfig "github.com/go-kratos/kratos/v3/config"
-	"github.com/go-kratos/kratos/v3/config/file"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	"github.com/lgc202/go-kit/version"
 	"k8s.io/klog/v2"
 
 	"github.com/lgc202/ingate/internal/apiserver/conf"
 	"github.com/lgc202/ingate/internal/apiserver/server"
+	"github.com/lgc202/ingate/internal/pkg/appconfig"
 )
 
 const name = "ingate-apiserver"
@@ -30,7 +29,7 @@ type App struct {
 // NewApp 从配置文件创建完整的 API Server 进程
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
-	if err := loadConfig(configFile, &bootstrap); err != nil {
+	if err := appconfig.Load(configFile, &bootstrap); err != nil {
 		return nil, err
 	}
 	hostname, err := os.Hostname()
@@ -75,21 +74,6 @@ func newKratosApp(
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		kratos.Server(apiServer),
 	)
-}
-
-func loadConfig(configFile string, bootstrap *conf.Bootstrap) error {
-	loaded := kratosconfig.New(kratosconfig.WithSource(file.NewSource(configFile)))
-	defer loaded.Close()
-	if err := loaded.Load(); err != nil {
-		return fmt.Errorf("load configuration %q: %w", configFile, err)
-	}
-	if err := loaded.Scan(bootstrap); err != nil {
-		return fmt.Errorf("scan configuration %q: %w", configFile, err)
-	}
-	if err := bootstrap.Validate(); err != nil {
-		return fmt.Errorf("validate configuration %q: %w", configFile, err)
-	}
-	return nil
 }
 
 func newLogger(config *conf.Logging, instanceID string) *slog.Logger {

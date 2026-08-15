@@ -27,27 +27,27 @@ func (c *Bootstrap) Validate() error {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}
 	if c.GetData() == nil || c.GetData().GetKafka() == nil || c.GetData().GetDiskQueue() == nil {
-		return errors.New("Kafka and disk queue config are required")
+		return errors.New("kafka and disk queue config are required")
 	}
 	if len(c.GetData().GetKafka().GetBrokers()) == 0 {
-		return errors.New("Kafka brokers must not be empty")
+		return errors.New("kafka brokers must not be empty")
 	}
 	for _, broker := range c.GetData().GetKafka().GetBrokers() {
 		if strings.TrimSpace(broker) == "" {
-			return errors.New("Kafka broker address must not be empty")
+			return errors.New("kafka broker address must not be empty")
 		}
 	}
 	if strings.TrimSpace(c.GetData().GetKafka().GetTopic()) == "" {
-		return errors.New("Kafka topic must not be empty")
+		return errors.New("kafka topic must not be empty")
 	}
 	if c.GetData().GetKafka().GetWriteTimeout() == nil || c.GetData().GetKafka().GetWriteTimeout().AsDuration() <= 0 {
-		return errors.New("Kafka write timeout must be greater than zero")
+		return errors.New("kafka write timeout must be greater than zero")
 	}
 	if c.GetData().GetKafka().GetDialTimeout() == nil || c.GetData().GetKafka().GetDialTimeout().AsDuration() <= 0 {
-		return errors.New("Kafka dial timeout must be greater than zero")
+		return errors.New("kafka dial timeout must be greater than zero")
 	}
 	if c.GetData().GetKafka().GetReadinessTimeout() == nil || c.GetData().GetKafka().GetReadinessTimeout().AsDuration() <= 0 {
-		return errors.New("Kafka readiness timeout must be greater than zero")
+		return errors.New("kafka readiness timeout must be greater than zero")
 	}
 	if err := validateKafkaSASL(c.GetData().GetKafka().GetSasl()); err != nil {
 		return err
@@ -104,10 +104,10 @@ func validateKafkaSASL(config *Data_Kafka_SASL) error {
 	switch strings.ToUpper(config.GetMechanism()) {
 	case "PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512":
 	default:
-		return errors.New("Kafka SASL mechanism must be PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512")
+		return errors.New("kafka SASL mechanism must be PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512")
 	}
 	if config.GetUsername() == "" || config.GetPassword() == "" {
-		return errors.New("Kafka SASL username and password are required")
+		return errors.New("kafka SASL username and password are required")
 	}
 	return nil
 }
@@ -117,7 +117,7 @@ func validateKafkaTLS(config *Data_Kafka_TLS) error {
 		return nil
 	}
 	if (config.GetCertFile() == "") != (config.GetKeyFile() == "") {
-		return errors.New("Kafka TLS certificate and key must be configured together")
+		return errors.New("kafka TLS certificate and key must be configured together")
 	}
 	return nil
 }
