@@ -27,7 +27,7 @@ type pageCursor struct {
 }
 
 // ListItems 按资源类型和 API Server Continue Token 返回一页配置状态
-func (u *Usecase) ListItems(ctx context.Context, page biz.PageRequest) (biz.PageResult[Item], error) {
+func (s *Service) ListItems(ctx context.Context, page biz.PageRequest) (biz.PageResult[Item], error) {
 	cursor, err := decodePageCursor(page.Cursor)
 	if err != nil {
 		return biz.PageResult[Item]{}, err
@@ -35,7 +35,7 @@ func (u *Usecase) ListItems(ctx context.Context, page biz.PageRequest) (biz.Page
 
 	items := make([]Item, 0, page.Limit)
 	for cursor.Kind < resourcePageCount && int64(len(items)) < page.Limit {
-		current, err := u.listItemPage(ctx, cursor.Kind, biz.PageRequest{
+		current, err := s.listItemPage(ctx, cursor.Kind, biz.PageRequest{
 			Limit:  page.Limit - int64(len(items)),
 			Cursor: cursor.Continue,
 		})
@@ -58,24 +58,24 @@ func (u *Usecase) ListItems(ctx context.Context, page biz.PageRequest) (biz.Page
 	return biz.PageResult[Item]{Items: items, NextCursor: nextCursor}, nil
 }
 
-func (u *Usecase) listItemPage(
+func (s *Service) listItemPage(
 	ctx context.Context,
 	kind resourcePageKind,
 	page biz.PageRequest,
 ) (biz.PageResult[Item], error) {
 	switch kind {
 	case resourcePageGateway:
-		return mapPage(ctx, page, u.gateways.ListPage, gatewayItem)
+		return mapPage(ctx, page, s.gateways.ListPage, gatewayItem)
 	case resourcePageRoute:
-		return mapPage(ctx, page, u.routes.ListPage, routeItem)
+		return mapPage(ctx, page, s.routes.ListPage, routeItem)
 	case resourcePageUpstream:
-		return mapPage(ctx, page, u.upstreams.ListPage, upstreamItem)
+		return mapPage(ctx, page, s.upstreams.ListPage, upstreamItem)
 	case resourcePageCertificate:
-		return mapPage(ctx, page, u.certificates.ListPage, certificateItem)
+		return mapPage(ctx, page, s.certificates.ListPage, certificateItem)
 	case resourcePageRateLimitPolicy:
-		return mapPage(ctx, page, u.rateLimitPolicies.ListPage, rateLimitPolicyItem)
+		return mapPage(ctx, page, s.rateLimitPolicies.ListPage, rateLimitPolicyItem)
 	case resourcePageIPRestrictionPolicy:
-		return mapPage(ctx, page, u.ipRestrictionPolicies.ListPage, ipRestrictionPolicyItem)
+		return mapPage(ctx, page, s.ipRestrictionPolicies.ListPage, ipRestrictionPolicyItem)
 	default:
 		return biz.PageResult[Item]{}, fmt.Errorf("%w: unknown resource page", biz.ErrInvalidCursor)
 	}

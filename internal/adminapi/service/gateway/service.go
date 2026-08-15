@@ -1,4 +1,4 @@
-// Package gateway 实现 Gateway 管理 API
+// Package gateway 提供 Gateway 管理 API
 package gateway
 
 import (
@@ -13,16 +13,16 @@ import (
 
 // Service 实现网关入口管理 API
 type Service struct {
-	usecase *gatewaybiz.Usecase
+	business *gatewaybiz.Service
 }
 
 // NewService 创建网关入口协议服务
-func NewService(usecase *gatewaybiz.Usecase) *Service {
-	return &Service{usecase: usecase}
+func NewService(business *gatewaybiz.Service) *Service {
+	return &Service{business: business}
 }
 
 func (s *Service) ListGateways(ctx context.Context, request *adminv1.ListGatewaysRequest) (*adminv1.ListGatewaysResponse, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	result, err := s.business.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (s *Service) ListGateways(ctx context.Context, request *adminv1.ListGateway
 }
 
 func (s *Service) GetGateway(ctx context.Context, request *adminv1.GetGatewayRequest) (*adminv1.Gateway, error) {
-	item, err := s.usecase.Get(ctx, request.GetId())
+	item, err := s.business.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (s *Service) CreateGateway(ctx context.Context, request *adminv1.CreateGate
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.usecase.Create(ctx, spec)
+	item, err := s.business.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (s *Service) UpdateGateway(ctx context.Context, request *adminv1.UpdateGate
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	item, err := s.business.Update(ctx, request.GetId(), request.GetVersion(), spec)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (s *Service) UpdateGateway(ctx context.Context, request *adminv1.UpdateGate
 }
 
 func (s *Service) DeleteGateway(ctx context.Context, request *adminv1.DeleteGatewayRequest) (*emptypb.Empty, error) {
-	if err := s.usecase.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.business.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

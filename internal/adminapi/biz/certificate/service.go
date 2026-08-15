@@ -1,4 +1,4 @@
-// Package certificate 实现 Certificate 管理用例
+// Package certificate 处理 Certificate 的管理规则和资源协作
 package certificate
 
 import (
@@ -12,7 +12,7 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// Repository 定义 Certificate 用例需要的持久化能力
+// Repository 定义 Certificate 管理需要的持久化能力
 type Repository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Certificate], error)
 	Get(context.Context, string) (*resource.Certificate, error)
@@ -26,44 +26,44 @@ type GatewayRepository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Gateway], error)
 }
 
-// Usecase 承载 Certificate 管理用例
-type Usecase struct {
+// Service 协调 Certificate 的校验、引用约束和持久化
+type Service struct {
 	repository Repository
 	gateways   GatewayRepository
 }
 
-// NewUsecase 创建证书管理用例
-func NewUsecase(repository Repository, gateways GatewayRepository) *Usecase {
-	return &Usecase{repository: repository, gateways: gateways}
+// NewService 创建 Certificate 业务服务
+func NewService(repository Repository, gateways GatewayRepository) *Service {
+	return &Service{repository: repository, gateways: gateways}
 }
 
 // List 查询 Certificate 列表
-func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Certificate], error) {
-	return u.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Certificate], error) {
+	return s.repository.ListPage(ctx, page)
 }
 
 // Get 查询单个 Certificate
-func (u *Usecase) Get(ctx context.Context, certificateID string) (*resource.Certificate, error) {
-	return u.repository.Get(ctx, certificateID)
+func (s *Service) Get(ctx context.Context, certificateID string) (*resource.Certificate, error) {
+	return s.repository.Get(ctx, certificateID)
 }
 
 // Create 创建 Certificate
-func (u *Usecase) Create(ctx context.Context, spec resource.CertificateSpec) (*resource.Certificate, error) {
-	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+func (s *Service) Create(ctx context.Context, spec resource.CertificateSpec) (*resource.Certificate, error) {
+	if err := s.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
 		return nil, err
 	}
 	id := uuid.NewString()
-	return u.repository.Create(ctx, id, spec)
+	return s.repository.Create(ctx, id, spec)
 }
 
 // Update 使用配置版本乐观更新 Certificate
-func (u *Usecase) Update(
+func (s *Service) Update(
 	ctx context.Context,
 	certificateID string,
 	version int64,
 	spec resource.CertificateSpec,
 ) (*resource.Certificate, error) {
-	current, err := u.repository.Get(ctx, certificateID)
+	current, err := s.repository.Get(ctx, certificateID)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (u *Usecase) Update(
 		return nil, certificateVersionConflict(current)
 	}
 	if spec.DisplayName != current.Spec.DisplayName {
-		if err := u.validateDisplayName(ctx, certificateID, spec.DisplayName); err != nil {
+		if err := s.validateDisplayName(ctx, certificateID, spec.DisplayName); err != nil {
 			return nil, err
 		}
 	}
@@ -80,7 +80,7 @@ func (u *Usecase) Update(
 		spec.PrivateKeyPEM = current.Spec.PrivateKeyPEM
 	}
 
-	updated, err := u.repository.Update(ctx, certificateID, current.Generation, spec)
+	updated, err := s.repository.Update(ctx, certificateID, current.Generation, spec)
 	if err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, certificateVersionConflict(current)
@@ -91,15 +91,15 @@ func (u *Usecase) Update(
 }
 
 // Delete 删除 Certificate，仍被 Gateway 引用时拒绝删除
-func (u *Usecase) Delete(ctx context.Context, certificateID string, version int64) error {
-	current, err := u.repository.Get(ctx, certificateID)
+func (s *Service) Delete(ctx context.Context, certificateID string, version int64) error {
+	current, err := s.repository.Get(ctx, certificateID)
 	if err != nil {
 		return err
 	}
 	if version != current.Generation {
 		return certificateVersionConflict(current)
 	}
-	if err := biz.VisitPages(ctx, u.gateways.ListPage, func(gateway resource.Gateway) (bool, error) {
+	if err := biz.VisitPages(ctx, s.gateways.ListPage, func(gateway resource.Gateway) (bool, error) {
 		for _, listener := range gateway.Spec.Listeners {
 			if listener.CertificateRef == certificateID {
 				return true, biz.NewUserError(fmt.Sprintf("证书 %q 仍被网关 %q 引用", current.Spec.DisplayName, gateway.Spec.DisplayName))
@@ -109,7 +109,7 @@ func (u *Usecase) Delete(ctx context.Context, certificateID string, version int6
 	}); err != nil {
 		return err
 	}
-	if err := u.repository.Delete(ctx, certificateID, current.Generation); err != nil {
+	if err := s.repository.Delete(ctx, certificateID, current.Generation); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return certificateVersionConflict(current)
 		}
@@ -118,8 +118,8 @@ func (u *Usecase) Delete(ctx context.Context, certificateID string, version int6
 	return nil
 }
 
-func (u *Usecase) validateDisplayName(ctx context.Context, certificateID, displayName string) error {
-	return biz.VisitPages(ctx, u.repository.ListPage, func(certificate resource.Certificate) (bool, error) {
+func (s *Service) validateDisplayName(ctx context.Context, certificateID, displayName string) error {
+	return biz.VisitPages(ctx, s.repository.ListPage, func(certificate resource.Certificate) (bool, error) {
 		if certificate.Name != certificateID && certificate.Spec.DisplayName == displayName {
 			return true, biz.NewUserError(fmt.Sprintf("证书名称 %q 已存在", displayName))
 		}

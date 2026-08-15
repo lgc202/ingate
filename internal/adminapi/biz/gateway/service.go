@@ -1,4 +1,4 @@
-// Package gateway 实现 Gateway 管理用例
+// Package gateway 处理 Gateway 的业务规则和资源协作
 package gateway
 
 import (
@@ -13,7 +13,7 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// Repository 定义 Gateway 用例需要的持久化能力
+// Repository 定义 Gateway 管理需要的持久化能力
 type Repository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Gateway], error)
 	Get(context.Context, string) (*resource.Gateway, error)
@@ -32,22 +32,22 @@ type CertificateRepository interface {
 	Get(context.Context, string) (*resource.Certificate, error)
 }
 
-// Usecase 承载 Gateway 管理用例
-type Usecase struct {
+// Service 协调 Gateway 的校验、引用约束和持久化
+type Service struct {
 	repository   Repository
 	routes       RouteRepository
 	certificates CertificateRepository
 	policyUsage  *biz.PolicyUsageFinder
 }
 
-// NewUsecase 创建网关管理用例
-func NewUsecase(
+// NewService 创建 Gateway 业务服务
+func NewService(
 	repository Repository,
 	routes RouteRepository,
 	certificates CertificateRepository,
 	policyUsage *biz.PolicyUsageFinder,
-) *Usecase {
-	return &Usecase{
+) *Service {
+	return &Service{
 		repository:   repository,
 		routes:       routes,
 		certificates: certificates,
@@ -56,36 +56,36 @@ func NewUsecase(
 }
 
 // List 查询 Gateway 列表
-func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Gateway], error) {
-	return u.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Gateway], error) {
+	return s.repository.ListPage(ctx, page)
 }
 
 // Get 查询单个 Gateway
-func (u *Usecase) Get(ctx context.Context, gatewayID string) (*resource.Gateway, error) {
-	return u.repository.Get(ctx, gatewayID)
+func (s *Service) Get(ctx context.Context, gatewayID string) (*resource.Gateway, error) {
+	return s.repository.Get(ctx, gatewayID)
 }
 
 // Create 创建 Gateway
-func (u *Usecase) Create(ctx context.Context, spec resource.GatewaySpec) (*resource.Gateway, error) {
-	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+func (s *Service) Create(ctx context.Context, spec resource.GatewaySpec) (*resource.Gateway, error) {
+	if err := s.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
 		return nil, err
 	}
-	if err := u.validateGateway(ctx, spec, ""); err != nil {
+	if err := s.validateGateway(ctx, spec, ""); err != nil {
 		return nil, err
 	}
 
 	id := uuid.NewString()
-	return u.repository.Create(ctx, id, spec)
+	return s.repository.Create(ctx, id, spec)
 }
 
 // Update 使用配置版本乐观更新 Gateway
-func (u *Usecase) Update(
+func (s *Service) Update(
 	ctx context.Context,
 	gatewayID string,
 	version int64,
 	spec resource.GatewaySpec,
 ) (*resource.Gateway, error) {
-	current, err := u.repository.Get(ctx, gatewayID)
+	current, err := s.repository.Get(ctx, gatewayID)
 	if err != nil {
 		return nil, err
 	}
@@ -93,14 +93,14 @@ func (u *Usecase) Update(
 		return nil, gatewayVersionConflict(current)
 	}
 	if spec.DisplayName != current.Spec.DisplayName {
-		if err := u.validateDisplayName(ctx, gatewayID, spec.DisplayName); err != nil {
+		if err := s.validateDisplayName(ctx, gatewayID, spec.DisplayName); err != nil {
 			return nil, err
 		}
 	}
-	if err := u.validateGateway(ctx, spec, gatewayID); err != nil {
+	if err := s.validateGateway(ctx, spec, gatewayID); err != nil {
 		return nil, err
 	}
-	updated, err := u.repository.Update(ctx, gatewayID, current.Generation, spec)
+	updated, err := s.repository.Update(ctx, gatewayID, current.Generation, spec)
 	if err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, gatewayVersionConflict(current)
@@ -111,15 +111,15 @@ func (u *Usecase) Update(
 }
 
 // Delete 删除 Gateway，仍有关联路由或策略时拒绝删除
-func (u *Usecase) Delete(ctx context.Context, gatewayID string, version int64) error {
-	current, err := u.repository.Get(ctx, gatewayID)
+func (s *Service) Delete(ctx context.Context, gatewayID string, version int64) error {
+	current, err := s.repository.Get(ctx, gatewayID)
 	if err != nil {
 		return err
 	}
 	if version != current.Generation {
 		return gatewayVersionConflict(current)
 	}
-	if err := biz.VisitPages(ctx, u.routes.ListPage, func(route resource.Route) (bool, error) {
+	if err := biz.VisitPages(ctx, s.routes.ListPage, func(route resource.Route) (bool, error) {
 		if slices.Contains(route.Spec.GatewayRefs, gatewayID) {
 			return true, biz.NewUserError(fmt.Sprintf("网关 %q 仍有关联路由", current.Spec.DisplayName))
 		}
@@ -127,14 +127,14 @@ func (u *Usecase) Delete(ctx context.Context, gatewayID string, version int64) e
 	}); err != nil {
 		return err
 	}
-	usage, err := u.policyUsage.Find(ctx, resource.PolicyTargetRef{Kind: resource.KindGateway, Name: gatewayID})
+	usage, err := s.policyUsage.Find(ctx, resource.PolicyTargetRef{Kind: resource.KindGateway, Name: gatewayID})
 	if err != nil {
 		return err
 	}
 	if usage != nil {
 		return biz.NewUserError(fmt.Sprintf("网关 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
 	}
-	if err := u.repository.Delete(ctx, gatewayID, current.Generation); err != nil {
+	if err := s.repository.Delete(ctx, gatewayID, current.Generation); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return gatewayVersionConflict(current)
 		}
@@ -143,8 +143,8 @@ func (u *Usecase) Delete(ctx context.Context, gatewayID string, version int64) e
 	return nil
 }
 
-func (u *Usecase) validateDisplayName(ctx context.Context, gatewayID, displayName string) error {
-	return biz.VisitPages(ctx, u.repository.ListPage, func(gateway resource.Gateway) (bool, error) {
+func (s *Service) validateDisplayName(ctx context.Context, gatewayID, displayName string) error {
+	return biz.VisitPages(ctx, s.repository.ListPage, func(gateway resource.Gateway) (bool, error) {
 		if gateway.Name != gatewayID && gateway.Spec.DisplayName == displayName {
 			return true, biz.NewUserError(fmt.Sprintf("网关名称 %q 已存在", displayName))
 		}

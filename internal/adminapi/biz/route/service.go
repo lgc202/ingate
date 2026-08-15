@@ -1,4 +1,4 @@
-// Package route 实现 Route 管理用例
+// Package route 处理 Route 的业务规则和资源协作
 package route
 
 import (
@@ -12,7 +12,7 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// Repository 定义 Route 用例需要的持久化能力
+// Repository 定义 Route 管理需要的持久化能力
 type Repository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Route], error)
 	Get(context.Context, string) (*resource.Route, error)
@@ -31,22 +31,22 @@ type UpstreamRepository interface {
 	Get(context.Context, string) (*resource.Upstream, error)
 }
 
-// Usecase 承载 Route 管理用例
-type Usecase struct {
+// Service 协调 Route 的校验、引用约束和持久化
+type Service struct {
 	repository  Repository
 	gateways    GatewayRepository
 	upstreams   UpstreamRepository
 	policyUsage *biz.PolicyUsageFinder
 }
 
-// NewUsecase 创建路由管理用例
-func NewUsecase(
+// NewService 创建 Route 业务服务
+func NewService(
 	repository Repository,
 	gateways GatewayRepository,
 	upstreams UpstreamRepository,
 	policyUsage *biz.PolicyUsageFinder,
-) *Usecase {
-	return &Usecase{
+) *Service {
+	return &Service{
 		repository:  repository,
 		gateways:    gateways,
 		upstreams:   upstreams,
@@ -55,36 +55,36 @@ func NewUsecase(
 }
 
 // List 查询 Route 列表
-func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error) {
-	return u.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error) {
+	return s.repository.ListPage(ctx, page)
 }
 
 // Get 查询单个 Route
-func (u *Usecase) Get(ctx context.Context, routeID string) (*resource.Route, error) {
-	return u.repository.Get(ctx, routeID)
+func (s *Service) Get(ctx context.Context, routeID string) (*resource.Route, error) {
+	return s.repository.Get(ctx, routeID)
 }
 
 // Create 创建 Route
-func (u *Usecase) Create(ctx context.Context, spec resource.RouteSpec) (*resource.Route, error) {
-	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+func (s *Service) Create(ctx context.Context, spec resource.RouteSpec) (*resource.Route, error) {
+	if err := s.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
 		return nil, err
 	}
-	if err := u.validateReferences(ctx, spec); err != nil {
+	if err := s.validateReferences(ctx, spec); err != nil {
 		return nil, err
 	}
 
 	id := uuid.NewString()
-	return u.repository.Create(ctx, id, spec)
+	return s.repository.Create(ctx, id, spec)
 }
 
 // Update 使用配置版本乐观更新 Route
-func (u *Usecase) Update(
+func (s *Service) Update(
 	ctx context.Context,
 	routeID string,
 	version int64,
 	spec resource.RouteSpec,
 ) (*resource.Route, error) {
-	current, err := u.repository.Get(ctx, routeID)
+	current, err := s.repository.Get(ctx, routeID)
 	if err != nil {
 		return nil, err
 	}
@@ -92,15 +92,15 @@ func (u *Usecase) Update(
 		return nil, routeVersionConflict(current)
 	}
 	if spec.DisplayName != current.Spec.DisplayName {
-		if err := u.validateDisplayName(ctx, routeID, spec.DisplayName); err != nil {
+		if err := s.validateDisplayName(ctx, routeID, spec.DisplayName); err != nil {
 			return nil, err
 		}
 	}
-	if err := u.validateReferences(ctx, spec); err != nil {
+	if err := s.validateReferences(ctx, spec); err != nil {
 		return nil, err
 	}
 
-	updated, err := u.repository.Update(ctx, routeID, current.Generation, spec)
+	updated, err := s.repository.Update(ctx, routeID, current.Generation, spec)
 	if err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, routeVersionConflict(current)
@@ -111,22 +111,22 @@ func (u *Usecase) Update(
 }
 
 // Delete 删除 Route，仍被策略应用时拒绝删除
-func (u *Usecase) Delete(ctx context.Context, routeID string, version int64) error {
-	current, err := u.repository.Get(ctx, routeID)
+func (s *Service) Delete(ctx context.Context, routeID string, version int64) error {
+	current, err := s.repository.Get(ctx, routeID)
 	if err != nil {
 		return err
 	}
 	if version != current.Generation {
 		return routeVersionConflict(current)
 	}
-	usage, err := u.policyUsage.Find(ctx, resource.PolicyTargetRef{Kind: resource.KindRoute, Name: routeID})
+	usage, err := s.policyUsage.Find(ctx, resource.PolicyTargetRef{Kind: resource.KindRoute, Name: routeID})
 	if err != nil {
 		return err
 	}
 	if usage != nil {
 		return biz.NewUserError(fmt.Sprintf("路由 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
 	}
-	if err := u.repository.Delete(ctx, routeID, current.Generation); err != nil {
+	if err := s.repository.Delete(ctx, routeID, current.Generation); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return routeVersionConflict(current)
 		}
@@ -135,8 +135,8 @@ func (u *Usecase) Delete(ctx context.Context, routeID string, version int64) err
 	return nil
 }
 
-func (u *Usecase) validateDisplayName(ctx context.Context, routeID, displayName string) error {
-	return biz.VisitPages(ctx, u.repository.ListPage, func(route resource.Route) (bool, error) {
+func (s *Service) validateDisplayName(ctx context.Context, routeID, displayName string) error {
+	return biz.VisitPages(ctx, s.repository.ListPage, func(route resource.Route) (bool, error) {
 		if route.Name != routeID && route.Spec.DisplayName == displayName {
 			return true, biz.NewUserError(fmt.Sprintf("路由名称 %q 已存在", displayName))
 		}

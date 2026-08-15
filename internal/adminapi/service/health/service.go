@@ -1,4 +1,4 @@
-// Package health 实现进程健康检查 API
+// Package health 提供进程健康检查 API
 package health
 
 import (

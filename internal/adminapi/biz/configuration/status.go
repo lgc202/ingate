@@ -11,27 +11,27 @@ import (
 
 const summaryPageSize = 200
 
-// GetSummary 分页扫描全部声明式资源并返回状态汇总
-func (u *Usecase) GetSummary(ctx context.Context) (Summary, error) {
+// Summary 分页扫描全部声明式资源并返回状态汇总
+func (s *Service) Summary(ctx context.Context) (Summary, error) {
 	var summaries [resourcePageCount]Summary
 	group, ctx := errgroup.WithContext(ctx)
 	group.Go(func() error {
-		return collectSummary(ctx, u.gateways.ListPage, gatewayItem, &summaries[resourcePageGateway])
+		return collectSummary(ctx, s.gateways.ListPage, gatewayItem, &summaries[resourcePageGateway])
 	})
 	group.Go(func() error {
-		return collectSummary(ctx, u.routes.ListPage, routeItem, &summaries[resourcePageRoute])
+		return collectSummary(ctx, s.routes.ListPage, routeItem, &summaries[resourcePageRoute])
 	})
 	group.Go(func() error {
-		return collectSummary(ctx, u.upstreams.ListPage, upstreamItem, &summaries[resourcePageUpstream])
+		return collectSummary(ctx, s.upstreams.ListPage, upstreamItem, &summaries[resourcePageUpstream])
 	})
 	group.Go(func() error {
-		return collectSummary(ctx, u.certificates.ListPage, certificateItem, &summaries[resourcePageCertificate])
+		return collectSummary(ctx, s.certificates.ListPage, certificateItem, &summaries[resourcePageCertificate])
 	})
 	group.Go(func() error {
-		return collectSummary(ctx, u.rateLimitPolicies.ListPage, rateLimitPolicyItem, &summaries[resourcePageRateLimitPolicy])
+		return collectSummary(ctx, s.rateLimitPolicies.ListPage, rateLimitPolicyItem, &summaries[resourcePageRateLimitPolicy])
 	})
 	group.Go(func() error {
-		return collectSummary(ctx, u.ipRestrictionPolicies.ListPage, ipRestrictionPolicyItem, &summaries[resourcePageIPRestrictionPolicy])
+		return collectSummary(ctx, s.ipRestrictionPolicies.ListPage, ipRestrictionPolicyItem, &summaries[resourcePageIPRestrictionPolicy])
 	})
 	if err := group.Wait(); err != nil {
 		return Summary{}, fmt.Errorf("collect configuration summary: %w", err)

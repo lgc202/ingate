@@ -1,4 +1,4 @@
-// Package certificate 实现 Certificate 管理 API
+// Package certificate 提供 Certificate 管理 API
 package certificate
 
 import (
@@ -13,16 +13,16 @@ import (
 
 // Service 实现网关 TLS 证书管理 API
 type Service struct {
-	usecase *certificatebiz.Usecase
+	business *certificatebiz.Service
 }
 
 // NewService 创建证书协议服务
-func NewService(usecase *certificatebiz.Usecase) *Service {
-	return &Service{usecase: usecase}
+func NewService(business *certificatebiz.Service) *Service {
+	return &Service{business: business}
 }
 
 func (s *Service) ListCertificates(ctx context.Context, request *adminv1.ListCertificatesRequest) (*adminv1.ListCertificatesResponse, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	result, err := s.business.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (s *Service) ListCertificates(ctx context.Context, request *adminv1.ListCer
 }
 
 func (s *Service) GetCertificate(ctx context.Context, request *adminv1.GetCertificateRequest) (*adminv1.Certificate, error) {
-	item, err := s.usecase.Get(ctx, request.GetId())
+	item, err := s.business.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func (s *Service) CreateCertificate(ctx context.Context, request *adminv1.Create
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.usecase.Create(ctx, spec)
+	item, err := s.business.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (s *Service) UpdateCertificate(ctx context.Context, request *adminv1.Update
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	item, err := s.business.Update(ctx, request.GetId(), request.GetVersion(), spec)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +71,7 @@ func (s *Service) UpdateCertificate(ctx context.Context, request *adminv1.Update
 }
 
 func (s *Service) DeleteCertificate(ctx context.Context, request *adminv1.DeleteCertificateRequest) (*emptypb.Empty, error) {
-	if err := s.usecase.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.business.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

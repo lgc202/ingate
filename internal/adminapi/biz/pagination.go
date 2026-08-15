@@ -4,7 +4,7 @@ import "context"
 
 const internalPageLimit = 200
 
-// PageRequest 是用例层不依赖底层存储协议的分页游标
+// PageRequest 是 biz 层不依赖底层存储协议的分页参数
 type PageRequest struct {
 	Limit  int64
 	Cursor string

@@ -1,4 +1,4 @@
-// Package iprestriction 实现客户端 IP 访问限制策略管理 API
+// Package iprestriction 提供客户端 IP 访问限制策略管理 API
 package iprestriction
 
 import (
@@ -13,19 +13,19 @@ import (
 
 // Service 实现客户端 IP 访问限制策略管理 API
 type Service struct {
-	usecase *iprestrictionbiz.Usecase
+	business *iprestrictionbiz.Service
 }
 
 // NewService 创建客户端 IP 访问限制策略协议服务
-func NewService(usecase *iprestrictionbiz.Usecase) *Service {
-	return &Service{usecase: usecase}
+func NewService(business *iprestrictionbiz.Service) *Service {
+	return &Service{business: business}
 }
 
 func (s *Service) ListIPRestrictionPolicies(
 	ctx context.Context,
 	request *adminv1.ListIPRestrictionPoliciesRequest,
 ) (*adminv1.ListIPRestrictionPoliciesResponse, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	result, err := s.business.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (s *Service) GetIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.GetIPRestrictionPolicyRequest,
 ) (*adminv1.IPRestrictionPolicy, error) {
-	result, err := s.usecase.Get(ctx, request.GetId())
+	result, err := s.business.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (s *Service) CreateIPRestrictionPolicy(
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.usecase.Create(ctx, spec)
+	result, err := s.business.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (s *Service) UpdateIPRestrictionPolicy(
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	result, err := s.business.Update(ctx, request.GetId(), request.GetVersion(), spec)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (s *Service) DeleteIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.DeleteIPRestrictionPolicyRequest,
 ) (*emptypb.Empty, error) {
-	if err := s.usecase.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.business.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

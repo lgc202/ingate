@@ -8,6 +8,7 @@ package adminapi
 
 import (
 	"github.com/go-kratos/kratos/v3"
+	"github.com/google/wire"
 	"github.com/lgc202/ingate/internal/adminapi/auth"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
@@ -41,34 +42,42 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *c
 		return nil, err
 	}
 	service := authentication.NewService(confAuthentication)
-	dataData, err := data.NewData(confData)
+	versionedInterface, err := data.NewResourceClient(confData)
 	if err != nil {
 		return nil, err
 	}
-	versionedInterface := data.NewResourceClient(dataData)
 	gatewayRepository := apiserver.NewGatewayRepository(versionedInterface)
 	routeRepository := apiserver.NewRouteRepository(versionedInterface)
 	certificateRepository := apiserver.NewCertificateRepository(versionedInterface)
 	rateLimitPolicyRepository := apiserver.NewRateLimitPolicyRepository(versionedInterface)
 	ipRestrictionPolicyRepository := apiserver.NewIPRestrictionPolicyRepository(versionedInterface)
 	policyUsageFinder := biz.NewPolicyUsageFinder(rateLimitPolicyRepository, ipRestrictionPolicyRepository)
-	usecase := gateway.NewUsecase(gatewayRepository, routeRepository, certificateRepository, policyUsageFinder)
-	gatewayService := gateway2.NewService(usecase)
+	gatewayService := gateway.NewService(gatewayRepository, routeRepository, certificateRepository, policyUsageFinder)
+	service2 := gateway2.NewService(gatewayService)
 	upstreamRepository := apiserver.NewUpstreamRepository(versionedInterface)
-	routeUsecase := route.NewUsecase(routeRepository, gatewayRepository, upstreamRepository, policyUsageFinder)
-	routeService := route2.NewService(routeUsecase)
-	upstreamUsecase := upstream.NewUsecase(upstreamRepository, routeRepository)
-	upstreamService := upstream2.NewService(upstreamUsecase)
-	certificateUsecase := certificate.NewUsecase(certificateRepository, gatewayRepository)
-	certificateService := certificate2.NewService(certificateUsecase)
-	ratelimitUsecase := ratelimit.NewUsecase(rateLimitPolicyRepository, gatewayRepository, routeRepository)
-	ratelimitService := ratelimit2.NewService(ratelimitUsecase)
-	iprestrictionUsecase := iprestriction.NewUsecase(ipRestrictionPolicyRepository, gatewayRepository, routeRepository)
-	iprestrictionService := iprestriction2.NewService(iprestrictionUsecase)
-	configurationUsecase := configuration.NewUsecase(gatewayRepository, routeRepository, upstreamRepository, certificateRepository, rateLimitPolicyRepository, ipRestrictionPolicyRepository)
-	configurationService := configuration2.NewService(configurationUsecase)
+	routeService := route.NewService(routeRepository, gatewayRepository, upstreamRepository, policyUsageFinder)
+	service3 := route2.NewService(routeService)
+	upstreamService := upstream.NewService(upstreamRepository, routeRepository)
+	service4 := upstream2.NewService(upstreamService)
+	certificateService := certificate.NewService(certificateRepository, gatewayRepository)
+	service5 := certificate2.NewService(certificateService)
+	ratelimitService := ratelimit.NewService(rateLimitPolicyRepository, gatewayRepository, routeRepository)
+	service6 := ratelimit2.NewService(ratelimitService)
+	iprestrictionService := iprestriction.NewService(ipRestrictionPolicyRepository, gatewayRepository, routeRepository)
+	service7 := iprestriction2.NewService(iprestrictionService)
+	configurationService := configuration.NewService(gatewayRepository, routeRepository, upstreamRepository, certificateRepository, rateLimitPolicyRepository, ipRestrictionPolicyRepository)
+	service8 := configuration2.NewService(configurationService)
 	healthService := health.NewService()
-	httpServer := server.NewHTTPServer(confServer, logger, authenticator, service, gatewayService, routeService, upstreamService, certificateService, ratelimitService, iprestrictionService, configurationService, healthService)
+	httpHandlers := server.NewHTTPHandlers(service, service2, service3, service4, service5, service6, service7, service8, healthService)
+	httpServer := server.NewHTTPServer(confServer, logger, authenticator, httpHandlers)
 	app := newKratosApp(logger, confServer, httpServer, adminapiServiceInstanceID)
 	return app, nil
 }
+
+// wire.go:
+
+// bizProviderSet 汇总各资源的业务服务
+var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, configuration.NewService)
+
+// serviceProviderSet 汇总 Admin API 的协议服务
+var serviceProviderSet = wire.NewSet(authentication.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, configuration2.NewService, health.NewService)

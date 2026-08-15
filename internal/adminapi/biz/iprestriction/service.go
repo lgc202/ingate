@@ -1,4 +1,4 @@
-// Package iprestriction 实现客户端 IP 访问限制策略管理用例
+// Package iprestriction 处理客户端 IP 访问限制策略的管理规则和资源协作
 package iprestriction
 
 import (
@@ -12,7 +12,7 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// Repository 定义 IP 访问限制策略用例需要的持久化能力
+// Repository 定义 IP 访问限制策略管理需要的持久化能力
 type Repository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.IPRestrictionPolicy], error)
 	Get(context.Context, string) (*resource.IPRestrictionPolicy, error)
@@ -21,8 +21,8 @@ type Repository interface {
 	Delete(context.Context, string, int64) error
 }
 
-// Usecase 承载 IPRestrictionPolicy 管理用例
-type Usecase struct {
+// Service 协调 IPRestrictionPolicy 的目标解析、校验和持久化
+type Service struct {
 	repository Repository
 	targets    *biz.PolicyTargetResolver
 }
@@ -40,22 +40,22 @@ type Result struct {
 	TargetNames biz.PolicyTargetNames
 }
 
-// NewUsecase 创建客户端 IP 访问限制策略用例
-func NewUsecase(
+// NewService 创建 IPRestrictionPolicy 业务服务
+func NewService(
 	repository Repository,
 	gateways biz.GatewayGetter,
 	routes biz.RouteGetter,
-) *Usecase {
-	return &Usecase{repository: repository, targets: biz.NewPolicyTargetResolver(gateways, routes)}
+) *Service {
+	return &Service{repository: repository, targets: biz.NewPolicyTargetResolver(gateways, routes)}
 }
 
 // List 查询 IPRestrictionPolicy 列表
-func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (*ListResult, error) {
-	result, err := u.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest) (*ListResult, error) {
+	result, err := s.repository.ListPage(ctx, page)
 	if err != nil {
 		return nil, err
 	}
-	targetNames, err := u.targets.DisplayNames(ctx, targetRefs(result.Items))
+	targetNames, err := s.targets.DisplayNames(ctx, targetRefs(result.Items))
 	if err != nil {
 		return nil, err
 	}
@@ -63,12 +63,12 @@ func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (*ListResult, 
 }
 
 // Get 查询单个 IPRestrictionPolicy
-func (u *Usecase) Get(ctx context.Context, policyID string) (*Result, error) {
-	policy, err := u.repository.Get(ctx, policyID)
+func (s *Service) Get(ctx context.Context, policyID string) (*Result, error) {
+	policy, err := s.repository.Get(ctx, policyID)
 	if err != nil {
 		return nil, err
 	}
-	targetNames, err := u.targets.DisplayNames(ctx, policy.Spec.TargetRefs)
+	targetNames, err := s.targets.DisplayNames(ctx, policy.Spec.TargetRefs)
 	if err != nil {
 		return nil, err
 	}
@@ -76,15 +76,15 @@ func (u *Usecase) Get(ctx context.Context, policyID string) (*Result, error) {
 }
 
 // Create 创建 IPRestrictionPolicy
-func (u *Usecase) Create(ctx context.Context, spec resource.IPRestrictionPolicySpec) (*Result, error) {
-	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+func (s *Service) Create(ctx context.Context, spec resource.IPRestrictionPolicySpec) (*Result, error) {
+	if err := s.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
 		return nil, err
 	}
-	targetNames, err := u.targets.Resolve(ctx, spec.TargetRefs)
+	targetNames, err := s.targets.Resolve(ctx, spec.TargetRefs)
 	if err != nil {
 		return nil, err
 	}
-	policy, err := u.repository.Create(ctx, uuid.NewString(), spec)
+	policy, err := s.repository.Create(ctx, uuid.NewString(), spec)
 	if err != nil {
 		return nil, err
 	}
@@ -92,13 +92,13 @@ func (u *Usecase) Create(ctx context.Context, spec resource.IPRestrictionPolicyS
 }
 
 // Update 使用配置版本乐观更新 IPRestrictionPolicy
-func (u *Usecase) Update(
+func (s *Service) Update(
 	ctx context.Context,
 	policyID string,
 	version int64,
 	spec resource.IPRestrictionPolicySpec,
 ) (*Result, error) {
-	current, err := u.repository.Get(ctx, policyID)
+	current, err := s.repository.Get(ctx, policyID)
 	if err != nil {
 		return nil, err
 	}
@@ -106,15 +106,15 @@ func (u *Usecase) Update(
 		return nil, versionConflict(current)
 	}
 	if spec.DisplayName != current.Spec.DisplayName {
-		if err := u.validateDisplayName(ctx, policyID, spec.DisplayName); err != nil {
+		if err := s.validateDisplayName(ctx, policyID, spec.DisplayName); err != nil {
 			return nil, err
 		}
 	}
-	targetNames, err := u.targets.Resolve(ctx, spec.TargetRefs)
+	targetNames, err := s.targets.Resolve(ctx, spec.TargetRefs)
 	if err != nil {
 		return nil, err
 	}
-	updated, err := u.repository.Update(ctx, policyID, current.Generation, spec)
+	updated, err := s.repository.Update(ctx, policyID, current.Generation, spec)
 	if err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, versionConflict(current)
@@ -125,15 +125,15 @@ func (u *Usecase) Update(
 }
 
 // Delete 使用配置版本删除 IPRestrictionPolicy
-func (u *Usecase) Delete(ctx context.Context, policyID string, version int64) error {
-	current, err := u.repository.Get(ctx, policyID)
+func (s *Service) Delete(ctx context.Context, policyID string, version int64) error {
+	current, err := s.repository.Get(ctx, policyID)
 	if err != nil {
 		return err
 	}
 	if version != current.Generation {
 		return versionConflict(current)
 	}
-	if err := u.repository.Delete(ctx, policyID, current.Generation); err != nil {
+	if err := s.repository.Delete(ctx, policyID, current.Generation); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return versionConflict(current)
 		}
@@ -142,8 +142,8 @@ func (u *Usecase) Delete(ctx context.Context, policyID string, version int64) er
 	return nil
 }
 
-func (u *Usecase) validateDisplayName(ctx context.Context, policyID, displayName string) error {
-	return biz.VisitPages(ctx, u.repository.ListPage, func(policy resource.IPRestrictionPolicy) (bool, error) {
+func (s *Service) validateDisplayName(ctx context.Context, policyID, displayName string) error {
+	return biz.VisitPages(ctx, s.repository.ListPage, func(policy resource.IPRestrictionPolicy) (bool, error) {
 		if policy.Name != policyID && policy.Spec.DisplayName == displayName {
 			return true, biz.NewUserError(fmt.Sprintf("IP 访问限制策略名称 %q 已存在", displayName))
 		}

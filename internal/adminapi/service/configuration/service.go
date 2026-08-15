@@ -1,4 +1,4 @@
-// Package configuration 实现配置发布状态查询 API
+// Package configuration 提供配置发布状态查询 API
 package configuration
 
 import (
@@ -13,16 +13,16 @@ import (
 
 // Service 实现配置生效状态查询 API
 type Service struct {
-	usecase *configurationbiz.Usecase
+	business *configurationbiz.Service
 }
 
 // NewService 创建配置状态协议服务
-func NewService(usecase *configurationbiz.Usecase) *Service {
-	return &Service{usecase: usecase}
+func NewService(business *configurationbiz.Service) *Service {
+	return &Service{business: business}
 }
 
 func (s *Service) GetConfigurationSummary(ctx context.Context, _ *emptypb.Empty) (*adminv1.ConfigurationSummary, error) {
-	summary, err := s.usecase.GetSummary(ctx)
+	summary, err := s.business.Summary(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (s *Service) ListConfigurationItems(
 	ctx context.Context,
 	request *adminv1.ListRequest,
 ) (*adminv1.ListConfigurationItemsReply, error) {
-	result, err := s.usecase.ListItems(ctx, adminservice.PageRequest(request.GetPageSize(), request.GetPageToken()))
+	result, err := s.business.ListItems(ctx, adminservice.PageRequest(request.GetPageSize(), request.GetPageToken()))
 	if err != nil {
 		return nil, err
 	}

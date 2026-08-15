@@ -21,6 +21,19 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
+// httpMiddleware 按请求从外到内的执行顺序装配管理面中间件
+func httpMiddleware(logger *slog.Logger, authenticator *auth.Authenticator) []middleware.Middleware {
+	return []middleware.Middleware{
+		recoveryMiddleware(logger),
+		requestLoggingMiddleware(logger),
+		authenticationMiddleware(authenticator),
+		auditMiddleware(logger),
+		authorizationMiddleware,
+		errorMappingMiddleware,
+		requestValidationMiddleware,
+	}
+}
+
 func requestValidationMiddleware(next middleware.Handler) middleware.Handler {
 	return func(ctx context.Context, request any) (any, error) {
 		message, ok := request.(proto.Message)
