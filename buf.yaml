@@ -1,6 +1,7 @@
 version: v2
 modules:
   - path: api
+  - path: internal/apiserver/conf
   - path: internal/adminapi/conf
   - path: internal/als
   - path: internal/analytics

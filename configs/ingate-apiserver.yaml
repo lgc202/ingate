@@ -1,22 +1,16 @@
 server:
-  bind_address: "127.0.0.1"
-  secure_port: 18443
-  cert_directory: "_output/certificates"
+  http:
+    addr: "127.0.0.1:18443"
+    cert_directory: "_output/certificates"
+  shutdown_timeout: "30s"
 
-etcd:
-  endpoints:
-    - "http://127.0.0.1:2379"
-  prefix: "/registry/gateway.ingate.io"
+data:
+  etcd:
+    endpoints:
+      - "http://127.0.0.1:2379"
+    prefix: "/registry/gateway.ingate.io"
 
 logging:
   format: "json"
   level: "info"
   add_source: false
-  stdout: false
-  file:
-    path: "_output/logs/ingate-apiserver.log"
-    max_size_mb: 100
-    max_backups: 10
-    max_age_days: 30
-    compress: false
-    local_time: false

@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package ingate.apiserver.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/apiserver/conf;conf";
+
+// Bootstrap 定义 ingate-apiserver 的完整进程配置
+message Bootstrap {
+  // server 定义声明式资源 API 的监听和退出行为
+  Server server = 1;
+  // data 定义声明式资源使用的持久化依赖
+  Data data = 2;
+  // logging 定义进程日志行为
+  Logging logging = 3;
+}
+
+// Server 定义声明式资源 API 的服务配置
+message Server {
+  message HTTP {
+    // addr 是 API Server 的 HTTPS 监听地址
+    string addr = 1;
+    // cert_directory 保存本地运行时自动生成的服务端证书
+    string cert_directory = 2;
+  }
+
+  // http 定义 Generic API Server 的 HTTPS 服务
+  HTTP http = 1;
+  // shutdown_timeout 是等待在途 API 请求结束的最长时间
+  google.protobuf.Duration shutdown_timeout = 2;
+}
+
+// Data 定义 API Server 的存储依赖
+message Data {
+  message Etcd {
+    // endpoints 是 etcd 客户端连接的节点地址
+    repeated string endpoints = 1;
+    // prefix 隔离 Ingate 声明式资源使用的 etcd 键空间
+    string prefix = 2;
+  }
+
+  // etcd 保存声明式资源和展示名称唯一索引
+  Etcd etcd = 1;
+}
+
+// Logging 定义结构化日志格式与级别
+message Logging {
+  // format 支持 json 和 text
+  string format = 1;
+  // level 支持 debug、info、warn 和 error
+  string level = 2;
+  // add_source 控制日志是否包含调用位置
+  bool add_source = 3;
+}

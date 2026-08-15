@@ -33,11 +33,6 @@ type CompletedConfig struct {
 	*completedConfig
 }
 
-// Server 表示 ingate-apiserver 运行实例
-type Server struct {
-	GenericAPIServer *genericapiserver.GenericAPIServer
-}
-
 // Complete 补全 ingate-apiserver 配置
 func (c *Config) Complete() CompletedConfig {
 	return CompletedConfig{&completedConfig{
@@ -53,7 +48,11 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil, err
 	}
 
-	server := &Server{GenericAPIServer: genericServer}
+	server := &Server{
+		GenericAPIServer: genericServer,
+		stop:             make(chan struct{}),
+		done:             make(chan struct{}),
+	}
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
 		gatewayv1.GroupName,
 		Scheme,
