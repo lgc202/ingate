@@ -49,12 +49,11 @@ func (u *Usecase) Get(ctx context.Context, certificateID string) (*resource.Cert
 
 // Create 创建 Certificate
 func (u *Usecase) Create(ctx context.Context, spec resource.CertificateSpec) (*resource.Certificate, error) {
-	id := uuid.NewString()
-	certificate, err := u.repository.Create(ctx, id, spec)
-	if err != nil {
-		return nil, biz.DisplayNameConflict(err, "证书", spec.DisplayName)
+	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+		return nil, err
 	}
-	return certificate, nil
+	id := uuid.NewString()
+	return u.repository.Create(ctx, id, spec)
 }
 
 // Update 使用配置版本乐观更新 Certificate
@@ -71,6 +70,11 @@ func (u *Usecase) Update(
 	if version != current.Generation {
 		return nil, certificateVersionConflict(current)
 	}
+	if spec.DisplayName != current.Spec.DisplayName {
+		if err := u.validateDisplayName(ctx, certificateID, spec.DisplayName); err != nil {
+			return nil, err
+		}
+	}
 	if spec.CertificatePEM == "" {
 		spec.CertificatePEM = current.Spec.CertificatePEM
 		spec.PrivateKeyPEM = current.Spec.PrivateKeyPEM
@@ -81,7 +85,7 @@ func (u *Usecase) Update(
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, certificateVersionConflict(current)
 		}
-		return nil, biz.DisplayNameConflict(err, "证书", spec.DisplayName)
+		return nil, err
 	}
 	return updated, nil
 }
@@ -112,6 +116,15 @@ func (u *Usecase) Delete(ctx context.Context, certificateID string, version int6
 		return err
 	}
 	return nil
+}
+
+func (u *Usecase) validateDisplayName(ctx context.Context, certificateID, displayName string) error {
+	return biz.VisitPages(ctx, u.repository.ListPage, func(certificate resource.Certificate) (bool, error) {
+		if certificate.Name != certificateID && certificate.Spec.DisplayName == displayName {
+			return true, biz.NewUserError(fmt.Sprintf("证书名称 %q 已存在", displayName))
+		}
+		return false, nil
+	})
 }
 
 func certificateVersionConflict(certificate *resource.Certificate) error {

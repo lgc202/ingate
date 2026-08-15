@@ -14,7 +14,7 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	"github.com/lgc202/ingate/internal/apiserver/registry/policytarget"
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
@@ -132,7 +132,7 @@ func validatePolicy(policy *resource.RateLimitPolicy) field.ErrorList {
 	if policy.Spec.DisplayName == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
-	errs = append(errs, policytarget.ValidateRefs(policy.Spec.TargetRefs, specPath.Child("targetRefs"))...)
+	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(policy.Spec.TargetRefs, specPath.Child("targetRefs"))...)
 
 	subjectPath := specPath.Child("subject")
 	switch policy.Spec.Subject.Type {

@@ -2,13 +2,11 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"sync"
 
-	clientv3 "go.etcd.io/etcd/client/v3"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
@@ -18,9 +16,7 @@ import (
 	netutils "k8s.io/utils/net"
 
 	"github.com/lgc202/ingate/internal/apiserver/conf"
-	"github.com/lgc202/ingate/internal/apiserver/registry"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	"github.com/lgc202/ingate/pkg/etcdx"
 	generatedopenapi "github.com/lgc202/ingate/pkg/generated/openapi"
 )
 
@@ -28,14 +24,13 @@ const serverName = "ingate-apiserver"
 
 // Server 让 Kubernetes Generic API Server 接入 Kratos 生命周期
 type Server struct {
-	generic           *genericapiserver.GenericAPIServer
-	displayNameClient *clientv3.Client
-	stop              chan struct{}
-	done              chan struct{}
-	stopOnce          sync.Once
+	generic  *genericapiserver.GenericAPIServer
+	stop     chan struct{}
+	done     chan struct{}
+	stopOnce sync.Once
 }
 
-// New 根据进程配置创建 Generic API Server 及其 etcd 协调客户端
+// New 根据进程配置创建 Generic API Server
 func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, error) {
 	host, portText, err := net.SplitHostPort(httpConfig.GetAddr())
 	if err != nil {
@@ -109,27 +104,14 @@ func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, err
 		return nil, fmt.Errorf("create Generic API Server: %w", err)
 	}
 
-	storageConfig := etcdx.Config{
-		Endpoints: append([]string(nil), etcdConfig.GetEndpoints()...),
-		Prefix:    etcdConfig.GetPrefix(),
-	}
-	displayNameClient, err := etcdx.NewClient(storageConfig)
-	if err != nil {
-		return nil, fmt.Errorf("create etcd coordination client: %w", err)
-	}
-	displayNameGuard := registry.NewDisplayNameGuard(displayNameClient, storageConfig.Prefix)
-	if err := installResources(genericServer, completedConfig, displayNameGuard); err != nil {
-		if closeErr := displayNameClient.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("close etcd coordination client: %w", closeErr))
-		}
+	if err := installResources(genericServer, completedConfig); err != nil {
 		return nil, fmt.Errorf("install API resources: %w", err)
 	}
 
 	return &Server{
-		generic:           genericServer,
-		displayNameClient: displayNameClient,
-		stop:              make(chan struct{}),
-		done:              make(chan struct{}),
+		generic: genericServer,
+		stop:    make(chan struct{}),
+		done:    make(chan struct{}),
 	}, nil
 }
 
@@ -145,11 +127,7 @@ func (s *Server) Start(ctx context.Context) error {
 		}
 	}()
 	runErr := s.generic.PrepareRun().RunWithContext(runCtx)
-	closeErr := s.displayNameClient.Close()
 	close(s.done)
-	if closeErr != nil {
-		return errors.Join(runErr, fmt.Errorf("close etcd coordination client: %w", closeErr))
-	}
 	return runErr
 }
 

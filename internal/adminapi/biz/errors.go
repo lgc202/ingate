@@ -14,8 +14,6 @@ var (
 	ErrResourceVersionConflict = errors.New("resource version conflict")
 	// ErrInvalidCursor 表示分页游标无法解析或已经失效
 	ErrInvalidCursor = errors.New("invalid cursor")
-	// ErrDisplayNameConflict 表示同类声明式资源已经使用该展示名称
-	ErrDisplayNameConflict = errors.New("display name conflict")
 )
 
 // UserError 表示可以向控制台用户说明的业务拒绝，不包含传输协议语义
@@ -37,14 +35,6 @@ func NewUserError(message string) error {
 // NewVersionConflictError 创建可以向用户说明的乐观锁冲突
 func NewVersionConflictError(resourceID, userMessage string) error {
 	return &VersionConflictError{resourceID: resourceID, userMessage: userMessage}
-}
-
-// DisplayNameConflict 把 API Server 的唯一性裁决转换为控制台可展示的业务提示
-func DisplayNameConflict(err error, resourceLabel, displayName string) error {
-	if errors.Is(err, ErrDisplayNameConflict) {
-		return NewUserError(fmt.Sprintf("%s名称 %q 已存在", resourceLabel, displayName))
-	}
-	return err
 }
 
 // Error 返回业务拒绝的真实说明

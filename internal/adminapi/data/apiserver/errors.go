@@ -27,8 +27,6 @@ func resourceError(operation, kind, id string, err error) error {
 	switch {
 	case apierrors.IsNotFound(err):
 		err = fmt.Errorf("%w: %v", biz.ErrResourceNotFound, err)
-	case apierrors.IsAlreadyExists(err):
-		err = fmt.Errorf("%w: %v", biz.ErrDisplayNameConflict, err)
 	case apierrors.IsConflict(err):
 		err = fmt.Errorf("%w: %v", biz.ErrResourceVersionConflict, err)
 	}

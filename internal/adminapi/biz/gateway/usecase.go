@@ -67,16 +67,15 @@ func (u *Usecase) Get(ctx context.Context, gatewayID string) (*resource.Gateway,
 
 // Create 创建 Gateway
 func (u *Usecase) Create(ctx context.Context, spec resource.GatewaySpec) (*resource.Gateway, error) {
+	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+		return nil, err
+	}
 	if err := u.validateGateway(ctx, spec, ""); err != nil {
 		return nil, err
 	}
 
 	id := uuid.NewString()
-	gateway, err := u.repository.Create(ctx, id, spec)
-	if err != nil {
-		return nil, biz.DisplayNameConflict(err, "网关", spec.DisplayName)
-	}
-	return gateway, nil
+	return u.repository.Create(ctx, id, spec)
 }
 
 // Update 使用配置版本乐观更新 Gateway
@@ -93,6 +92,11 @@ func (u *Usecase) Update(
 	if version != current.Generation {
 		return nil, gatewayVersionConflict(current)
 	}
+	if spec.DisplayName != current.Spec.DisplayName {
+		if err := u.validateDisplayName(ctx, gatewayID, spec.DisplayName); err != nil {
+			return nil, err
+		}
+	}
 	if err := u.validateGateway(ctx, spec, gatewayID); err != nil {
 		return nil, err
 	}
@@ -101,7 +105,7 @@ func (u *Usecase) Update(
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, gatewayVersionConflict(current)
 		}
-		return nil, biz.DisplayNameConflict(err, "网关", spec.DisplayName)
+		return nil, err
 	}
 	return updated, nil
 }
@@ -137,6 +141,15 @@ func (u *Usecase) Delete(ctx context.Context, gatewayID string, version int64) e
 		return err
 	}
 	return nil
+}
+
+func (u *Usecase) validateDisplayName(ctx context.Context, gatewayID, displayName string) error {
+	return biz.VisitPages(ctx, u.repository.ListPage, func(gateway resource.Gateway) (bool, error) {
+		if gateway.Name != gatewayID && gateway.Spec.DisplayName == displayName {
+			return true, biz.NewUserError(fmt.Sprintf("网关名称 %q 已存在", displayName))
+		}
+		return false, nil
+	})
 }
 
 func gatewayVersionConflict(gateway *resource.Gateway) error {

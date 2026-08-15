@@ -77,13 +77,16 @@ func (u *Usecase) Get(ctx context.Context, policyID string) (*Result, error) {
 
 // Create 创建 RateLimitPolicy
 func (u *Usecase) Create(ctx context.Context, spec resource.RateLimitPolicySpec) (*Result, error) {
+	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+		return nil, err
+	}
 	targetNames, err := u.targets.Resolve(ctx, spec.TargetRefs)
 	if err != nil {
 		return nil, err
 	}
 	policy, err := u.repository.Create(ctx, uuid.NewString(), spec)
 	if err != nil {
-		return nil, biz.DisplayNameConflict(err, "限流策略", spec.DisplayName)
+		return nil, err
 	}
 	return &Result{Policy: policy, TargetNames: targetNames}, nil
 }
@@ -102,6 +105,11 @@ func (u *Usecase) Update(
 	if version != current.Generation {
 		return nil, versionConflict(current)
 	}
+	if spec.DisplayName != current.Spec.DisplayName {
+		if err := u.validateDisplayName(ctx, policyID, spec.DisplayName); err != nil {
+			return nil, err
+		}
+	}
 	targetNames, err := u.targets.Resolve(ctx, spec.TargetRefs)
 	if err != nil {
 		return nil, err
@@ -111,7 +119,7 @@ func (u *Usecase) Update(
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, versionConflict(current)
 		}
-		return nil, biz.DisplayNameConflict(err, "限流策略", spec.DisplayName)
+		return nil, err
 	}
 	return &Result{Policy: updated, TargetNames: targetNames}, nil
 }
@@ -132,6 +140,15 @@ func (u *Usecase) Delete(ctx context.Context, policyID string, version int64) er
 		return err
 	}
 	return nil
+}
+
+func (u *Usecase) validateDisplayName(ctx context.Context, policyID, displayName string) error {
+	return biz.VisitPages(ctx, u.repository.ListPage, func(policy resource.RateLimitPolicy) (bool, error) {
+		if policy.Name != policyID && policy.Spec.DisplayName == displayName {
+			return true, biz.NewUserError(fmt.Sprintf("限流策略名称 %q 已存在", displayName))
+		}
+		return false, nil
+	})
 }
 
 func targetRefs(policies []resource.RateLimitPolicy) []resource.PolicyTargetRef {

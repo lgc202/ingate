@@ -1,5 +1,4 @@
-// Package policytarget 校验策略生效目标的资源内约束
-package policytarget
+package registry
 
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -7,8 +6,8 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
-// ValidateRefs 校验策略目标类型、名称和重复引用
-func ValidateRefs(refs []resource.PolicyTargetRef, path *field.Path) field.ErrorList {
+// ValidatePolicyTargetRefs 校验策略目标类型、名称和重复引用
+func ValidatePolicyTargetRefs(refs []resource.PolicyTargetRef, path *field.Path) field.ErrorList {
 	errs := field.ErrorList{}
 	seen := make(map[resource.PolicyTargetRef]bool, len(refs))
 	for i, ref := range refs {
