@@ -9,6 +9,7 @@ import (
 	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/apiserver/conf"
+	"github.com/lgc202/ingate/internal/apiserver/server"
 )
 
 func wireApp(
@@ -17,6 +18,6 @@ func wireApp(
 	*conf.Data_Etcd,
 	*slog.Logger,
 	serviceInstanceID,
-) (*kratos.App, func(), error) {
-	panic(wire.Build(newServer, newKratosApp))
+) (*kratos.App, error) {
+	panic(wire.Build(server.New, newKratosApp))
 }

@@ -15,53 +15,24 @@ import (
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-const serverName = "ingate-apiserver"
-
-// Config 表示 ingate-apiserver 完整配置
-type Config struct {
-	GenericConfig    *genericapiserver.RecommendedConfig
-	DisplayNameGuard *apiregistry.DisplayNameGuard
-}
-
-type completedConfig struct {
-	GenericConfig    genericapiserver.CompletedConfig
-	DisplayNameGuard *apiregistry.DisplayNameGuard
-}
-
-// CompletedConfig 表示补全后的 ingate-apiserver 配置
-type CompletedConfig struct {
-	*completedConfig
-}
-
-// Complete 补全 ingate-apiserver 配置
-func (c *Config) Complete() CompletedConfig {
-	return CompletedConfig{&completedConfig{
-		GenericConfig:    c.GenericConfig.Complete(),
-		DisplayNameGuard: c.DisplayNameGuard,
-	}}
-}
-
-// New 创建 ingate-apiserver 实例
-func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*Server, error) {
-	genericServer, err := c.GenericConfig.New(serverName, delegationTarget)
-	if err != nil {
-		return nil, err
-	}
-
-	server := &Server{
-		GenericAPIServer: genericServer,
-		stop:             make(chan struct{}),
-		done:             make(chan struct{}),
-	}
+// installResources 把声明式资源及其 status 子资源注册到同一 API Group
+func installResources(
+	genericServer *genericapiserver.GenericAPIServer,
+	config genericapiserver.CompletedConfig,
+	displayNameGuard *apiregistry.DisplayNameGuard,
+) error {
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(
 		gatewayv1.GroupName,
 		Scheme,
 		runtime.NewParameterCodec(Scheme),
 		Codecs,
 	)
-
 	storage := make(map[string]rest.Storage)
-	installStatusStorage := func(resourceName, statusResourceName gatewayv1.ResourceName, factory func() (rest.Storage, rest.Storage, error)) error {
+	installStatusStorage := func(
+		resourceName gatewayv1.ResourceName,
+		statusResourceName gatewayv1.ResourceName,
+		factory func() (rest.Storage, rest.Storage, error),
+	) error {
 		resourceStorage, statusStorage, err := factory()
 		if err != nil {
 			return err
@@ -72,40 +43,36 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 
 	if err := installStatusStorage(gatewayv1.ResourceGateways, gatewayv1.ResourceGatewaysStatus, func() (rest.Storage, rest.Storage, error) {
-		return gatewaystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
+		return gatewaystorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
 	}); err != nil {
-		return nil, err
+		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceRoutes, gatewayv1.ResourceRoutesStatus, func() (rest.Storage, rest.Storage, error) {
-		return routestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
+		return routestorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
 	}); err != nil {
-		return nil, err
+		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceUpstreams, gatewayv1.ResourceUpstreamsStatus, func() (rest.Storage, rest.Storage, error) {
-		return upstreamstorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
+		return upstreamstorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
 	}); err != nil {
-		return nil, err
+		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceCertificates, gatewayv1.ResourceCertificatesStatus, func() (rest.Storage, rest.Storage, error) {
-		return certificatestorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
+		return certificatestorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
 	}); err != nil {
-		return nil, err
+		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceRateLimitPolicies, gatewayv1.ResourceRateLimitPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return ratelimitpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
+		return ratelimitpolicystorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
 	}); err != nil {
-		return nil, err
+		return err
 	}
 	if err := installStatusStorage(gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return iprestrictionpolicystorage.NewREST(c.GenericConfig.RESTOptionsGetter, Scheme, c.DisplayNameGuard)
+		return iprestrictionpolicystorage.NewREST(config.RESTOptionsGetter, Scheme, displayNameGuard)
 	}); err != nil {
-		return nil, err
+		return err
 	}
+
 	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage
-
-	if err := server.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
-		return nil, err
-	}
-
-	return server, nil
+	return genericServer.InstallAPIGroup(&apiGroupInfo)
 }
