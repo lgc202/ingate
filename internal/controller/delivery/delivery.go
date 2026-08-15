@@ -15,7 +15,7 @@ import (
 
 // Delivery 串行管理 Candidate、Active 和 ACK/NACK
 //
-// Run 运行后，Submit、HandleXDSEvent 和 Status 可被多个 goroutine 并发调用
+// Start 运行后，Submit、HandleXDSEvent 和 Status 可被多个 goroutine 并发调用
 type Delivery struct {
 	cache    cachev3.SnapshotCache
 	baseline *cachev3.Snapshot
@@ -26,6 +26,7 @@ type Delivery struct {
 	started  chan struct{}
 	done     chan struct{}
 	running  atomic.Bool
+	cancel   context.CancelFunc
 
 	statusMu sync.RWMutex
 	status   Status
@@ -58,24 +59,28 @@ func New(cache cachev3.SnapshotCache, options Options) (*Delivery, error) {
 	}, nil
 }
 
-// Run 执行唯一的 Delivery 命令循环
+// Start 执行唯一的 Delivery 命令循环
 //
-// ctx 取消时 Run 停止内部 timer、关闭生命周期信号并返回 nil
-func (d *Delivery) Run(ctx context.Context) error {
+// Kratos 在独立 goroutine 中调用 Start，并在停止时调用 Stop
+func (d *Delivery) Start(ctx context.Context) error {
 	if !d.running.CompareAndSwap(false, true) {
 		return ErrAlreadyRunning
 	}
+	runCtx, cancel := context.WithCancel(ctx)
+	d.cancel = cancel
+	defer cancel()
+
 	close(d.started)
 	defer close(d.done)
 	defer d.stopTimers()
 
 	for {
 		select {
-		case <-ctx.Done():
+		case <-runCtx.Done():
 			return nil
 		case command := <-d.commands:
 			previousStatus := d.state.status()
-			commandCtx := ctx
+			commandCtx := runCtx
 			if command.ctx != nil {
 				commandCtx = command.ctx
 			}
@@ -97,6 +102,41 @@ func (d *Delivery) Run(ctx context.Context) error {
 				command.reply <- err
 			}
 		}
+	}
+}
+
+// Stop 停止配置发布循环并等待正在处理的命令退出
+func (d *Delivery) Stop(ctx context.Context) error {
+	select {
+	case <-d.started:
+	case <-d.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	d.cancel()
+
+	select {
+	case <-d.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+// Ready 返回配置发布循环是否正在运行
+func (d *Delivery) Ready() bool {
+	select {
+	case <-d.started:
+	default:
+		return false
+	}
+	select {
+	case <-d.done:
+		return false
+	default:
+		return true
 	}
 }
 

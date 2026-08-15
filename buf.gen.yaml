@@ -5,6 +5,7 @@ inputs:
   - directory: internal/adminapi/conf
   - directory: internal/als
   - directory: internal/analytics
+  - directory: internal/controller/conf
 plugins:
   - local: protoc-gen-go
     out: .

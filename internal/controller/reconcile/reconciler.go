@@ -30,6 +30,9 @@ type Reconciler struct {
 	statusWriter *controllerstatus.Writer
 	queue        workqueue.TypedRateLimitingInterface[queueKey]
 	logger       *slog.Logger
+	started      chan struct{}
+	done         chan struct{}
+	cancel       context.CancelFunc
 }
 
 // New 创建使用固定全局 key 收敛整个配置域的 Reconciler
@@ -56,12 +59,18 @@ func New(
 		statusWriter: controllerstatus.NewWriter(client.GatewayV1()),
 		queue:        queue,
 		logger:       logger,
+		started:      make(chan struct{}),
+		done:         make(chan struct{}),
 	}, nil
 }
 
-// Run 同步 informer cache 后执行唯一的全配置域收敛循环
-func (r *Reconciler) Run(ctx context.Context) error {
+// Start 同步 informer cache 后执行唯一的全配置域收敛循环
+func (r *Reconciler) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
+	r.cancel = cancel
+	close(r.started)
+	defer close(r.done)
+
 	stopQueue := context.AfterFunc(runCtx, r.queue.ShutDown)
 	deliveryWatcherDone := make(chan struct{})
 	go func() {
@@ -94,6 +103,26 @@ func (r *Reconciler) Run(ctx context.Context) error {
 	for r.processNextWorkItem(runCtx) {
 	}
 	return nil
+}
+
+// Stop 停止资源监听与收敛循环，并等待 informer 和状态监听协程退出
+func (r *Reconciler) Stop(ctx context.Context) error {
+	select {
+	case <-r.started:
+	case <-r.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	r.cancel()
+
+	select {
+	case <-r.done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (r *Reconciler) processNextWorkItem(ctx context.Context) bool {

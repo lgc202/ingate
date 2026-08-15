@@ -9,21 +9,18 @@
 - `ingate-als.yaml`
 - `ingate-analytics.yaml`
 
-服务通过 `--config` 指定配置文件，通过 `--version` 输出构建版本。Controller 和 Console 配置项可以用环境变量覆盖，前缀分别为：
+服务通过 `--config` 指定配置文件，通过 `--version` 输出构建版本。Console 配置项可以用 `INGATE_CONSOLE_` 前缀的环境变量覆盖。
 
-- `INGATE_CONTROLLER_`
-- `INGATE_CONSOLE_`
+环境变量名称由 YAML 路径转为大写并将 `.` 替换为 `_`。
 
-环境变量名称由 YAML 路径转为大写并将 `.` 替换为 `_`，例如 `logging.level` 对应 `INGATE_CONTROLLER_LOGGING_LEVEL`。
-
-Admin API、API Server、ALS 和 Analytics 直接读取完整 YAML，不再为每个字段维护环境变量占位符。不同部署环境应提供对应配置文件，敏感配置由部署系统生成或挂载到配置文件中。
+Admin API、API Server、Controller、ALS 和 Analytics 直接读取完整 YAML，不再为每个字段维护环境变量占位符。不同部署环境应提供对应配置文件，敏感配置由部署系统生成或挂载到配置文件中。
 
 Docker Compose 的容器专用配置放在 `deploy/docker/configs`，它们使用容器服务名连接依赖。不要把容器地址写回这里的直接运行配置。
 
 容器内的实际配置随各组件放在 `/opt/ingate/<component>/configs/config.yaml`。API Server 自身运行证书放在 `/opt/ingate/apiserver/certificates`；Gateway 使用的 Certificate 是声明式资源，由 API Server 持久化到 etcd，不从这个目录读取。
 
-Admin API、API Server、ALS 和 Analytics 的应用日志由 Kratos Log 输出到标准错误流，容器、systemd 或日志采集器负责收集、落盘和轮转；etcd 和 Redis 数据分别保存在独立 Volume。
+Admin API、API Server、Controller、ALS 和 Analytics 的应用日志由 Kratos Log 输出到标准错误流，容器、systemd 或日志采集器负责收集、落盘和轮转；etcd 和 Redis 数据分别保存在独立 Volume。
 
 源码开发不要求创建 `/opt/ingate`，可以继续通过 `--config` 使用仓库内的相对路径。
 
-Controller 和 Console 会监听配置文件变化，`logging.level` 可以立即生效。其余组件修改配置后需要重启服务。
+Console 会监听配置文件变化，`logging.level` 可以立即生效。其余组件修改配置后需要重启服务。
