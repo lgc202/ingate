@@ -2,7 +2,6 @@ package certificate
 
 import (
 	"context"
-	"maps"
 	"strings"
 	"time"
 
@@ -13,11 +12,9 @@ import (
 	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
-	certificateparser "github.com/lgc202/ingate/internal/pkg/certificate"
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
-
-const gatewayAPIVersion = "gateway.ingate.io/v1"
 
 // strategy 定义 Certificate 资源在 apiserver 存储前后的处理规则
 type strategy struct {
@@ -43,7 +40,7 @@ func (strategy) NamespaceScoped() bool {
 
 func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
+		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("status"),
 		),
 	}
@@ -54,7 +51,7 @@ func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	certificate.Status = resource.ResourceStatus{}
 	certificate.Generation = 1
 	canonicalizeCertificateSpec(&certificate.Spec)
-	setUpdatedAt(&certificate.ObjectMeta, certificate.CreationTimestamp.Time)
+	apiregistry.SetUpdatedAt(&certificate.ObjectMeta, certificate.CreationTimestamp.Time)
 }
 
 func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
@@ -83,10 +80,10 @@ func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	newCertificate.Generation = oldCertificate.Generation
 	if !apiequality.Semantic.DeepEqual(oldCertificate.Spec, newCertificate.Spec) {
 		newCertificate.Generation = oldCertificate.Generation + 1
-		setUpdatedAt(&newCertificate.ObjectMeta, time.Now().UTC())
+		apiregistry.SetUpdatedAt(&newCertificate.ObjectMeta, time.Now().UTC())
 		return
 	}
-	preserveUpdatedAt(&newCertificate.ObjectMeta, &oldCertificate.ObjectMeta)
+	apiregistry.PreserveUpdatedAt(&newCertificate.ObjectMeta, &oldCertificate.ObjectMeta)
 }
 
 func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
@@ -107,7 +104,7 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(
+		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
 			fieldpath.MakePathOrDie("spec"),
 		),
 	}
@@ -125,33 +122,6 @@ func (statusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Objec
 	return nil
 }
 
-func validateCertificate(certificate *resource.Certificate) field.ErrorList {
-	specPath := field.NewPath("spec")
-	errs := field.ErrorList{}
-
-	if certificate.Spec.DisplayName == "" {
-		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
-	}
-	if certificate.Spec.CertificatePEM == "" {
-		errs = append(errs, field.Required(specPath.Child("certificatePEM"), "certificatePEM is required"))
-	}
-	if certificate.Spec.PrivateKeyPEM == "" {
-		errs = append(errs, field.Required(specPath.Child("privateKeyPEM"), "privateKeyPEM is required"))
-	}
-	if certificate.Spec.CertificatePEM == "" || certificate.Spec.PrivateKeyPEM == "" {
-		return errs
-	}
-
-	if _, err := certificateparser.ParseKeyPair(certificate.Spec.CertificatePEM, certificate.Spec.PrivateKeyPEM); err != nil {
-		errs = append(errs, field.Invalid(
-			specPath.Child("certificatePEM"),
-			"<redacted>",
-			"certificate and private key must be valid PEM and match",
-		))
-	}
-	return errs
-}
-
 func canonicalizeCertificateSpec(spec *resource.CertificateSpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
 	spec.CertificatePEM = normalizePEM(spec.CertificatePEM)
@@ -164,25 +134,4 @@ func normalizePEM(value string) string {
 		return ""
 	}
 	return value + "\n"
-}
-
-func setUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
-	metadata.Annotations = maps.Clone(metadata.Annotations)
-	if metadata.Annotations == nil {
-		metadata.Annotations = make(map[string]string, 1)
-	}
-	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt.Format(time.RFC3339Nano)
-}
-
-func preserveUpdatedAt(metadata, oldMetadata *metav1.ObjectMeta) {
-	metadata.Annotations = maps.Clone(metadata.Annotations)
-	delete(metadata.Annotations, resource.AnnotationUpdatedAt)
-	updatedAt := oldMetadata.Annotations[resource.AnnotationUpdatedAt]
-	if updatedAt == "" {
-		return
-	}
-	if metadata.Annotations == nil {
-		metadata.Annotations = make(map[string]string, 1)
-	}
-	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt
 }

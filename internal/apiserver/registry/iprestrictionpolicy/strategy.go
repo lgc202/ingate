@@ -19,8 +19,6 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
-const gatewayAPIVersion = "gateway.ingate.io/v1"
-
 // strategy 定义 IPRestrictionPolicy 资源在 API Server 存储前后的处理规则
 type strategy struct {
 	runtime.ObjectTyper
@@ -42,7 +40,7 @@ func (strategy) NamespaceScoped() bool {
 
 func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(fieldpath.MakePathOrDie("status")),
+		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(fieldpath.MakePathOrDie("status")),
 	}
 }
 
@@ -51,7 +49,7 @@ func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
 	policy.Status = resource.PolicyStatus{}
 	policy.Generation = 1
 	canonicalizeSpec(&policy.Spec)
-	setUpdatedAt(&policy.ObjectMeta, policy.CreationTimestamp.Time)
+	apiregistry.SetUpdatedAt(&policy.ObjectMeta, policy.CreationTimestamp.Time)
 }
 
 func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
@@ -79,10 +77,10 @@ func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
 	newPolicy.Generation = oldPolicy.Generation
 	if !apiequality.Semantic.DeepEqual(oldPolicy.Spec, newPolicy.Spec) {
 		newPolicy.Generation = oldPolicy.Generation + 1
-		setUpdatedAt(&newPolicy.ObjectMeta, time.Now().UTC())
+		apiregistry.SetUpdatedAt(&newPolicy.ObjectMeta, time.Now().UTC())
 		return
 	}
-	preserveUpdatedAt(&newPolicy.ObjectMeta, &oldPolicy.ObjectMeta)
+	apiregistry.PreserveUpdatedAt(&newPolicy.ObjectMeta, &oldPolicy.ObjectMeta)
 }
 
 func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
@@ -103,7 +101,7 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(gatewayAPIVersion): fieldpath.NewSet(fieldpath.MakePathOrDie("spec")),
+		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(fieldpath.MakePathOrDie("spec")),
 	}
 }
 
@@ -117,34 +115,6 @@ func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Obj
 
 func (statusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
 	return nil
-}
-
-func validatePolicy(policy *resource.IPRestrictionPolicy) field.ErrorList {
-	specPath := field.NewPath("spec")
-	var errs field.ErrorList
-	if policy.Spec.DisplayName == "" {
-		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
-	}
-	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(policy.Spec.TargetRefs, specPath.Child("targetRefs"))...)
-
-	hasAllow := len(policy.Spec.Allow) > 0
-	hasDeny := len(policy.Spec.Deny) > 0
-	if hasAllow == hasDeny {
-		errs = append(errs, field.Invalid(specPath, policy.Spec, "exactly one of allow or deny must be configured"))
-	}
-	errs = append(errs, validateRanges(policy.Spec.Allow, specPath.Child("allow"))...)
-	errs = append(errs, validateRanges(policy.Spec.Deny, specPath.Child("deny"))...)
-	return errs
-}
-
-func validateRanges(values []string, path *field.Path) field.ErrorList {
-	var errs field.ErrorList
-	for i, value := range values {
-		if _, err := netip.ParsePrefix(value); err != nil {
-			errs = append(errs, field.Invalid(path.Index(i), value, "value must be an IP address or CIDR prefix"))
-		}
-	}
-	return errs
 }
 
 func canonicalizeSpec(spec *resource.IPRestrictionPolicySpec) {
@@ -168,25 +138,4 @@ func canonicalizeRanges(values []string) []string {
 		unique[value] = struct{}{}
 	}
 	return slices.Sorted(maps.Keys(unique))
-}
-
-func setUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
-	metadata.Annotations = maps.Clone(metadata.Annotations)
-	if metadata.Annotations == nil {
-		metadata.Annotations = make(map[string]string, 1)
-	}
-	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt.Format(time.RFC3339Nano)
-}
-
-func preserveUpdatedAt(metadata, oldMetadata *metav1.ObjectMeta) {
-	metadata.Annotations = maps.Clone(metadata.Annotations)
-	delete(metadata.Annotations, resource.AnnotationUpdatedAt)
-	updatedAt := oldMetadata.Annotations[resource.AnnotationUpdatedAt]
-	if updatedAt == "" {
-		return
-	}
-	if metadata.Annotations == nil {
-		metadata.Annotations = make(map[string]string, 1)
-	}
-	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt
 }

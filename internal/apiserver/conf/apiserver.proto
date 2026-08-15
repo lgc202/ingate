@@ -40,7 +40,7 @@ message Data {
     string prefix = 2;
   }
 
-  // etcd 保存声明式资源和展示名称唯一索引
+  // etcd 保存声明式资源
   Etcd etcd = 1;
 }
 
