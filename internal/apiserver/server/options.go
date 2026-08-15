@@ -1,7 +1,6 @@
 package server
 
 import (
-	"io"
 	"net"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -28,13 +27,10 @@ type Options struct {
 	ServerRunOptions *genericoptions.ServerRunOptions
 	SecureServing    *genericoptions.SecureServingOptionsWithLoopback
 	Etcd             *genericoptions.EtcdOptions
-
-	StdOut io.Writer
-	StdErr io.Writer
 }
 
 // NewOptions 创建 ingate-apiserver 默认启动参数
-func NewOptions(stdout, stderr io.Writer) *Options {
+func NewOptions() *Options {
 	secureServing := genericoptions.NewSecureServingOptions().WithLoopback()
 	secureServing.BindAddress = netutils.ParseIPSloppy("127.0.0.1")
 	secureServing.BindPort = 18443
@@ -50,8 +46,6 @@ func NewOptions(stdout, stderr io.Writer) *Options {
 		ServerRunOptions: genericoptions.NewServerRunOptions(),
 		SecureServing:    secureServing,
 		Etcd:             etcd,
-		StdOut:           stdout,
-		StdErr:           stderr,
 	}
 }
 
