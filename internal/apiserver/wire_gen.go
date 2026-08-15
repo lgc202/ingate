@@ -9,18 +9,17 @@ package apiserver
 import (
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/apiserver/conf"
+	"github.com/lgc202/ingate/internal/apiserver/server"
 	"log/slog"
 )
 
 // Injectors from wire.go:
 
-func wireApp(server *conf.Server, server_HTTP *conf.Server_HTTP, data_Etcd *conf.Data_Etcd, logger *slog.Logger, apiserverServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
-	serverServer, cleanup, err := newServer(server_HTTP, data_Etcd, logger)
+func wireApp(confServer *conf.Server, server_HTTP *conf.Server_HTTP, data_Etcd *conf.Data_Etcd, logger *slog.Logger, apiserverServiceInstanceID serviceInstanceID) (*kratos.App, error) {
+	serverServer, err := server.New(server_HTTP, data_Etcd)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	app := newKratosApp(logger, server, serverServer, apiserverServiceInstanceID)
-	return app, func() {
-		cleanup()
-	}, nil
+	app := newKratosApp(logger, confServer, serverServer, apiserverServiceInstanceID)
+	return app, nil
 }

@@ -2,17 +2,135 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net"
+	"strconv"
 	"sync"
 
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"k8s.io/apimachinery/pkg/runtime"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	genericapiserver "k8s.io/apiserver/pkg/server"
+	genericoptions "k8s.io/apiserver/pkg/server/options"
+	"k8s.io/apiserver/pkg/storage/storagebackend"
+	netutils "k8s.io/utils/net"
+
+	"github.com/lgc202/ingate/internal/apiserver/conf"
+	"github.com/lgc202/ingate/internal/apiserver/registry"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/pkg/etcdx"
+	generatedopenapi "github.com/lgc202/ingate/pkg/generated/openapi"
 )
+
+const serverName = "ingate-apiserver"
 
 // Server 让 Kubernetes Generic API Server 接入 Kratos 生命周期
 type Server struct {
-	GenericAPIServer *genericapiserver.GenericAPIServer
-	stop             chan struct{}
-	done             chan struct{}
-	stopOnce         sync.Once
+	generic           *genericapiserver.GenericAPIServer
+	displayNameClient *clientv3.Client
+	stop              chan struct{}
+	done              chan struct{}
+	stopOnce          sync.Once
+}
+
+// New 根据进程配置创建 Generic API Server 及其 etcd 协调客户端
+func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, error) {
+	host, portText, err := net.SplitHostPort(httpConfig.GetAddr())
+	if err != nil {
+		return nil, fmt.Errorf("parse API server address %q: %w", httpConfig.GetAddr(), err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		return nil, fmt.Errorf("parse API server port %q: %w", portText, err)
+	}
+
+	serverRunOptions := genericoptions.NewServerRunOptions()
+	secureServing := genericoptions.NewSecureServingOptions().WithLoopback()
+	secureServing.BindAddress = netutils.ParseIPSloppy(host)
+	secureServing.BindPort = port
+	secureServing.ServerCert.CertDirectory = httpConfig.GetCertDirectory()
+	secureServing.ServerCert.PairName = "apiserver"
+
+	storageCodec := Codecs.LegacyCodec(gatewayv1.SchemeGroupVersion)
+	etcd := genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(etcdConfig.GetPrefix(), storageCodec))
+	etcd.StorageConfig.Transport.ServerList = append([]string(nil), etcdConfig.GetEndpoints()...)
+	etcd.DefaultStorageMediaType = runtime.ContentTypeJSON
+
+	if err := serverRunOptions.Complete(); err != nil {
+		return nil, fmt.Errorf("complete API server options: %w", err)
+	}
+	if err := serverRunOptions.DefaultAdvertiseAddress(secureServing.SecureServingOptions); err != nil {
+		return nil, fmt.Errorf("set API server advertise address: %w", err)
+	}
+	advertiseAddress := serverRunOptions.AdvertiseAddress
+	if advertiseAddress != nil && !advertiseAddress.IsUnspecified() {
+		if err := secureServing.MaybeDefaultWithSelfSignedCerts(
+			advertiseAddress.String(),
+			[]string{"localhost", "ingate.local"},
+			[]net.IP{netutils.ParseIPSloppy("127.0.0.1")},
+		); err != nil {
+			return nil, fmt.Errorf("create API server serving certificate: %w", err)
+		}
+	}
+
+	var optionErrors []error
+	optionErrors = append(optionErrors, serverRunOptions.Validate()...)
+	optionErrors = append(optionErrors, secureServing.Validate()...)
+	optionErrors = append(optionErrors, etcd.Validate()...)
+	if err := utilerrors.NewAggregate(optionErrors); err != nil {
+		return nil, fmt.Errorf("validate API server options: %w", err)
+	}
+
+	genericConfig := genericapiserver.NewRecommendedConfig(Codecs)
+	if err := serverRunOptions.ApplyTo(&genericConfig.Config); err != nil {
+		return nil, fmt.Errorf("apply API server options: %w", err)
+	}
+	if err := secureServing.ApplyTo(&genericConfig.Config.SecureServing, &genericConfig.Config.LoopbackClientConfig); err != nil {
+		return nil, fmt.Errorf("apply API server secure serving options: %w", err)
+	}
+	if err := etcd.ApplyTo(&genericConfig.Config); err != nil {
+		return nil, fmt.Errorf("apply API server etcd options: %w", err)
+	}
+
+	openAPIDefinitions := generatedopenapi.GetOpenAPIDefinitions
+	openAPINamer := openapinamer.NewDefinitionNamer(Scheme)
+	genericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(openAPIDefinitions, openAPINamer)
+	genericConfig.OpenAPIConfig.Info.Title = "Ingate API Server"
+	genericConfig.OpenAPIConfig.Info.Version = gatewayv1.SchemeGroupVersion.Version
+	genericConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(openAPIDefinitions, openAPINamer)
+	genericConfig.OpenAPIV3Config.Info.Title = "Ingate API Server"
+	genericConfig.OpenAPIV3Config.Info.Version = gatewayv1.SchemeGroupVersion.Version
+
+	completedConfig := genericConfig.Complete()
+	genericServer, err := completedConfig.New(serverName, genericapiserver.NewEmptyDelegate())
+	if err != nil {
+		return nil, fmt.Errorf("create Generic API Server: %w", err)
+	}
+
+	storageConfig := etcdx.Config{
+		Endpoints: append([]string(nil), etcdConfig.GetEndpoints()...),
+		Prefix:    etcdConfig.GetPrefix(),
+	}
+	displayNameClient, err := etcdx.NewClient(storageConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create etcd coordination client: %w", err)
+	}
+	displayNameGuard := registry.NewDisplayNameGuard(displayNameClient, storageConfig.Prefix)
+	if err := installResources(genericServer, completedConfig, displayNameGuard); err != nil {
+		if closeErr := displayNameClient.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close etcd coordination client: %w", closeErr))
+		}
+		return nil, fmt.Errorf("install API resources: %w", err)
+	}
+
+	return &Server{
+		generic:           genericServer,
+		displayNameClient: displayNameClient,
+		stop:              make(chan struct{}),
+		done:              make(chan struct{}),
+	}, nil
 }
 
 // Start 阻塞运行 Generic API Server，直到 Kratos 调用 Stop
@@ -26,8 +144,13 @@ func (s *Server) Start(ctx context.Context) error {
 		case <-runCtx.Done():
 		}
 	}()
-	defer close(s.done)
-	return s.GenericAPIServer.PrepareRun().RunWithContext(runCtx)
+	runErr := s.generic.PrepareRun().RunWithContext(runCtx)
+	closeErr := s.displayNameClient.Close()
+	close(s.done)
+	if closeErr != nil {
+		return errors.Join(runErr, fmt.Errorf("close etcd coordination client: %w", closeErr))
+	}
+	return runErr
 }
 
 // Stop 通知 Generic API Server 停止并等待在途请求完成

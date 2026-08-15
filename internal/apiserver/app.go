@@ -2,12 +2,9 @@
 package apiserver
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"os"
-	"strconv"
 	"strings"
 
 	kratos "github.com/go-kratos/kratos/v3"
@@ -15,24 +12,19 @@ import (
 	"github.com/go-kratos/kratos/v3/config/file"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	"github.com/lgc202/go-kit/version"
-	genericapiserver "k8s.io/apiserver/pkg/server"
 	"k8s.io/klog/v2"
-	netutils "k8s.io/utils/net"
 
 	"github.com/lgc202/ingate/internal/apiserver/conf"
-	"github.com/lgc202/ingate/internal/apiserver/registry"
 	"github.com/lgc202/ingate/internal/apiserver/server"
-	"github.com/lgc202/ingate/pkg/etcdx"
 )
 
 const name = "ingate-apiserver"
 
 type serviceInstanceID string
 
-// App 封装 API Server 的 Kratos 进程和外部资源
+// App 封装 API Server 的 Kratos 进程
 type App struct {
-	kratos  *kratos.App
-	cleanup func()
+	kratos *kratos.App
 }
 
 // NewApp 从配置文件创建完整的 API Server 进程
@@ -50,7 +42,7 @@ func NewApp(configFile string) (*App, error) {
 	kratoslog.SetDefault(logger)
 	klog.SetSlogLogger(logger)
 
-	kratosApp, cleanup, err := wireApp(
+	kratosApp, err := wireApp(
 		bootstrap.GetServer(),
 		bootstrap.GetServer().GetHttp(),
 		bootstrap.GetData().GetEtcd(),
@@ -61,12 +53,11 @@ func NewApp(configFile string) (*App, error) {
 		return nil, fmt.Errorf("create API Server application: %w", err)
 	}
 	logger.Info("service starting", "config_file", configFile)
-	return &App{kratos: kratosApp, cleanup: cleanup}, nil
+	return &App{kratos: kratosApp}, nil
 }
 
-// Run 启动 API Server，退出后释放不由 Kratos Server 管理的连接
+// Run 启动 API Server 并由 Kratos 统一管理服务生命周期
 func (a *App) Run() error {
-	defer a.cleanup()
 	return a.kratos.Run()
 }
 
@@ -117,59 +108,4 @@ func newLogger(config *conf.Logging, instanceID string) *slog.Logger {
 		"service.name", name,
 		"service.version", version.Get().String(),
 	)
-}
-
-func newServer(
-	httpConfig *conf.Server_HTTP,
-	etcdConfig *conf.Data_Etcd,
-	logger *slog.Logger,
-) (*server.Server, func(), error) {
-	host, portText, err := net.SplitHostPort(httpConfig.GetAddr())
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse API server address %q: %w", httpConfig.GetAddr(), err)
-	}
-	port, err := strconv.Atoi(portText)
-	if err != nil {
-		return nil, nil, fmt.Errorf("parse API server port %q: %w", portText, err)
-	}
-
-	options := server.NewOptions()
-	options.SecureServing.BindAddress = netutils.ParseIPSloppy(host)
-	options.SecureServing.BindPort = port
-	options.SecureServing.ServerCert.CertDirectory = httpConfig.GetCertDirectory()
-	options.Etcd.StorageConfig.Transport.ServerList = append([]string(nil), etcdConfig.GetEndpoints()...)
-	options.Etcd.StorageConfig.Prefix = etcdConfig.GetPrefix()
-	if err := options.Complete(); err != nil {
-		return nil, nil, fmt.Errorf("complete API server options: %w", err)
-	}
-	if err := options.Validate(); err != nil {
-		return nil, nil, fmt.Errorf("validate API server options: %w", err)
-	}
-
-	serverConfig, err := options.Config()
-	if err != nil {
-		return nil, nil, fmt.Errorf("create API server configuration: %w", err)
-	}
-	storageConfig := etcdx.Config{
-		Endpoints: append([]string(nil), etcdConfig.GetEndpoints()...),
-		Prefix:    etcdConfig.GetPrefix(),
-	}
-	displayNameClient, err := etcdx.NewClient(storageConfig)
-	if err != nil {
-		return nil, nil, fmt.Errorf("create etcd coordination client: %w", err)
-	}
-	serverConfig.DisplayNameGuard = registry.NewDisplayNameGuard(displayNameClient, storageConfig.Prefix)
-	apiServer, err := serverConfig.Complete().New(genericapiserver.NewEmptyDelegate())
-	if err != nil {
-		if closeErr := displayNameClient.Close(); closeErr != nil {
-			err = errors.Join(err, fmt.Errorf("close etcd coordination client: %w", closeErr))
-		}
-		return nil, nil, fmt.Errorf("create API server: %w", err)
-	}
-	cleanup := func() {
-		if err := displayNameClient.Close(); err != nil {
-			logger.Error("close etcd coordination client failed", "err", err)
-		}
-	}
-	return apiServer, cleanup, nil
 }
