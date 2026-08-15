@@ -3,12 +3,13 @@ package wasm
 import (
 	"fmt"
 
+	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
+	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
+
 	"github.com/lgc202/ingate/plugins/internal/redisabi"
 	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/policy"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/redis"
-	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
-	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 func (h *httpContext) OnHttpRequestHeaders(numHeaders int, endOfStream bool) types.Action {

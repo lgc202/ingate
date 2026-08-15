@@ -83,11 +83,11 @@ func (a *Authenticator) Authenticate(ctx context.Context, authorization string) 
 	}
 	token, err := a.verifier.Verify(ctx, rawToken)
 	if err != nil {
-		return Principal{}, fmt.Errorf("%w: %v", ErrCredentialsInvalid, err)
+		return Principal{}, fmt.Errorf("%w: %w", ErrCredentialsInvalid, err)
 	}
 	var claims map[string]any
 	if err := token.Claims(&claims); err != nil {
-		return Principal{}, fmt.Errorf("%w: decode claims: %v", ErrCredentialsInvalid, err)
+		return Principal{}, fmt.Errorf("%w: decode claims: %w", ErrCredentialsInvalid, err)
 	}
 	return Principal{
 		Subject: token.Subject,

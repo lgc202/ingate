@@ -2,6 +2,8 @@ GO ?= go
 GOFMT ?= gofmt
 GO_TOOLCHAIN := go1.26.0
 GO_ENV := GOTOOLCHAIN=$(GO_TOOLCHAIN)
+GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
+GOLANGCI_LINT_CACHE := $(OUTPUT_DIR)/cache/golangci-lint
 
 .PHONY: fmt
 fmt: ## 格式化 Go 代码
@@ -12,6 +14,11 @@ fmt: ## 格式化 Go 代码
 .PHONY: vet
 vet: ## 运行 go vet
 	@$(GO_ENV) $(GO) vet ./...
+
+.PHONY: go-lint
+go-lint: $(GOLANGCI_LINT) ## 运行 Go 静态检查
+	@mkdir -p $(GOLANGCI_LINT_CACHE)
+	@GOLANGCI_LINT_CACHE=$(GOLANGCI_LINT_CACHE) $(GO_ENV) $(GOLANGCI_LINT) run ./...
 
 .PHONY: test
 test: ## 编译检查全部 Go package

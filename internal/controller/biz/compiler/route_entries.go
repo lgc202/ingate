@@ -8,9 +8,10 @@ import (
 	"time"
 
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 const (

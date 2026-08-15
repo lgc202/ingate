@@ -2,11 +2,14 @@
 package wasm
 
 import (
+	"errors"
+
+	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
+	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
+
 	config "github.com/lgc202/ingate/pkg/plugin/ratelimit"
 	"github.com/lgc202/ingate/plugins/internal/redisabi"
 	"github.com/lgc202/ingate/plugins/ratelimit/internal/policy"
-	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
-	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
 )
 
 type pluginContext struct {
@@ -41,7 +44,7 @@ func (p *pluginContext) OnPluginStart(pluginConfigurationSize int) types.OnPlugi
 	}
 
 	data, err := proxywasm.GetPluginConfiguration()
-	if err != nil && err != types.ErrorStatusNotFound {
+	if err != nil && !errors.Is(err, types.ErrorStatusNotFound) {
 		proxywasm.LogErrorf("read rate-limit config failed: %v", err)
 		return types.OnPluginStartStatusFailed
 	}

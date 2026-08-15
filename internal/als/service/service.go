@@ -42,7 +42,7 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 	var nodeID string
 	for {
 		message, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return stream.SendAndClose(new(accesslogservice.StreamAccessLogsResponse))
 		}
 		if err != nil {

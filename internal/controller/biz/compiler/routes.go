@@ -8,9 +8,10 @@ import (
 	"strings"
 
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	"google.golang.org/protobuf/proto"
+
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	"google.golang.org/protobuf/proto"
 )
 
 const (

@@ -1,0 +1,49 @@
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - bodyclose
+    - errcheck
+    - errorlint
+    - govet
+    - ineffassign
+    - nolintlint
+    - staticcheck
+    - unused
+  settings:
+    staticcheck:
+      checks:
+        - all
+        - -QF1001
+        - -QF1008
+  exclusions:
+    generated: lax
+    rules:
+      - path: ^plugins/internal/redisabi/
+        linters:
+          - unused
+      # Proxy-Wasm SDK 的接口名称固定使用 Http，插件实现必须保持完全一致
+      - path: ^plugins/(iprestriction|ratelimit)/internal/wasm/
+        text: "ST1003:"
+        linters:
+          - staticcheck
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/lgc202/ingate
+  exclusions:
+    generated: lax
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

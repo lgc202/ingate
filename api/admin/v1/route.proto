@@ -148,7 +148,9 @@ message CreateRouteRequest {
     json_name = "gatewayIDs",
     (buf.validate.field).repeated = {
       min_items: 1
-      items: {string: {uuid: true}}
+      items: {
+        string: {uuid: true}
+      }
     }
   ];
   repeated string hostnames = 4;
@@ -169,7 +171,9 @@ message UpdateRouteRequest {
     json_name = "gatewayIDs",
     (buf.validate.field).repeated = {
       min_items: 1
-      items: {string: {uuid: true}}
+      items: {
+        string: {uuid: true}
+      }
     }
   ];
   repeated string hostnames = 6;

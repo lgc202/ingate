@@ -2,10 +2,13 @@
 package wasm
 
 import (
-	config "github.com/lgc202/ingate/pkg/plugin/iprestriction"
-	"github.com/lgc202/ingate/plugins/iprestriction/internal/policy"
+	"errors"
+
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
+
+	config "github.com/lgc202/ingate/pkg/plugin/iprestriction"
+	"github.com/lgc202/ingate/plugins/iprestriction/internal/policy"
 )
 
 type pluginContext struct {
@@ -29,7 +32,7 @@ func Register() {
 
 func (p *pluginContext) OnPluginStart(pluginConfigurationSize int) types.OnPluginStartStatus {
 	data, err := proxywasm.GetPluginConfiguration()
-	if err != nil && err != types.ErrorStatusNotFound {
+	if err != nil && !errors.Is(err, types.ErrorStatusNotFound) {
 		proxywasm.LogErrorf("read IP restriction config failed: %v", err)
 		return types.OnPluginStartStatusFailed
 	}

@@ -6,8 +6,9 @@ import (
 	listenerv3 "github.com/envoyproxy/go-control-plane/envoy/config/listener/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	resourcev3 "github.com/envoyproxy/go-control-plane/pkg/resource/v3"
-	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 )
 
 // transitionTypeURLs 同时保留 Active 和 Candidate 使用的类型，确保资源删除也会产生待确认的空响应

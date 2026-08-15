@@ -1,8 +1,9 @@
 package wasm
 
 import (
-	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
+
+	pluginwasm "github.com/lgc202/ingate/plugins/internal/wasm"
 )
 
 const deniedMessage = "IP address is not allowed"
