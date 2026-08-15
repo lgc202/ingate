@@ -1,4 +1,4 @@
-// Package route 实现 Route 管理 API
+// Package route 提供 Route 管理 API
 package route
 
 import (
@@ -13,16 +13,16 @@ import (
 
 // Service 实现路由管理 API
 type Service struct {
-	usecase *routebiz.Usecase
+	business *routebiz.Service
 }
 
 // NewService 创建路由协议服务
-func NewService(usecase *routebiz.Usecase) *Service {
-	return &Service{usecase: usecase}
+func NewService(business *routebiz.Service) *Service {
+	return &Service{business: business}
 }
 
 func (s *Service) ListRoutes(ctx context.Context, request *adminv1.ListRoutesRequest) (*adminv1.ListRoutesResponse, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	result, err := s.business.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (s *Service) ListRoutes(ctx context.Context, request *adminv1.ListRoutesReq
 }
 
 func (s *Service) GetRoute(ctx context.Context, request *adminv1.GetRouteRequest) (*adminv1.Route, error) {
-	item, err := s.usecase.Get(ctx, request.GetId())
+	item, err := s.business.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (s *Service) CreateRoute(ctx context.Context, request *adminv1.CreateRouteR
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.usecase.Create(ctx, spec)
+	item, err := s.business.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (s *Service) UpdateRoute(ctx context.Context, request *adminv1.UpdateRouteR
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	item, err := s.business.Update(ctx, request.GetId(), request.GetVersion(), spec)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +91,7 @@ func (s *Service) UpdateRoute(ctx context.Context, request *adminv1.UpdateRouteR
 }
 
 func (s *Service) DeleteRoute(ctx context.Context, request *adminv1.DeleteRouteRequest) (*emptypb.Empty, error) {
-	if err := s.usecase.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.business.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

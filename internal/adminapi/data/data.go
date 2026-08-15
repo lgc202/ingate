@@ -1,4 +1,4 @@
-// Package data 实现业务用例依赖的数据访问
+// Package data 实现 biz 层依赖的数据访问
 package data
 
 import (
@@ -22,7 +22,6 @@ import (
 
 // ProviderSet 汇总 Admin API 的数据访问实现
 var ProviderSet = wire.NewSet(
-	NewData,
 	NewResourceClient,
 	apiserver.NewGatewayRepository,
 	apiserver.NewRouteRepository,
@@ -56,13 +55,8 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(configuration.IPRestrictionPolicyRepository), new(*apiserver.IPRestrictionPolicyRepository)),
 )
 
-// Data 持有 Admin API 使用的声明式资源客户端
-type Data struct {
-	resourceClient clientset.Interface
-}
-
-// NewData 创建声明式资源客户端
-func NewData(config *conf.Data) (*Data, error) {
+// NewResourceClient 创建 Admin API 使用的声明式资源客户端
+func NewResourceClient(config *conf.Data) (clientset.Interface, error) {
 	restConfig, err := clientcmd.BuildConfigFromFlags(config.GetApiserver().GetMaster(), config.GetApiserver().GetKubeconfig())
 	if err != nil {
 		return nil, fmt.Errorf("build apiserver client config: %w", err)
@@ -71,10 +65,5 @@ func NewData(config *conf.Data) (*Data, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create apiserver client: %w", err)
 	}
-	return &Data{resourceClient: resourceClient}, nil
-}
-
-// NewResourceClient 提供声明式资源客户端给各资源 Repository
-func NewResourceClient(data *Data) clientset.Interface {
-	return data.resourceClient
+	return resourceClient, nil
 }

@@ -10,8 +10,8 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func (u *Usecase) validateGateway(ctx context.Context, spec resource.GatewaySpec, excludeID string) error {
-	if err := u.validateCertificateRefs(ctx, spec); err != nil {
+func (s *Service) validateGateway(ctx context.Context, spec resource.GatewaySpec, excludeID string) error {
+	if err := s.validateCertificateRefs(ctx, spec); err != nil {
 		return err
 	}
 	if !spec.Enabled {
@@ -19,7 +19,7 @@ func (u *Usecase) validateGateway(ctx context.Context, spec resource.GatewaySpec
 	}
 
 	// 这里为控制台提供立即冲突提示；声明式 API 并发写入仍以 Controller status 为最终裁决
-	return biz.VisitPages(ctx, u.repository.ListPage, func(current resource.Gateway) (bool, error) {
+	return biz.VisitPages(ctx, s.repository.ListPage, func(current resource.Gateway) (bool, error) {
 		if current.Name == excludeID || !current.Spec.Enabled {
 			return false, nil
 		}
@@ -30,7 +30,7 @@ func (u *Usecase) validateGateway(ctx context.Context, spec resource.GatewaySpec
 	})
 }
 
-func (u *Usecase) validateCertificateRefs(ctx context.Context, spec resource.GatewaySpec) error {
+func (s *Service) validateCertificateRefs(ctx context.Context, spec resource.GatewaySpec) error {
 	seen := make(map[string]struct{})
 	for _, listener := range spec.Listeners {
 		if listener.Protocol != resource.ProtocolHTTPS {
@@ -41,7 +41,7 @@ func (u *Usecase) validateCertificateRefs(ctx context.Context, spec resource.Gat
 		}
 		seen[listener.CertificateRef] = struct{}{}
 
-		_, err := u.certificates.Get(ctx, listener.CertificateRef)
+		_, err := s.certificates.Get(ctx, listener.CertificateRef)
 		if err == nil {
 			continue
 		}

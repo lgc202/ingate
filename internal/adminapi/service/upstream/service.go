@@ -1,4 +1,4 @@
-// Package upstream 实现 Upstream 管理 API
+// Package upstream 提供 Upstream 管理 API
 package upstream
 
 import (
@@ -13,16 +13,16 @@ import (
 
 // Service 实现服务管理 API
 type Service struct {
-	usecase *upstreambiz.Usecase
+	business *upstreambiz.Service
 }
 
 // NewService 创建服务协议层
-func NewService(usecase *upstreambiz.Usecase) *Service {
-	return &Service{usecase: usecase}
+func NewService(business *upstreambiz.Service) *Service {
+	return &Service{business: business}
 }
 
 func (s *Service) ListUpstreams(ctx context.Context, request *adminv1.ListUpstreamsRequest) (*adminv1.ListUpstreamsResponse, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	result, err := s.business.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
@@ -37,7 +37,7 @@ func (s *Service) ListUpstreams(ctx context.Context, request *adminv1.ListUpstre
 }
 
 func (s *Service) GetUpstream(ctx context.Context, request *adminv1.GetUpstreamRequest) (*adminv1.Upstream, error) {
-	item, err := s.usecase.Get(ctx, request.GetId())
+	item, err := s.business.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (s *Service) CreateUpstream(ctx context.Context, request *adminv1.CreateUps
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.usecase.Create(ctx, spec)
+	item, err := s.business.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (s *Service) UpdateUpstream(ctx context.Context, request *adminv1.UpdateUps
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	item, err := s.business.Update(ctx, request.GetId(), request.GetVersion(), spec)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (s *Service) UpdateUpstream(ctx context.Context, request *adminv1.UpdateUps
 }
 
 func (s *Service) DeleteUpstream(ctx context.Context, request *adminv1.DeleteUpstreamRequest) (*emptypb.Empty, error) {
-	if err := s.usecase.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.business.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

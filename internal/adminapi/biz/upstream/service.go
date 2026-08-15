@@ -1,4 +1,4 @@
-// Package upstream 实现 Upstream 管理用例
+// Package upstream 处理 Upstream 的管理规则和资源协作
 package upstream
 
 import (
@@ -12,7 +12,7 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// Repository 定义 Upstream 用例需要的持久化能力
+// Repository 定义 Upstream 管理需要的持久化能力
 type Repository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Upstream], error)
 	Get(context.Context, string) (*resource.Upstream, error)
@@ -26,44 +26,44 @@ type RouteRepository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Route], error)
 }
 
-// Usecase 承载 Upstream 管理用例
-type Usecase struct {
+// Service 协调 Upstream 的校验、引用约束和持久化
+type Service struct {
 	repository Repository
 	routes     RouteRepository
 }
 
-// NewUsecase 创建服务管理用例
-func NewUsecase(repository Repository, routes RouteRepository) *Usecase {
-	return &Usecase{repository: repository, routes: routes}
+// NewService 创建 Upstream 业务服务
+func NewService(repository Repository, routes RouteRepository) *Service {
+	return &Service{repository: repository, routes: routes}
 }
 
 // List 查询 Upstream 列表
-func (u *Usecase) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Upstream], error) {
-	return u.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Upstream], error) {
+	return s.repository.ListPage(ctx, page)
 }
 
 // Get 查询单个 Upstream
-func (u *Usecase) Get(ctx context.Context, upstreamID string) (*resource.Upstream, error) {
-	return u.repository.Get(ctx, upstreamID)
+func (s *Service) Get(ctx context.Context, upstreamID string) (*resource.Upstream, error) {
+	return s.repository.Get(ctx, upstreamID)
 }
 
 // Create 创建 Upstream
-func (u *Usecase) Create(ctx context.Context, spec resource.UpstreamSpec) (*resource.Upstream, error) {
-	if err := u.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+func (s *Service) Create(ctx context.Context, spec resource.UpstreamSpec) (*resource.Upstream, error) {
+	if err := s.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
 		return nil, err
 	}
 	id := uuid.NewString()
-	return u.repository.Create(ctx, id, spec)
+	return s.repository.Create(ctx, id, spec)
 }
 
 // Update 使用配置版本乐观更新 Upstream
-func (u *Usecase) Update(
+func (s *Service) Update(
 	ctx context.Context,
 	upstreamID string,
 	version int64,
 	spec resource.UpstreamSpec,
 ) (*resource.Upstream, error) {
-	current, err := u.repository.Get(ctx, upstreamID)
+	current, err := s.repository.Get(ctx, upstreamID)
 	if err != nil {
 		return nil, err
 	}
@@ -71,11 +71,11 @@ func (u *Usecase) Update(
 		return nil, upstreamVersionConflict(current)
 	}
 	if spec.DisplayName != current.Spec.DisplayName {
-		if err := u.validateDisplayName(ctx, upstreamID, spec.DisplayName); err != nil {
+		if err := s.validateDisplayName(ctx, upstreamID, spec.DisplayName); err != nil {
 			return nil, err
 		}
 	}
-	updated, err := u.repository.Update(ctx, upstreamID, current.Generation, spec)
+	updated, err := s.repository.Update(ctx, upstreamID, current.Generation, spec)
 	if err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, upstreamVersionConflict(current)
@@ -86,15 +86,15 @@ func (u *Usecase) Update(
 }
 
 // Delete 删除 Upstream，仍有关联路由时拒绝删除
-func (u *Usecase) Delete(ctx context.Context, upstreamID string, version int64) error {
-	current, err := u.repository.Get(ctx, upstreamID)
+func (s *Service) Delete(ctx context.Context, upstreamID string, version int64) error {
+	current, err := s.repository.Get(ctx, upstreamID)
 	if err != nil {
 		return err
 	}
 	if version != current.Generation {
 		return upstreamVersionConflict(current)
 	}
-	if err := biz.VisitPages(ctx, u.routes.ListPage, func(route resource.Route) (bool, error) {
+	if err := biz.VisitPages(ctx, s.routes.ListPage, func(route resource.Route) (bool, error) {
 		for _, ref := range route.Spec.UpstreamRefs {
 			if ref.Name == upstreamID {
 				return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", current.Spec.DisplayName, routeDisplayName(route)))
@@ -104,7 +104,7 @@ func (u *Usecase) Delete(ctx context.Context, upstreamID string, version int64) 
 	}); err != nil {
 		return err
 	}
-	if err := u.repository.Delete(ctx, upstreamID, current.Generation); err != nil {
+	if err := s.repository.Delete(ctx, upstreamID, current.Generation); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return upstreamVersionConflict(current)
 		}
@@ -113,8 +113,8 @@ func (u *Usecase) Delete(ctx context.Context, upstreamID string, version int64) 
 	return nil
 }
 
-func (u *Usecase) validateDisplayName(ctx context.Context, upstreamID, displayName string) error {
-	return biz.VisitPages(ctx, u.repository.ListPage, func(upstream resource.Upstream) (bool, error) {
+func (s *Service) validateDisplayName(ctx context.Context, upstreamID, displayName string) error {
+	return biz.VisitPages(ctx, s.repository.ListPage, func(upstream resource.Upstream) (bool, error) {
 		if upstream.Name != upstreamID && upstream.Spec.DisplayName == displayName {
 			return true, biz.NewUserError(fmt.Sprintf("服务名称 %q 已存在", displayName))
 		}

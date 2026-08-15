@@ -1,4 +1,4 @@
-// Package configuration 实现配置发布状态聚合用例
+// Package configuration 聚合声明式资源的配置生效状态
 package configuration
 
 import (
@@ -38,8 +38,8 @@ type IPRestrictionPolicyRepository interface {
 	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.IPRestrictionPolicy], error)
 }
 
-// Usecase 承载配置状态聚合用例
-type Usecase struct {
+// Service 提供跨资源的配置状态查询
+type Service struct {
 	gateways              GatewayRepository
 	routes                RouteRepository
 	upstreams             UpstreamRepository
@@ -48,16 +48,16 @@ type Usecase struct {
 	ipRestrictionPolicies IPRestrictionPolicyRepository
 }
 
-// NewUsecase 创建配置发布状态查询用例
-func NewUsecase(
+// NewService 创建配置状态业务服务
+func NewService(
 	gateways GatewayRepository,
 	routes RouteRepository,
 	upstreams UpstreamRepository,
 	certificates CertificateRepository,
 	rateLimitPolicies RateLimitPolicyRepository,
 	ipRestrictionPolicies IPRestrictionPolicyRepository,
-) *Usecase {
-	return &Usecase{
+) *Service {
+	return &Service{
 		gateways:              gateways,
 		routes:                routes,
 		upstreams:             upstreams,

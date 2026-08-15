@@ -1,4 +1,4 @@
-// Package authentication 实现 Console 登录参数和当前身份查询 API
+// Package authentication 提供 Console 登录参数和当前身份查询 API
 package authentication
 
 import (

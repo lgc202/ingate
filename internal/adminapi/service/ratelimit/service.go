@@ -1,4 +1,4 @@
-// Package ratelimit 实现请求限流策略管理 API
+// Package ratelimit 提供请求限流策略管理 API
 package ratelimit
 
 import (
@@ -13,19 +13,19 @@ import (
 
 // Service 实现请求限流策略管理 API
 type Service struct {
-	usecase *ratelimitbiz.Usecase
+	business *ratelimitbiz.Service
 }
 
 // NewService 创建限流策略协议服务
-func NewService(usecase *ratelimitbiz.Usecase) *Service {
-	return &Service{usecase: usecase}
+func NewService(business *ratelimitbiz.Service) *Service {
+	return &Service{business: business}
 }
 
 func (s *Service) ListRateLimitPolicies(
 	ctx context.Context,
 	request *adminv1.ListRateLimitPoliciesRequest,
 ) (*adminv1.ListRateLimitPoliciesResponse, error) {
-	result, err := s.usecase.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	result, err := s.business.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func (s *Service) GetRateLimitPolicy(
 	ctx context.Context,
 	request *adminv1.GetRateLimitPolicyRequest,
 ) (*adminv1.RateLimitPolicy, error) {
-	result, err := s.usecase.Get(ctx, request.GetId())
+	result, err := s.business.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (s *Service) CreateRateLimitPolicy(
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.usecase.Create(ctx, spec)
+	result, err := s.business.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (s *Service) UpdateRateLimitPolicy(
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.usecase.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	result, err := s.business.Update(ctx, request.GetId(), request.GetVersion(), spec)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func (s *Service) DeleteRateLimitPolicy(
 	ctx context.Context,
 	request *adminv1.DeleteRateLimitPolicyRequest,
 ) (*emptypb.Empty, error) {
-	if err := s.usecase.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.business.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

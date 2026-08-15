@@ -31,6 +31,31 @@ import (
 	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 )
 
+// bizProviderSet 汇总各资源的业务服务
+var bizProviderSet = wire.NewSet(
+	biz.NewPolicyUsageFinder,
+	gatewaybiz.NewService,
+	routebiz.NewService,
+	upstreambiz.NewService,
+	certificatebiz.NewService,
+	ratelimitbiz.NewService,
+	iprestrictionbiz.NewService,
+	configurationbiz.NewService,
+)
+
+// serviceProviderSet 汇总 Admin API 的协议服务
+var serviceProviderSet = wire.NewSet(
+	authenticationservice.NewService,
+	gatewayservice.NewService,
+	routeservice.NewService,
+	upstreamservice.NewService,
+	certificateservice.NewService,
+	ratelimitservice.NewService,
+	iprestrictionservice.NewService,
+	configurationservice.NewService,
+	healthservice.NewService,
+)
+
 func wireApp(
 	*conf.Server,
 	*conf.Data,
@@ -39,26 +64,11 @@ func wireApp(
 	serviceInstanceID,
 ) (*kratos.App, error) {
 	panic(wire.Build(
-		auth.NewAuthenticator,
+		auth.ProviderSet,
 		data.ProviderSet,
-		biz.NewPolicyUsageFinder,
-		gatewaybiz.NewUsecase,
-		routebiz.NewUsecase,
-		upstreambiz.NewUsecase,
-		certificatebiz.NewUsecase,
-		ratelimitbiz.NewUsecase,
-		iprestrictionbiz.NewUsecase,
-		configurationbiz.NewUsecase,
-		authenticationservice.NewService,
-		gatewayservice.NewService,
-		routeservice.NewService,
-		upstreamservice.NewService,
-		certificateservice.NewService,
-		ratelimitservice.NewService,
-		iprestrictionservice.NewService,
-		configurationservice.NewService,
-		healthservice.NewService,
-		server.NewHTTPServer,
+		bizProviderSet,
+		serviceProviderSet,
+		server.ProviderSet,
 		newKratosApp,
 	))
 }
