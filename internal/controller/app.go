@@ -15,9 +15,9 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"github.com/lgc202/go-kit/version"
 
+	"github.com/lgc202/ingate/internal/controller/biz"
+	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 	"github.com/lgc202/ingate/internal/controller/conf"
-	"github.com/lgc202/ingate/internal/controller/delivery"
-	"github.com/lgc202/ingate/internal/controller/reconcile"
 )
 
 const name = "ingate-controller"
@@ -69,7 +69,7 @@ func newKratosApp(
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
 	configDelivery *delivery.Delivery,
-	reconciler *reconcile.Reconciler,
+	controller *biz.Controller,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -78,7 +78,7 @@ func newKratosApp(
 		kratos.Version(version.Get().String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		kratos.Server(httpServer, grpcServer, configDelivery, reconciler),
+		kratos.Server(httpServer, grpcServer, configDelivery, controller),
 	)
 }
 

@@ -6,8 +6,8 @@ import (
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
+	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 	"github.com/lgc202/ingate/internal/controller/conf"
-	"github.com/lgc202/ingate/internal/controller/delivery"
 )
 
 // NewHTTPServer 创建 Controller 的存活和就绪检查服务
