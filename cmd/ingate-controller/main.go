@@ -2,20 +2,33 @@
 package main
 
 import (
-	"context"
+	"flag"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
-	"github.com/lgc202/ingate/internal/controller/app"
+	"github.com/lgc202/go-kit/version"
+
+	"github.com/lgc202/ingate/internal/controller"
+
+	_ "go.uber.org/automaxprocs"
 )
 
-func main() {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+const defaultConfigFile = "configs/ingate-controller.yaml"
 
-	if err := app.Run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
+func main() {
+	configFile := flag.String("config", defaultConfigFile, "configuration file")
+	showVersion := flag.Bool("version", false, "print version")
+	flag.Parse()
+	if *showVersion {
+		fmt.Println(version.Get().Text())
+		return
+	}
+	app, err := controller.NewApp(*configFile)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := app.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
