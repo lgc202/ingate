@@ -37,7 +37,7 @@ export function GatewayPage() {
   const list = gateways.data.gateways;
   const normalizedQuery = query.trim().toLowerCase();
   const visibleGateways = list.filter((gateway) => (
-    `${gateway.name} ${gateway.id} ${gateway.listeners.map((listener) => `${listener.name} ${listener.hostname} ${listener.port}`).join(' ')}`
+    `${gateway.name} ${gateway.listeners.map((listener) => `${listener.name} ${listener.hostname} ${listener.port}`).join(' ')}`
       .toLowerCase()
       .includes(normalizedQuery)
   ));
@@ -99,7 +99,7 @@ export function GatewayPage() {
               <tbody className="divide-y divide-slate-100">
                 {visibleGateways.map((gateway) => (
                   <tr key={gateway.id}>
-                    <td className="p-3"><div className="flex items-center gap-2"><Layers3 className="w-4 h-4 text-blue-600" /><div><strong>{gateway.name}</strong><div className="font-mono text-[10px] text-slate-400">{gateway.id}</div></div></div></td>
+                    <td className="p-3"><div className="flex items-center gap-2"><Layers3 className="w-4 h-4 text-blue-600" /><strong>{gateway.name}</strong></div></td>
                     <td className="p-3"><div className="flex flex-wrap gap-1.5">{gateway.listeners.map((listener) => <Badge key={listener.name} tone="neutral">{gatewayProtocolLabel(listener.protocol)} · {listener.port} · {listener.hostname || '全部域名'}</Badge>)}</div></td>
                     <td className="p-3"><Badge tone={resourceStateTone(gateway.enabled ? gateway.state : 'Disabled')}>{resourceStateLabel(gateway.enabled ? gateway.state : 'Disabled')}</Badge></td>
                     <td className="p-3 text-slate-500">{formatDateTime(gateway.updatedAt || gateway.createdAt)}</td>
@@ -147,7 +147,7 @@ function GatewayDetail({ gateway, policies, onPoliciesChanged }: { gateway: Gate
   return (
     <div className="space-y-5">
       <section className="resource-detail-hero">
-        <div><h3>{gateway.name}</h3><p>{gateway.id}</p></div>
+        <div><h3>{gateway.name}</h3></div>
         <Badge tone={resourceStateTone(state)}>{resourceStateLabel(state)}</Badge>
       </section>
       <section className="resource-detail-section">

@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { getRequestRecord, getRequestRecordWorkspace, listRequestRecords } from '@/api/requestRecords';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, Drawer, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
@@ -12,10 +13,22 @@ import {
 
 const methodOptions = ['', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 const pageSizeOptions = [10, 20, 50];
+const timePresets = [
+  { value: 'hour', label: '近 1 小时' },
+  { value: 'today', label: '今天' },
+  { value: '7d', label: '近 7 天' },
+  { value: '15d', label: '近 15 天' },
+  { value: '30d', label: '近 30 天' },
+] as const;
+
+type TimePreset = typeof timePresets[number]['value'];
 
 export function RequestRecordPage() {
-  const [draft, setDraft] = useState<RequestRecordFilters>(defaultFilters);
-  const [filters, setFilters] = useState<RequestRecordFilters>(draft);
+  const [searchParams] = useSearchParams();
+  const [initialFilters] = useState(() => requestFiltersFromURL(searchParams));
+  const [draft, setDraft] = useState<RequestRecordFilters>(initialFilters);
+  const [filters, setFilters] = useState<RequestRecordFilters>(initialFilters);
+  const [timePreset, setTimePreset] = useState<TimePreset | null>(() => matchingTimePreset(initialFilters));
   const [pageTokens, setPageTokens] = useState(['']);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
@@ -40,6 +53,16 @@ export function RequestRecordPage() {
     setPageTokens(['']);
     setPageIndex(0);
     setFilters({ ...draft });
+  };
+  const applyTimePreset = (preset: TimePreset) => {
+    const end = new Date();
+    const start = presetStartTime(preset, end);
+    const next = { ...draft, startTime: localDateTime(start), endTime: localDateTime(end) };
+    setTimePreset(preset);
+    setDraft(next);
+    setPageTokens(['']);
+    setPageIndex(0);
+    setFilters(next);
   };
   const openDetail = async (record: RequestRecordSummary) => {
     setSelected(record);
@@ -87,16 +110,22 @@ export function RequestRecordPage() {
               </button>
             </div>
           </div>
-          {filterExpanded ? <div className="request-record-filters">
-            <Field label="结果"><select className="select" value={draft.outcome ?? ''} onChange={(event) => setDraft({ ...draft, outcome: (event.target.value || undefined) as RequestOutcome | undefined })}>{outcomeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-            <Field label="开始时间"><input className="input" type="datetime-local" value={draft.startTime} onChange={(event) => setDraft({ ...draft, startTime: event.target.value })} /></Field>
-            <Field label="结束时间"><input className="input" type="datetime-local" value={draft.endTime} onChange={(event) => setDraft({ ...draft, endTime: event.target.value })} /></Field>
-            <Field label="方法"><select className="select" value={draft.method ?? ''} onChange={(event) => setDraft({ ...draft, method: event.target.value || undefined })}>{methodOptions.map((method) => <option key={method} value={method}>{method || '全部方法'}</option>)}</select></Field>
-            <Field label="网关"><ResourceSelect value={draft.gatewayID} placeholder="全部网关" options={workspace.data?.gateways} onChange={(gatewayID) => setDraft({ ...draft, gatewayID })} /></Field>
-            <Field label="路由"><ResourceSelect value={draft.routeID} placeholder="全部路由" options={workspace.data?.routes} onChange={(routeID) => setDraft({ ...draft, routeID })} /></Field>
-            <Field label="服务"><ResourceSelect value={draft.serviceID} placeholder="全部服务" options={workspace.data?.services} onChange={(serviceID) => setDraft({ ...draft, serviceID })} /></Field>
-            <Field label="Host"><input className="input font-mono" placeholder="精确匹配" value={draft.host ?? ''} onChange={(event) => setDraft({ ...draft, host: event.target.value })} /></Field>
-            <Field label="路径前缀"><input className="input font-mono" placeholder="例如 /api/orders" value={draft.pathPrefix ?? ''} onChange={(event) => setDraft({ ...draft, pathPrefix: event.target.value })} /></Field>
+          {filterExpanded ? <div className="request-filter-content">
+            <div className="request-time-presets" aria-label="快捷时间范围">
+              <span>时间范围</span>
+              {timePresets.map((preset) => <button type="button" key={preset.value} className={timePreset === preset.value ? 'is-active' : ''} onClick={() => applyTimePreset(preset.value)}>{preset.label}</button>)}
+            </div>
+            <div className="request-record-filters">
+              <Field label="结果"><select className="select" value={draft.outcome ?? ''} onChange={(event) => setDraft({ ...draft, outcome: (event.target.value || undefined) as RequestOutcome | undefined })}>{outcomeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
+              <Field label="开始时间"><input className="input" type="datetime-local" value={draft.startTime} onChange={(event) => { setTimePreset(null); setDraft({ ...draft, startTime: event.target.value }); }} /></Field>
+              <Field label="结束时间"><input className="input" type="datetime-local" value={draft.endTime} onChange={(event) => { setTimePreset(null); setDraft({ ...draft, endTime: event.target.value }); }} /></Field>
+              <Field label="方法"><select className="select" value={draft.method ?? ''} onChange={(event) => setDraft({ ...draft, method: event.target.value || undefined })}>{methodOptions.map((method) => <option key={method} value={method}>{method || '全部方法'}</option>)}</select></Field>
+              <Field label="网关"><ResourceSelect value={draft.gatewayID} placeholder="全部网关" options={workspace.data?.gateways} onChange={(gatewayID) => setDraft({ ...draft, gatewayID })} /></Field>
+              <Field label="路由"><ResourceSelect value={draft.routeID} placeholder="全部路由" options={workspace.data?.routes} onChange={(routeID) => setDraft({ ...draft, routeID })} /></Field>
+              <Field label="服务"><ResourceSelect value={draft.serviceID} placeholder="全部服务" options={workspace.data?.services} onChange={(serviceID) => setDraft({ ...draft, serviceID })} /></Field>
+              <Field label="Host"><input className="input font-mono" placeholder="精确匹配" value={draft.host ?? ''} onChange={(event) => setDraft({ ...draft, host: event.target.value })} /></Field>
+              <Field label="路径前缀"><input className="input font-mono" placeholder="例如 /api/orders" value={draft.pathPrefix ?? ''} onChange={(event) => setDraft({ ...draft, pathPrefix: event.target.value })} /></Field>
+            </div>
           </div> : null}
         </section>
         {records.data.records.length === 0 ? <EmptyState title="没有匹配的请求" message="调整时间范围或筛选条件后重新查询" /> : (
@@ -243,10 +272,45 @@ function nameOrID(names: Map<string, string>, id: string): string {
   return names.get(id) || id || '-';
 }
 
-function defaultFilters(): RequestRecordFilters {
-  const end = new Date();
-  const start = new Date(end.getTime() - 60 * 60 * 1000);
-  return { startTime: localDateTime(start), endTime: localDateTime(end) };
+function requestFiltersFromURL(params: URLSearchParams): RequestRecordFilters {
+  const end = parseFilterTime(params.get('endTime')) ?? new Date();
+  const start = parseFilterTime(params.get('startTime')) ?? new Date(end.getTime() - 60 * 60 * 1000);
+  return {
+    startTime: localDateTime(start),
+    endTime: localDateTime(end),
+    gatewayID: params.get('gatewayID') || undefined,
+    routeID: params.get('routeID') || undefined,
+    serviceID: params.get('serviceID') || undefined,
+  };
+}
+
+function parseFilterTime(value: string | null): Date | undefined {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function presetStartTime(preset: TimePreset, end: Date): Date {
+  if (preset === 'today') return new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  const days = preset === '7d' ? 7 : preset === '15d' ? 15 : preset === '30d' ? 30 : 0;
+  return new Date(end.getTime() - (days > 0 ? days * 24 * 60 * 60 * 1000 : 60 * 60 * 1000));
+}
+
+function matchingTimePreset(filters: RequestRecordFilters): TimePreset | null {
+  const start = new Date(filters.startTime);
+  const end = new Date(filters.endTime);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (start.getTime() === today.getTime()) return 'today';
+
+  const range = end.getTime() - start.getTime();
+  if (range === 60 * 60 * 1000) return 'hour';
+  if (range === 7 * 24 * 60 * 60 * 1000) return '7d';
+  if (range === 15 * 24 * 60 * 60 * 1000) return '15d';
+  if (range === 30 * 24 * 60 * 60 * 1000) return '30d';
+  return null;
 }
 
 function localDateTime(value: Date): string {
@@ -256,7 +320,7 @@ function localDateTime(value: Date): string {
 
 const outcomeOptions: Array<{ value: RequestOutcome | ''; label: string }> = [
   { value: '', label: '全部结果' },
-  { value: 'REQUEST_OUTCOME_SUCCESS', label: '非错误响应（2xx/3xx）' },
+  { value: 'REQUEST_OUTCOME_SUCCESS', label: '正常响应（2xx/3xx）' },
   { value: 'REQUEST_OUTCOME_CLIENT_ERROR', label: '客户端错误（4xx）' },
   { value: 'REQUEST_OUTCOME_SERVER_ERROR', label: '服务端错误（5xx）' },
 ];

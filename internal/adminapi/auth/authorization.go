@@ -13,6 +13,7 @@ var managedServices = map[string]struct{}{
 	"RateLimitPolicyService":     {},
 	"RequestRecordService":       {},
 	"RouteService":               {},
+	"TrafficAnalysisService":     {},
 	"UpstreamService":            {},
 }
 

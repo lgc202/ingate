@@ -17,6 +17,7 @@ import (
 	ratelimitbiz "github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	routebiz "github.com/lgc202/ingate/internal/adminapi/biz/route"
+	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	upstreambiz "github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data"
@@ -30,6 +31,7 @@ import (
 	ratelimitservice "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	requestservice "github.com/lgc202/ingate/internal/adminapi/service/request"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
+	trafficservice "github.com/lgc202/ingate/internal/adminapi/service/traffic"
 	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 )
 
@@ -43,6 +45,7 @@ var bizProviderSet = wire.NewSet(
 	ratelimitbiz.NewService,
 	iprestrictionbiz.NewService,
 	requestbiz.NewService,
+	trafficbiz.NewService,
 	configurationbiz.NewService,
 )
 
@@ -56,6 +59,7 @@ var serviceProviderSet = wire.NewSet(
 	ratelimitservice.NewService,
 	iprestrictionservice.NewService,
 	requestservice.NewService,
+	trafficservice.NewService,
 	configurationservice.NewService,
 	healthservice.NewService,
 )

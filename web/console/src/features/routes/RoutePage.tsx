@@ -136,18 +136,18 @@ export function RoutePage() {
             <EmptyState title={data.routes.length === 0 ? '暂无路由' : '没有匹配的路由'} message={data.routes.length === 0 ? '创建路由，将网关入口连接到服务' : '请调整搜索条件'} />
           </div>
         ) : (
-          <div className="table-scroll">
-            <table className="table">
-              <thead><tr><th>路由</th><th>请求匹配</th><th>网关</th><th>目标服务</th><th>状态</th><th>操作</th></tr></thead>
-              <tbody>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">请求匹配</th><th className="p-3">网关</th><th className="p-3">目标服务</th><th className="p-3">状态</th><th className="p-3 text-right">操作</th></tr></thead>
+              <tbody className="divide-y divide-slate-100">
                 {visibleRoutes.map((route) => (
                   <tr key={route.id}>
-                    <td><div className="flex items-center gap-2"><RouteIcon className="h-4 w-4 shrink-0 text-blue-600" /><div><div className="table-primary">{route.name}</div><div className="table-secondary font-mono">{route.id}</div></div></div></td>
-                    <td><div className="table-primary font-mono">{pathMatchLabel(route)} {route.match.path.value}</div><div className="table-secondary">{methodLabel(route)}</div></td>
-                    <td>{resourceNames(route.gatewayIDs, data.gateways)}</td>
-                    <td>{resourceNames(route.upstreams.map((target) => target.upstreamID), data.upstreams)}</td>
-                    <td><Badge tone={resourceStateTone(route.enabled ? route.state : 'Disabled')}>{resourceStateLabel(route.enabled ? route.state : 'Disabled')}</Badge></td>
-                    <td><RowActions onDetail={() => setDetail(route)} onEdit={canWriteConfiguration ? () => openEditor(route) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(route) : undefined} /></td>
+                    <td className="p-3"><div className="flex items-center gap-2"><RouteIcon className="h-4 w-4 shrink-0 text-blue-600" /><strong>{route.name}</strong></div></td>
+                    <td className="p-3"><div className="table-primary font-mono">{pathMatchLabel(route)} {route.match.path.value}</div><div className="table-secondary">{methodLabel(route)}</div></td>
+                    <td className="p-3">{resourceNames(route.gatewayIDs, data.gateways)}</td>
+                    <td className="p-3">{resourceNames(route.upstreams.map((target) => target.upstreamID), data.upstreams)}</td>
+                    <td className="p-3"><Badge tone={resourceStateTone(route.enabled ? route.state : 'Disabled')}>{resourceStateLabel(route.enabled ? route.state : 'Disabled')}</Badge></td>
+                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(route)} onEdit={canWriteConfiguration ? () => openEditor(route) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(route) : undefined} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -176,7 +176,7 @@ function RouteDetail({ route, workspace, policies, onPoliciesChanged }: { route:
   const state = route.enabled ? route.state : 'Disabled';
   return (
     <div className="space-y-5">
-      <section className="resource-detail-hero"><div><h3>{route.name}</h3><p>{route.id}</p></div><Badge tone={resourceStateTone(state)}>{resourceStateLabel(state)}</Badge></section>
+      <section className="resource-detail-hero"><div><h3>{route.name}</h3></div><Badge tone={resourceStateTone(state)}>{resourceStateLabel(state)}</Badge></section>
       <DetailSection title="请求匹配">
         <DetailItem label="域名" value={route.hostnames.length > 0 ? route.hostnames.join('、') : '继承网关域名'} />
         <DetailItem label="路径" value={`${pathMatchLabel(route)} ${route.match.path.value}`} code />
@@ -275,7 +275,7 @@ function filterRoutes(workspace: RouteWorkspace, query: string): RouteResource[]
   return workspace.routes.filter((route) => {
     const gatewayNames = resourceNames(route.gatewayIDs, workspace.gateways);
     const upstreamNames = resourceNames(route.upstreams.map((target) => target.upstreamID), workspace.upstreams);
-    return `${route.name} ${route.id} ${route.hostnames.join(' ')} ${route.match.path.value} ${gatewayNames} ${upstreamNames}`.toLowerCase().includes(normalizedQuery);
+    return `${route.name} ${route.hostnames.join(' ')} ${route.match.path.value} ${gatewayNames} ${upstreamNames}`.toLowerCase().includes(normalizedQuery);
   });
 }
 

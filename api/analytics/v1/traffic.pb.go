@@ -292,7 +292,13 @@ type TrafficTrendPoint struct {
 	// average_duration 是请求平均总耗时。
 	AverageDuration *durationpb.Duration `protobuf:"bytes,5,opt,name=average_duration,json=averageDuration,proto3" json:"average_duration,omitempty"`
 	// p95_duration 是请求总耗时的 P95 分位值。
-	P95Duration   *durationpb.Duration `protobuf:"bytes,6,opt,name=p95_duration,json=p95Duration,proto3" json:"p95_duration,omitempty"`
+	P95Duration *durationpb.Duration `protobuf:"bytes,6,opt,name=p95_duration,json=p95Duration,proto3" json:"p95_duration,omitempty"`
+	// no_response_count 是未获得有效 HTTP 状态码的请求数。
+	NoResponseCount uint64 `protobuf:"varint,7,opt,name=no_response_count,json=noResponseCount,proto3" json:"no_response_count,omitempty"`
+	// p50_duration 是请求总耗时的 P50 分位值。
+	P50Duration *durationpb.Duration `protobuf:"bytes,8,opt,name=p50_duration,json=p50Duration,proto3" json:"p50_duration,omitempty"`
+	// p99_duration 是请求总耗时的 P99 分位值。
+	P99Duration   *durationpb.Duration `protobuf:"bytes,9,opt,name=p99_duration,json=p99Duration,proto3" json:"p99_duration,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -369,11 +375,34 @@ func (x *TrafficTrendPoint) GetP95Duration() *durationpb.Duration {
 	return nil
 }
 
+func (x *TrafficTrendPoint) GetNoResponseCount() uint64 {
+	if x != nil {
+		return x.NoResponseCount
+	}
+	return 0
+}
+
+func (x *TrafficTrendPoint) GetP50Duration() *durationpb.Duration {
+	if x != nil {
+		return x.P50Duration
+	}
+	return nil
+}
+
+func (x *TrafficTrendPoint) GetP99Duration() *durationpb.Duration {
+	if x != nil {
+		return x.P99Duration
+	}
+	return nil
+}
+
 // GetTrafficTrendResponse 是按时间递增排列的流量趋势。
 type GetTrafficTrendResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// points 是查询时间范围内有请求的时间段。
-	Points        []*TrafficTrendPoint `protobuf:"bytes,1,rep,name=points,proto3" json:"points,omitempty"`
+	Points []*TrafficTrendPoint `protobuf:"bytes,1,rep,name=points,proto3" json:"points,omitempty"`
+	// summary 是整个查询时间范围的汇总统计。
+	Summary       *TrafficSummary `protobuf:"bytes,2,opt,name=summary,proto3" json:"summary,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -415,6 +444,122 @@ func (x *GetTrafficTrendResponse) GetPoints() []*TrafficTrendPoint {
 	return nil
 }
 
+func (x *GetTrafficTrendResponse) GetSummary() *TrafficSummary {
+	if x != nil {
+		return x.Summary
+	}
+	return nil
+}
+
+// TrafficSummary 是整个查询范围的流量和延迟汇总。
+type TrafficSummary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// request_count 是请求总数。
+	RequestCount uint64 `protobuf:"varint,1,opt,name=request_count,json=requestCount,proto3" json:"request_count,omitempty"`
+	// client_error_count 是 4xx 请求数。
+	ClientErrorCount uint64 `protobuf:"varint,2,opt,name=client_error_count,json=clientErrorCount,proto3" json:"client_error_count,omitempty"`
+	// server_error_count 是 5xx 及以上请求数。
+	ServerErrorCount uint64 `protobuf:"varint,3,opt,name=server_error_count,json=serverErrorCount,proto3" json:"server_error_count,omitempty"`
+	// no_response_count 是未获得有效 HTTP 状态码的请求数。
+	NoResponseCount uint64 `protobuf:"varint,4,opt,name=no_response_count,json=noResponseCount,proto3" json:"no_response_count,omitempty"`
+	// average_duration 是请求平均总耗时。
+	AverageDuration *durationpb.Duration `protobuf:"bytes,5,opt,name=average_duration,json=averageDuration,proto3" json:"average_duration,omitempty"`
+	// p50_duration 是请求总耗时的 P50 分位值。
+	P50Duration *durationpb.Duration `protobuf:"bytes,6,opt,name=p50_duration,json=p50Duration,proto3" json:"p50_duration,omitempty"`
+	// p95_duration 是请求总耗时的 P95 分位值。
+	P95Duration *durationpb.Duration `protobuf:"bytes,7,opt,name=p95_duration,json=p95Duration,proto3" json:"p95_duration,omitempty"`
+	// p99_duration 是请求总耗时的 P99 分位值。
+	P99Duration   *durationpb.Duration `protobuf:"bytes,8,opt,name=p99_duration,json=p99Duration,proto3" json:"p99_duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TrafficSummary) Reset() {
+	*x = TrafficSummary{}
+	mi := &file_analytics_v1_traffic_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TrafficSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TrafficSummary) ProtoMessage() {}
+
+func (x *TrafficSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_traffic_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TrafficSummary.ProtoReflect.Descriptor instead.
+func (*TrafficSummary) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_traffic_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *TrafficSummary) GetRequestCount() uint64 {
+	if x != nil {
+		return x.RequestCount
+	}
+	return 0
+}
+
+func (x *TrafficSummary) GetClientErrorCount() uint64 {
+	if x != nil {
+		return x.ClientErrorCount
+	}
+	return 0
+}
+
+func (x *TrafficSummary) GetServerErrorCount() uint64 {
+	if x != nil {
+		return x.ServerErrorCount
+	}
+	return 0
+}
+
+func (x *TrafficSummary) GetNoResponseCount() uint64 {
+	if x != nil {
+		return x.NoResponseCount
+	}
+	return 0
+}
+
+func (x *TrafficSummary) GetAverageDuration() *durationpb.Duration {
+	if x != nil {
+		return x.AverageDuration
+	}
+	return nil
+}
+
+func (x *TrafficSummary) GetP50Duration() *durationpb.Duration {
+	if x != nil {
+		return x.P50Duration
+	}
+	return nil
+}
+
+func (x *TrafficSummary) GetP95Duration() *durationpb.Duration {
+	if x != nil {
+		return x.P95Duration
+	}
+	return nil
+}
+
+func (x *TrafficSummary) GetP99Duration() *durationpb.Duration {
+	if x != nil {
+		return x.P99Duration
+	}
+	return nil
+}
+
 // ListTrafficBreakdownRequest 是资源维度流量分布查询参数。
 type ListTrafficBreakdownRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -430,7 +575,7 @@ type ListTrafficBreakdownRequest struct {
 
 func (x *ListTrafficBreakdownRequest) Reset() {
 	*x = ListTrafficBreakdownRequest{}
-	mi := &file_analytics_v1_traffic_proto_msgTypes[4]
+	mi := &file_analytics_v1_traffic_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -442,7 +587,7 @@ func (x *ListTrafficBreakdownRequest) String() string {
 func (*ListTrafficBreakdownRequest) ProtoMessage() {}
 
 func (x *ListTrafficBreakdownRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_analytics_v1_traffic_proto_msgTypes[4]
+	mi := &file_analytics_v1_traffic_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -455,7 +600,7 @@ func (x *ListTrafficBreakdownRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTrafficBreakdownRequest.ProtoReflect.Descriptor instead.
 func (*ListTrafficBreakdownRequest) Descriptor() ([]byte, []int) {
-	return file_analytics_v1_traffic_proto_rawDescGZIP(), []int{4}
+	return file_analytics_v1_traffic_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListTrafficBreakdownRequest) GetFilter() *TrafficFilter {
@@ -493,14 +638,20 @@ type TrafficBreakdownItem struct {
 	// average_duration 是该资源处理请求的平均总耗时。
 	AverageDuration *durationpb.Duration `protobuf:"bytes,5,opt,name=average_duration,json=averageDuration,proto3" json:"average_duration,omitempty"`
 	// p95_duration 是该资源处理请求总耗时的 P95 分位值。
-	P95Duration   *durationpb.Duration `protobuf:"bytes,6,opt,name=p95_duration,json=p95Duration,proto3" json:"p95_duration,omitempty"`
+	P95Duration *durationpb.Duration `protobuf:"bytes,6,opt,name=p95_duration,json=p95Duration,proto3" json:"p95_duration,omitempty"`
+	// no_response_count 是该资源未获得有效 HTTP 状态码的请求数。
+	NoResponseCount uint64 `protobuf:"varint,7,opt,name=no_response_count,json=noResponseCount,proto3" json:"no_response_count,omitempty"`
+	// p50_duration 是该资源处理请求总耗时的 P50 分位值。
+	P50Duration *durationpb.Duration `protobuf:"bytes,8,opt,name=p50_duration,json=p50Duration,proto3" json:"p50_duration,omitempty"`
+	// p99_duration 是该资源处理请求总耗时的 P99 分位值。
+	P99Duration   *durationpb.Duration `protobuf:"bytes,9,opt,name=p99_duration,json=p99Duration,proto3" json:"p99_duration,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *TrafficBreakdownItem) Reset() {
 	*x = TrafficBreakdownItem{}
-	mi := &file_analytics_v1_traffic_proto_msgTypes[5]
+	mi := &file_analytics_v1_traffic_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -512,7 +663,7 @@ func (x *TrafficBreakdownItem) String() string {
 func (*TrafficBreakdownItem) ProtoMessage() {}
 
 func (x *TrafficBreakdownItem) ProtoReflect() protoreflect.Message {
-	mi := &file_analytics_v1_traffic_proto_msgTypes[5]
+	mi := &file_analytics_v1_traffic_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -525,7 +676,7 @@ func (x *TrafficBreakdownItem) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TrafficBreakdownItem.ProtoReflect.Descriptor instead.
 func (*TrafficBreakdownItem) Descriptor() ([]byte, []int) {
-	return file_analytics_v1_traffic_proto_rawDescGZIP(), []int{5}
+	return file_analytics_v1_traffic_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *TrafficBreakdownItem) GetResourceId() string {
@@ -570,6 +721,27 @@ func (x *TrafficBreakdownItem) GetP95Duration() *durationpb.Duration {
 	return nil
 }
 
+func (x *TrafficBreakdownItem) GetNoResponseCount() uint64 {
+	if x != nil {
+		return x.NoResponseCount
+	}
+	return 0
+}
+
+func (x *TrafficBreakdownItem) GetP50Duration() *durationpb.Duration {
+	if x != nil {
+		return x.P50Duration
+	}
+	return nil
+}
+
+func (x *TrafficBreakdownItem) GetP99Duration() *durationpb.Duration {
+	if x != nil {
+		return x.P99Duration
+	}
+	return nil
+}
+
 // ListTrafficBreakdownResponse 是按请求量倒序排列的资源流量分布。
 type ListTrafficBreakdownResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -581,7 +753,7 @@ type ListTrafficBreakdownResponse struct {
 
 func (x *ListTrafficBreakdownResponse) Reset() {
 	*x = ListTrafficBreakdownResponse{}
-	mi := &file_analytics_v1_traffic_proto_msgTypes[6]
+	mi := &file_analytics_v1_traffic_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -593,7 +765,7 @@ func (x *ListTrafficBreakdownResponse) String() string {
 func (*ListTrafficBreakdownResponse) ProtoMessage() {}
 
 func (x *ListTrafficBreakdownResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_analytics_v1_traffic_proto_msgTypes[6]
+	mi := &file_analytics_v1_traffic_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -606,7 +778,7 @@ func (x *ListTrafficBreakdownResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListTrafficBreakdownResponse.ProtoReflect.Descriptor instead.
 func (*ListTrafficBreakdownResponse) Descriptor() ([]byte, []int) {
-	return file_analytics_v1_traffic_proto_rawDescGZIP(), []int{6}
+	return file_analytics_v1_traffic_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ListTrafficBreakdownResponse) GetItems() []*TrafficBreakdownItem {
@@ -632,7 +804,7 @@ const file_analytics_v1_traffic_proto_rawDesc = "" +
 	"upstreamId\"\x8d\x01\n" +
 	"\x16GetTrafficTrendRequest\x12:\n" +
 	"\x06filter\x18\x01 \x01(\v2\".ingate.analytics.v1.TrafficFilterR\x06filter\x127\n" +
-	"\x06bucket\x18\x02 \x01(\x0e2\x1f.ingate.analytics.v1.TimeBucketR\x06bucket\"\xd3\x02\n" +
+	"\x06bucket\x18\x02 \x01(\x0e2\x1f.ingate.analytics.v1.TimeBucketR\x06bucket\"\xfb\x03\n" +
 	"\x11TrafficTrendPoint\x129\n" +
 	"\n" +
 	"started_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12#\n" +
@@ -640,13 +812,26 @@ const file_analytics_v1_traffic_proto_rawDesc = "" +
 	"\x12client_error_count\x18\x03 \x01(\x04R\x10clientErrorCount\x12,\n" +
 	"\x12server_error_count\x18\x04 \x01(\x04R\x10serverErrorCount\x12D\n" +
 	"\x10average_duration\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x0faverageDuration\x12<\n" +
-	"\fp95_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vp95Duration\"Y\n" +
+	"\fp95_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vp95Duration\x12*\n" +
+	"\x11no_response_count\x18\a \x01(\x04R\x0fnoResponseCount\x12<\n" +
+	"\fp50_duration\x18\b \x01(\v2\x19.google.protobuf.DurationR\vp50Duration\x12<\n" +
+	"\fp99_duration\x18\t \x01(\v2\x19.google.protobuf.DurationR\vp99Duration\"\x98\x01\n" +
 	"\x17GetTrafficTrendResponse\x12>\n" +
-	"\x06points\x18\x01 \x03(\v2&.ingate.analytics.v1.TrafficTrendPointR\x06points\"\xb4\x01\n" +
+	"\x06points\x18\x01 \x03(\v2&.ingate.analytics.v1.TrafficTrendPointR\x06points\x12=\n" +
+	"\asummary\x18\x02 \x01(\v2#.ingate.analytics.v1.TrafficSummaryR\asummary\"\xbd\x03\n" +
+	"\x0eTrafficSummary\x12#\n" +
+	"\rrequest_count\x18\x01 \x01(\x04R\frequestCount\x12,\n" +
+	"\x12client_error_count\x18\x02 \x01(\x04R\x10clientErrorCount\x12,\n" +
+	"\x12server_error_count\x18\x03 \x01(\x04R\x10serverErrorCount\x12*\n" +
+	"\x11no_response_count\x18\x04 \x01(\x04R\x0fnoResponseCount\x12D\n" +
+	"\x10average_duration\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x0faverageDuration\x12<\n" +
+	"\fp50_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vp50Duration\x12<\n" +
+	"\fp95_duration\x18\a \x01(\v2\x19.google.protobuf.DurationR\vp95Duration\x12<\n" +
+	"\fp99_duration\x18\b \x01(\v2\x19.google.protobuf.DurationR\vp99Duration\"\xb4\x01\n" +
 	"\x1bListTrafficBreakdownRequest\x12:\n" +
 	"\x06filter\x18\x01 \x01(\v2\".ingate.analytics.v1.TrafficFilterR\x06filter\x12C\n" +
 	"\tdimension\x18\x02 \x01(\x0e2%.ingate.analytics.v1.TrafficDimensionR\tdimension\x12\x14\n" +
-	"\x05limit\x18\x03 \x01(\rR\x05limit\"\xbc\x02\n" +
+	"\x05limit\x18\x03 \x01(\rR\x05limit\"\xe4\x03\n" +
 	"\x14TrafficBreakdownItem\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceId\x12#\n" +
@@ -654,7 +839,10 @@ const file_analytics_v1_traffic_proto_rawDesc = "" +
 	"\x12client_error_count\x18\x03 \x01(\x04R\x10clientErrorCount\x12,\n" +
 	"\x12server_error_count\x18\x04 \x01(\x04R\x10serverErrorCount\x12D\n" +
 	"\x10average_duration\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\x0faverageDuration\x12<\n" +
-	"\fp95_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vp95Duration\"_\n" +
+	"\fp95_duration\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\vp95Duration\x12*\n" +
+	"\x11no_response_count\x18\a \x01(\x04R\x0fnoResponseCount\x12<\n" +
+	"\fp50_duration\x18\b \x01(\v2\x19.google.protobuf.DurationR\vp50Duration\x12<\n" +
+	"\fp99_duration\x18\t \x01(\v2\x19.google.protobuf.DurationR\vp99Duration\"_\n" +
 	"\x1cListTrafficBreakdownResponse\x12?\n" +
 	"\x05items\x18\x01 \x03(\v2).ingate.analytics.v1.TrafficBreakdownItemR\x05items*\x8a\x01\n" +
 	"\n" +
@@ -686,7 +874,7 @@ func file_analytics_v1_traffic_proto_rawDescGZIP() []byte {
 }
 
 var file_analytics_v1_traffic_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_analytics_v1_traffic_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_analytics_v1_traffic_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_analytics_v1_traffic_proto_goTypes = []any{
 	(TimeBucket)(0),                      // 0: ingate.analytics.v1.TimeBucket
 	(TrafficDimension)(0),                // 1: ingate.analytics.v1.TrafficDimension
@@ -694,35 +882,45 @@ var file_analytics_v1_traffic_proto_goTypes = []any{
 	(*GetTrafficTrendRequest)(nil),       // 3: ingate.analytics.v1.GetTrafficTrendRequest
 	(*TrafficTrendPoint)(nil),            // 4: ingate.analytics.v1.TrafficTrendPoint
 	(*GetTrafficTrendResponse)(nil),      // 5: ingate.analytics.v1.GetTrafficTrendResponse
-	(*ListTrafficBreakdownRequest)(nil),  // 6: ingate.analytics.v1.ListTrafficBreakdownRequest
-	(*TrafficBreakdownItem)(nil),         // 7: ingate.analytics.v1.TrafficBreakdownItem
-	(*ListTrafficBreakdownResponse)(nil), // 8: ingate.analytics.v1.ListTrafficBreakdownResponse
-	(*timestamppb.Timestamp)(nil),        // 9: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),          // 10: google.protobuf.Duration
+	(*TrafficSummary)(nil),               // 6: ingate.analytics.v1.TrafficSummary
+	(*ListTrafficBreakdownRequest)(nil),  // 7: ingate.analytics.v1.ListTrafficBreakdownRequest
+	(*TrafficBreakdownItem)(nil),         // 8: ingate.analytics.v1.TrafficBreakdownItem
+	(*ListTrafficBreakdownResponse)(nil), // 9: ingate.analytics.v1.ListTrafficBreakdownResponse
+	(*timestamppb.Timestamp)(nil),        // 10: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),          // 11: google.protobuf.Duration
 }
 var file_analytics_v1_traffic_proto_depIdxs = []int32{
-	9,  // 0: ingate.analytics.v1.TrafficFilter.start_time:type_name -> google.protobuf.Timestamp
-	9,  // 1: ingate.analytics.v1.TrafficFilter.end_time:type_name -> google.protobuf.Timestamp
+	10, // 0: ingate.analytics.v1.TrafficFilter.start_time:type_name -> google.protobuf.Timestamp
+	10, // 1: ingate.analytics.v1.TrafficFilter.end_time:type_name -> google.protobuf.Timestamp
 	2,  // 2: ingate.analytics.v1.GetTrafficTrendRequest.filter:type_name -> ingate.analytics.v1.TrafficFilter
 	0,  // 3: ingate.analytics.v1.GetTrafficTrendRequest.bucket:type_name -> ingate.analytics.v1.TimeBucket
-	9,  // 4: ingate.analytics.v1.TrafficTrendPoint.started_at:type_name -> google.protobuf.Timestamp
-	10, // 5: ingate.analytics.v1.TrafficTrendPoint.average_duration:type_name -> google.protobuf.Duration
-	10, // 6: ingate.analytics.v1.TrafficTrendPoint.p95_duration:type_name -> google.protobuf.Duration
-	4,  // 7: ingate.analytics.v1.GetTrafficTrendResponse.points:type_name -> ingate.analytics.v1.TrafficTrendPoint
-	2,  // 8: ingate.analytics.v1.ListTrafficBreakdownRequest.filter:type_name -> ingate.analytics.v1.TrafficFilter
-	1,  // 9: ingate.analytics.v1.ListTrafficBreakdownRequest.dimension:type_name -> ingate.analytics.v1.TrafficDimension
-	10, // 10: ingate.analytics.v1.TrafficBreakdownItem.average_duration:type_name -> google.protobuf.Duration
-	10, // 11: ingate.analytics.v1.TrafficBreakdownItem.p95_duration:type_name -> google.protobuf.Duration
-	7,  // 12: ingate.analytics.v1.ListTrafficBreakdownResponse.items:type_name -> ingate.analytics.v1.TrafficBreakdownItem
-	3,  // 13: ingate.analytics.v1.TrafficService.GetTrafficTrend:input_type -> ingate.analytics.v1.GetTrafficTrendRequest
-	6,  // 14: ingate.analytics.v1.TrafficService.ListTrafficBreakdown:input_type -> ingate.analytics.v1.ListTrafficBreakdownRequest
-	5,  // 15: ingate.analytics.v1.TrafficService.GetTrafficTrend:output_type -> ingate.analytics.v1.GetTrafficTrendResponse
-	8,  // 16: ingate.analytics.v1.TrafficService.ListTrafficBreakdown:output_type -> ingate.analytics.v1.ListTrafficBreakdownResponse
-	15, // [15:17] is the sub-list for method output_type
-	13, // [13:15] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	10, // 4: ingate.analytics.v1.TrafficTrendPoint.started_at:type_name -> google.protobuf.Timestamp
+	11, // 5: ingate.analytics.v1.TrafficTrendPoint.average_duration:type_name -> google.protobuf.Duration
+	11, // 6: ingate.analytics.v1.TrafficTrendPoint.p95_duration:type_name -> google.protobuf.Duration
+	11, // 7: ingate.analytics.v1.TrafficTrendPoint.p50_duration:type_name -> google.protobuf.Duration
+	11, // 8: ingate.analytics.v1.TrafficTrendPoint.p99_duration:type_name -> google.protobuf.Duration
+	4,  // 9: ingate.analytics.v1.GetTrafficTrendResponse.points:type_name -> ingate.analytics.v1.TrafficTrendPoint
+	6,  // 10: ingate.analytics.v1.GetTrafficTrendResponse.summary:type_name -> ingate.analytics.v1.TrafficSummary
+	11, // 11: ingate.analytics.v1.TrafficSummary.average_duration:type_name -> google.protobuf.Duration
+	11, // 12: ingate.analytics.v1.TrafficSummary.p50_duration:type_name -> google.protobuf.Duration
+	11, // 13: ingate.analytics.v1.TrafficSummary.p95_duration:type_name -> google.protobuf.Duration
+	11, // 14: ingate.analytics.v1.TrafficSummary.p99_duration:type_name -> google.protobuf.Duration
+	2,  // 15: ingate.analytics.v1.ListTrafficBreakdownRequest.filter:type_name -> ingate.analytics.v1.TrafficFilter
+	1,  // 16: ingate.analytics.v1.ListTrafficBreakdownRequest.dimension:type_name -> ingate.analytics.v1.TrafficDimension
+	11, // 17: ingate.analytics.v1.TrafficBreakdownItem.average_duration:type_name -> google.protobuf.Duration
+	11, // 18: ingate.analytics.v1.TrafficBreakdownItem.p95_duration:type_name -> google.protobuf.Duration
+	11, // 19: ingate.analytics.v1.TrafficBreakdownItem.p50_duration:type_name -> google.protobuf.Duration
+	11, // 20: ingate.analytics.v1.TrafficBreakdownItem.p99_duration:type_name -> google.protobuf.Duration
+	8,  // 21: ingate.analytics.v1.ListTrafficBreakdownResponse.items:type_name -> ingate.analytics.v1.TrafficBreakdownItem
+	3,  // 22: ingate.analytics.v1.TrafficService.GetTrafficTrend:input_type -> ingate.analytics.v1.GetTrafficTrendRequest
+	7,  // 23: ingate.analytics.v1.TrafficService.ListTrafficBreakdown:input_type -> ingate.analytics.v1.ListTrafficBreakdownRequest
+	5,  // 24: ingate.analytics.v1.TrafficService.GetTrafficTrend:output_type -> ingate.analytics.v1.GetTrafficTrendResponse
+	9,  // 25: ingate.analytics.v1.TrafficService.ListTrafficBreakdown:output_type -> ingate.analytics.v1.ListTrafficBreakdownResponse
+	24, // [24:26] is the sub-list for method output_type
+	22, // [22:24] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_analytics_v1_traffic_proto_init() }
@@ -736,7 +934,7 @@ func file_analytics_v1_traffic_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_analytics_v1_traffic_proto_rawDesc), len(file_analytics_v1_traffic_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

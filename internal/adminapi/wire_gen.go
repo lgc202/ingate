@@ -18,6 +18,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
+	"github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data"
@@ -33,6 +34,7 @@ import (
 	ratelimit2 "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	request2 "github.com/lgc202/ingate/internal/adminapi/service/request"
 	route2 "github.com/lgc202/ingate/internal/adminapi/service/route"
+	traffic2 "github.com/lgc202/ingate/internal/adminapi/service/traffic"
 	upstream2 "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	"log/slog"
 )
@@ -77,8 +79,11 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *c
 	requestRepository := analytics.NewRequestRepository(clientConn)
 	requestService := request.NewService(requestRepository)
 	service9 := request2.NewService(requestService)
+	trafficRepository := analytics.NewTrafficRepository(clientConn)
+	trafficService := traffic.NewService(trafficRepository)
+	service10 := traffic2.NewService(trafficService)
 	healthService := health.NewService()
-	httpHandlers := server.NewHTTPHandlers(service, service2, service3, service4, service5, service6, service7, service8, service9, healthService)
+	httpHandlers := server.NewHTTPHandlers(service, service2, service3, service4, service5, service6, service7, service8, service9, service10, healthService)
 	httpServer := server.NewHTTPServer(confServer, logger, authenticator, httpHandlers)
 	app := newKratosApp(logger, confServer, httpServer, adminapiServiceInstanceID)
 	return app, func() {
@@ -89,7 +94,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *c
 // wire.go:
 
 // bizProviderSet 汇总各资源的业务服务
-var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, configuration.NewService)
+var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService, configuration.NewService)
 
 // serviceProviderSet 汇总 Admin API 的协议服务
-var serviceProviderSet = wire.NewSet(authentication.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, configuration2.NewService, health.NewService)
+var serviceProviderSet = wire.NewSet(authentication.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, configuration2.NewService, health.NewService)

@@ -47,10 +47,25 @@ type TrendQuery struct {
 type TrendPoint struct {
 	StartedAt       time.Time
 	RequestCount    uint64
+	NoResponses     uint64
 	ClientErrors    uint64
 	ServerErrors    uint64
 	AverageDuration time.Duration
+	P50Duration     time.Duration
 	P95Duration     time.Duration
+	P99Duration     time.Duration
+}
+
+// Summary 是整个查询范围内的流量和延迟汇总
+type Summary struct {
+	RequestCount    uint64
+	NoResponses     uint64
+	ClientErrors    uint64
+	ServerErrors    uint64
+	AverageDuration time.Duration
+	P50Duration     time.Duration
+	P95Duration     time.Duration
+	P99Duration     time.Duration
 }
 
 // BreakdownQuery 是资源维度流量分布查询参数
@@ -64,8 +79,11 @@ type BreakdownQuery struct {
 type BreakdownItem struct {
 	ResourceID      string
 	RequestCount    uint64
+	NoResponses     uint64
 	ClientErrors    uint64
 	ServerErrors    uint64
 	AverageDuration time.Duration
+	P50Duration     time.Duration
 	P95Duration     time.Duration
+	P99Duration     time.Duration
 }

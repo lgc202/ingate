@@ -15,6 +15,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
+	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	dataanalytics "github.com/lgc202/ingate/internal/adminapi/data/analytics"
@@ -27,6 +28,7 @@ var ProviderSet = wire.NewSet(
 	NewResourceClient,
 	dataanalytics.NewClient,
 	dataanalytics.NewRequestRepository,
+	dataanalytics.NewTrafficRepository,
 	apiserver.NewGatewayRepository,
 	apiserver.NewRouteRepository,
 	apiserver.NewUpstreamRepository,
@@ -52,6 +54,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(ratelimit.Repository), new(*apiserver.RateLimitPolicyRepository)),
 	wire.Bind(new(iprestriction.Repository), new(*apiserver.IPRestrictionPolicyRepository)),
 	wire.Bind(new(requestbiz.Repository), new(*dataanalytics.RequestRepository)),
+	wire.Bind(new(trafficbiz.Repository), new(*dataanalytics.TrafficRepository)),
 	wire.Bind(new(configuration.GatewayRepository), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(configuration.RouteRepository), new(*apiserver.RouteRepository)),
 	wire.Bind(new(configuration.UpstreamRepository), new(*apiserver.UpstreamRepository)),

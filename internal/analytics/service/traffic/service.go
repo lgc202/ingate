@@ -32,12 +32,26 @@ func (s *Service) GetTrafficTrend(
 	if err != nil {
 		return nil, err
 	}
+	summary, err := s.queries.Summary(ctx, query.Filter)
+	if err != nil {
+		return nil, err
+	}
 	points, err := s.queries.Trend(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	response := &analyticsv1.GetTrafficTrendResponse{
 		Points: make([]*analyticsv1.TrafficTrendPoint, 0, len(points)),
+		Summary: &analyticsv1.TrafficSummary{
+			RequestCount:     summary.RequestCount,
+			ClientErrorCount: summary.ClientErrors,
+			ServerErrorCount: summary.ServerErrors,
+			NoResponseCount:  summary.NoResponses,
+			AverageDuration:  durationpb.New(summary.AverageDuration),
+			P50Duration:      durationpb.New(summary.P50Duration),
+			P95Duration:      durationpb.New(summary.P95Duration),
+			P99Duration:      durationpb.New(summary.P99Duration),
+		},
 	}
 	for _, point := range points {
 		response.Points = append(response.Points, &analyticsv1.TrafficTrendPoint{
@@ -45,8 +59,11 @@ func (s *Service) GetTrafficTrend(
 			RequestCount:     point.RequestCount,
 			ClientErrorCount: point.ClientErrors,
 			ServerErrorCount: point.ServerErrors,
+			NoResponseCount:  point.NoResponses,
 			AverageDuration:  durationpb.New(point.AverageDuration),
+			P50Duration:      durationpb.New(point.P50Duration),
 			P95Duration:      durationpb.New(point.P95Duration),
+			P99Duration:      durationpb.New(point.P99Duration),
 		})
 	}
 	return response, nil
@@ -74,8 +91,11 @@ func (s *Service) ListTrafficBreakdown(
 			RequestCount:     item.RequestCount,
 			ClientErrorCount: item.ClientErrors,
 			ServerErrorCount: item.ServerErrors,
+			NoResponseCount:  item.NoResponses,
 			AverageDuration:  durationpb.New(item.AverageDuration),
+			P50Duration:      durationpb.New(item.P50Duration),
 			P95Duration:      durationpb.New(item.P95Duration),
+			P99Duration:      durationpb.New(item.P99Duration),
 		})
 	}
 	return response, nil

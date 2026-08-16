@@ -77,12 +77,40 @@ message TrafficTrendPoint {
   google.protobuf.Duration average_duration = 5;
   // p95_duration 是请求总耗时的 P95 分位值。
   google.protobuf.Duration p95_duration = 6;
+  // no_response_count 是未获得有效 HTTP 状态码的请求数。
+  uint64 no_response_count = 7;
+  // p50_duration 是请求总耗时的 P50 分位值。
+  google.protobuf.Duration p50_duration = 8;
+  // p99_duration 是请求总耗时的 P99 分位值。
+  google.protobuf.Duration p99_duration = 9;
 }
 
 // GetTrafficTrendResponse 是按时间递增排列的流量趋势。
 message GetTrafficTrendResponse {
   // points 是查询时间范围内有请求的时间段。
   repeated TrafficTrendPoint points = 1;
+  // summary 是整个查询时间范围的汇总统计。
+  TrafficSummary summary = 2;
+}
+
+// TrafficSummary 是整个查询范围的流量和延迟汇总。
+message TrafficSummary {
+  // request_count 是请求总数。
+  uint64 request_count = 1;
+  // client_error_count 是 4xx 请求数。
+  uint64 client_error_count = 2;
+  // server_error_count 是 5xx 及以上请求数。
+  uint64 server_error_count = 3;
+  // no_response_count 是未获得有效 HTTP 状态码的请求数。
+  uint64 no_response_count = 4;
+  // average_duration 是请求平均总耗时。
+  google.protobuf.Duration average_duration = 5;
+  // p50_duration 是请求总耗时的 P50 分位值。
+  google.protobuf.Duration p50_duration = 6;
+  // p95_duration 是请求总耗时的 P95 分位值。
+  google.protobuf.Duration p95_duration = 7;
+  // p99_duration 是请求总耗时的 P99 分位值。
+  google.protobuf.Duration p99_duration = 8;
 }
 
 // ListTrafficBreakdownRequest 是资源维度流量分布查询参数。
@@ -109,6 +137,12 @@ message TrafficBreakdownItem {
   google.protobuf.Duration average_duration = 5;
   // p95_duration 是该资源处理请求总耗时的 P95 分位值。
   google.protobuf.Duration p95_duration = 6;
+  // no_response_count 是该资源未获得有效 HTTP 状态码的请求数。
+  uint64 no_response_count = 7;
+  // p50_duration 是该资源处理请求总耗时的 P50 分位值。
+  google.protobuf.Duration p50_duration = 8;
+  // p99_duration 是该资源处理请求总耗时的 P99 分位值。
+  google.protobuf.Duration p99_duration = 9;
 }
 
 // ListTrafficBreakdownResponse 是按请求量倒序排列的资源流量分布。

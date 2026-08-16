@@ -1,5 +1,6 @@
 import {
   Activity,
+  ChartNoAxesCombined,
   KeyRound,
   Layers3,
   Route,
@@ -40,7 +41,10 @@ export const navigation: NavGroup[] = [
   {
     key: 'operations',
     label: '观测分析',
-    items: [{ key: 'requests', label: '请求记录', to: '/requests', icon: Activity }],
+    items: [
+      { key: 'requests', label: '请求记录', to: '/requests', icon: Activity },
+      { key: 'analysis', label: '流量分析', to: '/analysis', icon: ChartNoAxesCombined },
+    ],
   },
 ];
 
