@@ -2,10 +2,10 @@ import { useRef, useState } from 'react';
 import { deleteCertificate, listCertificates, saveCertificate } from '@/api/certificates';
 import { useResource } from '@/api/useResource';
 import { useAuth } from '@/auth/AuthContext';
-import { Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
-import { formatDateTime } from '@/domain/common';
+import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
+import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
 import type { Certificate } from '@/domain/certificate';
-import { KeyRound, Plus, Trash2, Edit3, FileText } from 'lucide-react';
+import { FileText, KeyRound, Plus } from 'lucide-react';
 
 type CertificateInputMode = 'upload' | 'paste';
 
@@ -27,6 +27,8 @@ const maxPEMFileSize = 1024 * 1024;
 export function CertificatePage() {
   const { canWriteConfiguration } = useAuth();
   const certificates = useResource(listCertificates);
+  const [query, setQuery] = useState('');
+  const [detail, setDetail] = useState<Certificate | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Certificate | null>(null);
@@ -58,6 +60,10 @@ export function CertificatePage() {
   }
 
   const certificateList = certificates.data.certificates;
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleCertificates = certificateList.filter((certificate) => (
+    `${certificate.name} ${certificate.id} ${certificate.dnsNames.join(' ')}`.toLowerCase().includes(normalizedQuery)
+  ));
 
   const handleCreateNew = () => {
     setIsEditing(false);
@@ -147,8 +153,9 @@ export function CertificatePage() {
 
   return (
     <PageFrame
+      eyebrow="流量配置"
       title="TLS 证书"
-      subtitle={`已录入 ${certificateList.length} 张 HTTPS 域名与 wildcard TLS 证书`}
+      subtitle={`管理 ${certificateList.length} 张 HTTPS 域名与通配符证书`}
       actions={canWriteConfiguration ? (
         <button
           type="button"
@@ -163,13 +170,13 @@ export function CertificatePage() {
       <div className="space-y-6 mt-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
 
-        {/* Certificate List High-Density Table */}
         <Panel>
-          {certificateList.length === 0 ? (
-            <EmptyState
-              title="暂无 TLS 证书"
-              message={canWriteConfiguration ? '点击右上角按钮录入 HTTPS 证书' : '当前环境还没有证书'}
-            />
+          <div className="resource-list-toolbar">
+            <SearchField value={query} onChange={setQuery} placeholder="搜索证书名称或 DNS 域名" />
+            <span>{visibleCertificates.length} 张证书</span>
+          </div>
+          {visibleCertificates.length === 0 ? (
+            <div className="p-5"><EmptyState title={certificateList.length === 0 ? '暂无 TLS 证书' : '没有匹配的证书'} message={certificateList.length === 0 ? '录入证书后即可配置 HTTPS 网关入口' : '请调整搜索条件'} /></div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs border-collapse">
@@ -178,12 +185,12 @@ export function CertificatePage() {
                     <th className="py-2.5 px-3">证书名称 / ID</th>
                     <th className="py-2.5 px-3">DNS 域名列表</th>
                     <th className="py-2.5 px-3">有效期截止</th>
-                    <th className="py-2.5 px-3">录入时间</th>
+                    <th className="py-2.5 px-3">状态</th>
                     <th className="py-2.5 px-3 text-right">操作</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-normal">
-                  {certificateList.map((item) => (
+                  {visibleCertificates.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2">
@@ -211,32 +218,8 @@ export function CertificatePage() {
                         </span>
                       </td>
 
-                      <td className="py-3 px-3 text-slate-400 text-[11px]">
-                        {formatDateTime(item.createdAt)}
-                      </td>
-
-                      <td className="py-3 px-3 text-right space-x-1">
-                        {canWriteConfiguration ? (
-                          <>
-                        <button
-                          type="button"
-                          onClick={() => handleEdit(item)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors cursor-pointer"
-                          title="修改信息"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setDeleteCandidate(item)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
-                          title="删除"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                          </>
-                        ) : <span className="text-slate-400">—</span>}
-                      </td>
+                      <td className="py-3 px-3"><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
+                      <td className="py-3 px-3 text-right"><RowActions onDetail={() => setDetail(item)} onEdit={canWriteConfiguration ? () => handleEdit(item) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(item) : undefined} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -246,7 +229,10 @@ export function CertificatePage() {
         </Panel>
       </div>
 
-      {/* Slide-over Drawer Form */}
+      <Drawer title="证书详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail(null)}>
+        {detail ? <CertificateDetail certificate={detail} /> : null}
+      </Drawer>
+
       <Drawer
         title={isEditing ? `修改证书信息: ${draft.name}` : '录入新 TLS 证书'}
         subtitle="上传 PEM 格式公私钥文本，用于 HTTPS Listener SNI 握手"
@@ -397,7 +383,6 @@ export function CertificatePage() {
         </div>
       </Drawer>
 
-      {/* Delete Confirmation Modal */}
       <Modal
         title="确认删除证书"
         isOpen={Boolean(deleteCandidate)}
@@ -427,6 +412,39 @@ export function CertificatePage() {
         </div>
       </Modal>
     </PageFrame>
+  );
+}
+
+function CertificateDetail({ certificate }: { certificate: Certificate }) {
+  return (
+    <div className="space-y-5">
+      <section className="resource-detail-hero">
+        <div><h3>{certificate.name}</h3><p>{certificate.id}</p></div>
+        <Badge tone={resourceStateTone(certificate.state)}>{resourceStateLabel(certificate.state)}</Badge>
+      </section>
+      <section className="resource-detail-section">
+        <h3>证书范围</h3>
+        <div className="resource-detail-list">
+          {certificate.dnsNames.map((dnsName) => <article key={dnsName}><div><strong>{dnsName}</strong><small>HTTPS DNS 域名</small></div><Badge tone="accent">TLS</Badge></article>)}
+        </div>
+      </section>
+      <section className="resource-detail-section">
+        <h3>有效期</h3>
+        <div className="resource-detail-grid">
+          <div><span>开始时间</span><strong>{formatDateTime(certificate.notBefore)}</strong></div>
+          <div><span>截止时间</span><strong>{formatDateTime(certificate.notAfter)}</strong></div>
+          <div><span>录入时间</span><strong>{formatDateTime(certificate.createdAt)}</strong></div>
+          <div><span>更新时间</span><strong>{formatDateTime(certificate.updatedAt || certificate.createdAt)}</strong></div>
+        </div>
+      </section>
+      <section className="resource-detail-section">
+        <h3>资源信息</h3>
+        <div className="resource-detail-grid">
+          <div><span>配置状态</span><strong>{certificate.message || resourceStateLabel(certificate.state)}</strong></div>
+          <div><span>配置版本</span><strong>{certificate.version}</strong></div>
+        </div>
+      </section>
+    </div>
   );
 }
 

@@ -1,4 +1,5 @@
 import {
+  Activity,
   KeyRound,
   Layers3,
   Route,
@@ -23,7 +24,7 @@ export interface NavGroup {
 export const navigation: NavGroup[] = [
   {
     key: 'configuration',
-    label: '配置管理',
+    label: '流量配置',
     items: [
       { key: 'gateways', label: '网关', to: '/gateways', icon: Layers3 },
       { key: 'routes', label: '路由', to: '/routes', icon: Route },
@@ -33,8 +34,13 @@ export const navigation: NavGroup[] = [
   },
   {
     key: 'access',
-    label: '治理策略',
+    label: '访问治理',
     items: [{ key: 'policies', label: '流量策略', to: '/policies', icon: ShieldCheck }],
+  },
+  {
+    key: 'operations',
+    label: '观测分析',
+    items: [{ key: 'requests', label: '请求记录', to: '/requests', icon: Activity }],
   },
 ];
 

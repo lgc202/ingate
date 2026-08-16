@@ -15,6 +15,7 @@ import (
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	iprestrictionbiz "github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
 	ratelimitbiz "github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
+	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	routebiz "github.com/lgc202/ingate/internal/adminapi/biz/route"
 	upstreambiz "github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
@@ -27,6 +28,7 @@ import (
 	healthservice "github.com/lgc202/ingate/internal/adminapi/service/health"
 	iprestrictionservice "github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
 	ratelimitservice "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
+	requestservice "github.com/lgc202/ingate/internal/adminapi/service/request"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
 	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 )
@@ -40,6 +42,7 @@ var bizProviderSet = wire.NewSet(
 	certificatebiz.NewService,
 	ratelimitbiz.NewService,
 	iprestrictionbiz.NewService,
+	requestbiz.NewService,
 	configurationbiz.NewService,
 )
 
@@ -52,6 +55,7 @@ var serviceProviderSet = wire.NewSet(
 	certificateservice.NewService,
 	ratelimitservice.NewService,
 	iprestrictionservice.NewService,
+	requestservice.NewService,
 	configurationservice.NewService,
 	healthservice.NewService,
 )
@@ -62,7 +66,7 @@ func wireApp(
 	*conf.Authentication,
 	*slog.Logger,
 	serviceInstanceID,
-) (*kratos.App, error) {
+) (*kratos.App, func(), error) {
 	panic(wire.Build(
 		auth.ProviderSet,
 		data.ProviderSet,

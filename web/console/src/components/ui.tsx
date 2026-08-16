@@ -1,12 +1,14 @@
 import { useEffect, useRef, type ReactNode } from 'react';
-import { AlertCircle, CircleCheck, X } from 'lucide-react';
+import { AlertCircle, CircleCheck, Search, X } from 'lucide-react';
 
 export function PageFrame({
+  eyebrow,
   title,
   subtitle,
   actions,
   children,
 }: {
+  eyebrow?: string;
   title: string;
   subtitle?: string;
   actions?: ReactNode;
@@ -16,6 +18,7 @@ export function PageFrame({
     <div className="content-grid space-y-4">
       <section className="topbar flex items-center justify-between gap-4 pb-3 border-b border-slate-200">
         <div>
+          {eyebrow ? <span className="page-eyebrow">{eyebrow}</span> : null}
           <h1 className="page-title text-xl font-bold text-slate-900 tracking-tight">{title}</h1>
           {subtitle ? <p className="page-subtitle text-xs text-slate-500 mt-0.5">{subtitle}</p> : null}
         </div>
@@ -48,8 +51,49 @@ export function Panel({
           {actions ? <div className="toolbar flex items-center gap-2">{actions}</div> : null}
         </header>
       ) : null}
-      <div className="panel-body p-5">{children}</div>
+      <div className={`panel-body ${title || actions ? 'p-5' : 'p-0'}`}>{children}</div>
     </section>
+  );
+}
+
+export function SearchField({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <label className="resource-search">
+      <Search aria-hidden="true" />
+      <input
+        type="search"
+        value={value}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+export function RowActions({
+  onDetail,
+  onEdit,
+  onDelete,
+}: {
+  onDetail: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+}) {
+  return (
+    <div className="row-actions" onClick={(event) => event.stopPropagation()}>
+      <button className="link-button" type="button" onClick={onDetail}>详情</button>
+      {onEdit ? <button className="link-button" type="button" onClick={onEdit}>编辑</button> : null}
+      {onDelete ? <button className="link-button danger" type="button" onClick={onDelete}>删除</button> : null}
+    </div>
   );
 }
 
@@ -141,7 +185,7 @@ export function Drawer({
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex justify-end transition-opacity">
       <div ref={backdropRef} className="fixed inset-0" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col border-l border-slate-200 z-10 animate-in slide-in-from-right duration-200">
+      <div className="relative w-full max-w-4xl bg-white h-full shadow-2xl flex flex-col border-l border-slate-200 z-10 animate-in slide-in-from-right duration-200">
         <header className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
           <div>
             <h2 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h2>

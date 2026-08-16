@@ -19,10 +19,22 @@ message Bootstrap {
 // Server 定义 Analytics 的查询 gRPC 和运维 HTTP 服务
 message Server {
   message GRPC {
+    message TLS {
+      // enabled 控制 Analytics 查询 gRPC 服务是否启用 TLS
+      bool enabled = 1;
+      // cert_file 是服务端证书链文件
+      string cert_file = 2;
+      // key_file 是服务端私钥文件
+      string key_file = 3;
+      // client_ca_file 非空时启用 mTLS 并校验 Admin API 客户端证书
+      string client_ca_file = 4;
+    }
     // addr 是请求分析查询 API 的 gRPC 监听地址
     string addr = 1;
     // timeout 限制单次查询请求处理时间
     google.protobuf.Duration timeout = 2;
+    // tls 保护 Admin API 到 Analytics 的查询链路
+    TLS tls = 3;
   }
   message HTTP {
     // addr 是健康检查和指标的 HTTP 监听地址

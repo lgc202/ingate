@@ -2,6 +2,11 @@ server:
   grpc:
     addr: "127.0.0.1:18101"
     timeout: "5s"
+    tls:
+      enabled: false
+      cert_file: ""
+      key_file: ""
+      client_ca_file: ""
   http:
     addr: "127.0.0.1:18102"
     timeout: "5s"

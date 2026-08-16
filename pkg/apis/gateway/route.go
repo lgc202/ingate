@@ -12,6 +12,18 @@ const (
 	PathMatchExact PathMatchType = "Exact"
 )
 
+// HostRewriteMode 表示转发请求时如何生成上游 Host
+type HostRewriteMode string
+
+const (
+	// HostRewriteServiceAddress 使用实际选中的服务端点主机名
+	HostRewriteServiceAddress HostRewriteMode = "ServiceAddress"
+	// HostRewritePreserve 保留客户端请求中的 Host
+	HostRewritePreserve HostRewriteMode = "Preserve"
+	// HostRewriteCustom 使用用户指定的固定主机名
+	HostRewriteCustom HostRewriteMode = "Custom"
+)
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // Route 声明一组请求匹配条件和对应的转发行为
@@ -47,11 +59,20 @@ type RouteSpec struct {
 	Match     RouteMatch `json:"match"`
 	// UpstreamRefs 保存接收请求的上游服务及流量权重
 	// +listType=atomic
-	UpstreamRefs           []UpstreamRef   `json:"upstreamRefs,omitempty"`
+	UpstreamRefs []UpstreamRef `json:"upstreamRefs,omitempty"`
+	// HostRewrite 为空时保留客户端 Host，其他模式由 Route 显式控制
+	HostRewrite            *HostRewrite    `json:"hostRewrite,omitempty"`
 	RequestHeaderModifier  *HeaderModifier `json:"requestHeaderModifier,omitempty"`
 	ResponseHeaderModifier *HeaderModifier `json:"responseHeaderModifier,omitempty"`
 	Timeout                *RouteTimeout   `json:"timeout,omitempty"`
 	Retry                  *RouteRetry     `json:"retry,omitempty"`
+}
+
+// HostRewrite 定义转发请求使用的上游 Host
+type HostRewrite struct {
+	Mode HostRewriteMode `json:"mode"`
+	// Hostname 仅在 Custom 模式下使用，不包含端口
+	Hostname string `json:"hostname,omitempty"`
 }
 
 // RouteMatch 表示必须同时满足的请求匹配条件

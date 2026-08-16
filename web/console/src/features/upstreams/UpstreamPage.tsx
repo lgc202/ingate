@@ -1,10 +1,10 @@
 import { useState, type ReactNode } from 'react';
-import { Edit3, Plus, Server, Trash2 } from 'lucide-react';
+import { Plus, Server } from 'lucide-react';
 import { deleteUpstream, listUpstreams, saveUpstream } from '@/api/upstreams';
 import { useResource } from '@/api/useResource';
 import { useAuth } from '@/auth/AuthContext';
-import { Badge, Button, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
-import { formatDateTime } from '@/domain/common';
+import { Badge, Button, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
+import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
 import type { Upstream } from '@/domain/upstream';
 import { upstreamLoadBalancingLabel, upstreamLoadBalancingOptions } from '@/domain/upstream';
 import { buildUpstreamPayload, createUpstreamDraft, validateUpstreamDraft, type UpstreamDraft } from './form';
@@ -12,6 +12,8 @@ import { buildUpstreamPayload, createUpstreamDraft, validateUpstreamDraft, type 
 export function UpstreamPage() {
   const { canWriteConfiguration } = useAuth();
   const resource = useResource(listUpstreams);
+  const [query, setQuery] = useState('');
+  const [detail, setDetail] = useState<Upstream | null>(null);
   const [draft, setDraft] = useState<UpstreamDraft>(() => createUpstreamDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Upstream | null>(null);
@@ -29,6 +31,13 @@ export function UpstreamPage() {
     setDraft(createUpstreamDraft(upstream));
     setEditorOpen(true);
   };
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleUpstreams = resource.data.upstreams.filter((upstream) => (
+    `${upstream.name} ${upstream.id} ${upstream.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join(' ')}`
+      .toLowerCase()
+      .includes(normalizedQuery)
+  ));
   const save = async () => {
     const errors = validateUpstreamDraft(draft);
     if (errors.length > 0) {
@@ -64,25 +73,30 @@ export function UpstreamPage() {
 
   return (
     <PageFrame
+      eyebrow="流量配置"
       title="服务"
-      subtitle="管理 Admin API 已支持的 HTTP 上游服务"
+      subtitle="管理路由实际连接的 HTTP 与 HTTPS 服务"
       actions={canWriteConfiguration ? <Button onClick={() => openEditor()}><Plus className="w-4 h-4" />创建服务</Button> : undefined}
     >
       <Panel>
-        {resource.data.upstreams.length === 0 ? <EmptyState title="暂无服务" message="创建服务后即可在路由中选择转发目标" /> : (
+        <div className="resource-list-toolbar">
+          <SearchField value={query} onChange={setQuery} placeholder="搜索服务、地址或端口" />
+          <span>{visibleUpstreams.length} 个服务</span>
+        </div>
+        {visibleUpstreams.length === 0 ? <div className="p-5"><EmptyState title={resource.data.upstreams.length === 0 ? '暂无服务' : '没有匹配的服务'} message={resource.data.upstreams.length === 0 ? '创建服务后即可在路由中选择转发目标' : '请调整搜索条件'} /></div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">地址</th><th className="p-3">连接</th><th className="p-3">负载均衡</th><th className="p-3">状态</th><th className="p-3">更新时间</th><th className="p-3 text-right">操作</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
-                {resource.data.upstreams.map((item) => (
+                {visibleUpstreams.map((item) => (
                   <tr key={item.id}>
                     <td className="p-3"><div className="flex items-center gap-2"><Server className="w-4 h-4 text-blue-600" /><div><strong>{item.name}</strong><div className="font-mono text-[10px] text-slate-400">{item.id}</div></div></div></td>
                     <td className="p-3 font-mono text-[11px]">{item.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join('、')}</td>
                     <td className="p-3">{item.tls ? `HTTPS · ${item.tls.serverName}` : 'HTTP'}</td>
                     <td className="p-3">{upstreamLoadBalancingLabel(item.loadBalancing)}</td>
-                    <td className="p-3"><Badge tone={item.state === 'Ready' ? 'success' : item.state === 'Error' ? 'error' : 'neutral'}>{item.state}</Badge></td>
+                    <td className="p-3"><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
                     <td className="p-3 text-slate-500">{formatDateTime(item.updatedAt || item.createdAt)}</td>
-                    <td className="p-3 text-right">{canWriteConfiguration ? <div className="inline-flex gap-1"><Button variant="ghost" size="sm" onClick={() => openEditor(item)}><Edit3 className="w-3.5 h-3.5" /></Button><Button variant="ghost" size="sm" onClick={() => setDeleteCandidate(item)}><Trash2 className="w-3.5 h-3.5 text-rose-600" /></Button></div> : '—'}</td>
+                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(item)} onEdit={canWriteConfiguration ? () => openEditor(item) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(item) : undefined} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -90,6 +104,10 @@ export function UpstreamPage() {
           </div>
         )}
       </Panel>
+
+      <Drawer title="服务详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail(null)}>
+        {detail ? <UpstreamDetail upstream={detail} /> : null}
+      </Drawer>
 
       <Drawer title={draft.id ? `编辑服务：${draft.name}` : '创建服务'} subtitle="配置上游地址、HTTPS 和健康检查" isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
         <div className="space-y-5">
@@ -107,6 +125,41 @@ export function UpstreamPage() {
       <Modal title="删除服务" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}><div className="p-6 space-y-5"><p className="text-sm">确定删除服务“{deleteCandidate?.name}”吗？</p><div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy} onClick={remove}>确认删除</Button></div></div></Modal>
       <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
     </PageFrame>
+  );
+}
+
+function UpstreamDetail({ upstream }: { upstream: Upstream }) {
+  return (
+    <div className="space-y-5">
+      <section className="resource-detail-hero">
+        <div><h3>{upstream.name}</h3><p>{upstream.id}</p></div>
+        <Badge tone={resourceStateTone(upstream.state)}>{resourceStateLabel(upstream.state)}</Badge>
+      </section>
+      <section className="resource-detail-section">
+        <h3>连接设置</h3>
+        <div className="resource-detail-grid">
+          <div><span>协议</span><strong>{upstream.tls ? 'HTTPS' : 'HTTP'}</strong></div>
+          <div><span>负载均衡</span><strong>{upstreamLoadBalancingLabel(upstream.loadBalancing)}</strong></div>
+          <div><span>TLS 服务名称</span><strong>{upstream.tls?.serverName || '—'}</strong></div>
+          <div><span>主动健康检查</span><strong>{upstream.healthCheck ? `${upstream.healthCheck.path} · 每 ${upstream.healthCheck.intervalSeconds} 秒` : '未启用'}</strong></div>
+        </div>
+      </section>
+      <section className="resource-detail-section">
+        <h3>服务地址</h3>
+        <div className="resource-detail-list">
+          {upstream.endpoints.map((endpoint) => <article key={`${endpoint.address}:${endpoint.port}`}><div><strong>{endpoint.address}:{endpoint.port}</strong><small>转发权重 {endpoint.weight}</small></div><Badge tone="neutral">{upstream.tls ? 'HTTPS' : 'HTTP'}</Badge></article>)}
+        </div>
+      </section>
+      <section className="resource-detail-section">
+        <h3>资源信息</h3>
+        <div className="resource-detail-grid">
+          <div><span>配置状态</span><strong>{upstream.message || resourceStateLabel(upstream.state)}</strong></div>
+          <div><span>更新时间</span><strong>{formatDateTime(upstream.updatedAt || upstream.createdAt)}</strong></div>
+          <div><span>创建时间</span><strong>{formatDateTime(upstream.createdAt)}</strong></div>
+          <div><span>配置版本</span><strong>{upstream.version}</strong></div>
+        </div>
+      </section>
+    </div>
   );
 }
 

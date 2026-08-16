@@ -25,6 +25,7 @@ type routeAttachment struct {
 	listenerKey listenerKey
 	gatewayID   string
 	routeID     string
+	routes      []*routev3.Route
 }
 
 func (c *compilation) buildRoutes(
@@ -34,7 +35,7 @@ func (c *compilation) buildRoutes(
 ) ([]*routev3.RouteConfiguration, []routeAttachment) {
 	routesByListener := make(map[listenerKey]map[string][]routeEntry, len(listenerGroups))
 	matchOwners := make(map[listenerKey]map[string]map[string]routeEntry, len(listenerGroups))
-	attachmentSet := make(map[routeAttachment]bool)
+	attachmentIndex := make(map[policyRouteKey]int)
 	attachments := make([]routeAttachment, 0)
 
 	for _, routeID := range slices.Sorted(maps.Keys(c.routes)) {
@@ -74,7 +75,6 @@ func (c *compilation) buildRoutes(
 				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonConflict, fmt.Sprintf("route %q has no attachable listener on gateway %q", routeID, gatewayID))
 				continue
 			}
-			attached = true
 			for _, key := range sortedListenerKeySet(domainsByListener) {
 				if routesByListener[key] == nil {
 					routesByListener[key] = make(map[string][]routeEntry)
@@ -99,13 +99,21 @@ func (c *compilation) buildRoutes(
 						}
 						matchOwners[key][domain][matchKey] = current
 						routesByListener[key][domain] = append(routesByListener[key][domain], current)
-					}
-				}
+						attached = true
 
-				attachment := routeAttachment{listenerKey: key, gatewayID: gatewayID, routeID: routeID}
-				if !attachmentSet[attachment] {
-					attachmentSet[attachment] = true
-					attachments = append(attachments, attachment)
+						attachmentKey := policyRouteKey{listenerKey: key, gatewayID: gatewayID, routeID: routeID}
+						index, exists := attachmentIndex[attachmentKey]
+						if !exists {
+							index = len(attachments)
+							attachmentIndex[attachmentKey] = index
+							attachments = append(attachments, routeAttachment{
+								listenerKey: key,
+								gatewayID:   gatewayID,
+								routeID:     routeID,
+							})
+						}
+						attachments[index].routes = append(attachments[index].routes, current.route)
+					}
 				}
 			}
 		}

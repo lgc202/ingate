@@ -154,6 +154,44 @@ func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (
 	return page, nil
 }
 
+// GetRequest 使用完整排序键读取单条请求记录
+//
+// started_at 既限定保留分区，也与 id 组成查询条件，避免仅按哈希 ID 扫描全部明细
+func (s *Store) GetRequest(
+	ctx context.Context,
+	id string,
+	startedAt time.Time,
+) (record *alsv1.RequestRecord, err error) {
+	queryCtx, cancel := context.WithTimeout(ctx, s.queryTimeout)
+	defer cancel()
+	queryCtx = clickhousego.Context(queryCtx, clickhousego.WithSettings(clickhousego.Settings{
+		"do_not_merge_across_partitions_select_final": 1,
+	}))
+
+	statement := fmt.Sprintf(
+		"SELECT %s FROM %s FINAL WHERE started_at = ? AND id = ? LIMIT 1",
+		requestColumns,
+		s.requestTable,
+	)
+	rows, err := s.connection.Query(queryCtx, statement, startedAt, id)
+	if err != nil {
+		return nil, fmt.Errorf("query request record %q: %w", id, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close request record rows: %w", closeErr))
+		}
+	}()
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, fmt.Errorf("read request record %q: %w", id, err)
+		}
+		return nil, request.ErrNotFound
+	}
+	record, err = scanRequestRecord(rows)
+	return record, err
+}
+
 // appendRequestFilters 只拼接预定义列，所有用户输入继续作为 ClickHouse 参数传递
 func appendRequestFilters(statement *strings.Builder, args []any, options request.ListOptions) []any {
 	filter := options.Filter

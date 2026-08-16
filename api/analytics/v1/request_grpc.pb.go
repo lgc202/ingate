@@ -8,6 +8,7 @@ package v1
 
 import (
 	context "context"
+	v1 "github.com/lgc202/ingate/api/als/v1"
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -20,6 +21,7 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	RequestService_ListRequests_FullMethodName = "/ingate.analytics.v1.RequestService/ListRequests"
+	RequestService_GetRequest_FullMethodName   = "/ingate.analytics.v1.RequestService/GetRequest"
 )
 
 // RequestServiceClient is the client API for RequestService service.
@@ -30,6 +32,8 @@ const (
 type RequestServiceClient interface {
 	// ListRequests 按时间倒序分页查询请求明细。
 	ListRequests(ctx context.Context, in *ListRequestsRequest, opts ...grpc.CallOption) (*ListRequestsResponse, error)
+	// GetRequest 按记录 ID 和开始时间查询单次请求明细。
+	GetRequest(ctx context.Context, in *GetRequestRequest, opts ...grpc.CallOption) (*v1.RequestRecord, error)
 }
 
 type requestServiceClient struct {
@@ -50,6 +54,16 @@ func (c *requestServiceClient) ListRequests(ctx context.Context, in *ListRequest
 	return out, nil
 }
 
+func (c *requestServiceClient) GetRequest(ctx context.Context, in *GetRequestRequest, opts ...grpc.CallOption) (*v1.RequestRecord, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(v1.RequestRecord)
+	err := c.cc.Invoke(ctx, RequestService_GetRequest_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // RequestServiceServer is the server API for RequestService service.
 // All implementations should embed UnimplementedRequestServiceServer
 // for forward compatibility.
@@ -58,6 +72,8 @@ func (c *requestServiceClient) ListRequests(ctx context.Context, in *ListRequest
 type RequestServiceServer interface {
 	// ListRequests 按时间倒序分页查询请求明细。
 	ListRequests(context.Context, *ListRequestsRequest) (*ListRequestsResponse, error)
+	// GetRequest 按记录 ID 和开始时间查询单次请求明细。
+	GetRequest(context.Context, *GetRequestRequest) (*v1.RequestRecord, error)
 }
 
 // UnimplementedRequestServiceServer should be embedded to have
@@ -69,6 +85,9 @@ type UnimplementedRequestServiceServer struct{}
 
 func (UnimplementedRequestServiceServer) ListRequests(context.Context, *ListRequestsRequest) (*ListRequestsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListRequests not implemented")
+}
+func (UnimplementedRequestServiceServer) GetRequest(context.Context, *GetRequestRequest) (*v1.RequestRecord, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRequest not implemented")
 }
 func (UnimplementedRequestServiceServer) testEmbeddedByValue() {}
 
@@ -108,6 +127,24 @@ func _RequestService_ListRequests_Handler(srv interface{}, ctx context.Context, 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _RequestService_GetRequest_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRequestRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(RequestServiceServer).GetRequest(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: RequestService_GetRequest_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(RequestServiceServer).GetRequest(ctx, req.(*GetRequestRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // RequestService_ServiceDesc is the grpc.ServiceDesc for RequestService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,6 +155,10 @@ var RequestService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListRequests",
 			Handler:    _RequestService_ListRequests_Handler,
+		},
+		{
+			MethodName: "GetRequest",
+			Handler:    _RequestService_GetRequest_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -11,6 +11,8 @@ option go_package = "github.com/lgc202/ingate/api/analytics/v1;v1";
 service RequestService {
   // ListRequests 按时间倒序分页查询请求明细。
   rpc ListRequests(ListRequestsRequest) returns (ListRequestsResponse);
+  // GetRequest 按记录 ID 和开始时间查询单次请求明细。
+  rpc GetRequest(GetRequestRequest) returns (ingate.als.v1.RequestRecord);
 }
 
 // StatusClass 是请求结果的 HTTP 状态码分类。
@@ -67,4 +69,12 @@ message ListRequestsResponse {
   repeated ingate.als.v1.RequestRecord requests = 1;
   // next_page_token 非空时表示还有下一页。
   string next_page_token = 2;
+}
+
+// GetRequestRequest 是单条请求明细查询参数。
+message GetRequestRequest {
+  // id 是 ALS 为一次已完成请求生成的稳定记录 ID。
+  string id = 1;
+  // started_at 与请求记录排序键配合，避免按 ID 扫描全部保留分区。
+  google.protobuf.Timestamp started_at = 2;
 }

@@ -144,6 +144,9 @@ func canonicalizeRouteSpec(spec *resource.RouteSpec) {
 	for i := range spec.UpstreamRefs {
 		spec.UpstreamRefs[i].Name = strings.TrimSpace(spec.UpstreamRefs[i].Name)
 	}
+	if spec.HostRewrite != nil {
+		spec.HostRewrite.Hostname = strings.ToLower(strings.TrimSpace(spec.HostRewrite.Hostname))
+	}
 	canonicalizeHeaderModifier(spec.RequestHeaderModifier)
 	canonicalizeHeaderModifier(spec.ResponseHeaderModifier)
 }

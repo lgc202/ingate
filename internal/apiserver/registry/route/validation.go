@@ -34,11 +34,37 @@ func validateRoute(route *resource.Route) field.ErrorList {
 	errs = append(errs, validateGatewayRefs(spec.GatewayRefs, specPath.Child("gatewayRefs"))...)
 	errs = append(errs, validateHostnames(spec.Hostnames, specPath.Child("hostnames"))...)
 	errs = append(errs, validateRouteMatch(spec.Match, specPath.Child("match"))...)
+	errs = append(errs, validateHostRewrite(spec.HostRewrite, specPath.Child("hostRewrite"))...)
 	errs = append(errs, validateHeaderModifier(spec.RequestHeaderModifier, specPath.Child("requestHeaderModifier"))...)
 	errs = append(errs, validateHeaderModifier(spec.ResponseHeaderModifier, specPath.Child("responseHeaderModifier"))...)
 	errs = append(errs, validateForwarding(spec, specPath)...)
 	errs = append(errs, validateTimeoutAndRetry(spec, specPath)...)
 	return errs
+}
+
+func validateHostRewrite(rewrite *resource.HostRewrite, path *field.Path) field.ErrorList {
+	if rewrite == nil {
+		return nil
+	}
+
+	switch rewrite.Mode {
+	case resource.HostRewriteServiceAddress, resource.HostRewritePreserve:
+		if rewrite.Hostname != "" {
+			return field.ErrorList{field.Forbidden(path.Child("hostname"), "hostname is only valid in Custom mode")}
+		}
+	case resource.HostRewriteCustom:
+		hostname, ok := hostnameutil.Normalize(rewrite.Hostname)
+		if !ok || hostname == "*" {
+			return field.ErrorList{field.Invalid(path.Child("hostname"), rewrite.Hostname, "hostname is invalid")}
+		}
+	default:
+		return field.ErrorList{field.NotSupported(path.Child("mode"), rewrite.Mode, []string{
+			string(resource.HostRewriteServiceAddress),
+			string(resource.HostRewritePreserve),
+			string(resource.HostRewriteCustom),
+		})}
+	}
+	return nil
 }
 
 func validateGatewayRefs(refs []string, path *field.Path) field.ErrorList {

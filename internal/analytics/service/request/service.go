@@ -5,9 +5,11 @@ package request
 
 import (
 	"context"
+	"errors"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 
+	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
 	requestbiz "github.com/lgc202/ingate/internal/analytics/biz/request"
 )
@@ -45,4 +47,20 @@ func (s *Service) ListRequests(
 		Requests:      page.Records,
 		NextPageToken: nextPageToken,
 	}, nil
+}
+
+// GetRequest 使用记录 ID 和开始时间查询单次请求明细
+func (s *Service) GetRequest(
+	ctx context.Context,
+	request *analyticsv1.GetRequestRequest,
+) (*alsv1.RequestRecord, error) {
+	startedAt := request.GetStartedAt()
+	if request.GetId() == "" || startedAt == nil || startedAt.CheckValid() != nil {
+		return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "id and started_at are required")
+	}
+	record, err := s.queries.Get(ctx, request.GetId(), startedAt.AsTime())
+	if errors.Is(err, requestbiz.ErrNotFound) {
+		return nil, kratoserrors.NotFound("REQUEST_NOT_FOUND", "request record not found")
+	}
+	return record, err
 }

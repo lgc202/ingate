@@ -1,27 +1,35 @@
 package compiler
 
 import (
-	"encoding/json"
 	"fmt"
 	"maps"
 	"net/netip"
 	"slices"
 
+	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
+	rbacconfigv3 "github.com/envoyproxy/go-control-plane/envoy/config/rbac/v3"
+	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
+	httprbacv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/rbac/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
+	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	pluginiprestriction "github.com/lgc202/ingate/pkg/plugin/iprestriction"
 )
 
 const (
-	ipRestrictionHTTPFilterName = "ingate.filters.http.iprestriction"
-	ipRestrictionPluginName     = "ingate.iprestriction"
-	ipRestrictionPluginPath     = "/opt/ingate/plugins/iprestriction.wasm"
+	ipRestrictionHTTPFilterName = "envoy.filters.http.rbac"
+	ipRestrictionRuleName       = "ingate-ip-restriction"
 )
+
+type ipRestrictionPolicy struct {
+	allow []netip.Prefix
+	deny  []netip.Prefix
+}
 
 type compiledIPRestrictionPolicy struct {
 	source  ResourceGeneration
-	policy  pluginiprestriction.Policy
+	policy  ipRestrictionPolicy
 	targets []gatewayv1.PolicyTargetRef
 }
 
@@ -33,20 +41,20 @@ func (c *compilation) compileIPRestrictionPolicies() map[string]compiledIPRestri
 		if !policy.Spec.Enabled {
 			continue
 		}
-		pluginPolicy, valid := c.ipRestrictionPolicy(policy)
+		compiled, valid := c.ipRestrictionPolicy(policy)
 		if !valid {
 			continue
 		}
 		result[policyID] = compiledIPRestrictionPolicy{
 			source:  newResourceGeneration(gatewayv1.KindIPRestrictionPolicy, policy.Name, policy.UID, policy.Generation),
-			policy:  pluginPolicy,
+			policy:  compiled,
 			targets: targets,
 		}
 	}
 	return result
 }
 
-func (c *compilation) ipRestrictionPolicy(policy *gatewayv1.IPRestrictionPolicy) (pluginiprestriction.Policy, bool) {
+func (c *compilation) ipRestrictionPolicy(policy *gatewayv1.IPRestrictionPolicy) (ipRestrictionPolicy, bool) {
 	valid := true
 	if (len(policy.Spec.Allow) > 0) == (len(policy.Spec.Deny) > 0) {
 		c.addDiagnostic(
@@ -58,35 +66,95 @@ func (c *compilation) ipRestrictionPolicy(policy *gatewayv1.IPRestrictionPolicy)
 		)
 		valid = false
 	}
-	for _, value := range append(slices.Clone(policy.Spec.Allow), policy.Spec.Deny...) {
-		if _, err := netip.ParsePrefix(value); err == nil {
-			continue
-		}
-		c.addDiagnostic(
-			SeverityError,
-			gatewayv1.KindIPRestrictionPolicy,
-			policy.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("IP restriction policy %q contains invalid IP prefix %q", policy.Name, value),
-		)
-		valid = false
-	}
-	return pluginiprestriction.Policy{
-		Name:  policy.Name,
-		Allow: slices.Clone(policy.Spec.Allow),
-		Deny:  slices.Clone(policy.Spec.Deny),
-	}, valid
+	allow, allowValid := c.ipPrefixes(policy, policy.Spec.Allow)
+	deny, denyValid := c.ipPrefixes(policy, policy.Spec.Deny)
+	return ipRestrictionPolicy{allow: allow, deny: deny}, valid && allowValid && denyValid
 }
 
-func buildIPRestrictionHTTPFilter(config *pluginiprestriction.PluginConfig) (*hcmv3.HttpFilter, error) {
-	raw, err := json.Marshal(config)
-	if err != nil {
-		return nil, fmt.Errorf("encode IP restriction plugin config: %w", err)
+func (c *compilation) ipPrefixes(policy *gatewayv1.IPRestrictionPolicy, values []string) ([]netip.Prefix, bool) {
+	prefixes := make([]netip.Prefix, 0, len(values))
+	valid := true
+	for _, value := range values {
+		prefix, err := netip.ParsePrefix(value)
+		if err != nil {
+			c.addDiagnostic(
+				SeverityError,
+				gatewayv1.KindIPRestrictionPolicy,
+				policy.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("IP restriction policy %q contains invalid IP prefix %q", policy.Name, value),
+			)
+			valid = false
+			continue
+		}
+		prefixes = append(prefixes, prefix.Masked())
 	}
-	return buildWasmHTTPFilter(
-		ipRestrictionHTTPFilterName,
-		ipRestrictionPluginName,
-		ipRestrictionPluginPath,
-		raw,
-	)
+	return prefixes, valid
+}
+
+func buildIPRestrictionHTTPFilter() (*hcmv3.HttpFilter, error) {
+	typedConfig, err := anypb.New(&httprbacv3.RBAC{})
+	if err != nil {
+		return nil, fmt.Errorf("encode Envoy RBAC filter: %w", err)
+	}
+	return &hcmv3.HttpFilter{
+		Name:       ipRestrictionHTTPFilterName,
+		ConfigType: &hcmv3.HttpFilter_TypedConfig{TypedConfig: typedConfig},
+	}, nil
+}
+
+func applyIPRestrictionPolicies(routes []*routev3.Route, policies []ipRestrictionPolicy) error {
+	principals := make([]*rbacconfigv3.Principal, 0, len(policies))
+	for _, policy := range policies {
+		principals = append(principals, restrictionPrincipal(policy))
+	}
+	rules := &httprbacv3.RBAC{Rules: &rbacconfigv3.RBAC{
+		Action: rbacconfigv3.RBAC_ALLOW,
+		Policies: map[string]*rbacconfigv3.Policy{
+			ipRestrictionRuleName: {
+				Permissions: []*rbacconfigv3.Permission{{Rule: &rbacconfigv3.Permission_Any{Any: true}}},
+				Principals: []*rbacconfigv3.Principal{{Identifier: &rbacconfigv3.Principal_AndIds{
+					AndIds: &rbacconfigv3.Principal_Set{Ids: principals},
+				}}},
+			},
+		},
+	}}
+	perRoute, err := anypb.New(&httprbacv3.RBACPerRoute{Rbac: rules})
+	if err != nil {
+		return fmt.Errorf("encode Envoy route RBAC config: %w", err)
+	}
+	for _, route := range routes {
+		if route.TypedPerFilterConfig == nil {
+			route.TypedPerFilterConfig = make(map[string]*anypb.Any)
+		}
+		route.TypedPerFilterConfig[ipRestrictionHTTPFilterName] = perRoute
+	}
+	return nil
+}
+
+func restrictionPrincipal(policy ipRestrictionPolicy) *rbacconfigv3.Principal {
+	if len(policy.allow) > 0 {
+		return anyIPPrincipal(policy.allow)
+	}
+	return &rbacconfigv3.Principal{Identifier: &rbacconfigv3.Principal_NotId{
+		NotId: anyIPPrincipal(policy.deny),
+	}}
+}
+
+func anyIPPrincipal(prefixes []netip.Prefix) *rbacconfigv3.Principal {
+	principals := make([]*rbacconfigv3.Principal, 0, len(prefixes))
+	for _, prefix := range prefixes {
+		principals = append(principals, &rbacconfigv3.Principal{Identifier: &rbacconfigv3.Principal_DirectRemoteIp{
+			DirectRemoteIp: &corev3.CidrRange{
+				AddressPrefix: prefix.Addr().String(),
+				PrefixLen:     wrapperspb.UInt32(uint32(prefix.Bits())),
+			},
+		}})
+	}
+	if len(principals) == 1 {
+		return principals[0]
+	}
+	return &rbacconfigv3.Principal{Identifier: &rbacconfigv3.Principal_OrIds{
+		OrIds: &rbacconfigv3.Principal_Set{Ids: principals},
+	}}
 }

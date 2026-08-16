@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -109,8 +110,20 @@ func (c *Consumer) Start(ctx context.Context) error {
 		if ctx.Err() != nil || fetches.IsClientClosed() {
 			return nil
 		}
-		if fetchErrors := fetches.Errors(); len(fetchErrors) > 0 {
-			fetchErr := fetchErrors[0]
+		for _, fetchErr := range fetches.Errors() {
+			var groupSessionError *kgo.ErrGroupSession
+			if errors.As(fetchErr.Err, &groupSessionError) {
+				// Broker 重启或主机休眠可能使成员暂时离开消费组；franz-go 会自动重新加入
+				// 这里不能终止进程，否则一次正常的 Rebalance 会让整个查询服务下线
+				c.logger.Warn("Kafka consumer group session lost; waiting to rejoin", "error", groupSessionError.Err)
+				continue
+			}
+			var dataLossError *kgo.ErrDataLoss
+			if errors.As(fetchErr.Err, &dataLossError) {
+				// franz-go 已把消费位置重置到有效 offset，记录异常后继续处理后续消息
+				c.logger.Error("Kafka consumer detected data loss", "error", dataLossError)
+				continue
+			}
 			return fmt.Errorf(
 				"fetch Kafka topic %q partition %d: %w",
 				fetchErr.Topic,

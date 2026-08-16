@@ -36,6 +36,8 @@ const (
 	ErrorReason_PERMISSION_DENIED         ErrorReason = 8
 	ErrorReason_RESOURCE_VERSION_CONFLICT ErrorReason = 9
 	ErrorReason_RESOURCE_NOT_FOUND        ErrorReason = 10
+	ErrorReason_REQUEST_RECORD_NOT_FOUND  ErrorReason = 11
+	ErrorReason_DEPENDENCY_UNAVAILABLE    ErrorReason = 12
 )
 
 // Enum value maps for ErrorReason.
@@ -52,6 +54,8 @@ var (
 		8:  "PERMISSION_DENIED",
 		9:  "RESOURCE_VERSION_CONFLICT",
 		10: "RESOURCE_NOT_FOUND",
+		11: "REQUEST_RECORD_NOT_FOUND",
+		12: "DEPENDENCY_UNAVAILABLE",
 	}
 	ErrorReason_value = map[string]int32{
 		"ERROR_REASON_UNSPECIFIED":  0,
@@ -65,6 +69,8 @@ var (
 		"PERMISSION_DENIED":         8,
 		"RESOURCE_VERSION_CONFLICT": 9,
 		"RESOURCE_NOT_FOUND":        10,
+		"REQUEST_RECORD_NOT_FOUND":  11,
+		"DEPENDENCY_UNAVAILABLE":    12,
 	}
 )
 
@@ -99,7 +105,7 @@ var File_admin_v1_error_reason_proto protoreflect.FileDescriptor
 
 const file_admin_v1_error_reason_proto_rawDesc = "" +
 	"\n" +
-	"\x1badmin/v1/error_reason.proto\x12\x0fingate.admin.v1*\x8d\x02\n" +
+	"\x1badmin/v1/error_reason.proto\x12\x0fingate.admin.v1*\xc7\x02\n" +
 	"\vErrorReason\x12\x1c\n" +
 	"\x18ERROR_REASON_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10INVALID_ARGUMENT\x10\x01\x12\x1b\n" +
@@ -112,7 +118,9 @@ const file_admin_v1_error_reason_proto_rawDesc = "" +
 	"\x11PERMISSION_DENIED\x10\b\x12\x1d\n" +
 	"\x19RESOURCE_VERSION_CONFLICT\x10\t\x12\x16\n" +
 	"\x12RESOURCE_NOT_FOUND\x10\n" +
-	"B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x12\x1c\n" +
+	"\x18REQUEST_RECORD_NOT_FOUND\x10\v\x12\x1a\n" +
+	"\x16DEPENDENCY_UNAVAILABLE\x10\fB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_error_reason_proto_rawDescOnce sync.Once

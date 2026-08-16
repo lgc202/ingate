@@ -52,6 +52,13 @@ enum HTTPMethod {
   HTTP_METHOD_OPTIONS = 7;
 }
 
+enum HostRewriteMode {
+  HOST_REWRITE_MODE_UNSPECIFIED = 0;
+  HOST_REWRITE_MODE_SERVICE_ADDRESS = 1;
+  HOST_REWRITE_MODE_PRESERVE = 2;
+  HOST_REWRITE_MODE_CUSTOM = 3;
+}
+
 message RoutePathMatch {
   RoutePathMatchType type = 1;
   string value = 2 [(buf.validate.field).string.min_len = 1];
@@ -90,6 +97,11 @@ message HeaderModifier {
   repeated string remove = 3;
 }
 
+message HostRewrite {
+  HostRewriteMode mode = 1 [(buf.validate.field).enum.defined_only = true];
+  string hostname = 2;
+}
+
 message RouteTimeout {
   uint32 request_millis = 1 [(buf.validate.field).uint32 = {
     gte: 100
@@ -125,6 +137,7 @@ message Route {
   int64 version = 14;
   google.protobuf.Timestamp created_at = 15;
   google.protobuf.Timestamp updated_at = 16;
+  HostRewrite host_rewrite = 17;
 }
 
 message ListRoutesRequest {
@@ -160,6 +173,7 @@ message CreateRouteRequest {
   HeaderModifier response_header_modifier = 8;
   RouteTimeout timeout = 9;
   RouteRetry retry = 10;
+  HostRewrite host_rewrite = 11;
 }
 
 message UpdateRouteRequest {
@@ -183,6 +197,7 @@ message UpdateRouteRequest {
   HeaderModifier response_header_modifier = 10;
   RouteTimeout timeout = 11;
   RouteRetry retry = 12;
+  HostRewrite host_rewrite = 13;
 }
 
 message DeleteRouteRequest {

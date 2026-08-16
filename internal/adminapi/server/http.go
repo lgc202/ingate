@@ -25,6 +25,7 @@ func NewHTTPServer(
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 		kratoshttp.Filter(requestIDFilter),
 		kratoshttp.Middleware(httpMiddleware(logger, authenticator)...),
+		kratoshttp.RequestDecoder(requestDecoder),
 		kratoshttp.ResponseEncoder(responseEncoder),
 		kratoshttp.ErrorEncoder(errorEncoder),
 		kratoshttp.NotFoundHandler(http.HandlerFunc(notFound)),

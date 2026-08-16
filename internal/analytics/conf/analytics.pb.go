@@ -274,7 +274,9 @@ type Server_GRPC struct {
 	// addr 是请求分析查询 API 的 gRPC 监听地址
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	// timeout 限制单次查询请求处理时间
-	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	Timeout *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	// tls 保护 Admin API 到 Analytics 的查询链路
+	Tls           *Server_GRPC_TLS `protobuf:"bytes,3,opt,name=tls,proto3" json:"tls,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -319,6 +321,13 @@ func (x *Server_GRPC) GetAddr() string {
 func (x *Server_GRPC) GetTimeout() *durationpb.Duration {
 	if x != nil {
 		return x.Timeout
+	}
+	return nil
+}
+
+func (x *Server_GRPC) GetTls() *Server_GRPC_TLS {
+	if x != nil {
+		return x.Tls
 	}
 	return nil
 }
@@ -377,6 +386,78 @@ func (x *Server_HTTP) GetTimeout() *durationpb.Duration {
 	return nil
 }
 
+type Server_GRPC_TLS struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// enabled 控制 Analytics 查询 gRPC 服务是否启用 TLS
+	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// cert_file 是服务端证书链文件
+	CertFile string `protobuf:"bytes,2,opt,name=cert_file,json=certFile,proto3" json:"cert_file,omitempty"`
+	// key_file 是服务端私钥文件
+	KeyFile string `protobuf:"bytes,3,opt,name=key_file,json=keyFile,proto3" json:"key_file,omitempty"`
+	// client_ca_file 非空时启用 mTLS 并校验 Admin API 客户端证书
+	ClientCaFile  string `protobuf:"bytes,4,opt,name=client_ca_file,json=clientCaFile,proto3" json:"client_ca_file,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Server_GRPC_TLS) Reset() {
+	*x = Server_GRPC_TLS{}
+	mi := &file_conf_analytics_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Server_GRPC_TLS) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Server_GRPC_TLS) ProtoMessage() {}
+
+func (x *Server_GRPC_TLS) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_analytics_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Server_GRPC_TLS.ProtoReflect.Descriptor instead.
+func (*Server_GRPC_TLS) Descriptor() ([]byte, []int) {
+	return file_conf_analytics_proto_rawDescGZIP(), []int{1, 0, 0}
+}
+
+func (x *Server_GRPC_TLS) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *Server_GRPC_TLS) GetCertFile() string {
+	if x != nil {
+		return x.CertFile
+	}
+	return ""
+}
+
+func (x *Server_GRPC_TLS) GetKeyFile() string {
+	if x != nil {
+		return x.KeyFile
+	}
+	return ""
+}
+
+func (x *Server_GRPC_TLS) GetClientCaFile() string {
+	if x != nil {
+		return x.ClientCaFile
+	}
+	return ""
+}
+
 type Data_Kafka struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// brokers 是 Kafka bootstrap broker 地址列表
@@ -405,7 +486,7 @@ type Data_Kafka struct {
 
 func (x *Data_Kafka) Reset() {
 	*x = Data_Kafka{}
-	mi := &file_conf_analytics_proto_msgTypes[6]
+	mi := &file_conf_analytics_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -417,7 +498,7 @@ func (x *Data_Kafka) String() string {
 func (*Data_Kafka) ProtoMessage() {}
 
 func (x *Data_Kafka) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_analytics_proto_msgTypes[6]
+	mi := &file_conf_analytics_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -533,7 +614,7 @@ type Data_ClickHouse struct {
 
 func (x *Data_ClickHouse) Reset() {
 	*x = Data_ClickHouse{}
-	mi := &file_conf_analytics_proto_msgTypes[7]
+	mi := &file_conf_analytics_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -545,7 +626,7 @@ func (x *Data_ClickHouse) String() string {
 func (*Data_ClickHouse) ProtoMessage() {}
 
 func (x *Data_ClickHouse) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_analytics_proto_msgTypes[7]
+	mi := &file_conf_analytics_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -652,7 +733,7 @@ type Data_Kafka_SASL struct {
 
 func (x *Data_Kafka_SASL) Reset() {
 	*x = Data_Kafka_SASL{}
-	mi := &file_conf_analytics_proto_msgTypes[8]
+	mi := &file_conf_analytics_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -664,7 +745,7 @@ func (x *Data_Kafka_SASL) String() string {
 func (*Data_Kafka_SASL) ProtoMessage() {}
 
 func (x *Data_Kafka_SASL) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_analytics_proto_msgTypes[8]
+	mi := &file_conf_analytics_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -719,7 +800,7 @@ type Data_Kafka_TLS struct {
 
 func (x *Data_Kafka_TLS) Reset() {
 	*x = Data_Kafka_TLS{}
-	mi := &file_conf_analytics_proto_msgTypes[9]
+	mi := &file_conf_analytics_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -731,7 +812,7 @@ func (x *Data_Kafka_TLS) String() string {
 func (*Data_Kafka_TLS) ProtoMessage() {}
 
 func (x *Data_Kafka_TLS) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_analytics_proto_msgTypes[9]
+	mi := &file_conf_analytics_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -800,7 +881,7 @@ type Data_ClickHouse_TLS struct {
 
 func (x *Data_ClickHouse_TLS) Reset() {
 	*x = Data_ClickHouse_TLS{}
-	mi := &file_conf_analytics_proto_msgTypes[10]
+	mi := &file_conf_analytics_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -812,7 +893,7 @@ func (x *Data_ClickHouse_TLS) String() string {
 func (*Data_ClickHouse_TLS) ProtoMessage() {}
 
 func (x *Data_ClickHouse_TLS) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_analytics_proto_msgTypes[10]
+	mi := &file_conf_analytics_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -871,14 +952,20 @@ const file_conf_analytics_proto_rawDesc = "" +
 	"\tBootstrap\x125\n" +
 	"\x06server\x18\x01 \x01(\v2\x1d.ingate.analytics.conf.ServerR\x06server\x12/\n" +
 	"\x04data\x18\x02 \x01(\v2\x1b.ingate.analytics.conf.DataR\x04data\x128\n" +
-	"\alogging\x18\x03 \x01(\v2\x1e.ingate.analytics.conf.LoggingR\alogging\"\xe0\x02\n" +
+	"\alogging\x18\x03 \x01(\v2\x1e.ingate.analytics.conf.LoggingR\alogging\"\x9a\x04\n" +
 	"\x06Server\x126\n" +
 	"\x04http\x18\x01 \x01(\v2\".ingate.analytics.conf.Server.HTTPR\x04http\x12D\n" +
 	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x126\n" +
-	"\x04grpc\x18\x03 \x01(\v2\".ingate.analytics.conf.Server.GRPCR\x04grpc\x1aO\n" +
+	"\x04grpc\x18\x03 \x01(\v2\".ingate.analytics.conf.Server.GRPCR\x04grpc\x1a\x88\x02\n" +
 	"\x04GRPC\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x1aO\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x128\n" +
+	"\x03tls\x18\x03 \x01(\v2&.ingate.analytics.conf.Server.GRPC.TLSR\x03tls\x1a}\n" +
+	"\x03TLS\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1b\n" +
+	"\tcert_file\x18\x02 \x01(\tR\bcertFile\x12\x19\n" +
+	"\bkey_file\x18\x03 \x01(\tR\akeyFile\x12$\n" +
+	"\x0eclient_ca_file\x18\x04 \x01(\tR\fclientCaFile\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
 	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xfc\v\n" +
@@ -948,7 +1035,7 @@ func file_conf_analytics_proto_rawDescGZIP() []byte {
 	return file_conf_analytics_proto_rawDescData
 }
 
-var file_conf_analytics_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_conf_analytics_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_conf_analytics_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.analytics.conf.Bootstrap
 	(*Server)(nil),              // 1: ingate.analytics.conf.Server
@@ -956,38 +1043,40 @@ var file_conf_analytics_proto_goTypes = []any{
 	(*Logging)(nil),             // 3: ingate.analytics.conf.Logging
 	(*Server_GRPC)(nil),         // 4: ingate.analytics.conf.Server.GRPC
 	(*Server_HTTP)(nil),         // 5: ingate.analytics.conf.Server.HTTP
-	(*Data_Kafka)(nil),          // 6: ingate.analytics.conf.Data.Kafka
-	(*Data_ClickHouse)(nil),     // 7: ingate.analytics.conf.Data.ClickHouse
-	(*Data_Kafka_SASL)(nil),     // 8: ingate.analytics.conf.Data.Kafka.SASL
-	(*Data_Kafka_TLS)(nil),      // 9: ingate.analytics.conf.Data.Kafka.TLS
-	(*Data_ClickHouse_TLS)(nil), // 10: ingate.analytics.conf.Data.ClickHouse.TLS
-	(*durationpb.Duration)(nil), // 11: google.protobuf.Duration
+	(*Server_GRPC_TLS)(nil),     // 6: ingate.analytics.conf.Server.GRPC.TLS
+	(*Data_Kafka)(nil),          // 7: ingate.analytics.conf.Data.Kafka
+	(*Data_ClickHouse)(nil),     // 8: ingate.analytics.conf.Data.ClickHouse
+	(*Data_Kafka_SASL)(nil),     // 9: ingate.analytics.conf.Data.Kafka.SASL
+	(*Data_Kafka_TLS)(nil),      // 10: ingate.analytics.conf.Data.Kafka.TLS
+	(*Data_ClickHouse_TLS)(nil), // 11: ingate.analytics.conf.Data.ClickHouse.TLS
+	(*durationpb.Duration)(nil), // 12: google.protobuf.Duration
 }
 var file_conf_analytics_proto_depIdxs = []int32{
 	1,  // 0: ingate.analytics.conf.Bootstrap.server:type_name -> ingate.analytics.conf.Server
 	2,  // 1: ingate.analytics.conf.Bootstrap.data:type_name -> ingate.analytics.conf.Data
 	3,  // 2: ingate.analytics.conf.Bootstrap.logging:type_name -> ingate.analytics.conf.Logging
 	5,  // 3: ingate.analytics.conf.Server.http:type_name -> ingate.analytics.conf.Server.HTTP
-	11, // 4: ingate.analytics.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	12, // 4: ingate.analytics.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
 	4,  // 5: ingate.analytics.conf.Server.grpc:type_name -> ingate.analytics.conf.Server.GRPC
-	6,  // 6: ingate.analytics.conf.Data.kafka:type_name -> ingate.analytics.conf.Data.Kafka
-	7,  // 7: ingate.analytics.conf.Data.click_house:type_name -> ingate.analytics.conf.Data.ClickHouse
-	11, // 8: ingate.analytics.conf.Server.GRPC.timeout:type_name -> google.protobuf.Duration
-	11, // 9: ingate.analytics.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	11, // 10: ingate.analytics.conf.Data.Kafka.dial_timeout:type_name -> google.protobuf.Duration
-	8,  // 11: ingate.analytics.conf.Data.Kafka.sasl:type_name -> ingate.analytics.conf.Data.Kafka.SASL
-	9,  // 12: ingate.analytics.conf.Data.Kafka.tls:type_name -> ingate.analytics.conf.Data.Kafka.TLS
-	11, // 13: ingate.analytics.conf.Data.Kafka.fetch_max_wait:type_name -> google.protobuf.Duration
-	11, // 14: ingate.analytics.conf.Data.ClickHouse.dial_timeout:type_name -> google.protobuf.Duration
-	11, // 15: ingate.analytics.conf.Data.ClickHouse.write_timeout:type_name -> google.protobuf.Duration
-	11, // 16: ingate.analytics.conf.Data.ClickHouse.connection_max_lifetime:type_name -> google.protobuf.Duration
-	10, // 17: ingate.analytics.conf.Data.ClickHouse.tls:type_name -> ingate.analytics.conf.Data.ClickHouse.TLS
-	11, // 18: ingate.analytics.conf.Data.ClickHouse.query_timeout:type_name -> google.protobuf.Duration
-	19, // [19:19] is the sub-list for method output_type
-	19, // [19:19] is the sub-list for method input_type
-	19, // [19:19] is the sub-list for extension type_name
-	19, // [19:19] is the sub-list for extension extendee
-	0,  // [0:19] is the sub-list for field type_name
+	7,  // 6: ingate.analytics.conf.Data.kafka:type_name -> ingate.analytics.conf.Data.Kafka
+	8,  // 7: ingate.analytics.conf.Data.click_house:type_name -> ingate.analytics.conf.Data.ClickHouse
+	12, // 8: ingate.analytics.conf.Server.GRPC.timeout:type_name -> google.protobuf.Duration
+	6,  // 9: ingate.analytics.conf.Server.GRPC.tls:type_name -> ingate.analytics.conf.Server.GRPC.TLS
+	12, // 10: ingate.analytics.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	12, // 11: ingate.analytics.conf.Data.Kafka.dial_timeout:type_name -> google.protobuf.Duration
+	9,  // 12: ingate.analytics.conf.Data.Kafka.sasl:type_name -> ingate.analytics.conf.Data.Kafka.SASL
+	10, // 13: ingate.analytics.conf.Data.Kafka.tls:type_name -> ingate.analytics.conf.Data.Kafka.TLS
+	12, // 14: ingate.analytics.conf.Data.Kafka.fetch_max_wait:type_name -> google.protobuf.Duration
+	12, // 15: ingate.analytics.conf.Data.ClickHouse.dial_timeout:type_name -> google.protobuf.Duration
+	12, // 16: ingate.analytics.conf.Data.ClickHouse.write_timeout:type_name -> google.protobuf.Duration
+	12, // 17: ingate.analytics.conf.Data.ClickHouse.connection_max_lifetime:type_name -> google.protobuf.Duration
+	11, // 18: ingate.analytics.conf.Data.ClickHouse.tls:type_name -> ingate.analytics.conf.Data.ClickHouse.TLS
+	12, // 19: ingate.analytics.conf.Data.ClickHouse.query_timeout:type_name -> google.protobuf.Duration
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_conf_analytics_proto_init() }
@@ -1001,7 +1090,7 @@ func file_conf_analytics_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_analytics_proto_rawDesc), len(file_conf_analytics_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

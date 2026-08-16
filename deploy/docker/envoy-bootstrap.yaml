@@ -35,18 +35,23 @@ static_resources:
                     socket_address:
                       address: 127.0.0.1
                       port_value: 18000
-    - name: ingate-system-redis
+    - name: ingate-system-als
       type: STRICT_DNS
       connect_timeout: 1s
+      typed_extension_protocol_options:
+        envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
+          "@type": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
+          explicit_http_config:
+            http2_protocol_options: {}
       load_assignment:
-        cluster_name: ingate-system-redis
+        cluster_name: ingate-system-als
         endpoints:
           - lb_endpoints:
               - endpoint:
                   address:
                     socket_address:
-                      address: redis
-                      port_value: 6379
+                      address: als
+                      port_value: 18091
 admin:
   address:
     socket_address:

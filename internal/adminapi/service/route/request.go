@@ -16,6 +16,7 @@ type routeInput struct {
 	hostnames              []string
 	match                  *adminv1.RouteMatch
 	upstreams              []*adminv1.RouteUpstream
+	hostRewrite            *adminv1.HostRewrite
 	requestHeaderModifier  *adminv1.HeaderModifier
 	responseHeaderModifier *adminv1.HeaderModifier
 	timeout                *adminv1.RouteTimeout
@@ -51,6 +52,10 @@ func buildRouteSpec(input routeInput) (resource.RouteSpec, error) {
 	if err := buildForwarding(&spec, input.upstreams); err != nil {
 		return resource.RouteSpec{}, err
 	}
+	spec.HostRewrite, err = buildHostRewrite(input.hostRewrite)
+	if err != nil {
+		return resource.RouteSpec{}, err
+	}
 	if input.requestHeaderModifier != nil {
 		spec.RequestHeaderModifier, err = buildHeaderModifier(input.requestHeaderModifier)
 		if err != nil {
@@ -76,6 +81,34 @@ func buildRouteSpec(input routeInput) (resource.RouteSpec, error) {
 		return resource.RouteSpec{}, err
 	}
 	return spec, nil
+}
+
+func buildHostRewrite(input *adminv1.HostRewrite) (*resource.HostRewrite, error) {
+	if input == nil {
+		return &resource.HostRewrite{Mode: resource.HostRewriteServiceAddress}, nil
+	}
+
+	hostname := strings.TrimSpace(input.GetHostname())
+	switch input.GetMode() {
+	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_SERVICE_ADDRESS:
+		if hostname != "" {
+			return nil, adminservice.BadRequest("使用服务地址时不能填写自定义主机名")
+		}
+		return &resource.HostRewrite{Mode: resource.HostRewriteServiceAddress}, nil
+	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_PRESERVE:
+		if hostname != "" {
+			return nil, adminservice.BadRequest("保留请求主机时不能填写自定义主机名")
+		}
+		return &resource.HostRewrite{Mode: resource.HostRewritePreserve}, nil
+	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_CUSTOM:
+		normalized, ok := hostnameutil.Normalize(hostname)
+		if !ok || normalized == "*" {
+			return nil, adminservice.BadRequest("自定义主机名格式不正确")
+		}
+		return &resource.HostRewrite{Mode: resource.HostRewriteCustom, Hostname: normalized}, nil
+	default:
+		return nil, adminservice.BadRequest("请选择转发请求使用的主机名")
+	}
 }
 
 func buildGatewayRefs(inputs []string) ([]string, error) {

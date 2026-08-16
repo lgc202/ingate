@@ -1,4 +1,4 @@
-import { ChevronLeft, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ChevronRight, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { navigation, navigationItems } from '@/app/navigation';
@@ -21,7 +21,7 @@ export function AppShell() {
           {!collapsed ? (
             <div className="console-brand-copy">
               <strong>Ingate</strong>
-              <span>API & AI Gateway</span>
+              <span>API 与 AI 网关</span>
             </div>
           ) : null}
           <button
@@ -80,11 +80,11 @@ export function AppShell() {
         <header className="workspace-header">
           <div className="breadcrumb">
             <span>{currentGroupLabel}</span>
-            <ChevronLeft />
+            <ChevronRight />
             <strong>{currentPageLabel}</strong>
           </div>
           <div className="workspace-actions">
-            <span className="console-live-source">Admin API</span>
+            <span className="console-live-source">实时数据</span>
           </div>
         </header>
 

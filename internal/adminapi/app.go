@@ -22,7 +22,8 @@ type serviceInstanceID string
 
 // App 封装 Admin API 的 Kratos 进程
 type App struct {
-	kratos *kratos.App
+	kratos  *kratos.App
+	cleanup func()
 }
 
 // NewApp 从配置文件创建完整的 Admin API 进程
@@ -40,7 +41,7 @@ func NewApp(configFile string) (*App, error) {
 	logger := newLogger(bootstrap.GetLogging(), string(instanceID))
 	kratoslog.SetDefault(logger)
 
-	kratosApp, err := wireApp(
+	kratosApp, cleanup, err := wireApp(
 		bootstrap.GetServer(),
 		bootstrap.GetData(),
 		bootstrap.GetAuthentication(),
@@ -51,11 +52,12 @@ func NewApp(configFile string) (*App, error) {
 		return nil, fmt.Errorf("create Admin API application: %w", err)
 	}
 	logger.Info("service starting", "config_file", configFile)
-	return &App{kratos: kratosApp}, nil
+	return &App{kratos: kratosApp, cleanup: cleanup}, nil
 }
 
 // Run 启动 Admin API HTTP 服务
 func (a *App) Run() error {
+	defer a.cleanup()
 	return a.kratos.Run()
 }
 

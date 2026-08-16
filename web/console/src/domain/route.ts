@@ -2,6 +2,7 @@ import type { ResourceStatus } from './common';
 
 export type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS';
 export type RoutePathMatchType = 'ROUTE_PATH_MATCH_PREFIX' | 'ROUTE_PATH_MATCH_EXACT';
+export type HostRewriteMode = 'HOST_REWRITE_MODE_SERVICE_ADDRESS' | 'HOST_REWRITE_MODE_PRESERVE' | 'HOST_REWRITE_MODE_CUSTOM';
 
 export interface HeaderMatch {
   name: string;
@@ -24,6 +25,11 @@ export interface WeightedUpstream {
   weight: number;
 }
 
+export interface HostRewrite {
+  mode: HostRewriteMode;
+  hostname?: string;
+}
+
 export interface RouteResource {
   id: string;
   name: string;
@@ -36,6 +42,7 @@ export interface RouteResource {
     headers: HeaderMatch[];
   };
   upstreams: WeightedUpstream[];
+  hostRewrite: HostRewrite;
   requestHeaderModifier?: HeaderModifier;
   responseHeaderModifier?: HeaderModifier;
   timeout?: { requestMillis: number };
@@ -76,6 +83,7 @@ export interface RouteMutationPayload {
   hostnames: string[];
   match: RouteResource['match'];
   upstreams: WeightedUpstream[];
+  hostRewrite: HostRewrite;
   requestHeaderModifier?: HeaderModifier;
   responseHeaderModifier?: HeaderModifier;
   timeout?: RouteResource['timeout'];

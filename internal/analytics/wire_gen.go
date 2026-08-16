@@ -36,7 +36,11 @@ func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_ClickHou
 	service := request2.NewService(queries)
 	trafficQueries := traffic.NewQueries(store)
 	trafficService := traffic2.NewService(trafficQueries)
-	grpcServer := server.NewGRPCServer(confServer, service, trafficService)
+	grpcServer, err := server.NewGRPCServer(confServer, service, trafficService)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, consumer, analyticsServiceInstanceID)
 	return app, func() {
 		cleanup()

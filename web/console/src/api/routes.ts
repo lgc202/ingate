@@ -56,5 +56,6 @@ function routeFromAPI(route: RouteResource): RouteResource {
       headers: route.match?.headers ?? [],
     },
     upstreams: route.upstreams ?? [],
+    hostRewrite: route.hostRewrite ?? { mode: 'HOST_REWRITE_MODE_PRESERVE' },
   };
 }

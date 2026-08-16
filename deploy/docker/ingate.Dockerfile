@@ -22,9 +22,16 @@ ARG BUILD_DATE=unknown
 
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 go build -trimpath \
-      -ldflags "-X github.com/lgc202/go-kit/version.gitVersion=${GIT_VERSION} -X github.com/lgc202/go-kit/version.gitCommit=${GIT_COMMIT} -X github.com/lgc202/go-kit/version.gitTreeState=${GIT_TREE_STATE} -X github.com/lgc202/go-kit/version.buildDate=${BUILD_DATE}" \
-      -o /out/ ./cmd/...
+	--mount=type=cache,target=/tmp/go-build \
+    set -eu; \
+	export CGO_ENABLED=0 GOTMPDIR=/tmp/go-build; \
+    ldflags="-X github.com/lgc202/go-kit/version.gitVersion=${GIT_VERSION} -X github.com/lgc202/go-kit/version.gitCommit=${GIT_COMMIT} -X github.com/lgc202/go-kit/version.gitTreeState=${GIT_TREE_STATE} -X github.com/lgc202/go-kit/version.buildDate=${BUILD_DATE}"; \
+	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-apiserver ./cmd/ingate-apiserver; \
+	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-controller ./cmd/ingate-controller; \
+	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-admin-api ./cmd/ingate-admin-api; \
+	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-als ./cmd/ingate-als; \
+	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-analytics ./cmd/ingate-analytics; \
+	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-console ./cmd/ingate-console
 
 FROM node:${NODE_VERSION}-bookworm-slim AS console-builder
 
@@ -65,6 +72,20 @@ COPY --from=service-builder /out/ingate-admin-api /opt/ingate/admin-api/bin/inga
 
 ENTRYPOINT ["/opt/ingate/admin-api/bin/ingate-admin-api"]
 CMD ["--config", "/opt/ingate/admin-api/configs/config.yaml"]
+
+FROM service-runtime AS als
+
+COPY --from=service-builder /out/ingate-als /opt/ingate/als/bin/ingate-als
+
+ENTRYPOINT ["/opt/ingate/als/bin/ingate-als"]
+CMD ["--config", "/opt/ingate/als/configs/config.yaml"]
+
+FROM service-runtime AS analytics
+
+COPY --from=service-builder /out/ingate-analytics /opt/ingate/analytics/bin/ingate-analytics
+
+ENTRYPOINT ["/opt/ingate/analytics/bin/ingate-analytics"]
+CMD ["--config", "/opt/ingate/analytics/configs/config.yaml"]
 
 FROM service-runtime AS console
 

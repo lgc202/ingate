@@ -11,6 +11,7 @@ var managedServices = map[string]struct{}{
 	"ConfigurationService":       {},
 	"GatewayService":             {},
 	"RateLimitPolicyService":     {},
+	"RequestRecordService":       {},
 	"RouteService":               {},
 	"UpstreamService":            {},
 }
