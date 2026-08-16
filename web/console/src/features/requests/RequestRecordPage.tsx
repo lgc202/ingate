@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, SlidersHorizontal } from 'lucide-react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { getRequestRecord, getRequestRecordWorkspace, listRequestRecords } from '@/api/requestRecords';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, Drawer, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
@@ -10,6 +10,7 @@ import {
   formatDuration,
   formatRequestTime,
 } from '@/domain/requestRecord';
+import { localDateTime, roundUpToMinute } from '@/domain/timeRange';
 
 const methodOptions = ['', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 const pageSizeOptions = [10, 20, 50];
@@ -55,7 +56,7 @@ export function RequestRecordPage() {
     setFilters({ ...draft });
   };
   const applyTimePreset = (preset: TimePreset) => {
-    const end = new Date();
+    const end = roundUpToMinute(new Date());
     const start = presetStartTime(preset, end);
     const next = { ...draft, startTime: localDateTime(start), endTime: localDateTime(end) };
     setTimePreset(preset);
@@ -138,9 +139,9 @@ export function RequestRecordPage() {
                     <td><time className="request-record-time" dateTime={record.startedAt}>{formatRequestTime(record.startedAt)}</time></td>
                     <td><div className="request-record-target"><span className={`request-method request-method-${record.method.toLowerCase()}`}>{record.method || '-'}</span><code>{record.host}</code></div><strong className="request-path">{record.path || '/'}</strong></td>
                     <td><Badge tone={responseTone(record)}>{responseStatus(record)}</Badge></td>
-                    <td><strong className="request-resource-name">{nameOrID(names.gateways, record.gatewayID)}</strong></td>
-                    <td><strong className="request-resource-name">{nameOrID(names.routes, record.routeID)}</strong></td>
-                    <td><strong className="request-resource-name">{nameOrID(names.services, record.serviceID)}</strong></td>
+                    <td><strong className="request-resource-name">{resourceName(names.gateways, record.gatewayID, '已删除的网关')}</strong></td>
+                    <td><strong className="request-resource-name">{resourceName(names.routes, record.routeID, '已删除的路由')}</strong></td>
+                    <td><strong className="request-resource-name">{resourceName(names.services, record.serviceID, '已删除的服务')}</strong></td>
                     <td className="whitespace-nowrap">{formatDuration(record.duration)}</td>
                     <td><ChevronRight className="h-4 w-4 text-slate-400" /></td>
                   </tr>
@@ -199,9 +200,9 @@ function RequestDetail({ record, names }: { record: RequestRecord; names: Resour
         <DetailItem label="响应大小" value={formatBytes(record.responseBytes)} />
       </DetailSection>
       <DetailSection title="转发结果" layout="forwarding">
-        <DetailItem label="网关" value={nameOrID(names.gateways, record.gatewayID)} />
-        <DetailItem label="路由" value={nameOrID(names.routes, record.routeID)} />
-        <DetailItem label="服务" value={nameOrID(names.services, record.serviceID)} />
+        <ResourceDetailItem label="网关" id={record.gatewayID} names={names.gateways} path="/gateways" deletedLabel="已删除的网关" />
+        <ResourceDetailItem label="路由" id={record.routeID} names={names.routes} path="/routes" deletedLabel="已删除的路由" />
+        <ResourceDetailItem label="服务" id={record.serviceID} names={names.services} path="/services" deletedLabel="已删除的服务" />
         <DetailItem label="最终服务地址" value={record.upstreamAddress || '-'} />
         <DetailItem label="转发尝试" value={record.upstreamAttempts ? `${record.upstreamAttempts} 次` : '-'} />
       </DetailSection>
@@ -246,6 +247,11 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   return <div><span>{label}</span><strong>{value}</strong></div>;
 }
 
+function ResourceDetailItem({ label, id, names, path, deletedLabel }: { label: string; id: string; names: Map<string, string>; path: string; deletedLabel: string }) {
+  const name = names.get(id);
+  return <div><span>{label}</span>{name ? <Link className="request-resource-link" to={`${path}?detail=${encodeURIComponent(id)}`}>{name}<ArrowRight /></Link> : <strong>{deletedLabel}</strong>}</div>;
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="field"><span>{label}</span>{children}</label>;
 }
@@ -268,12 +274,13 @@ function resourceNames(workspace: Awaited<ReturnType<typeof getRequestRecordWork
   };
 }
 
-function nameOrID(names: Map<string, string>, id: string): string {
-  return names.get(id) || id || '-';
+function resourceName(names: Map<string, string>, id: string, deletedLabel: string): string {
+  if (!id) return '—';
+  return names.get(id) || deletedLabel;
 }
 
 function requestFiltersFromURL(params: URLSearchParams): RequestRecordFilters {
-  const end = parseFilterTime(params.get('endTime')) ?? new Date();
+  const end = parseFilterTime(params.get('endTime')) ?? roundUpToMinute(new Date());
   const start = parseFilterTime(params.get('startTime')) ?? new Date(end.getTime() - 60 * 60 * 1000);
   return {
     startTime: localDateTime(start),
@@ -311,11 +318,6 @@ function matchingTimePreset(filters: RequestRecordFilters): TimePreset | null {
   if (range === 15 * 24 * 60 * 60 * 1000) return '15d';
   if (range === 30 * 24 * 60 * 60 * 1000) return '30d';
   return null;
-}
-
-function localDateTime(value: Date): string {
-  const offset = value.getTimezoneOffset() * 60_000;
-  return new Date(value.getTime() - offset).toISOString().slice(0, 16);
 }
 
 const outcomeOptions: Array<{ value: RequestOutcome | ''; label: string }> = [

@@ -2,26 +2,18 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { AlertCircle, CircleCheck, Search, X } from 'lucide-react';
 
 export function PageFrame({
-  eyebrow,
   title,
-  subtitle,
   actions,
   children,
 }: {
-  eyebrow?: string;
   title: string;
-  subtitle?: string;
   actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className="content-grid space-y-4">
       <section className="topbar flex items-center justify-between gap-4 pb-3 border-b border-slate-200">
-        <div>
-          {eyebrow ? <span className="page-eyebrow">{eyebrow}</span> : null}
-          <h1 className="page-title text-xl font-bold text-slate-900 tracking-tight">{title}</h1>
-          {subtitle ? <p className="page-subtitle text-xs text-slate-500 mt-0.5">{subtitle}</p> : null}
-        </div>
+        <h1 className="page-title text-xl font-bold text-slate-900 tracking-tight">{title}</h1>
         {actions ? <div className="toolbar flex items-center gap-2">{actions}</div> : null}
       </section>
       {children}

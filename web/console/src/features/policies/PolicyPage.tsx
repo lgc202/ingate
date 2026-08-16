@@ -116,9 +116,7 @@ export function PolicyPage() {
 
   return (
     <PageFrame
-      eyebrow="访问治理"
       title="流量策略"
-      subtitle={`可复用于网关或路由的请求限流与 IP 访问限制（共 ${allPolicies.length} 条策略）`}
       actions={canWriteConfiguration ? (
         <div className="flex items-center gap-2">
           <button

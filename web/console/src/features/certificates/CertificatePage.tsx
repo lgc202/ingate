@@ -153,9 +153,7 @@ export function CertificatePage() {
 
   return (
     <PageFrame
-      eyebrow="流量配置"
       title="TLS 证书"
-      subtitle={`管理 ${certificateList.length} 张 HTTPS 域名与通配符证书`}
       actions={canWriteConfiguration ? (
         <button
           type="button"

@@ -53,7 +53,6 @@ export function RateLimitPolicyEditor({
       <section className="form-section">
         <div className="form-section-title">
           <h3>基础信息</h3>
-          <p>所有网关实例通过系统 Redis 共享计数，不需要选择计数模式。</p>
         </div>
         <div className="policy-editor-grid">
           <PolicyInputField label="策略名称" value={draft.name} error={validation.errors[fields.name]} onChange={(name) => onChange({ ...draft, name })} />
@@ -67,7 +66,6 @@ export function RateLimitPolicyEditor({
       <section className="form-section">
         <div className="form-section-title">
           <h3>应用目标</h3>
-          <p>可同时应用到多个网关或路由；留空时仅保存策略。</p>
         </div>
         <div className="policy-editor-grid">
           <PolicyTargetSelect options={targets} value={draft.targets} onChange={(nextTargets) => onChange({ ...draft, targets: nextTargets })} />
@@ -77,7 +75,6 @@ export function RateLimitPolicyEditor({
       <section className="form-section">
         <div className="form-section-title">
           <h3>请求额度</h3>
-          <p>选择哪些请求共享同一个计数器，并设置固定时间窗口内的请求上限。</p>
         </div>
         <div className="policy-editor-grid">
           <PolicySelectField

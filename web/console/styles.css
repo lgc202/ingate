@@ -47,7 +47,6 @@ body { overflow-x: hidden; }
   letter-spacing: -0.01em;
   font-weight: 800;
 }
-.page-subtitle { margin: 6px 0 0; color: var(--muted); font-size: 0.92rem; }
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .button { border-radius: 6px; border: 1px solid #dce1ea; background: var(--panel); color: var(--text); }
 .button {
@@ -338,6 +337,16 @@ body { overflow-x: hidden; }
   margin-top: 3px;
   color: var(--muted);
 }
+
+.resource-observability > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.resource-observability > header h3 { margin: 0; font-size: 0.92rem; }
+.resource-observability > header nav { display: flex; align-items: center; gap: 12px; }
+.resource-observability > header a { display: inline-flex; align-items: center; gap: 3px; color: var(--accent); font-size: 0.75rem; font-weight: 700; text-decoration: none; }
+.resource-observability > header a:hover { text-decoration: underline; }
+.resource-observability > header svg { width: 13px; height: 13px; }
+.resource-observability-grid small { display: block; margin-top: 3px; color: var(--muted); font-size: 0.7rem; }
+.resource-observability-state { min-height: 74px; display: grid; place-items: center; border: 1px dashed #dfe3eb; border-radius: 9px; color: var(--muted); background: #fbfcfe; font-size: 0.75rem; }
+.resource-observability-state.is-error { color: #9c6126; background: #fffaf2; }
 
 .table-scroll {
   width: 100%;
@@ -858,14 +867,6 @@ body { overflow-x: hidden; }
 }
 
 /* 请求记录沿用产品原型的信息层级，但只展示真实采集到的请求元数据 */
-.page-eyebrow {
-  display: block;
-  margin-bottom: 4px;
-  color: #8b6c5b;
-  font-size: 0.69rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-}
 .panel {
   padding: 0;
   border-color: #deded8;
@@ -1019,6 +1020,9 @@ body { overflow-x: hidden; }
 .request-detail-grid code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .request-detail-grid strong { font-size: 0.8rem; }
 .request-detail-grid code { color: #8c929d; font-size: 0.65rem; }
+.request-resource-link { display: inline-flex; align-items: center; gap: 4px; width: fit-content; color: var(--accent); font-size: 0.8rem; font-weight: 700; text-decoration: none; }
+.request-resource-link:hover { text-decoration: underline; }
+.request-resource-link svg { width: 13px; height: 13px; }
 @media (max-width: 1050px) {
   .request-record-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
@@ -1195,7 +1199,6 @@ body { overflow-x: hidden; }
 .workspace-content .content-grid { gap: 18px; }
 .workspace-content .topbar { min-height: 52px; padding-bottom: 14px; border-color: #deddd8; }
 .workspace-content .page-title { font-size: 1.48rem; }
-.workspace-content .page-subtitle { margin-top: 5px; font-size: 0.86rem; }
 .workspace-content .panel { padding: 0; border-color: #dfded9; border-radius: 14px; box-shadow: var(--shadow-soft); }
 .workspace-content .panel-header { min-height: auto; margin: 0; padding: 15px 18px; background: #fafaf8; }
 .workspace-content .panel-body { padding: 18px; }

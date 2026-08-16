@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Plus, Route as RouteIcon } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { getPolicyWorkspace } from '@/api/policies';
 import { deleteRoute, getRouteWorkspace, saveRoute } from '@/api/routes';
 import { useResource } from '@/api/useResource';
@@ -30,6 +31,7 @@ import type {
   WeightedUpstream,
 } from '@/domain/route';
 import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
+import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
 
 const methods: HttpMethod[] = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 
@@ -60,8 +62,8 @@ export function RoutePage() {
   const { canWriteConfiguration } = useAuth();
   const workspace = useResource(getRouteWorkspace);
   const policies = useResource(getPolicyWorkspace);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
-  const [detail, setDetail] = useState<RouteResource | null>(null);
   const [draft, setDraft] = useState<RouteDraft>(() => createDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<RouteResource | null>(null);
@@ -76,7 +78,14 @@ export function RoutePage() {
   }
 
   const data = workspace.data;
+  const detail = data.routes.find((route) => route.id === searchParams.get('detail')) ?? null;
   const visibleRoutes = filterRoutes(data, query);
+  const setDetail = (route?: RouteResource) => {
+    const next = new URLSearchParams(searchParams);
+    if (route) next.set('detail', route.id);
+    else next.delete('detail');
+    setSearchParams(next);
+  };
 
   const openEditor = (route?: RouteResource) => {
     setDraft(createDraft(route));
@@ -121,9 +130,7 @@ export function RoutePage() {
 
   return (
     <PageFrame
-      eyebrow="流量配置"
       title="路由"
-      subtitle="定义外部请求的匹配条件和目标服务"
       actions={canWriteConfiguration ? <Button onClick={() => openEditor()}><Plus className="h-4 w-4" />创建路由</Button> : undefined}
     >
       <Panel>
@@ -156,11 +163,11 @@ export function RoutePage() {
         )}
       </Panel>
 
-      <Drawer title="路由详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail(null)}>
+      <Drawer title="路由详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail()}>
         {detail ? <RouteDetail route={detail} workspace={data} policies={policies.data} onPoliciesChanged={policies.reload} /> : null}
       </Drawer>
 
-      <Drawer title={draft.id ? `编辑路由：${draft.name}` : '创建路由'} subtitle="一条路由对应一组请求条件和转发目标" isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
+      <Drawer title={draft.id ? `编辑路由：${draft.name}` : '创建路由'} isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
         <RouteEditor draft={draft} workspace={data} busy={busy} onChange={setDraft} onCancel={() => setEditorOpen(false)} onSave={save} />
       </Drawer>
 
@@ -177,6 +184,7 @@ function RouteDetail({ route, workspace, policies, onPoliciesChanged }: { route:
   return (
     <div className="space-y-5">
       <section className="resource-detail-hero"><div><h3>{route.name}</h3></div><Badge tone={resourceStateTone(state)}>{resourceStateLabel(state)}</Badge></section>
+      <ResourceTrafficSummary kind="route" resourceID={route.id} />
       <DetailSection title="请求匹配">
         <DetailItem label="域名" value={route.hostnames.length > 0 ? route.hostnames.join('、') : '继承网关域名'} />
         <DetailItem label="路径" value={`${pathMatchLabel(route)} ${route.match.path.value}`} code />
