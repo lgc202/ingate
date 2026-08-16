@@ -51,6 +51,29 @@ func (c *compilation) weightedClusters(
 	return clusters, valid
 }
 
+// applyHostRewrite 使用 Route 级语义生成 Envoy Host 重写，服务地址模式会跟随实际选中的端点
+func (c *compilation) applyHostRewrite(route *gatewayv1.Route, action *routev3.RouteAction) bool {
+	rewrite := route.Spec.HostRewrite
+	if rewrite == nil || rewrite.Mode == gatewayv1.HostRewritePreserve {
+		return true
+	}
+
+	switch rewrite.Mode {
+	case gatewayv1.HostRewriteServiceAddress:
+		action.HostRewriteSpecifier = &routev3.RouteAction_AutoHostRewrite{AutoHostRewrite: wrapperspb.Bool(true)}
+	case gatewayv1.HostRewriteCustom:
+		if !validEndpointAddress(rewrite.Hostname) {
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has an invalid host rewrite", route.Name))
+			return false
+		}
+		action.HostRewriteSpecifier = &routev3.RouteAction_HostRewriteLiteral{HostRewriteLiteral: rewrite.Hostname}
+	default:
+		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonUnsupported, fmt.Sprintf("route %q uses unsupported host rewrite mode %q", route.Name, rewrite.Mode))
+		return false
+	}
+	return true
+}
+
 func (c *compilation) routeRetryPolicy(route *gatewayv1.Route) (*routev3.RetryPolicy, bool) {
 	retry := route.Spec.Retry
 	if retry.Attempts < minRetryAttempts || retry.Attempts > maxRetryAttempts ||

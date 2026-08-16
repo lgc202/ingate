@@ -47,6 +47,7 @@ import type {
   GatewayListener,
   GatewayRoute,
   Policy,
+  RouteForwarding,
   Service,
   ServiceEndpoint,
   ServiceType,
@@ -1145,8 +1146,8 @@ function RouteDetail({
                 <dd>{route.forwarding.pathHandling}</dd>
               </div>
               <div>
-                <dt>主机头</dt>
-                <dd>{route.forwarding.hostRewrite}</dd>
+                <dt>转发主机名</dt>
+                <dd>{hostRewriteLabel(route.forwarding)}</dd>
               </div>
             </>
           ) : null}
@@ -1337,8 +1338,11 @@ function CreateRoute({
   const [pathHandling, setPathHandling] = useState(
     initial?.forwarding.pathHandling ?? "保持原路径",
   );
-  const [hostRewrite, setHostRewrite] = useState(
+  const [hostRewrite, setHostRewrite] = useState<RouteForwarding["hostRewrite"]>(
     initial?.forwarding.hostRewrite ?? "使用服务地址",
+  );
+  const [customHostname, setCustomHostname] = useState(
+    initial?.forwarding.customHostname ?? "",
   );
   const [conditionKind, setConditionKind] = useState<"Header" | "Query">(
     initial?.conditions?.[0]?.kind ?? "Header",
@@ -1436,6 +1440,9 @@ function CreateRoute({
   const routeReady =
     Boolean(gateway) &&
     !routeConflict &&
+    (type !== "API" ||
+      hostRewrite !== "自定义主机名" ||
+      validHostname(customHostname)) &&
     (type === "AI"
       ? modelMappingsComplete && !duplicateModelNames
       : Boolean(primaryService) &&
@@ -1588,6 +1595,10 @@ function CreateRoute({
         retries: Number(retries),
         pathHandling,
         hostRewrite,
+        customHostname:
+          type === "API" && hostRewrite === "自定义主机名"
+            ? customHostname.trim().toLowerCase()
+            : undefined,
         failoverOn:
           type === "AI" && forwardingStrategy === "主备切换"
             ? failoverOn
@@ -2225,15 +2236,31 @@ function CreateRoute({
                   </select>
                 </label>
                 <label>
-                  <span>主机头</span>
+                  <span>转发主机名</span>
                   <select
                     value={hostRewrite}
-                    onChange={(event) => setHostRewrite(event.target.value)}
+                    onChange={(event) =>
+                      setHostRewrite(
+                        event.target.value as RouteForwarding["hostRewrite"],
+                      )
+                    }
                   >
                     <option>使用服务地址</option>
                     <option>保持请求主机</option>
+                    <option>自定义主机名</option>
                   </select>
                 </label>
+                {hostRewrite === "自定义主机名" ? (
+                  <label>
+                    <span>自定义主机名</span>
+                    <input
+                      value={customHostname}
+                      onChange={(event) => setCustomHostname(event.target.value)}
+                      placeholder="例如 www.baidu.com"
+                    />
+                    <small>不包含 http://、路径或端口</small>
+                  </label>
+                ) : null}
                 <label>
                   <span>改写路径前缀</span>
                   <input
@@ -2309,6 +2336,27 @@ function CreateRoute({
     </Drawer>
   );
 }
+
+function hostRewriteLabel(forwarding: RouteForwarding) {
+  if (forwarding.hostRewrite === "自定义主机名") {
+    return forwarding.customHostname || "未填写";
+  }
+  return forwarding.hostRewrite;
+}
+
+function validHostname(value: string) {
+  const hostname = value.trim();
+  return (
+    hostname.length > 0 &&
+    hostname.length <= 253 &&
+    hostname
+      .split(".")
+      .every((label) =>
+        /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label),
+      )
+  );
+}
+
 function newModelMapping(
   services: Service[],
   preferredServiceID?: string,

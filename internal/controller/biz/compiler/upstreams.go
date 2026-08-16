@@ -190,8 +190,13 @@ func (c *compilation) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) ([]*e
 			continue
 		}
 		usesDNS = usesDNS || !isIPAddress(endpoint.Address)
+		envoyEndpoint := &endpointv3.Endpoint{Address: socketAddress(endpoint.Address, endpoint.Port)}
+		if !isIPAddress(endpoint.Address) {
+			// AutoHostRewrite 使用端点主机名生成上游 Host，避免把入口域名继续传给外部服务
+			envoyEndpoint.Hostname = strings.ToLower(endpoint.Address)
+		}
 		result = append(result, &endpointv3.LbEndpoint{
-			HostIdentifier:      &endpointv3.LbEndpoint_Endpoint{Endpoint: &endpointv3.Endpoint{Address: socketAddress(endpoint.Address, endpoint.Port)}},
+			HostIdentifier:      &endpointv3.LbEndpoint_Endpoint{Endpoint: envoyEndpoint},
 			LoadBalancingWeight: wrapperspb.UInt32(uint32(endpoint.Weight)),
 		})
 	}

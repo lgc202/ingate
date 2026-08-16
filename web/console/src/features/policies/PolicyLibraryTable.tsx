@@ -13,6 +13,7 @@ export function PolicyLibraryTable({
   policies,
   targets,
   readOnly,
+  onDetail,
   onEdit,
   onToggle,
   onDelete,
@@ -20,6 +21,7 @@ export function PolicyLibraryTable({
   policies: GovernancePolicy[];
   targets: PolicyTargetOption[];
   readOnly: boolean;
+  onDetail: (policy: GovernancePolicy) => void;
   onEdit: (policy: GovernancePolicy) => void;
   onToggle: (policy: GovernancePolicy) => void;
   onDelete: (policy: GovernancePolicy) => void;
@@ -47,6 +49,10 @@ export function PolicyLibraryTable({
             const readyTargets = policy.targets.filter((target) => target.status?.state === 'Ready').length;
             const errorTargets = policy.targets.filter((target) => target.status?.state === 'Error').length;
             const partiallyApplied = policy.enabled && policy.status.state !== 'Error' && readyTargets > 0 && readyTargets < policy.targets.length;
+            const statusLabel = partiallyApplied ? errorTargets > 0 ? '部分异常' : '部分生效' : governancePolicyStatusLabel(policy);
+            const statusMessage = partiallyApplied
+              ? `${readyTargets}/${policy.targets.length} 个目标已生效${errorTargets > 0 ? `，${errorTargets} 个异常` : ''}`
+              : policy.status.message;
             return (
             <tr key={governancePolicyKey(policy)}>
               <td>
@@ -67,21 +73,20 @@ export function PolicyLibraryTable({
               </td>
               <td>
                 <Badge tone={unapplied ? 'neutral' : partiallyApplied ? errorTargets > 0 ? 'danger' : 'warning' : policyStatusTone(policy.status)}>
-                  {partiallyApplied ? errorTargets > 0 ? '部分异常' : '部分生效' : governancePolicyStatusLabel(policy)}
+                  {statusLabel}
                 </Badge>
-                <div className="table-secondary policy-status-message">
-                  {partiallyApplied
-                    ? `${readyTargets}/${policy.targets.length} 个目标已生效${errorTargets > 0 ? `，${errorTargets} 个异常` : ''}`
-                    : policy.status.message}
-                </div>
+                {statusMessage && statusMessage !== statusLabel ? <div className="table-secondary policy-status-message">{statusMessage}</div> : null}
               </td>
               <td>{formatDateTime(policy.createdAt ?? '')}</td>
               <td>
-                {readOnly ? <span className="table-secondary">—</span> : <div className="row-actions">
-                  <button className="link-button" type="button" onClick={() => onEdit(policy)}>编辑</button>
-                  <button className="link-button" type="button" onClick={() => onToggle(policy)}>{policy.enabled ? '停用' : '启用'}</button>
-                  <button className="link-button danger" type="button" onClick={() => onDelete(policy)}>删除</button>
-                </div>}
+                <div className="row-actions">
+                  <button className="link-button" type="button" onClick={() => onDetail(policy)}>详情</button>
+                  {readOnly ? null : <>
+                    <button className="link-button" type="button" onClick={() => onEdit(policy)}>编辑</button>
+                    <button className="link-button" type="button" onClick={() => onToggle(policy)}>{policy.enabled ? '停用' : '启用'}</button>
+                    <button className="link-button danger" type="button" onClick={() => onDelete(policy)}>删除</button>
+                  </>}
+                </div>
               </td>
             </tr>
             );

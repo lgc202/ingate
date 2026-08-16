@@ -147,6 +147,7 @@ func (x *Server) GetShutdownTimeout() *durationpb.Duration {
 type Data struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Apiserver     *Data_APIServer        `protobuf:"bytes,1,opt,name=apiserver,proto3" json:"apiserver,omitempty"`
+	Analytics     *Data_Analytics        `protobuf:"bytes,2,opt,name=analytics,proto3" json:"analytics,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -184,6 +185,13 @@ func (*Data) Descriptor() ([]byte, []int) {
 func (x *Data) GetApiserver() *Data_APIServer {
 	if x != nil {
 		return x.Apiserver
+	}
+	return nil
+}
+
+func (x *Data) GetAnalytics() *Data_Analytics {
+	if x != nil {
+		return x.Analytics
 	}
 	return nil
 }
@@ -468,6 +476,145 @@ func (x *Data_APIServer) GetKubeconfig() string {
 	return ""
 }
 
+type Data_Analytics struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// addr 是 ingate-analytics 查询 gRPC 地址
+	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	// timeout 限制 Admin API 等待单次分析查询的时间
+	Timeout *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	// tls 保护 Admin API 到 Analytics 的内部查询链路
+	Tls           *Data_Analytics_TLS `protobuf:"bytes,3,opt,name=tls,proto3" json:"tls,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data_Analytics) Reset() {
+	*x = Data_Analytics{}
+	mi := &file_conf_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data_Analytics) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data_Analytics) ProtoMessage() {}
+
+func (x *Data_Analytics) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data_Analytics.ProtoReflect.Descriptor instead.
+func (*Data_Analytics) Descriptor() ([]byte, []int) {
+	return file_conf_proto_rawDescGZIP(), []int{2, 1}
+}
+
+func (x *Data_Analytics) GetAddr() string {
+	if x != nil {
+		return x.Addr
+	}
+	return ""
+}
+
+func (x *Data_Analytics) GetTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.Timeout
+	}
+	return nil
+}
+
+func (x *Data_Analytics) GetTls() *Data_Analytics_TLS {
+	if x != nil {
+		return x.Tls
+	}
+	return nil
+}
+
+type Data_Analytics_TLS struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	CaFile        string                 `protobuf:"bytes,2,opt,name=ca_file,json=caFile,proto3" json:"ca_file,omitempty"`
+	CertFile      string                 `protobuf:"bytes,3,opt,name=cert_file,json=certFile,proto3" json:"cert_file,omitempty"`
+	KeyFile       string                 `protobuf:"bytes,4,opt,name=key_file,json=keyFile,proto3" json:"key_file,omitempty"`
+	ServerName    string                 `protobuf:"bytes,5,opt,name=server_name,json=serverName,proto3" json:"server_name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data_Analytics_TLS) Reset() {
+	*x = Data_Analytics_TLS{}
+	mi := &file_conf_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data_Analytics_TLS) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data_Analytics_TLS) ProtoMessage() {}
+
+func (x *Data_Analytics_TLS) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data_Analytics_TLS.ProtoReflect.Descriptor instead.
+func (*Data_Analytics_TLS) Descriptor() ([]byte, []int) {
+	return file_conf_proto_rawDescGZIP(), []int{2, 1, 0}
+}
+
+func (x *Data_Analytics_TLS) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *Data_Analytics_TLS) GetCaFile() string {
+	if x != nil {
+		return x.CaFile
+	}
+	return ""
+}
+
+func (x *Data_Analytics_TLS) GetCertFile() string {
+	if x != nil {
+		return x.CertFile
+	}
+	return ""
+}
+
+func (x *Data_Analytics_TLS) GetKeyFile() string {
+	if x != nil {
+		return x.KeyFile
+	}
+	return ""
+}
+
+func (x *Data_Analytics_TLS) GetServerName() string {
+	if x != nil {
+		return x.ServerName
+	}
+	return ""
+}
+
 var File_conf_proto protoreflect.FileDescriptor
 
 const file_conf_proto_rawDesc = "" +
@@ -484,14 +631,26 @@ const file_conf_proto_rawDesc = "" +
 	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x8c\x01\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xf1\x03\n" +
 	"\x04Data\x12?\n" +
-	"\tapiserver\x18\x01 \x01(\v2!.ingate.admin.conf.Data.APIServerR\tapiserver\x1aC\n" +
+	"\tapiserver\x18\x01 \x01(\v2!.ingate.admin.conf.Data.APIServerR\tapiserver\x12?\n" +
+	"\tanalytics\x18\x02 \x01(\v2!.ingate.admin.conf.Data.AnalyticsR\tanalytics\x1aC\n" +
 	"\tAPIServer\x12\x16\n" +
 	"\x06master\x18\x01 \x01(\tR\x06master\x12\x1e\n" +
 	"\n" +
 	"kubeconfig\x18\x02 \x01(\tR\n" +
-	"kubeconfig\"V\n" +
+	"kubeconfig\x1a\xa1\x02\n" +
+	"\tAnalytics\x12\x12\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x127\n" +
+	"\x03tls\x18\x03 \x01(\v2%.ingate.admin.conf.Data.Analytics.TLSR\x03tls\x1a\x91\x01\n" +
+	"\x03TLS\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x17\n" +
+	"\aca_file\x18\x02 \x01(\tR\x06caFile\x12\x1b\n" +
+	"\tcert_file\x18\x03 \x01(\tR\bcertFile\x12\x19\n" +
+	"\bkey_file\x18\x04 \x01(\tR\akeyFile\x12\x1f\n" +
+	"\vserver_name\x18\x05 \x01(\tR\n" +
+	"serverName\"V\n" +
 	"\aLogging\x12\x16\n" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\tR\x05level\x12\x1d\n" +
@@ -524,7 +683,7 @@ func file_conf_proto_rawDescGZIP() []byte {
 	return file_conf_proto_rawDescData
 }
 
-var file_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.admin.conf.Bootstrap
 	(*Server)(nil),              // 1: ingate.admin.conf.Server
@@ -533,23 +692,28 @@ var file_conf_proto_goTypes = []any{
 	(*Authentication)(nil),      // 4: ingate.admin.conf.Authentication
 	(*Server_HTTP)(nil),         // 5: ingate.admin.conf.Server.HTTP
 	(*Data_APIServer)(nil),      // 6: ingate.admin.conf.Data.APIServer
-	(*durationpb.Duration)(nil), // 7: google.protobuf.Duration
+	(*Data_Analytics)(nil),      // 7: ingate.admin.conf.Data.Analytics
+	(*Data_Analytics_TLS)(nil),  // 8: ingate.admin.conf.Data.Analytics.TLS
+	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
 }
 var file_conf_proto_depIdxs = []int32{
-	1, // 0: ingate.admin.conf.Bootstrap.server:type_name -> ingate.admin.conf.Server
-	2, // 1: ingate.admin.conf.Bootstrap.data:type_name -> ingate.admin.conf.Data
-	3, // 2: ingate.admin.conf.Bootstrap.logging:type_name -> ingate.admin.conf.Logging
-	4, // 3: ingate.admin.conf.Bootstrap.authentication:type_name -> ingate.admin.conf.Authentication
-	5, // 4: ingate.admin.conf.Server.http:type_name -> ingate.admin.conf.Server.HTTP
-	7, // 5: ingate.admin.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	6, // 6: ingate.admin.conf.Data.apiserver:type_name -> ingate.admin.conf.Data.APIServer
-	7, // 7: ingate.admin.conf.Authentication.discovery_timeout:type_name -> google.protobuf.Duration
-	7, // 8: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	1,  // 0: ingate.admin.conf.Bootstrap.server:type_name -> ingate.admin.conf.Server
+	2,  // 1: ingate.admin.conf.Bootstrap.data:type_name -> ingate.admin.conf.Data
+	3,  // 2: ingate.admin.conf.Bootstrap.logging:type_name -> ingate.admin.conf.Logging
+	4,  // 3: ingate.admin.conf.Bootstrap.authentication:type_name -> ingate.admin.conf.Authentication
+	5,  // 4: ingate.admin.conf.Server.http:type_name -> ingate.admin.conf.Server.HTTP
+	9,  // 5: ingate.admin.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	6,  // 6: ingate.admin.conf.Data.apiserver:type_name -> ingate.admin.conf.Data.APIServer
+	7,  // 7: ingate.admin.conf.Data.analytics:type_name -> ingate.admin.conf.Data.Analytics
+	9,  // 8: ingate.admin.conf.Authentication.discovery_timeout:type_name -> google.protobuf.Duration
+	9,  // 9: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	9,  // 10: ingate.admin.conf.Data.Analytics.timeout:type_name -> google.protobuf.Duration
+	8,  // 11: ingate.admin.conf.Data.Analytics.tls:type_name -> ingate.admin.conf.Data.Analytics.TLS
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_conf_proto_init() }
@@ -563,7 +727,7 @@ func file_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_proto_rawDesc), len(file_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

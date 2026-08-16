@@ -1,0 +1,42 @@
+server:
+  grpc:
+    addr: "0.0.0.0:18091"
+    tls:
+      enabled: false
+      cert_file: ""
+      key_file: ""
+      client_ca_file: ""
+  http:
+    addr: "0.0.0.0:18092"
+    timeout: "5s"
+  shutdown_timeout: "30s"
+
+data:
+  kafka:
+    brokers: ["kafka:9092"]
+    topic: "ingate.request-records"
+    write_timeout: "5s"
+    dial_timeout: "5s"
+    readiness_timeout: "2s"
+    sasl:
+      mechanism: ""
+      username: ""
+      password: ""
+    tls:
+      enabled: false
+      ca_file: ""
+      cert_file: ""
+      key_file: ""
+      server_name: ""
+  disk_queue:
+    path: "/data/ingate/als/queue"
+    segment_bytes: 20971520
+    max_bytes: 1073741824
+    replay_batch_size: 500
+    replay_interval: "1s"
+    sync: true
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false

@@ -23,8 +23,8 @@ func (c *Bootstrap) Validate() error {
 	if c.GetServer().GetShutdownTimeout() == nil || c.GetServer().GetShutdownTimeout().AsDuration() <= 0 {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}
-	if c.GetData() == nil || c.GetData().GetApiserver() == nil {
-		return errors.New("apiserver config is required")
+	if err := validateData(c.GetData()); err != nil {
+		return err
 	}
 	if c.GetLogging() == nil {
 		return errors.New("logging config is required")
@@ -41,6 +41,27 @@ func (c *Bootstrap) Validate() error {
 	}
 	if err := validateAuthentication(c.GetAuthentication()); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateData(data *Data) error {
+	if data == nil || data.GetApiserver() == nil {
+		return errors.New("apiserver config is required")
+	}
+	analytics := data.GetAnalytics()
+	if analytics == nil {
+		return errors.New("analytics config is required")
+	}
+	if strings.TrimSpace(analytics.GetAddr()) == "" {
+		return errors.New("analytics address must not be empty")
+	}
+	if analytics.GetTimeout() == nil || analytics.GetTimeout().AsDuration() <= 0 {
+		return errors.New("analytics timeout must be greater than zero")
+	}
+	tls := analytics.GetTls()
+	if tls.GetEnabled() && (tls.GetCertFile() == "") != (tls.GetKeyFile() == "") {
+		return errors.New("analytics TLS certificate and key must be configured together")
 	}
 	return nil
 }

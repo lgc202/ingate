@@ -1,10 +1,14 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
+	"io"
 	"net/http"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
@@ -17,6 +21,27 @@ type response struct {
 	Code int             `json:"code"`
 	Msg  string          `json:"msg"`
 	Data json.RawMessage `json:"data"`
+}
+
+func requestDecoder(request *http.Request, value any) error {
+	message, ok := value.(proto.Message)
+	if !ok {
+		return kratoshttp.DefaultRequestDecoder(request, value)
+	}
+	data, err := io.ReadAll(request.Body)
+	request.Body = io.NopCloser(bytes.NewReader(data))
+	if err != nil {
+		return kratoserrors.BadRequest("CODEC", fmt.Sprintf("read request body: %v", err))
+	}
+	if len(data) == 0 {
+		return nil
+	}
+	// Kratos v3 默认 JSON codec 使用 encoding/json，无法按 Proto JSON 规则解析
+	// 枚举名称和 json_name；Admin API 的请求与响应都应遵循同一份 Proto 契约
+	if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(data, message); err != nil {
+		return kratoserrors.BadRequest("CODEC", fmt.Sprintf("decode Proto JSON request: %v", err))
+	}
+	return nil
 }
 
 func responseEncoder(writer http.ResponseWriter, _ *http.Request, value any) error {

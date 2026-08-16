@@ -335,6 +335,61 @@ func (x *ListRequestsResponse) GetNextPageToken() string {
 	return ""
 }
 
+// GetRequestRequest 是单条请求明细查询参数。
+type GetRequestRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是 ALS 为一次已完成请求生成的稳定记录 ID。
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// started_at 与请求记录排序键配合，避免按 ID 扫描全部保留分区。
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRequestRequest) Reset() {
+	*x = GetRequestRequest{}
+	mi := &file_analytics_v1_request_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRequestRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRequestRequest) ProtoMessage() {}
+
+func (x *GetRequestRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_request_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetRequestRequest.ProtoReflect.Descriptor instead.
+func (*GetRequestRequest) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_request_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *GetRequestRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *GetRequestRequest) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
 var File_analytics_v1_request_proto protoreflect.FileDescriptor
 
 const file_analytics_v1_request_proto_rawDesc = "" +
@@ -367,14 +422,20 @@ const file_analytics_v1_request_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\"x\n" +
 	"\x14ListRequestsResponse\x128\n" +
 	"\brequests\x18\x01 \x03(\v2\x1c.ingate.als.v1.RequestRecordR\brequests\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\x83\x01\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"^\n" +
+	"\x11GetRequestRequest\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
+	"\n" +
+	"started_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt*\x83\x01\n" +
 	"\vStatusClass\x12\x1c\n" +
 	"\x18STATUS_CLASS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14STATUS_CLASS_SUCCESS\x10\x01\x12\x1d\n" +
 	"\x19STATUS_CLASS_CLIENT_ERROR\x10\x02\x12\x1d\n" +
-	"\x19STATUS_CLASS_SERVER_ERROR\x10\x032u\n" +
+	"\x19STATUS_CLASS_SERVER_ERROR\x10\x032\xc9\x01\n" +
 	"\x0eRequestService\x12c\n" +
-	"\fListRequests\x12(.ingate.analytics.v1.ListRequestsRequest\x1a).ingate.analytics.v1.ListRequestsResponseB.Z,github.com/lgc202/ingate/api/analytics/v1;v1b\x06proto3"
+	"\fListRequests\x12(.ingate.analytics.v1.ListRequestsRequest\x1a).ingate.analytics.v1.ListRequestsResponse\x12R\n" +
+	"\n" +
+	"GetRequest\x12&.ingate.analytics.v1.GetRequestRequest\x1a\x1c.ingate.als.v1.RequestRecordB.Z,github.com/lgc202/ingate/api/analytics/v1;v1b\x06proto3"
 
 var (
 	file_analytics_v1_request_proto_rawDescOnce sync.Once
@@ -389,28 +450,32 @@ func file_analytics_v1_request_proto_rawDescGZIP() []byte {
 }
 
 var file_analytics_v1_request_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_analytics_v1_request_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_analytics_v1_request_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_analytics_v1_request_proto_goTypes = []any{
 	(StatusClass)(0),              // 0: ingate.analytics.v1.StatusClass
 	(*RequestFilter)(nil),         // 1: ingate.analytics.v1.RequestFilter
 	(*ListRequestsRequest)(nil),   // 2: ingate.analytics.v1.ListRequestsRequest
 	(*ListRequestsResponse)(nil),  // 3: ingate.analytics.v1.ListRequestsResponse
-	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
-	(*v1.RequestRecord)(nil),      // 5: ingate.als.v1.RequestRecord
+	(*GetRequestRequest)(nil),     // 4: ingate.analytics.v1.GetRequestRequest
+	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*v1.RequestRecord)(nil),      // 6: ingate.als.v1.RequestRecord
 }
 var file_analytics_v1_request_proto_depIdxs = []int32{
-	4, // 0: ingate.analytics.v1.RequestFilter.start_time:type_name -> google.protobuf.Timestamp
-	4, // 1: ingate.analytics.v1.RequestFilter.end_time:type_name -> google.protobuf.Timestamp
+	5, // 0: ingate.analytics.v1.RequestFilter.start_time:type_name -> google.protobuf.Timestamp
+	5, // 1: ingate.analytics.v1.RequestFilter.end_time:type_name -> google.protobuf.Timestamp
 	0, // 2: ingate.analytics.v1.RequestFilter.status_class:type_name -> ingate.analytics.v1.StatusClass
 	1, // 3: ingate.analytics.v1.ListRequestsRequest.filter:type_name -> ingate.analytics.v1.RequestFilter
-	5, // 4: ingate.analytics.v1.ListRequestsResponse.requests:type_name -> ingate.als.v1.RequestRecord
-	2, // 5: ingate.analytics.v1.RequestService.ListRequests:input_type -> ingate.analytics.v1.ListRequestsRequest
-	3, // 6: ingate.analytics.v1.RequestService.ListRequests:output_type -> ingate.analytics.v1.ListRequestsResponse
-	6, // [6:7] is the sub-list for method output_type
-	5, // [5:6] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	6, // 4: ingate.analytics.v1.ListRequestsResponse.requests:type_name -> ingate.als.v1.RequestRecord
+	5, // 5: ingate.analytics.v1.GetRequestRequest.started_at:type_name -> google.protobuf.Timestamp
+	2, // 6: ingate.analytics.v1.RequestService.ListRequests:input_type -> ingate.analytics.v1.ListRequestsRequest
+	4, // 7: ingate.analytics.v1.RequestService.GetRequest:input_type -> ingate.analytics.v1.GetRequestRequest
+	3, // 8: ingate.analytics.v1.RequestService.ListRequests:output_type -> ingate.analytics.v1.ListRequestsResponse
+	6, // 9: ingate.analytics.v1.RequestService.GetRequest:output_type -> ingate.als.v1.RequestRecord
+	8, // [8:10] is the sub-list for method output_type
+	6, // [6:8] is the sub-list for method input_type
+	6, // [6:6] is the sub-list for extension type_name
+	6, // [6:6] is the sub-list for extension extendee
+	0, // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_analytics_v1_request_proto_init() }
@@ -425,7 +490,7 @@ func file_analytics_v1_request_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_analytics_v1_request_proto_rawDesc), len(file_analytics_v1_request_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

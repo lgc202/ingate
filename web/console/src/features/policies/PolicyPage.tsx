@@ -9,8 +9,10 @@ import {
 } from '@/api/policies';
 import { useResource } from '@/api/useResource';
 import { useAuth } from '@/auth/AuthContext';
-import { Drawer, Modal, PageFrame, ResourceStatePanel, Toast } from '@/components/ui';
-import type { GovernancePolicy, GovernancePolicyKind, PolicyMutationResult } from '@/domain/policy';
+import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, SearchField, Toast } from '@/components/ui';
+import { formatDateTime } from '@/domain/common';
+import type { GovernancePolicy, GovernancePolicyKind, PolicyMutationResult, PolicyTargetOption } from '@/domain/policy';
+import { governancePolicyStatusLabel, policyKindLabel, policyStatusTone, policyTargetKindLabel, policyTargetLabel } from '@/domain/policy';
 import {
   createIPRestrictionPolicyDraft,
   IPRestrictionPolicyEditor,
@@ -28,12 +30,17 @@ import {
 } from './RateLimitPolicyEditor';
 
 type PolicyEditorState =
-	| { type: 'rateLimit'; draft: RateLimitPolicyDraft }
-	| { type: 'ipRestriction'; draft: IPRestrictionPolicyDraft };
+  | { type: 'rateLimit'; draft: RateLimitPolicyDraft }
+  | { type: 'ipRestriction'; draft: IPRestrictionPolicyDraft };
+
+type PolicyKindFilter = 'all' | GovernancePolicyKind;
 
 export function PolicyPage() {
   const { canWriteConfiguration } = useAuth();
   const workspace = useResource(getPolicyWorkspace);
+  const [query, setQuery] = useState('');
+  const [kindFilter, setKindFilter] = useState<PolicyKindFilter>('all');
+  const [detail, setDetail] = useState<GovernancePolicy | null>(null);
   const [editor, setEditor] = useState<PolicyEditorState | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GovernancePolicy | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -58,6 +65,11 @@ export function PolicyPage() {
 
   const data = workspace.data;
   const allPolicies = data.policies;
+  const normalizedQuery = query.trim().toLowerCase();
+  const visiblePolicies = allPolicies.filter((policy) => (
+    (kindFilter === 'all' || policy.kind === kindFilter)
+    && `${policy.name} ${policy.summary} ${policy.targets.map((target) => policyTargetLabel(target, data.targets)).join(' ')}`.toLowerCase().includes(normalizedQuery)
+  ));
 
   const reloadAfterMutation = async (resultMessage: string) => {
     await workspace.reload();
@@ -104,8 +116,9 @@ export function PolicyPage() {
 
   return (
     <PageFrame
+      eyebrow="访问治理"
       title="流量策略"
-		subtitle={`统一管理普通 API 和 AI 请求的限流与 IP 访问限制（共 ${allPolicies.length} 条策略）`}
+      subtitle={`可复用于网关或路由的请求限流与 IP 访问限制（共 ${allPolicies.length} 条策略）`}
       actions={canWriteConfiguration ? (
         <div className="flex items-center gap-2">
           <button
@@ -127,26 +140,43 @@ export function PolicyPage() {
     >
       <div className="space-y-6 mt-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
-
-        <PolicyLibraryTable
-          policies={allPolicies}
-          targets={data.targets}
-          readOnly={!canWriteConfiguration}
-          onEdit={(policy) => {
-            if (policy.kind === 'RateLimitPolicy') {
-              setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft(policy.raw) });
-            } else if (policy.kind === 'IPRestrictionPolicy') {
-              setEditor({ type: 'ipRestriction', draft: createIPRestrictionPolicyDraft(policy.raw) });
-			}
-          }}
-          onToggle={togglePolicyStatus}
-          onDelete={(policy) => setDeleteCandidate(policy)}
-        />
+        <Panel>
+          <div className="resource-list-toolbar">
+            <SearchField value={query} onChange={setQuery} placeholder="搜索策略或应用目标" />
+            <div className="flex items-center gap-3">
+              <select className="select min-w-36" value={kindFilter} aria-label="策略类型" onChange={(event) => setKindFilter(event.target.value as PolicyKindFilter)}>
+                <option value="all">全部类型</option>
+                <option value="RateLimitPolicy">限流</option>
+                <option value="IPRestrictionPolicy">IP 访问限制</option>
+              </select>
+              <span className="text-xs text-slate-500 whitespace-nowrap">{visiblePolicies.length} 条策略</span>
+            </div>
+          </div>
+          <PolicyLibraryTable
+            policies={visiblePolicies}
+            targets={data.targets}
+            readOnly={!canWriteConfiguration}
+            onDetail={setDetail}
+            onEdit={(policy) => {
+              if (policy.kind === 'RateLimitPolicy') {
+                setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft(policy.raw) });
+              } else {
+                setEditor({ type: 'ipRestriction', draft: createIPRestrictionPolicyDraft(policy.raw) });
+              }
+            }}
+            onToggle={togglePolicyStatus}
+            onDelete={setDeleteCandidate}
+          />
+        </Panel>
       </div>
 
+      <Drawer title="策略详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail(null)}>
+        {detail ? <PolicyDetail policy={detail} targets={data.targets} /> : null}
+      </Drawer>
+
       <Drawer
-        title={editor ? `编辑${editorTypeTitle(editor.type)}` : ''}
-        subtitle="保存后自动发布到网关实例"
+        title={editor ? `${editor.draft.id ? '编辑' : '创建'}${editorTypeTitle(editor.type)}` : ''}
+        subtitle="策略可以先保存，选择应用目标后才会影响流量"
         isOpen={Boolean(editor)}
         onClose={() => setEditor(null)}
       >
@@ -159,14 +189,14 @@ export function PolicyPage() {
                 validation={validateRateLimitPolicyDraft(editor.draft)}
                 onChange={(draft) => setEditor({ type: 'rateLimit', draft })}
               />
-			) : (
+            ) : (
               <IPRestrictionPolicyEditor
                 draft={editor.draft}
                 targets={data.targets}
                 validation={validateIPRestrictionPolicyDraft(editor.draft)}
                 onChange={(draft) => setEditor({ type: 'ipRestriction', draft })}
               />
-			)}
+            )}
 
             <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
               <button
@@ -221,6 +251,45 @@ export function PolicyPage() {
   );
 }
 
+function PolicyDetail({ policy, targets }: { policy: GovernancePolicy; targets: PolicyTargetOption[] }) {
+  return (
+    <div className="space-y-5">
+      <section className="resource-detail-hero">
+        <div><h3>{policy.name}</h3><p>{policy.id}</p></div>
+        <Badge tone={policyStatusTone(policy.status)}>{governancePolicyStatusLabel(policy)}</Badge>
+      </section>
+      <section className="resource-detail-section">
+        <h3>策略规则</h3>
+        <div className="resource-detail-grid">
+          <div><span>策略类型</span><strong>{policyKindLabel(policy.kind)}</strong></div>
+          <div><span>规则摘要</span><strong>{policy.summary}</strong></div>
+          <div><span>启用状态</span><strong>{policy.enabled ? '已启用' : '已停用'}</strong></div>
+          <div><span>创建时间</span><strong>{formatDateTime(policy.createdAt ?? '')}</strong></div>
+          {policy.kind === 'RateLimitPolicy' ? <>
+            <div><span>计数对象</span><strong>{rateLimitSubjectLabel(policy.raw.subject.type, policy.raw.subject.headerName)}</strong></div>
+            <div><span>请求上限</span><strong>{policy.raw.limit.windowSeconds} 秒内 {policy.raw.limit.requests} 次</strong></div>
+          </> : <>
+            <div><span>允许地址</span><strong>{policy.raw.allow.join('、') || '未配置'}</strong></div>
+            <div><span>拒绝地址</span><strong>{policy.raw.deny.join('、') || '未配置'}</strong></div>
+          </>}
+        </div>
+      </section>
+      <section className="resource-detail-section">
+        <h3>应用目标</h3>
+        {policy.targets.length > 0 ? <div className="resource-detail-list">
+          {policy.targets.map((target) => <article key={`${target.kind}:${target.id}`}><div><strong>{policyTargetLabel(target, targets)}</strong><small>{policyTargetKindLabel(target.kind)} · {target.status?.message || '等待系统反馈执行状态'}</small></div><Badge tone={target.status ? policyStatusTone(target.status) : 'neutral'}>{target.status ? target.status.state === 'Ready' ? '已生效' : target.status.state === 'Error' ? '异常' : '待生效' : '未知'}</Badge></article>)}
+        </div> : <EmptyState title="尚未应用" message="策略已保存，但当前不影响任何流量" />}
+      </section>
+    </div>
+  );
+}
+
+function rateLimitSubjectLabel(type: 'Shared' | 'IP' | 'Header', headerName?: string): string {
+  if (type === 'IP') return '客户端 IP';
+  if (type === 'Header') return `请求头 ${headerName || '—'}`;
+  return '所有请求共享';
+}
+
 function editorTypeTitle(type: PolicyEditorState['type']) {
   switch (type) {
     case 'rateLimit': return '限流策略';
@@ -229,16 +298,16 @@ function editorTypeTitle(type: PolicyEditorState['type']) {
 }
 
 function editorIsValid(editor: PolicyEditorState): boolean {
-	if (editor.type === 'rateLimit') return validateRateLimitPolicyDraft(editor.draft).valid;
-	return validateIPRestrictionPolicyDraft(editor.draft).valid;
+  if (editor.type === 'rateLimit') return validateRateLimitPolicyDraft(editor.draft).valid;
+  return validateIPRestrictionPolicyDraft(editor.draft).valid;
 }
 
 function savePolicyEditor(editor: PolicyEditorState): Promise<PolicyMutationResult> {
-	if (editor.type === 'rateLimit') return saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft));
-	return saveIPRestrictionPolicy(ipRestrictionPolicyPayload(editor.draft));
+  if (editor.type === 'rateLimit') return saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft));
+  return saveIPRestrictionPolicy(ipRestrictionPolicyPayload(editor.draft));
 }
 
 function deletePolicyByKind(kind: GovernancePolicyKind, id: string, version?: string | number): Promise<PolicyMutationResult> {
-	if (kind === 'RateLimitPolicy') return deleteRateLimitPolicy(id, Number(version));
-	return deleteIPRestrictionPolicy(id, Number(version));
+  if (kind === 'RateLimitPolicy') return deleteRateLimitPolicy(id, Number(version));
+  return deleteIPRestrictionPolicy(id, Number(version));
 }

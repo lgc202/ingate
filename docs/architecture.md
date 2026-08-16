@@ -26,8 +26,7 @@ Client -------------------------------------> Envoy
                                                |
                                                +----> Upstream
                                                |
-                                               +----> Redis
-                                                     rate-limit state
+                                               +----> ALS -> Kafka -> Analytics -> ClickHouse
 ```
 
 边界规则：
@@ -36,8 +35,8 @@ Client -------------------------------------> Envoy
 - Admin API 只通过 API Server 读写声明式资源，不访问 etcd
 - Controller 只通过 API Server Watch 资源和回写 Status，不访问 etcd
 - API Server 是 etcd 的唯一访问者
-- Envoy 通过 xDS 获取配置，通过内置插件访问 Redis
-- Redis 不是用户资源，安装时提供统一地址
+- Envoy 通过 xDS 获取 Listener、Route 和 Upstream 配置
+- Envoy 通过 ALS 上报请求记录，不直接写 Kafka 或 ClickHouse
 
 ## 资源模型
 
@@ -80,9 +79,9 @@ Candidate 和 Active 只存在于进程内。Controller 重启后从声明式资
 
 ## 内置治理
 
-`RateLimitPolicy` 和 `IPRestrictionPolicy` 是强类型资源。Controller 将它们编译为内置 Wasm filter 的执行索引，用户不接触插件私有 JSON、Wasm 文件路径、phase 或 priority。
+`RateLimitPolicy` 和 `IPRestrictionPolicy` 是强类型资源，用户不接触 Envoy filter 等数据面实现细节。
 
-限流使用 Redis 共享计数。IP 访问限制不依赖外部存储。策略目标不存在时，只影响对应目标状态，不阻止其他有效目标继续发布。
+IP 访问限制由 Envoy 原生执行，不依赖外部存储。RateLimitPolicy 当前只保留资源协议和 CRUD，不会生成限流执行配置，其目标状态因此为未应用。策略目标不存在时，只影响对应目标状态，不阻止其他有效目标继续发布。
 
 ## 部署
 

@@ -15,9 +15,6 @@ ingate-console ---> ingate-admin-api ---> ingate-apiserver ---> etcd
                                                  | watch/status
                                                  v
                                       ingate-controller ---> Envoy
-                                                |               |
-                                                +---- Redis <---+
-                                                     内置限流
 ```
 
 - `ingate-console`：控制台静态资源和管理 API 反向代理入口
@@ -26,7 +23,6 @@ ingate-console ---> ingate-admin-api ---> ingate-apiserver ---> etcd
 - `ingate-controller`：监听资源、编译 Envoy 配置、提供 xDS 并回写 Status
 - `Envoy`：唯一数据平面
 - `etcd`：声明式资源持久化，仅由 API Server 访问
-- `Redis`：内置限流插件的共享计数存储
 
 当前资源：
 
@@ -53,7 +49,6 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - 上游 HTTPS、负载均衡和主动健康检查
 - 请求与响应 Header 修改
 - Route 超时和重试
-- 基于 Redis 的共享、客户端 IP 或请求 Header 限流
 - IP 允许列表和拒绝列表
 - Console OIDC 登录与角色授权
 

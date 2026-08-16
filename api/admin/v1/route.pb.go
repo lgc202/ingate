@@ -138,6 +138,58 @@ func (HTTPMethod) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_route_proto_rawDescGZIP(), []int{1}
 }
 
+type HostRewriteMode int32
+
+const (
+	HostRewriteMode_HOST_REWRITE_MODE_UNSPECIFIED     HostRewriteMode = 0
+	HostRewriteMode_HOST_REWRITE_MODE_SERVICE_ADDRESS HostRewriteMode = 1
+	HostRewriteMode_HOST_REWRITE_MODE_PRESERVE        HostRewriteMode = 2
+	HostRewriteMode_HOST_REWRITE_MODE_CUSTOM          HostRewriteMode = 3
+)
+
+// Enum value maps for HostRewriteMode.
+var (
+	HostRewriteMode_name = map[int32]string{
+		0: "HOST_REWRITE_MODE_UNSPECIFIED",
+		1: "HOST_REWRITE_MODE_SERVICE_ADDRESS",
+		2: "HOST_REWRITE_MODE_PRESERVE",
+		3: "HOST_REWRITE_MODE_CUSTOM",
+	}
+	HostRewriteMode_value = map[string]int32{
+		"HOST_REWRITE_MODE_UNSPECIFIED":     0,
+		"HOST_REWRITE_MODE_SERVICE_ADDRESS": 1,
+		"HOST_REWRITE_MODE_PRESERVE":        2,
+		"HOST_REWRITE_MODE_CUSTOM":          3,
+	}
+)
+
+func (x HostRewriteMode) Enum() *HostRewriteMode {
+	p := new(HostRewriteMode)
+	*p = x
+	return p
+}
+
+func (x HostRewriteMode) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (HostRewriteMode) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_route_proto_enumTypes[2].Descriptor()
+}
+
+func (HostRewriteMode) Type() protoreflect.EnumType {
+	return &file_admin_v1_route_proto_enumTypes[2]
+}
+
+func (x HostRewriteMode) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use HostRewriteMode.Descriptor instead.
+func (HostRewriteMode) EnumDescriptor() ([]byte, []int) {
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{2}
+}
+
 type RoutePathMatch struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          RoutePathMatchType     `protobuf:"varint,1,opt,name=type,proto3,enum=ingate.admin.v1.RoutePathMatchType" json:"type,omitempty"`
@@ -466,6 +518,58 @@ func (x *HeaderModifier) GetRemove() []string {
 	return nil
 }
 
+type HostRewrite struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Mode          HostRewriteMode        `protobuf:"varint,1,opt,name=mode,proto3,enum=ingate.admin.v1.HostRewriteMode" json:"mode,omitempty"`
+	Hostname      string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *HostRewrite) Reset() {
+	*x = HostRewrite{}
+	mi := &file_admin_v1_route_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *HostRewrite) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*HostRewrite) ProtoMessage() {}
+
+func (x *HostRewrite) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_route_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use HostRewrite.ProtoReflect.Descriptor instead.
+func (*HostRewrite) Descriptor() ([]byte, []int) {
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *HostRewrite) GetMode() HostRewriteMode {
+	if x != nil {
+		return x.Mode
+	}
+	return HostRewriteMode_HOST_REWRITE_MODE_UNSPECIFIED
+}
+
+func (x *HostRewrite) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
 type RouteTimeout struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	RequestMillis uint32                 `protobuf:"varint,1,opt,name=request_millis,json=requestMillis,proto3" json:"request_millis,omitempty"`
@@ -475,7 +579,7 @@ type RouteTimeout struct {
 
 func (x *RouteTimeout) Reset() {
 	*x = RouteTimeout{}
-	mi := &file_admin_v1_route_proto_msgTypes[6]
+	mi := &file_admin_v1_route_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -487,7 +591,7 @@ func (x *RouteTimeout) String() string {
 func (*RouteTimeout) ProtoMessage() {}
 
 func (x *RouteTimeout) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_route_proto_msgTypes[6]
+	mi := &file_admin_v1_route_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -500,7 +604,7 @@ func (x *RouteTimeout) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RouteTimeout.ProtoReflect.Descriptor instead.
 func (*RouteTimeout) Descriptor() ([]byte, []int) {
-	return file_admin_v1_route_proto_rawDescGZIP(), []int{6}
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RouteTimeout) GetRequestMillis() uint32 {
@@ -520,7 +624,7 @@ type RouteRetry struct {
 
 func (x *RouteRetry) Reset() {
 	*x = RouteRetry{}
-	mi := &file_admin_v1_route_proto_msgTypes[7]
+	mi := &file_admin_v1_route_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -532,7 +636,7 @@ func (x *RouteRetry) String() string {
 func (*RouteRetry) ProtoMessage() {}
 
 func (x *RouteRetry) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_route_proto_msgTypes[7]
+	mi := &file_admin_v1_route_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -545,7 +649,7 @@ func (x *RouteRetry) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RouteRetry.ProtoReflect.Descriptor instead.
 func (*RouteRetry) Descriptor() ([]byte, []int) {
-	return file_admin_v1_route_proto_rawDescGZIP(), []int{7}
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RouteRetry) GetAttempts() uint32 {
@@ -580,13 +684,14 @@ type Route struct {
 	Version                int64                  `protobuf:"varint,14,opt,name=version,proto3" json:"version,omitempty"`
 	CreatedAt              *timestamppb.Timestamp `protobuf:"bytes,15,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt              *timestamppb.Timestamp `protobuf:"bytes,16,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	HostRewrite            *HostRewrite           `protobuf:"bytes,17,opt,name=host_rewrite,json=hostRewrite,proto3" json:"host_rewrite,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
 
 func (x *Route) Reset() {
 	*x = Route{}
-	mi := &file_admin_v1_route_proto_msgTypes[8]
+	mi := &file_admin_v1_route_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -598,7 +703,7 @@ func (x *Route) String() string {
 func (*Route) ProtoMessage() {}
 
 func (x *Route) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_route_proto_msgTypes[8]
+	mi := &file_admin_v1_route_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -611,7 +716,7 @@ func (x *Route) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Route.ProtoReflect.Descriptor instead.
 func (*Route) Descriptor() ([]byte, []int) {
-	return file_admin_v1_route_proto_rawDescGZIP(), []int{8}
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *Route) GetId() string {
@@ -726,6 +831,13 @@ func (x *Route) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Route) GetHostRewrite() *HostRewrite {
+	if x != nil {
+		return x.HostRewrite
+	}
+	return nil
+}
+
 type ListRoutesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
@@ -736,7 +848,7 @@ type ListRoutesRequest struct {
 
 func (x *ListRoutesRequest) Reset() {
 	*x = ListRoutesRequest{}
-	mi := &file_admin_v1_route_proto_msgTypes[9]
+	mi := &file_admin_v1_route_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -748,7 +860,7 @@ func (x *ListRoutesRequest) String() string {
 func (*ListRoutesRequest) ProtoMessage() {}
 
 func (x *ListRoutesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_route_proto_msgTypes[9]
+	mi := &file_admin_v1_route_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -761,7 +873,7 @@ func (x *ListRoutesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRoutesRequest.ProtoReflect.Descriptor instead.
 func (*ListRoutesRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_route_proto_rawDescGZIP(), []int{9}
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListRoutesRequest) GetLimit() int32 {
@@ -788,7 +900,7 @@ type ListRoutesResponse struct {
 
 func (x *ListRoutesResponse) Reset() {
 	*x = ListRoutesResponse{}
-	mi := &file_admin_v1_route_proto_msgTypes[10]
+	mi := &file_admin_v1_route_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -800,7 +912,7 @@ func (x *ListRoutesResponse) String() string {
 func (*ListRoutesResponse) ProtoMessage() {}
 
 func (x *ListRoutesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_route_proto_msgTypes[10]
+	mi := &file_admin_v1_route_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -813,7 +925,7 @@ func (x *ListRoutesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRoutesResponse.ProtoReflect.Descriptor instead.
 func (*ListRoutesResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_route_proto_rawDescGZIP(), []int{10}
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListRoutesResponse) GetRoutes() []*Route {
@@ -839,7 +951,7 @@ type GetRouteRequest struct {
 
 func (x *GetRouteRequest) Reset() {
 	*x = GetRouteRequest{}
-	mi := &file_admin_v1_route_proto_msgTypes[11]
+	mi := &file_admin_v1_route_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -851,7 +963,7 @@ func (x *GetRouteRequest) String() string {
 func (*GetRouteRequest) ProtoMessage() {}
 
 func (x *GetRouteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_route_proto_msgTypes[11]
+	mi := &file_admin_v1_route_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -864,7 +976,7 @@ func (x *GetRouteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRouteRequest.ProtoReflect.Descriptor instead.
 func (*GetRouteRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_route_proto_rawDescGZIP(), []int{11}
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetRouteRequest) GetId() string {
@@ -886,13 +998,14 @@ type CreateRouteRequest struct {
 	ResponseHeaderModifier *HeaderModifier        `protobuf:"bytes,8,opt,name=response_header_modifier,json=responseHeaderModifier,proto3" json:"response_header_modifier,omitempty"`
 	Timeout                *RouteTimeout          `protobuf:"bytes,9,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	Retry                  *RouteRetry            `protobuf:"bytes,10,opt,name=retry,proto3" json:"retry,omitempty"`
+	HostRewrite            *HostRewrite           `protobuf:"bytes,11,opt,name=host_rewrite,json=hostRewrite,proto3" json:"host_rewrite,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
 
 func (x *CreateRouteRequest) Reset() {
 	*x = CreateRouteRequest{}
-	mi := &file_admin_v1_route_proto_msgTypes[12]
+	mi := &file_admin_v1_route_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -904,7 +1017,7 @@ func (x *CreateRouteRequest) String() string {
 func (*CreateRouteRequest) ProtoMessage() {}
 
 func (x *CreateRouteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_route_proto_msgTypes[12]
+	mi := &file_admin_v1_route_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -917,7 +1030,7 @@ func (x *CreateRouteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRouteRequest.ProtoReflect.Descriptor instead.
 func (*CreateRouteRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_route_proto_rawDescGZIP(), []int{12}
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CreateRouteRequest) GetName() string {
@@ -990,6 +1103,13 @@ func (x *CreateRouteRequest) GetRetry() *RouteRetry {
 	return nil
 }
 
+func (x *CreateRouteRequest) GetHostRewrite() *HostRewrite {
+	if x != nil {
+		return x.HostRewrite
+	}
+	return nil
+}
+
 type UpdateRouteRequest struct {
 	state                  protoimpl.MessageState `protogen:"open.v1"`
 	Id                     string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1004,13 +1124,14 @@ type UpdateRouteRequest struct {
 	ResponseHeaderModifier *HeaderModifier        `protobuf:"bytes,10,opt,name=response_header_modifier,json=responseHeaderModifier,proto3" json:"response_header_modifier,omitempty"`
 	Timeout                *RouteTimeout          `protobuf:"bytes,11,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	Retry                  *RouteRetry            `protobuf:"bytes,12,opt,name=retry,proto3" json:"retry,omitempty"`
+	HostRewrite            *HostRewrite           `protobuf:"bytes,13,opt,name=host_rewrite,json=hostRewrite,proto3" json:"host_rewrite,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
 }
 
 func (x *UpdateRouteRequest) Reset() {
 	*x = UpdateRouteRequest{}
-	mi := &file_admin_v1_route_proto_msgTypes[13]
+	mi := &file_admin_v1_route_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1022,7 +1143,7 @@ func (x *UpdateRouteRequest) String() string {
 func (*UpdateRouteRequest) ProtoMessage() {}
 
 func (x *UpdateRouteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_route_proto_msgTypes[13]
+	mi := &file_admin_v1_route_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1035,7 +1156,7 @@ func (x *UpdateRouteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateRouteRequest.ProtoReflect.Descriptor instead.
 func (*UpdateRouteRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_route_proto_rawDescGZIP(), []int{13}
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UpdateRouteRequest) GetId() string {
@@ -1122,6 +1243,13 @@ func (x *UpdateRouteRequest) GetRetry() *RouteRetry {
 	return nil
 }
 
+func (x *UpdateRouteRequest) GetHostRewrite() *HostRewrite {
+	if x != nil {
+		return x.HostRewrite
+	}
+	return nil
+}
+
 type DeleteRouteRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1132,7 +1260,7 @@ type DeleteRouteRequest struct {
 
 func (x *DeleteRouteRequest) Reset() {
 	*x = DeleteRouteRequest{}
-	mi := &file_admin_v1_route_proto_msgTypes[14]
+	mi := &file_admin_v1_route_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1144,7 +1272,7 @@ func (x *DeleteRouteRequest) String() string {
 func (*DeleteRouteRequest) ProtoMessage() {}
 
 func (x *DeleteRouteRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_route_proto_msgTypes[14]
+	mi := &file_admin_v1_route_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1157,7 +1285,7 @@ func (x *DeleteRouteRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteRouteRequest.ProtoReflect.Descriptor instead.
 func (*DeleteRouteRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_route_proto_rawDescGZIP(), []int{14}
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeleteRouteRequest) GetId() string {
@@ -1201,13 +1329,16 @@ const file_admin_v1_route_proto_rawDesc = "" +
 	"\x0eHeaderModifier\x12.\n" +
 	"\x03set\x18\x01 \x03(\v2\x1c.ingate.admin.v1.HeaderValueR\x03set\x12.\n" +
 	"\x03add\x18\x02 \x03(\v2\x1c.ingate.admin.v1.HeaderValueR\x03add\x12\x16\n" +
-	"\x06remove\x18\x03 \x03(\tR\x06remove\"B\n" +
+	"\x06remove\x18\x03 \x03(\tR\x06remove\"i\n" +
+	"\vHostRewrite\x12>\n" +
+	"\x04mode\x18\x01 \x01(\x0e2 .ingate.admin.v1.HostRewriteModeB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04mode\x12\x1a\n" +
+	"\bhostname\x18\x02 \x01(\tR\bhostname\"B\n" +
 	"\fRouteTimeout\x122\n" +
 	"\x0erequest_millis\x18\x01 \x01(\rB\v\xbaH\b*\x06\x18\xe0\xa7\x12(dR\rrequestMillis\"u\n" +
 	"\n" +
 	"RouteRetry\x12%\n" +
 	"\battempts\x18\x01 \x01(\rB\t\xbaH\x06*\x04\x18\x05(\x01R\battempts\x12@\n" +
-	"\x16per_try_timeout_millis\x18\x02 \x01(\rB\v\xbaH\b*\x06\x18\xe0\xd4\x03(dR\x13perTryTimeoutMillis\"\xf5\x05\n" +
+	"\x16per_try_timeout_millis\x18\x02 \x01(\rB\v\xbaH\b*\x06\x18\xe0\xd4\x03(dR\x13perTryTimeoutMillis\"\xb6\x06\n" +
 	"\x05Route\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12\x18\n" +
@@ -1228,7 +1359,8 @@ const file_admin_v1_route_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x0f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"J\n" +
+	"updated_at\x18\x10 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12?\n" +
+	"\fhost_rewrite\x18\x11 \x01(\v2\x1c.ingate.admin.v1.HostRewriteR\vhostRewrite\"J\n" +
 	"\x11ListRoutesRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
 	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"e\n" +
@@ -1237,7 +1369,7 @@ const file_admin_v1_route_proto_rawDesc = "" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
 	"nextCursor\"+\n" +
 	"\x0fGetRouteRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xd7\x04\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x98\x05\n" +
 	"\x12CreateRouteRequest\x12\x1b\n" +
 	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12%\n" +
 	"\aenabled\x18\x02 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x120\n" +
@@ -1250,9 +1382,10 @@ const file_admin_v1_route_proto_rawDesc = "" +
 	"\x18response_header_modifier\x18\b \x01(\v2\x1f.ingate.admin.v1.HeaderModifierR\x16responseHeaderModifier\x127\n" +
 	"\atimeout\x18\t \x01(\v2\x1d.ingate.admin.v1.RouteTimeoutR\atimeout\x121\n" +
 	"\x05retry\x18\n" +
-	" \x01(\v2\x1b.ingate.admin.v1.RouteRetryR\x05retryB\n" +
+	" \x01(\v2\x1b.ingate.admin.v1.RouteRetryR\x05retry\x12?\n" +
+	"\fhost_rewrite\x18\v \x01(\v2\x1c.ingate.admin.v1.HostRewriteR\vhostRewriteB\n" +
 	"\n" +
-	"\b_enabled\"\x94\x05\n" +
+	"\b_enabled\"\xd5\x05\n" +
 	"\x12UpdateRouteRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
 	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1b\n" +
@@ -1267,7 +1400,8 @@ const file_admin_v1_route_proto_rawDesc = "" +
 	"\x18response_header_modifier\x18\n" +
 	" \x01(\v2\x1f.ingate.admin.v1.HeaderModifierR\x16responseHeaderModifier\x127\n" +
 	"\atimeout\x18\v \x01(\v2\x1d.ingate.admin.v1.RouteTimeoutR\atimeout\x121\n" +
-	"\x05retry\x18\f \x01(\v2\x1b.ingate.admin.v1.RouteRetryR\x05retryB\n" +
+	"\x05retry\x18\f \x01(\v2\x1b.ingate.admin.v1.RouteRetryR\x05retry\x12?\n" +
+	"\fhost_rewrite\x18\r \x01(\v2\x1c.ingate.admin.v1.HostRewriteR\vhostRewriteB\n" +
 	"\n" +
 	"\b_enabled\"Q\n" +
 	"\x12DeleteRouteRequest\x12\x18\n" +
@@ -1286,7 +1420,12 @@ const file_admin_v1_route_proto_rawDesc = "" +
 	"\x0fHTTP_METHOD_PUT\x10\x04\x12\x15\n" +
 	"\x11HTTP_METHOD_PATCH\x10\x05\x12\x16\n" +
 	"\x12HTTP_METHOD_DELETE\x10\x06\x12\x17\n" +
-	"\x13HTTP_METHOD_OPTIONS\x10\a2\x9c\x04\n" +
+	"\x13HTTP_METHOD_OPTIONS\x10\a*\x99\x01\n" +
+	"\x0fHostRewriteMode\x12!\n" +
+	"\x1dHOST_REWRITE_MODE_UNSPECIFIED\x10\x00\x12%\n" +
+	"!HOST_REWRITE_MODE_SERVICE_ADDRESS\x10\x01\x12\x1e\n" +
+	"\x1aHOST_REWRITE_MODE_PRESERVE\x10\x02\x12\x1c\n" +
+	"\x18HOST_REWRITE_MODE_CUSTOM\x10\x032\x9c\x04\n" +
 	"\fRouteService\x12m\n" +
 	"\n" +
 	"ListRoutes\x12\".ingate.admin.v1.ListRoutesRequest\x1a#.ingate.admin.v1.ListRoutesResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/routes\x12a\n" +
@@ -1307,74 +1446,80 @@ func file_admin_v1_route_proto_rawDescGZIP() []byte {
 	return file_admin_v1_route_proto_rawDescData
 }
 
-var file_admin_v1_route_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_admin_v1_route_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
+var file_admin_v1_route_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_admin_v1_route_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_admin_v1_route_proto_goTypes = []any{
 	(RoutePathMatchType)(0),       // 0: ingate.admin.v1.RoutePathMatchType
 	(HTTPMethod)(0),               // 1: ingate.admin.v1.HTTPMethod
-	(*RoutePathMatch)(nil),        // 2: ingate.admin.v1.RoutePathMatch
-	(*HeaderMatch)(nil),           // 3: ingate.admin.v1.HeaderMatch
-	(*RouteMatch)(nil),            // 4: ingate.admin.v1.RouteMatch
-	(*RouteUpstream)(nil),         // 5: ingate.admin.v1.RouteUpstream
-	(*HeaderValue)(nil),           // 6: ingate.admin.v1.HeaderValue
-	(*HeaderModifier)(nil),        // 7: ingate.admin.v1.HeaderModifier
-	(*RouteTimeout)(nil),          // 8: ingate.admin.v1.RouteTimeout
-	(*RouteRetry)(nil),            // 9: ingate.admin.v1.RouteRetry
-	(*Route)(nil),                 // 10: ingate.admin.v1.Route
-	(*ListRoutesRequest)(nil),     // 11: ingate.admin.v1.ListRoutesRequest
-	(*ListRoutesResponse)(nil),    // 12: ingate.admin.v1.ListRoutesResponse
-	(*GetRouteRequest)(nil),       // 13: ingate.admin.v1.GetRouteRequest
-	(*CreateRouteRequest)(nil),    // 14: ingate.admin.v1.CreateRouteRequest
-	(*UpdateRouteRequest)(nil),    // 15: ingate.admin.v1.UpdateRouteRequest
-	(*DeleteRouteRequest)(nil),    // 16: ingate.admin.v1.DeleteRouteRequest
-	(ResourceState)(0),            // 17: ingate.admin.v1.ResourceState
-	(*timestamppb.Timestamp)(nil), // 18: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 19: google.protobuf.Empty
+	(HostRewriteMode)(0),          // 2: ingate.admin.v1.HostRewriteMode
+	(*RoutePathMatch)(nil),        // 3: ingate.admin.v1.RoutePathMatch
+	(*HeaderMatch)(nil),           // 4: ingate.admin.v1.HeaderMatch
+	(*RouteMatch)(nil),            // 5: ingate.admin.v1.RouteMatch
+	(*RouteUpstream)(nil),         // 6: ingate.admin.v1.RouteUpstream
+	(*HeaderValue)(nil),           // 7: ingate.admin.v1.HeaderValue
+	(*HeaderModifier)(nil),        // 8: ingate.admin.v1.HeaderModifier
+	(*HostRewrite)(nil),           // 9: ingate.admin.v1.HostRewrite
+	(*RouteTimeout)(nil),          // 10: ingate.admin.v1.RouteTimeout
+	(*RouteRetry)(nil),            // 11: ingate.admin.v1.RouteRetry
+	(*Route)(nil),                 // 12: ingate.admin.v1.Route
+	(*ListRoutesRequest)(nil),     // 13: ingate.admin.v1.ListRoutesRequest
+	(*ListRoutesResponse)(nil),    // 14: ingate.admin.v1.ListRoutesResponse
+	(*GetRouteRequest)(nil),       // 15: ingate.admin.v1.GetRouteRequest
+	(*CreateRouteRequest)(nil),    // 16: ingate.admin.v1.CreateRouteRequest
+	(*UpdateRouteRequest)(nil),    // 17: ingate.admin.v1.UpdateRouteRequest
+	(*DeleteRouteRequest)(nil),    // 18: ingate.admin.v1.DeleteRouteRequest
+	(ResourceState)(0),            // 19: ingate.admin.v1.ResourceState
+	(*timestamppb.Timestamp)(nil), // 20: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 21: google.protobuf.Empty
 }
 var file_admin_v1_route_proto_depIdxs = []int32{
 	0,  // 0: ingate.admin.v1.RoutePathMatch.type:type_name -> ingate.admin.v1.RoutePathMatchType
-	2,  // 1: ingate.admin.v1.RouteMatch.path:type_name -> ingate.admin.v1.RoutePathMatch
+	3,  // 1: ingate.admin.v1.RouteMatch.path:type_name -> ingate.admin.v1.RoutePathMatch
 	1,  // 2: ingate.admin.v1.RouteMatch.methods:type_name -> ingate.admin.v1.HTTPMethod
-	3,  // 3: ingate.admin.v1.RouteMatch.headers:type_name -> ingate.admin.v1.HeaderMatch
-	6,  // 4: ingate.admin.v1.HeaderModifier.set:type_name -> ingate.admin.v1.HeaderValue
-	6,  // 5: ingate.admin.v1.HeaderModifier.add:type_name -> ingate.admin.v1.HeaderValue
-	4,  // 6: ingate.admin.v1.Route.match:type_name -> ingate.admin.v1.RouteMatch
-	5,  // 7: ingate.admin.v1.Route.upstreams:type_name -> ingate.admin.v1.RouteUpstream
-	7,  // 8: ingate.admin.v1.Route.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	7,  // 9: ingate.admin.v1.Route.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	8,  // 10: ingate.admin.v1.Route.timeout:type_name -> ingate.admin.v1.RouteTimeout
-	9,  // 11: ingate.admin.v1.Route.retry:type_name -> ingate.admin.v1.RouteRetry
-	17, // 12: ingate.admin.v1.Route.state:type_name -> ingate.admin.v1.ResourceState
-	18, // 13: ingate.admin.v1.Route.created_at:type_name -> google.protobuf.Timestamp
-	18, // 14: ingate.admin.v1.Route.updated_at:type_name -> google.protobuf.Timestamp
-	10, // 15: ingate.admin.v1.ListRoutesResponse.routes:type_name -> ingate.admin.v1.Route
-	4,  // 16: ingate.admin.v1.CreateRouteRequest.match:type_name -> ingate.admin.v1.RouteMatch
-	5,  // 17: ingate.admin.v1.CreateRouteRequest.upstreams:type_name -> ingate.admin.v1.RouteUpstream
-	7,  // 18: ingate.admin.v1.CreateRouteRequest.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	7,  // 19: ingate.admin.v1.CreateRouteRequest.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	8,  // 20: ingate.admin.v1.CreateRouteRequest.timeout:type_name -> ingate.admin.v1.RouteTimeout
-	9,  // 21: ingate.admin.v1.CreateRouteRequest.retry:type_name -> ingate.admin.v1.RouteRetry
-	4,  // 22: ingate.admin.v1.UpdateRouteRequest.match:type_name -> ingate.admin.v1.RouteMatch
-	5,  // 23: ingate.admin.v1.UpdateRouteRequest.upstreams:type_name -> ingate.admin.v1.RouteUpstream
-	7,  // 24: ingate.admin.v1.UpdateRouteRequest.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	7,  // 25: ingate.admin.v1.UpdateRouteRequest.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	8,  // 26: ingate.admin.v1.UpdateRouteRequest.timeout:type_name -> ingate.admin.v1.RouteTimeout
-	9,  // 27: ingate.admin.v1.UpdateRouteRequest.retry:type_name -> ingate.admin.v1.RouteRetry
-	11, // 28: ingate.admin.v1.RouteService.ListRoutes:input_type -> ingate.admin.v1.ListRoutesRequest
-	13, // 29: ingate.admin.v1.RouteService.GetRoute:input_type -> ingate.admin.v1.GetRouteRequest
-	14, // 30: ingate.admin.v1.RouteService.CreateRoute:input_type -> ingate.admin.v1.CreateRouteRequest
-	15, // 31: ingate.admin.v1.RouteService.UpdateRoute:input_type -> ingate.admin.v1.UpdateRouteRequest
-	16, // 32: ingate.admin.v1.RouteService.DeleteRoute:input_type -> ingate.admin.v1.DeleteRouteRequest
-	12, // 33: ingate.admin.v1.RouteService.ListRoutes:output_type -> ingate.admin.v1.ListRoutesResponse
-	10, // 34: ingate.admin.v1.RouteService.GetRoute:output_type -> ingate.admin.v1.Route
-	10, // 35: ingate.admin.v1.RouteService.CreateRoute:output_type -> ingate.admin.v1.Route
-	10, // 36: ingate.admin.v1.RouteService.UpdateRoute:output_type -> ingate.admin.v1.Route
-	19, // 37: ingate.admin.v1.RouteService.DeleteRoute:output_type -> google.protobuf.Empty
-	33, // [33:38] is the sub-list for method output_type
-	28, // [28:33] is the sub-list for method input_type
-	28, // [28:28] is the sub-list for extension type_name
-	28, // [28:28] is the sub-list for extension extendee
-	0,  // [0:28] is the sub-list for field type_name
+	4,  // 3: ingate.admin.v1.RouteMatch.headers:type_name -> ingate.admin.v1.HeaderMatch
+	7,  // 4: ingate.admin.v1.HeaderModifier.set:type_name -> ingate.admin.v1.HeaderValue
+	7,  // 5: ingate.admin.v1.HeaderModifier.add:type_name -> ingate.admin.v1.HeaderValue
+	2,  // 6: ingate.admin.v1.HostRewrite.mode:type_name -> ingate.admin.v1.HostRewriteMode
+	5,  // 7: ingate.admin.v1.Route.match:type_name -> ingate.admin.v1.RouteMatch
+	6,  // 8: ingate.admin.v1.Route.upstreams:type_name -> ingate.admin.v1.RouteUpstream
+	8,  // 9: ingate.admin.v1.Route.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	8,  // 10: ingate.admin.v1.Route.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	10, // 11: ingate.admin.v1.Route.timeout:type_name -> ingate.admin.v1.RouteTimeout
+	11, // 12: ingate.admin.v1.Route.retry:type_name -> ingate.admin.v1.RouteRetry
+	19, // 13: ingate.admin.v1.Route.state:type_name -> ingate.admin.v1.ResourceState
+	20, // 14: ingate.admin.v1.Route.created_at:type_name -> google.protobuf.Timestamp
+	20, // 15: ingate.admin.v1.Route.updated_at:type_name -> google.protobuf.Timestamp
+	9,  // 16: ingate.admin.v1.Route.host_rewrite:type_name -> ingate.admin.v1.HostRewrite
+	12, // 17: ingate.admin.v1.ListRoutesResponse.routes:type_name -> ingate.admin.v1.Route
+	5,  // 18: ingate.admin.v1.CreateRouteRequest.match:type_name -> ingate.admin.v1.RouteMatch
+	6,  // 19: ingate.admin.v1.CreateRouteRequest.upstreams:type_name -> ingate.admin.v1.RouteUpstream
+	8,  // 20: ingate.admin.v1.CreateRouteRequest.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	8,  // 21: ingate.admin.v1.CreateRouteRequest.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	10, // 22: ingate.admin.v1.CreateRouteRequest.timeout:type_name -> ingate.admin.v1.RouteTimeout
+	11, // 23: ingate.admin.v1.CreateRouteRequest.retry:type_name -> ingate.admin.v1.RouteRetry
+	9,  // 24: ingate.admin.v1.CreateRouteRequest.host_rewrite:type_name -> ingate.admin.v1.HostRewrite
+	5,  // 25: ingate.admin.v1.UpdateRouteRequest.match:type_name -> ingate.admin.v1.RouteMatch
+	6,  // 26: ingate.admin.v1.UpdateRouteRequest.upstreams:type_name -> ingate.admin.v1.RouteUpstream
+	8,  // 27: ingate.admin.v1.UpdateRouteRequest.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	8,  // 28: ingate.admin.v1.UpdateRouteRequest.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	10, // 29: ingate.admin.v1.UpdateRouteRequest.timeout:type_name -> ingate.admin.v1.RouteTimeout
+	11, // 30: ingate.admin.v1.UpdateRouteRequest.retry:type_name -> ingate.admin.v1.RouteRetry
+	9,  // 31: ingate.admin.v1.UpdateRouteRequest.host_rewrite:type_name -> ingate.admin.v1.HostRewrite
+	13, // 32: ingate.admin.v1.RouteService.ListRoutes:input_type -> ingate.admin.v1.ListRoutesRequest
+	15, // 33: ingate.admin.v1.RouteService.GetRoute:input_type -> ingate.admin.v1.GetRouteRequest
+	16, // 34: ingate.admin.v1.RouteService.CreateRoute:input_type -> ingate.admin.v1.CreateRouteRequest
+	17, // 35: ingate.admin.v1.RouteService.UpdateRoute:input_type -> ingate.admin.v1.UpdateRouteRequest
+	18, // 36: ingate.admin.v1.RouteService.DeleteRoute:input_type -> ingate.admin.v1.DeleteRouteRequest
+	14, // 37: ingate.admin.v1.RouteService.ListRoutes:output_type -> ingate.admin.v1.ListRoutesResponse
+	12, // 38: ingate.admin.v1.RouteService.GetRoute:output_type -> ingate.admin.v1.Route
+	12, // 39: ingate.admin.v1.RouteService.CreateRoute:output_type -> ingate.admin.v1.Route
+	12, // 40: ingate.admin.v1.RouteService.UpdateRoute:output_type -> ingate.admin.v1.Route
+	21, // 41: ingate.admin.v1.RouteService.DeleteRoute:output_type -> google.protobuf.Empty
+	37, // [37:42] is the sub-list for method output_type
+	32, // [32:37] is the sub-list for method input_type
+	32, // [32:32] is the sub-list for extension type_name
+	32, // [32:32] is the sub-list for extension extendee
+	0,  // [0:32] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_route_proto_init() }
@@ -1383,15 +1528,15 @@ func file_admin_v1_route_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
-	file_admin_v1_route_proto_msgTypes[12].OneofWrappers = []any{}
 	file_admin_v1_route_proto_msgTypes[13].OneofWrappers = []any{}
+	file_admin_v1_route_proto_msgTypes[14].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_route_proto_rawDesc), len(file_admin_v1_route_proto_rawDesc)),
-			NumEnums:      2,
-			NumMessages:   15,
+			NumEnums:      3,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

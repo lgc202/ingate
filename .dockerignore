@@ -2,6 +2,9 @@
 .gocache
 .gomodcache
 .env
-web/console/node_modules
-web/console/dist
-_output
+**/.DS_Store
+**/node_modules
+**/dist
+_output/*
+!_output/docker
+!_output/docker/**

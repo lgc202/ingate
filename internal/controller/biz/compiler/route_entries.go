@@ -53,6 +53,9 @@ func (c *compilation) buildRouteEntries(route *gatewayv1.Route, compiledUpstream
 	action := &routev3.RouteAction{ClusterSpecifier: &routev3.RouteAction_WeightedClusters{
 		WeightedClusters: &routev3.WeightedCluster{Clusters: clusters},
 	}}
+	if !c.applyHostRewrite(route, action) {
+		return nil
+	}
 	if route.Spec.Timeout != nil {
 		if route.Spec.Timeout.RequestMillis < minRouteTimeoutMillis || route.Spec.Timeout.RequestMillis > maxRouteTimeoutMillis {
 			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q timeout is out of range", route.Name))

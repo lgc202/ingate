@@ -25,6 +25,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderMatch":             schema_pkg_apis_gateway_v1_HeaderMatch(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier":          schema_pkg_apis_gateway_v1_HeaderModifier(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderValue":             schema_pkg_apis_gateway_v1_HeaderValue(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.HostRewrite":             schema_pkg_apis_gateway_v1_HostRewrite(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.IPRestrictionPolicy":     schema_pkg_apis_gateway_v1_IPRestrictionPolicy(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.IPRestrictionPolicyList": schema_pkg_apis_gateway_v1_IPRestrictionPolicyList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.IPRestrictionPolicySpec": schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref),
@@ -541,6 +542,34 @@ func schema_pkg_apis_gateway_v1_HeaderValue(ref common.ReferenceCallback) common
 					},
 				},
 				Required: []string{"name", "value"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_HostRewrite(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HostRewrite 定义转发请求使用的上游 Host",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"mode": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"hostname": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Hostname 仅在 Custom 模式下使用，不包含端口",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"mode"},
 			},
 		},
 	}
@@ -1455,6 +1484,12 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							},
 						},
 					},
+					"hostRewrite": {
+						SchemaProps: spec.SchemaProps{
+							Description: "HostRewrite 为空时保留客户端 Host，其他模式由 Route 显式控制",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HostRewrite"),
+						},
+					},
 					"requestHeaderModifier": {
 						SchemaProps: spec.SchemaProps{
 							Ref: ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier"),
@@ -1480,7 +1515,7 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier", "github.com/lgc202/ingate/pkg/apis/gateway/v1.HostRewrite", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
 	}
 }
 

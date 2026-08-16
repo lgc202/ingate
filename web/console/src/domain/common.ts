@@ -33,3 +33,23 @@ export function normalizeResourceState(value: unknown): ResourceState {
   };
   return states[String(value)] ?? 'Pending';
 }
+
+export function resourceStateLabel(state: ResourceState): string {
+  const labels: Record<ResourceState, string> = {
+    Pending: '待生效',
+    Ready: '已生效',
+    Error: '异常',
+    Disabled: '已停用',
+  };
+  return labels[state];
+}
+
+export function resourceStateTone(state: ResourceState): 'success' | 'warning' | 'error' | 'neutral' {
+  const tones: Record<ResourceState, 'success' | 'warning' | 'error' | 'neutral'> = {
+    Pending: 'warning',
+    Ready: 'success',
+    Error: 'error',
+    Disabled: 'neutral',
+  };
+  return tones[state];
+}

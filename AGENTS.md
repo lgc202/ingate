@@ -6,7 +6,7 @@
 
 - 构建一个声明式 Envoy API 网关控制面。
 - Envoy 是唯一数据平面，不为 Kong、Nginx 等假设提前设计 target 抽象。
-- Higress 只作为带 Redis 扩展 ABI 的 Envoy 二进制来源；生产 Go 代码不依赖 Higress 产品模型、wrapper 或高层 SDK。
+- 数据面直接使用固定版本的 Envoy 官方镜像，不维护 Ingate Envoy 分支，也不依赖 Higress 二进制或私有扩展 ABI。
 - 一套 Ingate 表示一个环境、一个配置域和一组配置完全相同的 Envoy 实例；一套 Ingate 可以包含多个逻辑 Gateway。
 - `Upstream` 表示普通 HTTP 上游服务，通过端点、TLS、负载均衡和健康检查描述连接方式。
 - 命名要按新设计重新判断，不要被旧项目影响。例如使用 `Upstream`，不要使用 `Backend`。
@@ -27,9 +27,13 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - `ingate-admin-api`：前端管理 API
 - `ingate-apiserver`：声明式资源 API
 - `ingate-controller`：资源状态收敛、Envoy 配置编译和 xDS 服务
+- `ingate-als`：接收 Envoy ALS 请求记录并可靠投递到 Kafka
+- `ingate-analytics`：消费请求记录、写入 ClickHouse 并提供分析查询
 - `Envoy`：唯一数据平面
 - `etcd`：声明式资源持久化，仅由 ingate-apiserver 访问
-- `Redis`：内置限流插件的共享计数存储
+- `Redis`：为后续内置治理能力保留的系统组件，当前不参与流量执行
+- `Kafka`：请求记录采集与分析之间的可靠消息链路
+- `ClickHouse`：请求明细和流量分析存储
 
 当前已经落地的控制面资源包括 Gateway、Route、Upstream、Certificate、RateLimitPolicy 和 IPRestrictionPolicy。在此基础上，产品将扩展为统一的 API 与 AI 网关，围绕模型服务接入、对外模型发布、调用方授权、用量治理和请求分析形成完整链路。
 
@@ -66,18 +70,15 @@ AI 网关的产品对象保持克制：
 - 后续只有出现真实交付需求时才分别设计 systemd 或 Kubernetes，不提前建立通用部署抽象。
 - 安装包和容器内使用 `/opt/ingate/<component>` 保存二进制、配置和静态资源；运行数据由具体部署方式挂载到明确目录。
 - API Server 自身运行证书与用户声明的 Gateway Certificate 是不同概念，后者始终由 API Server 持久化到 etcd。
-- 内置插件固定放在 Envoy 可读取的 `/opt/ingate/plugins`，用户不感知插件文件路径。
 
-## 内置治理插件
+## 内置治理执行
 
-- 限流和 IP 访问限制使用数据面插件执行，但控制面产品模型必须保持强类型资源，不让用户直接编辑插件私有 JSON。
-- 内置治理插件不建模为用户创建的通用插件资源或插件绑定资源；用户配置的是对应的强类型 Policy 和必要的依赖资源。
+- 限流和 IP 访问限制保持强类型资源，不让用户编辑数据面实现细节。
+- 内置治理能力不建模为用户创建的通用插件资源或插件绑定资源；用户配置的是对应的强类型 Policy。
 - 强类型 Policy 通过自身的 `targetRefs[]` 直接引用 Gateway 或 Route，不再使用独立 `PolicyBinding`。`targetRefs[]` 允许为空，表示策略已保存但当前不应用到流量。
-- xDS 对内置治理插件采用长期形态：Listener / HCM 注入一次内置 Wasm filter，filter 配置携带 Envoy Config Compiler 生成的可执行策略索引，插件通过当前 xDS route name 定位 route/rule 配置。
-- Redis 是系统组件，不建模为用户资源；RateLimitPolicy 自动使用 Envoy bootstrap 中的 `ingate-system-redis`。RateLimitPolicy 不向用户暴露 Local/Global 计数模式或限流算法，实际执行方式由 Ingate 内部统一选择。
-- Redis 扩展由 Ingate 自己维护最小 ABI adapter，现有插件继续使用标准 Proxy-Wasm SDK，生产代码不 import `github.com/higress-group/...`。
-- 内置插件随 Ingate 数据面镜像发布，默认放在 `/opt/ingate/plugins`。
-- 用户自定义插件仍走普通插件模型，不和内置治理插件混用同一套产品协议。
+- RateLimitPolicy 当前只保留资源协议和 CRUD，Controller 不生成执行配置，直到数据面实现重新确定。
+- IPRestrictionPolicy 编译为 Envoy 官方 `envoy.filters.http.rbac` Route 配置，不依赖外部存储。
+- Redis 是系统组件，不建模为用户资源。RateLimitPolicy 不向用户暴露 Local/Global 计数模式或限流算法。
 
 ## Go 版本
 
@@ -167,17 +168,16 @@ AI 网关的产品对象保持克制：
 - 资源之间的引用使用资源 ID，不使用 `displayName`。
 - 声明式 apiserver 可以保留调用方指定 `metadata.name` 的能力；Admin API 面向控制台体验，创建流程可以和声明式 API 不同。
 
-### 治理策略与内置插件
+### 治理策略执行
 
 - 当前已落地执行链路保留 `RateLimitPolicy` 和 `IPRestrictionPolicy`；删除 `PolicyBinding` 和 `RedisStore`，鉴权等治理能力后续重新设计后再加入。
-- 核心治理能力可以在数据面通过内置插件执行，但用户协议和 ingate-admin-api 不能暴露为普通插件资源、插件绑定资源或插件私有 JSON。
-- 内置治理插件由系统自动注入、自动配置并通过 Envoy xDS 配置生效；用户不需要独立安装插件，也不需要感知插件版本、phase、priority 或 Wasm 文件路径。
+- 用户协议和 ingate-admin-api 不能暴露为普通插件资源、插件绑定资源、Envoy filter 或 RateLimitService descriptor。
+- 治理执行配置由 Controller 自动编译并通过 Envoy xDS 生效；用户不需要安装数据面插件，也不感知 filter 顺序或内部服务地址。
 - `RateLimitPolicy` 和 `IPRestrictionPolicy` 通过 `targetRefs[]` 表达策略应用到哪些 Gateway 或 Route；策略配置和目标引用都由对应强类型 Policy 承载。
 - Policy 的总体结果写入 `status.conditions`，每个目标的解析和生效结果写入 `status.targets[]`。缺失目标不影响其他有效目标继续发布；任一目标已生效时总体可视为已生效，部分生效和异常由 `status.targets[]` 表达；没有目标或所有目标都未接入流量时使用 `NotApplied`。
 - 外部服务、证书等可复用运行依赖按真实产品需求独立建模；系统 Redis 是安装级基础组件，不进入用户资源协议。
-- 内置治理插件可以参考 Higress 等项目的实现思路，但不能依赖第三方产品的 wrapper、matchRules 或高层配置协议；Redis hostcall 通过 Ingate 自己维护的最小 ABI adapter 隔离。
 - 后续新增策略时按资源类型拆分 ingate-admin-api 的 service、biz 和 data 文件，不把不同策略堆进一个大 `policy` 文件，也不写进 Route/Gateway 的用例层。
-- Envoy Config Compiler 负责解析强类型策略的 `targetRefs[]`，并生成 Envoy 与内置插件可执行配置；插件私有结构不能泄漏到用户 API。
+- Envoy Config Compiler 负责解析强类型策略的 `targetRefs[]`，并生成 Envoy 原生 filter 或标准扩展服务可执行配置；内部执行结构不能泄漏到用户 API。
 
 ### 标准库与依赖使用
 

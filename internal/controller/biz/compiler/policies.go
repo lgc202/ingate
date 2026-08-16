@@ -1,11 +1,11 @@
 package compiler
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 
-	pluginiprestriction "github.com/lgc202/ingate/pkg/plugin/iprestriction"
-	pluginratelimit "github.com/lgc202/ingate/pkg/plugin/ratelimit"
+	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 type policyRouteKey struct {
@@ -17,87 +17,57 @@ type policyRouteKey struct {
 func (c *compilation) buildPolicyConfigs(
 	attachments []routeAttachment,
 ) (map[listenerKey]listenerFilterConfig, []CompiledPolicyTarget) {
-	// 编译阶段把 Gateway/Route 应用范围展开成执行清单，Wasm 不再理解用户层策略挂载模型
+	// 编译阶段直接把强类型 Policy 展开到 Envoy Route，执行组件不再理解用户资源挂载关系
 	ipRestrictionPolicies := c.compileIPRestrictionPolicies()
-	rateLimitPolicies := c.compileRateLimitPolicies()
-	result := make(map[listenerKey]listenerFilterConfig)
+	filters := make(map[listenerKey]listenerFilterConfig)
 	policyTargetSet := make(map[CompiledPolicyTarget]bool)
 
-	routeKeySet := make(map[policyRouteKey]bool)
 	for _, attachment := range attachments {
-		routeKeySet[policyRouteKey(attachment)] = true
-	}
-	routeKeys := slices.Collect(maps.Keys(routeKeySet))
-	slices.SortFunc(routeKeys, comparePolicyRouteKeys)
-
-	for _, key := range routeKeys {
-		restrictionPolicies := make([]pluginiprestriction.Policy, 0)
-		for _, policyID := range slices.Sorted(maps.Keys(ipRestrictionPolicies)) {
-			compiled := ipRestrictionPolicies[policyID]
-			_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
-			if len(matchedTargets) == 0 {
-				continue
-			}
-			c.recordPolicyTargets(compiled.source, matchedTargets, policyTargetSet)
-			restrictionPolicies = append(restrictionPolicies, compiled.policy)
+		key := policyRouteKey{
+			listenerKey: attachment.listenerKey,
+			gatewayID:   attachment.gatewayID,
+			routeID:     attachment.routeID,
 		}
+		config := filters[key.listenerKey]
 
-		ratePolicies := make([]pluginratelimit.Policy, 0)
-		for _, policyID := range slices.Sorted(maps.Keys(rateLimitPolicies)) {
-			compiled := rateLimitPolicies[policyID]
-			scope, matchedTargets := matchingPolicyTargets(compiled.targets, key)
-			if len(matchedTargets) == 0 {
-				continue
+		restrictions, restrictionTargets := matchingIPRestrictionPolicies(ipRestrictionPolicies, key)
+		if len(restrictions) > 0 {
+			if err := applyIPRestrictionPolicies(attachment.routes, restrictions); err != nil {
+				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, key.routeID, ReasonCompileFailed, fmt.Sprintf("compile IP restriction policies for route %q: %v", key.routeID, err))
+			} else {
+				config.ipRestriction = true
+				for _, target := range restrictionTargets {
+					c.recordPolicyTargets(target.source, target.targets, policyTargetSet)
+				}
 			}
-			c.recordPolicyTargets(compiled.source, matchedTargets, policyTargetSet)
-			policy := compiled.policy
-			policy.Scope = scope
-			ratePolicies = append(ratePolicies, policy)
 		}
 
-		config := result[key.listenerKey]
-		if len(restrictionPolicies) > 0 {
-			if config.ipRestriction == nil {
-				config.ipRestriction = &pluginiprestriction.PluginConfig{}
-			}
-			config.ipRestriction.Routes = append(config.ipRestriction.Routes, pluginiprestriction.RouteConfig{
-				GatewayName: key.gatewayID,
-				RouteName:   key.routeID,
-				Policies:    restrictionPolicies,
-			})
-		}
-		if len(ratePolicies) > 0 {
-			if config.rateLimit == nil {
-				config.rateLimit = &pluginratelimit.PluginConfig{}
-			}
-			config.rateLimit.Routes = append(config.rateLimit.Routes, pluginratelimit.RouteConfig{
-				GatewayName: key.gatewayID,
-				RouteName:   key.routeID,
-				Policies:    ratePolicies,
-			})
-		}
-		if len(restrictionPolicies) > 0 || len(ratePolicies) > 0 {
-			result[key.listenerKey] = config
+		if config.ipRestriction {
+			filters[key.listenerKey] = config
 		}
 	}
-	return result, compiledPolicyTargets(policyTargetSet)
+	return filters, compiledPolicyTargets(policyTargetSet)
 }
 
-func comparePolicyRouteKeys(a, b policyRouteKey) int {
-	if result := compareListenerKeys(a.listenerKey, b.listenerKey); result != 0 {
-		return result
-	}
-	if a.gatewayID != b.gatewayID {
-		if a.gatewayID < b.gatewayID {
-			return -1
+type matchedPolicyTarget struct {
+	source  ResourceGeneration
+	targets []gatewayv1.PolicyTargetRef
+}
+
+func matchingIPRestrictionPolicies(
+	policies map[string]compiledIPRestrictionPolicy,
+	key policyRouteKey,
+) ([]ipRestrictionPolicy, []matchedPolicyTarget) {
+	matched := make([]ipRestrictionPolicy, 0)
+	targets := make([]matchedPolicyTarget, 0)
+	for _, policyID := range slices.Sorted(maps.Keys(policies)) {
+		compiled := policies[policyID]
+		_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
+		if len(matchedTargets) == 0 {
+			continue
 		}
-		return 1
+		matched = append(matched, compiled.policy)
+		targets = append(targets, matchedPolicyTarget{source: compiled.source, targets: matchedTargets})
 	}
-	if a.routeID < b.routeID {
-		return -1
-	}
-	if a.routeID > b.routeID {
-		return 1
-	}
-	return 0
+	return matched, targets
 }

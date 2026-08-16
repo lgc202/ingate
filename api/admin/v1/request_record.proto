@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// RequestRecordService 提供网关请求明细查询接口
+service RequestRecordService {
+  // ListRequestRecords 按时间倒序查询请求记录
+  rpc ListRequestRecords(ListRequestRecordsRequest) returns (ListRequestRecordsResponse) {
+    option (google.api.http) = {get: "/api/v1/request-records"};
+  }
+  // GetRequestRecord 查询一次请求的完整元数据
+  rpc GetRequestRecord(GetRequestRecordRequest) returns (RequestRecord) {
+    option (google.api.http) = {get: "/api/v1/request-records/{id}"};
+  }
+}
+
+// RequestOutcome 是按 HTTP 状态码归纳的请求结果
+enum RequestOutcome {
+  // REQUEST_OUTCOME_UNSPECIFIED 表示没有可识别的 HTTP 结果
+  REQUEST_OUTCOME_UNSPECIFIED = 0;
+  // REQUEST_OUTCOME_SUCCESS 表示状态码小于 400
+  REQUEST_OUTCOME_SUCCESS = 1;
+  // REQUEST_OUTCOME_CLIENT_ERROR 表示状态码为 400 到 499
+  REQUEST_OUTCOME_CLIENT_ERROR = 2;
+  // REQUEST_OUTCOME_SERVER_ERROR 表示状态码不小于 500
+  REQUEST_OUTCOME_SERVER_ERROR = 3;
+}
+
+// RequestRecord 是控制台排障使用的单次请求元数据
+//
+// 请求记录不包含请求头、查询参数、请求正文和响应正文
+message RequestRecord {
+  // id 是 ALS 为一次已完成请求生成的记录标识
+  string id = 1;
+  // request_id 是网关接收或生成的请求标识
+  string request_id = 2 [json_name = "requestID"];
+  // started_at 是网关开始处理请求的时间
+  google.protobuf.Timestamp started_at = 3;
+  // duration 是请求的端到端处理耗时
+  google.protobuf.Duration duration = 4;
+  // time_to_first_byte 是开始处理到收到首个响应字节的耗时
+  google.protobuf.Duration time_to_first_byte = 5;
+  // client_ip 是网关观察到的客户端地址
+  string client_ip = 6 [json_name = "clientIP"];
+  // method 是 HTTP 请求方法
+  string method = 7;
+  // host 是不包含端口的请求域名
+  string host = 8;
+  // path 是不包含查询参数的请求路径
+  string path = 9;
+  // status_code 是最终返回给客户端的 HTTP 状态码
+  uint32 status_code = 10;
+  // outcome 是按 HTTP 状态码归纳的请求结果
+  RequestOutcome outcome = 11;
+  // request_bytes 是网关观测到的请求字节数
+  uint64 request_bytes = 12;
+  // response_bytes 是网关观测到的响应字节数
+  uint64 response_bytes = 13;
+  // gateway_id 是处理请求的 Gateway 资源 ID
+  string gateway_id = 14 [json_name = "gatewayID"];
+  // route_id 是请求最终命中的 Route 资源 ID
+  string route_id = 15 [json_name = "routeID"];
+  // service_id 是请求最终转发到的 Service 资源 ID
+  string service_id = 16 [json_name = "serviceID"];
+  // protocol 是客户端与网关之间的协议版本
+  string protocol = 17;
+  // response_code_details 是数据面对响应来源或失败原因的稳定标识
+  string response_code_details = 18;
+  // upstream_attempts 是包含首次转发在内的服务请求次数
+  uint32 upstream_attempts = 19;
+  // upstream_address 是最终处理请求的服务地址
+  string upstream_address = 20;
+  // proxy_instance_id 是处理请求的数据面实例标识
+  string proxy_instance_id = 21 [json_name = "proxyInstanceID"];
+}
+
+// ListRequestRecordsRequest 是请求明细分页查询参数
+message ListRequestRecordsRequest {
+  // start_time 是查询范围起点，包含该时刻
+  google.protobuf.Timestamp start_time = 1;
+  // end_time 是查询范围终点，不包含该时刻
+  google.protobuf.Timestamp end_time = 2;
+  // gateway_id 只返回经过指定网关的请求
+  string gateway_id = 3 [json_name = "gatewayID"];
+  // route_id 只返回命中指定路由的请求
+  string route_id = 4 [json_name = "routeID"];
+  // service_id 只返回最终转发到指定服务的请求
+  string service_id = 5 [json_name = "serviceID"];
+  // request_id 按网关请求标识精确查询
+  string request_id = 6 [json_name = "requestID"];
+  // method 按 HTTP 方法精确查询
+  string method = 7;
+  // host 按请求域名精确查询
+  string host = 8;
+  // path_prefix 按请求路径前缀查询
+  string path_prefix = 9;
+  // outcome 按请求结果分类查询
+  RequestOutcome outcome = 10 [(buf.validate.field).enum.defined_only = true];
+  // status_code 按单个 HTTP 状态码精确查询
+  optional uint32 status_code = 11 [(buf.validate.field).uint32.lte = 65535];
+  // page_size 是单页记录数，零值使用服务端默认值
+  int32 page_size = 12 [(buf.validate.field).int32 = {
+    gte: 0
+    lte: 200
+  }];
+  // page_token 是上一页返回的不透明游标
+  string page_token = 13;
+}
+
+// ListRequestRecordsResponse 是请求记录分页结果
+message ListRequestRecordsResponse {
+  // records 是按开始时间倒序排列的请求记录
+  repeated RequestRecord records = 1;
+  // next_page_token 非空时表示还有下一页
+  string next_page_token = 2;
+}
+
+// GetRequestRecordRequest 是单条请求记录查询参数
+message GetRequestRecordRequest {
+  // id 是请求记录标识
+  string id = 1 [(buf.validate.field).string.min_len = 1];
+  // started_at 与记录排序键配合，避免跨全部保留分区扫描
+  google.protobuf.Timestamp started_at = 2;
+}

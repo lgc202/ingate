@@ -29,7 +29,23 @@ message Data {
     string master = 1;
     string kubeconfig = 2;
   }
+  message Analytics {
+    message TLS {
+      bool enabled = 1;
+      string ca_file = 2;
+      string cert_file = 3;
+      string key_file = 4;
+      string server_name = 5;
+    }
+    // addr 是 ingate-analytics 查询 gRPC 地址
+    string addr = 1;
+    // timeout 限制 Admin API 等待单次分析查询的时间
+    google.protobuf.Duration timeout = 2;
+    // tls 保护 Admin API 到 Analytics 的内部查询链路
+    TLS tls = 3;
+  }
   APIServer apiserver = 1;
+  Analytics analytics = 2;
 }
 
 message Logging {

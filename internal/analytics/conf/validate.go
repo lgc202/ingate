@@ -26,6 +26,10 @@ func (c *Bootstrap) Validate() error {
 	if c.GetServer().GetGrpc().GetTimeout() == nil || c.GetServer().GetGrpc().GetTimeout().AsDuration() <= 0 {
 		return errors.New("server gRPC timeout must be greater than zero")
 	}
+	grpcTLS := c.GetServer().GetGrpc().GetTls()
+	if grpcTLS.GetEnabled() && (grpcTLS.GetCertFile() == "" || grpcTLS.GetKeyFile() == "") {
+		return errors.New("server gRPC TLS certificate and key are required")
+	}
 	if c.GetServer().GetShutdownTimeout() == nil || c.GetServer().GetShutdownTimeout().AsDuration() <= 0 {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}

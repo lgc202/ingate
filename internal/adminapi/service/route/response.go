@@ -19,6 +19,7 @@ func routeFromResource(route *resource.Route) *adminv1.Route {
 		GatewayIds:             append([]string(nil), route.Spec.GatewayRefs...),
 		Hostnames:              append([]string(nil), route.Spec.Hostnames...),
 		Match:                  routeMatchFromResource(route.Spec.Match),
+		HostRewrite:            hostRewriteFromResource(route.Spec.HostRewrite),
 		RequestHeaderModifier:  headerModifierFromResource(route.Spec.RequestHeaderModifier),
 		ResponseHeaderModifier: headerModifierFromResource(route.Spec.ResponseHeaderModifier),
 		State:                  adminservice.NewResourceState(status.State),
@@ -43,6 +44,25 @@ func routeFromResource(route *resource.Route) *adminv1.Route {
 		}
 	}
 	return response
+}
+
+func hostRewriteFromResource(rewrite *resource.HostRewrite) *adminv1.HostRewrite {
+	if rewrite == nil {
+		return &adminv1.HostRewrite{Mode: adminv1.HostRewriteMode_HOST_REWRITE_MODE_PRESERVE}
+	}
+
+	result := &adminv1.HostRewrite{Hostname: rewrite.Hostname}
+	switch rewrite.Mode {
+	case resource.HostRewriteServiceAddress:
+		result.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_SERVICE_ADDRESS
+	case resource.HostRewritePreserve:
+		result.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_PRESERVE
+	case resource.HostRewriteCustom:
+		result.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_CUSTOM
+	default:
+		result.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_UNSPECIFIED
+	}
+	return result
 }
 
 func routeMatchFromResource(match resource.RouteMatch) *adminv1.RouteMatch {

@@ -1,15 +1,16 @@
 import { useState, type ReactNode } from 'react';
-import { Edit3, Globe, Layers3, Plus, Trash2 } from 'lucide-react';
+import { Globe, Layers3, Plus, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { listCertificates } from '@/api/certificates';
 import { deleteGateway, listGateways, saveGateway } from '@/api/gateways';
 import { getPolicyWorkspace } from '@/api/policies';
 import { useResource } from '@/api/useResource';
 import { useAuth } from '@/auth/AuthContext';
-import { Badge, Button, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
-import { formatDateTime } from '@/domain/common';
+import { Badge, Button, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
+import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
 import type { Gateway, GatewayListener, GatewayProtocol } from '@/domain/gateway';
 import { gatewayProtocolLabel } from '@/domain/gateway';
+import type { PolicyWorkspace } from '@/domain/policy';
 import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
 import { buildGatewayPayload, createGatewayDraft, newListener, validateGatewayDraft, type GatewayDraft } from './form';
 
@@ -18,7 +19,8 @@ export function GatewayPage() {
   const gateways = useResource(listGateways);
   const certificates = useResource(listCertificates);
   const policies = useResource(getPolicyWorkspace);
-  const [selectedID, setSelectedID] = useState('');
+  const [query, setQuery] = useState('');
+  const [detail, setDetail] = useState<Gateway | null>(null);
   const [draft, setDraft] = useState<GatewayDraft>(() => createGatewayDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Gateway | null>(null);
@@ -33,7 +35,12 @@ export function GatewayPage() {
   }
 
   const list = gateways.data.gateways;
-  const selected = list.find((gateway) => gateway.id === selectedID) ?? list[0];
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleGateways = list.filter((gateway) => (
+    `${gateway.name} ${gateway.id} ${gateway.listeners.map((listener) => `${listener.name} ${listener.hostname} ${listener.port}`).join(' ')}`
+      .toLowerCase()
+      .includes(normalizedQuery)
+  ));
   const certificateList = certificates.data?.certificates ?? [];
 
   const openEditor = (gateway?: Gateway) => {
@@ -50,7 +57,6 @@ export function GatewayPage() {
     try {
       const saved = await saveGateway(buildGatewayPayload(draft));
       await gateways.reload();
-      setSelectedID(saved.id);
       setEditorOpen(false);
       setNotice({ message: `网关已保存：${saved.name}`, tone: 'success' });
     } catch (error) {
@@ -76,23 +82,28 @@ export function GatewayPage() {
 
   return (
     <PageFrame
+      eyebrow="流量配置"
       title="网关"
       subtitle="管理客户端访问入口、监听端口和 TLS 证书"
       actions={canWriteConfiguration ? <Button onClick={() => openEditor()}><Plus className="w-4 h-4" />创建网关</Button> : undefined}
     >
       <Panel>
-        {list.length === 0 ? <EmptyState title="暂无网关" message="创建网关后即可接收客户端流量" /> : (
+        <div className="resource-list-toolbar">
+          <SearchField value={query} onChange={setQuery} placeholder="搜索网关、域名或监听入口" />
+          <span>{visibleGateways.length} 个网关</span>
+        </div>
+        {visibleGateways.length === 0 ? <div className="p-5"><EmptyState title={list.length === 0 ? '暂无网关' : '没有匹配的网关'} message={list.length === 0 ? '创建网关后即可接收客户端流量' : '请调整搜索条件'} /></div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">监听入口</th><th className="p-3">状态</th><th className="p-3">更新时间</th><th className="p-3 text-right">操作</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
-                {list.map((gateway) => (
-                  <tr key={gateway.id} className={selected?.id === gateway.id ? 'bg-blue-50/40' : ''} onClick={() => setSelectedID(gateway.id)}>
+                {visibleGateways.map((gateway) => (
+                  <tr key={gateway.id}>
                     <td className="p-3"><div className="flex items-center gap-2"><Layers3 className="w-4 h-4 text-blue-600" /><div><strong>{gateway.name}</strong><div className="font-mono text-[10px] text-slate-400">{gateway.id}</div></div></div></td>
                     <td className="p-3"><div className="flex flex-wrap gap-1.5">{gateway.listeners.map((listener) => <Badge key={listener.name} tone="neutral">{gatewayProtocolLabel(listener.protocol)} · {listener.port} · {listener.hostname || '全部域名'}</Badge>)}</div></td>
-                    <td className="p-3"><Badge tone={!gateway.enabled ? 'neutral' : gateway.state === 'Ready' ? 'success' : gateway.state === 'Error' ? 'error' : 'warning'}>{gateway.enabled ? gateway.state : 'Disabled'}</Badge></td>
+                    <td className="p-3"><Badge tone={resourceStateTone(gateway.enabled ? gateway.state : 'Disabled')}>{resourceStateLabel(gateway.enabled ? gateway.state : 'Disabled')}</Badge></td>
                     <td className="p-3 text-slate-500">{formatDateTime(gateway.updatedAt || gateway.createdAt)}</td>
-                    <td className="p-3 text-right" onClick={(event) => event.stopPropagation()}>{canWriteConfiguration ? <div className="inline-flex gap-1"><Button variant="ghost" size="sm" onClick={() => openEditor(gateway)}><Edit3 className="w-3.5 h-3.5" /></Button><Button variant="ghost" size="sm" onClick={() => setDeleteCandidate(gateway)}><Trash2 className="w-3.5 h-3.5 text-rose-600" /></Button></div> : '—'}</td>
+                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(gateway)} onEdit={canWriteConfiguration ? () => openEditor(gateway) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(gateway) : undefined} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -101,11 +112,9 @@ export function GatewayPage() {
         )}
       </Panel>
 
-      {selected && policies.data ? (
-        <Panel title={`网关“${selected.name}”的治理策略`}>
-          <GovernancePolicyPanel targetKind="Gateway" targetID={selected.id} targetName={selected.name} workspace={policies.data} onChanged={policies.reload} />
-        </Panel>
-      ) : null}
+      <Drawer title="网关详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail(null)}>
+        {detail ? <GatewayDetail gateway={detail} policies={policies.data} onPoliciesChanged={policies.reload} /> : null}
+      </Drawer>
 
       <Drawer title={draft.id ? `编辑网关：${draft.name}` : '创建网关'} subtitle="每个监听入口独立声明协议、端口和域名范围" isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
         <div className="space-y-5">
@@ -130,6 +139,44 @@ export function GatewayPage() {
       <Modal title="删除网关" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}><div className="space-y-5 p-6"><p className="text-sm">确定删除网关“{deleteCandidate?.name}”吗？</p><div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy} onClick={remove}>确认删除</Button></div></div></Modal>
       <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
     </PageFrame>
+  );
+}
+
+function GatewayDetail({ gateway, policies, onPoliciesChanged }: { gateway: Gateway; policies: PolicyWorkspace | null; onPoliciesChanged: () => Promise<void> }) {
+  const state = gateway.enabled ? gateway.state : 'Disabled';
+  return (
+    <div className="space-y-5">
+      <section className="resource-detail-hero">
+        <div><h3>{gateway.name}</h3><p>{gateway.id}</p></div>
+        <Badge tone={resourceStateTone(state)}>{resourceStateLabel(state)}</Badge>
+      </section>
+      <section className="resource-detail-section">
+        <h3>基本信息</h3>
+        <div className="resource-detail-grid">
+          <div><span>配置状态</span><strong>{gateway.message || resourceStateLabel(state)}</strong></div>
+          <div><span>更新时间</span><strong>{formatDateTime(gateway.updatedAt || gateway.createdAt)}</strong></div>
+          <div><span>创建时间</span><strong>{formatDateTime(gateway.createdAt)}</strong></div>
+          <div><span>配置版本</span><strong>{gateway.version}</strong></div>
+        </div>
+      </section>
+      <section className="resource-detail-section">
+        <h3>监听入口</h3>
+        <div className="resource-detail-list">
+          {gateway.listeners.map((listener) => (
+            <article key={listener.name}>
+              <div><strong>{listener.name}</strong><small>{listener.hostname || '全部域名'}</small></div>
+              <Badge tone={listener.protocol === 'GATEWAY_PROTOCOL_HTTPS' ? 'accent' : 'neutral'}>{gatewayProtocolLabel(listener.protocol)} · {listener.port}</Badge>
+            </article>
+          ))}
+        </div>
+      </section>
+      {policies ? (
+        <section className="resource-detail-section">
+          <h3>流量策略</h3>
+          <GovernancePolicyPanel targetKind="Gateway" targetID={gateway.id} targetName={gateway.name} workspace={policies} onChanged={onPoliciesChanged} />
+        </section>
+      ) : null}
+    </div>
   );
 }
 

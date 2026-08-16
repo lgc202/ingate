@@ -14,7 +14,7 @@ require (
 	github.com/google/wire v0.7.0
 	github.com/lgc202/go-kit v0.0.0-20260608113601-338cc7dcde97
 	github.com/pressly/goose/v3 v3.26.0
-	github.com/proxy-wasm/proxy-wasm-go-sdk v0.0.0-20260105142703-44c7d5847745
+	github.com/redis/go-redis/v9 v9.21.0
 	github.com/spf13/pflag v1.0.10
 	github.com/tidwall/wal v1.2.2-0.20250831125338-4b09f9519cba
 	github.com/twmb/franz-go v1.21.0
@@ -83,6 +83,7 @@ require (
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	github.com/ugorji/go/codec v1.3.1 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.5.0 // indirect
+	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/arch v0.22.0 // indirect
 )
 

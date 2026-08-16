@@ -5,6 +5,7 @@ import { RoutePage } from '@/features/routes/RoutePage';
 import { UpstreamPage } from '@/features/upstreams/UpstreamPage';
 import { CertificatePage } from '@/features/certificates/CertificatePage';
 import { PolicyPage } from '@/features/policies/PolicyPage';
+import { RequestRecordPage } from '@/features/requests/RequestRecordPage';
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
         <Route path="services" element={<UpstreamPage />} />
         <Route path="certificates" element={<CertificatePage />} />
         <Route path="policies" element={<PolicyPage />} />
+        <Route path="requests" element={<RequestRecordPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/gateways" replace />} />
     </Routes>

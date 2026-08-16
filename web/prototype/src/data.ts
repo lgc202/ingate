@@ -66,7 +66,8 @@ export interface RouteForwarding {
   timeout: string;
   retries: number;
   pathHandling: string;
-  hostRewrite: string;
+  hostRewrite: "使用服务地址" | "保持请求主机" | "自定义主机名";
+  customHostname?: string;
   failoverOn?: string[];
   circuitBreaker?: {
     consecutiveFailures: number;
