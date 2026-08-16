@@ -83,9 +83,6 @@ export function AppShell() {
             <ChevronRight />
             <strong>{currentPageLabel}</strong>
           </div>
-          <div className="workspace-actions">
-            <span className="console-live-source">实时数据</span>
-          </div>
         </header>
 
         <main className="workspace-content">

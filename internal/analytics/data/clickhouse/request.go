@@ -16,8 +16,8 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 )
 
-// requestColumns 同时用于 INSERT 和 SELECT，顺序必须与 Append 及 Scan 一致
-const requestColumns = `
+// requestRecordColumns 包含请求详情的全部列，顺序必须与 Append 及 Scan 一致
+const requestRecordColumns = `
     id,
     request_id,
     started_at,
@@ -40,6 +40,19 @@ const requestColumns = `
     upstream_address,
     time_to_first_byte_ns`
 
+// requestSummaryColumns 只读取列表展示所需列，避免翻页时扫描完整详情
+const requestSummaryColumns = `
+    id,
+    started_at,
+    duration_ns,
+    method,
+    host,
+    path,
+    status_code,
+    gateway_id,
+    route_id,
+    upstream_id`
+
 // SaveRequestBatch 批量保存请求事实
 //
 // Kafka 重投可能追加相同事件，明细查询通过稳定事件 ID 和 FINAL 收敛
@@ -50,7 +63,7 @@ func (s *Store) SaveRequestBatch(ctx context.Context, facts []request.Fact) (err
 	writeCtx, cancel := context.WithTimeout(ctx, s.writeTimeout)
 	defer cancel()
 
-	statement := fmt.Sprintf("INSERT INTO %s (%s)", s.requestTable, requestColumns)
+	statement := fmt.Sprintf("INSERT INTO %s (%s)", s.requestTable, requestRecordColumns)
 	batch, err := s.connection.PrepareBatch(writeCtx, statement)
 	if err != nil {
 		return fmt.Errorf("prepare request record batch: %w", err)
@@ -114,11 +127,11 @@ func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (
 	var statement strings.Builder
 	fmt.Fprintf(
 		&statement,
-		"SELECT %s FROM %s FINAL WHERE started_at >= ? AND started_at < ?",
-		requestColumns,
+		"SELECT %s FROM %s FINAL WHERE started_at >= fromUnixTimestamp64Nano(?) AND started_at < fromUnixTimestamp64Nano(?)",
+		requestSummaryColumns,
 		s.requestTable,
 	)
-	args := []any{options.Filter.StartTime, options.Filter.EndTime}
+	args := []any{options.Filter.StartTime.UnixNano(), options.Filter.EndTime.UnixNano()}
 	args = appendRequestFilters(&statement, args, options)
 	statement.WriteString(" ORDER BY started_at DESC, id DESC LIMIT ?")
 	args = append(args, options.PageSize+1)
@@ -133,9 +146,9 @@ func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (
 		}
 	}()
 
-	records := make([]*alsv1.RequestRecord, 0, options.PageSize+1)
+	records := make([]request.Summary, 0, options.PageSize+1)
 	for rows.Next() {
-		record, scanErr := scanRequestRecord(rows)
+		record, scanErr := scanRequestSummary(rows)
 		if scanErr != nil {
 			return request.Page{}, scanErr
 		}
@@ -149,7 +162,7 @@ func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (
 	if len(records) > options.PageSize {
 		last := records[options.PageSize-1]
 		page.Records = records[:options.PageSize]
-		page.NextCursor = &request.Cursor{StartedAt: last.GetStartedAt().AsTime(), ID: last.GetId()}
+		page.NextCursor = &request.Cursor{StartedAt: last.StartedAt, ID: last.ID}
 	}
 	return page, nil
 }
@@ -169,11 +182,16 @@ func (s *Store) GetRequest(
 	}))
 
 	statement := fmt.Sprintf(
-		"SELECT %s FROM %s FINAL WHERE started_at = ? AND id = ? LIMIT 1",
-		requestColumns,
+		"SELECT %s FROM %s FINAL WHERE started_at = @started_at AND id = @id LIMIT 1",
+		requestRecordColumns,
 		s.requestTable,
 	)
-	rows, err := s.connection.Query(queryCtx, statement, startedAt, id)
+	rows, err := s.connection.Query(
+		queryCtx,
+		statement,
+		clickhousego.DateNamed("started_at", startedAt, clickhousego.NanoSeconds),
+		clickhousego.Named("id", id),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("query request record %q: %w", id, err)
 	}
@@ -232,10 +250,37 @@ func appendRequestFilters(statement *strings.Builder, args []any, options reques
 		args = append(args, *filter.StatusCode)
 	}
 	if options.Cursor != nil {
-		statement.WriteString(" AND (started_at < ? OR (started_at = ? AND id < ?))")
-		args = append(args, options.Cursor.StartedAt, options.Cursor.StartedAt, options.Cursor.ID)
+		statement.WriteString(" AND (started_at < fromUnixTimestamp64Nano(?) OR (started_at = fromUnixTimestamp64Nano(?) AND id < ?))")
+		cursorNanoseconds := options.Cursor.StartedAt.UnixNano()
+		args = append(args, cursorNanoseconds, cursorNanoseconds, options.Cursor.ID)
 	}
 	return args
+}
+
+// scanRequestSummary 把 ClickHouse 的紧凑数值类型还原为列表查询摘要
+func scanRequestSummary(rows driver.Rows) (request.Summary, error) {
+	var (
+		summary    request.Summary
+		durationNS *uint64
+		statusCode uint16
+	)
+	if err := rows.Scan(
+		&summary.ID,
+		&summary.StartedAt,
+		&durationNS,
+		&summary.Method,
+		&summary.Host,
+		&summary.Path,
+		&statusCode,
+		&summary.GatewayID,
+		&summary.RouteID,
+		&summary.UpstreamID,
+	); err != nil {
+		return request.Summary{}, fmt.Errorf("scan request summary: %w", err)
+	}
+	summary.Duration = durationValue(durationNS)
+	summary.StatusCode = uint32(statusCode)
+	return summary, nil
 }
 
 // scanRequestRecord 把 ClickHouse 的紧凑数值类型还原为公共 ALS Proto 类型
@@ -291,8 +336,17 @@ func durationNanoseconds(duration *durationpb.Duration) *uint64 {
 }
 
 func protobufDuration(nanoseconds *uint64) *durationpb.Duration {
+	duration := durationValue(nanoseconds)
+	if duration == nil {
+		return nil
+	}
+	return durationpb.New(*duration)
+}
+
+func durationValue(nanoseconds *uint64) *time.Duration {
 	if nanoseconds == nil {
 		return nil
 	}
-	return durationpb.New(time.Duration(*nanoseconds))
+	duration := time.Duration(*nanoseconds)
+	return &duration
 }

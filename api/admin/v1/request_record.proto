@@ -81,6 +81,32 @@ message RequestRecord {
   string proxy_instance_id = 21 [json_name = "proxyInstanceID"];
 }
 
+// RequestRecordSummary 是请求记录列表使用的排障摘要
+message RequestRecordSummary {
+  // id 是 ALS 为一次已完成请求生成的记录标识
+  string id = 1;
+  // started_at 是网关开始处理请求的时间
+  google.protobuf.Timestamp started_at = 2;
+  // duration 是请求的端到端处理耗时
+  google.protobuf.Duration duration = 3;
+  // method 是 HTTP 请求方法
+  string method = 4;
+  // host 是不包含端口的请求域名
+  string host = 5;
+  // path 是不包含查询参数的请求路径
+  string path = 6;
+  // status_code 是最终返回给客户端的 HTTP 状态码
+  uint32 status_code = 7;
+  // outcome 是按 HTTP 状态码归纳的请求结果
+  RequestOutcome outcome = 8;
+  // gateway_id 是处理请求的 Gateway 资源 ID
+  string gateway_id = 9 [json_name = "gatewayID"];
+  // route_id 是请求最终命中的 Route 资源 ID
+  string route_id = 10 [json_name = "routeID"];
+  // service_id 是请求最终转发到的 Service 资源 ID
+  string service_id = 11 [json_name = "serviceID"];
+}
+
 // ListRequestRecordsRequest 是请求明细分页查询参数
 message ListRequestRecordsRequest {
   // start_time 是查询范围起点，包含该时刻
@@ -117,7 +143,7 @@ message ListRequestRecordsRequest {
 // ListRequestRecordsResponse 是请求记录分页结果
 message ListRequestRecordsResponse {
   // records 是按开始时间倒序排列的请求记录
-  repeated RequestRecord records = 1;
+  repeated RequestRecordSummary records = 1;
   // next_page_token 非空时表示还有下一页
   string next_page_token = 2;
 }

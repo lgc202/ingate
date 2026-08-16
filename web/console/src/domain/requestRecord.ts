@@ -4,24 +4,28 @@ export type RequestOutcome =
   | 'REQUEST_OUTCOME_CLIENT_ERROR'
   | 'REQUEST_OUTCOME_SERVER_ERROR';
 
-// RequestRecord 只描述一次请求的排障元数据，不包含 Header、查询参数或正文。
-export interface RequestRecord {
+// RequestRecordSummary 只包含列表扫描和进入详情所需的字段。
+export interface RequestRecordSummary {
   id: string;
-  requestID: string;
   startedAt: string;
   duration?: string;
-  timeToFirstByte?: string;
-  clientIP: string;
   method: string;
   host: string;
   path: string;
   statusCode: number;
   outcome: RequestOutcome;
-  requestBytes: string | number;
-  responseBytes: string | number;
   gatewayID: string;
   routeID: string;
   serviceID: string;
+}
+
+// RequestRecord 描述一次请求的完整排障元数据，不包含 Header、查询参数或正文。
+export interface RequestRecord extends RequestRecordSummary {
+  requestID: string;
+  timeToFirstByte?: string;
+  clientIP: string;
+  requestBytes: string | number;
+  responseBytes: string | number;
   protocol: string;
   responseCodeDetails: string;
   upstreamAttempts: number;
@@ -44,7 +48,7 @@ export interface RequestRecordFilters {
 }
 
 export interface RequestRecordPage {
-  records: RequestRecord[];
+  records: RequestRecordSummary[];
   nextPageToken: string;
 }
 
@@ -57,20 +61,6 @@ export interface RequestRecordWorkspace {
   gateways: RequestResourceOption[];
   routes: RequestResourceOption[];
   services: RequestResourceOption[];
-}
-
-export function requestOutcomeLabel(outcome: RequestOutcome): string {
-  if (outcome === 'REQUEST_OUTCOME_SUCCESS') return '成功';
-  if (outcome === 'REQUEST_OUTCOME_CLIENT_ERROR') return '客户端错误';
-  if (outcome === 'REQUEST_OUTCOME_SERVER_ERROR') return '服务端错误';
-  return '未知';
-}
-
-export function requestOutcomeTone(outcome: RequestOutcome): 'success' | 'warning' | 'error' | 'neutral' {
-  if (outcome === 'REQUEST_OUTCOME_SUCCESS') return 'success';
-  if (outcome === 'REQUEST_OUTCOME_CLIENT_ERROR') return 'warning';
-  if (outcome === 'REQUEST_OUTCOME_SERVER_ERROR') return 'error';
-  return 'neutral';
 }
 
 export function formatRequestTime(value: string): string {

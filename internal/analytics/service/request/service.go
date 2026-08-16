@@ -8,6 +8,8 @@ import (
 	"errors"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
@@ -24,9 +26,7 @@ func NewService(queries *requestbiz.Queries) *Service {
 	return &Service{queries: queries}
 }
 
-// ListRequests 按时间倒序分页查询请求明细
-//
-// 返回值沿用 ALS RequestRecord，避免同一条请求元数据维护两套公共协议
+// ListRequests 按时间倒序分页查询请求摘要
 func (s *Service) ListRequests(
 	ctx context.Context,
 	request *analyticsv1.ListRequestsRequest,
@@ -43,10 +43,32 @@ func (s *Service) ListRequests(
 	if err != nil {
 		return nil, kratoserrors.InternalServer("ENCODE_PAGE_TOKEN", "encode page token failed")
 	}
+	requests := make([]*analyticsv1.RequestSummary, 0, len(page.Records))
+	for i := range page.Records {
+		requests = append(requests, summaryResponse(page.Records[i]))
+	}
 	return &analyticsv1.ListRequestsResponse{
-		Requests:      page.Records,
+		Requests:      requests,
 		NextPageToken: nextPageToken,
 	}, nil
+}
+
+func summaryResponse(summary requestbiz.Summary) *analyticsv1.RequestSummary {
+	response := &analyticsv1.RequestSummary{
+		Id:         summary.ID,
+		StartedAt:  timestamppb.New(summary.StartedAt),
+		Method:     summary.Method,
+		Host:       summary.Host,
+		Path:       summary.Path,
+		StatusCode: summary.StatusCode,
+		GatewayId:  summary.GatewayID,
+		RouteId:    summary.RouteID,
+		UpstreamId: summary.UpstreamID,
+	}
+	if summary.Duration != nil {
+		response.Duration = durationpb.New(*summary.Duration)
+	}
+	return response
 }
 
 // GetRequest 使用记录 ID 和开始时间查询单次请求明细

@@ -12,11 +12,12 @@ import type {
 export async function listRequestRecords(
   filters: RequestRecordFilters,
   pageToken = '',
+  pageSize = 10,
 ): Promise<RequestRecordPage> {
   const query = new URLSearchParams({
     startTime: new Date(filters.startTime).toISOString(),
     endTime: new Date(filters.endTime).toISOString(),
-    pageSize: '50',
+    pageSize: String(pageSize),
   });
   setQuery(query, 'gatewayID', filters.gatewayID);
   setQuery(query, 'routeID', filters.routeID);

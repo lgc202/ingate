@@ -10,6 +10,7 @@ import (
 	v1 "github.com/lgc202/ingate/api/als/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
@@ -284,7 +285,7 @@ func (x *ListRequestsRequest) GetPageToken() string {
 type ListRequestsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// requests 是按请求开始时间倒序排列的请求记录。
-	Requests []*v1.RequestRecord `protobuf:"bytes,1,rep,name=requests,proto3" json:"requests,omitempty"`
+	Requests []*RequestSummary `protobuf:"bytes,1,rep,name=requests,proto3" json:"requests,omitempty"`
 	// next_page_token 非空时表示还有下一页。
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -321,7 +322,7 @@ func (*ListRequestsResponse) Descriptor() ([]byte, []int) {
 	return file_analytics_v1_request_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *ListRequestsResponse) GetRequests() []*v1.RequestRecord {
+func (x *ListRequestsResponse) GetRequests() []*RequestSummary {
 	if x != nil {
 		return x.Requests
 	}
@@ -331,6 +332,133 @@ func (x *ListRequestsResponse) GetRequests() []*v1.RequestRecord {
 func (x *ListRequestsResponse) GetNextPageToken() string {
 	if x != nil {
 		return x.NextPageToken
+	}
+	return ""
+}
+
+// RequestSummary 是管理面列表查询需要的请求摘要。
+type RequestSummary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是 ALS 为一次已完成请求生成的稳定记录 ID。
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// started_at 是 Envoy 开始处理请求的时间。
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	// duration 是请求的端到端处理耗时。
+	Duration *durationpb.Duration `protobuf:"bytes,3,opt,name=duration,proto3" json:"duration,omitempty"`
+	// method 是 HTTP 请求方法。
+	Method string `protobuf:"bytes,4,opt,name=method,proto3" json:"method,omitempty"`
+	// host 是不包含端口的请求域名。
+	Host string `protobuf:"bytes,5,opt,name=host,proto3" json:"host,omitempty"`
+	// path 是不包含查询参数的请求路径。
+	Path string `protobuf:"bytes,6,opt,name=path,proto3" json:"path,omitempty"`
+	// status_code 是最终返回给客户端的 HTTP 状态码。
+	StatusCode uint32 `protobuf:"varint,7,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
+	// gateway_id 是处理请求的 Gateway 资源 ID。
+	GatewayId string `protobuf:"bytes,8,opt,name=gateway_id,json=gatewayId,proto3" json:"gateway_id,omitempty"`
+	// route_id 是请求最终命中的 Route 资源 ID。
+	RouteId string `protobuf:"bytes,9,opt,name=route_id,json=routeId,proto3" json:"route_id,omitempty"`
+	// upstream_id 是请求最终转发到的 Upstream 资源 ID。
+	UpstreamId    string `protobuf:"bytes,10,opt,name=upstream_id,json=upstreamId,proto3" json:"upstream_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestSummary) Reset() {
+	*x = RequestSummary{}
+	mi := &file_analytics_v1_request_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestSummary) ProtoMessage() {}
+
+func (x *RequestSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_analytics_v1_request_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestSummary.ProtoReflect.Descriptor instead.
+func (*RequestSummary) Descriptor() ([]byte, []int) {
+	return file_analytics_v1_request_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *RequestSummary) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RequestSummary) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *RequestSummary) GetDuration() *durationpb.Duration {
+	if x != nil {
+		return x.Duration
+	}
+	return nil
+}
+
+func (x *RequestSummary) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *RequestSummary) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *RequestSummary) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *RequestSummary) GetStatusCode() uint32 {
+	if x != nil {
+		return x.StatusCode
+	}
+	return 0
+}
+
+func (x *RequestSummary) GetGatewayId() string {
+	if x != nil {
+		return x.GatewayId
+	}
+	return ""
+}
+
+func (x *RequestSummary) GetRouteId() string {
+	if x != nil {
+		return x.RouteId
+	}
+	return ""
+}
+
+func (x *RequestSummary) GetUpstreamId() string {
+	if x != nil {
+		return x.UpstreamId
 	}
 	return ""
 }
@@ -348,7 +476,7 @@ type GetRequestRequest struct {
 
 func (x *GetRequestRequest) Reset() {
 	*x = GetRequestRequest{}
-	mi := &file_analytics_v1_request_proto_msgTypes[3]
+	mi := &file_analytics_v1_request_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -360,7 +488,7 @@ func (x *GetRequestRequest) String() string {
 func (*GetRequestRequest) ProtoMessage() {}
 
 func (x *GetRequestRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_analytics_v1_request_proto_msgTypes[3]
+	mi := &file_analytics_v1_request_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -373,7 +501,7 @@ func (x *GetRequestRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRequestRequest.ProtoReflect.Descriptor instead.
 func (*GetRequestRequest) Descriptor() ([]byte, []int) {
-	return file_analytics_v1_request_proto_rawDescGZIP(), []int{3}
+	return file_analytics_v1_request_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetRequestRequest) GetId() string {
@@ -394,7 +522,7 @@ var File_analytics_v1_request_proto protoreflect.FileDescriptor
 
 const file_analytics_v1_request_proto_rawDesc = "" +
 	"\n" +
-	"\x1aanalytics/v1/request.proto\x12\x13ingate.analytics.v1\x1a\x1bals/v1/request_record.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc3\x03\n" +
+	"\x1aanalytics/v1/request.proto\x12\x13ingate.analytics.v1\x1a\x1bals/v1/request_record.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc3\x03\n" +
 	"\rRequestFilter\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -419,10 +547,26 @@ const file_analytics_v1_request_proto_rawDesc = "" +
 	"\x06filter\x18\x01 \x01(\v2\".ingate.analytics.v1.RequestFilterR\x06filter\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\rR\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\x03 \x01(\tR\tpageToken\"x\n" +
-	"\x14ListRequestsResponse\x128\n" +
-	"\brequests\x18\x01 \x03(\v2\x1c.ingate.als.v1.RequestRecordR\brequests\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"^\n" +
+	"page_token\x18\x03 \x01(\tR\tpageToken\"\x7f\n" +
+	"\x14ListRequestsResponse\x12?\n" +
+	"\brequests\x18\x01 \x03(\v2#.ingate.analytics.v1.RequestSummaryR\brequests\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xce\x02\n" +
+	"\x0eRequestSummary\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
+	"\n" +
+	"started_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x125\n" +
+	"\bduration\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\bduration\x12\x16\n" +
+	"\x06method\x18\x04 \x01(\tR\x06method\x12\x12\n" +
+	"\x04host\x18\x05 \x01(\tR\x04host\x12\x12\n" +
+	"\x04path\x18\x06 \x01(\tR\x04path\x12\x1f\n" +
+	"\vstatus_code\x18\a \x01(\rR\n" +
+	"statusCode\x12\x1d\n" +
+	"\n" +
+	"gateway_id\x18\b \x01(\tR\tgatewayId\x12\x19\n" +
+	"\broute_id\x18\t \x01(\tR\arouteId\x12\x1f\n" +
+	"\vupstream_id\x18\n" +
+	" \x01(\tR\n" +
+	"upstreamId\"^\n" +
 	"\x11GetRequestRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -450,32 +594,36 @@ func file_analytics_v1_request_proto_rawDescGZIP() []byte {
 }
 
 var file_analytics_v1_request_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_analytics_v1_request_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_analytics_v1_request_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_analytics_v1_request_proto_goTypes = []any{
 	(StatusClass)(0),              // 0: ingate.analytics.v1.StatusClass
 	(*RequestFilter)(nil),         // 1: ingate.analytics.v1.RequestFilter
 	(*ListRequestsRequest)(nil),   // 2: ingate.analytics.v1.ListRequestsRequest
 	(*ListRequestsResponse)(nil),  // 3: ingate.analytics.v1.ListRequestsResponse
-	(*GetRequestRequest)(nil),     // 4: ingate.analytics.v1.GetRequestRequest
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
-	(*v1.RequestRecord)(nil),      // 6: ingate.als.v1.RequestRecord
+	(*RequestSummary)(nil),        // 4: ingate.analytics.v1.RequestSummary
+	(*GetRequestRequest)(nil),     // 5: ingate.analytics.v1.GetRequestRequest
+	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),   // 7: google.protobuf.Duration
+	(*v1.RequestRecord)(nil),      // 8: ingate.als.v1.RequestRecord
 }
 var file_analytics_v1_request_proto_depIdxs = []int32{
-	5, // 0: ingate.analytics.v1.RequestFilter.start_time:type_name -> google.protobuf.Timestamp
-	5, // 1: ingate.analytics.v1.RequestFilter.end_time:type_name -> google.protobuf.Timestamp
-	0, // 2: ingate.analytics.v1.RequestFilter.status_class:type_name -> ingate.analytics.v1.StatusClass
-	1, // 3: ingate.analytics.v1.ListRequestsRequest.filter:type_name -> ingate.analytics.v1.RequestFilter
-	6, // 4: ingate.analytics.v1.ListRequestsResponse.requests:type_name -> ingate.als.v1.RequestRecord
-	5, // 5: ingate.analytics.v1.GetRequestRequest.started_at:type_name -> google.protobuf.Timestamp
-	2, // 6: ingate.analytics.v1.RequestService.ListRequests:input_type -> ingate.analytics.v1.ListRequestsRequest
-	4, // 7: ingate.analytics.v1.RequestService.GetRequest:input_type -> ingate.analytics.v1.GetRequestRequest
-	3, // 8: ingate.analytics.v1.RequestService.ListRequests:output_type -> ingate.analytics.v1.ListRequestsResponse
-	6, // 9: ingate.analytics.v1.RequestService.GetRequest:output_type -> ingate.als.v1.RequestRecord
-	8, // [8:10] is the sub-list for method output_type
-	6, // [6:8] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	6,  // 0: ingate.analytics.v1.RequestFilter.start_time:type_name -> google.protobuf.Timestamp
+	6,  // 1: ingate.analytics.v1.RequestFilter.end_time:type_name -> google.protobuf.Timestamp
+	0,  // 2: ingate.analytics.v1.RequestFilter.status_class:type_name -> ingate.analytics.v1.StatusClass
+	1,  // 3: ingate.analytics.v1.ListRequestsRequest.filter:type_name -> ingate.analytics.v1.RequestFilter
+	4,  // 4: ingate.analytics.v1.ListRequestsResponse.requests:type_name -> ingate.analytics.v1.RequestSummary
+	6,  // 5: ingate.analytics.v1.RequestSummary.started_at:type_name -> google.protobuf.Timestamp
+	7,  // 6: ingate.analytics.v1.RequestSummary.duration:type_name -> google.protobuf.Duration
+	6,  // 7: ingate.analytics.v1.GetRequestRequest.started_at:type_name -> google.protobuf.Timestamp
+	2,  // 8: ingate.analytics.v1.RequestService.ListRequests:input_type -> ingate.analytics.v1.ListRequestsRequest
+	5,  // 9: ingate.analytics.v1.RequestService.GetRequest:input_type -> ingate.analytics.v1.GetRequestRequest
+	3,  // 10: ingate.analytics.v1.RequestService.ListRequests:output_type -> ingate.analytics.v1.ListRequestsResponse
+	8,  // 11: ingate.analytics.v1.RequestService.GetRequest:output_type -> ingate.als.v1.RequestRecord
+	10, // [10:12] is the sub-list for method output_type
+	8,  // [8:10] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_analytics_v1_request_proto_init() }
@@ -490,7 +638,7 @@ func file_analytics_v1_request_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_analytics_v1_request_proto_rawDesc), len(file_analytics_v1_request_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -1,30 +1,33 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronRight, RefreshCw, Search, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, SlidersHorizontal } from 'lucide-react';
 import { getRequestRecord, getRequestRecordWorkspace, listRequestRecords } from '@/api/requestRecords';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, Drawer, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
-import type { RequestOutcome, RequestRecord, RequestRecordFilters } from '@/domain/requestRecord';
+import type { RequestOutcome, RequestRecord, RequestRecordFilters, RequestRecordSummary } from '@/domain/requestRecord';
 import {
   formatBytes,
   formatDuration,
   formatRequestTime,
-  requestOutcomeLabel,
-  requestOutcomeTone,
 } from '@/domain/requestRecord';
 
 const methodOptions = ['', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
+const pageSizeOptions = [10, 20, 50];
 
 export function RequestRecordPage() {
   const [draft, setDraft] = useState<RequestRecordFilters>(defaultFilters);
   const [filters, setFilters] = useState<RequestRecordFilters>(draft);
   const [pageTokens, setPageTokens] = useState(['']);
   const [pageIndex, setPageIndex] = useState(0);
-  const [selected, setSelected] = useState<RequestRecord | null>(null);
+  const [pageSize, setPageSize] = useState(10);
+  const [filterExpanded, setFilterExpanded] = useState(true);
+  const [selected, setSelected] = useState<RequestRecordSummary | null>(null);
+  const [detail, setDetail] = useState<RequestRecord | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const pageToken = pageTokens[pageIndex] ?? '';
-  const loadPage = useCallback(() => listRequestRecords(filters, pageToken), [filters, pageToken]);
+  const loadPage = useCallback(() => listRequestRecords(filters, pageToken, pageSize), [filters, pageSize, pageToken]);
   const records = useResource(loadPage);
   const workspace = useResource(getRequestRecordWorkspace);
   const names = useMemo(() => resourceNames(workspace.data), [workspace.data]);
@@ -38,13 +41,15 @@ export function RequestRecordPage() {
     setPageIndex(0);
     setFilters({ ...draft });
   };
-  const openDetail = async (record: RequestRecord) => {
+  const openDetail = async (record: RequestRecordSummary) => {
     setSelected(record);
+    setDetail(null);
+    setDetailError(null);
     setDetailLoading(true);
     try {
-      setSelected(await getRequestRecord(record.id, record.startedAt));
+      setDetail(await getRequestRecord(record.id, record.startedAt));
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '请求详情加载失败');
+      setDetailError(error instanceof Error ? error.message : '请求详情加载失败');
     } finally {
       setDetailLoading(false);
     }
@@ -65,27 +70,25 @@ export function RequestRecordPage() {
 
   return (
     <PageFrame
-      eyebrow="观测分析"
       title="请求记录"
-      subtitle="按单次请求查看匹配结果、响应状态和最终转发服务"
-      actions={<Button variant="outline" onClick={() => void records.reload()}><RefreshCw className="h-3.5 w-3.5" />刷新</Button>}
     >
-      <p className="request-privacy-note"><ShieldCheck />不持久化请求头、查询参数和正文，仅记录排障所需的请求元数据</p>
-
-      <Panel
-        title="请求明细"
-        actions={<span className="text-xs text-slate-500">第 {pageIndex + 1} 页 · {records.data.records.length} 条</span>}
-      >
-        <div className="request-record-toolbar">
-          <label className="request-record-search"><Search /><input placeholder="按请求 ID 精确查询" value={draft.requestID ?? ''} onChange={(event) => setDraft({ ...draft, requestID: event.target.value })} /></label>
-          <div className="request-outcome-tabs">
-            {outcomeOptions.map((option) => <button key={option.value} type="button" className={(draft.outcome ?? '') === option.value ? 'is-active' : ''} onClick={() => setDraft({ ...draft, outcome: option.value || undefined })}>{option.label}</button>)}
+      <Panel>
+        <section className={`request-filter-panel ${filterExpanded ? '' : 'is-collapsed'}`}>
+          <div className="request-filter-header">
+            <div className="request-filter-heading">
+              <SlidersHorizontal />
+              <div><strong>筛选条件</strong><span>{formatFilterRange(filters)}</span></div>
+            </div>
+            <div className="request-filter-actions">
+              {filterExpanded ? <Button size="sm" onClick={applyFilters}>查询</Button> : null}
+              <button type="button" className="request-filter-toggle" onClick={() => setFilterExpanded((current) => !current)}>
+                {filterExpanded ? '收起筛选' : '展开筛选'}
+                <ChevronDown className={filterExpanded ? 'is-open' : ''} />
+              </button>
+            </div>
           </div>
-          <Button size="sm" onClick={applyFilters}>查询</Button>
-        </div>
-        <details className="request-advanced-filters">
-          <summary>更多筛选 <span>{formatFilterRange(draft)}</span></summary>
-          <div className="request-record-filters">
+          {filterExpanded ? <div className="request-record-filters">
+            <Field label="结果"><select className="select" value={draft.outcome ?? ''} onChange={(event) => setDraft({ ...draft, outcome: (event.target.value || undefined) as RequestOutcome | undefined })}>{outcomeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
             <Field label="开始时间"><input className="input" type="datetime-local" value={draft.startTime} onChange={(event) => setDraft({ ...draft, startTime: event.target.value })} /></Field>
             <Field label="结束时间"><input className="input" type="datetime-local" value={draft.endTime} onChange={(event) => setDraft({ ...draft, endTime: event.target.value })} /></Field>
             <Field label="方法"><select className="select" value={draft.method ?? ''} onChange={(event) => setDraft({ ...draft, method: event.target.value || undefined })}>{methodOptions.map((method) => <option key={method} value={method}>{method || '全部方法'}</option>)}</select></Field>
@@ -94,19 +97,21 @@ export function RequestRecordPage() {
             <Field label="服务"><ResourceSelect value={draft.serviceID} placeholder="全部服务" options={workspace.data?.services} onChange={(serviceID) => setDraft({ ...draft, serviceID })} /></Field>
             <Field label="Host"><input className="input font-mono" placeholder="精确匹配" value={draft.host ?? ''} onChange={(event) => setDraft({ ...draft, host: event.target.value })} /></Field>
             <Field label="路径前缀"><input className="input font-mono" placeholder="例如 /api/orders" value={draft.pathPrefix ?? ''} onChange={(event) => setDraft({ ...draft, pathPrefix: event.target.value })} /></Field>
-          </div>
-        </details>
+          </div> : null}
+        </section>
         {records.data.records.length === 0 ? <EmptyState title="没有匹配的请求" message="调整时间范围或筛选条件后重新查询" /> : (
-          <div className="table-scroll">
+          <div className="table-scroll request-record-table-scroll">
             <table className="table request-record-table">
-              <thead><tr><th>时间 / 请求编号</th><th>实际请求</th><th>响应</th><th>匹配与转发</th><th>总耗时</th><th /></tr></thead>
+              <thead><tr><th>时间</th><th>请求</th><th>响应</th><th>网关</th><th>路由</th><th>目标服务</th><th>总耗时</th><th /></tr></thead>
               <tbody>
                 {records.data.records.map((record) => (
                   <tr key={`${record.id}:${record.startedAt}`} className="request-record-row" onClick={() => void openDetail(record)}>
-                    <td><div className="table-primary whitespace-nowrap">{formatRequestTime(record.startedAt)}</div><div className="table-secondary font-mono">{record.clientIP || '-'}</div></td>
-                    <td><div className="request-record-target"><span className={`request-method request-method-${record.method.toLowerCase()}`}>{record.method || '-'}</span><code>{record.host}</code></div><strong className="request-path">{record.path || '/'}</strong><div className="table-secondary font-mono">{record.requestID || record.id}</div></td>
-                    <td><div className="flex items-center gap-2"><strong>{record.statusCode || '-'}</strong><Badge tone={requestOutcomeTone(record.outcome)}>{requestOutcomeLabel(record.outcome)}</Badge></div><div className="table-secondary">{record.responseCodeDetails || '正常完成'}</div></td>
-                    <td><div className="request-forwarding"><strong>{nameOrID(names.routes, record.routeID)}</strong><small>{nameOrID(names.gateways, record.gatewayID)} → {nameOrID(names.services, record.serviceID)}{record.upstreamAddress ? ` · ${record.upstreamAddress}` : ''}</small></div></td>
+                    <td><time className="request-record-time" dateTime={record.startedAt}>{formatRequestTime(record.startedAt)}</time></td>
+                    <td><div className="request-record-target"><span className={`request-method request-method-${record.method.toLowerCase()}`}>{record.method || '-'}</span><code>{record.host}</code></div><strong className="request-path">{record.path || '/'}</strong></td>
+                    <td><Badge tone={responseTone(record)}>{responseStatus(record)}</Badge></td>
+                    <td><strong className="request-resource-name">{nameOrID(names.gateways, record.gatewayID)}</strong></td>
+                    <td><strong className="request-resource-name">{nameOrID(names.routes, record.routeID)}</strong></td>
+                    <td><strong className="request-resource-name">{nameOrID(names.services, record.serviceID)}</strong></td>
                     <td className="whitespace-nowrap">{formatDuration(record.duration)}</td>
                     <td><ChevronRight className="h-4 w-4 text-slate-400" /></td>
                   </tr>
@@ -116,27 +121,45 @@ export function RequestRecordPage() {
           </div>
         )}
         <div className="request-record-pagination">
-          <Button variant="outline" size="sm" disabled={pageIndex === 0} onClick={() => setPageIndex((current) => current - 1)}><ArrowLeft className="h-3.5 w-3.5" />上一页</Button>
-          <Button variant="outline" size="sm" disabled={!records.data.nextPageToken} onClick={nextPage}>下一页<ArrowRight className="h-3.5 w-3.5" /></Button>
+          <span className="request-page-status">第 {pageIndex + 1} 页 · 本页 {records.data.records.length} 条</span>
+          <label className="request-page-size">
+            <span>每页</span>
+            <select
+              value={pageSize}
+              onChange={(event) => {
+                setPageTokens(['']);
+                setPageIndex(0);
+                setPageSize(Number(event.target.value));
+              }}
+            >
+              {pageSizeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
+            </select>
+            <span>条</span>
+          </label>
+          <div className="request-page-actions">
+            <Button variant="outline" size="sm" disabled={pageIndex === 0} onClick={() => setPageIndex((current) => current - 1)}><ArrowLeft className="h-3.5 w-3.5" />上一页</Button>
+            <Button variant="outline" size="sm" disabled={!records.data.nextPageToken} onClick={nextPage}>下一页<ArrowRight className="h-3.5 w-3.5" /></Button>
+          </div>
         </div>
       </Panel>
 
-      <Drawer title="请求详情" subtitle={selected?.requestID || selected?.id} isOpen={Boolean(selected)} onClose={() => setSelected(null)}>
-        {selected ? <RequestDetail record={selected} names={names} loading={detailLoading} /> : null}
+      <Drawer title="请求详情" subtitle={selected ? `${selected.method} ${selected.host}${selected.path}` : undefined} isOpen={Boolean(selected)} onClose={() => setSelected(null)}>
+        {detailLoading ? <DetailLoading /> : null}
+        {!detailLoading && detailError && selected ? <DetailError message={detailError} onRetry={() => void openDetail(selected)} /> : null}
+        {!detailLoading && detail ? <RequestDetail record={detail} names={names} /> : null}
       </Drawer>
       <Toast message={notice} tone="error" onClose={() => setNotice(null)} />
     </PageFrame>
   );
 }
 
-function RequestDetail({ record, names, loading }: { record: RequestRecord; names: ResourceNames; loading: boolean }) {
-  const failed = record.outcome === 'REQUEST_OUTCOME_CLIENT_ERROR' || record.outcome === 'REQUEST_OUTCOME_SERVER_ERROR';
+function RequestDetail({ record, names }: { record: RequestRecord; names: ResourceNames }) {
+  const failed = record.statusCode === 0 || record.outcome === 'REQUEST_OUTCOME_CLIENT_ERROR' || record.outcome === 'REQUEST_OUTCOME_SERVER_ERROR';
   return (
     <div className="space-y-5">
-      {loading ? <div className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-700">正在读取完整记录...</div> : null}
       <section className={`request-detail-hero ${failed ? 'is-error' : ''}`}>
         <span>{failed ? <AlertTriangle /> : <CheckCircle2 />}</span>
-        <div><Badge tone={requestOutcomeTone(record.outcome)}>{record.statusCode || '-'} · {requestOutcomeLabel(record.outcome)}</Badge><strong>{requestVerdict(record)}</strong><code>{record.method || '-'} {record.host}{record.path}</code></div>
+        <div><Badge tone={responseTone(record)}>{record.statusCode ? `${record.statusCode} · ${responseLabel(record)}` : '无响应'}</Badge>{failed ? <strong>{requestVerdict(record)}</strong> : null}<code>{record.method || '-'} {record.host}{record.path}</code></div>
       </section>
       <DetailSection title="请求与响应">
         <DetailItem label="开始时间" value={formatRequestTime(record.startedAt)} />
@@ -145,39 +168,53 @@ function RequestDetail({ record, names, loading }: { record: RequestRecord; name
         <DetailItem label="客户端地址" value={record.clientIP || '-'} />
         <DetailItem label="请求大小" value={formatBytes(record.requestBytes)} />
         <DetailItem label="响应大小" value={formatBytes(record.responseBytes)} />
-        <DetailItem label="协议" value={record.protocol || '-'} />
-        <DetailItem label="响应说明" value={record.responseCodeDetails || '正常完成'} />
       </DetailSection>
-      <DetailSection title="转发结果">
-        <DetailItem label="网关" value={nameOrID(names.gateways, record.gatewayID)} code={record.gatewayID} />
-        <DetailItem label="路由" value={nameOrID(names.routes, record.routeID)} code={record.routeID} />
-        <DetailItem label="服务" value={nameOrID(names.services, record.serviceID)} code={record.serviceID} />
+      <DetailSection title="转发结果" layout="forwarding">
+        <DetailItem label="网关" value={nameOrID(names.gateways, record.gatewayID)} />
+        <DetailItem label="路由" value={nameOrID(names.routes, record.routeID)} />
+        <DetailItem label="服务" value={nameOrID(names.services, record.serviceID)} />
         <DetailItem label="最终服务地址" value={record.upstreamAddress || '-'} />
         <DetailItem label="转发尝试" value={record.upstreamAttempts ? `${record.upstreamAttempts} 次` : '-'} />
-        <DetailItem label="网关实例" value={record.proxyInstanceID || '-'} />
       </DetailSection>
-      <section className="request-processing-flow">
-        <h3>处理链路</h3>
-        <FlowStep number={1} title="接收请求" detail={`${record.method || '-'} ${record.host}${record.path} · 来源 ${record.clientIP || '-'}`} />
-        <FlowStep number={2} title="匹配网关与路由" detail={`${nameOrID(names.gateways, record.gatewayID)} → ${nameOrID(names.routes, record.routeID)}`} />
-        <FlowStep number={3} title="转发到服务" detail={`${nameOrID(names.services, record.serviceID)} · ${record.upstreamAddress || '未记录服务地址'} · ${record.upstreamAttempts || 0} 次尝试`} />
-        <FlowStep number={4} title="返回响应" detail={`${record.statusCode || '-'} · ${requestOutcomeLabel(record.outcome)} · 总耗时 ${formatDuration(record.duration)}`} error={failed} />
-      </section>
-      <p className="request-privacy-note"><ShieldCheck />未持久化请求头、查询参数和正文</p>
     </div>
   );
 }
 
-function FlowStep({ number, title, detail, error = false }: { number: number; title: string; detail: string; error?: boolean }) {
-  return <div className={`request-flow-step ${error ? 'is-error' : ''}`}><span>{number}</span><div><strong>{title}</strong><p>{detail}</p></div></div>;
+function DetailLoading() {
+  return (
+    <div className="grid gap-3" role="status">
+      <div className="h-24 animate-pulse rounded-xl bg-slate-100" />
+      <div className="grid grid-cols-3 gap-2">
+        <div className="h-20 animate-pulse rounded-lg bg-slate-100" />
+        <div className="h-20 animate-pulse rounded-lg bg-slate-100" />
+        <div className="h-20 animate-pulse rounded-lg bg-slate-100" />
+      </div>
+      <p className="text-xs text-slate-500">正在读取完整请求记录</p>
+    </div>
+  );
 }
 
-function DetailSection({ title, children }: { title: string; children: ReactNode }) {
-  return <section><h3 className="mb-2 text-sm font-semibold text-slate-900">{title}</h3><div className="request-detail-grid">{children}</div></section>;
+function DetailError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="rounded-xl border border-rose-200 bg-rose-50 p-5">
+      <div className="flex items-start gap-3">
+        <AlertTriangle className="h-5 w-5 shrink-0 text-rose-600" />
+        <div className="grid gap-3">
+          <div><strong className="text-sm text-rose-900">请求详情加载失败</strong><p className="mt-1 text-xs text-rose-700">{message}</p></div>
+          <Button variant="outline" size="sm" onClick={onRetry}>重新加载</Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function DetailItem({ label, value, code }: { label: string; value: string; code?: string }) {
-  return <div><span>{label}</span><strong>{value}</strong>{code && code !== value ? <code>{code}</code> : null}</div>;
+function DetailSection({ title, layout, children }: { title: string; layout?: 'forwarding'; children: ReactNode }) {
+  const className = layout === 'forwarding' ? 'request-detail-grid request-forwarding-grid' : 'request-detail-grid';
+  return <section><h3 className="mb-2 text-sm font-semibold text-slate-900">{title}</h3><div className={className}>{children}</div></section>;
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return <div><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
@@ -218,19 +255,43 @@ function localDateTime(value: Date): string {
 }
 
 const outcomeOptions: Array<{ value: RequestOutcome | ''; label: string }> = [
-  { value: '', label: '全部' },
-  { value: 'REQUEST_OUTCOME_SUCCESS', label: '成功' },
-  { value: 'REQUEST_OUTCOME_CLIENT_ERROR', label: '客户端错误' },
-  { value: 'REQUEST_OUTCOME_SERVER_ERROR', label: '服务端错误' },
+  { value: '', label: '全部结果' },
+  { value: 'REQUEST_OUTCOME_SUCCESS', label: '非错误响应（2xx/3xx）' },
+  { value: 'REQUEST_OUTCOME_CLIENT_ERROR', label: '客户端错误（4xx）' },
+  { value: 'REQUEST_OUTCOME_SERVER_ERROR', label: '服务端错误（5xx）' },
 ];
+
+function responseStatus(record: RequestRecord | RequestRecordSummary): string {
+  return record.statusCode ? String(record.statusCode) : '无响应';
+}
+
+function responseLabel(record: RequestRecord | RequestRecordSummary): string {
+  if (record.statusCode >= 200 && record.statusCode < 300) return '成功';
+  if (record.statusCode >= 300 && record.statusCode < 400) return '重定向';
+  if (record.statusCode >= 400 && record.statusCode < 500) return '客户端错误';
+  if (record.statusCode >= 500) return '服务端错误';
+  return '无响应';
+}
+
+function responseTone(record: RequestRecord | RequestRecordSummary): 'success' | 'warning' | 'error' | 'neutral' {
+  if (record.statusCode >= 200 && record.statusCode < 300) return 'success';
+  if (record.statusCode >= 300 && record.statusCode < 400) return 'warning';
+  if (record.statusCode >= 400) return 'error';
+  return 'warning';
+}
 
 function requestVerdict(record: RequestRecord): string {
   if (record.outcome === 'REQUEST_OUTCOME_SUCCESS') return '请求已成功完成';
   if (record.outcome === 'REQUEST_OUTCOME_CLIENT_ERROR') return '请求被网关或服务拒绝';
   if (record.outcome === 'REQUEST_OUTCOME_SERVER_ERROR') return '目标服务没有成功响应';
-  return '请求已完成，但没有可识别的 HTTP 结果';
+  return '请求未获得 HTTP 响应';
 }
 
 function formatFilterRange(filters: RequestRecordFilters): string {
-  return `${filters.startTime.replace('T', ' ')} 至 ${filters.endTime.replace('T', ' ')}`;
+  const start = filters.startTime.replace('T', ' ');
+  const end = filters.endTime.replace('T', ' ');
+  if (start.slice(0, 10) === end.slice(0, 10)) {
+    return `${start}—${end.slice(11)}`;
+  }
+  return `${start}—${end}`;
 }
