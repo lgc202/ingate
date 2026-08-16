@@ -73,6 +73,7 @@ export function TrafficAnalysisPage() {
   }
 
   const summary = analysis.data.summary;
+  const breakdownDimension = analysis.data.breakdownDimension;
   const elapsedSeconds = Math.max(1, (new Date(filters.endTime).getTime() - new Date(filters.startTime).getTime()) / 1000);
 
   return (
@@ -123,10 +124,10 @@ export function TrafficAnalysisPage() {
         {analysis.data.breakdown.length === 0 ? <EmptyState title="当前范围没有流量" message="调整时间或资源筛选后重新查询" /> : (
           <div className="table-scroll">
             <table className="table traffic-ranking-table">
-              <thead><tr><th>{dimensionLabel(filters.breakdownDimension)}</th><th>请求量</th><th>正常响应率</th><th>4xx</th><th>5xx</th><th>无响应</th><th>P95 总耗时</th><th /></tr></thead>
+              <thead><tr><th>{dimensionLabel(breakdownDimension)}</th><th>请求量</th><th>正常响应率</th><th>客户端错误</th><th>服务端错误</th><th>无响应</th><th>P95 总耗时</th><th /></tr></thead>
               <tbody>{analysis.data.breakdown.map((item) => (
-                <tr key={item.resourceID} onClick={() => navigate(requestRecordURL(filters, item))}>
-                  <td><strong>{resourceName(names, filters.breakdownDimension, item.resourceID)}</strong></td>
+                <tr key={item.resourceID} onClick={() => navigate(requestRecordURL(filters, breakdownDimension, item))}>
+                  <td><strong>{resourceName(names, breakdownDimension, item.resourceID, Boolean(workspace.data))}</strong></td>
                   <td>{formatCount(item.metrics.requestCount)}</td>
                   <td>{formatPercent(metricNumber(item.metrics.nonErrorCount), metricNumber(item.metrics.requestCount))}</td>
                   <td>{formatCount(item.metrics.clientErrorCount)}</td>
@@ -261,10 +262,11 @@ function resourceNames(workspace: TrafficAnalysisWorkspace | null): ResourceName
   };
 }
 
-function resourceName(names: ResourceNames, dimension: TrafficBreakdownDimension, id: string): string {
-  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY') return names.gateways.get(id) || id;
-  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_SERVICE') return names.services.get(id) || id;
-  return names.routes.get(id) || id;
+function resourceName(names: ResourceNames, dimension: TrafficBreakdownDimension, id: string, namesReady: boolean): string {
+  if (!namesReady) return '名称加载中';
+  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY') return names.gateways.get(id) || '已删除的网关';
+  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_SERVICE') return names.services.get(id) || '已删除的服务';
+  return names.routes.get(id) || '已删除的路由';
 }
 
 function filtersFromURL(params: URLSearchParams): TrafficAnalysisFilters {
@@ -291,7 +293,7 @@ function trafficDimension(value: string | null): TrafficBreakdownDimension {
   return 'TRAFFIC_BREAKDOWN_DIMENSION_ROUTE';
 }
 
-function requestRecordURL(filters: TrafficAnalysisFilters, item: TrafficBreakdownItem): string {
+function requestRecordURL(filters: TrafficAnalysisFilters, dimension: TrafficBreakdownDimension, item: TrafficBreakdownItem): string {
   const query = new URLSearchParams({
     startTime: new Date(filters.startTime).toISOString(),
     endTime: new Date(filters.endTime).toISOString(),
@@ -299,9 +301,9 @@ function requestRecordURL(filters: TrafficAnalysisFilters, item: TrafficBreakdow
   setQuery(query, 'gatewayID', filters.gatewayID);
   setQuery(query, 'routeID', filters.routeID);
   setQuery(query, 'serviceID', filters.serviceID);
-  if (filters.breakdownDimension === 'TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY') query.set('gatewayID', item.resourceID);
-  if (filters.breakdownDimension === 'TRAFFIC_BREAKDOWN_DIMENSION_ROUTE') query.set('routeID', item.resourceID);
-  if (filters.breakdownDimension === 'TRAFFIC_BREAKDOWN_DIMENSION_SERVICE') query.set('serviceID', item.resourceID);
+  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY') query.set('gatewayID', item.resourceID);
+  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_ROUTE') query.set('routeID', item.resourceID);
+  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_SERVICE') query.set('serviceID', item.resourceID);
   return `/requests?${query}`;
 }
 
