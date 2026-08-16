@@ -18,6 +18,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/auth"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
+	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
@@ -85,6 +86,11 @@ func errorMappingMiddleware(next middleware.Handler) middleware.Handler {
 		if errors.Is(err, requestbiz.ErrUnavailable) {
 			return nil, kratoserrors.New(http.StatusServiceUnavailable, adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(), "request analytics unavailable").
 				WithMetadata(map[string]string{userMessageMetadata: "请求记录服务暂时不可用，请稍后重试"}).
+				WithCause(err)
+		}
+		if errors.Is(err, trafficbiz.ErrUnavailable) {
+			return nil, kratoserrors.New(http.StatusServiceUnavailable, adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(), "traffic analytics unavailable").
+				WithMetadata(map[string]string{userMessageMetadata: "流量分析服务暂时不可用，请稍后重试"}).
 				WithCause(err)
 		}
 		if errors.Is(err, biz.ErrInvalidCursor) {

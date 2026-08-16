@@ -226,7 +226,7 @@ export function PolicyPage() {
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-600">
-            确定要删除策略 <strong className="text-slate-900 font-mono">{deleteCandidate?.name}</strong> ({deleteCandidate?.id}) 吗？
+            确定要删除策略 <strong className="text-slate-900">{deleteCandidate?.name}</strong> 吗？
           </p>
           <div className="flex justify-end gap-3 pt-2">
             <button
@@ -255,7 +255,7 @@ function PolicyDetail({ policy, targets }: { policy: GovernancePolicy; targets: 
   return (
     <div className="space-y-5">
       <section className="resource-detail-hero">
-        <div><h3>{policy.name}</h3><p>{policy.id}</p></div>
+        <div><h3>{policy.name}</h3></div>
         <Badge tone={policyStatusTone(policy.status)}>{governancePolicyStatusLabel(policy)}</Badge>
       </section>
       <section className="resource-detail-section">

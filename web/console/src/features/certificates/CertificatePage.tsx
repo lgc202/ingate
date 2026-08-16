@@ -62,7 +62,7 @@ export function CertificatePage() {
   const certificateList = certificates.data.certificates;
   const normalizedQuery = query.trim().toLowerCase();
   const visibleCertificates = certificateList.filter((certificate) => (
-    `${certificate.name} ${certificate.id} ${certificate.dnsNames.join(' ')}`.toLowerCase().includes(normalizedQuery)
+    `${certificate.name} ${certificate.dnsNames.join(' ')}`.toLowerCase().includes(normalizedQuery)
   ));
 
   const handleCreateNew = () => {
@@ -182,7 +182,7 @@ export function CertificatePage() {
               <table className="w-full text-left text-xs border-collapse">
                 <thead>
                   <tr className="border-b border-slate-200 text-slate-500 bg-slate-50/50 font-medium">
-                    <th className="py-2.5 px-3">证书名称 / ID</th>
+                    <th className="py-2.5 px-3">证书名称</th>
                     <th className="py-2.5 px-3">DNS 域名列表</th>
                     <th className="py-2.5 px-3">有效期截止</th>
                     <th className="py-2.5 px-3">状态</th>
@@ -195,10 +195,7 @@ export function CertificatePage() {
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2">
                           <KeyRound className="w-4 h-4 text-blue-600 shrink-0" />
-                          <div>
-                            <div className="font-semibold text-slate-900">{item.name}</div>
-                            <div className="text-[11px] font-mono text-slate-400">{item.id}</div>
-                          </div>
+                          <div className="font-semibold text-slate-900">{item.name}</div>
                         </div>
                       </td>
 
@@ -390,7 +387,7 @@ export function CertificatePage() {
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-600">
-            删除证书 <strong className="text-slate-900 font-mono">{deleteCandidate?.name}</strong> ({deleteCandidate?.id}) 可能导致依赖此证书的 HTTPS 网关握手失败。确认操作？
+            删除证书 <strong className="text-slate-900">{deleteCandidate?.name}</strong> 可能导致依赖此证书的 HTTPS 网关握手失败。确认操作？
           </p>
           <div className="flex justify-end gap-3 pt-2">
             <button
@@ -419,7 +416,7 @@ function CertificateDetail({ certificate }: { certificate: Certificate }) {
   return (
     <div className="space-y-5">
       <section className="resource-detail-hero">
-        <div><h3>{certificate.name}</h3><p>{certificate.id}</p></div>
+        <div><h3>{certificate.name}</h3></div>
         <Badge tone={resourceStateTone(certificate.state)}>{resourceStateLabel(certificate.state)}</Badge>
       </section>
       <section className="resource-detail-section">

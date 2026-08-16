@@ -15,8 +15,52 @@ const trafficAggregates = `
     sum(request_count) AS request_count,
     sum(client_error_count) AS client_error_count,
     sum(server_error_count) AS server_error_count,
+    sum(no_response_count) AS no_response_count,
     toUInt64(round(coalesce(avgMerge(duration_average), 0))) AS average_duration_ns,
-    toUInt64(round(coalesce(quantileTDigestMerge(0.95)(duration_p95), 0))) AS p95_duration_ns`
+    toUInt64(round(coalesce(quantileTDigestMerge(0.5)(duration_p50), 0))) AS p50_duration_ns,
+    toUInt64(round(coalesce(quantileTDigestMerge(0.95)(duration_p95), 0))) AS p95_duration_ns,
+    toUInt64(round(coalesce(quantileTDigestMerge(0.99)(duration_p99), 0))) AS p99_duration_ns`
+
+// QueryTrafficSummary 查询整个时间范围的流量和延迟汇总
+func (s *Store) QueryTrafficSummary(ctx context.Context, filter traffic.Filter) (traffic.Summary, error) {
+	queryCtx, cancel := context.WithTimeout(ctx, s.queryTimeout)
+	defer cancel()
+
+	var statement strings.Builder
+	fmt.Fprintf(
+		&statement,
+		"SELECT %s FROM %s WHERE started_at >= ? AND started_at < ?",
+		trafficAggregates,
+		s.minuteMetricsTable,
+	)
+	args := []any{filter.StartTime, filter.EndTime}
+	args = appendTrafficFilters(&statement, args, filter)
+
+	var (
+		summary           traffic.Summary
+		averageDurationNS uint64
+		p50DurationNS     uint64
+		p95DurationNS     uint64
+		p99DurationNS     uint64
+	)
+	if err := s.connection.QueryRow(queryCtx, statement.String(), args...).Scan(
+		&summary.RequestCount,
+		&summary.ClientErrors,
+		&summary.ServerErrors,
+		&summary.NoResponses,
+		&averageDurationNS,
+		&p50DurationNS,
+		&p95DurationNS,
+		&p99DurationNS,
+	); err != nil {
+		return traffic.Summary{}, fmt.Errorf("query traffic summary: %w", err)
+	}
+	summary.AverageDuration = time.Duration(averageDurationNS)
+	summary.P50Duration = time.Duration(p50DurationNS)
+	summary.P95Duration = time.Duration(p95DurationNS)
+	summary.P99Duration = time.Duration(p99DurationNS)
+	return summary, nil
+}
 
 // QueryTrafficTrend 从分钟聚合状态查询流量和延迟趋势
 //
@@ -58,20 +102,27 @@ func (s *Store) QueryTrafficTrend(
 		var (
 			point             traffic.TrendPoint
 			averageDurationNS uint64
+			p50DurationNS     uint64
 			p95DurationNS     uint64
+			p99DurationNS     uint64
 		)
 		if err := rows.Scan(
 			&point.StartedAt,
 			&point.RequestCount,
 			&point.ClientErrors,
 			&point.ServerErrors,
+			&point.NoResponses,
 			&averageDurationNS,
+			&p50DurationNS,
 			&p95DurationNS,
+			&p99DurationNS,
 		); err != nil {
 			return nil, fmt.Errorf("scan traffic trend: %w", err)
 		}
 		point.AverageDuration = time.Duration(averageDurationNS)
+		point.P50Duration = time.Duration(p50DurationNS)
 		point.P95Duration = time.Duration(p95DurationNS)
+		point.P99Duration = time.Duration(p99DurationNS)
 		points = append(points, point)
 	}
 	if err := rows.Err(); err != nil {
@@ -104,6 +155,7 @@ func (s *Store) QueryTrafficBreakdown(
 	)
 	args := []any{query.Filter.StartTime, query.Filter.EndTime}
 	args = appendTrafficFilters(&statement, args, query.Filter)
+	fmt.Fprintf(&statement, " AND %s != ''", dimension)
 	statement.WriteString(" GROUP BY resource_id ORDER BY request_count DESC, resource_id LIMIT ?")
 	args = append(args, query.Limit)
 
@@ -122,20 +174,27 @@ func (s *Store) QueryTrafficBreakdown(
 		var (
 			item              traffic.BreakdownItem
 			averageDurationNS uint64
+			p50DurationNS     uint64
 			p95DurationNS     uint64
+			p99DurationNS     uint64
 		)
 		if err := rows.Scan(
 			&item.ResourceID,
 			&item.RequestCount,
 			&item.ClientErrors,
 			&item.ServerErrors,
+			&item.NoResponses,
 			&averageDurationNS,
+			&p50DurationNS,
 			&p95DurationNS,
+			&p99DurationNS,
 		); err != nil {
 			return nil, fmt.Errorf("scan traffic breakdown: %w", err)
 		}
 		item.AverageDuration = time.Duration(averageDurationNS)
+		item.P50Duration = time.Duration(p50DurationNS)
 		item.P95Duration = time.Duration(p95DurationNS)
+		item.P99Duration = time.Duration(p99DurationNS)
 		items = append(items, item)
 	}
 	if err := rows.Err(); err != nil {

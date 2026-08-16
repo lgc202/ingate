@@ -13,6 +13,11 @@ func NewQueries(store QueryStore) *Queries {
 	return &Queries{store: store}
 }
 
+// Summary 查询整个时间范围的流量和延迟汇总
+func (q *Queries) Summary(ctx context.Context, filter Filter) (Summary, error) {
+	return q.store.QueryTrafficSummary(ctx, filter)
+}
+
 // Trend 查询指定时间粒度的流量和延迟趋势
 func (q *Queries) Trend(ctx context.Context, query TrendQuery) ([]TrendPoint, error) {
 	return q.store.QueryTrafficTrend(ctx, query)

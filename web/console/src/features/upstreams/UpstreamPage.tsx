@@ -34,7 +34,7 @@ export function UpstreamPage() {
 
   const normalizedQuery = query.trim().toLowerCase();
   const visibleUpstreams = resource.data.upstreams.filter((upstream) => (
-    `${upstream.name} ${upstream.id} ${upstream.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join(' ')}`
+    `${upstream.name} ${upstream.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join(' ')}`
       .toLowerCase()
       .includes(normalizedQuery)
   ));
@@ -90,7 +90,7 @@ export function UpstreamPage() {
               <tbody className="divide-y divide-slate-100">
                 {visibleUpstreams.map((item) => (
                   <tr key={item.id}>
-                    <td className="p-3"><div className="flex items-center gap-2"><Server className="w-4 h-4 text-blue-600" /><div><strong>{item.name}</strong><div className="font-mono text-[10px] text-slate-400">{item.id}</div></div></div></td>
+                    <td className="p-3"><div className="flex items-center gap-2"><Server className="w-4 h-4 text-blue-600" /><strong>{item.name}</strong></div></td>
                     <td className="p-3 font-mono text-[11px]">{item.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join('、')}</td>
                     <td className="p-3">{item.tls ? `HTTPS · ${item.tls.serverName}` : 'HTTP'}</td>
                     <td className="p-3">{upstreamLoadBalancingLabel(item.loadBalancing)}</td>
@@ -132,7 +132,7 @@ function UpstreamDetail({ upstream }: { upstream: Upstream }) {
   return (
     <div className="space-y-5">
       <section className="resource-detail-hero">
-        <div><h3>{upstream.name}</h3><p>{upstream.id}</p></div>
+        <div><h3>{upstream.name}</h3></div>
         <Badge tone={resourceStateTone(upstream.state)}>{resourceStateLabel(upstream.state)}</Badge>
       </section>
       <section className="resource-detail-section">

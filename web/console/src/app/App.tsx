@@ -6,6 +6,7 @@ import { UpstreamPage } from '@/features/upstreams/UpstreamPage';
 import { CertificatePage } from '@/features/certificates/CertificatePage';
 import { PolicyPage } from '@/features/policies/PolicyPage';
 import { RequestRecordPage } from '@/features/requests/RequestRecordPage';
+import { TrafficAnalysisPage } from '@/features/traffic/TrafficAnalysisPage';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="certificates" element={<CertificatePage />} />
         <Route path="policies" element={<PolicyPage />} />
         <Route path="requests" element={<RequestRecordPage />} />
+        <Route path="analysis" element={<TrafficAnalysisPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/gateways" replace />} />
     </Routes>

@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// TrafficAnalysisService 提供控制台流量聚合查询
+service TrafficAnalysisService {
+  // GetTrafficAnalysis 查询同一时间和资源范围内的汇总、趋势与排名
+  rpc GetTrafficAnalysis(GetTrafficAnalysisRequest) returns (GetTrafficAnalysisResponse) {
+    option (google.api.http) = {get: "/api/v1/traffic-analysis"};
+  }
+}
+
+// TrafficBreakdownDimension 是流量排名支持的资源维度
+enum TrafficBreakdownDimension {
+  // TRAFFIC_BREAKDOWN_DIMENSION_UNSPECIFIED 表示使用默认的路由维度
+  TRAFFIC_BREAKDOWN_DIMENSION_UNSPECIFIED = 0;
+  // TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY 按网关排名
+  TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY = 1;
+  // TRAFFIC_BREAKDOWN_DIMENSION_ROUTE 按路由排名
+  TRAFFIC_BREAKDOWN_DIMENSION_ROUTE = 2;
+  // TRAFFIC_BREAKDOWN_DIMENSION_SERVICE 按目标服务排名
+  TRAFFIC_BREAKDOWN_DIMENSION_SERVICE = 3;
+}
+
+// GetTrafficAnalysisRequest 是流量分析的查询范围
+message GetTrafficAnalysisRequest {
+  // start_time 是查询范围起点，包含该时刻
+  google.protobuf.Timestamp start_time = 1;
+  // end_time 是查询范围终点，不包含该时刻
+  google.protobuf.Timestamp end_time = 2;
+  // gateway_id 只统计经过指定网关的请求
+  string gateway_id = 3 [json_name = "gatewayID"];
+  // route_id 只统计命中指定路由的请求
+  string route_id = 4 [json_name = "routeID"];
+  // service_id 只统计最终转发到指定服务的请求
+  string service_id = 5 [json_name = "serviceID"];
+  // breakdown_dimension 指定排名所使用的资源维度
+  TrafficBreakdownDimension breakdown_dimension = 6 [(buf.validate.field).enum.defined_only = true];
+  // breakdown_limit 是按请求量排序后返回的最大资源数
+  uint32 breakdown_limit = 7 [(buf.validate.field).uint32.lte = 50];
+}
+
+// TrafficMetrics 是一个范围内可直接解释的请求统计
+message TrafficMetrics {
+  // request_count 是请求总数
+  uint64 request_count = 1;
+  // non_error_count 是获得 1xx 到 3xx 响应的请求数
+  uint64 non_error_count = 2;
+  // client_error_count 是获得 4xx 响应的请求数
+  uint64 client_error_count = 3;
+  // server_error_count 是获得 5xx 及以上响应的请求数
+  uint64 server_error_count = 4;
+  // no_response_count 是未获得有效 HTTP 状态码的请求数
+  uint64 no_response_count = 5;
+  // average_duration 是平均总耗时
+  google.protobuf.Duration average_duration = 6;
+  // p50_duration 是总耗时的 P50 分位值
+  google.protobuf.Duration p50_duration = 7;
+  // p95_duration 是总耗时的 P95 分位值
+  google.protobuf.Duration p95_duration = 8;
+  // p99_duration 是总耗时的 P99 分位值
+  google.protobuf.Duration p99_duration = 9;
+}
+
+// TrafficAnalysisPoint 是一个时间段内的流量统计
+message TrafficAnalysisPoint {
+  // started_at 是时间段起点
+  google.protobuf.Timestamp started_at = 1;
+  // metrics 是该时间段内的统计结果
+  TrafficMetrics metrics = 2;
+}
+
+// TrafficBreakdownItem 是一个资源的流量统计
+message TrafficBreakdownItem {
+  // resource_id 是排名维度对应的资源 ID
+  string resource_id = 1 [json_name = "resourceID"];
+  // metrics 是该资源的统计结果
+  TrafficMetrics metrics = 2;
+}
+
+// GetTrafficAnalysisResponse 是控制台一次展示所需的流量分析结果
+message GetTrafficAnalysisResponse {
+  // summary 是整个查询范围的汇总
+  TrafficMetrics summary = 1;
+  // trend 是按时间递增排列的趋势点
+  repeated TrafficAnalysisPoint trend = 2;
+  // breakdown_dimension 是本次排名使用的资源维度
+  TrafficBreakdownDimension breakdown_dimension = 3;
+  // breakdown 是按请求量倒序排列的资源统计
+  repeated TrafficBreakdownItem breakdown = 4;
+}

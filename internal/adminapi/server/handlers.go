@@ -13,6 +13,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	requestservice "github.com/lgc202/ingate/internal/adminapi/service/request"
 	"github.com/lgc202/ingate/internal/adminapi/service/route"
+	trafficservice "github.com/lgc202/ingate/internal/adminapi/service/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/service/upstream"
 )
 
@@ -27,6 +28,7 @@ type HTTPHandlers struct {
 	ipRestriction  *iprestriction.Service
 	configuration  *configuration.Service
 	request        *requestservice.Service
+	traffic        *trafficservice.Service
 	health         *health.Service
 }
 
@@ -41,6 +43,7 @@ func NewHTTPHandlers(
 	ipRestrictionService *iprestriction.Service,
 	configurationService *configuration.Service,
 	requestService *requestservice.Service,
+	trafficService *trafficservice.Service,
 	healthService *health.Service,
 ) *HTTPHandlers {
 	return &HTTPHandlers{
@@ -53,6 +56,7 @@ func NewHTTPHandlers(
 		ipRestriction:  ipRestrictionService,
 		configuration:  configurationService,
 		request:        requestService,
+		traffic:        trafficService,
 		health:         healthService,
 	}
 }
@@ -67,5 +71,6 @@ func (h *HTTPHandlers) register(server *kratoshttp.Server) {
 	adminv1.RegisterIPRestrictionPolicyServiceHTTPServer(server, h.ipRestriction)
 	adminv1.RegisterConfigurationServiceHTTPServer(server, h.configuration)
 	adminv1.RegisterRequestRecordServiceHTTPServer(server, h.request)
+	adminv1.RegisterTrafficAnalysisServiceHTTPServer(server, h.traffic)
 	adminv1.RegisterHealthServiceHTTPServer(server, h.health)
 }
