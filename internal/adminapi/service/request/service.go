@@ -31,9 +31,9 @@ func (s *Service) ListRequestRecords(
 	if err != nil {
 		return nil, err
 	}
-	records := make([]*adminv1.RequestRecord, 0, len(page.Records))
+	records := make([]*adminv1.RequestRecordSummary, 0, len(page.Records))
 	for i := range page.Records {
-		records = append(records, recordResponse(&page.Records[i]))
+		records = append(records, summaryResponse(&page.Records[i]))
 	}
 	return &adminv1.ListRequestRecordsResponse{
 		Records:       records,

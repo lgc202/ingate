@@ -26,6 +26,20 @@ type Fact struct {
 	StatusClass StatusClass
 }
 
+// Summary 保存请求列表展示和进入详情所需的最小字段集
+type Summary struct {
+	ID         string
+	StartedAt  time.Time
+	Duration   *time.Duration
+	Method     string
+	Host       string
+	Path       string
+	StatusCode uint32
+	GatewayID  string
+	RouteID    string
+	UpstreamID string
+}
+
 // Filter 是请求明细查询的结构化过滤条件，时间范围为左闭右开
 type Filter struct {
 	StartTime   time.Time
@@ -56,6 +70,6 @@ type ListOptions struct {
 
 // Page 是按 started_at 和 id 倒序排列的请求明细分页结果
 type Page struct {
-	Records    []*alsv1.RequestRecord
+	Records    []Summary
 	NextCursor *Cursor
 }

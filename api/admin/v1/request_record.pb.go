@@ -310,6 +310,142 @@ func (x *RequestRecord) GetProxyInstanceId() string {
 	return ""
 }
 
+// RequestRecordSummary 是请求记录列表使用的排障摘要
+type RequestRecordSummary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是 ALS 为一次已完成请求生成的记录标识
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// started_at 是网关开始处理请求的时间
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	// duration 是请求的端到端处理耗时
+	Duration *durationpb.Duration `protobuf:"bytes,3,opt,name=duration,proto3" json:"duration,omitempty"`
+	// method 是 HTTP 请求方法
+	Method string `protobuf:"bytes,4,opt,name=method,proto3" json:"method,omitempty"`
+	// host 是不包含端口的请求域名
+	Host string `protobuf:"bytes,5,opt,name=host,proto3" json:"host,omitempty"`
+	// path 是不包含查询参数的请求路径
+	Path string `protobuf:"bytes,6,opt,name=path,proto3" json:"path,omitempty"`
+	// status_code 是最终返回给客户端的 HTTP 状态码
+	StatusCode uint32 `protobuf:"varint,7,opt,name=status_code,json=statusCode,proto3" json:"status_code,omitempty"`
+	// outcome 是按 HTTP 状态码归纳的请求结果
+	Outcome RequestOutcome `protobuf:"varint,8,opt,name=outcome,proto3,enum=ingate.admin.v1.RequestOutcome" json:"outcome,omitempty"`
+	// gateway_id 是处理请求的 Gateway 资源 ID
+	GatewayId string `protobuf:"bytes,9,opt,name=gateway_id,json=gatewayID,proto3" json:"gateway_id,omitempty"`
+	// route_id 是请求最终命中的 Route 资源 ID
+	RouteId string `protobuf:"bytes,10,opt,name=route_id,json=routeID,proto3" json:"route_id,omitempty"`
+	// service_id 是请求最终转发到的 Service 资源 ID
+	ServiceId     string `protobuf:"bytes,11,opt,name=service_id,json=serviceID,proto3" json:"service_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RequestRecordSummary) Reset() {
+	*x = RequestRecordSummary{}
+	mi := &file_admin_v1_request_record_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RequestRecordSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RequestRecordSummary) ProtoMessage() {}
+
+func (x *RequestRecordSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_request_record_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RequestRecordSummary.ProtoReflect.Descriptor instead.
+func (*RequestRecordSummary) Descriptor() ([]byte, []int) {
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *RequestRecordSummary) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *RequestRecordSummary) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *RequestRecordSummary) GetDuration() *durationpb.Duration {
+	if x != nil {
+		return x.Duration
+	}
+	return nil
+}
+
+func (x *RequestRecordSummary) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *RequestRecordSummary) GetHost() string {
+	if x != nil {
+		return x.Host
+	}
+	return ""
+}
+
+func (x *RequestRecordSummary) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *RequestRecordSummary) GetStatusCode() uint32 {
+	if x != nil {
+		return x.StatusCode
+	}
+	return 0
+}
+
+func (x *RequestRecordSummary) GetOutcome() RequestOutcome {
+	if x != nil {
+		return x.Outcome
+	}
+	return RequestOutcome_REQUEST_OUTCOME_UNSPECIFIED
+}
+
+func (x *RequestRecordSummary) GetGatewayId() string {
+	if x != nil {
+		return x.GatewayId
+	}
+	return ""
+}
+
+func (x *RequestRecordSummary) GetRouteId() string {
+	if x != nil {
+		return x.RouteId
+	}
+	return ""
+}
+
+func (x *RequestRecordSummary) GetServiceId() string {
+	if x != nil {
+		return x.ServiceId
+	}
+	return ""
+}
+
 // ListRequestRecordsRequest 是请求明细分页查询参数
 type ListRequestRecordsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -345,7 +481,7 @@ type ListRequestRecordsRequest struct {
 
 func (x *ListRequestRecordsRequest) Reset() {
 	*x = ListRequestRecordsRequest{}
-	mi := &file_admin_v1_request_record_proto_msgTypes[1]
+	mi := &file_admin_v1_request_record_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -357,7 +493,7 @@ func (x *ListRequestRecordsRequest) String() string {
 func (*ListRequestRecordsRequest) ProtoMessage() {}
 
 func (x *ListRequestRecordsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_request_record_proto_msgTypes[1]
+	mi := &file_admin_v1_request_record_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -370,7 +506,7 @@ func (x *ListRequestRecordsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequestRecordsRequest.ProtoReflect.Descriptor instead.
 func (*ListRequestRecordsRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{1}
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListRequestRecordsRequest) GetStartTime() *timestamppb.Timestamp {
@@ -468,7 +604,7 @@ func (x *ListRequestRecordsRequest) GetPageToken() string {
 type ListRequestRecordsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// records 是按开始时间倒序排列的请求记录
-	Records []*RequestRecord `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
+	Records []*RequestRecordSummary `protobuf:"bytes,1,rep,name=records,proto3" json:"records,omitempty"`
 	// next_page_token 非空时表示还有下一页
 	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -477,7 +613,7 @@ type ListRequestRecordsResponse struct {
 
 func (x *ListRequestRecordsResponse) Reset() {
 	*x = ListRequestRecordsResponse{}
-	mi := &file_admin_v1_request_record_proto_msgTypes[2]
+	mi := &file_admin_v1_request_record_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -489,7 +625,7 @@ func (x *ListRequestRecordsResponse) String() string {
 func (*ListRequestRecordsResponse) ProtoMessage() {}
 
 func (x *ListRequestRecordsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_request_record_proto_msgTypes[2]
+	mi := &file_admin_v1_request_record_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -502,10 +638,10 @@ func (x *ListRequestRecordsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequestRecordsResponse.ProtoReflect.Descriptor instead.
 func (*ListRequestRecordsResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{2}
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *ListRequestRecordsResponse) GetRecords() []*RequestRecord {
+func (x *ListRequestRecordsResponse) GetRecords() []*RequestRecordSummary {
 	if x != nil {
 		return x.Records
 	}
@@ -532,7 +668,7 @@ type GetRequestRecordRequest struct {
 
 func (x *GetRequestRecordRequest) Reset() {
 	*x = GetRequestRecordRequest{}
-	mi := &file_admin_v1_request_record_proto_msgTypes[3]
+	mi := &file_admin_v1_request_record_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -544,7 +680,7 @@ func (x *GetRequestRecordRequest) String() string {
 func (*GetRequestRecordRequest) ProtoMessage() {}
 
 func (x *GetRequestRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_request_record_proto_msgTypes[3]
+	mi := &file_admin_v1_request_record_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -557,7 +693,7 @@ func (x *GetRequestRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRequestRecordRequest.ProtoReflect.Descriptor instead.
 func (*GetRequestRecordRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{3}
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *GetRequestRecordRequest) GetId() string {
@@ -606,7 +742,24 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\x15response_code_details\x18\x12 \x01(\tR\x13responseCodeDetails\x12+\n" +
 	"\x11upstream_attempts\x18\x13 \x01(\rR\x10upstreamAttempts\x12)\n" +
 	"\x10upstream_address\x18\x14 \x01(\tR\x0fupstreamAddress\x12*\n" +
-	"\x11proxy_instance_id\x18\x15 \x01(\tR\x0fproxyInstanceID\"\xa0\x04\n" +
+	"\x11proxy_instance_id\x18\x15 \x01(\tR\x0fproxyInstanceID\"\x8d\x03\n" +
+	"\x14RequestRecordSummary\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
+	"\n" +
+	"started_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x125\n" +
+	"\bduration\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\bduration\x12\x16\n" +
+	"\x06method\x18\x04 \x01(\tR\x06method\x12\x12\n" +
+	"\x04host\x18\x05 \x01(\tR\x04host\x12\x12\n" +
+	"\x04path\x18\x06 \x01(\tR\x04path\x12\x1f\n" +
+	"\vstatus_code\x18\a \x01(\rR\n" +
+	"statusCode\x129\n" +
+	"\aoutcome\x18\b \x01(\x0e2\x1f.ingate.admin.v1.RequestOutcomeR\aoutcome\x12\x1d\n" +
+	"\n" +
+	"gateway_id\x18\t \x01(\tR\tgatewayID\x12\x19\n" +
+	"\broute_id\x18\n" +
+	" \x01(\tR\arouteID\x12\x1d\n" +
+	"\n" +
+	"service_id\x18\v \x01(\tR\tserviceID\"\xa0\x04\n" +
 	"\x19ListRequestRecordsRequest\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -630,9 +783,9 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\r \x01(\tR\tpageTokenB\x0e\n" +
-	"\f_status_code\"~\n" +
-	"\x1aListRequestRecordsResponse\x128\n" +
-	"\arecords\x18\x01 \x03(\v2\x1e.ingate.admin.v1.RequestRecordR\arecords\x12&\n" +
+	"\f_status_code\"\x85\x01\n" +
+	"\x1aListRequestRecordsResponse\x12?\n" +
+	"\arecords\x18\x01 \x03(\v2%.ingate.admin.v1.RequestRecordSummaryR\arecords\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"m\n" +
 	"\x17GetRequestRecordRequest\x12\x17\n" +
 	"\x02id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x02id\x129\n" +
@@ -660,35 +813,39 @@ func file_admin_v1_request_record_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_request_record_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_admin_v1_request_record_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_admin_v1_request_record_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_admin_v1_request_record_proto_goTypes = []any{
 	(RequestOutcome)(0),                // 0: ingate.admin.v1.RequestOutcome
 	(*RequestRecord)(nil),              // 1: ingate.admin.v1.RequestRecord
-	(*ListRequestRecordsRequest)(nil),  // 2: ingate.admin.v1.ListRequestRecordsRequest
-	(*ListRequestRecordsResponse)(nil), // 3: ingate.admin.v1.ListRequestRecordsResponse
-	(*GetRequestRecordRequest)(nil),    // 4: ingate.admin.v1.GetRequestRecordRequest
-	(*timestamppb.Timestamp)(nil),      // 5: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),        // 6: google.protobuf.Duration
+	(*RequestRecordSummary)(nil),       // 2: ingate.admin.v1.RequestRecordSummary
+	(*ListRequestRecordsRequest)(nil),  // 3: ingate.admin.v1.ListRequestRecordsRequest
+	(*ListRequestRecordsResponse)(nil), // 4: ingate.admin.v1.ListRequestRecordsResponse
+	(*GetRequestRecordRequest)(nil),    // 5: ingate.admin.v1.GetRequestRecordRequest
+	(*timestamppb.Timestamp)(nil),      // 6: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),        // 7: google.protobuf.Duration
 }
 var file_admin_v1_request_record_proto_depIdxs = []int32{
-	5,  // 0: ingate.admin.v1.RequestRecord.started_at:type_name -> google.protobuf.Timestamp
-	6,  // 1: ingate.admin.v1.RequestRecord.duration:type_name -> google.protobuf.Duration
-	6,  // 2: ingate.admin.v1.RequestRecord.time_to_first_byte:type_name -> google.protobuf.Duration
+	6,  // 0: ingate.admin.v1.RequestRecord.started_at:type_name -> google.protobuf.Timestamp
+	7,  // 1: ingate.admin.v1.RequestRecord.duration:type_name -> google.protobuf.Duration
+	7,  // 2: ingate.admin.v1.RequestRecord.time_to_first_byte:type_name -> google.protobuf.Duration
 	0,  // 3: ingate.admin.v1.RequestRecord.outcome:type_name -> ingate.admin.v1.RequestOutcome
-	5,  // 4: ingate.admin.v1.ListRequestRecordsRequest.start_time:type_name -> google.protobuf.Timestamp
-	5,  // 5: ingate.admin.v1.ListRequestRecordsRequest.end_time:type_name -> google.protobuf.Timestamp
-	0,  // 6: ingate.admin.v1.ListRequestRecordsRequest.outcome:type_name -> ingate.admin.v1.RequestOutcome
-	1,  // 7: ingate.admin.v1.ListRequestRecordsResponse.records:type_name -> ingate.admin.v1.RequestRecord
-	5,  // 8: ingate.admin.v1.GetRequestRecordRequest.started_at:type_name -> google.protobuf.Timestamp
-	2,  // 9: ingate.admin.v1.RequestRecordService.ListRequestRecords:input_type -> ingate.admin.v1.ListRequestRecordsRequest
-	4,  // 10: ingate.admin.v1.RequestRecordService.GetRequestRecord:input_type -> ingate.admin.v1.GetRequestRecordRequest
-	3,  // 11: ingate.admin.v1.RequestRecordService.ListRequestRecords:output_type -> ingate.admin.v1.ListRequestRecordsResponse
-	1,  // 12: ingate.admin.v1.RequestRecordService.GetRequestRecord:output_type -> ingate.admin.v1.RequestRecord
-	11, // [11:13] is the sub-list for method output_type
-	9,  // [9:11] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	6,  // 4: ingate.admin.v1.RequestRecordSummary.started_at:type_name -> google.protobuf.Timestamp
+	7,  // 5: ingate.admin.v1.RequestRecordSummary.duration:type_name -> google.protobuf.Duration
+	0,  // 6: ingate.admin.v1.RequestRecordSummary.outcome:type_name -> ingate.admin.v1.RequestOutcome
+	6,  // 7: ingate.admin.v1.ListRequestRecordsRequest.start_time:type_name -> google.protobuf.Timestamp
+	6,  // 8: ingate.admin.v1.ListRequestRecordsRequest.end_time:type_name -> google.protobuf.Timestamp
+	0,  // 9: ingate.admin.v1.ListRequestRecordsRequest.outcome:type_name -> ingate.admin.v1.RequestOutcome
+	2,  // 10: ingate.admin.v1.ListRequestRecordsResponse.records:type_name -> ingate.admin.v1.RequestRecordSummary
+	6,  // 11: ingate.admin.v1.GetRequestRecordRequest.started_at:type_name -> google.protobuf.Timestamp
+	3,  // 12: ingate.admin.v1.RequestRecordService.ListRequestRecords:input_type -> ingate.admin.v1.ListRequestRecordsRequest
+	5,  // 13: ingate.admin.v1.RequestRecordService.GetRequestRecord:input_type -> ingate.admin.v1.GetRequestRecordRequest
+	4,  // 14: ingate.admin.v1.RequestRecordService.ListRequestRecords:output_type -> ingate.admin.v1.ListRequestRecordsResponse
+	1,  // 15: ingate.admin.v1.RequestRecordService.GetRequestRecord:output_type -> ingate.admin.v1.RequestRecord
+	14, // [14:16] is the sub-list for method output_type
+	12, // [12:14] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_request_record_proto_init() }
@@ -696,14 +853,14 @@ func file_admin_v1_request_record_proto_init() {
 	if File_admin_v1_request_record_proto != nil {
 		return
 	}
-	file_admin_v1_request_record_proto_msgTypes[1].OneofWrappers = []any{}
+	file_admin_v1_request_record_proto_msgTypes[2].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_request_record_proto_rawDesc), len(file_admin_v1_request_record_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   4,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

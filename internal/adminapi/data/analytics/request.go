@@ -57,15 +57,38 @@ func (r *RequestRepository) List(ctx context.Context, options requestbiz.ListOpt
 	if err != nil {
 		return requestbiz.Page{}, fmt.Errorf("list analytics request records: %w", err)
 	}
-	records := make([]requestbiz.Record, 0, len(reply.GetRequests()))
+	records := make([]requestbiz.Summary, 0, len(reply.GetRequests()))
 	for _, item := range reply.GetRequests() {
-		record, err := requestRecord(item)
+		record, err := requestSummary(item)
 		if err != nil {
 			return requestbiz.Page{}, err
 		}
 		records = append(records, record)
 	}
 	return requestbiz.Page{Records: records, NextPageToken: reply.GetNextPageToken()}, nil
+}
+
+func requestSummary(summary *analyticsv1.RequestSummary) (requestbiz.Summary, error) {
+	if summary == nil || summary.GetId() == "" || summary.GetStartedAt() == nil || summary.GetStartedAt().CheckValid() != nil {
+		return requestbiz.Summary{}, errors.New("analytics returned an invalid request summary")
+	}
+	duration, err := optionalDuration(summary.GetDuration())
+	if err != nil {
+		return requestbiz.Summary{}, fmt.Errorf("invalid request duration: %w", err)
+	}
+	return requestbiz.Summary{
+		ID:         summary.GetId(),
+		StartedAt:  summary.GetStartedAt().AsTime(),
+		Duration:   duration,
+		Method:     summary.GetMethod(),
+		Host:       summary.GetHost(),
+		Path:       summary.GetPath(),
+		StatusCode: summary.GetStatusCode(),
+		Outcome:    requestOutcome(summary.GetStatusCode()),
+		GatewayID:  summary.GetGatewayId(),
+		RouteID:    summary.GetRouteId(),
+		ServiceID:  summary.GetUpstreamId(),
+	}, nil
 }
 
 // Get 查询单次请求记录

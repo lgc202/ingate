@@ -10,6 +10,22 @@ import (
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 )
 
+func summaryResponse(summary *requestbiz.Summary) *adminv1.RequestRecordSummary {
+	return &adminv1.RequestRecordSummary{
+		Id:         summary.ID,
+		StartedAt:  timestamppb.New(summary.StartedAt),
+		Duration:   durationResponse(summary.Duration),
+		Method:     summary.Method,
+		Host:       summary.Host,
+		Path:       summary.Path,
+		StatusCode: summary.StatusCode,
+		Outcome:    outcomeResponse(summary.Outcome),
+		GatewayId:  summary.GatewayID,
+		RouteId:    summary.RouteID,
+		ServiceId:  summary.ServiceID,
+	}
+}
+
 func recordResponse(record *requestbiz.Record) *adminv1.RequestRecord {
 	return &adminv1.RequestRecord{
 		Id:                  record.ID,

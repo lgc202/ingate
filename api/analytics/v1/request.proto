@@ -3,6 +3,7 @@ syntax = "proto3";
 package ingate.analytics.v1;
 
 import "als/v1/request_record.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/analytics/v1;v1";
@@ -66,9 +67,33 @@ message ListRequestsRequest {
 // ListRequestsResponse 是请求明细分页结果。
 message ListRequestsResponse {
   // requests 是按请求开始时间倒序排列的请求记录。
-  repeated ingate.als.v1.RequestRecord requests = 1;
+  repeated RequestSummary requests = 1;
   // next_page_token 非空时表示还有下一页。
   string next_page_token = 2;
+}
+
+// RequestSummary 是管理面列表查询需要的请求摘要。
+message RequestSummary {
+  // id 是 ALS 为一次已完成请求生成的稳定记录 ID。
+  string id = 1;
+  // started_at 是 Envoy 开始处理请求的时间。
+  google.protobuf.Timestamp started_at = 2;
+  // duration 是请求的端到端处理耗时。
+  google.protobuf.Duration duration = 3;
+  // method 是 HTTP 请求方法。
+  string method = 4;
+  // host 是不包含端口的请求域名。
+  string host = 5;
+  // path 是不包含查询参数的请求路径。
+  string path = 6;
+  // status_code 是最终返回给客户端的 HTTP 状态码。
+  uint32 status_code = 7;
+  // gateway_id 是处理请求的 Gateway 资源 ID。
+  string gateway_id = 8;
+  // route_id 是请求最终命中的 Route 资源 ID。
+  string route_id = 9;
+  // upstream_id 是请求最终转发到的 Upstream 资源 ID。
+  string upstream_id = 10;
 }
 
 // GetRequestRequest 是单条请求明细查询参数。

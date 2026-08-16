@@ -42,6 +42,21 @@ type Record struct {
 	ProxyInstanceID     string
 }
 
+// Summary 是请求记录列表展示所需的最小字段集
+type Summary struct {
+	ID         string
+	StartedAt  time.Time
+	Duration   *time.Duration
+	Method     string
+	Host       string
+	Path       string
+	StatusCode uint32
+	Outcome    Outcome
+	GatewayID  string
+	RouteID    string
+	ServiceID  string
+}
+
 // Filter 是请求记录的结构化过滤条件，时间范围为左闭右开
 type Filter struct {
 	StartTime  time.Time
@@ -66,6 +81,6 @@ type ListOptions struct {
 
 // Page 是按请求开始时间倒序排列的请求记录分页结果
 type Page struct {
-	Records       []Record
+	Records       []Summary
 	NextPageToken string
 }
