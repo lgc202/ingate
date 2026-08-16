@@ -63,7 +63,6 @@ export function IPRestrictionPolicyEditor({
       <section className="form-section">
         <div className="form-section-title">
           <h3>应用目标</h3>
-          <p>可同时应用到多个网关或路由；留空时仅保存策略。</p>
         </div>
         <div className="policy-editor-grid">
           <PolicyTargetSelect options={targets} value={draft.targets} onChange={(nextTargets) => onChange({ ...draft, targets: nextTargets })} />
@@ -73,7 +72,6 @@ export function IPRestrictionPolicyEditor({
       <section className="form-section">
         <div className="form-section-title">
           <h3>访问范围</h3>
-          <p>允许列表只放行列出的地址；拒绝列表只拦截列出的地址。</p>
         </div>
         <div className="policy-restriction-mode" role="radiogroup" aria-label="访问限制方式">
           <button

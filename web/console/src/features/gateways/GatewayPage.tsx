@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { Globe, Layers3, Plus, Trash2 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { listCertificates } from '@/api/certificates';
 import { deleteGateway, listGateways, saveGateway } from '@/api/gateways';
 import { getPolicyWorkspace } from '@/api/policies';
@@ -12,6 +12,7 @@ import type { Gateway, GatewayListener, GatewayProtocol } from '@/domain/gateway
 import { gatewayProtocolLabel } from '@/domain/gateway';
 import type { PolicyWorkspace } from '@/domain/policy';
 import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
+import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
 import { buildGatewayPayload, createGatewayDraft, newListener, validateGatewayDraft, type GatewayDraft } from './form';
 
 export function GatewayPage() {
@@ -19,8 +20,8 @@ export function GatewayPage() {
   const gateways = useResource(listGateways);
   const certificates = useResource(listCertificates);
   const policies = useResource(getPolicyWorkspace);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
-  const [detail, setDetail] = useState<Gateway | null>(null);
   const [draft, setDraft] = useState<GatewayDraft>(() => createGatewayDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Gateway | null>(null);
@@ -35,6 +36,7 @@ export function GatewayPage() {
   }
 
   const list = gateways.data.gateways;
+  const detail = list.find((gateway) => gateway.id === searchParams.get('detail')) ?? null;
   const normalizedQuery = query.trim().toLowerCase();
   const visibleGateways = list.filter((gateway) => (
     `${gateway.name} ${gateway.listeners.map((listener) => `${listener.name} ${listener.hostname} ${listener.port}`).join(' ')}`
@@ -42,6 +44,12 @@ export function GatewayPage() {
       .includes(normalizedQuery)
   ));
   const certificateList = certificates.data?.certificates ?? [];
+  const setDetail = (gateway?: Gateway) => {
+    const next = new URLSearchParams(searchParams);
+    if (gateway) next.set('detail', gateway.id);
+    else next.delete('detail');
+    setSearchParams(next);
+  };
 
   const openEditor = (gateway?: Gateway) => {
     setDraft(createGatewayDraft(gateway));
@@ -82,9 +90,7 @@ export function GatewayPage() {
 
   return (
     <PageFrame
-      eyebrow="流量配置"
       title="网关"
-      subtitle="管理客户端访问入口、监听端口和 TLS 证书"
       actions={canWriteConfiguration ? <Button onClick={() => openEditor()}><Plus className="w-4 h-4" />创建网关</Button> : undefined}
     >
       <Panel>
@@ -112,11 +118,11 @@ export function GatewayPage() {
         )}
       </Panel>
 
-      <Drawer title="网关详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail(null)}>
+      <Drawer title="网关详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail()}>
         {detail ? <GatewayDetail gateway={detail} policies={policies.data} onPoliciesChanged={policies.reload} /> : null}
       </Drawer>
 
-      <Drawer title={draft.id ? `编辑网关：${draft.name}` : '创建网关'} subtitle="每个监听入口独立声明协议、端口和域名范围" isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
+      <Drawer title={draft.id ? `编辑网关：${draft.name}` : '创建网关'} isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
         <div className="space-y-5">
           <Field label="网关名称"><input className="input" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
           <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />启用网关</label>
@@ -150,6 +156,7 @@ function GatewayDetail({ gateway, policies, onPoliciesChanged }: { gateway: Gate
         <div><h3>{gateway.name}</h3></div>
         <Badge tone={resourceStateTone(state)}>{resourceStateLabel(state)}</Badge>
       </section>
+      <ResourceTrafficSummary kind="gateway" resourceID={gateway.id} />
       <section className="resource-detail-section">
         <h3>基本信息</h3>
         <div className="resource-detail-grid">

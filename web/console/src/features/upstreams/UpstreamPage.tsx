@@ -1,19 +1,21 @@
 import { useState, type ReactNode } from 'react';
-import { Plus, Server } from 'lucide-react';
+import { Plus, Server, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { deleteUpstream, listUpstreams, saveUpstream } from '@/api/upstreams';
 import { useResource } from '@/api/useResource';
 import { useAuth } from '@/auth/AuthContext';
 import { Badge, Button, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
 import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
-import type { Upstream } from '@/domain/upstream';
+import type { Upstream, UpstreamEndpoint } from '@/domain/upstream';
 import { upstreamLoadBalancingLabel, upstreamLoadBalancingOptions } from '@/domain/upstream';
+import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
 import { buildUpstreamPayload, createUpstreamDraft, validateUpstreamDraft, type UpstreamDraft } from './form';
 
 export function UpstreamPage() {
   const { canWriteConfiguration } = useAuth();
   const resource = useResource(listUpstreams);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
-  const [detail, setDetail] = useState<Upstream | null>(null);
   const [draft, setDraft] = useState<UpstreamDraft>(() => createUpstreamDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Upstream | null>(null);
@@ -33,11 +35,24 @@ export function UpstreamPage() {
   };
 
   const normalizedQuery = query.trim().toLowerCase();
+  const detail = resource.data.upstreams.find((upstream) => upstream.id === searchParams.get('detail')) ?? null;
   const visibleUpstreams = resource.data.upstreams.filter((upstream) => (
     `${upstream.name} ${upstream.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join(' ')}`
       .toLowerCase()
       .includes(normalizedQuery)
   ));
+  const setDetail = (upstream?: Upstream) => {
+    const next = new URLSearchParams(searchParams);
+    if (upstream) next.set('detail', upstream.id);
+    else next.delete('detail');
+    setSearchParams(next);
+  };
+  const updateEndpoint = (index: number, endpoint: UpstreamEndpoint) => {
+    setDraft({
+      ...draft,
+      endpoints: draft.endpoints.map((item, current) => current === index ? endpoint : item),
+    });
+  };
   const save = async () => {
     const errors = validateUpstreamDraft(draft);
     if (errors.length > 0) {
@@ -73,9 +88,7 @@ export function UpstreamPage() {
 
   return (
     <PageFrame
-      eyebrow="流量配置"
       title="服务"
-      subtitle="管理路由实际连接的 HTTP 与 HTTPS 服务"
       actions={canWriteConfiguration ? <Button onClick={() => openEditor()}><Plus className="w-4 h-4" />创建服务</Button> : undefined}
     >
       <Panel>
@@ -105,15 +118,35 @@ export function UpstreamPage() {
         )}
       </Panel>
 
-      <Drawer title="服务详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail(null)}>
+      <Drawer title="服务详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail()}>
         {detail ? <UpstreamDetail upstream={detail} /> : null}
       </Drawer>
 
-      <Drawer title={draft.id ? `编辑服务：${draft.name}` : '创建服务'} subtitle="配置上游地址、HTTPS 和健康检查" isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
+      <Drawer title={draft.id ? `编辑服务：${draft.name}` : '创建服务'} isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
         <div className="space-y-5">
           <Field label="服务名称"><input className="input" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
           <Field label="负载均衡"><select className="select" value={draft.loadBalancing} onChange={(event) => setDraft({ ...draft, loadBalancing: event.target.value as UpstreamDraft['loadBalancing'] })}>{upstreamLoadBalancingOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-          <div className="space-y-2"><div className="flex justify-between"><strong className="text-xs">服务地址</strong><Button variant="soft" size="sm" onClick={() => setDraft({ ...draft, endpoints: [...draft.endpoints, { address: '', port: 8080, weight: 1 }] })}>添加地址</Button></div>{draft.endpoints.map((endpoint, index) => <div key={index} className="grid grid-cols-[1fr_90px_90px_36px] gap-2"><input className="input font-mono" placeholder="service.example.com" value={endpoint.address} onChange={(event) => setDraft({ ...draft, endpoints: draft.endpoints.map((item, current) => current === index ? { ...item, address: event.target.value } : item) })} /><input className="input" type="number" min="1" max="65535" value={endpoint.port} onChange={(event) => setDraft({ ...draft, endpoints: draft.endpoints.map((item, current) => current === index ? { ...item, port: Number(event.target.value) } : item) })} /><input className="input" type="number" min="1" max="10000" value={endpoint.weight} onChange={(event) => setDraft({ ...draft, endpoints: draft.endpoints.map((item, current) => current === index ? { ...item, weight: Number(event.target.value) } : item) })} /><Button variant="ghost" size="sm" onClick={() => setDraft({ ...draft, endpoints: draft.endpoints.filter((_, current) => current !== index) })}>×</Button></div>)}</div>
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-4">
+              <strong className="text-xs">服务地址</strong>
+              <Button variant="soft" size="sm" onClick={() => setDraft({ ...draft, endpoints: [...draft.endpoints, { address: '', port: 8080, weight: 1 }] })}>添加地址</Button>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="grid min-w-[480px] gap-2">
+                <div className="grid grid-cols-[minmax(0,1fr)_90px_90px_36px] gap-2 px-1 text-[11px] font-medium text-slate-500" aria-hidden="true">
+                  <span>地址</span><span>端口</span><span>权重</span><span />
+                </div>
+                {draft.endpoints.map((endpoint, index) => (
+                  <div key={index} className="grid grid-cols-[minmax(0,1fr)_90px_90px_36px] gap-2">
+                    <input className="input font-mono" aria-label={`地址 ${index + 1}`} placeholder="service.example.com" value={endpoint.address} onChange={(event) => updateEndpoint(index, { ...endpoint, address: event.target.value })} />
+                    <input className="input" aria-label={`端口 ${index + 1}`} type="number" min="1" max="65535" value={endpoint.port} onChange={(event) => updateEndpoint(index, { ...endpoint, port: Number(event.target.value) })} />
+                    <input className="input" aria-label={`权重 ${index + 1}`} type="number" min="1" max="1000" value={endpoint.weight} onChange={(event) => updateEndpoint(index, { ...endpoint, weight: Number(event.target.value) })} />
+                    <Button variant="ghost" size="sm" aria-label={`删除地址 ${index + 1}`} onClick={() => setDraft({ ...draft, endpoints: draft.endpoints.filter((_, current) => current !== index) })}><Trash2 className="h-3.5 w-3.5 text-rose-600" /></Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
           <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={draft.httpsEnabled} onChange={(event) => setDraft({ ...draft, httpsEnabled: event.target.checked })} />使用 HTTPS</label>
           {draft.httpsEnabled ? <Field label="证书服务名称"><input className="input" value={draft.serverName} onChange={(event) => setDraft({ ...draft, serverName: event.target.value })} /></Field> : null}
           <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={draft.healthCheckEnabled} onChange={(event) => setDraft({ ...draft, healthCheckEnabled: event.target.checked })} />启用主动健康检查</label>
@@ -135,6 +168,7 @@ function UpstreamDetail({ upstream }: { upstream: Upstream }) {
         <div><h3>{upstream.name}</h3></div>
         <Badge tone={resourceStateTone(upstream.state)}>{resourceStateLabel(upstream.state)}</Badge>
       </section>
+      <ResourceTrafficSummary kind="service" resourceID={upstream.id} />
       <section className="resource-detail-section">
         <h3>连接设置</h3>
         <div className="resource-detail-grid">
