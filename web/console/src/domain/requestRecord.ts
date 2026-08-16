@@ -2,7 +2,8 @@ export type RequestOutcome =
   | 'REQUEST_OUTCOME_UNSPECIFIED'
   | 'REQUEST_OUTCOME_SUCCESS'
   | 'REQUEST_OUTCOME_CLIENT_ERROR'
-  | 'REQUEST_OUTCOME_SERVER_ERROR';
+  | 'REQUEST_OUTCOME_SERVER_ERROR'
+  | 'REQUEST_OUTCOME_NO_RESPONSE';
 
 // RequestRecordSummary 只包含列表扫描和进入详情所需的字段。
 export interface RequestRecordSummary {

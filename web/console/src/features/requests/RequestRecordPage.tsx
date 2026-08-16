@@ -288,6 +288,7 @@ function requestFiltersFromURL(params: URLSearchParams): RequestRecordFilters {
     gatewayID: params.get('gatewayID') || undefined,
     routeID: params.get('routeID') || undefined,
     serviceID: params.get('serviceID') || undefined,
+    outcome: requestOutcome(params.get('outcome')),
   };
 }
 
@@ -325,7 +326,18 @@ const outcomeOptions: Array<{ value: RequestOutcome | ''; label: string }> = [
   { value: 'REQUEST_OUTCOME_SUCCESS', label: '正常响应（2xx/3xx）' },
   { value: 'REQUEST_OUTCOME_CLIENT_ERROR', label: '客户端错误（4xx）' },
   { value: 'REQUEST_OUTCOME_SERVER_ERROR', label: '服务端错误（5xx）' },
+  { value: 'REQUEST_OUTCOME_NO_RESPONSE', label: '无响应' },
 ];
+
+function requestOutcome(value: string | null): RequestOutcome | undefined {
+  if (
+    value === 'REQUEST_OUTCOME_SUCCESS' ||
+    value === 'REQUEST_OUTCOME_CLIENT_ERROR' ||
+    value === 'REQUEST_OUTCOME_SERVER_ERROR' ||
+    value === 'REQUEST_OUTCOME_NO_RESPONSE'
+  ) return value;
+  return undefined;
+}
 
 function responseStatus(record: RequestRecord | RequestRecordSummary): string {
   return record.statusCode ? String(record.statusCode) : '无响应';

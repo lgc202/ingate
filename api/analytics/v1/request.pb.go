@@ -36,6 +36,8 @@ const (
 	StatusClass_STATUS_CLASS_CLIENT_ERROR StatusClass = 2
 	// STATUS_CLASS_SERVER_ERROR 表示状态码不小于 500。
 	StatusClass_STATUS_CLASS_SERVER_ERROR StatusClass = 3
+	// STATUS_CLASS_NO_RESPONSE 表示没有获得有效 HTTP 状态码。
+	StatusClass_STATUS_CLASS_NO_RESPONSE StatusClass = 4
 )
 
 // Enum value maps for StatusClass.
@@ -45,12 +47,14 @@ var (
 		1: "STATUS_CLASS_SUCCESS",
 		2: "STATUS_CLASS_CLIENT_ERROR",
 		3: "STATUS_CLASS_SERVER_ERROR",
+		4: "STATUS_CLASS_NO_RESPONSE",
 	}
 	StatusClass_value = map[string]int32{
 		"STATUS_CLASS_UNSPECIFIED":  0,
 		"STATUS_CLASS_SUCCESS":      1,
 		"STATUS_CLASS_CLIENT_ERROR": 2,
 		"STATUS_CLASS_SERVER_ERROR": 3,
+		"STATUS_CLASS_NO_RESPONSE":  4,
 	}
 )
 
@@ -570,12 +574,13 @@ const file_analytics_v1_request_proto_rawDesc = "" +
 	"\x11GetRequestRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
-	"started_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt*\x83\x01\n" +
+	"started_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt*\xa1\x01\n" +
 	"\vStatusClass\x12\x1c\n" +
 	"\x18STATUS_CLASS_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14STATUS_CLASS_SUCCESS\x10\x01\x12\x1d\n" +
 	"\x19STATUS_CLASS_CLIENT_ERROR\x10\x02\x12\x1d\n" +
-	"\x19STATUS_CLASS_SERVER_ERROR\x10\x032\xc9\x01\n" +
+	"\x19STATUS_CLASS_SERVER_ERROR\x10\x03\x12\x1c\n" +
+	"\x18STATUS_CLASS_NO_RESPONSE\x10\x042\xc9\x01\n" +
 	"\x0eRequestService\x12c\n" +
 	"\fListRequests\x12(.ingate.analytics.v1.ListRequestsRequest\x1a).ingate.analytics.v1.ListRequestsResponse\x12R\n" +
 	"\n" +

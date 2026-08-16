@@ -1,16 +1,18 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Activity, ArrowRight, Clock3, Gauge, ShieldCheck, TriangleAlert } from 'lucide-react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getTrafficAnalysis, getTrafficAnalysisWorkspace } from '@/api/traffic';
 import { useResource } from '@/api/useResource';
 import { Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
 import { formatDuration } from '@/domain/requestRecord';
+import type { RequestOutcome } from '@/domain/requestRecord';
 import { localDateTime, recentTimeRange, roundUpToMinute } from '@/domain/timeRange';
 import type {
   TrafficAnalysisFilters,
   TrafficAnalysisWorkspace,
   TrafficBreakdownDimension,
   TrafficBreakdownItem,
+  TrafficBreakdownOrder,
   TrafficMetrics,
   TrafficTrendPoint,
 } from '@/domain/traffic';
@@ -29,7 +31,20 @@ const dimensions: Array<{ value: TrafficBreakdownDimension; label: string }> = [
   { value: 'TRAFFIC_BREAKDOWN_DIMENSION_SERVICE', label: '服务' },
 ];
 
+const breakdownOrders: Array<{ value: TrafficBreakdownOrder; label: string }> = [
+  { value: 'TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT', label: '请求量' },
+  { value: 'TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE', label: '服务端错误率' },
+  { value: 'TRAFFIC_BREAKDOWN_ORDER_P95_DURATION', label: 'P95 总耗时' },
+];
+
 type TrendMetric = 'requests' | 'latency';
+type LatencyPercentile = 'p50' | 'p95' | 'p99';
+
+interface LatencySeries {
+  key: LatencyPercentile;
+  label: string;
+  values: Array<number | null>;
+}
 
 export function TrafficAnalysisPage() {
   const navigate = useNavigate();
@@ -62,6 +77,11 @@ export function TrafficAnalysisPage() {
   const selectDimension = (dimension: TrafficBreakdownDimension) => {
     setDraft((current) => ({ ...current, breakdownDimension: dimension }));
     setFilters((current) => ({ ...current, breakdownDimension: dimension }));
+  };
+
+  const selectBreakdownOrder = (breakdownOrder: TrafficBreakdownOrder) => {
+    setDraft((current) => ({ ...current, breakdownOrder }));
+    setFilters((current) => ({ ...current, breakdownOrder }));
   };
 
   if (analysis.loading && !analysis.data) {
@@ -107,33 +127,33 @@ export function TrafficAnalysisPage() {
         <Panel
           title="流量趋势"
           subtitle={`${formatRange(filters)} · ${trendBucketLabel(filters)}汇总`}
-          actions={<div className="traffic-chart-tabs"><button type="button" className={trendMetric === 'requests' ? 'is-active' : ''} onClick={() => setTrendMetric('requests')}>请求量</button><button type="button" className={trendMetric === 'latency' ? 'is-active' : ''} onClick={() => setTrendMetric('latency')}>P95 延迟</button></div>}
+          actions={<div className="traffic-chart-tabs"><button type="button" className={trendMetric === 'requests' ? 'is-active' : ''} onClick={() => setTrendMetric('requests')}>请求量</button><button type="button" className={trendMetric === 'latency' ? 'is-active' : ''} onClick={() => setTrendMetric('latency')}>耗时分位</button></div>}
         >
           <TrafficTrendChart points={analysis.data.trend} metric={trendMetric} startTime={filters.startTime} endTime={filters.endTime} />
         </Panel>
         <Panel title="响应结果" subtitle="按最终 HTTP 结果分类">
-          <ResponseDistribution metrics={summary} />
+          <ResponseDistribution metrics={summary} filters={filters} />
         </Panel>
       </section>
 
       <Panel
         title="资源排名"
-        subtitle="按请求量从高到低排列"
-        actions={<div className="traffic-dimension-tabs">{dimensions.map((dimension) => <button type="button" key={dimension.value} className={filters.breakdownDimension === dimension.value ? 'is-active' : ''} onClick={() => selectDimension(dimension.value)}>{dimension.label}</button>)}</div>}
+        subtitle={`${breakdownOrderLabel(filters.breakdownOrder)}从高到低排列`}
+        actions={<div className="traffic-ranking-controls"><label><span>排序</span><select value={filters.breakdownOrder} onChange={(event) => selectBreakdownOrder(event.target.value as TrafficBreakdownOrder)}>{breakdownOrders.map((order) => <option key={order.value} value={order.value}>{order.label}</option>)}</select></label><div className="traffic-dimension-tabs">{dimensions.map((dimension) => <button type="button" key={dimension.value} className={filters.breakdownDimension === dimension.value ? 'is-active' : ''} onClick={() => selectDimension(dimension.value)}>{dimension.label}</button>)}</div></div>}
       >
         {analysis.data.breakdown.length === 0 ? <EmptyState title="当前范围没有流量" message="调整时间或资源筛选后重新查询" /> : (
           <div className="table-scroll">
             <table className="table traffic-ranking-table">
-              <thead><tr><th>{dimensionLabel(breakdownDimension)}</th><th>请求量</th><th>正常响应率</th><th>客户端错误</th><th>服务端错误</th><th>无响应</th><th>P95 总耗时</th><th /></tr></thead>
+              <thead><tr><th>{dimensionLabel(breakdownDimension)}</th><th>请求量</th><th>正常响应率</th><th>客户端错误</th><th>服务端错误率</th><th>无响应</th><th>P95 总耗时</th><th /></tr></thead>
               <tbody>{analysis.data.breakdown.map((item) => (
                 <tr key={item.resourceID} onClick={() => navigate(requestRecordURL(filters, breakdownDimension, item))}>
                   <td><strong>{resourceName(names, breakdownDimension, item.resourceID, Boolean(workspace.data))}</strong></td>
                   <td>{formatTrafficCount(item.metrics.requestCount)}</td>
                   <td>{formatTrafficPercent(metricNumber(item.metrics.nonErrorCount), metricNumber(item.metrics.requestCount))}</td>
                   <td>{formatTrafficCount(item.metrics.clientErrorCount)}</td>
-                  <td>{formatTrafficCount(item.metrics.serverErrorCount)}</td>
+                  <td><strong>{formatTrafficPercent(metricNumber(item.metrics.serverErrorCount), metricNumber(item.metrics.requestCount))}</strong><small>{formatTrafficCount(item.metrics.serverErrorCount)} 次</small></td>
                   <td>{formatTrafficCount(item.metrics.noResponseCount)}</td>
-                  <td>{formatDuration(item.metrics.p95Duration)}</td>
+                  <td><strong>{formatDuration(item.metrics.p95Duration)}</strong><small>{formatTrafficCount(item.metrics.requestCount)} 次请求</small></td>
                   <td><ArrowRight /></td>
                 </tr>
               ))}</tbody>
@@ -157,12 +177,14 @@ function TrafficTrendChart({ points, metric, startTime, endTime }: { points: Tra
   }
 
   const samples = chartSamples(points, startTime, endTime);
-  const values = samples.map((sample) => {
-    if (metric === 'requests') return metricNumber(sample.metrics.requestCount);
-    return metricNumber(sample.metrics.requestCount) > 0 && sample.metrics.p95Duration ? durationMilliseconds(sample.metrics.p95Duration) : null;
-  });
-  const observedValueCount = values.filter((value): value is number => value !== null).length;
-  const maximum = niceChartMaximum(Math.max(...values.filter((value): value is number => value !== null), 1));
+  const requestValues = samples.map((sample) => metricNumber(sample.metrics.requestCount));
+  const latencySeries: LatencySeries[] = [
+    { key: 'p50', label: 'P50', values: latencyValues(samples, 'p50Duration') },
+    { key: 'p95', label: 'P95', values: latencyValues(samples, 'p95Duration') },
+    { key: 'p99', label: 'P99', values: latencyValues(samples, 'p99Duration') },
+  ];
+  const chartValues = metric === 'requests' ? requestValues : latencySeries.flatMap((series) => series.values);
+  const maximum = niceChartMaximum(Math.max(...chartValues.filter((value): value is number => value !== null), 1));
   const width = 960;
   const height = 230;
   const top = 12;
@@ -170,21 +192,25 @@ function TrafficTrendChart({ points, metric, startTime, endTime }: { points: Tra
   const plotHeight = height - top - bottom;
   const x = (index: number) => samples.length === 1 ? width / 2 : (index / (samples.length - 1)) * width;
   const y = (value: number) => top + plotHeight - (value / maximum) * plotHeight;
-  const paths = chartLinePaths(values, x, y, metric === 'latency');
-  const area = metric === 'requests' && paths.length === 1 ? `${paths[0]} L ${width} ${top + plotHeight} L 0 ${top + plotHeight} Z` : '';
+  const requestPaths = chartLinePaths(requestValues, x, y, 0);
+  const requestArea = requestPaths.length === 1 ? `${requestPaths[0]} L ${width} ${top + plotHeight} L 0 ${top + plotHeight} Z` : '';
+  const showLatencyPoints = samples.filter((sample) => metricNumber(sample.metrics.requestCount) > 0).length <= 24;
   const labels = chartRangeLabels(samples);
   const activeIndex = hoveredIndex !== null && hoveredIndex < samples.length ? hoveredIndex : null;
   const activeSample = activeIndex === null ? null : samples[activeIndex];
-  const activeValue = activeIndex === null ? null : values[activeIndex];
+  const activeRequestValue = activeIndex === null ? null : requestValues[activeIndex];
+  const activeP95Value = activeIndex === null ? null : latencySeries[1].values[activeIndex];
+  const activeP99Value = activeIndex === null ? null : latencySeries[2].values[activeIndex];
   const activeLeft = activeIndex === null ? 0 : samples.length === 1 ? 50 : (activeIndex / (samples.length - 1)) * 100;
   return (
-    <div className="traffic-trend-chart">
+    <div className={`traffic-trend-chart is-${metric}`}>
       <div className="traffic-chart-plot">
         <div className="traffic-chart-scale"><span>{metric === 'requests' ? formatTrafficCount(maximum) : formatMilliseconds(maximum)}</span><span>{metric === 'requests' ? formatTrafficCount(maximum / 2) : formatMilliseconds(maximum / 2)}</span><span>0</span></div>
+        {metric === 'latency' && <div className="traffic-latency-legend">{latencySeries.map((series) => <span key={series.key}><i className={`is-${series.key}`} />{series.label}</span>)}</div>}
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label={metric === 'requests' ? '请求量趋势' : 'P95 延迟趋势'}
+          aria-label={metric === 'requests' ? '请求量趋势' : '耗时分位趋势'}
           preserveAspectRatio="none"
           onPointerMove={(event) => {
             const bounds = event.currentTarget.getBoundingClientRect();
@@ -193,49 +219,65 @@ function TrafficTrendChart({ points, metric, startTime, endTime }: { points: Tra
           }}
           onPointerLeave={() => setHoveredIndex(null)}
         >
-          <defs><linearGradient id={`traffic-area-${metric}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4057d5" stopOpacity="0.2" /><stop offset="100%" stopColor="#4057d5" stopOpacity="0.01" /></linearGradient></defs>
+          <defs><linearGradient id="traffic-area-requests" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#4057d5" stopOpacity="0.2" /><stop offset="100%" stopColor="#4057d5" stopOpacity="0.01" /></linearGradient></defs>
           {[0, 0.5, 1].map((ratio) => <line key={ratio} x1="0" x2={width} y1={top + plotHeight * ratio} y2={top + plotHeight * ratio} className="traffic-grid-line" />)}
-          {area && <path d={area} fill={`url(#traffic-area-${metric})`} />}
-          {paths.map((path, index) => <path key={index} d={path} className={`traffic-trend-line is-${metric}`} />)}
-          {metric === 'latency' && observedValueCount === 1 ? values.map((value, index) => value === null ? null : <circle key={samples[index].startedAt} cx={x(index)} cy={y(value)} r="4" className="traffic-trend-dot" />) : null}
+          {metric === 'requests' && requestArea && <path d={requestArea} fill="url(#traffic-area-requests)" />}
+          {metric === 'requests' ? requestPaths.map((path, index) => <path key={index} d={path} className="traffic-trend-line is-requests" />) : latencySeries.flatMap((series) => (
+            chartLinePaths(series.values, x, y, 1).map((path, index) => <path key={`${series.key}-${index}`} d={path} className={`traffic-trend-line is-${series.key}`} />)
+          ))}
+          {metric === 'latency' && showLatencyPoints ? <>
+            {latencySeries[2].values.map((value, index) => value === null ? null : <circle key={samples[index].startedAt} cx={x(index)} cy={y(value)} r="4.5" className="traffic-trend-dot is-p99" />)}
+            {latencySeries[1].values.map((value, index) => value === null ? null : <circle key={samples[index].startedAt} cx={x(index)} cy={y(value)} r="2.5" className="traffic-trend-dot is-p95" />)}
+          </> : null}
           <rect x="0" y="0" width={width} height={height} className="traffic-chart-hit-area" />
           {activeIndex !== null && <line x1={x(activeIndex)} x2={x(activeIndex)} y1={top} y2={top + plotHeight} className="traffic-hover-line" />}
-          {activeIndex !== null && activeValue !== null && <circle cx={x(activeIndex)} cy={y(activeValue)} r="5" className="traffic-trend-dot is-active" />}
+          {metric === 'requests' && activeIndex !== null && activeRequestValue !== null && <circle cx={x(activeIndex)} cy={y(activeRequestValue)} r="5" className="traffic-trend-dot is-active" />}
+          {metric === 'latency' && activeIndex !== null && activeP99Value !== null && <circle cx={x(activeIndex)} cy={y(activeP99Value)} r="7" className="traffic-trend-dot is-active is-p99" />}
+          {metric === 'latency' && activeIndex !== null && activeP95Value !== null && <circle cx={x(activeIndex)} cy={y(activeP95Value)} r="4.5" className="traffic-trend-dot is-active is-p95" />}
         </svg>
-        {activeSample && <TrafficChartTooltip sample={activeSample} value={activeValue} metric={metric} left={activeLeft} />}
+        {activeSample && <TrafficChartTooltip sample={activeSample} metric={metric} left={activeLeft} />}
       </div>
       <div className="traffic-chart-labels">{labels.map((label) => <span key={label}>{label}</span>)}</div>
     </div>
   );
 }
 
-function TrafficChartTooltip({ sample, value, metric, left }: { sample: TrafficTrendPoint; value: number | null; metric: TrendMetric; left: number }) {
+function TrafficChartTooltip({ sample, metric, left }: { sample: TrafficTrendPoint; metric: TrendMetric; left: number }) {
   const requests = metricNumber(sample.metrics.requestCount);
   return (
-    <div className="traffic-chart-tooltip" style={{ left: `${Math.min(91, Math.max(9, left))}%` }}>
+    <div className={`traffic-chart-tooltip is-${metric}`} style={{ left: `${Math.min(91, Math.max(9, left))}%` }}>
       <time>{formatTrendTime(sample.startedAt)}</time>
-      <div><strong>{value === null ? '无请求' : metric === 'requests' ? formatTrafficCount(value) : formatMilliseconds(value)}</strong><span>{metric === 'requests' ? '请求量' : 'P95 总耗时'}</span></div>
-      <dl>
-        <div><dt>正常响应</dt><dd>{formatTrafficPercent(metricNumber(sample.metrics.nonErrorCount), requests)}</dd></div>
-        <div><dt>P95 总耗时</dt><dd>{requests > 0 ? formatDuration(sample.metrics.p95Duration) : '—'}</dd></div>
-      </dl>
+      {metric === 'requests' ? <>
+        <div><strong>{formatTrafficCount(requests)}</strong><span>请求量</span></div>
+        <dl>
+          <div><dt>正常响应</dt><dd>{formatTrafficPercent(metricNumber(sample.metrics.nonErrorCount), requests)}</dd></div>
+          <div><dt>P95 总耗时</dt><dd>{requests > 0 ? formatDuration(sample.metrics.p95Duration) : '—'}</dd></div>
+        </dl>
+      </> : <>
+        <div className="traffic-percentile-heading"><strong>{requests > 0 ? '耗时分位' : '无请求'}</strong><span>{formatTrafficCount(requests)} 次请求</span></div>
+        <dl className="traffic-percentile-values">
+          <div><dt><i className="is-p50" />P50</dt><dd>{requests > 0 ? formatDuration(sample.metrics.p50Duration) : '—'}</dd></div>
+          <div><dt><i className="is-p95" />P95</dt><dd>{requests > 0 ? formatDuration(sample.metrics.p95Duration) : '—'}</dd></div>
+          <div><dt><i className="is-p99" />P99</dt><dd>{requests > 0 ? formatDuration(sample.metrics.p99Duration) : '—'}</dd></div>
+        </dl>
+      </>}
     </div>
   );
 }
 
-function ResponseDistribution({ metrics }: { metrics: TrafficMetrics }) {
+function ResponseDistribution({ metrics, filters }: { metrics: TrafficMetrics; filters: TrafficAnalysisFilters }) {
   const total = metricNumber(metrics.requestCount);
-  const segments = [
-    { key: 'success', label: '正常响应', value: metricNumber(metrics.nonErrorCount) },
-    { key: 'client', label: '客户端错误', value: metricNumber(metrics.clientErrorCount) },
-    { key: 'server', label: '服务端错误', value: metricNumber(metrics.serverErrorCount) },
-    { key: 'missing', label: '无响应', value: metricNumber(metrics.noResponseCount) },
+  const segments: Array<{ key: string; label: string; value: number; outcome: RequestOutcome }> = [
+    { key: 'success', label: '正常响应', value: metricNumber(metrics.nonErrorCount), outcome: 'REQUEST_OUTCOME_SUCCESS' },
+    { key: 'client', label: '客户端错误', value: metricNumber(metrics.clientErrorCount), outcome: 'REQUEST_OUTCOME_CLIENT_ERROR' },
+    { key: 'server', label: '服务端错误', value: metricNumber(metrics.serverErrorCount), outcome: 'REQUEST_OUTCOME_SERVER_ERROR' },
+    { key: 'missing', label: '无响应', value: metricNumber(metrics.noResponseCount), outcome: 'REQUEST_OUTCOME_NO_RESPONSE' },
   ];
   return (
     <div className="traffic-distribution">
       <div className="traffic-distribution-total"><strong>{formatTrafficCount(total)}</strong><span>全部请求</span></div>
       <div className="traffic-distribution-bar">{segments.map((segment) => <i key={segment.key} className={`is-${segment.key}`} style={{ width: `${total > 0 ? (segment.value / total) * 100 : 0}%` }} />)}</div>
-      <div className="traffic-distribution-list">{segments.map((segment) => <div key={segment.key}><span><i className={`is-${segment.key}`} />{segment.label}</span><strong>{formatTrafficPercent(segment.value, total)}</strong><small>{formatTrafficCount(segment.value)}</small></div>)}</div>
+      <div className="traffic-distribution-list">{segments.map((segment) => <Link key={segment.key} to={requestResultURL(filters, segment.outcome)}><span><i className={`is-${segment.key}`} />{segment.label}</span><strong>{formatTrafficPercent(segment.value, total)}</strong><small>{formatTrafficCount(segment.value)}</small><ArrowRight /></Link>)}</div>
     </div>
   );
 }
@@ -279,6 +321,7 @@ function filtersFromURL(params: URLSearchParams): TrafficAnalysisFilters {
     routeID: params.get('routeID') || undefined,
     serviceID: params.get('serviceID') || undefined,
     breakdownDimension: trafficDimension(params.get('breakdownDimension')),
+    breakdownOrder: trafficBreakdownOrder(params.get('breakdownOrder')),
   };
 }
 
@@ -293,7 +336,26 @@ function trafficDimension(value: string | null): TrafficBreakdownDimension {
   return 'TRAFFIC_BREAKDOWN_DIMENSION_ROUTE';
 }
 
+function trafficBreakdownOrder(value: string | null): TrafficBreakdownOrder {
+  if (value === 'TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE' || value === 'TRAFFIC_BREAKDOWN_ORDER_P95_DURATION') return value;
+  return 'TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT';
+}
+
 function requestRecordURL(filters: TrafficAnalysisFilters, dimension: TrafficBreakdownDimension, item: TrafficBreakdownItem): string {
+  const query = requestRecordQuery(filters);
+  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY') query.set('gatewayID', item.resourceID);
+  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_ROUTE') query.set('routeID', item.resourceID);
+  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_SERVICE') query.set('serviceID', item.resourceID);
+  return `/requests?${query}`;
+}
+
+function requestResultURL(filters: TrafficAnalysisFilters, outcome: RequestOutcome): string {
+  const query = requestRecordQuery(filters);
+  query.set('outcome', outcome);
+  return `/requests?${query}`;
+}
+
+function requestRecordQuery(filters: TrafficAnalysisFilters): URLSearchParams {
   const query = new URLSearchParams({
     startTime: new Date(filters.startTime).toISOString(),
     endTime: new Date(filters.endTime).toISOString(),
@@ -301,10 +363,7 @@ function requestRecordURL(filters: TrafficAnalysisFilters, dimension: TrafficBre
   setQuery(query, 'gatewayID', filters.gatewayID);
   setQuery(query, 'routeID', filters.routeID);
   setQuery(query, 'serviceID', filters.serviceID);
-  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY') query.set('gatewayID', item.resourceID);
-  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_ROUTE') query.set('routeID', item.resourceID);
-  if (dimension === 'TRAFFIC_BREAKDOWN_DIMENSION_SERVICE') query.set('serviceID', item.resourceID);
-  return `/requests?${query}`;
+  return query;
 }
 
 function setQuery(query: URLSearchParams, name: string, value?: string) {
@@ -363,23 +422,25 @@ function chartSamples(points: TrafficTrendPoint[], startTime: string, endTime: s
   return samples;
 }
 
-function chartLinePaths(values: Array<number | null>, x: (index: number) => number, y: (value: number) => number, connectGaps: boolean): string[] {
-  if (connectGaps) {
-    const path = values.reduce((current, value, index) => (
-      value === null ? current : `${current}${current ? ' L' : 'M'} ${x(index)} ${y(value)}`
-    ), '');
-    return path ? [path] : [];
-  }
+function latencyValues(samples: TrafficTrendPoint[], field: 'p50Duration' | 'p95Duration' | 'p99Duration'): Array<number | null> {
+  return samples.map((sample) => {
+    const value = sample.metrics[field];
+    return metricNumber(sample.metrics.requestCount) > 0 && value ? durationMilliseconds(value) : null;
+  });
+}
 
+function chartLinePaths(values: Array<number | null>, x: (index: number) => number, y: (value: number) => number, maxMissingBuckets: number): string[] {
   const paths: string[] = [];
   let path = '';
+  let previousIndex: number | null = null;
   values.forEach((value, index) => {
-    if (value === null) {
+    if (value === null) return;
+    if (previousIndex !== null && index - previousIndex > maxMissingBuckets + 1) {
       if (path) paths.push(path);
       path = '';
-      return;
     }
     path += `${path ? ' L' : 'M'} ${x(index)} ${y(value)}`;
+    previousIndex = index;
   });
   if (path) paths.push(path);
   return paths;
@@ -426,4 +487,8 @@ function formatRange(filters: TrafficAnalysisFilters): string {
 
 function dimensionLabel(value: TrafficBreakdownDimension): string {
   return dimensions.find((item) => item.value === value)?.label ?? '资源';
+}
+
+function breakdownOrderLabel(value: TrafficBreakdownOrder): string {
+  return breakdownOrders.find((item) => item.value === value)?.label ?? '请求量';
 }

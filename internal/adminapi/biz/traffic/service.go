@@ -32,6 +32,9 @@ func (s *Service) Analyze(ctx context.Context, query Query) (Analysis, error) {
 	if query.Limit == 0 {
 		query.Limit = defaultBreakdownLimit
 	}
+	if query.Order == 0 {
+		query.Order = BreakdownOrderRequestCount
+	}
 	query.Bucket = bucketForRange(query.Filter.EndTime.Sub(query.Filter.StartTime))
 	return s.repository.Analyze(ctx, query)
 }

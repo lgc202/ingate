@@ -29,7 +29,7 @@ const (
 type RequestOutcome int32
 
 const (
-	// REQUEST_OUTCOME_UNSPECIFIED 表示没有可识别的 HTTP 结果
+	// REQUEST_OUTCOME_UNSPECIFIED 表示不按请求结果筛选
 	RequestOutcome_REQUEST_OUTCOME_UNSPECIFIED RequestOutcome = 0
 	// REQUEST_OUTCOME_SUCCESS 表示状态码小于 400
 	RequestOutcome_REQUEST_OUTCOME_SUCCESS RequestOutcome = 1
@@ -37,6 +37,8 @@ const (
 	RequestOutcome_REQUEST_OUTCOME_CLIENT_ERROR RequestOutcome = 2
 	// REQUEST_OUTCOME_SERVER_ERROR 表示状态码不小于 500
 	RequestOutcome_REQUEST_OUTCOME_SERVER_ERROR RequestOutcome = 3
+	// REQUEST_OUTCOME_NO_RESPONSE 表示没有获得有效 HTTP 状态码
+	RequestOutcome_REQUEST_OUTCOME_NO_RESPONSE RequestOutcome = 4
 )
 
 // Enum value maps for RequestOutcome.
@@ -46,12 +48,14 @@ var (
 		1: "REQUEST_OUTCOME_SUCCESS",
 		2: "REQUEST_OUTCOME_CLIENT_ERROR",
 		3: "REQUEST_OUTCOME_SERVER_ERROR",
+		4: "REQUEST_OUTCOME_NO_RESPONSE",
 	}
 	RequestOutcome_value = map[string]int32{
 		"REQUEST_OUTCOME_UNSPECIFIED":  0,
 		"REQUEST_OUTCOME_SUCCESS":      1,
 		"REQUEST_OUTCOME_CLIENT_ERROR": 2,
 		"REQUEST_OUTCOME_SERVER_ERROR": 3,
+		"REQUEST_OUTCOME_NO_RESPONSE":  4,
 	}
 )
 
@@ -790,12 +794,13 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\x17GetRequestRecordRequest\x12\x17\n" +
 	"\x02id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x02id\x129\n" +
 	"\n" +
-	"started_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt*\x92\x01\n" +
+	"started_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt*\xb3\x01\n" +
 	"\x0eRequestOutcome\x12\x1f\n" +
 	"\x1bREQUEST_OUTCOME_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17REQUEST_OUTCOME_SUCCESS\x10\x01\x12 \n" +
 	"\x1cREQUEST_OUTCOME_CLIENT_ERROR\x10\x02\x12 \n" +
-	"\x1cREQUEST_OUTCOME_SERVER_ERROR\x10\x032\xac\x02\n" +
+	"\x1cREQUEST_OUTCOME_SERVER_ERROR\x10\x03\x12\x1f\n" +
+	"\x1bREQUEST_OUTCOME_NO_RESPONSE\x10\x042\xac\x02\n" +
 	"\x14RequestRecordService\x12\x8e\x01\n" +
 	"\x12ListRequestRecords\x12*.ingate.admin.v1.ListRequestRecordsRequest\x1a+.ingate.admin.v1.ListRequestRecordsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/request-records\x12\x82\x01\n" +
 	"\x10GetRequestRecord\x12(.ingate.admin.v1.GetRequestRecordRequest\x1a\x1e.ingate.admin.v1.RequestRecord\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/v1/request-records/{id}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"

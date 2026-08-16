@@ -55,6 +55,7 @@ function resourceFilters(kind: ResourceKind, resourceID: string, range: { startT
   return {
     ...range,
     breakdownDimension: resourceDimension(kind),
+    breakdownOrder: 'TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT',
     gatewayID: kind === 'gateway' ? resourceID : undefined,
     routeID: kind === 'route' ? resourceID : undefined,
     serviceID: kind === 'service' ? resourceID : undefined,

@@ -82,6 +82,63 @@ func (TrafficBreakdownDimension) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_traffic_analysis_proto_rawDescGZIP(), []int{0}
 }
 
+// TrafficBreakdownOrder 是流量排名支持的排序依据
+type TrafficBreakdownOrder int32
+
+const (
+	// TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED 表示按请求量排序
+	TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED TrafficBreakdownOrder = 0
+	// TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT 按请求量从高到低排序
+	TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT TrafficBreakdownOrder = 1
+	// TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE 按服务端错误率从高到低排序
+	TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE TrafficBreakdownOrder = 2
+	// TRAFFIC_BREAKDOWN_ORDER_P95_DURATION 按 P95 总耗时从高到低排序
+	TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_P95_DURATION TrafficBreakdownOrder = 3
+)
+
+// Enum value maps for TrafficBreakdownOrder.
+var (
+	TrafficBreakdownOrder_name = map[int32]string{
+		0: "TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED",
+		1: "TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT",
+		2: "TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE",
+		3: "TRAFFIC_BREAKDOWN_ORDER_P95_DURATION",
+	}
+	TrafficBreakdownOrder_value = map[string]int32{
+		"TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED":       0,
+		"TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT":     1,
+		"TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE": 2,
+		"TRAFFIC_BREAKDOWN_ORDER_P95_DURATION":      3,
+	}
+)
+
+func (x TrafficBreakdownOrder) Enum() *TrafficBreakdownOrder {
+	p := new(TrafficBreakdownOrder)
+	*p = x
+	return p
+}
+
+func (x TrafficBreakdownOrder) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (TrafficBreakdownOrder) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_traffic_analysis_proto_enumTypes[1].Descriptor()
+}
+
+func (TrafficBreakdownOrder) Type() protoreflect.EnumType {
+	return &file_admin_v1_traffic_analysis_proto_enumTypes[1]
+}
+
+func (x TrafficBreakdownOrder) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use TrafficBreakdownOrder.Descriptor instead.
+func (TrafficBreakdownOrder) EnumDescriptor() ([]byte, []int) {
+	return file_admin_v1_traffic_analysis_proto_rawDescGZIP(), []int{1}
+}
+
 // GetTrafficAnalysisRequest 是流量分析的查询范围
 type GetTrafficAnalysisRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -97,8 +154,10 @@ type GetTrafficAnalysisRequest struct {
 	ServiceId string `protobuf:"bytes,5,opt,name=service_id,json=serviceID,proto3" json:"service_id,omitempty"`
 	// breakdown_dimension 指定排名所使用的资源维度
 	BreakdownDimension TrafficBreakdownDimension `protobuf:"varint,6,opt,name=breakdown_dimension,json=breakdownDimension,proto3,enum=ingate.admin.v1.TrafficBreakdownDimension" json:"breakdown_dimension,omitempty"`
-	// breakdown_limit 是按请求量排序后返回的最大资源数
+	// breakdown_limit 是返回的最大资源数
 	BreakdownLimit uint32 `protobuf:"varint,7,opt,name=breakdown_limit,json=breakdownLimit,proto3" json:"breakdown_limit,omitempty"`
+	// breakdown_order 指定资源排名的排序依据
+	BreakdownOrder TrafficBreakdownOrder `protobuf:"varint,8,opt,name=breakdown_order,json=breakdownOrder,proto3,enum=ingate.admin.v1.TrafficBreakdownOrder" json:"breakdown_order,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
 }
@@ -180,6 +239,13 @@ func (x *GetTrafficAnalysisRequest) GetBreakdownLimit() uint32 {
 		return x.BreakdownLimit
 	}
 	return 0
+}
+
+func (x *GetTrafficAnalysisRequest) GetBreakdownOrder() TrafficBreakdownOrder {
+	if x != nil {
+		return x.BreakdownOrder
+	}
+	return TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED
 }
 
 // TrafficMetrics 是一个范围内可直接解释的请求统计
@@ -419,10 +485,12 @@ type GetTrafficAnalysisResponse struct {
 	Trend []*TrafficAnalysisPoint `protobuf:"bytes,2,rep,name=trend,proto3" json:"trend,omitempty"`
 	// breakdown_dimension 是本次排名使用的资源维度
 	BreakdownDimension TrafficBreakdownDimension `protobuf:"varint,3,opt,name=breakdown_dimension,json=breakdownDimension,proto3,enum=ingate.admin.v1.TrafficBreakdownDimension" json:"breakdown_dimension,omitempty"`
-	// breakdown 是按请求量倒序排列的资源统计
-	Breakdown     []*TrafficBreakdownItem `protobuf:"bytes,4,rep,name=breakdown,proto3" json:"breakdown,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	// breakdown 是按指定依据倒序排列的资源统计
+	Breakdown []*TrafficBreakdownItem `protobuf:"bytes,4,rep,name=breakdown,proto3" json:"breakdown,omitempty"`
+	// breakdown_order 是本次排名使用的排序依据
+	BreakdownOrder TrafficBreakdownOrder `protobuf:"varint,5,opt,name=breakdown_order,json=breakdownOrder,proto3,enum=ingate.admin.v1.TrafficBreakdownOrder" json:"breakdown_order,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *GetTrafficAnalysisResponse) Reset() {
@@ -483,11 +551,18 @@ func (x *GetTrafficAnalysisResponse) GetBreakdown() []*TrafficBreakdownItem {
 	return nil
 }
 
+func (x *GetTrafficAnalysisResponse) GetBreakdownOrder() TrafficBreakdownOrder {
+	if x != nil {
+		return x.BreakdownOrder
+	}
+	return TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED
+}
+
 var File_admin_v1_traffic_analysis_proto protoreflect.FileDescriptor
 
 const file_admin_v1_traffic_analysis_proto_rawDesc = "" +
 	"\n" +
-	"\x1fadmin/v1/traffic_analysis.proto\x12\x0fingate.admin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xff\x02\n" +
+	"\x1fadmin/v1/traffic_analysis.proto\x12\x0fingate.admin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xdb\x03\n" +
 	"\x19GetTrafficAnalysisRequest\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -497,8 +572,9 @@ const file_admin_v1_traffic_analysis_proto_rawDesc = "" +
 	"\broute_id\x18\x04 \x01(\tR\arouteID\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x05 \x01(\tR\tserviceID\x12e\n" +
-	"\x13breakdown_dimension\x18\x06 \x01(\x0e2*.ingate.admin.v1.TrafficBreakdownDimensionB\b\xbaH\x05\x82\x01\x02\x10\x01R\x12breakdownDimension\x120\n" +
-	"\x0fbreakdown_limit\x18\a \x01(\rB\a\xbaH\x04*\x02\x182R\x0ebreakdownLimit\"\xe5\x03\n" +
+	"\x13breakdown_dimension\x18\x06 \x01(\x0e2*.ingate.admin.v1.TrafficBreakdownDimensionB\b\xbaH\x05\x82\x01\x02\x10\x01R\x12breakdownDimension\x121\n" +
+	"\x0fbreakdown_limit\x18\a \x01(\rB\b\xbaH\x05*\x03\x18\xc8\x01R\x0ebreakdownLimit\x12Y\n" +
+	"\x0fbreakdown_order\x18\b \x01(\x0e2&.ingate.admin.v1.TrafficBreakdownOrderB\b\xbaH\x05\x82\x01\x02\x10\x01R\x0ebreakdownOrder\"\xe5\x03\n" +
 	"\x0eTrafficMetrics\x12#\n" +
 	"\rrequest_count\x18\x01 \x01(\x04R\frequestCount\x12&\n" +
 	"\x0fnon_error_count\x18\x02 \x01(\x04R\rnonErrorCount\x12,\n" +
@@ -516,17 +592,23 @@ const file_admin_v1_traffic_analysis_proto_rawDesc = "" +
 	"\x14TrafficBreakdownItem\x12\x1f\n" +
 	"\vresource_id\x18\x01 \x01(\tR\n" +
 	"resourceID\x129\n" +
-	"\ametrics\x18\x02 \x01(\v2\x1f.ingate.admin.v1.TrafficMetricsR\ametrics\"\xb6\x02\n" +
+	"\ametrics\x18\x02 \x01(\v2\x1f.ingate.admin.v1.TrafficMetricsR\ametrics\"\x87\x03\n" +
 	"\x1aGetTrafficAnalysisResponse\x129\n" +
 	"\asummary\x18\x01 \x01(\v2\x1f.ingate.admin.v1.TrafficMetricsR\asummary\x12;\n" +
 	"\x05trend\x18\x02 \x03(\v2%.ingate.admin.v1.TrafficAnalysisPointR\x05trend\x12[\n" +
 	"\x13breakdown_dimension\x18\x03 \x01(\x0e2*.ingate.admin.v1.TrafficBreakdownDimensionR\x12breakdownDimension\x12C\n" +
-	"\tbreakdown\x18\x04 \x03(\v2%.ingate.admin.v1.TrafficBreakdownItemR\tbreakdown*\xc1\x01\n" +
+	"\tbreakdown\x18\x04 \x03(\v2%.ingate.admin.v1.TrafficBreakdownItemR\tbreakdown\x12O\n" +
+	"\x0fbreakdown_order\x18\x05 \x01(\x0e2&.ingate.admin.v1.TrafficBreakdownOrderR\x0ebreakdownOrder*\xc1\x01\n" +
 	"\x19TrafficBreakdownDimension\x12+\n" +
 	"'TRAFFIC_BREAKDOWN_DIMENSION_UNSPECIFIED\x10\x00\x12'\n" +
 	"#TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY\x10\x01\x12%\n" +
 	"!TRAFFIC_BREAKDOWN_DIMENSION_ROUTE\x10\x02\x12'\n" +
-	"#TRAFFIC_BREAKDOWN_DIMENSION_SERVICE\x10\x032\xaa\x01\n" +
+	"#TRAFFIC_BREAKDOWN_DIMENSION_SERVICE\x10\x03*\xc4\x01\n" +
+	"\x15TrafficBreakdownOrder\x12'\n" +
+	"#TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED\x10\x00\x12)\n" +
+	"%TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT\x10\x01\x12-\n" +
+	")TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE\x10\x02\x12(\n" +
+	"$TRAFFIC_BREAKDOWN_ORDER_P95_DURATION\x10\x032\xaa\x01\n" +
 	"\x16TrafficAnalysisService\x12\x8f\x01\n" +
 	"\x12GetTrafficAnalysis\x12*.ingate.admin.v1.GetTrafficAnalysisRequest\x1a+.ingate.admin.v1.GetTrafficAnalysisResponse\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/v1/traffic-analysisB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
@@ -542,40 +624,43 @@ func file_admin_v1_traffic_analysis_proto_rawDescGZIP() []byte {
 	return file_admin_v1_traffic_analysis_proto_rawDescData
 }
 
-var file_admin_v1_traffic_analysis_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_admin_v1_traffic_analysis_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_admin_v1_traffic_analysis_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_admin_v1_traffic_analysis_proto_goTypes = []any{
 	(TrafficBreakdownDimension)(0),     // 0: ingate.admin.v1.TrafficBreakdownDimension
-	(*GetTrafficAnalysisRequest)(nil),  // 1: ingate.admin.v1.GetTrafficAnalysisRequest
-	(*TrafficMetrics)(nil),             // 2: ingate.admin.v1.TrafficMetrics
-	(*TrafficAnalysisPoint)(nil),       // 3: ingate.admin.v1.TrafficAnalysisPoint
-	(*TrafficBreakdownItem)(nil),       // 4: ingate.admin.v1.TrafficBreakdownItem
-	(*GetTrafficAnalysisResponse)(nil), // 5: ingate.admin.v1.GetTrafficAnalysisResponse
-	(*timestamppb.Timestamp)(nil),      // 6: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),        // 7: google.protobuf.Duration
+	(TrafficBreakdownOrder)(0),         // 1: ingate.admin.v1.TrafficBreakdownOrder
+	(*GetTrafficAnalysisRequest)(nil),  // 2: ingate.admin.v1.GetTrafficAnalysisRequest
+	(*TrafficMetrics)(nil),             // 3: ingate.admin.v1.TrafficMetrics
+	(*TrafficAnalysisPoint)(nil),       // 4: ingate.admin.v1.TrafficAnalysisPoint
+	(*TrafficBreakdownItem)(nil),       // 5: ingate.admin.v1.TrafficBreakdownItem
+	(*GetTrafficAnalysisResponse)(nil), // 6: ingate.admin.v1.GetTrafficAnalysisResponse
+	(*timestamppb.Timestamp)(nil),      // 7: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),        // 8: google.protobuf.Duration
 }
 var file_admin_v1_traffic_analysis_proto_depIdxs = []int32{
-	6,  // 0: ingate.admin.v1.GetTrafficAnalysisRequest.start_time:type_name -> google.protobuf.Timestamp
-	6,  // 1: ingate.admin.v1.GetTrafficAnalysisRequest.end_time:type_name -> google.protobuf.Timestamp
+	7,  // 0: ingate.admin.v1.GetTrafficAnalysisRequest.start_time:type_name -> google.protobuf.Timestamp
+	7,  // 1: ingate.admin.v1.GetTrafficAnalysisRequest.end_time:type_name -> google.protobuf.Timestamp
 	0,  // 2: ingate.admin.v1.GetTrafficAnalysisRequest.breakdown_dimension:type_name -> ingate.admin.v1.TrafficBreakdownDimension
-	7,  // 3: ingate.admin.v1.TrafficMetrics.average_duration:type_name -> google.protobuf.Duration
-	7,  // 4: ingate.admin.v1.TrafficMetrics.p50_duration:type_name -> google.protobuf.Duration
-	7,  // 5: ingate.admin.v1.TrafficMetrics.p95_duration:type_name -> google.protobuf.Duration
-	7,  // 6: ingate.admin.v1.TrafficMetrics.p99_duration:type_name -> google.protobuf.Duration
-	6,  // 7: ingate.admin.v1.TrafficAnalysisPoint.started_at:type_name -> google.protobuf.Timestamp
-	2,  // 8: ingate.admin.v1.TrafficAnalysisPoint.metrics:type_name -> ingate.admin.v1.TrafficMetrics
-	2,  // 9: ingate.admin.v1.TrafficBreakdownItem.metrics:type_name -> ingate.admin.v1.TrafficMetrics
-	2,  // 10: ingate.admin.v1.GetTrafficAnalysisResponse.summary:type_name -> ingate.admin.v1.TrafficMetrics
-	3,  // 11: ingate.admin.v1.GetTrafficAnalysisResponse.trend:type_name -> ingate.admin.v1.TrafficAnalysisPoint
-	0,  // 12: ingate.admin.v1.GetTrafficAnalysisResponse.breakdown_dimension:type_name -> ingate.admin.v1.TrafficBreakdownDimension
-	4,  // 13: ingate.admin.v1.GetTrafficAnalysisResponse.breakdown:type_name -> ingate.admin.v1.TrafficBreakdownItem
-	1,  // 14: ingate.admin.v1.TrafficAnalysisService.GetTrafficAnalysis:input_type -> ingate.admin.v1.GetTrafficAnalysisRequest
-	5,  // 15: ingate.admin.v1.TrafficAnalysisService.GetTrafficAnalysis:output_type -> ingate.admin.v1.GetTrafficAnalysisResponse
-	15, // [15:16] is the sub-list for method output_type
-	14, // [14:15] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	1,  // 3: ingate.admin.v1.GetTrafficAnalysisRequest.breakdown_order:type_name -> ingate.admin.v1.TrafficBreakdownOrder
+	8,  // 4: ingate.admin.v1.TrafficMetrics.average_duration:type_name -> google.protobuf.Duration
+	8,  // 5: ingate.admin.v1.TrafficMetrics.p50_duration:type_name -> google.protobuf.Duration
+	8,  // 6: ingate.admin.v1.TrafficMetrics.p95_duration:type_name -> google.protobuf.Duration
+	8,  // 7: ingate.admin.v1.TrafficMetrics.p99_duration:type_name -> google.protobuf.Duration
+	7,  // 8: ingate.admin.v1.TrafficAnalysisPoint.started_at:type_name -> google.protobuf.Timestamp
+	3,  // 9: ingate.admin.v1.TrafficAnalysisPoint.metrics:type_name -> ingate.admin.v1.TrafficMetrics
+	3,  // 10: ingate.admin.v1.TrafficBreakdownItem.metrics:type_name -> ingate.admin.v1.TrafficMetrics
+	3,  // 11: ingate.admin.v1.GetTrafficAnalysisResponse.summary:type_name -> ingate.admin.v1.TrafficMetrics
+	4,  // 12: ingate.admin.v1.GetTrafficAnalysisResponse.trend:type_name -> ingate.admin.v1.TrafficAnalysisPoint
+	0,  // 13: ingate.admin.v1.GetTrafficAnalysisResponse.breakdown_dimension:type_name -> ingate.admin.v1.TrafficBreakdownDimension
+	5,  // 14: ingate.admin.v1.GetTrafficAnalysisResponse.breakdown:type_name -> ingate.admin.v1.TrafficBreakdownItem
+	1,  // 15: ingate.admin.v1.GetTrafficAnalysisResponse.breakdown_order:type_name -> ingate.admin.v1.TrafficBreakdownOrder
+	2,  // 16: ingate.admin.v1.TrafficAnalysisService.GetTrafficAnalysis:input_type -> ingate.admin.v1.GetTrafficAnalysisRequest
+	6,  // 17: ingate.admin.v1.TrafficAnalysisService.GetTrafficAnalysis:output_type -> ingate.admin.v1.GetTrafficAnalysisResponse
+	17, // [17:18] is the sub-list for method output_type
+	16, // [16:17] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_traffic_analysis_proto_init() }
@@ -588,7 +673,7 @@ func file_admin_v1_traffic_analysis_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_traffic_analysis_proto_rawDesc), len(file_admin_v1_traffic_analysis_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,

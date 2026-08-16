@@ -18,6 +18,8 @@ const (
 	StatusClassClientError
 	// StatusClassServerError 表示状态码位于 5xx 及以上
 	StatusClassServerError
+	// StatusClassNoResponse 表示请求没有获得有效 HTTP 状态码
+	StatusClassNoResponse
 )
 
 // Fact 保存 ALS 原始请求元数据和 Analytics 派生字段

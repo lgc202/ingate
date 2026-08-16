@@ -26,6 +26,8 @@ enum StatusClass {
   STATUS_CLASS_CLIENT_ERROR = 2;
   // STATUS_CLASS_SERVER_ERROR 表示状态码不小于 500。
   STATUS_CLASS_SERVER_ERROR = 3;
+  // STATUS_CLASS_NO_RESPONSE 表示没有获得有效 HTTP 状态码。
+  STATUS_CLASS_NO_RESPONSE = 4;
 }
 
 // RequestFilter 是请求明细查询的结构化过滤条件。

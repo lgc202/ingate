@@ -7,7 +7,7 @@ import "time"
 type Outcome uint8
 
 const (
-	// OutcomeUnknown 表示没有可归类的 HTTP 状态码
+	// OutcomeUnknown 表示查询时不限制请求结果
 	OutcomeUnknown Outcome = iota
 	// OutcomeSuccess 表示状态码小于 400
 	OutcomeSuccess
@@ -15,6 +15,8 @@ const (
 	OutcomeClientError
 	// OutcomeServerError 表示状态码不小于 500
 	OutcomeServerError
+	// OutcomeNoResponse 表示没有获得有效 HTTP 状态码
+	OutcomeNoResponse
 )
 
 // Record 是控制台排障使用的单次请求元数据

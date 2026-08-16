@@ -67,6 +67,8 @@ func requestOutcome(value adminv1.RequestOutcome) requestbiz.Outcome {
 		return requestbiz.OutcomeClientError
 	case adminv1.RequestOutcome_REQUEST_OUTCOME_SERVER_ERROR:
 		return requestbiz.OutcomeServerError
+	case adminv1.RequestOutcome_REQUEST_OUTCOME_NO_RESPONSE:
+		return requestbiz.OutcomeNoResponse
 	default:
 		return requestbiz.OutcomeUnknown
 	}

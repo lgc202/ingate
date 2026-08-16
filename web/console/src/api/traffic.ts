@@ -11,7 +11,8 @@ export async function getTrafficAnalysis(filters: TrafficAnalysisFilters): Promi
     startTime: new Date(filters.startTime).toISOString(),
     endTime: new Date(filters.endTime).toISOString(),
     breakdownDimension: filters.breakdownDimension,
-    breakdownLimit: '10',
+    breakdownOrder: filters.breakdownOrder,
+    breakdownLimit: String(filters.breakdownLimit ?? 10),
   });
   setQuery(query, 'gatewayID', filters.gatewayID);
   setQuery(query, 'routeID', filters.routeID);
