@@ -36,6 +36,7 @@ func analysisQuery(request *adminv1.GetTrafficAnalysisRequest) (trafficbiz.Query
 			ServiceID: request.GetServiceId(),
 		},
 		Dimension: breakdownDimension(request.GetBreakdownDimension()),
+		Order:     breakdownOrder(request.GetBreakdownOrder()),
 		Limit:     int(request.GetBreakdownLimit()),
 	}, nil
 }
@@ -60,5 +61,16 @@ func breakdownDimension(value adminv1.TrafficBreakdownDimension) trafficbiz.Dime
 		return trafficbiz.DimensionService
 	default:
 		return trafficbiz.DimensionRoute
+	}
+}
+
+func breakdownOrder(value adminv1.TrafficBreakdownOrder) trafficbiz.BreakdownOrder {
+	switch value {
+	case adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE:
+		return trafficbiz.BreakdownOrderServerErrorRate
+	case adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_P95_DURATION:
+		return trafficbiz.BreakdownOrderP95Duration
+	default:
+		return trafficbiz.BreakdownOrderRequestCount
 	}
 }

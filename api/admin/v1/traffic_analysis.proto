@@ -29,6 +29,18 @@ enum TrafficBreakdownDimension {
   TRAFFIC_BREAKDOWN_DIMENSION_SERVICE = 3;
 }
 
+// TrafficBreakdownOrder 是流量排名支持的排序依据
+enum TrafficBreakdownOrder {
+  // TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED 表示按请求量排序
+  TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED = 0;
+  // TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT 按请求量从高到低排序
+  TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT = 1;
+  // TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE 按服务端错误率从高到低排序
+  TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE = 2;
+  // TRAFFIC_BREAKDOWN_ORDER_P95_DURATION 按 P95 总耗时从高到低排序
+  TRAFFIC_BREAKDOWN_ORDER_P95_DURATION = 3;
+}
+
 // GetTrafficAnalysisRequest 是流量分析的查询范围
 message GetTrafficAnalysisRequest {
   // start_time 是查询范围起点，包含该时刻
@@ -43,8 +55,10 @@ message GetTrafficAnalysisRequest {
   string service_id = 5 [json_name = "serviceID"];
   // breakdown_dimension 指定排名所使用的资源维度
   TrafficBreakdownDimension breakdown_dimension = 6 [(buf.validate.field).enum.defined_only = true];
-  // breakdown_limit 是按请求量排序后返回的最大资源数
-  uint32 breakdown_limit = 7 [(buf.validate.field).uint32.lte = 50];
+  // breakdown_limit 是返回的最大资源数
+  uint32 breakdown_limit = 7 [(buf.validate.field).uint32.lte = 200];
+  // breakdown_order 指定资源排名的排序依据
+  TrafficBreakdownOrder breakdown_order = 8 [(buf.validate.field).enum.defined_only = true];
 }
 
 // TrafficMetrics 是一个范围内可直接解释的请求统计
@@ -93,6 +107,8 @@ message GetTrafficAnalysisResponse {
   repeated TrafficAnalysisPoint trend = 2;
   // breakdown_dimension 是本次排名使用的资源维度
   TrafficBreakdownDimension breakdown_dimension = 3;
-  // breakdown 是按请求量倒序排列的资源统计
+  // breakdown 是按指定依据倒序排列的资源统计
   repeated TrafficBreakdownItem breakdown = 4;
+  // breakdown_order 是本次排名使用的排序依据
+  TrafficBreakdownOrder breakdown_order = 5;
 }

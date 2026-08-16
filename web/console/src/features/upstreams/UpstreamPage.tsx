@@ -9,11 +9,13 @@ import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/
 import type { Upstream, UpstreamEndpoint } from '@/domain/upstream';
 import { upstreamLoadBalancingLabel, upstreamLoadBalancingOptions } from '@/domain/upstream';
 import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
+import { ResourceTrafficSignal, useResourceTrafficOverview } from '@/features/traffic/ResourceTrafficSignal';
 import { buildUpstreamPayload, createUpstreamDraft, validateUpstreamDraft, type UpstreamDraft } from './form';
 
 export function UpstreamPage() {
   const { canWriteConfiguration } = useAuth();
   const resource = useResource(listUpstreams);
+  const trafficOverview = useResourceTrafficOverview('service');
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
   const [draft, setDraft] = useState<UpstreamDraft>(() => createUpstreamDraft());
@@ -99,7 +101,7 @@ export function UpstreamPage() {
         {visibleUpstreams.length === 0 ? <div className="p-5"><EmptyState title={resource.data.upstreams.length === 0 ? '暂无服务' : '没有匹配的服务'} message={resource.data.upstreams.length === 0 ? '创建服务后即可在路由中选择转发目标' : '请调整搜索条件'} /></div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">地址</th><th className="p-3">连接</th><th className="p-3">负载均衡</th><th className="p-3">状态</th><th className="p-3">更新时间</th><th className="p-3 text-right">操作</th></tr></thead>
+              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">地址</th><th className="p-3">连接</th><th className="p-3">负载均衡</th><th className="p-3">最近 1 小时</th><th className="p-3">状态</th><th className="p-3">更新时间</th><th className="p-3 text-right">操作</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {visibleUpstreams.map((item) => (
                   <tr key={item.id}>
@@ -107,6 +109,7 @@ export function UpstreamPage() {
                     <td className="p-3 font-mono text-[11px]">{item.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join('、')}</td>
                     <td className="p-3">{item.tls ? `HTTPS · ${item.tls.serverName}` : 'HTTP'}</td>
                     <td className="p-3">{upstreamLoadBalancingLabel(item.loadBalancing)}</td>
+                    <td className="p-3"><ResourceTrafficSignal resourceID={item.id} overview={trafficOverview} /></td>
                     <td className="p-3"><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
                     <td className="p-3 text-slate-500">{formatDateTime(item.updatedAt || item.createdAt)}</td>
                     <td className="p-3 text-right"><RowActions onDetail={() => setDetail(item)} onEdit={canWriteConfiguration ? () => openEditor(item) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(item) : undefined} /></td>

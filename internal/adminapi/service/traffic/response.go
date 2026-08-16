@@ -12,6 +12,7 @@ func analysisResponse(analysis trafficbiz.Analysis) *adminv1.GetTrafficAnalysisR
 	response := &adminv1.GetTrafficAnalysisResponse{
 		Summary:            metricsResponse(analysis.Summary),
 		BreakdownDimension: dimensionResponse(analysis.Dimension),
+		BreakdownOrder:     orderResponse(analysis.Order),
 		Trend:              make([]*adminv1.TrafficAnalysisPoint, 0, len(analysis.Trend)),
 		Breakdown:          make([]*adminv1.TrafficBreakdownItem, 0, len(analysis.Breakdown)),
 	}
@@ -52,5 +53,16 @@ func dimensionResponse(value trafficbiz.Dimension) adminv1.TrafficBreakdownDimen
 		return adminv1.TrafficBreakdownDimension_TRAFFIC_BREAKDOWN_DIMENSION_SERVICE
 	default:
 		return adminv1.TrafficBreakdownDimension_TRAFFIC_BREAKDOWN_DIMENSION_ROUTE
+	}
+}
+
+func orderResponse(value trafficbiz.BreakdownOrder) adminv1.TrafficBreakdownOrder {
+	switch value {
+	case trafficbiz.BreakdownOrderServerErrorRate:
+		return adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE
+	case trafficbiz.BreakdownOrderP95Duration:
+		return adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_P95_DURATION
+	default:
+		return adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT
 	}
 }

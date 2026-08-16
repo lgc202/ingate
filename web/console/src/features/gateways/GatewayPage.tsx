@@ -12,12 +12,14 @@ import type { Gateway, GatewayListener, GatewayProtocol } from '@/domain/gateway
 import { gatewayProtocolLabel } from '@/domain/gateway';
 import type { PolicyWorkspace } from '@/domain/policy';
 import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
+import { ResourceTrafficSignal, useResourceTrafficOverview } from '@/features/traffic/ResourceTrafficSignal';
 import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
 import { buildGatewayPayload, createGatewayDraft, newListener, validateGatewayDraft, type GatewayDraft } from './form';
 
 export function GatewayPage() {
   const { canWriteConfiguration } = useAuth();
   const gateways = useResource(listGateways);
+  const trafficOverview = useResourceTrafficOverview('gateway');
   const certificates = useResource(listCertificates);
   const policies = useResource(getPolicyWorkspace);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -101,12 +103,13 @@ export function GatewayPage() {
         {visibleGateways.length === 0 ? <div className="p-5"><EmptyState title={list.length === 0 ? '暂无网关' : '没有匹配的网关'} message={list.length === 0 ? '创建网关后即可接收客户端流量' : '请调整搜索条件'} /></div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">监听入口</th><th className="p-3">状态</th><th className="p-3">更新时间</th><th className="p-3 text-right">操作</th></tr></thead>
+              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">监听入口</th><th className="p-3">最近 1 小时</th><th className="p-3">状态</th><th className="p-3">更新时间</th><th className="p-3 text-right">操作</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {visibleGateways.map((gateway) => (
                   <tr key={gateway.id}>
                     <td className="p-3"><div className="flex items-center gap-2"><Layers3 className="w-4 h-4 text-blue-600" /><strong>{gateway.name}</strong></div></td>
                     <td className="p-3"><div className="flex flex-wrap gap-1.5">{gateway.listeners.map((listener) => <Badge key={listener.name} tone="neutral">{gatewayProtocolLabel(listener.protocol)} · {listener.port} · {listener.hostname || '全部域名'}</Badge>)}</div></td>
+                    <td className="p-3"><ResourceTrafficSignal resourceID={gateway.id} overview={trafficOverview} /></td>
                     <td className="p-3"><Badge tone={resourceStateTone(gateway.enabled ? gateway.state : 'Disabled')}>{resourceStateLabel(gateway.enabled ? gateway.state : 'Disabled')}</Badge></td>
                     <td className="p-3 text-slate-500">{formatDateTime(gateway.updatedAt || gateway.createdAt)}</td>
                     <td className="p-3 text-right"><RowActions onDetail={() => setDetail(gateway)} onEdit={canWriteConfiguration ? () => openEditor(gateway) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(gateway) : undefined} /></td>

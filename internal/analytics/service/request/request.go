@@ -89,6 +89,8 @@ func buildStatusClass(value analyticsv1.StatusClass) (requestbiz.StatusClass, er
 		return requestbiz.StatusClassClientError, nil
 	case analyticsv1.StatusClass_STATUS_CLASS_SERVER_ERROR:
 		return requestbiz.StatusClassServerError, nil
+	case analyticsv1.StatusClass_STATUS_CLASS_NO_RESPONSE:
+		return requestbiz.StatusClassNoResponse, nil
 	default:
 		return 0, invalidArgument("status_class is invalid")
 	}

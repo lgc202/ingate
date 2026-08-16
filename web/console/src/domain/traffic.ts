@@ -5,6 +5,11 @@ export type TrafficBreakdownDimension =
   | 'TRAFFIC_BREAKDOWN_DIMENSION_ROUTE'
   | 'TRAFFIC_BREAKDOWN_DIMENSION_SERVICE';
 
+export type TrafficBreakdownOrder =
+  | 'TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT'
+  | 'TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE'
+  | 'TRAFFIC_BREAKDOWN_ORDER_P95_DURATION';
+
 export interface TrafficAnalysisFilters {
   startTime: string;
   endTime: string;
@@ -12,6 +17,8 @@ export interface TrafficAnalysisFilters {
   routeID?: string;
   serviceID?: string;
   breakdownDimension: TrafficBreakdownDimension;
+  breakdownOrder: TrafficBreakdownOrder;
+  breakdownLimit?: number;
 }
 
 export interface TrafficMetrics {
@@ -40,6 +47,7 @@ export interface TrafficAnalysis {
   summary: TrafficMetrics;
   trend: TrafficTrendPoint[];
   breakdownDimension: TrafficBreakdownDimension;
+  breakdownOrder: TrafficBreakdownOrder;
   breakdown: TrafficBreakdownItem[];
 }
 

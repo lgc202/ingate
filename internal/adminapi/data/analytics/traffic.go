@@ -45,6 +45,7 @@ func (r *TrafficRepository) Analyze(ctx context.Context, query trafficbiz.Query)
 	breakdownReply, err := r.client.ListTrafficBreakdown(ctx, &analyticsv1.ListTrafficBreakdownRequest{
 		Filter:    filter,
 		Dimension: analyticsTrafficDimension(query.Dimension),
+		Order:     analyticsTrafficBreakdownOrder(query.Order),
 		Limit:     uint32(query.Limit),
 	})
 	if err != nil {
@@ -84,6 +85,7 @@ func (r *TrafficRepository) Analyze(ctx context.Context, query trafficbiz.Query)
 		Summary:   summary,
 		Trend:     trend,
 		Dimension: query.Dimension,
+		Order:     query.Order,
 		Breakdown: breakdown,
 	}, nil
 }
@@ -206,6 +208,17 @@ func analyticsTrafficDimension(value trafficbiz.Dimension) analyticsv1.TrafficDi
 		return analyticsv1.TrafficDimension_TRAFFIC_DIMENSION_UPSTREAM
 	default:
 		return analyticsv1.TrafficDimension_TRAFFIC_DIMENSION_ROUTE
+	}
+}
+
+func analyticsTrafficBreakdownOrder(value trafficbiz.BreakdownOrder) analyticsv1.TrafficBreakdownOrder {
+	switch value {
+	case trafficbiz.BreakdownOrderServerErrorRate:
+		return analyticsv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE
+	case trafficbiz.BreakdownOrderP95Duration:
+		return analyticsv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_P95_DURATION
+	default:
+		return analyticsv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT
 	}
 }
 

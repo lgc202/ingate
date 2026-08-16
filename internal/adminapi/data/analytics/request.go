@@ -175,7 +175,7 @@ func requestOutcome(statusCode uint32) requestbiz.Outcome {
 	case statusCode >= 100:
 		return requestbiz.OutcomeSuccess
 	default:
-		return requestbiz.OutcomeUnknown
+		return requestbiz.OutcomeNoResponse
 	}
 }
 
@@ -187,6 +187,8 @@ func analyticsStatusClass(outcome requestbiz.Outcome) analyticsv1.StatusClass {
 		return analyticsv1.StatusClass_STATUS_CLASS_CLIENT_ERROR
 	case requestbiz.OutcomeServerError:
 		return analyticsv1.StatusClass_STATUS_CLASS_SERVER_ERROR
+	case requestbiz.OutcomeNoResponse:
+		return analyticsv1.StatusClass_STATUS_CLASS_NO_RESPONSE
 	default:
 		return analyticsv1.StatusClass_STATUS_CLASS_UNSPECIFIED
 	}

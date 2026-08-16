@@ -41,6 +41,18 @@ enum TrafficDimension {
   TRAFFIC_DIMENSION_UPSTREAM = 3;
 }
 
+// TrafficBreakdownOrder 是资源流量分布支持的排序依据
+enum TrafficBreakdownOrder {
+  // TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED 表示按请求量排序
+  TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED = 0;
+  // TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT 按请求量从高到低排序
+  TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT = 1;
+  // TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE 按服务端错误率从高到低排序
+  TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE = 2;
+  // TRAFFIC_BREAKDOWN_ORDER_P95_DURATION 按 P95 总耗时从高到低排序
+  TRAFFIC_BREAKDOWN_ORDER_P95_DURATION = 3;
+}
+
 // TrafficFilter 是流量聚合查询的结构化过滤条件。
 message TrafficFilter {
   // start_time 是查询时间范围的起点，包含该时刻并且必须对齐到整分钟。
@@ -119,8 +131,10 @@ message ListTrafficBreakdownRequest {
   TrafficFilter filter = 1;
   // dimension 指定 Gateway、Route 或 Upstream 聚合维度。
   TrafficDimension dimension = 2;
-  // limit 是按请求量排序后返回的最大资源数，零值使用服务端默认值。
+  // limit 是返回的最大资源数，零值使用服务端默认值。
   uint32 limit = 3;
+  // order 指定资源流量分布的排序依据
+  TrafficBreakdownOrder order = 4;
 }
 
 // TrafficBreakdownItem 是单个资源的请求统计。
@@ -145,7 +159,7 @@ message TrafficBreakdownItem {
   google.protobuf.Duration p99_duration = 9;
 }
 
-// ListTrafficBreakdownResponse 是按请求量倒序排列的资源流量分布。
+// ListTrafficBreakdownResponse 是按指定依据倒序排列的资源流量分布。
 message ListTrafficBreakdownResponse {
   // items 是查询结果中的资源统计。
   repeated TrafficBreakdownItem items = 1;

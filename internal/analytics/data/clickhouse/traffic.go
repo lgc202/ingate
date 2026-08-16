@@ -142,6 +142,10 @@ func (s *Store) QueryTrafficBreakdown(
 	if err != nil {
 		return nil, err
 	}
+	order, err := trafficBreakdownOrder(query.Order)
+	if err != nil {
+		return nil, err
+	}
 	queryCtx, cancel := context.WithTimeout(ctx, s.queryTimeout)
 	defer cancel()
 
@@ -156,7 +160,7 @@ func (s *Store) QueryTrafficBreakdown(
 	args := []any{query.Filter.StartTime, query.Filter.EndTime}
 	args = appendTrafficFilters(&statement, args, query.Filter)
 	fmt.Fprintf(&statement, " AND %s != ''", dimension)
-	statement.WriteString(" GROUP BY resource_id ORDER BY request_count DESC, resource_id LIMIT ?")
+	fmt.Fprintf(&statement, " GROUP BY resource_id ORDER BY %s LIMIT ?", order)
 	args = append(args, query.Limit)
 
 	rows, err := s.connection.Query(queryCtx, statement.String(), args...)
@@ -247,5 +251,19 @@ func trafficDimensionColumn(dimension traffic.Dimension) (string, error) {
 		return "upstream_id", nil
 	default:
 		return "", fmt.Errorf("unsupported traffic dimension %d", dimension)
+	}
+}
+
+// trafficBreakdownOrder 把受控排序枚举映射为 ClickHouse 表达式
+func trafficBreakdownOrder(order traffic.BreakdownOrder) (string, error) {
+	switch order {
+	case traffic.BreakdownOrderRequestCount:
+		return "request_count DESC, resource_id", nil
+	case traffic.BreakdownOrderServerErrorRate:
+		return "server_error_count / greatest(request_count, 1) DESC, request_count DESC, resource_id", nil
+	case traffic.BreakdownOrderP95Duration:
+		return "p95_duration_ns DESC, request_count DESC, resource_id", nil
+	default:
+		return "", fmt.Errorf("unsupported traffic breakdown order %d", order)
 	}
 }

@@ -41,6 +41,6 @@ func classifyStatus(status uint32) StatusClass {
 	case status >= 100:
 		return StatusClassSuccess
 	default:
-		return StatusClassUnknown
+		return StatusClassNoResponse
 	}
 }

@@ -23,7 +23,7 @@ service RequestRecordService {
 
 // RequestOutcome 是按 HTTP 状态码归纳的请求结果
 enum RequestOutcome {
-  // REQUEST_OUTCOME_UNSPECIFIED 表示没有可识别的 HTTP 结果
+  // REQUEST_OUTCOME_UNSPECIFIED 表示不按请求结果筛选
   REQUEST_OUTCOME_UNSPECIFIED = 0;
   // REQUEST_OUTCOME_SUCCESS 表示状态码小于 400
   REQUEST_OUTCOME_SUCCESS = 1;
@@ -31,6 +31,8 @@ enum RequestOutcome {
   REQUEST_OUTCOME_CLIENT_ERROR = 2;
   // REQUEST_OUTCOME_SERVER_ERROR 表示状态码不小于 500
   REQUEST_OUTCOME_SERVER_ERROR = 3;
+  // REQUEST_OUTCOME_NO_RESPONSE 表示没有获得有效 HTTP 状态码
+  REQUEST_OUTCOME_NO_RESPONSE = 4;
 }
 
 // RequestRecord 是控制台排障使用的单次请求元数据

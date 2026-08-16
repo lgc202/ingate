@@ -11,7 +11,7 @@ import (
 
 const (
 	defaultBreakdown = 20
-	maxBreakdown     = 100
+	maxBreakdown     = 200
 )
 
 func buildTrendQuery(request *analyticsv1.GetTrafficTrendRequest) (trafficbiz.TrendQuery, error) {
@@ -35,6 +35,10 @@ func buildBreakdownQuery(request *analyticsv1.ListTrafficBreakdownRequest) (traf
 	if err != nil {
 		return trafficbiz.BreakdownQuery{}, err
 	}
+	order, err := buildBreakdownOrder(request.GetOrder())
+	if err != nil {
+		return trafficbiz.BreakdownQuery{}, err
+	}
 	limit := int(request.GetLimit())
 	if limit == 0 {
 		limit = defaultBreakdown
@@ -42,7 +46,7 @@ func buildBreakdownQuery(request *analyticsv1.ListTrafficBreakdownRequest) (traf
 	if limit > maxBreakdown {
 		return trafficbiz.BreakdownQuery{}, invalidArgument("limit exceeds maximum")
 	}
-	return trafficbiz.BreakdownQuery{Filter: filter, Dimension: dimension, Limit: limit}, nil
+	return trafficbiz.BreakdownQuery{Filter: filter, Dimension: dimension, Order: order, Limit: limit}, nil
 }
 
 // 分钟聚合表无法准确表达分钟内的局部时间范围，因此协议边界必须对齐到整分钟
@@ -93,6 +97,20 @@ func buildDimension(value analyticsv1.TrafficDimension) (trafficbiz.Dimension, e
 		return trafficbiz.DimensionUpstream, nil
 	default:
 		return 0, invalidArgument("dimension is invalid")
+	}
+}
+
+func buildBreakdownOrder(value analyticsv1.TrafficBreakdownOrder) (trafficbiz.BreakdownOrder, error) {
+	switch value {
+	case analyticsv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED,
+		analyticsv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT:
+		return trafficbiz.BreakdownOrderRequestCount, nil
+	case analyticsv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE:
+		return trafficbiz.BreakdownOrderServerErrorRate, nil
+	case analyticsv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_P95_DURATION:
+		return trafficbiz.BreakdownOrderP95Duration, nil
+	default:
+		return 0, invalidArgument("order is invalid")
 	}
 }
 

@@ -28,6 +28,18 @@ const (
 	DimensionUpstream
 )
 
+// BreakdownOrder 是资源流量分布的排序依据
+type BreakdownOrder uint8
+
+const (
+	// BreakdownOrderRequestCount 按请求量从高到低排序
+	BreakdownOrderRequestCount BreakdownOrder = iota + 1
+	// BreakdownOrderServerErrorRate 按服务端错误率从高到低排序
+	BreakdownOrderServerErrorRate
+	// BreakdownOrderP95Duration 按 P95 总耗时从高到低排序
+	BreakdownOrderP95Duration
+)
+
 // Filter 是流量统计的过滤条件，时间范围为左闭右开且必须对齐到整分钟
 type Filter struct {
 	StartTime  time.Time
@@ -72,6 +84,7 @@ type Summary struct {
 type BreakdownQuery struct {
 	Filter    Filter
 	Dimension Dimension
+	Order     BreakdownOrder
 	Limit     int
 }
 

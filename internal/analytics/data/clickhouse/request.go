@@ -241,7 +241,9 @@ func appendRequestFilters(statement *strings.Builder, args []any, options reques
 		statement.WriteString(" AND startsWith(path, ?)")
 		args = append(args, filter.PathPrefix)
 	}
-	if filter.StatusClass != request.StatusClassUnknown {
+	if filter.StatusClass == request.StatusClassNoResponse {
+		statement.WriteString(" AND status_code = 0")
+	} else if filter.StatusClass != request.StatusClassUnknown {
 		statement.WriteString(" AND status_class = ?")
 		args = append(args, uint8(filter.StatusClass))
 	}

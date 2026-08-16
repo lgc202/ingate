@@ -31,6 +31,7 @@ import type {
   WeightedUpstream,
 } from '@/domain/route';
 import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
+import { ResourceTrafficSignal, useResourceTrafficOverview } from '@/features/traffic/ResourceTrafficSignal';
 import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
 
 const methods: HttpMethod[] = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
@@ -61,6 +62,7 @@ interface RouteDraft {
 export function RoutePage() {
   const { canWriteConfiguration } = useAuth();
   const workspace = useResource(getRouteWorkspace);
+  const trafficOverview = useResourceTrafficOverview('route');
   const policies = useResource(getPolicyWorkspace);
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
@@ -145,7 +147,7 @@ export function RoutePage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">请求匹配</th><th className="p-3">网关</th><th className="p-3">目标服务</th><th className="p-3">状态</th><th className="p-3 text-right">操作</th></tr></thead>
+              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">请求匹配</th><th className="p-3">网关</th><th className="p-3">目标服务</th><th className="p-3">最近 1 小时</th><th className="p-3">状态</th><th className="p-3 text-right">操作</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {visibleRoutes.map((route) => (
                   <tr key={route.id}>
@@ -153,6 +155,7 @@ export function RoutePage() {
                     <td className="p-3"><div className="table-primary font-mono">{pathMatchLabel(route)} {route.match.path.value}</div><div className="table-secondary">{methodLabel(route)}</div></td>
                     <td className="p-3">{resourceNames(route.gatewayIDs, data.gateways)}</td>
                     <td className="p-3">{resourceNames(route.upstreams.map((target) => target.upstreamID), data.upstreams)}</td>
+                    <td className="p-3"><ResourceTrafficSignal resourceID={route.id} overview={trafficOverview} /></td>
                     <td className="p-3"><Badge tone={resourceStateTone(route.enabled ? route.state : 'Disabled')}>{resourceStateLabel(route.enabled ? route.state : 'Disabled')}</Badge></td>
                     <td className="p-3 text-right"><RowActions onDetail={() => setDetail(route)} onEdit={canWriteConfiguration ? () => openEditor(route) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(route) : undefined} /></td>
                   </tr>
