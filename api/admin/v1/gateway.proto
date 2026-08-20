@@ -1,0 +1,98 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// GatewayService 提供网关入口管理接口
+service GatewayService {
+  rpc ListGateways(ListGatewaysRequest) returns (ListGatewaysResponse) {
+    option (google.api.http) = {get: "/api/v1/gateways"};
+  }
+  rpc GetGateway(GetGatewayRequest) returns (Gateway) {
+    option (google.api.http) = {get: "/api/v1/gateways/{id}"};
+  }
+  rpc CreateGateway(CreateGatewayRequest) returns (Gateway) {
+    option (google.api.http) = {
+      post: "/api/v1/gateways"
+      body: "*"
+    };
+  }
+  rpc UpdateGateway(UpdateGatewayRequest) returns (Gateway) {
+    option (google.api.http) = {
+      put: "/api/v1/gateways/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteGateway(DeleteGatewayRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/gateways/{id}"};
+  }
+}
+
+enum GatewayProtocol {
+  GATEWAY_PROTOCOL_UNSPECIFIED = 0;
+  GATEWAY_PROTOCOL_HTTP = 1;
+  GATEWAY_PROTOCOL_HTTPS = 2;
+}
+
+message GatewayListener {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  GatewayProtocol protocol = 2;
+  uint32 port = 3 [(buf.validate.field).uint32 = {
+    gte: 1
+    lte: 65535
+  }];
+  string hostname = 4;
+  string certificate_id = 5 [json_name = "certificateID"];
+}
+
+message Gateway {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  repeated GatewayListener listeners = 4;
+  ResourceState state = 5;
+  string message = 6;
+  int64 version = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+}
+
+message ListGatewaysRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListGatewaysResponse {
+  repeated Gateway gateways = 1;
+  string next_cursor = 2;
+}
+
+message GetGatewayRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateGatewayRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 2 [(buf.validate.field).required = true];
+  repeated GatewayListener listeners = 3 [(buf.validate.field).repeated.min_items = 1];
+}
+
+message UpdateGatewayRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 4 [(buf.validate.field).required = true];
+  repeated GatewayListener listeners = 5 [(buf.validate.field).repeated.min_items = 1];
+}
+
+message DeleteGatewayRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

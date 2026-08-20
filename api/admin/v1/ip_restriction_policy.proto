@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// IPRestrictionPolicyService 提供客户端 IP 访问限制策略管理接口
+service IPRestrictionPolicyService {
+  rpc ListIPRestrictionPolicies(ListIPRestrictionPoliciesRequest) returns (ListIPRestrictionPoliciesResponse) {
+    option (google.api.http) = {get: "/api/v1/ip-restriction-policies"};
+  }
+  rpc GetIPRestrictionPolicy(GetIPRestrictionPolicyRequest) returns (IPRestrictionPolicy) {
+    option (google.api.http) = {get: "/api/v1/ip-restriction-policies/{id}"};
+  }
+  rpc CreateIPRestrictionPolicy(CreateIPRestrictionPolicyRequest) returns (IPRestrictionPolicy) {
+    option (google.api.http) = {
+      post: "/api/v1/ip-restriction-policies"
+      body: "*"
+    };
+  }
+  rpc UpdateIPRestrictionPolicy(UpdateIPRestrictionPolicyRequest) returns (IPRestrictionPolicy) {
+    option (google.api.http) = {
+      put: "/api/v1/ip-restriction-policies/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteIPRestrictionPolicy(DeleteIPRestrictionPolicyRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/ip-restriction-policies/{id}"};
+  }
+}
+
+message IPRestrictionPolicy {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  repeated PolicyTarget targets = 4;
+  repeated string allow = 5;
+  repeated string deny = 6;
+  ResourceState state = 7;
+  string message = 8;
+  int64 version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message ListIPRestrictionPoliciesRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListIPRestrictionPoliciesResponse {
+  repeated IPRestrictionPolicy policies = 1;
+  string next_cursor = 2;
+}
+
+message GetIPRestrictionPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateIPRestrictionPolicyRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  repeated PolicyTargetRef targets = 2;
+  repeated string allow = 3 [(buf.validate.field).repeated.items.string.min_len = 1];
+  repeated string deny = 4 [(buf.validate.field).repeated.items.string.min_len = 1];
+}
+
+message UpdateIPRestrictionPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 4 [(buf.validate.field).required = true];
+  repeated PolicyTargetRef targets = 5;
+  repeated string allow = 6 [(buf.validate.field).repeated.items.string.min_len = 1];
+  repeated string deny = 7 [(buf.validate.field).repeated.items.string.min_len = 1];
+}
+
+message DeleteIPRestrictionPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

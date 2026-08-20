@@ -1,0 +1,23 @@
+server:
+  http:
+    addr: "0.0.0.0:8002"
+    timeout: "30s"
+  shutdown_timeout: "30s"
+
+data:
+  apiserver:
+    master: ""
+    kubeconfig: "/opt/ingate/admin-api/configs/kubeconfig.yaml"
+  analytics:
+    addr: "analytics:18101"
+    timeout: "5s"
+    tls:
+      enabled: false
+      ca_file: ""
+      cert_file: ""
+      key_file: ""
+      server_name: ""
+logging:
+  format: "json"
+  level: "info"
+  add_source: false

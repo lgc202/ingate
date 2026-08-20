@@ -1,0 +1,198 @@
+syntax = "proto3";
+
+package ingate.analytics.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/analytics/v1;v1";
+
+// TrafficService 向管理面提供流量和延迟聚合查询。
+service TrafficService {
+  // GetTrafficTrend 按固定时间粒度聚合流量和延迟趋势。
+  rpc GetTrafficTrend(GetTrafficTrendRequest) returns (GetTrafficTrendResponse);
+  // ListTrafficBreakdown 按一个资源维度聚合流量和延迟。
+  rpc ListTrafficBreakdown(ListTrafficBreakdownRequest) returns (ListTrafficBreakdownResponse);
+  // BatchGetResourceTraffic 查询指定资源的列表流量摘要。
+  rpc BatchGetResourceTraffic(BatchGetResourceTrafficRequest) returns (BatchGetResourceTrafficResponse);
+}
+
+// TimeBucket 是趋势查询支持的固定时间粒度。
+enum TimeBucket {
+  // TIME_BUCKET_UNSPECIFIED 表示未指定时间粒度。
+  TIME_BUCKET_UNSPECIFIED = 0;
+  // TIME_BUCKET_MINUTE 表示每分钟一个数据点。
+  TIME_BUCKET_MINUTE = 1;
+  // TIME_BUCKET_FIVE_MINUTES 表示每五分钟一个数据点。
+  TIME_BUCKET_FIVE_MINUTES = 2;
+  // TIME_BUCKET_HOUR 表示每小时一个数据点。
+  TIME_BUCKET_HOUR = 3;
+  // TIME_BUCKET_DAY 表示每天一个数据点。
+  TIME_BUCKET_DAY = 4;
+}
+
+// TrafficDimension 是流量分布支持的资源维度。
+enum TrafficDimension {
+  // TRAFFIC_DIMENSION_UNSPECIFIED 表示未指定资源维度。
+  TRAFFIC_DIMENSION_UNSPECIFIED = 0;
+  // TRAFFIC_DIMENSION_GATEWAY 按 Gateway 聚合。
+  TRAFFIC_DIMENSION_GATEWAY = 1;
+  // TRAFFIC_DIMENSION_ROUTE 按 Route 聚合。
+  TRAFFIC_DIMENSION_ROUTE = 2;
+  // TRAFFIC_DIMENSION_UPSTREAM 按 Upstream 聚合。
+  TRAFFIC_DIMENSION_UPSTREAM = 3;
+}
+
+// TrafficBreakdownOrder 是资源流量分布支持的排序依据
+enum TrafficBreakdownOrder {
+  // TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED 表示按请求量排序
+  TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED = 0;
+  // TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT 按请求量从高到低排序
+  TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT = 1;
+  // TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE 按服务端错误率从高到低排序
+  TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE = 2;
+  // TRAFFIC_BREAKDOWN_ORDER_P95_DURATION 按 P95 总耗时从高到低排序
+  TRAFFIC_BREAKDOWN_ORDER_P95_DURATION = 3;
+}
+
+// TrafficFilter 是流量聚合查询的结构化过滤条件。
+message TrafficFilter {
+  // start_time 是查询时间范围的起点，包含该时刻并且必须对齐到整分钟。
+  google.protobuf.Timestamp start_time = 1;
+  // end_time 是查询时间范围的终点，不包含该时刻并且必须对齐到整分钟。
+  google.protobuf.Timestamp end_time = 2;
+  // gateway_id 只统计经过指定 Gateway 的请求。
+  string gateway_id = 3;
+  // route_id 只统计命中指定 Route 的请求。
+  string route_id = 4;
+  // upstream_id 只统计最终转发到指定 Upstream 的请求。
+  string upstream_id = 5;
+}
+
+// GetTrafficTrendRequest 是流量趋势查询参数。
+message GetTrafficTrendRequest {
+  // filter 限定查询时间和资源范围。
+  TrafficFilter filter = 1;
+  // bucket 指定每个趋势数据点覆盖的时间粒度。
+  TimeBucket bucket = 2;
+}
+
+// TrafficTrendPoint 是单个时间段内的请求统计。
+message TrafficTrendPoint {
+  // started_at 是该时间段的起始时刻。
+  google.protobuf.Timestamp started_at = 1;
+  // request_count 是该时间段内的请求总数。
+  uint64 request_count = 2;
+  // client_error_count 是 4xx 请求数。
+  uint64 client_error_count = 3;
+  // server_error_count 是 5xx 及以上请求数。
+  uint64 server_error_count = 4;
+  // average_duration 是请求平均总耗时。
+  google.protobuf.Duration average_duration = 5;
+  // p95_duration 是请求总耗时的 P95 分位值。
+  google.protobuf.Duration p95_duration = 6;
+  // no_response_count 是未获得有效 HTTP 状态码的请求数。
+  uint64 no_response_count = 7;
+  // p50_duration 是请求总耗时的 P50 分位值。
+  google.protobuf.Duration p50_duration = 8;
+  // p99_duration 是请求总耗时的 P99 分位值。
+  google.protobuf.Duration p99_duration = 9;
+}
+
+// GetTrafficTrendResponse 是按时间递增排列的流量趋势。
+message GetTrafficTrendResponse {
+  // points 是查询时间范围内有请求的时间段。
+  repeated TrafficTrendPoint points = 1;
+  // summary 是整个查询时间范围的汇总统计。
+  TrafficSummary summary = 2;
+}
+
+// TrafficSummary 是整个查询范围的流量和延迟汇总。
+message TrafficSummary {
+  // request_count 是请求总数。
+  uint64 request_count = 1;
+  // client_error_count 是 4xx 请求数。
+  uint64 client_error_count = 2;
+  // server_error_count 是 5xx 及以上请求数。
+  uint64 server_error_count = 3;
+  // no_response_count 是未获得有效 HTTP 状态码的请求数。
+  uint64 no_response_count = 4;
+  // average_duration 是请求平均总耗时。
+  google.protobuf.Duration average_duration = 5;
+  // p50_duration 是请求总耗时的 P50 分位值。
+  google.protobuf.Duration p50_duration = 6;
+  // p95_duration 是请求总耗时的 P95 分位值。
+  google.protobuf.Duration p95_duration = 7;
+  // p99_duration 是请求总耗时的 P99 分位值。
+  google.protobuf.Duration p99_duration = 8;
+}
+
+// ListTrafficBreakdownRequest 是资源维度流量分布查询参数。
+message ListTrafficBreakdownRequest {
+  // filter 限定查询时间和资源范围。
+  TrafficFilter filter = 1;
+  // dimension 指定 Gateway、Route 或 Upstream 聚合维度。
+  TrafficDimension dimension = 2;
+  // limit 是返回的最大资源数，零值使用服务端默认值。
+  uint32 limit = 3;
+  // order 指定资源流量分布的排序依据
+  TrafficBreakdownOrder order = 4;
+}
+
+// TrafficBreakdownItem 是单个资源的请求统计。
+message TrafficBreakdownItem {
+  // resource_id 是聚合维度对应的资源 ID。
+  string resource_id = 1;
+  // request_count 是该资源处理的请求总数。
+  uint64 request_count = 2;
+  // client_error_count 是该资源处理的 4xx 请求数。
+  uint64 client_error_count = 3;
+  // server_error_count 是该资源处理的 5xx 及以上请求数。
+  uint64 server_error_count = 4;
+  // average_duration 是该资源处理请求的平均总耗时。
+  google.protobuf.Duration average_duration = 5;
+  // p95_duration 是该资源处理请求总耗时的 P95 分位值。
+  google.protobuf.Duration p95_duration = 6;
+  // no_response_count 是该资源未获得有效 HTTP 状态码的请求数。
+  uint64 no_response_count = 7;
+  // p50_duration 是该资源处理请求总耗时的 P50 分位值。
+  google.protobuf.Duration p50_duration = 8;
+  // p99_duration 是该资源处理请求总耗时的 P99 分位值。
+  google.protobuf.Duration p99_duration = 9;
+}
+
+// ListTrafficBreakdownResponse 是按指定依据倒序排列的资源流量分布。
+message ListTrafficBreakdownResponse {
+  // items 是查询结果中的资源统计。
+  repeated TrafficBreakdownItem items = 1;
+}
+
+// BatchGetResourceTrafficRequest 是资源列表批量查询所需的最小参数。
+message BatchGetResourceTrafficRequest {
+  // start_time 是查询时间范围的起点，包含该时刻并且必须对齐到整分钟。
+  google.protobuf.Timestamp start_time = 1;
+  // end_time 是查询时间范围的终点，不包含该时刻并且必须对齐到整分钟。
+  google.protobuf.Timestamp end_time = 2;
+  // dimension 指定 resource_ids 对应 Gateway、Route 或 Upstream。
+  TrafficDimension dimension = 3;
+  // resource_ids 是本次需要展示流量信号的资源 ID。
+  repeated string resource_ids = 4;
+}
+
+// ResourceTrafficSummary 是资源列表展示所需的轻量流量计数。
+message ResourceTrafficSummary {
+  // resource_id 是聚合维度对应的资源 ID。
+  string resource_id = 1;
+  // request_count 是该资源处理的请求总数。
+  uint64 request_count = 2;
+  // server_error_count 是该资源处理的 5xx 及以上请求数。
+  uint64 server_error_count = 3;
+  // no_response_count 是该资源未获得有效 HTTP 状态码的请求数。
+  uint64 no_response_count = 4;
+}
+
+// BatchGetResourceTrafficResponse 是指定资源中存在流量记录的摘要集合。
+message BatchGetResourceTrafficResponse {
+  // summaries 是按资源 ID 聚合后的流量摘要。
+  repeated ResourceTrafficSummary summaries = 1;
+}

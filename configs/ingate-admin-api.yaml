@@ -1,0 +1,23 @@
+server:
+  http:
+    addr: ":8082"
+    timeout: "30s"
+  shutdown_timeout: "30s"
+
+data:
+  apiserver:
+    master: ""
+    kubeconfig: "_output/kubeconfig"
+  analytics:
+    addr: "127.0.0.1:18101"
+    timeout: "5s"
+    tls:
+      enabled: false
+      ca_file: ""
+      cert_file: ""
+      key_file: ""
+      server_name: ""
+logging:
+  format: "json"
+  level: "info"
+  add_source: false

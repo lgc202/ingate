@@ -1,0 +1,110 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// RateLimitPolicyService 提供请求限流策略管理接口
+service RateLimitPolicyService {
+  rpc ListRateLimitPolicies(ListRateLimitPoliciesRequest) returns (ListRateLimitPoliciesResponse) {
+    option (google.api.http) = {get: "/api/v1/rate-limit-policies"};
+  }
+  rpc GetRateLimitPolicy(GetRateLimitPolicyRequest) returns (RateLimitPolicy) {
+    option (google.api.http) = {get: "/api/v1/rate-limit-policies/{id}"};
+  }
+  rpc CreateRateLimitPolicy(CreateRateLimitPolicyRequest) returns (RateLimitPolicy) {
+    option (google.api.http) = {
+      post: "/api/v1/rate-limit-policies"
+      body: "*"
+    };
+  }
+  rpc UpdateRateLimitPolicy(UpdateRateLimitPolicyRequest) returns (RateLimitPolicy) {
+    option (google.api.http) = {
+      put: "/api/v1/rate-limit-policies/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteRateLimitPolicy(DeleteRateLimitPolicyRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/rate-limit-policies/{id}"};
+  }
+}
+
+enum RateLimitSubjectType {
+  RATE_LIMIT_SUBJECT_TYPE_UNSPECIFIED = 0;
+  RATE_LIMIT_SUBJECT_TYPE_SHARED = 1;
+  RATE_LIMIT_SUBJECT_TYPE_IP = 2;
+  RATE_LIMIT_SUBJECT_TYPE_HEADER = 3;
+}
+
+message RateLimitSubject {
+  RateLimitSubjectType type = 1 [(buf.validate.field).enum.defined_only = true];
+  string header_name = 2;
+}
+
+message RateLimit {
+  int64 requests = 1 [(buf.validate.field).int64 = {
+    gt: 0
+    lte: 2147483647
+  }];
+  int64 window_seconds = 2 [(buf.validate.field).int64 = {
+    gt: 0
+    lte: 2147483647
+  }];
+}
+
+message RateLimitPolicy {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  repeated PolicyTarget targets = 4;
+  RateLimitSubject subject = 5;
+  RateLimit limit = 6;
+  ResourceState state = 7;
+  string message = 8;
+  int64 version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message ListRateLimitPoliciesRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListRateLimitPoliciesResponse {
+  repeated RateLimitPolicy policies = 1;
+  string next_cursor = 2;
+}
+
+message GetRateLimitPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateRateLimitPolicyRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 2 [(buf.validate.field).required = true];
+  repeated PolicyTargetRef targets = 3;
+  RateLimitSubject subject = 4 [(buf.validate.field).required = true];
+  RateLimit limit = 5 [(buf.validate.field).required = true];
+}
+
+message UpdateRateLimitPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 4 [(buf.validate.field).required = true];
+  repeated PolicyTargetRef targets = 5;
+  RateLimitSubject subject = 6 [(buf.validate.field).required = true];
+  RateLimit limit = 7 [(buf.validate.field).required = true];
+}
+
+message DeleteRateLimitPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

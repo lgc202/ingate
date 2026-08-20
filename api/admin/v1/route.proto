@@ -1,0 +1,246 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// RouteService 提供路由管理接口
+service RouteService {
+  rpc ListRoutes(ListRoutesRequest) returns (ListRoutesResponse) {
+    option (google.api.http) = {get: "/api/v1/routes"};
+  }
+  rpc GetRoute(GetRouteRequest) returns (Route) {
+    option (google.api.http) = {get: "/api/v1/routes/{id}"};
+  }
+  rpc CreateRoute(CreateRouteRequest) returns (Route) {
+    option (google.api.http) = {
+      post: "/api/v1/routes"
+      body: "*"
+    };
+  }
+  rpc UpdateRoute(UpdateRouteRequest) returns (Route) {
+    option (google.api.http) = {
+      put: "/api/v1/routes/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteRoute(DeleteRouteRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/routes/{id}"};
+  }
+}
+
+enum RoutePathMatchType {
+  ROUTE_PATH_MATCH_TYPE_UNSPECIFIED = 0;
+  ROUTE_PATH_MATCH_PREFIX = 1;
+  ROUTE_PATH_MATCH_EXACT = 2;
+}
+
+enum HTTPMethod {
+  HTTP_METHOD_UNSPECIFIED = 0;
+  HTTP_METHOD_GET = 1;
+  HTTP_METHOD_HEAD = 2;
+  HTTP_METHOD_POST = 3;
+  HTTP_METHOD_PUT = 4;
+  HTTP_METHOD_PATCH = 5;
+  HTTP_METHOD_DELETE = 6;
+  HTTP_METHOD_OPTIONS = 7;
+}
+
+enum HostRewriteMode {
+  HOST_REWRITE_MODE_UNSPECIFIED = 0;
+  HOST_REWRITE_MODE_SERVICE_ADDRESS = 1;
+  HOST_REWRITE_MODE_PRESERVE = 2;
+  HOST_REWRITE_MODE_CUSTOM = 3;
+}
+
+enum RouteAccessMode {
+  ROUTE_ACCESS_MODE_UNSPECIFIED = 0;
+  ROUTE_ACCESS_PUBLIC = 1;
+  ROUTE_ACCESS_CALLER = 2;
+}
+
+message RoutePathMatch {
+  RoutePathMatchType type = 1;
+  string value = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message HeaderMatch {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string value = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message RouteMatch {
+  RoutePathMatch path = 1 [(buf.validate.field).required = true];
+  repeated HTTPMethod methods = 2;
+  repeated HeaderMatch headers = 3;
+}
+
+message RouteUpstream {
+  string upstream_id = 1 [
+    json_name = "upstreamID",
+    (buf.validate.field).string.uuid = true
+  ];
+  uint32 weight = 2 [(buf.validate.field).uint32 = {
+    gte: 1
+    lte: 1000
+  }];
+}
+
+message AIModelTarget {
+  string upstream_id = 1 [
+    json_name = "upstreamID",
+    (buf.validate.field).string.uuid = true
+  ];
+  string model = 2 [(buf.validate.field).string.min_len = 1];
+  uint32 weight = 3 [(buf.validate.field).uint32 = {
+    gte: 1
+    lte: 1000
+  }];
+}
+
+message AIModel {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  repeated AIModelTarget targets = 2 [(buf.validate.field).repeated.min_items = 1];
+}
+
+// AIRoute 把调用方使用的稳定模型名映射到一个或多个模型服务线路
+message AIRoute {
+  repeated AIModel models = 1 [(buf.validate.field).repeated.min_items = 1];
+}
+
+message HeaderValue {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string value = 2 [(buf.validate.field).string.min_len = 1];
+}
+
+message HeaderModifier {
+  repeated HeaderValue set = 1;
+  repeated HeaderValue add = 2;
+  repeated string remove = 3;
+}
+
+message HostRewrite {
+  HostRewriteMode mode = 1 [(buf.validate.field).enum.defined_only = true];
+  string hostname = 2;
+}
+
+message RouteTimeout {
+  uint32 request_millis = 1 [(buf.validate.field).uint32 = {
+    gte: 100
+    lte: 300000
+  }];
+}
+
+message RouteRetry {
+  uint32 attempts = 1 [(buf.validate.field).uint32 = {
+    gte: 1
+    lte: 5
+  }];
+  uint32 per_try_timeout_millis = 2 [(buf.validate.field).uint32 = {
+    gte: 100
+    lte: 60000
+  }];
+}
+
+message Route {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  repeated string gateway_ids = 4 [json_name = "gatewayIDs"];
+  repeated string hostnames = 5;
+  RouteMatch match = 6;
+  repeated RouteUpstream upstreams = 7;
+  HeaderModifier request_header_modifier = 8;
+  HeaderModifier response_header_modifier = 9;
+  RouteTimeout timeout = 10;
+  RouteRetry retry = 11;
+  ResourceState state = 12;
+  string message = 13;
+  int64 version = 14;
+  google.protobuf.Timestamp created_at = 15;
+  google.protobuf.Timestamp updated_at = 16;
+  HostRewrite host_rewrite = 17;
+  AIRoute ai = 18;
+  RouteAccessMode access_mode = 19;
+}
+
+message ListRoutesRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListRoutesResponse {
+  repeated Route routes = 1;
+  string next_cursor = 2;
+}
+
+message GetRouteRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateRouteRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 2 [(buf.validate.field).required = true];
+  repeated string gateway_ids = 3 [
+    json_name = "gatewayIDs",
+    (buf.validate.field).repeated = {
+      min_items: 1
+      items: {
+        string: {uuid: true}
+      }
+    }
+  ];
+  repeated string hostnames = 4;
+  RouteMatch match = 5 [(buf.validate.field).required = true];
+  repeated RouteUpstream upstreams = 6;
+  HeaderModifier request_header_modifier = 7;
+  HeaderModifier response_header_modifier = 8;
+  RouteTimeout timeout = 9;
+  RouteRetry retry = 10;
+  HostRewrite host_rewrite = 11;
+  AIRoute ai = 12;
+  RouteAccessMode access_mode = 13 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+}
+
+message UpdateRouteRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 4 [(buf.validate.field).required = true];
+  repeated string gateway_ids = 5 [
+    json_name = "gatewayIDs",
+    (buf.validate.field).repeated = {
+      min_items: 1
+      items: {
+        string: {uuid: true}
+      }
+    }
+  ];
+  repeated string hostnames = 6;
+  RouteMatch match = 7 [(buf.validate.field).required = true];
+  repeated RouteUpstream upstreams = 8;
+  HeaderModifier request_header_modifier = 9;
+  HeaderModifier response_header_modifier = 10;
+  RouteTimeout timeout = 11;
+  RouteRetry retry = 12;
+  HostRewrite host_rewrite = 13;
+  AIRoute ai = 14;
+  RouteAccessMode access_mode = 15 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
+}
+
+message DeleteRouteRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

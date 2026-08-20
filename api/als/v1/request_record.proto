@@ -1,0 +1,84 @@
+syntax = "proto3";
+
+package ingate.als.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/als/v1;v1";
+
+// AIModelCall 表示一次 AI Route 实际执行的模型映射和用量
+//
+// 该结构只来自数据面执行结果，不保存请求或响应正文
+message AIModelCall {
+  // client_model 是调用方请求中使用的稳定模型名
+  string client_model = 1;
+  // upstream_model 是 AI Route 选中线路配置的真实模型名
+  string upstream_model = 2;
+  // upstream_protocol 是模型 Service 使用的厂商 API 协议
+  string upstream_protocol = 3;
+  // response_model 是模型服务在响应中声明的模型名
+  string response_model = 4;
+  // finish_reason 是模型服务返回的生成结束原因
+  string finish_reason = 5;
+  // input_tokens 是模型服务报告的输入 Token 数
+  optional uint64 input_tokens = 6;
+  // output_tokens 是模型服务报告的输出 Token 数
+  optional uint64 output_tokens = 7;
+  // total_tokens 是模型服务报告的总 Token 数
+  optional uint64 total_tokens = 8;
+}
+
+// RequestRecord 表示一条已经完成的网关请求记录
+//
+// 记录只保存排障和聚合分析所需的元数据，不保存请求头、请求正文和响应正文
+message RequestRecord {
+  // id 由 Envoy 节点和请求标识稳定生成，用于 Kafka 分区和下游幂等入库
+  string id = 1;
+  // request_id 保留 Envoy 的请求标识，用于跨系统排障
+  string request_id = 2;
+  // started_at 是 Envoy 开始处理请求的时间
+  google.protobuf.Timestamp started_at = 3;
+  // duration 是 Envoy 从接收首个请求字节到请求流销毁的总时间
+  google.protobuf.Duration duration = 4;
+
+  // client_ip 是 Envoy 观测到的下游连接源 IP
+  string client_ip = 5;
+  // method 是 HTTP 请求方法
+  string method = 6;
+  // host 是 HTTP/2 :authority 或 HTTP/1.1 Host 的值
+  string host = 7;
+  // path 是客户端请求的路径，不包含可能携带敏感值的查询参数
+  string path = 8;
+  // status_code 是 Envoy 返回给客户端的 HTTP 状态码
+  uint32 status_code = 9;
+  // request_bytes 是应用层请求头与请求体的字节数之和
+  uint64 request_bytes = 10;
+  // response_bytes 是应用层响应头与响应体的字节数之和
+  uint64 response_bytes = 11;
+
+  // gateway_id 是接收该请求的 Ingate Gateway 资源 ID
+  string gateway_id = 12;
+  // route_id 是匹配该请求的 Ingate Route 资源 ID
+  string route_id = 13;
+  // upstream_id 是最终承载该请求的 Ingate Upstream 资源 ID
+  string upstream_id = 14;
+  // envoy_node_id 是发送该记录的 Envoy 节点 ID
+  string envoy_node_id = 15;
+  // protocol 是该请求实际使用的 HTTP 协议版本
+  string protocol = 16;
+  // response_code_details 是 Envoy 记录的响应或本地拒绝原因
+  string response_code_details = 17;
+  // upstream_attempts 是该请求发往上游的总尝试次数
+  uint32 upstream_attempts = 18;
+  // upstream_address 是最终一次上游尝试的目标地址
+  string upstream_address = 19;
+  // time_to_first_byte 是请求开始到 Envoy 向客户端发送首字节的时间
+  google.protobuf.Duration time_to_first_byte = 20;
+  // ai_model_call 仅在请求经过 AI Route 时存在
+  AIModelCall ai_model_call = 21;
+  // caller_id 是通过调用方密钥认证的 Caller 资源 ID，公开访问时为空
+  string caller_id = 22;
+  // access_key_id 是本次认证命中的访问密钥 ID，不包含密钥明文或摘要
+  string access_key_id = 23;
+}
