@@ -558,6 +558,198 @@ func (x *GetTrafficAnalysisResponse) GetBreakdownOrder() TrafficBreakdownOrder {
 	return TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED
 }
 
+// BatchGetResourceTrafficRequest 是资源列表批量读取流量信号的请求
+type BatchGetResourceTrafficRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// start_time 是查询范围起点，包含该时刻
+	StartTime *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_time,json=startTime,proto3" json:"start_time,omitempty"`
+	// end_time 是查询范围终点，不包含该时刻
+	EndTime *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=end_time,json=endTime,proto3" json:"end_time,omitempty"`
+	// dimension 指定 resource_ids 对应网关、路由或服务
+	Dimension TrafficBreakdownDimension `protobuf:"varint,3,opt,name=dimension,proto3,enum=ingate.admin.v1.TrafficBreakdownDimension" json:"dimension,omitempty"`
+	// resource_ids 是当前资源列表需要展示流量信号的资源 ID
+	ResourceIds   []string `protobuf:"bytes,4,rep,name=resource_ids,json=resourceIDs,proto3" json:"resource_ids,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchGetResourceTrafficRequest) Reset() {
+	*x = BatchGetResourceTrafficRequest{}
+	mi := &file_admin_v1_traffic_analysis_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchGetResourceTrafficRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchGetResourceTrafficRequest) ProtoMessage() {}
+
+func (x *BatchGetResourceTrafficRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_traffic_analysis_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchGetResourceTrafficRequest.ProtoReflect.Descriptor instead.
+func (*BatchGetResourceTrafficRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_traffic_analysis_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *BatchGetResourceTrafficRequest) GetStartTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartTime
+	}
+	return nil
+}
+
+func (x *BatchGetResourceTrafficRequest) GetEndTime() *timestamppb.Timestamp {
+	if x != nil {
+		return x.EndTime
+	}
+	return nil
+}
+
+func (x *BatchGetResourceTrafficRequest) GetDimension() TrafficBreakdownDimension {
+	if x != nil {
+		return x.Dimension
+	}
+	return TrafficBreakdownDimension_TRAFFIC_BREAKDOWN_DIMENSION_UNSPECIFIED
+}
+
+func (x *BatchGetResourceTrafficRequest) GetResourceIds() []string {
+	if x != nil {
+		return x.ResourceIds
+	}
+	return nil
+}
+
+// ResourceTrafficSummary 是资源列表展示所需的轻量流量计数
+type ResourceTrafficSummary struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// resource_id 是网关、路由或服务的资源 ID
+	ResourceId string `protobuf:"bytes,1,opt,name=resource_id,json=resourceID,proto3" json:"resource_id,omitempty"`
+	// request_count 是最近时间范围内的请求总数
+	RequestCount uint64 `protobuf:"varint,2,opt,name=request_count,json=requestCount,proto3" json:"request_count,omitempty"`
+	// server_error_count 是 5xx 及以上请求数
+	ServerErrorCount uint64 `protobuf:"varint,3,opt,name=server_error_count,json=serverErrorCount,proto3" json:"server_error_count,omitempty"`
+	// no_response_count 是未获得有效 HTTP 状态码的请求数
+	NoResponseCount uint64 `protobuf:"varint,4,opt,name=no_response_count,json=noResponseCount,proto3" json:"no_response_count,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ResourceTrafficSummary) Reset() {
+	*x = ResourceTrafficSummary{}
+	mi := &file_admin_v1_traffic_analysis_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ResourceTrafficSummary) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ResourceTrafficSummary) ProtoMessage() {}
+
+func (x *ResourceTrafficSummary) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_traffic_analysis_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ResourceTrafficSummary.ProtoReflect.Descriptor instead.
+func (*ResourceTrafficSummary) Descriptor() ([]byte, []int) {
+	return file_admin_v1_traffic_analysis_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ResourceTrafficSummary) GetResourceId() string {
+	if x != nil {
+		return x.ResourceId
+	}
+	return ""
+}
+
+func (x *ResourceTrafficSummary) GetRequestCount() uint64 {
+	if x != nil {
+		return x.RequestCount
+	}
+	return 0
+}
+
+func (x *ResourceTrafficSummary) GetServerErrorCount() uint64 {
+	if x != nil {
+		return x.ServerErrorCount
+	}
+	return 0
+}
+
+func (x *ResourceTrafficSummary) GetNoResponseCount() uint64 {
+	if x != nil {
+		return x.NoResponseCount
+	}
+	return 0
+}
+
+// BatchGetResourceTrafficResponse 是指定资源中存在流量记录的摘要集合
+type BatchGetResourceTrafficResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// summaries 是按资源 ID 聚合后的流量摘要
+	Summaries     []*ResourceTrafficSummary `protobuf:"bytes,1,rep,name=summaries,proto3" json:"summaries,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BatchGetResourceTrafficResponse) Reset() {
+	*x = BatchGetResourceTrafficResponse{}
+	mi := &file_admin_v1_traffic_analysis_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BatchGetResourceTrafficResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BatchGetResourceTrafficResponse) ProtoMessage() {}
+
+func (x *BatchGetResourceTrafficResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_traffic_analysis_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BatchGetResourceTrafficResponse.ProtoReflect.Descriptor instead.
+func (*BatchGetResourceTrafficResponse) Descriptor() ([]byte, []int) {
+	return file_admin_v1_traffic_analysis_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *BatchGetResourceTrafficResponse) GetSummaries() []*ResourceTrafficSummary {
+	if x != nil {
+		return x.Summaries
+	}
+	return nil
+}
+
 var File_admin_v1_traffic_analysis_proto protoreflect.FileDescriptor
 
 const file_admin_v1_traffic_analysis_proto_rawDesc = "" +
@@ -598,7 +790,21 @@ const file_admin_v1_traffic_analysis_proto_rawDesc = "" +
 	"\x05trend\x18\x02 \x03(\v2%.ingate.admin.v1.TrafficAnalysisPointR\x05trend\x12[\n" +
 	"\x13breakdown_dimension\x18\x03 \x01(\x0e2*.ingate.admin.v1.TrafficBreakdownDimensionR\x12breakdownDimension\x12C\n" +
 	"\tbreakdown\x18\x04 \x03(\v2%.ingate.admin.v1.TrafficBreakdownItemR\tbreakdown\x12O\n" +
-	"\x0fbreakdown_order\x18\x05 \x01(\x0e2&.ingate.admin.v1.TrafficBreakdownOrderR\x0ebreakdownOrder*\xc1\x01\n" +
+	"\x0fbreakdown_order\x18\x05 \x01(\x0e2&.ingate.admin.v1.TrafficBreakdownOrderR\x0ebreakdownOrder\"\x9c\x02\n" +
+	"\x1eBatchGetResourceTrafficRequest\x129\n" +
+	"\n" +
+	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
+	"\bend_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\aendTime\x12R\n" +
+	"\tdimension\x18\x03 \x01(\x0e2*.ingate.admin.v1.TrafficBreakdownDimensionB\b\xbaH\x05\x82\x01\x02\x10\x01R\tdimension\x124\n" +
+	"\fresource_ids\x18\x04 \x03(\tB\x11\xbaH\x0e\x92\x01\v\b\x01\x10\xc8\x01\"\x04r\x02\x10\x01R\vresourceIDs\"\xb8\x01\n" +
+	"\x16ResourceTrafficSummary\x12\x1f\n" +
+	"\vresource_id\x18\x01 \x01(\tR\n" +
+	"resourceID\x12#\n" +
+	"\rrequest_count\x18\x02 \x01(\x04R\frequestCount\x12,\n" +
+	"\x12server_error_count\x18\x03 \x01(\x04R\x10serverErrorCount\x12*\n" +
+	"\x11no_response_count\x18\x04 \x01(\x04R\x0fnoResponseCount\"h\n" +
+	"\x1fBatchGetResourceTrafficResponse\x12E\n" +
+	"\tsummaries\x18\x01 \x03(\v2'.ingate.admin.v1.ResourceTrafficSummaryR\tsummaries*\xc1\x01\n" +
 	"\x19TrafficBreakdownDimension\x12+\n" +
 	"'TRAFFIC_BREAKDOWN_DIMENSION_UNSPECIFIED\x10\x00\x12'\n" +
 	"#TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY\x10\x01\x12%\n" +
@@ -608,9 +814,10 @@ const file_admin_v1_traffic_analysis_proto_rawDesc = "" +
 	"#TRAFFIC_BREAKDOWN_ORDER_UNSPECIFIED\x10\x00\x12)\n" +
 	"%TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT\x10\x01\x12-\n" +
 	")TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE\x10\x02\x12(\n" +
-	"$TRAFFIC_BREAKDOWN_ORDER_P95_DURATION\x10\x032\xaa\x01\n" +
+	"$TRAFFIC_BREAKDOWN_ORDER_P95_DURATION\x10\x032\xea\x02\n" +
 	"\x16TrafficAnalysisService\x12\x8f\x01\n" +
-	"\x12GetTrafficAnalysis\x12*.ingate.admin.v1.GetTrafficAnalysisRequest\x1a+.ingate.admin.v1.GetTrafficAnalysisResponse\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/v1/traffic-analysisB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x12GetTrafficAnalysis\x12*.ingate.admin.v1.GetTrafficAnalysisRequest\x1a+.ingate.admin.v1.GetTrafficAnalysisResponse\" \x82\xd3\xe4\x93\x02\x1a\x12\x18/api/v1/traffic-analysis\x12\xbd\x01\n" +
+	"\x17BatchGetResourceTraffic\x12/.ingate.admin.v1.BatchGetResourceTrafficRequest\x1a0.ingate.admin.v1.BatchGetResourceTrafficResponse\"?\x82\xd3\xe4\x93\x029:\x01*\"4/api/v1/traffic-analysis/resource-summaries:batchGetB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_traffic_analysis_proto_rawDescOnce sync.Once
@@ -625,28 +832,31 @@ func file_admin_v1_traffic_analysis_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_traffic_analysis_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_admin_v1_traffic_analysis_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_admin_v1_traffic_analysis_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_admin_v1_traffic_analysis_proto_goTypes = []any{
-	(TrafficBreakdownDimension)(0),     // 0: ingate.admin.v1.TrafficBreakdownDimension
-	(TrafficBreakdownOrder)(0),         // 1: ingate.admin.v1.TrafficBreakdownOrder
-	(*GetTrafficAnalysisRequest)(nil),  // 2: ingate.admin.v1.GetTrafficAnalysisRequest
-	(*TrafficMetrics)(nil),             // 3: ingate.admin.v1.TrafficMetrics
-	(*TrafficAnalysisPoint)(nil),       // 4: ingate.admin.v1.TrafficAnalysisPoint
-	(*TrafficBreakdownItem)(nil),       // 5: ingate.admin.v1.TrafficBreakdownItem
-	(*GetTrafficAnalysisResponse)(nil), // 6: ingate.admin.v1.GetTrafficAnalysisResponse
-	(*timestamppb.Timestamp)(nil),      // 7: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),        // 8: google.protobuf.Duration
+	(TrafficBreakdownDimension)(0),          // 0: ingate.admin.v1.TrafficBreakdownDimension
+	(TrafficBreakdownOrder)(0),              // 1: ingate.admin.v1.TrafficBreakdownOrder
+	(*GetTrafficAnalysisRequest)(nil),       // 2: ingate.admin.v1.GetTrafficAnalysisRequest
+	(*TrafficMetrics)(nil),                  // 3: ingate.admin.v1.TrafficMetrics
+	(*TrafficAnalysisPoint)(nil),            // 4: ingate.admin.v1.TrafficAnalysisPoint
+	(*TrafficBreakdownItem)(nil),            // 5: ingate.admin.v1.TrafficBreakdownItem
+	(*GetTrafficAnalysisResponse)(nil),      // 6: ingate.admin.v1.GetTrafficAnalysisResponse
+	(*BatchGetResourceTrafficRequest)(nil),  // 7: ingate.admin.v1.BatchGetResourceTrafficRequest
+	(*ResourceTrafficSummary)(nil),          // 8: ingate.admin.v1.ResourceTrafficSummary
+	(*BatchGetResourceTrafficResponse)(nil), // 9: ingate.admin.v1.BatchGetResourceTrafficResponse
+	(*timestamppb.Timestamp)(nil),           // 10: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),             // 11: google.protobuf.Duration
 }
 var file_admin_v1_traffic_analysis_proto_depIdxs = []int32{
-	7,  // 0: ingate.admin.v1.GetTrafficAnalysisRequest.start_time:type_name -> google.protobuf.Timestamp
-	7,  // 1: ingate.admin.v1.GetTrafficAnalysisRequest.end_time:type_name -> google.protobuf.Timestamp
+	10, // 0: ingate.admin.v1.GetTrafficAnalysisRequest.start_time:type_name -> google.protobuf.Timestamp
+	10, // 1: ingate.admin.v1.GetTrafficAnalysisRequest.end_time:type_name -> google.protobuf.Timestamp
 	0,  // 2: ingate.admin.v1.GetTrafficAnalysisRequest.breakdown_dimension:type_name -> ingate.admin.v1.TrafficBreakdownDimension
 	1,  // 3: ingate.admin.v1.GetTrafficAnalysisRequest.breakdown_order:type_name -> ingate.admin.v1.TrafficBreakdownOrder
-	8,  // 4: ingate.admin.v1.TrafficMetrics.average_duration:type_name -> google.protobuf.Duration
-	8,  // 5: ingate.admin.v1.TrafficMetrics.p50_duration:type_name -> google.protobuf.Duration
-	8,  // 6: ingate.admin.v1.TrafficMetrics.p95_duration:type_name -> google.protobuf.Duration
-	8,  // 7: ingate.admin.v1.TrafficMetrics.p99_duration:type_name -> google.protobuf.Duration
-	7,  // 8: ingate.admin.v1.TrafficAnalysisPoint.started_at:type_name -> google.protobuf.Timestamp
+	11, // 4: ingate.admin.v1.TrafficMetrics.average_duration:type_name -> google.protobuf.Duration
+	11, // 5: ingate.admin.v1.TrafficMetrics.p50_duration:type_name -> google.protobuf.Duration
+	11, // 6: ingate.admin.v1.TrafficMetrics.p95_duration:type_name -> google.protobuf.Duration
+	11, // 7: ingate.admin.v1.TrafficMetrics.p99_duration:type_name -> google.protobuf.Duration
+	10, // 8: ingate.admin.v1.TrafficAnalysisPoint.started_at:type_name -> google.protobuf.Timestamp
 	3,  // 9: ingate.admin.v1.TrafficAnalysisPoint.metrics:type_name -> ingate.admin.v1.TrafficMetrics
 	3,  // 10: ingate.admin.v1.TrafficBreakdownItem.metrics:type_name -> ingate.admin.v1.TrafficMetrics
 	3,  // 11: ingate.admin.v1.GetTrafficAnalysisResponse.summary:type_name -> ingate.admin.v1.TrafficMetrics
@@ -654,13 +864,19 @@ var file_admin_v1_traffic_analysis_proto_depIdxs = []int32{
 	0,  // 13: ingate.admin.v1.GetTrafficAnalysisResponse.breakdown_dimension:type_name -> ingate.admin.v1.TrafficBreakdownDimension
 	5,  // 14: ingate.admin.v1.GetTrafficAnalysisResponse.breakdown:type_name -> ingate.admin.v1.TrafficBreakdownItem
 	1,  // 15: ingate.admin.v1.GetTrafficAnalysisResponse.breakdown_order:type_name -> ingate.admin.v1.TrafficBreakdownOrder
-	2,  // 16: ingate.admin.v1.TrafficAnalysisService.GetTrafficAnalysis:input_type -> ingate.admin.v1.GetTrafficAnalysisRequest
-	6,  // 17: ingate.admin.v1.TrafficAnalysisService.GetTrafficAnalysis:output_type -> ingate.admin.v1.GetTrafficAnalysisResponse
-	17, // [17:18] is the sub-list for method output_type
-	16, // [16:17] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	10, // 16: ingate.admin.v1.BatchGetResourceTrafficRequest.start_time:type_name -> google.protobuf.Timestamp
+	10, // 17: ingate.admin.v1.BatchGetResourceTrafficRequest.end_time:type_name -> google.protobuf.Timestamp
+	0,  // 18: ingate.admin.v1.BatchGetResourceTrafficRequest.dimension:type_name -> ingate.admin.v1.TrafficBreakdownDimension
+	8,  // 19: ingate.admin.v1.BatchGetResourceTrafficResponse.summaries:type_name -> ingate.admin.v1.ResourceTrafficSummary
+	2,  // 20: ingate.admin.v1.TrafficAnalysisService.GetTrafficAnalysis:input_type -> ingate.admin.v1.GetTrafficAnalysisRequest
+	7,  // 21: ingate.admin.v1.TrafficAnalysisService.BatchGetResourceTraffic:input_type -> ingate.admin.v1.BatchGetResourceTrafficRequest
+	6,  // 22: ingate.admin.v1.TrafficAnalysisService.GetTrafficAnalysis:output_type -> ingate.admin.v1.GetTrafficAnalysisResponse
+	9,  // 23: ingate.admin.v1.TrafficAnalysisService.BatchGetResourceTraffic:output_type -> ingate.admin.v1.BatchGetResourceTrafficResponse
+	22, // [22:24] is the sub-list for method output_type
+	20, // [20:22] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_traffic_analysis_proto_init() }
@@ -674,7 +890,7 @@ func file_admin_v1_traffic_analysis_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_traffic_analysis_proto_rawDesc), len(file_admin_v1_traffic_analysis_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

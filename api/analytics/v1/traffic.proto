@@ -13,6 +13,8 @@ service TrafficService {
   rpc GetTrafficTrend(GetTrafficTrendRequest) returns (GetTrafficTrendResponse);
   // ListTrafficBreakdown 按一个资源维度聚合流量和延迟。
   rpc ListTrafficBreakdown(ListTrafficBreakdownRequest) returns (ListTrafficBreakdownResponse);
+  // BatchGetResourceTraffic 查询指定资源的列表流量摘要。
+  rpc BatchGetResourceTraffic(BatchGetResourceTrafficRequest) returns (BatchGetResourceTrafficResponse);
 }
 
 // TimeBucket 是趋势查询支持的固定时间粒度。
@@ -163,4 +165,34 @@ message TrafficBreakdownItem {
 message ListTrafficBreakdownResponse {
   // items 是查询结果中的资源统计。
   repeated TrafficBreakdownItem items = 1;
+}
+
+// BatchGetResourceTrafficRequest 是资源列表批量查询所需的最小参数。
+message BatchGetResourceTrafficRequest {
+  // start_time 是查询时间范围的起点，包含该时刻并且必须对齐到整分钟。
+  google.protobuf.Timestamp start_time = 1;
+  // end_time 是查询时间范围的终点，不包含该时刻并且必须对齐到整分钟。
+  google.protobuf.Timestamp end_time = 2;
+  // dimension 指定 resource_ids 对应 Gateway、Route 或 Upstream。
+  TrafficDimension dimension = 3;
+  // resource_ids 是本次需要展示流量信号的资源 ID。
+  repeated string resource_ids = 4;
+}
+
+// ResourceTrafficSummary 是资源列表展示所需的轻量流量计数。
+message ResourceTrafficSummary {
+  // resource_id 是聚合维度对应的资源 ID。
+  string resource_id = 1;
+  // request_count 是该资源处理的请求总数。
+  uint64 request_count = 2;
+  // server_error_count 是该资源处理的 5xx 及以上请求数。
+  uint64 server_error_count = 3;
+  // no_response_count 是该资源未获得有效 HTTP 状态码的请求数。
+  uint64 no_response_count = 4;
+}
+
+// BatchGetResourceTrafficResponse 是指定资源中存在流量记录的摘要集合。
+message BatchGetResourceTrafficResponse {
+  // summaries 是按资源 ID 聚合后的流量摘要。
+  repeated ResourceTrafficSummary summaries = 1;
 }

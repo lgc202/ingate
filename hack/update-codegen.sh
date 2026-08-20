@@ -5,6 +5,8 @@ set -o nounset
 set -o pipefail
 
 readonly repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# go list 不会主动解压只有模块元数据的依赖，先按 go.mod 固定版本准备源码目录
+go mod download k8s.io/code-generator
 readonly codegen_pkg="$(cd "${repo_root}" && go list -m -f '{{.Dir}}' k8s.io/code-generator)"
 
 source "${codegen_pkg}/kube_codegen.sh"

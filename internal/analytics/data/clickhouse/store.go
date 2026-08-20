@@ -17,12 +17,13 @@ import (
 const (
 	// 表名由内置迁移和查询代码共同维护，不允许部署配置任意替换
 	requestTableName       = "request_records"
+	modelCallTableName     = "model_calls"
 	minuteMetricsTableName = "request_metrics_1m"
 	minuteMetricsViewName  = "request_metrics_1m_mv"
-	requiredSchemaObjects  = 3
+	requiredSchemaObjects  = 4
 )
 
-// Store 保存请求事实并查询 ClickHouse 生成的流量统计
+// Store 保存请求与模型调用事实，并查询 ClickHouse 生成的流量统计
 //
 // 表名是 Analytics 的内部存储契约，不属于部署配置或用户协议。Store 同时实现
 // request.RecordStore、request.QueryStore 和 traffic.QueryStore
@@ -30,6 +31,7 @@ type Store struct {
 	connection         driver.Conn
 	database           string
 	requestTable       string
+	modelCallTable     string
 	minuteMetricsTable string
 	writeTimeout       time.Duration
 	queryTimeout       time.Duration
@@ -49,6 +51,7 @@ func NewStore(config *conf.Data_ClickHouse) (*Store, error) {
 		connection:         connection,
 		database:           config.GetDatabase(),
 		requestTable:       config.GetDatabase() + "." + requestTableName,
+		modelCallTable:     config.GetDatabase() + "." + modelCallTableName,
 		minuteMetricsTable: config.GetDatabase() + "." + minuteMetricsTableName,
 		writeTimeout:       writeTimeout,
 		queryTimeout:       queryTimeout,
@@ -85,9 +88,10 @@ func (s *Store) checkSchema(ctx context.Context) error {
 	if err := s.connection.QueryRow(ctx, `
 SELECT count()
 FROM system.tables
-WHERE database = ? AND name IN (?, ?, ?)`,
+WHERE database = ? AND name IN (?, ?, ?, ?)`,
 		s.database,
 		requestTableName,
+		modelCallTableName,
 		minuteMetricsTableName,
 		minuteMetricsViewName,
 	).Scan(&objects); err != nil {

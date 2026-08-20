@@ -28,7 +28,9 @@ type Bootstrap struct {
 	// server 定义 Envoy External Processing 和运维 HTTP 入口
 	Server *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
 	// logging 定义进程日志行为
-	Logging       *Logging `protobuf:"bytes,2,opt,name=logging,proto3" json:"logging,omitempty"`
+	Logging *Logging `protobuf:"bytes,2,opt,name=logging,proto3" json:"logging,omitempty"`
+	// data 定义模型服务配置来源
+	Data          *Data `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -77,6 +79,59 @@ func (x *Bootstrap) GetLogging() *Logging {
 	return nil
 }
 
+func (x *Bootstrap) GetData() *Data {
+	if x != nil {
+		return x.Data
+	}
+	return nil
+}
+
+// Data 定义 AI ExtProc 使用的控制面数据来源
+type Data struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// apiserver 提供模型服务协议和凭据
+	Apiserver     *Data_APIServer `protobuf:"bytes,1,opt,name=apiserver,proto3" json:"apiserver,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data) Reset() {
+	*x = Data{}
+	mi := &file_aiextproc_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data) ProtoMessage() {}
+
+func (x *Data) ProtoReflect() protoreflect.Message {
+	mi := &file_aiextproc_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data.ProtoReflect.Descriptor instead.
+func (*Data) Descriptor() ([]byte, []int) {
+	return file_aiextproc_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *Data) GetApiserver() *Data_APIServer {
+	if x != nil {
+		return x.Apiserver
+	}
+	return nil
+}
+
 // Server 定义 AI ExtProc 的监听和退出行为
 type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -92,7 +147,7 @@ type Server struct {
 
 func (x *Server) Reset() {
 	*x = Server{}
-	mi := &file_aiextproc_proto_msgTypes[1]
+	mi := &file_aiextproc_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -104,7 +159,7 @@ func (x *Server) String() string {
 func (*Server) ProtoMessage() {}
 
 func (x *Server) ProtoReflect() protoreflect.Message {
-	mi := &file_aiextproc_proto_msgTypes[1]
+	mi := &file_aiextproc_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -117,7 +172,7 @@ func (x *Server) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server.ProtoReflect.Descriptor instead.
 func (*Server) Descriptor() ([]byte, []int) {
-	return file_aiextproc_proto_rawDescGZIP(), []int{1}
+	return file_aiextproc_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Server) GetGrpc() *Server_GRPC {
@@ -156,7 +211,7 @@ type Logging struct {
 
 func (x *Logging) Reset() {
 	*x = Logging{}
-	mi := &file_aiextproc_proto_msgTypes[2]
+	mi := &file_aiextproc_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -168,7 +223,7 @@ func (x *Logging) String() string {
 func (*Logging) ProtoMessage() {}
 
 func (x *Logging) ProtoReflect() protoreflect.Message {
-	mi := &file_aiextproc_proto_msgTypes[2]
+	mi := &file_aiextproc_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -181,7 +236,7 @@ func (x *Logging) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Logging.ProtoReflect.Descriptor instead.
 func (*Logging) Descriptor() ([]byte, []int) {
-	return file_aiextproc_proto_rawDescGZIP(), []int{2}
+	return file_aiextproc_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Logging) GetFormat() string {
@@ -205,6 +260,60 @@ func (x *Logging) GetAddSource() bool {
 	return false
 }
 
+type Data_APIServer struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// master 覆盖 kubeconfig 中的 API Server 地址
+	Master string `protobuf:"bytes,1,opt,name=master,proto3" json:"master,omitempty"`
+	// kubeconfig 保存声明式资源 API 的连接配置
+	Kubeconfig    string `protobuf:"bytes,2,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data_APIServer) Reset() {
+	*x = Data_APIServer{}
+	mi := &file_aiextproc_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data_APIServer) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data_APIServer) ProtoMessage() {}
+
+func (x *Data_APIServer) ProtoReflect() protoreflect.Message {
+	mi := &file_aiextproc_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data_APIServer.ProtoReflect.Descriptor instead.
+func (*Data_APIServer) Descriptor() ([]byte, []int) {
+	return file_aiextproc_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *Data_APIServer) GetMaster() string {
+	if x != nil {
+		return x.Master
+	}
+	return ""
+}
+
+func (x *Data_APIServer) GetKubeconfig() string {
+	if x != nil {
+		return x.Kubeconfig
+	}
+	return ""
+}
+
 type Server_GRPC struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// addr 是 Envoy External Processing Filter 连接的 gRPC 地址
@@ -215,7 +324,7 @@ type Server_GRPC struct {
 
 func (x *Server_GRPC) Reset() {
 	*x = Server_GRPC{}
-	mi := &file_aiextproc_proto_msgTypes[3]
+	mi := &file_aiextproc_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -227,7 +336,7 @@ func (x *Server_GRPC) String() string {
 func (*Server_GRPC) ProtoMessage() {}
 
 func (x *Server_GRPC) ProtoReflect() protoreflect.Message {
-	mi := &file_aiextproc_proto_msgTypes[3]
+	mi := &file_aiextproc_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -240,7 +349,7 @@ func (x *Server_GRPC) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server_GRPC.ProtoReflect.Descriptor instead.
 func (*Server_GRPC) Descriptor() ([]byte, []int) {
-	return file_aiextproc_proto_rawDescGZIP(), []int{1, 0}
+	return file_aiextproc_proto_rawDescGZIP(), []int{2, 0}
 }
 
 func (x *Server_GRPC) GetAddr() string {
@@ -262,7 +371,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_aiextproc_proto_msgTypes[4]
+	mi := &file_aiextproc_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -274,7 +383,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_aiextproc_proto_msgTypes[4]
+	mi := &file_aiextproc_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -287,7 +396,7 @@ func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server_HTTP.ProtoReflect.Descriptor instead.
 func (*Server_HTTP) Descriptor() ([]byte, []int) {
-	return file_aiextproc_proto_rawDescGZIP(), []int{1, 1}
+	return file_aiextproc_proto_rawDescGZIP(), []int{2, 1}
 }
 
 func (x *Server_HTTP) GetAddr() string {
@@ -308,10 +417,18 @@ var File_aiextproc_proto protoreflect.FileDescriptor
 
 const file_aiextproc_proto_rawDesc = "" +
 	"\n" +
-	"\x0faiextproc.proto\x12\x15ingate.aiextproc.conf\x1a\x1egoogle/protobuf/duration.proto\"|\n" +
+	"\x0faiextproc.proto\x12\x15ingate.aiextproc.conf\x1a\x1egoogle/protobuf/duration.proto\"\xad\x01\n" +
 	"\tBootstrap\x125\n" +
 	"\x06server\x18\x01 \x01(\v2\x1d.ingate.aiextproc.conf.ServerR\x06server\x128\n" +
-	"\alogging\x18\x02 \x01(\v2\x1e.ingate.aiextproc.conf.LoggingR\alogging\"\xab\x02\n" +
+	"\alogging\x18\x02 \x01(\v2\x1e.ingate.aiextproc.conf.LoggingR\alogging\x12/\n" +
+	"\x04data\x18\x03 \x01(\v2\x1b.ingate.aiextproc.conf.DataR\x04data\"\x90\x01\n" +
+	"\x04Data\x12C\n" +
+	"\tapiserver\x18\x01 \x01(\v2%.ingate.aiextproc.conf.Data.APIServerR\tapiserver\x1aC\n" +
+	"\tAPIServer\x12\x16\n" +
+	"\x06master\x18\x01 \x01(\tR\x06master\x12\x1e\n" +
+	"\n" +
+	"kubeconfig\x18\x02 \x01(\tR\n" +
+	"kubeconfig\"\xab\x02\n" +
 	"\x06Server\x126\n" +
 	"\x04grpc\x18\x01 \x01(\v2\".ingate.aiextproc.conf.Server.GRPCR\x04grpc\x126\n" +
 	"\x04http\x18\x02 \x01(\v2\".ingate.aiextproc.conf.Server.HTTPR\x04http\x12D\n" +
@@ -339,27 +456,31 @@ func file_aiextproc_proto_rawDescGZIP() []byte {
 	return file_aiextproc_proto_rawDescData
 }
 
-var file_aiextproc_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_aiextproc_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_aiextproc_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.aiextproc.conf.Bootstrap
-	(*Server)(nil),              // 1: ingate.aiextproc.conf.Server
-	(*Logging)(nil),             // 2: ingate.aiextproc.conf.Logging
-	(*Server_GRPC)(nil),         // 3: ingate.aiextproc.conf.Server.GRPC
-	(*Server_HTTP)(nil),         // 4: ingate.aiextproc.conf.Server.HTTP
-	(*durationpb.Duration)(nil), // 5: google.protobuf.Duration
+	(*Data)(nil),                // 1: ingate.aiextproc.conf.Data
+	(*Server)(nil),              // 2: ingate.aiextproc.conf.Server
+	(*Logging)(nil),             // 3: ingate.aiextproc.conf.Logging
+	(*Data_APIServer)(nil),      // 4: ingate.aiextproc.conf.Data.APIServer
+	(*Server_GRPC)(nil),         // 5: ingate.aiextproc.conf.Server.GRPC
+	(*Server_HTTP)(nil),         // 6: ingate.aiextproc.conf.Server.HTTP
+	(*durationpb.Duration)(nil), // 7: google.protobuf.Duration
 }
 var file_aiextproc_proto_depIdxs = []int32{
-	1, // 0: ingate.aiextproc.conf.Bootstrap.server:type_name -> ingate.aiextproc.conf.Server
-	2, // 1: ingate.aiextproc.conf.Bootstrap.logging:type_name -> ingate.aiextproc.conf.Logging
-	3, // 2: ingate.aiextproc.conf.Server.grpc:type_name -> ingate.aiextproc.conf.Server.GRPC
-	4, // 3: ingate.aiextproc.conf.Server.http:type_name -> ingate.aiextproc.conf.Server.HTTP
-	5, // 4: ingate.aiextproc.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	5, // 5: ingate.aiextproc.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	6, // [6:6] is the sub-list for extension type_name
-	6, // [6:6] is the sub-list for extension extendee
-	0, // [0:6] is the sub-list for field type_name
+	2, // 0: ingate.aiextproc.conf.Bootstrap.server:type_name -> ingate.aiextproc.conf.Server
+	3, // 1: ingate.aiextproc.conf.Bootstrap.logging:type_name -> ingate.aiextproc.conf.Logging
+	1, // 2: ingate.aiextproc.conf.Bootstrap.data:type_name -> ingate.aiextproc.conf.Data
+	4, // 3: ingate.aiextproc.conf.Data.apiserver:type_name -> ingate.aiextproc.conf.Data.APIServer
+	5, // 4: ingate.aiextproc.conf.Server.grpc:type_name -> ingate.aiextproc.conf.Server.GRPC
+	6, // 5: ingate.aiextproc.conf.Server.http:type_name -> ingate.aiextproc.conf.Server.HTTP
+	7, // 6: ingate.aiextproc.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	7, // 7: ingate.aiextproc.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	8, // [8:8] is the sub-list for method output_type
+	8, // [8:8] is the sub-list for method input_type
+	8, // [8:8] is the sub-list for extension type_name
+	8, // [8:8] is the sub-list for extension extendee
+	0, // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_aiextproc_proto_init() }
@@ -373,7 +494,7 @@ func file_aiextproc_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aiextproc_proto_rawDesc), len(file_aiextproc_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   5,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

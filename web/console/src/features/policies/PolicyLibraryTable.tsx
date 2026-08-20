@@ -12,7 +12,6 @@ import {
 export function PolicyLibraryTable({
   policies,
   targets,
-  readOnly,
   onDetail,
   onEdit,
   onToggle,
@@ -20,7 +19,6 @@ export function PolicyLibraryTable({
 }: {
   policies: GovernancePolicy[];
   targets: PolicyTargetOption[];
-  readOnly: boolean;
   onDetail: (policy: GovernancePolicy) => void;
   onEdit: (policy: GovernancePolicy) => void;
   onToggle: (policy: GovernancePolicy) => void;
@@ -81,11 +79,9 @@ export function PolicyLibraryTable({
               <td>
                 <div className="row-actions">
                   <button className="link-button" type="button" onClick={() => onDetail(policy)}>详情</button>
-                  {readOnly ? null : <>
-                    <button className="link-button" type="button" onClick={() => onEdit(policy)}>编辑</button>
-                    <button className="link-button" type="button" onClick={() => onToggle(policy)}>{policy.enabled ? '停用' : '启用'}</button>
-                    <button className="link-button danger" type="button" onClick={() => onDelete(policy)}>删除</button>
-                  </>}
+                  <button className="link-button" type="button" onClick={() => onEdit(policy)}>编辑</button>
+                  <button className="link-button" type="button" onClick={() => onToggle(policy)}>{policy.enabled ? '停用' : '启用'}</button>
+                  <button className="link-button danger" type="button" onClick={() => onDelete(policy)}>删除</button>
                 </div>
               </td>
             </tr>

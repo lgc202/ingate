@@ -8,8 +8,8 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// BuildPolicyTargetRefs 校验并转换策略作用目标
-func BuildPolicyTargetRefs(targets []*adminv1.PolicyTargetRef) ([]resource.PolicyTargetRef, error) {
+// PolicyTargetRefs 校验并转换策略作用目标
+func PolicyTargetRefs(targets []*adminv1.PolicyTargetRef) ([]resource.PolicyTargetRef, error) {
 	refs := make([]resource.PolicyTargetRef, 0, len(targets))
 	seen := make(map[string]struct{}, len(targets))
 	for _, target := range targets {
@@ -31,8 +31,8 @@ func BuildPolicyTargetRefs(targets []*adminv1.PolicyTargetRef) ([]resource.Polic
 	return refs, nil
 }
 
-// NewPolicyTargets 把策略目标及其生效状态转换为控制台协议
-func NewPolicyTargets(
+// PolicyTargetResponses 把策略目标及其生效状态转换为控制台协议
+func PolicyTargetResponses(
 	generation int64,
 	disabled bool,
 	refs []resource.PolicyTargetRef,
@@ -43,10 +43,10 @@ func NewPolicyTargets(
 	for _, ref := range refs {
 		status := biz.PolicyTargetStatus(generation, disabled, ref, statuses)
 		targets = append(targets, &adminv1.PolicyTarget{
-			Kind:    newPolicyTargetKind(ref.Kind),
+			Kind:    policyTargetKindResponse(ref.Kind),
 			Id:      ref.Name,
 			Name:    names.Name(ref),
-			State:   NewResourceState(status.State),
+			State:   ResourceState(status.State),
 			Message: ResourceMessage(status.Reason),
 		})
 	}
@@ -64,7 +64,7 @@ func policyTargetKind(kind adminv1.PolicyTargetKind) (resource.Kind, error) {
 	}
 }
 
-func newPolicyTargetKind(kind resource.Kind) adminv1.PolicyTargetKind {
+func policyTargetKindResponse(kind resource.Kind) adminv1.PolicyTargetKind {
 	switch kind {
 	case resource.KindGateway:
 		return adminv1.PolicyTargetKind_POLICY_TARGET_KIND_GATEWAY

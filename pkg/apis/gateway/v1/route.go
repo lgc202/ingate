@@ -24,6 +24,16 @@ const (
 	HostRewriteCustom HostRewriteMode = "Custom"
 )
 
+// RouteAccessMode 表示 Route 是否要求调用方身份
+type RouteAccessMode string
+
+const (
+	// RouteAccessPublic 表示请求不需要携带访问密钥
+	RouteAccessPublic RouteAccessMode = "Public"
+	// RouteAccessCaller 表示请求必须使用已授权 Caller 的访问密钥
+	RouteAccessCaller RouteAccessMode = "Caller"
+)
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 // +genclient:nonNamespaced
@@ -52,6 +62,8 @@ type RouteSpec struct {
 	DisplayName string `json:"displayName,omitempty"`
 	// Enabled 表示 Route 是否参与编译和下发
 	Enabled bool `json:"enabled"`
+	// AccessMode 决定客户端是否需要使用 Caller 访问密钥
+	AccessMode RouteAccessMode `json:"accessMode"`
 	// GatewayRefs 保存承载当前 Route 的 Gateway ID
 	// +listType=atomic
 	GatewayRefs []string `json:"gatewayRefs"`
@@ -60,14 +72,43 @@ type RouteSpec struct {
 	Hostnames []string   `json:"hostnames,omitempty"`
 	Match     RouteMatch `json:"match"`
 	// UpstreamRefs 保存接收请求的上游服务及流量权重
+	// AI 为空时使用该字段；AI Route 的线路由 AI.Models 分别声明
 	// +listType=atomic
 	UpstreamRefs []UpstreamRef `json:"upstreamRefs,omitempty"`
+	// AI 存在时表示当前 Route 发布 OpenAI 兼容模型接口
+	AI *AIRoute `json:"ai,omitempty"`
 	// HostRewrite 为空时保留客户端 Host，其他模式由 Route 显式控制
 	HostRewrite            *HostRewrite    `json:"hostRewrite,omitempty"`
 	RequestHeaderModifier  *HeaderModifier `json:"requestHeaderModifier,omitempty"`
 	ResponseHeaderModifier *HeaderModifier `json:"responseHeaderModifier,omitempty"`
 	Timeout                *RouteTimeout   `json:"timeout,omitempty"`
 	Retry                  *RouteRetry     `json:"retry,omitempty"`
+}
+
+// AIRoute 定义一个入口路径下发布的客户端模型及其实际模型线路
+type AIRoute struct {
+	// Models 中每个客户端模型名在当前 Route 内必须唯一
+	// +listType=atomic
+	Models []AIModel `json:"models"`
+}
+
+// AIModel 把调用方使用的稳定模型名映射到一个或多个模型服务
+type AIModel struct {
+	// Name 是调用方请求体中使用的稳定模型名
+	Name string `json:"name"`
+	// Targets 是可承载该模型的实际线路，各线路按相对权重分流
+	// +listType=atomic
+	Targets []AIModelTarget `json:"targets"`
+}
+
+// AIModelTarget 表示一个模型服务上的实际模型线路
+type AIModelTarget struct {
+	// UpstreamRef 引用模型服务的资源 ID
+	UpstreamRef string `json:"upstreamRef"`
+	// Model 是发送给模型服务的真实模型名
+	Model string `json:"model"`
+	// Weight 是同一客户端模型下各线路的相对权重
+	Weight int `json:"weight"`
 }
 
 // HostRewrite 定义转发请求使用的上游 Host

@@ -1,7 +1,6 @@
 import { useRef, useState } from 'react';
 import { deleteCertificate, listCertificates, saveCertificate } from '@/api/certificates';
 import { useResource } from '@/api/useResource';
-import { useAuth } from '@/auth/AuthContext';
 import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
 import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
 import type { Certificate } from '@/domain/certificate';
@@ -25,7 +24,6 @@ interface CertificateNotice {
 const maxPEMFileSize = 1024 * 1024;
 
 export function CertificatePage() {
-  const { canWriteConfiguration } = useAuth();
   const certificates = useResource(listCertificates);
   const [query, setQuery] = useState('');
   const [detail, setDetail] = useState<Certificate | null>(null);
@@ -154,7 +152,7 @@ export function CertificatePage() {
   return (
     <PageFrame
       title="TLS 证书"
-      actions={canWriteConfiguration ? (
+      actions={(
         <button
           type="button"
           onClick={handleCreateNew}
@@ -163,7 +161,7 @@ export function CertificatePage() {
           <Plus className="w-4 h-4" />
           录入证书
         </button>
-      ) : undefined}
+      )}
     >
       <div className="space-y-6 mt-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -214,7 +212,7 @@ export function CertificatePage() {
                       </td>
 
                       <td className="py-3 px-3"><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
-                      <td className="py-3 px-3 text-right"><RowActions onDetail={() => setDetail(item)} onEdit={canWriteConfiguration ? () => handleEdit(item) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(item) : undefined} /></td>
+                      <td className="py-3 px-3 text-right"><RowActions onDetail={() => setDetail(item)} onEdit={() => handleEdit(item)} onDelete={() => setDeleteCandidate(item)} /></td>
                     </tr>
                   ))}
                 </tbody>

@@ -144,16 +144,16 @@ export function TrafficAnalysisPage() {
         {analysis.data.breakdown.length === 0 ? <EmptyState title="当前范围没有流量" message="调整时间或资源筛选后重新查询" /> : (
           <div className="table-scroll">
             <table className="table traffic-ranking-table">
-              <thead><tr><th>{dimensionLabel(breakdownDimension)}</th><th>请求量</th><th>正常响应率</th><th>客户端错误</th><th>服务端错误率</th><th>无响应</th><th>P95 总耗时</th><th /></tr></thead>
+              <thead><tr><th>{dimensionLabel(breakdownDimension)}</th><th>请求量</th><th>正常响应率</th><th>客户端错误率</th><th>服务端错误率</th><th>无响应率</th><th>P95 总耗时</th><th /></tr></thead>
               <tbody>{analysis.data.breakdown.map((item) => (
                 <tr key={item.resourceID} onClick={() => navigate(requestRecordURL(filters, breakdownDimension, item))}>
                   <td><strong>{resourceName(names, breakdownDimension, item.resourceID, Boolean(workspace.data))}</strong></td>
                   <td>{formatTrafficCount(item.metrics.requestCount)}</td>
-                  <td>{formatTrafficPercent(metricNumber(item.metrics.nonErrorCount), metricNumber(item.metrics.requestCount))}</td>
-                  <td>{formatTrafficCount(item.metrics.clientErrorCount)}</td>
-                  <td><strong>{formatTrafficPercent(metricNumber(item.metrics.serverErrorCount), metricNumber(item.metrics.requestCount))}</strong><small>{formatTrafficCount(item.metrics.serverErrorCount)} 次</small></td>
-                  <td>{formatTrafficCount(item.metrics.noResponseCount)}</td>
-                  <td><strong>{formatDuration(item.metrics.p95Duration)}</strong><small>{formatTrafficCount(item.metrics.requestCount)} 次请求</small></td>
+                  <TrafficOutcomeCell count={metricNumber(item.metrics.nonErrorCount)} total={metricNumber(item.metrics.requestCount)} />
+                  <TrafficOutcomeCell count={metricNumber(item.metrics.clientErrorCount)} total={metricNumber(item.metrics.requestCount)} />
+                  <TrafficOutcomeCell count={metricNumber(item.metrics.serverErrorCount)} total={metricNumber(item.metrics.requestCount)} />
+                  <TrafficOutcomeCell count={metricNumber(item.metrics.noResponseCount)} total={metricNumber(item.metrics.requestCount)} />
+                  <td><strong>{metricNumber(item.metrics.requestCount) > 0 ? formatDuration(item.metrics.p95Duration) : '—'}</strong></td>
                   <td><ArrowRight /></td>
                 </tr>
               ))}</tbody>
@@ -164,6 +164,10 @@ export function TrafficAnalysisPage() {
       <Toast message={notice} tone="error" onClose={() => setNotice(null)} />
     </PageFrame>
   );
+}
+
+function TrafficOutcomeCell({ count, total }: { count: number; total: number }) {
+  return <td><strong>{formatTrafficPercent(count, total)}</strong><small>{formatTrafficCount(count)} 次</small></td>;
 }
 
 function MetricCard({ icon, label, value, note, tone = 'accent' }: { icon: ReactNode; label: string; value: string; note: string; tone?: 'accent' | 'success' | 'warning' }) {

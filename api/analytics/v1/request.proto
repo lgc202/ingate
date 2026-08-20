@@ -54,6 +54,8 @@ message RequestFilter {
   StatusClass status_class = 10;
   // status_code 按单个 HTTP 状态码精确过滤。
   optional uint32 status_code = 11;
+  // caller_id 只查询归属于指定 Caller 的请求。
+  string caller_id = 12;
 }
 
 // ListRequestsRequest 是请求明细分页查询参数。
@@ -96,6 +98,12 @@ message RequestSummary {
   string route_id = 9;
   // upstream_id 是请求最终转发到的 Upstream 资源 ID。
   string upstream_id = 10;
+  // ai_model_call 仅在请求经过 AI Route 时存在。
+  ingate.als.v1.AIModelCall ai_model_call = 11;
+  // caller_id 是通过调用方密钥认证的 Caller 资源 ID。
+  string caller_id = 12;
+  // access_key_id 是本次认证命中的访问密钥 ID。
+  string access_key_id = 13;
 }
 
 // GetRequestRequest 是单条请求明细查询参数。

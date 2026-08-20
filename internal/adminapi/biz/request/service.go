@@ -2,16 +2,26 @@ package request
 
 import (
 	"context"
-	"errors"
 	"time"
+
+	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 )
 
 var (
 	// ErrNotFound 表示请求记录不存在或已经超过明细保留期
-	ErrNotFound = errors.New("request record not found")
+	ErrNotFound = kratoserrors.NotFound(adminv1.ErrorReason_REQUEST_RECORD_NOT_FOUND.String(), "request record not found").
+			WithMetadata(map[string]string{"user_message": "请求记录不存在或已超过明细保留期"})
 	// ErrUnavailable 表示请求分析组件当前无法提供查询
-	ErrUnavailable = errors.New("request analytics unavailable")
+	ErrUnavailable = kratoserrors.ServiceUnavailable(adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(), "request analytics unavailable").
+			WithMetadata(map[string]string{"user_message": "请求记录服务暂时不可用，请稍后重试"})
 )
+
+// Unavailable 保留 Analytics 返回的底层原因，同时向控制台暴露稳定错误语义
+func Unavailable(cause error) error {
+	return ErrUnavailable.WithCause(cause)
+}
 
 // Repository 定义请求记录查询需要的 Analytics 能力
 type Repository interface {

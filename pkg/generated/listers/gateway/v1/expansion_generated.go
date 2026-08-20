@@ -4,6 +4,10 @@
 
 package v1
 
+// CallerListerExpansion allows custom methods to be added to
+// CallerLister.
+type CallerListerExpansion interface{}
+
 // CertificateListerExpansion allows custom methods to be added to
 // CertificateLister.
 type CertificateListerExpansion interface{}

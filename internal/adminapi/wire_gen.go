@@ -9,10 +9,9 @@ package adminapi
 import (
 	"github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
-	"github.com/lgc202/ingate/internal/adminapi/auth"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
-	"github.com/lgc202/ingate/internal/adminapi/biz/configuration"
 	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
@@ -25,9 +24,8 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/data/analytics"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
 	"github.com/lgc202/ingate/internal/adminapi/server"
-	"github.com/lgc202/ingate/internal/adminapi/service/authentication"
+	caller2 "github.com/lgc202/ingate/internal/adminapi/service/caller"
 	certificate2 "github.com/lgc202/ingate/internal/adminapi/service/certificate"
-	configuration2 "github.com/lgc202/ingate/internal/adminapi/service/configuration"
 	gateway2 "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/service/health"
 	iprestriction2 "github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
@@ -41,18 +39,16 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *conf.Authentication, logger *slog.Logger, adminapiServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
-	authenticator, err := auth.NewAuthenticator(confAuthentication)
-	if err != nil {
-		return nil, nil, err
-	}
-	service := authentication.NewService(confAuthentication)
+func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, adminapiServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
 	versionedInterface, err := data.NewResourceClient(confData)
 	if err != nil {
 		return nil, nil, err
 	}
-	gatewayRepository := apiserver.NewGatewayRepository(versionedInterface)
+	callerRepository := apiserver.NewCallerRepository(versionedInterface)
 	routeRepository := apiserver.NewRouteRepository(versionedInterface)
+	service := caller.NewService(callerRepository, routeRepository)
+	callerService := caller2.NewService(service)
+	gatewayRepository := apiserver.NewGatewayRepository(versionedInterface)
 	certificateRepository := apiserver.NewCertificateRepository(versionedInterface)
 	rateLimitPolicyRepository := apiserver.NewRateLimitPolicyRepository(versionedInterface)
 	ipRestrictionPolicyRepository := apiserver.NewIPRestrictionPolicyRepository(versionedInterface)
@@ -60,7 +56,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *c
 	gatewayService := gateway.NewService(gatewayRepository, routeRepository, certificateRepository, policyUsageFinder)
 	service2 := gateway2.NewService(gatewayService)
 	upstreamRepository := apiserver.NewUpstreamRepository(versionedInterface)
-	routeService := route.NewService(routeRepository, gatewayRepository, upstreamRepository, policyUsageFinder)
+	routeService := route.NewService(routeRepository, gatewayRepository, upstreamRepository, callerRepository, policyUsageFinder)
 	service3 := route2.NewService(routeService)
 	upstreamService := upstream.NewService(upstreamRepository, routeRepository)
 	service4 := upstream2.NewService(upstreamService)
@@ -70,21 +66,19 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *c
 	service6 := ratelimit2.NewService(ratelimitService)
 	iprestrictionService := iprestriction.NewService(ipRestrictionPolicyRepository, gatewayRepository, routeRepository)
 	service7 := iprestriction2.NewService(iprestrictionService)
-	configurationService := configuration.NewService(gatewayRepository, routeRepository, upstreamRepository, certificateRepository, rateLimitPolicyRepository, ipRestrictionPolicyRepository)
-	service8 := configuration2.NewService(configurationService)
 	clientConn, cleanup, err := analytics.NewClient(confData, logger)
 	if err != nil {
 		return nil, nil, err
 	}
 	requestRepository := analytics.NewRequestRepository(clientConn)
 	requestService := request.NewService(requestRepository)
-	service9 := request2.NewService(requestService)
+	service8 := request2.NewService(requestService)
 	trafficRepository := analytics.NewTrafficRepository(clientConn)
 	trafficService := traffic.NewService(trafficRepository)
-	service10 := traffic2.NewService(trafficService)
+	service9 := traffic2.NewService(trafficService)
 	healthService := health.NewService()
-	httpHandlers := server.NewHTTPHandlers(service, service2, service3, service4, service5, service6, service7, service8, service9, service10, healthService)
-	httpServer := server.NewHTTPServer(confServer, logger, authenticator, httpHandlers)
+	httpHandlers := server.NewHTTPHandlers(callerService, service2, service3, service4, service5, service6, service7, service8, service9, healthService)
+	httpServer := server.NewHTTPServer(confServer, logger, httpHandlers)
 	app := newKratosApp(logger, confServer, httpServer, adminapiServiceInstanceID)
 	return app, func() {
 		cleanup()
@@ -94,7 +88,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confAuthentication *c
 // wire.go:
 
 // bizProviderSet 汇总各资源的业务服务
-var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService, configuration.NewService)
+var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, caller.NewService, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService)
 
 // serviceProviderSet 汇总 Admin API 的协议服务
-var serviceProviderSet = wire.NewSet(authentication.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, configuration2.NewService, health.NewService)
+var serviceProviderSet = wire.NewSet(caller2.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, health.NewService)

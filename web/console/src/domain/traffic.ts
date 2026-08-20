@@ -43,6 +43,13 @@ export interface TrafficBreakdownItem {
   metrics: TrafficMetrics;
 }
 
+export interface ResourceTrafficSummary {
+  resourceID: string;
+  requestCount: string | number;
+  serverErrorCount: string | number;
+  noResponseCount: string | number;
+}
+
 export interface TrafficAnalysis {
   summary: TrafficMetrics;
   trend: TrafficTrendPoint[];

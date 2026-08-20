@@ -6,7 +6,7 @@ x-ingate-build: &ingate-build
 
 services:
   etcd:
-    image: quay.io/coreos/etcd:v3.5.11
+    image: registry.k8s.io/etcd:3.6.4-0
     restart: unless-stopped
     command:
       - /usr/local/bin/etcd
@@ -152,6 +152,47 @@ services:
       retries: 20
       start_period: 10s
 
+  ai-extproc:
+    image: ingate/ai-extproc:${INGATE_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    # 入口流保存的原始请求必须与同一请求的上游重试流落在同一个进程
+    # Compose 让 AI ExtProc 与 Envoy 共享网络命名空间，生产部署应保持一对一伴生关系
+    network_mode: service:controller
+    build:
+      <<: *ingate-build
+      target: ai-extproc
+    depends_on:
+      apiserver:
+        condition: service_healthy
+    volumes:
+      - ./deploy/docker/configs/ingate-ai-extproc.yaml:/opt/ingate/ai-extproc/configs/config.yaml:ro
+      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/ai-extproc/configs/kubeconfig.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18082/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  authz:
+    image: ingate/authz:${INGATE_IMAGE_TAG:-dev}
+    restart: unless-stopped
+    build:
+      <<: *ingate-build
+      target: authz
+    depends_on:
+      apiserver:
+        condition: service_healthy
+    volumes:
+      - ./deploy/docker/configs/ingate-authz.yaml:/opt/ingate/authz/configs/config.yaml:ro
+      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/authz/configs/kubeconfig.yaml:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18072/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
   apiserver:
     image: ingate/apiserver:${INGATE_IMAGE_TAG:-dev}
     restart: unless-stopped
@@ -203,6 +244,10 @@ services:
       controller:
         condition: service_healthy
       als:
+        condition: service_healthy
+      ai-extproc:
+        condition: service_healthy
+      authz:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "bash", "-ec", "exec 3<>/dev/tcp/127.0.0.1/15000; printf 'GET /ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; read -r status <&3; [[ $$status == *' 200 '* ]]"]

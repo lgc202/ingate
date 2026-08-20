@@ -5,6 +5,7 @@ import (
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
+	callerstorage "github.com/lgc202/ingate/internal/apiserver/registry/caller"
 	certificatestorage "github.com/lgc202/ingate/internal/apiserver/registry/certificate"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
 	iprestrictionpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/iprestrictionpolicy"
@@ -67,6 +68,11 @@ func installResources(
 	}
 	if err := installStatusStorage(gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
 		return iprestrictionpolicystorage.NewREST(config.RESTOptionsGetter, Scheme)
+	}); err != nil {
+		return err
+	}
+	if err := installStatusStorage(gatewayv1.ResourceCallers, gatewayv1.ResourceCallersStatus, func() (rest.Storage, rest.Storage, error) {
+		return callerstorage.NewREST(config.RESTOptionsGetter, Scheme)
 	}); err != nil {
 		return err
 	}

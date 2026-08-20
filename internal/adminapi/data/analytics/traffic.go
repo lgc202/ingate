@@ -90,6 +90,35 @@ func (r *TrafficRepository) Analyze(ctx context.Context, query trafficbiz.Query)
 	}, nil
 }
 
+// BatchGetResourceTraffic 查询指定资源的列表流量摘要
+func (r *TrafficRepository) BatchGetResourceTraffic(
+	ctx context.Context,
+	query trafficbiz.ResourceTrafficQuery,
+) ([]trafficbiz.ResourceTrafficSummary, error) {
+	reply, err := r.client.BatchGetResourceTraffic(ctx, &analyticsv1.BatchGetResourceTrafficRequest{
+		StartTime:   timestamppb.New(query.StartTime),
+		EndTime:     timestamppb.New(query.EndTime),
+		Dimension:   analyticsTrafficDimension(query.Dimension),
+		ResourceIds: query.ResourceIDs,
+	})
+	if err != nil {
+		return nil, trafficQueryError("query resource traffic", err)
+	}
+	summaries := make([]trafficbiz.ResourceTrafficSummary, 0, len(reply.GetSummaries()))
+	for _, summary := range reply.GetSummaries() {
+		if summary == nil || summary.GetResourceId() == "" {
+			return nil, errors.New("analytics returned an invalid resource traffic summary")
+		}
+		summaries = append(summaries, trafficbiz.ResourceTrafficSummary{
+			ResourceID:   summary.GetResourceId(),
+			RequestCount: summary.GetRequestCount(),
+			ServerErrors: summary.GetServerErrorCount(),
+			NoResponses:  summary.GetNoResponseCount(),
+		})
+	}
+	return summaries, nil
+}
+
 type metricValues struct {
 	requestCount    uint64
 	clientErrors    uint64
@@ -224,7 +253,7 @@ func analyticsTrafficBreakdownOrder(value trafficbiz.BreakdownOrder) analyticsv1
 
 func trafficQueryError(operation string, err error) error {
 	if status.Code(err) == codes.Unavailable || status.Code(err) == codes.DeadlineExceeded {
-		return fmt.Errorf("%w: %w", trafficbiz.ErrUnavailable, err)
+		return trafficbiz.Unavailable(err)
 	}
 	return fmt.Errorf("%s: %w", operation, err)
 }

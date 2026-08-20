@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package ingate.admin.v1;
 
+import "admin/v1/upstream.proto";
 import "buf/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/duration.proto";
@@ -33,6 +34,26 @@ enum RequestOutcome {
   REQUEST_OUTCOME_SERVER_ERROR = 3;
   // REQUEST_OUTCOME_NO_RESPONSE 表示没有获得有效 HTTP 状态码
   REQUEST_OUTCOME_NO_RESPONSE = 4;
+}
+
+// AIModelCall 是控制台展示的一次模型调用结果
+message AIModelCall {
+  // client_model 是调用方请求中使用的稳定模型名
+  string client_model = 1;
+  // upstream_model 是 AI Route 选中线路配置的真实模型名
+  string upstream_model = 2;
+  // protocol 是模型 Service 使用的厂商 API 协议
+  ModelProtocol protocol = 3;
+  // response_model 是模型服务在响应中声明的模型名
+  string response_model = 4;
+  // finish_reason 是模型服务返回的生成结束原因
+  string finish_reason = 5;
+  // input_tokens 是模型服务报告的输入 Token 数
+  optional uint64 input_tokens = 6;
+  // output_tokens 是模型服务报告的输出 Token 数
+  optional uint64 output_tokens = 7;
+  // total_tokens 是模型服务报告的总 Token 数
+  optional uint64 total_tokens = 8;
 }
 
 // RequestRecord 是控制台排障使用的单次请求元数据
@@ -81,6 +102,12 @@ message RequestRecord {
   string upstream_address = 20;
   // proxy_instance_id 是处理请求的数据面实例标识
   string proxy_instance_id = 21 [json_name = "proxyInstanceID"];
+  // ai_model_call 仅在请求经过 AI Route 时存在
+  AIModelCall ai_model_call = 22;
+  // caller_id 是通过调用方密钥认证的 Caller 资源 ID
+  string caller_id = 23 [json_name = "callerID"];
+  // access_key_id 是本次请求使用的访问密钥 ID
+  string access_key_id = 24 [json_name = "accessKeyID"];
 }
 
 // RequestRecordSummary 是请求记录列表使用的排障摘要
@@ -107,6 +134,12 @@ message RequestRecordSummary {
   string route_id = 10 [json_name = "routeID"];
   // service_id 是请求最终转发到的 Service 资源 ID
   string service_id = 11 [json_name = "serviceID"];
+  // ai_model_call 仅在请求经过 AI Route 时存在
+  AIModelCall ai_model_call = 12;
+  // caller_id 是通过调用方密钥认证的 Caller 资源 ID
+  string caller_id = 13 [json_name = "callerID"];
+  // access_key_id 是本次请求使用的访问密钥 ID
+  string access_key_id = 14 [json_name = "accessKeyID"];
 }
 
 // ListRequestRecordsRequest 是请求明细分页查询参数
@@ -140,6 +173,8 @@ message ListRequestRecordsRequest {
   }];
   // page_token 是上一页返回的不透明游标
   string page_token = 13;
+  // caller_id 只返回归属于指定调用方的请求
+  string caller_id = 14 [json_name = "callerID"];
 }
 
 // ListRequestRecordsResponse 是请求记录分页结果

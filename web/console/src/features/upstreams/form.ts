@@ -3,6 +3,8 @@ import type {
   UpstreamEndpoint,
   UpstreamLoadBalancing,
   UpstreamMutationPayload,
+  UpstreamType,
+  ModelProtocol,
 } from '@/domain/upstream';
 
 export interface UpstreamDraft {
@@ -17,6 +19,11 @@ export interface UpstreamDraft {
   healthCheckPath: string;
   healthCheckInterval: number;
   healthCheckTimeout: number;
+  type: UpstreamType;
+  modelProtocol: ModelProtocol;
+  apiKey: string;
+  clearApiKey: boolean;
+  apiKeyConfigured: boolean;
 }
 
 export function createUpstreamDraft(upstream?: Upstream): UpstreamDraft {
@@ -32,6 +39,11 @@ export function createUpstreamDraft(upstream?: Upstream): UpstreamDraft {
     healthCheckPath: upstream?.healthCheck?.path ?? '/healthz',
     healthCheckInterval: upstream?.healthCheck?.intervalSeconds ?? 10,
     healthCheckTimeout: upstream?.healthCheck?.timeoutSeconds ?? 2,
+    type: upstream?.model ? 'MODEL' : 'HTTP',
+    modelProtocol: upstream?.model?.protocol ?? 'MODEL_PROTOCOL_OPENAI',
+    apiKey: '',
+    clearApiKey: false,
+    apiKeyConfigured: upstream?.model?.apiKeyConfigured ?? false,
   };
 }
 
@@ -46,6 +58,10 @@ export function validateUpstreamDraft(draft: UpstreamDraft): string[] {
   if (draft.healthCheckEnabled && (!draft.healthCheckPath.startsWith('/') || draft.healthCheckTimeout >= draft.healthCheckInterval)) {
     errors.push('健康检查路径必须以 / 开头，且超时应小于检查间隔');
   }
+  if (draft.type === 'MODEL' && draft.apiKey && draft.apiKey.trim() !== draft.apiKey) {
+    errors.push('API Key 不能包含首尾空格');
+  }
+  if (draft.apiKey && draft.clearApiKey) errors.push('不能同时填写新 API Key 和清除已有 API Key');
   return errors;
 }
 
@@ -65,6 +81,11 @@ export function buildUpstreamPayload(draft: UpstreamDraft): UpstreamMutationPayl
       path: draft.healthCheckPath.trim(),
       intervalSeconds: Number(draft.healthCheckInterval),
       timeoutSeconds: Number(draft.healthCheckTimeout),
+    } : undefined,
+    model: draft.type === 'MODEL' ? {
+      protocol: draft.modelProtocol,
+      apiKey: draft.apiKey || undefined,
+      clearApiKey: draft.clearApiKey || undefined,
     } : undefined,
   };
 }

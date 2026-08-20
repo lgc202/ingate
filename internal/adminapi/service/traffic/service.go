@@ -8,14 +8,14 @@ import (
 	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 )
 
-// Service 实现流量分析管理 API
+// Service 实现流量分析查询 API
 type Service struct {
-	business *trafficbiz.Service
+	traffic *trafficbiz.Service
 }
 
 // NewService 创建流量分析协议服务
-func NewService(business *trafficbiz.Service) *Service {
-	return &Service{business: business}
+func NewService(traffic *trafficbiz.Service) *Service {
+	return &Service{traffic: traffic}
 }
 
 // GetTrafficAnalysis 查询同一范围内的汇总、趋势和资源排名
@@ -27,9 +27,25 @@ func (s *Service) GetTrafficAnalysis(
 	if err != nil {
 		return nil, err
 	}
-	analysis, err := s.business.Analyze(ctx, query)
+	analysis, err := s.traffic.Analyze(ctx, query)
 	if err != nil {
 		return nil, err
 	}
 	return analysisResponse(analysis), nil
+}
+
+// BatchGetResourceTraffic 查询资源列表展示所需的最近流量摘要
+func (s *Service) BatchGetResourceTraffic(
+	ctx context.Context,
+	request *adminv1.BatchGetResourceTrafficRequest,
+) (*adminv1.BatchGetResourceTrafficResponse, error) {
+	query, err := resourceTrafficQuery(request)
+	if err != nil {
+		return nil, err
+	}
+	summaries, err := s.traffic.BatchGetResourceTraffic(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	return resourceTrafficResponse(summaries), nil
 }

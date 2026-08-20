@@ -21,12 +21,33 @@ func (s *Service) validateReferences(ctx context.Context, spec resource.RouteSpe
 	}
 
 	for _, ref := range spec.UpstreamRefs {
-		_, err := s.upstreams.Get(ctx, ref.Name)
+		upstream, err := s.upstreams.Get(ctx, ref.Name)
 		if err != nil {
 			if errors.Is(err, biz.ErrResourceNotFound) {
 				return biz.NewUserError(fmt.Sprintf("关联服务 %q 不存在", ref.Name))
 			}
 			return err
+		}
+		if upstream.Spec.Model != nil {
+			return biz.NewUserError(fmt.Sprintf("模型服务 %q 只能用于 AI 路由", upstream.Spec.DisplayName))
+		}
+	}
+
+	if spec.AI == nil {
+		return nil
+	}
+	for _, model := range spec.AI.Models {
+		for _, target := range model.Targets {
+			upstream, err := s.upstreams.Get(ctx, target.UpstreamRef)
+			if err != nil {
+				if errors.Is(err, biz.ErrResourceNotFound) {
+					return biz.NewUserError(fmt.Sprintf("关联模型服务 %q 不存在", target.UpstreamRef))
+				}
+				return err
+			}
+			if upstream.Spec.Model == nil {
+				return biz.NewUserError(fmt.Sprintf("服务 %q 不是模型服务", upstream.Spec.DisplayName))
+			}
 		}
 	}
 	return nil

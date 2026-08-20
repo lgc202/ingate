@@ -7,6 +7,7 @@ import { CertificatePage } from '@/features/certificates/CertificatePage';
 import { PolicyPage } from '@/features/policies/PolicyPage';
 import { RequestRecordPage } from '@/features/requests/RequestRecordPage';
 import { TrafficAnalysisPage } from '@/features/traffic/TrafficAnalysisPage';
+import { CallerPage } from '@/features/callers/CallerPage';
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="services" element={<UpstreamPage />} />
         <Route path="certificates" element={<CertificatePage />} />
         <Route path="policies" element={<PolicyPage />} />
+        <Route path="callers" element={<CallerPage />} />
         <Route path="requests" element={<RequestRecordPage />} />
         <Route path="analysis" element={<TrafficAnalysisPage />} />
       </Route>

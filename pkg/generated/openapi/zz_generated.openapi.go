@@ -15,6 +15,13 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AIModel":                 schema_pkg_apis_gateway_v1_AIModel(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AIModelTarget":           schema_pkg_apis_gateway_v1_AIModelTarget(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AIRoute":                 schema_pkg_apis_gateway_v1_AIRoute(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessKey":               schema_pkg_apis_gateway_v1_AccessKey(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Caller":                  schema_pkg_apis_gateway_v1_Caller(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.CallerList":              schema_pkg_apis_gateway_v1_CallerList(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.CallerSpec":              schema_pkg_apis_gateway_v1_CallerSpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Certificate":             schema_pkg_apis_gateway_v1_Certificate(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.CertificateList":         schema_pkg_apis_gateway_v1_CertificateList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.CertificateSpec":         schema_pkg_apis_gateway_v1_CertificateSpec(ref),
@@ -30,6 +37,7 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.IPRestrictionPolicyList": schema_pkg_apis_gateway_v1_IPRestrictionPolicyList(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.IPRestrictionPolicySpec": schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.Listener":                schema_pkg_apis_gateway_v1_Listener(ref),
+		"github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelUpstream":           schema_pkg_apis_gateway_v1_ModelUpstream(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PathMatch":               schema_pkg_apis_gateway_v1_PathMatch(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyStatus":            schema_pkg_apis_gateway_v1_PolicyStatus(ref),
 		"github.com/lgc202/ingate/pkg/apis/gateway/v1.PolicyTargetRef":         schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
@@ -105,6 +113,351 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                             schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
 		"k8s.io/apimachinery/pkg/runtime.Unknown":                              schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
 		"k8s.io/apimachinery/pkg/version.Info":                                 schema_k8sio_apimachinery_pkg_version_Info(ref),
+	}
+}
+
+func schema_pkg_apis_gateway_v1_AIModel(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "AIModel 把调用方使用的稳定模型名映射到一个或多个模型服务",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name 是调用方请求体中使用的稳定模型名",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"targets": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Targets 是可承载该模型的实际线路，各线路按相对权重分流",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.AIModelTarget"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"name", "targets"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AIModelTarget"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_AIModelTarget(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "AIModelTarget 表示一个模型服务上的实际模型线路",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"upstreamRef": {
+						SchemaProps: spec.SchemaProps{
+							Description: "UpstreamRef 引用模型服务的资源 ID",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"model": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Model 是发送给模型服务的真实模型名",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"weight": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Weight 是同一客户端模型下各线路的相对权重",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+				},
+				Required: []string{"upstreamRef", "model", "weight"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_AIRoute(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "AIRoute 定义一个入口路径下发布的客户端模型及其实际模型线路",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"models": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Models 中每个客户端模型名在当前 Route 内必须唯一",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.AIModel"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"models"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AIModel"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_AccessKey(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "AccessKey 表示 Caller 下的一份可独立停用和到期的访问凭据",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"id": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ID 是密钥的公开标识，也用于从请求凭据中定位摘要",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 用于区分同一调用方在不同环境或客户端中的密钥",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"secretDigest": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SecretDigest 是完整密钥的 SHA-256 摘要，不保存可恢复的明文",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 为 false 时该密钥立即失效",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"createdAt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "CreatedAt 记录密钥签发时间",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+					"expiresAt": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ExpiresAt 为空表示密钥不会自动到期",
+							Ref:         ref("k8s.io/apimachinery/pkg/apis/meta/v1.Time"),
+						},
+					},
+				},
+				Required: []string{"id", "displayName", "secretDigest", "enabled", "createdAt"},
+			},
+		},
+		Dependencies: []string{
+			"k8s.io/apimachinery/pkg/apis/meta/v1.Time"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_Caller(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "Caller 声明一个调用网关的应用或服务及其访问权限",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.CallerSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.CallerSpec", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ResourceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_CallerList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CallerList 表示 Caller 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.Caller"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Caller", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_CallerSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "CallerSpec 定义调用方是否可用、可访问的 Route 以及访问密钥",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与鉴权匹配",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 为 false 时立即拒绝该调用方的全部密钥",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"routeRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "set",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "RouteRefs 保存当前调用方可以访问的 Route ID",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: "",
+										Type:    []string{"string"},
+										Format:  "",
+									},
+								},
+							},
+						},
+					},
+					"accessKeys": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"id",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "AccessKeys 只保存不可逆摘要，完整密钥仅在签发时返回一次",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessKey"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"enabled"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AccessKey"},
 	}
 }
 
@@ -808,6 +1161,34 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 	}
 }
 
+func schema_pkg_apis_gateway_v1_ModelUpstream(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "ModelUpstream 定义模型服务与 Ingate 交互使用的协议 真实模型名属于 Route 的模型映射，同一个模型服务可以承载多个模型",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"protocol": {
+						SchemaProps: spec.SchemaProps{
+							Default: "",
+							Type:    []string{"string"},
+							Format:  "",
+						},
+					},
+					"apiKey": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIKey 保存模型服务的访问凭据；Controller 不得把该值写入 Envoy xDS",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"protocol"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_PathMatch(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -1419,6 +1800,14 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							Format:      "",
 						},
 					},
+					"accessMode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AccessMode 决定客户端是否需要使用 Caller 访问密钥",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"gatewayRefs": {
 						VendorExtensible: spec.VendorExtensible{
 							Extensions: spec.Extensions{
@@ -1472,7 +1861,7 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 							},
 						},
 						SchemaProps: spec.SchemaProps{
-							Description: "UpstreamRefs 保存接收请求的上游服务及流量权重",
+							Description: "UpstreamRefs 保存接收请求的上游服务及流量权重 AI 为空时使用该字段；AI Route 的线路由 AI.Models 分别声明",
 							Type:        []string{"array"},
 							Items: &spec.SchemaOrArray{
 								Schema: &spec.Schema{
@@ -1482,6 +1871,12 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 									},
 								},
 							},
+						},
+					},
+					"ai": {
+						SchemaProps: spec.SchemaProps{
+							Description: "AI 存在时表示当前 Route 发布 OpenAI 兼容模型接口",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.AIRoute"),
 						},
 					},
 					"hostRewrite": {
@@ -1511,11 +1906,11 @@ func schema_pkg_apis_gateway_v1_RouteSpec(ref common.ReferenceCallback) common.O
 						},
 					},
 				},
-				Required: []string{"enabled", "gatewayRefs", "match"},
+				Required: []string{"enabled", "accessMode", "gatewayRefs", "match"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier", "github.com/lgc202/ingate/pkg/apis/gateway/v1.HostRewrite", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.AIRoute", "github.com/lgc202/ingate/pkg/apis/gateway/v1.HeaderModifier", "github.com/lgc202/ingate/pkg/apis/gateway/v1.HostRewrite", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteMatch", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteRetry", "github.com/lgc202/ingate/pkg/apis/gateway/v1.RouteTimeout", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamRef"},
 	}
 }
 
@@ -1749,12 +2144,18 @@ func schema_pkg_apis_gateway_v1_UpstreamSpec(ref common.ReferenceCallback) commo
 							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck"),
 						},
 					},
+					"model": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Model 存在时表示当前 Upstream 是模型服务，协议转换由 Ingate 数据面完成",
+							Ref:         ref("github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelUpstream"),
+						},
+					},
 				},
 				Required: []string{"endpoints"},
 			},
 		},
 		Dependencies: []string{
-			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
+			"github.com/lgc202/ingate/pkg/apis/gateway/v1.Endpoint", "github.com/lgc202/ingate/pkg/apis/gateway/v1.ModelUpstream", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamHealthCheck", "github.com/lgc202/ingate/pkg/apis/gateway/v1.UpstreamTLS"},
 	}
 }
 

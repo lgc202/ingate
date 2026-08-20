@@ -128,59 +128,6 @@ func (PolicyTargetKind) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_common_proto_rawDescGZIP(), []int{1}
 }
 
-// ResourceStatus 是控制台展示的声明式资源处理状态
-type ResourceStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	State         ResourceState          `protobuf:"varint,1,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
-	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ResourceStatus) Reset() {
-	*x = ResourceStatus{}
-	mi := &file_admin_v1_common_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ResourceStatus) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ResourceStatus) ProtoMessage() {}
-
-func (x *ResourceStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResourceStatus.ProtoReflect.Descriptor instead.
-func (*ResourceStatus) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{0}
-}
-
-func (x *ResourceStatus) GetState() ResourceState {
-	if x != nil {
-		return x.State
-	}
-	return ResourceState_RESOURCE_STATE_UNSPECIFIED
-}
-
-func (x *ResourceStatus) GetMessage() string {
-	if x != nil {
-		return x.Message
-	}
-	return ""
-}
-
 // PolicyTargetRef 是创建和更新策略时提交的作用目标
 type PolicyTargetRef struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -192,7 +139,7 @@ type PolicyTargetRef struct {
 
 func (x *PolicyTargetRef) Reset() {
 	*x = PolicyTargetRef{}
-	mi := &file_admin_v1_common_proto_msgTypes[1]
+	mi := &file_admin_v1_common_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -204,7 +151,7 @@ func (x *PolicyTargetRef) String() string {
 func (*PolicyTargetRef) ProtoMessage() {}
 
 func (x *PolicyTargetRef) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[1]
+	mi := &file_admin_v1_common_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -217,7 +164,7 @@ func (x *PolicyTargetRef) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyTargetRef.ProtoReflect.Descriptor instead.
 func (*PolicyTargetRef) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{1}
+	return file_admin_v1_common_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *PolicyTargetRef) GetKind() PolicyTargetKind {
@@ -248,7 +195,7 @@ type PolicyTarget struct {
 
 func (x *PolicyTarget) Reset() {
 	*x = PolicyTarget{}
-	mi := &file_admin_v1_common_proto_msgTypes[2]
+	mi := &file_admin_v1_common_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -260,7 +207,7 @@ func (x *PolicyTarget) String() string {
 func (*PolicyTarget) ProtoMessage() {}
 
 func (x *PolicyTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[2]
+	mi := &file_admin_v1_common_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -273,7 +220,7 @@ func (x *PolicyTarget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PolicyTarget.ProtoReflect.Descriptor instead.
 func (*PolicyTarget) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{2}
+	return file_admin_v1_common_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *PolicyTarget) GetKind() PolicyTargetKind {
@@ -311,111 +258,11 @@ func (x *PolicyTarget) GetMessage() string {
 	return ""
 }
 
-// ListRequest 使用 API Server Continue Token 分页读取资源
-type ListRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ListRequest) Reset() {
-	*x = ListRequest{}
-	mi := &file_admin_v1_common_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ListRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ListRequest) ProtoMessage() {}
-
-func (x *ListRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListRequest.ProtoReflect.Descriptor instead.
-func (*ListRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *ListRequest) GetPageSize() int32 {
-	if x != nil {
-		return x.PageSize
-	}
-	return 0
-}
-
-func (x *ListRequest) GetPageToken() string {
-	if x != nil {
-		return x.PageToken
-	}
-	return ""
-}
-
-type PageInfo struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	NextPageToken string                 `protobuf:"bytes,1,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *PageInfo) Reset() {
-	*x = PageInfo{}
-	mi := &file_admin_v1_common_proto_msgTypes[4]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *PageInfo) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*PageInfo) ProtoMessage() {}
-
-func (x *PageInfo) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_common_proto_msgTypes[4]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PageInfo.ProtoReflect.Descriptor instead.
-func (*PageInfo) Descriptor() ([]byte, []int) {
-	return file_admin_v1_common_proto_rawDescGZIP(), []int{4}
-}
-
-func (x *PageInfo) GetNextPageToken() string {
-	if x != nil {
-		return x.NextPageToken
-	}
-	return ""
-}
-
 var File_admin_v1_common_proto protoreflect.FileDescriptor
 
 const file_admin_v1_common_proto_rawDesc = "" +
 	"\n" +
-	"\x15admin/v1/common.proto\x12\x0fingate.admin.v1\x1a\x1bbuf/validate/validate.proto\"`\n" +
-	"\x0eResourceStatus\x124\n" +
-	"\x05state\x18\x01 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateR\x05state\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage\"l\n" +
+	"\x15admin/v1/common.proto\x12\x0fingate.admin.v1\x1a\x1bbuf/validate/validate.proto\"l\n" +
 	"\x0fPolicyTargetRef\x12?\n" +
 	"\x04kind\x18\x01 \x01(\x0e2!.ingate.admin.v1.PolicyTargetKindB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04kind\x12\x18\n" +
 	"\x02id\x18\x02 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xb9\x01\n" +
@@ -424,14 +271,7 @@ const file_admin_v1_common_proto_rawDesc = "" +
 	"\x02id\x18\x02 \x01(\tR\x02id\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04name\x124\n" +
 	"\x05state\x18\x04 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateR\x05state\x12\x18\n" +
-	"\amessage\x18\x05 \x01(\tR\amessage\"U\n" +
-	"\vListRequest\x12'\n" +
-	"\tpage_size\x18\x01 \x01(\x05B\n" +
-	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\x1d\n" +
-	"\n" +
-	"page_token\x18\x02 \x01(\tR\tpageToken\"2\n" +
-	"\bPageInfo\x12&\n" +
-	"\x0fnext_page_token\x18\x01 \x01(\tR\rnextPageToken*`\n" +
+	"\amessage\x18\x05 \x01(\tR\amessage*`\n" +
 	"\rResourceState\x12\x1e\n" +
 	"\x1aRESOURCE_STATE_UNSPECIFIED\x10\x00\x12\f\n" +
 	"\bDISABLED\x10\x01\x12\v\n" +
@@ -456,26 +296,22 @@ func file_admin_v1_common_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_common_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_admin_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_admin_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_admin_v1_common_proto_goTypes = []any{
 	(ResourceState)(0),      // 0: ingate.admin.v1.ResourceState
 	(PolicyTargetKind)(0),   // 1: ingate.admin.v1.PolicyTargetKind
-	(*ResourceStatus)(nil),  // 2: ingate.admin.v1.ResourceStatus
-	(*PolicyTargetRef)(nil), // 3: ingate.admin.v1.PolicyTargetRef
-	(*PolicyTarget)(nil),    // 4: ingate.admin.v1.PolicyTarget
-	(*ListRequest)(nil),     // 5: ingate.admin.v1.ListRequest
-	(*PageInfo)(nil),        // 6: ingate.admin.v1.PageInfo
+	(*PolicyTargetRef)(nil), // 2: ingate.admin.v1.PolicyTargetRef
+	(*PolicyTarget)(nil),    // 3: ingate.admin.v1.PolicyTarget
 }
 var file_admin_v1_common_proto_depIdxs = []int32{
-	0, // 0: ingate.admin.v1.ResourceStatus.state:type_name -> ingate.admin.v1.ResourceState
-	1, // 1: ingate.admin.v1.PolicyTargetRef.kind:type_name -> ingate.admin.v1.PolicyTargetKind
-	1, // 2: ingate.admin.v1.PolicyTarget.kind:type_name -> ingate.admin.v1.PolicyTargetKind
-	0, // 3: ingate.admin.v1.PolicyTarget.state:type_name -> ingate.admin.v1.ResourceState
-	4, // [4:4] is the sub-list for method output_type
-	4, // [4:4] is the sub-list for method input_type
-	4, // [4:4] is the sub-list for extension type_name
-	4, // [4:4] is the sub-list for extension extendee
-	0, // [0:4] is the sub-list for field type_name
+	1, // 0: ingate.admin.v1.PolicyTargetRef.kind:type_name -> ingate.admin.v1.PolicyTargetKind
+	1, // 1: ingate.admin.v1.PolicyTarget.kind:type_name -> ingate.admin.v1.PolicyTargetKind
+	0, // 2: ingate.admin.v1.PolicyTarget.state:type_name -> ingate.admin.v1.ResourceState
+	3, // [3:3] is the sub-list for method output_type
+	3, // [3:3] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_common_proto_init() }
@@ -489,7 +325,7 @@ func file_admin_v1_common_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_common_proto_rawDesc), len(file_admin_v1_common_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

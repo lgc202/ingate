@@ -10,15 +10,18 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func buildHeaderModifier(input *adminv1.HeaderModifier) (*resource.HeaderModifier, error) {
+func headerModifier(input *adminv1.HeaderModifier) (*resource.HeaderModifier, error) {
+	if input == nil {
+		return nil, nil
+	}
 	modifier := &resource.HeaderModifier{}
 	seen := make(map[string]struct{}, len(input.GetSet())+len(input.GetAdd())+len(input.GetRemove()))
-	set, err := buildHeaderValues(input.GetSet(), seen)
+	set, err := headerValues(input.GetSet(), seen)
 	if err != nil {
 		return nil, err
 	}
 	modifier.Set = set
-	add, err := buildHeaderValues(input.GetAdd(), seen)
+	add, err := headerValues(input.GetAdd(), seen)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +43,7 @@ func buildHeaderModifier(input *adminv1.HeaderModifier) (*resource.HeaderModifie
 	return modifier, nil
 }
 
-func buildHeaderValues(inputs []*adminv1.HeaderValue, seen map[string]struct{}) ([]resource.HeaderValue, error) {
+func headerValues(inputs []*adminv1.HeaderValue, seen map[string]struct{}) ([]resource.HeaderValue, error) {
 	values := make([]resource.HeaderValue, 0, len(inputs))
 	for _, input := range inputs {
 		if input == nil {

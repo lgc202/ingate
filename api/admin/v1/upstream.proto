@@ -41,6 +41,29 @@ enum LoadBalancingPolicy {
   LOAD_BALANCING_POLICY_LEAST_REQUEST = 2;
 }
 
+enum ModelProtocol {
+  MODEL_PROTOCOL_UNSPECIFIED = 0;
+  MODEL_PROTOCOL_OPENAI = 1;
+  MODEL_PROTOCOL_ANTHROPIC = 2;
+}
+
+// ModelUpstream 只返回模型服务的非敏感配置
+message ModelUpstream {
+  ModelProtocol protocol = 1;
+  bool api_key_configured = 2 [json_name = "apiKeyConfigured"];
+}
+
+// ModelUpstreamInput 管理模型服务协议和凭据
+// 更新时未提供 api_key 表示保留原值，clear_api_key 表示明确删除
+message ModelUpstreamInput {
+  ModelProtocol protocol = 1 [(buf.validate.field).enum.defined_only = true];
+  optional string api_key = 2 [
+    json_name = "apiKey",
+    (buf.validate.field).string.max_len = 4096
+  ];
+  bool clear_api_key = 3 [json_name = "clearApiKey"];
+}
+
 message UpstreamTLS {
   string server_name = 1 [(buf.validate.field).string.min_len = 1];
 }
@@ -72,6 +95,7 @@ message Upstream {
   int64 version = 9;
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp updated_at = 11;
+  ModelUpstream model = 12;
 }
 
 message ListUpstreamsRequest {
@@ -94,6 +118,7 @@ message CreateUpstreamRequest {
   UpstreamTLS tls = 3;
   LoadBalancingPolicy load_balancing = 4;
   UpstreamHealthCheck health_check = 5;
+  ModelUpstreamInput model = 6;
 }
 
 message UpdateUpstreamRequest {
@@ -104,6 +129,7 @@ message UpdateUpstreamRequest {
   UpstreamTLS tls = 5;
   LoadBalancingPolicy load_balancing = 6;
   UpstreamHealthCheck health_check = 7;
+  ModelUpstreamInput model = 8;
 }
 
 message DeleteUpstreamRequest {

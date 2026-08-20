@@ -18,6 +18,8 @@ const (
 	KindRateLimitPolicy Kind = "RateLimitPolicy"
 	// KindIPRestrictionPolicy 表示 IPRestrictionPolicy 资源类型
 	KindIPRestrictionPolicy Kind = "IPRestrictionPolicy"
+	// KindCaller 表示 Caller 资源类型
+	KindCaller Kind = "Caller"
 )
 
 // PolicyTargetRef 表示策略的生效目标

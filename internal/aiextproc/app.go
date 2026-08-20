@@ -14,6 +14,7 @@ import (
 	"github.com/lgc202/go-kit/version"
 
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
+	"github.com/lgc202/ingate/internal/aiextproc/modelservice"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 )
 
@@ -40,7 +41,12 @@ func NewApp(configFile string) (*App, error) {
 	logger := newLogger(bootstrap.GetLogging(), string(instanceID))
 	kratoslog.SetDefault(logger)
 
-	kratosApp, err := wireApp(bootstrap.GetServer(), logger, instanceID)
+	kratosApp, err := wireApp(
+		bootstrap.GetServer(),
+		bootstrap.GetData().GetApiserver(),
+		logger,
+		instanceID,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("create AI ExtProc application: %w", err)
 	}
@@ -58,6 +64,7 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
+	modelServices *modelservice.Cache,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -66,7 +73,7 @@ func newKratosApp(
 		kratos.Version(version.Get().String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		kratos.Server(httpServer, grpcServer),
+		kratos.Server(httpServer, grpcServer, modelServices),
 	)
 }
 

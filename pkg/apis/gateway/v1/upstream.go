@@ -12,6 +12,16 @@ const (
 	LoadBalancingLeastRequest LoadBalancingPolicy = "LeastRequest"
 )
 
+// ModelProtocol 表示模型服务实际提供的 HTTP API 协议
+type ModelProtocol string
+
+const (
+	// ModelProtocolOpenAI 表示 OpenAI Chat Completions 兼容协议
+	ModelProtocolOpenAI ModelProtocol = "OpenAI"
+	// ModelProtocolAnthropic 表示 Anthropic Messages 协议
+	ModelProtocolAnthropic ModelProtocol = "Anthropic"
+)
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient
 // +genclient:nonNamespaced
@@ -47,6 +57,16 @@ type UpstreamSpec struct {
 	LoadBalancing LoadBalancingPolicy `json:"loadBalancing,omitempty"`
 	// HealthCheck 描述可选的 HTTP 主动健康检查，对象存在即启用
 	HealthCheck *UpstreamHealthCheck `json:"healthCheck,omitempty"`
+	// Model 存在时表示当前 Upstream 是模型服务，协议转换由 Ingate 数据面完成
+	Model *ModelUpstream `json:"model,omitempty"`
+}
+
+// ModelUpstream 定义模型服务与 Ingate 交互使用的协议
+// 真实模型名属于 Route 的模型映射，同一个模型服务可以承载多个模型
+type ModelUpstream struct {
+	Protocol ModelProtocol `json:"protocol"`
+	// APIKey 保存模型服务的访问凭据；Controller 不得把该值写入 Envoy xDS
+	APIKey string `json:"apiKey,omitempty"`
 }
 
 // Endpoint 表示 Upstream 的一个网络地址及其相对容量

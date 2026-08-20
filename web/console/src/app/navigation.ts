@@ -6,6 +6,7 @@ import {
   Route,
   Server,
   ShieldCheck,
+  UsersRound,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
@@ -36,7 +37,10 @@ export const navigation: NavGroup[] = [
   {
     key: 'access',
     label: '访问治理',
-    items: [{ key: 'policies', label: '流量策略', to: '/policies', icon: ShieldCheck }],
+    items: [
+      { key: 'callers', label: '调用方', to: '/callers', icon: UsersRound },
+      { key: 'policies', label: '流量策略', to: '/policies', icon: ShieldCheck },
+    ],
   },
   {
     key: 'operations',

@@ -31,11 +31,17 @@ type UpstreamRepository interface {
 	Get(context.Context, string) (*resource.Upstream, error)
 }
 
+// CallerRepository 定义 Route 删除时需要的 Caller 授权查询能力
+type CallerRepository interface {
+	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Caller], error)
+}
+
 // Service 协调 Route 的校验、引用约束和持久化
 type Service struct {
 	repository  Repository
 	gateways    GatewayRepository
 	upstreams   UpstreamRepository
+	callers     CallerRepository
 	policyUsage *biz.PolicyUsageFinder
 }
 
@@ -44,12 +50,14 @@ func NewService(
 	repository Repository,
 	gateways GatewayRepository,
 	upstreams UpstreamRepository,
+	callers CallerRepository,
 	policyUsage *biz.PolicyUsageFinder,
 ) *Service {
 	return &Service{
 		repository:  repository,
 		gateways:    gateways,
 		upstreams:   upstreams,
+		callers:     callers,
 		policyUsage: policyUsage,
 	}
 }
@@ -125,6 +133,16 @@ func (s *Service) Delete(ctx context.Context, routeID string, version int64) err
 	}
 	if usage != nil {
 		return biz.NewUserError(fmt.Sprintf("路由 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
+	}
+	if err := biz.VisitPages(ctx, s.callers.ListPage, func(caller resource.Caller) (bool, error) {
+		for _, ref := range caller.Spec.RouteRefs {
+			if ref == routeID {
+				return true, biz.NewUserError(fmt.Sprintf("路由 %q 仍授权给调用方 %q", current.Spec.DisplayName, caller.Spec.DisplayName))
+			}
+		}
+		return false, nil
+	}); err != nil {
+		return err
 	}
 	if err := s.repository.Delete(ctx, routeID, current.Generation); err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {

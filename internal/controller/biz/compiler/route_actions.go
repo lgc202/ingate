@@ -14,6 +14,8 @@ import (
 )
 
 const (
+	minRouteTimeoutMillis  = 100
+	maxRouteTimeoutMillis  = 300000
 	minRetryAttempts       = 1
 	maxRetryAttempts       = 5
 	minPerTryTimeoutMillis = 100
@@ -36,12 +38,17 @@ func (c *compilation) weightedClusters(
 	valid := true
 	for _, ref := range refs {
 		exists := compiledUpstreams[ref.Name]
-		if ref.Name == "" || seen[ref.Name] || !exists || ref.Weight < 1 || ref.Weight > 1000 {
+		modelUpstream := exists && c.upstreams[ref.Name].Spec.Model != nil
+		if ref.Name == "" || seen[ref.Name] || !exists || modelUpstream || ref.Weight < 1 || ref.Weight > 1000 {
 			reason := ReasonInvalidSpec
 			if ref.Name != "" && !exists {
 				reason = ReasonReferenceNotFound
 			}
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, reason, fmt.Sprintf("route %q has an invalid upstream reference %q", route.Name, ref.Name))
+			message := fmt.Sprintf("route %q has an invalid upstream reference %q", route.Name, ref.Name)
+			if modelUpstream {
+				message = fmt.Sprintf("route %q must publish model upstream %q through ai.models", route.Name, ref.Name)
+			}
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, reason, message)
 			valid = false
 			continue
 		}
@@ -49,6 +56,33 @@ func (c *compilation) weightedClusters(
 		clusters = append(clusters, &routev3.WeightedCluster_ClusterWeight{Name: ref.Name, Weight: wrapperspb.UInt32(uint32(ref.Weight))})
 	}
 	return clusters, valid
+}
+
+func (c *compilation) routeAction(
+	route *gatewayv1.Route,
+	clusters []*routev3.WeightedCluster_ClusterWeight,
+) (*routev3.RouteAction, bool) {
+	action := &routev3.RouteAction{ClusterSpecifier: &routev3.RouteAction_WeightedClusters{
+		WeightedClusters: &routev3.WeightedCluster{Clusters: clusters},
+	}}
+	if !c.applyHostRewrite(route, action) {
+		return nil, false
+	}
+	if route.Spec.Timeout != nil {
+		if route.Spec.Timeout.RequestMillis < minRouteTimeoutMillis || route.Spec.Timeout.RequestMillis > maxRouteTimeoutMillis {
+			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q timeout is out of range", route.Name))
+			return nil, false
+		}
+		action.Timeout = durationpb.New(time.Duration(route.Spec.Timeout.RequestMillis) * time.Millisecond)
+	}
+	if route.Spec.Retry != nil {
+		retry, ok := c.routeRetryPolicy(route)
+		if !ok {
+			return nil, false
+		}
+		action.RetryPolicy = retry
+	}
+	return action, true
 }
 
 // applyHostRewrite 使用 Route 级语义生成 Envoy Host 重写，服务地址模式会跟随实际选中的端点

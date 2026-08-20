@@ -23,6 +23,117 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// AIModelCall 表示一次 AI Route 实际执行的模型映射和用量
+//
+// 该结构只来自数据面执行结果，不保存请求或响应正文
+type AIModelCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// client_model 是调用方请求中使用的稳定模型名
+	ClientModel string `protobuf:"bytes,1,opt,name=client_model,json=clientModel,proto3" json:"client_model,omitempty"`
+	// upstream_model 是 AI Route 选中线路配置的真实模型名
+	UpstreamModel string `protobuf:"bytes,2,opt,name=upstream_model,json=upstreamModel,proto3" json:"upstream_model,omitempty"`
+	// upstream_protocol 是模型 Service 使用的厂商 API 协议
+	UpstreamProtocol string `protobuf:"bytes,3,opt,name=upstream_protocol,json=upstreamProtocol,proto3" json:"upstream_protocol,omitempty"`
+	// response_model 是模型服务在响应中声明的模型名
+	ResponseModel string `protobuf:"bytes,4,opt,name=response_model,json=responseModel,proto3" json:"response_model,omitempty"`
+	// finish_reason 是模型服务返回的生成结束原因
+	FinishReason string `protobuf:"bytes,5,opt,name=finish_reason,json=finishReason,proto3" json:"finish_reason,omitempty"`
+	// input_tokens 是模型服务报告的输入 Token 数
+	InputTokens *uint64 `protobuf:"varint,6,opt,name=input_tokens,json=inputTokens,proto3,oneof" json:"input_tokens,omitempty"`
+	// output_tokens 是模型服务报告的输出 Token 数
+	OutputTokens *uint64 `protobuf:"varint,7,opt,name=output_tokens,json=outputTokens,proto3,oneof" json:"output_tokens,omitempty"`
+	// total_tokens 是模型服务报告的总 Token 数
+	TotalTokens   *uint64 `protobuf:"varint,8,opt,name=total_tokens,json=totalTokens,proto3,oneof" json:"total_tokens,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AIModelCall) Reset() {
+	*x = AIModelCall{}
+	mi := &file_als_v1_request_record_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AIModelCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AIModelCall) ProtoMessage() {}
+
+func (x *AIModelCall) ProtoReflect() protoreflect.Message {
+	mi := &file_als_v1_request_record_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AIModelCall.ProtoReflect.Descriptor instead.
+func (*AIModelCall) Descriptor() ([]byte, []int) {
+	return file_als_v1_request_record_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *AIModelCall) GetClientModel() string {
+	if x != nil {
+		return x.ClientModel
+	}
+	return ""
+}
+
+func (x *AIModelCall) GetUpstreamModel() string {
+	if x != nil {
+		return x.UpstreamModel
+	}
+	return ""
+}
+
+func (x *AIModelCall) GetUpstreamProtocol() string {
+	if x != nil {
+		return x.UpstreamProtocol
+	}
+	return ""
+}
+
+func (x *AIModelCall) GetResponseModel() string {
+	if x != nil {
+		return x.ResponseModel
+	}
+	return ""
+}
+
+func (x *AIModelCall) GetFinishReason() string {
+	if x != nil {
+		return x.FinishReason
+	}
+	return ""
+}
+
+func (x *AIModelCall) GetInputTokens() uint64 {
+	if x != nil && x.InputTokens != nil {
+		return *x.InputTokens
+	}
+	return 0
+}
+
+func (x *AIModelCall) GetOutputTokens() uint64 {
+	if x != nil && x.OutputTokens != nil {
+		return *x.OutputTokens
+	}
+	return 0
+}
+
+func (x *AIModelCall) GetTotalTokens() uint64 {
+	if x != nil && x.TotalTokens != nil {
+		return *x.TotalTokens
+	}
+	return 0
+}
+
 // RequestRecord 表示一条已经完成的网关请求记录
 //
 // 记录只保存排障和聚合分析所需的元数据，不保存请求头、请求正文和响应正文
@@ -68,13 +179,19 @@ type RequestRecord struct {
 	UpstreamAddress string `protobuf:"bytes,19,opt,name=upstream_address,json=upstreamAddress,proto3" json:"upstream_address,omitempty"`
 	// time_to_first_byte 是请求开始到 Envoy 向客户端发送首字节的时间
 	TimeToFirstByte *durationpb.Duration `protobuf:"bytes,20,opt,name=time_to_first_byte,json=timeToFirstByte,proto3" json:"time_to_first_byte,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// ai_model_call 仅在请求经过 AI Route 时存在
+	AiModelCall *AIModelCall `protobuf:"bytes,21,opt,name=ai_model_call,json=aiModelCall,proto3" json:"ai_model_call,omitempty"`
+	// caller_id 是通过调用方密钥认证的 Caller 资源 ID，公开访问时为空
+	CallerId string `protobuf:"bytes,22,opt,name=caller_id,json=callerId,proto3" json:"caller_id,omitempty"`
+	// access_key_id 是本次认证命中的访问密钥 ID，不包含密钥明文或摘要
+	AccessKeyId   string `protobuf:"bytes,23,opt,name=access_key_id,json=accessKeyId,proto3" json:"access_key_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RequestRecord) Reset() {
 	*x = RequestRecord{}
-	mi := &file_als_v1_request_record_proto_msgTypes[0]
+	mi := &file_als_v1_request_record_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -86,7 +203,7 @@ func (x *RequestRecord) String() string {
 func (*RequestRecord) ProtoMessage() {}
 
 func (x *RequestRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_als_v1_request_record_proto_msgTypes[0]
+	mi := &file_als_v1_request_record_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -99,7 +216,7 @@ func (x *RequestRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestRecord.ProtoReflect.Descriptor instead.
 func (*RequestRecord) Descriptor() ([]byte, []int) {
-	return file_als_v1_request_record_proto_rawDescGZIP(), []int{0}
+	return file_als_v1_request_record_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RequestRecord) GetId() string {
@@ -242,11 +359,44 @@ func (x *RequestRecord) GetTimeToFirstByte() *durationpb.Duration {
 	return nil
 }
 
+func (x *RequestRecord) GetAiModelCall() *AIModelCall {
+	if x != nil {
+		return x.AiModelCall
+	}
+	return nil
+}
+
+func (x *RequestRecord) GetCallerId() string {
+	if x != nil {
+		return x.CallerId
+	}
+	return ""
+}
+
+func (x *RequestRecord) GetAccessKeyId() string {
+	if x != nil {
+		return x.AccessKeyId
+	}
+	return ""
+}
+
 var File_als_v1_request_record_proto protoreflect.FileDescriptor
 
 const file_als_v1_request_record_proto_rawDesc = "" +
 	"\n" +
-	"\x1bals/v1/request_record.proto\x12\ringate.als.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe9\x05\n" +
+	"\x1bals/v1/request_record.proto\x12\ringate.als.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xfe\x02\n" +
+	"\vAIModelCall\x12!\n" +
+	"\fclient_model\x18\x01 \x01(\tR\vclientModel\x12%\n" +
+	"\x0eupstream_model\x18\x02 \x01(\tR\rupstreamModel\x12+\n" +
+	"\x11upstream_protocol\x18\x03 \x01(\tR\x10upstreamProtocol\x12%\n" +
+	"\x0eresponse_model\x18\x04 \x01(\tR\rresponseModel\x12#\n" +
+	"\rfinish_reason\x18\x05 \x01(\tR\ffinishReason\x12&\n" +
+	"\finput_tokens\x18\x06 \x01(\x04H\x00R\vinputTokens\x88\x01\x01\x12(\n" +
+	"\routput_tokens\x18\a \x01(\x04H\x01R\foutputTokens\x88\x01\x01\x12&\n" +
+	"\ftotal_tokens\x18\b \x01(\x04H\x02R\vtotalTokens\x88\x01\x01B\x0f\n" +
+	"\r_input_tokensB\x10\n" +
+	"\x0e_output_tokensB\x0f\n" +
+	"\r_total_tokens\"\xea\x06\n" +
 	"\rRequestRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -273,7 +423,10 @@ const file_als_v1_request_record_proto_rawDesc = "" +
 	"\x15response_code_details\x18\x11 \x01(\tR\x13responseCodeDetails\x12+\n" +
 	"\x11upstream_attempts\x18\x12 \x01(\rR\x10upstreamAttempts\x12)\n" +
 	"\x10upstream_address\x18\x13 \x01(\tR\x0fupstreamAddress\x12F\n" +
-	"\x12time_to_first_byte\x18\x14 \x01(\v2\x19.google.protobuf.DurationR\x0ftimeToFirstByteB(Z&github.com/lgc202/ingate/api/als/v1;v1b\x06proto3"
+	"\x12time_to_first_byte\x18\x14 \x01(\v2\x19.google.protobuf.DurationR\x0ftimeToFirstByte\x12>\n" +
+	"\rai_model_call\x18\x15 \x01(\v2\x1a.ingate.als.v1.AIModelCallR\vaiModelCall\x12\x1b\n" +
+	"\tcaller_id\x18\x16 \x01(\tR\bcallerId\x12\"\n" +
+	"\raccess_key_id\x18\x17 \x01(\tR\vaccessKeyIdB(Z&github.com/lgc202/ingate/api/als/v1;v1b\x06proto3"
 
 var (
 	file_als_v1_request_record_proto_rawDescOnce sync.Once
@@ -287,21 +440,23 @@ func file_als_v1_request_record_proto_rawDescGZIP() []byte {
 	return file_als_v1_request_record_proto_rawDescData
 }
 
-var file_als_v1_request_record_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_als_v1_request_record_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_als_v1_request_record_proto_goTypes = []any{
-	(*RequestRecord)(nil),         // 0: ingate.als.v1.RequestRecord
-	(*timestamppb.Timestamp)(nil), // 1: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),   // 2: google.protobuf.Duration
+	(*AIModelCall)(nil),           // 0: ingate.als.v1.AIModelCall
+	(*RequestRecord)(nil),         // 1: ingate.als.v1.RequestRecord
+	(*timestamppb.Timestamp)(nil), // 2: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),   // 3: google.protobuf.Duration
 }
 var file_als_v1_request_record_proto_depIdxs = []int32{
-	1, // 0: ingate.als.v1.RequestRecord.started_at:type_name -> google.protobuf.Timestamp
-	2, // 1: ingate.als.v1.RequestRecord.duration:type_name -> google.protobuf.Duration
-	2, // 2: ingate.als.v1.RequestRecord.time_to_first_byte:type_name -> google.protobuf.Duration
-	3, // [3:3] is the sub-list for method output_type
-	3, // [3:3] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	2, // 0: ingate.als.v1.RequestRecord.started_at:type_name -> google.protobuf.Timestamp
+	3, // 1: ingate.als.v1.RequestRecord.duration:type_name -> google.protobuf.Duration
+	3, // 2: ingate.als.v1.RequestRecord.time_to_first_byte:type_name -> google.protobuf.Duration
+	0, // 3: ingate.als.v1.RequestRecord.ai_model_call:type_name -> ingate.als.v1.AIModelCall
+	4, // [4:4] is the sub-list for method output_type
+	4, // [4:4] is the sub-list for method input_type
+	4, // [4:4] is the sub-list for extension type_name
+	4, // [4:4] is the sub-list for extension extendee
+	0, // [0:4] is the sub-list for field type_name
 }
 
 func init() { file_als_v1_request_record_proto_init() }
@@ -309,13 +464,14 @@ func file_als_v1_request_record_proto_init() {
 	if File_als_v1_request_record_proto != nil {
 		return
 	}
+	file_als_v1_request_record_proto_msgTypes[0].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_als_v1_request_record_proto_rawDesc), len(file_als_v1_request_record_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

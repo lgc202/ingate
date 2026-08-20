@@ -19,7 +19,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TrafficAnalysisService_GetTrafficAnalysis_FullMethodName = "/ingate.admin.v1.TrafficAnalysisService/GetTrafficAnalysis"
+	TrafficAnalysisService_GetTrafficAnalysis_FullMethodName      = "/ingate.admin.v1.TrafficAnalysisService/GetTrafficAnalysis"
+	TrafficAnalysisService_BatchGetResourceTraffic_FullMethodName = "/ingate.admin.v1.TrafficAnalysisService/BatchGetResourceTraffic"
 )
 
 // TrafficAnalysisServiceClient is the client API for TrafficAnalysisService service.
@@ -30,6 +31,8 @@ const (
 type TrafficAnalysisServiceClient interface {
 	// GetTrafficAnalysis 查询同一时间和资源范围内的汇总、趋势与排名
 	GetTrafficAnalysis(ctx context.Context, in *GetTrafficAnalysisRequest, opts ...grpc.CallOption) (*GetTrafficAnalysisResponse, error)
+	// BatchGetResourceTraffic 查询资源列表展示所需的最近流量摘要
+	BatchGetResourceTraffic(ctx context.Context, in *BatchGetResourceTrafficRequest, opts ...grpc.CallOption) (*BatchGetResourceTrafficResponse, error)
 }
 
 type trafficAnalysisServiceClient struct {
@@ -50,6 +53,16 @@ func (c *trafficAnalysisServiceClient) GetTrafficAnalysis(ctx context.Context, i
 	return out, nil
 }
 
+func (c *trafficAnalysisServiceClient) BatchGetResourceTraffic(ctx context.Context, in *BatchGetResourceTrafficRequest, opts ...grpc.CallOption) (*BatchGetResourceTrafficResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchGetResourceTrafficResponse)
+	err := c.cc.Invoke(ctx, TrafficAnalysisService_BatchGetResourceTraffic_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TrafficAnalysisServiceServer is the server API for TrafficAnalysisService service.
 // All implementations should embed UnimplementedTrafficAnalysisServiceServer
 // for forward compatibility.
@@ -58,6 +71,8 @@ func (c *trafficAnalysisServiceClient) GetTrafficAnalysis(ctx context.Context, i
 type TrafficAnalysisServiceServer interface {
 	// GetTrafficAnalysis 查询同一时间和资源范围内的汇总、趋势与排名
 	GetTrafficAnalysis(context.Context, *GetTrafficAnalysisRequest) (*GetTrafficAnalysisResponse, error)
+	// BatchGetResourceTraffic 查询资源列表展示所需的最近流量摘要
+	BatchGetResourceTraffic(context.Context, *BatchGetResourceTrafficRequest) (*BatchGetResourceTrafficResponse, error)
 }
 
 // UnimplementedTrafficAnalysisServiceServer should be embedded to have
@@ -69,6 +84,9 @@ type UnimplementedTrafficAnalysisServiceServer struct{}
 
 func (UnimplementedTrafficAnalysisServiceServer) GetTrafficAnalysis(context.Context, *GetTrafficAnalysisRequest) (*GetTrafficAnalysisResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTrafficAnalysis not implemented")
+}
+func (UnimplementedTrafficAnalysisServiceServer) BatchGetResourceTraffic(context.Context, *BatchGetResourceTrafficRequest) (*BatchGetResourceTrafficResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BatchGetResourceTraffic not implemented")
 }
 func (UnimplementedTrafficAnalysisServiceServer) testEmbeddedByValue() {}
 
@@ -108,6 +126,24 @@ func _TrafficAnalysisService_GetTrafficAnalysis_Handler(srv interface{}, ctx con
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TrafficAnalysisService_BatchGetResourceTraffic_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchGetResourceTrafficRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TrafficAnalysisServiceServer).BatchGetResourceTraffic(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TrafficAnalysisService_BatchGetResourceTraffic_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TrafficAnalysisServiceServer).BatchGetResourceTraffic(ctx, req.(*BatchGetResourceTrafficRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TrafficAnalysisService_ServiceDesc is the grpc.ServiceDesc for TrafficAnalysisService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -118,6 +154,10 @@ var TrafficAnalysisService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetTrafficAnalysis",
 			Handler:    _TrafficAnalysisService_GetTrafficAnalysis_Handler,
+		},
+		{
+			MethodName: "BatchGetResourceTraffic",
+			Handler:    _TrafficAnalysisService_BatchGetResourceTraffic_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

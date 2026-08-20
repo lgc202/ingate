@@ -23,6 +23,76 @@ func init() {
 // RegisterConversions adds conversion functions to the given scheme.
 // Public to allow building arbitrary schemes.
 func RegisterConversions(s *runtime.Scheme) error {
+	if err := s.AddGeneratedConversionFunc((*AIModel)(nil), (*gateway.AIModel)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AIModel_To_gateway_AIModel(a.(*AIModel), b.(*gateway.AIModel), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AIModel)(nil), (*AIModel)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AIModel_To_v1_AIModel(a.(*gateway.AIModel), b.(*AIModel), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*AIModelTarget)(nil), (*gateway.AIModelTarget)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AIModelTarget_To_gateway_AIModelTarget(a.(*AIModelTarget), b.(*gateway.AIModelTarget), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AIModelTarget)(nil), (*AIModelTarget)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AIModelTarget_To_v1_AIModelTarget(a.(*gateway.AIModelTarget), b.(*AIModelTarget), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*AIRoute)(nil), (*gateway.AIRoute)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AIRoute_To_gateway_AIRoute(a.(*AIRoute), b.(*gateway.AIRoute), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AIRoute)(nil), (*AIRoute)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AIRoute_To_v1_AIRoute(a.(*gateway.AIRoute), b.(*AIRoute), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*AccessKey)(nil), (*gateway.AccessKey)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_AccessKey_To_gateway_AccessKey(a.(*AccessKey), b.(*gateway.AccessKey), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.AccessKey)(nil), (*AccessKey)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_AccessKey_To_v1_AccessKey(a.(*gateway.AccessKey), b.(*AccessKey), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*Caller)(nil), (*gateway.Caller)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_Caller_To_gateway_Caller(a.(*Caller), b.(*gateway.Caller), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.Caller)(nil), (*Caller)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_Caller_To_v1_Caller(a.(*gateway.Caller), b.(*Caller), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*CallerList)(nil), (*gateway.CallerList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_CallerList_To_gateway_CallerList(a.(*CallerList), b.(*gateway.CallerList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.CallerList)(nil), (*CallerList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_CallerList_To_v1_CallerList(a.(*gateway.CallerList), b.(*CallerList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*CallerSpec)(nil), (*gateway.CallerSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_CallerSpec_To_gateway_CallerSpec(a.(*CallerSpec), b.(*gateway.CallerSpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.CallerSpec)(nil), (*CallerSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_CallerSpec_To_v1_CallerSpec(a.(*gateway.CallerSpec), b.(*CallerSpec), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*Certificate)(nil), (*gateway.Certificate)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_Certificate_To_gateway_Certificate(a.(*Certificate), b.(*gateway.Certificate), scope)
 	}); err != nil {
@@ -170,6 +240,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.Listener)(nil), (*Listener)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_Listener_To_v1_Listener(a.(*gateway.Listener), b.(*Listener), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*ModelUpstream)(nil), (*gateway.ModelUpstream)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_ModelUpstream_To_gateway_ModelUpstream(a.(*ModelUpstream), b.(*gateway.ModelUpstream), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.ModelUpstream)(nil), (*ModelUpstream)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_ModelUpstream_To_v1_ModelUpstream(a.(*gateway.ModelUpstream), b.(*ModelUpstream), scope)
 	}); err != nil {
 		return err
 	}
@@ -394,6 +474,182 @@ func RegisterConversions(s *runtime.Scheme) error {
 		return err
 	}
 	return nil
+}
+
+func autoConvert_v1_AIModel_To_gateway_AIModel(in *AIModel, out *gateway.AIModel, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Targets = *(*[]gateway.AIModelTarget)(unsafe.Pointer(&in.Targets))
+	return nil
+}
+
+// Convert_v1_AIModel_To_gateway_AIModel is an autogenerated conversion function.
+func Convert_v1_AIModel_To_gateway_AIModel(in *AIModel, out *gateway.AIModel, s conversion.Scope) error {
+	return autoConvert_v1_AIModel_To_gateway_AIModel(in, out, s)
+}
+
+func autoConvert_gateway_AIModel_To_v1_AIModel(in *gateway.AIModel, out *AIModel, s conversion.Scope) error {
+	out.Name = in.Name
+	out.Targets = *(*[]AIModelTarget)(unsafe.Pointer(&in.Targets))
+	return nil
+}
+
+// Convert_gateway_AIModel_To_v1_AIModel is an autogenerated conversion function.
+func Convert_gateway_AIModel_To_v1_AIModel(in *gateway.AIModel, out *AIModel, s conversion.Scope) error {
+	return autoConvert_gateway_AIModel_To_v1_AIModel(in, out, s)
+}
+
+func autoConvert_v1_AIModelTarget_To_gateway_AIModelTarget(in *AIModelTarget, out *gateway.AIModelTarget, s conversion.Scope) error {
+	out.UpstreamRef = in.UpstreamRef
+	out.Model = in.Model
+	out.Weight = in.Weight
+	return nil
+}
+
+// Convert_v1_AIModelTarget_To_gateway_AIModelTarget is an autogenerated conversion function.
+func Convert_v1_AIModelTarget_To_gateway_AIModelTarget(in *AIModelTarget, out *gateway.AIModelTarget, s conversion.Scope) error {
+	return autoConvert_v1_AIModelTarget_To_gateway_AIModelTarget(in, out, s)
+}
+
+func autoConvert_gateway_AIModelTarget_To_v1_AIModelTarget(in *gateway.AIModelTarget, out *AIModelTarget, s conversion.Scope) error {
+	out.UpstreamRef = in.UpstreamRef
+	out.Model = in.Model
+	out.Weight = in.Weight
+	return nil
+}
+
+// Convert_gateway_AIModelTarget_To_v1_AIModelTarget is an autogenerated conversion function.
+func Convert_gateway_AIModelTarget_To_v1_AIModelTarget(in *gateway.AIModelTarget, out *AIModelTarget, s conversion.Scope) error {
+	return autoConvert_gateway_AIModelTarget_To_v1_AIModelTarget(in, out, s)
+}
+
+func autoConvert_v1_AIRoute_To_gateway_AIRoute(in *AIRoute, out *gateway.AIRoute, s conversion.Scope) error {
+	out.Models = *(*[]gateway.AIModel)(unsafe.Pointer(&in.Models))
+	return nil
+}
+
+// Convert_v1_AIRoute_To_gateway_AIRoute is an autogenerated conversion function.
+func Convert_v1_AIRoute_To_gateway_AIRoute(in *AIRoute, out *gateway.AIRoute, s conversion.Scope) error {
+	return autoConvert_v1_AIRoute_To_gateway_AIRoute(in, out, s)
+}
+
+func autoConvert_gateway_AIRoute_To_v1_AIRoute(in *gateway.AIRoute, out *AIRoute, s conversion.Scope) error {
+	out.Models = *(*[]AIModel)(unsafe.Pointer(&in.Models))
+	return nil
+}
+
+// Convert_gateway_AIRoute_To_v1_AIRoute is an autogenerated conversion function.
+func Convert_gateway_AIRoute_To_v1_AIRoute(in *gateway.AIRoute, out *AIRoute, s conversion.Scope) error {
+	return autoConvert_gateway_AIRoute_To_v1_AIRoute(in, out, s)
+}
+
+func autoConvert_v1_AccessKey_To_gateway_AccessKey(in *AccessKey, out *gateway.AccessKey, s conversion.Scope) error {
+	out.ID = in.ID
+	out.DisplayName = in.DisplayName
+	out.SecretDigest = in.SecretDigest
+	out.Enabled = in.Enabled
+	out.CreatedAt = in.CreatedAt
+	out.ExpiresAt = (*metav1.Time)(unsafe.Pointer(in.ExpiresAt))
+	return nil
+}
+
+// Convert_v1_AccessKey_To_gateway_AccessKey is an autogenerated conversion function.
+func Convert_v1_AccessKey_To_gateway_AccessKey(in *AccessKey, out *gateway.AccessKey, s conversion.Scope) error {
+	return autoConvert_v1_AccessKey_To_gateway_AccessKey(in, out, s)
+}
+
+func autoConvert_gateway_AccessKey_To_v1_AccessKey(in *gateway.AccessKey, out *AccessKey, s conversion.Scope) error {
+	out.ID = in.ID
+	out.DisplayName = in.DisplayName
+	out.SecretDigest = in.SecretDigest
+	out.Enabled = in.Enabled
+	out.CreatedAt = in.CreatedAt
+	out.ExpiresAt = (*metav1.Time)(unsafe.Pointer(in.ExpiresAt))
+	return nil
+}
+
+// Convert_gateway_AccessKey_To_v1_AccessKey is an autogenerated conversion function.
+func Convert_gateway_AccessKey_To_v1_AccessKey(in *gateway.AccessKey, out *AccessKey, s conversion.Scope) error {
+	return autoConvert_gateway_AccessKey_To_v1_AccessKey(in, out, s)
+}
+
+func autoConvert_v1_Caller_To_gateway_Caller(in *Caller, out *gateway.Caller, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_v1_CallerSpec_To_gateway_CallerSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_v1_Caller_To_gateway_Caller is an autogenerated conversion function.
+func Convert_v1_Caller_To_gateway_Caller(in *Caller, out *gateway.Caller, s conversion.Scope) error {
+	return autoConvert_v1_Caller_To_gateway_Caller(in, out, s)
+}
+
+func autoConvert_gateway_Caller_To_v1_Caller(in *gateway.Caller, out *Caller, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_gateway_CallerSpec_To_v1_CallerSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_gateway_Caller_To_v1_Caller is an autogenerated conversion function.
+func Convert_gateway_Caller_To_v1_Caller(in *gateway.Caller, out *Caller, s conversion.Scope) error {
+	return autoConvert_gateway_Caller_To_v1_Caller(in, out, s)
+}
+
+func autoConvert_v1_CallerList_To_gateway_CallerList(in *CallerList, out *gateway.CallerList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]gateway.Caller)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_v1_CallerList_To_gateway_CallerList is an autogenerated conversion function.
+func Convert_v1_CallerList_To_gateway_CallerList(in *CallerList, out *gateway.CallerList, s conversion.Scope) error {
+	return autoConvert_v1_CallerList_To_gateway_CallerList(in, out, s)
+}
+
+func autoConvert_gateway_CallerList_To_v1_CallerList(in *gateway.CallerList, out *CallerList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]Caller)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_gateway_CallerList_To_v1_CallerList is an autogenerated conversion function.
+func Convert_gateway_CallerList_To_v1_CallerList(in *gateway.CallerList, out *CallerList, s conversion.Scope) error {
+	return autoConvert_gateway_CallerList_To_v1_CallerList(in, out, s)
+}
+
+func autoConvert_v1_CallerSpec_To_gateway_CallerSpec(in *CallerSpec, out *gateway.CallerSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Enabled = in.Enabled
+	out.RouteRefs = *(*[]string)(unsafe.Pointer(&in.RouteRefs))
+	out.AccessKeys = *(*[]gateway.AccessKey)(unsafe.Pointer(&in.AccessKeys))
+	return nil
+}
+
+// Convert_v1_CallerSpec_To_gateway_CallerSpec is an autogenerated conversion function.
+func Convert_v1_CallerSpec_To_gateway_CallerSpec(in *CallerSpec, out *gateway.CallerSpec, s conversion.Scope) error {
+	return autoConvert_v1_CallerSpec_To_gateway_CallerSpec(in, out, s)
+}
+
+func autoConvert_gateway_CallerSpec_To_v1_CallerSpec(in *gateway.CallerSpec, out *CallerSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Enabled = in.Enabled
+	out.RouteRefs = *(*[]string)(unsafe.Pointer(&in.RouteRefs))
+	out.AccessKeys = *(*[]AccessKey)(unsafe.Pointer(&in.AccessKeys))
+	return nil
+}
+
+// Convert_gateway_CallerSpec_To_v1_CallerSpec is an autogenerated conversion function.
+func Convert_gateway_CallerSpec_To_v1_CallerSpec(in *gateway.CallerSpec, out *CallerSpec, s conversion.Scope) error {
+	return autoConvert_gateway_CallerSpec_To_v1_CallerSpec(in, out, s)
 }
 
 func autoConvert_v1_Certificate_To_gateway_Certificate(in *Certificate, out *gateway.Certificate, s conversion.Scope) error {
@@ -776,6 +1032,28 @@ func Convert_gateway_Listener_To_v1_Listener(in *gateway.Listener, out *Listener
 	return autoConvert_gateway_Listener_To_v1_Listener(in, out, s)
 }
 
+func autoConvert_v1_ModelUpstream_To_gateway_ModelUpstream(in *ModelUpstream, out *gateway.ModelUpstream, s conversion.Scope) error {
+	out.Protocol = gateway.ModelProtocol(in.Protocol)
+	out.APIKey = in.APIKey
+	return nil
+}
+
+// Convert_v1_ModelUpstream_To_gateway_ModelUpstream is an autogenerated conversion function.
+func Convert_v1_ModelUpstream_To_gateway_ModelUpstream(in *ModelUpstream, out *gateway.ModelUpstream, s conversion.Scope) error {
+	return autoConvert_v1_ModelUpstream_To_gateway_ModelUpstream(in, out, s)
+}
+
+func autoConvert_gateway_ModelUpstream_To_v1_ModelUpstream(in *gateway.ModelUpstream, out *ModelUpstream, s conversion.Scope) error {
+	out.Protocol = ModelProtocol(in.Protocol)
+	out.APIKey = in.APIKey
+	return nil
+}
+
+// Convert_gateway_ModelUpstream_To_v1_ModelUpstream is an autogenerated conversion function.
+func Convert_gateway_ModelUpstream_To_v1_ModelUpstream(in *gateway.ModelUpstream, out *ModelUpstream, s conversion.Scope) error {
+	return autoConvert_gateway_ModelUpstream_To_v1_ModelUpstream(in, out, s)
+}
+
 func autoConvert_v1_PathMatch_To_gateway_PathMatch(in *PathMatch, out *gateway.PathMatch, s conversion.Scope) error {
 	out.Type = gateway.PathMatchType(in.Type)
 	out.Value = in.Value
@@ -1129,12 +1407,14 @@ func Convert_gateway_RouteRetry_To_v1_RouteRetry(in *gateway.RouteRetry, out *Ro
 func autoConvert_v1_RouteSpec_To_gateway_RouteSpec(in *RouteSpec, out *gateway.RouteSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
 	out.Enabled = in.Enabled
+	out.AccessMode = gateway.RouteAccessMode(in.AccessMode)
 	out.GatewayRefs = *(*[]string)(unsafe.Pointer(&in.GatewayRefs))
 	out.Hostnames = *(*[]string)(unsafe.Pointer(&in.Hostnames))
 	if err := Convert_v1_RouteMatch_To_gateway_RouteMatch(&in.Match, &out.Match, s); err != nil {
 		return err
 	}
 	out.UpstreamRefs = *(*[]gateway.UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
+	out.AI = (*gateway.AIRoute)(unsafe.Pointer(in.AI))
 	out.HostRewrite = (*gateway.HostRewrite)(unsafe.Pointer(in.HostRewrite))
 	out.RequestHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
 	out.ResponseHeaderModifier = (*gateway.HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
@@ -1151,12 +1431,14 @@ func Convert_v1_RouteSpec_To_gateway_RouteSpec(in *RouteSpec, out *gateway.Route
 func autoConvert_gateway_RouteSpec_To_v1_RouteSpec(in *gateway.RouteSpec, out *RouteSpec, s conversion.Scope) error {
 	out.DisplayName = in.DisplayName
 	out.Enabled = in.Enabled
+	out.AccessMode = RouteAccessMode(in.AccessMode)
 	out.GatewayRefs = *(*[]string)(unsafe.Pointer(&in.GatewayRefs))
 	out.Hostnames = *(*[]string)(unsafe.Pointer(&in.Hostnames))
 	if err := Convert_gateway_RouteMatch_To_v1_RouteMatch(&in.Match, &out.Match, s); err != nil {
 		return err
 	}
 	out.UpstreamRefs = *(*[]UpstreamRef)(unsafe.Pointer(&in.UpstreamRefs))
+	out.AI = (*AIRoute)(unsafe.Pointer(in.AI))
 	out.HostRewrite = (*HostRewrite)(unsafe.Pointer(in.HostRewrite))
 	out.RequestHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.RequestHeaderModifier))
 	out.ResponseHeaderModifier = (*HeaderModifier)(unsafe.Pointer(in.ResponseHeaderModifier))
@@ -1296,6 +1578,7 @@ func autoConvert_v1_UpstreamSpec_To_gateway_UpstreamSpec(in *UpstreamSpec, out *
 	out.TLS = (*gateway.UpstreamTLS)(unsafe.Pointer(in.TLS))
 	out.LoadBalancing = gateway.LoadBalancingPolicy(in.LoadBalancing)
 	out.HealthCheck = (*gateway.UpstreamHealthCheck)(unsafe.Pointer(in.HealthCheck))
+	out.Model = (*gateway.ModelUpstream)(unsafe.Pointer(in.Model))
 	return nil
 }
 
@@ -1310,6 +1593,7 @@ func autoConvert_gateway_UpstreamSpec_To_v1_UpstreamSpec(in *gateway.UpstreamSpe
 	out.TLS = (*UpstreamTLS)(unsafe.Pointer(in.TLS))
 	out.LoadBalancing = LoadBalancingPolicy(in.LoadBalancing)
 	out.HealthCheck = (*UpstreamHealthCheck)(unsafe.Pointer(in.HealthCheck))
+	out.Model = (*ModelUpstream)(unsafe.Pointer(in.Model))
 	return nil
 }
 

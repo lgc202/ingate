@@ -8,8 +8,8 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
-	"github.com/lgc202/ingate/internal/adminapi/biz/configuration"
 	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
@@ -35,6 +35,7 @@ var ProviderSet = wire.NewSet(
 	apiserver.NewCertificateRepository,
 	apiserver.NewRateLimitPolicyRepository,
 	apiserver.NewIPRestrictionPolicyRepository,
+	apiserver.NewCallerRepository,
 	// 根 biz 只保留跨领域策略能力所需的只读边界
 	wire.Bind(new(biz.GatewayGetter), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(biz.RouteGetter), new(*apiserver.RouteRepository)),
@@ -47,20 +48,17 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(route.Repository), new(*apiserver.RouteRepository)),
 	wire.Bind(new(route.GatewayRepository), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(route.UpstreamRepository), new(*apiserver.UpstreamRepository)),
+	wire.Bind(new(route.CallerRepository), new(*apiserver.CallerRepository)),
 	wire.Bind(new(upstream.Repository), new(*apiserver.UpstreamRepository)),
 	wire.Bind(new(upstream.RouteRepository), new(*apiserver.RouteRepository)),
 	wire.Bind(new(certificate.Repository), new(*apiserver.CertificateRepository)),
 	wire.Bind(new(certificate.GatewayRepository), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(ratelimit.Repository), new(*apiserver.RateLimitPolicyRepository)),
 	wire.Bind(new(iprestriction.Repository), new(*apiserver.IPRestrictionPolicyRepository)),
+	wire.Bind(new(caller.Repository), new(*apiserver.CallerRepository)),
+	wire.Bind(new(caller.RouteRepository), new(*apiserver.RouteRepository)),
 	wire.Bind(new(requestbiz.Repository), new(*dataanalytics.RequestRepository)),
 	wire.Bind(new(trafficbiz.Repository), new(*dataanalytics.TrafficRepository)),
-	wire.Bind(new(configuration.GatewayRepository), new(*apiserver.GatewayRepository)),
-	wire.Bind(new(configuration.RouteRepository), new(*apiserver.RouteRepository)),
-	wire.Bind(new(configuration.UpstreamRepository), new(*apiserver.UpstreamRepository)),
-	wire.Bind(new(configuration.CertificateRepository), new(*apiserver.CertificateRepository)),
-	wire.Bind(new(configuration.RateLimitPolicyRepository), new(*apiserver.RateLimitPolicyRepository)),
-	wire.Bind(new(configuration.IPRestrictionPolicyRepository), new(*apiserver.IPRestrictionPolicyRepository)),
 )
 
 // NewResourceClient 创建 Admin API 使用的声明式资源客户端

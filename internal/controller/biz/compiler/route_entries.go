@@ -5,23 +5,17 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-)
-
-const (
-	minRouteTimeoutMillis = 100
-	maxRouteTimeoutMillis = 300000
 )
 
 // routeEntry 保存 Envoy Route 及其稳定的匹配优先级元数据
 type routeEntry struct {
 	routeID     string
+	variant     string
 	path        string
 	exactPath   bool
 	method      string
@@ -30,6 +24,10 @@ type routeEntry struct {
 }
 
 func (c *compilation) buildRouteEntries(route *gatewayv1.Route, compiledUpstreams map[string]bool) []routeEntry {
+	if route.Spec.AI != nil {
+		return c.buildAIRouteEntries(route, compiledUpstreams)
+	}
+
 	path := strings.TrimSpace(route.Spec.Match.Path.Value)
 	if path == "" || !strings.HasPrefix(path, "/") {
 		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q path must start with /", route.Name))
@@ -50,25 +48,9 @@ func (c *compilation) buildRouteEntries(route *gatewayv1.Route, compiledUpstream
 		return nil
 	}
 
-	action := &routev3.RouteAction{ClusterSpecifier: &routev3.RouteAction_WeightedClusters{
-		WeightedClusters: &routev3.WeightedCluster{Clusters: clusters},
-	}}
-	if !c.applyHostRewrite(route, action) {
+	action, ok := c.routeAction(route, clusters)
+	if !ok {
 		return nil
-	}
-	if route.Spec.Timeout != nil {
-		if route.Spec.Timeout.RequestMillis < minRouteTimeoutMillis || route.Spec.Timeout.RequestMillis > maxRouteTimeoutMillis {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q timeout is out of range", route.Name))
-			return nil
-		}
-		action.Timeout = durationpb.New(time.Duration(route.Spec.Timeout.RequestMillis) * time.Millisecond)
-	}
-	if route.Spec.Retry != nil {
-		retry, ok := c.routeRetryPolicy(route)
-		if !ok {
-			return nil
-		}
-		action.RetryPolicy = retry
 	}
 
 	if len(methods) == 0 {
@@ -123,5 +105,8 @@ func compareRouteEntries(a, b routeEntry) int {
 	if result := cmp.Compare(a.routeID, b.routeID); result != 0 {
 		return result
 	}
-	return cmp.Compare(a.method, b.method)
+	if result := cmp.Compare(a.method, b.method); result != 0 {
+		return result
+	}
+	return cmp.Compare(a.variant, b.variant)
 }

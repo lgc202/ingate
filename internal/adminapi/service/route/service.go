@@ -13,87 +13,63 @@ import (
 
 // Service 实现路由管理 API
 type Service struct {
-	business *routebiz.Service
+	routes *routebiz.Service
 }
 
 // NewService 创建路由协议服务
-func NewService(business *routebiz.Service) *Service {
-	return &Service{business: business}
+func NewService(routes *routebiz.Service) *Service {
+	return &Service{routes: routes}
 }
 
 func (s *Service) ListRoutes(ctx context.Context, request *adminv1.ListRoutesRequest) (*adminv1.ListRoutesResponse, error) {
-	result, err := s.business.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	page, err := s.routes.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
 	response := &adminv1.ListRoutesResponse{
-		Routes:     make([]*adminv1.Route, 0, len(result.Items)),
-		NextCursor: result.NextCursor,
+		Routes:     make([]*adminv1.Route, 0, len(page.Items)),
+		NextCursor: page.NextCursor,
 	}
-	for i := range result.Items {
-		response.Routes = append(response.Routes, routeFromResource(&result.Items[i]))
+	for i := range page.Items {
+		response.Routes = append(response.Routes, routeResponse(&page.Items[i]))
 	}
 	return response, nil
 }
 
 func (s *Service) GetRoute(ctx context.Context, request *adminv1.GetRouteRequest) (*adminv1.Route, error) {
-	item, err := s.business.Get(ctx, request.GetId())
+	route, err := s.routes.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
-	return routeFromResource(item), nil
+	return routeResponse(route), nil
 }
 
 func (s *Service) CreateRoute(ctx context.Context, request *adminv1.CreateRouteRequest) (*adminv1.Route, error) {
-	spec, err := buildRouteSpec(routeInput{
-		name:                   request.GetName(),
-		enabled:                request.GetEnabled(),
-		gatewayIDs:             request.GetGatewayIds(),
-		hostnames:              request.GetHostnames(),
-		match:                  request.GetMatch(),
-		upstreams:              request.GetUpstreams(),
-		hostRewrite:            request.GetHostRewrite(),
-		requestHeaderModifier:  request.GetRequestHeaderModifier(),
-		responseHeaderModifier: request.GetResponseHeaderModifier(),
-		timeout:                request.GetTimeout(),
-		retry:                  request.GetRetry(),
-	})
+	spec, err := createSpec(request)
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.business.Create(ctx, spec)
+	route, err := s.routes.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
-	return routeFromResource(item), nil
+	return routeResponse(route), nil
 }
 
 func (s *Service) UpdateRoute(ctx context.Context, request *adminv1.UpdateRouteRequest) (*adminv1.Route, error) {
-	spec, err := buildRouteSpec(routeInput{
-		name:                   request.GetName(),
-		enabled:                request.GetEnabled(),
-		gatewayIDs:             request.GetGatewayIds(),
-		hostnames:              request.GetHostnames(),
-		match:                  request.GetMatch(),
-		upstreams:              request.GetUpstreams(),
-		hostRewrite:            request.GetHostRewrite(),
-		requestHeaderModifier:  request.GetRequestHeaderModifier(),
-		responseHeaderModifier: request.GetResponseHeaderModifier(),
-		timeout:                request.GetTimeout(),
-		retry:                  request.GetRetry(),
-	})
+	spec, err := updateSpec(request)
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.business.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	route, err := s.routes.Update(ctx, request.GetId(), request.GetVersion(), spec)
 	if err != nil {
 		return nil, err
 	}
-	return routeFromResource(item), nil
+	return routeResponse(route), nil
 }
 
 func (s *Service) DeleteRoute(ctx context.Context, request *adminv1.DeleteRouteRequest) (*emptypb.Empty, error) {
-	if err := s.business.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.routes.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

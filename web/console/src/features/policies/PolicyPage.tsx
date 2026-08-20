@@ -8,7 +8,6 @@ import {
   setGovernancePolicyEnabled,
 } from '@/api/policies';
 import { useResource } from '@/api/useResource';
-import { useAuth } from '@/auth/AuthContext';
 import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, SearchField, Toast } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { GovernancePolicy, GovernancePolicyKind, PolicyMutationResult, PolicyTargetOption } from '@/domain/policy';
@@ -36,7 +35,6 @@ type PolicyEditorState =
 type PolicyKindFilter = 'all' | GovernancePolicyKind;
 
 export function PolicyPage() {
-  const { canWriteConfiguration } = useAuth();
   const workspace = useResource(getPolicyWorkspace);
   const [query, setQuery] = useState('');
   const [kindFilter, setKindFilter] = useState<PolicyKindFilter>('all');
@@ -117,7 +115,7 @@ export function PolicyPage() {
   return (
     <PageFrame
       title="流量策略"
-      actions={canWriteConfiguration ? (
+      actions={(
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -134,7 +132,7 @@ export function PolicyPage() {
             + IP 访问限制
           </button>
         </div>
-      ) : undefined}
+      )}
     >
       <div className="space-y-6 mt-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -153,7 +151,6 @@ export function PolicyPage() {
           <PolicyLibraryTable
             policies={visiblePolicies}
             targets={data.targets}
-            readOnly={!canWriteConfiguration}
             onDetail={setDetail}
             onEdit={(policy) => {
               if (policy.kind === 'RateLimitPolicy') {

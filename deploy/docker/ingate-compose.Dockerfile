@@ -39,6 +39,13 @@ COPY _output/docker/bin/ingate-ai-extproc /opt/ingate/ai-extproc/bin/ingate-ai-e
 ENTRYPOINT ["/opt/ingate/ai-extproc/bin/ingate-ai-extproc"]
 CMD ["--config", "/opt/ingate/ai-extproc/configs/config.yaml"]
 
+FROM service-runtime AS authz
+
+COPY _output/docker/bin/ingate-authz /opt/ingate/authz/bin/ingate-authz
+
+ENTRYPOINT ["/opt/ingate/authz/bin/ingate-authz"]
+CMD ["--config", "/opt/ingate/authz/configs/config.yaml"]
+
 FROM service-runtime AS analytics
 
 COPY _output/docker/bin/ingate-analytics /opt/ingate/analytics/bin/ingate-analytics

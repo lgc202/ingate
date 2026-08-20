@@ -16,26 +16,11 @@ export interface CursorPagedResponse {
 
 const apiBaseUrl = (import.meta.env.VITE_INGATE_API_BASE_URL as string | undefined) ?? '/api/v1';
 
-let accessTokenProvider: () => Promise<string | undefined> = async () => undefined;
-let unauthorizedHandler: () => void = () => undefined;
-
-export function configureAuthentication(
-  tokenProvider: () => Promise<string | undefined>,
-  onUnauthorized: () => void,
-) {
-  accessTokenProvider = tokenProvider;
-  unauthorizedHandler = onUnauthorized;
-}
-
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const accessToken = await accessTokenProvider();
   const headers = new Headers(init.headers);
   headers.set('Accept', 'application/json');
   if (init.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
-  }
-  if (accessToken) {
-    headers.set('Authorization', `Bearer ${accessToken}`);
   }
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -54,9 +39,6 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   }
   const body = parsed;
   if (!response.ok || body.code < 200 || body.code >= 300) {
-    if (response.status === 401) {
-      unauthorizedHandler();
-    }
     throw new Error(body.msg || `请求失败：${response.status}`);
   }
 

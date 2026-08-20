@@ -10,6 +10,8 @@ import (
 
 // Interface provides access to all the informers in this group version.
 type Interface interface {
+	// Callers returns a CallerInformer.
+	Callers() CallerInformer
 	// Certificates returns a CertificateInformer.
 	Certificates() CertificateInformer
 	// Gateways returns a GatewayInformer.
@@ -33,6 +35,11 @@ type version struct {
 // New returns a new Interface.
 func New(f internalinterfaces.SharedInformerFactory, namespace string, tweakListOptions internalinterfaces.TweakListOptionsFunc) Interface {
 	return &version{factory: f, namespace: namespace, tweakListOptions: tweakListOptions}
+}
+
+// Callers returns a CallerInformer.
+func (v *version) Callers() CallerInformer {
+	return &callerInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // Certificates returns a CertificateInformer.

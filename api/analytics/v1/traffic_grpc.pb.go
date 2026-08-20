@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TrafficService_GetTrafficTrend_FullMethodName      = "/ingate.analytics.v1.TrafficService/GetTrafficTrend"
-	TrafficService_ListTrafficBreakdown_FullMethodName = "/ingate.analytics.v1.TrafficService/ListTrafficBreakdown"
+	TrafficService_GetTrafficTrend_FullMethodName         = "/ingate.analytics.v1.TrafficService/GetTrafficTrend"
+	TrafficService_ListTrafficBreakdown_FullMethodName    = "/ingate.analytics.v1.TrafficService/ListTrafficBreakdown"
+	TrafficService_BatchGetResourceTraffic_FullMethodName = "/ingate.analytics.v1.TrafficService/BatchGetResourceTraffic"
 )
 
 // TrafficServiceClient is the client API for TrafficService service.
@@ -33,6 +34,8 @@ type TrafficServiceClient interface {
 	GetTrafficTrend(ctx context.Context, in *GetTrafficTrendRequest, opts ...grpc.CallOption) (*GetTrafficTrendResponse, error)
 	// ListTrafficBreakdown 按一个资源维度聚合流量和延迟。
 	ListTrafficBreakdown(ctx context.Context, in *ListTrafficBreakdownRequest, opts ...grpc.CallOption) (*ListTrafficBreakdownResponse, error)
+	// BatchGetResourceTraffic 查询指定资源的列表流量摘要。
+	BatchGetResourceTraffic(ctx context.Context, in *BatchGetResourceTrafficRequest, opts ...grpc.CallOption) (*BatchGetResourceTrafficResponse, error)
 }
 
 type trafficServiceClient struct {
@@ -63,6 +66,16 @@ func (c *trafficServiceClient) ListTrafficBreakdown(ctx context.Context, in *Lis
 	return out, nil
 }
 
+func (c *trafficServiceClient) BatchGetResourceTraffic(ctx context.Context, in *BatchGetResourceTrafficRequest, opts ...grpc.CallOption) (*BatchGetResourceTrafficResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(BatchGetResourceTrafficResponse)
+	err := c.cc.Invoke(ctx, TrafficService_BatchGetResourceTraffic_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TrafficServiceServer is the server API for TrafficService service.
 // All implementations should embed UnimplementedTrafficServiceServer
 // for forward compatibility.
@@ -73,6 +86,8 @@ type TrafficServiceServer interface {
 	GetTrafficTrend(context.Context, *GetTrafficTrendRequest) (*GetTrafficTrendResponse, error)
 	// ListTrafficBreakdown 按一个资源维度聚合流量和延迟。
 	ListTrafficBreakdown(context.Context, *ListTrafficBreakdownRequest) (*ListTrafficBreakdownResponse, error)
+	// BatchGetResourceTraffic 查询指定资源的列表流量摘要。
+	BatchGetResourceTraffic(context.Context, *BatchGetResourceTrafficRequest) (*BatchGetResourceTrafficResponse, error)
 }
 
 // UnimplementedTrafficServiceServer should be embedded to have
@@ -87,6 +102,9 @@ func (UnimplementedTrafficServiceServer) GetTrafficTrend(context.Context, *GetTr
 }
 func (UnimplementedTrafficServiceServer) ListTrafficBreakdown(context.Context, *ListTrafficBreakdownRequest) (*ListTrafficBreakdownResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListTrafficBreakdown not implemented")
+}
+func (UnimplementedTrafficServiceServer) BatchGetResourceTraffic(context.Context, *BatchGetResourceTrafficRequest) (*BatchGetResourceTrafficResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method BatchGetResourceTraffic not implemented")
 }
 func (UnimplementedTrafficServiceServer) testEmbeddedByValue() {}
 
@@ -144,6 +162,24 @@ func _TrafficService_ListTrafficBreakdown_Handler(srv interface{}, ctx context.C
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TrafficService_BatchGetResourceTraffic_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(BatchGetResourceTrafficRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TrafficServiceServer).BatchGetResourceTraffic(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TrafficService_BatchGetResourceTraffic_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TrafficServiceServer).BatchGetResourceTraffic(ctx, req.(*BatchGetResourceTrafficRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TrafficService_ServiceDesc is the grpc.ServiceDesc for TrafficService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -158,6 +194,10 @@ var TrafficService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTrafficBreakdown",
 			Handler:    _TrafficService_ListTrafficBreakdown_Handler,
+		},
+		{
+			MethodName: "BatchGetResourceTraffic",
+			Handler:    _TrafficService_BatchGetResourceTraffic_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

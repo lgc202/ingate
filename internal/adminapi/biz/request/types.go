@@ -19,6 +19,18 @@ const (
 	OutcomeNoResponse
 )
 
+// ModelCall 是请求记录中的模型映射和 Token 用量
+type ModelCall struct {
+	ClientModel      string
+	UpstreamModel    string
+	UpstreamProtocol string
+	ResponseModel    string
+	FinishReason     string
+	InputTokens      *uint64
+	OutputTokens     *uint64
+	TotalTokens      *uint64
+}
+
 // Record 是控制台排障使用的单次请求元数据
 type Record struct {
 	ID                  string
@@ -42,21 +54,27 @@ type Record struct {
 	UpstreamAttempts    uint32
 	UpstreamAddress     string
 	ProxyInstanceID     string
+	CallerID            string
+	AccessKeyID         string
+	ModelCall           *ModelCall
 }
 
 // Summary 是请求记录列表展示所需的最小字段集
 type Summary struct {
-	ID         string
-	StartedAt  time.Time
-	Duration   *time.Duration
-	Method     string
-	Host       string
-	Path       string
-	StatusCode uint32
-	Outcome    Outcome
-	GatewayID  string
-	RouteID    string
-	ServiceID  string
+	ID          string
+	StartedAt   time.Time
+	Duration    *time.Duration
+	Method      string
+	Host        string
+	Path        string
+	StatusCode  uint32
+	Outcome     Outcome
+	GatewayID   string
+	RouteID     string
+	ServiceID   string
+	CallerID    string
+	AccessKeyID string
+	ModelCall   *ModelCall
 }
 
 // Filter 是请求记录的结构化过滤条件，时间范围为左闭右开
@@ -72,6 +90,7 @@ type Filter struct {
 	PathPrefix string
 	Outcome    Outcome
 	StatusCode *uint16
+	CallerID   string
 }
 
 // ListOptions 是请求记录分页查询参数

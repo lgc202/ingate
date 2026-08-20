@@ -1,25 +1,23 @@
 package upstream
 
 import (
-	"time"
-
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func upstreamFromResource(upstream *resource.Upstream) *adminv1.Upstream {
+func upstreamResponse(upstream *resource.Upstream) *adminv1.Upstream {
 	status := biz.ResourceStatusFromConditions(upstream.Generation, upstream.Status.Conditions)
 	response := &adminv1.Upstream{
 		Id:            upstream.Name,
 		Name:          upstream.Spec.DisplayName,
-		LoadBalancing: loadBalancingFromResource(upstream.Spec.LoadBalancing),
-		State:         adminservice.NewResourceState(status.State),
+		LoadBalancing: loadBalancingResponse(upstream.Spec.LoadBalancing),
+		State:         adminservice.ResourceState(status.State),
 		Message:       adminservice.ResourceMessage(status.Reason),
 		Version:       upstream.Generation,
-		CreatedAt:     adminservice.NewTimestamp(upstream.CreationTimestamp.Time),
-		UpdatedAt:     adminservice.NewTimestamp(upstreamUpdatedAt(upstream)),
+		CreatedAt:     adminservice.Timestamp(upstream.CreationTimestamp.Time),
+		UpdatedAt:     adminservice.Timestamp(adminservice.ResourceUpdatedAt(upstream.Annotations)),
 		Endpoints:     make([]*adminv1.UpstreamEndpoint, 0, len(upstream.Spec.Endpoints)),
 	}
 	for _, endpoint := range upstream.Spec.Endpoints {
@@ -39,10 +37,27 @@ func upstreamFromResource(upstream *resource.Upstream) *adminv1.Upstream {
 			TimeoutSeconds:  uint32(upstream.Spec.HealthCheck.TimeoutSeconds),
 		}
 	}
+	if upstream.Spec.Model != nil {
+		response.Model = &adminv1.ModelUpstream{
+			Protocol:         modelProtocolResponse(upstream.Spec.Model.Protocol),
+			ApiKeyConfigured: upstream.Spec.Model.APIKey != "",
+		}
+	}
 	return response
 }
 
-func loadBalancingFromResource(policy resource.LoadBalancingPolicy) adminv1.LoadBalancingPolicy {
+func modelProtocolResponse(protocol resource.ModelProtocol) adminv1.ModelProtocol {
+	switch protocol {
+	case resource.ModelProtocolOpenAI:
+		return adminv1.ModelProtocol_MODEL_PROTOCOL_OPENAI
+	case resource.ModelProtocolAnthropic:
+		return adminv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC
+	default:
+		return adminv1.ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED
+	}
+}
+
+func loadBalancingResponse(policy resource.LoadBalancingPolicy) adminv1.LoadBalancingPolicy {
 	switch policy {
 	case resource.LoadBalancingRoundRobin:
 		return adminv1.LoadBalancingPolicy_LOAD_BALANCING_POLICY_ROUND_ROBIN
@@ -51,13 +66,4 @@ func loadBalancingFromResource(policy resource.LoadBalancingPolicy) adminv1.Load
 	default:
 		return adminv1.LoadBalancingPolicy_LOAD_BALANCING_POLICY_UNSPECIFIED
 	}
-}
-
-func upstreamUpdatedAt(upstream *resource.Upstream) time.Time {
-	value := upstream.Annotations[resource.AnnotationUpdatedAt]
-	if value == "" {
-		return time.Time{}
-	}
-	parsed, _ := time.Parse(time.RFC3339Nano, value)
-	return parsed
 }

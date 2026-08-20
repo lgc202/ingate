@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS request_records
     gateway_id String,
     route_id String,
     upstream_id String,
+    caller_id String,
+    access_key_id String,
     envoy_node_id LowCardinality(String),
     protocol LowCardinality(String),
     response_code_details String,
@@ -42,8 +44,11 @@ CREATE TABLE IF NOT EXISTS request_metrics_1m
     request_count SimpleAggregateFunction(sum, UInt64),
     client_error_count SimpleAggregateFunction(sum, UInt64),
     server_error_count SimpleAggregateFunction(sum, UInt64),
+    no_response_count SimpleAggregateFunction(sum, UInt64),
     duration_average AggregateFunction(avg, Nullable(UInt64)),
-    duration_p95 AggregateFunction(quantileTDigest(0.95), Nullable(UInt64))
+    duration_p50 AggregateFunction(quantileTDigest(0.5), Nullable(UInt64)),
+    duration_p95 AggregateFunction(quantileTDigest(0.95), Nullable(UInt64)),
+    duration_p99 AggregateFunction(quantileTDigest(0.99), Nullable(UInt64))
 )
 ENGINE = AggregatingMergeTree
 PARTITION BY toYYYYMM(started_at)
@@ -60,8 +65,11 @@ AS SELECT
     count() AS request_count,
     countIf(status_code >= 400 AND status_code < 500) AS client_error_count,
     countIf(status_code >= 500) AS server_error_count,
+    countIf(status_code < 100) AS no_response_count,
     avgState(duration_ns) AS duration_average,
-    quantileTDigestState(0.95)(duration_ns) AS duration_p95
+    quantileTDigestState(0.5)(duration_ns) AS duration_p50,
+    quantileTDigestState(0.95)(duration_ns) AS duration_p95,
+    quantileTDigestState(0.99)(duration_ns) AS duration_p99
 FROM request_records
 GROUP BY started_at, gateway_id, route_id, upstream_id;
 

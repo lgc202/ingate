@@ -16,9 +16,11 @@ import (
 	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"k8s.io/apimachinery/pkg/util/validation"
 
+	"github.com/lgc202/ingate/internal/aiextproc/filterconfig"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -50,7 +52,11 @@ func (c *compilation) buildUpstreams() (
 		if !ok {
 			continue
 		}
-		endpoints, usesDNS := c.buildUpstreamEndpoints(upstream)
+		modelProtocol, ok := c.upstreamModelProtocol(upstream)
+		if !ok {
+			continue
+		}
+		endpoints, usesDNS := c.buildUpstreamEndpoints(upstream, modelProtocol)
 		cluster := &clusterv3.Cluster{
 			Name:           id,
 			ConnectTimeout: durationpb.New(defaultUpstreamConnectTimeout),
@@ -63,6 +69,16 @@ func (c *compilation) buildUpstreams() (
 		cluster.TransportSocket = transportSocket
 		if upstream.Spec.HealthCheck != nil {
 			cluster.HealthChecks = []*corev3.HealthCheck{buildHealthCheck(upstream.Spec.HealthCheck)}
+		}
+		if modelProtocol != "" {
+			protocolOptions, err := buildAIUpstreamProtocolOptions()
+			if err != nil {
+				c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, id, ReasonCompileFailed, fmt.Sprintf("compile model upstream %q: %v", id, err))
+				continue
+			}
+			cluster.TypedExtensionProtocolOptions = map[string]*anypb.Any{
+				httpProtocolOptionsName: protocolOptions,
+			}
 		}
 
 		assignment := &endpointv3.ClusterLoadAssignment{
@@ -159,7 +175,26 @@ func (c *compilation) upstreamLBPolicy(upstream *gatewayv1.Upstream) (clusterv3.
 	}
 }
 
-func (c *compilation) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) ([]*endpointv3.LbEndpoint, bool) {
+func (c *compilation) upstreamModelProtocol(upstream *gatewayv1.Upstream) (filterconfig.Protocol, bool) {
+	if upstream.Spec.Model == nil {
+		return "", true
+	}
+
+	switch upstream.Spec.Model.Protocol {
+	case gatewayv1.ModelProtocolOpenAI:
+		return filterconfig.ProtocolOpenAI, true
+	case gatewayv1.ModelProtocolAnthropic:
+		return filterconfig.ProtocolAnthropic, true
+	default:
+		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonUnsupported, fmt.Sprintf("upstream %q uses unsupported model protocol %q", upstream.Name, upstream.Spec.Model.Protocol))
+		return "", false
+	}
+}
+
+func (c *compilation) buildUpstreamEndpoints(
+	upstream *gatewayv1.Upstream,
+	modelProtocol filterconfig.Protocol,
+) ([]*endpointv3.LbEndpoint, bool) {
 	items := slices.Clone(upstream.Spec.Endpoints)
 	slices.SortFunc(items, func(a, b gatewayv1.Endpoint) int {
 		if a.Address != b.Address {
@@ -195,10 +230,22 @@ func (c *compilation) buildUpstreamEndpoints(upstream *gatewayv1.Upstream) ([]*e
 			// AutoHostRewrite 使用端点主机名生成上游 Host，避免把入口域名继续传给外部服务
 			envoyEndpoint.Hostname = strings.ToLower(endpoint.Address)
 		}
-		result = append(result, &endpointv3.LbEndpoint{
+		lbEndpoint := &endpointv3.LbEndpoint{
 			HostIdentifier:      &endpointv3.LbEndpoint_Endpoint{Endpoint: envoyEndpoint},
 			LoadBalancingWeight: wrapperspb.UInt32(uint32(endpoint.Weight)),
-		})
+		}
+		if modelProtocol != "" {
+			// 端点元数据在负载均衡完成后才可用，用于告诉上游 ExtProc 本次实际选中的模型 Service
+			lbEndpoint.Metadata = &corev3.Metadata{FilterMetadata: map[string]*structpb.Struct{
+				filterconfig.MetadataNamespace: {
+					Fields: map[string]*structpb.Value{
+						"service_id": structpb.NewStringValue(upstream.Name),
+						"protocol":   structpb.NewStringValue(string(modelProtocol)),
+					},
+				},
+			}}
+		}
+		result = append(result, lbEndpoint)
 	}
 	if len(items) == 0 {
 		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonInvalidSpec, fmt.Sprintf("upstream %q must declare at least one endpoint", upstream.Name))

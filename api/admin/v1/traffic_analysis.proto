@@ -15,6 +15,13 @@ service TrafficAnalysisService {
   rpc GetTrafficAnalysis(GetTrafficAnalysisRequest) returns (GetTrafficAnalysisResponse) {
     option (google.api.http) = {get: "/api/v1/traffic-analysis"};
   }
+  // BatchGetResourceTraffic 查询资源列表展示所需的最近流量摘要
+  rpc BatchGetResourceTraffic(BatchGetResourceTrafficRequest) returns (BatchGetResourceTrafficResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/traffic-analysis/resource-summaries:batchGet"
+      body: "*"
+    };
+  }
 }
 
 // TrafficBreakdownDimension 是流量排名支持的资源维度
@@ -111,4 +118,43 @@ message GetTrafficAnalysisResponse {
   repeated TrafficBreakdownItem breakdown = 4;
   // breakdown_order 是本次排名使用的排序依据
   TrafficBreakdownOrder breakdown_order = 5;
+}
+
+// BatchGetResourceTrafficRequest 是资源列表批量读取流量信号的请求
+message BatchGetResourceTrafficRequest {
+  // start_time 是查询范围起点，包含该时刻
+  google.protobuf.Timestamp start_time = 1;
+  // end_time 是查询范围终点，不包含该时刻
+  google.protobuf.Timestamp end_time = 2;
+  // dimension 指定 resource_ids 对应网关、路由或服务
+  TrafficBreakdownDimension dimension = 3 [(buf.validate.field).enum.defined_only = true];
+  // resource_ids 是当前资源列表需要展示流量信号的资源 ID
+  repeated string resource_ids = 4 [
+    json_name = "resourceIDs",
+    (buf.validate.field).repeated = {
+      min_items: 1
+      max_items: 200
+      items: {
+        string: {min_len: 1}
+      }
+    }
+  ];
+}
+
+// ResourceTrafficSummary 是资源列表展示所需的轻量流量计数
+message ResourceTrafficSummary {
+  // resource_id 是网关、路由或服务的资源 ID
+  string resource_id = 1 [json_name = "resourceID"];
+  // request_count 是最近时间范围内的请求总数
+  uint64 request_count = 2;
+  // server_error_count 是 5xx 及以上请求数
+  uint64 server_error_count = 3;
+  // no_response_count 是未获得有效 HTTP 状态码的请求数
+  uint64 no_response_count = 4;
+}
+
+// BatchGetResourceTrafficResponse 是指定资源中存在流量记录的摘要集合
+message BatchGetResourceTrafficResponse {
+  // summaries 是按资源 ID 聚合后的流量摘要
+  repeated ResourceTrafficSummary summaries = 1;
 }

@@ -20,6 +20,7 @@ export async function getRouteWorkspace(): Promise<RouteWorkspace> {
       id: upstream.id,
       name: upstream.name,
       endpoint: upstream.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join('、'),
+      type: upstream.model ? 'MODEL' : 'HTTP',
     })),
   };
 }
@@ -48,6 +49,7 @@ function routeFromAPI(route: RouteResource): RouteResource {
     ...route,
     version: Number(route.version),
     state: normalizeResourceState(route.state),
+    accessMode: route.accessMode ?? 'ROUTE_ACCESS_CALLER',
     gatewayIDs: route.gatewayIDs ?? [],
     hostnames: route.hostnames ?? [],
     match: {
@@ -56,6 +58,7 @@ function routeFromAPI(route: RouteResource): RouteResource {
       headers: route.match?.headers ?? [],
     },
     upstreams: route.upstreams ?? [],
+    ai: route.ai,
     hostRewrite: route.hostRewrite ?? { mode: 'HOST_REWRITE_MODE_PRESERVE' },
   };
 }

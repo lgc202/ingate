@@ -9,6 +9,7 @@ package aiextproc
 import (
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
+	"github.com/lgc202/ingate/internal/aiextproc/modelservice"
 	"github.com/lgc202/ingate/internal/aiextproc/server"
 	"github.com/lgc202/ingate/internal/aiextproc/service"
 	"log/slog"
@@ -16,10 +17,14 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, logger *slog.Logger, aiextprocServiceInstanceID serviceInstanceID) (*kratos.App, error) {
-	httpServer := server.NewHTTPServer(confServer)
-	serviceService := service.NewService()
+func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, logger *slog.Logger, aiextprocServiceInstanceID serviceInstanceID) (*kratos.App, error) {
+	cache, err := modelservice.NewCache(data_APIServer)
+	if err != nil {
+		return nil, err
+	}
+	httpServer := server.NewHTTPServer(confServer, cache)
+	serviceService := service.NewService(cache)
 	grpcServer := server.NewGRPCServer(confServer, serviceService)
-	app := newKratosApp(logger, confServer, httpServer, grpcServer, aiextprocServiceInstanceID)
+	app := newKratosApp(logger, confServer, httpServer, grpcServer, cache, aiextprocServiceInstanceID)
 	return app, nil
 }

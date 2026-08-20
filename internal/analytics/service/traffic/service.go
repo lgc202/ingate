@@ -100,3 +100,30 @@ func (s *Service) ListTrafficBreakdown(
 	}
 	return response, nil
 }
+
+// BatchGetResourceTraffic 查询指定资源的列表流量摘要
+func (s *Service) BatchGetResourceTraffic(
+	ctx context.Context,
+	request *analyticsv1.BatchGetResourceTrafficRequest,
+) (*analyticsv1.BatchGetResourceTrafficResponse, error) {
+	query, err := buildResourceTrafficQuery(request)
+	if err != nil {
+		return nil, err
+	}
+	summaries, err := s.queries.ResourceTraffic(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	response := &analyticsv1.BatchGetResourceTrafficResponse{
+		Summaries: make([]*analyticsv1.ResourceTrafficSummary, 0, len(summaries)),
+	}
+	for _, summary := range summaries {
+		response.Summaries = append(response.Summaries, &analyticsv1.ResourceTrafficSummary{
+			ResourceId:       summary.ResourceID,
+			RequestCount:     summary.RequestCount,
+			ServerErrorCount: summary.ServerErrors,
+			NoResponseCount:  summary.NoResponses,
+		})
+	}
+	return response, nil
+}

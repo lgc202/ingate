@@ -19,6 +19,7 @@ func NewService() *Service {
 	return &Service{}
 }
 
+// Check 返回进程存活状态和当前请求 ID
 func (s *Service) Check(ctx context.Context, _ *emptypb.Empty) (*adminv1.HealthReply, error) {
 	var id string
 	if tr, ok := transport.FromServerContext(ctx); ok {

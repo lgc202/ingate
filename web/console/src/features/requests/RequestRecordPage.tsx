@@ -4,13 +4,15 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { getRequestRecord, getRequestRecordWorkspace, listRequestRecords } from '@/api/requestRecords';
 import { useResource } from '@/api/useResource';
 import { Badge, Button, Drawer, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
-import type { RequestOutcome, RequestRecord, RequestRecordFilters, RequestRecordSummary } from '@/domain/requestRecord';
+import type { RequestOutcome, RequestRecord, RequestRecordFilters, RequestRecordSummary, RequestRecordWorkspace } from '@/domain/requestRecord';
 import {
   formatBytes,
   formatDuration,
   formatRequestTime,
+  formatTokenCount,
 } from '@/domain/requestRecord';
 import { localDateTime, roundUpToMinute } from '@/domain/timeRange';
+import { modelProtocolLabel } from '@/domain/upstream';
 
 const methodOptions = ['', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
 const pageSizeOptions = [10, 20, 50];
@@ -124,6 +126,7 @@ export function RequestRecordPage() {
               <Field label="网关"><ResourceSelect value={draft.gatewayID} placeholder="全部网关" options={workspace.data?.gateways} onChange={(gatewayID) => setDraft({ ...draft, gatewayID })} /></Field>
               <Field label="路由"><ResourceSelect value={draft.routeID} placeholder="全部路由" options={workspace.data?.routes} onChange={(routeID) => setDraft({ ...draft, routeID })} /></Field>
               <Field label="服务"><ResourceSelect value={draft.serviceID} placeholder="全部服务" options={workspace.data?.services} onChange={(serviceID) => setDraft({ ...draft, serviceID })} /></Field>
+              <Field label="调用方"><ResourceSelect value={draft.callerID} placeholder="全部调用方" options={workspace.data?.callers} onChange={(callerID) => setDraft({ ...draft, callerID })} /></Field>
               <Field label="Host"><input className="input font-mono" placeholder="精确匹配" value={draft.host ?? ''} onChange={(event) => setDraft({ ...draft, host: event.target.value })} /></Field>
               <Field label="路径前缀"><input className="input font-mono" placeholder="例如 /api/orders" value={draft.pathPrefix ?? ''} onChange={(event) => setDraft({ ...draft, pathPrefix: event.target.value })} /></Field>
             </div>
@@ -132,7 +135,7 @@ export function RequestRecordPage() {
         {records.data.records.length === 0 ? <EmptyState title="没有匹配的请求" message="调整时间范围或筛选条件后重新查询" /> : (
           <div className="table-scroll request-record-table-scroll">
             <table className="table request-record-table">
-              <thead><tr><th>时间</th><th>请求</th><th>响应</th><th>网关</th><th>路由</th><th>目标服务</th><th>总耗时</th><th /></tr></thead>
+              <thead><tr><th>时间</th><th>请求</th><th>响应</th><th>网关</th><th>路由</th><th>目标服务</th><th>调用方</th><th>总耗时</th><th /></tr></thead>
               <tbody>
                 {records.data.records.map((record) => (
                   <tr key={`${record.id}:${record.startedAt}`} className="request-record-row" onClick={() => void openDetail(record)}>
@@ -141,7 +144,8 @@ export function RequestRecordPage() {
                     <td><Badge tone={responseTone(record)}>{responseStatus(record)}</Badge></td>
                     <td><strong className="request-resource-name">{resourceName(names.gateways, record.gatewayID, '已删除的网关')}</strong></td>
                     <td><strong className="request-resource-name">{resourceName(names.routes, record.routeID, '已删除的路由')}</strong></td>
-                    <td><strong className="request-resource-name">{resourceName(names.services, record.serviceID, '已删除的服务')}</strong></td>
+                    <td><strong className="request-resource-name">{resourceName(names.services, record.serviceID, '已删除的服务')}</strong>{record.aiModelCall ? <span className="request-model-summary">{modelMapping(record.aiModelCall)} · {modelTokenSummary(record.aiModelCall)}</span> : null}</td>
+                    <td><strong className="request-resource-name">{callerLabel(record, names)}</strong></td>
                     <td className="whitespace-nowrap">{formatDuration(record.duration)}</td>
                     <td><ChevronRight className="h-4 w-4 text-slate-400" /></td>
                   </tr>
@@ -199,6 +203,21 @@ function RequestDetail({ record, names }: { record: RequestRecord; names: Resour
         <DetailItem label="请求大小" value={formatBytes(record.requestBytes)} />
         <DetailItem label="响应大小" value={formatBytes(record.responseBytes)} />
       </DetailSection>
+      {record.aiModelCall ? <DetailSection title="模型调用" layout="model">
+        <DetailItem label="客户端模型" value={record.aiModelCall.clientModel || '-'} />
+        <DetailItem label="实际模型" value={actualModel(record.aiModelCall)} />
+        <DetailItem label="接口协议" value={modelProtocolLabel(record.aiModelCall.protocol) || '-'} />
+        <DetailItem label="输入 Token" value={formatTokenCount(record.aiModelCall.inputTokens)} />
+        <DetailItem label="输出 Token" value={formatTokenCount(record.aiModelCall.outputTokens)} />
+        <DetailItem label="总 Token" value={formatTokenCount(record.aiModelCall.totalTokens)} />
+        <DetailItem label="结束原因" value={finishReasonLabel(record.aiModelCall.finishReason)} wide />
+      </DetailSection> : null}
+      {record.callerID ? <DetailSection title="访问身份">
+        <ResourceDetailItem label="调用方" id={record.callerID} names={names.callers} path="/callers" deletedLabel="已删除的调用方" />
+        <DetailItem label="访问密钥" value={names.accessKeys.get(record.accessKeyID) || '已停用或删除的密钥'} />
+      </DetailSection> : callerLabel(record, names) === '未识别调用方' ? <DetailSection title="访问身份">
+        <DetailItem label="调用方" value="未识别调用方" />
+      </DetailSection> : null}
       <DetailSection title="转发结果" layout="forwarding">
         <ResourceDetailItem label="网关" id={record.gatewayID} names={names.gateways} path="/gateways" deletedLabel="已删除的网关" />
         <ResourceDetailItem label="路由" id={record.routeID} names={names.routes} path="/routes" deletedLabel="已删除的路由" />
@@ -238,13 +257,13 @@ function DetailError({ message, onRetry }: { message: string; onRetry: () => voi
   );
 }
 
-function DetailSection({ title, layout, children }: { title: string; layout?: 'forwarding'; children: ReactNode }) {
-  const className = layout === 'forwarding' ? 'request-detail-grid request-forwarding-grid' : 'request-detail-grid';
+function DetailSection({ title, layout, children }: { title: string; layout?: 'forwarding' | 'model'; children: ReactNode }) {
+  const className = layout ? `request-detail-grid request-${layout}-grid` : 'request-detail-grid';
   return <section><h3 className="mb-2 text-sm font-semibold text-slate-900">{title}</h3><div className={className}>{children}</div></section>;
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return <div><span>{label}</span><strong>{value}</strong></div>;
+function DetailItem({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) {
+  return <div className={wide ? 'is-wide' : undefined}><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function ResourceDetailItem({ label, id, names, path, deletedLabel }: { label: string; id: string; names: Map<string, string>; path: string; deletedLabel: string }) {
@@ -263,15 +282,26 @@ function ResourceSelect({ value, placeholder, options, onChange }: { value?: str
 interface ResourceNames {
   gateways: Map<string, string>;
   routes: Map<string, string>;
+  routeAccessModes: Map<string, RequestRecordWorkspace['routes'][number]['accessMode']>;
   services: Map<string, string>;
+  callers: Map<string, string>;
+  accessKeys: Map<string, string>;
 }
 
 function resourceNames(workspace: Awaited<ReturnType<typeof getRequestRecordWorkspace>> | null): ResourceNames {
   return {
     gateways: new Map(workspace?.gateways.map(({ id, name }) => [id, name])),
     routes: new Map(workspace?.routes.map(({ id, name }) => [id, name])),
+    routeAccessModes: new Map(workspace?.routes.map(({ id, accessMode }) => [id, accessMode])),
     services: new Map(workspace?.services.map(({ id, name }) => [id, name])),
+    callers: new Map(workspace?.callers.map(({ id, name }) => [id, name])),
+    accessKeys: new Map(workspace?.callers.flatMap((caller) => caller.accessKeys.map(({ id, name }) => [id, name] as const))),
   };
+}
+
+function callerLabel(record: RequestRecord | RequestRecordSummary, names: ResourceNames): string {
+  if (record.callerID) return resourceName(names.callers, record.callerID, '已删除的调用方');
+  return names.routeAccessModes.get(record.routeID) === 'ROUTE_ACCESS_PUBLIC' ? '公开访问' : '未识别调用方';
 }
 
 function resourceName(names: Map<string, string>, id: string, deletedLabel: string): string {
@@ -288,6 +318,7 @@ function requestFiltersFromURL(params: URLSearchParams): RequestRecordFilters {
     gatewayID: params.get('gatewayID') || undefined,
     routeID: params.get('routeID') || undefined,
     serviceID: params.get('serviceID') || undefined,
+    callerID: params.get('callerID') || undefined,
     outcome: requestOutcome(params.get('outcome')),
   };
 }
@@ -372,4 +403,38 @@ function formatFilterRange(filters: RequestRecordFilters): string {
     return `${start}—${end.slice(11)}`;
   }
   return `${start}—${end}`;
+}
+
+function actualModel(call: NonNullable<RequestRecord['aiModelCall']>): string {
+  if (call.responseModel && call.responseModel !== call.upstreamModel) {
+    return `${call.responseModel}（配置 ${call.upstreamModel}）`;
+  }
+  return call.responseModel || call.upstreamModel || '-';
+}
+
+function modelMapping(call: NonNullable<RequestRecord['aiModelCall']>): string {
+  const actual = call.responseModel || call.upstreamModel;
+  if (!call.clientModel) return actual || '模型调用';
+  if (!actual || actual === call.clientModel) return call.clientModel;
+  return `${call.clientModel} → ${actual}`;
+}
+
+function modelTokenSummary(call: NonNullable<RequestRecord['aiModelCall']>): string {
+  return call.totalTokens === undefined ? 'Token 未返回' : `${formatTokenCount(call.totalTokens)} Token`;
+}
+
+function finishReasonLabel(reason: string): string {
+  switch (reason) {
+    case 'stop':
+    case 'end_turn':
+      return '正常结束';
+    case 'length':
+    case 'max_tokens':
+      return '达到最大输出长度';
+    case 'tool_calls':
+    case 'tool_use':
+      return '请求调用工具';
+    default:
+      return reason || '-';
+  }
 }
