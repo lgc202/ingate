@@ -1,0 +1,38 @@
+package iprestrictionpolicy
+
+import (
+	"net/netip"
+
+	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway"
+)
+
+func validatePolicy(policy *resource.IPRestrictionPolicy) field.ErrorList {
+	specPath := field.NewPath("spec")
+	var errs field.ErrorList
+	if policy.Spec.DisplayName == "" {
+		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
+	}
+	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(policy.Spec.TargetRefs, specPath.Child("targetRefs"))...)
+
+	hasAllow := len(policy.Spec.Allow) > 0
+	hasDeny := len(policy.Spec.Deny) > 0
+	if hasAllow == hasDeny {
+		errs = append(errs, field.Invalid(specPath, policy.Spec, "exactly one of allow or deny must be configured"))
+	}
+	errs = append(errs, validateRanges(policy.Spec.Allow, specPath.Child("allow"))...)
+	errs = append(errs, validateRanges(policy.Spec.Deny, specPath.Child("deny"))...)
+	return errs
+}
+
+func validateRanges(values []string, path *field.Path) field.ErrorList {
+	var errs field.ErrorList
+	for i, value := range values {
+		if _, err := netip.ParsePrefix(value); err != nil {
+			errs = append(errs, field.Invalid(path.Index(i), value, "value must be an IP address or CIDR prefix"))
+		}
+	}
+	return errs
+}

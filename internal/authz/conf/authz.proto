@@ -1,0 +1,44 @@
+syntax = "proto3";
+
+package ingate.authz.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/authz/conf;conf";
+
+// Bootstrap 定义 ingate-authz 的完整进程配置
+message Bootstrap {
+  Server server = 1;
+  Logging logging = 2;
+  Data data = 3;
+}
+
+// Data 定义 Caller 配置来源
+message Data {
+  message APIServer {
+    string master = 1;
+    string kubeconfig = 2;
+  }
+  APIServer apiserver = 1;
+}
+
+// Server 定义 Envoy External Authorization 和运维入口
+message Server {
+  message GRPC {
+    string addr = 1;
+  }
+  message HTTP {
+    string addr = 1;
+    google.protobuf.Duration timeout = 2;
+  }
+  GRPC grpc = 1;
+  HTTP http = 2;
+  google.protobuf.Duration shutdown_timeout = 3;
+}
+
+// Logging 定义结构化日志格式与级别
+message Logging {
+  string format = 1;
+  string level = 2;
+  bool add_source = 3;
+}

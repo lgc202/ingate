@@ -1,0 +1,95 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// CertificateService 提供网关 TLS 证书管理接口
+service CertificateService {
+  rpc ListCertificates(ListCertificatesRequest) returns (ListCertificatesResponse) {
+    option (google.api.http) = {get: "/api/v1/certificates"};
+  }
+  rpc GetCertificate(GetCertificateRequest) returns (Certificate) {
+    option (google.api.http) = {get: "/api/v1/certificates/{id}"};
+  }
+  rpc CreateCertificate(CreateCertificateRequest) returns (Certificate) {
+    option (google.api.http) = {
+      post: "/api/v1/certificates"
+      body: "*"
+    };
+  }
+  rpc UpdateCertificate(UpdateCertificateRequest) returns (Certificate) {
+    option (google.api.http) = {
+      put: "/api/v1/certificates/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteCertificate(DeleteCertificateRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/certificates/{id}"};
+  }
+}
+
+message Certificate {
+  string id = 1;
+  string name = 2;
+  string certificate_pem = 3 [json_name = "certificatePEM"];
+  repeated string dns_names = 4 [json_name = "dnsNames"];
+  google.protobuf.Timestamp not_before = 5;
+  google.protobuf.Timestamp not_after = 6;
+  ResourceState state = 7;
+  string message = 8;
+  int64 version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message ListCertificatesRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListCertificatesResponse {
+  repeated Certificate certificates = 1;
+  string next_cursor = 2;
+}
+
+message GetCertificateRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateCertificateRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string certificate_pem = 2 [
+    json_name = "certificatePEM",
+    (buf.validate.field).string.min_len = 1
+  ];
+  string private_key_pem = 3 [
+    json_name = "privateKeyPEM",
+    (buf.validate.field).string.min_len = 1
+  ];
+}
+
+message UpdateCertificateRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  optional string certificate_pem = 4 [
+    json_name = "certificatePEM",
+    (buf.validate.field).string.min_len = 1
+  ];
+  optional string private_key_pem = 5 [
+    json_name = "privateKeyPEM",
+    (buf.validate.field).string.min_len = 1
+  ];
+}
+
+message DeleteCertificateRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

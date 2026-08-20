@@ -1,0 +1,19 @@
+server:
+  listen_address: "0.0.0.0:8001"
+  console_dir: "/opt/ingate/console/web"
+
+admin_api:
+  base_url: "http://admin-api:8002"
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false
+  stdout: true
+  file:
+    path: ""
+    max_size_mb: 0
+    max_backups: 0
+    max_age_days: 0
+    compress: false
+    local_time: false
