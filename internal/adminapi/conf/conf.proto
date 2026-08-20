@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package ingate.admin.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/adminapi/conf;conf";
+
+// Bootstrap 定义 ingate-admin-api 的完整进程配置
+message Bootstrap {
+  Server server = 1;
+  Data data = 2;
+  Logging logging = 3;
+}
+
+message Server {
+  message HTTP {
+    string addr = 1;
+    google.protobuf.Duration timeout = 2;
+  }
+  HTTP http = 1;
+  // shutdown_timeout 是等待在途管理请求结束的最长时间
+  google.protobuf.Duration shutdown_timeout = 2;
+}
+
+message Data {
+  message APIServer {
+    string master = 1;
+    string kubeconfig = 2;
+  }
+  message Analytics {
+    message TLS {
+      bool enabled = 1;
+      string ca_file = 2;
+      string cert_file = 3;
+      string key_file = 4;
+      string server_name = 5;
+    }
+    // addr 是 ingate-analytics 查询 gRPC 地址
+    string addr = 1;
+    // timeout 限制 Admin API 等待单次分析查询的时间
+    google.protobuf.Duration timeout = 2;
+    // tls 保护 Admin API 到 Analytics 的内部查询链路
+    TLS tls = 3;
+  }
+  APIServer apiserver = 1;
+  Analytics analytics = 2;
+}
+
+message Logging {
+  string format = 1;
+  string level = 2;
+  bool add_source = 3;
+}

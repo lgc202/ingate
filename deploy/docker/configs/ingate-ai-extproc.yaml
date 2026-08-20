@@ -1,0 +1,17 @@
+server:
+  grpc:
+    addr: "0.0.0.0:18081"
+  http:
+    addr: "0.0.0.0:18082"
+    timeout: "5s"
+  shutdown_timeout: "30s"
+
+data:
+  apiserver:
+    master: ""
+    kubeconfig: "/opt/ingate/ai-extproc/configs/kubeconfig.yaml"
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false

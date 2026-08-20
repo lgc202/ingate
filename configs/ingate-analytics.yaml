@@ -1,0 +1,56 @@
+server:
+  grpc:
+    addr: "127.0.0.1:18101"
+    timeout: "5s"
+    tls:
+      enabled: false
+      cert_file: ""
+      key_file: ""
+      client_ca_file: ""
+  http:
+    addr: "127.0.0.1:18102"
+    timeout: "5s"
+  shutdown_timeout: "30s"
+
+data:
+  kafka:
+    brokers: ["127.0.0.1:9092"]
+    topic: "ingate.request-records"
+    group_id: "ingate-analytics"
+    client_id: "ingate-analytics"
+    batch_max_records: 5000
+    fetch_min_bytes: 262144
+    fetch_max_wait: "1s"
+    dial_timeout: "5s"
+    sasl:
+      mechanism: ""
+      username: ""
+      password: ""
+    tls:
+      enabled: false
+      ca_file: ""
+      cert_file: ""
+      key_file: ""
+      server_name: ""
+  clickhouse:
+    addresses: ["127.0.0.1:9000"]
+    database: "ingate"
+    username: "default"
+    password: ""
+    dial_timeout: "5s"
+    write_timeout: "10s"
+    query_timeout: "30s"
+    max_open_connections: 10
+    max_idle_connections: 5
+    connection_max_lifetime: "3600s"
+    tls:
+      enabled: false
+      ca_file: ""
+      cert_file: ""
+      key_file: ""
+      server_name: ""
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false

@@ -1,9 +1,10 @@
 .git
+.gocache
+.gomodcache
+.env
+**/.DS_Store
+**/node_modules
+**/dist
 _output/*
-!_output/compose
-!_output/compose/*
-.DS_Store
-node_modules
-docs
-deploy/compose/.env
-deploy/compose/README.md
+!_output/docker
+!_output/docker/**

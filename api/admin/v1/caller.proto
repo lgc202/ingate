@@ -1,0 +1,140 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// CallerService 提供调用方、Route 授权和访问密钥管理接口
+service CallerService {
+  rpc ListCallers(ListCallersRequest) returns (ListCallersResponse) {
+    option (google.api.http) = {get: "/api/v1/callers"};
+  }
+  rpc GetCaller(GetCallerRequest) returns (Caller) {
+    option (google.api.http) = {get: "/api/v1/callers/{id}"};
+  }
+  rpc CreateCaller(CreateCallerRequest) returns (CreateCallerResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/callers"
+      body: "*"
+    };
+  }
+  rpc UpdateCaller(UpdateCallerRequest) returns (Caller) {
+    option (google.api.http) = {
+      put: "/api/v1/callers/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteCaller(DeleteCallerRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/callers/{id}"};
+  }
+  rpc IssueAccessKey(IssueAccessKeyRequest) returns (IssuedAccessKey) {
+    option (google.api.http) = {
+      post: "/api/v1/callers/{caller_id}/access-keys"
+      body: "*"
+    };
+  }
+  rpc DisableAccessKey(DisableAccessKeyRequest) returns (Caller) {
+    option (google.api.http) = {
+      post: "/api/v1/callers/{caller_id}/access-keys/{access_key_id}:disable"
+      body: "*"
+    };
+  }
+}
+
+message AccessKey {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp expires_at = 5;
+}
+
+// IssuedAccessKey 包含只在签发响应中出现一次的完整访问密钥
+message IssuedAccessKey {
+  AccessKey access_key = 1;
+  string secret = 2;
+}
+
+message Caller {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  repeated string route_ids = 4 [json_name = "routeIDs"];
+  repeated AccessKey access_keys = 5;
+  int64 version = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message ListCallersRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListCallersResponse {
+  repeated Caller callers = 1;
+  string next_cursor = 2;
+}
+
+message GetCallerRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateCallerRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 2 [(buf.validate.field).required = true];
+  repeated string route_ids = 3 [
+    json_name = "routeIDs",
+    (buf.validate.field).repeated.items.string.uuid = true
+  ];
+  string access_key_name = 4 [(buf.validate.field).string.min_len = 1];
+  google.protobuf.Timestamp access_key_expires_at = 5;
+}
+
+message CreateCallerResponse {
+  Caller caller = 1;
+  IssuedAccessKey issued_access_key = 2;
+}
+
+message UpdateCallerRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 4 [(buf.validate.field).required = true];
+  repeated string route_ids = 5 [
+    json_name = "routeIDs",
+    (buf.validate.field).repeated.items.string.uuid = true
+  ];
+}
+
+message DeleteCallerRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}
+
+message IssueAccessKeyRequest {
+  string caller_id = 1 [
+    json_name = "callerID",
+    (buf.validate.field).string.uuid = true
+  ];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  google.protobuf.Timestamp expires_at = 4;
+}
+
+message DisableAccessKeyRequest {
+  string caller_id = 1 [
+    json_name = "callerID",
+    (buf.validate.field).string.uuid = true
+  ];
+  string access_key_id = 2 [
+    json_name = "accessKeyID",
+    (buf.validate.field).string.uuid = true
+  ];
+  int64 version = 3 [(buf.validate.field).int64.gt = 0];
+}

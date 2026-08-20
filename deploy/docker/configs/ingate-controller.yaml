@@ -1,0 +1,24 @@
+server:
+  grpc:
+    addr: "127.0.0.1:18000"
+  http:
+    addr: "127.0.0.1:18080"
+    timeout: "5s"
+  shutdown_timeout: "30s"
+
+data:
+  apiserver:
+    master: ""
+    kubeconfig: "/opt/ingate/controller/configs/kubeconfig.yaml"
+
+delivery:
+  candidate_ack_timeout: "30s"
+  nack_rollback_timeout: "3s"
+
+resource_watch:
+  resync_period: "0s"
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false

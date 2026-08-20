@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package ingate.aiextproc.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/aiextproc/conf;conf";
+
+// Bootstrap 定义 ingate-ai-extproc 的完整进程配置
+message Bootstrap {
+  // server 定义 Envoy External Processing 和运维 HTTP 入口
+  Server server = 1;
+  // logging 定义进程日志行为
+  Logging logging = 2;
+  // data 定义模型服务配置来源
+  Data data = 3;
+}
+
+// Data 定义 AI ExtProc 使用的控制面数据来源
+message Data {
+  message APIServer {
+    // master 覆盖 kubeconfig 中的 API Server 地址
+    string master = 1;
+    // kubeconfig 保存声明式资源 API 的连接配置
+    string kubeconfig = 2;
+  }
+  // apiserver 提供模型服务协议和凭据
+  APIServer apiserver = 1;
+}
+
+// Server 定义 AI ExtProc 的监听和退出行为
+message Server {
+  message GRPC {
+    // addr 是 Envoy External Processing Filter 连接的 gRPC 地址
+    string addr = 1;
+  }
+  message HTTP {
+    // addr 是健康检查和就绪检查的 HTTP 地址
+    string addr = 1;
+    // timeout 限制单次运维 HTTP 请求处理时间
+    google.protobuf.Duration timeout = 2;
+  }
+  // grpc 接收 Envoy External Processing 双向流
+  GRPC grpc = 1;
+  // http 暴露 healthz 和 readyz
+  HTTP http = 2;
+  // shutdown_timeout 是等待现有 External Processing 流退出的最长时间
+  google.protobuf.Duration shutdown_timeout = 3;
+}
+
+// Logging 定义结构化日志格式与级别
+message Logging {
+  // format 支持 json 和 text
+  string format = 1;
+  // level 支持 debug、info、warn 和 error
+  string level = 2;
+  // add_source 控制日志是否包含调用位置
+  bool add_source = 3;
+}

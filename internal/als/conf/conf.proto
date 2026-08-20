@@ -1,0 +1,117 @@
+syntax = "proto3";
+
+package ingate.als.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/als/conf;conf";
+
+// Bootstrap 定义 ingate-als 的完整进程配置
+message Bootstrap {
+  // server 定义 ALS 协议入口和运维 HTTP 端点
+  Server server = 1;
+  // data 定义 Kafka 主链路与本地磁盘兜底
+  Data data = 2;
+  // logging 定义进程日志行为
+  Logging logging = 3;
+}
+
+// Server 定义 Envoy ALS 与运行检查的监听配置
+message Server {
+  message GRPC {
+    message TLS {
+      // enabled 控制 ALS gRPC 服务是否启用 TLS
+      bool enabled = 1;
+      // cert_file 是服务端证书链文件
+      string cert_file = 2;
+      // key_file 是服务端私钥文件
+      string key_file = 3;
+      // client_ca_file 非空时启用 mTLS 并只信任该 CA 签发的 Envoy 客户端证书
+      string client_ca_file = 4;
+    }
+    // addr 是 Envoy 连接的 gRPC 监听地址
+    string addr = 1;
+    // tls 保护 Envoy 到 ALS 的请求记录传输
+    TLS tls = 2;
+  }
+  message HTTP {
+    // addr 是健康检查和指标的 HTTP 监听地址
+    string addr = 1;
+    // timeout 限制单次运维 HTTP 请求处理时间
+    google.protobuf.Duration timeout = 2;
+  }
+  // grpc 接收 Envoy Access Log Service 流
+  GRPC grpc = 1;
+  // http 暴露 healthz、readyz 和 metrics
+  HTTP http = 2;
+  // shutdown_timeout 是等待 gRPC 流和积压回放停止的最长时间
+  google.protobuf.Duration shutdown_timeout = 3;
+}
+
+// Data 定义请求记录的消息与本地队列依赖
+message Data {
+  message Kafka {
+    message SASL {
+      // mechanism 支持 PLAIN、SCRAM-SHA-256 和 SCRAM-SHA-512，空值表示不启用 SASL
+      string mechanism = 1;
+      // username 是 Kafka SASL 用户名
+      string username = 2;
+      // password 是 Kafka SASL 密码
+      string password = 3;
+    }
+    message TLS {
+      // enabled 控制 Kafka 连接是否启用 TLS
+      bool enabled = 1;
+      // ca_file 是可选的 Kafka 服务端 CA 证书文件，为空时使用系统根证书
+      string ca_file = 2;
+      // cert_file 是可选的 Kafka 客户端证书文件
+      string cert_file = 3;
+      // key_file 与 cert_file 配对，用于 Kafka mTLS
+      string key_file = 4;
+      // server_name 覆盖 TLS 证书校验使用的服务端名称
+      string server_name = 5;
+    }
+    // brokers 是 Kafka bootstrap broker 地址列表
+    repeated string brokers = 1;
+    // topic 是每条 RequestRecord 独立写入的目标 Topic
+    string topic = 2;
+    // write_timeout 是一批记录等待 Kafka ISR 确认的最长时间
+    google.protobuf.Duration write_timeout = 3;
+    // dial_timeout 是单次 Kafka broker 建连超时
+    google.protobuf.Duration dial_timeout = 4;
+    // readiness_timeout 是就绪检查探测 Kafka 的最长时间
+    google.protobuf.Duration readiness_timeout = 5;
+    // sasl 配置 Kafka 身份认证
+    SASL sasl = 6;
+    // tls 配置 Kafka 传输加密和双向认证
+    TLS tls = 7;
+  }
+  message DiskQueue {
+    // path 是 Kafka 故障期间保存未投递记录的磁盘队列目录
+    string path = 1;
+    // segment_bytes 是单个磁盘队列分段的目标大小
+    int64 segment_bytes = 2;
+    // replay_batch_size 是每次重投 Kafka 的最大记录数
+    uint32 replay_batch_size = 3;
+    // replay_interval 是 Kafka 故障后再次尝试回放的间隔
+    google.protobuf.Duration replay_interval = 4;
+    // sync 控制每批追加成功前是否执行 fsync；开启后进程崩溃不会丢已确认记录
+    bool sync = 5;
+    // max_bytes 限制未投递 protobuf 记录的逻辑总字节数，不代表磁盘文件物理占用上限
+    int64 max_bytes = 6;
+  }
+  // kafka 是请求记录的主投递链路
+  Kafka kafka = 1;
+  // disk_queue 是 Kafka 不可用时的本地可靠缓冲
+  DiskQueue disk_queue = 2;
+}
+
+// Logging 定义结构化日志格式与级别
+message Logging {
+  // format 支持 json 和 text
+  string format = 1;
+  // level 支持 debug、info、warn 和 error
+  string level = 2;
+  // add_source 控制日志是否包含调用位置
+  bool add_source = 3;
+}

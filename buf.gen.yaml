@@ -1,0 +1,27 @@
+version: v2
+inputs:
+  - directory: api
+  - directory: internal/apiserver/conf
+  - directory: internal/adminapi/conf
+  - directory: internal/als
+  - directory: internal/analytics
+  - directory: internal/aiextproc/conf
+  - directory: internal/authz/conf
+  - directory: internal/controller/conf
+plugins:
+  - local: protoc-gen-go
+    out: .
+    opt:
+      - paths=import
+      - module=github.com/lgc202/ingate
+  - local: protoc-gen-go-grpc
+    out: .
+    opt:
+      - paths=import
+      - module=github.com/lgc202/ingate
+      - require_unimplemented_servers=false
+  - local: protoc-gen-go-http
+    out: .
+    opt:
+      - paths=import
+      - module=github.com/lgc202/ingate

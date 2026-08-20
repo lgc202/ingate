@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package ingate.analytics.v1;
+
+import "als/v1/request_record.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/analytics/v1;v1";
+
+// RequestService 向管理面提供单次请求明细查询。
+service RequestService {
+  // ListRequests 按时间倒序分页查询请求明细。
+  rpc ListRequests(ListRequestsRequest) returns (ListRequestsResponse);
+  // GetRequest 按记录 ID 和开始时间查询单次请求明细。
+  rpc GetRequest(GetRequestRequest) returns (ingate.als.v1.RequestRecord);
+}
+
+// StatusClass 是请求结果的 HTTP 状态码分类。
+enum StatusClass {
+  // STATUS_CLASS_UNSPECIFIED 表示不按状态码分类过滤。
+  STATUS_CLASS_UNSPECIFIED = 0;
+  // STATUS_CLASS_SUCCESS 表示状态码小于 400。
+  STATUS_CLASS_SUCCESS = 1;
+  // STATUS_CLASS_CLIENT_ERROR 表示状态码为 400 到 499。
+  STATUS_CLASS_CLIENT_ERROR = 2;
+  // STATUS_CLASS_SERVER_ERROR 表示状态码不小于 500。
+  STATUS_CLASS_SERVER_ERROR = 3;
+  // STATUS_CLASS_NO_RESPONSE 表示没有获得有效 HTTP 状态码。
+  STATUS_CLASS_NO_RESPONSE = 4;
+}
+
+// RequestFilter 是请求明细查询的结构化过滤条件。
+message RequestFilter {
+  // start_time 是查询时间范围的起点，包含该时刻。
+  google.protobuf.Timestamp start_time = 1;
+  // end_time 是查询时间范围的终点，不包含该时刻。
+  google.protobuf.Timestamp end_time = 2;
+  // gateway_id 只查询经过指定 Gateway 的请求。
+  string gateway_id = 3;
+  // route_id 只查询命中指定 Route 的请求。
+  string route_id = 4;
+  // upstream_id 只查询最终转发到指定 Upstream 的请求。
+  string upstream_id = 5;
+  // request_id 按 Envoy 请求标识精确查询。
+  string request_id = 6;
+  // method 按 HTTP 方法精确查询。
+  string method = 7;
+  // host 按请求 Host 或 authority 精确查询。
+  string host = 8;
+  // path_prefix 按不含查询参数的请求路径前缀过滤。
+  string path_prefix = 9;
+  // status_class 按 HTTP 状态码分类过滤。
+  StatusClass status_class = 10;
+  // status_code 按单个 HTTP 状态码精确过滤。
+  optional uint32 status_code = 11;
+  // caller_id 只查询归属于指定 Caller 的请求。
+  string caller_id = 12;
+}
+
+// ListRequestsRequest 是请求明细分页查询参数。
+message ListRequestsRequest {
+  // filter 限定查询时间和请求属性。
+  RequestFilter filter = 1;
+  // page_size 是单页记录数，零值使用服务端默认值。
+  uint32 page_size = 2;
+  // page_token 是上一页返回的不透明游标。
+  string page_token = 3;
+}
+
+// ListRequestsResponse 是请求明细分页结果。
+message ListRequestsResponse {
+  // requests 是按请求开始时间倒序排列的请求记录。
+  repeated RequestSummary requests = 1;
+  // next_page_token 非空时表示还有下一页。
+  string next_page_token = 2;
+}
+
+// RequestSummary 是管理面列表查询需要的请求摘要。
+message RequestSummary {
+  // id 是 ALS 为一次已完成请求生成的稳定记录 ID。
+  string id = 1;
+  // started_at 是 Envoy 开始处理请求的时间。
+  google.protobuf.Timestamp started_at = 2;
+  // duration 是请求的端到端处理耗时。
+  google.protobuf.Duration duration = 3;
+  // method 是 HTTP 请求方法。
+  string method = 4;
+  // host 是不包含端口的请求域名。
+  string host = 5;
+  // path 是不包含查询参数的请求路径。
+  string path = 6;
+  // status_code 是最终返回给客户端的 HTTP 状态码。
+  uint32 status_code = 7;
+  // gateway_id 是处理请求的 Gateway 资源 ID。
+  string gateway_id = 8;
+  // route_id 是请求最终命中的 Route 资源 ID。
+  string route_id = 9;
+  // upstream_id 是请求最终转发到的 Upstream 资源 ID。
+  string upstream_id = 10;
+  // ai_model_call 仅在请求经过 AI Route 时存在。
+  ingate.als.v1.AIModelCall ai_model_call = 11;
+  // caller_id 是通过调用方密钥认证的 Caller 资源 ID。
+  string caller_id = 12;
+  // access_key_id 是本次认证命中的访问密钥 ID。
+  string access_key_id = 13;
+}
+
+// GetRequestRequest 是单条请求明细查询参数。
+message GetRequestRequest {
+  // id 是 ALS 为一次已完成请求生成的稳定记录 ID。
+  string id = 1;
+  // started_at 与请求记录排序键配合，避免按 ID 扫描全部保留分区。
+  google.protobuf.Timestamp started_at = 2;
+}

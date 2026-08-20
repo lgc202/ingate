@@ -1,0 +1,27 @@
+version: v2
+modules:
+  - path: api
+  - path: internal/apiserver/conf
+  - path: internal/adminapi/conf
+  - path: internal/als
+  - path: internal/analytics
+  - path: internal/aiextproc/conf
+  - path: internal/authz/conf
+  - path: internal/controller/conf
+deps:
+  - buf.build/bufbuild/protovalidate
+  - buf.build/googleapis/googleapis
+lint:
+  use:
+    - STANDARD
+  except:
+    # 仓库目录已经表达 api/internal 边界，不再重复完整 Proto package 前缀
+    - PACKAGE_DIRECTORY_MATCH
+    # 进程内部配置不作为版本化的对外协议
+    - PACKAGE_VERSION_SUFFIX
+    # Admin API 直接返回资源或 Empty，避免为每个 RPC 增加没有业务语义的包装消息
+    - RPC_REQUEST_RESPONSE_UNIQUE
+    - RPC_REQUEST_STANDARD_NAME
+    - RPC_RESPONSE_STANDARD_NAME
+    # 现有枚举值已经进入 Admin API，保持协议名称稳定
+    - ENUM_VALUE_PREFIX
