@@ -8,10 +8,9 @@ import (
 	kratos "github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
 
-	"github.com/lgc202/ingate/internal/adminapi/auth"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	callerbiz "github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	certificatebiz "github.com/lgc202/ingate/internal/adminapi/biz/certificate"
-	configurationbiz "github.com/lgc202/ingate/internal/adminapi/biz/configuration"
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	iprestrictionbiz "github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
 	ratelimitbiz "github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
@@ -22,9 +21,8 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data"
 	"github.com/lgc202/ingate/internal/adminapi/server"
-	authenticationservice "github.com/lgc202/ingate/internal/adminapi/service/authentication"
+	callerservice "github.com/lgc202/ingate/internal/adminapi/service/caller"
 	certificateservice "github.com/lgc202/ingate/internal/adminapi/service/certificate"
-	configurationservice "github.com/lgc202/ingate/internal/adminapi/service/configuration"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
 	healthservice "github.com/lgc202/ingate/internal/adminapi/service/health"
 	iprestrictionservice "github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
@@ -38,6 +36,7 @@ import (
 // bizProviderSet 汇总各资源的业务服务
 var bizProviderSet = wire.NewSet(
 	biz.NewPolicyUsageFinder,
+	callerbiz.NewService,
 	gatewaybiz.NewService,
 	routebiz.NewService,
 	upstreambiz.NewService,
@@ -46,12 +45,11 @@ var bizProviderSet = wire.NewSet(
 	iprestrictionbiz.NewService,
 	requestbiz.NewService,
 	trafficbiz.NewService,
-	configurationbiz.NewService,
 )
 
 // serviceProviderSet 汇总 Admin API 的协议服务
 var serviceProviderSet = wire.NewSet(
-	authenticationservice.NewService,
+	callerservice.NewService,
 	gatewayservice.NewService,
 	routeservice.NewService,
 	upstreamservice.NewService,
@@ -60,19 +58,16 @@ var serviceProviderSet = wire.NewSet(
 	iprestrictionservice.NewService,
 	requestservice.NewService,
 	trafficservice.NewService,
-	configurationservice.NewService,
 	healthservice.NewService,
 )
 
 func wireApp(
 	*conf.Server,
 	*conf.Data,
-	*conf.Authentication,
 	*slog.Logger,
 	serviceInstanceID,
 ) (*kratos.App, func(), error) {
 	panic(wire.Build(
-		auth.ProviderSet,
 		data.ProviderSet,
 		bizProviderSet,
 		serviceProviderSet,

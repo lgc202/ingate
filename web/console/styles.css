@@ -967,6 +967,7 @@ body { overflow-x: hidden; }
 .request-method-patch { color: #875612; background: #fff1dc; }
 .request-method-delete { color: #a43b35; background: #fdecea; }
 .request-resource-name { display: block; overflow: hidden; font-size: 0.78rem; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.request-model-summary { display: block; margin-top: 4px; overflow: hidden; color: #7b8290; font-size: 0.68rem; text-overflow: ellipsis; white-space: nowrap; }
 .request-record-pagination { padding: 14px 18px; display: flex; align-items: center; justify-content: flex-end; gap: 16px; border-top: 1px solid #edf0f4; }
 .request-page-size { display: flex; align-items: center; gap: 8px; width: max-content; color: #64748b; font-size: 12px; }
 .request-page-size select { min-width: 58px; height: 32px; padding: 0 8px; border: 1px solid #dce1e8; border-radius: 8px; background: #fff; color: #1f2937; font-weight: 650; }
@@ -1015,6 +1016,7 @@ body { overflow-x: hidden; }
 .request-detail-grid > div:not(:nth-child(3n + 1)) { border-left: 1px solid #e5e7ec; }
 .request-detail-grid > div:nth-child(n + 4) { border-top: 1px solid #e5e7ec; }
 .request-forwarding-grid > div:nth-child(4) { grid-column: span 2; }
+.request-model-grid > .is-wide { grid-column: 1 / -1; }
 .request-detail-grid span { color: #858b96; font-size: 0.7rem; }
 .request-detail-grid strong,
 .request-detail-grid code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1211,14 +1213,10 @@ body { overflow-x: hidden; }
 .is-collapsed .nav-item.is-active { box-shadow: inset 2px 0 0 var(--orange); }
 
 .sidebar-footer { padding: 12px; border-top: 1px solid #292c35; }
-.principal-card, .system-version { min-width: 0; display: flex; align-items: center; gap: 9px; }
-.principal-avatar, .version-monogram { width: 31px; height: 31px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; color: #e9edff; background: #303440; font-weight: 800; }
-.principal-card > div { flex: 1; min-width: 0; display: grid; }
-.principal-card strong { overflow: hidden; color: #e8e9ee; font-size: 0.78rem; text-overflow: ellipsis; white-space: nowrap; }
-.principal-card span, .system-version > span:last-child { color: #777c89; font-size: 0.72rem; }
-.principal-card button { border: 0; background: transparent; color: #777c89; cursor: pointer; }
-.principal-card button svg { width: 16px; }
-.is-collapsed .principal-card, .is-collapsed .system-version { justify-content: center; }
+.system-version { min-width: 0; display: flex; align-items: center; gap: 9px; }
+.version-monogram { width: 31px; height: 31px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; color: #e9edff; background: #303440; font-weight: 800; }
+.system-version > span:last-child { color: #777c89; font-size: 0.72rem; }
+.is-collapsed .system-version { justify-content: center; }
 
 .console-workspace { min-width: 0; min-height: 100vh; }
 .workspace-header { position: sticky; top: 0; z-index: 30; height: 64px; padding: 0 30px; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(250,249,246,0.9); border-bottom: 1px solid #dfded8; backdrop-filter: blur(16px); }

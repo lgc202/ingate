@@ -21,15 +21,3 @@ logging:
   format: "json"
   level: "info"
   add_source: false
-
-authentication:
-  enabled: false
-  issuer: ""
-  audience: "ingate-console"
-  client_id: "ingate-console"
-  scopes: ["openid", "profile", "email"]
-  roles_claim: "roles"
-  admin_roles: ["ingate-admin"]
-  operator_roles: ["ingate-operator"]
-  viewer_roles: ["ingate-viewer"]
-  discovery_timeout: "10s"

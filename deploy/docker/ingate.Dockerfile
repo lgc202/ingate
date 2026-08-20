@@ -31,6 +31,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-admin-api ./cmd/ingate-admin-api; \
 	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-als ./cmd/ingate-als; \
 	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-analytics ./cmd/ingate-analytics; \
+	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-ai-extproc ./cmd/ingate-ai-extproc; \
+	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-authz ./cmd/ingate-authz; \
 	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-console ./cmd/ingate-console
 
 FROM node:${NODE_VERSION}-bookworm-slim AS console-builder
@@ -86,6 +88,20 @@ COPY --from=service-builder /out/ingate-analytics /opt/ingate/analytics/bin/inga
 
 ENTRYPOINT ["/opt/ingate/analytics/bin/ingate-analytics"]
 CMD ["--config", "/opt/ingate/analytics/configs/config.yaml"]
+
+FROM service-runtime AS ai-extproc
+
+COPY --from=service-builder /out/ingate-ai-extproc /opt/ingate/ai-extproc/bin/ingate-ai-extproc
+
+ENTRYPOINT ["/opt/ingate/ai-extproc/bin/ingate-ai-extproc"]
+CMD ["--config", "/opt/ingate/ai-extproc/configs/config.yaml"]
+
+FROM service-runtime AS authz
+
+COPY --from=service-builder /out/ingate-authz /opt/ingate/authz/bin/ingate-authz
+
+ENTRYPOINT ["/opt/ingate/authz/bin/ingate-authz"]
+CMD ["--config", "/opt/ingate/authz/configs/config.yaml"]
 
 FROM service-runtime AS console
 

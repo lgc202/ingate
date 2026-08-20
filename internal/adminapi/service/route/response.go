@@ -2,7 +2,6 @@ package route
 
 import (
 	"net/http"
-	"time"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -10,29 +9,33 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func routeFromResource(route *resource.Route) *adminv1.Route {
+func routeResponse(route *resource.Route) *adminv1.Route {
 	status := biz.EnabledResourceStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions)
 	response := &adminv1.Route{
 		Id:                     route.Name,
 		Name:                   route.Spec.DisplayName,
 		Enabled:                route.Spec.Enabled,
+		AccessMode:             routeAccessModeResponse(route.Spec.AccessMode),
 		GatewayIds:             append([]string(nil), route.Spec.GatewayRefs...),
 		Hostnames:              append([]string(nil), route.Spec.Hostnames...),
-		Match:                  routeMatchFromResource(route.Spec.Match),
-		HostRewrite:            hostRewriteFromResource(route.Spec.HostRewrite),
-		RequestHeaderModifier:  headerModifierFromResource(route.Spec.RequestHeaderModifier),
-		ResponseHeaderModifier: headerModifierFromResource(route.Spec.ResponseHeaderModifier),
-		State:                  adminservice.NewResourceState(status.State),
+		Match:                  routeMatchResponse(route.Spec.Match),
+		HostRewrite:            hostRewriteResponse(route.Spec.HostRewrite),
+		RequestHeaderModifier:  headerModifierResponse(route.Spec.RequestHeaderModifier),
+		ResponseHeaderModifier: headerModifierResponse(route.Spec.ResponseHeaderModifier),
+		State:                  adminservice.ResourceState(status.State),
 		Message:                adminservice.ResourceMessage(status.Reason),
 		Version:                route.Generation,
-		CreatedAt:              adminservice.NewTimestamp(route.CreationTimestamp.Time),
-		UpdatedAt:              adminservice.NewTimestamp(routeUpdatedAt(route)),
+		CreatedAt:              adminservice.Timestamp(route.CreationTimestamp.Time),
+		UpdatedAt:              adminservice.Timestamp(adminservice.ResourceUpdatedAt(route.Annotations)),
 	}
 	for _, upstream := range route.Spec.UpstreamRefs {
 		response.Upstreams = append(response.Upstreams, &adminv1.RouteUpstream{
 			UpstreamId: upstream.Name,
 			Weight:     uint32(upstream.Weight),
 		})
+	}
+	if route.Spec.AI != nil {
+		response.Ai = aiRouteResponse(route.Spec.AI)
 	}
 	if route.Spec.Timeout != nil {
 		response.Timeout = &adminv1.RouteTimeout{RequestMillis: uint32(route.Spec.Timeout.RequestMillis)}
@@ -46,34 +49,64 @@ func routeFromResource(route *resource.Route) *adminv1.Route {
 	return response
 }
 
-func hostRewriteFromResource(rewrite *resource.HostRewrite) *adminv1.HostRewrite {
+func routeAccessModeResponse(mode resource.RouteAccessMode) adminv1.RouteAccessMode {
+	switch mode {
+	case resource.RouteAccessPublic:
+		return adminv1.RouteAccessMode_ROUTE_ACCESS_PUBLIC
+	case resource.RouteAccessCaller:
+		return adminv1.RouteAccessMode_ROUTE_ACCESS_CALLER
+	default:
+		return adminv1.RouteAccessMode_ROUTE_ACCESS_MODE_UNSPECIFIED
+	}
+}
+
+func aiRouteResponse(ai *resource.AIRoute) *adminv1.AIRoute {
+	response := &adminv1.AIRoute{Models: make([]*adminv1.AIModel, 0, len(ai.Models))}
+	for _, model := range ai.Models {
+		modelResponse := &adminv1.AIModel{
+			Name:    model.Name,
+			Targets: make([]*adminv1.AIModelTarget, 0, len(model.Targets)),
+		}
+		for _, target := range model.Targets {
+			modelResponse.Targets = append(modelResponse.Targets, &adminv1.AIModelTarget{
+				UpstreamId: target.UpstreamRef,
+				Model:      target.Model,
+				Weight:     uint32(target.Weight),
+			})
+		}
+		response.Models = append(response.Models, modelResponse)
+	}
+	return response
+}
+
+func hostRewriteResponse(rewrite *resource.HostRewrite) *adminv1.HostRewrite {
 	if rewrite == nil {
 		return &adminv1.HostRewrite{Mode: adminv1.HostRewriteMode_HOST_REWRITE_MODE_PRESERVE}
 	}
 
-	result := &adminv1.HostRewrite{Hostname: rewrite.Hostname}
+	response := &adminv1.HostRewrite{Hostname: rewrite.Hostname}
 	switch rewrite.Mode {
 	case resource.HostRewriteServiceAddress:
-		result.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_SERVICE_ADDRESS
+		response.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_SERVICE_ADDRESS
 	case resource.HostRewritePreserve:
-		result.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_PRESERVE
+		response.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_PRESERVE
 	case resource.HostRewriteCustom:
-		result.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_CUSTOM
+		response.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_CUSTOM
 	default:
-		result.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_UNSPECIFIED
+		response.Mode = adminv1.HostRewriteMode_HOST_REWRITE_MODE_UNSPECIFIED
 	}
-	return result
+	return response
 }
 
-func routeMatchFromResource(match resource.RouteMatch) *adminv1.RouteMatch {
+func routeMatchResponse(match resource.RouteMatch) *adminv1.RouteMatch {
 	response := &adminv1.RouteMatch{
 		Path: &adminv1.RoutePathMatch{
-			Type:  pathMatchTypeFromResource(match.Path.Type),
+			Type:  pathMatchTypeResponse(match.Path.Type),
 			Value: match.Path.Value,
 		},
 	}
 	for _, method := range match.Methods {
-		response.Methods = append(response.Methods, httpMethodFromResource(method))
+		response.Methods = append(response.Methods, httpMethodResponse(method))
 	}
 	for _, header := range match.Headers {
 		response.Headers = append(response.Headers, &adminv1.HeaderMatch{Name: header.Name, Value: header.Value})
@@ -81,7 +114,7 @@ func routeMatchFromResource(match resource.RouteMatch) *adminv1.RouteMatch {
 	return response
 }
 
-func headerModifierFromResource(modifier *resource.HeaderModifier) *adminv1.HeaderModifier {
+func headerModifierResponse(modifier *resource.HeaderModifier) *adminv1.HeaderModifier {
 	if modifier == nil {
 		return nil
 	}
@@ -95,7 +128,7 @@ func headerModifierFromResource(modifier *resource.HeaderModifier) *adminv1.Head
 	return response
 }
 
-func pathMatchTypeFromResource(matchType resource.PathMatchType) adminv1.RoutePathMatchType {
+func pathMatchTypeResponse(matchType resource.PathMatchType) adminv1.RoutePathMatchType {
 	switch matchType {
 	case resource.PathMatchPrefix:
 		return adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_PREFIX
@@ -106,7 +139,7 @@ func pathMatchTypeFromResource(matchType resource.PathMatchType) adminv1.RoutePa
 	}
 }
 
-func httpMethodFromResource(method string) adminv1.HTTPMethod {
+func httpMethodResponse(method string) adminv1.HTTPMethod {
 	switch method {
 	case http.MethodGet:
 		return adminv1.HTTPMethod_HTTP_METHOD_GET
@@ -125,13 +158,4 @@ func httpMethodFromResource(method string) adminv1.HTTPMethod {
 	default:
 		return adminv1.HTTPMethod_HTTP_METHOD_UNSPECIFIED
 	}
-}
-
-func routeUpdatedAt(route *resource.Route) time.Time {
-	value := route.Annotations[resource.AnnotationUpdatedAt]
-	if value == "" {
-		return time.Time{}
-	}
-	parsed, _ := time.Parse(time.RFC3339Nano, value)
-	return parsed
 }

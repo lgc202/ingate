@@ -10,13 +10,13 @@ import (
 
 const httpRouterFilterName = "envoy.filters.http.router"
 
-// listenerFilterConfig 记录 Listener 是否需要注入原生治理过滤器
+// listenerFilterConfig 记录只在部分 Listener 上启用的过滤器
 type listenerFilterConfig struct {
 	ipRestriction bool
 }
 
 func buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) {
-	filters := make([]*hcmv3.HttpFilter, 0, 2)
+	filters := make([]*hcmv3.HttpFilter, 0, 4)
 	if config.ipRestriction {
 		filter, err := buildIPRestrictionHTTPFilter()
 		if err != nil {
@@ -24,6 +24,17 @@ func buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) 
 		}
 		filters = append(filters, filter)
 	}
+	callerAuth, err := buildCallerAuthHTTPFilter()
+	if err != nil {
+		return nil, err
+	}
+	filters = append(filters, callerAuth)
+	aiExtProc, err := buildAIEntryExtProcHTTPFilter()
+	if err != nil {
+		return nil, err
+	}
+	filters = append(filters, aiExtProc)
+
 	router, err := anypb.New(&routerv3.Router{})
 	if err != nil {
 		return nil, fmt.Errorf("encode Envoy router filter: %w", err)

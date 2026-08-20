@@ -9,7 +9,9 @@ import (
 
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/anypb"
 
+	"github.com/lgc202/ingate/internal/authz/filterconfig"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
@@ -47,6 +49,10 @@ func (c *compilation) buildRoutes(
 		gatewayIDs := uniqueStrings(route.Spec.GatewayRefs)
 		if len(gatewayIDs) == 0 {
 			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonInvalidSpec, fmt.Sprintf("route %q must reference at least one gateway", routeID))
+			continue
+		}
+		accessConfig, accessValid := c.routeAccessConfig(route)
+		if !accessValid {
 			continue
 		}
 		entries := c.buildRouteEntries(route, compiledUpstreams)
@@ -89,7 +95,13 @@ func (c *compilation) buildRoutes(
 					for _, entry := range entries {
 						current := entry
 						current.route = proto.Clone(entry.route).(*routev3.Route)
-						current.route.Name = envoyRouteName(gatewayID, routeID, entry.method)
+						if accessConfig != nil {
+							if current.route.TypedPerFilterConfig == nil {
+								current.route.TypedPerFilterConfig = make(map[string]*anypb.Any)
+							}
+							current.route.TypedPerFilterConfig[filterconfig.HTTPFilterName] = accessConfig
+						}
+						current.route.Name = envoyRouteName(gatewayID, routeID, entry.method, entry.variant)
 						matchKey := routeMatchKey(current.route.Match)
 						if previous, conflict := matchOwners[key][domain][matchKey]; conflict {
 							message := fmt.Sprintf("listener %s hostname %q has the same route match in %q and %q", listenerName(key), domain, previous.routeID, routeID)
@@ -235,10 +247,13 @@ func sortedListenerKeySet(values map[listenerKey]map[string]bool) []listenerKey 
 	return keys
 }
 
-func envoyRouteName(gatewayID, routeID, method string) string {
+func envoyRouteName(gatewayID, routeID, method, variant string) string {
 	name := fmt.Sprintf("%s/%s/%s", envoyRouteNamePrefix, gatewayID, routeID)
 	if method != "" {
 		name += "/" + strings.ToLower(method)
+	}
+	if variant != "" {
+		name += "/" + variant
 	}
 	return name
 }

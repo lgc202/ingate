@@ -46,6 +46,7 @@ func listOptions(request *adminv1.ListRequestRecordsRequest) (requestbiz.ListOpt
 			PathPrefix: request.GetPathPrefix(),
 			Outcome:    requestOutcome(request.GetOutcome()),
 			StatusCode: statusCode,
+			CallerID:   request.GetCallerId(),
 		},
 		PageSize:  pageSize,
 		PageToken: request.GetPageToken(),

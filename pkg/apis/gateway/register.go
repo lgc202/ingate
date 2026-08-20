@@ -52,6 +52,12 @@ const (
 	ResourceIPRestrictionPolicies ResourceName = "iprestrictionpolicies"
 	// ResourceIPRestrictionPoliciesStatus 表示 IPRestrictionPolicy status 子资源名
 	ResourceIPRestrictionPoliciesStatus ResourceName = "iprestrictionpolicies/status"
+	// ResourceCaller 表示 Caller 单数资源名
+	ResourceCaller ResourceName = "caller"
+	// ResourceCallers 表示 Caller 复数资源名
+	ResourceCallers ResourceName = "callers"
+	// ResourceCallersStatus 表示 Caller status 子资源名
+	ResourceCallersStatus ResourceName = "callers/status"
 )
 
 // SchemeGroupVersion 表示 Ingate API internal 组版本
@@ -82,6 +88,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&RateLimitPolicyList{},
 		&IPRestrictionPolicy{},
 		&IPRestrictionPolicyList{},
+		&Caller{},
+		&CallerList{},
 	)
 	return nil
 }

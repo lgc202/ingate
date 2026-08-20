@@ -207,6 +207,61 @@ func (s *Store) QueryTrafficBreakdown(
 	return items, nil
 }
 
+// QueryResourceTraffic 只聚合资源列表展示所需的计数，不计算趋势或耗时分位值
+func (s *Store) QueryResourceTraffic(
+	ctx context.Context,
+	query traffic.ResourceTrafficQuery,
+) (summaries []traffic.ResourceTrafficSummary, err error) {
+	dimension, err := trafficDimensionColumn(query.Dimension)
+	if err != nil {
+		return nil, err
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, s.queryTimeout)
+	defer cancel()
+
+	statement := fmt.Sprintf(`
+		SELECT %s AS resource_id,
+		       sum(request_count) AS request_count,
+		       sum(server_error_count) AS server_error_count,
+		       sum(no_response_count) AS no_response_count
+		FROM %s
+		WHERE started_at >= ? AND started_at < ? AND %s IN (?)
+		GROUP BY resource_id`, dimension, s.minuteMetricsTable, dimension)
+	rows, err := s.connection.Query(
+		queryCtx,
+		statement,
+		query.StartTime,
+		query.EndTime,
+		query.ResourceIDs,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("query resource traffic: %w", err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close resource traffic rows: %w", closeErr))
+		}
+	}()
+
+	summaries = make([]traffic.ResourceTrafficSummary, 0, len(query.ResourceIDs))
+	for rows.Next() {
+		var summary traffic.ResourceTrafficSummary
+		if err := rows.Scan(
+			&summary.ResourceID,
+			&summary.RequestCount,
+			&summary.ServerErrors,
+			&summary.NoResponses,
+		); err != nil {
+			return nil, fmt.Errorf("scan resource traffic: %w", err)
+		}
+		summaries = append(summaries, summary)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read resource traffic rows: %w", err)
+	}
+	return summaries, nil
+}
+
 // appendTrafficFilters 追加 Gateway、Route 和 Upstream 的可选资源过滤条件
 func appendTrafficFilters(statement *strings.Builder, args []any, filter traffic.Filter) []any {
 	if filter.GatewayID != "" {

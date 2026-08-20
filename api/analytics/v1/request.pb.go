@@ -109,7 +109,9 @@ type RequestFilter struct {
 	// status_class 按 HTTP 状态码分类过滤。
 	StatusClass StatusClass `protobuf:"varint,10,opt,name=status_class,json=statusClass,proto3,enum=ingate.analytics.v1.StatusClass" json:"status_class,omitempty"`
 	// status_code 按单个 HTTP 状态码精确过滤。
-	StatusCode    *uint32 `protobuf:"varint,11,opt,name=status_code,json=statusCode,proto3,oneof" json:"status_code,omitempty"`
+	StatusCode *uint32 `protobuf:"varint,11,opt,name=status_code,json=statusCode,proto3,oneof" json:"status_code,omitempty"`
+	// caller_id 只查询归属于指定 Caller 的请求。
+	CallerId      string `protobuf:"bytes,12,opt,name=caller_id,json=callerId,proto3" json:"caller_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -219,6 +221,13 @@ func (x *RequestFilter) GetStatusCode() uint32 {
 		return *x.StatusCode
 	}
 	return 0
+}
+
+func (x *RequestFilter) GetCallerId() string {
+	if x != nil {
+		return x.CallerId
+	}
+	return ""
 }
 
 // ListRequestsRequest 是请求明细分页查询参数。
@@ -362,7 +371,13 @@ type RequestSummary struct {
 	// route_id 是请求最终命中的 Route 资源 ID。
 	RouteId string `protobuf:"bytes,9,opt,name=route_id,json=routeId,proto3" json:"route_id,omitempty"`
 	// upstream_id 是请求最终转发到的 Upstream 资源 ID。
-	UpstreamId    string `protobuf:"bytes,10,opt,name=upstream_id,json=upstreamId,proto3" json:"upstream_id,omitempty"`
+	UpstreamId string `protobuf:"bytes,10,opt,name=upstream_id,json=upstreamId,proto3" json:"upstream_id,omitempty"`
+	// ai_model_call 仅在请求经过 AI Route 时存在。
+	AiModelCall *v1.AIModelCall `protobuf:"bytes,11,opt,name=ai_model_call,json=aiModelCall,proto3" json:"ai_model_call,omitempty"`
+	// caller_id 是通过调用方密钥认证的 Caller 资源 ID。
+	CallerId string `protobuf:"bytes,12,opt,name=caller_id,json=callerId,proto3" json:"caller_id,omitempty"`
+	// access_key_id 是本次认证命中的访问密钥 ID。
+	AccessKeyId   string `protobuf:"bytes,13,opt,name=access_key_id,json=accessKeyId,proto3" json:"access_key_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -467,6 +482,27 @@ func (x *RequestSummary) GetUpstreamId() string {
 	return ""
 }
 
+func (x *RequestSummary) GetAiModelCall() *v1.AIModelCall {
+	if x != nil {
+		return x.AiModelCall
+	}
+	return nil
+}
+
+func (x *RequestSummary) GetCallerId() string {
+	if x != nil {
+		return x.CallerId
+	}
+	return ""
+}
+
+func (x *RequestSummary) GetAccessKeyId() string {
+	if x != nil {
+		return x.AccessKeyId
+	}
+	return ""
+}
+
 // GetRequestRequest 是单条请求明细查询参数。
 type GetRequestRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -526,7 +562,7 @@ var File_analytics_v1_request_proto protoreflect.FileDescriptor
 
 const file_analytics_v1_request_proto_rawDesc = "" +
 	"\n" +
-	"\x1aanalytics/v1/request.proto\x12\x13ingate.analytics.v1\x1a\x1bals/v1/request_record.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xc3\x03\n" +
+	"\x1aanalytics/v1/request.proto\x12\x13ingate.analytics.v1\x1a\x1bals/v1/request_record.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xe0\x03\n" +
 	"\rRequestFilter\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -545,7 +581,8 @@ const file_analytics_v1_request_proto_rawDesc = "" +
 	"\fstatus_class\x18\n" +
 	" \x01(\x0e2 .ingate.analytics.v1.StatusClassR\vstatusClass\x12$\n" +
 	"\vstatus_code\x18\v \x01(\rH\x00R\n" +
-	"statusCode\x88\x01\x01B\x0e\n" +
+	"statusCode\x88\x01\x01\x12\x1b\n" +
+	"\tcaller_id\x18\f \x01(\tR\bcallerIdB\x0e\n" +
 	"\f_status_code\"\x8d\x01\n" +
 	"\x13ListRequestsRequest\x12:\n" +
 	"\x06filter\x18\x01 \x01(\v2\".ingate.analytics.v1.RequestFilterR\x06filter\x12\x1b\n" +
@@ -554,7 +591,7 @@ const file_analytics_v1_request_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\"\x7f\n" +
 	"\x14ListRequestsResponse\x12?\n" +
 	"\brequests\x18\x01 \x03(\v2#.ingate.analytics.v1.RequestSummaryR\brequests\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xce\x02\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xcf\x03\n" +
 	"\x0eRequestSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -570,7 +607,10 @@ const file_analytics_v1_request_proto_rawDesc = "" +
 	"\broute_id\x18\t \x01(\tR\arouteId\x12\x1f\n" +
 	"\vupstream_id\x18\n" +
 	" \x01(\tR\n" +
-	"upstreamId\"^\n" +
+	"upstreamId\x12>\n" +
+	"\rai_model_call\x18\v \x01(\v2\x1a.ingate.als.v1.AIModelCallR\vaiModelCall\x12\x1b\n" +
+	"\tcaller_id\x18\f \x01(\tR\bcallerId\x12\"\n" +
+	"\raccess_key_id\x18\r \x01(\tR\vaccessKeyId\"^\n" +
 	"\x11GetRequestRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -609,7 +649,8 @@ var file_analytics_v1_request_proto_goTypes = []any{
 	(*GetRequestRequest)(nil),     // 5: ingate.analytics.v1.GetRequestRequest
 	(*timestamppb.Timestamp)(nil), // 6: google.protobuf.Timestamp
 	(*durationpb.Duration)(nil),   // 7: google.protobuf.Duration
-	(*v1.RequestRecord)(nil),      // 8: ingate.als.v1.RequestRecord
+	(*v1.AIModelCall)(nil),        // 8: ingate.als.v1.AIModelCall
+	(*v1.RequestRecord)(nil),      // 9: ingate.als.v1.RequestRecord
 }
 var file_analytics_v1_request_proto_depIdxs = []int32{
 	6,  // 0: ingate.analytics.v1.RequestFilter.start_time:type_name -> google.protobuf.Timestamp
@@ -619,16 +660,17 @@ var file_analytics_v1_request_proto_depIdxs = []int32{
 	4,  // 4: ingate.analytics.v1.ListRequestsResponse.requests:type_name -> ingate.analytics.v1.RequestSummary
 	6,  // 5: ingate.analytics.v1.RequestSummary.started_at:type_name -> google.protobuf.Timestamp
 	7,  // 6: ingate.analytics.v1.RequestSummary.duration:type_name -> google.protobuf.Duration
-	6,  // 7: ingate.analytics.v1.GetRequestRequest.started_at:type_name -> google.protobuf.Timestamp
-	2,  // 8: ingate.analytics.v1.RequestService.ListRequests:input_type -> ingate.analytics.v1.ListRequestsRequest
-	5,  // 9: ingate.analytics.v1.RequestService.GetRequest:input_type -> ingate.analytics.v1.GetRequestRequest
-	3,  // 10: ingate.analytics.v1.RequestService.ListRequests:output_type -> ingate.analytics.v1.ListRequestsResponse
-	8,  // 11: ingate.analytics.v1.RequestService.GetRequest:output_type -> ingate.als.v1.RequestRecord
-	10, // [10:12] is the sub-list for method output_type
-	8,  // [8:10] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	8,  // 7: ingate.analytics.v1.RequestSummary.ai_model_call:type_name -> ingate.als.v1.AIModelCall
+	6,  // 8: ingate.analytics.v1.GetRequestRequest.started_at:type_name -> google.protobuf.Timestamp
+	2,  // 9: ingate.analytics.v1.RequestService.ListRequests:input_type -> ingate.analytics.v1.ListRequestsRequest
+	5,  // 10: ingate.analytics.v1.RequestService.GetRequest:input_type -> ingate.analytics.v1.GetRequestRequest
+	3,  // 11: ingate.analytics.v1.RequestService.ListRequests:output_type -> ingate.analytics.v1.ListRequestsResponse
+	9,  // 12: ingate.analytics.v1.RequestService.GetRequest:output_type -> ingate.als.v1.RequestRecord
+	11, // [11:13] is the sub-list for method output_type
+	9,  // [9:11] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_analytics_v1_request_proto_init() }

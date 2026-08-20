@@ -7,23 +7,29 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-// NewTimestamp 把非零时间转换为协议时间
-func NewTimestamp(value time.Time) *timestamppb.Timestamp {
+// Timestamp 把非零时间转换为协议时间
+func Timestamp(value time.Time) *timestamppb.Timestamp {
 	if value.IsZero() {
 		return nil
 	}
 	return timestamppb.New(value)
 }
 
-// NewResourceStatus 把领域状态转换为控制台状态
-func NewResourceStatus(status biz.ResourceStatus) *adminv1.ResourceStatus {
-	return &adminv1.ResourceStatus{State: NewResourceState(status.State), Message: ResourceMessage(status.Reason)}
+// ResourceUpdatedAt 读取由 API Server 注解维护的资源更新时间
+func ResourceUpdatedAt(annotations map[string]string) time.Time {
+	value := annotations[resource.AnnotationUpdatedAt]
+	if value == "" {
+		return time.Time{}
+	}
+	parsed, _ := time.Parse(time.RFC3339Nano, value)
+	return parsed
 }
 
-// NewResourceState 把领域状态转换为控制台协议枚举
-func NewResourceState(state biz.ResourceState) adminv1.ResourceState {
+// ResourceState 把领域状态转换为控制台协议枚举
+func ResourceState(state biz.ResourceState) adminv1.ResourceState {
 	switch state {
 	case biz.ResourceStateDisabled:
 		return adminv1.ResourceState_DISABLED

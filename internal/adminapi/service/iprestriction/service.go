@@ -13,30 +13,30 @@ import (
 
 // Service 实现客户端 IP 访问限制策略管理 API
 type Service struct {
-	business *iprestrictionbiz.Service
+	policies *iprestrictionbiz.Service
 }
 
 // NewService 创建客户端 IP 访问限制策略协议服务
-func NewService(business *iprestrictionbiz.Service) *Service {
-	return &Service{business: business}
+func NewService(policies *iprestrictionbiz.Service) *Service {
+	return &Service{policies: policies}
 }
 
 func (s *Service) ListIPRestrictionPolicies(
 	ctx context.Context,
 	request *adminv1.ListIPRestrictionPoliciesRequest,
 ) (*adminv1.ListIPRestrictionPoliciesResponse, error) {
-	result, err := s.business.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	page, err := s.policies.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
 	response := &adminv1.ListIPRestrictionPoliciesResponse{
-		Policies:   make([]*adminv1.IPRestrictionPolicy, 0, len(result.Policies)),
-		NextCursor: result.NextCursor,
+		Policies:   make([]*adminv1.IPRestrictionPolicy, 0, len(page.Policies)),
+		NextCursor: page.NextCursor,
 	}
-	for i := range result.Policies {
+	for i := range page.Policies {
 		response.Policies = append(
 			response.Policies,
-			ipRestrictionPolicyFromResource(&result.Policies[i], result.TargetNames),
+			ipRestrictionPolicyResponse(&page.Policies[i], page.TargetNames),
 		)
 	}
 	return response, nil
@@ -46,60 +46,48 @@ func (s *Service) GetIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.GetIPRestrictionPolicyRequest,
 ) (*adminv1.IPRestrictionPolicy, error) {
-	result, err := s.business.Get(ctx, request.GetId())
+	view, err := s.policies.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
-	return ipRestrictionPolicyFromResource(result.Policy, result.TargetNames), nil
+	return ipRestrictionPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
 func (s *Service) CreateIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.CreateIPRestrictionPolicyRequest,
 ) (*adminv1.IPRestrictionPolicy, error) {
-	spec, err := buildIPRestrictionPolicySpec(
-		request.GetName(),
-		true,
-		request.GetTargets(),
-		request.GetAllow(),
-		request.GetDeny(),
-	)
+	spec, err := createSpec(request)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.business.Create(ctx, spec)
+	view, err := s.policies.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
-	return ipRestrictionPolicyFromResource(result.Policy, result.TargetNames), nil
+	return ipRestrictionPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
 func (s *Service) UpdateIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.UpdateIPRestrictionPolicyRequest,
 ) (*adminv1.IPRestrictionPolicy, error) {
-	spec, err := buildIPRestrictionPolicySpec(
-		request.GetName(),
-		request.GetEnabled(),
-		request.GetTargets(),
-		request.GetAllow(),
-		request.GetDeny(),
-	)
+	spec, err := updateSpec(request)
 	if err != nil {
 		return nil, err
 	}
-	result, err := s.business.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	view, err := s.policies.Update(ctx, request.GetId(), request.GetVersion(), spec)
 	if err != nil {
 		return nil, err
 	}
-	return ipRestrictionPolicyFromResource(result.Policy, result.TargetNames), nil
+	return ipRestrictionPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
 func (s *Service) DeleteIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.DeleteIPRestrictionPolicyRequest,
 ) (*emptypb.Empty, error) {
-	if err := s.business.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.policies.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

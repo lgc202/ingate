@@ -15,12 +15,6 @@ enum ResourceState {
   ERROR = 4;
 }
 
-// ResourceStatus 是控制台展示的声明式资源处理状态
-message ResourceStatus {
-  ResourceState state = 1;
-  string message = 2;
-}
-
 // PolicyTargetKind 是治理策略支持的作用目标类型
 enum PolicyTargetKind {
   POLICY_TARGET_KIND_UNSPECIFIED = 0;
@@ -41,17 +35,4 @@ message PolicyTarget {
   string name = 3;
   ResourceState state = 4;
   string message = 5;
-}
-
-// ListRequest 使用 API Server Continue Token 分页读取资源
-message ListRequest {
-  int32 page_size = 1 [(buf.validate.field).int32 = {
-    gte: 0
-    lte: 200
-  }];
-  string page_token = 2;
-}
-
-message PageInfo {
-  string next_page_token = 1;
 }

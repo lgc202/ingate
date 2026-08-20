@@ -22,10 +22,25 @@ func analysisResponse(analysis trafficbiz.Analysis) *adminv1.GetTrafficAnalysisR
 			Metrics:   metricsResponse(point.Metrics),
 		})
 	}
-	for _, item := range analysis.Breakdown {
+	for _, breakdown := range analysis.Breakdown {
 		response.Breakdown = append(response.Breakdown, &adminv1.TrafficBreakdownItem{
-			ResourceId: item.ResourceID,
-			Metrics:    metricsResponse(item.Metrics),
+			ResourceId: breakdown.ResourceID,
+			Metrics:    metricsResponse(breakdown.Metrics),
+		})
+	}
+	return response
+}
+
+func resourceTrafficResponse(summaries []trafficbiz.ResourceTrafficSummary) *adminv1.BatchGetResourceTrafficResponse {
+	response := &adminv1.BatchGetResourceTrafficResponse{
+		Summaries: make([]*adminv1.ResourceTrafficSummary, 0, len(summaries)),
+	}
+	for _, summary := range summaries {
+		response.Summaries = append(response.Summaries, &adminv1.ResourceTrafficSummary{
+			ResourceId:       summary.ResourceID,
+			RequestCount:     summary.RequestCount,
+			ServerErrorCount: summary.ServerErrors,
+			NoResponseCount:  summary.NoResponses,
 		})
 	}
 	return response

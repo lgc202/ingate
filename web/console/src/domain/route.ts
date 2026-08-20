@@ -3,6 +3,7 @@ import type { ResourceStatus } from './common';
 export type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS';
 export type RoutePathMatchType = 'ROUTE_PATH_MATCH_PREFIX' | 'ROUTE_PATH_MATCH_EXACT';
 export type HostRewriteMode = 'HOST_REWRITE_MODE_SERVICE_ADDRESS' | 'HOST_REWRITE_MODE_PRESERVE' | 'HOST_REWRITE_MODE_CUSTOM';
+export type RouteAccessMode = 'ROUTE_ACCESS_PUBLIC' | 'ROUTE_ACCESS_CALLER';
 
 export interface HeaderMatch {
   name: string;
@@ -25,6 +26,21 @@ export interface WeightedUpstream {
   weight: number;
 }
 
+export interface AIModelTarget {
+  upstreamID: string;
+  model: string;
+  weight: number;
+}
+
+export interface AIModel {
+  name: string;
+  targets: AIModelTarget[];
+}
+
+export interface AIRoute {
+  models: AIModel[];
+}
+
 export interface HostRewrite {
   mode: HostRewriteMode;
   hostname?: string;
@@ -34,6 +50,7 @@ export interface RouteResource {
   id: string;
   name: string;
   enabled: boolean;
+  accessMode: RouteAccessMode;
   gatewayIDs: string[];
   hostnames: string[];
   match: {
@@ -42,6 +59,7 @@ export interface RouteResource {
     headers: HeaderMatch[];
   };
   upstreams: WeightedUpstream[];
+  ai?: AIRoute;
   hostRewrite: HostRewrite;
   requestHeaderModifier?: HeaderModifier;
   responseHeaderModifier?: HeaderModifier;
@@ -67,6 +85,7 @@ export interface UpstreamOption {
   id: string;
   name: string;
   endpoint: string;
+  type: 'HTTP' | 'MODEL';
 }
 
 export interface RouteWorkspace extends RouteListView {
@@ -79,10 +98,12 @@ export interface RouteMutationPayload {
   version?: number;
   name: string;
   enabled: boolean;
+  accessMode: RouteAccessMode;
   gatewayIDs: string[];
   hostnames: string[];
   match: RouteResource['match'];
   upstreams: WeightedUpstream[];
+  ai?: AIRoute;
   hostRewrite: HostRewrite;
   requestHeaderModifier?: HeaderModifier;
   responseHeaderModifier?: HeaderModifier;

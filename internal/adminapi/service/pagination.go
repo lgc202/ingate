@@ -1,9 +1,6 @@
 package service
 
-import (
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	"github.com/lgc202/ingate/internal/adminapi/biz"
-)
+import "github.com/lgc202/ingate/internal/adminapi/biz"
 
 const (
 	defaultPageLimit = 100
@@ -20,9 +17,4 @@ func PageRequest(limit int32, cursor string) biz.PageRequest {
 		normalizedLimit = maxPageLimit
 	}
 	return biz.PageRequest{Limit: normalizedLimit, Cursor: cursor}
-}
-
-// PageInfo 构造控制台分页响应
-func PageInfo(nextCursor string) *adminv1.PageInfo {
-	return &adminv1.PageInfo{NextPageToken: nextCursor}
 }

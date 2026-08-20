@@ -5,7 +5,6 @@ import { listCertificates } from '@/api/certificates';
 import { deleteGateway, listGateways, saveGateway } from '@/api/gateways';
 import { getPolicyWorkspace } from '@/api/policies';
 import { useResource } from '@/api/useResource';
-import { useAuth } from '@/auth/AuthContext';
 import { Badge, Button, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
 import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
 import type { Gateway, GatewayListener, GatewayProtocol } from '@/domain/gateway';
@@ -17,9 +16,8 @@ import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummar
 import { buildGatewayPayload, createGatewayDraft, newListener, validateGatewayDraft, type GatewayDraft } from './form';
 
 export function GatewayPage() {
-  const { canWriteConfiguration } = useAuth();
   const gateways = useResource(listGateways);
-  const trafficOverview = useResourceTrafficOverview('gateway');
+  const trafficOverview = useResourceTrafficOverview('gateway', gateways.data?.gateways.map((gateway) => gateway.id) ?? []);
   const certificates = useResource(listCertificates);
   const policies = useResource(getPolicyWorkspace);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -93,7 +91,7 @@ export function GatewayPage() {
   return (
     <PageFrame
       title="网关"
-      actions={canWriteConfiguration ? <Button onClick={() => openEditor()}><Plus className="w-4 h-4" />创建网关</Button> : undefined}
+      actions={<Button onClick={() => openEditor()}><Plus className="w-4 h-4" />创建网关</Button>}
     >
       <Panel>
         <div className="resource-list-toolbar">
@@ -112,7 +110,7 @@ export function GatewayPage() {
                     <td className="p-3"><ResourceTrafficSignal resourceID={gateway.id} overview={trafficOverview} /></td>
                     <td className="p-3"><Badge tone={resourceStateTone(gateway.enabled ? gateway.state : 'Disabled')}>{resourceStateLabel(gateway.enabled ? gateway.state : 'Disabled')}</Badge></td>
                     <td className="p-3 text-slate-500">{formatDateTime(gateway.updatedAt || gateway.createdAt)}</td>
-                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(gateway)} onEdit={canWriteConfiguration ? () => openEditor(gateway) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(gateway) : undefined} /></td>
+                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(gateway)} onEdit={() => openEditor(gateway)} onDelete={() => setDeleteCandidate(gateway)} /></td>
                   </tr>
                 ))}
               </tbody>

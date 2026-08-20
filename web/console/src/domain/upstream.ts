@@ -1,6 +1,8 @@
 import type { ResourceStatus } from './common';
 
 export type UpstreamLoadBalancing = 'LOAD_BALANCING_POLICY_ROUND_ROBIN' | 'LOAD_BALANCING_POLICY_LEAST_REQUEST';
+export type ModelProtocol = 'MODEL_PROTOCOL_OPENAI' | 'MODEL_PROTOCOL_ANTHROPIC';
+export type UpstreamType = 'HTTP' | 'MODEL';
 
 export const upstreamLoadBalancingOptions: Array<{ value: UpstreamLoadBalancing; label: string }> = [
   { value: 'LOAD_BALANCING_POLICY_ROUND_ROBIN', label: '轮询' },
@@ -23,6 +25,17 @@ export interface UpstreamHealthCheck {
   timeoutSeconds: number;
 }
 
+export interface ModelUpstream {
+  protocol: ModelProtocol;
+  apiKeyConfigured: boolean;
+}
+
+export interface ModelUpstreamInput {
+  protocol: ModelProtocol;
+  apiKey?: string;
+  clearApiKey?: boolean;
+}
+
 export interface Upstream {
   id: string;
   name: string;
@@ -30,6 +43,7 @@ export interface Upstream {
   tls?: UpstreamTLS;
   loadBalancing: UpstreamLoadBalancing;
   healthCheck?: UpstreamHealthCheck;
+  model?: ModelUpstream;
   state: ResourceStatus['state'];
   message: string;
   version: number;
@@ -49,6 +63,14 @@ export interface UpstreamMutationPayload {
   tls?: UpstreamTLS;
   loadBalancing: UpstreamLoadBalancing;
   healthCheck?: UpstreamHealthCheck;
+  model?: ModelUpstreamInput;
+}
+
+export function modelProtocolLabel(value: ModelProtocol): string {
+  switch (value) {
+    case 'MODEL_PROTOCOL_OPENAI': return 'OpenAI 兼容';
+    case 'MODEL_PROTOCOL_ANTHROPIC': return 'Anthropic Messages';
+  }
 }
 
 export function upstreamLoadBalancingLabel(value: UpstreamLoadBalancing): string {

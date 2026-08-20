@@ -17,9 +17,12 @@ var _ = new(context.Context)
 
 const _ = http.SupportPackageIsVersion3
 
+const OperationTrafficAnalysisServiceBatchGetResourceTraffic = "/ingate.admin.v1.TrafficAnalysisService/BatchGetResourceTraffic"
 const OperationTrafficAnalysisServiceGetTrafficAnalysis = "/ingate.admin.v1.TrafficAnalysisService/GetTrafficAnalysis"
 
 type TrafficAnalysisServiceHTTPServer interface {
+	// BatchGetResourceTraffic BatchGetResourceTraffic 查询资源列表展示所需的最近流量摘要
+	BatchGetResourceTraffic(context.Context, *BatchGetResourceTrafficRequest) (*BatchGetResourceTrafficResponse, error)
 	// GetTrafficAnalysis GetTrafficAnalysis 查询同一时间和资源范围内的汇总、趋势与排名
 	GetTrafficAnalysis(context.Context, *GetTrafficAnalysisRequest) (*GetTrafficAnalysisResponse, error)
 }
@@ -27,6 +30,7 @@ type TrafficAnalysisServiceHTTPServer interface {
 func RegisterTrafficAnalysisServiceHTTPServer(s *http.Server, srv TrafficAnalysisServiceHTTPServer) {
 	r := s.Route("/")
 	r.Handle("GET", "/api/v1/traffic-analysis", _TrafficAnalysisService_GetTrafficAnalysis0_HTTP_Handler(srv))
+	r.Handle("POST", "/api/v1/traffic-analysis/resource-summaries:batchGet", _TrafficAnalysisService_BatchGetResourceTraffic0_HTTP_Handler(srv))
 }
 
 func _TrafficAnalysisService_GetTrafficAnalysis0_HTTP_Handler(srv TrafficAnalysisServiceHTTPServer) func(ctx http.Context) error {
@@ -48,7 +52,28 @@ func _TrafficAnalysisService_GetTrafficAnalysis0_HTTP_Handler(srv TrafficAnalysi
 	}
 }
 
+func _TrafficAnalysisService_BatchGetResourceTraffic0_HTTP_Handler(srv TrafficAnalysisServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in BatchGetResourceTrafficRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationTrafficAnalysisServiceBatchGetResourceTraffic)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.BatchGetResourceTraffic(ctx, req.(*BatchGetResourceTrafficRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*BatchGetResourceTrafficResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
 type TrafficAnalysisServiceHTTPClient interface {
+	// BatchGetResourceTraffic BatchGetResourceTraffic 查询资源列表展示所需的最近流量摘要
+	BatchGetResourceTraffic(ctx context.Context, req *BatchGetResourceTrafficRequest, opts ...http.CallOption) (rsp *BatchGetResourceTrafficResponse, err error)
 	// GetTrafficAnalysis GetTrafficAnalysis 查询同一时间和资源范围内的汇总、趋势与排名
 	GetTrafficAnalysis(ctx context.Context, req *GetTrafficAnalysisRequest, opts ...http.CallOption) (rsp *GetTrafficAnalysisResponse, err error)
 }
@@ -59,6 +84,24 @@ type TrafficAnalysisServiceHTTPClientImpl struct {
 
 func NewTrafficAnalysisServiceHTTPClient(client *http.Client) TrafficAnalysisServiceHTTPClient {
 	return &TrafficAnalysisServiceHTTPClientImpl{client}
+}
+
+// BatchGetResourceTraffic BatchGetResourceTraffic 查询资源列表展示所需的最近流量摘要
+func (c *TrafficAnalysisServiceHTTPClientImpl) BatchGetResourceTraffic(ctx context.Context, in *BatchGetResourceTrafficRequest, opts ...http.CallOption) (*BatchGetResourceTrafficResponse, error) {
+	var out BatchGetResourceTrafficResponse
+	pattern := "/api/v1/traffic-analysis/resource-summaries:batchGet"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationTrafficAnalysisServiceBatchGetResourceTraffic),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
 }
 
 // GetTrafficAnalysis GetTrafficAnalysis 查询同一时间和资源范围内的汇总、趋势与排名

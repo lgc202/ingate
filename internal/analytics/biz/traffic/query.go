@@ -27,3 +27,8 @@ func (q *Queries) Trend(ctx context.Context, query TrendQuery) ([]TrendPoint, er
 func (q *Queries) Breakdown(ctx context.Context, query BreakdownQuery) ([]BreakdownItem, error) {
 	return q.store.QueryTrafficBreakdown(ctx, query)
 }
+
+// ResourceTraffic 查询指定资源的列表流量摘要
+func (q *Queries) ResourceTraffic(ctx context.Context, query ResourceTrafficQuery) ([]ResourceTrafficSummary, error) {
+	return q.store.QueryResourceTraffic(ctx, query)
+}

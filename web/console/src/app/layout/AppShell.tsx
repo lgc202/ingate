@@ -1,8 +1,7 @@
-import { ChevronRight, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { navigation, navigationItems } from '@/app/navigation';
-import { useAuth } from '@/auth/AuthContext';
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
@@ -11,7 +10,6 @@ export function AppShell() {
   const currentGroup = navigation.find((group) => group.items.some((item) => item.key === currentPage?.key));
   const currentPageLabel = currentPage?.label ?? '网关';
   const currentGroupLabel = currentGroup?.label ?? 'Ingate';
-  const { enabled: authenticationEnabled, principal, signOut } = useAuth();
 
   return (
     <div className={`console-shell ${collapsed ? 'is-collapsed' : ''}`}>
@@ -54,25 +52,10 @@ export function AppShell() {
         </nav>
 
         <div className="sidebar-footer">
-          {authenticationEnabled && principal ? (
-            <div className="principal-card">
-              <span className="principal-avatar">{(principal.name || principal.email || principal.subject).slice(0, 1).toUpperCase()}</span>
-              {!collapsed ? (
-                <>
-                  <div>
-                    <strong>{principal.name || principal.email || principal.subject}</strong>
-                    <span>{roleLabel(principal.role)}</span>
-                  </div>
-                  <button type="button" onClick={() => void signOut()} aria-label="退出登录"><LogOut /></button>
-                </>
-              ) : null}
-            </div>
-          ) : (
-            <div className="system-version" title={collapsed ? 'Ingate 0.2.0' : undefined}>
-              <span className="version-monogram">I</span>
-              {!collapsed ? <span>Ingate 0.2.0</span> : null}
-            </div>
-          )}
+          <div className="system-version" title={collapsed ? 'Ingate 0.2.0' : undefined}>
+            <span className="version-monogram">I</span>
+            {!collapsed ? <span>Ingate 0.2.0</span> : null}
+          </div>
         </div>
       </aside>
 
@@ -91,12 +74,6 @@ export function AppShell() {
       </div>
     </div>
   );
-}
-
-function roleLabel(role: string) {
-  if (role === 'admin') return '管理员';
-  if (role === 'operator') return '操作员';
-  return '查看者';
 }
 
 function BrandMark() {

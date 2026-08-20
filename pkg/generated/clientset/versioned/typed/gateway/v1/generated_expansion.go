@@ -4,6 +4,8 @@
 
 package v1
 
+type CallerExpansion interface{}
+
 type CertificateExpansion interface{}
 
 type GatewayExpansion interface{}

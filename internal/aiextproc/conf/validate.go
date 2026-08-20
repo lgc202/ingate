@@ -23,6 +23,13 @@ func (c *Bootstrap) Validate() error {
 	if c.GetServer().GetShutdownTimeout() == nil || c.GetServer().GetShutdownTimeout().AsDuration() <= 0 {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}
+	if c.GetData() == nil || c.GetData().GetApiserver() == nil {
+		return errors.New("data apiserver config is required")
+	}
+	if strings.TrimSpace(c.GetData().GetApiserver().GetMaster()) == "" &&
+		strings.TrimSpace(c.GetData().GetApiserver().GetKubeconfig()) == "" {
+		return errors.New("data apiserver master or kubeconfig must be configured")
+	}
 	if c.GetLogging() == nil {
 		return errors.New("logging config is required")
 	}

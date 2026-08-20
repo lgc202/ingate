@@ -31,6 +31,14 @@ func validateRoute(route *resource.Route) field.ErrorList {
 	if spec.DisplayName == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
+	switch spec.AccessMode {
+	case resource.RouteAccessPublic, resource.RouteAccessCaller:
+	default:
+		errs = append(errs, field.NotSupported(specPath.Child("accessMode"), spec.AccessMode, []string{
+			string(resource.RouteAccessPublic),
+			string(resource.RouteAccessCaller),
+		}))
+	}
 	errs = append(errs, validateGatewayRefs(spec.GatewayRefs, specPath.Child("gatewayRefs"))...)
 	errs = append(errs, validateHostnames(spec.Hostnames, specPath.Child("hostnames"))...)
 	errs = append(errs, validateRouteMatch(spec.Match, specPath.Child("match"))...)
@@ -151,6 +159,10 @@ func validateRouteMatch(match resource.RouteMatch, path *field.Path) field.Error
 }
 
 func validateForwarding(spec resource.RouteSpec, path *field.Path) field.ErrorList {
+	if spec.AI != nil {
+		return validateAIForwarding(spec, path)
+	}
+
 	errs := field.ErrorList{}
 	if len(spec.UpstreamRefs) == 0 {
 		return append(errs, field.Required(path.Child("upstreamRefs"), "at least one upstreamRef is required"))
@@ -168,6 +180,55 @@ func validateForwarding(spec resource.RouteSpec, path *field.Path) field.ErrorLi
 		}
 		if ref.Weight < 1 || ref.Weight > 1000 {
 			errs = append(errs, field.Invalid(refPath.Child("weight"), ref.Weight, "upstreamRef.weight must be between 1 and 1000"))
+		}
+	}
+	return errs
+}
+
+func validateAIForwarding(spec resource.RouteSpec, path *field.Path) field.ErrorList {
+	errs := field.ErrorList{}
+	if len(spec.UpstreamRefs) != 0 {
+		errs = append(errs, field.Forbidden(path.Child("upstreamRefs"), "AI route uses ai.models targets"))
+	}
+	if len(spec.Match.Methods) != 1 || strings.ToUpper(spec.Match.Methods[0]) != http.MethodPost {
+		errs = append(errs, field.Invalid(path.Child("match", "methods"), spec.Match.Methods, "AI route currently requires POST"))
+	}
+	if len(spec.AI.Models) == 0 {
+		return append(errs, field.Required(path.Child("ai", "models"), "at least one client model is required"))
+	}
+
+	modelsPath := path.Child("ai", "models")
+	seenModels := make(map[string]struct{}, len(spec.AI.Models))
+	for i, model := range spec.AI.Models {
+		modelPath := modelsPath.Index(i)
+		if model.Name == "" || strings.TrimSpace(model.Name) != model.Name {
+			errs = append(errs, field.Invalid(modelPath.Child("name"), model.Name, "client model must be a non-empty trimmed string"))
+		} else if _, exists := seenModels[model.Name]; exists {
+			errs = append(errs, field.Duplicate(modelPath.Child("name"), model.Name))
+		} else {
+			seenModels[model.Name] = struct{}{}
+		}
+
+		if len(model.Targets) == 0 {
+			errs = append(errs, field.Required(modelPath.Child("targets"), "at least one model target is required"))
+			continue
+		}
+		seenTargets := make(map[string]struct{}, len(model.Targets))
+		for j, target := range model.Targets {
+			targetPath := modelPath.Child("targets").Index(j)
+			if target.UpstreamRef == "" {
+				errs = append(errs, field.Required(targetPath.Child("upstreamRef"), "upstreamRef is required"))
+			} else if _, exists := seenTargets[target.UpstreamRef]; exists {
+				errs = append(errs, field.Duplicate(targetPath.Child("upstreamRef"), target.UpstreamRef))
+			} else {
+				seenTargets[target.UpstreamRef] = struct{}{}
+			}
+			if target.Model == "" || strings.TrimSpace(target.Model) != target.Model {
+				errs = append(errs, field.Invalid(targetPath.Child("model"), target.Model, "upstream model must be a non-empty trimmed string"))
+			}
+			if target.Weight < 1 || target.Weight > 1000 {
+				errs = append(errs, field.Invalid(targetPath.Child("weight"), target.Weight, "weight must be between 1 and 1000"))
+			}
 		}
 	}
 	return errs

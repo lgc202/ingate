@@ -9,4 +9,5 @@ type QueryStore interface {
 	QueryTrafficSummary(context.Context, Filter) (Summary, error)
 	QueryTrafficTrend(context.Context, TrendQuery) ([]TrendPoint, error)
 	QueryTrafficBreakdown(context.Context, BreakdownQuery) ([]BreakdownItem, error)
+	QueryResourceTraffic(context.Context, ResourceTrafficQuery) ([]ResourceTrafficSummary, error)
 }

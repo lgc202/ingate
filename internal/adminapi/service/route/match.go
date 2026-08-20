@@ -12,7 +12,7 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func buildRouteMatch(input *adminv1.RouteMatch) (resource.RouteMatch, error) {
+func routeMatch(input *adminv1.RouteMatch) (resource.RouteMatch, error) {
 	if input == nil || input.GetPath() == nil {
 		return resource.RouteMatch{}, adminservice.BadRequest("必须配置路由路径")
 	}

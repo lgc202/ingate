@@ -13,75 +13,67 @@ import (
 
 // Service 实现服务管理 API
 type Service struct {
-	business *upstreambiz.Service
+	upstreams *upstreambiz.Service
 }
 
 // NewService 创建服务协议层
-func NewService(business *upstreambiz.Service) *Service {
-	return &Service{business: business}
+func NewService(upstreams *upstreambiz.Service) *Service {
+	return &Service{upstreams: upstreams}
 }
 
 func (s *Service) ListUpstreams(ctx context.Context, request *adminv1.ListUpstreamsRequest) (*adminv1.ListUpstreamsResponse, error) {
-	result, err := s.business.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	page, err := s.upstreams.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
 	if err != nil {
 		return nil, err
 	}
 	response := &adminv1.ListUpstreamsResponse{
-		Upstreams:  make([]*adminv1.Upstream, 0, len(result.Items)),
-		NextCursor: result.NextCursor,
+		Upstreams:  make([]*adminv1.Upstream, 0, len(page.Items)),
+		NextCursor: page.NextCursor,
 	}
-	for i := range result.Items {
-		response.Upstreams = append(response.Upstreams, upstreamFromResource(&result.Items[i]))
+	for i := range page.Items {
+		response.Upstreams = append(response.Upstreams, upstreamResponse(&page.Items[i]))
 	}
 	return response, nil
 }
 
 func (s *Service) GetUpstream(ctx context.Context, request *adminv1.GetUpstreamRequest) (*adminv1.Upstream, error) {
-	item, err := s.business.Get(ctx, request.GetId())
+	upstream, err := s.upstreams.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
-	return upstreamFromResource(item), nil
+	return upstreamResponse(upstream), nil
 }
 
 func (s *Service) CreateUpstream(ctx context.Context, request *adminv1.CreateUpstreamRequest) (*adminv1.Upstream, error) {
-	spec, err := buildUpstreamSpec(upstreamInput{
-		name:          request.GetName(),
-		endpoints:     request.GetEndpoints(),
-		tls:           request.GetTls(),
-		loadBalancing: request.GetLoadBalancing(),
-		healthCheck:   request.GetHealthCheck(),
-	})
+	spec, err := createSpec(request)
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.business.Create(ctx, spec)
+	upstream, err := s.upstreams.Create(ctx, spec)
 	if err != nil {
 		return nil, err
 	}
-	return upstreamFromResource(item), nil
+	return upstreamResponse(upstream), nil
 }
 
 func (s *Service) UpdateUpstream(ctx context.Context, request *adminv1.UpdateUpstreamRequest) (*adminv1.Upstream, error) {
-	spec, err := buildUpstreamSpec(upstreamInput{
-		name:          request.GetName(),
-		endpoints:     request.GetEndpoints(),
-		tls:           request.GetTls(),
-		loadBalancing: request.GetLoadBalancing(),
-		healthCheck:   request.GetHealthCheck(),
+	spec, preserveAPIKey, err := updateSpec(request)
+	if err != nil {
+		return nil, err
+	}
+	upstream, err := s.upstreams.Update(ctx, request.GetId(), upstreambiz.UpdateInput{
+		Version:             request.GetVersion(),
+		Spec:                spec,
+		PreserveModelAPIKey: preserveAPIKey,
 	})
 	if err != nil {
 		return nil, err
 	}
-	item, err := s.business.Update(ctx, request.GetId(), request.GetVersion(), spec)
-	if err != nil {
-		return nil, err
-	}
-	return upstreamFromResource(item), nil
+	return upstreamResponse(upstream), nil
 }
 
 func (s *Service) DeleteUpstream(ctx context.Context, request *adminv1.DeleteUpstreamRequest) (*emptypb.Empty, error) {
-	if err := s.business.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.upstreams.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}
 	return &emptypb.Empty{}, nil

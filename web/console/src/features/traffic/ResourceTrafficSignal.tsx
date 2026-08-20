@@ -1,14 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getTrafficAnalysis } from '@/api/traffic';
+import { batchGetResourceTraffic } from '@/api/traffic';
 import { useResource } from '@/api/useResource';
 import { recentTimeRange } from '@/domain/timeRange';
 import {
   formatTrafficCount,
   metricNumber,
+  type ResourceTrafficSummary,
   type TrafficAnalysisFilters,
   type TrafficBreakdownDimension,
-  type TrafficMetrics,
 } from '@/domain/traffic';
 
 export type TrafficResourceKind = 'gateway' | 'route' | 'service';
@@ -16,23 +16,29 @@ export type TrafficResourceKind = 'gateway' | 'route' | 'service';
 export interface ResourceTrafficOverview {
   loading: boolean;
   error: Error | null;
-  metrics: Map<string, TrafficMetrics>;
+  metrics: Map<string, ResourceTrafficSummary>;
   filters: TrafficAnalysisFilters;
 }
 
 // useResourceTrafficOverview 以一次聚合查询读取资源列表所需的最近流量信号
-export function useResourceTrafficOverview(kind: TrafficResourceKind): ResourceTrafficOverview {
+export function useResourceTrafficOverview(kind: TrafficResourceKind, resourceIDs: string[]): ResourceTrafficOverview {
   const [range] = useState(() => recentTimeRange(1));
+  const resourceIDsKey = [...new Set(resourceIDs)].join('\n');
+  const requestedResourceIDs = useMemo(() => resourceIDsKey ? resourceIDsKey.split('\n') : [], [resourceIDsKey]);
   const filters = useMemo<TrafficAnalysisFilters>(() => ({
     ...range,
     breakdownDimension: resourceDimension(kind),
     breakdownOrder: 'TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT',
-    breakdownLimit: 200,
   }), [kind, range]);
-  const load = useCallback(() => getTrafficAnalysis(filters), [filters]);
+  const load = useCallback(
+    () => requestedResourceIDs.length === 0
+      ? Promise.resolve([])
+      : batchGetResourceTraffic(filters.startTime, filters.endTime, filters.breakdownDimension, requestedResourceIDs),
+    [filters, requestedResourceIDs],
+  );
   const traffic = useResource(load);
   const metrics = useMemo(
-    () => new Map(traffic.data?.breakdown.map((item) => [item.resourceID, item.metrics])),
+    () => new Map(traffic.data?.map((item) => [item.resourceID, item])),
     [traffic.data],
   );
   return { loading: traffic.loading, error: traffic.error, metrics, filters };

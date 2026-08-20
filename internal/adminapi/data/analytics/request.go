@@ -42,6 +42,7 @@ func (r *RequestRepository) List(ctx context.Context, options requestbiz.ListOpt
 			Host:        filter.Host,
 			PathPrefix:  filter.PathPrefix,
 			StatusClass: analyticsStatusClass(filter.Outcome),
+			CallerId:    filter.CallerID,
 		},
 		PageSize:  uint32(options.PageSize),
 		PageToken: options.PageToken,
@@ -52,7 +53,7 @@ func (r *RequestRepository) List(ctx context.Context, options requestbiz.ListOpt
 	}
 	reply, err := r.client.ListRequests(ctx, request)
 	if status.Code(err) == codes.Unavailable || status.Code(err) == codes.DeadlineExceeded {
-		return requestbiz.Page{}, fmt.Errorf("%w: %w", requestbiz.ErrUnavailable, err)
+		return requestbiz.Page{}, requestbiz.Unavailable(err)
 	}
 	if err != nil {
 		return requestbiz.Page{}, fmt.Errorf("list analytics request records: %w", err)
@@ -77,17 +78,20 @@ func requestSummary(summary *analyticsv1.RequestSummary) (requestbiz.Summary, er
 		return requestbiz.Summary{}, fmt.Errorf("invalid request duration: %w", err)
 	}
 	return requestbiz.Summary{
-		ID:         summary.GetId(),
-		StartedAt:  summary.GetStartedAt().AsTime(),
-		Duration:   duration,
-		Method:     summary.GetMethod(),
-		Host:       summary.GetHost(),
-		Path:       summary.GetPath(),
-		StatusCode: summary.GetStatusCode(),
-		Outcome:    requestOutcome(summary.GetStatusCode()),
-		GatewayID:  summary.GetGatewayId(),
-		RouteID:    summary.GetRouteId(),
-		ServiceID:  summary.GetUpstreamId(),
+		ID:          summary.GetId(),
+		StartedAt:   summary.GetStartedAt().AsTime(),
+		Duration:    duration,
+		Method:      summary.GetMethod(),
+		Host:        summary.GetHost(),
+		Path:        summary.GetPath(),
+		StatusCode:  summary.GetStatusCode(),
+		Outcome:     requestOutcome(summary.GetStatusCode()),
+		GatewayID:   summary.GetGatewayId(),
+		RouteID:     summary.GetRouteId(),
+		ServiceID:   summary.GetUpstreamId(),
+		CallerID:    summary.GetCallerId(),
+		AccessKeyID: summary.GetAccessKeyId(),
+		ModelCall:   modelCall(summary.GetAiModelCall()),
 	}, nil
 }
 
@@ -105,7 +109,7 @@ func (r *RequestRepository) Get(
 		return nil, requestbiz.ErrNotFound
 	}
 	if status.Code(err) == codes.Unavailable || status.Code(err) == codes.DeadlineExceeded {
-		return nil, fmt.Errorf("%w: %w", requestbiz.ErrUnavailable, err)
+		return nil, requestbiz.Unavailable(err)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("get analytics request record %q: %w", id, err)
@@ -151,7 +155,26 @@ func requestRecord(record *alsv1.RequestRecord) (requestbiz.Record, error) {
 		UpstreamAttempts:    record.GetUpstreamAttempts(),
 		UpstreamAddress:     record.GetUpstreamAddress(),
 		ProxyInstanceID:     record.GetEnvoyNodeId(),
+		CallerID:            record.GetCallerId(),
+		AccessKeyID:         record.GetAccessKeyId(),
+		ModelCall:           modelCall(record.GetAiModelCall()),
 	}, nil
+}
+
+func modelCall(call *alsv1.AIModelCall) *requestbiz.ModelCall {
+	if call == nil {
+		return nil
+	}
+	return &requestbiz.ModelCall{
+		ClientModel:      call.GetClientModel(),
+		UpstreamModel:    call.GetUpstreamModel(),
+		UpstreamProtocol: call.GetUpstreamProtocol(),
+		ResponseModel:    call.GetResponseModel(),
+		FinishReason:     call.GetFinishReason(),
+		InputTokens:      call.InputTokens,
+		OutputTokens:     call.OutputTokens,
+		TotalTokens:      call.TotalTokens,
+	}
 }
 
 // optionalDuration 校验跨进程返回的 Proto Duration，并保留字段未采集与零耗时的区别

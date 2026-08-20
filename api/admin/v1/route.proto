@@ -59,6 +59,12 @@ enum HostRewriteMode {
   HOST_REWRITE_MODE_CUSTOM = 3;
 }
 
+enum RouteAccessMode {
+  ROUTE_ACCESS_MODE_UNSPECIFIED = 0;
+  ROUTE_ACCESS_PUBLIC = 1;
+  ROUTE_ACCESS_CALLER = 2;
+}
+
 message RoutePathMatch {
   RoutePathMatchType type = 1;
   string value = 2 [(buf.validate.field).string.min_len = 1];
@@ -84,6 +90,28 @@ message RouteUpstream {
     gte: 1
     lte: 1000
   }];
+}
+
+message AIModelTarget {
+  string upstream_id = 1 [
+    json_name = "upstreamID",
+    (buf.validate.field).string.uuid = true
+  ];
+  string model = 2 [(buf.validate.field).string.min_len = 1];
+  uint32 weight = 3 [(buf.validate.field).uint32 = {
+    gte: 1
+    lte: 1000
+  }];
+}
+
+message AIModel {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  repeated AIModelTarget targets = 2 [(buf.validate.field).repeated.min_items = 1];
+}
+
+// AIRoute 把调用方使用的稳定模型名映射到一个或多个模型服务线路
+message AIRoute {
+  repeated AIModel models = 1 [(buf.validate.field).repeated.min_items = 1];
 }
 
 message HeaderValue {
@@ -138,6 +166,8 @@ message Route {
   google.protobuf.Timestamp created_at = 15;
   google.protobuf.Timestamp updated_at = 16;
   HostRewrite host_rewrite = 17;
+  AIRoute ai = 18;
+  RouteAccessMode access_mode = 19;
 }
 
 message ListRoutesRequest {
@@ -168,12 +198,17 @@ message CreateRouteRequest {
   ];
   repeated string hostnames = 4;
   RouteMatch match = 5 [(buf.validate.field).required = true];
-  repeated RouteUpstream upstreams = 6 [(buf.validate.field).repeated.min_items = 1];
+  repeated RouteUpstream upstreams = 6;
   HeaderModifier request_header_modifier = 7;
   HeaderModifier response_header_modifier = 8;
   RouteTimeout timeout = 9;
   RouteRetry retry = 10;
   HostRewrite host_rewrite = 11;
+  AIRoute ai = 12;
+  RouteAccessMode access_mode = 13 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
 }
 
 message UpdateRouteRequest {
@@ -192,12 +227,17 @@ message UpdateRouteRequest {
   ];
   repeated string hostnames = 6;
   RouteMatch match = 7 [(buf.validate.field).required = true];
-  repeated RouteUpstream upstreams = 8 [(buf.validate.field).repeated.min_items = 1];
+  repeated RouteUpstream upstreams = 8;
   HeaderModifier request_header_modifier = 9;
   HeaderModifier response_header_modifier = 10;
   RouteTimeout timeout = 11;
   RouteRetry retry = 12;
   HostRewrite host_rewrite = 13;
+  AIRoute ai = 14;
+  RouteAccessMode access_mode = 15 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: [0]
+  }];
 }
 
 message DeleteRouteRequest {

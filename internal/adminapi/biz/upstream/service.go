@@ -32,6 +32,13 @@ type Service struct {
 	routes     RouteRepository
 }
 
+// UpdateInput 描述 Upstream 更新及敏感字段的保留语义
+type UpdateInput struct {
+	Version             int64
+	Spec                resource.UpstreamSpec
+	PreserveModelAPIKey bool
+}
+
 // NewService 创建 Upstream 业务服务
 func NewService(repository Repository, routes RouteRepository) *Service {
 	return &Service{repository: repository, routes: routes}
@@ -60,22 +67,24 @@ func (s *Service) Create(ctx context.Context, spec resource.UpstreamSpec) (*reso
 func (s *Service) Update(
 	ctx context.Context,
 	upstreamID string,
-	version int64,
-	spec resource.UpstreamSpec,
+	input UpdateInput,
 ) (*resource.Upstream, error) {
 	current, err := s.repository.Get(ctx, upstreamID)
 	if err != nil {
 		return nil, err
 	}
-	if version != current.Generation {
+	if input.Version != current.Generation {
 		return nil, upstreamVersionConflict(current)
 	}
-	if spec.DisplayName != current.Spec.DisplayName {
-		if err := s.validateDisplayName(ctx, upstreamID, spec.DisplayName); err != nil {
+	if input.Spec.DisplayName != current.Spec.DisplayName {
+		if err := s.validateDisplayName(ctx, upstreamID, input.Spec.DisplayName); err != nil {
 			return nil, err
 		}
 	}
-	updated, err := s.repository.Update(ctx, upstreamID, current.Generation, spec)
+	if input.PreserveModelAPIKey && current.Spec.Model != nil && input.Spec.Model != nil {
+		input.Spec.Model.APIKey = current.Spec.Model.APIKey
+	}
+	updated, err := s.repository.Update(ctx, upstreamID, current.Generation, input.Spec)
 	if err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
 			return nil, upstreamVersionConflict(current)
@@ -95,10 +104,8 @@ func (s *Service) Delete(ctx context.Context, upstreamID string, version int64) 
 		return upstreamVersionConflict(current)
 	}
 	if err := biz.VisitPages(ctx, s.routes.ListPage, func(route resource.Route) (bool, error) {
-		for _, ref := range route.Spec.UpstreamRefs {
-			if ref.Name == upstreamID {
-				return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", current.Spec.DisplayName, routeDisplayName(route)))
-			}
+		if routeReferencesUpstream(route.Spec, upstreamID) {
+			return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", current.Spec.DisplayName, routeDisplayName(route)))
 		}
 		return false, nil
 	}); err != nil {
@@ -111,6 +118,25 @@ func (s *Service) Delete(ctx context.Context, upstreamID string, version int64) 
 		return err
 	}
 	return nil
+}
+
+func routeReferencesUpstream(spec resource.RouteSpec, upstreamID string) bool {
+	for _, ref := range spec.UpstreamRefs {
+		if ref.Name == upstreamID {
+			return true
+		}
+	}
+	if spec.AI == nil {
+		return false
+	}
+	for _, model := range spec.AI.Models {
+		for _, target := range model.Targets {
+			if target.UpstreamRef == upstreamID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *Service) validateDisplayName(ctx context.Context, upstreamID, displayName string) error {

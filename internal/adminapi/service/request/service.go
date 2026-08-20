@@ -8,14 +8,14 @@ import (
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 )
 
-// Service 实现请求记录管理 API
+// Service 实现请求记录查询 API
 type Service struct {
-	business *requestbiz.Service
+	records *requestbiz.Service
 }
 
 // NewService 创建请求记录协议服务
-func NewService(business *requestbiz.Service) *Service {
-	return &Service{business: business}
+func NewService(records *requestbiz.Service) *Service {
+	return &Service{records: records}
 }
 
 // ListRequestRecords 按时间倒序查询请求记录
@@ -27,7 +27,7 @@ func (s *Service) ListRequestRecords(
 	if err != nil {
 		return nil, err
 	}
-	page, err := s.business.List(ctx, options)
+	page, err := s.records.List(ctx, options)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +50,7 @@ func (s *Service) GetRequestRecord(
 	if err != nil {
 		return nil, err
 	}
-	record, err := s.business.Get(ctx, request.GetId(), startedAt)
+	record, err := s.records.Get(ctx, request.GetId(), startedAt)
 	if err != nil {
 		return nil, err
 	}

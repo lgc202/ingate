@@ -1,0 +1,17 @@
+server:
+  grpc:
+    addr: "127.0.0.1:18071"
+  http:
+    addr: "127.0.0.1:18072"
+    timeout: "5s"
+  shutdown_timeout: "30s"
+
+data:
+  apiserver:
+    master: ""
+    kubeconfig: "_output/kubeconfig"
+
+logging:
+  format: "json"
+  level: "info"
+  add_source: false

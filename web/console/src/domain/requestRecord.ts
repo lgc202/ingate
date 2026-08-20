@@ -1,9 +1,23 @@
+import type { ModelProtocol } from './upstream';
+import type { RouteAccessMode } from './route';
+
 export type RequestOutcome =
   | 'REQUEST_OUTCOME_UNSPECIFIED'
   | 'REQUEST_OUTCOME_SUCCESS'
   | 'REQUEST_OUTCOME_CLIENT_ERROR'
   | 'REQUEST_OUTCOME_SERVER_ERROR'
   | 'REQUEST_OUTCOME_NO_RESPONSE';
+
+export interface AIModelCall {
+  clientModel: string;
+  upstreamModel: string;
+  protocol: ModelProtocol;
+  responseModel: string;
+  finishReason: string;
+  inputTokens?: string | number;
+  outputTokens?: string | number;
+  totalTokens?: string | number;
+}
 
 // RequestRecordSummary 只包含列表扫描和进入详情所需的字段。
 export interface RequestRecordSummary {
@@ -18,6 +32,9 @@ export interface RequestRecordSummary {
   gatewayID: string;
   routeID: string;
   serviceID: string;
+  callerID: string;
+  accessKeyID: string;
+  aiModelCall?: AIModelCall;
 }
 
 // RequestRecord 描述一次请求的完整排障元数据，不包含 Header、查询参数或正文。
@@ -40,6 +57,7 @@ export interface RequestRecordFilters {
   gatewayID?: string;
   routeID?: string;
   serviceID?: string;
+  callerID?: string;
   requestID?: string;
   method?: string;
   host?: string;
@@ -60,8 +78,9 @@ export interface RequestResourceOption {
 
 export interface RequestRecordWorkspace {
   gateways: RequestResourceOption[];
-  routes: RequestResourceOption[];
+  routes: Array<RequestResourceOption & { accessMode: RouteAccessMode }>;
   services: RequestResourceOption[];
+  callers: Array<RequestResourceOption & { accessKeys: RequestResourceOption[] }>;
 }
 
 export function formatRequestTime(value: string): string {
@@ -90,4 +109,11 @@ export function formatBytes(value: string | number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
   return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+}
+
+export function formatTokenCount(value?: string | number): string {
+  if (value === undefined) return '-';
+  const count = Number(value);
+  if (!Number.isFinite(count)) return String(value);
+  return new Intl.NumberFormat('zh-CN').format(count);
 }

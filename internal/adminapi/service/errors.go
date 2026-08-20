@@ -1,21 +1,14 @@
 // Package service 实现 Admin API 的传输协议适配
 package service
 
-// RequestError 表示 service 在请求自身中发现的错误
-type RequestError struct {
-	message string
-}
+import (
+	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 
-// BadRequest 创建包含控制台提示的参数错误
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+)
+
+// BadRequest 创建符合 Admin API 错误契约的参数错误
 func BadRequest(message string) error {
-	return &RequestError{message: message}
-}
-
-func (e *RequestError) Error() string {
-	return "invalid request"
-}
-
-// UserMessage 返回可以直接展示给控制台用户的提示
-func (e *RequestError) UserMessage() string {
-	return e.message
+	return kratoserrors.BadRequest(adminv1.ErrorReason_INVALID_ARGUMENT.String(), "invalid request").
+		WithMetadata(map[string]string{"user_message": message})
 }

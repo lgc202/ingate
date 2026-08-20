@@ -7,6 +7,28 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/als/v1;v1";
 
+// AIModelCall 表示一次 AI Route 实际执行的模型映射和用量
+//
+// 该结构只来自数据面执行结果，不保存请求或响应正文
+message AIModelCall {
+  // client_model 是调用方请求中使用的稳定模型名
+  string client_model = 1;
+  // upstream_model 是 AI Route 选中线路配置的真实模型名
+  string upstream_model = 2;
+  // upstream_protocol 是模型 Service 使用的厂商 API 协议
+  string upstream_protocol = 3;
+  // response_model 是模型服务在响应中声明的模型名
+  string response_model = 4;
+  // finish_reason 是模型服务返回的生成结束原因
+  string finish_reason = 5;
+  // input_tokens 是模型服务报告的输入 Token 数
+  optional uint64 input_tokens = 6;
+  // output_tokens 是模型服务报告的输出 Token 数
+  optional uint64 output_tokens = 7;
+  // total_tokens 是模型服务报告的总 Token 数
+  optional uint64 total_tokens = 8;
+}
+
 // RequestRecord 表示一条已经完成的网关请求记录
 //
 // 记录只保存排障和聚合分析所需的元数据，不保存请求头、请求正文和响应正文
@@ -53,4 +75,10 @@ message RequestRecord {
   string upstream_address = 19;
   // time_to_first_byte 是请求开始到 Envoy 向客户端发送首字节的时间
   google.protobuf.Duration time_to_first_byte = 20;
+  // ai_model_call 仅在请求经过 AI Route 时存在
+  AIModelCall ai_model_call = 21;
+  // caller_id 是通过调用方密钥认证的 Caller 资源 ID，公开访问时为空
+  string caller_id = 22;
+  // access_key_id 是本次认证命中的访问密钥 ID，不包含密钥明文或摘要
+  string access_key_id = 23;
 }

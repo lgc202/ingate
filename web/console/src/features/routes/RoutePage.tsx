@@ -1,10 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { Plus, Route as RouteIcon } from 'lucide-react';
+import { Plus, Route as RouteIcon, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { getPolicyWorkspace } from '@/api/policies';
 import { deleteRoute, getRouteWorkspace, saveRoute } from '@/api/routes';
 import { useResource } from '@/api/useResource';
-import { useAuth } from '@/auth/AuthContext';
 import {
   Badge,
   Button,
@@ -21,11 +20,13 @@ import {
 import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
 import type { PolicyWorkspace } from '@/domain/policy';
 import type {
+  AIModel,
   HeaderMatch,
   HostRewriteMode,
   HttpMethod,
   RouteMutationPayload,
   RoutePathMatchType,
+  RouteAccessMode,
   RouteResource,
   RouteWorkspace,
   WeightedUpstream,
@@ -41,6 +42,7 @@ interface RouteDraft {
   version?: number;
   name: string;
   enabled: boolean;
+  accessMode: RouteAccessMode;
   gatewayIDs: string[];
   hostnames: string;
   pathType: RoutePathMatchType;
@@ -57,12 +59,13 @@ interface RouteDraft {
   perTryTimeoutMillis: number;
   requestHeaderModifier?: RouteResource['requestHeaderModifier'];
   responseHeaderModifier?: RouteResource['responseHeaderModifier'];
+  type: 'HTTP' | 'AI';
+  aiModels: AIModel[];
 }
 
 export function RoutePage() {
-  const { canWriteConfiguration } = useAuth();
   const workspace = useResource(getRouteWorkspace);
-  const trafficOverview = useResourceTrafficOverview('route');
+  const trafficOverview = useResourceTrafficOverview('route', workspace.data?.routes.map((route) => route.id) ?? []);
   const policies = useResource(getPolicyWorkspace);
   const [searchParams, setSearchParams] = useSearchParams();
   const [query, setQuery] = useState('');
@@ -133,7 +136,7 @@ export function RoutePage() {
   return (
     <PageFrame
       title="路由"
-      actions={canWriteConfiguration ? <Button onClick={() => openEditor()}><Plus className="h-4 w-4" />创建路由</Button> : undefined}
+      actions={<Button onClick={() => openEditor()}><Plus className="h-4 w-4" />创建路由</Button>}
     >
       <Panel>
         <div className="resource-list-toolbar">
@@ -147,17 +150,18 @@ export function RoutePage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">请求匹配</th><th className="p-3">网关</th><th className="p-3">目标服务</th><th className="p-3">最近 1 小时</th><th className="p-3">状态</th><th className="p-3 text-right">操作</th></tr></thead>
+              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">类型</th><th className="p-3">请求匹配</th><th className="p-3">网关</th><th className="p-3">目标服务</th><th className="p-3">最近 1 小时</th><th className="p-3">状态</th><th className="p-3 text-right">操作</th></tr></thead>
               <tbody className="divide-y divide-slate-100">
                 {visibleRoutes.map((route) => (
                   <tr key={route.id}>
                     <td className="p-3"><div className="flex items-center gap-2"><RouteIcon className="h-4 w-4 shrink-0 text-blue-600" /><strong>{route.name}</strong></div></td>
-                    <td className="p-3"><div className="table-primary font-mono">{pathMatchLabel(route)} {route.match.path.value}</div><div className="table-secondary">{methodLabel(route)}</div></td>
+                    <td className="p-3"><Badge tone={route.ai ? 'purple' : 'neutral'}>{route.ai ? 'AI 路由' : 'API 路由'}</Badge><div className="table-secondary mt-1">{accessModeLabel(route.accessMode)}</div></td>
+                    <td className="p-3"><div className="table-primary font-mono">{pathMatchLabel(route)} {route.match.path.value}</div><div className="table-secondary">{route.ai ? `${route.ai.models.length} 个客户端模型` : methodLabel(route)}</div></td>
                     <td className="p-3">{resourceNames(route.gatewayIDs, data.gateways)}</td>
-                    <td className="p-3">{resourceNames(route.upstreams.map((target) => target.upstreamID), data.upstreams)}</td>
+                    <td className="p-3">{resourceNames(routeUpstreamIDs(route), data.upstreams)}</td>
                     <td className="p-3"><ResourceTrafficSignal resourceID={route.id} overview={trafficOverview} /></td>
                     <td className="p-3"><Badge tone={resourceStateTone(route.enabled ? route.state : 'Disabled')}>{resourceStateLabel(route.enabled ? route.state : 'Disabled')}</Badge></td>
-                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(route)} onEdit={canWriteConfiguration ? () => openEditor(route) : undefined} onDelete={canWriteConfiguration ? () => setDeleteCandidate(route) : undefined} /></td>
+                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(route)} onEdit={() => openEditor(route)} onDelete={() => setDeleteCandidate(route)} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -189,14 +193,17 @@ function RouteDetail({ route, workspace, policies, onPoliciesChanged }: { route:
       <section className="resource-detail-hero"><div><h3>{route.name}</h3></div><Badge tone={resourceStateTone(state)}>{resourceStateLabel(state)}</Badge></section>
       <ResourceTrafficSummary kind="route" resourceID={route.id} />
       <DetailSection title="请求匹配">
+        <DetailItem label="路由类型" value={route.ai ? 'AI 路由' : 'API 路由'} />
+        <DetailItem label="访问方式" value={accessModeLabel(route.accessMode)} />
         <DetailItem label="域名" value={route.hostnames.length > 0 ? route.hostnames.join('、') : '继承网关域名'} />
         <DetailItem label="路径" value={`${pathMatchLabel(route)} ${route.match.path.value}`} code />
         <DetailItem label="请求方法" value={methodLabel(route)} />
         <DetailItem label="请求头条件" value={route.match.headers.length > 0 ? route.match.headers.map((header) => `${header.name}: ${header.value}`).join('、') : '无'} />
       </DetailSection>
+      {route.ai ? <AIModelDetail route={route} workspace={workspace} /> : null}
       <DetailSection title="转发设置">
         <DetailItem label="生效网关" value={resourceNames(route.gatewayIDs, workspace.gateways)} />
-        <DetailItem label="目标服务" value={route.upstreams.map((target) => `${resourceName(target.upstreamID, workspace.upstreams)} · 权重 ${target.weight}`).join('、')} />
+        <DetailItem label="目标服务" value={route.ai ? resourceNames(routeUpstreamIDs(route), workspace.upstreams) : route.upstreams.map((target) => `${resourceName(target.upstreamID, workspace.upstreams)} · 权重 ${target.weight}`).join('、')} />
         <DetailItem label="转发主机名" value={hostRewriteLabel(route)} code={route.hostRewrite.mode === 'HOST_REWRITE_MODE_CUSTOM'} />
         <DetailItem label="请求超时" value={route.timeout ? `${route.timeout.requestMillis} 毫秒` : '使用系统默认值'} />
         <DetailItem label="失败重试" value={route.retry ? `${route.retry.attempts} 次 · 单次 ${route.retry.perTryTimeoutMillis} 毫秒` : '未配置'} />
@@ -212,19 +219,49 @@ function RouteDetail({ route, workspace, policies, onPoliciesChanged }: { route:
   );
 }
 
+function AIModelDetail({ route, workspace }: { route: RouteResource; workspace: RouteWorkspace }) {
+  return (
+    <section className="resource-detail-section">
+      <h3>模型发布</h3>
+      <div className="resource-detail-list">
+        {route.ai?.models.map((model) => (
+          <article key={model.name}>
+            <div><strong>{model.name}</strong><small>{model.targets.map((target) => `${resourceName(target.upstreamID, workspace.upstreams)} / ${target.model} / 权重 ${target.weight}`).join('、')}</small></div>
+            <Badge tone="purple">客户端模型</Badge>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function RouteEditor({ draft, workspace, busy, onChange, onCancel, onSave }: { draft: RouteDraft; workspace: RouteWorkspace; busy: boolean; onChange: (draft: RouteDraft) => void; onCancel: () => void; onSave: () => void }) {
+  const httpServices = workspace.upstreams.filter((upstream) => upstream.type === 'HTTP');
+  const modelServices = workspace.upstreams.filter((upstream) => upstream.type === 'MODEL');
+
   return (
     <div className="space-y-5">
       <Field label="路由名称"><input className="input" value={draft.name} onChange={(event) => onChange({ ...draft, name: event.target.value })} /></Field>
+      {!draft.id ? (
+        <Field label="路由类型">
+          <select className="select" value={draft.type} onChange={(event) => onChange(routeDraftWithType(draft, event.target.value as RouteDraft['type']))}>
+            <option value="HTTP">API 路由</option>
+            <option value="AI">AI 路由</option>
+          </select>
+        </Field>
+      ) : <Field label="路由类型"><Badge tone={draft.type === 'AI' ? 'purple' : 'neutral'}>{draft.type === 'AI' ? 'AI 路由' : 'API 路由'}</Badge></Field>}
       <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={draft.enabled} onChange={(event) => onChange({ ...draft, enabled: event.target.checked })} />启用路由</label>
+      <Field label="访问方式">
+        <select className="select" value={draft.accessMode} onChange={(event) => onChange({ ...draft, accessMode: event.target.value as RouteAccessMode })}>
+          <option value="ROUTE_ACCESS_CALLER">调用方密钥</option>
+          <option value="ROUTE_ACCESS_PUBLIC">公开访问</option>
+        </select>
+      </Field>
       <Field label="生效网关"><div className="grid grid-cols-2 gap-2">{workspace.gateways.map((gateway) => <label key={gateway.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-xs"><input type="checkbox" checked={draft.gatewayIDs.includes(gateway.id)} onChange={(event) => onChange({ ...draft, gatewayIDs: event.target.checked ? [...draft.gatewayIDs, gateway.id] : draft.gatewayIDs.filter((id) => id !== gateway.id) })} />{gateway.name}</label>)}</div></Field>
-      <div className="grid grid-cols-[150px_1fr] gap-3"><Field label="路径匹配"><select className="select" value={draft.pathType} onChange={(event) => onChange({ ...draft, pathType: event.target.value as RoutePathMatchType })}><option value="ROUTE_PATH_MATCH_PREFIX">前缀</option><option value="ROUTE_PATH_MATCH_EXACT">精确</option></select></Field><Field label="请求路径"><input className="input font-mono" value={draft.path} onChange={(event) => onChange({ ...draft, path: event.target.value })} /></Field></div>
-      <Field label="请求方法（不选表示全部）"><div className="flex flex-wrap gap-3">{methods.map((method) => <label key={method} className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={draft.methods.includes(method)} onChange={(event) => onChange({ ...draft, methods: event.target.checked ? [...draft.methods, method] : draft.methods.filter((item) => item !== method) })} />{method}</label>)}</div></Field>
+      <div className="grid grid-cols-[150px_1fr] gap-3"><Field label="路径匹配"><select className="select" disabled={draft.type === 'AI'} value={draft.pathType} onChange={(event) => onChange({ ...draft, pathType: event.target.value as RoutePathMatchType })}><option value="ROUTE_PATH_MATCH_PREFIX">前缀</option><option value="ROUTE_PATH_MATCH_EXACT">精确</option></select></Field><Field label="请求路径"><input className="input font-mono" value={draft.path} onChange={(event) => onChange({ ...draft, path: event.target.value })} /></Field></div>
+      {draft.type === 'HTTP' ? <Field label="请求方法（不选表示全部）"><div className="flex flex-wrap gap-3">{methods.map((method) => <label key={method} className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={draft.methods.includes(method)} onChange={(event) => onChange({ ...draft, methods: event.target.checked ? [...draft.methods, method] : draft.methods.filter((item) => item !== method) })} />{method}</label>)}</div></Field> : <Field label="请求方法"><input className="input font-mono" value="POST" disabled /></Field>}
       <Field label="域名（逗号分隔，留空继承网关）"><input className="input font-mono" value={draft.hostnames} onChange={(event) => onChange({ ...draft, hostnames: event.target.value })} /></Field>
-      <div className="space-y-2">
-        <div className="flex justify-between"><strong className="text-xs">目标服务</strong><Button variant="soft" size="sm" onClick={() => onChange({ ...draft, upstreams: [...draft.upstreams, { upstreamID: '', weight: 1 }] })}>添加目标</Button></div>
-        {draft.upstreams.map((target, index) => <div key={index} className="grid grid-cols-[1fr_100px_36px] gap-2"><select className="select" value={target.upstreamID} onChange={(event) => onChange({ ...draft, upstreams: replaceAt(draft.upstreams, index, { ...target, upstreamID: event.target.value }) })}><option value="">选择服务</option>{workspace.upstreams.map((upstream) => <option key={upstream.id} value={upstream.id}>{upstream.name} · {upstream.endpoint}</option>)}</select><input className="input" type="number" min="1" max="1000" aria-label="服务权重" value={target.weight} onChange={(event) => onChange({ ...draft, upstreams: replaceAt(draft.upstreams, index, { ...target, weight: Number(event.target.value) }) })} /><Button variant="ghost" size="sm" aria-label="删除目标服务" onClick={() => onChange({ ...draft, upstreams: draft.upstreams.filter((_, current) => current !== index) })}>×</Button></div>)}
-      </div>
+      {draft.type === 'HTTP' ? <HTTPForwardingEditor draft={draft} services={httpServices} onChange={onChange} /> : <AIForwardingEditor draft={draft} services={modelServices} onChange={onChange} />}
       <details className="rounded-xl border border-slate-200 bg-slate-50/60 p-4">
         <summary className="cursor-pointer text-sm font-semibold text-slate-800">高级转发设置</summary>
         <div className="mt-4 space-y-4">
@@ -248,6 +285,59 @@ function RouteEditor({ draft, workspace, busy, onChange, onCancel, onSave }: { d
   );
 }
 
+function routeDraftWithType(draft: RouteDraft, type: RouteDraft['type']): RouteDraft {
+  if (type === 'AI') {
+    return {
+      ...draft,
+      type,
+      pathType: 'ROUTE_PATH_MATCH_EXACT',
+      path: '/v1/chat/completions',
+      methods: ['POST'],
+      upstreams: [],
+      aiModels: [{ name: '', targets: [{ upstreamID: '', model: '', weight: 1 }] }],
+    };
+  }
+
+  return {
+    ...draft,
+    type,
+    pathType: 'ROUTE_PATH_MATCH_PREFIX',
+    path: '/',
+    methods: [],
+    upstreams: [],
+    aiModels: [],
+  };
+}
+
+function HTTPForwardingEditor({ draft, services, onChange }: { draft: RouteDraft; services: RouteWorkspace['upstreams']; onChange: (draft: RouteDraft) => void }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between"><strong className="text-xs">目标服务</strong><Button variant="soft" size="sm" onClick={() => onChange({ ...draft, upstreams: [...draft.upstreams, { upstreamID: '', weight: 1 }] })}>添加目标</Button></div>
+      {draft.upstreams.map((target, index) => <div key={index} className="grid grid-cols-[1fr_100px_36px] gap-2"><select className="select" value={target.upstreamID} onChange={(event) => onChange({ ...draft, upstreams: replaceAt(draft.upstreams, index, { ...target, upstreamID: event.target.value }) })}><option value="">选择 HTTP 服务</option>{services.map((upstream) => <option key={upstream.id} value={upstream.id}>{upstream.name} · {upstream.endpoint}</option>)}</select><input className="input" type="number" min="1" max="1000" aria-label="服务权重" value={target.weight} onChange={(event) => onChange({ ...draft, upstreams: replaceAt(draft.upstreams, index, { ...target, weight: Number(event.target.value) }) })} /><Button variant="ghost" size="sm" aria-label="删除目标服务" onClick={() => onChange({ ...draft, upstreams: draft.upstreams.filter((_, current) => current !== index) })}><Trash2 className="h-3.5 w-3.5 text-rose-600" /></Button></div>)}
+    </div>
+  );
+}
+
+function AIForwardingEditor({ draft, services, onChange }: { draft: RouteDraft; services: RouteWorkspace['upstreams']; onChange: (draft: RouteDraft) => void }) {
+  const updateModel = (index: number, model: AIModel) => onChange({ ...draft, aiModels: replaceAt(draft.aiModels, index, model) });
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between"><strong className="text-xs">发布模型</strong><Button variant="soft" size="sm" onClick={() => onChange({ ...draft, aiModels: [...draft.aiModels, { name: '', targets: [{ upstreamID: '', model: '', weight: 1 }] }] })}>添加模型</Button></div>
+      {services.length === 0 ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">请先在服务页面创建模型服务</div> : null}
+      {draft.aiModels.map((model, modelIndex) => (
+        <section key={modelIndex} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+          <div className="grid grid-cols-[1fr_36px] gap-2"><Field label="客户端模型名"><input className="input font-mono" value={model.name} onChange={(event) => updateModel(modelIndex, { ...model, name: event.target.value })} placeholder="例如 qwen-max" /></Field><Button className="self-end" variant="ghost" size="sm" aria-label="删除客户端模型" onClick={() => onChange({ ...draft, aiModels: draft.aiModels.filter((_, index) => index !== modelIndex) })}><Trash2 className="h-3.5 w-3.5 text-rose-600" /></Button></div>
+          <div className="flex items-center justify-between"><strong className="text-[11px] text-slate-600">模型线路</strong><Button variant="ghost" size="sm" onClick={() => updateModel(modelIndex, { ...model, targets: [...model.targets, { upstreamID: '', model: '', weight: 1 }] })}>添加线路</Button></div>
+          <div className="grid gap-2">
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_36px] gap-2 px-1 text-[11px] font-medium text-slate-500" aria-hidden="true"><span>模型服务</span><span>真实模型名</span><span>权重</span><span /></div>
+            {model.targets.map((target, targetIndex) => <div key={targetIndex} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_80px_36px] gap-2"><select className="select" aria-label="模型服务" value={target.upstreamID} onChange={(event) => updateModel(modelIndex, { ...model, targets: replaceAt(model.targets, targetIndex, { ...target, upstreamID: event.target.value }) })}><option value="">选择模型服务</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</select><input className="input font-mono" aria-label="真实模型名" value={target.model} onChange={(event) => updateModel(modelIndex, { ...model, targets: replaceAt(model.targets, targetIndex, { ...target, model: event.target.value }) })} placeholder="例如 qwen-max" /><input className="input" type="number" min="1" max="1000" aria-label="线路权重" value={target.weight} onChange={(event) => updateModel(modelIndex, { ...model, targets: replaceAt(model.targets, targetIndex, { ...target, weight: Number(event.target.value) }) })} /><Button variant="ghost" size="sm" aria-label="删除模型线路" onClick={() => updateModel(modelIndex, { ...model, targets: model.targets.filter((_, index) => index !== targetIndex) })}><Trash2 className="h-3.5 w-3.5 text-rose-600" /></Button></div>)}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function DetailSection({ title, children }: { title: string; children: ReactNode }) {
   return <section className="resource-detail-section"><h3>{title}</h3><div className="resource-detail-grid">{children}</div></section>;
 }
@@ -262,6 +352,7 @@ function createDraft(route?: RouteResource): RouteDraft {
     version: route?.version,
     name: route?.name ?? '',
     enabled: route?.enabled ?? true,
+    accessMode: route?.accessMode ?? 'ROUTE_ACCESS_CALLER',
     gatewayIDs: route?.gatewayIDs ?? [],
     hostnames: route?.hostnames.join(', ') ?? '',
     pathType: route?.match.path.type ?? 'ROUTE_PATH_MATCH_PREFIX',
@@ -278,6 +369,8 @@ function createDraft(route?: RouteResource): RouteDraft {
     perTryTimeoutMillis: route?.retry?.perTryTimeoutMillis ?? 5000,
     requestHeaderModifier: route?.requestHeaderModifier,
     responseHeaderModifier: route?.responseHeaderModifier,
+    type: route?.ai ? 'AI' : 'HTTP',
+    aiModels: route?.ai?.models.map((model) => ({ ...model, targets: model.targets.map((target) => ({ ...target })) })) ?? [],
   };
 }
 
@@ -285,8 +378,9 @@ function filterRoutes(workspace: RouteWorkspace, query: string): RouteResource[]
   const normalizedQuery = query.trim().toLowerCase();
   return workspace.routes.filter((route) => {
     const gatewayNames = resourceNames(route.gatewayIDs, workspace.gateways);
-    const upstreamNames = resourceNames(route.upstreams.map((target) => target.upstreamID), workspace.upstreams);
-    return `${route.name} ${route.hostnames.join(' ')} ${route.match.path.value} ${gatewayNames} ${upstreamNames}`.toLowerCase().includes(normalizedQuery);
+    const upstreamNames = resourceNames(routeUpstreamIDs(route), workspace.upstreams);
+    const models = route.ai?.models.map((model) => model.name).join(' ') ?? '';
+    return `${route.name} ${route.hostnames.join(' ')} ${route.match.path.value} ${gatewayNames} ${upstreamNames} ${models}`.toLowerCase().includes(normalizedQuery);
   });
 }
 
@@ -296,6 +390,11 @@ function resourceNames(ids: string[], options: Array<{ id: string; name: string 
 
 function resourceName(id: string, options: Array<{ id: string; name: string }>): string {
   return options.find((option) => option.id === id)?.name ?? id;
+}
+
+function routeUpstreamIDs(route: RouteResource): string[] {
+  if (!route.ai) return route.upstreams.map((target) => target.upstreamID);
+  return [...new Set(route.ai.models.flatMap((model) => model.targets.map((target) => target.upstreamID)))];
 }
 
 function methodLabel(route: RouteResource): string {
@@ -314,7 +413,13 @@ function validateDraft(draft: RouteDraft): string | undefined {
   if (!draft.name.trim()) return '请输入路由名称';
   if (draft.gatewayIDs.length === 0) return '至少选择一个网关';
   if (!draft.path.startsWith('/')) return '请求路径必须以 / 开头';
-  if (draft.upstreams.length === 0 || draft.upstreams.some((item) => !item.upstreamID || item.weight < 1 || item.weight > 1000)) return '至少配置一个有效的目标服务';
+  if (draft.type === 'HTTP' && (draft.upstreams.length === 0 || draft.upstreams.some((item) => !item.upstreamID || item.weight < 1 || item.weight > 1000))) return '至少配置一个有效的目标服务';
+  if (draft.type === 'AI') {
+    if (draft.aiModels.length === 0) return '至少发布一个客户端模型';
+    const names = draft.aiModels.map((model) => model.name.trim());
+    if (names.some((name) => !name) || new Set(names).size !== names.length) return '客户端模型名不能为空或重复';
+    if (draft.aiModels.some((model) => model.targets.length === 0 || model.targets.some((target) => !target.upstreamID || !target.model.trim() || target.weight < 1 || target.weight > 1000))) return '每个客户端模型至少需要一条有效的模型线路';
+  }
   if (draft.hostRewriteMode === 'HOST_REWRITE_MODE_CUSTOM' && !validHostname(draft.customHostname)) return '请输入有效的自定义主机名';
   if (draft.timeoutEnabled && (draft.timeoutMillis < 100 || draft.timeoutMillis > 300000)) return '请求超时范围应为 100 到 300000 毫秒';
   if (draft.retryEnabled && (draft.retryAttempts < 1 || draft.retryAttempts > 5 || draft.perTryTimeoutMillis < 100 || draft.perTryTimeoutMillis > 60000)) return '重试配置不正确';
@@ -327,10 +432,12 @@ function toPayload(draft: RouteDraft): RouteMutationPayload {
     version: draft.version,
     name: draft.name.trim(),
     enabled: draft.enabled,
+    accessMode: draft.accessMode,
     gatewayIDs: draft.gatewayIDs,
     hostnames: draft.hostnames.split(/[,，\s]+/).map((value) => value.trim().toLowerCase()).filter(Boolean),
-    match: { path: { type: draft.pathType, value: draft.path.trim() }, methods: draft.methods, headers: draft.headers },
-    upstreams: draft.upstreams,
+    match: { path: { type: draft.pathType, value: draft.path.trim() }, methods: draft.type === 'AI' ? ['POST'] : draft.methods, headers: draft.headers },
+    upstreams: draft.type === 'HTTP' ? draft.upstreams : [],
+    ai: draft.type === 'AI' ? { models: draft.aiModels.map((model) => ({ name: model.name.trim(), targets: model.targets.map((target) => ({ ...target, model: target.model.trim() })) })) } : undefined,
     hostRewrite: {
       mode: draft.hostRewriteMode,
       hostname: draft.hostRewriteMode === 'HOST_REWRITE_MODE_CUSTOM' ? draft.customHostname.trim().toLowerCase() : undefined,
@@ -348,6 +455,10 @@ function hostRewriteLabel(route: RouteResource): string {
     case 'HOST_REWRITE_MODE_CUSTOM': return route.hostRewrite.hostname || '未填写';
     default: return '保持请求主机';
   }
+}
+
+function accessModeLabel(mode: RouteAccessMode): string {
+  return mode === 'ROUTE_ACCESS_PUBLIC' ? '公开访问' : '调用方密钥';
 }
 
 function validHostname(value: string): boolean {

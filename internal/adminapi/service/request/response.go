@@ -12,17 +12,20 @@ import (
 
 func summaryResponse(summary *requestbiz.Summary) *adminv1.RequestRecordSummary {
 	return &adminv1.RequestRecordSummary{
-		Id:         summary.ID,
-		StartedAt:  timestamppb.New(summary.StartedAt),
-		Duration:   durationResponse(summary.Duration),
-		Method:     summary.Method,
-		Host:       summary.Host,
-		Path:       summary.Path,
-		StatusCode: summary.StatusCode,
-		Outcome:    outcomeResponse(summary.Outcome),
-		GatewayId:  summary.GatewayID,
-		RouteId:    summary.RouteID,
-		ServiceId:  summary.ServiceID,
+		Id:          summary.ID,
+		StartedAt:   timestamppb.New(summary.StartedAt),
+		Duration:    durationResponse(summary.Duration),
+		Method:      summary.Method,
+		Host:        summary.Host,
+		Path:        summary.Path,
+		StatusCode:  summary.StatusCode,
+		Outcome:     outcomeResponse(summary.Outcome),
+		GatewayId:   summary.GatewayID,
+		RouteId:     summary.RouteID,
+		ServiceId:   summary.ServiceID,
+		CallerId:    summary.CallerID,
+		AccessKeyId: summary.AccessKeyID,
+		AiModelCall: modelCallResponse(summary.ModelCall),
 	}
 }
 
@@ -49,6 +52,36 @@ func recordResponse(record *requestbiz.Record) *adminv1.RequestRecord {
 		UpstreamAttempts:    record.UpstreamAttempts,
 		UpstreamAddress:     record.UpstreamAddress,
 		ProxyInstanceId:     record.ProxyInstanceID,
+		CallerId:            record.CallerID,
+		AccessKeyId:         record.AccessKeyID,
+		AiModelCall:         modelCallResponse(record.ModelCall),
+	}
+}
+
+func modelCallResponse(call *requestbiz.ModelCall) *adminv1.AIModelCall {
+	if call == nil {
+		return nil
+	}
+	return &adminv1.AIModelCall{
+		ClientModel:   call.ClientModel,
+		UpstreamModel: call.UpstreamModel,
+		Protocol:      modelProtocolResponse(call.UpstreamProtocol),
+		ResponseModel: call.ResponseModel,
+		FinishReason:  call.FinishReason,
+		InputTokens:   call.InputTokens,
+		OutputTokens:  call.OutputTokens,
+		TotalTokens:   call.TotalTokens,
+	}
+}
+
+func modelProtocolResponse(protocol string) adminv1.ModelProtocol {
+	switch protocol {
+	case "openai":
+		return adminv1.ModelProtocol_MODEL_PROTOCOL_OPENAI
+	case "anthropic":
+		return adminv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC
+	default:
+		return adminv1.ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED
 	}
 }
 

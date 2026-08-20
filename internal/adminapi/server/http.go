@@ -7,7 +7,6 @@ import (
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
-	"github.com/lgc202/ingate/internal/adminapi/auth"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 )
 
@@ -15,7 +14,6 @@ import (
 func NewHTTPServer(
 	config *conf.Server,
 	logger *slog.Logger,
-	authenticator *auth.Authenticator,
 	handlers *HTTPHandlers,
 ) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
@@ -23,13 +21,13 @@ func NewHTTPServer(
 		kratoshttp.Network("tcp"),
 		kratoshttp.Address(httpConfig.GetAddr()),
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
-		kratoshttp.Filter(requestIDFilter),
-		kratoshttp.Middleware(httpMiddleware(logger, authenticator)...),
+		kratoshttp.Filter(requestIDFilter, requestBodyLimitFilter),
+		kratoshttp.Middleware(httpMiddleware(logger)...),
 		kratoshttp.RequestDecoder(requestDecoder),
 		kratoshttp.ResponseEncoder(responseEncoder),
 		kratoshttp.ErrorEncoder(errorEncoder),
-		kratoshttp.NotFoundHandler(http.HandlerFunc(notFound)),
-		kratoshttp.MethodNotAllowedHandler(http.HandlerFunc(methodNotAllowed)),
+		kratoshttp.NotFoundHandler(http.HandlerFunc(endpointNotFoundHandler)),
+		kratoshttp.MethodNotAllowedHandler(http.HandlerFunc(methodNotAllowedHandler)),
 	)
 	handlers.register(httpServer)
 	return httpServer

@@ -100,3 +100,19 @@ type BreakdownItem struct {
 	P95Duration     time.Duration
 	P99Duration     time.Duration
 }
+
+// ResourceTrafficQuery 是资源列表批量读取流量摘要的查询参数
+type ResourceTrafficQuery struct {
+	StartTime   time.Time
+	EndTime     time.Time
+	Dimension   Dimension
+	ResourceIDs []string
+}
+
+// ResourceTrafficSummary 是单个资源在指定时间范围内的轻量流量计数
+type ResourceTrafficSummary struct {
+	ResourceID   string
+	RequestCount uint64
+	ServerErrors uint64
+	NoResponses  uint64
+}

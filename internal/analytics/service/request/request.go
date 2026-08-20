@@ -76,6 +76,7 @@ func buildFilter(filter *analyticsv1.RequestFilter) (requestbiz.Filter, error) {
 		PathPrefix:  filter.GetPathPrefix(),
 		StatusClass: statusClass,
 		StatusCode:  statusCode,
+		CallerID:    filter.GetCallerId(),
 	}, nil
 }
 

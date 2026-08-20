@@ -9,7 +9,10 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-func buildHealthCheck(input *adminv1.UpstreamHealthCheck) (*resource.UpstreamHealthCheck, error) {
+func upstreamHealthCheck(input *adminv1.UpstreamHealthCheck) (*resource.UpstreamHealthCheck, error) {
+	if input == nil {
+		return nil, nil
+	}
 	path := strings.TrimSpace(input.GetPath())
 	if !validHealthCheckPath(path) {
 		return nil, adminservice.BadRequest("健康检查路径格式不正确")
@@ -22,7 +25,7 @@ func buildHealthCheck(input *adminv1.UpstreamHealthCheck) (*resource.UpstreamHea
 	if timeoutSeconds == 0 {
 		timeoutSeconds = defaultHealthCheckTimeoutSeconds
 	}
-	if intervalSeconds > 300 || timeoutSeconds > 60 || timeoutSeconds >= intervalSeconds {
+	if timeoutSeconds >= intervalSeconds {
 		return nil, adminservice.BadRequest("健康检查间隔或超时时间不正确")
 	}
 	return &resource.UpstreamHealthCheck{

@@ -37,6 +37,24 @@ func validateUpstream(upstream *resource.Upstream) field.ErrorList {
 	if spec.HealthCheck != nil {
 		errs = append(errs, validateHealthCheck(spec.HealthCheck, specPath.Child("healthCheck"))...)
 	}
+	if spec.Model != nil {
+		switch spec.Model.Protocol {
+		case resource.ModelProtocolOpenAI, resource.ModelProtocolAnthropic:
+		default:
+			errs = append(errs, field.NotSupported(
+				specPath.Child("model", "protocol"),
+				spec.Model.Protocol,
+				[]string{string(resource.ModelProtocolOpenAI), string(resource.ModelProtocolAnthropic)},
+			))
+		}
+		if len(spec.Model.APIKey) > 4096 || strings.TrimSpace(spec.Model.APIKey) != spec.Model.APIKey {
+			errs = append(errs, field.Invalid(
+				specPath.Child("model", "apiKey"),
+				"<redacted>",
+				"apiKey must not exceed 4096 bytes or contain surrounding whitespace",
+			))
+		}
+	}
 	errs = append(errs, validateEndpoints(spec.Endpoints, specPath.Child("endpoints"))...)
 	return errs
 }

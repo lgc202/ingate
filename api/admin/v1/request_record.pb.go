@@ -86,6 +86,115 @@ func (RequestOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{0}
 }
 
+// AIModelCall 是控制台展示的一次模型调用结果
+type AIModelCall struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// client_model 是调用方请求中使用的稳定模型名
+	ClientModel string `protobuf:"bytes,1,opt,name=client_model,json=clientModel,proto3" json:"client_model,omitempty"`
+	// upstream_model 是 AI Route 选中线路配置的真实模型名
+	UpstreamModel string `protobuf:"bytes,2,opt,name=upstream_model,json=upstreamModel,proto3" json:"upstream_model,omitempty"`
+	// protocol 是模型 Service 使用的厂商 API 协议
+	Protocol ModelProtocol `protobuf:"varint,3,opt,name=protocol,proto3,enum=ingate.admin.v1.ModelProtocol" json:"protocol,omitempty"`
+	// response_model 是模型服务在响应中声明的模型名
+	ResponseModel string `protobuf:"bytes,4,opt,name=response_model,json=responseModel,proto3" json:"response_model,omitempty"`
+	// finish_reason 是模型服务返回的生成结束原因
+	FinishReason string `protobuf:"bytes,5,opt,name=finish_reason,json=finishReason,proto3" json:"finish_reason,omitempty"`
+	// input_tokens 是模型服务报告的输入 Token 数
+	InputTokens *uint64 `protobuf:"varint,6,opt,name=input_tokens,json=inputTokens,proto3,oneof" json:"input_tokens,omitempty"`
+	// output_tokens 是模型服务报告的输出 Token 数
+	OutputTokens *uint64 `protobuf:"varint,7,opt,name=output_tokens,json=outputTokens,proto3,oneof" json:"output_tokens,omitempty"`
+	// total_tokens 是模型服务报告的总 Token 数
+	TotalTokens   *uint64 `protobuf:"varint,8,opt,name=total_tokens,json=totalTokens,proto3,oneof" json:"total_tokens,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AIModelCall) Reset() {
+	*x = AIModelCall{}
+	mi := &file_admin_v1_request_record_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AIModelCall) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AIModelCall) ProtoMessage() {}
+
+func (x *AIModelCall) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_request_record_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AIModelCall.ProtoReflect.Descriptor instead.
+func (*AIModelCall) Descriptor() ([]byte, []int) {
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *AIModelCall) GetClientModel() string {
+	if x != nil {
+		return x.ClientModel
+	}
+	return ""
+}
+
+func (x *AIModelCall) GetUpstreamModel() string {
+	if x != nil {
+		return x.UpstreamModel
+	}
+	return ""
+}
+
+func (x *AIModelCall) GetProtocol() ModelProtocol {
+	if x != nil {
+		return x.Protocol
+	}
+	return ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED
+}
+
+func (x *AIModelCall) GetResponseModel() string {
+	if x != nil {
+		return x.ResponseModel
+	}
+	return ""
+}
+
+func (x *AIModelCall) GetFinishReason() string {
+	if x != nil {
+		return x.FinishReason
+	}
+	return ""
+}
+
+func (x *AIModelCall) GetInputTokens() uint64 {
+	if x != nil && x.InputTokens != nil {
+		return *x.InputTokens
+	}
+	return 0
+}
+
+func (x *AIModelCall) GetOutputTokens() uint64 {
+	if x != nil && x.OutputTokens != nil {
+		return *x.OutputTokens
+	}
+	return 0
+}
+
+func (x *AIModelCall) GetTotalTokens() uint64 {
+	if x != nil && x.TotalTokens != nil {
+		return *x.TotalTokens
+	}
+	return 0
+}
+
 // RequestRecord 是控制台排障使用的单次请求元数据
 //
 // 请求记录不包含请求头、查询参数、请求正文和响应正文
@@ -133,13 +242,19 @@ type RequestRecord struct {
 	UpstreamAddress string `protobuf:"bytes,20,opt,name=upstream_address,json=upstreamAddress,proto3" json:"upstream_address,omitempty"`
 	// proxy_instance_id 是处理请求的数据面实例标识
 	ProxyInstanceId string `protobuf:"bytes,21,opt,name=proxy_instance_id,json=proxyInstanceID,proto3" json:"proxy_instance_id,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// ai_model_call 仅在请求经过 AI Route 时存在
+	AiModelCall *AIModelCall `protobuf:"bytes,22,opt,name=ai_model_call,json=aiModelCall,proto3" json:"ai_model_call,omitempty"`
+	// caller_id 是通过调用方密钥认证的 Caller 资源 ID
+	CallerId string `protobuf:"bytes,23,opt,name=caller_id,json=callerID,proto3" json:"caller_id,omitempty"`
+	// access_key_id 是本次请求使用的访问密钥 ID
+	AccessKeyId   string `protobuf:"bytes,24,opt,name=access_key_id,json=accessKeyID,proto3" json:"access_key_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RequestRecord) Reset() {
 	*x = RequestRecord{}
-	mi := &file_admin_v1_request_record_proto_msgTypes[0]
+	mi := &file_admin_v1_request_record_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -151,7 +266,7 @@ func (x *RequestRecord) String() string {
 func (*RequestRecord) ProtoMessage() {}
 
 func (x *RequestRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_request_record_proto_msgTypes[0]
+	mi := &file_admin_v1_request_record_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -164,7 +279,7 @@ func (x *RequestRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestRecord.ProtoReflect.Descriptor instead.
 func (*RequestRecord) Descriptor() ([]byte, []int) {
-	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{0}
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RequestRecord) GetId() string {
@@ -314,6 +429,27 @@ func (x *RequestRecord) GetProxyInstanceId() string {
 	return ""
 }
 
+func (x *RequestRecord) GetAiModelCall() *AIModelCall {
+	if x != nil {
+		return x.AiModelCall
+	}
+	return nil
+}
+
+func (x *RequestRecord) GetCallerId() string {
+	if x != nil {
+		return x.CallerId
+	}
+	return ""
+}
+
+func (x *RequestRecord) GetAccessKeyId() string {
+	if x != nil {
+		return x.AccessKeyId
+	}
+	return ""
+}
+
 // RequestRecordSummary 是请求记录列表使用的排障摘要
 type RequestRecordSummary struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -338,14 +474,20 @@ type RequestRecordSummary struct {
 	// route_id 是请求最终命中的 Route 资源 ID
 	RouteId string `protobuf:"bytes,10,opt,name=route_id,json=routeID,proto3" json:"route_id,omitempty"`
 	// service_id 是请求最终转发到的 Service 资源 ID
-	ServiceId     string `protobuf:"bytes,11,opt,name=service_id,json=serviceID,proto3" json:"service_id,omitempty"`
+	ServiceId string `protobuf:"bytes,11,opt,name=service_id,json=serviceID,proto3" json:"service_id,omitempty"`
+	// ai_model_call 仅在请求经过 AI Route 时存在
+	AiModelCall *AIModelCall `protobuf:"bytes,12,opt,name=ai_model_call,json=aiModelCall,proto3" json:"ai_model_call,omitempty"`
+	// caller_id 是通过调用方密钥认证的 Caller 资源 ID
+	CallerId string `protobuf:"bytes,13,opt,name=caller_id,json=callerID,proto3" json:"caller_id,omitempty"`
+	// access_key_id 是本次请求使用的访问密钥 ID
+	AccessKeyId   string `protobuf:"bytes,14,opt,name=access_key_id,json=accessKeyID,proto3" json:"access_key_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *RequestRecordSummary) Reset() {
 	*x = RequestRecordSummary{}
-	mi := &file_admin_v1_request_record_proto_msgTypes[1]
+	mi := &file_admin_v1_request_record_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -357,7 +499,7 @@ func (x *RequestRecordSummary) String() string {
 func (*RequestRecordSummary) ProtoMessage() {}
 
 func (x *RequestRecordSummary) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_request_record_proto_msgTypes[1]
+	mi := &file_admin_v1_request_record_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -370,7 +512,7 @@ func (x *RequestRecordSummary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequestRecordSummary.ProtoReflect.Descriptor instead.
 func (*RequestRecordSummary) Descriptor() ([]byte, []int) {
-	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{1}
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *RequestRecordSummary) GetId() string {
@@ -450,6 +592,27 @@ func (x *RequestRecordSummary) GetServiceId() string {
 	return ""
 }
 
+func (x *RequestRecordSummary) GetAiModelCall() *AIModelCall {
+	if x != nil {
+		return x.AiModelCall
+	}
+	return nil
+}
+
+func (x *RequestRecordSummary) GetCallerId() string {
+	if x != nil {
+		return x.CallerId
+	}
+	return ""
+}
+
+func (x *RequestRecordSummary) GetAccessKeyId() string {
+	if x != nil {
+		return x.AccessKeyId
+	}
+	return ""
+}
+
 // ListRequestRecordsRequest 是请求明细分页查询参数
 type ListRequestRecordsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -478,14 +641,16 @@ type ListRequestRecordsRequest struct {
 	// page_size 是单页记录数，零值使用服务端默认值
 	PageSize int32 `protobuf:"varint,12,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token 是上一页返回的不透明游标
-	PageToken     string `protobuf:"bytes,13,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	PageToken string `protobuf:"bytes,13,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
+	// caller_id 只返回归属于指定调用方的请求
+	CallerId      string `protobuf:"bytes,14,opt,name=caller_id,json=callerID,proto3" json:"caller_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListRequestRecordsRequest) Reset() {
 	*x = ListRequestRecordsRequest{}
-	mi := &file_admin_v1_request_record_proto_msgTypes[2]
+	mi := &file_admin_v1_request_record_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -497,7 +662,7 @@ func (x *ListRequestRecordsRequest) String() string {
 func (*ListRequestRecordsRequest) ProtoMessage() {}
 
 func (x *ListRequestRecordsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_request_record_proto_msgTypes[2]
+	mi := &file_admin_v1_request_record_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -510,7 +675,7 @@ func (x *ListRequestRecordsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequestRecordsRequest.ProtoReflect.Descriptor instead.
 func (*ListRequestRecordsRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{2}
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListRequestRecordsRequest) GetStartTime() *timestamppb.Timestamp {
@@ -604,6 +769,13 @@ func (x *ListRequestRecordsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListRequestRecordsRequest) GetCallerId() string {
+	if x != nil {
+		return x.CallerId
+	}
+	return ""
+}
+
 // ListRequestRecordsResponse 是请求记录分页结果
 type ListRequestRecordsResponse struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -617,7 +789,7 @@ type ListRequestRecordsResponse struct {
 
 func (x *ListRequestRecordsResponse) Reset() {
 	*x = ListRequestRecordsResponse{}
-	mi := &file_admin_v1_request_record_proto_msgTypes[3]
+	mi := &file_admin_v1_request_record_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -629,7 +801,7 @@ func (x *ListRequestRecordsResponse) String() string {
 func (*ListRequestRecordsResponse) ProtoMessage() {}
 
 func (x *ListRequestRecordsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_request_record_proto_msgTypes[3]
+	mi := &file_admin_v1_request_record_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -642,7 +814,7 @@ func (x *ListRequestRecordsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRequestRecordsResponse.ProtoReflect.Descriptor instead.
 func (*ListRequestRecordsResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{3}
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListRequestRecordsResponse) GetRecords() []*RequestRecordSummary {
@@ -672,7 +844,7 @@ type GetRequestRecordRequest struct {
 
 func (x *GetRequestRecordRequest) Reset() {
 	*x = GetRequestRecordRequest{}
-	mi := &file_admin_v1_request_record_proto_msgTypes[4]
+	mi := &file_admin_v1_request_record_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -684,7 +856,7 @@ func (x *GetRequestRecordRequest) String() string {
 func (*GetRequestRecordRequest) ProtoMessage() {}
 
 func (x *GetRequestRecordRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_request_record_proto_msgTypes[4]
+	mi := &file_admin_v1_request_record_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -697,7 +869,7 @@ func (x *GetRequestRecordRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRequestRecordRequest.ProtoReflect.Descriptor instead.
 func (*GetRequestRecordRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{4}
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *GetRequestRecordRequest) GetId() string {
@@ -718,7 +890,19 @@ var File_admin_v1_request_record_proto protoreflect.FileDescriptor
 
 const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\n" +
-	"\x1dadmin/v1/request_record.proto\x12\x0fingate.admin.v1\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xaa\x06\n" +
+	"\x1dadmin/v1/request_record.proto\x12\x0fingate.admin.v1\x1a\x17admin/v1/upstream.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1egoogle/protobuf/duration.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x8d\x03\n" +
+	"\vAIModelCall\x12!\n" +
+	"\fclient_model\x18\x01 \x01(\tR\vclientModel\x12%\n" +
+	"\x0eupstream_model\x18\x02 \x01(\tR\rupstreamModel\x12:\n" +
+	"\bprotocol\x18\x03 \x01(\x0e2\x1e.ingate.admin.v1.ModelProtocolR\bprotocol\x12%\n" +
+	"\x0eresponse_model\x18\x04 \x01(\tR\rresponseModel\x12#\n" +
+	"\rfinish_reason\x18\x05 \x01(\tR\ffinishReason\x12&\n" +
+	"\finput_tokens\x18\x06 \x01(\x04H\x00R\vinputTokens\x88\x01\x01\x12(\n" +
+	"\routput_tokens\x18\a \x01(\x04H\x01R\foutputTokens\x88\x01\x01\x12&\n" +
+	"\ftotal_tokens\x18\b \x01(\x04H\x02R\vtotalTokens\x88\x01\x01B\x0f\n" +
+	"\r_input_tokensB\x10\n" +
+	"\x0e_output_tokensB\x0f\n" +
+	"\r_total_tokens\"\xad\a\n" +
 	"\rRequestRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -746,7 +930,10 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\x15response_code_details\x18\x12 \x01(\tR\x13responseCodeDetails\x12+\n" +
 	"\x11upstream_attempts\x18\x13 \x01(\rR\x10upstreamAttempts\x12)\n" +
 	"\x10upstream_address\x18\x14 \x01(\tR\x0fupstreamAddress\x12*\n" +
-	"\x11proxy_instance_id\x18\x15 \x01(\tR\x0fproxyInstanceID\"\x8d\x03\n" +
+	"\x11proxy_instance_id\x18\x15 \x01(\tR\x0fproxyInstanceID\x12@\n" +
+	"\rai_model_call\x18\x16 \x01(\v2\x1c.ingate.admin.v1.AIModelCallR\vaiModelCall\x12\x1b\n" +
+	"\tcaller_id\x18\x17 \x01(\tR\bcallerID\x12\"\n" +
+	"\raccess_key_id\x18\x18 \x01(\tR\vaccessKeyID\"\x90\x04\n" +
 	"\x14RequestRecordSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -763,7 +950,10 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\broute_id\x18\n" +
 	" \x01(\tR\arouteID\x12\x1d\n" +
 	"\n" +
-	"service_id\x18\v \x01(\tR\tserviceID\"\xa0\x04\n" +
+	"service_id\x18\v \x01(\tR\tserviceID\x12@\n" +
+	"\rai_model_call\x18\f \x01(\v2\x1c.ingate.admin.v1.AIModelCallR\vaiModelCall\x12\x1b\n" +
+	"\tcaller_id\x18\r \x01(\tR\bcallerID\x12\"\n" +
+	"\raccess_key_id\x18\x0e \x01(\tR\vaccessKeyID\"\xbd\x04\n" +
 	"\x19ListRequestRecordsRequest\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -786,7 +976,8 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\tpage_size\x18\f \x01(\x05B\n" +
 	"\xbaH\a\x1a\x05\x18\xc8\x01(\x00R\bpageSize\x12\x1d\n" +
 	"\n" +
-	"page_token\x18\r \x01(\tR\tpageTokenB\x0e\n" +
+	"page_token\x18\r \x01(\tR\tpageToken\x12\x1b\n" +
+	"\tcaller_id\x18\x0e \x01(\tR\bcallerIDB\x0e\n" +
 	"\f_status_code\"\x85\x01\n" +
 	"\x1aListRequestRecordsResponse\x12?\n" +
 	"\arecords\x18\x01 \x03(\v2%.ingate.admin.v1.RequestRecordSummaryR\arecords\x12&\n" +
@@ -818,39 +1009,44 @@ func file_admin_v1_request_record_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_request_record_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_admin_v1_request_record_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_admin_v1_request_record_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_admin_v1_request_record_proto_goTypes = []any{
 	(RequestOutcome)(0),                // 0: ingate.admin.v1.RequestOutcome
-	(*RequestRecord)(nil),              // 1: ingate.admin.v1.RequestRecord
-	(*RequestRecordSummary)(nil),       // 2: ingate.admin.v1.RequestRecordSummary
-	(*ListRequestRecordsRequest)(nil),  // 3: ingate.admin.v1.ListRequestRecordsRequest
-	(*ListRequestRecordsResponse)(nil), // 4: ingate.admin.v1.ListRequestRecordsResponse
-	(*GetRequestRecordRequest)(nil),    // 5: ingate.admin.v1.GetRequestRecordRequest
-	(*timestamppb.Timestamp)(nil),      // 6: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),        // 7: google.protobuf.Duration
+	(*AIModelCall)(nil),                // 1: ingate.admin.v1.AIModelCall
+	(*RequestRecord)(nil),              // 2: ingate.admin.v1.RequestRecord
+	(*RequestRecordSummary)(nil),       // 3: ingate.admin.v1.RequestRecordSummary
+	(*ListRequestRecordsRequest)(nil),  // 4: ingate.admin.v1.ListRequestRecordsRequest
+	(*ListRequestRecordsResponse)(nil), // 5: ingate.admin.v1.ListRequestRecordsResponse
+	(*GetRequestRecordRequest)(nil),    // 6: ingate.admin.v1.GetRequestRecordRequest
+	(ModelProtocol)(0),                 // 7: ingate.admin.v1.ModelProtocol
+	(*timestamppb.Timestamp)(nil),      // 8: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),        // 9: google.protobuf.Duration
 }
 var file_admin_v1_request_record_proto_depIdxs = []int32{
-	6,  // 0: ingate.admin.v1.RequestRecord.started_at:type_name -> google.protobuf.Timestamp
-	7,  // 1: ingate.admin.v1.RequestRecord.duration:type_name -> google.protobuf.Duration
-	7,  // 2: ingate.admin.v1.RequestRecord.time_to_first_byte:type_name -> google.protobuf.Duration
-	0,  // 3: ingate.admin.v1.RequestRecord.outcome:type_name -> ingate.admin.v1.RequestOutcome
-	6,  // 4: ingate.admin.v1.RequestRecordSummary.started_at:type_name -> google.protobuf.Timestamp
-	7,  // 5: ingate.admin.v1.RequestRecordSummary.duration:type_name -> google.protobuf.Duration
-	0,  // 6: ingate.admin.v1.RequestRecordSummary.outcome:type_name -> ingate.admin.v1.RequestOutcome
-	6,  // 7: ingate.admin.v1.ListRequestRecordsRequest.start_time:type_name -> google.protobuf.Timestamp
-	6,  // 8: ingate.admin.v1.ListRequestRecordsRequest.end_time:type_name -> google.protobuf.Timestamp
-	0,  // 9: ingate.admin.v1.ListRequestRecordsRequest.outcome:type_name -> ingate.admin.v1.RequestOutcome
-	2,  // 10: ingate.admin.v1.ListRequestRecordsResponse.records:type_name -> ingate.admin.v1.RequestRecordSummary
-	6,  // 11: ingate.admin.v1.GetRequestRecordRequest.started_at:type_name -> google.protobuf.Timestamp
-	3,  // 12: ingate.admin.v1.RequestRecordService.ListRequestRecords:input_type -> ingate.admin.v1.ListRequestRecordsRequest
-	5,  // 13: ingate.admin.v1.RequestRecordService.GetRequestRecord:input_type -> ingate.admin.v1.GetRequestRecordRequest
-	4,  // 14: ingate.admin.v1.RequestRecordService.ListRequestRecords:output_type -> ingate.admin.v1.ListRequestRecordsResponse
-	1,  // 15: ingate.admin.v1.RequestRecordService.GetRequestRecord:output_type -> ingate.admin.v1.RequestRecord
-	14, // [14:16] is the sub-list for method output_type
-	12, // [12:14] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	7,  // 0: ingate.admin.v1.AIModelCall.protocol:type_name -> ingate.admin.v1.ModelProtocol
+	8,  // 1: ingate.admin.v1.RequestRecord.started_at:type_name -> google.protobuf.Timestamp
+	9,  // 2: ingate.admin.v1.RequestRecord.duration:type_name -> google.protobuf.Duration
+	9,  // 3: ingate.admin.v1.RequestRecord.time_to_first_byte:type_name -> google.protobuf.Duration
+	0,  // 4: ingate.admin.v1.RequestRecord.outcome:type_name -> ingate.admin.v1.RequestOutcome
+	1,  // 5: ingate.admin.v1.RequestRecord.ai_model_call:type_name -> ingate.admin.v1.AIModelCall
+	8,  // 6: ingate.admin.v1.RequestRecordSummary.started_at:type_name -> google.protobuf.Timestamp
+	9,  // 7: ingate.admin.v1.RequestRecordSummary.duration:type_name -> google.protobuf.Duration
+	0,  // 8: ingate.admin.v1.RequestRecordSummary.outcome:type_name -> ingate.admin.v1.RequestOutcome
+	1,  // 9: ingate.admin.v1.RequestRecordSummary.ai_model_call:type_name -> ingate.admin.v1.AIModelCall
+	8,  // 10: ingate.admin.v1.ListRequestRecordsRequest.start_time:type_name -> google.protobuf.Timestamp
+	8,  // 11: ingate.admin.v1.ListRequestRecordsRequest.end_time:type_name -> google.protobuf.Timestamp
+	0,  // 12: ingate.admin.v1.ListRequestRecordsRequest.outcome:type_name -> ingate.admin.v1.RequestOutcome
+	3,  // 13: ingate.admin.v1.ListRequestRecordsResponse.records:type_name -> ingate.admin.v1.RequestRecordSummary
+	8,  // 14: ingate.admin.v1.GetRequestRecordRequest.started_at:type_name -> google.protobuf.Timestamp
+	4,  // 15: ingate.admin.v1.RequestRecordService.ListRequestRecords:input_type -> ingate.admin.v1.ListRequestRecordsRequest
+	6,  // 16: ingate.admin.v1.RequestRecordService.GetRequestRecord:input_type -> ingate.admin.v1.GetRequestRecordRequest
+	5,  // 17: ingate.admin.v1.RequestRecordService.ListRequestRecords:output_type -> ingate.admin.v1.ListRequestRecordsResponse
+	2,  // 18: ingate.admin.v1.RequestRecordService.GetRequestRecord:output_type -> ingate.admin.v1.RequestRecord
+	17, // [17:19] is the sub-list for method output_type
+	15, // [15:17] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_request_record_proto_init() }
@@ -858,14 +1054,16 @@ func file_admin_v1_request_record_proto_init() {
 	if File_admin_v1_request_record_proto != nil {
 		return
 	}
-	file_admin_v1_request_record_proto_msgTypes[2].OneofWrappers = []any{}
+	file_admin_v1_upstream_proto_init()
+	file_admin_v1_request_record_proto_msgTypes[0].OneofWrappers = []any{}
+	file_admin_v1_request_record_proto_msgTypes[3].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_request_record_proto_rawDesc), len(file_admin_v1_request_record_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   5,
+			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
