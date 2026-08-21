@@ -10,6 +10,7 @@ import (
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
+
 	"github.com/lgc202/ingate/internal/authz/conf"
 	dataapiserver "github.com/lgc202/ingate/internal/authz/data/apiserver"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
