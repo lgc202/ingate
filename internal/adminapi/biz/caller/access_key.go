@@ -10,7 +10,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
-	"github.com/lgc202/ingate/pkg/accesskey"
+	"github.com/lgc202/ingate/internal/pkg/accesskey"
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 

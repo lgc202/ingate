@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
 	kratos "github.com/go-kratos/kratos/v3"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
@@ -38,7 +37,7 @@ func NewApp(configFile string) (*App, error) {
 		return nil, fmt.Errorf("read hostname: %w", err)
 	}
 	instanceID := serviceInstanceID(hostname)
-	logger := newLogger(bootstrap.GetLogging(), string(instanceID))
+	logger := appconfig.NewLogger(bootstrap.GetLogging(), name, string(instanceID))
 	kratoslog.SetDefault(logger)
 	kratosApp, err := wireApp(
 		bootstrap.GetServer(),
@@ -74,23 +73,5 @@ func newKratosApp(
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		// Caller 凭据缓存和网络服务共享同一进程生命周期，首次同步完成前 /readyz 保持未就绪
 		kratos.Server(httpServer, grpcServer, credentials),
-	)
-}
-
-func newLogger(config *conf.Logging, instanceID string) *slog.Logger {
-	format := kratoslog.FormatText
-	if strings.EqualFold(config.GetFormat(), "json") {
-		format = kratoslog.FormatJSON
-	}
-	handler := kratoslog.NewHandler(
-		kratoslog.WithWriter(os.Stderr),
-		kratoslog.WithFormat(format),
-		kratoslog.WithLevel(kratoslog.ParseLevel(config.GetLevel())),
-		kratoslog.WithAddSource(config.GetAddSource()),
-	)
-	return kratoslog.NewLogger(handler).With(
-		"service.id", instanceID,
-		"service.name", name,
-		"service.version", version.Get().String(),
 	)
 }

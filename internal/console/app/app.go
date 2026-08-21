@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/pflag"
 
 	consoleserver "github.com/lgc202/ingate/internal/console/server"
-	"github.com/lgc202/ingate/internal/pkg/httpserver"
 )
 
 const usage = `ingate-console 提供 Ingate 控制台
@@ -67,7 +66,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 		return err
 	}
 
-	logger, err := settings.Logging.NewLogger("ingate-console", stdout)
+	logger, err := settings.Logging.NewLogger(stdout)
 	if err != nil {
 		return err
 	}
@@ -97,7 +96,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 
 	gin.SetMode(gin.ReleaseMode)
 	router := consoleserver.NewRouter(adminAPIProxy, settings.Server.ConsoleDir, componentLogger)
-	server := httpserver.New(settings.Server.ListenAddress, router, componentLogger)
+	server := consoleserver.New(settings.Server.ListenAddress, router, componentLogger)
 
 	return server.Run(ctx)
 }
