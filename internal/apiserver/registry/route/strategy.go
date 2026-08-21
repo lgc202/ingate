@@ -3,13 +3,11 @@ package route
 import (
 	"context"
 	"strings"
-	"time"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
@@ -19,8 +17,7 @@ import (
 
 // strategy 定义 Route 资源在 apiserver 存储前后的处理规则
 type strategy struct {
-	runtime.ObjectTyper
-	names.NameGenerator
+	apiregistry.Strategy
 }
 
 // statusStrategy 定义 Route status 子资源更新规则
@@ -29,38 +26,18 @@ type statusStrategy struct {
 }
 
 func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{
-		ObjectTyper:   typer,
-		NameGenerator: names.SimpleNameGenerator,
-	}
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
 }
 
-func (strategy) NamespaceScoped() bool {
-	return false
-}
-
-func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
-	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
-			fieldpath.MakePathOrDie("status"),
-		),
-	}
-}
-
-func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
+func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 	route := obj.(*resource.Route)
 	route.Status = resource.ResourceStatus{}
-	route.Generation = 1
 	canonicalizeRouteSpec(&route.Spec)
-	apiregistry.SetUpdatedAt(&route.ObjectMeta, route.CreationTimestamp.Time)
+	apiregistry.PrepareObjectMetaForCreate(&route.ObjectMeta)
 }
 
-func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validateRoute(obj.(*resource.Route))
-}
-
-func (strategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
-	return nil
 }
 
 func (strategy) Canonicalize(obj runtime.Object) {
@@ -68,35 +45,18 @@ func (strategy) Canonicalize(obj runtime.Object) {
 	canonicalizeRouteSpec(&route.Spec)
 }
 
-func (strategy) AllowCreateOnUpdate() bool {
-	return false
-}
-
-func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	newRoute := obj.(*resource.Route)
 	oldRoute := old.(*resource.Route)
 
 	newRoute.Status = oldRoute.Status
 	canonicalizeRouteSpec(&newRoute.Spec)
-	newRoute.Generation = oldRoute.Generation
-	if !apiequality.Semantic.DeepEqual(oldRoute.Spec, newRoute.Spec) {
-		newRoute.Generation = oldRoute.Generation + 1
-		apiregistry.SetUpdatedAt(&newRoute.ObjectMeta, time.Now().UTC())
-		return
-	}
-	apiregistry.PreserveUpdatedAt(&newRoute.ObjectMeta, &oldRoute.ObjectMeta)
+	specChanged := !apiequality.Semantic.DeepEqual(oldRoute.Spec, newRoute.Spec)
+	apiregistry.PrepareObjectMetaForUpdate(&newRoute.ObjectMeta, &oldRoute.ObjectMeta, specChanged)
 }
 
-func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
 	return validateRoute(obj.(*resource.Route))
-}
-
-func (strategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
-	return nil
-}
-
-func (strategy) AllowUnconditionalUpdate() bool {
-	return false
 }
 
 func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
@@ -104,14 +64,10 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 }
 
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
-	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
-			fieldpath.MakePathOrDie("spec"),
-		),
-	}
+	return apiregistry.SpecResetFields()
 }
 
-func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	newRoute := obj.(*resource.Route)
 	oldRoute := old.(*resource.Route)
 
@@ -119,7 +75,7 @@ func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Obj
 	metav1.ResetObjectMetaForStatus(&newRoute.ObjectMeta, &oldRoute.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
 	return nil
 }
 
