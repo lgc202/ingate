@@ -1,4 +1,4 @@
-// Package kafka 通过 franz-go 将请求记录写入 Kafka
+// Package kafka 通过 franz-go 将请求记录发布到 Kafka
 package kafka
 
 import (
@@ -19,16 +19,16 @@ const (
 	requestRecordType   = "ingate.als.v1.RequestRecord"
 )
 
-// Writer 将 protobuf 请求记录发布到 Kafka
-type Writer struct {
+// Publisher 将 protobuf 请求记录发布到 Kafka
+type Publisher struct {
 	client *kgo.Client
 }
 
-// NewWriter 创建具备幂等生产语义的 Kafka 写入端
+// NewPublisher 创建具备幂等生产语义的 Kafka 发布端
 //
 // franz-go 默认启用幂等 producer；AllISRAcks 使成功返回代表当前 ISR 已确认，
 // ALS 才能据此安全删除磁盘队列中对应的积压记录
-func NewWriter(config *conf.Data_Kafka) (*Writer, error) {
+func NewPublisher(config *conf.Data_Kafka) (*Publisher, error) {
 	client, err := kafkax.NewClient(kafkax.Config{
 		Brokers:     config.GetBrokers(),
 		DialTimeout: config.GetDialTimeout().AsDuration(),
@@ -53,21 +53,21 @@ func NewWriter(config *conf.Data_Kafka) (*Writer, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Writer{client: client}, nil
+	return &Publisher{client: client}, nil
 }
 
 // Ping 验证至少一个 Kafka broker 当前可以完成连接和鉴权
-func (w *Writer) Ping(ctx context.Context) error {
-	if err := w.client.Ping(ctx); err != nil {
+func (p *Publisher) Ping(ctx context.Context) error {
+	if err := p.client.Ping(ctx); err != nil {
 		return fmt.Errorf("ping Kafka: %w", err)
 	}
 	return nil
 }
 
-// Write 同步等待整批记录得到 Kafka 的最终投递结果
+// Publish 同步等待整批记录得到 Kafka 的最终投递结果
 //
 // 一批消息可能部分成功后返回错误，调用方会把整批写入磁盘队列，因此消费者仍需按 RequestRecord.id 去重
-func (w *Writer) Write(ctx context.Context, records []*alsv1.RequestRecord) error {
+func (p *Publisher) Publish(ctx context.Context, records []*alsv1.RequestRecord) error {
 	messages := make([]*kgo.Record, 0, len(records))
 	for _, record := range records {
 		value, err := proto.Marshal(record)
@@ -83,13 +83,13 @@ func (w *Writer) Write(ctx context.Context, records []*alsv1.RequestRecord) erro
 			},
 		})
 	}
-	if err := w.client.ProduceSync(ctx, messages...).FirstErr(); err != nil {
+	if err := p.client.ProduceSync(ctx, messages...).FirstErr(); err != nil {
 		return fmt.Errorf("produce request records: %w", err)
 	}
 	return nil
 }
 
 // Close 等待客户端结束内部工作并释放连接
-func (w *Writer) Close() {
-	w.client.Close()
+func (p *Publisher) Close() {
+	p.client.Close()
 }
