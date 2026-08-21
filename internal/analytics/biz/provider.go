@@ -13,6 +13,6 @@ import (
 // ProviderSet 汇总 Analytics 的业务用例
 var ProviderSet = wire.NewSet(
 	request.NewRecorder,
-	request.NewQueries,
-	traffic.NewQueries,
+	request.NewQuery,
+	traffic.NewQuery,
 )

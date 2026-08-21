@@ -1,4 +1,4 @@
-// Package server 装配 Analytics 的 gRPC、HTTP 和 Kafka Consumer
+// Package server 装配 Analytics 的 gRPC、HTTP 和 Kafka 请求记录消费循环
 package server
 
 import (
@@ -20,10 +20,10 @@ type pinger interface {
 	Ping(context.Context) error
 }
 
-// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务。
+// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务
 func NewHTTPServer(
 	config *conf.Server,
-	consumer *Consumer,
+	consumer *RequestConsumer,
 	clickHouse *clickhouse.Store,
 ) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
@@ -67,7 +67,7 @@ func ready(timeout time.Duration, kafka pinger, clickHouse pinger) http.HandlerF
 }
 
 // metricsHandler 使用进程独立 Registry 暴露 Go 指标和请求记录处理计数
-func metricsHandler(counters func() recordCounters) http.Handler {
+func metricsHandler(counters func() requestCounters) http.Handler {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(
 		collectors.NewGoCollector(),
@@ -92,7 +92,7 @@ func metricsHandler(counters func() recordCounters) http.Handler {
 		}, func() float64 { return float64(counters().invalid) }),
 	)
 
-	// 使用独立 Registry，避免依赖库隐式注册与业务无关的全局指标。
+	// 使用独立 Registry，避免依赖库隐式注册与业务无关的全局指标
 	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
 }
 
