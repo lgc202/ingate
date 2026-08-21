@@ -14,7 +14,6 @@ require (
 	github.com/google/wire v0.7.0
 	github.com/lgc202/go-kit v0.0.0-20260608113601-338cc7dcde97
 	github.com/pressly/goose/v3 v3.26.0
-	github.com/redis/go-redis/v9 v9.21.0
 	github.com/spf13/pflag v1.0.10
 	github.com/tidwall/gjson v1.19.0
 	github.com/tidwall/sjson v1.2.5

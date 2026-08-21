@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/lgc202/ingate/pkg/accesskey"
+	"github.com/lgc202/ingate/internal/pkg/accesskey"
 )
 
 var (

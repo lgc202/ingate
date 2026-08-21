@@ -1,5 +1,4 @@
-// Package httpserver 提供 Ingate HTTP 服务统一的启动与优雅退出能力
-package httpserver
+package server
 
 import (
 	"context"
@@ -16,19 +15,15 @@ const (
 	serverShutdownTimeout   = 5 * time.Second
 )
 
-// Server 管理 HTTP 服务生命周期
+// Server 管理 Console HTTP 服务生命周期
 type Server struct {
 	listenAddress string
 	handler       http.Handler
 	logger        *slog.Logger
 }
 
-// New 创建管理 API 服务
-func New(
-	listenAddress string,
-	handler http.Handler,
-	logger *slog.Logger,
-) *Server {
+// New 创建 Console HTTP 服务
+func New(listenAddress string, handler http.Handler, logger *slog.Logger) *Server {
 	return &Server{
 		listenAddress: listenAddress,
 		handler:       handler,
@@ -36,7 +31,7 @@ func New(
 	}
 }
 
-// Run 启动 HTTP 服务
+// Run 启动 Console HTTP 服务，并在进程上下文结束后等待请求退出
 func (s *Server) Run(ctx context.Context) error {
 	listener, err := net.Listen("tcp", s.listenAddress)
 	if err != nil {
