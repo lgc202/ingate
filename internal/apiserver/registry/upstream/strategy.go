@@ -3,13 +3,11 @@ package upstream
 import (
 	"context"
 	"strings"
-	"time"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/apiserver/pkg/storage/names"
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
@@ -24,8 +22,7 @@ const (
 
 // strategy 定义 Upstream 资源在 apiserver 存储前后的处理规则
 type strategy struct {
-	runtime.ObjectTyper
-	names.NameGenerator
+	apiregistry.Strategy
 }
 
 // statusStrategy 定义 Upstream status 子资源更新规则
@@ -34,38 +31,18 @@ type statusStrategy struct {
 }
 
 func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{
-		ObjectTyper:   typer,
-		NameGenerator: names.SimpleNameGenerator,
-	}
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
 }
 
-func (strategy) NamespaceScoped() bool {
-	return false
-}
-
-func (strategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
-	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
-			fieldpath.MakePathOrDie("status"),
-		),
-	}
-}
-
-func (strategy) PrepareForCreate(ctx context.Context, obj runtime.Object) {
+func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 	upstream := obj.(*resource.Upstream)
 	upstream.Status = resource.ResourceStatus{}
-	upstream.Generation = 1
 	canonicalizeUpstreamSpec(&upstream.Spec)
-	apiregistry.SetUpdatedAt(&upstream.ObjectMeta, upstream.CreationTimestamp.Time)
+	apiregistry.PrepareObjectMetaForCreate(&upstream.ObjectMeta)
 }
 
-func (strategy) Validate(ctx context.Context, obj runtime.Object) field.ErrorList {
+func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validateUpstream(obj.(*resource.Upstream))
-}
-
-func (strategy) WarningsOnCreate(ctx context.Context, obj runtime.Object) []string {
-	return nil
 }
 
 func (strategy) Canonicalize(obj runtime.Object) {
@@ -73,35 +50,18 @@ func (strategy) Canonicalize(obj runtime.Object) {
 	canonicalizeUpstreamSpec(&upstream.Spec)
 }
 
-func (strategy) AllowCreateOnUpdate() bool {
-	return false
-}
-
-func (strategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	newUpstream := obj.(*resource.Upstream)
 	oldUpstream := old.(*resource.Upstream)
 
 	newUpstream.Status = oldUpstream.Status
 	canonicalizeUpstreamSpec(&newUpstream.Spec)
-	newUpstream.Generation = oldUpstream.Generation
-	if !apiequality.Semantic.DeepEqual(oldUpstream.Spec, newUpstream.Spec) {
-		newUpstream.Generation = oldUpstream.Generation + 1
-		apiregistry.SetUpdatedAt(&newUpstream.ObjectMeta, time.Now().UTC())
-		return
-	}
-	apiregistry.PreserveUpdatedAt(&newUpstream.ObjectMeta, &oldUpstream.ObjectMeta)
+	specChanged := !apiequality.Semantic.DeepEqual(oldUpstream.Spec, newUpstream.Spec)
+	apiregistry.PrepareObjectMetaForUpdate(&newUpstream.ObjectMeta, &oldUpstream.ObjectMeta, specChanged)
 }
 
-func (strategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
 	return validateUpstream(obj.(*resource.Upstream))
-}
-
-func (strategy) WarningsOnUpdate(ctx context.Context, obj, old runtime.Object) []string {
-	return nil
-}
-
-func (strategy) AllowUnconditionalUpdate() bool {
-	return false
 }
 
 func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
@@ -109,14 +69,10 @@ func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
 }
 
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
-	return map[fieldpath.APIVersion]*fieldpath.Set{
-		fieldpath.APIVersion(resource.SchemeGroupVersion.String()): fieldpath.NewSet(
-			fieldpath.MakePathOrDie("spec"),
-		),
-	}
+	return apiregistry.SpecResetFields()
 }
 
-func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Object) {
+func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
 	newUpstream := obj.(*resource.Upstream)
 	oldUpstream := old.(*resource.Upstream)
 
@@ -124,7 +80,7 @@ func (statusStrategy) PrepareForUpdate(ctx context.Context, obj, old runtime.Obj
 	metav1.ResetObjectMetaForStatus(&newUpstream.ObjectMeta, &oldUpstream.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(ctx context.Context, obj, old runtime.Object) field.ErrorList {
+func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
 	return nil
 }
 
