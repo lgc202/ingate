@@ -1,10 +1,15 @@
 package server
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apiserver/pkg/registry/generic"
+	genericregistry "k8s.io/apiserver/pkg/registry/generic/registry"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericapiserver "k8s.io/apiserver/pkg/server"
 
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	callerstorage "github.com/lgc202/ingate/internal/apiserver/registry/caller"
 	certificatestorage "github.com/lgc202/ingate/internal/apiserver/registry/certificate"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
@@ -12,8 +17,19 @@ import (
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
+
+type resourceStorageFactory func(
+	generic.RESTOptionsGetter,
+	runtime.ObjectTyper,
+) (*genericregistry.Store, *apiregistry.StatusREST, error)
+
+type resourceRegistration struct {
+	resource       gatewayv1.ResourceName
+	statusResource gatewayv1.ResourceName
+	newStorage     resourceStorageFactory
+}
 
 // installResources 把声明式资源及其 status 子资源注册到同一 API Group
 func installResources(
@@ -26,55 +42,23 @@ func installResources(
 		runtime.NewParameterCodec(Scheme),
 		Codecs,
 	)
-	storage := make(map[string]rest.Storage)
-	installStatusStorage := func(
-		resourceName gatewayv1.ResourceName,
-		statusResourceName gatewayv1.ResourceName,
-		factory func() (rest.Storage, rest.Storage, error),
-	) error {
-		resourceStorage, statusStorage, err := factory()
+	registrations := []resourceRegistration{
+		{gatewayv1.ResourceGateways, gatewayv1.ResourceGatewaysStatus, gatewaystorage.NewREST},
+		{gatewayv1.ResourceRoutes, gatewayv1.ResourceRoutesStatus, routestorage.NewREST},
+		{gatewayv1.ResourceUpstreams, gatewayv1.ResourceUpstreamsStatus, upstreamstorage.NewREST},
+		{gatewayv1.ResourceCertificates, gatewayv1.ResourceCertificatesStatus, certificatestorage.NewREST},
+		{gatewayv1.ResourceRateLimitPolicies, gatewayv1.ResourceRateLimitPoliciesStatus, ratelimitpolicystorage.NewREST},
+		{gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, iprestrictionpolicystorage.NewREST},
+		{gatewayv1.ResourceCallers, gatewayv1.ResourceCallersStatus, callerstorage.NewREST},
+	}
+	storage := make(map[string]rest.Storage, len(registrations)*2)
+	for _, registration := range registrations {
+		resourceStorage, statusStorage, err := registration.newStorage(config.RESTOptionsGetter, Scheme)
 		if err != nil {
-			return err
+			return fmt.Errorf("create %s storage: %w", registration.resource, err)
 		}
-		storage[string(resourceName)] = resourceStorage
-		storage[string(statusResourceName)] = statusStorage
-		return nil
-	}
-
-	if err := installStatusStorage(gatewayv1.ResourceGateways, gatewayv1.ResourceGatewaysStatus, func() (rest.Storage, rest.Storage, error) {
-		return gatewaystorage.NewREST(config.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceRoutes, gatewayv1.ResourceRoutesStatus, func() (rest.Storage, rest.Storage, error) {
-		return routestorage.NewREST(config.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceUpstreams, gatewayv1.ResourceUpstreamsStatus, func() (rest.Storage, rest.Storage, error) {
-		return upstreamstorage.NewREST(config.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceCertificates, gatewayv1.ResourceCertificatesStatus, func() (rest.Storage, rest.Storage, error) {
-		return certificatestorage.NewREST(config.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceRateLimitPolicies, gatewayv1.ResourceRateLimitPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return ratelimitpolicystorage.NewREST(config.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, func() (rest.Storage, rest.Storage, error) {
-		return iprestrictionpolicystorage.NewREST(config.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return err
-	}
-	if err := installStatusStorage(gatewayv1.ResourceCallers, gatewayv1.ResourceCallersStatus, func() (rest.Storage, rest.Storage, error) {
-		return callerstorage.NewREST(config.RESTOptionsGetter, Scheme)
-	}); err != nil {
-		return err
+		storage[string(registration.resource)] = resourceStorage
+		storage[string(registration.statusResource)] = statusStorage
 	}
 
 	apiGroupInfo.VersionedResourcesStorageMap[gatewayv1.SchemeGroupVersion.Version] = storage

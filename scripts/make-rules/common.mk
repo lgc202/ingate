@@ -1,7 +1,7 @@
 SHELL := /usr/bin/env bash
 .SHELLFLAGS := -eu -o pipefail -c
 
-VERSION_PACKAGE := github.com/lgc202/go-kit/version
+VERSION_PACKAGE := github.com/lgc202/ingate/internal/pkg/version
 GIT_VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo v0.0.0-unknown)
 GIT_COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 GIT_TREE_STATE ?= $(shell if test -z "$$(git status --porcelain 2>/dev/null)"; then echo clean; else echo dirty; fi)

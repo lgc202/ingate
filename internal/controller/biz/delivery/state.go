@@ -72,18 +72,12 @@ func newDeliveryState() deliveryState {
 }
 
 func (s *deliveryState) status() Status {
-	var status Status
+	status := Status{LastFailure: s.lastFailure}
 	if s.active != nil {
-		status.ActiveResources = cloneResourceGenerations(s.active.resources)
-		status.ActivePolicyTargets = clonePolicyTargets(s.active.policyTargets)
+		status.ActiveResources = s.active.resources
+		status.ActivePolicyTargets = s.active.policyTargets
 	}
-	if s.lastFailure != nil {
-		failure := *s.lastFailure
-		failure.Resources = cloneResourceGenerations(failure.Resources)
-		failure.PolicyTargets = clonePolicyTargets(failure.PolicyTargets)
-		status.LastFailure = &failure
-	}
-	return status
+	return status.clone()
 }
 
 func (s *deliveryState) stream(streamID int64, nodeID string) (*streamState, bool) {

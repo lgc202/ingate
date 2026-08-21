@@ -9,31 +9,31 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // Repository 定义 Route 管理需要的持久化能力
 type Repository interface {
-	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Route], error)
-	Get(context.Context, string) (*resource.Route, error)
-	Create(context.Context, string, resource.RouteSpec) (*resource.Route, error)
-	Update(context.Context, string, int64, resource.RouteSpec) (*resource.Route, error)
-	Delete(context.Context, string, int64) error
+	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error)
+	Get(ctx context.Context, routeID string) (*resource.Route, error)
+	Create(ctx context.Context, routeID string, spec resource.RouteSpec) (*resource.Route, error)
+	Update(ctx context.Context, routeID string, generation int64, spec resource.RouteSpec) (*resource.Route, error)
+	Delete(ctx context.Context, routeID string, generation int64) error
 }
 
 // GatewayRepository 定义 Route 校验 Gateway 引用时需要的查询能力
 type GatewayRepository interface {
-	Get(context.Context, string) (*resource.Gateway, error)
+	Get(ctx context.Context, gatewayID string) (*resource.Gateway, error)
 }
 
 // UpstreamRepository 定义 Route 校验转发目标时需要的查询能力
 type UpstreamRepository interface {
-	Get(context.Context, string) (*resource.Upstream, error)
+	Get(ctx context.Context, upstreamID string) (*resource.Upstream, error)
 }
 
 // CallerRepository 定义 Route 删除时需要的 Caller 授权查询能力
 type CallerRepository interface {
-	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Caller], error)
+	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Caller], error)
 }
 
 // Service 协调 Route 的校验、引用约束和持久化
@@ -74,15 +74,14 @@ func (s *Service) Get(ctx context.Context, routeID string) (*resource.Route, err
 
 // Create 创建 Route
 func (s *Service) Create(ctx context.Context, spec resource.RouteSpec) (*resource.Route, error) {
-	if err := s.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+	if err := s.ensureDisplayNameAvailable(ctx, "", spec.DisplayName); err != nil {
 		return nil, err
 	}
 	if err := s.validateReferences(ctx, spec); err != nil {
 		return nil, err
 	}
 
-	id := uuid.NewString()
-	return s.repository.Create(ctx, id, spec)
+	return s.repository.Create(ctx, uuid.NewString(), spec)
 }
 
 // Update 使用配置版本乐观更新 Route
@@ -100,7 +99,7 @@ func (s *Service) Update(
 		return nil, routeVersionConflict(current)
 	}
 	if spec.DisplayName != current.Spec.DisplayName {
-		if err := s.validateDisplayName(ctx, routeID, spec.DisplayName); err != nil {
+		if err := s.ensureDisplayNameAvailable(ctx, routeID, spec.DisplayName); err != nil {
 			return nil, err
 		}
 	}
@@ -127,21 +126,7 @@ func (s *Service) Delete(ctx context.Context, routeID string, version int64) err
 	if version != current.Generation {
 		return routeVersionConflict(current)
 	}
-	usage, err := s.policyUsage.Find(ctx, resource.PolicyTargetRef{Kind: resource.KindRoute, Name: routeID})
-	if err != nil {
-		return err
-	}
-	if usage != nil {
-		return biz.NewUserError(fmt.Sprintf("路由 %q 仍被策略 %q 应用", current.Spec.DisplayName, usage.DisplayName))
-	}
-	if err := biz.VisitPages(ctx, s.callers.ListPage, func(caller resource.Caller) (bool, error) {
-		for _, ref := range caller.Spec.RouteRefs {
-			if ref == routeID {
-				return true, biz.NewUserError(fmt.Sprintf("路由 %q 仍授权给调用方 %q", current.Spec.DisplayName, caller.Spec.DisplayName))
-			}
-		}
-		return false, nil
-	}); err != nil {
+	if err := s.ensureNotReferenced(ctx, current); err != nil {
 		return err
 	}
 	if err := s.repository.Delete(ctx, routeID, current.Generation); err != nil {
@@ -153,17 +138,17 @@ func (s *Service) Delete(ctx context.Context, routeID string, version int64) err
 	return nil
 }
 
-func (s *Service) validateDisplayName(ctx context.Context, routeID, displayName string) error {
+func (s *Service) ensureDisplayNameAvailable(ctx context.Context, routeID, displayName string) error {
 	return biz.VisitPages(ctx, s.repository.ListPage, func(route resource.Route) (bool, error) {
 		if route.Name != routeID && route.Spec.DisplayName == displayName {
-			return true, biz.NewUserError(fmt.Sprintf("路由名称 %q 已存在", displayName))
+			return true, biz.NewRuleViolation(fmt.Sprintf("路由名称 %q 已存在", displayName))
 		}
 		return false, nil
 	})
 }
 
 func routeVersionConflict(route *resource.Route) error {
-	return biz.NewVersionConflictError(
+	return biz.NewVersionConflict(
 		route.Name,
 		fmt.Sprintf("路由 %q 已被其他用户修改，请刷新后重试", route.Spec.DisplayName),
 	)

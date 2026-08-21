@@ -5,17 +5,16 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
 	kratos "github.com/go-kratos/kratos/v3"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	"github.com/lgc202/go-kit/version"
 
-	"github.com/lgc202/ingate/internal/authz/caller"
 	"github.com/lgc202/ingate/internal/authz/conf"
+	dataapiserver "github.com/lgc202/ingate/internal/authz/data/apiserver"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 const name = "ingate-authz"
@@ -38,7 +37,7 @@ func NewApp(configFile string) (*App, error) {
 		return nil, fmt.Errorf("read hostname: %w", err)
 	}
 	instanceID := serviceInstanceID(hostname)
-	logger := newLogger(bootstrap.GetLogging(), string(instanceID))
+	logger := appconfig.NewLogger(bootstrap.GetLogging(), name, string(instanceID))
 	kratoslog.SetDefault(logger)
 	kratosApp, err := wireApp(
 		bootstrap.GetServer(),
@@ -63,33 +62,16 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
-	callers *caller.Index,
+	credentials *dataapiserver.CredentialCache,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
 		kratos.ID(string(instanceID)),
 		kratos.Name(name),
-		kratos.Version(version.Get().String()),
+		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		kratos.Server(httpServer, grpcServer, callers),
-	)
-}
-
-func newLogger(config *conf.Logging, instanceID string) *slog.Logger {
-	format := kratoslog.FormatText
-	if strings.EqualFold(config.GetFormat(), "json") {
-		format = kratoslog.FormatJSON
-	}
-	handler := kratoslog.NewHandler(
-		kratoslog.WithWriter(os.Stderr),
-		kratoslog.WithFormat(format),
-		kratoslog.WithLevel(kratoslog.ParseLevel(config.GetLevel())),
-		kratoslog.WithAddSource(config.GetAddSource()),
-	)
-	return kratoslog.NewLogger(handler).With(
-		"service.id", instanceID,
-		"service.name", name,
-		"service.version", version.Get().String(),
+		// Caller 凭据缓存和网络服务共享同一进程生命周期，首次同步完成前 /readyz 保持未就绪
+		kratos.Server(httpServer, grpcServer, credentials),
 	)
 }

@@ -13,23 +13,23 @@ source "${codegen_pkg}/kube_codegen.sh"
 
 kube::codegen::gen_helpers \
   --boilerplate "${repo_root}/hack/boilerplate.go.txt" \
-  "${repo_root}/pkg/apis"
+  "${repo_root}/internal/pkg/apis"
 
 kube::codegen::gen_client \
   --with-watch \
-  --output-dir "${repo_root}/pkg/generated" \
-  --output-pkg "github.com/lgc202/ingate/pkg/generated" \
+  --output-dir "${repo_root}/internal/pkg/generated" \
+  --output-pkg "github.com/lgc202/ingate/internal/pkg/generated" \
   --boilerplate "${repo_root}/hack/boilerplate.go.txt" \
-  "${repo_root}/pkg/apis"
+  "${repo_root}/internal/pkg/apis"
 
 # client-gen 默认生成测试专用 fake client；当前项目不维护单元测试，不保留没有生产调用方的生成包
 rm -rf \
-  "${repo_root}/pkg/generated/clientset/versioned/fake" \
-  "${repo_root}/pkg/generated/clientset/versioned/typed/gateway/v1/fake"
+  "${repo_root}/internal/pkg/generated/clientset/versioned/fake" \
+  "${repo_root}/internal/pkg/generated/clientset/versioned/typed/gateway/v1/fake"
 
 kube::codegen::gen_openapi \
-  --output-dir "${repo_root}/pkg/generated/openapi" \
-  --output-pkg "github.com/lgc202/ingate/pkg/generated/openapi" \
+  --output-dir "${repo_root}/internal/pkg/generated/openapi" \
+  --output-pkg "github.com/lgc202/ingate/internal/pkg/generated/openapi" \
   --report-filename "${repo_root}/hack/openapi/api-rule-violations.report" \
   --boilerplate "${repo_root}/hack/boilerplate.go.txt" \
-  "${repo_root}/pkg/apis"
+  "${repo_root}/internal/pkg/apis"

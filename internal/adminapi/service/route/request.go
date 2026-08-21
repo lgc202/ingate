@@ -5,8 +5,8 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 func createSpec(request *adminv1.CreateRouteRequest) (resource.RouteSpec, error) {

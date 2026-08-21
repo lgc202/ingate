@@ -5,18 +5,17 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
 	kratos "github.com/go-kratos/kratos/v3"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	"github.com/lgc202/go-kit/version"
 
 	"github.com/lgc202/ingate/internal/controller/biz"
 	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 	"github.com/lgc202/ingate/internal/controller/conf"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 const name = "ingate-controller"
@@ -39,7 +38,7 @@ func NewApp(configFile string) (*App, error) {
 		return nil, fmt.Errorf("read hostname: %w", err)
 	}
 	instanceID := serviceInstanceID(hostname)
-	logger := newLogger(bootstrap.GetLogging(), string(instanceID))
+	logger := appconfig.NewLogger(bootstrap.GetLogging(), name, string(instanceID))
 	kratoslog.SetDefault(logger)
 
 	kratosApp, err := wireApp(
@@ -74,27 +73,9 @@ func newKratosApp(
 	return kratos.New(
 		kratos.ID(string(instanceID)),
 		kratos.Name(name),
-		kratos.Version(version.Get().String()),
+		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		kratos.Server(httpServer, grpcServer, configDelivery, controller),
-	)
-}
-
-func newLogger(config *conf.Logging, instanceID string) *slog.Logger {
-	format := kratoslog.FormatText
-	if strings.EqualFold(config.GetFormat(), "json") {
-		format = kratoslog.FormatJSON
-	}
-	handler := kratoslog.NewHandler(
-		kratoslog.WithWriter(os.Stderr),
-		kratoslog.WithFormat(format),
-		kratoslog.WithLevel(kratoslog.ParseLevel(config.GetLevel())),
-		kratoslog.WithAddSource(config.GetAddSource()),
-	)
-	return kratoslog.NewLogger(handler).With(
-		"service.id", instanceID,
-		"service.name", name,
-		"service.version", version.Get().String(),
 	)
 }

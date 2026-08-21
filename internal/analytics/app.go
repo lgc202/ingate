@@ -1,8 +1,8 @@
 // Package analytics 装配 ingate-analytics 进程及其资源生命周期
 //
-// 组件的数据写入链路为 Kafka -> Consumer -> request.Recorder -> ClickHouse，
-// 查询链路为 Admin API -> gRPC Service -> biz Queries -> ClickHouse。Kratos 只管理
-// HTTP、gRPC 和 Consumer 的启动停止，不承载请求分析业务
+// 组件的数据写入链路为 Kafka -> RequestConsumer -> request.Recorder -> ClickHouse，
+// 查询链路为 Admin API -> gRPC Service -> biz 查询用例 -> ClickHouse。Kratos 只管理
+// HTTP、gRPC 和 Kafka 消费循环的启动停止，不承载请求分析业务
 package analytics
 
 import (
@@ -10,18 +10,17 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
 	kratos "github.com/go-kratos/kratos/v3"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	"github.com/lgc202/go-kit/version"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
 	clickhousedata "github.com/lgc202/ingate/internal/analytics/data/clickhouse"
 	"github.com/lgc202/ingate/internal/analytics/server"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 const name = "ingate-analytics"
@@ -48,7 +47,7 @@ func NewApp(configFile string) (*App, error) {
 		return nil, fmt.Errorf("read hostname: %w", err)
 	}
 	instanceID := serviceInstanceID(hostname)
-	logger := newLogger(bootstrap.GetLogging(), string(instanceID))
+	logger := appconfig.NewLogger(bootstrap.GetLogging(), name, string(instanceID))
 	kratoslog.SetDefault(logger)
 
 	kratosApp, cleanup, err := wireApp(
@@ -65,7 +64,7 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp, cleanup: cleanup}, nil
 }
 
-// Run 启动 Analytics 的 HTTP、gRPC 和 Kafka Consumer，退出后释放 ClickHouse 连接
+// Run 启动 Analytics 的 HTTP、gRPC 和 Kafka 消费循环，退出后释放 ClickHouse 连接
 func (a *App) Run() error {
 	defer a.cleanup()
 	return a.kratos.Run()
@@ -89,34 +88,16 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
-	consumer *server.Consumer,
+	consumer *server.RequestConsumer,
 	instanceID serviceInstanceID,
 ) *kratos.App {
-	// Consumer 实现 Kratos Server 接口，因此和 HTTP、gRPC 使用同一套生命周期
+	// Kafka 消费循环实现 Kratos Server 接口，因此和 HTTP、gRPC 使用同一套生命周期
 	return kratos.New(
 		kratos.ID(string(instanceID)),
 		kratos.Name(name),
-		kratos.Version(version.Get().String()),
+		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		kratos.Server(httpServer, grpcServer, consumer),
-	)
-}
-
-func newLogger(config *conf.Logging, instanceID string) *slog.Logger {
-	format := kratoslog.FormatText
-	if strings.EqualFold(config.GetFormat(), "json") {
-		format = kratoslog.FormatJSON
-	}
-	handler := kratoslog.NewHandler(
-		kratoslog.WithWriter(os.Stderr),
-		kratoslog.WithFormat(format),
-		kratoslog.WithLevel(kratoslog.ParseLevel(config.GetLevel())),
-		kratoslog.WithAddSource(config.GetAddSource()),
-	)
-	return kratoslog.NewLogger(handler).With(
-		"service.id", instanceID,
-		"service.name", name,
-		"service.version", version.Get().String(),
 	)
 }

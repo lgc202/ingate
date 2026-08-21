@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -9,12 +8,13 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/lgc202/ingate/internal/console/conf"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
 // NewAdminAPIProxy 创建到 ingate-admin-api 的反向代理，保持控制台现有 API 路径与响应不变
-func NewAdminAPIProxy(baseURL string, logger *slog.Logger) (*httputil.ReverseProxy, error) {
-	target, err := url.Parse(strings.TrimSpace(baseURL))
+func NewAdminAPIProxy(config *conf.Data_AdminAPI, logger *slog.Logger) (*httputil.ReverseProxy, error) {
+	target, err := url.Parse(strings.TrimSpace(config.GetBaseUrl()))
 	if err != nil {
 		return nil, fmt.Errorf("parse admin API base URL: %w", err)
 	}
@@ -33,9 +33,7 @@ func NewAdminAPIProxy(baseURL string, logger *slog.Logger) (*httputil.ReversePro
 			"path", request.URL.Path,
 			"err", err,
 		)
-		writer.Header().Set("Content-Type", "application/json; charset=utf-8")
-		writer.WriteHeader(http.StatusBadGateway)
-		if encodeErr := json.NewEncoder(writer).Encode(map[string]any{
+		if encodeErr := writeJSON(writer, http.StatusBadGateway, map[string]any{
 			"code": http.StatusBadGateway,
 			"msg":  "管理服务暂时不可用",
 			"data": nil,

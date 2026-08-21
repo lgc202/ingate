@@ -19,7 +19,7 @@ import (
 // Injectors from wire.go:
 
 func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_DiskQueue *conf.Data_DiskQueue, logger *slog.Logger, alsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
-	writer, cleanup, err := data.NewKafkaWriter(data_Kafka)
+	publisher, cleanup, err := data.NewKafkaPublisher(data_Kafka)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -28,8 +28,8 @@ func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_DiskQueu
 		cleanup()
 		return nil, nil, err
 	}
-	recorder := biz.NewRecorder(writer, queue, logger)
-	httpServer := server.NewHTTPServer(confServer, data_Kafka, data_DiskQueue, writer, recorder)
+	recorder := biz.NewRecorder(publisher, queue, logger)
+	httpServer := server.NewHTTPServer(confServer, data_Kafka, data_DiskQueue, recorder)
 	serviceService := service.NewService(recorder, logger)
 	grpcServer, err := server.NewGRPCServer(confServer, serviceService)
 	if err != nil {
