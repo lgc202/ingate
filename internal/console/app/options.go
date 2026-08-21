@@ -5,17 +5,15 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/lgc202/ingate/internal/pkg/appconfig"
 )
 
 const defaultConfigPath = "configs/ingate-console.yaml"
 
 // Config 定义 ingate-console 的进程配置
 type Config struct {
-	Server   ServerConfig      `mapstructure:"server"`
-	AdminAPI AdminAPIConfig    `mapstructure:"admin_api"`
-	Logging  appconfig.Logging `mapstructure:"logging"`
+	Server   ServerConfig   `mapstructure:"server"`
+	AdminAPI AdminAPIConfig `mapstructure:"admin_api"`
+	Logging  Logging        `mapstructure:"logging"`
 }
 
 // ServerConfig 定义控制台监听与静态资源配置
