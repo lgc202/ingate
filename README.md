@@ -203,3 +203,7 @@ npm run dev
 ## 参与贡献与安全
 
 提交 Pull Request 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，并执行 `make verify`。安全问题请按照 [SECURITY.md](SECURITY.md) 使用 GitHub 私有漏洞报告，不要在公开 Issue 中披露漏洞细节。
+
+## 许可证
+
+Ingate 使用 [Apache License 2.0](LICENSE) 开源。
