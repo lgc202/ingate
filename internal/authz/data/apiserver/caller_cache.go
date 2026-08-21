@@ -14,9 +14,9 @@ import (
 	"github.com/lgc202/ingate/internal/authz/biz"
 	"github.com/lgc202/ingate/internal/authz/conf"
 	"github.com/lgc202/ingate/internal/pkg/accesskey"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
-	informers "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
-	gatewaylisters "github.com/lgc202/ingate/pkg/generated/listers/gateway/v1"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
+	informers "github.com/lgc202/ingate/internal/pkg/generated/informers/externalversions"
+	gatewaylisters "github.com/lgc202/ingate/internal/pkg/generated/listers/gateway/v1"
 )
 
 type credentialIndex struct {

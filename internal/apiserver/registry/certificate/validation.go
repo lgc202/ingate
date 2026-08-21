@@ -3,8 +3,8 @@ package certificate
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 	certificateparser "github.com/lgc202/ingate/internal/pkg/certificate"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
 func validateCertificate(certificate *resource.Certificate) field.ErrorList {

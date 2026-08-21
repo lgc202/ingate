@@ -7,7 +7,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
 // NewClient 创建 Admin API 使用的声明式资源客户端

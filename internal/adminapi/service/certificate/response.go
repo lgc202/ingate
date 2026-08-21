@@ -4,8 +4,8 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 func certificateResponse(certificate *resource.Certificate) *adminv1.Certificate {

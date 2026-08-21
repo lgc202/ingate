@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // RateLimitPolicyLister 定义策略引用检查需要的限流策略分页能力

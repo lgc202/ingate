@@ -11,7 +11,7 @@ import (
 	controllerdata "github.com/lgc202/ingate/internal/controller/data/apiserver"
 	controllerstatus "github.com/lgc202/ingate/internal/controller/data/apiserver/status"
 	"github.com/lgc202/ingate/internal/controller/server/xds"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
 func newAPIClient(config *conf.Data_APIServer) (clientset.Interface, error) {

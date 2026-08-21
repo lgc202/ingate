@@ -6,7 +6,8 @@ import (
 	"strings"
 
 	kratoslog "github.com/go-kratos/kratos/v3/log"
-	"github.com/lgc202/go-kit/version"
+
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 // LoggerConfig 是各组件生成配置向公共日志装配暴露的最小能力
@@ -33,6 +34,6 @@ func NewLogger(config LoggerConfig, serviceName, serviceID string) *slog.Logger 
 	return kratoslog.NewLogger(handler).With(
 		"service.id", serviceID,
 		"service.name", serviceName,
-		"service.version", version.Get().String(),
+		"service.version", version.String(),
 	)
 }

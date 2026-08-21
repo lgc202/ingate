@@ -13,7 +13,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	"github.com/lgc202/ingate/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/tlsx"
 )
 
 // NewClient 创建 Admin API 访问 Analytics 的 gRPC 连接

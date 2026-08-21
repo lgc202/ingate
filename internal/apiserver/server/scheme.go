@@ -7,7 +7,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 
-	gatewayinstall "github.com/lgc202/ingate/pkg/apis/gateway/install"
+	gatewayinstall "github.com/lgc202/ingate/internal/pkg/apis/gateway/install"
 )
 
 var (

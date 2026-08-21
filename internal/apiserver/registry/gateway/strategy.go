@@ -11,8 +11,8 @@ import (
 	"sigs.k8s.io/structured-merge-diff/v6/fieldpath"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
 // strategy 定义 Gateway 资源在 apiserver 存储前后的处理规则

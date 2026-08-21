@@ -6,7 +6,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
 func validatePolicy(policy *resource.IPRestrictionPolicy) field.ErrorList {
