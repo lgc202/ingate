@@ -64,6 +64,7 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
       targets: policy.targets,
       status: policy.status,
       createdAt: policy.createdAt,
+      updatedAt: policy.updatedAt,
       raw: policy,
     })),
     ...ipRestrictionPolicies.map((policy) => ({
@@ -77,6 +78,7 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
       targets: policy.targets,
       status: policy.status,
       createdAt: policy.createdAt,
+      updatedAt: policy.updatedAt,
       raw: policy,
     })),
   ].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
