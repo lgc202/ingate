@@ -3,7 +3,15 @@ import { Activity, ArrowRight, Clock3, Gauge, ShieldCheck, TriangleAlert } from 
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { getTrafficAnalysis, getTrafficAnalysisWorkspace } from '@/api/traffic';
 import { useResource } from '@/api/useResource';
-import { Button, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
+import {
+  EmptyState,
+  PageFrame,
+  Panel,
+  ResourceFilterField,
+  ResourceListFilters,
+  ResourceStatePanel,
+  Toast,
+} from '@/components/ui';
 import { formatDuration } from '@/domain/requestRecord';
 import type { RequestOutcome } from '@/domain/requestRecord';
 import { localDateTime, recentTimeRange, roundUpToMinute } from '@/domain/timeRange';
@@ -74,6 +82,12 @@ export function TrafficAnalysisPage() {
     setFilters(next);
   };
 
+  const resetFilters = () => {
+    const next = filtersFromURL(new URLSearchParams());
+    setDraft(next);
+    setFilters(next);
+  };
+
   const selectDimension = (dimension: TrafficBreakdownDimension) => {
     setDraft((current) => ({ ...current, breakdownDimension: dimension }));
     setFilters((current) => ({ ...current, breakdownDimension: dimension }));
@@ -99,21 +113,24 @@ export function TrafficAnalysisPage() {
   return (
     <PageFrame title="流量分析">
       <Panel>
-        <section className="traffic-filter-panel">
-          <div className="traffic-presets" aria-label="快捷时间范围">
+        <ResourceListFilters
+          summary={formatRange(filters)}
+          resultLabel={`${formatTrafficCount(summary.requestCount)} 次请求`}
+          onSearch={applyFilters}
+          onReset={resetFilters}
+        >
+          <div className="resource-filter-presets" aria-label="快捷时间范围">
+            <span>时间范围</span>
             {presets.map((preset) => (
               <button type="button" key={preset.label} className={matchesPreset(draft, preset.hours) ? 'is-active' : ''} onClick={() => applyPreset(preset.hours)}>{preset.label}</button>
             ))}
           </div>
-          <div className="traffic-filter-grid">
-            <Field label="开始时间"><input className="input" type="datetime-local" value={draft.startTime} onChange={(event) => setDraft({ ...draft, startTime: event.target.value })} /></Field>
-            <Field label="结束时间"><input className="input" type="datetime-local" value={draft.endTime} onChange={(event) => setDraft({ ...draft, endTime: event.target.value })} /></Field>
-            <Field label="网关"><ResourceSelect value={draft.gatewayID} placeholder="全部网关" options={workspace.data?.gateways} onChange={(gatewayID) => setDraft({ ...draft, gatewayID })} /></Field>
-            <Field label="路由"><ResourceSelect value={draft.routeID} placeholder="全部路由" options={workspace.data?.routes} onChange={(routeID) => setDraft({ ...draft, routeID })} /></Field>
-            <Field label="服务"><ResourceSelect value={draft.serviceID} placeholder="全部服务" options={workspace.data?.services} onChange={(serviceID) => setDraft({ ...draft, serviceID })} /></Field>
-            <Button onClick={applyFilters}>查询</Button>
-          </div>
-        </section>
+          <ResourceFilterField label="开始时间"><input className="input" type="datetime-local" value={draft.startTime} onChange={(event) => setDraft({ ...draft, startTime: event.target.value })} /></ResourceFilterField>
+          <ResourceFilterField label="结束时间"><input className="input" type="datetime-local" value={draft.endTime} onChange={(event) => setDraft({ ...draft, endTime: event.target.value })} /></ResourceFilterField>
+          <ResourceFilterField label="网关"><ResourceSelect value={draft.gatewayID} placeholder="全部网关" options={workspace.data?.gateways} onChange={(gatewayID) => setDraft({ ...draft, gatewayID })} /></ResourceFilterField>
+          <ResourceFilterField label="路由"><ResourceSelect value={draft.routeID} placeholder="全部路由" options={workspace.data?.routes} onChange={(routeID) => setDraft({ ...draft, routeID })} /></ResourceFilterField>
+          <ResourceFilterField label="服务"><ResourceSelect value={draft.serviceID} placeholder="全部服务" options={workspace.data?.services} onChange={(serviceID) => setDraft({ ...draft, serviceID })} /></ResourceFilterField>
+        </ResourceListFilters>
       </Panel>
 
       <section className="traffic-metric-grid">
@@ -284,10 +301,6 @@ function ResponseDistribution({ metrics, filters }: { metrics: TrafficMetrics; f
       <div className="traffic-distribution-list">{segments.map((segment) => <Link key={segment.key} to={requestResultURL(filters, segment.outcome)}><span><i className={`is-${segment.key}`} />{segment.label}</span><strong>{formatTrafficPercent(segment.value, total)}</strong><small>{formatTrafficCount(segment.value)}</small><ArrowRight /></Link>)}</div>
     </div>
   );
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="field"><span>{label}</span>{children}</label>;
 }
 
 function ResourceSelect({ value, placeholder, options, onChange }: { value?: string; placeholder: string; options?: Array<{ id: string; name: string }>; onChange: (value?: string) => void }) {

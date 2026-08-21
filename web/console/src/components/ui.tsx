@@ -1,5 +1,5 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { AlertCircle, CircleCheck, Search, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AlertCircle, ChevronDown, CircleCheck, Search, SlidersHorizontal, X } from 'lucide-react';
 
 export function PageFrame({
   title,
@@ -68,6 +68,74 @@ export function SearchField({
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
+  );
+}
+
+export function ResourceListFilters({
+  summary,
+  resultLabel,
+  children,
+  onSearch,
+  onReset,
+}: {
+  summary: string;
+  resultLabel: string;
+  children: ReactNode;
+  onSearch: () => void;
+  onReset: () => void;
+}) {
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <form
+      className={`resource-filter-panel${expanded ? '' : ' is-collapsed'}`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSearch();
+      }}
+    >
+      <header className="resource-filter-header">
+        <div className="resource-filter-heading">
+          <SlidersHorizontal aria-hidden="true" />
+          <div>
+            <strong>筛选条件</strong>
+            <span>{summary}</span>
+          </div>
+        </div>
+        <div className="resource-filter-header-actions">
+          <span>{resultLabel}</span>
+          <button
+            className="resource-filter-toggle"
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded((current) => !current)}
+          >
+            {expanded ? '收起' : '展开'}
+            <ChevronDown className={expanded ? 'is-open' : ''} aria-hidden="true" />
+          </button>
+        </div>
+      </header>
+      {expanded ? (
+        <>
+          <div className="resource-filter-fields">{children}</div>
+          <footer className="resource-filter-footer">
+            <Button type="button" variant="ghost" onClick={onReset}>
+              重置
+            </Button>
+            <Button type="submit">查询</Button>
+          </footer>
+        </>
+      ) : null}
+    </form>
+  );
+}
+
+export function ResourceFilterField({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="resource-filter-field">
+      <span>{label}</span>
+      {children}
+    </div>
   );
 }
 

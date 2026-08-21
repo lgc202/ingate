@@ -5,8 +5,22 @@ import { listCertificates } from '@/api/certificates';
 import { deleteGateway, listGateways, saveGateway } from '@/api/gateways';
 import { getPolicyWorkspace } from '@/api/policies';
 import { useResource } from '@/api/useResource';
-import { Badge, Button, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
-import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
+import {
+  Badge,
+  Button,
+  Drawer,
+  EmptyState,
+  Modal,
+  PageFrame,
+  Panel,
+  ResourceFilterField,
+  ResourceListFilters,
+  ResourceStatePanel,
+  RowActions,
+  SearchField,
+  Toast,
+} from '@/components/ui';
+import { formatDateTime, resourceStateLabel, resourceStateTone, type ResourceState } from '@/domain/common';
 import type { Gateway, GatewayListener, GatewayProtocol } from '@/domain/gateway';
 import { gatewayProtocolLabel } from '@/domain/gateway';
 import type { PolicyWorkspace } from '@/domain/policy';
@@ -15,13 +29,23 @@ import { ResourceTrafficSignal, useResourceTrafficOverview } from '@/features/tr
 import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
 import { buildGatewayPayload, createGatewayDraft, newListener, validateGatewayDraft, type GatewayDraft } from './form';
 
+type GatewayStateFilter = 'all' | ResourceState;
+
+interface GatewayFilters {
+  query: string;
+  state: GatewayStateFilter;
+}
+
+const emptyGatewayFilters = (): GatewayFilters => ({ query: '', state: 'all' });
+
 export function GatewayPage() {
   const gateways = useResource(listGateways);
   const trafficOverview = useResourceTrafficOverview('gateway', gateways.data?.gateways.map((gateway) => gateway.id) ?? []);
   const certificates = useResource(listCertificates);
   const policies = useResource(getPolicyWorkspace);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [query, setQuery] = useState('');
+  const [filterDraft, setFilterDraft] = useState<GatewayFilters>(emptyGatewayFilters);
+  const [filters, setFilters] = useState<GatewayFilters>(emptyGatewayFilters);
   const [draft, setDraft] = useState<GatewayDraft>(() => createGatewayDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Gateway | null>(null);
@@ -37,12 +61,14 @@ export function GatewayPage() {
 
   const list = gateways.data.gateways;
   const detail = list.find((gateway) => gateway.id === searchParams.get('detail')) ?? null;
-  const normalizedQuery = query.trim().toLowerCase();
-  const visibleGateways = list.filter((gateway) => (
-    `${gateway.name} ${gateway.listeners.map((listener) => `${listener.name} ${listener.hostname} ${listener.port}`).join(' ')}`
+  const normalizedQuery = filters.query.trim().toLowerCase();
+  const visibleGateways = list.filter((gateway) => {
+    const state = gateway.enabled ? gateway.state : 'Disabled';
+    const matchesQuery = `${gateway.name} ${gateway.listeners.map((listener) => `${listener.name} ${listener.hostname} ${listener.port}`).join(' ')}`
       .toLowerCase()
-      .includes(normalizedQuery)
-  ));
+      .includes(normalizedQuery);
+    return matchesQuery && (filters.state === 'all' || state === filters.state);
+  });
   const certificateList = certificates.data?.certificates ?? [];
   const setDetail = (gateway?: Gateway) => {
     const next = new URLSearchParams(searchParams);
@@ -94,23 +120,42 @@ export function GatewayPage() {
       actions={<Button onClick={() => openEditor()}><Plus className="w-4 h-4" />创建网关</Button>}
     >
       <Panel>
-        <div className="resource-list-toolbar">
-          <SearchField value={query} onChange={setQuery} placeholder="搜索网关、域名或监听入口" />
-          <span>{visibleGateways.length} 个网关</span>
-        </div>
+        <ResourceListFilters
+          summary={gatewayFilterSummary(filters)}
+          resultLabel={`${visibleGateways.length} 个网关`}
+          onSearch={() => setFilters({ ...filterDraft })}
+          onReset={() => {
+            const next = emptyGatewayFilters();
+            setFilterDraft(next);
+            setFilters(next);
+          }}
+        >
+          <ResourceFilterField label="关键词">
+            <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索网关、域名或监听入口" />
+          </ResourceFilterField>
+          <ResourceFilterField label="状态">
+            <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as GatewayStateFilter }))}>
+              <option value="all">全部状态</option>
+              <option value="Ready">已生效</option>
+              <option value="Pending">待生效</option>
+              <option value="Error">异常</option>
+              <option value="Disabled">已停用</option>
+            </select>
+          </ResourceFilterField>
+        </ResourceListFilters>
         {visibleGateways.length === 0 ? <div className="p-5"><EmptyState title={list.length === 0 ? '暂无网关' : '没有匹配的网关'} message={list.length === 0 ? '创建网关后即可接收客户端流量' : '请调整搜索条件'} /></div> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">监听入口</th><th className="p-3">最近 1 小时</th><th className="p-3">状态</th><th className="p-3">更新时间</th><th className="p-3 text-right">操作</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
+          <div className="table-scroll resource-table-scroll">
+            <table className="table resource-table resource-gateway-table">
+              <thead><tr><th>名称</th><th>监听入口</th><th>最近 1 小时</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
+              <tbody>
                 {visibleGateways.map((gateway) => (
                   <tr key={gateway.id}>
-                    <td className="p-3"><div className="flex items-center gap-2"><Layers3 className="w-4 h-4 text-blue-600" /><strong>{gateway.name}</strong></div></td>
-                    <td className="p-3"><div className="flex flex-wrap gap-1.5">{gateway.listeners.map((listener) => <Badge key={listener.name} tone="neutral">{gatewayProtocolLabel(listener.protocol)} · {listener.port} · {listener.hostname || '全部域名'}</Badge>)}</div></td>
-                    <td className="p-3"><ResourceTrafficSignal resourceID={gateway.id} overview={trafficOverview} /></td>
-                    <td className="p-3"><Badge tone={resourceStateTone(gateway.enabled ? gateway.state : 'Disabled')}>{resourceStateLabel(gateway.enabled ? gateway.state : 'Disabled')}</Badge></td>
-                    <td className="p-3 text-slate-500">{formatDateTime(gateway.updatedAt || gateway.createdAt)}</td>
-                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(gateway)} onEdit={() => openEditor(gateway)} onDelete={() => setDeleteCandidate(gateway)} /></td>
+                    <td><div className="resource-table-name"><Layers3 className="text-blue-600" /><strong>{gateway.name}</strong></div></td>
+                    <td><div className="flex flex-wrap gap-1.5">{gateway.listeners.map((listener) => <Badge key={listener.name} tone="neutral">{gatewayProtocolLabel(listener.protocol)} · {listener.port} · {listener.hostname || '全部域名'}</Badge>)}</div></td>
+                    <td><ResourceTrafficSignal resourceID={gateway.id} overview={trafficOverview} /></td>
+                    <td><Badge tone={resourceStateTone(gateway.enabled ? gateway.state : 'Disabled')}>{resourceStateLabel(gateway.enabled ? gateway.state : 'Disabled')}</Badge></td>
+                    <td className="resource-table-time">{formatDateTime(gateway.updatedAt || gateway.createdAt)}</td>
+                    <td><RowActions onDetail={() => setDetail(gateway)} onEdit={() => openEditor(gateway)} onDelete={() => setDeleteCandidate(gateway)} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -207,4 +252,11 @@ function ListenerEditor({ listener, certificates, onChange, onRemove }: { listen
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="block space-y-1"><span className="text-xs font-medium text-slate-700">{label}</span>{children}</label>;
+}
+
+function gatewayFilterSummary(filters: GatewayFilters): string {
+  const conditions = [];
+  if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
+  if (filters.state !== 'all') conditions.push(`状态：${resourceStateLabel(filters.state)}`);
+  return conditions.join(' · ') || '全部网关';
 }

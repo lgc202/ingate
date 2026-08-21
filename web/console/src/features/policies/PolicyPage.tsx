@@ -8,8 +8,21 @@ import {
   setGovernancePolicyEnabled,
 } from '@/api/policies';
 import { useResource } from '@/api/useResource';
-import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, SearchField, Toast } from '@/components/ui';
-import { formatDateTime } from '@/domain/common';
+import {
+  Badge,
+  Button,
+  Drawer,
+  EmptyState,
+  Modal,
+  PageFrame,
+  Panel,
+  ResourceFilterField,
+  ResourceListFilters,
+  ResourceStatePanel,
+  SearchField,
+  Toast,
+} from '@/components/ui';
+import { formatDateTime, resourceStateLabel, type ResourceState } from '@/domain/common';
 import type { GovernancePolicy, GovernancePolicyKind, PolicyMutationResult, PolicyTargetOption } from '@/domain/policy';
 import { governancePolicyStatusLabel, policyKindLabel, policyStatusTone, policyTargetKindLabel, policyTargetLabel } from '@/domain/policy';
 import {
@@ -33,11 +46,20 @@ type PolicyEditorState =
   | { type: 'ipRestriction'; draft: IPRestrictionPolicyDraft };
 
 type PolicyKindFilter = 'all' | GovernancePolicyKind;
+type PolicyStateFilter = 'all' | ResourceState | 'Unapplied';
+
+interface PolicyFilters {
+  query: string;
+  kind: PolicyKindFilter;
+  state: PolicyStateFilter;
+}
+
+const emptyPolicyFilters = (): PolicyFilters => ({ query: '', kind: 'all', state: 'all' });
 
 export function PolicyPage() {
   const workspace = useResource(getPolicyWorkspace);
-  const [query, setQuery] = useState('');
-  const [kindFilter, setKindFilter] = useState<PolicyKindFilter>('all');
+  const [filterDraft, setFilterDraft] = useState<PolicyFilters>(emptyPolicyFilters);
+  const [filters, setFilters] = useState<PolicyFilters>(emptyPolicyFilters);
   const [detail, setDetail] = useState<GovernancePolicy | null>(null);
   const [editor, setEditor] = useState<PolicyEditorState | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<GovernancePolicy | null>(null);
@@ -63,9 +85,10 @@ export function PolicyPage() {
 
   const data = workspace.data;
   const allPolicies = data.policies;
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = filters.query.trim().toLowerCase();
   const visiblePolicies = allPolicies.filter((policy) => (
-    (kindFilter === 'all' || policy.kind === kindFilter)
+    (filters.kind === 'all' || policy.kind === filters.kind)
+    && policyMatchesState(policy, filters.state)
     && `${policy.name} ${policy.summary} ${policy.targets.map((target) => policyTargetLabel(target, data.targets)).join(' ')}`.toLowerCase().includes(normalizedQuery)
   ));
 
@@ -117,37 +140,45 @@ export function PolicyPage() {
       title="流量策略"
       actions={(
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft() })}
-            className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors cursor-pointer"
-          >
-            + 限流策略
-          </button>
-          <button
-            type="button"
-            onClick={() => setEditor({ type: 'ipRestriction', draft: createIPRestrictionPolicyDraft() })}
-            className="px-3 py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-900 rounded-lg shadow-xs transition-colors cursor-pointer"
-          >
-            + IP 访问限制
-          </button>
+          <Button onClick={() => setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft() })}>+ 限流策略</Button>
+          <Button variant="secondary" onClick={() => setEditor({ type: 'ipRestriction', draft: createIPRestrictionPolicyDraft() })}>+ IP 访问限制</Button>
         </div>
       )}
     >
-      <div className="space-y-6 mt-4">
+      <div className="space-y-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
         <Panel>
-          <div className="resource-list-toolbar">
-            <SearchField value={query} onChange={setQuery} placeholder="搜索策略或应用目标" />
-            <div className="flex items-center gap-3">
-              <select className="select min-w-36" value={kindFilter} aria-label="策略类型" onChange={(event) => setKindFilter(event.target.value as PolicyKindFilter)}>
+          <ResourceListFilters
+            summary={policyFilterSummary(filters)}
+            resultLabel={`${visiblePolicies.length} 条策略`}
+            onSearch={() => setFilters({ ...filterDraft })}
+            onReset={() => {
+              const next = emptyPolicyFilters();
+              setFilterDraft(next);
+              setFilters(next);
+            }}
+          >
+            <ResourceFilterField label="关键词">
+              <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索策略或应用目标" />
+            </ResourceFilterField>
+            <ResourceFilterField label="策略类型">
+              <select className="select" value={filterDraft.kind} onChange={(event) => setFilterDraft((current) => ({ ...current, kind: event.target.value as PolicyKindFilter }))}>
                 <option value="all">全部类型</option>
                 <option value="RateLimitPolicy">限流</option>
                 <option value="IPRestrictionPolicy">IP 访问限制</option>
               </select>
-              <span className="text-xs text-slate-500 whitespace-nowrap">{visiblePolicies.length} 条策略</span>
-            </div>
-          </div>
+            </ResourceFilterField>
+            <ResourceFilterField label="状态">
+              <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as PolicyStateFilter }))}>
+                <option value="all">全部状态</option>
+                <option value="Ready">已生效</option>
+                <option value="Pending">待生效</option>
+                <option value="Error">异常</option>
+                <option value="Disabled">已停用</option>
+                <option value="Unapplied">未应用</option>
+              </select>
+            </ResourceFilterField>
+          </ResourceListFilters>
           <PolicyLibraryTable
             policies={visiblePolicies}
             targets={data.targets}
@@ -244,6 +275,23 @@ export function PolicyPage() {
       </Modal>
     </PageFrame>
   );
+}
+
+function policyMatchesState(policy: GovernancePolicy, state: PolicyStateFilter): boolean {
+  if (state === 'all') return true;
+  if (state === 'Unapplied') return policy.enabled && policy.targets.length === 0;
+  if (state === 'Disabled') return !policy.enabled;
+  return policy.enabled && policy.targets.length > 0 && policy.status.state === state;
+}
+
+function policyFilterSummary(filters: PolicyFilters): string {
+  const conditions = [];
+  if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
+  if (filters.kind !== 'all') conditions.push(`类型：${policyKindLabel(filters.kind)}`);
+  if (filters.state !== 'all') {
+    conditions.push(`状态：${filters.state === 'Unapplied' ? '未应用' : resourceStateLabel(filters.state)}`);
+  }
+  return conditions.join(' · ') || '全部策略';
 }
 
 function PolicyDetail({ policy, targets }: { policy: GovernancePolicy; targets: PolicyTargetOption[] }) {
