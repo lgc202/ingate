@@ -11,7 +11,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/lgc202/ingate/internal/authz/filterconfig"
+	"github.com/lgc202/ingate/internal/pkg/extauthz"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
@@ -99,7 +99,7 @@ func (c *compilation) buildRoutes(
 							if current.route.TypedPerFilterConfig == nil {
 								current.route.TypedPerFilterConfig = make(map[string]*anypb.Any)
 							}
-							current.route.TypedPerFilterConfig[filterconfig.HTTPFilterName] = accessConfig
+							current.route.TypedPerFilterConfig[extauthz.FilterName] = accessConfig
 						}
 						current.route.Name = envoyRouteName(gatewayID, routeID, entry.method, entry.variant)
 						matchKey := routeMatchKey(current.route.Match)

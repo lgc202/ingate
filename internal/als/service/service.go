@@ -24,7 +24,7 @@ import (
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	aifilterconfig "github.com/lgc202/ingate/internal/aiextproc/filterconfig"
 	"github.com/lgc202/ingate/internal/als/biz"
-	authzfilterconfig "github.com/lgc202/ingate/internal/authz/filterconfig"
+	"github.com/lgc202/ingate/internal/pkg/extauthz"
 )
 
 const envoyRouteNamePrefix = "ingate-route"
@@ -106,7 +106,7 @@ func requestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) (*als
 	}
 	gatewayID, routeID := resourceIDs(common.GetRouteName())
 	aiMetadata := metadataFields(common.GetMetadata(), aifilterconfig.MetadataNamespace)
-	authzMetadata := metadataFields(common.GetMetadata(), authzfilterconfig.MetadataNamespace)
+	authzMetadata := metadataFields(common.GetMetadata(), extauthz.MetadataNamespace)
 	host := aiMetadata[aifilterconfig.ClientHostField].GetStringValue()
 	if host == "" {
 		host = request.GetAuthority()
@@ -135,8 +135,8 @@ func requestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) (*als
 		UpstreamAttempts:    common.GetUpstreamRequestAttemptCount(),
 		UpstreamAddress:     socketEndpoint(common.GetUpstreamRemoteAddress()),
 		AiModelCall:         aiModelCall(aiMetadata),
-		CallerId:            authzMetadata[authzfilterconfig.CallerIDField].GetStringValue(),
-		AccessKeyId:         authzMetadata[authzfilterconfig.AccessKeyIDField].GetStringValue(),
+		CallerId:            authzMetadata[extauthz.CallerIDField].GetStringValue(),
+		AccessKeyId:         authzMetadata[extauthz.AccessKeyIDField].GetStringValue(),
 	}
 	record.Id = recordID(nodeID, common.GetStreamId(), record.GetRequestId(), record.GetStartedAt())
 	if duration := common.GetDuration(); duration != nil {
