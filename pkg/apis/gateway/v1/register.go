@@ -63,20 +63,16 @@ const (
 	ResourceCallersStatus ResourceName = "callers/status"
 )
 
-// SchemeGroupVersion 表示 Ingate API 组版本
-var SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: Version}
-
-// SchemeBuilder 注册 Ingate API 类型
-var SchemeBuilder runtime.SchemeBuilder
-
-var localSchemeBuilder = &SchemeBuilder
-
-// AddToScheme 将 Ingate API 类型注册到 Scheme
-var AddToScheme = localSchemeBuilder.AddToScheme
-
-func init() {
-	localSchemeBuilder.Register(addKnownTypes, addConversionFuncs)
-}
+var (
+	// SchemeGroupVersion 表示 Ingate API 组版本
+	SchemeGroupVersion = schema.GroupVersion{Group: GroupName, Version: Version}
+	// SchemeBuilder 注册 Ingate API 类型
+	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
+	// localSchemeBuilder 供生成的转换代码注册版本转换函数
+	localSchemeBuilder = &SchemeBuilder
+	// AddToScheme 将 Ingate API 类型注册到 Scheme
+	AddToScheme = localSchemeBuilder.AddToScheme
+)
 
 // Resource 返回 gateway.ingate.io 资源名
 func Resource(name ResourceName) schema.GroupResource {

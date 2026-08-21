@@ -24,22 +24,28 @@ const (
 
 // PolicyTargetRef 表示策略的生效目标
 type PolicyTargetRef struct {
-	Kind Kind   `json:"kind"`
+	// Kind 当前只支持 Gateway 和 Route
+	Kind Kind `json:"kind"`
+	// Name 引用目标资源的 metadata.name
 	Name string `json:"name"`
 }
 
 // PolicyStatus 表示策略的总体状态和各目标生效状态
 type PolicyStatus struct {
+	// Conditions 记录策略整体的接受、引用解析和生效结果
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// Targets 保留每个目标的独立结果，单个目标失败不影响其他目标
 	// +listType=atomic
 	Targets []PolicyTargetStatus `json:"targets,omitempty"`
 }
 
 // PolicyTargetStatus 表示策略在单个目标上的生效状态
 type PolicyTargetStatus struct {
+	// TargetRef 标识当前状态对应的策略目标
 	TargetRef PolicyTargetRef `json:"targetRef"`
+	// Conditions 记录策略在当前目标上的解析和生效结果
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
@@ -47,6 +53,7 @@ type PolicyTargetStatus struct {
 
 // ResourceStatus 表示声明式资源状态
 type ResourceStatus struct {
+	// Conditions 记录资源当前 Generation 的接受、引用解析和生效结果
 	// +listType=map
 	// +listMapKey=type
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
