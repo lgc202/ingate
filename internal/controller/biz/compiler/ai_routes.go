@@ -96,8 +96,12 @@ func (c *compilation) buildAIRouteEntries(
 			match.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: path}
 		}
 		entries = append(entries, routeEntry{
-			routeID: route.Name, variant: "model/" + model.Name, path: path, exactPath: exactPath,
-			method: http.MethodPost, headerCount: len(headers) + 1,
+			routeID:     route.Name,
+			variant:     "model/" + model.Name,
+			path:        path,
+			exactPath:   exactPath,
+			method:      http.MethodPost,
+			headerCount: len(headers) + 1,
 			route: &routev3.Route{
 				Match:                   match,
 				Action:                  &routev3.Route_Route{Route: proto.Clone(action).(*routev3.RouteAction)},
@@ -126,8 +130,12 @@ func (c *compilation) buildAIRouteEntries(
 		fallbackMatch.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: path}
 	}
 	entries = append(entries, routeEntry{
-		routeID: route.Name, variant: "model-not-found", path: path, exactPath: exactPath,
-		method: http.MethodPost, headerCount: len(headers),
+		routeID:     route.Name,
+		variant:     "model-not-found",
+		path:        path,
+		exactPath:   exactPath,
+		method:      http.MethodPost,
+		headerCount: len(headers),
 		route: &routev3.Route{
 			Match: fallbackMatch,
 			Action: &routev3.Route_DirectResponse{DirectResponse: &routev3.DirectResponseAction{

@@ -69,7 +69,11 @@ func (c *compilation) buildRouteEntries(route *gatewayv1.Route, compiledUpstream
 			match.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: path}
 		}
 		entries = append(entries, routeEntry{
-			routeID: route.Name, path: path, exactPath: exactPath, method: method, headerCount: len(headers),
+			routeID:     route.Name,
+			path:        path,
+			exactPath:   exactPath,
+			method:      method,
+			headerCount: len(headers),
 			route: &routev3.Route{
 				Match:                   match,
 				Action:                  &routev3.Route_Route{Route: proto.Clone(action).(*routev3.RouteAction)},
