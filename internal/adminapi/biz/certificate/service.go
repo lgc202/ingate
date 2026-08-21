@@ -14,16 +14,16 @@ import (
 
 // Repository 定义 Certificate 管理需要的持久化能力
 type Repository interface {
-	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Certificate], error)
-	Get(context.Context, string) (*resource.Certificate, error)
-	Create(context.Context, string, resource.CertificateSpec) (*resource.Certificate, error)
-	Update(context.Context, string, int64, resource.CertificateSpec) (*resource.Certificate, error)
-	Delete(context.Context, string, int64) error
+	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Certificate], error)
+	Get(ctx context.Context, certificateID string) (*resource.Certificate, error)
+	Create(ctx context.Context, certificateID string, spec resource.CertificateSpec) (*resource.Certificate, error)
+	Update(ctx context.Context, certificateID string, generation int64, spec resource.CertificateSpec) (*resource.Certificate, error)
+	Delete(ctx context.Context, certificateID string, generation int64) error
 }
 
 // GatewayRepository 定义删除 Certificate 时需要的 Gateway 查询能力
 type GatewayRepository interface {
-	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Gateway], error)
+	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Gateway], error)
 }
 
 // Service 协调 Certificate 的校验、引用约束和持久化
@@ -49,11 +49,10 @@ func (s *Service) Get(ctx context.Context, certificateID string) (*resource.Cert
 
 // Create 创建 Certificate
 func (s *Service) Create(ctx context.Context, spec resource.CertificateSpec) (*resource.Certificate, error) {
-	if err := s.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+	if err := s.ensureDisplayNameAvailable(ctx, "", spec.DisplayName); err != nil {
 		return nil, err
 	}
-	id := uuid.NewString()
-	return s.repository.Create(ctx, id, spec)
+	return s.repository.Create(ctx, uuid.NewString(), spec)
 }
 
 // Update 使用配置版本乐观更新 Certificate
@@ -71,7 +70,7 @@ func (s *Service) Update(
 		return nil, certificateVersionConflict(current)
 	}
 	if spec.DisplayName != current.Spec.DisplayName {
-		if err := s.validateDisplayName(ctx, certificateID, spec.DisplayName); err != nil {
+		if err := s.ensureDisplayNameAvailable(ctx, certificateID, spec.DisplayName); err != nil {
 			return nil, err
 		}
 	}
@@ -99,14 +98,7 @@ func (s *Service) Delete(ctx context.Context, certificateID string, version int6
 	if version != current.Generation {
 		return certificateVersionConflict(current)
 	}
-	if err := biz.VisitPages(ctx, s.gateways.ListPage, func(gateway resource.Gateway) (bool, error) {
-		for _, listener := range gateway.Spec.Listeners {
-			if listener.CertificateRef == certificateID {
-				return true, biz.NewUserError(fmt.Sprintf("证书 %q 仍被网关 %q 引用", current.Spec.DisplayName, gateway.Spec.DisplayName))
-			}
-		}
-		return false, nil
-	}); err != nil {
+	if err := s.ensureNotReferenced(ctx, current); err != nil {
 		return err
 	}
 	if err := s.repository.Delete(ctx, certificateID, current.Generation); err != nil {
@@ -118,17 +110,17 @@ func (s *Service) Delete(ctx context.Context, certificateID string, version int6
 	return nil
 }
 
-func (s *Service) validateDisplayName(ctx context.Context, certificateID, displayName string) error {
+func (s *Service) ensureDisplayNameAvailable(ctx context.Context, certificateID, displayName string) error {
 	return biz.VisitPages(ctx, s.repository.ListPage, func(certificate resource.Certificate) (bool, error) {
 		if certificate.Name != certificateID && certificate.Spec.DisplayName == displayName {
-			return true, biz.NewUserError(fmt.Sprintf("证书名称 %q 已存在", displayName))
+			return true, biz.NewRuleViolation(fmt.Sprintf("证书名称 %q 已存在", displayName))
 		}
 		return false, nil
 	})
 }
 
 func certificateVersionConflict(certificate *resource.Certificate) error {
-	return biz.NewVersionConflictError(
+	return biz.NewVersionConflict(
 		certificate.Name,
 		fmt.Sprintf("证书 %q 已被其他用户修改，请刷新后重试", certificate.Spec.DisplayName),
 	)

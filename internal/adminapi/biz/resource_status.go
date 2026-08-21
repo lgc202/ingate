@@ -7,14 +7,6 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
-const (
-	statusPriorityError = iota
-	statusPriorityPending
-	statusPriorityReady
-	statusPriorityDisabled
-	statusPriorityUnknown
-)
-
 // ResourceState 表示声明式资源面向控制台的处理状态
 type ResourceState string
 
@@ -99,8 +91,7 @@ func ResourceStatusFromConditions(generation int64, conditions []metav1.Conditio
 	return ResourceStatus{State: ResourceStateReady, Reason: ReasonReady}
 }
 
-// PolicyResourceStatus 将策略总体 Condition 转换为产品状态
-func PolicyResourceStatus(generation int64, targetCount int, conditions []metav1.Condition) ResourceStatus {
+func policyResourceStatus(generation int64, targetCount int, conditions []metav1.Condition) ResourceStatus {
 	programmed := currentCondition(generation, conditions, resource.ConditionProgrammed)
 	if programmed != nil && programmed.Status == metav1.ConditionTrue {
 		return ResourceStatus{State: ResourceStateReady, Reason: ReasonReady}
@@ -114,8 +105,7 @@ func PolicyResourceStatus(generation int64, targetCount int, conditions []metav1
 	return ResourceStatusFromConditions(generation, conditions)
 }
 
-// PolicyTargetResourceStatus 将策略单个作用目标的 Condition 转换为产品状态
-func PolicyTargetResourceStatus(generation int64, conditions []metav1.Condition) ResourceStatus {
+func policyTargetResourceStatus(generation int64, conditions []metav1.Condition) ResourceStatus {
 	resolvedRefs, hasResolvedRefs := conditionForGeneration(generation, conditions, resource.ConditionResolvedRefs)
 	programmed := currentCondition(generation, conditions, resource.ConditionProgrammed)
 
@@ -137,13 +127,11 @@ func PolicyTargetResourceStatus(generation int64, conditions []metav1.Condition)
 	return ResourceStatus{State: ResourceStateReady, Reason: ReasonReady}
 }
 
-// DisabledResourceStatus 返回用户主动停用资源时的产品状态
-func DisabledResourceStatus() ResourceStatus {
+func disabledResourceStatus() ResourceStatus {
 	return ResourceStatus{State: ResourceStateDisabled, Reason: ReasonDisabled}
 }
 
-// ConfigurationApplied 判断当前 generation 的停用或未应用结果是否已经进入 Active 配置
-func ConfigurationApplied(generation int64, conditions []metav1.Condition) bool {
+func configurationApplied(generation int64, conditions []metav1.Condition) bool {
 	programmed := currentCondition(generation, conditions, resource.ConditionProgrammed)
 	if programmed == nil {
 		return false
@@ -157,18 +145,18 @@ func ConfigurationApplied(generation int64, conditions []metav1.Condition) bool 
 
 // EnabledResourceStatus 同时考虑资源开关和当前版本是否已被控制面处理
 func EnabledResourceStatus(generation int64, enabled bool, conditions []metav1.Condition) ResourceStatus {
-	if !enabled && ConfigurationApplied(generation, conditions) {
-		return DisabledResourceStatus()
+	if !enabled && configurationApplied(generation, conditions) {
+		return disabledResourceStatus()
 	}
 	return ResourceStatusFromConditions(generation, conditions)
 }
 
 // PolicyStatus 返回策略总体状态，停用配置只有进入 Active 后才显示为已停用
 func PolicyStatus(generation int64, enabled bool, targetCount int, conditions []metav1.Condition) ResourceStatus {
-	if !enabled && ConfigurationApplied(generation, conditions) {
-		return DisabledResourceStatus()
+	if !enabled && configurationApplied(generation, conditions) {
+		return disabledResourceStatus()
 	}
-	return PolicyResourceStatus(generation, targetCount, conditions)
+	return policyResourceStatus(generation, targetCount, conditions)
 }
 
 // PolicyTargetStatus 返回指定策略目标的生效状态
@@ -179,28 +167,9 @@ func PolicyTargetStatus(
 	targets []resource.PolicyTargetStatus,
 ) ResourceStatus {
 	if disabled {
-		return DisabledResourceStatus()
+		return disabledResourceStatus()
 	}
-	return PolicyTargetResourceStatus(generation, targetConditions(targets, ref))
-}
-
-// EffectivePolicyStatus 以最严重的目标状态表示策略当前实际生效结果
-func EffectivePolicyStatus(
-	generation int64,
-	enabled bool,
-	refs []resource.PolicyTargetRef,
-	conditions []metav1.Condition,
-	targets []resource.PolicyTargetStatus,
-) ResourceStatus {
-	status := PolicyStatus(generation, enabled, len(refs), conditions)
-	disabled := status.State == ResourceStateDisabled
-	for _, ref := range refs {
-		targetStatus := PolicyTargetStatus(generation, disabled, ref, targets)
-		if statusPriority(targetStatus.State) < statusPriority(status.State) {
-			status = targetStatus
-		}
-	}
-	return status
+	return policyTargetResourceStatus(generation, targetConditions(targets, ref))
 }
 
 func targetConditions(targets []resource.PolicyTargetStatus, ref resource.PolicyTargetRef) []metav1.Condition {
@@ -210,21 +179,6 @@ func targetConditions(targets []resource.PolicyTargetStatus, ref resource.Policy
 		}
 	}
 	return nil
-}
-
-func statusPriority(state ResourceState) int {
-	switch state {
-	case ResourceStateError:
-		return statusPriorityError
-	case ResourceStatePending:
-		return statusPriorityPending
-	case ResourceStateReady:
-		return statusPriorityReady
-	case ResourceStateDisabled:
-		return statusPriorityDisabled
-	default:
-		return statusPriorityUnknown
-	}
 }
 
 func conditionForGeneration(generation int64, conditions []metav1.Condition, conditionType resource.ConditionType) (*metav1.Condition, bool) {

@@ -20,7 +20,6 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	"github.com/lgc202/ingate/internal/adminapi/data"
 	"github.com/lgc202/ingate/internal/adminapi/data/analytics"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
 	"github.com/lgc202/ingate/internal/adminapi/server"
@@ -39,8 +38,8 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, adminapiServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
-	versionedInterface, err := data.NewResourceClient(confData)
+func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, adminapiServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+	versionedInterface, err := apiserver.NewClient(data)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -66,7 +65,7 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger *slog.Logger, 
 	service6 := ratelimit2.NewService(ratelimitService)
 	iprestrictionService := iprestriction.NewService(ipRestrictionPolicyRepository, gatewayRepository, routeRepository)
 	service7 := iprestriction2.NewService(iprestrictionService)
-	clientConn, cleanup, err := analytics.NewClient(confData, logger)
+	clientConn, cleanup, err := analytics.NewClient(data, logger)
 	if err != nil {
 		return nil, nil, err
 	}
