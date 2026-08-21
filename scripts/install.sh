@@ -16,7 +16,7 @@ Usage: install.sh [DIR] [OPTIONS]
 Install the Ingate Docker Compose distribution into DIR (./ingate by default).
 
 Options:
-  --version VERSION  Install a fixed release such as v0.1.0
+  --version VERSION  Install a fixed release tag such as vX.Y.Z
   --no-start         Download and configure Ingate without starting containers
   -h, --help        Show this help
 EOF
@@ -123,6 +123,7 @@ Start:  $DESTINATION/bin/start.sh
 Stop:   $DESTINATION/bin/stop.sh
 Status: $DESTINATION/bin/status.sh
 Logs:   $DESTINATION/bin/logs.sh
+Remove: $DESTINATION/bin/uninstall.sh
 
 Next: open Console and create Service -> Gateway -> Route
 EOF
