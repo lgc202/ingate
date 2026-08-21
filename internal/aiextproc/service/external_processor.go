@@ -1,4 +1,7 @@
 // Package service 实现 Envoy External Processing 协议
+//
+// 同一客户端请求会产生一条 downstream 流和至少一条 upstream 流，服务只负责关联、
+// 编排和生成 ExtProc 响应，具体 Chat Completions 协议转换位于 chatcompletion 子包
 package service
 
 import (
@@ -11,32 +14,30 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-
-	"github.com/lgc202/ingate/internal/aiextproc/modelservice"
 )
 
-// Service 接收 Envoy 发来的入口和上游 External Processing 流
+// ExternalProcessor 接收 Envoy 发来的 downstream 和 upstream External Processing 流
 // requests 只在单次 HTTP 请求存活期间关联两类流，不承担持久化或跨实例共享
-type Service struct {
+type ExternalProcessor struct {
 	extprocv3.UnimplementedExternalProcessorServer
 
 	mu       sync.RWMutex
 	requests map[string]*requestState
-	models   *modelservice.Cache
+	apiKeys  ModelAPIKeySource
 }
 
-// NewService 创建 External Processing 服务
-func NewService(models *modelservice.Cache) *Service {
-	return &Service{
+// NewExternalProcessor 创建 External Processing 服务
+func NewExternalProcessor(apiKeys ModelAPIKeySource) *ExternalProcessor {
+	return &ExternalProcessor{
 		requests: make(map[string]*requestState),
-		models:   models,
+		apiKeys:  apiKeys,
 	}
 }
 
 // Process 按 Envoy External Processing 协议处理一条双向流
-// Envoy 会分别为入口 filter 和每次上游尝试创建流，二者不是同一个 gRPC stream
-func (s *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) error {
-	state := streamState{service: s}
+// Envoy 会分别为 downstream filter 和每次 upstream 尝试创建流，二者不是同一个 gRPC stream
+func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessServer) error {
+	state := streamState{processor: p}
 	defer state.close()
 
 	for {
@@ -54,7 +55,7 @@ func (s *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) erro
 
 		response, err := state.handle(request)
 		if err != nil {
-			return processingStatus(err)
+			return grpcStatusError(err)
 		}
 		if err := stream.Send(response); err != nil {
 			return fmt.Errorf("send ExtProc response: %w", err)
@@ -62,31 +63,31 @@ func (s *Service) Process(stream extprocv3.ExternalProcessor_ProcessServer) erro
 	}
 }
 
-func (s *Service) registerRequest() (string, *requestState) {
+func (p *ExternalProcessor) registerRequest() (string, *requestState) {
 	// 关联 ID 由服务端生成并覆盖同名客户端 Header，避免不同请求串用共享状态
 	id := uuid.NewString()
 	request := &requestState{}
-	s.mu.Lock()
-	s.requests[id] = request
-	s.mu.Unlock()
+	p.mu.Lock()
+	p.requests[id] = request
+	p.mu.Unlock()
 	return id, request
 }
 
-func (s *Service) findRequest(id string) (*requestState, bool) {
-	s.mu.RLock()
-	request, ok := s.requests[id]
-	s.mu.RUnlock()
+func (p *ExternalProcessor) findRequest(id string) (*requestState, bool) {
+	p.mu.RLock()
+	request, ok := p.requests[id]
+	p.mu.RUnlock()
 	return request, ok
 }
 
-func (s *Service) deleteRequest(id string) {
-	// 入口流覆盖完整请求生命周期，它结束后不会再产生新的上游尝试
-	s.mu.Lock()
-	delete(s.requests, id)
-	s.mu.Unlock()
+func (p *ExternalProcessor) deleteRequest(id string) {
+	// downstream 流覆盖完整请求生命周期，它结束后不会再产生新的 upstream 尝试
+	p.mu.Lock()
+	delete(p.requests, id)
+	p.mu.Unlock()
 }
 
-func processingStatus(err error) error {
+func grpcStatusError(err error) error {
 	// ExtProc 配置错误与请求协议错误使用不同状态，便于 Envoy 日志定位部署问题
 	switch {
 	case errors.Is(err, errUnsupportedPhase):

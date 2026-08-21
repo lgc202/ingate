@@ -22,8 +22,8 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
-	aifilterconfig "github.com/lgc202/ingate/internal/aiextproc/filterconfig"
 	"github.com/lgc202/ingate/internal/als/biz"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	"github.com/lgc202/ingate/internal/pkg/extauthz"
 )
 
@@ -105,13 +105,13 @@ func requestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) (*als
 		return nil, fmt.Errorf("HTTP access log start time: %w", err)
 	}
 	gatewayID, routeID := resourceIDs(common.GetRouteName())
-	aiMetadata := metadataFields(common.GetMetadata(), aifilterconfig.MetadataNamespace)
+	aiMetadata := metadataFields(common.GetMetadata(), aiprotocol.MetadataNamespace)
 	authzMetadata := metadataFields(common.GetMetadata(), extauthz.MetadataNamespace)
-	host := aiMetadata[aifilterconfig.ClientHostField].GetStringValue()
+	host := aiMetadata[aiprotocol.ClientHostField].GetStringValue()
 	if host == "" {
 		host = request.GetAuthority()
 	}
-	path := aiMetadata[aifilterconfig.ClientPathField].GetStringValue()
+	path := aiMetadata[aiprotocol.ClientPathField].GetStringValue()
 	if path == "" {
 		path = request.GetPath()
 	}
@@ -158,14 +158,14 @@ func metadataFields(metadata *corev3.Metadata, namespace string) map[string]*str
 
 func aiModelCall(fields map[string]*structpb.Value) *alsv1.AIModelCall {
 	call := &alsv1.AIModelCall{
-		ClientModel:      fields["client_model"].GetStringValue(),
-		UpstreamModel:    fields["upstream_model"].GetStringValue(),
-		UpstreamProtocol: fields["upstream_protocol"].GetStringValue(),
-		ResponseModel:    fields["response_model"].GetStringValue(),
-		FinishReason:     fields["finish_reason"].GetStringValue(),
-		InputTokens:      metadataTokenCount(fields["input_tokens"]),
-		OutputTokens:     metadataTokenCount(fields["output_tokens"]),
-		TotalTokens:      metadataTokenCount(fields["total_tokens"]),
+		ClientModel:      fields[aiprotocol.ClientModelField].GetStringValue(),
+		UpstreamModel:    fields[aiprotocol.UpstreamModelField].GetStringValue(),
+		UpstreamProtocol: fields[aiprotocol.UpstreamProtocolField].GetStringValue(),
+		ResponseModel:    fields[aiprotocol.ResponseModelField].GetStringValue(),
+		FinishReason:     fields[aiprotocol.FinishReasonField].GetStringValue(),
+		InputTokens:      metadataTokenCount(fields[aiprotocol.InputTokensField]),
+		OutputTokens:     metadataTokenCount(fields[aiprotocol.OutputTokensField]),
+		TotalTokens:      metadataTokenCount(fields[aiprotocol.TotalTokensField]),
 	}
 	if call.GetClientModel() == "" && call.GetUpstreamModel() == "" && call.GetUpstreamProtocol() == "" &&
 		call.GetResponseModel() == "" && call.GetFinishReason() == "" && call.InputTokens == nil &&

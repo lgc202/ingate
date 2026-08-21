@@ -20,7 +20,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 	"k8s.io/apimachinery/pkg/util/validation"
 
-	"github.com/lgc202/ingate/internal/aiextproc/filterconfig"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -175,16 +175,16 @@ func (c *compilation) upstreamLBPolicy(upstream *gatewayv1.Upstream) (clusterv3.
 	}
 }
 
-func (c *compilation) upstreamModelProtocol(upstream *gatewayv1.Upstream) (filterconfig.Protocol, bool) {
+func (c *compilation) upstreamModelProtocol(upstream *gatewayv1.Upstream) (aiprotocol.UpstreamProtocol, bool) {
 	if upstream.Spec.Model == nil {
 		return "", true
 	}
 
 	switch upstream.Spec.Model.Protocol {
 	case gatewayv1.ModelProtocolOpenAI:
-		return filterconfig.ProtocolOpenAI, true
+		return aiprotocol.UpstreamProtocolOpenAI, true
 	case gatewayv1.ModelProtocolAnthropic:
-		return filterconfig.ProtocolAnthropic, true
+		return aiprotocol.UpstreamProtocolAnthropic, true
 	default:
 		c.addDiagnostic(SeverityError, gatewayv1.KindUpstream, upstream.Name, ReasonUnsupported, fmt.Sprintf("upstream %q uses unsupported model protocol %q", upstream.Name, upstream.Spec.Model.Protocol))
 		return "", false
@@ -193,7 +193,7 @@ func (c *compilation) upstreamModelProtocol(upstream *gatewayv1.Upstream) (filte
 
 func (c *compilation) buildUpstreamEndpoints(
 	upstream *gatewayv1.Upstream,
-	modelProtocol filterconfig.Protocol,
+	modelProtocol aiprotocol.UpstreamProtocol,
 ) ([]*endpointv3.LbEndpoint, bool) {
 	items := slices.Clone(upstream.Spec.Endpoints)
 	slices.SortFunc(items, func(a, b gatewayv1.Endpoint) int {
@@ -227,7 +227,7 @@ func (c *compilation) buildUpstreamEndpoints(
 		usesDNS = usesDNS || !isIPAddress(endpoint.Address)
 		envoyEndpoint := &endpointv3.Endpoint{Address: socketAddress(endpoint.Address, endpoint.Port)}
 		if !isIPAddress(endpoint.Address) {
-			// AutoHostRewrite 使用端点主机名生成上游 Host，避免把入口域名继续传给外部服务
+			// AutoHostRewrite 使用端点主机名生成上游 Host，避免把客户端请求域名继续传给外部服务
 			envoyEndpoint.Hostname = strings.ToLower(endpoint.Address)
 		}
 		lbEndpoint := &endpointv3.LbEndpoint{
@@ -237,10 +237,10 @@ func (c *compilation) buildUpstreamEndpoints(
 		if modelProtocol != "" {
 			// 端点元数据在负载均衡完成后才可用，用于告诉上游 ExtProc 本次实际选中的模型 Service
 			lbEndpoint.Metadata = &corev3.Metadata{FilterMetadata: map[string]*structpb.Struct{
-				filterconfig.MetadataNamespace: {
+				aiprotocol.MetadataNamespace: {
 					Fields: map[string]*structpb.Value{
-						"service_id": structpb.NewStringValue(upstream.Name),
-						"protocol":   structpb.NewStringValue(string(modelProtocol)),
+						aiprotocol.ServiceIDField:       structpb.NewStringValue(upstream.Name),
+						aiprotocol.ServiceProtocolField: structpb.NewStringValue(string(modelProtocol)),
 					},
 				},
 			}}

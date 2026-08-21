@@ -7,8 +7,7 @@ import (
 
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 
-	"github.com/lgc202/ingate/internal/aiextproc/chatcompletion"
-	"github.com/lgc202/ingate/internal/aiextproc/filterconfig"
+	"github.com/lgc202/ingate/internal/aiextproc/service/chatcompletion"
 )
 
 var (
@@ -17,7 +16,8 @@ var (
 	errResponseNotBuffered = errors.New("anthropic response body requires buffered ExtProc mode")
 )
 
-// requestState 只保存同一客户端请求跨入口流、重试流和响应流共享的数据
+// requestState 只保存同一客户端请求跨 downstream 流、重试流和响应流共享的数据
+// 请求正文只在内存中保留到 downstream 流结束，不会写入日志或持久化存储
 // Envoy 的每次上游重试都会创建新的 ExtProc 流，因此访问必须由锁保护
 type requestState struct {
 	mu sync.RWMutex
@@ -26,7 +26,7 @@ type requestState struct {
 	metadata   chatcompletion.RequestMetadata // 从原始请求提取的逻辑模型和流式标记
 	clientHost string                         // 进入网关时的请求 Host，不受上游 Host 改写影响
 	clientPath string                         // 进入网关时的请求 Path，不含查询参数
-	selected   filterconfig.SelectedService   // Envoy 实际选中的模型 Service 线路
+	selected   selectedModelService           // Envoy 实际选中的模型 Service 线路
 	attempts   int                            // 已成功准备的上游尝试次数，用于识别 Envoy 重试
 }
 
@@ -65,7 +65,7 @@ func (s *requestState) clientRequest() (string, string) {
 	return s.clientHost, s.clientPath
 }
 
-func (s *requestState) startUpstreamAttempt(selected filterconfig.SelectedService) bool {
+func (s *requestState) startUpstreamAttempt(selected selectedModelService) bool {
 	s.mu.Lock()
 	retry := s.attempts > 0
 	s.attempts++
@@ -74,22 +74,22 @@ func (s *requestState) startUpstreamAttempt(selected filterconfig.SelectedServic
 	return retry
 }
 
-func (s *requestState) selectedService() (filterconfig.SelectedService, bool) {
+func (s *requestState) selectedService() (selectedModelService, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.selected, s.selected.ID != ""
+	return s.selected, s.selected.id != ""
 }
 
 // streamState 保存一条 ExtProc gRPC 流的处理阶段
-// 入口流覆盖完整客户端请求和最终响应，上游流只处理一次上游尝试
+// downstream 流覆盖完整客户端请求和最终响应，upstream 流只处理一次上游尝试
 type streamState struct {
 	// 流归属与跨流关联
-	service   *Service
+	processor *ExternalProcessor
 	upstream  bool
 	requestID string
 	request   *requestState
 
-	// 入口响应转换状态，上游流不会读写这些字段
+	// downstream 响应转换状态，upstream 流不会读写这些字段
 	responseMetadata   chatcompletion.ResponseMetadata
 	responseSuccessful bool
 	openAIStream       *chatcompletion.OpenAIStream
@@ -97,9 +97,9 @@ type streamState struct {
 }
 
 func (s *streamState) close() {
-	// 上游流可能早于入口流结束，不能由上游流删除后续重试仍需使用的数据
+	// upstream 流可能早于 downstream 流结束，不能由 upstream 流删除后续重试仍需使用的数据
 	if !s.upstream && s.requestID != "" {
-		s.service.deleteRequest(s.requestID)
+		s.processor.deleteRequest(s.requestID)
 	}
 }
 
@@ -107,17 +107,17 @@ func (s *streamState) handle(request *extprocv3.ProcessingRequest) (*extprocv3.P
 	// ExtProc 是按阶段交互的协议，每个阶段必须返回对应类型的 ProcessingResponse
 	switch request.Request.(type) {
 	case *extprocv3.ProcessingRequest_RequestHeaders:
-		// 上游 filter 会携带 Controller 写入的 Service attributes，入口 filter 不携带
+		// upstream filter 会携带 Controller 写入的 Service attributes，downstream filter 不携带
 		if request.GetAttributes() != nil {
 			return s.handleUpstreamHeaders(request.GetRequestHeaders().GetHeaders(), request.GetAttributes())
 		}
-		return s.handleEntryHeaders(request.GetRequestHeaders().GetHeaders())
+		return s.handleDownstreamHeaders(request.GetRequestHeaders().GetHeaders())
 	case *extprocv3.ProcessingRequest_RequestBody:
-		// 上游 filter 使用 CONTINUE_AND_REPLACE 在 Header 阶段直接替换 Body，不接收该阶段
+		// upstream filter 使用 CONTINUE_AND_REPLACE 在 Header 阶段直接替换 Body，不接收该阶段
 		if s.upstream || s.request == nil {
 			return nil, errUnsupportedPhase
 		}
-		return s.handleEntryBody(request.GetRequestBody())
+		return s.handleDownstreamBody(request.GetRequestBody())
 	case *extprocv3.ProcessingRequest_RequestTrailers:
 		return trailersResponse(requestMessage), nil
 	case *extprocv3.ProcessingRequest_ResponseHeaders:
@@ -126,11 +126,11 @@ func (s *streamState) handle(request *extprocv3.ProcessingRequest) (*extprocv3.P
 		if s.request == nil {
 			return headersResponse(responseMessage, nil), nil
 		}
-		// 最终响应只回到入口 filter，上游 filter 的职责在请求转换后已经结束
+		// 最终响应只回到 downstream filter，upstream filter 的职责在请求转换后已经结束
 		if s.upstream {
 			return nil, errUnsupportedPhase
 		}
-		return s.handleEntryResponseHeaders(request.GetResponseHeaders().GetHeaders()), nil
+		return s.handleDownstreamResponseHeaders(request.GetResponseHeaders().GetHeaders()), nil
 	case *extprocv3.ProcessingRequest_ResponseBody:
 		if s.request == nil {
 			return bodyResponse(responseMessage, nil, nil), nil
@@ -138,7 +138,7 @@ func (s *streamState) handle(request *extprocv3.ProcessingRequest) (*extprocv3.P
 		if s.upstream {
 			return nil, errUnsupportedPhase
 		}
-		return s.handleEntryResponseBody(request.GetResponseBody())
+		return s.handleDownstreamResponseBody(request.GetResponseBody())
 	case *extprocv3.ProcessingRequest_ResponseTrailers:
 		return trailersResponse(responseMessage), nil
 	default:
