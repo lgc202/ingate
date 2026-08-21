@@ -1,0 +1,58 @@
+x-ingate-build: &ingate-build
+  context: .
+  dockerfile: deploy/docker/ingate-compose.Dockerfile
+
+services:
+  als:
+    image: ingate/als:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: als
+
+  analytics-migrate:
+    image: ingate/analytics:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: analytics
+
+  analytics:
+    image: ingate/analytics:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: analytics
+
+  ai-extproc:
+    image: ingate/ai-extproc:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: ai-extproc
+
+  authz:
+    image: ingate/authz:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: authz
+
+  apiserver:
+    image: ingate/apiserver:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: apiserver
+
+  controller:
+    image: ingate/controller:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: controller
+
+  admin-api:
+    image: ingate/admin-api:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: admin-api
+
+  console:
+    image: ingate/console:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: console
