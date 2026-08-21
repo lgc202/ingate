@@ -1,5 +1,5 @@
-// Package modelservice 同步 AI ExtProc 执行请求所需的模型服务配置
-package modelservice
+// Package apiserver 从声明式 API 同步 AI ExtProc 所需的模型服务配置
+package apiserver
 
 import (
 	"context"
@@ -14,14 +14,8 @@ import (
 	gatewaylisters "github.com/lgc202/ingate/pkg/generated/listers/gateway/v1"
 )
 
-// Credentials 是 AI ExtProc 转发模型请求时注入的服务凭据
-// APIKey 只存在于 AI ExtProc 内存，不会进入 Envoy xDS 或访问日志
-type Credentials struct {
-	APIKey string
-}
-
-// Cache 通过 Upstream informer 保持模型服务配置的本地只读副本
-type Cache struct {
+// ModelServiceCache 通过 Upstream informer 保持模型服务配置的本地只读副本
+type ModelServiceCache struct {
 	factory informers.SharedInformerFactory
 	lister  gatewaylisters.UpstreamLister
 
@@ -31,8 +25,8 @@ type Cache struct {
 	cancel  context.CancelFunc
 }
 
-// NewCache 创建模型服务配置缓存
-func NewCache(apiServer *conf.Data_APIServer) (*Cache, error) {
+// NewModelServiceCache 创建模型服务配置缓存
+func NewModelServiceCache(apiServer *conf.Data_APIServer) (*ModelServiceCache, error) {
 	restConfig, err := clientcmd.BuildConfigFromFlags(apiServer.GetMaster(), apiServer.GetKubeconfig())
 	if err != nil {
 		return nil, fmt.Errorf("build API Server client config: %w", err)
@@ -46,7 +40,7 @@ func NewCache(apiServer *conf.Data_APIServer) (*Cache, error) {
 	// 并在连接中断或 resourceVersion 失效后自动恢复，不需要把该实现参数暴露为进程配置
 	factory := informers.NewSharedInformerFactory(client, 0)
 	upstreams := factory.Gateway().V1().Upstreams()
-	return &Cache{
+	return &ModelServiceCache{
 		factory: factory,
 		lister:  upstreams.Lister(),
 		started: make(chan struct{}),
@@ -55,7 +49,7 @@ func NewCache(apiServer *conf.Data_APIServer) (*Cache, error) {
 }
 
 // Start 同步首次列表后持续监听模型服务配置
-func (c *Cache) Start(ctx context.Context) error {
+func (c *ModelServiceCache) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
 	close(c.started)
@@ -80,7 +74,7 @@ func (c *Cache) Start(ctx context.Context) error {
 }
 
 // Stop 停止资源监听并等待 informer 退出
-func (c *Cache) Stop(ctx context.Context) error {
+func (c *ModelServiceCache) Stop(ctx context.Context) error {
 	select {
 	case <-c.started:
 	case <-c.done:
@@ -99,20 +93,18 @@ func (c *Cache) Stop(ctx context.Context) error {
 }
 
 // Ready 表示首次模型服务列表已同步完成
-func (c *Cache) Ready() bool {
+func (c *ModelServiceCache) Ready() bool {
 	return c.ready.Load()
 }
 
-// Get 返回指定模型服务当前生效的凭据
-func (c *Cache) Get(serviceID string) (Credentials, error) {
+// APIKey 返回指定模型 Service 当前生效的访问密钥
+func (c *ModelServiceCache) APIKey(serviceID string) (string, error) {
 	upstream, err := c.lister.Get(serviceID)
 	if err != nil {
-		return Credentials{}, fmt.Errorf("get model service %q: %w", serviceID, err)
+		return "", fmt.Errorf("get model service %q: %w", serviceID, err)
 	}
 	if upstream.Spec.Model == nil {
-		return Credentials{}, fmt.Errorf("service %q is not a model service", serviceID)
+		return "", fmt.Errorf("service %q is not a model service", serviceID)
 	}
-	return Credentials{
-		APIKey: upstream.Spec.Model.APIKey,
-	}, nil
+	return upstream.Spec.Model.APIKey, nil
 }

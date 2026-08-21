@@ -63,8 +63,8 @@ func bodyResponse(
 	}
 }
 
-// replaceUpstreamRequest 在上游 filter 的 Header 阶段同时替换请求 Header 和 Body
-// Envoy AI Gateway 也使用该模式，使每次重试都能从入口保存的原文重新生成厂商请求
+// replaceUpstreamRequest 在 upstream filter 的 Header 阶段同时替换请求 Header 和 Body
+// Envoy AI Gateway 也使用该模式，使每次重试都能从 downstream 保存的原文重新生成厂商请求
 func replaceUpstreamRequest(body []byte, headers *extprocv3.HeaderMutation) *extprocv3.ProcessingResponse {
 	return &extprocv3.ProcessingResponse{
 		Response: &extprocv3.ProcessingResponse_RequestHeaders{

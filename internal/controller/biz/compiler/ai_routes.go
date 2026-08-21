@@ -13,14 +13,14 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
-	"github.com/lgc202/ingate/internal/aiextproc/filterconfig"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 const aiRouteNotFoundBody = `{"error":{"message":"The requested model is not published by this route.","type":"invalid_request_error","code":"model_not_found"}}`
 
-// buildAIRouteEntries 把一个 AI Route 展开为模型选择路由和一个入口兜底路由
-// 初次选路时请求体中的 model 尚不可见，请求先命中兜底路由；入口 ExtProc 提取模型并清空
+// buildAIRouteEntries 把一个 AI Route 展开为模型选择路由和一个初始兜底路由
+// 初次选路时请求体中的 model 尚不可见，请求先命中兜底路由；downstream ExtProc 提取模型并清空
 // Envoy 路由缓存后，带内部模型 Header 的请求才会命中对应的模型选择路由
 func (c *compilation) buildAIRouteEntries(
 	route *gatewayv1.Route,
@@ -54,7 +54,7 @@ func (c *compilation) buildAIRouteEntries(
 		return nil
 	}
 	for _, header := range route.Spec.Match.Headers {
-		if strings.EqualFold(header.Name, filterconfig.ModelHeader) || strings.EqualFold(header.Name, filterconfig.UpstreamModelHeader) {
+		if strings.EqualFold(header.Name, aiprotocol.ModelHeader) || strings.EqualFold(header.Name, aiprotocol.UpstreamModelHeader) {
 			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("AI route %q cannot match internal AI headers", route.Name))
 			return nil
 		}
@@ -87,7 +87,7 @@ func (c *compilation) buildAIRouteEntries(
 		}
 		routeHeaders := append(slices.Clone(headers),
 			exactHeaderMatcher(":method", http.MethodPost),
-			exactHeaderMatcher(filterconfig.ModelHeader, model.Name),
+			exactHeaderMatcher(aiprotocol.ModelHeader, model.Name),
 		)
 		match := &routev3.RouteMatch{Headers: routeHeaders}
 		if exactPath {
@@ -106,7 +106,7 @@ func (c *compilation) buildAIRouteEntries(
 				ResponseHeadersToAdd:    responseAdd,
 				ResponseHeadersToRemove: responseRemove,
 				TypedPerFilterConfig: map[string]*anypb.Any{
-					httpAIEntryExtProcFilterName: perRouteConfig,
+					httpAIDownstreamExtProcFilterName: perRouteConfig,
 				},
 			},
 		})
@@ -141,7 +141,7 @@ func (c *compilation) buildAIRouteEntries(
 				AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
 			}},
 			TypedPerFilterConfig: map[string]*anypb.Any{
-				httpAIEntryExtProcFilterName: perRouteConfig,
+				httpAIDownstreamExtProcFilterName: perRouteConfig,
 			},
 		},
 	})
@@ -187,7 +187,7 @@ func (c *compilation) aiModelClusters(
 			Weight: wrapperspb.UInt32(uint32(target.Weight)),
 			// 真实模型由加权线路写入，因此同一个模型 Service 可以承载多个模型
 			RequestHeadersToAdd: []*corev3.HeaderValueOption{{
-				Header:       &corev3.HeaderValue{Key: filterconfig.UpstreamModelHeader, Value: target.Model},
+				Header:       &corev3.HeaderValue{Key: aiprotocol.UpstreamModelHeader, Value: target.Model},
 				AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
 			}},
 		})

@@ -1,4 +1,7 @@
 // Package aiextproc 装配 ingate-ai-extproc 进程及其资源生命周期
+//
+// Envoy 的 downstream ExtProc 负责提取客户端模型并处理最终响应，upstream ExtProc
+// 在负载均衡完成后注入凭据并转换厂商协议；两个独立流通过进程内请求状态关联
 package aiextproc
 
 import (
@@ -14,7 +17,7 @@ import (
 	"github.com/lgc202/go-kit/version"
 
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
-	"github.com/lgc202/ingate/internal/aiextproc/modelservice"
+	dataapiserver "github.com/lgc202/ingate/internal/aiextproc/data/apiserver"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 )
 
@@ -64,7 +67,7 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
-	modelServices *modelservice.Cache,
+	modelServices *dataapiserver.ModelServiceCache,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -73,6 +76,7 @@ func newKratosApp(
 		kratos.Version(version.Get().String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
+		// 模型服务缓存和网络服务共享生命周期，首次同步完成前 /readyz 保持未就绪
 		kratos.Server(httpServer, grpcServer, modelServices),
 	)
 }
