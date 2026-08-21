@@ -15,7 +15,7 @@ func listOptions(page biz.PageRequest) metav1.ListOptions {
 
 func listError(kind string, err error) error {
 	if apierrors.IsBadRequest(err) || apierrors.IsResourceExpired(err) {
-		return fmt.Errorf("%w: %v", biz.ErrInvalidCursor, err)
+		return fmt.Errorf("%w: %w", biz.ErrInvalidCursor, err)
 	}
 	return resourceError("list", kind, "", err)
 }
@@ -26,9 +26,9 @@ func resourceError(operation, kind, name string, err error) error {
 	}
 	switch {
 	case apierrors.IsNotFound(err):
-		err = fmt.Errorf("%w: %v", biz.ErrResourceNotFound, err)
+		err = fmt.Errorf("%w: %w", biz.ErrResourceNotFound, err)
 	case apierrors.IsConflict(err):
-		err = fmt.Errorf("%w: %v", biz.ErrResourceVersionConflict, err)
+		err = fmt.Errorf("%w: %w", biz.ErrResourceVersionConflict, err)
 	}
 	if name == "" {
 		return fmt.Errorf("%s %s: %w", operation, kind, err)
