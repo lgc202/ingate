@@ -63,23 +63,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - component: apiserver
-            target: apiserver
-          - component: controller
-            target: controller
-          - component: admin-api
-            target: admin-api
-          - component: console
-            target: console
-          - component: als
-            target: als
-          - component: analytics
-            target: analytics
-          - component: ai-extproc
-            target: ai-extproc
-          - component: authz
-            target: authz
+        component:
+          - apiserver
+          - controller
+          - admin-api
+          - console
+          - als
+          - analytics
+          - ai-extproc
+          - authz
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -106,7 +98,7 @@ jobs:
         with:
           context: .
           file: deploy/docker/ingate.Dockerfile
-          target: ${{ matrix.target }}
+          target: ${{ matrix.component }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/lgc202/ingate-${{ matrix.component }}:${{ github.ref_name }}
@@ -115,6 +107,7 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ github.ref_name }}
           build-args: |
+            COMPONENT=${{ matrix.component }}
             GIT_VERSION=${{ github.ref_name }}
             GIT_COMMIT=${{ github.sha }}
             GIT_TREE_STATE=clean
