@@ -61,17 +61,18 @@ AI Route 使用稳定的客户端模型名连接不同协议的模型 Service，
 安装机只需要 Docker Engine 和 Docker Compose v2，不需要 Go、Node.js 或源码：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lgc202/ingate/main/scripts/install.sh | bash
+curl -fsSL https://github.com/lgc202/ingate/releases/latest/download/install.sh | bash
 ```
 
 安装器会下载最新的正式 Release、校验 SHA-256、启动完整环境，然后输出 Console、Gateway 和日常管理命令。默认安装到当前目录的 `ingate` 子目录，也可以安装固定版本：
 
 ```bash
-curl -fsSLO https://raw.githubusercontent.com/lgc202/ingate/main/scripts/install.sh
-bash install.sh ./ingate --version vX.Y.Z
+VERSION=vX.Y.Z
+curl -fsSLO "https://github.com/lgc202/ingate/releases/download/${VERSION}/install.sh"
+bash install.sh ./ingate --version "${VERSION}"
 ```
 
-将 `vX.Y.Z` 替换为需要安装的 Release tag，例如 `v0.1.1`。
+将 `vX.Y.Z` 替换为需要安装的 Release tag，例如 `v0.1.2`。安装脚本和 Compose 安装包来自同一个 Release，避免未发布的 `main` 分支变更影响安装。
 
 Console 当前没有登录认证，安装版默认只绑定 `127.0.0.1`。完整的配置、启停、日志和数据清理说明见 [Docker Compose 安装说明](deploy/compose/README.md)。
 
