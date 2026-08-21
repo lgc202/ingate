@@ -7,8 +7,8 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
 // UpstreamRepository 读写 Upstream 声明式资源

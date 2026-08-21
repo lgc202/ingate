@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 	--mount=type=cache,target=/tmp/go-build \
     set -eu; \
 	export CGO_ENABLED=0 GOTMPDIR=/tmp/go-build; \
-    ldflags="-X github.com/lgc202/go-kit/version.gitVersion=${GIT_VERSION} -X github.com/lgc202/go-kit/version.gitCommit=${GIT_COMMIT} -X github.com/lgc202/go-kit/version.gitTreeState=${GIT_TREE_STATE} -X github.com/lgc202/go-kit/version.buildDate=${BUILD_DATE}"; \
+	ldflags="-X github.com/lgc202/ingate/internal/pkg/version.gitVersion=${GIT_VERSION} -X github.com/lgc202/ingate/internal/pkg/version.gitCommit=${GIT_COMMIT} -X github.com/lgc202/ingate/internal/pkg/version.gitTreeState=${GIT_TREE_STATE} -X github.com/lgc202/ingate/internal/pkg/version.buildDate=${BUILD_DATE}"; \
 	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-apiserver ./cmd/ingate-apiserver; \
 	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-controller ./cmd/ingate-controller; \
 	go build -p=4 -trimpath -ldflags "${ldflags}" -o /out/ingate-admin-api ./cmd/ingate-admin-api; \

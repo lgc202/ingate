@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lgc202/go-kit/version"
-
 	"github.com/lgc202/ingate/internal/aiextproc"
+	"github.com/lgc202/ingate/internal/pkg/version"
 
 	_ "go.uber.org/automaxprocs"
 )
@@ -20,7 +19,7 @@ func main() {
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
 	if *showVersion {
-		fmt.Println(version.Get().Text())
+		fmt.Println(version.Text())
 		return
 	}
 	app, err := aiextproc.NewApp(*configFile)

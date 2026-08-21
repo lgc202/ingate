@@ -16,8 +16,8 @@ import (
 	netutils "k8s.io/utils/net"
 
 	"github.com/lgc202/ingate/internal/apiserver/conf"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	generatedopenapi "github.com/lgc202/ingate/pkg/generated/openapi"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	generatedopenapi "github.com/lgc202/ingate/internal/pkg/generated/openapi"
 )
 
 const serverName = "ingate-apiserver"

@@ -8,8 +8,8 @@ import (
 	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
 const (

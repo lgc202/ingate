@@ -13,11 +13,10 @@ import (
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	"github.com/lgc202/go-kit/version"
-
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
 	dataapiserver "github.com/lgc202/ingate/internal/aiextproc/data/apiserver"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 const name = "ingate-ai-extproc"
@@ -72,7 +71,7 @@ func newKratosApp(
 	return kratos.New(
 		kratos.ID(string(instanceID)),
 		kratos.Name(name),
-		kratos.Version(version.Get().String()),
+		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		// 模型服务缓存和网络服务共享生命周期，首次同步完成前 /readyz 保持未就绪

@@ -9,7 +9,7 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/conf"
 	requestservice "github.com/lgc202/ingate/internal/analytics/service/request"
 	trafficservice "github.com/lgc202/ingate/internal/analytics/service/traffic"
-	"github.com/lgc202/ingate/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/tlsx"
 )
 
 // NewGRPCServer 创建供 Admin API 查询请求明细和流量分析结果的 gRPC 服务

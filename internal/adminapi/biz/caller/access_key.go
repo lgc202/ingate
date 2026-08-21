@@ -11,7 +11,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	"github.com/lgc202/ingate/internal/pkg/accesskey"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // IssuedKey 包含只在本次调用中存在的完整访问密钥

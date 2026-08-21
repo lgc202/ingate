@@ -10,8 +10,8 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
-	"github.com/lgc202/ingate/pkg/clickhousex"
-	"github.com/lgc202/ingate/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/clickhousex"
+	"github.com/lgc202/ingate/internal/pkg/tlsx"
 )
 
 const (

@@ -5,7 +5,7 @@ import (
 	"slices"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // affectedPolicyTargets 同时包含新配置目标和仍存在的旧目标，使策略移除也能获得发布结果
