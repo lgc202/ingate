@@ -12,7 +12,6 @@ import (
 
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
-	"github.com/lgc202/ingate/internal/als/data/kafka"
 )
 
 // NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务
@@ -20,7 +19,6 @@ func NewHTTPServer(
 	serverConfig *conf.Server,
 	kafkaConfig *conf.Data_Kafka,
 	queueConfig *conf.Data_DiskQueue,
-	writer *kafka.Writer,
 	recorder *biz.Recorder,
 ) *kratoshttp.Server {
 	httpConfig := serverConfig.GetHttp()
@@ -30,7 +28,7 @@ func NewHTTPServer(
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 	)
 	server.HandleFunc("/healthz", health)
-	server.HandleFunc("/readyz", ready(kafkaConfig, queueConfig, writer, recorder))
+	server.HandleFunc("/readyz", ready(kafkaConfig, queueConfig, recorder))
 	server.Handle("/metrics", metricsHandler(recorder, queueConfig.GetMaxBytes()))
 	return server
 }
@@ -42,14 +40,13 @@ func health(response http.ResponseWriter, _ *http.Request) {
 func ready(
 	kafkaConfig *conf.Data_Kafka,
 	queueConfig *conf.Data_DiskQueue,
-	writer *kafka.Writer,
 	recorder *biz.Recorder,
 ) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
 		ctx, cancel := context.WithTimeout(request.Context(), kafkaConfig.GetReadinessTimeout().AsDuration())
 		defer cancel()
 		status := recorder.DeliveryStatus()
-		kafkaErr := writer.Ping(ctx)
+		kafkaErr := recorder.CheckKafka(ctx)
 		queueFull := status.PendingBytes >= queueConfig.GetMaxBytes()
 		canQueue := status.QueueWritable && !queueFull
 		canWriteKafka := kafkaErr == nil && !status.Spooling
@@ -138,9 +135,9 @@ func metricsHandler(recorder *biz.Recorder, queueCapacity int64) http.Handler {
 		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
 			Namespace: "ingate",
 			Subsystem: "als",
-			Name:      "kafka_reachable",
+			Name:      "kafka_writable",
 			Help:      "Whether the latest Kafka delivery operation succeeded.",
-		}, func() float64 { return boolMetric(recorder.DeliveryStatus().KafkaReachable) }),
+		}, func() float64 { return boolMetric(recorder.DeliveryStatus().KafkaWritable) }),
 	)
 
 	// 使用独立 Registry 只注册 Go、进程和 ALS 可靠性指标，避免依赖库隐式污染指标空间
