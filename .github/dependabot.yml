@@ -5,22 +5,63 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    groups:
+      go-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      go-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: npm
     directory: /web/console
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    groups:
+      console-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      console-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: npm
     directory: /web/prototype
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 2
+    groups:
+      prototype-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      prototype-minor-and-patch:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+      interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      github-actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+      github-actions:
+        patterns:
+          - "*"
