@@ -24,16 +24,18 @@ type QueuedBatch struct {
 	Bytes int64
 }
 
-// RecordWriter 是请求记录的主存储写入边界
+// RecordPublisher 是请求记录的 Kafka 发布边界
 //
 // 接口定义在 biz，由 Kafka 适配器实现，避免业务层依赖具体客户端
-type RecordWriter interface {
-	Write(context.Context, []*alsv1.RequestRecord) error
+type RecordPublisher interface {
+	Publish(context.Context, []*alsv1.RequestRecord) error
+	// Ping 验证主写入端当前可以完成连接和鉴权
+	Ping(context.Context) error
 }
 
 // RecordQueue 是能够顺序读取并确认的本地磁盘队列
 type RecordQueue interface {
-	RecordWriter
+	Write(context.Context, []*alsv1.RequestRecord) error
 	// Read 读取但不删除连续队首记录
 	Read(context.Context, int) (QueuedBatch, error)
 	// Commit 只确认已经完整写入 Kafka 的批次
@@ -44,8 +46,8 @@ type RecordQueue interface {
 
 // DeliveryStatus 描述 ALS 当前投递能力和磁盘积压情况
 type DeliveryStatus struct {
-	// KafkaReachable 反映最近一次 Kafka 投递结果，不主动发起网络探测
-	KafkaReachable bool
+	// KafkaWritable 反映最近一次 Kafka 投递结果，不主动发起网络探测
+	KafkaWritable bool
 	// QueueWritable 反映最近一次磁盘队列读写或确认结果
 	QueueWritable bool
 	// Spooling 表示新记录当前直接进入磁盘队列，避免 Kafka 故障期间每批都等待网络超时
@@ -75,7 +77,7 @@ type DeliveryCounters struct {
 // 该链路采用至少一次投递：只有 Kafka 确认成功后才删除磁盘队列记录；如果 Kafka 已确认而本地确认失败，
 // 同一记录可能再次发布，下游必须使用稳定的 RequestRecord.id 幂等入库
 type Recorder struct {
-	writer    RecordWriter
+	publisher RecordPublisher
 	queue     RecordQueue
 	logger    *slog.Logger
 	spooling  atomic.Bool
@@ -89,11 +91,11 @@ type Recorder struct {
 }
 
 // NewRecorder 创建请求记录写入用例
-func NewRecorder(writer RecordWriter, queue RecordQueue, logger *slog.Logger) *Recorder {
+func NewRecorder(publisher RecordPublisher, queue RecordQueue, logger *slog.Logger) *Recorder {
 	recorder := &Recorder{
-		writer: writer,
-		queue:  queue,
-		logger: logger,
+		publisher: publisher,
+		queue:     queue,
+		logger:    logger,
 	}
 	recorder.queueOK.Store(true)
 	pending, _ := queue.Pending()
@@ -120,20 +122,17 @@ func (r *Recorder) Write(ctx context.Context, records []*alsv1.RequestRecord) er
 		}
 		return nil
 	}
-	if err := r.writer.Write(ctx, records); err == nil {
+	kafkaErr := r.publisher.Publish(ctx, records)
+	if kafkaErr == nil {
 		r.kafkaOK.Store(true)
 		r.accepted.Add(uint64(len(records)))
 		return nil
-	} else if queueErr := r.queue.Write(queueContext, records); queueErr != nil {
-		r.kafkaOK.Store(false)
-		r.queueOK.Store(false)
-		r.rejected.Add(uint64(len(records)))
-		return fmt.Errorf("write Kafka and disk queue: %w", errors.Join(err, queueErr))
 	}
 	r.kafkaOK.Store(false)
-	r.queueOK.Store(true)
-	r.accepted.Add(uint64(len(records)))
-	r.queued.Add(uint64(len(records)))
+	if queueErr := r.writeQueue(queueContext, records); queueErr != nil {
+		r.rejected.Add(uint64(len(records)))
+		return fmt.Errorf("write request records: %w", errors.Join(kafkaErr, queueErr))
+	}
 	if r.spooling.CompareAndSwap(false, true) {
 		r.logger.Warn("Kafka unavailable, request records switched to disk queue")
 	}
@@ -154,7 +153,7 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (bool, error) {
 		r.queueOK.Store(false)
 		return false, fmt.Errorf("read disk queue: %w", err)
 	}
-	if err := r.writer.Write(ctx, batch.Records); err != nil {
+	if err := r.publisher.Publish(ctx, batch.Records); err != nil {
 		r.kafkaOK.Store(false)
 		r.spooling.Store(true)
 		return false, fmt.Errorf("write queued records: %w", err)
@@ -169,11 +168,16 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (bool, error) {
 	return true, nil
 }
 
+// CheckKafka 验证请求记录的 Kafka 主投递链路是否可用
+func (r *Recorder) CheckKafka(ctx context.Context) error {
+	return r.publisher.Ping(ctx)
+}
+
 // DeliveryStatus 返回无需访问外部系统即可读取的投递状态
 func (r *Recorder) DeliveryStatus() DeliveryStatus {
 	records, bytes := r.queue.Pending()
 	return DeliveryStatus{
-		KafkaReachable: r.kafkaOK.Load(),
+		KafkaWritable:  r.kafkaOK.Load(),
 		QueueWritable:  r.queueOK.Load(),
 		Spooling:       r.spooling.Load(),
 		PendingRecords: records,
