@@ -68,8 +68,10 @@ curl -fsSL https://raw.githubusercontent.com/lgc202/ingate/main/scripts/install.
 
 ```bash
 curl -fsSLO https://raw.githubusercontent.com/lgc202/ingate/main/scripts/install.sh
-bash install.sh ./ingate --version v0.1.0
+bash install.sh ./ingate --version vX.Y.Z
 ```
+
+将 `vX.Y.Z` 替换为需要安装的 Release tag，例如 `v0.1.1`。
 
 Console 当前没有登录认证，安装版默认只绑定 `127.0.0.1`。完整的配置、启停、日志和数据清理说明见 [Docker Compose 安装说明](deploy/compose/README.md)。
 
@@ -134,6 +136,14 @@ curl http://127.0.0.1:8080/v1/chat/completions \
 ```bash
 ./ingate/bin/stop.sh
 ```
+
+不再使用时可以完整删除容器、持久化数据和安装目录：
+
+```bash
+./ingate/bin/uninstall.sh
+```
+
+卸载脚本会在删除前要求明确确认；如需保留 Docker Volume，使用 `./ingate/bin/uninstall.sh --keep-data`。
 
 源码开发环境使用：
 
