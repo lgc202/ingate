@@ -75,24 +75,15 @@ func (d *Delivery) Start(ctx context.Context) error {
 	defer d.stopTimers()
 
 	for {
+		if runCtx.Err() != nil {
+			return nil
+		}
 		select {
 		case <-runCtx.Done():
 			return nil
 		case command := <-d.commands:
 			previousStatus := d.state.status()
-			commandCtx := runCtx
-			if command.ctx != nil {
-				commandCtx = command.ctx
-			}
-
-			var err error
-			commandErr := commandCtx.Err()
-			isNACK := command.kind == commandXDSEvent && command.event.Kind == EventNACK
-			if commandErr != nil && !isNACK {
-				err = commandErr
-			} else {
-				err = d.handleCommand(commandCtx, command)
-			}
+			err := d.executeCommand(runCtx, command)
 			status := d.state.status()
 			d.publishStatus(status)
 			if !statusEqual(previousStatus, status) {
@@ -181,16 +172,7 @@ func (d *Delivery) Status() Status {
 	d.statusMu.RLock()
 	status := d.status
 	d.statusMu.RUnlock()
-
-	status.ActiveResources = cloneResourceGenerations(status.ActiveResources)
-	status.ActivePolicyTargets = clonePolicyTargets(status.ActivePolicyTargets)
-	if status.LastFailure != nil {
-		failure := *status.LastFailure
-		failure.Resources = cloneResourceGenerations(failure.Resources)
-		failure.PolicyTargets = clonePolicyTargets(failure.PolicyTargets)
-		status.LastFailure = &failure
-	}
-	return status
+	return status.clone()
 }
 
 // Changes 返回 Delivery 声明式状态变化通知
@@ -198,6 +180,30 @@ func (d *Delivery) Status() Status {
 // 通知通道容量为 1 且不会关闭，消费者应结合自身 context 退出并在收到通知后读取最新 Status
 func (d *Delivery) Changes() <-chan struct{} {
 	return d.changes
+}
+
+func (d *Delivery) executeCommand(runCtx context.Context, command command) error {
+	if err := runCtx.Err(); err != nil {
+		return err
+	}
+	commandCtx := runCtx
+	if command.ctx != nil {
+		// 命令既受调用方超时约束，也必须随 Delivery 停止而取消
+		var cancel context.CancelFunc
+		commandCtx, cancel = context.WithCancel(command.ctx)
+		stopRunCancellation := context.AfterFunc(runCtx, cancel)
+		defer func() {
+			stopRunCancellation()
+			cancel()
+		}()
+	}
+
+	commandErr := commandCtx.Err()
+	isNACK := command.kind == commandXDSEvent && command.event.Kind == EventNACK
+	if commandErr != nil && !isNACK {
+		return commandErr
+	}
+	return d.handleCommand(commandCtx, command)
 }
 
 func normalizeOptions(options Options) (Options, error) {

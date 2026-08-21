@@ -27,7 +27,7 @@ type sentResponse struct {
 //
 // Callbacks 可被多个 SotW stream 并发调用
 type Callbacks struct {
-	sink func(context.Context, delivery.XDSEvent) error
+	handleEvent func(context.Context, delivery.XDSEvent) error
 
 	mu          sync.Mutex
 	sent        map[sentKey]sentResponse
@@ -40,9 +40,9 @@ type Callbacks struct {
 var _ sotwv3.Callbacks = (*Callbacks)(nil)
 
 // NewCallbacks 创建 SotW callback registry
-func NewCallbacks(sink func(context.Context, delivery.XDSEvent) error) *Callbacks {
+func NewCallbacks(handleEvent func(context.Context, delivery.XDSEvent) error) *Callbacks {
 	return &Callbacks{
-		sink:           sink,
+		handleEvent:    handleEvent,
 		sent:           make(map[sentKey]sentResponse),
 		streamNodes:    make(map[int64]string),
 		nodeStreams:    make(map[string]int64),
@@ -56,7 +56,7 @@ func (c *Callbacks) OnStreamOpen(ctx context.Context, streamID int64, typeURL st
 	c.streamContexts[streamID] = ctx
 	c.mu.Unlock()
 
-	return c.sink(ctx, delivery.XDSEvent{
+	return c.handleEvent(ctx, delivery.XDSEvent{
 		Kind:     delivery.EventStreamOpened,
 		StreamID: streamID,
 		TypeURL:  typeURL,
@@ -79,8 +79,8 @@ func (c *Callbacks) OnStreamClosed(streamID int64, _ *corev3.Node) {
 	}
 	c.mu.Unlock()
 
-	// SotW close callback 没有错误返回值，只能忽略 sink 返回错误
-	_ = c.sink(context.Background(), delivery.XDSEvent{
+	// SotW close callback 没有错误返回值，只能忽略事件处理错误
+	_ = c.handleEvent(context.Background(), delivery.XDSEvent{
 		Kind:     delivery.EventStreamClosed,
 		StreamID: streamID,
 		NodeID:   nodeID,
@@ -122,7 +122,7 @@ func (c *Callbacks) OnStreamRequest(streamID int64, request *discoveryv3.Discove
 		if ctx == nil {
 			ctx = context.Background()
 		}
-		return c.sink(ctx, delivery.XDSEvent{
+		return c.handleEvent(ctx, delivery.XDSEvent{
 			Kind:            delivery.EventAcceptedVersionObserved,
 			StreamID:        streamID,
 			NodeID:          nodeID,
@@ -149,7 +149,7 @@ func (c *Callbacks) OnStreamRequest(streamID int64, request *discoveryv3.Discove
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return c.sink(ctx, event)
+	return c.handleEvent(ctx, event)
 }
 
 // OnStreamResponse 记录 go-control-plane 已生成的最终 nonce 和 version
@@ -173,8 +173,8 @@ func (c *Callbacks) OnStreamResponse(
 	if streamCtx == nil {
 		streamCtx = context.Background()
 	}
-	// SotW response callback 没有错误返回值，只能忽略 sink 返回错误
-	_ = c.sink(streamCtx, delivery.XDSEvent{
+	// SotW response callback 没有错误返回值，只能忽略事件处理错误
+	_ = c.handleEvent(streamCtx, delivery.XDSEvent{
 		Kind:     delivery.EventResponseSent,
 		StreamID: streamID,
 		NodeID:   nodeID,

@@ -189,9 +189,7 @@ func (c *compilation) routeDomainsByListener(
 			if result[listener.key] == nil {
 				result[listener.key] = make(map[string]bool)
 			}
-			for _, hostname := range listener.hosts {
-				result[listener.key][hostname] = true
-			}
+			result[listener.key][listener.hostname] = true
 		}
 		return result
 	}
@@ -199,16 +197,14 @@ func (c *compilation) routeDomainsByListener(
 	for _, hostname := range hostnames {
 		matched := false
 		for _, listener := range listenersByGateway[gatewayID] {
-			for _, listenerHostname := range listener.hosts {
-				if !hostnameCoveredByListener(hostname, listenerHostname) {
-					continue
-				}
-				if result[listener.key] == nil {
-					result[listener.key] = make(map[string]bool)
-				}
-				result[listener.key][hostname] = true
-				matched = true
+			if !hostnameCoveredByListener(hostname, listener.hostname) {
+				continue
 			}
+			if result[listener.key] == nil {
+				result[listener.key] = make(map[string]bool)
+			}
+			result[listener.key][hostname] = true
+			matched = true
 		}
 		if !matched {
 			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonConflict, fmt.Sprintf("route %q hostname %q does not belong to a listener on gateway %q", route.Name, hostname, gatewayID))

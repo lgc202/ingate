@@ -35,14 +35,14 @@ func (c *compilation) configureHTTPSListener(listener *listenerv3.Listener, grou
 		if result := cmp.Compare(a.gatewayID, b.gatewayID); result != 0 {
 			return result
 		}
-		return cmp.Compare(a.hosts[0], b.hosts[0])
+		return cmp.Compare(a.hostname, b.hostname)
 	})
 	for _, gateway := range gateways {
 		filterChain, err := buildHTTPSFilterChain(listener.Name, gateway, c.certificates[gateway.certificateRef], hcm)
 		if err != nil {
 			return err
 		}
-		if gateway.hosts[0] == "*" {
+		if gateway.hostname == "*" {
 			listener.DefaultFilterChain = filterChain
 		} else {
 			listener.FilterChains = append(listener.FilterChains, filterChain)
@@ -67,14 +67,14 @@ func buildHTTPSFilterChain(listenerName string, gateway gatewayListener, certifi
 		return nil, fmt.Errorf("encode TLS context for gateway %q on listener %s: %w", gateway.gatewayID, listenerName, err)
 	}
 	filterChain := httpFilterChain(hcm)
-	filterChain.Name = listenerName + "/gateway/" + gateway.gatewayID + "/" + gateway.hosts[0]
+	filterChain.Name = listenerName + "/gateway/" + gateway.gatewayID + "/" + gateway.hostname
 	filterChain.TransportSocket = &corev3.TransportSocket{
 		Name:       tlsTransportSocketName,
 		ConfigType: &corev3.TransportSocket_TypedConfig{TypedConfig: typedTLSContext},
 	}
-	if gateway.hosts[0] != "*" {
+	if gateway.hostname != "*" {
 		filterChain.FilterChainMatch = &listenerv3.FilterChainMatch{
-			ServerNames:       slices.Clone(gateway.hosts),
+			ServerNames:       []string{gateway.hostname},
 			TransportProtocol: tlsTransportProtocol,
 		}
 	}

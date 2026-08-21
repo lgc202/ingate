@@ -67,3 +67,15 @@ type Status struct {
 	ActivePolicyTargets []compiler.CompiledPolicyTarget
 	LastFailure         *Failure
 }
+
+func (s Status) clone() Status {
+	s.ActiveResources = cloneResourceGenerations(s.ActiveResources)
+	s.ActivePolicyTargets = clonePolicyTargets(s.ActivePolicyTargets)
+	if s.LastFailure != nil {
+		failure := *s.LastFailure
+		failure.Resources = cloneResourceGenerations(failure.Resources)
+		failure.PolicyTargets = clonePolicyTargets(failure.PolicyTargets)
+		s.LastFailure = &failure
+	}
+	return s
+}
