@@ -32,10 +32,18 @@ Console 当前没有登录认证，因此默认只绑定 `127.0.0.1`。远程访
 ./bin/stop.sh         # 停止容器并保留数据
 ```
 
-如果确认不再需要任何数据，可以显式删除容器和 Volume：
+## 卸载
+
+完整卸载会删除容器、网络、持久化数据和当前安装目录。脚本会展示删除范围，并要求输入 `uninstall` 确认：
 
 ```bash
-docker compose --env-file .env -f compose.yaml down -v
+./bin/uninstall.sh
 ```
 
-该命令会删除 etcd、Kafka、ClickHouse、Redis 和 ALS 本地队列数据，不可恢复。
+如果需要保留 Docker Volume 以便后续重新安装：
+
+```bash
+./bin/uninstall.sh --keep-data
+```
+
+`--remove-images` 可以同时删除未被其他容器使用的 Ingate 组件镜像，`--yes` 可以在自动化环境中跳过交互确认。未指定 `--keep-data` 时，etcd、Kafka、ClickHouse、Redis 和 ALS 本地队列数据都会被永久删除。
