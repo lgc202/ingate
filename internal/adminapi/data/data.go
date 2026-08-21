@@ -2,10 +2,7 @@
 package data
 
 import (
-	"fmt"
-
 	"github.com/google/wire"
-	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
@@ -17,18 +14,12 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
 	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
-	"github.com/lgc202/ingate/internal/adminapi/conf"
 	dataanalytics "github.com/lgc202/ingate/internal/adminapi/data/analytics"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
 )
 
-// ProviderSet 汇总 Admin API 的数据访问实现
-var ProviderSet = wire.NewSet(
-	NewResourceClient,
-	dataanalytics.NewClient,
-	dataanalytics.NewRequestRepository,
-	dataanalytics.NewTrafficRepository,
+var apiserverProviderSet = wire.NewSet(
+	apiserver.NewClient,
 	apiserver.NewGatewayRepository,
 	apiserver.NewRouteRepository,
 	apiserver.NewUpstreamRepository,
@@ -57,19 +48,15 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(iprestriction.Repository), new(*apiserver.IPRestrictionPolicyRepository)),
 	wire.Bind(new(caller.Repository), new(*apiserver.CallerRepository)),
 	wire.Bind(new(caller.RouteRepository), new(*apiserver.RouteRepository)),
+)
+
+var analyticsProviderSet = wire.NewSet(
+	dataanalytics.NewClient,
+	dataanalytics.NewRequestRepository,
+	dataanalytics.NewTrafficRepository,
 	wire.Bind(new(requestbiz.Repository), new(*dataanalytics.RequestRepository)),
 	wire.Bind(new(trafficbiz.Repository), new(*dataanalytics.TrafficRepository)),
 )
 
-// NewResourceClient 创建 Admin API 使用的声明式资源客户端
-func NewResourceClient(config *conf.Data) (clientset.Interface, error) {
-	restConfig, err := clientcmd.BuildConfigFromFlags(config.GetApiserver().GetMaster(), config.GetApiserver().GetKubeconfig())
-	if err != nil {
-		return nil, fmt.Errorf("build apiserver client config: %w", err)
-	}
-	resourceClient, err := clientset.NewForConfig(restConfig)
-	if err != nil {
-		return nil, fmt.Errorf("create apiserver client: %w", err)
-	}
-	return resourceClient, nil
-}
+// ProviderSet 汇总 Admin API 的数据访问实现
+var ProviderSet = wire.NewSet(apiserverProviderSet, analyticsProviderSet)

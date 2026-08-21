@@ -30,8 +30,11 @@ func VisitPages[T any](
 		}
 		for _, item := range result.Items {
 			stop, err := visit(item)
-			if err != nil || stop {
+			if err != nil {
 				return err
+			}
+			if stop {
+				return nil
 			}
 		}
 		if result.NextCursor == "" {

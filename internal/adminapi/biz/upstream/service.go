@@ -14,16 +14,16 @@ import (
 
 // Repository 定义 Upstream 管理需要的持久化能力
 type Repository interface {
-	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Upstream], error)
-	Get(context.Context, string) (*resource.Upstream, error)
-	Create(context.Context, string, resource.UpstreamSpec) (*resource.Upstream, error)
-	Update(context.Context, string, int64, resource.UpstreamSpec) (*resource.Upstream, error)
-	Delete(context.Context, string, int64) error
+	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Upstream], error)
+	Get(ctx context.Context, upstreamID string) (*resource.Upstream, error)
+	Create(ctx context.Context, upstreamID string, spec resource.UpstreamSpec) (*resource.Upstream, error)
+	Update(ctx context.Context, upstreamID string, generation int64, spec resource.UpstreamSpec) (*resource.Upstream, error)
+	Delete(ctx context.Context, upstreamID string, generation int64) error
 }
 
-// RouteRepository 定义 Upstream 变更时需要的 Route 查询能力
+// RouteRepository 定义删除 Upstream 时需要的 Route 查询能力
 type RouteRepository interface {
-	ListPage(context.Context, biz.PageRequest) (biz.PageResult[resource.Route], error)
+	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error)
 }
 
 // Service 协调 Upstream 的校验、引用约束和持久化
@@ -56,11 +56,10 @@ func (s *Service) Get(ctx context.Context, upstreamID string) (*resource.Upstrea
 
 // Create 创建 Upstream
 func (s *Service) Create(ctx context.Context, spec resource.UpstreamSpec) (*resource.Upstream, error) {
-	if err := s.validateDisplayName(ctx, "", spec.DisplayName); err != nil {
+	if err := s.ensureDisplayNameAvailable(ctx, "", spec.DisplayName); err != nil {
 		return nil, err
 	}
-	id := uuid.NewString()
-	return s.repository.Create(ctx, id, spec)
+	return s.repository.Create(ctx, uuid.NewString(), spec)
 }
 
 // Update 使用配置版本乐观更新 Upstream
@@ -77,13 +76,14 @@ func (s *Service) Update(
 		return nil, upstreamVersionConflict(current)
 	}
 	if input.Spec.DisplayName != current.Spec.DisplayName {
-		if err := s.validateDisplayName(ctx, upstreamID, input.Spec.DisplayName); err != nil {
+		if err := s.ensureDisplayNameAvailable(ctx, upstreamID, input.Spec.DisplayName); err != nil {
 			return nil, err
 		}
 	}
 	if input.PreserveModelAPIKey && current.Spec.Model != nil && input.Spec.Model != nil {
 		input.Spec.Model.APIKey = current.Spec.Model.APIKey
 	}
+
 	updated, err := s.repository.Update(ctx, upstreamID, current.Generation, input.Spec)
 	if err != nil {
 		if errors.Is(err, biz.ErrResourceVersionConflict) {
@@ -103,12 +103,7 @@ func (s *Service) Delete(ctx context.Context, upstreamID string, version int64) 
 	if version != current.Generation {
 		return upstreamVersionConflict(current)
 	}
-	if err := biz.VisitPages(ctx, s.routes.ListPage, func(route resource.Route) (bool, error) {
-		if routeReferencesUpstream(route.Spec, upstreamID) {
-			return true, biz.NewUserError(fmt.Sprintf("服务 %q 仍被路由 %q 引用", current.Spec.DisplayName, routeDisplayName(route)))
-		}
-		return false, nil
-	}); err != nil {
+	if err := s.ensureNotReferenced(ctx, current); err != nil {
 		return err
 	}
 	if err := s.repository.Delete(ctx, upstreamID, current.Generation); err != nil {
@@ -120,43 +115,17 @@ func (s *Service) Delete(ctx context.Context, upstreamID string, version int64) 
 	return nil
 }
 
-func routeReferencesUpstream(spec resource.RouteSpec, upstreamID string) bool {
-	for _, ref := range spec.UpstreamRefs {
-		if ref.Name == upstreamID {
-			return true
-		}
-	}
-	if spec.AI == nil {
-		return false
-	}
-	for _, model := range spec.AI.Models {
-		for _, target := range model.Targets {
-			if target.UpstreamRef == upstreamID {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func (s *Service) validateDisplayName(ctx context.Context, upstreamID, displayName string) error {
+func (s *Service) ensureDisplayNameAvailable(ctx context.Context, upstreamID, displayName string) error {
 	return biz.VisitPages(ctx, s.repository.ListPage, func(upstream resource.Upstream) (bool, error) {
 		if upstream.Name != upstreamID && upstream.Spec.DisplayName == displayName {
-			return true, biz.NewUserError(fmt.Sprintf("服务名称 %q 已存在", displayName))
+			return true, biz.NewRuleViolation(fmt.Sprintf("服务名称 %q 已存在", displayName))
 		}
 		return false, nil
 	})
 }
 
-func routeDisplayName(route resource.Route) string {
-	if route.Spec.DisplayName != "" {
-		return route.Spec.DisplayName
-	}
-	return route.Name
-}
-
 func upstreamVersionConflict(upstream *resource.Upstream) error {
-	return biz.NewVersionConflictError(
+	return biz.NewVersionConflict(
 		upstream.Name,
 		fmt.Sprintf("服务 %q 已被其他用户修改，请刷新后重试", upstream.Spec.DisplayName),
 	)
