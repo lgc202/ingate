@@ -9,13 +9,13 @@ import (
 	extprocv3http "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/ext_proc/v3"
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 
-	"github.com/lgc202/ingate/internal/aiextproc/chatcompletion"
-	"github.com/lgc202/ingate/internal/aiextproc/filterconfig"
+	"github.com/lgc202/ingate/internal/aiextproc/service/chatcompletion"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 )
 
-// handleEntryResponseHeaders 决定最终响应是否需要流式转换
-// 上游 ExtProc 流只转换请求，不会进入本文件的响应阶段
-func (s *streamState) handleEntryResponseHeaders(headers *corev3.HeaderMap) *extprocv3.ProcessingResponse {
+// handleDownstreamResponseHeaders 决定最终响应是否需要流式转换
+// upstream ExtProc 流只转换请求，不会进入本文件的响应阶段
+func (s *streamState) handleDownstreamResponseHeaders(headers *corev3.HeaderMap) *extprocv3.ProcessingResponse {
 	selected, selectedOK := s.request.selectedService()
 	request, requestOK := s.request.requestMetadata()
 	if !selectedOK || !requestOK {
@@ -26,7 +26,7 @@ func (s *streamState) handleEntryResponseHeaders(headers *corev3.HeaderMap) *ext
 	s.responseSuccessful = statusCode >= 200 && statusCode < 300
 
 	var mutation *extprocv3.HeaderMutation
-	if selected.Protocol == filterconfig.ProtocolAnthropic && s.responseSuccessful {
+	if selected.protocol == aiprotocol.UpstreamProtocolAnthropic && s.responseSuccessful {
 		// 调用方始终接收 OpenAI 兼容 Content-Type，不感知实际模型厂商
 		contentType := "application/json"
 		if request.Streaming {
@@ -40,7 +40,7 @@ func (s *streamState) handleEntryResponseHeaders(headers *corev3.HeaderMap) *ext
 			s.anthropicStream = chatcompletion.NewAnthropicStream(request.Model)
 		}
 	}
-	if selected.Protocol == filterconfig.ProtocolOpenAI && request.Streaming && s.responseSuccessful {
+	if selected.protocol == aiprotocol.UpstreamProtocolOpenAI && request.Streaming && s.responseSuccessful {
 		s.openAIStream = chatcompletion.NewOpenAIStream(request.Model)
 	}
 
@@ -55,25 +55,25 @@ func (s *streamState) handleEntryResponseHeaders(headers *corev3.HeaderMap) *ext
 	return response
 }
 
-// handleEntryResponseBody 按 Envoy 最终选中的模型 Service 观察或转换响应
+// handleDownstreamResponseBody 按 Envoy 最终选中的模型 Service 观察或转换响应
 // OpenAI 兼容响应恢复客户端模型名，Anthropic 响应转换为调用方请求的 Chat Completions 格式
-func (s *streamState) handleEntryResponseBody(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
+func (s *streamState) handleDownstreamResponseBody(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
 	selected, ok := s.request.selectedService()
 	if !ok {
 		return bodyResponse(responseMessage, nil, nil), nil
 	}
-	switch selected.Protocol {
-	case filterconfig.ProtocolOpenAI:
-		return s.handleEntryOpenAIResponse(body)
-	case filterconfig.ProtocolAnthropic:
+	switch selected.protocol {
+	case aiprotocol.UpstreamProtocolOpenAI:
+		return s.handleDownstreamOpenAIResponse(body)
+	case aiprotocol.UpstreamProtocolAnthropic:
 		// Anthropic 线路必须把完整响应或 SSE 事件转换成调用方约定的 OpenAI 格式
-		return s.handleEntryAnthropicResponse(body)
+		return s.handleDownstreamAnthropicResponse(body)
 	default:
-		return nil, fmt.Errorf("unsupported upstream protocol %q", selected.Protocol)
+		return nil, fmt.Errorf("unsupported upstream protocol %q", selected.protocol)
 	}
 }
 
-func (s *streamState) handleEntryOpenAIResponse(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
+func (s *streamState) handleDownstreamOpenAIResponse(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
 	request, _ := s.request.requestMetadata()
 	if request.Streaming {
 		if s.openAIStream == nil {
@@ -122,9 +122,9 @@ func (s *streamState) handleEntryOpenAIResponse(body *extprocv3.HttpBody) (*extp
 	return response, nil
 }
 
-func (s *streamState) handleEntryAnthropicResponse(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
+func (s *streamState) handleDownstreamAnthropicResponse(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
 	if !s.responseSuccessful {
-		return s.handleEntryAnthropicError(body)
+		return s.handleDownstreamAnthropicError(body)
 	}
 
 	request, _ := s.request.requestMetadata()
@@ -151,7 +151,7 @@ func (s *streamState) handleEntryAnthropicResponse(body *extprocv3.HttpBody) (*e
 	}
 
 	if !body.GetEndOfStream() {
-		// 非流式 Anthropic 响应需要完整 JSON，Envoy 必须为入口 filter 使用 BUFFERED 模式
+		// 非流式 Anthropic 响应需要完整 JSON，Envoy 必须为 downstream filter 使用 BUFFERED 模式
 		return nil, errResponseNotBuffered
 	}
 	converted, metadata, err := chatcompletion.RewriteAnthropicResponse(body.GetBody(), request.Model)
@@ -172,7 +172,7 @@ func (s *streamState) handleEntryAnthropicResponse(body *extprocv3.HttpBody) (*e
 	return response, nil
 }
 
-func (s *streamState) handleEntryAnthropicError(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
+func (s *streamState) handleDownstreamAnthropicError(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
 	if !body.GetEndOfStream() {
 		return nil, errResponseNotBuffered
 	}

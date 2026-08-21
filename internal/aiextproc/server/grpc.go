@@ -10,11 +10,11 @@ import (
 )
 
 // NewGRPCServer 创建并注册 Envoy External Processing 服务
-func NewGRPCServer(config *conf.Server, service *aiextprocservice.Service) *kratosgrpc.Server {
+func NewGRPCServer(config *conf.Server, processor *aiextprocservice.ExternalProcessor) *kratosgrpc.Server {
 	server := kratosgrpc.NewServer(
 		kratosgrpc.Network("tcp"),
 		kratosgrpc.Address(config.GetGrpc().GetAddr()),
 	)
-	extprocv3.RegisterExternalProcessorServer(server, service)
+	extprocv3.RegisterExternalProcessorServer(server, processor)
 	return server
 }

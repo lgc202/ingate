@@ -12,21 +12,21 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/lgc202/ingate/internal/aiextproc/filterconfig"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 )
 
 const (
-	httpAIEntryExtProcFilterName    = "envoy.filters.http.ext_proc/ingate-ai-entry"
-	httpAIUpstreamExtProcFilterName = "envoy.filters.http.ext_proc/ingate-ai-upstream"
-	httpUpstreamCodecFilterName     = "envoy.filters.http.upstream_codec"
-	httpProtocolOptionsName         = "envoy.extensions.upstreams.http.v3.HttpProtocolOptions"
-	aiExtProcClusterName            = "ingate-system-ai-extproc"
-	aiExtProcMessageTimeout         = 10 * time.Second
+	httpAIDownstreamExtProcFilterName = "envoy.filters.http.ext_proc/ingate-ai-downstream"
+	httpAIUpstreamExtProcFilterName   = "envoy.filters.http.ext_proc/ingate-ai-upstream"
+	httpUpstreamCodecFilterName       = "envoy.filters.http.upstream_codec"
+	httpProtocolOptionsName           = "envoy.extensions.upstreams.http.v3.HttpProtocolOptions"
+	aiExtProcClusterName              = "ingate-system-ai-extproc"
+	aiExtProcMessageTimeout           = 10 * time.Second
 )
 
-// buildAIEntryExtProcHTTPFilter 构造客户端请求入口过滤器
+// buildAIDownstreamExtProcHTTPFilter 构造客户端 downstream 过滤器
 // 默认关闭后只由 AI Route 的兜底路由启用，普通 API 不会发送 gRPC 或缓冲正文
-func buildAIEntryExtProcHTTPFilter() (*hcmv3.HttpFilter, error) {
+func buildAIDownstreamExtProcHTTPFilter() (*hcmv3.HttpFilter, error) {
 	configuration := &extprocv3.ExternalProcessor{
 		GrpcService: aiExtProcGRPCService(),
 		ProcessingMode: &extprocv3.ProcessingMode{
@@ -43,12 +43,12 @@ func buildAIEntryExtProcHTTPFilter() (*hcmv3.HttpFilter, error) {
 		FailureModeAllow:  false,
 		AllowModeOverride: true,
 	}
-	typedConfig, err := marshalAIExtProcConfig("entry", configuration)
+	typedConfig, err := marshalAIExtProcConfig("downstream", configuration)
 	if err != nil {
 		return nil, err
 	}
 	return &hcmv3.HttpFilter{
-		Name:       httpAIEntryExtProcFilterName,
+		Name:       httpAIDownstreamExtProcFilterName,
 		Disabled:   true,
 		ConfigType: &hcmv3.HttpFilter_TypedConfig{TypedConfig: typedConfig},
 	}, nil
@@ -66,8 +66,8 @@ func buildAIUpstreamProtocolOptions() (*anypb.Any, error) {
 			ResponseBodyMode:   extprocv3.ProcessingMode_NONE,
 		},
 		RequestAttributes: []string{
-			filterconfig.ServiceIDAttribute,
-			filterconfig.ProtocolAttribute,
+			aiprotocol.ServiceIDAttribute,
+			aiprotocol.ServiceProtocolAttribute,
 		},
 		MetadataOptions:   aiExtProcMetadataOptions(),
 		MessageTimeout:    durationpb.New(aiExtProcMessageTimeout),
@@ -123,7 +123,7 @@ func aiExtProcGRPCService() *corev3.GrpcService {
 func aiExtProcMetadataOptions() *extprocv3.MetadataOptions {
 	return &extprocv3.MetadataOptions{
 		ReceivingNamespaces: &extprocv3.MetadataOptions_MetadataNamespaces{
-			Untyped: []string{filterconfig.MetadataNamespace},
+			Untyped: []string{aiprotocol.MetadataNamespace},
 		},
 	}
 }

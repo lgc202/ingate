@@ -7,7 +7,7 @@ type UpstreamRequest struct {
 	BodyChanged bool // 首次上游尝试只有在正文变化时才需要覆盖 Envoy 当前正文
 }
 
-// RequestMetadata 是入口阶段从 OpenAI Chat Completions 请求中提取的路由信息
+// RequestMetadata 是 downstream 阶段从 OpenAI Chat Completions 请求中提取的路由信息
 type RequestMetadata struct {
 	Model     string
 	Streaming bool
