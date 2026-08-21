@@ -9,7 +9,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/als/conf"
 	alsservice "github.com/lgc202/ingate/internal/als/service"
-	"github.com/lgc202/ingate/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/tlsx"
 )
 
 // NewGRPCServer 创建并注册 Envoy ALS gRPC 服务

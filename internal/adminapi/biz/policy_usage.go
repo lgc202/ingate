@@ -4,17 +4,17 @@ import (
 	"context"
 	"slices"
 
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // RateLimitPolicyLister 定义策略引用检查需要的限流策略分页能力
 type RateLimitPolicyLister interface {
-	ListPage(context.Context, PageRequest) (PageResult[resource.RateLimitPolicy], error)
+	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.RateLimitPolicy], error)
 }
 
 // IPRestrictionPolicyLister 定义策略引用检查需要的 IP 访问限制策略分页能力
 type IPRestrictionPolicyLister interface {
-	ListPage(context.Context, PageRequest) (PageResult[resource.IPRestrictionPolicy], error)
+	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.IPRestrictionPolicy], error)
 }
 
 // PolicyUsage 表示一个目标当前被哪条策略应用
@@ -39,8 +39,8 @@ func NewPolicyUsageFinder(
 	}
 }
 
-// Find 返回第一条仍引用目标的策略，没有引用时返回 nil
-func (f *PolicyUsageFinder) Find(ctx context.Context, target resource.PolicyTargetRef) (*PolicyUsage, error) {
+// FindTarget 返回第一条仍引用目标的策略，没有引用时返回 nil
+func (f *PolicyUsageFinder) FindTarget(ctx context.Context, target resource.PolicyTargetRef) (*PolicyUsage, error) {
 	var usage *PolicyUsage
 	err := VisitPages(ctx, f.rateLimitPolicies.ListPage, func(policy resource.RateLimitPolicy) (bool, error) {
 		if slices.Contains(policy.Spec.TargetRefs, target) {
@@ -65,9 +65,6 @@ func (f *PolicyUsageFinder) Find(ctx context.Context, target resource.PolicyTarg
 	})
 	if err != nil {
 		return nil, err
-	}
-	if usage != nil {
-		return usage, nil
 	}
 	return usage, nil
 }

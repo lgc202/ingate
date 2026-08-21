@@ -10,7 +10,7 @@ import (
 )
 
 // NewGRPCServer 创建并注册 Envoy External Authorization 服务
-func NewGRPCServer(config *conf.Server, service *authzservice.Service) *kratosgrpc.Server {
+func NewGRPCServer(config *conf.Server, service *authzservice.AuthorizationService) *kratosgrpc.Server {
 	server := kratosgrpc.NewServer(
 		kratosgrpc.Network("tcp"),
 		kratosgrpc.Address(config.GetGrpc().GetAddr()),

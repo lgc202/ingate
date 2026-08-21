@@ -20,10 +20,12 @@ type Service struct {
 var _ discoveryv3.AggregatedDiscoveryServiceServer = (*Service)(nil)
 
 // NewService 创建共享 Snapshot Cache 和 ACK/NACK 回调的 ADS 服务
-func NewService(ctx context.Context, watcher cachev3.ConfigWatcher, callbacks sotwv3.Callbacks, logger log.Logger) *Service {
+func NewService(watcher cachev3.ConfigWatcher, callbacks sotwv3.Callbacks, logger log.Logger) *Service {
 	return &Service{
 		sotw: sotwv3.NewServer(
-			ctx,
+			// ADS stream 的实际生命周期由 gRPC context 管理；此 context 只满足
+			// go-control-plane 的进程级服务构造要求
+			context.Background(),
 			watcher,
 			callbacks,
 			sotwv3.WithOrderedADS(),

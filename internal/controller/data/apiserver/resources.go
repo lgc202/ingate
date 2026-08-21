@@ -11,10 +11,10 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
-	informers "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
-	gatewaylisters "github.com/lgc202/ingate/pkg/generated/listers/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
+	informers "github.com/lgc202/ingate/internal/pkg/generated/informers/externalversions"
+	gatewaylisters "github.com/lgc202/ingate/internal/pkg/generated/listers/gateway/v1"
 )
 
 // ResourceWatcher 管理声明式资源 informer 及其只读本地缓存

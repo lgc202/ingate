@@ -1,6 +1,6 @@
 GO ?= go
 GOFMT ?= gofmt
-GO_TOOLCHAIN := go1.26.0
+GO_TOOLCHAIN := go1.26.6
 GO_ENV := GOTOOLCHAIN=$(GO_TOOLCHAIN)
 GOLANGCI_LINT := $(TOOLS_DIR)/golangci-lint
 GOLANGCI_LINT_CACHE := $(OUTPUT_DIR)/cache/golangci-lint

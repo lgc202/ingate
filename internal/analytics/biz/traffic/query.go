@@ -3,32 +3,35 @@ package traffic
 
 import "context"
 
-// Queries 提供不依赖 ClickHouse 协议的流量趋势和资源分布查询
-type Queries struct {
+// Query 提供不依赖 ClickHouse 协议的流量趋势和资源分布查询
+type Query struct {
 	store QueryStore
 }
 
-// NewQueries 创建流量查询
-func NewQueries(store QueryStore) *Queries {
-	return &Queries{store: store}
+// NewQuery 创建流量查询
+func NewQuery(store QueryStore) *Query {
+	return &Query{store: store}
 }
 
-// Summary 查询整个时间范围的流量和延迟汇总
-func (q *Queries) Summary(ctx context.Context, filter Filter) (Summary, error) {
-	return q.store.QueryTrafficSummary(ctx, filter)
-}
-
-// Trend 查询指定时间粒度的流量和延迟趋势
-func (q *Queries) Trend(ctx context.Context, query TrendQuery) ([]TrendPoint, error) {
-	return q.store.QueryTrafficTrend(ctx, query)
+// Trend 查询整个时间范围的流量汇总及指定粒度的变化趋势
+func (q *Query) Trend(ctx context.Context, query TrendQuery) (TrendResult, error) {
+	summary, err := q.store.QueryTrafficSummary(ctx, query.Filter)
+	if err != nil {
+		return TrendResult{}, err
+	}
+	points, err := q.store.QueryTrafficTrend(ctx, query)
+	if err != nil {
+		return TrendResult{}, err
+	}
+	return TrendResult{Summary: summary, Points: points}, nil
 }
 
 // Breakdown 查询按资源维度聚合的流量和延迟
-func (q *Queries) Breakdown(ctx context.Context, query BreakdownQuery) ([]BreakdownItem, error) {
+func (q *Query) Breakdown(ctx context.Context, query BreakdownQuery) ([]BreakdownItem, error) {
 	return q.store.QueryTrafficBreakdown(ctx, query)
 }
 
 // ResourceTraffic 查询指定资源的列表流量摘要
-func (q *Queries) ResourceTraffic(ctx context.Context, query ResourceTrafficQuery) ([]ResourceTrafficSummary, error) {
+func (q *Query) ResourceTraffic(ctx context.Context, query ResourceTrafficQuery) ([]ResourceTrafficSummary, error) {
 	return q.store.QueryResourceTraffic(ctx, query)
 }

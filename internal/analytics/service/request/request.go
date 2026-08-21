@@ -12,8 +12,8 @@ import (
 )
 
 const (
-	defaultPageSize = 50
-	maxPageSize     = 200
+	defaultPageSize uint32 = 50
+	maxPageSize     uint32 = 200
 )
 
 // pageTokenPayload 是管理面不可解释的分页 Token 内部载荷
@@ -29,7 +29,7 @@ func buildListOptions(request *analyticsv1.ListRequestsRequest) (requestbiz.List
 	if err != nil {
 		return requestbiz.ListOptions{}, err
 	}
-	pageSize := int(request.GetPageSize())
+	pageSize := request.GetPageSize()
 	if pageSize == 0 {
 		pageSize = defaultPageSize
 	}
@@ -40,7 +40,7 @@ func buildListOptions(request *analyticsv1.ListRequestsRequest) (requestbiz.List
 	if err != nil {
 		return requestbiz.ListOptions{}, invalidArgument("page_token is invalid")
 	}
-	return requestbiz.ListOptions{Filter: filter, PageSize: pageSize, Cursor: cursor}, nil
+	return requestbiz.ListOptions{Filter: filter, PageSize: int(pageSize), Cursor: cursor}, nil
 }
 
 func buildFilter(filter *analyticsv1.RequestFilter) (requestbiz.Filter, error) {

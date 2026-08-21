@@ -1,4 +1,4 @@
-// Package appconfig 统一加载和校验各组件的 Kratos 配置
+// Package appconfig 统一加载配置并装配各 Kratos 组件共享的进程能力
 package appconfig
 
 import (

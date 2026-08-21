@@ -8,7 +8,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 	"github.com/lgc202/ingate/internal/controller/biz/delivery"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 const (

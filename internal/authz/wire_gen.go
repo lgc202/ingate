@@ -8,8 +8,9 @@ package authz
 
 import (
 	"github.com/go-kratos/kratos/v3"
-	"github.com/lgc202/ingate/internal/authz/caller"
+	"github.com/lgc202/ingate/internal/authz/biz"
 	"github.com/lgc202/ingate/internal/authz/conf"
+	"github.com/lgc202/ingate/internal/authz/data/apiserver"
 	"github.com/lgc202/ingate/internal/authz/server"
 	"github.com/lgc202/ingate/internal/authz/service"
 	"log/slog"
@@ -18,13 +19,14 @@ import (
 // Injectors from wire.go:
 
 func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, logger *slog.Logger, authzServiceInstanceID serviceInstanceID) (*kratos.App, error) {
-	index, err := caller.NewIndex(data_APIServer, logger)
+	credentialCache, err := apiserver.NewCredentialCache(data_APIServer, logger)
 	if err != nil {
 		return nil, err
 	}
-	httpServer := server.NewHTTPServer(confServer, index)
-	serviceService := service.NewService(index)
-	grpcServer := server.NewGRPCServer(confServer, serviceService)
-	app := newKratosApp(logger, confServer, httpServer, grpcServer, index, authzServiceInstanceID)
+	httpServer := server.NewHTTPServer(confServer, credentialCache)
+	authorizer := biz.NewAuthorizer(credentialCache)
+	authorizationService := service.NewAuthorizationService(authorizer)
+	grpcServer := server.NewGRPCServer(confServer, authorizationService)
+	app := newKratosApp(logger, confServer, httpServer, grpcServer, credentialCache, authzServiceInstanceID)
 	return app, nil
 }

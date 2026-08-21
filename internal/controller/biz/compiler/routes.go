@@ -11,9 +11,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
-	"github.com/lgc202/ingate/internal/authz/filterconfig"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/extauthz"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 const (
@@ -99,7 +99,7 @@ func (c *compilation) buildRoutes(
 							if current.route.TypedPerFilterConfig == nil {
 								current.route.TypedPerFilterConfig = make(map[string]*anypb.Any)
 							}
-							current.route.TypedPerFilterConfig[filterconfig.HTTPFilterName] = accessConfig
+							current.route.TypedPerFilterConfig[extauthz.FilterName] = accessConfig
 						}
 						current.route.Name = envoyRouteName(gatewayID, routeID, entry.method, entry.variant)
 						matchKey := routeMatchKey(current.route.Match)
@@ -189,9 +189,7 @@ func (c *compilation) routeDomainsByListener(
 			if result[listener.key] == nil {
 				result[listener.key] = make(map[string]bool)
 			}
-			for _, hostname := range listener.hosts {
-				result[listener.key][hostname] = true
-			}
+			result[listener.key][listener.hostname] = true
 		}
 		return result
 	}
@@ -199,16 +197,14 @@ func (c *compilation) routeDomainsByListener(
 	for _, hostname := range hostnames {
 		matched := false
 		for _, listener := range listenersByGateway[gatewayID] {
-			for _, listenerHostname := range listener.hosts {
-				if !hostnameCoveredByListener(hostname, listenerHostname) {
-					continue
-				}
-				if result[listener.key] == nil {
-					result[listener.key] = make(map[string]bool)
-				}
-				result[listener.key][hostname] = true
-				matched = true
+			if !hostnameCoveredByListener(hostname, listener.hostname) {
+				continue
 			}
+			if result[listener.key] == nil {
+				result[listener.key] = make(map[string]bool)
+			}
+			result[listener.key][hostname] = true
+			matched = true
 		}
 		if !matched {
 			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonConflict, fmt.Sprintf("route %q hostname %q does not belong to a listener on gateway %q", route.Name, hostname, gatewayID))

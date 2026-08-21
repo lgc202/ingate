@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"google.golang.org/protobuf/types/known/durationpb"
+	"time"
 
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 )
@@ -42,19 +41,19 @@ const requestRecordColumns = `
 //
 // 模型调用先写入独立事实表，请求记录成功后才会从查询入口暴露这些数据
 // 任一步失败都由 Kafka 重投，两个 ReplacingMergeTree 使用稳定事件 ID 收敛重复明细
-func (s *Store) SaveRequestBatch(ctx context.Context, facts []request.Fact) error {
-	if len(facts) == 0 {
+func (s *Store) SaveRequestBatch(ctx context.Context, records []request.Record) error {
+	if len(records) == 0 {
 		return nil
 	}
 	writeCtx, cancel := context.WithTimeout(ctx, s.writeTimeout)
 	defer cancel()
-	if err := s.saveModelCalls(writeCtx, facts); err != nil {
+	if err := s.saveModelCalls(writeCtx, records); err != nil {
 		return err
 	}
-	return s.saveRequestRecords(writeCtx, facts)
+	return s.saveRequestRecords(writeCtx, records)
 }
 
-func (s *Store) saveRequestRecords(ctx context.Context, facts []request.Fact) (err error) {
+func (s *Store) saveRequestRecords(ctx context.Context, records []request.Record) (err error) {
 	statement := fmt.Sprintf("INSERT INTO %s (%s)", s.requestTable, requestRecordColumns)
 	batch, err := s.connection.PrepareBatch(ctx, statement)
 	if err != nil {
@@ -69,34 +68,34 @@ func (s *Store) saveRequestRecords(ctx context.Context, facts []request.Fact) (e
 		}
 	}()
 
-	for _, fact := range facts {
-		record := fact.Record
+	for i := range records {
+		record := &records[i]
 		if err := batch.Append(
-			record.GetId(),
-			record.GetRequestId(),
-			record.GetStartedAt().AsTime(),
-			durationNanoseconds(record.GetDuration()),
-			record.GetClientIp(),
-			record.GetMethod(),
-			record.GetHost(),
-			record.GetPath(),
-			uint16(record.GetStatusCode()),
-			uint8(fact.StatusClass),
-			record.GetRequestBytes(),
-			record.GetResponseBytes(),
-			record.GetGatewayId(),
-			record.GetRouteId(),
-			record.GetUpstreamId(),
-			record.GetCallerId(),
-			record.GetAccessKeyId(),
-			record.GetEnvoyNodeId(),
-			record.GetProtocol(),
-			record.GetResponseCodeDetails(),
-			uint16(record.GetUpstreamAttempts()),
-			record.GetUpstreamAddress(),
-			durationNanoseconds(record.GetTimeToFirstByte()),
+			record.ID,
+			record.RequestID,
+			record.StartedAt,
+			durationNanoseconds(record.Duration),
+			record.ClientIP,
+			record.Method,
+			record.Host,
+			record.Path,
+			record.StatusCode,
+			uint8(record.StatusClass),
+			record.RequestBytes,
+			record.ResponseBytes,
+			record.GatewayID,
+			record.RouteID,
+			record.UpstreamID,
+			record.CallerID,
+			record.AccessKeyID,
+			record.EnvoyNodeID,
+			record.Protocol,
+			record.ResponseCodeDetails,
+			record.UpstreamAttempts,
+			record.UpstreamAddress,
+			durationNanoseconds(record.TimeToFirstByte),
 		); err != nil {
-			return fmt.Errorf("append request record %q: %w", record.GetId(), err)
+			return fmt.Errorf("append request record %q: %w", record.ID, err)
 		}
 	}
 	if err := batch.Send(); err != nil {
@@ -105,10 +104,10 @@ func (s *Store) saveRequestRecords(ctx context.Context, facts []request.Fact) (e
 	return nil
 }
 
-func durationNanoseconds(duration *durationpb.Duration) *uint64 {
+func durationNanoseconds(duration *time.Duration) *uint64 {
 	if duration == nil {
 		return nil
 	}
-	nanoseconds := uint64(duration.AsDuration())
+	nanoseconds := uint64(*duration)
 	return &nanoseconds
 }

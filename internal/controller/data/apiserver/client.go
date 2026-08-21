@@ -5,7 +5,7 @@ import (
 
 	"k8s.io/client-go/tools/clientcmd"
 
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
 // NewClient 创建声明式资源 API 客户端

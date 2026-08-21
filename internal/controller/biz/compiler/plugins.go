@@ -29,7 +29,7 @@ func buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) 
 		return nil, err
 	}
 	filters = append(filters, callerAuth)
-	aiExtProc, err := buildAIEntryExtProcHTTPFilter()
+	aiExtProc, err := buildAIDownstreamExtProcHTTPFilter()
 	if err != nil {
 		return nil, err
 	}

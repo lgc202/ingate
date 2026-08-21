@@ -16,8 +16,8 @@ import (
 	netutils "k8s.io/utils/net"
 
 	"github.com/lgc202/ingate/internal/apiserver/conf"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	generatedopenapi "github.com/lgc202/ingate/pkg/generated/openapi"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	generatedopenapi "github.com/lgc202/ingate/internal/pkg/generated/openapi"
 )
 
 const serverName = "ingate-apiserver"
@@ -32,27 +32,12 @@ type Server struct {
 
 // New 根据进程配置创建 Generic API Server
 func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, error) {
-	host, portText, err := net.SplitHostPort(httpConfig.GetAddr())
-	if err != nil {
-		return nil, fmt.Errorf("parse API server address %q: %w", httpConfig.GetAddr(), err)
-	}
-	port, err := strconv.Atoi(portText)
-	if err != nil {
-		return nil, fmt.Errorf("parse API server port %q: %w", portText, err)
-	}
-
 	serverRunOptions := genericoptions.NewServerRunOptions()
-	secureServing := genericoptions.NewSecureServingOptions().WithLoopback()
-	secureServing.BindAddress = netutils.ParseIPSloppy(host)
-	secureServing.BindPort = port
-	secureServing.ServerCert.CertDirectory = httpConfig.GetCertDirectory()
-	secureServing.ServerCert.PairName = "apiserver"
-
-	storageCodec := Codecs.LegacyCodec(gatewayv1.SchemeGroupVersion)
-	etcd := genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(etcdConfig.GetPrefix(), storageCodec))
-	etcd.StorageConfig.Transport.ServerList = append([]string(nil), etcdConfig.GetEndpoints()...)
-	etcd.DefaultStorageMediaType = runtime.ContentTypeJSON
-
+	secureServing, err := newSecureServingOptions(httpConfig)
+	if err != nil {
+		return nil, err
+	}
+	etcd := newEtcdOptions(etcdConfig)
 	if err := serverRunOptions.Complete(); err != nil {
 		return nil, fmt.Errorf("complete API server options: %w", err)
 	}
@@ -88,15 +73,7 @@ func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, err
 	if err := etcd.ApplyTo(&genericConfig.Config); err != nil {
 		return nil, fmt.Errorf("apply API server etcd options: %w", err)
 	}
-
-	openAPIDefinitions := generatedopenapi.GetOpenAPIDefinitions
-	openAPINamer := openapinamer.NewDefinitionNamer(Scheme)
-	genericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(openAPIDefinitions, openAPINamer)
-	genericConfig.OpenAPIConfig.Info.Title = "Ingate API Server"
-	genericConfig.OpenAPIConfig.Info.Version = gatewayv1.SchemeGroupVersion.Version
-	genericConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(openAPIDefinitions, openAPINamer)
-	genericConfig.OpenAPIV3Config.Info.Title = "Ingate API Server"
-	genericConfig.OpenAPIV3Config.Info.Version = gatewayv1.SchemeGroupVersion.Version
+	configureOpenAPI(genericConfig)
 
 	completedConfig := genericConfig.Complete()
 	genericServer, err := completedConfig.New(serverName, genericapiserver.NewEmptyDelegate())
@@ -115,10 +92,48 @@ func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, err
 	}, nil
 }
 
+func newSecureServingOptions(config *conf.Server_HTTP) (*genericoptions.SecureServingOptionsWithLoopback, error) {
+	host, portText, err := net.SplitHostPort(config.GetAddr())
+	if err != nil {
+		return nil, fmt.Errorf("parse API server address %q: %w", config.GetAddr(), err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		return nil, fmt.Errorf("parse API server port %q: %w", portText, err)
+	}
+
+	options := genericoptions.NewSecureServingOptions().WithLoopback()
+	options.BindAddress = netutils.ParseIPSloppy(host)
+	options.BindPort = port
+	options.ServerCert.CertDirectory = config.GetCertDirectory()
+	options.ServerCert.PairName = "apiserver"
+	return options, nil
+}
+
+func newEtcdOptions(config *conf.Data_Etcd) *genericoptions.EtcdOptions {
+	storageCodec := Codecs.LegacyCodec(gatewayv1.SchemeGroupVersion)
+	options := genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(config.GetPrefix(), storageCodec))
+	options.StorageConfig.Transport.ServerList = append([]string(nil), config.GetEndpoints()...)
+	options.DefaultStorageMediaType = runtime.ContentTypeJSON
+	return options
+}
+
+func configureOpenAPI(config *genericapiserver.RecommendedConfig) {
+	openAPIDefinitions := generatedopenapi.GetOpenAPIDefinitions
+	openAPINamer := openapinamer.NewDefinitionNamer(Scheme)
+	config.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(openAPIDefinitions, openAPINamer)
+	config.OpenAPIConfig.Info.Title = "Ingate API Server"
+	config.OpenAPIConfig.Info.Version = gatewayv1.SchemeGroupVersion.Version
+	config.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(openAPIDefinitions, openAPINamer)
+	config.OpenAPIV3Config.Info.Title = "Ingate API Server"
+	config.OpenAPIV3Config.Info.Version = gatewayv1.SchemeGroupVersion.Version
+}
+
 // Start 阻塞运行 Generic API Server，直到 Kratos 调用 Stop
 func (s *Server) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	defer close(s.done)
 	go func() {
 		select {
 		case <-s.stop:
@@ -126,9 +141,7 @@ func (s *Server) Start(ctx context.Context) error {
 		case <-runCtx.Done():
 		}
 	}()
-	runErr := s.generic.PrepareRun().RunWithContext(runCtx)
-	close(s.done)
-	return runErr
+	return s.generic.PrepareRun().RunWithContext(runCtx)
 }
 
 // Stop 通知 Generic API Server 停止并等待在途请求完成

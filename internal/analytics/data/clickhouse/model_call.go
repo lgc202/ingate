@@ -9,7 +9,6 @@ import (
 	clickhousego "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
-	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 )
 
@@ -47,10 +46,10 @@ type modelCallRow struct {
 }
 
 // saveModelCalls 只保存确实经过模型 Service 的请求，不为普通 HTTP 请求写空行
-func (s *Store) saveModelCalls(ctx context.Context, facts []request.Fact) (err error) {
+func (s *Store) saveModelCalls(ctx context.Context, records []request.Record) (err error) {
 	hasModelCall := false
-	for i := range facts {
-		if facts[i].Record.GetAiModelCall() != nil {
+	for i := range records {
+		if records[i].ModelCall != nil {
 			hasModelCall = true
 			break
 		}
@@ -73,30 +72,30 @@ func (s *Store) saveModelCalls(ctx context.Context, facts []request.Fact) (err e
 		}
 	}()
 
-	for _, fact := range facts {
-		record := fact.Record
-		call := record.GetAiModelCall()
+	for i := range records {
+		record := &records[i]
+		call := record.ModelCall
 		if call == nil {
 			continue
 		}
 		if err := batch.Append(
-			record.GetId(),
-			record.GetStartedAt().AsTime(),
-			record.GetGatewayId(),
-			record.GetRouteId(),
-			record.GetUpstreamId(),
-			record.GetCallerId(),
-			record.GetAccessKeyId(),
-			call.GetClientModel(),
-			call.GetUpstreamModel(),
-			call.GetUpstreamProtocol(),
-			call.GetResponseModel(),
-			call.GetFinishReason(),
+			record.ID,
+			record.StartedAt,
+			record.GatewayID,
+			record.RouteID,
+			record.UpstreamID,
+			record.CallerID,
+			record.AccessKeyID,
+			call.ClientModel,
+			call.UpstreamModel,
+			call.UpstreamProtocol,
+			call.ResponseModel,
+			call.FinishReason,
 			call.InputTokens,
 			call.OutputTokens,
 			call.TotalTokens,
 		); err != nil {
-			return fmt.Errorf("append model call for request record %q: %w", record.GetId(), err)
+			return fmt.Errorf("append model call for request record %q: %w", record.ID, err)
 		}
 	}
 	if err := batch.Send(); err != nil {
@@ -170,7 +169,7 @@ func (s *Store) getModelCall(
 	ctx context.Context,
 	requestRecordID string,
 	startedAt time.Time,
-) (call *alsv1.AIModelCall, err error) {
+) (call *request.ModelCall, err error) {
 	statement := fmt.Sprintf(`
 SELECT %s
 FROM %s FINAL
@@ -200,7 +199,7 @@ LIMIT 1`, modelCallSelectColumns, s.modelCallTable)
 	if err != nil {
 		return nil, err
 	}
-	return modelCallProto(&row.call), nil
+	return &row.call, nil
 }
 
 func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
@@ -219,17 +218,4 @@ func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
 		return modelCallRow{}, fmt.Errorf("scan model call: %w", err)
 	}
 	return row, nil
-}
-
-func modelCallProto(call *request.ModelCall) *alsv1.AIModelCall {
-	return &alsv1.AIModelCall{
-		ClientModel:      call.ClientModel,
-		UpstreamModel:    call.UpstreamModel,
-		UpstreamProtocol: call.UpstreamProtocol,
-		ResponseModel:    call.ResponseModel,
-		FinishReason:     call.FinishReason,
-		InputTokens:      call.InputTokens,
-		OutputTokens:     call.OutputTokens,
-		TotalTokens:      call.TotalTokens,
-	}
 }

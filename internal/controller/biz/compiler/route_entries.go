@@ -9,7 +9,7 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	"google.golang.org/protobuf/proto"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // routeEntry 保存 Envoy Route 及其稳定的匹配优先级元数据
@@ -69,7 +69,11 @@ func (c *compilation) buildRouteEntries(route *gatewayv1.Route, compiledUpstream
 			match.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: path}
 		}
 		entries = append(entries, routeEntry{
-			routeID: route.Name, path: path, exactPath: exactPath, method: method, headerCount: len(headers),
+			routeID:     route.Name,
+			path:        path,
+			exactPath:   exactPath,
+			method:      method,
+			headerCount: len(headers),
 			route: &routev3.Route{
 				Match:                   match,
 				Action:                  &routev3.Route_Route{Route: proto.Clone(action).(*routev3.RouteAction)},

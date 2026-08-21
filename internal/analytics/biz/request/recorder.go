@@ -3,11 +3,9 @@ package request
 
 import (
 	"context"
-
-	alsv1 "github.com/lgc202/ingate/api/als/v1"
 )
 
-// Recorder 将已校验的 ALS 请求记录转换为稳定事实并持久化
+// Recorder 为已校验的请求记录补充结果分类并持久化
 type Recorder struct {
 	store RecordStore
 }
@@ -17,22 +15,18 @@ func NewRecorder(store RecordStore) *Recorder {
 	return &Recorder{store: store}
 }
 
-// Record 保存一批已经通过协议边界校验的请求记录
-func (r *Recorder) Record(ctx context.Context, records []*alsv1.RequestRecord) error {
+// Save 保存一批已经通过 Kafka 协议边界校验的请求记录
+func (r *Recorder) Save(ctx context.Context, records []Record) error {
 	if len(records) == 0 {
 		return nil
 	}
-	facts := make([]Fact, 0, len(records))
-	for _, record := range records {
-		facts = append(facts, Fact{
-			Record:      record,
-			StatusClass: classifyStatus(record.GetStatusCode()),
-		})
+	for i := range records {
+		records[i].StatusClass = classifyStatus(records[i].StatusCode)
 	}
-	return r.store.SaveRequestBatch(ctx, facts)
+	return r.store.SaveRequestBatch(ctx, records)
 }
 
-func classifyStatus(status uint32) StatusClass {
+func classifyStatus(status uint16) StatusClass {
 	switch {
 	case status >= 500:
 		return StatusClassServerError

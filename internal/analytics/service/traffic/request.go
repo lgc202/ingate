@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	defaultBreakdown        = 20
-	maxBreakdown            = 200
+	defaultBreakdown uint32 = 20
+	maxBreakdown     uint32 = 200
+
 	maxResourceTrafficBatch = 200
 )
 
@@ -41,14 +42,14 @@ func buildBreakdownQuery(request *analyticsv1.ListTrafficBreakdownRequest) (traf
 	if err != nil {
 		return trafficbiz.BreakdownQuery{}, err
 	}
-	limit := int(request.GetLimit())
+	limit := request.GetLimit()
 	if limit == 0 {
 		limit = defaultBreakdown
 	}
 	if limit > maxBreakdown {
 		return trafficbiz.BreakdownQuery{}, invalidArgument("limit exceeds maximum")
 	}
-	return trafficbiz.BreakdownQuery{Filter: filter, Dimension: dimension, Order: order, Limit: limit}, nil
+	return trafficbiz.BreakdownQuery{Filter: filter, Dimension: dimension, Order: order, Limit: int(limit)}, nil
 }
 
 func buildResourceTrafficQuery(request *analyticsv1.BatchGetResourceTrafficRequest) (trafficbiz.ResourceTrafficQuery, error) {
