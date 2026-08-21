@@ -68,6 +68,12 @@ type TrendPoint struct {
 	P99Duration     time.Duration
 }
 
+// TrendResult 汇总一个时间范围的整体指标及其分桶趋势
+type TrendResult struct {
+	Summary Summary
+	Points  []TrendPoint
+}
+
 // Summary 是整个查询范围内的流量和延迟汇总
 type Summary struct {
 	RequestCount    uint64

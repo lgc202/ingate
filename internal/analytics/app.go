@@ -1,8 +1,8 @@
 // Package analytics 装配 ingate-analytics 进程及其资源生命周期
 //
-// 组件的数据写入链路为 Kafka -> Consumer -> request.Recorder -> ClickHouse，
-// 查询链路为 Admin API -> gRPC Service -> biz Queries -> ClickHouse。Kratos 只管理
-// HTTP、gRPC 和 Consumer 的启动停止，不承载请求分析业务
+// 组件的数据写入链路为 Kafka -> RequestConsumer -> request.Recorder -> ClickHouse，
+// 查询链路为 Admin API -> gRPC Service -> biz 查询用例 -> ClickHouse。Kratos 只管理
+// HTTP、gRPC 和 Kafka 消费循环的启动停止，不承载请求分析业务
 package analytics
 
 import (
@@ -65,7 +65,7 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp, cleanup: cleanup}, nil
 }
 
-// Run 启动 Analytics 的 HTTP、gRPC 和 Kafka Consumer，退出后释放 ClickHouse 连接
+// Run 启动 Analytics 的 HTTP、gRPC 和 Kafka 消费循环，退出后释放 ClickHouse 连接
 func (a *App) Run() error {
 	defer a.cleanup()
 	return a.kratos.Run()
@@ -89,10 +89,10 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
-	consumer *server.Consumer,
+	consumer *server.RequestConsumer,
 	instanceID serviceInstanceID,
 ) *kratos.App {
-	// Consumer 实现 Kratos Server 接口，因此和 HTTP、gRPC 使用同一套生命周期
+	// Kafka 消费循环实现 Kratos Server 接口，因此和 HTTP、gRPC 使用同一套生命周期
 	return kratos.New(
 		kratos.ID(string(instanceID)),
 		kratos.Name(name),
