@@ -17,7 +17,7 @@ import (
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 type resourceStorageFactory func(

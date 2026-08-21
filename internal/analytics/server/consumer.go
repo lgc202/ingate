@@ -12,8 +12,8 @@ import (
 
 	requestbiz "github.com/lgc202/ingate/internal/analytics/biz/request"
 	"github.com/lgc202/ingate/internal/analytics/conf"
-	"github.com/lgc202/ingate/pkg/kafkax"
-	"github.com/lgc202/ingate/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/kafkax"
+	"github.com/lgc202/ingate/internal/pkg/tlsx"
 )
 
 // requestCounters 是当前进程从 Kafka 接收和保存请求记录的累计计数

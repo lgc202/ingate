@@ -11,9 +11,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/anypb"
 
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/extauthz"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 const (

@@ -10,8 +10,8 @@ import (
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/als/conf"
-	"github.com/lgc202/ingate/pkg/kafkax"
-	"github.com/lgc202/ingate/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/kafkax"
+	"github.com/lgc202/ingate/internal/pkg/tlsx"
 )
 
 const (

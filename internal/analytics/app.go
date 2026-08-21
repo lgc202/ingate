@@ -15,12 +15,11 @@ import (
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	"github.com/lgc202/go-kit/version"
-
 	"github.com/lgc202/ingate/internal/analytics/conf"
 	clickhousedata "github.com/lgc202/ingate/internal/analytics/data/clickhouse"
 	"github.com/lgc202/ingate/internal/analytics/server"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 const name = "ingate-analytics"
@@ -95,7 +94,7 @@ func newKratosApp(
 	return kratos.New(
 		kratos.ID(string(instanceID)),
 		kratos.Name(name),
-		kratos.Version(version.Get().String()),
+		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		kratos.Server(httpServer, grpcServer, consumer),

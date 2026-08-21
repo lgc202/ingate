@@ -8,12 +8,12 @@ import (
 
 	kratos "github.com/go-kratos/kratos/v3"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
-	"github.com/lgc202/go-kit/version"
 	"k8s.io/klog/v2"
 
 	"github.com/lgc202/ingate/internal/apiserver/conf"
 	"github.com/lgc202/ingate/internal/apiserver/server"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 const name = "ingate-apiserver"
@@ -68,7 +68,7 @@ func newKratosApp(
 	return kratos.New(
 		kratos.ID(string(instanceID)),
 		kratos.Name(name),
-		kratos.Version(version.Get().String()),
+		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		kratos.Server(apiServer),

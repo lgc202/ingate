@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // Repository 定义 Caller 管理需要的持久化能力

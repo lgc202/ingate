@@ -9,9 +9,9 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
-	informers "github.com/lgc202/ingate/pkg/generated/informers/externalversions"
-	gatewaylisters "github.com/lgc202/ingate/pkg/generated/listers/gateway/v1"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
+	informers "github.com/lgc202/ingate/internal/pkg/generated/informers/externalversions"
+	gatewaylisters "github.com/lgc202/ingate/internal/pkg/generated/listers/gateway/v1"
 )
 
 // ModelServiceCache 通过 Upstream informer 保持模型服务配置的本地只读副本

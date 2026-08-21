@@ -5,8 +5,8 @@ import (
 	"maps"
 	"slices"
 
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 type listenerGroup struct {

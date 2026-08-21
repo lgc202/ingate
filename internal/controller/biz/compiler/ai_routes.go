@@ -14,7 +14,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 const aiRouteNotFoundBody = `{"error":{"message":"The requested model is not published by this route.","type":"invalid_request_error","code":"model_not_found"}}`

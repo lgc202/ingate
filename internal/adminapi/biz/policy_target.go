@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // GatewayGetter 定义策略目标解析所需的 Gateway 查询能力

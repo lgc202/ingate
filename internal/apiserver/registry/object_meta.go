@@ -6,7 +6,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	resource "github.com/lgc202/ingate/pkg/apis/gateway"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
 // PrepareObjectMetaForCreate 初始化由 API Server 维护的资源版本元数据

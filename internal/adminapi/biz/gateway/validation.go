@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 func (s *Service) ensureListenerClaimsAvailable(ctx context.Context, gatewayID string, spec resource.GatewaySpec) error {

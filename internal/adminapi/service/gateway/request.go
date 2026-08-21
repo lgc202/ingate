@@ -8,8 +8,8 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 // createSpec 把创建请求转换为声明式 Gateway 配置
