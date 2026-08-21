@@ -12,12 +12,14 @@ import {
   Modal,
   PageFrame,
   Panel,
+  ResourceFilterField,
+  ResourceListFilters,
   ResourceStatePanel,
   RowActions,
   SearchField,
   Toast,
 } from '@/components/ui';
-import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
+import { formatDateTime, resourceStateLabel, resourceStateTone, type ResourceState } from '@/domain/common';
 import type { PolicyWorkspace } from '@/domain/policy';
 import type {
   AIModel,
@@ -63,12 +65,24 @@ interface RouteDraft {
   aiModels: AIModel[];
 }
 
+type RouteTypeFilter = 'all' | RouteDraft['type'];
+type RouteStateFilter = 'all' | ResourceState;
+
+interface RouteFilters {
+  query: string;
+  type: RouteTypeFilter;
+  state: RouteStateFilter;
+}
+
+const emptyRouteFilters = (): RouteFilters => ({ query: '', type: 'all', state: 'all' });
+
 export function RoutePage() {
   const workspace = useResource(getRouteWorkspace);
   const trafficOverview = useResourceTrafficOverview('route', workspace.data?.routes.map((route) => route.id) ?? []);
   const policies = useResource(getPolicyWorkspace);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [query, setQuery] = useState('');
+  const [filterDraft, setFilterDraft] = useState<RouteFilters>(emptyRouteFilters);
+  const [filters, setFilters] = useState<RouteFilters>(emptyRouteFilters);
   const [draft, setDraft] = useState<RouteDraft>(() => createDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<RouteResource | null>(null);
@@ -84,7 +98,7 @@ export function RoutePage() {
 
   const data = workspace.data;
   const detail = data.routes.find((route) => route.id === searchParams.get('detail')) ?? null;
-  const visibleRoutes = filterRoutes(data, query);
+  const visibleRoutes = filterRoutes(data, filters);
   const setDetail = (route?: RouteResource) => {
     const next = new URLSearchParams(searchParams);
     if (route) next.set('detail', route.id);
@@ -139,29 +153,56 @@ export function RoutePage() {
       actions={<Button onClick={() => openEditor()}><Plus className="h-4 w-4" />创建路由</Button>}
     >
       <Panel>
-        <div className="resource-list-toolbar">
-          <SearchField value={query} onChange={setQuery} placeholder="搜索路由、域名、路径或服务" />
-          <span>{visibleRoutes.length} 条路由</span>
-        </div>
+        <ResourceListFilters
+          summary={routeFilterSummary(filters)}
+          resultLabel={`${visibleRoutes.length} 条路由`}
+          onSearch={() => setFilters({ ...filterDraft })}
+          onReset={() => {
+            const next = emptyRouteFilters();
+            setFilterDraft(next);
+            setFilters(next);
+          }}
+        >
+          <ResourceFilterField label="关键词">
+            <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索路由、域名、路径或服务" />
+          </ResourceFilterField>
+          <ResourceFilterField label="路由类型">
+            <select className="select" value={filterDraft.type} onChange={(event) => setFilterDraft((current) => ({ ...current, type: event.target.value as RouteTypeFilter }))}>
+              <option value="all">全部类型</option>
+              <option value="HTTP">API 路由</option>
+              <option value="AI">AI 路由</option>
+            </select>
+          </ResourceFilterField>
+          <ResourceFilterField label="状态">
+            <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as RouteStateFilter }))}>
+              <option value="all">全部状态</option>
+              <option value="Ready">已生效</option>
+              <option value="Pending">待生效</option>
+              <option value="Error">异常</option>
+              <option value="Disabled">已停用</option>
+            </select>
+          </ResourceFilterField>
+        </ResourceListFilters>
         {visibleRoutes.length === 0 ? (
           <div className="p-5">
             <EmptyState title={data.routes.length === 0 ? '暂无路由' : '没有匹配的路由'} message={data.routes.length === 0 ? '创建路由，将网关入口连接到服务' : '请调整搜索条件'} />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">类型</th><th className="p-3">请求匹配</th><th className="p-3">网关</th><th className="p-3">目标服务</th><th className="p-3">最近 1 小时</th><th className="p-3">状态</th><th className="p-3 text-right">操作</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
+          <div className="table-scroll resource-table-scroll">
+            <table className="table resource-table resource-route-table">
+              <thead><tr><th>名称</th><th>类型</th><th>请求匹配</th><th>网关</th><th>目标服务</th><th>最近 1 小时</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
+              <tbody>
                 {visibleRoutes.map((route) => (
                   <tr key={route.id}>
-                    <td className="p-3"><div className="flex items-center gap-2"><RouteIcon className="h-4 w-4 shrink-0 text-blue-600" /><strong>{route.name}</strong></div></td>
-                    <td className="p-3"><Badge tone={route.ai ? 'purple' : 'neutral'}>{route.ai ? 'AI 路由' : 'API 路由'}</Badge><div className="table-secondary mt-1">{accessModeLabel(route.accessMode)}</div></td>
-                    <td className="p-3"><div className="table-primary font-mono">{pathMatchLabel(route)} {route.match.path.value}</div><div className="table-secondary">{route.ai ? `${route.ai.models.length} 个客户端模型` : methodLabel(route)}</div></td>
-                    <td className="p-3">{resourceNames(route.gatewayIDs, data.gateways)}</td>
-                    <td className="p-3">{resourceNames(routeUpstreamIDs(route), data.upstreams)}</td>
-                    <td className="p-3"><ResourceTrafficSignal resourceID={route.id} overview={trafficOverview} /></td>
-                    <td className="p-3"><Badge tone={resourceStateTone(route.enabled ? route.state : 'Disabled')}>{resourceStateLabel(route.enabled ? route.state : 'Disabled')}</Badge></td>
-                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(route)} onEdit={() => openEditor(route)} onDelete={() => setDeleteCandidate(route)} /></td>
+                    <td><div className="resource-table-name"><RouteIcon className="text-blue-600" /><strong>{route.name}</strong></div></td>
+                    <td><Badge tone={route.ai ? 'purple' : 'neutral'}>{route.ai ? 'AI 路由' : 'API 路由'}</Badge><div className="table-secondary mt-1">{accessModeLabel(route.accessMode)}</div></td>
+                    <td><div className="table-primary font-mono">{pathMatchLabel(route)} {route.match.path.value}</div><div className="table-secondary">{route.ai ? `${route.ai.models.length} 个客户端模型` : methodLabel(route)}</div></td>
+                    <td>{resourceNames(route.gatewayIDs, data.gateways)}</td>
+                    <td>{resourceNames(routeUpstreamIDs(route), data.upstreams)}</td>
+                    <td><ResourceTrafficSignal resourceID={route.id} overview={trafficOverview} /></td>
+                    <td><Badge tone={resourceStateTone(route.enabled ? route.state : 'Disabled')}>{resourceStateLabel(route.enabled ? route.state : 'Disabled')}</Badge></td>
+                    <td className="resource-table-time">{formatDateTime(route.updatedAt || route.createdAt)}</td>
+                    <td><RowActions onDetail={() => setDetail(route)} onEdit={() => openEditor(route)} onDelete={() => setDeleteCandidate(route)} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -253,11 +294,11 @@ function RouteEditor({ draft, workspace, busy, onChange, onCancel, onSave }: { d
       <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={draft.enabled} onChange={(event) => onChange({ ...draft, enabled: event.target.checked })} />启用路由</label>
       <Field label="访问方式">
         <select className="select" value={draft.accessMode} onChange={(event) => onChange({ ...draft, accessMode: event.target.value as RouteAccessMode })}>
-          <option value="ROUTE_ACCESS_CALLER">调用方密钥</option>
           <option value="ROUTE_ACCESS_PUBLIC">公开访问</option>
+          <option value="ROUTE_ACCESS_CALLER">调用方密钥</option>
         </select>
       </Field>
-      <Field label="生效网关"><div className="grid grid-cols-2 gap-2">{workspace.gateways.map((gateway) => <label key={gateway.id} className="flex items-center gap-2 rounded-lg border border-slate-200 p-3 text-xs"><input type="checkbox" checked={draft.gatewayIDs.includes(gateway.id)} onChange={(event) => onChange({ ...draft, gatewayIDs: event.target.checked ? [...draft.gatewayIDs, gateway.id] : draft.gatewayIDs.filter((id) => id !== gateway.id) })} />{gateway.name}</label>)}</div></Field>
+      <GatewaySelectionEditor draft={draft} gateways={workspace.gateways} onChange={onChange} />
       <div className="grid grid-cols-[150px_1fr] gap-3"><Field label="路径匹配"><select className="select" disabled={draft.type === 'AI'} value={draft.pathType} onChange={(event) => onChange({ ...draft, pathType: event.target.value as RoutePathMatchType })}><option value="ROUTE_PATH_MATCH_PREFIX">前缀</option><option value="ROUTE_PATH_MATCH_EXACT">精确</option></select></Field><Field label="请求路径"><input className="input font-mono" value={draft.path} onChange={(event) => onChange({ ...draft, path: event.target.value })} /></Field></div>
       {draft.type === 'HTTP' ? <Field label="请求方法（不选表示全部）"><div className="flex flex-wrap gap-3">{methods.map((method) => <label key={method} className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={draft.methods.includes(method)} onChange={(event) => onChange({ ...draft, methods: event.target.checked ? [...draft.methods, method] : draft.methods.filter((item) => item !== method) })} />{method}</label>)}</div></Field> : <Field label="请求方法"><input className="input font-mono" value="POST" disabled /></Field>}
       <Field label="域名（逗号分隔，留空继承网关）"><input className="input font-mono" value={draft.hostnames} onChange={(event) => onChange({ ...draft, hostnames: event.target.value })} /></Field>
@@ -304,16 +345,36 @@ function routeDraftWithType(draft: RouteDraft, type: RouteDraft['type']): RouteD
     pathType: 'ROUTE_PATH_MATCH_PREFIX',
     path: '/',
     methods: [],
-    upstreams: [],
+    upstreams: [{ upstreamID: '', weight: 1 }],
     aiModels: [],
   };
+}
+
+function GatewaySelectionEditor({ draft, gateways, onChange }: { draft: RouteDraft; gateways: RouteWorkspace['gateways']; onChange: (draft: RouteDraft) => void }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between"><strong className="text-xs">生效网关</strong><Button variant="soft" size="sm" onClick={() => onChange({ ...draft, gatewayIDs: [...draft.gatewayIDs, ''] })}>添加网关</Button></div>
+      <div className="grid gap-2">
+        {draft.gatewayIDs.map((gatewayID, index) => (
+          <div key={index} className="grid grid-cols-[minmax(0,1fr)_36px] gap-2">
+            <select className="select" aria-label={`生效网关 ${index + 1}`} value={gatewayID} onChange={(event) => onChange({ ...draft, gatewayIDs: replaceAt(draft.gatewayIDs, index, event.target.value) })}>
+              <option value="">选择网关</option>
+              {gateways.map((gateway) => <option key={gateway.id} value={gateway.id} disabled={gateway.id !== gatewayID && draft.gatewayIDs.includes(gateway.id)}>{gateway.name}</option>)}
+            </select>
+            <Button variant="ghost" size="sm" aria-label={`删除生效网关 ${index + 1}`} onClick={() => onChange({ ...draft, gatewayIDs: draft.gatewayIDs.filter((_, current) => current !== index) })}><Trash2 className="h-3.5 w-3.5 text-rose-600" /></Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function HTTPForwardingEditor({ draft, services, onChange }: { draft: RouteDraft; services: RouteWorkspace['upstreams']; onChange: (draft: RouteDraft) => void }) {
   return (
     <div className="space-y-2">
       <div className="flex justify-between"><strong className="text-xs">目标服务</strong><Button variant="soft" size="sm" onClick={() => onChange({ ...draft, upstreams: [...draft.upstreams, { upstreamID: '', weight: 1 }] })}>添加目标</Button></div>
-      {draft.upstreams.map((target, index) => <div key={index} className="grid grid-cols-[1fr_100px_36px] gap-2"><select className="select" value={target.upstreamID} onChange={(event) => onChange({ ...draft, upstreams: replaceAt(draft.upstreams, index, { ...target, upstreamID: event.target.value }) })}><option value="">选择 HTTP 服务</option>{services.map((upstream) => <option key={upstream.id} value={upstream.id}>{upstream.name} · {upstream.endpoint}</option>)}</select><input className="input" type="number" min="1" max="1000" aria-label="服务权重" value={target.weight} onChange={(event) => onChange({ ...draft, upstreams: replaceAt(draft.upstreams, index, { ...target, weight: Number(event.target.value) }) })} /><Button variant="ghost" size="sm" aria-label="删除目标服务" onClick={() => onChange({ ...draft, upstreams: draft.upstreams.filter((_, current) => current !== index) })}><Trash2 className="h-3.5 w-3.5 text-rose-600" /></Button></div>)}
+      <div className="grid grid-cols-[minmax(0,1fr)_100px_36px] gap-2 px-1 text-[11px] font-medium text-slate-500" aria-hidden="true"><span>服务</span><span>权重</span><span /></div>
+      {draft.upstreams.map((target, index) => <div key={index} className="grid grid-cols-[minmax(0,1fr)_100px_36px] gap-2"><select className="select" value={target.upstreamID} onChange={(event) => onChange({ ...draft, upstreams: replaceAt(draft.upstreams, index, { ...target, upstreamID: event.target.value }) })}><option value="">选择 HTTP 服务</option>{services.map((upstream) => <option key={upstream.id} value={upstream.id}>{upstream.name} · {upstream.endpoint}</option>)}</select><input className="input" type="number" min="1" max="1000" aria-label="服务权重" value={target.weight} onChange={(event) => onChange({ ...draft, upstreams: replaceAt(draft.upstreams, index, { ...target, weight: Number(event.target.value) }) })} /><Button variant="ghost" size="sm" aria-label="删除目标服务" onClick={() => onChange({ ...draft, upstreams: draft.upstreams.filter((_, current) => current !== index) })}><Trash2 className="h-3.5 w-3.5 text-rose-600" /></Button></div>)}
     </div>
   );
 }
@@ -352,14 +413,14 @@ function createDraft(route?: RouteResource): RouteDraft {
     version: route?.version,
     name: route?.name ?? '',
     enabled: route?.enabled ?? true,
-    accessMode: route?.accessMode ?? 'ROUTE_ACCESS_CALLER',
-    gatewayIDs: route?.gatewayIDs ?? [],
+    accessMode: route?.accessMode ?? 'ROUTE_ACCESS_PUBLIC',
+    gatewayIDs: route ? route.gatewayIDs : [''],
     hostnames: route?.hostnames.join(', ') ?? '',
     pathType: route?.match.path.type ?? 'ROUTE_PATH_MATCH_PREFIX',
     path: route?.match.path.value ?? '/',
     methods: route?.match.methods ?? [],
     headers: route?.match.headers.map((header) => ({ ...header })) ?? [],
-    upstreams: route?.upstreams.map((upstream) => ({ ...upstream })) ?? [],
+    upstreams: route ? route.upstreams.map((upstream) => ({ ...upstream })) : [{ upstreamID: '', weight: 1 }],
     hostRewriteMode: route?.hostRewrite.mode ?? 'HOST_REWRITE_MODE_SERVICE_ADDRESS',
     customHostname: route?.hostRewrite.hostname ?? '',
     timeoutEnabled: Boolean(route?.timeout),
@@ -374,14 +435,27 @@ function createDraft(route?: RouteResource): RouteDraft {
   };
 }
 
-function filterRoutes(workspace: RouteWorkspace, query: string): RouteResource[] {
-  const normalizedQuery = query.trim().toLowerCase();
+function filterRoutes(workspace: RouteWorkspace, filters: RouteFilters): RouteResource[] {
+  const normalizedQuery = filters.query.trim().toLowerCase();
   return workspace.routes.filter((route) => {
+    const type = route.ai ? 'AI' : 'HTTP';
+    const state = route.enabled ? route.state : 'Disabled';
     const gatewayNames = resourceNames(route.gatewayIDs, workspace.gateways);
     const upstreamNames = resourceNames(routeUpstreamIDs(route), workspace.upstreams);
     const models = route.ai?.models.map((model) => model.name).join(' ') ?? '';
-    return `${route.name} ${route.hostnames.join(' ')} ${route.match.path.value} ${gatewayNames} ${upstreamNames} ${models}`.toLowerCase().includes(normalizedQuery);
+    const matchesQuery = `${route.name} ${route.hostnames.join(' ')} ${route.match.path.value} ${gatewayNames} ${upstreamNames} ${models}`.toLowerCase().includes(normalizedQuery);
+    return matchesQuery
+      && (filters.type === 'all' || type === filters.type)
+      && (filters.state === 'all' || state === filters.state);
   });
+}
+
+function routeFilterSummary(filters: RouteFilters): string {
+  const conditions = [];
+  if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
+  if (filters.type !== 'all') conditions.push(`类型：${filters.type === 'AI' ? 'AI 路由' : 'API 路由'}`);
+  if (filters.state !== 'all') conditions.push(`状态：${resourceStateLabel(filters.state)}`);
+  return conditions.join(' · ') || '全部路由';
 }
 
 function resourceNames(ids: string[], options: Array<{ id: string; name: string }>): string {
@@ -411,7 +485,8 @@ function replaceAt<T>(items: T[], index: number, value: T): T[] {
 
 function validateDraft(draft: RouteDraft): string | undefined {
   if (!draft.name.trim()) return '请输入路由名称';
-  if (draft.gatewayIDs.length === 0) return '至少选择一个网关';
+  if (draft.gatewayIDs.length === 0 || draft.gatewayIDs.some((id) => !id)) return '至少选择一个有效的网关';
+  if (new Set(draft.gatewayIDs).size !== draft.gatewayIDs.length) return '生效网关不能重复';
   if (!draft.path.startsWith('/')) return '请求路径必须以 / 开头';
   if (draft.type === 'HTTP' && (draft.upstreams.length === 0 || draft.upstreams.some((item) => !item.upstreamID || item.weight < 1 || item.weight > 1000))) return '至少配置一个有效的目标服务';
   if (draft.type === 'AI') {

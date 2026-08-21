@@ -1,8 +1,22 @@
 import { useRef, useState } from 'react';
 import { deleteCertificate, listCertificates, saveCertificate } from '@/api/certificates';
 import { useResource } from '@/api/useResource';
-import { Badge, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
-import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
+import {
+  Badge,
+  Button,
+  Drawer,
+  EmptyState,
+  Modal,
+  PageFrame,
+  Panel,
+  ResourceFilterField,
+  ResourceListFilters,
+  ResourceStatePanel,
+  RowActions,
+  SearchField,
+  Toast,
+} from '@/components/ui';
+import { formatDateTime, resourceStateLabel, resourceStateTone, type ResourceState } from '@/domain/common';
 import type { Certificate } from '@/domain/certificate';
 import { FileText, KeyRound, Plus } from 'lucide-react';
 
@@ -21,11 +35,20 @@ interface CertificateNotice {
   tone: 'success' | 'error';
 }
 
+type CertificateStateFilter = 'all' | ResourceState;
+
+interface CertificateFilters {
+  query: string;
+  state: CertificateStateFilter;
+}
+
 const maxPEMFileSize = 1024 * 1024;
+const emptyCertificateFilters = (): CertificateFilters => ({ query: '', state: 'all' });
 
 export function CertificatePage() {
   const certificates = useResource(listCertificates);
-  const [query, setQuery] = useState('');
+  const [filterDraft, setFilterDraft] = useState<CertificateFilters>(emptyCertificateFilters);
+  const [filters, setFilters] = useState<CertificateFilters>(emptyCertificateFilters);
   const [detail, setDetail] = useState<Certificate | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -58,9 +81,10 @@ export function CertificatePage() {
   }
 
   const certificateList = certificates.data.certificates;
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = filters.query.trim().toLowerCase();
   const visibleCertificates = certificateList.filter((certificate) => (
     `${certificate.name} ${certificate.dnsNames.join(' ')}`.toLowerCase().includes(normalizedQuery)
+    && (filters.state === 'all' || certificate.state === filters.state)
   ));
 
   const handleCreateNew = () => {
@@ -152,50 +176,61 @@ export function CertificatePage() {
   return (
     <PageFrame
       title="TLS 证书"
-      actions={(
-        <button
-          type="button"
-          onClick={handleCreateNew}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          录入证书
-        </button>
-      )}
+      actions={<Button onClick={handleCreateNew}><Plus className="w-4 h-4" />录入证书</Button>}
     >
-      <div className="space-y-6 mt-4">
+      <div className="space-y-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
 
         <Panel>
-          <div className="resource-list-toolbar">
-            <SearchField value={query} onChange={setQuery} placeholder="搜索证书名称或 DNS 域名" />
-            <span>{visibleCertificates.length} 张证书</span>
-          </div>
+          <ResourceListFilters
+            summary={certificateFilterSummary(filters)}
+            resultLabel={`${visibleCertificates.length} 张证书`}
+            onSearch={() => setFilters({ ...filterDraft })}
+            onReset={() => {
+              const next = emptyCertificateFilters();
+              setFilterDraft(next);
+              setFilters(next);
+            }}
+          >
+            <ResourceFilterField label="关键词">
+              <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索证书名称或 DNS 域名" />
+            </ResourceFilterField>
+            <ResourceFilterField label="状态">
+              <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as CertificateStateFilter }))}>
+                <option value="all">全部状态</option>
+                <option value="Ready">已生效</option>
+                <option value="Pending">待生效</option>
+                <option value="Error">异常</option>
+                <option value="Disabled">已停用</option>
+              </select>
+            </ResourceFilterField>
+          </ResourceListFilters>
           {visibleCertificates.length === 0 ? (
             <div className="p-5"><EmptyState title={certificateList.length === 0 ? '暂无 TLS 证书' : '没有匹配的证书'} message={certificateList.length === 0 ? '录入证书后即可配置 HTTPS 网关入口' : '请调整搜索条件'} /></div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
+            <div className="table-scroll resource-table-scroll">
+              <table className="table resource-table resource-certificate-table">
                 <thead>
-                  <tr className="border-b border-slate-200 text-slate-500 bg-slate-50/50 font-medium">
-                    <th className="py-2.5 px-3">证书名称</th>
-                    <th className="py-2.5 px-3">DNS 域名列表</th>
-                    <th className="py-2.5 px-3">有效期截止</th>
-                    <th className="py-2.5 px-3">状态</th>
-                    <th className="py-2.5 px-3 text-right">操作</th>
+                  <tr>
+                    <th>证书名称</th>
+                    <th>DNS 域名</th>
+                    <th>有效期截止</th>
+                    <th>状态</th>
+                    <th>更新时间</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 font-normal">
+                <tbody>
                   {visibleCertificates.map((item) => (
-                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-2">
-                          <KeyRound className="w-4 h-4 text-blue-600 shrink-0" />
-                          <div className="font-semibold text-slate-900">{item.name}</div>
+                    <tr key={item.id}>
+                      <td>
+                        <div className="resource-table-name">
+                          <KeyRound className="text-blue-600" />
+                          <strong>{item.name}</strong>
                         </div>
                       </td>
 
-                      <td className="py-3 px-3 font-mono text-[11px]">
+                      <td className="font-mono text-[11px]">
                         <div className="flex flex-wrap gap-1">
                           {(item.dnsNames ?? []).map((dns: string) => (
                             <span key={dns} className="px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-200/60">
@@ -205,14 +240,15 @@ export function CertificatePage() {
                         </div>
                       </td>
 
-                      <td className="py-3 px-3">
+                      <td>
                         <span className="font-mono text-[11px] text-slate-700">
                           {formatDateTime(item.notAfter)}
                         </span>
                       </td>
 
-                      <td className="py-3 px-3"><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
-                      <td className="py-3 px-3 text-right"><RowActions onDetail={() => setDetail(item)} onEdit={() => handleEdit(item)} onDelete={() => setDeleteCandidate(item)} /></td>
+                      <td><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
+                      <td className="resource-table-time">{formatDateTime(item.updatedAt || item.createdAt)}</td>
+                      <td><RowActions onDetail={() => setDetail(item)} onEdit={() => handleEdit(item)} onDelete={() => setDeleteCandidate(item)} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -447,6 +483,13 @@ function emptyDraft(): CertificateDraft {
     certificatePEM: '',
     privateKeyPEM: '',
   };
+}
+
+function certificateFilterSummary(filters: CertificateFilters): string {
+  const conditions = [];
+  if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
+  if (filters.state !== 'all') conditions.push(`状态：${resourceStateLabel(filters.state)}`);
+  return conditions.join(' · ') || '全部证书';
 }
 
 function validateDraft(draft: CertificateDraft, mode: 'create' | 'edit'): string | null {

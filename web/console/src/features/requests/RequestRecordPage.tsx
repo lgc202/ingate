@@ -1,9 +1,20 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, ChevronRight, SlidersHorizontal } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, ChevronRight } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { getRequestRecord, getRequestRecordWorkspace, listRequestRecords } from '@/api/requestRecords';
 import { useResource } from '@/api/useResource';
-import { Badge, Button, Drawer, EmptyState, PageFrame, Panel, ResourceStatePanel, Toast } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Drawer,
+  EmptyState,
+  PageFrame,
+  Panel,
+  ResourceFilterField,
+  ResourceListFilters,
+  ResourceStatePanel,
+  Toast,
+} from '@/components/ui';
 import type { RequestOutcome, RequestRecord, RequestRecordFilters, RequestRecordSummary, RequestRecordWorkspace } from '@/domain/requestRecord';
 import {
   formatBytes,
@@ -35,7 +46,6 @@ export function RequestRecordPage() {
   const [pageTokens, setPageTokens] = useState(['']);
   const [pageIndex, setPageIndex] = useState(0);
   const [pageSize, setPageSize] = useState(10);
-  const [filterExpanded, setFilterExpanded] = useState(true);
   const [selected, setSelected] = useState<RequestRecordSummary | null>(null);
   const [detail, setDetail] = useState<RequestRecord | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -66,6 +76,14 @@ export function RequestRecordPage() {
     setPageTokens(['']);
     setPageIndex(0);
     setFilters(next);
+  };
+  const resetFilters = () => {
+    const next = requestFiltersFromURL(new URLSearchParams());
+    setDraft(next);
+    setFilters(next);
+    setTimePreset(matchingTimePreset(next));
+    setPageTokens(['']);
+    setPageIndex(0);
   };
   const openDetail = async (record: RequestRecordSummary) => {
     setSelected(record);
@@ -99,39 +117,27 @@ export function RequestRecordPage() {
       title="请求记录"
     >
       <Panel>
-        <section className={`request-filter-panel ${filterExpanded ? '' : 'is-collapsed'}`}>
-          <div className="request-filter-header">
-            <div className="request-filter-heading">
-              <SlidersHorizontal />
-              <div><strong>筛选条件</strong><span>{formatFilterRange(filters)}</span></div>
-            </div>
-            <div className="request-filter-actions">
-              {filterExpanded ? <Button size="sm" onClick={applyFilters}>查询</Button> : null}
-              <button type="button" className="request-filter-toggle" onClick={() => setFilterExpanded((current) => !current)}>
-                {filterExpanded ? '收起筛选' : '展开筛选'}
-                <ChevronDown className={filterExpanded ? 'is-open' : ''} />
-              </button>
-            </div>
+        <ResourceListFilters
+          summary={formatFilterRange(filters)}
+          resultLabel={`${records.data.records.length} 条记录`}
+          onSearch={applyFilters}
+          onReset={resetFilters}
+        >
+          <div className="resource-filter-presets" aria-label="快捷时间范围">
+            <span>时间范围</span>
+            {timePresets.map((preset) => <button type="button" key={preset.value} className={timePreset === preset.value ? 'is-active' : ''} onClick={() => applyTimePreset(preset.value)}>{preset.label}</button>)}
           </div>
-          {filterExpanded ? <div className="request-filter-content">
-            <div className="request-time-presets" aria-label="快捷时间范围">
-              <span>时间范围</span>
-              {timePresets.map((preset) => <button type="button" key={preset.value} className={timePreset === preset.value ? 'is-active' : ''} onClick={() => applyTimePreset(preset.value)}>{preset.label}</button>)}
-            </div>
-            <div className="request-record-filters">
-              <Field label="结果"><select className="select" value={draft.outcome ?? ''} onChange={(event) => setDraft({ ...draft, outcome: (event.target.value || undefined) as RequestOutcome | undefined })}>{outcomeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>
-              <Field label="开始时间"><input className="input" type="datetime-local" value={draft.startTime} onChange={(event) => { setTimePreset(null); setDraft({ ...draft, startTime: event.target.value }); }} /></Field>
-              <Field label="结束时间"><input className="input" type="datetime-local" value={draft.endTime} onChange={(event) => { setTimePreset(null); setDraft({ ...draft, endTime: event.target.value }); }} /></Field>
-              <Field label="方法"><select className="select" value={draft.method ?? ''} onChange={(event) => setDraft({ ...draft, method: event.target.value || undefined })}>{methodOptions.map((method) => <option key={method} value={method}>{method || '全部方法'}</option>)}</select></Field>
-              <Field label="网关"><ResourceSelect value={draft.gatewayID} placeholder="全部网关" options={workspace.data?.gateways} onChange={(gatewayID) => setDraft({ ...draft, gatewayID })} /></Field>
-              <Field label="路由"><ResourceSelect value={draft.routeID} placeholder="全部路由" options={workspace.data?.routes} onChange={(routeID) => setDraft({ ...draft, routeID })} /></Field>
-              <Field label="服务"><ResourceSelect value={draft.serviceID} placeholder="全部服务" options={workspace.data?.services} onChange={(serviceID) => setDraft({ ...draft, serviceID })} /></Field>
-              <Field label="调用方"><ResourceSelect value={draft.callerID} placeholder="全部调用方" options={workspace.data?.callers} onChange={(callerID) => setDraft({ ...draft, callerID })} /></Field>
-              <Field label="Host"><input className="input font-mono" placeholder="精确匹配" value={draft.host ?? ''} onChange={(event) => setDraft({ ...draft, host: event.target.value })} /></Field>
-              <Field label="路径前缀"><input className="input font-mono" placeholder="例如 /api/orders" value={draft.pathPrefix ?? ''} onChange={(event) => setDraft({ ...draft, pathPrefix: event.target.value })} /></Field>
-            </div>
-          </div> : null}
-        </section>
+          <ResourceFilterField label="结果"><select className="select" value={draft.outcome ?? ''} onChange={(event) => setDraft({ ...draft, outcome: (event.target.value || undefined) as RequestOutcome | undefined })}>{outcomeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></ResourceFilterField>
+          <ResourceFilterField label="开始时间"><input className="input" type="datetime-local" value={draft.startTime} onChange={(event) => { setTimePreset(null); setDraft({ ...draft, startTime: event.target.value }); }} /></ResourceFilterField>
+          <ResourceFilterField label="结束时间"><input className="input" type="datetime-local" value={draft.endTime} onChange={(event) => { setTimePreset(null); setDraft({ ...draft, endTime: event.target.value }); }} /></ResourceFilterField>
+          <ResourceFilterField label="方法"><select className="select" value={draft.method ?? ''} onChange={(event) => setDraft({ ...draft, method: event.target.value || undefined })}>{methodOptions.map((method) => <option key={method} value={method}>{method || '全部方法'}</option>)}</select></ResourceFilterField>
+          <ResourceFilterField label="网关"><ResourceSelect value={draft.gatewayID} placeholder="全部网关" options={workspace.data?.gateways} onChange={(gatewayID) => setDraft({ ...draft, gatewayID })} /></ResourceFilterField>
+          <ResourceFilterField label="路由"><ResourceSelect value={draft.routeID} placeholder="全部路由" options={workspace.data?.routes} onChange={(routeID) => setDraft({ ...draft, routeID })} /></ResourceFilterField>
+          <ResourceFilterField label="服务"><ResourceSelect value={draft.serviceID} placeholder="全部服务" options={workspace.data?.services} onChange={(serviceID) => setDraft({ ...draft, serviceID })} /></ResourceFilterField>
+          <ResourceFilterField label="调用方"><ResourceSelect value={draft.callerID} placeholder="全部调用方" options={workspace.data?.callers} onChange={(callerID) => setDraft({ ...draft, callerID })} /></ResourceFilterField>
+          <ResourceFilterField label="Host"><input className="input font-mono" placeholder="精确匹配" value={draft.host ?? ''} onChange={(event) => setDraft({ ...draft, host: event.target.value })} /></ResourceFilterField>
+          <ResourceFilterField label="路径前缀"><input className="input font-mono" placeholder="例如 /api/orders" value={draft.pathPrefix ?? ''} onChange={(event) => setDraft({ ...draft, pathPrefix: event.target.value })} /></ResourceFilterField>
+        </ResourceListFilters>
         {records.data.records.length === 0 ? <EmptyState title="没有匹配的请求" message="调整时间范围或筛选条件后重新查询" /> : (
           <div className="table-scroll request-record-table-scroll">
             <table className="table request-record-table">
@@ -269,10 +275,6 @@ function DetailItem({ label, value, wide = false }: { label: string; value: stri
 function ResourceDetailItem({ label, id, names, path, deletedLabel }: { label: string; id: string; names: Map<string, string>; path: string; deletedLabel: string }) {
   const name = names.get(id);
   return <div><span>{label}</span>{name ? <Link className="request-resource-link" to={`${path}?detail=${encodeURIComponent(id)}`}>{name}<ArrowRight /></Link> : <strong>{deletedLabel}</strong>}</div>;
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="field"><span>{label}</span>{children}</label>;
 }
 
 function ResourceSelect({ value, placeholder, options, onChange }: { value?: string; placeholder: string; options?: Array<{ id: string; name: string }>; onChange: (value?: string) => void }) {

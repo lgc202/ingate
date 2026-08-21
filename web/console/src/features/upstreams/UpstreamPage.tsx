@@ -3,19 +3,45 @@ import { BrainCircuit, KeyRound, Plus, Server, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { deleteUpstream, listUpstreams, saveUpstream } from '@/api/upstreams';
 import { useResource } from '@/api/useResource';
-import { Badge, Button, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
-import { formatDateTime, resourceStateLabel, resourceStateTone } from '@/domain/common';
+import {
+  Badge,
+  Button,
+  Drawer,
+  EmptyState,
+  Modal,
+  PageFrame,
+  Panel,
+  ResourceFilterField,
+  ResourceListFilters,
+  ResourceStatePanel,
+  RowActions,
+  SearchField,
+  Toast,
+} from '@/components/ui';
+import { formatDateTime, resourceStateLabel, resourceStateTone, type ResourceState } from '@/domain/common';
 import type { Upstream, UpstreamEndpoint } from '@/domain/upstream';
 import { modelProtocolLabel, upstreamLoadBalancingLabel, upstreamLoadBalancingOptions } from '@/domain/upstream';
 import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
 import { ResourceTrafficSignal, useResourceTrafficOverview } from '@/features/traffic/ResourceTrafficSignal';
 import { buildUpstreamPayload, createUpstreamDraft, validateUpstreamDraft, type UpstreamDraft } from './form';
 
+type UpstreamTypeFilter = 'all' | UpstreamDraft['type'];
+type UpstreamStateFilter = 'all' | ResourceState;
+
+interface UpstreamFilters {
+  query: string;
+  type: UpstreamTypeFilter;
+  state: UpstreamStateFilter;
+}
+
+const emptyUpstreamFilters = (): UpstreamFilters => ({ query: '', type: 'all', state: 'all' });
+
 export function UpstreamPage() {
   const resource = useResource(listUpstreams);
   const trafficOverview = useResourceTrafficOverview('service', resource.data?.upstreams.map((upstream) => upstream.id) ?? []);
   const [searchParams, setSearchParams] = useSearchParams();
-  const [query, setQuery] = useState('');
+  const [filterDraft, setFilterDraft] = useState<UpstreamFilters>(emptyUpstreamFilters);
+  const [filters, setFilters] = useState<UpstreamFilters>(emptyUpstreamFilters);
   const [draft, setDraft] = useState<UpstreamDraft>(() => createUpstreamDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Upstream | null>(null);
@@ -34,13 +60,17 @@ export function UpstreamPage() {
     setEditorOpen(true);
   };
 
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalizedQuery = filters.query.trim().toLowerCase();
   const detail = resource.data.upstreams.find((upstream) => upstream.id === searchParams.get('detail')) ?? null;
-  const visibleUpstreams = resource.data.upstreams.filter((upstream) => (
-    `${upstream.name} ${upstream.model ? modelProtocolLabel(upstream.model.protocol) : 'HTTP'} ${upstream.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join(' ')}`
+  const visibleUpstreams = resource.data.upstreams.filter((upstream) => {
+    const type = upstream.model ? 'MODEL' : 'HTTP';
+    const matchesQuery = `${upstream.name} ${upstream.model ? modelProtocolLabel(upstream.model.protocol) : 'HTTP'} ${upstream.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join(' ')}`
       .toLowerCase()
-      .includes(normalizedQuery)
-  ));
+      .includes(normalizedQuery);
+    return matchesQuery
+      && (filters.type === 'all' || type === filters.type)
+      && (filters.state === 'all' || upstream.state === filters.state);
+  });
   const setDetail = (upstream?: Upstream) => {
     const next = new URLSearchParams(searchParams);
     if (upstream) next.set('detail', upstream.id);
@@ -92,25 +122,52 @@ export function UpstreamPage() {
       actions={<Button onClick={() => openEditor()}><Plus className="w-4 h-4" />创建服务</Button>}
     >
       <Panel>
-        <div className="resource-list-toolbar">
-          <SearchField value={query} onChange={setQuery} placeholder="搜索服务、地址或端口" />
-          <span>{visibleUpstreams.length} 个服务</span>
-        </div>
+        <ResourceListFilters
+          summary={upstreamFilterSummary(filters)}
+          resultLabel={`${visibleUpstreams.length} 个服务`}
+          onSearch={() => setFilters({ ...filterDraft })}
+          onReset={() => {
+            const next = emptyUpstreamFilters();
+            setFilterDraft(next);
+            setFilters(next);
+          }}
+        >
+          <ResourceFilterField label="关键词">
+            <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索服务、地址或端口" />
+          </ResourceFilterField>
+          <ResourceFilterField label="服务类型">
+            <select className="select" value={filterDraft.type} onChange={(event) => setFilterDraft((current) => ({ ...current, type: event.target.value as UpstreamTypeFilter }))}>
+              <option value="all">全部类型</option>
+              <option value="HTTP">HTTP 服务</option>
+              <option value="MODEL">模型服务</option>
+            </select>
+          </ResourceFilterField>
+          <ResourceFilterField label="状态">
+            <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as UpstreamStateFilter }))}>
+              <option value="all">全部状态</option>
+              <option value="Ready">已生效</option>
+              <option value="Pending">待生效</option>
+              <option value="Error">异常</option>
+              <option value="Disabled">已停用</option>
+            </select>
+          </ResourceFilterField>
+        </ResourceListFilters>
         {visibleUpstreams.length === 0 ? <div className="p-5"><EmptyState title={resource.data.upstreams.length === 0 ? '暂无服务' : '没有匹配的服务'} message={resource.data.upstreams.length === 0 ? '创建服务后即可在路由中选择转发目标' : '请调整搜索条件'} /></div> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead><tr className="border-b border-slate-200 text-slate-500"><th className="p-3">名称</th><th className="p-3">类型</th><th className="p-3">地址</th><th className="p-3">连接</th><th className="p-3">负载均衡</th><th className="p-3">最近 1 小时</th><th className="p-3">状态</th><th className="p-3 text-right">操作</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
+          <div className="table-scroll resource-table-scroll">
+            <table className="table resource-table resource-upstream-table">
+              <thead><tr><th>名称</th><th>类型</th><th>地址</th><th>连接</th><th>负载均衡</th><th>最近 1 小时</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
+              <tbody>
                 {visibleUpstreams.map((item) => (
                   <tr key={item.id}>
-                    <td className="p-3"><div className="flex items-center gap-2">{item.model ? <BrainCircuit className="w-4 h-4 text-violet-600" /> : <Server className="w-4 h-4 text-blue-600" />}<strong>{item.name}</strong></div></td>
-                    <td className="p-3"><Badge tone={item.model ? 'purple' : 'neutral'}>{item.model ? '模型服务' : 'HTTP 服务'}</Badge></td>
-                    <td className="p-3 font-mono text-[11px]">{item.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join('、')}</td>
-                    <td className="p-3"><div className="table-primary">{item.model ? modelProtocolLabel(item.model.protocol) : item.tls ? 'HTTPS' : 'HTTP'}</div>{item.model ? <div className="table-secondary">{item.tls ? 'HTTPS' : 'HTTP'}</div> : null}</td>
-                    <td className="p-3">{upstreamLoadBalancingLabel(item.loadBalancing)}</td>
-                    <td className="p-3"><ResourceTrafficSignal resourceID={item.id} overview={trafficOverview} /></td>
-                    <td className="p-3"><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
-                    <td className="p-3 text-right"><RowActions onDetail={() => setDetail(item)} onEdit={() => openEditor(item)} onDelete={() => setDeleteCandidate(item)} /></td>
+                    <td><div className="resource-table-name">{item.model ? <BrainCircuit className="text-violet-600" /> : <Server className="text-blue-600" />}<strong>{item.name}</strong></div></td>
+                    <td><Badge tone={item.model ? 'purple' : 'neutral'}>{item.model ? '模型服务' : 'HTTP 服务'}</Badge></td>
+                    <td className="font-mono text-[11px]">{item.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join('、')}</td>
+                    <td><div className="table-primary">{item.model ? modelProtocolLabel(item.model.protocol) : item.tls ? 'HTTPS' : 'HTTP'}</div>{item.model ? <div className="table-secondary">{item.tls ? 'HTTPS' : 'HTTP'}</div> : null}</td>
+                    <td>{upstreamLoadBalancingLabel(item.loadBalancing)}</td>
+                    <td><ResourceTrafficSignal resourceID={item.id} overview={trafficOverview} /></td>
+                    <td><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
+                    <td className="resource-table-time">{formatDateTime(item.updatedAt || item.createdAt)}</td>
+                    <td><RowActions onDetail={() => setDetail(item)} onEdit={() => openEditor(item)} onDelete={() => setDeleteCandidate(item)} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -223,4 +280,12 @@ function UpstreamDetail({ upstream }: { upstream: Upstream }) {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="block space-y-1"><span className="text-xs font-medium text-slate-700">{label}</span>{children}</label>;
+}
+
+function upstreamFilterSummary(filters: UpstreamFilters): string {
+  const conditions = [];
+  if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
+  if (filters.type !== 'all') conditions.push(`类型：${filters.type === 'MODEL' ? '模型服务' : 'HTTP 服务'}`);
+  if (filters.state !== 'all') conditions.push(`状态：${resourceStateLabel(filters.state)}`);
+  return conditions.join(' · ') || '全部服务';
 }

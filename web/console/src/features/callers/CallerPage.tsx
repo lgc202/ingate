@@ -9,7 +9,21 @@ import {
   updateCaller,
 } from '@/api/callers';
 import { useResource } from '@/api/useResource';
-import { Badge, Button, Drawer, EmptyState, Modal, PageFrame, Panel, ResourceStatePanel, RowActions, SearchField, Toast } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Drawer,
+  EmptyState,
+  Modal,
+  PageFrame,
+  Panel,
+  ResourceFilterField,
+  ResourceListFilters,
+  ResourceStatePanel,
+  RowActions,
+  SearchField,
+  Toast,
+} from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { Caller, CallerRouteOption, IssuedAccessKey } from '@/domain/caller';
 
@@ -23,6 +37,13 @@ interface CallerDraft {
   expiration: '90d' | 'none';
 }
 
+type CallerStateFilter = 'all' | 'enabled' | 'disabled';
+
+interface CallerFilters {
+  query: string;
+  state: CallerStateFilter;
+}
+
 const emptyDraft = (): CallerDraft => ({
   name: '',
   enabled: true,
@@ -30,10 +51,12 @@ const emptyDraft = (): CallerDraft => ({
   accessKeyName: '默认密钥',
   expiration: '90d',
 });
+const emptyCallerFilters = (): CallerFilters => ({ query: '', state: 'all' });
 
 export function CallerPage() {
   const workspace = useResource(getCallerWorkspace);
-  const [query, setQuery] = useState('');
+  const [filterDraft, setFilterDraft] = useState<CallerFilters>(emptyCallerFilters);
+  const [filters, setFilters] = useState<CallerFilters>(emptyCallerFilters);
   const [detailID, setDetailID] = useState<string | null>(null);
   const [draft, setDraft] = useState<CallerDraft | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Caller | null>(null);
@@ -46,13 +69,16 @@ export function CallerPage() {
 
   const detail = workspace.data?.callers.find((caller) => caller.id === detailID) ?? null;
   const visibleCallers = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
+    const normalized = filters.query.trim().toLowerCase();
     if (!workspace.data) return [];
     return workspace.data.callers.filter((caller) => {
       const routeNames = caller.routeIDs.map((routeID) => workspace.data?.routes.find((route) => route.id === routeID)?.name ?? '').join(' ');
-      return `${caller.name} ${routeNames}`.toLowerCase().includes(normalized);
+      const matchesState = filters.state === 'all'
+        || (filters.state === 'enabled' && caller.enabled)
+        || (filters.state === 'disabled' && !caller.enabled);
+      return matchesState && `${caller.name} ${routeNames}`.toLowerCase().includes(normalized);
     });
-  }, [query, workspace.data]);
+  }, [filters, workspace.data]);
 
   if (workspace.loading && !workspace.data) {
     return <PageFrame title="调用方"><ResourceStatePanel title="正在加载调用方..." message="从管理 API 获取授权与密钥信息" /></PageFrame>;
@@ -143,30 +169,47 @@ export function CallerPage() {
       title="调用方"
       actions={<Button onClick={() => setDraft(emptyDraft())}><Plus className="h-4 w-4" />创建调用方</Button>}
     >
-      <div className="space-y-6 mt-4">
+      <div className="space-y-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
         <Panel>
-          <div className="resource-list-toolbar">
-            <SearchField value={query} onChange={setQuery} placeholder="搜索调用方或已授权路由" />
-            <span>{visibleCallers.length} 个调用方</span>
-          </div>
+          <ResourceListFilters
+            summary={callerFilterSummary(filters)}
+            resultLabel={`${visibleCallers.length} 个调用方`}
+            onSearch={() => setFilters({ ...filterDraft })}
+            onReset={() => {
+              const next = emptyCallerFilters();
+              setFilterDraft(next);
+              setFilters(next);
+            }}
+          >
+            <ResourceFilterField label="关键词">
+              <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索调用方或已授权路由" />
+            </ResourceFilterField>
+            <ResourceFilterField label="状态">
+              <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as CallerStateFilter }))}>
+                <option value="all">全部状态</option>
+                <option value="enabled">已启用</option>
+                <option value="disabled">已停用</option>
+              </select>
+            </ResourceFilterField>
+          </ResourceListFilters>
           {visibleCallers.length === 0 ? (
             <div className="p-5"><EmptyState title={data.callers.length === 0 ? '暂无调用方' : '没有匹配的调用方'} message={data.callers.length === 0 ? '创建调用方后即可为受保护路由签发访问密钥' : '请调整搜索条件'} /></div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead><tr className="border-b border-slate-200 text-slate-500 bg-slate-50/50 font-medium">
-                  <th className="py-2.5 px-3">调用方</th><th className="py-2.5 px-3">授权路由</th><th className="py-2.5 px-3">有效密钥</th><th className="py-2.5 px-3">状态</th><th className="py-2.5 px-3">更新时间</th><th className="py-2.5 px-3 text-right">操作</th>
+            <div className="table-scroll resource-table-scroll">
+              <table className="table resource-table resource-caller-table">
+                <thead><tr>
+                  <th>调用方</th><th>授权路由</th><th>有效密钥</th><th>状态</th><th>更新时间</th><th>操作</th>
                 </tr></thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {visibleCallers.map((caller) => (
-                    <tr key={caller.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-3"><div className="flex items-center gap-2"><UserRound className="h-4 w-4 text-blue-600" /><span className="font-semibold text-slate-900">{caller.name}</span></div></td>
-                      <td className="py-3 px-3 text-slate-600">{routeSummary(caller, data.routes)}</td>
-                      <td className="py-3 px-3 text-slate-700">{activeKeyCount(caller)} 把</td>
-                      <td className="py-3 px-3"><Badge tone={caller.enabled ? 'success' : 'neutral'}>{caller.enabled ? '已启用' : '已停用'}</Badge></td>
-                      <td className="py-3 px-3 text-slate-500">{formatDateTime(caller.updatedAt)}</td>
-                      <td className="py-3 px-3 text-right"><RowActions onDetail={() => setDetailID(caller.id)} onEdit={() => setDraft(editDraft(caller))} onDelete={() => setDeleteCandidate(caller)} /></td>
+                    <tr key={caller.id}>
+                      <td><div className="resource-table-name"><UserRound className="text-blue-600" /><strong>{caller.name}</strong></div></td>
+                      <td>{routeSummary(caller, data.routes)}</td>
+                      <td>{activeKeyCount(caller)} 把</td>
+                      <td><Badge tone={caller.enabled ? 'success' : 'neutral'}>{caller.enabled ? '已启用' : '已停用'}</Badge></td>
+                      <td className="resource-table-time">{formatDateTime(caller.updatedAt || caller.createdAt)}</td>
+                      <td><RowActions onDetail={() => setDetailID(caller.id)} onEdit={() => setDraft(editDraft(caller))} onDelete={() => setDeleteCandidate(caller)} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -219,6 +262,13 @@ export function CallerPage() {
       </Modal>
     </PageFrame>
   );
+}
+
+function callerFilterSummary(filters: CallerFilters): string {
+  const conditions = [];
+  if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
+  if (filters.state !== 'all') conditions.push(`状态：${filters.state === 'enabled' ? '已启用' : '已停用'}`);
+  return conditions.join(' · ') || '全部调用方';
 }
 
 function CallerEditor({ draft, routes, onChange, onSave, submitting }: { draft: CallerDraft; routes: CallerRouteOption[]; onChange: (draft: CallerDraft) => void; onSave: () => void; submitting: boolean }) {

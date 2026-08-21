@@ -29,15 +29,15 @@ export function PolicyLibraryTable({
   }
 
   return (
-    <div className="table-scroll policy-table-scroll">
-      <table className="table policy-table">
+    <div className="table-scroll resource-table-scroll policy-table-scroll">
+      <table className="table resource-table policy-table">
         <thead>
           <tr>
             <th>策略名称</th>
             <th>策略内容</th>
             <th>应用目标</th>
             <th>状态</th>
-            <th>创建时间</th>
+            <th>更新时间</th>
             <th>操作</th>
           </tr>
         </thead>
@@ -75,7 +75,7 @@ export function PolicyLibraryTable({
                 </Badge>
                 {statusMessage && statusMessage !== statusLabel ? <div className="table-secondary policy-status-message">{statusMessage}</div> : null}
               </td>
-              <td>{formatDateTime(policy.createdAt ?? '')}</td>
+              <td className="resource-table-time">{formatDateTime(policy.updatedAt ?? policy.createdAt ?? '')}</td>
               <td>
                 <div className="row-actions">
                   <button className="link-button" type="button" onClick={() => onDetail(policy)}>详情</button>

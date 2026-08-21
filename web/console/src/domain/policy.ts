@@ -69,6 +69,7 @@ interface GovernancePolicyBase {
   targets: PolicyTargetRef[];
   status: ResourceStatus;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export type GovernancePolicy =
