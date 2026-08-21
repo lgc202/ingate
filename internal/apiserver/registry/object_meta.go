@@ -9,8 +9,24 @@ import (
 	resource "github.com/lgc202/ingate/pkg/apis/gateway"
 )
 
-// SetUpdatedAt 记录最近一次期望配置发生变化的时间
-func SetUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
+// PrepareObjectMetaForCreate 初始化由 API Server 维护的资源版本元数据
+func PrepareObjectMetaForCreate(metadata *metav1.ObjectMeta) {
+	metadata.Generation = 1
+	setUpdatedAt(metadata, metadata.CreationTimestamp.Time)
+}
+
+// PrepareObjectMetaForUpdate 只在期望配置变化时推进 Generation 和更新时间
+func PrepareObjectMetaForUpdate(metadata, oldMetadata *metav1.ObjectMeta, specChanged bool) {
+	metadata.Generation = oldMetadata.Generation
+	if specChanged {
+		metadata.Generation++
+		setUpdatedAt(metadata, time.Now().UTC())
+		return
+	}
+	preserveUpdatedAt(metadata, oldMetadata)
+}
+
+func setUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
 	metadata.Annotations = maps.Clone(metadata.Annotations)
 	if metadata.Annotations == nil {
 		metadata.Annotations = make(map[string]string, 1)
@@ -18,8 +34,7 @@ func SetUpdatedAt(metadata *metav1.ObjectMeta, updatedAt time.Time) {
 	metadata.Annotations[resource.AnnotationUpdatedAt] = updatedAt.Format(time.RFC3339Nano)
 }
 
-// PreserveUpdatedAt 阻止客户端通过无配置变化的更新覆盖系统维护的更新时间
-func PreserveUpdatedAt(metadata, oldMetadata *metav1.ObjectMeta) {
+func preserveUpdatedAt(metadata, oldMetadata *metav1.ObjectMeta) {
 	metadata.Annotations = maps.Clone(metadata.Annotations)
 	delete(metadata.Annotations, resource.AnnotationUpdatedAt)
 
