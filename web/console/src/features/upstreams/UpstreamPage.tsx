@@ -143,7 +143,7 @@ export function UpstreamPage() {
                 </select>
               </Field>
               <Field label="API Key">
-                <div className="relative"><KeyRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input className="input pl-10" type="password" autoComplete="new-password" value={draft.apiKey} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value, clearApiKey: false })} placeholder={draft.apiKeyConfigured ? '已配置，留空保持不变' : '未配置时适用于无需认证的模型服务'} /></div>
+                <div className="relative"><KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input className="input input-leading-icon" type="password" autoComplete="new-password" value={draft.apiKey} onChange={(event) => setDraft({ ...draft, apiKey: event.target.value, clearApiKey: false })} placeholder={draft.apiKeyConfigured ? '已配置，留空保持不变' : '未配置时适用于无需认证的模型服务'} /></div>
               </Field>
               {draft.apiKeyConfigured ? <label className="flex items-center gap-2 text-xs text-slate-600"><input type="checkbox" checked={draft.clearApiKey} onChange={(event) => setDraft({ ...draft, clearApiKey: event.target.checked, apiKey: '' })} />删除已配置的 API Key</label> : null}
             </section>
