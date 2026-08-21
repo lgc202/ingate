@@ -113,6 +113,7 @@ type AIModelTarget struct {
 
 // HostRewrite 定义转发请求使用的上游 Host
 type HostRewrite struct {
+	// Mode 选择服务端点主机名、原始 Host 或固定主机名
 	Mode HostRewriteMode `json:"mode"`
 	// Hostname 仅在 Custom 模式下使用，不包含端口
 	Hostname string `json:"hostname,omitempty"`
@@ -120,6 +121,7 @@ type HostRewrite struct {
 
 // RouteMatch 表示必须同时满足的请求匹配条件
 type RouteMatch struct {
+	// Path 是每个请求都必须满足的路径条件
 	Path PathMatch `json:"path"`
 	// Methods 为空时匹配所有 HTTP 方法，多个值之间是 OR 关系
 	// +listType=atomic
@@ -131,16 +133,21 @@ type RouteMatch struct {
 
 // PathMatch 表示请求路径匹配条件
 type PathMatch struct {
-	Type  PathMatchType `json:"type"`
-	Value string        `json:"value"`
+	// Type 选择完整路径或路径前缀匹配
+	Type PathMatchType `json:"type"`
+	// Value 是不含查询参数和片段的绝对路径
+	Value string `json:"value"`
 }
 
 // HeaderModifier 表示 Header 写入和删除动作
 type HeaderModifier struct {
+	// Set 覆盖同名 Header 的现有值
 	// +listType=atomic
 	Set []HeaderValue `json:"set,omitempty"`
+	// Add 在现有值之后追加 Header
 	// +listType=atomic
 	Add []HeaderValue `json:"add,omitempty"`
+	// Remove 在转发前删除指定 Header
 	// +listType=atomic
 	Remove []string `json:"remove,omitempty"`
 }
@@ -153,23 +160,30 @@ type HeaderValue struct {
 
 // RouteTimeout 表示 Route 的请求总超时
 type RouteTimeout struct {
+	// RequestMillis 是从接收请求到返回响应的总超时毫秒数
 	RequestMillis int `json:"requestMillis"`
 }
 
 // RouteRetry 表示 Route 的失败重试配置
 type RouteRetry struct {
-	Attempts            int `json:"attempts"`
+	// Attempts 是首次转发失败后的最大重试次数
+	Attempts int `json:"attempts"`
+	// PerTryTimeoutMillis 是每次转发尝试的超时毫秒数
 	PerTryTimeoutMillis int `json:"perTryTimeoutMillis"`
 }
 
 // HeaderMatch 表示 HTTP Header 精确匹配条件
 type HeaderMatch struct {
-	Name  string `json:"name"`
+	// Name 不区分大小写
+	Name string `json:"name"`
+	// Value 按完整字符串匹配
 	Value string `json:"value"`
 }
 
 // UpstreamRef 表示 Route 转发到的 Upstream 及其相对权重
 type UpstreamRef struct {
-	Name   string `json:"name"`
-	Weight int    `json:"weight"`
+	// Name 引用 Upstream 的 metadata.name
+	Name string `json:"name"`
+	// Weight 是多个 Upstream 之间的相对流量权重
+	Weight int `json:"weight"`
 }

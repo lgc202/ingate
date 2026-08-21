@@ -26,14 +26,19 @@ type IPRestrictionPolicyList struct {
 
 // IPRestrictionPolicySpec 定义客户端 IP 允许列表或拒绝列表
 type IPRestrictionPolicySpec struct {
+	// DisplayName 保存控制台展示名称，不参与策略匹配
 	DisplayName string `json:"displayName"`
-	Enabled     bool   `json:"enabled"`
+	// Enabled 为 false 时保留策略但不执行 IP 检查
+	Enabled bool `json:"enabled"`
+	// TargetRefs 为空时策略保存为未应用状态
 	// +listType=map
 	// +listMapKey=kind
 	// +listMapKey=name
 	TargetRefs []PolicyTargetRef `json:"targetRefs,omitempty"`
+	// Allow 与 Deny 必须且只能配置其中一个，每项是 IP 或 CIDR
 	// +listType=set
 	Allow []string `json:"allow,omitempty"`
+	// Deny 与 Allow 必须且只能配置其中一个，每项是 IP 或 CIDR
 	// +listType=set
 	Deny []string `json:"deny,omitempty"`
 }

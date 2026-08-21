@@ -44,9 +44,14 @@ type GatewaySpec struct {
 
 // Listener 声明一个 Gateway 对外提供的流量入口
 type Listener struct {
-	Name           string   `json:"name"`
-	Protocol       Protocol `json:"protocol"`
-	Port           int      `json:"port"`
-	Hostname       string   `json:"hostname,omitempty"`
-	CertificateRef string   `json:"certificateRef,omitempty"`
+	// Name 在当前 Gateway 内唯一，用于识别监听入口
+	Name string `json:"name"`
+	// Protocol 决定是否由 Envoy 终止 TLS
+	Protocol Protocol `json:"protocol"`
+	// Port 是 Envoy 对外监听的 TCP 端口
+	Port int `json:"port"`
+	// Hostname 为空时接受任意 Host，否则只接受指定域名
+	Hostname string `json:"hostname,omitempty"`
+	// CertificateRef 只在 HTTPS 下使用，引用 Certificate 的 metadata.name
+	CertificateRef string `json:"certificateRef,omitempty"`
 }

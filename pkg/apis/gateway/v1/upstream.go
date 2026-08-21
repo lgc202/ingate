@@ -64,6 +64,7 @@ type UpstreamSpec struct {
 // ModelUpstream 定义模型服务与 Ingate 交互使用的协议
 // 真实模型名属于 Route 的模型映射，同一个模型服务可以承载多个模型
 type ModelUpstream struct {
+	// Protocol 决定凭据注入和请求响应转换规则
 	Protocol ModelProtocol `json:"protocol"`
 	// APIKey 保存模型服务的访问凭据；Controller 不得把该值写入 Envoy xDS
 	APIKey string `json:"apiKey,omitempty"`
@@ -71,8 +72,10 @@ type ModelUpstream struct {
 
 // Endpoint 表示 Upstream 的一个网络地址及其相对容量
 type Endpoint struct {
+	// Address 是 IP 地址或 DNS 主机名，不包含协议和端口
 	Address string `json:"address"`
-	Port    int    `json:"port"`
+	// Port 是服务接收流量的 TCP 端口
+	Port int `json:"port"`
 	// Weight 默认为 1，多个端点之间按相对权重分配流量
 	Weight int `json:"weight,omitempty"`
 }
@@ -85,7 +88,10 @@ type UpstreamTLS struct {
 
 // UpstreamHealthCheck 声明 Upstream 的 HTTP 主动健康检查
 type UpstreamHealthCheck struct {
-	Path            string `json:"path"`
-	IntervalSeconds int    `json:"intervalSeconds,omitempty"`
-	TimeoutSeconds  int    `json:"timeoutSeconds,omitempty"`
+	// Path 是主动健康检查请求使用的绝对路径
+	Path string `json:"path"`
+	// IntervalSeconds 是相邻两次检查的间隔，默认 10 秒
+	IntervalSeconds int `json:"intervalSeconds,omitempty"`
+	// TimeoutSeconds 是单次检查的超时时间，默认 2 秒
+	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
 }
