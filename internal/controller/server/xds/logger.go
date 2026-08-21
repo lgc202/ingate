@@ -31,5 +31,5 @@ func (l *slogLogger) Warnf(format string, args ...any) {
 }
 
 func (l *slogLogger) Errorf(format string, args ...any) {
-	l.logger.Error("go-control-plane", "err", fmt.Errorf(format, args...))
+	l.logger.Error("go-control-plane", "error", fmt.Errorf(format, args...))
 }

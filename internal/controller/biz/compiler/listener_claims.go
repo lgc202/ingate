@@ -18,7 +18,7 @@ type listenerGroup struct {
 type gatewayListener struct {
 	key            listenerKey
 	gatewayID      string
-	hosts          []string
+	hostname       string
 	certificateRef string
 }
 
@@ -78,7 +78,7 @@ func (c *compilation) buildListenerGroups() (map[listenerKey]*listenerGroup, map
 			gatewayListener := gatewayListener{
 				key:            key,
 				gatewayID:      gatewayID,
-				hosts:          []string{hostname},
+				hostname:       hostname,
 				certificateRef: listener.CertificateRef,
 			}
 			group.claims = append(group.claims, hostnameClaim{gatewayID: gatewayID, hostname: hostname})

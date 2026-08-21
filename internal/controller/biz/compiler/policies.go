@@ -14,6 +14,11 @@ type policyRouteKey struct {
 	routeID     string
 }
 
+type matchedPolicyTarget struct {
+	source  ResourceGeneration
+	targets []gatewayv1.PolicyTargetRef
+}
+
 func (c *compilation) buildPolicyConfigs(
 	attachments []routeAttachment,
 ) (map[listenerKey]listenerFilterConfig, []CompiledPolicyTarget) {
@@ -47,11 +52,6 @@ func (c *compilation) buildPolicyConfigs(
 		}
 	}
 	return filters, compiledPolicyTargets(policyTargetSet)
-}
-
-type matchedPolicyTarget struct {
-	source  ResourceGeneration
-	targets []gatewayv1.PolicyTargetRef
 }
 
 func matchingIPRestrictionPolicies(

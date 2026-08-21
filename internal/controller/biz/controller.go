@@ -72,11 +72,19 @@ func NewController(
 // Start 同步资源缓存后执行唯一的全配置域收敛循环
 func (c *Controller) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	c.cancel = cancel
 	close(c.started)
 	defer close(c.done)
+	defer c.resources.Stop()
 
-	stopQueue := context.AfterFunc(runCtx, c.queue.ShutDown)
+	if err := c.resources.Start(runCtx); err != nil {
+		return err
+	}
+	if runCtx.Err() != nil {
+		return nil
+	}
+
 	changesDone := make(chan struct{})
 	go func() {
 		defer close(changesDone)
@@ -85,17 +93,7 @@ func (c *Controller) Start(ctx context.Context) error {
 	defer func() {
 		cancel()
 		<-changesDone
-		stopQueue()
-		c.queue.ShutDown()
-		c.resources.Stop()
 	}()
-
-	if err := c.resources.Start(runCtx); err != nil {
-		return err
-	}
-	if runCtx.Err() != nil {
-		return nil
-	}
 
 	c.queue.Add(queueKeyDesiredConfig)
 	for c.processNextWorkItem(runCtx) {
@@ -124,6 +122,8 @@ func (c *Controller) Stop(ctx context.Context) error {
 }
 
 func (c *Controller) watchChanges(ctx context.Context) {
+	// workqueue.Get 不接收 context，监听协程退出时负责关闭队列并唤醒控制循环
+	defer c.queue.ShutDown()
 	for {
 		select {
 		case <-ctx.Done():
@@ -155,9 +155,9 @@ func (c *Controller) processNextWorkItem(ctx context.Context) bool {
 	if err != nil {
 		if ctx.Err() != nil {
 			c.queue.Forget(key)
-			return true
+			return false
 		}
-		c.logger.Error("reconcile work item failed", "queue_key", key, "err", err)
+		c.logger.Error("reconcile work item failed", "queue_key", key, "error", err)
 		c.queue.AddRateLimited(key)
 		return true
 	}

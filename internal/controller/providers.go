@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"log/slog"
 
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
@@ -66,5 +65,5 @@ func newXDSService(
 ) *xds.Service {
 	xdsLogger := xds.NewSlogLogger(logger.With("component", "xds"))
 	callbacks := xds.NewCallbacks(configDelivery.HandleXDSEvent)
-	return xds.NewService(context.Background(), cache, callbacks, xdsLogger)
+	return xds.NewService(cache, callbacks, xdsLogger)
 }
