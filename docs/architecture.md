@@ -1,90 +1,116 @@
 # Ingate 架构
 
-## 产品边界
+![Ingate 产品流量模型](assets/ingate-overview.png)
 
-一套 Ingate 表示一个环境、一个配置域和一组配置完全相同的 Envoy 实例。一套 Ingate 可以创建多个逻辑 Gateway，但不承担生产、测试或租户之间的控制面隔离；需要隔离时部署多套 Ingate。
+## 设计边界
 
-Envoy 是唯一数据平面。控制面直接生成 Envoy 配置，不建立通用数据平面适配层。
+Ingate 使用官方 Envoy 作为唯一数据平面。控制面直接把声明式资源编译为 Envoy 配置，不维护 Envoy 私有分支，也不为 Kong、Nginx 等其他数据平面预设通用适配层。
 
-## 组件通信
+一套 Ingate 表示一个环境、一个配置域和一组配置完全相同的 Envoy 实例。一套 Ingate 可以创建多个逻辑 Gateway；生产、测试、机房或租户之间需要控制面隔离时，应分别部署多套 Ingate。
 
-```text
-                    management traffic
-Browser -> Console ----------------------> Admin API
-                                               |
-                                               | resource client
-                                               v
-                                         API Server -> etcd
-                                               ^
-                                               | watch/status
-                                               v
-                                          Controller
-                                               |
-                                               | xDS
-                                               v
-Client -------------------------------------> Envoy
-                                               |
-                                               +----> Upstream
-                                               |
-                                               +----> ALS -> Kafka -> Analytics -> ClickHouse
-```
+Ingate 的产品流量模型固定为：
 
-边界规则：
+**Gateway → Route → Service**
 
-- Console 只访问 Admin API
-- Admin API 只通过 API Server 读写声明式资源，不访问 etcd
-- Controller 只通过 API Server Watch 资源和回写 Status，不访问 etcd
-- API Server 是 etcd 的唯一访问者
-- Envoy 通过 xDS 获取 Listener、Route 和 Upstream 配置
-- Envoy 通过 ALS 上报请求记录，不直接写 Kafka 或 ClickHouse
+API 和 AI 是 Route 与 Service 的不同类型，不形成两套平行的资源体系。Console 使用 Service 这一产品名称，声明式 API 当前使用 `Upstream` 表达同一个对象。
 
-## 资源模型
+## 三条运行链路
 
-```text
-Gateway <---- Route ----> Upstream
-   |          ^             |
-   |          |             +-- endpoints / TLS / health check
-   |          |
-   +-- Certificate
-   |
-   +-- RateLimitPolicy
-   +-- IPRestrictionPolicy
-```
+### 控制链路
 
-- `Gateway` 定义端口、协议、域名范围和 TLS 证书
-- `Route` 把一个或多个 Gateway 的请求匹配到一个或多个 Upstream
-- `Upstream` 定义 HTTP 服务端点和连接策略
-- `Certificate` 保存可复用的 TLS 证书与私钥
-- Policy 通过 `targetRefs[]` 直接作用于 Gateway 或 Route
+控制链路只负责声明、校验和发布配置：
 
-资源由 `metadata.name` 作为不可变 ID。Admin API 为控制台生成 UUID，并用 `spec.displayName` 保存用户可编辑名称。资源版本、创建时间、更新时间和 Status 由系统维护。
+1. Browser 通过 `ingate-console` 访问 `ingate-admin-api`
+2. Admin API 完成产品协议校验和业务规则检查，通过生成客户端读写 `ingate-apiserver`
+3. API Server 是 etcd 的唯一访问者，负责资源 CRUD、List/Watch、版本和 Status 子资源
+4. `ingate-controller` Watch 声明式资源，把当前完整资源集合编译为 Envoy Listener、Route、Cluster 和 Secret
+5. 新配置通过完整性校验后成为 Active 配置，并由 xDS 下发到 Envoy
+6. Controller 把资源是否参与当前有效配置回写到 API Server Status
 
-## Controller
+Admin API、Controller、Authorization 和 AI Processing 都不能直接访问 etcd。声明式资源是配置事实来源；Controller 不持久化 Last Good，进程重启后从资源重新全量编译。
 
-Controller 在一个进程中保留清晰的职责边界：
+### 流量链路
 
-```text
-Resource Watch -> Reconcile -> Envoy Compiler -> Delivery -> xDS
-                                     |
-                                     +-----------> Status
-```
+客户端只访问 Envoy，管理组件不在业务请求路径上。
+
+- API Route 由 Envoy 完成匹配、治理、负载均衡和 HTTP Service 转发
+- 使用调用方访问模式的 Route 通过 Envoy `ext_authz` 调用 `ingate-authz`，公开 Route 不执行远程鉴权
+- AI Route 通过 Envoy `ext_proc` 调用 `ingate-ai-extproc`，完成对外模型名选择、真实模型名改写、凭据注入和协议转换
+- OpenAI 兼容模型线路保持 Chat Completions 协议，只改写线路相关字段
+- Anthropic 模型线路在 OpenAI Chat Completions 与 Anthropic Messages 之间转换请求、普通响应和 SSE 流式响应
+
+`ingate-authz` 和 `ingate-ai-extproc` 都通过 API Server Watch 自己执行所需的最小资源集合。它们只处理同步请求所需的判断和改写，不承担配置持久化或分析查询。
+
+### 观测链路
+
+请求观测与同步流量处理解耦：
+
+1. Envoy 通过 ALS 把请求元数据发送给 `ingate-als`
+2. ALS 优先投递 Kafka；Kafka 暂时不可用时，未投递记录进入本地 WAL，并在恢复后重放
+3. `ingate-analytics` 批量消费 Kafka，写入 ClickHouse 请求明细和模型调用记录
+4. ClickHouse 物化视图维护流量分析所需的聚合数据
+5. Admin API 调用 Analytics gRPC 查询请求记录、趋势、响应分布和资源排行
+
+观测链路不持久化请求 Header、查询参数或正文。Kafka 和 ClickHouse 故障不能改变 Envoy 的路由结果，但会影响请求记录的可见时间和本地 WAL 占用。
+
+## 组件职责
+
+| 组件 | 上游依赖 | 职责 |
+| --- | --- | --- |
+| `ingate-console` | Admin API | 托管控制台并代理管理请求 |
+| `ingate-admin-api` | API Server、Analytics | 提供面向 Console 的产品 API 和业务校验 |
+| `ingate-apiserver` | etcd | 提供声明式资源 API，是 etcd 的唯一访问者 |
+| `ingate-controller` | API Server | 收敛资源状态、编译 Envoy 配置、提供 xDS、回写 Status |
+| `Envoy` | Controller、Authorization、AI Processing、ALS | 接收业务流量并执行数据面配置 |
+| `ingate-authz` | API Server | 校验调用方访问密钥和 Route 授权 |
+| `ingate-ai-extproc` | API Server | 选择模型线路并转换模型协议 |
+| `ingate-als` | Kafka | 接收请求记录并可靠投递 |
+| `ingate-analytics` | Kafka、ClickHouse | 写入请求事实并提供分析查询 |
+
+## 资源关系
+
+| 资源 | 作用 | 主要引用关系 |
+| --- | --- | --- |
+| `Gateway` | 定义 HTTP/HTTPS 监听入口 | HTTPS Listener 引用 Certificate |
+| `Route` | 定义 API/AI 请求匹配和转发 | 引用 Gateway、Upstream；可要求 Caller |
+| `Upstream` | 定义 HTTP 或模型 Service 的连接方式 | 被 Route 的普通目标或模型线路引用 |
+| `Certificate` | 保存可复用的 TLS 证书和私钥 | 被 Gateway HTTPS Listener 引用 |
+| `Caller` | 保存访问密钥摘要和 Route 权限 | 被 Authorization Watch |
+| `IPRestrictionPolicy` | 限制 Gateway 或 Route 的客户端 IP | 通过 `targetRefs[]` 引用 Gateway 或 Route |
+| `RateLimitPolicy` | 声明 Gateway 或 Route 的限流意图 | 通过 `targetRefs[]` 引用 Gateway 或 Route |
+
+资源使用 `metadata.name` 作为不可变 ID，使用 `spec.displayName` 保存用户可编辑名称。Admin API 创建资源时生成 UUID，并把底层 `metadata/spec/status` 转换为面向 Console 的平铺协议。
+
+## 配置发布
+
+Controller 的发布顺序是 Resource Watch、Reconcile、Envoy Compiler、Delivery 和 xDS：
 
 - Resource Watch 维护声明式资源缓存并触发收敛
-- Compiler 把当前完整资源集合编译为 Envoy Listener、Route、Cluster 和 Secret
-- Delivery 只在完整配置通过校验后切换 Active 配置
-- xDS 使用 Envoy Snapshot Cache 向数据面下发 Active 配置
-- Status 把资源是否成功参与当前配置回写到 API Server
+- Reconcile 每次读取完整资源集合，不对单个资源做局部拼接发布
+- Compiler 生成 Envoy Listener、Route、Cluster 和 Secret，并记录资源诊断信息
+- Delivery 只在整套配置通过校验后切换 Active 配置
+- xDS Snapshot Cache 向 Envoy 提供当前 Active 配置
+- Status Writer 把接收、引用解析和发布结果写回对应资源
 
-Candidate 和 Active 只存在于进程内。Controller 重启后从声明式资源重新全量编译，不持久化 Last Good。
+Candidate 和 Active 只存在于 Controller 进程内。重启时允许短暂重新收敛，不向 etcd 写入派生配置或 Last Good。
 
-## 内置治理
+## 数据归属
 
-`RateLimitPolicy` 和 `IPRestrictionPolicy` 是强类型资源，用户不接触 Envoy filter 等数据面实现细节。
+| 数据 | 唯一持久化位置 | 写入者 |
+| --- | --- | --- |
+| 声明式资源与 Status | etcd | API Server |
+| Gateway Certificate 密钥材料 | etcd | API Server |
+| 当前 Envoy 有效配置 | Controller 内存 | Controller |
+| ALS 待投递记录 | ALS 本地 WAL | ALS |
+| 请求明细与模型调用记录 | ClickHouse | Analytics |
+| 流量聚合 | ClickHouse 物化视图 | ClickHouse |
 
-IP 访问限制由 Envoy 原生执行，不依赖外部存储。RateLimitPolicy 当前只保留资源协议和 CRUD，不会生成限流执行配置，其目标状态因此为未应用。策略目标不存在时，只影响对应目标状态，不阻止其他有效目标继续发布。
+Redis 是安装级系统组件，当前不参与流量执行或配置持久化。RateLimitPolicy 目前只有资源协议和管理能力，Controller 不生成限流执行配置。
 
-## 部署
+## 部署约束
 
-服务二进制、YAML 配置、环境变量、健康检查和优雅退出与部署方式无关。Docker Compose 只用于开发和联调，每个组件独立容器。Controller 与 Envoy 共享网络命名空间，使未启用 mTLS 的 xDS 只监听 loopback。
+服务二进制、YAML 配置、健康检查、结构化日志和优雅退出保持部署方式中立。Docker Compose 只用于开发和联调，不代表生产拓扑。
+
+开发 Compose 中，每个服务运行在独立容器。Controller、Envoy 与 AI ExtProc 共享网络命名空间，使 xDS 和 AI Processing 连接只监听 loopback；Authorization 和 ALS 通过 Compose 内部网络访问，不向宿主机暴露端口。其他部署方式必须提供等价的网络隔离，或为这些内部 gRPC 连接配置传输安全。
 
 安装路径统一使用 `/opt/ingate/<component>`；运行数据由部署方式挂载到明确目录。
