@@ -5,13 +5,18 @@ import (
 	"maps"
 	"slices"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 type policyRouteKey struct {
 	listenerKey listenerKey
 	gatewayID   string
 	routeID     string
+}
+
+type matchedPolicyTarget struct {
+	source  ResourceGeneration
+	targets []gatewayv1.PolicyTargetRef
 }
 
 func (c *compilation) buildPolicyConfigs(
@@ -47,11 +52,6 @@ func (c *compilation) buildPolicyConfigs(
 		}
 	}
 	return filters, compiledPolicyTargets(policyTargetSet)
-}
-
-type matchedPolicyTarget struct {
-	source  ResourceGeneration
-	targets []gatewayv1.PolicyTargetRef
 }
 
 func matchingIPRestrictionPolicies(

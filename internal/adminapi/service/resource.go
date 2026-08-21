@@ -7,7 +7,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // Timestamp 把非零时间转换为协议时间

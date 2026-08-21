@@ -3,6 +3,7 @@ package registry
 
 import (
 	"context"
+	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -45,7 +46,7 @@ func NewStorage(
 		TableConvertor:            rest.NewDefaultTableConvertor(definition.Resource),
 	}
 	if err := store.CompleteWithOptions(&generic.StoreOptions{RESTOptions: optsGetter}); err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("complete %s storage: %w", definition.Resource, err)
 	}
 
 	statusStore := *store

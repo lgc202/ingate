@@ -6,7 +6,7 @@ import (
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 func (c *compilation) headerModifier(route *gatewayv1.Route, modifier *gatewayv1.HeaderModifier) ([]*corev3.HeaderValueOption, []string, bool) {

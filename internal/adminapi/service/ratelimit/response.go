@@ -4,7 +4,7 @@ import (
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 func rateLimitPolicyResponse(policy *resource.RateLimitPolicy, names biz.PolicyTargetNames) *adminv1.RateLimitPolicy {

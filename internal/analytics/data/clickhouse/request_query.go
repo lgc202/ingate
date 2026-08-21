@@ -9,10 +9,7 @@ import (
 
 	clickhousego "github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
-	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 )
 
@@ -88,7 +85,7 @@ func (s *Store) GetRequest(
 	ctx context.Context,
 	id string,
 	startedAt time.Time,
-) (record *alsv1.RequestRecord, err error) {
+) (record *request.Record, err error) {
 	queryCtx, cancel := context.WithTimeout(ctx, s.queryTimeout)
 	defer cancel()
 	queryCtx = clickhousego.Context(queryCtx, clickhousego.WithSettings(clickhousego.Settings{
@@ -103,7 +100,7 @@ func (s *Store) GetRequest(
 	if err != nil {
 		return nil, err
 	}
-	record.AiModelCall = modelCall
+	record.ModelCall = modelCall
 	return record, nil
 }
 
@@ -111,7 +108,7 @@ func (s *Store) queryRequestRecord(
 	ctx context.Context,
 	id string,
 	startedAt time.Time,
-) (record *alsv1.RequestRecord, err error) {
+) (record *request.Record, err error) {
 	statement := fmt.Sprintf(
 		"SELECT %s FROM %s FINAL WHERE started_at = @started_at AND id = @id LIMIT 1",
 		requestRecordColumns,
@@ -217,7 +214,7 @@ func scanRequestSummary(rows driver.Rows) (request.Summary, error) {
 		return request.Summary{}, fmt.Errorf("scan request summary: %w", err)
 	}
 	summary.Duration = durationValue(durationNS)
-	summary.StatusCode = uint32(statusCode)
+	summary.StatusCode = statusCode
 	return summary, nil
 }
 
@@ -241,58 +238,45 @@ func readRequestSummaries(rows driver.Rows, capacity int) (records []request.Sum
 	return records, nil
 }
 
-// scanRequestRecord 把 ClickHouse 的紧凑数值类型还原为公共 ALS Proto 类型
-func scanRequestRecord(rows driver.Rows) (*alsv1.RequestRecord, error) {
+// scanRequestRecord 把 ClickHouse 的紧凑数值类型还原为请求领域记录
+func scanRequestRecord(rows driver.Rows) (*request.Record, error) {
 	var (
-		record            alsv1.RequestRecord
-		startedAt         time.Time
+		record            request.Record
 		durationNS        *uint64
-		statusCode        uint16
 		statusClass       uint8
-		upstreamAttempts  uint16
 		timeToFirstByteNS *uint64
 	)
 	if err := rows.Scan(
-		&record.Id,
-		&record.RequestId,
-		&startedAt,
+		&record.ID,
+		&record.RequestID,
+		&record.StartedAt,
 		&durationNS,
-		&record.ClientIp,
+		&record.ClientIP,
 		&record.Method,
 		&record.Host,
 		&record.Path,
-		&statusCode,
+		&record.StatusCode,
 		&statusClass,
 		&record.RequestBytes,
 		&record.ResponseBytes,
-		&record.GatewayId,
-		&record.RouteId,
-		&record.UpstreamId,
-		&record.CallerId,
-		&record.AccessKeyId,
-		&record.EnvoyNodeId,
+		&record.GatewayID,
+		&record.RouteID,
+		&record.UpstreamID,
+		&record.CallerID,
+		&record.AccessKeyID,
+		&record.EnvoyNodeID,
 		&record.Protocol,
 		&record.ResponseCodeDetails,
-		&upstreamAttempts,
+		&record.UpstreamAttempts,
 		&record.UpstreamAddress,
 		&timeToFirstByteNS,
 	); err != nil {
 		return nil, fmt.Errorf("scan request record: %w", err)
 	}
-	record.StartedAt = timestamppb.New(startedAt)
-	record.Duration = protobufDuration(durationNS)
-	record.StatusCode = uint32(statusCode)
-	record.UpstreamAttempts = uint32(upstreamAttempts)
-	record.TimeToFirstByte = protobufDuration(timeToFirstByteNS)
+	record.Duration = durationValue(durationNS)
+	record.StatusClass = request.StatusClass(statusClass)
+	record.TimeToFirstByte = durationValue(timeToFirstByteNS)
 	return &record, nil
-}
-
-func protobufDuration(nanoseconds *uint64) *durationpb.Duration {
-	duration := durationValue(nanoseconds)
-	if duration == nil {
-		return nil
-	}
-	return durationpb.New(*duration)
 }
 
 func durationValue(nanoseconds *uint64) *time.Duration {

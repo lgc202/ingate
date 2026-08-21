@@ -5,8 +5,8 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 // createSpec 把创建请求转换为包含完整密钥对的 Certificate 配置

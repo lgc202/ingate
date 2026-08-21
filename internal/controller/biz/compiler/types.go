@@ -8,7 +8,7 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 	"k8s.io/apimachinery/pkg/types"
 
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
 // Severity 表示编译诊断的严重程度

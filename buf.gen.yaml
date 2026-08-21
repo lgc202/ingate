@@ -3,6 +3,7 @@ inputs:
   - directory: api
   - directory: internal/apiserver/conf
   - directory: internal/adminapi/conf
+  - directory: internal/console/conf
   - directory: internal/als
   - directory: internal/analytics
   - directory: internal/aiextproc/conf

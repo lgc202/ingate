@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package ingate.console.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/console/conf;conf";
+
+// Bootstrap 定义 ingate-console 的完整进程配置
+message Bootstrap {
+  // server 定义控制台 HTTP 入口和静态资源目录
+  Server server = 1;
+  // data 定义控制台依赖的管理 API
+  Data data = 2;
+  // logging 定义进程日志行为
+  Logging logging = 3;
+}
+
+// Server 定义控制台 HTTP 服务配置
+message Server {
+  message HTTP {
+    // addr 是控制台和管理 API 代理的监听地址
+    string addr = 1;
+    // timeout 限制单次 HTTP 请求处理时间
+    google.protobuf.Duration timeout = 2;
+  }
+  // http 定义控制台唯一的网络入口
+  HTTP http = 1;
+  // console_dir 是前端构建产物目录
+  string console_dir = 2;
+  // shutdown_timeout 是等待在途请求结束的最长时间
+  google.protobuf.Duration shutdown_timeout = 3;
+}
+
+// Data 定义 Console 访问的后端服务
+message Data {
+  message AdminAPI {
+    // base_url 是 ingate-admin-api 的内部 HTTP 地址
+    string base_url = 1;
+  }
+  // admin_api 接收控制台发起的管理请求
+  AdminAPI admin_api = 1;
+}
+
+// Logging 定义结构化日志格式与级别
+message Logging {
+  // format 支持 json 和 text
+  string format = 1;
+  // level 支持 debug、info、warn 和 error
+  string level = 2;
+  // add_source 控制日志是否包含调用位置
+  bool add_source = 3;
+}

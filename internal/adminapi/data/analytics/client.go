@@ -8,10 +8,12 @@ import (
 
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	googlegrpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 
 	"github.com/lgc202/ingate/internal/adminapi/conf"
-	"github.com/lgc202/ingate/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/tlsx"
 )
 
 // NewClient 创建 Admin API 访问 Analytics 的 gRPC 连接
@@ -49,4 +51,13 @@ func NewClient(config *conf.Data, logger *slog.Logger) (*googlegrpc.ClientConn, 
 		}
 	}
 	return connection, cleanup, nil
+}
+
+func isUnavailable(err error) bool {
+	switch status.Code(err) {
+	case codes.Unavailable, codes.DeadlineExceeded:
+		return true
+	default:
+		return false
+	}
 }

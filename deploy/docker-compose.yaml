@@ -1,9 +1,5 @@
 name: ingate
 
-x-ingate-build: &ingate-build
-  context: .
-  dockerfile: deploy/docker/ingate-compose.Dockerfile
-
 services:
   etcd:
     image: registry.k8s.io/etcd:3.6.4-0
@@ -28,7 +24,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     volumes:
-      - ./deploy/docker/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/redis.conf:/usr/local/etc/redis/redis.conf:ro"
       - redis-data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -99,16 +95,13 @@ services:
       start_period: 15s
 
   als:
-    image: ingate/als:${INGATE_IMAGE_TAG:-dev}
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-als:${INGATE_VERSION:-latest}"
     restart: unless-stopped
-    build:
-      <<: *ingate-build
-      target: als
     depends_on:
       kafka-init:
         condition: service_completed_successfully
     volumes:
-      - ./deploy/docker/configs/ingate-als.yaml:/opt/ingate/als/configs/config.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-als.yaml:/opt/ingate/als/configs/config.yaml:ro"
       - als-data:/data/ingate/als
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18092/readyz"]
@@ -118,24 +111,18 @@ services:
       start_period: 10s
 
   analytics-migrate:
-    image: ingate/analytics:${INGATE_IMAGE_TAG:-dev}
-    build:
-      <<: *ingate-build
-      target: analytics
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-analytics:${INGATE_VERSION:-latest}"
     command: ["--config", "/opt/ingate/analytics/configs/config.yaml", "--migrate"]
     depends_on:
       clickhouse:
         condition: service_healthy
     volumes:
-      - ./deploy/docker/configs/ingate-analytics.yaml:/opt/ingate/analytics/configs/config.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-analytics.yaml:/opt/ingate/analytics/configs/config.yaml:ro"
     restart: "no"
 
   analytics:
-    image: ingate/analytics:${INGATE_IMAGE_TAG:-dev}
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-analytics:${INGATE_VERSION:-latest}"
     restart: unless-stopped
-    build:
-      <<: *ingate-build
-      target: analytics
     depends_on:
       kafka-init:
         condition: service_completed_successfully
@@ -144,7 +131,7 @@ services:
       analytics-migrate:
         condition: service_completed_successfully
     volumes:
-      - ./deploy/docker/configs/ingate-analytics.yaml:/opt/ingate/analytics/configs/config.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-analytics.yaml:/opt/ingate/analytics/configs/config.yaml:ro"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18102/readyz"]
       interval: 5s
@@ -153,20 +140,17 @@ services:
       start_period: 10s
 
   ai-extproc:
-    image: ingate/ai-extproc:${INGATE_IMAGE_TAG:-dev}
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-ai-extproc:${INGATE_VERSION:-latest}"
     restart: unless-stopped
     # 入口流保存的原始请求必须与同一请求的上游重试流落在同一个进程
     # Compose 让 AI ExtProc 与 Envoy 共享网络命名空间，生产部署应保持一对一伴生关系
     network_mode: service:controller
-    build:
-      <<: *ingate-build
-      target: ai-extproc
     depends_on:
       apiserver:
         condition: service_healthy
     volumes:
-      - ./deploy/docker/configs/ingate-ai-extproc.yaml:/opt/ingate/ai-extproc/configs/config.yaml:ro
-      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/ai-extproc/configs/kubeconfig.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-ai-extproc.yaml:/opt/ingate/ai-extproc/configs/config.yaml:ro"
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/ai-extproc/configs/kubeconfig.yaml:ro"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18082/readyz"]
       interval: 5s
@@ -175,17 +159,14 @@ services:
       start_period: 10s
 
   authz:
-    image: ingate/authz:${INGATE_IMAGE_TAG:-dev}
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-authz:${INGATE_VERSION:-latest}"
     restart: unless-stopped
-    build:
-      <<: *ingate-build
-      target: authz
     depends_on:
       apiserver:
         condition: service_healthy
     volumes:
-      - ./deploy/docker/configs/ingate-authz.yaml:/opt/ingate/authz/configs/config.yaml:ro
-      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/authz/configs/kubeconfig.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-authz.yaml:/opt/ingate/authz/configs/config.yaml:ro"
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/authz/configs/kubeconfig.yaml:ro"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18072/readyz"]
       interval: 5s
@@ -194,16 +175,13 @@ services:
       start_period: 10s
 
   apiserver:
-    image: ingate/apiserver:${INGATE_IMAGE_TAG:-dev}
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-apiserver:${INGATE_VERSION:-latest}"
     restart: unless-stopped
-    build:
-      <<: *ingate-build
-      target: apiserver
     depends_on:
       etcd:
         condition: service_healthy
     volumes:
-      - ./deploy/docker/configs/ingate-apiserver.yaml:/opt/ingate/apiserver/configs/config.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-apiserver.yaml:/opt/ingate/apiserver/configs/config.yaml:ro"
       - apiserver-certificates:/opt/ingate/apiserver/certificates
     healthcheck:
       test: ["CMD", "curl", "-kfsS", "https://127.0.0.1:18443/readyz"]
@@ -213,20 +191,17 @@ services:
       start_period: 10s
 
   controller:
-    image: ingate/controller:${INGATE_IMAGE_TAG:-dev}
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-controller:${INGATE_VERSION:-latest}"
     restart: unless-stopped
-    build:
-      <<: *ingate-build
-      target: controller
     depends_on:
       apiserver:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${INGATE_HTTP_PORT:-8080}:8080"
-      - "127.0.0.1:${INGATE_HTTPS_PORT:-8443}:8443"
+      - "${INGATE_BIND_ADDRESS:-127.0.0.1}:${INGATE_HTTP_PORT:-8080}:8080"
+      - "${INGATE_BIND_ADDRESS:-127.0.0.1}:${INGATE_HTTPS_PORT:-8443}:8443"
     volumes:
-      - ./deploy/docker/configs/ingate-controller.yaml:/opt/ingate/controller/configs/config.yaml:ro
-      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/controller/configs/kubeconfig.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-controller.yaml:/opt/ingate/controller/configs/config.yaml:ro"
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/controller/configs/kubeconfig.yaml:ro"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18080/readyz"]
       interval: 5s
@@ -239,7 +214,7 @@ services:
     restart: unless-stopped
     network_mode: service:controller
     volumes:
-      - ./deploy/docker/envoy-bootstrap.yaml:/etc/envoy/envoy.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/envoy-bootstrap.yaml:/etc/envoy/envoy.yaml:ro"
     depends_on:
       controller:
         condition: service_healthy
@@ -257,19 +232,16 @@ services:
       start_period: 10s
 
   admin-api:
-    image: ingate/admin-api:${INGATE_IMAGE_TAG:-dev}
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-admin-api:${INGATE_VERSION:-latest}"
     restart: unless-stopped
-    build:
-      <<: *ingate-build
-      target: admin-api
     depends_on:
       apiserver:
         condition: service_healthy
       analytics:
         condition: service_healthy
     volumes:
-      - ./deploy/docker/configs/ingate-admin-api.yaml:/opt/ingate/admin-api/configs/config.yaml:ro
-      - ./deploy/docker/kubeconfig.yaml:/opt/ingate/admin-api/configs/kubeconfig.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-admin-api.yaml:/opt/ingate/admin-api/configs/config.yaml:ro"
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/admin-api/configs/kubeconfig.yaml:ro"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8002/healthz"]
       interval: 5s
@@ -278,18 +250,15 @@ services:
       start_period: 10s
 
   console:
-    image: ingate/console:${INGATE_IMAGE_TAG:-dev}
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-console:${INGATE_VERSION:-latest}"
     restart: unless-stopped
-    build:
-      <<: *ingate-build
-      target: console
     depends_on:
       admin-api:
         condition: service_healthy
     ports:
-      - "127.0.0.1:${INGATE_CONSOLE_PORT:-8001}:8001"
+      - "${INGATE_BIND_ADDRESS:-127.0.0.1}:${INGATE_CONSOLE_PORT:-8001}:8001"
     volumes:
-      - ./deploy/docker/configs/ingate-console.yaml:/opt/ingate/console/configs/config.yaml:ro
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-console.yaml:/opt/ingate/console/configs/config.yaml:ro"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8001/healthz"]
       interval: 5s

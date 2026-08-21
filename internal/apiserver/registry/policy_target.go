@@ -3,7 +3,7 @@ package registry
 import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	resource "github.com/lgc202/ingate/pkg/apis/gateway"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
 // ValidatePolicyTargetRefs 校验策略目标类型、名称和重复引用

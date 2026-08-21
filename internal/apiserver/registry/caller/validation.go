@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	resource "github.com/lgc202/ingate/pkg/apis/gateway"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
 func validateCaller(caller *resource.Caller) field.ErrorList {

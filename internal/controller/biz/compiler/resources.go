@@ -3,8 +3,8 @@ package compiler
 import (
 	"fmt"
 
+	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
-	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
 type compilation struct {

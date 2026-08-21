@@ -8,8 +8,6 @@ import (
 	"errors"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
@@ -18,12 +16,12 @@ import (
 
 // Service 实现 Analytics RequestService gRPC API
 type Service struct {
-	queries *requestbiz.Queries
+	query *requestbiz.Query
 }
 
 // NewService 创建请求明细查询服务
-func NewService(queries *requestbiz.Queries) *Service {
-	return &Service{queries: queries}
+func NewService(query *requestbiz.Query) *Service {
+	return &Service{query: query}
 }
 
 // ListRequests 按时间倒序分页查询请求摘要
@@ -35,7 +33,7 @@ func (s *Service) ListRequests(
 	if err != nil {
 		return nil, err
 	}
-	page, err := s.queries.List(ctx, options)
+	page, err := s.query.List(ctx, options)
 	if err != nil {
 		return nil, err
 	}
@@ -53,43 +51,6 @@ func (s *Service) ListRequests(
 	}, nil
 }
 
-func summaryResponse(summary requestbiz.Summary) *analyticsv1.RequestSummary {
-	response := &analyticsv1.RequestSummary{
-		Id:          summary.ID,
-		StartedAt:   timestamppb.New(summary.StartedAt),
-		Method:      summary.Method,
-		Host:        summary.Host,
-		Path:        summary.Path,
-		StatusCode:  summary.StatusCode,
-		GatewayId:   summary.GatewayID,
-		RouteId:     summary.RouteID,
-		UpstreamId:  summary.UpstreamID,
-		CallerId:    summary.CallerID,
-		AccessKeyId: summary.AccessKeyID,
-		AiModelCall: modelCallResponse(summary.ModelCall),
-	}
-	if summary.Duration != nil {
-		response.Duration = durationpb.New(*summary.Duration)
-	}
-	return response
-}
-
-func modelCallResponse(call *requestbiz.ModelCall) *alsv1.AIModelCall {
-	if call == nil {
-		return nil
-	}
-	return &alsv1.AIModelCall{
-		ClientModel:      call.ClientModel,
-		UpstreamModel:    call.UpstreamModel,
-		UpstreamProtocol: call.UpstreamProtocol,
-		ResponseModel:    call.ResponseModel,
-		FinishReason:     call.FinishReason,
-		InputTokens:      call.InputTokens,
-		OutputTokens:     call.OutputTokens,
-		TotalTokens:      call.TotalTokens,
-	}
-}
-
 // GetRequest 使用记录 ID 和开始时间查询单次请求明细
 func (s *Service) GetRequest(
 	ctx context.Context,
@@ -99,9 +60,12 @@ func (s *Service) GetRequest(
 	if request.GetId() == "" || startedAt == nil || startedAt.CheckValid() != nil {
 		return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "id and started_at are required")
 	}
-	record, err := s.queries.Get(ctx, request.GetId(), startedAt.AsTime())
+	record, err := s.query.Get(ctx, request.GetId(), startedAt.AsTime())
 	if errors.Is(err, requestbiz.ErrNotFound) {
 		return nil, kratoserrors.NotFound("REQUEST_NOT_FOUND", "request record not found")
 	}
-	return record, err
+	if err != nil {
+		return nil, err
+	}
+	return recordResponse(record), nil
 }

@@ -6,12 +6,16 @@ import (
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
-	"github.com/lgc202/ingate/internal/authz/caller"
 	"github.com/lgc202/ingate/internal/authz/conf"
 )
 
+// Readiness 提供运维接口所需的组件就绪状态
+type Readiness interface {
+	Ready() bool
+}
+
 // NewHTTPServer 创建健康检查和就绪检查服务
-func NewHTTPServer(config *conf.Server, callers *caller.Index) *kratoshttp.Server {
+func NewHTTPServer(config *conf.Server, readiness Readiness) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
 	server := kratoshttp.NewServer(
 		kratoshttp.Network("tcp"),
@@ -22,7 +26,7 @@ func NewHTTPServer(config *conf.Server, callers *caller.Index) *kratoshttp.Serve
 		writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 	})
 	server.HandleFunc("/readyz", func(response http.ResponseWriter, _ *http.Request) {
-		if !callers.Ready() {
+		if !readiness.Ready() {
 			writeJSON(response, http.StatusServiceUnavailable, map[string]string{"status": "not ready"})
 			return
 		}

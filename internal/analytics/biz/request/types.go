@@ -1,10 +1,6 @@
 package request
 
-import (
-	"time"
-
-	alsv1 "github.com/lgc202/ingate/api/als/v1"
-)
+import "time"
 
 // StatusClass 是根据 HTTP 状态码派生的请求结果分类
 type StatusClass uint8
@@ -22,12 +18,6 @@ const (
 	StatusClassNoResponse
 )
 
-// Fact 保存 ALS 原始请求元数据和 Analytics 派生字段
-type Fact struct {
-	Record      *alsv1.RequestRecord
-	StatusClass StatusClass
-}
-
 // ModelCall 保存 AI Route 实际执行的模型映射和 Token 用量
 type ModelCall struct {
 	ClientModel      string
@@ -40,6 +30,36 @@ type ModelCall struct {
 	TotalTokens      *uint64
 }
 
+// Record 保存一次已完成请求的排障和聚合元数据
+//
+// ALS Proto 只用于 Kafka 传输，进入 biz 后转换为该领域类型，避免存储实现依赖采集协议
+type Record struct {
+	ID                  string
+	RequestID           string
+	StartedAt           time.Time
+	Duration            *time.Duration
+	ClientIP            string
+	Method              string
+	Host                string
+	Path                string
+	StatusCode          uint16
+	StatusClass         StatusClass
+	RequestBytes        uint64
+	ResponseBytes       uint64
+	GatewayID           string
+	RouteID             string
+	UpstreamID          string
+	CallerID            string
+	AccessKeyID         string
+	EnvoyNodeID         string
+	Protocol            string
+	ResponseCodeDetails string
+	UpstreamAttempts    uint16
+	UpstreamAddress     string
+	TimeToFirstByte     *time.Duration
+	ModelCall           *ModelCall
+}
+
 // Summary 保存请求列表展示和进入详情所需的最小字段集
 type Summary struct {
 	ID          string
@@ -48,7 +68,7 @@ type Summary struct {
 	Method      string
 	Host        string
 	Path        string
-	StatusCode  uint32
+	StatusCode  uint16
 	GatewayID   string
 	RouteID     string
 	UpstreamID  string

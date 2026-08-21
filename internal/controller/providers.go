@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"context"
 	"log/slog"
 
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
@@ -12,7 +11,7 @@ import (
 	controllerdata "github.com/lgc202/ingate/internal/controller/data/apiserver"
 	controllerstatus "github.com/lgc202/ingate/internal/controller/data/apiserver/status"
 	"github.com/lgc202/ingate/internal/controller/server/xds"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
 func newAPIClient(config *conf.Data_APIServer) (clientset.Interface, error) {
@@ -66,5 +65,5 @@ func newXDSService(
 ) *xds.Service {
 	xdsLogger := xds.NewSlogLogger(logger.With("component", "xds"))
 	callbacks := xds.NewCallbacks(configDelivery.HandleXDSEvent)
-	return xds.NewService(context.Background(), cache, callbacks, xdsLogger)
+	return xds.NewService(cache, callbacks, xdsLogger)
 }

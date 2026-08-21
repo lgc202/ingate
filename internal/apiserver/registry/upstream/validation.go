@@ -9,7 +9,7 @@ import (
 
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
-	resource "github.com/lgc202/ingate/pkg/apis/gateway"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
 // validateUpstream 校验 HTTP 上游的连接配置和端点集合是否自洽

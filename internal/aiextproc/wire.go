@@ -9,7 +9,8 @@ import (
 	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
-	"github.com/lgc202/ingate/internal/aiextproc/modelservice"
+	"github.com/lgc202/ingate/internal/aiextproc/data"
+	dataapiserver "github.com/lgc202/ingate/internal/aiextproc/data/apiserver"
 	"github.com/lgc202/ingate/internal/aiextproc/server"
 	"github.com/lgc202/ingate/internal/aiextproc/service"
 )
@@ -21,9 +22,10 @@ func wireApp(
 	serviceInstanceID,
 ) (*kratos.App, error) {
 	panic(wire.Build(
-		modelservice.NewCache,
+		data.ProviderSet,
 		service.ProviderSet,
 		server.ProviderSet,
+		wire.Bind(new(server.Readiness), new(*dataapiserver.ModelServiceCache)),
 		newKratosApp,
 	))
 }

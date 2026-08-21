@@ -7,8 +7,8 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
 // IPRestrictionPolicyRepository 读写 IPRestrictionPolicy 声明式资源
@@ -23,9 +23,9 @@ func NewIPRestrictionPolicyRepository(client clientset.Interface) *IPRestriction
 
 // ListPage 分页查询 IPRestrictionPolicy 列表
 func (r *IPRestrictionPolicyRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.IPRestrictionPolicy], error) {
-	policies, err := r.client.GatewayV1().IPRestrictionPolicies().List(ctx, pageOptions(page))
+	policies, err := r.client.GatewayV1().IPRestrictionPolicies().List(ctx, listOptions(page))
 	if err != nil {
-		return biz.PageResult[resource.IPRestrictionPolicy]{}, pageError("IP restriction policies", err)
+		return biz.PageResult[resource.IPRestrictionPolicy]{}, listError("IP restriction policies", err)
 	}
 	return biz.PageResult[resource.IPRestrictionPolicy]{Items: policies.Items, NextCursor: policies.Continue}, nil
 }
@@ -39,28 +39,28 @@ func (r *IPRestrictionPolicyRepository) Get(ctx context.Context, name string) (*
 // Create 创建 IPRestrictionPolicy
 func (r *IPRestrictionPolicyRepository) Create(
 	ctx context.Context,
-	id string,
+	name string,
 	spec resource.IPRestrictionPolicySpec,
 ) (*resource.IPRestrictionPolicy, error) {
 	policy := &resource.IPRestrictionPolicy{
 		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindIPRestrictionPolicy)},
-		ObjectMeta: metav1.ObjectMeta{Name: id},
+		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec:       spec,
 	}
 	created, err := r.client.GatewayV1().IPRestrictionPolicies().Create(ctx, policy, metav1.CreateOptions{})
-	return created, resourceError("create", "IP restriction policy", id, err)
+	return created, resourceError("create", "IP restriction policy", name, err)
 }
 
 // Update 更新 IPRestrictionPolicy，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
 func (r *IPRestrictionPolicyRepository) Update(
 	ctx context.Context,
-	id string,
+	name string,
 	generation int64,
 	spec resource.IPRestrictionPolicySpec,
 ) (*resource.IPRestrictionPolicy, error) {
 	var updated *resource.IPRestrictionPolicy
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().IPRestrictionPolicies().Get(ctx, id, metav1.GetOptions{})
+		current, err := r.client.GatewayV1().IPRestrictionPolicies().Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -71,13 +71,13 @@ func (r *IPRestrictionPolicyRepository) Update(
 		updated, err = r.client.GatewayV1().IPRestrictionPolicies().Update(ctx, current, metav1.UpdateOptions{})
 		return err
 	})
-	return updated, resourceError("update", "IP restriction policy", id, err)
+	return updated, resourceError("update", "IP restriction policy", name, err)
 }
 
 // Delete 删除 IPRestrictionPolicy
-func (r *IPRestrictionPolicyRepository) Delete(ctx context.Context, id string, generation int64) error {
+func (r *IPRestrictionPolicyRepository) Delete(ctx context.Context, name string, generation int64) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().IPRestrictionPolicies().Get(ctx, id, metav1.GetOptions{})
+		current, err := r.client.GatewayV1().IPRestrictionPolicies().Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -85,9 +85,9 @@ func (r *IPRestrictionPolicyRepository) Delete(ctx context.Context, id string, g
 			return biz.ErrResourceVersionConflict
 		}
 		resourceVersion := current.ResourceVersion
-		return r.client.GatewayV1().IPRestrictionPolicies().Delete(ctx, id, metav1.DeleteOptions{
+		return r.client.GatewayV1().IPRestrictionPolicies().Delete(ctx, name, metav1.DeleteOptions{
 			Preconditions: &metav1.Preconditions{ResourceVersion: &resourceVersion},
 		})
 	})
-	return resourceError("delete", "IP restriction policy", id, err)
+	return resourceError("delete", "IP restriction policy", name, err)
 }

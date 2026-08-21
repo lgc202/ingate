@@ -1,21 +1,23 @@
 // Package aiextproc 装配 ingate-ai-extproc 进程及其资源生命周期
+//
+// Envoy 的 downstream ExtProc 负责提取客户端模型并处理最终响应，upstream ExtProc
+// 在负载均衡完成后注入凭据并转换厂商协议；两个独立流通过进程内请求状态关联
 package aiextproc
 
 import (
 	"fmt"
 	"log/slog"
 	"os"
-	"strings"
 
 	kratos "github.com/go-kratos/kratos/v3"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-	"github.com/lgc202/go-kit/version"
 
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
-	"github.com/lgc202/ingate/internal/aiextproc/modelservice"
+	dataapiserver "github.com/lgc202/ingate/internal/aiextproc/data/apiserver"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 const name = "ingate-ai-extproc"
@@ -38,7 +40,7 @@ func NewApp(configFile string) (*App, error) {
 		return nil, fmt.Errorf("read hostname: %w", err)
 	}
 	instanceID := serviceInstanceID(hostname)
-	logger := newLogger(bootstrap.GetLogging(), string(instanceID))
+	logger := appconfig.NewLogger(bootstrap.GetLogging(), name, string(instanceID))
 	kratoslog.SetDefault(logger)
 
 	kratosApp, err := wireApp(
@@ -64,33 +66,16 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
-	modelServices *modelservice.Cache,
+	modelServices *dataapiserver.ModelServiceCache,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
 		kratos.ID(string(instanceID)),
 		kratos.Name(name),
-		kratos.Version(version.Get().String()),
+		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
+		// 模型服务缓存和网络服务共享生命周期，首次同步完成前 /readyz 保持未就绪
 		kratos.Server(httpServer, grpcServer, modelServices),
-	)
-}
-
-func newLogger(config *conf.Logging, instanceID string) *slog.Logger {
-	format := kratoslog.FormatText
-	if strings.EqualFold(config.GetFormat(), "json") {
-		format = kratoslog.FormatJSON
-	}
-	handler := kratoslog.NewHandler(
-		kratoslog.WithWriter(os.Stderr),
-		kratoslog.WithFormat(format),
-		kratoslog.WithLevel(kratoslog.ParseLevel(config.GetLevel())),
-		kratoslog.WithAddSource(config.GetAddSource()),
-	)
-	return kratoslog.NewLogger(handler).With(
-		"service.id", instanceID,
-		"service.name", name,
-		"service.version", version.Get().String(),
 	)
 }

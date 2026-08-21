@@ -10,7 +10,7 @@ import (
 	"github.com/pressly/goose/v3"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
-	"github.com/lgc202/ingate/pkg/clickhousex"
+	"github.com/lgc202/ingate/internal/pkg/clickhousex"
 )
 
 const schemaMigrationTableName = "ingate_schema_migrations"

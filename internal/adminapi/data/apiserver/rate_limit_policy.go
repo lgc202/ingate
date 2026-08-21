@@ -7,8 +7,8 @@ import (
 	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
-	resource "github.com/lgc202/ingate/pkg/apis/gateway/v1"
-	clientset "github.com/lgc202/ingate/pkg/generated/clientset/versioned"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
 // RateLimitPolicyRepository 读写 RateLimitPolicy 声明式资源
@@ -23,9 +23,9 @@ func NewRateLimitPolicyRepository(client clientset.Interface) *RateLimitPolicyRe
 
 // ListPage 分页查询 RateLimitPolicy 列表
 func (r *RateLimitPolicyRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.RateLimitPolicy], error) {
-	policies, err := r.client.GatewayV1().RateLimitPolicies().List(ctx, pageOptions(page))
+	policies, err := r.client.GatewayV1().RateLimitPolicies().List(ctx, listOptions(page))
 	if err != nil {
-		return biz.PageResult[resource.RateLimitPolicy]{}, pageError("rate limit policies", err)
+		return biz.PageResult[resource.RateLimitPolicy]{}, listError("rate limit policies", err)
 	}
 	return biz.PageResult[resource.RateLimitPolicy]{Items: policies.Items, NextCursor: policies.Continue}, nil
 }
@@ -37,26 +37,26 @@ func (r *RateLimitPolicyRepository) Get(ctx context.Context, name string) (*reso
 }
 
 // Create 创建 RateLimitPolicy
-func (r *RateLimitPolicyRepository) Create(ctx context.Context, id string, spec resource.RateLimitPolicySpec) (*resource.RateLimitPolicy, error) {
+func (r *RateLimitPolicyRepository) Create(ctx context.Context, name string, spec resource.RateLimitPolicySpec) (*resource.RateLimitPolicy, error) {
 	policy := &resource.RateLimitPolicy{
 		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindRateLimitPolicy)},
-		ObjectMeta: metav1.ObjectMeta{Name: id},
+		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Spec:       spec,
 	}
 	created, err := r.client.GatewayV1().RateLimitPolicies().Create(ctx, policy, metav1.CreateOptions{})
-	return created, resourceError("create", "rate limit policy", id, err)
+	return created, resourceError("create", "rate limit policy", name, err)
 }
 
 // Update 更新 RateLimitPolicy，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
 func (r *RateLimitPolicyRepository) Update(
 	ctx context.Context,
-	id string,
+	name string,
 	generation int64,
 	spec resource.RateLimitPolicySpec,
 ) (*resource.RateLimitPolicy, error) {
 	var updated *resource.RateLimitPolicy
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().RateLimitPolicies().Get(ctx, id, metav1.GetOptions{})
+		current, err := r.client.GatewayV1().RateLimitPolicies().Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -67,13 +67,13 @@ func (r *RateLimitPolicyRepository) Update(
 		updated, err = r.client.GatewayV1().RateLimitPolicies().Update(ctx, current, metav1.UpdateOptions{})
 		return err
 	})
-	return updated, resourceError("update", "rate limit policy", id, err)
+	return updated, resourceError("update", "rate limit policy", name, err)
 }
 
 // Delete 删除 RateLimitPolicy
-func (r *RateLimitPolicyRepository) Delete(ctx context.Context, id string, generation int64) error {
+func (r *RateLimitPolicyRepository) Delete(ctx context.Context, name string, generation int64) error {
 	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().RateLimitPolicies().Get(ctx, id, metav1.GetOptions{})
+		current, err := r.client.GatewayV1().RateLimitPolicies().Get(ctx, name, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -81,9 +81,9 @@ func (r *RateLimitPolicyRepository) Delete(ctx context.Context, id string, gener
 			return biz.ErrResourceVersionConflict
 		}
 		resourceVersion := current.ResourceVersion
-		return r.client.GatewayV1().RateLimitPolicies().Delete(ctx, id, metav1.DeleteOptions{
+		return r.client.GatewayV1().RateLimitPolicies().Delete(ctx, name, metav1.DeleteOptions{
 			Preconditions: &metav1.Preconditions{ResourceVersion: &resourceVersion},
 		})
 	})
-	return resourceError("delete", "rate limit policy", id, err)
+	return resourceError("delete", "rate limit policy", name, err)
 }
