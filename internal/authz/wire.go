@@ -8,8 +8,10 @@ import (
 	kratos "github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
 
-	"github.com/lgc202/ingate/internal/authz/caller"
+	"github.com/lgc202/ingate/internal/authz/biz"
 	"github.com/lgc202/ingate/internal/authz/conf"
+	"github.com/lgc202/ingate/internal/authz/data"
+	dataapiserver "github.com/lgc202/ingate/internal/authz/data/apiserver"
 	"github.com/lgc202/ingate/internal/authz/server"
 	"github.com/lgc202/ingate/internal/authz/service"
 )
@@ -21,9 +23,11 @@ func wireApp(
 	serviceInstanceID,
 ) (*kratos.App, error) {
 	panic(wire.Build(
-		caller.NewIndex,
+		data.ProviderSet,
+		biz.ProviderSet,
 		service.ProviderSet,
 		server.ProviderSet,
+		wire.Bind(new(server.Readiness), new(*dataapiserver.CredentialCache)),
 		newKratosApp,
 	))
 }

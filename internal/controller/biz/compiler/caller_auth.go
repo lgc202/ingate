@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/lgc202/ingate/internal/authz/filterconfig"
+	"github.com/lgc202/ingate/internal/pkg/extauthz"
 	gatewayv1 "github.com/lgc202/ingate/pkg/apis/gateway/v1"
 )
 
@@ -48,7 +48,7 @@ func buildCallerAuthHTTPFilter() (*hcmv3.HttpFilter, error) {
 		return nil, fmt.Errorf("encode Caller authorization filter: %w", err)
 	}
 	return &hcmv3.HttpFilter{
-		Name:       filterconfig.HTTPFilterName,
+		Name:       extauthz.FilterName,
 		Disabled:   true,
 		ConfigType: &hcmv3.HttpFilter_TypedConfig{TypedConfig: typedConfig},
 	}, nil
@@ -61,7 +61,7 @@ func (c *compilation) routeAccessConfig(route *gatewayv1.Route) (*anypb.Any, boo
 	case gatewayv1.RouteAccessCaller:
 		configuration := &extauthzv3.ExtAuthzPerRoute{
 			Override: &extauthzv3.ExtAuthzPerRoute_CheckSettings{CheckSettings: &extauthzv3.CheckSettings{
-				ContextExtensions: map[string]string{filterconfig.RouteIDContext: route.Name},
+				ContextExtensions: map[string]string{extauthz.RouteIDContext: route.Name},
 			}},
 		}
 		typedConfig, err := anypb.New(configuration)

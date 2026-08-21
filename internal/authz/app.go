@@ -13,8 +13,8 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"github.com/lgc202/go-kit/version"
 
-	"github.com/lgc202/ingate/internal/authz/caller"
 	"github.com/lgc202/ingate/internal/authz/conf"
+	dataapiserver "github.com/lgc202/ingate/internal/authz/data/apiserver"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 )
 
@@ -63,7 +63,7 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
-	callers *caller.Index,
+	credentials *dataapiserver.CredentialCache,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -72,7 +72,8 @@ func newKratosApp(
 		kratos.Version(version.Get().String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		kratos.Server(httpServer, grpcServer, callers),
+		// Caller 凭据缓存和网络服务共享同一进程生命周期，首次同步完成前 /readyz 保持未就绪
+		kratos.Server(httpServer, grpcServer, credentials),
 	)
 }
 

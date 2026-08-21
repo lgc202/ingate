@@ -1,11 +1,10 @@
-// Package service 实现 Envoy External Authorization 协议
+// Package service 适配 Envoy External Authorization 协议
 package service
 
 import (
 	"context"
 	"errors"
 	"strings"
-	"time"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	authv3 "github.com/envoyproxy/go-control-plane/envoy/service/auth/v3"
@@ -14,30 +13,30 @@ import (
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/lgc202/ingate/internal/authz/caller"
-	"github.com/lgc202/ingate/internal/authz/filterconfig"
+	"github.com/lgc202/ingate/internal/authz/biz"
+	"github.com/lgc202/ingate/internal/pkg/extauthz"
 )
 
 const bearerPrefix = "Bearer "
 
-// Service 验证 Caller 访问密钥和 Route 权限
-type Service struct {
+// AuthorizationService 把 Envoy 鉴权请求转换为 Ingate Caller 授权决策
+type AuthorizationService struct {
 	authv3.UnimplementedAuthorizationServer
-	callers *caller.Index
+	authorizer *biz.Authorizer
 }
 
-// NewService 创建 External Authorization 服务
-func NewService(callers *caller.Index) *Service {
-	return &Service{callers: callers}
+// NewAuthorizationService 创建 External Authorization 协议服务
+func NewAuthorizationService(authorizer *biz.Authorizer) *AuthorizationService {
+	return &AuthorizationService{authorizer: authorizer}
 }
 
 // Check 在 Envoy 转发请求前完成 Caller 身份和 Route 权限校验
-func (s *Service) Check(_ context.Context, request *authv3.CheckRequest) (*authv3.CheckResponse, error) {
+func (s *AuthorizationService) Check(_ context.Context, request *authv3.CheckRequest) (*authv3.CheckResponse, error) {
 	httpRequest := request.GetAttributes().GetRequest().GetHttp()
-	routeID := request.GetAttributes().GetContextExtensions()[filterconfig.RouteIDContext]
+	routeID := request.GetAttributes().GetContextExtensions()[extauthz.RouteIDContext]
 	credential := bearerCredential(httpRequest.GetHeaders()["authorization"])
-	identity, err := s.callers.Authorize(credential, routeID, time.Now().UTC())
-	if errors.Is(err, caller.ErrForbidden) {
+	identity, err := s.authorizer.Authorize(credential, routeID)
+	if errors.Is(err, biz.ErrForbidden) {
 		response := denied(typev3.StatusCode_Forbidden, code.Code_PERMISSION_DENIED, "forbidden", "Caller is not authorized for this route.")
 		response.DynamicMetadata = identityMetadata(identity)
 		return response, nil
@@ -56,10 +55,10 @@ func (s *Service) Check(_ context.Context, request *authv3.CheckRequest) (*authv
 	}, nil
 }
 
-func identityMetadata(identity caller.Identity) *structpb.Struct {
+func identityMetadata(identity biz.Identity) *structpb.Struct {
 	return &structpb.Struct{Fields: map[string]*structpb.Value{
-		filterconfig.CallerIDField:    structpb.NewStringValue(identity.CallerID),
-		filterconfig.AccessKeyIDField: structpb.NewStringValue(identity.AccessKeyID),
+		extauthz.CallerIDField:    structpb.NewStringValue(identity.CallerID),
+		extauthz.AccessKeyIDField: structpb.NewStringValue(identity.AccessKeyID),
 	}}
 }
 
