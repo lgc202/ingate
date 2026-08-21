@@ -1,5 +1,6 @@
 COMPOSE_FILE := $(PROJECT_ROOT)/deploy/docker-compose.yaml
-COMPOSE := docker compose --project-directory $(PROJECT_ROOT) -f $(COMPOSE_FILE)
+COMPOSE_DEV_FILE := $(PROJECT_ROOT)/deploy/docker-compose.dev.yaml
+COMPOSE := docker compose --project-directory $(PROJECT_ROOT) -f $(COMPOSE_FILE) -f $(COMPOSE_DEV_FILE)
 DOCKER_OUTPUT_DIR := $(OUTPUT_DIR)/docker
 DOCKER_GOARCH ?= $(shell docker version --format '{{.Server.Arch}}')
 

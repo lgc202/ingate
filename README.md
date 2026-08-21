@@ -56,13 +56,26 @@ AI Route 使用稳定的客户端模型名连接不同协议的模型 Service，
 
 ## 快速开始
 
-### 环境要求
+### 使用 Docker Compose 安装
 
-- Go 1.26
-- Node.js 24 和 npm 11
-- Docker Engine 与 Docker Compose v2
+安装机只需要 Docker Engine 和 Docker Compose v2，不需要 Go、Node.js 或源码：
 
-### 启动完整环境
+```bash
+curl -fsSL https://raw.githubusercontent.com/lgc202/ingate/main/scripts/install.sh | bash
+```
+
+安装器会下载最新的正式 Release、校验 SHA-256、启动完整环境，然后输出 Console、Gateway 和日常管理命令。默认安装到当前目录的 `ingate` 子目录，也可以安装固定版本：
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/lgc202/ingate/main/scripts/install.sh
+bash install.sh ./ingate --version v0.1.0
+```
+
+Console 当前没有登录认证，安装版默认只绑定 `127.0.0.1`。完整的配置、启停、日志和数据清理说明见 [Docker Compose 安装说明](deploy/compose/README.md)。
+
+### 从源码启动开发环境
+
+源码开发需要 Go 1.26、Node.js 24、npm 11、Docker Engine 和 Docker Compose v2：
 
 ```bash
 git clone https://github.com/lgc202/ingate.git
@@ -73,7 +86,7 @@ make docker-up
 make docker-ps
 ```
 
-`make docker-up` 会构建 Go 组件、Console 静态资源和开发镜像，并启动完整联调环境。组件就绪后打开：
+`make docker-up` 会构建 Go 组件、Console 静态资源和本地开发镜像。无论使用安装版还是开发环境，组件就绪后都可以访问：
 
 - Console：<http://127.0.0.1:8001>
 - HTTP Gateway：<http://127.0.0.1:8080>
@@ -116,7 +129,13 @@ curl http://127.0.0.1:8080/v1/chat/completions \
 
 公开 Route 不需要 `Authorization` Header。客户端提交的模型名在 AI Route 中配置；模型厂商、API Key 和真实模型名分别由模型 Service 与 AI Route 的目标线路管理。
 
-停止环境：
+停止安装版会保留所有数据：
+
+```bash
+./ingate/bin/stop.sh
+```
+
+源码开发环境使用：
 
 ```bash
 make docker-down
