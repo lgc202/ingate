@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/wire"
 
+	"github.com/lgc202/ingate/internal/analytics/biz/aiusage"
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 	"github.com/lgc202/ingate/internal/analytics/biz/traffic"
 	"github.com/lgc202/ingate/internal/analytics/conf"
@@ -15,6 +16,7 @@ import (
 // ProviderSet 把同一个 ClickHouse Store 绑定为请求写入、请求查询和流量查询实现
 var ProviderSet = wire.NewSet(
 	NewClickHouseStore,
+	wire.Bind(new(aiusage.QueryStore), new(*clickhouse.Store)),
 	wire.Bind(new(request.RecordStore), new(*clickhouse.Store)),
 	wire.Bind(new(request.QueryStore), new(*clickhouse.Store)),
 	wire.Bind(new(traffic.QueryStore), new(*clickhouse.Store)),

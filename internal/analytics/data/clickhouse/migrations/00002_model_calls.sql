@@ -2,7 +2,7 @@
 -- +goose Up
 
 -- model_calls 保存网关向模型 Service 发起的实际调用
--- 通用请求事实仍由 request_records 保存，两者通过请求记录 ID 和开始时间关联
+-- 只有已经选中并尝试模型 Service 的请求才进入该表，本地拒绝不属于模型调用
 CREATE TABLE IF NOT EXISTS model_calls
 (
     request_record_id String,
@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS model_calls
     upstream_id String,
     caller_id String,
     access_key_id String,
+    status_class UInt8,
     client_model String,
     upstream_model String,
     upstream_protocol LowCardinality(String),

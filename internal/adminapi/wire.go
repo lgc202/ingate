@@ -9,6 +9,7 @@ import (
 	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	aiusagebiz "github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
 	callerbiz "github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	certificatebiz "github.com/lgc202/ingate/internal/adminapi/biz/certificate"
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
@@ -21,6 +22,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data"
 	"github.com/lgc202/ingate/internal/adminapi/server"
+	aiusageservice "github.com/lgc202/ingate/internal/adminapi/service/aiusage"
 	callerservice "github.com/lgc202/ingate/internal/adminapi/service/caller"
 	certificateservice "github.com/lgc202/ingate/internal/adminapi/service/certificate"
 	gatewayservice "github.com/lgc202/ingate/internal/adminapi/service/gateway"
@@ -36,6 +38,7 @@ import (
 // bizProviderSet 汇总各资源的业务服务
 var bizProviderSet = wire.NewSet(
 	biz.NewPolicyUsageFinder,
+	aiusagebiz.NewService,
 	callerbiz.NewService,
 	gatewaybiz.NewService,
 	routebiz.NewService,
@@ -49,6 +52,7 @@ var bizProviderSet = wire.NewSet(
 
 // serviceProviderSet 汇总 Admin API 的协议服务
 var serviceProviderSet = wire.NewSet(
+	aiusageservice.NewService,
 	callerservice.NewService,
 	gatewayservice.NewService,
 	routeservice.NewService,
