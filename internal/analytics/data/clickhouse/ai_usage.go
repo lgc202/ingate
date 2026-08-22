@@ -7,20 +7,18 @@ import (
 	"strings"
 
 	"github.com/lgc202/ingate/internal/analytics/biz/aiusage"
-	requestbiz "github.com/lgc202/ingate/internal/analytics/biz/request"
 )
 
-// aiUsageAggregates 从模型调用事实计算可审计的原始计数
+// aiUsageAggregates 合并 SummingMergeTree 中跨分钟或跨数据 Part 的加法指标
 //
-// total_tokens 缺失时，只有 input_tokens 和 output_tokens 都存在才合成完整总量；
-// 单侧已报告的 Token 仍分别进入输入或输出统计，但不计入完整用量覆盖数
+// 查询必须继续使用 sum，不能依赖后台 Part 合并已经完成
 const aiUsageAggregates = `
-    count() AS call_count,
-    countIf(status_class = ?) AS normal_response_count,
-    countIf(isNotNull(total_tokens) OR (isNotNull(input_tokens) AND isNotNull(output_tokens))) AS token_reported_call_count,
-    sum(ifNull(input_tokens, 0)) AS input_token_count,
-    sum(ifNull(output_tokens, 0)) AS output_token_count,
-    sum(coalesce(total_tokens, input_tokens + output_tokens, 0)) AS total_token_count`
+    sum(call_count) AS call_count,
+    sum(normal_response_count) AS normal_response_count,
+    sum(token_reported_call_count) AS token_reported_call_count,
+    sum(input_token_count) AS input_token_count,
+    sum(output_token_count) AS output_token_count,
+    sum(total_token_count) AS total_token_count`
 
 // QueryAIUsageSummary 查询整个时间范围的模型调用与 Token 汇总
 func (s *Store) QueryAIUsageSummary(ctx context.Context, filter aiusage.Filter) (aiusage.Metrics, error) {
@@ -30,11 +28,11 @@ func (s *Store) QueryAIUsageSummary(ctx context.Context, filter aiusage.Filter) 
 	var statement strings.Builder
 	fmt.Fprintf(
 		&statement,
-		"SELECT %s FROM %s FINAL WHERE started_at >= ? AND started_at < ?",
+		"SELECT %s FROM %s WHERE started_at >= ? AND started_at < ?",
 		aiUsageAggregates,
-		s.modelCallTable,
+		s.modelUsageTable,
 	)
-	args := []any{uint8(requestbiz.StatusClassSuccess), filter.StartTime, filter.EndTime}
+	args := []any{filter.StartTime, filter.EndTime}
 	args = appendAIUsageFilters(&statement, args, filter)
 
 	var metrics aiusage.Metrics
@@ -66,12 +64,12 @@ func (s *Store) QueryAIUsageTrend(
 	var statement strings.Builder
 	fmt.Fprintf(
 		&statement,
-		"SELECT %s AS bucket, %s FROM %s FINAL WHERE started_at >= ? AND started_at < ?",
+		"SELECT %s AS bucket, %s FROM %s WHERE started_at >= ? AND started_at < ?",
 		bucket,
 		aiUsageAggregates,
-		s.modelCallTable,
+		s.modelUsageTable,
 	)
-	args := []any{uint8(requestbiz.StatusClassSuccess), query.Filter.StartTime, query.Filter.EndTime}
+	args := []any{query.Filter.StartTime, query.Filter.EndTime}
 	args = appendAIUsageFilters(&statement, args, query.Filter)
 	statement.WriteString(" GROUP BY bucket ORDER BY bucket")
 
@@ -125,12 +123,12 @@ func (s *Store) QueryAIUsageBreakdown(
 	var statement strings.Builder
 	fmt.Fprintf(
 		&statement,
-		"SELECT %s AS dimension_value, %s FROM %s FINAL WHERE started_at >= ? AND started_at < ?",
+		"SELECT %s AS dimension_value, %s FROM %s WHERE started_at >= ? AND started_at < ?",
 		dimension,
 		aiUsageAggregates,
-		s.modelCallTable,
+		s.modelUsageTable,
 	)
-	args := []any{uint8(requestbiz.StatusClassSuccess), query.Filter.StartTime, query.Filter.EndTime}
+	args := []any{query.Filter.StartTime, query.Filter.EndTime}
 	args = appendAIUsageFilters(&statement, args, query.Filter)
 	fmt.Fprintf(&statement, " GROUP BY dimension_value ORDER BY %s LIMIT ?", order)
 	args = append(args, query.Limit)

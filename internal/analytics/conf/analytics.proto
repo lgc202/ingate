@@ -132,7 +132,7 @@ message Data {
   }
   // kafka 提供 ALS 已可靠接收的请求记录
   Kafka kafka = 1;
-  // clickhouse 保存请求明细并为后续聚合分析提供数据源
+  // clickhouse 保存请求明细、模型调用和物化视图维护的分钟聚合
   ClickHouse click_house = 2 [json_name = "clickhouse"];
 }
 

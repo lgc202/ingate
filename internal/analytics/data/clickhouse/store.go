@@ -20,19 +20,23 @@ const (
 	modelCallTableName     = "model_calls"
 	minuteMetricsTableName = "request_metrics_1m"
 	minuteMetricsViewName  = "request_metrics_1m_mv"
-	requiredSchemaObjects  = 4
+	modelUsageTableName    = "model_usage_1m"
+	modelUsageViewName     = "model_usage_1m_mv"
+	requiredSchemaObjects  = 6
 )
 
-// Store 保存请求与模型调用事实，并查询 ClickHouse 生成的流量统计
+// Store 保存请求与模型调用事实，并查询 ClickHouse 生成的流量与模型用量统计
 //
 // 表名是 Analytics 的内部存储契约，不属于部署配置或用户协议。Store 同时实现
-// request.RecordStore、request.QueryStore 和 traffic.QueryStore
+// request 的写入与查询、traffic 查询和 aiusage 查询存储边界
 type Store struct {
 	connection         driver.Conn
 	database           string
 	requestTable       string
 	modelCallTable     string
 	minuteMetricsTable string
+	modelUsageTable    string
+	writeConcurrency   int
 	writeTimeout       time.Duration
 	queryTimeout       time.Duration
 }
@@ -53,8 +57,11 @@ func NewStore(config *conf.Data_ClickHouse) (*Store, error) {
 		requestTable:       config.GetDatabase() + "." + requestTableName,
 		modelCallTable:     config.GetDatabase() + "." + modelCallTableName,
 		minuteMetricsTable: config.GetDatabase() + "." + minuteMetricsTableName,
-		writeTimeout:       writeTimeout,
-		queryTimeout:       queryTimeout,
+		modelUsageTable:    config.GetDatabase() + "." + modelUsageTableName,
+		// 查询与写入共用连接池，连接数允许时为控制台查询保留一个连接
+		writeConcurrency: max(1, int(config.GetMaxOpenConnections())-1),
+		writeTimeout:     writeTimeout,
+		queryTimeout:     queryTimeout,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
 	defer cancel()
@@ -88,12 +95,14 @@ func (s *Store) checkSchema(ctx context.Context) error {
 	if err := s.connection.QueryRow(ctx, `
 SELECT count()
 FROM system.tables
-WHERE database = ? AND name IN (?, ?, ?, ?)`,
+WHERE database = ? AND name IN (?, ?, ?, ?, ?, ?)`,
 		s.database,
 		requestTableName,
 		modelCallTableName,
 		minuteMetricsTableName,
 		minuteMetricsViewName,
+		modelUsageTableName,
+		modelUsageViewName,
 	).Scan(&objects); err != nil {
 		return fmt.Errorf("check ClickHouse analytics schema: %w", err)
 	}
