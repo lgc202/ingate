@@ -62,19 +62,20 @@ type Record struct {
 
 // Summary 保存请求列表展示和进入详情所需的最小字段集
 type Summary struct {
-	ID          string
-	StartedAt   time.Time
-	Duration    *time.Duration
-	Method      string
-	Host        string
-	Path        string
-	StatusCode  uint16
-	GatewayID   string
-	RouteID     string
-	UpstreamID  string
-	CallerID    string
-	AccessKeyID string
-	ModelCall   *ModelCall
+	ID                  string
+	StartedAt           time.Time
+	Duration            *time.Duration
+	Method              string
+	Host                string
+	Path                string
+	StatusCode          uint16
+	GatewayID           string
+	RouteID             string
+	UpstreamID          string
+	CallerID            string
+	AccessKeyID         string
+	ResponseCodeDetails string
+	ModelCall           *ModelCall
 }
 
 // Filter 是请求明细查询的结构化过滤条件，时间范围为左闭右开

@@ -13,6 +13,8 @@ import (
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 )
 
+const tokenQuotaExceededResponseDetails = "ingate_ai_token_quota_exceeded"
+
 func requestSummary(summary *analyticsv1.RequestSummary) (requestbiz.Summary, error) {
 	if summary == nil || !validRequestIdentity(summary.GetId(), summary.GetStartedAt()) {
 		return requestbiz.Summary{}, errors.New("analytics returned an invalid request summary")
@@ -22,20 +24,21 @@ func requestSummary(summary *analyticsv1.RequestSummary) (requestbiz.Summary, er
 		return requestbiz.Summary{}, fmt.Errorf("invalid request duration: %w", err)
 	}
 	return requestbiz.Summary{
-		ID:          summary.GetId(),
-		StartedAt:   summary.GetStartedAt().AsTime(),
-		Duration:    duration,
-		Method:      summary.GetMethod(),
-		Host:        summary.GetHost(),
-		Path:        summary.GetPath(),
-		StatusCode:  summary.GetStatusCode(),
-		Outcome:     requestOutcome(summary.GetStatusCode()),
-		GatewayID:   summary.GetGatewayId(),
-		RouteID:     summary.GetRouteId(),
-		ServiceID:   summary.GetUpstreamId(),
-		CallerID:    summary.GetCallerId(),
-		AccessKeyID: summary.GetAccessKeyId(),
-		ModelCall:   modelCall(summary.GetAiModelCall()),
+		ID:              summary.GetId(),
+		StartedAt:       summary.GetStartedAt().AsTime(),
+		Duration:        duration,
+		Method:          summary.GetMethod(),
+		Host:            summary.GetHost(),
+		Path:            summary.GetPath(),
+		StatusCode:      summary.GetStatusCode(),
+		Outcome:         requestOutcome(summary.GetStatusCode()),
+		GatewayID:       summary.GetGatewayId(),
+		RouteID:         summary.GetRouteId(),
+		ServiceID:       summary.GetUpstreamId(),
+		CallerID:        summary.GetCallerId(),
+		AccessKeyID:     summary.GetAccessKeyId(),
+		RejectionReason: requestRejectionReason(summary.GetResponseCodeDetails()),
+		ModelCall:       modelCall(summary.GetAiModelCall()),
 	}, nil
 }
 
@@ -52,31 +55,39 @@ func requestRecord(record *alsv1.RequestRecord) (requestbiz.Record, error) {
 		return requestbiz.Record{}, fmt.Errorf("invalid request time to first byte: %w", err)
 	}
 	return requestbiz.Record{
-		ID:                  record.GetId(),
-		RequestID:           record.GetRequestId(),
-		StartedAt:           record.GetStartedAt().AsTime(),
-		Duration:            duration,
-		TimeToFirstByte:     timeToFirstByte,
-		ClientIP:            record.GetClientIp(),
-		Method:              record.GetMethod(),
-		Host:                record.GetHost(),
-		Path:                record.GetPath(),
-		StatusCode:          record.GetStatusCode(),
-		Outcome:             requestOutcome(record.GetStatusCode()),
-		RequestBytes:        record.GetRequestBytes(),
-		ResponseBytes:       record.GetResponseBytes(),
-		GatewayID:           record.GetGatewayId(),
-		RouteID:             record.GetRouteId(),
-		ServiceID:           record.GetUpstreamId(),
-		Protocol:            record.GetProtocol(),
-		ResponseCodeDetails: record.GetResponseCodeDetails(),
-		UpstreamAttempts:    record.GetUpstreamAttempts(),
-		UpstreamAddress:     record.GetUpstreamAddress(),
-		ProxyInstanceID:     record.GetEnvoyNodeId(),
-		CallerID:            record.GetCallerId(),
-		AccessKeyID:         record.GetAccessKeyId(),
-		ModelCall:           modelCall(record.GetAiModelCall()),
+		ID:               record.GetId(),
+		RequestID:        record.GetRequestId(),
+		StartedAt:        record.GetStartedAt().AsTime(),
+		Duration:         duration,
+		TimeToFirstByte:  timeToFirstByte,
+		ClientIP:         record.GetClientIp(),
+		Method:           record.GetMethod(),
+		Host:             record.GetHost(),
+		Path:             record.GetPath(),
+		StatusCode:       record.GetStatusCode(),
+		Outcome:          requestOutcome(record.GetStatusCode()),
+		RequestBytes:     record.GetRequestBytes(),
+		ResponseBytes:    record.GetResponseBytes(),
+		GatewayID:        record.GetGatewayId(),
+		RouteID:          record.GetRouteId(),
+		ServiceID:        record.GetUpstreamId(),
+		Protocol:         record.GetProtocol(),
+		RejectionReason:  requestRejectionReason(record.GetResponseCodeDetails()),
+		UpstreamAttempts: record.GetUpstreamAttempts(),
+		UpstreamAddress:  record.GetUpstreamAddress(),
+		ProxyInstanceID:  record.GetEnvoyNodeId(),
+		CallerID:         record.GetCallerId(),
+		AccessKeyID:      record.GetAccessKeyId(),
+		ModelCall:        modelCall(record.GetAiModelCall()),
 	}, nil
+}
+
+// requestRejectionReason 把数据面的内部原因收敛为稳定的管理面产品语义
+func requestRejectionReason(responseDetails string) requestbiz.RejectionReason {
+	if responseDetails == tokenQuotaExceededResponseDetails {
+		return requestbiz.RejectionReasonTokenQuotaExceeded
+	}
+	return requestbiz.RejectionReasonNone
 }
 
 func validRequestIdentity(id string, startedAt *timestamppb.Timestamp) bool {

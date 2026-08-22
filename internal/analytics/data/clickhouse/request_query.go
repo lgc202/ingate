@@ -26,7 +26,8 @@ const requestSummaryColumns = `
     route_id,
     upstream_id,
     caller_id,
-    access_key_id`
+    access_key_id,
+    response_code_details`
 
 // ListRequests 按时间和 ID 倒序分页查询短期保留的请求明细
 //
@@ -210,6 +211,7 @@ func scanRequestSummary(rows driver.Rows) (request.Summary, error) {
 		&summary.UpstreamID,
 		&summary.CallerID,
 		&summary.AccessKeyID,
+		&summary.ResponseCodeDetails,
 	); err != nil {
 		return request.Summary{}, fmt.Errorf("scan request summary: %w", err)
 	}
