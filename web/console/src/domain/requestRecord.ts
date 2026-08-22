@@ -8,6 +8,10 @@ export type RequestOutcome =
   | 'REQUEST_OUTCOME_SERVER_ERROR'
   | 'REQUEST_OUTCOME_NO_RESPONSE';
 
+export type RequestRejectionReason =
+  | 'REQUEST_REJECTION_REASON_UNSPECIFIED'
+  | 'REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED';
+
 export interface AIModelCall {
   clientModel: string;
   upstreamModel: string;
@@ -34,6 +38,7 @@ export interface RequestRecordSummary {
   serviceID: string;
   callerID: string;
   accessKeyID: string;
+  rejectionReason: RequestRejectionReason;
   aiModelCall?: AIModelCall;
 }
 
@@ -45,7 +50,6 @@ export interface RequestRecord extends RequestRecordSummary {
   requestBytes: string | number;
   responseBytes: string | number;
   protocol: string;
-  responseCodeDetails: string;
   upstreamAttempts: number;
   upstreamAddress: string;
   proxyInstanceID: string;

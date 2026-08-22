@@ -147,7 +147,7 @@ export function RequestRecordPage() {
                   <tr key={`${record.id}:${record.startedAt}`} className="request-record-row" onClick={() => void openDetail(record)}>
                     <td><time className="request-record-time" dateTime={record.startedAt}>{formatRequestTime(record.startedAt)}</time></td>
                     <td><div className="request-record-target"><span className={`request-method request-method-${record.method.toLowerCase()}`}>{record.method || '-'}</span><code>{record.host}</code></div><strong className="request-path">{record.path || '/'}</strong></td>
-                    <td><Badge tone={responseTone(record)}>{responseStatus(record)}</Badge></td>
+                    <td><div className="request-response"><Badge tone={responseTone(record)}>{responseStatus(record)}</Badge>{rejectionLabel(record) ? <span>{rejectionLabel(record)}</span> : null}</div></td>
                     <td><strong className="request-resource-name">{resourceName(names.gateways, record.gatewayID, '已删除的网关')}</strong></td>
                     <td><strong className="request-resource-name">{resourceName(names.routes, record.routeID, '已删除的路由')}</strong></td>
                     <td><strong className="request-resource-name">{resourceName(names.services, record.serviceID, '已删除的服务')}</strong>{record.aiModelCall ? <span className="request-model-summary">{modelMapping(record.aiModelCall)} · {modelTokenSummary(record.aiModelCall)}</span> : null}</td>
@@ -199,7 +199,7 @@ function RequestDetail({ record, names }: { record: RequestRecord; names: Resour
     <div className="space-y-5">
       <section className={`request-detail-hero ${failed ? 'is-error' : ''}`}>
         <span>{failed ? <AlertTriangle /> : <CheckCircle2 />}</span>
-        <div><Badge tone={responseTone(record)}>{record.statusCode ? `${record.statusCode} · ${responseLabel(record)}` : '无响应'}</Badge>{failed ? <strong>{requestVerdict(record)}</strong> : null}<code>{record.method || '-'} {record.host}{record.path}</code></div>
+        <div><Badge tone={responseTone(record)}>{record.statusCode ? `${record.statusCode} · ${responseLabel(record)}` : '无响应'}</Badge>{failed ? <strong>{requestVerdict(record)}</strong> : null}{rejectionGuidance(record) ? <p>{rejectionGuidance(record)}</p> : null}<code>{record.method || '-'} {record.host}{record.path}</code></div>
       </section>
       <DetailSection title="请求与响应">
         <DetailItem label="开始时间" value={formatRequestTime(record.startedAt)} />
@@ -227,7 +227,7 @@ function RequestDetail({ record, names }: { record: RequestRecord; names: Resour
       <DetailSection title="转发结果" layout="forwarding">
         <ResourceDetailItem label="网关" id={record.gatewayID} names={names.gateways} path="/gateways" deletedLabel="已删除的网关" />
         <ResourceDetailItem label="路由" id={record.routeID} names={names.routes} path="/routes" deletedLabel="已删除的路由" />
-        <ResourceDetailItem label="服务" id={record.serviceID} names={names.services} path="/services" deletedLabel="已删除的服务" />
+        {record.serviceID ? <ResourceDetailItem label="服务" id={record.serviceID} names={names.services} path="/services" deletedLabel="已删除的服务" /> : <DetailItem label="服务" value="未转发" />}
         <DetailItem label="最终服务地址" value={record.upstreamAddress || '-'} />
         <DetailItem label="转发尝试" value={record.upstreamAttempts ? `${record.upstreamAttempts} 次` : '-'} />
       </DetailSection>
@@ -392,10 +392,24 @@ function responseTone(record: RequestRecord | RequestRecordSummary): 'success' |
 }
 
 function requestVerdict(record: RequestRecord): string {
+  const rejection = rejectionLabel(record);
+  if (rejection) return rejection;
   if (record.outcome === 'REQUEST_OUTCOME_SUCCESS') return '请求已成功完成';
   if (record.outcome === 'REQUEST_OUTCOME_CLIENT_ERROR') return '请求被网关或服务拒绝';
   if (record.outcome === 'REQUEST_OUTCOME_SERVER_ERROR') return '目标服务没有成功响应';
   return '请求未获得 HTTP 响应';
+}
+
+function rejectionLabel(record: RequestRecord | RequestRecordSummary): string | null {
+  if (record.rejectionReason === 'REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED') return 'Token 额度已用尽';
+  return null;
+}
+
+function rejectionGuidance(record: RequestRecord): string | null {
+  if (record.rejectionReason === 'REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED') {
+    return '当前周期的 Token 额度已达到上限，可在调用方详情查看用量和重置时间。';
+  }
+  return null;
 }
 
 function formatFilterRange(filters: RequestRecordFilters): string {

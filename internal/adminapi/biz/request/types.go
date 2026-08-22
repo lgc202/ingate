@@ -19,6 +19,16 @@ const (
 	OutcomeNoResponse
 )
 
+// RejectionReason 是网关主动拒绝请求时可向用户解释的原因
+type RejectionReason uint8
+
+const (
+	// RejectionReasonNone 表示请求不是已识别的网关拒绝，或没有拒绝原因
+	RejectionReasonNone RejectionReason = iota
+	// RejectionReasonTokenQuotaExceeded 表示调用方当前周期的 Token 额度已用尽
+	RejectionReasonTokenQuotaExceeded
+)
+
 // ModelCall 是请求记录中的模型映射和 Token 用量
 type ModelCall struct {
 	ClientModel      string
@@ -33,48 +43,49 @@ type ModelCall struct {
 
 // Record 是控制台排障使用的单次请求元数据
 type Record struct {
-	ID                  string
-	RequestID           string
-	StartedAt           time.Time
-	Duration            *time.Duration
-	TimeToFirstByte     *time.Duration
-	ClientIP            string
-	Method              string
-	Host                string
-	Path                string
-	StatusCode          uint32
-	Outcome             Outcome
-	RequestBytes        uint64
-	ResponseBytes       uint64
-	GatewayID           string
-	RouteID             string
-	ServiceID           string
-	Protocol            string
-	ResponseCodeDetails string
-	UpstreamAttempts    uint32
-	UpstreamAddress     string
-	ProxyInstanceID     string
-	CallerID            string
-	AccessKeyID         string
-	ModelCall           *ModelCall
+	ID               string
+	RequestID        string
+	StartedAt        time.Time
+	Duration         *time.Duration
+	TimeToFirstByte  *time.Duration
+	ClientIP         string
+	Method           string
+	Host             string
+	Path             string
+	StatusCode       uint32
+	Outcome          Outcome
+	RequestBytes     uint64
+	ResponseBytes    uint64
+	GatewayID        string
+	RouteID          string
+	ServiceID        string
+	Protocol         string
+	RejectionReason  RejectionReason
+	UpstreamAttempts uint32
+	UpstreamAddress  string
+	ProxyInstanceID  string
+	CallerID         string
+	AccessKeyID      string
+	ModelCall        *ModelCall
 }
 
 // Summary 是请求记录列表展示所需的最小字段集
 type Summary struct {
-	ID          string
-	StartedAt   time.Time
-	Duration    *time.Duration
-	Method      string
-	Host        string
-	Path        string
-	StatusCode  uint32
-	Outcome     Outcome
-	GatewayID   string
-	RouteID     string
-	ServiceID   string
-	CallerID    string
-	AccessKeyID string
-	ModelCall   *ModelCall
+	ID              string
+	StartedAt       time.Time
+	Duration        *time.Duration
+	Method          string
+	Host            string
+	Path            string
+	StatusCode      uint32
+	Outcome         Outcome
+	GatewayID       string
+	RouteID         string
+	ServiceID       string
+	CallerID        string
+	AccessKeyID     string
+	RejectionReason RejectionReason
+	ModelCall       *ModelCall
 }
 
 // Filter 是请求记录的结构化过滤条件，时间范围为左闭右开

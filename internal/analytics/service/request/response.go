@@ -11,18 +11,19 @@ import (
 
 func summaryResponse(summary requestbiz.Summary) *analyticsv1.RequestSummary {
 	response := &analyticsv1.RequestSummary{
-		Id:          summary.ID,
-		StartedAt:   timestamppb.New(summary.StartedAt),
-		Method:      summary.Method,
-		Host:        summary.Host,
-		Path:        summary.Path,
-		StatusCode:  uint32(summary.StatusCode),
-		GatewayId:   summary.GatewayID,
-		RouteId:     summary.RouteID,
-		UpstreamId:  summary.UpstreamID,
-		CallerId:    summary.CallerID,
-		AccessKeyId: summary.AccessKeyID,
-		AiModelCall: modelCallResponse(summary.ModelCall),
+		Id:                  summary.ID,
+		StartedAt:           timestamppb.New(summary.StartedAt),
+		Method:              summary.Method,
+		Host:                summary.Host,
+		Path:                summary.Path,
+		StatusCode:          uint32(summary.StatusCode),
+		GatewayId:           summary.GatewayID,
+		RouteId:             summary.RouteID,
+		UpstreamId:          summary.UpstreamID,
+		CallerId:            summary.CallerID,
+		AccessKeyId:         summary.AccessKeyID,
+		AiModelCall:         modelCallResponse(summary.ModelCall),
+		ResponseCodeDetails: summary.ResponseCodeDetails,
 	}
 	if summary.Duration != nil {
 		response.Duration = durationpb.New(*summary.Duration)

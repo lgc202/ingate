@@ -104,6 +104,8 @@ message RequestSummary {
   string caller_id = 12;
   // access_key_id 是本次认证命中的访问密钥 ID。
   string access_key_id = 13;
+  // response_code_details 是数据面记录的内部响应来源或失败原因。
+  string response_code_details = 14;
 }
 
 // GetRequestRequest 是单条请求明细查询参数。

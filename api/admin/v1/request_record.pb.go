@@ -86,6 +86,55 @@ func (RequestOutcome) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{0}
 }
 
+// RequestRejectionReason 是网关主动拒绝请求时可向用户解释的产品原因
+type RequestRejectionReason int32
+
+const (
+	// REQUEST_REJECTION_REASON_UNSPECIFIED 表示请求不是已识别的网关拒绝，或没有拒绝原因
+	RequestRejectionReason_REQUEST_REJECTION_REASON_UNSPECIFIED RequestRejectionReason = 0
+	// REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED 表示调用方当前周期的 Token 额度已用尽
+	RequestRejectionReason_REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED RequestRejectionReason = 1
+)
+
+// Enum value maps for RequestRejectionReason.
+var (
+	RequestRejectionReason_name = map[int32]string{
+		0: "REQUEST_REJECTION_REASON_UNSPECIFIED",
+		1: "REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED",
+	}
+	RequestRejectionReason_value = map[string]int32{
+		"REQUEST_REJECTION_REASON_UNSPECIFIED":          0,
+		"REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED": 1,
+	}
+)
+
+func (x RequestRejectionReason) Enum() *RequestRejectionReason {
+	p := new(RequestRejectionReason)
+	*p = x
+	return p
+}
+
+func (x RequestRejectionReason) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RequestRejectionReason) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_request_record_proto_enumTypes[1].Descriptor()
+}
+
+func (RequestRejectionReason) Type() protoreflect.EnumType {
+	return &file_admin_v1_request_record_proto_enumTypes[1]
+}
+
+func (x RequestRejectionReason) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RequestRejectionReason.Descriptor instead.
+func (RequestRejectionReason) EnumDescriptor() ([]byte, []int) {
+	return file_admin_v1_request_record_proto_rawDescGZIP(), []int{1}
+}
+
 // AIModelCall 是控制台展示的一次模型调用结果
 type AIModelCall struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -234,8 +283,8 @@ type RequestRecord struct {
 	ServiceId string `protobuf:"bytes,16,opt,name=service_id,json=serviceID,proto3" json:"service_id,omitempty"`
 	// protocol 是客户端与网关之间的协议版本
 	Protocol string `protobuf:"bytes,17,opt,name=protocol,proto3" json:"protocol,omitempty"`
-	// response_code_details 是数据面对响应来源或失败原因的稳定标识
-	ResponseCodeDetails string `protobuf:"bytes,18,opt,name=response_code_details,json=responseCodeDetails,proto3" json:"response_code_details,omitempty"`
+	// rejection_reason 是网关主动拒绝请求时可向用户解释的原因
+	RejectionReason RequestRejectionReason `protobuf:"varint,18,opt,name=rejection_reason,json=rejectionReason,proto3,enum=ingate.admin.v1.RequestRejectionReason" json:"rejection_reason,omitempty"`
 	// upstream_attempts 是包含首次转发在内的服务请求次数
 	UpstreamAttempts uint32 `protobuf:"varint,19,opt,name=upstream_attempts,json=upstreamAttempts,proto3" json:"upstream_attempts,omitempty"`
 	// upstream_address 是最终处理请求的服务地址
@@ -401,11 +450,11 @@ func (x *RequestRecord) GetProtocol() string {
 	return ""
 }
 
-func (x *RequestRecord) GetResponseCodeDetails() string {
+func (x *RequestRecord) GetRejectionReason() RequestRejectionReason {
 	if x != nil {
-		return x.ResponseCodeDetails
+		return x.RejectionReason
 	}
-	return ""
+	return RequestRejectionReason_REQUEST_REJECTION_REASON_UNSPECIFIED
 }
 
 func (x *RequestRecord) GetUpstreamAttempts() uint32 {
@@ -480,9 +529,11 @@ type RequestRecordSummary struct {
 	// caller_id 是通过调用方密钥认证的 Caller 资源 ID
 	CallerId string `protobuf:"bytes,13,opt,name=caller_id,json=callerID,proto3" json:"caller_id,omitempty"`
 	// access_key_id 是本次请求使用的访问密钥 ID
-	AccessKeyId   string `protobuf:"bytes,14,opt,name=access_key_id,json=accessKeyID,proto3" json:"access_key_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AccessKeyId string `protobuf:"bytes,14,opt,name=access_key_id,json=accessKeyID,proto3" json:"access_key_id,omitempty"`
+	// rejection_reason 是网关主动拒绝请求时可向用户解释的原因
+	RejectionReason RequestRejectionReason `protobuf:"varint,15,opt,name=rejection_reason,json=rejectionReason,proto3,enum=ingate.admin.v1.RequestRejectionReason" json:"rejection_reason,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *RequestRecordSummary) Reset() {
@@ -611,6 +662,13 @@ func (x *RequestRecordSummary) GetAccessKeyId() string {
 		return x.AccessKeyId
 	}
 	return ""
+}
+
+func (x *RequestRecordSummary) GetRejectionReason() RequestRejectionReason {
+	if x != nil {
+		return x.RejectionReason
+	}
+	return RequestRejectionReason_REQUEST_REJECTION_REASON_UNSPECIFIED
 }
 
 // ListRequestRecordsRequest 是请求明细分页查询参数
@@ -902,7 +960,7 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\ftotal_tokens\x18\b \x01(\x04H\x02R\vtotalTokens\x88\x01\x01B\x0f\n" +
 	"\r_input_tokensB\x10\n" +
 	"\x0e_output_tokensB\x0f\n" +
-	"\r_total_tokens\"\xad\a\n" +
+	"\r_total_tokens\"\xcd\a\n" +
 	"\rRequestRecord\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x1d\n" +
 	"\n" +
@@ -926,14 +984,14 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\broute_id\x18\x0f \x01(\tR\arouteID\x12\x1d\n" +
 	"\n" +
 	"service_id\x18\x10 \x01(\tR\tserviceID\x12\x1a\n" +
-	"\bprotocol\x18\x11 \x01(\tR\bprotocol\x122\n" +
-	"\x15response_code_details\x18\x12 \x01(\tR\x13responseCodeDetails\x12+\n" +
+	"\bprotocol\x18\x11 \x01(\tR\bprotocol\x12R\n" +
+	"\x10rejection_reason\x18\x12 \x01(\x0e2'.ingate.admin.v1.RequestRejectionReasonR\x0frejectionReason\x12+\n" +
 	"\x11upstream_attempts\x18\x13 \x01(\rR\x10upstreamAttempts\x12)\n" +
 	"\x10upstream_address\x18\x14 \x01(\tR\x0fupstreamAddress\x12*\n" +
 	"\x11proxy_instance_id\x18\x15 \x01(\tR\x0fproxyInstanceID\x12@\n" +
 	"\rai_model_call\x18\x16 \x01(\v2\x1c.ingate.admin.v1.AIModelCallR\vaiModelCall\x12\x1b\n" +
 	"\tcaller_id\x18\x17 \x01(\tR\bcallerID\x12\"\n" +
-	"\raccess_key_id\x18\x18 \x01(\tR\vaccessKeyID\"\x90\x04\n" +
+	"\raccess_key_id\x18\x18 \x01(\tR\vaccessKeyID\"\xe4\x04\n" +
 	"\x14RequestRecordSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -953,7 +1011,8 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"service_id\x18\v \x01(\tR\tserviceID\x12@\n" +
 	"\rai_model_call\x18\f \x01(\v2\x1c.ingate.admin.v1.AIModelCallR\vaiModelCall\x12\x1b\n" +
 	"\tcaller_id\x18\r \x01(\tR\bcallerID\x12\"\n" +
-	"\raccess_key_id\x18\x0e \x01(\tR\vaccessKeyID\"\xbd\x04\n" +
+	"\raccess_key_id\x18\x0e \x01(\tR\vaccessKeyID\x12R\n" +
+	"\x10rejection_reason\x18\x0f \x01(\x0e2'.ingate.admin.v1.RequestRejectionReasonR\x0frejectionReason\"\xbd\x04\n" +
 	"\x19ListRequestRecordsRequest\x129\n" +
 	"\n" +
 	"start_time\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x125\n" +
@@ -991,7 +1050,10 @@ const file_admin_v1_request_record_proto_rawDesc = "" +
 	"\x17REQUEST_OUTCOME_SUCCESS\x10\x01\x12 \n" +
 	"\x1cREQUEST_OUTCOME_CLIENT_ERROR\x10\x02\x12 \n" +
 	"\x1cREQUEST_OUTCOME_SERVER_ERROR\x10\x03\x12\x1f\n" +
-	"\x1bREQUEST_OUTCOME_NO_RESPONSE\x10\x042\xac\x02\n" +
+	"\x1bREQUEST_OUTCOME_NO_RESPONSE\x10\x04*u\n" +
+	"\x16RequestRejectionReason\x12(\n" +
+	"$REQUEST_REJECTION_REASON_UNSPECIFIED\x10\x00\x121\n" +
+	"-REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED\x10\x012\xac\x02\n" +
 	"\x14RequestRecordService\x12\x8e\x01\n" +
 	"\x12ListRequestRecords\x12*.ingate.admin.v1.ListRequestRecordsRequest\x1a+.ingate.admin.v1.ListRequestRecordsResponse\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/api/v1/request-records\x12\x82\x01\n" +
 	"\x10GetRequestRecord\x12(.ingate.admin.v1.GetRequestRecordRequest\x1a\x1e.ingate.admin.v1.RequestRecord\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/v1/request-records/{id}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
@@ -1008,45 +1070,48 @@ func file_admin_v1_request_record_proto_rawDescGZIP() []byte {
 	return file_admin_v1_request_record_proto_rawDescData
 }
 
-var file_admin_v1_request_record_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_admin_v1_request_record_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_admin_v1_request_record_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_admin_v1_request_record_proto_goTypes = []any{
 	(RequestOutcome)(0),                // 0: ingate.admin.v1.RequestOutcome
-	(*AIModelCall)(nil),                // 1: ingate.admin.v1.AIModelCall
-	(*RequestRecord)(nil),              // 2: ingate.admin.v1.RequestRecord
-	(*RequestRecordSummary)(nil),       // 3: ingate.admin.v1.RequestRecordSummary
-	(*ListRequestRecordsRequest)(nil),  // 4: ingate.admin.v1.ListRequestRecordsRequest
-	(*ListRequestRecordsResponse)(nil), // 5: ingate.admin.v1.ListRequestRecordsResponse
-	(*GetRequestRecordRequest)(nil),    // 6: ingate.admin.v1.GetRequestRecordRequest
-	(ModelProtocol)(0),                 // 7: ingate.admin.v1.ModelProtocol
-	(*timestamppb.Timestamp)(nil),      // 8: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),        // 9: google.protobuf.Duration
+	(RequestRejectionReason)(0),        // 1: ingate.admin.v1.RequestRejectionReason
+	(*AIModelCall)(nil),                // 2: ingate.admin.v1.AIModelCall
+	(*RequestRecord)(nil),              // 3: ingate.admin.v1.RequestRecord
+	(*RequestRecordSummary)(nil),       // 4: ingate.admin.v1.RequestRecordSummary
+	(*ListRequestRecordsRequest)(nil),  // 5: ingate.admin.v1.ListRequestRecordsRequest
+	(*ListRequestRecordsResponse)(nil), // 6: ingate.admin.v1.ListRequestRecordsResponse
+	(*GetRequestRecordRequest)(nil),    // 7: ingate.admin.v1.GetRequestRecordRequest
+	(ModelProtocol)(0),                 // 8: ingate.admin.v1.ModelProtocol
+	(*timestamppb.Timestamp)(nil),      // 9: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),        // 10: google.protobuf.Duration
 }
 var file_admin_v1_request_record_proto_depIdxs = []int32{
-	7,  // 0: ingate.admin.v1.AIModelCall.protocol:type_name -> ingate.admin.v1.ModelProtocol
-	8,  // 1: ingate.admin.v1.RequestRecord.started_at:type_name -> google.protobuf.Timestamp
-	9,  // 2: ingate.admin.v1.RequestRecord.duration:type_name -> google.protobuf.Duration
-	9,  // 3: ingate.admin.v1.RequestRecord.time_to_first_byte:type_name -> google.protobuf.Duration
+	8,  // 0: ingate.admin.v1.AIModelCall.protocol:type_name -> ingate.admin.v1.ModelProtocol
+	9,  // 1: ingate.admin.v1.RequestRecord.started_at:type_name -> google.protobuf.Timestamp
+	10, // 2: ingate.admin.v1.RequestRecord.duration:type_name -> google.protobuf.Duration
+	10, // 3: ingate.admin.v1.RequestRecord.time_to_first_byte:type_name -> google.protobuf.Duration
 	0,  // 4: ingate.admin.v1.RequestRecord.outcome:type_name -> ingate.admin.v1.RequestOutcome
-	1,  // 5: ingate.admin.v1.RequestRecord.ai_model_call:type_name -> ingate.admin.v1.AIModelCall
-	8,  // 6: ingate.admin.v1.RequestRecordSummary.started_at:type_name -> google.protobuf.Timestamp
-	9,  // 7: ingate.admin.v1.RequestRecordSummary.duration:type_name -> google.protobuf.Duration
-	0,  // 8: ingate.admin.v1.RequestRecordSummary.outcome:type_name -> ingate.admin.v1.RequestOutcome
-	1,  // 9: ingate.admin.v1.RequestRecordSummary.ai_model_call:type_name -> ingate.admin.v1.AIModelCall
-	8,  // 10: ingate.admin.v1.ListRequestRecordsRequest.start_time:type_name -> google.protobuf.Timestamp
-	8,  // 11: ingate.admin.v1.ListRequestRecordsRequest.end_time:type_name -> google.protobuf.Timestamp
-	0,  // 12: ingate.admin.v1.ListRequestRecordsRequest.outcome:type_name -> ingate.admin.v1.RequestOutcome
-	3,  // 13: ingate.admin.v1.ListRequestRecordsResponse.records:type_name -> ingate.admin.v1.RequestRecordSummary
-	8,  // 14: ingate.admin.v1.GetRequestRecordRequest.started_at:type_name -> google.protobuf.Timestamp
-	4,  // 15: ingate.admin.v1.RequestRecordService.ListRequestRecords:input_type -> ingate.admin.v1.ListRequestRecordsRequest
-	6,  // 16: ingate.admin.v1.RequestRecordService.GetRequestRecord:input_type -> ingate.admin.v1.GetRequestRecordRequest
-	5,  // 17: ingate.admin.v1.RequestRecordService.ListRequestRecords:output_type -> ingate.admin.v1.ListRequestRecordsResponse
-	2,  // 18: ingate.admin.v1.RequestRecordService.GetRequestRecord:output_type -> ingate.admin.v1.RequestRecord
-	17, // [17:19] is the sub-list for method output_type
-	15, // [15:17] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	1,  // 5: ingate.admin.v1.RequestRecord.rejection_reason:type_name -> ingate.admin.v1.RequestRejectionReason
+	2,  // 6: ingate.admin.v1.RequestRecord.ai_model_call:type_name -> ingate.admin.v1.AIModelCall
+	9,  // 7: ingate.admin.v1.RequestRecordSummary.started_at:type_name -> google.protobuf.Timestamp
+	10, // 8: ingate.admin.v1.RequestRecordSummary.duration:type_name -> google.protobuf.Duration
+	0,  // 9: ingate.admin.v1.RequestRecordSummary.outcome:type_name -> ingate.admin.v1.RequestOutcome
+	2,  // 10: ingate.admin.v1.RequestRecordSummary.ai_model_call:type_name -> ingate.admin.v1.AIModelCall
+	1,  // 11: ingate.admin.v1.RequestRecordSummary.rejection_reason:type_name -> ingate.admin.v1.RequestRejectionReason
+	9,  // 12: ingate.admin.v1.ListRequestRecordsRequest.start_time:type_name -> google.protobuf.Timestamp
+	9,  // 13: ingate.admin.v1.ListRequestRecordsRequest.end_time:type_name -> google.protobuf.Timestamp
+	0,  // 14: ingate.admin.v1.ListRequestRecordsRequest.outcome:type_name -> ingate.admin.v1.RequestOutcome
+	4,  // 15: ingate.admin.v1.ListRequestRecordsResponse.records:type_name -> ingate.admin.v1.RequestRecordSummary
+	9,  // 16: ingate.admin.v1.GetRequestRecordRequest.started_at:type_name -> google.protobuf.Timestamp
+	5,  // 17: ingate.admin.v1.RequestRecordService.ListRequestRecords:input_type -> ingate.admin.v1.ListRequestRecordsRequest
+	7,  // 18: ingate.admin.v1.RequestRecordService.GetRequestRecord:input_type -> ingate.admin.v1.GetRequestRecordRequest
+	6,  // 19: ingate.admin.v1.RequestRecordService.ListRequestRecords:output_type -> ingate.admin.v1.ListRequestRecordsResponse
+	3,  // 20: ingate.admin.v1.RequestRecordService.GetRequestRecord:output_type -> ingate.admin.v1.RequestRecord
+	19, // [19:21] is the sub-list for method output_type
+	17, // [17:19] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_request_record_proto_init() }
@@ -1062,7 +1127,7 @@ func file_admin_v1_request_record_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_request_record_proto_rawDesc), len(file_admin_v1_request_record_proto_rawDesc)),
-			NumEnums:      1,
+			NumEnums:      2,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
