@@ -46,65 +46,42 @@ type modelCallRow struct {
 	call            request.ModelCall
 }
 
-// saveModelCalls 只保存已经选中并尝试模型 Service 的调用
+// saveModelCall 只保存已经选中并尝试模型 Service 的调用
 //
 // AI Route 在选路前也可能写入客户端模型元数据，但这种本地拒绝没有产生模型调用，
 // 因此不能进入用量事实表
-func (s *Store) saveModelCalls(ctx context.Context, records []request.Record) (err error) {
-	hasModelCall := false
-	for i := range records {
-		if records[i].ModelCall != nil && records[i].UpstreamID != "" {
-			hasModelCall = true
-			break
-		}
-	}
-	if !hasModelCall {
+func (s *Store) saveModelCall(ctx context.Context, record request.Record) error {
+	call := record.ModelCall
+	if call == nil || record.UpstreamID == "" {
 		return nil
 	}
 
-	statement := fmt.Sprintf("INSERT INTO %s (%s)", s.modelCallTable, modelCallColumns)
-	batch, err := s.connection.PrepareBatch(ctx, statement)
-	if err != nil {
-		return fmt.Errorf("prepare model call batch: %w", err)
-	}
-	defer func() {
-		if batch.IsSent() {
-			return
-		}
-		if abortErr := batch.Abort(); abortErr != nil {
-			err = errors.Join(err, fmt.Errorf("abort model call batch: %w", abortErr))
-		}
-	}()
-
-	for i := range records {
-		record := &records[i]
-		call := record.ModelCall
-		if call == nil || record.UpstreamID == "" {
-			continue
-		}
-		if err := batch.Append(
-			record.ID,
-			record.StartedAt,
-			record.GatewayID,
-			record.RouteID,
-			record.UpstreamID,
-			record.CallerID,
-			record.AccessKeyID,
-			uint8(record.StatusClass),
-			call.ClientModel,
-			call.UpstreamModel,
-			call.UpstreamProtocol,
-			call.ResponseModel,
-			call.FinishReason,
-			call.InputTokens,
-			call.OutputTokens,
-			call.TotalTokens,
-		); err != nil {
-			return fmt.Errorf("append model call for request record %q: %w", record.ID, err)
-		}
-	}
-	if err := batch.Send(); err != nil {
-		return fmt.Errorf("send model call batch: %w", err)
+	statement := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.modelCallTable,
+		modelCallColumns,
+	)
+	if err := s.connection.Exec(
+		asyncInsertContext(ctx, record.ID),
+		statement,
+		record.ID,
+		record.StartedAt,
+		record.GatewayID,
+		record.RouteID,
+		record.UpstreamID,
+		record.CallerID,
+		record.AccessKeyID,
+		uint8(record.StatusClass),
+		call.ClientModel,
+		call.UpstreamModel,
+		call.UpstreamProtocol,
+		call.ResponseModel,
+		call.FinishReason,
+		call.InputTokens,
+		call.OutputTokens,
+		call.TotalTokens,
+	); err != nil {
+		return fmt.Errorf("insert model call for request record %q: %w", record.ID, err)
 	}
 	return nil
 }

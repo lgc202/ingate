@@ -26,8 +26,8 @@ type requestCounters struct {
 // RequestConsumer 从 Kafka 批量读取 ALS RequestRecord
 //
 // RequestConsumer 使用 At Least Once 语义：ClickHouse 成功保存整批请求后才提交
-// Kafka offset。进程在两者之间退出时会重投，请求明细依靠稳定事件 ID
-// 和 ReplacingMergeTree 最终收敛
+// Kafka offset。进程在两者之间退出时会重投，Analytics 使用稳定事件 ID 让
+// ClickHouse 在物化视图累计前去重，ReplacingMergeTree 继续作为明细的最终保障
 type RequestConsumer struct {
 	client          *kgo.Client
 	recorder        *requestbiz.Recorder

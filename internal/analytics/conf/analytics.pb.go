@@ -155,7 +155,7 @@ type Data struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// kafka 提供 ALS 已可靠接收的请求记录
 	Kafka *Data_Kafka `protobuf:"bytes,1,opt,name=kafka,proto3" json:"kafka,omitempty"`
-	// clickhouse 保存请求明细并为后续聚合分析提供数据源
+	// clickhouse 保存请求明细、模型调用和物化视图维护的分钟聚合
 	ClickHouse    *Data_ClickHouse `protobuf:"bytes,2,opt,name=click_house,json=clickhouse,proto3" json:"click_house,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

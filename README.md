@@ -173,7 +173,7 @@ Ingate 把配置管理、同步流量处理和异步观测拆成三条边界清�
 | `ingate-analytics` | 消费请求记录、写入 ClickHouse，并提供请求明细和流量分析查询 |
 | `etcd` | 持久化声明式资源 |
 | `Kafka` | 在请求采集与分析之间提供可靠消息链路 |
-| `ClickHouse` | 保存请求明细、模型调用记录和流量分析数据 |
+| `ClickHouse` | 保存请求明细、模型调用记录以及流量和模型用量聚合 |
 
 Controller、Envoy 与 AI ExtProc 在开发 Compose 中共享网络命名空间，xDS 和 AI Processing 连接只监听 loopback；Authorization 和 ALS 使用 Compose 内部网络，不向宿主机暴露端口。该拓扑只属于本地联调方式，业务组件本身不依赖 Docker Compose 或 Kubernetes。
 

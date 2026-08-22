@@ -47,11 +47,13 @@ Admin API、Controller、Authorization 和 AI Processing 都不能直接访问 e
 
 1. Envoy 通过 ALS 把请求元数据发送给 `ingate-als`
 2. ALS 优先投递 Kafka；Kafka 暂时不可用时，未投递记录进入本地 WAL，并在恢复后重放
-3. `ingate-analytics` 批量消费 Kafka，写入 ClickHouse 请求明细和模型调用记录
-4. ClickHouse 物化视图维护流量分析所需的聚合数据
+3. `ingate-analytics` 批量消费 Kafka，每条事件以稳定记录 ID 异步写入 ClickHouse
+4. ClickHouse 在服务端合并小写入，并通过物化视图维护流量与模型用量的分钟聚合
 5. Admin API 调用 Analytics gRPC 查询请求记录、趋势、响应分布和资源排行
 
 观测链路不持久化请求 Header、查询参数或正文。Kafka 和 ClickHouse 故障不能改变 Envoy 的路由结果，但会影响请求记录的可见时间和本地 WAL 占用。
+
+Analytics 使用 At Least Once 消费语义：请求事实和模型调用都成功持久化后才提交 Kafka offset。消费失败或 offset 提交失败会重投整批消息；写入使用记录 ID 作为稳定的 ClickHouse 去重 token，物化视图在源事件去重后再累计指标，因此 Poll 批次边界变化不会造成请求量或 Token 重复计算。去重日志只覆盖近期在线重投；超出窗口的离线历史回放需要先清理并重建对应时间范围的聚合数据。
 
 ## 组件职责
 
@@ -103,7 +105,7 @@ Candidate 和 Active 只存在于 Controller 进程内。重启时允许短暂�
 | 当前 Envoy 有效配置 | Controller 内存 | Controller |
 | ALS 待投递记录 | ALS 本地 WAL | ALS |
 | 请求明细与模型调用记录 | ClickHouse | Analytics |
-| 流量聚合 | ClickHouse 物化视图 | ClickHouse |
+| 流量与模型用量聚合 | ClickHouse 物化视图 | ClickHouse |
 
 Redis 是安装级系统组件，当前不参与流量执行或配置持久化。RateLimitPolicy 目前只有资源协议和管理能力，Controller 不生成限流执行配置。
 
