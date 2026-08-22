@@ -34,7 +34,6 @@ export interface PluginCatalogItem {
 
 export interface PluginCatalog {
   plugins: PluginCatalogItem[];
-  lastCheckedAt: string;
 }
 
 export function pluginStatusLabel(state: ResourceState): string {

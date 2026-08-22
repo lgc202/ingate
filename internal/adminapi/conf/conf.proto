@@ -50,9 +50,9 @@ message Data {
     google.protobuf.Duration timeout = 2;
   }
   message PluginCatalog {
-    // url 是官方插件目录地址；为空时只使用随二进制发布的离线目录
+    // url 是官方插件目录地址；为空时插件市场不提供安装选项
     string url = 1;
-    // refresh_interval 是后台检查插件新版本的周期
+    // refresh_interval 是后台同步官方插件目录的周期
     google.protobuf.Duration refresh_interval = 2;
     // timeout 限制单次远程目录请求的时间
     google.protobuf.Duration timeout = 3;

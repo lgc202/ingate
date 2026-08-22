@@ -1,9 +1,20 @@
 name: Plugin release
 
+run-name: Release ${{ inputs.plugin }} v${{ inputs.version }}
+
 on:
-  push:
-    tags:
-      - "plugin-transformer-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      plugin:
+        description: Plugin to release
+        required: true
+        type: choice
+        options:
+          - transformer
+      version:
+        description: Semantic version without the v prefix
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -15,10 +26,11 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify transformer plugin
+    name: Verify plugin
     runs-on: ubuntu-latest
     timeout-minutes: 20
     outputs:
+      plugin: ${{ steps.metadata.outputs.plugin }}
       package: ${{ steps.metadata.outputs.package }}
       version: ${{ steps.metadata.outputs.version }}
       image: ${{ steps.metadata.outputs.image }}
@@ -31,22 +43,28 @@ jobs:
       - name: Resolve plugin metadata
         id: metadata
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          PLUGIN: ${{ inputs.plugin }}
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          prefix="plugin-transformer-v"
-          version="${RELEASE_TAG#${prefix}}"
-          if [[ "$RELEASE_TAG" == "$version" || ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid transformer plugin tag: $RELEASE_TAG" >&2
+          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid plugin version: $RELEASE_VERSION" >&2
             exit 1
           fi
-          release=$(jq -ce --arg version "$version" '.plugins[] | select(.package == "ingate-transformer") | .releases[] | select(.version == $version)' internal/adminapi/data/plugincatalog/catalog.json)
-          image=$(jq -r '.artifact.repository' <<<"$release")
-          test -n "$image"
-          echo "package=ingate-transformer" >> "$GITHUB_OUTPUT"
-          echo "version=v${version}" >> "$GITHUB_OUTPUT"
+          metadata="plugins/${PLUGIN}/plugin.json"
+          jq -e '
+            .package != null and .package != "" and
+            .name != null and .name != "" and
+            .minIngateVersion != null and .minIngateVersion != "" and
+            .artifactRepository != null and .artifactRepository != ""
+          ' "$metadata" >/dev/null
+          package=$(jq -r '.package' "$metadata")
+          image=$(jq -r '.artifactRepository' "$metadata")
+          echo "plugin=${PLUGIN}" >> "$GITHUB_OUTPUT"
+          echo "package=${package}" >> "$GITHUB_OUTPUT"
+          echo "version=v${RELEASE_VERSION}" >> "$GITHUB_OUTPUT"
           echo "image=${image}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify tag belongs to main
+      - name: Verify commit belongs to main
         run: |
           git fetch origin main
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
@@ -58,15 +76,20 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Build plugin
-        run: make wasm-plugins
+        env:
+          PLUGIN: ${{ steps.metadata.outputs.plugin }}
+        run: |
+          mkdir -p _output/plugins
+          GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared \
+            -o "_output/plugins/${PLUGIN}.wasm" "./plugins/${PLUGIN}"
 
   publish:
-    name: Publish transformer plugin
+    name: Publish plugin
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 30
     outputs:
-      digest: ${{ steps.publish.outputs.digest }}
+      digest: ${{ steps.publish.outputs.digest || steps.artifact.outputs.digest }}
     permissions:
       contents: read
       packages: write
@@ -84,19 +107,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 插件版本标签是不可变制品；重复推送同一标签必须失败，不能覆盖已有模块
-      - name: Check plugin version
+      # 已发布版本不允许覆盖；若上次在更新目录前失败，重跑工作流会复用原制品完成目录发布
+      - name: Resolve plugin artifact
+        id: artifact
         env:
           IMAGE: ${{ needs.verify.outputs.image }}
           VERSION: ${{ needs.verify.outputs.version }}
         run: |
-          if docker buildx imagetools inspect "${IMAGE}:${VERSION}" >/dev/null 2>&1; then
-            echo "Plugin image already exists: ${IMAGE}:${VERSION}" >&2
-            exit 1
+          inspect=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" 2>/dev/null || true)
+          digest=$(awk '$1 == "Digest:" { print $2; exit }' <<<"$inspect")
+          if [[ -n "$digest" ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build and push plugin image
         id: publish
+        if: steps.artifact.outputs.exists != 'true'
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -110,9 +139,9 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.version=${{ needs.verify.outputs.version }}
           build-args: |
-            PLUGIN=transformer
-          cache-from: type=gha,scope=plugin-transformer
-          cache-to: type=gha,mode=max,scope=plugin-transformer
+            PLUGIN=${{ needs.verify.outputs.plugin }}
+          cache-from: type=gha,scope=plugin-${{ needs.verify.outputs.plugin }}
+          cache-to: type=gha,mode=max,scope=plugin-${{ needs.verify.outputs.plugin }}
 
   catalog:
     name: Build published catalog
@@ -125,16 +154,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # main 中的目录是随二进制发布的内置快照；线上目录只有在 OCI 制品发布成功后才生成
+      # 线上目录是发布产物而不是源码；新版本在已有目录上追加，代码仓库无需维护版本清单
+      - name: Download published catalog
+        env:
+          CATALOG_URL: https://lgc202.github.io/ingate/plugins/v1/catalog.json
+        run: |
+          output="_catalog/plugins/v1/catalog.json"
+          mkdir -p "$(dirname "$output")"
+          status=$(curl --silent --show-error --location "$CATALOG_URL" --output "$output" --write-out '%{http_code}')
+          case "$status" in
+            200) ;;
+            404) printf '{"plugins":[]}\n' > "$output" ;;
+            *) echo "Download plugin catalog failed with HTTP status $status" >&2; exit 1 ;;
+          esac
+
       - name: Build published catalog
         env:
+          PLUGIN: ${{ needs.verify.outputs.plugin }}
           PLUGIN_PACKAGE: ${{ needs.verify.outputs.package }}
           VERSION: ${{ needs.verify.outputs.version }}
           DIGEST: ${{ needs.publish.outputs.digest }}
         run: |
           version="${VERSION#v}"
           digest="${DIGEST#sha256:}"
-          source="internal/adminapi/data/plugincatalog/catalog.json"
+          metadata="plugins/${PLUGIN}/plugin.json"
           output="_catalog/plugins/v1/catalog.json"
 
           if [[ ! "$digest" =~ ^[a-f0-9]{64}$ ]]; then
@@ -142,22 +185,37 @@ jobs:
             exit 1
           fi
 
-          jq -e --arg package "$PLUGIN_PACKAGE" --arg version "$version" '
-            [.plugins[] | select(.package == $package) | .releases[] | select(.version == $version)] | length == 1
-          ' "$source" >/dev/null
-
-          mkdir -p "$(dirname "$output")"
-          jq --arg package "$PLUGIN_PACKAGE" --arg version "$version" --arg digest "$digest" '
-            .plugins |= map(
-              if .package == $package then
-                .releases |= map(
-                  if .version == $version then .artifact.sha256 = $digest else . end
-                )
-              else
-                .
-              end
-            )
-          ' "$source" > "$output"
+          next="${output}.next"
+          jq \
+            --arg package "$PLUGIN_PACKAGE" \
+            --arg version "$version" \
+            --arg digest "$digest" \
+            --slurpfile metadata "$metadata" '
+            . as $catalog |
+            $metadata[0] as $definition |
+            ([ $catalog.plugins[]? | select(.package == $package) ][0].releases // []) as $releases |
+            ($definition | {
+              package,
+              name,
+              category,
+              description,
+              provider,
+              license,
+              sourceUrl,
+              releases: ([ $releases[] | select(.version != $version) ] + [{
+                version: $version,
+                minIngateVersion,
+                artifact: {
+                  repository: .artifactRepository,
+                  sha256: $digest
+                }
+              }])
+            }) as $plugin |
+            {
+              plugins: ([ $catalog.plugins[]? | select(.package != $package) ] + [$plugin])
+            }
+          ' "$output" > "$next"
+          mv "$next" "$output"
 
       # 目录是统一项目站点的输入之一，插件工作流不能单独覆盖 Pages
       - name: Upload published catalog

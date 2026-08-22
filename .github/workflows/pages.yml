@@ -59,9 +59,12 @@ jobs:
         run: |
           output="_catalog/plugins/v1/catalog.json"
           mkdir -p "$(dirname "$output")"
-          if ! curl --fail --silent --show-error --location "$CATALOG_URL" --output "$output"; then
-            cp internal/adminapi/data/plugincatalog/catalog.json "$output"
-          fi
+          status=$(curl --silent --show-error --location "$CATALOG_URL" --output "$output" --write-out '%{http_code}')
+          case "$status" in
+            200) ;;
+            404) printf '{"plugins":[]}\n' > "$output" ;;
+            *) echo "Download plugin catalog failed with HTTP status $status" >&2; exit 1 ;;
+          esac
 
       - name: Assemble project site
         run: |

@@ -1,9 +1,6 @@
 package wasmplugin
 
 import (
-	"context"
-	"time"
-
 	"golang.org/x/mod/semver"
 
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -23,10 +20,8 @@ type CatalogItem struct {
 }
 
 // CatalogSnapshot 是一次原子读取到的插件目录
-// LastCheckedAt 只记录最近一次成功访问远程目录的时间，远程失败时继续使用上次成功结果
 type CatalogSnapshot struct {
-	Items         []CatalogItem
-	LastCheckedAt time.Time
+	Items []CatalogItem
 }
 
 // Catalog 定义插件市场读取官方目录和解析安装制品所需的能力
@@ -34,7 +29,6 @@ type CatalogSnapshot struct {
 type Catalog interface {
 	Snapshot() CatalogSnapshot
 	PluginSpec(packageName string) (resource.WasmPluginSpec, bool)
-	Refresh(ctx context.Context) error
 }
 
 func newerVersion(current, candidate string) bool {

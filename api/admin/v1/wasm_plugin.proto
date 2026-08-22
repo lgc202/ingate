@@ -15,12 +15,6 @@ service WasmPluginService {
   rpc ListWasmPluginCatalog(ListWasmPluginCatalogRequest) returns (ListWasmPluginCatalogResponse) {
     option (google.api.http) = {get: "/api/v1/wasm-plugin-catalog"};
   }
-  rpc RefreshWasmPluginCatalog(RefreshWasmPluginCatalogRequest) returns (ListWasmPluginCatalogResponse) {
-    option (google.api.http) = {
-      post: "/api/v1/wasm-plugin-catalog:refresh"
-      body: "*"
-    };
-  }
   rpc ListWasmPlugins(ListWasmPluginsRequest) returns (ListWasmPluginsResponse) {
     option (google.api.http) = {get: "/api/v1/wasm-plugins"};
   }
@@ -83,11 +77,8 @@ message WasmPluginCatalogItem {
 
 message ListWasmPluginCatalogRequest {}
 
-message RefreshWasmPluginCatalogRequest {}
-
 message ListWasmPluginCatalogResponse {
   repeated WasmPluginCatalogItem plugins = 1;
-  google.protobuf.Timestamp last_checked_at = 2;
 }
 
 message ListWasmPluginsRequest {

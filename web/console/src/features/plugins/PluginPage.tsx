@@ -1,16 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Blocks, CircleAlert, RefreshCw, Sparkles } from 'lucide-react';
+import { Blocks, CircleAlert, Sparkles } from 'lucide-react';
 import {
   deleteWasmPlugin,
   installWasmPlugin,
   listWasmPluginCatalog,
   listWasmPlugins,
-  refreshWasmPluginCatalog,
   upgradeWasmPlugin,
 } from '@/api/plugins';
 import { useResource } from '@/api/useResource';
 import { Button, Drawer, Modal, PageFrame, Panel, ResourcePagination, ResourceStatePanel, Toast } from '@/components/ui';
-import { formatDateTime } from '@/domain/common';
 import type { PluginCatalogItem, WasmPlugin } from '@/domain/plugin';
 import { PluginInstallConfirmation } from './PluginInstallConfirmation';
 import { emptyPluginFilters, InstalledPlugins, PluginDetail, PluginMarket, type PluginFilters } from './PluginViews';
@@ -31,7 +29,6 @@ export function PluginPage() {
   const [deleteCandidate, setDeleteCandidate] = useState<WasmPlugin | null>(null);
   const [deleteError, setDeleteError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [checkingCatalog, setCheckingCatalog] = useState(false);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
   const visiblePlugins = useMemo(() => {
@@ -104,33 +101,8 @@ export function PluginPage() {
     }
   };
 
-  const checkForUpdates = async () => {
-    if (checkingCatalog) return;
-    setCheckingCatalog(true);
-    try {
-      await refreshWasmPluginCatalog();
-      await Promise.all([catalog.reload(), plugins.reload()]);
-      setNotice({ message: '插件更新检查完成', tone: 'success' });
-    } catch (error) {
-      setNotice({ message: error instanceof Error ? error.message : '插件更新检查失败', tone: 'error' });
-    } finally {
-      setCheckingCatalog(false);
-    }
-  };
-
   return (
-    <PageFrame
-      title="插件"
-      actions={(
-        <div className="plugin-update-action">
-          <span>{catalog.data.lastCheckedAt ? `上次检查 ${formatDateTime(catalog.data.lastCheckedAt)}` : '当前使用内置插件目录'}</span>
-          <Button variant="outline" disabled={checkingCatalog} onClick={() => void checkForUpdates()}>
-            <RefreshCw aria-hidden="true" />
-            {checkingCatalog ? '检查中...' : '检查更新'}
-          </Button>
-        </div>
-      )}
-    >
+    <PageFrame title="插件">
       <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
       <Panel>
         <nav className="resource-kind-tabs plugin-tabs" aria-label="插件页面">
