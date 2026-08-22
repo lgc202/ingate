@@ -5,6 +5,7 @@ import (
 	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
 	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
@@ -52,8 +53,10 @@ var apiserverProviderSet = wire.NewSet(
 
 var analyticsProviderSet = wire.NewSet(
 	dataanalytics.NewClient,
+	dataanalytics.NewAIUsageRepository,
 	dataanalytics.NewRequestRepository,
 	dataanalytics.NewTrafficRepository,
+	wire.Bind(new(aiusage.Repository), new(*dataanalytics.AIUsageRepository)),
 	wire.Bind(new(requestbiz.Repository), new(*dataanalytics.RequestRepository)),
 	wire.Bind(new(trafficbiz.Repository), new(*dataanalytics.TrafficRepository)),
 )

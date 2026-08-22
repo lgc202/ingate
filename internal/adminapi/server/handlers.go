@@ -4,6 +4,7 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+	aiusageservice "github.com/lgc202/ingate/internal/adminapi/service/aiusage"
 	"github.com/lgc202/ingate/internal/adminapi/service/caller"
 	"github.com/lgc202/ingate/internal/adminapi/service/certificate"
 	"github.com/lgc202/ingate/internal/adminapi/service/gateway"
@@ -18,6 +19,7 @@ import (
 
 // HTTPHandlers 汇总需要注册到同一个 HTTP Server 的 Admin API 协议服务
 type HTTPHandlers struct {
+	aiUsage       *aiusageservice.Service
 	caller        *caller.Service
 	gateway       *gateway.Service
 	route         *route.Service
@@ -32,6 +34,7 @@ type HTTPHandlers struct {
 
 // NewHTTPHandlers 创建 Admin API 的 HTTP 协议服务集合
 func NewHTTPHandlers(
+	aiUsageService *aiusageservice.Service,
 	callerService *caller.Service,
 	gatewayService *gateway.Service,
 	routeService *route.Service,
@@ -44,6 +47,7 @@ func NewHTTPHandlers(
 	healthService *health.Service,
 ) *HTTPHandlers {
 	return &HTTPHandlers{
+		aiUsage:       aiUsageService,
 		caller:        callerService,
 		gateway:       gatewayService,
 		route:         routeService,
@@ -58,6 +62,7 @@ func NewHTTPHandlers(
 }
 
 func (h *HTTPHandlers) register(server *kratoshttp.Server) {
+	adminv1.RegisterAIUsageServiceHTTPServer(server, h.aiUsage)
 	adminv1.RegisterCallerServiceHTTPServer(server, h.caller)
 	adminv1.RegisterGatewayServiceHTTPServer(server, h.gateway)
 	adminv1.RegisterRouteServiceHTTPServer(server, h.route)

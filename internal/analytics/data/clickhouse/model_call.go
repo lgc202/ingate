@@ -20,6 +20,7 @@ const modelCallColumns = `
     upstream_id,
     caller_id,
     access_key_id,
+    status_class,
     client_model,
     upstream_model,
     upstream_protocol,
@@ -45,11 +46,14 @@ type modelCallRow struct {
 	call            request.ModelCall
 }
 
-// saveModelCalls 只保存确实经过模型 Service 的请求，不为普通 HTTP 请求写空行
+// saveModelCalls 只保存已经选中并尝试模型 Service 的调用
+//
+// AI Route 在选路前也可能写入客户端模型元数据，但这种本地拒绝没有产生模型调用，
+// 因此不能进入用量事实表
 func (s *Store) saveModelCalls(ctx context.Context, records []request.Record) (err error) {
 	hasModelCall := false
 	for i := range records {
-		if records[i].ModelCall != nil {
+		if records[i].ModelCall != nil && records[i].UpstreamID != "" {
 			hasModelCall = true
 			break
 		}
@@ -75,7 +79,7 @@ func (s *Store) saveModelCalls(ctx context.Context, records []request.Record) (e
 	for i := range records {
 		record := &records[i]
 		call := record.ModelCall
-		if call == nil {
+		if call == nil || record.UpstreamID == "" {
 			continue
 		}
 		if err := batch.Append(
@@ -86,6 +90,7 @@ func (s *Store) saveModelCalls(ctx context.Context, records []request.Record) (e
 			record.UpstreamID,
 			record.CallerID,
 			record.AccessKeyID,
+			uint8(record.StatusClass),
 			call.ClientModel,
 			call.UpstreamModel,
 			call.UpstreamProtocol,

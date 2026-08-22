@@ -10,6 +10,7 @@ import (
 	"github.com/go-kratos/kratos/v3"
 	"github.com/google/wire"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
+	"github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
 	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
@@ -23,6 +24,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/data/analytics"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
 	"github.com/lgc202/ingate/internal/adminapi/server"
+	aiusage2 "github.com/lgc202/ingate/internal/adminapi/service/aiusage"
 	caller2 "github.com/lgc202/ingate/internal/adminapi/service/caller"
 	certificate2 "github.com/lgc202/ingate/internal/adminapi/service/certificate"
 	gateway2 "github.com/lgc202/ingate/internal/adminapi/service/gateway"
@@ -39,44 +41,48 @@ import (
 // Injectors from wire.go:
 
 func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, adminapiServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+	clientConn, cleanup, err := analytics.NewClient(data, logger)
+	if err != nil {
+		return nil, nil, err
+	}
+	aiUsageRepository := analytics.NewAIUsageRepository(clientConn)
+	service := aiusage.NewService(aiUsageRepository)
+	aiusageService := aiusage2.NewService(service)
 	versionedInterface, err := apiserver.NewClient(data)
 	if err != nil {
+		cleanup()
 		return nil, nil, err
 	}
 	callerRepository := apiserver.NewCallerRepository(versionedInterface)
 	routeRepository := apiserver.NewRouteRepository(versionedInterface)
-	service := caller.NewService(callerRepository, routeRepository)
-	callerService := caller2.NewService(service)
+	callerService := caller.NewService(callerRepository, routeRepository)
+	service2 := caller2.NewService(callerService)
 	gatewayRepository := apiserver.NewGatewayRepository(versionedInterface)
 	certificateRepository := apiserver.NewCertificateRepository(versionedInterface)
 	rateLimitPolicyRepository := apiserver.NewRateLimitPolicyRepository(versionedInterface)
 	ipRestrictionPolicyRepository := apiserver.NewIPRestrictionPolicyRepository(versionedInterface)
 	policyUsageFinder := biz.NewPolicyUsageFinder(rateLimitPolicyRepository, ipRestrictionPolicyRepository)
 	gatewayService := gateway.NewService(gatewayRepository, routeRepository, certificateRepository, policyUsageFinder)
-	service2 := gateway2.NewService(gatewayService)
+	service3 := gateway2.NewService(gatewayService)
 	upstreamRepository := apiserver.NewUpstreamRepository(versionedInterface)
 	routeService := route.NewService(routeRepository, gatewayRepository, upstreamRepository, callerRepository, policyUsageFinder)
-	service3 := route2.NewService(routeService)
+	service4 := route2.NewService(routeService)
 	upstreamService := upstream.NewService(upstreamRepository, routeRepository)
-	service4 := upstream2.NewService(upstreamService)
+	service5 := upstream2.NewService(upstreamService)
 	certificateService := certificate.NewService(certificateRepository, gatewayRepository)
-	service5 := certificate2.NewService(certificateService)
+	service6 := certificate2.NewService(certificateService)
 	ratelimitService := ratelimit.NewService(rateLimitPolicyRepository, gatewayRepository, routeRepository)
-	service6 := ratelimit2.NewService(ratelimitService)
+	service7 := ratelimit2.NewService(ratelimitService)
 	iprestrictionService := iprestriction.NewService(ipRestrictionPolicyRepository, gatewayRepository, routeRepository)
-	service7 := iprestriction2.NewService(iprestrictionService)
-	clientConn, cleanup, err := analytics.NewClient(data, logger)
-	if err != nil {
-		return nil, nil, err
-	}
+	service8 := iprestriction2.NewService(iprestrictionService)
 	requestRepository := analytics.NewRequestRepository(clientConn)
 	requestService := request.NewService(requestRepository)
-	service8 := request2.NewService(requestService)
+	service9 := request2.NewService(requestService)
 	trafficRepository := analytics.NewTrafficRepository(clientConn)
 	trafficService := traffic.NewService(trafficRepository)
-	service9 := traffic2.NewService(trafficService)
+	service10 := traffic2.NewService(trafficService)
 	healthService := health.NewService()
-	httpHandlers := server.NewHTTPHandlers(callerService, service2, service3, service4, service5, service6, service7, service8, service9, healthService)
+	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, healthService)
 	httpServer := server.NewHTTPServer(confServer, logger, httpHandlers)
 	app := newKratosApp(logger, confServer, httpServer, adminapiServiceInstanceID)
 	return app, func() {
@@ -87,7 +93,7 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 // wire.go:
 
 // bizProviderSet 汇总各资源的业务服务
-var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, caller.NewService, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService)
+var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, aiusage.NewService, caller.NewService, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService)
 
 // serviceProviderSet 汇总 Admin API 的协议服务
-var serviceProviderSet = wire.NewSet(caller2.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, health.NewService)
+var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, health.NewService)

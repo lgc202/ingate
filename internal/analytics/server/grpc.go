@@ -7,16 +7,18 @@ import (
 
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
 	"github.com/lgc202/ingate/internal/analytics/conf"
+	aiusageservice "github.com/lgc202/ingate/internal/analytics/service/aiusage"
 	requestservice "github.com/lgc202/ingate/internal/analytics/service/request"
 	trafficservice "github.com/lgc202/ingate/internal/analytics/service/traffic"
 	"github.com/lgc202/ingate/internal/pkg/tlsx"
 )
 
-// NewGRPCServer 创建供 Admin API 查询请求明细和流量分析结果的 gRPC 服务
+// NewGRPCServer 创建供 Admin API 查询请求明细、流量分析和 AI 用量的 gRPC 服务
 //
 // Analytics 不直接向控制台浏览器开放，资源名称和前端响应组装由 Admin API 负责
 func NewGRPCServer(
 	config *conf.Server,
+	aiUsageService *aiusageservice.Service,
 	requestService *requestservice.Service,
 	trafficService *trafficservice.Service,
 ) (*kratosgrpc.Server, error) {
@@ -40,6 +42,7 @@ func NewGRPCServer(
 		options = append(options, kratosgrpc.TLSConfig(tlsConfig))
 	}
 	server := kratosgrpc.NewServer(options...)
+	analyticsv1.RegisterAIUsageServiceServer(server, aiUsageService)
 	analyticsv1.RegisterRequestServiceServer(server, requestService)
 	analyticsv1.RegisterTrafficServiceServer(server, trafficService)
 	return server, nil
