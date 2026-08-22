@@ -30,7 +30,8 @@ func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_
 	httpServer := server.NewHTTPServer(confServer, readiness)
 	tokenquotaService := tokenquota.NewService(configCache, tokenCounter)
 	externalProcessor := service.NewExternalProcessor(configCache, tokenquotaService, logger)
-	grpcServer := server.NewGRPCServer(confServer, externalProcessor)
+	tokenQuotaUsageService := service.NewTokenQuotaUsageService(tokenquotaService)
+	grpcServer := server.NewGRPCServer(confServer, externalProcessor, tokenQuotaUsageService)
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, configCache, tokenCounter, aiextprocServiceInstanceID)
 	return app, nil
 }

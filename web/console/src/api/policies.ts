@@ -6,6 +6,7 @@ import type { GatewayListView } from '@/domain/gateway';
 import type { ResourceState, ResourceStatus } from '@/domain/common';
 import type {
   GovernancePolicy,
+  CallerTokenQuotaUsage,
   IPRestrictionPolicy,
   IPRestrictionPolicyPayload,
   PolicyMutationResult,
@@ -51,6 +52,19 @@ interface TokenQuotaPolicyResponse extends Omit<TokenQuotaPolicy, 'version' | 't
 }
 
 interface TokenQuotaPolicyListResponse extends CursorPagedResponse { policies?: TokenQuotaPolicyResponse[] }
+
+interface CallerTokenQuotaUsageResponse {
+  policyId: string;
+  policyName: string;
+  period: string;
+  usedTokens: string | number;
+  limitTokens: string | number;
+  remainingTokens: string | number;
+  startedAt: string;
+  resetsAt: string;
+}
+
+interface GetCallerTokenQuotaUsageResponse { usages?: CallerTokenQuotaUsageResponse[] }
 
 export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
   const [ipRestrictionPolicies, tokenQuotaPolicies, gatewayList, routeList, callers] = await Promise.all([
@@ -118,6 +132,22 @@ export async function listTokenQuotaPolicies(): Promise<TokenQuotaPolicy[]> {
     targets: policy.targets.map(policyTargetFromResponse),
     limits: policy.limits.map((limit) => ({ period: tokenQuotaPeriodFromResponse(limit.period), tokens: Number(limit.tokens) })),
     status: resourceStatus(policy.state, policy.message),
+  }));
+}
+
+export async function getCallerTokenQuotaUsage(callerID: string): Promise<CallerTokenQuotaUsage[]> {
+  const response = await apiRequest<GetCallerTokenQuotaUsageResponse>(
+    `/callers/${encodeURIComponent(callerID)}/token-quota-usage`,
+  );
+  return (response.usages ?? []).map((usage) => ({
+    policyID: usage.policyId,
+    policyName: usage.policyName,
+    period: tokenQuotaPeriodFromResponse(usage.period),
+    usedTokens: Number(usage.usedTokens),
+    limitTokens: Number(usage.limitTokens),
+    remainingTokens: Number(usage.remainingTokens),
+    startedAt: usage.startedAt,
+    resetsAt: usage.resetsAt,
   }));
 }
 

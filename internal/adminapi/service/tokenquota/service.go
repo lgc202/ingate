@@ -89,3 +89,15 @@ func (s *Service) DeleteTokenQuotaPolicy(
 	}
 	return &emptypb.Empty{}, nil
 }
+
+// GetCallerTokenQuotaUsage 查询调用方当前实际执行的 Token 额度
+func (s *Service) GetCallerTokenQuotaUsage(
+	ctx context.Context,
+	request *adminv1.GetCallerTokenQuotaUsageRequest,
+) (*adminv1.GetCallerTokenQuotaUsageResponse, error) {
+	usages, err := s.policies.CurrentUsage(ctx, request.GetCallerId())
+	if err != nil {
+		return nil, err
+	}
+	return tokenQuotaUsageResponse(usages), nil
+}

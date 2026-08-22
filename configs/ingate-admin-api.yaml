@@ -17,6 +17,9 @@ data:
       cert_file: ""
       key_file: ""
       server_name: ""
+  ai_ext_proc:
+    addr: "127.0.0.1:18081"
+    timeout: "2s"
 logging:
   format: "json"
   level: "info"

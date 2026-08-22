@@ -140,6 +140,7 @@ type Data struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Apiserver     *Data_APIServer        `protobuf:"bytes,1,opt,name=apiserver,proto3" json:"apiserver,omitempty"`
 	Analytics     *Data_Analytics        `protobuf:"bytes,2,opt,name=analytics,proto3" json:"analytics,omitempty"`
+	AiExtProc     *Data_AIExtProc        `protobuf:"bytes,3,opt,name=ai_ext_proc,json=aiExtProc,proto3" json:"ai_ext_proc,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -184,6 +185,13 @@ func (x *Data) GetApiserver() *Data_APIServer {
 func (x *Data) GetAnalytics() *Data_Analytics {
 	if x != nil {
 		return x.Analytics
+	}
+	return nil
+}
+
+func (x *Data) GetAiExtProc() *Data_AIExtProc {
+	if x != nil {
+		return x.AiExtProc
 	}
 	return nil
 }
@@ -415,6 +423,60 @@ func (x *Data_Analytics) GetTls() *Data_Analytics_TLS {
 	return nil
 }
 
+type Data_AIExtProc struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// addr 是 AI ExtProc 实时额度查询的内部 gRPC 地址
+	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	// timeout 限制 Admin API 等待单次实时额度查询的时间
+	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data_AIExtProc) Reset() {
+	*x = Data_AIExtProc{}
+	mi := &file_conf_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data_AIExtProc) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data_AIExtProc) ProtoMessage() {}
+
+func (x *Data_AIExtProc) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data_AIExtProc.ProtoReflect.Descriptor instead.
+func (*Data_AIExtProc) Descriptor() ([]byte, []int) {
+	return file_conf_proto_rawDescGZIP(), []int{2, 2}
+}
+
+func (x *Data_AIExtProc) GetAddr() string {
+	if x != nil {
+		return x.Addr
+	}
+	return ""
+}
+
+func (x *Data_AIExtProc) GetTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.Timeout
+	}
+	return nil
+}
+
 type Data_Analytics_TLS struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
@@ -428,7 +490,7 @@ type Data_Analytics_TLS struct {
 
 func (x *Data_Analytics_TLS) Reset() {
 	*x = Data_Analytics_TLS{}
-	mi := &file_conf_proto_msgTypes[7]
+	mi := &file_conf_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -440,7 +502,7 @@ func (x *Data_Analytics_TLS) String() string {
 func (*Data_Analytics_TLS) ProtoMessage() {}
 
 func (x *Data_Analytics_TLS) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_proto_msgTypes[7]
+	mi := &file_conf_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -506,10 +568,11 @@ const file_conf_proto_rawDesc = "" +
 	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xf1\x03\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x8a\x05\n" +
 	"\x04Data\x12?\n" +
 	"\tapiserver\x18\x01 \x01(\v2!.ingate.admin.conf.Data.APIServerR\tapiserver\x12?\n" +
-	"\tanalytics\x18\x02 \x01(\v2!.ingate.admin.conf.Data.AnalyticsR\tanalytics\x1aC\n" +
+	"\tanalytics\x18\x02 \x01(\v2!.ingate.admin.conf.Data.AnalyticsR\tanalytics\x12A\n" +
+	"\vai_ext_proc\x18\x03 \x01(\v2!.ingate.admin.conf.Data.AIExtProcR\taiExtProc\x1aC\n" +
 	"\tAPIServer\x12\x16\n" +
 	"\x06master\x18\x01 \x01(\tR\x06master\x12\x1e\n" +
 	"\n" +
@@ -525,7 +588,10 @@ const file_conf_proto_rawDesc = "" +
 	"\tcert_file\x18\x03 \x01(\tR\bcertFile\x12\x19\n" +
 	"\bkey_file\x18\x04 \x01(\tR\akeyFile\x12\x1f\n" +
 	"\vserver_name\x18\x05 \x01(\tR\n" +
-	"serverName\"V\n" +
+	"serverName\x1aT\n" +
+	"\tAIExtProc\x12\x12\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"V\n" +
 	"\aLogging\x12\x16\n" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\tR\x05level\x12\x1d\n" +
@@ -544,7 +610,7 @@ func file_conf_proto_rawDescGZIP() []byte {
 	return file_conf_proto_rawDescData
 }
 
-var file_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_conf_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_conf_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.admin.conf.Bootstrap
 	(*Server)(nil),              // 1: ingate.admin.conf.Server
@@ -553,25 +619,28 @@ var file_conf_proto_goTypes = []any{
 	(*Server_HTTP)(nil),         // 4: ingate.admin.conf.Server.HTTP
 	(*Data_APIServer)(nil),      // 5: ingate.admin.conf.Data.APIServer
 	(*Data_Analytics)(nil),      // 6: ingate.admin.conf.Data.Analytics
-	(*Data_Analytics_TLS)(nil),  // 7: ingate.admin.conf.Data.Analytics.TLS
-	(*durationpb.Duration)(nil), // 8: google.protobuf.Duration
+	(*Data_AIExtProc)(nil),      // 7: ingate.admin.conf.Data.AIExtProc
+	(*Data_Analytics_TLS)(nil),  // 8: ingate.admin.conf.Data.Analytics.TLS
+	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
 }
 var file_conf_proto_depIdxs = []int32{
 	1,  // 0: ingate.admin.conf.Bootstrap.server:type_name -> ingate.admin.conf.Server
 	2,  // 1: ingate.admin.conf.Bootstrap.data:type_name -> ingate.admin.conf.Data
 	3,  // 2: ingate.admin.conf.Bootstrap.logging:type_name -> ingate.admin.conf.Logging
 	4,  // 3: ingate.admin.conf.Server.http:type_name -> ingate.admin.conf.Server.HTTP
-	8,  // 4: ingate.admin.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	9,  // 4: ingate.admin.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
 	5,  // 5: ingate.admin.conf.Data.apiserver:type_name -> ingate.admin.conf.Data.APIServer
 	6,  // 6: ingate.admin.conf.Data.analytics:type_name -> ingate.admin.conf.Data.Analytics
-	8,  // 7: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	8,  // 8: ingate.admin.conf.Data.Analytics.timeout:type_name -> google.protobuf.Duration
-	7,  // 9: ingate.admin.conf.Data.Analytics.tls:type_name -> ingate.admin.conf.Data.Analytics.TLS
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	7,  // 7: ingate.admin.conf.Data.ai_ext_proc:type_name -> ingate.admin.conf.Data.AIExtProc
+	9,  // 8: ingate.admin.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	9,  // 9: ingate.admin.conf.Data.Analytics.timeout:type_name -> google.protobuf.Duration
+	8,  // 10: ingate.admin.conf.Data.Analytics.tls:type_name -> ingate.admin.conf.Data.Analytics.TLS
+	9,  // 11: ingate.admin.conf.Data.AIExtProc.timeout:type_name -> google.protobuf.Duration
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_conf_proto_init() }
@@ -585,7 +654,7 @@ func file_conf_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_proto_rawDesc), len(file_conf_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

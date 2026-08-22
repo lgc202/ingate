@@ -17,6 +17,9 @@ data:
       cert_file: ""
       key_file: ""
       server_name: ""
+  ai_ext_proc:
+    addr: "controller:18081"
+    timeout: "2s"
 logging:
   format: "json"
   level: "info"

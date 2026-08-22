@@ -35,6 +35,17 @@ export interface TokenQuotaLimit {
   tokens: number;
 }
 
+export interface CallerTokenQuotaUsage {
+  policyID: string;
+  policyName: string;
+  period: TokenQuotaPeriod;
+  usedTokens: number;
+  limitTokens: number;
+  remainingTokens: number;
+  startedAt: string;
+  resetsAt: string;
+}
+
 export interface TokenQuotaPolicy {
   id: string;
   version: number;
