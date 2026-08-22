@@ -22,6 +22,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
+	"github.com/lgc202/ingate/internal/adminapi/data/aiextproc"
 	"github.com/lgc202/ingate/internal/adminapi/data/analytics"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
 	"github.com/lgc202/ingate/internal/adminapi/server"
@@ -84,13 +85,20 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 	trafficService := traffic.NewService(trafficRepository)
 	service10 := traffic2.NewService(trafficService)
 	tokenQuotaPolicyRepository := apiserver.NewTokenQuotaPolicyRepository(versionedInterface)
-	tokenquotaService := tokenquota.NewService(tokenQuotaPolicyRepository, callerRepository)
+	client, cleanup2, err := aiextproc.NewClient(data, logger)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	tokenQuotaUsageReader := aiextproc.NewTokenQuotaUsageReader(client)
+	tokenquotaService := tokenquota.NewService(tokenQuotaPolicyRepository, callerRepository, tokenQuotaUsageReader)
 	service11 := tokenquota2.NewService(tokenquotaService)
 	healthService := health.NewService()
 	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, service11, healthService)
 	httpServer := server.NewHTTPServer(confServer, logger, httpHandlers)
 	app := newKratosApp(logger, confServer, httpServer, adminapiServiceInstanceID)
 	return app, func() {
+		cleanup2()
 		cleanup()
 	}, nil
 }

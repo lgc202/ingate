@@ -621,6 +621,194 @@ func (x *DeleteTokenQuotaPolicyRequest) GetVersion() int64 {
 	return 0
 }
 
+type GetCallerTokenQuotaUsageRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CallerId      string                 `protobuf:"bytes,1,opt,name=caller_id,json=callerId,proto3" json:"caller_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCallerTokenQuotaUsageRequest) Reset() {
+	*x = GetCallerTokenQuotaUsageRequest{}
+	mi := &file_admin_v1_token_quota_policy_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCallerTokenQuotaUsageRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCallerTokenQuotaUsageRequest) ProtoMessage() {}
+
+func (x *GetCallerTokenQuotaUsageRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_token_quota_policy_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCallerTokenQuotaUsageRequest.ProtoReflect.Descriptor instead.
+func (*GetCallerTokenQuotaUsageRequest) Descriptor() ([]byte, []int) {
+	return file_admin_v1_token_quota_policy_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *GetCallerTokenQuotaUsageRequest) GetCallerId() string {
+	if x != nil {
+		return x.CallerId
+	}
+	return ""
+}
+
+type CallerTokenQuotaUsage struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	PolicyId        string                 `protobuf:"bytes,1,opt,name=policy_id,json=policyId,proto3" json:"policy_id,omitempty"`
+	PolicyName      string                 `protobuf:"bytes,2,opt,name=policy_name,json=policyName,proto3" json:"policy_name,omitempty"`
+	Period          TokenQuotaPeriod       `protobuf:"varint,3,opt,name=period,proto3,enum=ingate.admin.v1.TokenQuotaPeriod" json:"period,omitempty"`
+	UsedTokens      int64                  `protobuf:"varint,4,opt,name=used_tokens,json=usedTokens,proto3" json:"used_tokens,omitempty"`
+	LimitTokens     int64                  `protobuf:"varint,5,opt,name=limit_tokens,json=limitTokens,proto3" json:"limit_tokens,omitempty"`
+	RemainingTokens int64                  `protobuf:"varint,6,opt,name=remaining_tokens,json=remainingTokens,proto3" json:"remaining_tokens,omitempty"`
+	StartedAt       *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	ResetsAt        *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=resets_at,json=resetsAt,proto3" json:"resets_at,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *CallerTokenQuotaUsage) Reset() {
+	*x = CallerTokenQuotaUsage{}
+	mi := &file_admin_v1_token_quota_policy_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CallerTokenQuotaUsage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CallerTokenQuotaUsage) ProtoMessage() {}
+
+func (x *CallerTokenQuotaUsage) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_token_quota_policy_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CallerTokenQuotaUsage.ProtoReflect.Descriptor instead.
+func (*CallerTokenQuotaUsage) Descriptor() ([]byte, []int) {
+	return file_admin_v1_token_quota_policy_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *CallerTokenQuotaUsage) GetPolicyId() string {
+	if x != nil {
+		return x.PolicyId
+	}
+	return ""
+}
+
+func (x *CallerTokenQuotaUsage) GetPolicyName() string {
+	if x != nil {
+		return x.PolicyName
+	}
+	return ""
+}
+
+func (x *CallerTokenQuotaUsage) GetPeriod() TokenQuotaPeriod {
+	if x != nil {
+		return x.Period
+	}
+	return TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_UNSPECIFIED
+}
+
+func (x *CallerTokenQuotaUsage) GetUsedTokens() int64 {
+	if x != nil {
+		return x.UsedTokens
+	}
+	return 0
+}
+
+func (x *CallerTokenQuotaUsage) GetLimitTokens() int64 {
+	if x != nil {
+		return x.LimitTokens
+	}
+	return 0
+}
+
+func (x *CallerTokenQuotaUsage) GetRemainingTokens() int64 {
+	if x != nil {
+		return x.RemainingTokens
+	}
+	return 0
+}
+
+func (x *CallerTokenQuotaUsage) GetStartedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.StartedAt
+	}
+	return nil
+}
+
+func (x *CallerTokenQuotaUsage) GetResetsAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ResetsAt
+	}
+	return nil
+}
+
+type GetCallerTokenQuotaUsageResponse struct {
+	state         protoimpl.MessageState   `protogen:"open.v1"`
+	Usages        []*CallerTokenQuotaUsage `protobuf:"bytes,1,rep,name=usages,proto3" json:"usages,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetCallerTokenQuotaUsageResponse) Reset() {
+	*x = GetCallerTokenQuotaUsageResponse{}
+	mi := &file_admin_v1_token_quota_policy_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetCallerTokenQuotaUsageResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetCallerTokenQuotaUsageResponse) ProtoMessage() {}
+
+func (x *GetCallerTokenQuotaUsageResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_admin_v1_token_quota_policy_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetCallerTokenQuotaUsageResponse.ProtoReflect.Descriptor instead.
+func (*GetCallerTokenQuotaUsageResponse) Descriptor() ([]byte, []int) {
+	return file_admin_v1_token_quota_policy_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *GetCallerTokenQuotaUsageResponse) GetUsages() []*CallerTokenQuotaUsage {
+	if x != nil {
+		return x.Usages
+	}
+	return nil
+}
+
 var File_admin_v1_token_quota_policy_proto protoreflect.FileDescriptor
 
 const file_admin_v1_token_quota_policy_proto_rawDesc = "" +
@@ -676,18 +864,35 @@ const file_admin_v1_token_quota_policy_proto_rawDesc = "" +
 	"\b_enabled\"\\\n" +
 	"\x1dDeleteTokenQuotaPolicyRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
-	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion*\x8d\x01\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\"H\n" +
+	"\x1fGetCallerTokenQuotaUsageRequest\x12%\n" +
+	"\tcaller_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\bcallerId\"\xf3\x02\n" +
+	"\x15CallerTokenQuotaUsage\x12\x1b\n" +
+	"\tpolicy_id\x18\x01 \x01(\tR\bpolicyId\x12\x1f\n" +
+	"\vpolicy_name\x18\x02 \x01(\tR\n" +
+	"policyName\x129\n" +
+	"\x06period\x18\x03 \x01(\x0e2!.ingate.admin.v1.TokenQuotaPeriodR\x06period\x12\x1f\n" +
+	"\vused_tokens\x18\x04 \x01(\x03R\n" +
+	"usedTokens\x12!\n" +
+	"\flimit_tokens\x18\x05 \x01(\x03R\vlimitTokens\x12)\n" +
+	"\x10remaining_tokens\x18\x06 \x01(\x03R\x0fremainingTokens\x129\n" +
+	"\n" +
+	"started_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x127\n" +
+	"\tresets_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\bresetsAt\"b\n" +
+	" GetCallerTokenQuotaUsageResponse\x12>\n" +
+	"\x06usages\x18\x01 \x03(\v2&.ingate.admin.v1.CallerTokenQuotaUsageR\x06usages*\x8d\x01\n" +
 	"\x10TokenQuotaPeriod\x12\"\n" +
 	"\x1eTOKEN_QUOTA_PERIOD_UNSPECIFIED\x10\x00\x12\x1a\n" +
 	"\x16TOKEN_QUOTA_PERIOD_DAY\x10\x01\x12\x1b\n" +
 	"\x17TOKEN_QUOTA_PERIOD_WEEK\x10\x02\x12\x1c\n" +
-	"\x18TOKEN_QUOTA_PERIOD_MONTH\x10\x032\x8f\x06\n" +
+	"\x18TOKEN_QUOTA_PERIOD_MONTH\x10\x032\xc8\a\n" +
 	"\x17TokenQuotaPolicyService\x12\x9f\x01\n" +
 	"\x16ListTokenQuotaPolicies\x12..ingate.admin.v1.ListTokenQuotaPoliciesRequest\x1a/.ingate.admin.v1.ListTokenQuotaPoliciesResponse\"$\x82\xd3\xe4\x93\x02\x1e\x12\x1c/api/v1/token-quota-policies\x12\x90\x01\n" +
 	"\x13GetTokenQuotaPolicy\x12+.ingate.admin.v1.GetTokenQuotaPolicyRequest\x1a!.ingate.admin.v1.TokenQuotaPolicy\")\x82\xd3\xe4\x93\x02#\x12!/api/v1/token-quota-policies/{id}\x12\x94\x01\n" +
 	"\x16CreateTokenQuotaPolicy\x12..ingate.admin.v1.CreateTokenQuotaPolicyRequest\x1a!.ingate.admin.v1.TokenQuotaPolicy\"'\x82\xd3\xe4\x93\x02!:\x01*\"\x1c/api/v1/token-quota-policies\x12\x99\x01\n" +
 	"\x16UpdateTokenQuotaPolicy\x12..ingate.admin.v1.UpdateTokenQuotaPolicyRequest\x1a!.ingate.admin.v1.TokenQuotaPolicy\",\x82\xd3\xe4\x93\x02&:\x01*\x1a!/api/v1/token-quota-policies/{id}\x12\x8b\x01\n" +
-	"\x16DeleteTokenQuotaPolicy\x12..ingate.admin.v1.DeleteTokenQuotaPolicyRequest\x1a\x16.google.protobuf.Empty\")\x82\xd3\xe4\x93\x02#*!/api/v1/token-quota-policies/{id}B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x16DeleteTokenQuotaPolicy\x12..ingate.admin.v1.DeleteTokenQuotaPolicyRequest\x1a\x16.google.protobuf.Empty\")\x82\xd3\xe4\x93\x02#*!/api/v1/token-quota-policies/{id}\x12\xb6\x01\n" +
+	"\x18GetCallerTokenQuotaUsage\x120.ingate.admin.v1.GetCallerTokenQuotaUsageRequest\x1a1.ingate.admin.v1.GetCallerTokenQuotaUsageResponse\"5\x82\xd3\xe4\x93\x02/\x12-/api/v1/callers/{caller_id}/token-quota-usageB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_token_quota_policy_proto_rawDescOnce sync.Once
@@ -702,50 +907,59 @@ func file_admin_v1_token_quota_policy_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_token_quota_policy_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_admin_v1_token_quota_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_admin_v1_token_quota_policy_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_admin_v1_token_quota_policy_proto_goTypes = []any{
-	(TokenQuotaPeriod)(0),                  // 0: ingate.admin.v1.TokenQuotaPeriod
-	(*TokenQuotaLimit)(nil),                // 1: ingate.admin.v1.TokenQuotaLimit
-	(*TokenQuotaPolicy)(nil),               // 2: ingate.admin.v1.TokenQuotaPolicy
-	(*ListTokenQuotaPoliciesRequest)(nil),  // 3: ingate.admin.v1.ListTokenQuotaPoliciesRequest
-	(*ListTokenQuotaPoliciesResponse)(nil), // 4: ingate.admin.v1.ListTokenQuotaPoliciesResponse
-	(*GetTokenQuotaPolicyRequest)(nil),     // 5: ingate.admin.v1.GetTokenQuotaPolicyRequest
-	(*CreateTokenQuotaPolicyRequest)(nil),  // 6: ingate.admin.v1.CreateTokenQuotaPolicyRequest
-	(*UpdateTokenQuotaPolicyRequest)(nil),  // 7: ingate.admin.v1.UpdateTokenQuotaPolicyRequest
-	(*DeleteTokenQuotaPolicyRequest)(nil),  // 8: ingate.admin.v1.DeleteTokenQuotaPolicyRequest
-	(*PolicyTarget)(nil),                   // 9: ingate.admin.v1.PolicyTarget
-	(ResourceState)(0),                     // 10: ingate.admin.v1.ResourceState
-	(*timestamppb.Timestamp)(nil),          // 11: google.protobuf.Timestamp
-	(*PolicyTargetRef)(nil),                // 12: ingate.admin.v1.PolicyTargetRef
-	(*emptypb.Empty)(nil),                  // 13: google.protobuf.Empty
+	(TokenQuotaPeriod)(0),                    // 0: ingate.admin.v1.TokenQuotaPeriod
+	(*TokenQuotaLimit)(nil),                  // 1: ingate.admin.v1.TokenQuotaLimit
+	(*TokenQuotaPolicy)(nil),                 // 2: ingate.admin.v1.TokenQuotaPolicy
+	(*ListTokenQuotaPoliciesRequest)(nil),    // 3: ingate.admin.v1.ListTokenQuotaPoliciesRequest
+	(*ListTokenQuotaPoliciesResponse)(nil),   // 4: ingate.admin.v1.ListTokenQuotaPoliciesResponse
+	(*GetTokenQuotaPolicyRequest)(nil),       // 5: ingate.admin.v1.GetTokenQuotaPolicyRequest
+	(*CreateTokenQuotaPolicyRequest)(nil),    // 6: ingate.admin.v1.CreateTokenQuotaPolicyRequest
+	(*UpdateTokenQuotaPolicyRequest)(nil),    // 7: ingate.admin.v1.UpdateTokenQuotaPolicyRequest
+	(*DeleteTokenQuotaPolicyRequest)(nil),    // 8: ingate.admin.v1.DeleteTokenQuotaPolicyRequest
+	(*GetCallerTokenQuotaUsageRequest)(nil),  // 9: ingate.admin.v1.GetCallerTokenQuotaUsageRequest
+	(*CallerTokenQuotaUsage)(nil),            // 10: ingate.admin.v1.CallerTokenQuotaUsage
+	(*GetCallerTokenQuotaUsageResponse)(nil), // 11: ingate.admin.v1.GetCallerTokenQuotaUsageResponse
+	(*PolicyTarget)(nil),                     // 12: ingate.admin.v1.PolicyTarget
+	(ResourceState)(0),                       // 13: ingate.admin.v1.ResourceState
+	(*timestamppb.Timestamp)(nil),            // 14: google.protobuf.Timestamp
+	(*PolicyTargetRef)(nil),                  // 15: ingate.admin.v1.PolicyTargetRef
+	(*emptypb.Empty)(nil),                    // 16: google.protobuf.Empty
 }
 var file_admin_v1_token_quota_policy_proto_depIdxs = []int32{
 	0,  // 0: ingate.admin.v1.TokenQuotaLimit.period:type_name -> ingate.admin.v1.TokenQuotaPeriod
-	9,  // 1: ingate.admin.v1.TokenQuotaPolicy.targets:type_name -> ingate.admin.v1.PolicyTarget
+	12, // 1: ingate.admin.v1.TokenQuotaPolicy.targets:type_name -> ingate.admin.v1.PolicyTarget
 	1,  // 2: ingate.admin.v1.TokenQuotaPolicy.limits:type_name -> ingate.admin.v1.TokenQuotaLimit
-	10, // 3: ingate.admin.v1.TokenQuotaPolicy.state:type_name -> ingate.admin.v1.ResourceState
-	11, // 4: ingate.admin.v1.TokenQuotaPolicy.created_at:type_name -> google.protobuf.Timestamp
-	11, // 5: ingate.admin.v1.TokenQuotaPolicy.updated_at:type_name -> google.protobuf.Timestamp
+	13, // 3: ingate.admin.v1.TokenQuotaPolicy.state:type_name -> ingate.admin.v1.ResourceState
+	14, // 4: ingate.admin.v1.TokenQuotaPolicy.created_at:type_name -> google.protobuf.Timestamp
+	14, // 5: ingate.admin.v1.TokenQuotaPolicy.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 6: ingate.admin.v1.ListTokenQuotaPoliciesResponse.policies:type_name -> ingate.admin.v1.TokenQuotaPolicy
-	12, // 7: ingate.admin.v1.CreateTokenQuotaPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	15, // 7: ingate.admin.v1.CreateTokenQuotaPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
 	1,  // 8: ingate.admin.v1.CreateTokenQuotaPolicyRequest.limits:type_name -> ingate.admin.v1.TokenQuotaLimit
-	12, // 9: ingate.admin.v1.UpdateTokenQuotaPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	15, // 9: ingate.admin.v1.UpdateTokenQuotaPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
 	1,  // 10: ingate.admin.v1.UpdateTokenQuotaPolicyRequest.limits:type_name -> ingate.admin.v1.TokenQuotaLimit
-	3,  // 11: ingate.admin.v1.TokenQuotaPolicyService.ListTokenQuotaPolicies:input_type -> ingate.admin.v1.ListTokenQuotaPoliciesRequest
-	5,  // 12: ingate.admin.v1.TokenQuotaPolicyService.GetTokenQuotaPolicy:input_type -> ingate.admin.v1.GetTokenQuotaPolicyRequest
-	6,  // 13: ingate.admin.v1.TokenQuotaPolicyService.CreateTokenQuotaPolicy:input_type -> ingate.admin.v1.CreateTokenQuotaPolicyRequest
-	7,  // 14: ingate.admin.v1.TokenQuotaPolicyService.UpdateTokenQuotaPolicy:input_type -> ingate.admin.v1.UpdateTokenQuotaPolicyRequest
-	8,  // 15: ingate.admin.v1.TokenQuotaPolicyService.DeleteTokenQuotaPolicy:input_type -> ingate.admin.v1.DeleteTokenQuotaPolicyRequest
-	4,  // 16: ingate.admin.v1.TokenQuotaPolicyService.ListTokenQuotaPolicies:output_type -> ingate.admin.v1.ListTokenQuotaPoliciesResponse
-	2,  // 17: ingate.admin.v1.TokenQuotaPolicyService.GetTokenQuotaPolicy:output_type -> ingate.admin.v1.TokenQuotaPolicy
-	2,  // 18: ingate.admin.v1.TokenQuotaPolicyService.CreateTokenQuotaPolicy:output_type -> ingate.admin.v1.TokenQuotaPolicy
-	2,  // 19: ingate.admin.v1.TokenQuotaPolicyService.UpdateTokenQuotaPolicy:output_type -> ingate.admin.v1.TokenQuotaPolicy
-	13, // 20: ingate.admin.v1.TokenQuotaPolicyService.DeleteTokenQuotaPolicy:output_type -> google.protobuf.Empty
-	16, // [16:21] is the sub-list for method output_type
-	11, // [11:16] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	0,  // 11: ingate.admin.v1.CallerTokenQuotaUsage.period:type_name -> ingate.admin.v1.TokenQuotaPeriod
+	14, // 12: ingate.admin.v1.CallerTokenQuotaUsage.started_at:type_name -> google.protobuf.Timestamp
+	14, // 13: ingate.admin.v1.CallerTokenQuotaUsage.resets_at:type_name -> google.protobuf.Timestamp
+	10, // 14: ingate.admin.v1.GetCallerTokenQuotaUsageResponse.usages:type_name -> ingate.admin.v1.CallerTokenQuotaUsage
+	3,  // 15: ingate.admin.v1.TokenQuotaPolicyService.ListTokenQuotaPolicies:input_type -> ingate.admin.v1.ListTokenQuotaPoliciesRequest
+	5,  // 16: ingate.admin.v1.TokenQuotaPolicyService.GetTokenQuotaPolicy:input_type -> ingate.admin.v1.GetTokenQuotaPolicyRequest
+	6,  // 17: ingate.admin.v1.TokenQuotaPolicyService.CreateTokenQuotaPolicy:input_type -> ingate.admin.v1.CreateTokenQuotaPolicyRequest
+	7,  // 18: ingate.admin.v1.TokenQuotaPolicyService.UpdateTokenQuotaPolicy:input_type -> ingate.admin.v1.UpdateTokenQuotaPolicyRequest
+	8,  // 19: ingate.admin.v1.TokenQuotaPolicyService.DeleteTokenQuotaPolicy:input_type -> ingate.admin.v1.DeleteTokenQuotaPolicyRequest
+	9,  // 20: ingate.admin.v1.TokenQuotaPolicyService.GetCallerTokenQuotaUsage:input_type -> ingate.admin.v1.GetCallerTokenQuotaUsageRequest
+	4,  // 21: ingate.admin.v1.TokenQuotaPolicyService.ListTokenQuotaPolicies:output_type -> ingate.admin.v1.ListTokenQuotaPoliciesResponse
+	2,  // 22: ingate.admin.v1.TokenQuotaPolicyService.GetTokenQuotaPolicy:output_type -> ingate.admin.v1.TokenQuotaPolicy
+	2,  // 23: ingate.admin.v1.TokenQuotaPolicyService.CreateTokenQuotaPolicy:output_type -> ingate.admin.v1.TokenQuotaPolicy
+	2,  // 24: ingate.admin.v1.TokenQuotaPolicyService.UpdateTokenQuotaPolicy:output_type -> ingate.admin.v1.TokenQuotaPolicy
+	16, // 25: ingate.admin.v1.TokenQuotaPolicyService.DeleteTokenQuotaPolicy:output_type -> google.protobuf.Empty
+	11, // 26: ingate.admin.v1.TokenQuotaPolicyService.GetCallerTokenQuotaUsage:output_type -> ingate.admin.v1.GetCallerTokenQuotaUsageResponse
+	21, // [21:27] is the sub-list for method output_type
+	15, // [15:21] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_token_quota_policy_proto_init() }
@@ -762,7 +976,7 @@ func file_admin_v1_token_quota_policy_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_token_quota_policy_proto_rawDesc), len(file_admin_v1_token_quota_policy_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   8,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

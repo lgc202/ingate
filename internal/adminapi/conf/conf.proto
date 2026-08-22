@@ -43,8 +43,15 @@ message Data {
     // tls 保护 Admin API 到 Analytics 的内部查询链路
     TLS tls = 3;
   }
+  message AIExtProc {
+    // addr 是 AI ExtProc 实时额度查询的内部 gRPC 地址
+    string addr = 1;
+    // timeout 限制 Admin API 等待单次实时额度查询的时间
+    google.protobuf.Duration timeout = 2;
+  }
   APIServer apiserver = 1;
   Analytics analytics = 2;
+  AIExtProc ai_ext_proc = 3;
 }
 
 message Logging {

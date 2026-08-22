@@ -33,6 +33,9 @@ service TokenQuotaPolicyService {
   rpc DeleteTokenQuotaPolicy(DeleteTokenQuotaPolicyRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {delete: "/api/v1/token-quota-policies/{id}"};
   }
+  rpc GetCallerTokenQuotaUsage(GetCallerTokenQuotaUsageRequest) returns (GetCallerTokenQuotaUsageResponse) {
+    option (google.api.http) = {get: "/api/v1/callers/{caller_id}/token-quota-usage"};
+  }
 }
 
 enum TokenQuotaPeriod {
@@ -108,4 +111,23 @@ message UpdateTokenQuotaPolicyRequest {
 message DeleteTokenQuotaPolicyRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}
+
+message GetCallerTokenQuotaUsageRequest {
+  string caller_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CallerTokenQuotaUsage {
+  string policy_id = 1;
+  string policy_name = 2;
+  TokenQuotaPeriod period = 3;
+  int64 used_tokens = 4;
+  int64 limit_tokens = 5;
+  int64 remaining_tokens = 6;
+  google.protobuf.Timestamp started_at = 7;
+  google.protobuf.Timestamp resets_at = 8;
+}
+
+message GetCallerTokenQuotaUsageResponse {
+  repeated CallerTokenQuotaUsage usages = 1;
 }

@@ -337,6 +337,97 @@ body { overflow-x: hidden; }
   font-size: 0.92rem;
 }
 
+.token-quota-usage-list {
+  display: grid;
+  gap: 10px;
+}
+
+.token-quota-usage-card {
+  overflow: hidden;
+  border: 1px solid #dfe3eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.token-quota-usage-card > header {
+  min-height: 48px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #edf0f4;
+  background: #fafbfe;
+}
+
+.token-quota-usage-card > header div {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.token-quota-usage-card > header strong { font-size: 0.8rem; }
+.token-quota-usage-card > header span { color: var(--muted); font-size: 0.68rem; }
+.token-quota-usage-card > header svg { width: 16px; color: #8991a1; }
+
+.token-quota-usage-periods {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.token-quota-usage-period {
+  min-width: 0;
+  padding: 12px 14px;
+  border-right: 1px solid #edf0f4;
+}
+
+.token-quota-usage-period:last-child { border-right: 0; }
+
+.token-quota-usage-summary,
+.token-quota-usage-reset {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.token-quota-usage-summary > div { min-width: 0; }
+.token-quota-usage-summary span { display: block; margin-bottom: 3px; color: var(--muted); font-size: 0.65rem; }
+.token-quota-usage-summary strong { display: block; overflow: hidden; color: #222936; font-size: 0.76rem; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
+.token-quota-usage-summary > div:last-child { text-align: right; }
+
+.token-quota-usage-track {
+  overflow: hidden;
+  height: 6px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: #e8edf5;
+}
+
+.token-quota-usage-track i { display: block; height: 100%; border-radius: inherit; background: #2d5ed2; }
+.token-quota-usage-period.is-warning .token-quota-usage-track i { background: #d88a2b; }
+.token-quota-usage-period.is-danger .token-quota-usage-track i { background: #c94b42; }
+
+.token-quota-usage-reset { margin-top: 6px; color: var(--muted); font-size: 0.62rem; font-variant-numeric: tabular-nums; }
+.token-quota-usage-reset time { text-align: right; }
+
+.token-quota-usage-state {
+  min-height: 54px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px dashed #dfe3eb;
+  border-radius: 9px;
+  color: var(--muted);
+  background: #fafbfc;
+  font-size: 0.72rem;
+}
+
+.token-quota-usage-state svg { width: 16px; }
+.token-quota-usage-state.is-error { color: #a33c35; border-color: #edcbc7; background: #fff8f7; }
+.token-quota-usage-state button { margin-left: auto; color: #2d5ed2; font-weight: 650; }
+
 .resource-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
