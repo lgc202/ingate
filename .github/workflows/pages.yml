@@ -64,12 +64,15 @@ jobs:
           fi
 
       - name: Assemble project site
-        run: cp -R _catalog/plugins _site/plugins
+        run: |
+          mkdir -p _publish
+          cp -R _site/. _publish/
+          cp -R _catalog/plugins _publish/plugins
 
       - name: Upload project site
         uses: actions/upload-pages-artifact@v4
         with:
-          path: _site
+          path: _publish
 
   deploy:
     name: Deploy project site
