@@ -20,6 +20,7 @@ enum PolicyTargetKind {
   POLICY_TARGET_KIND_UNSPECIFIED = 0;
   POLICY_TARGET_KIND_GATEWAY = 1;
   POLICY_TARGET_KIND_ROUTE = 2;
+  POLICY_TARGET_KIND_CALLER = 3;
 }
 
 // PolicyTargetRef 是创建和更新策略时提交的作用目标

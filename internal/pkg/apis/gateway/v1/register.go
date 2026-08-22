@@ -61,6 +61,12 @@ const (
 	ResourceCallers ResourceName = "callers"
 	// ResourceCallersStatus 表示 Caller status 子资源名
 	ResourceCallersStatus ResourceName = "callers/status"
+	// ResourceTokenQuotaPolicy 表示 TokenQuotaPolicy 单数资源名
+	ResourceTokenQuotaPolicy ResourceName = "tokenquotapolicy"
+	// ResourceTokenQuotaPolicies 表示 TokenQuotaPolicy 复数资源名
+	ResourceTokenQuotaPolicies ResourceName = "tokenquotapolicies"
+	// ResourceTokenQuotaPoliciesStatus 表示 TokenQuotaPolicy status 子资源名
+	ResourceTokenQuotaPoliciesStatus ResourceName = "tokenquotapolicies/status"
 )
 
 var (
@@ -95,6 +101,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&IPRestrictionPolicyList{},
 		&Caller{},
 		&CallerList{},
+		&TokenQuotaPolicy{},
+		&TokenQuotaPolicyList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil

@@ -13,6 +13,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	"github.com/lgc202/ingate/internal/pkg/extauthz"
 )
 
 const (
@@ -122,7 +123,12 @@ func aiExtProcGRPCService() *corev3.GrpcService {
 
 func aiExtProcMetadataOptions() *extprocv3.MetadataOptions {
 	return &extprocv3.MetadataOptions{
+		ForwardingNamespaces: &extprocv3.MetadataOptions_MetadataNamespaces{
+			// Caller 身份由前置 ext_authz 写入 Envoy，downstream ExtProc 必须显式请求该命名空间
+			Untyped: []string{extauthz.MetadataNamespace},
+		},
 		ReceivingNamespaces: &extprocv3.MetadataOptions_MetadataNamespaces{
+			// AI ExtProc 写回的模型映射和用量由 Envoy 保存，随后交给 ALS 记录
 			Untyped: []string{aiprotocol.MetadataNamespace},
 		},
 	}

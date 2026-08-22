@@ -1,7 +1,6 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import type {
   GovernancePolicy,
-  PolicyTargetKind,
   PolicyTargetOption,
   PolicyTargetRef,
 } from '@/domain/policy';
@@ -17,39 +16,43 @@ import {
 export function PolicyTargetSelect({
   options,
   value,
-	onChange,
+  label = '应用目标',
+  emptySummary = '暂不应用',
+  emptyMessage = '暂无可选目标',
+  onChange,
 }: {
   options: PolicyTargetOption[];
   value: PolicyTargetRef[];
+  label?: string;
+  emptySummary?: string;
+  emptyMessage?: string;
   onChange: (value: PolicyTargetRef[]) => void;
 }) {
   const selected = new Set(value.map(policyTargetKey));
   const labels = value.map((target) => `${policyTargetKindLabel(target.kind)} / ${policyTargetLabel(target, options)}`);
   const missingTargets = value.filter((target) => !options.some((option) => policyTargetKey(option) === policyTargetKey(target)));
+  const targetKinds = Array.from(new Set(options.map((option) => option.kind)));
 
   return (
     <SelectPopover
-      label="应用目标"
-      summary={labels.length > 0 ? labels.join('、') : '暂不应用到网关或路由'}
-      emptyMessage="暂无可选网关或路由"
+      label={label}
+      summary={labels.length > 0 ? labels.join('、') : emptySummary}
+      emptyMessage={emptyMessage}
       hasOptions={options.length > 0 || missingTargets.length > 0}
     >
       <>
-        {(['Gateway', 'Route'] as PolicyTargetKind[]).map((kind) => {
+        {targetKinds.map((kind) => {
           const group = options.filter((option) => option.kind === kind);
-          if (group.length === 0) {
-            return null;
-          }
           return (
             <div className="policy-select-group" key={kind}>
               <div className="policy-select-group-title">{policyTargetKindLabel(kind)}</div>
               {group.map((option) => {
                 const key = policyTargetKey(option);
                 const checked = selected.has(key);
-				return (
+                return (
                   <button
                     key={key}
-					className={checked ? 'selected' : ''}
+                    className={checked ? 'selected' : ''}
                     type="button"
                     role="option"
                     aria-selected={checked}
@@ -60,7 +63,7 @@ export function PolicyTargetSelect({
                   >
                     <span className="multi-check">{checked ? '✓' : ''}</span>
                     <strong>{option.name}</strong>
-					<small>{policyTargetKindLabel(option.kind)}</small>
+                    <small>{policyTargetKindLabel(option.kind)}</small>
                   </button>
                 );
               })}

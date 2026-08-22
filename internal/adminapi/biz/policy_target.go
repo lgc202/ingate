@@ -18,6 +18,11 @@ type RouteGetter interface {
 	Get(ctx context.Context, routeID string) (*resource.Route, error)
 }
 
+// CallerGetter 定义调用方策略目标解析所需的查询能力
+type CallerGetter interface {
+	Get(ctx context.Context, callerID string) (*resource.Caller, error)
+}
+
 type policyTargetKey struct {
 	Kind resource.Kind
 	ID   string
@@ -38,10 +43,16 @@ func (n PolicyTargetNames) contains(ref resource.PolicyTargetRef) bool {
 	return exists
 }
 
-// PolicyTargetResolver 解析 Gateway 和 Route 策略作用目标
+// PolicyTargetResolver 解析策略允许引用的资源并返回展示名称
 type PolicyTargetResolver struct {
 	gateways GatewayGetter
 	routes   RouteGetter
+	callers  CallerGetter
+}
+
+// NewCallerPolicyTargetResolver 创建只解析 Caller 的策略目标解析器
+func NewCallerPolicyTargetResolver(callers CallerGetter) *PolicyTargetResolver {
+	return &PolicyTargetResolver{callers: callers}
 }
 
 // NewPolicyTargetResolver 创建策略作用目标解析器
@@ -64,8 +75,10 @@ func (r *PolicyTargetResolver) Resolve(ctx context.Context, refs []resource.Poli
 			return PolicyTargetNames{}, NewRuleViolation(fmt.Sprintf("网关 %q 不存在", ref.Name))
 		case resource.KindRoute:
 			return PolicyTargetNames{}, NewRuleViolation(fmt.Sprintf("路由 %q 不存在", ref.Name))
+		case resource.KindCaller:
+			return PolicyTargetNames{}, NewRuleViolation(fmt.Sprintf("调用方 %q 不存在", ref.Name))
 		default:
-			return PolicyTargetNames{}, NewRuleViolation("策略作用目标只支持网关或路由")
+			return PolicyTargetNames{}, NewRuleViolation("策略作用目标类型不正确")
 		}
 	}
 	return names, nil
@@ -100,6 +113,15 @@ func (r *PolicyTargetResolver) DisplayNames(ctx context.Context, refs []resource
 				return PolicyTargetNames{}, err
 			}
 			names.values[key] = route.Spec.DisplayName
+		case resource.KindCaller:
+			caller, err := r.callers.Get(ctx, ref.Name)
+			if err != nil {
+				if errors.Is(err, ErrResourceNotFound) {
+					continue
+				}
+				return PolicyTargetNames{}, err
+			}
+			names.values[key] = caller.Spec.DisplayName
 		}
 	}
 	return names, nil

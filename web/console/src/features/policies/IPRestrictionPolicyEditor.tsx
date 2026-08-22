@@ -42,6 +42,7 @@ export function IPRestrictionPolicyEditor({
   validation: IPRestrictionPolicyValidation;
   onChange: (draft: IPRestrictionPolicyDraft) => void;
 }) {
+  const trafficTargets = targets.filter((target) => target.kind === 'Gateway' || target.kind === 'Route');
   return (
     <div className="editor-main-stack">
       <section className="form-section">
@@ -65,7 +66,7 @@ export function IPRestrictionPolicyEditor({
           <h3>应用目标</h3>
         </div>
         <div className="policy-editor-grid">
-          <PolicyTargetSelect options={targets} value={draft.targets} onChange={(nextTargets) => onChange({ ...draft, targets: nextTargets })} />
+          <PolicyTargetSelect options={trafficTargets} value={draft.targets} onChange={(nextTargets) => onChange({ ...draft, targets: nextTargets })} />
         </div>
       </section>
 

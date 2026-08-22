@@ -17,6 +17,7 @@ import (
 	ratelimitbiz "github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	routebiz "github.com/lgc202/ingate/internal/adminapi/biz/route"
+	tokenquotabiz "github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
 	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	upstreambiz "github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
@@ -31,6 +32,7 @@ import (
 	ratelimitservice "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	requestservice "github.com/lgc202/ingate/internal/adminapi/service/request"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
+	tokenquotaservice "github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
 	trafficservice "github.com/lgc202/ingate/internal/adminapi/service/traffic"
 	upstreamservice "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 )
@@ -48,6 +50,7 @@ var bizProviderSet = wire.NewSet(
 	iprestrictionbiz.NewService,
 	requestbiz.NewService,
 	trafficbiz.NewService,
+	tokenquotabiz.NewService,
 )
 
 // serviceProviderSet 汇总 Admin API 的协议服务
@@ -62,6 +65,7 @@ var serviceProviderSet = wire.NewSet(
 	iprestrictionservice.NewService,
 	requestservice.NewService,
 	trafficservice.NewService,
+	tokenquotaservice.NewService,
 	healthservice.NewService,
 )
 

@@ -85,6 +85,7 @@ const (
 	PolicyTargetKind_POLICY_TARGET_KIND_UNSPECIFIED PolicyTargetKind = 0
 	PolicyTargetKind_POLICY_TARGET_KIND_GATEWAY     PolicyTargetKind = 1
 	PolicyTargetKind_POLICY_TARGET_KIND_ROUTE       PolicyTargetKind = 2
+	PolicyTargetKind_POLICY_TARGET_KIND_CALLER      PolicyTargetKind = 3
 )
 
 // Enum value maps for PolicyTargetKind.
@@ -93,11 +94,13 @@ var (
 		0: "POLICY_TARGET_KIND_UNSPECIFIED",
 		1: "POLICY_TARGET_KIND_GATEWAY",
 		2: "POLICY_TARGET_KIND_ROUTE",
+		3: "POLICY_TARGET_KIND_CALLER",
 	}
 	PolicyTargetKind_value = map[string]int32{
 		"POLICY_TARGET_KIND_UNSPECIFIED": 0,
 		"POLICY_TARGET_KIND_GATEWAY":     1,
 		"POLICY_TARGET_KIND_ROUTE":       2,
+		"POLICY_TARGET_KIND_CALLER":      3,
 	}
 )
 
@@ -277,11 +280,12 @@ const file_admin_v1_common_proto_rawDesc = "" +
 	"\bDISABLED\x10\x01\x12\v\n" +
 	"\aPENDING\x10\x02\x12\t\n" +
 	"\x05READY\x10\x03\x12\t\n" +
-	"\x05ERROR\x10\x04*t\n" +
+	"\x05ERROR\x10\x04*\x93\x01\n" +
 	"\x10PolicyTargetKind\x12\"\n" +
 	"\x1ePOLICY_TARGET_KIND_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aPOLICY_TARGET_KIND_GATEWAY\x10\x01\x12\x1c\n" +
-	"\x18POLICY_TARGET_KIND_ROUTE\x10\x02B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x18POLICY_TARGET_KIND_ROUTE\x10\x02\x12\x1d\n" +
+	"\x19POLICY_TARGET_KIND_CALLER\x10\x03B*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_common_proto_rawDescOnce sync.Once
