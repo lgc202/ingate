@@ -1,0 +1,116 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// AIUsageService 提供控制台模型调用与 Token 用量分析。
+service AIUsageService {
+  // GetAIUsageAnalysis 查询同一范围内的汇总、趋势与排名。
+  rpc GetAIUsageAnalysis(GetAIUsageAnalysisRequest) returns (GetAIUsageAnalysisResponse) {
+    option (google.api.http) = {get: "/api/v1/ai-usage-analysis"};
+  }
+}
+
+// AIUsageBreakdownDimension 是模型用量排名支持的业务维度。
+enum AIUsageBreakdownDimension {
+  // AI_USAGE_BREAKDOWN_DIMENSION_UNSPECIFIED 表示使用默认的调用方维度。
+  AI_USAGE_BREAKDOWN_DIMENSION_UNSPECIFIED = 0;
+  // AI_USAGE_BREAKDOWN_DIMENSION_CALLER 按调用方排名。
+  AI_USAGE_BREAKDOWN_DIMENSION_CALLER = 1;
+  // AI_USAGE_BREAKDOWN_DIMENSION_ROUTE 按 AI 路由排名。
+  AI_USAGE_BREAKDOWN_DIMENSION_ROUTE = 2;
+  // AI_USAGE_BREAKDOWN_DIMENSION_CLIENT_MODEL 按客户端模型名排名。
+  AI_USAGE_BREAKDOWN_DIMENSION_CLIENT_MODEL = 3;
+  // AI_USAGE_BREAKDOWN_DIMENSION_SERVICE 按实际承载调用的模型服务排名。
+  AI_USAGE_BREAKDOWN_DIMENSION_SERVICE = 4;
+  // AI_USAGE_BREAKDOWN_DIMENSION_ACTUAL_MODEL 按模型服务使用的实际模型名排名。
+  AI_USAGE_BREAKDOWN_DIMENSION_ACTUAL_MODEL = 5;
+}
+
+// AIUsageBreakdownOrder 是模型用量排名支持的排序依据。
+enum AIUsageBreakdownOrder {
+  // AI_USAGE_BREAKDOWN_ORDER_UNSPECIFIED 表示按模型调用次数排序。
+  AI_USAGE_BREAKDOWN_ORDER_UNSPECIFIED = 0;
+  // AI_USAGE_BREAKDOWN_ORDER_CALL_COUNT 按模型调用次数从高到低排序。
+  AI_USAGE_BREAKDOWN_ORDER_CALL_COUNT = 1;
+  // AI_USAGE_BREAKDOWN_ORDER_TOTAL_TOKENS 按总 Token 数从高到低排序。
+  AI_USAGE_BREAKDOWN_ORDER_TOTAL_TOKENS = 2;
+}
+
+// GetAIUsageAnalysisRequest 是模型用量分析的查询范围。
+message GetAIUsageAnalysisRequest {
+  // start_time 是查询范围起点，包含该时刻。
+  google.protobuf.Timestamp start_time = 1;
+  // end_time 是查询范围终点，不包含该时刻。
+  google.protobuf.Timestamp end_time = 2;
+  // gateway_id 只统计经过指定网关的模型调用。
+  string gateway_id = 3 [json_name = "gatewayID"];
+  // caller_id 只统计归属于指定调用方的模型调用。
+  string caller_id = 4 [json_name = "callerID"];
+  // route_id 只统计命中指定 AI 路由的模型调用。
+  string route_id = 5 [json_name = "routeID"];
+  // client_model 只统计调用方请求指定稳定模型名的调用。
+  string client_model = 6;
+  // service_id 只统计由指定模型服务承载的调用。
+  string service_id = 7 [json_name = "serviceID"];
+  // actual_model 只统计模型服务使用指定真实模型名的调用。
+  string actual_model = 8;
+  // breakdown_dimension 指定排名所使用的业务维度。
+  AIUsageBreakdownDimension breakdown_dimension = 9 [(buf.validate.field).enum.defined_only = true];
+  // breakdown_limit 是返回的最大项目数。
+  uint32 breakdown_limit = 10 [(buf.validate.field).uint32.lte = 200];
+  // breakdown_order 指定排名依据。
+  AIUsageBreakdownOrder breakdown_order = 11 [(buf.validate.field).enum.defined_only = true];
+}
+
+// AIUsageMetrics 是一个范围内的模型调用和 Token 原始计数。
+message AIUsageMetrics {
+  // call_count 是确实尝试模型服务的调用次数。
+  uint64 call_count = 1;
+  // normal_response_count 是获得 1xx 到 3xx HTTP 响应的调用次数。
+  uint64 normal_response_count = 2;
+  // token_reported_call_count 是可以得到完整总 Token 的调用次数。
+  // total_tokens 非空，或 input_tokens 和 output_tokens 均非空时计入。
+  uint64 token_reported_call_count = 3;
+  // input_tokens 是模型服务已报告的输入 Token 总数。
+  uint64 input_tokens = 4;
+  // output_tokens 是模型服务已报告的输出 Token 总数。
+  uint64 output_tokens = 5;
+  // total_tokens 是模型服务已报告或可由完整输入输出用量合成的总 Token 数。
+  uint64 total_tokens = 6;
+}
+
+// AIUsageAnalysisPoint 是一个时间段内的模型用量统计。
+message AIUsageAnalysisPoint {
+  // started_at 是时间段起点。
+  google.protobuf.Timestamp started_at = 1;
+  // metrics 是该时间段内的原始计数。
+  AIUsageMetrics metrics = 2;
+}
+
+// AIUsageBreakdownItem 是一个业务维度值的模型用量统计。
+message AIUsageBreakdownItem {
+  // dimension_value 是资源 ID 或模型名，由 breakdown_dimension 决定具体语义。
+  string dimension_value = 1;
+  // metrics 是该维度值的原始计数。
+  AIUsageMetrics metrics = 2;
+}
+
+// GetAIUsageAnalysisResponse 是控制台一次展示所需的模型用量分析结果。
+message GetAIUsageAnalysisResponse {
+  // summary 是整个查询范围的汇总。
+  AIUsageMetrics summary = 1;
+  // trend 是按时间递增排列的趋势点。
+  repeated AIUsageAnalysisPoint trend = 2;
+  // breakdown_dimension 是本次排名使用的业务维度。
+  AIUsageBreakdownDimension breakdown_dimension = 3;
+  // breakdown 是按指定依据倒序排列的用量统计。
+  repeated AIUsageBreakdownItem breakdown = 4;
+  // breakdown_order 是本次排名使用的排序依据。
+  AIUsageBreakdownOrder breakdown_order = 5;
+}

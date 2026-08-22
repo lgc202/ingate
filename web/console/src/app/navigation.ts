@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bot,
   ChartNoAxesCombined,
   KeyRound,
   Layers3,
@@ -48,6 +49,7 @@ export const navigation: NavGroup[] = [
     items: [
       { key: 'requests', label: '请求记录', to: '/requests', icon: Activity },
       { key: 'analysis', label: '流量分析', to: '/analysis', icon: ChartNoAxesCombined },
+      { key: 'ai-usage', label: 'AI 用量', to: '/ai-usage', icon: Bot },
     ],
   },
 ];

@@ -1,0 +1,129 @@
+syntax = "proto3";
+
+package ingate.analytics.v1;
+
+import "analytics/v1/traffic.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/analytics/v1;v1";
+
+// AIUsageService 向管理面提供模型调用与 Token 用量聚合查询。
+service AIUsageService {
+  // GetAIUsageTrend 按固定时间粒度聚合模型调用和 Token 趋势。
+  rpc GetAIUsageTrend(GetAIUsageTrendRequest) returns (GetAIUsageTrendResponse);
+  // ListAIUsageBreakdown 按一个业务维度聚合模型调用和 Token 用量。
+  rpc ListAIUsageBreakdown(ListAIUsageBreakdownRequest) returns (ListAIUsageBreakdownResponse);
+}
+
+// AIUsageDimension 是模型用量分布支持的业务维度。
+enum AIUsageDimension {
+  // AI_USAGE_DIMENSION_UNSPECIFIED 表示未指定维度。
+  AI_USAGE_DIMENSION_UNSPECIFIED = 0;
+  // AI_USAGE_DIMENSION_CALLER 按调用方聚合。
+  AI_USAGE_DIMENSION_CALLER = 1;
+  // AI_USAGE_DIMENSION_ROUTE 按 AI Route 聚合。
+  AI_USAGE_DIMENSION_ROUTE = 2;
+  // AI_USAGE_DIMENSION_CLIENT_MODEL 按调用方使用的稳定模型名聚合。
+  AI_USAGE_DIMENSION_CLIENT_MODEL = 3;
+  // AI_USAGE_DIMENSION_UPSTREAM 按实际承载调用的 Upstream 聚合。
+  AI_USAGE_DIMENSION_UPSTREAM = 4;
+  // AI_USAGE_DIMENSION_UPSTREAM_MODEL 按线路配置的真实模型名聚合。
+  AI_USAGE_DIMENSION_UPSTREAM_MODEL = 5;
+}
+
+// AIUsageBreakdownOrder 是模型用量分布支持的排序依据。
+enum AIUsageBreakdownOrder {
+  // AI_USAGE_BREAKDOWN_ORDER_UNSPECIFIED 表示按模型调用次数排序。
+  AI_USAGE_BREAKDOWN_ORDER_UNSPECIFIED = 0;
+  // AI_USAGE_BREAKDOWN_ORDER_CALL_COUNT 按模型调用次数从高到低排序。
+  AI_USAGE_BREAKDOWN_ORDER_CALL_COUNT = 1;
+  // AI_USAGE_BREAKDOWN_ORDER_TOTAL_TOKENS 按总 Token 数从高到低排序。
+  AI_USAGE_BREAKDOWN_ORDER_TOTAL_TOKENS = 2;
+}
+
+// AIUsageFilter 是模型用量聚合查询的结构化过滤条件。
+message AIUsageFilter {
+  // start_time 是查询时间范围的起点，包含该时刻并且必须对齐到整分钟。
+  google.protobuf.Timestamp start_time = 1;
+  // end_time 是查询时间范围的终点，不包含该时刻并且必须对齐到整分钟。
+  google.protobuf.Timestamp end_time = 2;
+  // gateway_id 只统计经过指定 Gateway 的模型调用。
+  string gateway_id = 3;
+  // caller_id 只统计归属于指定 Caller 的模型调用。
+  string caller_id = 4;
+  // route_id 只统计命中指定 AI Route 的模型调用。
+  string route_id = 5;
+  // client_model 只统计调用方请求指定稳定模型名的调用。
+  string client_model = 6;
+  // upstream_id 只统计由指定 Upstream 承载的模型调用。
+  string upstream_id = 7;
+  // upstream_model 只统计线路配置为指定真实模型名的调用。
+  string upstream_model = 8;
+}
+
+// AIUsageMetrics 是一个范围内的模型调用和 Token 原始计数。
+message AIUsageMetrics {
+  // call_count 是确实尝试模型 Service 的调用次数。
+  uint64 call_count = 1;
+  // normal_response_count 是获得 1xx 到 3xx HTTP 响应的调用次数。
+  uint64 normal_response_count = 2;
+  // token_reported_call_count 是可以得到完整总 Token 的调用次数。
+  // total_tokens 非空，或 input_tokens 和 output_tokens 均非空时计入。
+  uint64 token_reported_call_count = 3;
+  // input_tokens 是模型服务已报告的输入 Token 总数。
+  uint64 input_tokens = 4;
+  // output_tokens 是模型服务已报告的输出 Token 总数。
+  uint64 output_tokens = 5;
+  // total_tokens 是模型服务已报告或可由完整输入输出用量合成的总 Token 数。
+  uint64 total_tokens = 6;
+}
+
+// GetAIUsageTrendRequest 是模型用量趋势查询参数。
+message GetAIUsageTrendRequest {
+  // filter 限定查询时间和模型调用范围。
+  AIUsageFilter filter = 1;
+  // bucket 指定每个趋势数据点覆盖的时间粒度。
+  TimeBucket bucket = 2;
+}
+
+// AIUsageTrendPoint 是单个时间段内的模型用量统计。
+message AIUsageTrendPoint {
+  // started_at 是该时间段的起始时刻。
+  google.protobuf.Timestamp started_at = 1;
+  // metrics 是该时间段内的原始计数。
+  AIUsageMetrics metrics = 2;
+}
+
+// GetAIUsageTrendResponse 是按时间递增排列的模型用量趋势。
+message GetAIUsageTrendResponse {
+  // summary 是整个查询时间范围的汇总统计。
+  AIUsageMetrics summary = 1;
+  // points 是查询时间范围内存在模型调用的时间段。
+  repeated AIUsageTrendPoint points = 2;
+}
+
+// ListAIUsageBreakdownRequest 是模型用量分布查询参数。
+message ListAIUsageBreakdownRequest {
+  // filter 限定查询时间和模型调用范围。
+  AIUsageFilter filter = 1;
+  // dimension 指定聚合维度。
+  AIUsageDimension dimension = 2;
+  // limit 是返回的最大项目数。
+  uint32 limit = 3;
+  // order 指定结果排序依据。
+  AIUsageBreakdownOrder order = 4;
+}
+
+// AIUsageBreakdownItem 是一个维度值的模型用量统计。
+message AIUsageBreakdownItem {
+  // dimension_value 是资源 ID 或模型名，由 dimension 决定具体语义。
+  string dimension_value = 1;
+  // metrics 是该维度值的原始计数。
+  AIUsageMetrics metrics = 2;
+}
+
+// ListAIUsageBreakdownResponse 是按指定依据倒序排列的模型用量分布。
+message ListAIUsageBreakdownResponse {
+  // items 是查询结果中的模型用量统计。
+  repeated AIUsageBreakdownItem items = 1;
+}

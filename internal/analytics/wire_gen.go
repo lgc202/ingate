@@ -8,11 +8,13 @@ package analytics
 
 import (
 	"github.com/go-kratos/kratos/v3"
+	"github.com/lgc202/ingate/internal/analytics/biz/aiusage"
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 	"github.com/lgc202/ingate/internal/analytics/biz/traffic"
 	"github.com/lgc202/ingate/internal/analytics/conf"
 	"github.com/lgc202/ingate/internal/analytics/data"
 	"github.com/lgc202/ingate/internal/analytics/server"
+	aiusage2 "github.com/lgc202/ingate/internal/analytics/service/aiusage"
 	request2 "github.com/lgc202/ingate/internal/analytics/service/request"
 	traffic2 "github.com/lgc202/ingate/internal/analytics/service/traffic"
 	"log/slog"
@@ -32,11 +34,13 @@ func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_ClickHou
 		return nil, nil, err
 	}
 	httpServer := server.NewHTTPServer(confServer, requestConsumer, store)
-	query := request.NewQuery(store)
-	service := request2.NewService(query)
+	query := aiusage.NewQuery(store)
+	service := aiusage2.NewService(query)
+	requestQuery := request.NewQuery(store)
+	requestService := request2.NewService(requestQuery)
 	trafficQuery := traffic.NewQuery(store)
 	trafficService := traffic2.NewService(trafficQuery)
-	grpcServer, err := server.NewGRPCServer(confServer, service, trafficService)
+	grpcServer, err := server.NewGRPCServer(confServer, service, requestService, trafficService)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
