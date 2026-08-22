@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { SelectPopover } from '@/components/ui';
 import type {
   GovernancePolicy,
   PolicyTargetOption,
@@ -44,15 +44,15 @@ export function PolicyTargetSelect({
         {targetKinds.map((kind) => {
           const group = options.filter((option) => option.kind === kind);
           return (
-            <div className="policy-select-group" key={kind}>
-              <div className="policy-select-group-title">{policyTargetKindLabel(kind)}</div>
+            <div className="resource-select-group" key={kind}>
+              <div className="resource-select-group-title">{policyTargetKindLabel(kind)}</div>
               {group.map((option) => {
                 const key = policyTargetKey(option);
                 const checked = selected.has(key);
                 return (
                   <button
                     key={key}
-                    className={checked ? 'selected' : ''}
+                    className={`resource-select-option${checked ? ' selected' : ''}`}
                     type="button"
                     role="option"
                     aria-selected={checked}
@@ -71,14 +71,14 @@ export function PolicyTargetSelect({
           );
         })}
         {missingTargets.length > 0 ? (
-          <div className="policy-select-group">
-            <div className="policy-select-group-title">已失效目标</div>
+          <div className="resource-select-group">
+            <div className="resource-select-group-title">已失效目标</div>
             {missingTargets.map((target) => {
               const key = policyTargetKey(target);
               return (
                 <button
                   key={key}
-                  className="selected"
+                  className="resource-select-option selected"
                   type="button"
                   role="option"
                   aria-selected="true"
@@ -123,7 +123,7 @@ export function GovernancePolicySelect({
         return (
           <button
             key={key}
-            className={checked ? 'selected' : ''}
+            className={`resource-select-option${checked ? ' selected' : ''}`}
             type="button"
             role="option"
             aria-selected={checked}
@@ -137,69 +137,5 @@ export function GovernancePolicySelect({
         );
       })}
     </SelectPopover>
-  );
-}
-
-function SelectPopover({
-  label,
-  summary,
-  emptyMessage,
-  hasOptions,
-  children,
-}: {
-  label: string;
-  summary: string;
-  emptyMessage: string;
-  hasOptions: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const labelID = useId();
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const closeOnOutsideClick = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', closeOnOutsideClick);
-    document.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.removeEventListener('mousedown', closeOnOutsideClick);
-      document.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [open]);
-
-  return (
-    <div className="field field-wide">
-      <label id={labelID}>{label}</label>
-      <div ref={rootRef} className={`policy-select ${open ? 'open' : ''}`.trim()}>
-        <button
-          className="policy-select-trigger"
-          type="button"
-          aria-labelledby={labelID}
-          aria-haspopup="listbox"
-          aria-expanded={open}
-          onClick={() => setOpen((current) => !current)}
-        >
-          <span>{summary}</span>
-          <span aria-hidden="true">⌄</span>
-        </button>
-        {open ? (
-          <div className="policy-select-menu" role="listbox" aria-label={label}>
-            {hasOptions ? children : <div className="policy-select-empty">{emptyMessage}</div>}
-          </div>
-        ) : null}
-      </div>
-    </div>
   );
 }
