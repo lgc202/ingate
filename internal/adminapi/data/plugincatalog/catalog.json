@@ -10,7 +10,7 @@
       "sourceUrl": "https://github.com/lgc202/ingate/tree/main/plugins/transformer",
       "releases": [
         {
-          "version": "1.0.0",
+          "version": "1.0.1",
           "minIngateVersion": "0.1.0",
           "artifact": {
             "repository": "ghcr.io/lgc202/ingate-plugin-transformer",
