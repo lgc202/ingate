@@ -659,11 +659,11 @@ body { overflow-x: hidden; }
   font-size: 0.8rem;
 }
 
-.policy-select {
+.resource-select {
   position: relative;
 }
 
-.policy-select-trigger {
+.resource-select-trigger {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
@@ -679,19 +679,31 @@ body { overflow-x: hidden; }
   text-align: left;
 }
 
-.policy-select-trigger > span:first-child {
+.resource-select-trigger > span:first-child {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.policy-select.open .policy-select-trigger {
+.resource-select-trigger > svg {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  color: #6f7785;
+  transition: transform 150ms ease;
+}
+
+.resource-select.open .resource-select-trigger {
   border-color: rgba(45, 94, 210, 0.56);
   box-shadow: 0 0 0 3px rgba(45, 94, 210, 0.1);
 }
 
-.policy-select-menu {
+.resource-select.open .resource-select-trigger > svg {
+  transform: rotate(180deg);
+}
+
+.resource-select-menu {
   position: absolute;
   z-index: 30;
   top: calc(100% + 6px);
@@ -706,13 +718,26 @@ body { overflow-x: hidden; }
   padding: 6px;
 }
 
-.policy-select-group + .policy-select-group {
+.resource-select-search {
+  position: sticky;
+  z-index: 1;
+  top: -6px;
+  padding: 4px 3px 8px;
+  border-bottom: 1px solid #edf0f5;
+  background: #fff;
+}
+
+.resource-select-search .resource-search {
+  width: 100%;
+}
+
+.resource-select-group + .resource-select-group {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid #edf0f5;
 }
 
-.policy-select-group-title {
+.resource-select-group-title {
   padding: 5px 9px 4px;
   color: var(--muted);
   font-size: 0.72rem;
@@ -720,14 +745,14 @@ body { overflow-x: hidden; }
   letter-spacing: 0.04em;
 }
 
-.policy-select-empty {
+.resource-select-empty {
   padding: 14px 10px;
   color: var(--muted);
   font-size: 0.82rem;
   text-align: center;
 }
 
-.policy-select-menu button {
+.resource-select-option {
   width: 100%;
   min-height: 48px;
   border: 0;
@@ -743,21 +768,127 @@ body { overflow-x: hidden; }
   text-align: left;
 }
 
-.policy-select-menu button:hover,
-.policy-select-menu button.selected {
+.resource-select-option:hover,
+.resource-select-option.selected {
   background: #eef3ff;
 }
 
-.policy-select-menu strong,
-.policy-select-menu small {
+.resource-select-option strong,
+.resource-select-option small {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.policy-select-menu small {
+.resource-select-option small {
   color: var(--muted);
+}
+
+.policy-create {
+  position: relative;
+}
+
+.policy-create-chevron {
+  margin-left: 2px;
+  transition: transform 150ms ease;
+}
+
+.policy-create-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.policy-create-menu {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 310px;
+  max-height: min(520px, calc(100vh - 120px));
+  overflow-y: auto;
+  border: 1px solid #dfe3eb;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 20px 44px rgba(30, 41, 59, 0.18);
+}
+
+.policy-create-menu-title {
+  padding: 12px 14px 9px;
+  color: #303846;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.policy-create-group {
+  padding: 5px 7px 8px;
+}
+
+.policy-create-group + .policy-create-group {
+  border-top: 1px solid #edf0f5;
+}
+
+.policy-create-group-title {
+  padding: 4px 7px 5px;
+  color: #858b96;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.policy-create-group > button {
+  width: 100%;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  color: #273142;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.policy-create-group > button:hover {
+  background: #f2f5ff;
+}
+
+.policy-create-group > button > span:last-child {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.policy-create-group strong,
+.policy-create-group small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.policy-create-group strong {
+  font-size: 0.78rem;
+}
+
+.policy-create-group small {
+  color: #737b89;
+  font-size: 0.7rem;
+}
+
+.policy-create-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #3154c5;
+  background: #eaf0ff;
+}
+
+.policy-create-icon svg {
+  width: 17px;
+  height: 17px;
 }
 
 .governance-card {

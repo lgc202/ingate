@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, Gauge, Plus, ShieldCheck } from 'lucide-react';
 import {
   deleteIPRestrictionPolicy,
   deleteTokenQuotaPolicy,
@@ -24,7 +25,7 @@ import {
   Toast,
 } from '@/components/ui';
 import { formatDateTime, resourceStateLabel, type ResourceState } from '@/domain/common';
-import type { GovernancePolicy, PolicyTargetOption } from '@/domain/policy';
+import type { GovernancePolicy, GovernancePolicyKind, PolicyTargetOption } from '@/domain/policy';
 import { governancePolicyStatusLabel, policyKindLabel, policyStatusTone, policyTargetKindLabel, policyTargetLabel } from '@/domain/policy';
 import {
   createIPRestrictionPolicyDraft,
@@ -44,14 +45,16 @@ import {
 
 type PolicyEnabledFilter = 'all' | 'enabled' | 'disabled';
 type PolicyStateFilter = 'all' | Exclude<ResourceState, 'Disabled'> | 'Unapplied';
+type PolicyKindFilter = 'all' | GovernancePolicyKind;
 
 interface PolicyFilters {
   query: string;
+  kind: PolicyKindFilter;
   enabled: PolicyEnabledFilter;
   state: PolicyStateFilter;
 }
 
-const emptyPolicyFilters = (): PolicyFilters => ({ query: '', enabled: 'all', state: 'all' });
+const emptyPolicyFilters = (): PolicyFilters => ({ query: '', kind: 'all', enabled: 'all', state: 'all' });
 
 type PolicyEditor =
   | { kind: 'IPRestrictionPolicy'; draft: IPRestrictionPolicyDraft }
@@ -93,7 +96,8 @@ export function PolicyPage() {
   const allPolicies = data.policies;
   const normalizedQuery = filters.query.trim().toLowerCase();
   const visiblePolicies = allPolicies.filter((policy) => (
-    (filters.enabled === 'all' || (filters.enabled === 'enabled' && policy.enabled) || (filters.enabled === 'disabled' && !policy.enabled))
+    (filters.kind === 'all' || policy.kind === filters.kind)
+    && (filters.enabled === 'all' || (filters.enabled === 'enabled' && policy.enabled) || (filters.enabled === 'disabled' && !policy.enabled))
     && policyMatchesState(policy, filters.state)
     && `${policy.name} ${policy.summary} ${policy.targets.map((target) => policyTargetLabel(target, data.targets)).join(' ')}`.toLowerCase().includes(normalizedQuery)
   ));
@@ -158,10 +162,12 @@ export function PolicyPage() {
   return (
     <PageFrame
       title="策略"
-      actions={<>
-        <Button variant="soft" onClick={() => { setShowValidation(false); setEditor({ kind: 'IPRestrictionPolicy', draft: createIPRestrictionPolicyDraft() }); }}>+ IP 访问限制</Button>
-        <Button onClick={() => { setShowValidation(false); setEditor({ kind: 'TokenQuotaPolicy', draft: createTokenQuotaPolicyDraft() }); }}>+ Token 额度</Button>
-      </>}
+      actions={<CreatePolicyMenu onSelect={(kind) => {
+        setShowValidation(false);
+        setEditor(kind === 'IPRestrictionPolicy'
+          ? { kind, draft: createIPRestrictionPolicyDraft() }
+          : { kind, draft: createTokenQuotaPolicyDraft() });
+      }} />}
     >
       <div className="space-y-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -179,6 +185,13 @@ export function PolicyPage() {
           >
             <ResourceFilterField label="关键词">
               <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索策略或应用目标" />
+            </ResourceFilterField>
+            <ResourceFilterField label="策略类型">
+              <select className="select" value={filterDraft.kind} onChange={(event) => setFilterDraft((current) => ({ ...current, kind: event.target.value as PolicyKindFilter }))}>
+                <option value="all">全部策略类型</option>
+                <option value="IPRestrictionPolicy">IP 访问限制</option>
+                <option value="TokenQuotaPolicy">Token 额度</option>
+              </select>
             </ResourceFilterField>
             <ResourceFilterField label="启用状态">
               <select className="select" value={filterDraft.enabled} onChange={(event) => setFilterDraft((current) => ({ ...current, enabled: event.target.value as PolicyEnabledFilter }))}>
@@ -301,6 +314,60 @@ export function PolicyPage() {
   );
 }
 
+function CreatePolicyMenu({ onSelect }: { onSelect: (kind: GovernancePolicyKind) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  const select = (kind: GovernancePolicyKind) => {
+    setOpen(false);
+    onSelect(kind);
+  };
+
+  return (
+    <div ref={rootRef} className="policy-create">
+      <Button aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+        <Plus className="h-4 w-4" />创建策略<ChevronDown className={`h-4 w-4 policy-create-chevron${open ? ' is-open' : ''}`} />
+      </Button>
+      {open ? (
+        <div className="policy-create-menu" role="menu" aria-label="选择策略类型">
+          <div className="policy-create-menu-title">选择策略类型</div>
+          <div className="policy-create-group">
+            <div className="policy-create-group-title">访问控制</div>
+            <button type="button" role="menuitem" onClick={() => select('IPRestrictionPolicy')}>
+              <span className="policy-create-icon"><ShieldCheck aria-hidden="true" /></span>
+              <span><strong>IP 访问限制</strong><small>按来源地址限制网关或路由访问</small></span>
+            </button>
+          </div>
+          <div className="policy-create-group">
+            <div className="policy-create-group-title">AI 治理</div>
+            <button type="button" role="menuitem" onClick={() => select('TokenQuotaPolicy')}>
+              <span className="policy-create-icon"><Gauge aria-hidden="true" /></span>
+              <span><strong>Token 额度</strong><small>按调用方限制模型 Token 用量</small></span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function policyMatchesState(policy: GovernancePolicy, state: PolicyStateFilter): boolean {
   if (state === 'all') return true;
   if (state === 'Unapplied') return policy.enabled && policy.targets.length === 0;
@@ -310,6 +377,7 @@ function policyMatchesState(policy: GovernancePolicy, state: PolicyStateFilter):
 function policyFilterSummary(filters: PolicyFilters): string {
   const conditions = [];
   if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
+  if (filters.kind !== 'all') conditions.push(`策略类型：${policyKindLabel(filters.kind)}`);
   if (filters.enabled !== 'all') conditions.push(`启用状态：${filters.enabled === 'enabled' ? '已启用' : '已停用'}`);
   if (filters.state !== 'all') {
     conditions.push(`生效状态：${filters.state === 'Unapplied' ? '未应用' : resourceStateLabel(filters.state)}`);

@@ -71,6 +71,65 @@ export function SearchField({
   );
 }
 
+export function SelectPopover({
+  label,
+  summary,
+  emptyMessage,
+  hasOptions,
+  children,
+}: {
+  label: string;
+  summary: string;
+  emptyMessage: string;
+  hasOptions: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const labelID = useId();
+
+  useEffect(() => {
+    if (!open) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('mousedown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [open]);
+
+  return (
+    <div className="field field-wide">
+      <label id={labelID}>{label}</label>
+      <div ref={rootRef} className={`resource-select ${open ? 'open' : ''}`.trim()}>
+        <button
+          className="resource-select-trigger"
+          type="button"
+          aria-labelledby={labelID}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span>{summary}</span>
+          <ChevronDown aria-hidden="true" />
+        </button>
+        {open ? (
+          <div className="resource-select-menu" role="listbox" aria-label={label}>
+            {hasOptions ? children : <div className="resource-select-empty">{emptyMessage}</div>}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function ResourceListFilters({
   summary,
   resultLabel,
