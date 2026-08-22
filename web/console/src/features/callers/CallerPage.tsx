@@ -138,6 +138,26 @@ export function CallerPage() {
     }
   };
 
+  const toggleCaller = async (caller: Caller) => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await updateCaller({
+        id: caller.id,
+        version: caller.version,
+        name: caller.name,
+        enabled: !caller.enabled,
+        routeIDs: caller.routeIDs,
+      });
+      await workspace.reload();
+      setNotice({ message: `调用方已${caller.enabled ? '停用' : '启用'}：${caller.name}`, tone: 'success' });
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : '更新调用方启用状态失败', tone: 'error' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const issueKey = async () => {
     if (!issueKeyFor || !keyName.trim() || submitting) return;
     setSubmitting(true);
@@ -185,9 +205,9 @@ export function CallerPage() {
             <ResourceFilterField label="关键词">
               <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索调用方或已授权路由" />
             </ResourceFilterField>
-            <ResourceFilterField label="状态">
+            <ResourceFilterField label="启用状态">
               <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as CallerStateFilter }))}>
-                <option value="all">全部状态</option>
+                <option value="all">全部启用状态</option>
                 <option value="enabled">已启用</option>
                 <option value="disabled">已停用</option>
               </select>
@@ -197,9 +217,9 @@ export function CallerPage() {
             <div className="p-5"><EmptyState title={data.callers.length === 0 ? '暂无调用方' : '没有匹配的调用方'} message={data.callers.length === 0 ? '创建调用方后即可为受保护路由签发访问密钥' : '请调整搜索条件'} /></div>
           ) : (
             <div className="table-scroll resource-table-scroll">
-              <table className="table resource-table resource-caller-table">
+              <table className="table resource-table resource-table-has-toggle resource-caller-table">
                 <thead><tr>
-                  <th>调用方</th><th>授权路由</th><th>有效密钥</th><th>状态</th><th>更新时间</th><th>操作</th>
+                  <th>调用方</th><th>授权路由</th><th>有效密钥</th><th>启用状态</th><th>更新时间</th><th>操作</th>
                 </tr></thead>
                 <tbody>
                   {visibleCallers.map((caller) => (
@@ -209,7 +229,16 @@ export function CallerPage() {
                       <td>{activeKeyCount(caller)} 把</td>
                       <td><Badge tone={caller.enabled ? 'success' : 'neutral'}>{caller.enabled ? '已启用' : '已停用'}</Badge></td>
                       <td className="resource-table-time">{formatDateTime(caller.updatedAt || caller.createdAt)}</td>
-                      <td><RowActions onDetail={() => setDetailID(caller.id)} onEdit={() => setDraft(editDraft(caller))} onDelete={() => setDeleteCandidate(caller)} /></td>
+                      <td>
+                        <RowActions
+                          onDetail={() => setDetailID(caller.id)}
+                          onEdit={() => setDraft(editDraft(caller))}
+                          onToggle={() => void toggleCaller(caller)}
+                          toggleLabel={caller.enabled ? '停用' : '启用'}
+                          toggleDisabled={submitting}
+                          onDelete={() => setDeleteCandidate(caller)}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -267,7 +296,7 @@ export function CallerPage() {
 function callerFilterSummary(filters: CallerFilters): string {
   const conditions = [];
   if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
-  if (filters.state !== 'all') conditions.push(`状态：${filters.state === 'enabled' ? '已启用' : '已停用'}`);
+  if (filters.state !== 'all') conditions.push(`启用状态：${filters.state === 'enabled' ? '已启用' : '已停用'}`);
   return conditions.join(' · ') || '全部调用方';
 }
 

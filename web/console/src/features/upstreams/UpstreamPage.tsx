@@ -26,7 +26,7 @@ import { ResourceTrafficSignal, useResourceTrafficOverview } from '@/features/tr
 import { buildUpstreamPayload, createUpstreamDraft, validateUpstreamDraft, type UpstreamDraft } from './form';
 
 type UpstreamTypeFilter = 'all' | UpstreamDraft['type'];
-type UpstreamStateFilter = 'all' | ResourceState;
+type UpstreamStateFilter = 'all' | Exclude<ResourceState, 'Disabled'>;
 
 interface UpstreamFilters {
   query: string;
@@ -142,20 +142,19 @@ export function UpstreamPage() {
               <option value="MODEL">模型服务</option>
             </select>
           </ResourceFilterField>
-          <ResourceFilterField label="状态">
+          <ResourceFilterField label="生效状态">
             <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as UpstreamStateFilter }))}>
-              <option value="all">全部状态</option>
+              <option value="all">全部生效状态</option>
               <option value="Ready">已生效</option>
               <option value="Pending">待生效</option>
               <option value="Error">异常</option>
-              <option value="Disabled">已停用</option>
             </select>
           </ResourceFilterField>
         </ResourceListFilters>
         {visibleUpstreams.length === 0 ? <div className="p-5"><EmptyState title={resource.data.upstreams.length === 0 ? '暂无服务' : '没有匹配的服务'} message={resource.data.upstreams.length === 0 ? '创建服务后即可在路由中选择转发目标' : '请调整搜索条件'} /></div> : (
           <div className="table-scroll resource-table-scroll">
             <table className="table resource-table resource-upstream-table">
-              <thead><tr><th>名称</th><th>类型</th><th>地址</th><th>连接</th><th>负载均衡</th><th>最近 1 小时</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
+              <thead><tr><th>名称</th><th>类型</th><th>地址</th><th>连接</th><th>负载均衡</th><th>最近 1 小时</th><th>生效状态</th><th>更新时间</th><th>操作</th></tr></thead>
               <tbody>
                 {visibleUpstreams.map((item) => (
                   <tr key={item.id}>
@@ -286,6 +285,6 @@ function upstreamFilterSummary(filters: UpstreamFilters): string {
   const conditions = [];
   if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
   if (filters.type !== 'all') conditions.push(`类型：${filters.type === 'MODEL' ? '模型服务' : 'HTTP 服务'}`);
-  if (filters.state !== 'all') conditions.push(`状态：${resourceStateLabel(filters.state)}`);
+  if (filters.state !== 'all') conditions.push(`生效状态：${resourceStateLabel(filters.state)}`);
   return conditions.join(' · ') || '全部服务';
 }
