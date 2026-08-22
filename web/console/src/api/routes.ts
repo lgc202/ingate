@@ -15,7 +15,7 @@ export async function getRouteWorkspace(): Promise<RouteWorkspace> {
   const [routeList, gatewayList, upstreamList] = await Promise.all([listRoutes(), listGateways(), listUpstreams()]);
   return {
     routes: routeList.routes,
-    gateways: gatewayList.gateways.map((gateway) => ({ id: gateway.id, name: gateway.name })),
+    gateways: gatewayList.gateways.map((gateway) => ({ id: gateway.id, name: gateway.name, listeners: gateway.listeners })),
     upstreams: upstreamList.upstreams.map((upstream) => ({
       id: upstream.id,
       name: upstream.name,

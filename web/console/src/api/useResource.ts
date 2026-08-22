@@ -12,8 +12,17 @@ export interface ReloadOptions {
   silent?: boolean;
 }
 
-export function useResource<T>(load: () => Promise<T>): ResourceState<T> {
+export interface ResourceOptions<T> {
+  autoRefreshWhen?: (data: T) => boolean;
+  autoRefreshInterval?: number;
+  maxAutoRefreshes?: number;
+}
+
+export function useResource<T>(load: () => Promise<T>, options?: ResourceOptions<T>): ResourceState<T> {
   const requestVersion = useRef(0);
+  const autoRefreshCount = useRef(0);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
   const [state, setState] = useState<Omit<ResourceState<T>, 'reload'>>({
     data: null,
     loading: true,
@@ -61,6 +70,24 @@ export function useResource<T>(load: () => Promise<T>): ResourceState<T> {
       requestVersion.current++;
     };
   }, [reload]);
+
+  useEffect(() => {
+    const currentOptions = optionsRef.current;
+    if (!state.data || !currentOptions?.autoRefreshWhen?.(state.data)) {
+      autoRefreshCount.current = 0;
+      return;
+    }
+
+    const maxAutoRefreshes = currentOptions.maxAutoRefreshes ?? 30;
+    if (autoRefreshCount.current >= maxAutoRefreshes) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      autoRefreshCount.current++;
+      void reload({ silent: true });
+    }, currentOptions.autoRefreshInterval ?? 2_000);
+    return () => window.clearTimeout(timer);
+  }, [reload, state.data]);
 
   return { ...state, reload };
 }

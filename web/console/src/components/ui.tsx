@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AlertCircle, ChevronDown, CircleCheck, Search, SlidersHorizontal, X } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
+import { AlertCircle, ChevronDown, CircleCheck, MoreHorizontal, Search, SlidersHorizontal, X } from 'lucide-react';
 
 export function PageFrame({
   title,
@@ -58,7 +58,7 @@ export function SearchField({
   placeholder: string;
 }) {
   return (
-    <label className="resource-search">
+    <div className="resource-search">
       <Search aria-hidden="true" />
       <input
         type="search"
@@ -67,7 +67,7 @@ export function SearchField({
         aria-label={placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
-    </label>
+    </div>
   );
 }
 
@@ -132,10 +132,10 @@ export function ResourceListFilters({
 
 export function ResourceFilterField({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="resource-filter-field">
+    <label className="resource-filter-field">
       <span>{label}</span>
       {children}
-    </div>
+    </label>
   );
 }
 
@@ -154,12 +154,82 @@ export function RowActions({
   toggleDisabled?: boolean;
   onDelete?: () => void;
 }) {
+  const moreRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const close = () => setMoreOpen(false);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close();
+    };
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!moreRef.current?.contains(target) && !menuRef.current?.contains(target)) close();
+    };
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', closeOnEscape);
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    return () => {
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', closeOnEscape);
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+    };
+  }, [moreOpen]);
+
+  const toggleMore = () => {
+    if (!moreOpen && moreRef.current) {
+      const rect = moreRef.current.getBoundingClientRect();
+      const menuHeight = 40;
+      const top = rect.bottom + menuHeight + 4 <= window.innerHeight
+        ? rect.bottom + 4
+        : Math.max(8, rect.top - menuHeight - 4);
+      setMenuPosition({ top, left: Math.max(8, Math.min(window.innerWidth - 96, rect.right - 88)) });
+    }
+    setMoreOpen((current) => !current);
+  };
+
   return (
     <div className="row-actions" onClick={(event) => event.stopPropagation()}>
       <button className="link-button" type="button" onClick={onDetail}>详情</button>
       {onEdit ? <button className="link-button" type="button" onClick={onEdit}>编辑</button> : null}
       {onToggle && toggleLabel ? <button className="link-button" type="button" disabled={toggleDisabled} onClick={onToggle}>{toggleLabel}</button> : null}
-      {onDelete ? <button className="link-button danger" type="button" onClick={onDelete}>删除</button> : null}
+      {onDelete ? (
+        <div className="row-more">
+          <button ref={moreRef} className="row-more-trigger" type="button" aria-label="更多操作" aria-expanded={moreOpen} onClick={toggleMore}><MoreHorizontal aria-hidden="true" /></button>
+          {moreOpen ? <div ref={menuRef} role="menu" style={menuPosition}><button className="danger" role="menuitem" type="button" onClick={() => { setMoreOpen(false); onDelete(); }}>删除</button></div> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export function ResourcePagination({
+  page,
+  pageSize,
+  total,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  return (
+    <div className="resource-pagination">
+      <span>第 {Math.min(page, pageCount)} 页 · 共 {total} 条</span>
+      <label><span>每页</span><select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>{[10, 20, 50].map((size) => <option key={size} value={size}>{size}</option>)}</select><span>条</span></label>
+      <div>
+        <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>上一页</Button>
+        <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => onPageChange(page + 1)}>下一页</Button>
+      </div>
     </div>
   );
 }
@@ -235,27 +305,56 @@ export function Drawer({
   onClose: () => void;
   children: ReactNode;
 }) {
-  const backdropRef = useRef<HTMLDivElement>(null);
+  const titleID = useId();
+  const dialogRef = useRef<HTMLElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
+      if (!isOpen) return;
+      if (e.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      if (e.key !== 'Tab' || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'));
+      if (focusable.length === 0) {
+        e.preventDefault();
+        dialogRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
       }
     };
+    if (isOpen) {
+      previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      window.requestAnimationFrame(() => dialogRef.current?.focus());
+    }
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden bg-slate-900/40 backdrop-blur-xs flex justify-end transition-opacity">
-      <div ref={backdropRef} className="fixed inset-0" onClick={onClose} aria-hidden="true" />
-      <div className="relative w-full max-w-4xl bg-white h-full shadow-2xl flex flex-col border-l border-slate-200 z-10 animate-in slide-in-from-right duration-200">
+      <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
+      <section ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleID} tabIndex={-1} className="relative w-full max-w-4xl bg-white h-full shadow-2xl flex flex-col border-l border-slate-200 z-10 animate-in slide-in-from-right duration-200 outline-none">
         <header className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 tracking-tight">{title}</h2>
+            <h2 id={titleID} className="text-base font-semibold text-slate-900 tracking-tight">{title}</h2>
             {subtitle ? <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p> : null}
           </div>
           <button
@@ -268,7 +367,7 @@ export function Drawer({
           </button>
         </header>
         <div className="flex-1 overflow-y-auto p-6 space-y-6">{children}</div>
-      </div>
+      </section>
     </div>
   );
 }
@@ -284,7 +383,10 @@ export function Modal({
   onClose: () => void;
   children: ReactNode;
 }) {
+  const titleID = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     const currentDialog = dialogRef.current;
@@ -297,17 +399,33 @@ export function Modal({
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onCloseRef.current();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   return (
     <dialog
       ref={dialogRef}
+      aria-labelledby={titleID}
       className="modal backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs bg-white rounded-xl shadow-2xl p-0 border border-slate-200 w-full max-w-xl overflow-hidden"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
       onClose={onClose}
     >
       <div className="modal-content">
         <header className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50/80">
-          <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+          <h3 id={titleID} className="text-base font-semibold text-slate-900">{title}</h3>
           <button
             type="button"
             className="rounded-lg p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200/60 transition-colors"

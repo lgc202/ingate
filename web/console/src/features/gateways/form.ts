@@ -22,7 +22,7 @@ export function newListener(index: number): GatewayListener {
   return {
     name: `http-${index + 1}`,
     protocol: 'GATEWAY_PROTOCOL_HTTP',
-    port: 8080,
+    port: 0,
     hostname: '',
     certificateID: '',
   };
