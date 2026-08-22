@@ -20,11 +20,13 @@ const (
 	KindIPRestrictionPolicy Kind = "IPRestrictionPolicy"
 	// KindCaller 表示 Caller 资源类型
 	KindCaller Kind = "Caller"
+	// KindTokenQuotaPolicy 表示 TokenQuotaPolicy 资源类型
+	KindTokenQuotaPolicy Kind = "TokenQuotaPolicy"
 )
 
 // PolicyTargetRef 表示策略的生效目标
 type PolicyTargetRef struct {
-	// Kind 当前只支持 Gateway 和 Route
+	// Kind 由具体策略约束可引用的资源类型
 	Kind Kind `json:"kind"`
 	// Name 引用目标资源的 metadata.name
 	Name string `json:"name"`

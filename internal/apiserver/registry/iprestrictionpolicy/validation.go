@@ -15,7 +15,12 @@ func validatePolicy(policy *resource.IPRestrictionPolicy) field.ErrorList {
 	if policy.Spec.DisplayName == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
-	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(policy.Spec.TargetRefs, specPath.Child("targetRefs"))...)
+	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(
+		policy.Spec.TargetRefs,
+		specPath.Child("targetRefs"),
+		resource.KindGateway,
+		resource.KindRoute,
+	)...)
 
 	hasAllow := len(policy.Spec.Allow) > 0
 	hasDeny := len(policy.Spec.Deny) > 0

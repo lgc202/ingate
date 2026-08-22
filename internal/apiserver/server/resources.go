@@ -16,6 +16,7 @@ import (
 	iprestrictionpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/iprestrictionpolicy"
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
+	tokenquotapolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/tokenquotapolicy"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
@@ -50,6 +51,7 @@ func installResources(
 		{gatewayv1.ResourceRateLimitPolicies, gatewayv1.ResourceRateLimitPoliciesStatus, ratelimitpolicystorage.NewREST},
 		{gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, iprestrictionpolicystorage.NewREST},
 		{gatewayv1.ResourceCallers, gatewayv1.ResourceCallersStatus, callerstorage.NewREST},
+		{gatewayv1.ResourceTokenQuotaPolicies, gatewayv1.ResourceTokenQuotaPoliciesStatus, tokenquotapolicystorage.NewREST},
 	}
 	storage := make(map[string]rest.Storage, len(registrations)*2)
 	for _, registration := range registrations {

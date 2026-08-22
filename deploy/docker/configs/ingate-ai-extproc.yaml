@@ -10,6 +10,12 @@ data:
   apiserver:
     master: ""
     kubeconfig: "/opt/ingate/ai-extproc/configs/kubeconfig.yaml"
+  redis:
+    address: "redis:6379"
+    password: ""
+    database: 0
+    dial_timeout: "2s"
+    operation_timeout: "1s"
 
 logging:
   format: "json"

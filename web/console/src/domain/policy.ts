@@ -1,7 +1,7 @@
 import type { ResourceState, ResourceStatus } from './common';
 
-export type GovernancePolicyKind = 'IPRestrictionPolicy';
-export type PolicyTargetKind = 'Gateway' | 'Route';
+export type GovernancePolicyKind = 'IPRestrictionPolicy' | 'TokenQuotaPolicy';
+export type PolicyTargetKind = 'Gateway' | 'Route' | 'Caller';
 
 export interface PolicyTargetRef {
   kind: PolicyTargetKind;
@@ -28,6 +28,26 @@ export interface IPRestrictionPolicy {
   updatedAt?: string;
 }
 
+export type TokenQuotaPeriod = 'Day' | 'Week' | 'Month';
+
+export interface TokenQuotaLimit {
+  period: TokenQuotaPeriod;
+  tokens: number;
+}
+
+export interface TokenQuotaPolicy {
+  id: string;
+  version: number;
+  name: string;
+  enabled: boolean;
+  targets: PolicyTargetRef[];
+  timeZone: string;
+  limits: TokenQuotaLimit[];
+  status: ResourceStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface PolicyTargetOption {
   id: string;
   name: string;
@@ -48,14 +68,15 @@ interface GovernancePolicyBase {
   updatedAt?: string;
 }
 
-export type GovernancePolicy = GovernancePolicyBase & {
-  kind: 'IPRestrictionPolicy';
-  raw: IPRestrictionPolicy;
-};
+export type GovernancePolicy = GovernancePolicyBase & (
+  | { kind: 'IPRestrictionPolicy'; raw: IPRestrictionPolicy }
+  | { kind: 'TokenQuotaPolicy'; raw: TokenQuotaPolicy }
+);
 
 export interface PolicyWorkspace {
   policies: GovernancePolicy[];
   ipRestrictionPolicies: IPRestrictionPolicy[];
+  tokenQuotaPolicies: TokenQuotaPolicy[];
   targets: PolicyTargetOption[];
 }
 
@@ -78,15 +99,30 @@ export type IPRestrictionPolicyPayload =
   | IPRestrictionPolicyConfigPayload & CreatePolicyIdentity
   | IPRestrictionPolicyConfigPayload & { enabled: boolean } & VersionedPolicyIdentity<number>;
 
+interface TokenQuotaPolicyConfigPayload {
+  name: string;
+  enabled: boolean;
+  targets: PolicyTargetPayload[];
+  timeZone: string;
+  limits: TokenQuotaLimit[];
+}
+
+export type TokenQuotaPolicyPayload =
+  | TokenQuotaPolicyConfigPayload & CreatePolicyIdentity
+  | TokenQuotaPolicyConfigPayload & VersionedPolicyIdentity<number>;
+
 export function policyKindLabel(kind: GovernancePolicyKind) {
   const labels: Record<GovernancePolicyKind, string> = {
     IPRestrictionPolicy: 'IP 访问限制',
+    TokenQuotaPolicy: 'Token 额度',
   };
   return labels[kind];
 }
 
 export function policyTargetKindLabel(kind: PolicyTargetKind) {
-  return kind === 'Gateway' ? '网关' : '路由';
+  if (kind === 'Gateway') return '网关';
+  if (kind === 'Route') return '路由';
+  return '调用方';
 }
 
 export function policyStatusLabel(status: ResourceStatus) {
@@ -126,6 +162,10 @@ export function policyTargetKey(target: Pick<PolicyTargetRef, 'kind' | 'id'>) {
 
 export function policyTargetsResource(policy: GovernancePolicy, kind: PolicyTargetKind, id: string) {
   return policy.targets.some((target) => target.kind === kind && target.id === id);
+}
+
+export function policySupportsTargetKind(policy: GovernancePolicy, kind: PolicyTargetKind) {
+  return policy.kind === 'TokenQuotaPolicy' ? kind === 'Caller' : kind === 'Gateway' || kind === 'Route';
 }
 
 export function policyTargetLabel(target: PolicyTargetRef, options: PolicyTargetOption[]) {

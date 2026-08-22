@@ -16,6 +16,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
 	dataapiserver "github.com/lgc202/ingate/internal/aiextproc/data/apiserver"
+	dataredis "github.com/lgc202/ingate/internal/aiextproc/data/redis"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
@@ -46,6 +47,7 @@ func NewApp(configFile string) (*App, error) {
 	kratosApp, err := wireApp(
 		bootstrap.GetServer(),
 		bootstrap.GetData().GetApiserver(),
+		bootstrap.GetData().GetRedis(),
 		logger,
 		instanceID,
 	)
@@ -66,7 +68,8 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
-	modelServices *dataapiserver.ModelServiceCache,
+	configs *dataapiserver.ConfigCache,
+	quotas *dataredis.TokenCounter,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -75,7 +78,7 @@ func newKratosApp(
 		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		// 模型服务缓存和网络服务共享生命周期，首次同步完成前 /readyz 保持未就绪
-		kratos.Server(httpServer, grpcServer, modelServices),
+		// 配置缓存、实时额度计数和网络服务由同一进程生命周期管理
+		kratos.Server(httpServer, grpcServer, configs, quotas),
 	)
 }

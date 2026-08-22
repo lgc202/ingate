@@ -13,6 +13,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
+	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
 	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	dataanalytics "github.com/lgc202/ingate/internal/adminapi/data/analytics"
@@ -28,9 +29,11 @@ var apiserverProviderSet = wire.NewSet(
 	apiserver.NewRateLimitPolicyRepository,
 	apiserver.NewIPRestrictionPolicyRepository,
 	apiserver.NewCallerRepository,
+	apiserver.NewTokenQuotaPolicyRepository,
 	// 根 biz 只保留跨领域策略能力所需的只读边界
 	wire.Bind(new(biz.GatewayGetter), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(biz.RouteGetter), new(*apiserver.RouteRepository)),
+	wire.Bind(new(biz.CallerGetter), new(*apiserver.CallerRepository)),
 	wire.Bind(new(biz.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyRepository)),
 	wire.Bind(new(biz.IPRestrictionPolicyLister), new(*apiserver.IPRestrictionPolicyRepository)),
 	// 每个领域声明自己真实消费的 Repository，避免 biz 子包相互依赖
@@ -48,6 +51,7 @@ var apiserverProviderSet = wire.NewSet(
 	wire.Bind(new(ratelimit.Repository), new(*apiserver.RateLimitPolicyRepository)),
 	wire.Bind(new(iprestriction.Repository), new(*apiserver.IPRestrictionPolicyRepository)),
 	wire.Bind(new(caller.Repository), new(*apiserver.CallerRepository)),
+	wire.Bind(new(tokenquota.Repository), new(*apiserver.TokenQuotaPolicyRepository)),
 	wire.Bind(new(caller.RouteRepository), new(*apiserver.RouteRepository)),
 )
 

@@ -14,7 +14,12 @@ func validatePolicy(policy *resource.RateLimitPolicy) field.ErrorList {
 	if policy.Spec.DisplayName == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
-	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(policy.Spec.TargetRefs, specPath.Child("targetRefs"))...)
+	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(
+		policy.Spec.TargetRefs,
+		specPath.Child("targetRefs"),
+		resource.KindGateway,
+		resource.KindRoute,
+	)...)
 
 	subjectPath := specPath.Child("subject")
 	switch policy.Spec.Subject.Type {

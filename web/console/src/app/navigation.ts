@@ -40,7 +40,7 @@ export const navigation: NavGroup[] = [
     label: '访问治理',
     items: [
       { key: 'callers', label: '调用方', to: '/callers', icon: UsersRound },
-      { key: 'policies', label: '流量策略', to: '/policies', icon: ShieldCheck },
+      { key: 'policies', label: '策略', to: '/policies', icon: ShieldCheck },
     ],
   },
   {

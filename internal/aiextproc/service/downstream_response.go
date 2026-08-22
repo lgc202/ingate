@@ -85,6 +85,7 @@ func (s *streamState) handleDownstreamOpenAIResponse(body *extprocv3.HttpBody) (
 		}
 		if metadataChanged {
 			s.responseMetadata = metadata
+			s.settleQuota()
 		}
 		// 即使当前 chunk 只有半行，也必须用空 mutation 吞掉，不能泄漏真实模型名
 		response := bodyResponse(responseMessage, &extprocv3.BodyMutation{
@@ -102,6 +103,7 @@ func (s *streamState) handleDownstreamOpenAIResponse(body *extprocv3.HttpBody) (
 	metadata, metadataChanged := chatcompletion.ObserveOpenAIResponse(body.GetBody())
 	if metadataChanged {
 		s.responseMetadata = metadata
+		s.settleQuota()
 	}
 	converted, bodyChanged, err := chatcompletion.RewriteOpenAIResponseModel(body.GetBody(), request.Model)
 	if err != nil {
@@ -139,6 +141,7 @@ func (s *streamState) handleDownstreamAnthropicResponse(body *extprocv3.HttpBody
 		}
 		if changed {
 			s.responseMetadata = metadata
+			s.settleQuota()
 		}
 		// 不完整的 SSE 事件也要用空 mutation 吞掉，不能向客户端泄漏 Anthropic 原文
 		response := bodyResponse(responseMessage, &extprocv3.BodyMutation{
@@ -159,6 +162,7 @@ func (s *streamState) handleDownstreamAnthropicResponse(body *extprocv3.HttpBody
 		return nil, err
 	}
 	s.responseMetadata = metadata
+	s.settleQuota()
 	var mutation *extprocv3.BodyMutation
 	var headers *extprocv3.HeaderMutation
 	if !bytes.Equal(converted, body.GetBody()) {
@@ -170,6 +174,14 @@ func (s *streamState) handleDownstreamAnthropicResponse(body *extprocv3.HttpBody
 	response := bodyResponse(responseMessage, mutation, headers)
 	response.DynamicMetadata = s.dynamicMetadata()
 	return response, nil
+}
+
+func (s *streamState) settleQuota() {
+	usage := s.responseMetadata.Usage
+	if !usage.Found {
+		return
+	}
+	s.processor.settleQuota(s.ctx, s.request, usage.TotalTokens)
 }
 
 func (s *streamState) handleDownstreamAnthropicError(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {

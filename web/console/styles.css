@@ -465,10 +465,6 @@ body { overflow-x: hidden; }
   align-content: start;
 }
 
-.editor-main-stack {
-  min-width: 0;
-}
-
 .form-section {
   border: 1px solid #dfe3eb;
   border-radius: 6px;
@@ -614,6 +610,53 @@ body { overflow-x: hidden; }
   width: 15px;
   height: 15px;
   accent-color: var(--accent);
+}
+
+.policy-quota-list {
+  display: grid;
+  gap: 10px;
+}
+
+.policy-quota-row {
+  display: grid;
+  grid-template-columns: auto minmax(110px, 1fr) minmax(160px, 1.4fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #dfe4ec;
+  border-radius: 8px;
+  color: var(--muted);
+  background: #fafbfc;
+}
+
+.policy-quota-row.selected {
+  border-color: #9eb2d5;
+  color: var(--text);
+  background: #f6f8fd;
+}
+
+.policy-quota-row > input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.policy-quota-row > input[type='number'] {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 9px 10px;
+  background: #fff;
+  color: var(--text);
+}
+
+.policy-quota-row > input[type='number']:disabled {
+  background: #f1f3f6;
+  color: #9aa3b1;
+}
+
+.policy-quota-row > span {
+  font-size: 0.8rem;
 }
 
 .policy-select {
@@ -838,6 +881,9 @@ body { overflow-x: hidden; }
   .topbar { align-items: stretch; flex-direction: column; }
   .topbar > .toolbar { justify-content: flex-start; }
   .policy-editor-grid, .policy-restriction-mode { grid-template-columns: 1fr; }
+  .policy-quota-row { grid-template-columns: auto 1fr; }
+  .policy-quota-row > input[type='number'] { grid-column: 2; }
+  .policy-quota-row > span { display: none; }
   .governance-card-head,
   .governance-policy-row { align-items: flex-start; flex-direction: column; }
   .governance-policy-actions { width: 100%; justify-content: flex-start; }

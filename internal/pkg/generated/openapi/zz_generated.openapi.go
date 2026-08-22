@@ -54,6 +54,10 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteRetry":              schema_pkg_apis_gateway_v1_RouteRetry(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteSpec":               schema_pkg_apis_gateway_v1_RouteSpec(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteTimeout":            schema_pkg_apis_gateway_v1_RouteTimeout(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaLimit":         schema_pkg_apis_gateway_v1_TokenQuotaLimit(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicy":        schema_pkg_apis_gateway_v1_TokenQuotaPolicy(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicyList":    schema_pkg_apis_gateway_v1_TokenQuotaPolicyList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicySpec":    schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Upstream":                schema_pkg_apis_gateway_v1_Upstream(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamHealthCheck":     schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamList":            schema_pkg_apis_gateway_v1_UpstreamList(ref),
@@ -1303,7 +1307,7 @@ func schema_pkg_apis_gateway_v1_PolicyTargetRef(ref common.ReferenceCallback) co
 				Properties: map[string]spec.Schema{
 					"kind": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Kind 当前只支持 Gateway 和 Route",
+							Description: "Kind 由具体策略约束可引用的资源类型",
 							Default:     "",
 							Type:        []string{"string"},
 							Format:      "",
@@ -1973,6 +1977,217 @@ func schema_pkg_apis_gateway_v1_RouteTimeout(ref common.ReferenceCallback) commo
 				Required: []string{"requestMillis"},
 			},
 		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuotaLimit(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuotaLimit 定义一个自然周期内允许使用的总 Token 数",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"period": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Period 指定自然日、自然周或自然月",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"tokens": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Tokens 是该周期内输入和输出 Token 的总上限",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int64",
+						},
+					},
+				},
+				Required: []string{"period", "tokens"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuotaPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuotaPolicy 声明调用方可使用的模型 Token 额度",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicySpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyStatus", "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicySpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuotaPolicyList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuotaPolicyList 表示 TokenQuotaPolicy 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicy"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "TokenQuotaPolicySpec 定义调用方额度及其自然周期",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与额度匹配",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 为 false 时保留配置但不检查和结算额度",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"targetRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"kind",
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "TargetRefs 只允许引用 Caller；同一策略中的每个 Caller 独立计数",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef"),
+									},
+								},
+							},
+						},
+					},
+					"timeZone": {
+						SchemaProps: spec.SchemaProps{
+							Description: "TimeZone 使用 IANA 时区确定自然周期边界",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"limits": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"period",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Limits 可同时配置日、周和月额度，每种周期最多一项",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaLimit"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"displayName", "enabled", "timeZone", "limits"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef", "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaLimit"},
 	}
 }
 

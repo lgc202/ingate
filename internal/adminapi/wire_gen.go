@@ -18,6 +18,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
+	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
 	"github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
@@ -33,6 +34,7 @@ import (
 	ratelimit2 "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	request2 "github.com/lgc202/ingate/internal/adminapi/service/request"
 	route2 "github.com/lgc202/ingate/internal/adminapi/service/route"
+	tokenquota2 "github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
 	traffic2 "github.com/lgc202/ingate/internal/adminapi/service/traffic"
 	upstream2 "github.com/lgc202/ingate/internal/adminapi/service/upstream"
 	"log/slog"
@@ -81,8 +83,11 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 	trafficRepository := analytics.NewTrafficRepository(clientConn)
 	trafficService := traffic.NewService(trafficRepository)
 	service10 := traffic2.NewService(trafficService)
+	tokenQuotaPolicyRepository := apiserver.NewTokenQuotaPolicyRepository(versionedInterface)
+	tokenquotaService := tokenquota.NewService(tokenQuotaPolicyRepository, callerRepository)
+	service11 := tokenquota2.NewService(tokenquotaService)
 	healthService := health.NewService()
-	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, healthService)
+	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, service11, healthService)
 	httpServer := server.NewHTTPServer(confServer, logger, httpHandlers)
 	app := newKratosApp(logger, confServer, httpServer, adminapiServiceInstanceID)
 	return app, func() {
@@ -93,7 +98,7 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 // wire.go:
 
 // bizProviderSet 汇总各资源的业务服务
-var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, aiusage.NewService, caller.NewService, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService)
+var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, aiusage.NewService, caller.NewService, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService, tokenquota.NewService)
 
 // serviceProviderSet 汇总 Admin API 的协议服务
-var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, health.NewService)
+var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, tokenquota2.NewService, health.NewService)

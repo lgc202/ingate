@@ -5,15 +5,20 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
+	"math"
 	"sync"
 
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
+	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
 )
 
 // ExternalProcessor 接收 Envoy 发来的 downstream 和 upstream External Processing 流
@@ -24,20 +29,28 @@ type ExternalProcessor struct {
 	mu       sync.RWMutex
 	requests map[string]*requestState
 	apiKeys  ModelAPIKeySource
+	quotas   *tokenquota.Service
+	logger   *slog.Logger
 }
 
 // NewExternalProcessor 创建 External Processing 服务
-func NewExternalProcessor(apiKeys ModelAPIKeySource) *ExternalProcessor {
+func NewExternalProcessor(
+	apiKeys ModelAPIKeySource,
+	quotas *tokenquota.Service,
+	logger *slog.Logger,
+) *ExternalProcessor {
 	return &ExternalProcessor{
 		requests: make(map[string]*requestState),
 		apiKeys:  apiKeys,
+		quotas:   quotas,
+		logger:   logger,
 	}
 }
 
 // Process 按 Envoy External Processing 协议处理一条双向流
 // Envoy 会分别为 downstream filter 和每次 upstream 尝试创建流，二者不是同一个 gRPC stream
 func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessServer) error {
-	state := streamState{processor: p}
+	state := streamState{ctx: stream.Context(), processor: p}
 	defer state.close()
 
 	for {
@@ -63,14 +76,31 @@ func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessSe
 	}
 }
 
-func (p *ExternalProcessor) registerRequest() (string, *requestState) {
+func (p *ExternalProcessor) registerRequest(identity callerIdentity) (string, *requestState) {
 	// 关联 ID 由服务端生成并覆盖同名客户端 Header，避免不同请求串用共享状态
 	id := uuid.NewString()
-	request := &requestState{}
+	request := &requestState{identity: identity}
 	p.mu.Lock()
 	p.requests[id] = request
 	p.mu.Unlock()
 	return id, request
+}
+
+func (p *ExternalProcessor) settleQuota(ctx context.Context, request *requestState, tokens uint64) {
+	session := request.takeQuotaSession()
+	if session == nil {
+		return
+	}
+	// Redis 使用有符号整数计数。厂商返回值超过 int64 不可能是有效的单次模型用量，
+	// 必须在外部协议边界拒绝转换，避免溢出后反向扣减额度。
+	if tokens > math.MaxInt64 {
+		p.logger.Error("settle token quota", "err", "provider token usage exceeds int64")
+		return
+	}
+	if err := p.quotas.Charge(ctx, session, int64(tokens)); err != nil {
+		// 模型请求已经产生实际费用；此时改写成功响应会诱发客户端重试并造成重复消费
+		p.logger.Error("settle token quota", "err", err)
+	}
 }
 
 func (p *ExternalProcessor) findRequest(id string) (*requestState, bool) {

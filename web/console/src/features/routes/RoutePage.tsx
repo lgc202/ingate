@@ -320,7 +320,7 @@ function RouteDetail({ route, workspace, callers, policies, onPoliciesChanged }:
           {callers.length > 0 ? <div className="resource-detail-list">{callers.map((caller) => <article key={caller.id}><div><strong>{caller.name}</strong><small>{caller.enabled ? '已启用' : '已停用'}</small></div><Badge tone="neutral">调用方</Badge></article>)}</div> : <p className="text-xs text-slate-500">当前没有调用方获准访问此路由</p>}
         </section>
       ) : null}
-      {policies ? <section className="resource-detail-section"><h3>流量策略</h3><GovernancePolicyPanel targetKind="Route" targetID={route.id} targetName={route.name} workspace={policies} onChanged={onPoliciesChanged} /></section> : null}
+      {policies ? <section className="resource-detail-section"><h3>应用策略</h3><GovernancePolicyPanel targetKind="Route" targetID={route.id} targetName={route.name} workspace={policies} onChanged={onPoliciesChanged} /></section> : null}
     </div>
   );
 }
