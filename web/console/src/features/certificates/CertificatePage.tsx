@@ -35,7 +35,7 @@ interface CertificateNotice {
   tone: 'success' | 'error';
 }
 
-type CertificateStateFilter = 'all' | ResourceState;
+type CertificateStateFilter = 'all' | Exclude<ResourceState, 'Disabled'>;
 
 interface CertificateFilters {
   query: string;
@@ -195,13 +195,12 @@ export function CertificatePage() {
             <ResourceFilterField label="关键词">
               <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索证书名称或 DNS 域名" />
             </ResourceFilterField>
-            <ResourceFilterField label="状态">
+            <ResourceFilterField label="生效状态">
               <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as CertificateStateFilter }))}>
-                <option value="all">全部状态</option>
+                <option value="all">全部生效状态</option>
                 <option value="Ready">已生效</option>
                 <option value="Pending">待生效</option>
                 <option value="Error">异常</option>
-                <option value="Disabled">已停用</option>
               </select>
             </ResourceFilterField>
           </ResourceListFilters>
@@ -215,7 +214,7 @@ export function CertificatePage() {
                     <th>证书名称</th>
                     <th>DNS 域名</th>
                     <th>有效期截止</th>
-                    <th>状态</th>
+                    <th>生效状态</th>
                     <th>更新时间</th>
                     <th>操作</th>
                   </tr>
@@ -488,7 +487,7 @@ function emptyDraft(): CertificateDraft {
 function certificateFilterSummary(filters: CertificateFilters): string {
   const conditions = [];
   if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
-  if (filters.state !== 'all') conditions.push(`状态：${resourceStateLabel(filters.state)}`);
+  if (filters.state !== 'all') conditions.push(`生效状态：${resourceStateLabel(filters.state)}`);
   return conditions.join(' · ') || '全部证书';
 }
 

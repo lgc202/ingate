@@ -66,15 +66,17 @@ interface RouteDraft {
 }
 
 type RouteTypeFilter = 'all' | RouteDraft['type'];
-type RouteStateFilter = 'all' | ResourceState;
+type RouteEnabledFilter = 'all' | 'enabled' | 'disabled';
+type RouteStateFilter = 'all' | Exclude<ResourceState, 'Disabled'>;
 
 interface RouteFilters {
   query: string;
   type: RouteTypeFilter;
+  enabled: RouteEnabledFilter;
   state: RouteStateFilter;
 }
 
-const emptyRouteFilters = (): RouteFilters => ({ query: '', type: 'all', state: 'all' });
+const emptyRouteFilters = (): RouteFilters => ({ query: '', type: 'all', enabled: 'all', state: 'all' });
 
 export function RoutePage() {
   const workspace = useResource(getRouteWorkspace);
@@ -131,6 +133,20 @@ export function RoutePage() {
     }
   };
 
+  const toggleRoute = async (route: RouteResource) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await saveRoute(toPayload({ ...createDraft(route), enabled: !route.enabled }));
+      await workspace.reload();
+      setNotice({ message: `路由已${route.enabled ? '停用' : '启用'}：${route.name}`, tone: 'success' });
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : '更新路由启用状态失败', tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const remove = async () => {
     if (!deleteCandidate) return;
 
@@ -173,13 +189,19 @@ export function RoutePage() {
               <option value="AI">AI 路由</option>
             </select>
           </ResourceFilterField>
-          <ResourceFilterField label="状态">
+          <ResourceFilterField label="启用状态">
+            <select className="select" value={filterDraft.enabled} onChange={(event) => setFilterDraft((current) => ({ ...current, enabled: event.target.value as RouteEnabledFilter }))}>
+              <option value="all">全部启用状态</option>
+              <option value="enabled">已启用</option>
+              <option value="disabled">已停用</option>
+            </select>
+          </ResourceFilterField>
+          <ResourceFilterField label="生效状态">
             <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as RouteStateFilter }))}>
-              <option value="all">全部状态</option>
+              <option value="all">全部生效状态</option>
               <option value="Ready">已生效</option>
               <option value="Pending">待生效</option>
               <option value="Error">异常</option>
-              <option value="Disabled">已停用</option>
             </select>
           </ResourceFilterField>
         </ResourceListFilters>
@@ -189,8 +211,8 @@ export function RoutePage() {
           </div>
         ) : (
           <div className="table-scroll resource-table-scroll">
-            <table className="table resource-table resource-route-table">
-              <thead><tr><th>名称</th><th>类型</th><th>请求匹配</th><th>网关</th><th>目标服务</th><th>最近 1 小时</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
+            <table className="table resource-table resource-table-has-toggle resource-route-table">
+              <thead><tr><th>名称</th><th>类型</th><th>请求匹配</th><th>网关</th><th>目标服务</th><th>最近 1 小时</th><th>启用与生效</th><th>更新时间</th><th>操作</th></tr></thead>
               <tbody>
                 {visibleRoutes.map((route) => (
                   <tr key={route.id}>
@@ -200,9 +222,23 @@ export function RoutePage() {
                     <td>{resourceNames(route.gatewayIDs, data.gateways)}</td>
                     <td>{resourceNames(routeUpstreamIDs(route), data.upstreams)}</td>
                     <td><ResourceTrafficSignal resourceID={route.id} overview={trafficOverview} /></td>
-                    <td><Badge tone={resourceStateTone(route.enabled ? route.state : 'Disabled')}>{resourceStateLabel(route.enabled ? route.state : 'Disabled')}</Badge></td>
+                    <td>
+                      <div className="resource-state-badges">
+                        <Badge tone={route.enabled ? 'accent' : 'neutral'}>{route.enabled ? '已启用' : '已停用'}</Badge>
+                        {route.enabled ? <Badge tone={resourceStateTone(route.state)}>{resourceStateLabel(route.state)}</Badge> : null}
+                      </div>
+                    </td>
                     <td className="resource-table-time">{formatDateTime(route.updatedAt || route.createdAt)}</td>
-                    <td><RowActions onDetail={() => setDetail(route)} onEdit={() => openEditor(route)} onDelete={() => setDeleteCandidate(route)} /></td>
+                    <td>
+                      <RowActions
+                        onDetail={() => setDetail(route)}
+                        onEdit={() => openEditor(route)}
+                        onToggle={() => void toggleRoute(route)}
+                        toggleLabel={route.enabled ? '停用' : '启用'}
+                        toggleDisabled={busy}
+                        onDelete={() => setDeleteCandidate(route)}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -439,14 +475,14 @@ function filterRoutes(workspace: RouteWorkspace, filters: RouteFilters): RouteRe
   const normalizedQuery = filters.query.trim().toLowerCase();
   return workspace.routes.filter((route) => {
     const type = route.ai ? 'AI' : 'HTTP';
-    const state = route.enabled ? route.state : 'Disabled';
     const gatewayNames = resourceNames(route.gatewayIDs, workspace.gateways);
     const upstreamNames = resourceNames(routeUpstreamIDs(route), workspace.upstreams);
     const models = route.ai?.models.map((model) => model.name).join(' ') ?? '';
     const matchesQuery = `${route.name} ${route.hostnames.join(' ')} ${route.match.path.value} ${gatewayNames} ${upstreamNames} ${models}`.toLowerCase().includes(normalizedQuery);
     return matchesQuery
       && (filters.type === 'all' || type === filters.type)
-      && (filters.state === 'all' || state === filters.state);
+      && (filters.enabled === 'all' || (filters.enabled === 'enabled' && route.enabled) || (filters.enabled === 'disabled' && !route.enabled))
+      && (filters.state === 'all' || (route.enabled && route.state === filters.state));
   });
 }
 
@@ -454,7 +490,8 @@ function routeFilterSummary(filters: RouteFilters): string {
   const conditions = [];
   if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
   if (filters.type !== 'all') conditions.push(`类型：${filters.type === 'AI' ? 'AI 路由' : 'API 路由'}`);
-  if (filters.state !== 'all') conditions.push(`状态：${resourceStateLabel(filters.state)}`);
+  if (filters.enabled !== 'all') conditions.push(`启用状态：${filters.enabled === 'enabled' ? '已启用' : '已停用'}`);
+  if (filters.state !== 'all') conditions.push(`生效状态：${resourceStateLabel(filters.state)}`);
   return conditions.join(' · ') || '全部路由';
 }
 

@@ -61,6 +61,7 @@ func (c *compilation) buildRoutes(
 		}
 
 		attached := false
+		hasEnabledGateway := false
 		for _, gatewayID := range gatewayIDs {
 			gateway, exists := c.gateways[gatewayID]
 			if !exists {
@@ -70,6 +71,7 @@ func (c *compilation) buildRoutes(
 			if !gateway.Spec.Enabled {
 				continue
 			}
+			hasEnabledGateway = true
 			domainsByListener := c.routeDomainsByListener(
 				route,
 				gatewayID,
@@ -129,7 +131,9 @@ func (c *compilation) buildRoutes(
 				}
 			}
 		}
-		if !attached {
+		// 网关停用表示用户主动暂停入口，引用它的 Route 保留配置但暂不挂载
+		// 只有仍存在启用网关却无法挂载时，才属于需要阻断发布的配置错误
+		if hasEnabledGateway && !attached {
 			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, routeID, ReasonConflict, fmt.Sprintf("route %q has no attachable listener", routeID))
 		}
 	}

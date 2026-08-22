@@ -29,14 +29,16 @@ import { ResourceTrafficSignal, useResourceTrafficOverview } from '@/features/tr
 import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
 import { buildGatewayPayload, createGatewayDraft, newListener, validateGatewayDraft, type GatewayDraft } from './form';
 
-type GatewayStateFilter = 'all' | ResourceState;
+type GatewayEnabledFilter = 'all' | 'enabled' | 'disabled';
+type GatewayStateFilter = 'all' | Exclude<ResourceState, 'Disabled'>;
 
 interface GatewayFilters {
   query: string;
+  enabled: GatewayEnabledFilter;
   state: GatewayStateFilter;
 }
 
-const emptyGatewayFilters = (): GatewayFilters => ({ query: '', state: 'all' });
+const emptyGatewayFilters = (): GatewayFilters => ({ query: '', enabled: 'all', state: 'all' });
 
 export function GatewayPage() {
   const gateways = useResource(listGateways);
@@ -63,11 +65,14 @@ export function GatewayPage() {
   const detail = list.find((gateway) => gateway.id === searchParams.get('detail')) ?? null;
   const normalizedQuery = filters.query.trim().toLowerCase();
   const visibleGateways = list.filter((gateway) => {
-    const state = gateway.enabled ? gateway.state : 'Disabled';
     const matchesQuery = `${gateway.name} ${gateway.listeners.map((listener) => `${listener.name} ${listener.hostname} ${listener.port}`).join(' ')}`
       .toLowerCase()
       .includes(normalizedQuery);
-    return matchesQuery && (filters.state === 'all' || state === filters.state);
+    const matchesEnabled = filters.enabled === 'all'
+      || (filters.enabled === 'enabled' && gateway.enabled)
+      || (filters.enabled === 'disabled' && !gateway.enabled);
+    const matchesState = filters.state === 'all' || (gateway.enabled && gateway.state === filters.state);
+    return matchesQuery && matchesEnabled && matchesState;
   });
   const certificateList = certificates.data?.certificates ?? [];
   const setDetail = (gateway?: Gateway) => {
@@ -95,6 +100,19 @@ export function GatewayPage() {
       setNotice({ message: `网关已保存：${saved.name}`, tone: 'success' });
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '保存网关失败', tone: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+  const toggleGateway = async (gateway: Gateway) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await saveGateway(buildGatewayPayload({ ...createGatewayDraft(gateway), enabled: !gateway.enabled }));
+      await gateways.reload();
+      setNotice({ message: `网关已${gateway.enabled ? '停用' : '启用'}：${gateway.name}`, tone: 'success' });
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : '更新网关启用状态失败', tone: 'error' });
     } finally {
       setBusy(false);
     }
@@ -133,29 +151,49 @@ export function GatewayPage() {
           <ResourceFilterField label="关键词">
             <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索网关、域名或监听入口" />
           </ResourceFilterField>
-          <ResourceFilterField label="状态">
+          <ResourceFilterField label="启用状态">
+            <select className="select" value={filterDraft.enabled} onChange={(event) => setFilterDraft((current) => ({ ...current, enabled: event.target.value as GatewayEnabledFilter }))}>
+              <option value="all">全部启用状态</option>
+              <option value="enabled">已启用</option>
+              <option value="disabled">已停用</option>
+            </select>
+          </ResourceFilterField>
+          <ResourceFilterField label="生效状态">
             <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as GatewayStateFilter }))}>
-              <option value="all">全部状态</option>
+              <option value="all">全部生效状态</option>
               <option value="Ready">已生效</option>
               <option value="Pending">待生效</option>
               <option value="Error">异常</option>
-              <option value="Disabled">已停用</option>
             </select>
           </ResourceFilterField>
         </ResourceListFilters>
         {visibleGateways.length === 0 ? <div className="p-5"><EmptyState title={list.length === 0 ? '暂无网关' : '没有匹配的网关'} message={list.length === 0 ? '创建网关后即可接收客户端流量' : '请调整搜索条件'} /></div> : (
           <div className="table-scroll resource-table-scroll">
-            <table className="table resource-table resource-gateway-table">
-              <thead><tr><th>名称</th><th>监听入口</th><th>最近 1 小时</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
+            <table className="table resource-table resource-table-has-toggle resource-gateway-table">
+              <thead><tr><th>名称</th><th>监听入口</th><th>最近 1 小时</th><th>启用与生效</th><th>更新时间</th><th>操作</th></tr></thead>
               <tbody>
                 {visibleGateways.map((gateway) => (
                   <tr key={gateway.id}>
                     <td><div className="resource-table-name"><Layers3 className="text-blue-600" /><strong>{gateway.name}</strong></div></td>
                     <td><div className="flex flex-wrap gap-1.5">{gateway.listeners.map((listener) => <Badge key={listener.name} tone="neutral">{gatewayProtocolLabel(listener.protocol)} · {listener.port} · {listener.hostname || '全部域名'}</Badge>)}</div></td>
                     <td><ResourceTrafficSignal resourceID={gateway.id} overview={trafficOverview} /></td>
-                    <td><Badge tone={resourceStateTone(gateway.enabled ? gateway.state : 'Disabled')}>{resourceStateLabel(gateway.enabled ? gateway.state : 'Disabled')}</Badge></td>
+                    <td>
+                      <div className="resource-state-badges">
+                        <Badge tone={gateway.enabled ? 'accent' : 'neutral'}>{gateway.enabled ? '已启用' : '已停用'}</Badge>
+                        {gateway.enabled ? <Badge tone={resourceStateTone(gateway.state)}>{resourceStateLabel(gateway.state)}</Badge> : null}
+                      </div>
+                    </td>
                     <td className="resource-table-time">{formatDateTime(gateway.updatedAt || gateway.createdAt)}</td>
-                    <td><RowActions onDetail={() => setDetail(gateway)} onEdit={() => openEditor(gateway)} onDelete={() => setDeleteCandidate(gateway)} /></td>
+                    <td>
+                      <RowActions
+                        onDetail={() => setDetail(gateway)}
+                        onEdit={() => openEditor(gateway)}
+                        onToggle={() => void toggleGateway(gateway)}
+                        toggleLabel={gateway.enabled ? '停用' : '启用'}
+                        toggleDisabled={busy}
+                        onDelete={() => setDeleteCandidate(gateway)}
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -257,6 +295,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function gatewayFilterSummary(filters: GatewayFilters): string {
   const conditions = [];
   if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
-  if (filters.state !== 'all') conditions.push(`状态：${resourceStateLabel(filters.state)}`);
+  if (filters.enabled !== 'all') conditions.push(`启用状态：${filters.enabled === 'enabled' ? '已启用' : '已停用'}`);
+  if (filters.state !== 'all') conditions.push(`生效状态：${resourceStateLabel(filters.state)}`);
   return conditions.join(' · ') || '全部网关';
 }
