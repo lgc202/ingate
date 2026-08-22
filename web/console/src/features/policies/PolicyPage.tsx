@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import {
   deleteIPRestrictionPolicy,
-  deleteRateLimitPolicy,
   getPolicyWorkspace,
   saveIPRestrictionPolicy,
-  saveRateLimitPolicy,
   setGovernancePolicyEnabled,
 } from '@/api/policies';
 import { useResource } from '@/api/useResource';
@@ -18,12 +16,13 @@ import {
   Panel,
   ResourceFilterField,
   ResourceListFilters,
+  ResourcePagination,
   ResourceStatePanel,
   SearchField,
   Toast,
 } from '@/components/ui';
 import { formatDateTime, resourceStateLabel, type ResourceState } from '@/domain/common';
-import type { GovernancePolicy, GovernancePolicyKind, PolicyMutationResult, PolicyTargetOption } from '@/domain/policy';
+import type { GovernancePolicy, PolicyTargetOption } from '@/domain/policy';
 import { governancePolicyStatusLabel, policyKindLabel, policyStatusTone, policyTargetKindLabel, policyTargetLabel } from '@/domain/policy';
 import {
   createIPRestrictionPolicyDraft,
@@ -33,37 +32,29 @@ import {
   type IPRestrictionPolicyDraft,
 } from './IPRestrictionPolicyEditor';
 import { PolicyLibraryTable } from './PolicyLibraryTable';
-import {
-  createRateLimitPolicyDraft,
-  RateLimitPolicyEditor,
-  rateLimitPolicyPayload,
-  validateRateLimitPolicyDraft,
-  type RateLimitPolicyDraft,
-} from './RateLimitPolicyEditor';
 
-type PolicyEditorState =
-  | { type: 'rateLimit'; draft: RateLimitPolicyDraft }
-  | { type: 'ipRestriction'; draft: IPRestrictionPolicyDraft };
-
-type PolicyKindFilter = 'all' | GovernancePolicyKind;
 type PolicyEnabledFilter = 'all' | 'enabled' | 'disabled';
 type PolicyStateFilter = 'all' | Exclude<ResourceState, 'Disabled'> | 'Unapplied';
 
 interface PolicyFilters {
   query: string;
-  kind: PolicyKindFilter;
   enabled: PolicyEnabledFilter;
   state: PolicyStateFilter;
 }
 
-const emptyPolicyFilters = (): PolicyFilters => ({ query: '', kind: 'all', enabled: 'all', state: 'all' });
+const emptyPolicyFilters = (): PolicyFilters => ({ query: '', enabled: 'all', state: 'all' });
 
 export function PolicyPage() {
-  const workspace = useResource(getPolicyWorkspace);
+  const workspace = useResource(getPolicyWorkspace, {
+    autoRefreshWhen: (data) => data.policies.some((policy) => policy.enabled && policy.status.state === 'Pending'),
+  });
   const [filterDraft, setFilterDraft] = useState<PolicyFilters>(emptyPolicyFilters);
   const [filters, setFilters] = useState<PolicyFilters>(emptyPolicyFilters);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [detail, setDetail] = useState<GovernancePolicy | null>(null);
-  const [editor, setEditor] = useState<PolicyEditorState | null>(null);
+  const [editor, setEditor] = useState<IPRestrictionPolicyDraft | null>(null);
+  const [showValidation, setShowValidation] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<GovernancePolicy | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -89,24 +80,31 @@ export function PolicyPage() {
   const allPolicies = data.policies;
   const normalizedQuery = filters.query.trim().toLowerCase();
   const visiblePolicies = allPolicies.filter((policy) => (
-    (filters.kind === 'all' || policy.kind === filters.kind)
-    && (filters.enabled === 'all' || (filters.enabled === 'enabled' && policy.enabled) || (filters.enabled === 'disabled' && !policy.enabled))
+    (filters.enabled === 'all' || (filters.enabled === 'enabled' && policy.enabled) || (filters.enabled === 'disabled' && !policy.enabled))
     && policyMatchesState(policy, filters.state)
     && `${policy.name} ${policy.summary} ${policy.targets.map((target) => policyTargetLabel(target, data.targets)).join(' ')}`.toLowerCase().includes(normalizedQuery)
   ));
+  const pageCount = Math.max(1, Math.ceil(visiblePolicies.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedPolicies = visiblePolicies.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const reloadAfterMutation = async (resultMessage: string) => {
     await workspace.reload();
     setNotice({ message: resultMessage, tone: 'success' });
     setEditor(null);
+    setShowValidation(false);
   };
 
   const saveEditor = async () => {
     if (!editor || submitting) return;
-    if (!editorIsValid(editor)) return;
+    const validation = validateIPRestrictionPolicyDraft(editor);
+    if (!validation.valid) {
+      setShowValidation(true);
+      return;
+    }
     setSubmitting(true);
     try {
-      const result = await savePolicyEditor(editor);
+      const result = await saveIPRestrictionPolicy(ipRestrictionPolicyPayload(editor));
       await reloadAfterMutation(result.message);
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '保存策略失败', tone: 'error' });
@@ -119,7 +117,7 @@ export function PolicyPage() {
     if (!deleteCandidate || deleting) return;
     setDeleting(true);
     try {
-      const result = await deletePolicyByKind(deleteCandidate.kind, deleteCandidate.id, deleteCandidate.version);
+      const result = await deleteIPRestrictionPolicy(deleteCandidate.id, Number(deleteCandidate.version));
       await reloadAfterMutation(result.message);
       setDeleteCandidate(null);
     } catch (error) {
@@ -141,12 +139,7 @@ export function PolicyPage() {
   return (
     <PageFrame
       title="流量策略"
-      actions={(
-        <div className="flex items-center gap-2">
-          <Button onClick={() => setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft() })}>+ 限流策略</Button>
-          <Button variant="secondary" onClick={() => setEditor({ type: 'ipRestriction', draft: createIPRestrictionPolicyDraft() })}>+ IP 访问限制</Button>
-        </div>
-      )}
+      actions={<Button onClick={() => { setShowValidation(false); setEditor(createIPRestrictionPolicyDraft()); }}>+ IP 访问限制</Button>}
     >
       <div className="space-y-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -154,22 +147,16 @@ export function PolicyPage() {
           <ResourceListFilters
             summary={policyFilterSummary(filters)}
             resultLabel={`${visiblePolicies.length} 条策略`}
-            onSearch={() => setFilters({ ...filterDraft })}
+            onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
             onReset={() => {
               const next = emptyPolicyFilters();
               setFilterDraft(next);
               setFilters(next);
+              setPage(1);
             }}
           >
             <ResourceFilterField label="关键词">
               <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索策略或应用目标" />
-            </ResourceFilterField>
-            <ResourceFilterField label="策略类型">
-              <select className="select" value={filterDraft.kind} onChange={(event) => setFilterDraft((current) => ({ ...current, kind: event.target.value as PolicyKindFilter }))}>
-                <option value="all">全部类型</option>
-                <option value="RateLimitPolicy">限流</option>
-                <option value="IPRestrictionPolicy">IP 访问限制</option>
-              </select>
             </ResourceFilterField>
             <ResourceFilterField label="启用状态">
               <select className="select" value={filterDraft.enabled} onChange={(event) => setFilterDraft((current) => ({ ...current, enabled: event.target.value as PolicyEnabledFilter }))}>
@@ -183,25 +170,20 @@ export function PolicyPage() {
                 <option value="all">全部生效状态</option>
                 <option value="Ready">已生效</option>
                 <option value="Pending">待生效</option>
-                <option value="Error">异常</option>
+                <option value="Error">生效失败</option>
                 <option value="Unapplied">未应用</option>
               </select>
             </ResourceFilterField>
           </ResourceListFilters>
           <PolicyLibraryTable
-            policies={visiblePolicies}
+            policies={pagedPolicies}
             targets={data.targets}
             onDetail={setDetail}
-            onEdit={(policy) => {
-              if (policy.kind === 'RateLimitPolicy') {
-                setEditor({ type: 'rateLimit', draft: createRateLimitPolicyDraft(policy.raw) });
-              } else {
-                setEditor({ type: 'ipRestriction', draft: createIPRestrictionPolicyDraft(policy.raw) });
-              }
-            }}
+            onEdit={(policy) => { setShowValidation(false); setEditor(createIPRestrictionPolicyDraft(policy.raw)); }}
             onToggle={togglePolicyStatus}
             onDelete={setDeleteCandidate}
           />
+          {visiblePolicies.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visiblePolicies.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
         </Panel>
       </div>
 
@@ -210,40 +192,34 @@ export function PolicyPage() {
       </Drawer>
 
       <Drawer
-        title={editor ? `${editor.draft.id ? '编辑' : '创建'}${editorTypeTitle(editor.type)}` : ''}
+        title={editor ? `${editor.id ? '编辑' : '创建'} IP 访问限制` : ''}
         subtitle="策略可以先保存，选择应用目标后才会影响流量"
         isOpen={Boolean(editor)}
-        onClose={() => setEditor(null)}
+        onClose={() => { setEditor(null); setShowValidation(false); }}
       >
         {editor && (
           <div className="space-y-5">
-            {editor.type === 'rateLimit' ? (
-              <RateLimitPolicyEditor
-                draft={editor.draft}
-                targets={data.targets}
-                validation={validateRateLimitPolicyDraft(editor.draft)}
-                onChange={(draft) => setEditor({ type: 'rateLimit', draft })}
-              />
-            ) : (
-              <IPRestrictionPolicyEditor
-                draft={editor.draft}
-                targets={data.targets}
-                validation={validateIPRestrictionPolicyDraft(editor.draft)}
-                onChange={(draft) => setEditor({ type: 'ipRestriction', draft })}
-              />
-            )}
+            <IPRestrictionPolicyEditor
+              draft={editor}
+              targets={data.targets}
+              validation={{
+                ...validateIPRestrictionPolicyDraft(editor),
+                errors: showValidation ? validateIPRestrictionPolicyDraft(editor).errors : {},
+              }}
+              onChange={setEditor}
+            />
 
             <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setEditor(null)}
+                onClick={() => { setEditor(null); setShowValidation(false); }}
                 className="px-4 py-2 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
               >
                 取消
               </button>
               <button
                 type="button"
-                disabled={submitting || !editorIsValid(editor)}
+                disabled={submitting}
                 onClick={saveEditor}
                 className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
               >
@@ -295,7 +271,6 @@ function policyMatchesState(policy: GovernancePolicy, state: PolicyStateFilter):
 function policyFilterSummary(filters: PolicyFilters): string {
   const conditions = [];
   if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
-  if (filters.kind !== 'all') conditions.push(`类型：${policyKindLabel(filters.kind)}`);
   if (filters.enabled !== 'all') conditions.push(`启用状态：${filters.enabled === 'enabled' ? '已启用' : '已停用'}`);
   if (filters.state !== 'all') {
     conditions.push(`生效状态：${filters.state === 'Unapplied' ? '未应用' : resourceStateLabel(filters.state)}`);
@@ -316,50 +291,18 @@ function PolicyDetail({ policy, targets }: { policy: GovernancePolicy; targets: 
           <div><span>策略类型</span><strong>{policyKindLabel(policy.kind)}</strong></div>
           <div><span>规则摘要</span><strong>{policy.summary}</strong></div>
           <div><span>启用状态</span><strong>{policy.enabled ? '已启用' : '已停用'}</strong></div>
+          <div><span>生效状态</span><strong>{governancePolicyStatusLabel(policy)}</strong></div>
           <div><span>创建时间</span><strong>{formatDateTime(policy.createdAt ?? '')}</strong></div>
-          {policy.kind === 'RateLimitPolicy' ? <>
-            <div><span>计数对象</span><strong>{rateLimitSubjectLabel(policy.raw.subject.type, policy.raw.subject.headerName)}</strong></div>
-            <div><span>请求上限</span><strong>{policy.raw.limit.windowSeconds} 秒内 {policy.raw.limit.requests} 次</strong></div>
-          </> : <>
-            <div><span>允许地址</span><strong>{policy.raw.allow.join('、') || '未配置'}</strong></div>
-            <div><span>拒绝地址</span><strong>{policy.raw.deny.join('、') || '未配置'}</strong></div>
-          </>}
+          <div><span>允许地址</span><strong>{policy.raw.allow.join('、') || '未配置'}</strong></div>
+          <div><span>拒绝地址</span><strong>{policy.raw.deny.join('、') || '未配置'}</strong></div>
         </div>
       </section>
       <section className="resource-detail-section">
         <h3>应用目标</h3>
         {policy.targets.length > 0 ? <div className="resource-detail-list">
-          {policy.targets.map((target) => <article key={`${target.kind}:${target.id}`}><div><strong>{policyTargetLabel(target, targets)}</strong><small>{policyTargetKindLabel(target.kind)} · {target.status?.message || '等待系统反馈执行状态'}</small></div><Badge tone={target.status ? policyStatusTone(target.status) : 'neutral'}>{target.status ? target.status.state === 'Ready' ? '已生效' : target.status.state === 'Error' ? '异常' : '待生效' : '未知'}</Badge></article>)}
+          {policy.targets.map((target) => <article key={`${target.kind}:${target.id}`}><div><strong>{policyTargetLabel(target, targets)}</strong><small>{policyTargetKindLabel(target.kind)} · {target.status?.message || '等待系统反馈执行状态'}</small></div><Badge tone={target.status ? policyStatusTone(target.status) : 'neutral'}>{target.status ? target.status.state === 'Ready' ? '已生效' : target.status.state === 'Error' ? '生效失败' : '待生效' : '未知'}</Badge></article>)}
         </div> : <EmptyState title="尚未应用" message="策略已保存，但当前不影响任何流量" />}
       </section>
     </div>
   );
-}
-
-function rateLimitSubjectLabel(type: 'Shared' | 'IP' | 'Header', headerName?: string): string {
-  if (type === 'IP') return '客户端 IP';
-  if (type === 'Header') return `请求头 ${headerName || '—'}`;
-  return '所有请求共享';
-}
-
-function editorTypeTitle(type: PolicyEditorState['type']) {
-  switch (type) {
-    case 'rateLimit': return '限流策略';
-    case 'ipRestriction': return 'IP 访问限制策略';
-  }
-}
-
-function editorIsValid(editor: PolicyEditorState): boolean {
-  if (editor.type === 'rateLimit') return validateRateLimitPolicyDraft(editor.draft).valid;
-  return validateIPRestrictionPolicyDraft(editor.draft).valid;
-}
-
-function savePolicyEditor(editor: PolicyEditorState): Promise<PolicyMutationResult> {
-  if (editor.type === 'rateLimit') return saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft));
-  return saveIPRestrictionPolicy(ipRestrictionPolicyPayload(editor.draft));
-}
-
-function deletePolicyByKind(kind: GovernancePolicyKind, id: string, version?: string | number): Promise<PolicyMutationResult> {
-  if (kind === 'RateLimitPolicy') return deleteRateLimitPolicy(id, Number(version));
-  return deleteIPRestrictionPolicy(id, Number(version));
 }

@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { BrainCircuit, KeyRound, Plus, Server, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { deleteUpstream, listUpstreams, saveUpstream } from '@/api/upstreams';
+import { listRoutes } from '@/api/routes';
 import { useResource } from '@/api/useResource';
 import {
   Badge,
@@ -13,12 +14,14 @@ import {
   Panel,
   ResourceFilterField,
   ResourceListFilters,
+  ResourcePagination,
   ResourceStatePanel,
   RowActions,
   SearchField,
   Toast,
 } from '@/components/ui';
 import { formatDateTime, resourceStateLabel, resourceStateTone, type ResourceState } from '@/domain/common';
+import type { RouteResource } from '@/domain/route';
 import type { Upstream, UpstreamEndpoint } from '@/domain/upstream';
 import { modelProtocolLabel, upstreamLoadBalancingLabel, upstreamLoadBalancingOptions } from '@/domain/upstream';
 import { ResourceTrafficSummary } from '@/features/traffic/ResourceTrafficSummary';
@@ -37,11 +40,16 @@ interface UpstreamFilters {
 const emptyUpstreamFilters = (): UpstreamFilters => ({ query: '', type: 'all', state: 'all' });
 
 export function UpstreamPage() {
-  const resource = useResource(listUpstreams);
+  const resource = useResource(listUpstreams, {
+    autoRefreshWhen: (data) => data.upstreams.some((upstream) => upstream.state === 'Pending'),
+  });
+  const routes = useResource(listRoutes);
   const trafficOverview = useResourceTrafficOverview('service', resource.data?.upstreams.map((upstream) => upstream.id) ?? []);
   const [searchParams, setSearchParams] = useSearchParams();
   const [filterDraft, setFilterDraft] = useState<UpstreamFilters>(emptyUpstreamFilters);
   const [filters, setFilters] = useState<UpstreamFilters>(emptyUpstreamFilters);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [draft, setDraft] = useState<UpstreamDraft>(() => createUpstreamDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Upstream | null>(null);
@@ -71,6 +79,13 @@ export function UpstreamPage() {
       && (filters.type === 'all' || type === filters.type)
       && (filters.state === 'all' || upstream.state === filters.state);
   });
+  const pageCount = Math.max(1, Math.ceil(visibleUpstreams.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedUpstreams = visibleUpstreams.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const referencingRoutes = (upstreamID: string) => routes.data?.routes.filter((route) => (
+    route.upstreams.some((target) => target.upstreamID === upstreamID)
+    || route.ai?.models.some((model) => model.targets.some((target) => target.upstreamID === upstreamID))
+  )) ?? [];
   const setDetail = (upstream?: Upstream) => {
     const next = new URLSearchParams(searchParams);
     if (upstream) next.set('detail', upstream.id);
@@ -125,11 +140,12 @@ export function UpstreamPage() {
         <ResourceListFilters
           summary={upstreamFilterSummary(filters)}
           resultLabel={`${visibleUpstreams.length} 个服务`}
-          onSearch={() => setFilters({ ...filterDraft })}
+          onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
           onReset={() => {
             const next = emptyUpstreamFilters();
             setFilterDraft(next);
             setFilters(next);
+            setPage(1);
           }}
         >
           <ResourceFilterField label="关键词">
@@ -147,25 +163,22 @@ export function UpstreamPage() {
               <option value="all">全部生效状态</option>
               <option value="Ready">已生效</option>
               <option value="Pending">待生效</option>
-              <option value="Error">异常</option>
+              <option value="Error">生效失败</option>
             </select>
           </ResourceFilterField>
         </ResourceListFilters>
         {visibleUpstreams.length === 0 ? <div className="p-5"><EmptyState title={resource.data.upstreams.length === 0 ? '暂无服务' : '没有匹配的服务'} message={resource.data.upstreams.length === 0 ? '创建服务后即可在路由中选择转发目标' : '请调整搜索条件'} /></div> : (
           <div className="table-scroll resource-table-scroll">
             <table className="table resource-table resource-upstream-table">
-              <thead><tr><th>名称</th><th>类型</th><th>地址</th><th>连接</th><th>负载均衡</th><th>最近 1 小时</th><th>生效状态</th><th>更新时间</th><th>操作</th></tr></thead>
+              <thead><tr><th>服务</th><th>服务地址</th><th>连接方式</th><th>最近 1 小时</th><th>状态</th><th>操作</th></tr></thead>
               <tbody>
-                {visibleUpstreams.map((item) => (
+                {pagedUpstreams.map((item) => (
                   <tr key={item.id}>
-                    <td><div className="resource-table-name">{item.model ? <BrainCircuit className="text-violet-600" /> : <Server className="text-blue-600" />}<strong>{item.name}</strong></div></td>
-                    <td><Badge tone={item.model ? 'purple' : 'neutral'}>{item.model ? '模型服务' : 'HTTP 服务'}</Badge></td>
+                    <td><div className="resource-table-name">{item.model ? <BrainCircuit className="text-violet-600" /> : <Server className="text-blue-600" />}<strong>{item.name}</strong></div><div className="table-secondary mt-1">{item.model ? `${modelProtocolLabel(item.model.protocol)}模型服务` : 'HTTP 服务'}</div></td>
                     <td className="font-mono text-[11px]">{item.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join('、')}</td>
-                    <td><div className="table-primary">{item.model ? modelProtocolLabel(item.model.protocol) : item.tls ? 'HTTPS' : 'HTTP'}</div>{item.model ? <div className="table-secondary">{item.tls ? 'HTTPS' : 'HTTP'}</div> : null}</td>
-                    <td>{upstreamLoadBalancingLabel(item.loadBalancing)}</td>
+                    <td><div className="table-primary">{item.tls ? 'HTTPS' : 'HTTP'}</div><div className="table-secondary">{upstreamLoadBalancingLabel(item.loadBalancing)}{item.healthCheck ? ' · 已配置健康检查' : ''}</div></td>
                     <td><ResourceTrafficSignal resourceID={item.id} overview={trafficOverview} /></td>
-                    <td><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
-                    <td className="resource-table-time">{formatDateTime(item.updatedAt || item.createdAt)}</td>
+                    <td><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge><div className="table-secondary mt-1">{formatDateTime(item.updatedAt || item.createdAt)}</div></td>
                     <td><RowActions onDetail={() => setDetail(item)} onEdit={() => openEditor(item)} onDelete={() => setDeleteCandidate(item)} /></td>
                   </tr>
                 ))}
@@ -173,10 +186,11 @@ export function UpstreamPage() {
             </table>
           </div>
         )}
+        {visibleUpstreams.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visibleUpstreams.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
       </Panel>
 
       <Drawer title="服务详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail()}>
-        {detail ? <UpstreamDetail upstream={detail} /> : null}
+        {detail ? <UpstreamDetail upstream={detail} routes={referencingRoutes(detail.id)} /> : null}
       </Drawer>
 
       <Drawer title={draft.id ? `编辑服务：${draft.name}` : '创建服务'} isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
@@ -184,7 +198,7 @@ export function UpstreamPage() {
           <Field label="服务名称"><input className="input" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
           {!draft.id ? (
             <Field label="服务类型">
-              <select className="select" value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value as UpstreamDraft['type'], httpsEnabled: event.target.value === 'MODEL' || draft.httpsEnabled })}>
+              <select className="select" value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value as UpstreamDraft['type'] })}>
                 <option value="HTTP">HTTP 服务</option>
                 <option value="MODEL">模型服务</option>
               </select>
@@ -208,7 +222,7 @@ export function UpstreamPage() {
           <div className="space-y-3">
             <div className="flex items-start justify-between gap-4">
               <strong className="text-xs">服务地址</strong>
-              <Button variant="soft" size="sm" onClick={() => setDraft({ ...draft, endpoints: [...draft.endpoints, { address: '', port: 8080, weight: 1 }] })}>添加地址</Button>
+              <Button variant="soft" size="sm" onClick={() => setDraft({ ...draft, endpoints: [...draft.endpoints, { address: '', port: 0, weight: 1 }] })}>添加地址</Button>
             </div>
             <div className="overflow-x-auto">
               <div className="grid min-w-[480px] gap-2">
@@ -218,7 +232,7 @@ export function UpstreamPage() {
                 {draft.endpoints.map((endpoint, index) => (
                   <div key={index} className="grid grid-cols-[minmax(0,1fr)_90px_90px_36px] gap-2">
                     <input className="input font-mono" aria-label={`地址 ${index + 1}`} placeholder="service.example.com" value={endpoint.address} onChange={(event) => updateEndpoint(index, { ...endpoint, address: event.target.value })} />
-                    <input className="input" aria-label={`端口 ${index + 1}`} type="number" min="1" max="65535" value={endpoint.port} onChange={(event) => updateEndpoint(index, { ...endpoint, port: Number(event.target.value) })} />
+                    <input className="input" aria-label={`端口 ${index + 1}`} placeholder={draft.httpsEnabled ? '443' : '80'} type="number" min="1" max="65535" value={endpoint.port || ''} onChange={(event) => updateEndpoint(index, { ...endpoint, port: Number(event.target.value) })} />
                     <input className="input" aria-label={`权重 ${index + 1}`} type="number" min="1" max="1000" value={endpoint.weight} onChange={(event) => updateEndpoint(index, { ...endpoint, weight: Number(event.target.value) })} />
                     <Button variant="ghost" size="sm" aria-label={`删除地址 ${index + 1}`} onClick={() => setDraft({ ...draft, endpoints: draft.endpoints.filter((_, current) => current !== index) })}><Trash2 className="h-3.5 w-3.5 text-rose-600" /></Button>
                   </div>
@@ -234,13 +248,13 @@ export function UpstreamPage() {
         </div>
       </Drawer>
 
-      <Modal title="删除服务" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}><div className="p-6 space-y-5"><p className="text-sm">确定删除服务“{deleteCandidate?.name}”吗？</p><div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy} onClick={remove}>确认删除</Button></div></div></Modal>
+      <Modal title="删除服务" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}><div className="p-6 space-y-5"><p className="text-sm">确定删除服务“{deleteCandidate?.name}”吗？</p>{deleteCandidate && referencingRoutes(deleteCandidate.id).length > 0 ? <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">当前仍被 {referencingRoutes(deleteCandidate.id).length} 条路由使用，请先解除引用。</p> : null}<div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy || Boolean(deleteCandidate && referencingRoutes(deleteCandidate.id).length > 0)} onClick={remove}>确认删除</Button></div></div></Modal>
       <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
     </PageFrame>
   );
 }
 
-function UpstreamDetail({ upstream }: { upstream: Upstream }) {
+function UpstreamDetail({ upstream, routes }: { upstream: Upstream; routes: RouteResource[] }) {
   return (
     <div className="space-y-5">
       <section className="resource-detail-hero">
@@ -254,9 +268,13 @@ function UpstreamDetail({ upstream }: { upstream: Upstream }) {
         <div className="resource-detail-grid">
           <div><span>协议</span><strong>{upstream.tls ? 'HTTPS' : 'HTTP'}</strong></div>
           <div><span>负载均衡</span><strong>{upstreamLoadBalancingLabel(upstream.loadBalancing)}</strong></div>
-          <div><span>TLS 服务名称</span><strong>{upstream.tls?.serverName || '—'}</strong></div>
+          {upstream.tls ? <div><span>TLS 服务名称</span><strong>{upstream.tls.serverName}</strong></div> : null}
           <div><span>主动健康检查</span><strong>{upstream.healthCheck ? `${upstream.healthCheck.path} · 每 ${upstream.healthCheck.intervalSeconds} 秒` : '未启用'}</strong></div>
         </div>
+      </section>
+      <section className="resource-detail-section">
+        <h3>引用路由</h3>
+        {routes.length > 0 ? <div className="resource-detail-list">{routes.map((route) => <article key={route.id}><div><strong>{route.name}</strong><small>{route.ai ? 'AI 路由' : 'API 路由'}</small></div><Badge tone="neutral">路由</Badge></article>)}</div> : <p className="text-xs text-slate-500">当前没有路由引用此服务</p>}
       </section>
       <section className="resource-detail-section">
         <h3>服务地址</h3>
@@ -267,10 +285,9 @@ function UpstreamDetail({ upstream }: { upstream: Upstream }) {
       <section className="resource-detail-section">
         <h3>资源信息</h3>
         <div className="resource-detail-grid">
-          <div><span>配置状态</span><strong>{upstream.message || resourceStateLabel(upstream.state)}</strong></div>
+          <div><span>生效状态</span><strong>{upstream.message || resourceStateLabel(upstream.state)}</strong></div>
           <div><span>更新时间</span><strong>{formatDateTime(upstream.updatedAt || upstream.createdAt)}</strong></div>
           <div><span>创建时间</span><strong>{formatDateTime(upstream.createdAt)}</strong></div>
-          <div><span>配置版本</span><strong>{upstream.version}</strong></div>
         </div>
       </section>
     </div>

@@ -79,6 +79,7 @@ export interface RouteListView {
 export interface RouteGatewayOption {
   id: string;
   name: string;
+  listeners: Array<{ protocol: 'GATEWAY_PROTOCOL_HTTP' | 'GATEWAY_PROTOCOL_HTTPS'; port: number; hostname: string }>;
 }
 
 export interface UpstreamOption {

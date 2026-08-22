@@ -38,7 +38,7 @@ export function resourceStateLabel(state: ResourceState): string {
   const labels: Record<ResourceState, string> = {
     Pending: '待生效',
     Ready: '已生效',
-    Error: '异常',
+    Error: '生效失败',
     Disabled: '已停用',
   };
   return labels[state];

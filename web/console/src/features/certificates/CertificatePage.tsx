@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { deleteCertificate, listCertificates, saveCertificate } from '@/api/certificates';
+import { listGateways } from '@/api/gateways';
 import { useResource } from '@/api/useResource';
 import {
   Badge,
@@ -11,6 +12,7 @@ import {
   Panel,
   ResourceFilterField,
   ResourceListFilters,
+  ResourcePagination,
   ResourceStatePanel,
   RowActions,
   SearchField,
@@ -46,9 +48,14 @@ const maxPEMFileSize = 1024 * 1024;
 const emptyCertificateFilters = (): CertificateFilters => ({ query: '', state: 'all' });
 
 export function CertificatePage() {
-  const certificates = useResource(listCertificates);
+  const certificates = useResource(listCertificates, {
+    autoRefreshWhen: (data) => data.certificates.some((certificate) => certificate.state === 'Pending'),
+  });
+  const gateways = useResource(listGateways);
   const [filterDraft, setFilterDraft] = useState<CertificateFilters>(emptyCertificateFilters);
   const [filters, setFilters] = useState<CertificateFilters>(emptyCertificateFilters);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [detail, setDetail] = useState<Certificate | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -86,6 +93,14 @@ export function CertificatePage() {
     `${certificate.name} ${certificate.dnsNames.join(' ')}`.toLowerCase().includes(normalizedQuery)
     && (filters.state === 'all' || certificate.state === filters.state)
   ));
+  const pageCount = Math.max(1, Math.ceil(visibleCertificates.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedCertificates = visibleCertificates.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const certificateReferences = (certificateID: string) => gateways.data?.gateways.flatMap((gateway) => (
+    gateway.listeners
+      .filter((listener) => listener.certificateID === certificateID)
+      .map((listener) => ({ gatewayID: gateway.id, gatewayName: gateway.name, listenerName: listener.name }))
+  )) ?? [];
 
   const handleCreateNew = () => {
     setIsEditing(false);
@@ -185,11 +200,12 @@ export function CertificatePage() {
           <ResourceListFilters
             summary={certificateFilterSummary(filters)}
             resultLabel={`${visibleCertificates.length} 张证书`}
-            onSearch={() => setFilters({ ...filterDraft })}
+            onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
             onReset={() => {
               const next = emptyCertificateFilters();
               setFilterDraft(next);
               setFilters(next);
+              setPage(1);
             }}
           >
             <ResourceFilterField label="关键词">
@@ -200,7 +216,7 @@ export function CertificatePage() {
                 <option value="all">全部生效状态</option>
                 <option value="Ready">已生效</option>
                 <option value="Pending">待生效</option>
-                <option value="Error">异常</option>
+                <option value="Error">生效失败</option>
               </select>
             </ResourceFilterField>
           </ResourceListFilters>
@@ -214,13 +230,13 @@ export function CertificatePage() {
                     <th>证书名称</th>
                     <th>DNS 域名</th>
                     <th>有效期截止</th>
-                    <th>生效状态</th>
+                    <th>状态</th>
                     <th>更新时间</th>
                     <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleCertificates.map((item) => (
+                  {pagedCertificates.map((item) => (
                     <tr key={item.id}>
                       <td>
                         <div className="resource-table-name">
@@ -240,9 +256,8 @@ export function CertificatePage() {
                       </td>
 
                       <td>
-                        <span className="font-mono text-[11px] text-slate-700">
-                          {formatDateTime(item.notAfter)}
-                        </span>
+                        <Badge tone={certificateExpiryTone(item.notAfter)}>{certificateExpiryLabel(item.notAfter)}</Badge>
+                        <div className="table-secondary mt-1">{formatDateTime(item.notAfter)}</div>
                       </td>
 
                       <td><Badge tone={resourceStateTone(item.state)}>{resourceStateLabel(item.state)}</Badge></td>
@@ -254,16 +269,17 @@ export function CertificatePage() {
               </table>
             </div>
           )}
+          {visibleCertificates.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visibleCertificates.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
         </Panel>
       </div>
 
       <Drawer title="证书详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail(null)}>
-        {detail ? <CertificateDetail certificate={detail} /> : null}
+        {detail ? <CertificateDetail certificate={detail} references={certificateReferences(detail.id)} /> : null}
       </Drawer>
 
       <Drawer
         title={isEditing ? `修改证书信息: ${draft.name}` : '录入新 TLS 证书'}
-        subtitle="上传 PEM 格式公私钥文本，用于 HTTPS Listener SNI 握手"
+        subtitle="上传 PEM 格式的证书文件和私钥，用于 HTTPS 入口"
         isOpen={drawerOpen}
         onClose={() => { setSubmitError(null); setDrawerOpen(false); }}
       >
@@ -317,7 +333,7 @@ export function CertificatePage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-center">
                       <FileText className="w-5 h-5 text-slate-400 mx-auto" />
-                      <div className="text-xs font-medium text-slate-700">证书公钥 (.crt / .pem)</div>
+                      <div className="text-xs font-medium text-slate-700">证书文件 (.crt / .pem)</div>
                       <input
                         ref={certFileInputRef}
                         type="file"
@@ -330,10 +346,10 @@ export function CertificatePage() {
                         onClick={() => certFileInputRef.current?.click()}
                         className="px-3 py-1.5 bg-white border border-slate-300 text-xs font-medium rounded-lg hover:bg-slate-50 cursor-pointer"
                       >
-                        选择公钥文件
+                        选择证书文件
                       </button>
                       {draft.certificatePEM && (
-                        <p className="text-[10px] text-emerald-600 font-mono">已加载公钥文件</p>
+                        <p className="text-[10px] text-emerald-600">已加载证书文件</p>
                       )}
                     </div>
 
@@ -363,7 +379,7 @@ export function CertificatePage() {
                   <div className="space-y-3">
                     <div>
                       <label className="block text-xs font-semibold text-slate-700 mb-1">
-                        证书公钥内容 (BEGIN CERTIFICATE)
+                        证书内容 (BEGIN CERTIFICATE)
                       </label>
                       <textarea
                         rows={5}
@@ -418,8 +434,9 @@ export function CertificatePage() {
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-600">
-            删除证书 <strong className="text-slate-900">{deleteCandidate?.name}</strong> 可能导致依赖此证书的 HTTPS 网关握手失败。确认操作？
+            确定删除证书 <strong className="text-slate-900">{deleteCandidate?.name}</strong> 吗？
           </p>
+          {deleteCandidate && certificateReferences(deleteCandidate.id).length > 0 ? <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">当前仍被 {certificateReferences(deleteCandidate.id).length} 个 HTTPS 入口使用，请先解除引用。</p> : null}
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -430,7 +447,7 @@ export function CertificatePage() {
             </button>
             <button
               type="button"
-              disabled={deleting}
+              disabled={deleting || Boolean(deleteCandidate && certificateReferences(deleteCandidate.id).length > 0)}
               onClick={confirmDelete}
               className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs cursor-pointer"
             >
@@ -443,12 +460,16 @@ export function CertificatePage() {
   );
 }
 
-function CertificateDetail({ certificate }: { certificate: Certificate }) {
+function CertificateDetail({ certificate, references }: { certificate: Certificate; references: Array<{ gatewayID: string; gatewayName: string; listenerName: string }> }) {
   return (
     <div className="space-y-5">
       <section className="resource-detail-hero">
         <div><h3>{certificate.name}</h3></div>
         <Badge tone={resourceStateTone(certificate.state)}>{resourceStateLabel(certificate.state)}</Badge>
+      </section>
+      <section className="resource-detail-section">
+        <h3>使用位置</h3>
+        {references.length > 0 ? <div className="resource-detail-list">{references.map((reference) => <article key={`${reference.gatewayID}:${reference.listenerName}`}><div><strong>{reference.gatewayName}</strong><small>入口：{reference.listenerName}</small></div><Badge tone="accent">HTTPS</Badge></article>)}</div> : <p className="text-xs text-slate-500">当前没有 HTTPS 入口使用此证书</p>}
       </section>
       <section className="resource-detail-section">
         <h3>证书范围</h3>
@@ -468,8 +489,7 @@ function CertificateDetail({ certificate }: { certificate: Certificate }) {
       <section className="resource-detail-section">
         <h3>资源信息</h3>
         <div className="resource-detail-grid">
-          <div><span>配置状态</span><strong>{certificate.message || resourceStateLabel(certificate.state)}</strong></div>
-          <div><span>配置版本</span><strong>{certificate.version}</strong></div>
+          <div><span>生效状态</span><strong>{certificate.message || resourceStateLabel(certificate.state)}</strong></div>
         </div>
       </section>
     </div>
@@ -491,10 +511,25 @@ function certificateFilterSummary(filters: CertificateFilters): string {
   return conditions.join(' · ') || '全部证书';
 }
 
+function certificateExpiryLabel(notAfter: string): string {
+  const remainingDays = Math.ceil((new Date(notAfter).getTime() - Date.now()) / 86_400_000);
+  if (remainingDays < 0) return '已过期';
+  if (remainingDays === 0) return '今天到期';
+  if (remainingDays <= 30) return `${remainingDays} 天后到期`;
+  return '有效';
+}
+
+function certificateExpiryTone(notAfter: string): 'success' | 'warning' | 'error' {
+  const remainingDays = Math.ceil((new Date(notAfter).getTime() - Date.now()) / 86_400_000);
+  if (remainingDays < 0) return 'error';
+  if (remainingDays <= 30) return 'warning';
+  return 'success';
+}
+
 function validateDraft(draft: CertificateDraft, mode: 'create' | 'edit'): string | null {
   if (!draft.name.trim()) return '请输入证书展示名称';
   if (mode === 'create') {
-    if (!draft.certificatePEM.trim()) return '请提供证书公钥内容 (PEM)';
+    if (!draft.certificatePEM.trim()) return '请提供证书内容 (PEM)';
     if (!draft.privateKeyPEM.trim()) return '请提供证书私钥内容 (PEM)';
   }
   return null;

@@ -1,8 +1,7 @@
 import type { ResourceState, ResourceStatus } from './common';
 
-export type GovernancePolicyKind = 'RateLimitPolicy' | 'IPRestrictionPolicy';
+export type GovernancePolicyKind = 'IPRestrictionPolicy';
 export type PolicyTargetKind = 'Gateway' | 'Route';
-export type RateLimitSubjectType = 'Shared' | 'IP' | 'Header';
 
 export interface PolicyTargetRef {
   kind: PolicyTargetKind;
@@ -14,29 +13,6 @@ export interface PolicyTargetRef {
 export interface PolicyTargetPayload {
   kind: PolicyTargetKind;
   id: string;
-}
-
-export interface RateLimitPolicy {
-  id: string;
-  version: number;
-  name: string;
-  enabled: boolean;
-  targets: PolicyTargetRef[];
-  subject: RateLimitSubject;
-  limit: RateLimit;
-  status: ResourceStatus;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface RateLimitSubject {
-  type: RateLimitSubjectType;
-  headerName?: string;
-}
-
-export interface RateLimit {
-  requests: number;
-  windowSeconds: number;
 }
 
 export interface IPRestrictionPolicy {
@@ -72,13 +48,13 @@ interface GovernancePolicyBase {
   updatedAt?: string;
 }
 
-export type GovernancePolicy =
-  | GovernancePolicyBase & { kind: 'RateLimitPolicy'; raw: RateLimitPolicy }
-	| GovernancePolicyBase & { kind: 'IPRestrictionPolicy'; raw: IPRestrictionPolicy };
+export type GovernancePolicy = GovernancePolicyBase & {
+  kind: 'IPRestrictionPolicy';
+  raw: IPRestrictionPolicy;
+};
 
 export interface PolicyWorkspace {
   policies: GovernancePolicy[];
-  rateLimitPolicies: RateLimitPolicy[];
   ipRestrictionPolicies: IPRestrictionPolicy[];
   targets: PolicyTargetOption[];
 }
@@ -86,14 +62,6 @@ export interface PolicyWorkspace {
 export interface PolicyMutationResult {
   message: string;
   changeId?: string;
-}
-
-interface RateLimitPolicyConfigPayload {
-  name: string;
-  enabled: boolean;
-  targets: PolicyTargetPayload[];
-  subject: RateLimitSubject;
-  limit: RateLimit;
 }
 
 interface IPRestrictionPolicyConfigPayload {
@@ -106,14 +74,12 @@ interface IPRestrictionPolicyConfigPayload {
 type CreatePolicyIdentity = { id?: never; version?: never };
 type VersionedPolicyIdentity<T extends string | number> = { id: string; version: T };
 
-export type RateLimitPolicyPayload = RateLimitPolicyConfigPayload & (CreatePolicyIdentity | VersionedPolicyIdentity<number>);
 export type IPRestrictionPolicyPayload =
   | IPRestrictionPolicyConfigPayload & CreatePolicyIdentity
   | IPRestrictionPolicyConfigPayload & { enabled: boolean } & VersionedPolicyIdentity<number>;
 
 export function policyKindLabel(kind: GovernancePolicyKind) {
   const labels: Record<GovernancePolicyKind, string> = {
-    RateLimitPolicy: '限流',
     IPRestrictionPolicy: 'IP 访问限制',
   };
   return labels[kind];
@@ -127,7 +93,7 @@ export function policyStatusLabel(status: ResourceStatus) {
   const labels: Record<ResourceState, string> = {
     Ready: '已生效',
     Pending: '待生效',
-    Error: '异常',
+    Error: '生效失败',
     Disabled: '已停用',
   };
   return labels[status.state];
@@ -135,7 +101,7 @@ export function policyStatusLabel(status: ResourceStatus) {
 
 export function governancePolicyStatusLabel(policy: Pick<GovernancePolicy, 'enabled' | 'targets' | 'status'>) {
   if (policy.enabled && policy.targets.length === 0 && policy.status.state === 'Ready') {
-    return '已保存';
+    return '未应用';
   }
   return policyStatusLabel(policy.status);
 }
