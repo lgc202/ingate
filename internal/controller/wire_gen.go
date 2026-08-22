@@ -15,14 +15,19 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, delivery *conf.Delivery, resourceWatch *conf.ResourceWatch, logger *slog.Logger, controllerServiceInstanceID serviceInstanceID) (*kratos.App, error) {
+func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_Wasm *conf.Data_Wasm, delivery *conf.Delivery, resourceWatch *conf.ResourceWatch, logger *slog.Logger, controllerServiceInstanceID serviceInstanceID) (*kratos.App, error) {
 	snapshotCache := newSnapshotCache(logger)
 	publisher := newXDSPublisher(snapshotCache)
 	deliveryDelivery, err := newDelivery(delivery, publisher)
 	if err != nil {
 		return nil, err
 	}
-	httpServer := server.NewHTTPServer(confServer, deliveryDelivery)
+	store, err := newWasmModuleStore(data_Wasm)
+	if err != nil {
+		return nil, err
+	}
+	handler := newWasmModuleHandler(store)
+	httpServer := server.NewHTTPServer(confServer, deliveryDelivery, handler)
 	service := newXDSService(snapshotCache, deliveryDelivery, logger)
 	grpcServer := server.NewGRPCServer(confServer, service)
 	versionedInterface, err := newAPIClient(data_APIServer)
@@ -34,7 +39,8 @@ func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, deliv
 		return nil, err
 	}
 	writer := newStatusWriter(versionedInterface)
-	controller := newController(resourceWatcher, writer, deliveryDelivery, logger)
+	wasmModuleStore := asWasmModuleStore(store)
+	controller := newController(resourceWatcher, writer, deliveryDelivery, wasmModuleStore, logger)
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, deliveryDelivery, controller, controllerServiceInstanceID)
 	return app, nil
 }

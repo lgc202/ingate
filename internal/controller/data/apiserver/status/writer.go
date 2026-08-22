@@ -38,6 +38,9 @@ func (w *Writer) ApplyCompileResult(
 	programmedTargets := newProgrammedPolicyTargetIndex(deliveryStatus.ActivePolicyTargets)
 	for _, resource := range resources.Generations() {
 		decision := decisions.forResource(resource.Kind, resource.Name)
+		if resource.Kind == gatewayv1.KindWasmPlugin {
+			decision = decisions.forWasmPlugin(resource.Name)
+		}
 		if err := w.updateResource(ctx, resource, &decision, deliveryStatus, targets, programmedTargets); err != nil {
 			return err
 		}
@@ -82,6 +85,10 @@ func (w *Writer) updateResource(
 		return w.updateRateLimitPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
 	case gatewayv1.KindIPRestrictionPolicy:
 		return w.updateIPRestrictionPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
+	case gatewayv1.KindHeaderTransformationPolicy:
+		return w.updateHeaderTransformationPolicy(ctx, resource, compile, deliveryStatus, targets, programmedTargets)
+	case gatewayv1.KindWasmPlugin:
+		return w.updateWasmPlugin(ctx, resource, compile)
 	default:
 		return fmt.Errorf("update unsupported resource kind %q", resource.Kind)
 	}

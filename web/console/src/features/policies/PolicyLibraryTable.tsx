@@ -66,7 +66,11 @@ export function PolicyLibraryTable({
                   <div className="table-secondary policy-target-summary">
                     {policy.targets.length > 0
                       ? policy.targets.map((target) => policyTargetLabel(target, targets)).join('、')
-                      : policy.kind === 'TokenQuotaPolicy' ? '可编辑策略后选择调用方' : '可编辑策略后选择网关或路由'}
+                      : policy.kind === 'TokenQuotaPolicy'
+                        ? '可编辑策略后选择调用方'
+                        : policy.kind === 'HeaderTransformationPolicy'
+                          ? '可编辑策略后选择路由'
+                          : '可编辑策略后选择网关或路由'}
                   </div>
                 </td>
                 <td>
@@ -100,7 +104,7 @@ export function PolicyLibraryTable({
 }
 
 function policyContentCount(policy: GovernancePolicy) {
-  return policy.kind === 'TokenQuotaPolicy'
-    ? `${policy.ruleCount} 个额度周期`
-    : `${policy.ruleCount} 个地址或网段`;
+  if (policy.kind === 'TokenQuotaPolicy') return `${policy.ruleCount} 个额度周期`;
+  if (policy.kind === 'HeaderTransformationPolicy') return `${policy.ruleCount} 条转换规则`;
+  return `${policy.ruleCount} 个地址或网段`;
 }

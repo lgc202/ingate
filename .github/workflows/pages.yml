@@ -1,0 +1,89 @@
+name: Pages
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      catalog_artifact:
+        description: Plugin catalog artifact produced by a release workflow
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  # 文档与插件发布共用一个项目站点，必须串行部署完整站点制品
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build project site
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Configure GitHub Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build documentation
+        uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./docs
+          destination: ./_site
+
+      # 插件发布传入刚生成的目录；普通文档发布沿用线上目录，不能把已发布插件回退成内置快照
+      - name: Download released plugin catalog
+        if: inputs.catalog_artifact != ''
+        uses: actions/download-artifact@v6
+        with:
+          name: ${{ inputs.catalog_artifact }}
+          path: _catalog
+
+      - name: Preserve published plugin catalog
+        if: inputs.catalog_artifact == ''
+        env:
+          CATALOG_URL: https://lgc202.github.io/ingate/plugins/v1/catalog.json
+        run: |
+          output="_catalog/plugins/v1/catalog.json"
+          mkdir -p "$(dirname "$output")"
+          if ! curl --fail --silent --show-error --location "$CATALOG_URL" --output "$output"; then
+            cp internal/adminapi/data/plugincatalog/catalog.json "$output"
+          fi
+
+      - name: Assemble project site
+        run: cp -R _catalog/plugins _site/plugins
+
+      - name: Upload project site
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy project site
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy project site
+        id: deployment
+        uses: actions/deploy-pages@v4

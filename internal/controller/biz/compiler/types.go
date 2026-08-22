@@ -37,6 +37,8 @@ const (
 	ReasonUnsupported = gatewayv1.ReasonUnsupported
 	// ReasonCompileFailed 表示资源通过校验后仍无法生成一致的 Envoy 配置
 	ReasonCompileFailed = gatewayv1.ReasonCompileFailed
+	// ReasonArtifactUnavailable 表示插件制品无法下载或校验
+	ReasonArtifactUnavailable = gatewayv1.ReasonArtifactUnavailable
 )
 
 // ResourceGeneration 标识一次编译所观察到的资源身份和 spec 版本
@@ -55,24 +57,32 @@ type CompiledPolicyTarget struct {
 	Target ResourceGeneration
 }
 
+// WasmModule 描述 Controller 已下载并校验、可供 Envoy 读取的模块
+type WasmModule struct {
+	URL    string
+	SHA256 string
+}
+
 // Resources 表示一次全量编译使用的声明式资源
 //
 // 使用 gateway/v1 指针可以直接接收 informer 和 generated client 的结果，
 // 同时避免复制带有 ObjectMeta 和切片字段的 Kubernetes 资源值
 type Resources struct {
-	Gateways              []*gatewayv1.Gateway
-	Certificates          []*gatewayv1.Certificate
-	Routes                []*gatewayv1.Route
-	Upstreams             []*gatewayv1.Upstream
-	RateLimitPolicies     []*gatewayv1.RateLimitPolicy
-	IPRestrictionPolicies []*gatewayv1.IPRestrictionPolicy
+	Gateways                     []*gatewayv1.Gateway
+	Certificates                 []*gatewayv1.Certificate
+	Routes                       []*gatewayv1.Route
+	Upstreams                    []*gatewayv1.Upstream
+	RateLimitPolicies            []*gatewayv1.RateLimitPolicy
+	IPRestrictionPolicies        []*gatewayv1.IPRestrictionPolicy
+	HeaderTransformationPolicies []*gatewayv1.HeaderTransformationPolicy
+	WasmPlugins                  []*gatewayv1.WasmPlugin
 }
 
 // Generations 返回当前资源集合中所有非 nil 资源的身份和 spec 版本
 func (r Resources) Generations() []ResourceGeneration {
 	result := make([]ResourceGeneration, 0,
 		len(r.Gateways)+len(r.Certificates)+len(r.Routes)+len(r.Upstreams)+
-			len(r.RateLimitPolicies)+len(r.IPRestrictionPolicies),
+			len(r.RateLimitPolicies)+len(r.IPRestrictionPolicies)+len(r.HeaderTransformationPolicies)+len(r.WasmPlugins),
 	)
 	for _, resource := range r.Gateways {
 		if resource != nil {
@@ -102,6 +112,16 @@ func (r Resources) Generations() []ResourceGeneration {
 	for _, resource := range r.IPRestrictionPolicies {
 		if resource != nil {
 			result = append(result, newResourceGeneration(gatewayv1.KindIPRestrictionPolicy, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.HeaderTransformationPolicies {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindHeaderTransformationPolicy, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.WasmPlugins {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindWasmPlugin, resource.Name, resource.UID, resource.Generation))
 		}
 	}
 	return result

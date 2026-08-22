@@ -1,0 +1,12 @@
+title: Ingate
+description: 基于 Envoy 的声明式 API 与 AI 网关
+lang: zh-CN
+theme: minima
+url: https://lgc202.github.io
+baseurl: /ingate
+
+header_pages:
+  - architecture.md
+
+exclude:
+  - plugins

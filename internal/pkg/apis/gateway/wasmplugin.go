@@ -1,0 +1,55 @@
+package gateway
+
+import (
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+// WasmPluginPullPolicy 表示控制面何时重新拉取 Wasm 模块
+type WasmPluginPullPolicy string
+
+const (
+	// WasmPluginPackageTransformer 标识 Ingate 请求响应转换标准插件
+	WasmPluginPackageTransformer = "ingate-transformer"
+	// WasmPluginPullIfNotPresent 优先复用校验和一致的本地模块
+	WasmPluginPullIfNotPresent WasmPluginPullPolicy = "IfNotPresent"
+	// WasmPluginPullAlways 在资源版本变化时重新拉取模块
+	WasmPluginPullAlways WasmPluginPullPolicy = "Always"
+)
+
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+
+// WasmPlugin 声明一个已安装的 Proxy-Wasm 插件制品
+type WasmPlugin struct {
+	metav1.TypeMeta   `json:",inline"`
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	Spec   WasmPluginSpec `json:"spec,omitempty"`
+	Status ResourceStatus `json:"status,omitempty"`
+}
+
+// WasmPluginList 表示 WasmPlugin 资源列表
+// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+type WasmPluginList struct {
+	metav1.TypeMeta `json:",inline"`
+	metav1.ListMeta `json:"metadata,omitempty"`
+
+	Items []WasmPlugin `json:"items"`
+}
+
+// WasmPluginSpec 定义插件身份和模块来源
+type WasmPluginSpec struct {
+	// DisplayName 保存控制台展示名称，不参与流量匹配
+	DisplayName string `json:"displayName"`
+	// Package 是插件在仓库中的稳定标识，同一配置域只能安装一个版本
+	Package string `json:"package"`
+	// Version 表示插件制品版本，不等同于资源 Generation
+	Version string `json:"version"`
+	// URL 支持指向 Wasm 模块的 HTTP(S) URL 或 oci:// 镜像引用
+	URL string `json:"url"`
+	// SHA256 对 HTTP(S) 校验 Wasm 模块，对 OCI 校验镜像 manifest；为空时不校验来源摘要
+	SHA256 string `json:"sha256,omitempty"`
+	// PullPolicy 控制资源版本变化时是否重新拉取模块
+	PullPolicy WasmPluginPullPolicy `json:"pullPolicy"`
+	// RootID 必须与 Proxy-Wasm 模块注册 Context 时使用的 root_id 一致；为空表示使用模块的默认 Root Context
+	RootID string `json:"rootID,omitempty"`
+}

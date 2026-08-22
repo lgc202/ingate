@@ -2,6 +2,7 @@ package controller
 
 import (
 	"log/slog"
+	"net/http"
 
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/controller/conf"
 	controllerdata "github.com/lgc202/ingate/internal/controller/data/apiserver"
 	controllerstatus "github.com/lgc202/ingate/internal/controller/data/apiserver/status"
+	controllerwasm "github.com/lgc202/ingate/internal/controller/data/wasm"
 	"github.com/lgc202/ingate/internal/controller/server/xds"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
@@ -27,6 +29,18 @@ func newResourceWatcher(
 
 func newStatusWriter(client clientset.Interface) *controllerstatus.Writer {
 	return controllerstatus.NewWriter(client.GatewayV1())
+}
+
+func newWasmModuleStore(config *conf.Data_Wasm) (*controllerwasm.Store, error) {
+	return controllerwasm.NewStore(config)
+}
+
+func asWasmModuleStore(store *controllerwasm.Store) biz.WasmModuleStore {
+	return store
+}
+
+func newWasmModuleHandler(store *controllerwasm.Store) http.Handler {
+	return store
 }
 
 func newSnapshotCache(logger *slog.Logger) cachev3.SnapshotCache {
@@ -48,12 +62,14 @@ func newController(
 	resources *controllerdata.ResourceWatcher,
 	statusWriter *controllerstatus.Writer,
 	configDelivery *delivery.Delivery,
+	wasmModules biz.WasmModuleStore,
 	logger *slog.Logger,
 ) *biz.Controller {
 	return biz.NewController(
 		resources,
 		statusWriter,
 		configDelivery,
+		wasmModules,
 		logger.With("component", "controller"),
 	)
 }

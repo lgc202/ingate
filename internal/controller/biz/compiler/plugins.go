@@ -13,10 +13,12 @@ const httpRouterFilterName = "envoy.filters.http.router"
 // listenerFilterConfig 记录只在部分 Listener 上启用的过滤器
 type listenerFilterConfig struct {
 	ipRestriction bool
+	wasm          []wasmFilter
 }
 
 func buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) {
-	filters := make([]*hcmv3.HttpFilter, 0, 4)
+	filters := make([]*hcmv3.HttpFilter, 0, 4+len(config.wasm))
+	// 顺序决定同一请求的执行语义：先拒绝非法来源并完成调用方识别，再执行治理策略，最后进入 AI 协议处理
 	if config.ipRestriction {
 		filter, err := buildIPRestrictionHTTPFilter()
 		if err != nil {
@@ -29,6 +31,13 @@ func buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) 
 		return nil, err
 	}
 	filters = append(filters, callerAuth)
+	for _, wasm := range config.wasm {
+		filter, err := buildWasmHTTPFilter(wasm)
+		if err != nil {
+			return nil, err
+		}
+		filters = append(filters, filter)
+	}
 	aiExtProc, err := buildAIDownstreamExtProcHTTPFilter()
 	if err != nil {
 		return nil, err

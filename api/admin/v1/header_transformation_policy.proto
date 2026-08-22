@@ -1,0 +1,101 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// HeaderTransformationPolicyService 提供请求响应 Header 转换策略管理接口
+service HeaderTransformationPolicyService {
+  rpc ListHeaderTransformationPolicies(ListHeaderTransformationPoliciesRequest) returns (ListHeaderTransformationPoliciesResponse) {
+    option (google.api.http) = {get: "/api/v1/header-transformation-policies"};
+  }
+  rpc GetHeaderTransformationPolicy(GetHeaderTransformationPolicyRequest) returns (HeaderTransformationPolicy) {
+    option (google.api.http) = {get: "/api/v1/header-transformation-policies/{id}"};
+  }
+  rpc CreateHeaderTransformationPolicy(CreateHeaderTransformationPolicyRequest) returns (HeaderTransformationPolicy) {
+    option (google.api.http) = {
+      post: "/api/v1/header-transformation-policies"
+      body: "*"
+    };
+  }
+  rpc UpdateHeaderTransformationPolicy(UpdateHeaderTransformationPolicyRequest) returns (HeaderTransformationPolicy) {
+    option (google.api.http) = {
+      put: "/api/v1/header-transformation-policies/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteHeaderTransformationPolicy(DeleteHeaderTransformationPolicyRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/header-transformation-policies/{id}"};
+  }
+}
+
+enum HeaderTransformationOperation {
+  HEADER_TRANSFORMATION_OPERATION_UNSPECIFIED = 0;
+  HEADER_TRANSFORMATION_OPERATION_REMOVE = 1;
+  HEADER_TRANSFORMATION_OPERATION_RENAME = 2;
+  HEADER_TRANSFORMATION_OPERATION_REPLACE = 3;
+  HEADER_TRANSFORMATION_OPERATION_ADD = 4;
+  HEADER_TRANSFORMATION_OPERATION_APPEND = 5;
+}
+
+message HeaderTransformationRule {
+  HeaderTransformationOperation operation = 1 [(buf.validate.field).enum.defined_only = true];
+  string name = 2 [(buf.validate.field).string.min_len = 1];
+  string value = 3;
+}
+
+message HeaderTransformationPolicy {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  repeated PolicyTarget targets = 4;
+  repeated HeaderTransformationRule request_rules = 5;
+  repeated HeaderTransformationRule response_rules = 6;
+  ResourceState state = 7;
+  string message = 8;
+  int64 version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message ListHeaderTransformationPoliciesRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListHeaderTransformationPoliciesResponse {
+  repeated HeaderTransformationPolicy policies = 1;
+  string next_cursor = 2;
+}
+
+message GetHeaderTransformationPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateHeaderTransformationPolicyRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  repeated PolicyTargetRef targets = 2;
+  repeated HeaderTransformationRule request_rules = 3;
+  repeated HeaderTransformationRule response_rules = 4;
+}
+
+message UpdateHeaderTransformationPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 4 [(buf.validate.field).required = true];
+  repeated PolicyTargetRef targets = 5;
+  repeated HeaderTransformationRule request_rules = 6;
+  repeated HeaderTransformationRule response_rules = 7;
+}
+
+message DeleteHeaderTransformationPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

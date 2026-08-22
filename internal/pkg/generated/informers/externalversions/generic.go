@@ -45,6 +45,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Certificates().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("gateways"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Gateways().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("headertransformationpolicies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().HeaderTransformationPolicies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("iprestrictionpolicies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().IPRestrictionPolicies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("ratelimitpolicies"):
@@ -55,6 +57,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().TokenQuotaPolicies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("upstreams"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().Upstreams().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("wasmplugins"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().WasmPlugins().Informer()}, nil
 
 	}
 

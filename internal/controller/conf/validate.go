@@ -32,6 +32,22 @@ func (c *Bootstrap) Validate() error {
 	if strings.TrimSpace(c.GetData().GetApiserver().GetKubeconfig()) == "" {
 		return errors.New("API Server kubeconfig must not be empty")
 	}
+	wasm := c.GetData().GetWasm()
+	if wasm == nil {
+		return errors.New("wasm module storage config is required")
+	}
+	if strings.TrimSpace(wasm.GetCacheDir()) == "" {
+		return errors.New("wasm module cache directory must not be empty")
+	}
+	if wasm.GetPullTimeout() == nil || wasm.GetPullTimeout().AsDuration() <= 0 {
+		return errors.New("wasm module pull timeout must be greater than zero")
+	}
+	if wasm.GetMaxModuleBytes() <= 0 {
+		return errors.New("wasm maximum module size must be greater than zero")
+	}
+	if wasm.GetMaxCacheBytes() < wasm.GetMaxModuleBytes() {
+		return errors.New("wasm cache size must not be smaller than the maximum module size")
+	}
 	if c.GetDelivery() == nil || c.GetDelivery().GetCandidateAckTimeout() == nil ||
 		c.GetDelivery().GetCandidateAckTimeout().AsDuration() <= 0 {
 		return errors.New("delivery candidate ACK timeout must be greater than zero")

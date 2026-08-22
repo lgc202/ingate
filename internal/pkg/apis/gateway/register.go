@@ -64,6 +64,18 @@ const (
 	ResourceTokenQuotaPolicies ResourceName = "tokenquotapolicies"
 	// ResourceTokenQuotaPoliciesStatus 表示 TokenQuotaPolicy status 子资源名
 	ResourceTokenQuotaPoliciesStatus ResourceName = "tokenquotapolicies/status"
+	// ResourceWasmPlugin 表示 WasmPlugin 单数资源名
+	ResourceWasmPlugin ResourceName = "wasmplugin"
+	// ResourceWasmPlugins 表示 WasmPlugin 复数资源名
+	ResourceWasmPlugins ResourceName = "wasmplugins"
+	// ResourceWasmPluginsStatus 表示 WasmPlugin status 子资源名
+	ResourceWasmPluginsStatus ResourceName = "wasmplugins/status"
+	// ResourceHeaderTransformationPolicy 表示 HeaderTransformationPolicy 单数资源名
+	ResourceHeaderTransformationPolicy ResourceName = "headertransformationpolicy"
+	// ResourceHeaderTransformationPolicies 表示 HeaderTransformationPolicy 复数资源名
+	ResourceHeaderTransformationPolicies ResourceName = "headertransformationpolicies"
+	// ResourceHeaderTransformationPoliciesStatus 表示 HeaderTransformationPolicy status 子资源名
+	ResourceHeaderTransformationPoliciesStatus ResourceName = "headertransformationpolicies/status"
 )
 
 var (
@@ -98,6 +110,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&CallerList{},
 		&TokenQuotaPolicy{},
 		&TokenQuotaPolicyList{},
+		&WasmPlugin{},
+		&WasmPluginList{},
+		&HeaderTransformationPolicy{},
+		&HeaderTransformationPolicyList{},
 	)
 	return nil
 }

@@ -16,6 +16,10 @@ type CertificateListerExpansion interface{}
 // GatewayLister.
 type GatewayListerExpansion interface{}
 
+// HeaderTransformationPolicyListerExpansion allows custom methods to be added to
+// HeaderTransformationPolicyLister.
+type HeaderTransformationPolicyListerExpansion interface{}
+
 // IPRestrictionPolicyListerExpansion allows custom methods to be added to
 // IPRestrictionPolicyLister.
 type IPRestrictionPolicyListerExpansion interface{}
@@ -35,3 +39,7 @@ type TokenQuotaPolicyListerExpansion interface{}
 // UpstreamListerExpansion allows custom methods to be added to
 // UpstreamLister.
 type UpstreamListerExpansion interface{}
+
+// WasmPluginListerExpansion allows custom methods to be added to
+// WasmPluginLister.
+type WasmPluginListerExpansion interface{}

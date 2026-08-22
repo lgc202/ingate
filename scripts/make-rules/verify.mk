@@ -10,4 +10,4 @@ vuln: $(TOOLS_DIR)/govulncheck ## 检查 Go 代码实际可达的已知漏洞
 	@$(GO_ENV) $(TOOLS_DIR)/govulncheck ./...
 
 .PHONY: verify
-verify: lint verify-generated test build console-build prototype-build ## 执行提交前质量检查
+verify: lint verify-generated test build wasm-plugins console-build prototype-build ## 执行提交前质量检查
