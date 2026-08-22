@@ -12,6 +12,7 @@ import {
   policyKindLabel,
   policyStatusLabel,
   policyStatusTone,
+  policySupportsTargetKind,
   policyTargetKindLabel,
   policyTargetsResource,
 } from '@/domain/policy';
@@ -57,7 +58,7 @@ export function GovernancePolicyPanel({
     })
     : [];
 	const candidates = workspace.policies.filter((policy) => (
-		!policyTargetsResource(policy, targetKind, targetID)
+		policySupportsTargetKind(policy, targetKind) && !policyTargetsResource(policy, targetKind, targetID)
 	));
 
   const openEditor = () => {

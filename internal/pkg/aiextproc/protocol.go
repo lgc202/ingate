@@ -38,7 +38,6 @@ const (
 	OutputTokensField = "output_tokens"
 	// TotalTokensField 记录归一化后的总 Token 数量
 	TotalTokensField = "total_tokens"
-
 	// ServiceIDAttribute 读取 Envoy 最终选择的模型 Service ID
 	ServiceIDAttribute = "xds.upstream_host_metadata.filter_metadata['" + MetadataNamespace + "']['" + ServiceIDField + "']"
 	// ServiceProtocolAttribute 读取模型 Service 使用的厂商协议

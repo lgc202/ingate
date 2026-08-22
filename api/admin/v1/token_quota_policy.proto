@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// TokenQuotaPolicyService 提供调用方模型 Token 额度管理接口
+service TokenQuotaPolicyService {
+  rpc ListTokenQuotaPolicies(ListTokenQuotaPoliciesRequest) returns (ListTokenQuotaPoliciesResponse) {
+    option (google.api.http) = {get: "/api/v1/token-quota-policies"};
+  }
+  rpc GetTokenQuotaPolicy(GetTokenQuotaPolicyRequest) returns (TokenQuotaPolicy) {
+    option (google.api.http) = {get: "/api/v1/token-quota-policies/{id}"};
+  }
+  rpc CreateTokenQuotaPolicy(CreateTokenQuotaPolicyRequest) returns (TokenQuotaPolicy) {
+    option (google.api.http) = {
+      post: "/api/v1/token-quota-policies"
+      body: "*"
+    };
+  }
+  rpc UpdateTokenQuotaPolicy(UpdateTokenQuotaPolicyRequest) returns (TokenQuotaPolicy) {
+    option (google.api.http) = {
+      put: "/api/v1/token-quota-policies/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteTokenQuotaPolicy(DeleteTokenQuotaPolicyRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/token-quota-policies/{id}"};
+  }
+}
+
+enum TokenQuotaPeriod {
+  TOKEN_QUOTA_PERIOD_UNSPECIFIED = 0;
+  TOKEN_QUOTA_PERIOD_DAY = 1;
+  TOKEN_QUOTA_PERIOD_WEEK = 2;
+  TOKEN_QUOTA_PERIOD_MONTH = 3;
+}
+
+message TokenQuotaLimit {
+  TokenQuotaPeriod period = 1 [(buf.validate.field).enum = {
+    defined_only: true
+    not_in: 0
+  }];
+  int64 tokens = 2 [(buf.validate.field).int64 = {
+    gt: 0
+    lte: 9007199254740991
+  }];
+}
+
+message TokenQuotaPolicy {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  repeated PolicyTarget targets = 4;
+  string time_zone = 5;
+  repeated TokenQuotaLimit limits = 6;
+  ResourceState state = 7;
+  string message = 8;
+  int64 version = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+message ListTokenQuotaPoliciesRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListTokenQuotaPoliciesResponse {
+  repeated TokenQuotaPolicy policies = 1;
+  string next_cursor = 2;
+}
+
+message GetTokenQuotaPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateTokenQuotaPolicyRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 2 [(buf.validate.field).required = true];
+  repeated PolicyTargetRef targets = 3;
+  string time_zone = 4 [(buf.validate.field).string.min_len = 1];
+  repeated TokenQuotaLimit limits = 5 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 3
+  }];
+}
+
+message UpdateTokenQuotaPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 4 [(buf.validate.field).required = true];
+  repeated PolicyTargetRef targets = 5;
+  string time_zone = 6 [(buf.validate.field).string.min_len = 1];
+  repeated TokenQuotaLimit limits = 7 [(buf.validate.field).repeated = {
+    min_items: 1
+    max_items: 3
+  }];
+}
+
+message DeleteTokenQuotaPolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

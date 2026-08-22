@@ -15,7 +15,7 @@ func createSpec(request *adminv1.CreateRateLimitPolicyRequest) (resource.RateLim
 	if name == "" {
 		return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流策略名称不能为空")
 	}
-	targets, err := adminservice.PolicyTargetRefs(request.GetTargets())
+	targets, err := adminservice.PolicyTargetRefs(request.GetTargets(), resource.KindGateway, resource.KindRoute)
 	if err != nil {
 		return resource.RateLimitPolicySpec{}, err
 	}
@@ -37,7 +37,7 @@ func updateSpec(request *adminv1.UpdateRateLimitPolicyRequest) (resource.RateLim
 	if name == "" {
 		return resource.RateLimitPolicySpec{}, adminservice.BadRequest("限流策略名称不能为空")
 	}
-	targets, err := adminservice.PolicyTargetRefs(request.GetTargets())
+	targets, err := adminservice.PolicyTargetRefs(request.GetTargets(), resource.KindGateway, resource.KindRoute)
 	if err != nil {
 		return resource.RateLimitPolicySpec{}, err
 	}

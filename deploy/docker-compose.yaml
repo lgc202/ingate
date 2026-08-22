@@ -149,6 +149,8 @@ services:
     depends_on:
       apiserver:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-ai-extproc.yaml:/opt/ingate/ai-extproc/configs/config.yaml:ro"
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/ai-extproc/configs/kubeconfig.yaml:ro"

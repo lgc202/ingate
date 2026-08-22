@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import {
   deleteIPRestrictionPolicy,
+  deleteTokenQuotaPolicy,
   getPolicyWorkspace,
   saveIPRestrictionPolicy,
+  saveTokenQuotaPolicy,
   setGovernancePolicyEnabled,
 } from '@/api/policies';
 import { useResource } from '@/api/useResource';
@@ -32,6 +34,13 @@ import {
   type IPRestrictionPolicyDraft,
 } from './IPRestrictionPolicyEditor';
 import { PolicyLibraryTable } from './PolicyLibraryTable';
+import {
+  createTokenQuotaPolicyDraft,
+  TokenQuotaPolicyEditor,
+  tokenQuotaPolicyPayload,
+  validateTokenQuotaPolicyDraft,
+  type TokenQuotaPolicyDraft,
+} from './TokenQuotaPolicyEditor';
 
 type PolicyEnabledFilter = 'all' | 'enabled' | 'disabled';
 type PolicyStateFilter = 'all' | Exclude<ResourceState, 'Disabled'> | 'Unapplied';
@@ -44,6 +53,10 @@ interface PolicyFilters {
 
 const emptyPolicyFilters = (): PolicyFilters => ({ query: '', enabled: 'all', state: 'all' });
 
+type PolicyEditor =
+  | { kind: 'IPRestrictionPolicy'; draft: IPRestrictionPolicyDraft }
+  | { kind: 'TokenQuotaPolicy'; draft: TokenQuotaPolicyDraft };
+
 export function PolicyPage() {
   const workspace = useResource(getPolicyWorkspace, {
     autoRefreshWhen: (data) => data.policies.some((policy) => policy.enabled && policy.status.state === 'Pending'),
@@ -53,7 +66,7 @@ export function PolicyPage() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [detail, setDetail] = useState<GovernancePolicy | null>(null);
-  const [editor, setEditor] = useState<IPRestrictionPolicyDraft | null>(null);
+  const [editor, setEditor] = useState<PolicyEditor | null>(null);
   const [showValidation, setShowValidation] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<GovernancePolicy | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -62,15 +75,15 @@ export function PolicyPage() {
 
   if (workspace.loading && !workspace.data) {
     return (
-      <PageFrame title="流量策略">
-        <ResourceStatePanel title="正在加载流量策略..." message="从管理 API 获取策略列表与关联目标" />
+      <PageFrame title="策略">
+        <ResourceStatePanel title="正在加载策略..." message="从管理 API 获取策略列表与关联目标" />
       </PageFrame>
     );
   }
 
   if (workspace.error || !workspace.data) {
     return (
-      <PageFrame title="流量策略">
+      <PageFrame title="策略">
         <ResourceStatePanel title="策略加载失败" message={workspace.error?.message ?? '请稍后重试。'} />
       </PageFrame>
     );
@@ -97,14 +110,18 @@ export function PolicyPage() {
 
   const saveEditor = async () => {
     if (!editor || submitting) return;
-    const validation = validateIPRestrictionPolicyDraft(editor);
+    const validation = editor.kind === 'IPRestrictionPolicy'
+      ? validateIPRestrictionPolicyDraft(editor.draft)
+      : validateTokenQuotaPolicyDraft(editor.draft);
     if (!validation.valid) {
       setShowValidation(true);
       return;
     }
     setSubmitting(true);
     try {
-      const result = await saveIPRestrictionPolicy(ipRestrictionPolicyPayload(editor));
+      const result = editor.kind === 'IPRestrictionPolicy'
+        ? await saveIPRestrictionPolicy(ipRestrictionPolicyPayload(editor.draft))
+        : await saveTokenQuotaPolicy(tokenQuotaPolicyPayload(editor.draft));
       await reloadAfterMutation(result.message);
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '保存策略失败', tone: 'error' });
@@ -117,7 +134,9 @@ export function PolicyPage() {
     if (!deleteCandidate || deleting) return;
     setDeleting(true);
     try {
-      const result = await deleteIPRestrictionPolicy(deleteCandidate.id, Number(deleteCandidate.version));
+      const result = deleteCandidate.kind === 'IPRestrictionPolicy'
+        ? await deleteIPRestrictionPolicy(deleteCandidate.id, Number(deleteCandidate.version))
+        : await deleteTokenQuotaPolicy(deleteCandidate.id, Number(deleteCandidate.version));
       await reloadAfterMutation(result.message);
       setDeleteCandidate(null);
     } catch (error) {
@@ -138,8 +157,11 @@ export function PolicyPage() {
 
   return (
     <PageFrame
-      title="流量策略"
-      actions={<Button onClick={() => { setShowValidation(false); setEditor(createIPRestrictionPolicyDraft()); }}>+ IP 访问限制</Button>}
+      title="策略"
+      actions={<>
+        <Button variant="soft" onClick={() => { setShowValidation(false); setEditor({ kind: 'IPRestrictionPolicy', draft: createIPRestrictionPolicyDraft() }); }}>+ IP 访问限制</Button>
+        <Button onClick={() => { setShowValidation(false); setEditor({ kind: 'TokenQuotaPolicy', draft: createTokenQuotaPolicyDraft() }); }}>+ Token 额度</Button>
+      </>}
     >
       <div className="space-y-4">
         <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -179,7 +201,12 @@ export function PolicyPage() {
             policies={pagedPolicies}
             targets={data.targets}
             onDetail={setDetail}
-            onEdit={(policy) => { setShowValidation(false); setEditor(createIPRestrictionPolicyDraft(policy.raw)); }}
+            onEdit={(policy) => {
+              setShowValidation(false);
+              setEditor(policy.kind === 'IPRestrictionPolicy'
+                ? { kind: policy.kind, draft: createIPRestrictionPolicyDraft(policy.raw) }
+                : { kind: policy.kind, draft: createTokenQuotaPolicyDraft(policy.raw) });
+            }}
             onToggle={togglePolicyStatus}
             onDelete={setDeleteCandidate}
           />
@@ -192,22 +219,34 @@ export function PolicyPage() {
       </Drawer>
 
       <Drawer
-        title={editor ? `${editor.id ? '编辑' : '创建'} IP 访问限制` : ''}
+        title={editor ? `${editor.draft.id ? '编辑' : '创建'} ${policyKindLabel(editor.kind)}` : ''}
         subtitle="策略可以先保存，选择应用目标后才会影响流量"
         isOpen={Boolean(editor)}
         onClose={() => { setEditor(null); setShowValidation(false); }}
       >
         {editor && (
           <div className="space-y-5">
-            <IPRestrictionPolicyEditor
-              draft={editor}
-              targets={data.targets}
-              validation={{
-                ...validateIPRestrictionPolicyDraft(editor),
-                errors: showValidation ? validateIPRestrictionPolicyDraft(editor).errors : {},
-              }}
-              onChange={setEditor}
-            />
+            {editor.kind === 'IPRestrictionPolicy' ? (
+              <IPRestrictionPolicyEditor
+                draft={editor.draft}
+                targets={data.targets}
+                validation={{
+                  ...validateIPRestrictionPolicyDraft(editor.draft),
+                  errors: showValidation ? validateIPRestrictionPolicyDraft(editor.draft).errors : {},
+                }}
+                onChange={(draft) => setEditor({ kind: 'IPRestrictionPolicy', draft })}
+              />
+            ) : (
+              <TokenQuotaPolicyEditor
+                draft={editor.draft}
+                targets={data.targets}
+                validation={{
+                  ...validateTokenQuotaPolicyDraft(editor.draft),
+                  errors: showValidation ? validateTokenQuotaPolicyDraft(editor.draft).errors : {},
+                }}
+                onChange={(draft) => setEditor({ kind: 'TokenQuotaPolicy', draft })}
+              />
+            )}
 
             <div className="pt-4 border-t border-slate-200 flex items-center justify-end gap-3">
               <button
@@ -231,7 +270,7 @@ export function PolicyPage() {
       </Drawer>
 
       <Modal
-        title="确认删除治理策略"
+        title="确认删除策略"
         isOpen={Boolean(deleteCandidate)}
         onClose={() => setDeleteCandidate(null)}
       >
@@ -293,14 +332,19 @@ function PolicyDetail({ policy, targets }: { policy: GovernancePolicy; targets: 
           <div><span>启用状态</span><strong>{policy.enabled ? '已启用' : '已停用'}</strong></div>
           <div><span>生效状态</span><strong>{governancePolicyStatusLabel(policy)}</strong></div>
           <div><span>创建时间</span><strong>{formatDateTime(policy.createdAt ?? '')}</strong></div>
-          <div><span>允许地址</span><strong>{policy.raw.allow.join('、') || '未配置'}</strong></div>
-          <div><span>拒绝地址</span><strong>{policy.raw.deny.join('、') || '未配置'}</strong></div>
+          {policy.kind === 'IPRestrictionPolicy' ? <>
+            <div><span>允许地址</span><strong>{policy.raw.allow.join('、') || '未配置'}</strong></div>
+            <div><span>拒绝地址</span><strong>{policy.raw.deny.join('、') || '未配置'}</strong></div>
+          </> : <>
+            <div><span>周期时区</span><strong>{policy.raw.timeZone}</strong></div>
+            <div><span>额度上限</span><strong>{policy.summary}</strong></div>
+          </>}
         </div>
       </section>
       <section className="resource-detail-section">
         <h3>应用目标</h3>
         {policy.targets.length > 0 ? <div className="resource-detail-list">
-          {policy.targets.map((target) => <article key={`${target.kind}:${target.id}`}><div><strong>{policyTargetLabel(target, targets)}</strong><small>{policyTargetKindLabel(target.kind)} · {target.status?.message || '等待系统反馈执行状态'}</small></div><Badge tone={target.status ? policyStatusTone(target.status) : 'neutral'}>{target.status ? target.status.state === 'Ready' ? '已生效' : target.status.state === 'Error' ? '生效失败' : '待生效' : '未知'}</Badge></article>)}
+          {policy.targets.map((target) => <article key={`${target.kind}:${target.id}`}><div><strong>{policyTargetLabel(target, targets)}</strong><small>{policyTargetKindLabel(target.kind)} · {target.status?.message || '等待系统反馈执行状态'}</small></div><Badge tone={target.status ? policyStatusTone(target.status) : 'neutral'}>{target.status ? target.status.state === 'Ready' ? policy.kind === 'TokenQuotaPolicy' ? '已启用' : '已生效' : target.status.state === 'Error' ? '生效失败' : '待生效' : '未知'}</Badge></article>)}
         </div> : <EmptyState title="尚未应用" message="策略已保存，但当前不影响任何流量" />}
       </section>
     </div>

@@ -16,7 +16,7 @@ func createSpec(request *adminv1.CreateIPRestrictionPolicyRequest) (resource.IPR
 	if name == "" {
 		return resource.IPRestrictionPolicySpec{}, adminservice.BadRequest("IP 访问限制策略名称不能为空")
 	}
-	targets, err := adminservice.PolicyTargetRefs(request.GetTargets())
+	targets, err := adminservice.PolicyTargetRefs(request.GetTargets(), resource.KindGateway, resource.KindRoute)
 	if err != nil {
 		return resource.IPRestrictionPolicySpec{}, err
 	}
@@ -38,7 +38,7 @@ func updateSpec(request *adminv1.UpdateIPRestrictionPolicyRequest) (resource.IPR
 	if name == "" {
 		return resource.IPRestrictionPolicySpec{}, adminservice.BadRequest("IP 访问限制策略名称不能为空")
 	}
-	targets, err := adminservice.PolicyTargetRefs(request.GetTargets())
+	targets, err := adminservice.PolicyTargetRefs(request.GetTargets(), resource.KindGateway, resource.KindRoute)
 	if err != nil {
 		return resource.IPRestrictionPolicySpec{}, err
 	}

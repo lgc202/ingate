@@ -282,7 +282,7 @@ function GatewayDetail({ gateway, routes, policies, onPoliciesChanged }: { gatew
       </section>
       {policies ? (
         <section className="resource-detail-section">
-          <h3>流量策略</h3>
+          <h3>应用策略</h3>
           <GovernancePolicyPanel targetKind="Gateway" targetID={gateway.id} targetName={gateway.name} workspace={policies} onChanged={onPoliciesChanged} />
         </section>
       ) : null}

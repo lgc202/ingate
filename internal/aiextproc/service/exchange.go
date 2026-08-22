@@ -1,14 +1,21 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"slices"
 	"sync"
 
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 
+	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
 	"github.com/lgc202/ingate/internal/aiextproc/service/chatcompletion"
 )
+
+type callerIdentity struct {
+	callerID    string
+	accessKeyID string
+}
 
 var (
 	errUnsupportedPhase    = errors.New("unsupported ExtProc processing phase")
@@ -28,6 +35,31 @@ type requestState struct {
 	clientPath string                         // 进入网关时的请求 Path，不含查询参数
 	selected   selectedModelService           // Envoy 实际选中的模型 Service 线路
 	attempts   int                            // 已成功准备的上游尝试次数，用于识别 Envoy 重试
+	identity   callerIdentity                 // 前置鉴权解析出的调用方和访问密钥
+	quota      *tokenquota.Session            // 请求开始时通过检查的额度周期
+	settled    bool                           // 保证流式响应只结算一次
+}
+
+func (s *requestState) callerID() string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.identity.callerID
+}
+
+func (s *requestState) setQuotaSession(session *tokenquota.Session) {
+	s.mu.Lock()
+	s.quota = session
+	s.mu.Unlock()
+}
+
+func (s *requestState) takeQuotaSession() *tokenquota.Session {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.settled {
+		return nil
+	}
+	s.settled = true
+	return s.quota
 }
 
 func (s *requestState) setClientRequest(host, path string) {
@@ -83,6 +115,7 @@ func (s *requestState) selectedService() (selectedModelService, bool) {
 // streamState 保存一条 ExtProc gRPC 流的处理阶段
 // downstream 流覆盖完整客户端请求和最终响应，upstream 流只处理一次上游尝试
 type streamState struct {
+	ctx context.Context
 	// 流归属与跨流关联
 	processor *ExternalProcessor
 	upstream  bool
@@ -111,7 +144,7 @@ func (s *streamState) handle(request *extprocv3.ProcessingRequest) (*extprocv3.P
 		if request.GetAttributes() != nil {
 			return s.handleUpstreamHeaders(request.GetRequestHeaders().GetHeaders(), request.GetAttributes())
 		}
-		return s.handleDownstreamHeaders(request.GetRequestHeaders().GetHeaders())
+		return s.handleDownstreamHeaders(request.GetRequestHeaders().GetHeaders(), request.GetMetadataContext())
 	case *extprocv3.ProcessingRequest_RequestBody:
 		// upstream filter 使用 CONTINUE_AND_REPLACE 在 Header 阶段直接替换 Body，不接收该阶段
 		if s.upstream || s.request == nil {

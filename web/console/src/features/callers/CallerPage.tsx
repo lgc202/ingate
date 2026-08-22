@@ -9,6 +9,7 @@ import {
   issueAccessKey,
   updateCaller,
 } from '@/api/callers';
+import { getPolicyWorkspace } from '@/api/policies';
 import { useResource } from '@/api/useResource';
 import {
   Badge,
@@ -28,6 +29,7 @@ import {
 } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
 import type { Caller, CallerRouteOption, IssuedAccessKey } from '@/domain/caller';
+import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
 
 interface CallerDraft {
   id?: string;
@@ -57,6 +59,7 @@ const emptyCallerFilters = (): CallerFilters => ({ query: '', state: 'all' });
 
 export function CallerPage() {
   const workspace = useResource(getCallerWorkspace);
+  const policies = useResource(getPolicyWorkspace);
   const [filterDraft, setFilterDraft] = useState<CallerFilters>(emptyCallerFilters);
   const [filters, setFilters] = useState<CallerFilters>(emptyCallerFilters);
   const [page, setPage] = useState(1);
@@ -282,6 +285,18 @@ export function CallerPage() {
                   </div>
                 ))}
               </div>
+            </section>
+            <section className="resource-detail-section">
+              <h3 className="mb-3">Token 额度</h3>
+              {policies.data ? (
+                <GovernancePolicyPanel
+                  targetKind="Caller"
+                  targetID={detail.id}
+                  targetName={detail.name}
+                  workspace={policies.data}
+                  onChanged={policies.reload}
+                />
+              ) : <span className="text-xs text-slate-500">额度策略加载中...</span>}
             </section>
             <section className="resource-detail-section">
               <h3 className="mb-3">排查请求</h3>

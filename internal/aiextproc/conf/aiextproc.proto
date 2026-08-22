@@ -24,8 +24,23 @@ message Data {
     // kubeconfig 保存声明式资源 API 的连接配置
     string kubeconfig = 2;
   }
+
+  message Redis {
+    // address 是 Redis 服务地址
+    string address = 1;
+    // password 是 Redis 认证密码，为空表示无需认证
+    string password = 2;
+    // database 是额度计数使用的逻辑数据库
+    int32 database = 3;
+    // dial_timeout 限制建立 Redis 连接的时间
+    google.protobuf.Duration dial_timeout = 4;
+    // operation_timeout 限制单次额度读写的时间
+    google.protobuf.Duration operation_timeout = 5;
+  }
   // apiserver 提供模型服务协议和凭据
   APIServer apiserver = 1;
+  // redis 保存当前日、周和月的实时 Token 用量
+  Redis redis = 2;
 }
 
 // Server 定义 AI ExtProc 的监听和退出行为

@@ -8,8 +8,11 @@ package aiextproc
 
 import (
 	"github.com/go-kratos/kratos/v3"
+	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
+	"github.com/lgc202/ingate/internal/aiextproc/data"
 	"github.com/lgc202/ingate/internal/aiextproc/data/apiserver"
+	"github.com/lgc202/ingate/internal/aiextproc/data/redis"
 	"github.com/lgc202/ingate/internal/aiextproc/server"
 	"github.com/lgc202/ingate/internal/aiextproc/service"
 	"log/slog"
@@ -17,14 +20,17 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, logger *slog.Logger, aiextprocServiceInstanceID serviceInstanceID) (*kratos.App, error) {
-	modelServiceCache, err := apiserver.NewModelServiceCache(data_APIServer)
+func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_Redis *conf.Data_Redis, logger *slog.Logger, aiextprocServiceInstanceID serviceInstanceID) (*kratos.App, error) {
+	configCache, err := apiserver.NewConfigCache(data_APIServer)
 	if err != nil {
 		return nil, err
 	}
-	httpServer := server.NewHTTPServer(confServer, modelServiceCache)
-	externalProcessor := service.NewExternalProcessor(modelServiceCache)
+	tokenCounter := redis.NewTokenCounter(data_Redis)
+	readiness := data.NewReadiness(configCache, tokenCounter)
+	httpServer := server.NewHTTPServer(confServer, readiness)
+	tokenquotaService := tokenquota.NewService(configCache, tokenCounter)
+	externalProcessor := service.NewExternalProcessor(configCache, tokenquotaService, logger)
 	grpcServer := server.NewGRPCServer(confServer, externalProcessor)
-	app := newKratosApp(logger, confServer, httpServer, grpcServer, modelServiceCache, aiextprocServiceInstanceID)
+	app := newKratosApp(logger, confServer, httpServer, grpcServer, configCache, tokenCounter, aiextprocServiceInstanceID)
 	return app, nil
 }
