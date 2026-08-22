@@ -25,6 +25,7 @@ import {
   ResourceStatePanel,
   RowActions,
   SearchField,
+  SelectPopover,
   Toast,
 } from '@/components/ui';
 import { formatDateTime } from '@/domain/common';
@@ -345,12 +346,67 @@ function CallerEditor({ draft, routes, onChange, onCancel, onSave, submitting }:
         <label className="flex items-center gap-3 rounded-lg border border-slate-200 px-4 py-3 text-sm text-slate-700"><input type="checkbox" checked={draft.enabled} onChange={(event) => onChange({ ...draft, enabled: event.target.checked })} />启用调用方</label>
       </section>
       <section className="resource-detail-section">
-        <h3 className="mb-3">可访问路由</h3>
-        {routes.length === 0 ? <EmptyState title="暂无受保护路由" message="先将路由访问方式设置为调用方密钥" /> : <div className="grid grid-cols-1 md:grid-cols-2 gap-2">{routes.map((route) => <label key={route.id} className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm cursor-pointer ${draft.routeIDs.includes(route.id) ? 'border-blue-300 bg-blue-50/70 text-blue-900' : 'border-slate-200 text-slate-700'}`}><input type="checkbox" checked={draft.routeIDs.includes(route.id)} onChange={() => onChange({ ...draft, routeIDs: toggleID(draft.routeIDs, route.id) })} />{route.name}</label>)}</div>}
+        <CallerRouteSelect
+          routes={routes}
+          value={draft.routeIDs}
+          onChange={(routeIDs) => onChange({ ...draft, routeIDs })}
+        />
       </section>
       {!draft.id ? <section className="resource-detail-section space-y-4"><h3>首个访问密钥</h3><LabeledInput label="密钥名称" value={draft.accessKeyName} onChange={(accessKeyName) => onChange({ ...draft, accessKeyName })} placeholder="例如：生产服务" /><ExpirationSelect value={draft.expiration} onChange={(expiration) => onChange({ ...draft, expiration })} /></section> : null}
       <div className="flex justify-end gap-2 border-t border-slate-200 pt-3"><Button variant="ghost" onClick={onCancel}>取消</Button><Button size="lg" disabled={!draft.name.trim() || (!draft.id && !draft.accessKeyName.trim()) || submitting} onClick={onSave}>{submitting ? '保存中...' : '保存调用方'}</Button></div>
     </div>
+  );
+}
+
+function CallerRouteSelect({
+  routes,
+  value,
+  onChange,
+}: {
+  routes: CallerRouteOption[];
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const selected = new Set(value);
+  const selectedRoutes = routes.filter((route) => selected.has(route.id));
+  const normalizedQuery = query.trim().toLowerCase();
+  const visibleRoutes = routes.filter((route) => route.name.toLowerCase().includes(normalizedQuery));
+  const summary = selectedRoutes.length === 0
+    ? '未授权任何路由'
+    : selectedRoutes.length === 1
+      ? selectedRoutes[0].name
+      : `已选择 ${selectedRoutes.length} 条路由`;
+
+  return (
+    <SelectPopover
+      label="可访问路由"
+      summary={summary}
+      emptyMessage="暂无受保护路由，请先将路由访问方式设置为调用方密钥"
+      hasOptions={routes.length > 0}
+    >
+      <div className="resource-select-search">
+        <SearchField value={query} onChange={setQuery} placeholder="搜索路由" />
+      </div>
+      {visibleRoutes.length > 0 ? visibleRoutes.map((route) => {
+        const checked = selected.has(route.id);
+        return (
+          <button
+            key={route.id}
+            className={`resource-select-option${checked ? ' selected' : ''}`}
+            type="button"
+            role="option"
+            aria-selected={checked}
+            aria-pressed={checked}
+            onClick={() => onChange(toggleID(value, route.id))}
+          >
+            <span className="multi-check">{checked ? '✓' : ''}</span>
+            <strong>{route.name}</strong>
+            <small>{checked ? '已授权' : '未授权'}</small>
+          </button>
+        );
+      }) : <div className="resource-select-empty">没有匹配的路由</div>}
+    </SelectPopover>
   );
 }
 
