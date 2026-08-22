@@ -36,7 +36,7 @@ Ingate 不要求运行在 Kubernetes 中，不维护 Envoy 私有分支，也不
 | API 流量 | HTTP/HTTPS Listener、Host/路径/方法/Header 匹配、加权转发、Host 重写、Header 修改、超时与重试 |
 | Service 连接 | 多端点、Round Robin/Least Request、主动健康检查、上游 HTTPS 和证书校验 |
 | AI 流量 | 对外模型名、加权模型线路、OpenAI Chat Completions、Anthropic Messages 转换、流式响应转换 |
-| 访问治理 | 公开或调用方访问模式、访问密钥、Route 授权、IP 允许列表和拒绝列表 |
+| 访问治理 | 公开或调用方访问模式、访问密钥、Route 授权、IP 访问限制和调用方 Token 额度 |
 | 声明式控制 | 资源 CRUD、List/Watch、乐观并发版本、Status、完整配置编译和 xDS 下发 |
 | 观测分析 | 请求元数据、转发结果、模型线路尝试、Token 用量、流量趋势和资源排行 |
 
@@ -168,12 +168,13 @@ Ingate 把配置管理、同步流量处理和异步观测拆成三条边界清�
 | `ingate-controller` | Watch 资源、编译 Envoy 配置、切换有效配置、提供 xDS 并回写 Status |
 | `Envoy` | 唯一数据平面，接收客户端请求并执行路由、治理和上游转发 |
 | `ingate-authz` | 校验调用方访问密钥和 Route 授权，只参与需要调用方认证的请求 |
-| `ingate-ai-extproc` | 处理 AI Route 的模型选择、凭据注入、请求与响应协议转换 |
+| `ingate-ai-extproc` | 处理 AI Route 的模型选择、凭据注入、协议转换和调用方 Token 额度 |
 | `ingate-als` | 接收 Envoy ALS 请求记录，通过本地 WAL 保护待投递数据并写入 Kafka |
 | `ingate-analytics` | 消费请求记录、写入 ClickHouse，并提供请求明细和流量分析查询 |
 | `etcd` | 持久化声明式资源 |
 | `Kafka` | 在请求采集与分析之间提供可靠消息链路 |
 | `ClickHouse` | 保存请求明细、模型调用记录以及流量和模型用量聚合 |
+| `Redis` | 保存调用方当前自然周期的实时 Token 额度计数 |
 
 Controller、Envoy 与 AI ExtProc 在开发 Compose 中共享网络命名空间，xDS 和 AI Processing 连接只监听 loopback；Authorization 和 ALS 使用 Compose 内部网络，不向宿主机暴露端口。该拓扑只属于本地联调方式，业务组件本身不依赖 Docker Compose 或 Kubernetes。
 
@@ -192,6 +193,7 @@ Console 面向用户统一使用 **Service**。当前声明式 API 中对应的�
 - `Caller`：调用方、访问密钥与 Route 授权
 - `IPRestrictionPolicy`：Gateway 或 Route 的 IP 访问限制
 - `RateLimitPolicy`：Gateway 或 Route 的限流声明
+- `TokenQuotaPolicy`：Caller 的每日、每周或每月模型 Token 额度
 
 声明式 API 使用 `metadata.name` 作为不可变资源 ID，使用 `spec.displayName` 保存用户可编辑名称。Admin API 向 Console 提供平铺的产品协议，不直接暴露 `metadata/spec/status` 结构。
 
@@ -199,7 +201,7 @@ Console 面向用户统一使用 **Service**。当前声明式 API 中对应的�
 
 - `IPRestrictionPolicy` 已由 Envoy 原生 RBAC 执行
 - `RateLimitPolicy` 当前只提供资源协议和管理能力，尚未生成数据面限流配置
-- Redis 作为后续治理能力的系统依赖保留，当前不参与流量执行
+- `TokenQuotaPolicy` 由 AI ExtProc 在调用模型前检查，并按模型实际返回的 Token 在 Redis 中结算；详细语义见 [Token 额度原理](docs/resources/token-quota-policy.md)
 - 请求记录只持久化排障和分析所需的元数据，不保存请求 Header、查询参数或正文
 - MCP 网关和 Agent 编排尚未进入当前运行链路
 - `web/prototype` 只使用 Mock 数据验证产品设计；正式 Console 位于 `web/console`，两者不共享业务代码或运行数据
