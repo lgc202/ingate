@@ -142,6 +142,7 @@ func (c *ConfigCache) ActivePolicies(callerID string) ([]tokenquota.Policy, erro
 		}
 		policies = append(policies, tokenquota.Policy{
 			ID:       policy.Name,
+			Name:     policy.Spec.DisplayName,
 			TimeZone: location,
 			Limits:   limits,
 		})

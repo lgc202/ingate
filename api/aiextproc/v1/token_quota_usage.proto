@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package ingate.aiextproc.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/aiextproc/v1;v1";
+
+// TokenQuotaUsageService 提供 AI ExtProc 当前实际执行的 Token 额度计数
+// 该接口只在 Ingate 组件之间使用，不直接向控制台浏览器开放
+service TokenQuotaUsageService {
+  // GetCallerUsage 查询一个调用方当前命中的全部自然周期额度
+  rpc GetCallerUsage(GetCallerUsageRequest) returns (GetCallerUsageResponse);
+}
+
+// TokenQuotaPeriod 表示额度使用量所属的自然周期
+enum TokenQuotaPeriod {
+  // TOKEN_QUOTA_PERIOD_UNSPECIFIED 表示未识别的周期
+  TOKEN_QUOTA_PERIOD_UNSPECIFIED = 0;
+  // TOKEN_QUOTA_PERIOD_DAY 表示策略时区中的自然日
+  TOKEN_QUOTA_PERIOD_DAY = 1;
+  // TOKEN_QUOTA_PERIOD_WEEK 表示策略时区中从周一开始的自然周
+  TOKEN_QUOTA_PERIOD_WEEK = 2;
+  // TOKEN_QUOTA_PERIOD_MONTH 表示策略时区中的自然月
+  TOKEN_QUOTA_PERIOD_MONTH = 3;
+}
+
+// GetCallerUsageRequest 指定需要查询的调用方
+message GetCallerUsageRequest {
+  // caller_id 是 Caller 资源的不可变 ID
+  string caller_id = 1;
+}
+
+// TokenQuotaUsage 是一项策略在当前自然周期内的实时计数
+message TokenQuotaUsage {
+  // policy_id 是 TokenQuotaPolicy 资源的不可变 ID
+  string policy_id = 1;
+  // policy_name 是策略当前的展示名称
+  string policy_name = 2;
+  // period 是该计数所属的自然周期
+  TokenQuotaPeriod period = 3;
+  // used_tokens 是 Redis 中已经结算的 Token 数
+  int64 used_tokens = 4;
+  // limit_tokens 是当前策略配置的 Token 上限
+  int64 limit_tokens = 5;
+  // started_at 是当前自然周期的开始时刻
+  google.protobuf.Timestamp started_at = 6;
+  // resets_at 是计数切换到下一个自然周期的时刻
+  google.protobuf.Timestamp resets_at = 7;
+}
+
+// GetCallerUsageResponse 返回调用方当前实际命中的额度
+message GetCallerUsageResponse {
+  // usages 按策略 ID 和周期稳定排序
+  repeated TokenQuotaUsage usages = 1;
+}

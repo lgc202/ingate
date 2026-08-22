@@ -58,5 +58,12 @@ func validateData(data *Data) error {
 	if tls.GetEnabled() && (tls.GetCertFile() == "") != (tls.GetKeyFile() == "") {
 		return errors.New("analytics TLS certificate and key must be configured together")
 	}
+	aiExtProc := data.GetAiExtProc()
+	if aiExtProc == nil || strings.TrimSpace(aiExtProc.GetAddr()) == "" {
+		return errors.New("AI ExtProc address must not be empty")
+	}
+	if aiExtProc.GetTimeout() == nil || aiExtProc.GetTimeout().AsDuration() <= 0 {
+		return errors.New("AI ExtProc timeout must be greater than zero")
+	}
 	return nil
 }

@@ -31,6 +31,7 @@ import {
 import { formatDateTime } from '@/domain/common';
 import type { Caller, CallerRouteOption, IssuedAccessKey } from '@/domain/caller';
 import { GovernancePolicyPanel } from '@/features/policies/GovernancePolicyPanel';
+import { CallerTokenQuotaUsage } from './CallerTokenQuotaUsage';
 
 interface CallerDraft {
   id?: string;
@@ -289,6 +290,7 @@ export function CallerPage() {
             </section>
             <section className="resource-detail-section">
               <h3 className="mb-3">Token 额度</h3>
+              <CallerTokenQuotaUsage callerID={detail.id} />
               {policies.data ? (
                 <GovernancePolicyPanel
                   targetKind="Caller"

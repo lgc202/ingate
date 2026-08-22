@@ -5,16 +5,23 @@ import (
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 
+	aiextprocv1 "github.com/lgc202/ingate/api/aiextproc/v1"
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
 	aiextprocservice "github.com/lgc202/ingate/internal/aiextproc/service"
 )
 
 // NewGRPCServer 创建并注册 Envoy External Processing 服务
-func NewGRPCServer(config *conf.Server, processor *aiextprocservice.ExternalProcessor) *kratosgrpc.Server {
+func NewGRPCServer(
+	config *conf.Server,
+	processor *aiextprocservice.ExternalProcessor,
+	quotaUsage *aiextprocservice.TokenQuotaUsageService,
+) *kratosgrpc.Server {
 	server := kratosgrpc.NewServer(
 		kratosgrpc.Network("tcp"),
 		kratosgrpc.Address(config.GetGrpc().GetAddr()),
 	)
 	extprocv3.RegisterExternalProcessorServer(server, processor)
+	// 额度查询与 ExtProc 复用内部 gRPC 入口，不引入只为读取 Redis 计数的新组件
+	aiextprocv1.RegisterTokenQuotaUsageServiceServer(server, quotaUsage)
 	return server
 }

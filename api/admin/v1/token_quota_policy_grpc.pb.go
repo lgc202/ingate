@@ -20,11 +20,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TokenQuotaPolicyService_ListTokenQuotaPolicies_FullMethodName = "/ingate.admin.v1.TokenQuotaPolicyService/ListTokenQuotaPolicies"
-	TokenQuotaPolicyService_GetTokenQuotaPolicy_FullMethodName    = "/ingate.admin.v1.TokenQuotaPolicyService/GetTokenQuotaPolicy"
-	TokenQuotaPolicyService_CreateTokenQuotaPolicy_FullMethodName = "/ingate.admin.v1.TokenQuotaPolicyService/CreateTokenQuotaPolicy"
-	TokenQuotaPolicyService_UpdateTokenQuotaPolicy_FullMethodName = "/ingate.admin.v1.TokenQuotaPolicyService/UpdateTokenQuotaPolicy"
-	TokenQuotaPolicyService_DeleteTokenQuotaPolicy_FullMethodName = "/ingate.admin.v1.TokenQuotaPolicyService/DeleteTokenQuotaPolicy"
+	TokenQuotaPolicyService_ListTokenQuotaPolicies_FullMethodName   = "/ingate.admin.v1.TokenQuotaPolicyService/ListTokenQuotaPolicies"
+	TokenQuotaPolicyService_GetTokenQuotaPolicy_FullMethodName      = "/ingate.admin.v1.TokenQuotaPolicyService/GetTokenQuotaPolicy"
+	TokenQuotaPolicyService_CreateTokenQuotaPolicy_FullMethodName   = "/ingate.admin.v1.TokenQuotaPolicyService/CreateTokenQuotaPolicy"
+	TokenQuotaPolicyService_UpdateTokenQuotaPolicy_FullMethodName   = "/ingate.admin.v1.TokenQuotaPolicyService/UpdateTokenQuotaPolicy"
+	TokenQuotaPolicyService_DeleteTokenQuotaPolicy_FullMethodName   = "/ingate.admin.v1.TokenQuotaPolicyService/DeleteTokenQuotaPolicy"
+	TokenQuotaPolicyService_GetCallerTokenQuotaUsage_FullMethodName = "/ingate.admin.v1.TokenQuotaPolicyService/GetCallerTokenQuotaUsage"
 )
 
 // TokenQuotaPolicyServiceClient is the client API for TokenQuotaPolicyService service.
@@ -38,6 +39,7 @@ type TokenQuotaPolicyServiceClient interface {
 	CreateTokenQuotaPolicy(ctx context.Context, in *CreateTokenQuotaPolicyRequest, opts ...grpc.CallOption) (*TokenQuotaPolicy, error)
 	UpdateTokenQuotaPolicy(ctx context.Context, in *UpdateTokenQuotaPolicyRequest, opts ...grpc.CallOption) (*TokenQuotaPolicy, error)
 	DeleteTokenQuotaPolicy(ctx context.Context, in *DeleteTokenQuotaPolicyRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	GetCallerTokenQuotaUsage(ctx context.Context, in *GetCallerTokenQuotaUsageRequest, opts ...grpc.CallOption) (*GetCallerTokenQuotaUsageResponse, error)
 }
 
 type tokenQuotaPolicyServiceClient struct {
@@ -98,6 +100,16 @@ func (c *tokenQuotaPolicyServiceClient) DeleteTokenQuotaPolicy(ctx context.Conte
 	return out, nil
 }
 
+func (c *tokenQuotaPolicyServiceClient) GetCallerTokenQuotaUsage(ctx context.Context, in *GetCallerTokenQuotaUsageRequest, opts ...grpc.CallOption) (*GetCallerTokenQuotaUsageResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetCallerTokenQuotaUsageResponse)
+	err := c.cc.Invoke(ctx, TokenQuotaPolicyService_GetCallerTokenQuotaUsage_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TokenQuotaPolicyServiceServer is the server API for TokenQuotaPolicyService service.
 // All implementations should embed UnimplementedTokenQuotaPolicyServiceServer
 // for forward compatibility.
@@ -109,6 +121,7 @@ type TokenQuotaPolicyServiceServer interface {
 	CreateTokenQuotaPolicy(context.Context, *CreateTokenQuotaPolicyRequest) (*TokenQuotaPolicy, error)
 	UpdateTokenQuotaPolicy(context.Context, *UpdateTokenQuotaPolicyRequest) (*TokenQuotaPolicy, error)
 	DeleteTokenQuotaPolicy(context.Context, *DeleteTokenQuotaPolicyRequest) (*emptypb.Empty, error)
+	GetCallerTokenQuotaUsage(context.Context, *GetCallerTokenQuotaUsageRequest) (*GetCallerTokenQuotaUsageResponse, error)
 }
 
 // UnimplementedTokenQuotaPolicyServiceServer should be embedded to have
@@ -132,6 +145,9 @@ func (UnimplementedTokenQuotaPolicyServiceServer) UpdateTokenQuotaPolicy(context
 }
 func (UnimplementedTokenQuotaPolicyServiceServer) DeleteTokenQuotaPolicy(context.Context, *DeleteTokenQuotaPolicyRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteTokenQuotaPolicy not implemented")
+}
+func (UnimplementedTokenQuotaPolicyServiceServer) GetCallerTokenQuotaUsage(context.Context, *GetCallerTokenQuotaUsageRequest) (*GetCallerTokenQuotaUsageResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetCallerTokenQuotaUsage not implemented")
 }
 func (UnimplementedTokenQuotaPolicyServiceServer) testEmbeddedByValue() {}
 
@@ -243,6 +259,24 @@ func _TokenQuotaPolicyService_DeleteTokenQuotaPolicy_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TokenQuotaPolicyService_GetCallerTokenQuotaUsage_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetCallerTokenQuotaUsageRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TokenQuotaPolicyServiceServer).GetCallerTokenQuotaUsage(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TokenQuotaPolicyService_GetCallerTokenQuotaUsage_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TokenQuotaPolicyServiceServer).GetCallerTokenQuotaUsage(ctx, req.(*GetCallerTokenQuotaUsageRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TokenQuotaPolicyService_ServiceDesc is the grpc.ServiceDesc for TokenQuotaPolicyService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -269,6 +303,10 @@ var TokenQuotaPolicyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteTokenQuotaPolicy",
 			Handler:    _TokenQuotaPolicyService_DeleteTokenQuotaPolicy_Handler,
+		},
+		{
+			MethodName: "GetCallerTokenQuotaUsage",
+			Handler:    _TokenQuotaPolicyService_GetCallerTokenQuotaUsage_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

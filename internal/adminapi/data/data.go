@@ -16,6 +16,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
 	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
+	dataaiextproc "github.com/lgc202/ingate/internal/adminapi/data/aiextproc"
 	dataanalytics "github.com/lgc202/ingate/internal/adminapi/data/analytics"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
 )
@@ -65,5 +66,11 @@ var analyticsProviderSet = wire.NewSet(
 	wire.Bind(new(trafficbiz.Repository), new(*dataanalytics.TrafficRepository)),
 )
 
+var aiExtProcProviderSet = wire.NewSet(
+	dataaiextproc.NewClient,
+	dataaiextproc.NewTokenQuotaUsageReader,
+	wire.Bind(new(tokenquota.UsageReader), new(*dataaiextproc.TokenQuotaUsageReader)),
+)
+
 // ProviderSet 汇总 Admin API 的数据访问实现
-var ProviderSet = wire.NewSet(apiserverProviderSet, analyticsProviderSet)
+var ProviderSet = wire.NewSet(apiserverProviderSet, analyticsProviderSet, aiExtProcProviderSet)

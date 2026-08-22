@@ -20,6 +20,7 @@ const _ = http.SupportPackageIsVersion3
 
 const OperationTokenQuotaPolicyServiceCreateTokenQuotaPolicy = "/ingate.admin.v1.TokenQuotaPolicyService/CreateTokenQuotaPolicy"
 const OperationTokenQuotaPolicyServiceDeleteTokenQuotaPolicy = "/ingate.admin.v1.TokenQuotaPolicyService/DeleteTokenQuotaPolicy"
+const OperationTokenQuotaPolicyServiceGetCallerTokenQuotaUsage = "/ingate.admin.v1.TokenQuotaPolicyService/GetCallerTokenQuotaUsage"
 const OperationTokenQuotaPolicyServiceGetTokenQuotaPolicy = "/ingate.admin.v1.TokenQuotaPolicyService/GetTokenQuotaPolicy"
 const OperationTokenQuotaPolicyServiceListTokenQuotaPolicies = "/ingate.admin.v1.TokenQuotaPolicyService/ListTokenQuotaPolicies"
 const OperationTokenQuotaPolicyServiceUpdateTokenQuotaPolicy = "/ingate.admin.v1.TokenQuotaPolicyService/UpdateTokenQuotaPolicy"
@@ -27,6 +28,7 @@ const OperationTokenQuotaPolicyServiceUpdateTokenQuotaPolicy = "/ingate.admin.v1
 type TokenQuotaPolicyServiceHTTPServer interface {
 	CreateTokenQuotaPolicy(context.Context, *CreateTokenQuotaPolicyRequest) (*TokenQuotaPolicy, error)
 	DeleteTokenQuotaPolicy(context.Context, *DeleteTokenQuotaPolicyRequest) (*emptypb.Empty, error)
+	GetCallerTokenQuotaUsage(context.Context, *GetCallerTokenQuotaUsageRequest) (*GetCallerTokenQuotaUsageResponse, error)
 	GetTokenQuotaPolicy(context.Context, *GetTokenQuotaPolicyRequest) (*TokenQuotaPolicy, error)
 	ListTokenQuotaPolicies(context.Context, *ListTokenQuotaPoliciesRequest) (*ListTokenQuotaPoliciesResponse, error)
 	UpdateTokenQuotaPolicy(context.Context, *UpdateTokenQuotaPolicyRequest) (*TokenQuotaPolicy, error)
@@ -39,6 +41,7 @@ func RegisterTokenQuotaPolicyServiceHTTPServer(s *http.Server, srv TokenQuotaPol
 	r.Handle("POST", "/api/v1/token-quota-policies", _TokenQuotaPolicyService_CreateTokenQuotaPolicy0_HTTP_Handler(srv))
 	r.Handle("PUT", "/api/v1/token-quota-policies/{id}", _TokenQuotaPolicyService_UpdateTokenQuotaPolicy0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/api/v1/token-quota-policies/{id}", _TokenQuotaPolicyService_DeleteTokenQuotaPolicy0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/callers/{caller_id}/token-quota-usage", _TokenQuotaPolicyService_GetCallerTokenQuotaUsage0_HTTP_Handler(srv))
 }
 
 func _TokenQuotaPolicyService_ListTokenQuotaPolicies0_HTTP_Handler(srv TokenQuotaPolicyServiceHTTPServer) func(ctx http.Context) error {
@@ -145,9 +148,32 @@ func _TokenQuotaPolicyService_DeleteTokenQuotaPolicy0_HTTP_Handler(srv TokenQuot
 	}
 }
 
+func _TokenQuotaPolicyService_GetCallerTokenQuotaUsage0_HTTP_Handler(srv TokenQuotaPolicyServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetCallerTokenQuotaUsageRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationTokenQuotaPolicyServiceGetCallerTokenQuotaUsage)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetCallerTokenQuotaUsage(ctx, req.(*GetCallerTokenQuotaUsageRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*GetCallerTokenQuotaUsageResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
 type TokenQuotaPolicyServiceHTTPClient interface {
 	CreateTokenQuotaPolicy(ctx context.Context, req *CreateTokenQuotaPolicyRequest, opts ...http.CallOption) (rsp *TokenQuotaPolicy, err error)
 	DeleteTokenQuotaPolicy(ctx context.Context, req *DeleteTokenQuotaPolicyRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	GetCallerTokenQuotaUsage(ctx context.Context, req *GetCallerTokenQuotaUsageRequest, opts ...http.CallOption) (rsp *GetCallerTokenQuotaUsageResponse, err error)
 	GetTokenQuotaPolicy(ctx context.Context, req *GetTokenQuotaPolicyRequest, opts ...http.CallOption) (rsp *TokenQuotaPolicy, err error)
 	ListTokenQuotaPolicies(ctx context.Context, req *ListTokenQuotaPoliciesRequest, opts ...http.CallOption) (rsp *ListTokenQuotaPoliciesResponse, err error)
 	UpdateTokenQuotaPolicy(ctx context.Context, req *UpdateTokenQuotaPolicyRequest, opts ...http.CallOption) (rsp *TokenQuotaPolicy, err error)
@@ -188,6 +214,22 @@ func (c *TokenQuotaPolicyServiceHTTPClientImpl) DeleteTokenQuotaPolicy(ctx conte
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "DELETE", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *TokenQuotaPolicyServiceHTTPClientImpl) GetCallerTokenQuotaUsage(ctx context.Context, in *GetCallerTokenQuotaUsageRequest, opts ...http.CallOption) (*GetCallerTokenQuotaUsageResponse, error) {
+	var out GetCallerTokenQuotaUsageResponse
+	pattern := "/api/v1/callers/{caller_id}/token-quota-usage"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationTokenQuotaPolicyServiceGetCallerTokenQuotaUsage),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

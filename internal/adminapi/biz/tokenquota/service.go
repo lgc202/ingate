@@ -24,6 +24,8 @@ type Repository interface {
 // Service 协调 TokenQuotaPolicy 的调用方解析、校验和持久化
 type Service struct {
 	repository Repository
+	callers    biz.CallerGetter
+	usage      UsageReader
 	targets    *biz.PolicyTargetResolver
 }
 
@@ -41,8 +43,13 @@ type PolicyView struct {
 }
 
 // NewService 创建 TokenQuotaPolicy 业务服务
-func NewService(repository Repository, callers biz.CallerGetter) *Service {
-	return &Service{repository: repository, targets: biz.NewCallerPolicyTargetResolver(callers)}
+func NewService(repository Repository, callers biz.CallerGetter, usage UsageReader) *Service {
+	return &Service{
+		repository: repository,
+		callers:    callers,
+		usage:      usage,
+		targets:    biz.NewCallerPolicyTargetResolver(callers),
+	}
 }
 
 // List 查询 TokenQuotaPolicy 列表
@@ -136,6 +143,14 @@ func (s *Service) Delete(ctx context.Context, policyID string, version int64) er
 		return err
 	}
 	return nil
+}
+
+// CurrentUsage 查询调用方当前实际执行的 Token 额度
+func (s *Service) CurrentUsage(ctx context.Context, callerID string) ([]Usage, error) {
+	if _, err := s.callers.Get(ctx, callerID); err != nil {
+		return nil, err
+	}
+	return s.usage.Current(ctx, callerID)
 }
 
 func (s *Service) ensureDisplayNameAvailable(ctx context.Context, policyID, displayName string) error {
