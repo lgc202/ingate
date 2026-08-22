@@ -377,9 +377,11 @@ type RequestSummary struct {
 	// caller_id 是通过调用方密钥认证的 Caller 资源 ID。
 	CallerId string `protobuf:"bytes,12,opt,name=caller_id,json=callerId,proto3" json:"caller_id,omitempty"`
 	// access_key_id 是本次认证命中的访问密钥 ID。
-	AccessKeyId   string `protobuf:"bytes,13,opt,name=access_key_id,json=accessKeyId,proto3" json:"access_key_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AccessKeyId string `protobuf:"bytes,13,opt,name=access_key_id,json=accessKeyId,proto3" json:"access_key_id,omitempty"`
+	// response_code_details 是数据面记录的内部响应来源或失败原因。
+	ResponseCodeDetails string `protobuf:"bytes,14,opt,name=response_code_details,json=responseCodeDetails,proto3" json:"response_code_details,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *RequestSummary) Reset() {
@@ -503,6 +505,13 @@ func (x *RequestSummary) GetAccessKeyId() string {
 	return ""
 }
 
+func (x *RequestSummary) GetResponseCodeDetails() string {
+	if x != nil {
+		return x.ResponseCodeDetails
+	}
+	return ""
+}
+
 // GetRequestRequest 是单条请求明细查询参数。
 type GetRequestRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -591,7 +600,7 @@ const file_analytics_v1_request_proto_rawDesc = "" +
 	"page_token\x18\x03 \x01(\tR\tpageToken\"\x7f\n" +
 	"\x14ListRequestsResponse\x12?\n" +
 	"\brequests\x18\x01 \x03(\v2#.ingate.analytics.v1.RequestSummaryR\brequests\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xcf\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x83\x04\n" +
 	"\x0eRequestSummary\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +
@@ -610,7 +619,8 @@ const file_analytics_v1_request_proto_rawDesc = "" +
 	"upstreamId\x12>\n" +
 	"\rai_model_call\x18\v \x01(\v2\x1a.ingate.als.v1.AIModelCallR\vaiModelCall\x12\x1b\n" +
 	"\tcaller_id\x18\f \x01(\tR\bcallerId\x12\"\n" +
-	"\raccess_key_id\x18\r \x01(\tR\vaccessKeyId\"^\n" +
+	"\raccess_key_id\x18\r \x01(\tR\vaccessKeyId\x122\n" +
+	"\x15response_code_details\x18\x0e \x01(\tR\x13responseCodeDetails\"^\n" +
 	"\x11GetRequestRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x129\n" +
 	"\n" +

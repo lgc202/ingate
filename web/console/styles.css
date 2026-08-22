@@ -1241,6 +1241,8 @@ body { overflow-x: hidden; }
 .request-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .request-record-target code { color: #66707e; font-size: 0.72rem; }
 .request-path { display: block; margin-top: 4px; font-size: 0.8rem; }
+.request-response { display: grid; justify-items: start; gap: 5px; }
+.request-response > span:last-child { color: #9f3e36; font-size: 0.67rem; font-weight: 650; white-space: nowrap; }
 .request-method {
   min-width: 39px;
   padding: 3px 5px;
@@ -1292,8 +1294,12 @@ body { overflow-x: hidden; }
 .request-detail-hero svg { width: 19px; }
 .request-detail-hero > div { min-width: 0; display: grid; justify-items: start; gap: 5px; }
 .request-detail-hero strong,
-.request-detail-hero code { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.request-detail-hero code,
+.request-detail-hero p { max-width: 100%; }
+.request-detail-hero strong,
+.request-detail-hero code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .request-detail-hero strong { font-size: 0.88rem; }
+.request-detail-hero p { margin: 0; color: #8b4a44; font-size: 0.7rem; line-height: 1.5; }
 .request-detail-hero code { color: #59636d; font-size: 0.72rem; }
 .request-detail-grid {
   display: grid;

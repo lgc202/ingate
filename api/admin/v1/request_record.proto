@@ -36,6 +36,14 @@ enum RequestOutcome {
   REQUEST_OUTCOME_NO_RESPONSE = 4;
 }
 
+// RequestRejectionReason 是网关主动拒绝请求时可向用户解释的产品原因
+enum RequestRejectionReason {
+  // REQUEST_REJECTION_REASON_UNSPECIFIED 表示请求不是已识别的网关拒绝，或没有拒绝原因
+  REQUEST_REJECTION_REASON_UNSPECIFIED = 0;
+  // REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED 表示调用方当前周期的 Token 额度已用尽
+  REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED = 1;
+}
+
 // AIModelCall 是控制台展示的一次模型调用结果
 message AIModelCall {
   // client_model 是调用方请求中使用的稳定模型名
@@ -94,8 +102,8 @@ message RequestRecord {
   string service_id = 16 [json_name = "serviceID"];
   // protocol 是客户端与网关之间的协议版本
   string protocol = 17;
-  // response_code_details 是数据面对响应来源或失败原因的稳定标识
-  string response_code_details = 18;
+  // rejection_reason 是网关主动拒绝请求时可向用户解释的原因
+  RequestRejectionReason rejection_reason = 18;
   // upstream_attempts 是包含首次转发在内的服务请求次数
   uint32 upstream_attempts = 19;
   // upstream_address 是最终处理请求的服务地址
@@ -140,6 +148,8 @@ message RequestRecordSummary {
   string caller_id = 13 [json_name = "callerID"];
   // access_key_id 是本次请求使用的访问密钥 ID
   string access_key_id = 14 [json_name = "accessKeyID"];
+  // rejection_reason 是网关主动拒绝请求时可向用户解释的原因
+  RequestRejectionReason rejection_reason = 15;
 }
 
 // ListRequestRecordsRequest 是请求明细分页查询参数
