@@ -36,7 +36,7 @@ export function PolicyLibraryTable({
             <th>策略名称</th>
             <th>策略内容</th>
             <th>应用目标</th>
-            <th>状态</th>
+            <th>启用与生效</th>
             <th>更新时间</th>
             <th>操作</th>
           </tr>
@@ -70,10 +70,15 @@ export function PolicyLibraryTable({
                 </div>
               </td>
               <td>
-                <Badge tone={unapplied ? 'neutral' : partiallyApplied ? errorTargets > 0 ? 'danger' : 'warning' : policyStatusTone(policy.status)}>
-                  {statusLabel}
-                </Badge>
-                {statusMessage && statusMessage !== statusLabel ? <div className="table-secondary policy-status-message">{statusMessage}</div> : null}
+                <div className="resource-state-badges">
+                  <Badge tone={policy.enabled ? 'accent' : 'neutral'}>{policy.enabled ? '已启用' : '已停用'}</Badge>
+                  {policy.enabled ? (
+                    <Badge tone={unapplied ? 'neutral' : partiallyApplied ? errorTargets > 0 ? 'danger' : 'warning' : policyStatusTone(policy.status)}>
+                      {statusLabel}
+                    </Badge>
+                  ) : null}
+                </div>
+                {policy.enabled && statusMessage && statusMessage !== statusLabel ? <div className="table-secondary policy-status-message">{statusMessage}</div> : null}
               </td>
               <td className="resource-table-time">{formatDateTime(policy.updatedAt ?? policy.createdAt ?? '')}</td>
               <td>

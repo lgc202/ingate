@@ -233,7 +233,9 @@ body { overflow-x: hidden; }
 .resource-table-name svg { width: 16px; height: 16px; flex: 0 0 auto; }
 .resource-table-name strong { overflow: hidden; color: var(--text); font-weight: 750; text-overflow: ellipsis; white-space: nowrap; }
 .resource-table-time { color: #747c89 !important; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.resource-state-badges { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; }
 .resource-table th:last-child { width: 158px; }
+.resource-table.resource-table-has-toggle th:last-child { width: 202px; }
 .resource-table .row-actions { gap: 0; overflow: hidden; border: 1px solid #dfe3ea; border-radius: 7px; background: #fff; }
 .resource-table .row-actions .link-button { min-height: 30px; padding: 0 9px; border: 0; border-radius: 0; font-size: 0.72rem; }
 .resource-table .row-actions .link-button + .link-button { border-left: 1px solid #e6e8ed; }
@@ -245,7 +247,7 @@ body { overflow-x: hidden; }
 .resource-route-table th:nth-child(6),
 .resource-upstream-table th:nth-child(6) { width: 10%; }
 .resource-route-table th:nth-child(7),
-.resource-upstream-table th:nth-child(7) { width: 9%; }
+.resource-upstream-table th:nth-child(7) { width: 12%; }
 .resource-route-table th:nth-child(8),
 .resource-upstream-table th:nth-child(8) { width: 126px; }
 .resource-gateway-table th:nth-child(2) { width: 36%; }

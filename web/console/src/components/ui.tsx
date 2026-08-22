@@ -142,16 +142,23 @@ export function ResourceFilterField({ label, children }: { label: string; childr
 export function RowActions({
   onDetail,
   onEdit,
+  onToggle,
+  toggleLabel,
+  toggleDisabled = false,
   onDelete,
 }: {
   onDetail: () => void;
   onEdit?: () => void;
+  onToggle?: () => void;
+  toggleLabel?: string;
+  toggleDisabled?: boolean;
   onDelete?: () => void;
 }) {
   return (
     <div className="row-actions" onClick={(event) => event.stopPropagation()}>
       <button className="link-button" type="button" onClick={onDetail}>详情</button>
       {onEdit ? <button className="link-button" type="button" onClick={onEdit}>编辑</button> : null}
+      {onToggle && toggleLabel ? <button className="link-button" type="button" disabled={toggleDisabled} onClick={onToggle}>{toggleLabel}</button> : null}
       {onDelete ? <button className="link-button danger" type="button" onClick={onDelete}>删除</button> : null}
     </div>
   );

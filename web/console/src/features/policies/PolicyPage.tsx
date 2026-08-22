@@ -46,15 +46,17 @@ type PolicyEditorState =
   | { type: 'ipRestriction'; draft: IPRestrictionPolicyDraft };
 
 type PolicyKindFilter = 'all' | GovernancePolicyKind;
-type PolicyStateFilter = 'all' | ResourceState | 'Unapplied';
+type PolicyEnabledFilter = 'all' | 'enabled' | 'disabled';
+type PolicyStateFilter = 'all' | Exclude<ResourceState, 'Disabled'> | 'Unapplied';
 
 interface PolicyFilters {
   query: string;
   kind: PolicyKindFilter;
+  enabled: PolicyEnabledFilter;
   state: PolicyStateFilter;
 }
 
-const emptyPolicyFilters = (): PolicyFilters => ({ query: '', kind: 'all', state: 'all' });
+const emptyPolicyFilters = (): PolicyFilters => ({ query: '', kind: 'all', enabled: 'all', state: 'all' });
 
 export function PolicyPage() {
   const workspace = useResource(getPolicyWorkspace);
@@ -88,6 +90,7 @@ export function PolicyPage() {
   const normalizedQuery = filters.query.trim().toLowerCase();
   const visiblePolicies = allPolicies.filter((policy) => (
     (filters.kind === 'all' || policy.kind === filters.kind)
+    && (filters.enabled === 'all' || (filters.enabled === 'enabled' && policy.enabled) || (filters.enabled === 'disabled' && !policy.enabled))
     && policyMatchesState(policy, filters.state)
     && `${policy.name} ${policy.summary} ${policy.targets.map((target) => policyTargetLabel(target, data.targets)).join(' ')}`.toLowerCase().includes(normalizedQuery)
   ));
@@ -168,13 +171,19 @@ export function PolicyPage() {
                 <option value="IPRestrictionPolicy">IP 访问限制</option>
               </select>
             </ResourceFilterField>
-            <ResourceFilterField label="状态">
+            <ResourceFilterField label="启用状态">
+              <select className="select" value={filterDraft.enabled} onChange={(event) => setFilterDraft((current) => ({ ...current, enabled: event.target.value as PolicyEnabledFilter }))}>
+                <option value="all">全部启用状态</option>
+                <option value="enabled">已启用</option>
+                <option value="disabled">已停用</option>
+              </select>
+            </ResourceFilterField>
+            <ResourceFilterField label="生效状态">
               <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as PolicyStateFilter }))}>
-                <option value="all">全部状态</option>
+                <option value="all">全部生效状态</option>
                 <option value="Ready">已生效</option>
                 <option value="Pending">待生效</option>
                 <option value="Error">异常</option>
-                <option value="Disabled">已停用</option>
                 <option value="Unapplied">未应用</option>
               </select>
             </ResourceFilterField>
@@ -280,7 +289,6 @@ export function PolicyPage() {
 function policyMatchesState(policy: GovernancePolicy, state: PolicyStateFilter): boolean {
   if (state === 'all') return true;
   if (state === 'Unapplied') return policy.enabled && policy.targets.length === 0;
-  if (state === 'Disabled') return !policy.enabled;
   return policy.enabled && policy.targets.length > 0 && policy.status.state === state;
 }
 
@@ -288,8 +296,9 @@ function policyFilterSummary(filters: PolicyFilters): string {
   const conditions = [];
   if (filters.query.trim()) conditions.push(`关键词“${filters.query.trim()}”`);
   if (filters.kind !== 'all') conditions.push(`类型：${policyKindLabel(filters.kind)}`);
+  if (filters.enabled !== 'all') conditions.push(`启用状态：${filters.enabled === 'enabled' ? '已启用' : '已停用'}`);
   if (filters.state !== 'all') {
-    conditions.push(`状态：${filters.state === 'Unapplied' ? '未应用' : resourceStateLabel(filters.state)}`);
+    conditions.push(`生效状态：${filters.state === 'Unapplied' ? '未应用' : resourceStateLabel(filters.state)}`);
   }
   return conditions.join(' · ') || '全部策略';
 }
