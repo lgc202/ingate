@@ -30,21 +30,9 @@ func (s *Service) ListWasmPluginCatalog(
 	return catalogResponse(s.plugins.Catalog()), nil
 }
 
-func (s *Service) RefreshWasmPluginCatalog(
-	ctx context.Context,
-	_ *adminv1.RefreshWasmPluginCatalogRequest,
-) (*adminv1.ListWasmPluginCatalogResponse, error) {
-	snapshot, err := s.plugins.RefreshCatalog(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return catalogResponse(snapshot), nil
-}
-
 func catalogResponse(snapshot wasmpluginbiz.CatalogSnapshot) *adminv1.ListWasmPluginCatalogResponse {
 	response := &adminv1.ListWasmPluginCatalogResponse{
-		Plugins:       make([]*adminv1.WasmPluginCatalogItem, 0, len(snapshot.Items)),
-		LastCheckedAt: adminservice.Timestamp(snapshot.LastCheckedAt),
+		Plugins: make([]*adminv1.WasmPluginCatalogItem, 0, len(snapshot.Items)),
 	}
 	for _, item := range snapshot.Items {
 		response.Plugins = append(response.Plugins, catalogItemResponse(item))

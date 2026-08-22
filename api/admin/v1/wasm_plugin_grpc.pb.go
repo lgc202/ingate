@@ -20,13 +20,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WasmPluginService_ListWasmPluginCatalog_FullMethodName    = "/ingate.admin.v1.WasmPluginService/ListWasmPluginCatalog"
-	WasmPluginService_RefreshWasmPluginCatalog_FullMethodName = "/ingate.admin.v1.WasmPluginService/RefreshWasmPluginCatalog"
-	WasmPluginService_ListWasmPlugins_FullMethodName          = "/ingate.admin.v1.WasmPluginService/ListWasmPlugins"
-	WasmPluginService_GetWasmPlugin_FullMethodName            = "/ingate.admin.v1.WasmPluginService/GetWasmPlugin"
-	WasmPluginService_CreateWasmPlugin_FullMethodName         = "/ingate.admin.v1.WasmPluginService/CreateWasmPlugin"
-	WasmPluginService_UpdateWasmPlugin_FullMethodName         = "/ingate.admin.v1.WasmPluginService/UpdateWasmPlugin"
-	WasmPluginService_DeleteWasmPlugin_FullMethodName         = "/ingate.admin.v1.WasmPluginService/DeleteWasmPlugin"
+	WasmPluginService_ListWasmPluginCatalog_FullMethodName = "/ingate.admin.v1.WasmPluginService/ListWasmPluginCatalog"
+	WasmPluginService_ListWasmPlugins_FullMethodName       = "/ingate.admin.v1.WasmPluginService/ListWasmPlugins"
+	WasmPluginService_GetWasmPlugin_FullMethodName         = "/ingate.admin.v1.WasmPluginService/GetWasmPlugin"
+	WasmPluginService_CreateWasmPlugin_FullMethodName      = "/ingate.admin.v1.WasmPluginService/CreateWasmPlugin"
+	WasmPluginService_UpdateWasmPlugin_FullMethodName      = "/ingate.admin.v1.WasmPluginService/UpdateWasmPlugin"
+	WasmPluginService_DeleteWasmPlugin_FullMethodName      = "/ingate.admin.v1.WasmPluginService/DeleteWasmPlugin"
 )
 
 // WasmPluginServiceClient is the client API for WasmPluginService service.
@@ -36,7 +35,6 @@ const (
 // WasmPluginService 提供插件安装、升级和卸载接口
 type WasmPluginServiceClient interface {
 	ListWasmPluginCatalog(ctx context.Context, in *ListWasmPluginCatalogRequest, opts ...grpc.CallOption) (*ListWasmPluginCatalogResponse, error)
-	RefreshWasmPluginCatalog(ctx context.Context, in *RefreshWasmPluginCatalogRequest, opts ...grpc.CallOption) (*ListWasmPluginCatalogResponse, error)
 	ListWasmPlugins(ctx context.Context, in *ListWasmPluginsRequest, opts ...grpc.CallOption) (*ListWasmPluginsResponse, error)
 	GetWasmPlugin(ctx context.Context, in *GetWasmPluginRequest, opts ...grpc.CallOption) (*WasmPlugin, error)
 	CreateWasmPlugin(ctx context.Context, in *CreateWasmPluginRequest, opts ...grpc.CallOption) (*WasmPlugin, error)
@@ -56,16 +54,6 @@ func (c *wasmPluginServiceClient) ListWasmPluginCatalog(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(ListWasmPluginCatalogResponse)
 	err := c.cc.Invoke(ctx, WasmPluginService_ListWasmPluginCatalog_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *wasmPluginServiceClient) RefreshWasmPluginCatalog(ctx context.Context, in *RefreshWasmPluginCatalogRequest, opts ...grpc.CallOption) (*ListWasmPluginCatalogResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListWasmPluginCatalogResponse)
-	err := c.cc.Invoke(ctx, WasmPluginService_RefreshWasmPluginCatalog_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +117,6 @@ func (c *wasmPluginServiceClient) DeleteWasmPlugin(ctx context.Context, in *Dele
 // WasmPluginService 提供插件安装、升级和卸载接口
 type WasmPluginServiceServer interface {
 	ListWasmPluginCatalog(context.Context, *ListWasmPluginCatalogRequest) (*ListWasmPluginCatalogResponse, error)
-	RefreshWasmPluginCatalog(context.Context, *RefreshWasmPluginCatalogRequest) (*ListWasmPluginCatalogResponse, error)
 	ListWasmPlugins(context.Context, *ListWasmPluginsRequest) (*ListWasmPluginsResponse, error)
 	GetWasmPlugin(context.Context, *GetWasmPluginRequest) (*WasmPlugin, error)
 	CreateWasmPlugin(context.Context, *CreateWasmPluginRequest) (*WasmPlugin, error)
@@ -146,9 +133,6 @@ type UnimplementedWasmPluginServiceServer struct{}
 
 func (UnimplementedWasmPluginServiceServer) ListWasmPluginCatalog(context.Context, *ListWasmPluginCatalogRequest) (*ListWasmPluginCatalogResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWasmPluginCatalog not implemented")
-}
-func (UnimplementedWasmPluginServiceServer) RefreshWasmPluginCatalog(context.Context, *RefreshWasmPluginCatalogRequest) (*ListWasmPluginCatalogResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method RefreshWasmPluginCatalog not implemented")
 }
 func (UnimplementedWasmPluginServiceServer) ListWasmPlugins(context.Context, *ListWasmPluginsRequest) (*ListWasmPluginsResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListWasmPlugins not implemented")
@@ -199,24 +183,6 @@ func _WasmPluginService_ListWasmPluginCatalog_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(WasmPluginServiceServer).ListWasmPluginCatalog(ctx, req.(*ListWasmPluginCatalogRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _WasmPluginService_RefreshWasmPluginCatalog_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(RefreshWasmPluginCatalogRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(WasmPluginServiceServer).RefreshWasmPluginCatalog(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: WasmPluginService_RefreshWasmPluginCatalog_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(WasmPluginServiceServer).RefreshWasmPluginCatalog(ctx, req.(*RefreshWasmPluginCatalogRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -321,10 +287,6 @@ var WasmPluginService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListWasmPluginCatalog",
 			Handler:    _WasmPluginService_ListWasmPluginCatalog_Handler,
-		},
-		{
-			MethodName: "RefreshWasmPluginCatalog",
-			Handler:    _WasmPluginService_RefreshWasmPluginCatalog_Handler,
 		},
 		{
 			MethodName: "ListWasmPlugins",

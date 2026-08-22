@@ -3,7 +3,8 @@ package plugincatalog
 
 import (
 	"context"
-	_ "embed"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,14 +25,10 @@ import (
 
 const maxCatalogBytes = 1 << 20
 
-//go:embed catalog.json
-var fallbackCatalog []byte
-
 type catalogState struct {
-	items         []wasmplugin.CatalogItem
-	specs         map[string]resource.WasmPluginSpec
-	lastCheckedAt time.Time
-	etag          string
+	items []wasmplugin.CatalogItem
+	specs map[string]resource.WasmPluginSpec
+	etag  string
 }
 
 type catalogFile struct {
@@ -61,23 +58,23 @@ type catalogArtifact struct {
 }
 
 // Catalog 为并发请求提供同一份不可变目录视图
-// 远程刷新先完整解析和校验，再一次性替换当前视图，失败时不会污染已有目录
+// 远程同步先完整解析和校验，再一次性替换当前视图，失败时不会污染已有目录
 type Catalog struct {
 	url             string
 	refreshInterval time.Duration
 	client          *http.Client
 	logger          *slog.Logger
 
-	refreshMu sync.Mutex
-	stateMu   sync.RWMutex
-	state     catalogState
+	syncMu  sync.Mutex
+	stateMu sync.RWMutex
+	state   catalogState
 
 	lifecycleMu sync.Mutex
 	cancel      context.CancelFunc
 	done        chan struct{}
 }
 
-// NewCatalog 创建插件目录并加载随二进制发布的离线兜底数据
+// NewCatalog 创建官方插件目录的远程缓存
 func NewCatalog(config *conf.Data, logger *slog.Logger) (*Catalog, error) {
 	settings := config.GetPluginCatalog()
 	remoteURL := strings.TrimSpace(settings.GetUrl())
@@ -87,16 +84,15 @@ func NewCatalog(config *conf.Data, logger *slog.Logger) (*Catalog, error) {
 			return nil, fmt.Errorf("parse plugin catalog URL %q", remoteURL)
 		}
 	}
-	state, err := decodeCatalog(fallbackCatalog, version.String())
-	if err != nil {
-		return nil, fmt.Errorf("decode embedded plugin catalog: %w", err)
-	}
 	return &Catalog{
 		url:             remoteURL,
 		refreshInterval: settings.GetRefreshInterval().AsDuration(),
 		client:          &http.Client{Timeout: settings.GetTimeout().AsDuration()},
 		logger:          logger,
-		state:           state,
+		state: catalogState{
+			items: make([]wasmplugin.CatalogItem, 0),
+			specs: make(map[string]resource.WasmPluginSpec),
+		},
 	}, nil
 }
 
@@ -105,8 +101,7 @@ func (c *Catalog) Snapshot() wasmplugin.CatalogSnapshot {
 	c.stateMu.RLock()
 	defer c.stateMu.RUnlock()
 	return wasmplugin.CatalogSnapshot{
-		Items:         append([]wasmplugin.CatalogItem(nil), c.state.items...),
-		LastCheckedAt: c.state.lastCheckedAt,
+		Items: append([]wasmplugin.CatalogItem(nil), c.state.items...),
 	}
 }
 
@@ -118,13 +113,13 @@ func (c *Catalog) PluginSpec(packageName string) (resource.WasmPluginSpec, bool)
 	return spec, ok
 }
 
-// Refresh 使用 HTTP ETag 检查远程目录并原子替换缓存
-func (c *Catalog) Refresh(ctx context.Context) error {
+// sync 使用 HTTP ETag 检查远程目录并原子替换缓存
+func (c *Catalog) sync(ctx context.Context) error {
 	if c.url == "" {
 		return nil
 	}
-	c.refreshMu.Lock()
-	defer c.refreshMu.Unlock()
+	c.syncMu.Lock()
+	defer c.syncMu.Unlock()
 
 	c.stateMu.RLock()
 	etag := c.state.etag
@@ -143,11 +138,7 @@ func (c *Catalog) Refresh(ctx context.Context) error {
 	}
 	defer func() { _ = response.Body.Close() }()
 
-	now := time.Now()
 	if response.StatusCode == http.StatusNotModified {
-		c.stateMu.Lock()
-		c.state.lastCheckedAt = now
-		c.stateMu.Unlock()
 		return nil
 	}
 	if response.StatusCode != http.StatusOK {
@@ -164,7 +155,6 @@ func (c *Catalog) Refresh(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("decode remote plugin catalog: %w", err)
 	}
-	state.lastCheckedAt = now
 	state.etag = response.Header.Get("ETag")
 
 	c.stateMu.Lock()
@@ -184,6 +174,7 @@ func (c *Catalog) Start(ctx context.Context) {
 	done := make(chan struct{})
 	c.cancel = cancel
 	c.done = done
+	c.syncAndLog(runCtx)
 	go c.run(runCtx, done)
 }
 
@@ -209,7 +200,6 @@ func (c *Catalog) Stop(ctx context.Context) error {
 
 func (c *Catalog) run(ctx context.Context, done chan<- struct{}) {
 	defer close(done)
-	c.refreshAndLog(ctx)
 	ticker := time.NewTicker(c.refreshInterval)
 	defer ticker.Stop()
 	for {
@@ -217,14 +207,14 @@ func (c *Catalog) run(ctx context.Context, done chan<- struct{}) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			c.refreshAndLog(ctx)
+			c.syncAndLog(ctx)
 		}
 	}
 }
 
-func (c *Catalog) refreshAndLog(ctx context.Context) {
-	if err := c.Refresh(ctx); err != nil && ctx.Err() == nil {
-		c.logger.Warn("refresh plugin catalog failed", "error", err)
+func (c *Catalog) syncAndLog(ctx context.Context) {
+	if err := c.sync(ctx); err != nil && ctx.Err() == nil {
+		c.logger.Warn("sync plugin catalog failed", "error", err)
 	}
 }
 
@@ -291,8 +281,12 @@ func latestCompatibleRelease(
 		release.Version = strings.TrimPrefix(strings.TrimSpace(release.Version), "v")
 		release.MinIngateVersion = canonicalVersion(strings.TrimSpace(release.MinIngateVersion))
 		release.Artifact.Repository = strings.TrimSpace(release.Artifact.Repository)
+		release.Artifact.SHA256 = strings.TrimPrefix(strings.TrimSpace(release.Artifact.SHA256), "sha256:")
 		if !semver.IsValid(canonicalVersion(release.Version)) || release.Artifact.Repository == "" {
 			return catalogRelease{}, false, fmt.Errorf("release requires a semantic version and artifact repository")
+		}
+		if !validSHA256(release.Artifact.SHA256) {
+			return catalogRelease{}, false, fmt.Errorf("release %q has invalid SHA-256 digest", release.Version)
 		}
 		if release.MinIngateVersion != "" && !semver.IsValid(release.MinIngateVersion) {
 			return catalogRelease{}, false, fmt.Errorf("release %q has invalid minimum Ingate version", release.Version)
@@ -320,4 +314,9 @@ func canonicalVersion(value string) string {
 		return value
 	}
 	return "v" + value
+}
+
+func validSHA256(value string) bool {
+	digest, err := hex.DecodeString(value)
+	return err == nil && len(digest) == sha256.Size
 }

@@ -487,9 +487,9 @@ func (x *Data_AIExtProc) GetTimeout() *durationpb.Duration {
 
 type Data_PluginCatalog struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// url 是官方插件目录地址；为空时只使用随二进制发布的离线目录
+	// url 是官方插件目录地址；为空时插件市场不提供安装选项
 	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
-	// refresh_interval 是后台检查插件新版本的周期
+	// refresh_interval 是后台同步官方插件目录的周期
 	RefreshInterval *durationpb.Duration `protobuf:"bytes,2,opt,name=refresh_interval,json=refreshInterval,proto3" json:"refresh_interval,omitempty"`
 	// timeout 限制单次远程目录请求的时间
 	Timeout       *durationpb.Duration `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`

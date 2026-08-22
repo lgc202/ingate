@@ -361,53 +361,16 @@ func (*ListWasmPluginCatalogRequest) Descriptor() ([]byte, []int) {
 	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{2}
 }
 
-type RefreshWasmPluginCatalogRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RefreshWasmPluginCatalogRequest) Reset() {
-	*x = RefreshWasmPluginCatalogRequest{}
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RefreshWasmPluginCatalogRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RefreshWasmPluginCatalogRequest) ProtoMessage() {}
-
-func (x *RefreshWasmPluginCatalogRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RefreshWasmPluginCatalogRequest.ProtoReflect.Descriptor instead.
-func (*RefreshWasmPluginCatalogRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{3}
-}
-
 type ListWasmPluginCatalogResponse struct {
 	state         protoimpl.MessageState   `protogen:"open.v1"`
 	Plugins       []*WasmPluginCatalogItem `protobuf:"bytes,1,rep,name=plugins,proto3" json:"plugins,omitempty"`
-	LastCheckedAt *timestamppb.Timestamp   `protobuf:"bytes,2,opt,name=last_checked_at,json=lastCheckedAt,proto3" json:"last_checked_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListWasmPluginCatalogResponse) Reset() {
 	*x = ListWasmPluginCatalogResponse{}
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[4]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -419,7 +382,7 @@ func (x *ListWasmPluginCatalogResponse) String() string {
 func (*ListWasmPluginCatalogResponse) ProtoMessage() {}
 
 func (x *ListWasmPluginCatalogResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[4]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -432,19 +395,12 @@ func (x *ListWasmPluginCatalogResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWasmPluginCatalogResponse.ProtoReflect.Descriptor instead.
 func (*ListWasmPluginCatalogResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{4}
+	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ListWasmPluginCatalogResponse) GetPlugins() []*WasmPluginCatalogItem {
 	if x != nil {
 		return x.Plugins
-	}
-	return nil
-}
-
-func (x *ListWasmPluginCatalogResponse) GetLastCheckedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.LastCheckedAt
 	}
 	return nil
 }
@@ -459,7 +415,7 @@ type ListWasmPluginsRequest struct {
 
 func (x *ListWasmPluginsRequest) Reset() {
 	*x = ListWasmPluginsRequest{}
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[5]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -471,7 +427,7 @@ func (x *ListWasmPluginsRequest) String() string {
 func (*ListWasmPluginsRequest) ProtoMessage() {}
 
 func (x *ListWasmPluginsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[5]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -484,7 +440,7 @@ func (x *ListWasmPluginsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWasmPluginsRequest.ProtoReflect.Descriptor instead.
 func (*ListWasmPluginsRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{5}
+	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListWasmPluginsRequest) GetLimit() int32 {
@@ -511,7 +467,7 @@ type ListWasmPluginsResponse struct {
 
 func (x *ListWasmPluginsResponse) Reset() {
 	*x = ListWasmPluginsResponse{}
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[6]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -523,7 +479,7 @@ func (x *ListWasmPluginsResponse) String() string {
 func (*ListWasmPluginsResponse) ProtoMessage() {}
 
 func (x *ListWasmPluginsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[6]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -536,7 +492,7 @@ func (x *ListWasmPluginsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListWasmPluginsResponse.ProtoReflect.Descriptor instead.
 func (*ListWasmPluginsResponse) Descriptor() ([]byte, []int) {
-	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{6}
+	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListWasmPluginsResponse) GetPlugins() []*WasmPlugin {
@@ -562,7 +518,7 @@ type GetWasmPluginRequest struct {
 
 func (x *GetWasmPluginRequest) Reset() {
 	*x = GetWasmPluginRequest{}
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[7]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -574,7 +530,7 @@ func (x *GetWasmPluginRequest) String() string {
 func (*GetWasmPluginRequest) ProtoMessage() {}
 
 func (x *GetWasmPluginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[7]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -587,7 +543,7 @@ func (x *GetWasmPluginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetWasmPluginRequest.ProtoReflect.Descriptor instead.
 func (*GetWasmPluginRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{7}
+	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetWasmPluginRequest) GetId() string {
@@ -606,7 +562,7 @@ type CreateWasmPluginRequest struct {
 
 func (x *CreateWasmPluginRequest) Reset() {
 	*x = CreateWasmPluginRequest{}
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[8]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -618,7 +574,7 @@ func (x *CreateWasmPluginRequest) String() string {
 func (*CreateWasmPluginRequest) ProtoMessage() {}
 
 func (x *CreateWasmPluginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[8]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -631,7 +587,7 @@ func (x *CreateWasmPluginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateWasmPluginRequest.ProtoReflect.Descriptor instead.
 func (*CreateWasmPluginRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{8}
+	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateWasmPluginRequest) GetPackageName() string {
@@ -651,7 +607,7 @@ type UpdateWasmPluginRequest struct {
 
 func (x *UpdateWasmPluginRequest) Reset() {
 	*x = UpdateWasmPluginRequest{}
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[9]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -663,7 +619,7 @@ func (x *UpdateWasmPluginRequest) String() string {
 func (*UpdateWasmPluginRequest) ProtoMessage() {}
 
 func (x *UpdateWasmPluginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[9]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -676,7 +632,7 @@ func (x *UpdateWasmPluginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateWasmPluginRequest.ProtoReflect.Descriptor instead.
 func (*UpdateWasmPluginRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{9}
+	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UpdateWasmPluginRequest) GetId() string {
@@ -703,7 +659,7 @@ type DeleteWasmPluginRequest struct {
 
 func (x *DeleteWasmPluginRequest) Reset() {
 	*x = DeleteWasmPluginRequest{}
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[10]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -715,7 +671,7 @@ func (x *DeleteWasmPluginRequest) String() string {
 func (*DeleteWasmPluginRequest) ProtoMessage() {}
 
 func (x *DeleteWasmPluginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[10]
+	mi := &file_admin_v1_wasm_plugin_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -728,7 +684,7 @@ func (x *DeleteWasmPluginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteWasmPluginRequest.ProtoReflect.Descriptor instead.
 func (*DeleteWasmPluginRequest) Descriptor() ([]byte, []int) {
-	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{10}
+	return file_admin_v1_wasm_plugin_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeleteWasmPluginRequest) GetId() string {
@@ -780,11 +736,9 @@ const file_admin_v1_wasm_plugin_proto_rawDesc = "" +
 	"\alicense\x18\a \x01(\tR\alicense\x12\x1d\n" +
 	"\n" +
 	"source_url\x18\b \x01(\tR\tsourceURL\"\x1e\n" +
-	"\x1cListWasmPluginCatalogRequest\"!\n" +
-	"\x1fRefreshWasmPluginCatalogRequest\"\xa5\x01\n" +
+	"\x1cListWasmPluginCatalogRequest\"a\n" +
 	"\x1dListWasmPluginCatalogResponse\x12@\n" +
-	"\aplugins\x18\x01 \x03(\v2&.ingate.admin.v1.WasmPluginCatalogItemR\aplugins\x12B\n" +
-	"\x0flast_checked_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\rlastCheckedAt\"O\n" +
+	"\aplugins\x18\x01 \x03(\v2&.ingate.admin.v1.WasmPluginCatalogItemR\aplugins\"O\n" +
 	"\x16ListWasmPluginsRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
 	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"q\n" +
@@ -805,10 +759,9 @@ const file_admin_v1_wasm_plugin_proto_rawDesc = "" +
 	"\x14WasmPluginPullPolicy\x12'\n" +
 	"#WASM_PLUGIN_PULL_POLICY_UNSPECIFIED\x10\x00\x12*\n" +
 	"&WASM_PLUGIN_PULL_POLICY_IF_NOT_PRESENT\x10\x01\x12\"\n" +
-	"\x1eWASM_PLUGIN_PULL_POLICY_ALWAYS\x10\x022\xd3\a\n" +
+	"\x1eWASM_PLUGIN_PULL_POLICY_ALWAYS\x10\x022\xa4\x06\n" +
 	"\x11WasmPluginService\x12\x9b\x01\n" +
-	"\x15ListWasmPluginCatalog\x12-.ingate.admin.v1.ListWasmPluginCatalogRequest\x1a..ingate.admin.v1.ListWasmPluginCatalogResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/api/v1/wasm-plugin-catalog\x12\xac\x01\n" +
-	"\x18RefreshWasmPluginCatalog\x120.ingate.admin.v1.RefreshWasmPluginCatalogRequest\x1a..ingate.admin.v1.ListWasmPluginCatalogResponse\".\x82\xd3\xe4\x93\x02(:\x01*\"#/api/v1/wasm-plugin-catalog:refresh\x12\x82\x01\n" +
+	"\x15ListWasmPluginCatalog\x12-.ingate.admin.v1.ListWasmPluginCatalogRequest\x1a..ingate.admin.v1.ListWasmPluginCatalogResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/api/v1/wasm-plugin-catalog\x12\x82\x01\n" +
 	"\x0fListWasmPlugins\x12'.ingate.admin.v1.ListWasmPluginsRequest\x1a(.ingate.admin.v1.ListWasmPluginsResponse\"\x1c\x82\xd3\xe4\x93\x02\x16\x12\x14/api/v1/wasm-plugins\x12v\n" +
 	"\rGetWasmPlugin\x12%.ingate.admin.v1.GetWasmPluginRequest\x1a\x1b.ingate.admin.v1.WasmPlugin\"!\x82\xd3\xe4\x93\x02\x1b\x12\x19/api/v1/wasm-plugins/{id}\x12z\n" +
 	"\x10CreateWasmPlugin\x12(.ingate.admin.v1.CreateWasmPluginRequest\x1a\x1b.ingate.admin.v1.WasmPlugin\"\x1f\x82\xd3\xe4\x93\x02\x19:\x01*\"\x14/api/v1/wasm-plugins\x12\x7f\n" +
@@ -828,51 +781,47 @@ func file_admin_v1_wasm_plugin_proto_rawDescGZIP() []byte {
 }
 
 var file_admin_v1_wasm_plugin_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_admin_v1_wasm_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_admin_v1_wasm_plugin_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_admin_v1_wasm_plugin_proto_goTypes = []any{
-	(WasmPluginPullPolicy)(0),               // 0: ingate.admin.v1.WasmPluginPullPolicy
-	(*WasmPlugin)(nil),                      // 1: ingate.admin.v1.WasmPlugin
-	(*WasmPluginCatalogItem)(nil),           // 2: ingate.admin.v1.WasmPluginCatalogItem
-	(*ListWasmPluginCatalogRequest)(nil),    // 3: ingate.admin.v1.ListWasmPluginCatalogRequest
-	(*RefreshWasmPluginCatalogRequest)(nil), // 4: ingate.admin.v1.RefreshWasmPluginCatalogRequest
-	(*ListWasmPluginCatalogResponse)(nil),   // 5: ingate.admin.v1.ListWasmPluginCatalogResponse
-	(*ListWasmPluginsRequest)(nil),          // 6: ingate.admin.v1.ListWasmPluginsRequest
-	(*ListWasmPluginsResponse)(nil),         // 7: ingate.admin.v1.ListWasmPluginsResponse
-	(*GetWasmPluginRequest)(nil),            // 8: ingate.admin.v1.GetWasmPluginRequest
-	(*CreateWasmPluginRequest)(nil),         // 9: ingate.admin.v1.CreateWasmPluginRequest
-	(*UpdateWasmPluginRequest)(nil),         // 10: ingate.admin.v1.UpdateWasmPluginRequest
-	(*DeleteWasmPluginRequest)(nil),         // 11: ingate.admin.v1.DeleteWasmPluginRequest
-	(ResourceState)(0),                      // 12: ingate.admin.v1.ResourceState
-	(*timestamppb.Timestamp)(nil),           // 13: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                   // 14: google.protobuf.Empty
+	(WasmPluginPullPolicy)(0),             // 0: ingate.admin.v1.WasmPluginPullPolicy
+	(*WasmPlugin)(nil),                    // 1: ingate.admin.v1.WasmPlugin
+	(*WasmPluginCatalogItem)(nil),         // 2: ingate.admin.v1.WasmPluginCatalogItem
+	(*ListWasmPluginCatalogRequest)(nil),  // 3: ingate.admin.v1.ListWasmPluginCatalogRequest
+	(*ListWasmPluginCatalogResponse)(nil), // 4: ingate.admin.v1.ListWasmPluginCatalogResponse
+	(*ListWasmPluginsRequest)(nil),        // 5: ingate.admin.v1.ListWasmPluginsRequest
+	(*ListWasmPluginsResponse)(nil),       // 6: ingate.admin.v1.ListWasmPluginsResponse
+	(*GetWasmPluginRequest)(nil),          // 7: ingate.admin.v1.GetWasmPluginRequest
+	(*CreateWasmPluginRequest)(nil),       // 8: ingate.admin.v1.CreateWasmPluginRequest
+	(*UpdateWasmPluginRequest)(nil),       // 9: ingate.admin.v1.UpdateWasmPluginRequest
+	(*DeleteWasmPluginRequest)(nil),       // 10: ingate.admin.v1.DeleteWasmPluginRequest
+	(ResourceState)(0),                    // 11: ingate.admin.v1.ResourceState
+	(*timestamppb.Timestamp)(nil),         // 12: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                 // 13: google.protobuf.Empty
 }
 var file_admin_v1_wasm_plugin_proto_depIdxs = []int32{
 	0,  // 0: ingate.admin.v1.WasmPlugin.pull_policy:type_name -> ingate.admin.v1.WasmPluginPullPolicy
-	12, // 1: ingate.admin.v1.WasmPlugin.state:type_name -> ingate.admin.v1.ResourceState
-	13, // 2: ingate.admin.v1.WasmPlugin.created_at:type_name -> google.protobuf.Timestamp
-	13, // 3: ingate.admin.v1.WasmPlugin.updated_at:type_name -> google.protobuf.Timestamp
+	11, // 1: ingate.admin.v1.WasmPlugin.state:type_name -> ingate.admin.v1.ResourceState
+	12, // 2: ingate.admin.v1.WasmPlugin.created_at:type_name -> google.protobuf.Timestamp
+	12, // 3: ingate.admin.v1.WasmPlugin.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 4: ingate.admin.v1.ListWasmPluginCatalogResponse.plugins:type_name -> ingate.admin.v1.WasmPluginCatalogItem
-	13, // 5: ingate.admin.v1.ListWasmPluginCatalogResponse.last_checked_at:type_name -> google.protobuf.Timestamp
-	1,  // 6: ingate.admin.v1.ListWasmPluginsResponse.plugins:type_name -> ingate.admin.v1.WasmPlugin
-	3,  // 7: ingate.admin.v1.WasmPluginService.ListWasmPluginCatalog:input_type -> ingate.admin.v1.ListWasmPluginCatalogRequest
-	4,  // 8: ingate.admin.v1.WasmPluginService.RefreshWasmPluginCatalog:input_type -> ingate.admin.v1.RefreshWasmPluginCatalogRequest
-	6,  // 9: ingate.admin.v1.WasmPluginService.ListWasmPlugins:input_type -> ingate.admin.v1.ListWasmPluginsRequest
-	8,  // 10: ingate.admin.v1.WasmPluginService.GetWasmPlugin:input_type -> ingate.admin.v1.GetWasmPluginRequest
-	9,  // 11: ingate.admin.v1.WasmPluginService.CreateWasmPlugin:input_type -> ingate.admin.v1.CreateWasmPluginRequest
-	10, // 12: ingate.admin.v1.WasmPluginService.UpdateWasmPlugin:input_type -> ingate.admin.v1.UpdateWasmPluginRequest
-	11, // 13: ingate.admin.v1.WasmPluginService.DeleteWasmPlugin:input_type -> ingate.admin.v1.DeleteWasmPluginRequest
-	5,  // 14: ingate.admin.v1.WasmPluginService.ListWasmPluginCatalog:output_type -> ingate.admin.v1.ListWasmPluginCatalogResponse
-	5,  // 15: ingate.admin.v1.WasmPluginService.RefreshWasmPluginCatalog:output_type -> ingate.admin.v1.ListWasmPluginCatalogResponse
-	7,  // 16: ingate.admin.v1.WasmPluginService.ListWasmPlugins:output_type -> ingate.admin.v1.ListWasmPluginsResponse
-	1,  // 17: ingate.admin.v1.WasmPluginService.GetWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
-	1,  // 18: ingate.admin.v1.WasmPluginService.CreateWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
-	1,  // 19: ingate.admin.v1.WasmPluginService.UpdateWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
-	14, // 20: ingate.admin.v1.WasmPluginService.DeleteWasmPlugin:output_type -> google.protobuf.Empty
-	14, // [14:21] is the sub-list for method output_type
-	7,  // [7:14] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	1,  // 5: ingate.admin.v1.ListWasmPluginsResponse.plugins:type_name -> ingate.admin.v1.WasmPlugin
+	3,  // 6: ingate.admin.v1.WasmPluginService.ListWasmPluginCatalog:input_type -> ingate.admin.v1.ListWasmPluginCatalogRequest
+	5,  // 7: ingate.admin.v1.WasmPluginService.ListWasmPlugins:input_type -> ingate.admin.v1.ListWasmPluginsRequest
+	7,  // 8: ingate.admin.v1.WasmPluginService.GetWasmPlugin:input_type -> ingate.admin.v1.GetWasmPluginRequest
+	8,  // 9: ingate.admin.v1.WasmPluginService.CreateWasmPlugin:input_type -> ingate.admin.v1.CreateWasmPluginRequest
+	9,  // 10: ingate.admin.v1.WasmPluginService.UpdateWasmPlugin:input_type -> ingate.admin.v1.UpdateWasmPluginRequest
+	10, // 11: ingate.admin.v1.WasmPluginService.DeleteWasmPlugin:input_type -> ingate.admin.v1.DeleteWasmPluginRequest
+	4,  // 12: ingate.admin.v1.WasmPluginService.ListWasmPluginCatalog:output_type -> ingate.admin.v1.ListWasmPluginCatalogResponse
+	6,  // 13: ingate.admin.v1.WasmPluginService.ListWasmPlugins:output_type -> ingate.admin.v1.ListWasmPluginsResponse
+	1,  // 14: ingate.admin.v1.WasmPluginService.GetWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
+	1,  // 15: ingate.admin.v1.WasmPluginService.CreateWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
+	1,  // 16: ingate.admin.v1.WasmPluginService.UpdateWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
+	13, // 17: ingate.admin.v1.WasmPluginService.DeleteWasmPlugin:output_type -> google.protobuf.Empty
+	12, // [12:18] is the sub-list for method output_type
+	6,  // [6:12] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_wasm_plugin_proto_init() }
@@ -887,7 +836,7 @@ func file_admin_v1_wasm_plugin_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_wasm_plugin_proto_rawDesc), len(file_admin_v1_wasm_plugin_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   11,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -12,19 +12,10 @@ interface WasmPluginListResponse extends CursorPagedResponse {
 
 interface WasmPluginCatalogResponse {
   plugins?: PluginCatalogItem[];
-  lastCheckedAt?: string;
 }
 
 export async function listWasmPluginCatalog(): Promise<PluginCatalog> {
   const response = await apiRequest<WasmPluginCatalogResponse>('/wasm-plugin-catalog');
-  return catalogFromAPI(response);
-}
-
-export async function refreshWasmPluginCatalog(): Promise<PluginCatalog> {
-  const response = await apiRequest<WasmPluginCatalogResponse>('/wasm-plugin-catalog:refresh', {
-    method: 'POST',
-    body: '{}',
-  });
   return catalogFromAPI(response);
 }
 
@@ -70,6 +61,5 @@ function pluginFromAPI(plugin: WasmPluginResponse): WasmPlugin {
 function catalogFromAPI(response: WasmPluginCatalogResponse): PluginCatalog {
   return {
     plugins: response.plugins ?? [],
-    lastCheckedAt: response.lastCheckedAt ?? '',
   };
 }

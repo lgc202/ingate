@@ -23,7 +23,6 @@ const OperationWasmPluginServiceDeleteWasmPlugin = "/ingate.admin.v1.WasmPluginS
 const OperationWasmPluginServiceGetWasmPlugin = "/ingate.admin.v1.WasmPluginService/GetWasmPlugin"
 const OperationWasmPluginServiceListWasmPluginCatalog = "/ingate.admin.v1.WasmPluginService/ListWasmPluginCatalog"
 const OperationWasmPluginServiceListWasmPlugins = "/ingate.admin.v1.WasmPluginService/ListWasmPlugins"
-const OperationWasmPluginServiceRefreshWasmPluginCatalog = "/ingate.admin.v1.WasmPluginService/RefreshWasmPluginCatalog"
 const OperationWasmPluginServiceUpdateWasmPlugin = "/ingate.admin.v1.WasmPluginService/UpdateWasmPlugin"
 
 type WasmPluginServiceHTTPServer interface {
@@ -32,14 +31,12 @@ type WasmPluginServiceHTTPServer interface {
 	GetWasmPlugin(context.Context, *GetWasmPluginRequest) (*WasmPlugin, error)
 	ListWasmPluginCatalog(context.Context, *ListWasmPluginCatalogRequest) (*ListWasmPluginCatalogResponse, error)
 	ListWasmPlugins(context.Context, *ListWasmPluginsRequest) (*ListWasmPluginsResponse, error)
-	RefreshWasmPluginCatalog(context.Context, *RefreshWasmPluginCatalogRequest) (*ListWasmPluginCatalogResponse, error)
 	UpdateWasmPlugin(context.Context, *UpdateWasmPluginRequest) (*WasmPlugin, error)
 }
 
 func RegisterWasmPluginServiceHTTPServer(s *http.Server, srv WasmPluginServiceHTTPServer) {
 	r := s.Route("/")
 	r.Handle("GET", "/api/v1/wasm-plugin-catalog", _WasmPluginService_ListWasmPluginCatalog0_HTTP_Handler(srv))
-	r.Handle("POST", "/api/v1/wasm-plugin-catalog:refresh", _WasmPluginService_RefreshWasmPluginCatalog0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/wasm-plugins", _WasmPluginService_ListWasmPlugins0_HTTP_Handler(srv))
 	r.Handle("GET", "/api/v1/wasm-plugins/{id}", _WasmPluginService_GetWasmPlugin0_HTTP_Handler(srv))
 	r.Handle("POST", "/api/v1/wasm-plugins", _WasmPluginService_CreateWasmPlugin0_HTTP_Handler(srv))
@@ -56,25 +53,6 @@ func _WasmPluginService_ListWasmPluginCatalog0_HTTP_Handler(srv WasmPluginServic
 		http.SetOperation(ctx, OperationWasmPluginServiceListWasmPluginCatalog)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
 			return srv.ListWasmPluginCatalog(ctx, req.(*ListWasmPluginCatalogRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*ListWasmPluginCatalogResponse)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _WasmPluginService_RefreshWasmPluginCatalog0_HTTP_Handler(srv WasmPluginServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in RefreshWasmPluginCatalogRequest
-		if err := ctx.Bind(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationWasmPluginServiceRefreshWasmPluginCatalog)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.RefreshWasmPluginCatalog(ctx, req.(*RefreshWasmPluginCatalogRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
@@ -195,7 +173,6 @@ type WasmPluginServiceHTTPClient interface {
 	GetWasmPlugin(ctx context.Context, req *GetWasmPluginRequest, opts ...http.CallOption) (rsp *WasmPlugin, err error)
 	ListWasmPluginCatalog(ctx context.Context, req *ListWasmPluginCatalogRequest, opts ...http.CallOption) (rsp *ListWasmPluginCatalogResponse, err error)
 	ListWasmPlugins(ctx context.Context, req *ListWasmPluginsRequest, opts ...http.CallOption) (rsp *ListWasmPluginsResponse, err error)
-	RefreshWasmPluginCatalog(ctx context.Context, req *RefreshWasmPluginCatalogRequest, opts ...http.CallOption) (rsp *ListWasmPluginCatalogResponse, err error)
 	UpdateWasmPlugin(ctx context.Context, req *UpdateWasmPluginRequest, opts ...http.CallOption) (rsp *WasmPlugin, err error)
 }
 
@@ -282,23 +259,6 @@ func (c *WasmPluginServiceHTTPClientImpl) ListWasmPlugins(ctx context.Context, i
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *WasmPluginServiceHTTPClientImpl) RefreshWasmPluginCatalog(ctx context.Context, in *RefreshWasmPluginCatalogRequest, opts ...http.CallOption) (*ListWasmPluginCatalogResponse, error) {
-	var out ListWasmPluginCatalogResponse
-	pattern := "/api/v1/wasm-plugin-catalog:refresh"
-	path := http.BuildPath(pattern, in)
-	opts = append([]http.CallOption{
-		http.Accept("application/protojson"),
-		http.ContentType("application/protojson"),
-		http.Operation(OperationWasmPluginServiceRefreshWasmPluginCatalog),
-		http.PathTemplate(pattern),
-	}, opts...)
-	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

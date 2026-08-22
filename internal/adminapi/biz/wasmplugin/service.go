@@ -51,15 +51,6 @@ func (s *Service) Catalog() CatalogSnapshot {
 	return s.catalog.Snapshot()
 }
 
-// RefreshCatalog 立即检查远程插件目录
-// 拉取失败不会替换内存中的上次成功结果
-func (s *Service) RefreshCatalog(ctx context.Context) (CatalogSnapshot, error) {
-	if err := s.catalog.Refresh(ctx); err != nil {
-		return CatalogSnapshot{}, catalogUnavailable(err)
-	}
-	return s.catalog.Snapshot(), nil
-}
-
 // UpgradeVersion 返回插件当前是否存在可用的新版本
 // 版本比较由后端统一完成，控制台不需要理解语义版本规则
 func (s *Service) UpgradeVersion(packageName, currentVersion string) (string, bool) {
