@@ -2,7 +2,7 @@
 -- +goose Up
 
 -- request_records 保存不可变的请求元数据，不保存 Header、请求体或响应体。
--- ReplacingMergeTree 负责最终合并相同请求 ID。
+-- 在线重投首先由 insert_deduplication_token 拦截，ReplacingMergeTree 只作为明细最终收敛的第二道保障。
 CREATE TABLE IF NOT EXISTS request_records
 (
     id String,
@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS request_records
 )
 ENGINE = ReplacingMergeTree
 PARTITION BY toYYYYMM(started_at)
-ORDER BY (started_at, id);
+ORDER BY (started_at, id)
+-- 去重日志只覆盖最近的在线重投；离线历史回放需要重建对应聚合时间范围。
+SETTINGS non_replicated_deduplication_window = 100000;
 
 -- request_metrics_1m 保存物化视图产生的分钟级聚合状态。
 -- 更大的查询时间粒度在查询时由这些分钟状态继续合并，无需重复保存多套事实。
@@ -52,10 +54,12 @@ CREATE TABLE IF NOT EXISTS request_metrics_1m
 )
 ENGINE = AggregatingMergeTree
 PARTITION BY toYYYYMM(started_at)
-ORDER BY (started_at, gateway_id, route_id, upstream_id);
+ORDER BY (started_at, gateway_id, route_id, upstream_id)
+SETTINGS non_replicated_deduplication_window = 100000;
 
 -- 增量物化视图只处理新插入的请求批次，为控制台实时趋势减少明细扫描量。
--- Kafka 重投下的聚合幂等由后续完整的消费位点方案统一解决。
+-- Analytics 为每条 Kafka 事件设置稳定去重标识，ClickHouse 会在物化视图执行前过滤重投，
+-- 因此请求明细和分钟聚合使用同一个幂等边界。
 CREATE MATERIALIZED VIEW IF NOT EXISTS request_metrics_1m_mv TO request_metrics_1m
 AS SELECT
     toStartOfMinute(started_at) AS started_at,

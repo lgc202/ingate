@@ -78,7 +78,8 @@ services:
     restart: "no"
 
   clickhouse:
-    image: clickhouse:25.8.28.1
+    # Analytics 依赖该版本对异步写入 token 分区去重和部分重投的修复
+    image: clickhouse:26.7.3.19
     restart: unless-stopped
     environment:
       CLICKHOUSE_DB: ingate
