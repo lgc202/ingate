@@ -22,12 +22,14 @@ type ResourceWatcher struct {
 	factory informers.SharedInformerFactory
 	changes chan struct{}
 
-	gateways              gatewaylisters.GatewayLister
-	certificates          gatewaylisters.CertificateLister
-	routes                gatewaylisters.RouteLister
-	upstreams             gatewaylisters.UpstreamLister
-	rateLimitPolicies     gatewaylisters.RateLimitPolicyLister
-	ipRestrictionPolicies gatewaylisters.IPRestrictionPolicyLister
+	gateways                     gatewaylisters.GatewayLister
+	certificates                 gatewaylisters.CertificateLister
+	routes                       gatewaylisters.RouteLister
+	upstreams                    gatewaylisters.UpstreamLister
+	rateLimitPolicies            gatewaylisters.RateLimitPolicyLister
+	ipRestrictionPolicies        gatewaylisters.IPRestrictionPolicyLister
+	headerTransformationPolicies gatewaylisters.HeaderTransformationPolicyLister
+	wasmPlugins                  gatewaylisters.WasmPluginLister
 }
 
 // NewResourceWatcher 创建全配置域资源监听器
@@ -43,16 +45,20 @@ func NewResourceWatcher(
 	upstreamInformer := gatewayInformers.Upstreams()
 	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
 	ipRestrictionPolicyInformer := gatewayInformers.IPRestrictionPolicies()
+	headerTransformationPolicyInformer := gatewayInformers.HeaderTransformationPolicies()
+	wasmPluginInformer := gatewayInformers.WasmPlugins()
 
 	resources := &ResourceWatcher{
-		factory:               factory,
-		changes:               make(chan struct{}, 1),
-		gateways:              gatewayInformer.Lister(),
-		certificates:          certificateInformer.Lister(),
-		routes:                routeInformer.Lister(),
-		upstreams:             upstreamInformer.Lister(),
-		rateLimitPolicies:     rateLimitPolicyInformer.Lister(),
-		ipRestrictionPolicies: ipRestrictionPolicyInformer.Lister(),
+		factory:                      factory,
+		changes:                      make(chan struct{}, 1),
+		gateways:                     gatewayInformer.Lister(),
+		certificates:                 certificateInformer.Lister(),
+		routes:                       routeInformer.Lister(),
+		upstreams:                    upstreamInformer.Lister(),
+		rateLimitPolicies:            rateLimitPolicyInformer.Lister(),
+		ipRestrictionPolicies:        ipRestrictionPolicyInformer.Lister(),
+		headerTransformationPolicies: headerTransformationPolicyInformer.Lister(),
+		wasmPlugins:                  wasmPluginInformer.Lister(),
 	}
 	if err := resources.registerEventHandlers([]eventRegistration{
 		{name: "Gateway", informer: gatewayInformer.Informer()},
@@ -61,6 +67,8 @@ func NewResourceWatcher(
 		{name: "Upstream", informer: upstreamInformer.Informer()},
 		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
 		{name: "IPRestrictionPolicy", informer: ipRestrictionPolicyInformer.Informer()},
+		{name: "HeaderTransformationPolicy", informer: headerTransformationPolicyInformer.Informer()},
+		{name: "WasmPlugin", informer: wasmPluginInformer.Informer()},
 	}); err != nil {
 		return nil, err
 	}
@@ -118,13 +126,23 @@ func (w *ResourceWatcher) List() (compiler.Resources, error) {
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list IPRestrictionPolicies: %w", err)
 	}
+	headerTransformationPolicies, err := w.headerTransformationPolicies.List(labels.Everything())
+	if err != nil {
+		return compiler.Resources{}, fmt.Errorf("list HeaderTransformationPolicies: %w", err)
+	}
+	wasmPlugins, err := w.wasmPlugins.List(labels.Everything())
+	if err != nil {
+		return compiler.Resources{}, fmt.Errorf("list WasmPlugins: %w", err)
+	}
 	resources := compiler.Resources{
-		Gateways:              make([]*gatewayv1.Gateway, 0, len(gateways)),
-		Certificates:          make([]*gatewayv1.Certificate, 0, len(certificates)),
-		Routes:                make([]*gatewayv1.Route, 0, len(routes)),
-		Upstreams:             make([]*gatewayv1.Upstream, 0, len(upstreams)),
-		RateLimitPolicies:     make([]*gatewayv1.RateLimitPolicy, 0, len(rateLimitPolicies)),
-		IPRestrictionPolicies: make([]*gatewayv1.IPRestrictionPolicy, 0, len(ipRestrictionPolicies)),
+		Gateways:                     make([]*gatewayv1.Gateway, 0, len(gateways)),
+		Certificates:                 make([]*gatewayv1.Certificate, 0, len(certificates)),
+		Routes:                       make([]*gatewayv1.Route, 0, len(routes)),
+		Upstreams:                    make([]*gatewayv1.Upstream, 0, len(upstreams)),
+		RateLimitPolicies:            make([]*gatewayv1.RateLimitPolicy, 0, len(rateLimitPolicies)),
+		IPRestrictionPolicies:        make([]*gatewayv1.IPRestrictionPolicy, 0, len(ipRestrictionPolicies)),
+		HeaderTransformationPolicies: make([]*gatewayv1.HeaderTransformationPolicy, 0, len(headerTransformationPolicies)),
+		WasmPlugins:                  make([]*gatewayv1.WasmPlugin, 0, len(wasmPlugins)),
 	}
 	for _, resource := range gateways {
 		resources.Gateways = append(resources.Gateways, resource.DeepCopy())
@@ -144,6 +162,12 @@ func (w *ResourceWatcher) List() (compiler.Resources, error) {
 	for _, resource := range ipRestrictionPolicies {
 		resources.IPRestrictionPolicies = append(resources.IPRestrictionPolicies, resource.DeepCopy())
 	}
+	for _, resource := range headerTransformationPolicies {
+		resources.HeaderTransformationPolicies = append(resources.HeaderTransformationPolicies, resource.DeepCopy())
+	}
+	for _, resource := range wasmPlugins {
+		resources.WasmPlugins = append(resources.WasmPlugins, resource.DeepCopy())
+	}
 
 	slices.SortFunc(resources.Gateways, func(a, b *gatewayv1.Gateway) int {
 		return cmp.Compare(a.Name, b.Name)
@@ -161,6 +185,12 @@ func (w *ResourceWatcher) List() (compiler.Resources, error) {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	slices.SortFunc(resources.IPRestrictionPolicies, func(a, b *gatewayv1.IPRestrictionPolicy) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	slices.SortFunc(resources.HeaderTransformationPolicies, func(a, b *gatewayv1.HeaderTransformationPolicy) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	slices.SortFunc(resources.WasmPlugins, func(a, b *gatewayv1.WasmPlugin) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	return resources, nil

@@ -14,6 +14,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/caller"
 	"github.com/lgc202/ingate/internal/adminapi/biz/certificate"
 	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
+	"github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/adminapi/biz/request"
@@ -21,15 +22,18 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
 	"github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/biz/upstream"
+	"github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 	"github.com/lgc202/ingate/internal/adminapi/data/aiextproc"
 	"github.com/lgc202/ingate/internal/adminapi/data/analytics"
 	"github.com/lgc202/ingate/internal/adminapi/data/apiserver"
+	"github.com/lgc202/ingate/internal/adminapi/data/plugincatalog"
 	"github.com/lgc202/ingate/internal/adminapi/server"
 	aiusage2 "github.com/lgc202/ingate/internal/adminapi/service/aiusage"
 	caller2 "github.com/lgc202/ingate/internal/adminapi/service/caller"
 	certificate2 "github.com/lgc202/ingate/internal/adminapi/service/certificate"
 	gateway2 "github.com/lgc202/ingate/internal/adminapi/service/gateway"
+	headertransformation2 "github.com/lgc202/ingate/internal/adminapi/service/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/service/health"
 	iprestriction2 "github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
 	ratelimit2 "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
@@ -38,6 +42,7 @@ import (
 	tokenquota2 "github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
 	traffic2 "github.com/lgc202/ingate/internal/adminapi/service/traffic"
 	upstream2 "github.com/lgc202/ingate/internal/adminapi/service/upstream"
+	wasmplugin2 "github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
 	"log/slog"
 )
 
@@ -64,7 +69,8 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 	certificateRepository := apiserver.NewCertificateRepository(versionedInterface)
 	rateLimitPolicyRepository := apiserver.NewRateLimitPolicyRepository(versionedInterface)
 	ipRestrictionPolicyRepository := apiserver.NewIPRestrictionPolicyRepository(versionedInterface)
-	policyUsageFinder := biz.NewPolicyUsageFinder(rateLimitPolicyRepository, ipRestrictionPolicyRepository)
+	headerTransformationPolicyRepository := apiserver.NewHeaderTransformationPolicyRepository(versionedInterface)
+	policyUsageFinder := biz.NewPolicyUsageFinder(rateLimitPolicyRepository, ipRestrictionPolicyRepository, headerTransformationPolicyRepository)
 	gatewayService := gateway.NewService(gatewayRepository, routeRepository, certificateRepository, policyUsageFinder)
 	service3 := gateway2.NewService(gatewayService)
 	upstreamRepository := apiserver.NewUpstreamRepository(versionedInterface)
@@ -94,9 +100,20 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 	tokenquotaService := tokenquota.NewService(tokenQuotaPolicyRepository, callerRepository, tokenQuotaUsageReader)
 	service11 := tokenquota2.NewService(tokenquotaService)
 	healthService := health.NewService()
-	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, service11, healthService)
+	headertransformationService := headertransformation.NewService(headerTransformationPolicyRepository, gatewayRepository, routeRepository)
+	service12 := headertransformation2.NewService(headertransformationService)
+	wasmPluginRepository := apiserver.NewWasmPluginRepository(versionedInterface)
+	catalog, err := plugincatalog.NewCatalog(data, logger)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	wasmpluginService := wasmplugin.NewService(wasmPluginRepository, headerTransformationPolicyRepository, catalog)
+	service13 := wasmplugin2.NewService(wasmpluginService)
+	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, service11, healthService, service12, service13)
 	httpServer := server.NewHTTPServer(confServer, logger, httpHandlers)
-	app := newKratosApp(logger, confServer, httpServer, adminapiServiceInstanceID)
+	app := newKratosApp(logger, confServer, httpServer, catalog, adminapiServiceInstanceID)
 	return app, func() {
 		cleanup2()
 		cleanup()
@@ -106,7 +123,7 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 // wire.go:
 
 // bizProviderSet 汇总各资源的业务服务
-var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, aiusage.NewService, caller.NewService, gateway.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService, tokenquota.NewService)
+var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, aiusage.NewService, caller.NewService, gateway.NewService, headertransformation.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService, tokenquota.NewService, wasmplugin.NewService)
 
 // serviceProviderSet 汇总 Admin API 的协议服务
-var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, tokenquota2.NewService, health.NewService)
+var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, headertransformation2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, tokenquota2.NewService, health.NewService, wasmplugin2.NewService)

@@ -15,6 +15,7 @@ import (
 func wireApp(
 	*conf.Server,
 	*conf.Data_APIServer,
+	*conf.Data_Wasm,
 	*conf.Delivery,
 	*conf.ResourceWatch,
 	*slog.Logger,
@@ -24,6 +25,9 @@ func wireApp(
 		newAPIClient,
 		newResourceWatcher,
 		newStatusWriter,
+		newWasmModuleStore,
+		asWasmModuleStore,
+		newWasmModuleHandler,
 		newSnapshotCache,
 		newXDSPublisher,
 		newDelivery,

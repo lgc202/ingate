@@ -109,7 +109,7 @@ type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// grpc 暴露 Envoy ADS 服务
 	Grpc *Server_GRPC `protobuf:"bytes,1,opt,name=grpc,proto3" json:"grpc,omitempty"`
-	// http 暴露 healthz 和 readyz
+	// http 暴露健康检查，并向同机 Envoy 提供已校验的 Wasm 模块
 	Http *Server_HTTP `protobuf:"bytes,2,opt,name=http,proto3" json:"http,omitempty"`
 	// shutdown_timeout 是等待 Controller 各执行循环停止的最长时间
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
@@ -168,11 +168,13 @@ func (x *Server) GetShutdownTimeout() *durationpb.Duration {
 	return nil
 }
 
-// Data 定义 Controller 使用的外部数据来源
+// Data 定义 Controller 使用的数据依赖与本地状态
 type Data struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// apiserver 提供 Controller 监听和回写的声明式资源
-	Apiserver     *Data_APIServer `protobuf:"bytes,1,opt,name=apiserver,proto3" json:"apiserver,omitempty"`
+	Apiserver *Data_APIServer `protobuf:"bytes,1,opt,name=apiserver,proto3" json:"apiserver,omitempty"`
+	// wasm 拉取、校验并缓存 Envoy 执行的 Wasm 模块
+	Wasm          *Data_Wasm `protobuf:"bytes,2,opt,name=wasm,proto3" json:"wasm,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -210,6 +212,13 @@ func (*Data) Descriptor() ([]byte, []int) {
 func (x *Data) GetApiserver() *Data_APIServer {
 	if x != nil {
 		return x.Apiserver
+	}
+	return nil
+}
+
+func (x *Data) GetWasm() *Data_Wasm {
+	if x != nil {
+		return x.Wasm
 	}
 	return nil
 }
@@ -532,6 +541,78 @@ func (x *Data_APIServer) GetKubeconfig() string {
 	return ""
 }
 
+type Data_Wasm struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// cache_dir 保存 Controller 已校验的 Wasm 模块
+	CacheDir string `protobuf:"bytes,1,opt,name=cache_dir,json=cacheDir,proto3" json:"cache_dir,omitempty"`
+	// pull_timeout 限制单次 HTTP 或 OCI 拉取耗时
+	PullTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=pull_timeout,json=pullTimeout,proto3" json:"pull_timeout,omitempty"`
+	// max_module_bytes 拒绝超过上限的单个 Wasm 模块
+	MaxModuleBytes int64 `protobuf:"varint,3,opt,name=max_module_bytes,json=maxModuleBytes,proto3" json:"max_module_bytes,omitempty"`
+	// max_cache_bytes 限制 Wasm 磁盘缓存总量
+	MaxCacheBytes int64 `protobuf:"varint,4,opt,name=max_cache_bytes,json=maxCacheBytes,proto3" json:"max_cache_bytes,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data_Wasm) Reset() {
+	*x = Data_Wasm{}
+	mi := &file_controller_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data_Wasm) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data_Wasm) ProtoMessage() {}
+
+func (x *Data_Wasm) ProtoReflect() protoreflect.Message {
+	mi := &file_controller_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data_Wasm.ProtoReflect.Descriptor instead.
+func (*Data_Wasm) Descriptor() ([]byte, []int) {
+	return file_controller_proto_rawDescGZIP(), []int{2, 1}
+}
+
+func (x *Data_Wasm) GetCacheDir() string {
+	if x != nil {
+		return x.CacheDir
+	}
+	return ""
+}
+
+func (x *Data_Wasm) GetPullTimeout() *durationpb.Duration {
+	if x != nil {
+		return x.PullTimeout
+	}
+	return nil
+}
+
+func (x *Data_Wasm) GetMaxModuleBytes() int64 {
+	if x != nil {
+		return x.MaxModuleBytes
+	}
+	return 0
+}
+
+func (x *Data_Wasm) GetMaxCacheBytes() int64 {
+	if x != nil {
+		return x.MaxCacheBytes
+	}
+	return 0
+}
+
 var File_controller_proto protoreflect.FileDescriptor
 
 const file_controller_proto_rawDesc = "" +
@@ -551,14 +632,20 @@ const file_controller_proto_rawDesc = "" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x91\x01\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xfe\x02\n" +
 	"\x04Data\x12D\n" +
-	"\tapiserver\x18\x01 \x01(\v2&.ingate.controller.conf.Data.APIServerR\tapiserver\x1aC\n" +
+	"\tapiserver\x18\x01 \x01(\v2&.ingate.controller.conf.Data.APIServerR\tapiserver\x125\n" +
+	"\x04wasm\x18\x02 \x01(\v2!.ingate.controller.conf.Data.WasmR\x04wasm\x1aC\n" +
 	"\tAPIServer\x12\x16\n" +
 	"\x06master\x18\x01 \x01(\tR\x06master\x12\x1e\n" +
 	"\n" +
 	"kubeconfig\x18\x02 \x01(\tR\n" +
-	"kubeconfig\"\xa8\x01\n" +
+	"kubeconfig\x1a\xb3\x01\n" +
+	"\x04Wasm\x12\x1b\n" +
+	"\tcache_dir\x18\x01 \x01(\tR\bcacheDir\x12<\n" +
+	"\fpull_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\vpullTimeout\x12(\n" +
+	"\x10max_module_bytes\x18\x03 \x01(\x03R\x0emaxModuleBytes\x12&\n" +
+	"\x0fmax_cache_bytes\x18\x04 \x01(\x03R\rmaxCacheBytes\"\xa8\x01\n" +
 	"\bDelivery\x12M\n" +
 	"\x15candidate_ack_timeout\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\x13candidateAckTimeout\x12M\n" +
 	"\x15nack_rollback_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x13nackRollbackTimeout\"O\n" +
@@ -582,7 +669,7 @@ func file_controller_proto_rawDescGZIP() []byte {
 	return file_controller_proto_rawDescData
 }
 
-var file_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_controller_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_controller_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.controller.conf.Bootstrap
 	(*Server)(nil),              // 1: ingate.controller.conf.Server
@@ -593,7 +680,8 @@ var file_controller_proto_goTypes = []any{
 	(*Server_GRPC)(nil),         // 6: ingate.controller.conf.Server.GRPC
 	(*Server_HTTP)(nil),         // 7: ingate.controller.conf.Server.HTTP
 	(*Data_APIServer)(nil),      // 8: ingate.controller.conf.Data.APIServer
-	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
+	(*Data_Wasm)(nil),           // 9: ingate.controller.conf.Data.Wasm
+	(*durationpb.Duration)(nil), // 10: google.protobuf.Duration
 }
 var file_controller_proto_depIdxs = []int32{
 	1,  // 0: ingate.controller.conf.Bootstrap.server:type_name -> ingate.controller.conf.Server
@@ -603,17 +691,19 @@ var file_controller_proto_depIdxs = []int32{
 	5,  // 4: ingate.controller.conf.Bootstrap.logging:type_name -> ingate.controller.conf.Logging
 	6,  // 5: ingate.controller.conf.Server.grpc:type_name -> ingate.controller.conf.Server.GRPC
 	7,  // 6: ingate.controller.conf.Server.http:type_name -> ingate.controller.conf.Server.HTTP
-	9,  // 7: ingate.controller.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	10, // 7: ingate.controller.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
 	8,  // 8: ingate.controller.conf.Data.apiserver:type_name -> ingate.controller.conf.Data.APIServer
-	9,  // 9: ingate.controller.conf.Delivery.candidate_ack_timeout:type_name -> google.protobuf.Duration
-	9,  // 10: ingate.controller.conf.Delivery.nack_rollback_timeout:type_name -> google.protobuf.Duration
-	9,  // 11: ingate.controller.conf.ResourceWatch.resync_period:type_name -> google.protobuf.Duration
-	9,  // 12: ingate.controller.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	9,  // 9: ingate.controller.conf.Data.wasm:type_name -> ingate.controller.conf.Data.Wasm
+	10, // 10: ingate.controller.conf.Delivery.candidate_ack_timeout:type_name -> google.protobuf.Duration
+	10, // 11: ingate.controller.conf.Delivery.nack_rollback_timeout:type_name -> google.protobuf.Duration
+	10, // 12: ingate.controller.conf.ResourceWatch.resync_period:type_name -> google.protobuf.Duration
+	10, // 13: ingate.controller.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	10, // 14: ingate.controller.conf.Data.Wasm.pull_timeout:type_name -> google.protobuf.Duration
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_controller_proto_init() }
@@ -627,7 +717,7 @@ func file_controller_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_controller_proto_rawDesc), len(file_controller_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -34,13 +34,13 @@ message Server {
   }
   // grpc 暴露 Envoy ADS 服务
   GRPC grpc = 1;
-  // http 暴露 healthz 和 readyz
+  // http 暴露健康检查，并向同机 Envoy 提供已校验的 Wasm 模块
   HTTP http = 2;
   // shutdown_timeout 是等待 Controller 各执行循环停止的最长时间
   google.protobuf.Duration shutdown_timeout = 3;
 }
 
-// Data 定义 Controller 使用的外部数据来源
+// Data 定义 Controller 使用的数据依赖与本地状态
 message Data {
   message APIServer {
     // master 覆盖 kubeconfig 中的 API Server 地址
@@ -48,8 +48,20 @@ message Data {
     // kubeconfig 保存声明式资源 API 的连接与认证配置
     string kubeconfig = 2;
   }
+  message Wasm {
+    // cache_dir 保存 Controller 已校验的 Wasm 模块
+    string cache_dir = 1;
+    // pull_timeout 限制单次 HTTP 或 OCI 拉取耗时
+    google.protobuf.Duration pull_timeout = 2;
+    // max_module_bytes 拒绝超过上限的单个 Wasm 模块
+    int64 max_module_bytes = 3;
+    // max_cache_bytes 限制 Wasm 磁盘缓存总量
+    int64 max_cache_bytes = 4;
+  }
   // apiserver 提供 Controller 监听和回写的声明式资源
   APIServer apiserver = 1;
+  // wasm 拉取、校验并缓存 Envoy 执行的 Wasm 模块
+  Wasm wasm = 2;
 }
 
 // Delivery 定义 Candidate 配置的确认和回退期限

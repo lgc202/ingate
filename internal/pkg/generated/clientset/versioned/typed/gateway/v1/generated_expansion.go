@@ -10,6 +10,8 @@ type CertificateExpansion interface{}
 
 type GatewayExpansion interface{}
 
+type HeaderTransformationPolicyExpansion interface{}
+
 type IPRestrictionPolicyExpansion interface{}
 
 type RateLimitPolicyExpansion interface{}
@@ -19,3 +21,5 @@ type RouteExpansion interface{}
 type TokenQuotaPolicyExpansion interface{}
 
 type UpstreamExpansion interface{}
+
+type WasmPluginExpansion interface{}

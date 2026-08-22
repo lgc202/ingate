@@ -14,8 +14,8 @@ import (
 )
 
 // Compile 将完整资源集合直接编译为可发布的 Envoy 配置
-func Compile(resources Resources) Result {
-	c := newCompilation(resources)
+func Compile(resources Resources, wasmModules map[string]WasmModule) Result {
+	c := newCompilation(resources, wasmModules)
 	c.indexResources(resources)
 	clusters, endpoints, compiledUpstreams := c.buildUpstreams()
 	listenerGroups, listenersByGateway := c.buildListenerGroups()

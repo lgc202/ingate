@@ -2,11 +2,16 @@ import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './clie
 import { listGateways } from './gateways';
 import { listRoutes } from './routes';
 import { listCallers } from './callers';
+import { listWasmPlugins } from './plugins';
 import type { GatewayListView } from '@/domain/gateway';
 import type { ResourceState, ResourceStatus } from '@/domain/common';
 import type {
   GovernancePolicy,
   CallerTokenQuotaUsage,
+  HeaderTransformationOperation,
+  HeaderTransformationPolicy,
+  HeaderTransformationPolicyPayload,
+  HeaderTransformationRule,
   IPRestrictionPolicy,
   IPRestrictionPolicyPayload,
   PolicyMutationResult,
@@ -53,6 +58,23 @@ interface TokenQuotaPolicyResponse extends Omit<TokenQuotaPolicy, 'version' | 't
 
 interface TokenQuotaPolicyListResponse extends CursorPagedResponse { policies?: TokenQuotaPolicyResponse[] }
 
+interface HeaderTransformationRuleResponse {
+  operation: string;
+  name: string;
+  value: string;
+}
+
+interface HeaderTransformationPolicyResponse extends Omit<HeaderTransformationPolicy, 'version' | 'targets' | 'requestRules' | 'responseRules' | 'status'> {
+  version: string | number;
+  targets: PolicyTargetResponse[];
+  requestRules: HeaderTransformationRuleResponse[];
+  responseRules: HeaderTransformationRuleResponse[];
+  state: string;
+  message: string;
+}
+
+interface HeaderTransformationPolicyListResponse extends CursorPagedResponse { policies?: HeaderTransformationPolicyResponse[] }
+
 interface CallerTokenQuotaUsageResponse {
   policyId: string;
   policyName: string;
@@ -67,12 +89,14 @@ interface CallerTokenQuotaUsageResponse {
 interface GetCallerTokenQuotaUsageResponse { usages?: CallerTokenQuotaUsageResponse[] }
 
 export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
-  const [ipRestrictionPolicies, tokenQuotaPolicies, gatewayList, routeList, callers] = await Promise.all([
+  const [ipRestrictionPolicies, tokenQuotaPolicies, headerTransformationPolicies, gatewayList, routeList, callers, plugins] = await Promise.all([
     listIPRestrictionPolicies(),
     listTokenQuotaPolicies(),
+    listHeaderTransformationPolicies(),
     listGateways(),
     listRoutes(),
     listCallers(),
+    listWasmPlugins(),
   ]);
   const policies: GovernancePolicy[] = [...ipRestrictionPolicies.map((policy) => ({
     id: policy.id,
@@ -100,11 +124,26 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
     createdAt: policy.createdAt,
     updatedAt: policy.updatedAt,
     raw: policy,
+  }) satisfies GovernancePolicy), ...headerTransformationPolicies.map((policy) => ({
+    id: policy.id,
+    version: policy.version,
+    kind: 'HeaderTransformationPolicy' as const,
+    name: policy.name,
+    enabled: policy.enabled,
+    summary: headerTransformationSummary(policy),
+    ruleCount: policy.requestRules.length + policy.responseRules.length,
+    targets: policy.targets,
+    status: policy.status,
+    createdAt: policy.createdAt,
+    updatedAt: policy.updatedAt,
+    raw: policy,
   }) satisfies GovernancePolicy)].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
   return {
     policies,
     ipRestrictionPolicies,
     tokenQuotaPolicies,
+    headerTransformationPolicies,
+    installedPluginPackages: plugins.filter((plugin) => plugin.state === 'Ready').map((plugin) => plugin.package),
     targets: policyTargets(gatewayList, routeList, callers),
   };
 }
@@ -160,12 +199,40 @@ export async function saveTokenQuotaPolicy(payload: TokenQuotaPolicyPayload): Pr
   return { message: `Token 额度策略已保存：${payload.name}`, changeId: payload.id };
 }
 
+export async function listHeaderTransformationPolicies(): Promise<HeaderTransformationPolicy[]> {
+  const policies = await apiListAllByCursor<HeaderTransformationPolicyListResponse, HeaderTransformationPolicyResponse>(
+    '/header-transformation-policies',
+    (page) => page.policies ?? [],
+  );
+  return policies.map((policy) => ({
+    ...policy,
+    version: Number(policy.version),
+    targets: policy.targets.map(policyTargetFromResponse),
+    requestRules: policy.requestRules.map(headerTransformationRuleFromResponse),
+    responseRules: policy.responseRules.map(headerTransformationRuleFromResponse),
+    status: resourceStatus(policy.state, policy.message),
+  }));
+}
+
+export async function saveHeaderTransformationPolicy(payload: HeaderTransformationPolicyPayload): Promise<PolicyMutationResult> {
+  await savePolicy('/header-transformation-policies', {
+    ...payload,
+    targets: payload.targets.map((target) => ({ id: target.id, kind: 'POLICY_TARGET_KIND_ROUTE' })),
+    requestRules: payload.requestRules.map(headerTransformationRuleToRequest),
+    responseRules: payload.responseRules.map(headerTransformationRuleToRequest),
+  });
+  return { message: `请求响应转换策略已保存：${payload.name}`, changeId: payload.id };
+}
+
 export function updateGovernancePolicyTargets(policy: GovernancePolicy, targets: PolicyTargetRef[]) {
   const normalized = targets.map((target) => ({ kind: target.kind, id: target.id }));
   if (policy.kind === 'IPRestrictionPolicy') {
     return saveIPRestrictionPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, allow: policy.raw.allow, deny: policy.raw.deny });
   }
-  return saveTokenQuotaPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, timeZone: policy.raw.timeZone, limits: policy.raw.limits });
+  if (policy.kind === 'TokenQuotaPolicy') {
+    return saveTokenQuotaPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, timeZone: policy.raw.timeZone, limits: policy.raw.limits });
+  }
+  return saveHeaderTransformationPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, requestRules: policy.raw.requestRules, responseRules: policy.raw.responseRules });
 }
 
 export async function deleteIPRestrictionPolicy(id: string, version: number): Promise<PolicyMutationResult> {
@@ -178,11 +245,19 @@ export async function deleteTokenQuotaPolicy(id: string, version: number): Promi
   return { message: 'Token 额度策略已删除' };
 }
 
+export async function deleteHeaderTransformationPolicy(id: string, version: number): Promise<PolicyMutationResult> {
+  await deleteVersionedPolicy('/header-transformation-policies', id, version);
+  return { message: '请求响应转换策略已删除' };
+}
+
 export function setGovernancePolicyEnabled(policy: GovernancePolicy, enabled: boolean) {
   if (policy.kind === 'IPRestrictionPolicy') {
     return saveIPRestrictionPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, allow: policy.raw.allow, deny: policy.raw.deny });
   }
-  return saveTokenQuotaPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, timeZone: policy.raw.timeZone, limits: policy.raw.limits });
+  if (policy.kind === 'TokenQuotaPolicy') {
+    return saveTokenQuotaPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, timeZone: policy.raw.timeZone, limits: policy.raw.limits });
+  }
+  return saveHeaderTransformationPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, requestRules: policy.raw.requestRules, responseRules: policy.raw.responseRules });
 }
 
 function policyTargetFromResponse(target: PolicyTargetResponse): PolicyTargetRef {
@@ -233,6 +308,27 @@ function tokenQuotaPeriodToRequest(value: TokenQuotaPeriod) {
   return `TOKEN_QUOTA_PERIOD_${value.toUpperCase()}`;
 }
 
+function headerTransformationRuleFromResponse(rule: HeaderTransformationRuleResponse): HeaderTransformationRule {
+  const operations: Record<string, HeaderTransformationOperation> = {
+    HEADER_TRANSFORMATION_OPERATION_REMOVE: 'remove',
+    HEADER_TRANSFORMATION_OPERATION_RENAME: 'rename',
+    HEADER_TRANSFORMATION_OPERATION_REPLACE: 'replace',
+    HEADER_TRANSFORMATION_OPERATION_ADD: 'add',
+    HEADER_TRANSFORMATION_OPERATION_APPEND: 'append',
+  };
+  const operation = operations[rule.operation];
+  if (!operation) throw new Error(`服务返回了未知的 Header 转换操作：${rule.operation}`);
+  return { operation, name: rule.name, value: rule.value };
+}
+
+function headerTransformationRuleToRequest(rule: HeaderTransformationRule) {
+  return {
+    operation: `HEADER_TRANSFORMATION_OPERATION_${rule.operation.toUpperCase()}`,
+    name: rule.name,
+    value: rule.value,
+  };
+}
+
 function tokenQuotaSummary(limits: TokenQuotaLimit[]) {
   const labels: Record<TokenQuotaPeriod, string> = { Day: '每日', Week: '每周', Month: '每月' };
   return limits.map((limit) => `${labels[limit.period]} ${formatTokenCount(limit.tokens)}`).join(' · ');
@@ -244,4 +340,11 @@ function formatTokenCount(tokens: number) {
 
 function ipRestrictionSummary(policy: IPRestrictionPolicy) {
   return policy.allow.length > 0 ? `仅允许 ${policy.allow.length} 个 IP / 网段` : `拒绝 ${policy.deny.length} 个 IP / 网段`;
+}
+
+function headerTransformationSummary(policy: HeaderTransformationPolicy) {
+  const parts = [];
+  if (policy.requestRules.length > 0) parts.push(`${policy.requestRules.length} 条请求规则`);
+  if (policy.responseRules.length > 0) parts.push(`${policy.responseRules.length} 条响应规则`);
+  return parts.join(' · ');
 }

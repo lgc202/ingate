@@ -35,7 +35,7 @@ const (
 	ReasonReady ResourceReason = "Ready"
 	// ReasonDisabled 表示资源已被用户停用
 	ReasonDisabled ResourceReason = "Disabled"
-	// ReasonUnapplied 表示策略已保存但没有作用目标
+	// ReasonUnapplied 表示配置已保存但没有作用目标
 	ReasonUnapplied ResourceReason = "Unapplied"
 	// ReasonTargetNotApplied 表示目标当前没有可生效的流量入口
 	ReasonTargetNotApplied ResourceReason = "TargetNotApplied"
@@ -51,6 +51,8 @@ const (
 	ReasonUnsupported ResourceReason = "Unsupported"
 	// ReasonCompileFailed 表示配置编译失败
 	ReasonCompileFailed ResourceReason = "CompileFailed"
+	// ReasonArtifactUnavailable 表示插件制品无法下载或校验
+	ReasonArtifactUnavailable ResourceReason = "ArtifactUnavailable"
 	// ReasonRejected 表示数据面拒绝当前配置
 	ReasonRejected ResourceReason = "Rejected"
 	// ReasonDeliveryFailed 表示配置发布失败
@@ -87,6 +89,19 @@ func ResourceStatusFromConditions(generation int64, conditions []metav1.Conditio
 	}
 	if programmed == nil || programmed.Status != metav1.ConditionTrue {
 		return ResourceStatus{State: ResourceStatePending, Reason: ReasonProgramming}
+	}
+	return ResourceStatus{State: ResourceStateReady, Reason: ReasonReady}
+}
+
+// WasmPluginStatus 只根据插件制品的下载与校验结果判断安装状态
+// 插件是否作用到流量由引用它的强类型策略状态表达，不与整套 Envoy 配置发布状态耦合
+func WasmPluginStatus(generation int64, conditions []metav1.Condition) ResourceStatus {
+	accepted := currentCondition(generation, conditions, resource.ConditionAccepted)
+	if accepted != nil && accepted.Status == metav1.ConditionFalse {
+		return errorStatus(accepted)
+	}
+	if accepted == nil || accepted.Status != metav1.ConditionTrue {
+		return ResourceStatus{State: ResourceStatePending, Reason: ReasonAwaitingAcceptance}
 	}
 	return ResourceStatus{State: ResourceStateReady, Reason: ReasonReady}
 }
@@ -212,6 +227,8 @@ func errorStatus(condition *metav1.Condition) ResourceStatus {
 		reason = ReasonUnsupported
 	case resource.ReasonCompileFailed:
 		reason = ReasonCompileFailed
+	case resource.ReasonArtifactUnavailable:
+		reason = ReasonArtifactUnavailable
 	case resource.ReasonRejected:
 		reason = ReasonRejected
 	case resource.ReasonDeliveryFailed:

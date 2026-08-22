@@ -24,6 +24,7 @@ func (c *compilation) buildPolicyConfigs(
 ) (map[listenerKey]listenerFilterConfig, []CompiledPolicyTarget) {
 	// 编译阶段直接把强类型 Policy 展开到 Envoy Route，执行组件不再理解用户资源挂载关系
 	ipRestrictionPolicies := c.compileIPRestrictionPolicies()
+	headerTransformationPolicies := c.compileHeaderTransformationPolicies()
 	filters := make(map[listenerKey]listenerFilterConfig)
 	policyTargetSet := make(map[CompiledPolicyTarget]bool)
 
@@ -47,7 +48,18 @@ func (c *compilation) buildPolicyConfigs(
 			}
 		}
 
-		if config.ipRestriction {
+		transformations, transformationTargets := matchingHeaderTransformationPolicies(headerTransformationPolicies, key)
+		if len(transformations) > 0 {
+			if err := applyHeaderTransformationPolicies(attachment.routes, transformations, &config); err != nil {
+				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, key.routeID, ReasonCompileFailed, fmt.Sprintf("compile header transformation policies for route %q: %v", key.routeID, err))
+			} else {
+				for _, target := range transformationTargets {
+					c.recordPolicyTargets(target.source, target.targets, policyTargetSet)
+				}
+			}
+		}
+
+		if config.ipRestriction || len(config.wasm) > 0 {
 			filters[key.listenerKey] = config
 		}
 	}

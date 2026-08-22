@@ -15,108 +15,115 @@ import (
 
 func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenAPIDefinition {
 	return map[string]common.OpenAPIDefinition{
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.AIModel":                 schema_pkg_apis_gateway_v1_AIModel(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.AIModelTarget":           schema_pkg_apis_gateway_v1_AIModelTarget(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.AIRoute":                 schema_pkg_apis_gateway_v1_AIRoute(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.AccessKey":               schema_pkg_apis_gateway_v1_AccessKey(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Caller":                  schema_pkg_apis_gateway_v1_Caller(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.CallerList":              schema_pkg_apis_gateway_v1_CallerList(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.CallerSpec":              schema_pkg_apis_gateway_v1_CallerSpec(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Certificate":             schema_pkg_apis_gateway_v1_Certificate(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.CertificateList":         schema_pkg_apis_gateway_v1_CertificateList(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.CertificateSpec":         schema_pkg_apis_gateway_v1_CertificateSpec(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Endpoint":                schema_pkg_apis_gateway_v1_Endpoint(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Gateway":                 schema_pkg_apis_gateway_v1_Gateway(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.GatewayList":             schema_pkg_apis_gateway_v1_GatewayList(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.GatewaySpec":             schema_pkg_apis_gateway_v1_GatewaySpec(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderMatch":             schema_pkg_apis_gateway_v1_HeaderMatch(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderModifier":          schema_pkg_apis_gateway_v1_HeaderModifier(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderValue":             schema_pkg_apis_gateway_v1_HeaderValue(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HostRewrite":             schema_pkg_apis_gateway_v1_HostRewrite(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.IPRestrictionPolicy":     schema_pkg_apis_gateway_v1_IPRestrictionPolicy(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.IPRestrictionPolicyList": schema_pkg_apis_gateway_v1_IPRestrictionPolicyList(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.IPRestrictionPolicySpec": schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Listener":                schema_pkg_apis_gateway_v1_Listener(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ModelUpstream":           schema_pkg_apis_gateway_v1_ModelUpstream(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PathMatch":               schema_pkg_apis_gateway_v1_PathMatch(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyStatus":            schema_pkg_apis_gateway_v1_PolicyStatus(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef":         schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetStatus":      schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimit":               schema_pkg_apis_gateway_v1_RateLimit(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimitPolicy":         schema_pkg_apis_gateway_v1_RateLimitPolicy(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimitPolicyList":     schema_pkg_apis_gateway_v1_RateLimitPolicyList(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimitPolicySpec":     schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimitSubject":        schema_pkg_apis_gateway_v1_RateLimitSubject(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ResourceStatus":          schema_pkg_apis_gateway_v1_ResourceStatus(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Route":                   schema_pkg_apis_gateway_v1_Route(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteList":               schema_pkg_apis_gateway_v1_RouteList(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteMatch":              schema_pkg_apis_gateway_v1_RouteMatch(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteRetry":              schema_pkg_apis_gateway_v1_RouteRetry(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteSpec":               schema_pkg_apis_gateway_v1_RouteSpec(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteTimeout":            schema_pkg_apis_gateway_v1_RouteTimeout(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaLimit":         schema_pkg_apis_gateway_v1_TokenQuotaLimit(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicy":        schema_pkg_apis_gateway_v1_TokenQuotaPolicy(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicyList":    schema_pkg_apis_gateway_v1_TokenQuotaPolicyList(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicySpec":    schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Upstream":                schema_pkg_apis_gateway_v1_Upstream(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamHealthCheck":     schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamList":            schema_pkg_apis_gateway_v1_UpstreamList(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamRef":             schema_pkg_apis_gateway_v1_UpstreamRef(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamSpec":            schema_pkg_apis_gateway_v1_UpstreamSpec(ref),
-		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamTLS":             schema_pkg_apis_gateway_v1_UpstreamTLS(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                 schema_pkg_apis_meta_v1_APIGroup(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                             schema_pkg_apis_meta_v1_APIGroupList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                              schema_pkg_apis_meta_v1_APIResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                          schema_pkg_apis_meta_v1_APIResourceList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                              schema_pkg_apis_meta_v1_APIVersions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ApplyOptions":                             schema_pkg_apis_meta_v1_ApplyOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Condition":                                schema_pkg_apis_meta_v1_Condition(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.CreateOptions":                            schema_pkg_apis_meta_v1_CreateOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                            schema_pkg_apis_meta_v1_DeleteOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                 schema_pkg_apis_meta_v1_Duration(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.FieldSelectorRequirement":                 schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.FieldsV1":                                 schema_pkg_apis_meta_v1_FieldsV1(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                               schema_pkg_apis_meta_v1_GetOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                schema_pkg_apis_meta_v1_GroupKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                            schema_pkg_apis_meta_v1_GroupResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                             schema_pkg_apis_meta_v1_GroupVersion(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                 schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                         schema_pkg_apis_meta_v1_GroupVersionKind(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                     schema_pkg_apis_meta_v1_GroupVersionResource(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                            schema_pkg_apis_meta_v1_InternalEvent(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                            schema_pkg_apis_meta_v1_LabelSelector(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                 schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                     schema_pkg_apis_meta_v1_List(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                 schema_pkg_apis_meta_v1_ListMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                              schema_pkg_apis_meta_v1_ListOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ManagedFieldsEntry":                       schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                schema_pkg_apis_meta_v1_MicroTime(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                               schema_pkg_apis_meta_v1_ObjectMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                           schema_pkg_apis_meta_v1_OwnerReference(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.PartialObjectMetadata":                    schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.PartialObjectMetadataList":                schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                    schema_pkg_apis_meta_v1_Patch(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.PatchOptions":                             schema_pkg_apis_meta_v1_PatchOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                            schema_pkg_apis_meta_v1_Preconditions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                schema_pkg_apis_meta_v1_RootPaths(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                   schema_pkg_apis_meta_v1_Status(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                              schema_pkg_apis_meta_v1_StatusCause(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                            schema_pkg_apis_meta_v1_StatusDetails(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Table":                                    schema_pkg_apis_meta_v1_Table(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TableColumnDefinition":                    schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TableOptions":                             schema_pkg_apis_meta_v1_TableOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TableRow":                                 schema_pkg_apis_meta_v1_TableRow(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TableRowCondition":                        schema_pkg_apis_meta_v1_TableRowCondition(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                     schema_pkg_apis_meta_v1_Time(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                schema_pkg_apis_meta_v1_Timestamp(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                 schema_pkg_apis_meta_v1_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.UpdateOptions":                            schema_pkg_apis_meta_v1_UpdateOptions(ref),
-		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                               schema_pkg_apis_meta_v1_WatchEvent(ref),
-		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                  schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
-		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                      schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
-		"k8s.io/apimachinery/pkg/runtime.Unknown":                                       schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
-		"k8s.io/apimachinery/pkg/version.Info":                                          schema_k8sio_apimachinery_pkg_version_Info(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.AIModel":                        schema_pkg_apis_gateway_v1_AIModel(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.AIModelTarget":                  schema_pkg_apis_gateway_v1_AIModelTarget(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.AIRoute":                        schema_pkg_apis_gateway_v1_AIRoute(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.AccessKey":                      schema_pkg_apis_gateway_v1_AccessKey(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Caller":                         schema_pkg_apis_gateway_v1_Caller(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.CallerList":                     schema_pkg_apis_gateway_v1_CallerList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.CallerSpec":                     schema_pkg_apis_gateway_v1_CallerSpec(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Certificate":                    schema_pkg_apis_gateway_v1_Certificate(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.CertificateList":                schema_pkg_apis_gateway_v1_CertificateList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.CertificateSpec":                schema_pkg_apis_gateway_v1_CertificateSpec(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Endpoint":                       schema_pkg_apis_gateway_v1_Endpoint(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Gateway":                        schema_pkg_apis_gateway_v1_Gateway(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.GatewayList":                    schema_pkg_apis_gateway_v1_GatewayList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.GatewaySpec":                    schema_pkg_apis_gateway_v1_GatewaySpec(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderMatch":                    schema_pkg_apis_gateway_v1_HeaderMatch(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderModifier":                 schema_pkg_apis_gateway_v1_HeaderModifier(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationPolicy":     schema_pkg_apis_gateway_v1_HeaderTransformationPolicy(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationPolicyList": schema_pkg_apis_gateway_v1_HeaderTransformationPolicyList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationPolicySpec": schema_pkg_apis_gateway_v1_HeaderTransformationPolicySpec(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationRule":       schema_pkg_apis_gateway_v1_HeaderTransformationRule(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderValue":                    schema_pkg_apis_gateway_v1_HeaderValue(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HostRewrite":                    schema_pkg_apis_gateway_v1_HostRewrite(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.IPRestrictionPolicy":            schema_pkg_apis_gateway_v1_IPRestrictionPolicy(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.IPRestrictionPolicyList":        schema_pkg_apis_gateway_v1_IPRestrictionPolicyList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.IPRestrictionPolicySpec":        schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Listener":                       schema_pkg_apis_gateway_v1_Listener(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ModelUpstream":                  schema_pkg_apis_gateway_v1_ModelUpstream(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PathMatch":                      schema_pkg_apis_gateway_v1_PathMatch(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyStatus":                   schema_pkg_apis_gateway_v1_PolicyStatus(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef":                schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetStatus":             schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimit":                      schema_pkg_apis_gateway_v1_RateLimit(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimitPolicy":                schema_pkg_apis_gateway_v1_RateLimitPolicy(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimitPolicyList":            schema_pkg_apis_gateway_v1_RateLimitPolicyList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimitPolicySpec":            schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimitSubject":               schema_pkg_apis_gateway_v1_RateLimitSubject(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ResourceStatus":                 schema_pkg_apis_gateway_v1_ResourceStatus(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Route":                          schema_pkg_apis_gateway_v1_Route(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteList":                      schema_pkg_apis_gateway_v1_RouteList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteMatch":                     schema_pkg_apis_gateway_v1_RouteMatch(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteRetry":                     schema_pkg_apis_gateway_v1_RouteRetry(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteSpec":                      schema_pkg_apis_gateway_v1_RouteSpec(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RouteTimeout":                   schema_pkg_apis_gateway_v1_RouteTimeout(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaLimit":                schema_pkg_apis_gateway_v1_TokenQuotaLimit(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicy":               schema_pkg_apis_gateway_v1_TokenQuotaPolicy(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicyList":           schema_pkg_apis_gateway_v1_TokenQuotaPolicyList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.TokenQuotaPolicySpec":           schema_pkg_apis_gateway_v1_TokenQuotaPolicySpec(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Upstream":                       schema_pkg_apis_gateway_v1_Upstream(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamHealthCheck":            schema_pkg_apis_gateway_v1_UpstreamHealthCheck(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamList":                   schema_pkg_apis_gateway_v1_UpstreamList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamRef":                    schema_pkg_apis_gateway_v1_UpstreamRef(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamSpec":                   schema_pkg_apis_gateway_v1_UpstreamSpec(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.UpstreamTLS":                    schema_pkg_apis_gateway_v1_UpstreamTLS(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.WasmPlugin":                     schema_pkg_apis_gateway_v1_WasmPlugin(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.WasmPluginList":                 schema_pkg_apis_gateway_v1_WasmPluginList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.WasmPluginSpec":                 schema_pkg_apis_gateway_v1_WasmPluginSpec(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroup":                                        schema_pkg_apis_meta_v1_APIGroup(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIGroupList":                                    schema_pkg_apis_meta_v1_APIGroupList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResource":                                     schema_pkg_apis_meta_v1_APIResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIResourceList":                                 schema_pkg_apis_meta_v1_APIResourceList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.APIVersions":                                     schema_pkg_apis_meta_v1_APIVersions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ApplyOptions":                                    schema_pkg_apis_meta_v1_ApplyOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Condition":                                       schema_pkg_apis_meta_v1_Condition(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.CreateOptions":                                   schema_pkg_apis_meta_v1_CreateOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.DeleteOptions":                                   schema_pkg_apis_meta_v1_DeleteOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Duration":                                        schema_pkg_apis_meta_v1_Duration(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.FieldSelectorRequirement":                        schema_pkg_apis_meta_v1_FieldSelectorRequirement(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.FieldsV1":                                        schema_pkg_apis_meta_v1_FieldsV1(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GetOptions":                                      schema_pkg_apis_meta_v1_GetOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupKind":                                       schema_pkg_apis_meta_v1_GroupKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupResource":                                   schema_pkg_apis_meta_v1_GroupResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersion":                                    schema_pkg_apis_meta_v1_GroupVersion(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionForDiscovery":                        schema_pkg_apis_meta_v1_GroupVersionForDiscovery(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionKind":                                schema_pkg_apis_meta_v1_GroupVersionKind(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.GroupVersionResource":                            schema_pkg_apis_meta_v1_GroupVersionResource(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.InternalEvent":                                   schema_pkg_apis_meta_v1_InternalEvent(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelector":                                   schema_pkg_apis_meta_v1_LabelSelector(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.LabelSelectorRequirement":                        schema_pkg_apis_meta_v1_LabelSelectorRequirement(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.List":                                            schema_pkg_apis_meta_v1_List(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta":                                        schema_pkg_apis_meta_v1_ListMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ListOptions":                                     schema_pkg_apis_meta_v1_ListOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ManagedFieldsEntry":                              schema_pkg_apis_meta_v1_ManagedFieldsEntry(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.MicroTime":                                       schema_pkg_apis_meta_v1_MicroTime(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta":                                      schema_pkg_apis_meta_v1_ObjectMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.OwnerReference":                                  schema_pkg_apis_meta_v1_OwnerReference(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.PartialObjectMetadata":                           schema_pkg_apis_meta_v1_PartialObjectMetadata(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.PartialObjectMetadataList":                       schema_pkg_apis_meta_v1_PartialObjectMetadataList(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Patch":                                           schema_pkg_apis_meta_v1_Patch(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.PatchOptions":                                    schema_pkg_apis_meta_v1_PatchOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Preconditions":                                   schema_pkg_apis_meta_v1_Preconditions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.RootPaths":                                       schema_pkg_apis_meta_v1_RootPaths(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.ServerAddressByClientCIDR":                       schema_pkg_apis_meta_v1_ServerAddressByClientCIDR(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Status":                                          schema_pkg_apis_meta_v1_Status(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusCause":                                     schema_pkg_apis_meta_v1_StatusCause(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.StatusDetails":                                   schema_pkg_apis_meta_v1_StatusDetails(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Table":                                           schema_pkg_apis_meta_v1_Table(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TableColumnDefinition":                           schema_pkg_apis_meta_v1_TableColumnDefinition(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TableOptions":                                    schema_pkg_apis_meta_v1_TableOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TableRow":                                        schema_pkg_apis_meta_v1_TableRow(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TableRowCondition":                               schema_pkg_apis_meta_v1_TableRowCondition(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Time":                                            schema_pkg_apis_meta_v1_Time(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.Timestamp":                                       schema_pkg_apis_meta_v1_Timestamp(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.TypeMeta":                                        schema_pkg_apis_meta_v1_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.UpdateOptions":                                   schema_pkg_apis_meta_v1_UpdateOptions(ref),
+		"k8s.io/apimachinery/pkg/apis/meta/v1.WatchEvent":                                      schema_pkg_apis_meta_v1_WatchEvent(ref),
+		"k8s.io/apimachinery/pkg/runtime.RawExtension":                                         schema_k8sio_apimachinery_pkg_runtime_RawExtension(ref),
+		"k8s.io/apimachinery/pkg/runtime.TypeMeta":                                             schema_k8sio_apimachinery_pkg_runtime_TypeMeta(ref),
+		"k8s.io/apimachinery/pkg/runtime.Unknown":                                              schema_k8sio_apimachinery_pkg_runtime_Unknown(ref),
+		"k8s.io/apimachinery/pkg/version.Info":                                                 schema_k8sio_apimachinery_pkg_version_Info(ref),
 	}
 }
 
@@ -880,6 +887,232 @@ func schema_pkg_apis_gateway_v1_HeaderModifier(ref common.ReferenceCallback) com
 		},
 		Dependencies: []string{
 			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderValue"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_HeaderTransformationPolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HeaderTransformationPolicy 声明请求和响应 Header 转换策略",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationPolicySpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationPolicySpec", "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_HeaderTransformationPolicyList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HeaderTransformationPolicyList 表示 HeaderTransformationPolicy 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationPolicy"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationPolicy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_HeaderTransformationPolicySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HeaderTransformationPolicySpec 定义转换规则及其作用路由",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与流量匹配",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 为 false 时保留策略但不修改请求和响应",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"targetRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"kind",
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "TargetRefs 为空时策略保存为未应用状态，当前只允许引用 Route",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef"),
+									},
+								},
+							},
+						},
+					},
+					"requestRules": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "RequestRules 按声明顺序修改发往上游服务的请求 Header",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationRule"),
+									},
+								},
+							},
+						},
+					},
+					"responseRules": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-type": "atomic",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "ResponseRules 按声明顺序修改返回给客户端的响应 Header",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationRule"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"displayName", "enabled"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderTransformationRule", "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_HeaderTransformationRule(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "HeaderTransformationRule 表示一条 Header 修改规则",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"operation": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Operation 决定删除、重命名、替换、添加或追加 Header",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"name": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Name 是待修改的 Header 名称",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"value": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Value 是 Rename 的新名称或其他写操作的目标值；Remove 不使用该字段",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"operation", "name"},
+			},
+		},
 	}
 }
 
@@ -2437,6 +2670,170 @@ func schema_pkg_apis_gateway_v1_UpstreamTLS(ref common.ReferenceCallback) common
 					},
 				},
 				Required: []string{"serverName"},
+			},
+		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_WasmPlugin(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "WasmPlugin 声明一个已安装的 Proxy-Wasm 插件制品",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.WasmPluginSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ResourceStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ResourceStatus", "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.WasmPluginSpec", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_WasmPluginList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "WasmPluginList 表示 WasmPlugin 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.WasmPlugin"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.WasmPlugin", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "WasmPluginSpec 定义插件身份和模块来源",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与流量匹配",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"package": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Package 是插件在仓库中的稳定标识，同一配置域只能安装一个版本",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"version": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Version 表示插件制品版本，不等同于资源 Generation",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Description: "URL 支持指向 Wasm 模块的 HTTP(S) URL 或 oci:// 镜像引用",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"sha256": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SHA256 对 HTTP(S) 校验 Wasm 模块，对 OCI 校验镜像 manifest；为空时不校验来源摘要",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"pullPolicy": {
+						SchemaProps: spec.SchemaProps{
+							Description: "PullPolicy 控制资源版本变化时是否重新拉取模块",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"rootID": {
+						SchemaProps: spec.SchemaProps{
+							Description: "RootID 必须与 Proxy-Wasm 模块注册 Context 时使用的 root_id 一致；为空表示使用模块的默认 Root Context",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"displayName", "package", "version", "url", "pullPolicy"},
 			},
 		},
 	}

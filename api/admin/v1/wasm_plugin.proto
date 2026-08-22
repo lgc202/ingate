@@ -1,0 +1,122 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// WasmPluginService 提供插件安装、升级和卸载接口
+service WasmPluginService {
+  rpc ListWasmPluginCatalog(ListWasmPluginCatalogRequest) returns (ListWasmPluginCatalogResponse) {
+    option (google.api.http) = {get: "/api/v1/wasm-plugin-catalog"};
+  }
+  rpc RefreshWasmPluginCatalog(RefreshWasmPluginCatalogRequest) returns (ListWasmPluginCatalogResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/wasm-plugin-catalog:refresh"
+      body: "*"
+    };
+  }
+  rpc ListWasmPlugins(ListWasmPluginsRequest) returns (ListWasmPluginsResponse) {
+    option (google.api.http) = {get: "/api/v1/wasm-plugins"};
+  }
+  rpc GetWasmPlugin(GetWasmPluginRequest) returns (WasmPlugin) {
+    option (google.api.http) = {get: "/api/v1/wasm-plugins/{id}"};
+  }
+  rpc CreateWasmPlugin(CreateWasmPluginRequest) returns (WasmPlugin) {
+    option (google.api.http) = {
+      post: "/api/v1/wasm-plugins"
+      body: "*"
+    };
+  }
+  rpc UpdateWasmPlugin(UpdateWasmPluginRequest) returns (WasmPlugin) {
+    option (google.api.http) = {
+      put: "/api/v1/wasm-plugins/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteWasmPlugin(DeleteWasmPluginRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/wasm-plugins/{id}"};
+  }
+}
+
+// WasmPluginPullPolicy 控制资源更新时是否重新拉取模块
+enum WasmPluginPullPolicy {
+  WASM_PLUGIN_PULL_POLICY_UNSPECIFIED = 0;
+  WASM_PLUGIN_PULL_POLICY_IF_NOT_PRESENT = 1;
+  WASM_PLUGIN_PULL_POLICY_ALWAYS = 2;
+}
+
+message WasmPlugin {
+  string id = 1;
+  string name = 2;
+  string package_name = 3 [json_name = "package"];
+  string plugin_version = 4 [json_name = "pluginVersion"];
+  string url = 5;
+  string sha256 = 6;
+  WasmPluginPullPolicy pull_policy = 7;
+  ResourceState state = 8;
+  string message = 9;
+  int64 version = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+  string latest_version = 13;
+  bool upgrade_available = 14;
+}
+
+// WasmPluginCatalogItem 是当前 Ingate 版本兼容的官方插件安装选项
+// 制品地址和拉取方式由服务端管理，不属于控制台安装协议
+message WasmPluginCatalogItem {
+  string package_name = 1 [json_name = "package"];
+  string name = 2;
+  string plugin_version = 3 [json_name = "pluginVersion"];
+  string category = 4;
+  string description = 5;
+  string provider = 6;
+  string license = 7;
+  string source_url = 8 [json_name = "sourceURL"];
+}
+
+message ListWasmPluginCatalogRequest {}
+
+message RefreshWasmPluginCatalogRequest {}
+
+message ListWasmPluginCatalogResponse {
+  repeated WasmPluginCatalogItem plugins = 1;
+  google.protobuf.Timestamp last_checked_at = 2;
+}
+
+message ListWasmPluginsRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListWasmPluginsResponse {
+  repeated WasmPlugin plugins = 1;
+  string next_cursor = 2;
+}
+
+message GetWasmPluginRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateWasmPluginRequest {
+  string package_name = 1 [
+    json_name = "package",
+    (buf.validate.field).string.min_len = 1
+  ];
+}
+
+message UpdateWasmPluginRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}
+
+message DeleteWasmPluginRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

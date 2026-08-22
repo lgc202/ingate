@@ -58,7 +58,7 @@ func ResourceMessage(reason biz.ResourceReason) string {
 	case biz.ReasonDisabled:
 		return "已停用"
 	case biz.ReasonUnapplied:
-		return "策略已保存，尚未应用"
+		return "配置已保存，尚未应用"
 	case biz.ReasonTargetNotApplied:
 		return "目标当前没有可生效的流量入口"
 	case biz.ReasonInvalidSpec:
@@ -73,6 +73,8 @@ func ResourceMessage(reason biz.ResourceReason) string {
 		return "当前版本尚不支持该配置"
 	case biz.ReasonCompileFailed:
 		return "配置处理失败"
+	case biz.ReasonArtifactUnavailable:
+		return "插件制品不可用"
 	case biz.ReasonRejected:
 		return "配置未能生效"
 	case biz.ReasonDeliveryFailed:

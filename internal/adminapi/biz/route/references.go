@@ -17,7 +17,6 @@ func (s *Service) ensureNotReferenced(ctx context.Context, route *resource.Route
 	if usage != nil {
 		return biz.NewRuleViolation(fmt.Sprintf("路由 %q 仍被策略 %q 应用", route.Spec.DisplayName, usage.DisplayName))
 	}
-
 	return biz.VisitPages(ctx, s.callers.ListPage, func(caller resource.Caller) (bool, error) {
 		if slices.Contains(caller.Spec.RouteRefs, route.Name) {
 			return true, biz.NewRuleViolation(fmt.Sprintf("路由 %q 仍授权给调用方 %q", route.Spec.DisplayName, caller.Spec.DisplayName))

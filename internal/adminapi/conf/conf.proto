@@ -49,9 +49,18 @@ message Data {
     // timeout 限制 Admin API 等待单次实时额度查询的时间
     google.protobuf.Duration timeout = 2;
   }
+  message PluginCatalog {
+    // url 是官方插件目录地址；为空时只使用随二进制发布的离线目录
+    string url = 1;
+    // refresh_interval 是后台检查插件新版本的周期
+    google.protobuf.Duration refresh_interval = 2;
+    // timeout 限制单次远程目录请求的时间
+    google.protobuf.Duration timeout = 3;
+  }
   APIServer apiserver = 1;
   Analytics analytics = 2;
   AIExtProc ai_ext_proc = 3;
+  PluginCatalog plugin_catalog = 4;
 }
 
 message Logging {

@@ -1,0 +1,181 @@
+name: Plugin release
+
+on:
+  push:
+    tags:
+      - "plugin-transformer-v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  # 官方目录同时只接受一个插件版本发布，避免目录版本竞争
+  group: plugin-release
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify transformer plugin
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      package: ${{ steps.metadata.outputs.package }}
+      version: ${{ steps.metadata.outputs.version }}
+      image: ${{ steps.metadata.outputs.image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Resolve plugin metadata
+        id: metadata
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          prefix="plugin-transformer-v"
+          version="${RELEASE_TAG#${prefix}}"
+          if [[ "$RELEASE_TAG" == "$version" || ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid transformer plugin tag: $RELEASE_TAG" >&2
+            exit 1
+          fi
+          release=$(jq -ce --arg version "$version" '.plugins[] | select(.package == "ingate-transformer") | .releases[] | select(.version == $version)' internal/adminapi/data/plugincatalog/catalog.json)
+          image=$(jq -r '.artifact.repository' <<<"$release")
+          test -n "$image"
+          echo "package=ingate-transformer" >> "$GITHUB_OUTPUT"
+          echo "version=v${version}" >> "$GITHUB_OUTPUT"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag belongs to main
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build plugin
+        run: make wasm-plugins
+
+  publish:
+    name: Publish transformer plugin
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 插件版本标签是不可变制品；重复推送同一标签必须失败，不能覆盖已有模块
+      - name: Check plugin version
+        env:
+          IMAGE: ${{ needs.verify.outputs.image }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        run: |
+          if docker buildx imagetools inspect "${IMAGE}:${VERSION}" >/dev/null 2>&1; then
+            echo "Plugin image already exists: ${IMAGE}:${VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Build and push plugin image
+        id: publish
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: deploy/docker/wasm-plugin.Dockerfile
+          platforms: linux/amd64
+          push: true
+          provenance: false
+          tags: ${{ needs.verify.outputs.image }}:${{ needs.verify.outputs.version }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.verify.outputs.version }}
+          build-args: |
+            PLUGIN=transformer
+          cache-from: type=gha,scope=plugin-transformer
+          cache-to: type=gha,mode=max,scope=plugin-transformer
+
+  catalog:
+    name: Build published catalog
+    needs:
+      - verify
+      - publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # main 中的目录是随二进制发布的内置快照；线上目录只有在 OCI 制品发布成功后才生成
+      - name: Build published catalog
+        env:
+          PLUGIN_PACKAGE: ${{ needs.verify.outputs.package }}
+          VERSION: ${{ needs.verify.outputs.version }}
+          DIGEST: ${{ needs.publish.outputs.digest }}
+        run: |
+          version="${VERSION#v}"
+          digest="${DIGEST#sha256:}"
+          source="internal/adminapi/data/plugincatalog/catalog.json"
+          output="_catalog/plugins/v1/catalog.json"
+
+          if [[ ! "$digest" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "Invalid OCI manifest digest: $DIGEST" >&2
+            exit 1
+          fi
+
+          jq -e --arg package "$PLUGIN_PACKAGE" --arg version "$version" '
+            [.plugins[] | select(.package == $package) | .releases[] | select(.version == $version)] | length == 1
+          ' "$source" >/dev/null
+
+          mkdir -p "$(dirname "$output")"
+          jq --arg package "$PLUGIN_PACKAGE" --arg version "$version" --arg digest "$digest" '
+            .plugins |= map(
+              if .package == $package then
+                .releases |= map(
+                  if .version == $version then .artifact.sha256 = $digest else . end
+                )
+              else
+                .
+              end
+            )
+          ' "$source" > "$output"
+
+      # 目录是统一项目站点的输入之一，插件工作流不能单独覆盖 Pages
+      - name: Upload published catalog
+        uses: actions/upload-artifact@v6
+        with:
+          name: plugin-catalog
+          path: _catalog
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-site:
+    name: Publish project site
+    needs: catalog
+    permissions:
+      actions: read
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
+    with:
+      catalog_artifact: plugin-catalog

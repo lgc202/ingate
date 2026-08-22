@@ -205,6 +205,7 @@ services:
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-controller.yaml:/opt/ingate/controller/configs/config.yaml:ro"
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/controller/configs/kubeconfig.yaml:ro"
+      - controller-wasm:/data/ingate/controller/wasm
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:18080/readyz"]
       interval: 5s
@@ -273,6 +274,7 @@ volumes:
   als-data:
   apiserver-certificates:
   clickhouse-data:
+  controller-wasm:
   etcd-data:
   kafka-data:
   redis-data:

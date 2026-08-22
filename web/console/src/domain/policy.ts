@@ -1,6 +1,6 @@
 import type { ResourceState, ResourceStatus } from './common';
 
-export type GovernancePolicyKind = 'IPRestrictionPolicy' | 'TokenQuotaPolicy';
+export type GovernancePolicyKind = 'IPRestrictionPolicy' | 'TokenQuotaPolicy' | 'HeaderTransformationPolicy';
 export type PolicyTargetKind = 'Gateway' | 'Route' | 'Caller';
 
 export interface PolicyTargetRef {
@@ -59,6 +59,27 @@ export interface TokenQuotaPolicy {
   updatedAt?: string;
 }
 
+export type HeaderTransformationOperation = 'remove' | 'rename' | 'replace' | 'add' | 'append';
+
+export interface HeaderTransformationRule {
+  operation: HeaderTransformationOperation;
+  name: string;
+  value: string;
+}
+
+export interface HeaderTransformationPolicy {
+  id: string;
+  version: number;
+  name: string;
+  enabled: boolean;
+  targets: PolicyTargetRef[];
+  requestRules: HeaderTransformationRule[];
+  responseRules: HeaderTransformationRule[];
+  status: ResourceStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface PolicyTargetOption {
   id: string;
   name: string;
@@ -82,12 +103,15 @@ interface GovernancePolicyBase {
 export type GovernancePolicy = GovernancePolicyBase & (
   | { kind: 'IPRestrictionPolicy'; raw: IPRestrictionPolicy }
   | { kind: 'TokenQuotaPolicy'; raw: TokenQuotaPolicy }
+  | { kind: 'HeaderTransformationPolicy'; raw: HeaderTransformationPolicy }
 );
 
 export interface PolicyWorkspace {
   policies: GovernancePolicy[];
   ipRestrictionPolicies: IPRestrictionPolicy[];
   tokenQuotaPolicies: TokenQuotaPolicy[];
+  headerTransformationPolicies: HeaderTransformationPolicy[];
+  installedPluginPackages: string[];
   targets: PolicyTargetOption[];
 }
 
@@ -122,10 +146,22 @@ export type TokenQuotaPolicyPayload =
   | TokenQuotaPolicyConfigPayload & CreatePolicyIdentity
   | TokenQuotaPolicyConfigPayload & VersionedPolicyIdentity<number>;
 
+interface HeaderTransformationPolicyConfigPayload {
+  name: string;
+  targets: PolicyTargetPayload[];
+  requestRules: HeaderTransformationRule[];
+  responseRules: HeaderTransformationRule[];
+}
+
+export type HeaderTransformationPolicyPayload =
+  | HeaderTransformationPolicyConfigPayload & CreatePolicyIdentity
+  | HeaderTransformationPolicyConfigPayload & { enabled: boolean } & VersionedPolicyIdentity<number>;
+
 export function policyKindLabel(kind: GovernancePolicyKind) {
   const labels: Record<GovernancePolicyKind, string> = {
     IPRestrictionPolicy: 'IP 访问限制',
     TokenQuotaPolicy: 'Token 额度',
+    HeaderTransformationPolicy: '请求响应转换',
   };
   return labels[kind];
 }
@@ -176,10 +212,12 @@ export function policyTargetsResource(policy: GovernancePolicy, kind: PolicyTarg
 }
 
 export function policySupportsTargetKind(policy: GovernancePolicy, kind: PolicyTargetKind) {
-  return policy.kind === 'TokenQuotaPolicy' ? kind === 'Caller' : kind === 'Gateway' || kind === 'Route';
+  if (policy.kind === 'TokenQuotaPolicy') return kind === 'Caller';
+  if (policy.kind === 'HeaderTransformationPolicy') return kind === 'Route';
+  return kind === 'Gateway' || kind === 'Route';
 }
 
 export function policyTargetLabel(target: PolicyTargetRef, options: PolicyTargetOption[]) {
   const option = options.find((item) => item.kind === target.kind && item.id === target.id);
-  return option?.name ?? target.displayName ?? target.id;
+  return option?.name ?? target.displayName ?? '目标不可用';
 }
