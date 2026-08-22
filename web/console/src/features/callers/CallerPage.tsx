@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Check, Copy, KeyRound, Plus, ShieldCheck, UserRound } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import {
   createCaller,
   deleteCaller,
@@ -19,6 +20,7 @@ import {
   Panel,
   ResourceFilterField,
   ResourceListFilters,
+  ResourcePagination,
   ResourceStatePanel,
   RowActions,
   SearchField,
@@ -48,7 +50,7 @@ const emptyDraft = (): CallerDraft => ({
   name: '',
   enabled: true,
   routeIDs: [],
-  accessKeyName: '默认密钥',
+  accessKeyName: '',
   expiration: '90d',
 });
 const emptyCallerFilters = (): CallerFilters => ({ query: '', state: 'all' });
@@ -57,12 +59,14 @@ export function CallerPage() {
   const workspace = useResource(getCallerWorkspace);
   const [filterDraft, setFilterDraft] = useState<CallerFilters>(emptyCallerFilters);
   const [filters, setFilters] = useState<CallerFilters>(emptyCallerFilters);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [detailID, setDetailID] = useState<string | null>(null);
   const [draft, setDraft] = useState<CallerDraft | null>(null);
   const [deleteCandidate, setDeleteCandidate] = useState<Caller | null>(null);
   const [issueKeyFor, setIssueKeyFor] = useState<Caller | null>(null);
   const [issuedKey, setIssuedKey] = useState<IssuedAccessKey | null>(null);
-  const [keyName, setKeyName] = useState('轮换密钥');
+  const [keyName, setKeyName] = useState('');
   const [keyExpiration, setKeyExpiration] = useState<'90d' | 'none'>('90d');
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
@@ -88,6 +92,9 @@ export function CallerPage() {
   }
 
   const data = workspace.data;
+  const pageCount = Math.max(1, Math.ceil(visibleCallers.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pagedCallers = visibleCallers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const save = async () => {
     if (!draft || !draft.name.trim() || submitting) return;
@@ -165,7 +172,7 @@ export function CallerPage() {
       const result = await issueAccessKey(issueKeyFor.id, issueKeyFor.version, keyName.trim(), expirationTime(keyExpiration));
       setIssuedKey(result);
       setIssueKeyFor(null);
-      setKeyName('轮换密钥');
+      setKeyName('');
       await workspace.reload();
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '签发访问密钥失败', tone: 'error' });
@@ -195,11 +202,12 @@ export function CallerPage() {
           <ResourceListFilters
             summary={callerFilterSummary(filters)}
             resultLabel={`${visibleCallers.length} 个调用方`}
-            onSearch={() => setFilters({ ...filterDraft })}
+            onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
             onReset={() => {
               const next = emptyCallerFilters();
               setFilterDraft(next);
               setFilters(next);
+              setPage(1);
             }}
           >
             <ResourceFilterField label="关键词">
@@ -219,14 +227,14 @@ export function CallerPage() {
             <div className="table-scroll resource-table-scroll">
               <table className="table resource-table resource-table-has-toggle resource-caller-table">
                 <thead><tr>
-                  <th>调用方</th><th>授权路由</th><th>有效密钥</th><th>启用状态</th><th>更新时间</th><th>操作</th>
+                  <th>调用方</th><th>授权路由</th><th>有效密钥</th><th>状态</th><th>更新时间</th><th>操作</th>
                 </tr></thead>
                 <tbody>
-                  {visibleCallers.map((caller) => (
+                  {pagedCallers.map((caller) => (
                     <tr key={caller.id}>
                       <td><div className="resource-table-name"><UserRound className="text-blue-600" /><strong>{caller.name}</strong></div></td>
                       <td>{routeSummary(caller, data.routes)}</td>
-                      <td>{activeKeyCount(caller)} 把</td>
+                      <td>{activeKeyCount(caller)} 个</td>
                       <td><Badge tone={caller.enabled ? 'success' : 'neutral'}>{caller.enabled ? '已启用' : '已停用'}</Badge></td>
                       <td className="resource-table-time">{formatDateTime(caller.updatedAt || caller.createdAt)}</td>
                       <td>
@@ -245,6 +253,7 @@ export function CallerPage() {
               </table>
             </div>
           )}
+          {visibleCallers.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visibleCallers.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
         </Panel>
       </div>
 
@@ -254,6 +263,14 @@ export function CallerPage() {
             <section className="resource-detail-hero">
               <div><h3>{detail.name}</h3><p>{routeSummary(detail, data.routes)}</p></div>
               <Badge tone={detail.enabled ? 'success' : 'neutral'}>{detail.enabled ? '已启用' : '已停用'}</Badge>
+            </section>
+            <section className="resource-detail-section">
+              <h3>基本信息</h3>
+              <div className="resource-detail-grid">
+                <div><span>启用状态</span><strong>{detail.enabled ? '已启用' : '已停用'}</strong></div>
+                <div><span>授权路由</span><strong>{detail.routeIDs.length} 条</strong></div>
+                <div><span>更新时间</span><strong>{formatDateTime(detail.updatedAt || detail.createdAt)}</strong></div>
+              </div>
             </section>
             <section className="resource-detail-section">
               <div className="flex items-center justify-between gap-3 mb-3"><h3>访问密钥</h3><Button size="sm" variant="outline" onClick={() => setIssueKeyFor(detail)}><KeyRound className="h-3.5 w-3.5" />签发密钥</Button></div>
@@ -266,12 +283,17 @@ export function CallerPage() {
                 ))}
               </div>
             </section>
+            <section className="resource-detail-section">
+              <h3 className="mb-3">排查请求</h3>
+              <p className="mb-3 text-xs text-slate-500">查看归属于该调用方的请求状态、路由匹配和最终转发服务。</p>
+              <Link className="inline-flex rounded-lg bg-blue-50 px-3 py-2 text-xs font-medium text-blue-700 hover:bg-blue-100" to={`/requests?callerID=${encodeURIComponent(detail.id)}`}>查看请求记录</Link>
+            </section>
           </div>
         ) : null}
       </Drawer>
 
       <Drawer title={draft?.id ? '编辑调用方' : '创建调用方'} subtitle="为应用或服务授权受保护路由" isOpen={Boolean(draft)} onClose={() => setDraft(null)}>
-        {draft ? <CallerEditor draft={draft} routes={data.routes} onChange={setDraft} onSave={() => void save()} submitting={submitting} /> : null}
+        {draft ? <CallerEditor draft={draft} routes={data.routes} onChange={setDraft} onCancel={() => setDraft(null)} onSave={() => void save()} submitting={submitting} /> : null}
       </Drawer>
 
       <Modal title="签发访问密钥" isOpen={Boolean(issueKeyFor)} onClose={() => setIssueKeyFor(null)}>
@@ -300,7 +322,7 @@ function callerFilterSummary(filters: CallerFilters): string {
   return conditions.join(' · ') || '全部调用方';
 }
 
-function CallerEditor({ draft, routes, onChange, onSave, submitting }: { draft: CallerDraft; routes: CallerRouteOption[]; onChange: (draft: CallerDraft) => void; onSave: () => void; submitting: boolean }) {
+function CallerEditor({ draft, routes, onChange, onCancel, onSave, submitting }: { draft: CallerDraft; routes: CallerRouteOption[]; onChange: (draft: CallerDraft) => void; onCancel: () => void; onSave: () => void; submitting: boolean }) {
   return (
     <div className="space-y-6">
       <section className="resource-detail-section space-y-4">
@@ -312,7 +334,7 @@ function CallerEditor({ draft, routes, onChange, onSave, submitting }: { draft: 
         {routes.length === 0 ? <EmptyState title="暂无受保护路由" message="先将路由访问方式设置为调用方密钥" /> : <div className="grid grid-cols-1 md:grid-cols-2 gap-2">{routes.map((route) => <label key={route.id} className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm cursor-pointer ${draft.routeIDs.includes(route.id) ? 'border-blue-300 bg-blue-50/70 text-blue-900' : 'border-slate-200 text-slate-700'}`}><input type="checkbox" checked={draft.routeIDs.includes(route.id)} onChange={() => onChange({ ...draft, routeIDs: toggleID(draft.routeIDs, route.id) })} />{route.name}</label>)}</div>}
       </section>
       {!draft.id ? <section className="resource-detail-section space-y-4"><h3>首个访问密钥</h3><LabeledInput label="密钥名称" value={draft.accessKeyName} onChange={(accessKeyName) => onChange({ ...draft, accessKeyName })} placeholder="例如：生产服务" /><ExpirationSelect value={draft.expiration} onChange={(expiration) => onChange({ ...draft, expiration })} /></section> : null}
-      <div className="flex justify-end pt-2"><Button size="lg" disabled={!draft.name.trim() || (!draft.id && !draft.accessKeyName.trim()) || submitting} onClick={onSave}>{submitting ? '保存中...' : '保存调用方'}</Button></div>
+      <div className="flex justify-end gap-2 border-t border-slate-200 pt-3"><Button variant="ghost" onClick={onCancel}>取消</Button><Button size="lg" disabled={!draft.name.trim() || (!draft.id && !draft.accessKeyName.trim()) || submitting} onClick={onSave}>{submitting ? '保存中...' : '保存调用方'}</Button></div>
     </div>
   );
 }

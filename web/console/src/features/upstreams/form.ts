@@ -31,7 +31,7 @@ export function createUpstreamDraft(upstream?: Upstream): UpstreamDraft {
     id: upstream?.id,
     version: upstream?.version,
     name: upstream?.name ?? '',
-    endpoints: upstream?.endpoints.map((endpoint) => ({ ...endpoint })) ?? [{ address: '127.0.0.1', port: 8080, weight: 1 }],
+    endpoints: upstream?.endpoints.map((endpoint) => ({ ...endpoint })) ?? [{ address: '', port: 0, weight: 1 }],
     httpsEnabled: Boolean(upstream?.tls),
     serverName: upstream?.tls?.serverName ?? '',
     loadBalancing: upstream?.loadBalancing ?? 'LOAD_BALANCING_POLICY_ROUND_ROBIN',
