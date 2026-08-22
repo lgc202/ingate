@@ -22,6 +22,10 @@ const (
 	KindCaller Kind = "Caller"
 	// KindTokenQuotaPolicy 表示 TokenQuotaPolicy 资源类型
 	KindTokenQuotaPolicy Kind = "TokenQuotaPolicy"
+	// KindWasmPlugin 表示 WasmPlugin 资源类型
+	KindWasmPlugin Kind = "WasmPlugin"
+	// KindHeaderTransformationPolicy 表示 HeaderTransformationPolicy 资源类型
+	KindHeaderTransformationPolicy Kind = "HeaderTransformationPolicy"
 )
 
 // PolicyTargetRef 表示策略的生效目标

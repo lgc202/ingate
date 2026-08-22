@@ -20,6 +20,10 @@ data:
   ai_ext_proc:
     addr: "controller:18081"
     timeout: "2s"
+  plugin_catalog:
+    url: "https://lgc202.github.io/ingate/plugins/v1/catalog.json"
+    refresh_interval: "3600s"
+    timeout: "5s"
 logging:
   format: "json"
   level: "info"

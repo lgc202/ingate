@@ -65,5 +65,15 @@ func validateData(data *Data) error {
 	if aiExtProc.GetTimeout() == nil || aiExtProc.GetTimeout().AsDuration() <= 0 {
 		return errors.New("AI ExtProc timeout must be greater than zero")
 	}
+	pluginCatalog := data.GetPluginCatalog()
+	if pluginCatalog == nil {
+		return errors.New("plugin catalog config is required")
+	}
+	if pluginCatalog.GetRefreshInterval() == nil || pluginCatalog.GetRefreshInterval().AsDuration() <= 0 {
+		return errors.New("plugin catalog refresh interval must be greater than zero")
+	}
+	if pluginCatalog.GetTimeout() == nil || pluginCatalog.GetTimeout().AsDuration() <= 0 {
+		return errors.New("plugin catalog timeout must be greater than zero")
+	}
 	return nil
 }

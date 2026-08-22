@@ -201,17 +201,21 @@ export function ResourceFilterField({ label, children }: { label: string; childr
 export function RowActions({
   onDetail,
   onEdit,
+  editLabel = '编辑',
   onToggle,
   toggleLabel,
   toggleDisabled = false,
   onDelete,
+  deleteLabel = '删除',
 }: {
   onDetail: () => void;
   onEdit?: () => void;
+  editLabel?: string;
   onToggle?: () => void;
   toggleLabel?: string;
   toggleDisabled?: boolean;
   onDelete?: () => void;
+  deleteLabel?: string;
 }) {
   const moreRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -255,12 +259,12 @@ export function RowActions({
   return (
     <div className="row-actions" onClick={(event) => event.stopPropagation()}>
       <button className="link-button" type="button" onClick={onDetail}>详情</button>
-      {onEdit ? <button className="link-button" type="button" onClick={onEdit}>编辑</button> : null}
+      {onEdit ? <button className="link-button" type="button" onClick={onEdit}>{editLabel}</button> : null}
       {onToggle && toggleLabel ? <button className="link-button" type="button" disabled={toggleDisabled} onClick={onToggle}>{toggleLabel}</button> : null}
       {onDelete ? (
         <div className="row-more">
           <button ref={moreRef} className="row-more-trigger" type="button" aria-label="更多操作" aria-expanded={moreOpen} onClick={toggleMore}><MoreHorizontal aria-hidden="true" /></button>
-          {moreOpen ? <div ref={menuRef} role="menu" style={menuPosition}><button className="danger" role="menuitem" type="button" onClick={() => { setMoreOpen(false); onDelete(); }}>删除</button></div> : null}
+          {moreOpen ? <div ref={menuRef} role="menu" style={menuPosition}><button className="danger" role="menuitem" type="button" onClick={() => { setMoreOpen(false); onDelete(); }}>{deleteLabel}</button></div> : null}
         </div>
       ) : null}
     </div>
@@ -475,7 +479,7 @@ export function Modal({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleID}
-      className="modal backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs bg-white rounded-xl shadow-2xl p-0 border border-slate-200 w-full max-w-xl overflow-hidden"
+      className="modal fixed inset-0 m-auto max-h-[calc(100dvh-3rem)] backdrop:bg-slate-900/40 backdrop:backdrop-blur-xs bg-white rounded-xl shadow-2xl p-0 border border-slate-200 w-[calc(100%-2rem)] max-w-xl overflow-hidden"
       onCancel={(event) => {
         event.preventDefault();
         onClose();

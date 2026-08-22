@@ -36,6 +36,8 @@ const (
 	ReasonUnsupported ConditionReason = "Unsupported"
 	// ReasonCompileFailed 表示资源未能生成一致的网关配置
 	ReasonCompileFailed ConditionReason = "CompileFailed"
+	// ReasonArtifactUnavailable 表示插件制品无法下载或校验
+	ReasonArtifactUnavailable ConditionReason = "ArtifactUnavailable"
 	// ReasonPending 表示资源配置仍在等待生效
 	ReasonPending ConditionReason = "Pending"
 	// ReasonNotApplied 表示策略当前没有可生效的目标
@@ -66,6 +68,10 @@ const (
 	KindCaller Kind = "Caller"
 	// KindTokenQuotaPolicy 表示 TokenQuotaPolicy 资源类型
 	KindTokenQuotaPolicy Kind = "TokenQuotaPolicy"
+	// KindWasmPlugin 表示 WasmPlugin 资源类型
+	KindWasmPlugin Kind = "WasmPlugin"
+	// KindHeaderTransformationPolicy 表示 HeaderTransformationPolicy 资源类型
+	KindHeaderTransformationPolicy Kind = "HeaderTransformationPolicy"
 )
 
 // PolicyTargetRef 表示策略的生效目标

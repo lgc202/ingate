@@ -10,8 +10,12 @@ import (
 	"github.com/lgc202/ingate/internal/controller/conf"
 )
 
-// NewHTTPServer 创建 Controller 的存活和就绪检查服务
-func NewHTTPServer(config *conf.Server, configDelivery *delivery.Delivery) *kratoshttp.Server {
+// NewHTTPServer 创建 Controller 的运维接口，并向同机 Envoy 提供已校验的 Wasm 模块
+func NewHTTPServer(
+	config *conf.Server,
+	configDelivery *delivery.Delivery,
+	wasmModules http.Handler,
+) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
 	server := kratoshttp.NewServer(
 		kratoshttp.Network("tcp"),
@@ -20,6 +24,7 @@ func NewHTTPServer(config *conf.Server, configDelivery *delivery.Delivery) *krat
 	)
 	server.HandleFunc("/healthz", health)
 	server.HandleFunc("/readyz", ready(configDelivery))
+	server.HandlePrefix("/internal/wasm/", wasmModules)
 	return server
 }
 

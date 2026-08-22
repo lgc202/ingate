@@ -183,6 +183,46 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*HeaderTransformationPolicy)(nil), (*gateway.HeaderTransformationPolicy)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_HeaderTransformationPolicy_To_gateway_HeaderTransformationPolicy(a.(*HeaderTransformationPolicy), b.(*gateway.HeaderTransformationPolicy), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.HeaderTransformationPolicy)(nil), (*HeaderTransformationPolicy)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_HeaderTransformationPolicy_To_v1_HeaderTransformationPolicy(a.(*gateway.HeaderTransformationPolicy), b.(*HeaderTransformationPolicy), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*HeaderTransformationPolicyList)(nil), (*gateway.HeaderTransformationPolicyList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_HeaderTransformationPolicyList_To_gateway_HeaderTransformationPolicyList(a.(*HeaderTransformationPolicyList), b.(*gateway.HeaderTransformationPolicyList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.HeaderTransformationPolicyList)(nil), (*HeaderTransformationPolicyList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_HeaderTransformationPolicyList_To_v1_HeaderTransformationPolicyList(a.(*gateway.HeaderTransformationPolicyList), b.(*HeaderTransformationPolicyList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*HeaderTransformationPolicySpec)(nil), (*gateway.HeaderTransformationPolicySpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_HeaderTransformationPolicySpec_To_gateway_HeaderTransformationPolicySpec(a.(*HeaderTransformationPolicySpec), b.(*gateway.HeaderTransformationPolicySpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.HeaderTransformationPolicySpec)(nil), (*HeaderTransformationPolicySpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_HeaderTransformationPolicySpec_To_v1_HeaderTransformationPolicySpec(a.(*gateway.HeaderTransformationPolicySpec), b.(*HeaderTransformationPolicySpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*HeaderTransformationRule)(nil), (*gateway.HeaderTransformationRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_HeaderTransformationRule_To_gateway_HeaderTransformationRule(a.(*HeaderTransformationRule), b.(*gateway.HeaderTransformationRule), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.HeaderTransformationRule)(nil), (*HeaderTransformationRule)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_HeaderTransformationRule_To_v1_HeaderTransformationRule(a.(*gateway.HeaderTransformationRule), b.(*HeaderTransformationRule), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*HeaderValue)(nil), (*gateway.HeaderValue)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_HeaderValue_To_gateway_HeaderValue(a.(*HeaderValue), b.(*gateway.HeaderValue), scope)
 	}); err != nil {
@@ -510,6 +550,36 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}
 	if err := s.AddGeneratedConversionFunc((*gateway.UpstreamTLS)(nil), (*UpstreamTLS)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_gateway_UpstreamTLS_To_v1_UpstreamTLS(a.(*gateway.UpstreamTLS), b.(*UpstreamTLS), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*WasmPlugin)(nil), (*gateway.WasmPlugin)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_WasmPlugin_To_gateway_WasmPlugin(a.(*WasmPlugin), b.(*gateway.WasmPlugin), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.WasmPlugin)(nil), (*WasmPlugin)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_WasmPlugin_To_v1_WasmPlugin(a.(*gateway.WasmPlugin), b.(*WasmPlugin), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*WasmPluginList)(nil), (*gateway.WasmPluginList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_WasmPluginList_To_gateway_WasmPluginList(a.(*WasmPluginList), b.(*gateway.WasmPluginList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.WasmPluginList)(nil), (*WasmPluginList)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_WasmPluginList_To_v1_WasmPluginList(a.(*gateway.WasmPluginList), b.(*WasmPluginList), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*WasmPluginSpec)(nil), (*gateway.WasmPluginSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_WasmPluginSpec_To_gateway_WasmPluginSpec(a.(*WasmPluginSpec), b.(*gateway.WasmPluginSpec), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*gateway.WasmPluginSpec)(nil), (*WasmPluginSpec)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_gateway_WasmPluginSpec_To_v1_WasmPluginSpec(a.(*gateway.WasmPluginSpec), b.(*WasmPluginSpec), scope)
 	}); err != nil {
 		return err
 	}
@@ -916,6 +986,112 @@ func autoConvert_gateway_HeaderModifier_To_v1_HeaderModifier(in *gateway.HeaderM
 // Convert_gateway_HeaderModifier_To_v1_HeaderModifier is an autogenerated conversion function.
 func Convert_gateway_HeaderModifier_To_v1_HeaderModifier(in *gateway.HeaderModifier, out *HeaderModifier, s conversion.Scope) error {
 	return autoConvert_gateway_HeaderModifier_To_v1_HeaderModifier(in, out, s)
+}
+
+func autoConvert_v1_HeaderTransformationPolicy_To_gateway_HeaderTransformationPolicy(in *HeaderTransformationPolicy, out *gateway.HeaderTransformationPolicy, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_v1_HeaderTransformationPolicySpec_To_gateway_HeaderTransformationPolicySpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_v1_PolicyStatus_To_gateway_PolicyStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_v1_HeaderTransformationPolicy_To_gateway_HeaderTransformationPolicy is an autogenerated conversion function.
+func Convert_v1_HeaderTransformationPolicy_To_gateway_HeaderTransformationPolicy(in *HeaderTransformationPolicy, out *gateway.HeaderTransformationPolicy, s conversion.Scope) error {
+	return autoConvert_v1_HeaderTransformationPolicy_To_gateway_HeaderTransformationPolicy(in, out, s)
+}
+
+func autoConvert_gateway_HeaderTransformationPolicy_To_v1_HeaderTransformationPolicy(in *gateway.HeaderTransformationPolicy, out *HeaderTransformationPolicy, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_gateway_HeaderTransformationPolicySpec_To_v1_HeaderTransformationPolicySpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_gateway_PolicyStatus_To_v1_PolicyStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_gateway_HeaderTransformationPolicy_To_v1_HeaderTransformationPolicy is an autogenerated conversion function.
+func Convert_gateway_HeaderTransformationPolicy_To_v1_HeaderTransformationPolicy(in *gateway.HeaderTransformationPolicy, out *HeaderTransformationPolicy, s conversion.Scope) error {
+	return autoConvert_gateway_HeaderTransformationPolicy_To_v1_HeaderTransformationPolicy(in, out, s)
+}
+
+func autoConvert_v1_HeaderTransformationPolicyList_To_gateway_HeaderTransformationPolicyList(in *HeaderTransformationPolicyList, out *gateway.HeaderTransformationPolicyList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]gateway.HeaderTransformationPolicy)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_v1_HeaderTransformationPolicyList_To_gateway_HeaderTransformationPolicyList is an autogenerated conversion function.
+func Convert_v1_HeaderTransformationPolicyList_To_gateway_HeaderTransformationPolicyList(in *HeaderTransformationPolicyList, out *gateway.HeaderTransformationPolicyList, s conversion.Scope) error {
+	return autoConvert_v1_HeaderTransformationPolicyList_To_gateway_HeaderTransformationPolicyList(in, out, s)
+}
+
+func autoConvert_gateway_HeaderTransformationPolicyList_To_v1_HeaderTransformationPolicyList(in *gateway.HeaderTransformationPolicyList, out *HeaderTransformationPolicyList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]HeaderTransformationPolicy)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_gateway_HeaderTransformationPolicyList_To_v1_HeaderTransformationPolicyList is an autogenerated conversion function.
+func Convert_gateway_HeaderTransformationPolicyList_To_v1_HeaderTransformationPolicyList(in *gateway.HeaderTransformationPolicyList, out *HeaderTransformationPolicyList, s conversion.Scope) error {
+	return autoConvert_gateway_HeaderTransformationPolicyList_To_v1_HeaderTransformationPolicyList(in, out, s)
+}
+
+func autoConvert_v1_HeaderTransformationPolicySpec_To_gateway_HeaderTransformationPolicySpec(in *HeaderTransformationPolicySpec, out *gateway.HeaderTransformationPolicySpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Enabled = in.Enabled
+	out.TargetRefs = *(*[]gateway.PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
+	out.RequestRules = *(*[]gateway.HeaderTransformationRule)(unsafe.Pointer(&in.RequestRules))
+	out.ResponseRules = *(*[]gateway.HeaderTransformationRule)(unsafe.Pointer(&in.ResponseRules))
+	return nil
+}
+
+// Convert_v1_HeaderTransformationPolicySpec_To_gateway_HeaderTransformationPolicySpec is an autogenerated conversion function.
+func Convert_v1_HeaderTransformationPolicySpec_To_gateway_HeaderTransformationPolicySpec(in *HeaderTransformationPolicySpec, out *gateway.HeaderTransformationPolicySpec, s conversion.Scope) error {
+	return autoConvert_v1_HeaderTransformationPolicySpec_To_gateway_HeaderTransformationPolicySpec(in, out, s)
+}
+
+func autoConvert_gateway_HeaderTransformationPolicySpec_To_v1_HeaderTransformationPolicySpec(in *gateway.HeaderTransformationPolicySpec, out *HeaderTransformationPolicySpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Enabled = in.Enabled
+	out.TargetRefs = *(*[]PolicyTargetRef)(unsafe.Pointer(&in.TargetRefs))
+	out.RequestRules = *(*[]HeaderTransformationRule)(unsafe.Pointer(&in.RequestRules))
+	out.ResponseRules = *(*[]HeaderTransformationRule)(unsafe.Pointer(&in.ResponseRules))
+	return nil
+}
+
+// Convert_gateway_HeaderTransformationPolicySpec_To_v1_HeaderTransformationPolicySpec is an autogenerated conversion function.
+func Convert_gateway_HeaderTransformationPolicySpec_To_v1_HeaderTransformationPolicySpec(in *gateway.HeaderTransformationPolicySpec, out *HeaderTransformationPolicySpec, s conversion.Scope) error {
+	return autoConvert_gateway_HeaderTransformationPolicySpec_To_v1_HeaderTransformationPolicySpec(in, out, s)
+}
+
+func autoConvert_v1_HeaderTransformationRule_To_gateway_HeaderTransformationRule(in *HeaderTransformationRule, out *gateway.HeaderTransformationRule, s conversion.Scope) error {
+	out.Operation = gateway.HeaderTransformationOperation(in.Operation)
+	out.Name = in.Name
+	out.Value = in.Value
+	return nil
+}
+
+// Convert_v1_HeaderTransformationRule_To_gateway_HeaderTransformationRule is an autogenerated conversion function.
+func Convert_v1_HeaderTransformationRule_To_gateway_HeaderTransformationRule(in *HeaderTransformationRule, out *gateway.HeaderTransformationRule, s conversion.Scope) error {
+	return autoConvert_v1_HeaderTransformationRule_To_gateway_HeaderTransformationRule(in, out, s)
+}
+
+func autoConvert_gateway_HeaderTransformationRule_To_v1_HeaderTransformationRule(in *gateway.HeaderTransformationRule, out *HeaderTransformationRule, s conversion.Scope) error {
+	out.Operation = HeaderTransformationOperation(in.Operation)
+	out.Name = in.Name
+	out.Value = in.Value
+	return nil
+}
+
+// Convert_gateway_HeaderTransformationRule_To_v1_HeaderTransformationRule is an autogenerated conversion function.
+func Convert_gateway_HeaderTransformationRule_To_v1_HeaderTransformationRule(in *gateway.HeaderTransformationRule, out *HeaderTransformationRule, s conversion.Scope) error {
+	return autoConvert_gateway_HeaderTransformationRule_To_v1_HeaderTransformationRule(in, out, s)
 }
 
 func autoConvert_v1_HeaderValue_To_gateway_HeaderValue(in *HeaderValue, out *gateway.HeaderValue, s conversion.Scope) error {
@@ -1764,4 +1940,90 @@ func autoConvert_gateway_UpstreamTLS_To_v1_UpstreamTLS(in *gateway.UpstreamTLS, 
 // Convert_gateway_UpstreamTLS_To_v1_UpstreamTLS is an autogenerated conversion function.
 func Convert_gateway_UpstreamTLS_To_v1_UpstreamTLS(in *gateway.UpstreamTLS, out *UpstreamTLS, s conversion.Scope) error {
 	return autoConvert_gateway_UpstreamTLS_To_v1_UpstreamTLS(in, out, s)
+}
+
+func autoConvert_v1_WasmPlugin_To_gateway_WasmPlugin(in *WasmPlugin, out *gateway.WasmPlugin, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_v1_WasmPluginSpec_To_gateway_WasmPluginSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_v1_ResourceStatus_To_gateway_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_v1_WasmPlugin_To_gateway_WasmPlugin is an autogenerated conversion function.
+func Convert_v1_WasmPlugin_To_gateway_WasmPlugin(in *WasmPlugin, out *gateway.WasmPlugin, s conversion.Scope) error {
+	return autoConvert_v1_WasmPlugin_To_gateway_WasmPlugin(in, out, s)
+}
+
+func autoConvert_gateway_WasmPlugin_To_v1_WasmPlugin(in *gateway.WasmPlugin, out *WasmPlugin, s conversion.Scope) error {
+	out.ObjectMeta = in.ObjectMeta
+	if err := Convert_gateway_WasmPluginSpec_To_v1_WasmPluginSpec(&in.Spec, &out.Spec, s); err != nil {
+		return err
+	}
+	if err := Convert_gateway_ResourceStatus_To_v1_ResourceStatus(&in.Status, &out.Status, s); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Convert_gateway_WasmPlugin_To_v1_WasmPlugin is an autogenerated conversion function.
+func Convert_gateway_WasmPlugin_To_v1_WasmPlugin(in *gateway.WasmPlugin, out *WasmPlugin, s conversion.Scope) error {
+	return autoConvert_gateway_WasmPlugin_To_v1_WasmPlugin(in, out, s)
+}
+
+func autoConvert_v1_WasmPluginList_To_gateway_WasmPluginList(in *WasmPluginList, out *gateway.WasmPluginList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]gateway.WasmPlugin)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_v1_WasmPluginList_To_gateway_WasmPluginList is an autogenerated conversion function.
+func Convert_v1_WasmPluginList_To_gateway_WasmPluginList(in *WasmPluginList, out *gateway.WasmPluginList, s conversion.Scope) error {
+	return autoConvert_v1_WasmPluginList_To_gateway_WasmPluginList(in, out, s)
+}
+
+func autoConvert_gateway_WasmPluginList_To_v1_WasmPluginList(in *gateway.WasmPluginList, out *WasmPluginList, s conversion.Scope) error {
+	out.ListMeta = in.ListMeta
+	out.Items = *(*[]WasmPlugin)(unsafe.Pointer(&in.Items))
+	return nil
+}
+
+// Convert_gateway_WasmPluginList_To_v1_WasmPluginList is an autogenerated conversion function.
+func Convert_gateway_WasmPluginList_To_v1_WasmPluginList(in *gateway.WasmPluginList, out *WasmPluginList, s conversion.Scope) error {
+	return autoConvert_gateway_WasmPluginList_To_v1_WasmPluginList(in, out, s)
+}
+
+func autoConvert_v1_WasmPluginSpec_To_gateway_WasmPluginSpec(in *WasmPluginSpec, out *gateway.WasmPluginSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Package = in.Package
+	out.Version = in.Version
+	out.URL = in.URL
+	out.SHA256 = in.SHA256
+	out.PullPolicy = gateway.WasmPluginPullPolicy(in.PullPolicy)
+	out.RootID = in.RootID
+	return nil
+}
+
+// Convert_v1_WasmPluginSpec_To_gateway_WasmPluginSpec is an autogenerated conversion function.
+func Convert_v1_WasmPluginSpec_To_gateway_WasmPluginSpec(in *WasmPluginSpec, out *gateway.WasmPluginSpec, s conversion.Scope) error {
+	return autoConvert_v1_WasmPluginSpec_To_gateway_WasmPluginSpec(in, out, s)
+}
+
+func autoConvert_gateway_WasmPluginSpec_To_v1_WasmPluginSpec(in *gateway.WasmPluginSpec, out *WasmPluginSpec, s conversion.Scope) error {
+	out.DisplayName = in.DisplayName
+	out.Package = in.Package
+	out.Version = in.Version
+	out.URL = in.URL
+	out.SHA256 = in.SHA256
+	out.PullPolicy = WasmPluginPullPolicy(in.PullPolicy)
+	out.RootID = in.RootID
+	return nil
+}
+
+// Convert_gateway_WasmPluginSpec_To_v1_WasmPluginSpec is an autogenerated conversion function.
+func Convert_gateway_WasmPluginSpec_To_v1_WasmPluginSpec(in *gateway.WasmPluginSpec, out *WasmPluginSpec, s conversion.Scope) error {
+	return autoConvert_gateway_WasmPluginSpec_To_v1_WasmPluginSpec(in, out, s)
 }

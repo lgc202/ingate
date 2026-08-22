@@ -2,6 +2,7 @@
 package adminapi
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,6 +12,7 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
 	"github.com/lgc202/ingate/internal/adminapi/conf"
+	"github.com/lgc202/ingate/internal/adminapi/data/plugincatalog"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
@@ -63,6 +65,7 @@ func newKratosApp(
 	logger *slog.Logger,
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
+	pluginCatalog *plugincatalog.Catalog,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -72,5 +75,10 @@ func newKratosApp(
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		kratos.Server(httpServer),
+		kratos.AfterStart(func(ctx context.Context) error {
+			pluginCatalog.Start(ctx)
+			return nil
+		}),
+		kratos.BeforeStop(pluginCatalog.Stop),
 	)
 }

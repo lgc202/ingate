@@ -86,6 +86,18 @@ static_resources:
                     socket_address:
                       address: authz
                       port_value: 18071
+    - name: ingate-system-wasm
+      type: STATIC
+      connect_timeout: 1s
+      load_assignment:
+        cluster_name: ingate-system-wasm
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address:
+                      address: 127.0.0.1
+                      port_value: 18080
 admin:
   address:
     socket_address:

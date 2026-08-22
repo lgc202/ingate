@@ -16,6 +16,8 @@ type Interface interface {
 	Certificates() CertificateInformer
 	// Gateways returns a GatewayInformer.
 	Gateways() GatewayInformer
+	// HeaderTransformationPolicies returns a HeaderTransformationPolicyInformer.
+	HeaderTransformationPolicies() HeaderTransformationPolicyInformer
 	// IPRestrictionPolicies returns a IPRestrictionPolicyInformer.
 	IPRestrictionPolicies() IPRestrictionPolicyInformer
 	// RateLimitPolicies returns a RateLimitPolicyInformer.
@@ -26,6 +28,8 @@ type Interface interface {
 	TokenQuotaPolicies() TokenQuotaPolicyInformer
 	// Upstreams returns a UpstreamInformer.
 	Upstreams() UpstreamInformer
+	// WasmPlugins returns a WasmPluginInformer.
+	WasmPlugins() WasmPluginInformer
 }
 
 type version struct {
@@ -54,6 +58,11 @@ func (v *version) Gateways() GatewayInformer {
 	return &gatewayInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
+// HeaderTransformationPolicies returns a HeaderTransformationPolicyInformer.
+func (v *version) HeaderTransformationPolicies() HeaderTransformationPolicyInformer {
+	return &headerTransformationPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
 // IPRestrictionPolicies returns a IPRestrictionPolicyInformer.
 func (v *version) IPRestrictionPolicies() IPRestrictionPolicyInformer {
 	return &iPRestrictionPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
@@ -77,4 +86,9 @@ func (v *version) TokenQuotaPolicies() TokenQuotaPolicyInformer {
 // Upstreams returns a UpstreamInformer.
 func (v *version) Upstreams() UpstreamInformer {
 	return &upstreamInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// WasmPlugins returns a WasmPluginInformer.
+func (v *version) WasmPlugins() WasmPluginInformer {
+	return &wasmPluginInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }

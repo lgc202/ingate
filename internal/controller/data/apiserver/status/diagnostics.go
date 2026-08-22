@@ -82,6 +82,27 @@ func (i diagnosticIndex) forResource(kind gatewayv1.Kind, name string) compileDe
 	return decision
 }
 
+// forWasmPlugin 不继承 Envoy 配置的全局诊断，插件安装只由制品自身的拉取、校验和包冲突决定
+func (i diagnosticIndex) forWasmPlugin(name string) compileDecision {
+	diagnostics := make([]compiler.Diagnostic, 0,
+		len(i.kinds[gatewayv1.KindWasmPlugin])+len(i.specific[resourceKey{kind: gatewayv1.KindWasmPlugin, name: name}]),
+	)
+	diagnostics = append(diagnostics, i.kinds[gatewayv1.KindWasmPlugin]...)
+	diagnostics = append(diagnostics, i.specific[resourceKey{kind: gatewayv1.KindWasmPlugin, name: name}]...)
+
+	decision := compileDecision{accepted: conditionDecision{
+		status:  metav1.ConditionTrue,
+		reason:  gatewayv1.ReasonAccepted,
+		message: messageAccepted,
+	}}
+	for _, diagnostic := range diagnostics {
+		if decision.accepted.status == metav1.ConditionTrue {
+			decision.accepted = decisionFromDiagnostic(diagnostic)
+		}
+	}
+	return decision
+}
+
 func decisionFromDiagnostic(diagnostic compiler.Diagnostic) conditionDecision {
 	reason := diagnostic.Reason
 	if reason == "" {

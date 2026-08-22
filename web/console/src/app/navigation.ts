@@ -4,6 +4,7 @@ import {
   ChartNoAxesCombined,
   KeyRound,
   Layers3,
+  Blocks,
   Route,
   Server,
   ShieldCheck,
@@ -37,10 +38,11 @@ export const navigation: NavGroup[] = [
   },
   {
     key: 'access',
-    label: '访问治理',
+    label: '治理与扩展',
     items: [
       { key: 'callers', label: '调用方', to: '/callers', icon: UsersRound },
       { key: 'policies', label: '策略', to: '/policies', icon: ShieldCheck },
+      { key: 'plugins', label: '插件', to: '/plugins', icon: Blocks },
     ],
   },
   {

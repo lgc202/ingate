@@ -9,6 +9,7 @@ import { RequestRecordPage } from '@/features/requests/RequestRecordPage';
 import { TrafficAnalysisPage } from '@/features/traffic/TrafficAnalysisPage';
 import { CallerPage } from '@/features/callers/CallerPage';
 import { AIUsagePage } from '@/features/aiusage/AIUsagePage';
+import { PluginPage } from '@/features/plugins/PluginPage';
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="services" element={<UpstreamPage />} />
         <Route path="certificates" element={<CertificatePage />} />
         <Route path="policies" element={<PolicyPage />} />
+        <Route path="plugins" element={<PluginPage />} />
         <Route path="callers" element={<CallerPage />} />
         <Route path="requests" element={<RequestRecordPage />} />
         <Route path="analysis" element={<TrafficAnalysisPage />} />

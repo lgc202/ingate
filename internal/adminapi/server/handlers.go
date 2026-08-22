@@ -8,6 +8,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/caller"
 	"github.com/lgc202/ingate/internal/adminapi/service/certificate"
 	"github.com/lgc202/ingate/internal/adminapi/service/gateway"
+	"github.com/lgc202/ingate/internal/adminapi/service/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/service/health"
 	"github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
 	"github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
@@ -16,22 +17,25 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/tokenquota"
 	trafficservice "github.com/lgc202/ingate/internal/adminapi/service/traffic"
 	"github.com/lgc202/ingate/internal/adminapi/service/upstream"
+	"github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
 )
 
 // HTTPHandlers 汇总需要注册到同一个 HTTP Server 的 Admin API 协议服务
 type HTTPHandlers struct {
-	aiUsage       *aiusageservice.Service
-	caller        *caller.Service
-	gateway       *gateway.Service
-	route         *route.Service
-	upstream      *upstream.Service
-	certificate   *certificate.Service
-	rateLimit     *ratelimit.Service
-	ipRestriction *iprestriction.Service
-	request       *requestservice.Service
-	traffic       *trafficservice.Service
-	tokenQuota    *tokenquota.Service
-	health        *health.Service
+	aiUsage              *aiusageservice.Service
+	caller               *caller.Service
+	gateway              *gateway.Service
+	route                *route.Service
+	upstream             *upstream.Service
+	certificate          *certificate.Service
+	rateLimit            *ratelimit.Service
+	ipRestriction        *iprestriction.Service
+	request              *requestservice.Service
+	traffic              *trafficservice.Service
+	tokenQuota           *tokenquota.Service
+	health               *health.Service
+	headerTransformation *headertransformation.Service
+	wasmPlugin           *wasmplugin.Service
 }
 
 // NewHTTPHandlers 创建 Admin API 的 HTTP 协议服务集合
@@ -48,20 +52,24 @@ func NewHTTPHandlers(
 	trafficService *trafficservice.Service,
 	tokenQuotaService *tokenquota.Service,
 	healthService *health.Service,
+	headerTransformationService *headertransformation.Service,
+	wasmPluginService *wasmplugin.Service,
 ) *HTTPHandlers {
 	return &HTTPHandlers{
-		aiUsage:       aiUsageService,
-		caller:        callerService,
-		gateway:       gatewayService,
-		route:         routeService,
-		upstream:      upstreamService,
-		certificate:   certificateService,
-		rateLimit:     rateLimitService,
-		ipRestriction: ipRestrictionService,
-		request:       requestService,
-		traffic:       trafficService,
-		tokenQuota:    tokenQuotaService,
-		health:        healthService,
+		aiUsage:              aiUsageService,
+		caller:               callerService,
+		gateway:              gatewayService,
+		route:                routeService,
+		upstream:             upstreamService,
+		certificate:          certificateService,
+		rateLimit:            rateLimitService,
+		ipRestriction:        ipRestrictionService,
+		request:              requestService,
+		traffic:              trafficService,
+		tokenQuota:           tokenQuotaService,
+		health:               healthService,
+		headerTransformation: headerTransformationService,
+		wasmPlugin:           wasmPluginService,
 	}
 }
 
@@ -78,4 +86,6 @@ func (h *HTTPHandlers) register(server *kratoshttp.Server) {
 	adminv1.RegisterTrafficAnalysisServiceHTTPServer(server, h.traffic)
 	adminv1.RegisterTokenQuotaPolicyServiceHTTPServer(server, h.tokenQuota)
 	adminv1.RegisterHealthServiceHTTPServer(server, h.health)
+	adminv1.RegisterHeaderTransformationPolicyServiceHTTPServer(server, h.headerTransformation)
+	adminv1.RegisterWasmPluginServiceHTTPServer(server, h.wasmPlugin)
 }

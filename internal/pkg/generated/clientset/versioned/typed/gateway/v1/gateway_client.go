@@ -17,11 +17,13 @@ type GatewayV1Interface interface {
 	CallersGetter
 	CertificatesGetter
 	GatewaysGetter
+	HeaderTransformationPoliciesGetter
 	IPRestrictionPoliciesGetter
 	RateLimitPoliciesGetter
 	RoutesGetter
 	TokenQuotaPoliciesGetter
 	UpstreamsGetter
+	WasmPluginsGetter
 }
 
 // GatewayV1Client is used to interact with features provided by the gateway.ingate.io group.
@@ -39,6 +41,10 @@ func (c *GatewayV1Client) Certificates() CertificateInterface {
 
 func (c *GatewayV1Client) Gateways() GatewayInterface {
 	return newGateways(c)
+}
+
+func (c *GatewayV1Client) HeaderTransformationPolicies() HeaderTransformationPolicyInterface {
+	return newHeaderTransformationPolicies(c)
 }
 
 func (c *GatewayV1Client) IPRestrictionPolicies() IPRestrictionPolicyInterface {
@@ -59,6 +65,10 @@ func (c *GatewayV1Client) TokenQuotaPolicies() TokenQuotaPolicyInterface {
 
 func (c *GatewayV1Client) Upstreams() UpstreamInterface {
 	return newUpstreams(c)
+}
+
+func (c *GatewayV1Client) WasmPlugins() WasmPluginInterface {
+	return newWasmPlugins(c)
 }
 
 // NewForConfig creates a new GatewayV1Client for the given config.

@@ -13,11 +13,13 @@ import (
 	callerstorage "github.com/lgc202/ingate/internal/apiserver/registry/caller"
 	certificatestorage "github.com/lgc202/ingate/internal/apiserver/registry/certificate"
 	gatewaystorage "github.com/lgc202/ingate/internal/apiserver/registry/gateway"
+	headertransformationpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/headertransformationpolicy"
 	iprestrictionpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/iprestrictionpolicy"
 	ratelimitpolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/ratelimitpolicy"
 	routestorage "github.com/lgc202/ingate/internal/apiserver/registry/route"
 	tokenquotapolicystorage "github.com/lgc202/ingate/internal/apiserver/registry/tokenquotapolicy"
 	upstreamstorage "github.com/lgc202/ingate/internal/apiserver/registry/upstream"
+	wasmpluginstorage "github.com/lgc202/ingate/internal/apiserver/registry/wasmplugin"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
@@ -52,6 +54,8 @@ func installResources(
 		{gatewayv1.ResourceIPRestrictionPolicies, gatewayv1.ResourceIPRestrictionPoliciesStatus, iprestrictionpolicystorage.NewREST},
 		{gatewayv1.ResourceCallers, gatewayv1.ResourceCallersStatus, callerstorage.NewREST},
 		{gatewayv1.ResourceTokenQuotaPolicies, gatewayv1.ResourceTokenQuotaPoliciesStatus, tokenquotapolicystorage.NewREST},
+		{gatewayv1.ResourceWasmPlugins, gatewayv1.ResourceWasmPluginsStatus, wasmpluginstorage.NewREST},
+		{gatewayv1.ResourceHeaderTransformationPolicies, gatewayv1.ResourceHeaderTransformationPoliciesStatus, headertransformationpolicystorage.NewREST},
 	}
 	storage := make(map[string]rest.Storage, len(registrations)*2)
 	for _, registration := range registrations {
