@@ -15,7 +15,10 @@ import (
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
 )
 
-const quotaCounterRetention = 7 * 24 * time.Hour
+const (
+	quotaCounterRetention  = 7 * 24 * time.Hour
+	readinessProbeInterval = 5 * time.Second
+)
 
 var addTokensScript = redisclient.NewScript(`
 local tokens = tonumber(ARGV[1])
@@ -57,7 +60,7 @@ func NewTokenCounter(config *conf.Data_Redis) *TokenCounter {
 	}
 }
 
-// Start 验证 Redis 可用后保持计数器生命周期
+// Start 验证 Redis 可用后持续探测连接状态
 func (c *TokenCounter) Start(ctx context.Context) error {
 	runCtx, cancel := context.WithCancel(ctx)
 	c.cancel = cancel
@@ -69,15 +72,27 @@ func (c *TokenCounter) Start(ctx context.Context) error {
 		_ = c.client.Close()
 	}()
 
-	pingCtx, stop := context.WithTimeout(runCtx, c.operationTimeout)
-	err := c.client.Ping(pingCtx).Err()
-	stop()
-	if err != nil {
+	if err := c.ping(runCtx); err != nil {
 		return fmt.Errorf("connect Redis token counter: %w", err)
 	}
 	c.ready.Store(true)
-	<-runCtx.Done()
-	return nil
+
+	ticker := time.NewTicker(readinessProbeInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-runCtx.Done():
+			return nil
+		case <-ticker.C:
+			c.ready.Store(c.ping(runCtx) == nil)
+		}
+	}
+}
+
+func (c *TokenCounter) ping(ctx context.Context) error {
+	pingCtx, cancel := context.WithTimeout(ctx, c.operationTimeout)
+	defer cancel()
+	return c.client.Ping(pingCtx).Err()
 }
 
 // Stop 停止计数器并关闭 Redis 连接池

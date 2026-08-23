@@ -36,7 +36,7 @@ Ingate 不要求运行在 Kubernetes 中，不维护 Envoy 私有分支，也不
 | API 流量 | HTTP/HTTPS Listener、Host/路径/方法/Header 匹配、加权转发、Host 重写、Header 修改、超时与重试 |
 | Service 连接 | 多端点、Round Robin/Least Request、主动健康检查、上游 HTTPS 和证书校验 |
 | AI 流量 | 对外模型名、加权模型线路、OpenAI Chat Completions、Anthropic Messages 转换、流式响应转换 |
-| 访问治理 | 公开或调用方访问模式、访问密钥、Route 授权、IP 访问限制和调用方 Token 额度 |
+| 访问治理 | 公开或调用方访问模式、访问密钥、Route 授权、IP 访问限制、共享请求限流和调用方 Token 额度 |
 | 声明式控制 | 资源 CRUD、List/Watch、乐观并发版本、Status、完整配置编译和 xDS 下发 |
 | 观测分析 | 请求元数据、转发结果、模型线路尝试、Token 用量、流量趋势和资源排行 |
 
@@ -74,7 +74,7 @@ bash install.sh ./ingate --version "${VERSION}"
 
 将 `vX.Y.Z` 替换为需要安装的 Release tag，例如 `v0.1.2`。安装脚本和 Compose 安装包来自同一个 Release，避免未发布的 `main` 分支变更影响安装。
 
-Console 当前没有登录认证，安装版默认只绑定 `127.0.0.1`。完整的配置、启停、日志和数据清理说明见 [Docker Compose 安装说明](deploy/compose/README.md)。
+安装器会生成 Console 管理密码和会话签名密钥，并在安装完成时显示用户名和密码。安装版默认只绑定 `127.0.0.1`；远程访问仍应使用 HTTPS 反向代理或 SSH 端口转发。完整的配置、启停、备份、恢复和升级说明见 [Docker Compose 安装说明](deploy/compose/README.md)。
 
 ### 从源码启动开发环境
 
@@ -167,18 +167,18 @@ Ingate 把配置管理、同步流量处理和异步观测拆成三条边界清�
 | `ingate-apiserver` | 提供声明式资源 CRUD、List/Watch、版本和 Status，是 etcd 的唯一访问者 |
 | `ingate-controller` | Watch 资源、编译 Envoy 配置、切换有效配置、提供 xDS 并回写 Status |
 | `Envoy` | 唯一数据平面，接收客户端请求并执行路由、治理和上游转发 |
-| `ingate-authz` | 校验调用方访问密钥和 Route 授权，只参与需要调用方认证的请求 |
+| `ingate-authz` | 校验调用方访问密钥和 Route 授权，并执行共享请求限流 |
 | `ingate-ai-extproc` | 处理 AI Route 的模型选择、凭据注入、协议转换和调用方 Token 额度 |
 | `ingate-als` | 接收 Envoy ALS 请求记录，通过本地 WAL 保护待投递数据并写入 Kafka |
 | `ingate-analytics` | 消费请求记录、写入 ClickHouse，并提供请求明细和流量分析查询 |
 | `etcd` | 持久化声明式资源 |
 | `Kafka` | 在请求采集与分析之间提供可靠消息链路 |
 | `ClickHouse` | 保存请求明细、模型调用记录以及流量和模型用量聚合 |
-| `Redis` | 保存调用方当前自然周期的实时 Token 额度计数 |
+| `Redis` | 保存请求限流计数和调用方当前自然周期的实时 Token 额度计数 |
 
 Controller、Envoy 与 AI ExtProc 在开发 Compose 中共享网络命名空间，xDS 和 AI Processing 连接只监听 loopback；Authorization 和 ALS 使用 Compose 内部网络，不向宿主机暴露端口。该拓扑只属于本地联调方式，业务组件本身不依赖 Docker Compose 或 Kubernetes。
 
-更详细的组件边界见 [架构说明](docs/architecture.md)。声明式资源协议见 [资源文档](docs/resources)。
+更详细的组件边界见 [架构说明](docs/architecture.md)，插件扩展边界见 [插件体系](docs/plugins.md)，安装运维见 [运维说明](docs/operations.md)。声明式资源协议见 [资源文档](docs/resources)。
 
 ## 资源与产品术语
 
@@ -200,7 +200,7 @@ Console 面向用户统一使用 **Service**。当前声明式 API 中对应的�
 ## 当前边界
 
 - `IPRestrictionPolicy` 已由 Envoy 原生 RBAC 执行
-- `RateLimitPolicy` 当前只提供资源协议和管理能力，尚未生成数据面限流配置
+- `RateLimitPolicy` 由 Envoy 官方 `ext_authz` 与 Authz 的 Redis 固定窗口计数执行；详细语义见 [请求限流原理](docs/resources/rate-limit-policy.md)
 - `TokenQuotaPolicy` 由 AI ExtProc 在调用模型前检查，并按模型实际返回的 Token 在 Redis 中结算；详细语义见 [Token 额度原理](docs/resources/token-quota-policy.md)
 - 请求记录只持久化排障和分析所需的元数据，不保存请求 Header、查询参数或正文
 - MCP 网关和 Agent 编排尚未进入当前运行链路

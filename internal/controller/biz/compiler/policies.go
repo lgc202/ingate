@@ -24,6 +24,7 @@ func (c *compilation) buildPolicyConfigs(
 ) (map[listenerKey]listenerFilterConfig, []CompiledPolicyTarget) {
 	// 编译阶段直接把强类型 Policy 展开到 Envoy Route，执行组件不再理解用户资源挂载关系
 	ipRestrictionPolicies := c.compileIPRestrictionPolicies()
+	rateLimitPolicies := c.compileRateLimitPolicies()
 	headerTransformationPolicies := c.compileHeaderTransformationPolicies()
 	mockResponsePolicies := c.compileMockResponsePolicies()
 	filters := make(map[listenerKey]listenerFilterConfig)
@@ -44,6 +45,17 @@ func (c *compilation) buildPolicyConfigs(
 			} else {
 				config.ipRestriction = true
 				for _, target := range restrictionTargets {
+					c.recordPolicyTargets(target.source, target.targets, policyTargetSet)
+				}
+			}
+		}
+
+		rateLimits, rateLimitTargets := matchingRateLimitPolicies(rateLimitPolicies, key)
+		if len(rateLimits) > 0 {
+			if err := applyRateLimitPolicies(attachment.routes, rateLimits); err != nil {
+				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, key.routeID, ReasonCompileFailed, fmt.Sprintf("compile rate limit policies for route %q: %v", key.routeID, err))
+			} else {
+				for _, target := range rateLimitTargets {
 					c.recordPolicyTargets(target.source, target.targets, policyTargetSet)
 				}
 			}

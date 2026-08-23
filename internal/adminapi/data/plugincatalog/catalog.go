@@ -462,6 +462,9 @@ func addPlugin(state *sourceState, plugin catalogPlugin, ingateVersion string) e
 	if packageName == "" || name == "" || len(plugin.Releases) == 0 {
 		return fmt.Errorf("plugin catalog entry requires package, name and releases")
 	}
+	if !resource.IsSupportedWasmPluginPackage(packageName) {
+		return fmt.Errorf("plugin package %q is not supported by this Ingate version", packageName)
+	}
 	if _, exists := state.specs[packageName]; exists {
 		return fmt.Errorf("plugin catalog contains duplicate package %q", packageName)
 	}

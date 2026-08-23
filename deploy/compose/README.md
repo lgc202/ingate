@@ -21,7 +21,7 @@ Gateway 端口只有在 Console 中创建并成功发布对应 Gateway 后才会
 
 `.env` 保存镜像版本、监听地址和对外端口。`docker/configs` 保存各个 Ingate 组件的 YAML 配置。修改后执行 `./bin/start.sh` 重建对应容器。
 
-Console 当前没有登录认证，因此默认只绑定 `127.0.0.1`。远程访问建议使用 SSH 端口转发，不要在公网服务器上直接改为 `0.0.0.0`。
+安装脚本会在 `.env` 中生成 Console 管理密码和会话签名密钥。管理用户名固定为 `admin`，密码只在安装结束时显示；可以直接编辑 `INGATE_ADMIN_PASSWORD` 后执行 `./bin/start.sh` 修改。即使已经启用登录认证，仍建议默认绑定 `127.0.0.1`，远程访问优先使用 HTTPS 反向代理或 SSH 端口转发。
 
 ## 日常操作
 
@@ -30,7 +30,20 @@ Console 当前没有登录认证，因此默认只绑定 `127.0.0.1`。远程访
 ./bin/logs.sh         # 查看全部日志
 ./bin/logs.sh envoy   # 只查看 Envoy 日志
 ./bin/stop.sh         # 停止容器并保留数据
+./bin/backup.sh       # 停止写入并备份配置和持久化数据
+./bin/upgrade.sh vX.Y.Z # 备份后升级到指定版本
 ```
+
+## 备份与恢复
+
+`backup.sh` 会短暂停止所有组件，对 etcd、Redis、Kafka、ClickHouse、ALS 队列、证书和 Wasm 缓存的 Docker Volume 做一致性归档，然后恢复原来的运行状态：
+
+```bash
+./bin/backup.sh
+./bin/restore.sh ./backups/ingate-YYYYMMDD-HHMMSS.tar.gz
+```
+
+恢复会覆盖当前持久化数据，必须在交互确认后执行。升级脚本会先创建同样的完整备份，再替换 Compose 文件和组件配置；升级失败时可以使用该备份回滚。
 
 ## 卸载
 

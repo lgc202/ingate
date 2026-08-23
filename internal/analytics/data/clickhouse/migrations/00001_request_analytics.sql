@@ -3,6 +3,7 @@
 
 -- request_records 保存不可变的请求元数据，不保存 Header、请求体或响应体。
 -- 在线重投首先由 insert_deduplication_token 拦截，ReplacingMergeTree 只作为明细最终收敛的第二道保障。
+-- 表创建后由显式 migrate 命令根据 retention.request_records 配置 TTL。
 CREATE TABLE IF NOT EXISTS request_records
 (
     id String,
@@ -37,6 +38,7 @@ SETTINGS non_replicated_deduplication_window = 100000;
 
 -- request_metrics_1m 保存物化视图产生的分钟级聚合状态。
 -- 更大的查询时间粒度在查询时由这些分钟状态继续合并，无需重复保存多套事实。
+-- 聚合保留期通常长于明细，并由 retention.request_metrics 独立配置。
 CREATE TABLE IF NOT EXISTS request_metrics_1m
 (
     started_at DateTime('UTC'),

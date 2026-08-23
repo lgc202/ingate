@@ -5,6 +5,9 @@ import (
 	"net/http"
 
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 	"github.com/lgc202/ingate/internal/controller/conf"
@@ -23,7 +26,48 @@ func NewHTTPServer(
 	)
 	server.HandleFunc("/healthz", health)
 	server.HandleFunc("/readyz", ready(configDelivery))
+	server.Handle("/metrics", metricsHandler(configDelivery))
 	return server
+}
+
+func metricsHandler(configDelivery *delivery.Delivery) http.Handler {
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Namespace: "ingate",
+			Subsystem: "controller",
+			Name:      "ready",
+			Help:      "Whether the Envoy configuration delivery loop is running.",
+		}, func() float64 { return boolMetric(configDelivery.Ready()) }),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Namespace: "ingate",
+			Subsystem: "controller",
+			Name:      "active_resources",
+			Help:      "Declarative resource generations in the active Envoy configuration.",
+		}, func() float64 { return float64(len(configDelivery.Status().ActiveResources)) }),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Namespace: "ingate",
+			Subsystem: "controller",
+			Name:      "active_policy_targets",
+			Help:      "Policy target attachments in the active Envoy configuration.",
+		}, func() float64 { return float64(len(configDelivery.Status().ActivePolicyTargets)) }),
+		prometheus.NewGaugeFunc(prometheus.GaugeOpts{
+			Namespace: "ingate",
+			Subsystem: "controller",
+			Name:      "last_delivery_failed",
+			Help:      "Whether the latest recorded Envoy configuration delivery result is a failure.",
+		}, func() float64 { return boolMetric(configDelivery.Status().LastFailure != nil) }),
+	)
+	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
+}
+
+func boolMetric(value bool) float64 {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func health(response http.ResponseWriter, _ *http.Request) {

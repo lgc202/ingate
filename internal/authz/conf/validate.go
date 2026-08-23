@@ -30,6 +30,19 @@ func (c *Bootstrap) Validate() error {
 		strings.TrimSpace(c.GetData().GetApiserver().GetKubeconfig()) == "" {
 		return errors.New("data apiserver master or kubeconfig must be configured")
 	}
+	redis := c.GetData().GetRedis()
+	if redis == nil || strings.TrimSpace(redis.GetAddress()) == "" {
+		return errors.New("data redis address must not be empty")
+	}
+	if redis.GetDatabase() < 0 {
+		return errors.New("data redis database must not be negative")
+	}
+	if redis.GetDialTimeout() == nil || redis.GetDialTimeout().AsDuration() <= 0 {
+		return errors.New("data redis dial timeout must be greater than zero")
+	}
+	if redis.GetOperationTimeout() == nil || redis.GetOperationTimeout().AsDuration() <= 0 {
+		return errors.New("data redis operation timeout must be greater than zero")
+	}
 	if c.GetLogging() == nil {
 		return errors.New("logging config is required")
 	}

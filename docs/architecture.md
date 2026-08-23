@@ -34,7 +34,7 @@ Admin API、Controller、Authorization 和 AI Processing 都不能直接访问 e
 客户端只访问 Envoy，管理组件不在业务请求路径上。
 
 - API Route 由 Envoy 完成匹配、治理、负载均衡和 HTTP Service 转发
-- 使用调用方访问模式的 Route 通过 Envoy `ext_authz` 调用 `ingate-authz`，公开 Route 不执行远程鉴权
+- 使用调用方访问模式的 Route 通过 Envoy `ext_authz` 调用 `ingate-authz` 校验访问密钥；命中 RateLimitPolicy 的公开 Route 也通过同一标准扩展执行限流，但不会因此要求访问密钥
 - AI Route 通过 Envoy `ext_proc` 调用 `ingate-ai-extproc`，完成调用方 Token 额度检查、对外模型名选择、真实模型名改写、凭据注入和协议转换
 - OpenAI 兼容模型线路保持 Chat Completions 协议，只改写线路相关字段
 - Anthropic 模型线路在 OpenAI Chat Completions 与 Anthropic Messages 之间转换请求、普通响应和 SSE 流式响应
@@ -64,7 +64,7 @@ Analytics 使用 At Least Once 消费语义：请求事实和模型调用都成�
 | `ingate-apiserver` | etcd | 提供声明式资源 API，是 etcd 的唯一访问者 |
 | `ingate-controller` | API Server | 收敛资源状态、编译 Envoy 配置、提供 xDS、回写 Status |
 | `Envoy` | Controller、Authorization、AI Processing、ALS | 接收业务流量并执行数据面配置 |
-| `ingate-authz` | API Server | 校验调用方访问密钥和 Route 授权 |
+| `ingate-authz` | API Server、Redis | 校验调用方访问密钥和 Route 授权，执行共享请求限流 |
 | `ingate-ai-extproc` | API Server、Redis | 检查和结算调用方 Token 额度、选择模型线路并转换模型协议 |
 | `ingate-als` | Kafka | 接收请求记录并可靠投递 |
 | `ingate-analytics` | Kafka、ClickHouse | 写入请求事实并提供分析查询 |
@@ -107,9 +107,12 @@ Candidate 和 Active 只存在于 Controller 进程内。重启时允许短暂�
 | ALS 待投递记录 | ALS 本地 WAL | ALS |
 | 请求明细与模型调用记录 | ClickHouse | Analytics |
 | 流量与模型用量聚合 | ClickHouse 物化视图 | ClickHouse |
+| 请求限流固定窗口计数 | Redis | Authorization |
 | 当前周期 Token 额度计数 | Redis | AI ExtProc |
 
-Redis 是安装级系统组件，不建模为用户资源。AI ExtProc 使用 Redis 保存 TokenQuotaPolicy 的实时计数；额度配置本身仍由 API Server 持久化到 etcd。完整执行语义见 [Token 额度原理](resources/token-quota-policy.md)。RateLimitPolicy 目前只有资源协议和管理能力，Controller 不生成限流执行配置。
+Redis 是安装级系统组件，不建模为用户资源。Authorization 使用 Redis 执行 RateLimitPolicy 的固定窗口计数，AI ExtProc 使用 Redis 保存 TokenQuotaPolicy 的实时计数；策略配置本身仍由 API Server 持久化到 etcd。完整执行语义见 [请求限流原理](resources/rate-limit-policy.md) 和 [Token 额度原理](resources/token-quota-policy.md)。
+
+请求明细和模型线路调用按 Analytics 配置的保留时间由 ClickHouse TTL 自动清理；分钟流量聚合保留更长时间。`model_usage_1m` 是 Caller、Access Key、Route 和模型维度的累计用量账本，不跟随明细过期。
 
 ## 部署约束
 

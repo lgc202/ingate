@@ -25,6 +25,9 @@ func (c *Bootstrap) Validate() error {
 	if c.GetServer().GetShutdownTimeout() == nil || c.GetServer().GetShutdownTimeout().AsDuration() <= 0 {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}
+	if err := validateAuthentication(c.GetServer().GetAuthentication()); err != nil {
+		return err
+	}
 	if c.GetData() == nil || c.GetData().GetAdminApi() == nil {
 		return errors.New("admin API config is required")
 	}
@@ -43,6 +46,25 @@ func (c *Bootstrap) Validate() error {
 	case "debug", "info", "warn", "error":
 	default:
 		return errors.New("logging level must be debug, info, warn or error")
+	}
+	return nil
+}
+
+func validateAuthentication(config *Server_Authentication) error {
+	if config == nil {
+		return errors.New("console authentication config is required")
+	}
+	if config.GetSessionTtl() == nil || config.GetSessionTtl().AsDuration() <= 0 {
+		return errors.New("console authentication session TTL must be greater than zero")
+	}
+	if !config.GetEnabled() {
+		return nil
+	}
+	if strings.TrimSpace(config.GetUsername()) == "" || config.GetPassword() == "" {
+		return errors.New("console authentication username and password are required")
+	}
+	if len(config.GetSessionSecret()) < 32 {
+		return errors.New("console authentication session secret must contain at least 32 bytes")
 	}
 	return nil
 }

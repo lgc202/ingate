@@ -95,8 +95,10 @@ type Server struct {
 	ConsoleDir string `protobuf:"bytes,2,opt,name=console_dir,json=consoleDir,proto3" json:"console_dir,omitempty"`
 	// shutdown_timeout 是等待在途请求结束的最长时间
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// authentication 保护控制台管理 API
+	Authentication *Server_Authentication `protobuf:"bytes,4,opt,name=authentication,proto3" json:"authentication,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *Server) Reset() {
@@ -146,6 +148,13 @@ func (x *Server) GetConsoleDir() string {
 func (x *Server) GetShutdownTimeout() *durationpb.Duration {
 	if x != nil {
 		return x.ShutdownTimeout
+	}
+	return nil
+}
+
+func (x *Server) GetAuthentication() *Server_Authentication {
+	if x != nil {
+		return x.Authentication
 	}
 	return nil
 }
@@ -260,6 +269,96 @@ func (x *Logging) GetAddSource() bool {
 	return false
 }
 
+type Server_Authentication struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// enabled 控制管理控制台是否要求登录
+	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// username 是单管理员登录名
+	Username string `protobuf:"bytes,2,opt,name=username,proto3" json:"username,omitempty"`
+	// password 是单管理员密码，应通过 INGATE_ADMIN_PASSWORD 环境变量注入
+	Password string `protobuf:"bytes,3,opt,name=password,proto3" json:"password,omitempty"`
+	// session_secret 用于签署 HttpOnly 会话 Cookie，应通过环境变量注入随机值
+	SessionSecret string `protobuf:"bytes,4,opt,name=session_secret,json=sessionSecret,proto3" json:"session_secret,omitempty"`
+	// session_ttl 是一次登录的有效时间
+	SessionTtl *durationpb.Duration `protobuf:"bytes,5,opt,name=session_ttl,json=sessionTtl,proto3" json:"session_ttl,omitempty"`
+	// secure_cookie 要求浏览器只通过 HTTPS 发送会话 Cookie
+	SecureCookie  bool `protobuf:"varint,6,opt,name=secure_cookie,json=secureCookie,proto3" json:"secure_cookie,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Server_Authentication) Reset() {
+	*x = Server_Authentication{}
+	mi := &file_console_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Server_Authentication) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Server_Authentication) ProtoMessage() {}
+
+func (x *Server_Authentication) ProtoReflect() protoreflect.Message {
+	mi := &file_console_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Server_Authentication.ProtoReflect.Descriptor instead.
+func (*Server_Authentication) Descriptor() ([]byte, []int) {
+	return file_console_proto_rawDescGZIP(), []int{1, 0}
+}
+
+func (x *Server_Authentication) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *Server_Authentication) GetUsername() string {
+	if x != nil {
+		return x.Username
+	}
+	return ""
+}
+
+func (x *Server_Authentication) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *Server_Authentication) GetSessionSecret() string {
+	if x != nil {
+		return x.SessionSecret
+	}
+	return ""
+}
+
+func (x *Server_Authentication) GetSessionTtl() *durationpb.Duration {
+	if x != nil {
+		return x.SessionTtl
+	}
+	return nil
+}
+
+func (x *Server_Authentication) GetSecureCookie() bool {
+	if x != nil {
+		return x.SecureCookie
+	}
+	return false
+}
+
 type Server_HTTP struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// addr 是控制台和管理 API 代理的监听地址
@@ -272,7 +371,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_console_proto_msgTypes[4]
+	mi := &file_console_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -284,7 +383,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[4]
+	mi := &file_console_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -297,7 +396,7 @@ func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Server_HTTP.ProtoReflect.Descriptor instead.
 func (*Server_HTTP) Descriptor() ([]byte, []int) {
-	return file_console_proto_rawDescGZIP(), []int{1, 0}
+	return file_console_proto_rawDescGZIP(), []int{1, 1}
 }
 
 func (x *Server_HTTP) GetAddr() string {
@@ -324,7 +423,7 @@ type Data_AdminAPI struct {
 
 func (x *Data_AdminAPI) Reset() {
 	*x = Data_AdminAPI{}
-	mi := &file_console_proto_msgTypes[5]
+	mi := &file_console_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -336,7 +435,7 @@ func (x *Data_AdminAPI) String() string {
 func (*Data_AdminAPI) ProtoMessage() {}
 
 func (x *Data_AdminAPI) ProtoReflect() protoreflect.Message {
-	mi := &file_console_proto_msgTypes[5]
+	mi := &file_console_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -367,12 +466,21 @@ const file_console_proto_rawDesc = "" +
 	"\tBootstrap\x123\n" +
 	"\x06server\x18\x01 \x01(\v2\x1b.ingate.console.conf.ServerR\x06server\x12-\n" +
 	"\x04data\x18\x02 \x01(\v2\x19.ingate.console.conf.DataR\x04data\x126\n" +
-	"\alogging\x18\x03 \x01(\v2\x1c.ingate.console.conf.LoggingR\alogging\"\xf6\x01\n" +
+	"\alogging\x18\x03 \x01(\v2\x1c.ingate.console.conf.LoggingR\alogging\"\xb7\x04\n" +
 	"\x06Server\x124\n" +
 	"\x04http\x18\x01 \x01(\v2 .ingate.console.conf.Server.HTTPR\x04http\x12\x1f\n" +
 	"\vconsole_dir\x18\x02 \x01(\tR\n" +
 	"consoleDir\x12D\n" +
-	"\x10shutdown_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aO\n" +
+	"\x10shutdown_timeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x12R\n" +
+	"\x0eauthentication\x18\x04 \x01(\v2*.ingate.console.conf.Server.AuthenticationR\x0eauthentication\x1a\xea\x01\n" +
+	"\x0eAuthentication\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x1a\n" +
+	"\busername\x18\x02 \x01(\tR\busername\x12\x1a\n" +
+	"\bpassword\x18\x03 \x01(\tR\bpassword\x12%\n" +
+	"\x0esession_secret\x18\x04 \x01(\tR\rsessionSecret\x12:\n" +
+	"\vsession_ttl\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\n" +
+	"sessionTtl\x12#\n" +
+	"\rsecure_cookie\x18\x06 \x01(\bR\fsecureCookie\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
 	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"n\n" +
@@ -398,29 +506,32 @@ func file_console_proto_rawDescGZIP() []byte {
 	return file_console_proto_rawDescData
 }
 
-var file_console_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_console_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_console_proto_goTypes = []any{
-	(*Bootstrap)(nil),           // 0: ingate.console.conf.Bootstrap
-	(*Server)(nil),              // 1: ingate.console.conf.Server
-	(*Data)(nil),                // 2: ingate.console.conf.Data
-	(*Logging)(nil),             // 3: ingate.console.conf.Logging
-	(*Server_HTTP)(nil),         // 4: ingate.console.conf.Server.HTTP
-	(*Data_AdminAPI)(nil),       // 5: ingate.console.conf.Data.AdminAPI
-	(*durationpb.Duration)(nil), // 6: google.protobuf.Duration
+	(*Bootstrap)(nil),             // 0: ingate.console.conf.Bootstrap
+	(*Server)(nil),                // 1: ingate.console.conf.Server
+	(*Data)(nil),                  // 2: ingate.console.conf.Data
+	(*Logging)(nil),               // 3: ingate.console.conf.Logging
+	(*Server_Authentication)(nil), // 4: ingate.console.conf.Server.Authentication
+	(*Server_HTTP)(nil),           // 5: ingate.console.conf.Server.HTTP
+	(*Data_AdminAPI)(nil),         // 6: ingate.console.conf.Data.AdminAPI
+	(*durationpb.Duration)(nil),   // 7: google.protobuf.Duration
 }
 var file_console_proto_depIdxs = []int32{
 	1, // 0: ingate.console.conf.Bootstrap.server:type_name -> ingate.console.conf.Server
 	2, // 1: ingate.console.conf.Bootstrap.data:type_name -> ingate.console.conf.Data
 	3, // 2: ingate.console.conf.Bootstrap.logging:type_name -> ingate.console.conf.Logging
-	4, // 3: ingate.console.conf.Server.http:type_name -> ingate.console.conf.Server.HTTP
-	6, // 4: ingate.console.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	5, // 5: ingate.console.conf.Data.admin_api:type_name -> ingate.console.conf.Data.AdminAPI
-	6, // 6: ingate.console.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	5, // 3: ingate.console.conf.Server.http:type_name -> ingate.console.conf.Server.HTTP
+	7, // 4: ingate.console.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	4, // 5: ingate.console.conf.Server.authentication:type_name -> ingate.console.conf.Server.Authentication
+	6, // 6: ingate.console.conf.Data.admin_api:type_name -> ingate.console.conf.Data.AdminAPI
+	7, // 7: ingate.console.conf.Server.Authentication.session_ttl:type_name -> google.protobuf.Duration
+	7, // 8: ingate.console.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_console_proto_init() }
@@ -434,7 +545,7 @@ func file_console_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_console_proto_rawDesc), len(file_console_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -9,8 +9,11 @@ package authz
 import (
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/authz/biz"
+	"github.com/lgc202/ingate/internal/authz/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/authz/conf"
+	"github.com/lgc202/ingate/internal/authz/data"
 	"github.com/lgc202/ingate/internal/authz/data/apiserver"
+	"github.com/lgc202/ingate/internal/authz/data/redis"
 	"github.com/lgc202/ingate/internal/authz/server"
 	"github.com/lgc202/ingate/internal/authz/service"
 	"log/slog"
@@ -18,15 +21,18 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, logger *slog.Logger, authzServiceInstanceID serviceInstanceID) (*kratos.App, error) {
+func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_Redis *conf.Data_Redis, logger *slog.Logger, authzServiceInstanceID serviceInstanceID) (*kratos.App, error) {
 	credentialCache, err := apiserver.NewCredentialCache(data_APIServer, logger)
 	if err != nil {
 		return nil, err
 	}
-	httpServer := server.NewHTTPServer(confServer, credentialCache)
+	rateCounter := redis.NewRateCounter(data_Redis)
+	readiness := data.NewReadiness(credentialCache, rateCounter)
 	authorizer := biz.NewAuthorizer(credentialCache)
-	authorizationService := service.NewAuthorizationService(authorizer)
+	ratelimitService := ratelimit.NewService(rateCounter)
+	authorizationService := service.NewAuthorizationService(authorizer, ratelimitService)
+	httpServer := server.NewHTTPServer(confServer, readiness, authorizationService)
 	grpcServer := server.NewGRPCServer(confServer, authorizationService)
-	app := newKratosApp(logger, confServer, httpServer, grpcServer, credentialCache, authzServiceInstanceID)
+	app := newKratosApp(logger, confServer, httpServer, grpcServer, credentialCache, rateCounter, authzServiceInstanceID)
 	return app, nil
 }

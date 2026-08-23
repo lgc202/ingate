@@ -43,6 +43,10 @@ data:
     max_open_connections: 10
     max_idle_connections: 5
     connection_max_lifetime: "3600s"
+    retention:
+      request_records: "2592000s"
+      request_metrics: "31536000s"
+      model_calls: "2592000s"
     tls:
       enabled: false
       ca_file: ""

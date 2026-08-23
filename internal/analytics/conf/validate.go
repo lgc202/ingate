@@ -5,6 +5,7 @@ import (
 	"errors"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var clickHouseIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -128,6 +129,18 @@ func validateClickHouse(config *Data_ClickHouse) error {
 	}
 	if config.GetConnectionMaxLifetime() == nil || config.GetConnectionMaxLifetime().AsDuration() <= 0 {
 		return errors.New("ClickHouse connection max lifetime must be greater than zero")
+	}
+	if config.GetRetention() == nil {
+		return errors.New("ClickHouse retention config is required")
+	}
+	if config.GetRetention().GetRequestRecords() == nil || config.GetRetention().GetRequestRecords().AsDuration() < time.Second {
+		return errors.New("ClickHouse request record retention must be at least one second")
+	}
+	if config.GetRetention().GetRequestMetrics() == nil || config.GetRetention().GetRequestMetrics().AsDuration() < time.Second {
+		return errors.New("ClickHouse request metric retention must be at least one second")
+	}
+	if config.GetRetention().GetModelCalls() == nil || config.GetRetention().GetModelCalls().AsDuration() < time.Second {
+		return errors.New("ClickHouse model call retention must be at least one second")
 	}
 	return validateTLS(
 		"ClickHouse",

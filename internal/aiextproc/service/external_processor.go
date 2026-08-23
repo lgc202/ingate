@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"math"
 	"sync"
+	"sync/atomic"
 
 	extprocv3 "github.com/envoyproxy/go-control-plane/envoy/service/ext_proc/v3"
 	"github.com/google/uuid"
@@ -31,6 +32,19 @@ type ExternalProcessor struct {
 	apiKeys  ModelAPIKeySource
 	quotas   *tokenquota.Service
 	logger   *slog.Logger
+	counters processorCounters
+}
+
+type processorCounters struct {
+	streams atomic.Uint64
+	errors  atomic.Uint64
+}
+
+// Counters 是 AI ExtProc 运维指标使用的并发安全快照
+type Counters struct {
+	Streams            uint64
+	Errors             uint64
+	ActiveCorrelations int
 }
 
 // NewExternalProcessor 创建 External Processing 服务
@@ -50,6 +64,7 @@ func NewExternalProcessor(
 // Process 按 Envoy External Processing 协议处理一条双向流
 // Envoy 会分别为 downstream filter 和每次 upstream 尝试创建流，二者不是同一个 gRPC stream
 func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessServer) error {
+	p.counters.streams.Add(1)
 	state := streamState{ctx: stream.Context(), processor: p}
 	defer state.close()
 
@@ -59,6 +74,7 @@ func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessSe
 			return nil
 		}
 		if err != nil {
+			p.counters.errors.Add(1)
 			return fmt.Errorf("receive ExtProc request: %w", err)
 		}
 		if request.GetObservabilityMode() {
@@ -68,11 +84,25 @@ func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessSe
 
 		response, err := state.handle(request)
 		if err != nil {
+			p.counters.errors.Add(1)
 			return grpcStatusError(err)
 		}
 		if err := stream.Send(response); err != nil {
+			p.counters.errors.Add(1)
 			return fmt.Errorf("send ExtProc response: %w", err)
 		}
+	}
+}
+
+// Counters 返回 ExtProc 流量和等待 upstream 关联的请求数
+func (p *ExternalProcessor) Counters() Counters {
+	p.mu.RLock()
+	active := len(p.requests)
+	p.mu.RUnlock()
+	return Counters{
+		Streams:            p.counters.streams.Load(),
+		Errors:             p.counters.errors.Load(),
+		ActiveCorrelations: active,
 	}
 }
 

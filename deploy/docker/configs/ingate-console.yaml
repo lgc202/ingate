@@ -4,6 +4,13 @@ server:
     timeout: "30s"
   console_dir: "/opt/ingate/console/web"
   shutdown_timeout: "30s"
+  authentication:
+    enabled: true
+    username: "admin"
+    password: "${ADMIN_PASSWORD}"
+    session_secret: "${SESSION_SECRET}"
+    session_ttl: "43200s"
+    secure_cookie: false
 
 data:
   admin_api:

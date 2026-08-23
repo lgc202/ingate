@@ -12,6 +12,8 @@ Gateway -> Route -> Service
 ## 开始了解
 
 - [项目架构](architecture.html)
+- [安装与运维](operations.html)
+- [插件体系](plugins.html)
 - [Gateway](resources/gateway.html)
 - [Route](resources/route.html)
 - [Service](resources/upstream.html)
@@ -23,4 +25,4 @@ Gateway -> Route -> Service
 - [流量限制](resources/rate-limit-policy.html)
 - [Token 额度](resources/token-quota-policy.html)
 
-安装、快速开始和当前能力范围请先阅读 [项目 README](https://github.com/lgc202/ingate#readme)。
+快速开始和当前能力范围请先阅读 [项目 README](https://github.com/lgc202/ingate#readme)。

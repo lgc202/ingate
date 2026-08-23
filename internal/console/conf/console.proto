@@ -18,6 +18,20 @@ message Bootstrap {
 
 // Server 定义控制台 HTTP 服务配置
 message Server {
+  message Authentication {
+    // enabled 控制管理控制台是否要求登录
+    bool enabled = 1;
+    // username 是单管理员登录名
+    string username = 2;
+    // password 是单管理员密码，应通过 INGATE_ADMIN_PASSWORD 环境变量注入
+    string password = 3;
+    // session_secret 用于签署 HttpOnly 会话 Cookie，应通过环境变量注入随机值
+    string session_secret = 4;
+    // session_ttl 是一次登录的有效时间
+    google.protobuf.Duration session_ttl = 5;
+    // secure_cookie 要求浏览器只通过 HTTPS 发送会话 Cookie
+    bool secure_cookie = 6;
+  }
   message HTTP {
     // addr 是控制台和管理 API 代理的监听地址
     string addr = 1;
@@ -30,6 +44,8 @@ message Server {
   string console_dir = 2;
   // shutdown_timeout 是等待在途请求结束的最长时间
   google.protobuf.Duration shutdown_timeout = 3;
+  // authentication 保护控制台管理 API
+  Authentication authentication = 4;
 }
 
 // Data 定义 Console 访问的后端服务

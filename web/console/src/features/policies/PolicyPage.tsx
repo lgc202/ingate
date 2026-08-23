@@ -1,15 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, Gauge, MessageSquare, Plus, ShieldCheck, WandSparkles } from 'lucide-react';
+import { ChevronDown, Gauge, MessageSquare, Plus, ShieldCheck, TimerReset, WandSparkles } from 'lucide-react';
 import {
   deleteHeaderTransformationPolicy,
   deleteIPRestrictionPolicy,
   deleteMockResponsePolicy,
+  deleteRateLimitPolicy,
   deleteTokenQuotaPolicy,
   getPolicyWorkspace,
   saveHeaderTransformationPolicy,
   saveIPRestrictionPolicy,
   saveMockResponsePolicy,
+  saveRateLimitPolicy,
   saveTokenQuotaPolicy,
   setGovernancePolicyEnabled,
 } from '@/api/policies';
@@ -49,6 +51,13 @@ import {
 } from './IPRestrictionPolicyEditor';
 import { PolicyLibraryTable } from './PolicyLibraryTable';
 import {
+  createRateLimitPolicyDraft,
+  RateLimitPolicyEditor,
+  rateLimitPolicyPayload,
+  validateRateLimitPolicyDraft,
+  type RateLimitPolicyDraft,
+} from './RateLimitPolicyEditor';
+import {
   createMockResponsePolicyDraft,
   MockResponsePolicyEditor,
   mockResponsePolicyPayload,
@@ -78,6 +87,7 @@ const emptyPolicyFilters = (): PolicyFilters => ({ query: '', kind: 'all', enabl
 
 type PolicyEditor =
   | { kind: 'IPRestrictionPolicy'; draft: IPRestrictionPolicyDraft }
+  | { kind: 'RateLimitPolicy'; draft: RateLimitPolicyDraft }
   | { kind: 'TokenQuotaPolicy'; draft: TokenQuotaPolicyDraft }
   | { kind: 'HeaderTransformationPolicy'; draft: HeaderTransformationPolicyDraft }
   | { kind: 'MockResponsePolicy'; draft: MockResponsePolicyDraft };
@@ -208,6 +218,7 @@ export function PolicyPage() {
               <select className="select" value={filterDraft.kind} onChange={(event) => setFilterDraft((current) => ({ ...current, kind: event.target.value as PolicyKindFilter }))}>
                 <option value="all">全部策略类型</option>
                 <option value="IPRestrictionPolicy">IP 访问限制</option>
+                <option value="RateLimitPolicy">请求限流</option>
                 <option value="TokenQuotaPolicy">Token 额度</option>
                 <option value="HeaderTransformationPolicy">请求响应转换</option>
                 <option value="MockResponsePolicy">模拟响应</option>
@@ -266,6 +277,16 @@ export function PolicyPage() {
                   errors: showValidation ? validateIPRestrictionPolicyDraft(editor.draft).errors : {},
                 }}
                 onChange={(draft) => setEditor({ kind: 'IPRestrictionPolicy', draft })}
+              />
+            ) : editor.kind === 'RateLimitPolicy' ? (
+              <RateLimitPolicyEditor
+                draft={editor.draft}
+                targets={data.targets}
+                validation={{
+                  ...validateRateLimitPolicyDraft(editor.draft),
+                  errors: showValidation ? validateRateLimitPolicyDraft(editor.draft).errors : {},
+                }}
+                onChange={(draft) => setEditor({ kind: 'RateLimitPolicy', draft })}
               />
             ) : editor.kind === 'TokenQuotaPolicy' ? (
               <TokenQuotaPolicyEditor
@@ -402,6 +423,13 @@ function CreatePolicyMenu({
             </button>
           </div>
           <div className="policy-create-group">
+            <div className="policy-create-group-title">流量治理</div>
+            <button type="button" role="menuitem" onClick={() => select('RateLimitPolicy')}>
+              <span className="policy-create-icon"><TimerReset aria-hidden="true" /></span>
+              <span><strong>请求限流</strong><small>按目标、客户端 IP 或请求头限制请求频率</small></span>
+            </button>
+          </div>
+          <div className="policy-create-group">
             <div className="policy-create-group-title">流量处理</div>
             <button type="button" role="menuitem" disabled={!transformerAvailable} onClick={() => select('HeaderTransformationPolicy')}>
               <span className="policy-create-icon"><WandSparkles aria-hidden="true" /></span>
@@ -429,6 +457,7 @@ function CreatePolicyMenu({
 
 function createPolicyEditor(kind: GovernancePolicyKind): PolicyEditor {
   if (kind === 'IPRestrictionPolicy') return { kind, draft: createIPRestrictionPolicyDraft() };
+  if (kind === 'RateLimitPolicy') return { kind, draft: createRateLimitPolicyDraft() };
   if (kind === 'TokenQuotaPolicy') return { kind, draft: createTokenQuotaPolicyDraft() };
   if (kind === 'HeaderTransformationPolicy') return { kind, draft: createHeaderTransformationPolicyDraft() };
   return { kind, draft: createMockResponsePolicyDraft() };
@@ -436,6 +465,7 @@ function createPolicyEditor(kind: GovernancePolicyKind): PolicyEditor {
 
 function editPolicyEditor(policy: GovernancePolicy): PolicyEditor {
   if (policy.kind === 'IPRestrictionPolicy') return { kind: policy.kind, draft: createIPRestrictionPolicyDraft(policy.raw) };
+  if (policy.kind === 'RateLimitPolicy') return { kind: policy.kind, draft: createRateLimitPolicyDraft(policy.raw) };
   if (policy.kind === 'TokenQuotaPolicy') return { kind: policy.kind, draft: createTokenQuotaPolicyDraft(policy.raw) };
   if (policy.kind === 'HeaderTransformationPolicy') return { kind: policy.kind, draft: createHeaderTransformationPolicyDraft(policy.raw) };
   return { kind: policy.kind, draft: createMockResponsePolicyDraft(policy.raw) };
@@ -443,6 +473,7 @@ function editPolicyEditor(policy: GovernancePolicy): PolicyEditor {
 
 function validatePolicyEditor(editor: PolicyEditor) {
   if (editor.kind === 'IPRestrictionPolicy') return validateIPRestrictionPolicyDraft(editor.draft);
+  if (editor.kind === 'RateLimitPolicy') return validateRateLimitPolicyDraft(editor.draft);
   if (editor.kind === 'TokenQuotaPolicy') return validateTokenQuotaPolicyDraft(editor.draft);
   if (editor.kind === 'HeaderTransformationPolicy') return validateHeaderTransformationPolicyDraft(editor.draft);
   return validateMockResponsePolicyDraft(editor.draft);
@@ -450,6 +481,7 @@ function validatePolicyEditor(editor: PolicyEditor) {
 
 function savePolicyEditor(editor: PolicyEditor) {
   if (editor.kind === 'IPRestrictionPolicy') return saveIPRestrictionPolicy(ipRestrictionPolicyPayload(editor.draft));
+  if (editor.kind === 'RateLimitPolicy') return saveRateLimitPolicy(rateLimitPolicyPayload(editor.draft));
   if (editor.kind === 'TokenQuotaPolicy') return saveTokenQuotaPolicy(tokenQuotaPolicyPayload(editor.draft));
   if (editor.kind === 'HeaderTransformationPolicy') return saveHeaderTransformationPolicy(headerTransformationPolicyPayload(editor.draft));
   return saveMockResponsePolicy(mockResponsePolicyPayload(editor.draft));
@@ -458,6 +490,7 @@ function savePolicyEditor(editor: PolicyEditor) {
 function deletePolicy(policy: GovernancePolicy) {
   const version = Number(policy.version);
   if (policy.kind === 'IPRestrictionPolicy') return deleteIPRestrictionPolicy(policy.id, version);
+  if (policy.kind === 'RateLimitPolicy') return deleteRateLimitPolicy(policy.id, version);
   if (policy.kind === 'TokenQuotaPolicy') return deleteTokenQuotaPolicy(policy.id, version);
   if (policy.kind === 'HeaderTransformationPolicy') return deleteHeaderTransformationPolicy(policy.id, version);
   return deleteMockResponsePolicy(policy.id, version);
@@ -516,6 +549,14 @@ function PolicyDetail({ policy, targets }: { policy: GovernancePolicy; targets: 
 function PolicyRuleDetails({ policy }: { policy: GovernancePolicy }) {
   if (policy.kind === 'IPRestrictionPolicy') {
     return <><div><span>允许地址</span><strong>{policy.raw.allow.join('、') || '未配置'}</strong></div><div><span>拒绝地址</span><strong>{policy.raw.deny.join('、') || '未配置'}</strong></div></>;
+  }
+  if (policy.kind === 'RateLimitPolicy') {
+    const subject = policy.raw.subject.type === 'Shared'
+      ? '目标共享'
+      : policy.raw.subject.type === 'IP'
+        ? '按客户端 IP'
+        : `按请求头 ${policy.raw.subject.headerName}`;
+    return <><div><span>计数方式</span><strong>{subject}</strong></div><div><span>请求上限</span><strong>{policy.summary}</strong></div></>;
   }
   if (policy.kind === 'TokenQuotaPolicy') {
     return <><div><span>周期时区</span><strong>{policy.raw.timeZone}</strong></div><div><span>额度上限</span><strong>{policy.summary}</strong></div></>;

@@ -23,22 +23,6 @@ func requestID() kratoshttp.FilterFunc {
 	}
 }
 
-func cors() kratoshttp.FilterFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-			response.Header().Set("Access-Control-Allow-Origin", "*")
-			response.Header().Set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-			response.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization,"+requestid.Header)
-			response.Header().Set("Access-Control-Expose-Headers", requestid.Header)
-			if request.Method == http.MethodOptions {
-				response.WriteHeader(http.StatusNoContent)
-				return
-			}
-			next.ServeHTTP(response, request)
-		})
-	}
-}
-
 func recovery(logger *slog.Logger) kratoshttp.FilterFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

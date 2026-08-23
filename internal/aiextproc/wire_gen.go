@@ -27,9 +27,9 @@ func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_
 	}
 	tokenCounter := redis.NewTokenCounter(data_Redis)
 	readiness := data.NewReadiness(configCache, tokenCounter)
-	httpServer := server.NewHTTPServer(confServer, readiness)
 	tokenquotaService := tokenquota.NewService(configCache, tokenCounter)
 	externalProcessor := service.NewExternalProcessor(configCache, tokenquotaService, logger)
+	httpServer := server.NewHTTPServer(confServer, readiness, externalProcessor)
 	tokenQuotaUsageService := service.NewTokenQuotaUsageService(tokenquotaService)
 	grpcServer := server.NewGRPCServer(confServer, externalProcessor, tokenQuotaUsageService)
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, configCache, tokenCounter, aiextprocServiceInstanceID)

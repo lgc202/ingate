@@ -3,6 +3,7 @@
 
 -- model_calls 保存网关向模型 Service 发起的实际调用
 -- 只有已经选中并尝试模型 Service 的请求才进入该表，本地拒绝不属于模型调用
+-- 单次调用明细由 retention.model_calls 控制保留时间。
 CREATE TABLE IF NOT EXISTS model_calls
 (
     request_record_id String,
@@ -32,6 +33,7 @@ SETTINGS non_replicated_deduplication_window = 100000;
 -- model_usage_1m 保存控制台用量查询需要的加法指标。
 -- 维度保留到调用方密钥，后续可以按 Caller 或单个 Access Key 汇总累计用量，
 -- 无需重新扫描保留周期更短的模型调用明细。
+-- 该表是长期累计用量账本，不跟随模型调用明细过期。
 CREATE TABLE IF NOT EXISTS model_usage_1m
 (
     started_at DateTime('UTC'),

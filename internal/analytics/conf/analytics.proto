@@ -95,6 +95,14 @@ message Data {
     int32 fetch_min_bytes = 10;
   }
   message ClickHouse {
+    message Retention {
+      // request_records 是请求明细的保留时间
+      google.protobuf.Duration request_records = 1;
+      // request_metrics 是分钟流量聚合的保留时间
+      google.protobuf.Duration request_metrics = 2;
+      // model_calls 是单次模型调用明细的保留时间
+      google.protobuf.Duration model_calls = 3;
+    }
     message TLS {
       // enabled 控制 ClickHouse native 连接是否启用 TLS
       bool enabled = 1;
@@ -129,6 +137,9 @@ message Data {
     TLS tls = 10;
     // query_timeout 限制单次 ClickHouse 查询时间
     google.protobuf.Duration query_timeout = 11;
+    // retention 定义可重新生成的数据在 ClickHouse 中保留多久
+    // model_usage_1m 是累计用量账本，不受这里的明细保留策略影响
+    Retention retention = 12;
   }
   // kafka 提供 ALS 已可靠接收的请求记录
   Kafka kafka = 1;
