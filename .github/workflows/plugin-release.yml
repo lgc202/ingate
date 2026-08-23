@@ -1,6 +1,6 @@
 name: Plugin release
 
-run-name: Release ${{ inputs.plugin }} v${{ inputs.version }}
+run-name: Release ${{ inputs.plugin }} ${{ inputs.version }}
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ on:
           - transformer
           - mock-response
       version:
-        description: Semantic version without the v prefix
+        description: Release version, for example v1.0.2
         required: true
         type: string
 
@@ -47,7 +47,7 @@ jobs:
           PLUGIN: ${{ inputs.plugin }}
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          if [[ ! "$RELEASE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+          if [[ ! "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid plugin version: $RELEASE_VERSION" >&2
             exit 1
           fi
@@ -63,7 +63,7 @@ jobs:
           {
             echo "plugin=${PLUGIN}"
             echo "package=${package}"
-            echo "version=v${RELEASE_VERSION}"
+            echo "version=${RELEASE_VERSION}"
             echo "image=${image}"
           } >> "$GITHUB_OUTPUT"
 

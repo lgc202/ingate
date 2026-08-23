@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example v0.2.0
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -17,22 +23,52 @@ jobs:
     name: Verify release
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      commit: ${{ steps.release.outputs.commit }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Verify tag
+      - name: Resolve release metadata
+        id: release
         env:
-          RELEASE_VERSION: ${{ github.ref_name }}
+          RELEASE_INPUT: ${{ inputs.version }}
         run: |
-          if [[ ! "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid release tag: $RELEASE_VERSION" >&2
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            version="$RELEASE_INPUT"
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+              echo "Manual releases must run from the main branch" >&2
+              exit 1
+            fi
+          else
+            version="$GITHUB_REF_NAME"
+          fi
+
+          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version: $version" >&2
             exit 1
           fi
-          git fetch origin main
-          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+          git fetch origin main --tags
+          commit=$(git rev-parse "$GITHUB_SHA^{commit}")
+          git merge-base --is-ancestor "$commit" origin/main
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$commit" != "$(git rev-parse origin/main)" ]]; then
+              echo "Manual releases must use the latest commit on main" >&2
+              exit 1
+            fi
+            if git show-ref --verify --quiet "refs/tags/$version"; then
+              echo "Release tag already exists: $version" >&2
+              exit 1
+            fi
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -75,10 +111,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
 
       - name: Resolve build metadata
         id: metadata
-        run: echo "build_date=$(git show -s --format=%cI "$GITHUB_SHA")" >> "$GITHUB_OUTPUT"
+        env:
+          RELEASE_COMMIT: ${{ needs.verify.outputs.commit }}
+        run: echo "build_date=$(git show -s --format=%cI "$RELEASE_COMMIT")" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v4
@@ -101,15 +141,15 @@ jobs:
           target: ${{ matrix.component }}
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/lgc202/ingate-${{ matrix.component }}:${{ github.ref_name }}
+          tags: ghcr.io/lgc202/ingate-${{ matrix.component }}:${{ needs.verify.outputs.version }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.version=${{ github.ref_name }}
+            org.opencontainers.image.revision=${{ needs.verify.outputs.commit }}
+            org.opencontainers.image.version=${{ needs.verify.outputs.version }}
           build-args: |
             COMPONENT=${{ matrix.component }}
-            GIT_VERSION=${{ github.ref_name }}
-            GIT_COMMIT=${{ github.sha }}
+            GIT_VERSION=${{ needs.verify.outputs.version }}
+            GIT_COMMIT=${{ needs.verify.outputs.commit }}
             GIT_TREE_STATE=clean
             BUILD_DATE=${{ steps.metadata.outputs.build_date }}
           cache-from: type=gha,scope=release-${{ matrix.component }}
@@ -117,7 +157,9 @@ jobs:
 
   release:
     name: Publish GitHub release
-    needs: images
+    needs:
+      - verify
+      - images
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -125,24 +167,35 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.verify.outputs.commit }}
 
       - name: Package Docker Compose distribution
-        run: ./scripts/package-compose.sh "$GITHUB_REF_NAME" dist
+        env:
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
+        run: ./scripts/package-compose.sh "$RELEASE_VERSION" dist
 
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_COMMIT: ${{ needs.verify.outputs.commit }}
+          RELEASE_EVENT: ${{ github.event_name }}
+          RELEASE_VERSION: ${{ needs.verify.outputs.version }}
         run: |
           options=(
-            "$GITHUB_REF_NAME"
+            "$RELEASE_VERSION"
             dist/ingate-compose.tar.gz
             dist/ingate-compose.tar.gz.sha256
             scripts/install.sh
-            --verify-tag
             --generate-notes
-            --title "$GITHUB_REF_NAME"
+            --title "$RELEASE_VERSION"
           )
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+          if [[ "$RELEASE_EVENT" == "workflow_dispatch" ]]; then
+            options+=(--target "$RELEASE_COMMIT")
+          else
+            options+=(--verify-tag)
+          fi
+          if [[ "$RELEASE_VERSION" == *-* ]]; then
             options+=(--prerelease)
           fi
           gh release create "${options[@]}"
