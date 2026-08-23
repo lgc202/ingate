@@ -2,7 +2,7 @@ import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './clie
 import { listGateways } from './gateways';
 import { listRoutes } from './routes';
 import { listCallers } from './callers';
-import { listWasmPlugins } from './plugins';
+import { listWasmPluginMarketInstallations } from './plugins';
 import type { GatewayListView } from '@/domain/gateway';
 import type { ResourceState, ResourceStatus } from '@/domain/common';
 import type {
@@ -113,19 +113,49 @@ interface CallerTokenQuotaUsageResponse {
 
 interface GetCallerTokenQuotaUsageResponse { usages?: CallerTokenQuotaUsageResponse[] }
 
-export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
-  const [ipRestrictionPolicies, rateLimitPolicies, tokenQuotaPolicies, headerTransformationPolicies, mockResponsePolicies, gatewayList, routeList, callers, plugins] = await Promise.all([
+// 策略列表只读取策略本身和低基数的插件安装摘要，避免每次翻页都全量扫描 Gateway、Route 和 Caller
+export async function getPolicyListWorkspace(): Promise<PolicyWorkspace> {
+  const [ipRestrictionPolicies, rateLimitPolicies, tokenQuotaPolicies, headerTransformationPolicies, mockResponsePolicies, plugins] = await Promise.all([
     listIPRestrictionPolicies(),
     listRateLimitPolicies(),
     listTokenQuotaPolicies(),
     listHeaderTransformationPolicies(),
     listMockResponsePolicies(),
-    listGateways(),
-    listRoutes(),
-    listCallers(),
-    listWasmPlugins(),
+    listWasmPluginMarketInstallations(),
   ]);
-  const policies: GovernancePolicy[] = [...ipRestrictionPolicies.map((policy) => ({
+  const policies = governancePolicies(
+    ipRestrictionPolicies,
+    rateLimitPolicies,
+    tokenQuotaPolicies,
+    headerTransformationPolicies,
+    mockResponsePolicies,
+  );
+  return {
+    policies,
+    ipRestrictionPolicies,
+    rateLimitPolicies,
+    tokenQuotaPolicies,
+    headerTransformationPolicies,
+    mockResponsePolicies,
+    installedPluginPackages: plugins.map((plugin) => plugin.package),
+    targets: referencedPolicyTargets(policies),
+  };
+}
+
+// 编辑器需要完整的目标候选项，仅在用户打开创建或编辑抽屉时读取
+export async function getPolicyEditorOptions(): Promise<PolicyTargetOption[]> {
+  const [gatewayList, routeList, callers] = await Promise.all([listGateways(), listRoutes(), listCallers()]);
+  return policyTargets(gatewayList, routeList, callers);
+}
+
+function governancePolicies(
+  ipRestrictionPolicies: IPRestrictionPolicy[],
+  rateLimitPolicies: RateLimitPolicy[],
+  tokenQuotaPolicies: TokenQuotaPolicy[],
+  headerTransformationPolicies: HeaderTransformationPolicy[],
+  mockResponsePolicies: MockResponsePolicy[],
+): GovernancePolicy[] {
+  return [...ipRestrictionPolicies.map((policy) => ({
     id: policy.id,
     version: policy.version,
     kind: 'IPRestrictionPolicy' as const,
@@ -191,16 +221,6 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
     updatedAt: policy.updatedAt,
     raw: policy,
   }) satisfies GovernancePolicy)].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
-  return {
-    policies,
-    ipRestrictionPolicies,
-    rateLimitPolicies,
-    tokenQuotaPolicies,
-    headerTransformationPolicies,
-    mockResponsePolicies,
-    installedPluginPackages: plugins.map((plugin) => plugin.package),
-    targets: policyTargets(gatewayList, routeList, callers),
-  };
 }
 
 export async function listIPRestrictionPolicies(): Promise<IPRestrictionPolicy[]> {
@@ -433,6 +453,20 @@ function policyTargets(gateways: GatewayListView, routes: RouteListView, callers
     ...routes.routes.map((route) => ({ id: route.id, name: route.name || route.id, kind: 'Route' as const })),
     ...callers.map((caller) => ({ id: caller.id, name: caller.name || caller.id, kind: 'Caller' as const })),
   ].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+}
+
+function referencedPolicyTargets(policies: GovernancePolicy[]): PolicyTargetOption[] {
+  const targets = new Map<string, PolicyTargetOption>();
+  for (const policy of policies) {
+    for (const target of policy.targets) {
+      targets.set(`${target.kind}:${target.id}`, {
+        id: target.id,
+        name: target.displayName || '已删除的目标',
+        kind: target.kind,
+      });
+    }
+  }
+  return [...targets.values()].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
 }
 
 function tokenQuotaPeriodFromResponse(value: string): TokenQuotaPeriod {

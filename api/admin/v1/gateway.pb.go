@@ -262,6 +262,9 @@ type ListGatewaysRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,4,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	State         ResourceState          `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -308,6 +311,27 @@ func (x *ListGatewaysRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListGatewaysRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListGatewaysRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *ListGatewaysRequest) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 type ListGatewaysResponse struct {
@@ -616,10 +640,15 @@ const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"L\n" +
+	"updated_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xcd\x01\n" +
 	"\x13ListGatewaysRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"m\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1d\n" +
+	"\aenabled\x18\x04 \x01(\bH\x00R\aenabled\x88\x01\x01\x12>\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05stateB\n" +
+	"\n" +
+	"\b_enabled\"m\n" +
 	"\x14ListGatewaysResponse\x124\n" +
 	"\bgateways\x18\x01 \x03(\v2\x18.ingate.admin.v1.GatewayR\bgateways\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -689,24 +718,25 @@ var file_admin_v1_gateway_proto_depIdxs = []int32{
 	9,  // 2: ingate.admin.v1.Gateway.state:type_name -> ingate.admin.v1.ResourceState
 	10, // 3: ingate.admin.v1.Gateway.created_at:type_name -> google.protobuf.Timestamp
 	10, // 4: ingate.admin.v1.Gateway.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 5: ingate.admin.v1.ListGatewaysResponse.gateways:type_name -> ingate.admin.v1.Gateway
-	1,  // 6: ingate.admin.v1.CreateGatewayRequest.listeners:type_name -> ingate.admin.v1.GatewayListener
-	1,  // 7: ingate.admin.v1.UpdateGatewayRequest.listeners:type_name -> ingate.admin.v1.GatewayListener
-	3,  // 8: ingate.admin.v1.GatewayService.ListGateways:input_type -> ingate.admin.v1.ListGatewaysRequest
-	5,  // 9: ingate.admin.v1.GatewayService.GetGateway:input_type -> ingate.admin.v1.GetGatewayRequest
-	6,  // 10: ingate.admin.v1.GatewayService.CreateGateway:input_type -> ingate.admin.v1.CreateGatewayRequest
-	7,  // 11: ingate.admin.v1.GatewayService.UpdateGateway:input_type -> ingate.admin.v1.UpdateGatewayRequest
-	8,  // 12: ingate.admin.v1.GatewayService.DeleteGateway:input_type -> ingate.admin.v1.DeleteGatewayRequest
-	4,  // 13: ingate.admin.v1.GatewayService.ListGateways:output_type -> ingate.admin.v1.ListGatewaysResponse
-	2,  // 14: ingate.admin.v1.GatewayService.GetGateway:output_type -> ingate.admin.v1.Gateway
-	2,  // 15: ingate.admin.v1.GatewayService.CreateGateway:output_type -> ingate.admin.v1.Gateway
-	2,  // 16: ingate.admin.v1.GatewayService.UpdateGateway:output_type -> ingate.admin.v1.Gateway
-	11, // 17: ingate.admin.v1.GatewayService.DeleteGateway:output_type -> google.protobuf.Empty
-	13, // [13:18] is the sub-list for method output_type
-	8,  // [8:13] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	9,  // 5: ingate.admin.v1.ListGatewaysRequest.state:type_name -> ingate.admin.v1.ResourceState
+	2,  // 6: ingate.admin.v1.ListGatewaysResponse.gateways:type_name -> ingate.admin.v1.Gateway
+	1,  // 7: ingate.admin.v1.CreateGatewayRequest.listeners:type_name -> ingate.admin.v1.GatewayListener
+	1,  // 8: ingate.admin.v1.UpdateGatewayRequest.listeners:type_name -> ingate.admin.v1.GatewayListener
+	3,  // 9: ingate.admin.v1.GatewayService.ListGateways:input_type -> ingate.admin.v1.ListGatewaysRequest
+	5,  // 10: ingate.admin.v1.GatewayService.GetGateway:input_type -> ingate.admin.v1.GetGatewayRequest
+	6,  // 11: ingate.admin.v1.GatewayService.CreateGateway:input_type -> ingate.admin.v1.CreateGatewayRequest
+	7,  // 12: ingate.admin.v1.GatewayService.UpdateGateway:input_type -> ingate.admin.v1.UpdateGatewayRequest
+	8,  // 13: ingate.admin.v1.GatewayService.DeleteGateway:input_type -> ingate.admin.v1.DeleteGatewayRequest
+	4,  // 14: ingate.admin.v1.GatewayService.ListGateways:output_type -> ingate.admin.v1.ListGatewaysResponse
+	2,  // 15: ingate.admin.v1.GatewayService.GetGateway:output_type -> ingate.admin.v1.Gateway
+	2,  // 16: ingate.admin.v1.GatewayService.CreateGateway:output_type -> ingate.admin.v1.Gateway
+	2,  // 17: ingate.admin.v1.GatewayService.UpdateGateway:output_type -> ingate.admin.v1.Gateway
+	11, // 18: ingate.admin.v1.GatewayService.DeleteGateway:output_type -> google.protobuf.Empty
+	14, // [14:19] is the sub-list for method output_type
+	9,  // [9:14] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_gateway_proto_init() }
@@ -715,6 +745,7 @@ func file_admin_v1_gateway_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
+	file_admin_v1_gateway_proto_msgTypes[2].OneofWrappers = []any{}
 	file_admin_v1_gateway_proto_msgTypes[5].OneofWrappers = []any{}
 	file_admin_v1_gateway_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}

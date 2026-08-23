@@ -153,6 +153,9 @@ type ListIPRestrictionPoliciesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,4,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	State         ResourceState          `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -199,6 +202,27 @@ func (x *ListIPRestrictionPoliciesRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListIPRestrictionPoliciesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListIPRestrictionPoliciesRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *ListIPRestrictionPoliciesRequest) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 type ListIPRestrictionPoliciesResponse struct {
@@ -528,10 +552,15 @@ const file_admin_v1_ip_restriction_policy_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"Y\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xda\x01\n" +
 	" ListIPRestrictionPoliciesRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"\x86\x01\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1d\n" +
+	"\aenabled\x18\x04 \x01(\bH\x00R\aenabled\x88\x01\x01\x12>\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05stateB\n" +
+	"\n" +
+	"\b_enabled\"\x86\x01\n" +
 	"!ListIPRestrictionPoliciesResponse\x12@\n" +
 	"\bpolicies\x18\x01 \x03(\v2$.ingate.admin.v1.IPRestrictionPolicyR\bpolicies\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -595,24 +624,25 @@ var file_admin_v1_ip_restriction_policy_proto_depIdxs = []int32{
 	8,  // 1: ingate.admin.v1.IPRestrictionPolicy.state:type_name -> ingate.admin.v1.ResourceState
 	9,  // 2: ingate.admin.v1.IPRestrictionPolicy.created_at:type_name -> google.protobuf.Timestamp
 	9,  // 3: ingate.admin.v1.IPRestrictionPolicy.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 4: ingate.admin.v1.ListIPRestrictionPoliciesResponse.policies:type_name -> ingate.admin.v1.IPRestrictionPolicy
-	10, // 5: ingate.admin.v1.CreateIPRestrictionPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	10, // 6: ingate.admin.v1.UpdateIPRestrictionPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	1,  // 7: ingate.admin.v1.IPRestrictionPolicyService.ListIPRestrictionPolicies:input_type -> ingate.admin.v1.ListIPRestrictionPoliciesRequest
-	3,  // 8: ingate.admin.v1.IPRestrictionPolicyService.GetIPRestrictionPolicy:input_type -> ingate.admin.v1.GetIPRestrictionPolicyRequest
-	4,  // 9: ingate.admin.v1.IPRestrictionPolicyService.CreateIPRestrictionPolicy:input_type -> ingate.admin.v1.CreateIPRestrictionPolicyRequest
-	5,  // 10: ingate.admin.v1.IPRestrictionPolicyService.UpdateIPRestrictionPolicy:input_type -> ingate.admin.v1.UpdateIPRestrictionPolicyRequest
-	6,  // 11: ingate.admin.v1.IPRestrictionPolicyService.DeleteIPRestrictionPolicy:input_type -> ingate.admin.v1.DeleteIPRestrictionPolicyRequest
-	2,  // 12: ingate.admin.v1.IPRestrictionPolicyService.ListIPRestrictionPolicies:output_type -> ingate.admin.v1.ListIPRestrictionPoliciesResponse
-	0,  // 13: ingate.admin.v1.IPRestrictionPolicyService.GetIPRestrictionPolicy:output_type -> ingate.admin.v1.IPRestrictionPolicy
-	0,  // 14: ingate.admin.v1.IPRestrictionPolicyService.CreateIPRestrictionPolicy:output_type -> ingate.admin.v1.IPRestrictionPolicy
-	0,  // 15: ingate.admin.v1.IPRestrictionPolicyService.UpdateIPRestrictionPolicy:output_type -> ingate.admin.v1.IPRestrictionPolicy
-	11, // 16: ingate.admin.v1.IPRestrictionPolicyService.DeleteIPRestrictionPolicy:output_type -> google.protobuf.Empty
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	8,  // 4: ingate.admin.v1.ListIPRestrictionPoliciesRequest.state:type_name -> ingate.admin.v1.ResourceState
+	0,  // 5: ingate.admin.v1.ListIPRestrictionPoliciesResponse.policies:type_name -> ingate.admin.v1.IPRestrictionPolicy
+	10, // 6: ingate.admin.v1.CreateIPRestrictionPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	10, // 7: ingate.admin.v1.UpdateIPRestrictionPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	1,  // 8: ingate.admin.v1.IPRestrictionPolicyService.ListIPRestrictionPolicies:input_type -> ingate.admin.v1.ListIPRestrictionPoliciesRequest
+	3,  // 9: ingate.admin.v1.IPRestrictionPolicyService.GetIPRestrictionPolicy:input_type -> ingate.admin.v1.GetIPRestrictionPolicyRequest
+	4,  // 10: ingate.admin.v1.IPRestrictionPolicyService.CreateIPRestrictionPolicy:input_type -> ingate.admin.v1.CreateIPRestrictionPolicyRequest
+	5,  // 11: ingate.admin.v1.IPRestrictionPolicyService.UpdateIPRestrictionPolicy:input_type -> ingate.admin.v1.UpdateIPRestrictionPolicyRequest
+	6,  // 12: ingate.admin.v1.IPRestrictionPolicyService.DeleteIPRestrictionPolicy:input_type -> ingate.admin.v1.DeleteIPRestrictionPolicyRequest
+	2,  // 13: ingate.admin.v1.IPRestrictionPolicyService.ListIPRestrictionPolicies:output_type -> ingate.admin.v1.ListIPRestrictionPoliciesResponse
+	0,  // 14: ingate.admin.v1.IPRestrictionPolicyService.GetIPRestrictionPolicy:output_type -> ingate.admin.v1.IPRestrictionPolicy
+	0,  // 15: ingate.admin.v1.IPRestrictionPolicyService.CreateIPRestrictionPolicy:output_type -> ingate.admin.v1.IPRestrictionPolicy
+	0,  // 16: ingate.admin.v1.IPRestrictionPolicyService.UpdateIPRestrictionPolicy:output_type -> ingate.admin.v1.IPRestrictionPolicy
+	11, // 17: ingate.admin.v1.IPRestrictionPolicyService.DeleteIPRestrictionPolicy:output_type -> google.protobuf.Empty
+	13, // [13:18] is the sub-list for method output_type
+	8,  // [8:13] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_ip_restriction_policy_proto_init() }
@@ -621,6 +651,7 @@ func file_admin_v1_ip_restriction_policy_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
+	file_admin_v1_ip_restriction_policy_proto_msgTypes[1].OneofWrappers = []any{}
 	file_admin_v1_ip_restriction_policy_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

@@ -73,8 +73,12 @@ func (s *Service) UpgradeVersion(sourceID, packageName, currentVersion string) (
 }
 
 // List 查询已安装插件
-func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.WasmPlugin], error) {
-	return s.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest, filter biz.ResourceFilter) (biz.PageResult[resource.WasmPlugin], error) {
+	return biz.FilterPage(ctx, page, s.repository.ListPage, func(plugin resource.WasmPlugin) bool {
+		status := biz.WasmPluginStatus(plugin.Generation, plugin.Status.Conditions)
+		searchText := plugin.Spec.DisplayName + " " + plugin.Spec.Package + " " + plugin.Spec.Version
+		return filter.Match(searchText, true, status)
+	})
 }
 
 // Get 查询单个已安装插件

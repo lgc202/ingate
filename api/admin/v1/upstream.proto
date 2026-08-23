@@ -47,6 +47,12 @@ enum ModelProtocol {
   MODEL_PROTOCOL_ANTHROPIC = 2;
 }
 
+enum UpstreamType {
+  UPSTREAM_TYPE_UNSPECIFIED = 0;
+  UPSTREAM_TYPE_HTTP = 1;
+  UPSTREAM_TYPE_MODEL = 2;
+}
+
 // ModelUpstream 只返回模型服务的非敏感配置
 message ModelUpstream {
   ModelProtocol protocol = 1;
@@ -101,6 +107,9 @@ message Upstream {
 message ListUpstreamsRequest {
   int32 limit = 1 [(buf.validate.field).int32.gte = 0];
   string cursor = 2;
+  string query = 3;
+  UpstreamType type = 4 [(buf.validate.field).enum.defined_only = true];
+  ResourceState state = 5 [(buf.validate.field).enum.defined_only = true];
 }
 
 message ListUpstreamsResponse {

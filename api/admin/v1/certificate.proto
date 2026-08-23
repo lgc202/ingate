@@ -52,6 +52,8 @@ message Certificate {
 message ListCertificatesRequest {
   int32 limit = 1 [(buf.validate.field).int32.gte = 0];
   string cursor = 2;
+  string query = 3;
+  ResourceState state = 4 [(buf.validate.field).enum.defined_only = true];
 }
 
 message ListCertificatesResponse {

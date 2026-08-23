@@ -45,7 +45,11 @@ func (s *Service) ListWasmPlugins(
 	ctx context.Context,
 	request *adminv1.ListWasmPluginsRequest,
 ) (*adminv1.ListWasmPluginsResponse, error) {
-	page, err := s.plugins.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	page, err := s.plugins.List(
+		ctx,
+		adminservice.PageRequest(request.GetLimit(), request.GetCursor()),
+		adminservice.ResourceFilter(request.GetQuery(), nil, request.GetState()),
+	)
 	if err != nil {
 		return nil, err
 	}

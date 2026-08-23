@@ -2,25 +2,24 @@ package biz
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-// GatewayGetter 定义策略目标解析所需的 Gateway 查询能力
-type GatewayGetter interface {
-	Get(ctx context.Context, gatewayID string) (*resource.Gateway, error)
+// GatewayLister 定义策略目标批量解析所需的 Gateway 查询能力
+type GatewayLister interface {
+	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.Gateway], error)
 }
 
-// RouteGetter 定义策略目标解析所需的 Route 查询能力
-type RouteGetter interface {
-	Get(ctx context.Context, routeID string) (*resource.Route, error)
+// RouteLister 定义策略目标批量解析所需的 Route 查询能力
+type RouteLister interface {
+	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.Route], error)
 }
 
-// CallerGetter 定义调用方策略目标解析所需的查询能力
-type CallerGetter interface {
-	Get(ctx context.Context, callerID string) (*resource.Caller, error)
+// CallerLister 定义调用方策略目标批量解析所需的查询能力
+type CallerLister interface {
+	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.Caller], error)
 }
 
 type policyTargetKey struct {
@@ -45,18 +44,18 @@ func (n PolicyTargetNames) contains(ref resource.PolicyTargetRef) bool {
 
 // PolicyTargetResolver 解析策略允许引用的资源并返回展示名称
 type PolicyTargetResolver struct {
-	gateways GatewayGetter
-	routes   RouteGetter
-	callers  CallerGetter
+	gateways GatewayLister
+	routes   RouteLister
+	callers  CallerLister
 }
 
 // NewCallerPolicyTargetResolver 创建只解析 Caller 的策略目标解析器
-func NewCallerPolicyTargetResolver(callers CallerGetter) *PolicyTargetResolver {
+func NewCallerPolicyTargetResolver(callers CallerLister) *PolicyTargetResolver {
 	return &PolicyTargetResolver{callers: callers}
 }
 
 // NewPolicyTargetResolver 创建策略作用目标解析器
-func NewPolicyTargetResolver(gateways GatewayGetter, routes RouteGetter) *PolicyTargetResolver {
+func NewPolicyTargetResolver(gateways GatewayLister, routes RouteLister) *PolicyTargetResolver {
 	return &PolicyTargetResolver{gateways: gateways, routes: routes}
 }
 
@@ -87,41 +86,49 @@ func (r *PolicyTargetResolver) Resolve(ctx context.Context, refs []resource.Poli
 // DisplayNames 返回当前存在的策略作用目标展示名称，缺失引用保留为空名称供状态页展示
 func (r *PolicyTargetResolver) DisplayNames(ctx context.Context, refs []resource.PolicyTargetRef) (PolicyTargetNames, error) {
 	names := PolicyTargetNames{values: make(map[policyTargetKey]string, len(refs))}
-	seen := make(map[policyTargetKey]struct{}, len(refs))
+	targets := make(map[resource.Kind]map[string]struct{}, 3)
 	for _, ref := range refs {
-		key := policyTargetKey{Kind: ref.Kind, ID: ref.Name}
-		if _, exists := seen[key]; exists {
-			continue
+		ids := targets[ref.Kind]
+		if ids == nil {
+			ids = make(map[string]struct{})
+			targets[ref.Kind] = ids
 		}
-		seen[key] = struct{}{}
-		switch ref.Kind {
-		case resource.KindGateway:
-			gateway, err := r.gateways.Get(ctx, ref.Name)
-			if err != nil {
-				if errors.Is(err, ErrResourceNotFound) {
-					continue
-				}
-				return PolicyTargetNames{}, err
+		ids[ref.Name] = struct{}{}
+	}
+	if ids := targets[resource.KindGateway]; len(ids) > 0 {
+		resolved := 0
+		if err := VisitPages(ctx, r.gateways.ListPage, func(item resource.Gateway) (bool, error) {
+			if _, ok := ids[item.Name]; ok {
+				names.values[policyTargetKey{Kind: resource.KindGateway, ID: item.Name}] = item.Spec.DisplayName
+				resolved++
 			}
-			names.values[key] = gateway.Spec.DisplayName
-		case resource.KindRoute:
-			route, err := r.routes.Get(ctx, ref.Name)
-			if err != nil {
-				if errors.Is(err, ErrResourceNotFound) {
-					continue
-				}
-				return PolicyTargetNames{}, err
+			return resolved == len(ids), nil
+		}); err != nil {
+			return PolicyTargetNames{}, err
+		}
+	}
+	if ids := targets[resource.KindRoute]; len(ids) > 0 {
+		resolved := 0
+		if err := VisitPages(ctx, r.routes.ListPage, func(item resource.Route) (bool, error) {
+			if _, ok := ids[item.Name]; ok {
+				names.values[policyTargetKey{Kind: resource.KindRoute, ID: item.Name}] = item.Spec.DisplayName
+				resolved++
 			}
-			names.values[key] = route.Spec.DisplayName
-		case resource.KindCaller:
-			caller, err := r.callers.Get(ctx, ref.Name)
-			if err != nil {
-				if errors.Is(err, ErrResourceNotFound) {
-					continue
-				}
-				return PolicyTargetNames{}, err
+			return resolved == len(ids), nil
+		}); err != nil {
+			return PolicyTargetNames{}, err
+		}
+	}
+	if ids := targets[resource.KindCaller]; len(ids) > 0 {
+		resolved := 0
+		if err := VisitPages(ctx, r.callers.ListPage, func(item resource.Caller) (bool, error) {
+			if _, ok := ids[item.Name]; ok {
+				names.values[policyTargetKey{Kind: resource.KindCaller, ID: item.Name}] = item.Spec.DisplayName
+				resolved++
 			}
-			names.values[key] = caller.Spec.DisplayName
+			return resolved == len(ids), nil
+		}); err != nil {
+			return PolicyTargetNames{}, err
 		}
 	}
 	return names, nil

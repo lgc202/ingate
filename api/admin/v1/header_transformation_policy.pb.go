@@ -271,6 +271,9 @@ type ListHeaderTransformationPoliciesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,4,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	State         ResourceState          `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -317,6 +320,27 @@ func (x *ListHeaderTransformationPoliciesRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListHeaderTransformationPoliciesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListHeaderTransformationPoliciesRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *ListHeaderTransformationPoliciesRequest) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 type ListHeaderTransformationPoliciesResponse struct {
@@ -650,10 +674,15 @@ const file_admin_v1_header_transformation_policy_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"`\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xe1\x01\n" +
 	"'ListHeaderTransformationPoliciesRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"\x94\x01\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1d\n" +
+	"\aenabled\x18\x04 \x01(\bH\x00R\aenabled\x88\x01\x01\x12>\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05stateB\n" +
+	"\n" +
+	"\b_enabled\"\x94\x01\n" +
 	"(ListHeaderTransformationPoliciesResponse\x12G\n" +
 	"\bpolicies\x18\x01 \x03(\v2+.ingate.admin.v1.HeaderTransformationPolicyR\bpolicies\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -730,28 +759,29 @@ var file_admin_v1_header_transformation_policy_proto_depIdxs = []int32{
 	10, // 4: ingate.admin.v1.HeaderTransformationPolicy.state:type_name -> ingate.admin.v1.ResourceState
 	11, // 5: ingate.admin.v1.HeaderTransformationPolicy.created_at:type_name -> google.protobuf.Timestamp
 	11, // 6: ingate.admin.v1.HeaderTransformationPolicy.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 7: ingate.admin.v1.ListHeaderTransformationPoliciesResponse.policies:type_name -> ingate.admin.v1.HeaderTransformationPolicy
-	12, // 8: ingate.admin.v1.CreateHeaderTransformationPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	1,  // 9: ingate.admin.v1.CreateHeaderTransformationPolicyRequest.request_rules:type_name -> ingate.admin.v1.HeaderTransformationRule
-	1,  // 10: ingate.admin.v1.CreateHeaderTransformationPolicyRequest.response_rules:type_name -> ingate.admin.v1.HeaderTransformationRule
-	12, // 11: ingate.admin.v1.UpdateHeaderTransformationPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	1,  // 12: ingate.admin.v1.UpdateHeaderTransformationPolicyRequest.request_rules:type_name -> ingate.admin.v1.HeaderTransformationRule
-	1,  // 13: ingate.admin.v1.UpdateHeaderTransformationPolicyRequest.response_rules:type_name -> ingate.admin.v1.HeaderTransformationRule
-	3,  // 14: ingate.admin.v1.HeaderTransformationPolicyService.ListHeaderTransformationPolicies:input_type -> ingate.admin.v1.ListHeaderTransformationPoliciesRequest
-	5,  // 15: ingate.admin.v1.HeaderTransformationPolicyService.GetHeaderTransformationPolicy:input_type -> ingate.admin.v1.GetHeaderTransformationPolicyRequest
-	6,  // 16: ingate.admin.v1.HeaderTransformationPolicyService.CreateHeaderTransformationPolicy:input_type -> ingate.admin.v1.CreateHeaderTransformationPolicyRequest
-	7,  // 17: ingate.admin.v1.HeaderTransformationPolicyService.UpdateHeaderTransformationPolicy:input_type -> ingate.admin.v1.UpdateHeaderTransformationPolicyRequest
-	8,  // 18: ingate.admin.v1.HeaderTransformationPolicyService.DeleteHeaderTransformationPolicy:input_type -> ingate.admin.v1.DeleteHeaderTransformationPolicyRequest
-	4,  // 19: ingate.admin.v1.HeaderTransformationPolicyService.ListHeaderTransformationPolicies:output_type -> ingate.admin.v1.ListHeaderTransformationPoliciesResponse
-	2,  // 20: ingate.admin.v1.HeaderTransformationPolicyService.GetHeaderTransformationPolicy:output_type -> ingate.admin.v1.HeaderTransformationPolicy
-	2,  // 21: ingate.admin.v1.HeaderTransformationPolicyService.CreateHeaderTransformationPolicy:output_type -> ingate.admin.v1.HeaderTransformationPolicy
-	2,  // 22: ingate.admin.v1.HeaderTransformationPolicyService.UpdateHeaderTransformationPolicy:output_type -> ingate.admin.v1.HeaderTransformationPolicy
-	13, // 23: ingate.admin.v1.HeaderTransformationPolicyService.DeleteHeaderTransformationPolicy:output_type -> google.protobuf.Empty
-	19, // [19:24] is the sub-list for method output_type
-	14, // [14:19] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	10, // 7: ingate.admin.v1.ListHeaderTransformationPoliciesRequest.state:type_name -> ingate.admin.v1.ResourceState
+	2,  // 8: ingate.admin.v1.ListHeaderTransformationPoliciesResponse.policies:type_name -> ingate.admin.v1.HeaderTransformationPolicy
+	12, // 9: ingate.admin.v1.CreateHeaderTransformationPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	1,  // 10: ingate.admin.v1.CreateHeaderTransformationPolicyRequest.request_rules:type_name -> ingate.admin.v1.HeaderTransformationRule
+	1,  // 11: ingate.admin.v1.CreateHeaderTransformationPolicyRequest.response_rules:type_name -> ingate.admin.v1.HeaderTransformationRule
+	12, // 12: ingate.admin.v1.UpdateHeaderTransformationPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	1,  // 13: ingate.admin.v1.UpdateHeaderTransformationPolicyRequest.request_rules:type_name -> ingate.admin.v1.HeaderTransformationRule
+	1,  // 14: ingate.admin.v1.UpdateHeaderTransformationPolicyRequest.response_rules:type_name -> ingate.admin.v1.HeaderTransformationRule
+	3,  // 15: ingate.admin.v1.HeaderTransformationPolicyService.ListHeaderTransformationPolicies:input_type -> ingate.admin.v1.ListHeaderTransformationPoliciesRequest
+	5,  // 16: ingate.admin.v1.HeaderTransformationPolicyService.GetHeaderTransformationPolicy:input_type -> ingate.admin.v1.GetHeaderTransformationPolicyRequest
+	6,  // 17: ingate.admin.v1.HeaderTransformationPolicyService.CreateHeaderTransformationPolicy:input_type -> ingate.admin.v1.CreateHeaderTransformationPolicyRequest
+	7,  // 18: ingate.admin.v1.HeaderTransformationPolicyService.UpdateHeaderTransformationPolicy:input_type -> ingate.admin.v1.UpdateHeaderTransformationPolicyRequest
+	8,  // 19: ingate.admin.v1.HeaderTransformationPolicyService.DeleteHeaderTransformationPolicy:input_type -> ingate.admin.v1.DeleteHeaderTransformationPolicyRequest
+	4,  // 20: ingate.admin.v1.HeaderTransformationPolicyService.ListHeaderTransformationPolicies:output_type -> ingate.admin.v1.ListHeaderTransformationPoliciesResponse
+	2,  // 21: ingate.admin.v1.HeaderTransformationPolicyService.GetHeaderTransformationPolicy:output_type -> ingate.admin.v1.HeaderTransformationPolicy
+	2,  // 22: ingate.admin.v1.HeaderTransformationPolicyService.CreateHeaderTransformationPolicy:output_type -> ingate.admin.v1.HeaderTransformationPolicy
+	2,  // 23: ingate.admin.v1.HeaderTransformationPolicyService.UpdateHeaderTransformationPolicy:output_type -> ingate.admin.v1.HeaderTransformationPolicy
+	13, // 24: ingate.admin.v1.HeaderTransformationPolicyService.DeleteHeaderTransformationPolicy:output_type -> google.protobuf.Empty
+	20, // [20:25] is the sub-list for method output_type
+	15, // [15:20] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_header_transformation_policy_proto_init() }
@@ -760,6 +790,7 @@ func file_admin_v1_header_transformation_policy_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
+	file_admin_v1_header_transformation_policy_proto_msgTypes[2].OneofWrappers = []any{}
 	file_admin_v1_header_transformation_policy_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

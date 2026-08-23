@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -55,8 +56,16 @@ func NewService(
 }
 
 // List 查询 Gateway 列表
-func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Gateway], error) {
-	return s.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest, filter biz.ResourceFilter) (biz.PageResult[resource.Gateway], error) {
+	return biz.FilterPage(ctx, page, s.repository.ListPage, func(gateway resource.Gateway) bool {
+		search := strings.Builder{}
+		search.WriteString(gateway.Spec.DisplayName)
+		for _, listener := range gateway.Spec.Listeners {
+			fmt.Fprintf(&search, " %s %s %d", listener.Name, listener.Hostname, listener.Port)
+		}
+		status := biz.EnabledResourceStatus(gateway.Generation, gateway.Spec.Enabled, gateway.Status.Conditions)
+		return filter.Match(search.String(), gateway.Spec.Enabled, status)
+	})
 }
 
 // Get 查询单个 Gateway

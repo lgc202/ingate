@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -62,9 +63,23 @@ func NewService(
 	}
 }
 
+// ListFilter 表达 Route 列表专有的类型筛选
+type ListFilter struct {
+	biz.ResourceFilter
+	AI *bool
+}
+
 // List 查询 Route 列表
-func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error) {
-	return s.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest, filter ListFilter) (biz.PageResult[resource.Route], error) {
+	return biz.FilterPage(ctx, page, s.repository.ListPage, func(route resource.Route) bool {
+		isAI := route.Spec.AI != nil
+		if filter.AI != nil && isAI != *filter.AI {
+			return false
+		}
+		search := strings.Join(append([]string{route.Spec.DisplayName, route.Spec.Match.Path.Value}, route.Spec.Hostnames...), " ")
+		status := biz.EnabledResourceStatus(route.Generation, route.Spec.Enabled, route.Status.Conditions)
+		return filter.ResourceFilter.Match(search, route.Spec.Enabled, status)
+	})
 }
 
 // Get 查询单个 Route

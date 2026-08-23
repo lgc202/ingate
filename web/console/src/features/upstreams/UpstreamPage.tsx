@@ -1,9 +1,9 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { BrainCircuit, KeyRound, Plus, Server, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { deleteUpstream, listUpstreams, saveUpstream } from '@/api/upstreams';
+import { deleteUpstream, listUpstreamPage, saveUpstream } from '@/api/upstreams';
 import { listRoutes } from '@/api/routes';
-import { useResource } from '@/api/useResource';
+import { useCursorResource, useResource } from '@/api/useResource';
 import {
   Badge,
   Button,
@@ -40,21 +40,29 @@ interface UpstreamFilters {
 const emptyUpstreamFilters = (): UpstreamFilters => ({ query: '', type: 'all', state: 'all' });
 
 export function UpstreamPage() {
-  const resource = useResource(listUpstreams, {
-    autoRefreshWhen: (data) => data.upstreams.some((upstream) => upstream.state === 'Pending'),
-  });
-  const routes = useResource(listRoutes);
-  const trafficOverview = useResourceTrafficOverview('service', resource.data?.upstreams.map((upstream) => upstream.id) ?? []);
   const [searchParams, setSearchParams] = useSearchParams();
   const [filterDraft, setFilterDraft] = useState<UpstreamFilters>(emptyUpstreamFilters);
   const [filters, setFilters] = useState<UpstreamFilters>(emptyUpstreamFilters);
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [draft, setDraft] = useState<UpstreamDraft>(() => createUpstreamDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Upstream | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const loadPage = useCallback((cursor: string) => listUpstreamPage({
+    limit: pageSize,
+    cursor,
+    query: filters.query.trim() || undefined,
+    type: filters.type === 'all' ? undefined : `UPSTREAM_TYPE_${filters.type}`,
+    state: filters.state === 'all' ? undefined : filters.state.toUpperCase(),
+  }), [filters, pageSize]);
+  const resource = useCursorResource(loadPage, {
+    autoRefreshWhen: (data) => data.items.some((upstream) => upstream.state === 'Pending'),
+  });
+  const list = resource.data?.items ?? [];
+  const detail = list.find((upstream) => upstream.id === searchParams.get('detail')) ?? null;
+  const routes = useResource(listRoutes, { enabled: Boolean(detail) });
+  const trafficOverview = useResourceTrafficOverview('service', list.map((upstream) => upstream.id));
 
   if (resource.loading && !resource.data) {
     return <PageFrame title="服务"><ResourceStatePanel title="正在加载服务" message="正在读取当前服务配置" /></PageFrame>;
@@ -68,20 +76,6 @@ export function UpstreamPage() {
     setEditorOpen(true);
   };
 
-  const normalizedQuery = filters.query.trim().toLowerCase();
-  const detail = resource.data.upstreams.find((upstream) => upstream.id === searchParams.get('detail')) ?? null;
-  const visibleUpstreams = resource.data.upstreams.filter((upstream) => {
-    const type = upstream.model ? 'MODEL' : 'HTTP';
-    const matchesQuery = `${upstream.name} ${upstream.model ? modelProtocolLabel(upstream.model.protocol) : 'HTTP'} ${upstream.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join(' ')}`
-      .toLowerCase()
-      .includes(normalizedQuery);
-    return matchesQuery
-      && (filters.type === 'all' || type === filters.type)
-      && (filters.state === 'all' || upstream.state === filters.state);
-  });
-  const pageCount = Math.max(1, Math.ceil(visibleUpstreams.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const pagedUpstreams = visibleUpstreams.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const referencingRoutes = (upstreamID: string) => routes.data?.routes.filter((route) => (
     route.upstreams.some((target) => target.upstreamID === upstreamID)
     || route.ai?.models.some((model) => model.targets.some((target) => target.upstreamID === upstreamID))
@@ -139,13 +133,13 @@ export function UpstreamPage() {
       <Panel>
         <ResourceListFilters
           summary={upstreamFilterSummary(filters)}
-          resultLabel={`${visibleUpstreams.length} 个服务`}
-          onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
+          resultLabel={`本页 ${list.length} 个服务`}
+          onSearch={() => { resource.reset(); setFilters({ ...filterDraft }); }}
           onReset={() => {
             const next = emptyUpstreamFilters();
             setFilterDraft(next);
             setFilters(next);
-            setPage(1);
+            resource.reset();
           }}
         >
           <ResourceFilterField label="关键词">
@@ -167,12 +161,12 @@ export function UpstreamPage() {
             </select>
           </ResourceFilterField>
         </ResourceListFilters>
-        {visibleUpstreams.length === 0 ? <div className="p-5"><EmptyState title={resource.data.upstreams.length === 0 ? '暂无服务' : '没有匹配的服务'} message={resource.data.upstreams.length === 0 ? '创建服务后即可在路由中选择转发目标' : '请调整搜索条件'} /></div> : (
+        {list.length === 0 ? <div className="p-5"><EmptyState title={filters.query || filters.type !== 'all' || filters.state !== 'all' ? '没有匹配的服务' : '暂无服务'} message={filters.query || filters.type !== 'all' || filters.state !== 'all' ? '请调整搜索条件' : '创建服务后即可在路由中选择转发目标'} /></div> : (
           <div className="table-scroll resource-table-scroll">
             <table className="table resource-table resource-upstream-table">
               <thead><tr><th>服务</th><th>服务地址</th><th>连接方式</th><th>最近 1 小时</th><th>状态</th><th>操作</th></tr></thead>
               <tbody>
-                {pagedUpstreams.map((item) => (
+                {list.map((item) => (
                   <tr key={item.id}>
                     <td><div className="resource-table-name">{item.model ? <BrainCircuit className="text-violet-600" /> : <Server className="text-blue-600" />}<strong>{item.name}</strong></div><div className="table-secondary mt-1">{item.model ? `${modelProtocolLabel(item.model.protocol)}模型服务` : 'HTTP 服务'}</div></td>
                     <td className="font-mono text-[11px]">{item.endpoints.map((endpoint) => `${endpoint.address}:${endpoint.port}`).join('、')}</td>
@@ -186,7 +180,7 @@ export function UpstreamPage() {
             </table>
           </div>
         )}
-        {visibleUpstreams.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visibleUpstreams.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
+        {list.length > 0 ? <ResourcePagination page={resource.page} pageSize={pageSize} itemCount={list.length} hasNext={resource.hasNext} onPageChange={(nextPage) => nextPage > resource.page ? resource.next() : resource.previous()} onPageSizeChange={(size) => { resource.reset(); setPageSize(size); }} /> : null}
       </Panel>
 
       <Drawer title="服务详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail()}>
@@ -248,7 +242,7 @@ export function UpstreamPage() {
         </div>
       </Drawer>
 
-      <Modal title="删除服务" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}><div className="p-6 space-y-5"><p className="text-sm">确定删除服务“{deleteCandidate?.name}”吗？</p>{deleteCandidate && referencingRoutes(deleteCandidate.id).length > 0 ? <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">当前仍被 {referencingRoutes(deleteCandidate.id).length} 条路由使用，请先解除引用。</p> : null}<div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy || Boolean(deleteCandidate && referencingRoutes(deleteCandidate.id).length > 0)} onClick={remove}>确认删除</Button></div></div></Modal>
+      <Modal title="删除服务" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}><div className="p-6 space-y-5"><p className="text-sm">确定删除服务“{deleteCandidate?.name}”吗？</p><div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy} onClick={remove}>确认删除</Button></div></div></Modal>
       <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
     </PageFrame>
   );

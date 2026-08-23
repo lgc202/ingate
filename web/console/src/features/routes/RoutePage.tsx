@@ -1,10 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { Plus, Route as RouteIcon, Trash2 } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { getCallerWorkspace } from '@/api/callers';
-import { getPolicyWorkspace } from '@/api/policies';
-import { deleteRoute, getRouteWorkspace, saveRoute } from '@/api/routes';
-import { useResource } from '@/api/useResource';
+import { listCallers } from '@/api/callers';
+import { getPolicyListWorkspace } from '@/api/policies';
+import { deleteRoute, getRouteOptions, listRoutePage, saveRoute } from '@/api/routes';
+import { useCursorResource, useResource } from '@/api/useResource';
 import {
   Badge,
   Button,
@@ -83,37 +83,46 @@ interface RouteFilters {
 const emptyRouteFilters = (): RouteFilters => ({ query: '', type: 'all', enabled: 'all', state: 'all' });
 
 export function RoutePage() {
-  const workspace = useResource(getRouteWorkspace, {
-    autoRefreshWhen: (data) => data.routes.some((route) => route.enabled && route.state === 'Pending'),
-  });
-  const trafficOverview = useResourceTrafficOverview('route', workspace.data?.routes.map((route) => route.id) ?? []);
-  const policies = useResource(getPolicyWorkspace);
-  const callers = useResource(getCallerWorkspace);
   const [searchParams, setSearchParams] = useSearchParams();
   const [filterDraft, setFilterDraft] = useState<RouteFilters>(emptyRouteFilters);
   const [filters, setFilters] = useState<RouteFilters>(emptyRouteFilters);
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [draft, setDraft] = useState<RouteDraft>(() => createDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<RouteResource | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const loadPage = useCallback((cursor: string) => listRoutePage({
+    limit: pageSize,
+    cursor,
+    query: filters.query.trim() || undefined,
+    type: filters.type === 'all' ? undefined : `ROUTE_TYPE_${filters.type === 'HTTP' ? 'API' : 'AI'}`,
+    enabled: filters.enabled === 'all' ? undefined : filters.enabled === 'enabled',
+    state: filters.state === 'all' ? undefined : filters.state.toUpperCase(),
+  }), [filters, pageSize]);
+  const routes = useCursorResource(loadPage, {
+    autoRefreshWhen: (data) => data.items.some((route) => route.enabled && route.state === 'Pending'),
+  });
+  const currentRoutes = routes.data?.items ?? [];
+  const detail = currentRoutes.find((route) => route.id === searchParams.get('detail')) ?? null;
+  const options = useResource(getRouteOptions, { enabled: Boolean(detail || editorOpen) });
+  const policies = useResource(getPolicyListWorkspace, { enabled: Boolean(detail) });
+  const callers = useResource(listCallers, { enabled: Boolean(detail) });
+  const trafficOverview = useResourceTrafficOverview('route', currentRoutes.map((route) => route.id));
 
-  if (workspace.loading && !workspace.data) {
+  if (routes.loading && !routes.data) {
     return <PageFrame title="路由"><ResourceStatePanel title="正在加载路由" message="正在读取当前路由配置" /></PageFrame>;
   }
-  if (workspace.error || !workspace.data) {
-    return <PageFrame title="路由"><ResourceStatePanel title="路由加载失败" message={workspace.error?.message ?? '请稍后重试'} /></PageFrame>;
+  if (routes.error || !routes.data) {
+    return <PageFrame title="路由"><ResourceStatePanel title="路由加载失败" message={routes.error?.message ?? '请稍后重试'} /></PageFrame>;
   }
 
-  const data = workspace.data;
-  const detail = data.routes.find((route) => route.id === searchParams.get('detail')) ?? null;
-  const visibleRoutes = filterRoutes(data, filters);
-  const pageCount = Math.max(1, Math.ceil(visibleRoutes.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const pagedRoutes = visibleRoutes.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const referencingCallers = (routeID: string) => callers.data?.callers.filter((caller) => caller.routeIDs.includes(routeID)) ?? [];
+  const data: RouteWorkspace = {
+    routes: currentRoutes,
+    gateways: options.data?.gateways ?? [],
+    upstreams: options.data?.upstreams ?? [],
+  };
+  const referencingCallers = (routeID: string) => callers.data?.filter((caller) => caller.routeIDs.includes(routeID)) ?? [];
   const referencingPolicies = (routeID: string) => policies.data?.policies.filter((policy) => policyTargetsResource(policy, 'Route', routeID)) ?? [];
   const setDetail = (route?: RouteResource) => {
     const next = new URLSearchParams(searchParams);
@@ -137,7 +146,7 @@ export function RoutePage() {
     setBusy(true);
     try {
       const saved = await saveRoute(toPayload(draft));
-      await workspace.reload();
+      await routes.reload();
       setEditorOpen(false);
       setNotice({ message: `路由已保存：${saved.name}`, tone: 'success' });
     } catch (error) {
@@ -152,7 +161,7 @@ export function RoutePage() {
     setBusy(true);
     try {
       await saveRoute(toPayload({ ...createDraft(route), enabled: !route.enabled }));
-      await workspace.reload();
+      await routes.reload();
       setNotice({ message: `路由已${route.enabled ? '停用' : '启用'}：${route.name}`, tone: 'success' });
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '更新路由启用状态失败', tone: 'error' });
@@ -167,7 +176,7 @@ export function RoutePage() {
     setBusy(true);
     try {
       await deleteRoute(deleteCandidate.id, deleteCandidate.version);
-      await workspace.reload();
+      await routes.reload();
       setNotice({ message: `路由已删除：${deleteCandidate.name}`, tone: 'success' });
       setDeleteCandidate(null);
     } catch (error) {
@@ -185,17 +194,17 @@ export function RoutePage() {
       <Panel>
         <ResourceListFilters
           summary={routeFilterSummary(filters)}
-          resultLabel={`${visibleRoutes.length} 条路由`}
-          onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
+          resultLabel={`本页 ${currentRoutes.length} 条路由`}
+          onSearch={() => { routes.reset(); setFilters({ ...filterDraft }); }}
           onReset={() => {
             const next = emptyRouteFilters();
             setFilterDraft(next);
             setFilters(next);
-            setPage(1);
+            routes.reset();
           }}
         >
           <ResourceFilterField label="关键词">
-            <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索路由、域名、路径或服务" />
+            <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索路由、域名或路径" />
           </ResourceFilterField>
           <ResourceFilterField label="路由类型">
             <select className="select" value={filterDraft.type} onChange={(event) => setFilterDraft((current) => ({ ...current, type: event.target.value as RouteTypeFilter }))}>
@@ -220,20 +229,20 @@ export function RoutePage() {
             </select>
           </ResourceFilterField>
         </ResourceListFilters>
-        {visibleRoutes.length === 0 ? (
+        {currentRoutes.length === 0 ? (
           <div className="p-5">
-            <EmptyState title={data.routes.length === 0 ? '暂无路由' : '没有匹配的路由'} message={data.routes.length === 0 ? '创建路由，将网关入口连接到服务' : '请调整搜索条件'} />
+            <EmptyState title={filters.query || filters.type !== 'all' || filters.enabled !== 'all' || filters.state !== 'all' ? '没有匹配的路由' : '暂无路由'} message={filters.query || filters.type !== 'all' || filters.enabled !== 'all' || filters.state !== 'all' ? '请调整搜索条件' : '创建路由，将网关入口连接到服务'} />
           </div>
         ) : (
           <div className="table-scroll resource-table-scroll">
             <table className="table resource-table resource-table-has-toggle resource-route-table">
               <thead><tr><th>路由</th><th>请求匹配</th><th>转发关系</th><th>最近 1 小时</th><th>状态</th><th>操作</th></tr></thead>
               <tbody>
-                {pagedRoutes.map((route) => (
+                {currentRoutes.map((route) => (
                   <tr key={route.id}>
                     <td><div className="resource-table-name"><RouteIcon className="text-blue-600" /><strong>{route.name}</strong></div><div className="table-secondary mt-1">{route.ai ? 'AI 路由' : 'API 路由'} · {accessModeLabel(route.accessMode)}</div></td>
                     <td><div className="table-primary font-mono">{pathMatchLabel(route)} {route.match.path.value}</div><div className="table-secondary">{route.ai ? `${route.ai.models.length} 个客户端模型` : methodLabel(route)}</div></td>
-                    <td><div className="table-primary">{resourceNames(route.gatewayIDs, data.gateways)}</div><div className="table-secondary">→ {resourceNames(routeUpstreamIDs(route), data.upstreams)}</div></td>
+                    <td><div className="table-primary">{route.gatewayIDs.length} 个网关</div><div className="table-secondary">{new Set(routeUpstreamIDs(route)).size} 个目标服务</div></td>
                     <td><ResourceTrafficSignal resourceID={route.id} overview={trafficOverview} /></td>
                     <td>
                       <div className="resource-state-badges">
@@ -258,26 +267,25 @@ export function RoutePage() {
             </table>
           </div>
         )}
-        {visibleRoutes.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visibleRoutes.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
+        {currentRoutes.length > 0 ? <ResourcePagination page={routes.page} pageSize={pageSize} itemCount={currentRoutes.length} hasNext={routes.hasNext} onPageChange={(nextPage) => nextPage > routes.page ? routes.next() : routes.previous()} onPageSizeChange={(size) => { routes.reset(); setPageSize(size); }} /> : null}
       </Panel>
 
       <Drawer title="路由详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail()}>
-        {detail ? <RouteDetail route={detail} workspace={data} callers={referencingCallers(detail.id)} policies={policies.data} onPoliciesChanged={policies.reload} /> : null}
+        {detail && options.loading && !options.data ? <ResourceStatePanel title="正在加载关联资源" message="正在读取网关和目标服务" /> : null}
+        {detail && options.error ? <ResourceStatePanel title="关联资源加载失败" message={options.error.message} /> : null}
+        {detail && options.data ? <RouteDetail route={detail} workspace={data} callers={referencingCallers(detail.id)} policies={policies.data} onPoliciesChanged={policies.reload} /> : null}
       </Drawer>
 
       <Drawer title={draft.id ? `编辑路由：${draft.name}` : '创建路由'} isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
-        <RouteEditor draft={draft} workspace={data} busy={busy} onChange={setDraft} onCancel={() => setEditorOpen(false)} onSave={save} />
+        {options.loading && !options.data ? <ResourceStatePanel title="正在加载关联资源" message="正在读取可选网关和目标服务" /> : null}
+        {options.error ? <ResourceStatePanel title="关联资源加载失败" message={options.error.message} /> : null}
+        {options.data ? <RouteEditor draft={draft} workspace={data} busy={busy} onChange={setDraft} onCancel={() => setEditorOpen(false)} onSave={save} /> : null}
       </Drawer>
 
       <Modal title="删除路由" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}>
         <div className="space-y-5">
           <p className="text-sm">确定删除路由“{deleteCandidate?.name}”吗？</p>
-          {deleteCandidate && (referencingCallers(deleteCandidate.id).length > 0 || referencingPolicies(deleteCandidate.id).length > 0) ? (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-              当前仍被 {referencingCallers(deleteCandidate.id).length} 个调用方和 {referencingPolicies(deleteCandidate.id).length} 条策略使用，请先解除引用。
-            </p>
-          ) : null}
-          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy || Boolean(deleteCandidate && (referencingCallers(deleteCandidate.id).length > 0 || referencingPolicies(deleteCandidate.id).length > 0))} onClick={remove}>确认删除</Button></div>
+          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy} onClick={remove}>确认删除</Button></div>
         </div>
       </Modal>
       <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
@@ -520,21 +528,6 @@ function createDraft(route?: RouteResource): RouteDraft {
     type: route?.ai ? 'AI' : 'HTTP',
     aiModels: route?.ai?.models.map((model) => ({ ...model, targets: model.targets.map((target) => ({ ...target })) })) ?? [],
   };
-}
-
-function filterRoutes(workspace: RouteWorkspace, filters: RouteFilters): RouteResource[] {
-  const normalizedQuery = filters.query.trim().toLowerCase();
-  return workspace.routes.filter((route) => {
-    const type = route.ai ? 'AI' : 'HTTP';
-    const gatewayNames = resourceNames(route.gatewayIDs, workspace.gateways);
-    const upstreamNames = resourceNames(routeUpstreamIDs(route), workspace.upstreams);
-    const models = route.ai?.models.map((model) => model.name).join(' ') ?? '';
-    const matchesQuery = `${route.name} ${route.hostnames.join(' ')} ${route.match.path.value} ${gatewayNames} ${upstreamNames} ${models}`.toLowerCase().includes(normalizedQuery);
-    return matchesQuery
-      && (filters.type === 'all' || type === filters.type)
-      && (filters.enabled === 'all' || (filters.enabled === 'enabled' && route.enabled) || (filters.enabled === 'disabled' && !route.enabled))
-      && (filters.state === 'all' || (route.enabled && route.state === filters.state));
-  });
 }
 
 function routeFilterSummary(filters: RouteFilters): string {

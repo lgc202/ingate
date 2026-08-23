@@ -309,6 +309,9 @@ type ListRateLimitPoliciesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,4,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	State         ResourceState          `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -355,6 +358,27 @@ func (x *ListRateLimitPoliciesRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListRateLimitPoliciesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListRateLimitPoliciesRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *ListRateLimitPoliciesRequest) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 type ListRateLimitPoliciesResponse struct {
@@ -701,10 +725,15 @@ const file_admin_v1_rate_limit_policy_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"U\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xd6\x01\n" +
 	"\x1cListRateLimitPoliciesRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"~\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1d\n" +
+	"\aenabled\x18\x04 \x01(\bH\x00R\aenabled\x88\x01\x01\x12>\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05stateB\n" +
+	"\n" +
+	"\b_enabled\"~\n" +
 	"\x1dListRateLimitPoliciesResponse\x12<\n" +
 	"\bpolicies\x18\x01 \x03(\v2 .ingate.admin.v1.RateLimitPolicyR\bpolicies\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -783,28 +812,29 @@ var file_admin_v1_rate_limit_policy_proto_depIdxs = []int32{
 	11, // 4: ingate.admin.v1.RateLimitPolicy.state:type_name -> ingate.admin.v1.ResourceState
 	12, // 5: ingate.admin.v1.RateLimitPolicy.created_at:type_name -> google.protobuf.Timestamp
 	12, // 6: ingate.admin.v1.RateLimitPolicy.updated_at:type_name -> google.protobuf.Timestamp
-	3,  // 7: ingate.admin.v1.ListRateLimitPoliciesResponse.policies:type_name -> ingate.admin.v1.RateLimitPolicy
-	13, // 8: ingate.admin.v1.CreateRateLimitPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	1,  // 9: ingate.admin.v1.CreateRateLimitPolicyRequest.subject:type_name -> ingate.admin.v1.RateLimitSubject
-	2,  // 10: ingate.admin.v1.CreateRateLimitPolicyRequest.limit:type_name -> ingate.admin.v1.RateLimit
-	13, // 11: ingate.admin.v1.UpdateRateLimitPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	1,  // 12: ingate.admin.v1.UpdateRateLimitPolicyRequest.subject:type_name -> ingate.admin.v1.RateLimitSubject
-	2,  // 13: ingate.admin.v1.UpdateRateLimitPolicyRequest.limit:type_name -> ingate.admin.v1.RateLimit
-	4,  // 14: ingate.admin.v1.RateLimitPolicyService.ListRateLimitPolicies:input_type -> ingate.admin.v1.ListRateLimitPoliciesRequest
-	6,  // 15: ingate.admin.v1.RateLimitPolicyService.GetRateLimitPolicy:input_type -> ingate.admin.v1.GetRateLimitPolicyRequest
-	7,  // 16: ingate.admin.v1.RateLimitPolicyService.CreateRateLimitPolicy:input_type -> ingate.admin.v1.CreateRateLimitPolicyRequest
-	8,  // 17: ingate.admin.v1.RateLimitPolicyService.UpdateRateLimitPolicy:input_type -> ingate.admin.v1.UpdateRateLimitPolicyRequest
-	9,  // 18: ingate.admin.v1.RateLimitPolicyService.DeleteRateLimitPolicy:input_type -> ingate.admin.v1.DeleteRateLimitPolicyRequest
-	5,  // 19: ingate.admin.v1.RateLimitPolicyService.ListRateLimitPolicies:output_type -> ingate.admin.v1.ListRateLimitPoliciesResponse
-	3,  // 20: ingate.admin.v1.RateLimitPolicyService.GetRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
-	3,  // 21: ingate.admin.v1.RateLimitPolicyService.CreateRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
-	3,  // 22: ingate.admin.v1.RateLimitPolicyService.UpdateRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
-	14, // 23: ingate.admin.v1.RateLimitPolicyService.DeleteRateLimitPolicy:output_type -> google.protobuf.Empty
-	19, // [19:24] is the sub-list for method output_type
-	14, // [14:19] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	11, // 7: ingate.admin.v1.ListRateLimitPoliciesRequest.state:type_name -> ingate.admin.v1.ResourceState
+	3,  // 8: ingate.admin.v1.ListRateLimitPoliciesResponse.policies:type_name -> ingate.admin.v1.RateLimitPolicy
+	13, // 9: ingate.admin.v1.CreateRateLimitPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	1,  // 10: ingate.admin.v1.CreateRateLimitPolicyRequest.subject:type_name -> ingate.admin.v1.RateLimitSubject
+	2,  // 11: ingate.admin.v1.CreateRateLimitPolicyRequest.limit:type_name -> ingate.admin.v1.RateLimit
+	13, // 12: ingate.admin.v1.UpdateRateLimitPolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	1,  // 13: ingate.admin.v1.UpdateRateLimitPolicyRequest.subject:type_name -> ingate.admin.v1.RateLimitSubject
+	2,  // 14: ingate.admin.v1.UpdateRateLimitPolicyRequest.limit:type_name -> ingate.admin.v1.RateLimit
+	4,  // 15: ingate.admin.v1.RateLimitPolicyService.ListRateLimitPolicies:input_type -> ingate.admin.v1.ListRateLimitPoliciesRequest
+	6,  // 16: ingate.admin.v1.RateLimitPolicyService.GetRateLimitPolicy:input_type -> ingate.admin.v1.GetRateLimitPolicyRequest
+	7,  // 17: ingate.admin.v1.RateLimitPolicyService.CreateRateLimitPolicy:input_type -> ingate.admin.v1.CreateRateLimitPolicyRequest
+	8,  // 18: ingate.admin.v1.RateLimitPolicyService.UpdateRateLimitPolicy:input_type -> ingate.admin.v1.UpdateRateLimitPolicyRequest
+	9,  // 19: ingate.admin.v1.RateLimitPolicyService.DeleteRateLimitPolicy:input_type -> ingate.admin.v1.DeleteRateLimitPolicyRequest
+	5,  // 20: ingate.admin.v1.RateLimitPolicyService.ListRateLimitPolicies:output_type -> ingate.admin.v1.ListRateLimitPoliciesResponse
+	3,  // 21: ingate.admin.v1.RateLimitPolicyService.GetRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
+	3,  // 22: ingate.admin.v1.RateLimitPolicyService.CreateRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
+	3,  // 23: ingate.admin.v1.RateLimitPolicyService.UpdateRateLimitPolicy:output_type -> ingate.admin.v1.RateLimitPolicy
+	14, // 24: ingate.admin.v1.RateLimitPolicyService.DeleteRateLimitPolicy:output_type -> google.protobuf.Empty
+	20, // [20:25] is the sub-list for method output_type
+	15, // [15:20] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_rate_limit_policy_proto_init() }
@@ -813,6 +843,7 @@ func file_admin_v1_rate_limit_policy_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
+	file_admin_v1_rate_limit_policy_proto_msgTypes[3].OneofWrappers = []any{}
 	file_admin_v1_rate_limit_policy_proto_msgTypes[6].OneofWrappers = []any{}
 	file_admin_v1_rate_limit_policy_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}

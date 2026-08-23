@@ -275,23 +275,29 @@ export function ResourcePagination({
   page,
   pageSize,
   total,
+  itemCount,
+  hasNext,
   onPageChange,
   onPageSizeChange,
 }: {
   page: number;
   pageSize: number;
-  total: number;
+  total?: number;
+  itemCount?: number;
+  hasNext?: boolean;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
 }) {
-  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const pageCount = total === undefined ? undefined : Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = pageCount === undefined ? page : Math.min(page, pageCount);
+  const nextDisabled = pageCount === undefined ? !hasNext : page >= pageCount;
   return (
     <div className="resource-pagination">
-      <span>第 {Math.min(page, pageCount)} 页 · 共 {total} 条</span>
+      <span>{total === undefined ? `第 ${page} 页 · 本页 ${itemCount ?? 0} 条` : `第 ${currentPage} 页 · 共 ${total} 条`}</span>
       <label><span>每页</span><select value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>{[10, 20, 50].map((size) => <option key={size} value={size}>{size}</option>)}</select><span>条</span></label>
       <div>
         <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>上一页</Button>
-        <Button variant="outline" size="sm" disabled={page >= pageCount} onClick={() => onPageChange(page + 1)}>下一页</Button>
+        <Button variant="outline" size="sm" disabled={nextDisabled} onClick={() => onPageChange(page + 1)}>下一页</Button>
       </div>
     </div>
   );

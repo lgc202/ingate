@@ -22,7 +22,11 @@ func NewService(callers *callerbiz.Service) *Service {
 }
 
 func (s *Service) ListCallers(ctx context.Context, request *adminv1.ListCallersRequest) (*adminv1.ListCallersResponse, error) {
-	page, err := s.callers.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	page, err := s.callers.List(
+		ctx,
+		adminservice.PageRequest(request.GetLimit(), request.GetCursor()),
+		adminservice.ResourceFilter(request.GetQuery(), request.Enabled, adminv1.ResourceState_RESOURCE_STATE_UNSPECIFIED),
+	)
 	if err != nil {
 		return nil, err
 	}

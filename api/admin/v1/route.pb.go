@@ -239,6 +239,55 @@ func (RouteAccessMode) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_route_proto_rawDescGZIP(), []int{3}
 }
 
+type RouteType int32
+
+const (
+	RouteType_ROUTE_TYPE_UNSPECIFIED RouteType = 0
+	RouteType_ROUTE_TYPE_API         RouteType = 1
+	RouteType_ROUTE_TYPE_AI          RouteType = 2
+)
+
+// Enum value maps for RouteType.
+var (
+	RouteType_name = map[int32]string{
+		0: "ROUTE_TYPE_UNSPECIFIED",
+		1: "ROUTE_TYPE_API",
+		2: "ROUTE_TYPE_AI",
+	}
+	RouteType_value = map[string]int32{
+		"ROUTE_TYPE_UNSPECIFIED": 0,
+		"ROUTE_TYPE_API":         1,
+		"ROUTE_TYPE_AI":          2,
+	}
+)
+
+func (x RouteType) Enum() *RouteType {
+	p := new(RouteType)
+	*p = x
+	return p
+}
+
+func (x RouteType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (RouteType) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_route_proto_enumTypes[4].Descriptor()
+}
+
+func (RouteType) Type() protoreflect.EnumType {
+	return &file_admin_v1_route_proto_enumTypes[4]
+}
+
+func (x RouteType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use RouteType.Descriptor instead.
+func (RouteType) EnumDescriptor() ([]byte, []int) {
+	return file_admin_v1_route_proto_rawDescGZIP(), []int{4}
+}
+
 type RoutePathMatch struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Type          RoutePathMatchType     `protobuf:"varint,1,opt,name=type,proto3,enum=ingate.admin.v1.RoutePathMatchType" json:"type,omitempty"`
@@ -1064,6 +1113,10 @@ type ListRoutesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Type          RouteType              `protobuf:"varint,4,opt,name=type,proto3,enum=ingate.admin.v1.RouteType" json:"type,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,5,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	State         ResourceState          `protobuf:"varint,6,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1110,6 +1163,34 @@ func (x *ListRoutesRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListRoutesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListRoutesRequest) GetType() RouteType {
+	if x != nil {
+		return x.Type
+	}
+	return RouteType_ROUTE_TYPE_UNSPECIFIED
+}
+
+func (x *ListRoutesRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *ListRoutesRequest) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 type ListRoutesResponse struct {
@@ -1628,10 +1709,16 @@ const file_admin_v1_route_proto_rawDesc = "" +
 	"\fhost_rewrite\x18\x11 \x01(\v2\x1c.ingate.admin.v1.HostRewriteR\vhostRewrite\x12(\n" +
 	"\x02ai\x18\x12 \x01(\v2\x18.ingate.admin.v1.AIRouteR\x02ai\x12A\n" +
 	"\vaccess_mode\x18\x13 \x01(\x0e2 .ingate.admin.v1.RouteAccessModeR\n" +
-	"accessMode\"J\n" +
+	"accessMode\"\x85\x02\n" +
 	"\x11ListRoutesRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"e\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x128\n" +
+	"\x04type\x18\x04 \x01(\x0e2\x1a.ingate.admin.v1.RouteTypeB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04type\x12\x1d\n" +
+	"\aenabled\x18\x05 \x01(\bH\x00R\aenabled\x88\x01\x01\x12>\n" +
+	"\x05state\x18\x06 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05stateB\n" +
+	"\n" +
+	"\b_enabled\"e\n" +
 	"\x12ListRoutesResponse\x12.\n" +
 	"\x06routes\x18\x01 \x03(\v2\x16.ingate.admin.v1.RouteR\x06routes\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -1705,7 +1792,11 @@ const file_admin_v1_route_proto_rawDesc = "" +
 	"\x0fRouteAccessMode\x12!\n" +
 	"\x1dROUTE_ACCESS_MODE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13ROUTE_ACCESS_PUBLIC\x10\x01\x12\x17\n" +
-	"\x13ROUTE_ACCESS_CALLER\x10\x022\x9c\x04\n" +
+	"\x13ROUTE_ACCESS_CALLER\x10\x02*N\n" +
+	"\tRouteType\x12\x1a\n" +
+	"\x16ROUTE_TYPE_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eROUTE_TYPE_API\x10\x01\x12\x11\n" +
+	"\rROUTE_TYPE_AI\x10\x022\x9c\x04\n" +
 	"\fRouteService\x12m\n" +
 	"\n" +
 	"ListRoutes\x12\".ingate.admin.v1.ListRoutesRequest\x1a#.ingate.admin.v1.ListRoutesResponse\"\x16\x82\xd3\xe4\x93\x02\x10\x12\x0e/api/v1/routes\x12a\n" +
@@ -1726,92 +1817,95 @@ func file_admin_v1_route_proto_rawDescGZIP() []byte {
 	return file_admin_v1_route_proto_rawDescData
 }
 
-var file_admin_v1_route_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+var file_admin_v1_route_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
 var file_admin_v1_route_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_admin_v1_route_proto_goTypes = []any{
 	(RoutePathMatchType)(0),       // 0: ingate.admin.v1.RoutePathMatchType
 	(HTTPMethod)(0),               // 1: ingate.admin.v1.HTTPMethod
 	(HostRewriteMode)(0),          // 2: ingate.admin.v1.HostRewriteMode
 	(RouteAccessMode)(0),          // 3: ingate.admin.v1.RouteAccessMode
-	(*RoutePathMatch)(nil),        // 4: ingate.admin.v1.RoutePathMatch
-	(*HeaderMatch)(nil),           // 5: ingate.admin.v1.HeaderMatch
-	(*RouteMatch)(nil),            // 6: ingate.admin.v1.RouteMatch
-	(*RouteUpstream)(nil),         // 7: ingate.admin.v1.RouteUpstream
-	(*AIModelTarget)(nil),         // 8: ingate.admin.v1.AIModelTarget
-	(*AIModel)(nil),               // 9: ingate.admin.v1.AIModel
-	(*AIRoute)(nil),               // 10: ingate.admin.v1.AIRoute
-	(*HeaderValue)(nil),           // 11: ingate.admin.v1.HeaderValue
-	(*HeaderModifier)(nil),        // 12: ingate.admin.v1.HeaderModifier
-	(*HostRewrite)(nil),           // 13: ingate.admin.v1.HostRewrite
-	(*RouteTimeout)(nil),          // 14: ingate.admin.v1.RouteTimeout
-	(*RouteRetry)(nil),            // 15: ingate.admin.v1.RouteRetry
-	(*Route)(nil),                 // 16: ingate.admin.v1.Route
-	(*ListRoutesRequest)(nil),     // 17: ingate.admin.v1.ListRoutesRequest
-	(*ListRoutesResponse)(nil),    // 18: ingate.admin.v1.ListRoutesResponse
-	(*GetRouteRequest)(nil),       // 19: ingate.admin.v1.GetRouteRequest
-	(*CreateRouteRequest)(nil),    // 20: ingate.admin.v1.CreateRouteRequest
-	(*UpdateRouteRequest)(nil),    // 21: ingate.admin.v1.UpdateRouteRequest
-	(*DeleteRouteRequest)(nil),    // 22: ingate.admin.v1.DeleteRouteRequest
-	(ResourceState)(0),            // 23: ingate.admin.v1.ResourceState
-	(*timestamppb.Timestamp)(nil), // 24: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 25: google.protobuf.Empty
+	(RouteType)(0),                // 4: ingate.admin.v1.RouteType
+	(*RoutePathMatch)(nil),        // 5: ingate.admin.v1.RoutePathMatch
+	(*HeaderMatch)(nil),           // 6: ingate.admin.v1.HeaderMatch
+	(*RouteMatch)(nil),            // 7: ingate.admin.v1.RouteMatch
+	(*RouteUpstream)(nil),         // 8: ingate.admin.v1.RouteUpstream
+	(*AIModelTarget)(nil),         // 9: ingate.admin.v1.AIModelTarget
+	(*AIModel)(nil),               // 10: ingate.admin.v1.AIModel
+	(*AIRoute)(nil),               // 11: ingate.admin.v1.AIRoute
+	(*HeaderValue)(nil),           // 12: ingate.admin.v1.HeaderValue
+	(*HeaderModifier)(nil),        // 13: ingate.admin.v1.HeaderModifier
+	(*HostRewrite)(nil),           // 14: ingate.admin.v1.HostRewrite
+	(*RouteTimeout)(nil),          // 15: ingate.admin.v1.RouteTimeout
+	(*RouteRetry)(nil),            // 16: ingate.admin.v1.RouteRetry
+	(*Route)(nil),                 // 17: ingate.admin.v1.Route
+	(*ListRoutesRequest)(nil),     // 18: ingate.admin.v1.ListRoutesRequest
+	(*ListRoutesResponse)(nil),    // 19: ingate.admin.v1.ListRoutesResponse
+	(*GetRouteRequest)(nil),       // 20: ingate.admin.v1.GetRouteRequest
+	(*CreateRouteRequest)(nil),    // 21: ingate.admin.v1.CreateRouteRequest
+	(*UpdateRouteRequest)(nil),    // 22: ingate.admin.v1.UpdateRouteRequest
+	(*DeleteRouteRequest)(nil),    // 23: ingate.admin.v1.DeleteRouteRequest
+	(ResourceState)(0),            // 24: ingate.admin.v1.ResourceState
+	(*timestamppb.Timestamp)(nil), // 25: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 26: google.protobuf.Empty
 }
 var file_admin_v1_route_proto_depIdxs = []int32{
 	0,  // 0: ingate.admin.v1.RoutePathMatch.type:type_name -> ingate.admin.v1.RoutePathMatchType
-	4,  // 1: ingate.admin.v1.RouteMatch.path:type_name -> ingate.admin.v1.RoutePathMatch
+	5,  // 1: ingate.admin.v1.RouteMatch.path:type_name -> ingate.admin.v1.RoutePathMatch
 	1,  // 2: ingate.admin.v1.RouteMatch.methods:type_name -> ingate.admin.v1.HTTPMethod
-	5,  // 3: ingate.admin.v1.RouteMatch.headers:type_name -> ingate.admin.v1.HeaderMatch
-	8,  // 4: ingate.admin.v1.AIModel.targets:type_name -> ingate.admin.v1.AIModelTarget
-	9,  // 5: ingate.admin.v1.AIRoute.models:type_name -> ingate.admin.v1.AIModel
-	11, // 6: ingate.admin.v1.HeaderModifier.set:type_name -> ingate.admin.v1.HeaderValue
-	11, // 7: ingate.admin.v1.HeaderModifier.add:type_name -> ingate.admin.v1.HeaderValue
+	6,  // 3: ingate.admin.v1.RouteMatch.headers:type_name -> ingate.admin.v1.HeaderMatch
+	9,  // 4: ingate.admin.v1.AIModel.targets:type_name -> ingate.admin.v1.AIModelTarget
+	10, // 5: ingate.admin.v1.AIRoute.models:type_name -> ingate.admin.v1.AIModel
+	12, // 6: ingate.admin.v1.HeaderModifier.set:type_name -> ingate.admin.v1.HeaderValue
+	12, // 7: ingate.admin.v1.HeaderModifier.add:type_name -> ingate.admin.v1.HeaderValue
 	2,  // 8: ingate.admin.v1.HostRewrite.mode:type_name -> ingate.admin.v1.HostRewriteMode
-	6,  // 9: ingate.admin.v1.Route.match:type_name -> ingate.admin.v1.RouteMatch
-	7,  // 10: ingate.admin.v1.Route.upstreams:type_name -> ingate.admin.v1.RouteUpstream
-	12, // 11: ingate.admin.v1.Route.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	12, // 12: ingate.admin.v1.Route.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	14, // 13: ingate.admin.v1.Route.timeout:type_name -> ingate.admin.v1.RouteTimeout
-	15, // 14: ingate.admin.v1.Route.retry:type_name -> ingate.admin.v1.RouteRetry
-	23, // 15: ingate.admin.v1.Route.state:type_name -> ingate.admin.v1.ResourceState
-	24, // 16: ingate.admin.v1.Route.created_at:type_name -> google.protobuf.Timestamp
-	24, // 17: ingate.admin.v1.Route.updated_at:type_name -> google.protobuf.Timestamp
-	13, // 18: ingate.admin.v1.Route.host_rewrite:type_name -> ingate.admin.v1.HostRewrite
-	10, // 19: ingate.admin.v1.Route.ai:type_name -> ingate.admin.v1.AIRoute
+	7,  // 9: ingate.admin.v1.Route.match:type_name -> ingate.admin.v1.RouteMatch
+	8,  // 10: ingate.admin.v1.Route.upstreams:type_name -> ingate.admin.v1.RouteUpstream
+	13, // 11: ingate.admin.v1.Route.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	13, // 12: ingate.admin.v1.Route.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	15, // 13: ingate.admin.v1.Route.timeout:type_name -> ingate.admin.v1.RouteTimeout
+	16, // 14: ingate.admin.v1.Route.retry:type_name -> ingate.admin.v1.RouteRetry
+	24, // 15: ingate.admin.v1.Route.state:type_name -> ingate.admin.v1.ResourceState
+	25, // 16: ingate.admin.v1.Route.created_at:type_name -> google.protobuf.Timestamp
+	25, // 17: ingate.admin.v1.Route.updated_at:type_name -> google.protobuf.Timestamp
+	14, // 18: ingate.admin.v1.Route.host_rewrite:type_name -> ingate.admin.v1.HostRewrite
+	11, // 19: ingate.admin.v1.Route.ai:type_name -> ingate.admin.v1.AIRoute
 	3,  // 20: ingate.admin.v1.Route.access_mode:type_name -> ingate.admin.v1.RouteAccessMode
-	16, // 21: ingate.admin.v1.ListRoutesResponse.routes:type_name -> ingate.admin.v1.Route
-	6,  // 22: ingate.admin.v1.CreateRouteRequest.match:type_name -> ingate.admin.v1.RouteMatch
-	7,  // 23: ingate.admin.v1.CreateRouteRequest.upstreams:type_name -> ingate.admin.v1.RouteUpstream
-	12, // 24: ingate.admin.v1.CreateRouteRequest.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	12, // 25: ingate.admin.v1.CreateRouteRequest.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	14, // 26: ingate.admin.v1.CreateRouteRequest.timeout:type_name -> ingate.admin.v1.RouteTimeout
-	15, // 27: ingate.admin.v1.CreateRouteRequest.retry:type_name -> ingate.admin.v1.RouteRetry
-	13, // 28: ingate.admin.v1.CreateRouteRequest.host_rewrite:type_name -> ingate.admin.v1.HostRewrite
-	10, // 29: ingate.admin.v1.CreateRouteRequest.ai:type_name -> ingate.admin.v1.AIRoute
-	3,  // 30: ingate.admin.v1.CreateRouteRequest.access_mode:type_name -> ingate.admin.v1.RouteAccessMode
-	6,  // 31: ingate.admin.v1.UpdateRouteRequest.match:type_name -> ingate.admin.v1.RouteMatch
-	7,  // 32: ingate.admin.v1.UpdateRouteRequest.upstreams:type_name -> ingate.admin.v1.RouteUpstream
-	12, // 33: ingate.admin.v1.UpdateRouteRequest.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	12, // 34: ingate.admin.v1.UpdateRouteRequest.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
-	14, // 35: ingate.admin.v1.UpdateRouteRequest.timeout:type_name -> ingate.admin.v1.RouteTimeout
-	15, // 36: ingate.admin.v1.UpdateRouteRequest.retry:type_name -> ingate.admin.v1.RouteRetry
-	13, // 37: ingate.admin.v1.UpdateRouteRequest.host_rewrite:type_name -> ingate.admin.v1.HostRewrite
-	10, // 38: ingate.admin.v1.UpdateRouteRequest.ai:type_name -> ingate.admin.v1.AIRoute
-	3,  // 39: ingate.admin.v1.UpdateRouteRequest.access_mode:type_name -> ingate.admin.v1.RouteAccessMode
-	17, // 40: ingate.admin.v1.RouteService.ListRoutes:input_type -> ingate.admin.v1.ListRoutesRequest
-	19, // 41: ingate.admin.v1.RouteService.GetRoute:input_type -> ingate.admin.v1.GetRouteRequest
-	20, // 42: ingate.admin.v1.RouteService.CreateRoute:input_type -> ingate.admin.v1.CreateRouteRequest
-	21, // 43: ingate.admin.v1.RouteService.UpdateRoute:input_type -> ingate.admin.v1.UpdateRouteRequest
-	22, // 44: ingate.admin.v1.RouteService.DeleteRoute:input_type -> ingate.admin.v1.DeleteRouteRequest
-	18, // 45: ingate.admin.v1.RouteService.ListRoutes:output_type -> ingate.admin.v1.ListRoutesResponse
-	16, // 46: ingate.admin.v1.RouteService.GetRoute:output_type -> ingate.admin.v1.Route
-	16, // 47: ingate.admin.v1.RouteService.CreateRoute:output_type -> ingate.admin.v1.Route
-	16, // 48: ingate.admin.v1.RouteService.UpdateRoute:output_type -> ingate.admin.v1.Route
-	25, // 49: ingate.admin.v1.RouteService.DeleteRoute:output_type -> google.protobuf.Empty
-	45, // [45:50] is the sub-list for method output_type
-	40, // [40:45] is the sub-list for method input_type
-	40, // [40:40] is the sub-list for extension type_name
-	40, // [40:40] is the sub-list for extension extendee
-	0,  // [0:40] is the sub-list for field type_name
+	4,  // 21: ingate.admin.v1.ListRoutesRequest.type:type_name -> ingate.admin.v1.RouteType
+	24, // 22: ingate.admin.v1.ListRoutesRequest.state:type_name -> ingate.admin.v1.ResourceState
+	17, // 23: ingate.admin.v1.ListRoutesResponse.routes:type_name -> ingate.admin.v1.Route
+	7,  // 24: ingate.admin.v1.CreateRouteRequest.match:type_name -> ingate.admin.v1.RouteMatch
+	8,  // 25: ingate.admin.v1.CreateRouteRequest.upstreams:type_name -> ingate.admin.v1.RouteUpstream
+	13, // 26: ingate.admin.v1.CreateRouteRequest.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	13, // 27: ingate.admin.v1.CreateRouteRequest.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	15, // 28: ingate.admin.v1.CreateRouteRequest.timeout:type_name -> ingate.admin.v1.RouteTimeout
+	16, // 29: ingate.admin.v1.CreateRouteRequest.retry:type_name -> ingate.admin.v1.RouteRetry
+	14, // 30: ingate.admin.v1.CreateRouteRequest.host_rewrite:type_name -> ingate.admin.v1.HostRewrite
+	11, // 31: ingate.admin.v1.CreateRouteRequest.ai:type_name -> ingate.admin.v1.AIRoute
+	3,  // 32: ingate.admin.v1.CreateRouteRequest.access_mode:type_name -> ingate.admin.v1.RouteAccessMode
+	7,  // 33: ingate.admin.v1.UpdateRouteRequest.match:type_name -> ingate.admin.v1.RouteMatch
+	8,  // 34: ingate.admin.v1.UpdateRouteRequest.upstreams:type_name -> ingate.admin.v1.RouteUpstream
+	13, // 35: ingate.admin.v1.UpdateRouteRequest.request_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	13, // 36: ingate.admin.v1.UpdateRouteRequest.response_header_modifier:type_name -> ingate.admin.v1.HeaderModifier
+	15, // 37: ingate.admin.v1.UpdateRouteRequest.timeout:type_name -> ingate.admin.v1.RouteTimeout
+	16, // 38: ingate.admin.v1.UpdateRouteRequest.retry:type_name -> ingate.admin.v1.RouteRetry
+	14, // 39: ingate.admin.v1.UpdateRouteRequest.host_rewrite:type_name -> ingate.admin.v1.HostRewrite
+	11, // 40: ingate.admin.v1.UpdateRouteRequest.ai:type_name -> ingate.admin.v1.AIRoute
+	3,  // 41: ingate.admin.v1.UpdateRouteRequest.access_mode:type_name -> ingate.admin.v1.RouteAccessMode
+	18, // 42: ingate.admin.v1.RouteService.ListRoutes:input_type -> ingate.admin.v1.ListRoutesRequest
+	20, // 43: ingate.admin.v1.RouteService.GetRoute:input_type -> ingate.admin.v1.GetRouteRequest
+	21, // 44: ingate.admin.v1.RouteService.CreateRoute:input_type -> ingate.admin.v1.CreateRouteRequest
+	22, // 45: ingate.admin.v1.RouteService.UpdateRoute:input_type -> ingate.admin.v1.UpdateRouteRequest
+	23, // 46: ingate.admin.v1.RouteService.DeleteRoute:input_type -> ingate.admin.v1.DeleteRouteRequest
+	19, // 47: ingate.admin.v1.RouteService.ListRoutes:output_type -> ingate.admin.v1.ListRoutesResponse
+	17, // 48: ingate.admin.v1.RouteService.GetRoute:output_type -> ingate.admin.v1.Route
+	17, // 49: ingate.admin.v1.RouteService.CreateRoute:output_type -> ingate.admin.v1.Route
+	17, // 50: ingate.admin.v1.RouteService.UpdateRoute:output_type -> ingate.admin.v1.Route
+	26, // 51: ingate.admin.v1.RouteService.DeleteRoute:output_type -> google.protobuf.Empty
+	47, // [47:52] is the sub-list for method output_type
+	42, // [42:47] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_route_proto_init() }
@@ -1820,6 +1914,7 @@ func file_admin_v1_route_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
+	file_admin_v1_route_proto_msgTypes[13].OneofWrappers = []any{}
 	file_admin_v1_route_proto_msgTypes[16].OneofWrappers = []any{}
 	file_admin_v1_route_proto_msgTypes[17].OneofWrappers = []any{}
 	type x struct{}
@@ -1827,7 +1922,7 @@ func file_admin_v1_route_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_route_proto_rawDesc), len(file_admin_v1_route_proto_rawDesc)),
-			NumEnums:      4,
+			NumEnums:      5,
 			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   1,

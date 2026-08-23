@@ -65,7 +65,7 @@ export function TrafficAnalysisPage() {
 
   const loadAnalysis = useCallback(() => getTrafficAnalysis(filters), [filters]);
   const analysis = useResource(loadAnalysis);
-  const workspace = useResource(getTrafficAnalysisWorkspace);
+  const workspace = useResource(getTrafficAnalysisWorkspace, { enabled: Boolean(analysis.data) });
   const names = useMemo(() => resourceNames(workspace.data), [workspace.data]);
 
   const applyFilters = () => {

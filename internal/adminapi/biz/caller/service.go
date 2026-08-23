@@ -46,8 +46,10 @@ func NewService(repository Repository, routes RouteRepository) *Service {
 }
 
 // List 查询 Caller 列表
-func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Caller], error) {
-	return s.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest, filter biz.ResourceFilter) (biz.PageResult[resource.Caller], error) {
+	return biz.FilterPage(ctx, page, s.repository.ListPage, func(caller resource.Caller) bool {
+		return filter.Match(caller.Spec.DisplayName, caller.Spec.Enabled, biz.ResourceStatus{})
+	})
 }
 
 // Get 查询单个 Caller

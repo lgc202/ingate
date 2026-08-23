@@ -25,7 +25,11 @@ func (s *Service) ListCertificates(
 	ctx context.Context,
 	request *adminv1.ListCertificatesRequest,
 ) (*adminv1.ListCertificatesResponse, error) {
-	page, err := s.certificates.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	page, err := s.certificates.List(
+		ctx,
+		adminservice.PageRequest(request.GetLimit(), request.GetCursor()),
+		adminservice.ResourceFilter(request.GetQuery(), nil, request.GetState()),
+	)
 	if err != nil {
 		return nil, err
 	}

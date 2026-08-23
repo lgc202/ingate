@@ -1,7 +1,7 @@
-import { useRef, useState } from 'react';
-import { deleteCertificate, listCertificates, saveCertificate } from '@/api/certificates';
+import { useCallback, useRef, useState } from 'react';
+import { deleteCertificate, listCertificatePage, saveCertificate } from '@/api/certificates';
 import { listGateways } from '@/api/gateways';
-import { useResource } from '@/api/useResource';
+import { useCursorResource, useResource } from '@/api/useResource';
 import {
   Badge,
   Button,
@@ -48,13 +48,8 @@ const maxPEMFileSize = 1024 * 1024;
 const emptyCertificateFilters = (): CertificateFilters => ({ query: '', state: 'all' });
 
 export function CertificatePage() {
-  const certificates = useResource(listCertificates, {
-    autoRefreshWhen: (data) => data.certificates.some((certificate) => certificate.state === 'Pending'),
-  });
-  const gateways = useResource(listGateways);
   const [filterDraft, setFilterDraft] = useState<CertificateFilters>(emptyCertificateFilters);
   const [filters, setFilters] = useState<CertificateFilters>(emptyCertificateFilters);
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [detail, setDetail] = useState<Certificate | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -70,6 +65,17 @@ export function CertificatePage() {
 
   const certFileInputRef = useRef<HTMLInputElement>(null);
   const keyFileInputRef = useRef<HTMLInputElement>(null);
+  const loadPage = useCallback((cursor: string) => listCertificatePage({
+    limit: pageSize,
+    cursor,
+    query: filters.query.trim() || undefined,
+    state: filters.state === 'all' ? undefined : filters.state.toUpperCase(),
+  }), [filters, pageSize]);
+  const certificates = useCursorResource(loadPage, {
+    autoRefreshWhen: (data) => data.items.some((certificate) => certificate.state === 'Pending'),
+  });
+  const currentCertificates = certificates.data?.items ?? [];
+  const gateways = useResource(listGateways, { enabled: Boolean(detail) });
 
   if (certificates.loading && !certificates.data) {
     return (
@@ -87,15 +93,6 @@ export function CertificatePage() {
     );
   }
 
-  const certificateList = certificates.data.certificates;
-  const normalizedQuery = filters.query.trim().toLowerCase();
-  const visibleCertificates = certificateList.filter((certificate) => (
-    `${certificate.name} ${certificate.dnsNames.join(' ')}`.toLowerCase().includes(normalizedQuery)
-    && (filters.state === 'all' || certificate.state === filters.state)
-  ));
-  const pageCount = Math.max(1, Math.ceil(visibleCertificates.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const pagedCertificates = visibleCertificates.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const certificateReferences = (certificateID: string) => gateways.data?.gateways.flatMap((gateway) => (
     gateway.listeners
       .filter((listener) => listener.certificateID === certificateID)
@@ -199,17 +196,17 @@ export function CertificatePage() {
         <Panel>
           <ResourceListFilters
             summary={certificateFilterSummary(filters)}
-            resultLabel={`${visibleCertificates.length} 张证书`}
-            onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
+            resultLabel={`本页 ${currentCertificates.length} 张证书`}
+            onSearch={() => { certificates.reset(); setFilters({ ...filterDraft }); }}
             onReset={() => {
               const next = emptyCertificateFilters();
               setFilterDraft(next);
               setFilters(next);
-              setPage(1);
+              certificates.reset();
             }}
           >
             <ResourceFilterField label="关键词">
-              <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索证书名称或 DNS 域名" />
+              <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索证书名称" />
             </ResourceFilterField>
             <ResourceFilterField label="生效状态">
               <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as CertificateStateFilter }))}>
@@ -220,8 +217,8 @@ export function CertificatePage() {
               </select>
             </ResourceFilterField>
           </ResourceListFilters>
-          {visibleCertificates.length === 0 ? (
-            <div className="p-5"><EmptyState title={certificateList.length === 0 ? '暂无 TLS 证书' : '没有匹配的证书'} message={certificateList.length === 0 ? '录入证书后即可配置 HTTPS 网关入口' : '请调整搜索条件'} /></div>
+          {currentCertificates.length === 0 ? (
+            <div className="p-5"><EmptyState title={filters.query || filters.state !== 'all' ? '没有匹配的证书' : '暂无 TLS 证书'} message={filters.query || filters.state !== 'all' ? '请调整搜索条件' : '录入证书后即可配置 HTTPS 网关入口'} /></div>
           ) : (
             <div className="table-scroll resource-table-scroll">
               <table className="table resource-table resource-certificate-table">
@@ -236,7 +233,7 @@ export function CertificatePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedCertificates.map((item) => (
+                  {currentCertificates.map((item) => (
                     <tr key={item.id}>
                       <td>
                         <div className="resource-table-name">
@@ -269,7 +266,7 @@ export function CertificatePage() {
               </table>
             </div>
           )}
-          {visibleCertificates.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visibleCertificates.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
+          {currentCertificates.length > 0 ? <ResourcePagination page={certificates.page} pageSize={pageSize} itemCount={currentCertificates.length} hasNext={certificates.hasNext} onPageChange={(nextPage) => nextPage > certificates.page ? certificates.next() : certificates.previous()} onPageSizeChange={(size) => { certificates.reset(); setPageSize(size); }} /> : null}
         </Panel>
       </div>
 
@@ -436,7 +433,6 @@ export function CertificatePage() {
           <p className="text-xs text-slate-600">
             确定删除证书 <strong className="text-slate-900">{deleteCandidate?.name}</strong> 吗？
           </p>
-          {deleteCandidate && certificateReferences(deleteCandidate.id).length > 0 ? <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">当前仍被 {certificateReferences(deleteCandidate.id).length} 个 HTTPS 入口使用，请先解除引用。</p> : null}
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -447,7 +443,7 @@ export function CertificatePage() {
             </button>
             <button
               type="button"
-              disabled={deleting || Boolean(deleteCandidate && certificateReferences(deleteCandidate.id).length > 0)}
+              disabled={deleting}
               onClick={confirmDelete}
               className="px-4 py-2 text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-lg shadow-xs cursor-pointer"
             >

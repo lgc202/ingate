@@ -1,4 +1,4 @@
-import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './client';
+import { apiListAllByCursor, apiListPageByCursor, apiRequest, type CursorPage, type CursorPagedResponse } from './client';
 import { normalizeResourceState } from '@/domain/common';
 import type { Gateway, GatewayListView, GatewayMutationPayload } from '@/domain/gateway';
 
@@ -15,6 +15,22 @@ export async function listGateways(): Promise<GatewayListView> {
       listeners: gateway.listeners ?? [],
       state: normalizeResourceState(gateway.state),
     })),
+  };
+}
+
+export async function listGatewayPage(input: {
+  limit: number; cursor: string; query?: string; enabled?: boolean; state?: string;
+}): Promise<CursorPage<Gateway>> {
+  const page = await apiListPageByCursor<GatewayListResponse, Gateway>('/gateways', input, (value) => value.gateways ?? []);
+  return { ...page, items: page.items.map(gatewayFromAPI) };
+}
+
+function gatewayFromAPI(gateway: Gateway): Gateway {
+  return {
+    ...gateway,
+    version: Number(gateway.version),
+    listeners: gateway.listeners ?? [],
+    state: normalizeResourceState(gateway.state),
   };
 }
 

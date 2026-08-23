@@ -1,11 +1,11 @@
-import { useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { Globe, Layers3, Plus, Trash2 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { listCertificates } from '@/api/certificates';
-import { deleteGateway, listGateways, saveGateway } from '@/api/gateways';
-import { getPolicyWorkspace } from '@/api/policies';
+import { deleteGateway, listGatewayPage, saveGateway } from '@/api/gateways';
+import { getPolicyListWorkspace } from '@/api/policies';
 import { listRoutes } from '@/api/routes';
-import { useResource } from '@/api/useResource';
+import { useCursorResource, useResource } from '@/api/useResource';
 import {
   Badge,
   Button,
@@ -44,23 +44,31 @@ interface GatewayFilters {
 const emptyGatewayFilters = (): GatewayFilters => ({ query: '', enabled: 'all', state: 'all' });
 
 export function GatewayPage() {
-  const gateways = useResource(listGateways, {
-    autoRefreshWhen: (data) => data.gateways.some((gateway) => gateway.enabled && gateway.state === 'Pending'),
-  });
-  const trafficOverview = useResourceTrafficOverview('gateway', gateways.data?.gateways.map((gateway) => gateway.id) ?? []);
-  const certificates = useResource(listCertificates);
-  const policies = useResource(getPolicyWorkspace);
-  const routes = useResource(listRoutes);
   const [searchParams, setSearchParams] = useSearchParams();
   const [filterDraft, setFilterDraft] = useState<GatewayFilters>(emptyGatewayFilters);
   const [filters, setFilters] = useState<GatewayFilters>(emptyGatewayFilters);
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [draft, setDraft] = useState<GatewayDraft>(() => createGatewayDraft());
   const [editorOpen, setEditorOpen] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<Gateway | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const loadPage = useCallback((cursor: string) => listGatewayPage({
+    limit: pageSize,
+    cursor,
+    query: filters.query.trim() || undefined,
+    enabled: filters.enabled === 'all' ? undefined : filters.enabled === 'enabled',
+    state: filters.state === 'all' ? undefined : filters.state.toUpperCase(),
+  }), [filters, pageSize]);
+  const gateways = useCursorResource(loadPage, {
+    autoRefreshWhen: (data) => data.items.some((gateway) => gateway.enabled && gateway.state === 'Pending'),
+  });
+  const list = gateways.data?.items ?? [];
+  const detail = list.find((gateway) => gateway.id === searchParams.get('detail')) ?? null;
+  const trafficOverview = useResourceTrafficOverview('gateway', list.map((gateway) => gateway.id));
+  const certificates = useResource(listCertificates, { enabled: editorOpen });
+  const policies = useResource(getPolicyListWorkspace, { enabled: Boolean(detail) });
+  const routes = useResource(listRoutes, { enabled: Boolean(detail) });
 
   if (gateways.loading && !gateways.data) {
     return <PageFrame title="网关"><ResourceStatePanel title="正在加载网关" message="正在读取当前网关配置" /></PageFrame>;
@@ -69,22 +77,6 @@ export function GatewayPage() {
     return <PageFrame title="网关"><ResourceStatePanel title="网关加载失败" message={gateways.error?.message ?? '请稍后重试'} /></PageFrame>;
   }
 
-  const list = gateways.data.gateways;
-  const detail = list.find((gateway) => gateway.id === searchParams.get('detail')) ?? null;
-  const normalizedQuery = filters.query.trim().toLowerCase();
-  const visibleGateways = list.filter((gateway) => {
-    const matchesQuery = `${gateway.name} ${gateway.listeners.map((listener) => `${listener.name} ${listener.hostname} ${listener.port}`).join(' ')}`
-      .toLowerCase()
-      .includes(normalizedQuery);
-    const matchesEnabled = filters.enabled === 'all'
-      || (filters.enabled === 'enabled' && gateway.enabled)
-      || (filters.enabled === 'disabled' && !gateway.enabled);
-    const matchesState = filters.state === 'all' || (gateway.enabled && gateway.state === filters.state);
-    return matchesQuery && matchesEnabled && matchesState;
-  });
-  const pageCount = Math.max(1, Math.ceil(visibleGateways.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const pagedGateways = visibleGateways.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const certificateList = certificates.data?.certificates ?? [];
   const referencingRoutes = (gatewayID: string) => routes.data?.routes.filter((route) => route.gatewayIDs.includes(gatewayID)) ?? [];
   const referencingPolicies = (gatewayID: string) => policies.data?.policies.filter((policy) => policyTargetsResource(policy, 'Gateway', gatewayID)) ?? [];
@@ -153,13 +145,13 @@ export function GatewayPage() {
       <Panel>
         <ResourceListFilters
           summary={gatewayFilterSummary(filters)}
-          resultLabel={`${visibleGateways.length} 个网关`}
-          onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
+          resultLabel={`本页 ${list.length} 个网关`}
+          onSearch={() => { gateways.reset(); setFilters({ ...filterDraft }); }}
           onReset={() => {
             const next = emptyGatewayFilters();
             setFilterDraft(next);
             setFilters(next);
-            setPage(1);
+            gateways.reset();
           }}
         >
           <ResourceFilterField label="关键词">
@@ -181,12 +173,12 @@ export function GatewayPage() {
             </select>
           </ResourceFilterField>
         </ResourceListFilters>
-        {visibleGateways.length === 0 ? <div className="p-5"><EmptyState title={list.length === 0 ? '暂无网关' : '没有匹配的网关'} message={list.length === 0 ? '创建网关后即可接收客户端流量' : '请调整搜索条件'} /></div> : (
+        {list.length === 0 ? <div className="p-5"><EmptyState title={filters.query || filters.enabled !== 'all' || filters.state !== 'all' ? '没有匹配的网关' : '暂无网关'} message={filters.query || filters.enabled !== 'all' || filters.state !== 'all' ? '请调整搜索条件' : '创建网关后即可接收客户端流量'} /></div> : (
           <div className="table-scroll resource-table-scroll">
             <table className="table resource-table resource-table-has-toggle resource-gateway-table">
               <thead><tr><th>名称</th><th>监听入口</th><th>最近 1 小时</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead>
               <tbody>
-                {pagedGateways.map((gateway) => (
+                {list.map((gateway) => (
                   <tr key={gateway.id}>
                     <td><div className="resource-table-name"><Layers3 className="text-blue-600" /><strong>{gateway.name}</strong></div></td>
                     <td><div className="flex flex-wrap gap-1.5">{gateway.listeners.map((listener) => <Badge key={listener.name} tone="neutral">{gatewayProtocolLabel(listener.protocol)} · {listener.port} · {listener.hostname || '全部域名'}</Badge>)}</div></td>
@@ -214,7 +206,7 @@ export function GatewayPage() {
             </table>
           </div>
         )}
-        {visibleGateways.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visibleGateways.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
+        {list.length > 0 ? <ResourcePagination page={gateways.page} pageSize={pageSize} itemCount={list.length} hasNext={gateways.hasNext} onPageChange={(nextPage) => nextPage > gateways.page ? gateways.next() : gateways.previous()} onPageSizeChange={(size) => { gateways.reset(); setPageSize(size); }} /> : null}
       </Panel>
 
       <Drawer title="网关详情" subtitle={detail?.name} isOpen={Boolean(detail)} onClose={() => setDetail()}>
@@ -222,7 +214,11 @@ export function GatewayPage() {
       </Drawer>
 
       <Drawer title={draft.id ? `编辑网关：${draft.name}` : '创建网关'} isOpen={editorOpen} onClose={() => setEditorOpen(false)}>
-        <div className="space-y-5">
+        {certificates.loading && !certificates.data ? (
+          <ResourceStatePanel title="正在加载证书" message="正在读取 HTTPS 监听入口可使用的证书" />
+        ) : certificates.error ? (
+          <ResourceStatePanel title="证书加载失败" message={certificates.error.message} />
+        ) : <div className="space-y-5">
           <Field label="网关名称"><input className="input" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></Field>
           <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />启用网关</label>
           <div className="space-y-3">
@@ -238,10 +234,10 @@ export function GatewayPage() {
             ))}
           </div>
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-3"><Button variant="ghost" onClick={() => setEditorOpen(false)}>取消</Button><Button disabled={busy} onClick={save}>{busy ? '保存中...' : '保存网关'}</Button></div>
-        </div>
+        </div>}
       </Drawer>
 
-      <Modal title="删除网关" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}><div className="space-y-5 p-6"><p className="text-sm">确定删除网关“{deleteCandidate?.name}”吗？</p>{deleteCandidate && (referencingRoutes(deleteCandidate.id).length > 0 || referencingPolicies(deleteCandidate.id).length > 0) ? <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">当前仍被 {referencingRoutes(deleteCandidate.id).length} 条路由和 {referencingPolicies(deleteCandidate.id).length} 条策略使用，请先解除引用。</p> : null}<div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy || Boolean(deleteCandidate && (referencingRoutes(deleteCandidate.id).length > 0 || referencingPolicies(deleteCandidate.id).length > 0))} onClick={remove}>确认删除</Button></div></div></Modal>
+      <Modal title="删除网关" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}><div className="space-y-5 p-6"><p className="text-sm">确定删除网关“{deleteCandidate?.name}”吗？</p><div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setDeleteCandidate(null)}>取消</Button><Button variant="danger" disabled={busy} onClick={remove}>确认删除</Button></div></div></Modal>
       <Toast message={notice?.message ?? null} tone={notice?.tone} onClose={() => setNotice(null)} />
     </PageFrame>
   );

@@ -1,12 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { CircleAlert, Plus } from 'lucide-react';
 import {
   createPluginSource,
   deletePluginSource,
+  listPluginSourcePage,
   syncPluginSource,
   updatePluginSource,
 } from '@/api/plugins';
-import type { ResourceState } from '@/api/useResource';
+import { useCursorResource } from '@/api/useResource';
 import { Button, Drawer, Modal, ResourcePagination, ResourceStatePanel, Toast } from '@/components/ui';
 import type { PluginSource, PluginSourceInput } from '@/domain/plugin';
 import {
@@ -20,10 +21,9 @@ import {
 const emptyPluginSourceInput = (): PluginSourceInput => ({ name: '', url: '', enabled: true });
 
 // PluginSourceTab 集中管理插件发现来源；插件市场只消费同步结果，不承担来源生命周期操作
-export function PluginSourceTab({ sources }: { sources: ResourceState<PluginSource[]> }) {
+export function PluginSourceTab() {
   const [filterDraft, setFilterDraft] = useState<PluginSourceFilters>(emptyPluginSourceFilters);
   const [filters, setFilters] = useState<PluginSourceFilters>(emptyPluginSourceFilters);
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [busy, setBusy] = useState(false);
   const [syncingSourceID, setSyncingSourceID] = useState('');
@@ -34,13 +34,14 @@ export function PluginSourceTab({ sources }: { sources: ResourceState<PluginSour
   const [deleteError, setDeleteError] = useState('');
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
 
-  const visibleSources = useMemo(() => {
-    const normalized = filters.query.trim().toLowerCase();
-    return (sources.data ?? []).filter((source) => (
-      (filters.state === 'all' || source.syncState === filters.state)
-      && `${source.name} ${source.url}`.toLowerCase().includes(normalized)
-    ));
-  }, [filters, sources.data]);
+  const loadPage = useCallback((cursor: string) => listPluginSourcePage({
+    limit: pageSize,
+    cursor,
+    query: filters.query.trim() || undefined,
+    syncState: filters.state === 'all' ? undefined : filters.state,
+  }), [filters, pageSize]);
+  const sources = useCursorResource(loadPage);
+  const currentSources = sources.data?.items ?? [];
 
   if (sources.loading && !sources.data) {
     return <ResourceStatePanel title="正在加载插件源" message="正在读取插件目录来源与同步状态" />;
@@ -48,10 +49,6 @@ export function PluginSourceTab({ sources }: { sources: ResourceState<PluginSour
   if (sources.error || !sources.data) {
     return <ResourceStatePanel title="插件源加载失败" message={sources.error?.message ?? '请稍后重试'} />;
   }
-
-  const pageCount = Math.max(1, Math.ceil(visibleSources.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const pagedSources = visibleSources.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const save = async () => {
     if (!editor || busy) return;
@@ -121,21 +118,20 @@ export function PluginSourceTab({ sources }: { sources: ResourceState<PluginSour
         <Button onClick={() => { setEditorError(''); setEditor({ input: emptyPluginSourceInput() }); }}><Plus className="h-4 w-4" />添加插件源</Button>
       </div>
       <PluginSources
-        allSources={sources.data}
-        sources={pagedSources}
-        total={visibleSources.length}
+        sources={currentSources}
+        resultCount={currentSources.length}
         filters={filterDraft}
         appliedFilters={filters}
         busySourceID={syncingSourceID}
         onFiltersChange={setFilterDraft}
-        onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
-        onReset={() => { const next = emptyPluginSourceFilters(); setFilterDraft(next); setFilters(next); setPage(1); }}
+        onSearch={() => { sources.reset(); setFilters({ ...filterDraft }); }}
+        onReset={() => { const next = emptyPluginSourceFilters(); setFilterDraft(next); setFilters(next); sources.reset(); }}
         onDetail={setDetail}
         onEdit={(source) => { setEditorError(''); setEditor({ source, input: { name: source.name, url: source.url, enabled: source.enabled } }); }}
         onSync={(source) => void sync(source)}
         onDelete={(source) => { setDeleteError(''); setDeleteCandidate(source); }}
       />
-      {visibleSources.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visibleSources.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
+      {currentSources.length > 0 ? <ResourcePagination page={sources.page} pageSize={pageSize} itemCount={currentSources.length} hasNext={sources.hasNext} onPageChange={(nextPage) => nextPage > sources.page ? sources.next() : sources.previous()} onPageSizeChange={(size) => { sources.reset(); setPageSize(size); }} /> : null}
 
       <Drawer title={editor?.source ? '编辑插件源' : '添加插件源'} subtitle="管理公开插件目录的同步地址" isOpen={Boolean(editor)} onClose={() => { setEditorError(''); setEditor(null); }}>
         {editor ? <><PluginSourceEditor draft={editor.input} error={editorError} onChange={(input) => setEditor({ ...editor, input })} /><div className="plugin-editor-footer"><Button variant="ghost" onClick={() => setEditor(null)}>取消</Button><Button size="lg" disabled={busy} onClick={() => void save()}>{busy ? '保存中...' : '保存插件源'}</Button></div></> : null}

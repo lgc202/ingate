@@ -25,9 +25,8 @@ export interface PluginSourceFilters {
 export const emptyPluginSourceFilters = (): PluginSourceFilters => ({ query: '', state: 'all' });
 
 export function PluginSources({
-  allSources,
   sources,
-  total,
+  resultCount,
   filters,
   appliedFilters,
   busySourceID,
@@ -39,9 +38,8 @@ export function PluginSources({
   onSync,
   onDelete,
 }: {
-  allSources: PluginSource[];
   sources: PluginSource[];
-  total: number;
+  resultCount: number;
   filters: PluginSourceFilters;
   appliedFilters: PluginSourceFilters;
   busySourceID: string;
@@ -55,7 +53,7 @@ export function PluginSources({
 }) {
   return (
     <>
-      <ResourceListFilters summary={pluginSourceFilterSummary(appliedFilters)} resultLabel={`${total} 个插件源`} onSearch={onSearch} onReset={onReset}>
+      <ResourceListFilters summary={pluginSourceFilterSummary(appliedFilters)} resultLabel={`本页 ${resultCount} 个插件源`} onSearch={onSearch} onReset={onReset}>
         <ResourceFilterField label="关键词">
           <SearchField value={filters.query} onChange={(query) => onFiltersChange({ ...filters, query })} placeholder="搜索插件源名称或目录地址" />
         </ResourceFilterField>
@@ -72,8 +70,8 @@ export function PluginSources({
       {sources.length === 0 ? (
         <div className="p-5">
           <EmptyState
-            title={allSources.length === 0 ? '暂无插件源' : '没有匹配的插件源'}
-            message={allSources.length === 0 ? '添加一个公开的插件目录地址后即可发现插件。' : '请调整筛选条件。'}
+            title={appliedFilters.query || appliedFilters.state !== 'all' ? '没有匹配的插件源' : '暂无插件源'}
+            message={appliedFilters.query || appliedFilters.state !== 'all' ? '请调整筛选条件。' : '添加一个公开的插件目录地址后即可发现插件。'}
           />
         </div>
       ) : (

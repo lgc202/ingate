@@ -44,6 +44,22 @@ func ResourceState(state biz.ResourceState) adminv1.ResourceState {
 	}
 }
 
+// ResourceFilter 把控制台筛选条件转换为业务层查询条件
+func ResourceFilter(query string, enabled *bool, state adminv1.ResourceState) biz.ResourceFilter {
+	filter := biz.ResourceFilter{Query: query, Enabled: enabled}
+	switch state {
+	case adminv1.ResourceState_DISABLED:
+		filter.State = biz.ResourceStateDisabled
+	case adminv1.ResourceState_PENDING:
+		filter.State = biz.ResourceStatePending
+	case adminv1.ResourceState_READY:
+		filter.State = biz.ResourceStateReady
+	case adminv1.ResourceState_ERROR:
+		filter.State = biz.ResourceStateError
+	}
+	return filter
+}
+
 // ResourceMessage 返回控制台可以直接展示的资源状态文案
 func ResourceMessage(reason biz.ResourceReason) string {
 	switch reason {

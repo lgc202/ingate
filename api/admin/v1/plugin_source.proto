@@ -63,10 +63,17 @@ message PluginSource {
   google.protobuf.Timestamp updated_at = 12;
 }
 
-message ListPluginSourcesRequest {}
+message ListPluginSourcesRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+  string query = 3;
+  optional bool enabled = 4;
+  PluginSourceSyncState sync_state = 5 [(buf.validate.field).enum.defined_only = true];
+}
 
 message ListPluginSourcesResponse {
   repeated PluginSource sources = 1;
+  string next_cursor = 2;
 }
 
 message GetPluginSourceRequest {

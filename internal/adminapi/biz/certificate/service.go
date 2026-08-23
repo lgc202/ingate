@@ -38,8 +38,11 @@ func NewService(repository Repository, gateways GatewayRepository) *Service {
 }
 
 // List 查询 Certificate 列表
-func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Certificate], error) {
-	return s.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest, filter biz.ResourceFilter) (biz.PageResult[resource.Certificate], error) {
+	return biz.FilterPage(ctx, page, s.repository.ListPage, func(certificate resource.Certificate) bool {
+		status := biz.ResourceStatusFromConditions(certificate.Generation, certificate.Status.Conditions)
+		return filter.Match(certificate.Spec.DisplayName, true, status)
+	})
 }
 
 // Get 查询单个 Certificate

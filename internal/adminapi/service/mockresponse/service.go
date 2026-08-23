@@ -25,7 +25,11 @@ func (s *Service) ListMockResponsePolicies(
 	ctx context.Context,
 	request *adminv1.ListMockResponsePoliciesRequest,
 ) (*adminv1.ListMockResponsePoliciesResponse, error) {
-	page, err := s.policies.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	page, err := s.policies.List(
+		ctx,
+		adminservice.PageRequest(request.GetLimit(), request.GetCursor()),
+		adminservice.ResourceFilter(request.GetQuery(), request.Enabled, request.GetState()),
+	)
 	if err != nil {
 		return nil, err
 	}
