@@ -11,6 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
@@ -35,6 +36,7 @@ var apiserverProviderSet = wire.NewSet(
 	apiserver.NewCallerRepository,
 	apiserver.NewTokenQuotaPolicyRepository,
 	apiserver.NewWasmPluginRepository,
+	apiserver.NewPluginSourceRepository,
 	apiserver.NewHeaderTransformationPolicyRepository,
 	// 根 biz 只保留跨领域策略能力所需的只读边界
 	wire.Bind(new(biz.GatewayGetter), new(*apiserver.GatewayRepository)),
@@ -61,6 +63,7 @@ var apiserverProviderSet = wire.NewSet(
 	wire.Bind(new(caller.Repository), new(*apiserver.CallerRepository)),
 	wire.Bind(new(tokenquota.Repository), new(*apiserver.TokenQuotaPolicyRepository)),
 	wire.Bind(new(wasmplugin.Repository), new(*apiserver.WasmPluginRepository)),
+	wire.Bind(new(pluginsource.Repository), new(*apiserver.PluginSourceRepository)),
 	wire.Bind(new(wasmplugin.HeaderTransformationPolicyRepository), new(*apiserver.HeaderTransformationPolicyRepository)),
 	wire.Bind(new(caller.RouteRepository), new(*apiserver.RouteRepository)),
 )
@@ -84,6 +87,7 @@ var aiExtProcProviderSet = wire.NewSet(
 var pluginCatalogProviderSet = wire.NewSet(
 	plugincatalog.NewCatalog,
 	wire.Bind(new(wasmplugin.Catalog), new(*plugincatalog.Catalog)),
+	wire.Bind(new(pluginsource.Catalog), new(*plugincatalog.Catalog)),
 )
 
 // ProviderSet 汇总 Admin API 的数据访问实现

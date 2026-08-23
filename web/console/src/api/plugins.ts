@@ -1,6 +1,12 @@
 import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './client';
 import { normalizeResourceState } from '@/domain/common';
-import type { PluginCatalog, PluginCatalogItem, WasmPlugin } from '@/domain/plugin';
+import type {
+  PluginCatalog,
+  PluginCatalogItem,
+  PluginSource,
+  PluginSourceInput,
+  WasmPlugin,
+} from '@/domain/plugin';
 
 interface WasmPluginResponse extends Omit<WasmPlugin, 'version'> {
   version: string | number;
@@ -27,12 +33,56 @@ export async function listWasmPlugins(): Promise<WasmPlugin[]> {
   return plugins.map(pluginFromAPI);
 }
 
-export async function installWasmPlugin(packageName: string): Promise<WasmPlugin> {
+interface PluginSourceResponse extends Omit<PluginSource, 'version'> {
+  version: string | number;
+}
+
+interface PluginSourceListResponse {
+  sources?: PluginSourceResponse[];
+}
+
+export async function installWasmPlugin(sourceID: string, packageName: string): Promise<WasmPlugin> {
   const plugin = await apiRequest<WasmPluginResponse>('/wasm-plugins', {
     method: 'POST',
-    body: JSON.stringify({ package: packageName }),
+    body: JSON.stringify({ sourceID, package: packageName }),
   });
   return pluginFromAPI(plugin);
+}
+
+export async function listPluginSources(): Promise<PluginSource[]> {
+  const response = await apiRequest<PluginSourceListResponse>('/plugin-sources');
+  return (response.sources ?? []).map(pluginSourceFromAPI);
+}
+
+export async function createPluginSource(input: PluginSourceInput): Promise<PluginSource> {
+  const response = await apiRequest<PluginSourceResponse>('/plugin-sources', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+  return pluginSourceFromAPI(response);
+}
+
+export async function updatePluginSource(source: PluginSource, input: PluginSourceInput): Promise<PluginSource> {
+  const response = await apiRequest<PluginSourceResponse>(`/plugin-sources/${encodeURIComponent(source.id)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ id: source.id, version: source.version, ...input }),
+  });
+  return pluginSourceFromAPI(response);
+}
+
+export async function deletePluginSource(id: string, version: number): Promise<void> {
+  await apiRequest<Record<string, never>>(
+    `/plugin-sources/${encodeURIComponent(id)}?version=${version}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function syncPluginSource(id: string): Promise<PluginSource> {
+  const response = await apiRequest<PluginSourceResponse>(`/plugin-sources/${encodeURIComponent(id)}:sync`, {
+    method: 'POST',
+    body: JSON.stringify({ id }),
+  });
+  return pluginSourceFromAPI(response);
 }
 
 export async function upgradeWasmPlugin(plugin: Pick<WasmPlugin, 'id' | 'version'>): Promise<WasmPlugin> {
@@ -55,6 +105,13 @@ function pluginFromAPI(plugin: WasmPluginResponse): WasmPlugin {
     ...plugin,
     version: Number(plugin.version),
     state: normalizeResourceState(plugin.state),
+  };
+}
+
+function pluginSourceFromAPI(source: PluginSourceResponse): PluginSource {
+  return {
+    ...source,
+    version: Number(source.version),
   };
 }
 

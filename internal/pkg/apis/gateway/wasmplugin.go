@@ -38,6 +38,8 @@ type WasmPluginList struct {
 
 // WasmPluginSpec 定义插件身份和模块来源
 type WasmPluginSpec struct {
+	// SourceID 标识安装插件时选中的插件源，升级始终回到同一来源解析制品
+	SourceID string `json:"sourceID"`
 	// DisplayName 保存控制台展示名称，不参与流量匹配
 	DisplayName string `json:"displayName"`
 	// Package 是插件在仓库中的稳定标识，同一配置域只能安装一个版本

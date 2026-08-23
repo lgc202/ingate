@@ -487,9 +487,9 @@ func (x *Data_AIExtProc) GetTimeout() *durationpb.Duration {
 
 type Data_PluginCatalog struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// url 是官方插件目录地址；为空时插件市场不提供安装选项
-	Url string `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
-	// refresh_interval 是后台同步官方插件目录的周期
+	// official_source_url 是官方插件目录地址；为空时只使用用户创建的插件源
+	OfficialSourceUrl string `protobuf:"bytes,1,opt,name=official_source_url,json=officialSourceUrl,proto3" json:"official_source_url,omitempty"`
+	// refresh_interval 是后台同步全部已启用插件源的周期
 	RefreshInterval *durationpb.Duration `protobuf:"bytes,2,opt,name=refresh_interval,json=refreshInterval,proto3" json:"refresh_interval,omitempty"`
 	// timeout 限制单次远程目录请求的时间
 	Timeout       *durationpb.Duration `protobuf:"bytes,3,opt,name=timeout,proto3" json:"timeout,omitempty"`
@@ -527,9 +527,9 @@ func (*Data_PluginCatalog) Descriptor() ([]byte, []int) {
 	return file_conf_proto_rawDescGZIP(), []int{2, 3}
 }
 
-func (x *Data_PluginCatalog) GetUrl() string {
+func (x *Data_PluginCatalog) GetOfficialSourceUrl() string {
 	if x != nil {
-		return x.Url
+		return x.OfficialSourceUrl
 	}
 	return ""
 }
@@ -639,7 +639,7 @@ const file_conf_proto_rawDesc = "" +
 	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xf7\x06\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x95\a\n" +
 	"\x04Data\x12?\n" +
 	"\tapiserver\x18\x01 \x01(\v2!.ingate.admin.conf.Data.APIServerR\tapiserver\x12?\n" +
 	"\tanalytics\x18\x02 \x01(\v2!.ingate.admin.conf.Data.AnalyticsR\tanalytics\x12A\n" +
@@ -663,9 +663,9 @@ const file_conf_proto_rawDesc = "" +
 	"serverName\x1aT\n" +
 	"\tAIExtProc\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x1a\x9c\x01\n" +
-	"\rPluginCatalog\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\x12D\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x1a\xba\x01\n" +
+	"\rPluginCatalog\x12.\n" +
+	"\x13official_source_url\x18\x01 \x01(\tR\x11officialSourceUrl\x12D\n" +
 	"\x10refresh_interval\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0frefreshInterval\x123\n" +
 	"\atimeout\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"V\n" +
 	"\aLogging\x12\x16\n" +

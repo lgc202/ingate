@@ -43,6 +43,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Listener":                       schema_pkg_apis_gateway_v1_Listener(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ModelUpstream":                  schema_pkg_apis_gateway_v1_ModelUpstream(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PathMatch":                      schema_pkg_apis_gateway_v1_PathMatch(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PluginSource":                   schema_pkg_apis_gateway_v1_PluginSource(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PluginSourceList":               schema_pkg_apis_gateway_v1_PluginSourceList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PluginSourceSpec":               schema_pkg_apis_gateway_v1_PluginSourceSpec(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyStatus":                   schema_pkg_apis_gateway_v1_PolicyStatus(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef":                schema_pkg_apis_gateway_v1_PolicyTargetRef(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetStatus":             schema_pkg_apis_gateway_v1_PolicyTargetStatus(ref),
@@ -1475,6 +1478,140 @@ func schema_pkg_apis_gateway_v1_PathMatch(ref common.ReferenceCallback) common.O
 	}
 }
 
+func schema_pkg_apis_gateway_v1_PluginSource(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "PluginSource 声明一个由用户维护的远程插件目录 官方目录由进程配置提供，不重复写入声明式资源",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PluginSourceSpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ResourceStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PluginSourceSpec", "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ResourceStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_PluginSourceList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "PluginSourceList 表示 PluginSource 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PluginSource"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PluginSource", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_PluginSourceSpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "PluginSourceSpec 定义插件目录的用户配置",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"url": {
+						SchemaProps: spec.SchemaProps{
+							Description: "URL 指向与官方目录使用相同结构的 JSON 文件",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 控制该目录是否参与插件发现和升级",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"displayName", "url", "enabled"},
+			},
+		},
+	}
+}
+
 func schema_pkg_apis_gateway_v1_PolicyStatus(ref common.ReferenceCallback) common.OpenAPIDefinition {
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
@@ -2778,6 +2915,14 @@ func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) com
 				Description: "WasmPluginSpec 定义插件身份和模块来源",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
+					"sourceID": {
+						SchemaProps: spec.SchemaProps{
+							Description: "SourceID 标识安装插件时选中的插件源，升级始终回到同一来源解析制品",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
 					"displayName": {
 						SchemaProps: spec.SchemaProps{
 							Description: "DisplayName 保存控制台展示名称，不参与流量匹配",
@@ -2833,7 +2978,7 @@ func schema_pkg_apis_gateway_v1_WasmPluginSpec(ref common.ReferenceCallback) com
 						},
 					},
 				},
-				Required: []string{"displayName", "package", "version", "url", "pullPolicy"},
+				Required: []string{"sourceID", "displayName", "package", "version", "url", "pullPolicy"},
 			},
 		},
 	}

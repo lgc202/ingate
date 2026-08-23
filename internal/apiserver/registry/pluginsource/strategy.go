@@ -1,4 +1,4 @@
-package wasmplugin
+package pluginsource
 
 import (
 	"context"
@@ -27,32 +27,32 @@ func newStrategy(typer runtime.ObjectTyper) strategy {
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
-	plugin := obj.(*resource.WasmPlugin)
-	plugin.Status = resource.ResourceStatus{}
-	canonicalizeSpec(&plugin.Spec)
-	apiregistry.PrepareObjectMetaForCreate(&plugin.ObjectMeta)
+	source := obj.(*resource.PluginSource)
+	source.Status = resource.ResourceStatus{}
+	canonicalizeSpec(&source.Spec)
+	apiregistry.PrepareObjectMetaForCreate(&source.ObjectMeta)
 }
 
 func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
-	return validatePlugin(obj.(*resource.WasmPlugin))
+	return validateSource(obj.(*resource.PluginSource))
 }
 
 func (strategy) Canonicalize(obj runtime.Object) {
-	canonicalizeSpec(&obj.(*resource.WasmPlugin).Spec)
+	canonicalizeSpec(&obj.(*resource.PluginSource).Spec)
 }
 
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
-	newPlugin := obj.(*resource.WasmPlugin)
-	oldPlugin := old.(*resource.WasmPlugin)
+	newSource := obj.(*resource.PluginSource)
+	oldSource := old.(*resource.PluginSource)
 
-	newPlugin.Status = oldPlugin.Status
-	canonicalizeSpec(&newPlugin.Spec)
-	specChanged := !apiequality.Semantic.DeepEqual(oldPlugin.Spec, newPlugin.Spec)
-	apiregistry.PrepareObjectMetaForUpdate(&newPlugin.ObjectMeta, &oldPlugin.ObjectMeta, specChanged)
+	newSource.Status = oldSource.Status
+	canonicalizeSpec(&newSource.Spec)
+	specChanged := !apiequality.Semantic.DeepEqual(oldSource.Spec, newSource.Spec)
+	apiregistry.PrepareObjectMetaForUpdate(&newSource.ObjectMeta, &oldSource.ObjectMeta, specChanged)
 }
 
 func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
-	return validatePlugin(obj.(*resource.WasmPlugin))
+	return validateSource(obj.(*resource.PluginSource))
 }
 
 func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
@@ -64,26 +64,18 @@ func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 }
 
 func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
-	newPlugin := obj.(*resource.WasmPlugin)
-	oldPlugin := old.(*resource.WasmPlugin)
+	newSource := obj.(*resource.PluginSource)
+	oldSource := old.(*resource.PluginSource)
 
-	newPlugin.Spec = oldPlugin.Spec
-	metav1.ResetObjectMetaForStatus(&newPlugin.ObjectMeta, &oldPlugin.ObjectMeta)
+	newSource.Spec = oldSource.Spec
+	metav1.ResetObjectMetaForStatus(&newSource.ObjectMeta, &oldSource.ObjectMeta)
 }
 
 func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
 	return nil
 }
 
-func canonicalizeSpec(spec *resource.WasmPluginSpec) {
-	spec.SourceID = strings.TrimSpace(spec.SourceID)
+func canonicalizeSpec(spec *resource.PluginSourceSpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
-	spec.Package = strings.ToLower(strings.TrimSpace(spec.Package))
-	spec.Version = strings.TrimSpace(spec.Version)
 	spec.URL = strings.TrimSpace(spec.URL)
-	spec.SHA256 = strings.TrimSpace(spec.SHA256)
-	spec.RootID = strings.TrimSpace(spec.RootID)
-	if spec.PullPolicy == "" {
-		spec.PullPolicy = resource.WasmPluginPullIfNotPresent
-	}
 }

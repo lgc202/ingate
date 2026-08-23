@@ -91,6 +91,8 @@ type WasmPlugin struct {
 	UpdatedAt        *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	LatestVersion    string                 `protobuf:"bytes,13,opt,name=latest_version,json=latestVersion,proto3" json:"latest_version,omitempty"`
 	UpgradeAvailable bool                   `protobuf:"varint,14,opt,name=upgrade_available,json=upgradeAvailable,proto3" json:"upgrade_available,omitempty"`
+	SourceId         string                 `protobuf:"bytes,15,opt,name=source_id,json=sourceID,proto3" json:"source_id,omitempty"`
+	SourceName       string                 `protobuf:"bytes,16,opt,name=source_name,json=sourceName,proto3" json:"source_name,omitempty"`
 	unknownFields    protoimpl.UnknownFields
 	sizeCache        protoimpl.SizeCache
 }
@@ -223,7 +225,21 @@ func (x *WasmPlugin) GetUpgradeAvailable() bool {
 	return false
 }
 
-// WasmPluginCatalogItem 是当前 Ingate 版本兼容的官方插件安装选项
+func (x *WasmPlugin) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
+	}
+	return ""
+}
+
+func (x *WasmPlugin) GetSourceName() string {
+	if x != nil {
+		return x.SourceName
+	}
+	return ""
+}
+
+// WasmPluginCatalogItem 是当前 Ingate 版本兼容的插件安装选项
 // 制品地址和拉取方式由服务端管理，不属于控制台安装协议
 type WasmPluginCatalogItem struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -235,6 +251,8 @@ type WasmPluginCatalogItem struct {
 	Provider      string                 `protobuf:"bytes,6,opt,name=provider,proto3" json:"provider,omitempty"`
 	License       string                 `protobuf:"bytes,7,opt,name=license,proto3" json:"license,omitempty"`
 	SourceUrl     string                 `protobuf:"bytes,8,opt,name=source_url,json=sourceURL,proto3" json:"source_url,omitempty"`
+	SourceId      string                 `protobuf:"bytes,9,opt,name=source_id,json=sourceID,proto3" json:"source_id,omitempty"`
+	SourceName    string                 `protobuf:"bytes,10,opt,name=source_name,json=sourceName,proto3" json:"source_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -321,6 +339,20 @@ func (x *WasmPluginCatalogItem) GetLicense() string {
 func (x *WasmPluginCatalogItem) GetSourceUrl() string {
 	if x != nil {
 		return x.SourceUrl
+	}
+	return ""
+}
+
+func (x *WasmPluginCatalogItem) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
+	}
+	return ""
+}
+
+func (x *WasmPluginCatalogItem) GetSourceName() string {
+	if x != nil {
+		return x.SourceName
 	}
 	return ""
 }
@@ -556,6 +588,7 @@ func (x *GetWasmPluginRequest) GetId() string {
 type CreateWasmPluginRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	PackageName   string                 `protobuf:"bytes,1,opt,name=package_name,json=package,proto3" json:"package_name,omitempty"`
+	SourceId      string                 `protobuf:"bytes,2,opt,name=source_id,json=sourceID,proto3" json:"source_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -593,6 +626,13 @@ func (*CreateWasmPluginRequest) Descriptor() ([]byte, []int) {
 func (x *CreateWasmPluginRequest) GetPackageName() string {
 	if x != nil {
 		return x.PackageName
+	}
+	return ""
+}
+
+func (x *CreateWasmPluginRequest) GetSourceId() string {
+	if x != nil {
+		return x.SourceId
 	}
 	return ""
 }
@@ -705,7 +745,7 @@ var File_admin_v1_wasm_plugin_proto protoreflect.FileDescriptor
 
 const file_admin_v1_wasm_plugin_proto_rawDesc = "" +
 	"\n" +
-	"\x1aadmin/v1/wasm_plugin.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x9c\x04\n" +
+	"\x1aadmin/v1/wasm_plugin.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xda\x04\n" +
 	"\n" +
 	"WasmPlugin\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x12\n" +
@@ -725,7 +765,10 @@ const file_admin_v1_wasm_plugin_proto_rawDesc = "" +
 	"\n" +
 	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x12%\n" +
 	"\x0elatest_version\x18\r \x01(\tR\rlatestVersion\x12+\n" +
-	"\x11upgrade_available\x18\x0e \x01(\bR\x10upgradeAvailable\"\x84\x02\n" +
+	"\x11upgrade_available\x18\x0e \x01(\bR\x10upgradeAvailable\x12\x1b\n" +
+	"\tsource_id\x18\x0f \x01(\tR\bsourceID\x12\x1f\n" +
+	"\vsource_name\x18\x10 \x01(\tR\n" +
+	"sourceName\"\xc2\x02\n" +
 	"\x15WasmPluginCatalogItem\x12\x1d\n" +
 	"\fpackage_name\x18\x01 \x01(\tR\apackage\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12%\n" +
@@ -735,7 +778,11 @@ const file_admin_v1_wasm_plugin_proto_rawDesc = "" +
 	"\bprovider\x18\x06 \x01(\tR\bprovider\x12\x18\n" +
 	"\alicense\x18\a \x01(\tR\alicense\x12\x1d\n" +
 	"\n" +
-	"source_url\x18\b \x01(\tR\tsourceURL\"\x1e\n" +
+	"source_url\x18\b \x01(\tR\tsourceURL\x12\x1b\n" +
+	"\tsource_id\x18\t \x01(\tR\bsourceID\x12\x1f\n" +
+	"\vsource_name\x18\n" +
+	" \x01(\tR\n" +
+	"sourceName\"\x1e\n" +
 	"\x1cListWasmPluginCatalogRequest\"a\n" +
 	"\x1dListWasmPluginCatalogResponse\x12@\n" +
 	"\aplugins\x18\x01 \x03(\v2&.ingate.admin.v1.WasmPluginCatalogItemR\aplugins\"O\n" +
@@ -747,9 +794,10 @@ const file_admin_v1_wasm_plugin_proto_rawDesc = "" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
 	"nextCursor\"0\n" +
 	"\x14GetWasmPluginRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"A\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"g\n" +
 	"\x17CreateWasmPluginRequest\x12&\n" +
-	"\fpackage_name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\apackage\"V\n" +
+	"\fpackage_name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\apackage\x12$\n" +
+	"\tsource_id\x18\x02 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\bsourceID\"V\n" +
 	"\x17UpdateWasmPluginRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
 	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\"V\n" +

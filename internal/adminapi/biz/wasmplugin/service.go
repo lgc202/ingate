@@ -46,15 +46,26 @@ func NewService(
 	}
 }
 
-// Catalog 返回当前可用的官方插件目录
+// Catalog 返回当前所有已启用来源中的可用插件
 func (s *Service) Catalog() CatalogSnapshot {
 	return s.catalog.Snapshot()
 }
 
+// CatalogItem 返回插件当前所属来源的目录信息
+func (s *Service) CatalogItem(sourceID, packageName string) (CatalogItem, bool) {
+	return s.catalog.CatalogItem(sourceID, packageName)
+}
+
+// SourceName 返回已安装插件记录中的来源名称
+// 插件源停用只禁止新的安装和升级，不应让现有插件看起来像来源已被删除
+func (s *Service) SourceName(sourceID string) (string, bool) {
+	return s.catalog.SourceName(sourceID)
+}
+
 // UpgradeVersion 返回插件当前是否存在可用的新版本
 // 版本比较由后端统一完成，控制台不需要理解语义版本规则
-func (s *Service) UpgradeVersion(packageName, currentVersion string) (string, bool) {
-	spec, ok := s.catalog.PluginSpec(packageName)
+func (s *Service) UpgradeVersion(sourceID, packageName, currentVersion string) (string, bool) {
+	spec, ok := s.catalog.PluginSpec(sourceID, packageName)
 	if !ok {
 		return "", false
 	}
@@ -71,13 +82,13 @@ func (s *Service) Get(ctx context.Context, pluginID string) (*resource.WasmPlugi
 	return s.repository.Get(ctx, pluginID)
 }
 
-// Install 安装目录中的官方插件；制品信息由服务端目录决定
-func (s *Service) Install(ctx context.Context, packageName string) (*resource.WasmPlugin, error) {
-	spec, ok := s.catalog.PluginSpec(packageName)
+// Install 安装指定来源的目录插件；制品信息由服务端目录决定
+func (s *Service) Install(ctx context.Context, sourceID, packageName string) (*resource.WasmPlugin, error) {
+	spec, ok := s.catalog.PluginSpec(sourceID, packageName)
 	if !ok {
-		return nil, biz.NewRuleViolation(fmt.Sprintf("插件包 %q 不在当前插件目录中", packageName))
+		return nil, biz.NewRuleViolation(fmt.Sprintf("插件包 %q 不在选定插件源中", packageName))
 	}
-	if err := s.ensureIdentityAvailable(ctx, "", spec.DisplayName, spec.Package); err != nil {
+	if err := s.ensureIdentityAvailable(ctx, "", spec.SourceID, spec.DisplayName, spec.Package); err != nil {
 		return nil, err
 	}
 	return s.repository.Create(ctx, uuid.NewString(), spec)
@@ -96,7 +107,7 @@ func (s *Service) Upgrade(
 	if version != current.Generation {
 		return nil, versionConflict(current)
 	}
-	spec, ok := s.catalog.PluginSpec(current.Spec.Package)
+	spec, ok := s.catalog.PluginSpec(current.Spec.SourceID, current.Spec.Package)
 	if !ok {
 		return nil, biz.NewRuleViolation(fmt.Sprintf("插件包 %q 不在当前插件目录中，无法自动升级", current.Spec.Package))
 	}
@@ -131,7 +142,7 @@ func (s *Service) Delete(ctx context.Context, pluginID string, version int64) er
 	return nil
 }
 
-func (s *Service) ensureIdentityAvailable(ctx context.Context, pluginID, displayName, packageName string) error {
+func (s *Service) ensureIdentityAvailable(ctx context.Context, pluginID, sourceID, displayName, packageName string) error {
 	return biz.VisitPages(ctx, s.repository.ListPage, func(plugin resource.WasmPlugin) (bool, error) {
 		if plugin.Name == pluginID {
 			return false, nil
@@ -139,7 +150,7 @@ func (s *Service) ensureIdentityAvailable(ctx context.Context, pluginID, display
 		if plugin.Spec.DisplayName == displayName {
 			return true, biz.NewRuleViolation(fmt.Sprintf("插件名称 %q 已存在", displayName))
 		}
-		if plugin.Spec.Package == packageName {
+		if plugin.Spec.SourceID == sourceID && plugin.Spec.Package == packageName {
 			return true, biz.NewRuleViolation(fmt.Sprintf("插件包 %q 已安装，请直接升级现有插件", packageName))
 		}
 		return false, nil

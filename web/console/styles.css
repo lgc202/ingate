@@ -1153,6 +1153,7 @@ body { overflow-x: hidden; }
 
 /* 插件页面延续资源列表的克制信息密度，市场卡片只承担发现和安装入口 */
 .plugin-tabs { padding: 0 16px; background: #fafaf8; }
+.plugin-source-tab-action { padding: 16px 18px 0; display: flex; justify-content: flex-end; }
 .plugin-market { padding: 22px; }
 .plugin-update-action { display: flex; align-items: center; gap: 12px; color: #7a8290; font-size: .72rem; }
 .plugin-update-action svg { width: 14px; height: 14px; }
@@ -1178,6 +1179,14 @@ body { overflow-x: hidden; }
 .plugin-table th:nth-child(4) { width: 18%; }
 .plugin-table th:nth-child(5) { width: 16%; }
 .plugin-status-message { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.plugin-source-table { min-width: 680px; }
+.plugin-source-table th:nth-child(1) { width: 32%; }
+.plugin-source-table th:nth-child(2) { width: 22%; }
+.plugin-source-table th:nth-child(3) { width: 12%; }
+.plugin-source-table th:nth-child(4) { width: 18%; }
+.plugin-source-table th:nth-child(5) { width: 16%; }
+.plugin-source-table .table-primary { display: flex; align-items: center; gap: 8px; }
+.plugin-source-url { max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 .plugin-field { min-width: 0; display: grid; gap: 6px; }
 .plugin-field > span { color: #576071; font-size: .74rem; font-weight: 750; }

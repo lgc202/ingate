@@ -1,0 +1,97 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// PluginSourceService 管理插件目录来源及其同步状态
+service PluginSourceService {
+  rpc ListPluginSources(ListPluginSourcesRequest) returns (ListPluginSourcesResponse) {
+    option (google.api.http) = {get: "/api/v1/plugin-sources"};
+  }
+  rpc GetPluginSource(GetPluginSourceRequest) returns (PluginSource) {
+    option (google.api.http) = {get: "/api/v1/plugin-sources/{id}"};
+  }
+  rpc CreatePluginSource(CreatePluginSourceRequest) returns (PluginSource) {
+    option (google.api.http) = {
+      post: "/api/v1/plugin-sources"
+      body: "*"
+    };
+  }
+  rpc UpdatePluginSource(UpdatePluginSourceRequest) returns (PluginSource) {
+    option (google.api.http) = {
+      put: "/api/v1/plugin-sources/{id}"
+      body: "*"
+    };
+  }
+  rpc DeletePluginSource(DeletePluginSourceRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/plugin-sources/{id}"};
+  }
+  rpc SyncPluginSource(SyncPluginSourceRequest) returns (PluginSource) {
+    option (google.api.http) = {
+      post: "/api/v1/plugin-sources/{id}:sync"
+      body: "*"
+    };
+  }
+}
+
+enum PluginSourceSyncState {
+  PLUGIN_SOURCE_SYNC_STATE_UNSPECIFIED = 0;
+  PLUGIN_SOURCE_SYNC_STATE_READY = 1;
+  PLUGIN_SOURCE_SYNC_STATE_ERROR = 2;
+  PLUGIN_SOURCE_SYNC_STATE_DISABLED = 3;
+  PLUGIN_SOURCE_SYNC_STATE_NOT_SYNCED = 4;
+}
+
+message PluginSource {
+  string id = 1;
+  string name = 2;
+  string url = 3;
+  bool builtin = 4;
+  bool enabled = 5;
+  PluginSourceSyncState sync_state = 6;
+  string message = 7;
+  int32 plugin_count = 8;
+  google.protobuf.Timestamp last_synced_at = 9;
+  int64 version = 10;
+  google.protobuf.Timestamp created_at = 11;
+  google.protobuf.Timestamp updated_at = 12;
+}
+
+message ListPluginSourcesRequest {}
+
+message ListPluginSourcesResponse {
+  repeated PluginSource sources = 1;
+}
+
+message GetPluginSourceRequest {
+  string id = 1 [(buf.validate.field).string.min_len = 1];
+}
+
+message CreatePluginSourceRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string url = 2 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 3 [(buf.validate.field).required = true];
+}
+
+message UpdatePluginSourceRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string url = 4 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 5 [(buf.validate.field).required = true];
+}
+
+message DeletePluginSourceRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}
+
+message SyncPluginSourceRequest {
+  string id = 1 [(buf.validate.field).string.min_len = 1];
+}

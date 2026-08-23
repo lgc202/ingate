@@ -70,6 +70,8 @@ const (
 	KindTokenQuotaPolicy Kind = "TokenQuotaPolicy"
 	// KindWasmPlugin 表示 WasmPlugin 资源类型
 	KindWasmPlugin Kind = "WasmPlugin"
+	// KindPluginSource 表示 PluginSource 资源类型
+	KindPluginSource Kind = "PluginSource"
 	// KindHeaderTransformationPolicy 表示 HeaderTransformationPolicy 资源类型
 	KindHeaderTransformationPolicy Kind = "HeaderTransformationPolicy"
 )

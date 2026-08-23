@@ -11,6 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/service/health"
 	"github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
+	"github.com/lgc202/ingate/internal/adminapi/service/pluginsource"
 	"github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	requestservice "github.com/lgc202/ingate/internal/adminapi/service/request"
 	"github.com/lgc202/ingate/internal/adminapi/service/route"
@@ -36,6 +37,7 @@ type HTTPHandlers struct {
 	health               *health.Service
 	headerTransformation *headertransformation.Service
 	wasmPlugin           *wasmplugin.Service
+	pluginSource         *pluginsource.Service
 }
 
 // NewHTTPHandlers 创建 Admin API 的 HTTP 协议服务集合
@@ -54,6 +56,7 @@ func NewHTTPHandlers(
 	healthService *health.Service,
 	headerTransformationService *headertransformation.Service,
 	wasmPluginService *wasmplugin.Service,
+	pluginSourceService *pluginsource.Service,
 ) *HTTPHandlers {
 	return &HTTPHandlers{
 		aiUsage:              aiUsageService,
@@ -70,6 +73,7 @@ func NewHTTPHandlers(
 		health:               healthService,
 		headerTransformation: headerTransformationService,
 		wasmPlugin:           wasmPluginService,
+		pluginSource:         pluginSourceService,
 	}
 }
 
@@ -88,4 +92,5 @@ func (h *HTTPHandlers) register(server *kratoshttp.Server) {
 	adminv1.RegisterHealthServiceHTTPServer(server, h.health)
 	adminv1.RegisterHeaderTransformationPolicyServiceHTTPServer(server, h.headerTransformation)
 	adminv1.RegisterWasmPluginServiceHTTPServer(server, h.wasmPlugin)
+	adminv1.RegisterPluginSourceServiceHTTPServer(server, h.pluginSource)
 }

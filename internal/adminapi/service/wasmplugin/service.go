@@ -73,11 +73,15 @@ func (s *Service) CreateWasmPlugin(
 	ctx context.Context,
 	request *adminv1.CreateWasmPluginRequest,
 ) (*adminv1.WasmPlugin, error) {
+	sourceID := strings.TrimSpace(request.GetSourceId())
+	if sourceID == "" {
+		return nil, adminservice.BadRequest("请选择插件源")
+	}
 	packageName := strings.TrimSpace(request.GetPackageName())
 	if packageName == "" {
 		return nil, adminservice.BadRequest("请选择要安装的插件")
 	}
-	plugin, err := s.plugins.Install(ctx, packageName)
+	plugin, err := s.plugins.Install(ctx, sourceID, packageName)
 	if err != nil {
 		return nil, err
 	}
@@ -106,6 +110,11 @@ func (s *Service) DeleteWasmPlugin(
 }
 
 func (s *Service) pluginResponse(plugin *resource.WasmPlugin) *adminv1.WasmPlugin {
-	latestVersion, upgradeAvailable := s.plugins.UpgradeVersion(plugin.Spec.Package, plugin.Spec.Version)
-	return pluginResponse(plugin, latestVersion, upgradeAvailable)
+	latestVersion, upgradeAvailable := s.plugins.UpgradeVersion(
+		plugin.Spec.SourceID,
+		plugin.Spec.Package,
+		plugin.Spec.Version,
+	)
+	sourceName, _ := s.plugins.SourceName(plugin.Spec.SourceID)
+	return pluginResponse(plugin, sourceName, latestVersion, upgradeAvailable)
 }

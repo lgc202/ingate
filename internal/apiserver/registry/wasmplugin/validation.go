@@ -23,6 +23,9 @@ func validatePlugin(plugin *resource.WasmPlugin) field.ErrorList {
 	spec := plugin.Spec
 	var errs field.ErrorList
 
+	if spec.SourceID == "" {
+		errs = append(errs, field.Required(specPath.Child("sourceID"), "sourceID is required"))
+	}
 	if spec.DisplayName == "" {
 		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
 	}
