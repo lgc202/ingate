@@ -62,7 +62,7 @@ func (c *compilation) compileHeaderTransformationPolicies() map[string]compiledH
 				SeverityError,
 				gatewayv1.KindHeaderTransformationPolicy,
 				policyID,
-				ReasonInvalidReference,
+				ReasonArtifactUnavailable,
 				fmt.Sprintf("header transformation policy %q cannot use plugin package %q because its module is unavailable", policyID, plugin.Spec.Package),
 			)
 			continue

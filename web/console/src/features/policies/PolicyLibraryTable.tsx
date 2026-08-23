@@ -82,7 +82,9 @@ export function PolicyLibraryTable({
                       </Badge>
                     ) : null}
                   </div>
-                  {partiallyApplied && statusMessage ? <div className="table-secondary policy-status-message">{statusMessage}</div> : null}
+                  {policy.enabled && (partiallyApplied || policy.status.state === 'Error') && statusMessage
+                    ? <div className="table-secondary policy-status-message">{statusMessage}</div>
+                    : null}
                 </td>
                 <td className="resource-table-time">{formatDateTime(policy.updatedAt ?? policy.createdAt ?? '')}</td>
                 <td>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Blocks, CircleAlert, Database, Sparkles } from 'lucide-react';
 import {
   deleteWasmPlugin,
+  getWasmPlugin,
   installWasmPlugin,
   listPluginSources,
   listWasmPluginCatalog,
@@ -52,9 +53,24 @@ export function PluginPage() {
   const pageCount = Math.max(1, Math.ceil(visiblePlugins.length / pageSize));
   const currentPage = Math.min(page, pageCount);
   const pagedPlugins = visiblePlugins.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  const openUninstall = (plugin: WasmPlugin) => {
+  const loadPlugin = async (plugin: WasmPlugin): Promise<WasmPlugin | null> => {
+    try {
+      return await getWasmPlugin(plugin.id);
+    } catch (error) {
+      setNotice({ message: error instanceof Error ? error.message : '加载插件详情失败', tone: 'error' });
+      return null;
+    }
+  };
+
+  const openDetail = async (plugin: WasmPlugin) => {
+    const current = await loadPlugin(plugin);
+    if (current) setDetail(current);
+  };
+
+  const openUninstall = async (plugin: WasmPlugin) => {
     setDeleteError('');
-    setDeleteCandidate(plugin);
+    const current = await loadPlugin(plugin);
+    if (current) setDeleteCandidate(current);
   };
 
   const manageInstalledPlugin = () => {
@@ -132,9 +148,9 @@ export function PluginPage() {
             onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
             onReset={() => { const next = emptyPluginFilters(); setFilterDraft(next); setFilters(next); setPage(1); }}
             catalog={catalog.data.plugins}
-            onDetail={setDetail}
+            onDetail={(plugin) => void openDetail(plugin)}
             onUpgrade={(plugin, item) => { setChangeError(''); setChange({ item, installed: plugin }); }}
-            onDelete={openUninstall}
+            onDelete={(plugin) => void openUninstall(plugin)}
           />
         ) : <PluginSourceTab sources={sources} />}
         {tab === 'installed' && visiblePlugins.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visiblePlugins.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
@@ -151,6 +167,18 @@ export function PluginPage() {
           <p className="text-sm leading-6 text-slate-600">
             卸载后将无法创建依赖该能力的策略。确定卸载“<strong className="text-slate-900">{deleteCandidate?.name}</strong>”吗？
           </p>
+          {deleteCandidate?.usages.length ? (
+            <div className="plugin-uninstall-usages" role="alert">
+              <CircleAlert aria-hidden="true" />
+              <div>
+                <strong>当前有 {deleteCandidate.usages.length} 条策略依赖该插件</strong>
+                <p>请先删除这些策略，再卸载插件。</p>
+                <ul>
+                  {deleteCandidate.usages.map((usage) => <li key={`${usage.policyKind}:${usage.policyID}`}>{usage.policyName}</li>)}
+                </ul>
+              </div>
+            </div>
+          ) : null}
           {deleteError ? (
             <div className="flex items-start gap-2.5 rounded-lg border border-rose-200 bg-rose-50 px-3.5 py-3 text-sm leading-5 text-rose-800" role="alert">
               <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -159,7 +187,7 @@ export function PluginPage() {
           ) : null}
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
             <Button variant="ghost" onClick={closeUninstall}>取消</Button>
-            <Button variant="danger" disabled={busy} onClick={() => void remove()}>{busy ? '卸载中...' : '确认卸载'}</Button>
+            <Button variant="danger" disabled={busy || Boolean(deleteCandidate?.usages.length)} onClick={() => void remove()}>{busy ? '卸载中...' : '确认卸载'}</Button>
           </div>
         </div>
       </Modal>

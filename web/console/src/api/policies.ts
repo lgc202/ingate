@@ -169,7 +169,7 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
     tokenQuotaPolicies,
     headerTransformationPolicies,
     mockResponsePolicies,
-    installedPluginPackages: plugins.filter((plugin) => plugin.state === 'Ready').map((plugin) => plugin.package),
+    installedPluginPackages: plugins.map((plugin) => plugin.package),
     targets: policyTargets(gatewayList, routeList, callers),
   };
 }

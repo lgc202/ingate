@@ -216,8 +216,25 @@ export function PluginDetail({ plugin, catalogItem }: { plugin: WasmPlugin; cata
           {plugin.sha256 ? <><span>校验摘要</span><code>{plugin.sha256}</code></> : null}
         </div>
       </section>
+      <section className="resource-detail-section space-y-3">
+        <h3>使用情况</h3>
+        {plugin.usages.length ? (
+          <ul className="plugin-usage-list">
+            {plugin.usages.map((usage) => (
+              <li key={`${usage.policyKind}:${usage.policyID}`}>
+                <strong>{usage.policyName}</strong>
+                <span>{pluginPolicyKindLabel(usage.policyKind)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="plugin-usage-empty">当前没有策略依赖该插件</p>}
+      </section>
     </div>
   );
+}
+
+function pluginPolicyKindLabel(kind: WasmPlugin['usages'][number]['policyKind']): string {
+  return kind === 'HeaderTransformationPolicy' ? '请求响应转换策略' : '模拟响应策略';
 }
 
 function pullPolicyLabel(policy: WasmPlugin['pullPolicy']): string {

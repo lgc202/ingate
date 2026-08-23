@@ -8,6 +8,8 @@ import (
 
 // PluginPolicyUsage 表示一条仍依赖已安装插件的策略
 type PluginPolicyUsage struct {
+	PolicyID    string
+	PolicyKind  resource.Kind
 	PolicyType  string
 	DisplayName string
 }
@@ -30,27 +32,37 @@ func NewPluginUsageFinder(
 	}
 }
 
-// Find 返回第一条仍依赖指定插件包的策略
-func (f *PluginUsageFinder) Find(
+// List 返回仍依赖指定插件包的全部策略
+// 插件详情和卸载校验共用同一份结果，避免控制台与后端对依赖关系作出不同判断
+func (f *PluginUsageFinder) List(
 	ctx context.Context,
 	packageName string,
-) (*PluginPolicyUsage, error) {
+) ([]PluginPolicyUsage, error) {
+	var usages []PluginPolicyUsage
 	switch packageName {
 	case resource.WasmPluginPackageTransformer:
-		var usage *PluginPolicyUsage
 		err := VisitPages(ctx, f.headerTransformations.ListPage, func(policy resource.HeaderTransformationPolicy) (bool, error) {
-			usage = &PluginPolicyUsage{PolicyType: "请求响应转换策略", DisplayName: policy.Spec.DisplayName}
-			return true, nil
+			usages = append(usages, PluginPolicyUsage{
+				PolicyID:    policy.Name,
+				PolicyKind:  resource.KindHeaderTransformationPolicy,
+				PolicyType:  "请求响应转换策略",
+				DisplayName: policy.Spec.DisplayName,
+			})
+			return false, nil
 		})
-		return usage, err
+		return usages, err
 	case resource.WasmPluginPackageMockResponse:
-		var usage *PluginPolicyUsage
 		err := VisitPages(ctx, f.mockResponses.ListPage, func(policy resource.MockResponsePolicy) (bool, error) {
-			usage = &PluginPolicyUsage{PolicyType: "模拟响应策略", DisplayName: policy.Spec.DisplayName}
-			return true, nil
+			usages = append(usages, PluginPolicyUsage{
+				PolicyID:    policy.Name,
+				PolicyKind:  resource.KindMockResponsePolicy,
+				PolicyType:  "模拟响应策略",
+				DisplayName: policy.Spec.DisplayName,
+			})
+			return false, nil
 		})
-		return usage, err
+		return usages, err
 	default:
-		return nil, nil
+		return usages, nil
 	}
 }

@@ -484,7 +484,12 @@ function PolicyDetail({ policy, targets }: { policy: GovernancePolicy; targets: 
   return (
     <div className="space-y-5">
       <section className="resource-detail-hero">
-        <div><h3>{policy.name}</h3></div>
+        <div>
+          <h3>{policy.name}</h3>
+          {policy.status.state === 'Error' || policy.status.state === 'Pending'
+            ? <p>{policy.status.message}</p>
+            : null}
+        </div>
         <Badge tone={policyStatusTone(policy.status)}>{governancePolicyStatusLabel(policy)}</Badge>
       </section>
       <section className="resource-detail-section">

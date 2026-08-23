@@ -122,5 +122,6 @@ func decisionFromDiagnostic(diagnostic compiler.Diagnostic) conditionDecision {
 func isReferenceReason(reason compiler.Reason) bool {
 	return reason == compiler.ReasonReferenceNotFound ||
 		reason == compiler.ReasonPluginNotInstalled ||
-		reason == compiler.ReasonInvalidReference
+		reason == compiler.ReasonInvalidReference ||
+		reason == compiler.ReasonArtifactUnavailable
 }

@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
+	"github.com/lgc202/ingate/internal/adminapi/biz"
 	wasmpluginbiz "github.com/lgc202/ingate/internal/adminapi/biz/wasmplugin"
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
@@ -53,7 +54,7 @@ func (s *Service) ListWasmPlugins(
 		NextCursor: page.NextCursor,
 	}
 	for i := range page.Items {
-		response.Plugins = append(response.Plugins, s.pluginResponse(&page.Items[i]))
+		response.Plugins = append(response.Plugins, s.pluginResponse(&page.Items[i], nil))
 	}
 	return response, nil
 }
@@ -66,7 +67,11 @@ func (s *Service) GetWasmPlugin(
 	if err != nil {
 		return nil, err
 	}
-	return s.pluginResponse(plugin), nil
+	usages, err := s.plugins.Usages(ctx, plugin.Spec.Package)
+	if err != nil {
+		return nil, err
+	}
+	return s.pluginResponse(plugin, usages), nil
 }
 
 func (s *Service) CreateWasmPlugin(
@@ -85,7 +90,7 @@ func (s *Service) CreateWasmPlugin(
 	if err != nil {
 		return nil, err
 	}
-	return s.pluginResponse(plugin), nil
+	return s.pluginResponse(plugin, nil), nil
 }
 
 func (s *Service) UpdateWasmPlugin(
@@ -96,7 +101,7 @@ func (s *Service) UpdateWasmPlugin(
 	if err != nil {
 		return nil, err
 	}
-	return s.pluginResponse(plugin), nil
+	return s.pluginResponse(plugin, nil), nil
 }
 
 func (s *Service) DeleteWasmPlugin(
@@ -109,12 +114,12 @@ func (s *Service) DeleteWasmPlugin(
 	return &emptypb.Empty{}, nil
 }
 
-func (s *Service) pluginResponse(plugin *resource.WasmPlugin) *adminv1.WasmPlugin {
+func (s *Service) pluginResponse(plugin *resource.WasmPlugin, usages []biz.PluginPolicyUsage) *adminv1.WasmPlugin {
 	latestVersion, upgradeAvailable := s.plugins.UpgradeVersion(
 		plugin.Spec.SourceID,
 		plugin.Spec.Package,
 		plugin.Spec.Version,
 	)
 	sourceName, _ := s.plugins.SourceName(plugin.Spec.SourceID)
-	return pluginResponse(plugin, sourceName, latestVersion, upgradeAvailable)
+	return pluginResponse(plugin, sourceName, latestVersion, upgradeAvailable, usages)
 }

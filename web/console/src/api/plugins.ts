@@ -33,6 +33,11 @@ export async function listWasmPlugins(): Promise<WasmPlugin[]> {
   return plugins.map(pluginFromAPI);
 }
 
+export async function getWasmPlugin(id: string): Promise<WasmPlugin> {
+  const plugin = await apiRequest<WasmPluginResponse>(`/wasm-plugins/${encodeURIComponent(id)}`);
+  return pluginFromAPI(plugin);
+}
+
 interface PluginSourceResponse extends Omit<PluginSource, 'version'> {
   version: string | number;
 }
@@ -103,6 +108,7 @@ export async function deleteWasmPlugin(id: string, version: number): Promise<voi
 function pluginFromAPI(plugin: WasmPluginResponse): WasmPlugin {
   return {
     ...plugin,
+    usages: plugin.usages ?? [],
     version: Number(plugin.version),
     state: normalizeResourceState(plugin.state),
   };

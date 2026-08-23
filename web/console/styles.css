@@ -1213,6 +1213,16 @@ body { overflow-x: hidden; }
 .plugin-module-detail span { color: #858d9a; font-size: .68rem; }
 .plugin-module-detail code { overflow-wrap: anywhere; color: #465064; font-size: .7rem; }
 .plugin-detail-section-heading a { font-size: .68rem; }
+.plugin-usage-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.plugin-usage-list li { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 12px; border: 1px solid #e1e5ec; border-radius: 9px; background: #fafbfc; }
+.plugin-usage-list strong { color: #283245; font-size: .76rem; }
+.plugin-usage-list span, .plugin-usage-empty { color: #7c8594; font-size: .7rem; }
+.plugin-usage-empty { margin: 0; }
+.plugin-uninstall-usages { display: flex; align-items: flex-start; gap: 10px; padding: 12px 13px; border: 1px solid #fecaca; border-radius: 9px; background: #fff1f2; color: #9f1239; }
+.plugin-uninstall-usages > svg { width: 16px; height: 16px; flex: none; margin-top: 2px; }
+.plugin-uninstall-usages strong { display: block; font-size: .76rem; }
+.plugin-uninstall-usages p { margin: 3px 0 0; font-size: .7rem; }
+.plugin-uninstall-usages ul { display: grid; gap: 2px; margin: 7px 0 0; padding-left: 17px; font-size: .7rem; }
 .plugin-detail-message { margin: 12px 0 0; color: #697283; font-size: .72rem; }
 
 .transformation-rule-list { display: grid; gap: 10px; }
