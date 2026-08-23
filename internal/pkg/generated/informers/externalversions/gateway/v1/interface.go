@@ -20,6 +20,8 @@ type Interface interface {
 	HeaderTransformationPolicies() HeaderTransformationPolicyInformer
 	// IPRestrictionPolicies returns a IPRestrictionPolicyInformer.
 	IPRestrictionPolicies() IPRestrictionPolicyInformer
+	// PluginSources returns a PluginSourceInformer.
+	PluginSources() PluginSourceInformer
 	// RateLimitPolicies returns a RateLimitPolicyInformer.
 	RateLimitPolicies() RateLimitPolicyInformer
 	// Routes returns a RouteInformer.
@@ -66,6 +68,11 @@ func (v *version) HeaderTransformationPolicies() HeaderTransformationPolicyInfor
 // IPRestrictionPolicies returns a IPRestrictionPolicyInformer.
 func (v *version) IPRestrictionPolicies() IPRestrictionPolicyInformer {
 	return &iPRestrictionPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// PluginSources returns a PluginSourceInformer.
+func (v *version) PluginSources() PluginSourceInformer {
+	return &pluginSourceInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // RateLimitPolicies returns a RateLimitPolicyInformer.

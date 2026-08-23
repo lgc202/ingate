@@ -6,6 +6,8 @@ export type WasmPluginPullPolicy =
 
 export interface WasmPlugin {
   id: string;
+  sourceID: string;
+  sourceName: string;
   name: string;
   package: string;
   pluginVersion: string;
@@ -22,6 +24,8 @@ export interface WasmPlugin {
 }
 
 export interface PluginCatalogItem {
+  sourceID: string;
+  sourceName: string;
   package: string;
   name: string;
   pluginVersion: string;
@@ -34,6 +38,48 @@ export interface PluginCatalogItem {
 
 export interface PluginCatalog {
   plugins: PluginCatalogItem[];
+}
+
+export type PluginSourceSyncState =
+  | 'PLUGIN_SOURCE_SYNC_STATE_READY'
+  | 'PLUGIN_SOURCE_SYNC_STATE_ERROR'
+  | 'PLUGIN_SOURCE_SYNC_STATE_DISABLED'
+  | 'PLUGIN_SOURCE_SYNC_STATE_NOT_SYNCED'
+  | 'PLUGIN_SOURCE_SYNC_STATE_UNSPECIFIED';
+
+export interface PluginSource {
+  id: string;
+  name: string;
+  url: string;
+  builtin: boolean;
+  enabled: boolean;
+  syncState: PluginSourceSyncState;
+  message: string;
+  pluginCount: number;
+  lastSyncedAt?: string;
+  version: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PluginSourceInput {
+  name: string;
+  url: string;
+  enabled: boolean;
+}
+
+export function pluginSourceStateLabel(state: PluginSourceSyncState): string {
+  if (state === 'PLUGIN_SOURCE_SYNC_STATE_READY') return '同步正常';
+  if (state === 'PLUGIN_SOURCE_SYNC_STATE_ERROR') return '同步失败';
+  if (state === 'PLUGIN_SOURCE_SYNC_STATE_DISABLED') return '已停用';
+  return '尚未同步';
+}
+
+export function pluginSourceStateTone(state: PluginSourceSyncState): 'success' | 'error' | 'neutral' | 'warning' {
+  if (state === 'PLUGIN_SOURCE_SYNC_STATE_READY') return 'success';
+  if (state === 'PLUGIN_SOURCE_SYNC_STATE_ERROR') return 'error';
+  if (state === 'PLUGIN_SOURCE_SYNC_STATE_DISABLED') return 'neutral';
+  return 'warning';
 }
 
 export function pluginStatusLabel(state: ResourceState): string {

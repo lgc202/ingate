@@ -30,18 +30,28 @@ export function PluginMarket({
   installed,
   onInstall,
   onManage,
+  onManageSources,
 }: {
   items: PluginCatalogItem[];
   installed: WasmPlugin[];
   onInstall: (item: PluginCatalogItem) => void;
   onManage: () => void;
+  onManageSources: () => void;
 }) {
+  if (items.length === 0) {
+    return (
+      <div className="space-y-4 p-5">
+        <EmptyState title="暂无可用插件" message="请检查已启用插件源的同步状态，或添加新的插件源。" />
+        <div className="flex justify-center"><Button variant="outline" onClick={onManageSources}>管理插件源</Button></div>
+      </div>
+    );
+  }
   return (
     <div className="plugin-market">
       {items.map((item) => {
-        const installedPlugin = installed.find((plugin) => plugin.package === item.package);
+        const installedPlugin = installed.find((plugin) => plugin.sourceID === item.sourceID && plugin.package === item.package);
         return (
-          <article className="plugin-market-card" key={item.package}>
+          <article className="plugin-market-card" key={`${item.sourceID}:${item.package}`}>
             <div className="plugin-market-icon"><PackagePlus aria-hidden="true" /></div>
             <div className="plugin-market-main">
               <div className="plugin-market-title">
@@ -50,6 +60,7 @@ export function PluginMarket({
               </div>
               <p>{item.description}</p>
               <div className="plugin-market-meta">
+                <span>{item.sourceName}</span>
                 <span>{item.provider}</span>
                 <span>v{item.pluginVersion}</span>
                 <span>{item.license}</span>
@@ -131,7 +142,7 @@ export function InstalledPlugins({
                 <InstalledPluginRow
                   key={plugin.id}
                   plugin={plugin}
-                  catalogItem={catalog.find((item) => item.package === plugin.package)}
+                  catalogItem={catalog.find((item) => item.sourceID === plugin.sourceID && item.package === plugin.package)}
                   onDetail={onDetail}
                   onUpgrade={onUpgrade}
                   onDelete={onDelete}
@@ -161,7 +172,7 @@ function InstalledPluginRow({
   const upgradeAvailable = plugin.upgradeAvailable && catalogItem;
   return (
     <tr>
-      <td><div className="table-primary">{plugin.name}</div><div className="table-secondary">{catalogItem?.provider ?? '自定义安装'}</div></td>
+      <td><div className="table-primary">{plugin.name}</div><div className="table-secondary">{plugin.sourceName || '来源已删除'}</div></td>
       <td>
         <div className="table-primary">v{plugin.pluginVersion}</div>
         <div className="table-secondary">
@@ -179,13 +190,14 @@ export function PluginDetail({ plugin, catalogItem }: { plugin: WasmPlugin; cata
   return (
     <div className="space-y-5">
       <section className="resource-detail-hero">
-        <div><h3>{plugin.name}</h3><p>{catalogItem ? `由 ${catalogItem.provider} 提供` : '自定义安装'}</p></div>
+        <div><h3>{plugin.name}</h3><p>{plugin.sourceName ? `来自 ${plugin.sourceName}` : '插件来源已删除'}</p></div>
         <Badge tone={pluginStatusTone(plugin.state)}>{pluginStatusLabel(plugin.state)}</Badge>
       </section>
       <section className="resource-detail-section">
         <h3>安装信息</h3>
         <div className="resource-detail-grid">
           <div><span>插件包名</span><strong>{plugin.package}</strong></div>
+          <div><span>插件来源</span><strong>{plugin.sourceName || '来源已删除'}</strong></div>
           <div><span>插件版本</span><strong>{plugin.pluginVersion}</strong></div>
           <div><span>安装状态</span><strong>{pluginStatusLabel(plugin.state)}</strong></div>
           <div><span>更新时间</span><strong>{formatDateTime(plugin.updatedAt || plugin.createdAt)}</strong></div>

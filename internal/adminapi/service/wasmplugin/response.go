@@ -10,6 +10,8 @@ import (
 
 func catalogItemResponse(item wasmpluginbiz.CatalogItem) *adminv1.WasmPluginCatalogItem {
 	return &adminv1.WasmPluginCatalogItem{
+		SourceId:      item.SourceID,
+		SourceName:    item.SourceName,
 		PackageName:   item.Package,
 		Name:          item.Name,
 		PluginVersion: item.Version,
@@ -21,10 +23,17 @@ func catalogItemResponse(item wasmpluginbiz.CatalogItem) *adminv1.WasmPluginCata
 	}
 }
 
-func pluginResponse(plugin *resource.WasmPlugin, latestVersion string, upgradeAvailable bool) *adminv1.WasmPlugin {
+func pluginResponse(
+	plugin *resource.WasmPlugin,
+	sourceName string,
+	latestVersion string,
+	upgradeAvailable bool,
+) *adminv1.WasmPlugin {
 	status := biz.WasmPluginStatus(plugin.Generation, plugin.Status.Conditions)
 	return &adminv1.WasmPlugin{
 		Id:               plugin.Name,
+		SourceId:         plugin.Spec.SourceID,
+		SourceName:       sourceName,
 		Name:             plugin.Spec.DisplayName,
 		PackageName:      plugin.Spec.Package,
 		PluginVersion:    plugin.Spec.Version,

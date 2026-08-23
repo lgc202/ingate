@@ -21,7 +21,7 @@ data:
     addr: "controller:18081"
     timeout: "2s"
   plugin_catalog:
-    url: "https://lgc202.github.io/ingate/plugins/v1/catalog.json"
+    official_source_url: "https://lgc202.github.io/ingate/plugins/v1/catalog.json"
     refresh_interval: "3600s"
     timeout: "5s"
 logging:

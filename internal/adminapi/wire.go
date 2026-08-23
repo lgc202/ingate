@@ -15,6 +15,7 @@ import (
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	headertransformationbiz "github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
 	iprestrictionbiz "github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
+	pluginsourcebiz "github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
 	ratelimitbiz "github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
 	routebiz "github.com/lgc202/ingate/internal/adminapi/biz/route"
@@ -32,6 +33,7 @@ import (
 	headertransformationservice "github.com/lgc202/ingate/internal/adminapi/service/headertransformation"
 	healthservice "github.com/lgc202/ingate/internal/adminapi/service/health"
 	iprestrictionservice "github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
+	pluginsourceservice "github.com/lgc202/ingate/internal/adminapi/service/pluginsource"
 	ratelimitservice "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	requestservice "github.com/lgc202/ingate/internal/adminapi/service/request"
 	routeservice "github.com/lgc202/ingate/internal/adminapi/service/route"
@@ -53,6 +55,7 @@ var bizProviderSet = wire.NewSet(
 	certificatebiz.NewService,
 	ratelimitbiz.NewService,
 	iprestrictionbiz.NewService,
+	pluginsourcebiz.NewService,
 	requestbiz.NewService,
 	trafficbiz.NewService,
 	tokenquotabiz.NewService,
@@ -70,6 +73,7 @@ var serviceProviderSet = wire.NewSet(
 	certificateservice.NewService,
 	ratelimitservice.NewService,
 	iprestrictionservice.NewService,
+	pluginsourceservice.NewService,
 	requestservice.NewService,
 	trafficservice.NewService,
 	tokenquotaservice.NewService,

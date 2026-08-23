@@ -16,6 +16,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
+	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/adminapi/biz/request"
 	"github.com/lgc202/ingate/internal/adminapi/biz/route"
@@ -36,6 +37,7 @@ import (
 	headertransformation2 "github.com/lgc202/ingate/internal/adminapi/service/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/service/health"
 	iprestriction2 "github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
+	pluginsource2 "github.com/lgc202/ingate/internal/adminapi/service/pluginsource"
 	ratelimit2 "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	request2 "github.com/lgc202/ingate/internal/adminapi/service/request"
 	route2 "github.com/lgc202/ingate/internal/adminapi/service/route"
@@ -103,7 +105,8 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 	headertransformationService := headertransformation.NewService(headerTransformationPolicyRepository, gatewayRepository, routeRepository)
 	service12 := headertransformation2.NewService(headertransformationService)
 	wasmPluginRepository := apiserver.NewWasmPluginRepository(versionedInterface)
-	catalog, err := plugincatalog.NewCatalog(data, logger)
+	pluginSourceRepository := apiserver.NewPluginSourceRepository(versionedInterface)
+	catalog, err := plugincatalog.NewCatalog(data, pluginSourceRepository, logger)
 	if err != nil {
 		cleanup2()
 		cleanup()
@@ -111,7 +114,9 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 	}
 	wasmpluginService := wasmplugin.NewService(wasmPluginRepository, headerTransformationPolicyRepository, catalog)
 	service13 := wasmplugin2.NewService(wasmpluginService)
-	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, service11, healthService, service12, service13)
+	pluginsourceService := pluginsource.NewService(pluginSourceRepository, catalog)
+	service14 := pluginsource2.NewService(pluginsourceService)
+	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, service11, healthService, service12, service13, service14)
 	httpServer := server.NewHTTPServer(confServer, logger, httpHandlers)
 	app := newKratosApp(logger, confServer, httpServer, catalog, adminapiServiceInstanceID)
 	return app, func() {
@@ -123,7 +128,7 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 // wire.go:
 
 // bizProviderSet 汇总各资源的业务服务
-var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, aiusage.NewService, caller.NewService, gateway.NewService, headertransformation.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, request.NewService, traffic.NewService, tokenquota.NewService, wasmplugin.NewService)
+var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, aiusage.NewService, caller.NewService, gateway.NewService, headertransformation.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, pluginsource.NewService, request.NewService, traffic.NewService, tokenquota.NewService, wasmplugin.NewService)
 
 // serviceProviderSet 汇总 Admin API 的协议服务
-var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, headertransformation2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, request2.NewService, traffic2.NewService, tokenquota2.NewService, health.NewService, wasmplugin2.NewService)
+var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, headertransformation2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, pluginsource2.NewService, request2.NewService, traffic2.NewService, tokenquota2.NewService, health.NewService, wasmplugin2.NewService)

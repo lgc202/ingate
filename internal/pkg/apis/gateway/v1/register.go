@@ -73,6 +73,12 @@ const (
 	ResourceWasmPlugins ResourceName = "wasmplugins"
 	// ResourceWasmPluginsStatus 表示 WasmPlugin status 子资源名
 	ResourceWasmPluginsStatus ResourceName = "wasmplugins/status"
+	// ResourcePluginSource 表示 PluginSource 单数资源名
+	ResourcePluginSource ResourceName = "pluginsource"
+	// ResourcePluginSources 表示 PluginSource 复数资源名
+	ResourcePluginSources ResourceName = "pluginsources"
+	// ResourcePluginSourcesStatus 表示 PluginSource status 子资源名
+	ResourcePluginSourcesStatus ResourceName = "pluginsources/status"
 	// ResourceHeaderTransformationPolicy 表示 HeaderTransformationPolicy 单数资源名
 	ResourceHeaderTransformationPolicy ResourceName = "headertransformationpolicy"
 	// ResourceHeaderTransformationPolicies 表示 HeaderTransformationPolicy 复数资源名
@@ -117,6 +123,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&TokenQuotaPolicyList{},
 		&WasmPlugin{},
 		&WasmPluginList{},
+		&PluginSource{},
+		&PluginSourceList{},
 		&HeaderTransformationPolicy{},
 		&HeaderTransformationPolicyList{},
 	)

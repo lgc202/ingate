@@ -24,6 +24,10 @@ type HeaderTransformationPolicyListerExpansion interface{}
 // IPRestrictionPolicyLister.
 type IPRestrictionPolicyListerExpansion interface{}
 
+// PluginSourceListerExpansion allows custom methods to be added to
+// PluginSourceLister.
+type PluginSourceListerExpansion interface{}
+
 // RateLimitPolicyListerExpansion allows custom methods to be added to
 // RateLimitPolicyLister.
 type RateLimitPolicyListerExpansion interface{}

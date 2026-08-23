@@ -14,6 +14,8 @@ type HeaderTransformationPolicyExpansion interface{}
 
 type IPRestrictionPolicyExpansion interface{}
 
+type PluginSourceExpansion interface{}
+
 type RateLimitPolicyExpansion interface{}
 
 type RouteExpansion interface{}

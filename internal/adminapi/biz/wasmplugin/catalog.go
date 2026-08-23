@@ -6,9 +6,11 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-// CatalogItem 描述插件市场向用户展示的一项官方插件
+// CatalogItem 描述插件市场向用户展示的一项插件
 // 制品地址和校验信息只供安装流程使用，不通过管理 API 暴露
 type CatalogItem struct {
+	SourceID    string
+	SourceName  string
 	Package     string
 	Name        string
 	Version     string
@@ -24,11 +26,13 @@ type CatalogSnapshot struct {
 	Items []CatalogItem
 }
 
-// Catalog 定义插件市场读取官方目录和解析安装制品所需的能力
+// Catalog 定义插件市场读取目录和按来源解析安装制品所需的能力
 // 目录实现位于 data 层，避免 biz 感知 HTTP、ETag 和本地兜底文件
 type Catalog interface {
 	Snapshot() CatalogSnapshot
-	PluginSpec(packageName string) (resource.WasmPluginSpec, bool)
+	SourceName(sourceID string) (string, bool)
+	CatalogItem(sourceID, packageName string) (CatalogItem, bool)
+	PluginSpec(sourceID, packageName string) (resource.WasmPluginSpec, bool)
 }
 
 func newerVersion(current, candidate string) bool {
