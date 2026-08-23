@@ -112,12 +112,12 @@ func (c *RequestConsumer) Start(ctx context.Context) error {
 			if groupSessionError, ok := errors.AsType[*kgo.ErrGroupSession](fetchErr.Err); ok {
 				// Broker 重启或主机休眠可能使成员暂时离开消费组；franz-go 会自动重新加入
 				// 这里不能终止进程，否则一次正常的 Rebalance 会让整个查询服务下线
-				c.logger.Warn("Kafka consumer group session lost; waiting to rejoin", "error", groupSessionError.Err)
+				c.logger.Debug("Kafka consumer group session lost; waiting to rejoin", "err", groupSessionError.Err)
 				continue
 			}
 			if dataLossError, ok := errors.AsType[*kgo.ErrDataLoss](fetchErr.Err); ok {
 				// franz-go 已把消费位置重置到有效 offset，记录异常后继续处理后续消息
-				c.logger.Error("Kafka consumer detected data loss", "error", dataLossError)
+				c.logger.Error("Kafka consumer detected data loss", "err", dataLossError)
 				continue
 			}
 			return fmt.Errorf(

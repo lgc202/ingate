@@ -35,7 +35,7 @@ func NewClickHouseStore(
 	}
 	cleanup := func() {
 		if err := store.Close(); err != nil {
-			logger.Error("close ClickHouse failed", "error", err)
+			logger.Error("close ClickHouse failed", "err", err)
 		}
 	}
 	return store, cleanup, nil

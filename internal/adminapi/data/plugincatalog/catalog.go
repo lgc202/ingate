@@ -275,7 +275,7 @@ func (c *Catalog) run(ctx context.Context, done chan<- struct{}) {
 
 func (c *Catalog) syncAllAndLog(ctx context.Context) {
 	if err := c.syncAll(ctx); err != nil && ctx.Err() == nil {
-		c.logger.Warn("sync plugin sources failed", "error", err)
+		c.logger.Warn("sync plugin sources failed", "err", err)
 	}
 }
 
@@ -299,8 +299,8 @@ func (c *Catalog) syncAll(ctx context.Context) error {
 			c.setDisabled(definition)
 			continue
 		}
-		if err := c.syncSource(ctx, definition); err != nil && ctx.Err() == nil {
-			c.logger.Warn("sync plugin source failed", "source_id", definition.id, "error", err)
+		if err := c.syncSource(ctx, definition); err != nil && ctx.Err() != nil {
+			return ctx.Err()
 		}
 	}
 	c.removeDeletedSources(active)
@@ -341,7 +341,7 @@ func (c *Catalog) syncSource(ctx context.Context, definition sourceDefinition) e
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, definition.url, nil)
 	if err != nil {
-		c.recordFailure(definition, previous, err)
+		c.recordFailure(ctx, definition, previous, err)
 		return fmt.Errorf("create plugin source request: %w", err)
 	}
 	if previous.etag != "" {
@@ -349,12 +349,13 @@ func (c *Catalog) syncSource(ctx context.Context, definition sourceDefinition) e
 	}
 	response, err := c.client.Do(request)
 	if err != nil {
-		c.recordFailure(definition, previous, err)
+		c.recordFailure(ctx, definition, previous, err)
 		return fmt.Errorf("fetch plugin source: %w", err)
 	}
 	defer func() { _ = response.Body.Close() }()
 
 	if response.StatusCode == http.StatusNotModified {
+		recovered := previous.observation.State == pluginsource.SyncStateError
 		previous.definition = definition
 		previous.observation = pluginsource.Observation{
 			State:        pluginsource.SyncStateReady,
@@ -362,26 +363,29 @@ func (c *Catalog) syncSource(ctx context.Context, definition sourceDefinition) e
 			LastSyncedAt: time.Now(),
 		}
 		c.storeSource(definition.id, previous)
+		if recovered {
+			c.logger.Info("plugin source recovered", "source_id", definition.id)
+		}
 		return nil
 	}
 	if response.StatusCode != http.StatusOK {
 		err = fmt.Errorf("unexpected HTTP status %s", response.Status)
-		c.recordFailure(definition, previous, err)
+		c.recordFailure(ctx, definition, previous, err)
 		return fmt.Errorf("fetch plugin source: %w", err)
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, maxCatalogBytes+1))
 	if err != nil {
-		c.recordFailure(definition, previous, err)
+		c.recordFailure(ctx, definition, previous, err)
 		return fmt.Errorf("read plugin source: %w", err)
 	}
 	if len(data) > maxCatalogBytes {
 		err = fmt.Errorf("response exceeds %d bytes", maxCatalogBytes)
-		c.recordFailure(definition, previous, err)
+		c.recordFailure(ctx, definition, previous, err)
 		return fmt.Errorf("read plugin source: %w", err)
 	}
 	state, err := decodeCatalog(data, definition, version.String())
 	if err != nil {
-		c.recordFailure(definition, previous, err)
+		c.recordFailure(ctx, definition, previous, err)
 		return fmt.Errorf("decode plugin source: %w", err)
 	}
 	state.etag = response.Header.Get("ETag")
@@ -391,6 +395,9 @@ func (c *Catalog) syncSource(ctx context.Context, definition sourceDefinition) e
 		LastSyncedAt: time.Now(),
 	}
 	c.storeSource(definition.id, state)
+	if previous.observation.State == pluginsource.SyncStateError {
+		c.logger.Info("plugin source recovered", "source_id", definition.id)
+	}
 	return nil
 }
 
@@ -406,7 +413,11 @@ func (c *Catalog) storeSource(sourceID string, state sourceState) {
 	c.stateMu.Unlock()
 }
 
-func (c *Catalog) recordFailure(definition sourceDefinition, previous sourceState, err error) {
+func (c *Catalog) recordFailure(ctx context.Context, definition sourceDefinition, previous sourceState, err error) {
+	if ctx.Err() != nil {
+		return
+	}
+	becameUnavailable := previous.observation.State != pluginsource.SyncStateError
 	lastSyncedAt := previous.observation.LastSyncedAt
 	previous.definition = definition
 	previous.observation = pluginsource.Observation{
@@ -416,7 +427,9 @@ func (c *Catalog) recordFailure(definition sourceDefinition, previous sourceStat
 		LastSyncedAt: lastSyncedAt,
 	}
 	c.storeSource(definition.id, previous)
-	c.logger.Warn("plugin source unavailable", "source_id", definition.id, "error", err)
+	if becameUnavailable {
+		c.logger.Warn("plugin source unavailable", "source_id", definition.id, "err", err)
+	}
 }
 
 func (c *Catalog) setDisabled(definition sourceDefinition) {

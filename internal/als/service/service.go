@@ -69,7 +69,7 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 			continue
 		}
 		if err := s.recorder.Write(stream.Context(), records); err != nil {
-			s.logger.Error("request record batch rejected", "error", err, "records", len(records), "envoy_node_id", nodeID)
+			s.logger.Error("request record batch rejected", "err", err, "records", len(records), "envoy_node_id", nodeID)
 			return status.Error(codes.Unavailable, "request record storage is unavailable")
 		}
 	}

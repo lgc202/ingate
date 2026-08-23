@@ -26,14 +26,15 @@ type credentialIndex struct {
 // CredentialCache 监听 Caller 资源并维护访问密钥 ID 到授权信息的只读索引
 // 每次资源变化都会完整构造新索引后原子替换，流量线程不会读到半更新状态
 type CredentialCache struct {
-	factory     informers.SharedInformerFactory
-	lister      gatewaylisters.CallerLister
-	logger      *slog.Logger
-	credentials atomic.Pointer[credentialIndex]
-	ready       atomic.Bool
-	started     chan struct{}
-	done        chan struct{}
-	cancel      context.CancelFunc
+	factory         informers.SharedInformerFactory
+	lister          gatewaylisters.CallerLister
+	logger          *slog.Logger
+	credentials     atomic.Pointer[credentialIndex]
+	duplicateKeyIDs atomic.Int64
+	ready           atomic.Bool
+	started         chan struct{}
+	done            chan struct{}
+	cancel          context.CancelFunc
 }
 
 // NewCredentialCache 创建由 API Server 驱动的 Caller 凭据缓存
@@ -164,7 +165,11 @@ func (c *CredentialCache) rebuild() {
 		}
 	}
 	c.credentials.Store(&credentialIndex{byKeyID: credentials})
-	if len(ambiguousKeyIDs) > 0 {
-		c.logger.Error("reject duplicate Caller access key IDs", "count", len(ambiguousKeyIDs))
+	duplicateCount := int64(len(ambiguousKeyIDs))
+	previousCount := c.duplicateKeyIDs.Swap(duplicateCount)
+	if duplicateCount > 0 && duplicateCount != previousCount {
+		c.logger.Warn("duplicate Caller access key IDs rejected", "count", duplicateCount)
+	} else if duplicateCount == 0 && previousCount > 0 {
+		c.logger.Info("Caller access key ID conflicts resolved")
 	}
 }

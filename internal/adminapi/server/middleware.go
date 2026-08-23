@@ -63,6 +63,10 @@ func newRequestLog(ctx context.Context, latency time.Duration, err error) reques
 }
 
 func (l requestLog) write(ctx context.Context, logger *slog.Logger) {
+	// 健康检查由容器编排系统高频调用，成功结果不提供额外排障价值
+	if l.operation == adminv1.OperationHealthServiceCheck && l.code < http.StatusBadRequest {
+		return
+	}
 	attrs := []slog.Attr{
 		slog.String("operation", l.operation),
 		slog.String("actor", l.actor),
@@ -71,7 +75,11 @@ func (l requestLog) write(ctx context.Context, logger *slog.Logger) {
 		slog.Duration("latency", l.latency),
 		slog.String("request_id", l.requestID),
 	}
-	level := slog.LevelInfo
+	// 正常查询和页面轮询只在排障时需要；请求错误仍保留在默认 INFO 日志中
+	level := slog.LevelDebug
+	if l.code >= http.StatusBadRequest {
+		level = slog.LevelInfo
+	}
 	if l.code >= http.StatusInternalServerError {
 		level = slog.LevelError
 		if l.cause != nil {
