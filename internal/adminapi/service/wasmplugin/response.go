@@ -58,7 +58,7 @@ func pluginStatusMessage(status biz.ResourceStatus) string {
 		return "正在准备插件"
 	case biz.ResourceStateError:
 		if status.Reason == biz.ReasonArtifactUnavailable {
-			return "插件制品无法加载，请确认插件已发布且当前环境有权访问"
+			return "插件制品暂时无法加载，系统将自动重试；请确认插件已发布且当前环境有权访问"
 		}
 		return "插件不可用，请检查制品地址和摘要"
 	default:

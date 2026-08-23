@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"time"
 
 	"k8s.io/client-go/util/workqueue"
 
@@ -21,6 +22,10 @@ type queueKey string
 const (
 	queueKeyDesiredConfig    queueKey = "desired-config"
 	queueKeyProgrammedStatus queueKey = "programmed-status"
+
+	// Wasm 制品失败通常来自临时网络或仓库故障，延迟重试可以在外部依赖恢复后自动收敛
+	// 这里只在实际拉取失败后重新入队，成功后不会形成周期性轮询
+	wasmModuleRetryDelay = 30 * time.Second
 )
 
 // ResourceWatcher 向控制循环提供完整资源事实和变更通知
@@ -203,7 +208,11 @@ func (c *Controller) reconcileDesiredConfig(ctx context.Context) error {
 	if statusErr != nil {
 		statusErr = fmt.Errorf("apply resource compile status: %w", statusErr)
 	}
-	return errors.Join(deliveryErr, statusErr)
+	reconcileErr := errors.Join(deliveryErr, statusErr)
+	if reconcileErr == nil && len(moduleDiagnostics) > 0 {
+		c.queue.AddAfter(queueKeyDesiredConfig, wasmModuleRetryDelay)
+	}
+	return reconcileErr
 }
 
 func (c *Controller) resolveWasmModules(
