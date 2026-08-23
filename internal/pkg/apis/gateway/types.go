@@ -28,6 +28,8 @@ const (
 	KindPluginSource Kind = "PluginSource"
 	// KindHeaderTransformationPolicy 表示 HeaderTransformationPolicy 资源类型
 	KindHeaderTransformationPolicy Kind = "HeaderTransformationPolicy"
+	// KindMockResponsePolicy 表示 MockResponsePolicy 资源类型
+	KindMockResponsePolicy Kind = "MockResponsePolicy"
 )
 
 // PolicyTargetRef 表示策略的生效目标

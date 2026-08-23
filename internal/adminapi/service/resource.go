@@ -65,6 +65,8 @@ func ResourceMessage(reason biz.ResourceReason) string {
 		return "配置内容不正确"
 	case biz.ReasonReferenceNotFound:
 		return "引用的资源不存在"
+	case biz.ReasonPluginNotInstalled:
+		return "依赖的插件未安装"
 	case biz.ReasonInvalidReference:
 		return "引用的资源不可用"
 	case biz.ReasonConflict:

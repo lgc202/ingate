@@ -20,6 +20,8 @@ type Interface interface {
 	HeaderTransformationPolicies() HeaderTransformationPolicyInformer
 	// IPRestrictionPolicies returns a IPRestrictionPolicyInformer.
 	IPRestrictionPolicies() IPRestrictionPolicyInformer
+	// MockResponsePolicies returns a MockResponsePolicyInformer.
+	MockResponsePolicies() MockResponsePolicyInformer
 	// PluginSources returns a PluginSourceInformer.
 	PluginSources() PluginSourceInformer
 	// RateLimitPolicies returns a RateLimitPolicyInformer.
@@ -68,6 +70,11 @@ func (v *version) HeaderTransformationPolicies() HeaderTransformationPolicyInfor
 // IPRestrictionPolicies returns a IPRestrictionPolicyInformer.
 func (v *version) IPRestrictionPolicies() IPRestrictionPolicyInformer {
 	return &iPRestrictionPolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
+}
+
+// MockResponsePolicies returns a MockResponsePolicyInformer.
+func (v *version) MockResponsePolicies() MockResponsePolicyInformer {
+	return &mockResponsePolicyInformer{factory: v.factory, tweakListOptions: v.tweakListOptions}
 }
 
 // PluginSources returns a PluginSourceInformer.

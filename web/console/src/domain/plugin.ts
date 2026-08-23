@@ -1,5 +1,10 @@
 import type { ResourceState } from './common';
 
+export const standardPluginPackages = {
+  transformer: 'ingate-transformer',
+  mockResponse: 'ingate-mock-response',
+} as const;
+
 export type WasmPluginPullPolicy =
   | 'WASM_PLUGIN_PULL_POLICY_IF_NOT_PRESENT'
   | 'WASM_PLUGIN_PULL_POLICY_ALWAYS';

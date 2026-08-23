@@ -10,6 +10,8 @@ type WasmPluginPullPolicy string
 const (
 	// WasmPluginPackageTransformer 标识 Ingate 请求响应转换标准插件
 	WasmPluginPackageTransformer = "ingate-transformer"
+	// WasmPluginPackageMockResponse 标识 Ingate 模拟响应标准插件
+	WasmPluginPackageMockResponse = "ingate-mock-response"
 	// WasmPluginPullIfNotPresent 优先复用校验和一致的本地模块
 	WasmPluginPullIfNotPresent WasmPluginPullPolicy = "IfNotPresent"
 	// WasmPluginPullAlways 在资源版本变化时重新拉取模块

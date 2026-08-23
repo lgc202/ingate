@@ -29,6 +29,7 @@ type ResourceWatcher struct {
 	rateLimitPolicies            gatewaylisters.RateLimitPolicyLister
 	ipRestrictionPolicies        gatewaylisters.IPRestrictionPolicyLister
 	headerTransformationPolicies gatewaylisters.HeaderTransformationPolicyLister
+	mockResponsePolicies         gatewaylisters.MockResponsePolicyLister
 	wasmPlugins                  gatewaylisters.WasmPluginLister
 }
 
@@ -46,6 +47,7 @@ func NewResourceWatcher(
 	rateLimitPolicyInformer := gatewayInformers.RateLimitPolicies()
 	ipRestrictionPolicyInformer := gatewayInformers.IPRestrictionPolicies()
 	headerTransformationPolicyInformer := gatewayInformers.HeaderTransformationPolicies()
+	mockResponsePolicyInformer := gatewayInformers.MockResponsePolicies()
 	wasmPluginInformer := gatewayInformers.WasmPlugins()
 
 	resources := &ResourceWatcher{
@@ -58,6 +60,7 @@ func NewResourceWatcher(
 		rateLimitPolicies:            rateLimitPolicyInformer.Lister(),
 		ipRestrictionPolicies:        ipRestrictionPolicyInformer.Lister(),
 		headerTransformationPolicies: headerTransformationPolicyInformer.Lister(),
+		mockResponsePolicies:         mockResponsePolicyInformer.Lister(),
 		wasmPlugins:                  wasmPluginInformer.Lister(),
 	}
 	if err := resources.registerEventHandlers([]eventRegistration{
@@ -68,6 +71,7 @@ func NewResourceWatcher(
 		{name: "RateLimitPolicy", informer: rateLimitPolicyInformer.Informer()},
 		{name: "IPRestrictionPolicy", informer: ipRestrictionPolicyInformer.Informer()},
 		{name: "HeaderTransformationPolicy", informer: headerTransformationPolicyInformer.Informer()},
+		{name: "MockResponsePolicy", informer: mockResponsePolicyInformer.Informer()},
 		{name: "WasmPlugin", informer: wasmPluginInformer.Informer()},
 	}); err != nil {
 		return nil, err
@@ -130,6 +134,10 @@ func (w *ResourceWatcher) List() (compiler.Resources, error) {
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list HeaderTransformationPolicies: %w", err)
 	}
+	mockResponsePolicies, err := w.mockResponsePolicies.List(labels.Everything())
+	if err != nil {
+		return compiler.Resources{}, fmt.Errorf("list MockResponsePolicies: %w", err)
+	}
 	wasmPlugins, err := w.wasmPlugins.List(labels.Everything())
 	if err != nil {
 		return compiler.Resources{}, fmt.Errorf("list WasmPlugins: %w", err)
@@ -142,6 +150,7 @@ func (w *ResourceWatcher) List() (compiler.Resources, error) {
 		RateLimitPolicies:            make([]*gatewayv1.RateLimitPolicy, 0, len(rateLimitPolicies)),
 		IPRestrictionPolicies:        make([]*gatewayv1.IPRestrictionPolicy, 0, len(ipRestrictionPolicies)),
 		HeaderTransformationPolicies: make([]*gatewayv1.HeaderTransformationPolicy, 0, len(headerTransformationPolicies)),
+		MockResponsePolicies:         make([]*gatewayv1.MockResponsePolicy, 0, len(mockResponsePolicies)),
 		WasmPlugins:                  make([]*gatewayv1.WasmPlugin, 0, len(wasmPlugins)),
 	}
 	for _, resource := range gateways {
@@ -164,6 +173,9 @@ func (w *ResourceWatcher) List() (compiler.Resources, error) {
 	}
 	for _, resource := range headerTransformationPolicies {
 		resources.HeaderTransformationPolicies = append(resources.HeaderTransformationPolicies, resource.DeepCopy())
+	}
+	for _, resource := range mockResponsePolicies {
+		resources.MockResponsePolicies = append(resources.MockResponsePolicies, resource.DeepCopy())
 	}
 	for _, resource := range wasmPlugins {
 		resources.WasmPlugins = append(resources.WasmPlugins, resource.DeepCopy())
@@ -188,6 +200,9 @@ func (w *ResourceWatcher) List() (compiler.Resources, error) {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	slices.SortFunc(resources.HeaderTransformationPolicies, func(a, b *gatewayv1.HeaderTransformationPolicy) int {
+		return cmp.Compare(a.Name, b.Name)
+	})
+	slices.SortFunc(resources.MockResponsePolicies, func(a, b *gatewayv1.MockResponsePolicy) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
 	slices.SortFunc(resources.WasmPlugins, func(a, b *gatewayv1.WasmPlugin) int {

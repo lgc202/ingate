@@ -15,6 +15,7 @@ import (
 	gatewaybiz "github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	headertransformationbiz "github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
 	iprestrictionbiz "github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
+	mockresponsebiz "github.com/lgc202/ingate/internal/adminapi/biz/mockresponse"
 	pluginsourcebiz "github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
 	ratelimitbiz "github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
@@ -33,6 +34,7 @@ import (
 	headertransformationservice "github.com/lgc202/ingate/internal/adminapi/service/headertransformation"
 	healthservice "github.com/lgc202/ingate/internal/adminapi/service/health"
 	iprestrictionservice "github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
+	mockresponseservice "github.com/lgc202/ingate/internal/adminapi/service/mockresponse"
 	pluginsourceservice "github.com/lgc202/ingate/internal/adminapi/service/pluginsource"
 	ratelimitservice "github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	requestservice "github.com/lgc202/ingate/internal/adminapi/service/request"
@@ -46,10 +48,13 @@ import (
 // bizProviderSet 汇总各资源的业务服务
 var bizProviderSet = wire.NewSet(
 	biz.NewPolicyUsageFinder,
+	biz.NewPluginUsageFinder,
+	wire.Bind(new(wasmpluginbiz.UsageFinder), new(*biz.PluginUsageFinder)),
 	aiusagebiz.NewService,
 	callerbiz.NewService,
 	gatewaybiz.NewService,
 	headertransformationbiz.NewService,
+	mockresponsebiz.NewService,
 	routebiz.NewService,
 	upstreambiz.NewService,
 	certificatebiz.NewService,
@@ -68,6 +73,7 @@ var serviceProviderSet = wire.NewSet(
 	callerservice.NewService,
 	gatewayservice.NewService,
 	headertransformationservice.NewService,
+	mockresponseservice.NewService,
 	routeservice.NewService,
 	upstreamservice.NewService,
 	certificateservice.NewService,

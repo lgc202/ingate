@@ -11,6 +11,7 @@ on:
         type: choice
         options:
           - transformer
+          - mock-response
       version:
         description: Semantic version without the v prefix
         required: true

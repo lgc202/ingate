@@ -43,6 +43,8 @@ const (
 	ReasonInvalidSpec ResourceReason = "InvalidSpec"
 	// ReasonReferenceNotFound 表示引用的资源不存在
 	ReasonReferenceNotFound ResourceReason = "ReferenceNotFound"
+	// ReasonPluginNotInstalled 表示策略依赖的数据面插件尚未安装
+	ReasonPluginNotInstalled ResourceReason = "PluginNotInstalled"
 	// ReasonInvalidReference 表示引用的资源不可用
 	ReasonInvalidReference ResourceReason = "InvalidReference"
 	// ReasonConflict 表示配置与其他资源冲突
@@ -219,6 +221,8 @@ func errorStatus(condition *metav1.Condition) ResourceStatus {
 		reason = ReasonInvalidSpec
 	case resource.ReasonReferenceNotFound:
 		reason = ReasonReferenceNotFound
+	case resource.ReasonPluginNotInstalled:
+		reason = ReasonPluginNotInstalled
 	case resource.ReasonInvalidReference:
 		reason = ReasonInvalidReference
 	case resource.ReasonConflict:

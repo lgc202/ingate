@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package ingate.admin.v1;
+
+import "admin/v1/common.proto";
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
+
+// MockResponsePolicyService 提供模拟响应策略管理接口
+service MockResponsePolicyService {
+  rpc ListMockResponsePolicies(ListMockResponsePoliciesRequest) returns (ListMockResponsePoliciesResponse) {
+    option (google.api.http) = {get: "/api/v1/mock-response-policies"};
+  }
+  rpc GetMockResponsePolicy(GetMockResponsePolicyRequest) returns (MockResponsePolicy) {
+    option (google.api.http) = {get: "/api/v1/mock-response-policies/{id}"};
+  }
+  rpc CreateMockResponsePolicy(CreateMockResponsePolicyRequest) returns (MockResponsePolicy) {
+    option (google.api.http) = {
+      post: "/api/v1/mock-response-policies"
+      body: "*"
+    };
+  }
+  rpc UpdateMockResponsePolicy(UpdateMockResponsePolicyRequest) returns (MockResponsePolicy) {
+    option (google.api.http) = {
+      put: "/api/v1/mock-response-policies/{id}"
+      body: "*"
+    };
+  }
+  rpc DeleteMockResponsePolicy(DeleteMockResponsePolicyRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/api/v1/mock-response-policies/{id}"};
+  }
+}
+
+message MockResponseHeader {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string value = 2;
+}
+
+message MockResponsePolicy {
+  string id = 1;
+  string name = 2;
+  bool enabled = 3;
+  repeated PolicyTarget targets = 4;
+  int32 status_code = 5;
+  string content_type = 6;
+  repeated MockResponseHeader headers = 7;
+  string body = 8;
+  ResourceState state = 9;
+  string message = 10;
+  int64 version = 11;
+  google.protobuf.Timestamp created_at = 12;
+  google.protobuf.Timestamp updated_at = 13;
+}
+
+message ListMockResponsePoliciesRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListMockResponsePoliciesResponse {
+  repeated MockResponsePolicy policies = 1;
+  string next_cursor = 2;
+}
+
+message GetMockResponsePolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateMockResponsePolicyRequest {
+  string name = 1 [(buf.validate.field).string.min_len = 1];
+  repeated PolicyTargetRef targets = 2;
+  int32 status_code = 3 [
+    (buf.validate.field).int32.gte = 200,
+    (buf.validate.field).int32.lte = 599
+  ];
+  string content_type = 4 [(buf.validate.field).string.min_len = 1];
+  repeated MockResponseHeader headers = 5;
+  string body = 6 [(buf.validate.field).string.max_len = 1048576];
+}
+
+message UpdateMockResponsePolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+  string name = 3 [(buf.validate.field).string.min_len = 1];
+  optional bool enabled = 4 [(buf.validate.field).required = true];
+  repeated PolicyTargetRef targets = 5;
+  int32 status_code = 6 [
+    (buf.validate.field).int32.gte = 200,
+    (buf.validate.field).int32.lte = 599
+  ];
+  string content_type = 7 [(buf.validate.field).string.min_len = 1];
+  repeated MockResponseHeader headers = 8;
+  string body = 9 [(buf.validate.field).string.max_len = 1048576];
+}
+
+message DeleteMockResponsePolicyRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}

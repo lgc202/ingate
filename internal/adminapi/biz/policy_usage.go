@@ -22,6 +22,11 @@ type HeaderTransformationPolicyLister interface {
 	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.HeaderTransformationPolicy], error)
 }
 
+// MockResponsePolicyLister 定义策略引用检查需要的模拟响应策略分页能力
+type MockResponsePolicyLister interface {
+	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.MockResponsePolicy], error)
+}
+
 // PolicyUsage 表示一个目标当前被哪条策略应用
 type PolicyUsage struct {
 	DisplayName string
@@ -32,6 +37,7 @@ type PolicyUsageFinder struct {
 	rateLimitPolicies     RateLimitPolicyLister
 	ipRestrictionPolicies IPRestrictionPolicyLister
 	headerTransformations HeaderTransformationPolicyLister
+	mockResponses         MockResponsePolicyLister
 }
 
 // NewPolicyUsageFinder 创建策略目标引用查询器
@@ -39,11 +45,13 @@ func NewPolicyUsageFinder(
 	rateLimitPolicies RateLimitPolicyLister,
 	ipRestrictionPolicies IPRestrictionPolicyLister,
 	headerTransformations HeaderTransformationPolicyLister,
+	mockResponses MockResponsePolicyLister,
 ) *PolicyUsageFinder {
 	return &PolicyUsageFinder{
 		rateLimitPolicies:     rateLimitPolicies,
 		ipRestrictionPolicies: ipRestrictionPolicies,
 		headerTransformations: headerTransformations,
+		mockResponses:         mockResponses,
 	}
 }
 
@@ -79,6 +87,20 @@ func (f *PolicyUsageFinder) FindTarget(ctx context.Context, target resource.Poli
 	}
 
 	err = VisitPages(ctx, f.headerTransformations.ListPage, func(policy resource.HeaderTransformationPolicy) (bool, error) {
+		if slices.Contains(policy.Spec.TargetRefs, target) {
+			usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
+			return true, nil
+		}
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if usage != nil {
+		return usage, nil
+	}
+
+	err = VisitPages(ctx, f.mockResponses.ListPage, func(policy resource.MockResponsePolicy) (bool, error) {
 		if slices.Contains(policy.Spec.TargetRefs, target) {
 			usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
 			return true, nil

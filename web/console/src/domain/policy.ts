@@ -1,6 +1,10 @@
 import type { ResourceState, ResourceStatus } from './common';
 
-export type GovernancePolicyKind = 'IPRestrictionPolicy' | 'TokenQuotaPolicy' | 'HeaderTransformationPolicy';
+export type GovernancePolicyKind =
+  | 'IPRestrictionPolicy'
+  | 'TokenQuotaPolicy'
+  | 'HeaderTransformationPolicy'
+  | 'MockResponsePolicy';
 export type PolicyTargetKind = 'Gateway' | 'Route' | 'Caller';
 
 export interface PolicyTargetRef {
@@ -80,6 +84,26 @@ export interface HeaderTransformationPolicy {
   updatedAt?: string;
 }
 
+export interface MockResponseHeader {
+  name: string;
+  value: string;
+}
+
+export interface MockResponsePolicy {
+  id: string;
+  version: number;
+  name: string;
+  enabled: boolean;
+  targets: PolicyTargetRef[];
+  statusCode: number;
+  contentType: string;
+  headers: MockResponseHeader[];
+  body: string;
+  status: ResourceStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface PolicyTargetOption {
   id: string;
   name: string;
@@ -104,6 +128,7 @@ export type GovernancePolicy = GovernancePolicyBase & (
   | { kind: 'IPRestrictionPolicy'; raw: IPRestrictionPolicy }
   | { kind: 'TokenQuotaPolicy'; raw: TokenQuotaPolicy }
   | { kind: 'HeaderTransformationPolicy'; raw: HeaderTransformationPolicy }
+  | { kind: 'MockResponsePolicy'; raw: MockResponsePolicy }
 );
 
 export interface PolicyWorkspace {
@@ -111,6 +136,7 @@ export interface PolicyWorkspace {
   ipRestrictionPolicies: IPRestrictionPolicy[];
   tokenQuotaPolicies: TokenQuotaPolicy[];
   headerTransformationPolicies: HeaderTransformationPolicy[];
+  mockResponsePolicies: MockResponsePolicy[];
   installedPluginPackages: string[];
   targets: PolicyTargetOption[];
 }
@@ -157,11 +183,25 @@ export type HeaderTransformationPolicyPayload =
   | HeaderTransformationPolicyConfigPayload & CreatePolicyIdentity
   | HeaderTransformationPolicyConfigPayload & { enabled: boolean } & VersionedPolicyIdentity<number>;
 
+interface MockResponsePolicyConfigPayload {
+  name: string;
+  targets: PolicyTargetPayload[];
+  statusCode: number;
+  contentType: string;
+  headers: MockResponseHeader[];
+  body: string;
+}
+
+export type MockResponsePolicyPayload =
+  | MockResponsePolicyConfigPayload & CreatePolicyIdentity
+  | MockResponsePolicyConfigPayload & { enabled: boolean } & VersionedPolicyIdentity<number>;
+
 export function policyKindLabel(kind: GovernancePolicyKind) {
   const labels: Record<GovernancePolicyKind, string> = {
     IPRestrictionPolicy: 'IP 访问限制',
     TokenQuotaPolicy: 'Token 额度',
     HeaderTransformationPolicy: '请求响应转换',
+    MockResponsePolicy: '模拟响应',
   };
   return labels[kind];
 }
@@ -213,7 +253,7 @@ export function policyTargetsResource(policy: GovernancePolicy, kind: PolicyTarg
 
 export function policySupportsTargetKind(policy: GovernancePolicy, kind: PolicyTargetKind) {
   if (policy.kind === 'TokenQuotaPolicy') return kind === 'Caller';
-  if (policy.kind === 'HeaderTransformationPolicy') return kind === 'Route';
+  if (policy.kind === 'HeaderTransformationPolicy' || policy.kind === 'MockResponsePolicy') return kind === 'Route';
   return kind === 'Gateway' || kind === 'Route';
 }
 

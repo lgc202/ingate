@@ -41,6 +41,9 @@ func GetOpenAPIDefinitions(ref common.ReferenceCallback) map[string]common.OpenA
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.IPRestrictionPolicyList":        schema_pkg_apis_gateway_v1_IPRestrictionPolicyList(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.IPRestrictionPolicySpec":        schema_pkg_apis_gateway_v1_IPRestrictionPolicySpec(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.Listener":                       schema_pkg_apis_gateway_v1_Listener(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.MockResponsePolicy":             schema_pkg_apis_gateway_v1_MockResponsePolicy(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.MockResponsePolicyList":         schema_pkg_apis_gateway_v1_MockResponsePolicyList(ref),
+		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.MockResponsePolicySpec":         schema_pkg_apis_gateway_v1_MockResponsePolicySpec(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.ModelUpstream":                  schema_pkg_apis_gateway_v1_ModelUpstream(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PathMatch":                      schema_pkg_apis_gateway_v1_PathMatch(ref),
 		"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PluginSource":                   schema_pkg_apis_gateway_v1_PluginSource(ref),
@@ -1416,6 +1419,202 @@ func schema_pkg_apis_gateway_v1_Listener(ref common.ReferenceCallback) common.Op
 				Required: []string{"name", "protocol", "port"},
 			},
 		},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_MockResponsePolicy(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MockResponsePolicy 声明命中 Route 后由网关直接返回的固定 HTTP 响应",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"),
+						},
+					},
+					"spec": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.MockResponsePolicySpec"),
+						},
+					},
+					"status": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyStatus"),
+						},
+					},
+				},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.MockResponsePolicySpec", "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyStatus", "k8s.io/apimachinery/pkg/apis/meta/v1.ObjectMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_MockResponsePolicyList(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MockResponsePolicyList 表示 MockResponsePolicy 资源列表",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"kind": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"apiVersion": {
+						SchemaProps: spec.SchemaProps{
+							Description: "APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"metadata": {
+						SchemaProps: spec.SchemaProps{
+							Default: map[string]interface{}{},
+							Ref:     ref("k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"),
+						},
+					},
+					"items": {
+						SchemaProps: spec.SchemaProps{
+							Type: []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.MockResponsePolicy"),
+									},
+								},
+							},
+						},
+					},
+				},
+				Required: []string{"items"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.MockResponsePolicy", "k8s.io/apimachinery/pkg/apis/meta/v1.ListMeta"},
+	}
+}
+
+func schema_pkg_apis_gateway_v1_MockResponsePolicySpec(ref common.ReferenceCallback) common.OpenAPIDefinition {
+	return common.OpenAPIDefinition{
+		Schema: spec.Schema{
+			SchemaProps: spec.SchemaProps{
+				Description: "MockResponsePolicySpec 定义固定响应内容及其作用路由",
+				Type:        []string{"object"},
+				Properties: map[string]spec.Schema{
+					"displayName": {
+						SchemaProps: spec.SchemaProps{
+							Description: "DisplayName 保存控制台展示名称，不参与流量匹配",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"enabled": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Enabled 为 false 时保留策略但继续把请求转发到上游",
+							Default:     false,
+							Type:        []string{"boolean"},
+							Format:      "",
+						},
+					},
+					"targetRefs": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"kind",
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "TargetRefs 为空时策略保存为未应用状态，当前只允许引用 Route",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef"),
+									},
+								},
+							},
+						},
+					},
+					"statusCode": {
+						SchemaProps: spec.SchemaProps{
+							Description: "StatusCode 是返回给客户端的 HTTP 状态码",
+							Default:     0,
+							Type:        []string{"integer"},
+							Format:      "int32",
+						},
+					},
+					"contentType": {
+						SchemaProps: spec.SchemaProps{
+							Description: "ContentType 是响应正文的媒体类型，同时写入 Content-Type Header",
+							Default:     "",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+					"headers": {
+						VendorExtensible: spec.VendorExtensible{
+							Extensions: spec.Extensions{
+								"x-kubernetes-list-map-keys": []interface{}{
+									"name",
+								},
+								"x-kubernetes-list-type": "map",
+							},
+						},
+						SchemaProps: spec.SchemaProps{
+							Description: "Headers 是除 Content-Type 外的固定响应 Header",
+							Type:        []string{"array"},
+							Items: &spec.SchemaOrArray{
+								Schema: &spec.Schema{
+									SchemaProps: spec.SchemaProps{
+										Default: map[string]interface{}{},
+										Ref:     ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderValue"),
+									},
+								},
+							},
+						},
+					},
+					"body": {
+						SchemaProps: spec.SchemaProps{
+							Description: "Body 是原样返回给客户端的响应正文",
+							Type:        []string{"string"},
+							Format:      "",
+						},
+					},
+				},
+				Required: []string{"displayName", "enabled", "statusCode", "contentType"},
+			},
+		},
+		Dependencies: []string{
+			"github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.HeaderValue", "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.PolicyTargetRef"},
 	}
 }
 

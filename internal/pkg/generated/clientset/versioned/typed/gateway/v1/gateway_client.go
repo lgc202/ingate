@@ -19,6 +19,7 @@ type GatewayV1Interface interface {
 	GatewaysGetter
 	HeaderTransformationPoliciesGetter
 	IPRestrictionPoliciesGetter
+	MockResponsePoliciesGetter
 	PluginSourcesGetter
 	RateLimitPoliciesGetter
 	RoutesGetter
@@ -50,6 +51,10 @@ func (c *GatewayV1Client) HeaderTransformationPolicies() HeaderTransformationPol
 
 func (c *GatewayV1Client) IPRestrictionPolicies() IPRestrictionPolicyInterface {
 	return newIPRestrictionPolicies(c)
+}
+
+func (c *GatewayV1Client) MockResponsePolicies() MockResponsePolicyInterface {
+	return newMockResponsePolicies(c)
 }
 
 func (c *GatewayV1Client) PluginSources() PluginSourceInterface {

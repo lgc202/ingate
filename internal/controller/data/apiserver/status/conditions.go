@@ -170,7 +170,8 @@ func kindHasReferences(kind gatewayv1.Kind) bool {
 		gatewayv1.KindRoute,
 		gatewayv1.KindRateLimitPolicy,
 		gatewayv1.KindIPRestrictionPolicy,
-		gatewayv1.KindHeaderTransformationPolicy:
+		gatewayv1.KindHeaderTransformationPolicy,
+		gatewayv1.KindMockResponsePolicy:
 		return true
 	default:
 		return false

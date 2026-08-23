@@ -14,6 +14,8 @@ import type {
   HeaderTransformationRule,
   IPRestrictionPolicy,
   IPRestrictionPolicyPayload,
+  MockResponsePolicy,
+  MockResponsePolicyPayload,
   PolicyMutationResult,
   PolicyTargetKind,
   PolicyTargetOption,
@@ -75,6 +77,15 @@ interface HeaderTransformationPolicyResponse extends Omit<HeaderTransformationPo
 
 interface HeaderTransformationPolicyListResponse extends CursorPagedResponse { policies?: HeaderTransformationPolicyResponse[] }
 
+interface MockResponsePolicyResponse extends Omit<MockResponsePolicy, 'version' | 'targets' | 'status'> {
+  version: string | number;
+  targets: PolicyTargetResponse[];
+  state: string;
+  message: string;
+}
+
+interface MockResponsePolicyListResponse extends CursorPagedResponse { policies?: MockResponsePolicyResponse[] }
+
 interface CallerTokenQuotaUsageResponse {
   policyId: string;
   policyName: string;
@@ -89,10 +100,11 @@ interface CallerTokenQuotaUsageResponse {
 interface GetCallerTokenQuotaUsageResponse { usages?: CallerTokenQuotaUsageResponse[] }
 
 export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
-  const [ipRestrictionPolicies, tokenQuotaPolicies, headerTransformationPolicies, gatewayList, routeList, callers, plugins] = await Promise.all([
+  const [ipRestrictionPolicies, tokenQuotaPolicies, headerTransformationPolicies, mockResponsePolicies, gatewayList, routeList, callers, plugins] = await Promise.all([
     listIPRestrictionPolicies(),
     listTokenQuotaPolicies(),
     listHeaderTransformationPolicies(),
+    listMockResponsePolicies(),
     listGateways(),
     listRoutes(),
     listCallers(),
@@ -137,12 +149,26 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
     createdAt: policy.createdAt,
     updatedAt: policy.updatedAt,
     raw: policy,
+  }) satisfies GovernancePolicy), ...mockResponsePolicies.map((policy) => ({
+    id: policy.id,
+    version: policy.version,
+    kind: 'MockResponsePolicy' as const,
+    name: policy.name,
+    enabled: policy.enabled,
+    summary: `${policy.statusCode} · ${policy.contentType}`,
+    ruleCount: policy.headers.length + 1,
+    targets: policy.targets,
+    status: policy.status,
+    createdAt: policy.createdAt,
+    updatedAt: policy.updatedAt,
+    raw: policy,
   }) satisfies GovernancePolicy)].sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
   return {
     policies,
     ipRestrictionPolicies,
     tokenQuotaPolicies,
     headerTransformationPolicies,
+    mockResponsePolicies,
     installedPluginPackages: plugins.filter((plugin) => plugin.state === 'Ready').map((plugin) => plugin.package),
     targets: policyTargets(gatewayList, routeList, callers),
   };
@@ -224,6 +250,28 @@ export async function saveHeaderTransformationPolicy(payload: HeaderTransformati
   return { message: `请求响应转换策略已保存：${payload.name}`, changeId: payload.id };
 }
 
+export async function listMockResponsePolicies(): Promise<MockResponsePolicy[]> {
+  const policies = await apiListAllByCursor<MockResponsePolicyListResponse, MockResponsePolicyResponse>(
+    '/mock-response-policies',
+    (page) => page.policies ?? [],
+  );
+  return policies.map((policy) => ({
+    ...policy,
+    version: Number(policy.version),
+    targets: policy.targets.map(policyTargetFromResponse),
+    headers: policy.headers.map((header) => ({ name: header.name, value: header.value })),
+    status: resourceStatus(policy.state, policy.message),
+  }));
+}
+
+export async function saveMockResponsePolicy(payload: MockResponsePolicyPayload): Promise<PolicyMutationResult> {
+  await savePolicy('/mock-response-policies', {
+    ...payload,
+    targets: payload.targets.map((target) => ({ id: target.id, kind: 'POLICY_TARGET_KIND_ROUTE' })),
+  });
+  return { message: `模拟响应策略已保存：${payload.name}`, changeId: payload.id };
+}
+
 export function updateGovernancePolicyTargets(policy: GovernancePolicy, targets: PolicyTargetRef[]) {
   const normalized = targets.map((target) => ({ kind: target.kind, id: target.id }));
   if (policy.kind === 'IPRestrictionPolicy') {
@@ -232,7 +280,10 @@ export function updateGovernancePolicyTargets(policy: GovernancePolicy, targets:
   if (policy.kind === 'TokenQuotaPolicy') {
     return saveTokenQuotaPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, timeZone: policy.raw.timeZone, limits: policy.raw.limits });
   }
-  return saveHeaderTransformationPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, requestRules: policy.raw.requestRules, responseRules: policy.raw.responseRules });
+  if (policy.kind === 'HeaderTransformationPolicy') {
+    return saveHeaderTransformationPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, requestRules: policy.raw.requestRules, responseRules: policy.raw.responseRules });
+  }
+  return saveMockResponsePolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, statusCode: policy.raw.statusCode, contentType: policy.raw.contentType, headers: policy.raw.headers, body: policy.raw.body });
 }
 
 export async function deleteIPRestrictionPolicy(id: string, version: number): Promise<PolicyMutationResult> {
@@ -250,6 +301,11 @@ export async function deleteHeaderTransformationPolicy(id: string, version: numb
   return { message: '请求响应转换策略已删除' };
 }
 
+export async function deleteMockResponsePolicy(id: string, version: number): Promise<PolicyMutationResult> {
+  await deleteVersionedPolicy('/mock-response-policies', id, version);
+  return { message: '模拟响应策略已删除' };
+}
+
 export function setGovernancePolicyEnabled(policy: GovernancePolicy, enabled: boolean) {
   if (policy.kind === 'IPRestrictionPolicy') {
     return saveIPRestrictionPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, allow: policy.raw.allow, deny: policy.raw.deny });
@@ -257,7 +313,10 @@ export function setGovernancePolicyEnabled(policy: GovernancePolicy, enabled: bo
   if (policy.kind === 'TokenQuotaPolicy') {
     return saveTokenQuotaPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, timeZone: policy.raw.timeZone, limits: policy.raw.limits });
   }
-  return saveHeaderTransformationPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, requestRules: policy.raw.requestRules, responseRules: policy.raw.responseRules });
+  if (policy.kind === 'HeaderTransformationPolicy') {
+    return saveHeaderTransformationPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, requestRules: policy.raw.requestRules, responseRules: policy.raw.responseRules });
+  }
+  return saveMockResponsePolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, statusCode: policy.raw.statusCode, contentType: policy.raw.contentType, headers: policy.raw.headers, body: policy.raw.body });
 }
 
 function policyTargetFromResponse(target: PolicyTargetResponse): PolicyTargetRef {

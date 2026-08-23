@@ -21,28 +21,28 @@ type Repository interface {
 	Delete(ctx context.Context, pluginID string, generation int64) error
 }
 
-// HeaderTransformationPolicyRepository 定义卸载标准转换插件前的策略引用检查
-type HeaderTransformationPolicyRepository interface {
-	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.HeaderTransformationPolicy], error)
+// UsageFinder 定义卸载插件前需要的策略引用查询能力
+type UsageFinder interface {
+	Find(ctx context.Context, packageName string) (*biz.PluginPolicyUsage, error)
 }
 
 // Service 协调插件包唯一性、升级和卸载约束
 type Service struct {
-	repository            Repository
-	headerTransformations HeaderTransformationPolicyRepository
-	catalog               Catalog
+	repository Repository
+	usage      UsageFinder
+	catalog    Catalog
 }
 
 // NewService 创建插件安装管理服务
 func NewService(
 	repository Repository,
-	headerTransformations HeaderTransformationPolicyRepository,
+	usage UsageFinder,
 	catalog Catalog,
 ) *Service {
 	return &Service{
-		repository:            repository,
-		headerTransformations: headerTransformations,
-		catalog:               catalog,
+		repository: repository,
+		usage:      usage,
+		catalog:    catalog,
 	}
 }
 
@@ -158,16 +158,16 @@ func (s *Service) ensureIdentityAvailable(ctx context.Context, pluginID, sourceI
 }
 
 func (s *Service) ensureNotUsed(ctx context.Context, plugin *resource.WasmPlugin) error {
-	if plugin.Spec.Package != resource.WasmPluginPackageTransformer {
-		return nil
+	usage, err := s.usage.Find(ctx, plugin.Spec.Package)
+	if err != nil || usage == nil {
+		return err
 	}
-	return biz.VisitPages(ctx, s.headerTransformations.ListPage, func(policy resource.HeaderTransformationPolicy) (bool, error) {
-		return true, biz.NewRuleViolation(fmt.Sprintf(
-			"插件 %q 仍被请求响应转换策略 %q 使用，请先删除策略",
-			plugin.Spec.DisplayName,
-			policy.Spec.DisplayName,
-		))
-	})
+	return biz.NewRuleViolation(fmt.Sprintf(
+		"插件 %q 仍被%s %q 使用，请先删除策略",
+		plugin.Spec.DisplayName,
+		usage.PolicyType,
+		usage.DisplayName,
+	))
 }
 
 func versionConflict(plugin *resource.WasmPlugin) error {

@@ -1,7 +1,9 @@
 package compiler
 
 import (
+	"cmp"
 	"fmt"
+	"slices"
 
 	routerv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/http/router/v3"
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
@@ -31,7 +33,14 @@ func buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) 
 		return nil, err
 	}
 	filters = append(filters, callerAuth)
-	for _, wasm := range config.wasm {
+	wasmFilters := slices.Clone(config.wasm)
+	slices.SortStableFunc(wasmFilters, func(left, right wasmFilter) int {
+		if order := cmp.Compare(left.phase, right.phase); order != 0 {
+			return order
+		}
+		return cmp.Compare(left.name, right.name)
+	})
+	for _, wasm := range wasmFilters {
 		filter, err := buildWasmHTTPFilter(wasm)
 		if err != nil {
 			return nil, err
