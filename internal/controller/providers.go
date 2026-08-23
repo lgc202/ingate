@@ -2,7 +2,6 @@ package controller
 
 import (
 	"log/slog"
-	"net/http"
 
 	cachev3 "github.com/envoyproxy/go-control-plane/pkg/cache/v3"
 
@@ -36,10 +35,6 @@ func newWasmModuleStore(config *conf.Data_Wasm) (*controllerwasm.Store, error) {
 }
 
 func asWasmModuleStore(store *controllerwasm.Store) biz.WasmModuleStore {
-	return store
-}
-
-func newWasmModuleHandler(store *controllerwasm.Store) http.Handler {
 	return store
 }
 

@@ -27,7 +27,6 @@ func wireApp(
 		newStatusWriter,
 		newWasmModuleStore,
 		asWasmModuleStore,
-		newWasmModuleHandler,
 		newSnapshotCache,
 		newXDSPublisher,
 		newDelivery,

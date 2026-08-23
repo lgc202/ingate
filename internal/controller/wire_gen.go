@@ -22,12 +22,7 @@ func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_
 	if err != nil {
 		return nil, err
 	}
-	store, err := newWasmModuleStore(data_Wasm)
-	if err != nil {
-		return nil, err
-	}
-	handler := newWasmModuleHandler(store)
-	httpServer := server.NewHTTPServer(confServer, deliveryDelivery, handler)
+	httpServer := server.NewHTTPServer(confServer, deliveryDelivery)
 	service := newXDSService(snapshotCache, deliveryDelivery, logger)
 	grpcServer := server.NewGRPCServer(confServer, service)
 	versionedInterface, err := newAPIClient(data_APIServer)
@@ -39,6 +34,10 @@ func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_
 		return nil, err
 	}
 	writer := newStatusWriter(versionedInterface)
+	store, err := newWasmModuleStore(data_Wasm)
+	if err != nil {
+		return nil, err
+	}
 	wasmModuleStore := asWasmModuleStore(store)
 	controller := newController(resourceWatcher, writer, deliveryDelivery, wasmModuleStore, logger)
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, deliveryDelivery, controller, controllerServiceInstanceID)

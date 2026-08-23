@@ -41,7 +41,7 @@ func (s *Store) cachedSource(sourceURL, expectedSHA string) (compiler.WasmModule
 		return compiler.WasmModule{}, false
 	}
 	s.touchModule(moduleSHA)
-	return compiler.WasmModule{URL: moduleURL(moduleSHA), SHA256: moduleSHA}, true
+	return compiler.WasmModule{Path: s.modulePath(moduleSHA), SHA256: moduleSHA}, true
 }
 
 // cachedModuleValid 在进程重启后首次复用磁盘文件时重新验证内容寻址约束
@@ -91,10 +91,6 @@ func (s *Store) sourcePointerPath(sourceURL, expectedSHA string) string {
 
 func (s *Store) modulePath(moduleSHA string) string {
 	return filepath.Join(s.cacheDir, moduleSHA+".wasm")
-}
-
-func moduleURL(moduleSHA string) string {
-	return "http://" + moduleURLHost + modulePathPrefix + moduleSHA + ".wasm"
 }
 
 func writeAtomic(path string, content []byte, mode os.FileMode) error {

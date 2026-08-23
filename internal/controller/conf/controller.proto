@@ -34,7 +34,7 @@ message Server {
   }
   // grpc 暴露 Envoy ADS 服务
   GRPC grpc = 1;
-  // http 暴露健康检查，并向同机 Envoy 提供已校验的 Wasm 模块
+  // http 暴露健康检查和就绪检查
   HTTP http = 2;
   // shutdown_timeout 是等待 Controller 各执行循环停止的最长时间
   google.protobuf.Duration shutdown_timeout = 3;

@@ -2,7 +2,6 @@ package compiler
 
 import (
 	"fmt"
-	"time"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
@@ -10,18 +9,12 @@ import (
 	hcmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/filters/network/http_connection_manager/v3"
 	wasmv3 "github.com/envoyproxy/go-control-plane/envoy/extensions/wasm/v3"
 	"google.golang.org/protobuf/types/known/anypb"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 const (
 	wasmHTTPFilterNamePrefix = "ingate.wasm/"
-	wasmHTTPClusterName      = "ingate-system-wasm"
 	wasmVMRuntime            = "envoy.wasm.runtime.v8"
-	wasmFetchTimeout         = 10 * time.Second
-	wasmFetchRetries         = uint32(10)
-	wasmFetchBaseInterval    = time.Second
-	wasmFetchMaxInterval     = 30 * time.Second
 )
 
 type wasmFilterPhase uint8
@@ -48,24 +41,6 @@ func buildWasmHTTPFilter(filter wasmFilter) (*hcmv3.HttpFilter, error) {
 	if err != nil {
 		return nil, fmt.Errorf("encode Wasm filter %q configuration: %w", filter.name, err)
 	}
-	remoteModule := &corev3.RemoteDataSource{
-		HttpUri: &corev3.HttpUri{
-			Uri: filter.module.URL,
-			HttpUpstreamType: &corev3.HttpUri_Cluster{
-				Cluster: wasmHTTPClusterName,
-			},
-			Timeout: durationpb.New(wasmFetchTimeout),
-		},
-		Sha256: filter.module.SHA256,
-		RetryPolicy: &corev3.RetryPolicy{
-			NumRetries: wrapperspb.UInt32(wasmFetchRetries),
-			// Envoy 默认重试次数不足以覆盖 Controller 或网络短暂抖动，指数退避允许实例自行恢复模块下载
-			RetryBackOff: &corev3.BackoffStrategy{
-				BaseInterval: durationpb.New(wasmFetchBaseInterval),
-				MaxInterval:  durationpb.New(wasmFetchMaxInterval),
-			},
-		},
-	}
 	pluginConfig := &wasmv3.PluginConfig{
 		Name:          filter.name,
 		RootId:        filter.rootID,
@@ -75,8 +50,11 @@ func buildWasmHTTPFilter(filter wasmFilter) (*hcmv3.HttpFilter, error) {
 		Vm: &wasmv3.PluginConfig_VmConfig{VmConfig: &wasmv3.VmConfig{
 			VmId:    filter.vmID,
 			Runtime: wasmVMRuntime,
-			Code: &corev3.AsyncDataSource{Specifier: &corev3.AsyncDataSource_Remote{
-				Remote: remoteModule,
+			// Controller 在发布 xDS 前已经完成下载、ABI 校验和原子写入，Envoy 只读取共享目录中的不可变文件
+			Code: &corev3.AsyncDataSource{Specifier: &corev3.AsyncDataSource_Local{
+				Local: &corev3.DataSource{Specifier: &corev3.DataSource_Filename{
+					Filename: filter.module.Path,
+				}},
 			}},
 		}},
 	}

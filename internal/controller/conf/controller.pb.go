@@ -109,7 +109,7 @@ type Server struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// grpc 暴露 Envoy ADS 服务
 	Grpc *Server_GRPC `protobuf:"bytes,1,opt,name=grpc,proto3" json:"grpc,omitempty"`
-	// http 暴露健康检查，并向同机 Envoy 提供已校验的 Wasm 模块
+	// http 暴露健康检查和就绪检查
 	Http *Server_HTTP `protobuf:"bytes,2,opt,name=http,proto3" json:"http,omitempty"`
 	// shutdown_timeout 是等待 Controller 各执行循环停止的最长时间
 	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,3,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
