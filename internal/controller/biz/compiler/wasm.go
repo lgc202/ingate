@@ -24,9 +24,19 @@ const (
 	wasmFetchMaxInterval     = 30 * time.Second
 )
 
+type wasmFilterPhase uint8
+
+const (
+	// Header 等流量变换必须先运行，后续插件才能看到变换后的请求
+	wasmFilterPhaseTrafficMutation wasmFilterPhase = iota
+	// 本地响应会终止请求，必须位于鉴权和流量变换之后
+	wasmFilterPhaseLocalResponse
+)
+
 // wasmFilter 是强类型策略编译后的内部执行配置，不进入用户 API
 type wasmFilter struct {
 	name          string
+	phase         wasmFilterPhase
 	vmID          string
 	rootID        string
 	configuration []byte

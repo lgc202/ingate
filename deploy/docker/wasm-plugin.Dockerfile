@@ -16,7 +16,7 @@ COPY plugins/ ./plugins/
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     set -eu; \
-    case "${PLUGIN}" in transformer) ;; *) echo "unsupported plugin: ${PLUGIN}" >&2; exit 2 ;; esac; \
+    case "${PLUGIN}" in transformer|mock-response) ;; *) echo "unsupported plugin: ${PLUGIN}" >&2; exit 2 ;; esac; \
     GOOS=wasip1 GOARCH=wasm go build -buildmode=c-shared -trimpath \
         -o /out/plugin.wasm "./plugins/${PLUGIN}"
 

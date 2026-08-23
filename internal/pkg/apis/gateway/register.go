@@ -82,6 +82,12 @@ const (
 	ResourceHeaderTransformationPolicies ResourceName = "headertransformationpolicies"
 	// ResourceHeaderTransformationPoliciesStatus 表示 HeaderTransformationPolicy status 子资源名
 	ResourceHeaderTransformationPoliciesStatus ResourceName = "headertransformationpolicies/status"
+	// ResourceMockResponsePolicy 表示 MockResponsePolicy 单数资源名
+	ResourceMockResponsePolicy ResourceName = "mockresponsepolicy"
+	// ResourceMockResponsePolicies 表示 MockResponsePolicy 复数资源名
+	ResourceMockResponsePolicies ResourceName = "mockresponsepolicies"
+	// ResourceMockResponsePoliciesStatus 表示 MockResponsePolicy status 子资源名
+	ResourceMockResponsePoliciesStatus ResourceName = "mockresponsepolicies/status"
 )
 
 var (
@@ -122,6 +128,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 		&PluginSourceList{},
 		&HeaderTransformationPolicy{},
 		&HeaderTransformationPolicyList{},
+		&MockResponsePolicy{},
+		&MockResponsePolicyList{},
 	)
 	return nil
 }

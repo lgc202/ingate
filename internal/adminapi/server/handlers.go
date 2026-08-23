@@ -11,6 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/service/health"
 	"github.com/lgc202/ingate/internal/adminapi/service/iprestriction"
+	"github.com/lgc202/ingate/internal/adminapi/service/mockresponse"
 	"github.com/lgc202/ingate/internal/adminapi/service/pluginsource"
 	"github.com/lgc202/ingate/internal/adminapi/service/ratelimit"
 	requestservice "github.com/lgc202/ingate/internal/adminapi/service/request"
@@ -36,6 +37,7 @@ type HTTPHandlers struct {
 	tokenQuota           *tokenquota.Service
 	health               *health.Service
 	headerTransformation *headertransformation.Service
+	mockResponse         *mockresponse.Service
 	wasmPlugin           *wasmplugin.Service
 	pluginSource         *pluginsource.Service
 }
@@ -55,6 +57,7 @@ func NewHTTPHandlers(
 	tokenQuotaService *tokenquota.Service,
 	healthService *health.Service,
 	headerTransformationService *headertransformation.Service,
+	mockResponseService *mockresponse.Service,
 	wasmPluginService *wasmplugin.Service,
 	pluginSourceService *pluginsource.Service,
 ) *HTTPHandlers {
@@ -72,6 +75,7 @@ func NewHTTPHandlers(
 		tokenQuota:           tokenQuotaService,
 		health:               healthService,
 		headerTransformation: headerTransformationService,
+		mockResponse:         mockResponseService,
 		wasmPlugin:           wasmPluginService,
 		pluginSource:         pluginSourceService,
 	}
@@ -91,6 +95,7 @@ func (h *HTTPHandlers) register(server *kratoshttp.Server) {
 	adminv1.RegisterTokenQuotaPolicyServiceHTTPServer(server, h.tokenQuota)
 	adminv1.RegisterHealthServiceHTTPServer(server, h.health)
 	adminv1.RegisterHeaderTransformationPolicyServiceHTTPServer(server, h.headerTransformation)
+	adminv1.RegisterMockResponsePolicyServiceHTTPServer(server, h.mockResponse)
 	adminv1.RegisterWasmPluginServiceHTTPServer(server, h.wasmPlugin)
 	adminv1.RegisterPluginSourceServiceHTTPServer(server, h.pluginSource)
 }

@@ -28,6 +28,8 @@ const (
 	ReasonInvalidSpec ConditionReason = "InvalidSpec"
 	// ReasonReferenceNotFound 表示资源引用的目标不存在
 	ReasonReferenceNotFound ConditionReason = "ReferenceNotFound"
+	// ReasonPluginNotInstalled 表示策略依赖的数据面插件尚未安装
+	ReasonPluginNotInstalled ConditionReason = "PluginNotInstalled"
 	// ReasonInvalidReference 表示资源引用的目标存在但不可用
 	ReasonInvalidReference ConditionReason = "InvalidReference"
 	// ReasonConflict 表示资源与配置域中的其他声明冲突
@@ -74,6 +76,8 @@ const (
 	KindPluginSource Kind = "PluginSource"
 	// KindHeaderTransformationPolicy 表示 HeaderTransformationPolicy 资源类型
 	KindHeaderTransformationPolicy Kind = "HeaderTransformationPolicy"
+	// KindMockResponsePolicy 表示 MockResponsePolicy 资源类型
+	KindMockResponsePolicy Kind = "MockResponsePolicy"
 )
 
 // PolicyTargetRef 表示策略的生效目标

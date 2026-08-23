@@ -1,0 +1,11 @@
+{
+  "package": "ingate-mock-response",
+  "name": "模拟响应",
+  "category": "流量控制",
+  "description": "命中路由后由网关直接返回固定状态码、响应 Header 和正文，不访问上游服务",
+  "provider": "Ingate",
+  "license": "Apache-2.0",
+  "sourceUrl": "https://github.com/lgc202/ingate/tree/main/plugins/mock-response",
+  "minIngateVersion": "0.1.0",
+  "artifactRepository": "ghcr.io/lgc202/ingate-plugin-mock-response"
+}

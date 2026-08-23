@@ -29,6 +29,8 @@ const (
 	ReasonInvalidSpec = gatewayv1.ReasonInvalidSpec
 	// ReasonReferenceNotFound 表示资源引用的目标不存在
 	ReasonReferenceNotFound = gatewayv1.ReasonReferenceNotFound
+	// ReasonPluginNotInstalled 表示策略依赖的数据面插件尚未安装
+	ReasonPluginNotInstalled = gatewayv1.ReasonPluginNotInstalled
 	// ReasonInvalidReference 表示资源引用的目标存在但不可用
 	ReasonInvalidReference = gatewayv1.ReasonInvalidReference
 	// ReasonConflict 表示资源与同一配置域内的其他资源冲突
@@ -75,6 +77,7 @@ type Resources struct {
 	RateLimitPolicies            []*gatewayv1.RateLimitPolicy
 	IPRestrictionPolicies        []*gatewayv1.IPRestrictionPolicy
 	HeaderTransformationPolicies []*gatewayv1.HeaderTransformationPolicy
+	MockResponsePolicies         []*gatewayv1.MockResponsePolicy
 	WasmPlugins                  []*gatewayv1.WasmPlugin
 }
 
@@ -82,7 +85,8 @@ type Resources struct {
 func (r Resources) Generations() []ResourceGeneration {
 	result := make([]ResourceGeneration, 0,
 		len(r.Gateways)+len(r.Certificates)+len(r.Routes)+len(r.Upstreams)+
-			len(r.RateLimitPolicies)+len(r.IPRestrictionPolicies)+len(r.HeaderTransformationPolicies)+len(r.WasmPlugins),
+			len(r.RateLimitPolicies)+len(r.IPRestrictionPolicies)+len(r.HeaderTransformationPolicies)+
+			len(r.MockResponsePolicies)+len(r.WasmPlugins),
 	)
 	for _, resource := range r.Gateways {
 		if resource != nil {
@@ -117,6 +121,11 @@ func (r Resources) Generations() []ResourceGeneration {
 	for _, resource := range r.HeaderTransformationPolicies {
 		if resource != nil {
 			result = append(result, newResourceGeneration(gatewayv1.KindHeaderTransformationPolicy, resource.Name, resource.UID, resource.Generation))
+		}
+	}
+	for _, resource := range r.MockResponsePolicies {
+		if resource != nil {
+			result = append(result, newResourceGeneration(gatewayv1.KindMockResponsePolicy, resource.Name, resource.UID, resource.Generation))
 		}
 	}
 	for _, resource := range r.WasmPlugins {

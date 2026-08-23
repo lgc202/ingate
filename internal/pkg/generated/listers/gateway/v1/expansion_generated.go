@@ -24,6 +24,10 @@ type HeaderTransformationPolicyListerExpansion interface{}
 // IPRestrictionPolicyLister.
 type IPRestrictionPolicyListerExpansion interface{}
 
+// MockResponsePolicyListerExpansion allows custom methods to be added to
+// MockResponsePolicyLister.
+type MockResponsePolicyListerExpansion interface{}
+
 // PluginSourceListerExpansion allows custom methods to be added to
 // PluginSourceLister.
 type PluginSourceListerExpansion interface{}

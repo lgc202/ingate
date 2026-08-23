@@ -51,7 +51,7 @@ func (c *compilation) compileHeaderTransformationPolicies() map[string]compiledH
 				SeverityError,
 				gatewayv1.KindHeaderTransformationPolicy,
 				policyID,
-				ReasonReferenceNotFound,
+				ReasonPluginNotInstalled,
 				fmt.Sprintf("header transformation policy %q requires installed plugin package %q", policyID, gatewayv1.WasmPluginPackageTransformer),
 			)
 			continue
@@ -80,6 +80,7 @@ func (c *compilation) compileHeaderTransformationPolicies() map[string]compiledH
 			),
 			filter: wasmFilter{
 				name:          policy.Name,
+				phase:         wasmFilterPhaseTrafficMutation,
 				vmID:          plugin.Name,
 				rootID:        plugin.Spec.RootID,
 				configuration: configuration,

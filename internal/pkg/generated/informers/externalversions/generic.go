@@ -49,6 +49,8 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().HeaderTransformationPolicies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("iprestrictionpolicies"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().IPRestrictionPolicies().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("mockresponsepolicies"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().MockResponsePolicies().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("pluginsources"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Gateway().V1().PluginSources().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("ratelimitpolicies"):

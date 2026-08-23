@@ -11,6 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/biz/gateway"
 	"github.com/lgc202/ingate/internal/adminapi/biz/headertransformation"
 	"github.com/lgc202/ingate/internal/adminapi/biz/iprestriction"
+	"github.com/lgc202/ingate/internal/adminapi/biz/mockresponse"
 	"github.com/lgc202/ingate/internal/adminapi/biz/pluginsource"
 	"github.com/lgc202/ingate/internal/adminapi/biz/ratelimit"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
@@ -38,6 +39,7 @@ var apiserverProviderSet = wire.NewSet(
 	apiserver.NewWasmPluginRepository,
 	apiserver.NewPluginSourceRepository,
 	apiserver.NewHeaderTransformationPolicyRepository,
+	apiserver.NewMockResponsePolicyRepository,
 	// 根 biz 只保留跨领域策略能力所需的只读边界
 	wire.Bind(new(biz.GatewayGetter), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(biz.RouteGetter), new(*apiserver.RouteRepository)),
@@ -45,6 +47,7 @@ var apiserverProviderSet = wire.NewSet(
 	wire.Bind(new(biz.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyRepository)),
 	wire.Bind(new(biz.IPRestrictionPolicyLister), new(*apiserver.IPRestrictionPolicyRepository)),
 	wire.Bind(new(biz.HeaderTransformationPolicyLister), new(*apiserver.HeaderTransformationPolicyRepository)),
+	wire.Bind(new(biz.MockResponsePolicyLister), new(*apiserver.MockResponsePolicyRepository)),
 	// 每个领域声明自己真实消费的 Repository，避免 biz 子包相互依赖
 	wire.Bind(new(gateway.Repository), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(gateway.RouteRepository), new(*apiserver.RouteRepository)),
@@ -60,11 +63,11 @@ var apiserverProviderSet = wire.NewSet(
 	wire.Bind(new(ratelimit.Repository), new(*apiserver.RateLimitPolicyRepository)),
 	wire.Bind(new(iprestriction.Repository), new(*apiserver.IPRestrictionPolicyRepository)),
 	wire.Bind(new(headertransformation.Repository), new(*apiserver.HeaderTransformationPolicyRepository)),
+	wire.Bind(new(mockresponse.Repository), new(*apiserver.MockResponsePolicyRepository)),
 	wire.Bind(new(caller.Repository), new(*apiserver.CallerRepository)),
 	wire.Bind(new(tokenquota.Repository), new(*apiserver.TokenQuotaPolicyRepository)),
 	wire.Bind(new(wasmplugin.Repository), new(*apiserver.WasmPluginRepository)),
 	wire.Bind(new(pluginsource.Repository), new(*apiserver.PluginSourceRepository)),
-	wire.Bind(new(wasmplugin.HeaderTransformationPolicyRepository), new(*apiserver.HeaderTransformationPolicyRepository)),
 	wire.Bind(new(caller.RouteRepository), new(*apiserver.RouteRepository)),
 )
 

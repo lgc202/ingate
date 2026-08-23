@@ -25,6 +25,7 @@ func (c *compilation) buildPolicyConfigs(
 	// 编译阶段直接把强类型 Policy 展开到 Envoy Route，执行组件不再理解用户资源挂载关系
 	ipRestrictionPolicies := c.compileIPRestrictionPolicies()
 	headerTransformationPolicies := c.compileHeaderTransformationPolicies()
+	mockResponsePolicies := c.compileMockResponsePolicies()
 	filters := make(map[listenerKey]listenerFilterConfig)
 	policyTargetSet := make(map[CompiledPolicyTarget]bool)
 
@@ -56,6 +57,27 @@ func (c *compilation) buildPolicyConfigs(
 				for _, target := range transformationTargets {
 					c.recordPolicyTargets(target.source, target.targets, policyTargetSet)
 				}
+			}
+		}
+
+		mockResponses, mockResponseTargets := matchingMockResponsePolicies(mockResponsePolicies, key)
+		switch len(mockResponses) {
+		case 0:
+		case 1:
+			if err := applyMockResponsePolicy(attachment.routes, mockResponses[0], &config); err != nil {
+				c.addDiagnostic(SeverityError, gatewayv1.KindRoute, key.routeID, ReasonCompileFailed, fmt.Sprintf("compile mock response policy for route %q: %v", key.routeID, err))
+			} else {
+				c.recordPolicyTargets(mockResponseTargets[0].source, mockResponseTargets[0].targets, policyTargetSet)
+			}
+		default:
+			for _, policy := range mockResponses {
+				c.addDiagnostic(
+					SeverityError,
+					gatewayv1.KindMockResponsePolicy,
+					policy.source.Name,
+					ReasonConflict,
+					fmt.Sprintf("multiple mock response policies apply to route %q", key.routeID),
+				)
 			}
 		}
 

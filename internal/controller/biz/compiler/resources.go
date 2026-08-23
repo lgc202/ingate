@@ -16,6 +16,7 @@ type compilation struct {
 	rateLimitPolicies            map[string]*gatewayv1.RateLimitPolicy
 	ipRestrictionPolicies        map[string]*gatewayv1.IPRestrictionPolicy
 	headerTransformationPolicies map[string]*gatewayv1.HeaderTransformationPolicy
+	mockResponsePolicies         map[string]*gatewayv1.MockResponsePolicy
 	wasmPlugins                  map[string]*gatewayv1.WasmPlugin
 	wasmPluginsByPackage         map[string]*gatewayv1.WasmPlugin
 	wasmModules                  map[string]WasmModule
@@ -34,6 +35,7 @@ func newCompilation(resources Resources, wasmModules map[string]WasmModule) *com
 		rateLimitPolicies:            make(map[string]*gatewayv1.RateLimitPolicy, len(resources.RateLimitPolicies)),
 		ipRestrictionPolicies:        make(map[string]*gatewayv1.IPRestrictionPolicy, len(resources.IPRestrictionPolicies)),
 		headerTransformationPolicies: make(map[string]*gatewayv1.HeaderTransformationPolicy, len(resources.HeaderTransformationPolicies)),
+		mockResponsePolicies:         make(map[string]*gatewayv1.MockResponsePolicy, len(resources.MockResponsePolicies)),
 		wasmPlugins:                  make(map[string]*gatewayv1.WasmPlugin, len(resources.WasmPlugins)),
 		wasmPluginsByPackage:         make(map[string]*gatewayv1.WasmPlugin, len(resources.WasmPlugins)),
 		wasmModules:                  wasmModules,
@@ -90,6 +92,13 @@ func (c *compilation) indexResources(resources Resources) {
 			continue
 		}
 		c.indexHeaderTransformationPolicy(policy)
+	}
+	for _, policy := range resources.MockResponsePolicies {
+		if policy == nil {
+			c.addDiagnostic(SeverityError, gatewayv1.KindMockResponsePolicy, "", ReasonInvalidSpec, "mock response policy resource is nil")
+			continue
+		}
+		c.indexMockResponsePolicy(policy)
 	}
 	for _, plugin := range resources.WasmPlugins {
 		if plugin == nil {
@@ -239,4 +248,17 @@ func (c *compilation) indexHeaderTransformationPolicy(policy *gatewayv1.HeaderTr
 		return
 	}
 	c.headerTransformationPolicies[id] = policy
+}
+
+func (c *compilation) indexMockResponsePolicy(policy *gatewayv1.MockResponsePolicy) {
+	id := policy.Name
+	if id == "" {
+		c.addDiagnostic(SeverityError, gatewayv1.KindMockResponsePolicy, id, ReasonInvalidSpec, "mock response policy metadata.name is required")
+		return
+	}
+	if _, ok := c.mockResponsePolicies[id]; ok {
+		c.addDiagnostic(SeverityError, gatewayv1.KindMockResponsePolicy, id, ReasonConflict, fmt.Sprintf("duplicate mock response policy %q", id))
+		return
+	}
+	c.mockResponsePolicies[id] = policy
 }
