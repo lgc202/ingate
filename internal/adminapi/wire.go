@@ -49,6 +49,7 @@ import (
 var bizProviderSet = wire.NewSet(
 	biz.NewPolicyUsageFinder,
 	biz.NewPluginUsageFinder,
+	biz.NewPluginInstallationChecker,
 	wire.Bind(new(wasmpluginbiz.UsageFinder), new(*biz.PluginUsageFinder)),
 	aiusagebiz.NewService,
 	callerbiz.NewService,

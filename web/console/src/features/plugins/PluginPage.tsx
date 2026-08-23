@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Blocks, CircleAlert, Database, Sparkles } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import {
   deleteWasmPlugin,
   getWasmPlugin,
@@ -19,6 +20,7 @@ import { emptyPluginFilters, InstalledPlugins, PluginDetail, PluginMarket, type 
 type PluginTab = 'market' | 'installed' | 'sources';
 
 export function PluginPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const plugins = useResource(listWasmPlugins, { autoRefreshWhen: (items) => items.some((item) => item.state === 'Pending') });
   const catalog = useResource(listWasmPluginCatalog);
   const sources = useResource(listPluginSources);
@@ -34,6 +36,29 @@ export function PluginPage() {
   const [deleteError, setDeleteError] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    const packageName = searchParams.get('install');
+    if (!packageName || !plugins.data || !catalog.data) return;
+
+    const installed = plugins.data.find((plugin) => plugin.package === packageName);
+    if (installed) {
+      setTab('installed');
+      setNotice({ message: `插件已安装：${installed.name}`, tone: 'success' });
+    } else {
+      const item = catalog.data.plugins.find((plugin) => plugin.package === packageName);
+      if (item) {
+        setChangeError('');
+        setChange({ item });
+      } else {
+        setNotice({ message: '当前插件源中没有所需插件', tone: 'error' });
+      }
+    }
+
+    const next = new URLSearchParams(searchParams);
+    next.delete('install');
+    setSearchParams(next, { replace: true });
+  }, [catalog.data, plugins.data, searchParams, setSearchParams]);
 
   const visiblePlugins = useMemo(() => {
     const normalized = filters.query.trim().toLowerCase();

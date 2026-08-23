@@ -48,6 +48,7 @@ var apiserverProviderSet = wire.NewSet(
 	wire.Bind(new(biz.IPRestrictionPolicyLister), new(*apiserver.IPRestrictionPolicyRepository)),
 	wire.Bind(new(biz.HeaderTransformationPolicyLister), new(*apiserver.HeaderTransformationPolicyRepository)),
 	wire.Bind(new(biz.MockResponsePolicyLister), new(*apiserver.MockResponsePolicyRepository)),
+	wire.Bind(new(biz.WasmPluginLister), new(*apiserver.WasmPluginRepository)),
 	// 每个领域声明自己真实消费的 Repository，避免 biz 子包相互依赖
 	wire.Bind(new(gateway.Repository), new(*apiserver.GatewayRepository)),
 	wire.Bind(new(gateway.RouteRepository), new(*apiserver.RouteRepository)),

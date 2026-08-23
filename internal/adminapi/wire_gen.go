@@ -105,11 +105,12 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 	tokenquotaService := tokenquota.NewService(tokenQuotaPolicyRepository, callerRepository, tokenQuotaUsageReader)
 	service11 := tokenquota2.NewService(tokenquotaService)
 	healthService := health.NewService()
-	headertransformationService := headertransformation.NewService(headerTransformationPolicyRepository, gatewayRepository, routeRepository)
-	service12 := headertransformation2.NewService(headertransformationService)
-	mockresponseService := mockresponse.NewService(mockResponsePolicyRepository, gatewayRepository, routeRepository)
-	service13 := mockresponse2.NewService(mockresponseService)
 	wasmPluginRepository := apiserver.NewWasmPluginRepository(versionedInterface)
+	pluginInstallationChecker := biz.NewPluginInstallationChecker(wasmPluginRepository)
+	headertransformationService := headertransformation.NewService(headerTransformationPolicyRepository, gatewayRepository, routeRepository, pluginInstallationChecker)
+	service12 := headertransformation2.NewService(headertransformationService)
+	mockresponseService := mockresponse.NewService(mockResponsePolicyRepository, gatewayRepository, routeRepository, pluginInstallationChecker)
+	service13 := mockresponse2.NewService(mockresponseService)
 	pluginUsageFinder := biz.NewPluginUsageFinder(headerTransformationPolicyRepository, mockResponsePolicyRepository)
 	pluginSourceRepository := apiserver.NewPluginSourceRepository(versionedInterface)
 	catalog, err := plugincatalog.NewCatalog(data, pluginSourceRepository, logger)
@@ -134,7 +135,7 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 // wire.go:
 
 // bizProviderSet 汇总各资源的业务服务
-var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, biz.NewPluginUsageFinder, wire.Bind(new(wasmplugin.UsageFinder), new(*biz.PluginUsageFinder)), aiusage.NewService, caller.NewService, gateway.NewService, headertransformation.NewService, mockresponse.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, pluginsource.NewService, request.NewService, traffic.NewService, tokenquota.NewService, wasmplugin.NewService)
+var bizProviderSet = wire.NewSet(biz.NewPolicyUsageFinder, biz.NewPluginUsageFinder, biz.NewPluginInstallationChecker, wire.Bind(new(wasmplugin.UsageFinder), new(*biz.PluginUsageFinder)), aiusage.NewService, caller.NewService, gateway.NewService, headertransformation.NewService, mockresponse.NewService, route.NewService, upstream.NewService, certificate.NewService, ratelimit.NewService, iprestriction.NewService, pluginsource.NewService, request.NewService, traffic.NewService, tokenquota.NewService, wasmplugin.NewService)
 
 // serviceProviderSet 汇总 Admin API 的协议服务
 var serviceProviderSet = wire.NewSet(aiusage2.NewService, caller2.NewService, gateway2.NewService, headertransformation2.NewService, mockresponse2.NewService, route2.NewService, upstream2.NewService, certificate2.NewService, ratelimit2.NewService, iprestriction2.NewService, pluginsource2.NewService, request2.NewService, traffic2.NewService, tokenquota2.NewService, health.NewService, wasmplugin2.NewService)

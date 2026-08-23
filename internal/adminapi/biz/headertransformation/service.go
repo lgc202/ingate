@@ -25,6 +25,7 @@ type Repository interface {
 type Service struct {
 	repository Repository
 	targets    *biz.PolicyTargetResolver
+	plugins    *biz.PluginInstallationChecker
 }
 
 // PolicyPage 保存一页策略及其目标展示名称
@@ -41,8 +42,17 @@ type PolicyView struct {
 }
 
 // NewService 创建 Header 转换策略业务服务
-func NewService(repository Repository, gateways biz.GatewayGetter, routes biz.RouteGetter) *Service {
-	return &Service{repository: repository, targets: biz.NewPolicyTargetResolver(gateways, routes)}
+func NewService(
+	repository Repository,
+	gateways biz.GatewayGetter,
+	routes biz.RouteGetter,
+	plugins *biz.PluginInstallationChecker,
+) *Service {
+	return &Service{
+		repository: repository,
+		targets:    biz.NewPolicyTargetResolver(gateways, routes),
+		plugins:    plugins,
+	}
 }
 
 // List 查询 Header 转换策略列表
@@ -73,6 +83,9 @@ func (s *Service) Get(ctx context.Context, policyID string) (PolicyView, error) 
 
 // Create 创建 Header 转换策略
 func (s *Service) Create(ctx context.Context, spec resource.HeaderTransformationPolicySpec) (PolicyView, error) {
+	if err := s.ensurePluginInstalled(ctx); err != nil {
+		return PolicyView{}, err
+	}
 	if err := s.ensureDisplayNameAvailable(ctx, "", spec.DisplayName); err != nil {
 		return PolicyView{}, err
 	}
@@ -100,6 +113,9 @@ func (s *Service) Update(
 	}
 	if version != current.Generation {
 		return PolicyView{}, versionConflict(current)
+	}
+	if err := s.ensurePluginInstalled(ctx); err != nil {
+		return PolicyView{}, err
 	}
 	if spec.DisplayName != current.Spec.DisplayName {
 		if err := s.ensureDisplayNameAvailable(ctx, policyID, spec.DisplayName); err != nil {
@@ -134,6 +150,17 @@ func (s *Service) Delete(ctx context.Context, policyID string, version int64) er
 			return versionConflict(current)
 		}
 		return err
+	}
+	return nil
+}
+
+func (s *Service) ensurePluginInstalled(ctx context.Context) error {
+	installed, err := s.plugins.Installed(ctx, resource.WasmPluginPackageTransformer)
+	if err != nil {
+		return err
+	}
+	if !installed {
+		return biz.NewRuleViolation("请先安装请求响应转换插件")
 	}
 	return nil
 }

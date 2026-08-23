@@ -49,7 +49,8 @@ export function PluginMarket({
   return (
     <div className="plugin-market">
       {items.map((item) => {
-        const installedPlugin = installed.find((plugin) => plugin.sourceID === item.sourceID && plugin.package === item.package);
+        const installedPlugin = installed.find((plugin) => plugin.package === item.package);
+        const installedFromCurrentSource = installedPlugin?.sourceID === item.sourceID;
         return (
           <article className="plugin-market-card" key={`${item.sourceID}:${item.package}`}>
             <div className="plugin-market-icon"><PackagePlus aria-hidden="true" /></div>
@@ -70,8 +71,10 @@ export function PluginMarket({
             <div className="plugin-market-action">
               {installedPlugin ? (
                 <>
-                  <Badge tone={installedPlugin.upgradeAvailable ? 'warning' : pluginStatusTone(installedPlugin.state)}>
-                    {installedPlugin.upgradeAvailable ? '可升级' : `已安装 · ${pluginStatusLabel(installedPlugin.state)}`}
+                  <Badge tone={installedFromCurrentSource && installedPlugin.upgradeAvailable ? 'warning' : pluginStatusTone(installedPlugin.state)}>
+                    {installedFromCurrentSource
+                      ? (installedPlugin.upgradeAvailable ? '可升级' : `已安装 · ${pluginStatusLabel(installedPlugin.state)}`)
+                      : `已从${installedPlugin.sourceName}安装`}
                   </Badge>
                   <Button variant="outline" onClick={onManage}>管理</Button>
                 </>
