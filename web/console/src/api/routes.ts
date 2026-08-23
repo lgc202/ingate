@@ -1,4 +1,4 @@
-import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './client';
+import { apiListAllByCursor, apiListPageByCursor, apiRequest, type CursorPage, type CursorPagedResponse } from './client';
 import { listGateways } from './gateways';
 import { listUpstreams } from './upstreams';
 import { normalizeResourceState } from '@/domain/common';
@@ -11,10 +11,17 @@ export async function listRoutes(): Promise<RouteListView> {
   return { routes: routes.map(routeFromAPI) };
 }
 
-export async function getRouteWorkspace(): Promise<RouteWorkspace> {
-  const [routeList, gatewayList, upstreamList] = await Promise.all([listRoutes(), listGateways(), listUpstreams()]);
+export async function listRoutePage(input: {
+  limit: number; cursor: string; query?: string; enabled?: boolean; state?: string; type?: string;
+}): Promise<CursorPage<RouteResource>> {
+  const page = await apiListPageByCursor<RouteListResponse, RouteResource>('/routes', input, (value) => value.routes ?? []);
+  return { ...page, items: page.items.map(routeFromAPI) };
+}
+
+export async function getRouteOptions(): Promise<RouteWorkspace> {
+  const [gatewayList, upstreamList] = await Promise.all([listGateways(), listUpstreams()]);
   return {
-    routes: routeList.routes,
+    routes: [],
     gateways: gatewayList.gateways.map((gateway) => ({ id: gateway.id, name: gateway.name, listeners: gateway.listeners })),
     upstreams: upstreamList.upstreams.map((upstream) => ({
       id: upstream.id,

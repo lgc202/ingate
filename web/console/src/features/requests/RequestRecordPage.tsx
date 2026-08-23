@@ -55,8 +55,9 @@ export function RequestRecordPage() {
   const pageToken = pageTokens[pageIndex] ?? '';
   const loadPage = useCallback(() => listRequestRecords(filters, pageToken, pageSize), [filters, pageSize, pageToken]);
   const records = useResource(loadPage);
-  const workspace = useResource(getRequestRecordWorkspace);
+  const workspace = useResource(getRequestRecordWorkspace, { enabled: Boolean(records.data) });
   const names = useMemo(() => resourceNames(workspace.data), [workspace.data]);
+  const namesReady = Boolean(workspace.data);
 
   const applyFilters = () => {
     if (!draft.startTime || !draft.endTime || new Date(draft.startTime) >= new Date(draft.endTime)) {
@@ -148,10 +149,10 @@ export function RequestRecordPage() {
                     <td><time className="request-record-time" dateTime={record.startedAt}>{formatRequestTime(record.startedAt)}</time></td>
                     <td><div className="request-record-target"><span className={`request-method request-method-${record.method.toLowerCase()}`}>{record.method || '-'}</span><code>{record.host}</code></div><strong className="request-path">{record.path || '/'}</strong></td>
                     <td><div className="request-response"><Badge tone={responseTone(record)}>{responseStatus(record)}</Badge>{rejectionLabel(record) ? <span>{rejectionLabel(record)}</span> : null}</div></td>
-                    <td><strong className="request-resource-name">{resourceName(names.gateways, record.gatewayID, '已删除的网关')}</strong></td>
-                    <td><strong className="request-resource-name">{resourceName(names.routes, record.routeID, '已删除的路由')}</strong></td>
-                    <td><strong className="request-resource-name">{resourceName(names.services, record.serviceID, '已删除的服务')}</strong>{record.aiModelCall ? <span className="request-model-summary">{modelMapping(record.aiModelCall)} · {modelTokenSummary(record.aiModelCall)}</span> : null}</td>
-                    <td><strong className="request-resource-name">{callerLabel(record, names)}</strong></td>
+                    <td><strong className="request-resource-name">{resourceName(names.gateways, record.gatewayID, namesReady ? '已删除的网关' : '名称加载中')}</strong></td>
+                    <td><strong className="request-resource-name">{resourceName(names.routes, record.routeID, namesReady ? '已删除的路由' : '名称加载中')}</strong></td>
+                    <td><strong className="request-resource-name">{resourceName(names.services, record.serviceID, namesReady ? '已删除的服务' : '名称加载中')}</strong>{record.aiModelCall ? <span className="request-model-summary">{modelMapping(record.aiModelCall)} · {modelTokenSummary(record.aiModelCall)}</span> : null}</td>
+                    <td><strong className="request-resource-name">{callerLabel(record, names, namesReady)}</strong></td>
                     <td className="whitespace-nowrap">{formatDuration(record.duration)}</td>
                     <td><ChevronRight className="h-4 w-4 text-slate-400" /></td>
                   </tr>
@@ -186,14 +187,14 @@ export function RequestRecordPage() {
       <Drawer title="请求详情" subtitle={selected ? `${selected.method} ${selected.host}${selected.path}` : undefined} isOpen={Boolean(selected)} onClose={() => setSelected(null)}>
         {detailLoading ? <DetailLoading /> : null}
         {!detailLoading && detailError && selected ? <DetailError message={detailError} onRetry={() => void openDetail(selected)} /> : null}
-        {!detailLoading && detail ? <RequestDetail record={detail} names={names} /> : null}
+        {!detailLoading && detail ? <RequestDetail record={detail} names={names} namesReady={namesReady} /> : null}
       </Drawer>
       <Toast message={notice} tone="error" onClose={() => setNotice(null)} />
     </PageFrame>
   );
 }
 
-function RequestDetail({ record, names }: { record: RequestRecord; names: ResourceNames }) {
+function RequestDetail({ record, names, namesReady }: { record: RequestRecord; names: ResourceNames; namesReady: boolean }) {
   const failed = record.statusCode === 0 || record.outcome === 'REQUEST_OUTCOME_CLIENT_ERROR' || record.outcome === 'REQUEST_OUTCOME_SERVER_ERROR';
   return (
     <div className="space-y-5">
@@ -219,15 +220,15 @@ function RequestDetail({ record, names }: { record: RequestRecord; names: Resour
         <DetailItem label="结束原因" value={finishReasonLabel(record.aiModelCall.finishReason)} wide />
       </DetailSection> : null}
       {record.callerID ? <DetailSection title="访问身份">
-        <ResourceDetailItem label="调用方" id={record.callerID} names={names.callers} path="/callers" deletedLabel="已删除的调用方" />
-        <DetailItem label="访问密钥" value={names.accessKeys.get(record.accessKeyID) || '已停用或删除的密钥'} />
-      </DetailSection> : callerLabel(record, names) === '未识别调用方' ? <DetailSection title="访问身份">
+        <ResourceDetailItem label="调用方" id={record.callerID} names={names.callers} path="/callers" deletedLabel={namesReady ? '已删除的调用方' : '名称加载中'} />
+        <DetailItem label="访问密钥" value={names.accessKeys.get(record.accessKeyID) || (namesReady ? '已停用或删除的密钥' : '名称加载中')} />
+      </DetailSection> : callerLabel(record, names, namesReady) === '未识别调用方' ? <DetailSection title="访问身份">
         <DetailItem label="调用方" value="未识别调用方" />
       </DetailSection> : null}
       <DetailSection title="转发结果" layout="forwarding">
-        <ResourceDetailItem label="网关" id={record.gatewayID} names={names.gateways} path="/gateways" deletedLabel="已删除的网关" />
-        <ResourceDetailItem label="路由" id={record.routeID} names={names.routes} path="/routes" deletedLabel="已删除的路由" />
-        {record.serviceID ? <ResourceDetailItem label="服务" id={record.serviceID} names={names.services} path="/services" deletedLabel="已删除的服务" /> : <DetailItem label="服务" value="未转发" />}
+        <ResourceDetailItem label="网关" id={record.gatewayID} names={names.gateways} path="/gateways" deletedLabel={namesReady ? '已删除的网关' : '名称加载中'} />
+        <ResourceDetailItem label="路由" id={record.routeID} names={names.routes} path="/routes" deletedLabel={namesReady ? '已删除的路由' : '名称加载中'} />
+        {record.serviceID ? <ResourceDetailItem label="服务" id={record.serviceID} names={names.services} path="/services" deletedLabel={namesReady ? '已删除的服务' : '名称加载中'} /> : <DetailItem label="服务" value="未转发" />}
         <DetailItem label="最终服务地址" value={record.upstreamAddress || '-'} />
         <DetailItem label="转发尝试" value={record.upstreamAttempts ? `${record.upstreamAttempts} 次` : '-'} />
       </DetailSection>
@@ -301,8 +302,9 @@ function resourceNames(workspace: Awaited<ReturnType<typeof getRequestRecordWork
   };
 }
 
-function callerLabel(record: RequestRecord | RequestRecordSummary, names: ResourceNames): string {
-  if (record.callerID) return resourceName(names.callers, record.callerID, '已删除的调用方');
+function callerLabel(record: RequestRecord | RequestRecordSummary, names: ResourceNames, namesReady: boolean): string {
+  if (record.callerID) return resourceName(names.callers, record.callerID, namesReady ? '已删除的调用方' : '名称加载中');
+  if (!namesReady) return '名称加载中';
   return names.routeAccessModes.get(record.routeID) === 'ROUTE_ACCESS_PUBLIC' ? '公开访问' : '未识别调用方';
 }
 

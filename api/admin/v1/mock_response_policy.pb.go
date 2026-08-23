@@ -221,6 +221,9 @@ type ListMockResponsePoliciesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,4,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	State         ResourceState          `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -267,6 +270,27 @@ func (x *ListMockResponsePoliciesRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListMockResponsePoliciesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListMockResponsePoliciesRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *ListMockResponsePoliciesRequest) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 type ListMockResponsePoliciesResponse struct {
@@ -634,10 +658,15 @@ const file_admin_v1_mock_response_policy_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"X\n" +
+	"updated_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xd9\x01\n" +
 	"\x1fListMockResponsePoliciesRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"\x84\x01\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1d\n" +
+	"\aenabled\x18\x04 \x01(\bH\x00R\aenabled\x88\x01\x01\x12>\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05stateB\n" +
+	"\n" +
+	"\b_enabled\"\x84\x01\n" +
 	" ListMockResponsePoliciesResponse\x12?\n" +
 	"\bpolicies\x18\x01 \x03(\v2#.ingate.admin.v1.MockResponsePolicyR\bpolicies\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -709,26 +738,27 @@ var file_admin_v1_mock_response_policy_proto_depIdxs = []int32{
 	9,  // 2: ingate.admin.v1.MockResponsePolicy.state:type_name -> ingate.admin.v1.ResourceState
 	10, // 3: ingate.admin.v1.MockResponsePolicy.created_at:type_name -> google.protobuf.Timestamp
 	10, // 4: ingate.admin.v1.MockResponsePolicy.updated_at:type_name -> google.protobuf.Timestamp
-	1,  // 5: ingate.admin.v1.ListMockResponsePoliciesResponse.policies:type_name -> ingate.admin.v1.MockResponsePolicy
-	11, // 6: ingate.admin.v1.CreateMockResponsePolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	0,  // 7: ingate.admin.v1.CreateMockResponsePolicyRequest.headers:type_name -> ingate.admin.v1.MockResponseHeader
-	11, // 8: ingate.admin.v1.UpdateMockResponsePolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
-	0,  // 9: ingate.admin.v1.UpdateMockResponsePolicyRequest.headers:type_name -> ingate.admin.v1.MockResponseHeader
-	2,  // 10: ingate.admin.v1.MockResponsePolicyService.ListMockResponsePolicies:input_type -> ingate.admin.v1.ListMockResponsePoliciesRequest
-	4,  // 11: ingate.admin.v1.MockResponsePolicyService.GetMockResponsePolicy:input_type -> ingate.admin.v1.GetMockResponsePolicyRequest
-	5,  // 12: ingate.admin.v1.MockResponsePolicyService.CreateMockResponsePolicy:input_type -> ingate.admin.v1.CreateMockResponsePolicyRequest
-	6,  // 13: ingate.admin.v1.MockResponsePolicyService.UpdateMockResponsePolicy:input_type -> ingate.admin.v1.UpdateMockResponsePolicyRequest
-	7,  // 14: ingate.admin.v1.MockResponsePolicyService.DeleteMockResponsePolicy:input_type -> ingate.admin.v1.DeleteMockResponsePolicyRequest
-	3,  // 15: ingate.admin.v1.MockResponsePolicyService.ListMockResponsePolicies:output_type -> ingate.admin.v1.ListMockResponsePoliciesResponse
-	1,  // 16: ingate.admin.v1.MockResponsePolicyService.GetMockResponsePolicy:output_type -> ingate.admin.v1.MockResponsePolicy
-	1,  // 17: ingate.admin.v1.MockResponsePolicyService.CreateMockResponsePolicy:output_type -> ingate.admin.v1.MockResponsePolicy
-	1,  // 18: ingate.admin.v1.MockResponsePolicyService.UpdateMockResponsePolicy:output_type -> ingate.admin.v1.MockResponsePolicy
-	12, // 19: ingate.admin.v1.MockResponsePolicyService.DeleteMockResponsePolicy:output_type -> google.protobuf.Empty
-	15, // [15:20] is the sub-list for method output_type
-	10, // [10:15] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	9,  // 5: ingate.admin.v1.ListMockResponsePoliciesRequest.state:type_name -> ingate.admin.v1.ResourceState
+	1,  // 6: ingate.admin.v1.ListMockResponsePoliciesResponse.policies:type_name -> ingate.admin.v1.MockResponsePolicy
+	11, // 7: ingate.admin.v1.CreateMockResponsePolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	0,  // 8: ingate.admin.v1.CreateMockResponsePolicyRequest.headers:type_name -> ingate.admin.v1.MockResponseHeader
+	11, // 9: ingate.admin.v1.UpdateMockResponsePolicyRequest.targets:type_name -> ingate.admin.v1.PolicyTargetRef
+	0,  // 10: ingate.admin.v1.UpdateMockResponsePolicyRequest.headers:type_name -> ingate.admin.v1.MockResponseHeader
+	2,  // 11: ingate.admin.v1.MockResponsePolicyService.ListMockResponsePolicies:input_type -> ingate.admin.v1.ListMockResponsePoliciesRequest
+	4,  // 12: ingate.admin.v1.MockResponsePolicyService.GetMockResponsePolicy:input_type -> ingate.admin.v1.GetMockResponsePolicyRequest
+	5,  // 13: ingate.admin.v1.MockResponsePolicyService.CreateMockResponsePolicy:input_type -> ingate.admin.v1.CreateMockResponsePolicyRequest
+	6,  // 14: ingate.admin.v1.MockResponsePolicyService.UpdateMockResponsePolicy:input_type -> ingate.admin.v1.UpdateMockResponsePolicyRequest
+	7,  // 15: ingate.admin.v1.MockResponsePolicyService.DeleteMockResponsePolicy:input_type -> ingate.admin.v1.DeleteMockResponsePolicyRequest
+	3,  // 16: ingate.admin.v1.MockResponsePolicyService.ListMockResponsePolicies:output_type -> ingate.admin.v1.ListMockResponsePoliciesResponse
+	1,  // 17: ingate.admin.v1.MockResponsePolicyService.GetMockResponsePolicy:output_type -> ingate.admin.v1.MockResponsePolicy
+	1,  // 18: ingate.admin.v1.MockResponsePolicyService.CreateMockResponsePolicy:output_type -> ingate.admin.v1.MockResponsePolicy
+	1,  // 19: ingate.admin.v1.MockResponsePolicyService.UpdateMockResponsePolicy:output_type -> ingate.admin.v1.MockResponsePolicy
+	12, // 20: ingate.admin.v1.MockResponsePolicyService.DeleteMockResponsePolicy:output_type -> google.protobuf.Empty
+	16, // [16:21] is the sub-list for method output_type
+	11, // [11:16] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_mock_response_policy_proto_init() }
@@ -737,6 +767,7 @@ func file_admin_v1_mock_response_policy_proto_init() {
 		return
 	}
 	file_admin_v1_common_proto_init()
+	file_admin_v1_mock_response_policy_proto_msgTypes[2].OneofWrappers = []any{}
 	file_admin_v1_mock_response_policy_proto_msgTypes[6].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

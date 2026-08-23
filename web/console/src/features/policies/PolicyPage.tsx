@@ -7,7 +7,8 @@ import {
   deleteMockResponsePolicy,
   deleteRateLimitPolicy,
   deleteTokenQuotaPolicy,
-  getPolicyWorkspace,
+  getPolicyEditorOptions,
+  getPolicyListWorkspace,
   saveHeaderTransformationPolicy,
   saveIPRestrictionPolicy,
   saveMockResponsePolicy,
@@ -93,7 +94,7 @@ type PolicyEditor =
   | { kind: 'MockResponsePolicy'; draft: MockResponsePolicyDraft };
 
 export function PolicyPage() {
-  const workspace = useResource(getPolicyWorkspace, {
+  const workspace = useResource(getPolicyListWorkspace, {
     autoRefreshWhen: (data) => data.policies.some((policy) => policy.enabled && policy.status.state === 'Pending'),
   });
   const [filterDraft, setFilterDraft] = useState<PolicyFilters>(emptyPolicyFilters);
@@ -107,6 +108,7 @@ export function PolicyPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const editorOptions = useResource(getPolicyEditorOptions, { enabled: Boolean(editor) });
 
   if (workspace.loading && !workspace.data) {
     return (
@@ -266,12 +268,16 @@ export function PolicyPage() {
         isOpen={Boolean(editor)}
         onClose={() => { setEditor(null); setShowValidation(false); }}
       >
-        {editor && (
+        {editor && editorOptions.loading && !editorOptions.data ? (
+          <ResourceStatePanel title="正在加载应用目标" message="正在读取可应用此策略的资源" />
+        ) : editor && editorOptions.error ? (
+          <ResourceStatePanel title="应用目标加载失败" message={editorOptions.error.message} />
+        ) : editor && (
           <div className="space-y-5">
             {editor.kind === 'IPRestrictionPolicy' ? (
               <IPRestrictionPolicyEditor
                 draft={editor.draft}
-                targets={data.targets}
+                targets={editorOptions.data ?? []}
                 validation={{
                   ...validateIPRestrictionPolicyDraft(editor.draft),
                   errors: showValidation ? validateIPRestrictionPolicyDraft(editor.draft).errors : {},
@@ -281,7 +287,7 @@ export function PolicyPage() {
             ) : editor.kind === 'RateLimitPolicy' ? (
               <RateLimitPolicyEditor
                 draft={editor.draft}
-                targets={data.targets}
+                targets={editorOptions.data ?? []}
                 validation={{
                   ...validateRateLimitPolicyDraft(editor.draft),
                   errors: showValidation ? validateRateLimitPolicyDraft(editor.draft).errors : {},
@@ -291,7 +297,7 @@ export function PolicyPage() {
             ) : editor.kind === 'TokenQuotaPolicy' ? (
               <TokenQuotaPolicyEditor
                 draft={editor.draft}
-                targets={data.targets}
+                targets={editorOptions.data ?? []}
                 validation={{
                   ...validateTokenQuotaPolicyDraft(editor.draft),
                   errors: showValidation ? validateTokenQuotaPolicyDraft(editor.draft).errors : {},
@@ -301,7 +307,7 @@ export function PolicyPage() {
             ) : editor.kind === 'HeaderTransformationPolicy' ? (
               <HeaderTransformationPolicyEditor
                 draft={editor.draft}
-                targets={data.targets}
+                targets={editorOptions.data ?? []}
                 validation={{
                   ...validateHeaderTransformationPolicyDraft(editor.draft),
                   errors: showValidation ? validateHeaderTransformationPolicyDraft(editor.draft).errors : {},
@@ -311,7 +317,7 @@ export function PolicyPage() {
             ) : (
               <MockResponsePolicyEditor
                 draft={editor.draft}
-                targets={data.targets}
+                targets={editorOptions.data ?? []}
                 validation={{
                   ...validateMockResponsePolicyDraft(editor.draft),
                   errors: showValidation ? validateMockResponsePolicyDraft(editor.draft).errors : {},

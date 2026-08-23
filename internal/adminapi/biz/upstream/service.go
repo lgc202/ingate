@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -44,9 +45,27 @@ func NewService(repository Repository, routes RouteRepository) *Service {
 	return &Service{repository: repository, routes: routes}
 }
 
+// ListFilter 表达 Upstream 列表专有的类型筛选
+type ListFilter struct {
+	biz.ResourceFilter
+	Model *bool
+}
+
 // List 查询 Upstream 列表
-func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Upstream], error) {
-	return s.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest, filter ListFilter) (biz.PageResult[resource.Upstream], error) {
+	return biz.FilterPage(ctx, page, s.repository.ListPage, func(upstream resource.Upstream) bool {
+		isModel := upstream.Spec.Model != nil
+		if filter.Model != nil && isModel != *filter.Model {
+			return false
+		}
+		search := strings.Builder{}
+		search.WriteString(upstream.Spec.DisplayName)
+		for _, endpoint := range upstream.Spec.Endpoints {
+			fmt.Fprintf(&search, " %s:%d", endpoint.Address, endpoint.Port)
+		}
+		status := biz.ResourceStatusFromConditions(upstream.Generation, upstream.Status.Conditions)
+		return filter.ResourceFilter.Match(search.String(), true, status)
+	})
 }
 
 // Get 查询单个 Upstream

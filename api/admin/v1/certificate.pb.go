@@ -153,6 +153,8 @@ type ListCertificatesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	State         ResourceState          `protobuf:"varint,4,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -199,6 +201,20 @@ func (x *ListCertificatesRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListCertificatesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListCertificatesRequest) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 type ListCertificatesResponse struct {
@@ -505,10 +521,12 @@ const file_admin_v1_certificate_proto_rawDesc = "" +
 	"created_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"P\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xa6\x01\n" +
 	"\x17ListCertificatesRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"}\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12>\n" +
+	"\x05state\x18\x04 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05state\"}\n" +
 	"\x18ListCertificatesResponse\x12@\n" +
 	"\fcertificates\x18\x01 \x03(\v2\x1c.ingate.admin.v1.CertificateR\fcertificates\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -568,22 +586,23 @@ var file_admin_v1_certificate_proto_depIdxs = []int32{
 	8,  // 2: ingate.admin.v1.Certificate.state:type_name -> ingate.admin.v1.ResourceState
 	7,  // 3: ingate.admin.v1.Certificate.created_at:type_name -> google.protobuf.Timestamp
 	7,  // 4: ingate.admin.v1.Certificate.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 5: ingate.admin.v1.ListCertificatesResponse.certificates:type_name -> ingate.admin.v1.Certificate
-	1,  // 6: ingate.admin.v1.CertificateService.ListCertificates:input_type -> ingate.admin.v1.ListCertificatesRequest
-	3,  // 7: ingate.admin.v1.CertificateService.GetCertificate:input_type -> ingate.admin.v1.GetCertificateRequest
-	4,  // 8: ingate.admin.v1.CertificateService.CreateCertificate:input_type -> ingate.admin.v1.CreateCertificateRequest
-	5,  // 9: ingate.admin.v1.CertificateService.UpdateCertificate:input_type -> ingate.admin.v1.UpdateCertificateRequest
-	6,  // 10: ingate.admin.v1.CertificateService.DeleteCertificate:input_type -> ingate.admin.v1.DeleteCertificateRequest
-	2,  // 11: ingate.admin.v1.CertificateService.ListCertificates:output_type -> ingate.admin.v1.ListCertificatesResponse
-	0,  // 12: ingate.admin.v1.CertificateService.GetCertificate:output_type -> ingate.admin.v1.Certificate
-	0,  // 13: ingate.admin.v1.CertificateService.CreateCertificate:output_type -> ingate.admin.v1.Certificate
-	0,  // 14: ingate.admin.v1.CertificateService.UpdateCertificate:output_type -> ingate.admin.v1.Certificate
-	9,  // 15: ingate.admin.v1.CertificateService.DeleteCertificate:output_type -> google.protobuf.Empty
-	11, // [11:16] is the sub-list for method output_type
-	6,  // [6:11] is the sub-list for method input_type
-	6,  // [6:6] is the sub-list for extension type_name
-	6,  // [6:6] is the sub-list for extension extendee
-	0,  // [0:6] is the sub-list for field type_name
+	8,  // 5: ingate.admin.v1.ListCertificatesRequest.state:type_name -> ingate.admin.v1.ResourceState
+	0,  // 6: ingate.admin.v1.ListCertificatesResponse.certificates:type_name -> ingate.admin.v1.Certificate
+	1,  // 7: ingate.admin.v1.CertificateService.ListCertificates:input_type -> ingate.admin.v1.ListCertificatesRequest
+	3,  // 8: ingate.admin.v1.CertificateService.GetCertificate:input_type -> ingate.admin.v1.GetCertificateRequest
+	4,  // 9: ingate.admin.v1.CertificateService.CreateCertificate:input_type -> ingate.admin.v1.CreateCertificateRequest
+	5,  // 10: ingate.admin.v1.CertificateService.UpdateCertificate:input_type -> ingate.admin.v1.UpdateCertificateRequest
+	6,  // 11: ingate.admin.v1.CertificateService.DeleteCertificate:input_type -> ingate.admin.v1.DeleteCertificateRequest
+	2,  // 12: ingate.admin.v1.CertificateService.ListCertificates:output_type -> ingate.admin.v1.ListCertificatesResponse
+	0,  // 13: ingate.admin.v1.CertificateService.GetCertificate:output_type -> ingate.admin.v1.Certificate
+	0,  // 14: ingate.admin.v1.CertificateService.CreateCertificate:output_type -> ingate.admin.v1.Certificate
+	0,  // 15: ingate.admin.v1.CertificateService.UpdateCertificate:output_type -> ingate.admin.v1.Certificate
+	9,  // 16: ingate.admin.v1.CertificateService.DeleteCertificate:output_type -> google.protobuf.Empty
+	12, // [12:17] is the sub-list for method output_type
+	7,  // [7:12] is the sub-list for method input_type
+	7,  // [7:7] is the sub-list for extension type_name
+	7,  // [7:7] is the sub-list for extension extendee
+	0,  // [0:7] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_certificate_proto_init() }

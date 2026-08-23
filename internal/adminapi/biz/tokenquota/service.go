@@ -21,10 +21,16 @@ type Repository interface {
 	Delete(ctx context.Context, policyID string, generation int64) error
 }
 
+// CallerRepository 提供额度目标解析和当前用量查询需要的 Caller 读取能力
+type CallerRepository interface {
+	biz.CallerLister
+	Get(ctx context.Context, callerID string) (*resource.Caller, error)
+}
+
 // Service 协调 TokenQuotaPolicy 的调用方解析、校验和持久化
 type Service struct {
 	repository Repository
-	callers    biz.CallerGetter
+	callers    CallerRepository
 	usage      UsageReader
 	targets    *biz.PolicyTargetResolver
 }
@@ -43,7 +49,7 @@ type PolicyView struct {
 }
 
 // NewService 创建 TokenQuotaPolicy 业务服务
-func NewService(repository Repository, callers biz.CallerGetter, usage UsageReader) *Service {
+func NewService(repository Repository, callers CallerRepository, usage UsageReader) *Service {
 	return &Service{
 		repository: repository,
 		callers:    callers,
@@ -53,8 +59,11 @@ func NewService(repository Repository, callers biz.CallerGetter, usage UsageRead
 }
 
 // List 查询 TokenQuotaPolicy 列表
-func (s *Service) List(ctx context.Context, page biz.PageRequest) (PolicyPage, error) {
-	result, err := s.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest, filter biz.ResourceFilter) (PolicyPage, error) {
+	result, err := biz.FilterPage(ctx, page, s.repository.ListPage, func(policy resource.TokenQuotaPolicy) bool {
+		status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
+		return filter.Match(policy.Spec.DisplayName, policy.Spec.Enabled, status)
+	})
 	if err != nil {
 		return PolicyPage{}, err
 	}

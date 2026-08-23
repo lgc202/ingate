@@ -1,4 +1,4 @@
-import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './client';
+import { apiListAllByCursor, apiListPageByCursor, apiRequest, type CursorPage, type CursorPagedResponse } from './client';
 import { listRoutes } from './routes';
 import type {
   Caller,
@@ -12,10 +12,10 @@ interface CallerListResponse extends CursorPagedResponse {
   callers?: Caller[];
 }
 
-export async function getCallerWorkspace(): Promise<CallerWorkspace> {
-  const [callers, routeList] = await Promise.all([listCallers(), listRoutes()]);
+export async function getCallerOptions(): Promise<CallerWorkspace> {
+  const routeList = await listRoutes();
   return {
-    callers,
+    callers: [],
     routes: routeList.routes
       .filter((route) => route.accessMode === 'ROUTE_ACCESS_CALLER')
       .map((route) => ({ id: route.id, name: route.name })),
@@ -25,6 +25,13 @@ export async function getCallerWorkspace(): Promise<CallerWorkspace> {
 export async function listCallers(): Promise<Caller[]> {
   const callers = await apiListAllByCursor<CallerListResponse, Caller>('/callers', (page) => page.callers ?? []);
   return callers.map(callerFromAPI);
+}
+
+export async function listCallerPage(input: {
+  limit: number; cursor: string; query?: string; enabled?: boolean;
+}): Promise<CursorPage<Caller>> {
+  const page = await apiListPageByCursor<CallerListResponse, Caller>('/callers', input, (value) => value.callers ?? []);
+  return { ...page, items: page.items.map(callerFromAPI) };
 }
 
 export async function createCaller(payload: CallerMutationPayload): Promise<CreateCallerResult> {

@@ -1,5 +1,5 @@
-import { apiListAllByCursor, apiRequest } from './client';
-import type { CursorPagedResponse } from './client';
+import { apiListAllByCursor, apiListPageByCursor, apiRequest } from './client';
+import type { CursorPage, CursorPagedResponse } from './client';
 import { normalizeResourceState } from '@/domain/common';
 import type { Upstream, UpstreamList, UpstreamMutationPayload } from '@/domain/upstream';
 
@@ -14,6 +14,17 @@ export async function listUpstreams(): Promise<UpstreamList> {
       state: normalizeResourceState(upstream.state),
     })),
   };
+}
+
+export async function listUpstreamPage(input: {
+  limit: number; cursor: string; query?: string; state?: string; type?: string;
+}): Promise<CursorPage<Upstream>> {
+  const page = await apiListPageByCursor<UpstreamListResponse, Upstream>('/upstreams', input, (value) => value.upstreams ?? []);
+  return { ...page, items: page.items.map(upstreamFromAPI) };
+}
+
+function upstreamFromAPI(upstream: Upstream): Upstream {
+  return { ...upstream, version: Number(upstream.version), state: normalizeResourceState(upstream.state) };
 }
 
 export async function saveUpstream(payload: UpstreamMutationPayload): Promise<Upstream> {

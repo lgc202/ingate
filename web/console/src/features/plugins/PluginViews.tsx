@@ -116,7 +116,7 @@ export function InstalledPlugins({
 }) {
   return (
     <>
-      <ResourceListFilters summary={pluginFilterSummary(appliedFilters)} resultLabel={`${total} 个插件`} onSearch={onSearch} onReset={onReset}>
+      <ResourceListFilters summary={pluginFilterSummary(appliedFilters)} resultLabel={`本页 ${total} 个插件`} onSearch={onSearch} onReset={onReset}>
         <ResourceFilterField label="关键词">
           <SearchField value={filters.query} onChange={(query) => onFiltersChange({ ...filters, query })} placeholder="搜索插件名称、包名或版本" />
         </ResourceFilterField>

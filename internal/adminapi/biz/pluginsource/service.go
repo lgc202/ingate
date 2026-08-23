@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -48,6 +49,13 @@ type Source struct {
 	UpdatedAt   time.Time
 }
 
+// ListFilter 表达插件源列表筛选条件
+type ListFilter struct {
+	Query   string
+	Enabled *bool
+	State   SyncState
+}
+
 // Repository 定义自定义插件源需要的持久化能力
 type Repository interface {
 	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.PluginSource], error)
@@ -77,7 +85,7 @@ func NewService(repository Repository, catalog Catalog) *Service {
 }
 
 // List 返回官方插件源和全部自定义插件源
-func (s *Service) List(ctx context.Context) ([]Source, error) {
+func (s *Service) List(ctx context.Context, filter ListFilter) ([]Source, error) {
 	sources := make([]Source, 0)
 	official := s.catalog.OfficialSource()
 	if official.URL != "" {
@@ -96,7 +104,16 @@ func (s *Service) List(ctx context.Context) ([]Source, error) {
 		}
 		return cmp.Compare(left.DisplayName, right.DisplayName)
 	})
-	return sources, err
+	query := strings.ToLower(strings.TrimSpace(filter.Query))
+	return slices.DeleteFunc(sources, func(source Source) bool {
+		if query != "" && !strings.Contains(strings.ToLower(source.DisplayName+" "+source.URL), query) {
+			return true
+		}
+		if filter.Enabled != nil && source.Enabled != *filter.Enabled {
+			return true
+		}
+		return filter.State != "" && source.Observation.State != filter.State
+	}), err
 }
 
 // Get 返回一个官方或自定义插件源

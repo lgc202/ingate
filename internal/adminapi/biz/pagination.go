@@ -43,3 +43,35 @@ func VisitPages[T any](
 		page.Cursor = result.NextCursor
 	}
 }
+
+// FilterPage 在存储分页之上应用控制台筛选，并继续读取后续页直到凑满一页
+// 每次只请求当前页还缺少的数量，因此返回的存储游标始终指向未读取的数据，不需要自定义游标协议
+func FilterPage[T any](
+	ctx context.Context,
+	page PageRequest,
+	list func(context.Context, PageRequest) (PageResult[T], error),
+	match func(T) bool,
+) (PageResult[T], error) {
+	result := PageResult[T]{Items: make([]T, 0, page.Limit)}
+	next := page.Cursor
+	for int64(len(result.Items)) < page.Limit {
+		current, err := list(ctx, PageRequest{
+			Limit:  page.Limit - int64(len(result.Items)),
+			Cursor: next,
+		})
+		if err != nil {
+			return PageResult[T]{}, err
+		}
+		for _, item := range current.Items {
+			if match(item) {
+				result.Items = append(result.Items, item)
+			}
+		}
+		next = current.NextCursor
+		if next == "" {
+			break
+		}
+	}
+	result.NextCursor = next
+	return result, nil
+}

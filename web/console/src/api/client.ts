@@ -14,6 +14,13 @@ export interface CursorPagedResponse {
   nextCursor?: string;
 }
 
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string;
+}
+
+export type CursorQuery = Record<string, string | number | boolean | undefined>;
+
 const apiBaseUrl = (import.meta.env.VITE_INGATE_API_BASE_URL as string | undefined) ?? '/api/v1';
 
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -80,6 +87,19 @@ export async function apiListAllByCursor<TPage extends CursorPagedResponse, TIte
     cursor = page.nextCursor ?? '';
   } while (cursor);
   return result;
+}
+
+export async function apiListPageByCursor<TPage extends CursorPagedResponse, TItem>(
+  path: string,
+  query: CursorQuery,
+  items: (page: TPage) => TItem[],
+): Promise<CursorPage<TItem>> {
+  const params = new URLSearchParams();
+  Object.entries(query).forEach(([name, value]) => {
+    if (value !== undefined && value !== '') params.set(name, String(value));
+  });
+  const page = await apiRequest<TPage>(`${path}?${params}`);
+  return { items: items(page), nextCursor: page.nextCursor ?? '' };
 }
 
 function isApiResponse<T>(value: unknown): value is ApiResponse<T> {

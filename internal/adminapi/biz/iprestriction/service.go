@@ -43,15 +43,18 @@ type PolicyView struct {
 // NewService 创建 IPRestrictionPolicy 业务服务
 func NewService(
 	repository Repository,
-	gateways biz.GatewayGetter,
-	routes biz.RouteGetter,
+	gateways biz.GatewayLister,
+	routes biz.RouteLister,
 ) *Service {
 	return &Service{repository: repository, targets: biz.NewPolicyTargetResolver(gateways, routes)}
 }
 
 // List 查询 IPRestrictionPolicy 列表
-func (s *Service) List(ctx context.Context, page biz.PageRequest) (PolicyPage, error) {
-	result, err := s.repository.ListPage(ctx, page)
+func (s *Service) List(ctx context.Context, page biz.PageRequest, filter biz.ResourceFilter) (PolicyPage, error) {
+	result, err := biz.FilterPage(ctx, page, s.repository.ListPage, func(policy resource.IPRestrictionPolicy) bool {
+		status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
+		return filter.Match(policy.Spec.DisplayName, policy.Spec.Enabled, status)
+	})
 	if err != nil {
 		return PolicyPage{}, err
 	}

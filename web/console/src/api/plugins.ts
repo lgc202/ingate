@@ -1,4 +1,4 @@
-import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './client';
+import { apiListPageByCursor, apiRequest, type CursorPage, type CursorPagedResponse } from './client';
 import { normalizeResourceState } from '@/domain/common';
 import type {
   PluginCatalog,
@@ -25,12 +25,19 @@ export async function listWasmPluginCatalog(): Promise<PluginCatalog> {
   return catalogFromAPI(response);
 }
 
-export async function listWasmPlugins(): Promise<WasmPlugin[]> {
-  const plugins = await apiListAllByCursor<WasmPluginListResponse, WasmPluginResponse>(
-    '/wasm-plugins',
-    (page) => page.plugins ?? [],
+export async function listWasmPluginPage(input: {
+  limit: number; cursor: string; query?: string; state?: string;
+}): Promise<CursorPage<WasmPlugin>> {
+  const page = await apiListPageByCursor<WasmPluginListResponse, WasmPluginResponse>(
+    '/wasm-plugins', input, (value) => value.plugins ?? [],
   );
-  return plugins.map(pluginFromAPI);
+  return { ...page, items: page.items.map(pluginFromAPI) };
+}
+
+// 插件市场只需要判断目录中的包是否已安装，单次读取安装摘要即可，不进入已安装列表的翻页链路
+export async function listWasmPluginMarketInstallations(): Promise<WasmPlugin[]> {
+  const page = await listWasmPluginPage({ limit: 200, cursor: '' });
+  return page.items;
 }
 
 export async function getWasmPlugin(id: string): Promise<WasmPlugin> {
@@ -42,7 +49,7 @@ interface PluginSourceResponse extends Omit<PluginSource, 'version'> {
   version: string | number;
 }
 
-interface PluginSourceListResponse {
+interface PluginSourceListResponse extends CursorPagedResponse {
   sources?: PluginSourceResponse[];
 }
 
@@ -54,9 +61,13 @@ export async function installWasmPlugin(sourceID: string, packageName: string): 
   return pluginFromAPI(plugin);
 }
 
-export async function listPluginSources(): Promise<PluginSource[]> {
-  const response = await apiRequest<PluginSourceListResponse>('/plugin-sources');
-  return (response.sources ?? []).map(pluginSourceFromAPI);
+export async function listPluginSourcePage(input: {
+  limit: number; cursor: string; query?: string; enabled?: boolean; syncState?: string;
+}): Promise<CursorPage<PluginSource>> {
+  const page = await apiListPageByCursor<PluginSourceListResponse, PluginSourceResponse>(
+    '/plugin-sources', input, (value) => value.sources ?? [],
+  );
+  return { ...page, items: page.items.map(pluginSourceFromAPI) };
 }
 
 export async function createPluginSource(input: PluginSourceInput): Promise<PluginSource> {

@@ -13,9 +13,24 @@ export interface ReloadOptions {
 }
 
 export interface ResourceOptions<T> {
+  enabled?: boolean;
   autoRefreshWhen?: (data: T) => boolean;
   autoRefreshInterval?: number;
   maxAutoRefreshes?: number;
+}
+
+export interface CursorResource<T> extends ResourceState<CursorPage<T>> {
+  page: number;
+  hasPrevious: boolean;
+  hasNext: boolean;
+  next: () => void;
+  previous: () => void;
+  reset: () => void;
+}
+
+export interface CursorPage<T> {
+  items: T[];
+  nextCursor: string;
 }
 
 export function useResource<T>(load: () => Promise<T>, options?: ResourceOptions<T>): ResourceState<T> {
@@ -25,7 +40,7 @@ export function useResource<T>(load: () => Promise<T>, options?: ResourceOptions
   optionsRef.current = options;
   const [state, setState] = useState<Omit<ResourceState<T>, 'reload'>>({
     data: null,
-    loading: true,
+    loading: options?.enabled !== false,
     error: null,
   });
 
@@ -64,12 +79,15 @@ export function useResource<T>(load: () => Promise<T>, options?: ResourceOptions
   }, [load]);
 
   useEffect(() => {
+    if (optionsRef.current?.enabled === false) {
+      return;
+    }
     void reload();
 
     return () => {
       requestVersion.current++;
     };
-  }, [reload]);
+  }, [reload, options?.enabled]);
 
   useEffect(() => {
     const currentOptions = optionsRef.current;
@@ -90,4 +108,38 @@ export function useResource<T>(load: () => Promise<T>, options?: ResourceOptions
   }, [reload, state.data]);
 
   return { ...state, reload };
+}
+
+// useCursorResource 保存服务端游标历史，使列表只读取当前页且仍能前后翻页
+export function useCursorResource<T>(
+  load: (cursor: string) => Promise<CursorPage<T>>,
+  options?: ResourceOptions<CursorPage<T>>,
+): CursorResource<T> {
+  const cursors = useRef(['']);
+  const [pageIndex, setPageIndex] = useState(0);
+  const loadPage = useCallback(() => load(cursors.current[pageIndex] ?? ''), [load, pageIndex]);
+  const resource = useResource(loadPage, options);
+
+  const next = useCallback(() => {
+    const nextCursor = resource.data?.nextCursor;
+    if (!nextCursor) return;
+    cursors.current[pageIndex + 1] = nextCursor;
+    cursors.current.length = pageIndex + 2;
+    setPageIndex((current) => current + 1);
+  }, [pageIndex, resource.data?.nextCursor]);
+  const previous = useCallback(() => setPageIndex((current) => Math.max(0, current - 1)), []);
+  const reset = useCallback(() => {
+    cursors.current = [''];
+    setPageIndex(0);
+  }, []);
+
+  return {
+    ...resource,
+    page: pageIndex + 1,
+    hasPrevious: pageIndex > 0,
+    hasNext: Boolean(resource.data?.nextCursor),
+    next,
+    previous,
+    reset,
+  };
 }

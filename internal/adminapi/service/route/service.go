@@ -22,7 +22,18 @@ func NewService(routes *routebiz.Service) *Service {
 }
 
 func (s *Service) ListRoutes(ctx context.Context, request *adminv1.ListRoutesRequest) (*adminv1.ListRoutesResponse, error) {
-	page, err := s.routes.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	filter := routebiz.ListFilter{
+		ResourceFilter: adminservice.ResourceFilter(request.GetQuery(), request.Enabled, request.GetState()),
+	}
+	switch request.GetType() {
+	case adminv1.RouteType_ROUTE_TYPE_API:
+		ai := false
+		filter.AI = &ai
+	case adminv1.RouteType_ROUTE_TYPE_AI:
+		ai := true
+		filter.AI = &ai
+	}
+	page, err := s.routes.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()), filter)
 	if err != nil {
 		return nil, err
 	}

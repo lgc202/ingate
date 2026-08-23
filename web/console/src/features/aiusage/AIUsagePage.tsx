@@ -63,7 +63,7 @@ export function AIUsagePage() {
 
   const loadAnalysis = useCallback(() => getAIUsageAnalysis(filters), [filters]);
   const analysis = useResource(loadAnalysis);
-  const workspace = useResource(getAIUsageWorkspace);
+  const workspace = useResource(getAIUsageWorkspace, { enabled: Boolean(analysis.data) });
   const names = useMemo(() => resourceNames(workspace.data), [workspace.data]);
 
   const applyFilters = () => {

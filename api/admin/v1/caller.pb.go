@@ -258,6 +258,8 @@ type ListCallersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,4,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -304,6 +306,20 @@ func (x *ListCallersRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListCallersRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListCallersRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
 }
 
 type ListCallersResponse struct {
@@ -814,10 +830,14 @@ const file_admin_v1_caller_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"K\n" +
+	"updated_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x8c\x01\n" +
 	"\x12ListCallersRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"i\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1d\n" +
+	"\aenabled\x18\x04 \x01(\bH\x00R\aenabled\x88\x01\x01B\n" +
+	"\n" +
+	"\b_enabled\"i\n" +
 	"\x13ListCallersResponse\x121\n" +
 	"\acallers\x18\x01 \x03(\v2\x17.ingate.admin.v1.CallerR\acallers\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -934,6 +954,7 @@ func file_admin_v1_caller_proto_init() {
 	if File_admin_v1_caller_proto != nil {
 		return
 	}
+	file_admin_v1_caller_proto_msgTypes[3].OneofWrappers = []any{}
 	file_admin_v1_caller_proto_msgTypes[6].OneofWrappers = []any{}
 	file_admin_v1_caller_proto_msgTypes[8].OneofWrappers = []any{}
 	type x struct{}

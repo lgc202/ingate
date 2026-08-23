@@ -1,4 +1,4 @@
-import { apiListAllByCursor, apiRequest, type CursorPagedResponse } from './client';
+import { apiListAllByCursor, apiListPageByCursor, apiRequest, type CursorPage, type CursorPagedResponse } from './client';
 import { normalizeResourceState } from '@/domain/common';
 import type { Certificate, CertificateListView, CertificateMutationPayload } from '@/domain/certificate';
 
@@ -15,6 +15,22 @@ export async function listCertificates(): Promise<CertificateListView> {
       dnsNames: certificate.dnsNames ?? [],
       state: normalizeResourceState(certificate.state),
     })),
+  };
+}
+
+export async function listCertificatePage(input: {
+  limit: number; cursor: string; query?: string; state?: string;
+}): Promise<CursorPage<Certificate>> {
+  const page = await apiListPageByCursor<CertificateListResponse, Certificate>('/certificates', input, (value) => value.certificates ?? []);
+  return { ...page, items: page.items.map(certificateFromAPI) };
+}
+
+function certificateFromAPI(certificate: Certificate): Certificate {
+  return {
+    ...certificate,
+    version: Number(certificate.version),
+    dnsNames: certificate.dnsNames ?? [],
+    state: normalizeResourceState(certificate.state),
   };
 }
 

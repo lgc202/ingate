@@ -123,6 +123,55 @@ func (ModelProtocol) EnumDescriptor() ([]byte, []int) {
 	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{1}
 }
 
+type UpstreamType int32
+
+const (
+	UpstreamType_UPSTREAM_TYPE_UNSPECIFIED UpstreamType = 0
+	UpstreamType_UPSTREAM_TYPE_HTTP        UpstreamType = 1
+	UpstreamType_UPSTREAM_TYPE_MODEL       UpstreamType = 2
+)
+
+// Enum value maps for UpstreamType.
+var (
+	UpstreamType_name = map[int32]string{
+		0: "UPSTREAM_TYPE_UNSPECIFIED",
+		1: "UPSTREAM_TYPE_HTTP",
+		2: "UPSTREAM_TYPE_MODEL",
+	}
+	UpstreamType_value = map[string]int32{
+		"UPSTREAM_TYPE_UNSPECIFIED": 0,
+		"UPSTREAM_TYPE_HTTP":        1,
+		"UPSTREAM_TYPE_MODEL":       2,
+	}
+)
+
+func (x UpstreamType) Enum() *UpstreamType {
+	p := new(UpstreamType)
+	*p = x
+	return p
+}
+
+func (x UpstreamType) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (UpstreamType) Descriptor() protoreflect.EnumDescriptor {
+	return file_admin_v1_upstream_proto_enumTypes[2].Descriptor()
+}
+
+func (UpstreamType) Type() protoreflect.EnumType {
+	return &file_admin_v1_upstream_proto_enumTypes[2]
+}
+
+func (x UpstreamType) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use UpstreamType.Descriptor instead.
+func (UpstreamType) EnumDescriptor() ([]byte, []int) {
+	return file_admin_v1_upstream_proto_rawDescGZIP(), []int{2}
+}
+
 // ModelUpstream 只返回模型服务的非敏感配置
 type ModelUpstream struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
@@ -538,6 +587,9 @@ type ListUpstreamsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Type          UpstreamType           `protobuf:"varint,4,opt,name=type,proto3,enum=ingate.admin.v1.UpstreamType" json:"type,omitempty"`
+	State         ResourceState          `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -584,6 +636,27 @@ func (x *ListUpstreamsRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListUpstreamsRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListUpstreamsRequest) GetType() UpstreamType {
+	if x != nil {
+		return x.Type
+	}
+	return UpstreamType_UPSTREAM_TYPE_UNSPECIFIED
+}
+
+func (x *ListUpstreamsRequest) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 type ListUpstreamsResponse struct {
@@ -958,10 +1031,13 @@ const file_admin_v1_upstream_proto_rawDesc = "" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
 	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x124\n" +
-	"\x05model\x18\f \x01(\v2\x1e.ingate.admin.v1.ModelUpstreamR\x05model\"M\n" +
+	"\x05model\x18\f \x01(\v2\x1e.ingate.admin.v1.ModelUpstreamR\x05model\"\xe0\x01\n" +
 	"\x14ListUpstreamsRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"q\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12;\n" +
+	"\x04type\x18\x04 \x01(\x0e2\x1d.ingate.admin.v1.UpstreamTypeB\b\xbaH\x05\x82\x01\x02\x10\x01R\x04type\x12>\n" +
+	"\x05state\x18\x05 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05state\"q\n" +
 	"\x15ListUpstreamsResponse\x127\n" +
 	"\tupstreams\x18\x01 \x03(\v2\x19.ingate.admin.v1.UpstreamR\tupstreams\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -994,7 +1070,11 @@ const file_admin_v1_upstream_proto_rawDesc = "" +
 	"\rModelProtocol\x12\x1e\n" +
 	"\x1aMODEL_PROTOCOL_UNSPECIFIED\x10\x00\x12\x19\n" +
 	"\x15MODEL_PROTOCOL_OPENAI\x10\x01\x12\x1c\n" +
-	"\x18MODEL_PROTOCOL_ANTHROPIC\x10\x022\xd8\x04\n" +
+	"\x18MODEL_PROTOCOL_ANTHROPIC\x10\x02*^\n" +
+	"\fUpstreamType\x12\x1d\n" +
+	"\x19UPSTREAM_TYPE_UNSPECIFIED\x10\x00\x12\x16\n" +
+	"\x12UPSTREAM_TYPE_HTTP\x10\x01\x12\x17\n" +
+	"\x13UPSTREAM_TYPE_MODEL\x10\x022\xd8\x04\n" +
 	"\x0fUpstreamService\x12y\n" +
 	"\rListUpstreams\x12%.ingate.admin.v1.ListUpstreamsRequest\x1a&.ingate.admin.v1.ListUpstreamsResponse\"\x19\x82\xd3\xe4\x93\x02\x13\x12\x11/api/v1/upstreams\x12m\n" +
 	"\vGetUpstream\x12#.ingate.admin.v1.GetUpstreamRequest\x1a\x19.ingate.admin.v1.Upstream\"\x1e\x82\xd3\xe4\x93\x02\x18\x12\x16/api/v1/upstreams/{id}\x12q\n" +
@@ -1014,64 +1094,67 @@ func file_admin_v1_upstream_proto_rawDescGZIP() []byte {
 	return file_admin_v1_upstream_proto_rawDescData
 }
 
-var file_admin_v1_upstream_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_admin_v1_upstream_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_admin_v1_upstream_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_admin_v1_upstream_proto_goTypes = []any{
 	(LoadBalancingPolicy)(0),      // 0: ingate.admin.v1.LoadBalancingPolicy
 	(ModelProtocol)(0),            // 1: ingate.admin.v1.ModelProtocol
-	(*ModelUpstream)(nil),         // 2: ingate.admin.v1.ModelUpstream
-	(*ModelUpstreamInput)(nil),    // 3: ingate.admin.v1.ModelUpstreamInput
-	(*UpstreamTLS)(nil),           // 4: ingate.admin.v1.UpstreamTLS
-	(*UpstreamEndpoint)(nil),      // 5: ingate.admin.v1.UpstreamEndpoint
-	(*UpstreamHealthCheck)(nil),   // 6: ingate.admin.v1.UpstreamHealthCheck
-	(*Upstream)(nil),              // 7: ingate.admin.v1.Upstream
-	(*ListUpstreamsRequest)(nil),  // 8: ingate.admin.v1.ListUpstreamsRequest
-	(*ListUpstreamsResponse)(nil), // 9: ingate.admin.v1.ListUpstreamsResponse
-	(*GetUpstreamRequest)(nil),    // 10: ingate.admin.v1.GetUpstreamRequest
-	(*CreateUpstreamRequest)(nil), // 11: ingate.admin.v1.CreateUpstreamRequest
-	(*UpdateUpstreamRequest)(nil), // 12: ingate.admin.v1.UpdateUpstreamRequest
-	(*DeleteUpstreamRequest)(nil), // 13: ingate.admin.v1.DeleteUpstreamRequest
-	(ResourceState)(0),            // 14: ingate.admin.v1.ResourceState
-	(*timestamppb.Timestamp)(nil), // 15: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),         // 16: google.protobuf.Empty
+	(UpstreamType)(0),             // 2: ingate.admin.v1.UpstreamType
+	(*ModelUpstream)(nil),         // 3: ingate.admin.v1.ModelUpstream
+	(*ModelUpstreamInput)(nil),    // 4: ingate.admin.v1.ModelUpstreamInput
+	(*UpstreamTLS)(nil),           // 5: ingate.admin.v1.UpstreamTLS
+	(*UpstreamEndpoint)(nil),      // 6: ingate.admin.v1.UpstreamEndpoint
+	(*UpstreamHealthCheck)(nil),   // 7: ingate.admin.v1.UpstreamHealthCheck
+	(*Upstream)(nil),              // 8: ingate.admin.v1.Upstream
+	(*ListUpstreamsRequest)(nil),  // 9: ingate.admin.v1.ListUpstreamsRequest
+	(*ListUpstreamsResponse)(nil), // 10: ingate.admin.v1.ListUpstreamsResponse
+	(*GetUpstreamRequest)(nil),    // 11: ingate.admin.v1.GetUpstreamRequest
+	(*CreateUpstreamRequest)(nil), // 12: ingate.admin.v1.CreateUpstreamRequest
+	(*UpdateUpstreamRequest)(nil), // 13: ingate.admin.v1.UpdateUpstreamRequest
+	(*DeleteUpstreamRequest)(nil), // 14: ingate.admin.v1.DeleteUpstreamRequest
+	(ResourceState)(0),            // 15: ingate.admin.v1.ResourceState
+	(*timestamppb.Timestamp)(nil), // 16: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),         // 17: google.protobuf.Empty
 }
 var file_admin_v1_upstream_proto_depIdxs = []int32{
 	1,  // 0: ingate.admin.v1.ModelUpstream.protocol:type_name -> ingate.admin.v1.ModelProtocol
 	1,  // 1: ingate.admin.v1.ModelUpstreamInput.protocol:type_name -> ingate.admin.v1.ModelProtocol
-	5,  // 2: ingate.admin.v1.Upstream.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
-	4,  // 3: ingate.admin.v1.Upstream.tls:type_name -> ingate.admin.v1.UpstreamTLS
+	6,  // 2: ingate.admin.v1.Upstream.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
+	5,  // 3: ingate.admin.v1.Upstream.tls:type_name -> ingate.admin.v1.UpstreamTLS
 	0,  // 4: ingate.admin.v1.Upstream.load_balancing:type_name -> ingate.admin.v1.LoadBalancingPolicy
-	6,  // 5: ingate.admin.v1.Upstream.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
-	14, // 6: ingate.admin.v1.Upstream.state:type_name -> ingate.admin.v1.ResourceState
-	15, // 7: ingate.admin.v1.Upstream.created_at:type_name -> google.protobuf.Timestamp
-	15, // 8: ingate.admin.v1.Upstream.updated_at:type_name -> google.protobuf.Timestamp
-	2,  // 9: ingate.admin.v1.Upstream.model:type_name -> ingate.admin.v1.ModelUpstream
-	7,  // 10: ingate.admin.v1.ListUpstreamsResponse.upstreams:type_name -> ingate.admin.v1.Upstream
-	5,  // 11: ingate.admin.v1.CreateUpstreamRequest.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
-	4,  // 12: ingate.admin.v1.CreateUpstreamRequest.tls:type_name -> ingate.admin.v1.UpstreamTLS
-	0,  // 13: ingate.admin.v1.CreateUpstreamRequest.load_balancing:type_name -> ingate.admin.v1.LoadBalancingPolicy
-	6,  // 14: ingate.admin.v1.CreateUpstreamRequest.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
-	3,  // 15: ingate.admin.v1.CreateUpstreamRequest.model:type_name -> ingate.admin.v1.ModelUpstreamInput
-	5,  // 16: ingate.admin.v1.UpdateUpstreamRequest.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
-	4,  // 17: ingate.admin.v1.UpdateUpstreamRequest.tls:type_name -> ingate.admin.v1.UpstreamTLS
-	0,  // 18: ingate.admin.v1.UpdateUpstreamRequest.load_balancing:type_name -> ingate.admin.v1.LoadBalancingPolicy
-	6,  // 19: ingate.admin.v1.UpdateUpstreamRequest.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
-	3,  // 20: ingate.admin.v1.UpdateUpstreamRequest.model:type_name -> ingate.admin.v1.ModelUpstreamInput
-	8,  // 21: ingate.admin.v1.UpstreamService.ListUpstreams:input_type -> ingate.admin.v1.ListUpstreamsRequest
-	10, // 22: ingate.admin.v1.UpstreamService.GetUpstream:input_type -> ingate.admin.v1.GetUpstreamRequest
-	11, // 23: ingate.admin.v1.UpstreamService.CreateUpstream:input_type -> ingate.admin.v1.CreateUpstreamRequest
-	12, // 24: ingate.admin.v1.UpstreamService.UpdateUpstream:input_type -> ingate.admin.v1.UpdateUpstreamRequest
-	13, // 25: ingate.admin.v1.UpstreamService.DeleteUpstream:input_type -> ingate.admin.v1.DeleteUpstreamRequest
-	9,  // 26: ingate.admin.v1.UpstreamService.ListUpstreams:output_type -> ingate.admin.v1.ListUpstreamsResponse
-	7,  // 27: ingate.admin.v1.UpstreamService.GetUpstream:output_type -> ingate.admin.v1.Upstream
-	7,  // 28: ingate.admin.v1.UpstreamService.CreateUpstream:output_type -> ingate.admin.v1.Upstream
-	7,  // 29: ingate.admin.v1.UpstreamService.UpdateUpstream:output_type -> ingate.admin.v1.Upstream
-	16, // 30: ingate.admin.v1.UpstreamService.DeleteUpstream:output_type -> google.protobuf.Empty
-	26, // [26:31] is the sub-list for method output_type
-	21, // [21:26] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	7,  // 5: ingate.admin.v1.Upstream.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
+	15, // 6: ingate.admin.v1.Upstream.state:type_name -> ingate.admin.v1.ResourceState
+	16, // 7: ingate.admin.v1.Upstream.created_at:type_name -> google.protobuf.Timestamp
+	16, // 8: ingate.admin.v1.Upstream.updated_at:type_name -> google.protobuf.Timestamp
+	3,  // 9: ingate.admin.v1.Upstream.model:type_name -> ingate.admin.v1.ModelUpstream
+	2,  // 10: ingate.admin.v1.ListUpstreamsRequest.type:type_name -> ingate.admin.v1.UpstreamType
+	15, // 11: ingate.admin.v1.ListUpstreamsRequest.state:type_name -> ingate.admin.v1.ResourceState
+	8,  // 12: ingate.admin.v1.ListUpstreamsResponse.upstreams:type_name -> ingate.admin.v1.Upstream
+	6,  // 13: ingate.admin.v1.CreateUpstreamRequest.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
+	5,  // 14: ingate.admin.v1.CreateUpstreamRequest.tls:type_name -> ingate.admin.v1.UpstreamTLS
+	0,  // 15: ingate.admin.v1.CreateUpstreamRequest.load_balancing:type_name -> ingate.admin.v1.LoadBalancingPolicy
+	7,  // 16: ingate.admin.v1.CreateUpstreamRequest.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
+	4,  // 17: ingate.admin.v1.CreateUpstreamRequest.model:type_name -> ingate.admin.v1.ModelUpstreamInput
+	6,  // 18: ingate.admin.v1.UpdateUpstreamRequest.endpoints:type_name -> ingate.admin.v1.UpstreamEndpoint
+	5,  // 19: ingate.admin.v1.UpdateUpstreamRequest.tls:type_name -> ingate.admin.v1.UpstreamTLS
+	0,  // 20: ingate.admin.v1.UpdateUpstreamRequest.load_balancing:type_name -> ingate.admin.v1.LoadBalancingPolicy
+	7,  // 21: ingate.admin.v1.UpdateUpstreamRequest.health_check:type_name -> ingate.admin.v1.UpstreamHealthCheck
+	4,  // 22: ingate.admin.v1.UpdateUpstreamRequest.model:type_name -> ingate.admin.v1.ModelUpstreamInput
+	9,  // 23: ingate.admin.v1.UpstreamService.ListUpstreams:input_type -> ingate.admin.v1.ListUpstreamsRequest
+	11, // 24: ingate.admin.v1.UpstreamService.GetUpstream:input_type -> ingate.admin.v1.GetUpstreamRequest
+	12, // 25: ingate.admin.v1.UpstreamService.CreateUpstream:input_type -> ingate.admin.v1.CreateUpstreamRequest
+	13, // 26: ingate.admin.v1.UpstreamService.UpdateUpstream:input_type -> ingate.admin.v1.UpdateUpstreamRequest
+	14, // 27: ingate.admin.v1.UpstreamService.DeleteUpstream:input_type -> ingate.admin.v1.DeleteUpstreamRequest
+	10, // 28: ingate.admin.v1.UpstreamService.ListUpstreams:output_type -> ingate.admin.v1.ListUpstreamsResponse
+	8,  // 29: ingate.admin.v1.UpstreamService.GetUpstream:output_type -> ingate.admin.v1.Upstream
+	8,  // 30: ingate.admin.v1.UpstreamService.CreateUpstream:output_type -> ingate.admin.v1.Upstream
+	8,  // 31: ingate.admin.v1.UpstreamService.UpdateUpstream:output_type -> ingate.admin.v1.Upstream
+	17, // 32: ingate.admin.v1.UpstreamService.DeleteUpstream:output_type -> google.protobuf.Empty
+	28, // [28:33] is the sub-list for method output_type
+	23, // [23:28] is the sub-list for method input_type
+	23, // [23:23] is the sub-list for extension type_name
+	23, // [23:23] is the sub-list for extension extendee
+	0,  // [0:23] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_upstream_proto_init() }
@@ -1086,7 +1169,7 @@ func file_admin_v1_upstream_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_admin_v1_upstream_proto_rawDesc), len(file_admin_v1_upstream_proto_rawDesc)),
-			NumEnums:      2,
+			NumEnums:      3,
 			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   1,

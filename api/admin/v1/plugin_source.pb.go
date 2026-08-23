@@ -214,6 +214,11 @@ func (x *PluginSource) GetUpdatedAt() *timestamppb.Timestamp {
 
 type ListPluginSourcesRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
+	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	Enabled       *bool                  `protobuf:"varint,4,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
+	SyncState     PluginSourceSyncState  `protobuf:"varint,5,opt,name=sync_state,json=syncState,proto3,enum=ingate.admin.v1.PluginSourceSyncState" json:"sync_state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -248,9 +253,45 @@ func (*ListPluginSourcesRequest) Descriptor() ([]byte, []int) {
 	return file_admin_v1_plugin_source_proto_rawDescGZIP(), []int{1}
 }
 
+func (x *ListPluginSourcesRequest) GetLimit() int32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *ListPluginSourcesRequest) GetCursor() string {
+	if x != nil {
+		return x.Cursor
+	}
+	return ""
+}
+
+func (x *ListPluginSourcesRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListPluginSourcesRequest) GetEnabled() bool {
+	if x != nil && x.Enabled != nil {
+		return *x.Enabled
+	}
+	return false
+}
+
+func (x *ListPluginSourcesRequest) GetSyncState() PluginSourceSyncState {
+	if x != nil {
+		return x.SyncState
+	}
+	return PluginSourceSyncState_PLUGIN_SOURCE_SYNC_STATE_UNSPECIFIED
+}
+
 type ListPluginSourcesResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Sources       []*PluginSource        `protobuf:"bytes,1,rep,name=sources,proto3" json:"sources,omitempty"`
+	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -290,6 +331,13 @@ func (x *ListPluginSourcesResponse) GetSources() []*PluginSource {
 		return x.Sources
 	}
 	return nil
+}
+
+func (x *ListPluginSourcesResponse) GetNextCursor() string {
+	if x != nil {
+		return x.NextCursor
+	}
+	return ""
 }
 
 type GetPluginSourceRequest struct {
@@ -589,10 +637,20 @@ const file_admin_v1_plugin_source_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x1a\n" +
-	"\x18ListPluginSourcesRequest\"T\n" +
+	"updated_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\xe3\x01\n" +
+	"\x18ListPluginSourcesRequest\x12\x1d\n" +
+	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12\x1d\n" +
+	"\aenabled\x18\x04 \x01(\bH\x00R\aenabled\x88\x01\x01\x12O\n" +
+	"\n" +
+	"sync_state\x18\x05 \x01(\x0e2&.ingate.admin.v1.PluginSourceSyncStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\tsyncStateB\n" +
+	"\n" +
+	"\b_enabled\"u\n" +
 	"\x19ListPluginSourcesResponse\x127\n" +
-	"\asources\x18\x01 \x03(\v2\x1d.ingate.admin.v1.PluginSourceR\asources\"1\n" +
+	"\asources\x18\x01 \x03(\v2\x1d.ingate.admin.v1.PluginSourceR\asources\x12\x1f\n" +
+	"\vnext_cursor\x18\x02 \x01(\tR\n" +
+	"nextCursor\"1\n" +
 	"\x16GetPluginSourceRequest\x12\x17\n" +
 	"\x02id\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x02id\"\x86\x01\n" +
 	"\x19CreatePluginSourceRequest\x12\x1b\n" +
@@ -660,24 +718,25 @@ var file_admin_v1_plugin_source_proto_depIdxs = []int32{
 	9,  // 1: ingate.admin.v1.PluginSource.last_synced_at:type_name -> google.protobuf.Timestamp
 	9,  // 2: ingate.admin.v1.PluginSource.created_at:type_name -> google.protobuf.Timestamp
 	9,  // 3: ingate.admin.v1.PluginSource.updated_at:type_name -> google.protobuf.Timestamp
-	1,  // 4: ingate.admin.v1.ListPluginSourcesResponse.sources:type_name -> ingate.admin.v1.PluginSource
-	2,  // 5: ingate.admin.v1.PluginSourceService.ListPluginSources:input_type -> ingate.admin.v1.ListPluginSourcesRequest
-	4,  // 6: ingate.admin.v1.PluginSourceService.GetPluginSource:input_type -> ingate.admin.v1.GetPluginSourceRequest
-	5,  // 7: ingate.admin.v1.PluginSourceService.CreatePluginSource:input_type -> ingate.admin.v1.CreatePluginSourceRequest
-	6,  // 8: ingate.admin.v1.PluginSourceService.UpdatePluginSource:input_type -> ingate.admin.v1.UpdatePluginSourceRequest
-	7,  // 9: ingate.admin.v1.PluginSourceService.DeletePluginSource:input_type -> ingate.admin.v1.DeletePluginSourceRequest
-	8,  // 10: ingate.admin.v1.PluginSourceService.SyncPluginSource:input_type -> ingate.admin.v1.SyncPluginSourceRequest
-	3,  // 11: ingate.admin.v1.PluginSourceService.ListPluginSources:output_type -> ingate.admin.v1.ListPluginSourcesResponse
-	1,  // 12: ingate.admin.v1.PluginSourceService.GetPluginSource:output_type -> ingate.admin.v1.PluginSource
-	1,  // 13: ingate.admin.v1.PluginSourceService.CreatePluginSource:output_type -> ingate.admin.v1.PluginSource
-	1,  // 14: ingate.admin.v1.PluginSourceService.UpdatePluginSource:output_type -> ingate.admin.v1.PluginSource
-	10, // 15: ingate.admin.v1.PluginSourceService.DeletePluginSource:output_type -> google.protobuf.Empty
-	1,  // 16: ingate.admin.v1.PluginSourceService.SyncPluginSource:output_type -> ingate.admin.v1.PluginSource
-	11, // [11:17] is the sub-list for method output_type
-	5,  // [5:11] is the sub-list for method input_type
-	5,  // [5:5] is the sub-list for extension type_name
-	5,  // [5:5] is the sub-list for extension extendee
-	0,  // [0:5] is the sub-list for field type_name
+	0,  // 4: ingate.admin.v1.ListPluginSourcesRequest.sync_state:type_name -> ingate.admin.v1.PluginSourceSyncState
+	1,  // 5: ingate.admin.v1.ListPluginSourcesResponse.sources:type_name -> ingate.admin.v1.PluginSource
+	2,  // 6: ingate.admin.v1.PluginSourceService.ListPluginSources:input_type -> ingate.admin.v1.ListPluginSourcesRequest
+	4,  // 7: ingate.admin.v1.PluginSourceService.GetPluginSource:input_type -> ingate.admin.v1.GetPluginSourceRequest
+	5,  // 8: ingate.admin.v1.PluginSourceService.CreatePluginSource:input_type -> ingate.admin.v1.CreatePluginSourceRequest
+	6,  // 9: ingate.admin.v1.PluginSourceService.UpdatePluginSource:input_type -> ingate.admin.v1.UpdatePluginSourceRequest
+	7,  // 10: ingate.admin.v1.PluginSourceService.DeletePluginSource:input_type -> ingate.admin.v1.DeletePluginSourceRequest
+	8,  // 11: ingate.admin.v1.PluginSourceService.SyncPluginSource:input_type -> ingate.admin.v1.SyncPluginSourceRequest
+	3,  // 12: ingate.admin.v1.PluginSourceService.ListPluginSources:output_type -> ingate.admin.v1.ListPluginSourcesResponse
+	1,  // 13: ingate.admin.v1.PluginSourceService.GetPluginSource:output_type -> ingate.admin.v1.PluginSource
+	1,  // 14: ingate.admin.v1.PluginSourceService.CreatePluginSource:output_type -> ingate.admin.v1.PluginSource
+	1,  // 15: ingate.admin.v1.PluginSourceService.UpdatePluginSource:output_type -> ingate.admin.v1.PluginSource
+	10, // 16: ingate.admin.v1.PluginSourceService.DeletePluginSource:output_type -> google.protobuf.Empty
+	1,  // 17: ingate.admin.v1.PluginSourceService.SyncPluginSource:output_type -> ingate.admin.v1.PluginSource
+	12, // [12:18] is the sub-list for method output_type
+	6,  // [6:12] is the sub-list for method input_type
+	6,  // [6:6] is the sub-list for extension type_name
+	6,  // [6:6] is the sub-list for extension extendee
+	0,  // [0:6] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_plugin_source_proto_init() }
@@ -685,6 +744,7 @@ func file_admin_v1_plugin_source_proto_init() {
 	if File_admin_v1_plugin_source_proto != nil {
 		return
 	}
+	file_admin_v1_plugin_source_proto_msgTypes[1].OneofWrappers = []any{}
 	file_admin_v1_plugin_source_proto_msgTypes[4].OneofWrappers = []any{}
 	file_admin_v1_plugin_source_proto_msgTypes[5].OneofWrappers = []any{}
 	type x struct{}

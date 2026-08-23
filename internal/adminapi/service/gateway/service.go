@@ -22,7 +22,11 @@ func NewService(gateways *gatewaybiz.Service) *Service {
 }
 
 func (s *Service) ListGateways(ctx context.Context, request *adminv1.ListGatewaysRequest) (*adminv1.ListGatewaysResponse, error) {
-	page, err := s.gateways.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	page, err := s.gateways.List(
+		ctx,
+		adminservice.PageRequest(request.GetLimit(), request.GetCursor()),
+		adminservice.ResourceFilter(request.GetQuery(), request.Enabled, request.GetState()),
+	)
 	if err != nil {
 		return nil, err
 	}

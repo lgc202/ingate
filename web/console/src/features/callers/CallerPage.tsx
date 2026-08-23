@@ -1,16 +1,17 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Check, Copy, KeyRound, Plus, ShieldCheck, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   createCaller,
   deleteCaller,
   disableAccessKey,
-  getCallerWorkspace,
+  getCallerOptions,
   issueAccessKey,
+  listCallerPage,
   updateCaller,
 } from '@/api/callers';
-import { getPolicyWorkspace } from '@/api/policies';
-import { useResource } from '@/api/useResource';
+import { getPolicyListWorkspace } from '@/api/policies';
+import { useCursorResource, useResource } from '@/api/useResource';
 import {
   Badge,
   Button,
@@ -60,11 +61,8 @@ const emptyDraft = (): CallerDraft => ({
 const emptyCallerFilters = (): CallerFilters => ({ query: '', state: 'all' });
 
 export function CallerPage() {
-  const workspace = useResource(getCallerWorkspace);
-  const policies = useResource(getPolicyWorkspace);
   const [filterDraft, setFilterDraft] = useState<CallerFilters>(emptyCallerFilters);
   const [filters, setFilters] = useState<CallerFilters>(emptyCallerFilters);
-  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [detailID, setDetailID] = useState<string | null>(null);
   const [draft, setDraft] = useState<CallerDraft | null>(null);
@@ -75,31 +73,26 @@ export function CallerPage() {
   const [keyExpiration, setKeyExpiration] = useState<'90d' | 'none'>('90d');
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
+  const loadPage = useCallback((cursor: string) => listCallerPage({
+    limit: pageSize,
+    cursor,
+    query: filters.query.trim() || undefined,
+    enabled: filters.state === 'all' ? undefined : filters.state === 'enabled',
+  }), [filters, pageSize]);
+  const callers = useCursorResource(loadPage);
+  const currentCallers = callers.data?.items ?? [];
+  const detail = currentCallers.find((caller) => caller.id === detailID) ?? null;
+  const options = useResource(getCallerOptions, { enabled: Boolean(detailID || draft) });
+  const policies = useResource(getPolicyListWorkspace, { enabled: Boolean(detail) });
 
-  const detail = workspace.data?.callers.find((caller) => caller.id === detailID) ?? null;
-  const visibleCallers = useMemo(() => {
-    const normalized = filters.query.trim().toLowerCase();
-    if (!workspace.data) return [];
-    return workspace.data.callers.filter((caller) => {
-      const routeNames = caller.routeIDs.map((routeID) => workspace.data?.routes.find((route) => route.id === routeID)?.name ?? '').join(' ');
-      const matchesState = filters.state === 'all'
-        || (filters.state === 'enabled' && caller.enabled)
-        || (filters.state === 'disabled' && !caller.enabled);
-      return matchesState && `${caller.name} ${routeNames}`.toLowerCase().includes(normalized);
-    });
-  }, [filters, workspace.data]);
-
-  if (workspace.loading && !workspace.data) {
+  if (callers.loading && !callers.data) {
     return <PageFrame title="调用方"><ResourceStatePanel title="正在加载调用方..." message="从管理 API 获取授权与密钥信息" /></PageFrame>;
   }
-  if (workspace.error || !workspace.data) {
-    return <PageFrame title="调用方"><ResourceStatePanel title="调用方加载失败" message={workspace.error?.message ?? '请稍后重试。'} /></PageFrame>;
+  if (callers.error || !callers.data) {
+    return <PageFrame title="调用方"><ResourceStatePanel title="调用方加载失败" message={callers.error?.message ?? '请稍后重试。'} /></PageFrame>;
   }
 
-  const data = workspace.data;
-  const pageCount = Math.max(1, Math.ceil(visibleCallers.length / pageSize));
-  const currentPage = Math.min(page, pageCount);
-  const pagedCallers = visibleCallers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const data = { callers: currentCallers, routes: options.data?.routes ?? [] };
 
   const save = async () => {
     if (!draft || !draft.name.trim() || submitting) return;
@@ -126,7 +119,7 @@ export function CallerPage() {
         setIssuedKey(result.issuedAccessKey);
         setNotice({ message: `调用方已创建：${draft.name.trim()}`, tone: 'success' });
       }
-      await workspace.reload();
+      await callers.reload();
       setDraft(null);
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '保存调用方失败', tone: 'error' });
@@ -140,7 +133,7 @@ export function CallerPage() {
     setSubmitting(true);
     try {
       await deleteCaller(deleteCandidate.id, deleteCandidate.version);
-      await workspace.reload();
+      await callers.reload();
       setDeleteCandidate(null);
       setNotice({ message: `调用方已删除：${deleteCandidate.name}`, tone: 'success' });
     } catch (error) {
@@ -161,7 +154,7 @@ export function CallerPage() {
         enabled: !caller.enabled,
         routeIDs: caller.routeIDs,
       });
-      await workspace.reload();
+      await callers.reload();
       setNotice({ message: `调用方已${caller.enabled ? '停用' : '启用'}：${caller.name}`, tone: 'success' });
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '更新调用方启用状态失败', tone: 'error' });
@@ -178,7 +171,7 @@ export function CallerPage() {
       setIssuedKey(result);
       setIssueKeyFor(null);
       setKeyName('');
-      await workspace.reload();
+      await callers.reload();
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '签发访问密钥失败', tone: 'error' });
     } finally {
@@ -189,7 +182,7 @@ export function CallerPage() {
   const disableKey = async (caller: Caller, keyID: string) => {
     try {
       await disableAccessKey(caller.id, keyID, caller.version);
-      await workspace.reload();
+      await callers.reload();
       setNotice({ message: '访问密钥已停用', tone: 'success' });
     } catch (error) {
       setNotice({ message: error instanceof Error ? error.message : '停用访问密钥失败', tone: 'error' });
@@ -206,17 +199,17 @@ export function CallerPage() {
         <Panel>
           <ResourceListFilters
             summary={callerFilterSummary(filters)}
-            resultLabel={`${visibleCallers.length} 个调用方`}
-            onSearch={() => { setPage(1); setFilters({ ...filterDraft }); }}
+            resultLabel={`本页 ${currentCallers.length} 个调用方`}
+            onSearch={() => { callers.reset(); setFilters({ ...filterDraft }); }}
             onReset={() => {
               const next = emptyCallerFilters();
               setFilterDraft(next);
               setFilters(next);
-              setPage(1);
+              callers.reset();
             }}
           >
             <ResourceFilterField label="关键词">
-              <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索调用方或已授权路由" />
+              <SearchField value={filterDraft.query} onChange={(query) => setFilterDraft((current) => ({ ...current, query }))} placeholder="搜索调用方名称" />
             </ResourceFilterField>
             <ResourceFilterField label="启用状态">
               <select className="select" value={filterDraft.state} onChange={(event) => setFilterDraft((current) => ({ ...current, state: event.target.value as CallerStateFilter }))}>
@@ -226,8 +219,8 @@ export function CallerPage() {
               </select>
             </ResourceFilterField>
           </ResourceListFilters>
-          {visibleCallers.length === 0 ? (
-            <div className="p-5"><EmptyState title={data.callers.length === 0 ? '暂无调用方' : '没有匹配的调用方'} message={data.callers.length === 0 ? '创建调用方后即可为受保护路由签发访问密钥' : '请调整搜索条件'} /></div>
+          {currentCallers.length === 0 ? (
+            <div className="p-5"><EmptyState title={filters.query || filters.state !== 'all' ? '没有匹配的调用方' : '暂无调用方'} message={filters.query || filters.state !== 'all' ? '请调整搜索条件' : '创建调用方后即可为受保护路由签发访问密钥'} /></div>
           ) : (
             <div className="table-scroll resource-table-scroll">
               <table className="table resource-table resource-table-has-toggle resource-caller-table">
@@ -235,7 +228,7 @@ export function CallerPage() {
                   <th>调用方</th><th>授权路由</th><th>有效密钥</th><th>状态</th><th>更新时间</th><th>操作</th>
                 </tr></thead>
                 <tbody>
-                  {pagedCallers.map((caller) => (
+                  {currentCallers.map((caller) => (
                     <tr key={caller.id}>
                       <td><div className="resource-table-name"><UserRound className="text-blue-600" /><strong>{caller.name}</strong></div></td>
                       <td>{routeSummary(caller, data.routes)}</td>
@@ -258,7 +251,7 @@ export function CallerPage() {
               </table>
             </div>
           )}
-          {visibleCallers.length > 0 ? <ResourcePagination page={currentPage} pageSize={pageSize} total={visibleCallers.length} onPageChange={setPage} onPageSizeChange={(size) => { setPage(1); setPageSize(size); }} /> : null}
+          {currentCallers.length > 0 ? <ResourcePagination page={callers.page} pageSize={pageSize} itemCount={currentCallers.length} hasNext={callers.hasNext} onPageChange={(nextPage) => nextPage > callers.page ? callers.next() : callers.previous()} onPageSizeChange={(size) => { callers.reset(); setPageSize(size); }} /> : null}
         </Panel>
       </div>
 
@@ -311,7 +304,8 @@ export function CallerPage() {
       </Drawer>
 
       <Drawer title={draft?.id ? '编辑调用方' : '创建调用方'} subtitle="为应用或服务授权受保护路由" isOpen={Boolean(draft)} onClose={() => setDraft(null)}>
-        {draft ? <CallerEditor draft={draft} routes={data.routes} onChange={setDraft} onCancel={() => setDraft(null)} onSave={() => void save()} submitting={submitting} /> : null}
+        {draft && options.loading && !options.data ? <ResourceStatePanel title="正在加载可授权路由" message="正在读取受保护路由" /> : null}
+        {draft && options.data ? <CallerEditor draft={draft} routes={data.routes} onChange={setDraft} onCancel={() => setDraft(null)} onSave={() => void save()} submitting={submitting} /> : null}
       </Drawer>
 
       <Modal title="签发访问密钥" isOpen={Boolean(issueKeyFor)} onClose={() => setIssueKeyFor(null)}>
@@ -430,5 +424,5 @@ function editDraft(caller: Caller): CallerDraft { return { id: caller.id, versio
 function toggleID(values: string[], id: string) { return values.includes(id) ? values.filter((value) => value !== id) : [...values, id]; }
 function expirationTime(value: '90d' | 'none') { return value === 'none' ? undefined : new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(); }
 function activeKeyCount(caller: Caller) { return caller.accessKeys.filter((key) => keyStatus(key).label === '有效').length; }
-function routeSummary(caller: Caller, routes: CallerRouteOption[]) { const names = caller.routeIDs.map((id) => routes.find((route) => route.id === id)?.name).filter(Boolean); return names.length === 0 ? '未授权路由' : names.length <= 2 ? names.join('、') : `${names.slice(0, 2).join('、')} 等 ${names.length} 条`; }
+function routeSummary(caller: Caller, routes: CallerRouteOption[]) { const names = caller.routeIDs.map((id) => routes.find((route) => route.id === id)?.name).filter(Boolean); if (caller.routeIDs.length === 0) return '未授权路由'; if (names.length === 0) return `${caller.routeIDs.length} 条授权路由`; return names.length <= 2 ? names.join('、') : `${names.slice(0, 2).join('、')} 等 ${names.length} 条`; }
 function keyStatus(key: Caller['accessKeys'][number]): { label: string; tone: 'success' | 'warning' | 'neutral' } { if (!key.enabled) return { label: '已停用', tone: 'neutral' }; if (key.expiresAt && new Date(key.expiresAt).getTime() <= Date.now()) return { label: '已过期', tone: 'warning' }; return { label: '有效', tone: 'success' }; }

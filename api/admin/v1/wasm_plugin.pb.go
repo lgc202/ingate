@@ -510,6 +510,8 @@ type ListWasmPluginsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
 	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	Query         string                 `protobuf:"bytes,3,opt,name=query,proto3" json:"query,omitempty"`
+	State         ResourceState          `protobuf:"varint,4,opt,name=state,proto3,enum=ingate.admin.v1.ResourceState" json:"state,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -556,6 +558,20 @@ func (x *ListWasmPluginsRequest) GetCursor() string {
 		return x.Cursor
 	}
 	return ""
+}
+
+func (x *ListWasmPluginsRequest) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *ListWasmPluginsRequest) GetState() ResourceState {
+	if x != nil {
+		return x.State
+	}
+	return ResourceState_RESOURCE_STATE_UNSPECIFIED
 }
 
 type ListWasmPluginsResponse struct {
@@ -861,10 +877,12 @@ const file_admin_v1_wasm_plugin_proto_rawDesc = "" +
 	"sourceName\"\x1e\n" +
 	"\x1cListWasmPluginCatalogRequest\"a\n" +
 	"\x1dListWasmPluginCatalogResponse\x12@\n" +
-	"\aplugins\x18\x01 \x03(\v2&.ingate.admin.v1.WasmPluginCatalogItemR\aplugins\"O\n" +
+	"\aplugins\x18\x01 \x03(\v2&.ingate.admin.v1.WasmPluginCatalogItemR\aplugins\"\xa5\x01\n" +
 	"\x16ListWasmPluginsRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"q\n" +
+	"\x06cursor\x18\x02 \x01(\tR\x06cursor\x12\x14\n" +
+	"\x05query\x18\x03 \x01(\tR\x05query\x12>\n" +
+	"\x05state\x18\x04 \x01(\x0e2\x1e.ingate.admin.v1.ResourceStateB\b\xbaH\x05\x82\x01\x02\x10\x01R\x05state\"q\n" +
 	"\x17ListWasmPluginsResponse\x125\n" +
 	"\aplugins\x18\x01 \x03(\v2\x1b.ingate.admin.v1.WasmPluginR\aplugins\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
@@ -930,24 +948,25 @@ var file_admin_v1_wasm_plugin_proto_depIdxs = []int32{
 	13, // 3: ingate.admin.v1.WasmPlugin.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 4: ingate.admin.v1.WasmPlugin.usages:type_name -> ingate.admin.v1.WasmPluginPolicyUsage
 	3,  // 5: ingate.admin.v1.ListWasmPluginCatalogResponse.plugins:type_name -> ingate.admin.v1.WasmPluginCatalogItem
-	1,  // 6: ingate.admin.v1.ListWasmPluginsResponse.plugins:type_name -> ingate.admin.v1.WasmPlugin
-	4,  // 7: ingate.admin.v1.WasmPluginService.ListWasmPluginCatalog:input_type -> ingate.admin.v1.ListWasmPluginCatalogRequest
-	6,  // 8: ingate.admin.v1.WasmPluginService.ListWasmPlugins:input_type -> ingate.admin.v1.ListWasmPluginsRequest
-	8,  // 9: ingate.admin.v1.WasmPluginService.GetWasmPlugin:input_type -> ingate.admin.v1.GetWasmPluginRequest
-	9,  // 10: ingate.admin.v1.WasmPluginService.CreateWasmPlugin:input_type -> ingate.admin.v1.CreateWasmPluginRequest
-	10, // 11: ingate.admin.v1.WasmPluginService.UpdateWasmPlugin:input_type -> ingate.admin.v1.UpdateWasmPluginRequest
-	11, // 12: ingate.admin.v1.WasmPluginService.DeleteWasmPlugin:input_type -> ingate.admin.v1.DeleteWasmPluginRequest
-	5,  // 13: ingate.admin.v1.WasmPluginService.ListWasmPluginCatalog:output_type -> ingate.admin.v1.ListWasmPluginCatalogResponse
-	7,  // 14: ingate.admin.v1.WasmPluginService.ListWasmPlugins:output_type -> ingate.admin.v1.ListWasmPluginsResponse
-	1,  // 15: ingate.admin.v1.WasmPluginService.GetWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
-	1,  // 16: ingate.admin.v1.WasmPluginService.CreateWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
-	1,  // 17: ingate.admin.v1.WasmPluginService.UpdateWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
-	14, // 18: ingate.admin.v1.WasmPluginService.DeleteWasmPlugin:output_type -> google.protobuf.Empty
-	13, // [13:19] is the sub-list for method output_type
-	7,  // [7:13] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	12, // 6: ingate.admin.v1.ListWasmPluginsRequest.state:type_name -> ingate.admin.v1.ResourceState
+	1,  // 7: ingate.admin.v1.ListWasmPluginsResponse.plugins:type_name -> ingate.admin.v1.WasmPlugin
+	4,  // 8: ingate.admin.v1.WasmPluginService.ListWasmPluginCatalog:input_type -> ingate.admin.v1.ListWasmPluginCatalogRequest
+	6,  // 9: ingate.admin.v1.WasmPluginService.ListWasmPlugins:input_type -> ingate.admin.v1.ListWasmPluginsRequest
+	8,  // 10: ingate.admin.v1.WasmPluginService.GetWasmPlugin:input_type -> ingate.admin.v1.GetWasmPluginRequest
+	9,  // 11: ingate.admin.v1.WasmPluginService.CreateWasmPlugin:input_type -> ingate.admin.v1.CreateWasmPluginRequest
+	10, // 12: ingate.admin.v1.WasmPluginService.UpdateWasmPlugin:input_type -> ingate.admin.v1.UpdateWasmPluginRequest
+	11, // 13: ingate.admin.v1.WasmPluginService.DeleteWasmPlugin:input_type -> ingate.admin.v1.DeleteWasmPluginRequest
+	5,  // 14: ingate.admin.v1.WasmPluginService.ListWasmPluginCatalog:output_type -> ingate.admin.v1.ListWasmPluginCatalogResponse
+	7,  // 15: ingate.admin.v1.WasmPluginService.ListWasmPlugins:output_type -> ingate.admin.v1.ListWasmPluginsResponse
+	1,  // 16: ingate.admin.v1.WasmPluginService.GetWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
+	1,  // 17: ingate.admin.v1.WasmPluginService.CreateWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
+	1,  // 18: ingate.admin.v1.WasmPluginService.UpdateWasmPlugin:output_type -> ingate.admin.v1.WasmPlugin
+	14, // 19: ingate.admin.v1.WasmPluginService.DeleteWasmPlugin:output_type -> google.protobuf.Empty
+	14, // [14:20] is the sub-list for method output_type
+	8,  // [8:14] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_admin_v1_wasm_plugin_proto_init() }

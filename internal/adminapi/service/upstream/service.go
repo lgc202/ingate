@@ -22,7 +22,18 @@ func NewService(upstreams *upstreambiz.Service) *Service {
 }
 
 func (s *Service) ListUpstreams(ctx context.Context, request *adminv1.ListUpstreamsRequest) (*adminv1.ListUpstreamsResponse, error) {
-	page, err := s.upstreams.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()))
+	filter := upstreambiz.ListFilter{
+		ResourceFilter: adminservice.ResourceFilter(request.GetQuery(), nil, request.GetState()),
+	}
+	switch request.GetType() {
+	case adminv1.UpstreamType_UPSTREAM_TYPE_HTTP:
+		model := false
+		filter.Model = &model
+	case adminv1.UpstreamType_UPSTREAM_TYPE_MODEL:
+		model := true
+		filter.Model = &model
+	}
+	page, err := s.upstreams.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()), filter)
 	if err != nil {
 		return nil, err
 	}
