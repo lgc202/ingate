@@ -59,9 +59,9 @@ type CompiledPolicyTarget struct {
 	Target ResourceGeneration
 }
 
-// WasmModule 描述 Controller 已下载并校验、可供 Envoy 读取的模块
+// WasmModule 描述 Controller 已下载并校验、可供 Envoy 直接读取的内容寻址文件
 type WasmModule struct {
-	URL    string
+	Path   string
 	SHA256 string
 }
 

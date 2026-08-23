@@ -29,8 +29,6 @@ import (
 )
 
 const (
-	modulePathPrefix      = "/internal/wasm/"
-	moduleURLHost         = "ingate-wasm"
 	wasmFileName          = "plugin.wasm"
 	wasmArtifactMediaType = "application/vnd.module.wasm.content.layer.v1+wasm"
 )
@@ -41,9 +39,9 @@ var (
 	supportedProxyWasmABI = []string{"proxy_abi_version_0_2_0", "proxy_abi_version_0_2_1"}
 )
 
-// Store 把远端模块转换为 Envoy 可通过内部 HTTP 读取的内容寻址文件
+// Store 把远端模块转换为 Envoy 可从共享目录读取的内容寻址文件
 //
-// Controller 只把校验后的本地副本交给 Envoy，避免每个 Envoy 实例分别访问外部仓库，
+// Controller 只把校验后的本地副本交给 Envoy，避免 Envoy 直接访问外部仓库，
 // 也确保 OCI manifest 摘要与最终 Wasm 二进制摘要分别按各自语义校验
 type Store struct {
 	cacheDir      string
@@ -58,7 +56,10 @@ type Store struct {
 
 // NewStore 创建 Wasm 模块存储，并确保缓存目录可写
 func NewStore(config *conf.Data_Wasm) (*Store, error) {
-	cacheDir := filepath.Clean(config.GetCacheDir())
+	cacheDir, err := filepath.Abs(config.GetCacheDir())
+	if err != nil {
+		return nil, fmt.Errorf("resolve Wasm cache directory: %w", err)
+	}
 	if err := os.MkdirAll(filepath.Join(cacheDir, "sources"), 0o755); err != nil {
 		return nil, fmt.Errorf("create Wasm cache directory: %w", err)
 	}
@@ -72,7 +73,7 @@ func NewStore(config *conf.Data_Wasm) (*Store, error) {
 	}, nil
 }
 
-// Resolve 返回已校验模块的内部下载地址和二进制 SHA256
+// Resolve 返回已校验模块的本地文件路径和二进制 SHA256
 //
 // Store 使用同一把锁串行保护远端拉取、缓存写入和淘汰决策，确保新模块发布时不会破坏 Active 配置；
 // 首版插件数量有限，不在这一边界额外引入并发下载调度
@@ -132,7 +133,7 @@ func (s *Store) Resolve(ctx context.Context, plugin *gatewayv1.WasmPlugin) (comp
 		return compiler.WasmModule{}, err
 	}
 
-	module := compiler.WasmModule{URL: moduleURL(moduleSHA), SHA256: moduleSHA}
+	module := compiler.WasmModule{Path: s.modulePath(moduleSHA), SHA256: moduleSHA}
 	s.resolved[generation] = module
 	return module, nil
 }
