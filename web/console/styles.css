@@ -38,6 +38,38 @@ html, body {
 button, input, select { font: inherit; }
 body { overflow-x: hidden; }
 
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(74, 95, 194, 0.2), transparent 28%),
+    linear-gradient(145deg, #171922, #222638 58%, #2e3970);
+}
+.login-card {
+  width: min(400px, 100%);
+  padding: 34px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 18px;
+  background: rgba(255,255,255,.96);
+  box-shadow: 0 28px 70px rgba(7, 9, 18, .34);
+}
+.login-brand-mark { width: 48px; height: 48px; }
+.login-heading { margin: 14px 0 26px; display: grid; gap: 3px; }
+.login-heading strong { font-size: 1.55rem; letter-spacing: -.02em; }
+.login-heading span { color: var(--muted); font-size: .78rem; }
+.login-card form { display: grid; gap: 16px; }
+.login-card label { display: grid; gap: 7px; color: #555d6b; font-size: .76rem; font-weight: 700; }
+.login-card input { width: 100%; height: 43px; padding: 0 12px; border: 1px solid #cfd5df; border-radius: 8px; outline: 0; }
+.login-card input:focus { border-color: rgba(48,71,199,.58); box-shadow: 0 0 0 3px rgba(48,71,199,.12); }
+.login-card form p { margin: -3px 0 0; color: var(--red); font-size: .75rem; }
+.login-card form button { height: 43px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 8px; color: #fff; background: var(--accent); font-weight: 750; cursor: pointer; }
+.login-card form button:hover { background: #263bb0; }
+.login-card form button:disabled { opacity: .62; cursor: wait; }
+.login-card form button svg { width: 16px; }
+.session-loading { color: rgba(255,255,255,.8); font-size: .82rem; letter-spacing: .03em; }
+
 .main { padding: 24px 28px 36px; min-width: 0; }
 .topbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 0; }
 .page-title {
@@ -666,6 +698,10 @@ body { overflow-x: hidden; }
   line-height: 1.5;
 }
 
+.policy-restriction-mode.policy-rate-subject {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .policy-target-summary,
 .policy-status-message {
   max-width: 260px;
@@ -1122,7 +1158,7 @@ body { overflow-x: hidden; }
   .main { padding: 16px; }
   .topbar { align-items: stretch; flex-direction: column; }
   .topbar > .toolbar { justify-content: flex-start; }
-  .policy-editor-grid, .policy-restriction-mode { grid-template-columns: 1fr; }
+  .policy-editor-grid, .policy-restriction-mode, .policy-restriction-mode.policy-rate-subject { grid-template-columns: 1fr; }
   .policy-quota-row { grid-template-columns: auto 1fr; }
   .policy-quota-row > input[type='number'] { grid-column: 2; }
   .policy-quota-row > span { display: none; }
@@ -1706,11 +1742,14 @@ body { overflow-x: hidden; }
 .is-collapsed .nav-item { justify-content: center; padding: 0; }
 .is-collapsed .nav-item.is-active { box-shadow: inset 2px 0 0 var(--orange); }
 
-.sidebar-footer { padding: 12px; border-top: 1px solid #292c35; }
-.system-version { min-width: 0; display: flex; align-items: center; gap: 9px; }
-.version-monogram { width: 31px; height: 31px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 9px; color: #e9edff; background: #303440; font-weight: 800; }
-.system-version > span:last-child { color: #777c89; font-size: 0.72rem; }
-.is-collapsed .system-version { justify-content: center; }
+.sidebar-footer { padding: 12px; display: grid; gap: 10px; border-top: 1px solid #292c35; }
+.session-user { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; }
+.session-user > span { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 9px; color: #fff; background: #3b4160; font-size: .75rem; font-weight: 800; }
+.session-user > strong { overflow: hidden; color: #c8cbd5; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }
+.session-user > button { width: 27px; height: 27px; display: grid; place-items: center; border: 0; border-radius: 7px; color: #777d8d; background: transparent; cursor: pointer; }
+.session-user > button:hover { color: #fff; background: #2a2d37; }
+.session-user > button svg { width: 14px; }
+.is-collapsed .session-user { display: flex; justify-content: center; }
 
 .console-workspace { min-width: 0; min-height: 100vh; }
 .workspace-header { position: sticky; top: 0; z-index: 30; height: 64px; padding: 0 30px; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(250,249,246,0.9); border-bottom: 1px solid #dfded8; backdrop-filter: blur(16px); }

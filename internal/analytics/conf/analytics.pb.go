@@ -607,7 +607,10 @@ type Data_ClickHouse struct {
 	// tls 配置 ClickHouse 传输加密和双向认证
 	Tls *Data_ClickHouse_TLS `protobuf:"bytes,10,opt,name=tls,proto3" json:"tls,omitempty"`
 	// query_timeout 限制单次 ClickHouse 查询时间
-	QueryTimeout  *durationpb.Duration `protobuf:"bytes,11,opt,name=query_timeout,json=queryTimeout,proto3" json:"query_timeout,omitempty"`
+	QueryTimeout *durationpb.Duration `protobuf:"bytes,11,opt,name=query_timeout,json=queryTimeout,proto3" json:"query_timeout,omitempty"`
+	// retention 定义可重新生成的数据在 ClickHouse 中保留多久
+	// model_usage_1m 是累计用量账本，不受这里的明细保留策略影响
+	Retention     *Data_ClickHouse_Retention `protobuf:"bytes,12,opt,name=retention,proto3" json:"retention,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -715,6 +718,13 @@ func (x *Data_ClickHouse) GetTls() *Data_ClickHouse_TLS {
 func (x *Data_ClickHouse) GetQueryTimeout() *durationpb.Duration {
 	if x != nil {
 		return x.QueryTimeout
+	}
+	return nil
+}
+
+func (x *Data_ClickHouse) GetRetention() *Data_ClickHouse_Retention {
+	if x != nil {
+		return x.Retention
 	}
 	return nil
 }
@@ -863,6 +873,69 @@ func (x *Data_Kafka_TLS) GetServerName() string {
 	return ""
 }
 
+type Data_ClickHouse_Retention struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// request_records 是请求明细的保留时间
+	RequestRecords *durationpb.Duration `protobuf:"bytes,1,opt,name=request_records,json=requestRecords,proto3" json:"request_records,omitempty"`
+	// request_metrics 是分钟流量聚合的保留时间
+	RequestMetrics *durationpb.Duration `protobuf:"bytes,2,opt,name=request_metrics,json=requestMetrics,proto3" json:"request_metrics,omitempty"`
+	// model_calls 是单次模型调用明细的保留时间
+	ModelCalls    *durationpb.Duration `protobuf:"bytes,3,opt,name=model_calls,json=modelCalls,proto3" json:"model_calls,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data_ClickHouse_Retention) Reset() {
+	*x = Data_ClickHouse_Retention{}
+	mi := &file_conf_analytics_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data_ClickHouse_Retention) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data_ClickHouse_Retention) ProtoMessage() {}
+
+func (x *Data_ClickHouse_Retention) ProtoReflect() protoreflect.Message {
+	mi := &file_conf_analytics_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data_ClickHouse_Retention.ProtoReflect.Descriptor instead.
+func (*Data_ClickHouse_Retention) Descriptor() ([]byte, []int) {
+	return file_conf_analytics_proto_rawDescGZIP(), []int{2, 1, 0}
+}
+
+func (x *Data_ClickHouse_Retention) GetRequestRecords() *durationpb.Duration {
+	if x != nil {
+		return x.RequestRecords
+	}
+	return nil
+}
+
+func (x *Data_ClickHouse_Retention) GetRequestMetrics() *durationpb.Duration {
+	if x != nil {
+		return x.RequestMetrics
+	}
+	return nil
+}
+
+func (x *Data_ClickHouse_Retention) GetModelCalls() *durationpb.Duration {
+	if x != nil {
+		return x.ModelCalls
+	}
+	return nil
+}
+
 type Data_ClickHouse_TLS struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// enabled 控制 ClickHouse native 连接是否启用 TLS
@@ -881,7 +954,7 @@ type Data_ClickHouse_TLS struct {
 
 func (x *Data_ClickHouse_TLS) Reset() {
 	*x = Data_ClickHouse_TLS{}
-	mi := &file_conf_analytics_proto_msgTypes[11]
+	mi := &file_conf_analytics_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -893,7 +966,7 @@ func (x *Data_ClickHouse_TLS) String() string {
 func (*Data_ClickHouse_TLS) ProtoMessage() {}
 
 func (x *Data_ClickHouse_TLS) ProtoReflect() protoreflect.Message {
-	mi := &file_conf_analytics_proto_msgTypes[11]
+	mi := &file_conf_analytics_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -906,7 +979,7 @@ func (x *Data_ClickHouse_TLS) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Data_ClickHouse_TLS.ProtoReflect.Descriptor instead.
 func (*Data_ClickHouse_TLS) Descriptor() ([]byte, []int) {
-	return file_conf_analytics_proto_rawDescGZIP(), []int{2, 1, 0}
+	return file_conf_analytics_proto_rawDescGZIP(), []int{2, 1, 1}
 }
 
 func (x *Data_ClickHouse_TLS) GetEnabled() bool {
@@ -968,7 +1041,7 @@ const file_conf_analytics_proto_rawDesc = "" +
 	"\x0eclient_ca_file\x18\x04 \x01(\tR\fclientCaFile\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xfc\v\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x9e\x0e\n" +
 	"\x04Data\x127\n" +
 	"\x05kafka\x18\x01 \x01(\v2!.ingate.analytics.conf.Data.KafkaR\x05kafka\x12G\n" +
 	"\vclick_house\x18\x02 \x01(\v2&.ingate.analytics.conf.Data.ClickHouseR\n" +
@@ -995,7 +1068,7 @@ const file_conf_analytics_proto_rawDesc = "" +
 	"\tcert_file\x18\x03 \x01(\tR\bcertFile\x12\x19\n" +
 	"\bkey_file\x18\x04 \x01(\tR\akeyFile\x12\x1f\n" +
 	"\vserver_name\x18\x05 \x01(\tR\n" +
-	"serverName\x1a\xc5\x05\n" +
+	"serverName\x1a\xe7\a\n" +
 	"\n" +
 	"ClickHouse\x12\x1c\n" +
 	"\taddresses\x18\x01 \x03(\tR\taddresses\x12\x1a\n" +
@@ -1009,7 +1082,13 @@ const file_conf_analytics_proto_rawDesc = "" +
 	"\x17connection_max_lifetime\x18\t \x01(\v2\x19.google.protobuf.DurationR\x15connectionMaxLifetime\x12<\n" +
 	"\x03tls\x18\n" +
 	" \x01(\v2*.ingate.analytics.conf.Data.ClickHouse.TLSR\x03tls\x12>\n" +
-	"\rquery_timeout\x18\v \x01(\v2\x19.google.protobuf.DurationR\fqueryTimeout\x1a\x91\x01\n" +
+	"\rquery_timeout\x18\v \x01(\v2\x19.google.protobuf.DurationR\fqueryTimeout\x12N\n" +
+	"\tretention\x18\f \x01(\v20.ingate.analytics.conf.Data.ClickHouse.RetentionR\tretention\x1a\xcf\x01\n" +
+	"\tRetention\x12B\n" +
+	"\x0frequest_records\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\x0erequestRecords\x12B\n" +
+	"\x0frequest_metrics\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0erequestMetrics\x12:\n" +
+	"\vmodel_calls\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\n" +
+	"modelCalls\x1a\x91\x01\n" +
 	"\x03TLS\x12\x18\n" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x17\n" +
 	"\aca_file\x18\x02 \x01(\tR\x06caFile\x12\x1b\n" +
@@ -1035,48 +1114,53 @@ func file_conf_analytics_proto_rawDescGZIP() []byte {
 	return file_conf_analytics_proto_rawDescData
 }
 
-var file_conf_analytics_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_conf_analytics_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_conf_analytics_proto_goTypes = []any{
-	(*Bootstrap)(nil),           // 0: ingate.analytics.conf.Bootstrap
-	(*Server)(nil),              // 1: ingate.analytics.conf.Server
-	(*Data)(nil),                // 2: ingate.analytics.conf.Data
-	(*Logging)(nil),             // 3: ingate.analytics.conf.Logging
-	(*Server_GRPC)(nil),         // 4: ingate.analytics.conf.Server.GRPC
-	(*Server_HTTP)(nil),         // 5: ingate.analytics.conf.Server.HTTP
-	(*Server_GRPC_TLS)(nil),     // 6: ingate.analytics.conf.Server.GRPC.TLS
-	(*Data_Kafka)(nil),          // 7: ingate.analytics.conf.Data.Kafka
-	(*Data_ClickHouse)(nil),     // 8: ingate.analytics.conf.Data.ClickHouse
-	(*Data_Kafka_SASL)(nil),     // 9: ingate.analytics.conf.Data.Kafka.SASL
-	(*Data_Kafka_TLS)(nil),      // 10: ingate.analytics.conf.Data.Kafka.TLS
-	(*Data_ClickHouse_TLS)(nil), // 11: ingate.analytics.conf.Data.ClickHouse.TLS
-	(*durationpb.Duration)(nil), // 12: google.protobuf.Duration
+	(*Bootstrap)(nil),                 // 0: ingate.analytics.conf.Bootstrap
+	(*Server)(nil),                    // 1: ingate.analytics.conf.Server
+	(*Data)(nil),                      // 2: ingate.analytics.conf.Data
+	(*Logging)(nil),                   // 3: ingate.analytics.conf.Logging
+	(*Server_GRPC)(nil),               // 4: ingate.analytics.conf.Server.GRPC
+	(*Server_HTTP)(nil),               // 5: ingate.analytics.conf.Server.HTTP
+	(*Server_GRPC_TLS)(nil),           // 6: ingate.analytics.conf.Server.GRPC.TLS
+	(*Data_Kafka)(nil),                // 7: ingate.analytics.conf.Data.Kafka
+	(*Data_ClickHouse)(nil),           // 8: ingate.analytics.conf.Data.ClickHouse
+	(*Data_Kafka_SASL)(nil),           // 9: ingate.analytics.conf.Data.Kafka.SASL
+	(*Data_Kafka_TLS)(nil),            // 10: ingate.analytics.conf.Data.Kafka.TLS
+	(*Data_ClickHouse_Retention)(nil), // 11: ingate.analytics.conf.Data.ClickHouse.Retention
+	(*Data_ClickHouse_TLS)(nil),       // 12: ingate.analytics.conf.Data.ClickHouse.TLS
+	(*durationpb.Duration)(nil),       // 13: google.protobuf.Duration
 }
 var file_conf_analytics_proto_depIdxs = []int32{
 	1,  // 0: ingate.analytics.conf.Bootstrap.server:type_name -> ingate.analytics.conf.Server
 	2,  // 1: ingate.analytics.conf.Bootstrap.data:type_name -> ingate.analytics.conf.Data
 	3,  // 2: ingate.analytics.conf.Bootstrap.logging:type_name -> ingate.analytics.conf.Logging
 	5,  // 3: ingate.analytics.conf.Server.http:type_name -> ingate.analytics.conf.Server.HTTP
-	12, // 4: ingate.analytics.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	13, // 4: ingate.analytics.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
 	4,  // 5: ingate.analytics.conf.Server.grpc:type_name -> ingate.analytics.conf.Server.GRPC
 	7,  // 6: ingate.analytics.conf.Data.kafka:type_name -> ingate.analytics.conf.Data.Kafka
 	8,  // 7: ingate.analytics.conf.Data.click_house:type_name -> ingate.analytics.conf.Data.ClickHouse
-	12, // 8: ingate.analytics.conf.Server.GRPC.timeout:type_name -> google.protobuf.Duration
+	13, // 8: ingate.analytics.conf.Server.GRPC.timeout:type_name -> google.protobuf.Duration
 	6,  // 9: ingate.analytics.conf.Server.GRPC.tls:type_name -> ingate.analytics.conf.Server.GRPC.TLS
-	12, // 10: ingate.analytics.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	12, // 11: ingate.analytics.conf.Data.Kafka.dial_timeout:type_name -> google.protobuf.Duration
+	13, // 10: ingate.analytics.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	13, // 11: ingate.analytics.conf.Data.Kafka.dial_timeout:type_name -> google.protobuf.Duration
 	9,  // 12: ingate.analytics.conf.Data.Kafka.sasl:type_name -> ingate.analytics.conf.Data.Kafka.SASL
 	10, // 13: ingate.analytics.conf.Data.Kafka.tls:type_name -> ingate.analytics.conf.Data.Kafka.TLS
-	12, // 14: ingate.analytics.conf.Data.Kafka.fetch_max_wait:type_name -> google.protobuf.Duration
-	12, // 15: ingate.analytics.conf.Data.ClickHouse.dial_timeout:type_name -> google.protobuf.Duration
-	12, // 16: ingate.analytics.conf.Data.ClickHouse.write_timeout:type_name -> google.protobuf.Duration
-	12, // 17: ingate.analytics.conf.Data.ClickHouse.connection_max_lifetime:type_name -> google.protobuf.Duration
-	11, // 18: ingate.analytics.conf.Data.ClickHouse.tls:type_name -> ingate.analytics.conf.Data.ClickHouse.TLS
-	12, // 19: ingate.analytics.conf.Data.ClickHouse.query_timeout:type_name -> google.protobuf.Duration
-	20, // [20:20] is the sub-list for method output_type
-	20, // [20:20] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	13, // 14: ingate.analytics.conf.Data.Kafka.fetch_max_wait:type_name -> google.protobuf.Duration
+	13, // 15: ingate.analytics.conf.Data.ClickHouse.dial_timeout:type_name -> google.protobuf.Duration
+	13, // 16: ingate.analytics.conf.Data.ClickHouse.write_timeout:type_name -> google.protobuf.Duration
+	13, // 17: ingate.analytics.conf.Data.ClickHouse.connection_max_lifetime:type_name -> google.protobuf.Duration
+	12, // 18: ingate.analytics.conf.Data.ClickHouse.tls:type_name -> ingate.analytics.conf.Data.ClickHouse.TLS
+	13, // 19: ingate.analytics.conf.Data.ClickHouse.query_timeout:type_name -> google.protobuf.Duration
+	11, // 20: ingate.analytics.conf.Data.ClickHouse.retention:type_name -> ingate.analytics.conf.Data.ClickHouse.Retention
+	13, // 21: ingate.analytics.conf.Data.ClickHouse.Retention.request_records:type_name -> google.protobuf.Duration
+	13, // 22: ingate.analytics.conf.Data.ClickHouse.Retention.request_metrics:type_name -> google.protobuf.Duration
+	13, // 23: ingate.analytics.conf.Data.ClickHouse.Retention.model_calls:type_name -> google.protobuf.Duration
+	24, // [24:24] is the sub-list for method output_type
+	24, // [24:24] is the sub-list for method input_type
+	24, // [24:24] is the sub-list for extension type_name
+	24, // [24:24] is the sub-list for extension extendee
+	0,  // [0:24] is the sub-list for field type_name
 }
 
 func init() { file_conf_analytics_proto_init() }
@@ -1090,7 +1174,7 @@ func file_conf_analytics_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conf_analytics_proto_rawDesc), len(file_conf_analytics_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

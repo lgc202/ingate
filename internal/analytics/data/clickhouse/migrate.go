@@ -2,6 +2,7 @@ package clickhouse
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
@@ -14,6 +15,12 @@ import (
 )
 
 const schemaMigrationTableName = "ingate_schema_migrations"
+
+const (
+	requestRecordsTable = "request_records"
+	requestMetricsTable = "request_metrics_1m"
+	modelCallsTable     = "model_calls"
+)
 
 // migrationFiles 随 Analytics 二进制发布，部署时不依赖源码目录
 //
@@ -53,5 +60,34 @@ func Migrate(ctx context.Context, config *conf.Data_ClickHouse) (applied int, er
 	if err != nil {
 		return 0, fmt.Errorf("migrate ClickHouse analytics schema: %w", err)
 	}
+	if err := applyRetention(ctx, db, config.GetRetention()); err != nil {
+		return 0, err
+	}
 	return len(results), nil
+}
+
+func applyRetention(ctx context.Context, db *sql.DB, retention *conf.Data_ClickHouse_Retention) error {
+	tables := []struct {
+		name      string
+		timestamp string
+		seconds   int64
+	}{
+		{name: requestRecordsTable, timestamp: "started_at", seconds: int64(retention.GetRequestRecords().AsDuration().Seconds())},
+		{name: requestMetricsTable, timestamp: "started_at", seconds: int64(retention.GetRequestMetrics().AsDuration().Seconds())},
+		{name: modelCallsTable, timestamp: "started_at", seconds: int64(retention.GetModelCalls().AsDuration().Seconds())},
+	}
+	for _, table := range tables {
+		// 表名和时间列来自上方常量，保留秒数已经过配置校验；这里只拼接 ClickHouse DDL，
+		// 不把任何请求数据或未校验的外部文本带入 SQL
+		statement := fmt.Sprintf(
+			"ALTER TABLE %s MODIFY TTL %s + toIntervalSecond(%d)",
+			table.name,
+			table.timestamp,
+			table.seconds,
+		)
+		if _, err := db.ExecContext(ctx, statement); err != nil {
+			return fmt.Errorf("configure %s retention: %w", table.name, err)
+		}
+	}
+	return nil
 }

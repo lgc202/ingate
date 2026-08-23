@@ -106,6 +106,7 @@ export function PolicyLibraryTable({
 }
 
 function policyContentCount(policy: GovernancePolicy) {
+  if (policy.kind === 'RateLimitPolicy') return '固定时间窗口计数';
   if (policy.kind === 'TokenQuotaPolicy') return `${policy.ruleCount} 个额度周期`;
   if (policy.kind === 'HeaderTransformationPolicy') return `${policy.ruleCount} 条转换规则`;
   if (policy.kind === 'MockResponsePolicy') return `${policy.raw.headers.length} 个响应 Header`;

@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"slices"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -17,6 +19,20 @@ const (
 	// WasmPluginPullAlways 在资源版本变化时重新拉取模块
 	WasmPluginPullAlways WasmPluginPullPolicy = "Always"
 )
+
+// SupportedWasmPluginPackages 返回当前控制器具有强类型策略适配器的插件包
+// 插件源可以独立分发这些包的新版本，但不能仅靠目录文件引入控制器不理解的新策略语义
+func SupportedWasmPluginPackages() []string {
+	return []string{
+		WasmPluginPackageTransformer,
+		WasmPluginPackageMockResponse,
+	}
+}
+
+// IsSupportedWasmPluginPackage 判断插件包是否具有完整的安装、策略和编译链路
+func IsSupportedWasmPluginPackage(packageName string) bool {
+	return slices.Contains(SupportedWasmPluginPackages(), packageName)
+}
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 // +genclient

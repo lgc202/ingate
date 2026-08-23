@@ -13,6 +13,7 @@ import (
 func NewHTTPServer(
 	config *conf.Server,
 	adminAPIProxy *httputil.ReverseProxy,
+	auth *SessionAuth,
 	logger *slog.Logger,
 ) *kratoshttp.Server {
 	httpConfig := config.GetHttp()
@@ -23,9 +24,8 @@ func NewHTTPServer(
 		kratoshttp.Filter(
 			recovery(logger),
 			requestID(),
-			cors(),
 		),
 	)
-	server.HandlePrefix("/", NewRouter(adminAPIProxy, config.GetConsoleDir(), logger))
+	server.HandlePrefix("/", NewRouter(adminAPIProxy, auth, config.GetConsoleDir(), logger))
 	return server
 }

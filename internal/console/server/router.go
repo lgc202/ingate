@@ -10,7 +10,12 @@ import (
 )
 
 // NewRouter 创建控制台静态资源与管理 API 转发路由
-func NewRouter(adminAPIProxy http.Handler, consoleDir string, logger *slog.Logger) http.Handler {
+func NewRouter(
+	adminAPIProxy http.Handler,
+	auth *SessionAuth,
+	consoleDir string,
+	logger *slog.Logger,
+) http.Handler {
 	router := http.NewServeMux()
 	router.HandleFunc("GET /healthz", func(response http.ResponseWriter, request *http.Request) {
 		if err := writeJSON(response, http.StatusOK, map[string]any{
@@ -24,8 +29,9 @@ func NewRouter(adminAPIProxy http.Handler, consoleDir string, logger *slog.Logge
 			logger.Debug("write health response failed", "err", err)
 		}
 	})
-	router.Handle("/api", adminAPIProxy)
-	router.Handle("/api/", adminAPIProxy)
+	router.HandleFunc("/auth/session", auth.HandleSession)
+	router.Handle("/api", auth.Protect(adminAPIProxy))
+	router.Handle("/api/", auth.Protect(adminAPIProxy))
 	router.Handle(
 		"/assets/",
 		http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(consoleDir, "assets")))),

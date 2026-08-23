@@ -20,11 +20,15 @@ import (
 )
 
 // maxRequestBodyBytes 覆盖现有资源和证书配置，同时限制恶意请求造成的内存占用
-const maxRequestBodyBytes int64 = 4 << 20
+const (
+	maxRequestBodyBytes int64 = 4 << 20
+	forwardedUserHeader       = "X-Forwarded-User"
+)
 
 // requestLog 保存一次管理请求需要写入日志的最小信息，不包含请求参数和响应内容
 type requestLog struct {
 	operation string
+	actor     string
 	requestID string
 	code      int
 	reason    string
@@ -39,6 +43,7 @@ func newRequestLog(ctx context.Context, latency time.Duration, err error) reques
 	}
 	if tr, ok := transport.FromServerContext(ctx); ok {
 		entry.operation = tr.Operation()
+		entry.actor = tr.RequestHeader().Get(forwardedUserHeader)
 		entry.requestID = tr.RequestHeader().Get(requestid.Header)
 	}
 	if serviceError := kratoserrors.FromError(err); serviceError != nil {
@@ -60,6 +65,7 @@ func newRequestLog(ctx context.Context, latency time.Duration, err error) reques
 func (l requestLog) write(ctx context.Context, logger *slog.Logger) {
 	attrs := []slog.Attr{
 		slog.String("operation", l.operation),
+		slog.String("actor", l.actor),
 		slog.Int("code", l.code),
 		slog.String("reason", l.reason),
 		slog.Duration("latency", l.latency),

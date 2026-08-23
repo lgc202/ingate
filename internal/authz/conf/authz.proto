@@ -19,7 +19,20 @@ message Data {
     string master = 1;
     string kubeconfig = 2;
   }
+  message Redis {
+    // address 是共享请求计数使用的 Redis 地址
+    string address = 1;
+    // password 为空表示 Redis 未启用认证
+    string password = 2;
+    // database 是请求限流使用的逻辑数据库
+    int32 database = 3;
+    // dial_timeout 限制建立 Redis 连接的时间
+    google.protobuf.Duration dial_timeout = 4;
+    // operation_timeout 限制单次限流计数的时间
+    google.protobuf.Duration operation_timeout = 5;
+  }
   APIServer apiserver = 1;
+  Redis redis = 2;
 }
 
 // Server 定义 Envoy External Authorization 和运维入口

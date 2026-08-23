@@ -28,11 +28,11 @@ func buildHTTPFilters(config listenerFilterConfig) ([]*hcmv3.HttpFilter, error) 
 		}
 		filters = append(filters, filter)
 	}
-	callerAuth, err := buildCallerAuthHTTPFilter()
+	authorization, err := buildAuthorizationHTTPFilter()
 	if err != nil {
 		return nil, err
 	}
-	filters = append(filters, callerAuth)
+	filters = append(filters, authorization)
 	wasmFilters := slices.Clone(config.wasm)
 	slices.SortStableFunc(wasmFilters, func(left, right wasmFilter) int {
 		if order := cmp.Compare(left.phase, right.phase); order != 0 {

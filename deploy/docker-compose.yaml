@@ -167,6 +167,8 @@ services:
     depends_on:
       apiserver:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-authz.yaml:/opt/ingate/authz/configs/config.yaml:ro"
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/kubeconfig.yaml:/opt/ingate/authz/configs/kubeconfig.yaml:ro"
@@ -263,6 +265,9 @@ services:
         condition: service_healthy
     ports:
       - "${INGATE_BIND_ADDRESS:-127.0.0.1}:${INGATE_CONSOLE_PORT:-8001}:8001"
+    environment:
+      INGATE_ADMIN_PASSWORD: "${INGATE_ADMIN_PASSWORD:-}"
+      INGATE_SESSION_SECRET: "${INGATE_SESSION_SECRET:-}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-console.yaml:/opt/ingate/console/configs/config.yaml:ro"
     healthcheck:

@@ -21,6 +21,9 @@ import type {
   PolicyTargetOption,
   PolicyTargetRef,
   PolicyWorkspace,
+  RateLimitPolicy,
+  RateLimitPolicyPayload,
+  RateLimitSubjectType,
   TokenQuotaLimit,
   TokenQuotaPeriod,
   TokenQuotaPolicy,
@@ -44,6 +47,17 @@ interface IPRestrictionPolicyResponse extends Omit<IPRestrictionPolicy, 'version
 }
 
 interface IPRestrictionPolicyListResponse extends CursorPagedResponse { policies?: IPRestrictionPolicyResponse[] }
+
+interface RateLimitPolicyResponse extends Omit<RateLimitPolicy, 'version' | 'targets' | 'subject' | 'limit' | 'status'> {
+  version: string | number;
+  targets: PolicyTargetResponse[];
+  subject: { type: string; headerName: string };
+  limit: { requests: string | number; windowSeconds: string | number };
+  state: string;
+  message: string;
+}
+
+interface RateLimitPolicyListResponse extends CursorPagedResponse { policies?: RateLimitPolicyResponse[] }
 
 interface TokenQuotaLimitResponse {
   period: string;
@@ -100,8 +114,9 @@ interface CallerTokenQuotaUsageResponse {
 interface GetCallerTokenQuotaUsageResponse { usages?: CallerTokenQuotaUsageResponse[] }
 
 export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
-  const [ipRestrictionPolicies, tokenQuotaPolicies, headerTransformationPolicies, mockResponsePolicies, gatewayList, routeList, callers, plugins] = await Promise.all([
+  const [ipRestrictionPolicies, rateLimitPolicies, tokenQuotaPolicies, headerTransformationPolicies, mockResponsePolicies, gatewayList, routeList, callers, plugins] = await Promise.all([
     listIPRestrictionPolicies(),
+    listRateLimitPolicies(),
     listTokenQuotaPolicies(),
     listHeaderTransformationPolicies(),
     listMockResponsePolicies(),
@@ -118,6 +133,19 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
     enabled: policy.enabled,
     summary: ipRestrictionSummary(policy),
     ruleCount: policy.allow.length + policy.deny.length,
+    targets: policy.targets,
+    status: policy.status,
+    createdAt: policy.createdAt,
+    updatedAt: policy.updatedAt,
+    raw: policy,
+  }) satisfies GovernancePolicy), ...rateLimitPolicies.map((policy) => ({
+    id: policy.id,
+    version: policy.version,
+    kind: 'RateLimitPolicy' as const,
+    name: policy.name,
+    enabled: policy.enabled,
+    summary: rateLimitSummary(policy),
+    ruleCount: 1,
     targets: policy.targets,
     status: policy.status,
     createdAt: policy.createdAt,
@@ -166,6 +194,7 @@ export async function getPolicyWorkspace(): Promise<PolicyWorkspace> {
   return {
     policies,
     ipRestrictionPolicies,
+    rateLimitPolicies,
     tokenQuotaPolicies,
     headerTransformationPolicies,
     mockResponsePolicies,
@@ -187,6 +216,39 @@ export async function listIPRestrictionPolicies(): Promise<IPRestrictionPolicy[]
 export async function saveIPRestrictionPolicy(payload: IPRestrictionPolicyPayload): Promise<PolicyMutationResult> {
   await savePolicy('/ip-restriction-policies', policyPayloadToRequest(payload));
   return { message: `IP 访问限制策略已保存：${payload.name}`, changeId: payload.id };
+}
+
+export async function listRateLimitPolicies(): Promise<RateLimitPolicy[]> {
+  const policies = await apiListAllByCursor<RateLimitPolicyListResponse, RateLimitPolicyResponse>(
+    '/rate-limit-policies',
+    (page) => page.policies ?? [],
+  );
+  return policies.map((policy) => ({
+    ...policy,
+    version: Number(policy.version),
+    targets: policy.targets.map(policyTargetFromResponse),
+    subject: {
+      type: rateLimitSubjectFromResponse(policy.subject.type),
+      headerName: policy.subject.headerName,
+    },
+    limit: {
+      requests: Number(policy.limit.requests),
+      windowSeconds: Number(policy.limit.windowSeconds),
+    },
+    status: resourceStatus(policy.state, policy.message),
+  }));
+}
+
+export async function saveRateLimitPolicy(payload: RateLimitPolicyPayload): Promise<PolicyMutationResult> {
+  await savePolicy('/rate-limit-policies', {
+    ...payload,
+    targets: payload.targets.map(trafficPolicyTargetToRequest),
+    subject: {
+      type: `RATE_LIMIT_SUBJECT_TYPE_${payload.subject.type.toUpperCase()}`,
+      headerName: payload.subject.type === 'Header' ? payload.subject.headerName : '',
+    },
+  });
+  return { message: `请求限流策略已保存：${payload.name}`, changeId: payload.id };
 }
 
 export async function listTokenQuotaPolicies(): Promise<TokenQuotaPolicy[]> {
@@ -277,6 +339,9 @@ export function updateGovernancePolicyTargets(policy: GovernancePolicy, targets:
   if (policy.kind === 'IPRestrictionPolicy') {
     return saveIPRestrictionPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, allow: policy.raw.allow, deny: policy.raw.deny });
   }
+  if (policy.kind === 'RateLimitPolicy') {
+    return saveRateLimitPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, subject: policy.raw.subject, limit: policy.raw.limit });
+  }
   if (policy.kind === 'TokenQuotaPolicy') {
     return saveTokenQuotaPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled: policy.raw.enabled, targets: normalized, timeZone: policy.raw.timeZone, limits: policy.raw.limits });
   }
@@ -289,6 +354,11 @@ export function updateGovernancePolicyTargets(policy: GovernancePolicy, targets:
 export async function deleteIPRestrictionPolicy(id: string, version: number): Promise<PolicyMutationResult> {
   await deleteVersionedPolicy('/ip-restriction-policies', id, version);
   return { message: 'IP 访问限制策略已删除' };
+}
+
+export async function deleteRateLimitPolicy(id: string, version: number): Promise<PolicyMutationResult> {
+  await deleteVersionedPolicy('/rate-limit-policies', id, version);
+  return { message: '请求限流策略已删除' };
 }
 
 export async function deleteTokenQuotaPolicy(id: string, version: number): Promise<PolicyMutationResult> {
@@ -309,6 +379,9 @@ export async function deleteMockResponsePolicy(id: string, version: number): Pro
 export function setGovernancePolicyEnabled(policy: GovernancePolicy, enabled: boolean) {
   if (policy.kind === 'IPRestrictionPolicy') {
     return saveIPRestrictionPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, allow: policy.raw.allow, deny: policy.raw.deny });
+  }
+  if (policy.kind === 'RateLimitPolicy') {
+    return saveRateLimitPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, subject: policy.raw.subject, limit: policy.raw.limit });
   }
   if (policy.kind === 'TokenQuotaPolicy') {
     return saveTokenQuotaPolicy({ id: policy.raw.id, version: policy.raw.version, name: policy.raw.name, enabled, targets: policy.raw.targets, timeZone: policy.raw.timeZone, limits: policy.raw.limits });
@@ -336,7 +409,13 @@ function resourceStatus(state: string, message: string): ResourceStatus {
 }
 
 function policyPayloadToRequest(payload: IPRestrictionPolicyPayload) {
-  return { ...payload, targets: payload.targets.map((target) => ({ id: target.id, kind: target.kind === 'Gateway' ? 'POLICY_TARGET_KIND_GATEWAY' : 'POLICY_TARGET_KIND_ROUTE' })) };
+  return { ...payload, targets: payload.targets.map(trafficPolicyTargetToRequest) };
+}
+
+function trafficPolicyTargetToRequest(target: { kind: PolicyTargetKind; id: string }) {
+  if (target.kind === 'Gateway') return { id: target.id, kind: 'POLICY_TARGET_KIND_GATEWAY' };
+  if (target.kind === 'Route') return { id: target.id, kind: 'POLICY_TARGET_KIND_ROUTE' };
+  throw new Error('流量策略仅支持网关或路由目标');
 }
 
 async function savePolicy(basePath: string, payload: Record<string, unknown> & { id?: string }) {
@@ -361,6 +440,13 @@ function tokenQuotaPeriodFromResponse(value: string): TokenQuotaPeriod {
   if (value === 'TOKEN_QUOTA_PERIOD_WEEK') return 'Week';
   if (value === 'TOKEN_QUOTA_PERIOD_MONTH') return 'Month';
   throw new Error(`服务返回了未知的额度周期：${value}`);
+}
+
+function rateLimitSubjectFromResponse(value: string): RateLimitSubjectType {
+  if (value === 'RATE_LIMIT_SUBJECT_TYPE_SHARED') return 'Shared';
+  if (value === 'RATE_LIMIT_SUBJECT_TYPE_IP') return 'IP';
+  if (value === 'RATE_LIMIT_SUBJECT_TYPE_HEADER') return 'Header';
+  throw new Error(`服务返回了未知的限流计数方式：${value}`);
 }
 
 function tokenQuotaPeriodToRequest(value: TokenQuotaPeriod) {
@@ -399,6 +485,22 @@ function formatTokenCount(tokens: number) {
 
 function ipRestrictionSummary(policy: IPRestrictionPolicy) {
   return policy.allow.length > 0 ? `仅允许 ${policy.allow.length} 个 IP / 网段` : `拒绝 ${policy.deny.length} 个 IP / 网段`;
+}
+
+function rateLimitSummary(policy: RateLimitPolicy) {
+  const subject = policy.subject.type === 'Shared'
+    ? '目标共享'
+    : policy.subject.type === 'IP'
+      ? '每个客户端 IP'
+      : `每个 ${policy.subject.headerName} 值`;
+  return `${subject} · ${formatDuration(policy.limit.windowSeconds)}内最多 ${policy.limit.requests} 次请求`;
+}
+
+function formatDuration(seconds: number) {
+  if (seconds % 86_400 === 0) return `${seconds / 86_400} 天`;
+  if (seconds % 3_600 === 0) return `${seconds / 3_600} 小时`;
+  if (seconds % 60 === 0) return `${seconds / 60} 分钟`;
+  return `${seconds} 秒`;
 }
 
 function headerTransformationSummary(policy: HeaderTransformationPolicy) {

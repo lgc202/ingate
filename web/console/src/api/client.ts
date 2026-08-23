@@ -24,8 +24,13 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   }
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
+    credentials: 'same-origin',
     headers,
   });
+
+  if (response.status === 401) {
+    window.dispatchEvent(new Event('ingate:unauthorized'));
+  }
 
   const text = await response.text();
   let parsed: unknown;

@@ -126,6 +126,9 @@ export function PluginSourceEditor({
     <div className="editor-main-stack">
       <section className="form-section">
         <div className="form-section-title"><h3>基本信息</h3></div>
+        <div className="plugin-detail-message">
+          插件源用于独立分发当前 Ingate 已支持插件的新版本。新增插件能力仍需要对应的策略协议和控制器适配，不能仅通过目录文件引入任意 Wasm 配置。
+        </div>
         <div className="policy-editor-grid">
           <label className="plugin-field"><span>插件源名称</span><input className="input" value={draft.name} placeholder="例如：团队插件源" onChange={(event) => onChange({ ...draft, name: event.target.value })} /></label>
           <label className="plugin-field"><span>目录地址</span><input className="input font-mono" type="url" value={draft.url} placeholder="https://plugins.example.com/catalog.json" onChange={(event) => onChange({ ...draft, url: event.target.value })} /></label>
@@ -160,6 +163,10 @@ export function PluginSourceDetail({ source }: { source: PluginSource }) {
       <section className="resource-detail-section space-y-3">
         <h3>目录地址</h3>
         <div className="plugin-module-detail"><code>{source.url}</code></div>
+      </section>
+      <section className="resource-detail-section space-y-3">
+        <h3>兼容范围</h3>
+        <p className="plugin-usage-empty">该来源只能分发当前 Ingate 版本已支持的插件包和兼容版本。</p>
       </section>
     </div>
   );

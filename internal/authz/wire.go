@@ -11,7 +11,6 @@ import (
 	"github.com/lgc202/ingate/internal/authz/biz"
 	"github.com/lgc202/ingate/internal/authz/conf"
 	"github.com/lgc202/ingate/internal/authz/data"
-	dataapiserver "github.com/lgc202/ingate/internal/authz/data/apiserver"
 	"github.com/lgc202/ingate/internal/authz/server"
 	"github.com/lgc202/ingate/internal/authz/service"
 )
@@ -19,6 +18,7 @@ import (
 func wireApp(
 	*conf.Server,
 	*conf.Data_APIServer,
+	*conf.Data_Redis,
 	*slog.Logger,
 	serviceInstanceID,
 ) (*kratos.App, error) {
@@ -27,7 +27,7 @@ func wireApp(
 		biz.ProviderSet,
 		service.ProviderSet,
 		server.ProviderSet,
-		wire.Bind(new(server.Readiness), new(*dataapiserver.CredentialCache)),
+		wire.Bind(new(server.Readiness), new(*data.Readiness)),
 		newKratosApp,
 	))
 }

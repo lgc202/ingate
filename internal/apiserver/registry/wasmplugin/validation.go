@@ -31,6 +31,12 @@ func validatePlugin(plugin *resource.WasmPlugin) field.ErrorList {
 	}
 	if messages := utilvalidation.IsDNS1123Subdomain(spec.Package); len(messages) > 0 {
 		errs = append(errs, field.Invalid(specPath.Child("package"), spec.Package, strings.Join(messages, "; ")))
+	} else if !resource.IsSupportedWasmPluginPackage(spec.Package) {
+		errs = append(errs, field.NotSupported(
+			specPath.Child("package"),
+			spec.Package,
+			resource.SupportedWasmPluginPackages(),
+		))
 	}
 	if spec.Version == "" {
 		errs = append(errs, field.Required(specPath.Child("version"), "version is required"))

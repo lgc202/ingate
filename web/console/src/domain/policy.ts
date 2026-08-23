@@ -2,6 +2,7 @@ import type { ResourceState, ResourceStatus } from './common';
 
 export type GovernancePolicyKind =
   | 'IPRestrictionPolicy'
+  | 'RateLimitPolicy'
   | 'TokenQuotaPolicy'
   | 'HeaderTransformationPolicy'
   | 'MockResponsePolicy';
@@ -27,6 +28,31 @@ export interface IPRestrictionPolicy {
   targets: PolicyTargetRef[];
   allow: string[];
   deny: string[];
+  status: ResourceStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export type RateLimitSubjectType = 'Shared' | 'IP' | 'Header';
+
+export interface RateLimitSubject {
+  type: RateLimitSubjectType;
+  headerName: string;
+}
+
+export interface RateLimit {
+  requests: number;
+  windowSeconds: number;
+}
+
+export interface RateLimitPolicy {
+  id: string;
+  version: number;
+  name: string;
+  enabled: boolean;
+  targets: PolicyTargetRef[];
+  subject: RateLimitSubject;
+  limit: RateLimit;
   status: ResourceStatus;
   createdAt?: string;
   updatedAt?: string;
@@ -126,6 +152,7 @@ interface GovernancePolicyBase {
 
 export type GovernancePolicy = GovernancePolicyBase & (
   | { kind: 'IPRestrictionPolicy'; raw: IPRestrictionPolicy }
+  | { kind: 'RateLimitPolicy'; raw: RateLimitPolicy }
   | { kind: 'TokenQuotaPolicy'; raw: TokenQuotaPolicy }
   | { kind: 'HeaderTransformationPolicy'; raw: HeaderTransformationPolicy }
   | { kind: 'MockResponsePolicy'; raw: MockResponsePolicy }
@@ -134,6 +161,7 @@ export type GovernancePolicy = GovernancePolicyBase & (
 export interface PolicyWorkspace {
   policies: GovernancePolicy[];
   ipRestrictionPolicies: IPRestrictionPolicy[];
+  rateLimitPolicies: RateLimitPolicy[];
   tokenQuotaPolicies: TokenQuotaPolicy[];
   headerTransformationPolicies: HeaderTransformationPolicy[];
   mockResponsePolicies: MockResponsePolicy[];
@@ -159,6 +187,18 @@ type VersionedPolicyIdentity<T extends string | number> = { id: string; version:
 export type IPRestrictionPolicyPayload =
   | IPRestrictionPolicyConfigPayload & CreatePolicyIdentity
   | IPRestrictionPolicyConfigPayload & { enabled: boolean } & VersionedPolicyIdentity<number>;
+
+interface RateLimitPolicyConfigPayload {
+  name: string;
+  enabled: boolean;
+  targets: PolicyTargetPayload[];
+  subject: RateLimitSubject;
+  limit: RateLimit;
+}
+
+export type RateLimitPolicyPayload =
+  | RateLimitPolicyConfigPayload & CreatePolicyIdentity
+  | RateLimitPolicyConfigPayload & VersionedPolicyIdentity<number>;
 
 interface TokenQuotaPolicyConfigPayload {
   name: string;
@@ -199,6 +239,7 @@ export type MockResponsePolicyPayload =
 export function policyKindLabel(kind: GovernancePolicyKind) {
   const labels: Record<GovernancePolicyKind, string> = {
     IPRestrictionPolicy: 'IP 访问限制',
+    RateLimitPolicy: '请求限流',
     TokenQuotaPolicy: 'Token 额度',
     HeaderTransformationPolicy: '请求响应转换',
     MockResponsePolicy: '模拟响应',

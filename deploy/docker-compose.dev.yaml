@@ -53,6 +53,9 @@ services:
 
   console:
     image: ingate/console:${INGATE_IMAGE_TAG:-dev}
+    environment:
+      INGATE_ADMIN_PASSWORD: "${INGATE_ADMIN_PASSWORD:-admin}"
+      INGATE_SESSION_SECRET: "${INGATE_SESSION_SECRET:-ingate-local-development-session-secret}"
     build:
       <<: *ingate-build
       target: console

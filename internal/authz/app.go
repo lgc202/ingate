@@ -13,6 +13,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/authz/conf"
 	dataapiserver "github.com/lgc202/ingate/internal/authz/data/apiserver"
+	dataredis "github.com/lgc202/ingate/internal/authz/data/redis"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
@@ -42,6 +43,7 @@ func NewApp(configFile string) (*App, error) {
 	kratosApp, err := wireApp(
 		bootstrap.GetServer(),
 		bootstrap.GetData().GetApiserver(),
+		bootstrap.GetData().GetRedis(),
 		logger,
 		instanceID,
 	)
@@ -63,6 +65,7 @@ func newKratosApp(
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
 	credentials *dataapiserver.CredentialCache,
+	rates *dataredis.RateCounter,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -71,7 +74,7 @@ func newKratosApp(
 		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		// Caller 凭据缓存和网络服务共享同一进程生命周期，首次同步完成前 /readyz 保持未就绪
-		kratos.Server(httpServer, grpcServer, credentials),
+		// Caller 凭据缓存、请求计数器和网络服务共享同一进程生命周期
+		kratos.Server(httpServer, grpcServer, credentials, rates),
 	)
 }

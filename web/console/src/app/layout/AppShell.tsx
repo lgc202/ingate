@@ -1,10 +1,12 @@
-import { ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { ChevronRight, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { navigation, navigationItems } from '@/app/navigation';
+import { useSession } from '@/features/auth/SessionProvider';
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
+  const { session, signOut } = useSession();
   const location = useLocation();
   const currentPage = navigationItems.find((item) => location.pathname.startsWith(item.to));
   const currentGroup = navigation.find((group) => group.items.some((item) => item.key === currentPage?.key));
@@ -52,9 +54,12 @@ export function AppShell() {
         </nav>
 
         <div className="sidebar-footer">
-          <div className="system-version" title={collapsed ? 'Ingate 0.2.0' : undefined}>
-            <span className="version-monogram">I</span>
-            {!collapsed ? <span>Ingate 0.2.0</span> : null}
+          <div className="session-user" title={collapsed ? session.username : undefined}>
+            <span>{session.username.slice(0, 1).toUpperCase()}</span>
+            {!collapsed ? <strong>{session.username}</strong> : null}
+            {!collapsed ? (
+              <button type="button" aria-label="退出登录" onClick={() => void signOut()}><LogOut /></button>
+            ) : null}
           </div>
         </div>
       </aside>

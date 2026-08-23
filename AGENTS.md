@@ -27,11 +27,13 @@ Resource -> Envoy Config Compiler -> Config Delivery -> xDS Snapshot Cache -> En
 - `ingate-admin-api`：前端管理 API
 - `ingate-apiserver`：声明式资源 API
 - `ingate-controller`：资源状态收敛、Envoy 配置编译和 xDS 服务
+- `ingate-authz`：调用方访问校验和共享请求限流
+- `ingate-ai-extproc`：AI 模型选路、协议转换和 Token 额度执行
 - `ingate-als`：接收 Envoy ALS 请求记录并可靠投递到 Kafka
 - `ingate-analytics`：消费请求记录、写入 ClickHouse 并提供分析查询
 - `Envoy`：唯一数据平面
 - `etcd`：声明式资源持久化，仅由 ingate-apiserver 访问
-- `Redis`：为后续内置治理能力保留的系统组件，当前不参与流量执行
+- `Redis`：请求限流和调用方 Token 额度的共享实时计数
 - `Kafka`：请求记录采集与分析之间的可靠消息链路
 - `ClickHouse`：请求明细和流量分析存储
 
@@ -76,9 +78,9 @@ AI 网关的产品对象保持克制：
 - 限流和 IP 访问限制保持强类型资源，不让用户编辑数据面实现细节。
 - 内置治理能力不建模为用户创建的通用插件资源或插件绑定资源；用户配置的是对应的强类型 Policy。
 - 强类型 Policy 通过自身的 `targetRefs[]` 直接引用 Gateway 或 Route，不再使用独立 `PolicyBinding`。`targetRefs[]` 允许为空，表示策略已保存但当前不应用到流量。
-- RateLimitPolicy 当前只保留资源协议和 CRUD，Controller 不生成执行配置，直到数据面实现重新确定。
+- RateLimitPolicy 由 Controller 展开到 Envoy Route 的官方 `ext_authz` 上下文，`ingate-authz` 使用 Redis Lua 原子执行跨实例共享的固定窗口计数。
 - IPRestrictionPolicy 编译为 Envoy 官方 `envoy.filters.http.rbac` Route 配置，不依赖外部存储。
-- Redis 是系统组件，不建模为用户资源。RateLimitPolicy 不向用户暴露 Local/Global 计数模式或限流算法。
+- Redis 是系统组件，不建模为用户资源。RateLimitPolicy 不向用户暴露 Local/Global 计数模式或可变限流算法。
 
 ## Go 版本
 
@@ -170,7 +172,7 @@ AI 网关的产品对象保持克制：
 
 ### 治理策略执行
 
-- 当前已落地执行链路保留 `RateLimitPolicy` 和 `IPRestrictionPolicy`；删除 `PolicyBinding` 和 `RedisStore`，鉴权等治理能力后续重新设计后再加入。
+- 当前已落地执行链路包括 Caller 授权、`RateLimitPolicy` 和 `IPRestrictionPolicy`；不恢复 `PolicyBinding` 或用户可配置的 `RedisStore`。
 - 用户协议和 ingate-admin-api 不能暴露为普通插件资源、插件绑定资源、Envoy filter 或 RateLimitService descriptor。
 - 治理执行配置由 Controller 自动编译并通过 Envoy xDS 生效；用户不需要安装数据面插件，也不感知 filter 顺序或内部服务地址。
 - `RateLimitPolicy` 和 `IPRestrictionPolicy` 通过 `targetRefs[]` 表达策略应用到哪些 Gateway 或 Route；策略配置和目标引用都由对应强类型 Policy 承载。

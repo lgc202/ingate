@@ -5,6 +5,9 @@ export function PolicyInputField({
   value,
   placeholder,
   type = 'text',
+  min,
+  max,
+  step,
   error,
   onChange,
 }: {
@@ -12,6 +15,9 @@ export function PolicyInputField({
   value: string;
   placeholder?: string;
   type?: string;
+  min?: string;
+  max?: string;
+  step?: string;
   error?: string;
   onChange: (value: string) => void;
 }) {
@@ -24,6 +30,9 @@ export function PolicyInputField({
         id={inputID}
         value={value}
         type={type}
+        min={min}
+        max={max}
+        step={step}
         placeholder={placeholder}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? errorID : undefined}

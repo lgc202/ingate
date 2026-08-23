@@ -27,6 +27,24 @@ fail() {
   exit 1
 }
 
+random_hex() {
+  od -An -N "$1" -tx1 /dev/urandom | tr -d '[:space:]'
+}
+
+set_env() {
+  local key="$1"
+  local value="$2"
+  local file="$3"
+  local temporary="${file}.tmp"
+  awk -v key="$key" -v value="$value" '
+    BEGIN { found = 0 }
+    index($0, key "=") == 1 { print key "=" value; found = 1; next }
+    { print }
+    END { if (!found) print key "=" value }
+  ' "$file" > "$temporary"
+  mv "$temporary" "$file"
+}
+
 if [[ $# -gt 0 && "$1" != -* ]]; then
   DESTINATION="$1"
   shift
@@ -105,6 +123,11 @@ fi
 
 tar -xzf "$TEMP_DIR/$ARCHIVE_NAME" -C "$DESTINATION" --strip-components=1
 
+ADMIN_PASSWORD="$(random_hex 12)"
+SESSION_SECRET="$(random_hex 32)"
+set_env INGATE_ADMIN_PASSWORD "$ADMIN_PASSWORD" "$DESTINATION/.env"
+set_env INGATE_SESSION_SECRET "$SESSION_SECRET" "$DESTINATION/.env"
+
 if [[ "$START_AFTER_INSTALL" == true ]]; then
   "$DESTINATION/bin/start.sh"
 fi
@@ -116,6 +139,8 @@ Ingate $INSTALLED_VERSION installed successfully
 
 Installation:  $DESTINATION
 Console:       http://127.0.0.1:8001
+Username:      admin
+Password:      $ADMIN_PASSWORD
 Gateway HTTP:  http://127.0.0.1:8080
 Gateway HTTPS: https://127.0.0.1:8443
 
