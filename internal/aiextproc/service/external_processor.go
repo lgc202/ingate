@@ -124,7 +124,7 @@ func (p *ExternalProcessor) settleQuota(ctx context.Context, request *requestSta
 	// Redis 使用有符号整数计数。厂商返回值超过 int64 不可能是有效的单次模型用量，
 	// 必须在外部协议边界拒绝转换，避免溢出后反向扣减额度。
 	if tokens > math.MaxInt64 {
-		p.logger.Error("settle token quota", "err", "provider token usage exceeds int64")
+		p.logger.Error("settle token quota", "err", fmt.Errorf("provider token usage %d exceeds int64", tokens))
 		return
 	}
 	if err := p.quotas.Charge(ctx, session, int64(tokens)); err != nil {

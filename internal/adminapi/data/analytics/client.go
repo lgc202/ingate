@@ -47,7 +47,7 @@ func NewClient(config *conf.Data, logger *slog.Logger) (*googlegrpc.ClientConn, 
 	}
 	cleanup := func() {
 		if err := connection.Close(); err != nil {
-			logger.Error("close Analytics gRPC client failed", "error", err)
+			logger.Error("close Analytics gRPC client failed", "err", err)
 		}
 	}
 	return connection, cleanup, nil

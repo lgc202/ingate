@@ -40,7 +40,7 @@ func NewDiskQueue(
 	}
 	cleanup := func() {
 		if err := queue.Close(); err != nil {
-			logger.Error("close disk queue failed", "error", err)
+			logger.Error("close disk queue failed", "err", err)
 		}
 	}
 	return queue, cleanup, nil

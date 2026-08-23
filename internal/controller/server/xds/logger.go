@@ -23,7 +23,8 @@ func (l *slogLogger) Debugf(format string, args ...any) {
 }
 
 func (l *slogLogger) Infof(format string, args ...any) {
-	l.logger.Info("go-control-plane", "message", fmt.Sprintf(format, args...))
+	// go-control-plane 的 INFO 主要是 xDS 流建立和资源推送明细，默认输出会随 Envoy 实例数增长
+	l.logger.Debug("go-control-plane", "message", fmt.Sprintf(format, args...))
 }
 
 func (l *slogLogger) Warnf(format string, args ...any) {
@@ -31,5 +32,5 @@ func (l *slogLogger) Warnf(format string, args ...any) {
 }
 
 func (l *slogLogger) Errorf(format string, args ...any) {
-	l.logger.Error("go-control-plane", "error", fmt.Errorf(format, args...))
+	l.logger.Error("go-control-plane", "err", fmt.Errorf(format, args...))
 }

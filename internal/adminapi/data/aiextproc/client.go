@@ -33,7 +33,7 @@ func NewClient(config *conf.Data, logger *slog.Logger) (*Client, func(), error) 
 	}
 	cleanup := func() {
 		if err := connection.Close(); err != nil {
-			logger.Error("close AI ExtProc gRPC client failed", "error", err)
+			logger.Error("close AI ExtProc gRPC client failed", "err", err)
 		}
 	}
 	return &Client{usage: aiextprocv1.NewTokenQuotaUsageServiceClient(connection)}, cleanup, nil

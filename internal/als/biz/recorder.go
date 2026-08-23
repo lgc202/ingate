@@ -134,7 +134,7 @@ func (r *Recorder) Write(ctx context.Context, records []*alsv1.RequestRecord) er
 		return fmt.Errorf("write request records: %w", errors.Join(kafkaErr, queueErr))
 	}
 	if r.spooling.CompareAndSwap(false, true) {
-		r.logger.Warn("Kafka unavailable, request records switched to disk queue")
+		r.logger.Warn("Kafka unavailable, request records switched to disk queue", "err", kafkaErr)
 	}
 	return nil
 }

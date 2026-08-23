@@ -174,7 +174,7 @@ func (c *Controller) processNextWorkItem(ctx context.Context) bool {
 			c.queue.Forget(key)
 			return false
 		}
-		c.logger.Error("reconcile work item failed", "queue_key", key, "error", err)
+		c.logger.Error("reconcile work item failed", "queue_key", key, "err", err)
 		c.queue.AddRateLimited(key)
 		return true
 	}

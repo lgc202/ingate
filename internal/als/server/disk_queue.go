@@ -12,14 +12,15 @@ import (
 
 // DiskQueueReplayer 周期性把 Kafka 故障期间写入磁盘队列的请求记录重新投递到 Kafka
 type DiskQueueReplayer struct {
-	recorder  *biz.Recorder
-	logger    *slog.Logger
-	interval  time.Duration
-	batchSize int
-	done      chan struct{}
-	mu        sync.Mutex
-	cancel    context.CancelFunc
-	stopping  bool
+	recorder     *biz.Recorder
+	logger       *slog.Logger
+	interval     time.Duration
+	batchSize    int
+	done         chan struct{}
+	mu           sync.Mutex
+	cancel       context.CancelFunc
+	stopping     bool
+	replayFailed bool
 }
 
 // NewDiskQueueReplayer 创建磁盘队列回放任务
@@ -69,11 +70,14 @@ func (r *DiskQueueReplayer) replay(ctx context.Context) {
 	for {
 		replayed, err := r.recorder.ReplayBatch(ctx, r.batchSize)
 		if err != nil {
-			if ctx.Err() == nil {
-				r.logger.Warn("disk queue replay failed", "error", err)
+			if ctx.Err() == nil && !r.replayFailed {
+				// 故障状态没有变化时不按一秒重试周期重复打印相同告警
+				r.logger.Warn("disk queue replay failed", "err", err)
 			}
+			r.replayFailed = true
 			return
 		}
+		r.replayFailed = false
 		if !replayed {
 			return
 		}
