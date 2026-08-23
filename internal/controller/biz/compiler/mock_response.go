@@ -53,7 +53,7 @@ func (c *compilation) compileMockResponsePolicies() map[string]compiledMockRespo
 				SeverityError,
 				gatewayv1.KindMockResponsePolicy,
 				policyID,
-				ReasonInvalidReference,
+				ReasonArtifactUnavailable,
 				fmt.Sprintf("mock response policy %q cannot use plugin package %q because its module is unavailable", policyID, plugin.Spec.Package),
 			)
 			continue

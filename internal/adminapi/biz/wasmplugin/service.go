@@ -23,7 +23,7 @@ type Repository interface {
 
 // UsageFinder 定义卸载插件前需要的策略引用查询能力
 type UsageFinder interface {
-	Find(ctx context.Context, packageName string) (*biz.PluginPolicyUsage, error)
+	List(ctx context.Context, packageName string) ([]biz.PluginPolicyUsage, error)
 }
 
 // Service 协调插件包唯一性、升级和卸载约束
@@ -80,6 +80,11 @@ func (s *Service) List(ctx context.Context, page biz.PageRequest) (biz.PageResul
 // Get 查询单个已安装插件
 func (s *Service) Get(ctx context.Context, pluginID string) (*resource.WasmPlugin, error) {
 	return s.repository.Get(ctx, pluginID)
+}
+
+// Usages 查询仍依赖指定插件包的强类型策略
+func (s *Service) Usages(ctx context.Context, packageName string) ([]biz.PluginPolicyUsage, error) {
+	return s.usage.List(ctx, packageName)
 }
 
 // Install 安装指定来源的目录插件；制品信息由服务端目录决定
@@ -159,10 +164,11 @@ func (s *Service) ensureIdentityAvailable(ctx context.Context, pluginID, display
 }
 
 func (s *Service) ensureNotUsed(ctx context.Context, plugin *resource.WasmPlugin) error {
-	usage, err := s.usage.Find(ctx, plugin.Spec.Package)
-	if err != nil || usage == nil {
+	usages, err := s.usage.List(ctx, plugin.Spec.Package)
+	if err != nil || len(usages) == 0 {
 		return err
 	}
+	usage := usages[0]
 	return biz.NewRuleViolation(fmt.Sprintf(
 		"插件 %q 仍被%s %q 使用，请先删除策略",
 		plugin.Spec.DisplayName,

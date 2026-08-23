@@ -28,9 +28,10 @@ func pluginResponse(
 	sourceName string,
 	latestVersion string,
 	upgradeAvailable bool,
+	usages []biz.PluginPolicyUsage,
 ) *adminv1.WasmPlugin {
 	status := biz.WasmPluginStatus(plugin.Generation, plugin.Status.Conditions)
-	return &adminv1.WasmPlugin{
+	response := &adminv1.WasmPlugin{
 		Id:               plugin.Name,
 		SourceId:         plugin.Spec.SourceID,
 		SourceName:       sourceName,
@@ -48,6 +49,14 @@ func pluginResponse(
 		LatestVersion:    latestVersion,
 		UpgradeAvailable: upgradeAvailable,
 	}
+	for _, usage := range usages {
+		response.Usages = append(response.Usages, &adminv1.WasmPluginPolicyUsage{
+			PolicyId:   usage.PolicyID,
+			PolicyKind: string(usage.PolicyKind),
+			PolicyName: usage.DisplayName,
+		})
+	}
+	return response
 }
 
 func pluginStatusMessage(status biz.ResourceStatus) string {

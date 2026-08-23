@@ -9,6 +9,12 @@ export type WasmPluginPullPolicy =
   | 'WASM_PLUGIN_PULL_POLICY_IF_NOT_PRESENT'
   | 'WASM_PLUGIN_PULL_POLICY_ALWAYS';
 
+export interface WasmPluginPolicyUsage {
+  policyID: string;
+  policyKind: 'HeaderTransformationPolicy' | 'MockResponsePolicy';
+  policyName: string;
+}
+
 export interface WasmPlugin {
   id: string;
   sourceID: string;
@@ -26,6 +32,7 @@ export interface WasmPlugin {
   updatedAt: string;
   latestVersion: string;
   upgradeAvailable: boolean;
+  usages: WasmPluginPolicyUsage[];
 }
 
 export interface PluginCatalogItem {
