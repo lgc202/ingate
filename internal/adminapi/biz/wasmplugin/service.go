@@ -88,7 +88,7 @@ func (s *Service) Install(ctx context.Context, sourceID, packageName string) (*r
 	if !ok {
 		return nil, biz.NewRuleViolation(fmt.Sprintf("插件包 %q 不在选定插件源中", packageName))
 	}
-	if err := s.ensureIdentityAvailable(ctx, "", spec.SourceID, spec.DisplayName, spec.Package); err != nil {
+	if err := s.ensureIdentityAvailable(ctx, "", spec.DisplayName, spec.Package); err != nil {
 		return nil, err
 	}
 	return s.repository.Create(ctx, uuid.NewString(), spec)
@@ -142,7 +142,7 @@ func (s *Service) Delete(ctx context.Context, pluginID string, version int64) er
 	return nil
 }
 
-func (s *Service) ensureIdentityAvailable(ctx context.Context, pluginID, sourceID, displayName, packageName string) error {
+func (s *Service) ensureIdentityAvailable(ctx context.Context, pluginID, displayName, packageName string) error {
 	return biz.VisitPages(ctx, s.repository.ListPage, func(plugin resource.WasmPlugin) (bool, error) {
 		if plugin.Name == pluginID {
 			return false, nil
@@ -150,8 +150,9 @@ func (s *Service) ensureIdentityAvailable(ctx context.Context, pluginID, sourceI
 		if plugin.Spec.DisplayName == displayName {
 			return true, biz.NewRuleViolation(fmt.Sprintf("插件名称 %q 已存在", displayName))
 		}
-		if plugin.Spec.SourceID == sourceID && plugin.Spec.Package == packageName {
-			return true, biz.NewRuleViolation(fmt.Sprintf("插件包 %q 已安装，请直接升级现有插件", packageName))
+		// 包名是策略选择执行插件的稳定身份，来源不同也不能同时安装同一个包
+		if plugin.Spec.Package == packageName {
+			return true, biz.NewRuleViolation(fmt.Sprintf("插件包 %q 已安装；如需切换来源，请先卸载现有插件", packageName))
 		}
 		return false, nil
 	})
