@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package ingate.assistant.conf;
+
+import "google/protobuf/duration.proto";
+
+option go_package = "github.com/lgc202/ingate/internal/assistant/conf;conf";
+
+// Bootstrap 定义 ingate-assistant 的完整进程配置
+message Bootstrap {
+  Server server = 1;
+  Data data = 2;
+  Model model = 3;
+  Stream stream = 4;
+  Logging logging = 5;
+}
+
+message Server {
+  message HTTP {
+    string addr = 1;
+    google.protobuf.Duration timeout = 2;
+  }
+  HTTP http = 1;
+  google.protobuf.Duration shutdown_timeout = 2;
+}
+
+message Data {
+  message MySQL {
+    string address = 1;
+    string database = 2;
+    string username = 3;
+    string password = 4;
+    google.protobuf.Duration dial_timeout = 5;
+    uint32 max_open_connections = 6;
+    uint32 max_idle_connections = 7;
+    google.protobuf.Duration connection_max_lifetime = 8;
+  }
+  message Redis {
+    string address = 1;
+    string password = 2;
+    int32 database = 3;
+    google.protobuf.Duration dial_timeout = 4;
+    google.protobuf.Duration read_timeout = 5;
+    google.protobuf.Duration write_timeout = 6;
+    uint32 pool_size = 7;
+  }
+  MySQL mysql = 1;
+  Redis redis = 2;
+}
+
+message Model {
+  string base_url = 1;
+  string api_key = 2;
+  string name = 3;
+  google.protobuf.Duration timeout = 4;
+  uint32 max_output_tokens = 5;
+  uint32 max_iterations = 6;
+  string instruction = 7;
+}
+
+message Stream {
+  google.protobuf.Duration retention = 1;
+  uint32 max_events = 2;
+  google.protobuf.Duration read_block = 3;
+}
+
+message Logging {
+  string format = 1;
+  string level = 2;
+  bool add_source = 3;
+}

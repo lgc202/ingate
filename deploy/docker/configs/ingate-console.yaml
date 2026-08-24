@@ -15,6 +15,8 @@ server:
 data:
   admin_api:
     base_url: "http://admin-api:8002"
+  assistant:
+    base_url: "http://assistant:8003"
 
 logging:
   format: "json"

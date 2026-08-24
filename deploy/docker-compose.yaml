@@ -33,6 +33,23 @@ services:
       retries: 20
       start_period: 5s
 
+  mysql:
+    image: mysql:8.4.11
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ingate
+      MYSQL_USER: ingate
+      MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
+      MYSQL_ROOT_PASSWORD: "${INGATE_MYSQL_ROOT_PASSWORD:-ingate-root-dev}"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
   kafka:
     image: apache/kafka:4.0.2
     restart: unless-stopped
@@ -257,6 +274,42 @@ services:
       retries: 20
       start_period: 10s
 
+  assistant-migrate:
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-assistant:${INGATE_VERSION:-latest}"
+    command: ["--config", "/opt/ingate/assistant/configs/config.yaml", "--migrate"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      INGATE_MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-assistant.yaml:/opt/ingate/assistant/configs/config.yaml:ro"
+    restart: "no"
+
+  assistant:
+    image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-assistant:${INGATE_VERSION:-latest}"
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      assistant-migrate:
+        condition: service_completed_successfully
+    environment:
+      INGATE_MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
+      INGATE_ASSISTANT_MODEL_BASE_URL: "${INGATE_ASSISTANT_MODEL_BASE_URL:-}"
+      INGATE_ASSISTANT_MODEL_API_KEY: "${INGATE_ASSISTANT_MODEL_API_KEY:-}"
+      INGATE_ASSISTANT_MODEL_NAME: "${INGATE_ASSISTANT_MODEL_NAME:-}"
+    volumes:
+      - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-assistant.yaml:/opt/ingate/assistant/configs/config.yaml:ro"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8003/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
   console:
     image: "${INGATE_IMAGE_REGISTRY:-ghcr.io/lgc202}/ingate-console:${INGATE_VERSION:-latest}"
     restart: unless-stopped
@@ -284,4 +337,5 @@ volumes:
   controller-wasm:
   etcd-data:
   kafka-data:
+  mysql-data:
   redis-data:

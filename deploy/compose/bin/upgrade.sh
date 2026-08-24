@@ -42,6 +42,12 @@ rm -rf "$ROOT/bin" "$ROOT/docker"
 cp "$PACKAGE/VERSION" "$PACKAGE/compose.yaml" "$PACKAGE/README.md" "$ROOT/"
 cp -R "$PACKAGE/bin" "$PACKAGE/docker" "$ROOT/"
 set_env_value INGATE_VERSION "$TARGET_VERSION"
+if [[ -z "$(env_value INGATE_MYSQL_PASSWORD)" ]]; then
+  set_env_value INGATE_MYSQL_PASSWORD "$(random_hex 24)"
+fi
+if [[ -z "$(env_value INGATE_MYSQL_ROOT_PASSWORD)" ]]; then
+  set_env_value INGATE_MYSQL_ROOT_PASSWORD "$(random_hex 24)"
+fi
 
 if ! "${COMPOSE[@]}" pull || ! "${COMPOSE[@]}" up -d --wait --wait-timeout "${INGATE_WAIT_TIMEOUT:-300}"; then
   echo "Upgrade failed. Restore the previous version with:" >&2

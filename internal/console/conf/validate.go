@@ -28,10 +28,13 @@ func (c *Bootstrap) Validate() error {
 	if err := validateAuthentication(c.GetServer().GetAuthentication()); err != nil {
 		return err
 	}
-	if c.GetData() == nil || c.GetData().GetAdminApi() == nil {
-		return errors.New("admin API config is required")
+	if c.GetData() == nil || c.GetData().GetAdminApi() == nil || c.GetData().GetAssistant() == nil {
+		return errors.New("admin API and assistant config are required")
 	}
-	if err := validateAdminAPIURL(c.GetData().GetAdminApi().GetBaseUrl()); err != nil {
+	if err := validateServiceURL("admin API", c.GetData().GetAdminApi().GetBaseUrl()); err != nil {
+		return err
+	}
+	if err := validateServiceURL("assistant", c.GetData().GetAssistant().GetBaseUrl()); err != nil {
 		return err
 	}
 	if c.GetLogging() == nil {
@@ -69,13 +72,13 @@ func validateAuthentication(config *Server_Authentication) error {
 	return nil
 }
 
-func validateAdminAPIURL(value string) error {
+func validateServiceURL(service, value string) error {
 	target, err := url.Parse(strings.TrimSpace(value))
 	if err != nil {
-		return fmt.Errorf("parse admin API base URL: %w", err)
+		return fmt.Errorf("parse %s base URL: %w", service, err)
 	}
 	if target.Host == "" || target.Scheme != "http" && target.Scheme != "https" {
-		return errors.New("admin API base URL must be an absolute HTTP URL")
+		return fmt.Errorf("%s base URL must be an absolute HTTP URL", service)
 	}
 	return nil
 }

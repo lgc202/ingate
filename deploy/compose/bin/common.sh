@@ -17,6 +17,7 @@ readonly PERSISTENT_VOLUMES=(
   controller-wasm
   etcd-data
   kafka-data
+  mysql-data
   redis-data
 )
 
@@ -46,6 +47,10 @@ set_env_value() {
     END { if (!found) print key "=" value }
   ' "$ROOT/.env" > "$temporary"
   mv "$temporary" "$ROOT/.env"
+}
+
+random_hex() {
+  od -An -N "$1" -tx1 /dev/urandom | tr -d '[:space:]'
 }
 
 validate_tar_archive() {

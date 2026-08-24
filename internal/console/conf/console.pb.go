@@ -163,7 +163,9 @@ func (x *Server) GetAuthentication() *Server_Authentication {
 type Data struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// admin_api 接收控制台发起的管理请求
-	AdminApi      *Data_AdminAPI `protobuf:"bytes,1,opt,name=admin_api,json=adminApi,proto3" json:"admin_api,omitempty"`
+	AdminApi *Data_AdminAPI `protobuf:"bytes,1,opt,name=admin_api,json=adminApi,proto3" json:"admin_api,omitempty"`
+	// assistant 接收运维助手的会话与流式请求
+	Assistant     *Data_Assistant `protobuf:"bytes,2,opt,name=assistant,proto3" json:"assistant,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -201,6 +203,13 @@ func (*Data) Descriptor() ([]byte, []int) {
 func (x *Data) GetAdminApi() *Data_AdminAPI {
 	if x != nil {
 		return x.AdminApi
+	}
+	return nil
+}
+
+func (x *Data) GetAssistant() *Data_Assistant {
+	if x != nil {
+		return x.Assistant
 	}
 	return nil
 }
@@ -458,6 +467,51 @@ func (x *Data_AdminAPI) GetBaseUrl() string {
 	return ""
 }
 
+type Data_Assistant struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// base_url 是 ingate-assistant 的内部 HTTP 地址
+	BaseUrl       string `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Data_Assistant) Reset() {
+	*x = Data_Assistant{}
+	mi := &file_console_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Data_Assistant) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Data_Assistant) ProtoMessage() {}
+
+func (x *Data_Assistant) ProtoReflect() protoreflect.Message {
+	mi := &file_console_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Data_Assistant.ProtoReflect.Descriptor instead.
+func (*Data_Assistant) Descriptor() ([]byte, []int) {
+	return file_console_proto_rawDescGZIP(), []int{2, 1}
+}
+
+func (x *Data_Assistant) GetBaseUrl() string {
+	if x != nil {
+		return x.BaseUrl
+	}
+	return ""
+}
+
 var File_console_proto protoreflect.FileDescriptor
 
 const file_console_proto_rawDesc = "" +
@@ -483,10 +537,13 @@ const file_console_proto_rawDesc = "" +
 	"\rsecure_cookie\x18\x06 \x01(\bR\fsecureCookie\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"n\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xd9\x01\n" +
 	"\x04Data\x12?\n" +
-	"\tadmin_api\x18\x01 \x01(\v2\".ingate.console.conf.Data.AdminAPIR\badminApi\x1a%\n" +
+	"\tadmin_api\x18\x01 \x01(\v2\".ingate.console.conf.Data.AdminAPIR\badminApi\x12A\n" +
+	"\tassistant\x18\x02 \x01(\v2#.ingate.console.conf.Data.AssistantR\tassistant\x1a%\n" +
 	"\bAdminAPI\x12\x19\n" +
+	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\x1a&\n" +
+	"\tAssistant\x12\x19\n" +
 	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\"V\n" +
 	"\aLogging\x12\x16\n" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
@@ -506,7 +563,7 @@ func file_console_proto_rawDescGZIP() []byte {
 	return file_console_proto_rawDescData
 }
 
-var file_console_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_console_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_console_proto_goTypes = []any{
 	(*Bootstrap)(nil),             // 0: ingate.console.conf.Bootstrap
 	(*Server)(nil),                // 1: ingate.console.conf.Server
@@ -515,23 +572,25 @@ var file_console_proto_goTypes = []any{
 	(*Server_Authentication)(nil), // 4: ingate.console.conf.Server.Authentication
 	(*Server_HTTP)(nil),           // 5: ingate.console.conf.Server.HTTP
 	(*Data_AdminAPI)(nil),         // 6: ingate.console.conf.Data.AdminAPI
-	(*durationpb.Duration)(nil),   // 7: google.protobuf.Duration
+	(*Data_Assistant)(nil),        // 7: ingate.console.conf.Data.Assistant
+	(*durationpb.Duration)(nil),   // 8: google.protobuf.Duration
 }
 var file_console_proto_depIdxs = []int32{
-	1, // 0: ingate.console.conf.Bootstrap.server:type_name -> ingate.console.conf.Server
-	2, // 1: ingate.console.conf.Bootstrap.data:type_name -> ingate.console.conf.Data
-	3, // 2: ingate.console.conf.Bootstrap.logging:type_name -> ingate.console.conf.Logging
-	5, // 3: ingate.console.conf.Server.http:type_name -> ingate.console.conf.Server.HTTP
-	7, // 4: ingate.console.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	4, // 5: ingate.console.conf.Server.authentication:type_name -> ingate.console.conf.Server.Authentication
-	6, // 6: ingate.console.conf.Data.admin_api:type_name -> ingate.console.conf.Data.AdminAPI
-	7, // 7: ingate.console.conf.Server.Authentication.session_ttl:type_name -> google.protobuf.Duration
-	7, // 8: ingate.console.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	9, // [9:9] is the sub-list for method output_type
-	9, // [9:9] is the sub-list for method input_type
-	9, // [9:9] is the sub-list for extension type_name
-	9, // [9:9] is the sub-list for extension extendee
-	0, // [0:9] is the sub-list for field type_name
+	1,  // 0: ingate.console.conf.Bootstrap.server:type_name -> ingate.console.conf.Server
+	2,  // 1: ingate.console.conf.Bootstrap.data:type_name -> ingate.console.conf.Data
+	3,  // 2: ingate.console.conf.Bootstrap.logging:type_name -> ingate.console.conf.Logging
+	5,  // 3: ingate.console.conf.Server.http:type_name -> ingate.console.conf.Server.HTTP
+	8,  // 4: ingate.console.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	4,  // 5: ingate.console.conf.Server.authentication:type_name -> ingate.console.conf.Server.Authentication
+	6,  // 6: ingate.console.conf.Data.admin_api:type_name -> ingate.console.conf.Data.AdminAPI
+	7,  // 7: ingate.console.conf.Data.assistant:type_name -> ingate.console.conf.Data.Assistant
+	8,  // 8: ingate.console.conf.Server.Authentication.session_ttl:type_name -> google.protobuf.Duration
+	8,  // 9: ingate.console.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_console_proto_init() }
@@ -545,7 +604,7 @@ func file_console_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_console_proto_rawDesc), len(file_console_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

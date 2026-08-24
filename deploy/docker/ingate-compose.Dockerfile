@@ -25,6 +25,13 @@ COPY _output/docker/bin/ingate-admin-api /opt/ingate/admin-api/bin/ingate-admin-
 ENTRYPOINT ["/opt/ingate/admin-api/bin/ingate-admin-api"]
 CMD ["--config", "/opt/ingate/admin-api/configs/config.yaml"]
 
+FROM service-runtime AS assistant
+
+COPY _output/docker/bin/ingate-assistant /opt/ingate/assistant/bin/ingate-assistant
+
+ENTRYPOINT ["/opt/ingate/assistant/bin/ingate-assistant"]
+CMD ["--config", "/opt/ingate/assistant/configs/config.yaml"]
+
 FROM service-runtime AS als
 
 COPY _output/docker/bin/ingate-als /opt/ingate/als/bin/ingate-als

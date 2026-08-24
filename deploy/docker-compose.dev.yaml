@@ -51,6 +51,18 @@ services:
       <<: *ingate-build
       target: admin-api
 
+  assistant-migrate:
+    image: ingate/assistant:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: assistant
+
+  assistant:
+    image: ingate/assistant:${INGATE_IMAGE_TAG:-dev}
+    build:
+      <<: *ingate-build
+      target: assistant
+
   console:
     image: ingate/console:${INGATE_IMAGE_TAG:-dev}
     environment:

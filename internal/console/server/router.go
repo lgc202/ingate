@@ -12,6 +12,7 @@ import (
 // NewRouter 创建控制台静态资源与管理 API 转发路由
 func NewRouter(
 	adminAPIProxy http.Handler,
+	assistantProxy http.Handler,
 	auth *SessionAuth,
 	consoleDir string,
 	logger *slog.Logger,
@@ -32,6 +33,8 @@ func NewRouter(
 	router.HandleFunc("/auth/session", auth.HandleSession)
 	router.Handle("/api", auth.Protect(adminAPIProxy))
 	router.Handle("/api/", auth.Protect(adminAPIProxy))
+	router.Handle("/assistant/v1", auth.Protect(assistantProxy))
+	router.Handle("/assistant/v1/", auth.Protect(assistantProxy))
 	router.Handle(
 		"/assets/",
 		http.StripPrefix("/assets/", http.FileServer(http.Dir(filepath.Join(consoleDir, "assets")))),

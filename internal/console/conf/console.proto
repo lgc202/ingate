@@ -54,8 +54,14 @@ message Data {
     // base_url 是 ingate-admin-api 的内部 HTTP 地址
     string base_url = 1;
   }
+  message Assistant {
+    // base_url 是 ingate-assistant 的内部 HTTP 地址
+    string base_url = 1;
+  }
   // admin_api 接收控制台发起的管理请求
   AdminAPI admin_api = 1;
+  // assistant 接收运维助手的会话与流式请求
+  Assistant assistant = 2;
 }
 
 // Logging 定义结构化日志格式与级别

@@ -1,0 +1,113 @@
+syntax = "proto3";
+
+package ingate.assistant.v1;
+
+import "buf/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/lgc202/ingate/api/assistant/v1;v1";
+
+// ConversationService 提供运维助手的会话与消息查询接口
+service ConversationService {
+  rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse) {
+    option (google.api.http) = {get: "/assistant/v1/conversations"};
+  }
+  rpc GetConversation(GetConversationRequest) returns (Conversation) {
+    option (google.api.http) = {get: "/assistant/v1/conversations/{id}"};
+  }
+  rpc CreateConversation(CreateConversationRequest) returns (Conversation) {
+    option (google.api.http) = {
+      post: "/assistant/v1/conversations"
+      body: "*"
+    };
+  }
+  rpc DeleteConversation(DeleteConversationRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {delete: "/assistant/v1/conversations/{id}"};
+  }
+  rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse) {
+    option (google.api.http) = {get: "/assistant/v1/conversations/{conversation_id}/messages"};
+  }
+  rpc GetExecution(GetExecutionRequest) returns (Execution) {
+    option (google.api.http) = {get: "/assistant/v1/executions/{id}"};
+  }
+}
+
+enum MessageRole {
+  MESSAGE_ROLE_UNSPECIFIED = 0;
+  MESSAGE_ROLE_USER = 1;
+  MESSAGE_ROLE_ASSISTANT = 2;
+}
+
+enum ExecutionState {
+  EXECUTION_STATE_UNSPECIFIED = 0;
+  EXECUTION_STATE_RUNNING = 1;
+  EXECUTION_STATE_SUCCEEDED = 2;
+  EXECUTION_STATE_FAILED = 3;
+}
+
+message Conversation {
+  string id = 1;
+  string title = 2;
+  int64 version = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+}
+
+message Message {
+  string id = 1;
+  string conversation_id = 2;
+  int64 sequence = 3;
+  MessageRole role = 4;
+  string content = 5;
+  google.protobuf.Timestamp created_at = 6;
+}
+
+message Execution {
+  string id = 1;
+  string conversation_id = 2;
+  ExecutionState state = 3;
+  string model = 4;
+  string failure_code = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Timestamp finished_at = 7;
+}
+
+message ListConversationsRequest {
+  int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  string cursor = 2;
+}
+
+message ListConversationsResponse {
+  repeated Conversation conversations = 1;
+  string next_cursor = 2;
+}
+
+message GetConversationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateConversationRequest {
+  string title = 1 [(buf.validate.field).string.max_len = 160];
+}
+
+message DeleteConversationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  int64 version = 2 [(buf.validate.field).int64.gt = 0];
+}
+
+message ListMessagesRequest {
+  string conversation_id = 1 [(buf.validate.field).string.uuid = true];
+  int32 limit = 2 [(buf.validate.field).int32.gte = 0];
+  string cursor = 3;
+}
+
+message ListMessagesResponse {
+  repeated Message messages = 1;
+  string next_cursor = 2;
+}
+
+message GetExecutionRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
