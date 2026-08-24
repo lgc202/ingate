@@ -77,7 +77,11 @@ jobs:
         run: |
           mkdir -p _publish
           cp -R docs/dist/. _publish/
-          cp -R _catalog/plugins _publish/plugins
+          # 文档本身已有 /plugins 页面，只复制目录内容，避免生成 /plugins/plugins
+          mkdir -p _publish/plugins
+          cp -R _catalog/plugins/. _publish/plugins/
+          test -f _publish/plugins/v1/catalog.json
+          test ! -e _publish/plugins/plugins
 
       - name: Upload project site
         uses: actions/upload-pages-artifact@v4
