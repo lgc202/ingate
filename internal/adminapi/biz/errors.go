@@ -28,6 +28,13 @@ func NewRuleViolation(userMessage string) error {
 		WithMetadata(map[string]string{"user_message": userMessage})
 }
 
+// NewRuleViolationWithCause 在保持稳定用户提示的同时保留内部失败原因
+func NewRuleViolationWithCause(userMessage string, cause error) error {
+	return kratoserrors.Conflict(reasonRuleViolation, "request rejected").
+		WithMetadata(map[string]string{"user_message": userMessage}).
+		WithCause(cause)
+}
+
 // NewVersionConflict 创建可以向用户说明的乐观锁冲突
 func NewVersionConflict(resourceID, userMessage string) error {
 	return kratoserrors.Conflict(reasonResourceVersionConflict, "resource version conflict").

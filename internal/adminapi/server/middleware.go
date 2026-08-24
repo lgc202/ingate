@@ -50,13 +50,9 @@ func newRequestLog(ctx context.Context, latency time.Duration, err error) reques
 		entry.code = int(serviceError.Code)
 		entry.reason = serviceError.Reason
 	}
-	if entry.code < http.StatusInternalServerError {
-		return entry
-	}
-
 	if serviceError, ok := errors.AsType[*kratoserrors.Error](err); ok {
 		entry.cause = errors.Unwrap(serviceError)
-	} else {
+	} else if entry.code >= http.StatusInternalServerError {
 		entry.cause = err
 	}
 	return entry
@@ -79,12 +75,12 @@ func (l requestLog) write(ctx context.Context, logger *slog.Logger) {
 	level := slog.LevelDebug
 	if l.code >= http.StatusBadRequest {
 		level = slog.LevelInfo
-	}
-	if l.code >= http.StatusInternalServerError {
-		level = slog.LevelError
 		if l.cause != nil {
 			attrs = append(attrs, slog.Any("err", l.cause))
 		}
+	}
+	if l.code >= http.StatusInternalServerError {
+		level = slog.LevelError
 	}
 	logger.LogAttrs(ctx, level, "server request", attrs...)
 }

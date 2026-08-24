@@ -205,7 +205,7 @@ func (s *Service) Sync(ctx context.Context, sourceID string) (Source, error) {
 		return Source{}, biz.NewRuleViolation("请先启用插件源再同步")
 	}
 	if err := s.catalog.SyncSource(ctx, sourceID); err != nil {
-		return Source{}, biz.NewRuleViolation("插件源同步失败，请检查目录地址和内容")
+		return Source{}, biz.NewRuleViolationWithCause("插件源同步失败，请检查目录地址和内容", err)
 	}
 	return s.Get(ctx, sourceID)
 }
