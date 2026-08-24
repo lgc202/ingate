@@ -1,17 +1,25 @@
 import { ChevronRight, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { getHealth } from '@/api/health';
 import { navigation, navigationItems } from '@/app/navigation';
 import { useSession } from '@/features/auth/SessionProvider';
 
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(false);
+  const [version, setVersion] = useState('');
   const { session, signOut } = useSession();
   const location = useLocation();
   const currentPage = navigationItems.find((item) => location.pathname.startsWith(item.to));
   const currentGroup = navigation.find((group) => group.items.some((item) => item.key === currentPage?.key));
   const currentPageLabel = currentPage?.label ?? '网关';
   const currentGroupLabel = currentGroup?.label ?? 'Ingate';
+
+  useEffect(() => {
+    void getHealth()
+      .then((health) => setVersion(health.version))
+      .catch(() => setVersion(''));
+  }, []);
 
   return (
     <div className={`console-shell ${collapsed ? 'is-collapsed' : ''}`}>
@@ -54,6 +62,7 @@ export function AppShell() {
         </nav>
 
         <div className="sidebar-footer">
+          {!collapsed && version ? <div className="system-version">Ingate {version}</div> : null}
           <div className="session-user" title={collapsed ? session.username : undefined}>
             <span>{session.username.slice(0, 1).toUpperCase()}</span>
             {!collapsed ? <strong>{session.username}</strong> : null}

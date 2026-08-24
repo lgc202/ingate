@@ -9,6 +9,7 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
+	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
 // Service 实现进程存活检查
@@ -19,11 +20,15 @@ func NewService() *Service {
 	return &Service{}
 }
 
-// Check 返回进程存活状态和当前请求 ID
+// Check 返回进程存活状态、当前请求 ID 和实际运行版本
 func (s *Service) Check(ctx context.Context, _ *emptypb.Empty) (*adminv1.HealthReply, error) {
 	var id string
 	if tr, ok := transport.FromServerContext(ctx); ok {
 		id = tr.RequestHeader().Get(requestid.Header)
 	}
-	return &adminv1.HealthReply{Status: "ok", RequestId: id}, nil
+	return &adminv1.HealthReply{
+		Status:    "ok",
+		RequestId: id,
+		Version:   version.String(),
+	}, nil
 }

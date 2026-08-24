@@ -1743,6 +1743,7 @@ body { overflow-x: hidden; }
 .is-collapsed .nav-item.is-active { box-shadow: inset 2px 0 0 var(--orange); }
 
 .sidebar-footer { padding: 12px; display: grid; gap: 10px; border-top: 1px solid #292c35; }
+.system-version { padding: 0 3px; color: #686e7d; font-size: .64rem; font-weight: 650; letter-spacing: .02em; }
 .session-user { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; }
 .session-user > span { width: 31px; height: 31px; display: grid; place-items: center; border-radius: 9px; color: #fff; background: #3b4160; font-size: .75rem; font-weight: 800; }
 .session-user > strong { overflow: hidden; color: #c8cbd5; font-size: .72rem; text-overflow: ellipsis; white-space: nowrap; }

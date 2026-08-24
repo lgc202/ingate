@@ -10,11 +10,16 @@ option go_package = "github.com/lgc202/ingate/api/admin/v1;v1";
 // HealthService 提供进程存活检查
 service HealthService {
   rpc Check(google.protobuf.Empty) returns (HealthReply) {
-    option (google.api.http) = {get: "/healthz"};
+    option (google.api.http) = {
+      get: "/healthz"
+      additional_bindings: {get: "/api/v1/healthz"}
+    };
   }
 }
 
 message HealthReply {
   string status = 1;
   string request_id = 2 [json_name = "requestID"];
+  // version 是当前运行的 Ingate 发行版本
+  string version = 3;
 }
