@@ -1,5 +1,4 @@
 BUF := $(TOOLS_DIR)/buf
-BUF_CACHE_DIR := $(OUTPUT_DIR)/cache/buf
 
 .PHONY: proto-fmt
 proto-fmt: $(BUF) ## 格式化 Proto 文件
@@ -7,8 +6,7 @@ proto-fmt: $(BUF) ## 格式化 Proto 文件
 
 .PHONY: proto-lint
 proto-lint: $(BUF) ## 运行 Proto 静态检查
-	@mkdir -p $(BUF_CACHE_DIR)
-	@BUF_CACHE_DIR=$(BUF_CACHE_DIR) $(BUF) lint
+	@$(BUF) lint
 	@$(BUF) format --diff --exit-code
 
 .PHONY: generate

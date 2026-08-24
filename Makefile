@@ -2,7 +2,7 @@
 
 PROJECT_ROOT := $(abspath .)
 OUTPUT_DIR := $(PROJECT_ROOT)/_output
-TOOLS_DIR := $(OUTPUT_DIR)/tools
+TOOLS_DIR := $(PROJECT_ROOT)/.tools/bin
 
 include scripts/make-rules/common.mk
 include scripts/make-rules/golang.mk

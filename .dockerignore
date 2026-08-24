@@ -1,6 +1,5 @@
 .git
-.gocache
-.gomodcache
+.tools
 .env
 **/.DS_Store
 **/node_modules
