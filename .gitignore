@@ -7,6 +7,9 @@
 /web/prototype/node_modules/
 /web/prototype/dist/
 /web/prototype/*.tsbuildinfo
+/docs/node_modules/
+/docs/dist/
+/docs/.astro/
 .env
 .DS_Store
 *.log
