@@ -1,6 +1,5 @@
 /_output/
-/.gocache/
-/.gomodcache/
+/.tools/
 /web/console/node_modules/
 /web/console/dist/
 /web/console/*.tsbuildinfo
