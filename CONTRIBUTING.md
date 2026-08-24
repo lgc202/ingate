@@ -11,7 +11,7 @@ make check-tools
 make tools
 ```
 
-所有项目级 Go 工具都会安装到 `_output/tools`，不会修改全局 `GOPATH/bin`。
+所有项目级 Go 工具都会安装到 `.tools/bin`，不会修改全局 `GOPATH/bin`。
 
 ## 开发流程
 

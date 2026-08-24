@@ -7,15 +7,16 @@ Ingate 的服务配置、健康检查、结构化日志和优雅退出保持部�
 
 ## 安装目录
 
-安装脚本默认把版本固定的 Compose 文件、配置与操作脚本放在 `~/ingate`。目录中的 `.env` 保存当前 Ingate 版本、管理凭据和宿主机端口。
+安装脚本默认把版本固定的 Compose 文件、配置与操作脚本放在执行安装命令时所在目录的 `ingate` 子目录。也可以把目标目录作为第一个参数传给安装脚本。安装目录中的 `.env` 保存当前 Ingate 版本、管理凭据和宿主机端口。
 
 常用命令：
 
 ```bash
-cd ~/ingate
+cd <安装目录>
 ./bin/status.sh
 ./bin/logs.sh
-./bin/restart.sh
+./bin/stop.sh
+./bin/start.sh
 ```
 
 容器镜像来自 `ghcr.io/lgc202`，业务端口默认只发布 Console、HTTP Gateway 和 HTTPS Gateway。
