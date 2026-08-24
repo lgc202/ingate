@@ -53,9 +53,9 @@ Gateway 端口只有在创建并成功发布对应 Gateway 后才会承载流量
 
 ```bash
 ./bin/status.sh
+./bin/logs.sh
 ./bin/stop.sh
 ./bin/start.sh
-./bin/restart.sh
 ```
 
 停止不会删除资源和分析数据。
