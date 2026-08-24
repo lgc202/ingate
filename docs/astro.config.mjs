@@ -8,7 +8,7 @@ export default defineConfig({
     starlight({
       title: 'Ingate',
       description: '基于 Envoy 的声明式 API 与 AI 网关',
-      favicon: '/favicon.svg',
+      favicon: '/ingate.svg',
       defaultLocale: 'root',
       locales: {
         root: {
