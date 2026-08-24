@@ -8,114 +8,74 @@ Ingate 取意于 **in + gate**：让进入系统的 API 与 AI 流量经过同�
 
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![Envoy](https://img.shields.io/badge/data%20plane-Envoy%201.39-AC6199)](https://www.envoyproxy.io/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
 </div>
 
-![Ingate 产品流量模型](docs/assets/ingate-overview.png)
+> [完整文档](https://lgc202.github.io/ingate/) · [快速安装](https://lgc202.github.io/ingate/getting-started/installation/) · [系统架构](https://lgc202.github.io/ingate/concepts/architecture/)
 
 ## Ingate 是什么
 
-Ingate 是一个使用官方 Envoy 作为唯一数据平面的网关控制面。它通过自有声明式 API 管理 Gateway、Route、Service、证书和治理策略，将完整配置编译为 Envoy xDS，并把配置状态和流量结果反馈到控制台。
+Ingate 是一个使用官方 Envoy 作为数据平面的开源网关控制面。它用同一套产品模型管理普通 API 和大模型流量：
 
-普通 HTTP 服务和模型服务共享同一条产品路径：
+```text
+Gateway -> Route -> Service
+```
 
-**Gateway → Route → Service**
+- **Gateway** 定义监听端口、域名和 TLS 入口
+- **Route** 定义请求匹配、访问方式和转发目标
+- **Service** 定义 HTTP 服务或模型厂商的端点、协议和凭据；在声明式 API 中对应 `Upstream` 资源
 
-- Gateway 定义流量从哪里进入，例如监听端口、域名和 TLS 证书
-- Route 定义请求如何匹配、由谁访问以及转发到哪个 Service
-- Service 定义实际连接的 HTTP 服务或模型厂商，包括端点、TLS、负载均衡、健康检查和模型凭据
+AI Route 可以把稳定的客户端模型名映射到不同厂商和协议的模型 Service。调用方始终使用 OpenAI Chat Completions 格式，不需要感知实际模型线路。
 
-AI Route 在这条路径上发布稳定的客户端模型名，并把它映射到一个或多个模型 Service。调用方始终使用统一的 OpenAI Chat Completions 请求格式，不需要感知后端实际使用 OpenAI 兼容协议还是 Anthropic Messages 协议。
-
-Ingate 不要求运行在 Kubernetes 中，不维护 Envoy 私有分支，也不建立面向其他数据平面的通用适配层。一套 Ingate 表示一个环境和一个配置域，可以包含多个逻辑 Gateway；需要隔离生产、测试或租户时，应分别部署多套 Ingate。
+Ingate 不依赖 Kubernetes，不维护 Envoy 私有分支，也不为其他数据平面建立抽象。一套 Ingate 对应一个环境和配置域，其中可以创建多个 Gateway；生产、测试或租户之间的隔离通过部署多套 Ingate 实现。
 
 ## 核心能力
 
-| 领域 | 当前能力 |
-| --- | --- |
-| API 流量 | HTTP/HTTPS Listener、Host/路径/方法/Header 匹配、加权转发、Host 重写、Header 修改、超时与重试 |
-| Service 连接 | 多端点、Round Robin/Least Request、主动健康检查、上游 HTTPS 和证书校验 |
-| AI 流量 | 对外模型名、加权模型线路、OpenAI Chat Completions、Anthropic Messages 转换、流式响应转换 |
-| 访问治理 | 公开或调用方访问模式、访问密钥、Route 授权、IP 访问限制、共享请求限流和调用方 Token 额度 |
-| 声明式控制 | 资源 CRUD、List/Watch、乐观并发版本、Status、完整配置编译和 xDS 下发 |
-| 观测分析 | 请求元数据、转发结果、模型线路尝试、Token 用量、流量趋势和资源排行 |
+- **API 网关**：HTTP/HTTPS、Host/路径/方法/Header 匹配、加权转发、Host 重写、Header 转换、超时、重试和健康检查
+- **AI 网关**：统一模型名、多模型线路、OpenAI 与 Anthropic 协议转换和流式响应
+- **访问与治理**：公开或受保护 Route、调用方密钥与授权、IP 访问限制、共享请求限流和 Token 额度
+- **声明式控制面**：资源 CRUD、List/Watch、乐观并发、Status、Envoy 配置编译和 xDS 下发
+- **可观测性**：请求记录、转发结果、模型调用与 Token 用量、流量趋势和资源排行
+- **插件扩展**：请求响应转换、模拟响应、官方与自定义插件源，以及安装、升级、依赖检查和卸载
 
-## 产品预览
-
-### AI 模型发布
-
-AI Route 使用稳定的客户端模型名连接不同协议的模型 Service，调用方不需要感知实际厂商、凭据和真实模型名。
-
-![AI Route 模型发布与转发配置](docs/assets/console-ai-route.jpg)
-
-### 流量观测
-
-请求记录异步进入分析链路，Console 统一展示请求量、正常响应率、耗时趋势、响应分布和资源排名。
-
-![流量趋势与响应结果](docs/assets/console-traffic-analysis.jpg)
+用户配置的是具有明确业务语义的 Policy，不需要编辑 Envoy 或 Wasm 私有参数。插件页只管理插件包的安装版本；安装插件不会改变流量，只有对应 Policy 应用到 Gateway 或 Route 后才会生效。
 
 ## 快速开始
 
-### 使用 Docker Compose 安装
-
-安装机只需要 Docker Engine 和 Docker Compose v2，不需要 Go、Node.js 或源码：
+安装不需要源码、Go 或 Node.js。请先准备 Bash、curl、tar、Docker Engine 和 Docker Compose v2：
 
 ```bash
 curl -fsSL https://github.com/lgc202/ingate/releases/latest/download/install.sh | bash
 ```
 
-安装器会下载最新的正式 Release、校验 SHA-256、启动完整环境，然后输出 Console、Gateway 和日常管理命令。默认安装到当前目录的 `ingate` 子目录，也可以安装固定版本：
-
-```bash
-VERSION=vX.Y.Z
-curl -fsSLO "https://github.com/lgc202/ingate/releases/download/${VERSION}/install.sh"
-bash install.sh ./ingate --version "${VERSION}"
-```
-
-将 `vX.Y.Z` 替换为需要安装的 Release tag，例如 `v0.1.2`。安装脚本和 Compose 安装包来自同一个 Release，避免未发布的 `main` 分支变更影响安装。
-
-安装器会生成 Console 管理密码和会话签名密钥，并在安装完成时显示用户名和密码。安装版默认只绑定 `127.0.0.1`；远程访问仍应使用 HTTPS 反向代理或 SSH 端口转发。完整的配置、启停、备份、恢复和升级说明见 [Docker Compose 安装说明](deploy/compose/README.md)。
-
-### 从源码启动开发环境
-
-源码开发需要 Go 1.26、Node.js 24、npm 11、Docker Engine 和 Docker Compose v2：
-
-```bash
-git clone https://github.com/lgc202/ingate.git
-cd ingate
-
-make check-tools
-make docker-up
-make docker-ps
-```
-
-`make docker-up` 会构建 Go 组件、Console 静态资源和本地开发镜像。无论使用安装版还是开发环境，组件就绪后都可以访问：
+安装完成后，终端会显示自动生成的管理员密码，使用用户名 `admin` 登录 Console。默认入口为：
 
 - Console：<http://127.0.0.1:8001>
 - HTTP Gateway：<http://127.0.0.1:8080>
 - HTTPS Gateway：<https://127.0.0.1:8443>
 
-HTTP/HTTPS 端口由开发环境预留，创建并成功发布对应 Gateway 后才会承载业务流量。
+Gateway 端口只有在 Console 中创建并成功发布对应 Gateway 后才会承载业务流量。安装固定版本、远程访问、升级、备份和卸载方式见 [Docker Compose 安装说明](deploy/compose/README.md)。
 
-### 完成一次 API 转发
+### 转发第一个 API 请求
 
 在 Console 中依次创建：
 
-1. 一个 HTTP Service，端点地址填写 `httpbin.org`，端口填写 `80`
-2. 一个 HTTP Gateway，监听 `8080`，域名留空
-3. 一个 API Route，路径前缀填写 `/`，目标选择刚创建的 Service，转发主机名选择“使用服务地址”
+1. HTTP Service：地址 `httpbin.org`，端口 `80`
+2. HTTP Gateway：监听 `8080`，域名留空
+3. API Route：路径前缀 `/`，目标选择刚创建的 Service，转发主机名选择“使用服务地址”
 
-然后发送请求：
+等待三个资源的状态都显示“已生效”，然后发送请求：
 
 ```bash
 curl -i http://127.0.0.1:8080/get
 ```
 
-请求完成后，可以在 Console 的“请求记录”和“流量分析”中查看匹配结果、最终 Service、响应状态和耗时。请求记录通过 ALS、Kafka 和 ClickHouse 异步入库，页面出现结果可能有短暂延迟。
+正常情况下会收到 `HTTP/1.1 200 OK` 和 httpbin 返回的 JSON。随后可以在“请求记录”和“流量分析”中查看匹配结果、响应状态和耗时；分析数据异步写入，页面出现记录可能有短暂延迟。
 
-### 调用模型 Route
+### AI Route 调用格式
 
-创建模型 Service 和 AI Route 后，客户端仍使用 OpenAI Chat Completions 格式。下面假设 Route 发布的模型名为 `qwen-max`，并且已经为受保护的 Route 签发调用方密钥：
+下面只展示客户端请求格式。先在 Console 中接入模型 Service、创建 AI Route，并将对外模型名设置为 `qwen-max`：
 
 ```bash
 curl http://127.0.0.1:8080/v1/chat/completions \
@@ -123,118 +83,87 @@ curl http://127.0.0.1:8080/v1/chat/completions \
   -H 'Authorization: Bearer <access-key>' \
   -d '{
     "model": "qwen-max",
-    "messages": [
-      {"role": "user", "content": "你是谁"}
-    ],
+    "messages": [{"role": "user", "content": "你是谁"}],
     "stream": false
   }'
 ```
 
-公开 Route 不需要 `Authorization` Header。客户端提交的模型名在 AI Route 中配置；模型厂商、API Key 和真实模型名分别由模型 Service 与 AI Route 的目标线路管理。
+公开 Route 不需要 `Authorization` Header；受保护 Route 的访问密钥由“调用方”签发。
 
-停止安装版会保留所有数据：
+## Console 预览
 
-```bash
-./ingate/bin/stop.sh
-```
+### AI Route 模型发布
 
-不再使用时可以完整删除容器、持久化数据和安装目录：
+![AI Route 模型发布与转发配置](docs/public/images/screenshots/ai-route.jpg)
 
-```bash
-./ingate/bin/uninstall.sh
-```
+### 流量观测与分析
 
-卸载脚本会在删除前要求明确确认；如需保留 Docker Volume，使用 `./ingate/bin/uninstall.sh --keep-data`。
+![流量趋势与响应结果](docs/public/images/screenshots/traffic-analysis.jpg)
 
-源码开发环境使用：
+## 架构概览
 
-```bash
-make docker-down
-```
+![Ingate 系统架构](docs/public/images/architecture/system.png)
 
-## 架构
+Ingate 将配置管理、同步流量处理和异步观测分为三条链路：
 
-Ingate 把配置管理、同步流量处理和异步观测拆成三条边界清晰的链路：
+1. **控制链路**：Console → Admin API → API Server → etcd；Controller Watch 资源并通过 xDS 向 Envoy 发布配置
+2. **流量链路**：客户端 → Envoy → Service；Authz 校验调用方与请求限流，AI ExtProc 负责模型选择、凭据注入和协议转换
+3. **观测链路**：Envoy ALS → Ingate ALS → Kafka → Analytics → ClickHouse
 
-1. **控制链路**：Console 通过 Admin API 管理资源；API Server 是 etcd 的唯一访问者；Controller Watch 资源、编译完整 Envoy 配置并通过 xDS 下发
-2. **流量链路**：客户端只访问 Envoy；普通 API 直接转发到 HTTP Service，受保护 Route 通过 Authorization 校验，AI Route 通过 AI Processing 完成模型选择和协议转换
-3. **观测链路**：Envoy 通过 ALS 异步上报请求元数据；Kafka 解耦采集与分析；Analytics 写入 ClickHouse 并向 Admin API 提供查询
+Envoy 是唯一数据平面；etcd 只由 API Server 访问；Redis 保存实时限流和 Token 额度计数。各组件保持部署方式中立，Docker Compose 只是当前优先支持的安装与联调方式。
 
-| 组件 | 职责 |
+完整组件边界、通信方式和数据归属见 [系统架构](https://lgc202.github.io/ingate/concepts/architecture/)。
+
+## 文档
+
+| 主题 | 内容 |
 | --- | --- |
-| `ingate-console` | 托管控制台静态资源，并把管理请求反向代理到 Admin API |
-| `ingate-admin-api` | 面向 Console 的产品 API，负责请求校验、业务规则和协议转换 |
-| `ingate-apiserver` | 提供声明式资源 CRUD、List/Watch、版本和 Status，是 etcd 的唯一访问者 |
-| `ingate-controller` | Watch 资源、编译 Envoy 配置、切换有效配置、提供 xDS 并回写 Status |
-| `Envoy` | 唯一数据平面，接收客户端请求并执行路由、治理和上游转发 |
-| `ingate-authz` | 校验调用方访问密钥和 Route 授权，并执行共享请求限流 |
-| `ingate-ai-extproc` | 处理 AI Route 的模型选择、凭据注入、协议转换和调用方 Token 额度 |
-| `ingate-als` | 接收 Envoy ALS 请求记录，通过本地 WAL 保护待投递数据并写入 Kafka |
-| `ingate-analytics` | 消费请求记录、写入 ClickHouse，并提供请求明细和流量分析查询 |
-| `etcd` | 持久化声明式资源 |
-| `Kafka` | 在请求采集与分析之间提供可靠消息链路 |
-| `ClickHouse` | 保存请求明细、模型调用记录以及流量和模型用量聚合 |
-| `Redis` | 保存请求限流计数和调用方当前自然周期的实时 Token 额度计数 |
+| [认识 Ingate](https://lgc202.github.io/ingate/getting-started/introduction/) | 产品边界、流量模型和适用场景 |
+| [系统架构](https://lgc202.github.io/ingate/concepts/architecture/) | 组件职责、控制链路、流量链路和观测链路 |
+| [安装与运维](https://lgc202.github.io/ingate/operations/overview/) | 配置、健康检查、日志、备份和升级 |
+| [Docker Compose](deploy/compose/README.md) | 安装、启停、备份、恢复、升级和卸载 |
+| [插件体系](https://lgc202.github.io/ingate/plugins/overview/) | 插件源、安装版本、强类型 Policy 和独立升级 |
+| [Gateway](https://lgc202.github.io/ingate/traffic/gateway/) / [Route](https://lgc202.github.io/ingate/traffic/route/) / [Service](https://lgc202.github.io/ingate/traffic/service/) | 核心流量资源 |
+| [IP 访问限制](https://lgc202.github.io/ingate/governance/ip-restriction/) / [请求限流](https://lgc202.github.io/ingate/governance/rate-limit/) / [Token 额度](https://lgc202.github.io/ingate/governance/token-quota/) | 治理策略与执行原理 |
 
-Controller、Envoy 与 AI ExtProc 在开发 Compose 中共享网络命名空间，xDS 和 AI Processing 连接只监听 loopback；Authorization 和 ALS 使用 Compose 内部网络，不向宿主机暴露端口。该拓扑只属于本地联调方式，业务组件本身不依赖 Docker Compose 或 Kubernetes。
+## 当前范围
 
-更详细的组件边界见 [架构说明](docs/architecture.md)，插件扩展边界见 [插件体系](docs/plugins.md)，安装运维见 [运维说明](docs/operations.md)。声明式资源协议见 [资源文档](docs/resources)。
+Ingate 当前已实现 API 转发、AI 模型发布、调用方授权、流量治理、插件管理和请求分析。项目仍处于 `0.x` 快速演进阶段，资源协议和部署方式在 `1.0` 前可能调整。
 
-## 资源与产品术语
+以下能力不在当前范围：
 
-Console 面向用户统一使用 **Service**。当前声明式 API 中对应的底层资源名仍为 `Upstream`，用于表达端点、TLS、负载均衡和健康检查等连接信息。两者指向同一个对象，不存在平行的 Service 与 Upstream 配置体系。
-
-当前声明式资源包括：
-
-- `Gateway`：监听入口、协议、域名和 TLS 证书引用
-- `Route`：API/AI 请求匹配、访问模式和 Service 目标
-- `Upstream`：HTTP 或模型 Service 的连接配置
-- `Certificate`：可复用的 TLS 证书和私钥
-- `Caller`：调用方、访问密钥与 Route 授权
-- `IPRestrictionPolicy`：Gateway 或 Route 的 IP 访问限制
-- `RateLimitPolicy`：Gateway 或 Route 的限流声明
-- `TokenQuotaPolicy`：Caller 的每日、每周或每月模型 Token 额度
-
-声明式 API 使用 `metadata.name` 作为不可变资源 ID，使用 `spec.displayName` 保存用户可编辑名称。Admin API 向 Console 提供平铺的产品协议，不直接暴露 `metadata/spec/status` 结构。
-
-## 当前边界
-
-- `IPRestrictionPolicy` 已由 Envoy 原生 RBAC 执行
-- `RateLimitPolicy` 由 Envoy 官方 `ext_authz` 与 Authz 的 Redis 固定窗口计数执行；详细语义见 [请求限流原理](docs/resources/rate-limit-policy.md)
-- `TokenQuotaPolicy` 由 AI ExtProc 在调用模型前检查，并按模型实际返回的 Token 在 Redis 中结算；详细语义见 [Token 额度原理](docs/resources/token-quota-policy.md)
-- 请求记录只持久化排障和分析所需的元数据，不保存请求 Header、查询参数或正文
-- MCP 网关和 Agent 编排尚未进入当前运行链路
-- `web/prototype` 只使用 Mock 数据验证产品设计；正式 Console 位于 `web/console`，两者不共享业务代码或运行数据
+- MCP 网关和 Agent 编排
+- 请求 Header、查询参数和正文的持久化
+- Kubernetes CRD 和多数据平面适配
 
 ## 开发
+
+源码开发需要 Go 1.26、Node.js 24、npm 11、Docker Engine 和 Docker Compose v2：
+
+```bash
+git clone https://github.com/lgc202/ingate.git
+cd ingate
+make check-tools
+make docker-up
+make docker-ps
+```
 
 常用命令：
 
 ```bash
-make help              # 查看全部命令
-make tools             # 安装项目级生成和检查工具到 _output/tools
-make generate          # 生成 Proto、资源客户端、OpenAPI 和 Wire 代码
-make lint              # 检查 Go、Proto 和 GitHub Actions
-make test              # 编译全部 Go package
-make verify            # 执行提交前完整检查
-make vuln              # 检查实际可达的 Go 漏洞
+make generate  # 生成 Proto、资源客户端、OpenAPI 和 Wire 代码
+make lint      # 检查 Go、Proto 和 GitHub Actions
+make test      # 编译全部 Go package
+make verify    # 执行提交前完整检查
 ```
 
-配置文件统一位于 [`configs`](configs)，本地 Compose 配置位于 [`deploy/docker`](deploy/docker)。生成工具和构建产物只写入 `_output`，不会污染全局 `GOPATH/bin`。
+更多命令可以通过 `make help` 查看。配置文件位于 [`configs`](configs)，本地 Compose 配置位于 [`deploy/docker`](deploy/docker)。
 
-产品原型可以独立运行：
+正式 Console 位于 `web/console`；`web/prototype` 只使用 Mock 数据验证产品设计，两者不共享业务代码或运行数据。
 
-```bash
-cd web/prototype
-npm ci
-npm run dev
-```
+## 参与贡献
 
-原型默认地址为 <http://127.0.0.1:5174>，页面始终使用演示数据。
-
-## 参与贡献与安全
-
-提交 Pull Request 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)，并执行 `make verify`。安全问题请按照 [SECURITY.md](SECURITY.md) 使用 GitHub 私有漏洞报告，不要在公开 Issue 中披露漏洞细节。
+提交 Pull Request 前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 并执行 `make verify`。安全问题请按照 [SECURITY.md](SECURITY.md) 使用 GitHub 私有漏洞报告。
 
 ## 许可证
 

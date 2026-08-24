@@ -1,0 +1,55 @@
+:root {
+  --sl-font: "Inter", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --sl-font-system-mono: "SFMono-Regular", "Cascadia Code", "Liberation Mono", monospace;
+  --sl-color-accent-low: #e9edff;
+  --sl-color-accent: #3047c7;
+  --sl-color-accent-high: #17287d;
+  --sl-color-text-accent: #3047c7;
+  --ingate-orange: #ef8058;
+  --ingate-rule: #dfe3ec;
+}
+
+:root[data-theme='dark'] {
+  --sl-color-accent-low: #202a5c;
+  --sl-color-accent: #9eacff;
+  --sl-color-accent-high: #e9edff;
+  --sl-color-text-accent: #aeb9ff;
+  --ingate-orange: #ff9b75;
+  --ingate-rule: #343a4c;
+}
+
+body {
+  letter-spacing: 0;
+}
+
+.site-title {
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.sl-markdown-content h2 {
+  margin-top: 3.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--ingate-rule);
+}
+
+.sl-markdown-content img {
+  border: 1px solid var(--ingate-rule);
+  border-radius: 0.25rem;
+}
+
+.sl-markdown-content table {
+  font-size: 0.94rem;
+}
+
+.sl-markdown-content th {
+  white-space: nowrap;
+}
+
+.starlight-aside {
+  border-radius: 0.25rem;
+}
+
+code:not(:where(.expressive-code *)) {
+  border-radius: 0.25rem;
+}

@@ -38,11 +38,18 @@ jobs:
         id: pages
         uses: actions/configure-pages@v5
 
-      - name: Build documentation
-        uses: actions/jekyll-build-pages@v1
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          source: ./docs
-          destination: ./_site
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Install documentation dependencies
+        run: npm ci --prefix docs
+
+      - name: Build documentation
+        run: npm run build --prefix docs
 
       # 插件发布传入刚生成的目录；普通文档发布沿用线上目录，不能把已发布插件回退成内置快照
       - name: Download released plugin catalog
@@ -69,7 +76,7 @@ jobs:
       - name: Assemble project site
         run: |
           mkdir -p _publish
-          cp -R _site/. _publish/
+          cp -R docs/dist/. _publish/
           cp -R _catalog/plugins _publish/plugins
 
       - name: Upload project site
