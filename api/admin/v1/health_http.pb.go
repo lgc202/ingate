@@ -26,10 +26,30 @@ type HealthServiceHTTPServer interface {
 
 func RegisterHealthServiceHTTPServer(s *http.Server, srv HealthServiceHTTPServer) {
 	r := s.Route("/")
-	r.Handle("GET", "/healthz", _HealthService_Check0_HTTP_Handler(srv))
+	r.Handle("GET", "/api/v1/healthz", _HealthService_Check0_HTTP_Handler(srv))
+	r.Handle("GET", "/healthz", _HealthService_Check1_HTTP_Handler(srv))
 }
 
 func _HealthService_Check0_HTTP_Handler(srv HealthServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in emptypb.Empty
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationHealthServiceCheck)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.Check(ctx, req.(*emptypb.Empty))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*HealthReply)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _HealthService_Check1_HTTP_Handler(srv HealthServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in emptypb.Empty
 		if err := ctx.BindQuery(&in); err != nil {

@@ -24,9 +24,11 @@ const (
 )
 
 type HealthReply struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
-	RequestId     string                 `protobuf:"bytes,2,opt,name=request_id,json=requestID,proto3" json:"request_id,omitempty"`
+	state     protoimpl.MessageState `protogen:"open.v1"`
+	Status    string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	RequestId string                 `protobuf:"bytes,2,opt,name=request_id,json=requestID,proto3" json:"request_id,omitempty"`
+	// version 是当前运行的 Ingate 发行版本
+	Version       string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -75,18 +77,25 @@ func (x *HealthReply) GetRequestId() string {
 	return ""
 }
 
+func (x *HealthReply) GetVersion() string {
+	if x != nil {
+		return x.Version
+	}
+	return ""
+}
+
 var File_admin_v1_health_proto protoreflect.FileDescriptor
 
 const file_admin_v1_health_proto_rawDesc = "" +
 	"\n" +
-	"\x15admin/v1/health.proto\x12\x0fingate.admin.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\"D\n" +
+	"\x15admin/v1/health.proto\x12\x0fingate.admin.v1\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\"^\n" +
 	"\vHealthReply\x12\x16\n" +
 	"\x06status\x18\x01 \x01(\tR\x06status\x12\x1d\n" +
 	"\n" +
-	"request_id\x18\x02 \x01(\tR\trequestID2`\n" +
-	"\rHealthService\x12O\n" +
-	"\x05Check\x12\x16.google.protobuf.Empty\x1a\x1c.ingate.admin.v1.HealthReply\"\x10\x82\xd3\xe4\x93\x02\n" +
-	"\x12\b/healthzB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"request_id\x18\x02 \x01(\tR\trequestID\x12\x18\n" +
+	"\aversion\x18\x03 \x01(\tR\aversion2s\n" +
+	"\rHealthService\x12b\n" +
+	"\x05Check\x12\x16.google.protobuf.Empty\x1a\x1c.ingate.admin.v1.HealthReply\"#\x82\xd3\xe4\x93\x02\x1dZ\x11\x12\x0f/api/v1/healthz\x12\b/healthzB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_health_proto_rawDescOnce sync.Once
