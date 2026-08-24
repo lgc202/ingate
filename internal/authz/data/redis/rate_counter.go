@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	redisrate "github.com/go-redis/redis_rate/v10"
 	redisclient "github.com/redis/go-redis/v9"
 
 	"github.com/lgc202/ingate/internal/authz/biz/ratelimit"
@@ -17,22 +18,10 @@ import (
 
 const readinessProbeInterval = 5 * time.Second
 
-var acquireScript = redisclient.NewScript(`
-local current = tonumber(redis.call('GET', KEYS[1]) or '0')
-local limit = tonumber(ARGV[1])
-if current >= limit then
-  return 0
-end
-current = redis.call('INCR', KEYS[1])
-if current == 1 then
-  redis.call('EXPIREAT', KEYS[1], tonumber(ARGV[2]))
-end
-return 1
-`)
-
-// RateCounter 使用 Redis 原子脚本实现跨 Authz 实例共享的固定窗口计数器
+// RateCounter 使用 Redis GCRA 实现跨 Authz 实例共享的请求限流
 type RateCounter struct {
 	client           *redisclient.Client
+	limiter          *redisrate.Limiter
 	operationTimeout time.Duration
 
 	ready   atomic.Bool
@@ -53,6 +42,7 @@ func NewRateCounter(config *conf.Data_Redis) *RateCounter {
 	})
 	return &RateCounter{
 		client:           client,
+		limiter:          redisrate.NewLimiter(client),
 		operationTimeout: config.GetOperationTimeout().AsDuration(),
 		started:          make(chan struct{}),
 		done:             make(chan struct{}),
@@ -117,33 +107,33 @@ func (c *RateCounter) Ready() bool {
 	return c.ready.Load()
 }
 
-// Acquire 原子检查并占用一个固定窗口的请求额度
-func (c *RateCounter) Acquire(ctx context.Context, bucket ratelimit.Bucket) (ratelimit.Decision, error) {
+// Allow 原子检查并消费一次请求额度
+func (c *RateCounter) Allow(ctx context.Context, limit ratelimit.Limit) (ratelimit.Decision, error) {
 	operationCtx, cancel := context.WithTimeout(ctx, c.operationTimeout)
-	allowed, err := acquireScript.Run(
-		operationCtx,
-		c.client,
-		[]string{bucketKey(bucket)},
-		bucket.Limit,
-		bucket.End.Add(time.Second).Unix(),
-	).Int()
+	result, err := c.limiter.Allow(operationCtx, limitKey(limit), redisrate.Limit{
+		Rate:   limit.Requests,
+		Burst:  limit.Requests,
+		Period: limit.Period,
+	})
 	cancel()
 	if err != nil {
 		c.ready.Store(false)
 		return ratelimit.Decision{}, fmt.Errorf("execute Redis rate counter: %w", err)
 	}
 	c.ready.Store(true)
-	return ratelimit.Decision{Allowed: allowed == 1}, nil
+	return ratelimit.Decision{
+		Allowed:    result.Allowed == 1,
+		RetryAfter: result.RetryAfter,
+	}, nil
 }
 
-func bucketKey(bucket ratelimit.Bucket) string {
-	scope := sha256.Sum256([]byte(bucket.Scope))
-	subject := sha256.Sum256([]byte(bucket.Subject))
+func limitKey(limit ratelimit.Limit) string {
+	scope := sha256.Sum256([]byte(limit.Scope))
+	subject := sha256.Sum256([]byte(limit.Subject))
 	return fmt.Sprintf(
-		"ingate:request-rate:{%s}:%x:%x:%d",
-		bucket.PolicyID,
+		"ingate:request-rate:{%s}:%x:%x",
+		limit.PolicyID,
 		scope[:8],
 		subject[:8],
-		bucket.Start.Unix(),
 	)
 }

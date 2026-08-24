@@ -5,7 +5,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 const (
 	// RateLimitMaxRequests 是单条限流额度允许的最大请求数
 	RateLimitMaxRequests int64 = 1<<31 - 1
-	// RateLimitMaxWindowSeconds 是单条限流窗口允许的最大秒数
+	// RateLimitMaxWindowSeconds 是单条限流周期允许的最大秒数
 	RateLimitMaxWindowSeconds int64 = 1<<31 - 1
 )
 
@@ -54,7 +54,7 @@ type RateLimitPolicySpec struct {
 	TargetRefs []PolicyTargetRef `json:"targetRefs,omitempty"`
 	// Subject 决定目标内哪些请求共享同一计数器
 	Subject RateLimitSubject `json:"subject"`
-	// Limit 定义单个计数器的请求上限和时间窗口
+	// Limit 定义单个计数器的请求上限和统计周期
 	Limit RateLimit `json:"limit"`
 }
 
@@ -66,10 +66,10 @@ type RateLimitSubject struct {
 	HeaderName string `json:"headerName,omitempty"`
 }
 
-// RateLimit 定义指定时间窗口内允许的请求数
+// RateLimit 定义请求补充速率
 type RateLimit struct {
-	// Requests 是每个时间窗口允许的最大请求数
+	// Requests 是每个统计周期补充的请求额度，也是令牌桶容量
 	Requests int64 `json:"requests"`
-	// WindowSeconds 是固定计数窗口的秒数
+	// WindowSeconds 是补满请求额度所需的秒数
 	WindowSeconds int64 `json:"windowSeconds"`
 }

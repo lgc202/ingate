@@ -10,6 +10,7 @@ require (
 	github.com/envoyproxy/go-control-plane v0.14.0
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0
 	github.com/go-kratos/kratos/v3 v3.0.0
+	github.com/go-redis/redis_rate/v10 v10.0.1
 	github.com/google/go-containerregistry v0.21.7
 	github.com/google/wire v0.7.0
 	github.com/pressly/goose/v3 v3.26.0

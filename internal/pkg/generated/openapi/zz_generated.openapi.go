@@ -1946,12 +1946,12 @@ func schema_pkg_apis_gateway_v1_RateLimit(ref common.ReferenceCallback) common.O
 	return common.OpenAPIDefinition{
 		Schema: spec.Schema{
 			SchemaProps: spec.SchemaProps{
-				Description: "RateLimit 定义指定时间窗口内允许的请求数",
+				Description: "RateLimit 定义请求补充速率",
 				Type:        []string{"object"},
 				Properties: map[string]spec.Schema{
 					"requests": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Requests 是每个时间窗口允许的最大请求数",
+							Description: "Requests 是每个统计周期补充的请求额度，也是令牌桶容量",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int64",
@@ -1959,7 +1959,7 @@ func schema_pkg_apis_gateway_v1_RateLimit(ref common.ReferenceCallback) common.O
 					},
 					"windowSeconds": {
 						SchemaProps: spec.SchemaProps{
-							Description: "WindowSeconds 是固定计数窗口的秒数",
+							Description: "WindowSeconds 是补满请求额度所需的秒数",
 							Default:     0,
 							Type:        []string{"integer"},
 							Format:      "int64",
@@ -2123,7 +2123,7 @@ func schema_pkg_apis_gateway_v1_RateLimitPolicySpec(ref common.ReferenceCallback
 					},
 					"limit": {
 						SchemaProps: spec.SchemaProps{
-							Description: "Limit 定义单个计数器的请求上限和时间窗口",
+							Description: "Limit 定义单个计数器的请求上限和统计周期",
 							Default:     map[string]interface{}{},
 							Ref:         ref("github.com/lgc202/ingate/internal/pkg/apis/gateway/v1.RateLimit"),
 						},

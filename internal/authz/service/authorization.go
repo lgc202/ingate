@@ -87,7 +87,7 @@ func (s *AuthorizationService) Check(ctx context.Context, request *authv3.CheckR
 		exceeded, err := s.rateLimits.Admit(ctx, rules, ratelimit.Request{
 			ClientIP: request.GetAttributes().GetSource().GetAddress().GetSocketAddress().GetAddress(),
 			Headers:  httpRequest.GetHeaders(),
-		}, time.Now())
+		})
 		if err != nil {
 			s.counters.errors.Add(1)
 			return nil, fmt.Errorf("enforce request rate limit: %w", err)

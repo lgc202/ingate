@@ -73,7 +73,7 @@ Analytics 使用 At Least Once 消费语义。请求事实和模型调用都成�
 | 声明式资源与 Status | etcd | API Server |
 | Gateway Certificate 密钥材料 | etcd | API Server |
 | 当前 Envoy 有效配置 | Controller 内存 | Controller |
-| 请求限流固定窗口计数 | Redis | Authz |
+| 请求限流 GCRA 状态 | Redis | Authz |
 | 当前周期 Token 额度计数 | Redis | AI ExtProc |
 | ALS 待投递记录 | ALS 本地 WAL | ALS |
 | 请求明细与模型调用 | ClickHouse | Analytics |

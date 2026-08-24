@@ -1,10 +1,11 @@
-// Package ratelimit 实现请求进入上游前的固定窗口限流规则
+// Package ratelimit 实现请求进入上游前的共享限流规则
 package ratelimit
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"time"
@@ -40,24 +41,24 @@ type Request struct {
 	Headers  map[string]string
 }
 
-// Bucket 表示 Redis 中一个固定时间窗口计数器
-type Bucket struct {
+// Limit 表示解析计数对象后的一条可执行速率限制
+type Limit struct {
 	PolicyID string
 	Scope    string
 	Subject  string
-	Limit    int64
-	Start    time.Time
-	End      time.Time
+	Requests int
+	Period   time.Duration
 }
 
-// Decision 是一次原子计数后的准入结果
+// Decision 是共享计数器返回的准入结果
 type Decision struct {
-	Allowed bool
+	Allowed    bool
+	RetryAfter time.Duration
 }
 
-// Counter 在共享存储中原子检查并递增一个窗口计数器
+// Counter 在共享存储中原子消费一次请求额度
 type Counter interface {
-	Acquire(context.Context, Bucket) (Decision, error)
+	Allow(context.Context, Limit) (Decision, error)
 }
 
 // Exceeded 表示请求命中的具体限流规则已经耗尽
@@ -77,7 +78,7 @@ func NewService(counter Counter) *Service {
 }
 
 // Admit 检查并占用一次请求额度
-func (s *Service) Admit(ctx context.Context, rules []Rule, request Request, now time.Time) (*Exceeded, error) {
+func (s *Service) Admit(ctx context.Context, rules []Rule, request Request) (*Exceeded, error) {
 	ordered := slices.Clone(rules)
 	slices.SortFunc(ordered, func(left, right Rule) int {
 		if result := strings.Compare(left.PolicyID, right.PolicyID); result != 0 {
@@ -85,58 +86,51 @@ func (s *Service) Admit(ctx context.Context, rules []Rule, request Request, now 
 		}
 		return strings.Compare(left.Scope, right.Scope)
 	})
-	// 每条策略使用独立 Redis Key 和独立 Lua 调用，既保持策略统计独立，也避免 Redis Cluster
-	// 中跨 hash slot 的多 Key 脚本限制；请求被后续策略拒绝时，已通过的前序策略仍计入该次尝试
+	// 每条策略使用独立 Redis Key，既保持策略统计独立，也避免 Redis Cluster 跨 slot 操作
+	// 请求被后续策略拒绝时，已通过的前序策略仍计入该次尝试
 	for _, rule := range ordered {
-		bucket, err := newBucket(rule, request, now)
+		limit, err := rule.limit(request)
 		if err != nil {
 			return nil, err
 		}
-		decision, err := s.counter.Acquire(ctx, bucket)
+		decision, err := s.counter.Allow(ctx, limit)
 		if err != nil {
-			return nil, fmt.Errorf("acquire request rate limit: %w", err)
+			return nil, fmt.Errorf("apply request rate limit: %w", err)
 		}
 		if !decision.Allowed {
-			retryAfter := bucket.End.Sub(now)
-			if retryAfter < time.Second {
-				retryAfter = time.Second
-			}
-			return &Exceeded{PolicyID: rule.PolicyID, RetryAfter: retryAfter}, nil
+			return &Exceeded{PolicyID: rule.PolicyID, RetryAfter: decision.RetryAfter}, nil
 		}
 	}
 	return nil, nil
 }
 
-func newBucket(rule Rule, request Request, now time.Time) (Bucket, error) {
-	if rule.PolicyID == "" || rule.Scope == "" || rule.Requests < 1 || rule.WindowSeconds < 1 {
-		return Bucket{}, ErrInvalidRule
+func (r Rule) limit(request Request) (Limit, error) {
+	if r.PolicyID == "" || r.Scope == "" || r.Requests < 1 || r.Requests > math.MaxInt || r.WindowSeconds < 1 {
+		return Limit{}, ErrInvalidRule
 	}
 	var subject string
-	switch rule.Subject {
+	switch r.Subject {
 	case SubjectShared:
 		subject = "shared"
 	case SubjectIP:
 		subject = strings.TrimSpace(request.ClientIP)
 		if subject == "" {
-			return Bucket{}, fmt.Errorf("%w: client IP is missing", ErrInvalidRule)
+			return Limit{}, fmt.Errorf("%w: client IP is missing", ErrInvalidRule)
 		}
 	case SubjectHeader:
-		if rule.HeaderName == "" {
-			return Bucket{}, fmt.Errorf("%w: subject header is missing", ErrInvalidRule)
+		if r.HeaderName == "" {
+			return Limit{}, fmt.Errorf("%w: subject header is missing", ErrInvalidRule)
 		}
-		subject = request.Headers[strings.ToLower(rule.HeaderName)]
+		subject = request.Headers[strings.ToLower(r.HeaderName)]
 	default:
-		return Bucket{}, fmt.Errorf("%w: unsupported subject %q", ErrInvalidRule, rule.Subject)
+		return Limit{}, fmt.Errorf("%w: unsupported subject %q", ErrInvalidRule, r.Subject)
 	}
 
-	window := time.Duration(rule.WindowSeconds) * time.Second
-	start := time.Unix(now.Unix()-now.Unix()%rule.WindowSeconds, 0).UTC()
-	return Bucket{
-		PolicyID: rule.PolicyID,
-		Scope:    rule.Scope,
+	return Limit{
+		PolicyID: r.PolicyID,
+		Scope:    r.Scope,
 		Subject:  subject,
-		Limit:    rule.Requests,
-		Start:    start,
-		End:      start.Add(window),
+		Requests: int(r.Requests),
+		Period:   time.Duration(r.WindowSeconds) * time.Second,
 	}, nil
 }
