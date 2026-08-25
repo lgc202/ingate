@@ -26,6 +26,7 @@ const OperationConversationServiceGetConversation = "/ingate.assistant.v1.Conver
 const OperationConversationServiceGetRun = "/ingate.assistant.v1.ConversationService/GetRun"
 const OperationConversationServiceListConversations = "/ingate.assistant.v1.ConversationService/ListConversations"
 const OperationConversationServiceListMessages = "/ingate.assistant.v1.ConversationService/ListMessages"
+const OperationConversationServiceListRunItems = "/ingate.assistant.v1.ConversationService/ListRunItems"
 
 type ConversationServiceHTTPServer interface {
 	CancelRun(context.Context, *CancelRunRequest) (*Run, error)
@@ -36,6 +37,7 @@ type ConversationServiceHTTPServer interface {
 	GetRun(context.Context, *GetRunRequest) (*Run, error)
 	ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error)
+	ListRunItems(context.Context, *ListRunItemsRequest) (*ListRunItemsResponse, error)
 }
 
 func RegisterConversationServiceHTTPServer(s *http.Server, srv ConversationServiceHTTPServer) {
@@ -47,6 +49,7 @@ func RegisterConversationServiceHTTPServer(s *http.Server, srv ConversationServi
 	r.Handle("GET", "/assistant/v1/conversations/{conversation_id}/messages", _ConversationService_ListMessages0_HTTP_Handler(srv))
 	r.Handle("POST", "/assistant/v1/conversations/{conversation_id}/runs", _ConversationService_CreateRun0_HTTP_Handler(srv))
 	r.Handle("GET", "/assistant/v1/runs/{id}", _ConversationService_GetRun0_HTTP_Handler(srv))
+	r.Handle("GET", "/assistant/v1/runs/{run_id}/items", _ConversationService_ListRunItems0_HTTP_Handler(srv))
 	r.Handle("POST", "/assistant/v1/runs/{id}:cancel", _ConversationService_CancelRun0_HTTP_Handler(srv))
 }
 
@@ -198,6 +201,28 @@ func _ConversationService_GetRun0_HTTP_Handler(srv ConversationServiceHTTPServer
 	}
 }
 
+func _ConversationService_ListRunItems0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListRunItemsRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationConversationServiceListRunItems)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListRunItems(ctx, req.(*ListRunItemsRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListRunItemsResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _ConversationService_CancelRun0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in CancelRunRequest
@@ -229,6 +254,7 @@ type ConversationServiceHTTPClient interface {
 	GetRun(ctx context.Context, req *GetRunRequest, opts ...http.CallOption) (rsp *Run, err error)
 	ListConversations(ctx context.Context, req *ListConversationsRequest, opts ...http.CallOption) (rsp *ListConversationsResponse, err error)
 	ListMessages(ctx context.Context, req *ListMessagesRequest, opts ...http.CallOption) (rsp *ListMessagesResponse, err error)
+	ListRunItems(ctx context.Context, req *ListRunItemsRequest, opts ...http.CallOption) (rsp *ListRunItemsResponse, err error)
 }
 
 type ConversationServiceHTTPClientImpl struct {
@@ -361,6 +387,22 @@ func (c *ConversationServiceHTTPClientImpl) ListMessages(ctx context.Context, in
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
 		http.Operation(OperationConversationServiceListMessages),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *ConversationServiceHTTPClientImpl) ListRunItems(ctx context.Context, in *ListRunItemsRequest, opts ...http.CallOption) (*ListRunItemsResponse, error) {
+	var out ListRunItemsResponse
+	pattern := "/assistant/v1/runs/{run_id}/items"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationConversationServiceListRunItems),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)

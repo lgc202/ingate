@@ -79,7 +79,7 @@ type AssistantRun struct {
 	ErrorCode string
 	// 运行中的 Run 是否已收到取消请求
 	CancellationRequested bool
-	// 当前持有执行租约的 Assistant 实例标识
+	// 当前持有执行租约的 Assistant 进程及执行槽标识
 	WorkerID string
 	// 执行租约到期时间；仅运行中 Run 使用
 	LeaseExpiresAt sql.NullTime
@@ -88,5 +88,33 @@ type AssistantRun struct {
 	// 模型调用开始时间；排队中为空
 	StartedAt sql.NullTime
 	// 模型调用结束时间；未到终态时为空
+	FinishedAt sql.NullTime
+}
+
+// 运维助手执行步骤
+type AssistantRunItem struct {
+	// 执行步骤 ID，使用 UUID
+	ID string
+	// 所属 Run ID，由应用事务保证关联有效
+	RunID string
+	// 步骤在所属 Run 内的稳定顺序，从 1 开始递增
+	Sequence uint32
+	// 步骤类型：1 模型调用，2 工具调用，3 工具结果，4 专业 Agent 委派，5 审批
+	Kind uint8
+	// 步骤状态：1 等待中，2 执行中，3 完成，4 失败，5 已取消
+	State uint8
+	// 模型、工具或专业 Agent 的稳定名称
+	Name string
+	// 关联一次调用及其结果的稳定标识
+	CallID string
+	// 经过脱敏且可向用户展示的执行摘要
+	Summary string
+	// 失败原因的稳定代码，非失败状态为空
+	ErrorCode string
+	// 步骤创建时间，统一使用 UTC
+	CreatedAt time.Time
+	// 步骤开始执行时间；等待中为空
+	StartedAt sql.NullTime
+	// 步骤结束时间；未到终态时为空
 	FinishedAt sql.NullTime
 }

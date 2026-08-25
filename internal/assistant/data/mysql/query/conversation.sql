@@ -35,6 +35,12 @@ WHERE id = ? AND actor_id = ?;
 DELETE FROM assistant_messages
 WHERE conversation_id = ?;
 
+-- name: DeleteRunItemsByConversation :exec
+DELETE i
+FROM assistant_run_items AS i
+JOIN assistant_runs AS r ON r.id = i.run_id
+WHERE r.conversation_id = ?;
+
 -- name: DeleteRunsByConversation :exec
 DELETE FROM assistant_runs
 WHERE conversation_id = ?;
@@ -84,6 +90,53 @@ WHERE id = ? AND state = 1;
 UPDATE assistant_runs
 SET model = ?
 WHERE id = ? AND state = 2 AND worker_id = ?;
+
+-- name: GetRunForWorkerUpdate :one
+SELECT id
+FROM assistant_runs
+WHERE id = ? AND state = 2 AND worker_id = ?
+FOR UPDATE;
+
+-- name: NextRunItemSequence :one
+SELECT CAST(COALESCE(MAX(sequence), 0) + 1 AS UNSIGNED)
+FROM assistant_run_items
+WHERE run_id = ?;
+
+-- name: CreateRunItem :exec
+INSERT INTO assistant_run_items (
+    id, run_id, sequence, kind, state, name, call_id, summary,
+    error_code, created_at, started_at, finished_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+-- name: ListRunItems :many
+SELECT i.id, i.run_id, i.sequence, i.kind, i.state, i.name, i.call_id,
+       i.summary, i.error_code, i.created_at, i.started_at, i.finished_at
+FROM assistant_run_items AS i
+JOIN assistant_runs AS r ON r.id = i.run_id
+JOIN assistant_conversations AS c ON c.id = r.conversation_id
+WHERE i.run_id = ? AND c.actor_id = ?
+ORDER BY i.sequence ASC;
+
+-- name: CompleteRunningRunItems :exec
+UPDATE assistant_run_items
+SET state = 3, finished_at = ?
+WHERE run_id = ? AND state = 2;
+
+-- name: FailRunningRunItems :exec
+UPDATE assistant_run_items
+SET state = 4, error_code = ?, finished_at = ?
+WHERE run_id = ? AND state = 2;
+
+-- name: CancelRunningRunItems :exec
+UPDATE assistant_run_items
+SET state = 5, finished_at = ?
+WHERE run_id = ? AND state = 2;
+
+-- name: FailExpiredRunItems :exec
+UPDATE assistant_run_items AS i
+JOIN assistant_runs AS r ON r.id = i.run_id
+SET i.state = 4, i.error_code = ?, i.finished_at = ?
+WHERE i.state = 2 AND r.state = 2 AND r.lease_expires_at < ?;
 
 -- name: RenewRunLease :execrows
 UPDATE assistant_runs

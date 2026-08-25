@@ -21,6 +21,28 @@ const (
 	StateCancelled RunState = "cancelled"
 )
 
+// RunItemKind 表示一次 Run 中可持久追踪的执行步骤类型。
+type RunItemKind string
+
+const (
+	ItemKindModelCall  RunItemKind = "model_call"
+	ItemKindToolCall   RunItemKind = "tool_call"
+	ItemKindToolResult RunItemKind = "tool_result"
+	ItemKindDelegation RunItemKind = "delegation"
+	ItemKindApproval   RunItemKind = "approval"
+)
+
+// RunItemState 表示执行步骤自身的生命周期，不替代 Run 的整体状态。
+type RunItemState string
+
+const (
+	ItemStatePending   RunItemState = "pending"
+	ItemStateRunning   RunItemState = "running"
+	ItemStateCompleted RunItemState = "completed"
+	ItemStateFailed    RunItemState = "failed"
+	ItemStateCancelled RunItemState = "cancelled"
+)
+
 // EventType 是浏览器可订阅和短时重放的流式事件类型。
 type EventType string
 
@@ -95,6 +117,23 @@ type Run struct {
 	CreatedAt             time.Time
 	StartedAt             *time.Time
 	FinishedAt            *time.Time
+}
+
+// RunItem 记录一次 Run 中的模型、工具、委派或审批步骤。
+// Summary 只能保存经过脱敏且允许返回用户的内容，不能承载原始工具输出。
+type RunItem struct {
+	ID         string
+	RunID      string
+	Sequence   uint32
+	Kind       RunItemKind
+	State      RunItemState
+	Name       string
+	CallID     string
+	Summary    string
+	ErrorCode  FailureCode
+	CreatedAt  time.Time
+	StartedAt  *time.Time
+	FinishedAt *time.Time
 }
 
 // ClaimedRun 是后台实例已取得租约、可以执行的一次 Run。

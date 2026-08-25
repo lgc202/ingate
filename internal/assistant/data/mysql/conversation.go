@@ -94,6 +94,9 @@ func (s *Store) Delete(ctx context.Context, actorID, id string) error {
 		if err := queries.DeleteMessagesByConversation(ctx, id); err != nil {
 			return fmt.Errorf("delete conversation messages: %w", err)
 		}
+		if err := queries.DeleteRunItemsByConversation(ctx, id); err != nil {
+			return fmt.Errorf("delete conversation run items: %w", err)
+		}
 		if err := queries.DeleteRunsByConversation(ctx, id); err != nil {
 			return fmt.Errorf("delete conversation runs: %w", err)
 		}

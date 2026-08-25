@@ -69,6 +69,11 @@ func (s *Service) GetRun(ctx context.Context, actorID, id string) (Run, error) {
 	return s.store.GetRun(ctx, actorID, id)
 }
 
+// ListRunItems 返回一次 Run 已经持久化的执行步骤。
+func (s *Service) ListRunItems(ctx context.Context, actorID, runID string) ([]RunItem, error) {
+	return s.store.ListRunItems(ctx, actorID, runID)
+}
+
 // CreateRun 保存用户输入并创建排队中的 Run，模型调用由后台 Worker 异步执行。
 func (s *Service) CreateRun(
 	ctx context.Context,

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -105,6 +107,20 @@ func (s *Service) generate(
 	if err != nil {
 		return s.finishFailure(
 			ctx, run, workerID, FailureInternal, fmt.Errorf("load conversation history: %w", err),
+		)
+	}
+	callID := uuid.NewString()
+	if _, err := s.store.StartRunItem(ctx, run.ID, workerID, RunItem{
+		ID:     callID,
+		Kind:   ItemKindModelCall,
+		Name:   selectedModel.Name(),
+		CallID: callID,
+	}); err != nil {
+		if errors.Is(err, ErrRunLeaseLost) {
+			return err
+		}
+		return s.finishFailure(
+			ctx, run, workerID, FailureInternal, fmt.Errorf("start model call item: %w", err),
 		)
 	}
 	result, err := selectedModel.Generate(ctx, history, func(delta ModelDelta) error {

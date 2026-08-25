@@ -38,6 +38,9 @@ service ConversationService {
   rpc GetRun(GetRunRequest) returns (Run) {
     option (google.api.http) = {get: "/assistant/v1/runs/{id}"};
   }
+  rpc ListRunItems(ListRunItemsRequest) returns (ListRunItemsResponse) {
+    option (google.api.http) = {get: "/assistant/v1/runs/{run_id}/items"};
+  }
   rpc CancelRun(CancelRunRequest) returns (Run) {
     option (google.api.http) = {
       post: "/assistant/v1/runs/{id}:cancel"
@@ -88,6 +91,26 @@ enum RunState {
   RUN_STATE_CANCELLED = 5;
 }
 
+// RunItemKind 表示一次 Run 中可持久追踪的执行步骤类型。
+enum RunItemKind {
+  RUN_ITEM_KIND_UNSPECIFIED = 0;
+  RUN_ITEM_KIND_MODEL_CALL = 1;
+  RUN_ITEM_KIND_TOOL_CALL = 2;
+  RUN_ITEM_KIND_TOOL_RESULT = 3;
+  RUN_ITEM_KIND_DELEGATION = 4;
+  RUN_ITEM_KIND_APPROVAL = 5;
+}
+
+// RunItemState 表示执行步骤自身的生命周期。
+enum RunItemState {
+  RUN_ITEM_STATE_UNSPECIFIED = 0;
+  RUN_ITEM_STATE_PENDING = 1;
+  RUN_ITEM_STATE_RUNNING = 2;
+  RUN_ITEM_STATE_COMPLETED = 3;
+  RUN_ITEM_STATE_FAILED = 4;
+  RUN_ITEM_STATE_CANCELLED = 5;
+}
+
 message Conversation {
   string id = 1;
   string title = 2;
@@ -116,6 +139,22 @@ message Run {
   google.protobuf.Timestamp finished_at = 7;
   google.protobuf.Timestamp created_at = 8;
   bool cancellation_requested = 9;
+}
+
+// RunItem 记录一次 Run 中已经发生的执行步骤，不保存原始工具输出或敏感参数。
+message RunItem {
+  string id = 1;
+  string run_id = 2;
+  uint32 sequence = 3;
+  RunItemKind kind = 4;
+  RunItemState state = 5;
+  string name = 6;
+  string call_id = 7;
+  string summary = 8;
+  string error_code = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp started_at = 11;
+  google.protobuf.Timestamp finished_at = 12;
 }
 
 message ListConversationsRequest {
@@ -153,6 +192,14 @@ message ListMessagesResponse {
 
 message GetRunRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ListRunItemsRequest {
+  string run_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message ListRunItemsResponse {
+  repeated RunItem items = 1;
 }
 
 message CreateRunRequest {

@@ -172,6 +172,25 @@ func (s *Service) GetRun(
 	return s.runResponse(run), nil
 }
 
+func (s *Service) ListRunItems(
+	ctx context.Context,
+	request *assistantv1.ListRunItemsRequest,
+) (*assistantv1.ListRunItemsResponse, error) {
+	actorID, err := s.actorID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	items, err := s.conversations.ListRunItems(ctx, actorID, request.GetRunId())
+	if err != nil {
+		return nil, s.mapError(err)
+	}
+	response := &assistantv1.ListRunItemsResponse{Items: make([]*assistantv1.RunItem, 0, len(items))}
+	for _, item := range items {
+		response.Items = append(response.Items, s.runItemResponse(item))
+	}
+	return response, nil
+}
+
 func (s *Service) CancelRun(
 	ctx context.Context,
 	request *assistantv1.CancelRunRequest,
@@ -274,6 +293,54 @@ func (s *Service) runResponse(item conversationbiz.Run) *assistantv1.Run {
 		ErrorCode:             string(item.ErrorCode),
 		CreatedAt:             timestamppb.New(item.CreatedAt),
 		CancellationRequested: item.CancellationRequested,
+	}
+	if item.StartedAt != nil {
+		response.StartedAt = timestamppb.New(*item.StartedAt)
+	}
+	if item.FinishedAt != nil {
+		response.FinishedAt = timestamppb.New(*item.FinishedAt)
+	}
+	return response
+}
+
+func (s *Service) runItemResponse(item conversationbiz.RunItem) *assistantv1.RunItem {
+	kind := assistantv1.RunItemKind_RUN_ITEM_KIND_UNSPECIFIED
+	switch item.Kind {
+	case conversationbiz.ItemKindModelCall:
+		kind = assistantv1.RunItemKind_RUN_ITEM_KIND_MODEL_CALL
+	case conversationbiz.ItemKindToolCall:
+		kind = assistantv1.RunItemKind_RUN_ITEM_KIND_TOOL_CALL
+	case conversationbiz.ItemKindToolResult:
+		kind = assistantv1.RunItemKind_RUN_ITEM_KIND_TOOL_RESULT
+	case conversationbiz.ItemKindDelegation:
+		kind = assistantv1.RunItemKind_RUN_ITEM_KIND_DELEGATION
+	case conversationbiz.ItemKindApproval:
+		kind = assistantv1.RunItemKind_RUN_ITEM_KIND_APPROVAL
+	}
+	state := assistantv1.RunItemState_RUN_ITEM_STATE_UNSPECIFIED
+	switch item.State {
+	case conversationbiz.ItemStatePending:
+		state = assistantv1.RunItemState_RUN_ITEM_STATE_PENDING
+	case conversationbiz.ItemStateRunning:
+		state = assistantv1.RunItemState_RUN_ITEM_STATE_RUNNING
+	case conversationbiz.ItemStateCompleted:
+		state = assistantv1.RunItemState_RUN_ITEM_STATE_COMPLETED
+	case conversationbiz.ItemStateFailed:
+		state = assistantv1.RunItemState_RUN_ITEM_STATE_FAILED
+	case conversationbiz.ItemStateCancelled:
+		state = assistantv1.RunItemState_RUN_ITEM_STATE_CANCELLED
+	}
+	response := &assistantv1.RunItem{
+		Id:        item.ID,
+		RunId:     item.RunID,
+		Sequence:  item.Sequence,
+		Kind:      kind,
+		State:     state,
+		Name:      item.Name,
+		CallId:    item.CallID,
+		Summary:   item.Summary,
+		ErrorCode: string(item.ErrorCode),
+		CreatedAt: timestamppb.New(item.CreatedAt),
 	}
 	if item.StartedAt != nil {
 		response.StartedAt = timestamppb.New(*item.StartedAt)

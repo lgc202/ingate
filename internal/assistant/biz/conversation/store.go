@@ -16,6 +16,8 @@ type Store interface {
 	CreateRun(context.Context, string, string, string) (Run, error)
 	ClaimRun(context.Context, string, time.Duration) (ClaimedRun, bool, error)
 	SetRunModel(context.Context, string, string, string) error
+	StartRunItem(context.Context, string, string, RunItem) (RunItem, error)
+	ListRunItems(context.Context, string, string) ([]RunItem, error)
 	RenewRunLease(context.Context, string, string, time.Duration) (bool, error)
 	CompleteRun(context.Context, string, string, string, ModelResult) (Message, error)
 	FailRun(context.Context, string, string, string, FailureCode) error

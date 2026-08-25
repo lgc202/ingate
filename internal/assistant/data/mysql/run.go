@@ -225,6 +225,12 @@ func (s *Store) CompleteRun(
 		}); err != nil {
 			return fmt.Errorf("create assistant message: %w", err)
 		}
+		if err := queries.CompleteRunningRunItems(ctx, db.CompleteRunningRunItemsParams{
+			FinishedAt: sql.NullTime{Time: now, Valid: true},
+			RunID:      runID,
+		}); err != nil {
+			return fmt.Errorf("complete assistant run items: %w", err)
+		}
 		rows, err := queries.CompleteRun(ctx, db.CompleteRunParams{
 			FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: runID, WorkerID: workerID,
 		})
@@ -277,6 +283,13 @@ func (s *Store) FailRun(
 		}
 
 		now := time.Now().UTC()
+		if err := queries.FailRunningRunItems(ctx, db.FailRunningRunItemsParams{
+			ErrorCode:  string(errorCode),
+			FinishedAt: sql.NullTime{Time: now, Valid: true},
+			RunID:      runID,
+		}); err != nil {
+			return fmt.Errorf("fail assistant run items: %w", err)
+		}
 		rows, err := queries.FailRun(ctx, db.FailRunParams{
 			ErrorCode: string(errorCode), FinishedAt: sql.NullTime{Time: now, Valid: true},
 			ID: runID, WorkerID: workerID,
@@ -358,14 +371,27 @@ func (s *Store) CancelRun(ctx context.Context, actorID, runID string) (conversat
 
 // FinishRunCancellation 由持有租约的实例确认模型调用已经停止后写入取消终态。
 func (s *Store) FinishRunCancellation(ctx context.Context, runID, workerID string) error {
-	rows, err := s.queries.FinishRunCancellation(ctx, db.FinishRunCancellationParams{
-		FinishedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true}, ID: runID, WorkerID: workerID,
+	err := s.withTransaction(ctx, func(queries *db.Queries) error {
+		now := time.Now().UTC()
+		rows, err := queries.FinishRunCancellation(ctx, db.FinishRunCancellationParams{
+			FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: runID, WorkerID: workerID,
+		})
+		if err != nil {
+			return fmt.Errorf("finish assistant run cancellation: %w", err)
+		}
+		if rows != 1 {
+			return conversation.ErrRunLeaseLost
+		}
+		if err := queries.CancelRunningRunItems(ctx, db.CancelRunningRunItemsParams{
+			FinishedAt: sql.NullTime{Time: now, Valid: true},
+			RunID:      runID,
+		}); err != nil {
+			return fmt.Errorf("cancel assistant run items: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("finish assistant run cancellation: %w", err)
-	}
-	if rows != 1 {
-		return conversation.ErrRunLeaseLost
+		return fmt.Errorf("finish assistant run cancellation transaction: %w", err)
 	}
 	return nil
 }
@@ -373,14 +399,29 @@ func (s *Store) FinishRunCancellation(ctx context.Context, runID, workerID strin
 // FailExpiredRuns 终止已经失去执行实例的 Run。
 // 不自动重新排队，避免未来 Run 包含有副作用的工具调用时重复执行。
 func (s *Store) FailExpiredRuns(ctx context.Context) (int64, error) {
-	now := time.Now().UTC()
-	rows, err := s.queries.FailExpiredRuns(ctx, db.FailExpiredRunsParams{
-		ErrorCode:      string(conversation.FailureWorkerLost),
-		FinishedAt:     sql.NullTime{Time: now, Valid: true},
-		LeaseExpiresAt: sql.NullTime{Time: now, Valid: true},
+	var rows int64
+	err := s.withTransaction(ctx, func(queries *db.Queries) error {
+		now := time.Now().UTC()
+		if err := queries.FailExpiredRunItems(ctx, db.FailExpiredRunItemsParams{
+			ErrorCode:      string(conversation.FailureWorkerLost),
+			FinishedAt:     sql.NullTime{Time: now, Valid: true},
+			LeaseExpiresAt: sql.NullTime{Time: now, Valid: true},
+		}); err != nil {
+			return fmt.Errorf("fail expired assistant run items: %w", err)
+		}
+		var err error
+		rows, err = queries.FailExpiredRuns(ctx, db.FailExpiredRunsParams{
+			ErrorCode:      string(conversation.FailureWorkerLost),
+			FinishedAt:     sql.NullTime{Time: now, Valid: true},
+			LeaseExpiresAt: sql.NullTime{Time: now, Valid: true},
+		})
+		if err != nil {
+			return fmt.Errorf("fail expired assistant runs: %w", err)
+		}
+		return nil
 	})
 	if err != nil {
-		return 0, fmt.Errorf("fail expired assistant runs: %w", err)
+		return 0, fmt.Errorf("fail expired assistant runs transaction: %w", err)
 	}
 	return rows, nil
 }
