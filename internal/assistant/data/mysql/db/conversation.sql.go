@@ -11,33 +11,82 @@ import (
 	"time"
 )
 
-const completeRun = `-- name: CompleteRun :execrows
+const cancelQueuedRun = `-- name: CancelQueuedRun :execrows
 UPDATE assistant_runs
-SET state = 2, finished_at = ?
+SET state = 5, finished_at = ?
 WHERE id = ? AND state = 1
 `
 
-type CompleteRunParams struct {
+type CancelQueuedRunParams struct {
 	FinishedAt sql.NullTime
 	ID         string
 }
 
-func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, completeRun, arg.FinishedAt, arg.ID)
+func (q *Queries) CancelQueuedRun(ctx context.Context, arg CancelQueuedRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, cancelQueuedRun, arg.FinishedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-const countRunningRuns = `-- name: CountRunningRuns :one
-SELECT COUNT(*)
-FROM assistant_runs
-WHERE conversation_id = ? AND state = 1
+const claimNextRun = `-- name: ClaimNextRun :one
+SELECT r.id, r.conversation_id, c.actor_id, r.created_at
+FROM assistant_runs AS r
+JOIN assistant_conversations AS c ON c.id = r.conversation_id
+WHERE r.state = 1
+ORDER BY r.created_at ASC, r.id ASC
+LIMIT 1
+FOR UPDATE SKIP LOCKED
 `
 
-func (q *Queries) CountRunningRuns(ctx context.Context, conversationID string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countRunningRuns, conversationID)
+type ClaimNextRunRow struct {
+	ID             string
+	ConversationID string
+	ActorID        string
+	CreatedAt      time.Time
+}
+
+func (q *Queries) ClaimNextRun(ctx context.Context) (ClaimNextRunRow, error) {
+	row := q.db.QueryRowContext(ctx, claimNextRun)
+	var i ClaimNextRunRow
+	err := row.Scan(
+		&i.ID,
+		&i.ConversationID,
+		&i.ActorID,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const completeRun = `-- name: CompleteRun :execrows
+UPDATE assistant_runs
+SET state = 3, worker_id = '', lease_expires_at = NULL, finished_at = ?
+WHERE id = ? AND state = 2 AND worker_id = ?
+`
+
+type CompleteRunParams struct {
+	FinishedAt sql.NullTime
+	ID         string
+	WorkerID   string
+}
+
+func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeRun, arg.FinishedAt, arg.ID, arg.WorkerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const countActiveRuns = `-- name: CountActiveRuns :one
+SELECT COUNT(*)
+FROM assistant_runs
+WHERE conversation_id = ? AND state IN (1, 2)
+`
+
+func (q *Queries) CountActiveRuns(ctx context.Context, conversationID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveRuns, conversationID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -99,26 +148,18 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) er
 
 const createRun = `-- name: CreateRun :exec
 INSERT INTO assistant_runs (
-    id, conversation_id, state, model, error_code, started_at
-) VALUES (?, ?, ?, ?, '', ?)
+    id, conversation_id, state, created_at
+) VALUES (?, ?, 1, ?)
 `
 
 type CreateRunParams struct {
 	ID             string
 	ConversationID string
-	State          uint8
-	Model          string
-	StartedAt      time.Time
+	CreatedAt      time.Time
 }
 
 func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
-	_, err := q.db.ExecContext(ctx, createRun,
-		arg.ID,
-		arg.ConversationID,
-		arg.State,
-		arg.Model,
-		arg.StartedAt,
-	)
+	_, err := q.db.ExecContext(ctx, createRun, arg.ID, arg.ConversationID, arg.CreatedAt)
 	return err
 }
 
@@ -160,20 +201,66 @@ func (q *Queries) DeleteRunsByConversation(ctx context.Context, conversationID s
 	return err
 }
 
+const failExpiredRuns = `-- name: FailExpiredRuns :execrows
+UPDATE assistant_runs
+SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
+WHERE state = 2 AND lease_expires_at < ?
+`
+
+type FailExpiredRunsParams struct {
+	ErrorCode      string
+	FinishedAt     sql.NullTime
+	LeaseExpiresAt sql.NullTime
+}
+
+func (q *Queries) FailExpiredRuns(ctx context.Context, arg FailExpiredRunsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failExpiredRuns, arg.ErrorCode, arg.FinishedAt, arg.LeaseExpiresAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const failRun = `-- name: FailRun :execrows
 UPDATE assistant_runs
-SET state = 3, error_code = ?, finished_at = ?
-WHERE id = ? AND state = 1
+SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
+WHERE id = ? AND state = 2 AND worker_id = ?
 `
 
 type FailRunParams struct {
 	ErrorCode  string
 	FinishedAt sql.NullTime
 	ID         string
+	WorkerID   string
 }
 
 func (q *Queries) FailRun(ctx context.Context, arg FailRunParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, failRun, arg.ErrorCode, arg.FinishedAt, arg.ID)
+	result, err := q.db.ExecContext(ctx, failRun,
+		arg.ErrorCode,
+		arg.FinishedAt,
+		arg.ID,
+		arg.WorkerID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const finishRunCancellation = `-- name: FinishRunCancellation :execrows
+UPDATE assistant_runs
+SET state = 5, worker_id = '', lease_expires_at = NULL, finished_at = ?
+WHERE id = ? AND state = 2 AND worker_id = ? AND cancellation_requested = TRUE
+`
+
+type FinishRunCancellationParams struct {
+	FinishedAt sql.NullTime
+	ID         string
+	WorkerID   string
+}
+
+func (q *Queries) FinishRunCancellation(ctx context.Context, arg FinishRunCancellationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, finishRunCancellation, arg.FinishedAt, arg.ID, arg.WorkerID)
 	if err != nil {
 		return 0, err
 	}
@@ -281,7 +368,9 @@ func (q *Queries) GetConversationForUpdate(ctx context.Context, arg GetConversat
 }
 
 const getRun = `-- name: GetRun :one
-SELECT r.id, r.conversation_id, r.state, r.model, r.error_code, r.started_at, r.finished_at
+SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
+       r.cancellation_requested, r.worker_id, r.lease_expires_at,
+       r.created_at, r.started_at, r.finished_at
 FROM assistant_runs AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.id = ? AND c.actor_id = ?
@@ -301,6 +390,10 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (AssistantRun, e
 		&i.State,
 		&i.Model,
 		&i.ErrorCode,
+		&i.CancellationRequested,
+		&i.WorkerID,
+		&i.LeaseExpiresAt,
+		&i.CreatedAt,
 		&i.StartedAt,
 		&i.FinishedAt,
 	)
@@ -308,7 +401,9 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (AssistantRun, e
 }
 
 const getRunForUpdate = `-- name: GetRunForUpdate :one
-SELECT r.id, r.conversation_id, r.state, r.model, r.error_code, r.started_at, r.finished_at
+SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
+       r.cancellation_requested, r.worker_id, r.lease_expires_at,
+       r.created_at, r.started_at, r.finished_at
 FROM assistant_runs AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.id = ? AND c.actor_id = ?
@@ -329,6 +424,10 @@ func (q *Queries) GetRunForUpdate(ctx context.Context, arg GetRunForUpdateParams
 		&i.State,
 		&i.Model,
 		&i.ErrorCode,
+		&i.CancellationRequested,
+		&i.WorkerID,
+		&i.LeaseExpiresAt,
+		&i.CreatedAt,
 		&i.StartedAt,
 		&i.FinishedAt,
 	)
@@ -483,6 +582,104 @@ func (q *Queries) ListRecentMessages(ctx context.Context, arg ListRecentMessages
 		return nil, err
 	}
 	return items, nil
+}
+
+const renewRunLease = `-- name: RenewRunLease :execrows
+UPDATE assistant_runs
+SET lease_expires_at = ?
+WHERE id = ? AND state = 2 AND worker_id = ?
+`
+
+type RenewRunLeaseParams struct {
+	LeaseExpiresAt sql.NullTime
+	ID             string
+	WorkerID       string
+}
+
+func (q *Queries) RenewRunLease(ctx context.Context, arg RenewRunLeaseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, renewRunLease, arg.LeaseExpiresAt, arg.ID, arg.WorkerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const requestRunCancellation = `-- name: RequestRunCancellation :execrows
+UPDATE assistant_runs
+SET cancellation_requested = TRUE
+WHERE id = ? AND state = 2
+`
+
+func (q *Queries) RequestRunCancellation(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, requestRunCancellation, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const runCancellationRequested = `-- name: RunCancellationRequested :one
+SELECT cancellation_requested
+FROM assistant_runs
+WHERE id = ? AND state = 2 AND worker_id = ?
+`
+
+type RunCancellationRequestedParams struct {
+	ID       string
+	WorkerID string
+}
+
+func (q *Queries) RunCancellationRequested(ctx context.Context, arg RunCancellationRequestedParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, runCancellationRequested, arg.ID, arg.WorkerID)
+	var cancellation_requested bool
+	err := row.Scan(&cancellation_requested)
+	return cancellation_requested, err
+}
+
+const setRunModel = `-- name: SetRunModel :execrows
+UPDATE assistant_runs
+SET model = ?
+WHERE id = ? AND state = 2 AND worker_id = ?
+`
+
+type SetRunModelParams struct {
+	Model    string
+	ID       string
+	WorkerID string
+}
+
+func (q *Queries) SetRunModel(ctx context.Context, arg SetRunModelParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setRunModel, arg.Model, arg.ID, arg.WorkerID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const startRun = `-- name: StartRun :execrows
+UPDATE assistant_runs
+SET state = 2, worker_id = ?, lease_expires_at = ?, started_at = ?
+WHERE id = ? AND state = 1
+`
+
+type StartRunParams struct {
+	WorkerID       string
+	LeaseExpiresAt sql.NullTime
+	StartedAt      sql.NullTime
+	ID             string
+}
+
+func (q *Queries) StartRun(ctx context.Context, arg StartRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, startRun,
+		arg.WorkerID,
+		arg.LeaseExpiresAt,
+		arg.StartedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const touchConversation = `-- name: TouchConversation :exec

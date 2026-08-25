@@ -4,6 +4,7 @@ package conversation
 import (
 	"context"
 	"errors"
+	"strings"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	"github.com/go-kratos/kratos/v3/transport"
@@ -16,6 +17,7 @@ import (
 
 const (
 	forwardedUserHeader = "X-Forwarded-User"
+	maxActorIDLength    = 128
 	defaultLimit        = 20
 	maxLimit            = 100
 )
@@ -34,7 +36,7 @@ func (s *Service) ListConversations(
 	ctx context.Context,
 	request *assistantv1.ListConversationsRequest,
 ) (*assistantv1.ListConversationsResponse, error) {
-	actorID, err := actorFromContext(ctx)
+	actorID, err := s.actorID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +46,7 @@ func (s *Service) ListConversations(
 	}
 	page, err := s.conversations.List(ctx, actorID, pageLimit(request.GetLimit()), cursor)
 	if err != nil {
-		return nil, serviceError(err)
+		return nil, s.mapError(err)
 	}
 	nextCursor, err := encodeConversationCursor(page.NextCursor)
 	if err != nil {
@@ -55,7 +57,7 @@ func (s *Service) ListConversations(
 		NextCursor:    nextCursor,
 	}
 	for _, item := range page.Items {
-		response.Conversations = append(response.Conversations, conversationResponse(item))
+		response.Conversations = append(response.Conversations, s.conversationResponse(item))
 	}
 	return response, nil
 }
@@ -64,42 +66,42 @@ func (s *Service) GetConversation(
 	ctx context.Context,
 	request *assistantv1.GetConversationRequest,
 ) (*assistantv1.Conversation, error) {
-	actorID, err := actorFromContext(ctx)
+	actorID, err := s.actorID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	item, err := s.conversations.Get(ctx, actorID, request.GetId())
 	if err != nil {
-		return nil, serviceError(err)
+		return nil, s.mapError(err)
 	}
-	return conversationResponse(item), nil
+	return s.conversationResponse(item), nil
 }
 
 func (s *Service) CreateConversation(
 	ctx context.Context,
 	request *assistantv1.CreateConversationRequest,
 ) (*assistantv1.Conversation, error) {
-	actorID, err := actorFromContext(ctx)
+	actorID, err := s.actorID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	item, err := s.conversations.Create(ctx, actorID, request.GetTitle())
 	if err != nil {
-		return nil, serviceError(err)
+		return nil, s.mapError(err)
 	}
-	return conversationResponse(item), nil
+	return s.conversationResponse(item), nil
 }
 
 func (s *Service) DeleteConversation(
 	ctx context.Context,
 	request *assistantv1.DeleteConversationRequest,
 ) (*emptypb.Empty, error) {
-	actorID, err := actorFromContext(ctx)
+	actorID, err := s.actorID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if err := s.conversations.Delete(ctx, actorID, request.GetId()); err != nil {
-		return nil, serviceError(err)
+		return nil, s.mapError(err)
 	}
 	return &emptypb.Empty{}, nil
 }
@@ -108,7 +110,7 @@ func (s *Service) ListMessages(
 	ctx context.Context,
 	request *assistantv1.ListMessagesRequest,
 ) (*assistantv1.ListMessagesResponse, error) {
-	actorID, err := actorFromContext(ctx)
+	actorID, err := s.actorID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +122,7 @@ func (s *Service) ListMessages(
 		ctx, actorID, request.GetConversationId(), cursor, pageLimit(request.GetLimit()),
 	)
 	if err != nil {
-		return nil, serviceError(err)
+		return nil, s.mapError(err)
 	}
 	nextCursor, err := encodeMessageCursor(page.NextCursor)
 	if err != nil {
@@ -131,35 +133,76 @@ func (s *Service) ListMessages(
 		NextCursor: nextCursor,
 	}
 	for _, item := range page.Items {
-		response.Messages = append(response.Messages, messageResponse(item))
+		response.Messages = append(response.Messages, s.messageResponse(item))
 	}
 	return response, nil
+}
+
+func (s *Service) CreateRun(
+	ctx context.Context,
+	request *assistantv1.CreateRunRequest,
+) (*assistantv1.Run, error) {
+	actorID, err := s.actorID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	content := strings.TrimSpace(request.GetContent())
+	if content == "" {
+		return nil, invalidArgument("message content is required")
+	}
+	run, err := s.conversations.CreateRun(ctx, actorID, request.GetConversationId(), content)
+	if err != nil {
+		return nil, s.mapError(err)
+	}
+	return s.runResponse(run), nil
 }
 
 func (s *Service) GetRun(
 	ctx context.Context,
 	request *assistantv1.GetRunRequest,
 ) (*assistantv1.Run, error) {
-	actorID, err := actorFromContext(ctx)
+	actorID, err := s.actorID(ctx)
 	if err != nil {
 		return nil, err
 	}
 	run, err := s.conversations.GetRun(ctx, actorID, request.GetId())
 	if err != nil {
-		return nil, serviceError(err)
+		return nil, s.mapError(err)
 	}
-	return runResponse(run), nil
+	return s.runResponse(run), nil
 }
 
-func actorFromContext(ctx context.Context) (string, error) {
+func (s *Service) CancelRun(
+	ctx context.Context,
+	request *assistantv1.CancelRunRequest,
+) (*assistantv1.Run, error) {
+	actorID, err := s.actorID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	run, err := s.conversations.CancelRun(ctx, actorID, request.GetId())
+	if err != nil {
+		return nil, s.mapError(err)
+	}
+	return s.runResponse(run), nil
+}
+
+func (s *Service) actorID(ctx context.Context) (string, error) {
 	tr, ok := transport.FromServerContext(ctx)
-	if !ok || tr.RequestHeader().Get(forwardedUserHeader) == "" {
+	if !ok {
 		return "", kratoserrors.Unauthorized("ACTOR_REQUIRED", "authentication required")
 	}
-	return tr.RequestHeader().Get(forwardedUserHeader), nil
+	actorID := strings.TrimSpace(tr.RequestHeader().Get(forwardedUserHeader))
+	if actorID == "" {
+		return "", kratoserrors.Unauthorized("ACTOR_REQUIRED", "authentication required")
+	}
+	if len(actorID) > maxActorIDLength {
+		return "", invalidArgument("actor identifier is too long")
+	}
+	return actorID, nil
 }
 
-func serviceError(err error) error {
+func (s *Service) mapError(err error) error {
 	switch {
 	case errors.Is(err, conversationbiz.ErrNotFound):
 		return kratoserrors.NotFound("RESOURCE_NOT_FOUND", "resource not found")
@@ -181,14 +224,16 @@ func pageLimit(value int32) int {
 	return min(int(value), maxLimit)
 }
 
-func conversationResponse(item conversationbiz.Conversation) *assistantv1.Conversation {
+func (s *Service) conversationResponse(item conversationbiz.Conversation) *assistantv1.Conversation {
 	return &assistantv1.Conversation{
-		Id: item.ID, Title: item.Title,
-		CreatedAt: timestamppb.New(item.CreatedAt), UpdatedAt: timestamppb.New(item.UpdatedAt),
+		Id:        item.ID,
+		Title:     item.Title,
+		CreatedAt: timestamppb.New(item.CreatedAt),
+		UpdatedAt: timestamppb.New(item.UpdatedAt),
 	}
 }
 
-func messageResponse(item conversationbiz.Message) *assistantv1.Message {
+func (s *Service) messageResponse(item conversationbiz.Message) *assistantv1.Message {
 	role := assistantv1.MessageRole_MESSAGE_ROLE_UNSPECIFIED
 	switch item.Role {
 	case conversationbiz.RoleUser:
@@ -197,25 +242,41 @@ func messageResponse(item conversationbiz.Message) *assistantv1.Message {
 		role = assistantv1.MessageRole_MESSAGE_ROLE_ASSISTANT
 	}
 	return &assistantv1.Message{
-		Id: item.ID, ConversationId: item.ConversationID, RunId: item.RunID,
-		Role: role, Content: item.Content, ReasoningContent: item.ReasoningContent,
-		CreatedAt: timestamppb.New(item.CreatedAt),
+		Id:               item.ID,
+		ConversationId:   item.ConversationID,
+		RunId:            item.RunID,
+		Role:             role,
+		Content:          item.Content,
+		ReasoningContent: item.ReasoningContent,
+		CreatedAt:        timestamppb.New(item.CreatedAt),
 	}
 }
 
-func runResponse(item conversationbiz.Run) *assistantv1.Run {
+func (s *Service) runResponse(item conversationbiz.Run) *assistantv1.Run {
 	state := assistantv1.RunState_RUN_STATE_UNSPECIFIED
 	switch item.State {
+	case conversationbiz.StateQueued:
+		state = assistantv1.RunState_RUN_STATE_QUEUED
 	case conversationbiz.StateRunning:
 		state = assistantv1.RunState_RUN_STATE_RUNNING
 	case conversationbiz.StateSucceeded:
 		state = assistantv1.RunState_RUN_STATE_SUCCEEDED
 	case conversationbiz.StateFailed:
 		state = assistantv1.RunState_RUN_STATE_FAILED
+	case conversationbiz.StateCancelled:
+		state = assistantv1.RunState_RUN_STATE_CANCELLED
 	}
 	response := &assistantv1.Run{
-		Id: item.ID, ConversationId: item.ConversationID, State: state,
-		Model: item.Model, ErrorCode: item.ErrorCode, StartedAt: timestamppb.New(item.StartedAt),
+		Id:                    item.ID,
+		ConversationId:        item.ConversationID,
+		State:                 state,
+		Model:                 item.Model,
+		ErrorCode:             string(item.ErrorCode),
+		CreatedAt:             timestamppb.New(item.CreatedAt),
+		CancellationRequested: item.CancellationRequested,
+	}
+	if item.StartedAt != nil {
+		response.StartedAt = timestamppb.New(*item.StartedAt)
 	}
 	if item.FinishedAt != nil {
 		response.FinishedAt = timestamppb.New(*item.FinishedAt)

@@ -12,6 +12,7 @@ message Bootstrap {
   Data data = 2;
   Stream stream = 3;
   Logging logging = 4;
+  Worker worker = 5;
 }
 
 message Server {
@@ -51,6 +52,14 @@ message Stream {
   google.protobuf.Duration retention = 1;
   uint32 max_events = 2;
   google.protobuf.Duration read_block = 3;
+}
+
+// Worker 定义后台 Run 的进程内并发度、领取频率和实例租约。
+// 同一会话仍由业务规则保证串行；不同会话可以由多个执行槽并发处理。
+message Worker {
+  uint32 concurrency = 1;
+  google.protobuf.Duration poll_interval = 2;
+  google.protobuf.Duration lease_duration = 3;
 }
 
 message Logging {

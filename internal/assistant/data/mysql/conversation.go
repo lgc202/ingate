@@ -74,44 +74,40 @@ func (s *Store) List(
 	return page, nil
 }
 
-// Delete 在没有运行中 Run 时删除整个会话聚合。
+// Delete 在没有排队或运行中的 Run 时删除整个会话聚合。
 func (s *Store) Delete(ctx context.Context, actorID, id string) error {
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("begin conversation deletion: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
+	err := s.withTransaction(ctx, func(queries *db.Queries) error {
+		if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
+			ID: id, ActorID: actorID,
+		}); err != nil {
+			return mapNotFound(err)
+		}
+		active, err := queries.CountActiveRuns(ctx, id)
+		if err != nil {
+			return fmt.Errorf("count active assistant runs: %w", err)
+		}
+		if active > 0 {
+			return conversation.ErrRunRunning
+		}
 
-	queries := s.queries.WithTx(tx)
-	if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
-		ID: id, ActorID: actorID,
-	}); err != nil {
-		return mapNotFound(err)
-	}
-	running, err := queries.CountRunningRuns(ctx, id)
+		// 数据库不使用外键级联；聚合删除必须在同一事务中按依赖顺序显式完成。
+		if err := queries.DeleteMessagesByConversation(ctx, id); err != nil {
+			return fmt.Errorf("delete conversation messages: %w", err)
+		}
+		if err := queries.DeleteRunsByConversation(ctx, id); err != nil {
+			return fmt.Errorf("delete conversation runs: %w", err)
+		}
+		rows, err := queries.DeleteConversation(ctx, db.DeleteConversationParams{ID: id, ActorID: actorID})
+		if err != nil {
+			return fmt.Errorf("delete conversation: %w", err)
+		}
+		if rows != 1 {
+			return conversation.ErrNotFound
+		}
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("count running assistant runs: %w", err)
-	}
-	if running > 0 {
-		return conversation.ErrRunRunning
-	}
-
-	// 数据库不使用外键级联；聚合删除必须在同一事务中按依赖顺序显式完成。
-	if err := queries.DeleteMessagesByConversation(ctx, id); err != nil {
-		return fmt.Errorf("delete conversation messages: %w", err)
-	}
-	if err := queries.DeleteRunsByConversation(ctx, id); err != nil {
-		return fmt.Errorf("delete conversation runs: %w", err)
-	}
-	rows, err := queries.DeleteConversation(ctx, db.DeleteConversationParams{ID: id, ActorID: actorID})
-	if err != nil {
-		return fmt.Errorf("delete conversation: %w", err)
-	}
-	if rows != 1 {
-		return conversation.ErrNotFound
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit conversation deletion: %w", err)
+		return fmt.Errorf("delete conversation transaction: %w", err)
 	}
 	return nil
 }
@@ -213,7 +209,7 @@ func messageFromDB(item db.AssistantMessage) (conversation.Message, error) {
 	}, nil
 }
 
-func messageRoleFromDB(role uint8) (string, error) {
+func messageRoleFromDB(role uint8) (conversation.MessageRole, error) {
 	switch role {
 	case messageRoleUser:
 		return conversation.RoleUser, nil

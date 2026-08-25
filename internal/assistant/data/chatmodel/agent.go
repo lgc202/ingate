@@ -28,8 +28,15 @@ type Agent struct {
 
 // ChatModel 封装一次 Run 固定使用的 Eino Runner。
 type ChatModel struct {
-	name   string
-	runner *adk.Runner
+	name string
+	eino *adk.Runner
+}
+
+// replyBuilder 汇总同一次模型调用的推理与回答，并同步发送增量事件。
+type replyBuilder struct {
+	content   strings.Builder
+	reasoning strings.Builder
+	emit      func(conversation.ModelDelta) error
 }
 
 // NewAgent 创建模型选取器，不在进程启动时固化在线业务配置。
@@ -61,8 +68,8 @@ func (a *Agent) Model(ctx context.Context) (conversation.Model, error) {
 		return nil, fmt.Errorf("create Eino chat model agent: %w", err)
 	}
 	return &ChatModel{
-		name:   connection.Model,
-		runner: adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent, EnableStreaming: true}),
+		name: connection.Model,
+		eino: adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent, EnableStreaming: true}),
 	}, nil
 }
 
@@ -86,9 +93,8 @@ func (m *ChatModel) Generate(
 			messages = append(messages, schema.AssistantMessage(message.Content, nil))
 		}
 	}
-	var content strings.Builder
-	var reasoning strings.Builder
-	iterator := m.runner.Run(ctx, messages)
+	reply := replyBuilder{emit: emit}
+	iterator := m.eino.Run(ctx, messages)
 	for event, ok := iterator.Next(); ok; event, ok = iterator.Next() {
 		if event.Err != nil {
 			return conversation.ModelResult{}, fmt.Errorf("run Eino agent: %w", event.Err)
@@ -98,7 +104,7 @@ func (m *ChatModel) Generate(
 		}
 		output := event.Output.MessageOutput
 		if !output.IsStreaming {
-			if err := appendMessage(&content, &reasoning, output.Message, emit); err != nil {
+			if err := reply.append(output.Message); err != nil {
 				return conversation.ModelResult{}, err
 			}
 			continue
@@ -113,43 +119,44 @@ func (m *ChatModel) Generate(
 				stream.Close()
 				return conversation.ModelResult{}, fmt.Errorf("read Eino model stream: %w", err)
 			}
-			if err := appendMessage(&content, &reasoning, chunk, emit); err != nil {
+			if err := reply.append(chunk); err != nil {
 				stream.Close()
 				return conversation.ModelResult{}, err
 			}
 		}
 		stream.Close()
 	}
-	return conversation.ModelResult{
-		Content:          content.String(),
-		ReasoningContent: reasoning.String(),
-	}, nil
+	return reply.result(), nil
 }
 
-func appendMessage(
-	content *strings.Builder,
-	reasoning *strings.Builder,
-	message *schema.Message,
-	emit func(conversation.ModelDelta) error,
-) error {
-	if err := appendDelta(reasoning, conversation.ModelDeltaReasoning, message.ReasoningContent, emit); err != nil {
+func (b *replyBuilder) append(message *schema.Message) error {
+	if err := b.appendDelta(conversation.ModelDeltaReasoning, message.ReasoningContent); err != nil {
 		return err
 	}
-	return appendDelta(content, conversation.ModelDeltaContent, message.Content, emit)
+	return b.appendDelta(conversation.ModelDeltaContent, message.Content)
 }
 
-func appendDelta(
-	content *strings.Builder,
+func (b *replyBuilder) appendDelta(
 	deltaType conversation.ModelDeltaType,
 	delta string,
-	emit func(conversation.ModelDelta) error,
 ) error {
 	if delta == "" {
 		return nil
 	}
-	content.WriteString(delta)
-	if err := emit(conversation.ModelDelta{Type: deltaType, Content: delta}); err != nil {
+	if deltaType == conversation.ModelDeltaReasoning {
+		b.reasoning.WriteString(delta)
+	} else {
+		b.content.WriteString(delta)
+	}
+	if err := b.emit(conversation.ModelDelta{Type: deltaType, Content: delta}); err != nil {
 		return fmt.Errorf("emit model delta: %w", err)
 	}
 	return nil
+}
+
+func (b *replyBuilder) result() conversation.ModelResult {
+	return conversation.ModelResult{
+		Content:          b.content.String(),
+		ReasoningContent: b.reasoning.String(),
+	}
 }

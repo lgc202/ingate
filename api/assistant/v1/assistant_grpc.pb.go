@@ -25,7 +25,9 @@ const (
 	ConversationService_CreateConversation_FullMethodName = "/ingate.assistant.v1.ConversationService/CreateConversation"
 	ConversationService_DeleteConversation_FullMethodName = "/ingate.assistant.v1.ConversationService/DeleteConversation"
 	ConversationService_ListMessages_FullMethodName       = "/ingate.assistant.v1.ConversationService/ListMessages"
+	ConversationService_CreateRun_FullMethodName          = "/ingate.assistant.v1.ConversationService/CreateRun"
 	ConversationService_GetRun_FullMethodName             = "/ingate.assistant.v1.ConversationService/GetRun"
+	ConversationService_CancelRun_FullMethodName          = "/ingate.assistant.v1.ConversationService/CancelRun"
 )
 
 // ConversationServiceClient is the client API for ConversationService service.
@@ -39,7 +41,9 @@ type ConversationServiceClient interface {
 	CreateConversation(ctx context.Context, in *CreateConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
 	DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...grpc.CallOption) (*ListMessagesResponse, error)
+	CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*Run, error)
 	GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*Run, error)
+	CancelRun(ctx context.Context, in *CancelRunRequest, opts ...grpc.CallOption) (*Run, error)
 }
 
 type conversationServiceClient struct {
@@ -100,10 +104,30 @@ func (c *conversationServiceClient) ListMessages(ctx context.Context, in *ListMe
 	return out, nil
 }
 
+func (c *conversationServiceClient) CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*Run, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Run)
+	err := c.cc.Invoke(ctx, ConversationService_CreateRun_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *conversationServiceClient) GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*Run, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Run)
 	err := c.cc.Invoke(ctx, ConversationService_GetRun_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *conversationServiceClient) CancelRun(ctx context.Context, in *CancelRunRequest, opts ...grpc.CallOption) (*Run, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Run)
+	err := c.cc.Invoke(ctx, ConversationService_CancelRun_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +145,9 @@ type ConversationServiceServer interface {
 	CreateConversation(context.Context, *CreateConversationRequest) (*Conversation, error)
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error)
+	CreateRun(context.Context, *CreateRunRequest) (*Run, error)
 	GetRun(context.Context, *GetRunRequest) (*Run, error)
+	CancelRun(context.Context, *CancelRunRequest) (*Run, error)
 }
 
 // UnimplementedConversationServiceServer should be embedded to have
@@ -146,8 +172,14 @@ func (UnimplementedConversationServiceServer) DeleteConversation(context.Context
 func (UnimplementedConversationServiceServer) ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMessages not implemented")
 }
+func (UnimplementedConversationServiceServer) CreateRun(context.Context, *CreateRunRequest) (*Run, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateRun not implemented")
+}
 func (UnimplementedConversationServiceServer) GetRun(context.Context, *GetRunRequest) (*Run, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetRun not implemented")
+}
+func (UnimplementedConversationServiceServer) CancelRun(context.Context, *CancelRunRequest) (*Run, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelRun not implemented")
 }
 func (UnimplementedConversationServiceServer) testEmbeddedByValue() {}
 
@@ -259,6 +291,24 @@ func _ConversationService_ListMessages_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _ConversationService_CreateRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateRunRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConversationServiceServer).CreateRun(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConversationService_CreateRun_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConversationServiceServer).CreateRun(ctx, req.(*CreateRunRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _ConversationService_GetRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetRunRequest)
 	if err := dec(in); err != nil {
@@ -273,6 +323,24 @@ func _ConversationService_GetRun_Handler(srv interface{}, ctx context.Context, d
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConversationServiceServer).GetRun(ctx, req.(*GetRunRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ConversationService_CancelRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelRunRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConversationServiceServer).CancelRun(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConversationService_CancelRun_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConversationServiceServer).CancelRun(ctx, req.(*CancelRunRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -305,8 +373,16 @@ var ConversationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ConversationService_ListMessages_Handler,
 		},
 		{
+			MethodName: "CreateRun",
+			Handler:    _ConversationService_CreateRun_Handler,
+		},
+		{
 			MethodName: "GetRun",
 			Handler:    _ConversationService_GetRun_Handler,
+		},
+		{
+			MethodName: "CancelRun",
+			Handler:    _ConversationService_CancelRun_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

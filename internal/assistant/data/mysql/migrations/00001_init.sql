@@ -32,14 +32,20 @@ CREATE TABLE assistant_conversations (
 CREATE TABLE assistant_runs (
     id CHAR(36) NOT NULL COMMENT '一次模型调用的 Run ID，使用 UUID',
     conversation_id CHAR(36) NOT NULL COMMENT '所属会话 ID，由应用事务保证关联有效',
-    state TINYINT UNSIGNED NOT NULL COMMENT 'Run 状态：1 表示运行中，2 表示成功，3 表示失败',
-    model VARCHAR(160) NOT NULL COMMENT '本次调用实际使用的模型名称',
+    state TINYINT UNSIGNED NOT NULL COMMENT 'Run 状态：1 排队中，2 运行中，3 成功，4 失败，5 已取消',
+    model VARCHAR(160) NOT NULL DEFAULT '' COMMENT '本次调用实际使用的模型名称；领取前为空',
     error_code VARCHAR(64) NOT NULL DEFAULT '' COMMENT '失败原因的稳定代码，非失败状态为空',
-    started_at DATETIME(6) NOT NULL COMMENT '模型调用开始时间，统一使用 UTC',
-    finished_at DATETIME(6) NULL COMMENT '模型调用结束时间，运行中为空',
+    cancellation_requested BOOLEAN NOT NULL DEFAULT FALSE COMMENT '运行中的 Run 是否已收到取消请求',
+    worker_id VARCHAR(128) NOT NULL DEFAULT '' COMMENT '当前持有执行租约的 Assistant 进程及执行槽标识',
+    lease_expires_at DATETIME(6) NULL COMMENT '执行租约到期时间；仅运行中 Run 使用',
+    created_at DATETIME(6) NOT NULL COMMENT 'Run 创建时间，统一使用 UTC',
+    started_at DATETIME(6) NULL COMMENT '模型调用开始时间；排队中为空',
+    finished_at DATETIME(6) NULL COMMENT '模型调用结束时间；未到终态时为空',
     PRIMARY KEY (id),
     KEY idx_assistant_runs_conversation_state (conversation_id, state),
-    KEY idx_assistant_runs_conversation_started (conversation_id, started_at DESC, id DESC)
+    KEY idx_assistant_runs_claim (state, created_at, id),
+    KEY idx_assistant_runs_expired_lease (state, lease_expires_at),
+    KEY idx_assistant_runs_conversation_created (conversation_id, created_at DESC, id DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='运维助手模型调用记录';
 

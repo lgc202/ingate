@@ -178,24 +178,30 @@ type RunState int32
 
 const (
 	RunState_RUN_STATE_UNSPECIFIED RunState = 0
-	RunState_RUN_STATE_RUNNING     RunState = 1
-	RunState_RUN_STATE_SUCCEEDED   RunState = 2
-	RunState_RUN_STATE_FAILED      RunState = 3
+	RunState_RUN_STATE_QUEUED      RunState = 1
+	RunState_RUN_STATE_RUNNING     RunState = 2
+	RunState_RUN_STATE_SUCCEEDED   RunState = 3
+	RunState_RUN_STATE_FAILED      RunState = 4
+	RunState_RUN_STATE_CANCELLED   RunState = 5
 )
 
 // Enum value maps for RunState.
 var (
 	RunState_name = map[int32]string{
 		0: "RUN_STATE_UNSPECIFIED",
-		1: "RUN_STATE_RUNNING",
-		2: "RUN_STATE_SUCCEEDED",
-		3: "RUN_STATE_FAILED",
+		1: "RUN_STATE_QUEUED",
+		2: "RUN_STATE_RUNNING",
+		3: "RUN_STATE_SUCCEEDED",
+		4: "RUN_STATE_FAILED",
+		5: "RUN_STATE_CANCELLED",
 	}
 	RunState_value = map[string]int32{
 		"RUN_STATE_UNSPECIFIED": 0,
-		"RUN_STATE_RUNNING":     1,
-		"RUN_STATE_SUCCEEDED":   2,
-		"RUN_STATE_FAILED":      3,
+		"RUN_STATE_QUEUED":      1,
+		"RUN_STATE_RUNNING":     2,
+		"RUN_STATE_SUCCEEDED":   3,
+		"RUN_STATE_FAILED":      4,
+		"RUN_STATE_CANCELLED":   5,
 	}
 )
 
@@ -388,16 +394,18 @@ func (x *Message) GetCreatedAt() *timestamppb.Timestamp {
 }
 
 type Run struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	State          RunState               `protobuf:"varint,3,opt,name=state,proto3,enum=ingate.assistant.v1.RunState" json:"state,omitempty"`
-	Model          string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
-	ErrorCode      string                 `protobuf:"bytes,5,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	StartedAt      *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	FinishedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"open.v1"`
+	Id                    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ConversationId        string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	State                 RunState               `protobuf:"varint,3,opt,name=state,proto3,enum=ingate.assistant.v1.RunState" json:"state,omitempty"`
+	Model                 string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	ErrorCode             string                 `protobuf:"bytes,5,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	StartedAt             *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt            *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	CreatedAt             *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	CancellationRequested bool                   `protobuf:"varint,9,opt,name=cancellation_requested,json=cancellationRequested,proto3" json:"cancellation_requested,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *Run) Reset() {
@@ -477,6 +485,20 @@ func (x *Run) GetFinishedAt() *timestamppb.Timestamp {
 		return x.FinishedAt
 	}
 	return nil
+}
+
+func (x *Run) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *Run) GetCancellationRequested() bool {
+	if x != nil {
+		return x.CancellationRequested
+	}
+	return false
 }
 
 type ListConversationsRequest struct {
@@ -871,6 +893,102 @@ func (x *GetRunRequest) GetId() string {
 	return ""
 }
 
+type CreateRunRequest struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	Content        string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CreateRunRequest) Reset() {
+	*x = CreateRunRequest{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateRunRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateRunRequest) ProtoMessage() {}
+
+func (x *CreateRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CreateRunRequest.ProtoReflect.Descriptor instead.
+func (*CreateRunRequest) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *CreateRunRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *CreateRunRequest) GetContent() string {
+	if x != nil {
+		return x.Content
+	}
+	return ""
+}
+
+type CancelRunRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CancelRunRequest) Reset() {
+	*x = CancelRunRequest{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CancelRunRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CancelRunRequest) ProtoMessage() {}
+
+func (x *CancelRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CancelRunRequest.ProtoReflect.Descriptor instead.
+func (*CancelRunRequest) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CancelRunRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
 // ModelConnection 只返回非敏感连接信息，API Key 仅暴露是否已配置。
 type ModelConnection struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
@@ -891,7 +1009,7 @@ type ModelConnection struct {
 
 func (x *ModelConnection) Reset() {
 	*x = ModelConnection{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -903,7 +1021,7 @@ func (x *ModelConnection) String() string {
 func (*ModelConnection) ProtoMessage() {}
 
 func (x *ModelConnection) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -916,7 +1034,7 @@ func (x *ModelConnection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelConnection.ProtoReflect.Descriptor instead.
 func (*ModelConnection) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{11}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ModelConnection) GetConfigured() bool {
@@ -1007,7 +1125,7 @@ type UpdateModelConnectionRequest struct {
 
 func (x *UpdateModelConnectionRequest) Reset() {
 	*x = UpdateModelConnectionRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1019,7 +1137,7 @@ func (x *UpdateModelConnectionRequest) String() string {
 func (*UpdateModelConnectionRequest) ProtoMessage() {}
 
 func (x *UpdateModelConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1032,7 +1150,7 @@ func (x *UpdateModelConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateModelConnectionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateModelConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{12}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UpdateModelConnectionRequest) GetConnectionMode() ModelConnectionMode {
@@ -1118,7 +1236,7 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x12+\n" +
 	"\x11reasoning_content\x18\x06 \x01(\tR\x10reasoningContent\x129\n" +
 	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xa0\x02\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x92\x03\n" +
 	"\x03Run\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
 	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x123\n" +
@@ -1129,7 +1247,10 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\n" +
 	"started_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
 	"\vfinished_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishedAt\"Q\n" +
+	"finishedAt\x129\n" +
+	"\n" +
+	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x125\n" +
+	"\x16cancellation_requested\x18\t \x01(\bR\x15cancellationRequested\"Q\n" +
 	"\x18ListConversationsRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
 	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"\x85\x01\n" +
@@ -1152,6 +1273,11 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
 	"nextCursor\")\n" +
 	"\rGetRunRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"l\n" +
+	"\x10CreateRunRequest\x121\n" +
+	"\x0fconversation_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0econversationId\x12%\n" +
+	"\acontent\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\x80\x80\x04R\acontent\",\n" +
+	"\x10CancelRunRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xec\x03\n" +
 	"\x0fModelConnection\x12\x1e\n" +
 	"\n" +
@@ -1194,19 +1320,23 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\vMessageRole\x12\x1c\n" +
 	"\x18MESSAGE_ROLE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11MESSAGE_ROLE_USER\x10\x01\x12\x1a\n" +
-	"\x16MESSAGE_ROLE_ASSISTANT\x10\x02*k\n" +
+	"\x16MESSAGE_ROLE_ASSISTANT\x10\x02*\x9a\x01\n" +
 	"\bRunState\x12\x19\n" +
-	"\x15RUN_STATE_UNSPECIFIED\x10\x00\x12\x15\n" +
-	"\x11RUN_STATE_RUNNING\x10\x01\x12\x17\n" +
-	"\x13RUN_STATE_SUCCEEDED\x10\x02\x12\x14\n" +
-	"\x10RUN_STATE_FAILED\x10\x032\xe7\x06\n" +
+	"\x15RUN_STATE_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10RUN_STATE_QUEUED\x10\x01\x12\x15\n" +
+	"\x11RUN_STATE_RUNNING\x10\x02\x12\x17\n" +
+	"\x13RUN_STATE_SUCCEEDED\x10\x03\x12\x14\n" +
+	"\x10RUN_STATE_FAILED\x10\x04\x12\x17\n" +
+	"\x13RUN_STATE_CANCELLED\x10\x052\xee\b\n" +
 	"\x13ConversationService\x12\x97\x01\n" +
 	"\x11ListConversations\x12-.ingate.assistant.v1.ListConversationsRequest\x1a..ingate.assistant.v1.ListConversationsResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/assistant/v1/conversations\x12\x8b\x01\n" +
 	"\x0fGetConversation\x12+.ingate.assistant.v1.GetConversationRequest\x1a!.ingate.assistant.v1.Conversation\"(\x82\xd3\xe4\x93\x02\"\x12 /assistant/v1/conversations/{id}\x12\x8f\x01\n" +
 	"\x12CreateConversation\x12..ingate.assistant.v1.CreateConversationRequest\x1a!.ingate.assistant.v1.Conversation\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/assistant/v1/conversations\x12\x86\x01\n" +
 	"\x12DeleteConversation\x12..ingate.assistant.v1.DeleteConversationRequest\x1a\x16.google.protobuf.Empty\"(\x82\xd3\xe4\x93\x02\"* /assistant/v1/conversations/{id}\x12\xa3\x01\n" +
-	"\fListMessages\x12(.ingate.assistant.v1.ListMessagesRequest\x1a).ingate.assistant.v1.ListMessagesResponse\">\x82\xd3\xe4\x93\x028\x126/assistant/v1/conversations/{conversation_id}/messages\x12g\n" +
-	"\x06GetRun\x12\".ingate.assistant.v1.GetRunRequest\x1a\x18.ingate.assistant.v1.Run\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/assistant/v1/runs/{id}2\xb2\x02\n" +
+	"\fListMessages\x12(.ingate.assistant.v1.ListMessagesRequest\x1a).ingate.assistant.v1.ListMessagesResponse\">\x82\xd3\xe4\x93\x028\x126/assistant/v1/conversations/{conversation_id}/messages\x12\x8b\x01\n" +
+	"\tCreateRun\x12%.ingate.assistant.v1.CreateRunRequest\x1a\x18.ingate.assistant.v1.Run\"=\x82\xd3\xe4\x93\x027:\x01*\"2/assistant/v1/conversations/{conversation_id}/runs\x12g\n" +
+	"\x06GetRun\x12\".ingate.assistant.v1.GetRunRequest\x1a\x18.ingate.assistant.v1.Run\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/assistant/v1/runs/{id}\x12w\n" +
+	"\tCancelRun\x12%.ingate.assistant.v1.CancelRunRequest\x1a\x18.ingate.assistant.v1.Run\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/assistant/v1/runs/{id}:cancel2\xb2\x02\n" +
 	"\x16ModelConnectionService\x12z\n" +
 	"\x12GetModelConnection\x12\x16.google.protobuf.Empty\x1a$.ingate.assistant.v1.ModelConnection\"&\x82\xd3\xe4\x93\x02 \x12\x1e/assistant/v1/model-connection\x12\x9b\x01\n" +
 	"\x15UpdateModelConnection\x121.ingate.assistant.v1.UpdateModelConnectionRequest\x1a$.ingate.assistant.v1.ModelConnection\")\x82\xd3\xe4\x93\x02#:\x01*\x1a\x1e/assistant/v1/model-connectionB.Z,github.com/lgc202/ingate/api/assistant/v1;v1b\x06proto3"
@@ -1224,7 +1354,7 @@ func file_assistant_v1_assistant_proto_rawDescGZIP() []byte {
 }
 
 var file_assistant_v1_assistant_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_assistant_v1_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_assistant_v1_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_assistant_v1_assistant_proto_goTypes = []any{
 	(ModelConnectionMode)(0),             // 0: ingate.assistant.v1.ModelConnectionMode
 	(ModelProtocol)(0),                   // 1: ingate.assistant.v1.ModelProtocol
@@ -1241,47 +1371,54 @@ var file_assistant_v1_assistant_proto_goTypes = []any{
 	(*ListMessagesRequest)(nil),          // 12: ingate.assistant.v1.ListMessagesRequest
 	(*ListMessagesResponse)(nil),         // 13: ingate.assistant.v1.ListMessagesResponse
 	(*GetRunRequest)(nil),                // 14: ingate.assistant.v1.GetRunRequest
-	(*ModelConnection)(nil),              // 15: ingate.assistant.v1.ModelConnection
-	(*UpdateModelConnectionRequest)(nil), // 16: ingate.assistant.v1.UpdateModelConnectionRequest
-	(*timestamppb.Timestamp)(nil),        // 17: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                // 18: google.protobuf.Empty
+	(*CreateRunRequest)(nil),             // 15: ingate.assistant.v1.CreateRunRequest
+	(*CancelRunRequest)(nil),             // 16: ingate.assistant.v1.CancelRunRequest
+	(*ModelConnection)(nil),              // 17: ingate.assistant.v1.ModelConnection
+	(*UpdateModelConnectionRequest)(nil), // 18: ingate.assistant.v1.UpdateModelConnectionRequest
+	(*timestamppb.Timestamp)(nil),        // 19: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                // 20: google.protobuf.Empty
 }
 var file_assistant_v1_assistant_proto_depIdxs = []int32{
-	17, // 0: ingate.assistant.v1.Conversation.created_at:type_name -> google.protobuf.Timestamp
-	17, // 1: ingate.assistant.v1.Conversation.updated_at:type_name -> google.protobuf.Timestamp
+	19, // 0: ingate.assistant.v1.Conversation.created_at:type_name -> google.protobuf.Timestamp
+	19, // 1: ingate.assistant.v1.Conversation.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 2: ingate.assistant.v1.Message.role:type_name -> ingate.assistant.v1.MessageRole
-	17, // 3: ingate.assistant.v1.Message.created_at:type_name -> google.protobuf.Timestamp
+	19, // 3: ingate.assistant.v1.Message.created_at:type_name -> google.protobuf.Timestamp
 	3,  // 4: ingate.assistant.v1.Run.state:type_name -> ingate.assistant.v1.RunState
-	17, // 5: ingate.assistant.v1.Run.started_at:type_name -> google.protobuf.Timestamp
-	17, // 6: ingate.assistant.v1.Run.finished_at:type_name -> google.protobuf.Timestamp
-	4,  // 7: ingate.assistant.v1.ListConversationsResponse.conversations:type_name -> ingate.assistant.v1.Conversation
-	5,  // 8: ingate.assistant.v1.ListMessagesResponse.messages:type_name -> ingate.assistant.v1.Message
-	0,  // 9: ingate.assistant.v1.ModelConnection.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
-	1,  // 10: ingate.assistant.v1.ModelConnection.protocol:type_name -> ingate.assistant.v1.ModelProtocol
-	17, // 11: ingate.assistant.v1.ModelConnection.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 12: ingate.assistant.v1.UpdateModelConnectionRequest.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
-	1,  // 13: ingate.assistant.v1.UpdateModelConnectionRequest.protocol:type_name -> ingate.assistant.v1.ModelProtocol
-	7,  // 14: ingate.assistant.v1.ConversationService.ListConversations:input_type -> ingate.assistant.v1.ListConversationsRequest
-	9,  // 15: ingate.assistant.v1.ConversationService.GetConversation:input_type -> ingate.assistant.v1.GetConversationRequest
-	10, // 16: ingate.assistant.v1.ConversationService.CreateConversation:input_type -> ingate.assistant.v1.CreateConversationRequest
-	11, // 17: ingate.assistant.v1.ConversationService.DeleteConversation:input_type -> ingate.assistant.v1.DeleteConversationRequest
-	12, // 18: ingate.assistant.v1.ConversationService.ListMessages:input_type -> ingate.assistant.v1.ListMessagesRequest
-	14, // 19: ingate.assistant.v1.ConversationService.GetRun:input_type -> ingate.assistant.v1.GetRunRequest
-	18, // 20: ingate.assistant.v1.ModelConnectionService.GetModelConnection:input_type -> google.protobuf.Empty
-	16, // 21: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:input_type -> ingate.assistant.v1.UpdateModelConnectionRequest
-	8,  // 22: ingate.assistant.v1.ConversationService.ListConversations:output_type -> ingate.assistant.v1.ListConversationsResponse
-	4,  // 23: ingate.assistant.v1.ConversationService.GetConversation:output_type -> ingate.assistant.v1.Conversation
-	4,  // 24: ingate.assistant.v1.ConversationService.CreateConversation:output_type -> ingate.assistant.v1.Conversation
-	18, // 25: ingate.assistant.v1.ConversationService.DeleteConversation:output_type -> google.protobuf.Empty
-	13, // 26: ingate.assistant.v1.ConversationService.ListMessages:output_type -> ingate.assistant.v1.ListMessagesResponse
-	6,  // 27: ingate.assistant.v1.ConversationService.GetRun:output_type -> ingate.assistant.v1.Run
-	15, // 28: ingate.assistant.v1.ModelConnectionService.GetModelConnection:output_type -> ingate.assistant.v1.ModelConnection
-	15, // 29: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:output_type -> ingate.assistant.v1.ModelConnection
-	22, // [22:30] is the sub-list for method output_type
-	14, // [14:22] is the sub-list for method input_type
-	14, // [14:14] is the sub-list for extension type_name
-	14, // [14:14] is the sub-list for extension extendee
-	0,  // [0:14] is the sub-list for field type_name
+	19, // 5: ingate.assistant.v1.Run.started_at:type_name -> google.protobuf.Timestamp
+	19, // 6: ingate.assistant.v1.Run.finished_at:type_name -> google.protobuf.Timestamp
+	19, // 7: ingate.assistant.v1.Run.created_at:type_name -> google.protobuf.Timestamp
+	4,  // 8: ingate.assistant.v1.ListConversationsResponse.conversations:type_name -> ingate.assistant.v1.Conversation
+	5,  // 9: ingate.assistant.v1.ListMessagesResponse.messages:type_name -> ingate.assistant.v1.Message
+	0,  // 10: ingate.assistant.v1.ModelConnection.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
+	1,  // 11: ingate.assistant.v1.ModelConnection.protocol:type_name -> ingate.assistant.v1.ModelProtocol
+	19, // 12: ingate.assistant.v1.ModelConnection.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 13: ingate.assistant.v1.UpdateModelConnectionRequest.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
+	1,  // 14: ingate.assistant.v1.UpdateModelConnectionRequest.protocol:type_name -> ingate.assistant.v1.ModelProtocol
+	7,  // 15: ingate.assistant.v1.ConversationService.ListConversations:input_type -> ingate.assistant.v1.ListConversationsRequest
+	9,  // 16: ingate.assistant.v1.ConversationService.GetConversation:input_type -> ingate.assistant.v1.GetConversationRequest
+	10, // 17: ingate.assistant.v1.ConversationService.CreateConversation:input_type -> ingate.assistant.v1.CreateConversationRequest
+	11, // 18: ingate.assistant.v1.ConversationService.DeleteConversation:input_type -> ingate.assistant.v1.DeleteConversationRequest
+	12, // 19: ingate.assistant.v1.ConversationService.ListMessages:input_type -> ingate.assistant.v1.ListMessagesRequest
+	15, // 20: ingate.assistant.v1.ConversationService.CreateRun:input_type -> ingate.assistant.v1.CreateRunRequest
+	14, // 21: ingate.assistant.v1.ConversationService.GetRun:input_type -> ingate.assistant.v1.GetRunRequest
+	16, // 22: ingate.assistant.v1.ConversationService.CancelRun:input_type -> ingate.assistant.v1.CancelRunRequest
+	20, // 23: ingate.assistant.v1.ModelConnectionService.GetModelConnection:input_type -> google.protobuf.Empty
+	18, // 24: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:input_type -> ingate.assistant.v1.UpdateModelConnectionRequest
+	8,  // 25: ingate.assistant.v1.ConversationService.ListConversations:output_type -> ingate.assistant.v1.ListConversationsResponse
+	4,  // 26: ingate.assistant.v1.ConversationService.GetConversation:output_type -> ingate.assistant.v1.Conversation
+	4,  // 27: ingate.assistant.v1.ConversationService.CreateConversation:output_type -> ingate.assistant.v1.Conversation
+	20, // 28: ingate.assistant.v1.ConversationService.DeleteConversation:output_type -> google.protobuf.Empty
+	13, // 29: ingate.assistant.v1.ConversationService.ListMessages:output_type -> ingate.assistant.v1.ListMessagesResponse
+	6,  // 30: ingate.assistant.v1.ConversationService.CreateRun:output_type -> ingate.assistant.v1.Run
+	6,  // 31: ingate.assistant.v1.ConversationService.GetRun:output_type -> ingate.assistant.v1.Run
+	6,  // 32: ingate.assistant.v1.ConversationService.CancelRun:output_type -> ingate.assistant.v1.Run
+	17, // 33: ingate.assistant.v1.ModelConnectionService.GetModelConnection:output_type -> ingate.assistant.v1.ModelConnection
+	17, // 34: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:output_type -> ingate.assistant.v1.ModelConnection
+	25, // [25:35] is the sub-list for method output_type
+	15, // [15:25] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_assistant_v1_assistant_proto_init() }
@@ -1289,14 +1426,14 @@ func file_assistant_v1_assistant_proto_init() {
 	if File_assistant_v1_assistant_proto != nil {
 		return
 	}
-	file_assistant_v1_assistant_proto_msgTypes[12].OneofWrappers = []any{}
+	file_assistant_v1_assistant_proto_msgTypes[14].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_assistant_v1_assistant_proto_rawDesc), len(file_assistant_v1_assistant_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

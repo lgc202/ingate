@@ -105,7 +105,7 @@ func (s *EventStore) Read(
 	for _, message := range streams[0].Messages {
 		events = append(events, conversation.StreamEvent{
 			ID:   message.ID,
-			Type: fmt.Sprint(message.Values["type"]),
+			Type: conversation.EventType(fmt.Sprint(message.Values["type"])),
 			Data: fmt.Sprint(message.Values["data"]),
 		})
 	}

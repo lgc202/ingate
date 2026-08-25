@@ -18,7 +18,9 @@ var _ = new(context.Context)
 
 const _ = http.SupportPackageIsVersion3
 
+const OperationConversationServiceCancelRun = "/ingate.assistant.v1.ConversationService/CancelRun"
 const OperationConversationServiceCreateConversation = "/ingate.assistant.v1.ConversationService/CreateConversation"
+const OperationConversationServiceCreateRun = "/ingate.assistant.v1.ConversationService/CreateRun"
 const OperationConversationServiceDeleteConversation = "/ingate.assistant.v1.ConversationService/DeleteConversation"
 const OperationConversationServiceGetConversation = "/ingate.assistant.v1.ConversationService/GetConversation"
 const OperationConversationServiceGetRun = "/ingate.assistant.v1.ConversationService/GetRun"
@@ -26,7 +28,9 @@ const OperationConversationServiceListConversations = "/ingate.assistant.v1.Conv
 const OperationConversationServiceListMessages = "/ingate.assistant.v1.ConversationService/ListMessages"
 
 type ConversationServiceHTTPServer interface {
+	CancelRun(context.Context, *CancelRunRequest) (*Run, error)
 	CreateConversation(context.Context, *CreateConversationRequest) (*Conversation, error)
+	CreateRun(context.Context, *CreateRunRequest) (*Run, error)
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error)
 	GetConversation(context.Context, *GetConversationRequest) (*Conversation, error)
 	GetRun(context.Context, *GetRunRequest) (*Run, error)
@@ -41,7 +45,9 @@ func RegisterConversationServiceHTTPServer(s *http.Server, srv ConversationServi
 	r.Handle("POST", "/assistant/v1/conversations", _ConversationService_CreateConversation0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/assistant/v1/conversations/{id}", _ConversationService_DeleteConversation0_HTTP_Handler(srv))
 	r.Handle("GET", "/assistant/v1/conversations/{conversation_id}/messages", _ConversationService_ListMessages0_HTTP_Handler(srv))
+	r.Handle("POST", "/assistant/v1/conversations/{conversation_id}/runs", _ConversationService_CreateRun0_HTTP_Handler(srv))
 	r.Handle("GET", "/assistant/v1/runs/{id}", _ConversationService_GetRun0_HTTP_Handler(srv))
+	r.Handle("POST", "/assistant/v1/runs/{id}:cancel", _ConversationService_CancelRun0_HTTP_Handler(srv))
 }
 
 func _ConversationService_ListConversations0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
@@ -148,6 +154,28 @@ func _ConversationService_ListMessages0_HTTP_Handler(srv ConversationServiceHTTP
 	}
 }
 
+func _ConversationService_CreateRun0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in CreateRunRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationConversationServiceCreateRun)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.CreateRun(ctx, req.(*CreateRunRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Run)
+		return ctx.Result(200, reply)
+	}
+}
+
 func _ConversationService_GetRun0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
 		var in GetRunRequest
@@ -170,8 +198,32 @@ func _ConversationService_GetRun0_HTTP_Handler(srv ConversationServiceHTTPServer
 	}
 }
 
+func _ConversationService_CancelRun0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in CancelRunRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationConversationServiceCancelRun)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.CancelRun(ctx, req.(*CancelRunRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*Run)
+		return ctx.Result(200, reply)
+	}
+}
+
 type ConversationServiceHTTPClient interface {
+	CancelRun(ctx context.Context, req *CancelRunRequest, opts ...http.CallOption) (rsp *Run, err error)
 	CreateConversation(ctx context.Context, req *CreateConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
+	CreateRun(ctx context.Context, req *CreateRunRequest, opts ...http.CallOption) (rsp *Run, err error)
 	DeleteConversation(ctx context.Context, req *DeleteConversationRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
 	GetConversation(ctx context.Context, req *GetConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
 	GetRun(ctx context.Context, req *GetRunRequest, opts ...http.CallOption) (rsp *Run, err error)
@@ -187,6 +239,23 @@ func NewConversationServiceHTTPClient(client *http.Client) ConversationServiceHT
 	return &ConversationServiceHTTPClientImpl{client}
 }
 
+func (c *ConversationServiceHTTPClientImpl) CancelRun(ctx context.Context, in *CancelRunRequest, opts ...http.CallOption) (*Run, error) {
+	var out Run
+	pattern := "/assistant/v1/runs/{id}:cancel"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationConversationServiceCancelRun),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 func (c *ConversationServiceHTTPClientImpl) CreateConversation(ctx context.Context, in *CreateConversationRequest, opts ...http.CallOption) (*Conversation, error) {
 	var out Conversation
 	pattern := "/assistant/v1/conversations"
@@ -195,6 +264,23 @@ func (c *ConversationServiceHTTPClientImpl) CreateConversation(ctx context.Conte
 		http.Accept("application/protojson"),
 		http.ContentType("application/protojson"),
 		http.Operation(OperationConversationServiceCreateConversation),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *ConversationServiceHTTPClientImpl) CreateRun(ctx context.Context, in *CreateRunRequest, opts ...http.CallOption) (*Run, error) {
+	var out Run
+	pattern := "/assistant/v1/conversations/{conversation_id}/runs"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationConversationServiceCreateRun),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)

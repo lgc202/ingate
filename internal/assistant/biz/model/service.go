@@ -33,7 +33,7 @@ func (s *Service) ForRun(ctx context.Context) (Connection, error) {
 	if err != nil {
 		return Connection{}, err
 	}
-	if err := validate(connection); err != nil {
+	if err := connection.validate(); err != nil {
 		return Connection{}, err
 	}
 	return connection, nil
@@ -41,8 +41,8 @@ func (s *Service) ForRun(ctx context.Context) (Connection, error) {
 
 // Update 验证并替换当前模型连接。
 func (s *Service) Update(ctx context.Context, update Update) (Connection, error) {
-	connection := normalize(update.Connection)
-	if err := validate(connection); err != nil {
+	connection := update.Connection.normalized()
+	if err := connection.validate(); err != nil {
 		return Connection{}, err
 	}
 	if update.APIKey != nil && len(*update.APIKey) > maxAPIKeyLength {
@@ -62,13 +62,13 @@ func DefaultConnection() Connection {
 	}
 }
 
-func normalize(connection Connection) Connection {
+func (connection Connection) normalized() Connection {
 	connection.Endpoint = strings.TrimRight(strings.TrimSpace(connection.Endpoint), "/")
 	connection.Model = strings.TrimSpace(connection.Model)
 	return connection
 }
 
-func validate(connection Connection) error {
+func (connection Connection) validate() error {
 	if connection.Mode != ModeDirect && connection.Mode != ModeIngate {
 		return ErrInvalidConnection
 	}

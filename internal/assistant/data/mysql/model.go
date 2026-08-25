@@ -28,34 +28,31 @@ func (s *Store) UpdateModelConnection(
 	ctx context.Context,
 	update modelbiz.Update,
 ) (modelbiz.Connection, error) {
-	tx, err := s.db.BeginTx(ctx, nil)
+	var connection modelbiz.Connection
+	err := s.withTransaction(ctx, func(queries *db.Queries) error {
+		apiKey := ""
+		current, err := queries.GetAssistantModelConnectionForUpdate(ctx)
+		switch {
+		case err == nil:
+			apiKey = current.ApiKey
+		case !errors.Is(err, sql.ErrNoRows):
+			return fmt.Errorf("lock assistant model connection: %w", err)
+		}
+		if update.APIKey != nil {
+			apiKey = *update.APIKey
+		}
+
+		connection = update.Connection
+		connection.APIKey = apiKey
+		connection.Configured = true
+		connection.UpdatedAt = time.Now().UTC()
+		if err := queries.UpsertAssistantModelConnection(ctx, modelConnectionToDB(connection)); err != nil {
+			return fmt.Errorf("upsert assistant model connection: %w", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return modelbiz.Connection{}, fmt.Errorf("begin assistant model connection update: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	queries := s.queries.WithTx(tx)
-	apiKey := ""
-	current, err := queries.GetAssistantModelConnectionForUpdate(ctx)
-	switch {
-	case err == nil:
-		apiKey = current.ApiKey
-	case !errors.Is(err, sql.ErrNoRows):
-		return modelbiz.Connection{}, fmt.Errorf("lock assistant model connection: %w", err)
-	}
-	if update.APIKey != nil {
-		apiKey = *update.APIKey
-	}
-
-	connection := update.Connection
-	connection.APIKey = apiKey
-	connection.Configured = true
-	connection.UpdatedAt = time.Now().UTC()
-	if err := queries.UpsertAssistantModelConnection(ctx, modelConnectionToDB(connection)); err != nil {
-		return modelbiz.Connection{}, fmt.Errorf("upsert assistant model connection: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return modelbiz.Connection{}, fmt.Errorf("commit assistant model connection update: %w", err)
+		return modelbiz.Connection{}, fmt.Errorf("update assistant model connection transaction: %w", err)
 	}
 	return connection, nil
 }

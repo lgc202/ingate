@@ -12,7 +12,6 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
 	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
-	conversationbiz "github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql"
 	redisdata "github.com/lgc202/ingate/internal/assistant/data/redis"
@@ -20,18 +19,14 @@ import (
 	modelservice "github.com/lgc202/ingate/internal/assistant/service/model"
 )
 
-const (
-	forwardedUserHeader = "X-Forwarded-User"
-	maxMessageBytes     = 64 << 10
-)
+const forwardedUserHeader = "X-Forwarded-User"
 
 // NewHTTPServer 创建会话 API、SSE 事件流与健康检查服务。
 func NewHTTPServer(
 	config *conf.Server,
-	stream *conf.Stream,
 	conversationAPI *conversationservice.Service,
 	modelAPI *modelservice.Service,
-	conversations *conversationbiz.Service,
+	streamHandler *streamHandler,
 	mysqlStore *mysql.Store,
 	eventStore *redisdata.EventStore,
 	logger *slog.Logger,
@@ -46,32 +41,39 @@ func NewHTTPServer(
 	)
 	assistantv1.RegisterConversationServiceHTTPServer(server, conversationAPI)
 	assistantv1.RegisterModelConnectionServiceHTTPServer(server, modelAPI)
-	registerStreamRoutes(server, conversations, stream, logger)
-	server.HandleFunc("/healthz", health)
-	server.HandleFunc("/readyz", ready(httpConfig.GetTimeout().AsDuration(), mysqlStore, eventStore))
+	streamHandler.register(server)
+	health := healthHandler{
+		timeout:      httpConfig.GetTimeout().AsDuration(),
+		dependencies: []pinger{mysqlStore, eventStore},
+	}
+	server.HandleFunc("/healthz", health.live)
+	server.HandleFunc("/readyz", health.ready)
 	return server
-}
-
-func health(response http.ResponseWriter, _ *http.Request) {
-	_ = writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 type pinger interface {
 	Ping(context.Context) error
 }
 
-func ready(timeout time.Duration, dependencies ...pinger) http.HandlerFunc {
-	return func(response http.ResponseWriter, request *http.Request) {
-		ctx, cancel := context.WithTimeout(request.Context(), timeout)
-		defer cancel()
-		for _, dependency := range dependencies {
-			if err := dependency.Ping(ctx); err != nil {
-				_ = writeJSON(response, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
-				return
-			}
+type healthHandler struct {
+	timeout      time.Duration
+	dependencies []pinger
+}
+
+func (h *healthHandler) live(response http.ResponseWriter, _ *http.Request) {
+	_ = writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *healthHandler) ready(response http.ResponseWriter, request *http.Request) {
+	ctx, cancel := context.WithTimeout(request.Context(), h.timeout)
+	defer cancel()
+	for _, dependency := range h.dependencies {
+		if err := dependency.Ping(ctx); err != nil {
+			_ = writeJSON(response, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+			return
 		}
-		_ = writeJSON(response, http.StatusOK, map[string]string{"status": "ready"})
 	}
+	_ = writeJSON(response, http.StatusOK, map[string]string{"status": "ready"})
 }
 
 func writeJSON(response http.ResponseWriter, status int, value any) error {

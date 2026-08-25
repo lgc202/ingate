@@ -30,32 +30,46 @@ func (s *Service) GetModelConnection(
 ) (*assistantv1.ModelConnection, error) {
 	connection, err := s.models.Get(ctx)
 	if err != nil {
-		return nil, modelError(err)
+		return nil, s.mapError(err)
 	}
-	return modelConnectionResponse(connection), nil
+	return s.modelConnectionResponse(connection), nil
 }
 
 func (s *Service) UpdateModelConnection(
 	ctx context.Context,
 	request *assistantv1.UpdateModelConnectionRequest,
 ) (*assistantv1.ModelConnection, error) {
+	update, err := s.modelUpdate(request)
+	if err != nil {
+		return nil, err
+	}
+	connection, err := s.models.Update(ctx, update)
+	if err != nil {
+		return nil, s.mapError(err)
+	}
+	return s.modelConnectionResponse(connection), nil
+}
+
+func (s *Service) modelUpdate(request *assistantv1.UpdateModelConnectionRequest) (modelbiz.Update, error) {
 	if request.ApiKey != nil && request.GetClearApiKey() {
-		return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "apiKey and clearApiKey cannot be used together")
+		return modelbiz.Update{}, kratoserrors.BadRequest(
+			"INVALID_ARGUMENT", "apiKey and clearApiKey cannot be used together",
+		)
 	}
-	mode, err := connectionMode(request.GetConnectionMode())
+	mode, err := modeFromProto(request.GetConnectionMode())
 	if err != nil {
-		return nil, err
+		return modelbiz.Update{}, err
 	}
-	protocol, err := modelProtocol(request.GetProtocol())
+	protocol, err := protocolFromProto(request.GetProtocol())
 	if err != nil {
-		return nil, err
+		return modelbiz.Update{}, err
 	}
 	apiKey := request.ApiKey
 	if request.GetClearApiKey() {
 		empty := ""
 		apiKey = &empty
 	}
-	connection, err := s.models.Update(ctx, modelbiz.Update{
+	return modelbiz.Update{
 		Connection: modelbiz.Connection{
 			Mode:                  mode,
 			Protocol:              protocol,
@@ -66,14 +80,10 @@ func (s *Service) UpdateModelConnection(
 			ReasoningBudgetTokens: int(request.GetReasoningBudgetTokens()),
 		},
 		APIKey: apiKey,
-	})
-	if err != nil {
-		return nil, modelError(err)
-	}
-	return modelConnectionResponse(connection), nil
+	}, nil
 }
 
-func modelProtocol(value assistantv1.ModelProtocol) (modelbiz.Protocol, error) {
+func protocolFromProto(value assistantv1.ModelProtocol) (modelbiz.Protocol, error) {
 	switch value {
 	case assistantv1.ModelProtocol_MODEL_PROTOCOL_OPENAI_COMPATIBLE:
 		return modelbiz.ProtocolOpenAICompatible, nil
@@ -84,7 +94,7 @@ func modelProtocol(value assistantv1.ModelProtocol) (modelbiz.Protocol, error) {
 	}
 }
 
-func connectionMode(value assistantv1.ModelConnectionMode) (modelbiz.Mode, error) {
+func modeFromProto(value assistantv1.ModelConnectionMode) (modelbiz.Mode, error) {
 	switch value {
 	case assistantv1.ModelConnectionMode_MODEL_CONNECTION_MODE_DIRECT:
 		return modelbiz.ModeDirect, nil
@@ -95,11 +105,11 @@ func connectionMode(value assistantv1.ModelConnectionMode) (modelbiz.Mode, error
 	}
 }
 
-func modelConnectionResponse(connection modelbiz.Connection) *assistantv1.ModelConnection {
+func (s *Service) modelConnectionResponse(connection modelbiz.Connection) *assistantv1.ModelConnection {
 	response := &assistantv1.ModelConnection{
 		Configured:            connection.Configured,
-		ConnectionMode:        connectionModeResponse(connection.Mode),
-		Protocol:              modelProtocolResponse(connection.Protocol),
+		ConnectionMode:        modeToProto(connection.Mode),
+		Protocol:              protocolToProto(connection.Protocol),
 		Endpoint:              connection.Endpoint,
 		Model:                 connection.Model,
 		ApiKeyConfigured:      connection.APIKey != "",
@@ -113,7 +123,7 @@ func modelConnectionResponse(connection modelbiz.Connection) *assistantv1.ModelC
 	return response
 }
 
-func modelProtocolResponse(value modelbiz.Protocol) assistantv1.ModelProtocol {
+func protocolToProto(value modelbiz.Protocol) assistantv1.ModelProtocol {
 	switch value {
 	case modelbiz.ProtocolOpenAICompatible:
 		return assistantv1.ModelProtocol_MODEL_PROTOCOL_OPENAI_COMPATIBLE
@@ -124,7 +134,7 @@ func modelProtocolResponse(value modelbiz.Protocol) assistantv1.ModelProtocol {
 	}
 }
 
-func connectionModeResponse(value modelbiz.Mode) assistantv1.ModelConnectionMode {
+func modeToProto(value modelbiz.Mode) assistantv1.ModelConnectionMode {
 	switch value {
 	case modelbiz.ModeDirect:
 		return assistantv1.ModelConnectionMode_MODEL_CONNECTION_MODE_DIRECT
@@ -135,7 +145,7 @@ func connectionModeResponse(value modelbiz.Mode) assistantv1.ModelConnectionMode
 	}
 }
 
-func modelError(err error) error {
+func (s *Service) mapError(err error) error {
 	if errors.Is(err, modelbiz.ErrInvalidConnection) {
 		return kratoserrors.BadRequest("INVALID_ARGUMENT", "model connection is invalid")
 	}

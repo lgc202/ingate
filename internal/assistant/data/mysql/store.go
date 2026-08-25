@@ -57,6 +57,22 @@ func (s *Store) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
 }
 
+// withTransaction 统一 Store 的事务提交与回滚；具体锁顺序仍由各业务操作显式表达。
+func (s *Store) withTransaction(ctx context.Context, operation func(*db.Queries) error) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin MySQL transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	if err := operation(s.queries.WithTx(tx)); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit MySQL transaction: %w", err)
+	}
+	return nil
+}
+
 func mapNotFound(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return conversation.ErrNotFound

@@ -29,8 +29,20 @@ service ConversationService {
   rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse) {
     option (google.api.http) = {get: "/assistant/v1/conversations/{conversation_id}/messages"};
   }
+  rpc CreateRun(CreateRunRequest) returns (Run) {
+    option (google.api.http) = {
+      post: "/assistant/v1/conversations/{conversation_id}/runs"
+      body: "*"
+    };
+  }
   rpc GetRun(GetRunRequest) returns (Run) {
     option (google.api.http) = {get: "/assistant/v1/runs/{id}"};
+  }
+  rpc CancelRun(CancelRunRequest) returns (Run) {
+    option (google.api.http) = {
+      post: "/assistant/v1/runs/{id}:cancel"
+      body: "*"
+    };
   }
 }
 
@@ -69,9 +81,11 @@ enum MessageRole {
 
 enum RunState {
   RUN_STATE_UNSPECIFIED = 0;
-  RUN_STATE_RUNNING = 1;
-  RUN_STATE_SUCCEEDED = 2;
-  RUN_STATE_FAILED = 3;
+  RUN_STATE_QUEUED = 1;
+  RUN_STATE_RUNNING = 2;
+  RUN_STATE_SUCCEEDED = 3;
+  RUN_STATE_FAILED = 4;
+  RUN_STATE_CANCELLED = 5;
 }
 
 message Conversation {
@@ -100,6 +114,8 @@ message Run {
   string error_code = 5;
   google.protobuf.Timestamp started_at = 6;
   google.protobuf.Timestamp finished_at = 7;
+  google.protobuf.Timestamp created_at = 8;
+  bool cancellation_requested = 9;
 }
 
 message ListConversationsRequest {
@@ -136,6 +152,18 @@ message ListMessagesResponse {
 }
 
 message GetRunRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+message CreateRunRequest {
+  string conversation_id = 1 [(buf.validate.field).string.uuid = true];
+  string content = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 65536
+  }];
+}
+
+message CancelRunRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 

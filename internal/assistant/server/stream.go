@@ -17,196 +17,104 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-const (
-	fallbackFailureCode       = "REQUEST_FAILED"
-	failureResourceNotFound   = "RESOURCE_NOT_FOUND"
-	failureResourceConflict   = "RESOURCE_CONFLICT"
-	failureRunInProgress      = "RUN_ALREADY_RUNNING"
-	failureModelNotConfigured = "MODEL_NOT_CONFIGURED"
-)
+const failureResourceNotFound = "RESOURCE_NOT_FOUND"
 
-func registerStreamRoutes(
-	server *kratoshttp.Server,
-	conversations *conversationbiz.Service,
-	stream *conf.Stream,
-	logger *slog.Logger,
-) {
-	router := server.Route("/")
-	router.POST("/assistant/v1/conversations/{id}/messages:stream", chatHandler(conversations, logger))
-	router.GET("/assistant/v1/runs/{id}/events", eventHandler(conversations, stream, logger))
+// streamHandler 负责自定义 SSE 路由、连接生命周期和边界日志。
+type streamHandler struct {
+	conversations *conversationbiz.Service
+	config        *conf.Stream
+	logger        *slog.Logger
 }
 
-type chatRequest struct {
-	Content string `json:"content"`
-}
-
-func chatHandler(conversations *conversationbiz.Service, logger *slog.Logger) kratoshttp.HandlerFunc {
-	return func(ctx kratoshttp.Context) error {
-		actorID, err := actorID(ctx.Request())
-		if err != nil {
-			return err
-		}
-		ctx.Request().Body = http.MaxBytesReader(ctx.Response(), ctx.Request().Body, maxMessageBytes)
-		var request chatRequest
-		if err := json.NewDecoder(ctx.Request().Body).Decode(&request); err != nil {
-			return kratoserrors.BadRequest("INVALID_ARGUMENT", "invalid request body")
-		}
-		request.Content = strings.TrimSpace(request.Content)
-		if request.Content == "" {
-			return kratoserrors.BadRequest("INVALID_ARGUMENT", "message content is required")
-		}
-
-		stream, err := newSSEWriter(ctx.Response())
-		if err != nil {
-			return kratoserrors.InternalServer("STREAM_UNSUPPORTED", "streaming is unavailable").WithCause(err)
-		}
-		stream.start()
-		run, err := conversations.Chat(ctx, actorID, ctx.Vars().Get("id"), request.Content, stream.write)
-		if err == nil || errors.Is(err, context.Canceled) {
-			return nil
-		}
-		if run.State == conversationbiz.StateSucceeded {
-			// Run 已经成功提交到 MySQL，此时的错误只表示完成事件未能写入 Redis。
-			// 关闭当前流即可，客户端可以通过 Run 查询接口取得最终状态。
-			logRunStreamFailure(ctx, logger, ctx.Request(), actorID, run, err)
-			return nil
-		}
-		logRunFailure(ctx, logger, ctx.Request(), actorID, run, err)
-		// HTTP 响应已经开始，失败状态只能作为 SSE 事件发送；内部错误不会暴露给浏览器。
-		_ = stream.write(conversationbiz.StreamEvent{
-			Type: "run.failed",
-			Data: streamFailureCode(run, err),
-		})
-		return nil
-	}
-}
-
-func logRunStreamFailure(
-	ctx context.Context,
-	logger *slog.Logger,
-	request *http.Request,
-	actorID string,
-	run conversationbiz.Run,
-	err error,
-) {
-	logger.ErrorContext(ctx, "store assistant completion event failed",
-		"actor", actorID,
-		"conversation_id", run.ConversationID,
-		"run_id", run.ID,
-		"request_id", request.Header.Get(requestid.Header),
-		"err", err,
-	)
-}
-
-func eventHandler(
+// NewStreamHandler 创建助手消息与事件流处理器。
+func NewStreamHandler(
 	conversations *conversationbiz.Service,
 	config *conf.Stream,
 	logger *slog.Logger,
-) kratoshttp.HandlerFunc {
-	return func(ctx kratoshttp.Context) error {
-		actorID, err := actorID(ctx.Request())
+) *streamHandler {
+	return &streamHandler{conversations: conversations, config: config, logger: logger}
+}
+
+func (h *streamHandler) register(server *kratoshttp.Server) {
+	router := server.Route("/")
+	router.GET("/assistant/v1/runs/{id}/events", h.events)
+}
+
+func (h *streamHandler) events(ctx kratoshttp.Context) error {
+	actorID, err := h.actorID(ctx.Request())
+	if err != nil {
+		return err
+	}
+	runID := ctx.Vars().Get("id")
+	if _, err := h.conversations.GetRun(ctx, actorID, runID); err != nil {
+		return h.requestError(err)
+	}
+	stream, err := newSSEWriter(ctx.Response())
+	if err != nil {
+		return kratoserrors.InternalServer("STREAM_UNSUPPORTED", "streaming is unavailable").WithCause(err)
+	}
+	stream.start()
+	lastID := ctx.Request().Header.Get("Last-Event-ID")
+	for {
+		events, err := h.conversations.ReadEvents(
+			ctx, runID, lastID, 100, h.config.GetReadBlock().AsDuration(),
+		)
 		if err != nil {
-			return err
+			h.logReadFailure(ctx, ctx.Request(), runID, err)
+			return nil
 		}
-		runID := ctx.Vars().Get("id")
-		if _, err := conversations.GetRun(ctx, actorID, runID); err != nil {
-			return streamRequestError(err)
-		}
-		stream, err := newSSEWriter(ctx.Response())
-		if err != nil {
-			return kratoserrors.InternalServer("STREAM_UNSUPPORTED", "streaming is unavailable").WithCause(err)
-		}
-		stream.start()
-		lastID := ctx.Request().Header.Get("Last-Event-ID")
-		for {
-			events, err := conversations.ReadEvents(ctx, runID, lastID, 100, config.GetReadBlock().AsDuration())
-			if err != nil {
-				logStreamFailure(ctx, logger, ctx.Request(), runID, err)
+		for _, event := range events {
+			if err := stream.write(event); err != nil {
 				return nil
 			}
-			for _, event := range events {
-				if err := stream.write(event); err != nil {
-					return nil
-				}
-				lastID = event.ID
-				if event.Type == "run.completed" || event.Type == "run.failed" {
-					return nil
-				}
+			lastID = event.ID
+			if event.Type == conversationbiz.EventRunCompleted ||
+				event.Type == conversationbiz.EventRunFailed ||
+				event.Type == conversationbiz.EventRunCancelled {
+				return nil
 			}
-			if len(events) == 0 {
-				run, err := conversations.GetRun(ctx, actorID, runID)
-				if err != nil {
-					logStreamFailure(ctx, logger, ctx.Request(), runID, err)
-					return nil
-				}
-				if run.State != conversationbiz.StateRunning {
-					return nil
-				}
+		}
+		if len(events) == 0 {
+			run, err := h.conversations.GetRun(ctx, actorID, runID)
+			if err != nil {
+				h.logReadFailure(ctx, ctx.Request(), runID, err)
+				return nil
+			}
+			if event, terminal := terminalEvent(run); terminal {
+				_ = stream.write(event)
+				return nil
+			}
+			if err := stream.heartbeat(); err != nil {
+				return nil
 			}
 		}
 	}
 }
 
-func logRunFailure(
-	ctx context.Context,
-	logger *slog.Logger,
-	request *http.Request,
-	actorID string,
-	run conversationbiz.Run,
-	err error,
-) {
-	if errors.Is(err, conversationbiz.ErrNotFound) ||
-		errors.Is(err, conversationbiz.ErrRunStateConflict) ||
-		errors.Is(err, conversationbiz.ErrRunRunning) {
-		return
-	}
-	attrs := []any{
-		"actor", actorID,
-		"conversation_id", run.ConversationID,
-		"run_id", run.ID,
-		"error_code", run.ErrorCode,
-		"request_id", request.Header.Get(requestid.Header),
-		"err", err,
-	}
-	if errors.Is(err, conversationbiz.ErrModelNotConfigured) {
-		logger.WarnContext(ctx, "assistant model is not configured", attrs...)
-		return
-	}
-	logger.ErrorContext(ctx, "assistant run failed", attrs...)
-}
-
-func streamFailureCode(run conversationbiz.Run, err error) string {
-	if run.ErrorCode != "" {
-		return run.ErrorCode
-	}
-	switch {
-	case errors.Is(err, conversationbiz.ErrNotFound):
-		return failureResourceNotFound
-	case errors.Is(err, conversationbiz.ErrRunRunning):
-		return failureRunInProgress
-	case errors.Is(err, conversationbiz.ErrRunStateConflict):
-		return failureResourceConflict
-	case errors.Is(err, conversationbiz.ErrModelNotConfigured):
-		return failureModelNotConfigured
-	default:
-		return fallbackFailureCode
-	}
-}
-
-func streamRequestError(err error) error {
+func (h *streamHandler) requestError(err error) error {
 	switch {
 	case errors.Is(err, conversationbiz.ErrNotFound):
 		return kratoserrors.NotFound(failureResourceNotFound, "resource not found")
-	case errors.Is(err, conversationbiz.ErrRunStateConflict), errors.Is(err, conversationbiz.ErrRunRunning):
-		return kratoserrors.Conflict(failureResourceConflict, "resource state changed")
 	default:
 		return kratoserrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
 	}
 }
 
-func logStreamFailure(
+func terminalEvent(run conversationbiz.Run) (conversationbiz.StreamEvent, bool) {
+	switch run.State {
+	case conversationbiz.StateSucceeded:
+		return conversationbiz.StreamEvent{Type: conversationbiz.EventRunCompleted}, true
+	case conversationbiz.StateFailed:
+		return conversationbiz.StreamEvent{Type: conversationbiz.EventRunFailed, Data: string(run.ErrorCode)}, true
+	case conversationbiz.StateCancelled:
+		return conversationbiz.StreamEvent{Type: conversationbiz.EventRunCancelled}, true
+	default:
+		return conversationbiz.StreamEvent{}, false
+	}
+}
+
+func (h *streamHandler) logReadFailure(
 	ctx context.Context,
-	logger *slog.Logger,
 	request *http.Request,
 	runID string,
 	err error,
@@ -214,14 +122,14 @@ func logStreamFailure(
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return
 	}
-	logger.ErrorContext(ctx, "read assistant event stream failed",
+	h.logger.ErrorContext(ctx, "read assistant event stream failed",
 		"run_id", runID,
 		"request_id", request.Header.Get(requestid.Header),
 		"err", err,
 	)
 }
 
-func actorID(request *http.Request) (string, error) {
+func (h *streamHandler) actorID(request *http.Request) (string, error) {
 	value := strings.TrimSpace(request.Header.Get(forwardedUserHeader))
 	if value == "" {
 		return "", kratoserrors.Unauthorized("ACTOR_REQUIRED", "authentication required")
@@ -262,6 +170,14 @@ func (w *sseWriter) write(event conversationbiz.StreamEvent) error {
 	}
 	if _, err := fmt.Fprintf(w.response, "event: %s\ndata: %s\n\n", event.Type, data); err != nil {
 		return fmt.Errorf("write SSE event: %w", err)
+	}
+	w.flusher.Flush()
+	return nil
+}
+
+func (w *sseWriter) heartbeat() error {
+	if _, err := fmt.Fprint(w.response, ": heartbeat\n\n"); err != nil {
+		return fmt.Errorf("write SSE heartbeat: %w", err)
 	}
 	w.flusher.Flush()
 	return nil

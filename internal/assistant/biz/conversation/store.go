@@ -13,9 +13,15 @@ type Store interface {
 	Delete(context.Context, string, string) error
 	ListMessages(context.Context, string, string, *MessageCursor, int) (MessagePage, error)
 	ListRecentMessages(context.Context, string, string, int) ([]Message, error)
-	BeginRun(context.Context, string, string, string, string) (Run, error)
-	CompleteRun(context.Context, string, string, ModelResult) (Message, error)
-	FailRun(context.Context, string, string, string) error
+	CreateRun(context.Context, string, string, string) (Run, error)
+	ClaimRun(context.Context, string, time.Duration) (ClaimedRun, bool, error)
+	SetRunModel(context.Context, string, string, string) error
+	RenewRunLease(context.Context, string, string, time.Duration) (bool, error)
+	CompleteRun(context.Context, string, string, string, ModelResult) (Message, error)
+	FailRun(context.Context, string, string, string, FailureCode) error
+	CancelRun(context.Context, string, string) (Run, error)
+	FinishRunCancellation(context.Context, string, string) error
+	FailExpiredRuns(context.Context) (int64, error)
 	GetRun(context.Context, string, string) (Run, error)
 }
 

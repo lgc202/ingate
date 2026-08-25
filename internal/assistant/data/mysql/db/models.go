@@ -71,14 +71,22 @@ type AssistantRun struct {
 	ID string
 	// 所属会话 ID，由应用事务保证关联有效
 	ConversationID string
-	// Run 状态：1 表示运行中，2 表示成功，3 表示失败
+	// Run 状态：1 排队中，2 运行中，3 成功，4 失败，5 已取消
 	State uint8
-	// 本次调用实际使用的模型名称
+	// 本次调用实际使用的模型名称；领取前为空
 	Model string
 	// 失败原因的稳定代码，非失败状态为空
 	ErrorCode string
-	// 模型调用开始时间，统一使用 UTC
-	StartedAt time.Time
-	// 模型调用结束时间，运行中为空
+	// 运行中的 Run 是否已收到取消请求
+	CancellationRequested bool
+	// 当前持有执行租约的 Assistant 实例标识
+	WorkerID string
+	// 执行租约到期时间；仅运行中 Run 使用
+	LeaseExpiresAt sql.NullTime
+	// Run 创建时间，统一使用 UTC
+	CreatedAt time.Time
+	// 模型调用开始时间；排队中为空
+	StartedAt sql.NullTime
+	// 模型调用结束时间；未到终态时为空
 	FinishedAt sql.NullTime
 }

@@ -28,6 +28,11 @@ stream:
   max_events: 2000
   read_block: "15s"
 
+worker:
+  concurrency: 8
+  poll_interval: "500ms"
+  lease_duration: "30s"
+
 logging:
   format: "json"
   level: "info"

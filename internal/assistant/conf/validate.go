@@ -29,6 +29,15 @@ func (c *Bootstrap) Validate() error {
 	if c.GetStream().GetReadBlock().AsDuration() <= 0 {
 		return errors.New("stream read block must be greater than zero")
 	}
+	if c.GetWorker() == nil || c.GetWorker().GetConcurrency() == 0 {
+		return errors.New("worker concurrency must be greater than zero")
+	}
+	if c.GetWorker().GetPollInterval().AsDuration() <= 0 {
+		return errors.New("worker poll interval must be greater than zero")
+	}
+	if c.GetWorker().GetLeaseDuration().AsDuration() <= c.GetWorker().GetPollInterval().AsDuration()*3 {
+		return errors.New("worker lease duration must exceed three poll intervals")
+	}
 	if c.GetLogging() == nil {
 		return errors.New("logging config is required")
 	}

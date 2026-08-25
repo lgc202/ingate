@@ -29,6 +29,7 @@ type Bootstrap struct {
 	Data          *Data                  `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	Stream        *Stream                `protobuf:"bytes,3,opt,name=stream,proto3" json:"stream,omitempty"`
 	Logging       *Logging               `protobuf:"bytes,4,opt,name=logging,proto3" json:"logging,omitempty"`
+	Worker        *Worker                `protobuf:"bytes,5,opt,name=worker,proto3" json:"worker,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -87,6 +88,13 @@ func (x *Bootstrap) GetStream() *Stream {
 func (x *Bootstrap) GetLogging() *Logging {
 	if x != nil {
 		return x.Logging
+	}
+	return nil
+}
+
+func (x *Bootstrap) GetWorker() *Worker {
+	if x != nil {
+		return x.Worker
 	}
 	return nil
 }
@@ -255,6 +263,68 @@ func (x *Stream) GetReadBlock() *durationpb.Duration {
 	return nil
 }
 
+// Worker 定义后台 Run 的进程内并发度、领取频率和实例租约。
+// 同一会话仍由业务规则保证串行；不同会话可以由多个执行槽并发处理。
+type Worker struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Concurrency   uint32                 `protobuf:"varint,1,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
+	PollInterval  *durationpb.Duration   `protobuf:"bytes,2,opt,name=poll_interval,json=pollInterval,proto3" json:"poll_interval,omitempty"`
+	LeaseDuration *durationpb.Duration   `protobuf:"bytes,3,opt,name=lease_duration,json=leaseDuration,proto3" json:"lease_duration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Worker) Reset() {
+	*x = Worker{}
+	mi := &file_assistant_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Worker) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Worker) ProtoMessage() {}
+
+func (x *Worker) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Worker.ProtoReflect.Descriptor instead.
+func (*Worker) Descriptor() ([]byte, []int) {
+	return file_assistant_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *Worker) GetConcurrency() uint32 {
+	if x != nil {
+		return x.Concurrency
+	}
+	return 0
+}
+
+func (x *Worker) GetPollInterval() *durationpb.Duration {
+	if x != nil {
+		return x.PollInterval
+	}
+	return nil
+}
+
+func (x *Worker) GetLeaseDuration() *durationpb.Duration {
+	if x != nil {
+		return x.LeaseDuration
+	}
+	return nil
+}
+
 type Logging struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Format        string                 `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
@@ -266,7 +336,7 @@ type Logging struct {
 
 func (x *Logging) Reset() {
 	*x = Logging{}
-	mi := &file_assistant_proto_msgTypes[4]
+	mi := &file_assistant_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -278,7 +348,7 @@ func (x *Logging) String() string {
 func (*Logging) ProtoMessage() {}
 
 func (x *Logging) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[4]
+	mi := &file_assistant_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -291,7 +361,7 @@ func (x *Logging) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Logging.ProtoReflect.Descriptor instead.
 func (*Logging) Descriptor() ([]byte, []int) {
-	return file_assistant_proto_rawDescGZIP(), []int{4}
+	return file_assistant_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *Logging) GetFormat() string {
@@ -325,7 +395,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_assistant_proto_msgTypes[5]
+	mi := &file_assistant_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -337,7 +407,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[5]
+	mi := &file_assistant_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -383,7 +453,7 @@ type Data_MySQL struct {
 
 func (x *Data_MySQL) Reset() {
 	*x = Data_MySQL{}
-	mi := &file_assistant_proto_msgTypes[6]
+	mi := &file_assistant_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -395,7 +465,7 @@ func (x *Data_MySQL) String() string {
 func (*Data_MySQL) ProtoMessage() {}
 
 func (x *Data_MySQL) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[6]
+	mi := &file_assistant_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -482,7 +552,7 @@ type Data_Redis struct {
 
 func (x *Data_Redis) Reset() {
 	*x = Data_Redis{}
-	mi := &file_assistant_proto_msgTypes[7]
+	mi := &file_assistant_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -494,7 +564,7 @@ func (x *Data_Redis) String() string {
 func (*Data_Redis) ProtoMessage() {}
 
 func (x *Data_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[7]
+	mi := &file_assistant_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -563,12 +633,13 @@ var File_assistant_proto protoreflect.FileDescriptor
 
 const file_assistant_proto_rawDesc = "" +
 	"\n" +
-	"\x0fassistant.proto\x12\x15ingate.assistant.conf\x1a\x1egoogle/protobuf/duration.proto\"\xe4\x01\n" +
+	"\x0fassistant.proto\x12\x15ingate.assistant.conf\x1a\x1egoogle/protobuf/duration.proto\"\x9b\x02\n" +
 	"\tBootstrap\x125\n" +
 	"\x06server\x18\x01 \x01(\v2\x1d.ingate.assistant.conf.ServerR\x06server\x12/\n" +
 	"\x04data\x18\x02 \x01(\v2\x1b.ingate.assistant.conf.DataR\x04data\x125\n" +
 	"\x06stream\x18\x03 \x01(\v2\x1d.ingate.assistant.conf.StreamR\x06stream\x128\n" +
-	"\alogging\x18\x04 \x01(\v2\x1e.ingate.assistant.conf.LoggingR\alogging\"\xd7\x01\n" +
+	"\alogging\x18\x04 \x01(\v2\x1e.ingate.assistant.conf.LoggingR\alogging\x125\n" +
+	"\x06worker\x18\x05 \x01(\v2\x1d.ingate.assistant.conf.WorkerR\x06worker\"\xd7\x01\n" +
 	"\x06Server\x126\n" +
 	"\x04http\x18\x01 \x01(\v2\".ingate.assistant.conf.Server.HTTPR\x04http\x12D\n" +
 	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aO\n" +
@@ -600,7 +671,11 @@ const file_assistant_proto_rawDesc = "" +
 	"\n" +
 	"max_events\x18\x02 \x01(\rR\tmaxEvents\x128\n" +
 	"\n" +
-	"read_block\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\treadBlock\"V\n" +
+	"read_block\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\treadBlock\"\xac\x01\n" +
+	"\x06Worker\x12 \n" +
+	"\vconcurrency\x18\x01 \x01(\rR\vconcurrency\x12>\n" +
+	"\rpoll_interval\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\fpollInterval\x12@\n" +
+	"\x0elease_duration\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\rleaseDuration\"V\n" +
 	"\aLogging\x12\x16\n" +
 	"\x06format\x18\x01 \x01(\tR\x06format\x12\x14\n" +
 	"\x05level\x18\x02 \x01(\tR\x05level\x12\x1d\n" +
@@ -619,40 +694,44 @@ func file_assistant_proto_rawDescGZIP() []byte {
 	return file_assistant_proto_rawDescData
 }
 
-var file_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
+var file_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_assistant_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.assistant.conf.Bootstrap
 	(*Server)(nil),              // 1: ingate.assistant.conf.Server
 	(*Data)(nil),                // 2: ingate.assistant.conf.Data
 	(*Stream)(nil),              // 3: ingate.assistant.conf.Stream
-	(*Logging)(nil),             // 4: ingate.assistant.conf.Logging
-	(*Server_HTTP)(nil),         // 5: ingate.assistant.conf.Server.HTTP
-	(*Data_MySQL)(nil),          // 6: ingate.assistant.conf.Data.MySQL
-	(*Data_Redis)(nil),          // 7: ingate.assistant.conf.Data.Redis
-	(*durationpb.Duration)(nil), // 8: google.protobuf.Duration
+	(*Worker)(nil),              // 4: ingate.assistant.conf.Worker
+	(*Logging)(nil),             // 5: ingate.assistant.conf.Logging
+	(*Server_HTTP)(nil),         // 6: ingate.assistant.conf.Server.HTTP
+	(*Data_MySQL)(nil),          // 7: ingate.assistant.conf.Data.MySQL
+	(*Data_Redis)(nil),          // 8: ingate.assistant.conf.Data.Redis
+	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
 }
 var file_assistant_proto_depIdxs = []int32{
 	1,  // 0: ingate.assistant.conf.Bootstrap.server:type_name -> ingate.assistant.conf.Server
 	2,  // 1: ingate.assistant.conf.Bootstrap.data:type_name -> ingate.assistant.conf.Data
 	3,  // 2: ingate.assistant.conf.Bootstrap.stream:type_name -> ingate.assistant.conf.Stream
-	4,  // 3: ingate.assistant.conf.Bootstrap.logging:type_name -> ingate.assistant.conf.Logging
-	5,  // 4: ingate.assistant.conf.Server.http:type_name -> ingate.assistant.conf.Server.HTTP
-	8,  // 5: ingate.assistant.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	6,  // 6: ingate.assistant.conf.Data.mysql:type_name -> ingate.assistant.conf.Data.MySQL
-	7,  // 7: ingate.assistant.conf.Data.redis:type_name -> ingate.assistant.conf.Data.Redis
-	8,  // 8: ingate.assistant.conf.Stream.retention:type_name -> google.protobuf.Duration
-	8,  // 9: ingate.assistant.conf.Stream.read_block:type_name -> google.protobuf.Duration
-	8,  // 10: ingate.assistant.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	8,  // 11: ingate.assistant.conf.Data.MySQL.dial_timeout:type_name -> google.protobuf.Duration
-	8,  // 12: ingate.assistant.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
-	8,  // 13: ingate.assistant.conf.Data.Redis.dial_timeout:type_name -> google.protobuf.Duration
-	8,  // 14: ingate.assistant.conf.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
-	8,  // 15: ingate.assistant.conf.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	5,  // 3: ingate.assistant.conf.Bootstrap.logging:type_name -> ingate.assistant.conf.Logging
+	4,  // 4: ingate.assistant.conf.Bootstrap.worker:type_name -> ingate.assistant.conf.Worker
+	6,  // 5: ingate.assistant.conf.Server.http:type_name -> ingate.assistant.conf.Server.HTTP
+	9,  // 6: ingate.assistant.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	7,  // 7: ingate.assistant.conf.Data.mysql:type_name -> ingate.assistant.conf.Data.MySQL
+	8,  // 8: ingate.assistant.conf.Data.redis:type_name -> ingate.assistant.conf.Data.Redis
+	9,  // 9: ingate.assistant.conf.Stream.retention:type_name -> google.protobuf.Duration
+	9,  // 10: ingate.assistant.conf.Stream.read_block:type_name -> google.protobuf.Duration
+	9,  // 11: ingate.assistant.conf.Worker.poll_interval:type_name -> google.protobuf.Duration
+	9,  // 12: ingate.assistant.conf.Worker.lease_duration:type_name -> google.protobuf.Duration
+	9,  // 13: ingate.assistant.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	9,  // 14: ingate.assistant.conf.Data.MySQL.dial_timeout:type_name -> google.protobuf.Duration
+	9,  // 15: ingate.assistant.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
+	9,  // 16: ingate.assistant.conf.Data.Redis.dial_timeout:type_name -> google.protobuf.Duration
+	9,  // 17: ingate.assistant.conf.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
+	9,  // 18: ingate.assistant.conf.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
+	19, // [19:19] is the sub-list for method output_type
+	19, // [19:19] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_assistant_proto_init() }
@@ -666,7 +745,7 @@ func file_assistant_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_assistant_proto_rawDesc), len(file_assistant_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   8,
+			NumMessages:   9,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

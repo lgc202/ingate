@@ -41,36 +41,89 @@ WHERE conversation_id = ?;
 
 -- name: CreateRun :exec
 INSERT INTO assistant_runs (
-    id, conversation_id, state, model, error_code, started_at
-) VALUES (?, ?, ?, ?, '', ?);
+    id, conversation_id, state, created_at
+) VALUES (?, ?, 1, ?);
 
--- name: CountRunningRuns :one
+-- name: CountActiveRuns :one
 SELECT COUNT(*)
 FROM assistant_runs
-WHERE conversation_id = ? AND state = 1;
+WHERE conversation_id = ? AND state IN (1, 2);
 
 -- name: GetRun :one
-SELECT r.id, r.conversation_id, r.state, r.model, r.error_code, r.started_at, r.finished_at
+SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
+       r.cancellation_requested, r.worker_id, r.lease_expires_at,
+       r.created_at, r.started_at, r.finished_at
 FROM assistant_runs AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.id = ? AND c.actor_id = ?;
 
 -- name: GetRunForUpdate :one
-SELECT r.id, r.conversation_id, r.state, r.model, r.error_code, r.started_at, r.finished_at
+SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
+       r.cancellation_requested, r.worker_id, r.lease_expires_at,
+       r.created_at, r.started_at, r.finished_at
 FROM assistant_runs AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.id = ? AND c.actor_id = ?
 FOR UPDATE;
 
+-- name: ClaimNextRun :one
+SELECT r.id, r.conversation_id, c.actor_id, r.created_at
+FROM assistant_runs AS r
+JOIN assistant_conversations AS c ON c.id = r.conversation_id
+WHERE r.state = 1
+ORDER BY r.created_at ASC, r.id ASC
+LIMIT 1
+FOR UPDATE SKIP LOCKED;
+
+-- name: StartRun :execrows
+UPDATE assistant_runs
+SET state = 2, worker_id = ?, lease_expires_at = ?, started_at = ?
+WHERE id = ? AND state = 1;
+
+-- name: SetRunModel :execrows
+UPDATE assistant_runs
+SET model = ?
+WHERE id = ? AND state = 2 AND worker_id = ?;
+
+-- name: RenewRunLease :execrows
+UPDATE assistant_runs
+SET lease_expires_at = ?
+WHERE id = ? AND state = 2 AND worker_id = ?;
+
+-- name: RunCancellationRequested :one
+SELECT cancellation_requested
+FROM assistant_runs
+WHERE id = ? AND state = 2 AND worker_id = ?;
+
 -- name: CompleteRun :execrows
 UPDATE assistant_runs
-SET state = 2, finished_at = ?
-WHERE id = ? AND state = 1;
+SET state = 3, worker_id = '', lease_expires_at = NULL, finished_at = ?
+WHERE id = ? AND state = 2 AND worker_id = ?;
 
 -- name: FailRun :execrows
 UPDATE assistant_runs
-SET state = 3, error_code = ?, finished_at = ?
+SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
+WHERE id = ? AND state = 2 AND worker_id = ?;
+
+-- name: CancelQueuedRun :execrows
+UPDATE assistant_runs
+SET state = 5, finished_at = ?
 WHERE id = ? AND state = 1;
+
+-- name: RequestRunCancellation :execrows
+UPDATE assistant_runs
+SET cancellation_requested = TRUE
+WHERE id = ? AND state = 2;
+
+-- name: FinishRunCancellation :execrows
+UPDATE assistant_runs
+SET state = 5, worker_id = '', lease_expires_at = NULL, finished_at = ?
+WHERE id = ? AND state = 2 AND worker_id = ? AND cancellation_requested = TRUE;
+
+-- name: FailExpiredRuns :execrows
+UPDATE assistant_runs
+SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
+WHERE state = 2 AND lease_expires_at < ?;
 
 -- name: CreateMessage :exec
 INSERT INTO assistant_messages (

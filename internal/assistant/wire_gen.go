@@ -22,7 +22,7 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL *conf.Data_MySQL, data_Redis *conf.Data_Redis, stream *conf.Stream, logger *slog.Logger, assistantServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL *conf.Data_MySQL, data_Redis *conf.Data_Redis, stream *conf.Stream, worker *conf.Worker, logger *slog.Logger, assistantServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
 	store, cleanup, err := data.NewMySQLStore(contextContext, data_MySQL, logger)
 	if err != nil {
 		return nil, nil, err
@@ -37,8 +37,10 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 	conversationService := conversation.NewService(store, eventStore, agent)
 	service2 := conversation2.NewService(conversationService)
 	modelService := model2.NewService(service)
-	httpServer := server.NewHTTPServer(confServer, stream, service2, modelService, conversationService, store, eventStore, logger)
-	app := newKratosApp(logger, confServer, httpServer, assistantServiceInstanceID)
+	streamHandler := server.NewStreamHandler(conversationService, stream, logger)
+	httpServer := server.NewHTTPServer(confServer, service2, modelService, streamHandler, store, eventStore, logger)
+	runWorker := server.NewRunWorker(worker, conversationService, logger)
+	app := newKratosApp(logger, confServer, httpServer, runWorker, assistantServiceInstanceID)
 	return app, func() {
 		cleanup2()
 		cleanup()
