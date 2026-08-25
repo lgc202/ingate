@@ -11,52 +11,33 @@ import (
 	"time"
 )
 
-const allocateMessageSequence = `-- name: AllocateMessageSequence :execresult
-UPDATE assistant_conversations
-SET next_message_sequence = LAST_INSERT_ID(next_message_sequence + 1),
-    version = version + 1,
-    updated_at = ?
-WHERE id = ? AND actor_id = ?
+const completeRun = `-- name: CompleteRun :execrows
+UPDATE assistant_runs
+SET state = 2, finished_at = ?
+WHERE id = ? AND state = 1
 `
 
-type AllocateMessageSequenceParams struct {
-	UpdatedAt time.Time
-	ID        string
-	ActorID   string
+type CompleteRunParams struct {
+	FinishedAt sql.NullTime
+	ID         string
 }
 
-func (q *Queries) AllocateMessageSequence(ctx context.Context, arg AllocateMessageSequenceParams) (sql.Result, error) {
-	return q.db.ExecContext(ctx, allocateMessageSequence, arg.UpdatedAt, arg.ID, arg.ActorID)
-}
-
-const completeExecution = `-- name: CompleteExecution :execrows
-UPDATE assistant_executions
-SET state = 'succeeded', assistant_message_id = ?, finished_at = ?
-WHERE id = ? AND state = 'running'
-`
-
-type CompleteExecutionParams struct {
-	AssistantMessageID sql.NullString
-	FinishedAt         sql.NullTime
-	ID                 string
-}
-
-func (q *Queries) CompleteExecution(ctx context.Context, arg CompleteExecutionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, completeExecution, arg.AssistantMessageID, arg.FinishedAt, arg.ID)
+func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeRun, arg.FinishedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-const countRunningExecutions = `-- name: CountRunningExecutions :one
+const countRunningRuns = `-- name: CountRunningRuns :one
 SELECT COUNT(*)
-FROM assistant_executions
-WHERE conversation_id = ? AND state = 'running'
+FROM assistant_runs
+WHERE conversation_id = ? AND state = 1
 `
 
-func (q *Queries) CountRunningExecutions(ctx context.Context, conversationID string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countRunningExecutions, conversationID)
+func (q *Queries) CountRunningRuns(ctx context.Context, conversationID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countRunningRuns, conversationID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -64,8 +45,8 @@ func (q *Queries) CountRunningExecutions(ctx context.Context, conversationID str
 
 const createConversation = `-- name: CreateConversation :exec
 INSERT INTO assistant_conversations (
-    id, actor_id, title, version, next_message_sequence, created_at, updated_at
-) VALUES (?, ?, ?, 1, 1, ?, ?)
+    id, actor_id, title, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?)
 `
 
 type CreateConversationParams struct {
@@ -87,26 +68,53 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 	return err
 }
 
-const createExecution = `-- name: CreateExecution :exec
-INSERT INTO assistant_executions (
-    id, conversation_id, user_message_id, state, model, failure_code, started_at
-) VALUES (?, ?, ?, ?, ?, '', ?)
+const createMessage = `-- name: CreateMessage :exec
+INSERT INTO assistant_messages (
+    id, conversation_id, run_id, role, content, reasoning_content, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
 `
 
-type CreateExecutionParams struct {
+type CreateMessageParams struct {
+	ID               string
+	ConversationID   string
+	RunID            string
+	Role             uint8
+	Content          string
+	ReasoningContent string
+	CreatedAt        time.Time
+}
+
+func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) error {
+	_, err := q.db.ExecContext(ctx, createMessage,
+		arg.ID,
+		arg.ConversationID,
+		arg.RunID,
+		arg.Role,
+		arg.Content,
+		arg.ReasoningContent,
+		arg.CreatedAt,
+	)
+	return err
+}
+
+const createRun = `-- name: CreateRun :exec
+INSERT INTO assistant_runs (
+    id, conversation_id, state, model, error_code, started_at
+) VALUES (?, ?, ?, ?, '', ?)
+`
+
+type CreateRunParams struct {
 	ID             string
 	ConversationID string
-	UserMessageID  string
-	State          string
+	State          uint8
 	Model          string
 	StartedAt      time.Time
 }
 
-func (q *Queries) CreateExecution(ctx context.Context, arg CreateExecutionParams) error {
-	_, err := q.db.ExecContext(ctx, createExecution,
+func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
+	_, err := q.db.ExecContext(ctx, createRun,
 		arg.ID,
 		arg.ConversationID,
-		arg.UserMessageID,
 		arg.State,
 		arg.Model,
 		arg.StartedAt,
@@ -114,74 +122,117 @@ func (q *Queries) CreateExecution(ctx context.Context, arg CreateExecutionParams
 	return err
 }
 
-const createMessage = `-- name: CreateMessage :exec
-INSERT INTO assistant_messages (
-    id, conversation_id, sequence, role, content, created_at
-) VALUES (?, ?, ?, ?, ?, ?)
-`
-
-type CreateMessageParams struct {
-	ID             string
-	ConversationID string
-	Sequence       uint64
-	Role           string
-	Content        string
-	CreatedAt      time.Time
-}
-
-func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) error {
-	_, err := q.db.ExecContext(ctx, createMessage,
-		arg.ID,
-		arg.ConversationID,
-		arg.Sequence,
-		arg.Role,
-		arg.Content,
-		arg.CreatedAt,
-	)
-	return err
-}
-
 const deleteConversation = `-- name: DeleteConversation :execrows
 DELETE FROM assistant_conversations
-WHERE id = ? AND actor_id = ? AND version = ?
+WHERE id = ? AND actor_id = ?
 `
 
 type DeleteConversationParams struct {
 	ID      string
 	ActorID string
-	Version uint64
 }
 
 func (q *Queries) DeleteConversation(ctx context.Context, arg DeleteConversationParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteConversation, arg.ID, arg.ActorID, arg.Version)
+	result, err := q.db.ExecContext(ctx, deleteConversation, arg.ID, arg.ActorID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-const failExecution = `-- name: FailExecution :execrows
-UPDATE assistant_executions
-SET state = 'failed', failure_code = ?, finished_at = ?
-WHERE id = ? AND state = 'running'
+const deleteMessagesByConversation = `-- name: DeleteMessagesByConversation :exec
+DELETE FROM assistant_messages
+WHERE conversation_id = ?
 `
 
-type FailExecutionParams struct {
-	FailureCode string
-	FinishedAt  sql.NullTime
-	ID          string
+func (q *Queries) DeleteMessagesByConversation(ctx context.Context, conversationID string) error {
+	_, err := q.db.ExecContext(ctx, deleteMessagesByConversation, conversationID)
+	return err
 }
 
-func (q *Queries) FailExecution(ctx context.Context, arg FailExecutionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, failExecution, arg.FailureCode, arg.FinishedAt, arg.ID)
+const deleteRunsByConversation = `-- name: DeleteRunsByConversation :exec
+DELETE FROM assistant_runs
+WHERE conversation_id = ?
+`
+
+func (q *Queries) DeleteRunsByConversation(ctx context.Context, conversationID string) error {
+	_, err := q.db.ExecContext(ctx, deleteRunsByConversation, conversationID)
+	return err
+}
+
+const failRun = `-- name: FailRun :execrows
+UPDATE assistant_runs
+SET state = 3, error_code = ?, finished_at = ?
+WHERE id = ? AND state = 1
+`
+
+type FailRunParams struct {
+	ErrorCode  string
+	FinishedAt sql.NullTime
+	ID         string
+}
+
+func (q *Queries) FailRun(ctx context.Context, arg FailRunParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failRun, arg.ErrorCode, arg.FinishedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const getAssistantModelConnection = `-- name: GetAssistantModelConnection :one
+SELECT singleton_id, connection_mode, protocol, endpoint, api_key, model,
+       timeout_ms, max_output_tokens, reasoning_budget_tokens, updated_at
+FROM assistant_model_connections
+WHERE singleton_id = 1
+`
+
+func (q *Queries) GetAssistantModelConnection(ctx context.Context) (AssistantModelConnection, error) {
+	row := q.db.QueryRowContext(ctx, getAssistantModelConnection)
+	var i AssistantModelConnection
+	err := row.Scan(
+		&i.SingletonID,
+		&i.ConnectionMode,
+		&i.Protocol,
+		&i.Endpoint,
+		&i.ApiKey,
+		&i.Model,
+		&i.TimeoutMs,
+		&i.MaxOutputTokens,
+		&i.ReasoningBudgetTokens,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getAssistantModelConnectionForUpdate = `-- name: GetAssistantModelConnectionForUpdate :one
+SELECT singleton_id, connection_mode, protocol, endpoint, api_key, model,
+       timeout_ms, max_output_tokens, reasoning_budget_tokens, updated_at
+FROM assistant_model_connections
+WHERE singleton_id = 1
+FOR UPDATE
+`
+
+func (q *Queries) GetAssistantModelConnectionForUpdate(ctx context.Context) (AssistantModelConnection, error) {
+	row := q.db.QueryRowContext(ctx, getAssistantModelConnectionForUpdate)
+	var i AssistantModelConnection
+	err := row.Scan(
+		&i.SingletonID,
+		&i.ConnectionMode,
+		&i.Protocol,
+		&i.Endpoint,
+		&i.ApiKey,
+		&i.Model,
+		&i.TimeoutMs,
+		&i.MaxOutputTokens,
+		&i.ReasoningBudgetTokens,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getConversation = `-- name: GetConversation :one
-SELECT id, actor_id, title, version, next_message_sequence, created_at, updated_at
+SELECT id, actor_id, title, created_at, updated_at
 FROM assistant_conversations
 WHERE id = ? AND actor_id = ?
 `
@@ -198,8 +249,6 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 		&i.ID,
 		&i.ActorID,
 		&i.Title,
-		&i.Version,
-		&i.NextMessageSequence,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -207,7 +256,7 @@ func (q *Queries) GetConversation(ctx context.Context, arg GetConversationParams
 }
 
 const getConversationForUpdate = `-- name: GetConversationForUpdate :one
-SELECT id, actor_id, title, version, next_message_sequence, created_at, updated_at
+SELECT id, actor_id, title, created_at, updated_at
 FROM assistant_conversations
 WHERE id = ? AND actor_id = ?
 FOR UPDATE
@@ -225,69 +274,61 @@ func (q *Queries) GetConversationForUpdate(ctx context.Context, arg GetConversat
 		&i.ID,
 		&i.ActorID,
 		&i.Title,
-		&i.Version,
-		&i.NextMessageSequence,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
 }
 
-const getExecution = `-- name: GetExecution :one
-SELECT e.id, e.conversation_id, e.user_message_id, e.assistant_message_id, e.state, e.model,
-       e.failure_code, e.started_at, e.finished_at
-FROM assistant_executions AS e
-JOIN assistant_conversations AS c ON c.id = e.conversation_id
-WHERE e.id = ? AND c.actor_id = ?
+const getRun = `-- name: GetRun :one
+SELECT r.id, r.conversation_id, r.state, r.model, r.error_code, r.started_at, r.finished_at
+FROM assistant_runs AS r
+JOIN assistant_conversations AS c ON c.id = r.conversation_id
+WHERE r.id = ? AND c.actor_id = ?
 `
 
-type GetExecutionParams struct {
+type GetRunParams struct {
 	ID      string
 	ActorID string
 }
 
-func (q *Queries) GetExecution(ctx context.Context, arg GetExecutionParams) (AssistantExecution, error) {
-	row := q.db.QueryRowContext(ctx, getExecution, arg.ID, arg.ActorID)
-	var i AssistantExecution
+func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (AssistantRun, error) {
+	row := q.db.QueryRowContext(ctx, getRun, arg.ID, arg.ActorID)
+	var i AssistantRun
 	err := row.Scan(
 		&i.ID,
 		&i.ConversationID,
-		&i.UserMessageID,
-		&i.AssistantMessageID,
 		&i.State,
 		&i.Model,
-		&i.FailureCode,
+		&i.ErrorCode,
 		&i.StartedAt,
 		&i.FinishedAt,
 	)
 	return i, err
 }
 
-const getExecutionForUpdate = `-- name: GetExecutionForUpdate :one
-SELECT e.id, e.conversation_id, e.user_message_id, e.assistant_message_id, e.state, e.model,
-       e.failure_code, e.started_at, e.finished_at
-FROM assistant_executions AS e
-JOIN assistant_conversations AS c ON c.id = e.conversation_id
-WHERE e.id = ? AND c.actor_id = ?
+const getRunForUpdate = `-- name: GetRunForUpdate :one
+SELECT r.id, r.conversation_id, r.state, r.model, r.error_code, r.started_at, r.finished_at
+FROM assistant_runs AS r
+JOIN assistant_conversations AS c ON c.id = r.conversation_id
+WHERE r.id = ? AND c.actor_id = ?
 FOR UPDATE
 `
 
-type GetExecutionForUpdateParams struct {
+type GetRunForUpdateParams struct {
 	ID      string
 	ActorID string
 }
 
-func (q *Queries) GetExecutionForUpdate(ctx context.Context, arg GetExecutionForUpdateParams) (AssistantExecution, error) {
-	row := q.db.QueryRowContext(ctx, getExecutionForUpdate, arg.ID, arg.ActorID)
-	var i AssistantExecution
+func (q *Queries) GetRunForUpdate(ctx context.Context, arg GetRunForUpdateParams) (AssistantRun, error) {
+	row := q.db.QueryRowContext(ctx, getRunForUpdate, arg.ID, arg.ActorID)
+	var i AssistantRun
 	err := row.Scan(
 		&i.ID,
 		&i.ConversationID,
-		&i.UserMessageID,
-		&i.AssistantMessageID,
 		&i.State,
 		&i.Model,
-		&i.FailureCode,
+		&i.ErrorCode,
 		&i.StartedAt,
 		&i.FinishedAt,
 	)
@@ -295,7 +336,7 @@ func (q *Queries) GetExecutionForUpdate(ctx context.Context, arg GetExecutionFor
 }
 
 const listConversations = `-- name: ListConversations :many
-SELECT id, actor_id, title, version, next_message_sequence, created_at, updated_at
+SELECT id, actor_id, title, created_at, updated_at
 FROM assistant_conversations
 WHERE actor_id = ?
   AND (updated_at < ? OR (updated_at = ? AND id < ?))
@@ -330,8 +371,6 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 			&i.ID,
 			&i.ActorID,
 			&i.Title,
-			&i.Version,
-			&i.NextMessageSequence,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -349,21 +388,30 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 }
 
 const listMessages = `-- name: ListMessages :many
-SELECT id, conversation_id, sequence, role, content, created_at
+SELECT id, conversation_id, run_id, role, content, reasoning_content, created_at
 FROM assistant_messages
-WHERE conversation_id = ? AND sequence > ?
-ORDER BY sequence ASC
+WHERE conversation_id = ?
+  AND (created_at > ? OR (created_at = ? AND id > ?))
+ORDER BY created_at ASC, id ASC
 LIMIT ?
 `
 
 type ListMessagesParams struct {
 	ConversationID string
-	Sequence       uint64
+	CreatedAt      time.Time
+	CreatedAt_2    time.Time
+	ID             string
 	Limit          int32
 }
 
 func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]AssistantMessage, error) {
-	rows, err := q.db.QueryContext(ctx, listMessages, arg.ConversationID, arg.Sequence, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, listMessages,
+		arg.ConversationID,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.ID,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -374,9 +422,10 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]A
 		if err := rows.Scan(
 			&i.ID,
 			&i.ConversationID,
-			&i.Sequence,
+			&i.RunID,
 			&i.Role,
 			&i.Content,
+			&i.ReasoningContent,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -390,4 +439,109 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]A
 		return nil, err
 	}
 	return items, nil
+}
+
+const listRecentMessages = `-- name: ListRecentMessages :many
+SELECT id, conversation_id, run_id, role, content, reasoning_content, created_at
+FROM assistant_messages
+WHERE conversation_id = ?
+ORDER BY created_at DESC, id DESC
+LIMIT ?
+`
+
+type ListRecentMessagesParams struct {
+	ConversationID string
+	Limit          int32
+}
+
+func (q *Queries) ListRecentMessages(ctx context.Context, arg ListRecentMessagesParams) ([]AssistantMessage, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentMessages, arg.ConversationID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AssistantMessage{}
+	for rows.Next() {
+		var i AssistantMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ConversationID,
+			&i.RunID,
+			&i.Role,
+			&i.Content,
+			&i.ReasoningContent,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const touchConversation = `-- name: TouchConversation :exec
+UPDATE assistant_conversations
+SET updated_at = ?
+WHERE id = ? AND actor_id = ?
+`
+
+type TouchConversationParams struct {
+	UpdatedAt time.Time
+	ID        string
+	ActorID   string
+}
+
+func (q *Queries) TouchConversation(ctx context.Context, arg TouchConversationParams) error {
+	_, err := q.db.ExecContext(ctx, touchConversation, arg.UpdatedAt, arg.ID, arg.ActorID)
+	return err
+}
+
+const upsertAssistantModelConnection = `-- name: UpsertAssistantModelConnection :exec
+INSERT INTO assistant_model_connections (
+    singleton_id, connection_mode, protocol, endpoint, api_key, model,
+    timeout_ms, max_output_tokens, reasoning_budget_tokens, updated_at
+) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON DUPLICATE KEY UPDATE
+    connection_mode = VALUES(connection_mode),
+    protocol = VALUES(protocol),
+    endpoint = VALUES(endpoint),
+    api_key = VALUES(api_key),
+    model = VALUES(model),
+    timeout_ms = VALUES(timeout_ms),
+    max_output_tokens = VALUES(max_output_tokens),
+    reasoning_budget_tokens = VALUES(reasoning_budget_tokens),
+    updated_at = VALUES(updated_at)
+`
+
+type UpsertAssistantModelConnectionParams struct {
+	ConnectionMode        uint8
+	Protocol              uint8
+	Endpoint              string
+	ApiKey                string
+	Model                 string
+	TimeoutMs             uint32
+	MaxOutputTokens       uint32
+	ReasoningBudgetTokens uint32
+	UpdatedAt             time.Time
+}
+
+func (q *Queries) UpsertAssistantModelConnection(ctx context.Context, arg UpsertAssistantModelConnectionParams) error {
+	_, err := q.db.ExecContext(ctx, upsertAssistantModelConnection,
+		arg.ConnectionMode,
+		arg.Protocol,
+		arg.Endpoint,
+		arg.ApiKey,
+		arg.Model,
+		arg.TimeoutMs,
+		arg.MaxOutputTokens,
+		arg.ReasoningBudgetTokens,
+		arg.UpdatedAt,
+	)
+	return err
 }

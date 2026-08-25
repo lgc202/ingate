@@ -10,9 +10,8 @@ option go_package = "github.com/lgc202/ingate/internal/assistant/conf;conf";
 message Bootstrap {
   Server server = 1;
   Data data = 2;
-  Model model = 3;
-  Stream stream = 4;
-  Logging logging = 5;
+  Stream stream = 3;
+  Logging logging = 4;
 }
 
 message Server {
@@ -46,16 +45,6 @@ message Data {
   }
   MySQL mysql = 1;
   Redis redis = 2;
-}
-
-message Model {
-  string base_url = 1;
-  string api_key = 2;
-  string name = 3;
-  google.protobuf.Duration timeout = 4;
-  uint32 max_output_tokens = 5;
-  uint32 max_iterations = 6;
-  string instruction = 7;
 }
 
 message Stream {

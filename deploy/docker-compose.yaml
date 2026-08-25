@@ -298,9 +298,6 @@ services:
         condition: service_completed_successfully
     environment:
       INGATE_MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
-      INGATE_ASSISTANT_MODEL_BASE_URL: "${INGATE_ASSISTANT_MODEL_BASE_URL:-}"
-      INGATE_ASSISTANT_MODEL_API_KEY: "${INGATE_ASSISTANT_MODEL_API_KEY:-}"
-      INGATE_ASSISTANT_MODEL_NAME: "${INGATE_ASSISTANT_MODEL_NAME:-}"
     volumes:
       - "${INGATE_DEPLOY_ROOT:-./deploy/docker}/configs/ingate-assistant.yaml:/opt/ingate/assistant/configs/config.yaml:ro"
     healthcheck:

@@ -13,10 +13,10 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/conf"
 )
 
-const eventKeyPrefix = "ingate:assistant:v1:execution:"
+const eventKeyPrefix = "ingate:assistant:v1:run:"
 
 // EventStore 使用 Redis Stream 保存 SSE 断线重连需要的短期事件。
-// MySQL 中的消息和执行状态仍是持久事实，Stream 到期不会丢失最终结果。
+// MySQL 中的消息和 Run 状态仍是持久事实，Stream 到期不会丢失最终结果。
 type EventStore struct {
 	client    *redisgo.Client
 	retention time.Duration
@@ -45,20 +45,23 @@ func NewEventStore(
 	}, nil
 }
 
+// Close 释放 EventStore 持有的 Redis 连接池。
 func (s *EventStore) Close() error {
 	return s.client.Close()
 }
 
+// Ping 检查 Redis 是否能够在当前请求期限内响应。
 func (s *EventStore) Ping(ctx context.Context) error {
 	return s.client.Ping(ctx).Err()
 }
 
+// Append 追加一条 Run 流式事件，并刷新整个事件流的保留时间。
 func (s *EventStore) Append(
 	ctx context.Context,
-	executionID string,
+	runID string,
 	event conversation.StreamEvent,
 ) (string, error) {
-	key := eventKey(executionID)
+	key := eventKey(runID)
 	pipeline := s.client.TxPipeline()
 	command := pipeline.XAdd(ctx, &redisgo.XAddArgs{
 		Stream: key,
@@ -73,9 +76,10 @@ func (s *EventStore) Append(
 	return command.Val(), nil
 }
 
+// Read 从指定事件 ID 之后读取 Run 事件，支持 SSE 断线后的短时重放。
 func (s *EventStore) Read(
 	ctx context.Context,
-	executionID string,
+	runID string,
 	lastID string,
 	limit int64,
 	block time.Duration,
@@ -84,7 +88,7 @@ func (s *EventStore) Read(
 		lastID = "0-0"
 	}
 	streams, err := s.client.XRead(ctx, &redisgo.XReadArgs{
-		Streams: []string{eventKey(executionID), lastID},
+		Streams: []string{eventKey(runID), lastID},
 		Count:   limit,
 		Block:   block,
 	}).Result()
@@ -108,7 +112,7 @@ func (s *EventStore) Read(
 	return events, nil
 }
 
-func eventKey(executionID string) string {
-	// Hash tag 让同一次执行的所有事件在 Redis Cluster 中固定落到同一分片。
-	return eventKeyPrefix + "{" + executionID + "}:events"
+func eventKey(runID string) string {
+	// Hash tag 让同一个 Run 的所有事件在 Redis Cluster 中固定落到同一分片。
+	return eventKeyPrefix + "{" + runID + "}:events"
 }

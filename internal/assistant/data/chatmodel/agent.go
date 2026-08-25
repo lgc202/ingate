@@ -8,61 +8,75 @@ import (
 	"io"
 	"strings"
 
-	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
 
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
-	"github.com/lgc202/ingate/internal/assistant/conf"
+	modelbiz "github.com/lgc202/ingate/internal/assistant/biz/model"
 )
 
-// Agent 封装 Eino Runner，后续工具和审批仍由同一个 ADK 执行链扩展。
+const (
+	maxIterations = 8
+	instruction   = "你是 Ingate 运维助手。回答必须基于可验证的系统事实；需要变更时先说明影响并等待用户确认。"
+)
+
+// Agent 在每次 Run 开始时读取当前模型连接。
+// 这样新配置无需重启进程，已开始的 Run 仍使用自己的配置快照。
 type Agent struct {
-	model  string
+	connections *modelbiz.Service
+}
+
+// ChatModel 封装一次 Run 固定使用的 Eino Runner。
+type ChatModel struct {
+	name   string
 	runner *adk.Runner
 }
 
-// NewAgent 创建兼容 OpenAI Chat Completions 协议的 Eino Agent。
-func NewAgent(ctx context.Context, config *conf.Model) (*Agent, error) {
-	if strings.TrimSpace(config.GetBaseUrl()) == "" && strings.TrimSpace(config.GetName()) == "" {
-		return &Agent{}, nil
+// NewAgent 创建模型选取器，不在进程启动时固化在线业务配置。
+func NewAgent(connections *modelbiz.Service) *Agent {
+	return &Agent{connections: connections}
+}
+
+// Model 选取当前配置并创建一个不可变的模型执行对象。
+func (a *Agent) Model(ctx context.Context) (conversation.Model, error) {
+	connection, err := a.connections.ForRun(ctx)
+	if errors.Is(err, modelbiz.ErrNotConfigured) {
+		return nil, conversation.ErrModelNotConfigured
 	}
-	maxOutputTokens := int(config.GetMaxOutputTokens())
-	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
-		APIKey: config.GetApiKey(), BaseURL: config.GetBaseUrl(), Model: config.GetName(),
-		Timeout: config.GetTimeout().AsDuration(), MaxCompletionTokens: &maxOutputTokens,
-	})
 	if err != nil {
-		return nil, fmt.Errorf("create Eino chat model: %w", err)
+		return nil, fmt.Errorf("load assistant model connection: %w", err)
+	}
+	model, err := newChatModel(ctx, connection)
+	if err != nil {
+		return nil, err
 	}
 	agent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Name:          "ingate_operations_assistant",
 		Description:   "Helps operators understand and operate the current Ingate environment",
-		Instruction:   config.GetInstruction(),
+		Instruction:   instruction,
 		Model:         model,
-		MaxIterations: int(config.GetMaxIterations()),
+		MaxIterations: maxIterations,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create Eino chat model agent: %w", err)
 	}
-	return &Agent{
-		model:  config.GetName(),
+	return &ChatModel{
+		name:   connection.Model,
 		runner: adk.NewRunner(ctx, adk.RunnerConfig{Agent: agent, EnableStreaming: true}),
 	}, nil
 }
 
-func (a *Agent) Model() string {
-	return a.model
+// Name 返回该 Run 实际使用的模型名称。
+func (m *ChatModel) Name() string {
+	return m.name
 }
 
-func (a *Agent) Generate(
+// Generate 根据持久消息生成回复，并把模型增量交给调用方发送和暂存。
+func (m *ChatModel) Generate(
 	ctx context.Context,
 	history []conversation.Message,
-	emit func(string) error,
-) (string, error) {
-	if a.runner == nil {
-		return "", conversation.ErrModelNotConfigured
-	}
+	emit func(conversation.ModelDelta) error,
+) (conversation.ModelResult, error) {
 	messages := make([]adk.Message, 0, len(history))
 	for _, message := range history {
 		switch message.Role {
@@ -73,18 +87,19 @@ func (a *Agent) Generate(
 		}
 	}
 	var content strings.Builder
-	iterator := a.runner.Run(ctx, messages)
+	var reasoning strings.Builder
+	iterator := m.runner.Run(ctx, messages)
 	for event, ok := iterator.Next(); ok; event, ok = iterator.Next() {
 		if event.Err != nil {
-			return "", fmt.Errorf("run Eino agent: %w", event.Err)
+			return conversation.ModelResult{}, fmt.Errorf("run Eino agent: %w", event.Err)
 		}
 		if event.Output == nil || event.Output.MessageOutput == nil {
 			continue
 		}
 		output := event.Output.MessageOutput
 		if !output.IsStreaming {
-			if err := appendDelta(&content, output.Message.Content, emit); err != nil {
-				return "", err
+			if err := appendMessage(&content, &reasoning, output.Message, emit); err != nil {
+				return conversation.ModelResult{}, err
 			}
 			continue
 		}
@@ -96,24 +111,44 @@ func (a *Agent) Generate(
 			}
 			if err != nil {
 				stream.Close()
-				return "", fmt.Errorf("read Eino model stream: %w", err)
+				return conversation.ModelResult{}, fmt.Errorf("read Eino model stream: %w", err)
 			}
-			if err := appendDelta(&content, chunk.Content, emit); err != nil {
+			if err := appendMessage(&content, &reasoning, chunk, emit); err != nil {
 				stream.Close()
-				return "", err
+				return conversation.ModelResult{}, err
 			}
 		}
 		stream.Close()
 	}
-	return content.String(), nil
+	return conversation.ModelResult{
+		Content:          content.String(),
+		ReasoningContent: reasoning.String(),
+	}, nil
 }
 
-func appendDelta(content *strings.Builder, delta string, emit func(string) error) error {
+func appendMessage(
+	content *strings.Builder,
+	reasoning *strings.Builder,
+	message *schema.Message,
+	emit func(conversation.ModelDelta) error,
+) error {
+	if err := appendDelta(reasoning, conversation.ModelDeltaReasoning, message.ReasoningContent, emit); err != nil {
+		return err
+	}
+	return appendDelta(content, conversation.ModelDeltaContent, message.Content, emit)
+}
+
+func appendDelta(
+	content *strings.Builder,
+	deltaType conversation.ModelDeltaType,
+	delta string,
+	emit func(conversation.ModelDelta) error,
+) error {
 	if delta == "" {
 		return nil
 	}
 	content.WriteString(delta)
-	if err := emit(delta); err != nil {
+	if err := emit(conversation.ModelDelta{Type: deltaType, Content: delta}); err != nil {
 		return fmt.Errorf("emit model delta: %w", err)
 	}
 	return nil

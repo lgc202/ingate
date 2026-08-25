@@ -13,12 +13,13 @@ import (
 
 const (
 	defaultTitle       = "新会话"
-	eventTypeStarted   = "execution.started"
-	eventTypeDelta     = "message.delta"
-	eventTypeCompleted = "execution.completed"
-	eventTypeFailed    = "execution.failed"
+	eventTypeStarted   = "run.started"
+	eventTypeReasoning = "message.reasoning.delta"
+	eventTypeContent   = "message.content.delta"
+	eventTypeCompleted = "run.completed"
+	eventTypeFailed    = "run.failed"
+	failureInternal    = "INTERNAL_ERROR"
 	failureModel       = "MODEL_UNAVAILABLE"
-	failureModelConfig = "MODEL_NOT_CONFIGURED"
 	failureClientGone  = "CLIENT_DISCONNECTED"
 	failureEventStore  = "EVENT_STORE_UNAVAILABLE"
 	failureTimeout     = 5 * time.Second
@@ -46,7 +47,6 @@ func (s *Service) Create(ctx context.Context, actorID, title string) (Conversati
 		ID:        uuid.NewString(),
 		ActorID:   actorID,
 		Title:     title,
-		Version:   1,
 		CreatedAt: now,
 		UpdatedAt: now,
 	})
@@ -65,22 +65,22 @@ func (s *Service) List(
 	return s.store.List(ctx, actorID, limit, cursor)
 }
 
-func (s *Service) Delete(ctx context.Context, actorID, id string, version int64) error {
-	return s.store.Delete(ctx, actorID, id, version)
+func (s *Service) Delete(ctx context.Context, actorID, id string) error {
+	return s.store.Delete(ctx, actorID, id)
 }
 
 func (s *Service) ListMessages(
 	ctx context.Context,
 	actorID string,
 	conversationID string,
-	afterSequence int64,
+	cursor *MessageCursor,
 	limit int,
 ) (MessagePage, error) {
-	return s.store.ListMessages(ctx, actorID, conversationID, afterSequence, limit)
+	return s.store.ListMessages(ctx, actorID, conversationID, cursor, limit)
 }
 
-func (s *Service) GetExecution(ctx context.Context, actorID, id string) (Execution, error) {
-	return s.store.GetExecution(ctx, actorID, id)
+func (s *Service) GetRun(ctx context.Context, actorID, id string) (Run, error) {
+	return s.store.GetRun(ctx, actorID, id)
 }
 
 // Chat 持久化用户输入并同步执行 Agent；所有分片先写入 Redis 再交给当前 SSE 连接
@@ -90,80 +90,101 @@ func (s *Service) Chat(
 	conversationID string,
 	userContent string,
 	emit func(StreamEvent) error,
-) (Execution, error) {
-	execution, err := s.store.BeginExecution(ctx, actorID, conversationID, userContent, s.agent.Model())
+) (Run, error) {
+	selectedModel, err := s.agent.Model(ctx)
 	if err != nil {
-		return Execution{}, err
+		return Run{}, err
 	}
-	if err := s.publish(ctx, execution.ID, StreamEvent{Type: eventTypeStarted, Data: execution.ID}, emit); err != nil {
-		return s.fail(ctx, execution, failureEventStore, err)
-	}
-	history, err := s.store.ListMessages(ctx, actorID, conversationID, 0, 200)
+	run, err := s.store.BeginRun(ctx, actorID, conversationID, userContent, selectedModel.Name())
 	if err != nil {
-		return s.fail(ctx, execution, failureModel, fmt.Errorf("load conversation history: %w", err))
+		return Run{}, err
 	}
-	content, err := s.agent.Generate(ctx, history.Items, func(delta string) error {
-		return s.publish(ctx, execution.ID, StreamEvent{Type: eventTypeDelta, Data: delta}, emit)
+	if err := s.publish(ctx, run.ID, StreamEvent{Type: eventTypeStarted, Data: run.ID}, emit); err != nil {
+		return s.fail(ctx, actorID, run, runFailureCode(err), err)
+	}
+	history, err := s.store.ListRecentMessages(ctx, actorID, conversationID, 200)
+	if err != nil {
+		return s.fail(ctx, actorID, run, failureInternal, fmt.Errorf("load conversation history: %w", err))
+	}
+	result, err := selectedModel.Generate(ctx, history, func(delta ModelDelta) error {
+		eventType := eventTypeContent
+		if delta.Type == ModelDeltaReasoning {
+			eventType = eventTypeReasoning
+		}
+		return s.publish(ctx, run.ID, StreamEvent{Type: eventType, Data: delta.Content}, emit)
 	})
 	if err != nil {
-		failureCode := failureModel
-		if errors.Is(err, ErrModelNotConfigured) {
-			failureCode = failureModelConfig
-		} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			failureCode = failureClientGone
-		}
-		return s.fail(ctx, execution, failureCode, err)
+		return s.fail(ctx, actorID, run, runFailureCode(err), err)
 	}
-	message, err := s.store.CompleteExecution(ctx, actorID, execution.ID, content)
+	message, err := s.store.CompleteRun(ctx, actorID, run.ID, result)
 	if err != nil {
-		return s.fail(ctx, execution, failureModel, fmt.Errorf("complete execution: %w", err))
+		return s.fail(ctx, actorID, run, failureInternal, fmt.Errorf("complete assistant run: %w", err))
 	}
-	execution.State = StateSucceeded
-	if err := s.publish(ctx, execution.ID, StreamEvent{Type: eventTypeCompleted, Data: message.ID}, emit); err != nil {
-		return execution, err
+	run.State = StateSucceeded
+	event := StreamEvent{Type: eventTypeCompleted, Data: message.ID}
+	eventID, err := s.events.Append(ctx, run.ID, event)
+	if err != nil {
+		return run, fmt.Errorf("append completed assistant run event: %w", err)
 	}
-	return execution, nil
+	event.ID = eventID
+	// Run 已经持久化为成功，连接在最后一个分片后断开不能把成功结果改写成失败；
+	// 客户端可以使用 Last-Event-ID 从 Redis 重新读取完成事件。
+	_ = emit(event)
+	return run, nil
 }
 
 func (s *Service) ReadEvents(
 	ctx context.Context,
-	executionID string,
+	runID string,
 	lastID string,
 	limit int64,
 	block time.Duration,
 ) ([]StreamEvent, error) {
-	return s.events.Read(ctx, executionID, lastID, limit, block)
+	return s.events.Read(ctx, runID, lastID, limit, block)
 }
 
 func (s *Service) publish(
 	ctx context.Context,
-	executionID string,
+	runID string,
 	event StreamEvent,
 	emit func(StreamEvent) error,
 ) error {
-	id, err := s.events.Append(ctx, executionID, event)
+	id, err := s.events.Append(ctx, runID, event)
 	if err != nil {
-		return fmt.Errorf("append execution event: %w", err)
+		return errors.Join(errEventStoreUnavailable, fmt.Errorf("append assistant run event: %w", err))
 	}
 	event.ID = id
 	if err := emit(event); err != nil {
-		return fmt.Errorf("emit execution event: %w", err)
+		return errors.Join(errStreamDisconnected, fmt.Errorf("emit assistant run event: %w", err))
 	}
 	return nil
 }
 
-func (s *Service) fail(ctx context.Context, execution Execution, code string, cause error) (Execution, error) {
-	// 客户端断开会取消请求 Context，但已经创建的执行仍必须落到终态。
+func (s *Service) fail(ctx context.Context, actorID string, run Run, code string, cause error) (Run, error) {
+	// 客户端断开会取消请求 Context，但已经创建的 Run 仍必须落到终态。
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), failureTimeout)
 	defer cancel()
-	execution.State = StateFailed
-	execution.FailureCode = code
+	run.State = StateFailed
+	run.ErrorCode = code
 	finishedAt := time.Now().UTC()
-	execution.FinishedAt = &finishedAt
-	if err := s.store.FailExecution(cleanupCtx, execution.ID, code); err != nil {
-		return execution, errors.Join(cause, fmt.Errorf("mark execution failed: %w", err))
+	run.FinishedAt = &finishedAt
+	if err := s.store.FailRun(cleanupCtx, actorID, run.ID, code); err != nil {
+		return run, errors.Join(cause, fmt.Errorf("mark assistant run failed: %w", err))
 	}
-	// 失败事件写入失败不能覆盖原始执行错误；重连仍可从 MySQL 读取失败状态
-	_, _ = s.events.Append(cleanupCtx, execution.ID, StreamEvent{Type: eventTypeFailed, Data: code})
-	return execution, cause
+	// 失败事件写入失败不能覆盖原始 Run 错误；重连仍可从 MySQL 读取最终状态。
+	_, _ = s.events.Append(cleanupCtx, run.ID, StreamEvent{Type: eventTypeFailed, Data: code})
+	return run, cause
+}
+
+func runFailureCode(err error) string {
+	switch {
+	case errors.Is(err, errEventStoreUnavailable):
+		return failureEventStore
+	case errors.Is(err, errStreamDisconnected),
+		errors.Is(err, context.Canceled),
+		errors.Is(err, context.DeadlineExceeded):
+		return failureClientGone
+	default:
+		return failureModel
+	}
 }

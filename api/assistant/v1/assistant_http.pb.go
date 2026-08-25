@@ -21,7 +21,7 @@ const _ = http.SupportPackageIsVersion3
 const OperationConversationServiceCreateConversation = "/ingate.assistant.v1.ConversationService/CreateConversation"
 const OperationConversationServiceDeleteConversation = "/ingate.assistant.v1.ConversationService/DeleteConversation"
 const OperationConversationServiceGetConversation = "/ingate.assistant.v1.ConversationService/GetConversation"
-const OperationConversationServiceGetExecution = "/ingate.assistant.v1.ConversationService/GetExecution"
+const OperationConversationServiceGetRun = "/ingate.assistant.v1.ConversationService/GetRun"
 const OperationConversationServiceListConversations = "/ingate.assistant.v1.ConversationService/ListConversations"
 const OperationConversationServiceListMessages = "/ingate.assistant.v1.ConversationService/ListMessages"
 
@@ -29,7 +29,7 @@ type ConversationServiceHTTPServer interface {
 	CreateConversation(context.Context, *CreateConversationRequest) (*Conversation, error)
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error)
 	GetConversation(context.Context, *GetConversationRequest) (*Conversation, error)
-	GetExecution(context.Context, *GetExecutionRequest) (*Execution, error)
+	GetRun(context.Context, *GetRunRequest) (*Run, error)
 	ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error)
 }
@@ -41,7 +41,7 @@ func RegisterConversationServiceHTTPServer(s *http.Server, srv ConversationServi
 	r.Handle("POST", "/assistant/v1/conversations", _ConversationService_CreateConversation0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/assistant/v1/conversations/{id}", _ConversationService_DeleteConversation0_HTTP_Handler(srv))
 	r.Handle("GET", "/assistant/v1/conversations/{conversation_id}/messages", _ConversationService_ListMessages0_HTTP_Handler(srv))
-	r.Handle("GET", "/assistant/v1/executions/{id}", _ConversationService_GetExecution0_HTTP_Handler(srv))
+	r.Handle("GET", "/assistant/v1/runs/{id}", _ConversationService_GetRun0_HTTP_Handler(srv))
 }
 
 func _ConversationService_ListConversations0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
@@ -148,24 +148,24 @@ func _ConversationService_ListMessages0_HTTP_Handler(srv ConversationServiceHTTP
 	}
 }
 
-func _ConversationService_GetExecution0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
+func _ConversationService_GetRun0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
 	return func(ctx http.Context) error {
-		var in GetExecutionRequest
+		var in GetRunRequest
 		if err := ctx.BindQuery(&in); err != nil {
 			return err
 		}
 		if err := ctx.BindVars(&in); err != nil {
 			return err
 		}
-		http.SetOperation(ctx, OperationConversationServiceGetExecution)
+		http.SetOperation(ctx, OperationConversationServiceGetRun)
 		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetExecution(ctx, req.(*GetExecutionRequest))
+			return srv.GetRun(ctx, req.(*GetRunRequest))
 		})
 		out, err := h(ctx, &in)
 		if err != nil {
 			return err
 		}
-		reply := out.(*Execution)
+		reply := out.(*Run)
 		return ctx.Result(200, reply)
 	}
 }
@@ -174,7 +174,7 @@ type ConversationServiceHTTPClient interface {
 	CreateConversation(ctx context.Context, req *CreateConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
 	DeleteConversation(ctx context.Context, req *DeleteConversationRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
 	GetConversation(ctx context.Context, req *GetConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
-	GetExecution(ctx context.Context, req *GetExecutionRequest, opts ...http.CallOption) (rsp *Execution, err error)
+	GetRun(ctx context.Context, req *GetRunRequest, opts ...http.CallOption) (rsp *Run, err error)
 	ListConversations(ctx context.Context, req *ListConversationsRequest, opts ...http.CallOption) (rsp *ListConversationsResponse, err error)
 	ListMessages(ctx context.Context, req *ListMessagesRequest, opts ...http.CallOption) (rsp *ListMessagesResponse, err error)
 }
@@ -236,13 +236,13 @@ func (c *ConversationServiceHTTPClientImpl) GetConversation(ctx context.Context,
 	return &out, nil
 }
 
-func (c *ConversationServiceHTTPClientImpl) GetExecution(ctx context.Context, in *GetExecutionRequest, opts ...http.CallOption) (*Execution, error) {
-	var out Execution
-	pattern := "/assistant/v1/executions/{id}"
+func (c *ConversationServiceHTTPClientImpl) GetRun(ctx context.Context, in *GetRunRequest, opts ...http.CallOption) (*Run, error) {
+	var out Run
+	pattern := "/assistant/v1/runs/{id}"
 	path := http.BuildPath(pattern, in, http.WithQueryParams())
 	opts = append([]http.CallOption{
 		http.Accept("application/protojson"),
-		http.Operation(OperationConversationServiceGetExecution),
+		http.Operation(OperationConversationServiceGetRun),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
@@ -278,6 +278,104 @@ func (c *ConversationServiceHTTPClientImpl) ListMessages(ctx context.Context, in
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+const OperationModelConnectionServiceGetModelConnection = "/ingate.assistant.v1.ModelConnectionService/GetModelConnection"
+const OperationModelConnectionServiceUpdateModelConnection = "/ingate.assistant.v1.ModelConnectionService/UpdateModelConnection"
+
+type ModelConnectionServiceHTTPServer interface {
+	GetModelConnection(context.Context, *emptypb.Empty) (*ModelConnection, error)
+	UpdateModelConnection(context.Context, *UpdateModelConnectionRequest) (*ModelConnection, error)
+}
+
+func RegisterModelConnectionServiceHTTPServer(s *http.Server, srv ModelConnectionServiceHTTPServer) {
+	r := s.Route("/")
+	r.Handle("GET", "/assistant/v1/model-connection", _ModelConnectionService_GetModelConnection0_HTTP_Handler(srv))
+	r.Handle("PUT", "/assistant/v1/model-connection", _ModelConnectionService_UpdateModelConnection0_HTTP_Handler(srv))
+}
+
+func _ModelConnectionService_GetModelConnection0_HTTP_Handler(srv ModelConnectionServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in emptypb.Empty
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationModelConnectionServiceGetModelConnection)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetModelConnection(ctx, req.(*emptypb.Empty))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ModelConnection)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _ModelConnectionService_UpdateModelConnection0_HTTP_Handler(srv ModelConnectionServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in UpdateModelConnectionRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationModelConnectionServiceUpdateModelConnection)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.UpdateModelConnection(ctx, req.(*UpdateModelConnectionRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ModelConnection)
+		return ctx.Result(200, reply)
+	}
+}
+
+type ModelConnectionServiceHTTPClient interface {
+	GetModelConnection(ctx context.Context, req *emptypb.Empty, opts ...http.CallOption) (rsp *ModelConnection, err error)
+	UpdateModelConnection(ctx context.Context, req *UpdateModelConnectionRequest, opts ...http.CallOption) (rsp *ModelConnection, err error)
+}
+
+type ModelConnectionServiceHTTPClientImpl struct {
+	cc *http.Client
+}
+
+func NewModelConnectionServiceHTTPClient(client *http.Client) ModelConnectionServiceHTTPClient {
+	return &ModelConnectionServiceHTTPClientImpl{client}
+}
+
+func (c *ModelConnectionServiceHTTPClientImpl) GetModelConnection(ctx context.Context, in *emptypb.Empty, opts ...http.CallOption) (*ModelConnection, error) {
+	var out ModelConnection
+	pattern := "/assistant/v1/model-connection"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationModelConnectionServiceGetModelConnection),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *ModelConnectionServiceHTTPClientImpl) UpdateModelConnection(ctx context.Context, in *UpdateModelConnectionRequest, opts ...http.CallOption) (*ModelConnection, error) {
+	var out ModelConnection
+	pattern := "/assistant/v1/model-connection"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationModelConnectionServiceUpdateModelConnection),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "PUT", path, in, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

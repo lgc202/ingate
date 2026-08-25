@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"strconv"
 
 	conversationbiz "github.com/lgc202/ingate/internal/assistant/biz/conversation"
 )
@@ -38,21 +37,31 @@ func decodeConversationCursor(value string) (*conversationbiz.ConversationCursor
 	return &cursor, nil
 }
 
-func encodeMessageCursor(sequence int64) string {
-	return base64.RawURLEncoding.EncodeToString([]byte(strconv.FormatInt(sequence, 10)))
+func encodeMessageCursor(cursor *conversationbiz.MessageCursor) (string, error) {
+	if cursor == nil {
+		return "", nil
+	}
+	value, err := json.Marshal(cursor)
+	if err != nil {
+		return "", fmt.Errorf("marshal message cursor: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(value), nil
 }
 
-func decodeMessageCursor(value string) (int64, error) {
+func decodeMessageCursor(value string) (*conversationbiz.MessageCursor, error) {
 	if value == "" {
-		return 0, nil
+		return nil, nil
 	}
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
-		return 0, fmt.Errorf("decode message cursor: %w", err)
+		return nil, fmt.Errorf("decode message cursor: %w", err)
 	}
-	sequence, err := strconv.ParseInt(string(decoded), 10, 64)
-	if err != nil || sequence < 0 {
-		return 0, fmt.Errorf("message cursor is invalid")
+	var cursor conversationbiz.MessageCursor
+	if err := json.Unmarshal(decoded, &cursor); err != nil {
+		return nil, fmt.Errorf("unmarshal message cursor: %w", err)
 	}
-	return sequence, nil
+	if cursor.CreatedAt.IsZero() || cursor.ID == "" {
+		return nil, fmt.Errorf("message cursor is incomplete")
+	}
+	return &cursor, nil
 }

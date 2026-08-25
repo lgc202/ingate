@@ -29,9 +29,36 @@ service ConversationService {
   rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse) {
     option (google.api.http) = {get: "/assistant/v1/conversations/{conversation_id}/messages"};
   }
-  rpc GetExecution(GetExecutionRequest) returns (Execution) {
-    option (google.api.http) = {get: "/assistant/v1/executions/{id}"};
+  rpc GetRun(GetRunRequest) returns (Run) {
+    option (google.api.http) = {get: "/assistant/v1/runs/{id}"};
   }
+}
+
+// ModelConnectionService 管理运维助手当前生效的模型连接
+service ModelConnectionService {
+  rpc GetModelConnection(google.protobuf.Empty) returns (ModelConnection) {
+    option (google.api.http) = {get: "/assistant/v1/model-connection"};
+  }
+  rpc UpdateModelConnection(UpdateModelConnectionRequest) returns (ModelConnection) {
+    option (google.api.http) = {
+      put: "/assistant/v1/model-connection"
+      body: "*"
+    };
+  }
+}
+
+enum ModelConnectionMode {
+  MODEL_CONNECTION_MODE_UNSPECIFIED = 0;
+  MODEL_CONNECTION_MODE_DIRECT = 1;
+  MODEL_CONNECTION_MODE_INGATE = 2;
+}
+
+// ModelProtocol 表示 Assistant 与模型端点之间实际使用的协议。
+// 经过 Ingate 时始终使用 OpenAI 兼容协议，由网关负责适配具体模型厂商。
+enum ModelProtocol {
+  MODEL_PROTOCOL_UNSPECIFIED = 0;
+  MODEL_PROTOCOL_OPENAI_COMPATIBLE = 1;
+  MODEL_PROTOCOL_ANTHROPIC = 2;
 }
 
 enum MessageRole {
@@ -40,36 +67,37 @@ enum MessageRole {
   MESSAGE_ROLE_ASSISTANT = 2;
 }
 
-enum ExecutionState {
-  EXECUTION_STATE_UNSPECIFIED = 0;
-  EXECUTION_STATE_RUNNING = 1;
-  EXECUTION_STATE_SUCCEEDED = 2;
-  EXECUTION_STATE_FAILED = 3;
+enum RunState {
+  RUN_STATE_UNSPECIFIED = 0;
+  RUN_STATE_RUNNING = 1;
+  RUN_STATE_SUCCEEDED = 2;
+  RUN_STATE_FAILED = 3;
 }
 
 message Conversation {
   string id = 1;
   string title = 2;
-  int64 version = 3;
-  google.protobuf.Timestamp created_at = 4;
-  google.protobuf.Timestamp updated_at = 5;
+  google.protobuf.Timestamp created_at = 3;
+  google.protobuf.Timestamp updated_at = 4;
 }
 
 message Message {
   string id = 1;
   string conversation_id = 2;
-  int64 sequence = 3;
+  string run_id = 3;
   MessageRole role = 4;
   string content = 5;
-  google.protobuf.Timestamp created_at = 6;
+  // reasoning_content 只包含模型厂商明确返回的推理内容，不包含服务端隐藏指令。
+  string reasoning_content = 6 [json_name = "reasoningContent"];
+  google.protobuf.Timestamp created_at = 7;
 }
 
-message Execution {
+message Run {
   string id = 1;
   string conversation_id = 2;
-  ExecutionState state = 3;
+  RunState state = 3;
   string model = 4;
-  string failure_code = 5;
+  string error_code = 5;
   google.protobuf.Timestamp started_at = 6;
   google.protobuf.Timestamp finished_at = 7;
 }
@@ -94,7 +122,6 @@ message CreateConversationRequest {
 
 message DeleteConversationRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
-  int64 version = 2 [(buf.validate.field).int64.gt = 0];
 }
 
 message ListMessagesRequest {
@@ -108,6 +135,61 @@ message ListMessagesResponse {
   string next_cursor = 2;
 }
 
-message GetExecutionRequest {
+message GetRunRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+// ModelConnection 只返回非敏感连接信息，API Key 仅暴露是否已配置。
+message ModelConnection {
+  bool configured = 1;
+  ModelConnectionMode connection_mode = 2 [json_name = "connectionMode"];
+  ModelProtocol protocol = 3;
+  string endpoint = 4;
+  string model = 5;
+  bool api_key_configured = 6 [json_name = "apiKeyConfigured"];
+  uint32 timeout_seconds = 7 [json_name = "timeoutSeconds"];
+  uint32 max_output_tokens = 8 [json_name = "maxOutputTokens"];
+  // reasoning_budget_tokens 仅用于主动开启 Anthropic 扩展思考，0 表示关闭。
+  uint32 reasoning_budget_tokens = 9 [json_name = "reasoningBudgetTokens"];
+  google.protobuf.Timestamp updated_at = 10 [json_name = "updatedAt"];
+}
+
+// UpdateModelConnectionRequest 中未提供 api_key 表示保留原凭据，clear_api_key 表示明确删除。
+message UpdateModelConnectionRequest {
+  ModelConnectionMode connection_mode = 1 [
+    json_name = "connectionMode",
+    (buf.validate.field).enum.defined_only = true
+  ];
+  ModelProtocol protocol = 2 [(buf.validate.field).enum.defined_only = true];
+  string endpoint = 3 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 2048
+  }];
+  string model = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 160
+  }];
+  optional string api_key = 5 [
+    json_name = "apiKey",
+    (buf.validate.field).string.max_len = 4096
+  ];
+  bool clear_api_key = 6 [json_name = "clearApiKey"];
+  uint32 timeout_seconds = 7 [
+    json_name = "timeoutSeconds",
+    (buf.validate.field).uint32 = {
+      gte: 1
+      lte: 1800
+    }
+  ];
+  uint32 max_output_tokens = 8 [
+    json_name = "maxOutputTokens",
+    (buf.validate.field).uint32 = {
+      gte: 1
+      lte: 1000000
+    }
+  ];
+  uint32 reasoning_budget_tokens = 9 [
+    json_name = "reasoningBudgetTokens",
+    (buf.validate.field).uint32.lte = 999999
+  ];
 }

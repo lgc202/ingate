@@ -23,15 +23,6 @@ data:
     write_timeout: "3s"
     pool_size: 20
 
-model:
-  base_url: "${ASSISTANT_MODEL_BASE_URL:}"
-  api_key: "${ASSISTANT_MODEL_API_KEY:}"
-  name: "${ASSISTANT_MODEL_NAME:}"
-  timeout: "120s"
-  max_output_tokens: 4096
-  max_iterations: 8
-  instruction: "你是 Ingate 运维助手。回答必须基于可验证的系统事实；需要变更时先说明影响并等待用户确认。"
-
 stream:
   retention: "86400s"
   max_events: 2000

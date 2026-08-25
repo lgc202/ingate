@@ -27,9 +27,8 @@ type Bootstrap struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Server        *Server                `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
 	Data          *Data                  `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	Model         *Model                 `protobuf:"bytes,3,opt,name=model,proto3" json:"model,omitempty"`
-	Stream        *Stream                `protobuf:"bytes,4,opt,name=stream,proto3" json:"stream,omitempty"`
-	Logging       *Logging               `protobuf:"bytes,5,opt,name=logging,proto3" json:"logging,omitempty"`
+	Stream        *Stream                `protobuf:"bytes,3,opt,name=stream,proto3" json:"stream,omitempty"`
+	Logging       *Logging               `protobuf:"bytes,4,opt,name=logging,proto3" json:"logging,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -74,13 +73,6 @@ func (x *Bootstrap) GetServer() *Server {
 func (x *Bootstrap) GetData() *Data {
 	if x != nil {
 		return x.Data
-	}
-	return nil
-}
-
-func (x *Bootstrap) GetModel() *Model {
-	if x != nil {
-		return x.Model
 	}
 	return nil
 }
@@ -203,98 +195,6 @@ func (x *Data) GetRedis() *Data_Redis {
 	return nil
 }
 
-type Model struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	BaseUrl         string                 `protobuf:"bytes,1,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
-	ApiKey          string                 `protobuf:"bytes,2,opt,name=api_key,json=apiKey,proto3" json:"api_key,omitempty"`
-	Name            string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
-	Timeout         *durationpb.Duration   `protobuf:"bytes,4,opt,name=timeout,proto3" json:"timeout,omitempty"`
-	MaxOutputTokens uint32                 `protobuf:"varint,5,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
-	MaxIterations   uint32                 `protobuf:"varint,6,opt,name=max_iterations,json=maxIterations,proto3" json:"max_iterations,omitempty"`
-	Instruction     string                 `protobuf:"bytes,7,opt,name=instruction,proto3" json:"instruction,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
-}
-
-func (x *Model) Reset() {
-	*x = Model{}
-	mi := &file_assistant_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *Model) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Model) ProtoMessage() {}
-
-func (x *Model) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Model.ProtoReflect.Descriptor instead.
-func (*Model) Descriptor() ([]byte, []int) {
-	return file_assistant_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *Model) GetBaseUrl() string {
-	if x != nil {
-		return x.BaseUrl
-	}
-	return ""
-}
-
-func (x *Model) GetApiKey() string {
-	if x != nil {
-		return x.ApiKey
-	}
-	return ""
-}
-
-func (x *Model) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *Model) GetTimeout() *durationpb.Duration {
-	if x != nil {
-		return x.Timeout
-	}
-	return nil
-}
-
-func (x *Model) GetMaxOutputTokens() uint32 {
-	if x != nil {
-		return x.MaxOutputTokens
-	}
-	return 0
-}
-
-func (x *Model) GetMaxIterations() uint32 {
-	if x != nil {
-		return x.MaxIterations
-	}
-	return 0
-}
-
-func (x *Model) GetInstruction() string {
-	if x != nil {
-		return x.Instruction
-	}
-	return ""
-}
-
 type Stream struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Retention     *durationpb.Duration   `protobuf:"bytes,1,opt,name=retention,proto3" json:"retention,omitempty"`
@@ -306,7 +206,7 @@ type Stream struct {
 
 func (x *Stream) Reset() {
 	*x = Stream{}
-	mi := &file_assistant_proto_msgTypes[4]
+	mi := &file_assistant_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -318,7 +218,7 @@ func (x *Stream) String() string {
 func (*Stream) ProtoMessage() {}
 
 func (x *Stream) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[4]
+	mi := &file_assistant_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -331,7 +231,7 @@ func (x *Stream) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Stream.ProtoReflect.Descriptor instead.
 func (*Stream) Descriptor() ([]byte, []int) {
-	return file_assistant_proto_rawDescGZIP(), []int{4}
+	return file_assistant_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *Stream) GetRetention() *durationpb.Duration {
@@ -366,7 +266,7 @@ type Logging struct {
 
 func (x *Logging) Reset() {
 	*x = Logging{}
-	mi := &file_assistant_proto_msgTypes[5]
+	mi := &file_assistant_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -378,7 +278,7 @@ func (x *Logging) String() string {
 func (*Logging) ProtoMessage() {}
 
 func (x *Logging) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[5]
+	mi := &file_assistant_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -391,7 +291,7 @@ func (x *Logging) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Logging.ProtoReflect.Descriptor instead.
 func (*Logging) Descriptor() ([]byte, []int) {
-	return file_assistant_proto_rawDescGZIP(), []int{5}
+	return file_assistant_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Logging) GetFormat() string {
@@ -425,7 +325,7 @@ type Server_HTTP struct {
 
 func (x *Server_HTTP) Reset() {
 	*x = Server_HTTP{}
-	mi := &file_assistant_proto_msgTypes[6]
+	mi := &file_assistant_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -437,7 +337,7 @@ func (x *Server_HTTP) String() string {
 func (*Server_HTTP) ProtoMessage() {}
 
 func (x *Server_HTTP) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[6]
+	mi := &file_assistant_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -483,7 +383,7 @@ type Data_MySQL struct {
 
 func (x *Data_MySQL) Reset() {
 	*x = Data_MySQL{}
-	mi := &file_assistant_proto_msgTypes[7]
+	mi := &file_assistant_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -495,7 +395,7 @@ func (x *Data_MySQL) String() string {
 func (*Data_MySQL) ProtoMessage() {}
 
 func (x *Data_MySQL) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[7]
+	mi := &file_assistant_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -582,7 +482,7 @@ type Data_Redis struct {
 
 func (x *Data_Redis) Reset() {
 	*x = Data_Redis{}
-	mi := &file_assistant_proto_msgTypes[8]
+	mi := &file_assistant_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -594,7 +494,7 @@ func (x *Data_Redis) String() string {
 func (*Data_Redis) ProtoMessage() {}
 
 func (x *Data_Redis) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_proto_msgTypes[8]
+	mi := &file_assistant_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -663,13 +563,12 @@ var File_assistant_proto protoreflect.FileDescriptor
 
 const file_assistant_proto_rawDesc = "" +
 	"\n" +
-	"\x0fassistant.proto\x12\x15ingate.assistant.conf\x1a\x1egoogle/protobuf/duration.proto\"\x98\x02\n" +
+	"\x0fassistant.proto\x12\x15ingate.assistant.conf\x1a\x1egoogle/protobuf/duration.proto\"\xe4\x01\n" +
 	"\tBootstrap\x125\n" +
 	"\x06server\x18\x01 \x01(\v2\x1d.ingate.assistant.conf.ServerR\x06server\x12/\n" +
-	"\x04data\x18\x02 \x01(\v2\x1b.ingate.assistant.conf.DataR\x04data\x122\n" +
-	"\x05model\x18\x03 \x01(\v2\x1c.ingate.assistant.conf.ModelR\x05model\x125\n" +
-	"\x06stream\x18\x04 \x01(\v2\x1d.ingate.assistant.conf.StreamR\x06stream\x128\n" +
-	"\alogging\x18\x05 \x01(\v2\x1e.ingate.assistant.conf.LoggingR\alogging\"\xd7\x01\n" +
+	"\x04data\x18\x02 \x01(\v2\x1b.ingate.assistant.conf.DataR\x04data\x125\n" +
+	"\x06stream\x18\x03 \x01(\v2\x1d.ingate.assistant.conf.StreamR\x06stream\x128\n" +
+	"\alogging\x18\x04 \x01(\v2\x1e.ingate.assistant.conf.LoggingR\alogging\"\xd7\x01\n" +
 	"\x06Server\x126\n" +
 	"\x04http\x18\x01 \x01(\v2\".ingate.assistant.conf.Server.HTTPR\x04http\x12D\n" +
 	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aO\n" +
@@ -695,15 +594,7 @@ const file_assistant_proto_rawDesc = "" +
 	"\fdial_timeout\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\vdialTimeout\x12<\n" +
 	"\fread_timeout\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\vreadTimeout\x12>\n" +
 	"\rwrite_timeout\x18\x06 \x01(\v2\x19.google.protobuf.DurationR\fwriteTimeout\x12\x1b\n" +
-	"\tpool_size\x18\a \x01(\rR\bpoolSize\"\xf9\x01\n" +
-	"\x05Model\x12\x19\n" +
-	"\bbase_url\x18\x01 \x01(\tR\abaseUrl\x12\x17\n" +
-	"\aapi_key\x18\x02 \x01(\tR\x06apiKey\x12\x12\n" +
-	"\x04name\x18\x03 \x01(\tR\x04name\x123\n" +
-	"\atimeout\x18\x04 \x01(\v2\x19.google.protobuf.DurationR\atimeout\x12*\n" +
-	"\x11max_output_tokens\x18\x05 \x01(\rR\x0fmaxOutputTokens\x12%\n" +
-	"\x0emax_iterations\x18\x06 \x01(\rR\rmaxIterations\x12 \n" +
-	"\vinstruction\x18\a \x01(\tR\vinstruction\"\x9a\x01\n" +
+	"\tpool_size\x18\a \x01(\rR\bpoolSize\"\x9a\x01\n" +
 	"\x06Stream\x127\n" +
 	"\tretention\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\tretention\x12\x1d\n" +
 	"\n" +
@@ -728,43 +619,40 @@ func file_assistant_proto_rawDescGZIP() []byte {
 	return file_assistant_proto_rawDescData
 }
 
-var file_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_assistant_proto_goTypes = []any{
 	(*Bootstrap)(nil),           // 0: ingate.assistant.conf.Bootstrap
 	(*Server)(nil),              // 1: ingate.assistant.conf.Server
 	(*Data)(nil),                // 2: ingate.assistant.conf.Data
-	(*Model)(nil),               // 3: ingate.assistant.conf.Model
-	(*Stream)(nil),              // 4: ingate.assistant.conf.Stream
-	(*Logging)(nil),             // 5: ingate.assistant.conf.Logging
-	(*Server_HTTP)(nil),         // 6: ingate.assistant.conf.Server.HTTP
-	(*Data_MySQL)(nil),          // 7: ingate.assistant.conf.Data.MySQL
-	(*Data_Redis)(nil),          // 8: ingate.assistant.conf.Data.Redis
-	(*durationpb.Duration)(nil), // 9: google.protobuf.Duration
+	(*Stream)(nil),              // 3: ingate.assistant.conf.Stream
+	(*Logging)(nil),             // 4: ingate.assistant.conf.Logging
+	(*Server_HTTP)(nil),         // 5: ingate.assistant.conf.Server.HTTP
+	(*Data_MySQL)(nil),          // 6: ingate.assistant.conf.Data.MySQL
+	(*Data_Redis)(nil),          // 7: ingate.assistant.conf.Data.Redis
+	(*durationpb.Duration)(nil), // 8: google.protobuf.Duration
 }
 var file_assistant_proto_depIdxs = []int32{
 	1,  // 0: ingate.assistant.conf.Bootstrap.server:type_name -> ingate.assistant.conf.Server
 	2,  // 1: ingate.assistant.conf.Bootstrap.data:type_name -> ingate.assistant.conf.Data
-	3,  // 2: ingate.assistant.conf.Bootstrap.model:type_name -> ingate.assistant.conf.Model
-	4,  // 3: ingate.assistant.conf.Bootstrap.stream:type_name -> ingate.assistant.conf.Stream
-	5,  // 4: ingate.assistant.conf.Bootstrap.logging:type_name -> ingate.assistant.conf.Logging
-	6,  // 5: ingate.assistant.conf.Server.http:type_name -> ingate.assistant.conf.Server.HTTP
-	9,  // 6: ingate.assistant.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	7,  // 7: ingate.assistant.conf.Data.mysql:type_name -> ingate.assistant.conf.Data.MySQL
-	8,  // 8: ingate.assistant.conf.Data.redis:type_name -> ingate.assistant.conf.Data.Redis
-	9,  // 9: ingate.assistant.conf.Model.timeout:type_name -> google.protobuf.Duration
-	9,  // 10: ingate.assistant.conf.Stream.retention:type_name -> google.protobuf.Duration
-	9,  // 11: ingate.assistant.conf.Stream.read_block:type_name -> google.protobuf.Duration
-	9,  // 12: ingate.assistant.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	9,  // 13: ingate.assistant.conf.Data.MySQL.dial_timeout:type_name -> google.protobuf.Duration
-	9,  // 14: ingate.assistant.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
-	9,  // 15: ingate.assistant.conf.Data.Redis.dial_timeout:type_name -> google.protobuf.Duration
-	9,  // 16: ingate.assistant.conf.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
-	9,  // 17: ingate.assistant.conf.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
-	18, // [18:18] is the sub-list for method output_type
-	18, // [18:18] is the sub-list for method input_type
-	18, // [18:18] is the sub-list for extension type_name
-	18, // [18:18] is the sub-list for extension extendee
-	0,  // [0:18] is the sub-list for field type_name
+	3,  // 2: ingate.assistant.conf.Bootstrap.stream:type_name -> ingate.assistant.conf.Stream
+	4,  // 3: ingate.assistant.conf.Bootstrap.logging:type_name -> ingate.assistant.conf.Logging
+	5,  // 4: ingate.assistant.conf.Server.http:type_name -> ingate.assistant.conf.Server.HTTP
+	8,  // 5: ingate.assistant.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	6,  // 6: ingate.assistant.conf.Data.mysql:type_name -> ingate.assistant.conf.Data.MySQL
+	7,  // 7: ingate.assistant.conf.Data.redis:type_name -> ingate.assistant.conf.Data.Redis
+	8,  // 8: ingate.assistant.conf.Stream.retention:type_name -> google.protobuf.Duration
+	8,  // 9: ingate.assistant.conf.Stream.read_block:type_name -> google.protobuf.Duration
+	8,  // 10: ingate.assistant.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	8,  // 11: ingate.assistant.conf.Data.MySQL.dial_timeout:type_name -> google.protobuf.Duration
+	8,  // 12: ingate.assistant.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
+	8,  // 13: ingate.assistant.conf.Data.Redis.dial_timeout:type_name -> google.protobuf.Duration
+	8,  // 14: ingate.assistant.conf.Data.Redis.read_timeout:type_name -> google.protobuf.Duration
+	8,  // 15: ingate.assistant.conf.Data.Redis.write_timeout:type_name -> google.protobuf.Duration
+	16, // [16:16] is the sub-list for method output_type
+	16, // [16:16] is the sub-list for method input_type
+	16, // [16:16] is the sub-list for extension type_name
+	16, // [16:16] is the sub-list for extension extendee
+	0,  // [0:16] is the sub-list for field type_name
 }
 
 func init() { file_assistant_proto_init() }
@@ -778,7 +666,7 @@ func file_assistant_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_assistant_proto_rawDesc), len(file_assistant_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

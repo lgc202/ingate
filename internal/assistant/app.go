@@ -46,7 +46,6 @@ func NewApp(configFile string) (*App, error) {
 		bootstrap.GetServer(),
 		bootstrap.GetData().GetMysql(),
 		bootstrap.GetData().GetRedis(),
-		bootstrap.GetModel(),
 		bootstrap.GetStream(),
 		logger,
 		instanceID,

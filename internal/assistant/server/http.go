@@ -17,6 +17,7 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/data/mysql"
 	redisdata "github.com/lgc202/ingate/internal/assistant/data/redis"
 	conversationservice "github.com/lgc202/ingate/internal/assistant/service/conversation"
+	modelservice "github.com/lgc202/ingate/internal/assistant/service/model"
 )
 
 const (
@@ -28,7 +29,8 @@ const (
 func NewHTTPServer(
 	config *conf.Server,
 	stream *conf.Stream,
-	service *conversationservice.Service,
+	conversationAPI *conversationservice.Service,
+	modelAPI *modelservice.Service,
 	conversations *conversationbiz.Service,
 	mysqlStore *mysql.Store,
 	eventStore *redisdata.EventStore,
@@ -42,7 +44,8 @@ func NewHTTPServer(
 		kratoshttp.Filter(requestIDFilter(), recoveryFilter(logger)),
 		kratoshttp.Middleware(httpMiddleware(logger)...),
 	)
-	assistantv1.RegisterConversationServiceHTTPServer(server, service)
+	assistantv1.RegisterConversationServiceHTTPServer(server, conversationAPI)
+	assistantv1.RegisterModelConnectionServiceHTTPServer(server, modelAPI)
 	registerStreamRoutes(server, conversations, stream, logger)
 	server.HandleFunc("/healthz", health)
 	server.HandleFunc("/readyz", ready(httpConfig.GetTimeout().AsDuration(), mysqlStore, eventStore))

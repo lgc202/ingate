@@ -20,7 +20,7 @@ const (
 	maxLimit            = 100
 )
 
-// Service 实现会话、消息和执行状态的产品协议。
+// Service 实现会话、消息和 Run 状态的产品协议。
 type Service struct {
 	conversations *conversationbiz.Service
 }
@@ -98,7 +98,7 @@ func (s *Service) DeleteConversation(
 	if err != nil {
 		return nil, err
 	}
-	if err := s.conversations.Delete(ctx, actorID, request.GetId(), request.GetVersion()); err != nil {
+	if err := s.conversations.Delete(ctx, actorID, request.GetId()); err != nil {
 		return nil, serviceError(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -112,39 +112,43 @@ func (s *Service) ListMessages(
 	if err != nil {
 		return nil, err
 	}
-	afterSequence, err := decodeMessageCursor(request.GetCursor())
+	cursor, err := decodeMessageCursor(request.GetCursor())
 	if err != nil {
 		return nil, invalidArgument("invalid message cursor")
 	}
 	page, err := s.conversations.ListMessages(
-		ctx, actorID, request.GetConversationId(), afterSequence, pageLimit(request.GetLimit()),
+		ctx, actorID, request.GetConversationId(), cursor, pageLimit(request.GetLimit()),
 	)
 	if err != nil {
 		return nil, serviceError(err)
 	}
-	response := &assistantv1.ListMessagesResponse{Messages: make([]*assistantv1.Message, 0, len(page.Items))}
+	nextCursor, err := encodeMessageCursor(page.NextCursor)
+	if err != nil {
+		return nil, kratoserrors.InternalServer("ENCODE_CURSOR_FAILED", "request failed").WithCause(err)
+	}
+	response := &assistantv1.ListMessagesResponse{
+		Messages:   make([]*assistantv1.Message, 0, len(page.Items)),
+		NextCursor: nextCursor,
+	}
 	for _, item := range page.Items {
 		response.Messages = append(response.Messages, messageResponse(item))
-	}
-	if page.NextSequence > 0 {
-		response.NextCursor = encodeMessageCursor(page.NextSequence)
 	}
 	return response, nil
 }
 
-func (s *Service) GetExecution(
+func (s *Service) GetRun(
 	ctx context.Context,
-	request *assistantv1.GetExecutionRequest,
-) (*assistantv1.Execution, error) {
+	request *assistantv1.GetRunRequest,
+) (*assistantv1.Run, error) {
 	actorID, err := actorFromContext(ctx)
 	if err != nil {
 		return nil, err
 	}
-	execution, err := s.conversations.GetExecution(ctx, actorID, request.GetId())
+	run, err := s.conversations.GetRun(ctx, actorID, request.GetId())
 	if err != nil {
 		return nil, serviceError(err)
 	}
-	return executionResponse(execution), nil
+	return runResponse(run), nil
 }
 
 func actorFromContext(ctx context.Context) (string, error) {
@@ -159,7 +163,7 @@ func serviceError(err error) error {
 	switch {
 	case errors.Is(err, conversationbiz.ErrNotFound):
 		return kratoserrors.NotFound("RESOURCE_NOT_FOUND", "resource not found")
-	case errors.Is(err, conversationbiz.ErrVersionConflict), errors.Is(err, conversationbiz.ErrExecutionRunning):
+	case errors.Is(err, conversationbiz.ErrRunStateConflict), errors.Is(err, conversationbiz.ErrRunRunning):
 		return kratoserrors.Conflict("RESOURCE_CONFLICT", "resource state changed")
 	default:
 		return kratoserrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
@@ -179,7 +183,7 @@ func pageLimit(value int32) int {
 
 func conversationResponse(item conversationbiz.Conversation) *assistantv1.Conversation {
 	return &assistantv1.Conversation{
-		Id: item.ID, Title: item.Title, Version: item.Version,
+		Id: item.ID, Title: item.Title,
 		CreatedAt: timestamppb.New(item.CreatedAt), UpdatedAt: timestamppb.New(item.UpdatedAt),
 	}
 }
@@ -193,24 +197,25 @@ func messageResponse(item conversationbiz.Message) *assistantv1.Message {
 		role = assistantv1.MessageRole_MESSAGE_ROLE_ASSISTANT
 	}
 	return &assistantv1.Message{
-		Id: item.ID, ConversationId: item.ConversationID, Sequence: item.Sequence,
-		Role: role, Content: item.Content, CreatedAt: timestamppb.New(item.CreatedAt),
+		Id: item.ID, ConversationId: item.ConversationID, RunId: item.RunID,
+		Role: role, Content: item.Content, ReasoningContent: item.ReasoningContent,
+		CreatedAt: timestamppb.New(item.CreatedAt),
 	}
 }
 
-func executionResponse(item conversationbiz.Execution) *assistantv1.Execution {
-	state := assistantv1.ExecutionState_EXECUTION_STATE_UNSPECIFIED
+func runResponse(item conversationbiz.Run) *assistantv1.Run {
+	state := assistantv1.RunState_RUN_STATE_UNSPECIFIED
 	switch item.State {
 	case conversationbiz.StateRunning:
-		state = assistantv1.ExecutionState_EXECUTION_STATE_RUNNING
+		state = assistantv1.RunState_RUN_STATE_RUNNING
 	case conversationbiz.StateSucceeded:
-		state = assistantv1.ExecutionState_EXECUTION_STATE_SUCCEEDED
+		state = assistantv1.RunState_RUN_STATE_SUCCEEDED
 	case conversationbiz.StateFailed:
-		state = assistantv1.ExecutionState_EXECUTION_STATE_FAILED
+		state = assistantv1.RunState_RUN_STATE_FAILED
 	}
-	response := &assistantv1.Execution{
+	response := &assistantv1.Run{
 		Id: item.ID, ConversationId: item.ConversationID, State: state,
-		Model: item.Model, FailureCode: item.FailureCode, StartedAt: timestamppb.New(item.StartedAt),
+		Model: item.Model, ErrorCode: item.ErrorCode, StartedAt: timestamppb.New(item.StartedAt),
 	}
 	if item.FinishedAt != nil {
 		response.FinishedAt = timestamppb.New(*item.FinishedAt)

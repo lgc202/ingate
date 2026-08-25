@@ -21,7 +21,6 @@ func wireApp(
 	*conf.Server,
 	*conf.Data_MySQL,
 	*conf.Data_Redis,
-	*conf.Model,
 	*conf.Stream,
 	*slog.Logger,
 	serviceInstanceID,

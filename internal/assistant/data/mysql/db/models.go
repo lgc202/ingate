@@ -9,33 +9,76 @@ import (
 	"time"
 )
 
+// 运维助手会话
 type AssistantConversation struct {
-	ID                  string
-	ActorID             string
-	Title               string
-	Version             uint64
-	NextMessageSequence uint64
-	CreatedAt           time.Time
-	UpdatedAt           time.Time
+	// 会话 ID，使用 UUID
+	ID string
+	// 会话所属用户的稳定标识
+	ActorID string
+	// 控制台展示的会话标题
+	Title string
+	// 会话创建时间，统一使用 UTC
+	CreatedAt time.Time
+	// 最近一次消息或 Run 状态变化时间，用于会话排序和游标分页
+	UpdatedAt time.Time
 }
 
-type AssistantExecution struct {
-	ID                 string
-	ConversationID     string
-	UserMessageID      string
-	AssistantMessageID sql.NullString
-	State              string
-	Model              string
-	FailureCode        string
-	StartedAt          time.Time
-	FinishedAt         sql.NullTime
-}
-
+// 运维助手会话消息
 type AssistantMessage struct {
-	ID             string
+	// 消息 ID，使用 UUID
+	ID string
+	// 所属会话 ID，由应用事务保证关联有效
 	ConversationID string
-	Sequence       uint64
-	Role           string
-	Content        string
-	CreatedAt      time.Time
+	// 产生该消息的 Run ID，由应用事务保证关联有效
+	RunID string
+	// 消息角色：1 表示用户，2 表示助手
+	Role uint8
+	// 用户输入或模型最终回复，不保存流式增量事件
+	Content string
+	// 模型明确返回的推理内容；用户消息为空，且不会作为后续模型上下文
+	ReasoningContent string
+	// 消息创建时间，统一使用 UTC
+	CreatedAt time.Time
+}
+
+// 运维助手当前模型连接
+type AssistantModelConnection struct {
+	// 单例键，固定为 1
+	SingletonID uint8
+	// 连接方式：1 表示直连模型厂商，2 表示通过 Ingate AI 路由
+	ConnectionMode uint8
+	// 模型协议：1 表示 OpenAI 兼容协议，2 表示 Anthropic 原生协议
+	Protocol uint8
+	// 模型 API 根地址；不同协议使用各自的官方地址格式
+	Endpoint string
+	// 访问模型厂商或 Ingate 调用方的凭据，接口永不返回原文
+	ApiKey string
+	// 直连时是厂商模型名，通过 Ingate 时是 AI 路由发布的客户端模型名
+	Model string
+	// 单次模型调用超时时间，单位毫秒
+	TimeoutMs uint32
+	// 单次回复允许的最大输出 Token 数
+	MaxOutputTokens uint32
+	// Anthropic 扩展思考 Token 预算，0 表示不主动开启
+	ReasoningBudgetTokens uint32
+	// 配置最后更新时间，统一使用 UTC
+	UpdatedAt time.Time
+}
+
+// 运维助手模型调用记录
+type AssistantRun struct {
+	// 一次模型调用的 Run ID，使用 UUID
+	ID string
+	// 所属会话 ID，由应用事务保证关联有效
+	ConversationID string
+	// Run 状态：1 表示运行中，2 表示成功，3 表示失败
+	State uint8
+	// 本次调用实际使用的模型名称
+	Model string
+	// 失败原因的稳定代码，非失败状态为空
+	ErrorCode string
+	// 模型调用开始时间，统一使用 UTC
+	StartedAt time.Time
+	// 模型调用结束时间，运行中为空
+	FinishedAt sql.NullTime
 }

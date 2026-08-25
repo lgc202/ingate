@@ -8,6 +8,7 @@ import (
 	"github.com/google/wire"
 
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
+	"github.com/lgc202/ingate/internal/assistant/biz/model"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/assistant/data/chatmodel"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql"
@@ -22,6 +23,7 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(conversation.Store), new(*mysql.Store)),
 	wire.Bind(new(conversation.EventStore), new(*redisdata.EventStore)),
 	wire.Bind(new(conversation.Agent), new(*chatmodel.Agent)),
+	wire.Bind(new(model.Store), new(*mysql.Store)),
 )
 
 // NewMySQLStore 创建持久存储，并把连接池释放交给 Wire cleanup。

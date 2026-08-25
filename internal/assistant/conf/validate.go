@@ -3,7 +3,6 @@ package conf
 
 import (
 	"errors"
-	"net/url"
 	"strings"
 )
 
@@ -22,9 +21,6 @@ func (c *Bootstrap) Validate() error {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}
 	if err := validateData(c.GetData()); err != nil {
-		return err
-	}
-	if err := validateModel(c.GetModel()); err != nil {
 		return err
 	}
 	if c.GetStream() == nil || c.GetStream().GetRetention().AsDuration() <= 0 || c.GetStream().GetMaxEvents() == 0 {
@@ -72,31 +68,6 @@ func validateData(config *Data) error {
 	}
 	if redis.GetDialTimeout().AsDuration() <= 0 || redis.GetReadTimeout().AsDuration() <= 0 || redis.GetWriteTimeout().AsDuration() <= 0 || redis.GetPoolSize() == 0 {
 		return errors.New("redis timeouts and pool size must be greater than zero")
-	}
-	return nil
-}
-
-func validateModel(config *Model) error {
-	if config == nil {
-		return errors.New("model config is required")
-	}
-	baseURL := strings.TrimSpace(config.GetBaseUrl())
-	modelName := strings.TrimSpace(config.GetName())
-	if baseURL == "" && modelName == "" {
-		return nil
-	}
-	if baseURL == "" || modelName == "" {
-		return errors.New("model base URL and name must be configured together")
-	}
-	target, err := url.Parse(baseURL)
-	if err != nil {
-		return errors.New("model base URL is invalid")
-	}
-	if target.Host == "" || target.Scheme != "http" && target.Scheme != "https" {
-		return errors.New("model base URL must be an absolute HTTP URL")
-	}
-	if config.GetTimeout().AsDuration() <= 0 || config.GetMaxOutputTokens() == 0 || config.GetMaxIterations() == 0 {
-		return errors.New("model timeout and limits must be greater than zero")
 	}
 	return nil
 }

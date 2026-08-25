@@ -18,10 +18,11 @@ import (
 )
 
 const (
-	fallbackFailureCode        = "REQUEST_FAILED"
-	failureResourceNotFound    = "RESOURCE_NOT_FOUND"
-	failureResourceConflict    = "RESOURCE_CONFLICT"
-	failureExecutionInProgress = "EXECUTION_ALREADY_RUNNING"
+	fallbackFailureCode       = "REQUEST_FAILED"
+	failureResourceNotFound   = "RESOURCE_NOT_FOUND"
+	failureResourceConflict   = "RESOURCE_CONFLICT"
+	failureRunInProgress      = "RUN_ALREADY_RUNNING"
+	failureModelNotConfigured = "MODEL_NOT_CONFIGURED"
 )
 
 func registerStreamRoutes(
@@ -32,7 +33,7 @@ func registerStreamRoutes(
 ) {
 	router := server.Route("/")
 	router.POST("/assistant/v1/conversations/{id}/messages:stream", chatHandler(conversations, logger))
-	router.GET("/assistant/v1/executions/{id}/events", eventHandler(conversations, stream, logger))
+	router.GET("/assistant/v1/runs/{id}/events", eventHandler(conversations, stream, logger))
 }
 
 type chatRequest struct {
@@ -60,18 +61,41 @@ func chatHandler(conversations *conversationbiz.Service, logger *slog.Logger) kr
 			return kratoserrors.InternalServer("STREAM_UNSUPPORTED", "streaming is unavailable").WithCause(err)
 		}
 		stream.start()
-		execution, err := conversations.Chat(ctx, actorID, ctx.Vars().Get("id"), request.Content, stream.write)
+		run, err := conversations.Chat(ctx, actorID, ctx.Vars().Get("id"), request.Content, stream.write)
 		if err == nil || errors.Is(err, context.Canceled) {
 			return nil
 		}
-		logExecutionFailure(ctx, logger, ctx.Request(), actorID, execution, err)
+		if run.State == conversationbiz.StateSucceeded {
+			// Run 已经成功提交到 MySQL，此时的错误只表示完成事件未能写入 Redis。
+			// 关闭当前流即可，客户端可以通过 Run 查询接口取得最终状态。
+			logRunStreamFailure(ctx, logger, ctx.Request(), actorID, run, err)
+			return nil
+		}
+		logRunFailure(ctx, logger, ctx.Request(), actorID, run, err)
 		// HTTP 响应已经开始，失败状态只能作为 SSE 事件发送；内部错误不会暴露给浏览器。
 		_ = stream.write(conversationbiz.StreamEvent{
-			Type: "execution.failed",
-			Data: streamFailureCode(execution, err),
+			Type: "run.failed",
+			Data: streamFailureCode(run, err),
 		})
 		return nil
 	}
+}
+
+func logRunStreamFailure(
+	ctx context.Context,
+	logger *slog.Logger,
+	request *http.Request,
+	actorID string,
+	run conversationbiz.Run,
+	err error,
+) {
+	logger.ErrorContext(ctx, "store assistant completion event failed",
+		"actor", actorID,
+		"conversation_id", run.ConversationID,
+		"run_id", run.ID,
+		"request_id", request.Header.Get(requestid.Header),
+		"err", err,
+	)
 }
 
 func eventHandler(
@@ -84,8 +108,8 @@ func eventHandler(
 		if err != nil {
 			return err
 		}
-		executionID := ctx.Vars().Get("id")
-		if _, err := conversations.GetExecution(ctx, actorID, executionID); err != nil {
+		runID := ctx.Vars().Get("id")
+		if _, err := conversations.GetRun(ctx, actorID, runID); err != nil {
 			return streamRequestError(err)
 		}
 		stream, err := newSSEWriter(ctx.Response())
@@ -95,9 +119,9 @@ func eventHandler(
 		stream.start()
 		lastID := ctx.Request().Header.Get("Last-Event-ID")
 		for {
-			events, err := conversations.ReadEvents(ctx, executionID, lastID, 100, config.GetReadBlock().AsDuration())
+			events, err := conversations.ReadEvents(ctx, runID, lastID, 100, config.GetReadBlock().AsDuration())
 			if err != nil {
-				logStreamFailure(ctx, logger, ctx.Request(), executionID, err)
+				logStreamFailure(ctx, logger, ctx.Request(), runID, err)
 				return nil
 			}
 			for _, event := range events {
@@ -105,17 +129,17 @@ func eventHandler(
 					return nil
 				}
 				lastID = event.ID
-				if event.Type == "execution.completed" || event.Type == "execution.failed" {
+				if event.Type == "run.completed" || event.Type == "run.failed" {
 					return nil
 				}
 			}
 			if len(events) == 0 {
-				execution, err := conversations.GetExecution(ctx, actorID, executionID)
+				run, err := conversations.GetRun(ctx, actorID, runID)
 				if err != nil {
-					logStreamFailure(ctx, logger, ctx.Request(), executionID, err)
+					logStreamFailure(ctx, logger, ctx.Request(), runID, err)
 					return nil
 				}
-				if execution.State != conversationbiz.StateRunning {
+				if run.State != conversationbiz.StateRunning {
 					return nil
 				}
 			}
@@ -123,24 +147,24 @@ func eventHandler(
 	}
 }
 
-func logExecutionFailure(
+func logRunFailure(
 	ctx context.Context,
 	logger *slog.Logger,
 	request *http.Request,
 	actorID string,
-	execution conversationbiz.Execution,
+	run conversationbiz.Run,
 	err error,
 ) {
 	if errors.Is(err, conversationbiz.ErrNotFound) ||
-		errors.Is(err, conversationbiz.ErrVersionConflict) ||
-		errors.Is(err, conversationbiz.ErrExecutionRunning) {
+		errors.Is(err, conversationbiz.ErrRunStateConflict) ||
+		errors.Is(err, conversationbiz.ErrRunRunning) {
 		return
 	}
 	attrs := []any{
 		"actor", actorID,
-		"conversation_id", execution.ConversationID,
-		"execution_id", execution.ID,
-		"failure_code", execution.FailureCode,
+		"conversation_id", run.ConversationID,
+		"run_id", run.ID,
+		"error_code", run.ErrorCode,
 		"request_id", request.Header.Get(requestid.Header),
 		"err", err,
 	}
@@ -148,20 +172,22 @@ func logExecutionFailure(
 		logger.WarnContext(ctx, "assistant model is not configured", attrs...)
 		return
 	}
-	logger.ErrorContext(ctx, "assistant execution failed", attrs...)
+	logger.ErrorContext(ctx, "assistant run failed", attrs...)
 }
 
-func streamFailureCode(execution conversationbiz.Execution, err error) string {
-	if execution.FailureCode != "" {
-		return execution.FailureCode
+func streamFailureCode(run conversationbiz.Run, err error) string {
+	if run.ErrorCode != "" {
+		return run.ErrorCode
 	}
 	switch {
 	case errors.Is(err, conversationbiz.ErrNotFound):
 		return failureResourceNotFound
-	case errors.Is(err, conversationbiz.ErrExecutionRunning):
-		return failureExecutionInProgress
-	case errors.Is(err, conversationbiz.ErrVersionConflict):
+	case errors.Is(err, conversationbiz.ErrRunRunning):
+		return failureRunInProgress
+	case errors.Is(err, conversationbiz.ErrRunStateConflict):
 		return failureResourceConflict
+	case errors.Is(err, conversationbiz.ErrModelNotConfigured):
+		return failureModelNotConfigured
 	default:
 		return fallbackFailureCode
 	}
@@ -171,7 +197,7 @@ func streamRequestError(err error) error {
 	switch {
 	case errors.Is(err, conversationbiz.ErrNotFound):
 		return kratoserrors.NotFound(failureResourceNotFound, "resource not found")
-	case errors.Is(err, conversationbiz.ErrVersionConflict), errors.Is(err, conversationbiz.ErrExecutionRunning):
+	case errors.Is(err, conversationbiz.ErrRunStateConflict), errors.Is(err, conversationbiz.ErrRunRunning):
 		return kratoserrors.Conflict(failureResourceConflict, "resource state changed")
 	default:
 		return kratoserrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
@@ -182,14 +208,14 @@ func logStreamFailure(
 	ctx context.Context,
 	logger *slog.Logger,
 	request *http.Request,
-	executionID string,
+	runID string,
 	err error,
 ) {
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return
 	}
 	logger.ErrorContext(ctx, "read assistant event stream failed",
-		"execution_id", executionID,
+		"run_id", runID,
 		"request_id", request.Header.Get(requestid.Header),
 		"err", err,
 	)

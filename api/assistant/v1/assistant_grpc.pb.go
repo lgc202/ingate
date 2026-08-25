@@ -25,7 +25,7 @@ const (
 	ConversationService_CreateConversation_FullMethodName = "/ingate.assistant.v1.ConversationService/CreateConversation"
 	ConversationService_DeleteConversation_FullMethodName = "/ingate.assistant.v1.ConversationService/DeleteConversation"
 	ConversationService_ListMessages_FullMethodName       = "/ingate.assistant.v1.ConversationService/ListMessages"
-	ConversationService_GetExecution_FullMethodName       = "/ingate.assistant.v1.ConversationService/GetExecution"
+	ConversationService_GetRun_FullMethodName             = "/ingate.assistant.v1.ConversationService/GetRun"
 )
 
 // ConversationServiceClient is the client API for ConversationService service.
@@ -39,7 +39,7 @@ type ConversationServiceClient interface {
 	CreateConversation(ctx context.Context, in *CreateConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
 	DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...grpc.CallOption) (*ListMessagesResponse, error)
-	GetExecution(ctx context.Context, in *GetExecutionRequest, opts ...grpc.CallOption) (*Execution, error)
+	GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*Run, error)
 }
 
 type conversationServiceClient struct {
@@ -100,10 +100,10 @@ func (c *conversationServiceClient) ListMessages(ctx context.Context, in *ListMe
 	return out, nil
 }
 
-func (c *conversationServiceClient) GetExecution(ctx context.Context, in *GetExecutionRequest, opts ...grpc.CallOption) (*Execution, error) {
+func (c *conversationServiceClient) GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*Run, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Execution)
-	err := c.cc.Invoke(ctx, ConversationService_GetExecution_FullMethodName, in, out, cOpts...)
+	out := new(Run)
+	err := c.cc.Invoke(ctx, ConversationService_GetRun_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ type ConversationServiceServer interface {
 	CreateConversation(context.Context, *CreateConversationRequest) (*Conversation, error)
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error)
-	GetExecution(context.Context, *GetExecutionRequest) (*Execution, error)
+	GetRun(context.Context, *GetRunRequest) (*Run, error)
 }
 
 // UnimplementedConversationServiceServer should be embedded to have
@@ -146,8 +146,8 @@ func (UnimplementedConversationServiceServer) DeleteConversation(context.Context
 func (UnimplementedConversationServiceServer) ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMessages not implemented")
 }
-func (UnimplementedConversationServiceServer) GetExecution(context.Context, *GetExecutionRequest) (*Execution, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetExecution not implemented")
+func (UnimplementedConversationServiceServer) GetRun(context.Context, *GetRunRequest) (*Run, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRun not implemented")
 }
 func (UnimplementedConversationServiceServer) testEmbeddedByValue() {}
 
@@ -259,20 +259,20 @@ func _ConversationService_ListMessages_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ConversationService_GetExecution_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetExecutionRequest)
+func _ConversationService_GetRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRunRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ConversationServiceServer).GetExecution(ctx, in)
+		return srv.(ConversationServiceServer).GetRun(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: ConversationService_GetExecution_FullMethodName,
+		FullMethod: ConversationService_GetRun_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConversationServiceServer).GetExecution(ctx, req.(*GetExecutionRequest))
+		return srv.(ConversationServiceServer).GetRun(ctx, req.(*GetRunRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -305,8 +305,150 @@ var ConversationService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _ConversationService_ListMessages_Handler,
 		},
 		{
-			MethodName: "GetExecution",
-			Handler:    _ConversationService_GetExecution_Handler,
+			MethodName: "GetRun",
+			Handler:    _ConversationService_GetRun_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "assistant/v1/assistant.proto",
+}
+
+const (
+	ModelConnectionService_GetModelConnection_FullMethodName    = "/ingate.assistant.v1.ModelConnectionService/GetModelConnection"
+	ModelConnectionService_UpdateModelConnection_FullMethodName = "/ingate.assistant.v1.ModelConnectionService/UpdateModelConnection"
+)
+
+// ModelConnectionServiceClient is the client API for ModelConnectionService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// ModelConnectionService 管理运维助手当前生效的模型连接
+type ModelConnectionServiceClient interface {
+	GetModelConnection(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ModelConnection, error)
+	UpdateModelConnection(ctx context.Context, in *UpdateModelConnectionRequest, opts ...grpc.CallOption) (*ModelConnection, error)
+}
+
+type modelConnectionServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewModelConnectionServiceClient(cc grpc.ClientConnInterface) ModelConnectionServiceClient {
+	return &modelConnectionServiceClient{cc}
+}
+
+func (c *modelConnectionServiceClient) GetModelConnection(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ModelConnection, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ModelConnection)
+	err := c.cc.Invoke(ctx, ModelConnectionService_GetModelConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *modelConnectionServiceClient) UpdateModelConnection(ctx context.Context, in *UpdateModelConnectionRequest, opts ...grpc.CallOption) (*ModelConnection, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ModelConnection)
+	err := c.cc.Invoke(ctx, ModelConnectionService_UpdateModelConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ModelConnectionServiceServer is the server API for ModelConnectionService service.
+// All implementations should embed UnimplementedModelConnectionServiceServer
+// for forward compatibility.
+//
+// ModelConnectionService 管理运维助手当前生效的模型连接
+type ModelConnectionServiceServer interface {
+	GetModelConnection(context.Context, *emptypb.Empty) (*ModelConnection, error)
+	UpdateModelConnection(context.Context, *UpdateModelConnectionRequest) (*ModelConnection, error)
+}
+
+// UnimplementedModelConnectionServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedModelConnectionServiceServer struct{}
+
+func (UnimplementedModelConnectionServiceServer) GetModelConnection(context.Context, *emptypb.Empty) (*ModelConnection, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetModelConnection not implemented")
+}
+func (UnimplementedModelConnectionServiceServer) UpdateModelConnection(context.Context, *UpdateModelConnectionRequest) (*ModelConnection, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateModelConnection not implemented")
+}
+func (UnimplementedModelConnectionServiceServer) testEmbeddedByValue() {}
+
+// UnsafeModelConnectionServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ModelConnectionServiceServer will
+// result in compilation errors.
+type UnsafeModelConnectionServiceServer interface {
+	mustEmbedUnimplementedModelConnectionServiceServer()
+}
+
+func RegisterModelConnectionServiceServer(s grpc.ServiceRegistrar, srv ModelConnectionServiceServer) {
+	// If the following call panics, it indicates UnimplementedModelConnectionServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ModelConnectionService_ServiceDesc, srv)
+}
+
+func _ModelConnectionService_GetModelConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(emptypb.Empty)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelConnectionServiceServer).GetModelConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelConnectionService_GetModelConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelConnectionServiceServer).GetModelConnection(ctx, req.(*emptypb.Empty))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ModelConnectionService_UpdateModelConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateModelConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ModelConnectionServiceServer).UpdateModelConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ModelConnectionService_UpdateModelConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ModelConnectionServiceServer).UpdateModelConnection(ctx, req.(*UpdateModelConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ModelConnectionService_ServiceDesc is the grpc.ServiceDesc for ModelConnectionService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ModelConnectionService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "ingate.assistant.v1.ModelConnectionService",
+	HandlerType: (*ModelConnectionServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetModelConnection",
+			Handler:    _ModelConnectionService_GetModelConnection_Handler,
+		},
+		{
+			MethodName: "UpdateModelConnection",
+			Handler:    _ModelConnectionService_UpdateModelConnection_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
