@@ -13,6 +13,8 @@ import (
 
 type serviceToolOutput struct {
 	Summary string        `json:"summary"`
+	Source  string        `json:"source"`
+	Status  string        `json:"status"`
 	HasMore bool          `json:"has_more"`
 	Items   []serviceInfo `json:"items"`
 }
@@ -68,9 +70,12 @@ func listServices(
 		}
 		items = append(items, info)
 	}
+	hasMore := result.GetNextCursor() != ""
 	return serviceToolOutput{
 		Summary: fmt.Sprintf("找到 %d 个服务", len(items)),
-		HasMore: result.GetNextCursor() != "",
+		Source:  "admin_api",
+		Status:  resultStatus(hasMore),
+		HasMore: hasMore,
 		Items:   items,
 	}, nil
 }

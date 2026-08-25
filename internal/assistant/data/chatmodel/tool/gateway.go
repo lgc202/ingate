@@ -13,6 +13,8 @@ import (
 
 type gatewayToolOutput struct {
 	Summary string        `json:"summary"`
+	Source  string        `json:"source"`
+	Status  string        `json:"status"`
 	HasMore bool          `json:"has_more"`
 	Items   []gatewayInfo `json:"items"`
 }
@@ -76,9 +78,12 @@ func listGateways(
 			Listeners: listeners,
 		})
 	}
+	hasMore := result.GetNextCursor() != ""
 	return gatewayToolOutput{
 		Summary: fmt.Sprintf("找到 %d 个网关", len(items)),
-		HasMore: result.GetNextCursor() != "",
+		Source:  "admin_api",
+		Status:  resultStatus(hasMore),
+		HasMore: hasMore,
 		Items:   items,
 	}, nil
 }

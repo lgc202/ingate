@@ -51,7 +51,7 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 	runService := run.NewService(store, eventStore, agent)
 	conversationService := conversation2.NewService(service, runService)
 	service2 := model2.NewService(modelService)
-	streamHandler := server.newStreamHandler(runService, stream, logger)
+	streamHandler := server.NewStreamHandler(runService, stream, logger)
 	httpServer := server.NewHTTPServer(confServer, conversationService, service2, streamHandler, store, eventStore, logger)
 	runWorker := server.NewRunWorker(worker, runService, logger)
 	app := newKratosApp(logger, confServer, httpServer, runWorker, assistantServiceInstanceID)

@@ -2,6 +2,7 @@ import type {
   AssistantConversation,
   AssistantMessage,
   AssistantRun,
+  AssistantRunItem,
   AssistantStreamEvent,
   AssistantStreamEventType,
   ModelConnection,
@@ -61,6 +62,13 @@ export async function createAssistantRun(conversationID: string, content: string
 
 export async function getAssistantRun(id: string): Promise<AssistantRun> {
   return assistantRequest<AssistantRun>(`/assistant/v1/runs/${encodeURIComponent(id)}`);
+}
+
+export async function listAssistantRunItems(runID: string): Promise<AssistantRunItem[]> {
+  const result = await assistantRequest<{ items?: AssistantRunItem[] }>(
+    `/assistant/v1/runs/${encodeURIComponent(runID)}/items`,
+  );
+  return result.items ?? [];
 }
 
 export async function cancelAssistantRun(id: string): Promise<AssistantRun> {

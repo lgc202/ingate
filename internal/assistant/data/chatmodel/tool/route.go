@@ -13,6 +13,8 @@ import (
 
 type routeToolOutput struct {
 	Summary string      `json:"summary"`
+	Source  string      `json:"source"`
+	Status  string      `json:"status"`
 	HasMore bool        `json:"has_more"`
 	Items   []routeInfo `json:"items"`
 }
@@ -87,9 +89,12 @@ func listRoutes(
 			ExposedModels: models,
 		})
 	}
+	hasMore := result.GetNextCursor() != ""
 	return routeToolOutput{
 		Summary: fmt.Sprintf("找到 %d 条路由", len(items)),
-		HasMore: result.GetNextCursor() != "",
+		Source:  "admin_api",
+		Status:  resultStatus(hasMore),
+		HasMore: hasMore,
 		Items:   items,
 	}, nil
 }

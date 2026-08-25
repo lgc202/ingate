@@ -20,6 +20,7 @@ import {
   getModelConnection,
   listAssistantConversations,
   listAssistantMessages,
+  listAssistantRunItems,
   streamAssistantRun,
 } from '@/api/assistant';
 import { Badge, Button, Modal, PageFrame, Toast } from '@/components/ui';
@@ -27,6 +28,7 @@ import type {
   AssistantConversation,
   AssistantMessage,
   AssistantRun,
+  AssistantRunItem,
   AssistantStreamEvent,
   ModelConnection,
 } from '@/domain/assistant';
@@ -72,6 +74,7 @@ export function AssistantPage() {
   const [deleting, setDeleting] = useState(false);
   const [input, setInput] = useState('');
   const [activeRun, setActiveRun] = useState<AssistantRun | null>(null);
+  const [runItems, setRunItems] = useState<AssistantRunItem[]>([]);
   const [liveAnswer, setLiveAnswer] = useState<LiveAnswer | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [runError, setRunError] = useState('');
@@ -109,8 +112,15 @@ export function AssistantPage() {
   }, []);
 
   const finishRun = useCallback(async (run: AssistantRun) => {
+    let items: AssistantRunItem[] = [];
+    try {
+      items = await listAssistantRunItems(run.id);
+      setRunItems(items);
+    } catch {
+      // Run 终态仍是最终事实；执行步骤读取失败不应覆盖回答结果。
+    }
     if (selectedIDRef.current === run.conversationId) {
-      if (run.state === 'RUN_STATE_FAILED') setRunError(runErrorMessage(run.errorCode));
+      if (run.state === 'RUN_STATE_FAILED') setRunError(runErrorMessage(run.errorCode, items));
       if (run.state === 'RUN_STATE_CANCELLED') setRunError('本次回答已取消');
     }
     const tasks: Promise<unknown>[] = [reloadConversations().catch(() => undefined)];
@@ -129,6 +139,7 @@ export function AssistantPage() {
     let reasoning = storedRun?.reasoning ?? '';
     let terminalFromEvent = false;
     setActiveRun(run);
+    setRunItems([]);
     setLiveAnswer({ conversationID: run.conversationId, content, reasoning });
     setRunError('');
     storeActiveRun({ runID: run.id, conversationID: run.conversationId, lastEventID, content, reasoning });
@@ -196,6 +207,26 @@ export function AssistantPage() {
       }
     }
   }, [finishRun]);
+
+  useEffect(() => {
+    const runID = activeRun?.id;
+    if (!runID || isTerminalRun(activeRun.state)) return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const items = await listAssistantRunItems(runID);
+        if (!cancelled) setRunItems(items);
+      } catch {
+        // 轮询失败不打断模型回答，终态时还会再读取一次。
+      }
+    };
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 800);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [activeRun?.id, activeRun?.state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -278,6 +309,7 @@ export function AssistantPage() {
     setMessages([]);
     setInput('');
     setRunError('');
+    setRunItems([]);
     localStorage.removeItem(activeConversationKey);
     window.requestAnimationFrame(() => editorRef.current?.focus());
   };
@@ -287,6 +319,7 @@ export function AssistantPage() {
     selectedIDRef.current = id;
     setSelectedID(id);
     setRunError('');
+    setRunItems([]);
   };
 
   const loadMore = async () => {
@@ -312,6 +345,7 @@ export function AssistantPage() {
     }
     setInput('');
     setRunError('');
+    setRunItems([]);
     try {
       let conversationID = selectedID;
       if (!conversationID) {
@@ -372,6 +406,7 @@ export function AssistantPage() {
   const selectedConversation = conversations.find((item) => item.id === selectedID);
   const currentRun = activeRun?.conversationId === selectedID ? activeRun : null;
   const currentLiveAnswer = liveAnswer?.conversationID === selectedID ? liveAnswer : null;
+  const currentRunItems = currentRun ? runItems : [];
 
   return (
     <PageFrame
@@ -435,6 +470,7 @@ export function AssistantPage() {
             configured={connection.configured}
             liveAnswer={currentLiveAnswer}
             run={currentRun}
+            runItems={currentRunItems}
             error={runError}
             endRef={messagesEndRef}
             onConfigure={() => setConnectionOpen(true)}

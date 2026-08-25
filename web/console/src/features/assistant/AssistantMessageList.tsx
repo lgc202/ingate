@@ -1,8 +1,8 @@
 import type { RefObject } from 'react';
-import { Bot, CircleAlert, Settings2, Sparkles, UserRound } from 'lucide-react';
+import { Bot, Check, CircleAlert, LoaderCircle, Settings2, Sparkles, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui';
-import type { AssistantMessage, AssistantRun } from '@/domain/assistant';
-import { runStateLabel } from '@/domain/assistant';
+import type { AssistantMessage, AssistantRun, AssistantRunItem } from '@/domain/assistant';
+import { runItemLabel, runStateLabel } from '@/domain/assistant';
 
 const suggestions = [
   '解释 Gateway、Route 和 Service 的关系',
@@ -23,6 +23,7 @@ interface AssistantMessageListProps {
   configured: boolean;
   liveAnswer: LiveAnswer | null;
   run: AssistantRun | null;
+  runItems: AssistantRunItem[];
   error: string;
   endRef: RefObject<HTMLDivElement | null>;
   onConfigure: () => void;
@@ -36,6 +37,7 @@ export function AssistantMessageList({
   configured,
   liveAnswer,
   run,
+  runItems,
   error,
   endRef,
   onConfigure,
@@ -52,7 +54,7 @@ export function AssistantMessageList({
         />
       ) : null}
       {messages.map((message) => <MessageBubble key={message.id} message={message} />)}
-      {liveAnswer || run ? <LiveAnswerBubble answer={liveAnswer} run={run} /> : null}
+      {liveAnswer || run ? <LiveAnswerBubble answer={liveAnswer} run={run} items={runItems} /> : null}
       {error ? (
         <div className="assistant-run-error" role="alert">
           <CircleAlert aria-hidden="true" />
@@ -115,12 +117,21 @@ function MessageBubble({ message }: { message: AssistantMessage }) {
   );
 }
 
-function LiveAnswerBubble({ answer, run }: { answer: LiveAnswer | null; run: AssistantRun | null }) {
+function LiveAnswerBubble({
+  answer,
+  run,
+  items,
+}: {
+  answer: LiveAnswer | null;
+  run: AssistantRun | null;
+  items: AssistantRunItem[];
+}) {
   return (
     <article className="assistant-message is-assistant is-live">
       <span><Bot aria-hidden="true" /></span>
       <div>
         <strong>Ingate 助手</strong>
+        {items.length ? <RunProgress items={items} /> : null}
         {answer?.reasoning ? (
           <details className="assistant-reasoning" open={!answer.content}>
             <summary>思考过程</summary>
@@ -136,5 +147,25 @@ function LiveAnswerBubble({ answer, run }: { answer: LiveAnswer | null; run: Ass
         )}
       </div>
     </article>
+  );
+}
+
+function RunProgress({ items }: { items: AssistantRunItem[] }) {
+  return (
+    <div className="assistant-run-progress" aria-label="执行进度">
+      {items.map((item) => (
+        <div key={item.id} className={`is-${item.state.replace('RUN_ITEM_STATE_', '').toLowerCase()}`}>
+          {item.state === 'RUN_ITEM_STATE_RUNNING'
+            ? <LoaderCircle aria-hidden="true" />
+            : item.state === 'RUN_ITEM_STATE_COMPLETED'
+              ? <Check aria-hidden="true" />
+              : <CircleAlert aria-hidden="true" />}
+          <span>
+            <strong>{runItemLabel(item)}</strong>
+            {item.summary ? <small>{item.summary}</small> : null}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }

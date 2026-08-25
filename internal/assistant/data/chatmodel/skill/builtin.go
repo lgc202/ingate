@@ -1,4 +1,4 @@
-// builtin.go 负责把随二进制发布的 SKILL.md 转换为模型执行期目录。
+// Package skill 负责把随二进制发布的 SKILL.md 转换为模型执行期目录。
 package skill
 
 import (

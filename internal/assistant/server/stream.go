@@ -29,7 +29,8 @@ type streamHandler struct {
 	logger *slog.Logger
 }
 
-func newStreamHandler(
+// NewStreamHandler 创建 Assistant 事件流处理器，供进程装配层注入 HTTP Server。
+func NewStreamHandler(
 	runs *runbiz.Service,
 	config *conf.Stream,
 	logger *slog.Logger,

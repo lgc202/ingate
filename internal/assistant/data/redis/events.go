@@ -67,7 +67,8 @@ func (s *EventStore) Append(
 		Stream: key,
 		MaxLen: s.maxEvents,
 		Approx: true,
-		Values: map[string]any{"type": event.Type, "data": event.Data},
+		// go-redis 只接受基础标量或显式序列化类型，领域小类型在 data 边界转为字符串。
+		Values: map[string]any{"type": string(event.Type), "data": event.Data},
 	})
 	pipeline.Expire(ctx, key, s.retention)
 	if _, err := pipeline.Exec(ctx); err != nil {

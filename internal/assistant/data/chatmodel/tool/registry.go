@@ -12,11 +12,13 @@ import (
 )
 
 const (
-	listGatewaysTool = "list_gateways"
-	listRoutesTool   = "list_routes"
-	listServicesTool = "list_services"
-	defaultListLimit = 20
-	maxListLimit     = 50
+	listGatewaysTool       = "list_gateways"
+	listRoutesTool         = "list_routes"
+	listServicesTool       = "list_services"
+	getRecentTrafficTool   = "get_recent_traffic"
+	listRecentFailuresTool = "list_recent_failures"
+	defaultListLimit       = 20
+	maxListLimit           = 50
 )
 
 // ResourceReader 是只读工具访问 Ingate 资源所需的最小边界。
@@ -24,6 +26,8 @@ type ResourceReader interface {
 	ListGateways(ctx context.Context, query string, limit int32) (*adminv1.ListGatewaysResponse, error)
 	ListRoutes(ctx context.Context, query string, limit int32) (*adminv1.ListRoutesResponse, error)
 	ListServices(ctx context.Context, query string, limit int32) (*adminv1.ListUpstreamsResponse, error)
+	GetTrafficAnalysis(ctx context.Context, request *adminv1.GetTrafficAnalysisRequest) (*adminv1.GetTrafficAnalysisResponse, error)
+	ListRequestRecords(ctx context.Context, request *adminv1.ListRequestRecordsRequest) (*adminv1.ListRequestRecordsResponse, error)
 }
 
 // Registry 保存 Assistant 可提供给模型的工具定义。
@@ -51,12 +55,22 @@ func NewRegistry(resources ResourceReader) (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
+	traffic, err := newTrafficTool(resources)
+	if err != nil {
+		return nil, err
+	}
+	failures, err := newFailureTool(resources)
+	if err != nil {
+		return nil, err
+	}
 	return &Registry{
-		tools: []einotool.BaseTool{gateways, routes, services},
+		tools: []einotool.BaseTool{gateways, routes, services, traffic, failures},
 		names: map[string]struct{}{
-			listGatewaysTool: {},
-			listRoutesTool:   {},
-			listServicesTool: {},
+			listGatewaysTool:       {},
+			listRoutesTool:         {},
+			listServicesTool:       {},
+			getRecentTrafficTool:   {},
+			listRecentFailuresTool: {},
 		},
 	}, nil
 }
@@ -96,4 +110,11 @@ func resourceState(state adminv1.ResourceState) string {
 	default:
 		return "unknown"
 	}
+}
+
+func resultStatus(hasMore bool) string {
+	if hasMore {
+		return "partial"
+	}
+	return "complete"
 }

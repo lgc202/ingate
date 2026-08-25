@@ -38,6 +38,8 @@ func NewHTTPServer(
 		// SSE 连接由请求取消和 Stream.read_block 控制，不能套用普通 HTTP 全局超时。
 		kratoshttp.Filter(requestIDFilter(), recoveryFilter(logger)),
 		kratoshttp.Middleware(httpMiddleware(logger)...),
+		kratoshttp.RequestDecoder(requestDecoder),
+		kratoshttp.ResponseEncoder(responseEncoder),
 	)
 	assistantv1.RegisterConversationServiceHTTPServer(server, conversationAPI)
 	assistantv1.RegisterModelConnectionServiceHTTPServer(server, modelAPI)

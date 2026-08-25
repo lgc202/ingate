@@ -2177,6 +2177,16 @@ body { overflow-x: hidden; }
 .assistant-reasoning { margin: 0 0 12px; padding: 10px 12px; border-left: 2px solid #c8cdeb; color: #666c78; background: #f7f7fa; }
 .assistant-reasoning summary { color: #777d89; font-size: .68rem; font-weight: 700; cursor: pointer; }
 .assistant-reasoning p { margin: 8px 0 0; font-size: .7rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-run-progress { margin: 0 0 13px; padding: 9px 11px; display: grid; gap: 7px; border: 1px solid #e1e3e9; border-radius: 9px; background: #fafafa; }
+.assistant-run-progress > div { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 8px; color: #767c87; }
+.assistant-run-progress svg { width: 14px; height: 14px; margin-top: 1px; }
+.assistant-run-progress .is-running svg { color: var(--accent); animation: assistant-spin 900ms linear infinite; }
+.assistant-run-progress .is-completed svg { color: var(--success); }
+.assistant-run-progress .is-failed svg, .assistant-run-progress .is-cancelled svg { color: var(--red); }
+.assistant-run-progress span { min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.assistant-run-progress strong { flex: 0 0 auto; color: #555b66; font-size: .68rem; }
+.assistant-run-progress small { overflow: hidden; color: #8c919a; font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes assistant-spin { to { transform: rotate(360deg); } }
 .assistant-typing { height: 30px; display: flex; align-items: center; gap: 4px; }
 .assistant-typing i { width: 6px; height: 6px; border-radius: 50%; background: #7280d8; animation: assistant-typing 900ms ease-in-out infinite alternate; }
 .assistant-typing i:nth-child(2) { animation-delay: 160ms; }

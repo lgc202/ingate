@@ -25,6 +25,8 @@ type Client struct {
 	gateways   adminv1.GatewayServiceClient
 	routes     adminv1.RouteServiceClient
 	services   adminv1.UpstreamServiceClient
+	traffic    adminv1.TrafficAnalysisServiceClient
+	records    adminv1.RequestRecordServiceClient
 }
 
 // New 创建 Assistant 使用的 Admin API 客户端。
@@ -43,6 +45,8 @@ func New(ctx context.Context, config Config) (*Client, error) {
 		gateways:   adminv1.NewGatewayServiceClient(connection),
 		routes:     adminv1.NewRouteServiceClient(connection),
 		services:   adminv1.NewUpstreamServiceClient(connection),
+		traffic:    adminv1.NewTrafficAnalysisServiceClient(connection),
+		records:    adminv1.NewRequestRecordServiceClient(connection),
 	}, nil
 }
 
@@ -86,6 +90,30 @@ func (c *Client) ListServices(
 	result, err := c.services.ListUpstreams(ctx, &adminv1.ListUpstreamsRequest{Query: query, Limit: limit})
 	if err != nil {
 		return nil, fmt.Errorf("list services from Admin API: %w", err)
+	}
+	return result, nil
+}
+
+// GetTrafficAnalysis 查询指定时间和资源范围内的聚合流量信号。
+func (c *Client) GetTrafficAnalysis(
+	ctx context.Context,
+	request *adminv1.GetTrafficAnalysisRequest,
+) (*adminv1.GetTrafficAnalysisResponse, error) {
+	result, err := c.traffic.GetTrafficAnalysis(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("get traffic analysis from Admin API: %w", err)
+	}
+	return result, nil
+}
+
+// ListRequestRecords 查询排障所需的请求元数据，不读取请求内容和凭据。
+func (c *Client) ListRequestRecords(
+	ctx context.Context,
+	request *adminv1.ListRequestRecordsRequest,
+) (*adminv1.ListRequestRecordsResponse, error) {
+	result, err := c.records.ListRequestRecords(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("list request records from Admin API: %w", err)
 	}
 	return result, nil
 }

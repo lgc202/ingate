@@ -1,7 +1,7 @@
 ---
 name: gateway-configuration-diagnosis
 description: 排查网关、路由和服务之间的配置关系以及未生效原因
-allowed-tools: list_gateways list_routes list_services
+allowed-tools: list_gateways list_routes list_services get_recent_traffic list_recent_failures
 ---
 
 # 网关配置诊断
@@ -11,10 +11,13 @@ allowed-tools: list_gateways list_routes list_services
 1. 查询网关入口，确认监听配置、启用状态和生效状态。
 2. 查询关联路由，确认路由已挂载到目标网关并处于生效状态。
 3. 查询路由引用的服务，确认服务类型、地址数量和生效状态。
-4. 只根据工具返回的结果判断问题；信息不足时说明还需要哪些信息。
+4. 用户询问当前流量、错误或请求未转发原因时，查询对应资源最近的流量汇总。
+5. 流量汇总存在服务端错误或无响应时，再查询对应类型的近期失败请求；不要无目的地枚举请求记录。
+6. 只根据工具返回的结果判断问题；结果为 `partial` 或信息不足时，明确说明证据边界和还需要的信息。
 
 ## 输出要求
 
 - 先说明检查到的事实，再给出判断和建议。
+- 区分“配置状态”和“近期流量信号”，不要把没有请求误判为配置错误。
 - 建议中说明可能影响，但不要声称已经修改配置。
-- 不输出服务凭据、内部地址或其他敏感信息。
+- 不输出工具名称、服务凭据、内部地址或其他实现细节。
