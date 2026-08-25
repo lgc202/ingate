@@ -38,6 +38,12 @@ func (c *Bootstrap) Validate() error {
 	if c.GetWorker().GetLeaseDuration().AsDuration() <= c.GetWorker().GetPollInterval().AsDuration()*3 {
 		return errors.New("worker lease duration must exceed three poll intervals")
 	}
+	if c.GetAdminApi() == nil || strings.TrimSpace(c.GetAdminApi().GetAddr()) == "" {
+		return errors.New("admin API gRPC address is required")
+	}
+	if c.GetAdminApi().GetTimeout().AsDuration() <= 0 {
+		return errors.New("admin API timeout must be greater than zero")
+	}
 	if c.GetLogging() == nil {
 		return errors.New("logging config is required")
 	}

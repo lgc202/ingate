@@ -239,9 +239,6 @@ const (
 	RunItemKind_RUN_ITEM_KIND_UNSPECIFIED RunItemKind = 0
 	RunItemKind_RUN_ITEM_KIND_MODEL_CALL  RunItemKind = 1
 	RunItemKind_RUN_ITEM_KIND_TOOL_CALL   RunItemKind = 2
-	RunItemKind_RUN_ITEM_KIND_TOOL_RESULT RunItemKind = 3
-	RunItemKind_RUN_ITEM_KIND_DELEGATION  RunItemKind = 4
-	RunItemKind_RUN_ITEM_KIND_APPROVAL    RunItemKind = 5
 )
 
 // Enum value maps for RunItemKind.
@@ -250,17 +247,11 @@ var (
 		0: "RUN_ITEM_KIND_UNSPECIFIED",
 		1: "RUN_ITEM_KIND_MODEL_CALL",
 		2: "RUN_ITEM_KIND_TOOL_CALL",
-		3: "RUN_ITEM_KIND_TOOL_RESULT",
-		4: "RUN_ITEM_KIND_DELEGATION",
-		5: "RUN_ITEM_KIND_APPROVAL",
 	}
 	RunItemKind_value = map[string]int32{
 		"RUN_ITEM_KIND_UNSPECIFIED": 0,
 		"RUN_ITEM_KIND_MODEL_CALL":  1,
 		"RUN_ITEM_KIND_TOOL_CALL":   2,
-		"RUN_ITEM_KIND_TOOL_RESULT": 3,
-		"RUN_ITEM_KIND_DELEGATION":  4,
-		"RUN_ITEM_KIND_APPROVAL":    5,
 	}
 )
 
@@ -296,30 +287,27 @@ type RunItemState int32
 
 const (
 	RunItemState_RUN_ITEM_STATE_UNSPECIFIED RunItemState = 0
-	RunItemState_RUN_ITEM_STATE_PENDING     RunItemState = 1
-	RunItemState_RUN_ITEM_STATE_RUNNING     RunItemState = 2
-	RunItemState_RUN_ITEM_STATE_COMPLETED   RunItemState = 3
-	RunItemState_RUN_ITEM_STATE_FAILED      RunItemState = 4
-	RunItemState_RUN_ITEM_STATE_CANCELLED   RunItemState = 5
+	RunItemState_RUN_ITEM_STATE_RUNNING     RunItemState = 1
+	RunItemState_RUN_ITEM_STATE_COMPLETED   RunItemState = 2
+	RunItemState_RUN_ITEM_STATE_FAILED      RunItemState = 3
+	RunItemState_RUN_ITEM_STATE_CANCELLED   RunItemState = 4
 )
 
 // Enum value maps for RunItemState.
 var (
 	RunItemState_name = map[int32]string{
 		0: "RUN_ITEM_STATE_UNSPECIFIED",
-		1: "RUN_ITEM_STATE_PENDING",
-		2: "RUN_ITEM_STATE_RUNNING",
-		3: "RUN_ITEM_STATE_COMPLETED",
-		4: "RUN_ITEM_STATE_FAILED",
-		5: "RUN_ITEM_STATE_CANCELLED",
+		1: "RUN_ITEM_STATE_RUNNING",
+		2: "RUN_ITEM_STATE_COMPLETED",
+		3: "RUN_ITEM_STATE_FAILED",
+		4: "RUN_ITEM_STATE_CANCELLED",
 	}
 	RunItemState_value = map[string]int32{
 		"RUN_ITEM_STATE_UNSPECIFIED": 0,
-		"RUN_ITEM_STATE_PENDING":     1,
-		"RUN_ITEM_STATE_RUNNING":     2,
-		"RUN_ITEM_STATE_COMPLETED":   3,
-		"RUN_ITEM_STATE_FAILED":      4,
-		"RUN_ITEM_STATE_CANCELLED":   5,
+		"RUN_ITEM_STATE_RUNNING":     1,
+		"RUN_ITEM_STATE_COMPLETED":   2,
+		"RUN_ITEM_STATE_FAILED":      3,
+		"RUN_ITEM_STATE_CANCELLED":   4,
 	}
 )
 
@@ -628,12 +616,11 @@ type RunItem struct {
 	Kind          RunItemKind            `protobuf:"varint,4,opt,name=kind,proto3,enum=ingate.assistant.v1.RunItemKind" json:"kind,omitempty"`
 	State         RunItemState           `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.assistant.v1.RunItemState" json:"state,omitempty"`
 	Name          string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
-	CallId        string                 `protobuf:"bytes,7,opt,name=call_id,json=callId,proto3" json:"call_id,omitempty"`
-	Summary       string                 `protobuf:"bytes,8,opt,name=summary,proto3" json:"summary,omitempty"`
-	ErrorCode     string                 `protobuf:"bytes,9,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	Summary       string                 `protobuf:"bytes,7,opt,name=summary,proto3" json:"summary,omitempty"`
+	ErrorCode     string                 `protobuf:"bytes,8,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -706,13 +693,6 @@ func (x *RunItem) GetState() RunItemState {
 func (x *RunItem) GetName() string {
 	if x != nil {
 		return x.Name
-	}
-	return ""
-}
-
-func (x *RunItem) GetCallId() string {
-	if x != nil {
-		return x.CallId
 	}
 	return ""
 }
@@ -1589,24 +1569,23 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"finishedAt\x129\n" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x125\n" +
-	"\x16cancellation_requested\x18\t \x01(\bR\x15cancellationRequested\"\xd4\x03\n" +
+	"\x16cancellation_requested\x18\t \x01(\bR\x15cancellationRequested\"\xbb\x03\n" +
 	"\aRunItem\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x15\n" +
 	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12\x1a\n" +
 	"\bsequence\x18\x03 \x01(\rR\bsequence\x124\n" +
 	"\x04kind\x18\x04 \x01(\x0e2 .ingate.assistant.v1.RunItemKindR\x04kind\x127\n" +
 	"\x05state\x18\x05 \x01(\x0e2!.ingate.assistant.v1.RunItemStateR\x05state\x12\x12\n" +
-	"\x04name\x18\x06 \x01(\tR\x04name\x12\x17\n" +
-	"\acall_id\x18\a \x01(\tR\x06callId\x12\x18\n" +
-	"\asummary\x18\b \x01(\tR\asummary\x12\x1d\n" +
+	"\x04name\x18\x06 \x01(\tR\x04name\x12\x18\n" +
+	"\asummary\x18\a \x01(\tR\asummary\x12\x1d\n" +
 	"\n" +
-	"error_code\x18\t \x01(\tR\terrorCode\x129\n" +
+	"error_code\x18\b \x01(\tR\terrorCode\x129\n" +
 	"\n" +
-	"created_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"started_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
-	"\vfinished_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"started_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
+	"\vfinished_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"finishedAt\"Q\n" +
 	"\x18ListConversationsRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
@@ -1688,21 +1667,17 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\x11RUN_STATE_RUNNING\x10\x02\x12\x17\n" +
 	"\x13RUN_STATE_SUCCEEDED\x10\x03\x12\x14\n" +
 	"\x10RUN_STATE_FAILED\x10\x04\x12\x17\n" +
-	"\x13RUN_STATE_CANCELLED\x10\x05*\xc0\x01\n" +
+	"\x13RUN_STATE_CANCELLED\x10\x05*g\n" +
 	"\vRunItemKind\x12\x1d\n" +
 	"\x19RUN_ITEM_KIND_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18RUN_ITEM_KIND_MODEL_CALL\x10\x01\x12\x1b\n" +
-	"\x17RUN_ITEM_KIND_TOOL_CALL\x10\x02\x12\x1d\n" +
-	"\x19RUN_ITEM_KIND_TOOL_RESULT\x10\x03\x12\x1c\n" +
-	"\x18RUN_ITEM_KIND_DELEGATION\x10\x04\x12\x1a\n" +
-	"\x16RUN_ITEM_KIND_APPROVAL\x10\x05*\xbd\x01\n" +
+	"\x17RUN_ITEM_KIND_TOOL_CALL\x10\x02*\xa1\x01\n" +
 	"\fRunItemState\x12\x1e\n" +
 	"\x1aRUN_ITEM_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16RUN_ITEM_STATE_PENDING\x10\x01\x12\x1a\n" +
-	"\x16RUN_ITEM_STATE_RUNNING\x10\x02\x12\x1c\n" +
-	"\x18RUN_ITEM_STATE_COMPLETED\x10\x03\x12\x19\n" +
-	"\x15RUN_ITEM_STATE_FAILED\x10\x04\x12\x1c\n" +
-	"\x18RUN_ITEM_STATE_CANCELLED\x10\x052\xff\t\n" +
+	"\x16RUN_ITEM_STATE_RUNNING\x10\x01\x12\x1c\n" +
+	"\x18RUN_ITEM_STATE_COMPLETED\x10\x02\x12\x19\n" +
+	"\x15RUN_ITEM_STATE_FAILED\x10\x03\x12\x1c\n" +
+	"\x18RUN_ITEM_STATE_CANCELLED\x10\x042\xff\t\n" +
 	"\x13ConversationService\x12\x97\x01\n" +
 	"\x11ListConversations\x12-.ingate.assistant.v1.ListConversationsRequest\x1a..ingate.assistant.v1.ListConversationsResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/assistant/v1/conversations\x12\x8b\x01\n" +
 	"\x0fGetConversation\x12+.ingate.assistant.v1.GetConversationRequest\x1a!.ingate.assistant.v1.Conversation\"(\x82\xd3\xe4\x93\x02\"\x12 /assistant/v1/conversations/{id}\x12\x8f\x01\n" +

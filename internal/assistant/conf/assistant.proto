@@ -13,6 +13,7 @@ message Bootstrap {
   Stream stream = 3;
   Logging logging = 4;
   Worker worker = 5;
+  AdminAPI admin_api = 6;
 }
 
 message Server {
@@ -60,6 +61,12 @@ message Worker {
   uint32 concurrency = 1;
   google.protobuf.Duration poll_interval = 2;
   google.protobuf.Duration lease_duration = 3;
+}
+
+// AdminAPI 定义助手读取当前 Ingate 资源时使用的内部 gRPC 地址。
+message AdminAPI {
+  string addr = 1;
+  google.protobuf.Duration timeout = 2;
 }
 
 message Logging {

@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
+	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql/db"
 )
 
@@ -29,27 +29,27 @@ func (s *Store) CreateRun(
 	actorID string,
 	conversationID string,
 	content string,
-) (conversation.Run, error) {
-	var run conversation.Run
+) (runbiz.Run, error) {
+	var run runbiz.Run
 	err := s.withTransaction(ctx, func(queries *db.Queries) error {
 		if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
 			ID: conversationID, ActorID: actorID,
 		}); err != nil {
-			return mapNotFound(err)
+			return mapConversationNotFound(err)
 		}
 		active, err := queries.CountActiveRuns(ctx, conversationID)
 		if err != nil {
 			return fmt.Errorf("count active assistant runs: %w", err)
 		}
 		if active > 0 {
-			return conversation.ErrRunRunning
+			return runbiz.ErrConversationBusy
 		}
 
 		now := time.Now().UTC()
-		run = conversation.Run{
+		run = runbiz.Run{
 			ID:             uuid.NewString(),
 			ConversationID: conversationID,
-			State:          conversation.StateQueued,
+			State:          runbiz.StateQueued,
 			CreatedAt:      now,
 		}
 		if err := queries.CreateRun(ctx, db.CreateRunParams{
@@ -76,266 +76,34 @@ func (s *Store) CreateRun(
 		return nil
 	})
 	if err != nil {
-		return conversation.Run{}, fmt.Errorf("create assistant run transaction: %w", err)
+		return runbiz.Run{}, fmt.Errorf("create assistant run transaction: %w", err)
 	}
 	return run, nil
 }
 
-// ClaimRun 使用 SKIP LOCKED 领取最早的排队 Run。
-// 数据库锁只覆盖领取事务，模型调用期间由有期限的 worker_id 租约保护。
-func (s *Store) ClaimRun(
-	ctx context.Context,
-	workerID string,
-	leaseDuration time.Duration,
-) (conversation.ClaimedRun, bool, error) {
-	var claimed conversation.ClaimedRun
-	found := false
-	err := s.withTransaction(ctx, func(queries *db.Queries) error {
-		row, err := queries.ClaimNextRun(ctx)
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("select queued assistant run: %w", err)
-		}
-		now := time.Now().UTC()
-		rows, err := queries.StartRun(ctx, db.StartRunParams{
-			WorkerID:       workerID,
-			LeaseExpiresAt: sql.NullTime{Time: now.Add(leaseDuration), Valid: true},
-			StartedAt:      sql.NullTime{Time: now, Valid: true},
-			ID:             row.ID,
-		})
-		if err != nil {
-			return fmt.Errorf("start assistant run: %w", err)
-		}
-		if rows != 1 {
-			return conversation.ErrRunStateConflict
-		}
-		claimed = conversation.ClaimedRun{
-			Run: conversation.Run{
-				ID:             row.ID,
-				ConversationID: row.ConversationID,
-				State:          conversation.StateRunning,
-				CreatedAt:      row.CreatedAt,
-				StartedAt:      &now,
-			},
-			ActorID: row.ActorID,
-		}
-		found = true
-		return nil
-	})
-	if err != nil {
-		return conversation.ClaimedRun{}, false, fmt.Errorf("claim assistant run transaction: %w", err)
-	}
-	return claimed, found, nil
-}
-
-// SetRunModel 记录当前租约实际选中的模型，排队阶段不提前固化在线配置。
-func (s *Store) SetRunModel(ctx context.Context, runID, workerID, model string) error {
-	rows, err := s.queries.SetRunModel(ctx, db.SetRunModelParams{
-		Model: model, ID: runID, WorkerID: workerID,
-	})
-	if err != nil {
-		return fmt.Errorf("set assistant run model: %w", err)
-	}
-	if rows != 1 {
-		return conversation.ErrRunLeaseLost
-	}
-	return nil
-}
-
-// RenewRunLease 延长当前实例的租约，并返回用户是否请求取消。
-func (s *Store) RenewRunLease(
-	ctx context.Context,
-	runID string,
-	workerID string,
-	leaseDuration time.Duration,
-) (bool, error) {
-	rows, err := s.queries.RenewRunLease(ctx, db.RenewRunLeaseParams{
-		LeaseExpiresAt: sql.NullTime{Time: time.Now().UTC().Add(leaseDuration), Valid: true},
-		ID:             runID,
-		WorkerID:       workerID,
-	})
-	if err != nil {
-		return false, fmt.Errorf("renew assistant run lease: %w", err)
-	}
-	if rows != 1 {
-		return false, conversation.ErrRunLeaseLost
-	}
-	cancelRequested, err := s.queries.RunCancellationRequested(ctx, db.RunCancellationRequestedParams{
-		ID: runID, WorkerID: workerID,
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, conversation.ErrRunLeaseLost
-	}
-	if err != nil {
-		return false, fmt.Errorf("read assistant run cancellation: %w", err)
-	}
-	return cancelRequested, nil
-}
-
-// CompleteRun 原子地保存模型最终回复并把当前实例持有的 Run 标记为成功。
-func (s *Store) CompleteRun(
-	ctx context.Context,
-	actorID string,
-	runID string,
-	workerID string,
-	result conversation.ModelResult,
-) (conversation.Message, error) {
-	run, err := s.queries.GetRun(ctx, db.GetRunParams{ID: runID, ActorID: actorID})
-	if err != nil {
-		return conversation.Message{}, mapNotFound(err)
-	}
-	var message conversation.Message
-	err = s.withTransaction(ctx, func(queries *db.Queries) error {
-		if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
-			ID: run.ConversationID, ActorID: actorID,
-		}); err != nil {
-			return mapNotFound(err)
-		}
-		lockedRun, err := queries.GetRunForUpdate(ctx, db.GetRunForUpdateParams{ID: runID, ActorID: actorID})
-		if err != nil {
-			return mapNotFound(err)
-		}
-		if lockedRun.State != runStateRunning || lockedRun.WorkerID != workerID {
-			return conversation.ErrRunLeaseLost
-		}
-		if lockedRun.CancellationRequested {
-			return conversation.ErrRunCancelled
-		}
-
-		now := time.Now().UTC()
-		message = conversation.Message{
-			ID:               uuid.NewString(),
-			ConversationID:   lockedRun.ConversationID,
-			RunID:            lockedRun.ID,
-			Role:             conversation.RoleAssistant,
-			Content:          result.Content,
-			ReasoningContent: result.ReasoningContent,
-			CreatedAt:        now,
-		}
-		if err := queries.CreateMessage(ctx, db.CreateMessageParams{
-			ID:               message.ID,
-			ConversationID:   message.ConversationID,
-			RunID:            message.RunID,
-			Role:             messageRoleAssistant,
-			Content:          message.Content,
-			ReasoningContent: message.ReasoningContent,
-			CreatedAt:        message.CreatedAt,
-		}); err != nil {
-			return fmt.Errorf("create assistant message: %w", err)
-		}
-		if err := queries.CompleteRunningRunItems(ctx, db.CompleteRunningRunItemsParams{
-			FinishedAt: sql.NullTime{Time: now, Valid: true},
-			RunID:      runID,
-		}); err != nil {
-			return fmt.Errorf("complete assistant run items: %w", err)
-		}
-		rows, err := queries.CompleteRun(ctx, db.CompleteRunParams{
-			FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: runID, WorkerID: workerID,
-		})
-		if err != nil {
-			return fmt.Errorf("complete assistant run: %w", err)
-		}
-		if rows != 1 {
-			return conversation.ErrRunLeaseLost
-		}
-		if err := queries.TouchConversation(ctx, db.TouchConversationParams{
-			UpdatedAt: now, ID: lockedRun.ConversationID, ActorID: actorID,
-		}); err != nil {
-			return fmt.Errorf("update conversation activity: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return conversation.Message{}, fmt.Errorf("complete assistant run transaction: %w", err)
-	}
-	return message, nil
-}
-
-// FailRun 保存稳定错误码，并且只允许当前租约持有者结束 Run。
-func (s *Store) FailRun(
-	ctx context.Context,
-	actorID string,
-	runID string,
-	workerID string,
-	errorCode conversation.FailureCode,
-) error {
-	run, err := s.queries.GetRun(ctx, db.GetRunParams{ID: runID, ActorID: actorID})
-	if err != nil {
-		return mapNotFound(err)
-	}
-	err = s.withTransaction(ctx, func(queries *db.Queries) error {
-		if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
-			ID: run.ConversationID, ActorID: actorID,
-		}); err != nil {
-			return mapNotFound(err)
-		}
-		lockedRun, err := queries.GetRunForUpdate(ctx, db.GetRunForUpdateParams{ID: runID, ActorID: actorID})
-		if err != nil {
-			return mapNotFound(err)
-		}
-		if lockedRun.State != runStateRunning || lockedRun.WorkerID != workerID {
-			return conversation.ErrRunLeaseLost
-		}
-		if lockedRun.CancellationRequested {
-			return conversation.ErrRunCancelled
-		}
-
-		now := time.Now().UTC()
-		if err := queries.FailRunningRunItems(ctx, db.FailRunningRunItemsParams{
-			ErrorCode:  string(errorCode),
-			FinishedAt: sql.NullTime{Time: now, Valid: true},
-			RunID:      runID,
-		}); err != nil {
-			return fmt.Errorf("fail assistant run items: %w", err)
-		}
-		rows, err := queries.FailRun(ctx, db.FailRunParams{
-			ErrorCode: string(errorCode), FinishedAt: sql.NullTime{Time: now, Valid: true},
-			ID: runID, WorkerID: workerID,
-		})
-		if err != nil {
-			return fmt.Errorf("fail assistant run: %w", err)
-		}
-		if rows != 1 {
-			return conversation.ErrRunLeaseLost
-		}
-		if err := queries.TouchConversation(ctx, db.TouchConversationParams{
-			UpdatedAt: now, ID: lockedRun.ConversationID, ActorID: actorID,
-		}); err != nil {
-			return fmt.Errorf("update conversation activity: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("fail assistant run transaction: %w", err)
-	}
-	return nil
-}
-
 // CancelRun 立即取消排队 Run；已经开始执行的 Run 只记录请求，由持有租约的实例终止模型调用。
-func (s *Store) CancelRun(ctx context.Context, actorID, runID string) (conversation.Run, error) {
+func (s *Store) CancelRun(ctx context.Context, actorID, runID string) (runbiz.Run, error) {
 	storedRun, err := s.queries.GetRun(ctx, db.GetRunParams{ID: runID, ActorID: actorID})
 	if err != nil {
-		return conversation.Run{}, mapNotFound(err)
+		return runbiz.Run{}, runNotFound(err)
 	}
-	var result conversation.Run
+	var result runbiz.Run
 	err = s.withTransaction(ctx, func(queries *db.Queries) error {
 		if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
 			ID: storedRun.ConversationID, ActorID: actorID,
 		}); err != nil {
-			return mapNotFound(err)
+			return runNotFound(err)
 		}
 		lockedRun, err := queries.GetRunForUpdate(ctx, db.GetRunForUpdateParams{ID: runID, ActorID: actorID})
 		if err != nil {
-			return mapNotFound(err)
+			return runNotFound(err)
 		}
 		result, err = runFromDB(lockedRun)
 		if err != nil {
 			return fmt.Errorf("decode assistant run: %w", err)
 		}
 		switch result.State {
-		case conversation.StateQueued:
+		case runbiz.StateQueued:
 			now := time.Now().UTC()
 			rows, err := queries.CancelQueuedRun(ctx, db.CancelQueuedRunParams{
 				FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: runID,
@@ -344,11 +112,11 @@ func (s *Store) CancelRun(ctx context.Context, actorID, runID string) (conversat
 				return fmt.Errorf("cancel queued assistant run: %w", err)
 			}
 			if rows != 1 {
-				return conversation.ErrRunStateConflict
+				return runbiz.ErrStateConflict
 			}
-			result.State = conversation.StateCancelled
+			result.State = runbiz.StateCancelled
 			result.FinishedAt = &now
-		case conversation.StateRunning:
+		case runbiz.StateRunning:
 			if result.CancellationRequested {
 				return nil
 			}
@@ -357,99 +125,42 @@ func (s *Store) CancelRun(ctx context.Context, actorID, runID string) (conversat
 				return fmt.Errorf("request assistant run cancellation: %w", err)
 			}
 			if rows != 1 {
-				return conversation.ErrRunStateConflict
+				return runbiz.ErrStateConflict
 			}
 			result.CancellationRequested = true
 		}
 		return nil
 	})
 	if err != nil {
-		return conversation.Run{}, fmt.Errorf("cancel assistant run transaction: %w", err)
+		return runbiz.Run{}, fmt.Errorf("cancel assistant run transaction: %w", err)
 	}
 	return result, nil
-}
-
-// FinishRunCancellation 由持有租约的实例确认模型调用已经停止后写入取消终态。
-func (s *Store) FinishRunCancellation(ctx context.Context, runID, workerID string) error {
-	err := s.withTransaction(ctx, func(queries *db.Queries) error {
-		now := time.Now().UTC()
-		rows, err := queries.FinishRunCancellation(ctx, db.FinishRunCancellationParams{
-			FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: runID, WorkerID: workerID,
-		})
-		if err != nil {
-			return fmt.Errorf("finish assistant run cancellation: %w", err)
-		}
-		if rows != 1 {
-			return conversation.ErrRunLeaseLost
-		}
-		if err := queries.CancelRunningRunItems(ctx, db.CancelRunningRunItemsParams{
-			FinishedAt: sql.NullTime{Time: now, Valid: true},
-			RunID:      runID,
-		}); err != nil {
-			return fmt.Errorf("cancel assistant run items: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return fmt.Errorf("finish assistant run cancellation transaction: %w", err)
-	}
-	return nil
-}
-
-// FailExpiredRuns 终止已经失去执行实例的 Run。
-// 不自动重新排队，避免未来 Run 包含有副作用的工具调用时重复执行。
-func (s *Store) FailExpiredRuns(ctx context.Context) (int64, error) {
-	var rows int64
-	err := s.withTransaction(ctx, func(queries *db.Queries) error {
-		now := time.Now().UTC()
-		if err := queries.FailExpiredRunItems(ctx, db.FailExpiredRunItemsParams{
-			ErrorCode:      string(conversation.FailureWorkerLost),
-			FinishedAt:     sql.NullTime{Time: now, Valid: true},
-			LeaseExpiresAt: sql.NullTime{Time: now, Valid: true},
-		}); err != nil {
-			return fmt.Errorf("fail expired assistant run items: %w", err)
-		}
-		var err error
-		rows, err = queries.FailExpiredRuns(ctx, db.FailExpiredRunsParams{
-			ErrorCode:      string(conversation.FailureWorkerLost),
-			FinishedAt:     sql.NullTime{Time: now, Valid: true},
-			LeaseExpiresAt: sql.NullTime{Time: now, Valid: true},
-		})
-		if err != nil {
-			return fmt.Errorf("fail expired assistant runs: %w", err)
-		}
-		return nil
-	})
-	if err != nil {
-		return 0, fmt.Errorf("fail expired assistant runs transaction: %w", err)
-	}
-	return rows, nil
 }
 
 // GetRun 按所有者和 Run ID 查询一次模型调用。
-func (s *Store) GetRun(ctx context.Context, actorID, id string) (conversation.Run, error) {
+func (s *Store) GetRun(ctx context.Context, actorID, id string) (runbiz.Run, error) {
 	item, err := s.queries.GetRun(ctx, db.GetRunParams{ID: id, ActorID: actorID})
 	if err != nil {
-		return conversation.Run{}, mapNotFound(err)
+		return runbiz.Run{}, runNotFound(err)
 	}
 	result, err := runFromDB(item)
 	if err != nil {
-		return conversation.Run{}, fmt.Errorf("decode assistant run: %w", err)
+		return runbiz.Run{}, fmt.Errorf("decode assistant run: %w", err)
 	}
 	return result, nil
 }
 
-func runFromDB(item db.AssistantRun) (conversation.Run, error) {
+func runFromDB(item db.AssistantRun) (runbiz.Run, error) {
 	state, err := runStateFromDB(item.State)
 	if err != nil {
-		return conversation.Run{}, err
+		return runbiz.Run{}, err
 	}
-	result := conversation.Run{
+	result := runbiz.Run{
 		ID:                    item.ID,
 		ConversationID:        item.ConversationID,
 		State:                 state,
 		Model:                 item.Model,
-		ErrorCode:             conversation.FailureCode(item.ErrorCode),
+		ErrorCode:             runbiz.FailureCode(item.ErrorCode),
 		CancellationRequested: item.CancellationRequested,
 		CreatedAt:             item.CreatedAt,
 	}
@@ -462,19 +173,26 @@ func runFromDB(item db.AssistantRun) (conversation.Run, error) {
 	return result, nil
 }
 
-func runStateFromDB(state uint8) (conversation.RunState, error) {
+func runStateFromDB(state uint8) (runbiz.State, error) {
 	switch state {
 	case runStateQueued:
-		return conversation.StateQueued, nil
+		return runbiz.StateQueued, nil
 	case runStateRunning:
-		return conversation.StateRunning, nil
+		return runbiz.StateRunning, nil
 	case runStateSucceeded:
-		return conversation.StateSucceeded, nil
+		return runbiz.StateSucceeded, nil
 	case runStateFailed:
-		return conversation.StateFailed, nil
+		return runbiz.StateFailed, nil
 	case runStateCancelled:
-		return conversation.StateCancelled, nil
+		return runbiz.StateCancelled, nil
 	default:
 		return "", fmt.Errorf("invalid assistant run state %d", state)
 	}
+}
+
+func runNotFound(err error) error {
+	if errors.Is(err, sql.ErrNoRows) {
+		return runbiz.ErrNotFound
+	}
+	return err
 }

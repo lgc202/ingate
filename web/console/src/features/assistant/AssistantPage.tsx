@@ -150,6 +150,9 @@ export function AssistantPage() {
               }
               if (event.type === 'message.reasoning.delta') reasoning += event.value;
               if (event.type === 'message.content.delta') content += event.value;
+              if (event.type === 'stream.failed') {
+                setNotice({ message: '实时回答连接已中断，正在恢复', tone: 'error' });
+              }
               if (event.type === 'message.reasoning.delta' || event.type === 'message.content.delta') {
                 setLiveAnswer({ conversationID: run.conversationId, content, reasoning });
               }

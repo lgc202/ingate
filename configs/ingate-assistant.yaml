@@ -33,6 +33,10 @@ worker:
   poll_interval: "0.5s"
   lease_duration: "30s"
 
+admin_api:
+  addr: "127.0.0.1:18083"
+  timeout: "5s"
+
 logging:
   format: "json"
   level: "info"

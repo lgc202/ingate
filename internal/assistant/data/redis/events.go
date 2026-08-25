@@ -9,7 +9,7 @@ import (
 
 	redisgo "github.com/redis/go-redis/v9"
 
-	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
+	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 )
 
@@ -59,7 +59,7 @@ func (s *EventStore) Ping(ctx context.Context) error {
 func (s *EventStore) Append(
 	ctx context.Context,
 	runID string,
-	event conversation.StreamEvent,
+	event runbiz.StreamEvent,
 ) (string, error) {
 	key := eventKey(runID)
 	pipeline := s.client.TxPipeline()
@@ -83,7 +83,7 @@ func (s *EventStore) Read(
 	lastID string,
 	limit int64,
 	block time.Duration,
-) ([]conversation.StreamEvent, error) {
+) ([]runbiz.StreamEvent, error) {
 	if lastID == "" {
 		lastID = "0-0"
 	}
@@ -101,11 +101,11 @@ func (s *EventStore) Read(
 	if len(streams) == 0 {
 		return nil, nil
 	}
-	events := make([]conversation.StreamEvent, 0, len(streams[0].Messages))
+	events := make([]runbiz.StreamEvent, 0, len(streams[0].Messages))
 	for _, message := range streams[0].Messages {
-		events = append(events, conversation.StreamEvent{
+		events = append(events, runbiz.StreamEvent{
 			ID:   message.ID,
-			Type: conversation.EventType(fmt.Sprint(message.Values["type"])),
+			Type: runbiz.EventType(fmt.Sprint(message.Values["type"])),
 			Data: fmt.Sprint(message.Values["data"]),
 		})
 	}

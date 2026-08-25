@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 
-	conversationbiz "github.com/lgc202/ingate/internal/assistant/biz/conversation"
+	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 )
 
@@ -20,7 +20,7 @@ const workerErrorDelay = 5 * time.Second
 // 一个进程包含固定数量的执行槽，不同会话可以并发执行。部署多个进程时，MySQL 的
 // SKIP LOCKED 负责分配任务，worker_id 和租约阻止失联或过期实例提交结果。
 type RunWorker struct {
-	conversations *conversationbiz.Service
+	runs          *runbiz.Service
 	logger        *slog.Logger
 	concurrency   int
 	pollInterval  time.Duration
@@ -35,11 +35,11 @@ type RunWorker struct {
 // NewRunWorker 创建由 Kratos 管理生命周期的 Assistant 后台 Worker。
 func NewRunWorker(
 	config *conf.Worker,
-	conversations *conversationbiz.Service,
+	runs *runbiz.Service,
 	logger *slog.Logger,
 ) *RunWorker {
 	return &RunWorker{
-		conversations: conversations,
+		runs:          runs,
 		logger:        logger,
 		concurrency:   int(config.GetConcurrency()),
 		pollInterval:  config.GetPollInterval().AsDuration(),
@@ -85,7 +85,7 @@ func (w *RunWorker) executeRuns(ctx context.Context, workerID string, slot int) 
 			return
 		}
 
-		claimed, err := w.conversations.ExecuteNext(ctx, workerID, w.leaseDuration)
+		claimed, err := w.runs.ExecuteNext(ctx, workerID, w.leaseDuration)
 		if ctx.Err() != nil {
 			return
 		}
@@ -108,7 +108,7 @@ func (w *RunWorker) executeRuns(ctx context.Context, workerID string, slot int) 
 // recoverExpiredRuns 独立回收已经失去租约持有者的 Run，避免每个执行槽重复扫描。
 func (w *RunWorker) recoverExpiredRuns(ctx context.Context) {
 	for {
-		count, err := w.conversations.RecoverExpiredRuns(ctx)
+		count, err := w.runs.RecoverExpiredRuns(ctx)
 		if ctx.Err() != nil {
 			return
 		}

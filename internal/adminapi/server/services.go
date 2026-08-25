@@ -1,9 +1,6 @@
 package server
 
 import (
-	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
-
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	aiusageservice "github.com/lgc202/ingate/internal/adminapi/service/aiusage"
 	"github.com/lgc202/ingate/internal/adminapi/service/caller"
 	"github.com/lgc202/ingate/internal/adminapi/service/certificate"
@@ -22,8 +19,9 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
 )
 
-// HTTPHandlers 汇总需要注册到同一个 HTTP Server 的 Admin API 协议服务
-type HTTPHandlers struct {
+// Services 汇总由 HTTP 和 gRPC transport 共同发布的 Admin API 协议服务。
+// 两种 transport 只负责协议接入，所有业务规则仍由同一组 service/biz 实例执行。
+type Services struct {
 	aiUsage              *aiusageservice.Service
 	caller               *caller.Service
 	gateway              *gateway.Service
@@ -42,8 +40,8 @@ type HTTPHandlers struct {
 	pluginSource         *pluginsource.Service
 }
 
-// NewHTTPHandlers 创建 Admin API 的 HTTP 协议服务集合
-func NewHTTPHandlers(
+// NewServices 创建 Admin API 的协议服务集合。
+func NewServices(
 	aiUsageService *aiusageservice.Service,
 	callerService *caller.Service,
 	gatewayService *gateway.Service,
@@ -60,8 +58,8 @@ func NewHTTPHandlers(
 	mockResponseService *mockresponse.Service,
 	wasmPluginService *wasmplugin.Service,
 	pluginSourceService *pluginsource.Service,
-) *HTTPHandlers {
-	return &HTTPHandlers{
+) *Services {
+	return &Services{
 		aiUsage:              aiUsageService,
 		caller:               callerService,
 		gateway:              gatewayService,
@@ -79,23 +77,4 @@ func NewHTTPHandlers(
 		wasmPlugin:           wasmPluginService,
 		pluginSource:         pluginSourceService,
 	}
-}
-
-func (h *HTTPHandlers) register(server *kratoshttp.Server) {
-	adminv1.RegisterAIUsageServiceHTTPServer(server, h.aiUsage)
-	adminv1.RegisterCallerServiceHTTPServer(server, h.caller)
-	adminv1.RegisterGatewayServiceHTTPServer(server, h.gateway)
-	adminv1.RegisterRouteServiceHTTPServer(server, h.route)
-	adminv1.RegisterUpstreamServiceHTTPServer(server, h.upstream)
-	adminv1.RegisterCertificateServiceHTTPServer(server, h.certificate)
-	adminv1.RegisterRateLimitPolicyServiceHTTPServer(server, h.rateLimit)
-	adminv1.RegisterIPRestrictionPolicyServiceHTTPServer(server, h.ipRestriction)
-	adminv1.RegisterRequestRecordServiceHTTPServer(server, h.request)
-	adminv1.RegisterTrafficAnalysisServiceHTTPServer(server, h.traffic)
-	adminv1.RegisterTokenQuotaPolicyServiceHTTPServer(server, h.tokenQuota)
-	adminv1.RegisterHealthServiceHTTPServer(server, h.health)
-	adminv1.RegisterHeaderTransformationPolicyServiceHTTPServer(server, h.headerTransformation)
-	adminv1.RegisterMockResponsePolicyServiceHTTPServer(server, h.mockResponse)
-	adminv1.RegisterWasmPluginServiceHTTPServer(server, h.wasmPlugin)
-	adminv1.RegisterPluginSourceServiceHTTPServer(server, h.pluginSource)
 }

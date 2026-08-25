@@ -99,11 +99,11 @@ type AssistantRunItem struct {
 	RunID string
 	// 步骤在所属 Run 内的稳定顺序，从 1 开始递增
 	Sequence uint32
-	// 步骤类型：1 模型调用，2 工具调用，3 工具结果，4 专业 Agent 委派，5 审批
+	// 步骤类型：1 模型调用，2 工具调用
 	Kind uint8
-	// 步骤状态：1 等待中，2 执行中，3 完成，4 失败，5 已取消
+	// 步骤状态：1 执行中，2 完成，3 失败，4 已取消
 	State uint8
-	// 模型、工具或专业 Agent 的稳定名称
+	// 模型或工具的稳定名称
 	Name string
 	// 关联一次调用及其结果的稳定标识
 	CallID string
@@ -113,8 +113,8 @@ type AssistantRunItem struct {
 	ErrorCode string
 	// 步骤创建时间，统一使用 UTC
 	CreatedAt time.Time
-	// 步骤开始执行时间；等待中为空
-	StartedAt sql.NullTime
+	// 步骤开始执行时间
+	StartedAt time.Time
 	// 步骤结束时间；未到终态时为空
 	FinishedAt sql.NullTime
 }

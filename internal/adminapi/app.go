@@ -9,6 +9,7 @@ import (
 
 	kratos "github.com/go-kratos/kratos/v3"
 	kratoslog "github.com/go-kratos/kratos/v3/log"
+	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
 	"github.com/lgc202/ingate/internal/adminapi/conf"
@@ -55,7 +56,7 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp, cleanup: cleanup}, nil
 }
 
-// Run 启动 Admin API HTTP 服务
+// Run 启动 Admin API 服务。
 func (a *App) Run() error {
 	defer a.cleanup()
 	return a.kratos.Run()
@@ -65,6 +66,7 @@ func newKratosApp(
 	logger *slog.Logger,
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
+	grpcServer *kratosgrpc.Server,
 	pluginCatalog *plugincatalog.Catalog,
 	instanceID serviceInstanceID,
 ) *kratos.App {
@@ -74,7 +76,7 @@ func newKratosApp(
 		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		kratos.Server(httpServer),
+		kratos.Server(httpServer, grpcServer),
 		kratos.AfterStart(func(ctx context.Context) error {
 			pluginCatalog.Start(ctx)
 			return nil

@@ -12,27 +12,29 @@ import (
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 
-	conversationbiz "github.com/lgc202/ingate/internal/assistant/biz/conversation"
+	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-const failureResourceNotFound = "RESOURCE_NOT_FOUND"
+const (
+	failureResourceNotFound = "RESOURCE_NOT_FOUND"
+	maxActorIDLength        = 128
+)
 
 // streamHandler 负责自定义 SSE 路由、连接生命周期和边界日志。
 type streamHandler struct {
-	conversations *conversationbiz.Service
-	config        *conf.Stream
-	logger        *slog.Logger
+	runs   *runbiz.Service
+	config *conf.Stream
+	logger *slog.Logger
 }
 
-// NewStreamHandler 创建助手消息与事件流处理器。
-func NewStreamHandler(
-	conversations *conversationbiz.Service,
+func newStreamHandler(
+	runs *runbiz.Service,
 	config *conf.Stream,
 	logger *slog.Logger,
 ) *streamHandler {
-	return &streamHandler{conversations: conversations, config: config, logger: logger}
+	return &streamHandler{runs: runs, config: config, logger: logger}
 }
 
 func (h *streamHandler) register(server *kratoshttp.Server) {
@@ -46,7 +48,7 @@ func (h *streamHandler) events(ctx kratoshttp.Context) error {
 		return err
 	}
 	runID := ctx.Vars().Get("id")
-	if _, err := h.conversations.GetRun(ctx, actorID, runID); err != nil {
+	if _, err := h.runs.Get(ctx, actorID, runID); err != nil {
 		return h.requestError(err)
 	}
 	stream, err := newSSEWriter(ctx.Response())
@@ -56,11 +58,15 @@ func (h *streamHandler) events(ctx kratoshttp.Context) error {
 	stream.start()
 	lastID := ctx.Request().Header.Get("Last-Event-ID")
 	for {
-		events, err := h.conversations.ReadEvents(
+		events, err := h.runs.ReadEvents(
 			ctx, runID, lastID, 100, h.config.GetReadBlock().AsDuration(),
 		)
 		if err != nil {
 			h.logReadFailure(ctx, ctx.Request(), runID, err)
+			_ = stream.write(runbiz.StreamEvent{
+				Type: runbiz.EventStreamFailed,
+				Data: "EVENT_STREAM_UNAVAILABLE",
+			})
 			return nil
 		}
 		for _, event := range events {
@@ -68,19 +74,19 @@ func (h *streamHandler) events(ctx kratoshttp.Context) error {
 				return nil
 			}
 			lastID = event.ID
-			if event.Type == conversationbiz.EventRunCompleted ||
-				event.Type == conversationbiz.EventRunFailed ||
-				event.Type == conversationbiz.EventRunCancelled {
+			if event.Type == runbiz.EventCompleted ||
+				event.Type == runbiz.EventFailed ||
+				event.Type == runbiz.EventCancelled {
 				return nil
 			}
 		}
 		if len(events) == 0 {
-			run, err := h.conversations.GetRun(ctx, actorID, runID)
+			item, err := h.runs.Get(ctx, actorID, runID)
 			if err != nil {
 				h.logReadFailure(ctx, ctx.Request(), runID, err)
 				return nil
 			}
-			if event, terminal := terminalEvent(run); terminal {
+			if event, terminal := terminalEvent(item); terminal {
 				_ = stream.write(event)
 				return nil
 			}
@@ -93,23 +99,23 @@ func (h *streamHandler) events(ctx kratoshttp.Context) error {
 
 func (h *streamHandler) requestError(err error) error {
 	switch {
-	case errors.Is(err, conversationbiz.ErrNotFound):
+	case errors.Is(err, runbiz.ErrNotFound):
 		return kratoserrors.NotFound(failureResourceNotFound, "resource not found")
 	default:
 		return kratoserrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
 	}
 }
 
-func terminalEvent(run conversationbiz.Run) (conversationbiz.StreamEvent, bool) {
-	switch run.State {
-	case conversationbiz.StateSucceeded:
-		return conversationbiz.StreamEvent{Type: conversationbiz.EventRunCompleted}, true
-	case conversationbiz.StateFailed:
-		return conversationbiz.StreamEvent{Type: conversationbiz.EventRunFailed, Data: string(run.ErrorCode)}, true
-	case conversationbiz.StateCancelled:
-		return conversationbiz.StreamEvent{Type: conversationbiz.EventRunCancelled}, true
+func terminalEvent(item runbiz.Run) (runbiz.StreamEvent, bool) {
+	switch item.State {
+	case runbiz.StateSucceeded:
+		return runbiz.StreamEvent{Type: runbiz.EventCompleted}, true
+	case runbiz.StateFailed:
+		return runbiz.StreamEvent{Type: runbiz.EventFailed, Data: string(item.ErrorCode)}, true
+	case runbiz.StateCancelled:
+		return runbiz.StreamEvent{Type: runbiz.EventCancelled}, true
 	default:
-		return conversationbiz.StreamEvent{}, false
+		return runbiz.StreamEvent{}, false
 	}
 }
 
@@ -133,6 +139,9 @@ func (h *streamHandler) actorID(request *http.Request) (string, error) {
 	value := strings.TrimSpace(request.Header.Get(forwardedUserHeader))
 	if value == "" {
 		return "", kratoserrors.Unauthorized("ACTOR_REQUIRED", "authentication required")
+	}
+	if len(value) > maxActorIDLength {
+		return "", kratoserrors.BadRequest("INVALID_ARGUMENT", "actor identifier is too long")
 	}
 	return value, nil
 }
@@ -158,7 +167,7 @@ func (w *sseWriter) start() {
 	w.flusher.Flush()
 }
 
-func (w *sseWriter) write(event conversationbiz.StreamEvent) error {
+func (w *sseWriter) write(event runbiz.StreamEvent) error {
 	data, err := json.Marshal(map[string]string{"value": event.Data})
 	if err != nil {
 		return fmt.Errorf("encode SSE event: %w", err)

@@ -18,9 +18,15 @@ message Server {
     string addr = 1;
     google.protobuf.Duration timeout = 2;
   }
+  message GRPC {
+    // addr 是内部组件访问 Admin API 的 gRPC 地址。
+    string addr = 1;
+    google.protobuf.Duration timeout = 2;
+  }
   HTTP http = 1;
   // shutdown_timeout 是等待在途管理请求结束的最长时间
   google.protobuf.Duration shutdown_timeout = 2;
+  GRPC grpc = 3;
 }
 
 message Data {

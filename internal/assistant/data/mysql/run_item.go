@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
+	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql/db"
 )
 
@@ -15,14 +15,10 @@ import (
 const (
 	runItemKindModelCall uint8 = iota + 1
 	runItemKindToolCall
-	runItemKindToolResult
-	runItemKindDelegation
-	runItemKindApproval
 )
 
 const (
-	runItemStatePending uint8 = iota + 1
-	runItemStateRunning
+	runItemStateRunning uint8 = iota + 1
 	runItemStateCompleted
 	runItemStateFailed
 	runItemStateCancelled
@@ -34,14 +30,14 @@ func (s *Store) StartRunItem(
 	ctx context.Context,
 	runID string,
 	workerID string,
-	item conversation.RunItem,
-) (conversation.RunItem, error) {
+	item runbiz.Item,
+) (runbiz.Item, error) {
 	err := s.withTransaction(ctx, func(queries *db.Queries) error {
 		if _, err := queries.GetRunForWorkerUpdate(ctx, db.GetRunForWorkerUpdateParams{
 			ID: runID, WorkerID: workerID,
 		}); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
-				return conversation.ErrRunLeaseLost
+				return runbiz.ErrLeaseLost
 			}
 			return fmt.Errorf("lock assistant run for item: %w", err)
 		}
@@ -52,7 +48,7 @@ func (s *Store) StartRunItem(
 		now := time.Now().UTC()
 		item.RunID = runID
 		item.Sequence = uint32(sequence)
-		item.State = conversation.ItemStateRunning
+		item.State = runbiz.ItemStateRunning
 		item.CreatedAt = now
 		item.StartedAt = &now
 		if err := queries.CreateRunItem(ctx, db.CreateRunItemParams{
@@ -66,7 +62,7 @@ func (s *Store) StartRunItem(
 			Summary:    item.Summary,
 			ErrorCode:  string(item.ErrorCode),
 			CreatedAt:  item.CreatedAt,
-			StartedAt:  sql.NullTime{Time: now, Valid: true},
+			StartedAt:  now,
 			FinishedAt: sql.NullTime{},
 		}); err != nil {
 			return fmt.Errorf("create assistant run item: %w", err)
@@ -74,13 +70,66 @@ func (s *Store) StartRunItem(
 		return nil
 	})
 	if err != nil {
-		return conversation.RunItem{}, fmt.Errorf("start assistant run item transaction: %w", err)
+		return runbiz.Item{}, fmt.Errorf("start assistant run item transaction: %w", err)
 	}
 	return item, nil
 }
 
+// CompleteRunItem 只结束当前 Worker 实际执行成功的步骤。
+// Run 终态不再批量补齐运行中步骤，避免把未完成的模型或工具调用伪装成成功。
+func (s *Store) CompleteRunItem(
+	ctx context.Context,
+	runID string,
+	workerID string,
+	callID string,
+	kind runbiz.ItemKind,
+	summary string,
+) error {
+	rows, err := s.queries.CompleteRunItem(ctx, db.CompleteRunItemParams{
+		Summary:    summary,
+		FinishedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true},
+		RunID:      runID,
+		CallID:     callID,
+		Kind:       runItemKindToDB(kind),
+		WorkerID:   workerID,
+	})
+	if err != nil {
+		return fmt.Errorf("complete assistant run item: %w", err)
+	}
+	if rows != 1 {
+		return runbiz.ErrLeaseLost
+	}
+	return nil
+}
+
+// FailRunItem 记录工具调用等单个步骤的稳定失败码，原始错误只沿调用链返回日志边界。
+func (s *Store) FailRunItem(
+	ctx context.Context,
+	runID string,
+	workerID string,
+	callID string,
+	kind runbiz.ItemKind,
+	code runbiz.FailureCode,
+) error {
+	rows, err := s.queries.FailRunItem(ctx, db.FailRunItemParams{
+		ErrorCode:  string(code),
+		FinishedAt: sql.NullTime{Time: time.Now().UTC(), Valid: true},
+		RunID:      runID,
+		CallID:     callID,
+		Kind:       runItemKindToDB(kind),
+		WorkerID:   workerID,
+	})
+	if err != nil {
+		return fmt.Errorf("fail assistant run item: %w", err)
+	}
+	if rows != 1 {
+		return runbiz.ErrLeaseLost
+	}
+	return nil
+}
+
 // ListRunItems 按执行顺序返回指定用户可见的 Run Item。
-func (s *Store) ListRunItems(ctx context.Context, actorID, runID string) ([]conversation.RunItem, error) {
+func (s *Store) ListRunItems(ctx context.Context, actorID, runID string) ([]runbiz.Item, error) {
 	if _, err := s.GetRun(ctx, actorID, runID); err != nil {
 		return nil, err
 	}
@@ -88,7 +137,7 @@ func (s *Store) ListRunItems(ctx context.Context, actorID, runID string) ([]conv
 	if err != nil {
 		return nil, fmt.Errorf("list assistant run items: %w", err)
 	}
-	items := make([]conversation.RunItem, 0, len(rows))
+	items := make([]runbiz.Item, 0, len(rows))
 	for _, row := range rows {
 		item, err := runItemFromDB(row)
 		if err != nil {
@@ -99,16 +148,16 @@ func (s *Store) ListRunItems(ctx context.Context, actorID, runID string) ([]conv
 	return items, nil
 }
 
-func runItemFromDB(item db.AssistantRunItem) (conversation.RunItem, error) {
+func runItemFromDB(item db.AssistantRunItem) (runbiz.Item, error) {
 	kind, err := runItemKindFromDB(item.Kind)
 	if err != nil {
-		return conversation.RunItem{}, err
+		return runbiz.Item{}, err
 	}
 	state, err := runItemStateFromDB(item.State)
 	if err != nil {
-		return conversation.RunItem{}, err
+		return runbiz.Item{}, err
 	}
-	result := conversation.RunItem{
+	result := runbiz.Item{
 		ID:        item.ID,
 		RunID:     item.RunID,
 		Sequence:  item.Sequence,
@@ -117,64 +166,48 @@ func runItemFromDB(item db.AssistantRunItem) (conversation.RunItem, error) {
 		Name:      item.Name,
 		CallID:    item.CallID,
 		Summary:   item.Summary,
-		ErrorCode: conversation.FailureCode(item.ErrorCode),
+		ErrorCode: runbiz.FailureCode(item.ErrorCode),
 		CreatedAt: item.CreatedAt,
 	}
-	if item.StartedAt.Valid {
-		result.StartedAt = &item.StartedAt.Time
-	}
+	result.StartedAt = &item.StartedAt
 	if item.FinishedAt.Valid {
 		result.FinishedAt = &item.FinishedAt.Time
 	}
 	return result, nil
 }
 
-func runItemKindToDB(kind conversation.RunItemKind) uint8 {
+func runItemKindToDB(kind runbiz.ItemKind) uint8 {
 	switch kind {
-	case conversation.ItemKindModelCall:
+	case runbiz.ItemKindModelCall:
 		return runItemKindModelCall
-	case conversation.ItemKindToolCall:
+	case runbiz.ItemKindToolCall:
 		return runItemKindToolCall
-	case conversation.ItemKindToolResult:
-		return runItemKindToolResult
-	case conversation.ItemKindDelegation:
-		return runItemKindDelegation
-	case conversation.ItemKindApproval:
-		return runItemKindApproval
 	default:
 		return 0
 	}
 }
 
-func runItemKindFromDB(kind uint8) (conversation.RunItemKind, error) {
+func runItemKindFromDB(kind uint8) (runbiz.ItemKind, error) {
 	switch kind {
 	case runItemKindModelCall:
-		return conversation.ItemKindModelCall, nil
+		return runbiz.ItemKindModelCall, nil
 	case runItemKindToolCall:
-		return conversation.ItemKindToolCall, nil
-	case runItemKindToolResult:
-		return conversation.ItemKindToolResult, nil
-	case runItemKindDelegation:
-		return conversation.ItemKindDelegation, nil
-	case runItemKindApproval:
-		return conversation.ItemKindApproval, nil
+		return runbiz.ItemKindToolCall, nil
 	default:
 		return "", fmt.Errorf("invalid assistant run item kind %d", kind)
 	}
 }
 
-func runItemStateFromDB(state uint8) (conversation.RunItemState, error) {
+func runItemStateFromDB(state uint8) (runbiz.ItemState, error) {
 	switch state {
-	case runItemStatePending:
-		return conversation.ItemStatePending, nil
 	case runItemStateRunning:
-		return conversation.ItemStateRunning, nil
+		return runbiz.ItemStateRunning, nil
 	case runItemStateCompleted:
-		return conversation.ItemStateCompleted, nil
+		return runbiz.ItemStateCompleted, nil
 	case runItemStateFailed:
-		return conversation.ItemStateFailed, nil
+		return runbiz.ItemStateFailed, nil
 	case runItemStateCancelled:
-		return conversation.ItemStateCancelled, nil
+		return runbiz.ItemStateCancelled, nil
 	default:
 		return "", fmt.Errorf("invalid assistant run item state %d", state)
 	}

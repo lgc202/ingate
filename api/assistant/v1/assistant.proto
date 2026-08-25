@@ -96,19 +96,15 @@ enum RunItemKind {
   RUN_ITEM_KIND_UNSPECIFIED = 0;
   RUN_ITEM_KIND_MODEL_CALL = 1;
   RUN_ITEM_KIND_TOOL_CALL = 2;
-  RUN_ITEM_KIND_TOOL_RESULT = 3;
-  RUN_ITEM_KIND_DELEGATION = 4;
-  RUN_ITEM_KIND_APPROVAL = 5;
 }
 
 // RunItemState 表示执行步骤自身的生命周期。
 enum RunItemState {
   RUN_ITEM_STATE_UNSPECIFIED = 0;
-  RUN_ITEM_STATE_PENDING = 1;
-  RUN_ITEM_STATE_RUNNING = 2;
-  RUN_ITEM_STATE_COMPLETED = 3;
-  RUN_ITEM_STATE_FAILED = 4;
-  RUN_ITEM_STATE_CANCELLED = 5;
+  RUN_ITEM_STATE_RUNNING = 1;
+  RUN_ITEM_STATE_COMPLETED = 2;
+  RUN_ITEM_STATE_FAILED = 3;
+  RUN_ITEM_STATE_CANCELLED = 4;
 }
 
 message Conversation {
@@ -149,12 +145,11 @@ message RunItem {
   RunItemKind kind = 4;
   RunItemState state = 5;
   string name = 6;
-  string call_id = 7;
-  string summary = 8;
-  string error_code = 9;
-  google.protobuf.Timestamp created_at = 10;
-  google.protobuf.Timestamp started_at = 11;
-  google.protobuf.Timestamp finished_at = 12;
+  string summary = 7;
+  string error_code = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp started_at = 10;
+  google.protobuf.Timestamp finished_at = 11;
 }
 
 message ListConversationsRequest {

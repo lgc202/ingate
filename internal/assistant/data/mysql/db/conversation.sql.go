@@ -32,8 +32,8 @@ func (q *Queries) CancelQueuedRun(ctx context.Context, arg CancelQueuedRunParams
 
 const cancelRunningRunItems = `-- name: CancelRunningRunItems :exec
 UPDATE assistant_run_items
-SET state = 5, finished_at = ?
-WHERE run_id = ? AND state = 2
+SET state = 4, finished_at = ?
+WHERE run_id = ? AND state = 1
 `
 
 type CancelRunningRunItemsParams struct {
@@ -95,20 +95,36 @@ func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (int64
 	return result.RowsAffected()
 }
 
-const completeRunningRunItems = `-- name: CompleteRunningRunItems :exec
-UPDATE assistant_run_items
-SET state = 3, finished_at = ?
-WHERE run_id = ? AND state = 2
+const completeRunItem = `-- name: CompleteRunItem :execrows
+UPDATE assistant_run_items AS i
+JOIN assistant_runs AS r ON r.id = i.run_id
+SET i.state = 2, i.summary = ?, i.finished_at = ?
+WHERE i.run_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
+  AND r.state = 2 AND r.worker_id = ?
 `
 
-type CompleteRunningRunItemsParams struct {
+type CompleteRunItemParams struct {
+	Summary    string
 	FinishedAt sql.NullTime
 	RunID      string
+	CallID     string
+	Kind       uint8
+	WorkerID   string
 }
 
-func (q *Queries) CompleteRunningRunItems(ctx context.Context, arg CompleteRunningRunItemsParams) error {
-	_, err := q.db.ExecContext(ctx, completeRunningRunItems, arg.FinishedAt, arg.RunID)
-	return err
+func (q *Queries) CompleteRunItem(ctx context.Context, arg CompleteRunItemParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeRunItem,
+		arg.Summary,
+		arg.FinishedAt,
+		arg.RunID,
+		arg.CallID,
+		arg.Kind,
+		arg.WorkerID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const countActiveRuns = `-- name: CountActiveRuns :one
@@ -213,7 +229,7 @@ type CreateRunItemParams struct {
 	Summary    string
 	ErrorCode  string
 	CreatedAt  time.Time
-	StartedAt  sql.NullTime
+	StartedAt  time.Time
 	FinishedAt sql.NullTime
 }
 
@@ -288,8 +304,8 @@ func (q *Queries) DeleteRunsByConversation(ctx context.Context, conversationID s
 const failExpiredRunItems = `-- name: FailExpiredRunItems :exec
 UPDATE assistant_run_items AS i
 JOIN assistant_runs AS r ON r.id = i.run_id
-SET i.state = 4, i.error_code = ?, i.finished_at = ?
-WHERE i.state = 2 AND r.state = 2 AND r.lease_expires_at < ?
+SET i.state = 3, i.error_code = ?, i.finished_at = ?
+WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < ?
 `
 
 type FailExpiredRunItemsParams struct {
@@ -349,10 +365,42 @@ func (q *Queries) FailRun(ctx context.Context, arg FailRunParams) (int64, error)
 	return result.RowsAffected()
 }
 
+const failRunItem = `-- name: FailRunItem :execrows
+UPDATE assistant_run_items AS i
+JOIN assistant_runs AS r ON r.id = i.run_id
+SET i.state = 3, i.error_code = ?, i.finished_at = ?
+WHERE i.run_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
+  AND r.state = 2 AND r.worker_id = ?
+`
+
+type FailRunItemParams struct {
+	ErrorCode  string
+	FinishedAt sql.NullTime
+	RunID      string
+	CallID     string
+	Kind       uint8
+	WorkerID   string
+}
+
+func (q *Queries) FailRunItem(ctx context.Context, arg FailRunItemParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failRunItem,
+		arg.ErrorCode,
+		arg.FinishedAt,
+		arg.RunID,
+		arg.CallID,
+		arg.Kind,
+		arg.WorkerID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const failRunningRunItems = `-- name: FailRunningRunItems :exec
 UPDATE assistant_run_items
-SET state = 4, error_code = ?, finished_at = ?
-WHERE run_id = ? AND state = 2
+SET state = 3, error_code = ?, finished_at = ?
+WHERE run_id = ? AND state = 1
 `
 
 type FailRunningRunItemsParams struct {

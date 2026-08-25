@@ -123,9 +123,10 @@ func wireApp(confServer *conf.Server, data *conf.Data, logger *slog.Logger, admi
 	service14 := wasmplugin2.NewService(wasmpluginService)
 	pluginsourceService := pluginsource.NewService(pluginSourceRepository, catalog)
 	service15 := pluginsource2.NewService(pluginsourceService)
-	httpHandlers := server.NewHTTPHandlers(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, service11, healthService, service12, service13, service14, service15)
-	httpServer := server.NewHTTPServer(confServer, logger, httpHandlers)
-	app := newKratosApp(logger, confServer, httpServer, catalog, adminapiServiceInstanceID)
+	services := server.NewServices(aiusageService, service2, service3, service4, service5, service6, service7, service8, service9, service10, service11, healthService, service12, service13, service14, service15)
+	httpServer := server.NewHTTPServer(confServer, logger, services)
+	grpcServer := server.NewGRPCServer(confServer, logger, services)
+	app := newKratosApp(logger, confServer, httpServer, grpcServer, catalog, adminapiServiceInstanceID)
 	return app, func() {
 		cleanup2()
 		cleanup()

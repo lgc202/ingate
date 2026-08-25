@@ -85,8 +85,9 @@ func (l requestLog) write(ctx context.Context, logger *slog.Logger) {
 	logger.LogAttrs(ctx, level, "server request", attrs...)
 }
 
-// httpMiddleware 按请求从外到内的执行顺序装配管理面中间件
-func httpMiddleware(logger *slog.Logger) []middleware.Middleware {
+// serverMiddleware 按请求从外到内的执行顺序装配管理面中间件。
+// HTTP 与 gRPC 共享相同的校验、恢复和脱敏日志规则。
+func serverMiddleware(logger *slog.Logger) []middleware.Middleware {
 	return []middleware.Middleware{
 		recoveryMiddleware(logger),
 		requestLoggingMiddleware(logger),

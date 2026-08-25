@@ -49,6 +49,7 @@ func NewApp(configFile string) (*App, error) {
 		bootstrap.GetData().GetRedis(),
 		bootstrap.GetStream(),
 		bootstrap.GetWorker(),
+		bootstrap.GetAdminApi(),
 		logger,
 		instanceID,
 	)

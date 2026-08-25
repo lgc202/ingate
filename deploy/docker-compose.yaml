@@ -296,6 +296,8 @@ services:
         condition: service_healthy
       assistant-migrate:
         condition: service_completed_successfully
+      admin-api:
+        condition: service_healthy
     environment:
       INGATE_MYSQL_PASSWORD: "${INGATE_MYSQL_PASSWORD:-ingate-dev}"
     volumes:

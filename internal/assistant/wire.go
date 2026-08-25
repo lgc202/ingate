@@ -23,6 +23,7 @@ func wireApp(
 	*conf.Data_Redis,
 	*conf.Stream,
 	*conf.Worker,
+	*conf.AdminAPI,
 	*slog.Logger,
 	serviceInstanceID,
 ) (*kratos.App, func(), error) {

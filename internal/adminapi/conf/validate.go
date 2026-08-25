@@ -18,6 +18,13 @@ func (c *Bootstrap) Validate() error {
 	if http.GetTimeout() == nil || http.GetTimeout().AsDuration() <= 0 {
 		return errors.New("server http timeout must be greater than zero")
 	}
+	grpc := c.GetServer().GetGrpc()
+	if grpc == nil || strings.TrimSpace(grpc.GetAddr()) == "" {
+		return errors.New("server gRPC address must not be empty")
+	}
+	if grpc.GetTimeout() == nil || grpc.GetTimeout().AsDuration() <= 0 {
+		return errors.New("server gRPC timeout must be greater than zero")
+	}
 	if c.GetServer().GetShutdownTimeout() == nil || c.GetServer().GetShutdownTimeout().AsDuration() <= 0 {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}

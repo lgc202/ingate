@@ -49,20 +49,20 @@ CREATE TABLE assistant_runs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='运维助手模型调用记录';
 
--- Run Item 是一次执行中可独立追踪的持久步骤。当前模型调用会写入一条记录，
--- 后续工具调用、专业 Agent 委派和审批沿用同一顺序，不把执行细节继续堆入 Run。
+-- Run Item 是一次执行中可独立追踪的持久步骤。工具调用和结果共用同一条记录，
+-- 通过状态与脱敏摘要表达生命周期，不复制保存原始工具输出。
 CREATE TABLE assistant_run_items (
     id CHAR(36) NOT NULL COMMENT '执行步骤 ID，使用 UUID',
     run_id CHAR(36) NOT NULL COMMENT '所属 Run ID，由应用事务保证关联有效',
     sequence INT UNSIGNED NOT NULL COMMENT '步骤在所属 Run 内的稳定顺序，从 1 开始递增',
-    kind TINYINT UNSIGNED NOT NULL COMMENT '步骤类型：1 模型调用，2 工具调用，3 工具结果，4 专业 Agent 委派，5 审批',
-    state TINYINT UNSIGNED NOT NULL COMMENT '步骤状态：1 等待中，2 执行中，3 完成，4 失败，5 已取消',
-    name VARCHAR(160) NOT NULL COMMENT '模型、工具或专业 Agent 的稳定名称',
+    kind TINYINT UNSIGNED NOT NULL COMMENT '步骤类型：1 模型调用，2 工具调用',
+    state TINYINT UNSIGNED NOT NULL COMMENT '步骤状态：1 执行中，2 完成，3 失败，4 已取消',
+    name VARCHAR(160) NOT NULL COMMENT '模型或工具的稳定名称',
     call_id VARCHAR(128) NOT NULL COMMENT '关联一次调用及其结果的稳定标识',
     summary VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '经过脱敏且可向用户展示的执行摘要',
     error_code VARCHAR(64) NOT NULL DEFAULT '' COMMENT '失败原因的稳定代码，非失败状态为空',
     created_at DATETIME(6) NOT NULL COMMENT '步骤创建时间，统一使用 UTC',
-    started_at DATETIME(6) NULL COMMENT '步骤开始执行时间；等待中为空',
+    started_at DATETIME(6) NOT NULL COMMENT '步骤开始执行时间',
     finished_at DATETIME(6) NULL COMMENT '步骤结束时间；未到终态时为空',
     PRIMARY KEY (id),
     UNIQUE KEY uk_assistant_run_items_sequence (run_id, sequence),

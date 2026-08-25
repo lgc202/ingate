@@ -11,6 +11,7 @@ import (
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	"github.com/lgc202/ingate/internal/assistant/biz/model"
+	"github.com/lgc202/ingate/internal/assistant/biz/run"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/assistant/data"
 	"github.com/lgc202/ingate/internal/assistant/data/chatmodel"
@@ -22,26 +23,40 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL *conf.Data_MySQL, data_Redis *conf.Data_Redis, stream *conf.Stream, worker *conf.Worker, logger *slog.Logger, assistantServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL *conf.Data_MySQL, data_Redis *conf.Data_Redis, stream *conf.Stream, worker *conf.Worker, adminAPI *conf.AdminAPI, logger *slog.Logger, assistantServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
 	store, cleanup, err := data.NewMySQLStore(contextContext, data_MySQL, logger)
 	if err != nil {
 		return nil, nil, err
 	}
+	service := conversation.NewService(store)
 	eventStore, cleanup2, err := data.NewEventStore(contextContext, data_Redis, stream, logger)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
 	}
-	service := model.NewService(store)
-	agent := chatmodel.NewAgent(service)
-	conversationService := conversation.NewService(store, eventStore, agent)
-	service2 := conversation2.NewService(conversationService)
-	modelService := model2.NewService(service)
-	streamHandler := server.NewStreamHandler(conversationService, stream, logger)
-	httpServer := server.NewHTTPServer(confServer, service2, modelService, streamHandler, store, eventStore, logger)
-	runWorker := server.NewRunWorker(worker, conversationService, logger)
+	modelService := model.NewService(store)
+	client, cleanup3, err := data.NewAdminClient(contextContext, adminAPI, logger)
+	if err != nil {
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	agent, err := chatmodel.NewAgent(modelService, client)
+	if err != nil {
+		cleanup3()
+		cleanup2()
+		cleanup()
+		return nil, nil, err
+	}
+	runService := run.NewService(store, eventStore, agent)
+	conversationService := conversation2.NewService(service, runService)
+	service2 := model2.NewService(modelService)
+	streamHandler := server.newStreamHandler(runService, stream, logger)
+	httpServer := server.NewHTTPServer(confServer, conversationService, service2, streamHandler, store, eventStore, logger)
+	runWorker := server.NewRunWorker(worker, runService, logger)
 	app := newKratosApp(logger, confServer, httpServer, runWorker, assistantServiceInstanceID)
 	return app, func() {
+		cleanup3()
 		cleanup2()
 		cleanup()
 	}, nil

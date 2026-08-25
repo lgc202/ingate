@@ -117,26 +117,35 @@ JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE i.run_id = ? AND c.actor_id = ?
 ORDER BY i.sequence ASC;
 
--- name: CompleteRunningRunItems :exec
-UPDATE assistant_run_items
-SET state = 3, finished_at = ?
-WHERE run_id = ? AND state = 2;
+-- name: CompleteRunItem :execrows
+UPDATE assistant_run_items AS i
+JOIN assistant_runs AS r ON r.id = i.run_id
+SET i.state = 2, i.summary = ?, i.finished_at = ?
+WHERE i.run_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
+  AND r.state = 2 AND r.worker_id = ?;
+
+-- name: FailRunItem :execrows
+UPDATE assistant_run_items AS i
+JOIN assistant_runs AS r ON r.id = i.run_id
+SET i.state = 3, i.error_code = ?, i.finished_at = ?
+WHERE i.run_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
+  AND r.state = 2 AND r.worker_id = ?;
 
 -- name: FailRunningRunItems :exec
 UPDATE assistant_run_items
-SET state = 4, error_code = ?, finished_at = ?
-WHERE run_id = ? AND state = 2;
+SET state = 3, error_code = ?, finished_at = ?
+WHERE run_id = ? AND state = 1;
 
 -- name: CancelRunningRunItems :exec
 UPDATE assistant_run_items
-SET state = 5, finished_at = ?
-WHERE run_id = ? AND state = 2;
+SET state = 4, finished_at = ?
+WHERE run_id = ? AND state = 1;
 
 -- name: FailExpiredRunItems :exec
 UPDATE assistant_run_items AS i
 JOIN assistant_runs AS r ON r.id = i.run_id
-SET i.state = 4, i.error_code = ?, i.finished_at = ?
-WHERE i.state = 2 AND r.state = 2 AND r.lease_expires_at < ?;
+SET i.state = 3, i.error_code = ?, i.finished_at = ?
+WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < ?;
 
 -- name: RenewRunLease :execrows
 UPDATE assistant_runs

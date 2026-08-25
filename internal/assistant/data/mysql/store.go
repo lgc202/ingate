@@ -73,7 +73,7 @@ func (s *Store) withTransaction(ctx context.Context, operation func(*db.Queries)
 	return nil
 }
 
-func mapNotFound(err error) error {
+func mapConversationNotFound(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
 		return conversation.ErrNotFound
 	}

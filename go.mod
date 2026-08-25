@@ -26,6 +26,7 @@ require (
 	github.com/tidwall/wal v1.2.2-0.20250831125338-4b09f9519cba
 	github.com/twmb/franz-go v1.21.0
 	go.uber.org/automaxprocs v1.6.0
+	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/mod v0.37.0
 	k8s.io/apimachinery v0.34.2
 	k8s.io/apiserver v0.34.2
@@ -174,7 +175,6 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.1 // indirect
 	go.yaml.in/yaml/v2 v2.4.2 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/exp v0.0.0-20250813145105-42675adae3e6 // indirect
 	golang.org/x/net v0.56.0
