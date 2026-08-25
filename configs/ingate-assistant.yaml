@@ -30,7 +30,7 @@ stream:
 
 worker:
   concurrency: 8
-  poll_interval: "500ms"
+  poll_interval: "0.5s"
   lease_duration: "30s"
 
 logging:

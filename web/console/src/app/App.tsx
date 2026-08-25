@@ -11,6 +11,7 @@ import { CallerPage } from '@/features/callers/CallerPage';
 import { AIUsagePage } from '@/features/aiusage/AIUsagePage';
 import { PluginPage } from '@/features/plugins/PluginPage';
 import { SessionProvider } from '@/features/auth/SessionProvider';
+import { AssistantPage } from '@/features/assistant/AssistantPage';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="requests" element={<RequestRecordPage />} />
           <Route path="analysis" element={<TrafficAnalysisPage />} />
           <Route path="ai-usage" element={<AIUsagePage />} />
+          <Route path="assistant" element={<AssistantPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/gateways" replace />} />
       </Routes>
