@@ -3,7 +3,6 @@ package tool
 
 import (
 	"context"
-	"fmt"
 	"slices"
 
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -33,7 +32,6 @@ type ResourceReader interface {
 // Registry 保存 Assistant 可提供给模型的工具定义。
 type Registry struct {
 	tools []einotool.BaseTool
-	names map[string]struct{}
 }
 
 type listResourcesInput struct {
@@ -65,29 +63,12 @@ func NewRegistry(resources ResourceReader) (*Registry, error) {
 	}
 	return &Registry{
 		tools: []einotool.BaseTool{gateways, routes, services, traffic, failures},
-		names: map[string]struct{}{
-			listGatewaysTool:       {},
-			listRoutesTool:         {},
-			listServicesTool:       {},
-			getRecentTrafficTool:   {},
-			listRecentFailuresTool: {},
-		},
 	}, nil
 }
 
 // All 返回按稳定顺序排列的全部工具。
 func (r *Registry) All() []einotool.BaseTool {
 	return slices.Clone(r.tools)
-}
-
-// Validate 检查 Skill 声明的工具是否已经注册。
-func (r *Registry) Validate(names []string) error {
-	for _, name := range names {
-		if _, ok := r.names[name]; !ok {
-			return fmt.Errorf("assistant tool %q is not registered", name)
-		}
-	}
-	return nil
 }
 
 func listLimit(limit int32) int32 {

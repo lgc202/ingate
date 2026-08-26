@@ -17,21 +17,18 @@ import (
 // executionMiddleware 使用 Eino 官方中间件记录真正发生的模型与工具调用。
 // 它按执行创建，不在并发执行之间共享模型调用状态。
 type executionMiddleware struct {
-	modelName     string
-	recorder      executionbiz.StepRecorder
-	authorizeTool func(string) error
-	modelCallID   string
+	modelName   string
+	recorder    executionbiz.StepRecorder
+	modelCallID string
 }
 
 func newExecutionMiddleware(
 	modelName string,
 	recorder executionbiz.StepRecorder,
-	authorizeTool func(string) error,
 ) adk.AgentMiddleware {
 	middleware := &executionMiddleware{
-		modelName:     modelName,
-		recorder:      recorder,
-		authorizeTool: authorizeTool,
+		modelName: modelName,
+		recorder:  recorder,
 	}
 	return adk.AgentMiddleware{
 		BeforeChatModel: middleware.beforeChatModel,
@@ -79,15 +76,6 @@ func (m *executionMiddleware) wrapToolCall(
 		if err := m.recorder.ToolStarted(ctx, callID, input.Name); err != nil {
 			return nil, err
 		}
-		if err := m.authorizeTool(input.Name); err != nil {
-			return nil, m.failTool(
-				ctx,
-				callID,
-				input.Name,
-				fmt.Errorf("authorize assistant tool: %w", err),
-			)
-		}
-
 		output, err := next(ctx, input)
 		if err != nil {
 			return nil, m.failTool(ctx, callID, input.Name, err)

@@ -6,7 +6,7 @@ import (
 	executionbiz "github.com/lgc202/ingate/internal/assistant/biz/execution"
 )
 
-// ProviderSet 提供 Agent、内置 Skill 与只读工具装配。
+// ProviderSet 提供 Agent 与只读工具装配。
 var ProviderSet = wire.NewSet(
 	NewAgent,
 	wire.Bind(new(executionbiz.Agent), new(*Agent)),

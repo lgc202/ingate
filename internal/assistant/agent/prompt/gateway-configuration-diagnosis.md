@@ -1,9 +1,3 @@
----
-name: gateway-configuration-diagnosis
-description: 排查网关、路由和服务之间的配置关系以及未生效原因
-allowed-tools: list_gateways list_routes list_services get_recent_traffic list_recent_failures
----
-
 # 网关配置诊断
 
 ## 执行步骤

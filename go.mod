@@ -26,7 +26,6 @@ require (
 	github.com/tidwall/wal v1.2.2-0.20250831125338-4b09f9519cba
 	github.com/twmb/franz-go v1.21.0
 	go.uber.org/automaxprocs v1.6.0
-	go.yaml.in/yaml/v3 v3.0.4
 	golang.org/x/mod v0.37.0
 	k8s.io/apimachinery v0.34.2
 	k8s.io/apiserver v0.34.2
@@ -109,6 +108,7 @@ require (
 	github.com/yargevad/filepathx v1.0.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/arch v0.11.0 // indirect
 	google.golang.org/api v0.189.0 // indirect

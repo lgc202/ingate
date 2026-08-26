@@ -127,7 +127,6 @@ export function executionStateLabel(state: AgentExecutionState): string {
 export function executionErrorMessage(code: string, steps: AgentExecutionStep[] = []): string {
   const failed = steps.find((step) => step.state === 'AGENT_EXECUTION_STEP_STATE_FAILED');
   if (failed?.kind === 'AGENT_EXECUTION_STEP_KIND_MODEL_CALL') return '模型调用失败，请检查模型连接后重试';
-  if (failed?.name === 'load_skill') return '诊断流程加载失败，请稍后重试';
   if (failed && ['list_gateways', 'list_routes', 'list_services'].includes(failed.name)) {
     return '读取网关配置失败，请检查管理服务状态后重试';
   }
@@ -143,7 +142,6 @@ export function executionErrorMessage(code: string, steps: AgentExecutionStep[] 
 
 export function executionStepLabel(step: AgentExecutionStep): string {
   if (step.kind === 'AGENT_EXECUTION_STEP_KIND_MODEL_CALL') return '分析问题';
-  if (step.name === 'load_skill') return '选择诊断流程';
   if (step.name === 'list_gateways') return '检查网关';
   if (step.name === 'list_routes') return '检查路由';
   if (step.name === 'list_services') return '检查服务';
