@@ -3,7 +3,6 @@ package tool
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	einotool "github.com/cloudwego/eino/components/tool"
@@ -20,9 +19,9 @@ const (
 )
 
 type recentTrafficInput struct {
-	ResourceType string `json:"resource_type,omitempty"`
-	ResourceID   string `json:"resource_id,omitempty"`
-	Hours        int32  `json:"hours,omitempty"`
+	ResourceType string `json:"resource_type,omitempty" jsonschema_description:"查询全部流量时省略或填 all；限定资源时填 gateway、route 或 service"`
+	ResourceID   string `json:"resource_id,omitempty" jsonschema_description:"resource_type 为 gateway、route 或 service 时必填；先用对应的 list 工具取得资源 ID"`
+	Hours        int32  `json:"hours,omitempty" jsonschema_description:"查询最近多少小时，默认 24，最大 168"`
 }
 
 type trafficToolOutput struct {
@@ -129,27 +128,6 @@ func observationHours(hours int32) int32 {
 		return defaultObservationHours
 	}
 	return min(hours, maxObservationHours)
-}
-
-func normalizeResourceScope(resourceType, resourceID string) (string, string, error) {
-	resourceType = strings.ToLower(strings.TrimSpace(resourceType))
-	resourceID = strings.TrimSpace(resourceID)
-	if resourceType == "" {
-		resourceType = "all"
-	}
-	if resourceType == "all" {
-		if resourceID != "" {
-			return "", "", fmt.Errorf("resource_id requires gateway, route, or service resource_type")
-		}
-		return resourceType, resourceID, nil
-	}
-	if resourceType != "gateway" && resourceType != "route" && resourceType != "service" {
-		return "", "", fmt.Errorf("unsupported resource_type %q", resourceType)
-	}
-	if resourceID == "" {
-		return "", "", fmt.Errorf("resource_id is required for %s resource_type", resourceType)
-	}
-	return resourceType, resourceID, nil
 }
 
 func applyResourceScope(request *adminv1.GetTrafficAnalysisRequest, resourceType, resourceID string) {

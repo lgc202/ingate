@@ -11,6 +11,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/google/uuid"
 
+	agenttool "github.com/lgc202/ingate/internal/assistant/agent/tool"
 	executionbiz "github.com/lgc202/ingate/internal/assistant/biz/execution"
 )
 
@@ -20,6 +21,11 @@ type executionMiddleware struct {
 	modelName   string
 	recorder    executionbiz.StepRecorder
 	modelCallID string
+}
+
+type invalidToolInputOutput struct {
+	Summary string `json:"summary"`
+	Status  string `json:"status"`
 }
 
 func newExecutionMiddleware(
@@ -78,6 +84,23 @@ func (m *executionMiddleware) wrapToolCall(
 		}
 		output, err := next(ctx, input)
 		if err != nil {
+			if reason, ok := agenttool.InvalidInputReason(err); ok {
+				result, marshalErr := json.Marshal(invalidToolInputOutput{
+					Summary: reason,
+					Status:  "invalid_input",
+				})
+				if marshalErr != nil {
+					return nil, m.failTool(ctx, callID, input.Name, marshalErr)
+				}
+				if recordErr := m.recorder.ToolCompleted(
+					ctx,
+					callID,
+					"工具参数不完整，已请求模型补全后重试",
+				); recordErr != nil {
+					return nil, recordErr
+				}
+				return &compose.ToolOutput{Result: string(result)}, nil
+			}
 			return nil, m.failTool(ctx, callID, input.Name, err)
 		}
 		summary, err := toolResultSummary(output.Result)

@@ -131,7 +131,7 @@ export function executionErrorMessage(code: string, steps: AgentExecutionStep[] 
     return '读取网关配置失败，请检查管理服务状态后重试';
   }
   if (failed && ['get_recent_traffic', 'list_recent_failures'].includes(failed.name)) {
-    return '读取观测数据失败，请检查分析服务状态后重试';
+    return '观测查询暂时不可用，请稍后重试';
   }
   if (code === 'MODEL_UNAVAILABLE') return '模型暂时不可用，请稍后重试';
   if (code === 'TOOL_UNAVAILABLE') return '助手工具暂时不可用，请稍后重试';

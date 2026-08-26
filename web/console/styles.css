@@ -2195,6 +2195,34 @@ body { overflow-x: hidden; }
 .assistant-message.is-user > div { max-width: 78%; grid-column: 1; grid-row: 1; justify-self: end; text-align: right; }
 .assistant-message.is-user .assistant-message-content { display: inline-block; padding: 11px 14px; border-radius: 12px 4px 12px 12px; background: #f2f2ef; text-align: left; }
 .assistant-message-content { margin: 0; color: #30343d; font-size: .79rem; line-height: 1.78; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-markdown { white-space: normal; }
+.assistant-markdown > :first-child { margin-top: 0; }
+.assistant-markdown > :last-child { margin-bottom: 0; }
+.assistant-markdown p { margin: 0 0 11px; }
+.assistant-markdown h1,
+.assistant-markdown h2,
+.assistant-markdown h3,
+.assistant-markdown h4 { margin: 22px 0 9px; color: #252a34; line-height: 1.35; }
+.assistant-markdown h1 { font-size: 1.16rem; }
+.assistant-markdown h2 { font-size: 1rem; }
+.assistant-markdown h3 { font-size: .9rem; }
+.assistant-markdown h4 { font-size: .82rem; }
+.assistant-markdown ul,
+.assistant-markdown ol { margin: 8px 0 13px; padding-left: 22px; }
+.assistant-markdown li + li { margin-top: 4px; }
+.assistant-markdown li > p { margin: 0; }
+.assistant-markdown a { color: #3152ca; text-decoration: underline; text-decoration-color: #b8c2ed; text-underline-offset: 3px; }
+.assistant-markdown code { padding: 2px 5px; border: 1px solid #e0e2e7; border-radius: 5px; color: #9b3d55; background: #f7f7f8; font: .72rem/1.5 "SFMono-Regular", Consolas, monospace; }
+.assistant-markdown pre { max-width: 100%; margin: 12px 0 15px; padding: 14px 16px; overflow-x: auto; border-radius: 9px; color: #e8ebf3; background: #20232c; font: .71rem/1.65 "SFMono-Regular", Consolas, monospace; }
+.assistant-markdown pre code { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; }
+.assistant-markdown blockquote { margin: 12px 0; padding: 7px 12px; border-left: 3px solid #aeb8e8; color: #666d7a; background: #f7f8fc; }
+.assistant-markdown blockquote p { margin: 0; }
+.assistant-markdown table { width: 100%; margin: 13px 0 16px; display: block; overflow-x: auto; border-spacing: 0; border-collapse: collapse; font-size: .72rem; }
+.assistant-markdown th,
+.assistant-markdown td { min-width: 96px; padding: 8px 10px; border: 1px solid #dfe1e5; text-align: left; vertical-align: top; }
+.assistant-markdown th { color: #555d6b; background: #f5f5f2; font-weight: 700; white-space: nowrap; }
+.assistant-markdown tr:nth-child(even) td { background: #fafaf8; }
+.assistant-markdown hr { margin: 18px 0; border: 0; border-top: 1px solid #e3e4e1; }
 .assistant-message-actions { min-height: 26px; margin-top: 7px; display: flex; align-items: center; }
 .assistant-message.is-user .assistant-message-actions { justify-content: flex-end; }
 .assistant-message-actions button { min-height: 26px; padding: 3px 7px; display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 6px; color: #858a94; background: transparent; font-size: .64rem; cursor: pointer; }
@@ -2227,6 +2255,13 @@ body { overflow-x: hidden; }
 .assistant-active-execution-link { width: 100%; margin-bottom: 7px; padding: 7px 10px; border: 0; border-radius: 7px; color: #47549a; background: #f0f2ff; font-size: .68rem; cursor: pointer; }
 .assistant-composer { max-width: 850px; margin: 0 auto; overflow: hidden; border: 1px solid #cfd2d9; border-radius: 13px; background: #fff; box-shadow: 0 8px 24px rgba(32, 35, 43, .08); }
 .assistant-composer:focus-within { border-color: #9aa6e4; box-shadow: 0 0 0 3px rgba(48, 71, 199, .08), 0 8px 24px rgba(32, 35, 43, .08); }
+.assistant-editing-prompt { min-height: 40px; padding: 8px 10px 8px 14px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 9px; border-bottom: 1px solid #e1e4f3; color: #687080; background: #f7f8ff; font-size: .64rem; }
+.assistant-editing-prompt > svg { width: 14px; height: 14px; color: var(--accent); }
+.assistant-editing-prompt > span { display: flex; align-items: baseline; gap: 8px; }
+.assistant-editing-prompt strong { color: #3d477d; font-size: .68rem; }
+.assistant-editing-prompt button { width: 27px; height: 27px; display: grid; place-items: center; border: 0; border-radius: 6px; color: #858b97; background: transparent; cursor: pointer; }
+.assistant-editing-prompt button:hover { color: #454c5a; background: #eceef9; }
+.assistant-editing-prompt button svg { width: 14px; height: 14px; }
 .assistant-composer textarea { width: 100%; min-height: 82px; max-height: 190px; padding: 14px 15px 8px; border: 0; outline: 0; resize: vertical; color: var(--text); background: transparent; font: inherit; font-size: .77rem; line-height: 1.65; }
 .assistant-composer textarea::placeholder { color: #a0a4ac; }
 .assistant-composer footer { min-height: 46px; padding: 7px 8px 8px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid #eeefec; }

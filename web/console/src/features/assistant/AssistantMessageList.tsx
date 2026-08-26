@@ -1,6 +1,8 @@
 import type { RefObject } from 'react';
 import { useEffect, useState } from 'react';
-import { Bot, Check, CircleAlert, Copy, LoaderCircle, Settings2, Sparkles, UserRound } from 'lucide-react';
+import { Bot, Check, CircleAlert, Copy, LoaderCircle, PencilLine, Settings2, Sparkles, UserRound } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui';
 import type { AgentExecution, AgentExecutionStep, AssistantMessage } from '@/domain/assistant';
 import { executionStateLabel, executionStepLabel } from '@/domain/assistant';
@@ -28,6 +30,7 @@ interface AssistantMessageListProps {
   error: string;
   endRef: RefObject<HTMLDivElement | null>;
   onConfigure: () => void;
+  onEdit: (message: AssistantMessage) => void;
   onSuggestion: (value: string) => void;
 }
 
@@ -42,6 +45,7 @@ export function AssistantMessageList({
   error,
   endRef,
   onConfigure,
+  onEdit,
   onSuggestion,
 }: AssistantMessageListProps) {
   return (
@@ -54,7 +58,9 @@ export function AssistantMessageList({
           onSuggestion={onSuggestion}
         />
       ) : null}
-      {messages.map((message) => <MessageBubble key={message.id} message={message} />)}
+      {messages.map((message) => (
+        <MessageBubble key={message.id} message={message} onEdit={onEdit} />
+      ))}
       {liveAnswer || execution ? (
         <LiveAnswerBubble answer={liveAnswer} execution={execution} steps={executionSteps} />
       ) : null}
@@ -101,7 +107,13 @@ function AssistantWelcome({
   );
 }
 
-function MessageBubble({ message }: { message: AssistantMessage }) {
+function MessageBubble({
+  message,
+  onEdit,
+}: {
+  message: AssistantMessage;
+  onEdit: (message: AssistantMessage) => void;
+}) {
   const user = message.role === 'MESSAGE_ROLE_USER';
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
 
@@ -132,12 +144,22 @@ function MessageBubble({ message }: { message: AssistantMessage }) {
             <p>{message.reasoningContent}</p>
           </details>
         ) : null}
-        <p className="assistant-message-content">{message.content}</p>
+        {user ? (
+          <p className="assistant-message-content">{message.content}</p>
+        ) : (
+          <MarkdownMessage content={message.content} />
+        )}
         <div className="assistant-message-actions">
           <button type="button" onClick={() => void copy()}>
             {copyState === 'copied' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
             {copyState === 'copied' ? '已复制' : copyState === 'failed' ? '复制失败' : '复制'}
           </button>
+          {user ? (
+            <button type="button" onClick={() => onEdit(message)}>
+              <PencilLine aria-hidden="true" />
+              编辑
+            </button>
+          ) : null}
         </div>
       </div>
     </article>
@@ -166,7 +188,7 @@ function LiveAnswerBubble({
           </details>
         ) : null}
         {answer?.content ? (
-          <p className="assistant-message-content">{answer.content}<i className="assistant-caret" /></p>
+          <MarkdownMessage content={answer.content} live />
         ) : (
           <div
             className="assistant-typing"
@@ -177,6 +199,15 @@ function LiveAnswerBubble({
         )}
       </div>
     </article>
+  );
+}
+
+function MarkdownMessage({ content, live = false }: { content: string; live?: boolean }) {
+  return (
+    <div className="assistant-message-content assistant-markdown">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      {live ? <i className="assistant-caret" /> : null}
+    </div>
   );
 }
 

@@ -19,11 +19,11 @@ const (
 )
 
 type recentFailuresInput struct {
-	ResourceType string `json:"resource_type,omitempty"`
-	ResourceID   string `json:"resource_id,omitempty"`
-	Outcome      string `json:"outcome,omitempty"`
-	Hours        int32  `json:"hours,omitempty"`
-	Limit        int32  `json:"limit,omitempty"`
+	ResourceType string `json:"resource_type,omitempty" jsonschema_description:"查询全部资源时省略或填 all；限定资源时填 gateway、route 或 service"`
+	ResourceID   string `json:"resource_id,omitempty" jsonschema_description:"resource_type 为 gateway、route 或 service 时必填；先用对应的 list 工具取得资源 ID"`
+	Outcome      string `json:"outcome,omitempty" jsonschema_description:"失败类型，可填 client_error、server_error 或 no_response，默认 server_error"`
+	Hours        int32  `json:"hours,omitempty" jsonschema_description:"查询最近多少小时，默认 24，最大 168"`
+	Limit        int32  `json:"limit,omitempty" jsonschema_description:"最多返回多少条记录，默认 10，最大 20"`
 }
 
 type failureToolOutput struct {
@@ -136,7 +136,10 @@ func requestOutcome(value string) (string, adminv1.RequestOutcome, error) {
 	case "no_response":
 		return value, adminv1.RequestOutcome_REQUEST_OUTCOME_NO_RESPONSE, nil
 	default:
-		return "", adminv1.RequestOutcome_REQUEST_OUTCOME_UNSPECIFIED, fmt.Errorf("unsupported outcome %q", value)
+		return "", adminv1.RequestOutcome_REQUEST_OUTCOME_UNSPECIFIED, invalidInputf(
+			"unsupported outcome %q; use client_error, server_error, or no_response",
+			value,
+		)
 	}
 }
 

@@ -7,9 +7,11 @@ import {
 } from 'react';
 import {
   MessageSquareText,
+  PencilLine,
   Send,
   Settings2,
   Square,
+  X,
 } from 'lucide-react';
 import {
   cancelAgentExecution,
@@ -77,6 +79,7 @@ export function AssistantPage() {
   const [deleteCandidate, setDeleteCandidate] = useState<AssistantConversation | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [input, setInput] = useState('');
+  const [editingMessage, setEditingMessage] = useState<AssistantMessage | null>(null);
   const [activeExecution, setActiveExecution] = useState<AgentExecution | null>(null);
   const [executionSteps, setExecutionSteps] = useState<AgentExecutionStep[]>([]);
   const [liveAnswer, setLiveAnswer] = useState<LiveAnswer | null>(null);
@@ -339,6 +342,7 @@ export function AssistantPage() {
     setInput('');
     setExecutionError('');
     setExecutionSteps([]);
+    setEditingMessage(null);
     promptHistoryRef.current = [];
     promptHistoryIndexRef.current = -1;
     promptDraftRef.current = '';
@@ -353,6 +357,7 @@ export function AssistantPage() {
     setMessages([]);
     setExecutionError('');
     setExecutionSteps([]);
+    setEditingMessage(null);
     promptHistoryRef.current = [];
     promptHistoryIndexRef.current = -1;
     promptDraftRef.current = '';
@@ -392,6 +397,7 @@ export function AssistantPage() {
         setSelectedID(conversation.id);
       }
       const execution = await createAgentExecution(conversationID, content);
+      setEditingMessage(null);
       promptHistoryRef.current = [...promptHistoryRef.current, content];
       promptHistoryIndexRef.current = -1;
       promptDraftRef.current = '';
@@ -578,7 +584,13 @@ export function AssistantPage() {
             error={executionError}
             endRef={messagesEndRef}
             onConfigure={() => setConnectionOpen(true)}
+            onEdit={(message) => {
+              setEditingMessage(message);
+              setEditorValue(message.content);
+              window.requestAnimationFrame(() => editorRef.current?.focus());
+            }}
             onSuggestion={(value) => {
+              setEditingMessage(null);
               setInput(value);
               window.requestAnimationFrame(() => editorRef.current?.focus());
             }}
@@ -595,6 +607,26 @@ export function AssistantPage() {
               </button>
             ) : null}
             <div className="assistant-composer">
+              {editingMessage ? (
+                <div className="assistant-editing-prompt">
+                  <PencilLine aria-hidden="true" />
+                  <span>
+                    <strong>编辑并重新发送</strong>
+                    原消息会保留在会话中
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="取消编辑"
+                    onClick={() => {
+                      setEditingMessage(null);
+                      setInput('');
+                      window.requestAnimationFrame(() => editorRef.current?.focus());
+                    }}
+                  >
+                    <X aria-hidden="true" />
+                  </button>
+                </div>
+              ) : null}
               <textarea
                 ref={editorRef}
                 value={input}
@@ -619,7 +651,7 @@ export function AssistantPage() {
                 ) : (
                   <Button disabled={!input.trim() || Boolean(activeExecution)} onClick={() => void submit()}>
                     <Send className="h-4 w-4" aria-hidden="true" />
-                    发送
+                    {editingMessage ? '重新发送' : '发送'}
                   </Button>
                 )}
               </footer>
