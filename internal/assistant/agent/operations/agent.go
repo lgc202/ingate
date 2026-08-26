@@ -11,7 +11,7 @@ import (
 
 	agentprotocol "github.com/lgc202/ingate/internal/assistant/agent"
 	agenttool "github.com/lgc202/ingate/internal/assistant/agent/tool"
-	modelbiz "github.com/lgc202/ingate/internal/assistant/biz/model"
+	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 )
 
 const maxIterations = 8
@@ -20,13 +20,13 @@ const maxIterations = 8
 // 网络协议和厂商 SDK 的差异在 data 层结束，不进入 Agent 循环。
 type ChatModelFactory func(
 	context.Context,
-	modelbiz.Connection,
+	modelconfig.Connection,
 ) (model.ToolCallingChatModel, error)
 
 // Agent 组合运维指令、当前模型连接和 Ingate 只读工具。
 // 实例可以并发使用；每次执行的消息、事件和中间状态都保存在方法栈内。
 type Agent struct {
-	connections     *modelbiz.Service
+	connections     *modelconfig.Service
 	createChatModel ChatModelFactory
 	tools           []einotool.BaseTool
 	instruction     string
@@ -34,7 +34,7 @@ type Agent struct {
 
 // New 创建运维 Agent，并在进程启动时完成工具定义的静态装配。
 func New(
-	connections *modelbiz.Service,
+	connections *modelconfig.Service,
 	source agenttool.OperationsSource,
 	createChatModel ChatModelFactory,
 ) (*Agent, error) {
@@ -57,7 +57,7 @@ func (a *Agent) Execute(
 	events agentprotocol.EventSink,
 ) (agentprotocol.Response, error) {
 	connection, err := a.connections.ActiveConnection(ctx)
-	if errors.Is(err, modelbiz.ErrNotConfigured) {
+	if errors.Is(err, modelconfig.ErrNotConfigured) {
 		return agentprotocol.Response{}, agentprotocol.ErrModelNotConfigured
 	}
 	if err != nil {

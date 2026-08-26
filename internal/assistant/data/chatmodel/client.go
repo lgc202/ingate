@@ -1,5 +1,5 @@
-// Package modelclient 将 Assistant 模型连接转换为 Eino 模型客户端。
-package modelclient
+// Package chatmodel 将 Assistant 模型连接转换为 Eino ChatModel。
+package chatmodel
 
 import (
 	"context"
@@ -10,19 +10,19 @@ import (
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	einomodel "github.com/cloudwego/eino/components/model"
 
-	modelbiz "github.com/lgc202/ingate/internal/assistant/biz/model"
+	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 )
 
 // New 只处理模型协议差异。直连或经过 Ingate 的网络路径已经由
 // Connection.Endpoint 确定，不应再进入 Agent 执行逻辑。
 func New(
 	ctx context.Context,
-	connection modelbiz.Connection,
+	connection modelconfig.Connection,
 ) (einomodel.ToolCallingChatModel, error) {
 	switch connection.Protocol {
-	case modelbiz.ProtocolOpenAICompatible:
+	case modelconfig.ProtocolOpenAICompatible:
 		return newOpenAICompatibleModel(ctx, connection)
-	case modelbiz.ProtocolAnthropic:
+	case modelconfig.ProtocolAnthropic:
 		return newAnthropicModel(ctx, connection)
 	default:
 		return nil, fmt.Errorf("unsupported assistant model protocol %d", connection.Protocol)
@@ -31,7 +31,7 @@ func New(
 
 func newOpenAICompatibleModel(
 	ctx context.Context,
-	connection modelbiz.Connection,
+	connection modelconfig.Connection,
 ) (einomodel.ToolCallingChatModel, error) {
 	maxOutputTokens := connection.MaxOutputTokens
 	model, err := openai.NewChatModel(ctx, &openai.ChatModelConfig{
@@ -49,7 +49,7 @@ func newOpenAICompatibleModel(
 
 func newAnthropicModel(
 	ctx context.Context,
-	connection modelbiz.Connection,
+	connection modelconfig.Connection,
 ) (einomodel.ToolCallingChatModel, error) {
 	config := &claude.Config{
 		APIKey:    connection.APIKey,

@@ -1,4 +1,4 @@
-package model
+package modelconfig
 
 import "context"
 

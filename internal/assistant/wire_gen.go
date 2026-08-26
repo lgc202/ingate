@@ -12,13 +12,13 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/agent/operations"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	"github.com/lgc202/ingate/internal/assistant/biz/execution"
-	"github.com/lgc202/ingate/internal/assistant/biz/model"
+	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/assistant/data"
 	"github.com/lgc202/ingate/internal/assistant/server"
 	conversation2 "github.com/lgc202/ingate/internal/assistant/service/conversation"
 	execution2 "github.com/lgc202/ingate/internal/assistant/service/execution"
-	model2 "github.com/lgc202/ingate/internal/assistant/service/model"
+	modelconfig2 "github.com/lgc202/ingate/internal/assistant/service/modelconfig"
 	"github.com/lgc202/ingate/internal/assistant/worker"
 	"log/slog"
 )
@@ -39,8 +39,8 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 	}
 	executionService := execution.NewService(store, eventStore)
 	service2 := execution2.NewService(executionService)
-	modelService := model.NewService(store)
-	service3 := model2.NewService(modelService)
+	modelconfigService := modelconfig.NewService(store)
+	service3 := modelconfig2.NewService(modelconfigService)
 	executionStreamHandler := server.NewStreamHandler(executionService, stream, logger)
 	httpServer := server.NewHTTPServer(confServer, conversationService, service2, service3, executionStreamHandler, store, eventStore, logger)
 	client, cleanup3, err := data.NewAdminClient(contextContext, adminAPI, logger)
@@ -50,7 +50,7 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 		return nil, nil, err
 	}
 	chatModelFactory := data.NewChatModelFactory()
-	agent, err := operations.New(modelService, client, chatModelFactory)
+	agent, err := operations.New(modelconfigService, client, chatModelFactory)
 	if err != nil {
 		cleanup3()
 		cleanup2()

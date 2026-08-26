@@ -17,7 +17,7 @@ import (
 	redisdata "github.com/lgc202/ingate/internal/assistant/data/redis"
 	conversationservice "github.com/lgc202/ingate/internal/assistant/service/conversation"
 	executionservice "github.com/lgc202/ingate/internal/assistant/service/execution"
-	modelservice "github.com/lgc202/ingate/internal/assistant/service/model"
+	modelconfigservice "github.com/lgc202/ingate/internal/assistant/service/modelconfig"
 )
 
 // NewHTTPServer 创建会话 API、SSE 事件流与健康检查服务。
@@ -25,7 +25,7 @@ func NewHTTPServer(
 	config *conf.Server,
 	conversationAPI *conversationservice.Service,
 	executionAPI *executionservice.Service,
-	modelAPI *modelservice.Service,
+	modelAPI *modelconfigservice.Service,
 	streamHandler *executionStreamHandler,
 	mysqlStore *mysql.Store,
 	eventStore *redisdata.EventStore,

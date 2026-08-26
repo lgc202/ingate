@@ -1,5 +1,5 @@
-// Package model 管理运维助手的当前模型连接。
-package model
+// Package modelconfig 管理运维助手的模型连接配置。
+package modelconfig
 
 import (
 	"context"

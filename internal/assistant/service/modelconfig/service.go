@@ -1,5 +1,5 @@
-// Package model 适配运维助手模型连接的 HTTP API 和业务对象。
-package model
+// Package modelconfig 适配运维助手模型连接配置的 HTTP API 和业务对象。
+package modelconfig
 
 import (
 	"context"
@@ -11,24 +11,24 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
-	modelbiz "github.com/lgc202/ingate/internal/assistant/biz/model"
+	modelconfigbiz "github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 )
 
 // Service 实现模型连接的产品协议。
 type Service struct {
-	models *modelbiz.Service
+	connections *modelconfigbiz.Service
 }
 
 // NewService 创建模型连接协议服务。
-func NewService(models *modelbiz.Service) *Service {
-	return &Service{models: models}
+func NewService(connections *modelconfigbiz.Service) *Service {
+	return &Service{connections: connections}
 }
 
 func (s *Service) GetModelConnection(
 	ctx context.Context,
 	_ *emptypb.Empty,
 ) (*assistantv1.ModelConnection, error) {
-	connection, err := s.models.Get(ctx)
+	connection, err := s.connections.Get(ctx)
 	if err != nil {
 		return nil, s.mapError(err)
 	}
@@ -43,34 +43,34 @@ func (s *Service) UpdateModelConnection(
 	if err != nil {
 		return nil, err
 	}
-	connection, err := s.models.Update(ctx, update)
+	connection, err := s.connections.Update(ctx, update)
 	if err != nil {
 		return nil, s.mapError(err)
 	}
 	return s.modelConnectionResponse(connection), nil
 }
 
-func (s *Service) modelUpdate(request *assistantv1.UpdateModelConnectionRequest) (modelbiz.Update, error) {
+func (s *Service) modelUpdate(request *assistantv1.UpdateModelConnectionRequest) (modelconfigbiz.Update, error) {
 	if request.ApiKey != nil && request.GetClearApiKey() {
-		return modelbiz.Update{}, kratoserrors.BadRequest(
+		return modelconfigbiz.Update{}, kratoserrors.BadRequest(
 			"INVALID_ARGUMENT", "apiKey and clearApiKey cannot be used together",
 		)
 	}
 	mode, err := modeFromProto(request.GetConnectionMode())
 	if err != nil {
-		return modelbiz.Update{}, err
+		return modelconfigbiz.Update{}, err
 	}
 	protocol, err := protocolFromProto(request.GetProtocol())
 	if err != nil {
-		return modelbiz.Update{}, err
+		return modelconfigbiz.Update{}, err
 	}
 	apiKey := request.ApiKey
 	if request.GetClearApiKey() {
 		empty := ""
 		apiKey = &empty
 	}
-	return modelbiz.Update{
-		Connection: modelbiz.Connection{
+	return modelconfigbiz.Update{
+		Connection: modelconfigbiz.Connection{
 			Mode:                  mode,
 			Protocol:              protocol,
 			Endpoint:              request.GetEndpoint(),
@@ -83,29 +83,29 @@ func (s *Service) modelUpdate(request *assistantv1.UpdateModelConnectionRequest)
 	}, nil
 }
 
-func protocolFromProto(value assistantv1.ModelProtocol) (modelbiz.Protocol, error) {
+func protocolFromProto(value assistantv1.ModelProtocol) (modelconfigbiz.Protocol, error) {
 	switch value {
 	case assistantv1.ModelProtocol_MODEL_PROTOCOL_OPENAI_COMPATIBLE:
-		return modelbiz.ProtocolOpenAICompatible, nil
+		return modelconfigbiz.ProtocolOpenAICompatible, nil
 	case assistantv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC:
-		return modelbiz.ProtocolAnthropic, nil
+		return modelconfigbiz.ProtocolAnthropic, nil
 	default:
 		return 0, kratoserrors.BadRequest("INVALID_ARGUMENT", "protocol is required")
 	}
 }
 
-func modeFromProto(value assistantv1.ModelConnectionMode) (modelbiz.Mode, error) {
+func modeFromProto(value assistantv1.ModelConnectionMode) (modelconfigbiz.Mode, error) {
 	switch value {
 	case assistantv1.ModelConnectionMode_MODEL_CONNECTION_MODE_DIRECT:
-		return modelbiz.ModeDirect, nil
+		return modelconfigbiz.ModeDirect, nil
 	case assistantv1.ModelConnectionMode_MODEL_CONNECTION_MODE_INGATE:
-		return modelbiz.ModeIngate, nil
+		return modelconfigbiz.ModeIngate, nil
 	default:
 		return 0, kratoserrors.BadRequest("INVALID_ARGUMENT", "connectionMode is required")
 	}
 }
 
-func (s *Service) modelConnectionResponse(connection modelbiz.Connection) *assistantv1.ModelConnection {
+func (s *Service) modelConnectionResponse(connection modelconfigbiz.Connection) *assistantv1.ModelConnection {
 	response := &assistantv1.ModelConnection{
 		Configured:            connection.Configured,
 		ConnectionMode:        modeToProto(connection.Mode),
@@ -123,22 +123,22 @@ func (s *Service) modelConnectionResponse(connection modelbiz.Connection) *assis
 	return response
 }
 
-func protocolToProto(value modelbiz.Protocol) assistantv1.ModelProtocol {
+func protocolToProto(value modelconfigbiz.Protocol) assistantv1.ModelProtocol {
 	switch value {
-	case modelbiz.ProtocolOpenAICompatible:
+	case modelconfigbiz.ProtocolOpenAICompatible:
 		return assistantv1.ModelProtocol_MODEL_PROTOCOL_OPENAI_COMPATIBLE
-	case modelbiz.ProtocolAnthropic:
+	case modelconfigbiz.ProtocolAnthropic:
 		return assistantv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC
 	default:
 		return assistantv1.ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED
 	}
 }
 
-func modeToProto(value modelbiz.Mode) assistantv1.ModelConnectionMode {
+func modeToProto(value modelconfigbiz.Mode) assistantv1.ModelConnectionMode {
 	switch value {
-	case modelbiz.ModeDirect:
+	case modelconfigbiz.ModeDirect:
 		return assistantv1.ModelConnectionMode_MODEL_CONNECTION_MODE_DIRECT
-	case modelbiz.ModeIngate:
+	case modelconfigbiz.ModeIngate:
 		return assistantv1.ModelConnectionMode_MODEL_CONNECTION_MODE_INGATE
 	default:
 		return assistantv1.ModelConnectionMode_MODEL_CONNECTION_MODE_UNSPECIFIED
@@ -146,7 +146,7 @@ func modeToProto(value modelbiz.Mode) assistantv1.ModelConnectionMode {
 }
 
 func (s *Service) mapError(err error) error {
-	if errors.Is(err, modelbiz.ErrInvalidConnection) {
+	if errors.Is(err, modelconfigbiz.ErrInvalidConnection) {
 		return kratoserrors.BadRequest("INVALID_ARGUMENT", "model connection is invalid")
 	}
 	return kratoserrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)

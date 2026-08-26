@@ -7,18 +7,18 @@ import (
 	"fmt"
 	"time"
 
-	modelbiz "github.com/lgc202/ingate/internal/assistant/biz/model"
+	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql/db"
 )
 
 // GetModelConnection 读取当前模型连接。表中无单例行表示系统尚未配置模型。
-func (s *Store) GetModelConnection(ctx context.Context) (modelbiz.Connection, error) {
+func (s *Store) GetModelConnection(ctx context.Context) (modelconfig.Connection, error) {
 	item, err := s.queries.GetAssistantModelConnection(ctx)
 	if errors.Is(err, sql.ErrNoRows) {
-		return modelbiz.Connection{}, modelbiz.ErrNotConfigured
+		return modelconfig.Connection{}, modelconfig.ErrNotConfigured
 	}
 	if err != nil {
-		return modelbiz.Connection{}, fmt.Errorf("get assistant model connection: %w", err)
+		return modelconfig.Connection{}, fmt.Errorf("get assistant model connection: %w", err)
 	}
 	return modelConnectionFromDB(item), nil
 }
@@ -26,9 +26,9 @@ func (s *Store) GetModelConnection(ctx context.Context) (modelbiz.Connection, er
 // UpdateModelConnection 在单个事务中保留或替换 API Key，避免并发修改丢失凭据。
 func (s *Store) UpdateModelConnection(
 	ctx context.Context,
-	update modelbiz.Update,
-) (modelbiz.Connection, error) {
-	var connection modelbiz.Connection
+	update modelconfig.Update,
+) (modelconfig.Connection, error) {
+	var connection modelconfig.Connection
 	err := s.withTransaction(ctx, func(queries *db.Queries) error {
 		apiKey := ""
 		current, err := queries.GetAssistantModelConnectionForUpdate(ctx)
@@ -52,16 +52,16 @@ func (s *Store) UpdateModelConnection(
 		return nil
 	})
 	if err != nil {
-		return modelbiz.Connection{}, fmt.Errorf("update assistant model connection transaction: %w", err)
+		return modelconfig.Connection{}, fmt.Errorf("update assistant model connection transaction: %w", err)
 	}
 	return connection, nil
 }
 
-func modelConnectionFromDB(item db.AssistantModelConnection) modelbiz.Connection {
-	return modelbiz.Connection{
+func modelConnectionFromDB(item db.AssistantModelConnection) modelconfig.Connection {
+	return modelconfig.Connection{
 		Configured:            true,
-		Mode:                  modelbiz.Mode(item.ConnectionMode),
-		Protocol:              modelbiz.Protocol(item.Protocol),
+		Mode:                  modelconfig.Mode(item.ConnectionMode),
+		Protocol:              modelconfig.Protocol(item.Protocol),
 		Endpoint:              item.Endpoint,
 		APIKey:                item.ApiKey,
 		Model:                 item.Model,
@@ -72,7 +72,7 @@ func modelConnectionFromDB(item db.AssistantModelConnection) modelbiz.Connection
 	}
 }
 
-func modelConnectionToDB(connection modelbiz.Connection) db.UpsertAssistantModelConnectionParams {
+func modelConnectionToDB(connection modelconfig.Connection) db.UpsertAssistantModelConnectionParams {
 	return db.UpsertAssistantModelConnectionParams{
 		ConnectionMode:        uint8(connection.Mode),
 		Protocol:              uint8(connection.Protocol),

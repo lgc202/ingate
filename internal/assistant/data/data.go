@@ -11,10 +11,10 @@ import (
 	agenttool "github.com/lgc202/ingate/internal/assistant/agent/tool"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	executionbiz "github.com/lgc202/ingate/internal/assistant/biz/execution"
-	"github.com/lgc202/ingate/internal/assistant/biz/model"
+	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/assistant/data/adminapi"
-	"github.com/lgc202/ingate/internal/assistant/data/modelclient"
+	"github.com/lgc202/ingate/internal/assistant/data/chatmodel"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql"
 	redisdata "github.com/lgc202/ingate/internal/assistant/data/redis"
 )
@@ -30,12 +30,12 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(executionbiz.ServiceStore), new(*mysql.Store)),
 	wire.Bind(new(executionbiz.ExecutorStore), new(*mysql.Store)),
 	wire.Bind(new(executionbiz.EventStore), new(*redisdata.EventStore)),
-	wire.Bind(new(model.Store), new(*mysql.Store)),
+	wire.Bind(new(modelconfig.Store), new(*mysql.Store)),
 )
 
 // NewChatModelFactory 把具体模型 SDK 适配器提供给 Agent 声明的创建边界。
 func NewChatModelFactory() operations.ChatModelFactory {
-	return modelclient.New
+	return chatmodel.New
 }
 
 // NewAdminClient 创建 Assistant 使用的内部 Admin API 客户端，并由 Wire 统一释放连接。
