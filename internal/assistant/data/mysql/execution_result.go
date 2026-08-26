@@ -19,7 +19,7 @@ func (s *Store) CompleteExecution(
 	actorID string,
 	executionID string,
 	workerID string,
-	result execution.AgentResult,
+	result execution.Completion,
 ) (conversation.Message, error) {
 	stored, err := s.queries.GetExecution(ctx, db.GetExecutionParams{ID: executionID, ActorID: actorID})
 	if err != nil {

@@ -33,7 +33,7 @@ type routeInfo struct {
 	ExposedModels []string `json:"exposed_models,omitempty"`
 }
 
-func newRouteTool(resources ResourceReader) (einotool.BaseTool, error) {
+func newRouteTool(resources RouteReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		listRoutesTool,
 		"查询当前 Ingate 环境中的 API 路由和 AI 路由及其网关、服务关联。",
@@ -49,7 +49,7 @@ func newRouteTool(resources ResourceReader) (einotool.BaseTool, error) {
 
 func listRoutes(
 	ctx context.Context,
-	resources ResourceReader,
+	resources RouteReader,
 	input listResourcesInput,
 ) (routeToolOutput, error) {
 	result, err := resources.ListRoutes(ctx, strings.TrimSpace(input.Query), listLimit(input.Limit))

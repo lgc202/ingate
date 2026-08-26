@@ -49,7 +49,7 @@ type failureInfo struct {
 	ServiceID      string  `json:"service_id,omitempty"`
 }
 
-func newFailureTool(resources ResourceReader) (einotool.BaseTool, error) {
+func newFailureTool(resources FailureReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		listRecentFailuresTool,
 		"查询近期客户端错误、服务端错误或无响应请求的排障元数据，可限定 gateway、route 或 service 资源。",
@@ -65,7 +65,7 @@ func newFailureTool(resources ResourceReader) (einotool.BaseTool, error) {
 
 func listRecentFailures(
 	ctx context.Context,
-	resources ResourceReader,
+	resources FailureReader,
 	input recentFailuresInput,
 ) (failureToolOutput, error) {
 	resourceType, resourceID, err := normalizeResourceScope(input.ResourceType, input.ResourceID)

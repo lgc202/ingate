@@ -1,4 +1,4 @@
-package agent
+package operations
 
 import (
 	_ "embed"

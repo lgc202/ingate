@@ -3,7 +3,6 @@ package tool
 
 import (
 	"context"
-	"slices"
 
 	einotool "github.com/cloudwego/eino/components/tool"
 
@@ -20,18 +19,39 @@ const (
 	maxListLimit           = 50
 )
 
-// ResourceReader 是只读工具访问 Ingate 资源所需的最小边界。
-type ResourceReader interface {
+// GatewayReader 是网关列表工具所需的最小查询边界。
+type GatewayReader interface {
 	ListGateways(ctx context.Context, query string, limit int32) (*adminv1.ListGatewaysResponse, error)
+}
+
+// RouteReader 是路由列表工具所需的最小查询边界。
+type RouteReader interface {
 	ListRoutes(ctx context.Context, query string, limit int32) (*adminv1.ListRoutesResponse, error)
+}
+
+// ServiceReader 是服务列表工具所需的最小查询边界。
+type ServiceReader interface {
 	ListServices(ctx context.Context, query string, limit int32) (*adminv1.ListUpstreamsResponse, error)
+}
+
+// TrafficReader 是聚合流量工具所需的查询边界。
+type TrafficReader interface {
 	GetTrafficAnalysis(ctx context.Context, request *adminv1.GetTrafficAnalysisRequest) (*adminv1.GetTrafficAnalysisResponse, error)
+}
+
+// FailureReader 是失败请求工具所需的查询边界。
+type FailureReader interface {
 	ListRequestRecords(ctx context.Context, request *adminv1.ListRequestRecordsRequest) (*adminv1.ListRequestRecordsResponse, error)
 }
 
-// Registry 保存 Assistant 可提供给模型的工具定义。
-type Registry struct {
-	tools []einotool.BaseTool
+// OperationsSource 明确列出运维 Agent 当前需要的所有外部查询能力。
+// 单个工具只接收自己的窄接口；这里仅作为进程装配点组合这些能力。
+type OperationsSource interface {
+	GatewayReader
+	RouteReader
+	ServiceReader
+	TrafficReader
+	FailureReader
 }
 
 type listResourcesInput struct {
@@ -39,36 +59,30 @@ type listResourcesInput struct {
 	Limit int32  `json:"limit,omitempty"`
 }
 
-// NewRegistry 创建当前版本支持的只读工具集合。
-func NewRegistry(resources ResourceReader) (*Registry, error) {
-	gateways, err := newGatewayTool(resources)
+// NewOperations 创建运维 Agent 当前可以提供给模型的只读工具。
+// 返回顺序保持稳定，便于观察不同版本暴露给模型的能力变化。
+func NewOperations(source OperationsSource) ([]einotool.BaseTool, error) {
+	gateways, err := newGatewayTool(source)
 	if err != nil {
 		return nil, err
 	}
-	routes, err := newRouteTool(resources)
+	routes, err := newRouteTool(source)
 	if err != nil {
 		return nil, err
 	}
-	services, err := newServiceTool(resources)
+	services, err := newServiceTool(source)
 	if err != nil {
 		return nil, err
 	}
-	traffic, err := newTrafficTool(resources)
+	traffic, err := newTrafficTool(source)
 	if err != nil {
 		return nil, err
 	}
-	failures, err := newFailureTool(resources)
+	failures, err := newFailureTool(source)
 	if err != nil {
 		return nil, err
 	}
-	return &Registry{
-		tools: []einotool.BaseTool{gateways, routes, services, traffic, failures},
-	}, nil
-}
-
-// All 返回按稳定顺序排列的全部工具。
-func (r *Registry) All() []einotool.BaseTool {
-	return slices.Clone(r.tools)
+	return []einotool.BaseTool{gateways, routes, services, traffic, failures}, nil
 }
 
 func listLimit(limit int32) int32 {

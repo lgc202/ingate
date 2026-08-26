@@ -29,8 +29,8 @@ func (s *Store) CreateExecution(
 	actorID string,
 	conversationID string,
 	content string,
-) (execution.AgentExecution, error) {
-	var created execution.AgentExecution
+) (execution.Execution, error) {
+	var created execution.Execution
 	err := s.withTransaction(ctx, func(queries *db.Queries) error {
 		if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
 			ID: conversationID, ActorID: actorID,
@@ -46,7 +46,7 @@ func (s *Store) CreateExecution(
 		}
 
 		now := time.Now().UTC()
-		created = execution.AgentExecution{
+		created = execution.Execution{
 			ID:             uuid.NewString(),
 			ConversationID: conversationID,
 			State:          execution.StateQueued,
@@ -76,18 +76,18 @@ func (s *Store) CreateExecution(
 		return nil
 	})
 	if err != nil {
-		return execution.AgentExecution{}, fmt.Errorf("create assistant execution transaction: %w", err)
+		return execution.Execution{}, fmt.Errorf("create assistant execution transaction: %w", err)
 	}
 	return created, nil
 }
 
 // CancelExecution 立即取消排队执行；已经开始的执行只记录请求，由持有租约的实例终止模型调用。
-func (s *Store) CancelExecution(ctx context.Context, actorID, executionID string) (execution.AgentExecution, error) {
+func (s *Store) CancelExecution(ctx context.Context, actorID, executionID string) (execution.Execution, error) {
 	stored, err := s.queries.GetExecution(ctx, db.GetExecutionParams{ID: executionID, ActorID: actorID})
 	if err != nil {
-		return execution.AgentExecution{}, executionNotFound(err)
+		return execution.Execution{}, executionNotFound(err)
 	}
-	var result execution.AgentExecution
+	var result execution.Execution
 	err = s.withTransaction(ctx, func(queries *db.Queries) error {
 		if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
 			ID: stored.ConversationID, ActorID: actorID,
@@ -134,30 +134,30 @@ func (s *Store) CancelExecution(ctx context.Context, actorID, executionID string
 		return nil
 	})
 	if err != nil {
-		return execution.AgentExecution{}, fmt.Errorf("cancel assistant execution transaction: %w", err)
+		return execution.Execution{}, fmt.Errorf("cancel assistant execution transaction: %w", err)
 	}
 	return result, nil
 }
 
 // GetExecution 按所有者和执行 ID 查询一次 Agent 执行。
-func (s *Store) GetExecution(ctx context.Context, actorID, id string) (execution.AgentExecution, error) {
+func (s *Store) GetExecution(ctx context.Context, actorID, id string) (execution.Execution, error) {
 	item, err := s.queries.GetExecution(ctx, db.GetExecutionParams{ID: id, ActorID: actorID})
 	if err != nil {
-		return execution.AgentExecution{}, executionNotFound(err)
+		return execution.Execution{}, executionNotFound(err)
 	}
 	result, err := executionFromDB(item)
 	if err != nil {
-		return execution.AgentExecution{}, fmt.Errorf("decode assistant execution: %w", err)
+		return execution.Execution{}, fmt.Errorf("decode assistant execution: %w", err)
 	}
 	return result, nil
 }
 
-func executionFromDB(item db.AssistantAgentExecution) (execution.AgentExecution, error) {
+func executionFromDB(item db.AssistantAgentExecution) (execution.Execution, error) {
 	state, err := executionStateFromDB(item.State)
 	if err != nil {
-		return execution.AgentExecution{}, err
+		return execution.Execution{}, err
 	}
-	result := execution.AgentExecution{
+	result := execution.Execution{
 		ID:                    item.ID,
 		ConversationID:        item.ConversationID,
 		State:                 state,

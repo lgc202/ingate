@@ -52,14 +52,13 @@ const (
 	FailureInternal         FailureCode = "INTERNAL_ERROR"
 	FailureModelUnavailable FailureCode = "MODEL_UNAVAILABLE"
 	FailureToolUnavailable  FailureCode = "TOOL_UNAVAILABLE"
-	FailureEventStore       FailureCode = "EVENT_STORE_UNAVAILABLE"
 	FailureWorkerLost       FailureCode = "WORKER_LOST"
 	FailureWorkerStopped    FailureCode = "WORKER_STOPPED"
 )
 
-// AgentExecution 记录一条用户输入从排队到完成的生命周期。
+// Execution 记录一条用户输入从排队到完成的生命周期。
 // 流式分片只短期保存在 Redis，不进入该持久对象。
-type AgentExecution struct {
+type Execution struct {
 	ID                    string
 	ConversationID        string
 	State                 State
@@ -88,10 +87,10 @@ type Step struct {
 	FinishedAt  *time.Time
 }
 
-// ClaimedExecution 是后台实例已取得租约、可以执行的一次任务。
+// Claim 是后台实例已取得租约、可以执行的一次任务。
 // ActorID 只用于读取所属用户的数据，不会写入事件或返回客户端。
-type ClaimedExecution struct {
-	AgentExecution
+type Claim struct {
+	Execution
 	ActorID string
 }
 

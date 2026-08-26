@@ -17,8 +17,8 @@ func (s *Store) ClaimExecution(
 	ctx context.Context,
 	workerID string,
 	leaseDuration time.Duration,
-) (execution.ClaimedExecution, bool, error) {
-	var claimed execution.ClaimedExecution
+) (execution.Claim, bool, error) {
+	var claim execution.Claim
 	found := false
 	err := s.withTransaction(ctx, func(queries *db.Queries) error {
 		row, err := queries.ClaimNextExecution(ctx)
@@ -41,8 +41,8 @@ func (s *Store) ClaimExecution(
 		if rows != 1 {
 			return execution.ErrStateConflict
 		}
-		claimed = execution.ClaimedExecution{
-			AgentExecution: execution.AgentExecution{
+		claim = execution.Claim{
+			Execution: execution.Execution{
 				ID:             row.ID,
 				ConversationID: row.ConversationID,
 				State:          execution.StateRunning,
@@ -55,9 +55,9 @@ func (s *Store) ClaimExecution(
 		return nil
 	})
 	if err != nil {
-		return execution.ClaimedExecution{}, false, fmt.Errorf("claim assistant execution transaction: %w", err)
+		return execution.Claim{}, false, fmt.Errorf("claim assistant execution transaction: %w", err)
 	}
-	return claimed, found, nil
+	return claim, found, nil
 }
 
 // SetExecutionModel 记录当前租约实际选中的模型，排队阶段不提前固化在线配置。

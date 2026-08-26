@@ -104,7 +104,7 @@ func (h *executionStreamHandler) requestError(err error) error {
 	}
 }
 
-func terminalEvent(item executionbiz.AgentExecution) (executionbiz.StreamEvent, bool) {
+func terminalEvent(item executionbiz.Execution) (executionbiz.StreamEvent, bool) {
 	switch item.State {
 	case executionbiz.StateSucceeded:
 		return executionbiz.StreamEvent{Type: executionbiz.EventCompleted}, true

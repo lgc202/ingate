@@ -30,7 +30,7 @@ type serviceInfo struct {
 	ModelProtocol string `json:"model_protocol,omitempty"`
 }
 
-func newServiceTool(resources ResourceReader) (einotool.BaseTool, error) {
+func newServiceTool(resources ServiceReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		listServicesTool,
 		"查询当前 Ingate 环境中的普通服务和模型服务。不会返回服务凭据或具体地址。",
@@ -46,7 +46,7 @@ func newServiceTool(resources ResourceReader) (einotool.BaseTool, error) {
 
 func listServices(
 	ctx context.Context,
-	resources ResourceReader,
+	resources ServiceReader,
 	input listResourcesInput,
 ) (serviceToolOutput, error) {
 	result, err := resources.ListServices(ctx, strings.TrimSpace(input.Query), listLimit(input.Limit))

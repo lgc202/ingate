@@ -8,17 +8,17 @@ import (
 // Service 提供执行对象的创建、查询、取消和事件读取能力。
 // 模型调用由 Executor 承担，API 请求不会同步执行耗时任务。
 type Service struct {
-	store  Store
+	store  ServiceStore
 	events EventStore
 }
 
 // NewService 创建面向 API 的执行服务。
-func NewService(store Store, events EventStore) *Service {
+func NewService(store ServiceStore, events EventStore) *Service {
 	return &Service{store: store, events: events}
 }
 
 // Get 查询用户可见的一次执行。
-func (s *Service) Get(ctx context.Context, actorID, id string) (AgentExecution, error) {
+func (s *Service) Get(ctx context.Context, actorID, id string) (Execution, error) {
 	return s.store.GetExecution(ctx, actorID, id)
 }
 
@@ -33,15 +33,15 @@ func (s *Service) Create(
 	actorID string,
 	conversationID string,
 	userContent string,
-) (AgentExecution, error) {
+) (Execution, error) {
 	return s.store.CreateExecution(ctx, actorID, conversationID, userContent)
 }
 
 // Cancel 取消排队任务，或通知当前执行实例停止模型调用。
-func (s *Service) Cancel(ctx context.Context, actorID, executionID string) (AgentExecution, error) {
+func (s *Service) Cancel(ctx context.Context, actorID, executionID string) (Execution, error) {
 	item, err := s.store.CancelExecution(ctx, actorID, executionID)
 	if err != nil {
-		return AgentExecution{}, err
+		return Execution{}, err
 	}
 	if item.State == StateCancelled {
 		// 排队任务没有执行实例负责发事件，提交持久终态后主动唤醒订阅者。

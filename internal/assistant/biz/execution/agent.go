@@ -3,50 +3,43 @@ package execution
 import (
 	"context"
 
+	agentprotocol "github.com/lgc202/ingate/internal/assistant/agent"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 )
 
 // Agent 表示后台执行器需要的推理能力。
 // 接口定义在调用方，业务编排不依赖 Eino、模型 SDK 或具体工具实现。
 type Agent interface {
-	Execute(context.Context, AgentRequest) (AgentResult, error)
+	Execute(context.Context, agentprotocol.Request, agentprotocol.EventSink) (agentprotocol.Response, error)
 }
 
-// DeltaType 区分模型流中的推理内容和最终回答。
-type DeltaType uint8
-
-const (
-	DeltaReasoning DeltaType = iota + 1
-	DeltaContent
-)
-
-// Delta 是模型返回的一段增量内容。
-type Delta struct {
-	Type    DeltaType
-	Content string
-}
-
-// AgentRequest 汇集一次推理所需的上下文和生命周期回调。
-// Agent 只负责推理，执行状态、租约和事件持久化仍由 Executor 负责。
-type AgentRequest struct {
-	Messages    []conversation.Message
-	Recorder    StepRecorder
-	SelectModel func(context.Context, string) error
-	Emit        func(Delta) error
-}
-
-// AgentResult 是 Agent 最终需要持久化的用户可见结果。
-type AgentResult struct {
+// Completion 是成功执行提交到会话存储的最终内容。
+// 它属于持久化命令，不携带模型客户端、工具调用或流式事件等临时状态。
+type Completion struct {
 	Content          string
 	ReasoningContent string
 }
 
-// StepRecorder 记录 Agent 循环中真正发生的模型与工具调用。
-// 参数和原始工具结果不得经过这个边界，避免执行追踪成为敏感数据副本。
-type StepRecorder interface {
-	ModelStarted(context.Context, string, string) error
-	ModelCompleted(context.Context, string, string) error
-	ToolStarted(context.Context, string, string) error
-	ToolCompleted(context.Context, string, string) error
-	ToolFailed(context.Context, string) error
+func newAgentRequest(messages []conversation.Message) agentprotocol.Request {
+	request := agentprotocol.Request{
+		Messages: make([]agentprotocol.Message, 0, len(messages)),
+	}
+	for _, message := range messages {
+		var role agentprotocol.Role
+		switch message.Role {
+		case conversation.RoleUser:
+			role = agentprotocol.RoleUser
+		case conversation.RoleAssistant:
+			role = agentprotocol.RoleAssistant
+		default:
+			// 持久层可能在后续加入系统通知等非模型消息。执行上下文只接收 Agent
+			// 明确定义的角色，避免新存储类型未经设计就悄悄改变模型输入。
+			continue
+		}
+		request.Messages = append(request.Messages, agentprotocol.Message{
+			Role:    role,
+			Content: message.Content,
+		})
+	}
+	return request
 }

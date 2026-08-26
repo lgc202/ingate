@@ -1,4 +1,4 @@
-package agent
+package operations
 
 import (
 	"context"
@@ -11,15 +11,15 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/google/uuid"
 
+	agentprotocol "github.com/lgc202/ingate/internal/assistant/agent"
 	agenttool "github.com/lgc202/ingate/internal/assistant/agent/tool"
-	executionbiz "github.com/lgc202/ingate/internal/assistant/biz/execution"
 )
 
-// executionMiddleware 使用 Eino 官方中间件记录真正发生的模型与工具调用。
-// 它按执行创建，不在并发执行之间共享模型调用状态。
-type executionMiddleware struct {
+// eventMiddleware 把 Eino 内部回调转换成稳定的 Agent 事件。
+// 它按执行创建，modelCallID 不会在并发会话之间共享。
+type eventMiddleware struct {
 	modelName   string
-	recorder    executionbiz.StepRecorder
+	events      agentprotocol.EventSink
 	modelCallID string
 }
 
@@ -28,14 +28,8 @@ type invalidToolInputOutput struct {
 	Status  string `json:"status"`
 }
 
-func newExecutionMiddleware(
-	modelName string,
-	recorder executionbiz.StepRecorder,
-) adk.AgentMiddleware {
-	middleware := &executionMiddleware{
-		modelName: modelName,
-		recorder:  recorder,
-	}
+func newEventMiddleware(modelName string, events agentprotocol.EventSink) adk.AgentMiddleware {
+	middleware := &eventMiddleware{modelName: modelName, events: events}
 	return adk.AgentMiddleware{
 		BeforeChatModel: middleware.beforeChatModel,
 		AfterChatModel:  middleware.afterChatModel,
@@ -45,16 +39,22 @@ func newExecutionMiddleware(
 	}
 }
 
-func (m *executionMiddleware) beforeChatModel(ctx context.Context, _ *adk.ChatModelAgentState) error {
+func (m *eventMiddleware) beforeChatModel(
+	ctx context.Context,
+	_ *adk.ChatModelAgentState,
+) error {
 	callID := uuid.NewString()
-	if err := m.recorder.ModelStarted(ctx, callID, m.modelName); err != nil {
+	if err := m.events.Emit(ctx, agentprotocol.ModelCallStarted{
+		CallID: callID,
+		Model:  m.modelName,
+	}); err != nil {
 		return err
 	}
 	m.modelCallID = callID
 	return nil
 }
 
-func (m *executionMiddleware) afterChatModel(
+func (m *eventMiddleware) afterChatModel(
 	ctx context.Context,
 	state *adk.ChatModelAgentState,
 ) error {
@@ -63,28 +63,38 @@ func (m *executionMiddleware) afterChatModel(
 	if len(message.ToolCalls) > 0 {
 		summary = fmt.Sprintf("模型选择了 %d 个工具", len(message.ToolCalls))
 	}
-	if err := m.recorder.ModelCompleted(ctx, m.modelCallID, summary); err != nil {
+	if err := m.events.Emit(ctx, agentprotocol.ModelCallCompleted{
+		CallID:  m.modelCallID,
+		Model:   m.modelName,
+		Summary: summary,
+	}); err != nil {
 		return err
 	}
 	m.modelCallID = ""
 	return nil
 }
 
-func (m *executionMiddleware) wrapToolCall(
+func (m *eventMiddleware) wrapToolCall(
 	next compose.InvokableToolEndpoint,
 ) compose.InvokableToolEndpoint {
 	return func(ctx context.Context, input *compose.ToolInput) (*compose.ToolOutput, error) {
 		callID := input.CallID
 		if callID == "" {
-			// 外部模型没有提供调用 ID 时生成内部关联标识，保证执行步骤仍可唯一结束。
+			// 部分兼容模型不返回工具调用 ID；内部生成关联值后，步骤仍能准确结束。
 			callID = uuid.NewString()
 		}
-		if err := m.recorder.ToolStarted(ctx, callID, input.Name); err != nil {
+		if err := m.events.Emit(ctx, agentprotocol.ToolCallStarted{
+			CallID: callID,
+			Tool:   input.Name,
+		}); err != nil {
 			return nil, err
 		}
+
 		output, err := next(ctx, input)
 		if err != nil {
 			if reason, ok := agenttool.InvalidInputReason(err); ok {
+				// 模型生成的参数不完整不是系统故障。把可修正原因作为工具结果送回循环，
+				// 让模型自行补全参数；此步骤在观测上仍是一次正常完成的工具调用。
 				result, marshalErr := json.Marshal(invalidToolInputOutput{
 					Summary: reason,
 					Status:  "invalid_input",
@@ -92,39 +102,47 @@ func (m *executionMiddleware) wrapToolCall(
 				if marshalErr != nil {
 					return nil, m.failTool(ctx, callID, input.Name, marshalErr)
 				}
-				if recordErr := m.recorder.ToolCompleted(
-					ctx,
-					callID,
-					"工具参数不完整，已请求模型补全后重试",
-				); recordErr != nil {
-					return nil, recordErr
+				if eventErr := m.events.Emit(ctx, agentprotocol.ToolCallCompleted{
+					CallID:  callID,
+					Tool:    input.Name,
+					Summary: "工具参数不完整，已请求模型补全后重试",
+				}); eventErr != nil {
+					return nil, eventErr
 				}
 				return &compose.ToolOutput{Result: string(result)}, nil
 			}
 			return nil, m.failTool(ctx, callID, input.Name, err)
 		}
+
 		summary, err := toolResultSummary(output.Result)
 		if err != nil {
 			return nil, m.failTool(ctx, callID, input.Name, err)
 		}
-		if err := m.recorder.ToolCompleted(ctx, callID, summary); err != nil {
+		if err := m.events.Emit(ctx, agentprotocol.ToolCallCompleted{
+			CallID:  callID,
+			Tool:    input.Name,
+			Summary: summary,
+		}); err != nil {
 			return nil, err
 		}
 		return output, nil
 	}
 }
 
-func (m *executionMiddleware) failTool(
+func (m *eventMiddleware) failTool(
 	ctx context.Context,
 	callID string,
 	name string,
 	cause error,
 ) error {
-	recordErr := m.recorder.ToolFailed(ctx, callID)
+	eventErr := m.events.Emit(ctx, agentprotocol.ToolCallFailed{
+		CallID: callID,
+		Tool:   name,
+	})
 	return errors.Join(
-		executionbiz.ErrToolUnavailable,
+		agentprotocol.ErrToolUnavailable,
 		fmt.Errorf("execute assistant tool %q: %w", name, cause),
-		recordErr,
+		eventErr,
 	)
 }
 

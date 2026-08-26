@@ -9,7 +9,7 @@ package assistant
 import (
 	"context"
 	"github.com/go-kratos/kratos/v3"
-	"github.com/lgc202/ingate/internal/assistant/agent"
+	"github.com/lgc202/ingate/internal/assistant/agent/operations"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/biz/model"
@@ -50,14 +50,14 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 		return nil, nil, err
 	}
 	chatModelFactory := data.NewChatModelFactory()
-	agentAgent, err := agent.NewAgent(modelService, client, chatModelFactory)
+	agent, err := operations.New(modelService, client, chatModelFactory)
 	if err != nil {
 		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	executor := execution.NewExecutor(store, eventStore, agentAgent)
+	executor := execution.NewExecutor(store, eventStore, agent)
 	executionWorker := worker.NewExecutionWorker(confWorker, executor, logger)
 	app := newKratosApp(logger, confServer, httpServer, executionWorker, assistantServiceInstanceID)
 	return app, func() {

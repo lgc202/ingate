@@ -107,7 +107,7 @@ func mapError(err error) error {
 	}
 }
 
-func executionResponse(item executionbiz.AgentExecution) *assistantv1.AgentExecution {
+func executionResponse(item executionbiz.Execution) *assistantv1.AgentExecution {
 	state := assistantv1.AgentExecutionState_AGENT_EXECUTION_STATE_UNSPECIFIED
 	switch item.State {
 	case executionbiz.StateQueued:

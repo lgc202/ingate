@@ -135,7 +135,6 @@ export function executionErrorMessage(code: string, steps: AgentExecutionStep[] 
   }
   if (code === 'MODEL_UNAVAILABLE') return '模型暂时不可用，请稍后重试';
   if (code === 'TOOL_UNAVAILABLE') return '助手工具暂时不可用，请稍后重试';
-  if (code === 'EVENT_STORE_UNAVAILABLE') return '回答事件暂时无法传输，请稍后重试';
   if (code === 'WORKER_LOST' || code === 'WORKER_STOPPED') return '任务执行已中断，请重新发送';
   return '助手未能完成本次回答，请稍后重试';
 }

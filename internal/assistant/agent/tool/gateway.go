@@ -35,7 +35,7 @@ type listenerInfo struct {
 	Hostname string `json:"hostname,omitempty"`
 }
 
-func newGatewayTool(resources ResourceReader) (einotool.BaseTool, error) {
+func newGatewayTool(resources GatewayReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		listGatewaysTool,
 		"查询当前 Ingate 环境中的网关入口。可按名称、域名或监听入口搜索。",
@@ -51,7 +51,7 @@ func newGatewayTool(resources ResourceReader) (einotool.BaseTool, error) {
 
 func listGateways(
 	ctx context.Context,
-	resources ResourceReader,
+	resources GatewayReader,
 	input listResourcesInput,
 ) (gatewayToolOutput, error) {
 	result, err := resources.ListGateways(ctx, strings.TrimSpace(input.Query), listLimit(input.Limit))

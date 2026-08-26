@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/wire"
 
-	"github.com/lgc202/ingate/internal/assistant/agent"
+	"github.com/lgc202/ingate/internal/assistant/agent/operations"
 	agenttool "github.com/lgc202/ingate/internal/assistant/agent/tool"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	executionbiz "github.com/lgc202/ingate/internal/assistant/biz/execution"
@@ -25,15 +25,16 @@ var ProviderSet = wire.NewSet(
 	NewEventStore,
 	NewAdminClient,
 	NewChatModelFactory,
-	wire.Bind(new(agenttool.ResourceReader), new(*adminapi.Client)),
+	wire.Bind(new(agenttool.OperationsSource), new(*adminapi.Client)),
 	wire.Bind(new(conversation.Store), new(*mysql.Store)),
-	wire.Bind(new(executionbiz.Store), new(*mysql.Store)),
+	wire.Bind(new(executionbiz.ServiceStore), new(*mysql.Store)),
+	wire.Bind(new(executionbiz.ExecutorStore), new(*mysql.Store)),
 	wire.Bind(new(executionbiz.EventStore), new(*redisdata.EventStore)),
 	wire.Bind(new(model.Store), new(*mysql.Store)),
 )
 
 // NewChatModelFactory 把具体模型 SDK 适配器提供给 Agent 声明的创建边界。
-func NewChatModelFactory() agent.ChatModelFactory {
+func NewChatModelFactory() operations.ChatModelFactory {
 	return modelclient.New
 }
 

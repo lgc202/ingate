@@ -72,35 +72,35 @@ func (w *ExecutionWorker) Start(ctx context.Context) error {
 		workerID := fmt.Sprintf("%s/%d", w.instanceID, slot)
 		go func() {
 			defer group.Done()
-			w.execute(ctx, workerID, slot)
+			w.serveSlot(ctx, workerID, slot)
 		}()
 	}
 	group.Wait()
 	return nil
 }
 
-// execute 串行使用一个执行槽；多个槽之间通过数据库原子领取实现并发。
-func (w *ExecutionWorker) execute(ctx context.Context, workerID string, slot int) {
+// serveSlot 串行使用一个执行槽；多个槽之间通过数据库原子领取实现并发。
+func (w *ExecutionWorker) serveSlot(ctx context.Context, workerID string, slot int) {
 	for {
 		if ctx.Err() != nil {
 			return
 		}
 
-		claimed, err := w.executor.ExecuteNext(ctx, workerID, w.leaseDuration)
+		handled, err := w.executor.ExecuteNext(ctx, workerID, w.leaseDuration)
 		if ctx.Err() != nil {
 			return
 		}
 		if err != nil {
 			w.logger.Error("assistant execution failed", "slot", slot, "err", err)
-			if !w.wait(ctx, executionErrorDelay) {
+			if !w.pause(ctx, executionErrorDelay) {
 				return
 			}
 			continue
 		}
-		if claimed {
+		if handled {
 			continue
 		}
-		if !w.wait(ctx, w.pollInterval) {
+		if !w.pause(ctx, w.pollInterval) {
 			return
 		}
 	}
@@ -115,7 +115,7 @@ func (w *ExecutionWorker) recoverExpiredExecutions(ctx context.Context) {
 		}
 		if err != nil {
 			w.logger.Error("recover expired assistant executions failed", "err", err)
-			if !w.wait(ctx, executionErrorDelay) {
+			if !w.pause(ctx, executionErrorDelay) {
 				return
 			}
 			continue
@@ -123,7 +123,7 @@ func (w *ExecutionWorker) recoverExpiredExecutions(ctx context.Context) {
 		if count > 0 {
 			w.logger.Warn("expired assistant executions marked as failed", "count", count)
 		}
-		if !w.wait(ctx, w.leaseDuration) {
+		if !w.pause(ctx, w.leaseDuration) {
 			return
 		}
 	}
@@ -146,7 +146,7 @@ func (w *ExecutionWorker) Stop(ctx context.Context) error {
 	}
 }
 
-func (w *ExecutionWorker) wait(ctx context.Context, duration time.Duration) bool {
+func (w *ExecutionWorker) pause(ctx context.Context, duration time.Duration) bool {
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
 	select {

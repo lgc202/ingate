@@ -47,7 +47,7 @@ type trafficMetricsInfo struct {
 	P99Millis        float64 `json:"p99_millis"`
 }
 
-func newTrafficTool(resources ResourceReader) (einotool.BaseTool, error) {
+func newTrafficTool(resources TrafficReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		getRecentTrafficTool,
 		"查询最近一段时间的请求量、错误和延迟，可限定 gateway、route 或 service 资源。",
@@ -63,7 +63,7 @@ func newTrafficTool(resources ResourceReader) (einotool.BaseTool, error) {
 
 func getRecentTraffic(
 	ctx context.Context,
-	resources ResourceReader,
+	resources TrafficReader,
 	input recentTrafficInput,
 ) (trafficToolOutput, error) {
 	resourceType, resourceID, err := normalizeResourceScope(input.ResourceType, input.ResourceID)

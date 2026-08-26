@@ -7,21 +7,26 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 )
 
-// Store 由执行业务定义持久化边界，MySQL 实现领取、租约和终态事务。
-type Store interface {
-	ListRecentMessages(context.Context, string, string, int) ([]conversation.Message, error)
-	CreateExecution(context.Context, string, string, string) (AgentExecution, error)
-	GetExecution(context.Context, string, string) (AgentExecution, error)
+// ServiceStore 是面向 HTTP API 的持久化边界。
+// 它只暴露用户能够发起的操作，不把 Worker 的领取、租约和终态提交能力带入请求链路。
+type ServiceStore interface {
+	CreateExecution(context.Context, string, string, string) (Execution, error)
+	GetExecution(context.Context, string, string) (Execution, error)
 	ListExecutionSteps(context.Context, string, string) ([]Step, error)
-	CancelExecution(context.Context, string, string) (AgentExecution, error)
+	CancelExecution(context.Context, string, string) (Execution, error)
+}
 
-	ClaimExecution(context.Context, string, time.Duration) (ClaimedExecution, bool, error)
+// ExecutorStore 是后台执行器使用的持久化边界。
+// 领取、续租、步骤和终态必须由同一个存储实现协调，才能保证一次执行只由租约持有者提交。
+type ExecutorStore interface {
+	ListRecentMessages(context.Context, string, string, int) ([]conversation.Message, error)
+	ClaimExecution(context.Context, string, time.Duration) (Claim, bool, error)
 	SetExecutionModel(context.Context, string, string, string) error
 	StartExecutionStep(context.Context, string, string, Step) (Step, error)
 	CompleteExecutionStep(context.Context, string, string, string, StepKind, string) error
 	FailExecutionStep(context.Context, string, string, string, StepKind, FailureCode) error
 	RenewExecutionLease(context.Context, string, string, time.Duration) (bool, error)
-	CompleteExecution(context.Context, string, string, string, AgentResult) (conversation.Message, error)
+	CompleteExecution(context.Context, string, string, string, Completion) (conversation.Message, error)
 	FailExecution(context.Context, string, string, string, FailureCode) error
 	FinishExecutionCancellation(context.Context, string, string) error
 	FailExpiredExecutions(context.Context) (int64, error)
