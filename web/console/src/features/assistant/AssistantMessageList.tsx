@@ -1,5 +1,6 @@
 import type { RefObject } from 'react';
-import { Bot, Check, CircleAlert, LoaderCircle, Settings2, Sparkles, UserRound } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Bot, Check, CircleAlert, Copy, LoaderCircle, Settings2, Sparkles, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui';
 import type { AssistantMessage, AssistantRun, AssistantRunItem } from '@/domain/assistant';
 import { runItemLabel, runStateLabel } from '@/domain/assistant';
@@ -100,6 +101,24 @@ function AssistantWelcome({
 
 function MessageBubble({ message }: { message: AssistantMessage }) {
   const user = message.role === 'MESSAGE_ROLE_USER';
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle');
+
+  useEffect(() => {
+    if (copyState === 'idle') return undefined;
+
+    const timeout = window.setTimeout(() => setCopyState('idle'), 1500);
+    return () => window.clearTimeout(timeout);
+  }, [copyState]);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
+  };
+
   return (
     <article className={`assistant-message${user ? ' is-user' : ' is-assistant'}`}>
       <span>{user ? <UserRound aria-hidden="true" /> : <Bot aria-hidden="true" />}</span>
@@ -112,6 +131,12 @@ function MessageBubble({ message }: { message: AssistantMessage }) {
           </details>
         ) : null}
         <p className="assistant-message-content">{message.content}</p>
+        <div className="assistant-message-actions">
+          <button type="button" onClick={() => void copy()}>
+            {copyState === 'copied' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+            {copyState === 'copied' ? '已复制' : copyState === 'failed' ? '复制失败' : '复制'}
+          </button>
+        </div>
       </div>
     </article>
   );

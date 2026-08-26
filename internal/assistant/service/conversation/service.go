@@ -48,6 +48,8 @@ func (s *Service) actorID(ctx context.Context) (string, error) {
 
 func (s *Service) mapError(err error) error {
 	switch {
+	case errors.Is(err, conversationbiz.ErrInvalidTitle):
+		return invalidArgument("conversation title is required")
 	case errors.Is(err, conversationbiz.ErrNotFound), errors.Is(err, runbiz.ErrNotFound):
 		return kratoserrors.NotFound("RESOURCE_NOT_FOUND", "resource not found")
 	case errors.Is(err, runbiz.ErrStateConflict), errors.Is(err, runbiz.ErrConversationBusy):

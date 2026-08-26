@@ -1753,6 +1753,13 @@ body { overflow-x: hidden; }
 .is-collapsed .session-user { display: flex; justify-content: center; }
 
 .console-workspace { min-width: 0; min-height: 100vh; }
+.console-workspace.is-assistant {
+  height: 100dvh;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 64px minmax(0, 1fr);
+  overflow: hidden;
+}
 .workspace-header { position: sticky; top: 0; z-index: 30; height: 64px; padding: 0 30px; display: flex; align-items: center; justify-content: space-between; gap: 20px; background: rgba(250,249,246,0.9); border-bottom: 1px solid #dfded8; backdrop-filter: blur(16px); }
 .breadcrumb { display: flex; align-items: center; gap: 7px; color: #8b8e96; font-size: 0.8rem; }
 .breadcrumb svg { width: 13px; height: 13px; color: #b0b2b8; }
@@ -1764,6 +1771,15 @@ body { overflow-x: hidden; }
 .header-icon svg { width: 16px; }
 .header-icon i { position: absolute; top: 7px; right: 8px; width: 6px; height: 6px; border: 2px solid #fff; border-radius: 50%; background: var(--orange); }
 .workspace-content { padding: 28px 30px 50px; }
+.console-workspace.is-assistant .workspace-content {
+  min-height: 0;
+  overflow: hidden;
+}
+.console-workspace.is-assistant .content-grid {
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
 .workspace-content .content-grid { gap: 18px; }
 .workspace-content .topbar { min-height: 52px; padding-bottom: 14px; border-color: #deddd8; }
 .workspace-content .page-title { font-size: 1.48rem; }
@@ -2107,8 +2123,8 @@ body { overflow-x: hidden; }
 .assistant-model-status span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .assistant-workbench {
-  height: calc(100dvh - 190px);
-  min-height: 610px;
+  height: 100%;
+  min-height: 0;
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr);
   overflow: hidden;
@@ -2137,9 +2153,11 @@ body { overflow-x: hidden; }
 .assistant-conversation-item:hover .assistant-conversation-more > button,
 .assistant-conversation-more > button[aria-expanded="true"] { opacity: 1; }
 .assistant-conversation-more svg { width: 15px; height: 15px; }
-.assistant-conversation-more > div { position: absolute; z-index: 5; top: 31px; right: 4px; min-width: 94px; padding: 4px; border: 1px solid #dedfda; border-radius: 8px; background: #fff; box-shadow: 0 10px 24px rgba(32, 35, 43, .12); }
-.assistant-conversation-more > div button { width: 100%; min-height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 8px; border: 0; border-radius: 5px; color: var(--red); background: transparent; font-size: .7rem; cursor: pointer; }
-.assistant-conversation-more > div button:hover { background: var(--red-soft); }
+.assistant-conversation-more > div { position: absolute; z-index: 5; top: 31px; right: 4px; min-width: 104px; padding: 4px; border: 1px solid #dedfda; border-radius: 8px; background: #fff; box-shadow: 0 10px 24px rgba(32, 35, 43, .12); }
+.assistant-conversation-more > div button { width: 100%; min-height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 8px; border: 0; border-radius: 5px; color: #5f6570; background: transparent; font-size: .7rem; cursor: pointer; }
+.assistant-conversation-more > div button:hover { color: #333947; background: #f2f3f5; }
+.assistant-conversation-more > div button.is-danger { color: var(--red); }
+.assistant-conversation-more > div button.is-danger:hover { background: var(--red-soft); }
 .assistant-load-more { width: calc(100% - 16px); min-height: 32px; margin: 10px 8px 0; border: 1px solid #dcddd9; border-radius: 7px; color: #717680; background: #fff; font-size: .68rem; cursor: pointer; }
 .assistant-load-more:hover { border-color: #c5c9d8; color: var(--accent); }
 
@@ -2172,8 +2190,16 @@ body { overflow-x: hidden; }
 .assistant-message > span svg { width: 16px; height: 16px; }
 .assistant-message > div { min-width: 0; }
 .assistant-message > div > strong { display: block; margin: 1px 0 7px; color: #5d626c; font-size: .7rem; }
-.assistant-message.is-user .assistant-message-content { display: inline-block; padding: 11px 14px; border-radius: 4px 12px 12px 12px; background: #f2f2ef; }
+.assistant-message.is-user { grid-template-columns: minmax(0, 1fr) 34px; }
+.assistant-message.is-user > span { grid-column: 2; grid-row: 1; }
+.assistant-message.is-user > div { max-width: 78%; grid-column: 1; grid-row: 1; justify-self: end; text-align: right; }
+.assistant-message.is-user .assistant-message-content { display: inline-block; padding: 11px 14px; border-radius: 12px 4px 12px 12px; background: #f2f2ef; text-align: left; }
 .assistant-message-content { margin: 0; color: #30343d; font-size: .79rem; line-height: 1.78; white-space: pre-wrap; overflow-wrap: anywhere; }
+.assistant-message-actions { min-height: 26px; margin-top: 7px; display: flex; align-items: center; }
+.assistant-message.is-user .assistant-message-actions { justify-content: flex-end; }
+.assistant-message-actions button { min-height: 26px; padding: 3px 7px; display: inline-flex; align-items: center; gap: 5px; border: 0; border-radius: 6px; color: #858a94; background: transparent; font-size: .64rem; cursor: pointer; }
+.assistant-message-actions button:hover { color: #3f496f; background: #f3f4f8; }
+.assistant-message-actions svg { width: 13px; height: 13px; }
 .assistant-reasoning { margin: 0 0 12px; padding: 10px 12px; border-left: 2px solid #c8cdeb; color: #666c78; background: #f7f7fa; }
 .assistant-reasoning summary { color: #777d89; font-size: .68rem; font-weight: 700; cursor: pointer; }
 .assistant-reasoning p { margin: 8px 0 0; font-size: .7rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -2239,6 +2265,14 @@ body { overflow-x: hidden; }
 }
 
 @media (max-width: 900px) {
+  .console-workspace.is-assistant {
+    height: auto;
+    min-height: 100vh;
+    display: block;
+    overflow: visible;
+  }
+  .console-workspace.is-assistant .workspace-content { overflow: visible; }
+  .console-workspace.is-assistant .content-grid { height: auto; display: grid; }
   .assistant-workbench { height: auto; min-height: 660px; grid-template-columns: 190px minmax(0, 1fr); }
   .assistant-message-list { min-height: 480px; padding-inline: 20px; }
   .assistant-composer-wrap { padding-inline: 20px; }

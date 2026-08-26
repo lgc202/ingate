@@ -34,6 +34,29 @@ func (s *Store) Get(ctx context.Context, actorID, id string) (conversation.Conve
 	return conversationFromDB(item), nil
 }
 
+// UpdateTitle 修改属于当前调用方的会话名称，并返回数据库中的最终状态。
+func (s *Store) UpdateTitle(
+	ctx context.Context,
+	actorID string,
+	id string,
+	title string,
+	updatedAt time.Time,
+) (conversation.Conversation, error) {
+	rows, err := s.queries.UpdateConversationTitle(ctx, db.UpdateConversationTitleParams{
+		Title:     title,
+		UpdatedAt: updatedAt,
+		ID:        id,
+		ActorID:   actorID,
+	})
+	if err != nil {
+		return conversation.Conversation{}, fmt.Errorf("update conversation title: %w", err)
+	}
+	if rows != 1 {
+		return conversation.Conversation{}, conversation.ErrNotFound
+	}
+	return s.Get(ctx, actorID, id)
+}
+
 // List 使用 updated_at 和 id 组成稳定游标，避免会话活跃度相同时漏项。
 func (s *Store) List(
 	ctx context.Context,

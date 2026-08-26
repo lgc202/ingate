@@ -924,6 +924,58 @@ func (x *CreateConversationRequest) GetTitle() string {
 	return ""
 }
 
+type UpdateConversationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateConversationRequest) Reset() {
+	*x = UpdateConversationRequest{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateConversationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateConversationRequest) ProtoMessage() {}
+
+func (x *UpdateConversationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateConversationRequest.ProtoReflect.Descriptor instead.
+func (*UpdateConversationRequest) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *UpdateConversationRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *UpdateConversationRequest) GetTitle() string {
+	if x != nil {
+		return x.Title
+	}
+	return ""
+}
+
 type DeleteConversationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -933,7 +985,7 @@ type DeleteConversationRequest struct {
 
 func (x *DeleteConversationRequest) Reset() {
 	*x = DeleteConversationRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[8]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -945,7 +997,7 @@ func (x *DeleteConversationRequest) String() string {
 func (*DeleteConversationRequest) ProtoMessage() {}
 
 func (x *DeleteConversationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[8]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -958,7 +1010,7 @@ func (x *DeleteConversationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteConversationRequest.ProtoReflect.Descriptor instead.
 func (*DeleteConversationRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{8}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeleteConversationRequest) GetId() string {
@@ -979,7 +1031,7 @@ type ListMessagesRequest struct {
 
 func (x *ListMessagesRequest) Reset() {
 	*x = ListMessagesRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[9]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -991,7 +1043,7 @@ func (x *ListMessagesRequest) String() string {
 func (*ListMessagesRequest) ProtoMessage() {}
 
 func (x *ListMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[9]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1004,7 +1056,7 @@ func (x *ListMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessagesRequest.ProtoReflect.Descriptor instead.
 func (*ListMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{9}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListMessagesRequest) GetConversationId() string {
@@ -1038,7 +1090,7 @@ type ListMessagesResponse struct {
 
 func (x *ListMessagesResponse) Reset() {
 	*x = ListMessagesResponse{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[10]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1050,7 +1102,7 @@ func (x *ListMessagesResponse) String() string {
 func (*ListMessagesResponse) ProtoMessage() {}
 
 func (x *ListMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[10]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1063,7 +1115,7 @@ func (x *ListMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessagesResponse.ProtoReflect.Descriptor instead.
 func (*ListMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{10}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListMessagesResponse) GetMessages() []*Message {
@@ -1089,7 +1141,7 @@ type GetRunRequest struct {
 
 func (x *GetRunRequest) Reset() {
 	*x = GetRunRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1101,7 +1153,7 @@ func (x *GetRunRequest) String() string {
 func (*GetRunRequest) ProtoMessage() {}
 
 func (x *GetRunRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1114,7 +1166,7 @@ func (x *GetRunRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetRunRequest.ProtoReflect.Descriptor instead.
 func (*GetRunRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{11}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetRunRequest) GetId() string {
@@ -1133,7 +1185,7 @@ type ListRunItemsRequest struct {
 
 func (x *ListRunItemsRequest) Reset() {
 	*x = ListRunItemsRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1145,7 +1197,7 @@ func (x *ListRunItemsRequest) String() string {
 func (*ListRunItemsRequest) ProtoMessage() {}
 
 func (x *ListRunItemsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1158,7 +1210,7 @@ func (x *ListRunItemsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRunItemsRequest.ProtoReflect.Descriptor instead.
 func (*ListRunItemsRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{12}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListRunItemsRequest) GetRunId() string {
@@ -1177,7 +1229,7 @@ type ListRunItemsResponse struct {
 
 func (x *ListRunItemsResponse) Reset() {
 	*x = ListRunItemsResponse{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1189,7 +1241,7 @@ func (x *ListRunItemsResponse) String() string {
 func (*ListRunItemsResponse) ProtoMessage() {}
 
 func (x *ListRunItemsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1202,7 +1254,7 @@ func (x *ListRunItemsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListRunItemsResponse.ProtoReflect.Descriptor instead.
 func (*ListRunItemsResponse) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{13}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *ListRunItemsResponse) GetItems() []*RunItem {
@@ -1222,7 +1274,7 @@ type CreateRunRequest struct {
 
 func (x *CreateRunRequest) Reset() {
 	*x = CreateRunRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1234,7 +1286,7 @@ func (x *CreateRunRequest) String() string {
 func (*CreateRunRequest) ProtoMessage() {}
 
 func (x *CreateRunRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1247,7 +1299,7 @@ func (x *CreateRunRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateRunRequest.ProtoReflect.Descriptor instead.
 func (*CreateRunRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{14}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *CreateRunRequest) GetConversationId() string {
@@ -1273,7 +1325,7 @@ type CancelRunRequest struct {
 
 func (x *CancelRunRequest) Reset() {
 	*x = CancelRunRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1285,7 +1337,7 @@ func (x *CancelRunRequest) String() string {
 func (*CancelRunRequest) ProtoMessage() {}
 
 func (x *CancelRunRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1298,7 +1350,7 @@ func (x *CancelRunRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelRunRequest.ProtoReflect.Descriptor instead.
 func (*CancelRunRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{15}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *CancelRunRequest) GetId() string {
@@ -1328,7 +1380,7 @@ type ModelConnection struct {
 
 func (x *ModelConnection) Reset() {
 	*x = ModelConnection{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1340,7 +1392,7 @@ func (x *ModelConnection) String() string {
 func (*ModelConnection) ProtoMessage() {}
 
 func (x *ModelConnection) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1353,7 +1405,7 @@ func (x *ModelConnection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelConnection.ProtoReflect.Descriptor instead.
 func (*ModelConnection) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{16}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ModelConnection) GetConfigured() bool {
@@ -1444,7 +1496,7 @@ type UpdateModelConnectionRequest struct {
 
 func (x *UpdateModelConnectionRequest) Reset() {
 	*x = UpdateModelConnectionRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[17]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1456,7 +1508,7 @@ func (x *UpdateModelConnectionRequest) String() string {
 func (*UpdateModelConnectionRequest) ProtoMessage() {}
 
 func (x *UpdateModelConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[17]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1469,7 +1521,7 @@ func (x *UpdateModelConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateModelConnectionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateModelConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{17}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *UpdateModelConnectionRequest) GetConnectionMode() ModelConnectionMode {
@@ -1597,7 +1649,11 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\x16GetConversationRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\";\n" +
 	"\x19CreateConversationRequest\x12\x1e\n" +
-	"\x05title\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xa0\x01R\x05title\"5\n" +
+	"\x05title\x18\x01 \x01(\tB\b\xbaH\x05r\x03\x18\xa0\x01R\x05title\"W\n" +
+	"\x19UpdateConversationRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12 \n" +
+	"\x05title\x18\x02 \x01(\tB\n" +
+	"\xbaH\ar\x05\x10\x01\x18\xa0\x01R\x05title\"5\n" +
 	"\x19DeleteConversationRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x7f\n" +
 	"\x13ListMessagesRequest\x121\n" +
@@ -1677,11 +1733,12 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\x16RUN_ITEM_STATE_RUNNING\x10\x01\x12\x1c\n" +
 	"\x18RUN_ITEM_STATE_COMPLETED\x10\x02\x12\x19\n" +
 	"\x15RUN_ITEM_STATE_FAILED\x10\x03\x12\x1c\n" +
-	"\x18RUN_ITEM_STATE_CANCELLED\x10\x042\xff\t\n" +
+	"\x18RUN_ITEM_STATE_CANCELLED\x10\x042\x96\v\n" +
 	"\x13ConversationService\x12\x97\x01\n" +
 	"\x11ListConversations\x12-.ingate.assistant.v1.ListConversationsRequest\x1a..ingate.assistant.v1.ListConversationsResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/assistant/v1/conversations\x12\x8b\x01\n" +
 	"\x0fGetConversation\x12+.ingate.assistant.v1.GetConversationRequest\x1a!.ingate.assistant.v1.Conversation\"(\x82\xd3\xe4\x93\x02\"\x12 /assistant/v1/conversations/{id}\x12\x8f\x01\n" +
-	"\x12CreateConversation\x12..ingate.assistant.v1.CreateConversationRequest\x1a!.ingate.assistant.v1.Conversation\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/assistant/v1/conversations\x12\x86\x01\n" +
+	"\x12CreateConversation\x12..ingate.assistant.v1.CreateConversationRequest\x1a!.ingate.assistant.v1.Conversation\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/assistant/v1/conversations\x12\x94\x01\n" +
+	"\x12UpdateConversation\x12..ingate.assistant.v1.UpdateConversationRequest\x1a!.ingate.assistant.v1.Conversation\"+\x82\xd3\xe4\x93\x02%:\x01*2 /assistant/v1/conversations/{id}\x12\x86\x01\n" +
 	"\x12DeleteConversation\x12..ingate.assistant.v1.DeleteConversationRequest\x1a\x16.google.protobuf.Empty\"(\x82\xd3\xe4\x93\x02\"* /assistant/v1/conversations/{id}\x12\xa3\x01\n" +
 	"\fListMessages\x12(.ingate.assistant.v1.ListMessagesRequest\x1a).ingate.assistant.v1.ListMessagesResponse\">\x82\xd3\xe4\x93\x028\x126/assistant/v1/conversations/{conversation_id}/messages\x12\x8b\x01\n" +
 	"\tCreateRun\x12%.ingate.assistant.v1.CreateRunRequest\x1a\x18.ingate.assistant.v1.Run\"=\x82\xd3\xe4\x93\x027:\x01*\"2/assistant/v1/conversations/{conversation_id}/runs\x12g\n" +
@@ -1705,7 +1762,7 @@ func file_assistant_v1_assistant_proto_rawDescGZIP() []byte {
 }
 
 var file_assistant_v1_assistant_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_assistant_v1_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_assistant_v1_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_assistant_v1_assistant_proto_goTypes = []any{
 	(ModelConnectionMode)(0),             // 0: ingate.assistant.v1.ModelConnectionMode
 	(ModelProtocol)(0),                   // 1: ingate.assistant.v1.ModelProtocol
@@ -1721,65 +1778,68 @@ var file_assistant_v1_assistant_proto_goTypes = []any{
 	(*ListConversationsResponse)(nil),    // 11: ingate.assistant.v1.ListConversationsResponse
 	(*GetConversationRequest)(nil),       // 12: ingate.assistant.v1.GetConversationRequest
 	(*CreateConversationRequest)(nil),    // 13: ingate.assistant.v1.CreateConversationRequest
-	(*DeleteConversationRequest)(nil),    // 14: ingate.assistant.v1.DeleteConversationRequest
-	(*ListMessagesRequest)(nil),          // 15: ingate.assistant.v1.ListMessagesRequest
-	(*ListMessagesResponse)(nil),         // 16: ingate.assistant.v1.ListMessagesResponse
-	(*GetRunRequest)(nil),                // 17: ingate.assistant.v1.GetRunRequest
-	(*ListRunItemsRequest)(nil),          // 18: ingate.assistant.v1.ListRunItemsRequest
-	(*ListRunItemsResponse)(nil),         // 19: ingate.assistant.v1.ListRunItemsResponse
-	(*CreateRunRequest)(nil),             // 20: ingate.assistant.v1.CreateRunRequest
-	(*CancelRunRequest)(nil),             // 21: ingate.assistant.v1.CancelRunRequest
-	(*ModelConnection)(nil),              // 22: ingate.assistant.v1.ModelConnection
-	(*UpdateModelConnectionRequest)(nil), // 23: ingate.assistant.v1.UpdateModelConnectionRequest
-	(*timestamppb.Timestamp)(nil),        // 24: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                // 25: google.protobuf.Empty
+	(*UpdateConversationRequest)(nil),    // 14: ingate.assistant.v1.UpdateConversationRequest
+	(*DeleteConversationRequest)(nil),    // 15: ingate.assistant.v1.DeleteConversationRequest
+	(*ListMessagesRequest)(nil),          // 16: ingate.assistant.v1.ListMessagesRequest
+	(*ListMessagesResponse)(nil),         // 17: ingate.assistant.v1.ListMessagesResponse
+	(*GetRunRequest)(nil),                // 18: ingate.assistant.v1.GetRunRequest
+	(*ListRunItemsRequest)(nil),          // 19: ingate.assistant.v1.ListRunItemsRequest
+	(*ListRunItemsResponse)(nil),         // 20: ingate.assistant.v1.ListRunItemsResponse
+	(*CreateRunRequest)(nil),             // 21: ingate.assistant.v1.CreateRunRequest
+	(*CancelRunRequest)(nil),             // 22: ingate.assistant.v1.CancelRunRequest
+	(*ModelConnection)(nil),              // 23: ingate.assistant.v1.ModelConnection
+	(*UpdateModelConnectionRequest)(nil), // 24: ingate.assistant.v1.UpdateModelConnectionRequest
+	(*timestamppb.Timestamp)(nil),        // 25: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                // 26: google.protobuf.Empty
 }
 var file_assistant_v1_assistant_proto_depIdxs = []int32{
-	24, // 0: ingate.assistant.v1.Conversation.created_at:type_name -> google.protobuf.Timestamp
-	24, // 1: ingate.assistant.v1.Conversation.updated_at:type_name -> google.protobuf.Timestamp
+	25, // 0: ingate.assistant.v1.Conversation.created_at:type_name -> google.protobuf.Timestamp
+	25, // 1: ingate.assistant.v1.Conversation.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 2: ingate.assistant.v1.Message.role:type_name -> ingate.assistant.v1.MessageRole
-	24, // 3: ingate.assistant.v1.Message.created_at:type_name -> google.protobuf.Timestamp
+	25, // 3: ingate.assistant.v1.Message.created_at:type_name -> google.protobuf.Timestamp
 	3,  // 4: ingate.assistant.v1.Run.state:type_name -> ingate.assistant.v1.RunState
-	24, // 5: ingate.assistant.v1.Run.started_at:type_name -> google.protobuf.Timestamp
-	24, // 6: ingate.assistant.v1.Run.finished_at:type_name -> google.protobuf.Timestamp
-	24, // 7: ingate.assistant.v1.Run.created_at:type_name -> google.protobuf.Timestamp
+	25, // 5: ingate.assistant.v1.Run.started_at:type_name -> google.protobuf.Timestamp
+	25, // 6: ingate.assistant.v1.Run.finished_at:type_name -> google.protobuf.Timestamp
+	25, // 7: ingate.assistant.v1.Run.created_at:type_name -> google.protobuf.Timestamp
 	4,  // 8: ingate.assistant.v1.RunItem.kind:type_name -> ingate.assistant.v1.RunItemKind
 	5,  // 9: ingate.assistant.v1.RunItem.state:type_name -> ingate.assistant.v1.RunItemState
-	24, // 10: ingate.assistant.v1.RunItem.created_at:type_name -> google.protobuf.Timestamp
-	24, // 11: ingate.assistant.v1.RunItem.started_at:type_name -> google.protobuf.Timestamp
-	24, // 12: ingate.assistant.v1.RunItem.finished_at:type_name -> google.protobuf.Timestamp
+	25, // 10: ingate.assistant.v1.RunItem.created_at:type_name -> google.protobuf.Timestamp
+	25, // 11: ingate.assistant.v1.RunItem.started_at:type_name -> google.protobuf.Timestamp
+	25, // 12: ingate.assistant.v1.RunItem.finished_at:type_name -> google.protobuf.Timestamp
 	6,  // 13: ingate.assistant.v1.ListConversationsResponse.conversations:type_name -> ingate.assistant.v1.Conversation
 	7,  // 14: ingate.assistant.v1.ListMessagesResponse.messages:type_name -> ingate.assistant.v1.Message
 	9,  // 15: ingate.assistant.v1.ListRunItemsResponse.items:type_name -> ingate.assistant.v1.RunItem
 	0,  // 16: ingate.assistant.v1.ModelConnection.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
 	1,  // 17: ingate.assistant.v1.ModelConnection.protocol:type_name -> ingate.assistant.v1.ModelProtocol
-	24, // 18: ingate.assistant.v1.ModelConnection.updated_at:type_name -> google.protobuf.Timestamp
+	25, // 18: ingate.assistant.v1.ModelConnection.updated_at:type_name -> google.protobuf.Timestamp
 	0,  // 19: ingate.assistant.v1.UpdateModelConnectionRequest.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
 	1,  // 20: ingate.assistant.v1.UpdateModelConnectionRequest.protocol:type_name -> ingate.assistant.v1.ModelProtocol
 	10, // 21: ingate.assistant.v1.ConversationService.ListConversations:input_type -> ingate.assistant.v1.ListConversationsRequest
 	12, // 22: ingate.assistant.v1.ConversationService.GetConversation:input_type -> ingate.assistant.v1.GetConversationRequest
 	13, // 23: ingate.assistant.v1.ConversationService.CreateConversation:input_type -> ingate.assistant.v1.CreateConversationRequest
-	14, // 24: ingate.assistant.v1.ConversationService.DeleteConversation:input_type -> ingate.assistant.v1.DeleteConversationRequest
-	15, // 25: ingate.assistant.v1.ConversationService.ListMessages:input_type -> ingate.assistant.v1.ListMessagesRequest
-	20, // 26: ingate.assistant.v1.ConversationService.CreateRun:input_type -> ingate.assistant.v1.CreateRunRequest
-	17, // 27: ingate.assistant.v1.ConversationService.GetRun:input_type -> ingate.assistant.v1.GetRunRequest
-	18, // 28: ingate.assistant.v1.ConversationService.ListRunItems:input_type -> ingate.assistant.v1.ListRunItemsRequest
-	21, // 29: ingate.assistant.v1.ConversationService.CancelRun:input_type -> ingate.assistant.v1.CancelRunRequest
-	25, // 30: ingate.assistant.v1.ModelConnectionService.GetModelConnection:input_type -> google.protobuf.Empty
-	23, // 31: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:input_type -> ingate.assistant.v1.UpdateModelConnectionRequest
-	11, // 32: ingate.assistant.v1.ConversationService.ListConversations:output_type -> ingate.assistant.v1.ListConversationsResponse
-	6,  // 33: ingate.assistant.v1.ConversationService.GetConversation:output_type -> ingate.assistant.v1.Conversation
-	6,  // 34: ingate.assistant.v1.ConversationService.CreateConversation:output_type -> ingate.assistant.v1.Conversation
-	25, // 35: ingate.assistant.v1.ConversationService.DeleteConversation:output_type -> google.protobuf.Empty
-	16, // 36: ingate.assistant.v1.ConversationService.ListMessages:output_type -> ingate.assistant.v1.ListMessagesResponse
-	8,  // 37: ingate.assistant.v1.ConversationService.CreateRun:output_type -> ingate.assistant.v1.Run
-	8,  // 38: ingate.assistant.v1.ConversationService.GetRun:output_type -> ingate.assistant.v1.Run
-	19, // 39: ingate.assistant.v1.ConversationService.ListRunItems:output_type -> ingate.assistant.v1.ListRunItemsResponse
-	8,  // 40: ingate.assistant.v1.ConversationService.CancelRun:output_type -> ingate.assistant.v1.Run
-	22, // 41: ingate.assistant.v1.ModelConnectionService.GetModelConnection:output_type -> ingate.assistant.v1.ModelConnection
-	22, // 42: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:output_type -> ingate.assistant.v1.ModelConnection
-	32, // [32:43] is the sub-list for method output_type
-	21, // [21:32] is the sub-list for method input_type
+	14, // 24: ingate.assistant.v1.ConversationService.UpdateConversation:input_type -> ingate.assistant.v1.UpdateConversationRequest
+	15, // 25: ingate.assistant.v1.ConversationService.DeleteConversation:input_type -> ingate.assistant.v1.DeleteConversationRequest
+	16, // 26: ingate.assistant.v1.ConversationService.ListMessages:input_type -> ingate.assistant.v1.ListMessagesRequest
+	21, // 27: ingate.assistant.v1.ConversationService.CreateRun:input_type -> ingate.assistant.v1.CreateRunRequest
+	18, // 28: ingate.assistant.v1.ConversationService.GetRun:input_type -> ingate.assistant.v1.GetRunRequest
+	19, // 29: ingate.assistant.v1.ConversationService.ListRunItems:input_type -> ingate.assistant.v1.ListRunItemsRequest
+	22, // 30: ingate.assistant.v1.ConversationService.CancelRun:input_type -> ingate.assistant.v1.CancelRunRequest
+	26, // 31: ingate.assistant.v1.ModelConnectionService.GetModelConnection:input_type -> google.protobuf.Empty
+	24, // 32: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:input_type -> ingate.assistant.v1.UpdateModelConnectionRequest
+	11, // 33: ingate.assistant.v1.ConversationService.ListConversations:output_type -> ingate.assistant.v1.ListConversationsResponse
+	6,  // 34: ingate.assistant.v1.ConversationService.GetConversation:output_type -> ingate.assistant.v1.Conversation
+	6,  // 35: ingate.assistant.v1.ConversationService.CreateConversation:output_type -> ingate.assistant.v1.Conversation
+	6,  // 36: ingate.assistant.v1.ConversationService.UpdateConversation:output_type -> ingate.assistant.v1.Conversation
+	26, // 37: ingate.assistant.v1.ConversationService.DeleteConversation:output_type -> google.protobuf.Empty
+	17, // 38: ingate.assistant.v1.ConversationService.ListMessages:output_type -> ingate.assistant.v1.ListMessagesResponse
+	8,  // 39: ingate.assistant.v1.ConversationService.CreateRun:output_type -> ingate.assistant.v1.Run
+	8,  // 40: ingate.assistant.v1.ConversationService.GetRun:output_type -> ingate.assistant.v1.Run
+	20, // 41: ingate.assistant.v1.ConversationService.ListRunItems:output_type -> ingate.assistant.v1.ListRunItemsResponse
+	8,  // 42: ingate.assistant.v1.ConversationService.CancelRun:output_type -> ingate.assistant.v1.Run
+	23, // 43: ingate.assistant.v1.ModelConnectionService.GetModelConnection:output_type -> ingate.assistant.v1.ModelConnection
+	23, // 44: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:output_type -> ingate.assistant.v1.ModelConnection
+	33, // [33:45] is the sub-list for method output_type
+	21, // [21:33] is the sub-list for method input_type
 	21, // [21:21] is the sub-list for extension type_name
 	21, // [21:21] is the sub-list for extension extendee
 	0,  // [0:21] is the sub-list for field type_name
@@ -1790,14 +1850,14 @@ func file_assistant_v1_assistant_proto_init() {
 	if File_assistant_v1_assistant_proto != nil {
 		return
 	}
-	file_assistant_v1_assistant_proto_msgTypes[17].OneofWrappers = []any{}
+	file_assistant_v1_assistant_proto_msgTypes[18].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_assistant_v1_assistant_proto_rawDesc), len(file_assistant_v1_assistant_proto_rawDesc)),
 			NumEnums:      6,
-			NumMessages:   18,
+			NumMessages:   19,
 			NumExtensions: 0,
 			NumServices:   2,
 		},

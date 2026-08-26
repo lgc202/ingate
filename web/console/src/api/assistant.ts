@@ -34,6 +34,13 @@ export async function createAssistantConversation(title: string): Promise<Assist
   });
 }
 
+export async function updateAssistantConversation(id: string, title: string): Promise<AssistantConversation> {
+  return assistantRequest<AssistantConversation>(`/assistant/v1/conversations/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  });
+}
+
 export async function deleteAssistantConversation(id: string): Promise<void> {
   await assistantRequest(`/assistant/v1/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

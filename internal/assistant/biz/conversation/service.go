@@ -40,6 +40,14 @@ func (s *Service) Get(ctx context.Context, actorID, id string) (Conversation, er
 	return s.store.Get(ctx, actorID, id)
 }
 
+func (s *Service) UpdateTitle(ctx context.Context, actorID, id, title string) (Conversation, error) {
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return Conversation{}, ErrInvalidTitle
+	}
+	return s.store.UpdateTitle(ctx, actorID, id, title, time.Now().UTC())
+}
+
 func (s *Service) List(
 	ctx context.Context,
 	actorID string,

@@ -62,6 +62,18 @@ func (s *Service) CreateConversation(ctx context.Context, request *assistantv1.C
 	return conversationResponse(item), nil
 }
 
+func (s *Service) UpdateConversation(ctx context.Context, request *assistantv1.UpdateConversationRequest) (*assistantv1.Conversation, error) {
+	actorID, err := s.actorID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	item, err := s.conversations.UpdateTitle(ctx, actorID, request.GetId(), request.GetTitle())
+	if err != nil {
+		return nil, s.mapError(err)
+	}
+	return conversationResponse(item), nil
+}
+
 func (s *Service) DeleteConversation(ctx context.Context, request *assistantv1.DeleteConversationRequest) (*emptypb.Empty, error) {
 	actorID, err := s.actorID(ctx)
 	if err != nil {

@@ -23,6 +23,12 @@ service ConversationService {
       body: "*"
     };
   }
+  rpc UpdateConversation(UpdateConversationRequest) returns (Conversation) {
+    option (google.api.http) = {
+      patch: "/assistant/v1/conversations/{id}"
+      body: "*"
+    };
+  }
   rpc DeleteConversation(DeleteConversationRequest) returns (google.protobuf.Empty) {
     option (google.api.http) = {delete: "/assistant/v1/conversations/{id}"};
   }
@@ -168,6 +174,14 @@ message GetConversationRequest {
 
 message CreateConversationRequest {
   string title = 1 [(buf.validate.field).string.max_len = 160];
+}
+
+message UpdateConversationRequest {
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  string title = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 160
+  }];
 }
 
 message DeleteConversationRequest {

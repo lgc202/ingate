@@ -73,7 +73,7 @@ export function AppShell() {
         </div>
       </aside>
 
-      <div className="console-workspace">
+      <div className={`console-workspace ${currentPage?.key === 'assistant' ? 'is-assistant' : ''}`}>
         <header className="workspace-header">
           <div className="breadcrumb">
             <span>{currentGroupLabel}</span>

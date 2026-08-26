@@ -23,6 +23,7 @@ const (
 	ConversationService_ListConversations_FullMethodName  = "/ingate.assistant.v1.ConversationService/ListConversations"
 	ConversationService_GetConversation_FullMethodName    = "/ingate.assistant.v1.ConversationService/GetConversation"
 	ConversationService_CreateConversation_FullMethodName = "/ingate.assistant.v1.ConversationService/CreateConversation"
+	ConversationService_UpdateConversation_FullMethodName = "/ingate.assistant.v1.ConversationService/UpdateConversation"
 	ConversationService_DeleteConversation_FullMethodName = "/ingate.assistant.v1.ConversationService/DeleteConversation"
 	ConversationService_ListMessages_FullMethodName       = "/ingate.assistant.v1.ConversationService/ListMessages"
 	ConversationService_CreateRun_FullMethodName          = "/ingate.assistant.v1.ConversationService/CreateRun"
@@ -40,6 +41,7 @@ type ConversationServiceClient interface {
 	ListConversations(ctx context.Context, in *ListConversationsRequest, opts ...grpc.CallOption) (*ListConversationsResponse, error)
 	GetConversation(ctx context.Context, in *GetConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
 	CreateConversation(ctx context.Context, in *CreateConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
+	UpdateConversation(ctx context.Context, in *UpdateConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
 	DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...grpc.CallOption) (*ListMessagesResponse, error)
 	CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*Run, error)
@@ -80,6 +82,16 @@ func (c *conversationServiceClient) CreateConversation(ctx context.Context, in *
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(Conversation)
 	err := c.cc.Invoke(ctx, ConversationService_CreateConversation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *conversationServiceClient) UpdateConversation(ctx context.Context, in *UpdateConversationRequest, opts ...grpc.CallOption) (*Conversation, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Conversation)
+	err := c.cc.Invoke(ctx, ConversationService_UpdateConversation_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -155,6 +167,7 @@ type ConversationServiceServer interface {
 	ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error)
 	GetConversation(context.Context, *GetConversationRequest) (*Conversation, error)
 	CreateConversation(context.Context, *CreateConversationRequest) (*Conversation, error)
+	UpdateConversation(context.Context, *UpdateConversationRequest) (*Conversation, error)
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error)
 	CreateRun(context.Context, *CreateRunRequest) (*Run, error)
@@ -178,6 +191,9 @@ func (UnimplementedConversationServiceServer) GetConversation(context.Context, *
 }
 func (UnimplementedConversationServiceServer) CreateConversation(context.Context, *CreateConversationRequest) (*Conversation, error) {
 	return nil, status.Error(codes.Unimplemented, "method CreateConversation not implemented")
+}
+func (UnimplementedConversationServiceServer) UpdateConversation(context.Context, *UpdateConversationRequest) (*Conversation, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateConversation not implemented")
 }
 func (UnimplementedConversationServiceServer) DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error) {
 	return nil, status.Error(codes.Unimplemented, "method DeleteConversation not implemented")
@@ -267,6 +283,24 @@ func _ConversationService_CreateConversation_Handler(srv interface{}, ctx contex
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(ConversationServiceServer).CreateConversation(ctx, req.(*CreateConversationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ConversationService_UpdateConversation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateConversationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ConversationServiceServer).UpdateConversation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ConversationService_UpdateConversation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ConversationServiceServer).UpdateConversation(ctx, req.(*UpdateConversationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -397,6 +431,10 @@ var ConversationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "CreateConversation",
 			Handler:    _ConversationService_CreateConversation_Handler,
+		},
+		{
+			MethodName: "UpdateConversation",
+			Handler:    _ConversationService_UpdateConversation_Handler,
 		},
 		{
 			MethodName: "DeleteConversation",

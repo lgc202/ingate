@@ -14,6 +14,11 @@ FROM assistant_conversations
 WHERE id = ? AND actor_id = ?
 FOR UPDATE;
 
+-- name: UpdateConversationTitle :execrows
+UPDATE assistant_conversations
+SET title = ?, updated_at = ?
+WHERE id = ? AND actor_id = ?;
+
 -- name: ListConversations :many
 SELECT id, actor_id, title, created_at, updated_at
 FROM assistant_conversations

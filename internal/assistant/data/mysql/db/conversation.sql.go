@@ -949,6 +949,32 @@ func (q *Queries) TouchConversation(ctx context.Context, arg TouchConversationPa
 	return err
 }
 
+const updateConversationTitle = `-- name: UpdateConversationTitle :execrows
+UPDATE assistant_conversations
+SET title = ?, updated_at = ?
+WHERE id = ? AND actor_id = ?
+`
+
+type UpdateConversationTitleParams struct {
+	Title     string
+	UpdatedAt time.Time
+	ID        string
+	ActorID   string
+}
+
+func (q *Queries) UpdateConversationTitle(ctx context.Context, arg UpdateConversationTitleParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateConversationTitle,
+		arg.Title,
+		arg.UpdatedAt,
+		arg.ID,
+		arg.ActorID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertAssistantModelConnection = `-- name: UpsertAssistantModelConnection :exec
 INSERT INTO assistant_model_connections (
     singleton_id, connection_mode, protocol, endpoint, api_key, model,

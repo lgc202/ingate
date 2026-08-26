@@ -22,6 +22,7 @@ import {
   listAssistantMessages,
   listAssistantRunItems,
   streamAssistantRun,
+  updateAssistantConversation,
 } from '@/api/assistant';
 import { Badge, Button, Modal, PageFrame, Toast } from '@/components/ui';
 import type {
@@ -70,6 +71,9 @@ export function AssistantPage() {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [connectionOpen, setConnectionOpen] = useState(false);
+  const [renameCandidate, setRenameCandidate] = useState<AssistantConversation | null>(null);
+  const [renameTitle, setRenameTitle] = useState('');
+  const [renaming, setRenaming] = useState(false);
   const [deleteCandidate, setDeleteCandidate] = useState<AssistantConversation | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [input, setInput] = useState('');
@@ -85,6 +89,9 @@ export function AssistantPage() {
   const selectedIDRef = useRef<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const promptHistoryRef = useRef<string[]>([]);
+  const promptHistoryIndexRef = useRef(-1);
+  const promptDraftRef = useRef('');
 
   const loadMessages = useCallback(async (conversationID: string) => {
     const generation = ++messageLoadGenerationRef.current;
@@ -302,6 +309,15 @@ export function AssistantPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [liveAnswer?.content, liveAnswer?.reasoning, messages]);
 
+  useEffect(() => {
+    promptHistoryRef.current = messages
+      .filter((message) => message.role === 'MESSAGE_ROLE_USER')
+      .map((message) => message.content.trim())
+      .filter(Boolean);
+    promptHistoryIndexRef.current = -1;
+    promptDraftRef.current = '';
+  }, [messages]);
+
   const newConversation = () => {
     messageLoadGenerationRef.current += 1;
     selectedIDRef.current = null;
@@ -310,6 +326,9 @@ export function AssistantPage() {
     setInput('');
     setRunError('');
     setRunItems([]);
+    promptHistoryRef.current = [];
+    promptHistoryIndexRef.current = -1;
+    promptDraftRef.current = '';
     localStorage.removeItem(activeConversationKey);
     window.requestAnimationFrame(() => editorRef.current?.focus());
   };
@@ -318,8 +337,12 @@ export function AssistantPage() {
     messageLoadGenerationRef.current += 1;
     selectedIDRef.current = id;
     setSelectedID(id);
+    setMessages([]);
     setRunError('');
     setRunItems([]);
+    promptHistoryRef.current = [];
+    promptHistoryIndexRef.current = -1;
+    promptDraftRef.current = '';
   };
 
   const loadMore = async () => {
@@ -356,6 +379,9 @@ export function AssistantPage() {
         setSelectedID(conversation.id);
       }
       const run = await createAssistantRun(conversationID, content);
+      promptHistoryRef.current = [...promptHistoryRef.current, content];
+      promptHistoryIndexRef.current = -1;
+      promptDraftRef.current = '';
       await loadMessages(conversationID);
       void followRun(run);
     } catch (cause) {
@@ -397,10 +423,63 @@ export function AssistantPage() {
     }
   };
 
+  const renameConversation = async () => {
+    const title = renameTitle.trim();
+    if (!renameCandidate || !title || renaming) return;
+    setRenaming(true);
+    try {
+      const saved = await updateAssistantConversation(renameCandidate.id, title);
+      setConversations((current) => current.map((item) => (item.id === saved.id ? saved : item)));
+      setRenameCandidate(null);
+      setNotice({ message: '会话名称已更新', tone: 'success' });
+    } catch (cause) {
+      setNotice({ message: cause instanceof Error ? cause.message : '更新会话名称失败', tone: 'error' });
+    } finally {
+      setRenaming(false);
+    }
+  };
+
   const handleEditorKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return;
-    event.preventDefault();
-    void submit();
+    if (event.nativeEvent.isComposing) return;
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      void submit();
+      return;
+    }
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+
+    const history = promptHistoryRef.current;
+    if (event.key === 'ArrowUp' && history.length > 0) {
+      const index = promptHistoryIndexRef.current;
+      const beforeCaret = event.currentTarget.value.slice(0, event.currentTarget.selectionStart);
+      // 多行文本中保留方向键的正常移动；开始浏览历史后，方向键只用于切换历史提示词。
+      if (index < 0 && beforeCaret.includes('\n')) return;
+      event.preventDefault();
+      if (index < 0) promptDraftRef.current = input;
+      const nextIndex = index < 0 ? history.length - 1 : Math.max(0, index - 1);
+      promptHistoryIndexRef.current = nextIndex;
+      setEditorValue(history[nextIndex]);
+      return;
+    }
+    if (event.key === 'ArrowDown' && promptHistoryIndexRef.current >= 0) {
+      event.preventDefault();
+      const nextIndex = promptHistoryIndexRef.current + 1;
+      if (nextIndex >= history.length) {
+        promptHistoryIndexRef.current = -1;
+        setEditorValue(promptDraftRef.current);
+        promptDraftRef.current = '';
+        return;
+      }
+      promptHistoryIndexRef.current = nextIndex;
+      setEditorValue(history[nextIndex]);
+    }
+  };
+
+  const setEditorValue = (value: string) => {
+    setInput(value);
+    window.requestAnimationFrame(() => {
+      editorRef.current?.setSelectionRange(value.length, value.length);
+    });
   };
 
   const selectedConversation = conversations.find((item) => item.id === selectedID);
@@ -441,6 +520,10 @@ export function AssistantPage() {
           hasMore={Boolean(nextCursor)}
           onNew={newConversation}
           onSelect={selectConversation}
+          onRename={(conversation) => {
+            setRenameCandidate(conversation);
+            setRenameTitle(conversation.title);
+          }}
           onDelete={(conversation) => {
             if (activeRun?.conversationId === conversation.id) {
               setNotice({ message: '请先停止当前回答，再删除该会话', tone: 'error' });
@@ -494,11 +577,15 @@ export function AssistantPage() {
                 maxLength={65536}
                 disabled={Boolean(activeRun)}
                 placeholder={connection.configured ? '描述问题，或询问 Ingate 的配置与排障方法' : '请先配置助手使用的模型'}
-                onChange={(event) => setInput(event.target.value)}
+                onChange={(event) => {
+                  promptHistoryIndexRef.current = -1;
+                  promptDraftRef.current = '';
+                  setInput(event.target.value);
+                }}
                 onKeyDown={handleEditorKeyDown}
               />
               <footer>
-                <span>Enter 发送 · Shift + Enter 换行</span>
+                <span>Enter 发送 · Shift + Enter 换行 · ↑/↓ 历史提示</span>
                 {currentRun ? (
                   <Button variant="outline" disabled={cancelling} onClick={() => void cancel()}>
                     <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
@@ -525,6 +612,39 @@ export function AssistantPage() {
           setNotice({ message: '模型连接已保存', tone: 'success' });
         }}
       />
+
+      <Modal
+        title="重命名会话"
+        isOpen={Boolean(renameCandidate)}
+        onClose={() => setRenameCandidate(null)}
+      >
+        <form
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void renameConversation();
+          }}
+        >
+          <label className="field">
+            <span>会话名称</span>
+            <input
+              autoFocus
+              maxLength={160}
+              value={renameTitle}
+              onChange={(event) => setRenameTitle(event.target.value)}
+            />
+          </label>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+            <Button type="button" variant="ghost" onClick={() => setRenameCandidate(null)}>取消</Button>
+            <Button
+              type="submit"
+              disabled={renaming || !renameTitle.trim() || renameTitle.trim() === renameCandidate?.title}
+            >
+              {renaming ? '保存中...' : '保存'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal title="删除会话" isOpen={Boolean(deleteCandidate)} onClose={() => setDeleteCandidate(null)}>
         <div className="space-y-5">
