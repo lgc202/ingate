@@ -40,165 +40,165 @@ WHERE id = ? AND actor_id = ?;
 DELETE FROM assistant_messages
 WHERE conversation_id = ?;
 
--- name: DeleteRunItemsByConversation :exec
+-- name: DeleteExecutionStepsByConversation :exec
 DELETE i
-FROM assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
-WHERE r.conversation_id = ?;
+FROM assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS e ON e.id = i.execution_id
+WHERE e.conversation_id = ?;
 
--- name: DeleteRunsByConversation :exec
-DELETE FROM assistant_runs
+-- name: DeleteExecutionsByConversation :exec
+DELETE FROM assistant_agent_executions
 WHERE conversation_id = ?;
 
--- name: CreateRun :exec
-INSERT INTO assistant_runs (
+-- name: CreateExecution :exec
+INSERT INTO assistant_agent_executions (
     id, conversation_id, state, created_at
 ) VALUES (?, ?, 1, ?);
 
--- name: CountActiveRuns :one
+-- name: CountActiveExecutions :one
 SELECT COUNT(*)
-FROM assistant_runs
+FROM assistant_agent_executions
 WHERE conversation_id = ? AND state IN (1, 2);
 
--- name: GetRun :one
+-- name: GetExecution :one
 SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
        r.cancellation_requested, r.worker_id, r.lease_expires_at,
        r.created_at, r.started_at, r.finished_at
-FROM assistant_runs AS r
+FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.id = ? AND c.actor_id = ?;
 
--- name: GetRunForUpdate :one
+-- name: GetExecutionForUpdate :one
 SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
        r.cancellation_requested, r.worker_id, r.lease_expires_at,
        r.created_at, r.started_at, r.finished_at
-FROM assistant_runs AS r
+FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.id = ? AND c.actor_id = ?
 FOR UPDATE;
 
--- name: ClaimNextRun :one
+-- name: ClaimNextExecution :one
 SELECT r.id, r.conversation_id, c.actor_id, r.created_at
-FROM assistant_runs AS r
+FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.state = 1
 ORDER BY r.created_at ASC, r.id ASC
 LIMIT 1
 FOR UPDATE SKIP LOCKED;
 
--- name: StartRun :execrows
-UPDATE assistant_runs
+-- name: StartExecution :execrows
+UPDATE assistant_agent_executions
 SET state = 2, worker_id = ?, lease_expires_at = ?, started_at = ?
 WHERE id = ? AND state = 1;
 
--- name: SetRunModel :execrows
-UPDATE assistant_runs
+-- name: SetExecutionModel :execrows
+UPDATE assistant_agent_executions
 SET model = ?
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
--- name: GetRunForWorkerUpdate :one
+-- name: GetExecutionForWorkerUpdate :one
 SELECT id
-FROM assistant_runs
+FROM assistant_agent_executions
 WHERE id = ? AND state = 2 AND worker_id = ?
 FOR UPDATE;
 
--- name: NextRunItemSequence :one
+-- name: NextExecutionStepSequence :one
 SELECT CAST(COALESCE(MAX(sequence), 0) + 1 AS UNSIGNED)
-FROM assistant_run_items
-WHERE run_id = ?;
+FROM assistant_agent_execution_steps
+WHERE execution_id = ?;
 
--- name: CreateRunItem :exec
-INSERT INTO assistant_run_items (
-    id, run_id, sequence, kind, state, name, call_id, summary,
+-- name: CreateExecutionStep :exec
+INSERT INTO assistant_agent_execution_steps (
+    id, execution_id, sequence, kind, state, name, call_id, summary,
     error_code, created_at, started_at, finished_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
--- name: ListRunItems :many
-SELECT i.id, i.run_id, i.sequence, i.kind, i.state, i.name, i.call_id,
+-- name: ListExecutionSteps :many
+SELECT i.id, i.execution_id, i.sequence, i.kind, i.state, i.name, i.call_id,
        i.summary, i.error_code, i.created_at, i.started_at, i.finished_at
-FROM assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
+FROM assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
-WHERE i.run_id = ? AND c.actor_id = ?
+WHERE i.execution_id = ? AND c.actor_id = ?
 ORDER BY i.sequence ASC;
 
--- name: CompleteRunItem :execrows
-UPDATE assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
+-- name: CompleteExecutionStep :execrows
+UPDATE assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 SET i.state = 2, i.summary = ?, i.finished_at = ?
-WHERE i.run_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
+WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
   AND r.state = 2 AND r.worker_id = ?;
 
--- name: FailRunItem :execrows
-UPDATE assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
+-- name: FailExecutionStep :execrows
+UPDATE assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 SET i.state = 3, i.error_code = ?, i.finished_at = ?
-WHERE i.run_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
+WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
   AND r.state = 2 AND r.worker_id = ?;
 
--- name: FailRunningRunItems :exec
-UPDATE assistant_run_items
+-- name: FailRunningExecutionSteps :exec
+UPDATE assistant_agent_execution_steps
 SET state = 3, error_code = ?, finished_at = ?
-WHERE run_id = ? AND state = 1;
+WHERE execution_id = ? AND state = 1;
 
--- name: CancelRunningRunItems :exec
-UPDATE assistant_run_items
+-- name: CancelRunningExecutionSteps :exec
+UPDATE assistant_agent_execution_steps
 SET state = 4, finished_at = ?
-WHERE run_id = ? AND state = 1;
+WHERE execution_id = ? AND state = 1;
 
--- name: FailExpiredRunItems :exec
-UPDATE assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
+-- name: FailExpiredExecutionSteps :exec
+UPDATE assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 SET i.state = 3, i.error_code = ?, i.finished_at = ?
 WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < ?;
 
--- name: RenewRunLease :execrows
-UPDATE assistant_runs
+-- name: RenewExecutionLease :execrows
+UPDATE assistant_agent_executions
 SET lease_expires_at = ?
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
--- name: RunCancellationRequested :one
+-- name: ExecutionCancellationRequested :one
 SELECT cancellation_requested
-FROM assistant_runs
+FROM assistant_agent_executions
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
--- name: CompleteRun :execrows
-UPDATE assistant_runs
+-- name: CompleteExecution :execrows
+UPDATE assistant_agent_executions
 SET state = 3, worker_id = '', lease_expires_at = NULL, finished_at = ?
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
--- name: FailRun :execrows
-UPDATE assistant_runs
+-- name: FailExecution :execrows
+UPDATE assistant_agent_executions
 SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
--- name: CancelQueuedRun :execrows
-UPDATE assistant_runs
+-- name: CancelQueuedExecution :execrows
+UPDATE assistant_agent_executions
 SET state = 5, finished_at = ?
 WHERE id = ? AND state = 1;
 
--- name: RequestRunCancellation :execrows
-UPDATE assistant_runs
+-- name: RequestExecutionCancellation :execrows
+UPDATE assistant_agent_executions
 SET cancellation_requested = TRUE
 WHERE id = ? AND state = 2;
 
--- name: FinishRunCancellation :execrows
-UPDATE assistant_runs
+-- name: FinishExecutionCancellation :execrows
+UPDATE assistant_agent_executions
 SET state = 5, worker_id = '', lease_expires_at = NULL, finished_at = ?
 WHERE id = ? AND state = 2 AND worker_id = ? AND cancellation_requested = TRUE;
 
--- name: FailExpiredRuns :execrows
-UPDATE assistant_runs
+-- name: FailExpiredExecutions :execrows
+UPDATE assistant_agent_executions
 SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
 WHERE state = 2 AND lease_expires_at < ?;
 
 -- name: CreateMessage :exec
 INSERT INTO assistant_messages (
-    id, conversation_id, run_id, role, content, reasoning_content, created_at
+    id, conversation_id, execution_id, role, content, reasoning_content, created_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?);
 
 -- name: ListMessages :many
-SELECT id, conversation_id, run_id, role, content, reasoning_content, created_at
+SELECT id, conversation_id, execution_id, role, content, reasoning_content, created_at
 FROM assistant_messages
 WHERE conversation_id = ?
   AND (created_at > ? OR (created_at = ? AND id > ?))
@@ -206,7 +206,7 @@ ORDER BY created_at ASC, id ASC
 LIMIT ?;
 
 -- name: ListRecentMessages :many
-SELECT id, conversation_id, run_id, role, content, reasoning_content, created_at
+SELECT id, conversation_id, execution_id, role, content, reasoning_content, created_at
 FROM assistant_messages
 WHERE conversation_id = ?
 ORDER BY created_at DESC, id DESC

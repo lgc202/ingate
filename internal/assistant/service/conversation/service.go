@@ -1,59 +1,38 @@
-// Package conversation 适配运维助手的会话、消息与 Run 产品协议。
+// Package conversation 适配运维助手的会话与消息协议。
 package conversation
 
 import (
-	"context"
 	"errors"
-	"strings"
 
 	kratoserrors "github.com/go-kratos/kratos/v3/errors"
-	"github.com/go-kratos/kratos/v3/transport"
 
+	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
 	conversationbiz "github.com/lgc202/ingate/internal/assistant/biz/conversation"
-	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
 )
 
 const (
-	forwardedUserHeader = "X-Forwarded-User"
-	maxActorIDLength    = 128
-	defaultLimit        = 20
-	maxLimit            = 100
+	defaultLimit = 20
+	maxLimit     = 100
 )
 
-// Service 实现助手会话和异步执行的产品协议。
+// Service 实现助手会话和消息查询协议。
 type Service struct {
+	assistantv1.UnimplementedConversationServiceServer
+
 	conversations *conversationbiz.Service
-	runs          *runbiz.Service
 }
 
 // NewService 创建会话协议服务。
-func NewService(conversations *conversationbiz.Service, runs *runbiz.Service) *Service {
-	return &Service{conversations: conversations, runs: runs}
-}
-
-func (s *Service) actorID(ctx context.Context) (string, error) {
-	tr, ok := transport.FromServerContext(ctx)
-	if !ok {
-		return "", kratoserrors.Unauthorized("ACTOR_REQUIRED", "authentication required")
-	}
-	actorID := strings.TrimSpace(tr.RequestHeader().Get(forwardedUserHeader))
-	if actorID == "" {
-		return "", kratoserrors.Unauthorized("ACTOR_REQUIRED", "authentication required")
-	}
-	if len(actorID) > maxActorIDLength {
-		return "", invalidArgument("actor identifier is too long")
-	}
-	return actorID, nil
+func NewService(conversations *conversationbiz.Service) *Service {
+	return &Service{conversations: conversations}
 }
 
 func (s *Service) mapError(err error) error {
 	switch {
 	case errors.Is(err, conversationbiz.ErrInvalidTitle):
 		return invalidArgument("conversation title is required")
-	case errors.Is(err, conversationbiz.ErrNotFound), errors.Is(err, runbiz.ErrNotFound):
+	case errors.Is(err, conversationbiz.ErrNotFound):
 		return kratoserrors.NotFound("RESOURCE_NOT_FOUND", "resource not found")
-	case errors.Is(err, runbiz.ErrStateConflict), errors.Is(err, runbiz.ErrConversationBusy):
-		return kratoserrors.Conflict("RESOURCE_CONFLICT", "resource state changed")
 	default:
 		return kratoserrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
 	}

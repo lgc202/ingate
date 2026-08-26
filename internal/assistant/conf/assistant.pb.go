@@ -271,7 +271,7 @@ func (x *Stream) GetReadBlock() *durationpb.Duration {
 	return nil
 }
 
-// Worker 定义后台 Run 的进程内并发度、领取频率和实例租约。
+// Worker 定义后台 Agent 执行的进程内并发度、领取频率和实例租约。
 // 同一会话仍由业务规则保证串行；不同会话可以由多个执行槽并发处理。
 type Worker struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`

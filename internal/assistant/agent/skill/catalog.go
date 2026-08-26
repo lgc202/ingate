@@ -7,7 +7,7 @@ import (
 )
 
 // Catalog 保存当前可用的 Skill 定义。
-// Catalog 创建后保持只读，可以被并发 Run 共享。
+// Catalog 创建后保持只读，可以被并发 Agent 执行共享。
 type Catalog struct {
 	definitions []Definition
 	byName      map[string]int

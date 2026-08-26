@@ -18,27 +18,19 @@ var _ = new(context.Context)
 
 const _ = http.SupportPackageIsVersion3
 
-const OperationConversationServiceCancelRun = "/ingate.assistant.v1.ConversationService/CancelRun"
 const OperationConversationServiceCreateConversation = "/ingate.assistant.v1.ConversationService/CreateConversation"
-const OperationConversationServiceCreateRun = "/ingate.assistant.v1.ConversationService/CreateRun"
 const OperationConversationServiceDeleteConversation = "/ingate.assistant.v1.ConversationService/DeleteConversation"
 const OperationConversationServiceGetConversation = "/ingate.assistant.v1.ConversationService/GetConversation"
-const OperationConversationServiceGetRun = "/ingate.assistant.v1.ConversationService/GetRun"
 const OperationConversationServiceListConversations = "/ingate.assistant.v1.ConversationService/ListConversations"
 const OperationConversationServiceListMessages = "/ingate.assistant.v1.ConversationService/ListMessages"
-const OperationConversationServiceListRunItems = "/ingate.assistant.v1.ConversationService/ListRunItems"
 const OperationConversationServiceUpdateConversation = "/ingate.assistant.v1.ConversationService/UpdateConversation"
 
 type ConversationServiceHTTPServer interface {
-	CancelRun(context.Context, *CancelRunRequest) (*Run, error)
 	CreateConversation(context.Context, *CreateConversationRequest) (*Conversation, error)
-	CreateRun(context.Context, *CreateRunRequest) (*Run, error)
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error)
 	GetConversation(context.Context, *GetConversationRequest) (*Conversation, error)
-	GetRun(context.Context, *GetRunRequest) (*Run, error)
 	ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error)
-	ListRunItems(context.Context, *ListRunItemsRequest) (*ListRunItemsResponse, error)
 	UpdateConversation(context.Context, *UpdateConversationRequest) (*Conversation, error)
 }
 
@@ -50,10 +42,6 @@ func RegisterConversationServiceHTTPServer(s *http.Server, srv ConversationServi
 	r.Handle("PATCH", "/assistant/v1/conversations/{id}", _ConversationService_UpdateConversation0_HTTP_Handler(srv))
 	r.Handle("DELETE", "/assistant/v1/conversations/{id}", _ConversationService_DeleteConversation0_HTTP_Handler(srv))
 	r.Handle("GET", "/assistant/v1/conversations/{conversation_id}/messages", _ConversationService_ListMessages0_HTTP_Handler(srv))
-	r.Handle("POST", "/assistant/v1/conversations/{conversation_id}/runs", _ConversationService_CreateRun0_HTTP_Handler(srv))
-	r.Handle("GET", "/assistant/v1/runs/{id}", _ConversationService_GetRun0_HTTP_Handler(srv))
-	r.Handle("GET", "/assistant/v1/runs/{run_id}/items", _ConversationService_ListRunItems0_HTTP_Handler(srv))
-	r.Handle("POST", "/assistant/v1/runs/{id}:cancel", _ConversationService_CancelRun0_HTTP_Handler(srv))
 }
 
 func _ConversationService_ListConversations0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
@@ -182,104 +170,12 @@ func _ConversationService_ListMessages0_HTTP_Handler(srv ConversationServiceHTTP
 	}
 }
 
-func _ConversationService_CreateRun0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in CreateRunRequest
-		if err := ctx.Bind(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationConversationServiceCreateRun)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.CreateRun(ctx, req.(*CreateRunRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*Run)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _ConversationService_GetRun0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in GetRunRequest
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationConversationServiceGetRun)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.GetRun(ctx, req.(*GetRunRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*Run)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _ConversationService_ListRunItems0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in ListRunItemsRequest
-		if err := ctx.BindQuery(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationConversationServiceListRunItems)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.ListRunItems(ctx, req.(*ListRunItemsRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*ListRunItemsResponse)
-		return ctx.Result(200, reply)
-	}
-}
-
-func _ConversationService_CancelRun0_HTTP_Handler(srv ConversationServiceHTTPServer) func(ctx http.Context) error {
-	return func(ctx http.Context) error {
-		var in CancelRunRequest
-		if err := ctx.Bind(&in); err != nil {
-			return err
-		}
-		if err := ctx.BindVars(&in); err != nil {
-			return err
-		}
-		http.SetOperation(ctx, OperationConversationServiceCancelRun)
-		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
-			return srv.CancelRun(ctx, req.(*CancelRunRequest))
-		})
-		out, err := h(ctx, &in)
-		if err != nil {
-			return err
-		}
-		reply := out.(*Run)
-		return ctx.Result(200, reply)
-	}
-}
-
 type ConversationServiceHTTPClient interface {
-	CancelRun(ctx context.Context, req *CancelRunRequest, opts ...http.CallOption) (rsp *Run, err error)
 	CreateConversation(ctx context.Context, req *CreateConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
-	CreateRun(ctx context.Context, req *CreateRunRequest, opts ...http.CallOption) (rsp *Run, err error)
 	DeleteConversation(ctx context.Context, req *DeleteConversationRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
 	GetConversation(ctx context.Context, req *GetConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
-	GetRun(ctx context.Context, req *GetRunRequest, opts ...http.CallOption) (rsp *Run, err error)
 	ListConversations(ctx context.Context, req *ListConversationsRequest, opts ...http.CallOption) (rsp *ListConversationsResponse, err error)
 	ListMessages(ctx context.Context, req *ListMessagesRequest, opts ...http.CallOption) (rsp *ListMessagesResponse, err error)
-	ListRunItems(ctx context.Context, req *ListRunItemsRequest, opts ...http.CallOption) (rsp *ListRunItemsResponse, err error)
 	UpdateConversation(ctx context.Context, req *UpdateConversationRequest, opts ...http.CallOption) (rsp *Conversation, err error)
 }
 
@@ -291,23 +187,6 @@ func NewConversationServiceHTTPClient(client *http.Client) ConversationServiceHT
 	return &ConversationServiceHTTPClientImpl{client}
 }
 
-func (c *ConversationServiceHTTPClientImpl) CancelRun(ctx context.Context, in *CancelRunRequest, opts ...http.CallOption) (*Run, error) {
-	var out Run
-	pattern := "/assistant/v1/runs/{id}:cancel"
-	path := http.BuildPath(pattern, in)
-	opts = append([]http.CallOption{
-		http.Accept("application/protojson"),
-		http.ContentType("application/protojson"),
-		http.Operation(OperationConversationServiceCancelRun),
-		http.PathTemplate(pattern),
-	}, opts...)
-	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 func (c *ConversationServiceHTTPClientImpl) CreateConversation(ctx context.Context, in *CreateConversationRequest, opts ...http.CallOption) (*Conversation, error) {
 	var out Conversation
 	pattern := "/assistant/v1/conversations"
@@ -316,23 +195,6 @@ func (c *ConversationServiceHTTPClientImpl) CreateConversation(ctx context.Conte
 		http.Accept("application/protojson"),
 		http.ContentType("application/protojson"),
 		http.Operation(OperationConversationServiceCreateConversation),
-		http.PathTemplate(pattern),
-	}, opts...)
-	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
-func (c *ConversationServiceHTTPClientImpl) CreateRun(ctx context.Context, in *CreateRunRequest, opts ...http.CallOption) (*Run, error) {
-	var out Run
-	pattern := "/assistant/v1/conversations/{conversation_id}/runs"
-	path := http.BuildPath(pattern, in)
-	opts = append([]http.CallOption{
-		http.Accept("application/protojson"),
-		http.ContentType("application/protojson"),
-		http.Operation(OperationConversationServiceCreateRun),
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
@@ -374,22 +236,6 @@ func (c *ConversationServiceHTTPClientImpl) GetConversation(ctx context.Context,
 	return &out, nil
 }
 
-func (c *ConversationServiceHTTPClientImpl) GetRun(ctx context.Context, in *GetRunRequest, opts ...http.CallOption) (*Run, error) {
-	var out Run
-	pattern := "/assistant/v1/runs/{id}"
-	path := http.BuildPath(pattern, in, http.WithQueryParams())
-	opts = append([]http.CallOption{
-		http.Accept("application/protojson"),
-		http.Operation(OperationConversationServiceGetRun),
-		http.PathTemplate(pattern),
-	}, opts...)
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 func (c *ConversationServiceHTTPClientImpl) ListConversations(ctx context.Context, in *ListConversationsRequest, opts ...http.CallOption) (*ListConversationsResponse, error) {
 	var out ListConversationsResponse
 	pattern := "/assistant/v1/conversations"
@@ -422,22 +268,6 @@ func (c *ConversationServiceHTTPClientImpl) ListMessages(ctx context.Context, in
 	return &out, nil
 }
 
-func (c *ConversationServiceHTTPClientImpl) ListRunItems(ctx context.Context, in *ListRunItemsRequest, opts ...http.CallOption) (*ListRunItemsResponse, error) {
-	var out ListRunItemsResponse
-	pattern := "/assistant/v1/runs/{run_id}/items"
-	path := http.BuildPath(pattern, in, http.WithQueryParams())
-	opts = append([]http.CallOption{
-		http.Accept("application/protojson"),
-		http.Operation(OperationConversationServiceListRunItems),
-		http.PathTemplate(pattern),
-	}, opts...)
-	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return &out, nil
-}
-
 func (c *ConversationServiceHTTPClientImpl) UpdateConversation(ctx context.Context, in *UpdateConversationRequest, opts ...http.CallOption) (*Conversation, error) {
 	var out Conversation
 	pattern := "/assistant/v1/conversations/{id}"
@@ -449,6 +279,195 @@ func (c *ConversationServiceHTTPClientImpl) UpdateConversation(ctx context.Conte
 		http.PathTemplate(pattern),
 	}, opts...)
 	err := c.cc.Invoke(ctx, "PATCH", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+const OperationAgentExecutionServiceCancelAgentExecution = "/ingate.assistant.v1.AgentExecutionService/CancelAgentExecution"
+const OperationAgentExecutionServiceCreateAgentExecution = "/ingate.assistant.v1.AgentExecutionService/CreateAgentExecution"
+const OperationAgentExecutionServiceGetAgentExecution = "/ingate.assistant.v1.AgentExecutionService/GetAgentExecution"
+const OperationAgentExecutionServiceListAgentExecutionSteps = "/ingate.assistant.v1.AgentExecutionService/ListAgentExecutionSteps"
+
+type AgentExecutionServiceHTTPServer interface {
+	CancelAgentExecution(context.Context, *CancelAgentExecutionRequest) (*AgentExecution, error)
+	CreateAgentExecution(context.Context, *CreateAgentExecutionRequest) (*AgentExecution, error)
+	GetAgentExecution(context.Context, *GetAgentExecutionRequest) (*AgentExecution, error)
+	ListAgentExecutionSteps(context.Context, *ListAgentExecutionStepsRequest) (*ListAgentExecutionStepsResponse, error)
+}
+
+func RegisterAgentExecutionServiceHTTPServer(s *http.Server, srv AgentExecutionServiceHTTPServer) {
+	r := s.Route("/")
+	r.Handle("POST", "/assistant/v1/conversations/{conversation_id}/executions", _AgentExecutionService_CreateAgentExecution0_HTTP_Handler(srv))
+	r.Handle("GET", "/assistant/v1/executions/{id}", _AgentExecutionService_GetAgentExecution0_HTTP_Handler(srv))
+	r.Handle("GET", "/assistant/v1/executions/{execution_id}/steps", _AgentExecutionService_ListAgentExecutionSteps0_HTTP_Handler(srv))
+	r.Handle("POST", "/assistant/v1/executions/{id}:cancel", _AgentExecutionService_CancelAgentExecution0_HTTP_Handler(srv))
+}
+
+func _AgentExecutionService_CreateAgentExecution0_HTTP_Handler(srv AgentExecutionServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in CreateAgentExecutionRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationAgentExecutionServiceCreateAgentExecution)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.CreateAgentExecution(ctx, req.(*CreateAgentExecutionRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*AgentExecution)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _AgentExecutionService_GetAgentExecution0_HTTP_Handler(srv AgentExecutionServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in GetAgentExecutionRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationAgentExecutionServiceGetAgentExecution)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.GetAgentExecution(ctx, req.(*GetAgentExecutionRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*AgentExecution)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _AgentExecutionService_ListAgentExecutionSteps0_HTTP_Handler(srv AgentExecutionServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListAgentExecutionStepsRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationAgentExecutionServiceListAgentExecutionSteps)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListAgentExecutionSteps(ctx, req.(*ListAgentExecutionStepsRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListAgentExecutionStepsResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _AgentExecutionService_CancelAgentExecution0_HTTP_Handler(srv AgentExecutionServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in CancelAgentExecutionRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationAgentExecutionServiceCancelAgentExecution)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.CancelAgentExecution(ctx, req.(*CancelAgentExecutionRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*AgentExecution)
+		return ctx.Result(200, reply)
+	}
+}
+
+type AgentExecutionServiceHTTPClient interface {
+	CancelAgentExecution(ctx context.Context, req *CancelAgentExecutionRequest, opts ...http.CallOption) (rsp *AgentExecution, err error)
+	CreateAgentExecution(ctx context.Context, req *CreateAgentExecutionRequest, opts ...http.CallOption) (rsp *AgentExecution, err error)
+	GetAgentExecution(ctx context.Context, req *GetAgentExecutionRequest, opts ...http.CallOption) (rsp *AgentExecution, err error)
+	ListAgentExecutionSteps(ctx context.Context, req *ListAgentExecutionStepsRequest, opts ...http.CallOption) (rsp *ListAgentExecutionStepsResponse, err error)
+}
+
+type AgentExecutionServiceHTTPClientImpl struct {
+	cc *http.Client
+}
+
+func NewAgentExecutionServiceHTTPClient(client *http.Client) AgentExecutionServiceHTTPClient {
+	return &AgentExecutionServiceHTTPClientImpl{client}
+}
+
+func (c *AgentExecutionServiceHTTPClientImpl) CancelAgentExecution(ctx context.Context, in *CancelAgentExecutionRequest, opts ...http.CallOption) (*AgentExecution, error) {
+	var out AgentExecution
+	pattern := "/assistant/v1/executions/{id}:cancel"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationAgentExecutionServiceCancelAgentExecution),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *AgentExecutionServiceHTTPClientImpl) CreateAgentExecution(ctx context.Context, in *CreateAgentExecutionRequest, opts ...http.CallOption) (*AgentExecution, error) {
+	var out AgentExecution
+	pattern := "/assistant/v1/conversations/{conversation_id}/executions"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationAgentExecutionServiceCreateAgentExecution),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *AgentExecutionServiceHTTPClientImpl) GetAgentExecution(ctx context.Context, in *GetAgentExecutionRequest, opts ...http.CallOption) (*AgentExecution, error) {
+	var out AgentExecution
+	pattern := "/assistant/v1/executions/{id}"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationAgentExecutionServiceGetAgentExecution),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func (c *AgentExecutionServiceHTTPClientImpl) ListAgentExecutionSteps(ctx context.Context, in *ListAgentExecutionStepsRequest, opts ...http.CallOption) (*ListAgentExecutionStepsResponse, error) {
+	var out ListAgentExecutionStepsResponse
+	pattern := "/assistant/v1/executions/{execution_id}/steps"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationAgentExecutionServiceListAgentExecutionSteps),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
 	if err != nil {
 		return nil, err
 	}

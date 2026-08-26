@@ -13,7 +13,7 @@ import (
 
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	mysqldata "github.com/lgc202/ingate/internal/assistant/data/mysql"
-	assistantserver "github.com/lgc202/ingate/internal/assistant/server"
+	"github.com/lgc202/ingate/internal/assistant/worker"
 	"github.com/lgc202/ingate/internal/pkg/appconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
@@ -79,7 +79,7 @@ func newKratosApp(
 	logger *slog.Logger,
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
-	runWorker *assistantserver.RunWorker,
+	executionWorker *worker.ExecutionWorker,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -88,6 +88,6 @@ func newKratosApp(
 		kratos.Version(version.String()),
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
-		kratos.Server(httpServer, runWorker),
+		kratos.Server(httpServer, executionWorker),
 	)
 }

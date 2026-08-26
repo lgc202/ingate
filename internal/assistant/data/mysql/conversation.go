@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
-	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
+	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql/db"
 )
 
@@ -91,7 +91,7 @@ func (s *Store) List(
 	return page, nil
 }
 
-// Delete 在没有排队或运行中的 Run 时删除整个会话聚合。
+// Delete 在没有排队或运行中的 Agent 执行时删除整个会话聚合。
 func (s *Store) Delete(ctx context.Context, actorID, id string) error {
 	err := s.withTransaction(ctx, func(queries *db.Queries) error {
 		if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
@@ -99,23 +99,23 @@ func (s *Store) Delete(ctx context.Context, actorID, id string) error {
 		}); err != nil {
 			return mapConversationNotFound(err)
 		}
-		active, err := queries.CountActiveRuns(ctx, id)
+		active, err := queries.CountActiveExecutions(ctx, id)
 		if err != nil {
-			return fmt.Errorf("count active assistant runs: %w", err)
+			return fmt.Errorf("count active assistant executions: %w", err)
 		}
 		if active > 0 {
-			return runbiz.ErrConversationBusy
+			return execution.ErrConversationBusy
 		}
 
 		// 数据库不使用外键级联；聚合删除必须在同一事务中按依赖顺序显式完成。
 		if err := queries.DeleteMessagesByConversation(ctx, id); err != nil {
 			return fmt.Errorf("delete conversation messages: %w", err)
 		}
-		if err := queries.DeleteRunItemsByConversation(ctx, id); err != nil {
-			return fmt.Errorf("delete conversation run items: %w", err)
+		if err := queries.DeleteExecutionStepsByConversation(ctx, id); err != nil {
+			return fmt.Errorf("delete conversation execution steps: %w", err)
 		}
-		if err := queries.DeleteRunsByConversation(ctx, id); err != nil {
-			return fmt.Errorf("delete conversation runs: %w", err)
+		if err := queries.DeleteExecutionsByConversation(ctx, id); err != nil {
+			return fmt.Errorf("delete conversation executions: %w", err)
 		}
 		rows, err := queries.DeleteConversation(ctx, db.DeleteConversationParams{ID: id, ActorID: actorID})
 		if err != nil {

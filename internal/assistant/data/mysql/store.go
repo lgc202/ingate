@@ -1,4 +1,4 @@
-// Package mysql 使用 MySQL 持久化运维助手的会话、Run 和消息。
+// Package mysql 使用 MySQL 持久化运维助手的会话、Agent 执行和消息。
 package mysql
 
 import (

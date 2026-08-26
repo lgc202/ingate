@@ -22,11 +22,11 @@ type loadSkillOutput struct {
 	AllowedTools []string `json:"allowed_tools"`
 }
 
-// NewLoadTool 为单次 Run 创建独立的 Skill 加载工具。
+// NewLoadTool 为单次执行创建独立的 Skill 加载工具。
 func NewLoadTool(session *Session) (tool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		LoadToolName,
-		"加载一个内置运维 Skill，获取任务步骤和本次 Run 可使用的工具。",
+		"加载一个内置运维 Skill，获取任务步骤和本次执行可使用的工具。",
 		func(_ context.Context, input loadSkillInput) (loadSkillOutput, error) {
 			return loadSkill(session, input.Name)
 		},

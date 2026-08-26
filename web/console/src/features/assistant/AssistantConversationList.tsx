@@ -6,7 +6,7 @@ import type { AssistantConversation } from '@/domain/assistant';
 interface AssistantConversationListProps {
   conversations: AssistantConversation[];
   selectedID: string | null;
-  activeRunConversationID?: string;
+  activeExecutionConversationID?: string;
   loading: boolean;
   loadingMore: boolean;
   hasMore: boolean;
@@ -20,7 +20,7 @@ interface AssistantConversationListProps {
 export function AssistantConversationList({
   conversations,
   selectedID,
-  activeRunConversationID,
+  activeExecutionConversationID,
   loading,
   loadingMore,
   hasMore,
@@ -48,7 +48,7 @@ export function AssistantConversationList({
             key={conversation.id}
             conversation={conversation}
             active={selectedID === conversation.id}
-            running={activeRunConversationID === conversation.id}
+            running={activeExecutionConversationID === conversation.id}
             onSelect={() => onSelect(conversation.id)}
             onRename={() => onRename(conversation)}
             onDelete={() => onDelete(conversation)}

@@ -12,34 +12,34 @@ import {
   Square,
 } from 'lucide-react';
 import {
-  cancelAssistantRun,
+  cancelAgentExecution,
   createAssistantConversation,
-  createAssistantRun,
+  createAgentExecution,
   deleteAssistantConversation,
-  getAssistantRun,
+  getAgentExecution,
   getModelConnection,
   listAssistantConversations,
   listAssistantMessages,
-  listAssistantRunItems,
-  streamAssistantRun,
+  listAgentExecutionSteps,
+  streamAgentExecution,
   updateAssistantConversation,
 } from '@/api/assistant';
 import { Badge, Button, Modal, PageFrame, Toast } from '@/components/ui';
 import type {
   AssistantConversation,
   AssistantMessage,
-  AssistantRun,
-  AssistantRunItem,
+  AgentExecution,
+  AgentExecutionStep,
   AssistantStreamEvent,
   ModelConnection,
 } from '@/domain/assistant';
-import { isTerminalRun, runErrorMessage, runStateLabel } from '@/domain/assistant';
+import { executionErrorMessage, executionStateLabel, isTerminalExecution } from '@/domain/assistant';
 import { AssistantConversationList } from './AssistantConversationList';
 import { AssistantMessageList, type LiveAnswer } from './AssistantMessageList';
 import { ModelConnectionDrawer } from './ModelConnectionDrawer';
 
 const activeConversationKey = 'ingate.assistant.conversation';
-const activeRunKey = 'ingate.assistant.active-run';
+const activeExecutionKey = 'ingate.assistant.active-execution';
 
 const emptyModelConnection: ModelConnection = {
   configured: false,
@@ -53,8 +53,8 @@ const emptyModelConnection: ModelConnection = {
   reasoningBudgetTokens: 0,
 };
 
-interface StoredRun {
-  runID: string;
+interface StoredExecution {
+  executionID: string;
   conversationID: string;
   lastEventID: string;
   content: string;
@@ -77,11 +77,11 @@ export function AssistantPage() {
   const [deleteCandidate, setDeleteCandidate] = useState<AssistantConversation | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [input, setInput] = useState('');
-  const [activeRun, setActiveRun] = useState<AssistantRun | null>(null);
-  const [runItems, setRunItems] = useState<AssistantRunItem[]>([]);
+  const [activeExecution, setActiveExecution] = useState<AgentExecution | null>(null);
+  const [executionSteps, setExecutionSteps] = useState<AgentExecutionStep[]>([]);
   const [liveAnswer, setLiveAnswer] = useState<LiveAnswer | null>(null);
   const [cancelling, setCancelling] = useState(false);
-  const [runError, setRunError] = useState('');
+  const [executionError, setExecutionError] = useState('');
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const streamAbortRef = useRef<AbortController | null>(null);
   const streamGenerationRef = useRef(0);
@@ -118,53 +118,66 @@ export function AssistantPage() {
     return page.conversations ?? [];
   }, []);
 
-  const finishRun = useCallback(async (run: AssistantRun) => {
-    let items: AssistantRunItem[] = [];
+  const finishExecution = useCallback(async (execution: AgentExecution) => {
+    let steps: AgentExecutionStep[] = [];
     try {
-      items = await listAssistantRunItems(run.id);
-      setRunItems(items);
+      steps = await listAgentExecutionSteps(execution.id);
+      setExecutionSteps(steps);
     } catch {
-      // Run 终态仍是最终事实；执行步骤读取失败不应覆盖回答结果。
+      // 执行终态是最终事实；步骤读取失败不应覆盖回答结果。
     }
-    if (selectedIDRef.current === run.conversationId) {
-      if (run.state === 'RUN_STATE_FAILED') setRunError(runErrorMessage(run.errorCode, items));
-      if (run.state === 'RUN_STATE_CANCELLED') setRunError('本次回答已取消');
+    if (selectedIDRef.current === execution.conversationId) {
+      if (execution.state === 'AGENT_EXECUTION_STATE_FAILED') {
+        setExecutionError(executionErrorMessage(execution.errorCode, steps));
+      }
+      if (execution.state === 'AGENT_EXECUTION_STATE_CANCELLED') setExecutionError('本次回答已取消');
     }
     const tasks: Promise<unknown>[] = [reloadConversations().catch(() => undefined)];
-    if (selectedIDRef.current === run.conversationId) tasks.push(loadMessages(run.conversationId));
+    if (selectedIDRef.current === execution.conversationId) tasks.push(loadMessages(execution.conversationId));
     await Promise.all(tasks);
   }, [loadMessages, reloadConversations]);
 
-  const followRun = useCallback(async (initialRun: AssistantRun, storedRun?: StoredRun) => {
+  const followExecution = useCallback(async (
+    initialExecution: AgentExecution,
+    storedExecution?: StoredExecution,
+  ) => {
     const generation = ++streamGenerationRef.current;
     streamAbortRef.current?.abort();
     const abortController = new AbortController();
     streamAbortRef.current = abortController;
-    let run = initialRun;
-    let lastEventID = storedRun?.lastEventID ?? '';
-    let content = storedRun?.content ?? '';
-    let reasoning = storedRun?.reasoning ?? '';
+    let execution = initialExecution;
+    let lastEventID = storedExecution?.lastEventID ?? '';
+    let content = storedExecution?.content ?? '';
+    let reasoning = storedExecution?.reasoning ?? '';
     let terminalFromEvent = false;
-    setActiveRun(run);
-    setRunItems([]);
-    setLiveAnswer({ conversationID: run.conversationId, content, reasoning });
-    setRunError('');
-    storeActiveRun({ runID: run.id, conversationID: run.conversationId, lastEventID, content, reasoning });
+    setActiveExecution(execution);
+    setExecutionSteps([]);
+    setLiveAnswer({ conversationID: execution.conversationId, content, reasoning });
+    setExecutionError('');
+    storeActiveExecution({
+      executionID: execution.id,
+      conversationID: execution.conversationId,
+      lastEventID,
+      content,
+      reasoning,
+    });
 
     try {
-      while (!abortController.signal.aborted && !isTerminalRun(run.state)) {
+      while (!abortController.signal.aborted && !isTerminalExecution(execution.state)) {
         terminalFromEvent = false;
         try {
-          await streamAssistantRun(
-            run.id,
+          await streamAgentExecution(
+            execution.id,
             lastEventID,
             abortController.signal,
             (event) => {
               if (event.id) {
                 lastEventID = event.id;
               }
-              if (event.type === 'run.started') {
-                setActiveRun((current) => current ? { ...current, state: 'RUN_STATE_RUNNING' } : current);
+              if (event.type === 'execution.started') {
+                setActiveExecution((current) => current
+                  ? { ...current, state: 'AGENT_EXECUTION_STATE_RUNNING' }
+                  : current);
               }
               if (event.type === 'message.reasoning.delta') reasoning += event.value;
               if (event.type === 'message.content.delta') content += event.value;
@@ -172,11 +185,11 @@ export function AssistantPage() {
                 setNotice({ message: '实时回答连接已中断，正在恢复', tone: 'error' });
               }
               if (event.type === 'message.reasoning.delta' || event.type === 'message.content.delta') {
-                setLiveAnswer({ conversationID: run.conversationId, content, reasoning });
+                setLiveAnswer({ conversationID: execution.conversationId, content, reasoning });
               }
-              storeActiveRun({
-                runID: run.id,
-                conversationID: run.conversationId,
+              storeActiveExecution({
+                executionID: execution.id,
+                conversationID: execution.conversationId,
                 lastEventID,
                 content,
                 reasoning,
@@ -186,43 +199,43 @@ export function AssistantPage() {
           );
         } catch (cause) {
           if (abortController.signal.aborted) return;
-          // 网络中断不决定 Run 结果，先读取持久状态，再从最后一个事件继续订阅。
+          // 网络中断不决定执行结果，先读取持久状态，再从最后一个事件继续订阅。
           if (!(cause instanceof TypeError)) {
             setNotice({ message: '实时回答连接已中断，正在恢复', tone: 'error' });
           }
         }
 
-        run = await getAssistantRun(run.id);
-        setActiveRun(run);
-        if (isTerminalRun(run.state) || terminalFromEvent) break;
+        execution = await getAgentExecution(execution.id);
+        setActiveExecution(execution);
+        if (isTerminalExecution(execution.state) || terminalFromEvent) break;
         await delay(800, abortController.signal);
       }
       if (abortController.signal.aborted || generation !== streamGenerationRef.current) return;
-      if (!isTerminalRun(run.state)) run = await getAssistantRun(run.id);
-      await finishRun(run);
+      if (!isTerminalExecution(execution.state)) execution = await getAgentExecution(execution.id);
+      await finishExecution(execution);
     } catch (cause) {
       if (!abortController.signal.aborted) {
-        setRunError(cause instanceof Error ? cause.message : '无法读取助手执行状态');
+        setExecutionError(cause instanceof Error ? cause.message : '无法读取助手执行状态');
       }
     } finally {
       if (generation === streamGenerationRef.current) {
-        setActiveRun(null);
+        setActiveExecution(null);
         setLiveAnswer(null);
         setCancelling(false);
-        clearStoredRun();
+        clearStoredExecution();
         streamAbortRef.current = null;
       }
     }
-  }, [finishRun]);
+  }, [finishExecution]);
 
   useEffect(() => {
-    const runID = activeRun?.id;
-    if (!runID || isTerminalRun(activeRun.state)) return;
+    const executionID = activeExecution?.id;
+    if (!executionID || isTerminalExecution(activeExecution.state)) return;
     let cancelled = false;
     const refresh = async () => {
       try {
-        const items = await listAssistantRunItems(runID);
-        if (!cancelled) setRunItems(items);
+        const steps = await listAgentExecutionSteps(executionID);
+        if (!cancelled) setExecutionSteps(steps);
       } catch {
         // 轮询失败不打断模型回答，终态时还会再读取一次。
       }
@@ -233,7 +246,7 @@ export function AssistantPage() {
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [activeRun?.id, activeRun?.state]);
+  }, [activeExecution?.id, activeExecution?.state]);
 
   useEffect(() => {
     let cancelled = false;
@@ -261,9 +274,9 @@ export function AssistantPage() {
           });
         }
 
-        const storedRun = readStoredRun();
+        const storedExecution = readStoredExecution();
         const storedConversationID = localStorage.getItem(activeConversationKey);
-        const firstID = storedRun?.conversationID
+        const firstID = storedExecution?.conversationID
           ?? (storedConversationID && items.some((item) => item.id === storedConversationID)
             ? storedConversationID
             : items[0]?.id);
@@ -271,16 +284,16 @@ export function AssistantPage() {
           selectedIDRef.current = firstID;
           setSelectedID(firstID);
         }
-        if (storedRun) {
+        if (storedExecution) {
           try {
-            const run = await getAssistantRun(storedRun.runID);
-            if (!cancelled && !isTerminalRun(run.state)) {
-              void followRun(run, storedRun);
+            const execution = await getAgentExecution(storedExecution.executionID);
+            if (!cancelled && !isTerminalExecution(execution.state)) {
+              void followExecution(execution, storedExecution);
             } else if (!cancelled) {
-              clearStoredRun();
+              clearStoredExecution();
             }
           } catch {
-            clearStoredRun();
+            clearStoredExecution();
           }
         }
       })
@@ -292,7 +305,7 @@ export function AssistantPage() {
       streamGenerationRef.current += 1;
       streamAbortRef.current?.abort();
     };
-  }, [followRun]);
+  }, [followExecution]);
 
   useEffect(() => {
     if (!selectedID) {
@@ -324,8 +337,8 @@ export function AssistantPage() {
     setSelectedID(null);
     setMessages([]);
     setInput('');
-    setRunError('');
-    setRunItems([]);
+    setExecutionError('');
+    setExecutionSteps([]);
     promptHistoryRef.current = [];
     promptHistoryIndexRef.current = -1;
     promptDraftRef.current = '';
@@ -338,8 +351,8 @@ export function AssistantPage() {
     selectedIDRef.current = id;
     setSelectedID(id);
     setMessages([]);
-    setRunError('');
-    setRunItems([]);
+    setExecutionError('');
+    setExecutionSteps([]);
     promptHistoryRef.current = [];
     promptHistoryIndexRef.current = -1;
     promptDraftRef.current = '';
@@ -361,14 +374,14 @@ export function AssistantPage() {
 
   const submit = async () => {
     const content = input.trim();
-    if (!content || activeRun) return;
+    if (!content || activeExecution) return;
     if (!connection.configured) {
       setConnectionOpen(true);
       return;
     }
     setInput('');
-    setRunError('');
-    setRunItems([]);
+    setExecutionError('');
+    setExecutionSteps([]);
     try {
       let conversationID = selectedID;
       if (!conversationID) {
@@ -378,23 +391,23 @@ export function AssistantPage() {
         selectedIDRef.current = conversation.id;
         setSelectedID(conversation.id);
       }
-      const run = await createAssistantRun(conversationID, content);
+      const execution = await createAgentExecution(conversationID, content);
       promptHistoryRef.current = [...promptHistoryRef.current, content];
       promptHistoryIndexRef.current = -1;
       promptDraftRef.current = '';
       await loadMessages(conversationID);
-      void followRun(run);
+      void followExecution(execution);
     } catch (cause) {
       setInput(content);
-      setRunError(cause instanceof Error ? cause.message : '发送消息失败');
+      setExecutionError(cause instanceof Error ? cause.message : '发送消息失败');
     }
   };
 
   const cancel = async () => {
-    if (!activeRun || cancelling) return;
+    if (!activeExecution || cancelling) return;
     setCancelling(true);
     try {
-      setActiveRun(await cancelAssistantRun(activeRun.id));
+      setActiveExecution(await cancelAgentExecution(activeExecution.id));
     } catch (cause) {
       setCancelling(false);
       setNotice({ message: cause instanceof Error ? cause.message : '取消回答失败', tone: 'error' });
@@ -483,9 +496,9 @@ export function AssistantPage() {
   };
 
   const selectedConversation = conversations.find((item) => item.id === selectedID);
-  const currentRun = activeRun?.conversationId === selectedID ? activeRun : null;
+  const currentExecution = activeExecution?.conversationId === selectedID ? activeExecution : null;
   const currentLiveAnswer = liveAnswer?.conversationID === selectedID ? liveAnswer : null;
-  const currentRunItems = currentRun ? runItems : [];
+  const currentExecutionSteps = currentExecution ? executionSteps : [];
 
   return (
     <PageFrame
@@ -514,7 +527,7 @@ export function AssistantPage() {
         <AssistantConversationList
           conversations={conversations}
           selectedID={selectedID}
-          activeRunConversationID={activeRun?.conversationId}
+          activeExecutionConversationID={activeExecution?.conversationId}
           loading={loading}
           loadingMore={loadingMore}
           hasMore={Boolean(nextCursor)}
@@ -525,7 +538,7 @@ export function AssistantPage() {
             setRenameTitle(conversation.title);
           }}
           onDelete={(conversation) => {
-            if (activeRun?.conversationId === conversation.id) {
+            if (activeExecution?.conversationId === conversation.id) {
               setNotice({ message: '请先停止当前回答，再删除该会话', tone: 'error' });
               return;
             }
@@ -540,10 +553,18 @@ export function AssistantPage() {
               <MessageSquareText aria-hidden="true" />
               <div>
                 <strong>{selectedConversation?.title ?? '新会话'}</strong>
-                <span>{currentRun ? runStateLabel(currentRun.state) : '面向 Ingate 配置与排障场景'}</span>
+                <span>{currentExecution
+                  ? executionStateLabel(currentExecution.state)
+                  : '面向 Ingate 配置与排障场景'}</span>
               </div>
             </div>
-            {currentRun ? <Badge tone={currentRun.state === 'RUN_STATE_RUNNING' ? 'accent' : 'neutral'}>{runStateLabel(currentRun.state)}</Badge> : null}
+            {currentExecution ? (
+              <Badge
+                tone={currentExecution.state === 'AGENT_EXECUTION_STATE_RUNNING' ? 'accent' : 'neutral'}
+              >
+                {executionStateLabel(currentExecution.state)}
+              </Badge>
+            ) : null}
           </header>
 
           <AssistantMessageList
@@ -552,9 +573,9 @@ export function AssistantPage() {
             hasConversation={Boolean(selectedID)}
             configured={connection.configured}
             liveAnswer={currentLiveAnswer}
-            run={currentRun}
-            runItems={currentRunItems}
-            error={runError}
+            execution={currentExecution}
+            executionSteps={currentExecutionSteps}
+            error={executionError}
             endRef={messagesEndRef}
             onConfigure={() => setConnectionOpen(true)}
             onSuggestion={(value) => {
@@ -564,8 +585,12 @@ export function AssistantPage() {
           />
 
           <div className="assistant-composer-wrap">
-            {activeRun && activeRun.conversationId !== selectedID ? (
-              <button className="assistant-active-run-link" type="button" onClick={() => selectConversation(activeRun.conversationId)}>
+            {activeExecution && activeExecution.conversationId !== selectedID ? (
+              <button
+                className="assistant-active-execution-link"
+                type="button"
+                onClick={() => selectConversation(activeExecution.conversationId)}
+              >
                 助手正在另一个会话中回答，点击返回
               </button>
             ) : null}
@@ -575,7 +600,7 @@ export function AssistantPage() {
                 value={input}
                 rows={3}
                 maxLength={65536}
-                disabled={Boolean(activeRun)}
+                disabled={Boolean(activeExecution)}
                 placeholder={connection.configured ? '描述问题，或询问 Ingate 的配置与排障方法' : '请先配置助手使用的模型'}
                 onChange={(event) => {
                   promptHistoryIndexRef.current = -1;
@@ -586,13 +611,13 @@ export function AssistantPage() {
               />
               <footer>
                 <span>Enter 发送 · Shift + Enter 换行 · ↑/↓ 历史提示</span>
-                {currentRun ? (
+                {currentExecution ? (
                   <Button variant="outline" disabled={cancelling} onClick={() => void cancel()}>
                     <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
                     {cancelling ? '正在停止' : '停止回答'}
                   </Button>
                 ) : (
-                  <Button disabled={!input.trim() || Boolean(activeRun)} onClick={() => void submit()}>
+                  <Button disabled={!input.trim() || Boolean(activeExecution)} onClick={() => void submit()}>
                     <Send className="h-4 w-4" aria-hidden="true" />
                     发送
                   </Button>
@@ -664,9 +689,9 @@ export function AssistantPage() {
 }
 
 function isTerminalStreamEvent(event: AssistantStreamEvent): boolean {
-  return event.type === 'run.completed'
-    || event.type === 'run.failed'
-    || event.type === 'run.cancelled';
+  return event.type === 'execution.completed'
+    || event.type === 'execution.failed'
+    || event.type === 'execution.cancelled';
 }
 
 function conversationTitle(content: string): string {
@@ -674,14 +699,14 @@ function conversationTitle(content: string): string {
   return firstLine.length > 48 ? `${firstLine.slice(0, 48)}…` : firstLine;
 }
 
-function readStoredRun(): StoredRun | null {
-  const value = localStorage.getItem(activeRunKey);
+function readStoredExecution(): StoredExecution | null {
+  const value = localStorage.getItem(activeExecutionKey);
   if (!value) return null;
   try {
-    const stored = JSON.parse(value) as Partial<StoredRun>;
-    if (stored.runID && stored.conversationID) {
+    const stored = JSON.parse(value) as Partial<StoredExecution>;
+    if (stored.executionID && stored.conversationID) {
       return {
-        runID: stored.runID,
+        executionID: stored.executionID,
         conversationID: stored.conversationID,
         lastEventID: stored.lastEventID ?? '',
         content: stored.content ?? '',
@@ -689,17 +714,17 @@ function readStoredRun(): StoredRun | null {
       };
     }
   } catch {
-    localStorage.removeItem(activeRunKey);
+    localStorage.removeItem(activeExecutionKey);
   }
   return null;
 }
 
-function storeActiveRun(run: StoredRun) {
-  localStorage.setItem(activeRunKey, JSON.stringify(run));
+function storeActiveExecution(execution: StoredExecution) {
+  localStorage.setItem(activeExecutionKey, JSON.stringify(execution));
 }
 
-function clearStoredRun() {
-  localStorage.removeItem(activeRunKey);
+function clearStoredExecution() {
+  localStorage.removeItem(activeExecutionKey);
 }
 
 function delay(duration: number, signal: AbortSignal): Promise<void> {

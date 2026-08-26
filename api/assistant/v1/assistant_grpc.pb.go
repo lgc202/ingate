@@ -26,10 +26,6 @@ const (
 	ConversationService_UpdateConversation_FullMethodName = "/ingate.assistant.v1.ConversationService/UpdateConversation"
 	ConversationService_DeleteConversation_FullMethodName = "/ingate.assistant.v1.ConversationService/DeleteConversation"
 	ConversationService_ListMessages_FullMethodName       = "/ingate.assistant.v1.ConversationService/ListMessages"
-	ConversationService_CreateRun_FullMethodName          = "/ingate.assistant.v1.ConversationService/CreateRun"
-	ConversationService_GetRun_FullMethodName             = "/ingate.assistant.v1.ConversationService/GetRun"
-	ConversationService_ListRunItems_FullMethodName       = "/ingate.assistant.v1.ConversationService/ListRunItems"
-	ConversationService_CancelRun_FullMethodName          = "/ingate.assistant.v1.ConversationService/CancelRun"
 )
 
 // ConversationServiceClient is the client API for ConversationService service.
@@ -44,10 +40,6 @@ type ConversationServiceClient interface {
 	UpdateConversation(ctx context.Context, in *UpdateConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
 	DeleteConversation(ctx context.Context, in *DeleteConversationRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	ListMessages(ctx context.Context, in *ListMessagesRequest, opts ...grpc.CallOption) (*ListMessagesResponse, error)
-	CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*Run, error)
-	GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*Run, error)
-	ListRunItems(ctx context.Context, in *ListRunItemsRequest, opts ...grpc.CallOption) (*ListRunItemsResponse, error)
-	CancelRun(ctx context.Context, in *CancelRunRequest, opts ...grpc.CallOption) (*Run, error)
 }
 
 type conversationServiceClient struct {
@@ -118,46 +110,6 @@ func (c *conversationServiceClient) ListMessages(ctx context.Context, in *ListMe
 	return out, nil
 }
 
-func (c *conversationServiceClient) CreateRun(ctx context.Context, in *CreateRunRequest, opts ...grpc.CallOption) (*Run, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Run)
-	err := c.cc.Invoke(ctx, ConversationService_CreateRun_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *conversationServiceClient) GetRun(ctx context.Context, in *GetRunRequest, opts ...grpc.CallOption) (*Run, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Run)
-	err := c.cc.Invoke(ctx, ConversationService_GetRun_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *conversationServiceClient) ListRunItems(ctx context.Context, in *ListRunItemsRequest, opts ...grpc.CallOption) (*ListRunItemsResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListRunItemsResponse)
-	err := c.cc.Invoke(ctx, ConversationService_ListRunItems_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *conversationServiceClient) CancelRun(ctx context.Context, in *CancelRunRequest, opts ...grpc.CallOption) (*Run, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(Run)
-	err := c.cc.Invoke(ctx, ConversationService_CancelRun_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // ConversationServiceServer is the server API for ConversationService service.
 // All implementations should embed UnimplementedConversationServiceServer
 // for forward compatibility.
@@ -170,10 +122,6 @@ type ConversationServiceServer interface {
 	UpdateConversation(context.Context, *UpdateConversationRequest) (*Conversation, error)
 	DeleteConversation(context.Context, *DeleteConversationRequest) (*emptypb.Empty, error)
 	ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error)
-	CreateRun(context.Context, *CreateRunRequest) (*Run, error)
-	GetRun(context.Context, *GetRunRequest) (*Run, error)
-	ListRunItems(context.Context, *ListRunItemsRequest) (*ListRunItemsResponse, error)
-	CancelRun(context.Context, *CancelRunRequest) (*Run, error)
 }
 
 // UnimplementedConversationServiceServer should be embedded to have
@@ -200,18 +148,6 @@ func (UnimplementedConversationServiceServer) DeleteConversation(context.Context
 }
 func (UnimplementedConversationServiceServer) ListMessages(context.Context, *ListMessagesRequest) (*ListMessagesResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method ListMessages not implemented")
-}
-func (UnimplementedConversationServiceServer) CreateRun(context.Context, *CreateRunRequest) (*Run, error) {
-	return nil, status.Error(codes.Unimplemented, "method CreateRun not implemented")
-}
-func (UnimplementedConversationServiceServer) GetRun(context.Context, *GetRunRequest) (*Run, error) {
-	return nil, status.Error(codes.Unimplemented, "method GetRun not implemented")
-}
-func (UnimplementedConversationServiceServer) ListRunItems(context.Context, *ListRunItemsRequest) (*ListRunItemsResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method ListRunItems not implemented")
-}
-func (UnimplementedConversationServiceServer) CancelRun(context.Context, *CancelRunRequest) (*Run, error) {
-	return nil, status.Error(codes.Unimplemented, "method CancelRun not implemented")
 }
 func (UnimplementedConversationServiceServer) testEmbeddedByValue() {}
 
@@ -341,78 +277,6 @@ func _ConversationService_ListMessages_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _ConversationService_CreateRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateRunRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ConversationServiceServer).CreateRun(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ConversationService_CreateRun_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConversationServiceServer).CreateRun(ctx, req.(*CreateRunRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ConversationService_GetRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetRunRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ConversationServiceServer).GetRun(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ConversationService_GetRun_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConversationServiceServer).GetRun(ctx, req.(*GetRunRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ConversationService_ListRunItems_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListRunItemsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ConversationServiceServer).ListRunItems(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ConversationService_ListRunItems_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConversationServiceServer).ListRunItems(ctx, req.(*ListRunItemsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _ConversationService_CancelRun_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CancelRunRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(ConversationServiceServer).CancelRun(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: ConversationService_CancelRun_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ConversationServiceServer).CancelRun(ctx, req.(*CancelRunRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // ConversationService_ServiceDesc is the grpc.ServiceDesc for ConversationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -444,21 +308,223 @@ var ConversationService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "ListMessages",
 			Handler:    _ConversationService_ListMessages_Handler,
 		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "assistant/v1/assistant.proto",
+}
+
+const (
+	AgentExecutionService_CreateAgentExecution_FullMethodName    = "/ingate.assistant.v1.AgentExecutionService/CreateAgentExecution"
+	AgentExecutionService_GetAgentExecution_FullMethodName       = "/ingate.assistant.v1.AgentExecutionService/GetAgentExecution"
+	AgentExecutionService_ListAgentExecutionSteps_FullMethodName = "/ingate.assistant.v1.AgentExecutionService/ListAgentExecutionSteps"
+	AgentExecutionService_CancelAgentExecution_FullMethodName    = "/ingate.assistant.v1.AgentExecutionService/CancelAgentExecution"
+)
+
+// AgentExecutionServiceClient is the client API for AgentExecutionService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// AgentExecutionService 管理一次用户请求从排队到完成的异步执行。
+type AgentExecutionServiceClient interface {
+	CreateAgentExecution(ctx context.Context, in *CreateAgentExecutionRequest, opts ...grpc.CallOption) (*AgentExecution, error)
+	GetAgentExecution(ctx context.Context, in *GetAgentExecutionRequest, opts ...grpc.CallOption) (*AgentExecution, error)
+	ListAgentExecutionSteps(ctx context.Context, in *ListAgentExecutionStepsRequest, opts ...grpc.CallOption) (*ListAgentExecutionStepsResponse, error)
+	CancelAgentExecution(ctx context.Context, in *CancelAgentExecutionRequest, opts ...grpc.CallOption) (*AgentExecution, error)
+}
+
+type agentExecutionServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewAgentExecutionServiceClient(cc grpc.ClientConnInterface) AgentExecutionServiceClient {
+	return &agentExecutionServiceClient{cc}
+}
+
+func (c *agentExecutionServiceClient) CreateAgentExecution(ctx context.Context, in *CreateAgentExecutionRequest, opts ...grpc.CallOption) (*AgentExecution, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentExecution)
+	err := c.cc.Invoke(ctx, AgentExecutionService_CreateAgentExecution_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentExecutionServiceClient) GetAgentExecution(ctx context.Context, in *GetAgentExecutionRequest, opts ...grpc.CallOption) (*AgentExecution, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentExecution)
+	err := c.cc.Invoke(ctx, AgentExecutionService_GetAgentExecution_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentExecutionServiceClient) ListAgentExecutionSteps(ctx context.Context, in *ListAgentExecutionStepsRequest, opts ...grpc.CallOption) (*ListAgentExecutionStepsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListAgentExecutionStepsResponse)
+	err := c.cc.Invoke(ctx, AgentExecutionService_ListAgentExecutionSteps_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *agentExecutionServiceClient) CancelAgentExecution(ctx context.Context, in *CancelAgentExecutionRequest, opts ...grpc.CallOption) (*AgentExecution, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AgentExecution)
+	err := c.cc.Invoke(ctx, AgentExecutionService_CancelAgentExecution_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// AgentExecutionServiceServer is the server API for AgentExecutionService service.
+// All implementations should embed UnimplementedAgentExecutionServiceServer
+// for forward compatibility.
+//
+// AgentExecutionService 管理一次用户请求从排队到完成的异步执行。
+type AgentExecutionServiceServer interface {
+	CreateAgentExecution(context.Context, *CreateAgentExecutionRequest) (*AgentExecution, error)
+	GetAgentExecution(context.Context, *GetAgentExecutionRequest) (*AgentExecution, error)
+	ListAgentExecutionSteps(context.Context, *ListAgentExecutionStepsRequest) (*ListAgentExecutionStepsResponse, error)
+	CancelAgentExecution(context.Context, *CancelAgentExecutionRequest) (*AgentExecution, error)
+}
+
+// UnimplementedAgentExecutionServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedAgentExecutionServiceServer struct{}
+
+func (UnimplementedAgentExecutionServiceServer) CreateAgentExecution(context.Context, *CreateAgentExecutionRequest) (*AgentExecution, error) {
+	return nil, status.Error(codes.Unimplemented, "method CreateAgentExecution not implemented")
+}
+func (UnimplementedAgentExecutionServiceServer) GetAgentExecution(context.Context, *GetAgentExecutionRequest) (*AgentExecution, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetAgentExecution not implemented")
+}
+func (UnimplementedAgentExecutionServiceServer) ListAgentExecutionSteps(context.Context, *ListAgentExecutionStepsRequest) (*ListAgentExecutionStepsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListAgentExecutionSteps not implemented")
+}
+func (UnimplementedAgentExecutionServiceServer) CancelAgentExecution(context.Context, *CancelAgentExecutionRequest) (*AgentExecution, error) {
+	return nil, status.Error(codes.Unimplemented, "method CancelAgentExecution not implemented")
+}
+func (UnimplementedAgentExecutionServiceServer) testEmbeddedByValue() {}
+
+// UnsafeAgentExecutionServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to AgentExecutionServiceServer will
+// result in compilation errors.
+type UnsafeAgentExecutionServiceServer interface {
+	mustEmbedUnimplementedAgentExecutionServiceServer()
+}
+
+func RegisterAgentExecutionServiceServer(s grpc.ServiceRegistrar, srv AgentExecutionServiceServer) {
+	// If the following call panics, it indicates UnimplementedAgentExecutionServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&AgentExecutionService_ServiceDesc, srv)
+}
+
+func _AgentExecutionService_CreateAgentExecution_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateAgentExecutionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentExecutionServiceServer).CreateAgentExecution(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentExecutionService_CreateAgentExecution_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentExecutionServiceServer).CreateAgentExecution(ctx, req.(*CreateAgentExecutionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentExecutionService_GetAgentExecution_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAgentExecutionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentExecutionServiceServer).GetAgentExecution(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentExecutionService_GetAgentExecution_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentExecutionServiceServer).GetAgentExecution(ctx, req.(*GetAgentExecutionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentExecutionService_ListAgentExecutionSteps_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListAgentExecutionStepsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentExecutionServiceServer).ListAgentExecutionSteps(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentExecutionService_ListAgentExecutionSteps_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentExecutionServiceServer).ListAgentExecutionSteps(ctx, req.(*ListAgentExecutionStepsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AgentExecutionService_CancelAgentExecution_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelAgentExecutionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AgentExecutionServiceServer).CancelAgentExecution(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AgentExecutionService_CancelAgentExecution_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AgentExecutionServiceServer).CancelAgentExecution(ctx, req.(*CancelAgentExecutionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// AgentExecutionService_ServiceDesc is the grpc.ServiceDesc for AgentExecutionService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var AgentExecutionService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "ingate.assistant.v1.AgentExecutionService",
+	HandlerType: (*AgentExecutionServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateRun",
-			Handler:    _ConversationService_CreateRun_Handler,
+			MethodName: "CreateAgentExecution",
+			Handler:    _AgentExecutionService_CreateAgentExecution_Handler,
 		},
 		{
-			MethodName: "GetRun",
-			Handler:    _ConversationService_GetRun_Handler,
+			MethodName: "GetAgentExecution",
+			Handler:    _AgentExecutionService_GetAgentExecution_Handler,
 		},
 		{
-			MethodName: "ListRunItems",
-			Handler:    _ConversationService_ListRunItems_Handler,
+			MethodName: "ListAgentExecutionSteps",
+			Handler:    _AgentExecutionService_ListAgentExecutionSteps_Handler,
 		},
 		{
-			MethodName: "CancelRun",
-			Handler:    _ConversationService_CancelRun_Handler,
+			MethodName: "CancelAgentExecution",
+			Handler:    _AgentExecutionService_CancelAgentExecution_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// Service 提供模型连接的查询、更新和运行时选取。
+// Service 提供模型连接的查询、更新和执行时选取。
 type Service struct {
 	store Store
 }
@@ -27,8 +27,8 @@ func (s *Service) Get(ctx context.Context) (Connection, error) {
 	return connection, err
 }
 
-// ForRun 返回新 Run 应使用的连接；未配置时拒绝启动模型调用。
-func (s *Service) ForRun(ctx context.Context) (Connection, error) {
+// ActiveConnection 返回新 Agent 执行应使用的连接；未配置时拒绝调用模型。
+func (s *Service) ActiveConnection(ctx context.Context) (Connection, error) {
 	connection, err := s.store.GetModelConnection(ctx)
 	if err != nil {
 		return Connection{}, err

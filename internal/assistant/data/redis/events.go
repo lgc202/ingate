@@ -9,14 +9,14 @@ import (
 
 	redisgo "github.com/redis/go-redis/v9"
 
-	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
+	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 )
 
-const eventKeyPrefix = "ingate:assistant:v1:run:"
+const eventKeyPrefix = "ingate:assistant:v1:execution:"
 
 // EventStore 使用 Redis Stream 保存 SSE 断线重连需要的短期事件。
-// MySQL 中的消息和 Run 状态仍是持久事实，Stream 到期不会丢失最终结果。
+// MySQL 中的消息和执行状态仍是持久事实，Stream 到期不会丢失最终结果。
 type EventStore struct {
 	client    *redisgo.Client
 	retention time.Duration
@@ -55,13 +55,13 @@ func (s *EventStore) Ping(ctx context.Context) error {
 	return s.client.Ping(ctx).Err()
 }
 
-// Append 追加一条 Run 流式事件，并刷新整个事件流的保留时间。
+// Append 追加一条执行流式事件，并刷新整个事件流的保留时间。
 func (s *EventStore) Append(
 	ctx context.Context,
-	runID string,
-	event runbiz.StreamEvent,
+	executionID string,
+	event execution.StreamEvent,
 ) (string, error) {
-	key := eventKey(runID)
+	key := eventKey(executionID)
 	pipeline := s.client.TxPipeline()
 	command := pipeline.XAdd(ctx, &redisgo.XAddArgs{
 		Stream: key,
@@ -77,19 +77,19 @@ func (s *EventStore) Append(
 	return command.Val(), nil
 }
 
-// Read 从指定事件 ID 之后读取 Run 事件，支持 SSE 断线后的短时重放。
+// Read 从指定事件 ID 之后读取执行事件，支持 SSE 断线后的短时重放。
 func (s *EventStore) Read(
 	ctx context.Context,
-	runID string,
+	executionID string,
 	lastID string,
 	limit int64,
 	block time.Duration,
-) ([]runbiz.StreamEvent, error) {
+) ([]execution.StreamEvent, error) {
 	if lastID == "" {
 		lastID = "0-0"
 	}
 	streams, err := s.client.XRead(ctx, &redisgo.XReadArgs{
-		Streams: []string{eventKey(runID), lastID},
+		Streams: []string{eventKey(executionID), lastID},
 		Count:   limit,
 		Block:   block,
 	}).Result()
@@ -102,18 +102,18 @@ func (s *EventStore) Read(
 	if len(streams) == 0 {
 		return nil, nil
 	}
-	events := make([]runbiz.StreamEvent, 0, len(streams[0].Messages))
+	events := make([]execution.StreamEvent, 0, len(streams[0].Messages))
 	for _, message := range streams[0].Messages {
-		events = append(events, runbiz.StreamEvent{
+		events = append(events, execution.StreamEvent{
 			ID:   message.ID,
-			Type: runbiz.EventType(fmt.Sprint(message.Values["type"])),
+			Type: execution.EventType(fmt.Sprint(message.Values["type"])),
 			Data: fmt.Sprint(message.Values["data"]),
 		})
 	}
 	return events, nil
 }
 
-func eventKey(runID string) string {
-	// Hash tag 让同一个 Run 的所有事件在 Redis Cluster 中固定落到同一分片。
-	return eventKeyPrefix + "{" + runID + "}:events"
+func eventKey(executionID string) string {
+	// Hash tag 让同一次执行的所有事件在 Redis Cluster 中固定落到同一分片。
+	return eventKeyPrefix + "{" + executionID + "}:events"
 }

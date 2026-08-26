@@ -1,8 +1,8 @@
 import type {
   AssistantConversation,
   AssistantMessage,
-  AssistantRun,
-  AssistantRunItem,
+  AgentExecution,
+  AgentExecutionStep,
   AssistantStreamEvent,
   AssistantStreamEventType,
   ModelConnection,
@@ -60,26 +60,26 @@ export async function listAssistantMessages(conversationID: string): Promise<Ass
   return messages;
 }
 
-export async function createAssistantRun(conversationID: string, content: string): Promise<AssistantRun> {
-  return assistantRequest<AssistantRun>(
-    `/assistant/v1/conversations/${encodeURIComponent(conversationID)}/runs`,
+export async function createAgentExecution(conversationID: string, content: string): Promise<AgentExecution> {
+  return assistantRequest<AgentExecution>(
+    `/assistant/v1/conversations/${encodeURIComponent(conversationID)}/executions`,
     { method: 'POST', body: JSON.stringify({ content }) },
   );
 }
 
-export async function getAssistantRun(id: string): Promise<AssistantRun> {
-  return assistantRequest<AssistantRun>(`/assistant/v1/runs/${encodeURIComponent(id)}`);
+export async function getAgentExecution(id: string): Promise<AgentExecution> {
+  return assistantRequest<AgentExecution>(`/assistant/v1/executions/${encodeURIComponent(id)}`);
 }
 
-export async function listAssistantRunItems(runID: string): Promise<AssistantRunItem[]> {
-  const result = await assistantRequest<{ items?: AssistantRunItem[] }>(
-    `/assistant/v1/runs/${encodeURIComponent(runID)}/items`,
+export async function listAgentExecutionSteps(executionID: string): Promise<AgentExecutionStep[]> {
+  const result = await assistantRequest<{ steps?: AgentExecutionStep[] }>(
+    `/assistant/v1/executions/${encodeURIComponent(executionID)}/steps`,
   );
-  return result.items ?? [];
+  return result.steps ?? [];
 }
 
-export async function cancelAssistantRun(id: string): Promise<AssistantRun> {
-  return assistantRequest<AssistantRun>(`/assistant/v1/runs/${encodeURIComponent(id)}:cancel`, {
+export async function cancelAgentExecution(id: string): Promise<AgentExecution> {
+  return assistantRequest<AgentExecution>(`/assistant/v1/executions/${encodeURIComponent(id)}:cancel`, {
     method: 'POST',
     body: '{}',
   });
@@ -96,15 +96,15 @@ export async function updateModelConnection(input: UpdateModelConnectionInput): 
   });
 }
 
-export async function streamAssistantRun(
-  runID: string,
+export async function streamAgentExecution(
+  executionID: string,
   lastEventID: string,
   signal: AbortSignal,
   onEvent: (event: AssistantStreamEvent) => void,
 ): Promise<void> {
   const headers = new Headers({ Accept: 'text/event-stream' });
   if (lastEventID) headers.set('Last-Event-ID', lastEventID);
-  const response = await fetch(`${assistantBaseURL}/assistant/v1/runs/${encodeURIComponent(runID)}/events`, {
+  const response = await fetch(`${assistantBaseURL}/assistant/v1/executions/${encodeURIComponent(executionID)}/events`, {
     credentials: 'same-origin',
     headers,
     signal,

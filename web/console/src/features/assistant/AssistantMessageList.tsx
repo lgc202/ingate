@@ -2,8 +2,8 @@ import type { RefObject } from 'react';
 import { useEffect, useState } from 'react';
 import { Bot, Check, CircleAlert, Copy, LoaderCircle, Settings2, Sparkles, UserRound } from 'lucide-react';
 import { Button } from '@/components/ui';
-import type { AssistantMessage, AssistantRun, AssistantRunItem } from '@/domain/assistant';
-import { runItemLabel, runStateLabel } from '@/domain/assistant';
+import type { AgentExecution, AgentExecutionStep, AssistantMessage } from '@/domain/assistant';
+import { executionStateLabel, executionStepLabel } from '@/domain/assistant';
 
 const suggestions = [
   '解释 Gateway、Route 和 Service 的关系',
@@ -23,8 +23,8 @@ interface AssistantMessageListProps {
   hasConversation: boolean;
   configured: boolean;
   liveAnswer: LiveAnswer | null;
-  run: AssistantRun | null;
-  runItems: AssistantRunItem[];
+  execution: AgentExecution | null;
+  executionSteps: AgentExecutionStep[];
   error: string;
   endRef: RefObject<HTMLDivElement | null>;
   onConfigure: () => void;
@@ -37,8 +37,8 @@ export function AssistantMessageList({
   hasConversation,
   configured,
   liveAnswer,
-  run,
-  runItems,
+  execution,
+  executionSteps,
   error,
   endRef,
   onConfigure,
@@ -55,9 +55,11 @@ export function AssistantMessageList({
         />
       ) : null}
       {messages.map((message) => <MessageBubble key={message.id} message={message} />)}
-      {liveAnswer || run ? <LiveAnswerBubble answer={liveAnswer} run={run} items={runItems} /> : null}
+      {liveAnswer || execution ? (
+        <LiveAnswerBubble answer={liveAnswer} execution={execution} steps={executionSteps} />
+      ) : null}
       {error ? (
-        <div className="assistant-run-error" role="alert">
+        <div className="assistant-execution-error" role="alert">
           <CircleAlert aria-hidden="true" />
           <span>{error}</span>
         </div>
@@ -144,19 +146,19 @@ function MessageBubble({ message }: { message: AssistantMessage }) {
 
 function LiveAnswerBubble({
   answer,
-  run,
-  items,
+  execution,
+  steps,
 }: {
   answer: LiveAnswer | null;
-  run: AssistantRun | null;
-  items: AssistantRunItem[];
+  execution: AgentExecution | null;
+  steps: AgentExecutionStep[];
 }) {
   return (
     <article className="assistant-message is-assistant is-live">
       <span><Bot aria-hidden="true" /></span>
       <div>
         <strong>Ingate 助手</strong>
-        {items.length ? <RunProgress items={items} /> : null}
+        {steps.length ? <ExecutionProgress steps={steps} /> : null}
         {answer?.reasoning ? (
           <details className="assistant-reasoning" open={!answer.content}>
             <summary>思考过程</summary>
@@ -166,7 +168,10 @@ function LiveAnswerBubble({
         {answer?.content ? (
           <p className="assistant-message-content">{answer.content}<i className="assistant-caret" /></p>
         ) : (
-          <div className="assistant-typing" aria-label={run ? runStateLabel(run.state) : '正在回答'}>
+          <div
+            className="assistant-typing"
+            aria-label={execution ? executionStateLabel(execution.state) : '正在回答'}
+          >
             <i /><i /><i />
           </div>
         )}
@@ -175,19 +180,22 @@ function LiveAnswerBubble({
   );
 }
 
-function RunProgress({ items }: { items: AssistantRunItem[] }) {
+function ExecutionProgress({ steps }: { steps: AgentExecutionStep[] }) {
   return (
-    <div className="assistant-run-progress" aria-label="执行进度">
-      {items.map((item) => (
-        <div key={item.id} className={`is-${item.state.replace('RUN_ITEM_STATE_', '').toLowerCase()}`}>
-          {item.state === 'RUN_ITEM_STATE_RUNNING'
+    <div className="assistant-execution-progress" aria-label="执行进度">
+      {steps.map((step) => (
+        <div
+          key={step.id}
+          className={`is-${step.state.replace('AGENT_EXECUTION_STEP_STATE_', '').toLowerCase()}`}
+        >
+          {step.state === 'AGENT_EXECUTION_STEP_STATE_RUNNING'
             ? <LoaderCircle aria-hidden="true" />
-            : item.state === 'RUN_ITEM_STATE_COMPLETED'
+            : step.state === 'AGENT_EXECUTION_STEP_STATE_COMPLETED'
               ? <Check aria-hidden="true" />
               : <CircleAlert aria-hidden="true" />}
           <span>
-            <strong>{runItemLabel(item)}</strong>
-            {item.summary ? <small>{item.summary}</small> : null}
+            <strong>{executionStepLabel(step)}</strong>
+            {step.summary ? <small>{step.summary}</small> : null}
           </span>
         </div>
       ))}

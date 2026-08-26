@@ -9,10 +9,11 @@ import (
 
 	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
 	conversationbiz "github.com/lgc202/ingate/internal/assistant/biz/conversation"
+	"github.com/lgc202/ingate/internal/assistant/service/identity"
 )
 
 func (s *Service) ListConversations(ctx context.Context, request *assistantv1.ListConversationsRequest) (*assistantv1.ListConversationsResponse, error) {
-	actorID, err := s.actorID(ctx)
+	actorID, err := identity.ActorID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +40,7 @@ func (s *Service) ListConversations(ctx context.Context, request *assistantv1.Li
 }
 
 func (s *Service) GetConversation(ctx context.Context, request *assistantv1.GetConversationRequest) (*assistantv1.Conversation, error) {
-	actorID, err := s.actorID(ctx)
+	actorID, err := identity.ActorID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +52,7 @@ func (s *Service) GetConversation(ctx context.Context, request *assistantv1.GetC
 }
 
 func (s *Service) CreateConversation(ctx context.Context, request *assistantv1.CreateConversationRequest) (*assistantv1.Conversation, error) {
-	actorID, err := s.actorID(ctx)
+	actorID, err := identity.ActorID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +64,7 @@ func (s *Service) CreateConversation(ctx context.Context, request *assistantv1.C
 }
 
 func (s *Service) UpdateConversation(ctx context.Context, request *assistantv1.UpdateConversationRequest) (*assistantv1.Conversation, error) {
-	actorID, err := s.actorID(ctx)
+	actorID, err := identity.ActorID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +76,7 @@ func (s *Service) UpdateConversation(ctx context.Context, request *assistantv1.U
 }
 
 func (s *Service) DeleteConversation(ctx context.Context, request *assistantv1.DeleteConversationRequest) (*emptypb.Empty, error) {
-	actorID, err := s.actorID(ctx)
+	actorID, err := identity.ActorID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func (s *Service) DeleteConversation(ctx context.Context, request *assistantv1.D
 }
 
 func (s *Service) ListMessages(ctx context.Context, request *assistantv1.ListMessagesRequest) (*assistantv1.ListMessagesResponse, error) {
-	actorID, err := s.actorID(ctx)
+	actorID, err := identity.ActorID(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +139,7 @@ func messageResponse(item conversationbiz.Message) *assistantv1.Message {
 	return &assistantv1.Message{
 		Id:               item.ID,
 		ConversationId:   item.ConversationID,
-		RunId:            item.RunID,
+		ExecutionId:      item.ExecutionID,
 		Role:             role,
 		Content:          item.Content,
 		ReasoningContent: item.ReasoningContent,

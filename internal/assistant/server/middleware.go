@@ -16,6 +16,7 @@ import (
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/lgc202/ingate/internal/assistant/service/identity"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
@@ -92,7 +93,7 @@ func requestErrorLoggingMiddleware(logger *slog.Logger) middleware.Middleware {
 			if tr, ok := transport.FromServerContext(ctx); ok {
 				attrs = append(attrs,
 					slog.String("operation", tr.Operation()),
-					slog.String("actor", tr.RequestHeader().Get(forwardedUserHeader)),
+					slog.String("actor", tr.RequestHeader().Get(identity.ForwardedUserHeader)),
 					slog.String("request_id", tr.RequestHeader().Get(requestid.Header)),
 				)
 			}

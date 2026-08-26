@@ -35,21 +35,25 @@ service ConversationService {
   rpc ListMessages(ListMessagesRequest) returns (ListMessagesResponse) {
     option (google.api.http) = {get: "/assistant/v1/conversations/{conversation_id}/messages"};
   }
-  rpc CreateRun(CreateRunRequest) returns (Run) {
+}
+
+// AgentExecutionService 管理一次用户请求从排队到完成的异步执行。
+service AgentExecutionService {
+  rpc CreateAgentExecution(CreateAgentExecutionRequest) returns (AgentExecution) {
     option (google.api.http) = {
-      post: "/assistant/v1/conversations/{conversation_id}/runs"
+      post: "/assistant/v1/conversations/{conversation_id}/executions"
       body: "*"
     };
   }
-  rpc GetRun(GetRunRequest) returns (Run) {
-    option (google.api.http) = {get: "/assistant/v1/runs/{id}"};
+  rpc GetAgentExecution(GetAgentExecutionRequest) returns (AgentExecution) {
+    option (google.api.http) = {get: "/assistant/v1/executions/{id}"};
   }
-  rpc ListRunItems(ListRunItemsRequest) returns (ListRunItemsResponse) {
-    option (google.api.http) = {get: "/assistant/v1/runs/{run_id}/items"};
+  rpc ListAgentExecutionSteps(ListAgentExecutionStepsRequest) returns (ListAgentExecutionStepsResponse) {
+    option (google.api.http) = {get: "/assistant/v1/executions/{execution_id}/steps"};
   }
-  rpc CancelRun(CancelRunRequest) returns (Run) {
+  rpc CancelAgentExecution(CancelAgentExecutionRequest) returns (AgentExecution) {
     option (google.api.http) = {
-      post: "/assistant/v1/runs/{id}:cancel"
+      post: "/assistant/v1/executions/{id}:cancel"
       body: "*"
     };
   }
@@ -88,29 +92,29 @@ enum MessageRole {
   MESSAGE_ROLE_ASSISTANT = 2;
 }
 
-enum RunState {
-  RUN_STATE_UNSPECIFIED = 0;
-  RUN_STATE_QUEUED = 1;
-  RUN_STATE_RUNNING = 2;
-  RUN_STATE_SUCCEEDED = 3;
-  RUN_STATE_FAILED = 4;
-  RUN_STATE_CANCELLED = 5;
+enum AgentExecutionState {
+  AGENT_EXECUTION_STATE_UNSPECIFIED = 0;
+  AGENT_EXECUTION_STATE_QUEUED = 1;
+  AGENT_EXECUTION_STATE_RUNNING = 2;
+  AGENT_EXECUTION_STATE_SUCCEEDED = 3;
+  AGENT_EXECUTION_STATE_FAILED = 4;
+  AGENT_EXECUTION_STATE_CANCELLED = 5;
 }
 
-// RunItemKind 表示一次 Run 中可持久追踪的执行步骤类型。
-enum RunItemKind {
-  RUN_ITEM_KIND_UNSPECIFIED = 0;
-  RUN_ITEM_KIND_MODEL_CALL = 1;
-  RUN_ITEM_KIND_TOOL_CALL = 2;
+// AgentExecutionStepKind 表示一次 Agent 执行中可持久追踪的步骤类型。
+enum AgentExecutionStepKind {
+  AGENT_EXECUTION_STEP_KIND_UNSPECIFIED = 0;
+  AGENT_EXECUTION_STEP_KIND_MODEL_CALL = 1;
+  AGENT_EXECUTION_STEP_KIND_TOOL_CALL = 2;
 }
 
-// RunItemState 表示执行步骤自身的生命周期。
-enum RunItemState {
-  RUN_ITEM_STATE_UNSPECIFIED = 0;
-  RUN_ITEM_STATE_RUNNING = 1;
-  RUN_ITEM_STATE_COMPLETED = 2;
-  RUN_ITEM_STATE_FAILED = 3;
-  RUN_ITEM_STATE_CANCELLED = 4;
+// AgentExecutionStepState 表示执行步骤自身的生命周期。
+enum AgentExecutionStepState {
+  AGENT_EXECUTION_STEP_STATE_UNSPECIFIED = 0;
+  AGENT_EXECUTION_STEP_STATE_RUNNING = 1;
+  AGENT_EXECUTION_STEP_STATE_COMPLETED = 2;
+  AGENT_EXECUTION_STEP_STATE_FAILED = 3;
+  AGENT_EXECUTION_STEP_STATE_CANCELLED = 4;
 }
 
 message Conversation {
@@ -123,7 +127,7 @@ message Conversation {
 message Message {
   string id = 1;
   string conversation_id = 2;
-  string run_id = 3;
+  string execution_id = 3;
   MessageRole role = 4;
   string content = 5;
   // reasoning_content 只包含模型厂商明确返回的推理内容，不包含服务端隐藏指令。
@@ -131,10 +135,10 @@ message Message {
   google.protobuf.Timestamp created_at = 7;
 }
 
-message Run {
+message AgentExecution {
   string id = 1;
   string conversation_id = 2;
-  RunState state = 3;
+  AgentExecutionState state = 3;
   string model = 4;
   string error_code = 5;
   google.protobuf.Timestamp started_at = 6;
@@ -143,13 +147,13 @@ message Run {
   bool cancellation_requested = 9;
 }
 
-// RunItem 记录一次 Run 中已经发生的执行步骤，不保存原始工具输出或敏感参数。
-message RunItem {
+// AgentExecutionStep 记录一次执行中已经发生的步骤，不保存原始工具输出或敏感参数。
+message AgentExecutionStep {
   string id = 1;
-  string run_id = 2;
+  string execution_id = 2;
   uint32 sequence = 3;
-  RunItemKind kind = 4;
-  RunItemState state = 5;
+  AgentExecutionStepKind kind = 4;
+  AgentExecutionStepState state = 5;
   string name = 6;
   string summary = 7;
   string error_code = 8;
@@ -199,19 +203,19 @@ message ListMessagesResponse {
   string next_cursor = 2;
 }
 
-message GetRunRequest {
+message GetAgentExecutionRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
-message ListRunItemsRequest {
-  string run_id = 1 [(buf.validate.field).string.uuid = true];
+message ListAgentExecutionStepsRequest {
+  string execution_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
-message ListRunItemsResponse {
-  repeated RunItem items = 1;
+message ListAgentExecutionStepsResponse {
+  repeated AgentExecutionStep steps = 1;
 }
 
-message CreateRunRequest {
+message CreateAgentExecutionRequest {
   string conversation_id = 1 [(buf.validate.field).string.uuid = true];
   string content = 2 [(buf.validate.field).string = {
     min_len: 1
@@ -219,7 +223,7 @@ message CreateRunRequest {
   }];
 }
 
-message CancelRunRequest {
+message CancelAgentExecutionRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 

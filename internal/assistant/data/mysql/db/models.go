@@ -9,6 +9,60 @@ import (
 	"time"
 )
 
+// 运维助手 Agent 执行记录
+type AssistantAgentExecution struct {
+	// 一次 Agent 执行 ID，使用 UUID
+	ID string
+	// 所属会话 ID，由应用事务保证关联有效
+	ConversationID string
+	// 执行状态：1 排队中，2 运行中，3 成功，4 失败，5 已取消
+	State uint8
+	// 本次调用实际使用的模型名称；领取前为空
+	Model string
+	// 失败原因的稳定代码，非失败状态为空
+	ErrorCode string
+	// 运行中的执行是否已收到取消请求
+	CancellationRequested bool
+	// 当前持有执行租约的 Assistant 进程及执行槽标识
+	WorkerID string
+	// 执行租约到期时间；仅运行中使用
+	LeaseExpiresAt sql.NullTime
+	// 执行创建时间，统一使用 UTC
+	CreatedAt time.Time
+	// 模型调用开始时间；排队中为空
+	StartedAt sql.NullTime
+	// 模型调用结束时间；未到终态时为空
+	FinishedAt sql.NullTime
+}
+
+// 运维助手执行步骤
+type AssistantAgentExecutionStep struct {
+	// 执行步骤 ID，使用 UUID
+	ID string
+	// 所属 Agent 执行 ID，由应用事务保证关联有效
+	ExecutionID string
+	// 步骤在所属执行内的稳定顺序，从 1 开始递增
+	Sequence uint32
+	// 步骤类型：1 模型调用，2 工具调用
+	Kind uint8
+	// 步骤状态：1 执行中，2 完成，3 失败，4 已取消
+	State uint8
+	// 模型或工具的稳定名称
+	Name string
+	// 关联一次调用及其结果的稳定标识
+	CallID string
+	// 经过脱敏且可向用户展示的执行摘要
+	Summary string
+	// 失败原因的稳定代码，非失败状态为空
+	ErrorCode string
+	// 步骤创建时间，统一使用 UTC
+	CreatedAt time.Time
+	// 步骤开始执行时间
+	StartedAt time.Time
+	// 步骤结束时间；未到终态时为空
+	FinishedAt sql.NullTime
+}
+
 // 运维助手会话
 type AssistantConversation struct {
 	// 会话 ID，使用 UUID
@@ -19,7 +73,7 @@ type AssistantConversation struct {
 	Title string
 	// 会话创建时间，统一使用 UTC
 	CreatedAt time.Time
-	// 最近一次消息或 Run 状态变化时间，用于会话排序和游标分页
+	// 最近一次消息或执行状态变化时间，用于会话排序和游标分页
 	UpdatedAt time.Time
 }
 
@@ -29,8 +83,8 @@ type AssistantMessage struct {
 	ID string
 	// 所属会话 ID，由应用事务保证关联有效
 	ConversationID string
-	// 产生该消息的 Run ID，由应用事务保证关联有效
-	RunID string
+	// 产生该消息的 Agent 执行 ID，由应用事务保证关联有效
+	ExecutionID string
 	// 消息角色：1 表示用户，2 表示助手
 	Role uint8
 	// 用户输入或模型最终回复，不保存流式增量事件
@@ -63,58 +117,4 @@ type AssistantModelConnection struct {
 	ReasoningBudgetTokens uint32
 	// 配置最后更新时间，统一使用 UTC
 	UpdatedAt time.Time
-}
-
-// 运维助手模型调用记录
-type AssistantRun struct {
-	// 一次模型调用的 Run ID，使用 UUID
-	ID string
-	// 所属会话 ID，由应用事务保证关联有效
-	ConversationID string
-	// Run 状态：1 排队中，2 运行中，3 成功，4 失败，5 已取消
-	State uint8
-	// 本次调用实际使用的模型名称；领取前为空
-	Model string
-	// 失败原因的稳定代码，非失败状态为空
-	ErrorCode string
-	// 运行中的 Run 是否已收到取消请求
-	CancellationRequested bool
-	// 当前持有执行租约的 Assistant 进程及执行槽标识
-	WorkerID string
-	// 执行租约到期时间；仅运行中 Run 使用
-	LeaseExpiresAt sql.NullTime
-	// Run 创建时间，统一使用 UTC
-	CreatedAt time.Time
-	// 模型调用开始时间；排队中为空
-	StartedAt sql.NullTime
-	// 模型调用结束时间；未到终态时为空
-	FinishedAt sql.NullTime
-}
-
-// 运维助手执行步骤
-type AssistantRunItem struct {
-	// 执行步骤 ID，使用 UUID
-	ID string
-	// 所属 Run ID，由应用事务保证关联有效
-	RunID string
-	// 步骤在所属 Run 内的稳定顺序，从 1 开始递增
-	Sequence uint32
-	// 步骤类型：1 模型调用，2 工具调用
-	Kind uint8
-	// 步骤状态：1 执行中，2 完成，3 失败，4 已取消
-	State uint8
-	// 模型或工具的稳定名称
-	Name string
-	// 关联一次调用及其结果的稳定标识
-	CallID string
-	// 经过脱敏且可向用户展示的执行摘要
-	Summary string
-	// 失败原因的稳定代码，非失败状态为空
-	ErrorCode string
-	// 步骤创建时间，统一使用 UTC
-	CreatedAt time.Time
-	// 步骤开始执行时间
-	StartedAt time.Time
-	// 步骤结束时间；未到终态时为空
-	FinishedAt sql.NullTime
 }

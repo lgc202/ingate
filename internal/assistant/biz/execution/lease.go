@@ -1,4 +1,4 @@
-package run
+package execution
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 )
 
 // keepLease 在模型执行期间续租，并把用户取消请求转换为同一条执行上下文的取消原因。
-func (s *Service) keepLease(
+func (e *Executor) keepLease(
 	ctx context.Context,
 	cancel context.CancelCauseFunc,
-	runID string,
+	executionID string,
 	workerID string,
 	leaseDuration time.Duration,
 ) error {
@@ -22,7 +22,12 @@ func (s *Service) keepLease(
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			cancelRequested, err := s.store.RenewRunLease(ctx, runID, workerID, leaseDuration)
+			cancelRequested, err := e.store.RenewExecutionLease(
+				ctx,
+				executionID,
+				workerID,
+				leaseDuration,
+			)
 			if err != nil {
 				cancel(err)
 				return err

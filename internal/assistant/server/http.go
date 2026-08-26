@@ -16,17 +16,17 @@ import (
 	"github.com/lgc202/ingate/internal/assistant/data/mysql"
 	redisdata "github.com/lgc202/ingate/internal/assistant/data/redis"
 	conversationservice "github.com/lgc202/ingate/internal/assistant/service/conversation"
+	executionservice "github.com/lgc202/ingate/internal/assistant/service/execution"
 	modelservice "github.com/lgc202/ingate/internal/assistant/service/model"
 )
-
-const forwardedUserHeader = "X-Forwarded-User"
 
 // NewHTTPServer 创建会话 API、SSE 事件流与健康检查服务。
 func NewHTTPServer(
 	config *conf.Server,
 	conversationAPI *conversationservice.Service,
+	executionAPI *executionservice.Service,
 	modelAPI *modelservice.Service,
-	streamHandler *streamHandler,
+	streamHandler *executionStreamHandler,
 	mysqlStore *mysql.Store,
 	eventStore *redisdata.EventStore,
 	logger *slog.Logger,
@@ -42,6 +42,7 @@ func NewHTTPServer(
 		kratoshttp.ResponseEncoder(responseEncoder),
 	)
 	assistantv1.RegisterConversationServiceHTTPServer(server, conversationAPI)
+	assistantv1.RegisterAgentExecutionServiceHTTPServer(server, executionAPI)
 	assistantv1.RegisterModelConnectionServiceHTTPServer(server, modelAPI)
 	streamHandler.register(server)
 	health := healthHandler{

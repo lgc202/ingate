@@ -1,4 +1,4 @@
-package chatmodel
+package agent
 
 import (
 	"context"
@@ -11,21 +11,21 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/google/uuid"
 
-	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
+	executionbiz "github.com/lgc202/ingate/internal/assistant/biz/execution"
 )
 
 // executionMiddleware 使用 Eino 官方中间件记录真正发生的模型与工具调用。
-// 它按 Run 创建，不在并发 Run 之间共享模型调用状态。
+// 它按执行创建，不在并发执行之间共享模型调用状态。
 type executionMiddleware struct {
 	modelName     string
-	recorder      runbiz.ExecutionRecorder
+	recorder      executionbiz.StepRecorder
 	authorizeTool func(string) error
 	modelCallID   string
 }
 
 func newExecutionMiddleware(
 	modelName string,
-	recorder runbiz.ExecutionRecorder,
+	recorder executionbiz.StepRecorder,
 	authorizeTool func(string) error,
 ) adk.AgentMiddleware {
 	middleware := &executionMiddleware{
@@ -111,8 +111,8 @@ func (m *executionMiddleware) failTool(
 ) error {
 	recordErr := m.recorder.ToolFailed(ctx, callID)
 	return errors.Join(
-		runbiz.ErrToolUnavailable,
-		fmt.Errorf("run assistant tool %q: %w", name, cause),
+		executionbiz.ErrToolUnavailable,
+		fmt.Errorf("execute assistant tool %q: %w", name, cause),
 		recordErr,
 	)
 }

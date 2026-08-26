@@ -2,22 +2,22 @@ export type AssistantMessageRole =
   | 'MESSAGE_ROLE_USER'
   | 'MESSAGE_ROLE_ASSISTANT';
 
-export type AssistantRunState =
-  | 'RUN_STATE_QUEUED'
-  | 'RUN_STATE_RUNNING'
-  | 'RUN_STATE_SUCCEEDED'
-  | 'RUN_STATE_FAILED'
-  | 'RUN_STATE_CANCELLED';
+export type AgentExecutionState =
+  | 'AGENT_EXECUTION_STATE_QUEUED'
+  | 'AGENT_EXECUTION_STATE_RUNNING'
+  | 'AGENT_EXECUTION_STATE_SUCCEEDED'
+  | 'AGENT_EXECUTION_STATE_FAILED'
+  | 'AGENT_EXECUTION_STATE_CANCELLED';
 
-export type AssistantRunItemKind =
-  | 'RUN_ITEM_KIND_MODEL_CALL'
-  | 'RUN_ITEM_KIND_TOOL_CALL';
+export type AgentExecutionStepKind =
+  | 'AGENT_EXECUTION_STEP_KIND_MODEL_CALL'
+  | 'AGENT_EXECUTION_STEP_KIND_TOOL_CALL';
 
-export type AssistantRunItemState =
-  | 'RUN_ITEM_STATE_RUNNING'
-  | 'RUN_ITEM_STATE_COMPLETED'
-  | 'RUN_ITEM_STATE_FAILED'
-  | 'RUN_ITEM_STATE_CANCELLED';
+export type AgentExecutionStepState =
+  | 'AGENT_EXECUTION_STEP_STATE_RUNNING'
+  | 'AGENT_EXECUTION_STEP_STATE_COMPLETED'
+  | 'AGENT_EXECUTION_STEP_STATE_FAILED'
+  | 'AGENT_EXECUTION_STEP_STATE_CANCELLED';
 
 export type ModelConnectionMode =
   | 'MODEL_CONNECTION_MODE_DIRECT'
@@ -37,17 +37,17 @@ export interface AssistantConversation {
 export interface AssistantMessage {
   id: string;
   conversationId: string;
-  runId: string;
+  executionId: string;
   role: AssistantMessageRole;
   content: string;
   reasoningContent: string;
   createdAt: string;
 }
 
-export interface AssistantRun {
+export interface AgentExecution {
   id: string;
   conversationId: string;
-  state: AssistantRunState;
+  state: AgentExecutionState;
   model: string;
   errorCode: string;
   startedAt?: string;
@@ -56,12 +56,12 @@ export interface AssistantRun {
   cancellationRequested: boolean;
 }
 
-export interface AssistantRunItem {
+export interface AgentExecutionStep {
   id: string;
-  runId: string;
+  executionId: string;
   sequence: number;
-  kind: AssistantRunItemKind;
-  state: AssistantRunItemState;
+  kind: AgentExecutionStepKind;
+  state: AgentExecutionStepState;
   name: string;
   summary: string;
   errorCode: string;
@@ -96,12 +96,12 @@ export interface UpdateModelConnectionInput {
 }
 
 export type AssistantStreamEventType =
-  | 'run.started'
+  | 'execution.started'
   | 'message.reasoning.delta'
   | 'message.content.delta'
-  | 'run.completed'
-  | 'run.failed'
-  | 'run.cancelled'
+  | 'execution.completed'
+  | 'execution.failed'
+  | 'execution.cancelled'
   | 'stream.failed';
 
 export interface AssistantStreamEvent {
@@ -110,23 +110,23 @@ export interface AssistantStreamEvent {
   value: string;
 }
 
-export function isTerminalRun(state: AssistantRunState): boolean {
-  return state === 'RUN_STATE_SUCCEEDED'
-    || state === 'RUN_STATE_FAILED'
-    || state === 'RUN_STATE_CANCELLED';
+export function isTerminalExecution(state: AgentExecutionState): boolean {
+  return state === 'AGENT_EXECUTION_STATE_SUCCEEDED'
+    || state === 'AGENT_EXECUTION_STATE_FAILED'
+    || state === 'AGENT_EXECUTION_STATE_CANCELLED';
 }
 
-export function runStateLabel(state: AssistantRunState): string {
-  if (state === 'RUN_STATE_QUEUED') return '排队中';
-  if (state === 'RUN_STATE_RUNNING') return '正在回答';
-  if (state === 'RUN_STATE_SUCCEEDED') return '已完成';
-  if (state === 'RUN_STATE_FAILED') return '执行失败';
+export function executionStateLabel(state: AgentExecutionState): string {
+  if (state === 'AGENT_EXECUTION_STATE_QUEUED') return '排队中';
+  if (state === 'AGENT_EXECUTION_STATE_RUNNING') return '正在回答';
+  if (state === 'AGENT_EXECUTION_STATE_SUCCEEDED') return '已完成';
+  if (state === 'AGENT_EXECUTION_STATE_FAILED') return '执行失败';
   return '已取消';
 }
 
-export function runErrorMessage(code: string, items: AssistantRunItem[] = []): string {
-  const failed = items.find((item) => item.state === 'RUN_ITEM_STATE_FAILED');
-  if (failed?.kind === 'RUN_ITEM_KIND_MODEL_CALL') return '模型调用失败，请检查模型连接后重试';
+export function executionErrorMessage(code: string, steps: AgentExecutionStep[] = []): string {
+  const failed = steps.find((step) => step.state === 'AGENT_EXECUTION_STEP_STATE_FAILED');
+  if (failed?.kind === 'AGENT_EXECUTION_STEP_KIND_MODEL_CALL') return '模型调用失败，请检查模型连接后重试';
   if (failed?.name === 'load_skill') return '诊断流程加载失败，请稍后重试';
   if (failed && ['list_gateways', 'list_routes', 'list_services'].includes(failed.name)) {
     return '读取网关配置失败，请检查管理服务状态后重试';
@@ -141,13 +141,13 @@ export function runErrorMessage(code: string, items: AssistantRunItem[] = []): s
   return '助手未能完成本次回答，请稍后重试';
 }
 
-export function runItemLabel(item: AssistantRunItem): string {
-  if (item.kind === 'RUN_ITEM_KIND_MODEL_CALL') return '分析问题';
-  if (item.name === 'load_skill') return '选择诊断流程';
-  if (item.name === 'list_gateways') return '检查网关';
-  if (item.name === 'list_routes') return '检查路由';
-  if (item.name === 'list_services') return '检查服务';
-  if (item.name === 'get_recent_traffic') return '检查近期流量';
-  if (item.name === 'list_recent_failures') return '检查近期失败请求';
+export function executionStepLabel(step: AgentExecutionStep): string {
+  if (step.kind === 'AGENT_EXECUTION_STEP_KIND_MODEL_CALL') return '分析问题';
+  if (step.name === 'load_skill') return '选择诊断流程';
+  if (step.name === 'list_gateways') return '检查网关';
+  if (step.name === 'list_routes') return '检查路由';
+  if (step.name === 'list_services') return '检查服务';
+  if (step.name === 'get_recent_traffic') return '检查近期流量';
+  if (step.name === 'list_recent_failures') return '检查近期失败请求';
   return '检查系统信息';
 }

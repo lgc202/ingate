@@ -19,11 +19,11 @@ type Conversation struct {
 	UpdatedAt time.Time
 }
 
-// Message 是一次 Run 产生并归属于会话的一条持久消息。
+// Message 是一次 Agent 执行产生并归属于会话的持久消息。
 type Message struct {
 	ID               string
 	ConversationID   string
-	RunID            string
+	ExecutionID      string
 	Role             MessageRole
 	Content          string
 	ReasoningContent string

@@ -174,167 +174,167 @@ func (MessageRole) EnumDescriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{2}
 }
 
-type RunState int32
+type AgentExecutionState int32
 
 const (
-	RunState_RUN_STATE_UNSPECIFIED RunState = 0
-	RunState_RUN_STATE_QUEUED      RunState = 1
-	RunState_RUN_STATE_RUNNING     RunState = 2
-	RunState_RUN_STATE_SUCCEEDED   RunState = 3
-	RunState_RUN_STATE_FAILED      RunState = 4
-	RunState_RUN_STATE_CANCELLED   RunState = 5
+	AgentExecutionState_AGENT_EXECUTION_STATE_UNSPECIFIED AgentExecutionState = 0
+	AgentExecutionState_AGENT_EXECUTION_STATE_QUEUED      AgentExecutionState = 1
+	AgentExecutionState_AGENT_EXECUTION_STATE_RUNNING     AgentExecutionState = 2
+	AgentExecutionState_AGENT_EXECUTION_STATE_SUCCEEDED   AgentExecutionState = 3
+	AgentExecutionState_AGENT_EXECUTION_STATE_FAILED      AgentExecutionState = 4
+	AgentExecutionState_AGENT_EXECUTION_STATE_CANCELLED   AgentExecutionState = 5
 )
 
-// Enum value maps for RunState.
+// Enum value maps for AgentExecutionState.
 var (
-	RunState_name = map[int32]string{
-		0: "RUN_STATE_UNSPECIFIED",
-		1: "RUN_STATE_QUEUED",
-		2: "RUN_STATE_RUNNING",
-		3: "RUN_STATE_SUCCEEDED",
-		4: "RUN_STATE_FAILED",
-		5: "RUN_STATE_CANCELLED",
+	AgentExecutionState_name = map[int32]string{
+		0: "AGENT_EXECUTION_STATE_UNSPECIFIED",
+		1: "AGENT_EXECUTION_STATE_QUEUED",
+		2: "AGENT_EXECUTION_STATE_RUNNING",
+		3: "AGENT_EXECUTION_STATE_SUCCEEDED",
+		4: "AGENT_EXECUTION_STATE_FAILED",
+		5: "AGENT_EXECUTION_STATE_CANCELLED",
 	}
-	RunState_value = map[string]int32{
-		"RUN_STATE_UNSPECIFIED": 0,
-		"RUN_STATE_QUEUED":      1,
-		"RUN_STATE_RUNNING":     2,
-		"RUN_STATE_SUCCEEDED":   3,
-		"RUN_STATE_FAILED":      4,
-		"RUN_STATE_CANCELLED":   5,
+	AgentExecutionState_value = map[string]int32{
+		"AGENT_EXECUTION_STATE_UNSPECIFIED": 0,
+		"AGENT_EXECUTION_STATE_QUEUED":      1,
+		"AGENT_EXECUTION_STATE_RUNNING":     2,
+		"AGENT_EXECUTION_STATE_SUCCEEDED":   3,
+		"AGENT_EXECUTION_STATE_FAILED":      4,
+		"AGENT_EXECUTION_STATE_CANCELLED":   5,
 	}
 )
 
-func (x RunState) Enum() *RunState {
-	p := new(RunState)
+func (x AgentExecutionState) Enum() *AgentExecutionState {
+	p := new(AgentExecutionState)
 	*p = x
 	return p
 }
 
-func (x RunState) String() string {
+func (x AgentExecutionState) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (RunState) Descriptor() protoreflect.EnumDescriptor {
+func (AgentExecutionState) Descriptor() protoreflect.EnumDescriptor {
 	return file_assistant_v1_assistant_proto_enumTypes[3].Descriptor()
 }
 
-func (RunState) Type() protoreflect.EnumType {
+func (AgentExecutionState) Type() protoreflect.EnumType {
 	return &file_assistant_v1_assistant_proto_enumTypes[3]
 }
 
-func (x RunState) Number() protoreflect.EnumNumber {
+func (x AgentExecutionState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use RunState.Descriptor instead.
-func (RunState) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use AgentExecutionState.Descriptor instead.
+func (AgentExecutionState) EnumDescriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{3}
 }
 
-// RunItemKind 表示一次 Run 中可持久追踪的执行步骤类型。
-type RunItemKind int32
+// AgentExecutionStepKind 表示一次 Agent 执行中可持久追踪的步骤类型。
+type AgentExecutionStepKind int32
 
 const (
-	RunItemKind_RUN_ITEM_KIND_UNSPECIFIED RunItemKind = 0
-	RunItemKind_RUN_ITEM_KIND_MODEL_CALL  RunItemKind = 1
-	RunItemKind_RUN_ITEM_KIND_TOOL_CALL   RunItemKind = 2
+	AgentExecutionStepKind_AGENT_EXECUTION_STEP_KIND_UNSPECIFIED AgentExecutionStepKind = 0
+	AgentExecutionStepKind_AGENT_EXECUTION_STEP_KIND_MODEL_CALL  AgentExecutionStepKind = 1
+	AgentExecutionStepKind_AGENT_EXECUTION_STEP_KIND_TOOL_CALL   AgentExecutionStepKind = 2
 )
 
-// Enum value maps for RunItemKind.
+// Enum value maps for AgentExecutionStepKind.
 var (
-	RunItemKind_name = map[int32]string{
-		0: "RUN_ITEM_KIND_UNSPECIFIED",
-		1: "RUN_ITEM_KIND_MODEL_CALL",
-		2: "RUN_ITEM_KIND_TOOL_CALL",
+	AgentExecutionStepKind_name = map[int32]string{
+		0: "AGENT_EXECUTION_STEP_KIND_UNSPECIFIED",
+		1: "AGENT_EXECUTION_STEP_KIND_MODEL_CALL",
+		2: "AGENT_EXECUTION_STEP_KIND_TOOL_CALL",
 	}
-	RunItemKind_value = map[string]int32{
-		"RUN_ITEM_KIND_UNSPECIFIED": 0,
-		"RUN_ITEM_KIND_MODEL_CALL":  1,
-		"RUN_ITEM_KIND_TOOL_CALL":   2,
+	AgentExecutionStepKind_value = map[string]int32{
+		"AGENT_EXECUTION_STEP_KIND_UNSPECIFIED": 0,
+		"AGENT_EXECUTION_STEP_KIND_MODEL_CALL":  1,
+		"AGENT_EXECUTION_STEP_KIND_TOOL_CALL":   2,
 	}
 )
 
-func (x RunItemKind) Enum() *RunItemKind {
-	p := new(RunItemKind)
+func (x AgentExecutionStepKind) Enum() *AgentExecutionStepKind {
+	p := new(AgentExecutionStepKind)
 	*p = x
 	return p
 }
 
-func (x RunItemKind) String() string {
+func (x AgentExecutionStepKind) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (RunItemKind) Descriptor() protoreflect.EnumDescriptor {
+func (AgentExecutionStepKind) Descriptor() protoreflect.EnumDescriptor {
 	return file_assistant_v1_assistant_proto_enumTypes[4].Descriptor()
 }
 
-func (RunItemKind) Type() protoreflect.EnumType {
+func (AgentExecutionStepKind) Type() protoreflect.EnumType {
 	return &file_assistant_v1_assistant_proto_enumTypes[4]
 }
 
-func (x RunItemKind) Number() protoreflect.EnumNumber {
+func (x AgentExecutionStepKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use RunItemKind.Descriptor instead.
-func (RunItemKind) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use AgentExecutionStepKind.Descriptor instead.
+func (AgentExecutionStepKind) EnumDescriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{4}
 }
 
-// RunItemState 表示执行步骤自身的生命周期。
-type RunItemState int32
+// AgentExecutionStepState 表示执行步骤自身的生命周期。
+type AgentExecutionStepState int32
 
 const (
-	RunItemState_RUN_ITEM_STATE_UNSPECIFIED RunItemState = 0
-	RunItemState_RUN_ITEM_STATE_RUNNING     RunItemState = 1
-	RunItemState_RUN_ITEM_STATE_COMPLETED   RunItemState = 2
-	RunItemState_RUN_ITEM_STATE_FAILED      RunItemState = 3
-	RunItemState_RUN_ITEM_STATE_CANCELLED   RunItemState = 4
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_UNSPECIFIED AgentExecutionStepState = 0
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_RUNNING     AgentExecutionStepState = 1
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_COMPLETED   AgentExecutionStepState = 2
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_FAILED      AgentExecutionStepState = 3
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_CANCELLED   AgentExecutionStepState = 4
 )
 
-// Enum value maps for RunItemState.
+// Enum value maps for AgentExecutionStepState.
 var (
-	RunItemState_name = map[int32]string{
-		0: "RUN_ITEM_STATE_UNSPECIFIED",
-		1: "RUN_ITEM_STATE_RUNNING",
-		2: "RUN_ITEM_STATE_COMPLETED",
-		3: "RUN_ITEM_STATE_FAILED",
-		4: "RUN_ITEM_STATE_CANCELLED",
+	AgentExecutionStepState_name = map[int32]string{
+		0: "AGENT_EXECUTION_STEP_STATE_UNSPECIFIED",
+		1: "AGENT_EXECUTION_STEP_STATE_RUNNING",
+		2: "AGENT_EXECUTION_STEP_STATE_COMPLETED",
+		3: "AGENT_EXECUTION_STEP_STATE_FAILED",
+		4: "AGENT_EXECUTION_STEP_STATE_CANCELLED",
 	}
-	RunItemState_value = map[string]int32{
-		"RUN_ITEM_STATE_UNSPECIFIED": 0,
-		"RUN_ITEM_STATE_RUNNING":     1,
-		"RUN_ITEM_STATE_COMPLETED":   2,
-		"RUN_ITEM_STATE_FAILED":      3,
-		"RUN_ITEM_STATE_CANCELLED":   4,
+	AgentExecutionStepState_value = map[string]int32{
+		"AGENT_EXECUTION_STEP_STATE_UNSPECIFIED": 0,
+		"AGENT_EXECUTION_STEP_STATE_RUNNING":     1,
+		"AGENT_EXECUTION_STEP_STATE_COMPLETED":   2,
+		"AGENT_EXECUTION_STEP_STATE_FAILED":      3,
+		"AGENT_EXECUTION_STEP_STATE_CANCELLED":   4,
 	}
 )
 
-func (x RunItemState) Enum() *RunItemState {
-	p := new(RunItemState)
+func (x AgentExecutionStepState) Enum() *AgentExecutionStepState {
+	p := new(AgentExecutionStepState)
 	*p = x
 	return p
 }
 
-func (x RunItemState) String() string {
+func (x AgentExecutionStepState) String() string {
 	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
 }
 
-func (RunItemState) Descriptor() protoreflect.EnumDescriptor {
+func (AgentExecutionStepState) Descriptor() protoreflect.EnumDescriptor {
 	return file_assistant_v1_assistant_proto_enumTypes[5].Descriptor()
 }
 
-func (RunItemState) Type() protoreflect.EnumType {
+func (AgentExecutionStepState) Type() protoreflect.EnumType {
 	return &file_assistant_v1_assistant_proto_enumTypes[5]
 }
 
-func (x RunItemState) Number() protoreflect.EnumNumber {
+func (x AgentExecutionStepState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use RunItemState.Descriptor instead.
-func (RunItemState) EnumDescriptor() ([]byte, []int) {
+// Deprecated: Use AgentExecutionStepState.Descriptor instead.
+func (AgentExecutionStepState) EnumDescriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{5}
 }
 
@@ -410,7 +410,7 @@ type Message struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	RunId          string                 `protobuf:"bytes,3,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ExecutionId    string                 `protobuf:"bytes,3,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
 	Role           MessageRole            `protobuf:"varint,4,opt,name=role,proto3,enum=ingate.assistant.v1.MessageRole" json:"role,omitempty"`
 	Content        string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
 	// reasoning_content 只包含模型厂商明确返回的推理内容，不包含服务端隐藏指令。
@@ -464,9 +464,9 @@ func (x *Message) GetConversationId() string {
 	return ""
 }
 
-func (x *Message) GetRunId() string {
+func (x *Message) GetExecutionId() string {
 	if x != nil {
-		return x.RunId
+		return x.ExecutionId
 	}
 	return ""
 }
@@ -499,11 +499,11 @@ func (x *Message) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
-type Run struct {
+type AgentExecution struct {
 	state                 protoimpl.MessageState `protogen:"open.v1"`
 	Id                    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	ConversationId        string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	State                 RunState               `protobuf:"varint,3,opt,name=state,proto3,enum=ingate.assistant.v1.RunState" json:"state,omitempty"`
+	State                 AgentExecutionState    `protobuf:"varint,3,opt,name=state,proto3,enum=ingate.assistant.v1.AgentExecutionState" json:"state,omitempty"`
 	Model                 string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
 	ErrorCode             string                 `protobuf:"bytes,5,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
 	StartedAt             *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
@@ -514,20 +514,20 @@ type Run struct {
 	sizeCache             protoimpl.SizeCache
 }
 
-func (x *Run) Reset() {
-	*x = Run{}
+func (x *AgentExecution) Reset() {
+	*x = AgentExecution{}
 	mi := &file_assistant_v1_assistant_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Run) String() string {
+func (x *AgentExecution) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Run) ProtoMessage() {}
+func (*AgentExecution) ProtoMessage() {}
 
-func (x *Run) ProtoReflect() protoreflect.Message {
+func (x *AgentExecution) ProtoReflect() protoreflect.Message {
 	mi := &file_assistant_v1_assistant_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -539,106 +539,106 @@ func (x *Run) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Run.ProtoReflect.Descriptor instead.
-func (*Run) Descriptor() ([]byte, []int) {
+// Deprecated: Use AgentExecution.ProtoReflect.Descriptor instead.
+func (*AgentExecution) Descriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{2}
 }
 
-func (x *Run) GetId() string {
+func (x *AgentExecution) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *Run) GetConversationId() string {
+func (x *AgentExecution) GetConversationId() string {
 	if x != nil {
 		return x.ConversationId
 	}
 	return ""
 }
 
-func (x *Run) GetState() RunState {
+func (x *AgentExecution) GetState() AgentExecutionState {
 	if x != nil {
 		return x.State
 	}
-	return RunState_RUN_STATE_UNSPECIFIED
+	return AgentExecutionState_AGENT_EXECUTION_STATE_UNSPECIFIED
 }
 
-func (x *Run) GetModel() string {
+func (x *AgentExecution) GetModel() string {
 	if x != nil {
 		return x.Model
 	}
 	return ""
 }
 
-func (x *Run) GetErrorCode() string {
+func (x *AgentExecution) GetErrorCode() string {
 	if x != nil {
 		return x.ErrorCode
 	}
 	return ""
 }
 
-func (x *Run) GetStartedAt() *timestamppb.Timestamp {
+func (x *AgentExecution) GetStartedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.StartedAt
 	}
 	return nil
 }
 
-func (x *Run) GetFinishedAt() *timestamppb.Timestamp {
+func (x *AgentExecution) GetFinishedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.FinishedAt
 	}
 	return nil
 }
 
-func (x *Run) GetCreatedAt() *timestamppb.Timestamp {
+func (x *AgentExecution) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CreatedAt
 	}
 	return nil
 }
 
-func (x *Run) GetCancellationRequested() bool {
+func (x *AgentExecution) GetCancellationRequested() bool {
 	if x != nil {
 		return x.CancellationRequested
 	}
 	return false
 }
 
-// RunItem 记录一次 Run 中已经发生的执行步骤，不保存原始工具输出或敏感参数。
-type RunItem struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	RunId         string                 `protobuf:"bytes,2,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
-	Sequence      uint32                 `protobuf:"varint,3,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	Kind          RunItemKind            `protobuf:"varint,4,opt,name=kind,proto3,enum=ingate.assistant.v1.RunItemKind" json:"kind,omitempty"`
-	State         RunItemState           `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.assistant.v1.RunItemState" json:"state,omitempty"`
-	Name          string                 `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
-	Summary       string                 `protobuf:"bytes,7,opt,name=summary,proto3" json:"summary,omitempty"`
-	ErrorCode     string                 `protobuf:"bytes,8,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	StartedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+// AgentExecutionStep 记录一次执行中已经发生的步骤，不保存原始工具输出或敏感参数。
+type AgentExecutionStep struct {
+	state         protoimpl.MessageState  `protogen:"open.v1"`
+	Id            string                  `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	ExecutionId   string                  `protobuf:"bytes,2,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	Sequence      uint32                  `protobuf:"varint,3,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	Kind          AgentExecutionStepKind  `protobuf:"varint,4,opt,name=kind,proto3,enum=ingate.assistant.v1.AgentExecutionStepKind" json:"kind,omitempty"`
+	State         AgentExecutionStepState `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.assistant.v1.AgentExecutionStepState" json:"state,omitempty"`
+	Name          string                  `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	Summary       string                  `protobuf:"bytes,7,opt,name=summary,proto3" json:"summary,omitempty"`
+	ErrorCode     string                  `protobuf:"bytes,8,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	CreatedAt     *timestamppb.Timestamp  `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	StartedAt     *timestamppb.Timestamp  `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	FinishedAt    *timestamppb.Timestamp  `protobuf:"bytes,11,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *RunItem) Reset() {
-	*x = RunItem{}
+func (x *AgentExecutionStep) Reset() {
+	*x = AgentExecutionStep{}
 	mi := &file_assistant_v1_assistant_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *RunItem) String() string {
+func (x *AgentExecutionStep) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*RunItem) ProtoMessage() {}
+func (*AgentExecutionStep) ProtoMessage() {}
 
-func (x *RunItem) ProtoReflect() protoreflect.Message {
+func (x *AgentExecutionStep) ProtoReflect() protoreflect.Message {
 	mi := &file_assistant_v1_assistant_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -650,82 +650,82 @@ func (x *RunItem) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RunItem.ProtoReflect.Descriptor instead.
-func (*RunItem) Descriptor() ([]byte, []int) {
+// Deprecated: Use AgentExecutionStep.ProtoReflect.Descriptor instead.
+func (*AgentExecutionStep) Descriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{3}
 }
 
-func (x *RunItem) GetId() string {
+func (x *AgentExecutionStep) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-func (x *RunItem) GetRunId() string {
+func (x *AgentExecutionStep) GetExecutionId() string {
 	if x != nil {
-		return x.RunId
+		return x.ExecutionId
 	}
 	return ""
 }
 
-func (x *RunItem) GetSequence() uint32 {
+func (x *AgentExecutionStep) GetSequence() uint32 {
 	if x != nil {
 		return x.Sequence
 	}
 	return 0
 }
 
-func (x *RunItem) GetKind() RunItemKind {
+func (x *AgentExecutionStep) GetKind() AgentExecutionStepKind {
 	if x != nil {
 		return x.Kind
 	}
-	return RunItemKind_RUN_ITEM_KIND_UNSPECIFIED
+	return AgentExecutionStepKind_AGENT_EXECUTION_STEP_KIND_UNSPECIFIED
 }
 
-func (x *RunItem) GetState() RunItemState {
+func (x *AgentExecutionStep) GetState() AgentExecutionStepState {
 	if x != nil {
 		return x.State
 	}
-	return RunItemState_RUN_ITEM_STATE_UNSPECIFIED
+	return AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_UNSPECIFIED
 }
 
-func (x *RunItem) GetName() string {
+func (x *AgentExecutionStep) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
 }
 
-func (x *RunItem) GetSummary() string {
+func (x *AgentExecutionStep) GetSummary() string {
 	if x != nil {
 		return x.Summary
 	}
 	return ""
 }
 
-func (x *RunItem) GetErrorCode() string {
+func (x *AgentExecutionStep) GetErrorCode() string {
 	if x != nil {
 		return x.ErrorCode
 	}
 	return ""
 }
 
-func (x *RunItem) GetCreatedAt() *timestamppb.Timestamp {
+func (x *AgentExecutionStep) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CreatedAt
 	}
 	return nil
 }
 
-func (x *RunItem) GetStartedAt() *timestamppb.Timestamp {
+func (x *AgentExecutionStep) GetStartedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.StartedAt
 	}
 	return nil
 }
 
-func (x *RunItem) GetFinishedAt() *timestamppb.Timestamp {
+func (x *AgentExecutionStep) GetFinishedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.FinishedAt
 	}
@@ -1132,27 +1132,27 @@ func (x *ListMessagesResponse) GetNextCursor() string {
 	return ""
 }
 
-type GetRunRequest struct {
+type GetAgentExecutionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *GetRunRequest) Reset() {
-	*x = GetRunRequest{}
+func (x *GetAgentExecutionRequest) Reset() {
+	*x = GetAgentExecutionRequest{}
 	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *GetRunRequest) String() string {
+func (x *GetAgentExecutionRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*GetRunRequest) ProtoMessage() {}
+func (*GetAgentExecutionRequest) ProtoMessage() {}
 
-func (x *GetRunRequest) ProtoReflect() protoreflect.Message {
+func (x *GetAgentExecutionRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1164,39 +1164,39 @@ func (x *GetRunRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetRunRequest.ProtoReflect.Descriptor instead.
-func (*GetRunRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use GetAgentExecutionRequest.ProtoReflect.Descriptor instead.
+func (*GetAgentExecutionRequest) Descriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{12}
 }
 
-func (x *GetRunRequest) GetId() string {
+func (x *GetAgentExecutionRequest) GetId() string {
 	if x != nil {
 		return x.Id
 	}
 	return ""
 }
 
-type ListRunItemsRequest struct {
+type ListAgentExecutionStepsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	RunId         string                 `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	ExecutionId   string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListRunItemsRequest) Reset() {
-	*x = ListRunItemsRequest{}
+func (x *ListAgentExecutionStepsRequest) Reset() {
+	*x = ListAgentExecutionStepsRequest{}
 	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListRunItemsRequest) String() string {
+func (x *ListAgentExecutionStepsRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListRunItemsRequest) ProtoMessage() {}
+func (*ListAgentExecutionStepsRequest) ProtoMessage() {}
 
-func (x *ListRunItemsRequest) ProtoReflect() protoreflect.Message {
+func (x *ListAgentExecutionStepsRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1208,39 +1208,39 @@ func (x *ListRunItemsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRunItemsRequest.ProtoReflect.Descriptor instead.
-func (*ListRunItemsRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListAgentExecutionStepsRequest.ProtoReflect.Descriptor instead.
+func (*ListAgentExecutionStepsRequest) Descriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{13}
 }
 
-func (x *ListRunItemsRequest) GetRunId() string {
+func (x *ListAgentExecutionStepsRequest) GetExecutionId() string {
 	if x != nil {
-		return x.RunId
+		return x.ExecutionId
 	}
 	return ""
 }
 
-type ListRunItemsResponse struct {
+type ListAgentExecutionStepsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Items         []*RunItem             `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
+	Steps         []*AgentExecutionStep  `protobuf:"bytes,1,rep,name=steps,proto3" json:"steps,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *ListRunItemsResponse) Reset() {
-	*x = ListRunItemsResponse{}
+func (x *ListAgentExecutionStepsResponse) Reset() {
+	*x = ListAgentExecutionStepsResponse{}
 	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *ListRunItemsResponse) String() string {
+func (x *ListAgentExecutionStepsResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*ListRunItemsResponse) ProtoMessage() {}
+func (*ListAgentExecutionStepsResponse) ProtoMessage() {}
 
-func (x *ListRunItemsResponse) ProtoReflect() protoreflect.Message {
+func (x *ListAgentExecutionStepsResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1252,19 +1252,19 @@ func (x *ListRunItemsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRunItemsResponse.ProtoReflect.Descriptor instead.
-func (*ListRunItemsResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use ListAgentExecutionStepsResponse.ProtoReflect.Descriptor instead.
+func (*ListAgentExecutionStepsResponse) Descriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{14}
 }
 
-func (x *ListRunItemsResponse) GetItems() []*RunItem {
+func (x *ListAgentExecutionStepsResponse) GetSteps() []*AgentExecutionStep {
 	if x != nil {
-		return x.Items
+		return x.Steps
 	}
 	return nil
 }
 
-type CreateRunRequest struct {
+type CreateAgentExecutionRequest struct {
 	state          protoimpl.MessageState `protogen:"open.v1"`
 	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
 	Content        string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
@@ -1272,20 +1272,20 @@ type CreateRunRequest struct {
 	sizeCache      protoimpl.SizeCache
 }
 
-func (x *CreateRunRequest) Reset() {
-	*x = CreateRunRequest{}
+func (x *CreateAgentExecutionRequest) Reset() {
+	*x = CreateAgentExecutionRequest{}
 	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CreateRunRequest) String() string {
+func (x *CreateAgentExecutionRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CreateRunRequest) ProtoMessage() {}
+func (*CreateAgentExecutionRequest) ProtoMessage() {}
 
-func (x *CreateRunRequest) ProtoReflect() protoreflect.Message {
+func (x *CreateAgentExecutionRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1297,46 +1297,46 @@ func (x *CreateRunRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateRunRequest.ProtoReflect.Descriptor instead.
-func (*CreateRunRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CreateAgentExecutionRequest.ProtoReflect.Descriptor instead.
+func (*CreateAgentExecutionRequest) Descriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{15}
 }
 
-func (x *CreateRunRequest) GetConversationId() string {
+func (x *CreateAgentExecutionRequest) GetConversationId() string {
 	if x != nil {
 		return x.ConversationId
 	}
 	return ""
 }
 
-func (x *CreateRunRequest) GetContent() string {
+func (x *CreateAgentExecutionRequest) GetContent() string {
 	if x != nil {
 		return x.Content
 	}
 	return ""
 }
 
-type CancelRunRequest struct {
+type CancelAgentExecutionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *CancelRunRequest) Reset() {
-	*x = CancelRunRequest{}
+func (x *CancelAgentExecutionRequest) Reset() {
+	*x = CancelAgentExecutionRequest{}
 	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CancelRunRequest) String() string {
+func (x *CancelAgentExecutionRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CancelRunRequest) ProtoMessage() {}
+func (*CancelAgentExecutionRequest) ProtoMessage() {}
 
-func (x *CancelRunRequest) ProtoReflect() protoreflect.Message {
+func (x *CancelAgentExecutionRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -1348,12 +1348,12 @@ func (x *CancelRunRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CancelRunRequest.ProtoReflect.Descriptor instead.
-func (*CancelRunRequest) Descriptor() ([]byte, []int) {
+// Deprecated: Use CancelAgentExecutionRequest.ProtoReflect.Descriptor instead.
+func (*CancelAgentExecutionRequest) Descriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{16}
 }
 
-func (x *CancelRunRequest) GetId() string {
+func (x *CancelAgentExecutionRequest) GetId() string {
 	if x != nil {
 		return x.Id
 	}
@@ -1598,20 +1598,20 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
 	"\n" +
-	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x91\x02\n" +
+	"updated_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\"\x9d\x02\n" +
 	"\aMessage\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
-	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12\x15\n" +
-	"\x06run_id\x18\x03 \x01(\tR\x05runId\x124\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12!\n" +
+	"\fexecution_id\x18\x03 \x01(\tR\vexecutionId\x124\n" +
 	"\x04role\x18\x04 \x01(\x0e2 .ingate.assistant.v1.MessageRoleR\x04role\x12\x18\n" +
 	"\acontent\x18\x05 \x01(\tR\acontent\x12+\n" +
 	"\x11reasoning_content\x18\x06 \x01(\tR\x10reasoningContent\x129\n" +
 	"\n" +
-	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\x92\x03\n" +
-	"\x03Run\x12\x0e\n" +
+	"created_at\x18\a \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\"\xa8\x03\n" +
+	"\x0eAgentExecution\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
-	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x123\n" +
-	"\x05state\x18\x03 \x01(\x0e2\x1d.ingate.assistant.v1.RunStateR\x05state\x12\x14\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12>\n" +
+	"\x05state\x18\x03 \x01(\x0e2(.ingate.assistant.v1.AgentExecutionStateR\x05state\x12\x14\n" +
 	"\x05model\x18\x04 \x01(\tR\x05model\x12\x1d\n" +
 	"\n" +
 	"error_code\x18\x05 \x01(\tR\terrorCode\x129\n" +
@@ -1621,13 +1621,13 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"finishedAt\x129\n" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x125\n" +
-	"\x16cancellation_requested\x18\t \x01(\bR\x15cancellationRequested\"\xbb\x03\n" +
-	"\aRunItem\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\x12\x15\n" +
-	"\x06run_id\x18\x02 \x01(\tR\x05runId\x12\x1a\n" +
-	"\bsequence\x18\x03 \x01(\rR\bsequence\x124\n" +
-	"\x04kind\x18\x04 \x01(\x0e2 .ingate.assistant.v1.RunItemKindR\x04kind\x127\n" +
-	"\x05state\x18\x05 \x01(\x0e2!.ingate.assistant.v1.RunItemStateR\x05state\x12\x12\n" +
+	"\x16cancellation_requested\x18\t \x01(\bR\x15cancellationRequested\"\xe8\x03\n" +
+	"\x12AgentExecutionStep\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
+	"\fexecution_id\x18\x02 \x01(\tR\vexecutionId\x12\x1a\n" +
+	"\bsequence\x18\x03 \x01(\rR\bsequence\x12?\n" +
+	"\x04kind\x18\x04 \x01(\x0e2+.ingate.assistant.v1.AgentExecutionStepKindR\x04kind\x12B\n" +
+	"\x05state\x18\x05 \x01(\x0e2,.ingate.assistant.v1.AgentExecutionStepStateR\x05state\x12\x12\n" +
 	"\x04name\x18\x06 \x01(\tR\x04name\x12\x18\n" +
 	"\asummary\x18\a \x01(\tR\asummary\x12\x1d\n" +
 	"\n" +
@@ -1663,17 +1663,17 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\x14ListMessagesResponse\x128\n" +
 	"\bmessages\x18\x01 \x03(\v2\x1c.ingate.assistant.v1.MessageR\bmessages\x12\x1f\n" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
-	"nextCursor\")\n" +
-	"\rGetRunRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"6\n" +
-	"\x13ListRunItemsRequest\x12\x1f\n" +
-	"\x06run_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x05runId\"J\n" +
-	"\x14ListRunItemsResponse\x122\n" +
-	"\x05items\x18\x01 \x03(\v2\x1c.ingate.assistant.v1.RunItemR\x05items\"l\n" +
-	"\x10CreateRunRequest\x121\n" +
+	"nextCursor\"4\n" +
+	"\x18GetAgentExecutionRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"M\n" +
+	"\x1eListAgentExecutionStepsRequest\x12+\n" +
+	"\fexecution_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\vexecutionId\"`\n" +
+	"\x1fListAgentExecutionStepsResponse\x12=\n" +
+	"\x05steps\x18\x01 \x03(\v2'.ingate.assistant.v1.AgentExecutionStepR\x05steps\"w\n" +
+	"\x1bCreateAgentExecutionRequest\x121\n" +
 	"\x0fconversation_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0econversationId\x12%\n" +
-	"\acontent\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\x80\x80\x04R\acontent\",\n" +
-	"\x10CancelRunRequest\x12\x18\n" +
+	"\acontent\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\x80\x80\x04R\acontent\"7\n" +
+	"\x1bCancelAgentExecutionRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xec\x03\n" +
 	"\x0fModelConnection\x12\x1e\n" +
 	"\n" +
@@ -1716,35 +1716,36 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\vMessageRole\x12\x1c\n" +
 	"\x18MESSAGE_ROLE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11MESSAGE_ROLE_USER\x10\x01\x12\x1a\n" +
-	"\x16MESSAGE_ROLE_ASSISTANT\x10\x02*\x9a\x01\n" +
-	"\bRunState\x12\x19\n" +
-	"\x15RUN_STATE_UNSPECIFIED\x10\x00\x12\x14\n" +
-	"\x10RUN_STATE_QUEUED\x10\x01\x12\x15\n" +
-	"\x11RUN_STATE_RUNNING\x10\x02\x12\x17\n" +
-	"\x13RUN_STATE_SUCCEEDED\x10\x03\x12\x14\n" +
-	"\x10RUN_STATE_FAILED\x10\x04\x12\x17\n" +
-	"\x13RUN_STATE_CANCELLED\x10\x05*g\n" +
-	"\vRunItemKind\x12\x1d\n" +
-	"\x19RUN_ITEM_KIND_UNSPECIFIED\x10\x00\x12\x1c\n" +
-	"\x18RUN_ITEM_KIND_MODEL_CALL\x10\x01\x12\x1b\n" +
-	"\x17RUN_ITEM_KIND_TOOL_CALL\x10\x02*\xa1\x01\n" +
-	"\fRunItemState\x12\x1e\n" +
-	"\x1aRUN_ITEM_STATE_UNSPECIFIED\x10\x00\x12\x1a\n" +
-	"\x16RUN_ITEM_STATE_RUNNING\x10\x01\x12\x1c\n" +
-	"\x18RUN_ITEM_STATE_COMPLETED\x10\x02\x12\x19\n" +
-	"\x15RUN_ITEM_STATE_FAILED\x10\x03\x12\x1c\n" +
-	"\x18RUN_ITEM_STATE_CANCELLED\x10\x042\x96\v\n" +
+	"\x16MESSAGE_ROLE_ASSISTANT\x10\x02*\xed\x01\n" +
+	"\x13AgentExecutionState\x12%\n" +
+	"!AGENT_EXECUTION_STATE_UNSPECIFIED\x10\x00\x12 \n" +
+	"\x1cAGENT_EXECUTION_STATE_QUEUED\x10\x01\x12!\n" +
+	"\x1dAGENT_EXECUTION_STATE_RUNNING\x10\x02\x12#\n" +
+	"\x1fAGENT_EXECUTION_STATE_SUCCEEDED\x10\x03\x12 \n" +
+	"\x1cAGENT_EXECUTION_STATE_FAILED\x10\x04\x12#\n" +
+	"\x1fAGENT_EXECUTION_STATE_CANCELLED\x10\x05*\x96\x01\n" +
+	"\x16AgentExecutionStepKind\x12)\n" +
+	"%AGENT_EXECUTION_STEP_KIND_UNSPECIFIED\x10\x00\x12(\n" +
+	"$AGENT_EXECUTION_STEP_KIND_MODEL_CALL\x10\x01\x12'\n" +
+	"#AGENT_EXECUTION_STEP_KIND_TOOL_CALL\x10\x02*\xe8\x01\n" +
+	"\x17AgentExecutionStepState\x12*\n" +
+	"&AGENT_EXECUTION_STEP_STATE_UNSPECIFIED\x10\x00\x12&\n" +
+	"\"AGENT_EXECUTION_STEP_STATE_RUNNING\x10\x01\x12(\n" +
+	"$AGENT_EXECUTION_STEP_STATE_COMPLETED\x10\x02\x12%\n" +
+	"!AGENT_EXECUTION_STEP_STATE_FAILED\x10\x03\x12(\n" +
+	"$AGENT_EXECUTION_STEP_STATE_CANCELLED\x10\x042\x95\a\n" +
 	"\x13ConversationService\x12\x97\x01\n" +
 	"\x11ListConversations\x12-.ingate.assistant.v1.ListConversationsRequest\x1a..ingate.assistant.v1.ListConversationsResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/assistant/v1/conversations\x12\x8b\x01\n" +
 	"\x0fGetConversation\x12+.ingate.assistant.v1.GetConversationRequest\x1a!.ingate.assistant.v1.Conversation\"(\x82\xd3\xe4\x93\x02\"\x12 /assistant/v1/conversations/{id}\x12\x8f\x01\n" +
 	"\x12CreateConversation\x12..ingate.assistant.v1.CreateConversationRequest\x1a!.ingate.assistant.v1.Conversation\"&\x82\xd3\xe4\x93\x02 :\x01*\"\x1b/assistant/v1/conversations\x12\x94\x01\n" +
 	"\x12UpdateConversation\x12..ingate.assistant.v1.UpdateConversationRequest\x1a!.ingate.assistant.v1.Conversation\"+\x82\xd3\xe4\x93\x02%:\x01*2 /assistant/v1/conversations/{id}\x12\x86\x01\n" +
 	"\x12DeleteConversation\x12..ingate.assistant.v1.DeleteConversationRequest\x1a\x16.google.protobuf.Empty\"(\x82\xd3\xe4\x93\x02\"* /assistant/v1/conversations/{id}\x12\xa3\x01\n" +
-	"\fListMessages\x12(.ingate.assistant.v1.ListMessagesRequest\x1a).ingate.assistant.v1.ListMessagesResponse\">\x82\xd3\xe4\x93\x028\x126/assistant/v1/conversations/{conversation_id}/messages\x12\x8b\x01\n" +
-	"\tCreateRun\x12%.ingate.assistant.v1.CreateRunRequest\x1a\x18.ingate.assistant.v1.Run\"=\x82\xd3\xe4\x93\x027:\x01*\"2/assistant/v1/conversations/{conversation_id}/runs\x12g\n" +
-	"\x06GetRun\x12\".ingate.assistant.v1.GetRunRequest\x1a\x18.ingate.assistant.v1.Run\"\x1f\x82\xd3\xe4\x93\x02\x19\x12\x17/assistant/v1/runs/{id}\x12\x8e\x01\n" +
-	"\fListRunItems\x12(.ingate.assistant.v1.ListRunItemsRequest\x1a).ingate.assistant.v1.ListRunItemsResponse\")\x82\xd3\xe4\x93\x02#\x12!/assistant/v1/runs/{run_id}/items\x12w\n" +
-	"\tCancelRun\x12%.ingate.assistant.v1.CancelRunRequest\x1a\x18.ingate.assistant.v1.Run\")\x82\xd3\xe4\x93\x02#:\x01*\"\x1e/assistant/v1/runs/{id}:cancel2\xb2\x02\n" +
+	"\fListMessages\x12(.ingate.assistant.v1.ListMessagesRequest\x1a).ingate.assistant.v1.ListMessagesResponse\">\x82\xd3\xe4\x93\x028\x126/assistant/v1/conversations/{conversation_id}/messages2\xbc\x05\n" +
+	"\x15AgentExecutionService\x12\xb2\x01\n" +
+	"\x14CreateAgentExecution\x120.ingate.assistant.v1.CreateAgentExecutionRequest\x1a#.ingate.assistant.v1.AgentExecution\"C\x82\xd3\xe4\x93\x02=:\x01*\"8/assistant/v1/conversations/{conversation_id}/executions\x12\x8e\x01\n" +
+	"\x11GetAgentExecution\x12-.ingate.assistant.v1.GetAgentExecutionRequest\x1a#.ingate.assistant.v1.AgentExecution\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/assistant/v1/executions/{id}\x12\xbb\x01\n" +
+	"\x17ListAgentExecutionSteps\x123.ingate.assistant.v1.ListAgentExecutionStepsRequest\x1a4.ingate.assistant.v1.ListAgentExecutionStepsResponse\"5\x82\xd3\xe4\x93\x02/\x12-/assistant/v1/executions/{execution_id}/steps\x12\x9e\x01\n" +
+	"\x14CancelAgentExecution\x120.ingate.assistant.v1.CancelAgentExecutionRequest\x1a#.ingate.assistant.v1.AgentExecution\"/\x82\xd3\xe4\x93\x02):\x01*\"$/assistant/v1/executions/{id}:cancel2\xb2\x02\n" +
 	"\x16ModelConnectionService\x12z\n" +
 	"\x12GetModelConnection\x12\x16.google.protobuf.Empty\x1a$.ingate.assistant.v1.ModelConnection\"&\x82\xd3\xe4\x93\x02 \x12\x1e/assistant/v1/model-connection\x12\x9b\x01\n" +
 	"\x15UpdateModelConnection\x121.ingate.assistant.v1.UpdateModelConnectionRequest\x1a$.ingate.assistant.v1.ModelConnection\")\x82\xd3\xe4\x93\x02#:\x01*\x1a\x1e/assistant/v1/model-connectionB.Z,github.com/lgc202/ingate/api/assistant/v1;v1b\x06proto3"
@@ -1764,51 +1765,51 @@ func file_assistant_v1_assistant_proto_rawDescGZIP() []byte {
 var file_assistant_v1_assistant_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
 var file_assistant_v1_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
 var file_assistant_v1_assistant_proto_goTypes = []any{
-	(ModelConnectionMode)(0),             // 0: ingate.assistant.v1.ModelConnectionMode
-	(ModelProtocol)(0),                   // 1: ingate.assistant.v1.ModelProtocol
-	(MessageRole)(0),                     // 2: ingate.assistant.v1.MessageRole
-	(RunState)(0),                        // 3: ingate.assistant.v1.RunState
-	(RunItemKind)(0),                     // 4: ingate.assistant.v1.RunItemKind
-	(RunItemState)(0),                    // 5: ingate.assistant.v1.RunItemState
-	(*Conversation)(nil),                 // 6: ingate.assistant.v1.Conversation
-	(*Message)(nil),                      // 7: ingate.assistant.v1.Message
-	(*Run)(nil),                          // 8: ingate.assistant.v1.Run
-	(*RunItem)(nil),                      // 9: ingate.assistant.v1.RunItem
-	(*ListConversationsRequest)(nil),     // 10: ingate.assistant.v1.ListConversationsRequest
-	(*ListConversationsResponse)(nil),    // 11: ingate.assistant.v1.ListConversationsResponse
-	(*GetConversationRequest)(nil),       // 12: ingate.assistant.v1.GetConversationRequest
-	(*CreateConversationRequest)(nil),    // 13: ingate.assistant.v1.CreateConversationRequest
-	(*UpdateConversationRequest)(nil),    // 14: ingate.assistant.v1.UpdateConversationRequest
-	(*DeleteConversationRequest)(nil),    // 15: ingate.assistant.v1.DeleteConversationRequest
-	(*ListMessagesRequest)(nil),          // 16: ingate.assistant.v1.ListMessagesRequest
-	(*ListMessagesResponse)(nil),         // 17: ingate.assistant.v1.ListMessagesResponse
-	(*GetRunRequest)(nil),                // 18: ingate.assistant.v1.GetRunRequest
-	(*ListRunItemsRequest)(nil),          // 19: ingate.assistant.v1.ListRunItemsRequest
-	(*ListRunItemsResponse)(nil),         // 20: ingate.assistant.v1.ListRunItemsResponse
-	(*CreateRunRequest)(nil),             // 21: ingate.assistant.v1.CreateRunRequest
-	(*CancelRunRequest)(nil),             // 22: ingate.assistant.v1.CancelRunRequest
-	(*ModelConnection)(nil),              // 23: ingate.assistant.v1.ModelConnection
-	(*UpdateModelConnectionRequest)(nil), // 24: ingate.assistant.v1.UpdateModelConnectionRequest
-	(*timestamppb.Timestamp)(nil),        // 25: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                // 26: google.protobuf.Empty
+	(ModelConnectionMode)(0),                // 0: ingate.assistant.v1.ModelConnectionMode
+	(ModelProtocol)(0),                      // 1: ingate.assistant.v1.ModelProtocol
+	(MessageRole)(0),                        // 2: ingate.assistant.v1.MessageRole
+	(AgentExecutionState)(0),                // 3: ingate.assistant.v1.AgentExecutionState
+	(AgentExecutionStepKind)(0),             // 4: ingate.assistant.v1.AgentExecutionStepKind
+	(AgentExecutionStepState)(0),            // 5: ingate.assistant.v1.AgentExecutionStepState
+	(*Conversation)(nil),                    // 6: ingate.assistant.v1.Conversation
+	(*Message)(nil),                         // 7: ingate.assistant.v1.Message
+	(*AgentExecution)(nil),                  // 8: ingate.assistant.v1.AgentExecution
+	(*AgentExecutionStep)(nil),              // 9: ingate.assistant.v1.AgentExecutionStep
+	(*ListConversationsRequest)(nil),        // 10: ingate.assistant.v1.ListConversationsRequest
+	(*ListConversationsResponse)(nil),       // 11: ingate.assistant.v1.ListConversationsResponse
+	(*GetConversationRequest)(nil),          // 12: ingate.assistant.v1.GetConversationRequest
+	(*CreateConversationRequest)(nil),       // 13: ingate.assistant.v1.CreateConversationRequest
+	(*UpdateConversationRequest)(nil),       // 14: ingate.assistant.v1.UpdateConversationRequest
+	(*DeleteConversationRequest)(nil),       // 15: ingate.assistant.v1.DeleteConversationRequest
+	(*ListMessagesRequest)(nil),             // 16: ingate.assistant.v1.ListMessagesRequest
+	(*ListMessagesResponse)(nil),            // 17: ingate.assistant.v1.ListMessagesResponse
+	(*GetAgentExecutionRequest)(nil),        // 18: ingate.assistant.v1.GetAgentExecutionRequest
+	(*ListAgentExecutionStepsRequest)(nil),  // 19: ingate.assistant.v1.ListAgentExecutionStepsRequest
+	(*ListAgentExecutionStepsResponse)(nil), // 20: ingate.assistant.v1.ListAgentExecutionStepsResponse
+	(*CreateAgentExecutionRequest)(nil),     // 21: ingate.assistant.v1.CreateAgentExecutionRequest
+	(*CancelAgentExecutionRequest)(nil),     // 22: ingate.assistant.v1.CancelAgentExecutionRequest
+	(*ModelConnection)(nil),                 // 23: ingate.assistant.v1.ModelConnection
+	(*UpdateModelConnectionRequest)(nil),    // 24: ingate.assistant.v1.UpdateModelConnectionRequest
+	(*timestamppb.Timestamp)(nil),           // 25: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                   // 26: google.protobuf.Empty
 }
 var file_assistant_v1_assistant_proto_depIdxs = []int32{
 	25, // 0: ingate.assistant.v1.Conversation.created_at:type_name -> google.protobuf.Timestamp
 	25, // 1: ingate.assistant.v1.Conversation.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 2: ingate.assistant.v1.Message.role:type_name -> ingate.assistant.v1.MessageRole
 	25, // 3: ingate.assistant.v1.Message.created_at:type_name -> google.protobuf.Timestamp
-	3,  // 4: ingate.assistant.v1.Run.state:type_name -> ingate.assistant.v1.RunState
-	25, // 5: ingate.assistant.v1.Run.started_at:type_name -> google.protobuf.Timestamp
-	25, // 6: ingate.assistant.v1.Run.finished_at:type_name -> google.protobuf.Timestamp
-	25, // 7: ingate.assistant.v1.Run.created_at:type_name -> google.protobuf.Timestamp
-	4,  // 8: ingate.assistant.v1.RunItem.kind:type_name -> ingate.assistant.v1.RunItemKind
-	5,  // 9: ingate.assistant.v1.RunItem.state:type_name -> ingate.assistant.v1.RunItemState
-	25, // 10: ingate.assistant.v1.RunItem.created_at:type_name -> google.protobuf.Timestamp
-	25, // 11: ingate.assistant.v1.RunItem.started_at:type_name -> google.protobuf.Timestamp
-	25, // 12: ingate.assistant.v1.RunItem.finished_at:type_name -> google.protobuf.Timestamp
+	3,  // 4: ingate.assistant.v1.AgentExecution.state:type_name -> ingate.assistant.v1.AgentExecutionState
+	25, // 5: ingate.assistant.v1.AgentExecution.started_at:type_name -> google.protobuf.Timestamp
+	25, // 6: ingate.assistant.v1.AgentExecution.finished_at:type_name -> google.protobuf.Timestamp
+	25, // 7: ingate.assistant.v1.AgentExecution.created_at:type_name -> google.protobuf.Timestamp
+	4,  // 8: ingate.assistant.v1.AgentExecutionStep.kind:type_name -> ingate.assistant.v1.AgentExecutionStepKind
+	5,  // 9: ingate.assistant.v1.AgentExecutionStep.state:type_name -> ingate.assistant.v1.AgentExecutionStepState
+	25, // 10: ingate.assistant.v1.AgentExecutionStep.created_at:type_name -> google.protobuf.Timestamp
+	25, // 11: ingate.assistant.v1.AgentExecutionStep.started_at:type_name -> google.protobuf.Timestamp
+	25, // 12: ingate.assistant.v1.AgentExecutionStep.finished_at:type_name -> google.protobuf.Timestamp
 	6,  // 13: ingate.assistant.v1.ListConversationsResponse.conversations:type_name -> ingate.assistant.v1.Conversation
 	7,  // 14: ingate.assistant.v1.ListMessagesResponse.messages:type_name -> ingate.assistant.v1.Message
-	9,  // 15: ingate.assistant.v1.ListRunItemsResponse.items:type_name -> ingate.assistant.v1.RunItem
+	9,  // 15: ingate.assistant.v1.ListAgentExecutionStepsResponse.steps:type_name -> ingate.assistant.v1.AgentExecutionStep
 	0,  // 16: ingate.assistant.v1.ModelConnection.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
 	1,  // 17: ingate.assistant.v1.ModelConnection.protocol:type_name -> ingate.assistant.v1.ModelProtocol
 	25, // 18: ingate.assistant.v1.ModelConnection.updated_at:type_name -> google.protobuf.Timestamp
@@ -1820,10 +1821,10 @@ var file_assistant_v1_assistant_proto_depIdxs = []int32{
 	14, // 24: ingate.assistant.v1.ConversationService.UpdateConversation:input_type -> ingate.assistant.v1.UpdateConversationRequest
 	15, // 25: ingate.assistant.v1.ConversationService.DeleteConversation:input_type -> ingate.assistant.v1.DeleteConversationRequest
 	16, // 26: ingate.assistant.v1.ConversationService.ListMessages:input_type -> ingate.assistant.v1.ListMessagesRequest
-	21, // 27: ingate.assistant.v1.ConversationService.CreateRun:input_type -> ingate.assistant.v1.CreateRunRequest
-	18, // 28: ingate.assistant.v1.ConversationService.GetRun:input_type -> ingate.assistant.v1.GetRunRequest
-	19, // 29: ingate.assistant.v1.ConversationService.ListRunItems:input_type -> ingate.assistant.v1.ListRunItemsRequest
-	22, // 30: ingate.assistant.v1.ConversationService.CancelRun:input_type -> ingate.assistant.v1.CancelRunRequest
+	21, // 27: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:input_type -> ingate.assistant.v1.CreateAgentExecutionRequest
+	18, // 28: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:input_type -> ingate.assistant.v1.GetAgentExecutionRequest
+	19, // 29: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:input_type -> ingate.assistant.v1.ListAgentExecutionStepsRequest
+	22, // 30: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:input_type -> ingate.assistant.v1.CancelAgentExecutionRequest
 	26, // 31: ingate.assistant.v1.ModelConnectionService.GetModelConnection:input_type -> google.protobuf.Empty
 	24, // 32: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:input_type -> ingate.assistant.v1.UpdateModelConnectionRequest
 	11, // 33: ingate.assistant.v1.ConversationService.ListConversations:output_type -> ingate.assistant.v1.ListConversationsResponse
@@ -1832,10 +1833,10 @@ var file_assistant_v1_assistant_proto_depIdxs = []int32{
 	6,  // 36: ingate.assistant.v1.ConversationService.UpdateConversation:output_type -> ingate.assistant.v1.Conversation
 	26, // 37: ingate.assistant.v1.ConversationService.DeleteConversation:output_type -> google.protobuf.Empty
 	17, // 38: ingate.assistant.v1.ConversationService.ListMessages:output_type -> ingate.assistant.v1.ListMessagesResponse
-	8,  // 39: ingate.assistant.v1.ConversationService.CreateRun:output_type -> ingate.assistant.v1.Run
-	8,  // 40: ingate.assistant.v1.ConversationService.GetRun:output_type -> ingate.assistant.v1.Run
-	20, // 41: ingate.assistant.v1.ConversationService.ListRunItems:output_type -> ingate.assistant.v1.ListRunItemsResponse
-	8,  // 42: ingate.assistant.v1.ConversationService.CancelRun:output_type -> ingate.assistant.v1.Run
+	8,  // 39: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
+	8,  // 40: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
+	20, // 41: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:output_type -> ingate.assistant.v1.ListAgentExecutionStepsResponse
+	8,  // 42: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
 	23, // 43: ingate.assistant.v1.ModelConnectionService.GetModelConnection:output_type -> ingate.assistant.v1.ModelConnection
 	23, // 44: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:output_type -> ingate.assistant.v1.ModelConnection
 	33, // [33:45] is the sub-list for method output_type
@@ -1859,7 +1860,7 @@ func file_assistant_v1_assistant_proto_init() {
 			NumEnums:      6,
 			NumMessages:   19,
 			NumExtensions: 0,
-			NumServices:   2,
+			NumServices:   3,
 		},
 		GoTypes:           file_assistant_v1_assistant_proto_goTypes,
 		DependencyIndexes: file_assistant_v1_assistant_proto_depIdxs,

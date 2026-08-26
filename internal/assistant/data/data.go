@@ -7,28 +7,35 @@ import (
 
 	"github.com/google/wire"
 
+	"github.com/lgc202/ingate/internal/assistant/agent"
+	agenttool "github.com/lgc202/ingate/internal/assistant/agent/tool"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
+	executionbiz "github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/biz/model"
-	runbiz "github.com/lgc202/ingate/internal/assistant/biz/run"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/assistant/data/adminapi"
-	"github.com/lgc202/ingate/internal/assistant/data/chatmodel"
+	"github.com/lgc202/ingate/internal/assistant/data/modelclient"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql"
 	redisdata "github.com/lgc202/ingate/internal/assistant/data/redis"
 )
 
-// ProviderSet 将 MySQL、Redis Stream 和 Eino Agent 绑定到业务层声明的依赖边界。
+// ProviderSet 将持久化、事件流、资源查询和模型 SDK 绑定到调用方声明的依赖边界。
 var ProviderSet = wire.NewSet(
 	NewMySQLStore,
 	NewEventStore,
 	NewAdminClient,
-	chatmodel.NewAgent,
+	NewChatModelFactory,
+	wire.Bind(new(agenttool.ResourceReader), new(*adminapi.Client)),
 	wire.Bind(new(conversation.Store), new(*mysql.Store)),
-	wire.Bind(new(runbiz.Store), new(*mysql.Store)),
-	wire.Bind(new(runbiz.EventStore), new(*redisdata.EventStore)),
-	wire.Bind(new(runbiz.Agent), new(*chatmodel.Agent)),
+	wire.Bind(new(executionbiz.Store), new(*mysql.Store)),
+	wire.Bind(new(executionbiz.EventStore), new(*redisdata.EventStore)),
 	wire.Bind(new(model.Store), new(*mysql.Store)),
 )
+
+// NewChatModelFactory 把具体模型 SDK 适配器提供给 Agent 声明的创建边界。
+func NewChatModelFactory() agent.ChatModelFactory {
+	return modelclient.New
+}
 
 // NewAdminClient 创建 Assistant 使用的内部 Admin API 客户端，并由 Wire 统一释放连接。
 func NewAdminClient(

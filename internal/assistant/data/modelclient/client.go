@@ -1,4 +1,5 @@
-package chatmodel
+// Package modelclient 将 Assistant 模型连接转换为 Eino 模型客户端。
+package modelclient
 
 import (
 	"context"
@@ -12,9 +13,9 @@ import (
 	modelbiz "github.com/lgc202/ingate/internal/assistant/biz/model"
 )
 
-// newChatModel 只处理模型协议差异。直连或经过 Ingate 的网络路径已经由
+// New 只处理模型协议差异。直连或经过 Ingate 的网络路径已经由
 // Connection.Endpoint 确定，不应再进入 Agent 执行逻辑。
-func newChatModel(
+func New(
 	ctx context.Context,
 	connection modelbiz.Connection,
 ) (einomodel.ToolCallingChatModel, error) {

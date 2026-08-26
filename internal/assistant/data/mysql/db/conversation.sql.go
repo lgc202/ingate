@@ -11,44 +11,44 @@ import (
 	"time"
 )
 
-const cancelQueuedRun = `-- name: CancelQueuedRun :execrows
-UPDATE assistant_runs
+const cancelQueuedExecution = `-- name: CancelQueuedExecution :execrows
+UPDATE assistant_agent_executions
 SET state = 5, finished_at = ?
 WHERE id = ? AND state = 1
 `
 
-type CancelQueuedRunParams struct {
+type CancelQueuedExecutionParams struct {
 	FinishedAt sql.NullTime
 	ID         string
 }
 
-func (q *Queries) CancelQueuedRun(ctx context.Context, arg CancelQueuedRunParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, cancelQueuedRun, arg.FinishedAt, arg.ID)
+func (q *Queries) CancelQueuedExecution(ctx context.Context, arg CancelQueuedExecutionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, cancelQueuedExecution, arg.FinishedAt, arg.ID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-const cancelRunningRunItems = `-- name: CancelRunningRunItems :exec
-UPDATE assistant_run_items
+const cancelRunningExecutionSteps = `-- name: CancelRunningExecutionSteps :exec
+UPDATE assistant_agent_execution_steps
 SET state = 4, finished_at = ?
-WHERE run_id = ? AND state = 1
+WHERE execution_id = ? AND state = 1
 `
 
-type CancelRunningRunItemsParams struct {
-	FinishedAt sql.NullTime
-	RunID      string
+type CancelRunningExecutionStepsParams struct {
+	FinishedAt  sql.NullTime
+	ExecutionID string
 }
 
-func (q *Queries) CancelRunningRunItems(ctx context.Context, arg CancelRunningRunItemsParams) error {
-	_, err := q.db.ExecContext(ctx, cancelRunningRunItems, arg.FinishedAt, arg.RunID)
+func (q *Queries) CancelRunningExecutionSteps(ctx context.Context, arg CancelRunningExecutionStepsParams) error {
+	_, err := q.db.ExecContext(ctx, cancelRunningExecutionSteps, arg.FinishedAt, arg.ExecutionID)
 	return err
 }
 
-const claimNextRun = `-- name: ClaimNextRun :one
+const claimNextExecution = `-- name: ClaimNextExecution :one
 SELECT r.id, r.conversation_id, c.actor_id, r.created_at
-FROM assistant_runs AS r
+FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.state = 1
 ORDER BY r.created_at ASC, r.id ASC
@@ -56,16 +56,16 @@ LIMIT 1
 FOR UPDATE SKIP LOCKED
 `
 
-type ClaimNextRunRow struct {
+type ClaimNextExecutionRow struct {
 	ID             string
 	ConversationID string
 	ActorID        string
 	CreatedAt      time.Time
 }
 
-func (q *Queries) ClaimNextRun(ctx context.Context) (ClaimNextRunRow, error) {
-	row := q.db.QueryRowContext(ctx, claimNextRun)
-	var i ClaimNextRunRow
+func (q *Queries) ClaimNextExecution(ctx context.Context) (ClaimNextExecutionRow, error) {
+	row := q.db.QueryRowContext(ctx, claimNextExecution)
+	var i ClaimNextExecutionRow
 	err := row.Scan(
 		&i.ID,
 		&i.ConversationID,
@@ -75,48 +75,48 @@ func (q *Queries) ClaimNextRun(ctx context.Context) (ClaimNextRunRow, error) {
 	return i, err
 }
 
-const completeRun = `-- name: CompleteRun :execrows
-UPDATE assistant_runs
+const completeExecution = `-- name: CompleteExecution :execrows
+UPDATE assistant_agent_executions
 SET state = 3, worker_id = '', lease_expires_at = NULL, finished_at = ?
 WHERE id = ? AND state = 2 AND worker_id = ?
 `
 
-type CompleteRunParams struct {
+type CompleteExecutionParams struct {
 	FinishedAt sql.NullTime
 	ID         string
 	WorkerID   string
 }
 
-func (q *Queries) CompleteRun(ctx context.Context, arg CompleteRunParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, completeRun, arg.FinishedAt, arg.ID, arg.WorkerID)
+func (q *Queries) CompleteExecution(ctx context.Context, arg CompleteExecutionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeExecution, arg.FinishedAt, arg.ID, arg.WorkerID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-const completeRunItem = `-- name: CompleteRunItem :execrows
-UPDATE assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
+const completeExecutionStep = `-- name: CompleteExecutionStep :execrows
+UPDATE assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 SET i.state = 2, i.summary = ?, i.finished_at = ?
-WHERE i.run_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
+WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
   AND r.state = 2 AND r.worker_id = ?
 `
 
-type CompleteRunItemParams struct {
-	Summary    string
-	FinishedAt sql.NullTime
-	RunID      string
-	CallID     string
-	Kind       uint8
-	WorkerID   string
+type CompleteExecutionStepParams struct {
+	Summary     string
+	FinishedAt  sql.NullTime
+	ExecutionID string
+	CallID      string
+	Kind        uint8
+	WorkerID    string
 }
 
-func (q *Queries) CompleteRunItem(ctx context.Context, arg CompleteRunItemParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, completeRunItem,
+func (q *Queries) CompleteExecutionStep(ctx context.Context, arg CompleteExecutionStepParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, completeExecutionStep,
 		arg.Summary,
 		arg.FinishedAt,
-		arg.RunID,
+		arg.ExecutionID,
 		arg.CallID,
 		arg.Kind,
 		arg.WorkerID,
@@ -127,14 +127,14 @@ func (q *Queries) CompleteRunItem(ctx context.Context, arg CompleteRunItemParams
 	return result.RowsAffected()
 }
 
-const countActiveRuns = `-- name: CountActiveRuns :one
+const countActiveExecutions = `-- name: CountActiveExecutions :one
 SELECT COUNT(*)
-FROM assistant_runs
+FROM assistant_agent_executions
 WHERE conversation_id = ? AND state IN (1, 2)
 `
 
-func (q *Queries) CountActiveRuns(ctx context.Context, conversationID string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countActiveRuns, conversationID)
+func (q *Queries) CountActiveExecutions(ctx context.Context, conversationID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveExecutions, conversationID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -165,78 +165,49 @@ func (q *Queries) CreateConversation(ctx context.Context, arg CreateConversation
 	return err
 }
 
-const createMessage = `-- name: CreateMessage :exec
-INSERT INTO assistant_messages (
-    id, conversation_id, run_id, role, content, reasoning_content, created_at
-) VALUES (?, ?, ?, ?, ?, ?, ?)
-`
-
-type CreateMessageParams struct {
-	ID               string
-	ConversationID   string
-	RunID            string
-	Role             uint8
-	Content          string
-	ReasoningContent string
-	CreatedAt        time.Time
-}
-
-func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) error {
-	_, err := q.db.ExecContext(ctx, createMessage,
-		arg.ID,
-		arg.ConversationID,
-		arg.RunID,
-		arg.Role,
-		arg.Content,
-		arg.ReasoningContent,
-		arg.CreatedAt,
-	)
-	return err
-}
-
-const createRun = `-- name: CreateRun :exec
-INSERT INTO assistant_runs (
+const createExecution = `-- name: CreateExecution :exec
+INSERT INTO assistant_agent_executions (
     id, conversation_id, state, created_at
 ) VALUES (?, ?, 1, ?)
 `
 
-type CreateRunParams struct {
+type CreateExecutionParams struct {
 	ID             string
 	ConversationID string
 	CreatedAt      time.Time
 }
 
-func (q *Queries) CreateRun(ctx context.Context, arg CreateRunParams) error {
-	_, err := q.db.ExecContext(ctx, createRun, arg.ID, arg.ConversationID, arg.CreatedAt)
+func (q *Queries) CreateExecution(ctx context.Context, arg CreateExecutionParams) error {
+	_, err := q.db.ExecContext(ctx, createExecution, arg.ID, arg.ConversationID, arg.CreatedAt)
 	return err
 }
 
-const createRunItem = `-- name: CreateRunItem :exec
-INSERT INTO assistant_run_items (
-    id, run_id, sequence, kind, state, name, call_id, summary,
+const createExecutionStep = `-- name: CreateExecutionStep :exec
+INSERT INTO assistant_agent_execution_steps (
+    id, execution_id, sequence, kind, state, name, call_id, summary,
     error_code, created_at, started_at, finished_at
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
-type CreateRunItemParams struct {
-	ID         string
-	RunID      string
-	Sequence   uint32
-	Kind       uint8
-	State      uint8
-	Name       string
-	CallID     string
-	Summary    string
-	ErrorCode  string
-	CreatedAt  time.Time
-	StartedAt  time.Time
-	FinishedAt sql.NullTime
+type CreateExecutionStepParams struct {
+	ID          string
+	ExecutionID string
+	Sequence    uint32
+	Kind        uint8
+	State       uint8
+	Name        string
+	CallID      string
+	Summary     string
+	ErrorCode   string
+	CreatedAt   time.Time
+	StartedAt   time.Time
+	FinishedAt  sql.NullTime
 }
 
-func (q *Queries) CreateRunItem(ctx context.Context, arg CreateRunItemParams) error {
-	_, err := q.db.ExecContext(ctx, createRunItem,
+func (q *Queries) CreateExecutionStep(ctx context.Context, arg CreateExecutionStepParams) error {
+	_, err := q.db.ExecContext(ctx, createExecutionStep,
 		arg.ID,
-		arg.RunID,
+		arg.ExecutionID,
 		arg.Sequence,
 		arg.Kind,
 		arg.State,
@@ -247,6 +218,35 @@ func (q *Queries) CreateRunItem(ctx context.Context, arg CreateRunItemParams) er
 		arg.CreatedAt,
 		arg.StartedAt,
 		arg.FinishedAt,
+	)
+	return err
+}
+
+const createMessage = `-- name: CreateMessage :exec
+INSERT INTO assistant_messages (
+    id, conversation_id, execution_id, role, content, reasoning_content, created_at
+) VALUES (?, ?, ?, ?, ?, ?, ?)
+`
+
+type CreateMessageParams struct {
+	ID               string
+	ConversationID   string
+	ExecutionID      string
+	Role             uint8
+	Content          string
+	ReasoningContent string
+	CreatedAt        time.Time
+}
+
+func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) error {
+	_, err := q.db.ExecContext(ctx, createMessage,
+		arg.ID,
+		arg.ConversationID,
+		arg.ExecutionID,
+		arg.Role,
+		arg.Content,
+		arg.ReasoningContent,
+		arg.CreatedAt,
 	)
 	return err
 }
@@ -269,6 +269,28 @@ func (q *Queries) DeleteConversation(ctx context.Context, arg DeleteConversation
 	return result.RowsAffected()
 }
 
+const deleteExecutionStepsByConversation = `-- name: DeleteExecutionStepsByConversation :exec
+DELETE i
+FROM assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS e ON e.id = i.execution_id
+WHERE e.conversation_id = ?
+`
+
+func (q *Queries) DeleteExecutionStepsByConversation(ctx context.Context, conversationID string) error {
+	_, err := q.db.ExecContext(ctx, deleteExecutionStepsByConversation, conversationID)
+	return err
+}
+
+const deleteExecutionsByConversation = `-- name: DeleteExecutionsByConversation :exec
+DELETE FROM assistant_agent_executions
+WHERE conversation_id = ?
+`
+
+func (q *Queries) DeleteExecutionsByConversation(ctx context.Context, conversationID string) error {
+	_, err := q.db.ExecContext(ctx, deleteExecutionsByConversation, conversationID)
+	return err
+}
+
 const deleteMessagesByConversation = `-- name: DeleteMessagesByConversation :exec
 DELETE FROM assistant_messages
 WHERE conversation_id = ?
@@ -279,81 +301,39 @@ func (q *Queries) DeleteMessagesByConversation(ctx context.Context, conversation
 	return err
 }
 
-const deleteRunItemsByConversation = `-- name: DeleteRunItemsByConversation :exec
-DELETE i
-FROM assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
-WHERE r.conversation_id = ?
+const executionCancellationRequested = `-- name: ExecutionCancellationRequested :one
+SELECT cancellation_requested
+FROM assistant_agent_executions
+WHERE id = ? AND state = 2 AND worker_id = ?
 `
 
-func (q *Queries) DeleteRunItemsByConversation(ctx context.Context, conversationID string) error {
-	_, err := q.db.ExecContext(ctx, deleteRunItemsByConversation, conversationID)
-	return err
+type ExecutionCancellationRequestedParams struct {
+	ID       string
+	WorkerID string
 }
 
-const deleteRunsByConversation = `-- name: DeleteRunsByConversation :exec
-DELETE FROM assistant_runs
-WHERE conversation_id = ?
-`
-
-func (q *Queries) DeleteRunsByConversation(ctx context.Context, conversationID string) error {
-	_, err := q.db.ExecContext(ctx, deleteRunsByConversation, conversationID)
-	return err
+func (q *Queries) ExecutionCancellationRequested(ctx context.Context, arg ExecutionCancellationRequestedParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, executionCancellationRequested, arg.ID, arg.WorkerID)
+	var cancellation_requested bool
+	err := row.Scan(&cancellation_requested)
+	return cancellation_requested, err
 }
 
-const failExpiredRunItems = `-- name: FailExpiredRunItems :exec
-UPDATE assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
-SET i.state = 3, i.error_code = ?, i.finished_at = ?
-WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < ?
-`
-
-type FailExpiredRunItemsParams struct {
-	ErrorCode      string
-	FinishedAt     sql.NullTime
-	LeaseExpiresAt sql.NullTime
-}
-
-func (q *Queries) FailExpiredRunItems(ctx context.Context, arg FailExpiredRunItemsParams) error {
-	_, err := q.db.ExecContext(ctx, failExpiredRunItems, arg.ErrorCode, arg.FinishedAt, arg.LeaseExpiresAt)
-	return err
-}
-
-const failExpiredRuns = `-- name: FailExpiredRuns :execrows
-UPDATE assistant_runs
-SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
-WHERE state = 2 AND lease_expires_at < ?
-`
-
-type FailExpiredRunsParams struct {
-	ErrorCode      string
-	FinishedAt     sql.NullTime
-	LeaseExpiresAt sql.NullTime
-}
-
-func (q *Queries) FailExpiredRuns(ctx context.Context, arg FailExpiredRunsParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, failExpiredRuns, arg.ErrorCode, arg.FinishedAt, arg.LeaseExpiresAt)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
-const failRun = `-- name: FailRun :execrows
-UPDATE assistant_runs
+const failExecution = `-- name: FailExecution :execrows
+UPDATE assistant_agent_executions
 SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
 WHERE id = ? AND state = 2 AND worker_id = ?
 `
 
-type FailRunParams struct {
+type FailExecutionParams struct {
 	ErrorCode  string
 	FinishedAt sql.NullTime
 	ID         string
 	WorkerID   string
 }
 
-func (q *Queries) FailRun(ctx context.Context, arg FailRunParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, failRun,
+func (q *Queries) FailExecution(ctx context.Context, arg FailExecutionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failExecution,
 		arg.ErrorCode,
 		arg.FinishedAt,
 		arg.ID,
@@ -365,28 +345,28 @@ func (q *Queries) FailRun(ctx context.Context, arg FailRunParams) (int64, error)
 	return result.RowsAffected()
 }
 
-const failRunItem = `-- name: FailRunItem :execrows
-UPDATE assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
+const failExecutionStep = `-- name: FailExecutionStep :execrows
+UPDATE assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 SET i.state = 3, i.error_code = ?, i.finished_at = ?
-WHERE i.run_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
+WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
   AND r.state = 2 AND r.worker_id = ?
 `
 
-type FailRunItemParams struct {
-	ErrorCode  string
-	FinishedAt sql.NullTime
-	RunID      string
-	CallID     string
-	Kind       uint8
-	WorkerID   string
+type FailExecutionStepParams struct {
+	ErrorCode   string
+	FinishedAt  sql.NullTime
+	ExecutionID string
+	CallID      string
+	Kind        uint8
+	WorkerID    string
 }
 
-func (q *Queries) FailRunItem(ctx context.Context, arg FailRunItemParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, failRunItem,
+func (q *Queries) FailExecutionStep(ctx context.Context, arg FailExecutionStepParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failExecutionStep,
 		arg.ErrorCode,
 		arg.FinishedAt,
-		arg.RunID,
+		arg.ExecutionID,
 		arg.CallID,
 		arg.Kind,
 		arg.WorkerID,
@@ -397,37 +377,75 @@ func (q *Queries) FailRunItem(ctx context.Context, arg FailRunItemParams) (int64
 	return result.RowsAffected()
 }
 
-const failRunningRunItems = `-- name: FailRunningRunItems :exec
-UPDATE assistant_run_items
-SET state = 3, error_code = ?, finished_at = ?
-WHERE run_id = ? AND state = 1
+const failExpiredExecutionSteps = `-- name: FailExpiredExecutionSteps :exec
+UPDATE assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS r ON r.id = i.execution_id
+SET i.state = 3, i.error_code = ?, i.finished_at = ?
+WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < ?
 `
 
-type FailRunningRunItemsParams struct {
-	ErrorCode  string
-	FinishedAt sql.NullTime
-	RunID      string
+type FailExpiredExecutionStepsParams struct {
+	ErrorCode      string
+	FinishedAt     sql.NullTime
+	LeaseExpiresAt sql.NullTime
 }
 
-func (q *Queries) FailRunningRunItems(ctx context.Context, arg FailRunningRunItemsParams) error {
-	_, err := q.db.ExecContext(ctx, failRunningRunItems, arg.ErrorCode, arg.FinishedAt, arg.RunID)
+func (q *Queries) FailExpiredExecutionSteps(ctx context.Context, arg FailExpiredExecutionStepsParams) error {
+	_, err := q.db.ExecContext(ctx, failExpiredExecutionSteps, arg.ErrorCode, arg.FinishedAt, arg.LeaseExpiresAt)
 	return err
 }
 
-const finishRunCancellation = `-- name: FinishRunCancellation :execrows
-UPDATE assistant_runs
+const failExpiredExecutions = `-- name: FailExpiredExecutions :execrows
+UPDATE assistant_agent_executions
+SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
+WHERE state = 2 AND lease_expires_at < ?
+`
+
+type FailExpiredExecutionsParams struct {
+	ErrorCode      string
+	FinishedAt     sql.NullTime
+	LeaseExpiresAt sql.NullTime
+}
+
+func (q *Queries) FailExpiredExecutions(ctx context.Context, arg FailExpiredExecutionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failExpiredExecutions, arg.ErrorCode, arg.FinishedAt, arg.LeaseExpiresAt)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const failRunningExecutionSteps = `-- name: FailRunningExecutionSteps :exec
+UPDATE assistant_agent_execution_steps
+SET state = 3, error_code = ?, finished_at = ?
+WHERE execution_id = ? AND state = 1
+`
+
+type FailRunningExecutionStepsParams struct {
+	ErrorCode   string
+	FinishedAt  sql.NullTime
+	ExecutionID string
+}
+
+func (q *Queries) FailRunningExecutionSteps(ctx context.Context, arg FailRunningExecutionStepsParams) error {
+	_, err := q.db.ExecContext(ctx, failRunningExecutionSteps, arg.ErrorCode, arg.FinishedAt, arg.ExecutionID)
+	return err
+}
+
+const finishExecutionCancellation = `-- name: FinishExecutionCancellation :execrows
+UPDATE assistant_agent_executions
 SET state = 5, worker_id = '', lease_expires_at = NULL, finished_at = ?
 WHERE id = ? AND state = 2 AND worker_id = ? AND cancellation_requested = TRUE
 `
 
-type FinishRunCancellationParams struct {
+type FinishExecutionCancellationParams struct {
 	FinishedAt sql.NullTime
 	ID         string
 	WorkerID   string
 }
 
-func (q *Queries) FinishRunCancellation(ctx context.Context, arg FinishRunCancellationParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, finishRunCancellation, arg.FinishedAt, arg.ID, arg.WorkerID)
+func (q *Queries) FinishExecutionCancellation(ctx context.Context, arg FinishExecutionCancellationParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, finishExecutionCancellation, arg.FinishedAt, arg.ID, arg.WorkerID)
 	if err != nil {
 		return 0, err
 	}
@@ -534,23 +552,23 @@ func (q *Queries) GetConversationForUpdate(ctx context.Context, arg GetConversat
 	return i, err
 }
 
-const getRun = `-- name: GetRun :one
+const getExecution = `-- name: GetExecution :one
 SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
        r.cancellation_requested, r.worker_id, r.lease_expires_at,
        r.created_at, r.started_at, r.finished_at
-FROM assistant_runs AS r
+FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.id = ? AND c.actor_id = ?
 `
 
-type GetRunParams struct {
+type GetExecutionParams struct {
 	ID      string
 	ActorID string
 }
 
-func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (AssistantRun, error) {
-	row := q.db.QueryRowContext(ctx, getRun, arg.ID, arg.ActorID)
-	var i AssistantRun
+func (q *Queries) GetExecution(ctx context.Context, arg GetExecutionParams) (AssistantAgentExecution, error) {
+	row := q.db.QueryRowContext(ctx, getExecution, arg.ID, arg.ActorID)
+	var i AssistantAgentExecution
 	err := row.Scan(
 		&i.ID,
 		&i.ConversationID,
@@ -567,24 +585,24 @@ func (q *Queries) GetRun(ctx context.Context, arg GetRunParams) (AssistantRun, e
 	return i, err
 }
 
-const getRunForUpdate = `-- name: GetRunForUpdate :one
+const getExecutionForUpdate = `-- name: GetExecutionForUpdate :one
 SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
        r.cancellation_requested, r.worker_id, r.lease_expires_at,
        r.created_at, r.started_at, r.finished_at
-FROM assistant_runs AS r
+FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.id = ? AND c.actor_id = ?
 FOR UPDATE
 `
 
-type GetRunForUpdateParams struct {
+type GetExecutionForUpdateParams struct {
 	ID      string
 	ActorID string
 }
 
-func (q *Queries) GetRunForUpdate(ctx context.Context, arg GetRunForUpdateParams) (AssistantRun, error) {
-	row := q.db.QueryRowContext(ctx, getRunForUpdate, arg.ID, arg.ActorID)
-	var i AssistantRun
+func (q *Queries) GetExecutionForUpdate(ctx context.Context, arg GetExecutionForUpdateParams) (AssistantAgentExecution, error) {
+	row := q.db.QueryRowContext(ctx, getExecutionForUpdate, arg.ID, arg.ActorID)
+	var i AssistantAgentExecution
 	err := row.Scan(
 		&i.ID,
 		&i.ConversationID,
@@ -601,20 +619,20 @@ func (q *Queries) GetRunForUpdate(ctx context.Context, arg GetRunForUpdateParams
 	return i, err
 }
 
-const getRunForWorkerUpdate = `-- name: GetRunForWorkerUpdate :one
+const getExecutionForWorkerUpdate = `-- name: GetExecutionForWorkerUpdate :one
 SELECT id
-FROM assistant_runs
+FROM assistant_agent_executions
 WHERE id = ? AND state = 2 AND worker_id = ?
 FOR UPDATE
 `
 
-type GetRunForWorkerUpdateParams struct {
+type GetExecutionForWorkerUpdateParams struct {
 	ID       string
 	WorkerID string
 }
 
-func (q *Queries) GetRunForWorkerUpdate(ctx context.Context, arg GetRunForWorkerUpdateParams) (string, error) {
-	row := q.db.QueryRowContext(ctx, getRunForWorkerUpdate, arg.ID, arg.WorkerID)
+func (q *Queries) GetExecutionForWorkerUpdate(ctx context.Context, arg GetExecutionForWorkerUpdateParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getExecutionForWorkerUpdate, arg.ID, arg.WorkerID)
 	var id string
 	err := row.Scan(&id)
 	return id, err
@@ -672,8 +690,59 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 	return items, nil
 }
 
+const listExecutionSteps = `-- name: ListExecutionSteps :many
+SELECT i.id, i.execution_id, i.sequence, i.kind, i.state, i.name, i.call_id,
+       i.summary, i.error_code, i.created_at, i.started_at, i.finished_at
+FROM assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS r ON r.id = i.execution_id
+JOIN assistant_conversations AS c ON c.id = r.conversation_id
+WHERE i.execution_id = ? AND c.actor_id = ?
+ORDER BY i.sequence ASC
+`
+
+type ListExecutionStepsParams struct {
+	ExecutionID string
+	ActorID     string
+}
+
+func (q *Queries) ListExecutionSteps(ctx context.Context, arg ListExecutionStepsParams) ([]AssistantAgentExecutionStep, error) {
+	rows, err := q.db.QueryContext(ctx, listExecutionSteps, arg.ExecutionID, arg.ActorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AssistantAgentExecutionStep{}
+	for rows.Next() {
+		var i AssistantAgentExecutionStep
+		if err := rows.Scan(
+			&i.ID,
+			&i.ExecutionID,
+			&i.Sequence,
+			&i.Kind,
+			&i.State,
+			&i.Name,
+			&i.CallID,
+			&i.Summary,
+			&i.ErrorCode,
+			&i.CreatedAt,
+			&i.StartedAt,
+			&i.FinishedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMessages = `-- name: ListMessages :many
-SELECT id, conversation_id, run_id, role, content, reasoning_content, created_at
+SELECT id, conversation_id, execution_id, role, content, reasoning_content, created_at
 FROM assistant_messages
 WHERE conversation_id = ?
   AND (created_at > ? OR (created_at = ? AND id > ?))
@@ -707,7 +776,7 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]A
 		if err := rows.Scan(
 			&i.ID,
 			&i.ConversationID,
-			&i.RunID,
+			&i.ExecutionID,
 			&i.Role,
 			&i.Content,
 			&i.ReasoningContent,
@@ -727,7 +796,7 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]A
 }
 
 const listRecentMessages = `-- name: ListRecentMessages :many
-SELECT id, conversation_id, run_id, role, content, reasoning_content, created_at
+SELECT id, conversation_id, execution_id, role, content, reasoning_content, created_at
 FROM assistant_messages
 WHERE conversation_id = ?
 ORDER BY created_at DESC, id DESC
@@ -751,7 +820,7 @@ func (q *Queries) ListRecentMessages(ctx context.Context, arg ListRecentMessages
 		if err := rows.Scan(
 			&i.ID,
 			&i.ConversationID,
-			&i.RunID,
+			&i.ExecutionID,
 			&i.Role,
 			&i.Content,
 			&i.ReasoningContent,
@@ -770,157 +839,88 @@ func (q *Queries) ListRecentMessages(ctx context.Context, arg ListRecentMessages
 	return items, nil
 }
 
-const listRunItems = `-- name: ListRunItems :many
-SELECT i.id, i.run_id, i.sequence, i.kind, i.state, i.name, i.call_id,
-       i.summary, i.error_code, i.created_at, i.started_at, i.finished_at
-FROM assistant_run_items AS i
-JOIN assistant_runs AS r ON r.id = i.run_id
-JOIN assistant_conversations AS c ON c.id = r.conversation_id
-WHERE i.run_id = ? AND c.actor_id = ?
-ORDER BY i.sequence ASC
-`
-
-type ListRunItemsParams struct {
-	RunID   string
-	ActorID string
-}
-
-func (q *Queries) ListRunItems(ctx context.Context, arg ListRunItemsParams) ([]AssistantRunItem, error) {
-	rows, err := q.db.QueryContext(ctx, listRunItems, arg.RunID, arg.ActorID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []AssistantRunItem{}
-	for rows.Next() {
-		var i AssistantRunItem
-		if err := rows.Scan(
-			&i.ID,
-			&i.RunID,
-			&i.Sequence,
-			&i.Kind,
-			&i.State,
-			&i.Name,
-			&i.CallID,
-			&i.Summary,
-			&i.ErrorCode,
-			&i.CreatedAt,
-			&i.StartedAt,
-			&i.FinishedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const nextRunItemSequence = `-- name: NextRunItemSequence :one
+const nextExecutionStepSequence = `-- name: NextExecutionStepSequence :one
 SELECT CAST(COALESCE(MAX(sequence), 0) + 1 AS UNSIGNED)
-FROM assistant_run_items
-WHERE run_id = ?
+FROM assistant_agent_execution_steps
+WHERE execution_id = ?
 `
 
-func (q *Queries) NextRunItemSequence(ctx context.Context, runID string) (int64, error) {
-	row := q.db.QueryRowContext(ctx, nextRunItemSequence, runID)
+func (q *Queries) NextExecutionStepSequence(ctx context.Context, executionID string) (int64, error) {
+	row := q.db.QueryRowContext(ctx, nextExecutionStepSequence, executionID)
 	var column_1 int64
 	err := row.Scan(&column_1)
 	return column_1, err
 }
 
-const renewRunLease = `-- name: RenewRunLease :execrows
-UPDATE assistant_runs
+const renewExecutionLease = `-- name: RenewExecutionLease :execrows
+UPDATE assistant_agent_executions
 SET lease_expires_at = ?
 WHERE id = ? AND state = 2 AND worker_id = ?
 `
 
-type RenewRunLeaseParams struct {
+type RenewExecutionLeaseParams struct {
 	LeaseExpiresAt sql.NullTime
 	ID             string
 	WorkerID       string
 }
 
-func (q *Queries) RenewRunLease(ctx context.Context, arg RenewRunLeaseParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, renewRunLease, arg.LeaseExpiresAt, arg.ID, arg.WorkerID)
+func (q *Queries) RenewExecutionLease(ctx context.Context, arg RenewExecutionLeaseParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, renewExecutionLease, arg.LeaseExpiresAt, arg.ID, arg.WorkerID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-const requestRunCancellation = `-- name: RequestRunCancellation :execrows
-UPDATE assistant_runs
+const requestExecutionCancellation = `-- name: RequestExecutionCancellation :execrows
+UPDATE assistant_agent_executions
 SET cancellation_requested = TRUE
 WHERE id = ? AND state = 2
 `
 
-func (q *Queries) RequestRunCancellation(ctx context.Context, id string) (int64, error) {
-	result, err := q.db.ExecContext(ctx, requestRunCancellation, id)
+func (q *Queries) RequestExecutionCancellation(ctx context.Context, id string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, requestExecutionCancellation, id)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-const runCancellationRequested = `-- name: RunCancellationRequested :one
-SELECT cancellation_requested
-FROM assistant_runs
-WHERE id = ? AND state = 2 AND worker_id = ?
-`
-
-type RunCancellationRequestedParams struct {
-	ID       string
-	WorkerID string
-}
-
-func (q *Queries) RunCancellationRequested(ctx context.Context, arg RunCancellationRequestedParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, runCancellationRequested, arg.ID, arg.WorkerID)
-	var cancellation_requested bool
-	err := row.Scan(&cancellation_requested)
-	return cancellation_requested, err
-}
-
-const setRunModel = `-- name: SetRunModel :execrows
-UPDATE assistant_runs
+const setExecutionModel = `-- name: SetExecutionModel :execrows
+UPDATE assistant_agent_executions
 SET model = ?
 WHERE id = ? AND state = 2 AND worker_id = ?
 `
 
-type SetRunModelParams struct {
+type SetExecutionModelParams struct {
 	Model    string
 	ID       string
 	WorkerID string
 }
 
-func (q *Queries) SetRunModel(ctx context.Context, arg SetRunModelParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, setRunModel, arg.Model, arg.ID, arg.WorkerID)
+func (q *Queries) SetExecutionModel(ctx context.Context, arg SetExecutionModelParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setExecutionModel, arg.Model, arg.ID, arg.WorkerID)
 	if err != nil {
 		return 0, err
 	}
 	return result.RowsAffected()
 }
 
-const startRun = `-- name: StartRun :execrows
-UPDATE assistant_runs
+const startExecution = `-- name: StartExecution :execrows
+UPDATE assistant_agent_executions
 SET state = 2, worker_id = ?, lease_expires_at = ?, started_at = ?
 WHERE id = ? AND state = 1
 `
 
-type StartRunParams struct {
+type StartExecutionParams struct {
 	WorkerID       string
 	LeaseExpiresAt sql.NullTime
 	StartedAt      sql.NullTime
 	ID             string
 }
 
-func (q *Queries) StartRun(ctx context.Context, arg StartRunParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, startRun,
+func (q *Queries) StartExecution(ctx context.Context, arg StartExecutionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, startExecution,
 		arg.WorkerID,
 		arg.LeaseExpiresAt,
 		arg.StartedAt,

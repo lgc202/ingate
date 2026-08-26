@@ -95,7 +95,7 @@ func messageFromDB(item db.AssistantMessage) (conversation.Message, error) {
 	return conversation.Message{
 		ID:               item.ID,
 		ConversationID:   item.ConversationID,
-		RunID:            item.RunID,
+		ExecutionID:      item.ExecutionID,
 		Role:             role,
 		Content:          item.Content,
 		ReasoningContent: item.ReasoningContent,

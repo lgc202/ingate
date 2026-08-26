@@ -7,19 +7,19 @@ import (
 	"strings"
 )
 
-// Session 保存一次 Run 已加载的 Skill 和工具权限。
+// Session 保存一次执行已加载的 Skill 和工具权限。
 type Session struct {
 	catalog    *Catalog
 	activeName string
 }
 
-// NewSession 创建只属于当前 Run 的 Skill 状态。
+// NewSession 创建只属于当前执行的 Skill 状态。
 func NewSession(catalog *Catalog) *Session {
 	return &Session{catalog: catalog}
 }
 
-// Load 选择本次 Run 使用的 Skill。
-// 同一次 Run 不允许切换 Skill，避免已经执行的工具失去原有授权上下文。
+// Load 选择本次执行使用的 Skill。
+// 同一次执行不允许切换 Skill，避免已经执行的工具失去原有授权上下文。
 func (s *Session) Load(name string) (Definition, error) {
 	name = strings.TrimSpace(name)
 	definition, ok := s.catalog.definition(name)

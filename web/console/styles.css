@@ -2203,15 +2203,15 @@ body { overflow-x: hidden; }
 .assistant-reasoning { margin: 0 0 12px; padding: 10px 12px; border-left: 2px solid #c8cdeb; color: #666c78; background: #f7f7fa; }
 .assistant-reasoning summary { color: #777d89; font-size: .68rem; font-weight: 700; cursor: pointer; }
 .assistant-reasoning p { margin: 8px 0 0; font-size: .7rem; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
-.assistant-run-progress { margin: 0 0 13px; padding: 9px 11px; display: grid; gap: 7px; border: 1px solid #e1e3e9; border-radius: 9px; background: #fafafa; }
-.assistant-run-progress > div { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 8px; color: #767c87; }
-.assistant-run-progress svg { width: 14px; height: 14px; margin-top: 1px; }
-.assistant-run-progress .is-running svg { color: var(--accent); animation: assistant-spin 900ms linear infinite; }
-.assistant-run-progress .is-completed svg { color: var(--success); }
-.assistant-run-progress .is-failed svg, .assistant-run-progress .is-cancelled svg { color: var(--red); }
-.assistant-run-progress span { min-width: 0; display: flex; align-items: baseline; gap: 8px; }
-.assistant-run-progress strong { flex: 0 0 auto; color: #555b66; font-size: .68rem; }
-.assistant-run-progress small { overflow: hidden; color: #8c919a; font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-execution-progress { margin: 0 0 13px; padding: 9px 11px; display: grid; gap: 7px; border: 1px solid #e1e3e9; border-radius: 9px; background: #fafafa; }
+.assistant-execution-progress > div { display: grid; grid-template-columns: 16px minmax(0, 1fr); align-items: start; gap: 8px; color: #767c87; }
+.assistant-execution-progress svg { width: 14px; height: 14px; margin-top: 1px; }
+.assistant-execution-progress .is-running svg { color: var(--accent); animation: assistant-spin 900ms linear infinite; }
+.assistant-execution-progress .is-completed svg { color: var(--success); }
+.assistant-execution-progress .is-failed svg, .assistant-execution-progress .is-cancelled svg { color: var(--red); }
+.assistant-execution-progress span { min-width: 0; display: flex; align-items: baseline; gap: 8px; }
+.assistant-execution-progress strong { flex: 0 0 auto; color: #555b66; font-size: .68rem; }
+.assistant-execution-progress small { overflow: hidden; color: #8c919a; font-size: .64rem; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes assistant-spin { to { transform: rotate(360deg); } }
 .assistant-typing { height: 30px; display: flex; align-items: center; gap: 4px; }
 .assistant-typing i { width: 6px; height: 6px; border-radius: 50%; background: #7280d8; animation: assistant-typing 900ms ease-in-out infinite alternate; }
@@ -2220,11 +2220,11 @@ body { overflow-x: hidden; }
 @keyframes assistant-typing { to { opacity: .25; transform: translateY(-3px); } }
 .assistant-caret { display: inline-block; width: 2px; height: 1em; margin-left: 3px; vertical-align: -.15em; background: var(--accent); animation: assistant-caret 900ms steps(1) infinite; }
 @keyframes assistant-caret { 50% { opacity: 0; } }
-.assistant-run-error { max-width: 850px; margin: 24px auto 0; padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; border: 1px solid #f0c9c5; border-radius: 9px; color: #9c3932; background: #fff6f5; font-size: .72rem; }
-.assistant-run-error svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.assistant-execution-error { max-width: 850px; margin: 24px auto 0; padding: 10px 12px; display: flex; align-items: flex-start; gap: 8px; border: 1px solid #f0c9c5; border-radius: 9px; color: #9c3932; background: #fff6f5; font-size: .72rem; }
+.assistant-execution-error svg { width: 16px; height: 16px; flex: 0 0 auto; }
 
 .assistant-composer-wrap { padding: 9px clamp(24px, 6vw, 82px) 20px; background: #fff; }
-.assistant-active-run-link { width: 100%; margin-bottom: 7px; padding: 7px 10px; border: 0; border-radius: 7px; color: #47549a; background: #f0f2ff; font-size: .68rem; cursor: pointer; }
+.assistant-active-execution-link { width: 100%; margin-bottom: 7px; padding: 7px 10px; border: 0; border-radius: 7px; color: #47549a; background: #f0f2ff; font-size: .68rem; cursor: pointer; }
 .assistant-composer { max-width: 850px; margin: 0 auto; overflow: hidden; border: 1px solid #cfd2d9; border-radius: 13px; background: #fff; box-shadow: 0 8px 24px rgba(32, 35, 43, .08); }
 .assistant-composer:focus-within { border-color: #9aa6e4; box-shadow: 0 0 0 3px rgba(48, 71, 199, .08), 0 8px 24px rgba(32, 35, 43, .08); }
 .assistant-composer textarea { width: 100%; min-height: 82px; max-height: 190px; padding: 14px 15px 8px; border: 0; outline: 0; resize: vertical; color: var(--text); background: transparent; font: inherit; font-size: .77rem; line-height: 1.65; }
