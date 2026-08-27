@@ -32,6 +32,8 @@ type Client struct {
 	services   adminv1.UpstreamServiceClient
 	traffic    adminv1.TrafficAnalysisServiceClient
 	records    adminv1.RequestRecordServiceClient
+	callers    adminv1.CallerServiceClient
+	tokenQuota adminv1.TokenQuotaPolicyServiceClient
 }
 
 // New 创建 Assistant 使用的 Admin API 客户端。
@@ -52,6 +54,8 @@ func New(ctx context.Context, config Config) (*Client, error) {
 		services:   adminv1.NewUpstreamServiceClient(connection),
 		traffic:    adminv1.NewTrafficAnalysisServiceClient(connection),
 		records:    adminv1.NewRequestRecordServiceClient(connection),
+		callers:    adminv1.NewCallerServiceClient(connection),
+		tokenQuota: adminv1.NewTokenQuotaPolicyServiceClient(connection),
 	}, nil
 }
 
@@ -328,6 +332,45 @@ func (c *Client) GetRequestRecord(
 	}
 
 	return requestRecordFromAPI(result), nil
+}
+
+// GetCallerTokenQuota 查询调用方身份和当前实际执行的额度用量。
+// 两个 Admin API 结果在此处组合，Agent 业务层无需了解调用方与策略服务的协议边界。
+func (c *Client) GetCallerTokenQuota(
+	ctx context.Context,
+	callerID string,
+) (agenttool.CallerTokenQuota, error) {
+	caller, err := c.callers.GetCaller(ctx, &adminv1.GetCallerRequest{Id: callerID})
+	if err != nil {
+		return agenttool.CallerTokenQuota{}, fmt.Errorf(
+			"get caller %s from Admin API: %w",
+			callerID,
+			err,
+		)
+	}
+
+	result, err := c.tokenQuota.GetCallerTokenQuotaUsage(
+		ctx,
+		&adminv1.GetCallerTokenQuotaUsageRequest{CallerId: callerID},
+	)
+	if err != nil {
+		return agenttool.CallerTokenQuota{}, fmt.Errorf(
+			"get caller %s token quota usage from Admin API: %w",
+			callerID,
+			err,
+		)
+	}
+
+	usages := make([]agenttool.TokenQuotaUsage, 0, len(result.GetUsages()))
+	for _, usage := range result.GetUsages() {
+		usages = append(usages, tokenQuotaUsageFromAPI(usage))
+	}
+	return agenttool.CallerTokenQuota{
+		CallerID:   caller.GetId(),
+		CallerName: caller.GetName(),
+		Enabled:    caller.GetEnabled(),
+		Usages:     usages,
+	}, nil
 }
 
 func resourceState(state adminv1.ResourceState) string {
@@ -661,6 +704,32 @@ func requestRecordFromAPI(record *adminv1.RequestRecord) agenttool.RequestRecord
 		UpstreamAttempts: record.GetUpstreamAttempts(),
 		AIModelCall:      aiModelCallFromAPI(record.GetAiModelCall()),
 		CallerID:         record.GetCallerId(),
+	}
+}
+
+func tokenQuotaUsageFromAPI(usage *adminv1.CallerTokenQuotaUsage) agenttool.TokenQuotaUsage {
+	return agenttool.TokenQuotaUsage{
+		PolicyID:        usage.GetPolicyId(),
+		PolicyName:      usage.GetPolicyName(),
+		Period:          tokenQuotaPeriodFromAPI(usage.GetPeriod()),
+		UsedTokens:      usage.GetUsedTokens(),
+		LimitTokens:     usage.GetLimitTokens(),
+		RemainingTokens: usage.GetRemainingTokens(),
+		StartedAt:       protoTime(usage.GetStartedAt()),
+		ResetsAt:        protoTime(usage.GetResetsAt()),
+	}
+}
+
+func tokenQuotaPeriodFromAPI(period adminv1.TokenQuotaPeriod) string {
+	switch period {
+	case adminv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_DAY:
+		return "day"
+	case adminv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_WEEK:
+		return "week"
+	case adminv1.TokenQuotaPeriod_TOKEN_QUOTA_PERIOD_MONTH:
+		return "month"
+	default:
+		return "unknown"
 	}
 }
 

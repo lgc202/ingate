@@ -3,15 +3,16 @@ package tool
 import einotool "github.com/cloudwego/eino/components/tool"
 
 const (
-	listGatewaysTool       = "list_gateways"
-	listRoutesTool         = "list_routes"
-	listServicesTool       = "list_services"
-	getRouteConfigTool     = "get_route_configuration"
-	analyzeTrafficTool     = "analyze_traffic"
-	listRecentFailuresTool = "list_recent_failures"
-	getRequestRecordTool   = "get_request_record"
-	defaultListLimit       = 20
-	maxListLimit           = 50
+	listGatewaysTool        = "list_gateways"
+	listRoutesTool          = "list_routes"
+	listServicesTool        = "list_services"
+	getRouteConfigTool      = "get_route_configuration"
+	analyzeTrafficTool      = "analyze_traffic"
+	listRecentFailuresTool  = "list_recent_failures"
+	getRequestRecordTool    = "get_request_record"
+	getCallerTokenQuotaTool = "get_caller_token_quota"
+	defaultListLimit        = 20
+	maxListLimit            = 50
 )
 
 type listResourcesInput struct {
@@ -50,6 +51,10 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 	if err != nil {
 		return nil, err
 	}
+	callerTokenQuota, err := newCallerTokenQuotaTool(source)
+	if err != nil {
+		return nil, err
+	}
 	return []einotool.BaseTool{
 		gateways,
 		routes,
@@ -58,6 +63,7 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 		traffic,
 		failures,
 		requestRecord,
+		callerTokenQuota,
 	}, nil
 }
 

@@ -221,6 +221,27 @@ type RequestRecord struct {
 	CallerID         string
 }
 
+// CallerTokenQuota 汇总一个调用方当前实际执行的 Token 额度。
+// Usages 为空表示没有生效的额度限制，而不是额度服务查询失败。
+type CallerTokenQuota struct {
+	CallerID   string
+	CallerName string
+	Enabled    bool
+	Usages     []TokenQuotaUsage
+}
+
+// TokenQuotaUsage 是一个额度周期内已经结算的 Token 用量和重置时间。
+type TokenQuotaUsage struct {
+	PolicyID        string
+	PolicyName      string
+	Period          string
+	UsedTokens      int64
+	LimitTokens     int64
+	RemainingTokens int64
+	StartedAt       time.Time
+	ResetsAt        time.Time
+}
+
 // AIModelCall 是一次 AI 请求由模型服务返回的调用结果。
 type AIModelCall struct {
 	ClientModel   string
@@ -268,6 +289,11 @@ type RequestRecordReader interface {
 	GetRequestRecord(ctx context.Context, recordID string, startedAt time.Time) (RequestRecord, error)
 }
 
+// CallerTokenQuotaReader 是单个调用方额度诊断工具所需的查询边界。
+type CallerTokenQuotaReader interface {
+	GetCallerTokenQuota(ctx context.Context, callerID string) (CallerTokenQuota, error)
+}
+
 // QuerySource 明确列出运维 Agent 当前需要的所有外部查询能力。
 // 单个工具只接收自己的窄接口；这里仅作为进程装配点组合这些能力。
 type QuerySource interface {
@@ -278,4 +304,5 @@ type QuerySource interface {
 	TrafficReader
 	FailureReader
 	RequestRecordReader
+	CallerTokenQuotaReader
 }
