@@ -70,10 +70,16 @@ func listRecentFailures(
 ) (failureToolOutput, error) {
 	resourceType, resourceID, err := normalizeResourceScope(input.ResourceType, input.ResourceID)
 	if err != nil {
+		if reason, ok := invalidInputReason(err); ok {
+			return invalidFailureInput(reason), nil
+		}
 		return failureToolOutput{}, err
 	}
 	outcomeName, outcome, err := requestOutcome(input.Outcome)
 	if err != nil {
+		if reason, ok := invalidInputReason(err); ok {
+			return invalidFailureInput(reason), nil
+		}
 		return failureToolOutput{}, err
 	}
 	hours := observationHours(input.Hours)
@@ -124,6 +130,15 @@ func listRecentFailures(
 		HasMore:      hasMore,
 		Items:        items,
 	}, nil
+}
+
+func invalidFailureInput(reason string) failureToolOutput {
+	// 返回与成功调用相同的结果类型，避免由 Middleware 改写工具语义。
+	// Agent 只需要根据 status 和 summary 修正下一次调用。
+	return failureToolOutput{
+		Summary: reason,
+		Status:  "invalid_input",
+	}
 }
 
 func requestOutcome(value string) (string, adminv1.RequestOutcome, error) {

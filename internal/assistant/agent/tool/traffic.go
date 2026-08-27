@@ -68,6 +68,9 @@ func getRecentTraffic(
 ) (trafficToolOutput, error) {
 	resourceType, resourceID, err := normalizeResourceScope(input.ResourceType, input.ResourceID)
 	if err != nil {
+		if reason, ok := invalidInputReason(err); ok {
+			return invalidTrafficInput(reason), nil
+		}
 		return trafficToolOutput{}, err
 	}
 	hours := observationHours(input.Hours)
@@ -100,6 +103,15 @@ func getRecentTraffic(
 		EndTime:      endTime.Format(time.RFC3339),
 		Metrics:      metrics,
 	}, nil
+}
+
+func invalidTrafficInput(reason string) trafficToolOutput {
+	// 参数约束是工具协议的一部分。把可修正原因作为正常工具结果
+	// 返回 Eino，由 Agent 判断是否补全资源 ID 后再调用；系统错误仍然向上返回。
+	return trafficToolOutput{
+		Summary: reason,
+		Status:  "invalid_input",
+	}
 }
 
 func trafficMetrics(metrics *adminv1.TrafficMetrics) trafficMetricsInfo {

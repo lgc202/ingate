@@ -12,20 +12,15 @@ import (
 	"github.com/google/uuid"
 
 	agentprotocol "github.com/lgc202/ingate/internal/assistant/agent"
-	agenttool "github.com/lgc202/ingate/internal/assistant/agent/tool"
 )
 
 // eventMiddleware 把 Eino 内部回调转换成稳定的 Agent 事件。
+// Middleware 只观察调用生命周期，不修正工具参数，也不改写工具执行结果。
 // 它按执行创建，modelCallID 不会在并发会话之间共享。
 type eventMiddleware struct {
 	modelName   string
 	events      agentprotocol.EventSink
 	modelCallID string
-}
-
-type invalidToolInputOutput struct {
-	Summary string `json:"summary"`
-	Status  string `json:"status"`
 }
 
 func newEventMiddleware(modelName string, events agentprotocol.EventSink) adk.AgentMiddleware {
@@ -92,25 +87,6 @@ func (m *eventMiddleware) wrapToolCall(
 
 		output, err := next(ctx, input)
 		if err != nil {
-			if reason, ok := agenttool.InvalidInputReason(err); ok {
-				// 模型生成的参数不完整不是系统故障。把可修正原因作为工具结果送回循环，
-				// 让模型自行补全参数；此步骤在观测上仍是一次正常完成的工具调用。
-				result, marshalErr := json.Marshal(invalidToolInputOutput{
-					Summary: reason,
-					Status:  "invalid_input",
-				})
-				if marshalErr != nil {
-					return nil, m.failTool(ctx, callID, input.Name, marshalErr)
-				}
-				if eventErr := m.events.Emit(ctx, agentprotocol.ToolCallCompleted{
-					CallID:  callID,
-					Tool:    input.Name,
-					Summary: "工具参数不完整，已请求模型补全后重试",
-				}); eventErr != nil {
-					return nil, eventErr
-				}
-				return &compose.ToolOutput{Result: string(result)}, nil
-			}
 			return nil, m.failTool(ctx, callID, input.Name, err)
 		}
 
@@ -149,6 +125,7 @@ func (m *eventMiddleware) failTool(
 func toolResultSummary(result string) (string, error) {
 	var output struct {
 		Summary string `json:"summary"`
+		Status  string `json:"status"`
 	}
 	if err := json.Unmarshal([]byte(result), &output); err != nil {
 		return "", fmt.Errorf("decode assistant tool result: %w", err)
@@ -156,6 +133,10 @@ func toolResultSummary(result string) (string, error) {
 	output.Summary = strings.TrimSpace(output.Summary)
 	if output.Summary == "" {
 		return "", errors.New("assistant tool result summary is empty")
+	}
+	if output.Status == "invalid_input" {
+		// 执行详情只展示稳定事实；具体参数修正原因仅保留在 Eino 循环内。
+		return "工具参数无效，已将修正原因返回模型", nil
 	}
 	return output.Summary, nil
 }

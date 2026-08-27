@@ -18,8 +18,9 @@ func invalidInputf(format string, args ...any) error {
 	return &invalidInputError{reason: fmt.Sprintf(format, args...)}
 }
 
-// InvalidInputReason 识别模型生成的参数错误，并返回可供模型修正调用的原因。
-func InvalidInputReason(err error) (string, bool) {
+// invalidInputReason 识别模型可以通过重新调用工具修正的参数错误。
+// 这类错误属于 Agent 循环的正常反馈，不能与网络、存储等系统故障混在一起。
+func invalidInputReason(err error) (string, bool) {
 	var inputErr *invalidInputError
 	if !errors.As(err, &inputErr) {
 		return "", false

@@ -2,9 +2,8 @@ package operations
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io"
+	"slices"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/components/model"
@@ -32,13 +31,11 @@ func newModelLoop(
 ) modelLoop {
 	// Eino 会把工具定义交给本次 Agent。复制切片可以避免框架代码持有并修改
 	// 进程级 Agent 的工具集合；工具实例本身按官方约定可并发调用。
-	definitions := make([]einotool.BaseTool, len(tools))
-	copy(definitions, tools)
 	return modelLoop{
 		modelName:   modelName,
 		chatModel:   chatModel,
 		instruction: instruction,
-		tools:       definitions,
+		tools:       slices.Clone(tools),
 	}
 }
 
@@ -53,10 +50,13 @@ func (l modelLoop) Execute(
 		Description: "Helps operators understand and operate the current Ingate environment",
 		Instruction: l.instruction,
 		Model:       l.chatModel,
-		ToolsConfig: adk.ToolsConfig{ToolsNodeConfig: compose.ToolsNodeConfig{
-			Tools:               l.tools,
-			ExecuteSequentially: true,
-		}},
+		ToolsConfig: adk.ToolsConfig{
+			ToolsNodeConfig: compose.ToolsNodeConfig{
+				// 当前工具都是只读查询，沿用 Eino 默认的并行调度。模型在同一轮
+				// 比较多个资源时不应被框架外的人为串行化。
+				Tools: l.tools,
+			},
+		},
 		MaxIterations: maxIterations,
 		Middlewares:   []adk.AgentMiddleware{newEventMiddleware(l.modelName, events)},
 	})
@@ -65,19 +65,13 @@ func (l modelLoop) Execute(
 	}
 
 	messages := modelMessages(request.Messages)
-	response := responseBuilder{events: events}
+	response := responseCollector{events: events}
 	iterator := adk.NewRunner(ctx, adk.RunnerConfig{
 		Agent:           chatAgent,
 		EnableStreaming: true,
 	}).Run(ctx, messages)
 	for event, ok := iterator.Next(); ok; event, ok = iterator.Next() {
-		if event.Err != nil {
-			return agentprotocol.Response{}, fmt.Errorf("execute Eino agent: %w", event.Err)
-		}
-		if event.Output == nil || event.Output.MessageOutput == nil {
-			continue
-		}
-		if err := response.appendOutput(ctx, event.Output.MessageOutput); err != nil {
+		if err := response.consume(ctx, event); err != nil {
 			return agentprotocol.Response{}, err
 		}
 	}
@@ -97,27 +91,4 @@ func modelMessages(messages []agentprotocol.Message) []adk.Message {
 		}
 	}
 	return result
-}
-
-func (b *responseBuilder) appendOutput(
-	ctx context.Context,
-	output *adk.MessageVariant,
-) error {
-	if !output.IsStreaming {
-		return b.append(ctx, output.Message)
-	}
-
-	defer output.MessageStream.Close()
-	for {
-		chunk, err := output.MessageStream.Recv()
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return fmt.Errorf("read Eino model stream: %w", err)
-		}
-		if err := b.append(ctx, chunk); err != nil {
-			return err
-		}
-	}
 }
