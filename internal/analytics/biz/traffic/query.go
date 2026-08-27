@@ -1,7 +1,11 @@
 // Package traffic 负责查询网关流量和延迟聚合结果
 package traffic
 
-import "context"
+import (
+	"context"
+
+	"golang.org/x/sync/errgroup"
+)
 
 // Query 提供不依赖 ClickHouse 协议的流量趋势和资源分布查询
 type Query struct {
@@ -15,12 +19,24 @@ func NewQuery(store QueryStore) *Query {
 
 // Trend 查询整个时间范围的流量汇总及指定粒度的变化趋势
 func (q *Query) Trend(ctx context.Context, query TrendQuery) (TrendResult, error) {
-	summary, err := q.store.QueryTrafficSummary(ctx, query.Filter)
-	if err != nil {
-		return TrendResult{}, err
-	}
-	points, err := q.store.QueryTrafficTrend(ctx, query)
-	if err != nil {
+	var (
+		summary Summary
+		points  []TrendPoint
+	)
+	group, queryCtx := errgroup.WithContext(ctx)
+	group.Go(func() error {
+		var err error
+		summary, err = q.store.QueryTrafficSummary(queryCtx, query.Filter)
+		return err
+	})
+	group.Go(func() error {
+		var err error
+		points, err = q.store.QueryTrafficTrend(queryCtx, query)
+		return err
+	})
+	// 汇总和趋势读取同一份分钟聚合事实，二者没有先后依赖。并行查询可避免长时间范围下
+	// 两次 ClickHouse 往返叠加，同时 errgroup 会在任一查询失败时取消另一条在途查询。
+	if err := group.Wait(); err != nil {
 		return TrendResult{}, err
 	}
 	return TrendResult{Summary: summary, Points: points}, nil

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
+	"golang.org/x/sync/errgroup"
 	googlegrpc "google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -247,17 +248,27 @@ func (c *Client) AnalyzeTraffic(
 	}
 
 	dimension := trafficDimensionFromAPI(result.GetBreakdownDimension())
-	items := make([]agenttool.ResourceTrafficMetrics, 0, len(result.GetBreakdown()))
-	for _, item := range result.GetBreakdown() {
-		name, err := c.resourceName(ctx, dimension, item.GetResourceId())
-		if err != nil {
-			return agenttool.TrafficAnalysis{}, err
-		}
-		items = append(items, agenttool.ResourceTrafficMetrics{
-			ID:      item.GetResourceId(),
-			Name:    name,
-			Metrics: trafficMetrics(item.GetMetrics()),
+	breakdown := result.GetBreakdown()
+	items := make([]agenttool.ResourceTrafficMetrics, len(breakdown))
+	group, lookupCtx := errgroup.WithContext(ctx)
+	for index, item := range breakdown {
+		group.Go(func() error {
+			name, err := c.resourceName(lookupCtx, dimension, item.GetResourceId())
+			if err != nil {
+				return err
+			}
+			items[index] = agenttool.ResourceTrafficMetrics{
+				ID:      item.GetResourceId(),
+				Name:    name,
+				Metrics: trafficMetrics(item.GetMetrics()),
+			}
+			return nil
 		})
+	}
+	// 排名已经限制返回数量，各资源名称之间没有依赖。并行精确查询既保持排名顺序，
+	// 也避免按条目数线性叠加 Admin API 往返时间。
+	if err := group.Wait(); err != nil {
+		return agenttool.TrafficAnalysis{}, err
 	}
 
 	return agenttool.TrafficAnalysis{

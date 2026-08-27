@@ -98,6 +98,10 @@ func (s *Service) CancelAgentExecution(
 
 func mapError(err error) error {
 	switch {
+	case errors.Is(err, context.Canceled):
+		return kratoserrors.ClientClosed("REQUEST_CANCELLED", "request cancelled").WithCause(err)
+	case errors.Is(err, context.DeadlineExceeded):
+		return kratoserrors.GatewayTimeout("REQUEST_TIMEOUT", "request timed out").WithCause(err)
 	case errors.Is(err, executionbiz.ErrNotFound):
 		return kratoserrors.NotFound("RESOURCE_NOT_FOUND", "resource not found")
 	case errors.Is(err, executionbiz.ErrStateConflict), errors.Is(err, executionbiz.ErrConversationBusy):

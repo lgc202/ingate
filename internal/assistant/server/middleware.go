@@ -84,6 +84,12 @@ func requestErrorLoggingMiddleware(logger *slog.Logger) middleware.Middleware {
 			if err == nil {
 				return reply, nil
 			}
+			// 浏览器切换会话或结束轮询会取消正在进行的请求。这是连接生命周期，
+			// 不是服务故障，也不应作为 INFO/ERROR 请求日志持续污染输出。
+			if ctx.Err() != nil &&
+				(errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)) {
+				return reply, err
+			}
 			serviceError := kratoserrors.FromError(err)
 			attrs := []slog.Attr{
 				slog.Int("code", int(serviceError.Code)),

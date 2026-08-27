@@ -63,6 +63,12 @@ func (e *Executor) executeClaim(
 	lease := e.startExecutionLease(ctx, claim, claimantID, leaseDuration)
 	executionErr := e.invokeAgent(lease.ctx, claim, claimantID, leaseDuration)
 	cause, leaseErr := lease.stop()
+	// invokeAgent 返回 nil 说明成功回复和执行终态已经在同一个 MySQL 事务中提交。
+	// 终态提交会清空 worker_id，若续租协程恰好同时醒来，它会得到 ErrLeaseLost；
+	// 这是正常的完成竞争，不能覆盖已经持久化的成功结果。
+	if executionErr == nil {
+		return nil
+	}
 
 	// 执行结束、用户取消、实例停止和租约丢失共享同一个 context，但对应不同的
 	// 持久化结果。这里只解释停止原因，不再参与模型循环或租约续期。
