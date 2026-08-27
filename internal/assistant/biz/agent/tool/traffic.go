@@ -7,10 +7,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 )
 
 const (
@@ -76,16 +72,26 @@ func getRecentTraffic(
 	hours := observationHours(input.Hours)
 	endTime := time.Now()
 	startTime := endTime.Add(-time.Duration(hours) * time.Hour)
-	request := &adminv1.GetTrafficAnalysisRequest{
-		StartTime: timestamppb.New(startTime),
-		EndTime:   timestamppb.New(endTime),
-	}
-	applyResourceScope(request, resourceType, resourceID)
-	result, err := resources.GetTrafficAnalysis(ctx, request)
+	result, err := resources.GetTraffic(ctx, TrafficQuery{
+		StartTime:    startTime,
+		EndTime:      endTime,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+	})
 	if err != nil {
 		return trafficToolOutput{}, err
 	}
-	metrics := trafficMetrics(result.GetSummary())
+	metrics := trafficMetricsInfo{
+		RequestCount:     result.RequestCount,
+		NonErrorCount:    result.NonErrorCount,
+		ClientErrorCount: result.ClientErrorCount,
+		ServerErrorCount: result.ServerErrorCount,
+		NoResponseCount:  result.NoResponseCount,
+		AverageMillis:    durationMillis(result.AverageDuration),
+		P50Millis:        durationMillis(result.P50Duration),
+		P95Millis:        durationMillis(result.P95Duration),
+		P99Millis:        durationMillis(result.P99Duration),
+	}
 	return trafficToolOutput{
 		Summary: fmt.Sprintf(
 			"最近 %d 小时共 %d 次请求，其中客户端错误 %d 次、服务端错误 %d 次、无响应 %d 次",
@@ -114,25 +120,8 @@ func invalidTrafficInput(reason string) trafficToolOutput {
 	}
 }
 
-func trafficMetrics(metrics *adminv1.TrafficMetrics) trafficMetricsInfo {
-	return trafficMetricsInfo{
-		RequestCount:     metrics.GetRequestCount(),
-		NonErrorCount:    metrics.GetNonErrorCount(),
-		ClientErrorCount: metrics.GetClientErrorCount(),
-		ServerErrorCount: metrics.GetServerErrorCount(),
-		NoResponseCount:  metrics.GetNoResponseCount(),
-		AverageMillis:    durationMillis(metrics.GetAverageDuration()),
-		P50Millis:        durationMillis(metrics.GetP50Duration()),
-		P95Millis:        durationMillis(metrics.GetP95Duration()),
-		P99Millis:        durationMillis(metrics.GetP99Duration()),
-	}
-}
-
-func durationMillis(value *durationpb.Duration) float64 {
-	if value == nil {
-		return 0
-	}
-	return float64(value.AsDuration()) / float64(time.Millisecond)
+func durationMillis(value time.Duration) float64 {
+	return float64(value) / float64(time.Millisecond)
 }
 
 func observationHours(hours int32) int32 {
@@ -140,15 +129,4 @@ func observationHours(hours int32) int32 {
 		return defaultObservationHours
 	}
 	return min(hours, maxObservationHours)
-}
-
-func applyResourceScope(request *adminv1.GetTrafficAnalysisRequest, resourceType, resourceID string) {
-	switch resourceType {
-	case "gateway":
-		request.GatewayId = resourceID
-	case "route":
-		request.RouteId = resourceID
-	case "service":
-		request.ServiceId = resourceID
-	}
 }

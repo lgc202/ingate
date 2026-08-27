@@ -7,8 +7,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
-
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 )
 
 type gatewayToolOutput struct {
@@ -54,43 +52,38 @@ func listGateways(
 	resources GatewayReader,
 	input listResourcesInput,
 ) (gatewayToolOutput, error) {
-	result, err := resources.ListGateways(ctx, strings.TrimSpace(input.Query), listLimit(input.Limit))
+	result, err := resources.ListGateways(ctx, ResourceListQuery{
+		Text:  strings.TrimSpace(input.Query),
+		Limit: listLimit(input.Limit),
+	})
 	if err != nil {
 		return gatewayToolOutput{}, err
 	}
-	items := make([]gatewayInfo, 0, len(result.GetGateways()))
-	for _, gateway := range result.GetGateways() {
-		listeners := make([]listenerInfo, 0, len(gateway.GetListeners()))
-		for _, listener := range gateway.GetListeners() {
+	items := make([]gatewayInfo, 0, len(result.Items))
+	for _, gateway := range result.Items {
+		listeners := make([]listenerInfo, 0, len(gateway.Listeners))
+		for _, listener := range gateway.Listeners {
 			listeners = append(listeners, listenerInfo{
-				Name:     listener.GetName(),
-				Protocol: gatewayProtocol(listener.GetProtocol()),
-				Port:     listener.GetPort(),
-				Hostname: listener.GetHostname(),
+				Name:     listener.Name,
+				Protocol: listener.Protocol,
+				Port:     listener.Port,
+				Hostname: listener.Hostname,
 			})
 		}
 		items = append(items, gatewayInfo{
-			ID:        gateway.GetId(),
-			Name:      gateway.GetName(),
-			Enabled:   gateway.GetEnabled(),
-			State:     resourceState(gateway.GetState()),
-			Message:   gateway.GetMessage(),
+			ID:        gateway.ID,
+			Name:      gateway.Name,
+			Enabled:   gateway.Enabled,
+			State:     gateway.State,
+			Message:   gateway.Message,
 			Listeners: listeners,
 		})
 	}
-	hasMore := result.GetNextCursor() != ""
 	return gatewayToolOutput{
 		Summary: fmt.Sprintf("找到 %d 个网关", len(items)),
 		Source:  "admin_api",
-		Status:  resultStatus(hasMore),
-		HasMore: hasMore,
+		Status:  resultStatus(result.HasMore),
+		HasMore: result.HasMore,
 		Items:   items,
 	}, nil
-}
-
-func gatewayProtocol(protocol adminv1.GatewayProtocol) string {
-	if protocol == adminv1.GatewayProtocol_GATEWAY_PROTOCOL_HTTPS {
-		return "https"
-	}
-	return "http"
 }

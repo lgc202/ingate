@@ -4,6 +4,7 @@ package biz
 import (
 	"github.com/google/wire"
 
+	"github.com/lgc202/ingate/internal/assistant/biz/agent"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
@@ -15,4 +16,6 @@ var ProviderSet = wire.NewSet(
 	execution.NewService,
 	execution.NewExecutor,
 	modelconfig.NewService,
+	agent.New,
+	wire.Bind(new(execution.Agent), new(*agent.Agent)),
 )

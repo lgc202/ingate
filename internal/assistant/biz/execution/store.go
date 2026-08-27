@@ -8,7 +8,7 @@ import (
 )
 
 // ServiceStore 是面向 HTTP API 的持久化边界。
-// 它只暴露用户能够发起的操作，不把 Worker 的领取、租约和终态提交能力带入请求链路。
+// 它只暴露用户能够发起的操作，不把后台任务的领取、租约和终态提交能力带入请求链路。
 type ServiceStore interface {
 	CreateExecution(context.Context, string, string, string) (Execution, error)
 	GetExecution(context.Context, string, string) (Execution, error)

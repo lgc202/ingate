@@ -7,8 +7,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
-
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 )
 
 type serviceToolOutput struct {
@@ -49,40 +47,31 @@ func listServices(
 	resources ServiceReader,
 	input listResourcesInput,
 ) (serviceToolOutput, error) {
-	result, err := resources.ListServices(ctx, strings.TrimSpace(input.Query), listLimit(input.Limit))
+	result, err := resources.ListServices(ctx, ResourceListQuery{
+		Text:  strings.TrimSpace(input.Query),
+		Limit: listLimit(input.Limit),
+	})
 	if err != nil {
 		return serviceToolOutput{}, err
 	}
-	items := make([]serviceInfo, 0, len(result.GetUpstreams()))
-	for _, service := range result.GetUpstreams() {
-		info := serviceInfo{
-			ID:            service.GetId(),
-			Name:          service.GetName(),
-			Type:          "http",
-			State:         resourceState(service.GetState()),
-			Message:       service.GetMessage(),
-			EndpointCount: len(service.GetEndpoints()),
-			TLS:           service.GetTls() != nil,
-		}
-		if service.GetModel() != nil {
-			info.Type = "model"
-			info.ModelProtocol = modelProtocol(service.GetModel().GetProtocol())
-		}
-		items = append(items, info)
+	items := make([]serviceInfo, 0, len(result.Items))
+	for _, service := range result.Items {
+		items = append(items, serviceInfo{
+			ID:            service.ID,
+			Name:          service.Name,
+			Type:          service.Type,
+			State:         service.State,
+			Message:       service.Message,
+			EndpointCount: service.EndpointCount,
+			TLS:           service.TLS,
+			ModelProtocol: service.ModelProtocol,
+		})
 	}
-	hasMore := result.GetNextCursor() != ""
 	return serviceToolOutput{
 		Summary: fmt.Sprintf("找到 %d 个服务", len(items)),
 		Source:  "admin_api",
-		Status:  resultStatus(hasMore),
-		HasMore: hasMore,
+		Status:  resultStatus(result.HasMore),
+		HasMore: result.HasMore,
 		Items:   items,
 	}, nil
-}
-
-func modelProtocol(protocol adminv1.ModelProtocol) string {
-	if protocol == adminv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC {
-		return "anthropic"
-	}
-	return "openai"
 }

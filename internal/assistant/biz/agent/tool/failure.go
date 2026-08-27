@@ -8,9 +8,6 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
-	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 )
 
 const (
@@ -85,34 +82,29 @@ func listRecentFailures(
 	hours := observationHours(input.Hours)
 	endTime := time.Now()
 	startTime := endTime.Add(-time.Duration(hours) * time.Hour)
-	request := &adminv1.ListRequestRecordsRequest{
-		StartTime: timestamppb.New(startTime),
-		EndTime:   timestamppb.New(endTime),
-		Outcome:   outcome,
-		PageSize:  failureLimit(input.Limit),
-	}
-	applyRequestResourceScope(request, resourceType, resourceID)
-	result, err := resources.ListRequestRecords(ctx, request)
+	result, err := resources.ListFailures(ctx, FailureQuery{
+		StartTime:    startTime,
+		EndTime:      endTime,
+		ResourceType: resourceType,
+		ResourceID:   resourceID,
+		Outcome:      outcome,
+		Limit:        failureLimit(input.Limit),
+	})
 	if err != nil {
 		return failureToolOutput{}, err
 	}
-	items := make([]failureInfo, 0, len(result.GetRecords()))
-	for _, record := range result.GetRecords() {
-		startedAt := ""
-		if record.GetStartedAt() != nil {
-			startedAt = record.GetStartedAt().AsTime().Format(time.RFC3339)
-		}
+	items := make([]failureInfo, 0, len(result.Items))
+	for _, record := range result.Items {
 		items = append(items, failureInfo{
-			StartedAt:      startedAt,
-			Method:         record.GetMethod(),
-			StatusCode:     record.GetStatusCode(),
-			DurationMillis: durationMillis(record.GetDuration()),
-			GatewayID:      record.GetGatewayId(),
-			RouteID:        record.GetRouteId(),
-			ServiceID:      record.GetServiceId(),
+			StartedAt:      record.StartedAt.Format(time.RFC3339),
+			Method:         record.Method,
+			StatusCode:     record.StatusCode,
+			DurationMillis: durationMillis(record.Duration),
+			GatewayID:      record.GatewayID,
+			RouteID:        record.RouteID,
+			ServiceID:      record.ServiceID,
 		})
 	}
-	hasMore := result.GetNextPageToken() != ""
 	return failureToolOutput{
 		Summary: fmt.Sprintf(
 			"最近 %d 小时找到 %d 条%s请求记录",
@@ -121,13 +113,13 @@ func listRecentFailures(
 			outcomeLabel(outcomeName),
 		),
 		Source:       "request_records",
-		Status:       resultStatus(hasMore),
+		Status:       resultStatus(result.HasMore),
 		ResourceType: resourceType,
 		ResourceID:   resourceID,
 		Outcome:      outcomeName,
 		StartTime:    startTime.Format(time.RFC3339),
 		EndTime:      endTime.Format(time.RFC3339),
-		HasMore:      hasMore,
+		HasMore:      result.HasMore,
 		Items:        items,
 	}, nil
 }
@@ -141,17 +133,17 @@ func invalidFailureInput(reason string) failureToolOutput {
 	}
 }
 
-func requestOutcome(value string) (string, adminv1.RequestOutcome, error) {
+func requestOutcome(value string) (string, FailureOutcome, error) {
 	value = strings.ToLower(strings.TrimSpace(value))
 	switch value {
 	case "", "server_error":
-		return "server_error", adminv1.RequestOutcome_REQUEST_OUTCOME_SERVER_ERROR, nil
+		return "server_error", FailureOutcomeServerError, nil
 	case "client_error":
-		return value, adminv1.RequestOutcome_REQUEST_OUTCOME_CLIENT_ERROR, nil
+		return value, FailureOutcomeClientError, nil
 	case "no_response":
-		return value, adminv1.RequestOutcome_REQUEST_OUTCOME_NO_RESPONSE, nil
+		return value, FailureOutcomeNoResponse, nil
 	default:
-		return "", adminv1.RequestOutcome_REQUEST_OUTCOME_UNSPECIFIED, invalidInputf(
+		return "", "", invalidInputf(
 			"unsupported outcome %q; use client_error, server_error, or no_response",
 			value,
 		)
@@ -174,19 +166,4 @@ func failureLimit(limit int32) int32 {
 		return defaultFailureLimit
 	}
 	return min(limit, maxFailureLimit)
-}
-
-func applyRequestResourceScope(
-	request *adminv1.ListRequestRecordsRequest,
-	resourceType string,
-	resourceID string,
-) {
-	switch resourceType {
-	case "gateway":
-		request.GatewayId = resourceID
-	case "route":
-		request.RouteId = resourceID
-	case "service":
-		request.ServiceId = resourceID
-	}
 }

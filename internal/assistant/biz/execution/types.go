@@ -1,7 +1,20 @@
 // Package execution 管理运维助手一次异步执行的状态、租约和事件规则。
 package execution
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var (
+	ErrNotFound         = errors.New("assistant execution not found")
+	ErrStateConflict    = errors.New("assistant execution state conflict")
+	ErrConversationBusy = errors.New("conversation already has an active execution")
+	ErrCancellation     = errors.New("assistant execution cancellation requested")
+	ErrLeaseLost        = errors.New("assistant execution lease lost")
+
+	errExecutionRecordUnavailable = errors.New("assistant execution record is unavailable")
+)
 
 // State 表示一次 Agent 执行的持久状态。
 type State string

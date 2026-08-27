@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 
-	agentprotocol "github.com/lgc202/ingate/internal/assistant/agent"
+	agentbiz "github.com/lgc202/ingate/internal/assistant/biz/agent"
 )
 
 // eventRecorder 把 Agent 过程事件翻译成执行记录和短期流式通知。
@@ -17,7 +17,7 @@ type eventRecorder struct {
 	store         ExecutorStore
 	events        EventStore
 	executionID   string
-	workerID      string
+	claimantID    string
 	leaseDuration time.Duration
 }
 
@@ -25,37 +25,37 @@ func newEventRecorder(
 	store ExecutorStore,
 	events EventStore,
 	executionID string,
-	workerID string,
+	claimantID string,
 	leaseDuration time.Duration,
 ) *eventRecorder {
 	return &eventRecorder{
 		store:         store,
 		events:        events,
 		executionID:   executionID,
-		workerID:      workerID,
+		claimantID:    claimantID,
 		leaseDuration: leaseDuration,
 	}
 }
 
 // Emit 是 Agent 事件协议与执行状态机之间的唯一入口。
-func (r *eventRecorder) Emit(ctx context.Context, event agentprotocol.Event) error {
+func (r *eventRecorder) Emit(ctx context.Context, event agentbiz.Event) error {
 	switch event := event.(type) {
-	case agentprotocol.ModelSelected:
+	case agentbiz.ModelSelected:
 		return r.selectModel(ctx, event)
-	case agentprotocol.ModelCallStarted:
+	case agentbiz.ModelCallStarted:
 		return r.startStep(ctx, event.CallID, event.Model, StepKindModelCall)
-	case agentprotocol.ModelCallCompleted:
+	case agentbiz.ModelCallCompleted:
 		return r.completeStep(ctx, event.CallID, StepKindModelCall, event.Summary)
-	case agentprotocol.ToolCallStarted:
+	case agentbiz.ToolCallStarted:
 		return r.startStep(ctx, event.CallID, event.Tool, StepKindToolCall)
-	case agentprotocol.ToolCallCompleted:
+	case agentbiz.ToolCallCompleted:
 		return r.completeStep(ctx, event.CallID, StepKindToolCall, event.Summary)
-	case agentprotocol.ToolCallFailed:
+	case agentbiz.ToolCallFailed:
 		return r.failToolStep(ctx, event)
-	case agentprotocol.ReasoningDelta:
+	case agentbiz.ReasoningDelta:
 		r.appendStreamEvent(ctx, StreamEvent{Type: EventReasoningDelta, Data: event.Content})
 		return nil
-	case agentprotocol.ContentDelta:
+	case agentbiz.ContentDelta:
 		r.appendStreamEvent(ctx, StreamEvent{Type: EventContentDelta, Data: event.Content})
 		return nil
 	default:
@@ -65,9 +65,9 @@ func (r *eventRecorder) Emit(ctx context.Context, event agentprotocol.Event) err
 
 func (r *eventRecorder) selectModel(
 	ctx context.Context,
-	event agentprotocol.ModelSelected,
+	event agentbiz.ModelSelected,
 ) error {
-	if err := r.store.SetExecutionModel(ctx, r.executionID, r.workerID, event.Model); err != nil {
+	if err := r.store.SetExecutionModel(ctx, r.executionID, r.claimantID, event.Model); err != nil {
 		return executionRecordError("set execution model", err)
 	}
 
@@ -76,7 +76,7 @@ func (r *eventRecorder) selectModel(
 	cancelRequested, err := r.store.RenewExecutionLease(
 		ctx,
 		r.executionID,
-		r.workerID,
+		r.claimantID,
 		r.leaseDuration,
 	)
 	if err != nil {
@@ -98,7 +98,7 @@ func (r *eventRecorder) startStep(
 	name string,
 	kind StepKind,
 ) error {
-	_, err := r.store.StartExecutionStep(ctx, r.executionID, r.workerID, Step{
+	_, err := r.store.StartExecutionStep(ctx, r.executionID, r.claimantID, Step{
 		ID:     uuid.NewString(),
 		Kind:   kind,
 		Name:   name,
@@ -119,7 +119,7 @@ func (r *eventRecorder) completeStep(
 	if err := r.store.CompleteExecutionStep(
 		ctx,
 		r.executionID,
-		r.workerID,
+		r.claimantID,
 		callID,
 		kind,
 		summary,
@@ -131,12 +131,12 @@ func (r *eventRecorder) completeStep(
 
 func (r *eventRecorder) failToolStep(
 	ctx context.Context,
-	event agentprotocol.ToolCallFailed,
+	event agentbiz.ToolCallFailed,
 ) error {
 	if err := r.store.FailExecutionStep(
 		ctx,
 		r.executionID,
-		r.workerID,
+		r.claimantID,
 		event.CallID,
 		StepKindToolCall,
 		FailureToolUnavailable,

@@ -1,20 +1,27 @@
-// Package operations 实现面向 Ingate 配置与流量排障的运维 Agent。
-package operations
+package agent
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
 
-	agentprotocol "github.com/lgc202/ingate/internal/assistant/agent"
-	agenttool "github.com/lgc202/ingate/internal/assistant/agent/tool"
+	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
 	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
 )
 
 const maxIterations = 8
+
+const baseInstruction = `你是 Ingate 运维助手。
+涉及当前系统状态、配置或资源关系时，必须先调用只读工具核实，不能根据用户描述猜测。
+当前工具只提供查询能力，不能声称已经修改系统。需要变更时说明方案和影响，并等待用户确认。`
+
+//go:embed prompt/gateway-configuration-diagnosis.md
+var gatewayConfigurationDiagnosis string
 
 // ChatModelFactory 将持久化的模型连接转换为单次执行使用的模型客户端。
 // 网络协议和厂商 SDK 的差异在 data 层结束，不进入 Agent 循环。
@@ -35,10 +42,10 @@ type Agent struct {
 // New 创建运维 Agent，并在进程启动时完成工具定义的静态装配。
 func New(
 	connections *modelconfig.Service,
-	source agenttool.OperationsSource,
+	source agenttool.QuerySource,
 	createChatModel ChatModelFactory,
 ) (*Agent, error) {
-	tools, err := agenttool.NewOperations(source)
+	tools, err := agenttool.NewTools(source)
 	if err != nil {
 		return nil, err
 	}
@@ -46,36 +53,43 @@ func New(
 		connections:     connections,
 		createChatModel: createChatModel,
 		tools:           tools,
-		instruction:     systemInstruction(),
+		instruction:     baseInstruction + "\n\n" + strings.TrimSpace(gatewayConfigurationDiagnosis),
 	}, nil
 }
 
 // Execute 完成一次独立的 Agent 循环，并通过结构化事件暴露执行过程。
 func (a *Agent) Execute(
 	ctx context.Context,
-	request agentprotocol.Request,
-	events agentprotocol.EventSink,
-) (agentprotocol.Response, error) {
+	request Request,
+	events EventSink,
+) (Response, error) {
 	connection, err := a.connections.ActiveConnection(ctx)
 	if errors.Is(err, modelconfig.ErrNotConfigured) {
-		return agentprotocol.Response{}, agentprotocol.ErrModelNotConfigured
+		return Response{}, ErrModelNotConfigured
 	}
 	if err != nil {
-		return agentprotocol.Response{}, fmt.Errorf("load assistant model connection: %w", err)
+		return Response{}, fmt.Errorf("load assistant model connection: %w", err)
 	}
 
 	// 先发布选模事实，再创建远端客户端。这样即使厂商连接失败，执行详情也能说明
 	// 本次实际选择了哪个模型，而不是留下一个无法解释的空步骤。
-	if err := events.Emit(ctx, agentprotocol.ModelSelected{Model: connection.Model}); err != nil {
-		return agentprotocol.Response{}, fmt.Errorf("record selected assistant model: %w", err)
+	if err := events.Emit(ctx, ModelSelected{Model: connection.Model}); err != nil {
+		return Response{}, fmt.Errorf("record selected assistant model: %w", err)
 	}
 	chatModel, err := a.createChatModel(ctx, connection)
 	if err != nil {
-		return agentprotocol.Response{}, err
+		return Response{}, err
 	}
 
-	// Eino 只负责单次模型循环。模型选择和连接配置仍由 Ingate 业务层决定，
-	// 因而未来替换 Agent 框架不会影响任务领取、持久状态和浏览器事件协议。
-	loop := newModelLoop(connection.Model, chatModel, a.instruction, a.tools)
-	return loop.Execute(ctx, request, events)
+	// Eino 只负责当前模型—工具循环。模型选择、任务领取和持久状态仍由
+	// Ingate 业务层决定，不把服务编排职责藏入 Agent 框架。
+	return executeModelLoop(
+		ctx,
+		request,
+		events,
+		connection.Model,
+		chatModel,
+		a.instruction,
+		a.tools,
+	)
 }

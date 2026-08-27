@@ -1,4 +1,4 @@
-package operations
+package agent
 
 import (
 	"context"
@@ -9,8 +9,6 @@ import (
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/schema"
-
-	agentprotocol "github.com/lgc202/ingate/internal/assistant/agent"
 )
 
 // responseCollector 消费 Eino AgentEvent，并汇总最终回答及厂商显式返回的思考内容。
@@ -18,7 +16,7 @@ import (
 type responseCollector struct {
 	content   strings.Builder
 	reasoning strings.Builder
-	events    agentprotocol.EventSink
+	events    EventSink
 }
 
 func (c *responseCollector) consume(ctx context.Context, event *adk.AgentEvent) error {
@@ -92,7 +90,7 @@ func (c *responseCollector) appendReasoning(ctx context.Context, delta string) e
 	c.reasoning.WriteString(delta)
 	// 事件接收器是同步边界：若执行事实已不可写，应停止继续消耗模型流，避免页面
 	// 展示一段最终无法归属到当前执行的回答。
-	if err := c.events.Emit(ctx, agentprotocol.ReasoningDelta{Content: delta}); err != nil {
+	if err := c.events.Emit(ctx, ReasoningDelta{Content: delta}); err != nil {
 		return fmt.Errorf("record model reasoning delta: %w", err)
 	}
 	return nil
@@ -103,14 +101,14 @@ func (c *responseCollector) appendContent(ctx context.Context, delta string) err
 		return nil
 	}
 	c.content.WriteString(delta)
-	if err := c.events.Emit(ctx, agentprotocol.ContentDelta{Content: delta}); err != nil {
+	if err := c.events.Emit(ctx, ContentDelta{Content: delta}); err != nil {
 		return fmt.Errorf("record model content delta: %w", err)
 	}
 	return nil
 }
 
-func (c *responseCollector) build() agentprotocol.Response {
-	return agentprotocol.Response{
+func (c *responseCollector) build() Response {
+	return Response{
 		Content:          c.content.String(),
 		ReasoningContent: c.reasoning.String(),
 	}

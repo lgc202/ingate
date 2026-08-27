@@ -1,6 +1,14 @@
 package modelconfig
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var (
+	ErrNotConfigured     = errors.New("assistant model is not configured")
+	ErrInvalidConnection = errors.New("assistant model connection is invalid")
+)
 
 // Mode 表示运维助手请求模型的网络路径。
 type Mode uint8

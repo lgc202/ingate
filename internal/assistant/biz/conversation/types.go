@@ -1,6 +1,14 @@
 package conversation
 
-import "time"
+import (
+	"errors"
+	"time"
+)
+
+var (
+	ErrNotFound     = errors.New("conversation resource not found")
+	ErrInvalidTitle = errors.New("conversation title is invalid")
+)
 
 // MessageRole 表示一条持久消息在对话中的职责。
 type MessageRole string

@@ -1,7 +1,4 @@
-// Package agent 定义运维 Agent 的稳定执行协议。
-//
-// 这里的类型只描述一次 Agent 执行需要的输入、过程事件和最终结果，
-// 不携带 MySQL 租约、Redis 事件或具体模型 SDK 对象。
+// Package agent 实现 Ingate 运维 Agent 的模型循环、工具调度和执行事件。
 package agent
 
 import (

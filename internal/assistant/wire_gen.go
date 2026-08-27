@@ -9,7 +9,7 @@ package assistant
 import (
 	"context"
 	"github.com/go-kratos/kratos/v3"
-	"github.com/lgc202/ingate/internal/assistant/agent/operations"
+	"github.com/lgc202/ingate/internal/assistant/biz/agent"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/biz/modelconfig"
@@ -19,13 +19,12 @@ import (
 	conversation2 "github.com/lgc202/ingate/internal/assistant/service/conversation"
 	execution2 "github.com/lgc202/ingate/internal/assistant/service/execution"
 	modelconfig2 "github.com/lgc202/ingate/internal/assistant/service/modelconfig"
-	"github.com/lgc202/ingate/internal/assistant/worker"
 	"log/slog"
 )
 
 // Injectors from wire.go:
 
-func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL *conf.Data_MySQL, data_Redis *conf.Data_Redis, stream *conf.Stream, confWorker *conf.Worker, adminAPI *conf.AdminAPI, logger *slog.Logger, assistantServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL *conf.Data_MySQL, data_Redis *conf.Data_Redis, stream *conf.Stream, worker *conf.Worker, adminAPI *conf.AdminAPI, logger *slog.Logger, assistantServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
 	store, cleanup, err := data.NewMySQLStore(contextContext, data_MySQL, logger)
 	if err != nil {
 		return nil, nil, err
@@ -50,16 +49,16 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_MySQL
 		return nil, nil, err
 	}
 	chatModelFactory := data.NewChatModelFactory()
-	agent, err := operations.New(modelconfigService, client, chatModelFactory)
+	agentAgent, err := agent.New(modelconfigService, client, chatModelFactory)
 	if err != nil {
 		cleanup3()
 		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
-	executor := execution.NewExecutor(store, eventStore, agent)
-	executionWorker := worker.NewExecutionWorker(confWorker, executor, logger)
-	app := newKratosApp(logger, confServer, httpServer, executionWorker, assistantServiceInstanceID)
+	executor := execution.NewExecutor(store, eventStore, agentAgent)
+	executionConsumer := server.NewExecutionConsumer(worker, executor, logger)
+	app := newKratosApp(logger, confServer, httpServer, executionConsumer, assistantServiceInstanceID)
 	return app, func() {
 		cleanup3()
 		cleanup2()

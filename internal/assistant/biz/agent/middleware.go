@@ -1,4 +1,4 @@
-package operations
+package agent
 
 import (
 	"context"
@@ -10,8 +10,6 @@ import (
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/compose"
 	"github.com/google/uuid"
-
-	agentprotocol "github.com/lgc202/ingate/internal/assistant/agent"
 )
 
 // eventMiddleware 把 Eino 内部回调转换成稳定的 Agent 事件。
@@ -19,11 +17,11 @@ import (
 // 它按执行创建，modelCallID 不会在并发会话之间共享。
 type eventMiddleware struct {
 	modelName   string
-	events      agentprotocol.EventSink
+	events      EventSink
 	modelCallID string
 }
 
-func newEventMiddleware(modelName string, events agentprotocol.EventSink) adk.AgentMiddleware {
+func newEventMiddleware(modelName string, events EventSink) adk.AgentMiddleware {
 	middleware := &eventMiddleware{modelName: modelName, events: events}
 	return adk.AgentMiddleware{
 		BeforeChatModel: middleware.beforeChatModel,
@@ -39,7 +37,7 @@ func (m *eventMiddleware) beforeChatModel(
 	_ *adk.ChatModelAgentState,
 ) error {
 	callID := uuid.NewString()
-	if err := m.events.Emit(ctx, agentprotocol.ModelCallStarted{
+	if err := m.events.Emit(ctx, ModelCallStarted{
 		CallID: callID,
 		Model:  m.modelName,
 	}); err != nil {
@@ -58,7 +56,7 @@ func (m *eventMiddleware) afterChatModel(
 	if len(message.ToolCalls) > 0 {
 		summary = fmt.Sprintf("模型选择了 %d 个工具", len(message.ToolCalls))
 	}
-	if err := m.events.Emit(ctx, agentprotocol.ModelCallCompleted{
+	if err := m.events.Emit(ctx, ModelCallCompleted{
 		CallID:  m.modelCallID,
 		Model:   m.modelName,
 		Summary: summary,
@@ -78,7 +76,7 @@ func (m *eventMiddleware) wrapToolCall(
 			// 部分兼容模型不返回工具调用 ID；内部生成关联值后，步骤仍能准确结束。
 			callID = uuid.NewString()
 		}
-		if err := m.events.Emit(ctx, agentprotocol.ToolCallStarted{
+		if err := m.events.Emit(ctx, ToolCallStarted{
 			CallID: callID,
 			Tool:   input.Name,
 		}); err != nil {
@@ -94,7 +92,7 @@ func (m *eventMiddleware) wrapToolCall(
 		if err != nil {
 			return nil, m.failTool(ctx, callID, input.Name, err)
 		}
-		if err := m.events.Emit(ctx, agentprotocol.ToolCallCompleted{
+		if err := m.events.Emit(ctx, ToolCallCompleted{
 			CallID:  callID,
 			Tool:    input.Name,
 			Summary: summary,
@@ -111,12 +109,12 @@ func (m *eventMiddleware) failTool(
 	name string,
 	cause error,
 ) error {
-	eventErr := m.events.Emit(ctx, agentprotocol.ToolCallFailed{
+	eventErr := m.events.Emit(ctx, ToolCallFailed{
 		CallID: callID,
 		Tool:   name,
 	})
 	return errors.Join(
-		agentprotocol.ErrToolUnavailable,
+		ErrToolUnavailable,
 		fmt.Errorf("execute assistant tool %q: %w", name, cause),
 		eventErr,
 	)
