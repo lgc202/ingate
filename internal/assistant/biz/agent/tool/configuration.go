@@ -89,14 +89,14 @@ func getRouteConfiguration(
 ) (routeConfigurationOutput, error) {
 	routeID := strings.TrimSpace(input.RouteID)
 	if _, err := uuid.Parse(routeID); err != nil {
-		return routeConfigurationInputResult(
+		return routeConfigurationErrorResult(
 			invalidInputf("route_id must be a valid route ID returned by analyze_traffic or list_routes"),
 		)
 	}
 
 	configuration, err := resources.GetRouteConfiguration(ctx, routeID)
 	if err != nil {
-		return routeConfigurationOutput{}, err
+		return routeConfigurationErrorResult(err)
 	}
 	serviceNames := make(map[string]string, len(configuration.Services))
 	services := make([]serviceInfo, 0, len(configuration.Services))
@@ -187,13 +187,13 @@ func routeHostRewrite(mode, hostname string) *routeHostRewriteInfo {
 	return &routeHostRewriteInfo{Mode: mode, Hostname: hostname}
 }
 
-func routeConfigurationInputResult(err error) (routeConfigurationOutput, error) {
-	reason, ok := invalidInputReason(err)
+func routeConfigurationErrorResult(err error) (routeConfigurationOutput, error) {
+	summary, status, ok := recoverableToolError(err)
 	if !ok {
 		return routeConfigurationOutput{}, err
 	}
 	return routeConfigurationOutput{
-		Summary: reason,
-		Status:  "invalid_input",
+		Summary: summary,
+		Status:  status,
 	}, nil
 }

@@ -109,15 +109,17 @@ func (m *eventMiddleware) failTool(
 	name string,
 	cause error,
 ) error {
+	toolErr := fmt.Errorf("execute assistant tool %q: %w", name, cause)
 	eventErr := m.events.Emit(ctx, ToolCallFailed{
 		CallID: callID,
 		Tool:   name,
 	})
-	return errors.Join(
-		ErrToolUnavailable,
-		fmt.Errorf("execute assistant tool %q: %w", name, cause),
-		eventErr,
-	)
+	if eventErr != nil {
+		// 执行记录写入失败时，以持久化故障作为最终分类。若仍附带工具不可用标记，
+		// 上层会把数据库故障误报成 Admin API 或分析服务不可用。
+		return errors.Join(toolErr, eventErr)
+	}
+	return errors.Join(ErrToolUnavailable, toolErr)
 }
 
 func toolResultSummary(result string) (string, error) {
@@ -132,9 +134,12 @@ func toolResultSummary(result string) (string, error) {
 	if output.Summary == "" {
 		return "", errors.New("assistant tool result summary is empty")
 	}
-	if output.Status == "invalid_input" {
+	switch output.Status {
+	case "invalid_input":
 		// 执行详情只展示稳定事实；具体参数修正原因仅保留在 Eino 循环内。
 		return "工具参数无效，已将修正原因返回模型", nil
+	case "not_found":
+		return "工具查询目标已不存在，已返回模型重新定位", nil
 	}
 	return output.Summary, nil
 }

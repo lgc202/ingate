@@ -62,14 +62,14 @@ func getCallerTokenQuota(
 ) (callerTokenQuotaOutput, error) {
 	callerID := strings.TrimSpace(input.CallerID)
 	if _, err := uuid.Parse(callerID); err != nil {
-		return callerTokenQuotaInputResult(
+		return callerTokenQuotaErrorResult(
 			invalidInputf("caller_id must be a valid caller ID returned by get_request_record"),
 		)
 	}
 
 	quota, err := quotas.GetCallerTokenQuota(ctx, callerID)
 	if err != nil {
-		return callerTokenQuotaOutput{}, err
+		return callerTokenQuotaErrorResult(err)
 	}
 	info := callerTokenQuotaInfoFromQuota(quota)
 	summary := fmt.Sprintf("调用方 %s 当前有 %d 个生效额度周期", quota.CallerName, len(quota.Usages))
@@ -114,13 +114,13 @@ func quotaTime(value time.Time) string {
 	return value.Format(time.RFC3339)
 }
 
-func callerTokenQuotaInputResult(err error) (callerTokenQuotaOutput, error) {
-	reason, ok := invalidInputReason(err)
+func callerTokenQuotaErrorResult(err error) (callerTokenQuotaOutput, error) {
+	summary, status, ok := recoverableToolError(err)
 	if !ok {
 		return callerTokenQuotaOutput{}, err
 	}
 	return callerTokenQuotaOutput{
-		Summary: reason,
-		Status:  "invalid_input",
+		Summary: summary,
+		Status:  status,
 	}, nil
 }

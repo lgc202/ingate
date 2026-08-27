@@ -68,14 +68,5 @@ func listServices(
 }
 
 func serviceInfoFromResource(service Service) serviceInfo {
-	return serviceInfo{
-		ID:            service.ID,
-		Name:          service.Name,
-		Type:          service.Type,
-		State:         service.State,
-		Message:       service.Message,
-		EndpointCount: service.EndpointCount,
-		TLS:           service.TLS,
-		ModelProtocol: service.ModelProtocol,
-	}
+	return serviceInfo(service)
 }

@@ -59,19 +59,7 @@ func listRoutes(
 	}
 	items := make([]routeInfo, 0, len(result.Items))
 	for _, route := range result.Items {
-		items = append(items, routeInfo{
-			ID:            route.ID,
-			Name:          route.Name,
-			Type:          route.Type,
-			Enabled:       route.Enabled,
-			State:         route.State,
-			Message:       route.Message,
-			AccessMode:    route.AccessMode,
-			GatewayIDs:    route.GatewayIDs,
-			Path:          route.Path,
-			ServiceIDs:    route.ServiceIDs,
-			ExposedModels: route.ExposedModels,
-		})
+		items = append(items, routeInfo(route))
 	}
 	return routeToolOutput{
 		Summary: fmt.Sprintf("找到 %d 条路由", len(items)),

@@ -76,20 +76,20 @@ func getRequestRecord(
 ) (requestRecordOutput, error) {
 	recordID := strings.TrimSpace(input.RecordID)
 	if recordID == "" {
-		return requestRecordInputResult(
+		return requestRecordErrorResult(
 			invalidInputf("record_id must use the non-empty value returned by list_recent_failures"),
 		)
 	}
 	startedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(input.StartedAt))
 	if err != nil {
-		return requestRecordInputResult(
+		return requestRecordErrorResult(
 			invalidInputf("started_at must be the RFC3339 value returned by list_recent_failures"),
 		)
 	}
 
 	record, err := records.GetRequestRecord(ctx, recordID, startedAt)
 	if err != nil {
-		return requestRecordOutput{}, err
+		return requestRecordErrorResult(err)
 	}
 	return requestRecordOutput{
 		Summary: fmt.Sprintf(
@@ -152,13 +152,13 @@ func aiModelCallInfoFromRecord(call *AIModelCall) *aiModelCallInfo {
 	}
 }
 
-func requestRecordInputResult(err error) (requestRecordOutput, error) {
-	reason, ok := invalidInputReason(err)
+func requestRecordErrorResult(err error) (requestRecordOutput, error) {
+	summary, status, ok := recoverableToolError(err)
 	if !ok {
 		return requestRecordOutput{}, err
 	}
 	return requestRecordOutput{
-		Summary: reason,
-		Status:  "invalid_input",
+		Summary: summary,
+		Status:  status,
 	}, nil
 }

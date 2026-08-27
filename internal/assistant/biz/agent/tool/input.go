@@ -34,6 +34,18 @@ func invalidInputReason(err error) (string, bool) {
 	return inputErr.Error(), true
 }
 
+// recoverableToolError 把模型能够自行修正的错误转换为工具结果。
+// 网络、存储和协议故障不在这里降级，仍交给执行层终止任务并记录真实原因。
+func recoverableToolError(err error) (summary, status string, ok bool) {
+	if reason, matched := invalidInputReason(err); matched {
+		return reason, "invalid_input", true
+	}
+	if errors.Is(err, ErrQueryTargetNotFound) {
+		return "the requested resource or retained request record is no longer available; refresh the corresponding list before continuing and do not retry the same identifier", "not_found", true
+	}
+	return "", "", false
+}
+
 func normalizeResourceScope(scopeType, scopeID string) (string, string, error) {
 	scopeType = strings.ToLower(strings.TrimSpace(scopeType))
 	scopeID = strings.TrimSpace(scopeID)

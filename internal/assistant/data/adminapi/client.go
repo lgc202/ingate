@@ -112,17 +112,18 @@ func (c *Client) GetRouteConfiguration(
 ) (agenttool.RouteConfiguration, error) {
 	route, err := c.routes.GetRoute(ctx, &adminv1.GetRouteRequest{Id: routeID})
 	if err != nil {
-		return agenttool.RouteConfiguration{}, fmt.Errorf("get route %s from Admin API: %w", routeID, err)
+		return agenttool.RouteConfiguration{}, queryTargetError(
+			fmt.Sprintf("get route %s from Admin API", routeID),
+			err,
+		)
 	}
 
 	gateways := make([]agenttool.Gateway, 0, len(route.GetGatewayIds()))
 	for _, gatewayID := range route.GetGatewayIds() {
 		gateway, err := c.gateways.GetGateway(ctx, &adminv1.GetGatewayRequest{Id: gatewayID})
 		if err != nil {
-			return agenttool.RouteConfiguration{}, fmt.Errorf(
-				"get gateway %s referenced by route %s: %w",
-				gatewayID,
-				routeID,
+			return agenttool.RouteConfiguration{}, queryTargetError(
+				fmt.Sprintf("get gateway %s referenced by route %s", gatewayID, routeID),
 				err,
 			)
 		}
@@ -134,10 +135,8 @@ func (c *Client) GetRouteConfiguration(
 	for _, serviceID := range serviceIDs {
 		service, err := c.services.GetUpstream(ctx, &adminv1.GetUpstreamRequest{Id: serviceID})
 		if err != nil {
-			return agenttool.RouteConfiguration{}, fmt.Errorf(
-				"get service %s referenced by route %s: %w",
-				serviceID,
-				routeID,
+			return agenttool.RouteConfiguration{}, queryTargetError(
+				fmt.Sprintf("get service %s referenced by route %s", serviceID, routeID),
 				err,
 			)
 		}
@@ -324,9 +323,8 @@ func (c *Client) GetRequestRecord(
 		StartedAt: timestamppb.New(startedAt),
 	})
 	if err != nil {
-		return agenttool.RequestRecord{}, fmt.Errorf(
-			"get request record %s from Admin API: %w",
-			recordID,
+		return agenttool.RequestRecord{}, queryTargetError(
+			fmt.Sprintf("get request record %s from Admin API", recordID),
 			err,
 		)
 	}
@@ -342,9 +340,8 @@ func (c *Client) GetCallerTokenQuota(
 ) (agenttool.CallerTokenQuota, error) {
 	caller, err := c.callers.GetCaller(ctx, &adminv1.GetCallerRequest{Id: callerID})
 	if err != nil {
-		return agenttool.CallerTokenQuota{}, fmt.Errorf(
-			"get caller %s from Admin API: %w",
-			callerID,
+		return agenttool.CallerTokenQuota{}, queryTargetError(
+			fmt.Sprintf("get caller %s from Admin API", callerID),
 			err,
 		)
 	}
@@ -354,9 +351,8 @@ func (c *Client) GetCallerTokenQuota(
 		&adminv1.GetCallerTokenQuotaUsageRequest{CallerId: callerID},
 	)
 	if err != nil {
-		return agenttool.CallerTokenQuota{}, fmt.Errorf(
-			"get caller %s token quota usage from Admin API: %w",
-			callerID,
+		return agenttool.CallerTokenQuota{}, queryTargetError(
+			fmt.Sprintf("get caller %s token quota usage from Admin API", callerID),
 			err,
 		)
 	}
@@ -654,6 +650,15 @@ func resourceNameResult(
 		return resourceID, nil
 	}
 	return name, nil
+}
+
+// queryTargetError 区分已经失效的精确查询目标与 Admin API 故障。
+// NotFound 会返回 Agent 循环重新定位资源；其他错误保留原始原因并终止本次执行。
+func queryTargetError(operation string, err error) error {
+	if status.Code(err) == codes.NotFound {
+		return fmt.Errorf("%w: %s: %w", agenttool.ErrQueryTargetNotFound, operation, err)
+	}
+	return fmt.Errorf("%s: %w", operation, err)
 }
 
 func trafficMetrics(metrics *adminv1.TrafficMetrics) agenttool.TrafficMetrics {

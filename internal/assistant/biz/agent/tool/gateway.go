@@ -75,12 +75,7 @@ func listGateways(
 func gatewayInfoFromResource(gateway Gateway) gatewayInfo {
 	listeners := make([]listenerInfo, 0, len(gateway.Listeners))
 	for _, listener := range gateway.Listeners {
-		listeners = append(listeners, listenerInfo{
-			Name:     listener.Name,
-			Protocol: listener.Protocol,
-			Port:     listener.Port,
-			Hostname: listener.Hostname,
-		})
+		listeners = append(listeners, listenerInfo(listener))
 	}
 	return gatewayInfo{
 		ID:        gateway.ID,

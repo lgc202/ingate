@@ -3,8 +3,13 @@ package tool
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrQueryTargetNotFound 表示模型引用的精确查询目标已经删除或超出保留期。
+// 这不是依赖服务故障：工具应把它作为可修正结果交还模型，由模型重新获取当前列表。
+var ErrQueryTargetNotFound = errors.New("assistant query target not found")
 
 // ResourceListQuery 是配置资源列表工具共用的查询条件。
 type ResourceListQuery struct {

@@ -39,16 +39,16 @@ func (c *responseCollector) consumeAction(action *adk.AgentAction) error {
 	// 当前运维助手是单 Agent，且产品协议尚未提供人工确认与恢复入口。
 	// 与其静默丢弃 ADK Action，不如在能力边界处明确失败。
 	if action.Interrupted != nil {
-		return errors.New("Eino agent requested interruption without checkpoint support")
+		return errors.New("eino agent requested interruption without checkpoint support")
 	}
 	if action.TransferToAgent != nil {
 		return fmt.Errorf(
-			"Eino agent requested transfer to unsupported agent %q",
+			"eino agent requested transfer to unsupported agent %q",
 			action.TransferToAgent.DestAgentName,
 		)
 	}
 	if action.CustomizedAction != nil {
-		return errors.New("Eino agent returned an unsupported custom action")
+		return errors.New("eino agent returned an unsupported custom action")
 	}
 	return nil
 }
