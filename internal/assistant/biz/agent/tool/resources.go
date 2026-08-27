@@ -57,6 +57,32 @@ type Route struct {
 	ExposedModels []string
 }
 
+// RouteTarget 描述路由发往一个服务的流量份额。
+// Model 仅在 AI 路由中存在，表示实际发给模型服务的模型名。
+type RouteTarget struct {
+	ServiceID    string
+	ExposedModel string
+	Model        string
+	Weight       uint32
+}
+
+// RouteConfiguration 保留排查一条转发链路所需的配置事实。
+// 关联资源在 data 层一次解析完成，避免模型围绕 UUID 反复调用列表工具。
+type RouteConfiguration struct {
+	Route             Route
+	Hostnames         []string
+	PathMatchType     string
+	Methods           []string
+	Targets           []RouteTarget
+	RequestTimeout    time.Duration
+	RetryAttempts     uint32
+	PerTryTimeout     time.Duration
+	HostRewriteMode   string
+	HostRewriteTarget string
+	Gateways          []Gateway
+	Services          []Service
+}
+
 // ServicePage 是 Agent 判断结果是否完整所需的服务分页结果。
 type ServicePage struct {
 	Items   []Service
@@ -181,6 +207,11 @@ type RouteReader interface {
 	ListRoutes(ctx context.Context, query ResourceListQuery) (RoutePage, error)
 }
 
+// RouteConfigurationReader 是单条路由配置链路工具所需的查询边界。
+type RouteConfigurationReader interface {
+	GetRouteConfiguration(ctx context.Context, routeID string) (RouteConfiguration, error)
+}
+
 // ServiceReader 是服务列表工具所需的最小查询边界。
 type ServiceReader interface {
 	ListServices(ctx context.Context, query ResourceListQuery) (ServicePage, error)
@@ -201,6 +232,7 @@ type FailureReader interface {
 type QuerySource interface {
 	GatewayReader
 	RouteReader
+	RouteConfigurationReader
 	ServiceReader
 	TrafficReader
 	FailureReader

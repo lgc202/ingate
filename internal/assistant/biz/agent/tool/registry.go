@@ -6,6 +6,7 @@ const (
 	listGatewaysTool       = "list_gateways"
 	listRoutesTool         = "list_routes"
 	listServicesTool       = "list_services"
+	getRouteConfigTool     = "get_route_configuration"
 	analyzeTrafficTool     = "analyze_traffic"
 	listRecentFailuresTool = "list_recent_failures"
 	defaultListLimit       = 20
@@ -32,6 +33,10 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 	if err != nil {
 		return nil, err
 	}
+	routeConfiguration, err := newRouteConfigurationTool(source)
+	if err != nil {
+		return nil, err
+	}
 	traffic, err := newTrafficTool(source)
 	if err != nil {
 		return nil, err
@@ -40,7 +45,14 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 	if err != nil {
 		return nil, err
 	}
-	return []einotool.BaseTool{gateways, routes, services, traffic, failures}, nil
+	return []einotool.BaseTool{
+		gateways,
+		routes,
+		services,
+		routeConfiguration,
+		traffic,
+		failures,
+	}, nil
 }
 
 func listLimit(limit int32) int32 {

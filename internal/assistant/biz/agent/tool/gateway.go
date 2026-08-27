@@ -61,23 +61,7 @@ func listGateways(
 	}
 	items := make([]gatewayInfo, 0, len(result.Items))
 	for _, gateway := range result.Items {
-		listeners := make([]listenerInfo, 0, len(gateway.Listeners))
-		for _, listener := range gateway.Listeners {
-			listeners = append(listeners, listenerInfo{
-				Name:     listener.Name,
-				Protocol: listener.Protocol,
-				Port:     listener.Port,
-				Hostname: listener.Hostname,
-			})
-		}
-		items = append(items, gatewayInfo{
-			ID:        gateway.ID,
-			Name:      gateway.Name,
-			Enabled:   gateway.Enabled,
-			State:     gateway.State,
-			Message:   gateway.Message,
-			Listeners: listeners,
-		})
+		items = append(items, gatewayInfoFromResource(gateway))
 	}
 	return gatewayToolOutput{
 		Summary: fmt.Sprintf("找到 %d 个网关", len(items)),
@@ -86,4 +70,24 @@ func listGateways(
 		HasMore: result.HasMore,
 		Items:   items,
 	}, nil
+}
+
+func gatewayInfoFromResource(gateway Gateway) gatewayInfo {
+	listeners := make([]listenerInfo, 0, len(gateway.Listeners))
+	for _, listener := range gateway.Listeners {
+		listeners = append(listeners, listenerInfo{
+			Name:     listener.Name,
+			Protocol: listener.Protocol,
+			Port:     listener.Port,
+			Hostname: listener.Hostname,
+		})
+	}
+	return gatewayInfo{
+		ID:        gateway.ID,
+		Name:      gateway.Name,
+		Enabled:   gateway.Enabled,
+		State:     gateway.State,
+		Message:   gateway.Message,
+		Listeners: listeners,
+	}
 }

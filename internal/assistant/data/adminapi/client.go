@@ -72,23 +72,7 @@ func (c *Client) ListGateways(ctx context.Context, query agenttool.ResourceListQ
 
 	gateways := make([]agenttool.Gateway, 0, len(result.GetGateways()))
 	for _, gateway := range result.GetGateways() {
-		listeners := make([]agenttool.Listener, 0, len(gateway.GetListeners()))
-		for _, listener := range gateway.GetListeners() {
-			listeners = append(listeners, agenttool.Listener{
-				Name:     listener.GetName(),
-				Protocol: gatewayProtocol(listener.GetProtocol()),
-				Port:     listener.GetPort(),
-				Hostname: listener.GetHostname(),
-			})
-		}
-		gateways = append(gateways, agenttool.Gateway{
-			ID:        gateway.GetId(),
-			Name:      gateway.GetName(),
-			Enabled:   gateway.GetEnabled(),
-			State:     resourceState(gateway.GetState()),
-			Message:   gateway.GetMessage(),
-			Listeners: listeners,
-		})
+		gateways = append(gateways, gatewayFromAPI(gateway))
 	}
 	return agenttool.GatewayPage{
 		Items:   gateways,
@@ -108,23 +92,67 @@ func (c *Client) ListRoutes(ctx context.Context, query agenttool.ResourceListQue
 
 	routes := make([]agenttool.Route, 0, len(result.GetRoutes()))
 	for _, route := range result.GetRoutes() {
-		routes = append(routes, agenttool.Route{
-			ID:            route.GetId(),
-			Name:          route.GetName(),
-			Type:          routeType(route),
-			Enabled:       route.GetEnabled(),
-			State:         resourceState(route.GetState()),
-			Message:       route.GetMessage(),
-			AccessMode:    routeAccessMode(route.GetAccessMode()),
-			GatewayIDs:    route.GetGatewayIds(),
-			Path:          route.GetMatch().GetPath().GetValue(),
-			ServiceIDs:    routeServiceIDs(route),
-			ExposedModels: routeModelNames(route),
-		})
+		routes = append(routes, routeFromAPI(route))
 	}
 	return agenttool.RoutePage{
 		Items:   routes,
 		HasMore: result.GetNextCursor() != "",
+	}, nil
+}
+
+// GetRouteConfiguration 读取一条路由及其直接引用的网关和服务。
+// 这里按引用 ID 精确查询，既不会扫描全部资源，也不会把 Admin API 客户端暴露给 Agent 业务层。
+func (c *Client) GetRouteConfiguration(
+	ctx context.Context,
+	routeID string,
+) (agenttool.RouteConfiguration, error) {
+	route, err := c.routes.GetRoute(ctx, &adminv1.GetRouteRequest{Id: routeID})
+	if err != nil {
+		return agenttool.RouteConfiguration{}, fmt.Errorf("get route %s from Admin API: %w", routeID, err)
+	}
+
+	gateways := make([]agenttool.Gateway, 0, len(route.GetGatewayIds()))
+	for _, gatewayID := range route.GetGatewayIds() {
+		gateway, err := c.gateways.GetGateway(ctx, &adminv1.GetGatewayRequest{Id: gatewayID})
+		if err != nil {
+			return agenttool.RouteConfiguration{}, fmt.Errorf(
+				"get gateway %s referenced by route %s: %w",
+				gatewayID,
+				routeID,
+				err,
+			)
+		}
+		gateways = append(gateways, gatewayFromAPI(gateway))
+	}
+
+	serviceIDs := routeServiceIDs(route)
+	services := make([]agenttool.Service, 0, len(serviceIDs))
+	for _, serviceID := range serviceIDs {
+		service, err := c.services.GetUpstream(ctx, &adminv1.GetUpstreamRequest{Id: serviceID})
+		if err != nil {
+			return agenttool.RouteConfiguration{}, fmt.Errorf(
+				"get service %s referenced by route %s: %w",
+				serviceID,
+				routeID,
+				err,
+			)
+		}
+		services = append(services, serviceFromAPI(service))
+	}
+
+	return agenttool.RouteConfiguration{
+		Route:             routeFromAPI(route),
+		Hostnames:         route.GetHostnames(),
+		PathMatchType:     routePathMatchType(route.GetMatch().GetPath().GetType()),
+		Methods:           routeMethods(route.GetMatch().GetMethods()),
+		Targets:           routeTargets(route),
+		RequestTimeout:    milliseconds(route.GetTimeout().GetRequestMillis()),
+		RetryAttempts:     route.GetRetry().GetAttempts(),
+		PerTryTimeout:     milliseconds(route.GetRetry().GetPerTryTimeoutMillis()),
+		HostRewriteMode:   hostRewriteMode(route.GetHostRewrite().GetMode()),
+		HostRewriteTarget: route.GetHostRewrite().GetHostname(),
+		Gateways:          gateways,
+		Services:          services,
 	}, nil
 }
 
@@ -140,21 +168,61 @@ func (c *Client) ListServices(ctx context.Context, query agenttool.ResourceListQ
 
 	services := make([]agenttool.Service, 0, len(result.GetUpstreams()))
 	for _, service := range result.GetUpstreams() {
-		services = append(services, agenttool.Service{
-			ID:            service.GetId(),
-			Name:          service.GetName(),
-			Type:          serviceType(service),
-			State:         resourceState(service.GetState()),
-			Message:       service.GetMessage(),
-			EndpointCount: len(service.GetEndpoints()),
-			TLS:           service.GetTls() != nil,
-			ModelProtocol: modelProtocol(service.GetModel().GetProtocol()),
-		})
+		services = append(services, serviceFromAPI(service))
 	}
 	return agenttool.ServicePage{
 		Items:   services,
 		HasMore: result.GetNextCursor() != "",
 	}, nil
+}
+
+func gatewayFromAPI(gateway *adminv1.Gateway) agenttool.Gateway {
+	listeners := make([]agenttool.Listener, 0, len(gateway.GetListeners()))
+	for _, listener := range gateway.GetListeners() {
+		listeners = append(listeners, agenttool.Listener{
+			Name:     listener.GetName(),
+			Protocol: gatewayProtocol(listener.GetProtocol()),
+			Port:     listener.GetPort(),
+			Hostname: listener.GetHostname(),
+		})
+	}
+	return agenttool.Gateway{
+		ID:        gateway.GetId(),
+		Name:      gateway.GetName(),
+		Enabled:   gateway.GetEnabled(),
+		State:     resourceState(gateway.GetState()),
+		Message:   gateway.GetMessage(),
+		Listeners: listeners,
+	}
+}
+
+func routeFromAPI(route *adminv1.Route) agenttool.Route {
+	return agenttool.Route{
+		ID:            route.GetId(),
+		Name:          route.GetName(),
+		Type:          routeType(route),
+		Enabled:       route.GetEnabled(),
+		State:         resourceState(route.GetState()),
+		Message:       route.GetMessage(),
+		AccessMode:    routeAccessMode(route.GetAccessMode()),
+		GatewayIDs:    route.GetGatewayIds(),
+		Path:          route.GetMatch().GetPath().GetValue(),
+		ServiceIDs:    routeServiceIDs(route),
+		ExposedModels: routeModelNames(route),
+	}
+}
+
+func serviceFromAPI(service *adminv1.Upstream) agenttool.Service {
+	return agenttool.Service{
+		ID:            service.GetId(),
+		Name:          service.GetName(),
+		Type:          serviceType(service),
+		State:         resourceState(service.GetState()),
+		Message:       service.GetMessage(),
+		EndpointCount: len(service.GetEndpoints()),
+		TLS:           service.GetTls() != nil,
+		ModelProtocol: modelProtocol(service.GetModel().GetProtocol()),
+	}
 }
 
 // AnalyzeTraffic 查询指定时间和资源范围内的汇总指标与资源排名。
@@ -280,6 +348,91 @@ func routeAccessMode(mode adminv1.RouteAccessMode) string {
 		return "caller"
 	default:
 		return "unknown"
+	}
+}
+
+func routePathMatchType(matchType adminv1.RoutePathMatchType) string {
+	switch matchType {
+	case adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_EXACT:
+		return "exact"
+	default:
+		return "prefix"
+	}
+}
+
+func routeMethods(methods []adminv1.HTTPMethod) []string {
+	result := make([]string, 0, len(methods))
+	for _, method := range methods {
+		if name := httpMethod(method); name != "" {
+			result = append(result, name)
+		}
+	}
+	return result
+}
+
+func httpMethod(method adminv1.HTTPMethod) string {
+	switch method {
+	case adminv1.HTTPMethod_HTTP_METHOD_GET:
+		return "GET"
+	case adminv1.HTTPMethod_HTTP_METHOD_HEAD:
+		return "HEAD"
+	case adminv1.HTTPMethod_HTTP_METHOD_POST:
+		return "POST"
+	case adminv1.HTTPMethod_HTTP_METHOD_PUT:
+		return "PUT"
+	case adminv1.HTTPMethod_HTTP_METHOD_PATCH:
+		return "PATCH"
+	case adminv1.HTTPMethod_HTTP_METHOD_DELETE:
+		return "DELETE"
+	case adminv1.HTTPMethod_HTTP_METHOD_OPTIONS:
+		return "OPTIONS"
+	default:
+		return ""
+	}
+}
+
+// routeTargets 同时保留客户端模型名和厂商模型名，便于判断 AI 路由是否选错线路。
+// 普通 API 路由没有模型映射，只返回服务和权重。
+func routeTargets(route *adminv1.Route) []agenttool.RouteTarget {
+	if route.GetAi() == nil {
+		targets := make([]agenttool.RouteTarget, 0, len(route.GetUpstreams()))
+		for _, target := range route.GetUpstreams() {
+			targets = append(targets, agenttool.RouteTarget{
+				ServiceID: target.GetUpstreamId(),
+				Weight:    target.GetWeight(),
+			})
+		}
+		return targets
+	}
+
+	var count int
+	for _, model := range route.GetAi().GetModels() {
+		count += len(model.GetTargets())
+	}
+	targets := make([]agenttool.RouteTarget, 0, count)
+	for _, model := range route.GetAi().GetModels() {
+		for _, target := range model.GetTargets() {
+			targets = append(targets, agenttool.RouteTarget{
+				ServiceID:    target.GetUpstreamId(),
+				ExposedModel: model.GetName(),
+				Model:        target.GetModel(),
+				Weight:       target.GetWeight(),
+			})
+		}
+	}
+	return targets
+}
+
+func hostRewriteMode(mode adminv1.HostRewriteMode) string {
+	switch mode {
+	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_SERVICE_ADDRESS:
+		return "service_address"
+	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_PRESERVE:
+		return "preserve"
+	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_CUSTOM:
+		return "custom"
+	default:
+		return ""
 	}
 }
 
@@ -469,6 +622,10 @@ func protoDuration(value *durationpb.Duration) time.Duration {
 		return 0
 	}
 	return value.AsDuration()
+}
+
+func milliseconds(value uint32) time.Duration {
+	return time.Duration(value) * time.Millisecond
 }
 
 func protoTime(value *timestamppb.Timestamp) time.Time {
