@@ -40,6 +40,7 @@ type failureToolOutput struct {
 }
 
 type failureInfo struct {
+	RecordID       string  `json:"record_id"`
 	StartedAt      string  `json:"started_at"`
 	Method         string  `json:"method"`
 	Host           string  `json:"host"`
@@ -100,6 +101,7 @@ func listRecentFailures(
 	items := make([]failureInfo, 0, len(result.Items))
 	for _, record := range result.Items {
 		items = append(items, failureInfo{
+			RecordID:       record.RecordID,
 			StartedAt:      record.StartedAt.Format(time.RFC3339),
 			Method:         record.Method,
 			Host:           record.Host,

@@ -282,6 +282,7 @@ func (c *Client) ListFailures(ctx context.Context, query agenttool.FailureQuery)
 	records := make([]agenttool.Failure, 0, len(result.GetRecords()))
 	for _, record := range result.GetRecords() {
 		records = append(records, agenttool.Failure{
+			RecordID:   record.GetId(),
 			StartedAt:  protoTime(record.GetStartedAt()),
 			Method:     record.GetMethod(),
 			Host:       record.GetHost(),
@@ -305,6 +306,28 @@ func (c *Client) ListFailures(ctx context.Context, query agenttool.FailureQuery)
 		Items:     records,
 		HasMore:   result.GetNextPageToken() != "",
 	}, nil
+}
+
+// GetRequestRecord 按列表返回的记录标识和开始时间读取单次请求元数据。
+// startedAt 同时作为 ClickHouse 分区查询条件，避免为一条记录扫描全部保留数据。
+func (c *Client) GetRequestRecord(
+	ctx context.Context,
+	recordID string,
+	startedAt time.Time,
+) (agenttool.RequestRecord, error) {
+	result, err := c.records.GetRequestRecord(ctx, &adminv1.GetRequestRecordRequest{
+		Id:        recordID,
+		StartedAt: timestamppb.New(startedAt),
+	})
+	if err != nil {
+		return agenttool.RequestRecord{}, fmt.Errorf(
+			"get request record %s from Admin API: %w",
+			recordID,
+			err,
+		)
+	}
+
+	return requestRecordFromAPI(result), nil
 }
 
 func resourceState(state adminv1.ResourceState) string {
@@ -615,6 +638,86 @@ func requestOutcome(outcome agenttool.FailureOutcome) adminv1.RequestOutcome {
 	default:
 		return adminv1.RequestOutcome_REQUEST_OUTCOME_UNSPECIFIED
 	}
+}
+
+func requestRecordFromAPI(record *adminv1.RequestRecord) agenttool.RequestRecord {
+	return agenttool.RequestRecord{
+		RecordID:         record.GetId(),
+		StartedAt:        protoTime(record.GetStartedAt()),
+		Duration:         protoDuration(record.GetDuration()),
+		TimeToFirstByte:  optionalProtoDuration(record.GetTimeToFirstByte()),
+		Method:           record.GetMethod(),
+		Host:             record.GetHost(),
+		Path:             record.GetPath(),
+		StatusCode:       record.GetStatusCode(),
+		Outcome:          requestOutcomeFromAPI(record.GetOutcome()),
+		RequestBytes:     record.GetRequestBytes(),
+		ResponseBytes:    record.GetResponseBytes(),
+		GatewayID:        record.GetGatewayId(),
+		RouteID:          record.GetRouteId(),
+		ServiceID:        record.GetServiceId(),
+		Protocol:         record.GetProtocol(),
+		RejectionReason:  rejectionReasonFromAPI(record.GetRejectionReason()),
+		UpstreamAttempts: record.GetUpstreamAttempts(),
+		AIModelCall:      aiModelCallFromAPI(record.GetAiModelCall()),
+		CallerID:         record.GetCallerId(),
+	}
+}
+
+func requestOutcomeFromAPI(outcome adminv1.RequestOutcome) string {
+	switch outcome {
+	case adminv1.RequestOutcome_REQUEST_OUTCOME_SUCCESS:
+		return "success"
+	case adminv1.RequestOutcome_REQUEST_OUTCOME_CLIENT_ERROR:
+		return "client_error"
+	case adminv1.RequestOutcome_REQUEST_OUTCOME_SERVER_ERROR:
+		return "server_error"
+	case adminv1.RequestOutcome_REQUEST_OUTCOME_NO_RESPONSE:
+		return "no_response"
+	default:
+		return "unknown"
+	}
+}
+
+func rejectionReasonFromAPI(reason adminv1.RequestRejectionReason) string {
+	switch reason {
+	case adminv1.RequestRejectionReason_REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED:
+		return "token_quota_exceeded"
+	default:
+		return ""
+	}
+}
+
+func aiModelCallFromAPI(call *adminv1.AIModelCall) *agenttool.AIModelCall {
+	if call == nil {
+		return nil
+	}
+	return &agenttool.AIModelCall{
+		ClientModel:   call.GetClientModel(),
+		UpstreamModel: call.GetUpstreamModel(),
+		Protocol:      modelProtocol(call.GetProtocol()),
+		ResponseModel: call.GetResponseModel(),
+		FinishReason:  call.GetFinishReason(),
+		InputTokens:   copyOptionalUint64(call.InputTokens),
+		OutputTokens:  copyOptionalUint64(call.OutputTokens),
+		TotalTokens:   copyOptionalUint64(call.TotalTokens),
+	}
+}
+
+func copyOptionalUint64(value *uint64) *uint64 {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
+}
+
+func optionalProtoDuration(value *durationpb.Duration) *time.Duration {
+	if value == nil {
+		return nil
+	}
+	duration := value.AsDuration()
+	return &duration
 }
 
 func protoDuration(value *durationpb.Duration) time.Duration {

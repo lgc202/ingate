@@ -186,6 +186,7 @@ type FailurePage struct {
 
 // Failure 只包含模型进行排障判断所需的请求元数据。
 type Failure struct {
+	RecordID   string
 	StartedAt  time.Time
 	Method     string
 	Host       string
@@ -195,6 +196,41 @@ type Failure struct {
 	GatewayID  string
 	RouteID    string
 	ServiceID  string
+}
+
+// RequestRecord 是一次请求的排障元数据，不包含请求内容、凭据和内部服务地址。
+type RequestRecord struct {
+	RecordID         string
+	StartedAt        time.Time
+	Duration         time.Duration
+	TimeToFirstByte  *time.Duration
+	Method           string
+	Host             string
+	Path             string
+	StatusCode       uint32
+	Outcome          string
+	RequestBytes     uint64
+	ResponseBytes    uint64
+	GatewayID        string
+	RouteID          string
+	ServiceID        string
+	Protocol         string
+	RejectionReason  string
+	UpstreamAttempts uint32
+	AIModelCall      *AIModelCall
+	CallerID         string
+}
+
+// AIModelCall 是一次 AI 请求由模型服务返回的调用结果。
+type AIModelCall struct {
+	ClientModel   string
+	UpstreamModel string
+	Protocol      string
+	ResponseModel string
+	FinishReason  string
+	InputTokens   *uint64
+	OutputTokens  *uint64
+	TotalTokens   *uint64
 }
 
 // GatewayReader 是网关列表工具所需的最小查询边界。
@@ -227,6 +263,11 @@ type FailureReader interface {
 	ListFailures(ctx context.Context, query FailureQuery) (FailurePage, error)
 }
 
+// RequestRecordReader 是单次请求明细工具所需的查询边界。
+type RequestRecordReader interface {
+	GetRequestRecord(ctx context.Context, recordID string, startedAt time.Time) (RequestRecord, error)
+}
+
 // QuerySource 明确列出运维 Agent 当前需要的所有外部查询能力。
 // 单个工具只接收自己的窄接口；这里仅作为进程装配点组合这些能力。
 type QuerySource interface {
@@ -236,4 +277,5 @@ type QuerySource interface {
 	ServiceReader
 	TrafficReader
 	FailureReader
+	RequestRecordReader
 }

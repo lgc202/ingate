@@ -9,6 +9,7 @@ const (
 	getRouteConfigTool     = "get_route_configuration"
 	analyzeTrafficTool     = "analyze_traffic"
 	listRecentFailuresTool = "list_recent_failures"
+	getRequestRecordTool   = "get_request_record"
 	defaultListLimit       = 20
 	maxListLimit           = 50
 )
@@ -45,6 +46,10 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 	if err != nil {
 		return nil, err
 	}
+	requestRecord, err := newRequestRecordTool(source)
+	if err != nil {
+		return nil, err
+	}
 	return []einotool.BaseTool{
 		gateways,
 		routes,
@@ -52,6 +57,7 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 		routeConfiguration,
 		traffic,
 		failures,
+		requestRecord,
 	}, nil
 }
 
