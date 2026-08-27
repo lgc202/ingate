@@ -11,10 +11,8 @@ import (
 )
 
 const (
-	defaultObservationHours = 24
-	maxObservationHours     = 24 * 7
-	defaultTrafficLimit     = 10
-	maxTrafficLimit         = 50
+	defaultTrafficLimit = 10
+	maxTrafficLimit     = 50
 )
 
 type trafficAnalysisInput struct {
@@ -98,7 +96,7 @@ func analyzeTraffic(
 	if err != nil {
 		return trafficInputResult(err)
 	}
-	startTime, endTime, err := trafficTimeRange(input)
+	startTime, endTime, err := observationTimeRange(input.Hours, input.StartTime, input.EndTime)
 	if err != nil {
 		return trafficInputResult(err)
 	}
@@ -194,52 +192,6 @@ func trafficLimit(value int32) (uint32, error) {
 		return defaultTrafficLimit, nil
 	}
 	return uint32(value), nil
-}
-
-func trafficTimeRange(input trafficAnalysisInput) (time.Time, time.Time, error) {
-	startValue := strings.TrimSpace(input.StartTime)
-	endValue := strings.TrimSpace(input.EndTime)
-	if startValue == "" && endValue == "" {
-		if input.Hours < 0 || input.Hours > maxObservationHours {
-			return time.Time{}, time.Time{}, invalidInputf(
-				"hours must be omitted or between 1 and %d",
-				maxObservationHours,
-			)
-		}
-		hours := input.Hours
-		if hours == 0 {
-			hours = defaultObservationHours
-		}
-		endTime := time.Now().UTC()
-		return endTime.Add(-time.Duration(hours) * time.Hour), endTime, nil
-	}
-	if startValue == "" || endValue == "" {
-		return time.Time{}, time.Time{}, invalidInputf("start_time and end_time must be provided together")
-	}
-	if input.Hours != 0 {
-		return time.Time{}, time.Time{}, invalidInputf(
-			"hours cannot be combined with start_time and end_time",
-		)
-	}
-
-	startTime, err := time.Parse(time.RFC3339, startValue)
-	if err != nil {
-		return time.Time{}, time.Time{}, invalidInputf("start_time must use RFC3339 format")
-	}
-	endTime, err := time.Parse(time.RFC3339, endValue)
-	if err != nil {
-		return time.Time{}, time.Time{}, invalidInputf("end_time must use RFC3339 format")
-	}
-	if !startTime.Before(endTime) {
-		return time.Time{}, time.Time{}, invalidInputf("start_time must be earlier than end_time")
-	}
-	if endTime.Sub(startTime) > maxObservationHours*time.Hour {
-		return time.Time{}, time.Time{}, invalidInputf(
-			"time range cannot exceed %d hours",
-			maxObservationHours,
-		)
-	}
-	return startTime, endTime, nil
 }
 
 func trafficMetrics(metrics TrafficMetrics) trafficMetricsInfo {

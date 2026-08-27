@@ -143,24 +143,27 @@ const (
 
 // FailureQuery 描述近期失败请求的时间、资源和结果范围。
 type FailureQuery struct {
-	StartTime    time.Time
-	EndTime      time.Time
-	ResourceType string
-	ResourceID   string
-	Outcome      FailureOutcome
-	Limit        int32
+	StartTime time.Time
+	EndTime   time.Time
+	ScopeType string
+	ScopeID   string
+	Outcome   FailureOutcome
+	Limit     int32
 }
 
 // FailurePage 是近期失败请求的分页结果。
 type FailurePage struct {
-	Items   []Failure
-	HasMore bool
+	ScopeName string
+	Items     []Failure
+	HasMore   bool
 }
 
 // Failure 只包含模型进行排障判断所需的请求元数据。
 type Failure struct {
 	StartedAt  time.Time
 	Method     string
+	Host       string
+	Path       string
 	StatusCode uint32
 	Duration   time.Duration
 	GatewayID  string

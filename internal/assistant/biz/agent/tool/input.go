@@ -4,6 +4,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
+)
+
+const (
+	defaultObservationHours = 24
+	maxObservationHours     = 24 * 7
 )
 
 type invalidInputError struct {
@@ -28,30 +34,77 @@ func invalidInputReason(err error) (string, bool) {
 	return inputErr.Error(), true
 }
 
-func normalizeResourceScope(resourceType, resourceID string) (string, string, error) {
-	resourceType = strings.ToLower(strings.TrimSpace(resourceType))
-	resourceID = strings.TrimSpace(resourceID)
-	if resourceType == "" {
-		resourceType = "all"
+func normalizeResourceScope(scopeType, scopeID string) (string, string, error) {
+	scopeType = strings.ToLower(strings.TrimSpace(scopeType))
+	scopeID = strings.TrimSpace(scopeID)
+	if scopeType == "" {
+		scopeType = "all"
 	}
-	if resourceType == "all" {
-		if resourceID != "" {
-			return "", "", invalidInputf("resource_id must be omitted when resource_type is all")
+	if scopeType == "all" {
+		if scopeID != "" {
+			return "", "", invalidInputf("scope_id must be omitted when scope_type is all")
 		}
-		return resourceType, resourceID, nil
+		return scopeType, scopeID, nil
 	}
-	if resourceType != "gateway" && resourceType != "route" && resourceType != "service" {
+	if scopeType != "gateway" && scopeType != "route" && scopeType != "service" {
 		return "", "", invalidInputf(
-			"unsupported resource_type %q; use all, gateway, route, or service",
-			resourceType,
+			"unsupported scope_type %q; use all, gateway, route, or service",
+			scopeType,
 		)
 	}
-	if resourceID == "" {
+	if scopeID == "" {
 		return "", "", invalidInputf(
-			"resource_id is required when resource_type is %s; call list_%ss first and retry with the returned id",
-			resourceType,
-			resourceType,
+			"scope_id is required when scope_type is %s; use the resource_id returned by analyze_traffic or list_%ss",
+			scopeType,
+			scopeType,
 		)
 	}
-	return resourceType, resourceID, nil
+	return scopeType, scopeID, nil
+}
+
+// observationTimeRange 统一观测工具的时间范围语义，使流量排名与失败样本能够复用同一组起止时间。
+// 显式时间范围使用 UTC 解析和传递，避免 Assistant 所在节点的时区改变查询结果。
+func observationTimeRange(hours int32, startValue, endValue string) (time.Time, time.Time, error) {
+	startValue = strings.TrimSpace(startValue)
+	endValue = strings.TrimSpace(endValue)
+	if startValue == "" && endValue == "" {
+		if hours < 0 || hours > maxObservationHours {
+			return time.Time{}, time.Time{}, invalidInputf(
+				"hours must be omitted or between 1 and %d",
+				maxObservationHours,
+			)
+		}
+		if hours == 0 {
+			hours = defaultObservationHours
+		}
+		endTime := time.Now().UTC()
+		return endTime.Add(-time.Duration(hours) * time.Hour), endTime, nil
+	}
+	if startValue == "" || endValue == "" {
+		return time.Time{}, time.Time{}, invalidInputf("start_time and end_time must be provided together")
+	}
+	if hours != 0 {
+		return time.Time{}, time.Time{}, invalidInputf(
+			"hours cannot be combined with start_time and end_time",
+		)
+	}
+
+	startTime, err := time.Parse(time.RFC3339, startValue)
+	if err != nil {
+		return time.Time{}, time.Time{}, invalidInputf("start_time must use RFC3339 format")
+	}
+	endTime, err := time.Parse(time.RFC3339, endValue)
+	if err != nil {
+		return time.Time{}, time.Time{}, invalidInputf("end_time must use RFC3339 format")
+	}
+	if !startTime.Before(endTime) {
+		return time.Time{}, time.Time{}, invalidInputf("start_time must be earlier than end_time")
+	}
+	if endTime.Sub(startTime) > maxObservationHours*time.Hour {
+		return time.Time{}, time.Time{}, invalidInputf(
+			"time range cannot exceed %d hours",
+			maxObservationHours,
+		)
+	}
+	return startTime, endTime, nil
 }
