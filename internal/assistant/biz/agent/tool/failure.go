@@ -167,3 +167,10 @@ func failureLimit(limit int32) int32 {
 	}
 	return min(limit, maxFailureLimit)
 }
+
+func observationHours(hours int32) int32 {
+	if hours <= 0 {
+		return defaultObservationHours
+	}
+	return min(hours, maxObservationHours)
+}

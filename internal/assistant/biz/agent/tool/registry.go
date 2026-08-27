@@ -6,7 +6,7 @@ const (
 	listGatewaysTool       = "list_gateways"
 	listRoutesTool         = "list_routes"
 	listServicesTool       = "list_services"
-	getRecentTrafficTool   = "get_recent_traffic"
+	analyzeTrafficTool     = "analyze_traffic"
 	listRecentFailuresTool = "list_recent_failures"
 	defaultListLimit       = 20
 	maxListLimit           = 50

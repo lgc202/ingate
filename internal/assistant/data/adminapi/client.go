@@ -8,7 +8,9 @@ import (
 
 	kratosgrpc "github.com/go-kratos/kratos/v3/transport/grpc"
 	googlegrpc "google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -155,29 +157,43 @@ func (c *Client) ListServices(ctx context.Context, query agenttool.ResourceListQ
 	}, nil
 }
 
-// GetTraffic 查询指定时间和资源范围内的聚合流量信号。
-func (c *Client) GetTraffic(ctx context.Context, query agenttool.TrafficQuery) (agenttool.TrafficMetrics, error) {
+// AnalyzeTraffic 查询指定时间和资源范围内的汇总指标与资源排名。
+func (c *Client) AnalyzeTraffic(
+	ctx context.Context,
+	query agenttool.TrafficQuery,
+) (agenttool.TrafficAnalysis, error) {
 	request := &adminv1.GetTrafficAnalysisRequest{
-		StartTime: timestamppb.New(query.StartTime),
-		EndTime:   timestamppb.New(query.EndTime),
+		StartTime:          timestamppb.New(query.StartTime),
+		EndTime:            timestamppb.New(query.EndTime),
+		BreakdownDimension: trafficDimension(query.GroupBy),
+		BreakdownLimit:     query.Limit,
+		BreakdownOrder:     trafficOrder(query.OrderBy),
 	}
-	applyTrafficScope(request, query.ResourceType, query.ResourceID)
+	applyTrafficScope(request, query.ScopeType, query.ScopeID)
 	result, err := c.traffic.GetTrafficAnalysis(ctx, request)
 	if err != nil {
-		return agenttool.TrafficMetrics{}, fmt.Errorf("get traffic analysis from Admin API: %w", err)
+		return agenttool.TrafficAnalysis{}, fmt.Errorf("get traffic analysis from Admin API: %w", err)
 	}
 
-	metrics := result.GetSummary()
-	return agenttool.TrafficMetrics{
-		RequestCount:     metrics.GetRequestCount(),
-		NonErrorCount:    metrics.GetNonErrorCount(),
-		ClientErrorCount: metrics.GetClientErrorCount(),
-		ServerErrorCount: metrics.GetServerErrorCount(),
-		NoResponseCount:  metrics.GetNoResponseCount(),
-		AverageDuration:  protoDuration(metrics.GetAverageDuration()),
-		P50Duration:      protoDuration(metrics.GetP50Duration()),
-		P95Duration:      protoDuration(metrics.GetP95Duration()),
-		P99Duration:      protoDuration(metrics.GetP99Duration()),
+	dimension := trafficDimensionFromAPI(result.GetBreakdownDimension())
+	items := make([]agenttool.ResourceTrafficMetrics, 0, len(result.GetBreakdown()))
+	for _, item := range result.GetBreakdown() {
+		name, err := c.trafficResourceName(ctx, dimension, item.GetResourceId())
+		if err != nil {
+			return agenttool.TrafficAnalysis{}, err
+		}
+		items = append(items, agenttool.ResourceTrafficMetrics{
+			ID:      item.GetResourceId(),
+			Name:    name,
+			Metrics: trafficMetrics(item.GetMetrics()),
+		})
+	}
+
+	return agenttool.TrafficAnalysis{
+		Summary: trafficMetrics(result.GetSummary()),
+		GroupBy: dimension,
+		OrderBy: trafficOrderFromAPI(result.GetBreakdownOrder()),
+		Items:   items,
 	}, nil
 }
 
@@ -326,6 +342,102 @@ func applyFailureScope(request *adminv1.ListRequestRecordsRequest, resourceType,
 		request.RouteId = resourceID
 	case "service":
 		request.ServiceId = resourceID
+	}
+}
+
+func trafficDimension(value agenttool.TrafficDimension) adminv1.TrafficBreakdownDimension {
+	switch value {
+	case agenttool.TrafficDimensionGateway:
+		return adminv1.TrafficBreakdownDimension_TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY
+	case agenttool.TrafficDimensionService:
+		return adminv1.TrafficBreakdownDimension_TRAFFIC_BREAKDOWN_DIMENSION_SERVICE
+	default:
+		return adminv1.TrafficBreakdownDimension_TRAFFIC_BREAKDOWN_DIMENSION_ROUTE
+	}
+}
+
+func trafficDimensionFromAPI(value adminv1.TrafficBreakdownDimension) agenttool.TrafficDimension {
+	switch value {
+	case adminv1.TrafficBreakdownDimension_TRAFFIC_BREAKDOWN_DIMENSION_GATEWAY:
+		return agenttool.TrafficDimensionGateway
+	case adminv1.TrafficBreakdownDimension_TRAFFIC_BREAKDOWN_DIMENSION_SERVICE:
+		return agenttool.TrafficDimensionService
+	default:
+		return agenttool.TrafficDimensionRoute
+	}
+}
+
+func trafficOrder(value agenttool.TrafficOrder) adminv1.TrafficBreakdownOrder {
+	switch value {
+	case agenttool.TrafficOrderServerErrorRate:
+		return adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE
+	case agenttool.TrafficOrderP95Duration:
+		return adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_P95_DURATION
+	default:
+		return adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_REQUEST_COUNT
+	}
+}
+
+func trafficOrderFromAPI(value adminv1.TrafficBreakdownOrder) agenttool.TrafficOrder {
+	switch value {
+	case adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_SERVER_ERROR_RATE:
+		return agenttool.TrafficOrderServerErrorRate
+	case adminv1.TrafficBreakdownOrder_TRAFFIC_BREAKDOWN_ORDER_P95_DURATION:
+		return agenttool.TrafficOrderP95Duration
+	default:
+		return agenttool.TrafficOrderRequestCount
+	}
+}
+
+// 排名结果必须包含用户可识别的名称，避免模型为解释 UUID 再发起一轮工具调用。
+// 已删除资源的历史流量仍可能出现在排名中，此时保留 ID 作为可追溯名称。
+func (c *Client) trafficResourceName(
+	ctx context.Context,
+	dimension agenttool.TrafficDimension,
+	resourceID string,
+) (string, error) {
+	switch dimension {
+	case agenttool.TrafficDimensionGateway:
+		gateway, err := c.gateways.GetGateway(ctx, &adminv1.GetGatewayRequest{Id: resourceID})
+		return trafficResourceNameResult(dimension, resourceID, gateway.GetName(), err)
+	case agenttool.TrafficDimensionService:
+		service, err := c.services.GetUpstream(ctx, &adminv1.GetUpstreamRequest{Id: resourceID})
+		return trafficResourceNameResult(dimension, resourceID, service.GetName(), err)
+	default:
+		route, err := c.routes.GetRoute(ctx, &adminv1.GetRouteRequest{Id: resourceID})
+		return trafficResourceNameResult(dimension, resourceID, route.GetName(), err)
+	}
+}
+
+func trafficResourceNameResult(
+	dimension agenttool.TrafficDimension,
+	resourceID string,
+	name string,
+	err error,
+) (string, error) {
+	if status.Code(err) == codes.NotFound {
+		return resourceID, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("get %s %s from Admin API: %w", dimension, resourceID, err)
+	}
+	if name == "" {
+		return resourceID, nil
+	}
+	return name, nil
+}
+
+func trafficMetrics(metrics *adminv1.TrafficMetrics) agenttool.TrafficMetrics {
+	return agenttool.TrafficMetrics{
+		RequestCount:     metrics.GetRequestCount(),
+		NonErrorCount:    metrics.GetNonErrorCount(),
+		ClientErrorCount: metrics.GetClientErrorCount(),
+		ServerErrorCount: metrics.GetServerErrorCount(),
+		NoResponseCount:  metrics.GetNoResponseCount(),
+		AverageDuration:  protoDuration(metrics.GetAverageDuration()),
+		P50Duration:      protoDuration(metrics.GetP50Duration()),
+		P95Duration:      protoDuration(metrics.GetP95Duration()),
+		P99Duration:      protoDuration(metrics.GetP99Duration()),
 	}
 }
 

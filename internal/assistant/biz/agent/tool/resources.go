@@ -75,12 +75,33 @@ type Service struct {
 	ModelProtocol string
 }
 
-// TrafficQuery 描述一次聚合流量查询的时间和资源范围。
+// TrafficDimension 是流量统计支持的资源分组维度。
+type TrafficDimension string
+
+const (
+	TrafficDimensionGateway TrafficDimension = "gateway"
+	TrafficDimensionRoute   TrafficDimension = "route"
+	TrafficDimensionService TrafficDimension = "service"
+)
+
+// TrafficOrder 是流量排名支持的排序依据。
+type TrafficOrder string
+
+const (
+	TrafficOrderRequestCount    TrafficOrder = "request_count"
+	TrafficOrderServerErrorRate TrafficOrder = "server_error_rate"
+	TrafficOrderP95Duration     TrafficOrder = "p95_duration"
+)
+
+// TrafficQuery 描述一次流量分析的时间、资源范围和排名方式。
 type TrafficQuery struct {
-	StartTime    time.Time
-	EndTime      time.Time
-	ResourceType string
-	ResourceID   string
+	StartTime time.Time
+	EndTime   time.Time
+	ScopeType string
+	ScopeID   string
+	GroupBy   TrafficDimension
+	OrderBy   TrafficOrder
+	Limit     uint32
 }
 
 // TrafficMetrics 是运维 Agent 可解释的请求量、错误和耗时摘要。
@@ -94,6 +115,21 @@ type TrafficMetrics struct {
 	P50Duration      time.Duration
 	P95Duration      time.Duration
 	P99Duration      time.Duration
+}
+
+// ResourceTrafficMetrics 是排名中一个资源的名称和流量指标。
+type ResourceTrafficMetrics struct {
+	ID      string
+	Name    string
+	Metrics TrafficMetrics
+}
+
+// TrafficAnalysis 是一次查询的汇总指标和资源排名。
+type TrafficAnalysis struct {
+	Summary TrafficMetrics
+	GroupBy TrafficDimension
+	OrderBy TrafficOrder
+	Items   []ResourceTrafficMetrics
 }
 
 // FailureOutcome 是失败请求工具支持的结果分类。
@@ -147,9 +183,9 @@ type ServiceReader interface {
 	ListServices(ctx context.Context, query ResourceListQuery) (ServicePage, error)
 }
 
-// TrafficReader 是聚合流量工具所需的查询边界。
+// TrafficReader 是流量分析工具所需的查询边界。
 type TrafficReader interface {
-	GetTraffic(ctx context.Context, query TrafficQuery) (TrafficMetrics, error)
+	AnalyzeTraffic(ctx context.Context, query TrafficQuery) (TrafficAnalysis, error)
 }
 
 // FailureReader 是失败请求工具所需的查询边界。
