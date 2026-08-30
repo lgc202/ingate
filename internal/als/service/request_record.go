@@ -19,6 +19,7 @@ import (
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	"github.com/lgc202/ingate/internal/pkg/extauthz"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 const (
@@ -42,7 +43,18 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 		return nil, fmt.Errorf("HTTP access log start time: %w", err)
 	}
 
-	gatewayID, routeID := resourceIDs(common.GetRouteName())
+	gatewayID, routeID, err := resourceIDs(common.GetRouteName())
+	if err != nil {
+		return nil, err
+	}
+	requestBytes, err := addByteCounts(request.GetRequestHeadersBytes(), request.GetRequestBodyBytes())
+	if err != nil {
+		return nil, fmt.Errorf("HTTP access log request size: %w", err)
+	}
+	responseBytes, err := addByteCounts(response.GetResponseHeadersBytes(), response.GetResponseBodyBytes())
+	if err != nil {
+		return nil, fmt.Errorf("HTTP access log response size: %w", err)
+	}
 	aiMetadata := metadataFields(common.GetMetadata(), aiprotocol.MetadataNamespace)
 	authzMetadata := metadataFields(common.GetMetadata(), extauthz.MetadataNamespace)
 	host := aiMetadata[aiprotocol.ClientHostField].GetStringValue()
@@ -62,8 +74,8 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 		Host:                requestHost(host),
 		Path:                requestPath(path),
 		StatusCode:          response.GetResponseCode().GetValue(),
-		RequestBytes:        request.GetRequestHeadersBytes() + request.GetRequestBodyBytes(),
-		ResponseBytes:       response.GetResponseHeadersBytes() + response.GetResponseBodyBytes(),
+		RequestBytes:        requestBytes,
+		ResponseBytes:       responseBytes,
 		GatewayId:           gatewayID,
 		RouteId:             routeID,
 		UpstreamId:          common.GetUpstreamCluster(),
@@ -95,6 +107,9 @@ func parseRequestRecord(nodeID string, entry *accesslogdata.HTTPAccessLogEntry) 
 		return nil, errors.New("HTTP access log time to first byte exceeds request duration")
 	}
 	record.TimeToFirstByte = timeToFirstByte
+	if err := requestrecord.Validate(record); err != nil {
+		return nil, fmt.Errorf("HTTP access log entry: %w", err)
+	}
 	if proto.Size(record) > requestrecord.MaxEncodedBytes {
 		return nil, errors.New("HTTP access log entry exceeds the request record size limit")
 	}
@@ -172,13 +187,25 @@ func httpProtocol(version accesslogdata.HTTPAccessLogEntry_HTTPVersion) string {
 	}
 }
 
-func resourceIDs(routeName string) (string, string) {
+func resourceIDs(routeName string) (string, string, error) {
 	// Controller 生成的 Route 名称格式为 ingate-route/<gateway-id>/<route-id>[/<method>][/<variant>]。
 	parts := strings.Split(routeName, "/")
-	if len(parts) < 3 || parts[0] != envoyRouteNamePrefix {
-		return "", ""
+	if len(parts) == 0 || parts[0] != envoyRouteNamePrefix {
+		return "", "", nil
 	}
-	return parts[1], parts[2]
+	if len(parts) < 3 ||
+		!resourceconfig.IsCanonicalID(parts[1]) ||
+		!resourceconfig.IsCanonicalID(parts[2]) {
+		return "", "", errors.New("HTTP access log route identity is invalid")
+	}
+	return parts[1], parts[2], nil
+}
+
+func addByteCounts(left, right uint64) (uint64, error) {
+	if right > math.MaxUint64-left {
+		return 0, errors.New("byte count exceeds uint64")
+	}
+	return left + right, nil
 }
 
 func requestPath(value string) string {

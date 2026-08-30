@@ -29,7 +29,7 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_Kafka
 		return nil, nil, err
 	}
 	recorder := request.NewRecorder(store)
-	requestConsumer, err := server.NewRequestConsumer(data_Kafka, recorder, logger)
+	requestConsumer, cleanup2, err := server.NewRequestConsumer(data_Kafka, recorder, logger)
 	if err != nil {
 		cleanup()
 		return nil, nil, err
@@ -43,11 +43,13 @@ func wireApp(contextContext context.Context, confServer *conf.Server, data_Kafka
 	trafficService := traffic2.NewService(trafficQuery)
 	grpcServer, err := server.NewGRPCServer(confServer, service, requestService, trafficService)
 	if err != nil {
+		cleanup2()
 		cleanup()
 		return nil, nil, err
 	}
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, requestConsumer, analyticsServiceInstanceID)
 	return app, func() {
+		cleanup2()
 		cleanup()
 	}, nil
 }

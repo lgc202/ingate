@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"math"
 	"sync"
 	"sync/atomic"
 
@@ -16,12 +15,14 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
 // ModelAPIKeySource 提供当前已同步的模型 Service API Key。
 // 接口位于消费方，具体的数据同步方式不会进入请求处理流程。
 type ModelAPIKeySource interface {
-	APIKey(serviceID string) (string, error)
+	APIKey(serviceID string, protocol aiprotocol.UpstreamProtocol) (string, error)
 }
 
 // ExternalProcessor 接收 Envoy 发来的 downstream 和 upstream External Processing 流
@@ -29,12 +30,12 @@ type ModelAPIKeySource interface {
 type ExternalProcessor struct {
 	extprocv3.UnimplementedExternalProcessorServer
 
-	mu       sync.RWMutex
-	requests map[string]*requestState
-	apiKeys  ModelAPIKeySource
-	quotas   *tokenquota.Limiter
-	logger   *slog.Logger
-	counters processorCounters
+	mu           sync.RWMutex
+	requestsByID map[string]*requestState
+	apiKeySource ModelAPIKeySource
+	quotaLimiter *tokenquota.Limiter
+	logger       *slog.Logger
+	counters     processorCounters
 }
 
 type processorCounters struct {
@@ -51,15 +52,15 @@ type Counters struct {
 
 // NewExternalProcessor 创建 External Processing 服务。
 func NewExternalProcessor(
-	apiKeys ModelAPIKeySource,
-	quotas *tokenquota.Limiter,
+	apiKeySource ModelAPIKeySource,
+	quotaLimiter *tokenquota.Limiter,
 	logger *slog.Logger,
 ) *ExternalProcessor {
 	return &ExternalProcessor{
-		requests: make(map[string]*requestState),
-		apiKeys:  apiKeys,
-		quotas:   quotas,
-		logger:   logger,
+		requestsByID: make(map[string]*requestState),
+		apiKeySource: apiKeySource,
+		quotaLimiter: quotaLimiter,
+		logger:       logger,
 	}
 }
 
@@ -102,7 +103,7 @@ func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessSe
 // Counters 返回 ExtProc 流量和等待 upstream 关联的请求数。
 func (p *ExternalProcessor) Counters() Counters {
 	p.mu.RLock()
-	active := len(p.requests)
+	active := len(p.requestsByID)
 	p.mu.RUnlock()
 	return Counters{
 		Streams:            p.counters.streams.Load(),
@@ -114,34 +115,39 @@ func (p *ExternalProcessor) Counters() Counters {
 func (p *ExternalProcessor) registerRequest(identity callerIdentity) (string, *requestState) {
 	// 关联 ID 由服务端生成并覆盖同名客户端 Header，避免不同请求串用共享状态
 	id := uuid.NewString()
-	request := &requestState{identity: identity}
+	state := &requestState{identity: identity}
 	p.mu.Lock()
-	p.requests[id] = request
+	p.requestsByID[id] = state
 	p.mu.Unlock()
-	return id, request
+	return id, state
 }
 
 func (p *ExternalProcessor) settleQuota(ctx context.Context, request *requestState, tokens uint64) {
+	// Redis 使用有符号整数，Envoy 元数据使用 double。超出共同精确范围的厂商用量
+	// 不能用于结算，也不能先消费 Session 而阻止后续有效的最终用量。
+	if tokens > uint64(tokenquotaconfig.MaxTokensPerPeriod) {
+		p.logger.ErrorContext(
+			ctx,
+			"settle token quota",
+			"err",
+			fmt.Errorf("provider token usage %d exceeds the supported range", tokens),
+		)
+		return
+	}
 	session := request.takeQuotaSession()
 	if session == nil {
 		return
 	}
-	// Redis 使用有符号整数计数。厂商返回值超过 int64 不可能是有效的单次模型用量，
-	// 必须在外部协议边界拒绝转换，避免溢出后反向扣减额度。
-	if tokens > math.MaxInt64 {
-		p.logger.Error("settle token quota", "err", fmt.Errorf("provider token usage %d exceeds int64", tokens))
-		return
-	}
 	// 厂商已经产生实际费用；客户端断开不能撤销结算。Counter 仍会施加自己的操作超时。
-	if err := p.quotas.Charge(context.WithoutCancel(ctx), session, int64(tokens)); err != nil {
+	if err := p.quotaLimiter.Charge(context.WithoutCancel(ctx), session, int64(tokens)); err != nil {
 		// 模型请求已经产生实际费用；此时改写成功响应会诱发客户端重试并造成重复消费
-		p.logger.Error("settle token quota", "err", err)
+		p.logger.ErrorContext(ctx, "settle token quota", "err", err)
 	}
 }
 
 func (p *ExternalProcessor) findRequest(id string) (*requestState, bool) {
 	p.mu.RLock()
-	request, ok := p.requests[id]
+	request, ok := p.requestsByID[id]
 	p.mu.RUnlock()
 	return request, ok
 }
@@ -149,7 +155,7 @@ func (p *ExternalProcessor) findRequest(id string) (*requestState, bool) {
 func (p *ExternalProcessor) deleteRequest(id string) {
 	// downstream 流覆盖完整请求生命周期，它结束后不会再产生新的 upstream 尝试
 	p.mu.Lock()
-	delete(p.requests, id)
+	delete(p.requestsByID, id)
 	p.mu.Unlock()
 }
 

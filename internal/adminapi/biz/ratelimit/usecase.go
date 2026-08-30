@@ -4,8 +4,6 @@ package ratelimit
 import (
 	"context"
 
-	"github.com/google/uuid"
-
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
@@ -27,34 +25,24 @@ type Store interface {
 	Delete(ctx context.Context, observed *resource.RateLimitPolicy) error
 }
 
-// PolicyPage 保存一页请求限流策略及其目标展示名称。
-type PolicyPage struct {
-	Items       []resource.RateLimitPolicy
-	TargetNames biz.PolicyTargetNames
-	NextCursor  string
-}
-
-// PolicyView 保存单条请求限流策略及其目标展示名称。
-type PolicyView struct {
-	Policy      *resource.RateLimitPolicy
-	TargetNames biz.PolicyTargetNames
-}
-
-// Usecase 协调请求限流策略的目标校验和持久化。
+// Usecase 提供请求限流策略管理能力。
 type Usecase struct {
-	store   Store
-	targets *biz.PolicyTargetResolver
+	policies *biz.PolicyUsecase[resource.RateLimitPolicy, resource.RateLimitPolicySpec]
 }
 
 // NewUsecase 创建请求限流策略用例。
 func NewUsecase(
 	store Store,
-	gateways biz.GatewayLister,
-	routes biz.RouteLister,
+	gateways biz.GatewayReader,
+	routes biz.RouteReader,
 ) *Usecase {
 	return &Usecase{
-		store:   store,
-		targets: biz.NewPolicyTargetResolver(gateways, routes),
+		policies: biz.NewPolicyUsecase(
+			store,
+			biz.NewPolicyTargetResolver(gateways, routes),
+			policyAttributes,
+			policyTargetRefs,
+		),
 	}
 }
 
@@ -63,65 +51,24 @@ func (uc *Usecase) List(
 	ctx context.Context,
 	page biz.PageRequest,
 	filter biz.ResourceFilter,
-) (PolicyPage, error) {
-	result, err := biz.FilterPage(
-		ctx,
-		page,
-		uc.store.ListPage,
-		func(policy resource.RateLimitPolicy) bool {
-			status := biz.PolicyStatus(
-				policy.Generation,
-				policy.Spec.Enabled,
-				len(policy.Spec.TargetRefs),
-				policy.Status.Conditions,
-			)
-			return filter.Match(policy.Spec.DisplayName, policy.Spec.Enabled, status)
-		},
-	)
-	if err != nil {
-		return PolicyPage{}, err
-	}
-
-	targetNames, err := uc.targets.DisplayNames(ctx, collectTargetRefs(result.Items))
-	if err != nil {
-		return PolicyPage{}, err
-	}
-	return PolicyPage{
-		Items:       result.Items,
-		TargetNames: targetNames,
-		NextCursor:  result.NextCursor,
-	}, nil
+) (biz.PolicyPage[resource.RateLimitPolicy], error) {
+	return uc.policies.List(ctx, page, filter)
 }
 
 // Get 返回指定请求限流策略。
-func (uc *Usecase) Get(ctx context.Context, policyID string) (PolicyView, error) {
-	policy, err := uc.store.Get(ctx, policyID)
-	if err != nil {
-		return PolicyView{}, err
-	}
-	targetNames, err := uc.targets.DisplayNames(ctx, policy.Spec.TargetRefs)
-	if err != nil {
-		return PolicyView{}, err
-	}
-	return PolicyView{Policy: policy, TargetNames: targetNames}, nil
+func (uc *Usecase) Get(
+	ctx context.Context,
+	policyID string,
+) (biz.PolicyView[resource.RateLimitPolicy], error) {
+	return uc.policies.Get(ctx, policyID)
 }
 
 // Create 创建请求限流策略。
 func (uc *Usecase) Create(
 	ctx context.Context,
 	spec resource.RateLimitPolicySpec,
-) (PolicyView, error) {
-	targetNames, err := uc.targets.Resolve(ctx, spec.TargetRefs)
-	if err != nil {
-		return PolicyView{}, err
-	}
-
-	policyID := uuid.NewString()
-	policy, err := uc.store.Create(ctx, policyID, spec)
-	if err != nil {
-		return PolicyView{}, err
-	}
-	return PolicyView{Policy: policy, TargetNames: targetNames}, nil
+) (biz.PolicyView[resource.RateLimitPolicy], error) {
+	return uc.policies.Create(ctx, spec)
 }
 
 // Replace 使用配置版本完整替换请求限流策略。
@@ -130,48 +77,34 @@ func (uc *Usecase) Replace(
 	policyID string,
 	expectedGeneration int64,
 	spec resource.RateLimitPolicySpec,
-) (PolicyView, error) {
-	current, err := uc.store.Get(ctx, policyID)
-	if err != nil {
-		return PolicyView{}, err
-	}
-
-	if current.Generation != expectedGeneration {
-		return PolicyView{}, biz.ErrResourceVersionConflict
-	}
-	targetNames, err := uc.targets.Resolve(ctx, spec.TargetRefs)
-	if err != nil {
-		return PolicyView{}, err
-	}
-
-	policy, err := uc.store.ReplaceSpec(ctx, current, spec)
-	if err != nil {
-		return PolicyView{}, err
-	}
-	return PolicyView{Policy: policy, TargetNames: targetNames}, nil
+) (biz.PolicyView[resource.RateLimitPolicy], error) {
+	return uc.policies.Replace(ctx, policyID, expectedGeneration, spec)
 }
 
-// Delete 删除请求限流策略。
-func (uc *Usecase) Delete(ctx context.Context, policyID string, expectedGeneration int64) error {
-	current, err := uc.store.Get(ctx, policyID)
-	if err != nil {
-		return err
-	}
-	if current.Generation != expectedGeneration {
-		return biz.ErrResourceVersionConflict
-	}
-	return uc.store.Delete(ctx, current)
+// Delete 使用配置版本删除请求限流策略。
+func (uc *Usecase) Delete(
+	ctx context.Context,
+	policyID string,
+	expectedGeneration int64,
+) error {
+	return uc.policies.Delete(ctx, policyID, expectedGeneration)
 }
 
-func collectTargetRefs(policies []resource.RateLimitPolicy) []resource.PolicyTargetRef {
-	targetCount := 0
-	for i := range policies {
-		targetCount += len(policies[i].Spec.TargetRefs)
+func policyAttributes(policy *resource.RateLimitPolicy) biz.PolicyAttributes {
+	return biz.PolicyAttributes{
+		Generation:  policy.Generation,
+		DisplayName: policy.Spec.DisplayName,
+		Enabled:     policy.Spec.Enabled,
+		TargetRefs:  policy.Spec.TargetRefs,
+		Status: biz.PolicyStatus(
+			policy.Generation,
+			policy.Spec.Enabled,
+			len(policy.Spec.TargetRefs),
+			policy.Status.Conditions,
+		),
 	}
+}
 
-	refs := make([]resource.PolicyTargetRef, 0, targetCount)
-	for i := range policies {
-		refs = append(refs, policies[i].Spec.TargetRefs...)
-	}
-	return refs
+func policyTargetRefs(spec resource.RateLimitPolicySpec) []resource.PolicyTargetRef {
+	return spec.TargetRefs
 }

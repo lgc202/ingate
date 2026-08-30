@@ -164,10 +164,16 @@ func (s *Service) ListMessages(
 
 func mapError(err error) error {
 	switch {
+	case errors.Is(err, context.Canceled):
+		return kerrors.ClientClosed("REQUEST_CANCELLED", "request cancelled").WithCause(err)
+	case errors.Is(err, context.DeadlineExceeded):
+		return kerrors.GatewayTimeout("REQUEST_TIMEOUT", "request timed out").WithCause(err)
 	case errors.Is(err, conversationbiz.ErrInvalidTitle):
 		return invalidArgument("conversation title is required")
 	case errors.Is(err, conversationbiz.ErrNotFound):
 		return kerrors.NotFound("RESOURCE_NOT_FOUND", "resource not found")
+	case errors.Is(err, conversationbiz.ErrActiveExecution):
+		return kerrors.Conflict("RESOURCE_CONFLICT", "resource state changed")
 	default:
 		return kerrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
 	}

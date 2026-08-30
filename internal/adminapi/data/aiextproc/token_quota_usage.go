@@ -5,19 +5,24 @@ import (
 	"fmt"
 
 	"github.com/go-kratos/kratos/v3/errors"
-	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	aiextprocv1 "github.com/lgc202/ingate/api/aiextproc/v1"
 	tokenquotabiz "github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
 // TokenQuotaUsageReader 从 AI ExtProc 读取实时额度计数。
 type TokenQuotaUsageReader struct {
 	client aiextprocv1.TokenQuotaUsageServiceClient
+}
+
+type tokenQuotaUsageKey struct {
+	policyID string
+	period   tokenquotabiz.Period
 }
 
 // NewTokenQuotaUsageReader 创建实时额度读取器。
@@ -48,25 +53,35 @@ func (r *TokenQuotaUsageReader) Current(ctx context.Context, callerID string) ([
 		return nil, fmt.Errorf("AI ExtProc returned an empty token quota response for caller %q", callerID)
 	}
 	items := response.GetUsages()
+	if len(items) > tokenquotaconfig.MaxPoliciesPerCaller*tokenquotaconfig.MaxLimits {
+		return nil, fmt.Errorf("AI ExtProc returned too many token quota usages for caller %q", callerID)
+	}
 	usages := make([]tokenquotabiz.Usage, len(items))
-	seen := make(map[string]bool, len(items))
+	seen := make(map[tokenQuotaUsageKey]bool, len(items))
 	for i, usage := range items {
 		if usage == nil {
 			return nil, fmt.Errorf("AI ExtProc returned an empty token quota usage at index %d", i)
 		}
 		policyID := usage.GetPolicyId()
-		parsedPolicyID, err := uuid.Parse(policyID)
-		if err != nil || parsedPolicyID.String() != policyID {
+		if !resourceconfig.IsCanonicalID(policyID) {
 			return nil, fmt.Errorf("AI ExtProc returned an invalid policy ID at index %d", i)
 		}
-		if seen[policyID] {
-			return nil, fmt.Errorf("AI ExtProc returned duplicate usage for policy %q", policyID)
+		if !resourceconfig.IsValidDisplayName(usage.GetPolicyName()) {
+			return nil, fmt.Errorf("AI ExtProc returned an invalid policy name at index %d", i)
 		}
-		seen[policyID] = true
 		period, err := tokenQuotaPeriod(usage.GetPeriod())
 		if err != nil {
 			return nil, fmt.Errorf("AI ExtProc returned an invalid period at index %d: %w", i, err)
 		}
+		key := tokenQuotaUsageKey{policyID: policyID, period: period}
+		if seen[key] {
+			return nil, fmt.Errorf(
+				"AI ExtProc returned duplicate usage for policy %q and period %q",
+				policyID,
+				period,
+			)
+		}
+		seen[key] = true
 		usedTokens := usage.GetUsedTokens()
 		if usedTokens < 0 {
 			return nil, fmt.Errorf("AI ExtProc returned negative token usage at index %d", i)

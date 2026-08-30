@@ -131,7 +131,7 @@ func parseModel(config *adminv1.ModelUpstreamInput) (*resource.ModelUpstream, bo
 	if apiKey == "" || !upstreamconfig.IsValidModelAPIKey(apiKey) {
 		return nil, false, errors.BadRequest(
 			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
-			"API Key 不能为空、包含首尾空格或超过长度限制",
+			"API Key 不能为空、包含无效字符或超过长度限制",
 		)
 	}
 	model.APIKey = apiKey

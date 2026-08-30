@@ -20,12 +20,12 @@ type responseState struct {
 	wroteHeader bool
 }
 
-func (w *responseState) WriteHeader(status int) {
+func (w *responseState) WriteHeader(statusCode int) {
 	if w.wroteHeader {
 		return
 	}
 	w.wroteHeader = true
-	w.ResponseWriter.WriteHeader(status)
+	w.ResponseWriter.WriteHeader(statusCode)
 }
 
 func (w *responseState) Write(data []byte) (int, error) {

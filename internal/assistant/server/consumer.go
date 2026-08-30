@@ -118,7 +118,7 @@ func (c *ExecutionConsumer) serveSlot(ctx context.Context, workerID string, slot
 			return
 		}
 		if err != nil {
-			c.logger.Error("assistant execution failed", "slot", slot, "err", err)
+			c.logger.ErrorContext(ctx, "assistant execution failed", "slot", slot, "err", err)
 			if !wait(ctx, executionErrorDelay) {
 				return
 			}
@@ -141,14 +141,14 @@ func (c *ExecutionConsumer) recoverExpiredExecutions(ctx context.Context) {
 			return
 		}
 		if err != nil {
-			c.logger.Error("recover expired assistant executions failed", "err", err)
+			c.logger.ErrorContext(ctx, "recover expired assistant executions failed", "err", err)
 			if !wait(ctx, executionErrorDelay) {
 				return
 			}
 			continue
 		}
 		if count > 0 {
-			c.logger.Warn("expired assistant executions marked as failed", "count", count)
+			c.logger.WarnContext(ctx, "expired assistant executions marked as failed", "count", count)
 		}
 		if !wait(ctx, c.leaseDuration) {
 			return

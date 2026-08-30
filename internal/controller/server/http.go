@@ -84,8 +84,8 @@ func ready(configDelivery *delivery.Delivery) http.HandlerFunc {
 	}
 }
 
-func writeJSON(response http.ResponseWriter, status int, value any) {
+func writeJSON(response http.ResponseWriter, statusCode int, value any) {
 	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
+	response.WriteHeader(statusCode)
 	_ = json.NewEncoder(response).Encode(value)
 }

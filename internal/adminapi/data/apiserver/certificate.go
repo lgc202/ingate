@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -43,6 +41,14 @@ func (s *CertificateStore) Get(ctx context.Context, certificateID string) (*reso
 	return certificate, resourceError("get", "certificate", certificateID, err)
 }
 
+// ListByIDs 返回当前存在的指定 Certificate。
+func (s *CertificateStore) ListByIDs(
+	ctx context.Context,
+	certificateIDs []string,
+) (map[string]*resource.Certificate, error) {
+	return listByIDs(ctx, certificateIDs, s.Get)
+}
+
 // Create 创建 Certificate。
 func (s *CertificateStore) Create(
 	ctx context.Context,
@@ -62,35 +68,29 @@ func (s *CertificateStore) Create(
 }
 
 // ReplaceSpec 完整替换 Certificate 配置。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *CertificateStore) ReplaceSpec(
 	ctx context.Context,
 	observed *resource.Certificate,
 	spec resource.CertificateSpec,
 ) (*resource.Certificate, error) {
-	certificateID := observed.Name
-	updated, err := updateResource(
+	return replaceResourceSpec(
 		ctx,
 		s.client.GatewayV1().Certificates(),
+		"certificate",
 		observed,
 		func(certificate *resource.Certificate) { certificate.Spec = spec },
 	)
-	if apierrors.IsConflict(err) {
-		return nil, fmt.Errorf("replace certificate %q after conflict retries: %w", certificateID, err)
-	}
-	return updated, resourceError("replace", "certificate", certificateID, err)
 }
 
 // Delete 删除 Certificate。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *CertificateStore) Delete(
 	ctx context.Context,
 	observed *resource.Certificate,
 ) error {
-	certificateID := observed.Name
-	err := deleteResource(ctx, s.client.GatewayV1().Certificates(), observed)
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf("delete certificate %q after conflict retries: %w", certificateID, err)
-	}
-	return resourceError("delete", "certificate", certificateID, err)
+	return deleteResource(
+		ctx,
+		s.client.GatewayV1().Certificates(),
+		"certificate",
+		observed,
+	)
 }

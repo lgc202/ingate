@@ -68,12 +68,12 @@ func (s *streamState) handleDownstreamBody(body *extprocv3.HttpBody) (*extprocv3
 	s.request.setRequest(body.GetBody(), metadata)
 	callerID := s.request.callerID()
 	if callerID != "" {
-		session, exceeded, err := s.processor.quotas.Begin(s.ctx, callerID, time.Now())
+		session, rejection, err := s.processor.quotaLimiter.Begin(s.ctx, callerID, time.Now())
 		if err != nil {
 			return nil, err
 		}
-		if exceeded != nil {
-			return s.quotaExceededResponse(exceeded), nil
+		if rejection != nil {
+			return s.quotaExceededResponse(rejection), nil
 		}
 		s.request.setQuotaSession(session)
 	}

@@ -29,8 +29,8 @@ func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_
 	rateCounter := redis.NewRateCounter(data_Redis)
 	readiness := data.NewReadiness(credentialCache, rateCounter)
 	authorizer := biz.NewAuthorizer(credentialCache)
-	ratelimitService := ratelimit.NewService(rateCounter)
-	authorizationService := service.NewAuthorizationService(authorizer, ratelimitService, logger)
+	limiter := ratelimit.NewLimiter(rateCounter)
+	authorizationService := service.NewAuthorizationService(authorizer, limiter, logger)
 	httpServer := server.NewHTTPServer(confServer, readiness, authorizationService)
 	grpcServer, err := server.NewGRPCServer(confServer, authorizationService)
 	if err != nil {

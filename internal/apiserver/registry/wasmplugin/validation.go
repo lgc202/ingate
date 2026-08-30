@@ -1,6 +1,8 @@
 package wasmplugin
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"strings"
 
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
@@ -70,14 +72,20 @@ func validatePlugin(plugin *resource.WasmPlugin) field.ErrorList {
 		errs = append(errs, field.Invalid(
 			specPath.Child("sha256"),
 			spec.SHA256,
-			"sha256 must contain 64 lowercase hexadecimal characters",
+			fmt.Sprintf(
+				"sha256 must contain %d lowercase hexadecimal characters",
+				sha256.Size*2,
+			),
 		))
 	}
 	if !wasmconfig.IsValidRootID(spec.RootID) {
 		errs = append(errs, field.Invalid(
 			specPath.Child("rootID"),
 			spec.RootID,
-			"rootID must not exceed 256 bytes or contain control characters",
+			fmt.Sprintf(
+				"rootID must not exceed %d bytes or contain control characters",
+				wasmconfig.MaxRootIDBytes,
+			),
 		))
 	}
 	switch spec.PullPolicy {

@@ -14,13 +14,18 @@ import (
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 )
 
-func (s *streamState) quotaExceededResponse(exceeded *tokenquota.Exceeded) *extprocv3.ProcessingResponse {
+func (s *streamState) quotaExceededResponse(rejection *tokenquota.Rejection) *extprocv3.ProcessingResponse {
 	body, _ := json.Marshal(openAIErrorBody{Error: openAIError{
-		Message: quotaExceededMessage(exceeded.Period),
+		Message: quotaExceededMessage(rejection.Period),
 		Type:    "rate_limit_error",
 		Code:    "token_quota_exceeded",
 	}})
-	retryAfter := max(int64(time.Until(exceeded.ResetAt).Seconds()), 1)
+	retryAfter := time.Until(rejection.ResetAt)
+	retryAfterSeconds := int64(retryAfter / time.Second)
+	if retryAfter%time.Second != 0 {
+		retryAfterSeconds++
+	}
+	retryAfterSeconds = max(retryAfterSeconds, 1)
 	return &extprocv3.ProcessingResponse{
 		Response: &extprocv3.ProcessingResponse_ImmediateResponse{
 			ImmediateResponse: &extprocv3.ImmediateResponse{
@@ -28,7 +33,7 @@ func (s *streamState) quotaExceededResponse(exceeded *tokenquota.Exceeded) *extp
 				Headers: &extprocv3.HeaderMutation{SetHeaders: []*corev3.HeaderValueOption{
 					setHeader("content-type", "application/json"),
 					setHeader("content-length", strconv.Itoa(len(body))),
-					setHeader("retry-after", strconv.FormatInt(retryAfter, 10)),
+					setHeader("retry-after", strconv.FormatInt(retryAfterSeconds, 10)),
 				}},
 				Body:       body,
 				GrpcStatus: &extprocv3.GrpcStatus{Status: uint32(codes.ResourceExhausted)},

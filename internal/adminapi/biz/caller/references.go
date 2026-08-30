@@ -14,16 +14,17 @@ import (
 // checkAuthorizedRoutes 预检 Caller 授权的 Route 是否存在且要求调用方身份。
 // 最终鉴权行为仍由 Authz 根据当前已同步的 Caller 资源执行。
 func (uc *Usecase) checkAuthorizedRoutes(ctx context.Context, routeIDs []string) error {
+	routes, err := uc.routes.ListByIDs(ctx, routeIDs)
+	if err != nil {
+		return err
+	}
 	for _, routeID := range routeIDs {
-		route, err := uc.routes.Get(ctx, routeID)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return errors.Conflict(
-					adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-					fmt.Sprintf("授权路由 %q 不存在", routeID),
-				).WithCause(err)
-			}
-			return err
+		route := routes[routeID]
+		if route == nil {
+			return errors.Conflict(
+				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
+				fmt.Sprintf("授权路由 %q 不存在", routeID),
+			)
 		}
 		if route.Spec.AccessMode != resource.RouteAccessCaller {
 			return errors.Conflict(

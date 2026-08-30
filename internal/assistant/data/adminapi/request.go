@@ -12,6 +12,7 @@ import (
 	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
 	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 // ListFailures 查询排障所需的失败请求元数据，不读取请求内容和凭据。
@@ -206,6 +207,12 @@ func validateFailureResponse(
 		!validOptionalResourceID(record.GetServiceId()) {
 		return fmt.Errorf("request record %s contains an invalid resource reference", record.GetId())
 	}
+	if (record.GetGatewayId() == "") != (record.GetRouteId() == "") {
+		return fmt.Errorf("request record %s contains incomplete route identity", record.GetId())
+	}
+	if !failureMatchesScope(record, query) {
+		return fmt.Errorf("request record %s falls outside the requested resource scope", record.GetId())
+	}
 	return nil
 }
 
@@ -232,10 +239,68 @@ func validateRequestRecordResponse(
 		!validOptionalResourceID(record.GetCallerId()) {
 		return fmt.Errorf("request record %s contains an invalid resource reference", recordID)
 	}
-	if call := record.GetAiModelCall(); call != nil &&
-		call.GetProtocol() != adminv1.ModelProtocol_MODEL_PROTOCOL_OPENAI &&
-		call.GetProtocol() != adminv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC {
-		return fmt.Errorf("request record %s contains an invalid model protocol", recordID)
+	if (record.GetGatewayId() == "") != (record.GetRouteId() == "") {
+		return fmt.Errorf("request record %s contains incomplete route identity", recordID)
+	}
+	statusCode := record.GetStatusCode()
+	if statusCode > 65_535 || statusCode > 0 && statusCode < 100 ||
+		record.GetUpstreamAttempts() > 65_535 {
+		return fmt.Errorf("request record %s contains invalid HTTP result metadata", recordID)
+	}
+	if reason := record.GetRejectionReason(); reason !=
+		adminv1.RequestRejectionReason_REQUEST_REJECTION_REASON_UNSPECIFIED &&
+		reason != adminv1.RequestRejectionReason_REQUEST_REJECTION_REASON_TOKEN_QUOTA_EXCEEDED {
+		return fmt.Errorf("request record %s contains an invalid rejection reason", recordID)
+	}
+	if err := validateAIModelCallResponse(record.GetAiModelCall(), record.GetServiceId()); err != nil {
+		return fmt.Errorf("request record %s: %w", recordID, err)
+	}
+	return nil
+}
+
+func failureMatchesScope(record *adminv1.RequestRecordSummary, query agenttool.FailureQuery) bool {
+	switch query.ScopeType {
+	case "gateway":
+		return record.GetGatewayId() == query.ScopeID
+	case "route":
+		return record.GetRouteId() == query.ScopeID
+	case "service":
+		return record.GetServiceId() == query.ScopeID
+	default:
+		return true
+	}
+}
+
+func validateAIModelCallResponse(call *adminv1.AIModelCall, serviceID string) error {
+	if call == nil {
+		return nil
+	}
+	if !routeconfig.IsValidModelName(call.GetClientModel()) {
+		return errors.New("AI client model is invalid")
+	}
+	for _, model := range []string{call.GetUpstreamModel(), call.GetResponseModel()} {
+		if model != "" && !routeconfig.IsValidModelName(model) {
+			return errors.New("AI model name is invalid")
+		}
+	}
+	protocol := call.GetProtocol()
+	if protocol != adminv1.ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED &&
+		protocol != adminv1.ModelProtocol_MODEL_PROTOCOL_OPENAI &&
+		protocol != adminv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC {
+		return errors.New("AI model protocol is invalid")
+	}
+	hasUpstreamResult := call.GetUpstreamModel() != "" ||
+		protocol != adminv1.ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED ||
+		call.GetResponseModel() != "" || call.GetFinishReason() != "" ||
+		call.InputTokens != nil || call.OutputTokens != nil || call.TotalTokens != nil
+	if hasUpstreamResult && (serviceID == "" || call.GetUpstreamModel() == "" ||
+		protocol == adminv1.ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED) {
+		return errors.New("AI upstream identity is incomplete")
+	}
+	if call.TotalTokens != nil &&
+		(call.InputTokens != nil && call.GetTotalTokens() < call.GetInputTokens() ||
+			call.OutputTokens != nil && call.GetTotalTokens() < call.GetOutputTokens()) {
+		return errors.New("AI token usage is inconsistent")
 	}
 	return nil
 }

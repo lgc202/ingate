@@ -204,22 +204,21 @@ func (c *Controller) reconcileDesiredConfig(ctx context.Context) error {
 	c.wasmModules.Retain(wasmModuleGenerations(resources.WasmPlugins, c.delivery.Status().ActiveResources))
 
 	wasmModules, moduleDiagnostics := c.resolveWasmModules(ctx, resources.WasmPlugins)
-	result := compiler.Compile(resources, wasmModules, observedAt)
-	deliveryResult := result
-	result.Diagnostics = mergeWasmModuleDiagnostics(result.Diagnostics, moduleDiagnostics)
+	compileResult := compiler.Compile(resources, wasmModules, observedAt)
+	diagnostics := mergeDiagnostics(compileResult.Diagnostics, moduleDiagnostics)
 
 	var deliveryErr error
 	// 仅安装但尚未被策略使用的插件校验失败不应冻结整个网关配置；
 	// 依赖该插件的策略会在编译结果中产生阻塞诊断。
-	if deliveryResult.HasErrors() {
+	if compileResult.HasErrors() {
 		if err := c.delivery.CancelCandidate(ctx); err != nil {
 			deliveryErr = fmt.Errorf("cancel pending Envoy configuration after compile errors: %w", err)
 		}
-	} else if err := c.delivery.Submit(ctx, deliveryResult); err != nil {
-		deliveryErr = fmt.Errorf("submit Envoy configuration %q: %w", result.Version, err)
+	} else if err := c.delivery.Submit(ctx, compileResult); err != nil {
+		deliveryErr = fmt.Errorf("submit Envoy configuration %q: %w", compileResult.Version, err)
 	}
 
-	statusErr := c.statusWriter.ApplyCompileResult(ctx, resources, result.Diagnostics, c.delivery.Status())
+	statusErr := c.statusWriter.ApplyCompileResult(ctx, resources, diagnostics, c.delivery.Status())
 	if statusErr != nil {
 		statusErr = fmt.Errorf("apply resource compile status: %w", statusErr)
 	}
@@ -285,29 +284,13 @@ func (c *Controller) resolveWasmModules(
 	return modules, diagnostics
 }
 
-// mergeWasmModuleDiagnostics 用具体的拉取失败替换 compiler 对缺失模块的兜底诊断。
-//
-// 即使模块拉取失败也必须完整编译其余资源，
-// 避免把尚未校验的资源误标为 Accepted。
-func mergeWasmModuleDiagnostics(
+func mergeDiagnostics(
 	compiled []compiler.Diagnostic,
-	resolved []compiler.Diagnostic,
+	additional []compiler.Diagnostic,
 ) []compiler.Diagnostic {
-	failedPlugins := make(map[string]bool, len(resolved))
-	for _, diagnostic := range resolved {
-		failedPlugins[diagnostic.ResourceID] = true
-	}
-
-	diagnostics := make([]compiler.Diagnostic, 0, len(compiled)+len(resolved))
-	for _, diagnostic := range compiled {
-		if diagnostic.Kind == gatewayv1.KindWasmPlugin &&
-			diagnostic.Reason == compiler.ReasonCompileFailed &&
-			failedPlugins[diagnostic.ResourceID] {
-			continue
-		}
-		diagnostics = append(diagnostics, diagnostic)
-	}
-	diagnostics = append(diagnostics, resolved...)
+	diagnostics := make([]compiler.Diagnostic, 0, len(compiled)+len(additional))
+	diagnostics = append(diagnostics, compiled...)
+	diagnostics = append(diagnostics, additional...)
 	slices.SortFunc(diagnostics, func(a, b compiler.Diagnostic) int {
 		return cmp.Or(
 			cmp.Compare(a.Severity, b.Severity),

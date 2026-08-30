@@ -19,7 +19,7 @@ const (
 
 const (
 	// Header 等流量变换必须先运行，后续插件才能看到变换后的请求
-	wasmFilterPhaseTrafficMutation wasmFilterPhase = iota
+	wasmFilterPhaseTrafficMutation wasmFilterPhase = iota + 1
 	// 本地响应会终止请求，必须位于鉴权和流量变换之后
 	wasmFilterPhaseLocalResponse
 )

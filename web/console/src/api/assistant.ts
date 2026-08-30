@@ -48,6 +48,7 @@ export async function deleteAssistantConversation(id: string): Promise<void> {
 export async function listAssistantMessages(conversationID: string): Promise<AssistantMessage[]> {
   const messages: AssistantMessage[] = [];
   let cursor = '';
+  const visitedCursors = new Set<string>();
   do {
     const query = new URLSearchParams({ limit: '100' });
     if (cursor) query.set('cursor', cursor);
@@ -56,6 +57,10 @@ export async function listAssistantMessages(conversationID: string): Promise<Ass
     );
     messages.push(...(page.messages ?? []));
     cursor = page.nextCursor ?? '';
+    if (cursor && visitedCursors.has(cursor)) {
+      throw new Error('服务返回了重复的分页游标');
+    }
+    visitedCursors.add(cursor);
   } while (cursor);
   return messages;
 }
@@ -141,7 +146,12 @@ async function assistantRequest<T = unknown>(path: string, init: RequestInit = {
   if (!response.ok) throw await responseError(response);
   if (response.status === 204) return undefined as T;
   const text = await response.text();
-  return (text ? JSON.parse(text) : undefined) as T;
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error('服务返回了无法识别的响应');
+  }
 }
 
 async function responseError(response: Response): Promise<Error> {
@@ -174,5 +184,18 @@ function parseSSEFrame(frame: string): AssistantStreamEvent | null {
     const body = JSON.parse(data.join('\n')) as { value?: unknown };
     if (typeof body.value === 'string') value = body.value;
   }
-  return { id, type: type as AssistantStreamEventType, value };
+  if (!isAssistantStreamEventType(type)) {
+    throw new Error(`服务返回了无法识别的事件：${type}`);
+  }
+  return { id, type, value };
+}
+
+function isAssistantStreamEventType(value: string): value is AssistantStreamEventType {
+  return value === 'execution.started'
+    || value === 'message.reasoning.delta'
+    || value === 'message.content.delta'
+    || value === 'execution.completed'
+    || value === 'execution.failed'
+    || value === 'execution.cancelled'
+    || value === 'stream.failed';
 }

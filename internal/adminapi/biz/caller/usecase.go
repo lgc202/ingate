@@ -25,9 +25,9 @@ type Store interface {
 	Delete(ctx context.Context, observed *resource.Caller) error
 }
 
-// RouteGetter 定义 Caller 校验 Route 授权所需的查询能力。
-type RouteGetter interface {
-	Get(ctx context.Context, routeID string) (*resource.Route, error)
+// RouteReader 定义 Caller 校验 Route 授权所需的批量读取能力。
+type RouteReader interface {
+	ListByIDs(ctx context.Context, routeIDs []string) (map[string]*resource.Route, error)
 }
 
 // TokenQuotaPolicyLister 定义 Caller 删除检查所需的 Token 额度策略分页能力。
@@ -48,14 +48,14 @@ type CreateInput struct {
 // Usecase 协调 Caller 权限、访问密钥和持久化。
 type Usecase struct {
 	store              Store
-	routes             RouteGetter
+	routes             RouteReader
 	tokenQuotaPolicies TokenQuotaPolicyLister
 }
 
 // NewUsecase 创建 Caller 用例。
 func NewUsecase(
 	store Store,
-	routes RouteGetter,
+	routes RouteReader,
 	tokenQuotaPolicies TokenQuotaPolicyLister,
 ) *Usecase {
 	return &Usecase{

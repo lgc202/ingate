@@ -2,8 +2,6 @@ package compiler
 
 import (
 	"fmt"
-	"maps"
-	"slices"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
@@ -121,13 +119,12 @@ func (c *compilation) buildPolicyConfigs(
 }
 
 func matchingIPRestrictionPolicies(
-	policies map[string]compiledIPRestrictionPolicy,
+	policies []compiledIPRestrictionPolicy,
 	key policyRouteKey,
 ) ([]ipRestrictionPolicy, []matchedPolicyTarget) {
 	matched := make([]ipRestrictionPolicy, 0)
 	targets := make([]matchedPolicyTarget, 0)
-	for _, policyID := range slices.Sorted(maps.Keys(policies)) {
-		compiled := policies[policyID]
+	for _, compiled := range policies {
 		_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
 		if len(matchedTargets) == 0 {
 			continue

@@ -74,6 +74,10 @@ func (s *streamState) handleDownstreamResponseBody(body *extprocv3.HttpBody) (*e
 }
 
 func (s *streamState) handleDownstreamOpenAIResponse(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
+	if !s.responseSuccessful {
+		// 上游或中间代理的错误响应不一定是 SSE 或 Chat Completions 结构，应原样透传。
+		return bodyResponse(responseMessage, nil, nil), nil
+	}
 	request, _ := s.request.requestMetadata()
 	if request.Streaming {
 		if s.openAIStream == nil {
@@ -181,7 +185,7 @@ func (s *streamState) handleDownstreamAnthropicResponse(
 
 func (s *streamState) settleQuota() {
 	usage := s.responseMetadata.Usage
-	if !usage.Found {
+	if !usage.Found || !usage.Final {
 		return
 	}
 	s.processor.settleQuota(s.ctx, s.request, usage.TotalTokens)

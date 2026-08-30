@@ -1,6 +1,8 @@
 package mockresponsepolicy
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
@@ -25,7 +27,11 @@ func validatePolicy(policy *resource.MockResponsePolicy) field.ErrorList {
 		errs = append(errs, field.Invalid(
 			specPath.Child("statusCode"),
 			policy.Spec.StatusCode,
-			"statusCode must be between 200 and 599",
+			fmt.Sprintf(
+				"statusCode must be between %d and %d",
+				mockresponseconfig.MinStatusCode,
+				mockresponseconfig.MaxStatusCode,
+			),
 		))
 	}
 	normalizedContentType, valid := mockresponseconfig.NormalizeContentType(policy.Spec.ContentType)

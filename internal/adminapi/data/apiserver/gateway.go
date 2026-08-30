@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -70,35 +68,29 @@ func (s *GatewayStore) Create(
 }
 
 // ReplaceSpec 完整替换 Gateway 配置。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *GatewayStore) ReplaceSpec(
 	ctx context.Context,
 	observed *resource.Gateway,
 	spec resource.GatewaySpec,
 ) (*resource.Gateway, error) {
-	gatewayID := observed.Name
-	updated, err := updateResource(
+	return replaceResourceSpec(
 		ctx,
 		s.client.GatewayV1().Gateways(),
+		"gateway",
 		observed,
 		func(gateway *resource.Gateway) { gateway.Spec = spec },
 	)
-	if apierrors.IsConflict(err) {
-		return nil, fmt.Errorf("replace gateway %q after conflict retries: %w", gatewayID, err)
-	}
-	return updated, resourceError("replace", "gateway", gatewayID, err)
 }
 
 // Delete 删除 Gateway。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *GatewayStore) Delete(
 	ctx context.Context,
 	observed *resource.Gateway,
 ) error {
-	gatewayID := observed.Name
-	err := deleteResource(ctx, s.client.GatewayV1().Gateways(), observed)
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf("delete gateway %q after conflict retries: %w", gatewayID, err)
-	}
-	return resourceError("delete", "gateway", gatewayID, err)
+	return deleteResource(
+		ctx,
+		s.client.GatewayV1().Gateways(),
+		"gateway",
+		observed,
+	)
 }

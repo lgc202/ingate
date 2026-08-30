@@ -2,6 +2,9 @@ package chatcompletion
 
 import (
 	"bytes"
+	"errors"
+
+	"github.com/tidwall/gjson"
 )
 
 // OpenAIStream 只缓存尚未结束的 SSE 行，避免把流式响应整体缓冲。
@@ -38,6 +41,9 @@ func (s *OpenAIStream) Convert(chunk []byte, endOfStream bool) ([]byte, Response
 		converted = append(converted, '\n')
 		metadataChanged = changed || metadataChanged
 	}
+	if len(s.buffer) > maxPendingSSEBytes {
+		return nil, ResponseMetadata{}, false, errors.New("OpenAI stream event exceeds the size limit")
+	}
 	if endOfStream && len(s.buffer) > 0 {
 		output, changed, err := s.convertLine(s.buffer)
 		if err != nil {
@@ -62,6 +68,9 @@ func (s *OpenAIStream) convertLine(line []byte) ([]byte, bool, error) {
 	payload := bytes.TrimSpace(line[len("data:"):])
 	if bytes.Equal(payload, []byte("[DONE]")) {
 		return line, false, nil
+	}
+	if !gjson.ValidBytes(payload) {
+		return nil, false, errors.New("OpenAI stream data must be valid JSON")
 	}
 
 	// OpenAI SSE 的 data 内容与非流式响应复用相同的 model、choices 和 usage 路径

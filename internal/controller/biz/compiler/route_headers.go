@@ -20,10 +20,19 @@ func (c *compilation) buildHeaderModifier(
 		return nil, nil, true
 	}
 	actionCount := len(modifier.Set) + len(modifier.Add) + len(modifier.Remove)
+	if actionCount == 0 || actionCount > routeconfig.MaxHeaderModifierActions {
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q has an invalid header modifier", route.Name),
+		)
+		return nil, nil, false
+	}
+
 	headersToAdd := make([]*corev3.HeaderValueOption, 0, len(modifier.Set)+len(modifier.Add))
 	headersToRemove := make([]string, 0, len(modifier.Remove))
 	usedNames := make(map[string]bool, actionCount)
-	valid := actionCount > 0 && actionCount <= routeconfig.MaxHeaderModifierActions
+	valid := true
 	for _, header := range normalizedHeaderValues(modifier.Set) {
 		if !isValidHeaderValue(header) || usedNames[header.Name] {
 			valid = false

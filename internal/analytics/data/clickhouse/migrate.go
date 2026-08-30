@@ -17,7 +17,7 @@ import (
 
 const schemaMigrationTableName = "ingate_schema_migrations"
 
-// migrationFiles 随 Analytics 二进制发布，部署时不依赖源码目录
+// migrationFiles 随 Analytics 二进制发布，部署时不依赖源码目录。
 //
 //go:embed migrations/*.sql
 var migrationFiles embed.FS

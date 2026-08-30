@@ -30,16 +30,16 @@ type RouteLister interface {
 	ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error)
 }
 
-// CertificateGetter 定义 Gateway 校验证书引用所需的查询能力。
-type CertificateGetter interface {
-	Get(ctx context.Context, certificateID string) (*resource.Certificate, error)
+// CertificateReader 定义 Gateway 校验证书引用所需的批量读取能力。
+type CertificateReader interface {
+	ListByIDs(ctx context.Context, certificateIDs []string) (map[string]*resource.Certificate, error)
 }
 
 // Usecase 协调 Gateway 的校验、引用约束和持久化。
 type Usecase struct {
 	store             Store
 	routes            RouteLister
-	certificates      CertificateGetter
+	certificates      CertificateReader
 	policyUsageFinder *biz.PolicyUsageFinder
 }
 
@@ -47,7 +47,7 @@ type Usecase struct {
 func NewUsecase(
 	store Store,
 	routes RouteLister,
-	certificates CertificateGetter,
+	certificates CertificateReader,
 	policyUsageFinder *biz.PolicyUsageFinder,
 ) *Usecase {
 	return &Usecase{

@@ -13,10 +13,13 @@ import (
 
 	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
 	"github.com/lgc202/ingate/internal/aiextproc/conf"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	"github.com/lgc202/ingate/internal/pkg/apiserverclient"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 	informers "github.com/lgc202/ingate/internal/pkg/generated/informers/externalversions"
 	gatewaylisters "github.com/lgc202/ingate/internal/pkg/generated/listers/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
 	"github.com/lgc202/ingate/internal/pkg/version"
 )
 
@@ -149,8 +152,11 @@ func (c *ConfigCache) Ready() bool {
 	return c.ready.Load()
 }
 
-// APIKey 返回指定模型 Service 当前生效的访问密钥。
-func (c *ConfigCache) APIKey(serviceID string) (string, error) {
+// APIKey 在当前模型 Service 协议与 xDS 选路结果一致时返回访问密钥。
+func (c *ConfigCache) APIKey(
+	serviceID string,
+	expectedProtocol aiprotocol.UpstreamProtocol,
+) (string, error) {
 	if !c.ready.Load() {
 		return "", errors.New("AI execution config cache is not ready")
 	}
@@ -161,5 +167,26 @@ func (c *ConfigCache) APIKey(serviceID string) (string, error) {
 	if upstream.Spec.Model == nil {
 		return "", fmt.Errorf("service %q is not a model service", serviceID)
 	}
+	actualProtocol, valid := modelServiceProtocol(upstream.Spec.Model.Protocol)
+	if !valid {
+		return "", fmt.Errorf("model service %q has an invalid protocol", serviceID)
+	}
+	if actualProtocol != expectedProtocol {
+		return "", fmt.Errorf("model service %q protocol changed while xDS was converging", serviceID)
+	}
+	if !upstreamconfig.IsValidModelAPIKey(upstream.Spec.Model.APIKey) {
+		return "", fmt.Errorf("model service %q has an invalid API key", serviceID)
+	}
 	return upstream.Spec.Model.APIKey, nil
+}
+
+func modelServiceProtocol(protocol resource.ModelProtocol) (aiprotocol.UpstreamProtocol, bool) {
+	switch protocol {
+	case resource.ModelProtocolOpenAI:
+		return aiprotocol.UpstreamProtocolOpenAI, true
+	case resource.ModelProtocolAnthropic:
+		return aiprotocol.UpstreamProtocolAnthropic, true
+	default:
+		return "", false
+	}
 }

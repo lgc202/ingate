@@ -58,6 +58,8 @@ Controller、Authz 和 AI ExtProc 都采用 List + Watch 维护自己需要的�
 
 ## Status
 
-资源总体结果写入 `status.conditions`。策略的每个目标还可以在 `status.targets[]` 中独立表达引用解析和生效状态：一个无效目标不会阻止其他有效目标发布。
+资源总体结果写入 `status.conditions`。策略的每个目标还可以在 `status.targets[]` 中独立表达引用解析和生效状态：单个不存在的策略目标不会掩盖其他目标的独立状态。
+
+Controller 仍以当前全部资源编译并原子发布一份 Envoy 配置。任意阻塞级编译错误都会拒绝整份候选配置，Envoy 保持上一份已经确认的有效配置；Status 用于定位阻塞发布的具体资源和原因。
 
 声明式资源是唯一持久化配置事实。Controller 派生的 Envoy 配置只保存在进程内，重启后重新全量编译，不持久化 Last Good。

@@ -119,7 +119,7 @@ func (c *TokenCounter) Stop(ctx context.Context) error {
 	}
 }
 
-// Ready 表示 Redis 首次连接已经建立且最近一次额度操作成功。
+// Ready 表示 Redis 首次连接以及最近一次探测或额度操作均成功。
 func (c *TokenCounter) Ready() bool {
 	return c.ready.Load()
 }

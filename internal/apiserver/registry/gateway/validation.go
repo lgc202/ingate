@@ -1,6 +1,8 @@
 package gateway
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
@@ -18,7 +20,8 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 		gateway.Spec.DisplayName,
 		specPath.Child("displayName"),
 	)...)
-	listenerCount := len(gateway.Spec.Listeners)
+	listeners := gateway.Spec.Listeners
+	listenerCount := len(listeners)
 	if listenerCount == 0 {
 		errs = append(errs, field.Required(specPath.Child("listeners"), "at least one listener is required"))
 		return errs
@@ -29,10 +32,11 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 			listenerCount,
 			gatewayconfig.MaxListeners,
 		))
+		listeners = listeners[:gatewayconfig.MaxListeners]
 	}
 
-	listenerNames := make(map[string]bool, listenerCount)
-	for i, listener := range gateway.Spec.Listeners {
+	listenerNames := make(map[string]bool, len(listeners))
+	for i, listener := range listeners {
 		listenerPath := specPath.Child("listeners").Index(i)
 		if listener.Name == "" {
 			errs = append(errs, field.Required(listenerPath.Child("name"), "listener name is required"))
@@ -78,7 +82,11 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 			errs = append(errs, field.Invalid(
 				listenerPath.Child("port"),
 				listener.Port,
-				"listener port must be between 1 and 65535",
+				fmt.Sprintf(
+					"listener port must be between %d and %d",
+					gatewayconfig.MinListenerPort,
+					gatewayconfig.MaxListenerPort,
+				),
 			))
 		}
 
@@ -93,7 +101,7 @@ func validateGateway(gateway *resource.Gateway) field.ErrorList {
 		}
 
 		for j := range i {
-			previous := gateway.Spec.Listeners[j]
+			previous := listeners[j]
 			if listener.Port != previous.Port {
 				continue
 			}

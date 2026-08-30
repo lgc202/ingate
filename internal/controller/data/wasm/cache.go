@@ -56,7 +56,7 @@ func (s *Store) cachedModuleValid(ctx context.Context, moduleSHA string) bool {
 	}
 	moduleBytes, readErr := readModule(file, s.maxModuleSize)
 	closeErr := file.Close()
-	if readErr != nil || closeErr != nil || digest(moduleBytes) != moduleSHA {
+	if readErr != nil || closeErr != nil || sha256Digest(moduleBytes) != moduleSHA {
 		return false
 	}
 	validationCtx, cancel := context.WithTimeout(ctx, s.pullTimeout)

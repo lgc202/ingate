@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -73,43 +71,29 @@ func (s *MockResponsePolicyStore) Create(
 }
 
 // ReplaceSpec 完整替换 MockResponsePolicy 配置。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *MockResponsePolicyStore) ReplaceSpec(
 	ctx context.Context,
 	observed *resource.MockResponsePolicy,
 	spec resource.MockResponsePolicySpec,
 ) (*resource.MockResponsePolicy, error) {
-	policyID := observed.Name
-	updated, err := updateResource(
+	return replaceResourceSpec(
 		ctx,
 		s.client.GatewayV1().MockResponsePolicies(),
+		"mock response policy",
 		observed,
 		func(policy *resource.MockResponsePolicy) { policy.Spec = spec },
 	)
-	if apierrors.IsConflict(err) {
-		return nil, fmt.Errorf(
-			"replace mock response policy %q after conflict retries: %w",
-			policyID,
-			err,
-		)
-	}
-	return updated, resourceError("replace", "mock response policy", policyID, err)
 }
 
 // Delete 删除 MockResponsePolicy。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *MockResponsePolicyStore) Delete(
 	ctx context.Context,
 	observed *resource.MockResponsePolicy,
 ) error {
-	policyID := observed.Name
-	err := deleteResource(ctx, s.client.GatewayV1().MockResponsePolicies(), observed)
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf(
-			"delete mock response policy %q after conflict retries: %w",
-			policyID,
-			err,
-		)
-	}
-	return resourceError("delete", "mock response policy", policyID, err)
+	return deleteResource(
+		ctx,
+		s.client.GatewayV1().MockResponsePolicies(),
+		"mock response policy",
+		observed,
+	)
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 	"github.com/lgc202/ingate/internal/controller/biz/delivery"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/policyconfig"
 )
 
 // policyConditions 汇总各目标状态：任一目标生效即视为策略已生效，
@@ -97,9 +98,17 @@ func policyTargetStatuses(
 	deliveryState deliveryIndex,
 	targets map[resourceKey]compiler.ResourceGeneration,
 ) []gatewayv1.PolicyTargetStatus {
+	if len(targetRefs) > policyconfig.MaxTargets {
+		targetRefs = targetRefs[:policyconfig.MaxTargets]
+	}
+	existingConditions := make(map[gatewayv1.PolicyTargetRef][]metav1.Condition, len(existing))
+	for _, status := range existing {
+		existingConditions[status.TargetRef] = status.Conditions
+	}
+
 	result := make([]gatewayv1.PolicyTargetStatus, 0, len(targetRefs))
 	for _, targetRef := range targetRefs {
-		conditions := existingPolicyTargetConditions(existing, targetRef)
+		conditions := slices.Clone(existingConditions[targetRef])
 		resolved := conditionDecision{
 			status:  metav1.ConditionTrue,
 			reason:  gatewayv1.ReasonResolvedRefs,
@@ -136,18 +145,6 @@ func policyTargetStatuses(
 		})
 	}
 	return result
-}
-
-func existingPolicyTargetConditions(
-	existing []gatewayv1.PolicyTargetStatus,
-	target gatewayv1.PolicyTargetRef,
-) []metav1.Condition {
-	for _, status := range existing {
-		if status.TargetRef == target {
-			return slices.Clone(status.Conditions)
-		}
-	}
-	return nil
 }
 
 func policyTargetProgrammedCondition(

@@ -1,6 +1,9 @@
 // Package chatcompletion 转换 OpenAI Chat Completions 与模型服务协议。
 package chatcompletion
 
+// maxPendingSSEBytes 限制跨 ExtProc chunk 保留的单个未完成 SSE 事件。
+const maxPendingSSEBytes = 1 << 20
+
 // UpstreamRequest 是送往模型服务的请求体及其变化状态。
 type UpstreamRequest struct {
 	Body        []byte
@@ -19,6 +22,7 @@ type Usage struct {
 	OutputTokens uint64
 	TotalTokens  uint64
 	Found        bool // 区分明确返回零 Token 与响应中未提供用量
+	Final        bool // 只有最终用量才能用于额度结算
 }
 
 // ResponseMetadata 是从模型服务响应中提取的运行信息

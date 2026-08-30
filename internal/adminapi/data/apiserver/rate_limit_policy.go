@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -73,43 +71,29 @@ func (s *RateLimitPolicyStore) Create(
 }
 
 // ReplaceSpec 完整替换 RateLimitPolicy 配置。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *RateLimitPolicyStore) ReplaceSpec(
 	ctx context.Context,
 	observed *resource.RateLimitPolicy,
 	spec resource.RateLimitPolicySpec,
 ) (*resource.RateLimitPolicy, error) {
-	policyID := observed.Name
-	updated, err := updateResource(
+	return replaceResourceSpec(
 		ctx,
 		s.client.GatewayV1().RateLimitPolicies(),
+		"rate limit policy",
 		observed,
 		func(policy *resource.RateLimitPolicy) { policy.Spec = spec },
 	)
-	if apierrors.IsConflict(err) {
-		return nil, fmt.Errorf(
-			"replace rate limit policy %q after conflict retries: %w",
-			policyID,
-			err,
-		)
-	}
-	return updated, resourceError("replace", "rate limit policy", policyID, err)
 }
 
 // Delete 删除 RateLimitPolicy。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *RateLimitPolicyStore) Delete(
 	ctx context.Context,
 	observed *resource.RateLimitPolicy,
 ) error {
-	policyID := observed.Name
-	err := deleteResource(ctx, s.client.GatewayV1().RateLimitPolicies(), observed)
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf(
-			"delete rate limit policy %q after conflict retries: %w",
-			policyID,
-			err,
-		)
-	}
-	return resourceError("delete", "rate limit policy", policyID, err)
+	return deleteResource(
+		ctx,
+		s.client.GatewayV1().RateLimitPolicies(),
+		"rate limit policy",
+		observed,
+	)
 }

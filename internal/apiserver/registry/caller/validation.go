@@ -1,6 +1,7 @@
 package caller
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 
@@ -45,7 +46,7 @@ func validateRouteRefs(routeIDs []string, path *field.Path) field.ErrorList {
 		if routeID == "" {
 			errs = append(errs, field.Required(routePath, "routeRef is required"))
 		} else if !resourceconfig.IsCanonicalID(routeID) {
-			errs = append(errs, field.Invalid(routePath, routeID, "routeRef must be a UUID"))
+			errs = append(errs, field.Invalid(routePath, routeID, "routeRef must be a canonical UUID"))
 		} else if seenRouteIDs[routeID] {
 			errs = append(errs, field.Duplicate(routePath, routeID))
 		}
@@ -70,7 +71,7 @@ func validateAccessKeys(accessKeys []resource.AccessKey, path *field.Path) field
 			errs = append(errs, field.Invalid(
 				accessKeyPath.Child("id"),
 				accessKey.ID,
-				"access key ID must be a UUID",
+				"access key ID must be a canonical UUID",
 			))
 		} else if seenAccessKeyIDs[accessKey.ID] {
 			errs = append(errs, field.Duplicate(accessKeyPath.Child("id"), accessKey.ID))
@@ -81,7 +82,10 @@ func validateAccessKeys(accessKeys []resource.AccessKey, path *field.Path) field
 			errs = append(errs, field.Invalid(
 				accessKeyPath.Child("displayName"),
 				accessKey.DisplayName,
-				"displayName is required and must not exceed 128 bytes",
+				fmt.Sprintf(
+					"displayName is required and must not exceed %d bytes",
+					callerconfig.MaxAccessKeyDisplayNameBytes,
+				),
 			))
 		} else {
 			duplicateDisplayName := slices.ContainsFunc(

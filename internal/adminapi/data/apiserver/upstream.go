@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -70,35 +68,29 @@ func (s *UpstreamStore) Create(
 }
 
 // ReplaceSpec 完整替换 Upstream 配置。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *UpstreamStore) ReplaceSpec(
 	ctx context.Context,
 	observed *resource.Upstream,
 	spec resource.UpstreamSpec,
 ) (*resource.Upstream, error) {
-	upstreamID := observed.Name
-	updated, err := updateResource(
+	return replaceResourceSpec(
 		ctx,
 		s.client.GatewayV1().Upstreams(),
+		"upstream",
 		observed,
 		func(upstream *resource.Upstream) { upstream.Spec = spec },
 	)
-	if apierrors.IsConflict(err) {
-		return nil, fmt.Errorf("replace upstream %q after conflict retries: %w", upstreamID, err)
-	}
-	return updated, resourceError("replace", "upstream", upstreamID, err)
 }
 
 // Delete 删除 Upstream。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *UpstreamStore) Delete(
 	ctx context.Context,
 	observed *resource.Upstream,
 ) error {
-	upstreamID := observed.Name
-	err := deleteResource(ctx, s.client.GatewayV1().Upstreams(), observed)
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf("delete upstream %q after conflict retries: %w", upstreamID, err)
-	}
-	return resourceError("delete", "upstream", upstreamID, err)
+	return deleteResource(
+		ctx,
+		s.client.GatewayV1().Upstreams(),
+		"upstream",
+		observed,
+	)
 }

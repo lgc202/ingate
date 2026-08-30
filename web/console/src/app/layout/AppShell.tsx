@@ -1,5 +1,5 @@
 import { ChevronRight, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { getHealth } from '@/api/health';
 import { navigation, navigationItems } from '@/app/navigation';
@@ -83,7 +83,9 @@ export function AppShell() {
         </header>
 
         <main className="workspace-content">
-          <Outlet />
+          <Suspense fallback={<div className="resource-observability-state">正在加载页面...</div>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

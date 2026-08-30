@@ -40,8 +40,8 @@ type transformerHeader struct {
 	AppendValue string `json:"appendValue,omitempty"`
 }
 
-func (c *compilation) compileHeaderTransformationPolicies() map[string]compiledHeaderTransformationPolicy {
-	result := make(map[string]compiledHeaderTransformationPolicy)
+func (c *compilation) compileHeaderTransformationPolicies() []compiledHeaderTransformationPolicy {
+	result := make([]compiledHeaderTransformationPolicy, 0, len(c.headerTransformationPolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.headerTransformationPolicies)) {
 		policy := c.headerTransformationPolicies[policyID]
 		targets := c.validPolicyTargets(gatewayv1.KindHeaderTransformationPolicy, policyID, policy.Spec.TargetRefs)
@@ -80,7 +80,7 @@ func (c *compilation) compileHeaderTransformationPolicies() map[string]compiledH
 			)
 			continue
 		}
-		result[policyID] = compiledHeaderTransformationPolicy{
+		result = append(result, compiledHeaderTransformationPolicy{
 			source: newResourceGeneration(gatewayv1.KindHeaderTransformationPolicy, policy),
 			filter: wasmFilter{
 				name:          policy.Name,
@@ -91,7 +91,7 @@ func (c *compilation) compileHeaderTransformationPolicies() map[string]compiledH
 				module:        module,
 			},
 			targets: targets,
-		}
+		})
 	}
 	return result
 }
@@ -211,13 +211,12 @@ func compileTransformerHeader(
 }
 
 func matchingHeaderTransformationPolicies(
-	policies map[string]compiledHeaderTransformationPolicy,
+	policies []compiledHeaderTransformationPolicy,
 	key policyRouteKey,
 ) ([]compiledHeaderTransformationPolicy, []matchedPolicyTarget) {
 	matched := make([]compiledHeaderTransformationPolicy, 0)
 	targets := make([]matchedPolicyTarget, 0)
-	for _, policyID := range slices.Sorted(maps.Keys(policies)) {
-		compiled := policies[policyID]
+	for _, compiled := range policies {
 		_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
 		if len(matchedTargets) == 0 {
 			continue

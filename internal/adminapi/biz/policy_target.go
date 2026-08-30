@@ -10,19 +10,19 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-// GatewayLister 定义策略目标批量解析所需的 Gateway 查询能力。
-type GatewayLister interface {
-	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.Gateway], error)
+// GatewayReader 定义策略目标解析所需的 Gateway 批量读取能力。
+type GatewayReader interface {
+	ListByIDs(ctx context.Context, gatewayIDs []string) (map[string]*resource.Gateway, error)
 }
 
-// RouteLister 定义策略目标批量解析所需的 Route 查询能力。
-type RouteLister interface {
-	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.Route], error)
+// RouteReader 定义策略目标解析所需的 Route 批量读取能力。
+type RouteReader interface {
+	ListByIDs(ctx context.Context, routeIDs []string) (map[string]*resource.Route, error)
 }
 
-// CallerLister 定义调用方策略目标批量解析所需的查询能力。
-type CallerLister interface {
-	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.Caller], error)
+// CallerReader 定义策略目标解析所需的 Caller 批量读取能力。
+type CallerReader interface {
+	ListByIDs(ctx context.Context, callerIDs []string) (map[string]*resource.Caller, error)
 }
 
 type policyTargetKey struct {
@@ -37,23 +37,23 @@ type PolicyTargetNames struct {
 
 // PolicyTargetResolver 解析策略允许引用的资源并返回展示名称。
 type PolicyTargetResolver struct {
-	gateways GatewayLister
-	routes   RouteLister
-	callers  CallerLister
+	gateways GatewayReader
+	routes   RouteReader
+	callers  CallerReader
 }
 
 // NewPolicyTargetResolver 创建 Gateway 和 Route 策略目标解析器。
-func NewPolicyTargetResolver(gateways GatewayLister, routes RouteLister) *PolicyTargetResolver {
+func NewPolicyTargetResolver(gateways GatewayReader, routes RouteReader) *PolicyTargetResolver {
 	return &PolicyTargetResolver{gateways: gateways, routes: routes}
 }
 
 // NewRoutePolicyTargetResolver 创建 Route 策略目标解析器。
-func NewRoutePolicyTargetResolver(routes RouteLister) *PolicyTargetResolver {
+func NewRoutePolicyTargetResolver(routes RouteReader) *PolicyTargetResolver {
 	return &PolicyTargetResolver{routes: routes}
 }
 
 // NewCallerPolicyTargetResolver 创建 Caller 策略目标解析器。
-func NewCallerPolicyTargetResolver(callers CallerLister) *PolicyTargetResolver {
+func NewCallerPolicyTargetResolver(callers CallerReader) *PolicyTargetResolver {
 	return &PolicyTargetResolver{callers: callers}
 }
 
@@ -115,49 +115,41 @@ func (r *PolicyTargetResolver) DisplayNames(
 	refs []resource.PolicyTargetRef,
 ) (PolicyTargetNames, error) {
 	names := PolicyTargetNames{values: make(map[policyTargetKey]string, len(refs))}
-	targets := make(map[resource.Kind]map[string]bool, 3)
+	targetIDs := make(map[resource.Kind][]string, 3)
+	seen := make(map[policyTargetKey]bool, len(refs))
 	for _, ref := range refs {
-		ids := targets[ref.Kind]
-		if ids == nil {
-			ids = make(map[string]bool)
-			targets[ref.Kind] = ids
+		key := policyTargetKey{kind: ref.Kind, id: ref.Name}
+		if seen[key] {
+			continue
 		}
-		ids[ref.Name] = true
+		seen[key] = true
+		targetIDs[ref.Kind] = append(targetIDs[ref.Kind], ref.Name)
 	}
-	if ids := targets[resource.KindGateway]; len(ids) > 0 && r.gateways != nil {
-		resolved := 0
-		if err := VisitPages(ctx, r.gateways.ListPage, func(item resource.Gateway) (bool, error) {
-			if ids[item.Name] {
-				names.values[policyTargetKey{kind: resource.KindGateway, id: item.Name}] = item.Spec.DisplayName
-				resolved++
-			}
-			return resolved == len(ids), nil
-		}); err != nil {
+	if ids := targetIDs[resource.KindGateway]; len(ids) > 0 && r.gateways != nil {
+		gateways, err := r.gateways.ListByIDs(ctx, ids)
+		if err != nil {
 			return PolicyTargetNames{}, err
 		}
-	}
-	if ids := targets[resource.KindRoute]; len(ids) > 0 && r.routes != nil {
-		resolved := 0
-		if err := VisitPages(ctx, r.routes.ListPage, func(item resource.Route) (bool, error) {
-			if ids[item.Name] {
-				names.values[policyTargetKey{kind: resource.KindRoute, id: item.Name}] = item.Spec.DisplayName
-				resolved++
-			}
-			return resolved == len(ids), nil
-		}); err != nil {
-			return PolicyTargetNames{}, err
+		for id, gateway := range gateways {
+			names.values[policyTargetKey{kind: resource.KindGateway, id: id}] = gateway.Spec.DisplayName
 		}
 	}
-	if ids := targets[resource.KindCaller]; len(ids) > 0 && r.callers != nil {
-		resolved := 0
-		if err := VisitPages(ctx, r.callers.ListPage, func(item resource.Caller) (bool, error) {
-			if ids[item.Name] {
-				names.values[policyTargetKey{kind: resource.KindCaller, id: item.Name}] = item.Spec.DisplayName
-				resolved++
-			}
-			return resolved == len(ids), nil
-		}); err != nil {
+	if ids := targetIDs[resource.KindRoute]; len(ids) > 0 && r.routes != nil {
+		routes, err := r.routes.ListByIDs(ctx, ids)
+		if err != nil {
 			return PolicyTargetNames{}, err
+		}
+		for id, route := range routes {
+			names.values[policyTargetKey{kind: resource.KindRoute, id: id}] = route.Spec.DisplayName
+		}
+	}
+	if ids := targetIDs[resource.KindCaller]; len(ids) > 0 && r.callers != nil {
+		callers, err := r.callers.ListByIDs(ctx, ids)
+		if err != nil {
+			return PolicyTargetNames{}, err
+		}
+		for id, caller := range callers {
+			names.values[policyTargetKey{kind: resource.KindCaller, id: id}] = caller.Spec.DisplayName
 		}
 	}
 	return names, nil

@@ -38,14 +38,15 @@ func tokenQuotaPolicyResponse(
 func tokenQuotaPolicyState(
 	policy *resource.TokenQuotaPolicy,
 ) (adminv1.ResourceState, string) {
-	if !policy.Spec.Enabled {
-		return adminv1.ResourceState_DISABLED, "策略已停用"
+	status := tokenquotabiz.PolicyStatus(policy)
+	message := "策略已启用"
+	switch status.Reason {
+	case biz.ReasonDisabled:
+		message = "策略已停用"
+	case biz.ReasonUnapplied:
+		message = "策略尚未应用到调用方"
 	}
-	if len(policy.Spec.TargetRefs) == 0 {
-		return adminv1.ResourceState_READY, "策略尚未应用到调用方"
-	}
-	// Token 额度由 AI ExtProc 直接监听并执行，不经过 Controller 的 Envoy 配置发布链路。
-	return adminv1.ResourceState_READY, "策略已启用"
+	return adminservice.ResourceState(status.State), message
 }
 
 func tokenQuotaPolicyTargets(

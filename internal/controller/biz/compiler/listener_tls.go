@@ -23,7 +23,7 @@ const (
 func (c *compilation) configureHTTPSListener(
 	listener *listenerv3.Listener,
 	group *listenerGroup,
-	hcm *anypb.Any,
+	connectionManagerConfig *anypb.Any,
 ) error {
 	inspector, err := anypb.New(&tlsinspectorv3.TlsInspector{})
 	if err != nil {
@@ -46,7 +46,7 @@ func (c *compilation) configureHTTPSListener(
 			listener.Name,
 			gatewayListener,
 			c.certificates[gatewayListener.certificateRef],
-			hcm,
+			connectionManagerConfig,
 		)
 		if err != nil {
 			return err
@@ -64,7 +64,7 @@ func buildHTTPSFilterChain(
 	listenerName string,
 	gatewayListener gatewayListener,
 	certificate *gatewayv1.Certificate,
-	hcm *anypb.Any,
+	connectionManagerConfig *anypb.Any,
 ) (*listenerv3.FilterChain, error) {
 	tlsContext := &tlsv3.DownstreamTlsContext{CommonTlsContext: &tlsv3.CommonTlsContext{
 		TlsCertificates: []*tlsv3.TlsCertificate{{
@@ -90,7 +90,7 @@ func buildHTTPSFilterChain(
 			err,
 		)
 	}
-	filterChain := httpFilterChain(hcm)
+	filterChain := httpFilterChain(connectionManagerConfig)
 	filterChain.Name = listenerName + "/gateway/" + gatewayListener.gatewayID + "/" + gatewayListener.hostname
 	filterChain.TransportSocket = &corev3.TransportSocket{
 		Name:       tlsTransportSocketName,

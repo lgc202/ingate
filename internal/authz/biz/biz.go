@@ -8,4 +8,4 @@ import (
 )
 
 // ProviderSet 提供 Caller 授权和请求限流业务能力。
-var ProviderSet = wire.NewSet(NewAuthorizer, ratelimit.NewService)
+var ProviderSet = wire.NewSet(NewAuthorizer, ratelimit.NewLimiter)

@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/go-kratos/kratos/v3/errors"
-	"github.com/google/uuid"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -33,35 +32,27 @@ type Store interface {
 	Delete(ctx context.Context, observed *resource.MockResponsePolicy) error
 }
 
-// PolicyPage 保存一页模拟响应策略及其目标展示名称。
-type PolicyPage struct {
-	Items       []resource.MockResponsePolicy
-	TargetNames biz.PolicyTargetNames
-	NextCursor  string
-}
-
-// PolicyView 保存单条模拟响应策略及其目标展示名称。
-type PolicyView struct {
-	Policy      *resource.MockResponsePolicy
-	TargetNames biz.PolicyTargetNames
-}
-
 // Usecase 协调模拟响应策略的插件、目标、独占范围校验和持久化。
 type Usecase struct {
-	store   Store
-	targets *biz.PolicyTargetResolver
-	plugins *biz.PluginInstallationChecker
+	policies *biz.PolicyUsecase[resource.MockResponsePolicy, resource.MockResponsePolicySpec]
+	store    Store
+	plugins  *biz.PluginInstallationChecker
 }
 
 // NewUsecase 创建模拟响应策略用例。
 func NewUsecase(
 	store Store,
-	routes biz.RouteLister,
+	routes biz.RouteReader,
 	plugins *biz.PluginInstallationChecker,
 ) *Usecase {
 	return &Usecase{
+		policies: biz.NewPolicyUsecase(
+			store,
+			biz.NewRoutePolicyTargetResolver(routes),
+			policyAttributes,
+			policyTargetRefs,
+		),
 		store:   store,
-		targets: biz.NewRoutePolicyTargetResolver(routes),
 		plugins: plugins,
 	}
 }
@@ -71,71 +62,30 @@ func (uc *Usecase) List(
 	ctx context.Context,
 	page biz.PageRequest,
 	filter biz.ResourceFilter,
-) (PolicyPage, error) {
-	result, err := biz.FilterPage(
-		ctx,
-		page,
-		uc.store.ListPage,
-		func(policy resource.MockResponsePolicy) bool {
-			status := biz.PolicyStatus(
-				policy.Generation,
-				policy.Spec.Enabled,
-				len(policy.Spec.TargetRefs),
-				policy.Status.Conditions,
-			)
-			return filter.Match(policy.Spec.DisplayName, policy.Spec.Enabled, status)
-		},
-	)
-	if err != nil {
-		return PolicyPage{}, err
-	}
-
-	targetNames, err := uc.targets.DisplayNames(ctx, collectTargetRefs(result.Items))
-	if err != nil {
-		return PolicyPage{}, err
-	}
-	return PolicyPage{
-		Items:       result.Items,
-		TargetNames: targetNames,
-		NextCursor:  result.NextCursor,
-	}, nil
+) (biz.PolicyPage[resource.MockResponsePolicy], error) {
+	return uc.policies.List(ctx, page, filter)
 }
 
 // Get 返回指定模拟响应策略。
-func (uc *Usecase) Get(ctx context.Context, policyID string) (PolicyView, error) {
-	policy, err := uc.store.Get(ctx, policyID)
-	if err != nil {
-		return PolicyView{}, err
-	}
-	targetNames, err := uc.targets.DisplayNames(ctx, policy.Spec.TargetRefs)
-	if err != nil {
-		return PolicyView{}, err
-	}
-	return PolicyView{Policy: policy, TargetNames: targetNames}, nil
+func (uc *Usecase) Get(
+	ctx context.Context,
+	policyID string,
+) (biz.PolicyView[resource.MockResponsePolicy], error) {
+	return uc.policies.Get(ctx, policyID)
 }
 
 // Create 创建模拟响应策略。
 func (uc *Usecase) Create(
 	ctx context.Context,
 	spec resource.MockResponsePolicySpec,
-) (PolicyView, error) {
+) (biz.PolicyView[resource.MockResponsePolicy], error) {
 	if err := uc.checkPluginInstalled(ctx); err != nil {
-		return PolicyView{}, err
+		return biz.PolicyView[resource.MockResponsePolicy]{}, err
 	}
 	if err := uc.checkTargetClaimsAvailable(ctx, "", spec); err != nil {
-		return PolicyView{}, err
+		return biz.PolicyView[resource.MockResponsePolicy]{}, err
 	}
-	targetNames, err := uc.targets.Resolve(ctx, spec.TargetRefs)
-	if err != nil {
-		return PolicyView{}, err
-	}
-
-	policyID := uuid.NewString()
-	policy, err := uc.store.Create(ctx, policyID, spec)
-	if err != nil {
-		return PolicyView{}, err
-	}
-	return PolicyView{Policy: policy, TargetNames: targetNames}, nil
+	return uc.policies.Create(ctx, spec)
 }
 
 // Replace 使用配置版本完整替换模拟响应策略。
@@ -144,43 +94,31 @@ func (uc *Usecase) Replace(
 	policyID string,
 	expectedGeneration int64,
 	spec resource.MockResponsePolicySpec,
-) (PolicyView, error) {
+) (biz.PolicyView[resource.MockResponsePolicy], error) {
 	current, err := uc.store.Get(ctx, policyID)
 	if err != nil {
-		return PolicyView{}, err
+		return biz.PolicyView[resource.MockResponsePolicy]{}, err
 	}
 
 	if current.Generation != expectedGeneration {
-		return PolicyView{}, biz.ErrResourceVersionConflict
+		return biz.PolicyView[resource.MockResponsePolicy]{}, biz.ErrResourceVersionConflict
 	}
 	if err := uc.checkPluginInstalled(ctx); err != nil {
-		return PolicyView{}, err
+		return biz.PolicyView[resource.MockResponsePolicy]{}, err
 	}
 	if err := uc.checkTargetClaimsAvailable(ctx, policyID, spec); err != nil {
-		return PolicyView{}, err
+		return biz.PolicyView[resource.MockResponsePolicy]{}, err
 	}
-	targetNames, err := uc.targets.Resolve(ctx, spec.TargetRefs)
-	if err != nil {
-		return PolicyView{}, err
-	}
-
-	policy, err := uc.store.ReplaceSpec(ctx, current, spec)
-	if err != nil {
-		return PolicyView{}, err
-	}
-	return PolicyView{Policy: policy, TargetNames: targetNames}, nil
+	return uc.policies.ReplaceObserved(ctx, current, spec)
 }
 
-// Delete 删除模拟响应策略。
-func (uc *Usecase) Delete(ctx context.Context, policyID string, expectedGeneration int64) error {
-	current, err := uc.store.Get(ctx, policyID)
-	if err != nil {
-		return err
-	}
-	if current.Generation != expectedGeneration {
-		return biz.ErrResourceVersionConflict
-	}
-	return uc.store.Delete(ctx, current)
+// Delete 使用配置版本删除模拟响应策略。
+func (uc *Usecase) Delete(
+	ctx context.Context,
+	policyID string,
+	expectedGeneration int64,
+) error {
+	return uc.policies.Delete(ctx, policyID, expectedGeneration)
 }
 
 func (uc *Usecase) checkPluginInstalled(ctx context.Context) error {
@@ -237,15 +175,21 @@ func (uc *Usecase) checkTargetClaimsAvailable(
 	)
 }
 
-func collectTargetRefs(policies []resource.MockResponsePolicy) []resource.PolicyTargetRef {
-	targetCount := 0
-	for i := range policies {
-		targetCount += len(policies[i].Spec.TargetRefs)
+func policyAttributes(policy *resource.MockResponsePolicy) biz.PolicyAttributes {
+	return biz.PolicyAttributes{
+		Generation:  policy.Generation,
+		DisplayName: policy.Spec.DisplayName,
+		Enabled:     policy.Spec.Enabled,
+		TargetRefs:  policy.Spec.TargetRefs,
+		Status: biz.PolicyStatus(
+			policy.Generation,
+			policy.Spec.Enabled,
+			len(policy.Spec.TargetRefs),
+			policy.Status.Conditions,
+		),
 	}
+}
 
-	refs := make([]resource.PolicyTargetRef, 0, targetCount)
-	for i := range policies {
-		refs = append(refs, policies[i].Spec.TargetRefs...)
-	}
-	return refs
+func policyTargetRefs(spec resource.MockResponsePolicySpec) []resource.PolicyTargetRef {
+	return spec.TargetRefs
 }

@@ -128,6 +128,10 @@ func (h *executionStreamHandler) events(ctx kratoshttp.Context) error {
 
 func streamRequestError(err error) error {
 	switch {
+	case errors.Is(err, context.Canceled):
+		return kerrors.ClientClosed("REQUEST_CANCELLED", "request cancelled").WithCause(err)
+	case errors.Is(err, context.DeadlineExceeded):
+		return kerrors.GatewayTimeout("REQUEST_TIMEOUT", "request timed out").WithCause(err)
 	case errors.Is(err, executionbiz.ErrNotFound):
 		return kerrors.NotFound(failureResourceNotFound, "resource not found")
 	default:

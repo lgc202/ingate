@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, setQueryParameter } from './client';
 import { listCallers } from './callers';
 import { listGateways } from './gateways';
 import { listRoutes } from './routes';
@@ -13,12 +13,12 @@ export async function getAIUsageAnalysis(filters: AIUsageFilters): Promise<AIUsa
     breakdownOrder: filters.breakdownOrder,
     breakdownLimit: String(filters.breakdownLimit ?? 10),
   });
-  setQuery(query, 'gatewayID', filters.gatewayID);
-  setQuery(query, 'callerID', filters.callerID);
-  setQuery(query, 'routeID', filters.routeID);
-  setQuery(query, 'clientModel', filters.clientModel);
-  setQuery(query, 'serviceID', filters.serviceID);
-  setQuery(query, 'actualModel', filters.actualModel);
+  setQueryParameter(query, 'gatewayID', filters.gatewayID);
+  setQueryParameter(query, 'callerID', filters.callerID);
+  setQueryParameter(query, 'routeID', filters.routeID);
+  setQueryParameter(query, 'clientModel', filters.clientModel);
+  setQueryParameter(query, 'serviceID', filters.serviceID);
+  setQueryParameter(query, 'actualModel', filters.actualModel);
 
   const analysis = await apiRequest<AIUsageAnalysis>(`/ai-usage-analysis?${query}`);
   return {
@@ -58,9 +58,4 @@ export async function getAIUsageWorkspace(): Promise<AIUsageWorkspace> {
     clientModels: [...clientModels].sort((left, right) => left.localeCompare(right, 'zh-CN')),
     actualModels: [...actualModels].sort((left, right) => left.localeCompare(right, 'zh-CN')),
   };
-}
-
-function setQuery(query: URLSearchParams, name: string, value?: string) {
-  const normalized = value?.trim();
-  if (normalized) query.set(name, normalized);
 }

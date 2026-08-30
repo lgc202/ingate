@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -43,6 +41,14 @@ func (s *CallerStore) Get(ctx context.Context, callerID string) (*resource.Calle
 	return caller, resourceError("get", "caller", callerID, err)
 }
 
+// ListByIDs 返回当前存在的指定 Caller。
+func (s *CallerStore) ListByIDs(
+	ctx context.Context,
+	callerIDs []string,
+) (map[string]*resource.Caller, error) {
+	return listByIDs(ctx, callerIDs, s.Get)
+}
+
 // Create 创建 Caller。
 func (s *CallerStore) Create(
 	ctx context.Context,
@@ -62,35 +68,29 @@ func (s *CallerStore) Create(
 }
 
 // ReplaceSpec 完整替换 Caller 配置。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *CallerStore) ReplaceSpec(
 	ctx context.Context,
 	observed *resource.Caller,
 	spec resource.CallerSpec,
 ) (*resource.Caller, error) {
-	callerID := observed.Name
-	updated, err := updateResource(
+	return replaceResourceSpec(
 		ctx,
 		s.client.GatewayV1().Callers(),
+		"caller",
 		observed,
 		func(caller *resource.Caller) { caller.Spec = spec },
 	)
-	if apierrors.IsConflict(err) {
-		return nil, fmt.Errorf("replace caller %q after conflict retries: %w", callerID, err)
-	}
-	return updated, resourceError("replace", "caller", callerID, err)
 }
 
 // Delete 删除 Caller。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *CallerStore) Delete(
 	ctx context.Context,
 	observed *resource.Caller,
 ) error {
-	callerID := observed.Name
-	err := deleteResource(ctx, s.client.GatewayV1().Callers(), observed)
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf("delete caller %q after conflict retries: %w", callerID, err)
-	}
-	return resourceError("delete", "caller", callerID, err)
+	return deleteResource(
+		ctx,
+		s.client.GatewayV1().Callers(),
+		"caller",
+		observed,
+	)
 }

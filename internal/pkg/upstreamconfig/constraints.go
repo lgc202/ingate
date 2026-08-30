@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"strings"
 
+	"golang.org/x/net/http/httpguts"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 )
 
@@ -96,5 +97,7 @@ func IsValidHealthCheckTimeout(timeoutSeconds, intervalSeconds int) bool {
 
 // IsValidModelAPIKey 判断 value 是否可以作为模型服务凭据持久化。
 func IsValidModelAPIKey(value string) bool {
-	return len(value) <= MaxModelAPIKeyBytes && strings.TrimSpace(value) == value
+	return len(value) <= MaxModelAPIKeyBytes &&
+		strings.TrimSpace(value) == value &&
+		httpguts.ValidHeaderFieldValue(value)
 }

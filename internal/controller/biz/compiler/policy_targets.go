@@ -7,6 +7,8 @@ import (
 	"slices"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/policyconfig"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 func (c *compilation) validPolicyTargets(
@@ -14,9 +16,40 @@ func (c *compilation) validPolicyTargets(
 	policyID string,
 	targets []gatewayv1.PolicyTargetRef,
 ) []gatewayv1.PolicyTargetRef {
+	if len(targets) > policyconfig.MaxTargets {
+		c.addResourceError(
+			policyKind,
+			policyID,
+			ReasonInvalidSpec,
+			fmt.Sprintf("policy %q contains too many targets", policyID),
+		)
+		targets = targets[:policyconfig.MaxTargets]
+	}
+
 	validTargets := make([]gatewayv1.PolicyTargetRef, 0, len(targets))
 	seen := make(map[string]bool, len(targets))
 	for _, target := range targets {
+		switch target.Kind {
+		case gatewayv1.KindGateway, gatewayv1.KindRoute:
+		default:
+			c.addResourceError(
+				policyKind,
+				policyID,
+				ReasonUnsupported,
+				fmt.Sprintf("policy %q targets unsupported kind %q", policyID, target.Kind),
+			)
+			continue
+		}
+		if !resourceconfig.IsCanonicalID(target.Name) {
+			c.addResourceError(
+				policyKind,
+				policyID,
+				ReasonInvalidSpec,
+				fmt.Sprintf("policy %q has invalid target %s %q", policyID, target.Kind, target.Name),
+			)
+			continue
+		}
+
 		key := string(target.Kind) + "\x00" + target.Name
 		if seen[key] {
 			c.addResourceError(
@@ -29,15 +62,6 @@ func (c *compilation) validPolicyTargets(
 		}
 		seen[key] = true
 
-		if target.Name == "" {
-			c.addResourceError(
-				policyKind,
-				policyID,
-				ReasonInvalidSpec,
-				fmt.Sprintf("policy %q has a target without a name", policyID),
-			)
-			continue
-		}
 		switch target.Kind {
 		case gatewayv1.KindGateway:
 			if _, exists := c.gateways[target.Name]; !exists {
@@ -59,14 +83,6 @@ func (c *compilation) validPolicyTargets(
 				)
 				continue
 			}
-		default:
-			c.addResourceError(
-				policyKind,
-				policyID,
-				ReasonUnsupported,
-				fmt.Sprintf("policy %q targets unsupported kind %q", policyID, target.Kind),
-			)
-			continue
 		}
 		validTargets = append(validTargets, target)
 	}

@@ -1,11 +1,9 @@
 package apiserver
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 
 	"k8s.io/client-go/tools/cache"
 
@@ -45,9 +43,6 @@ func (c *ConfigCache) ActivePolicies(callerID string) ([]tokenquota.Policy, erro
 	}
 	c.tokenQuotaMu.RUnlock()
 
-	slices.SortFunc(policies, func(a, b tokenquota.Policy) int {
-		return cmp.Compare(a.ID, b.ID)
-	})
 	return policies, nil
 }
 
@@ -136,8 +131,8 @@ func compileTokenQuotaPolicy(policy *resource.TokenQuotaPolicy) (compiledTokenQu
 	if !resourceconfig.IsCanonicalID(policy.Name) {
 		return compiledTokenQuotaPolicy{}, errors.New("metadata.name must be a canonical UUID")
 	}
-	if policy.Spec.DisplayName == "" || strings.TrimSpace(policy.Spec.DisplayName) != policy.Spec.DisplayName {
-		return compiledTokenQuotaPolicy{}, errors.New("displayName must be non-empty without surrounding whitespace")
+	if !resourceconfig.IsValidDisplayName(policy.Spec.DisplayName) {
+		return compiledTokenQuotaPolicy{}, errors.New("displayName is invalid")
 	}
 	timeZone, location, valid := tokenquotaconfig.LoadLocation(policy.Spec.TimeZone)
 	if !valid || timeZone != policy.Spec.TimeZone {
@@ -162,8 +157,8 @@ func compileTokenQuotaPolicy(policy *resource.TokenQuotaPolicy) (compiledTokenQu
 		if ref.Kind != resource.KindCaller {
 			return compiledTokenQuotaPolicy{}, fmt.Errorf("target %d has unsupported kind %q", i, ref.Kind)
 		}
-		callerID, valid := resourceconfig.NormalizeID(ref.Name)
-		if !valid || callerID != ref.Name {
+		callerID := ref.Name
+		if !resourceconfig.IsCanonicalID(callerID) {
 			return compiledTokenQuotaPolicy{}, fmt.Errorf("target %d has invalid Caller ID", i)
 		}
 		if seenCallers[callerID] {
@@ -190,10 +185,6 @@ func compileTokenQuotaPolicy(policy *resource.TokenQuotaPolicy) (compiledTokenQu
 		seenPeriods[period] = true
 		limits[i] = tokenquota.Limit{Period: period, Tokens: limit.Tokens}
 	}
-	slices.SortFunc(limits, func(a, b tokenquota.Limit) int {
-		return tokenQuotaPeriodOrder(a.Period) - tokenQuotaPeriodOrder(b.Period)
-	})
-
 	return compiledTokenQuotaPolicy{
 		policy: tokenquota.Policy{
 			ID:       policy.Name,
@@ -227,18 +218,5 @@ func tokenQuotaPeriod(period resource.TokenQuotaPeriod) (tokenquota.Period, bool
 		return tokenquota.PeriodMonth, true
 	default:
 		return "", false
-	}
-}
-
-func tokenQuotaPeriodOrder(period tokenquota.Period) int {
-	switch period {
-	case tokenquota.PeriodDay:
-		return 1
-	case tokenquota.PeriodWeek:
-		return 2
-	case tokenquota.PeriodMonth:
-		return 3
-	default:
-		return 4
 	}
 }

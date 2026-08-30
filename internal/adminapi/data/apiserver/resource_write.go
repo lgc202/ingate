@@ -2,7 +2,9 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 
@@ -22,12 +24,13 @@ type resourceClient[T any] interface {
 	Delete(ctx context.Context, name string, options metav1.DeleteOptions) error
 }
 
-// updateResource 在资源身份和配置版本未变化时重试底层资源版本冲突。
-func updateResource[T resourceObject[T]](
+// replaceResourceSpec 在资源身份和配置版本未变化时重试底层资源版本冲突。
+func replaceResourceSpec[T resourceObject[T]](
 	ctx context.Context,
 	client resourceClient[T],
+	kind string,
 	observed T,
-	mutate func(T),
+	setSpec func(T),
 ) (T, error) {
 	name := observed.GetName()
 	current := observed.DeepCopy()
@@ -46,7 +49,7 @@ func updateResource[T resourceObject[T]](
 			return biz.ErrResourceVersionConflict
 		}
 
-		mutate(current)
+		setSpec(current)
 		next, err := client.Update(ctx, current, metav1.UpdateOptions{})
 		refreshRequired = err != nil
 		if err != nil {
@@ -55,19 +58,29 @@ func updateResource[T resourceObject[T]](
 		updated = next
 		return nil
 	})
-	return updated, err
+	if apierrors.IsConflict(err) {
+		var zero T
+		return zero, fmt.Errorf(
+			"replace %s %q after conflict retries: %w",
+			kind,
+			name,
+			err,
+		)
+	}
+	return updated, resourceError("replace", kind, name, err)
 }
 
 // deleteResource 保持初次读取的资源身份，并使用最新底层资源版本执行条件删除。
 func deleteResource[T resourceObject[T]](
 	ctx context.Context,
 	client resourceClient[T],
+	kind string,
 	observed T,
 ) error {
 	name := observed.GetName()
 	current := observed.DeepCopy()
 	refreshRequired := false
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		if refreshRequired {
 			var err error
 			current, err = client.Get(ctx, name, metav1.GetOptions{})
@@ -91,4 +104,13 @@ func deleteResource[T resourceObject[T]](
 		refreshRequired = err != nil
 		return err
 	})
+	if apierrors.IsConflict(err) {
+		return fmt.Errorf(
+			"delete %s %q after conflict retries: %w",
+			kind,
+			name,
+			err,
+		)
+	}
+	return resourceError("delete", kind, name, err)
 }

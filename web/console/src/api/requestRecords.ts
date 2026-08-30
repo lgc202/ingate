@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, setQueryParameter } from './client';
 import { listGateways } from './gateways';
 import { listRoutes } from './routes';
 import { listUpstreams } from './upstreams';
@@ -20,15 +20,15 @@ export async function listRequestRecords(
     endTime: new Date(filters.endTime).toISOString(),
     pageSize: String(pageSize),
   });
-  setQuery(query, 'gatewayID', filters.gatewayID);
-  setQuery(query, 'routeID', filters.routeID);
-  setQuery(query, 'serviceID', filters.serviceID);
-  setQuery(query, 'callerID', filters.callerID);
-  setQuery(query, 'requestID', filters.requestID);
-  setQuery(query, 'method', filters.method);
-  setQuery(query, 'host', filters.host);
-  setQuery(query, 'pathPrefix', filters.pathPrefix);
-  setQuery(query, 'outcome', filters.outcome);
+  setQueryParameter(query, 'gatewayID', filters.gatewayID);
+  setQueryParameter(query, 'routeID', filters.routeID);
+  setQueryParameter(query, 'serviceID', filters.serviceID);
+  setQueryParameter(query, 'callerID', filters.callerID);
+  setQueryParameter(query, 'requestID', filters.requestID);
+  setQueryParameter(query, 'method', filters.method);
+  setQueryParameter(query, 'host', filters.host);
+  setQueryParameter(query, 'pathPrefix', filters.pathPrefix);
+  setQueryParameter(query, 'outcome', filters.outcome);
   if (filters.statusCode !== undefined) query.set('statusCode', String(filters.statusCode));
   if (pageToken) query.set('pageToken', pageToken);
 
@@ -56,9 +56,4 @@ export async function getRequestRecordWorkspace(): Promise<RequestRecordWorkspac
       accessKeys: accessKeys.map((key) => ({ id: key.id, name: key.name })),
     })),
   };
-}
-
-function setQuery(query: URLSearchParams, name: string, value?: string) {
-  const normalized = value?.trim();
-  if (normalized) query.set(name, normalized);
 }

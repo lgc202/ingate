@@ -11,12 +11,8 @@ import (
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/als/conf"
 	"github.com/lgc202/ingate/internal/pkg/kafkaclient"
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
-)
-
-const (
-	protobufContentType = "application/x-protobuf"
-	requestRecordType   = "ingate.als.v1.RequestRecord"
 )
 
 // Publisher 将 protobuf 请求记录发布到 Kafka。
@@ -79,8 +75,8 @@ func (p *Publisher) Publish(ctx context.Context, records []*alsv1.RequestRecord)
 			Key:   []byte(record.GetId()),
 			Value: value,
 			Headers: []kgo.RecordHeader{
-				{Key: "content-type", Value: []byte(protobufContentType)},
-				{Key: "message-type", Value: []byte(requestRecordType)},
+				{Key: requestrecord.ContentTypeHeader, Value: []byte(requestrecord.ContentType)},
+				{Key: requestrecord.MessageTypeHeader, Value: []byte(requestrecord.MessageType)},
 			},
 		})
 	}

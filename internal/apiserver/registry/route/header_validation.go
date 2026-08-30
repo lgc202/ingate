@@ -11,7 +11,11 @@ import (
 
 func validateAIHeaders(spec resource.RouteSpec, path *field.Path) field.ErrorList {
 	var errs field.ErrorList
-	for i, header := range spec.Match.Headers {
+	headers := spec.Match.Headers
+	if len(headers) > routeconfig.MaxHeaderMatches {
+		headers = headers[:routeconfig.MaxHeaderMatches]
+	}
+	for i, header := range headers {
 		if aiprotocol.IsInternalHeader(header.Name) {
 			errs = append(errs, field.Forbidden(
 				path.Child("match", "headers").Index(i).Child("name"),
@@ -35,7 +39,11 @@ func validateAIHeaderModifier(
 	}
 
 	var errs field.ErrorList
-	for i, header := range modifier.Set {
+	setHeaders := modifier.Set
+	if len(setHeaders) > routeconfig.MaxHeaderModifierActions {
+		setHeaders = setHeaders[:routeconfig.MaxHeaderModifierActions]
+	}
+	for i, header := range setHeaders {
 		if aiprotocol.IsInternalHeader(header.Name) {
 			errs = append(errs, field.Forbidden(
 				path.Child("set").Index(i).Child("name"),
@@ -43,7 +51,11 @@ func validateAIHeaderModifier(
 			))
 		}
 	}
-	for i, header := range modifier.Add {
+	addHeaders := modifier.Add
+	if len(addHeaders) > routeconfig.MaxHeaderModifierActions {
+		addHeaders = addHeaders[:routeconfig.MaxHeaderModifierActions]
+	}
+	for i, header := range addHeaders {
 		if aiprotocol.IsInternalHeader(header.Name) {
 			errs = append(errs, field.Forbidden(
 				path.Child("add").Index(i).Child("name"),
@@ -51,7 +63,11 @@ func validateAIHeaderModifier(
 			))
 		}
 	}
-	for i, name := range modifier.Remove {
+	removedHeaders := modifier.Remove
+	if len(removedHeaders) > routeconfig.MaxHeaderModifierActions {
+		removedHeaders = removedHeaders[:routeconfig.MaxHeaderModifierActions]
+	}
+	for i, name := range removedHeaders {
 		if aiprotocol.IsInternalHeader(name) {
 			errs = append(errs, field.Forbidden(
 				path.Child("remove").Index(i),
@@ -74,10 +90,24 @@ func validateHeaderModifier(modifier *resource.HeaderModifier, path *field.Path)
 	if actionCount > routeconfig.MaxHeaderModifierActions {
 		errs = append(errs, field.TooMany(path, actionCount, routeconfig.MaxHeaderModifierActions))
 	}
-	usedNames := make(map[string]bool, actionCount)
-	errs = append(errs, validateHeaderValues(modifier.Set, path.Child("set"), usedNames)...)
-	errs = append(errs, validateHeaderValues(modifier.Add, path.Child("add"), usedNames)...)
-	for i, name := range modifier.Remove {
+
+	setHeaders := modifier.Set
+	if len(setHeaders) > routeconfig.MaxHeaderModifierActions {
+		setHeaders = setHeaders[:routeconfig.MaxHeaderModifierActions]
+	}
+	addHeaders := modifier.Add
+	if len(addHeaders) > routeconfig.MaxHeaderModifierActions {
+		addHeaders = addHeaders[:routeconfig.MaxHeaderModifierActions]
+	}
+	removedHeaders := modifier.Remove
+	if len(removedHeaders) > routeconfig.MaxHeaderModifierActions {
+		removedHeaders = removedHeaders[:routeconfig.MaxHeaderModifierActions]
+	}
+
+	usedNames := make(map[string]bool, routeconfig.MaxHeaderModifierActions)
+	errs = append(errs, validateHeaderValues(setHeaders, path.Child("set"), usedNames)...)
+	errs = append(errs, validateHeaderValues(addHeaders, path.Child("add"), usedNames)...)
+	for i, name := range removedHeaders {
 		namePath := path.Child("remove").Index(i)
 		if !httpheader.IsValidName(name) {
 			errs = append(errs, field.Invalid(namePath, name, "header name is invalid"))

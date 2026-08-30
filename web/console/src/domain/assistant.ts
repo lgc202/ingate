@@ -109,6 +109,31 @@ export interface AssistantStreamEvent {
   value: string;
 }
 
+const configurationTools = new Set([
+  'list_gateways',
+  'list_routes',
+  'list_services',
+  'get_route_configuration',
+  'get_caller_token_quota',
+]);
+
+const observabilityTools = new Set([
+  'analyze_traffic',
+  'list_recent_failures',
+  'get_request_record',
+]);
+
+const toolStepLabels: Record<string, string> = {
+  list_gateways: '检查网关',
+  list_routes: '检查路由',
+  list_services: '检查服务',
+  get_route_configuration: '核对路由配置',
+  analyze_traffic: '分析近期流量',
+  list_recent_failures: '检查近期失败请求',
+  get_request_record: '检查请求明细',
+  get_caller_token_quota: '检查调用方额度',
+};
+
 export function isTerminalExecution(state: AgentExecutionState): boolean {
   return state === 'AGENT_EXECUTION_STATE_SUCCEEDED'
     || state === 'AGENT_EXECUTION_STATE_FAILED'
@@ -116,20 +141,27 @@ export function isTerminalExecution(state: AgentExecutionState): boolean {
 }
 
 export function executionStateLabel(state: AgentExecutionState): string {
-  if (state === 'AGENT_EXECUTION_STATE_QUEUED') return '排队中';
-  if (state === 'AGENT_EXECUTION_STATE_RUNNING') return '正在回答';
-  if (state === 'AGENT_EXECUTION_STATE_SUCCEEDED') return '已完成';
-  if (state === 'AGENT_EXECUTION_STATE_FAILED') return '执行失败';
-  return '已取消';
+  switch (state) {
+    case 'AGENT_EXECUTION_STATE_QUEUED':
+      return '排队中';
+    case 'AGENT_EXECUTION_STATE_RUNNING':
+      return '正在回答';
+    case 'AGENT_EXECUTION_STATE_SUCCEEDED':
+      return '已完成';
+    case 'AGENT_EXECUTION_STATE_FAILED':
+      return '执行失败';
+    case 'AGENT_EXECUTION_STATE_CANCELLED':
+      return '已取消';
+  }
 }
 
 export function executionErrorMessage(code: string, steps: AgentExecutionStep[] = []): string {
   const failed = steps.find((step) => step.state === 'AGENT_EXECUTION_STEP_STATE_FAILED');
   if (failed?.kind === 'AGENT_EXECUTION_STEP_KIND_MODEL_CALL') return '模型调用失败，请检查模型连接后重试';
-  if (failed && ['list_gateways', 'list_routes', 'list_services'].includes(failed.name)) {
+  if (failed && configurationTools.has(failed.name)) {
     return '读取网关配置失败，请检查管理服务状态后重试';
   }
-  if (failed && ['get_recent_traffic', 'list_recent_failures'].includes(failed.name)) {
+  if (failed && observabilityTools.has(failed.name)) {
     return '观测查询暂时不可用，请稍后重试';
   }
   if (code === 'MODEL_UNAVAILABLE') return '模型暂时不可用，请稍后重试';
@@ -140,10 +172,5 @@ export function executionErrorMessage(code: string, steps: AgentExecutionStep[] 
 
 export function executionStepLabel(step: AgentExecutionStep): string {
   if (step.kind === 'AGENT_EXECUTION_STEP_KIND_MODEL_CALL') return '分析问题';
-  if (step.name === 'list_gateways') return '检查网关';
-  if (step.name === 'list_routes') return '检查路由';
-  if (step.name === 'list_services') return '检查服务';
-  if (step.name === 'get_recent_traffic') return '检查近期流量';
-  if (step.name === 'list_recent_failures') return '检查近期失败请求';
-  return '检查系统信息';
+  return toolStepLabels[step.name] ?? '检查系统信息';
 }

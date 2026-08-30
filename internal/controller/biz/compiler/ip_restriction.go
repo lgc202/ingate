@@ -34,8 +34,8 @@ type compiledIPRestrictionPolicy struct {
 	targets []gatewayv1.PolicyTargetRef
 }
 
-func (c *compilation) compileIPRestrictionPolicies() map[string]compiledIPRestrictionPolicy {
-	result := make(map[string]compiledIPRestrictionPolicy)
+func (c *compilation) compileIPRestrictionPolicies() []compiledIPRestrictionPolicy {
+	result := make([]compiledIPRestrictionPolicy, 0, len(c.ipRestrictionPolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.ipRestrictionPolicies)) {
 		policy := c.ipRestrictionPolicies[policyID]
 		targets := c.validPolicyTargets(gatewayv1.KindIPRestrictionPolicy, policyID, policy.Spec.TargetRefs)
@@ -46,11 +46,11 @@ func (c *compilation) compileIPRestrictionPolicies() map[string]compiledIPRestri
 		if !valid {
 			continue
 		}
-		result[policyID] = compiledIPRestrictionPolicy{
+		result = append(result, compiledIPRestrictionPolicy{
 			source:  newResourceGeneration(gatewayv1.KindIPRestrictionPolicy, policy),
 			policy:  compiled,
 			targets: targets,
-		}
+		})
 	}
 	return result
 }

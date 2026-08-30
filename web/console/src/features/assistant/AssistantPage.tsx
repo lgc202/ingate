@@ -26,6 +26,7 @@ import {
   streamAgentExecution,
   updateAssistantConversation,
 } from '@/api/assistant';
+import { errorMessage } from '@/api/errors';
 import { Badge, Button, Modal, PageFrame, Toast } from '@/components/ui';
 import type {
   AssistantConversation,
@@ -105,7 +106,7 @@ export function AssistantPage() {
     } catch (cause) {
       if (generation === messageLoadGenerationRef.current) {
         setNotice({
-          message: cause instanceof Error ? cause.message : '加载会话消息失败',
+          message: errorMessage(cause, '加载会话消息失败'),
           tone: 'error',
         });
       }
@@ -218,7 +219,7 @@ export function AssistantPage() {
       await finishExecution(execution);
     } catch (cause) {
       if (!abortController.signal.aborted) {
-        setExecutionError(cause instanceof Error ? cause.message : '无法读取助手执行状态');
+        setExecutionError(errorMessage(cause, '无法读取助手执行状态'));
       }
     } finally {
       if (generation === streamGenerationRef.current) {
@@ -278,7 +279,7 @@ export function AssistantPage() {
         }
 
         const storedExecution = readStoredExecution();
-        const storedConversationID = localStorage.getItem(activeConversationKey);
+        const storedConversationID = readLocalValue(activeConversationKey);
         const firstID = storedExecution?.conversationID
           ?? (storedConversationID && items.some((item) => item.id === storedConversationID)
             ? storedConversationID
@@ -317,7 +318,7 @@ export function AssistantPage() {
       return;
     }
     selectedIDRef.current = selectedID;
-    localStorage.setItem(activeConversationKey, selectedID);
+    writeLocalValue(activeConversationKey, selectedID);
     void loadMessages(selectedID);
   }, [loadMessages, selectedID]);
 
@@ -346,7 +347,7 @@ export function AssistantPage() {
     promptHistoryRef.current = [];
     promptHistoryIndexRef.current = -1;
     promptDraftRef.current = '';
-    localStorage.removeItem(activeConversationKey);
+    removeLocalValue(activeConversationKey);
     window.requestAnimationFrame(() => editorRef.current?.focus());
   };
 
@@ -371,7 +372,7 @@ export function AssistantPage() {
       setConversations((current) => [...current, ...(page.conversations ?? [])]);
       setNextCursor(page.nextCursor ?? '');
     } catch (cause) {
-      setNotice({ message: cause instanceof Error ? cause.message : '加载更多会话失败', tone: 'error' });
+      setNotice({ message: errorMessage(cause, '加载更多会话失败'), tone: 'error' });
     } finally {
       setLoadingMore(false);
     }
@@ -405,7 +406,7 @@ export function AssistantPage() {
       void followExecution(execution);
     } catch (cause) {
       setInput(content);
-      setExecutionError(cause instanceof Error ? cause.message : '发送消息失败');
+      setExecutionError(errorMessage(cause, '发送消息失败'));
     }
   };
 
@@ -416,7 +417,7 @@ export function AssistantPage() {
       setActiveExecution(await cancelAgentExecution(activeExecution.id));
     } catch (cause) {
       setCancelling(false);
-      setNotice({ message: cause instanceof Error ? cause.message : '取消回答失败', tone: 'error' });
+      setNotice({ message: errorMessage(cause, '取消回答失败'), tone: 'error' });
     }
   };
 
@@ -436,7 +437,7 @@ export function AssistantPage() {
       }
       setDeleteCandidate(null);
     } catch (cause) {
-      setNotice({ message: cause instanceof Error ? cause.message : '删除会话失败', tone: 'error' });
+      setNotice({ message: errorMessage(cause, '删除会话失败'), tone: 'error' });
     } finally {
       setDeleting(false);
     }
@@ -452,7 +453,7 @@ export function AssistantPage() {
       setRenameCandidate(null);
       setNotice({ message: '会话名称已更新', tone: 'success' });
     } catch (cause) {
-      setNotice({ message: cause instanceof Error ? cause.message : '更新会话名称失败', tone: 'error' });
+      setNotice({ message: errorMessage(cause, '更新会话名称失败'), tone: 'error' });
     } finally {
       setRenaming(false);
     }
@@ -732,39 +733,85 @@ function conversationTitle(content: string): string {
 }
 
 function readStoredExecution(): StoredExecution | null {
-  const value = localStorage.getItem(activeExecutionKey);
+  const value = readLocalValue(activeExecutionKey);
   if (!value) return null;
   try {
-    const stored = JSON.parse(value) as Partial<StoredExecution>;
-    if (stored.executionID && stored.conversationID) {
+    const stored = JSON.parse(value) as Record<string, unknown>;
+    if (
+      typeof stored.executionID === 'string'
+      && typeof stored.conversationID === 'string'
+      && typeof stored.lastEventID === 'string'
+      && typeof stored.content === 'string'
+      && typeof stored.reasoning === 'string'
+    ) {
       return {
         executionID: stored.executionID,
         conversationID: stored.conversationID,
-        lastEventID: stored.lastEventID ?? '',
-        content: stored.content ?? '',
-        reasoning: stored.reasoning ?? '',
+        lastEventID: stored.lastEventID,
+        content: stored.content,
+        reasoning: stored.reasoning,
       };
     }
   } catch {
-    localStorage.removeItem(activeExecutionKey);
+    // 非法 JSON 与字段不完整的存储值使用同一种清理路径。
   }
+  removeLocalValue(activeExecutionKey);
   return null;
 }
 
 function storeActiveExecution(execution: StoredExecution) {
-  localStorage.setItem(activeExecutionKey, JSON.stringify(execution));
+  if (writeLocalValue(activeExecutionKey, JSON.stringify(execution))) {
+    return;
+  }
+
+  // 流式内容可能超过浏览器存储额度；保留可重新订阅的执行身份即可。
+  writeLocalValue(activeExecutionKey, JSON.stringify({
+    executionID: execution.executionID,
+    conversationID: execution.conversationID,
+    lastEventID: '',
+    content: '',
+    reasoning: '',
+  } satisfies StoredExecution));
 }
 
 function clearStoredExecution() {
-  localStorage.removeItem(activeExecutionKey);
+  removeLocalValue(activeExecutionKey);
+}
+
+function readLocalValue(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writeLocalValue(key: string, value: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function removeLocalValue(key: string): void {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // 浏览器禁用本地存储时无需影响当前页面状态。
+  }
 }
 
 function delay(duration: number, signal: AbortSignal): Promise<void> {
   return new Promise((resolve) => {
-    const timer = window.setTimeout(resolve, duration);
-    signal.addEventListener('abort', () => {
+    const finish = () => {
       window.clearTimeout(timer);
+      signal.removeEventListener('abort', finish);
       resolve();
-    }, { once: true });
+    };
+    const timer = window.setTimeout(finish, duration);
+    signal.addEventListener('abort', finish, { once: true });
+    if (signal.aborted) finish();
   });
 }

@@ -66,6 +66,9 @@ func (s *Service) configuredConnection(ctx context.Context) (Connection, error) 
 	if err != nil {
 		return Connection{}, err
 	}
+	if !connection.Configured || connection.UpdatedAt.IsZero() {
+		return Connection{}, errors.New("stored assistant model connection is invalid")
+	}
 	if err := connection.validate(); err != nil {
 		return Connection{}, errors.New("stored assistant model connection is invalid")
 	}

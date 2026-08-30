@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { CircleAlert, KeyRound, Link2, ShieldCheck } from 'lucide-react';
 import { updateModelConnection } from '@/api/assistant';
+import { errorMessage } from '@/api/errors';
 import { Button, Drawer } from '@/components/ui';
 import type {
   ModelConnection,
@@ -80,7 +81,7 @@ export function ModelConnectionDrawer({ connection, open, onClose, onSaved }: Mo
       onSaved(await updateModelConnection(input));
       onClose();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '保存模型连接失败');
+      setError(errorMessage(cause, '保存模型连接失败'));
     } finally {
       setSaving(false);
     }

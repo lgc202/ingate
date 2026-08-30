@@ -31,8 +31,8 @@ type mockResponseHeader struct {
 	Value string `json:"value"`
 }
 
-func (c *compilation) compileMockResponsePolicies() map[string]compiledMockResponsePolicy {
-	result := make(map[string]compiledMockResponsePolicy)
+func (c *compilation) compileMockResponsePolicies() []compiledMockResponsePolicy {
+	result := make([]compiledMockResponsePolicy, 0, len(c.mockResponsePolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.mockResponsePolicies)) {
 		policy := c.mockResponsePolicies[policyID]
 		targets := c.validPolicyTargets(gatewayv1.KindMockResponsePolicy, policyID, policy.Spec.TargetRefs)
@@ -71,7 +71,7 @@ func (c *compilation) compileMockResponsePolicies() map[string]compiledMockRespo
 			)
 			continue
 		}
-		result[policyID] = compiledMockResponsePolicy{
+		result = append(result, compiledMockResponsePolicy{
 			source: newResourceGeneration(gatewayv1.KindMockResponsePolicy, policy),
 			filter: wasmFilter{
 				name:          policy.Name,
@@ -82,7 +82,7 @@ func (c *compilation) compileMockResponsePolicies() map[string]compiledMockRespo
 				module:        module,
 			},
 			targets: targets,
-		}
+		})
 	}
 	return result
 }
@@ -156,13 +156,12 @@ func buildMockResponseConfig(spec gatewayv1.MockResponsePolicySpec) (mockRespons
 }
 
 func matchingMockResponsePolicies(
-	policies map[string]compiledMockResponsePolicy,
+	policies []compiledMockResponsePolicy,
 	key policyRouteKey,
 ) ([]compiledMockResponsePolicy, []matchedPolicyTarget) {
 	matched := make([]compiledMockResponsePolicy, 0)
 	targets := make([]matchedPolicyTarget, 0)
-	for _, policyID := range slices.Sorted(maps.Keys(policies)) {
-		compiled := policies[policyID]
+	for _, compiled := range policies {
 		_, matchedTargets := matchingPolicyTargets(compiled.targets, key)
 		if len(matchedTargets) == 0 {
 			continue

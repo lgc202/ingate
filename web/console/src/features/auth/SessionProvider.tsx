@@ -1,5 +1,6 @@
 import { createContext, FormEvent, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
 import { LogIn } from 'lucide-react';
+import { errorMessage } from '@/api/errors';
 import { getSession, login, logout, Session } from './session';
 
 interface SessionContextValue {
@@ -56,7 +57,7 @@ function LoginPage({ onAuthenticated }: { onAuthenticated: (session: Session) =>
     try {
       onAuthenticated(await login(username.trim(), password));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '登录失败');
+      setError(errorMessage(cause, '登录失败'));
     } finally {
       setSubmitting(false);
     }

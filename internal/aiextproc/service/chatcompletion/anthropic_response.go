@@ -4,11 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/tidwall/gjson"
+
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 type openAIResponse struct {
@@ -51,11 +54,15 @@ func RewriteAnthropicResponse(body []byte, clientModel string) ([]byte, Response
 	if err := json.Unmarshal(body, &source); err != nil {
 		return nil, ResponseMetadata{}, fmt.Errorf("unmarshal anthropic response: %w", err)
 	}
-	if source.ID == "" || source.Model == "" {
-		return nil, ResponseMetadata{}, errors.New("unmarshal anthropic response: missing message ID or model")
+	if source.ID == "" || !routeconfig.IsValidModelName(source.Model) {
+		return nil, ResponseMetadata{}, errors.New("unmarshal anthropic response: missing message ID or invalid model")
 	}
 	usage := anthropicUsage(source.Usage.InputTokens, source.Usage.OutputTokens,
 		source.Usage.CacheReadInputTokens, source.Usage.CacheCreationInputTokens)
+	if !usage.Found {
+		return nil, ResponseMetadata{}, errors.New("unmarshal anthropic response: invalid usage")
+	}
+	usage.Final = usage.Found
 	finishReason := openAIFinishReason(source.StopReason)
 	var content strings.Builder
 	for _, block := range source.Content {
@@ -121,8 +128,13 @@ func RewriteAnthropicErrorResponse(body []byte) (converted []byte, changed bool,
 func anthropicUsage(input, output, cacheRead, cacheCreation int64) Usage {
 	// Anthropic 将缓存读取和缓存写入 Token 从普通输入 Token 中拆开上报
 	// Ingate 的统一 input_tokens 表示本次请求计费涉及的全部输入 Token
+	if input < 0 || output < 0 || cacheRead < 0 || cacheCreation < 0 ||
+		input > math.MaxInt64-cacheRead ||
+		input+cacheRead > math.MaxInt64-cacheCreation {
+		return Usage{}
+	}
 	input += cacheRead + cacheCreation
-	if input < 0 || output < 0 {
+	if input > math.MaxInt64-output {
 		return Usage{}
 	}
 	return Usage{

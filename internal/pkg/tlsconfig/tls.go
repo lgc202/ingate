@@ -29,7 +29,7 @@ type ServerConfig struct {
 	ClientCAFile    string
 }
 
-// NewClient 创建最低使用 TLS 1.2 的客户端配置
+// NewClient 创建最低使用 TLS 1.2 的客户端配置。
 // CAFile 为空时使用操作系统根证书，配置证书和私钥时启用 mTLS。
 func NewClient(config ClientConfig) (*tls.Config, error) {
 	if !config.Enabled {
@@ -60,7 +60,7 @@ func NewClient(config ClientConfig) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// NewServer 创建最低使用 TLS 1.2 的服务端配置
+// NewServer 创建最低使用 TLS 1.2 的服务端配置。
 // ClientCAFile 非空时要求客户端提供由该 CA 签发的证书。
 func NewServer(config ServerConfig) (*tls.Config, error) {
 	if !config.Enabled {

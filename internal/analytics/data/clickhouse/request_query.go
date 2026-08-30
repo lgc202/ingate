@@ -17,7 +17,7 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
-// requestSummaryColumns 只读取列表展示所需列，避免翻页时扫描完整详情
+// requestSummaryColumns 只读取列表展示所需列，避免翻页时扫描完整详情。
 const requestSummaryColumns = `
     id,
     started_at,
@@ -64,6 +64,9 @@ func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (
 	}
 	records, err := readRequestSummaries(rows, options.PageSize+1)
 	if err != nil {
+		return request.Page{}, err
+	}
+	if err := validateRequestPage(records, options); err != nil {
 		return request.Page{}, err
 	}
 
@@ -142,7 +145,7 @@ func (s *Store) queryRequestRecord(
 	return scanRequestRecord(rows)
 }
 
-// appendRequestFilters 只拼接预定义列，所有用户输入继续作为 ClickHouse 参数传递
+// appendRequestFilters 只拼接预定义列，所有用户输入继续作为 ClickHouse 参数传递。
 func appendRequestFilters(statement *strings.Builder, args []any, options request.ListOptions) []any {
 	filter := options.Filter
 	if filter.GatewayID != "" {
@@ -195,7 +198,7 @@ func appendRequestFilters(statement *strings.Builder, args []any, options reques
 	return args
 }
 
-// scanRequestSummary 把 ClickHouse 的紧凑数值类型还原为列表查询摘要
+// scanRequestSummary 把 ClickHouse 的紧凑数值类型还原为列表查询摘要。
 func scanRequestSummary(rows driver.Rows) (request.Summary, error) {
 	var (
 		summary    request.Summary
@@ -251,7 +254,37 @@ func readRequestSummaries(rows driver.Rows, capacity int) (records []request.Sum
 	return records, nil
 }
 
-// scanRequestRecord 把 ClickHouse 的紧凑数值类型还原为请求领域记录
+func validateRequestPage(records []request.Summary, options request.ListOptions) error {
+	if len(records) > options.PageSize+1 {
+		return errors.New("stored request page exceeds the requested size")
+	}
+	for i, record := range records {
+		if record.StartedAt.Before(options.Filter.StartTime) ||
+			!record.StartedAt.Before(options.Filter.EndTime) {
+			return errors.New("stored request page contains a timestamp outside the query range")
+		}
+		if options.Cursor != nil && !isAfterRequestCursor(record, *options.Cursor) {
+			return errors.New("stored request page contains a record that does not follow the requested cursor")
+		}
+		if i > 0 {
+			previous := records[i-1]
+			if !isAfterRequestCursor(
+				record,
+				request.Cursor{StartedAt: previous.StartedAt, ID: previous.ID},
+			) {
+				return errors.New("stored request page is not strictly ordered")
+			}
+		}
+	}
+	return nil
+}
+
+func isAfterRequestCursor(record request.Summary, cursor request.Cursor) bool {
+	return record.StartedAt.Before(cursor.StartedAt) ||
+		record.StartedAt.Equal(cursor.StartedAt) && record.ID < cursor.ID
+}
+
+// scanRequestRecord 把 ClickHouse 的紧凑数值类型还原为请求领域记录。
 func scanRequestRecord(rows driver.Rows) (*request.Record, error) {
 	var (
 		record            request.Record
@@ -324,6 +357,9 @@ func requiredDurationFromNanoseconds(nanoseconds uint64) (time.Duration, error) 
 func validateRequestSummary(summary request.Summary) error {
 	if !requestrecord.IsValidID(summary.ID) || !analyticsconfig.IsSupportedTime(summary.StartedAt) {
 		return errors.New("stored request summary has an invalid identity")
+	}
+	if summary.StatusCode > 0 && summary.StatusCode < 100 {
+		return fmt.Errorf("stored request summary %q has an invalid status code", summary.ID)
 	}
 	if !validStoredResourceReferences(
 		summary.GatewayID,

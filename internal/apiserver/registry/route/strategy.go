@@ -161,28 +161,23 @@ func canonicalizeHeaderModifier(modifier *resource.HeaderModifier) {
 	if modifier == nil {
 		return
 	}
-	for i := range modifier.Set {
-		modifier.Set[i].Name = httpheader.NormalizeName(modifier.Set[i].Name)
-		modifier.Set[i].Value = httpheader.NormalizeValue(modifier.Set[i].Value)
-	}
-	slices.SortFunc(modifier.Set, func(left, right resource.HeaderValue) int {
-		return cmp.Or(
-			strings.Compare(left.Name, right.Name),
-			strings.Compare(left.Value, right.Value),
-		)
-	})
-	for i := range modifier.Add {
-		modifier.Add[i].Name = httpheader.NormalizeName(modifier.Add[i].Name)
-		modifier.Add[i].Value = httpheader.NormalizeValue(modifier.Add[i].Value)
-	}
-	slices.SortFunc(modifier.Add, func(left, right resource.HeaderValue) int {
-		return cmp.Or(
-			strings.Compare(left.Name, right.Name),
-			strings.Compare(left.Value, right.Value),
-		)
-	})
+	canonicalizeHeaderValues(modifier.Set)
+	canonicalizeHeaderValues(modifier.Add)
 	for i := range modifier.Remove {
 		modifier.Remove[i] = httpheader.NormalizeName(modifier.Remove[i])
 	}
 	slices.Sort(modifier.Remove)
+}
+
+func canonicalizeHeaderValues(values []resource.HeaderValue) {
+	for i := range values {
+		values[i].Name = httpheader.NormalizeName(values[i].Name)
+		values[i].Value = httpheader.NormalizeValue(values[i].Value)
+	}
+	slices.SortFunc(values, func(left, right resource.HeaderValue) int {
+		return cmp.Or(
+			strings.Compare(left.Name, right.Name),
+			strings.Compare(left.Value, right.Value),
+		)
+	})
 }

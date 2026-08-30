@@ -3,11 +3,14 @@ package chatcompletion
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/tidwall/gjson"
+
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 type openAIStreamResponse struct {
@@ -37,6 +40,7 @@ type AnthropicStream struct {
 	clientModel         string
 	messageID           string
 	created             int64
+	started             bool
 	roleSent            bool
 	finished            bool
 	stopReason          anthropic.StopReason
@@ -71,6 +75,9 @@ func (s *AnthropicStream) Convert(chunk []byte, endOfStream bool) ([]byte, Respo
 		converted = append(converted, output...)
 		changed = eventChanged || changed
 	}
+	if len(s.buffer) > maxPendingSSEBytes {
+		return nil, ResponseMetadata{}, false, errors.New("anthropic stream event exceeds the size limit")
+	}
 	if endOfStream && len(bytes.TrimSpace(s.buffer)) > 0 {
 		// 部分服务结束最后一个 SSE 事件时不带空行，流结束仍要尝试解析尾部数据
 		output, eventChanged, err := s.convertEvent(s.buffer)
@@ -94,13 +101,16 @@ func (s *AnthropicStream) Convert(chunk []byte, endOfStream bool) ([]byte, Respo
 }
 
 func nextSSEEvent(buffer []byte) (event, remaining []byte, found bool) {
-	if index := bytes.Index(buffer, []byte("\n\n")); index >= 0 {
-		return buffer[:index], buffer[index+2:], true
+	lineFeedIndex := bytes.Index(buffer, []byte("\n\n"))
+	carriageReturnIndex := bytes.Index(buffer, []byte("\r\n\r\n"))
+	switch {
+	case lineFeedIndex >= 0 && (carriageReturnIndex < 0 || lineFeedIndex < carriageReturnIndex):
+		return buffer[:lineFeedIndex], buffer[lineFeedIndex+2:], true
+	case carriageReturnIndex >= 0:
+		return buffer[:carriageReturnIndex], buffer[carriageReturnIndex+4:], true
+	default:
+		return nil, buffer, false
 	}
-	if index := bytes.Index(buffer, []byte("\r\n\r\n")); index >= 0 {
-		return buffer[:index], buffer[index+4:], true
-	}
-	return nil, buffer, false
 }
 
 func parseSSEEvent(event []byte) (string, []byte) {
@@ -130,24 +140,39 @@ func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
 	if eventType == "" {
 		eventType = gjson.GetBytes(data, "type").String()
 	}
+	if s.finished {
+		return nil, false, errors.New("anthropic stream contains an event after completion")
+	}
 
 	switch eventType {
 	case "message_start":
+		if s.started {
+			return nil, false, errors.New("anthropic stream contains multiple message_start events")
+		}
 		// message_start 建立后续增量事件共用的响应 ID、模型和初始用量
 		var start anthropic.MessageStartEvent
 		if err := json.Unmarshal(data, &start); err != nil {
 			return nil, false, fmt.Errorf("unmarshal anthropic message_start: %w", err)
 		}
+		if start.Message.ID == "" || !routeconfig.IsValidModelName(start.Message.Model) {
+			return nil, false, errors.New("anthropic message_start is missing a valid message ID or model")
+		}
 		s.messageID = start.Message.ID
 		s.created = time.Now().Unix()
+		s.started = true
 		s.inputTokens = start.Message.Usage.InputTokens
 		s.cacheReadTokens = start.Message.Usage.CacheReadInputTokens
 		s.cacheCreationTokens = start.Message.Usage.CacheCreationInputTokens
 		s.outputTokens = start.Message.Usage.OutputTokens
-		s.updateMetadata(start.Message.Model, "")
+		if err := s.updateMetadata(start.Message.Model, ""); err != nil {
+			return nil, false, err
+		}
 		return nil, true, nil
 
 	case "content_block_delta":
+		if !s.started {
+			return nil, false, errors.New("anthropic content_block_delta preceded message_start")
+		}
 		// 一个 Anthropic 文本 delta 对应一个 OpenAI chat.completion.chunk
 		var delta anthropic.ContentBlockDeltaEvent
 		if err := json.Unmarshal(data, &delta); err != nil {
@@ -164,6 +189,9 @@ func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
 		return s.textChunk(role, delta.Delta.Text)
 
 	case "message_delta":
+		if !s.started {
+			return nil, false, errors.New("anthropic message_delta preceded message_start")
+		}
 		var delta anthropic.MessageDeltaEvent
 		if err := json.Unmarshal(data, &delta); err != nil {
 			return nil, false, fmt.Errorf("unmarshal anthropic message_delta: %w", err)
@@ -189,7 +217,9 @@ func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
 		if s.stopReason != "" {
 			finishReason = openAIFinishReason(s.stopReason)
 		}
-		s.updateMetadata("", finishReason)
+		if err := s.updateMetadata("", finishReason); err != nil {
+			return nil, false, err
+		}
 		return nil, true, nil
 
 	case "message_stop":
@@ -243,11 +273,17 @@ func (s *AnthropicStream) finish() ([]byte, bool, error) {
 	if s.finished {
 		return nil, false, nil
 	}
+	if !s.started {
+		return nil, false, errors.New("anthropic stream ended before message_start")
+	}
 	if s.stopReason == "" {
 		s.stopReason = anthropic.StopReasonEndTurn
 	}
 	finishReason := openAIFinishReason(s.stopReason)
-	s.updateMetadata("", finishReason)
+	if err := s.updateMetadata("", finishReason); err != nil {
+		return nil, false, err
+	}
+	s.metadata.Usage.Final = s.metadata.Usage.Found
 
 	finishChunk := openAIStreamResponse{
 		ID:      s.messageID,
@@ -291,8 +327,11 @@ func (s *AnthropicStream) finish() ([]byte, bool, error) {
 	return output, true, nil
 }
 
-func (s *AnthropicStream) updateMetadata(model, finishReason string) {
+func (s *AnthropicStream) updateMetadata(model, finishReason string) error {
 	usage := anthropicUsage(s.inputTokens, s.outputTokens, s.cacheReadTokens, s.cacheCreationTokens)
+	if !usage.Found {
+		return errors.New("anthropic stream contains invalid token usage")
+	}
 	if model != "" {
 		s.metadata.ResponseModel = model
 	}
@@ -302,6 +341,7 @@ func (s *AnthropicStream) updateMetadata(model, finishReason string) {
 	if usage.Found {
 		s.metadata.Usage = usage
 	}
+	return nil
 }
 
 func appendSSEData(target, data []byte) []byte {

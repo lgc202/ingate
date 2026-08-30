@@ -11,9 +11,9 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 )
 
-// requestRecordColumns 是请求事实表的完整列契约
+// requestRecordColumns 是请求事实表的完整列契约。
 //
-// 写入参数和详情查询共用这个顺序，新增列时必须同时调整写入与 Scan
+// 写入参数和详情查询共用这个顺序，新增列时必须同时调整写入与 Scan。
 const requestRecordColumns = `
     id,
     request_id,
@@ -41,8 +41,8 @@ const requestRecordColumns = `
 
 // SaveRequestBatch 保存 Kafka 本轮交付的请求事实。
 //
-// Kafka Poll 的批次边界在进程重启后可能变化，因此不能拿整批数据生成幂等标识
-// 每条请求分别以稳定事件 ID 写入，ClickHouse 再通过 async insert 在服务端合批
+// Kafka Poll 的批次边界在进程重启后可能变化，因此不能拿整批数据生成幂等标识。
+// 每条请求分别以稳定事件 ID 写入，ClickHouse 再通过 async insert 在服务端合批。
 // 所有写入收到持久化确认后调用方才会提交 Kafka offset。
 func (s *Store) SaveRequestBatch(ctx context.Context, records []request.Record) error {
 	if len(records) == 0 {
@@ -119,11 +119,11 @@ func (s *Store) saveRequestRecord(ctx context.Context, record request.Record) er
 	return nil
 }
 
-// asyncInsertContext 为一次逻辑事件建立 ClickHouse 幂等写入上下文
+// asyncInsertContext 为一次逻辑事件建立 ClickHouse 幂等写入上下文。
 //
 // wait=true 保证服务端完成持久化后才返回。显式事件 ID 让 Kafka 重投仍命中同一个
-// 去重标识；dependent materialized view 使用同一标识过滤重投，避免累计指标翻倍
-// ClickHouse 不把 token 纳入异步队列键，不同事件仍可在服务端合并为较大的数据块
+// 去重标识；dependent materialized view 使用同一标识过滤重投，避免累计指标翻倍。
+// ClickHouse 不把 token 纳入异步队列键，不同事件仍可在服务端合并为较大的数据块。
 func asyncInsertContext(ctx context.Context, eventID string) context.Context {
 	return clickhousego.Context(
 		ctx,

@@ -19,8 +19,8 @@ type compiledRateLimitPolicy struct {
 	targets []gatewayv1.PolicyTargetRef
 }
 
-func (c *compilation) compileRateLimitPolicies() map[string]compiledRateLimitPolicy {
-	result := make(map[string]compiledRateLimitPolicy)
+func (c *compilation) compileRateLimitPolicies() []compiledRateLimitPolicy {
+	result := make([]compiledRateLimitPolicy, 0, len(c.rateLimitPolicies))
 	for _, policyID := range slices.Sorted(maps.Keys(c.rateLimitPolicies)) {
 		policy := c.rateLimitPolicies[policyID]
 		targets := c.validPolicyTargets(gatewayv1.KindRateLimitPolicy, policyID, policy.Spec.TargetRefs)
@@ -31,11 +31,11 @@ func (c *compilation) compileRateLimitPolicies() map[string]compiledRateLimitPol
 		if !valid {
 			continue
 		}
-		result[policyID] = compiledRateLimitPolicy{
+		result = append(result, compiledRateLimitPolicy{
 			source:  newResourceGeneration(gatewayv1.KindRateLimitPolicy, policy),
 			rule:    rule,
 			targets: targets,
-		}
+		})
 	}
 	return result
 }
@@ -108,13 +108,12 @@ func (c *compilation) rateLimitRule(policy *gatewayv1.RateLimitPolicy) (extauthz
 }
 
 func matchingRateLimitPolicies(
-	policies map[string]compiledRateLimitPolicy,
+	policies []compiledRateLimitPolicy,
 	key policyRouteKey,
 ) ([]extauthz.RateLimitRule, []matchedPolicyTarget) {
 	rules := make([]extauthz.RateLimitRule, 0)
 	targets := make([]matchedPolicyTarget, 0)
-	for _, policyID := range slices.Sorted(maps.Keys(policies)) {
-		compiled := policies[policyID]
+	for _, compiled := range policies {
 		scope, matchedTargets := matchingPolicyTargets(compiled.targets, key)
 		if len(matchedTargets) == 0 {
 			continue

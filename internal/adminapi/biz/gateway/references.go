@@ -15,27 +15,24 @@ import (
 // checkCertificateReferences 预检 HTTPS Listener 引用的证书。
 // 最终发布结果仍由 Controller status 表达。
 func (uc *Usecase) checkCertificateReferences(ctx context.Context, spec resource.GatewaySpec) error {
-	seenCertificateIDs := make(map[string]bool, len(spec.Listeners))
+	certificateIDs := make([]string, 0, len(spec.Listeners))
 	for _, listener := range spec.Listeners {
-		if listener.Protocol != resource.ProtocolHTTPS {
+		if listener.Protocol == resource.ProtocolHTTPS {
+			certificateIDs = append(certificateIDs, listener.CertificateRef)
+		}
+	}
+	certificates, err := uc.certificates.ListByIDs(ctx, certificateIDs)
+	if err != nil {
+		return err
+	}
+	for _, certificateID := range certificateIDs {
+		if certificates[certificateID] != nil {
 			continue
 		}
-		certificateID := listener.CertificateRef
-		if seenCertificateIDs[certificateID] {
-			continue
-		}
-		seenCertificateIDs[certificateID] = true
-
-		_, err := uc.certificates.Get(ctx, certificateID)
-		if err != nil {
-			if errors.IsNotFound(err) {
-				return errors.Conflict(
-					adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
-					fmt.Sprintf("HTTPS 证书 %q 不存在", certificateID),
-				).WithCause(err)
-			}
-			return err
-		}
+		return errors.Conflict(
+			adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
+			fmt.Sprintf("HTTPS 证书 %q 不存在", certificateID),
+		)
 	}
 	return nil
 }

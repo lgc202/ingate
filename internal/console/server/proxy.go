@@ -72,7 +72,8 @@ func newReverseProxy(
 		return nil
 	}
 	proxy.ErrorHandler = func(writer http.ResponseWriter, request *http.Request, err error) {
-		logger.Error(
+		logger.ErrorContext(
+			request.Context(),
 			"backend proxy request failed",
 			"backend", service,
 			"request_id", request.Header.Get(requestid.Header),

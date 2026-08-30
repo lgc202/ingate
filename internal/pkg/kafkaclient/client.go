@@ -22,7 +22,7 @@ type SASL struct {
 	Password  string
 }
 
-// Config 定义 Kafka broker 连接的公共参数
+// Config 定义 Kafka broker 连接的公共参数。
 // Topic、Consumer Group 和生产消费语义由调用组件通过 options 明确传入。
 type Config struct {
 	Brokers     []string

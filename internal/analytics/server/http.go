@@ -42,7 +42,7 @@ func health(response http.ResponseWriter, _ *http.Request) {
 	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-// ready 在同一个请求期限内确认 Kafka 和 ClickHouse 当前都可访问
+// ready 在同一个请求期限内确认 Kafka 和 ClickHouse 当前都可访问。
 func ready(timeout time.Duration, kafka pinger, clickHouse pinger) http.HandlerFunc {
 	return func(response http.ResponseWriter, request *http.Request) {
 		ctx, cancel := context.WithTimeout(request.Context(), timeout)
@@ -65,7 +65,7 @@ func ready(timeout time.Duration, kafka pinger, clickHouse pinger) http.HandlerF
 	}
 }
 
-// metricsHandler 使用进程独立 Registry 暴露 Go 指标和请求记录处理计数
+// metricsHandler 使用进程独立 Registry 暴露 Go 指标和请求记录处理计数。
 func metricsHandler(counters func() requestCounters) http.Handler {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(
@@ -89,14 +89,20 @@ func metricsHandler(counters func() requestCounters) http.Handler {
 			Name:      "records_invalid_total",
 			Help:      "Malformed request record messages discarded from Kafka.",
 		}, func() float64 { return float64(counters().invalid) }),
+		prometheus.NewCounterFunc(prometheus.CounterOpts{
+			Namespace: "ingate",
+			Subsystem: "analytics",
+			Name:      "records_duplicate_total",
+			Help:      "Duplicate request record messages discarded within a Kafka poll batch.",
+		}, func() float64 { return float64(counters().duplicate) }),
 	)
 
 	// 使用独立 Registry，避免依赖库隐式注册与业务无关的全局指标
 	return promhttp.HandlerFor(registry, promhttp.HandlerOpts{EnableOpenMetrics: true})
 }
 
-func writeJSON(response http.ResponseWriter, status int, value any) {
+func writeJSON(response http.ResponseWriter, statusCode int, value any) {
 	response.Header().Set("Content-Type", "application/json")
-	response.WriteHeader(status)
+	response.WriteHeader(statusCode)
 	_ = json.NewEncoder(response).Encode(value)
 }

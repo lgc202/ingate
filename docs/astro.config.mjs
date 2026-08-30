@@ -61,6 +61,8 @@ export default defineConfig({
             { label: 'IP 访问限制', slug: 'governance/ip-restriction' },
             { label: '请求限流', slug: 'governance/rate-limit' },
             { label: 'Token 额度', slug: 'governance/token-quota' },
+            { label: '请求响应转换', slug: 'governance/header-transformation' },
+            { label: '模拟响应', slug: 'governance/mock-response' },
           ],
         },
         {
@@ -77,7 +79,10 @@ export default defineConfig({
         },
         {
           label: '运维',
-          items: [{ label: '配置与维护', slug: 'operations/overview' }],
+          items: [
+            { label: '运维助手', slug: 'operations/assistant' },
+            { label: '配置与维护', slug: 'operations/overview' },
+          ],
         },
         {
           label: '参考',

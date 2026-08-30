@@ -9,6 +9,10 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"golang.org/x/net/http/httpguts"
+
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 const (
@@ -64,24 +68,23 @@ type Counter interface {
 	Allow(context.Context, Limit) (Decision, error)
 }
 
-// Exceeded 表示请求命中的具体限流规则已经耗尽。
-type Exceeded struct {
-	PolicyID   string
+// Rejection 记录拒绝当前请求的限流结果。
+type Rejection struct {
 	RetryAfter time.Duration
 }
 
-// Service 按稳定顺序执行当前 Route 命中的全部限流规则。
-type Service struct {
+// Limiter 按稳定顺序执行当前 Route 命中的全部限流规则。
+type Limiter struct {
 	counter Counter
 }
 
-// NewService 创建请求限流服务。
-func NewService(counter Counter) *Service {
-	return &Service{counter: counter}
+// NewLimiter 创建请求限流器。
+func NewLimiter(counter Counter) *Limiter {
+	return &Limiter{counter: counter}
 }
 
 // Admit 检查并占用一次请求额度。
-func (s *Service) Admit(ctx context.Context, rules []Rule, request Request) (*Exceeded, error) {
+func (l *Limiter) Admit(ctx context.Context, rules []Rule, request Request) (*Rejection, error) {
 	ordered := slices.Clone(rules)
 	slices.SortFunc(ordered, func(left, right Rule) int {
 		if result := strings.Compare(left.PolicyID, right.PolicyID); result != 0 {
@@ -96,40 +99,49 @@ func (s *Service) Admit(ctx context.Context, rules []Rule, request Request) (*Ex
 		if err != nil {
 			return nil, err
 		}
-		decision, err := s.counter.Allow(ctx, limit)
+		decision, err := l.counter.Allow(ctx, limit)
 		if err != nil {
 			return nil, fmt.Errorf("apply request rate limit: %w", err)
 		}
 		if !decision.Allowed {
-			return &Exceeded{PolicyID: rule.PolicyID, RetryAfter: decision.RetryAfter}, nil
+			return &Rejection{RetryAfter: decision.RetryAfter}, nil
 		}
 	}
 	return nil, nil
 }
 
 func (r Rule) limit(request Request) (Limit, error) {
-	if r.PolicyID == "" ||
-		r.Scope == "" ||
-		r.Requests < 1 ||
-		r.Requests > math.MaxInt ||
-		r.WindowSeconds < 1 ||
-		r.WindowSeconds > maxWindowSeconds {
-		return Limit{}, ErrInvalidRule
+	switch {
+	case !resourceconfig.IsCanonicalID(r.PolicyID):
+		return Limit{}, fmt.Errorf("%w: policy ID is invalid", ErrInvalidRule)
+	case r.Scope == "":
+		return Limit{}, fmt.Errorf("%w: scope is missing", ErrInvalidRule)
+	case r.Requests < 1 || r.Requests > math.MaxInt:
+		return Limit{}, fmt.Errorf("%w: request limit %d is out of range", ErrInvalidRule, r.Requests)
+	case r.WindowSeconds < 1 || r.WindowSeconds > maxWindowSeconds:
+		return Limit{}, fmt.Errorf("%w: window %d is out of range", ErrInvalidRule, r.WindowSeconds)
 	}
+
 	var subject string
 	switch r.Subject {
 	case SubjectShared:
+		if r.HeaderName != "" {
+			return Limit{}, fmt.Errorf("%w: shared subject contains a header name", ErrInvalidRule)
+		}
 		subject = "shared"
 	case SubjectIP:
+		if r.HeaderName != "" {
+			return Limit{}, fmt.Errorf("%w: IP subject contains a header name", ErrInvalidRule)
+		}
 		subject = strings.TrimSpace(request.ClientIP)
 		if subject == "" {
 			return Limit{}, fmt.Errorf("%w: client IP is missing", ErrInvalidRule)
 		}
 	case SubjectHeader:
-		if r.HeaderName == "" {
-			return Limit{}, fmt.Errorf("%w: subject header is missing", ErrInvalidRule)
+		if !httpguts.ValidHeaderFieldName(r.HeaderName) || strings.ToLower(r.HeaderName) != r.HeaderName {
+			return Limit{}, fmt.Errorf("%w: subject header %q is invalid", ErrInvalidRule, r.HeaderName)
 		}
-		subject = request.Headers[strings.ToLower(r.HeaderName)]
+		subject = request.Headers[r.HeaderName]
 	default:
 		return Limit{}, fmt.Errorf("%w: unsupported subject %q", ErrInvalidRule, r.Subject)
 	}

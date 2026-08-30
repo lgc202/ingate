@@ -143,7 +143,7 @@ func (r *Recorder) Write(ctx context.Context, records []*alsv1.RequestRecord) er
 		return fmt.Errorf("write request records: %w", errors.Join(kafkaErr, queueErr))
 	}
 	if r.spooling.CompareAndSwap(false, true) {
-		r.logger.Warn("Kafka unavailable, request records switched to disk queue", "err", kafkaErr)
+		r.logger.WarnContext(ctx, "Kafka unavailable, request records switched to disk queue", "err", kafkaErr)
 	}
 	return nil
 }
@@ -161,7 +161,7 @@ func (r *Recorder) ReplayBatch(ctx context.Context, limit int) (bool, error) {
 			}
 			r.queueOK.Store(true)
 			if r.spooling.CompareAndSwap(true, false) {
-				r.logger.Info("request record delivery recovered")
+				r.logger.InfoContext(ctx, "request record delivery recovered")
 			}
 			r.spoolMu.Unlock()
 			return false, nil

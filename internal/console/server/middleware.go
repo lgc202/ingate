@@ -16,12 +16,12 @@ type responseState struct {
 	headerWritten bool
 }
 
-func (w *responseState) WriteHeader(status int) {
+func (w *responseState) WriteHeader(statusCode int) {
 	if w.headerWritten {
 		return
 	}
 	w.headerWritten = true
-	w.ResponseWriter.WriteHeader(status)
+	w.ResponseWriter.WriteHeader(statusCode)
 }
 
 func (w *responseState) Write(data []byte) (int, error) {

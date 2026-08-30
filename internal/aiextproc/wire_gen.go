@@ -30,7 +30,7 @@ func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_
 	limiter := tokenquota.NewLimiter(configCache, tokenCounter)
 	externalProcessor := service.NewExternalProcessor(configCache, limiter, logger)
 	httpServer := server.NewHTTPServer(confServer, readiness, externalProcessor)
-	tokenQuotaUsageService := service.NewTokenQuotaUsageService(limiter)
+	tokenQuotaUsageService := service.NewTokenQuotaUsageService(limiter, logger)
 	grpcServer, err := server.NewGRPCServer(confServer, externalProcessor, tokenQuotaUsageService)
 	if err != nil {
 		return nil, err

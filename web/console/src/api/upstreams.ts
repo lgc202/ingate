@@ -7,13 +7,7 @@ interface UpstreamListResponse extends UpstreamList, CursorPagedResponse {}
 
 export async function listUpstreams(): Promise<UpstreamList> {
   const upstreams = await apiListAllByCursor<UpstreamListResponse, Upstream>('/upstreams', (page) => page.upstreams ?? []);
-  return {
-    upstreams: upstreams.map((upstream) => ({
-      ...upstream,
-      version: Number(upstream.version),
-      state: normalizeResourceState(upstream.state),
-    })),
-  };
+  return { upstreams: upstreams.map(upstreamFromAPI) };
 }
 
 export async function listUpstreamPage(input: {

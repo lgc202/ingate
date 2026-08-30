@@ -11,35 +11,40 @@ import (
 
 // Validate 校验 AI ExtProc 进程启动所需的配置。
 func (c *Bootstrap) Validate() error {
-	if c.GetServer() == nil || c.GetServer().GetGrpc() == nil || c.GetServer().GetHttp() == nil {
+	server := c.GetServer()
+	if server == nil || server.GetGrpc() == nil || server.GetHttp() == nil {
 		return errors.New("server gRPC and HTTP config are required")
 	}
-	if strings.TrimSpace(c.GetServer().GetGrpc().GetAddr()) == "" {
+	grpcServer := server.GetGrpc()
+	if strings.TrimSpace(grpcServer.GetAddr()) == "" {
 		return errors.New("server gRPC address must not be empty")
 	}
-	if err := validateServerTLS(c.GetServer().GetGrpc().GetTls()); err != nil {
+	if err := validateServerTLS(grpcServer.GetTls()); err != nil {
 		return err
 	}
-	if strings.TrimSpace(c.GetServer().GetHttp().GetAddr()) == "" {
+	httpServer := server.GetHttp()
+	if strings.TrimSpace(httpServer.GetAddr()) == "" {
 		return errors.New("server HTTP address must not be empty")
 	}
-	if c.GetServer().GetHttp().GetTimeout() == nil || c.GetServer().GetHttp().GetTimeout().AsDuration() <= 0 {
+	if httpServer.GetTimeout() == nil || httpServer.GetTimeout().AsDuration() <= 0 {
 		return errors.New("server HTTP timeout must be greater than zero")
 	}
-	if c.GetServer().GetShutdownTimeout() == nil || c.GetServer().GetShutdownTimeout().AsDuration() <= 0 {
+	if server.GetShutdownTimeout() == nil || server.GetShutdownTimeout().AsDuration() <= 0 {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}
-	if c.GetData() == nil || c.GetData().GetApiserver() == nil {
+	data := c.GetData()
+	if data == nil || data.GetApiserver() == nil {
 		return errors.New("data apiserver config is required")
 	}
-	if strings.TrimSpace(c.GetData().GetApiserver().GetMaster()) == "" &&
-		strings.TrimSpace(c.GetData().GetApiserver().GetKubeconfig()) == "" {
+	apiServer := data.GetApiserver()
+	if strings.TrimSpace(apiServer.GetMaster()) == "" &&
+		strings.TrimSpace(apiServer.GetKubeconfig()) == "" {
 		return errors.New("data apiserver master or kubeconfig must be configured")
 	}
-	if !controlplaneauth.IsValidBearerToken(c.GetData().GetApiserver().GetBearerToken()) {
+	if !controlplaneauth.IsValidBearerToken(apiServer.GetBearerToken()) {
 		return errors.New("data apiserver bearer token is invalid")
 	}
-	redis := c.GetData().GetRedis()
+	redis := data.GetRedis()
 	if redis == nil || strings.TrimSpace(redis.GetAddress()) == "" {
 		return errors.New("data redis address must not be empty")
 	}

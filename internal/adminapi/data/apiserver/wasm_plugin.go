@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -73,43 +71,29 @@ func (s *WasmPluginStore) Create(
 }
 
 // ReplaceSpec 完整替换 WasmPlugin 配置。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *WasmPluginStore) ReplaceSpec(
 	ctx context.Context,
 	observed *resource.WasmPlugin,
 	spec resource.WasmPluginSpec,
 ) (*resource.WasmPlugin, error) {
-	pluginID := observed.Name
-	updated, err := updateResource(
+	return replaceResourceSpec(
 		ctx,
 		s.client.GatewayV1().WasmPlugins(),
+		"Wasm plugin",
 		observed,
 		func(plugin *resource.WasmPlugin) { plugin.Spec = spec },
 	)
-	if apierrors.IsConflict(err) {
-		return nil, fmt.Errorf(
-			"replace Wasm plugin %q after conflict retries: %w",
-			pluginID,
-			err,
-		)
-	}
-	return updated, resourceError("replace", "Wasm plugin", pluginID, err)
 }
 
 // Delete 删除 WasmPlugin。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *WasmPluginStore) Delete(
 	ctx context.Context,
 	observed *resource.WasmPlugin,
 ) error {
-	pluginID := observed.Name
-	err := deleteResource(ctx, s.client.GatewayV1().WasmPlugins(), observed)
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf(
-			"delete Wasm plugin %q after conflict retries: %w",
-			pluginID,
-			err,
-		)
-	}
-	return resourceError("delete", "Wasm plugin", pluginID, err)
+	return deleteResource(
+		ctx,
+		s.client.GatewayV1().WasmPlugins(),
+		"Wasm plugin",
+		observed,
+	)
 }

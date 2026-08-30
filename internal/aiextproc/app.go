@@ -68,8 +68,8 @@ func newKratosApp(
 	config *conf.Server,
 	httpServer *kratoshttp.Server,
 	grpcServer *kratosgrpc.Server,
-	configs *dataapiserver.ConfigCache,
-	quotas *dataredis.TokenCounter,
+	configCache *dataapiserver.ConfigCache,
+	tokenCounter *dataredis.TokenCounter,
 	instanceID serviceInstanceID,
 ) *kratos.App {
 	return kratos.New(
@@ -79,6 +79,6 @@ func newKratosApp(
 		kratos.Logger(logger),
 		kratos.StopTimeout(config.GetShutdownTimeout().AsDuration()),
 		// 配置缓存、实时额度计数和网络服务由同一进程生命周期管理
-		kratos.Server(httpServer, grpcServer, configs, quotas),
+		kratos.Server(httpServer, grpcServer, configCache, tokenCounter),
 	)
 }

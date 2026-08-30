@@ -41,7 +41,7 @@ const (
 // RateLimitSubject 表示请求限流计数器的划分方式。
 type RateLimitSubject string
 
-// RateLimitRule 是 Controller 传给 Authz 的单条可执行限流规则
+// RateLimitRule 是 Controller 传给 Authz 的单条可执行限流规则。
 // 该结构只属于控制面与执行组件之间的内部协议，不暴露为用户可编辑配置。
 type RateLimitRule struct {
 	PolicyID      string           `json:"policy_id"`

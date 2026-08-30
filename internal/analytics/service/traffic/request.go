@@ -90,7 +90,7 @@ func buildResourceTrafficQuery(
 	}, nil
 }
 
-// 分钟聚合表无法准确表达分钟内的局部时间范围，因此协议边界必须对齐到整分钟
+// 分钟聚合表无法准确表达分钟内的局部时间范围，因此协议边界必须对齐到整分钟。
 func buildFilter(filter *analyticsv1.TrafficFilter) (trafficbiz.Filter, error) {
 	startTime, endTime, err := buildTimeRange(filter.GetStartTime(), filter.GetEndTime())
 	if err != nil {

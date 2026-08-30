@@ -1,6 +1,8 @@
 package certificate
 
 import (
+	"fmt"
+
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
@@ -30,7 +32,7 @@ func validateCertificate(certificate *resource.Certificate) field.ErrorList {
 		errs = append(errs, field.Invalid(
 			specPath.Child("certificatePEM"),
 			"<redacted>",
-			"must not exceed 262144 bytes",
+			fmt.Sprintf("must not exceed %d bytes", certificateutil.MaxCertificatePEMBytes),
 		))
 		tooLarge = true
 	}
@@ -38,7 +40,7 @@ func validateCertificate(certificate *resource.Certificate) field.ErrorList {
 		errs = append(errs, field.Invalid(
 			specPath.Child("privateKeyPEM"),
 			"<redacted>",
-			"must not exceed 65536 bytes",
+			fmt.Sprintf("must not exceed %d bytes", certificateutil.MaxPrivateKeyPEMBytes),
 		))
 		tooLarge = true
 	}

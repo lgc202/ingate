@@ -1,6 +1,7 @@
 package upstream
 
 import (
+	"fmt"
 	"net"
 	"strconv"
 
@@ -69,7 +70,10 @@ func validateModel(model *resource.ModelUpstream, path *field.Path) field.ErrorL
 		errs = append(errs, field.Invalid(
 			path.Child("apiKey"),
 			"<redacted>",
-			"apiKey must not exceed 4096 bytes or contain surrounding whitespace",
+			fmt.Sprintf(
+				"apiKey must be a valid HTTP header value of at most %d bytes without surrounding whitespace",
+				upstreamconfig.MaxModelAPIKeyBytes,
+			),
 		))
 	}
 	return errs
@@ -101,14 +105,22 @@ func validateEndpoints(endpoints []resource.Endpoint, path *field.Path) field.Er
 			errs = append(errs, field.Invalid(
 				endpointPath.Child("port"),
 				endpoint.Port,
-				"port must be between 1 and 65535",
+				fmt.Sprintf(
+					"port must be between %d and %d",
+					upstreamconfig.MinEndpointPort,
+					upstreamconfig.MaxEndpointPort,
+				),
 			))
 		}
 		if !upstreamconfig.IsValidEndpointWeight(endpoint.Weight) {
 			errs = append(errs, field.Invalid(
 				endpointPath.Child("weight"),
 				endpoint.Weight,
-				"weight must be between 1 and 1000",
+				fmt.Sprintf(
+					"weight must be between %d and %d",
+					upstreamconfig.MinEndpointWeight,
+					upstreamconfig.MaxEndpointWeight,
+				),
 			))
 		}
 
@@ -138,7 +150,11 @@ func validateHealthCheck(
 		errs = append(errs, field.Invalid(
 			path.Child("intervalSeconds"),
 			healthCheck.IntervalSeconds,
-			"intervalSeconds must be between 1 and 300",
+			fmt.Sprintf(
+				"intervalSeconds must be between %d and %d",
+				upstreamconfig.MinHealthCheckIntervalSeconds,
+				upstreamconfig.MaxHealthCheckIntervalSeconds,
+			),
 		))
 	}
 	if !upstreamconfig.IsValidHealthCheckTimeout(
@@ -148,7 +164,11 @@ func validateHealthCheck(
 		errs = append(errs, field.Invalid(
 			path.Child("timeoutSeconds"),
 			healthCheck.TimeoutSeconds,
-			"timeoutSeconds must be between 1 and 60 and less than intervalSeconds",
+			fmt.Sprintf(
+				"timeoutSeconds must be between %d and %d and less than intervalSeconds",
+				upstreamconfig.MinHealthCheckTimeoutSeconds,
+				upstreamconfig.MaxHealthCheckTimeoutSeconds,
+			),
 		))
 	}
 	return errs

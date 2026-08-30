@@ -17,6 +17,8 @@ var (
 	ErrNotFound = errors.New("conversation resource not found")
 	// ErrInvalidTitle 表示会话标题为空或不符合展示文本约束。
 	ErrInvalidTitle = errors.New("conversation title is invalid")
+	// ErrActiveExecution 表示会话仍有排队或运行中的 Agent 执行，不能删除。
+	ErrActiveExecution = errors.New("conversation has an active execution")
 )
 
 // MessageRole 表示一条持久消息在对话中的职责。

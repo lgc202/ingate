@@ -13,6 +13,7 @@ import (
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	"github.com/lgc202/ingate/internal/als/biz"
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 // ProviderSet 汇总 Envoy ALS 协议实现。
@@ -44,8 +45,10 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 		if identifier := message.GetIdentifier(); identifier != nil {
 			// Envoy 只保证在流首批消息中携带标识，后续批次沿用当前流记录的节点 ID。
 			currentNodeID := identifier.GetNode().GetId()
-			if currentNodeID == "" || (nodeID != "" && currentNodeID != nodeID) {
-				return status.Error(codes.InvalidArgument, "envoy node identity is invalid")
+			if identifier.GetLogName() != requestrecord.StreamName ||
+				currentNodeID == "" ||
+				(nodeID != "" && currentNodeID != nodeID) {
+				return status.Error(codes.InvalidArgument, "envoy access log stream identity is invalid")
 			}
 			nodeID = currentNodeID
 		}
@@ -74,13 +77,24 @@ func (s *Service) StreamAccessLogs(stream accesslogservice.AccessLogService_Stre
 		}
 		if discarded > 0 {
 			s.recorder.Discard(discarded)
-			s.logger.Warn("invalid HTTP access log entries discarded", "count", discarded, "envoy_node_id", nodeID)
+			s.logger.WarnContext(
+				stream.Context(),
+				"invalid HTTP access log entries discarded",
+				"count", discarded,
+				"envoy_node_id", nodeID,
+			)
 		}
 		if len(records) == 0 {
 			continue
 		}
 		if err := s.recorder.Write(stream.Context(), records); err != nil {
-			s.logger.Error("request record batch rejected", "err", err, "records", len(records), "envoy_node_id", nodeID)
+			s.logger.ErrorContext(
+				stream.Context(),
+				"request record batch rejected",
+				"err", err,
+				"records", len(records),
+				"envoy_node_id", nodeID,
+			)
 			return status.Error(codes.Unavailable, "request record storage is unavailable")
 		}
 	}

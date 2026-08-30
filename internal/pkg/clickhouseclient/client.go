@@ -40,7 +40,7 @@ func Open(config Config) (driver.Conn, error) {
 	return client, nil
 }
 
-// OpenDB 创建使用 database/sql 接口的 ClickHouse 连接池
+// OpenDB 创建使用 database/sql 接口的 ClickHouse 连接池。
 // 迁移工具使用标准接口，业务读写继续使用支持原生批处理的 Open。
 func OpenDB(config Config) (*sql.DB, error) {
 	options, err := options(config)

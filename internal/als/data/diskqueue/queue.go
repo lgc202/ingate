@@ -25,8 +25,12 @@ type Queue struct {
 	log      *wal.Log
 	maxBytes int64
 	mu       sync.Mutex
-	records  atomic.Int64
-	bytes    atomic.Int64
+	pending  atomic.Pointer[pendingUsage]
+}
+
+type pendingUsage struct {
+	records int64
+	bytes   int64
 }
 
 // NewQueue 打开本地磁盘队列，允许已确认记录全部清空。
@@ -44,14 +48,13 @@ func NewQueue(config *conf.Data_DiskQueue) (*Queue, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open disk queue: %w", err)
 	}
-	records, bytes, err := queueUsage(log)
+	usage, err := scanPendingUsage(log)
 	if err != nil {
 		_ = log.Close()
 		return nil, err
 	}
 	queue := &Queue{log: log, maxBytes: config.GetMaxBytes()}
-	queue.records.Store(records)
-	queue.bytes.Store(bytes)
+	queue.pending.Store(&usage)
 	return queue, nil
 }
 
@@ -76,7 +79,8 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 	if uint64(len(records)) > math.MaxUint64-last {
 		return errors.New("disk queue sequence is exhausted")
 	}
-	usedBytes := q.bytes.Load()
+	usage := q.pending.Load()
+	usedBytes := usage.bytes
 	if usedBytes > q.maxBytes {
 		return ErrFull
 	}
@@ -84,9 +88,15 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 	batch := new(wal.Batch)
 	var batchBytes int64
 	for i, record := range records {
+		if record == nil {
+			return errors.New("disk queue cannot store a nil request record")
+		}
 		value, err := proto.Marshal(record)
 		if err != nil {
 			return fmt.Errorf("marshal request record: %w", err)
+		}
+		if len(value) == 0 {
+			return errors.New("disk queue cannot store an empty request record")
 		}
 		recordBytes := int64(len(value))
 		if recordBytes > availableBytes-batchBytes {
@@ -98,8 +108,10 @@ func (q *Queue) Write(ctx context.Context, records []*alsv1.RequestRecord) error
 	if err := q.log.WriteBatch(batch); err != nil {
 		return fmt.Errorf("append disk queue: %w", err)
 	}
-	q.records.Add(int64(len(records)))
-	q.bytes.Add(batchBytes)
+	q.pending.Store(&pendingUsage{
+		records: usage.records + int64(len(records)),
+		bytes:   usage.bytes + batchBytes,
+	})
 	return nil
 }
 
@@ -170,17 +182,27 @@ func (q *Queue) Commit(ctx context.Context, batch biz.QueuedBatch) error {
 	if batch.LastSequence < first || batch.LastSequence > last {
 		return fmt.Errorf("commit disk queue sequence %d outside [%d, %d]", batch.LastSequence, first, last)
 	}
+	committedRecords := int64(batch.LastSequence - first + 1)
+	usage := q.pending.Load()
+	if committedRecords > usage.records ||
+		int64(len(batch.Records)) != committedRecords ||
+		batch.Bytes <= 0 || batch.Bytes > usage.bytes {
+		return errors.New("commit disk queue batch metadata is inconsistent")
+	}
 	if err := q.log.TruncateFront(batch.LastSequence + 1); err != nil {
 		return fmt.Errorf("truncate disk queue: %w", err)
 	}
-	q.records.Add(-int64(batch.LastSequence - first + 1))
-	q.bytes.Add(-batch.Bytes)
+	q.pending.Store(&pendingUsage{
+		records: usage.records - committedRecords,
+		bytes:   usage.bytes - batch.Bytes,
+	})
 	return nil
 }
 
 // Pending 返回当前待回放的记录数和 protobuf 数据字节数。
 func (q *Queue) Pending() (int64, int64) {
-	return q.records.Load(), q.bytes.Load()
+	usage := q.pending.Load()
+	return usage.records, usage.bytes
 }
 
 // Close 将磁盘队列缓冲同步并关闭文件。
@@ -188,27 +210,35 @@ func (q *Queue) Close() error {
 	return q.log.Close()
 }
 
-func queueUsage(log *wal.Log) (int64, int64, error) {
+func scanPendingUsage(log *wal.Log) (pendingUsage, error) {
 	first, err := log.FirstIndex()
 	if err != nil {
-		return 0, 0, fmt.Errorf("read first queue index: %w", err)
+		return pendingUsage{}, fmt.Errorf("read first queue index: %w", err)
 	}
 	last, err := log.LastIndex()
 	if err != nil {
-		return 0, 0, fmt.Errorf("read last queue index: %w", err)
+		return pendingUsage{}, fmt.Errorf("read last queue index: %w", err)
 	}
-	var records int64
-	var bytes int64
+	var usage pendingUsage
 	for index := first; index <= last; index++ {
 		value, err := log.Read(index)
 		if err != nil {
-			return 0, 0, fmt.Errorf("read disk queue sequence %d: %w", index, err)
+			return pendingUsage{}, fmt.Errorf("read disk queue sequence %d: %w", index, err)
 		}
-		records++
-		bytes += int64(len(value))
+		if len(value) == 0 {
+			return pendingUsage{}, fmt.Errorf("disk queue sequence %d is empty", index)
+		}
+		if err := proto.Unmarshal(value, new(alsv1.RequestRecord)); err != nil {
+			return pendingUsage{}, fmt.Errorf("unmarshal disk queue sequence %d: %w", index, err)
+		}
+		if usage.records == math.MaxInt64 || int64(len(value)) > math.MaxInt64-usage.bytes {
+			return pendingUsage{}, errors.New("disk queue usage exceeds the supported range")
+		}
+		usage.records++
+		usage.bytes += int64(len(value))
 		if index == last {
 			break
 		}
 	}
-	return records, bytes, nil
+	return usage, nil
 }

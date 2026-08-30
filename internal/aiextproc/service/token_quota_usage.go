@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -15,12 +16,16 @@ import (
 
 // TokenQuotaUsageService 将 AI ExtProc 的实时额度转换为内部 gRPC 协议。
 type TokenQuotaUsageService struct {
-	quotas *tokenquota.Limiter
+	limiter *tokenquota.Limiter
+	logger  *slog.Logger
 }
 
 // NewTokenQuotaUsageService 创建 Token 额度查询服务。
-func NewTokenQuotaUsageService(quotas *tokenquota.Limiter) *TokenQuotaUsageService {
-	return &TokenQuotaUsageService{quotas: quotas}
+func NewTokenQuotaUsageService(
+	limiter *tokenquota.Limiter,
+	logger *slog.Logger,
+) *TokenQuotaUsageService {
+	return &TokenQuotaUsageService{limiter: limiter, logger: logger}
 }
 
 // GetCallerUsage 查询调用方当前命中的全部自然周期额度。
@@ -32,9 +37,13 @@ func (s *TokenQuotaUsageService) GetCallerUsage(
 	if err != nil || callerID.String() != request.GetCallerId() {
 		return nil, status.Error(codes.InvalidArgument, "caller_id must be a canonical UUID")
 	}
-	usages, err := s.quotas.CurrentUsage(ctx, callerID.String(), time.Now())
+	usages, err := s.limiter.CurrentUsage(ctx, callerID.String(), time.Now())
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "query token quota usage: %v", err)
+		if ctx.Err() != nil {
+			return nil, status.FromContextError(ctx.Err()).Err()
+		}
+		s.logger.ErrorContext(ctx, "query token quota usage failed", "caller_id", callerID.String(), "err", err)
+		return nil, status.Error(codes.Unavailable, "token quota usage is unavailable")
 	}
 	response := &aiextprocv1.GetCallerUsageResponse{Usages: make([]*aiextprocv1.TokenQuotaUsage, len(usages))}
 	for i, usage := range usages {

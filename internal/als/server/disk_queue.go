@@ -101,7 +101,7 @@ func (r *DiskQueueReplayer) replay(ctx context.Context) {
 		if err != nil {
 			if ctx.Err() == nil && !r.replayFailed {
 				// 故障状态没有变化时不按一秒重试周期重复打印相同告警
-				r.logger.Warn("disk queue replay failed", "err", err)
+				r.logger.WarnContext(ctx, "disk queue replay failed", "err", err)
 			}
 			r.replayFailed = true
 			return

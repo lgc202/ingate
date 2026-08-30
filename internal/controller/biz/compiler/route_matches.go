@@ -16,15 +16,17 @@ import (
 )
 
 func (c *compilation) buildRouteMethods(route *gatewayv1.Route) ([]string, bool) {
-	methods := make(map[string]bool, len(route.Spec.Match.Methods))
-	valid := len(route.Spec.Match.Methods) <= routeconfig.MaxHTTPMethods
-	if !valid {
+	if len(route.Spec.Match.Methods) > routeconfig.MaxHTTPMethods {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
 			fmt.Sprintf("route %q declares too many methods", route.Name),
 		)
+		return nil, false
 	}
+
+	methods := make(map[string]bool, len(route.Spec.Match.Methods))
+	valid := true
 	for _, methodValue := range route.Spec.Match.Methods {
 		method := strings.ToUpper(strings.TrimSpace(methodValue))
 		if !routeconfig.IsSupportedHTTPMethod(method) || methods[method] {
@@ -42,6 +44,15 @@ func (c *compilation) buildRouteMethods(route *gatewayv1.Route) ([]string, bool)
 }
 
 func (c *compilation) buildHeaderMatchers(route *gatewayv1.Route) ([]*routev3.HeaderMatcher, bool) {
+	if len(route.Spec.Match.Headers) > routeconfig.MaxHeaderMatches {
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q declares too many header matches", route.Name),
+		)
+		return nil, false
+	}
+
 	headers := slices.Clone(route.Spec.Match.Headers)
 	for i := range headers {
 		headers[i].Name = httpheader.NormalizeName(headers[i].Name)
@@ -55,14 +66,7 @@ func (c *compilation) buildHeaderMatchers(route *gatewayv1.Route) ([]*routev3.He
 	})
 	matchers := make([]*routev3.HeaderMatcher, 0, len(headers))
 	seenNames := make(map[string]bool, len(headers))
-	valid := len(headers) <= routeconfig.MaxHeaderMatches
-	if !valid {
-		c.addRouteError(
-			route.Name,
-			ReasonInvalidSpec,
-			fmt.Sprintf("route %q declares too many header matches", route.Name),
-		)
-	}
+	valid := true
 	for _, header := range headers {
 		if !httpheader.IsValidName(header.Name) ||
 			header.Value == "" ||

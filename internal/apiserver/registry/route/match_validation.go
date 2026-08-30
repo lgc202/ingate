@@ -17,6 +17,7 @@ func validateGatewayRefs(refs []string, path *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if len(refs) > routeconfig.MaxGatewayRefs {
 		errs = append(errs, field.TooMany(path, len(refs), routeconfig.MaxGatewayRefs))
+		refs = refs[:routeconfig.MaxGatewayRefs]
 	}
 	seen := make(map[string]bool, len(refs))
 	for i, ref := range refs {
@@ -38,6 +39,7 @@ func validateHostnames(hostnames []string, path *field.Path) field.ErrorList {
 	var errs field.ErrorList
 	if len(hostnames) > routeconfig.MaxHostnames {
 		errs = append(errs, field.TooMany(path, len(hostnames), routeconfig.MaxHostnames))
+		hostnames = hostnames[:routeconfig.MaxHostnames]
 	}
 	seen := make(map[string]bool, len(hostnames))
 	for i, hostname := range hostnames {
@@ -74,11 +76,13 @@ func validateRouteMatch(match resource.RouteMatch, path *field.Path) field.Error
 		))
 	}
 
-	if len(match.Methods) > routeconfig.MaxHTTPMethods {
-		errs = append(errs, field.TooMany(path.Child("methods"), len(match.Methods), routeconfig.MaxHTTPMethods))
+	methods := match.Methods
+	if len(methods) > routeconfig.MaxHTTPMethods {
+		errs = append(errs, field.TooMany(path.Child("methods"), len(methods), routeconfig.MaxHTTPMethods))
+		methods = methods[:routeconfig.MaxHTTPMethods]
 	}
-	seenMethods := make(map[string]bool, len(match.Methods))
-	for i, method := range match.Methods {
+	seenMethods := make(map[string]bool, len(methods))
+	for i, method := range methods {
 		methodPath := path.Child("methods").Index(i)
 		if !routeconfig.IsSupportedHTTPMethod(method) {
 			errs = append(errs, field.NotSupported(methodPath, method, routeconfig.SupportedHTTPMethods()))
@@ -89,11 +93,13 @@ func validateRouteMatch(match resource.RouteMatch, path *field.Path) field.Error
 		}
 	}
 
-	if len(match.Headers) > routeconfig.MaxHeaderMatches {
-		errs = append(errs, field.TooMany(path.Child("headers"), len(match.Headers), routeconfig.MaxHeaderMatches))
+	headers := match.Headers
+	if len(headers) > routeconfig.MaxHeaderMatches {
+		errs = append(errs, field.TooMany(path.Child("headers"), len(headers), routeconfig.MaxHeaderMatches))
+		headers = headers[:routeconfig.MaxHeaderMatches]
 	}
-	seenHeaders := make(map[string]bool, len(match.Headers))
-	for i, header := range match.Headers {
+	seenHeaders := make(map[string]bool, len(headers))
+	for i, header := range headers {
 		headerPath := path.Child("headers").Index(i)
 		validName := httpheader.IsValidName(header.Name)
 		if !validName {

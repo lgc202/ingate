@@ -30,8 +30,12 @@ func validateForwarding(spec resource.RouteSpec, path *field.Path) field.ErrorLi
 		))
 	}
 
-	seenUpstreamRefs := make(map[string]bool, len(spec.UpstreamRefs))
-	for i, ref := range spec.UpstreamRefs {
+	upstreamRefs := spec.UpstreamRefs
+	if len(upstreamRefs) > routeconfig.MaxServiceTargets {
+		upstreamRefs = upstreamRefs[:routeconfig.MaxServiceTargets]
+	}
+	seenUpstreamRefs := make(map[string]bool, len(upstreamRefs))
+	for i, ref := range upstreamRefs {
 		refPath := path.Child("upstreamRefs").Index(i)
 		if ref.Name == "" {
 			errs = append(errs, field.Required(refPath.Child("name"), "upstreamRef.name is required"))
@@ -84,9 +88,13 @@ func validateAIForwarding(spec resource.RouteSpec, path *field.Path) field.Error
 		))
 	}
 
+	models := spec.AI.Models
+	if len(models) > routeconfig.MaxAIModels {
+		models = models[:routeconfig.MaxAIModels]
+	}
 	modelsPath := path.Child("ai", "models")
-	seenModels := make(map[string]bool, len(spec.AI.Models))
-	for i, model := range spec.AI.Models {
+	seenModels := make(map[string]bool, len(models))
+	for i, model := range models {
 		modelPath := modelsPath.Index(i)
 		if !routeconfig.IsValidModelName(model.Name) {
 			errs = append(errs, field.Invalid(
@@ -111,8 +119,12 @@ func validateAIForwarding(spec resource.RouteSpec, path *field.Path) field.Error
 				routeconfig.MaxAIModelTargets,
 			))
 		}
-		seenTargets := make(map[string]bool, len(model.Targets))
-		for j, target := range model.Targets {
+		targets := model.Targets
+		if len(targets) > routeconfig.MaxAIModelTargets {
+			targets = targets[:routeconfig.MaxAIModelTargets]
+		}
+		seenTargets := make(map[string]bool, len(targets))
+		for j, target := range targets {
 			targetPath := modelPath.Child("targets").Index(j)
 			if target.UpstreamRef == "" {
 				errs = append(errs, field.Required(targetPath.Child("upstreamRef"), "upstreamRef is required"))

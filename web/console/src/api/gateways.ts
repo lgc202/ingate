@@ -8,14 +8,7 @@ interface GatewayListResponse extends CursorPagedResponse {
 
 export async function listGateways(): Promise<GatewayListView> {
   const gateways = await apiListAllByCursor<GatewayListResponse, Gateway>('/gateways', (page) => page.gateways ?? []);
-  return {
-    gateways: gateways.map((gateway) => ({
-      ...gateway,
-      version: Number(gateway.version),
-      listeners: gateway.listeners ?? [],
-      state: normalizeResourceState(gateway.state),
-    })),
-  };
+  return { gateways: gateways.map(gatewayFromAPI) };
 }
 
 export async function listGatewayPage(input: {

@@ -148,8 +148,14 @@ func modeToProto(value modelconfigbiz.Mode) assistantv1.ModelConnectionMode {
 }
 
 func mapError(err error) error {
-	if errors.Is(err, modelconfigbiz.ErrInvalidConnection) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return kerrors.ClientClosed("REQUEST_CANCELLED", "request cancelled").WithCause(err)
+	case errors.Is(err, context.DeadlineExceeded):
+		return kerrors.GatewayTimeout("REQUEST_TIMEOUT", "request timed out").WithCause(err)
+	case errors.Is(err, modelconfigbiz.ErrInvalidConnection):
 		return kerrors.BadRequest("INVALID_ARGUMENT", "model connection is invalid")
+	default:
+		return kerrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
 	}
-	return kerrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
 }

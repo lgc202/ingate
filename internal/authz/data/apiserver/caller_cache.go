@@ -30,7 +30,7 @@ type credentialIndex struct {
 	byKeyID map[string]biz.Credential
 }
 
-// CredentialCache 监听 Caller 资源并维护访问密钥 ID 到授权信息的只读索引
+// CredentialCache 监听 Caller 资源并维护访问密钥 ID 到授权信息的只读索引。
 // 每次资源变化都会完整构造新索引后原子替换，流量线程不会读到半更新状态。
 type CredentialCache struct {
 	factory         informers.SharedInformerFactory

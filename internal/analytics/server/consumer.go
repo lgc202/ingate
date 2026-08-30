@@ -18,14 +18,15 @@ import (
 
 // requestCounters 是当前进程从 Kafka 接收和保存请求记录的累计计数。
 type requestCounters struct {
-	received uint64
-	stored   uint64
-	invalid  uint64
+	received  uint64
+	stored    uint64
+	invalid   uint64
+	duplicate uint64
 }
 
 // RequestConsumer 从 Kafka 批量读取 ALS RequestRecord。
 //
-// RequestConsumer 使用 At Least Once 语义：ClickHouse 成功保存整批请求后才提交
+// RequestConsumer 使用 at-least-once 语义：ClickHouse 成功保存整批请求后才提交
 // Kafka offset。进程在两者之间退出时会重投，Analytics 使用稳定事件 ID 让
 // ClickHouse 在物化视图累计前去重，ReplacingMergeTree 继续作为明细的最终保障。
 type RequestConsumer struct {
@@ -41,6 +42,7 @@ type RequestConsumer struct {
 	received        atomic.Uint64
 	stored          atomic.Uint64
 	invalid         atomic.Uint64
+	duplicate       atomic.Uint64
 }
 
 // NewRequestConsumer 创建使用手动 offset 提交的消费者组成员。
@@ -51,7 +53,7 @@ func NewRequestConsumer(
 	config *conf.Data_Kafka,
 	recorder *requestbiz.Recorder,
 	logger *slog.Logger,
-) (*RequestConsumer, error) {
+) (*RequestConsumer, func(), error) {
 	client, err := kafkaclient.New(kafkaclient.Config{
 		Brokers:     config.GetBrokers(),
 		DialTimeout: config.GetDialTimeout().AsDuration(),
@@ -78,15 +80,16 @@ func NewRequestConsumer(
 		kgo.FetchMaxWait(config.GetFetchMaxWait().AsDuration()),
 	)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &RequestConsumer{
+	consumer := &RequestConsumer{
 		client:          client,
 		recorder:        recorder,
 		logger:          logger,
 		batchMaxRecords: int(config.GetBatchMaxRecords()),
 		done:            make(chan struct{}),
-	}, nil
+	}
+	return consumer, client.CloseAllowingRebalance, nil
 }
 
 // Start 阻塞运行 Kafka 拉取、ClickHouse 入库和 offset 提交循环。
@@ -107,7 +110,6 @@ func (c *RequestConsumer) Start(ctx context.Context) error {
 		cancel()
 	}
 	defer close(c.done)
-	defer c.client.CloseAllowingRebalance()
 	for {
 		fetches := c.client.PollRecords(runCtx, c.batchMaxRecords)
 		if runCtx.Err() != nil || fetches.IsClientClosed() {
@@ -117,12 +119,16 @@ func (c *RequestConsumer) Start(ctx context.Context) error {
 			if groupSessionError, ok := errors.AsType[*kgo.ErrGroupSession](fetchErr.Err); ok {
 				// Broker 重启或主机休眠可能使成员暂时离开消费组；franz-go 会自动重新加入
 				// 这里不能终止进程，否则一次正常的 Rebalance 会让整个查询服务下线
-				c.logger.Debug("Kafka consumer group session lost; waiting to rejoin", "err", groupSessionError.Err)
+				c.logger.DebugContext(
+					runCtx,
+					"Kafka consumer group session lost; waiting to rejoin",
+					"err", groupSessionError.Err,
+				)
 				continue
 			}
 			if dataLossError, ok := errors.AsType[*kgo.ErrDataLoss](fetchErr.Err); ok {
 				// franz-go 已把消费位置重置到有效 offset，记录异常后继续处理后续消息
-				c.logger.Error("Kafka consumer detected data loss", "err", dataLossError)
+				c.logger.ErrorContext(runCtx, "Kafka consumer detected data loss", "err", dataLossError)
 				continue
 			}
 			return fmt.Errorf(
@@ -140,11 +146,14 @@ func (c *RequestConsumer) Start(ctx context.Context) error {
 		}
 		c.received.Add(uint64(len(messages)))
 
-		records, invalid := decodeRequestRecords(messages)
+		records, invalid, duplicates := decodeRequestRecords(messages)
 		if invalid > 0 {
 			// 无法解析的消息不可能通过重试恢复，提交其 offset 防止毒消息永久阻塞分区
 			c.invalid.Add(uint64(invalid))
-			c.logger.Warn("invalid request record messages discarded", "count", invalid)
+			c.logger.WarnContext(runCtx, "invalid request record messages discarded", "count", invalid)
+		}
+		if duplicates > 0 {
+			c.duplicate.Add(uint64(duplicates))
 		}
 		if err := c.recorder.Save(runCtx, records); err != nil {
 			if runCtx.Err() != nil {
@@ -194,8 +203,9 @@ func (c *RequestConsumer) Ping(ctx context.Context) error {
 
 func (c *RequestConsumer) counters() requestCounters {
 	return requestCounters{
-		received: c.received.Load(),
-		stored:   c.stored.Load(),
-		invalid:  c.invalid.Load(),
+		received:  c.received.Load(),
+		stored:    c.stored.Load(),
+		invalid:   c.invalid.Load(),
+		duplicate: c.duplicate.Load(),
 	}
 }

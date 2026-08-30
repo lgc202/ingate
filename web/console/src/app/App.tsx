@@ -1,17 +1,30 @@
+import { lazy } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from './layout/AppShell';
-import { GatewayPage } from '@/features/gateways/GatewayPage';
-import { RoutePage } from '@/features/routes/RoutePage';
-import { UpstreamPage } from '@/features/upstreams/UpstreamPage';
-import { CertificatePage } from '@/features/certificates/CertificatePage';
-import { PolicyPage } from '@/features/policies/PolicyPage';
-import { RequestRecordPage } from '@/features/requests/RequestRecordPage';
-import { TrafficAnalysisPage } from '@/features/traffic/TrafficAnalysisPage';
-import { CallerPage } from '@/features/callers/CallerPage';
-import { AIUsagePage } from '@/features/aiusage/AIUsagePage';
-import { PluginPage } from '@/features/plugins/PluginPage';
 import { SessionProvider } from '@/features/auth/SessionProvider';
-import { AssistantPage } from '@/features/assistant/AssistantPage';
+
+const GatewayPage = lazy(() => import('@/features/gateways/GatewayPage')
+  .then((module) => ({ default: module.GatewayPage })));
+const RoutePage = lazy(() => import('@/features/routes/RoutePage')
+  .then((module) => ({ default: module.RoutePage })));
+const UpstreamPage = lazy(() => import('@/features/upstreams/UpstreamPage')
+  .then((module) => ({ default: module.UpstreamPage })));
+const CertificatePage = lazy(() => import('@/features/certificates/CertificatePage')
+  .then((module) => ({ default: module.CertificatePage })));
+const PolicyPage = lazy(() => import('@/features/policies/PolicyPage')
+  .then((module) => ({ default: module.PolicyPage })));
+const PluginPage = lazy(() => import('@/features/plugins/PluginPage')
+  .then((module) => ({ default: module.PluginPage })));
+const CallerPage = lazy(() => import('@/features/callers/CallerPage')
+  .then((module) => ({ default: module.CallerPage })));
+const RequestRecordPage = lazy(() => import('@/features/requests/RequestRecordPage')
+  .then((module) => ({ default: module.RequestRecordPage })));
+const TrafficAnalysisPage = lazy(() => import('@/features/traffic/TrafficAnalysisPage')
+  .then((module) => ({ default: module.TrafficAnalysisPage })));
+const AIUsagePage = lazy(() => import('@/features/aiusage/AIUsagePage')
+  .then((module) => ({ default: module.AIUsagePage })));
+const AssistantPage = lazy(() => import('@/features/assistant/AssistantPage')
+  .then((module) => ({ default: module.AssistantPage })));
 
 export default function App() {
   return (

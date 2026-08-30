@@ -31,7 +31,7 @@ func summaryResponse(summary requestbiz.Summary) *analyticsv1.RequestSummary {
 	return response
 }
 
-// recordResponse 只在 gRPC 边界还原 ALS 公共协议，biz 和 ClickHouse 不依赖该传输类型
+// recordResponse 只在 gRPC 边界还原 ALS 公共协议，biz 和 ClickHouse 不依赖该传输类型。
 func recordResponse(record *requestbiz.Record) *alsv1.RequestRecord {
 	response := &alsv1.RequestRecord{
 		Id:                  record.ID,

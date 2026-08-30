@@ -31,7 +31,7 @@ Console 使用 **Service** 作为产品名称。声明式 API 当前使用 `Upst
 | 类型 | Route 负责 | Service 负责 |
 | --- | --- | --- |
 | API | HTTP 匹配、访问方式和转发行为 | HTTP 端点、TLS、负载均衡与健康检查 |
-| AI | 发布客户端模型名、选择模型线路 | 厂商协议、API 地址和凭据 |
+| AI | 发布客户端模型名、选择模型线路 | 厂商协议、服务端点和凭据 |
 
 模型不单独建模为顶层资源。Route 目标线路保存真实模型名，Service 保存连接模型厂商所需的协议和凭据。
 
@@ -44,8 +44,8 @@ Console 使用 **Service** 作为产品名称。声明式 API 当前使用 `Upst
 | IPRestrictionPolicy | Gateway、Route | Envoy 原生 RBAC |
 | RateLimitPolicy | Gateway、Route | Envoy ext_authz + Authz + Redis |
 | TokenQuotaPolicy | Caller | AI ExtProc + Redis |
-| HeaderTransformationPolicy | Gateway、Route | Envoy Wasm 插件 |
-| MockResponsePolicy | Gateway、Route | Envoy Wasm 插件 |
+| HeaderTransformationPolicy | Route | Envoy Wasm 插件 |
+| MockResponsePolicy | Route | Envoy Wasm 插件 |
 
 `targetRefs[]` 可以为空，表示策略已经保存但没有应用到流量。删除目标前会检查资源引用，Controller Status 负责表达声明式并发写入后的最终结果。
 
@@ -69,3 +69,14 @@ Console 的状态由启用开关、当前 version 和 Status 共同计算：
 - **未应用**：策略已经保存，但没有任何有效目标
 
 状态不是独立存储的业务字段，刷新页面后始终根据资源和 Status 重新计算。
+
+## 配置域的原子发布
+
+Controller 每次读取当前全部资源，编译出一份完整候选配置，只有编译成功且 Envoy 接受后才切换为新的有效配置。因此：
+
+- 任一资源的阻塞级编译错误会阻止整份候选配置发布
+- 发布失败时，Envoy 继续使用上一份已经确认的有效配置
+- 修复或停用异常资源后，Controller 会用最新资源集合重新编译
+- 支撑资源刚创建但尚未形成可发布流量链路时，可能暂时显示“发布中”
+
+排查长期“发布中”时，不要只看当前资源；还要在 Gateway、Route、Service、Certificate、策略和插件中筛选“异常”。一套 Ingate 是一个配置域，不能假设无关页面中的错误一定与本次发布无关。

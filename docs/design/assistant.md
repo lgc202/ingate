@@ -1,6 +1,6 @@
 # Ingate 运维助手架构设计
 
-状态：设计中
+状态：目标设计；第一阶段只读能力已实现
 
 目标读者：Ingate 维护者和后续参与实现的开发者
 
@@ -10,7 +10,21 @@ Ingate 已经具备网关、路由、服务、治理策略、插件和观测分�
 
 运维助手不是新的流量代理，也不负责承载用户自己的 Agent。它是 Ingate 控制台的一项管理能力，使用自然语言协助用户理解当前系统、定位问题、生成配置变更，并在获得授权后执行操作。
 
-本设计描述完整目标架构。实现可以按可验收场景逐步交付，但会话、记忆、工具、审批和 Agent 协作必须遵循同一套边界，避免后续增加能力时重写主流程。
+本设计描述完整目标架构。实现按可验收场景逐步交付，但会话、记忆、工具、审批和 Agent 协作必须遵循同一套边界，避免后续增加能力时重写主流程。
+
+### 当前实现
+
+当前已经完成第一阶段只读闭环：
+
+- 独立的 `ingate-assistant` 组件和 Console 统一入口
+- OpenAI 兼容与 Anthropic 模型连接，可直连模型端点或经过 Ingate AI Route
+- 基于 Eino ADK 的单 Agent 工具调用循环
+- Gateway、Route、Service、流量分析、失败请求、请求明细和 Caller Token 额度等 8 个只读工具
+- MySQL 中的模型连接、会话、Execution、Execution Step 和消息
+- Redis Stream 中用于 SSE 断线重连的短期事件
+- 后台 Worker、执行租约、取消和过期执行收敛
+
+当前没有写工具、变更草案与审批、长期记忆、专业 Agent、MCP 工具源、定时任务或自动修复。除“当前实现”和明确描述现有表结构的段落外，本文其余章节描述目标约束，不表示对应能力已经对外提供。
 
 ## 2. 设计目标
 
@@ -35,12 +49,12 @@ Ingate 已经具备网关、路由、服务、治理策略、插件和观测分�
 | Agent 框架 | Eino ADK | 提供 Go 原生 ChatModelAgent、AgentTool、中断、检查点和恢复能力 |
 | 产品入口 | Console 统一入口 | 用户不需要认识新的管理地址；Console 将助手请求代理到 Assistant |
 | 系统操作入口 | Admin API | Assistant 不访问 etcd，也不绕过现有业务校验和产品协议 |
-| 短期状态 | Redis | 保存活跃会话上下文、Agent 检查点和短期流式状态 |
-| 持久化状态 | MySQL + sqlc | 当前保存会话、Run 和消息；后续业务事实仍进入 MySQL |
+| 短期状态 | Redis | 当前只保存 SSE 短期流式事件；需要中断恢复时再引入 Agent 检查点 |
+| 持久化状态 | MySQL + sqlc | 当前保存模型连接、会话、Execution、Execution Step 和消息 |
 | 模型连接 | Eino 官方模型适配器 | 可直连 OpenAI 兼容或 Anthropic 端点，也可经过 Ingate AI Route |
 | 内部工具 | 进程内 Go Tool | 保持类型安全，避免为内部调用额外增加 MCP 网络边界 |
-| 外部工具 | MCP | 使用标准协议接入 GitHub、Prometheus、告警平台等系统 |
-| 多 Agent | AgentTool | 专业 Agent 作为根 Agent 的受控工具，避免自由的 Agent 间互调 |
+| 外部工具目标 | MCP | 使用标准协议接入 GitHub、Prometheus、告警平台等系统 |
+| 多 Agent 目标 | AgentTool | 专业 Agent 作为根 Agent 的受控工具，避免自由的 Agent 间互调 |
 
 Assistant 单独部署不是为了增加管理层级，而是为了隔离两类不同负载：Admin API 继续承担短请求、确定性业务校验和产品协议；Assistant 承担模型调用、SSE 长连接、中断恢复和后台任务。Assistant、模型、Redis 或 MySQL 不可用时，现有控制面和数据面仍应独立工作。
 
@@ -54,10 +68,9 @@ Console
    |-- /api/* ----------> Admin API
    `-- /assistant/* ----> Assistant
                              |-- model request ------> configured model endpoint
-                             |-- product operation --> Admin API
-                             |-- active state -------> Redis
-                             |-- durable state ------> MySQL
-                             `-- external tools -----> MCP servers
+                             |-- product query -----> Admin API
+                             |-- stream events ------> Redis
+                             `-- durable state ------> MySQL
 
 Admin API
    |-- declarative resources --> API Server
@@ -66,9 +79,9 @@ Admin API
 
 Assistant 调用 Admin API，不允许 Admin API 再反向调用 Assistant。这样可以保持控制链路单向，避免形成循环依赖。
 
-专业 Agent、意图判断、记忆、工具和调度都是 `ingate-assistant` 内部模块，不拆成独立服务。扩容时可以使用同一个二进制分别运行交互请求实例和后台任务实例，但它们仍属于同一个组件和同一套代码。
+目标中的专业 Agent、意图判断、记忆、工具和调度都属于 `ingate-assistant` 内部模块，不拆成独立服务。扩容时可以使用同一个二进制分别运行交互请求实例和后台任务实例，但它们仍属于同一个组件和同一套代码。
 
-Console、Assistant 和 Admin API 使用明确版本的产品协议。Assistant 启动时校验 Admin API 能力和协议版本，不满足最低版本时拒绝执行相关工具，但仍可提供不依赖实时系统的文档问答。
+Console、Assistant 和 Admin API 使用明确版本的产品协议。后续需要支持跨版本独立部署时，再增加 Admin API 能力协商；当前同一版本发布，不提前维护无人使用的协议探测。
 
 ## 5. 用户交互模型
 
@@ -150,7 +163,7 @@ Assistant 使用三类上下文：
 
 模型连接是可在线修改的业务设置，保存在 MySQL 中，不写入组件 YAML，也不是网关声明式资源。YAML 只保留监听地址、MySQL、Redis、日志等进程启动所需配置。
 
-“连接方式”和“模型协议”是两个不同维度：连接方式决定请求发往模型厂商还是 Ingate，模型协议决定 Assistant 与该端点交换消息的格式。协议差异只存在于模型适配层，会话、Run、工具和事件协议不感知具体厂商。
+“连接方式”和“模型协议”是两个不同维度：连接方式决定请求发往模型厂商还是 Ingate，模型协议决定 Assistant 与该端点交换消息的格式。协议差异只存在于模型适配层，会话、Execution、工具和事件协议不感知具体厂商。
 
 当前模型连接包括：
 
@@ -172,7 +185,7 @@ Assistant 使用三类上下文：
 
 经过 Ingate 时不在 Assistant 中保存 Route ID。运行时请求只需要数据面地址、对外模型名和调用凭据；Route ID 属于控制面内部标识，保存它会引入资源变更后的失效关联。
 
-默认表单选择“经过 Ingate”，便于用户复用网关治理能力；用户也可以明确切换为直连。每次 Run 开始时读取当前设置并创建不可变的模型连接，设置更新只影响之后开始的 Run，不会让进行中的对话请求切换线路。
+默认表单选择“经过 Ingate”，便于用户复用网关治理能力；用户也可以明确切换为直连。每次 Execution 开始时读取当前设置并创建不可变的模型连接，设置更新只影响之后开始的 Execution，不会让进行中的对话请求切换线路。
 
 API Key 只写入、不回显；查询接口仅返回是否已经配置凭据。没有完成模型设置时，Assistant 可以管理会话，但拒绝开始模型调用并返回明确的“模型未配置”状态。
 
@@ -185,7 +198,7 @@ API Key 只写入、不回显；查询接口仅返回是否已经配置凭据。
 部分模型端点会显式返回 reasoning 或 thinking 内容。Assistant 将这部分内容与最终回答分开处理：
 
 - 流式阶段分别发送 `message.reasoning.delta` 和 `message.content.delta`
-- Run 成功后把两部分内容写入同一条助手消息，Console 可以分区展示
+- Execution 成功后把两部分内容写入同一条助手消息，Console 可以分区展示
 - 生成后续回复时只把最终回答作为历史消息发送，不把已保存的推理内容再次加入上下文
 - API Key、系统指令、工具内部结果和厂商未返回的模型内部状态不属于推理内容
 
@@ -375,66 +388,66 @@ Gateway、Route、Service、Policy 当前配置和实时指标不是记忆。回
 
 ## 12. 持久化模型
 
-MySQL 是 Assistant 业务状态的持久化事实来源。当前建立四张表：
+MySQL 是 Assistant 业务状态的持久化事实来源。当前建立五张表：
 
 | 数据集合 | 主要内容 |
 | --- | --- |
+| `assistant_model_connections` | 当前生效的单例模型连接；API Key 只写入、不回显 |
 | `assistant_conversations` | 一个用户持续使用的对话容器，保存标题和最近活动时间 |
-| `assistant_runs` | 一次用户输入从接收到完成的生命周期，保存状态、模型和错误分类 |
-| `assistant_run_items` | 一次 Run 中已经发生的模型、工具、委派或审批步骤，保存顺序、状态和安全摘要 |
-| `assistant_messages` | 用户输入、助手最终回复及厂商显式返回的推理内容，分别关联会话及产生它的 Run |
+| `assistant_agent_executions` | 一次用户输入从接收到完成的生命周期，保存状态、模型、租约和错误分类 |
+| `assistant_agent_execution_steps` | 一次 Execution 中已经发生的模型或工具步骤，保存顺序、状态和安全摘要 |
+| `assistant_messages` | 用户输入、助手最终回复及厂商显式返回的推理内容，分别关联会话及产生它的 Execution |
 
 关系固定为：
 
 ```text
-assistant_conversations 1 ── N assistant_runs
-assistant_conversations 1 ── N assistant_messages
-assistant_runs          1 ── N assistant_run_items
-assistant_runs          1 ── N assistant_messages
+assistant_conversations    1 ── N assistant_agent_executions
+assistant_conversations    1 ── N assistant_messages
+assistant_agent_executions 1 ── N assistant_agent_execution_steps
+assistant_agent_executions 1 ── N assistant_messages
 ```
 
-Conversation 负责组织连续对话；Run 负责表达一次执行是否仍在进行以及如何结束；Run Item 负责表达这次执行实际经过了哪些步骤；Message 保存可以重新展示的最终回答和显式推理内容。当前模型调用会创建第一种真实 Run Item，之后只有在工具、委派或审批功能实际接入时才写入对应类型。
+Conversation 负责组织连续对话；Execution 负责表达一次执行是否仍在进行以及如何结束；Execution Step 负责表达这次执行实际经过了哪些模型和工具步骤；Message 保存可以重新展示的最终回答和显式推理内容。
 
-Run Item 与 Run 在同一事务中收敛终态。Worker 成功、失败、取消或租约过期时，不会留下仍处于执行中的步骤。`summary` 只允许保存经过脱敏且可向用户展示的摘要，不保存模型请求、完整 Prompt、工具参数或原始工具输出。
+Execution Step 与 Execution 在同一事务中收敛终态。Worker 成功、失败、取消或租约过期时，不会留下仍处于执行中的步骤。`summary` 只允许保存经过脱敏且可向用户展示的摘要，不保存模型请求、完整 Prompt、工具参数或原始工具输出。
 
 流式文本分片不写入 MySQL，避免把传输过程混入业务事实。已保存的推理内容只用于展示，不作为后续模型请求的历史上下文。
 
-当前使用 sqlc 生成类型安全的数据访问代码，并在手写事务中明确会话锁和 Run 状态转换。这里不引入 GORM 或 Ent：当前模型很小，关键复杂度是并发约束和事务顺序，而不是对象映射。增加 ORM 会同时维护领域模型和 ORM 模型，但不会减少这些约束。
+当前使用 sqlc 生成类型安全的数据访问代码，并在手写事务中明确会话锁和 Execution 状态转换。这里不引入 GORM 或 Ent：当前模型很小，关键复杂度是并发约束和事务顺序，而不是对象映射。增加 ORM 会同时维护领域模型和 ORM 模型，但不会减少这些约束。
 
-工具调用、审批和委派先复用 Run Item 的执行序列；写操作草案、定时任务、长期记忆、工具源和反馈尚未形成产品闭环，因此当前不创建对应空表。实现相关功能时再按可验收的数据生命周期增加独立事实表，不把所有扩展字段继续堆入 Run、Run Item 或 Message。
+工具调用、审批和委派先复用 Execution Step 的执行序列；写操作草案、定时任务、长期记忆、工具源和反馈尚未形成产品闭环，因此当前不创建对应空表。实现相关功能时再按可验收的数据生命周期增加独立事实表，不把所有扩展字段继续堆入 Execution、Execution Step 或 Message。
 
 完整 Prompt、密钥、证书私钥、请求正文和未经筛选的工具原始输出不进入这些表。
 
 Redis 只保存可以重建或会过期的状态：
 
-- 一个 Run 的流式事件
+- 一个 Execution 的流式事件
 - SSE 断线恢复所需的事件 ID
 
-Redis Stream 按 Run 设置保留期，只用于短期重放。Redis 丢失不会丢失会话、最终消息或 Run 终态；Console 可以通过普通 HTTP 重新读取 MySQL 中的结果。需要中断恢复时，再把 Eino Checkpoint 作为执行缓存接入，但检查点不能替代业务事实。
+Redis Stream 按 Execution 设置保留期，只用于短期重放。Redis 丢失不会丢失会话、最终消息或 Execution 终态；Console 可以通过普通 HTTP 重新读取 MySQL 中的结果。需要中断恢复时，再把 Eino Checkpoint 作为执行缓存接入，但检查点不能替代业务事实。
 
 MySQL 不保存 Gateway 等声明式资源副本。Assistant 只保存资源 ID、version 和操作摘要，资源本体继续由 API Server 管理。
 
 ## 13. API 与事件协议
 
-Console 使用普通 HTTP 管理会话、记忆、审批、工具源和定时任务，使用 SSE 接收一次执行的流式事件。
+当前 Console 使用普通 HTTP 管理模型连接、会话和 Execution，并使用 SSE 接收一次 Execution 的流式事件。记忆、审批、工具源和定时任务的 API 只在对应业务能力实现后增加。
 
-建议事件类型：
+当前 SSE 事件类型：
 
 | 事件 | 含义 |
 | --- | --- |
 | `message.reasoning.delta` | 模型端点显式返回的推理内容增量 |
 | `message.content.delta` | 助手最终回答增量 |
-| `tool.started` | 开始调用工具，包含面向用户的用途说明 |
-| `tool.completed` | 工具完成，包含状态和结果摘要 |
-| `agent.delegated` | 任务委派给专业 Agent |
-| `approval.required` | 需要用户确认变更草案 |
-| `run.started` | 本次请求开始执行 |
-| `run.completed` | 本次请求完成 |
-| `run.failed` | 本次请求失败并给出可操作原因 |
+| `execution.started` | 本次请求开始执行 |
+| `execution.completed` | 本次请求完成，携带最终消息 ID |
+| `execution.failed` | 本次请求失败，携带稳定错误代码 |
+| `execution.cancelled` | 本次请求已取消 |
 
-事件协议只传递模型端点明确返回的结构化推理内容，不尝试获取模型内部隐藏思维链。工具执行说明是独立的产品事件，例如“正在检查路由生效状态”，不能伪装成模型推理内容。
+事件协议只传递模型端点明确返回的结构化推理内容，不尝试获取模型内部隐藏思维链。未来如果增加工具执行通知，应使用独立的产品事件，例如“正在检查路由生效状态”，不能伪装成模型推理内容。
 
-断线重连使用 Run ID 和 SSE `Last-Event-ID` 恢复。活动 Run 的增量事件保存在 Redis 并设置保留期，任一 Assistant 实例都可以继续发送。Redis 状态已过期时，Console 通过普通 HTTP 获取 MySQL 中的 Run 和消息，不保证逐 Token 重放。SSE 是单向协议，不额外设计客户端 ACK。
+模型调用和工具调用过程保存在 Execution Step 中，通过普通 HTTP 查询，不为同一事实维护第二套 SSE 事件。未来的审批或委派如果需要实时交互，应在真实功能落地时扩展事件集合。
+
+断线重连使用 Execution ID 和 SSE `Last-Event-ID` 恢复。活动 Execution 的增量事件保存在 Redis 并设置保留期，任一 Assistant 实例都可以继续发送。Redis 状态已过期时，Console 通过普通 HTTP 获取 MySQL 中的 Execution 和消息，不保证逐 Token 重放。SSE 是单向协议，不额外设计客户端 ACK。
 
 ## 14. 定时任务与自动化
 
@@ -548,7 +561,7 @@ Console 允许用户对回答标记有用、无用或结论错误，并对执行
 
 Assistant 无法工作不能影响 Ingate 控制面和数据面。Console 应把助手不可用展示为独立能力故障，网关配置和流量转发继续正常运行。
 
-交互实例保持无本地持久状态，可以水平扩展。Redis 保存短期执行状态和活动事件，MySQL 保存持久业务状态。只要 Redis 保留期未过，SSE 重连后可以由任一实例继续发送；过期后按第 13 节返回执行快照。
+交互实例保持无本地持久状态，可以水平扩展。Redis 保存短期流式事件，MySQL 保存持久业务状态。只要 Redis 保留期未过，SSE 重连后可以由任一实例继续发送；过期后按第 13 节返回执行快照。
 
 后台任务与交互请求可以部署为同一实例，也可以使用同一二进制按角色拆分实例。角色拆分只为独立扩容和故障隔离，不产生新的产品组件或数据模型。
 
@@ -571,7 +584,7 @@ Assistant 无法工作不能影响 Ingate 控制面和数据面。Console 应把
 
 - [Dify Conversation / Message](https://github.com/langgenius/dify/blob/main/api/models/model.py)：会话负责组织连续对话，消息保存最终可展示内容；本项目不复制其面向工作流和计费的扩展字段
 - [Open WebUI Chat / ChatMessage](https://github.com/open-webui/open-webui/tree/main/backend/open_webui/models)：对话与消息保持独立生命周期，消息只承载当前产品已经使用的状态和内容
-- [LangGraph Threads and Runs](https://docs.langchain.com/langgraph-platform/assistants)：Thread 与 Run 分离，一次执行具有可独立查询的状态；本项目用 Conversation 和 Run 表达同一边界
+- [LangGraph Threads and Runs](https://docs.langchain.com/langgraph-platform/assistants)：Thread 与 Run 分离，一次执行具有可独立查询的状态；本项目用 Conversation 和 Execution 表达同一边界
 - [Eino ADK](https://github.com/cloudwego/eino/tree/main/adk)：Go Agent、AgentTool、中断和检查点
 - [Google ADK Sessions](https://adk.dev/sessions/)：Session、State 和 Memory 的边界
 - [Google ADK Memory](https://adk.dev/sessions/memory/)：跨会话记忆和检索接口

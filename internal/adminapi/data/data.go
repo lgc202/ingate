@@ -41,18 +41,18 @@ var apiserverProviderSet = wire.NewSet(
 	apiserver.NewHeaderTransformationPolicyStore,
 	apiserver.NewMockResponsePolicyStore,
 	// 根 biz 只保留跨领域策略能力所需的只读边界。
-	wire.Bind(new(biz.GatewayLister), new(*apiserver.GatewayStore)),
-	wire.Bind(new(biz.RouteLister), new(*apiserver.RouteStore)),
-	wire.Bind(new(biz.CallerLister), new(*apiserver.CallerStore)),
+	wire.Bind(new(biz.GatewayReader), new(*apiserver.GatewayStore)),
+	wire.Bind(new(biz.RouteReader), new(*apiserver.RouteStore)),
+	wire.Bind(new(biz.CallerReader), new(*apiserver.CallerStore)),
 	wire.Bind(new(biz.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyStore)),
 	wire.Bind(new(biz.IPRestrictionPolicyLister), new(*apiserver.IPRestrictionPolicyStore)),
 	wire.Bind(new(biz.HeaderTransformationPolicyLister), new(*apiserver.HeaderTransformationPolicyStore)),
 	wire.Bind(new(biz.MockResponsePolicyLister), new(*apiserver.MockResponsePolicyStore)),
-	wire.Bind(new(biz.WasmPluginLister), new(*apiserver.WasmPluginStore)),
+	wire.Bind(new(biz.WasmPluginGetter), new(*apiserver.WasmPluginStore)),
 	// 每个领域声明自己真实消费的边界，避免 biz 子包相互依赖。
 	wire.Bind(new(gateway.Store), new(*apiserver.GatewayStore)),
 	wire.Bind(new(gateway.RouteLister), new(*apiserver.RouteStore)),
-	wire.Bind(new(gateway.CertificateGetter), new(*apiserver.CertificateStore)),
+	wire.Bind(new(gateway.CertificateReader), new(*apiserver.CertificateStore)),
 	wire.Bind(new(route.Store), new(*apiserver.RouteStore)),
 	wire.Bind(new(route.GatewayReader), new(*apiserver.GatewayStore)),
 	wire.Bind(new(route.ServiceReader), new(*apiserver.UpstreamStore)),
@@ -71,7 +71,7 @@ var apiserverProviderSet = wire.NewSet(
 	wire.Bind(new(tokenquota.CallerReader), new(*apiserver.CallerStore)),
 	wire.Bind(new(wasmplugin.Store), new(*apiserver.WasmPluginStore)),
 	wire.Bind(new(pluginsource.Store), new(*apiserver.PluginSourceStore)),
-	wire.Bind(new(caller.RouteGetter), new(*apiserver.RouteStore)),
+	wire.Bind(new(caller.RouteReader), new(*apiserver.RouteStore)),
 )
 
 var analyticsProviderSet = wire.NewSet(

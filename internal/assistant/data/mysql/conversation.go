@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
-	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql/db"
 	"github.com/lgc202/ingate/internal/pkg/adminidentity"
 )
@@ -123,7 +122,7 @@ func (s *Store) Delete(ctx context.Context, actorID, id string) error {
 			return fmt.Errorf("count active assistant executions: %w", err)
 		}
 		if active > 0 {
-			return execution.ErrConversationBusy
+			return conversation.ErrActiveExecution
 		}
 
 		// 数据库不使用外键级联；聚合删除必须在同一事务中按依赖顺序显式完成。

@@ -36,7 +36,7 @@ Gateway 端口只有在 Console 中创建并成功发布对应 Gateway 后才会
 
 ## 备份与恢复
 
-`backup.sh` 会短暂停止所有组件，对 etcd、Redis、Kafka、ClickHouse、ALS 队列、证书和 Wasm 缓存的 Docker Volume 做一致性归档，然后恢复原来的运行状态：
+`backup.sh` 会短暂停止所有组件，对 etcd、MySQL、Redis、Kafka、ClickHouse、ALS 队列、证书和 Wasm 缓存的 Docker Volume 做一致性归档，然后恢复原来的运行状态：
 
 ```bash
 ./bin/backup.sh
@@ -59,4 +59,4 @@ Gateway 端口只有在 Console 中创建并成功发布对应 Gateway 后才会
 ./bin/uninstall.sh --keep-data
 ```
 
-`--remove-images` 可以同时删除未被其他容器使用的 Ingate 组件镜像，`--yes` 可以在自动化环境中跳过交互确认。未指定 `--keep-data` 时，etcd、Kafka、ClickHouse、Redis 和 ALS 本地队列数据都会被永久删除。
+`--remove-images` 可以同时删除未被其他容器使用的 Ingate 组件镜像，`--yes` 可以在自动化环境中跳过交互确认。未指定 `--keep-data` 时，etcd、MySQL、Kafka、ClickHouse、Redis、ALS 本地队列、证书和 Controller Wasm 缓存都会被永久删除。

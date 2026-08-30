@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -81,43 +79,29 @@ func (s *HeaderTransformationPolicyStore) Create(
 }
 
 // ReplaceSpec 完整替换 HeaderTransformationPolicy 配置。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *HeaderTransformationPolicyStore) ReplaceSpec(
 	ctx context.Context,
 	observed *resource.HeaderTransformationPolicy,
 	spec resource.HeaderTransformationPolicySpec,
 ) (*resource.HeaderTransformationPolicy, error) {
-	policyID := observed.Name
-	updated, err := updateResource(
+	return replaceResourceSpec(
 		ctx,
 		s.client.GatewayV1().HeaderTransformationPolicies(),
+		"header transformation policy",
 		observed,
 		func(policy *resource.HeaderTransformationPolicy) { policy.Spec = spec },
 	)
-	if apierrors.IsConflict(err) {
-		return nil, fmt.Errorf(
-			"replace header transformation policy %q after conflict retries: %w",
-			policyID,
-			err,
-		)
-	}
-	return updated, resourceError("replace", "header transformation policy", policyID, err)
 }
 
 // Delete 删除 HeaderTransformationPolicy。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *HeaderTransformationPolicyStore) Delete(
 	ctx context.Context,
 	observed *resource.HeaderTransformationPolicy,
 ) error {
-	policyID := observed.Name
-	err := deleteResource(ctx, s.client.GatewayV1().HeaderTransformationPolicies(), observed)
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf(
-			"delete header transformation policy %q after conflict retries: %w",
-			policyID,
-			err,
-		)
-	}
-	return resourceError("delete", "header transformation policy", policyID, err)
+	return deleteResource(
+		ctx,
+		s.client.GatewayV1().HeaderTransformationPolicies(),
+		"header transformation policy",
+		observed,
+	)
 }

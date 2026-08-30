@@ -35,7 +35,7 @@ type App struct {
 	cleanup func()
 }
 
-// NewApp 从配置文件创建完整的 Analytics 进程
+// NewApp 从配置文件创建完整的 Analytics 进程。
 // 配置只在启动时读取，修改后需要重启组件才会生效。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap

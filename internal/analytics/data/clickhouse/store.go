@@ -153,10 +153,10 @@ func clickHouseRelease(version string) (int, int, error) {
 	return major, minor, nil
 }
 
-// clientConfig 把 Analytics 进程配置转换为公共 ClickHouse 客户端配置
+// clientConfig 把 Analytics 进程配置转换为公共 ClickHouse 客户端配置。
 //
 // 底层连接的读取期限覆盖写入和查询两类操作中更长的一方，各方法仍通过 Context
-// 施加自己的业务超时
+// 施加自己的业务超时。
 func clientConfig(config *conf.Data_ClickHouse) clickhouseclient.Config {
 	writeTimeout := config.GetWriteTimeout().AsDuration()
 	queryTimeout := config.GetQueryTimeout().AsDuration()

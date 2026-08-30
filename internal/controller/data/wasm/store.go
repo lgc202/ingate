@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -34,13 +33,11 @@ import (
 const (
 	wasmFileName          = "plugin.wasm"
 	wasmArtifactMediaType = "application/vnd.module.wasm.content.layer.v1+wasm"
-	maxHTTPRedirects      = 10
-)
-
-var (
-	wasmMagic = []byte{0x00, 0x61, 0x73, 0x6d}
-	// 官方 Envoy 当前支持 Proxy-Wasm ABI 0.2.0 和 0.2.1；供应商私有 ABI 不能进入配置发布链路
-	supportedProxyWasmABI = []string{"proxy_abi_version_0_2_0", "proxy_abi_version_0_2_1"}
+	wasmMagic             = "\x00asm"
+	// 官方 Envoy 当前支持 Proxy-Wasm ABI 0.2.0 和 0.2.1；供应商私有 ABI 不能进入配置发布链路。
+	proxyWasmABI020  = "proxy_abi_version_0_2_0"
+	proxyWasmABI021  = "proxy_abi_version_0_2_1"
+	maxHTTPRedirects = 10
 )
 
 // Store 把远端模块转换为 Envoy 可从共享目录读取的内容寻址文件。
@@ -138,7 +135,7 @@ func (s *Store) Resolve(ctx context.Context, plugin *gatewayv1.WasmPlugin) (comp
 		return compiler.WasmModule{}, err
 	}
 
-	moduleSHA := digest(moduleBytes)
+	moduleSHA := sha256Digest(moduleBytes)
 	moduleAlreadyExists := s.moduleExists(moduleSHA)
 	if err := s.reserveCache(moduleSHA, int64(len(moduleBytes))); err != nil {
 		return compiler.WasmModule{}, err
@@ -205,7 +202,7 @@ func (s *Store) pullHTTP(ctx context.Context, sourceURL, expectedSHA string) ([]
 	if err != nil {
 		return nil, err
 	}
-	if actual := digest(moduleBytes); actual != expectedSHA {
+	if actual := sha256Digest(moduleBytes); actual != expectedSHA {
 		return nil, fmt.Errorf("verify Wasm module SHA256: expected %s, got %s", expectedSHA, actual)
 	}
 	return moduleBytes, nil
@@ -302,25 +299,26 @@ func readModule(reader io.Reader, limit int64) ([]byte, error) {
 }
 
 func validateWasm(ctx context.Context, moduleBytes []byte) error {
-	if len(moduleBytes) < 8 || !slices.Equal(moduleBytes[:len(wasmMagic)], wasmMagic) {
+	if len(moduleBytes) < 8 || string(moduleBytes[:len(wasmMagic)]) != wasmMagic {
 		return errors.New("downloaded content is not a WebAssembly module")
 	}
 	wasmRuntime := wazero.NewRuntime(ctx)
-	defer func() { _ = wasmRuntime.Close(ctx) }()
+	defer func() { _ = wasmRuntime.Close(context.WithoutCancel(ctx)) }()
 	module, err := wasmRuntime.CompileModule(ctx, moduleBytes)
 	if err != nil {
 		return fmt.Errorf("compile WebAssembly module: %w", err)
 	}
 	exports := module.ExportedFunctions()
-	for _, name := range supportedProxyWasmABI {
-		if _, exists := exports[name]; exists {
-			return nil
-		}
+	if _, exists := exports[proxyWasmABI020]; exists {
+		return nil
+	}
+	if _, exists := exports[proxyWasmABI021]; exists {
+		return nil
 	}
 	return errors.New("WebAssembly module does not export a supported Proxy-Wasm ABI")
 }
 
-func digest(value []byte) string {
+func sha256Digest(value []byte) string {
 	sum := sha256.Sum256(value)
 	return hex.EncodeToString(sum[:])
 }

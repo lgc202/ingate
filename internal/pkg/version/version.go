@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	// 这些变量由构建脚本通过 -ldflags 注入，本地直接 go run 时保留可识别的默认值
+	// 这些变量由构建脚本通过 -ldflags 注入，本地直接 go run 时保留可识别的默认值。
 	gitVersion   = "v0.0.0-unknown"
 	gitCommit    = "unknown"
 	gitTreeState = ""

@@ -151,14 +151,16 @@ func (c *compilation) routeHostnames(route *gatewayv1.Route) ([]string, bool) {
 	if len(route.Spec.Hostnames) == 0 {
 		return nil, true
 	}
-	valid := len(route.Spec.Hostnames) <= routeconfig.MaxHostnames
-	if !valid {
+	if len(route.Spec.Hostnames) > routeconfig.MaxHostnames {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
 			fmt.Sprintf("route %q declares too many hostnames", route.Name),
 		)
+		return nil, false
 	}
+
+	valid := true
 	seenHostnames := make(map[string]bool, len(route.Spec.Hostnames))
 	for _, hostnameValue := range route.Spec.Hostnames {
 		hostname, ok := hostnameutil.Normalize(hostnameValue)
@@ -186,22 +188,24 @@ func (c *compilation) routeHostnames(route *gatewayv1.Route) ([]string, bool) {
 }
 
 func (c *compilation) routeGatewayIDs(route *gatewayv1.Route) ([]string, bool) {
-	valid := len(route.Spec.GatewayRefs) > 0 &&
-		len(route.Spec.GatewayRefs) <= routeconfig.MaxGatewayRefs
 	if len(route.Spec.GatewayRefs) == 0 {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
 			fmt.Sprintf("route %q must reference at least one gateway", route.Name),
 		)
-	} else if len(route.Spec.GatewayRefs) > routeconfig.MaxGatewayRefs {
+		return nil, false
+	}
+	if len(route.Spec.GatewayRefs) > routeconfig.MaxGatewayRefs {
 		c.addRouteError(
 			route.Name,
 			ReasonInvalidSpec,
 			fmt.Sprintf("route %q references too many gateways", route.Name),
 		)
+		return nil, false
 	}
 
+	valid := true
 	seenGatewayIDs := make(map[string]bool, len(route.Spec.GatewayRefs))
 	for _, gatewayID := range route.Spec.GatewayRefs {
 		if !resourceconfig.IsCanonicalID(gatewayID) || seenGatewayIDs[gatewayID] {

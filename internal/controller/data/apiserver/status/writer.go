@@ -3,6 +3,7 @@ package status
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
@@ -37,16 +38,20 @@ func (w *Writer) ApplyCompileResult(
 	decisions := newDiagnosticIndex(generations, diagnostics)
 	targets := newPolicyTargetIndex(generations)
 	deliveryState := newDeliveryIndex(deliveryStatus)
+	var errs []error
 	for _, resource := range generations {
 		decision := decisions.forResource(resource.Kind, resource.Name)
 		if resource.Kind == gatewayv1.KindWasmPlugin {
 			decision = decisions.forWasmPlugin(resource.Name)
 		}
 		if err := w.updateResource(ctx, resource, &decision, deliveryState, targets); err != nil {
-			return err
+			errs = append(errs, err)
+			if ctx.Err() != nil {
+				break
+			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // ApplyProgrammed 根据最新 Delivery 状态更新本次资源集合的 Programmed Condition。
@@ -58,12 +63,16 @@ func (w *Writer) ApplyProgrammed(
 	generations := resources.Generations()
 	targets := newPolicyTargetIndex(generations)
 	deliveryState := newDeliveryIndex(deliveryStatus)
+	var errs []error
 	for _, resource := range generations {
 		if err := w.updateResource(ctx, resource, nil, deliveryState, targets); err != nil {
-			return err
+			errs = append(errs, err)
+			if ctx.Err() != nil {
+				break
+			}
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func (w *Writer) updateResource(

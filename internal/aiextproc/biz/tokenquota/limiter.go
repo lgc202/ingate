@@ -2,11 +2,14 @@
 package tokenquota
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
@@ -81,8 +84,8 @@ type Session struct {
 	buckets []Bucket
 }
 
-// Exceeded 描述阻止本次调用的额度。
-type Exceeded struct {
+// Rejection 记录拒绝本次模型调用的额度结果。
+type Rejection struct {
 	Period  Period
 	ResetAt time.Time
 }
@@ -93,7 +96,7 @@ func NewLimiter(policies PolicySource, counter Counter) *Limiter {
 }
 
 // Begin 在调用模型前检查所有命中策略的当前额度。
-func (l *Limiter) Begin(ctx context.Context, callerID string, now time.Time) (*Session, *Exceeded, error) {
+func (l *Limiter) Begin(ctx context.Context, callerID string, now time.Time) (*Session, *Rejection, error) {
 	buckets, err := l.currentBuckets(callerID, now)
 	if err != nil {
 		return nil, nil, err
@@ -109,7 +112,7 @@ func (l *Limiter) Begin(ctx context.Context, callerID string, now time.Time) (*S
 		if used[i] < bucket.Limit {
 			continue
 		}
-		return nil, &Exceeded{
+		return nil, &Rejection{
 			Period:  bucket.Period,
 			ResetAt: bucket.End,
 		}, nil
@@ -181,6 +184,9 @@ func (l *Limiter) readCounters(ctx context.Context, buckets []Bucket) ([]int64, 
 }
 
 func (l *Limiter) currentBuckets(callerID string, now time.Time) ([]Bucket, error) {
+	if !resourceconfig.IsCanonicalID(callerID) {
+		return nil, errors.New("caller ID must be a canonical UUID")
+	}
 	policies, err := l.policies.ActivePolicies(callerID)
 	if err != nil {
 		return nil, err
@@ -193,10 +199,23 @@ func (l *Limiter) currentBuckets(callerID string, now time.Time) ([]Bucket, erro
 			tokenquotaconfig.MaxPoliciesPerCaller,
 		)
 	}
+	policies = slices.Clone(policies)
+	slices.SortFunc(policies, func(left, right Policy) int {
+		return cmp.Compare(left.ID, right.ID)
+	})
+
 	buckets := make([]Bucket, 0, len(policies)*tokenquotaconfig.MaxLimits)
+	seenPolicyIDs := make(map[string]bool, len(policies))
 	for policyIndex, policy := range policies {
-		if policy.ID == "" {
-			return nil, fmt.Errorf("token quota policy %d has no ID", policyIndex)
+		if !resourceconfig.IsCanonicalID(policy.ID) {
+			return nil, fmt.Errorf("token quota policy %d has an invalid ID", policyIndex)
+		}
+		if seenPolicyIDs[policy.ID] {
+			return nil, fmt.Errorf("token quota policy %d duplicates ID %q", policyIndex, policy.ID)
+		}
+		seenPolicyIDs[policy.ID] = true
+		if !resourceconfig.IsValidDisplayName(policy.Name) {
+			return nil, fmt.Errorf("token quota policy %q has an invalid name", policy.ID)
 		}
 		if policy.TimeZone == nil {
 			return nil, fmt.Errorf("token quota policy %q has no time zone", policy.ID)
@@ -204,7 +223,17 @@ func (l *Limiter) currentBuckets(callerID string, now time.Time) ([]Bucket, erro
 		if len(policy.Limits) == 0 || len(policy.Limits) > tokenquotaconfig.MaxLimits {
 			return nil, fmt.Errorf("token quota policy %q has invalid limit count", policy.ID)
 		}
+		seenPeriods := make(map[Period]bool, len(policy.Limits))
 		for limitIndex, limit := range policy.Limits {
+			if seenPeriods[limit.Period] {
+				return nil, fmt.Errorf(
+					"token quota policy %q limit %d duplicates period %q",
+					policy.ID,
+					limitIndex,
+					limit.Period,
+				)
+			}
+			seenPeriods[limit.Period] = true
 			if !tokenquotaconfig.IsValidTokenLimit(limit.Tokens) {
 				return nil, fmt.Errorf(
 					"token quota policy %q limit %d has invalid token count",
@@ -232,7 +261,26 @@ func (l *Limiter) currentBuckets(callerID string, now time.Time) ([]Bucket, erro
 			})
 		}
 	}
+	slices.SortFunc(buckets, func(left, right Bucket) int {
+		if result := cmp.Compare(left.PolicyID, right.PolicyID); result != 0 {
+			return result
+		}
+		return cmp.Compare(periodOrder(left.Period), periodOrder(right.Period))
+	})
 	return buckets, nil
+}
+
+func periodOrder(period Period) int {
+	switch period {
+	case PeriodDay:
+		return 1
+	case PeriodWeek:
+		return 2
+	case PeriodMonth:
+		return 3
+	default:
+		return 4
+	}
 }
 
 func periodWindow(

@@ -14,7 +14,8 @@ import (
 // transitionTypeURLs 同时保留 Active 和 Candidate 使用的类型，
 // 确保资源删除也会产生待确认的空响应。
 func transitionTypeURLs(active *publishedConfig, candidate compiler.EnvoyConfig) []string {
-	required := make(map[string]bool, len(dynamicTypeURLs()))
+	typeURLs := dynamicTypeURLs()
+	required := make(map[string]bool, len(typeURLs))
 	for _, typeURL := range configTypeURLs(candidate) {
 		required[typeURL] = true
 	}
@@ -25,7 +26,7 @@ func transitionTypeURLs(active *publishedConfig, candidate compiler.EnvoyConfig)
 	}
 
 	result := make([]string, 0, len(required))
-	for _, typeURL := range dynamicTypeURLs() {
+	for _, typeURL := range typeURLs {
 		if required[typeURL] {
 			result = append(result, typeURL)
 		}
@@ -56,7 +57,7 @@ func dynamicTypeURLs() []string {
 	}
 }
 
-// cloneConfig 隔离编译结果与异步发布过程，避免调用方后续修改 protobuf 对象
+// cloneConfig 隔离编译结果与异步发布过程，避免调用方后续修改 protobuf 对象。
 func cloneConfig(value compiler.EnvoyConfig) compiler.EnvoyConfig {
 	cloned := compiler.EnvoyConfig{
 		Listeners: make([]*listenerv3.Listener, 0, len(value.Listeners)),

@@ -12,6 +12,7 @@ import (
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	"github.com/lgc202/ingate/internal/pkg/requestrecord"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
 const modelCallColumns = `
@@ -48,10 +49,10 @@ type modelCallRow struct {
 	call            request.ModelCall
 }
 
-// saveModelCall 只保存已经选中并尝试模型 Service 的调用
+// saveModelCall 只保存已经选中并尝试模型 Service 的调用。
 //
 // AI Route 在选路前也可能写入客户端模型元数据，但这种本地拒绝没有产生模型调用，
-// 因此不能进入用量事实表
+// 因此不能进入用量事实表。
 func (s *Store) saveModelCall(ctx context.Context, record request.Record) error {
 	call := record.ModelCall
 	if call == nil || record.UpstreamID == "" {
@@ -88,12 +89,12 @@ func (s *Store) saveModelCall(ctx context.Context, record request.Record) error 
 	return nil
 }
 
-// listModelCalls 批量补充当前请求页的模型调用，避免请求列表执行大表 JOIN
+// listModelCalls 批量补充当前请求页的模型调用，避免请求列表执行大表 JOIN。
 func (s *Store) listModelCalls(
 	ctx context.Context,
 	records []request.Summary,
 ) (calls map[string]*request.ModelCall, err error) {
-	calls = make(map[string]*request.ModelCall)
+	calls = make(map[string]*request.ModelCall, len(records))
 	if len(records) == 0 {
 		return calls, nil
 	}
@@ -160,7 +161,7 @@ ORDER BY request_record_id`, modelCallSelectColumns, s.modelCallTable)
 	return calls, nil
 }
 
-// getModelCall 返回请求详情对应的模型调用
+// getModelCall 返回请求详情对应的模型调用。
 func (s *Store) getModelCall(
 	ctx context.Context,
 	requestRecordID string,
@@ -220,8 +221,10 @@ func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
 	); err != nil {
 		return modelCallRow{}, fmt.Errorf("scan model call: %w", err)
 	}
-	if !requestrecord.IsValidID(row.requestRecordID) || row.call.ClientModel == "" ||
-		row.call.UpstreamModel == "" {
+	if !requestrecord.IsValidID(row.requestRecordID) ||
+		!routeconfig.IsValidModelName(row.call.ClientModel) ||
+		!routeconfig.IsValidModelName(row.call.UpstreamModel) ||
+		row.call.ResponseModel != "" && !routeconfig.IsValidModelName(row.call.ResponseModel) {
 		return modelCallRow{}, errors.New("stored model call has an invalid identity or model mapping")
 	}
 	switch row.call.UpstreamProtocol {

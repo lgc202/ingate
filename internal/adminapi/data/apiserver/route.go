@@ -2,9 +2,7 @@ package apiserver
 
 import (
 	"context"
-	"fmt"
 
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
@@ -40,6 +38,14 @@ func (s *RouteStore) Get(ctx context.Context, routeID string) (*resource.Route, 
 	return route, resourceError("get", "route", routeID, err)
 }
 
+// ListByIDs 返回当前存在的指定 Route。
+func (s *RouteStore) ListByIDs(
+	ctx context.Context,
+	routeIDs []string,
+) (map[string]*resource.Route, error) {
+	return listByIDs(ctx, routeIDs, s.Get)
+}
+
 // Create 创建 Route。
 func (s *RouteStore) Create(
 	ctx context.Context,
@@ -59,35 +65,29 @@ func (s *RouteStore) Create(
 }
 
 // ReplaceSpec 完整替换 Route 配置。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *RouteStore) ReplaceSpec(
 	ctx context.Context,
 	observed *resource.Route,
 	spec resource.RouteSpec,
 ) (*resource.Route, error) {
-	routeID := observed.Name
-	updated, err := updateResource(
+	return replaceResourceSpec(
 		ctx,
 		s.client.GatewayV1().Routes(),
+		"route",
 		observed,
 		func(route *resource.Route) { route.Spec = spec },
 	)
-	if apierrors.IsConflict(err) {
-		return nil, fmt.Errorf("replace route %q after conflict retries: %w", routeID, err)
-	}
-	return updated, resourceError("replace", "route", routeID, err)
 }
 
 // Delete 删除 Route。
-// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
 func (s *RouteStore) Delete(
 	ctx context.Context,
 	observed *resource.Route,
 ) error {
-	routeID := observed.Name
-	err := deleteResource(ctx, s.client.GatewayV1().Routes(), observed)
-	if apierrors.IsConflict(err) {
-		return fmt.Errorf("delete route %q after conflict retries: %w", routeID, err)
-	}
-	return resourceError("delete", "route", routeID, err)
+	return deleteResource(
+		ctx,
+		s.client.GatewayV1().Routes(),
+		"route",
+		observed,
+	)
 }
