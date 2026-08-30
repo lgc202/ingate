@@ -17,14 +17,14 @@ const (
 	wasmVMRuntime            = "envoy.wasm.runtime.v8"
 )
 
-type wasmFilterPhase uint8
-
 const (
 	// Header 等流量变换必须先运行，后续插件才能看到变换后的请求
 	wasmFilterPhaseTrafficMutation wasmFilterPhase = iota
 	// 本地响应会终止请求，必须位于鉴权和流量变换之后
 	wasmFilterPhaseLocalResponse
 )
+
+type wasmFilterPhase uint8
 
 // wasmFilter 是强类型策略编译后的内部执行配置，不进入用户 API
 type wasmFilter struct {
@@ -50,7 +50,8 @@ func buildWasmHTTPFilter(filter wasmFilter) (*hcmv3.HttpFilter, error) {
 		Vm: &wasmv3.PluginConfig_VmConfig{VmConfig: &wasmv3.VmConfig{
 			VmId:    filter.vmID,
 			Runtime: wasmVMRuntime,
-			// Controller 在发布 xDS 前已经完成下载、ABI 校验和原子写入，Envoy 只读取共享目录中的不可变文件
+			// Controller 在发布 xDS 前已经完成下载、ABI 校验和原子写入，
+			// Envoy 只读取共享目录中的不可变文件。
 			Code: &corev3.AsyncDataSource{Specifier: &corev3.AsyncDataSource_Local{
 				Local: &corev3.DataSource{Specifier: &corev3.DataSource_Filename{
 					Filename: filter.module.Path,

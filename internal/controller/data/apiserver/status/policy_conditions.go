@@ -12,7 +12,8 @@ import (
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-// policyConditions 汇总各目标状态：任一目标生效即视为策略已生效，具体异常保留在 targets 中
+// policyConditions 汇总各目标状态：任一目标生效即视为策略已生效，
+// 具体异常保留在 targets 中。
 func policyConditions(
 	conditions []metav1.Condition,
 	resource compiler.ResourceGeneration,
@@ -87,15 +88,14 @@ func policyConditions(
 	return conditions
 }
 
-// policyTargetStatuses 按声明顺序为每个 targetRef 计算独立状态，避免无效目标阻塞其他目标
+// policyTargetStatuses 按声明顺序为每个 targetRef 计算独立状态，避免无效目标阻塞其他目标。
 func policyTargetStatuses(
 	existing []gatewayv1.PolicyTargetStatus,
 	targetRefs []gatewayv1.PolicyTargetRef,
 	resource compiler.ResourceGeneration,
 	policyConditions []metav1.Condition,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 	targets map[resourceKey]compiler.ResourceGeneration,
-	programmedTargets map[compiler.CompiledPolicyTarget]bool,
 ) []gatewayv1.PolicyTargetStatus {
 	result := make([]gatewayv1.PolicyTargetStatus, 0, len(targetRefs))
 	for _, targetRef := range targetRefs {
@@ -118,16 +118,17 @@ func policyTargetStatuses(
 			resource.Generation,
 			resolved,
 		))
+		compiledTarget := compiler.CompiledPolicyTarget{
+			Policy: resource,
+			Target: target,
+		}
 		meta.SetStatusCondition(&conditions, policyTargetProgrammedCondition(
 			policyConditions,
 			resolved,
 			resource,
 			target,
-			deliveryStatus,
-			programmedTargets[compiler.CompiledPolicyTarget{
-				Policy: resource,
-				Target: target,
-			}],
+			deliveryState,
+			deliveryState.activePolicyTargets[compiledTarget],
 		))
 		result = append(result, gatewayv1.PolicyTargetStatus{
 			TargetRef:  targetRef,
@@ -154,7 +155,7 @@ func policyTargetProgrammedCondition(
 	resolved conditionDecision,
 	resource compiler.ResourceGeneration,
 	target compiler.ResourceGeneration,
-	deliveryStatus delivery.Status,
+	deliveryState deliveryIndex,
 	isProgrammedTarget bool,
 ) metav1.Condition {
 	accepted := currentCondition(policyConditions, gatewayv1.ConditionAccepted, resource.Generation)
@@ -162,14 +163,13 @@ func policyTargetProgrammedCondition(
 		return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, pendingDecision())
 	}
 	if accepted.Status != metav1.ConditionTrue {
-		return conditionBlockedBy(gatewayv1.ConditionProgrammed, resource.Generation, accepted)
+		return conditionBlockedBy(resource.Generation, accepted)
 	}
 	if resolved.status != metav1.ConditionTrue {
 		blocking := newCondition(gatewayv1.ConditionResolvedRefs, resource.Generation, resolved)
-		return conditionBlockedBy(gatewayv1.ConditionProgrammed, resource.Generation, &blocking)
+		return conditionBlockedBy(resource.Generation, &blocking)
 	}
-	if slices.Contains(deliveryStatus.ActiveResources, resource) &&
-		slices.Contains(deliveryStatus.ActiveResources, target) {
+	if deliveryState.activeResources[resource] && deliveryState.activeResources[target] {
 		if !isProgrammedTarget {
 			return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, conditionDecision{
 				status:  metav1.ConditionFalse,
@@ -184,12 +184,10 @@ func policyTargetProgrammedCondition(
 		})
 	}
 	failedTarget := compiler.CompiledPolicyTarget{Policy: resource, Target: target}
-	if deliveryStatus.LastFailure != nil &&
-		slices.Contains(deliveryStatus.LastFailure.Resources, resource) &&
-		slices.Contains(deliveryStatus.LastFailure.PolicyTargets, failedTarget) {
+	if deliveryState.failedResources[resource] && deliveryState.failedPolicyTargets[failedTarget] {
 		reason := gatewayv1.ReasonDeliveryFailed
 		message := messageDeliveryFailed
-		if deliveryStatus.LastFailure.Reason == delivery.FailureRejected {
+		if deliveryState.failureReason == delivery.FailureRejected {
 			reason = gatewayv1.ReasonRejected
 			message = messageRejected
 		}
@@ -202,22 +200,12 @@ func policyTargetProgrammedCondition(
 	return newCondition(gatewayv1.ConditionProgrammed, resource.Generation, pendingDecision())
 }
 
-func newPolicyTargetIndex(resources compiler.Resources) map[resourceKey]compiler.ResourceGeneration {
-	targets := make(map[resourceKey]compiler.ResourceGeneration, len(resources.Gateways)+len(resources.Routes))
-	for _, resource := range resources.Generations() {
+func newPolicyTargetIndex(resources []compiler.ResourceGeneration) map[resourceKey]compiler.ResourceGeneration {
+	targets := make(map[resourceKey]compiler.ResourceGeneration, len(resources))
+	for _, resource := range resources {
 		if resource.Kind == gatewayv1.KindGateway || resource.Kind == gatewayv1.KindRoute {
 			targets[resourceKey{kind: resource.Kind, name: resource.Name}] = resource
 		}
 	}
 	return targets
-}
-
-func newProgrammedPolicyTargetIndex(
-	targets []compiler.CompiledPolicyTarget,
-) map[compiler.CompiledPolicyTarget]bool {
-	result := make(map[compiler.CompiledPolicyTarget]bool, len(targets))
-	for _, target := range targets {
-		result[target] = true
-	}
-	return result
 }

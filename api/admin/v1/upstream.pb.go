@@ -1043,19 +1043,23 @@ const file_admin_v1_upstream_proto_rawDesc = "" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
 	"nextCursor\".\n" +
 	"\x12GetUpstreamRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x80\x03\n" +
-	"\x15CreateUpstreamRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12I\n" +
-	"\tendpoints\x18\x02 \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x12.\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\x85\x03\n" +
+	"\x15CreateUpstreamRequest\x12\x1e\n" +
+	"\x04name\x18\x01 \x01(\tB\n" +
+	"\xbaH\ar\x05 \x01(\x80\x02R\x04name\x12K\n" +
+	"\tendpoints\x18\x02 \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\n" +
+	"\xbaH\a\x92\x01\x04\b\x01\x10@R\tendpoints\x12.\n" +
 	"\x03tls\x18\x03 \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x12K\n" +
 	"\x0eload_balancing\x18\x04 \x01(\x0e2$.ingate.admin.v1.LoadBalancingPolicyR\rloadBalancing\x12G\n" +
 	"\fhealth_check\x18\x05 \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x129\n" +
-	"\x05model\x18\x06 \x01(\v2#.ingate.admin.v1.ModelUpstreamInputR\x05model\"\xbd\x03\n" +
+	"\x05model\x18\x06 \x01(\v2#.ingate.admin.v1.ModelUpstreamInputR\x05model\"\xc2\x03\n" +
 	"\x15UpdateUpstreamRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
-	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1b\n" +
-	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12I\n" +
-	"\tendpoints\x18\x04 \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\b\xbaH\x05\x92\x01\x02\b\x01R\tendpoints\x12.\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1e\n" +
+	"\x04name\x18\x03 \x01(\tB\n" +
+	"\xbaH\ar\x05 \x01(\x80\x02R\x04name\x12K\n" +
+	"\tendpoints\x18\x04 \x03(\v2!.ingate.admin.v1.UpstreamEndpointB\n" +
+	"\xbaH\a\x92\x01\x04\b\x01\x10@R\tendpoints\x12.\n" +
 	"\x03tls\x18\x05 \x01(\v2\x1c.ingate.admin.v1.UpstreamTLSR\x03tls\x12K\n" +
 	"\x0eload_balancing\x18\x06 \x01(\x0e2$.ingate.admin.v1.LoadBalancingPolicyR\rloadBalancing\x12G\n" +
 	"\fhealth_check\x18\a \x01(\v2$.ingate.admin.v1.UpstreamHealthCheckR\vhealthCheck\x129\n" +

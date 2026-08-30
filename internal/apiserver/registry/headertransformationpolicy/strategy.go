@@ -12,6 +12,7 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
 )
 
 type strategy struct {
@@ -20,10 +21,6 @@ type strategy struct {
 
 type statusStrategy struct {
 	strategy
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -35,10 +32,6 @@ func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 
 func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validatePolicy(obj.(*resource.HeaderTransformationPolicy))
-}
-
-func (strategy) Canonicalize(obj runtime.Object) {
-	canonicalizeSpec(&obj.(*resource.HeaderTransformationPolicy).Spec)
 }
 
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
@@ -55,10 +48,6 @@ func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.E
 	return validatePolicy(obj.(*resource.HeaderTransformationPolicy))
 }
 
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
-}
-
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return apiregistry.SpecResetFields()
 }
@@ -71,28 +60,36 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	metav1.ResetObjectMetaForStatus(&newPolicy.ObjectMeta, &oldPolicy.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
-	return nil
+func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
+	policy := obj.(*resource.HeaderTransformationPolicy)
+	return apiregistry.ValidatePolicyStatus(
+		policy.Status,
+		policy.Spec.TargetRefs,
+		policy.Generation,
+	)
+}
+
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeSpec(spec *resource.HeaderTransformationPolicySpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
-	for i := range spec.TargetRefs {
-		spec.TargetRefs[i].Name = strings.TrimSpace(spec.TargetRefs[i].Name)
-	}
+	apiregistry.CanonicalizePolicyTargetRefs(spec.TargetRefs)
 	canonicalizeRules(spec.RequestRules)
 	canonicalizeRules(spec.ResponseRules)
 }
 
 func canonicalizeRules(rules []resource.HeaderTransformationRule) {
 	for i := range rules {
-		rules[i].Name = strings.ToLower(strings.TrimSpace(rules[i].Name))
-		rules[i].Value = strings.TrimSpace(rules[i].Value)
+		rules[i].Name = httpheader.NormalizeName(rules[i].Name)
+		rules[i].Value = httpheader.NormalizeValue(rules[i].Value)
 		if rules[i].Operation == resource.HeaderTransformationRename {
-			rules[i].Value = strings.ToLower(rules[i].Value)
-		}
-		if rules[i].Operation == resource.HeaderTransformationRemove {
-			rules[i].Value = ""
+			rules[i].Value = httpheader.NormalizeName(rules[i].Value)
 		}
 	}
 }

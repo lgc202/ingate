@@ -37,6 +37,9 @@ const (
 	ErrorReason_REQUEST_RECORD_NOT_FOUND  ErrorReason = 9
 	ErrorReason_DEPENDENCY_UNAVAILABLE    ErrorReason = 10
 	ErrorReason_REQUEST_BODY_TOO_LARGE    ErrorReason = 11
+	ErrorReason_RESOURCE_CONFLICT         ErrorReason = 12
+	ErrorReason_REQUEST_TIMEOUT           ErrorReason = 13
+	ErrorReason_REQUEST_CANCELED          ErrorReason = 14
 )
 
 // Enum value maps for ErrorReason.
@@ -54,6 +57,9 @@ var (
 		9:  "REQUEST_RECORD_NOT_FOUND",
 		10: "DEPENDENCY_UNAVAILABLE",
 		11: "REQUEST_BODY_TOO_LARGE",
+		12: "RESOURCE_CONFLICT",
+		13: "REQUEST_TIMEOUT",
+		14: "REQUEST_CANCELED",
 	}
 	ErrorReason_value = map[string]int32{
 		"ERROR_REASON_UNSPECIFIED":  0,
@@ -68,6 +74,9 @@ var (
 		"REQUEST_RECORD_NOT_FOUND":  9,
 		"DEPENDENCY_UNAVAILABLE":    10,
 		"REQUEST_BODY_TOO_LARGE":    11,
+		"RESOURCE_CONFLICT":         12,
+		"REQUEST_TIMEOUT":           13,
+		"REQUEST_CANCELED":          14,
 	}
 )
 
@@ -102,7 +111,7 @@ var File_admin_v1_error_reason_proto protoreflect.FileDescriptor
 
 const file_admin_v1_error_reason_proto_rawDesc = "" +
 	"\n" +
-	"\x1badmin/v1/error_reason.proto\x12\x0fingate.admin.v1*\xba\x02\n" +
+	"\x1badmin/v1/error_reason.proto\x12\x0fingate.admin.v1*\xfc\x02\n" +
 	"\vErrorReason\x12\x1c\n" +
 	"\x18ERROR_REASON_UNSPECIFIED\x10\x00\x12\x14\n" +
 	"\x10INVALID_ARGUMENT\x10\x01\x12\x1b\n" +
@@ -116,7 +125,10 @@ const file_admin_v1_error_reason_proto_rawDesc = "" +
 	"\x18REQUEST_RECORD_NOT_FOUND\x10\t\x12\x1a\n" +
 	"\x16DEPENDENCY_UNAVAILABLE\x10\n" +
 	"\x12\x1a\n" +
-	"\x16REQUEST_BODY_TOO_LARGE\x10\vB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
+	"\x16REQUEST_BODY_TOO_LARGE\x10\v\x12\x15\n" +
+	"\x11RESOURCE_CONFLICT\x10\f\x12\x13\n" +
+	"\x0fREQUEST_TIMEOUT\x10\r\x12\x14\n" +
+	"\x10REQUEST_CANCELED\x10\x0eB*Z(github.com/lgc202/ingate/api/admin/v1;v1b\x06proto3"
 
 var (
 	file_admin_v1_error_reason_proto_rawDescOnce sync.Once

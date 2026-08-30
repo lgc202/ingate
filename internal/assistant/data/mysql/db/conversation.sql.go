@@ -32,22 +32,17 @@ func (q *Queries) CancelQueuedExecution(ctx context.Context, arg CancelQueuedExe
 
 const cancelRunningExecutionSteps = `-- name: CancelRunningExecutionSteps :exec
 UPDATE assistant_agent_execution_steps
-SET state = 4, finished_at = ?
+SET state = 4, finished_at = CURRENT_TIMESTAMP(6)
 WHERE execution_id = ? AND state = 1
 `
 
-type CancelRunningExecutionStepsParams struct {
-	FinishedAt  sql.NullTime
-	ExecutionID string
-}
-
-func (q *Queries) CancelRunningExecutionSteps(ctx context.Context, arg CancelRunningExecutionStepsParams) error {
-	_, err := q.db.ExecContext(ctx, cancelRunningExecutionSteps, arg.FinishedAt, arg.ExecutionID)
+func (q *Queries) CancelRunningExecutionSteps(ctx context.Context, executionID string) error {
+	_, err := q.db.ExecContext(ctx, cancelRunningExecutionSteps, executionID)
 	return err
 }
 
 const claimNextExecution = `-- name: ClaimNextExecution :one
-SELECT r.id, r.conversation_id, c.actor_id, r.created_at
+SELECT r.id, r.conversation_id, c.actor_id
 FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.state = 1
@@ -60,18 +55,12 @@ type ClaimNextExecutionRow struct {
 	ID             string
 	ConversationID string
 	ActorID        string
-	CreatedAt      time.Time
 }
 
 func (q *Queries) ClaimNextExecution(ctx context.Context) (ClaimNextExecutionRow, error) {
 	row := q.db.QueryRowContext(ctx, claimNextExecution)
 	var i ClaimNextExecutionRow
-	err := row.Scan(
-		&i.ID,
-		&i.ConversationID,
-		&i.ActorID,
-		&i.CreatedAt,
-	)
+	err := row.Scan(&i.ID, &i.ConversationID, &i.ActorID)
 	return i, err
 }
 
@@ -98,14 +87,13 @@ func (q *Queries) CompleteExecution(ctx context.Context, arg CompleteExecutionPa
 const completeExecutionStep = `-- name: CompleteExecutionStep :execrows
 UPDATE assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS r ON r.id = i.execution_id
-SET i.state = 2, i.summary = ?, i.finished_at = ?
+SET i.state = 2, i.summary = ?, i.finished_at = CURRENT_TIMESTAMP(6)
 WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
   AND r.state = 2 AND r.worker_id = ?
 `
 
 type CompleteExecutionStepParams struct {
 	Summary     string
-	FinishedAt  sql.NullTime
 	ExecutionID string
 	CallID      string
 	Kind        uint8
@@ -115,7 +103,6 @@ type CompleteExecutionStepParams struct {
 func (q *Queries) CompleteExecutionStep(ctx context.Context, arg CompleteExecutionStepParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, completeExecutionStep,
 		arg.Summary,
-		arg.FinishedAt,
 		arg.ExecutionID,
 		arg.CallID,
 		arg.Kind,
@@ -185,8 +172,8 @@ func (q *Queries) CreateExecution(ctx context.Context, arg CreateExecutionParams
 const createExecutionStep = `-- name: CreateExecutionStep :exec
 INSERT INTO assistant_agent_execution_steps (
     id, execution_id, sequence, kind, state, name, call_id, summary,
-    error_code, created_at, started_at, finished_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    error_code, started_at, finished_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6), NULL)
 `
 
 type CreateExecutionStepParams struct {
@@ -199,9 +186,6 @@ type CreateExecutionStepParams struct {
 	CallID      string
 	Summary     string
 	ErrorCode   string
-	CreatedAt   time.Time
-	StartedAt   time.Time
-	FinishedAt  sql.NullTime
 }
 
 func (q *Queries) CreateExecutionStep(ctx context.Context, arg CreateExecutionStepParams) error {
@@ -215,9 +199,6 @@ func (q *Queries) CreateExecutionStep(ctx context.Context, arg CreateExecutionSt
 		arg.CallID,
 		arg.Summary,
 		arg.ErrorCode,
-		arg.CreatedAt,
-		arg.StartedAt,
-		arg.FinishedAt,
 	)
 	return err
 }
@@ -249,6 +230,17 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) er
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const currentTime = `-- name: CurrentTime :one
+SELECT CURRENT_TIMESTAMP(6) AS database_now
+`
+
+func (q *Queries) CurrentTime(ctx context.Context) (time.Time, error) {
+	row := q.db.QueryRowContext(ctx, currentTime)
+	var database_now time.Time
+	err := row.Scan(&database_now)
+	return database_now, err
 }
 
 const deleteConversation = `-- name: DeleteConversation :execrows
@@ -321,24 +313,19 @@ func (q *Queries) ExecutionCancellationRequested(ctx context.Context, arg Execut
 
 const failExecution = `-- name: FailExecution :execrows
 UPDATE assistant_agent_executions
-SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
+SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL,
+    finished_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND state = 2 AND worker_id = ?
 `
 
 type FailExecutionParams struct {
-	ErrorCode  string
-	FinishedAt sql.NullTime
-	ID         string
-	WorkerID   string
+	ErrorCode string
+	ID        string
+	WorkerID  string
 }
 
 func (q *Queries) FailExecution(ctx context.Context, arg FailExecutionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, failExecution,
-		arg.ErrorCode,
-		arg.FinishedAt,
-		arg.ID,
-		arg.WorkerID,
-	)
+	result, err := q.db.ExecContext(ctx, failExecution, arg.ErrorCode, arg.ID, arg.WorkerID)
 	if err != nil {
 		return 0, err
 	}
@@ -348,14 +335,13 @@ func (q *Queries) FailExecution(ctx context.Context, arg FailExecutionParams) (i
 const failExecutionStep = `-- name: FailExecutionStep :execrows
 UPDATE assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS r ON r.id = i.execution_id
-SET i.state = 3, i.error_code = ?, i.finished_at = ?
+SET i.state = 3, i.error_code = ?, i.finished_at = CURRENT_TIMESTAMP(6)
 WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
   AND r.state = 2 AND r.worker_id = ?
 `
 
 type FailExecutionStepParams struct {
 	ErrorCode   string
-	FinishedAt  sql.NullTime
 	ExecutionID string
 	CallID      string
 	Kind        uint8
@@ -365,7 +351,6 @@ type FailExecutionStepParams struct {
 func (q *Queries) FailExecutionStep(ctx context.Context, arg FailExecutionStepParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, failExecutionStep,
 		arg.ErrorCode,
-		arg.FinishedAt,
 		arg.ExecutionID,
 		arg.CallID,
 		arg.Kind,
@@ -380,35 +365,24 @@ func (q *Queries) FailExecutionStep(ctx context.Context, arg FailExecutionStepPa
 const failExpiredExecutionSteps = `-- name: FailExpiredExecutionSteps :exec
 UPDATE assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS r ON r.id = i.execution_id
-SET i.state = 3, i.error_code = ?, i.finished_at = ?
-WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < ?
+SET i.state = 3, i.error_code = ?, i.finished_at = CURRENT_TIMESTAMP(6)
+WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < CURRENT_TIMESTAMP(6)
 `
 
-type FailExpiredExecutionStepsParams struct {
-	ErrorCode      string
-	FinishedAt     sql.NullTime
-	LeaseExpiresAt sql.NullTime
-}
-
-func (q *Queries) FailExpiredExecutionSteps(ctx context.Context, arg FailExpiredExecutionStepsParams) error {
-	_, err := q.db.ExecContext(ctx, failExpiredExecutionSteps, arg.ErrorCode, arg.FinishedAt, arg.LeaseExpiresAt)
+func (q *Queries) FailExpiredExecutionSteps(ctx context.Context, errorCode string) error {
+	_, err := q.db.ExecContext(ctx, failExpiredExecutionSteps, errorCode)
 	return err
 }
 
 const failExpiredExecutions = `-- name: FailExpiredExecutions :execrows
 UPDATE assistant_agent_executions
-SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
-WHERE state = 2 AND lease_expires_at < ?
+SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL,
+    finished_at = CURRENT_TIMESTAMP(6)
+WHERE state = 2 AND lease_expires_at < CURRENT_TIMESTAMP(6)
 `
 
-type FailExpiredExecutionsParams struct {
-	ErrorCode      string
-	FinishedAt     sql.NullTime
-	LeaseExpiresAt sql.NullTime
-}
-
-func (q *Queries) FailExpiredExecutions(ctx context.Context, arg FailExpiredExecutionsParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, failExpiredExecutions, arg.ErrorCode, arg.FinishedAt, arg.LeaseExpiresAt)
+func (q *Queries) FailExpiredExecutions(ctx context.Context, errorCode string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, failExpiredExecutions, errorCode)
 	if err != nil {
 		return 0, err
 	}
@@ -417,35 +391,34 @@ func (q *Queries) FailExpiredExecutions(ctx context.Context, arg FailExpiredExec
 
 const failRunningExecutionSteps = `-- name: FailRunningExecutionSteps :exec
 UPDATE assistant_agent_execution_steps
-SET state = 3, error_code = ?, finished_at = ?
+SET state = 3, error_code = ?, finished_at = CURRENT_TIMESTAMP(6)
 WHERE execution_id = ? AND state = 1
 `
 
 type FailRunningExecutionStepsParams struct {
 	ErrorCode   string
-	FinishedAt  sql.NullTime
 	ExecutionID string
 }
 
 func (q *Queries) FailRunningExecutionSteps(ctx context.Context, arg FailRunningExecutionStepsParams) error {
-	_, err := q.db.ExecContext(ctx, failRunningExecutionSteps, arg.ErrorCode, arg.FinishedAt, arg.ExecutionID)
+	_, err := q.db.ExecContext(ctx, failRunningExecutionSteps, arg.ErrorCode, arg.ExecutionID)
 	return err
 }
 
 const finishExecutionCancellation = `-- name: FinishExecutionCancellation :execrows
 UPDATE assistant_agent_executions
-SET state = 5, worker_id = '', lease_expires_at = NULL, finished_at = ?
+SET state = 5, worker_id = '', lease_expires_at = NULL,
+    finished_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND state = 2 AND worker_id = ? AND cancellation_requested = TRUE
 `
 
 type FinishExecutionCancellationParams struct {
-	FinishedAt sql.NullTime
-	ID         string
-	WorkerID   string
+	ID       string
+	WorkerID string
 }
 
 func (q *Queries) FinishExecutionCancellation(ctx context.Context, arg FinishExecutionCancellationParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, finishExecutionCancellation, arg.FinishedAt, arg.ID, arg.WorkerID)
+	result, err := q.db.ExecContext(ctx, finishExecutionCancellation, arg.ID, arg.WorkerID)
 	if err != nil {
 		return 0, err
 	}
@@ -692,7 +665,7 @@ func (q *Queries) ListConversations(ctx context.Context, arg ListConversationsPa
 
 const listExecutionSteps = `-- name: ListExecutionSteps :many
 SELECT i.id, i.execution_id, i.sequence, i.kind, i.state, i.name, i.call_id,
-       i.summary, i.error_code, i.created_at, i.started_at, i.finished_at
+       i.summary, i.error_code, i.started_at, i.finished_at
 FROM assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
@@ -724,7 +697,6 @@ func (q *Queries) ListExecutionSteps(ctx context.Context, arg ListExecutionSteps
 			&i.CallID,
 			&i.Summary,
 			&i.ErrorCode,
-			&i.CreatedAt,
 			&i.StartedAt,
 			&i.FinishedAt,
 		); err != nil {
@@ -795,8 +767,44 @@ func (q *Queries) ListMessages(ctx context.Context, arg ListMessagesParams) ([]A
 	return items, nil
 }
 
+const listRecentMessageSizes = `-- name: ListRecentMessageSizes :many
+SELECT OCTET_LENGTH(content) AS content_bytes
+FROM assistant_messages
+WHERE conversation_id = ?
+ORDER BY created_at DESC, id DESC
+LIMIT ?
+`
+
+type ListRecentMessageSizesParams struct {
+	ConversationID string
+	Limit          int32
+}
+
+func (q *Queries) ListRecentMessageSizes(ctx context.Context, arg ListRecentMessageSizesParams) ([]int32, error) {
+	rows, err := q.db.QueryContext(ctx, listRecentMessageSizes, arg.ConversationID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int32{}
+	for rows.Next() {
+		var content_bytes int32
+		if err := rows.Scan(&content_bytes); err != nil {
+			return nil, err
+		}
+		items = append(items, content_bytes)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRecentMessages = `-- name: ListRecentMessages :many
-SELECT id, conversation_id, execution_id, role, content, reasoning_content, created_at
+SELECT role, content
 FROM assistant_messages
 WHERE conversation_id = ?
 ORDER BY created_at DESC, id DESC
@@ -808,24 +816,21 @@ type ListRecentMessagesParams struct {
 	Limit          int32
 }
 
-func (q *Queries) ListRecentMessages(ctx context.Context, arg ListRecentMessagesParams) ([]AssistantMessage, error) {
+type ListRecentMessagesRow struct {
+	Role    uint8
+	Content string
+}
+
+func (q *Queries) ListRecentMessages(ctx context.Context, arg ListRecentMessagesParams) ([]ListRecentMessagesRow, error) {
 	rows, err := q.db.QueryContext(ctx, listRecentMessages, arg.ConversationID, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AssistantMessage{}
+	items := []ListRecentMessagesRow{}
 	for rows.Next() {
-		var i AssistantMessage
-		if err := rows.Scan(
-			&i.ID,
-			&i.ConversationID,
-			&i.ExecutionID,
-			&i.Role,
-			&i.Content,
-			&i.ReasoningContent,
-			&i.CreatedAt,
-		); err != nil {
+		var i ListRecentMessagesRow
+		if err := rows.Scan(&i.Role, &i.Content); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -854,18 +859,22 @@ func (q *Queries) NextExecutionStepSequence(ctx context.Context, executionID str
 
 const renewExecutionLease = `-- name: RenewExecutionLease :execrows
 UPDATE assistant_agent_executions
-SET lease_expires_at = ?
+SET lease_expires_at = TIMESTAMPADD(
+    MICROSECOND,
+    CAST(? AS SIGNED),
+    CURRENT_TIMESTAMP(6)
+)
 WHERE id = ? AND state = 2 AND worker_id = ?
 `
 
 type RenewExecutionLeaseParams struct {
-	LeaseExpiresAt sql.NullTime
-	ID             string
-	WorkerID       string
+	LeaseDurationMicroseconds int64
+	ID                        string
+	WorkerID                  string
 }
 
 func (q *Queries) RenewExecutionLease(ctx context.Context, arg RenewExecutionLeaseParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, renewExecutionLease, arg.LeaseExpiresAt, arg.ID, arg.WorkerID)
+	result, err := q.db.ExecContext(ctx, renewExecutionLease, arg.LeaseDurationMicroseconds, arg.ID, arg.WorkerID)
 	if err != nil {
 		return 0, err
 	}
@@ -908,24 +917,25 @@ func (q *Queries) SetExecutionModel(ctx context.Context, arg SetExecutionModelPa
 
 const startExecution = `-- name: StartExecution :execrows
 UPDATE assistant_agent_executions
-SET state = 2, worker_id = ?, lease_expires_at = ?, started_at = ?
+SET state = 2,
+    worker_id = ?,
+    lease_expires_at = TIMESTAMPADD(
+        MICROSECOND,
+        CAST(? AS SIGNED),
+        CURRENT_TIMESTAMP(6)
+    ),
+    started_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND state = 1
 `
 
 type StartExecutionParams struct {
-	WorkerID       string
-	LeaseExpiresAt sql.NullTime
-	StartedAt      sql.NullTime
-	ID             string
+	WorkerID                  string
+	LeaseDurationMicroseconds int64
+	ID                        string
 }
 
 func (q *Queries) StartExecution(ctx context.Context, arg StartExecutionParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, startExecution,
-		arg.WorkerID,
-		arg.LeaseExpiresAt,
-		arg.StartedAt,
-		arg.ID,
-	)
+	result, err := q.db.ExecContext(ctx, startExecution, arg.WorkerID, arg.LeaseDurationMicroseconds, arg.ID)
 	if err != nil {
 		return 0, err
 	}
@@ -934,41 +944,46 @@ func (q *Queries) StartExecution(ctx context.Context, arg StartExecutionParams) 
 
 const touchConversation = `-- name: TouchConversation :exec
 UPDATE assistant_conversations
-SET updated_at = ?
+SET updated_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND actor_id = ?
 `
 
 type TouchConversationParams struct {
-	UpdatedAt time.Time
-	ID        string
-	ActorID   string
+	ID      string
+	ActorID string
 }
 
 func (q *Queries) TouchConversation(ctx context.Context, arg TouchConversationParams) error {
-	_, err := q.db.ExecContext(ctx, touchConversation, arg.UpdatedAt, arg.ID, arg.ActorID)
+	_, err := q.db.ExecContext(ctx, touchConversation, arg.ID, arg.ActorID)
+	return err
+}
+
+const touchExpiredExecutionConversations = `-- name: TouchExpiredExecutionConversations :exec
+UPDATE assistant_conversations AS c
+JOIN assistant_agent_executions AS r ON r.conversation_id = c.id
+SET c.updated_at = CURRENT_TIMESTAMP(6)
+WHERE r.state = 2 AND r.lease_expires_at < CURRENT_TIMESTAMP(6)
+`
+
+func (q *Queries) TouchExpiredExecutionConversations(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, touchExpiredExecutionConversations)
 	return err
 }
 
 const updateConversationTitle = `-- name: UpdateConversationTitle :execrows
 UPDATE assistant_conversations
-SET title = ?, updated_at = ?
+SET title = ?, updated_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND actor_id = ?
 `
 
 type UpdateConversationTitleParams struct {
-	Title     string
-	UpdatedAt time.Time
-	ID        string
-	ActorID   string
+	Title   string
+	ID      string
+	ActorID string
 }
 
 func (q *Queries) UpdateConversationTitle(ctx context.Context, arg UpdateConversationTitleParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateConversationTitle,
-		arg.Title,
-		arg.UpdatedAt,
-		arg.ID,
-		arg.ActorID,
-	)
+	result, err := q.db.ExecContext(ctx, updateConversationTitle, arg.Title, arg.ID, arg.ActorID)
 	if err != nil {
 		return 0, err
 	}

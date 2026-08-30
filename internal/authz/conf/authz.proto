@@ -18,6 +18,8 @@ message Data {
   message APIServer {
     string master = 1;
     string kubeconfig = 2;
+    // bearer_token 认证 Authz 到声明式 API 的内部请求
+    string bearer_token = 3;
   }
   message Redis {
     // address 是共享请求计数使用的 Redis 地址
@@ -38,7 +40,20 @@ message Data {
 // Server 定义 Envoy External Authorization 和运维入口
 message Server {
   message GRPC {
+    message TLS {
+      // enabled 控制 Authz gRPC 服务是否启用 TLS
+      bool enabled = 1;
+      // cert_file 是服务端证书链文件
+      string cert_file = 2;
+      // key_file 是服务端私钥文件
+      string key_file = 3;
+      // client_ca_file 非空时启用 mTLS 并只信任该 CA 签发的 Envoy 客户端证书
+      string client_ca_file = 4;
+    }
+    // addr 是 Envoy 连接的 gRPC 监听地址
     string addr = 1;
+    // tls 保护 Envoy 到 Authz 的调用方凭据和准入结果
+    TLS tls = 2;
   }
   message HTTP {
     string addr = 1;

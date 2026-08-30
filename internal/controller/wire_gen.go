@@ -8,38 +8,40 @@ package controller
 
 import (
 	"github.com/go-kratos/kratos/v3"
+	"github.com/lgc202/ingate/internal/controller/biz"
 	"github.com/lgc202/ingate/internal/controller/conf"
+	"github.com/lgc202/ingate/internal/controller/data"
 	"github.com/lgc202/ingate/internal/controller/server"
+	"github.com/lgc202/ingate/internal/controller/server/xds"
 	"log/slog"
 )
 
 // Injectors from wire.go:
 
 func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_Wasm *conf.Data_Wasm, delivery *conf.Delivery, resourceWatch *conf.ResourceWatch, logger *slog.Logger, controllerServiceInstanceID serviceInstanceID) (*kratos.App, error) {
-	snapshotCache := newSnapshotCache(logger)
-	publisher := newXDSPublisher(snapshotCache)
-	deliveryDelivery, err := newDelivery(delivery, publisher)
+	snapshotCache := server.NewSnapshotCache(logger)
+	publisher := xds.NewPublisher(snapshotCache)
+	deliveryDelivery, err := biz.NewDelivery(delivery, publisher)
 	if err != nil {
 		return nil, err
 	}
 	httpServer := server.NewHTTPServer(confServer, deliveryDelivery)
-	service := newXDSService(snapshotCache, deliveryDelivery, logger)
+	service := server.NewXDSService(snapshotCache, deliveryDelivery, logger)
 	grpcServer := server.NewGRPCServer(confServer, service)
-	versionedInterface, err := newAPIClient(data_APIServer)
+	versionedInterface, err := data.NewAPIServerClient(data_APIServer)
 	if err != nil {
 		return nil, err
 	}
-	resourceWatcher, err := newResourceWatcher(resourceWatch, versionedInterface)
+	resourceWatcher, err := data.NewResourceWatcher(resourceWatch, versionedInterface)
 	if err != nil {
 		return nil, err
 	}
-	writer := newStatusWriter(versionedInterface)
-	store, err := newWasmModuleStore(data_Wasm)
+	writer := data.NewStatusWriter(versionedInterface)
+	store, err := data.NewWasmModuleStore(data_Wasm)
 	if err != nil {
 		return nil, err
 	}
-	wasmModuleStore := asWasmModuleStore(store)
-	controller := newController(resourceWatcher, writer, deliveryDelivery, wasmModuleStore, logger)
+	controller := biz.NewController(resourceWatcher, writer, deliveryDelivery, store, logger)
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, deliveryDelivery, controller, controllerServiceInstanceID)
 	return app, nil
 }

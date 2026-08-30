@@ -1,66 +1,80 @@
 package route
 
 import (
+	"net/http"
 	"strings"
 
+	"github.com/go-kratos/kratos/v3/errors"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	hostnameutil "github.com/lgc202/ingate/internal/pkg/hostname"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
-func createSpec(request *adminv1.CreateRouteRequest) (resource.RouteSpec, error) {
-	name := strings.TrimSpace(request.GetName())
-	if name == "" {
-		return resource.RouteSpec{}, adminservice.BadRequest("路由名称不能为空")
+func parseRouteSpec(displayName string, config *adminv1.RouteConfig) (resource.RouteSpec, error) {
+	displayName = strings.TrimSpace(displayName)
+	if !resourceconfig.IsValidDisplayName(displayName) {
+		return resource.RouteSpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"路由名称不能为空、不能包含控制字符且不能超过 256 字节",
+		)
 	}
-	gatewayIDs, err := gatewayRefs(request.GetGatewayIds())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	hostnames, err := routeHostnames(request.GetHostnames())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	match, err := routeMatch(request.GetMatch())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	accessMode, err := routeAccessMode(request.GetAccessMode())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	upstreams, ai, err := forwarding(request.GetUpstreams(), request.GetAi())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	rewrite, err := hostRewrite(request.GetHostRewrite())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	requestHeaders, err := headerModifier(request.GetRequestHeaderModifier())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	responseHeaders, err := headerModifier(request.GetResponseHeaderModifier())
-	if err != nil {
-		return resource.RouteSpec{}, err
+	if config == nil {
+		return resource.RouteSpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"路由配置不能为空",
+		)
 	}
 
+	gatewayRefs, err := parseGatewayRefs(config.GetGatewayIds())
+	if err != nil {
+		return resource.RouteSpec{}, err
+	}
+	hostnames, err := parseHostnames(config.GetHostnames())
+	if err != nil {
+		return resource.RouteSpec{}, err
+	}
+	match, err := parseRouteMatch(config.GetMatch())
+	if err != nil {
+		return resource.RouteSpec{}, err
+	}
+	accessMode, err := parseAccessMode(config.GetAccessMode())
+	if err != nil {
+		return resource.RouteSpec{}, err
+	}
+	upstreamRefs, aiRoute, err := parseForwarding(config.GetForwarding())
+	if err != nil {
+		return resource.RouteSpec{}, err
+	}
+	hostRewrite, err := parseHostRewrite(config.GetHostRewrite())
+	if err != nil {
+		return resource.RouteSpec{}, err
+	}
+	requestHeaderModifier, err := parseHeaderModifier(config.GetRequestHeaderModifier())
+	if err != nil {
+		return resource.RouteSpec{}, err
+	}
+	responseHeaderModifier, err := parseHeaderModifier(config.GetResponseHeaderModifier())
+	if err != nil {
+		return resource.RouteSpec{}, err
+	}
 	spec := resource.RouteSpec{
-		DisplayName:            name,
-		Enabled:                request.GetEnabled(),
+		DisplayName:            displayName,
+		Enabled:                config.GetEnabled(),
 		AccessMode:             accessMode,
-		GatewayRefs:            gatewayIDs,
+		GatewayRefs:            gatewayRefs,
 		Hostnames:              hostnames,
 		Match:                  match,
-		UpstreamRefs:           upstreams,
-		AI:                     ai,
-		HostRewrite:            rewrite,
-		RequestHeaderModifier:  requestHeaders,
-		ResponseHeaderModifier: responseHeaders,
-		Timeout:                routeTimeout(request.GetTimeout()),
-		Retry:                  routeRetry(request.GetRetry()),
+		UpstreamRefs:           upstreamRefs,
+		AI:                     aiRoute,
+		HostRewrite:            hostRewrite,
+		RequestHeaderModifier:  requestHeaderModifier,
+		ResponseHeaderModifier: responseHeaderModifier,
+		Timeout:                parseTimeout(config.GetTimeout()),
+		Retry:                  parseRetry(config.GetRetry()),
 	}
 	if err := validateRouteSpec(spec); err != nil {
 		return resource.RouteSpec{}, err
@@ -68,149 +82,221 @@ func createSpec(request *adminv1.CreateRouteRequest) (resource.RouteSpec, error)
 	return spec, nil
 }
 
-func updateSpec(request *adminv1.UpdateRouteRequest) (resource.RouteSpec, error) {
-	name := strings.TrimSpace(request.GetName())
-	if name == "" {
-		return resource.RouteSpec{}, adminservice.BadRequest("路由名称不能为空")
-	}
-	gatewayIDs, err := gatewayRefs(request.GetGatewayIds())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	hostnames, err := routeHostnames(request.GetHostnames())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	match, err := routeMatch(request.GetMatch())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	accessMode, err := routeAccessMode(request.GetAccessMode())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	upstreams, ai, err := forwarding(request.GetUpstreams(), request.GetAi())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	rewrite, err := hostRewrite(request.GetHostRewrite())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	requestHeaders, err := headerModifier(request.GetRequestHeaderModifier())
-	if err != nil {
-		return resource.RouteSpec{}, err
-	}
-	responseHeaders, err := headerModifier(request.GetResponseHeaderModifier())
-	if err != nil {
-		return resource.RouteSpec{}, err
+func validateRouteSpec(spec resource.RouteSpec) error {
+	requestTimeoutMillis := spec.Timeout.RequestMillis
+	if requestTimeoutMillis == 0 {
+		requestTimeoutMillis = routeconfig.DefaultRequestTimeoutMillis
+	} else if requestTimeoutMillis < routeconfig.MinRequestTimeoutMillis ||
+		requestTimeoutMillis > routeconfig.MaxRequestTimeoutMillis {
+		return errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请求总超时超出允许范围",
+		)
 	}
 
-	spec := resource.RouteSpec{
-		DisplayName:            name,
-		Enabled:                request.GetEnabled(),
-		AccessMode:             accessMode,
-		GatewayRefs:            gatewayIDs,
-		Hostnames:              hostnames,
-		Match:                  match,
-		UpstreamRefs:           upstreams,
-		AI:                     ai,
-		HostRewrite:            rewrite,
-		RequestHeaderModifier:  requestHeaders,
-		ResponseHeaderModifier: responseHeaders,
-		Timeout:                routeTimeout(request.GetTimeout()),
-		Retry:                  routeRetry(request.GetRetry()),
+	if spec.Retry != nil {
+		if spec.Retry.Attempts < routeconfig.MinRetryAttempts ||
+			spec.Retry.Attempts > routeconfig.MaxRetryAttempts {
+			return errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"重试次数超出允许范围",
+			)
+		}
+		if spec.Retry.PerTryTimeoutMillis < routeconfig.MinPerTryTimeoutMillis ||
+			spec.Retry.PerTryTimeoutMillis > routeconfig.MaxPerTryTimeoutMillis {
+			return errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"单次重试超时超出允许范围",
+			)
+		}
+		if spec.Retry.PerTryTimeoutMillis > requestTimeoutMillis {
+			return errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"单次重试超时不能大于请求总超时",
+			)
+		}
 	}
-	if err := validateRouteSpec(spec); err != nil {
-		return resource.RouteSpec{}, err
+
+	if spec.AI == nil {
+		return nil
 	}
-	return spec, nil
+	if len(spec.Match.Methods) != 1 || spec.Match.Methods[0] != http.MethodPost {
+		return errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"AI 路由目前只支持 POST 请求",
+		)
+	}
+	if usesReservedAIHeader(spec.Match.Headers, spec.RequestHeaderModifier) {
+		return errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"AI 路由不能匹配或修改系统保留的 Header",
+		)
+	}
+	return nil
 }
 
-func routeAccessMode(mode adminv1.RouteAccessMode) (resource.RouteAccessMode, error) {
+func usesReservedAIHeader(
+	matches []resource.HeaderMatch,
+	modifier *resource.HeaderModifier,
+) bool {
+	for _, match := range matches {
+		if aiprotocol.IsInternalHeader(match.Name) {
+			return true
+		}
+	}
+	if modifier == nil {
+		return false
+	}
+	for _, header := range modifier.Set {
+		if aiprotocol.IsInternalHeader(header.Name) {
+			return true
+		}
+	}
+	for _, header := range modifier.Add {
+		if aiprotocol.IsInternalHeader(header.Name) {
+			return true
+		}
+	}
+	for _, name := range modifier.Remove {
+		if aiprotocol.IsInternalHeader(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func parseAccessMode(mode adminv1.RouteAccessMode) (resource.RouteAccessMode, error) {
 	switch mode {
-	case adminv1.RouteAccessMode_ROUTE_ACCESS_PUBLIC:
+	case adminv1.RouteAccessMode_ROUTE_ACCESS_MODE_PUBLIC:
 		return resource.RouteAccessPublic, nil
-	case adminv1.RouteAccessMode_ROUTE_ACCESS_CALLER:
+	case adminv1.RouteAccessMode_ROUTE_ACCESS_MODE_CALLER:
 		return resource.RouteAccessCaller, nil
 	default:
-		return "", adminservice.BadRequest("请选择访问方式")
+		return "", errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择访问方式",
+		)
 	}
 }
 
-func hostRewrite(input *adminv1.HostRewrite) (*resource.HostRewrite, error) {
-	if input == nil {
-		// 控制台默认使用实际服务地址，避免把入口域名原样发送给外部服务
-		return &resource.HostRewrite{Mode: resource.HostRewriteServiceAddress}, nil
+func parseHostRewrite(rewrite *adminv1.HostRewrite) (resource.HostRewrite, error) {
+	if rewrite == nil {
+		return resource.HostRewrite{}, nil
 	}
 
-	hostname := strings.TrimSpace(input.GetHostname())
-	switch input.GetMode() {
-	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_SERVICE_ADDRESS:
+	hostname := strings.TrimSpace(rewrite.GetHostname())
+	switch rewrite.GetMode() {
+	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_SERVICE_HOST:
 		if hostname != "" {
-			return nil, adminservice.BadRequest("使用服务地址时不能填写自定义主机名")
+			return resource.HostRewrite{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"使用服务端点主机名时不能填写自定义主机名",
+			)
 		}
-		return &resource.HostRewrite{Mode: resource.HostRewriteServiceAddress}, nil
+		return resource.HostRewrite{Mode: resource.HostRewriteUpstreamHost}, nil
 	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_PRESERVE:
 		if hostname != "" {
-			return nil, adminservice.BadRequest("保留请求主机时不能填写自定义主机名")
+			return resource.HostRewrite{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"保留请求主机时不能填写自定义主机名",
+			)
 		}
-		return &resource.HostRewrite{Mode: resource.HostRewritePreserve}, nil
+		return resource.HostRewrite{Mode: resource.HostRewritePreserve}, nil
 	case adminv1.HostRewriteMode_HOST_REWRITE_MODE_CUSTOM:
 		normalized, ok := hostnameutil.Normalize(hostname)
 		if !ok || normalized == "*" {
-			return nil, adminservice.BadRequest("自定义主机名格式不正确")
+			return resource.HostRewrite{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"自定义主机名格式不正确",
+			)
 		}
-		return &resource.HostRewrite{Mode: resource.HostRewriteCustom, Hostname: normalized}, nil
+		return resource.HostRewrite{Mode: resource.HostRewriteCustom, Hostname: normalized}, nil
 	default:
-		return nil, adminservice.BadRequest("请选择转发请求使用的主机名")
+		return resource.HostRewrite{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择转发请求使用的主机名",
+		)
 	}
 }
 
-func gatewayRefs(inputs []string) ([]string, error) {
-	refs := make([]string, 0, len(inputs))
-	seen := make(map[string]struct{}, len(inputs))
-	for _, input := range inputs {
-		id := strings.TrimSpace(input)
-		if _, exists := seen[id]; exists {
-			return nil, adminservice.BadRequest("同一个网关只能选择一次")
+func parseGatewayRefs(gatewayIDs []string) ([]string, error) {
+	if len(gatewayIDs) == 0 {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"至少需要选择一个网关",
+		)
+	}
+	if len(gatewayIDs) > routeconfig.MaxGatewayRefs {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"关联网关数量超过限制",
+		)
+	}
+
+	gatewayRefs := make([]string, len(gatewayIDs))
+	seenGatewayIDs := make(map[string]bool, len(gatewayIDs))
+	for i, rawGatewayID := range gatewayIDs {
+		gatewayID, valid := resourceconfig.NormalizeID(rawGatewayID)
+		if !valid {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"网关 ID 不正确",
+			)
 		}
-		seen[id] = struct{}{}
-		refs = append(refs, id)
+		if seenGatewayIDs[gatewayID] {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"同一个网关只能选择一次",
+			)
+		}
+		seenGatewayIDs[gatewayID] = true
+		gatewayRefs[i] = gatewayID
 	}
-	return refs, nil
+	return gatewayRefs, nil
 }
 
-func routeHostnames(inputs []string) ([]string, error) {
-	hostnames := make([]string, 0, len(inputs))
-	seen := make(map[string]struct{}, len(inputs))
-	for _, input := range inputs {
-		hostname, ok := hostnameutil.Normalize(strings.TrimSpace(input))
+func parseHostnames(rawHostnames []string) ([]string, error) {
+	if len(rawHostnames) > routeconfig.MaxHostnames {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"路由域名数量超过限制",
+		)
+	}
+	hostnames := make([]string, len(rawHostnames))
+	seenHostnames := make(map[string]bool, len(rawHostnames))
+	for i, rawHostname := range rawHostnames {
+		hostname, ok := hostnameutil.Normalize(strings.TrimSpace(rawHostname))
 		if !ok || hostname == "*" {
-			return nil, adminservice.BadRequest("路由域名格式不正确，留空列表表示不限制域名")
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"路由域名格式不正确，留空列表表示不限制域名",
+			)
 		}
-		if _, exists := seen[hostname]; exists {
-			return nil, adminservice.BadRequest("路由域名不能重复")
+		if seenHostnames[hostname] {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"路由域名不能重复",
+			)
 		}
-		seen[hostname] = struct{}{}
-		hostnames = append(hostnames, hostname)
+		seenHostnames[hostname] = true
+		hostnames[i] = hostname
 	}
 	return hostnames, nil
 }
 
-func routeTimeout(input *adminv1.RouteTimeout) *resource.RouteTimeout {
-	if input == nil {
-		return nil
+func parseTimeout(timeout *adminv1.RouteTimeout) resource.RouteTimeout {
+	if timeout == nil {
+		return resource.RouteTimeout{}
 	}
-	return &resource.RouteTimeout{RequestMillis: int(input.GetRequestMillis())}
+	return resource.RouteTimeout{RequestMillis: int(timeout.GetRequestMillis())}
 }
 
-func routeRetry(input *adminv1.RouteRetry) *resource.RouteRetry {
-	if input == nil {
+func parseRetry(retry *adminv1.RouteRetry) *resource.RouteRetry {
+	if retry == nil {
 		return nil
 	}
 	return &resource.RouteRetry{
-		Attempts:            int(input.GetAttempts()),
-		PerTryTimeoutMillis: int(input.GetPerTryTimeoutMillis()),
+		Attempts:            int(retry.GetAttempts()),
+		PerTryTimeoutMillis: int(retry.GetPerTryTimeoutMillis()),
 	}
 }

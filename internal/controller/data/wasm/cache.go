@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -12,7 +13,10 @@ import (
 	"time"
 
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
+	"github.com/lgc202/ingate/internal/pkg/wasmconfig"
 )
+
+const maxSourcePointerBytes = sha256.Size*2 + 1
 
 type cacheFile struct {
 	path    string
@@ -20,22 +24,21 @@ type cacheFile struct {
 	modTime time.Time
 }
 
-func (s *Store) cachedSource(sourceURL, expectedSHA string) (compiler.WasmModule, bool) {
+func (s *Store) cachedSource(
+	ctx context.Context,
+	sourceURL string,
+	expectedSHA string,
+) (compiler.WasmModule, bool) {
 	pointerPath := s.sourcePointerPath(sourceURL, expectedSHA)
-	pointer, err := os.ReadFile(pointerPath)
-	if err != nil {
+	moduleSHA, ok := readSourcePointer(pointerPath)
+	if !ok {
 		return compiler.WasmModule{}, false
 	}
-	moduleSHA := strings.TrimSpace(string(pointer))
-	if len(moduleSHA) != 64 {
+	if !wasmconfig.IsValidSHA256Digest(moduleSHA) {
 		_ = os.Remove(pointerPath)
 		return compiler.WasmModule{}, false
 	}
-	if _, err := hex.DecodeString(moduleSHA); err != nil {
-		_ = os.Remove(pointerPath)
-		return compiler.WasmModule{}, false
-	}
-	if !s.cachedModuleValid(moduleSHA) {
+	if !s.cachedModuleValid(ctx, moduleSHA) {
 		_ = os.Remove(pointerPath)
 		_ = os.Remove(s.modulePath(moduleSHA))
 		return compiler.WasmModule{}, false
@@ -46,19 +49,19 @@ func (s *Store) cachedSource(sourceURL, expectedSHA string) (compiler.WasmModule
 
 // cachedModuleValid 在进程重启后首次复用磁盘文件时重新验证内容寻址约束
 // 同一进程已经 Resolve 的模块由内存索引复用，不会在每次资源收敛时重复计算摘要
-func (s *Store) cachedModuleValid(moduleSHA string) bool {
+func (s *Store) cachedModuleValid(ctx context.Context, moduleSHA string) bool {
 	file, err := os.Open(s.modulePath(moduleSHA))
 	if err != nil {
 		return false
 	}
-	binary, readErr := readModule(file, s.maxModuleSize)
+	moduleBytes, readErr := readModule(file, s.maxModuleSize)
 	closeErr := file.Close()
-	if readErr != nil || closeErr != nil || digest(binary) != moduleSHA {
+	if readErr != nil || closeErr != nil || digest(moduleBytes) != moduleSHA {
 		return false
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), s.pullTimeout)
+	validationCtx, cancel := context.WithTimeout(ctx, s.pullTimeout)
 	defer cancel()
-	return validateWasm(ctx, binary) == nil
+	return validateWasm(validationCtx, moduleBytes) == nil
 }
 
 func (s *Store) moduleExists(moduleSHA string) bool {
@@ -66,18 +69,31 @@ func (s *Store) moduleExists(moduleSHA string) bool {
 	return err == nil && info.Mode().IsRegular()
 }
 
+func readSourcePointer(path string) (string, bool) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", false
+	}
+	pointer, readErr := io.ReadAll(io.LimitReader(file, maxSourcePointerBytes+1))
+	closeErr := file.Close()
+	if readErr != nil || closeErr != nil || len(pointer) > maxSourcePointerBytes {
+		return "", false
+	}
+	return strings.TrimSpace(string(pointer)), true
+}
+
 func (s *Store) touchModule(moduleSHA string) {
 	now := time.Now()
 	_ = os.Chtimes(s.modulePath(moduleSHA), now, now)
 }
 
-func (s *Store) writeModule(moduleSHA string, binary []byte) error {
+func (s *Store) writeModule(moduleSHA string, moduleBytes []byte) error {
 	path := s.modulePath(moduleSHA)
 	if s.moduleExists(moduleSHA) {
 		s.touchModule(moduleSHA)
 		return nil
 	}
-	return writeAtomic(path, binary, 0o644)
+	return writeAtomic(path, moduleBytes, 0o644)
 }
 
 func (s *Store) writeSourcePointer(sourceURL, expectedSHA, moduleSHA string) error {

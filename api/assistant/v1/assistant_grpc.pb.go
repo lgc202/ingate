@@ -32,7 +32,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ConversationService 提供运维助手的会话与消息查询接口
+// ConversationService 提供运维助手的会话与消息查询接口。
 type ConversationServiceClient interface {
 	ListConversations(ctx context.Context, in *ListConversationsRequest, opts ...grpc.CallOption) (*ListConversationsResponse, error)
 	GetConversation(ctx context.Context, in *GetConversationRequest, opts ...grpc.CallOption) (*Conversation, error)
@@ -114,7 +114,7 @@ func (c *conversationServiceClient) ListMessages(ctx context.Context, in *ListMe
 // All implementations should embed UnimplementedConversationServiceServer
 // for forward compatibility.
 //
-// ConversationService 提供运维助手的会话与消息查询接口
+// ConversationService 提供运维助手的会话与消息查询接口。
 type ConversationServiceServer interface {
 	ListConversations(context.Context, *ListConversationsRequest) (*ListConversationsResponse, error)
 	GetConversation(context.Context, *GetConversationRequest) (*Conversation, error)
@@ -540,7 +540,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// ModelConnectionService 管理运维助手当前生效的模型连接
+// ModelConnectionService 管理运维助手当前生效的模型连接。
 type ModelConnectionServiceClient interface {
 	GetModelConnection(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*ModelConnection, error)
 	UpdateModelConnection(ctx context.Context, in *UpdateModelConnectionRequest, opts ...grpc.CallOption) (*ModelConnection, error)
@@ -578,7 +578,7 @@ func (c *modelConnectionServiceClient) UpdateModelConnection(ctx context.Context
 // All implementations should embed UnimplementedModelConnectionServiceServer
 // for forward compatibility.
 //
-// ModelConnectionService 管理运维助手当前生效的模型连接
+// ModelConnectionService 管理运维助手当前生效的模型连接。
 type ModelConnectionServiceServer interface {
 	GetModelConnection(context.Context, *emptypb.Empty) (*ModelConnection, error)
 	UpdateModelConnection(context.Context, *UpdateModelConnectionRequest) (*ModelConnection, error)

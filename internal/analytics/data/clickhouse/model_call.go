@@ -10,6 +10,8 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 const modelCallColumns = `
@@ -97,10 +99,13 @@ func (s *Store) listModelCalls(
 	}
 
 	ids := make([]string, 0, len(records))
+	requested := make(map[string]bool, len(records))
 	minStartedAt := records[0].StartedAt
 	maxStartedAt := records[0].StartedAt
 	for i := range records {
-		ids = append(ids, records[i].ID)
+		recordID := records[i].ID
+		ids = append(ids, recordID)
+		requested[recordID] = true
 		if records[i].StartedAt.Before(minStartedAt) {
 			minStartedAt = records[i].StartedAt
 		}
@@ -136,6 +141,15 @@ ORDER BY request_record_id`, modelCallSelectColumns, s.modelCallTable)
 		row, scanErr := scanModelCallRow(rows)
 		if scanErr != nil {
 			return nil, scanErr
+		}
+		if !requested[row.requestRecordID] {
+			return nil, fmt.Errorf(
+				"model call references request record %q outside the requested page",
+				row.requestRecordID,
+			)
+		}
+		if calls[row.requestRecordID] != nil {
+			return nil, fmt.Errorf("duplicate model call for request record %q", row.requestRecordID)
 		}
 		call := row.call
 		calls[row.requestRecordID] = &call
@@ -181,6 +195,13 @@ LIMIT 1`, modelCallSelectColumns, s.modelCallTable)
 	if err != nil {
 		return nil, err
 	}
+	if row.requestRecordID != requestRecordID {
+		return nil, fmt.Errorf(
+			"model call references request record %q instead of %q",
+			row.requestRecordID,
+			requestRecordID,
+		)
+	}
 	return &row.call, nil
 }
 
@@ -198,6 +219,26 @@ func scanModelCallRow(rows driver.Rows) (modelCallRow, error) {
 		&row.call.TotalTokens,
 	); err != nil {
 		return modelCallRow{}, fmt.Errorf("scan model call: %w", err)
+	}
+	if !requestrecord.IsValidID(row.requestRecordID) || row.call.ClientModel == "" ||
+		row.call.UpstreamModel == "" {
+		return modelCallRow{}, errors.New("stored model call has an invalid identity or model mapping")
+	}
+	switch row.call.UpstreamProtocol {
+	case string(aiprotocol.UpstreamProtocolOpenAI), string(aiprotocol.UpstreamProtocolAnthropic):
+	default:
+		return modelCallRow{}, fmt.Errorf(
+			"stored model call for request record %q has an invalid protocol",
+			row.requestRecordID,
+		)
+	}
+	if row.call.TotalTokens != nil &&
+		(row.call.InputTokens != nil && *row.call.TotalTokens < *row.call.InputTokens ||
+			row.call.OutputTokens != nil && *row.call.TotalTokens < *row.call.OutputTokens) {
+		return modelCallRow{}, fmt.Errorf(
+			"stored model call for request record %q has inconsistent token counts",
+			row.requestRecordID,
+		)
 	}
 	return row, nil
 }

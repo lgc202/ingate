@@ -3,6 +3,7 @@
 package analytics
 
 import (
+	"context"
 	"log/slog"
 
 	kratos "github.com/go-kratos/kratos/v3"
@@ -16,6 +17,7 @@ import (
 )
 
 func wireApp(
+	context.Context,
 	*conf.Server,
 	*conf.Data_Kafka,
 	*conf.Data_ClickHouse,

@@ -3,151 +3,137 @@ package upstream
 import (
 	"strings"
 
+	"github.com/go-kratos/kratos/v3/errors"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
 )
 
-const (
-	defaultEndpointWeight             = 1
-	defaultHealthCheckIntervalSeconds = 10
-	defaultHealthCheckTimeoutSeconds  = 2
-)
-
-func createSpec(request *adminv1.CreateUpstreamRequest) (resource.UpstreamSpec, error) {
-	name := strings.TrimSpace(request.GetName())
-	if name == "" {
-		return resource.UpstreamSpec{}, adminservice.BadRequest("服务名称不能为空")
+func parseUpstreamSpec(
+	displayName string,
+	endpointConfigs []*adminv1.UpstreamEndpoint,
+	tlsConfig *adminv1.UpstreamTLS,
+	loadBalancingConfig adminv1.LoadBalancingPolicy,
+	healthCheckConfig *adminv1.UpstreamHealthCheck,
+) (resource.UpstreamSpec, error) {
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return resource.UpstreamSpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"服务名称不能为空",
+		)
 	}
-	serviceEndpoints, err := upstreamEndpoints(request.GetEndpoints())
+	endpoints, err := parseEndpoints(endpointConfigs)
 	if err != nil {
 		return resource.UpstreamSpec{}, err
 	}
-	loadBalancing, err := loadBalancingPolicy(request.GetLoadBalancing())
+	loadBalancing, err := parseLoadBalancingPolicy(loadBalancingConfig)
 	if err != nil {
 		return resource.UpstreamSpec{}, err
 	}
-	tls, err := upstreamTLS(request.GetTls())
+	tls, err := parseTLS(tlsConfig)
 	if err != nil {
 		return resource.UpstreamSpec{}, err
 	}
-	check, err := upstreamHealthCheck(request.GetHealthCheck())
-	if err != nil {
-		return resource.UpstreamSpec{}, err
-	}
-	model, err := modelForCreate(request.GetModel())
+	healthCheck, err := parseHealthCheck(healthCheckConfig)
 	if err != nil {
 		return resource.UpstreamSpec{}, err
 	}
 	return resource.UpstreamSpec{
-		DisplayName:   name,
-		Endpoints:     serviceEndpoints,
+		DisplayName:   displayName,
+		Endpoints:     endpoints,
 		TLS:           tls,
 		LoadBalancing: loadBalancing,
-		HealthCheck:   check,
-		Model:         model,
+		HealthCheck:   healthCheck,
 	}, nil
 }
 
-// updateSpec 额外返回是否保留已有 API Key，避免把“未填写”误解为“清空”
-func updateSpec(request *adminv1.UpdateUpstreamRequest) (resource.UpstreamSpec, bool, error) {
-	name := strings.TrimSpace(request.GetName())
-	if name == "" {
-		return resource.UpstreamSpec{}, false, adminservice.BadRequest("服务名称不能为空")
-	}
-	serviceEndpoints, err := upstreamEndpoints(request.GetEndpoints())
-	if err != nil {
-		return resource.UpstreamSpec{}, false, err
-	}
-	loadBalancing, err := loadBalancingPolicy(request.GetLoadBalancing())
-	if err != nil {
-		return resource.UpstreamSpec{}, false, err
-	}
-	tls, err := upstreamTLS(request.GetTls())
-	if err != nil {
-		return resource.UpstreamSpec{}, false, err
-	}
-	check, err := upstreamHealthCheck(request.GetHealthCheck())
-	if err != nil {
-		return resource.UpstreamSpec{}, false, err
-	}
-	model, preserveAPIKey, err := modelForUpdate(request.GetModel())
-	if err != nil {
-		return resource.UpstreamSpec{}, false, err
-	}
-	return resource.UpstreamSpec{
-		DisplayName:   name,
-		Endpoints:     serviceEndpoints,
-		TLS:           tls,
-		LoadBalancing: loadBalancing,
-		HealthCheck:   check,
-		Model:         model,
-	}, preserveAPIKey, nil
-}
-
-func upstreamTLS(input *adminv1.UpstreamTLS) (*resource.UpstreamTLS, error) {
-	if input == nil {
+func parseTLS(config *adminv1.UpstreamTLS) (*resource.UpstreamTLS, error) {
+	if config == nil {
 		return nil, nil
 	}
-	serverName := strings.ToLower(strings.TrimSpace(input.GetServerName()))
-	if !validEndpointAddress(serverName) {
-		return nil, adminservice.BadRequest("HTTPS 服务名称格式不正确")
+	serverName := upstreamconfig.NormalizeAddress(config.GetServerName())
+	if !upstreamconfig.IsValidAddress(serverName) {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"HTTPS 服务名称格式不正确",
+		)
 	}
 	return &resource.UpstreamTLS{ServerName: serverName}, nil
 }
 
-func modelForCreate(input *adminv1.ModelUpstreamInput) (*resource.ModelUpstream, error) {
-	if input == nil {
-		return nil, nil
-	}
-	if input.GetClearApiKey() {
-		return nil, adminservice.BadRequest("创建模型服务时不能清除 API Key")
-	}
-	model, _, err := modelUpstream(input)
-	return model, err
-}
-
-func modelForUpdate(input *adminv1.ModelUpstreamInput) (*resource.ModelUpstream, bool, error) {
-	if input == nil {
-		return nil, false, nil
-	}
-	return modelUpstream(input)
-}
-
-func modelUpstream(input *adminv1.ModelUpstreamInput) (*resource.ModelUpstream, bool, error) {
-	if input.ApiKey != nil && input.GetClearApiKey() {
-		return nil, false, adminservice.BadRequest("不能同时填写新 API Key 和清除已有 API Key")
-	}
-
-	protocol := resource.ModelProtocol("")
-	switch input.GetProtocol() {
-	case adminv1.ModelProtocol_MODEL_PROTOCOL_OPENAI:
-		protocol = resource.ModelProtocolOpenAI
-	case adminv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC:
-		protocol = resource.ModelProtocolAnthropic
-	default:
-		return nil, false, adminservice.BadRequest("请选择模型服务协议")
-	}
-
-	model := &resource.ModelUpstream{Protocol: protocol}
-	if input.ApiKey == nil {
-		return model, !input.GetClearApiKey(), nil
-	}
-	if input.GetApiKey() == "" || strings.TrimSpace(input.GetApiKey()) != input.GetApiKey() {
-		return nil, false, adminservice.BadRequest("API Key 不能为空或包含首尾空格")
-	}
-	model.APIKey = input.GetApiKey()
-	return model, false, nil
-}
-
-func loadBalancingPolicy(value adminv1.LoadBalancingPolicy) (resource.LoadBalancingPolicy, error) {
-	switch value {
+func parseLoadBalancingPolicy(
+	config adminv1.LoadBalancingPolicy,
+) (resource.LoadBalancingPolicy, error) {
+	switch config {
 	case adminv1.LoadBalancingPolicy_LOAD_BALANCING_POLICY_UNSPECIFIED,
 		adminv1.LoadBalancingPolicy_LOAD_BALANCING_POLICY_ROUND_ROBIN:
 		return resource.LoadBalancingRoundRobin, nil
 	case adminv1.LoadBalancingPolicy_LOAD_BALANCING_POLICY_LEAST_REQUEST:
 		return resource.LoadBalancingLeastRequest, nil
 	default:
-		return "", adminservice.BadRequest("负载均衡方式不正确")
+		return "", errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"负载均衡方式不正确",
+		)
 	}
+}
+
+func parseModelForCreate(config *adminv1.ModelUpstreamInput) (*resource.ModelUpstream, error) {
+	if config == nil {
+		return nil, nil
+	}
+	if config.GetClearApiKey() {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"创建模型服务时不能清除 API Key",
+		)
+	}
+	model, _, err := parseModel(config)
+	return model, err
+}
+
+func parseModelForUpdate(config *adminv1.ModelUpstreamInput) (*resource.ModelUpstream, bool, error) {
+	if config == nil {
+		return nil, false, nil
+	}
+	return parseModel(config)
+}
+
+// parseModel 返回模型配置，以及更新时是否应保留已存储的 API Key。
+func parseModel(config *adminv1.ModelUpstreamInput) (*resource.ModelUpstream, bool, error) {
+	if config.ApiKey != nil && config.GetClearApiKey() {
+		return nil, false, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"不能同时填写新 API Key 和清除已有 API Key",
+		)
+	}
+
+	var protocol resource.ModelProtocol
+	switch config.GetProtocol() {
+	case adminv1.ModelProtocol_MODEL_PROTOCOL_OPENAI:
+		protocol = resource.ModelProtocolOpenAI
+	case adminv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC:
+		protocol = resource.ModelProtocolAnthropic
+	default:
+		return nil, false, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择模型服务协议",
+		)
+	}
+
+	model := &resource.ModelUpstream{Protocol: protocol}
+	if config.ApiKey == nil {
+		return model, !config.GetClearApiKey(), nil
+	}
+	apiKey := config.GetApiKey()
+	if apiKey == "" || !upstreamconfig.IsValidModelAPIKey(apiKey) {
+		return nil, false, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"API Key 不能为空、包含首尾空格或超过长度限制",
+		)
+	}
+	model.APIKey = apiKey
+	return model, false, nil
 }

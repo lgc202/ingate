@@ -1,26 +1,39 @@
 package traffic
 
 import (
+	"slices"
 	"time"
 
+	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
-
-const maximumTimeRange = 90 * 24 * time.Hour
 
 func analysisQuery(request *adminv1.GetTrafficAnalysisRequest) (trafficbiz.Query, error) {
 	startTime, endTime, err := trafficTimeRange(request.GetStartTime(), request.GetEndTime())
 	if err != nil {
 		return trafficbiz.Query{}, err
 	}
+	for _, resourceID := range []string{
+		request.GetGatewayId(),
+		request.GetRouteId(),
+		request.GetServiceId(),
+	} {
+		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+			return trafficbiz.Query{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"资源筛选条件无效",
+			)
+		}
+	}
 	return trafficbiz.Query{
 		Filter: trafficbiz.Filter{
-			StartTime: alignStartTime(startTime),
-			EndTime:   alignEndTime(endTime),
+			StartTime: startTime,
+			EndTime:   endTime,
 			GatewayID: request.GetGatewayId(),
 			RouteID:   request.GetRouteId(),
 			ServiceID: request.GetServiceId(),
@@ -36,32 +49,57 @@ func resourceTrafficQuery(request *adminv1.BatchGetResourceTrafficRequest) (traf
 	if err != nil {
 		return trafficbiz.ResourceTrafficQuery{}, err
 	}
+	resourceIDs := request.GetResourceIds()
+	seen := make(map[string]bool, len(resourceIDs))
+	for _, resourceID := range resourceIDs {
+		if !resourceconfig.IsCanonicalID(resourceID) || seen[resourceID] {
+			return trafficbiz.ResourceTrafficQuery{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"资源标识包含无效或重复值",
+			)
+		}
+		seen[resourceID] = true
+	}
 	dimension, err := resourceTrafficDimension(request.GetDimension())
 	if err != nil {
 		return trafficbiz.ResourceTrafficQuery{}, err
 	}
 	return trafficbiz.ResourceTrafficQuery{
-		StartTime:   alignStartTime(startTime),
-		EndTime:     alignEndTime(endTime),
+		StartTime:   startTime,
+		EndTime:     endTime,
 		Dimension:   dimension,
-		ResourceIDs: append([]string(nil), request.GetResourceIds()...),
+		ResourceIDs: slices.Clone(resourceIDs),
 	}, nil
 }
 
 func trafficTimeRange(start, end *timestamppb.Timestamp) (time.Time, time.Time, error) {
 	if start == nil || start.CheckValid() != nil {
-		return time.Time{}, time.Time{}, adminservice.BadRequest("请选择查询开始时间")
+		return time.Time{}, time.Time{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择查询开始时间",
+		)
 	}
 	if end == nil || end.CheckValid() != nil {
-		return time.Time{}, time.Time{}, adminservice.BadRequest("请选择查询结束时间")
+		return time.Time{}, time.Time{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择查询结束时间",
+		)
 	}
-	startTime := start.AsTime()
-	endTime := end.AsTime()
-	if !startTime.Before(endTime) {
-		return time.Time{}, time.Time{}, adminservice.BadRequest("查询开始时间必须早于结束时间")
+	requestedStart := start.AsTime()
+	requestedEnd := end.AsTime()
+	if !requestedStart.Before(requestedEnd) {
+		return time.Time{}, time.Time{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"查询开始时间必须早于结束时间",
+		)
 	}
-	if endTime.Sub(startTime) > maximumTimeRange {
-		return time.Time{}, time.Time{}, adminservice.BadRequest("单次最多查询 90 天流量")
+	startTime := alignStartTime(requestedStart)
+	endTime := alignEndTime(requestedEnd)
+	if !analyticsconfig.IsValidQueryRange(startTime, endTime) {
+		return time.Time{}, time.Time{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"单次最多查询 90 天流量",
+		)
 	}
 	return startTime, endTime, nil
 }
@@ -71,7 +109,7 @@ func alignStartTime(value time.Time) time.Time {
 }
 
 func alignEndTime(value time.Time) time.Time {
-	// 聚合桶使用左闭右开区间，结束时间向上对齐才能覆盖最后一个不完整分钟
+	// 聚合桶使用左闭右开区间，结束时间向上对齐才能覆盖最后一个不完整分钟。
 	aligned := value.Truncate(time.Minute)
 	if aligned.Equal(value) {
 		return aligned
@@ -99,7 +137,10 @@ func resourceTrafficDimension(value adminv1.TrafficBreakdownDimension) (trafficb
 	case adminv1.TrafficBreakdownDimension_TRAFFIC_BREAKDOWN_DIMENSION_SERVICE:
 		return trafficbiz.DimensionService, nil
 	default:
-		return 0, adminservice.BadRequest("请选择资源类型")
+		return 0, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择资源类型",
+		)
 	}
 }
 

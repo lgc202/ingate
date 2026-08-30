@@ -1,4 +1,4 @@
-// Package mockresponsepolicy 提供 MockResponsePolicy 的 API Server 存储与校验
+// Package mockresponsepolicy 提供 MockResponsePolicy 的 API Server 存储与校验。
 package mockresponsepolicy
 
 import (
@@ -10,7 +10,7 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
-// NewREST 创建 MockResponsePolicy 主资源与 status 子资源存储
+// NewREST 创建 MockResponsePolicy 主资源与 status 子资源存储。
 func NewREST(
 	optsGetter generic.RESTOptionsGetter,
 	typer runtime.ObjectTyper,

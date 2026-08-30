@@ -1,4 +1,3 @@
-// Package server 装配 Admin API 的 Kratos transport
 package server
 
 import (
@@ -11,7 +10,7 @@ import (
 	"github.com/lgc202/ingate/internal/adminapi/conf"
 )
 
-// NewHTTPServer 创建 Admin API 的 Kratos HTTP transport
+// NewHTTPServer 创建 Admin API 的 Kratos HTTP transport。
 func NewHTTPServer(
 	config *conf.Server,
 	logger *slog.Logger,
@@ -24,6 +23,8 @@ func NewHTTPServer(
 		kratoshttp.Timeout(httpConfig.GetTimeout().AsDuration()),
 		kratoshttp.Filter(requestIDFilter, requestBodyLimitFilter),
 		kratoshttp.Middleware(serverMiddleware(logger)...),
+		kratoshttp.RequestVarsDecoder(requestVarsDecoder),
+		kratoshttp.RequestQueryDecoder(requestQueryDecoder),
 		kratoshttp.RequestDecoder(requestDecoder),
 		kratoshttp.ResponseEncoder(responseEncoder),
 		kratoshttp.ErrorEncoder(errorEncoder),

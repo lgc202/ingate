@@ -32,19 +32,28 @@ func (c *compilation) buildListeners(
 ) []*listenerv3.Listener {
 	listeners := make([]*listenerv3.Listener, 0, len(groups))
 	for _, key := range sortedListenerKeys(groups) {
+		name := listenerName(key)
 		requestLog, err := buildHTTPAccessLog()
 		if err != nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, listenerName(key), ReasonCompileFailed, fmt.Sprintf("encode access log for listener %s: %v", listenerName(key), err))
+			c.addKindError(
+				gatewayv1.KindGateway,
+				ReasonCompileFailed,
+				fmt.Sprintf("encode access log for listener %s: %v", name, err),
+			)
 			continue
 		}
 		httpFilters, err := buildHTTPFilters(filters[key])
 		if err != nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, listenerName(key), ReasonCompileFailed, err.Error())
+			c.addKindError(
+				gatewayv1.KindGateway,
+				ReasonCompileFailed,
+				err.Error(),
+			)
 			continue
 		}
-		manager := &hcmv3.HttpConnectionManager{
+		connectionManager := &hcmv3.HttpConnectionManager{
 			CodecType:             hcmv3.HttpConnectionManager_AUTO,
-			StatPrefix:            listenerName(key),
+			StatPrefix:            name,
 			StripMatchingHostPort: true,
 			RouteSpecifier: &hcmv3.HttpConnectionManager_Rds{Rds: &hcmv3.Rds{
 				ConfigSource:    adsConfigSource(),
@@ -53,21 +62,42 @@ func (c *compilation) buildListeners(
 			HttpFilters: httpFilters,
 			AccessLog:   []*accesslogv3.AccessLog{requestLog},
 		}
-		if err := manager.ValidateAll(); err != nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, listenerName(key), ReasonCompileFailed, fmt.Sprintf("validate HTTP connection manager for listener %s: %v", listenerName(key), err))
+		if err := connectionManager.ValidateAll(); err != nil {
+			c.addKindError(
+				gatewayv1.KindGateway,
+				ReasonCompileFailed,
+				fmt.Sprintf("validate HTTP connection manager for listener %s: %v", name, err),
+			)
 			continue
 		}
-		hcm, err := anypb.New(manager)
+		connectionManagerConfig, err := anypb.New(connectionManager)
 		if err != nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, listenerName(key), ReasonCompileFailed, fmt.Sprintf("encode HTTP connection manager for listener %s: %v", listenerName(key), err))
+			c.addKindError(
+				gatewayv1.KindGateway,
+				ReasonCompileFailed,
+				fmt.Sprintf("encode HTTP connection manager for listener %s: %v", name, err),
+			)
 			continue
 		}
 
-		listener := &listenerv3.Listener{Name: listenerName(key), Address: socketAddress(key.address, key.port)}
+		listener := &listenerv3.Listener{
+			Name:    name,
+			Address: socketAddress(key.address, key.port),
+		}
 		if key.protocol == gatewayv1.ProtocolHTTP {
-			listener.FilterChains = []*listenerv3.FilterChain{httpFilterChain(hcm)}
-		} else if err := c.configureHTTPSListener(listener, groups[key], hcm); err != nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindGateway, listenerName(key), ReasonCompileFailed, err.Error())
+			listener.FilterChains = []*listenerv3.FilterChain{
+				httpFilterChain(connectionManagerConfig),
+			}
+		} else if err := c.configureHTTPSListener(
+			listener,
+			groups[key],
+			connectionManagerConfig,
+		); err != nil {
+			c.addKindError(
+				gatewayv1.KindGateway,
+				ReasonCompileFailed,
+				err.Error(),
+			)
 			continue
 		}
 		listeners = append(listeners, listener)
@@ -75,10 +105,10 @@ func (c *compilation) buildListeners(
 	return listeners
 }
 
-func httpFilterChain(hcm *anypb.Any) *listenerv3.FilterChain {
+func httpFilterChain(connectionManagerConfig *anypb.Any) *listenerv3.FilterChain {
 	return &listenerv3.FilterChain{Filters: []*listenerv3.Filter{{
 		Name:       httpConnectionManagerFilterName,
-		ConfigType: &listenerv3.Filter_TypedConfig{TypedConfig: hcm},
+		ConfigType: &listenerv3.Filter_TypedConfig{TypedConfig: connectionManagerConfig},
 	}}}
 }
 

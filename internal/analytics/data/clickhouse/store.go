@@ -1,17 +1,19 @@
-// Package clickhouse 实现 Analytics 的请求事实和流量统计存储边界
+// Package clickhouse 实现 Analytics 的请求事实和流量统计存储边界。
 package clickhouse
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/lgc202/ingate/internal/analytics/conf"
-	"github.com/lgc202/ingate/internal/pkg/clickhousex"
-	"github.com/lgc202/ingate/internal/pkg/tlsx"
+	"github.com/lgc202/ingate/internal/pkg/clickhouseclient"
+	"github.com/lgc202/ingate/internal/pkg/tlsconfig"
 )
 
 const (
@@ -23,12 +25,15 @@ const (
 	modelUsageTableName    = "model_usage_1m"
 	modelUsageViewName     = "model_usage_1m_mv"
 	requiredSchemaObjects  = 6
+
+	minimumClickHouseMajor = 26
+	minimumClickHouseMinor = 1
 )
 
-// Store 保存请求与模型调用事实，并查询 ClickHouse 生成的流量与模型用量统计
+// Store 保存请求与模型调用事实，并查询 ClickHouse 生成的流量与模型用量统计。
 //
 // 表名是 Analytics 的内部存储契约，不属于部署配置或用户协议。Store 同时实现
-// request 的写入与查询、traffic 查询和 aiusage 查询存储边界
+// request 的写入与查询、traffic 查询和 aiusage 查询存储边界。
 type Store struct {
 	connection         driver.Conn
 	database           string
@@ -41,13 +46,13 @@ type Store struct {
 	queryTimeout       time.Duration
 }
 
-// NewStore 创建 ClickHouse 存储并确认迁移已经执行
+// NewStore 创建 ClickHouse 存储并确认服务版本与迁移结果兼容。
 //
-// 服务启动只验证表结构是否存在，不隐式执行 DDL；部署过程应先运行 -migrate
-func NewStore(config *conf.Data_ClickHouse) (*Store, error) {
+// 服务启动只验证依赖能力和表结构，不隐式执行 DDL；部署过程应先运行 -migrate。
+func NewStore(ctx context.Context, config *conf.Data_ClickHouse) (*Store, error) {
 	writeTimeout := config.GetWriteTimeout().AsDuration()
 	queryTimeout := config.GetQueryTimeout().AsDuration()
-	connection, err := clickhousex.NewClient(clientConfig(config))
+	connection, err := clickhouseclient.Open(clientConfig(config))
 	if err != nil {
 		return nil, err
 	}
@@ -63,18 +68,18 @@ func NewStore(config *conf.Data_ClickHouse) (*Store, error) {
 		writeTimeout:     writeTimeout,
 		queryTimeout:     queryTimeout,
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), queryTimeout)
+	checkCtx, cancel := context.WithTimeout(ctx, queryTimeout)
 	defer cancel()
-	if err := store.checkSchema(ctx); err != nil {
+	if err := store.checkInstallation(checkCtx); err != nil {
 		if closeErr := connection.Close(); closeErr != nil {
-			return nil, errors.Join(err, fmt.Errorf("close ClickHouse after schema check failed: %w", closeErr))
+			return nil, errors.Join(err, fmt.Errorf("close ClickHouse after installation check failed: %w", closeErr))
 		}
 		return nil, err
 	}
 	return store, nil
 }
 
-// Ping 验证至少一个 ClickHouse 节点可以完成连接和鉴权
+// Ping 验证至少一个 ClickHouse 节点可以完成连接和鉴权。
 func (s *Store) Ping(ctx context.Context) error {
 	if err := s.connection.Ping(ctx); err != nil {
 		return fmt.Errorf("ping ClickHouse: %w", err)
@@ -82,7 +87,7 @@ func (s *Store) Ping(ctx context.Context) error {
 	return nil
 }
 
-// Close 释放 ClickHouse 连接池
+// Close 释放 ClickHouse 连接池。
 func (s *Store) Close() error {
 	if err := s.connection.Close(); err != nil {
 		return fmt.Errorf("close ClickHouse: %w", err)
@@ -90,7 +95,27 @@ func (s *Store) Close() error {
 	return nil
 }
 
-func (s *Store) checkSchema(ctx context.Context) error {
+func (s *Store) checkInstallation(ctx context.Context) error {
+	var version string
+	if err := s.connection.QueryRow(ctx, "SELECT version()").Scan(&version); err != nil {
+		return fmt.Errorf("read ClickHouse version: %w", err)
+	}
+	major, minor, err := clickHouseRelease(version)
+	if err != nil {
+		return fmt.Errorf("parse ClickHouse version %q: %w", version, err)
+	}
+	// 26.1 首次保证异步插入去重会一致传递到依赖物化视图；
+	// 更早版本会让 Kafka 重投重复累计流量和模型用量。
+	if major < minimumClickHouseMajor ||
+		major == minimumClickHouseMajor && minor < minimumClickHouseMinor {
+		return fmt.Errorf(
+			"ClickHouse %d.%d or newer is required; server reports %q",
+			minimumClickHouseMajor,
+			minimumClickHouseMinor,
+			version,
+		)
+	}
+
 	var objects uint64
 	if err := s.connection.QueryRow(ctx, `
 SELECT count()
@@ -112,14 +137,30 @@ WHERE database = ? AND name IN (?, ?, ?, ?, ?, ?)`,
 	return nil
 }
 
+func clickHouseRelease(version string) (int, int, error) {
+	components := strings.SplitN(strings.TrimSpace(version), ".", 3)
+	if len(components) < 2 {
+		return 0, 0, errors.New("major and minor components are required")
+	}
+	major, err := strconv.Atoi(components[0])
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse major version: %w", err)
+	}
+	minor, err := strconv.Atoi(components[1])
+	if err != nil {
+		return 0, 0, fmt.Errorf("parse minor version: %w", err)
+	}
+	return major, minor, nil
+}
+
 // clientConfig 把 Analytics 进程配置转换为公共 ClickHouse 客户端配置
 //
 // 底层连接的读取期限覆盖写入和查询两类操作中更长的一方，各方法仍通过 Context
 // 施加自己的业务超时
-func clientConfig(config *conf.Data_ClickHouse) clickhousex.Config {
+func clientConfig(config *conf.Data_ClickHouse) clickhouseclient.Config {
 	writeTimeout := config.GetWriteTimeout().AsDuration()
 	queryTimeout := config.GetQueryTimeout().AsDuration()
-	return clickhousex.Config{
+	return clickhouseclient.Config{
 		Addresses:             config.GetAddresses(),
 		Database:              config.GetDatabase(),
 		Username:              config.GetUsername(),
@@ -129,7 +170,7 @@ func clientConfig(config *conf.Data_ClickHouse) clickhousex.Config {
 		MaxOpenConnections:    int(config.GetMaxOpenConnections()),
 		MaxIdleConnections:    int(config.GetMaxIdleConnections()),
 		ConnectionMaxLifetime: config.GetConnectionMaxLifetime().AsDuration(),
-		TLS: tlsx.ClientConfig{
+		TLS: tlsconfig.ClientConfig{
 			Enabled:         config.GetTls().GetEnabled(),
 			CAFile:          config.GetTls().GetCaFile(),
 			CertificateFile: config.GetTls().GetCertFile(),

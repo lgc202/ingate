@@ -1,9 +1,10 @@
-// Package upstream 提供 Upstream 管理 API
+// Package upstream 提供 Upstream 管理 API。
 package upstream
 
 import (
 	"context"
 
+	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
@@ -11,43 +12,66 @@ import (
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
-// Service 实现服务管理 API
+// Service 实现服务管理 API。
 type Service struct {
-	upstreams *upstreambiz.Service
+	upstreams *upstreambiz.Usecase
 }
 
-// NewService 创建服务协议层
-func NewService(upstreams *upstreambiz.Service) *Service {
+// NewService 创建服务协议层。
+func NewService(upstreams *upstreambiz.Usecase) *Service {
 	return &Service{upstreams: upstreams}
 }
 
-func (s *Service) ListUpstreams(ctx context.Context, request *adminv1.ListUpstreamsRequest) (*adminv1.ListUpstreamsResponse, error) {
-	filter := upstreambiz.ListFilter{
-		ResourceFilter: adminservice.ResourceFilter(request.GetQuery(), nil, request.GetState()),
-	}
+// ListUpstreams 返回满足筛选条件的服务列表。
+func (s *Service) ListUpstreams(
+	ctx context.Context,
+	request *adminv1.ListUpstreamsRequest,
+) (*adminv1.ListUpstreamsResponse, error) {
+	typeFilter := upstreambiz.TypeAny
 	switch request.GetType() {
+	case adminv1.UpstreamType_UPSTREAM_TYPE_UNSPECIFIED:
 	case adminv1.UpstreamType_UPSTREAM_TYPE_HTTP:
-		model := false
-		filter.Model = &model
+		typeFilter = upstreambiz.TypeHTTP
 	case adminv1.UpstreamType_UPSTREAM_TYPE_MODEL:
-		model := true
-		filter.Model = &model
+		typeFilter = upstreambiz.TypeModel
+	default:
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"服务类型不正确",
+		)
 	}
-	page, err := s.upstreams.List(ctx, adminservice.PageRequest(request.GetLimit(), request.GetCursor()), filter)
+
+	filter := upstreambiz.ListFilter{
+		ResourceFilter: adminservice.ResourceFilter(
+			request.GetQuery(),
+			nil,
+			request.GetState(),
+		),
+		Type: typeFilter,
+	}
+	page, err := s.upstreams.List(
+		ctx,
+		adminservice.PageRequest(request.GetLimit(), request.GetCursor()),
+		filter,
+	)
 	if err != nil {
 		return nil, err
 	}
-	response := &adminv1.ListUpstreamsResponse{
-		Upstreams:  make([]*adminv1.Upstream, 0, len(page.Items)),
-		NextCursor: page.NextCursor,
-	}
+	upstreams := make([]*adminv1.Upstream, len(page.Items))
 	for i := range page.Items {
-		response.Upstreams = append(response.Upstreams, upstreamResponse(&page.Items[i]))
+		upstreams[i] = upstreamResponse(&page.Items[i])
 	}
-	return response, nil
+	return &adminv1.ListUpstreamsResponse{
+		Upstreams:  upstreams,
+		NextCursor: page.NextCursor,
+	}, nil
 }
 
-func (s *Service) GetUpstream(ctx context.Context, request *adminv1.GetUpstreamRequest) (*adminv1.Upstream, error) {
+// GetUpstream 返回指定服务。
+func (s *Service) GetUpstream(
+	ctx context.Context,
+	request *adminv1.GetUpstreamRequest,
+) (*adminv1.Upstream, error) {
 	upstream, err := s.upstreams.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
@@ -55,11 +79,27 @@ func (s *Service) GetUpstream(ctx context.Context, request *adminv1.GetUpstreamR
 	return upstreamResponse(upstream), nil
 }
 
-func (s *Service) CreateUpstream(ctx context.Context, request *adminv1.CreateUpstreamRequest) (*adminv1.Upstream, error) {
-	spec, err := createSpec(request)
+// CreateUpstream 创建服务。
+func (s *Service) CreateUpstream(
+	ctx context.Context,
+	request *adminv1.CreateUpstreamRequest,
+) (*adminv1.Upstream, error) {
+	spec, err := parseUpstreamSpec(
+		request.GetName(),
+		request.GetEndpoints(),
+		request.GetTls(),
+		request.GetLoadBalancing(),
+		request.GetHealthCheck(),
+	)
 	if err != nil {
 		return nil, err
 	}
+	model, err := parseModelForCreate(request.GetModel())
+	if err != nil {
+		return nil, err
+	}
+	spec.Model = model
+
 	upstream, err := s.upstreams.Create(ctx, spec)
 	if err != nil {
 		return nil, err
@@ -67,23 +107,44 @@ func (s *Service) CreateUpstream(ctx context.Context, request *adminv1.CreateUps
 	return upstreamResponse(upstream), nil
 }
 
-func (s *Service) UpdateUpstream(ctx context.Context, request *adminv1.UpdateUpstreamRequest) (*adminv1.Upstream, error) {
-	spec, preserveAPIKey, err := updateSpec(request)
+// UpdateUpstream 完整替换服务配置。
+func (s *Service) UpdateUpstream(
+	ctx context.Context,
+	request *adminv1.UpdateUpstreamRequest,
+) (*adminv1.Upstream, error) {
+	spec, err := parseUpstreamSpec(
+		request.GetName(),
+		request.GetEndpoints(),
+		request.GetTls(),
+		request.GetLoadBalancing(),
+		request.GetHealthCheck(),
+	)
 	if err != nil {
 		return nil, err
 	}
-	upstream, err := s.upstreams.Update(ctx, request.GetId(), upstreambiz.UpdateInput{
-		Version:             request.GetVersion(),
-		Spec:                spec,
-		PreserveModelAPIKey: preserveAPIKey,
-	})
+	model, preserveAPIKey, err := parseModelForUpdate(request.GetModel())
+	if err != nil {
+		return nil, err
+	}
+	spec.Model = model
+
+	input := upstreambiz.ReplaceInput{
+		ExpectedGeneration: request.GetVersion(),
+		Spec:               spec,
+		PreserveAPIKey:     preserveAPIKey,
+	}
+	upstream, err := s.upstreams.Replace(ctx, request.GetId(), input)
 	if err != nil {
 		return nil, err
 	}
 	return upstreamResponse(upstream), nil
 }
 
-func (s *Service) DeleteUpstream(ctx context.Context, request *adminv1.DeleteUpstreamRequest) (*emptypb.Empty, error) {
+// DeleteUpstream 删除服务。
+func (s *Service) DeleteUpstream(
+	ctx context.Context,
+	request *adminv1.DeleteUpstreamRequest,
+) (*emptypb.Empty, error) {
 	if err := s.upstreams.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}

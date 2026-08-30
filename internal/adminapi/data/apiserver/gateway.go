@@ -2,88 +2,103 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
-// GatewayRepository 读写 Gateway 声明式资源
-type GatewayRepository struct {
+// GatewayStore 读写 Gateway 声明式资源。
+type GatewayStore struct {
 	client clientset.Interface
 }
 
-// NewGatewayRepository 创建 Gateway Repository
-func NewGatewayRepository(client clientset.Interface) *GatewayRepository {
-	return &GatewayRepository{client: client}
+// NewGatewayStore 创建 Gateway Store。
+func NewGatewayStore(client clientset.Interface) *GatewayStore {
+	return &GatewayStore{client: client}
 }
 
-// ListPage 分页查询 Gateway 列表
-func (r *GatewayRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Gateway], error) {
-	gateways, err := r.client.GatewayV1().Gateways().List(ctx, listOptions(page))
+// ListPage 分页返回 Gateway。
+func (s *GatewayStore) ListPage(
+	ctx context.Context,
+	page biz.PageRequest,
+) (biz.PageResult[resource.Gateway], error) {
+	gateways, err := s.client.GatewayV1().Gateways().List(ctx, listOptions(page))
 	if err != nil {
 		return biz.PageResult[resource.Gateway]{}, listError("gateways", err)
 	}
-	return biz.PageResult[resource.Gateway]{Items: gateways.Items, NextCursor: gateways.Continue}, nil
+	return biz.PageResult[resource.Gateway]{
+		Items:      gateways.Items,
+		NextCursor: gateways.Continue,
+	}, nil
 }
 
-// Get 查询单个 Gateway
-func (r *GatewayRepository) Get(ctx context.Context, name string) (*resource.Gateway, error) {
-	gateway, err := r.client.GatewayV1().Gateways().Get(ctx, name, metav1.GetOptions{})
-	return gateway, resourceError("get", "gateway", name, err)
+// Get 返回指定 Gateway。
+func (s *GatewayStore) Get(ctx context.Context, gatewayID string) (*resource.Gateway, error) {
+	gateway, err := s.client.GatewayV1().Gateways().Get(ctx, gatewayID, metav1.GetOptions{})
+	return gateway, resourceError("get", "gateway", gatewayID, err)
 }
 
-// Create 创建 Gateway
-func (r *GatewayRepository) Create(ctx context.Context, name string, spec resource.GatewaySpec) (*resource.Gateway, error) {
-	gateway := &resource.Gateway{
-		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindGateway)},
-		ObjectMeta: metav1.ObjectMeta{Name: name},
-		Spec:       spec,
-	}
-	created, err := r.client.GatewayV1().Gateways().Create(ctx, gateway, metav1.CreateOptions{})
-	return created, resourceError("create", "gateway", name, err)
-}
-
-// Update 更新 Gateway，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
-func (r *GatewayRepository) Update(
+// ListByIDs 返回当前存在的指定 Gateway。
+func (s *GatewayStore) ListByIDs(
 	ctx context.Context,
-	name string,
-	generation int64,
+	gatewayIDs []string,
+) (map[string]*resource.Gateway, error) {
+	return listByIDs(ctx, gatewayIDs, s.Get)
+}
+
+// Create 创建 Gateway。
+func (s *GatewayStore) Create(
+	ctx context.Context,
+	gatewayID string,
 	spec resource.GatewaySpec,
 ) (*resource.Gateway, error) {
-	var updated *resource.Gateway
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().Gateways().Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if current.Generation != generation {
-			return biz.ErrResourceVersionConflict
-		}
-		current.Spec = spec
-		updated, err = r.client.GatewayV1().Gateways().Update(ctx, current, metav1.UpdateOptions{})
-		return err
-	})
-	return updated, resourceError("update", "gateway", name, err)
+	gateway := &resource.Gateway{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindGateway),
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: gatewayID},
+		Spec:       spec,
+	}
+	created, err := s.client.GatewayV1().Gateways().Create(ctx, gateway, metav1.CreateOptions{})
+	return created, resourceError("create", "gateway", gatewayID, err)
 }
 
-// Delete 删除 Gateway
-func (r *GatewayRepository) Delete(ctx context.Context, name string, generation int64) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().Gateways().Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if current.Generation != generation {
-			return biz.ErrResourceVersionConflict
-		}
-		resourceVersion := current.ResourceVersion
-		return r.client.GatewayV1().Gateways().Delete(ctx, name, metav1.DeleteOptions{
-			Preconditions: &metav1.Preconditions{ResourceVersion: &resourceVersion},
-		})
-	})
-	return resourceError("delete", "gateway", name, err)
+// ReplaceSpec 完整替换 Gateway 配置。
+// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
+func (s *GatewayStore) ReplaceSpec(
+	ctx context.Context,
+	observed *resource.Gateway,
+	spec resource.GatewaySpec,
+) (*resource.Gateway, error) {
+	gatewayID := observed.Name
+	updated, err := updateResource(
+		ctx,
+		s.client.GatewayV1().Gateways(),
+		observed,
+		func(gateway *resource.Gateway) { gateway.Spec = spec },
+	)
+	if apierrors.IsConflict(err) {
+		return nil, fmt.Errorf("replace gateway %q after conflict retries: %w", gatewayID, err)
+	}
+	return updated, resourceError("replace", "gateway", gatewayID, err)
+}
+
+// Delete 删除 Gateway。
+// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
+func (s *GatewayStore) Delete(
+	ctx context.Context,
+	observed *resource.Gateway,
+) error {
+	gatewayID := observed.Name
+	err := deleteResource(ctx, s.client.GatewayV1().Gateways(), observed)
+	if apierrors.IsConflict(err) {
+		return fmt.Errorf("delete gateway %q after conflict retries: %w", gatewayID, err)
+	}
+	return resourceError("delete", "gateway", gatewayID, err)
 }

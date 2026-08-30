@@ -4,7 +4,7 @@ import (
 	"bytes"
 )
 
-// OpenAIStream 只缓存尚未结束的 SSE 行，避免把流式响应整体缓冲
+// OpenAIStream 只缓存尚未结束的 SSE 行，避免把流式响应整体缓冲。
 type OpenAIStream struct {
 	buffer      []byte
 	clientModel string
@@ -12,13 +12,13 @@ type OpenAIStream struct {
 }
 
 // NewOpenAIStream 创建一条 OpenAI 兼容响应流的转换状态
-// clientModel 是 AI Route 对外发布的稳定模型名，响应不能泄漏 Service 使用的真实模型名
+// clientModel 是 AI Route 对外发布的稳定模型名，响应不能泄漏 Service 使用的真实模型名。
 func NewOpenAIStream(clientModel string) *OpenAIStream {
 	return &OpenAIStream{clientModel: clientModel}
 }
 
 // Convert 增量读取 OpenAI SSE，提取运行信息并恢复客户端模型名
-// ExtProc chunk 与 SSE 行没有边界关系，因此不完整行必须留到下一个 chunk 再处理
+// ExtProc chunk 与 SSE 行没有边界关系，因此不完整行必须留到下一个 chunk 再处理。
 func (s *OpenAIStream) Convert(chunk []byte, endOfStream bool) ([]byte, ResponseMetadata, bool, error) {
 	s.buffer = append(s.buffer, chunk...)
 	var converted []byte

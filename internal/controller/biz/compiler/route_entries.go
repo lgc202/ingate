@@ -3,88 +3,168 @@ package compiler
 import (
 	"cmp"
 	"fmt"
-	"slices"
 	"strings"
 
+	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
-	"google.golang.org/protobuf/proto"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
-// routeEntry 保存 Envoy Route 及其稳定的匹配优先级元数据
+// routeEntryTemplate 保存普通 Route 和 AI Route 生成 Envoy Route 时共享的匹配与 Header 配置。
+type routeEntryTemplate struct {
+	path                    string
+	exactPath               bool
+	methods                 []string
+	headers                 []*routev3.HeaderMatcher
+	requestHeadersToAdd     []*corev3.HeaderValueOption
+	requestHeadersToRemove  []string
+	responseHeadersToAdd    []*corev3.HeaderValueOption
+	responseHeadersToRemove []string
+}
+
+// routeEntry 保存 Envoy Route 及其稳定的匹配优先级元数据。
 type routeEntry struct {
-	routeID     string
-	variant     string
+	routeID      string
+	variant      string
+	path         string
+	exactPath    bool
+	method       string
+	headerCount  int
+	matchHeaders map[string]string
+	route        *routev3.Route
+}
+
+// routeMatchClass 保存判断两条 Route 是否处于同一匹配优先级所需的字段。
+// method 相同时请求集合才可能相交；routeID 和 variant 只负责稳定排序。
+type routeMatchClass struct {
 	path        string
 	exactPath   bool
 	method      string
 	headerCount int
-	route       *routev3.Route
 }
 
-func (c *compilation) buildRouteEntries(route *gatewayv1.Route, compiledUpstreams map[string]bool) []routeEntry {
+func (c *compilation) buildRouteEntries(
+	route *gatewayv1.Route,
+	compiledUpstreams map[string]bool,
+) []routeEntry {
 	if route.Spec.AI != nil {
 		return c.buildAIRouteEntries(route, compiledUpstreams)
 	}
 
-	path := strings.TrimSpace(route.Spec.Match.Path.Value)
-	if path == "" || !strings.HasPrefix(path, "/") {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q path must start with /", route.Name))
-		return nil
-	}
-	exactPath := route.Spec.Match.Path.Type == gatewayv1.PathMatchExact
-	if !exactPath && route.Spec.Match.Path.Type != gatewayv1.PathMatchPrefix {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonUnsupported, fmt.Sprintf("route %q uses unsupported path match type %q", route.Name, route.Spec.Match.Path.Type))
+	template, templateValid := c.buildRouteEntryTemplate(route)
+	clusters, clustersValid := c.buildWeightedClusters(route, compiledUpstreams)
+	if !templateValid || !clustersValid {
 		return nil
 	}
 
-	methods, methodsValid := c.routeMethods(route)
-	headers, headersValid := c.routeHeaderMatches(route)
-	clusters, clustersValid := c.weightedClusters(route, compiledUpstreams)
-	requestAdd, requestRemove, requestValid := c.headerModifier(route, route.Spec.RequestHeaderModifier)
-	responseAdd, responseRemove, responseValid := c.headerModifier(route, route.Spec.ResponseHeaderModifier)
-	if !methodsValid || !headersValid || !clustersValid || !requestValid || !responseValid {
-		return nil
-	}
-
-	action, ok := c.routeAction(route, clusters)
+	action, ok := c.buildRouteAction(route, clusters)
 	if !ok {
 		return nil
 	}
 
+	methods := template.methods
 	if len(methods) == 0 {
 		methods = []string{""}
 	}
 	entries := make([]routeEntry, 0, len(methods))
 	for _, method := range methods {
-		routeHeaders := slices.Clone(headers)
-		if method != "" {
-			routeHeaders = append([]*routev3.HeaderMatcher{exactHeaderMatcher(":method", method)}, routeHeaders...)
-		}
-		match := &routev3.RouteMatch{Headers: routeHeaders}
-		if exactPath {
-			match.PathSpecifier = &routev3.RouteMatch_Path{Path: path}
-		} else {
-			match.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: path}
-		}
+		match := template.match(method)
 		entries = append(entries, routeEntry{
-			routeID:     route.Name,
-			path:        path,
-			exactPath:   exactPath,
-			method:      method,
-			headerCount: len(headers),
+			routeID:      route.Name,
+			path:         template.path,
+			exactPath:    template.exactPath,
+			method:       method,
+			headerCount:  len(template.headers),
+			matchHeaders: routeMatchHeaderValues(match),
 			route: &routev3.Route{
 				Match:                   match,
-				Action:                  &routev3.Route_Route{Route: proto.Clone(action).(*routev3.RouteAction)},
-				RequestHeadersToAdd:     requestAdd,
-				RequestHeadersToRemove:  requestRemove,
-				ResponseHeadersToAdd:    responseAdd,
-				ResponseHeadersToRemove: responseRemove,
+				Action:                  &routev3.Route_Route{Route: action},
+				RequestHeadersToAdd:     template.requestHeadersToAdd,
+				RequestHeadersToRemove:  template.requestHeadersToRemove,
+				ResponseHeadersToAdd:    template.responseHeadersToAdd,
+				ResponseHeadersToRemove: template.responseHeadersToRemove,
 			},
 		})
 	}
 	return entries
+}
+
+func (c *compilation) buildRouteEntryTemplate(route *gatewayv1.Route) (routeEntryTemplate, bool) {
+	path := strings.TrimSpace(route.Spec.Match.Path.Value)
+	valid := true
+	if !routeconfig.IsValidPath(path) {
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q has an invalid request path", route.Name),
+		)
+		valid = false
+	}
+
+	exactPath := false
+	switch route.Spec.Match.Path.Type {
+	case gatewayv1.PathMatchPrefix:
+	case gatewayv1.PathMatchExact:
+		exactPath = true
+	default:
+		c.addRouteError(
+			route.Name,
+			ReasonUnsupported,
+			fmt.Sprintf(
+				"route %q uses unsupported path match type %q",
+				route.Name,
+				route.Spec.Match.Path.Type,
+			),
+		)
+		valid = false
+	}
+
+	methods, methodsValid := c.buildRouteMethods(route)
+	headers, headersValid := c.buildHeaderMatchers(route)
+	requestAdd, requestRemove, requestValid := c.buildHeaderModifier(
+		route,
+		route.Spec.RequestHeaderModifier,
+	)
+	responseAdd, responseRemove, responseValid := c.buildHeaderModifier(
+		route,
+		route.Spec.ResponseHeaderModifier,
+	)
+	return routeEntryTemplate{
+		path:                    path,
+		exactPath:               exactPath,
+		methods:                 methods,
+		headers:                 headers,
+		requestHeadersToAdd:     requestAdd,
+		requestHeadersToRemove:  requestRemove,
+		responseHeadersToAdd:    responseAdd,
+		responseHeadersToRemove: responseRemove,
+	}, valid && methodsValid && headersValid && requestValid && responseValid
+}
+
+func (t routeEntryTemplate) match(
+	method string,
+	additionalHeaders ...*routev3.HeaderMatcher,
+) *routev3.RouteMatch {
+	headerCount := len(t.headers) + len(additionalHeaders)
+	if method != "" {
+		headerCount++
+	}
+	headers := make([]*routev3.HeaderMatcher, 0, headerCount)
+	if method != "" {
+		headers = append(headers, exactHeaderMatcher(":method", method))
+	}
+	headers = append(headers, t.headers...)
+	headers = append(headers, additionalHeaders...)
+
+	match := &routev3.RouteMatch{Headers: headers}
+	if t.exactPath {
+		match.PathSpecifier = &routev3.RouteMatch_Path{Path: t.path}
+	} else {
+		match.PathSpecifier = &routev3.RouteMatch_Prefix{Prefix: t.path}
+	}
+	return match
 }
 
 func compareRouteEntries(a, b routeEntry) int {

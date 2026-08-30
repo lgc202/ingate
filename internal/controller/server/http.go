@@ -13,7 +13,7 @@ import (
 	"github.com/lgc202/ingate/internal/controller/conf"
 )
 
-// NewHTTPServer 创建 Controller 的健康检查与就绪检查接口
+// NewHTTPServer 创建 Controller 的健康检查与就绪检查接口。
 func NewHTTPServer(
 	config *conf.Server,
 	configDelivery *delivery.Delivery,

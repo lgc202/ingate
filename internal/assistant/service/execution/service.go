@@ -6,7 +6,7 @@ import (
 	"errors"
 	"strings"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	kerrors "github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
@@ -26,6 +26,7 @@ func NewService(executions *executionbiz.Service) *Service {
 	return &Service{executions: executions}
 }
 
+// CreateAgentExecution 为当前管理员创建一次异步 Agent 执行。
 func (s *Service) CreateAgentExecution(
 	ctx context.Context,
 	request *assistantv1.CreateAgentExecutionRequest,
@@ -36,7 +37,7 @@ func (s *Service) CreateAgentExecution(
 	}
 	content := strings.TrimSpace(request.GetContent())
 	if content == "" {
-		return nil, kratoserrors.BadRequest("INVALID_ARGUMENT", "message content is required")
+		return nil, kerrors.BadRequest("INVALID_ARGUMENT", "message content is required")
 	}
 	item, err := s.executions.Create(ctx, actorID, request.GetConversationId(), content)
 	if err != nil {
@@ -45,6 +46,7 @@ func (s *Service) CreateAgentExecution(
 	return executionResponse(item), nil
 }
 
+// GetAgentExecution 返回当前管理员可见的单次 Agent 执行。
 func (s *Service) GetAgentExecution(
 	ctx context.Context,
 	request *assistantv1.GetAgentExecutionRequest,
@@ -60,6 +62,7 @@ func (s *Service) GetAgentExecution(
 	return executionResponse(item), nil
 }
 
+// ListAgentExecutionSteps 返回一次执行中已经持久化的模型和工具步骤。
 func (s *Service) ListAgentExecutionSteps(
 	ctx context.Context,
 	request *assistantv1.ListAgentExecutionStepsRequest,
@@ -81,6 +84,7 @@ func (s *Service) ListAgentExecutionSteps(
 	return response, nil
 }
 
+// CancelAgentExecution 请求取消当前管理员尚未结束的 Agent 执行。
 func (s *Service) CancelAgentExecution(
 	ctx context.Context,
 	request *assistantv1.CancelAgentExecutionRequest,
@@ -99,15 +103,15 @@ func (s *Service) CancelAgentExecution(
 func mapError(err error) error {
 	switch {
 	case errors.Is(err, context.Canceled):
-		return kratoserrors.ClientClosed("REQUEST_CANCELLED", "request cancelled").WithCause(err)
+		return kerrors.ClientClosed("REQUEST_CANCELLED", "request cancelled").WithCause(err)
 	case errors.Is(err, context.DeadlineExceeded):
-		return kratoserrors.GatewayTimeout("REQUEST_TIMEOUT", "request timed out").WithCause(err)
+		return kerrors.GatewayTimeout("REQUEST_TIMEOUT", "request timed out").WithCause(err)
 	case errors.Is(err, executionbiz.ErrNotFound):
-		return kratoserrors.NotFound("RESOURCE_NOT_FOUND", "resource not found")
+		return kerrors.NotFound("RESOURCE_NOT_FOUND", "resource not found")
 	case errors.Is(err, executionbiz.ErrStateConflict), errors.Is(err, executionbiz.ErrConversationBusy):
-		return kratoserrors.Conflict("RESOURCE_CONFLICT", "resource state changed")
+		return kerrors.Conflict("RESOURCE_CONFLICT", "resource state changed")
 	default:
-		return kratoserrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
+		return kerrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
 	}
 }
 
@@ -171,10 +175,7 @@ func stepResponse(item executionbiz.Step) *assistantv1.AgentExecutionStep {
 		Name:        item.Name,
 		Summary:     item.Summary,
 		ErrorCode:   string(item.ErrorCode),
-		CreatedAt:   timestamppb.New(item.CreatedAt),
-	}
-	if item.StartedAt != nil {
-		response.StartedAt = timestamppb.New(*item.StartedAt)
+		StartedAt:   timestamppb.New(item.StartedAt),
 	}
 	if item.FinishedAt != nil {
 		response.FinishedAt = timestamppb.New(*item.FinishedAt)

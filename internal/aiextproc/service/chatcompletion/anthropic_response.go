@@ -2,6 +2,7 @@ package chatcompletion
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ type openAIUsage struct {
 	TotalTokens      uint64 `json:"total_tokens"`
 }
 
-// RewriteAnthropicResponse 把完整的 Anthropic Messages 响应转换为 OpenAI Chat Completions 响应
+// RewriteAnthropicResponse 把完整的 Anthropic Messages 响应转换为 OpenAI Chat Completions 响应。
 func RewriteAnthropicResponse(body []byte, clientModel string) ([]byte, ResponseMetadata, error) {
 	convertedError, isError, err := RewriteAnthropicErrorResponse(body)
 	if err != nil {
@@ -51,7 +52,7 @@ func RewriteAnthropicResponse(body []byte, clientModel string) ([]byte, Response
 		return nil, ResponseMetadata{}, fmt.Errorf("unmarshal anthropic response: %w", err)
 	}
 	if source.ID == "" || source.Model == "" {
-		return nil, ResponseMetadata{}, fmt.Errorf("unmarshal anthropic response: missing message ID or model")
+		return nil, ResponseMetadata{}, errors.New("unmarshal anthropic response: missing message ID or model")
 	}
 	usage := anthropicUsage(source.Usage.InputTokens, source.Usage.OutputTokens,
 		source.Usage.CacheReadInputTokens, source.Usage.CacheCreationInputTokens)
@@ -94,7 +95,7 @@ func RewriteAnthropicResponse(body []byte, clientModel string) ([]byte, Response
 }
 
 // RewriteAnthropicErrorResponse 只转换能够确认来自 Anthropic 的错误对象
-// 中间代理生成的普通 HTTP 错误由调用方依据 changed=false 原样透传
+// 中间代理生成的普通 HTTP 错误由调用方依据 changed=false 原样透传。
 func RewriteAnthropicErrorResponse(body []byte) (converted []byte, changed bool, err error) {
 	if gjson.GetBytes(body, "type").String() != "error" {
 		return nil, false, nil
@@ -102,7 +103,7 @@ func RewriteAnthropicErrorResponse(body []byte) (converted []byte, changed bool,
 	message := gjson.GetBytes(body, "error.message").String()
 	errorType := gjson.GetBytes(body, "error.type").String()
 	if message == "" || errorType == "" {
-		return nil, false, fmt.Errorf("unmarshal anthropic error response: missing error type or message")
+		return nil, false, errors.New("unmarshal anthropic error response: missing error type or message")
 	}
 	converted, err = json.Marshal(map[string]any{
 		"error": map[string]string{

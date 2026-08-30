@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -71,10 +73,17 @@ func normalizeResourceScope(scopeType, scopeID string) (string, string, error) {
 			scopeType,
 		)
 	}
+	if _, err := uuid.Parse(scopeID); err != nil {
+		return "", "", invalidInputf(
+			"scope_id must be a valid %s ID returned by the corresponding resource list",
+			scopeType,
+		)
+	}
 	return scopeType, scopeID, nil
 }
 
-// observationTimeRange 统一观测工具的时间范围语义，使流量排名与失败样本能够复用同一组起止时间。
+// observationTimeRange 统一观测工具的时间范围语义，
+// 使流量排名与失败样本能够复用同一组起止时间。
 // 显式时间范围使用 UTC 解析和传递，避免 Assistant 所在节点的时区改变查询结果。
 func observationTimeRange(hours int32, startValue, endValue string) (time.Time, time.Time, error) {
 	startValue = strings.TrimSpace(startValue)
@@ -101,11 +110,11 @@ func observationTimeRange(hours int32, startValue, endValue string) (time.Time, 
 		)
 	}
 
-	startTime, err := time.Parse(time.RFC3339, startValue)
+	startTime, err := time.Parse(time.RFC3339Nano, startValue)
 	if err != nil {
 		return time.Time{}, time.Time{}, invalidInputf("start_time must use RFC3339 format")
 	}
-	endTime, err := time.Parse(time.RFC3339, endValue)
+	endTime, err := time.Parse(time.RFC3339Nano, endValue)
 	if err != nil {
 		return time.Time{}, time.Time{}, invalidInputf("end_time must use RFC3339 format")
 	}

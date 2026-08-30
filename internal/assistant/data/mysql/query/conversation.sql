@@ -1,3 +1,6 @@
+-- name: CurrentTime :one
+SELECT CURRENT_TIMESTAMP(6) AS database_now;
+
 -- name: CreateConversation :exec
 INSERT INTO assistant_conversations (
     id, actor_id, title, created_at, updated_at
@@ -16,7 +19,7 @@ FOR UPDATE;
 
 -- name: UpdateConversationTitle :execrows
 UPDATE assistant_conversations
-SET title = ?, updated_at = ?
+SET title = ?, updated_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND actor_id = ?;
 
 -- name: ListConversations :many
@@ -29,7 +32,7 @@ LIMIT ?;
 
 -- name: TouchConversation :exec
 UPDATE assistant_conversations
-SET updated_at = ?
+SET updated_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND actor_id = ?;
 
 -- name: DeleteConversation :execrows
@@ -78,7 +81,7 @@ WHERE r.id = ? AND c.actor_id = ?
 FOR UPDATE;
 
 -- name: ClaimNextExecution :one
-SELECT r.id, r.conversation_id, c.actor_id, r.created_at
+SELECT r.id, r.conversation_id, c.actor_id
 FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.state = 1
@@ -88,7 +91,14 @@ FOR UPDATE SKIP LOCKED;
 
 -- name: StartExecution :execrows
 UPDATE assistant_agent_executions
-SET state = 2, worker_id = ?, lease_expires_at = ?, started_at = ?
+SET state = 2,
+    worker_id = ?,
+    lease_expires_at = TIMESTAMPADD(
+        MICROSECOND,
+        CAST(sqlc.arg(lease_duration_microseconds) AS SIGNED),
+        CURRENT_TIMESTAMP(6)
+    ),
+    started_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND state = 1;
 
 -- name: SetExecutionModel :execrows
@@ -110,12 +120,12 @@ WHERE execution_id = ?;
 -- name: CreateExecutionStep :exec
 INSERT INTO assistant_agent_execution_steps (
     id, execution_id, sequence, kind, state, name, call_id, summary,
-    error_code, created_at, started_at, finished_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    error_code, started_at, finished_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP(6), NULL);
 
 -- name: ListExecutionSteps :many
 SELECT i.id, i.execution_id, i.sequence, i.kind, i.state, i.name, i.call_id,
-       i.summary, i.error_code, i.created_at, i.started_at, i.finished_at
+       i.summary, i.error_code, i.started_at, i.finished_at
 FROM assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
@@ -125,36 +135,46 @@ ORDER BY i.sequence ASC;
 -- name: CompleteExecutionStep :execrows
 UPDATE assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS r ON r.id = i.execution_id
-SET i.state = 2, i.summary = ?, i.finished_at = ?
+SET i.state = 2, i.summary = ?, i.finished_at = CURRENT_TIMESTAMP(6)
 WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
   AND r.state = 2 AND r.worker_id = ?;
 
 -- name: FailExecutionStep :execrows
 UPDATE assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS r ON r.id = i.execution_id
-SET i.state = 3, i.error_code = ?, i.finished_at = ?
+SET i.state = 3, i.error_code = ?, i.finished_at = CURRENT_TIMESTAMP(6)
 WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
   AND r.state = 2 AND r.worker_id = ?;
 
 -- name: FailRunningExecutionSteps :exec
 UPDATE assistant_agent_execution_steps
-SET state = 3, error_code = ?, finished_at = ?
+SET state = 3, error_code = ?, finished_at = CURRENT_TIMESTAMP(6)
 WHERE execution_id = ? AND state = 1;
 
 -- name: CancelRunningExecutionSteps :exec
 UPDATE assistant_agent_execution_steps
-SET state = 4, finished_at = ?
+SET state = 4, finished_at = CURRENT_TIMESTAMP(6)
 WHERE execution_id = ? AND state = 1;
+
+-- name: TouchExpiredExecutionConversations :exec
+UPDATE assistant_conversations AS c
+JOIN assistant_agent_executions AS r ON r.conversation_id = c.id
+SET c.updated_at = CURRENT_TIMESTAMP(6)
+WHERE r.state = 2 AND r.lease_expires_at < CURRENT_TIMESTAMP(6);
 
 -- name: FailExpiredExecutionSteps :exec
 UPDATE assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS r ON r.id = i.execution_id
-SET i.state = 3, i.error_code = ?, i.finished_at = ?
-WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < ?;
+SET i.state = 3, i.error_code = ?, i.finished_at = CURRENT_TIMESTAMP(6)
+WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < CURRENT_TIMESTAMP(6);
 
 -- name: RenewExecutionLease :execrows
 UPDATE assistant_agent_executions
-SET lease_expires_at = ?
+SET lease_expires_at = TIMESTAMPADD(
+    MICROSECOND,
+    CAST(sqlc.arg(lease_duration_microseconds) AS SIGNED),
+    CURRENT_TIMESTAMP(6)
+)
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
 -- name: ExecutionCancellationRequested :one
@@ -169,7 +189,8 @@ WHERE id = ? AND state = 2 AND worker_id = ?;
 
 -- name: FailExecution :execrows
 UPDATE assistant_agent_executions
-SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
+SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL,
+    finished_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
 -- name: CancelQueuedExecution :execrows
@@ -184,13 +205,15 @@ WHERE id = ? AND state = 2;
 
 -- name: FinishExecutionCancellation :execrows
 UPDATE assistant_agent_executions
-SET state = 5, worker_id = '', lease_expires_at = NULL, finished_at = ?
+SET state = 5, worker_id = '', lease_expires_at = NULL,
+    finished_at = CURRENT_TIMESTAMP(6)
 WHERE id = ? AND state = 2 AND worker_id = ? AND cancellation_requested = TRUE;
 
 -- name: FailExpiredExecutions :execrows
 UPDATE assistant_agent_executions
-SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL, finished_at = ?
-WHERE state = 2 AND lease_expires_at < ?;
+SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL,
+    finished_at = CURRENT_TIMESTAMP(6)
+WHERE state = 2 AND lease_expires_at < CURRENT_TIMESTAMP(6);
 
 -- name: CreateMessage :exec
 INSERT INTO assistant_messages (
@@ -205,8 +228,15 @@ WHERE conversation_id = ?
 ORDER BY created_at ASC, id ASC
 LIMIT ?;
 
+-- name: ListRecentMessageSizes :many
+SELECT OCTET_LENGTH(content) AS content_bytes
+FROM assistant_messages
+WHERE conversation_id = ?
+ORDER BY created_at DESC, id DESC
+LIMIT ?;
+
 -- name: ListRecentMessages :many
-SELECT id, conversation_id, execution_id, role, content, reasoning_content, created_at
+SELECT role, content
 FROM assistant_messages
 WHERE conversation_id = ?
 ORDER BY created_at DESC, id DESC

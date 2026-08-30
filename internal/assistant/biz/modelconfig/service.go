@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+// Store 持久化运维助手当前生效的唯一模型连接。
+type Store interface {
+	GetModelConnection(context.Context) (Connection, error)
+	UpdateModelConnection(context.Context, Update) (Connection, error)
+}
+
 // Service 提供模型连接的查询、更新和执行时选取。
 type Service struct {
 	store Store
@@ -20,7 +26,7 @@ func NewService(store Store) *Service {
 
 // Get 返回当前配置；未配置时返回可用于表单的默认值。
 func (s *Service) Get(ctx context.Context) (Connection, error) {
-	connection, err := s.store.GetModelConnection(ctx)
+	connection, err := s.configuredConnection(ctx)
 	if errors.Is(err, ErrNotConfigured) {
 		return DefaultConnection(), nil
 	}
@@ -29,14 +35,7 @@ func (s *Service) Get(ctx context.Context) (Connection, error) {
 
 // ActiveConnection 返回新 Agent 执行应使用的连接；未配置时拒绝调用模型。
 func (s *Service) ActiveConnection(ctx context.Context) (Connection, error) {
-	connection, err := s.store.GetModelConnection(ctx)
-	if err != nil {
-		return Connection{}, err
-	}
-	if err := connection.validate(); err != nil {
-		return Connection{}, err
-	}
-	return connection, nil
+	return s.configuredConnection(ctx)
 }
 
 // Update 验证并替换当前模型连接。
@@ -62,6 +61,17 @@ func DefaultConnection() Connection {
 	}
 }
 
+func (s *Service) configuredConnection(ctx context.Context) (Connection, error) {
+	connection, err := s.store.GetModelConnection(ctx)
+	if err != nil {
+		return Connection{}, err
+	}
+	if err := connection.validate(); err != nil {
+		return Connection{}, errors.New("stored assistant model connection is invalid")
+	}
+	return connection, nil
+}
+
 func (connection Connection) normalized() Connection {
 	connection.Endpoint = strings.TrimRight(strings.TrimSpace(connection.Endpoint), "/")
 	connection.Model = strings.TrimSpace(connection.Model)
@@ -69,6 +79,10 @@ func (connection Connection) normalized() Connection {
 }
 
 func (connection Connection) validate() error {
+	normalized := connection.normalized()
+	if normalized.Endpoint != connection.Endpoint || normalized.Model != connection.Model {
+		return ErrInvalidConnection
+	}
 	if connection.Mode != ModeDirect && connection.Mode != ModeIngate {
 		return ErrInvalidConnection
 	}
@@ -84,6 +98,12 @@ func (connection Connection) validate() error {
 	}
 	target, err := url.Parse(connection.Endpoint)
 	if err != nil || target.Host == "" || target.Scheme != "http" && target.Scheme != "https" {
+		return ErrInvalidConnection
+	}
+	if target.User != nil || target.RawQuery != "" || target.Fragment != "" {
+		return ErrInvalidConnection
+	}
+	if len(connection.APIKey) > maxAPIKeyLength {
 		return ErrInvalidConnection
 	}
 	if connection.Model == "" || connection.Timeout <= 0 || connection.Timeout > maxTimeout ||

@@ -8,7 +8,7 @@ import (
 )
 
 // ObserveOpenAIResponse 从完整的 OpenAI 兼容响应中提取运行信息
-// 解析失败不影响上游响应透传，因此返回值只表达是否获得了新信息
+// 解析失败不影响上游响应透传，因此返回值只表达是否获得了新信息。
 func ObserveOpenAIResponse(body []byte) (ResponseMetadata, bool) {
 	if !gjson.ValidBytes(body) {
 		return ResponseMetadata{}, false
@@ -40,7 +40,7 @@ func ObserveOpenAIResponse(body []byte) (ResponseMetadata, bool) {
 	return metadata, metadata.ResponseModel != "" || metadata.FinishReason != "" || metadata.Usage.Found
 }
 
-// RewriteOpenAIResponseModel 把上游响应中的真实模型名恢复为 Route 对外发布的稳定模型名
+// RewriteOpenAIResponseModel 把上游响应中的真实模型名恢复为 Route 对外发布的稳定模型名。
 func RewriteOpenAIResponseModel(body []byte, clientModel string) ([]byte, bool, error) {
 	model := gjson.GetBytes(body, "model")
 	if model.Type != gjson.String || model.String() == clientModel {

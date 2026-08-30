@@ -45,7 +45,7 @@ export async function getAIUsageWorkspace(): Promise<AIUsageWorkspace> {
     for (const model of route.ai?.models ?? []) {
       if (model.name) clientModels.add(model.name);
       for (const target of model.targets) {
-        if (modelServiceIDs.has(target.upstreamID) && target.model) actualModels.add(target.model);
+        if (modelServiceIDs.has(target.serviceID) && target.model) actualModels.add(target.model);
       }
     }
   }

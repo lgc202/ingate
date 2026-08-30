@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	// AnthropicMessagesPath 是 Anthropic Messages API 的标准请求路径
+	// AnthropicMessagesPath 是 Anthropic Messages API 的标准请求路径。
 	AnthropicMessagesPath = "/v1/messages"
-	// AnthropicVersion 是当前转换器生成请求时使用的稳定 API 版本
+	// AnthropicVersion 是当前转换器生成请求时使用的稳定 API 版本。
 	AnthropicVersion = "2023-06-01"
 
 	// defaultAnthropicMaxTokens 衔接 OpenAI 可选字段与 Anthropic 必填字段
@@ -47,7 +47,7 @@ type openAIContentBlock struct {
 }
 
 // RewriteAnthropicRequest 把 OpenAI Chat Completions 请求转换为 Anthropic Messages 请求
-// 当前只接收文本消息和两种协议共有的采样参数，不能可靠转换的能力会明确拒绝
+// 当前只接收文本消息和两种协议共有的采样参数，不能可靠转换的能力会明确拒绝。
 func RewriteAnthropicRequest(body []byte, upstreamModel string) (UpstreamRequest, error) {
 	if !json.Valid(body) {
 		return UpstreamRequest{}, invalidRequest("request body must be valid JSON")

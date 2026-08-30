@@ -124,9 +124,11 @@ func (s *streamState) handleDownstreamOpenAIResponse(body *extprocv3.HttpBody) (
 	return response, nil
 }
 
-func (s *streamState) handleDownstreamAnthropicResponse(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
+func (s *streamState) handleDownstreamAnthropicResponse(
+	body *extprocv3.HttpBody,
+) (*extprocv3.ProcessingResponse, error) {
 	if !s.responseSuccessful {
-		return s.handleDownstreamAnthropicError(body)
+		return handleDownstreamAnthropicError(body)
 	}
 
 	request, _ := s.request.requestMetadata()
@@ -134,7 +136,8 @@ func (s *streamState) handleDownstreamAnthropicResponse(body *extprocv3.HttpBody
 		if s.anthropicStream == nil {
 			s.anthropicStream = chatcompletion.NewAnthropicStream(request.Model)
 		}
-		// ExtProc chunk 不保证按 SSE 事件边界切分，转换器负责拼接残片后再输出完整事件
+		// ExtProc chunk 不保证按 SSE 事件边界切分，
+		// 转换器负责拼接残片后再输出完整事件。
 		converted, metadata, changed, err := s.anthropicStream.Convert(body.GetBody(), body.GetEndOfStream())
 		if err != nil {
 			return nil, err
@@ -184,7 +187,7 @@ func (s *streamState) settleQuota() {
 	s.processor.settleQuota(s.ctx, s.request, usage.TotalTokens)
 }
 
-func (s *streamState) handleDownstreamAnthropicError(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
+func handleDownstreamAnthropicError(body *extprocv3.HttpBody) (*extprocv3.ProcessingResponse, error) {
 	if !body.GetEndOfStream() {
 		return nil, errResponseNotBuffered
 	}

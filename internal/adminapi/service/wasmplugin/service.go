@@ -1,10 +1,11 @@
-// Package wasmplugin 提供插件安装、升级和卸载 API
+// Package wasmplugin 提供插件安装、升级和卸载 API。
 package wasmplugin
 
 import (
 	"context"
 	"strings"
 
+	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
@@ -14,33 +15,25 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-// Service 实现 WasmPlugin 管理 API
+// Service 实现 WasmPlugin 管理 API。
 type Service struct {
-	plugins *wasmpluginbiz.Service
+	plugins *wasmpluginbiz.Usecase
 }
 
-// NewService 创建 WasmPlugin 协议服务
-func NewService(plugins *wasmpluginbiz.Service) *Service {
+// NewService 创建 WasmPlugin 协议服务。
+func NewService(plugins *wasmpluginbiz.Usecase) *Service {
 	return &Service{plugins: plugins}
 }
 
+// ListWasmPluginCatalog 返回当前可安装的插件目录。
 func (s *Service) ListWasmPluginCatalog(
 	context.Context,
 	*adminv1.ListWasmPluginCatalogRequest,
 ) (*adminv1.ListWasmPluginCatalogResponse, error) {
-	return catalogResponse(s.plugins.Catalog()), nil
+	return catalogResponse(s.plugins.ListCatalog()), nil
 }
 
-func catalogResponse(snapshot wasmpluginbiz.CatalogSnapshot) *adminv1.ListWasmPluginCatalogResponse {
-	response := &adminv1.ListWasmPluginCatalogResponse{
-		Plugins: make([]*adminv1.WasmPluginCatalogItem, 0, len(snapshot.Items)),
-	}
-	for _, item := range snapshot.Items {
-		response.Plugins = append(response.Plugins, catalogItemResponse(item))
-	}
-	return response
-}
-
+// ListWasmPlugins 返回满足筛选条件的已安装插件。
 func (s *Service) ListWasmPlugins(
 	ctx context.Context,
 	request *adminv1.ListWasmPluginsRequest,
@@ -53,16 +46,17 @@ func (s *Service) ListWasmPlugins(
 	if err != nil {
 		return nil, err
 	}
-	response := &adminv1.ListWasmPluginsResponse{
-		Plugins:    make([]*adminv1.WasmPlugin, 0, len(page.Items)),
-		NextCursor: page.NextCursor,
-	}
+	plugins := make([]*adminv1.WasmPlugin, len(page.Items))
 	for i := range page.Items {
-		response.Plugins = append(response.Plugins, s.pluginResponse(&page.Items[i], nil))
+		plugins[i] = s.pluginResponse(&page.Items[i], nil)
 	}
-	return response, nil
+	return &adminv1.ListWasmPluginsResponse{
+		Plugins:    plugins,
+		NextCursor: page.NextCursor,
+	}, nil
 }
 
+// GetWasmPlugin 返回指定已安装插件及其策略引用。
 func (s *Service) GetWasmPlugin(
 	ctx context.Context,
 	request *adminv1.GetWasmPluginRequest,
@@ -71,24 +65,31 @@ func (s *Service) GetWasmPlugin(
 	if err != nil {
 		return nil, err
 	}
-	usages, err := s.plugins.Usages(ctx, plugin.Spec.Package)
+	usages, err := s.plugins.PolicyUsages(ctx, plugin.Spec.Package)
 	if err != nil {
 		return nil, err
 	}
 	return s.pluginResponse(plugin, usages), nil
 }
 
+// CreateWasmPlugin 安装指定来源的目录插件。
 func (s *Service) CreateWasmPlugin(
 	ctx context.Context,
 	request *adminv1.CreateWasmPluginRequest,
 ) (*adminv1.WasmPlugin, error) {
 	sourceID := strings.TrimSpace(request.GetSourceId())
 	if sourceID == "" {
-		return nil, adminservice.BadRequest("请选择插件源")
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择插件源",
+		)
 	}
 	packageName := strings.TrimSpace(request.GetPackageName())
 	if packageName == "" {
-		return nil, adminservice.BadRequest("请选择要安装的插件")
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"请选择要安装的插件",
+		)
 	}
 	plugin, err := s.plugins.Install(ctx, sourceID, packageName)
 	if err != nil {
@@ -97,6 +98,7 @@ func (s *Service) CreateWasmPlugin(
 	return s.pluginResponse(plugin, nil), nil
 }
 
+// UpdateWasmPlugin 将已安装插件升级到当前目录推荐版本。
 func (s *Service) UpdateWasmPlugin(
 	ctx context.Context,
 	request *adminv1.UpdateWasmPluginRequest,
@@ -108,6 +110,7 @@ func (s *Service) UpdateWasmPlugin(
 	return s.pluginResponse(plugin, nil), nil
 }
 
+// DeleteWasmPlugin 卸载指定插件。
 func (s *Service) DeleteWasmPlugin(
 	ctx context.Context,
 	request *adminv1.DeleteWasmPluginRequest,
@@ -118,12 +121,10 @@ func (s *Service) DeleteWasmPlugin(
 	return &emptypb.Empty{}, nil
 }
 
-func (s *Service) pluginResponse(plugin *resource.WasmPlugin, usages []biz.PluginPolicyUsage) *adminv1.WasmPlugin {
-	latestVersion, upgradeAvailable := s.plugins.UpgradeVersion(
-		plugin.Spec.SourceID,
-		plugin.Spec.Package,
-		plugin.Spec.Version,
-	)
-	sourceName, _ := s.plugins.SourceName(plugin.Spec.SourceID)
-	return pluginResponse(plugin, sourceName, latestVersion, upgradeAvailable, usages)
+func (s *Service) pluginResponse(
+	plugin *resource.WasmPlugin,
+	usages []biz.PluginPolicyUsage,
+) *adminv1.WasmPlugin {
+	catalog := s.plugins.CatalogInfo(plugin)
+	return pluginResponse(plugin, catalog, usages)
 }

@@ -8,6 +8,9 @@ import (
 
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/components/tool/utils"
+
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
 
 type requestRecordInput struct {
@@ -55,6 +58,11 @@ type aiModelCallInfo struct {
 	TotalTokens   *uint64 `json:"total_tokens,omitempty"`
 }
 
+// RequestRecordReader 是单次请求明细工具实际使用的查询边界。
+type RequestRecordReader interface {
+	GetRequestRecord(context.Context, string, time.Time) (RequestRecord, error)
+}
+
 func newRequestRecordTool(records RequestRecordReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		getRequestRecordTool,
@@ -75,15 +83,20 @@ func getRequestRecord(
 	input requestRecordInput,
 ) (requestRecordOutput, error) {
 	recordID := strings.TrimSpace(input.RecordID)
-	if recordID == "" {
+	if !requestrecord.IsValidID(recordID) {
 		return requestRecordErrorResult(
-			invalidInputf("record_id must use the non-empty value returned by list_recent_failures"),
+			invalidInputf("record_id must use the exact value returned by list_recent_failures"),
 		)
 	}
-	startedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(input.StartedAt))
+	startedAt, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(input.StartedAt))
 	if err != nil {
 		return requestRecordErrorResult(
 			invalidInputf("started_at must be the RFC3339 value returned by list_recent_failures"),
+		)
+	}
+	if !analyticsconfig.IsSupportedTime(startedAt) {
+		return requestRecordErrorResult(
+			invalidInputf("started_at is outside the supported request record range"),
 		)
 	}
 
@@ -107,7 +120,7 @@ func getRequestRecord(
 func requestRecordInfoFromRecord(record RequestRecord) *requestRecordInfo {
 	return &requestRecordInfo{
 		RecordID:              record.RecordID,
-		StartedAt:             record.StartedAt.Format(time.RFC3339),
+		StartedAt:             record.StartedAt.Format(time.RFC3339Nano),
 		Method:                record.Method,
 		Host:                  record.Host,
 		Path:                  record.Path,

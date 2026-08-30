@@ -3,11 +3,13 @@ package request
 import (
 	"time"
 
+	"github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 const defaultPageSize = 50
@@ -22,15 +24,53 @@ func listOptions(request *adminv1.ListRequestRecordsRequest) (requestbiz.ListOpt
 		return requestbiz.ListOptions{}, err
 	}
 	if !startTime.Before(endTime) {
-		return requestbiz.ListOptions{}, adminservice.BadRequest("查询开始时间必须早于结束时间")
+		return requestbiz.ListOptions{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"查询开始时间必须早于结束时间",
+		)
+	}
+	if !analyticsconfig.IsValidQueryRange(startTime, endTime) {
+		return requestbiz.ListOptions{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"单次最多查询 90 天请求记录",
+		)
+	}
+	for _, resourceID := range []string{
+		request.GetGatewayId(),
+		request.GetRouteId(),
+		request.GetServiceId(),
+		request.GetCallerId(),
+	} {
+		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+			return requestbiz.ListOptions{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"资源筛选条件无效",
+			)
+		}
 	}
 	pageSize := int(request.GetPageSize())
 	if pageSize == 0 {
 		pageSize = defaultPageSize
 	}
+	outcome := requestOutcome(request.GetOutcome())
 	var statusCode *uint16
 	if request.StatusCode != nil {
-		value := uint16(request.GetStatusCode())
+		requestedStatusCode := request.GetStatusCode()
+		if requestedStatusCode > 65535 ||
+			(requestedStatusCode > 0 && requestedStatusCode < 100) {
+			return requestbiz.ListOptions{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"HTTP 状态码无效",
+			)
+		}
+		if outcome != requestbiz.OutcomeUnknown &&
+			requestbiz.ClassifyStatusCode(requestedStatusCode) != outcome {
+			return requestbiz.ListOptions{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"HTTP 状态码与请求结果不一致",
+			)
+		}
+		value := uint16(requestedStatusCode)
 		statusCode = &value
 	}
 	return requestbiz.ListOptions{
@@ -44,7 +84,7 @@ func listOptions(request *adminv1.ListRequestRecordsRequest) (requestbiz.ListOpt
 			Method:     request.GetMethod(),
 			Host:       request.GetHost(),
 			PathPrefix: request.GetPathPrefix(),
-			Outcome:    requestOutcome(request.GetOutcome()),
+			Outcome:    outcome,
 			StatusCode: statusCode,
 			CallerID:   request.GetCallerId(),
 		},
@@ -55,7 +95,10 @@ func listOptions(request *adminv1.ListRequestRecordsRequest) (requestbiz.ListOpt
 
 func requiredTimestamp(value *timestamppb.Timestamp, userMessage string) (time.Time, error) {
 	if value == nil || value.CheckValid() != nil {
-		return time.Time{}, adminservice.BadRequest(userMessage)
+		return time.Time{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			userMessage,
+		)
 	}
 	return value.AsTime(), nil
 }

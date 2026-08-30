@@ -11,9 +11,10 @@ import (
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	analyticsv1 "github.com/lgc202/ingate/api/analytics/v1"
 	requestbiz "github.com/lgc202/ingate/internal/adminapi/biz/request"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
 )
-
-const tokenQuotaExceededResponseDetails = "ingate_ai_token_quota_exceeded"
 
 func requestSummary(summary *analyticsv1.RequestSummary) (requestbiz.Summary, error) {
 	if summary == nil || !validRequestIdentity(summary.GetId(), summary.GetStartedAt()) {
@@ -31,7 +32,7 @@ func requestSummary(summary *analyticsv1.RequestSummary) (requestbiz.Summary, er
 		Host:            summary.GetHost(),
 		Path:            summary.GetPath(),
 		StatusCode:      summary.GetStatusCode(),
-		Outcome:         requestOutcome(summary.GetStatusCode()),
+		Outcome:         requestbiz.ClassifyStatusCode(summary.GetStatusCode()),
 		GatewayID:       summary.GetGatewayId(),
 		RouteID:         summary.GetRouteId(),
 		ServiceID:       summary.GetUpstreamId(),
@@ -65,7 +66,7 @@ func requestRecord(record *alsv1.RequestRecord) (requestbiz.Record, error) {
 		Host:             record.GetHost(),
 		Path:             record.GetPath(),
 		StatusCode:       record.GetStatusCode(),
-		Outcome:          requestOutcome(record.GetStatusCode()),
+		Outcome:          requestbiz.ClassifyStatusCode(record.GetStatusCode()),
 		RequestBytes:     record.GetRequestBytes(),
 		ResponseBytes:    record.GetResponseBytes(),
 		GatewayID:        record.GetGatewayId(),
@@ -82,16 +83,17 @@ func requestRecord(record *alsv1.RequestRecord) (requestbiz.Record, error) {
 	}, nil
 }
 
-// requestRejectionReason 把数据面的内部原因收敛为稳定的管理面产品语义
+// requestRejectionReason 把数据面的内部原因收敛为稳定的管理面产品语义。
 func requestRejectionReason(responseDetails string) requestbiz.RejectionReason {
-	if responseDetails == tokenQuotaExceededResponseDetails {
+	if responseDetails == aiprotocol.TokenQuotaExceededResponseDetails {
 		return requestbiz.RejectionReasonTokenQuotaExceeded
 	}
 	return requestbiz.RejectionReasonNone
 }
 
 func validRequestIdentity(id string, startedAt *timestamppb.Timestamp) bool {
-	return id != "" && startedAt != nil && startedAt.CheckValid() == nil
+	return requestrecord.IsValidID(id) && startedAt != nil && startedAt.CheckValid() == nil &&
+		analyticsconfig.IsSupportedTime(startedAt.AsTime())
 }
 
 func modelCall(call *alsv1.AIModelCall) *requestbiz.ModelCall {
@@ -110,7 +112,7 @@ func modelCall(call *alsv1.AIModelCall) *requestbiz.ModelCall {
 	}
 }
 
-// optionalDuration 校验跨进程返回的 Proto Duration，并保留字段未采集与零耗时的区别
+// optionalDuration 校验跨进程返回的 Proto Duration，并保留字段未采集与零耗时的区别。
 func optionalDuration(value *durationpb.Duration) (*time.Duration, error) {
 	if value == nil {
 		return nil, nil
@@ -119,29 +121,19 @@ func optionalDuration(value *durationpb.Duration) (*time.Duration, error) {
 		return nil, err
 	}
 	duration := value.AsDuration()
+	if duration < 0 {
+		return nil, errors.New("duration must not be negative")
+	}
 	return &duration, nil
 }
 
-// optionalUint64 复制 Proto 可选标量，避免业务对象继续共享生成消息的可变字段
+// optionalUint64 复制 Proto 可选标量，避免业务对象继续共享生成消息的可变字段。
 func optionalUint64(value *uint64) *uint64 {
 	if value == nil {
 		return nil
 	}
 	result := *value
 	return &result
-}
-
-func requestOutcome(statusCode uint32) requestbiz.Outcome {
-	switch {
-	case statusCode >= 500:
-		return requestbiz.OutcomeServerError
-	case statusCode >= 400:
-		return requestbiz.OutcomeClientError
-	case statusCode >= 100:
-		return requestbiz.OutcomeSuccess
-	default:
-		return requestbiz.OutcomeNoResponse
-	}
 }
 
 func analyticsStatusClass(outcome requestbiz.Outcome) analyticsv1.StatusClass {

@@ -2,9 +2,35 @@
 package tool
 
 import (
-	"context"
 	"errors"
 	"time"
+)
+
+const (
+	// TrafficDimensionGateway 按逻辑网关汇总流量。
+	TrafficDimensionGateway TrafficDimension = "gateway"
+	// TrafficDimensionRoute 按路由汇总流量。
+	TrafficDimensionRoute TrafficDimension = "route"
+	// TrafficDimensionService 按上游服务汇总流量。
+	TrafficDimensionService TrafficDimension = "service"
+)
+
+const (
+	// TrafficOrderRequestCount 按请求量从高到低排序。
+	TrafficOrderRequestCount TrafficOrder = "request_count"
+	// TrafficOrderServerErrorRate 按服务端错误率从高到低排序。
+	TrafficOrderServerErrorRate TrafficOrder = "server_error_rate"
+	// TrafficOrderP95Duration 按 P95 请求耗时从高到低排序。
+	TrafficOrderP95Duration TrafficOrder = "p95_duration"
+)
+
+const (
+	// FailureOutcomeClientError 只查询客户端错误请求。
+	FailureOutcomeClientError FailureOutcome = "client_error"
+	// FailureOutcomeServerError 只查询服务端错误请求。
+	FailureOutcomeServerError FailureOutcome = "server_error"
+	// FailureOutcomeNoResponse 只查询未获得有效 HTTP 响应的请求。
+	FailureOutcomeNoResponse FailureOutcome = "no_response"
 )
 
 // ErrQueryTargetNotFound 表示模型引用的精确查询目标已经删除或超出保留期。
@@ -109,20 +135,8 @@ type Service struct {
 // TrafficDimension 是流量统计支持的资源分组维度。
 type TrafficDimension string
 
-const (
-	TrafficDimensionGateway TrafficDimension = "gateway"
-	TrafficDimensionRoute   TrafficDimension = "route"
-	TrafficDimensionService TrafficDimension = "service"
-)
-
 // TrafficOrder 是流量排名支持的排序依据。
 type TrafficOrder string
-
-const (
-	TrafficOrderRequestCount    TrafficOrder = "request_count"
-	TrafficOrderServerErrorRate TrafficOrder = "server_error_rate"
-	TrafficOrderP95Duration     TrafficOrder = "p95_duration"
-)
 
 // TrafficQuery 描述一次流量分析的时间、资源范围和排名方式。
 type TrafficQuery struct {
@@ -165,12 +179,6 @@ type TrafficAnalysis struct {
 
 // FailureOutcome 是失败请求工具支持的结果分类。
 type FailureOutcome string
-
-const (
-	FailureOutcomeClientError FailureOutcome = "client_error"
-	FailureOutcomeServerError FailureOutcome = "server_error"
-	FailureOutcomeNoResponse  FailureOutcome = "no_response"
-)
 
 // FailureQuery 描述近期失败请求的时间、资源和结果范围。
 type FailureQuery struct {
@@ -257,57 +265,4 @@ type AIModelCall struct {
 	InputTokens   *uint64
 	OutputTokens  *uint64
 	TotalTokens   *uint64
-}
-
-// GatewayReader 是网关列表工具所需的最小查询边界。
-type GatewayReader interface {
-	ListGateways(ctx context.Context, query ResourceListQuery) (GatewayPage, error)
-}
-
-// RouteReader 是路由列表工具所需的最小查询边界。
-type RouteReader interface {
-	ListRoutes(ctx context.Context, query ResourceListQuery) (RoutePage, error)
-}
-
-// RouteConfigurationReader 是单条路由配置链路工具所需的查询边界。
-type RouteConfigurationReader interface {
-	GetRouteConfiguration(ctx context.Context, routeID string) (RouteConfiguration, error)
-}
-
-// ServiceReader 是服务列表工具所需的最小查询边界。
-type ServiceReader interface {
-	ListServices(ctx context.Context, query ResourceListQuery) (ServicePage, error)
-}
-
-// TrafficReader 是流量分析工具所需的查询边界。
-type TrafficReader interface {
-	AnalyzeTraffic(ctx context.Context, query TrafficQuery) (TrafficAnalysis, error)
-}
-
-// FailureReader 是失败请求工具所需的查询边界。
-type FailureReader interface {
-	ListFailures(ctx context.Context, query FailureQuery) (FailurePage, error)
-}
-
-// RequestRecordReader 是单次请求明细工具所需的查询边界。
-type RequestRecordReader interface {
-	GetRequestRecord(ctx context.Context, recordID string, startedAt time.Time) (RequestRecord, error)
-}
-
-// CallerTokenQuotaReader 是单个调用方额度诊断工具所需的查询边界。
-type CallerTokenQuotaReader interface {
-	GetCallerTokenQuota(ctx context.Context, callerID string) (CallerTokenQuota, error)
-}
-
-// QuerySource 明确列出运维 Agent 当前需要的所有外部查询能力。
-// 单个工具只接收自己的窄接口；这里仅作为进程装配点组合这些能力。
-type QuerySource interface {
-	GatewayReader
-	RouteReader
-	RouteConfigurationReader
-	ServiceReader
-	TrafficReader
-	FailureReader
-	RequestRecordReader
-	CallerTokenQuotaReader
 }

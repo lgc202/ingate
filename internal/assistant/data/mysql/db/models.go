@@ -55,8 +55,6 @@ type AssistantAgentExecutionStep struct {
 	Summary string
 	// 失败原因的稳定代码，非失败状态为空
 	ErrorCode string
-	// 步骤创建时间，统一使用 UTC
-	CreatedAt time.Time
 	// 步骤开始执行时间
 	StartedAt time.Time
 	// 步骤结束时间；未到终态时为空
@@ -73,7 +71,7 @@ type AssistantConversation struct {
 	Title string
 	// 会话创建时间，统一使用 UTC
 	CreatedAt time.Time
-	// 最近一次消息或执行状态变化时间，用于会话排序和游标分页
+	// 最近一次用户消息或执行终态时间，用于会话排序和游标分页
 	UpdatedAt time.Time
 }
 

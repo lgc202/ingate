@@ -1,4 +1,4 @@
-// Package pluginsource 提供插件源管理和目录同步 API
+// Package pluginsource 提供插件源管理和目录同步 API。
 package pluginsource
 
 import (
@@ -11,56 +11,45 @@ import (
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
-// Service 实现插件源管理 API
+// Service 实现插件源管理 API。
 type Service struct {
-	sources *pluginsourcebiz.Service
+	sources *pluginsourcebiz.Usecase
 }
 
-// NewService 创建插件源协议服务
-func NewService(sources *pluginsourcebiz.Service) *Service {
+// NewService 创建插件源协议服务。
+func NewService(sources *pluginsourcebiz.Usecase) *Service {
 	return &Service{sources: sources}
 }
 
+// ListPluginSources 返回满足筛选条件的插件源。
 func (s *Service) ListPluginSources(
 	ctx context.Context,
 	request *adminv1.ListPluginSourcesRequest,
 ) (*adminv1.ListPluginSourcesResponse, error) {
-	filter := pluginsourcebiz.ListFilter{Query: request.GetQuery(), Enabled: request.Enabled}
-	switch request.GetSyncState() {
-	case adminv1.PluginSourceSyncState_PLUGIN_SOURCE_SYNC_STATE_READY:
-		filter.State = pluginsourcebiz.SyncStateReady
-	case adminv1.PluginSourceSyncState_PLUGIN_SOURCE_SYNC_STATE_ERROR:
-		filter.State = pluginsourcebiz.SyncStateError
-	case adminv1.PluginSourceSyncState_PLUGIN_SOURCE_SYNC_STATE_DISABLED:
-		filter.State = pluginsourcebiz.SyncStateDisabled
-	case adminv1.PluginSourceSyncState_PLUGIN_SOURCE_SYNC_STATE_NOT_SYNCED:
-		filter.State = pluginsourcebiz.SyncStateNotSynced
+	filter := pluginsourcebiz.ListFilter{
+		Query:   request.GetQuery(),
+		Enabled: request.Enabled,
+		State:   syncStateFilter(request.GetSyncState()),
 	}
-	sources, err := s.sources.List(ctx, filter)
+	page, err := s.sources.List(
+		ctx,
+		adminservice.PageRequest(request.GetLimit(), request.GetCursor()),
+		filter,
+	)
 	if err != nil {
 		return nil, err
 	}
-	page := adminservice.PageRequest(request.GetLimit(), request.GetCursor())
-	start := 0
-	if page.Cursor != "" {
-		for i := range sources {
-			if sources[i].ID == page.Cursor {
-				start = i + 1
-				break
-			}
-		}
+	sources := make([]*adminv1.PluginSource, len(page.Items))
+	for i := range page.Items {
+		sources[i] = sourceResponse(page.Items[i])
 	}
-	end := min(start+int(page.Limit), len(sources))
-	response := &adminv1.ListPluginSourcesResponse{Sources: make([]*adminv1.PluginSource, 0, end-start)}
-	for _, source := range sources[start:end] {
-		response.Sources = append(response.Sources, sourceResponse(source))
-	}
-	if end < len(sources) && end > start {
-		response.NextCursor = sources[end-1].ID
-	}
-	return response, nil
+	return &adminv1.ListPluginSourcesResponse{
+		Sources:    sources,
+		NextCursor: page.NextCursor,
+	}, nil
 }
 
+// GetPluginSource 返回指定插件源。
 func (s *Service) GetPluginSource(
 	ctx context.Context,
 	request *adminv1.GetPluginSourceRequest,
@@ -72,11 +61,16 @@ func (s *Service) GetPluginSource(
 	return sourceResponse(source), nil
 }
 
+// CreatePluginSource 创建自定义插件源。
 func (s *Service) CreatePluginSource(
 	ctx context.Context,
 	request *adminv1.CreatePluginSourceRequest,
 ) (*adminv1.PluginSource, error) {
-	spec, err := createSpec(request)
+	spec, err := parsePluginSourceSpec(
+		request.GetName(),
+		request.GetUrl(),
+		request.GetEnabled(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -87,21 +81,32 @@ func (s *Service) CreatePluginSource(
 	return sourceResponse(source), nil
 }
 
+// UpdatePluginSource 完整替换自定义插件源配置。
 func (s *Service) UpdatePluginSource(
 	ctx context.Context,
 	request *adminv1.UpdatePluginSourceRequest,
 ) (*adminv1.PluginSource, error) {
-	spec, err := updateSpec(request)
+	spec, err := parsePluginSourceSpec(
+		request.GetName(),
+		request.GetUrl(),
+		request.GetEnabled(),
+	)
 	if err != nil {
 		return nil, err
 	}
-	source, err := s.sources.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	source, err := s.sources.Replace(
+		ctx,
+		request.GetId(),
+		request.GetVersion(),
+		spec,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return sourceResponse(source), nil
 }
 
+// DeletePluginSource 删除自定义插件源。
 func (s *Service) DeletePluginSource(
 	ctx context.Context,
 	request *adminv1.DeletePluginSourceRequest,
@@ -112,6 +117,7 @@ func (s *Service) DeletePluginSource(
 	return &emptypb.Empty{}, nil
 }
 
+// SyncPluginSource 立即同步指定插件源。
 func (s *Service) SyncPluginSource(
 	ctx context.Context,
 	request *adminv1.SyncPluginSourceRequest,
@@ -121,4 +127,19 @@ func (s *Service) SyncPluginSource(
 		return nil, err
 	}
 	return sourceResponse(source), nil
+}
+
+func syncStateFilter(state adminv1.PluginSourceSyncState) pluginsourcebiz.SyncState {
+	switch state {
+	case adminv1.PluginSourceSyncState_PLUGIN_SOURCE_SYNC_STATE_READY:
+		return pluginsourcebiz.SyncStateReady
+	case adminv1.PluginSourceSyncState_PLUGIN_SOURCE_SYNC_STATE_ERROR:
+		return pluginsourcebiz.SyncStateError
+	case adminv1.PluginSourceSyncState_PLUGIN_SOURCE_SYNC_STATE_DISABLED:
+		return pluginsourcebiz.SyncStateDisabled
+	case adminv1.PluginSourceSyncState_PLUGIN_SOURCE_SYNC_STATE_NOT_SYNCED:
+		return pluginsourcebiz.SyncStateNotSynced
+	default:
+		return ""
+	}
 }

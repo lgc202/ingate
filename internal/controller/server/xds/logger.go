@@ -7,13 +7,13 @@ import (
 	"github.com/envoyproxy/go-control-plane/pkg/log"
 )
 
+var _ log.Logger = (*slogLogger)(nil)
+
 type slogLogger struct {
 	logger *slog.Logger
 }
 
-var _ log.Logger = (*slogLogger)(nil)
-
-// NewSlogLogger 将 go-control-plane xDS 日志接入项目的结构化日志入口
+// NewSlogLogger 将 go-control-plane xDS 日志接入项目的结构化日志入口。
 func NewSlogLogger(logger *slog.Logger) log.Logger {
 	return &slogLogger{logger: logger}
 }

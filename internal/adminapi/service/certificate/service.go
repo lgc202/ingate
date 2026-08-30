@@ -1,4 +1,4 @@
-// Package certificate 提供 Certificate 管理 API
+// Package certificate 提供 Certificate 管理 API。
 package certificate
 
 import (
@@ -11,16 +11,17 @@ import (
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
-// Service 实现网关 TLS 证书管理 API
+// Service 实现网关 TLS 证书管理 API。
 type Service struct {
-	certificates *certificatebiz.Service
+	certificates *certificatebiz.Usecase
 }
 
-// NewService 创建证书协议服务
-func NewService(certificates *certificatebiz.Service) *Service {
+// NewService 创建证书协议服务。
+func NewService(certificates *certificatebiz.Usecase) *Service {
 	return &Service{certificates: certificates}
 }
 
+// ListCertificates 返回满足筛选条件的证书列表。
 func (s *Service) ListCertificates(
 	ctx context.Context,
 	request *adminv1.ListCertificatesRequest,
@@ -33,26 +34,38 @@ func (s *Service) ListCertificates(
 	if err != nil {
 		return nil, err
 	}
-	response := &adminv1.ListCertificatesResponse{
-		Certificates: make([]*adminv1.Certificate, 0, len(page.Items)),
-		NextCursor:   page.NextCursor,
-	}
+	certificates := make([]*adminv1.Certificate, len(page.Items))
 	for i := range page.Items {
-		response.Certificates = append(response.Certificates, certificateResponse(&page.Items[i]))
+		certificates[i] = certificateSummaryResponse(&page.Items[i])
 	}
-	return response, nil
+	return &adminv1.ListCertificatesResponse{
+		Certificates: certificates,
+		NextCursor:   page.NextCursor,
+	}, nil
 }
 
-func (s *Service) GetCertificate(ctx context.Context, request *adminv1.GetCertificateRequest) (*adminv1.Certificate, error) {
+// GetCertificate 返回指定证书及其证书链。
+func (s *Service) GetCertificate(
+	ctx context.Context,
+	request *adminv1.GetCertificateRequest,
+) (*adminv1.Certificate, error) {
 	certificate, err := s.certificates.Get(ctx, request.GetId())
 	if err != nil {
 		return nil, err
 	}
-	return certificateWithPEMResponse(certificate), nil
+	return certificateDetailResponse(certificate), nil
 }
 
-func (s *Service) CreateCertificate(ctx context.Context, request *adminv1.CreateCertificateRequest) (*adminv1.Certificate, error) {
-	spec, err := createSpec(request)
+// CreateCertificate 创建证书。
+func (s *Service) CreateCertificate(
+	ctx context.Context,
+	request *adminv1.CreateCertificateRequest,
+) (*adminv1.Certificate, error) {
+	spec, err := parseCertificateSpec(
+		request.GetName(),
+		request.GetCertificatePem(),
+		request.GetPrivateKeyPem(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -60,22 +73,35 @@ func (s *Service) CreateCertificate(ctx context.Context, request *adminv1.Create
 	if err != nil {
 		return nil, err
 	}
-	return certificateWithPEMResponse(certificate), nil
+	return certificateDetailResponse(certificate), nil
 }
 
-func (s *Service) UpdateCertificate(ctx context.Context, request *adminv1.UpdateCertificateRequest) (*adminv1.Certificate, error) {
-	spec, err := updateSpec(request)
+// UpdateCertificate 完整替换证书配置；省略证书链和私钥时保留已有密钥对。
+func (s *Service) UpdateCertificate(
+	ctx context.Context,
+	request *adminv1.UpdateCertificateRequest,
+) (*adminv1.Certificate, error) {
+	spec, preserveKeyPair, err := parseCertificateReplacement(request)
 	if err != nil {
 		return nil, err
 	}
-	certificate, err := s.certificates.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	input := certificatebiz.ReplaceInput{
+		ExpectedGeneration: request.GetVersion(),
+		Spec:               spec,
+		PreserveKeyPair:    preserveKeyPair,
+	}
+	certificate, err := s.certificates.Replace(ctx, request.GetId(), input)
 	if err != nil {
 		return nil, err
 	}
-	return certificateWithPEMResponse(certificate), nil
+	return certificateDetailResponse(certificate), nil
 }
 
-func (s *Service) DeleteCertificate(ctx context.Context, request *adminv1.DeleteCertificateRequest) (*emptypb.Empty, error) {
+// DeleteCertificate 删除证书。
+func (s *Service) DeleteCertificate(
+	ctx context.Context,
+	request *adminv1.DeleteCertificateRequest,
+) (*emptypb.Empty, error) {
 	if err := s.certificates.Delete(ctx, request.GetId(), request.GetVersion()); err != nil {
 		return nil, err
 	}

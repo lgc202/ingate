@@ -28,6 +28,11 @@ type serviceInfo struct {
 	ModelProtocol string `json:"model_protocol,omitempty"`
 }
 
+// ServiceReader 是服务列表工具实际使用的查询边界。
+type ServiceReader interface {
+	ListServices(context.Context, ResourceListQuery) (ServicePage, error)
+}
+
 func newServiceTool(resources ServiceReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		listServicesTool,

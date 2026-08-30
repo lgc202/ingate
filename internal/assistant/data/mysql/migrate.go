@@ -7,9 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"time"
 
-	drivermysql "github.com/go-sql-driver/mysql"
 	"github.com/pressly/goose/v3"
 
 	"github.com/lgc202/ingate/internal/assistant/conf"
@@ -22,13 +20,8 @@ var migrationFiles embed.FS
 
 // Migrate 按版本应用运维助手的 MySQL 表结构变更。
 func Migrate(ctx context.Context, config *conf.Data_MySQL) (applied int, err error) {
-	dsnConfig := drivermysql.Config{
-		User: config.GetUsername(), Passwd: config.GetPassword(), Net: "tcp",
-		Addr: config.GetAddress(), DBName: config.GetDatabase(), ParseTime: true,
-		Loc: time.UTC, Timeout: config.GetDialTimeout().AsDuration(),
-	}
-	dsn := dsnConfig.FormatDSN()
-	connection, err := sql.Open("mysql", dsn)
+	dsnConfig := driverConfig(config)
+	connection, err := sql.Open("mysql", dsnConfig.FormatDSN())
 	if err != nil {
 		return 0, fmt.Errorf("open MySQL migration connection: %w", err)
 	}

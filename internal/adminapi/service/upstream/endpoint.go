@@ -1,59 +1,85 @@
 package upstream
 
 import (
+	"fmt"
 	"net"
-	"net/netip"
 	"strconv"
-	"strings"
+
+	"github.com/go-kratos/kratos/v3/errors"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
 )
 
-func upstreamEndpoints(inputs []*adminv1.UpstreamEndpoint) ([]resource.Endpoint, error) {
-	endpoints := make([]resource.Endpoint, 0, len(inputs))
-	seen := make(map[string]struct{}, len(inputs))
-	for _, input := range inputs {
-		if input == nil {
-			return nil, adminservice.BadRequest("服务端点不能为空")
-		}
-		address := strings.ToLower(strings.TrimSpace(input.GetAddress()))
-		if !validEndpointAddress(address) {
-			return nil, adminservice.BadRequest("服务端点地址格式不正确")
-		}
-		port := int(input.GetPort())
-		weight := int(input.GetWeight())
-		if weight == 0 {
-			weight = defaultEndpointWeight
-		}
+func parseEndpoints(configs []*adminv1.UpstreamEndpoint) ([]resource.Endpoint, error) {
+	if len(configs) == 0 {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"至少需要配置一个服务端点",
+		)
+	}
+	if len(configs) > upstreamconfig.MaxEndpoints {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"服务端点数量超过限制",
+		)
+	}
 
-		key := net.JoinHostPort(address, strconv.Itoa(port))
-		if _, exists := seen[key]; exists {
-			return nil, adminservice.BadRequest("服务端点不能重复")
+	endpoints := make([]resource.Endpoint, 0, len(configs))
+	seenEndpointKeys := make(map[string]bool, len(configs))
+	for _, config := range configs {
+		if config == nil {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"服务端点不能为空",
+			)
 		}
-		seen[key] = struct{}{}
-		endpoints = append(endpoints, resource.Endpoint{Address: address, Port: port, Weight: weight})
+		endpoint, err := parseEndpoint(config)
+		if err != nil {
+			return nil, err
+		}
+		endpointKey := net.JoinHostPort(endpoint.Address, strconv.Itoa(endpoint.Port))
+		if seenEndpointKeys[endpointKey] {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				fmt.Sprintf("服务端点 %q 不能重复", endpointKey),
+			)
+		}
+		seenEndpointKeys[endpointKey] = true
+		endpoints = append(endpoints, endpoint)
 	}
 	return endpoints, nil
 }
 
-func validEndpointAddress(address string) bool {
-	if _, err := netip.ParseAddr(address); err == nil {
-		return true
+func parseEndpoint(config *adminv1.UpstreamEndpoint) (resource.Endpoint, error) {
+	address := upstreamconfig.NormalizeAddress(config.GetAddress())
+	if !upstreamconfig.IsValidAddress(address) {
+		return resource.Endpoint{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"服务端点地址格式不正确",
+		)
 	}
-	if address == "" || len(address) > 253 {
-		return false
+	port := int(config.GetPort())
+	if !upstreamconfig.IsValidEndpointPort(port) {
+		return resource.Endpoint{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"服务端点端口必须在 1 到 65535 之间",
+		)
 	}
-	for label := range strings.SplitSeq(strings.ToLower(address), ".") {
-		if label == "" || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
-			return false
-		}
-		for _, char := range label {
-			if (char < 'a' || char > 'z') && (char < '0' || char > '9') && char != '-' {
-				return false
-			}
-		}
+	weight := int(config.GetWeight())
+	if weight == 0 {
+		weight = upstreamconfig.DefaultEndpointWeight
 	}
-	return true
+	if !upstreamconfig.IsValidEndpointWeight(weight) {
+		return resource.Endpoint{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"服务端点权重必须在 1 到 1000 之间",
+		)
+	}
+	return resource.Endpoint{
+		Address: address,
+		Port:    port,
+		Weight:  weight,
+	}, nil
 }

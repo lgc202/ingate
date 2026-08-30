@@ -5,7 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql/db"
@@ -31,7 +32,7 @@ func (s *Store) StartExecutionStep(
 	executionID string,
 	workerID string,
 	step execution.Step,
-) (execution.Step, error) {
+) error {
 	err := s.withTransaction(ctx, func(queries *db.Queries) error {
 		if _, err := queries.GetExecutionForWorkerUpdate(ctx, db.GetExecutionForWorkerUpdateParams{
 			ID: executionID, WorkerID: workerID,
@@ -45,34 +46,25 @@ func (s *Store) StartExecutionStep(
 		if err != nil {
 			return fmt.Errorf("allocate assistant execution step sequence: %w", err)
 		}
-		now := time.Now().UTC()
-		step.ExecutionID = executionID
-		step.Sequence = uint32(sequence)
-		step.State = execution.StepStateRunning
-		step.CreatedAt = now
-		step.StartedAt = &now
 		if err := queries.CreateExecutionStep(ctx, db.CreateExecutionStepParams{
 			ID:          step.ID,
-			ExecutionID: step.ExecutionID,
-			Sequence:    step.Sequence,
+			ExecutionID: executionID,
+			Sequence:    uint32(sequence),
 			Kind:        executionStepKindToDB(step.Kind),
 			State:       executionStepStateRunning,
 			Name:        step.Name,
 			CallID:      step.CallID,
-			Summary:     step.Summary,
-			ErrorCode:   string(step.ErrorCode),
-			CreatedAt:   step.CreatedAt,
-			StartedAt:   now,
-			FinishedAt:  sql.NullTime{},
+			Summary:     "",
+			ErrorCode:   "",
 		}); err != nil {
 			return fmt.Errorf("create assistant execution step: %w", err)
 		}
 		return nil
 	})
 	if err != nil {
-		return execution.Step{}, fmt.Errorf("start assistant execution step transaction: %w", err)
+		return fmt.Errorf("start assistant execution step transaction: %w", err)
 	}
-	return step, nil
+	return nil
 }
 
 // CompleteExecutionStep 只结束当前 Worker 实际执行成功的步骤。
@@ -87,7 +79,6 @@ func (s *Store) CompleteExecutionStep(
 ) error {
 	rows, err := s.queries.CompleteExecutionStep(ctx, db.CompleteExecutionStepParams{
 		Summary:     summary,
-		FinishedAt:  sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		ExecutionID: executionID,
 		CallID:      callID,
 		Kind:        executionStepKindToDB(kind),
@@ -102,7 +93,8 @@ func (s *Store) CompleteExecutionStep(
 	return nil
 }
 
-// FailExecutionStep 记录工具调用等单个步骤的稳定失败码，原始错误只沿调用链返回日志边界。
+// FailExecutionStep 记录工具调用等单个步骤的稳定失败码，
+// 原始错误只沿调用链返回日志边界。
 func (s *Store) FailExecutionStep(
 	ctx context.Context,
 	executionID string,
@@ -113,7 +105,6 @@ func (s *Store) FailExecutionStep(
 ) error {
 	rows, err := s.queries.FailExecutionStep(ctx, db.FailExecutionStepParams{
 		ErrorCode:   string(code),
-		FinishedAt:  sql.NullTime{Time: time.Now().UTC(), Valid: true},
 		ExecutionID: executionID,
 		CallID:      callID,
 		Kind:        executionStepKindToDB(kind),
@@ -144,7 +135,7 @@ func (s *Store) ListExecutionSteps(ctx context.Context, actorID, executionID str
 	for _, row := range rows {
 		step, err := executionStepFromDB(row)
 		if err != nil {
-			return nil, fmt.Errorf("decode assistant execution step: %w", err)
+			return nil, fmt.Errorf("restore assistant execution step: %w", err)
 		}
 		steps = append(steps, step)
 	}
@@ -152,6 +143,11 @@ func (s *Store) ListExecutionSteps(ctx context.Context, actorID, executionID str
 }
 
 func executionStepFromDB(item db.AssistantAgentExecutionStep) (execution.Step, error) {
+	if uuid.Validate(item.ID) != nil || uuid.Validate(item.ExecutionID) != nil ||
+		item.Sequence == 0 || item.Name == "" ||
+		item.CallID == "" || item.StartedAt.IsZero() {
+		return execution.Step{}, fmt.Errorf("invalid stored assistant execution step %q", item.ID)
+	}
 	kind, err := executionStepKindFromDB(item.Kind)
 	if err != nil {
 		return execution.Step{}, err
@@ -170,11 +166,31 @@ func executionStepFromDB(item db.AssistantAgentExecutionStep) (execution.Step, e
 		CallID:      item.CallID,
 		Summary:     item.Summary,
 		ErrorCode:   execution.FailureCode(item.ErrorCode),
-		CreatedAt:   item.CreatedAt,
+		StartedAt:   item.StartedAt,
 	}
-	result.StartedAt = &item.StartedAt
 	if item.FinishedAt.Valid {
 		result.FinishedAt = &item.FinishedAt.Time
+	}
+	if item.FinishedAt.Valid && item.FinishedAt.Time.Before(item.StartedAt) {
+		return execution.Step{}, fmt.Errorf("assistant execution step %s contains invalid timestamps", item.ID)
+	}
+	switch result.State {
+	case execution.StepStateRunning:
+		if item.FinishedAt.Valid || result.Summary != "" || result.ErrorCode != "" {
+			return execution.Step{}, fmt.Errorf("running assistant execution step %s is inconsistent", item.ID)
+		}
+	case execution.StepStateCompleted:
+		if !item.FinishedAt.Valid || result.Summary == "" || result.ErrorCode != "" {
+			return execution.Step{}, fmt.Errorf("completed assistant execution step %s is inconsistent", item.ID)
+		}
+	case execution.StepStateFailed:
+		if !item.FinishedAt.Valid || result.Summary != "" || !validFailureCode(result.ErrorCode) {
+			return execution.Step{}, fmt.Errorf("failed assistant execution step %s is inconsistent", item.ID)
+		}
+	case execution.StepStateCancelled:
+		if !item.FinishedAt.Valid || result.Summary != "" || result.ErrorCode != "" {
+			return execution.Step{}, fmt.Errorf("cancelled assistant execution step %s is inconsistent", item.ID)
+		}
 	}
 	return result, nil
 }

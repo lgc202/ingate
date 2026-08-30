@@ -20,7 +20,11 @@ const (
 	tlsTransportProtocol   = "tls"
 )
 
-func (c *compilation) configureHTTPSListener(listener *listenerv3.Listener, group *listenerGroup, hcm *anypb.Any) error {
+func (c *compilation) configureHTTPSListener(
+	listener *listenerv3.Listener,
+	group *listenerGroup,
+	hcm *anypb.Any,
+) error {
 	inspector, err := anypb.New(&tlsinspectorv3.TlsInspector{})
 	if err != nil {
 		return fmt.Errorf("encode TLS inspector for listener %s: %w", listener.Name, err)
@@ -30,19 +34,24 @@ func (c *compilation) configureHTTPSListener(listener *listenerv3.Listener, grou
 		ConfigType: &listenerv3.ListenerFilter_TypedConfig{TypedConfig: inspector},
 	}}
 
-	gateways := slices.Clone(group.gateways)
-	slices.SortFunc(gateways, func(a, b gatewayListener) int {
+	gatewayListeners := slices.Clone(group.gatewayListeners)
+	slices.SortFunc(gatewayListeners, func(a, b gatewayListener) int {
 		if result := cmp.Compare(a.gatewayID, b.gatewayID); result != 0 {
 			return result
 		}
 		return cmp.Compare(a.hostname, b.hostname)
 	})
-	for _, gateway := range gateways {
-		filterChain, err := buildHTTPSFilterChain(listener.Name, gateway, c.certificates[gateway.certificateRef], hcm)
+	for _, gatewayListener := range gatewayListeners {
+		filterChain, err := buildHTTPSFilterChain(
+			listener.Name,
+			gatewayListener,
+			c.certificates[gatewayListener.certificateRef],
+			hcm,
+		)
 		if err != nil {
 			return err
 		}
-		if gateway.hostname == "*" {
+		if gatewayListener.hostname == "*" {
 			listener.DefaultFilterChain = filterChain
 		} else {
 			listener.FilterChains = append(listener.FilterChains, filterChain)
@@ -51,7 +60,12 @@ func (c *compilation) configureHTTPSListener(listener *listenerv3.Listener, grou
 	return nil
 }
 
-func buildHTTPSFilterChain(listenerName string, gateway gatewayListener, certificate *gatewayv1.Certificate, hcm *anypb.Any) (*listenerv3.FilterChain, error) {
+func buildHTTPSFilterChain(
+	listenerName string,
+	gatewayListener gatewayListener,
+	certificate *gatewayv1.Certificate,
+	hcm *anypb.Any,
+) (*listenerv3.FilterChain, error) {
 	tlsContext := &tlsv3.DownstreamTlsContext{CommonTlsContext: &tlsv3.CommonTlsContext{
 		TlsCertificates: []*tlsv3.TlsCertificate{{
 			CertificateChain: inlineStringDataSource(certificate.Spec.CertificatePEM),
@@ -60,21 +74,31 @@ func buildHTTPSFilterChain(listenerName string, gateway gatewayListener, certifi
 		AlpnProtocols: []string{"h2", "http/1.1"},
 	}}
 	if err := tlsContext.ValidateAll(); err != nil {
-		return nil, fmt.Errorf("validate TLS context for gateway %q on listener %s: %w", gateway.gatewayID, listenerName, err)
+		return nil, fmt.Errorf(
+			"validate TLS context for gateway %q on listener %s: %w",
+			gatewayListener.gatewayID,
+			listenerName,
+			err,
+		)
 	}
 	typedTLSContext, err := anypb.New(tlsContext)
 	if err != nil {
-		return nil, fmt.Errorf("encode TLS context for gateway %q on listener %s: %w", gateway.gatewayID, listenerName, err)
+		return nil, fmt.Errorf(
+			"encode TLS context for gateway %q on listener %s: %w",
+			gatewayListener.gatewayID,
+			listenerName,
+			err,
+		)
 	}
 	filterChain := httpFilterChain(hcm)
-	filterChain.Name = listenerName + "/gateway/" + gateway.gatewayID + "/" + gateway.hostname
+	filterChain.Name = listenerName + "/gateway/" + gatewayListener.gatewayID + "/" + gatewayListener.hostname
 	filterChain.TransportSocket = &corev3.TransportSocket{
 		Name:       tlsTransportSocketName,
 		ConfigType: &corev3.TransportSocket_TypedConfig{TypedConfig: typedTLSContext},
 	}
-	if gateway.hostname != "*" {
+	if gatewayListener.hostname != "*" {
 		filterChain.FilterChainMatch = &listenerv3.FilterChainMatch{
-			ServerNames:       []string{gateway.hostname},
+			ServerNames:       []string{gatewayListener.hostname},
 			TransportProtocol: tlsTransportProtocol,
 		}
 	}

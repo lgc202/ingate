@@ -31,7 +31,7 @@ type openAIStreamDelta struct {
 }
 
 // AnthropicStream 把 Anthropic SSE 增量转换为 OpenAI Chat Completions SSE
-// 状态只属于一次请求，负责跨 ExtProc Body chunk 拼接不完整事件
+// 状态只属于一次请求，负责跨 ExtProc Body chunk 拼接不完整事件。
 type AnthropicStream struct {
 	buffer              []byte
 	clientModel         string
@@ -47,12 +47,12 @@ type AnthropicStream struct {
 	outputTokens        int64
 }
 
-// NewAnthropicStream 创建一条 Anthropic 响应流的转换状态
+// NewAnthropicStream 创建一条 Anthropic 响应流的转换状态。
 func NewAnthropicStream(clientModel string) *AnthropicStream {
 	return &AnthropicStream{clientModel: clientModel}
 }
 
-// Convert 接收任意边界的响应 chunk，并只输出已经完整解析的 OpenAI SSE 事件
+// Convert 接收任意边界的响应 chunk，并只输出已经完整解析的 OpenAI SSE 事件。
 func (s *AnthropicStream) Convert(chunk []byte, endOfStream bool) ([]byte, ResponseMetadata, bool, error) {
 	// gRPC chunk 与 SSE 事件没有边界对应关系，先拼入 buffer 再逐个提取完整事件
 	s.buffer = append(s.buffer, chunk...)
@@ -103,8 +103,8 @@ func nextSSEEvent(buffer []byte) (event, remaining []byte, found bool) {
 	return nil, buffer, false
 }
 
-func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
-	// 同时兼容 LF 和 CRLF，并忽略 comment、id 等当前转换不需要的 SSE 字段
+func parseSSEEvent(event []byte) (string, []byte) {
+	// 同时兼容 LF 和 CRLF，并忽略 comment、id 等当前转换不需要的 SSE 字段。
 	event = bytes.ReplaceAll(event, []byte("\r\n"), []byte("\n"))
 	var eventType string
 	var data []byte
@@ -114,9 +114,16 @@ func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
 			continue
 		}
 		if value, ok := bytes.CutPrefix(line, []byte("data:")); ok {
-			data = append(data, bytes.TrimSpace(value)...)
+			value = bytes.TrimPrefix(value, []byte{' '})
+			data = append(data, value...)
+			data = append(data, '\n')
 		}
 	}
+	return eventType, bytes.TrimSuffix(data, []byte{'\n'})
+}
+
+func (s *AnthropicStream) convertEvent(event []byte) ([]byte, bool, error) {
+	eventType, data := parseSSEEvent(event)
 	if len(data) == 0 {
 		return nil, false, nil
 	}

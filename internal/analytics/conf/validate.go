@@ -1,4 +1,4 @@
-// Package conf 定义并校验 ingate-analytics 进程配置
+// Package conf 定义并校验 ingate-analytics 进程配置。
 package conf
 
 import (
@@ -6,57 +6,55 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/kafkaclient"
 )
 
 var clickHouseIdentifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
-// Validate 校验 Analytics 进程启动所需的配置
+// Validate 校验 Analytics 进程启动所需的配置。
 func (c *Bootstrap) Validate() error {
-	if c.GetServer() == nil || c.GetServer().GetHttp() == nil || c.GetServer().GetGrpc() == nil {
+	server := c.GetServer()
+	if server == nil || server.GetHttp() == nil || server.GetGrpc() == nil {
 		return errors.New("server HTTP and gRPC config are required")
 	}
-	if strings.TrimSpace(c.GetServer().GetHttp().GetAddr()) == "" {
+	httpServer := server.GetHttp()
+	if strings.TrimSpace(httpServer.GetAddr()) == "" {
 		return errors.New("server HTTP address must not be empty")
 	}
-	if c.GetServer().GetHttp().GetTimeout() == nil || c.GetServer().GetHttp().GetTimeout().AsDuration() <= 0 {
+	if httpServer.GetTimeout() == nil || httpServer.GetTimeout().AsDuration() <= 0 {
 		return errors.New("server HTTP timeout must be greater than zero")
 	}
-	if strings.TrimSpace(c.GetServer().GetGrpc().GetAddr()) == "" {
+	grpcServer := server.GetGrpc()
+	if strings.TrimSpace(grpcServer.GetAddr()) == "" {
 		return errors.New("server gRPC address must not be empty")
 	}
-	if c.GetServer().GetGrpc().GetTimeout() == nil || c.GetServer().GetGrpc().GetTimeout().AsDuration() <= 0 {
+	if grpcServer.GetTimeout() == nil || grpcServer.GetTimeout().AsDuration() <= 0 {
 		return errors.New("server gRPC timeout must be greater than zero")
 	}
-	grpcTLS := c.GetServer().GetGrpc().GetTls()
+	grpcTLS := grpcServer.GetTls()
 	if grpcTLS.GetEnabled() && (grpcTLS.GetCertFile() == "" || grpcTLS.GetKeyFile() == "") {
 		return errors.New("server gRPC TLS certificate and key are required")
 	}
-	if c.GetServer().GetShutdownTimeout() == nil || c.GetServer().GetShutdownTimeout().AsDuration() <= 0 {
+	if server.GetShutdownTimeout() == nil || server.GetShutdownTimeout().AsDuration() <= 0 {
 		return errors.New("server shutdown timeout must be greater than zero")
 	}
-	if c.GetData() == nil || c.GetData().GetKafka() == nil || c.GetData().GetClickHouse() == nil {
+	data := c.GetData()
+	if data == nil || data.GetKafka() == nil || data.GetClickHouse() == nil {
 		return errors.New("kafka and ClickHouse config are required")
 	}
-	if err := validateKafka(c.GetData().GetKafka()); err != nil {
+	if err := validateKafka(data.GetKafka()); err != nil {
 		return err
 	}
-	if err := validateClickHouse(c.GetData().GetClickHouse()); err != nil {
+	if err := validateClickHouse(data.GetClickHouse()); err != nil {
 		return err
 	}
-	if c.GetLogging() == nil {
+	logging := c.GetLogging()
+	if logging == nil {
 		return errors.New("logging config is required")
 	}
-	switch strings.ToLower(c.GetLogging().GetFormat()) {
-	case "json", "text":
-	default:
-		return errors.New("logging format must be json or text")
-	}
-	switch strings.ToLower(c.GetLogging().GetLevel()) {
-	case "debug", "info", "warn", "error":
-	default:
-		return errors.New("logging level must be debug, info, warn or error")
-	}
-	return nil
+	return appconfig.ValidateLogging(logging)
 }
 
 func validateKafka(config *Data_Kafka) error {
@@ -89,7 +87,7 @@ func validateKafka(config *Data_Kafka) error {
 	if config.GetDialTimeout() == nil || config.GetDialTimeout().AsDuration() <= 0 {
 		return errors.New("kafka dial timeout must be greater than zero")
 	}
-	if err := validateKafkaSASL(config.GetSasl()); err != nil {
+	if err := kafkaSASL(config.GetSasl()).Validate(); err != nil {
 		return err
 	}
 	return validateTLS(
@@ -121,7 +119,7 @@ func validateClickHouse(config *Data_ClickHouse) error {
 	if config.GetQueryTimeout() == nil || config.GetQueryTimeout().AsDuration() <= 0 {
 		return errors.New("ClickHouse query timeout must be greater than zero")
 	}
-	if config.GetMaxOpenConnections() == 0 {
+	if config.GetMaxOpenConnections() <= 0 {
 		return errors.New("ClickHouse max open connections must be greater than zero")
 	}
 	if config.GetMaxIdleConnections() > config.GetMaxOpenConnections() {
@@ -130,16 +128,17 @@ func validateClickHouse(config *Data_ClickHouse) error {
 	if config.GetConnectionMaxLifetime() == nil || config.GetConnectionMaxLifetime().AsDuration() <= 0 {
 		return errors.New("ClickHouse connection max lifetime must be greater than zero")
 	}
-	if config.GetRetention() == nil {
+	retention := config.GetRetention()
+	if retention == nil {
 		return errors.New("ClickHouse retention config is required")
 	}
-	if config.GetRetention().GetRequestRecords() == nil || config.GetRetention().GetRequestRecords().AsDuration() < time.Second {
+	if retention.GetRequestRecords() == nil || retention.GetRequestRecords().AsDuration() < time.Second {
 		return errors.New("ClickHouse request record retention must be at least one second")
 	}
-	if config.GetRetention().GetRequestMetrics() == nil || config.GetRetention().GetRequestMetrics().AsDuration() < time.Second {
+	if retention.GetRequestMetrics() == nil || retention.GetRequestMetrics().AsDuration() < time.Second {
 		return errors.New("ClickHouse request metric retention must be at least one second")
 	}
-	if config.GetRetention().GetModelCalls() == nil || config.GetRetention().GetModelCalls().AsDuration() < time.Second {
+	if retention.GetModelCalls() == nil || retention.GetModelCalls().AsDuration() < time.Second {
 		return errors.New("ClickHouse model call retention must be at least one second")
 	}
 	return validateTLS(
@@ -150,19 +149,12 @@ func validateClickHouse(config *Data_ClickHouse) error {
 	)
 }
 
-func validateKafkaSASL(config *Data_Kafka_SASL) error {
-	if config == nil || strings.TrimSpace(config.GetMechanism()) == "" {
-		return nil
+func kafkaSASL(config *Data_Kafka_SASL) kafkaclient.SASL {
+	return kafkaclient.SASL{
+		Mechanism: config.GetMechanism(),
+		Username:  config.GetUsername(),
+		Password:  config.GetPassword(),
 	}
-	switch strings.ToUpper(config.GetMechanism()) {
-	case "PLAIN", "SCRAM-SHA-256", "SCRAM-SHA-512":
-	default:
-		return errors.New("kafka SASL mechanism must be PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512")
-	}
-	if config.GetUsername() == "" || config.GetPassword() == "" {
-		return errors.New("kafka SASL username and password are required")
-	}
-	return nil
 }
 
 func validateTLS(system string, enabled bool, certificateFile, keyFile string) error {

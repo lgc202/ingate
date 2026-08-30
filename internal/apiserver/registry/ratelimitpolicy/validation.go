@@ -10,10 +10,11 @@ import (
 
 func validatePolicy(policy *resource.RateLimitPolicy) field.ErrorList {
 	specPath := field.NewPath("spec")
-	var errs field.ErrorList
-	if policy.Spec.DisplayName == "" {
-		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
-	}
+	errs := apiregistry.ValidateResourceID(policy.Name, field.NewPath("metadata", "name"))
+	errs = append(errs, apiregistry.ValidateDisplayName(
+		policy.Spec.DisplayName,
+		specPath.Child("displayName"),
+	)...)
 	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(
 		policy.Spec.TargetRefs,
 		specPath.Child("targetRefs"),
@@ -25,7 +26,10 @@ func validatePolicy(policy *resource.RateLimitPolicy) field.ErrorList {
 	switch policy.Spec.Subject.Type {
 	case resource.RateLimitSubjectShared, resource.RateLimitSubjectIP:
 		if policy.Spec.Subject.HeaderName != "" {
-			errs = append(errs, field.Forbidden(subjectPath.Child("headerName"), "headerName is only supported by Header subjects"))
+			errs = append(errs, field.Forbidden(
+				subjectPath.Child("headerName"),
+				"headerName is only supported by Header subjects",
+			))
 		}
 	case resource.RateLimitSubjectHeader:
 		if policy.Spec.Subject.HeaderName == "" {
@@ -43,10 +47,18 @@ func validatePolicy(policy *resource.RateLimitPolicy) field.ErrorList {
 
 	limitPath := specPath.Child("limit")
 	if policy.Spec.Limit.Requests <= 0 || policy.Spec.Limit.Requests > resource.RateLimitMaxRequests {
-		errs = append(errs, field.Invalid(limitPath.Child("requests"), policy.Spec.Limit.Requests, "requests is outside the supported range"))
+		errs = append(errs, field.Invalid(
+			limitPath.Child("requests"),
+			policy.Spec.Limit.Requests,
+			"requests is outside the supported range",
+		))
 	}
 	if policy.Spec.Limit.WindowSeconds <= 0 || policy.Spec.Limit.WindowSeconds > resource.RateLimitMaxWindowSeconds {
-		errs = append(errs, field.Invalid(limitPath.Child("windowSeconds"), policy.Spec.Limit.WindowSeconds, "windowSeconds is outside the supported range"))
+		errs = append(errs, field.Invalid(
+			limitPath.Child("windowSeconds"),
+			policy.Spec.Limit.WindowSeconds,
+			"windowSeconds is outside the supported range",
+		))
 	}
 	return errs
 }

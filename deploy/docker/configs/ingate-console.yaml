@@ -1,7 +1,6 @@
 server:
   http:
     addr: "0.0.0.0:8001"
-    timeout: "30s"
   console_dir: "/opt/ingate/console/web"
   shutdown_timeout: "30s"
   authentication:

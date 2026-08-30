@@ -492,7 +492,9 @@ type Data_APIServer struct {
 	// master 覆盖 kubeconfig 中的 API Server 地址
 	Master string `protobuf:"bytes,1,opt,name=master,proto3" json:"master,omitempty"`
 	// kubeconfig 保存声明式资源 API 的连接与认证配置
-	Kubeconfig    string `protobuf:"bytes,2,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
+	Kubeconfig string `protobuf:"bytes,2,opt,name=kubeconfig,proto3" json:"kubeconfig,omitempty"`
+	// bearer_token 认证 Controller 到声明式 API 的内部请求
+	BearerToken   string `protobuf:"bytes,3,opt,name=bearer_token,json=bearerToken,proto3" json:"bearer_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -537,6 +539,13 @@ func (x *Data_APIServer) GetMaster() string {
 func (x *Data_APIServer) GetKubeconfig() string {
 	if x != nil {
 		return x.Kubeconfig
+	}
+	return ""
+}
+
+func (x *Data_APIServer) GetBearerToken() string {
+	if x != nil {
+		return x.BearerToken
 	}
 	return ""
 }
@@ -632,15 +641,16 @@ const file_controller_proto_rawDesc = "" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x1aO\n" +
 	"\x04HTTP\x12\x12\n" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xfe\x02\n" +
+	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xa1\x03\n" +
 	"\x04Data\x12D\n" +
 	"\tapiserver\x18\x01 \x01(\v2&.ingate.controller.conf.Data.APIServerR\tapiserver\x125\n" +
-	"\x04wasm\x18\x02 \x01(\v2!.ingate.controller.conf.Data.WasmR\x04wasm\x1aC\n" +
+	"\x04wasm\x18\x02 \x01(\v2!.ingate.controller.conf.Data.WasmR\x04wasm\x1af\n" +
 	"\tAPIServer\x12\x16\n" +
 	"\x06master\x18\x01 \x01(\tR\x06master\x12\x1e\n" +
 	"\n" +
 	"kubeconfig\x18\x02 \x01(\tR\n" +
-	"kubeconfig\x1a\xb3\x01\n" +
+	"kubeconfig\x12!\n" +
+	"\fbearer_token\x18\x03 \x01(\tR\vbearerToken\x1a\xb3\x01\n" +
 	"\x04Wasm\x12\x1b\n" +
 	"\tcache_dir\x18\x01 \x01(\tR\bcacheDir\x12<\n" +
 	"\fpull_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\vpullTimeout\x12(\n" +

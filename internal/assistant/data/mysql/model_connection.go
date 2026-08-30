@@ -45,7 +45,10 @@ func (s *Store) UpdateModelConnection(
 		connection = update.Connection
 		connection.APIKey = apiKey
 		connection.Configured = true
-		connection.UpdatedAt = time.Now().UTC()
+		connection.UpdatedAt, err = queries.CurrentTime(ctx)
+		if err != nil {
+			return fmt.Errorf("read MySQL time: %w", err)
+		}
 		if err := queries.UpsertAssistantModelConnection(ctx, modelConnectionToDB(connection)); err != nil {
 			return fmt.Errorf("upsert assistant model connection: %w", err)
 		}

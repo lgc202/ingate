@@ -1,6 +1,14 @@
 .PHONY: lint
 lint: go-lint proto-lint workflow-lint ## 运行 Go、Proto 和 GitHub Actions 静态检查
 
+.PHONY: go-declaration-order
+go-declaration-order: ## 检查手写 Go 文件的顶层声明组织
+	@$(GO_ENV) $(GO) run ./hack/verify-go-declarations .
+
+.PHONY: go-docs
+go-docs: ## 检查手写 Go 代码的包与导出声明文档
+	@$(GO_ENV) $(GO) run ./hack/verify-go-docs .
+
 .PHONY: workflow-lint
 workflow-lint: $(TOOLS_DIR)/actionlint ## 检查 GitHub Actions 工作流
 	@$(TOOLS_DIR)/actionlint

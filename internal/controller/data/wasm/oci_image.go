@@ -40,10 +40,10 @@ func (s *Store) extractWasmImageLayer(layer containerv1.Layer) ([]byte, error) {
 		if header.Size > s.maxModuleSize {
 			return nil, fmt.Errorf("wasm module exceeds maximum size %d bytes", s.maxModuleSize)
 		}
-		binary := make([]byte, header.Size)
-		if _, err := io.ReadFull(tarReader, binary); err != nil {
+		moduleBytes := make([]byte, header.Size)
+		if _, err := io.ReadFull(tarReader, moduleBytes); err != nil {
 			return nil, fmt.Errorf("read %s from OCI Wasm image: %w", wasmFileName, err)
 		}
-		return binary, nil
+		return moduleBytes, nil
 	}
 }

@@ -371,9 +371,7 @@ func (x *Server_Authentication) GetSecureCookie() bool {
 type Server_HTTP struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// addr 是控制台和管理 API 代理的监听地址
-	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	// timeout 限制单次 HTTP 请求处理时间
-	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	Addr          string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -413,13 +411,6 @@ func (x *Server_HTTP) GetAddr() string {
 		return x.Addr
 	}
 	return ""
-}
-
-func (x *Server_HTTP) GetTimeout() *durationpb.Duration {
-	if x != nil {
-		return x.Timeout
-	}
-	return nil
 }
 
 type Data_AdminAPI struct {
@@ -520,7 +511,7 @@ const file_console_proto_rawDesc = "" +
 	"\tBootstrap\x123\n" +
 	"\x06server\x18\x01 \x01(\v2\x1b.ingate.console.conf.ServerR\x06server\x12-\n" +
 	"\x04data\x18\x02 \x01(\v2\x19.ingate.console.conf.DataR\x04data\x126\n" +
-	"\alogging\x18\x03 \x01(\v2\x1c.ingate.console.conf.LoggingR\alogging\"\xb7\x04\n" +
+	"\alogging\x18\x03 \x01(\v2\x1c.ingate.console.conf.LoggingR\alogging\"\x82\x04\n" +
 	"\x06Server\x124\n" +
 	"\x04http\x18\x01 \x01(\v2 .ingate.console.conf.Server.HTTPR\x04http\x12\x1f\n" +
 	"\vconsole_dir\x18\x02 \x01(\tR\n" +
@@ -534,10 +525,9 @@ const file_console_proto_rawDesc = "" +
 	"\x0esession_secret\x18\x04 \x01(\tR\rsessionSecret\x12:\n" +
 	"\vsession_ttl\x18\x05 \x01(\v2\x19.google.protobuf.DurationR\n" +
 	"sessionTtl\x12#\n" +
-	"\rsecure_cookie\x18\x06 \x01(\bR\fsecureCookie\x1aO\n" +
+	"\rsecure_cookie\x18\x06 \x01(\bR\fsecureCookie\x1a\x1a\n" +
 	"\x04HTTP\x12\x12\n" +
-	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\xd9\x01\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr\"\xd9\x01\n" +
 	"\x04Data\x12?\n" +
 	"\tadmin_api\x18\x01 \x01(\v2\".ingate.console.conf.Data.AdminAPIR\badminApi\x12A\n" +
 	"\tassistant\x18\x02 \x01(\v2#.ingate.console.conf.Data.AssistantR\tassistant\x1a%\n" +
@@ -576,21 +566,20 @@ var file_console_proto_goTypes = []any{
 	(*durationpb.Duration)(nil),   // 8: google.protobuf.Duration
 }
 var file_console_proto_depIdxs = []int32{
-	1,  // 0: ingate.console.conf.Bootstrap.server:type_name -> ingate.console.conf.Server
-	2,  // 1: ingate.console.conf.Bootstrap.data:type_name -> ingate.console.conf.Data
-	3,  // 2: ingate.console.conf.Bootstrap.logging:type_name -> ingate.console.conf.Logging
-	5,  // 3: ingate.console.conf.Server.http:type_name -> ingate.console.conf.Server.HTTP
-	8,  // 4: ingate.console.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
-	4,  // 5: ingate.console.conf.Server.authentication:type_name -> ingate.console.conf.Server.Authentication
-	6,  // 6: ingate.console.conf.Data.admin_api:type_name -> ingate.console.conf.Data.AdminAPI
-	7,  // 7: ingate.console.conf.Data.assistant:type_name -> ingate.console.conf.Data.Assistant
-	8,  // 8: ingate.console.conf.Server.Authentication.session_ttl:type_name -> google.protobuf.Duration
-	8,  // 9: ingate.console.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	1, // 0: ingate.console.conf.Bootstrap.server:type_name -> ingate.console.conf.Server
+	2, // 1: ingate.console.conf.Bootstrap.data:type_name -> ingate.console.conf.Data
+	3, // 2: ingate.console.conf.Bootstrap.logging:type_name -> ingate.console.conf.Logging
+	5, // 3: ingate.console.conf.Server.http:type_name -> ingate.console.conf.Server.HTTP
+	8, // 4: ingate.console.conf.Server.shutdown_timeout:type_name -> google.protobuf.Duration
+	4, // 5: ingate.console.conf.Server.authentication:type_name -> ingate.console.conf.Server.Authentication
+	6, // 6: ingate.console.conf.Data.admin_api:type_name -> ingate.console.conf.Data.AdminAPI
+	7, // 7: ingate.console.conf.Data.assistant:type_name -> ingate.console.conf.Data.Assistant
+	8, // 8: ingate.console.conf.Server.Authentication.session_ttl:type_name -> google.protobuf.Duration
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_console_proto_init() }

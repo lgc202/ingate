@@ -10,8 +10,9 @@ import (
 )
 
 const (
-	modelHistoryLimit = 200
-	completionTimeout = 5 * time.Second
+	maxModelHistoryMessages     = 200
+	maxModelHistoryContentBytes = 1 << 20
+	completionTimeout           = 5 * time.Second
 )
 
 var errExecutionFinished = errors.New("assistant execution finished")
@@ -24,6 +25,14 @@ type Executor struct {
 	agent  Agent
 }
 
+// executionLease 管理一条已领取任务的执行上下文和续租协程。
+// 它不是持久化租约本身；MySQL 中的 worker_id 与 lease_expires_at 才是归属事实。
+type executionLease struct {
+	ctx     context.Context
+	cancel  context.CancelCauseFunc
+	stopped chan error
+}
+
 // NewExecutor 创建后台执行编排器。
 func NewExecutor(store ExecutorStore, events EventStore, agent Agent) *Executor {
 	return &Executor{store: store, events: events, agent: agent}
@@ -31,19 +40,20 @@ func NewExecutor(store ExecutorStore, events EventStore, agent Agent) *Executor 
 
 // ExecuteNext 领取并执行一条排队任务。返回 false 表示当前没有待执行任务。
 //
-// 领取与终态提交都校验 claimantID。模型调用不持有数据库事务，长耗时执行依靠租约续期，
+// 领取与终态提交都校验 workerID。模型调用不持有数据库事务，
+// 长耗时执行依靠租约续期，
 // 因此多个 Assistant 实例可以并发领取任务而不会重复提交同一次执行。
 func (e *Executor) ExecuteNext(
 	ctx context.Context,
-	claimantID string,
+	workerID string,
 	leaseDuration time.Duration,
 ) (bool, error) {
-	claimed, found, err := e.store.ClaimExecution(ctx, claimantID, leaseDuration)
+	claim, found, err := e.store.ClaimExecution(ctx, workerID, leaseDuration)
 	if err != nil || !found {
 		return false, err
 	}
-	if err := e.executeClaim(ctx, claimed, claimantID, leaseDuration); err != nil {
-		return true, fmt.Errorf("execute assistant task %s: %w", claimed.ID, err)
+	if err := e.executeClaim(ctx, claim, workerID, leaseDuration); err != nil {
+		return true, fmt.Errorf("execute assistant task %s: %w", claim.ID, err)
 	}
 	return true, nil
 }
@@ -57,33 +67,40 @@ func (e *Executor) RecoverExpiredExecutions(ctx context.Context) (int64, error) 
 func (e *Executor) executeClaim(
 	ctx context.Context,
 	claim Claim,
-	claimantID string,
+	workerID string,
 	leaseDuration time.Duration,
 ) error {
-	lease := e.startExecutionLease(ctx, claim, claimantID, leaseDuration)
-	executionErr := e.invokeAgent(lease.ctx, claim, claimantID, leaseDuration)
+	lease := e.startExecutionLease(ctx, claim, workerID, leaseDuration)
+	committed, executionErr := e.invokeAgent(lease.ctx, claim, workerID, leaseDuration)
 	cause, leaseErr := lease.stop()
-	// invokeAgent 返回 nil 说明成功回复和执行终态已经在同一个 MySQL 事务中提交。
-	// 终态提交会清空 worker_id，若续租协程恰好同时醒来，它会得到 ErrLeaseLost；
-	// 这是正常的完成竞争，不能覆盖已经持久化的成功结果。
+	// 已提交的成功或失败终态都已清空 worker_id。若续租协程恰好同时醒来，
+	// 它会得到 ErrLeaseLost；这是正常的结束竞争，不能改变已经持久化的结果。
+	if committed {
+		return executionErr
+	}
+
+	// 未提交终态的分支必须携带可解释的停止原因。
 	if executionErr == nil {
-		return nil
+		return errors.New("assistant execution stopped without a result")
 	}
 
 	// 执行结束、用户取消、实例停止和租约丢失共享同一个 context，但对应不同的
 	// 持久化结果。这里只解释停止原因，不再参与模型循环或租约续期。
 	switch {
 	case errors.Is(cause, ErrCancellation):
-		return e.finishCancellation(ctx, claim, claimantID)
+		return e.finishCancellation(ctx, claim, workerID)
 	case errors.Is(cause, ErrLeaseLost):
 		return ErrLeaseLost
 	case leaseErr != nil:
 		return leaseErr
 	case errors.Is(cause, context.Canceled), errors.Is(cause, context.DeadlineExceeded):
-		return e.finishFailure(ctx, claim, claimantID, FailureWorkerStopped, cause)
+		if err := e.finishFailure(ctx, claim, workerID, FailureWorkerStopped); err != nil {
+			return errors.Join(cause, err)
+		}
+		return cause
 	case errors.Is(cause, errExecutionFinished):
 		if errors.Is(executionErr, ErrCancellation) {
-			return e.finishCancellation(ctx, claim, claimantID)
+			return e.finishCancellation(ctx, claim, workerID)
 		}
 		return executionErr
 	default:
@@ -94,23 +111,30 @@ func (e *Executor) executeClaim(
 func (e *Executor) invokeAgent(
 	ctx context.Context,
 	claim Claim,
-	claimantID string,
+	workerID string,
 	leaseDuration time.Duration,
-) error {
+) (bool, error) {
 	history, err := e.store.ListRecentMessages(
 		ctx,
 		claim.ActorID,
 		claim.ConversationID,
-		modelHistoryLimit,
+		maxModelHistoryMessages,
+		maxModelHistoryContentBytes,
 	)
 	if err != nil {
-		return e.finishFailure(
-			ctx,
-			claim,
-			claimantID,
-			FailureInternal,
-			fmt.Errorf("load conversation history: %w", err),
-		)
+		cause := fmt.Errorf("load conversation history: %w", err)
+		if commitErr := e.finishFailure(ctx, claim, workerID, FailureInternal); commitErr != nil {
+			return false, errors.Join(cause, commitErr)
+		}
+		return true, cause
+	}
+	request, err := agentRequest(history)
+	if err != nil {
+		cause := fmt.Errorf("build assistant request: %w", err)
+		if commitErr := e.finishFailure(ctx, claim, workerID, FailureInternal); commitErr != nil {
+			return false, errors.Join(cause, commitErr)
+		}
+		return true, cause
 	}
 
 	// 事件写入器是 Agent 与任务状态机之间的唯一桥梁。Agent 无需知道租约、
@@ -119,29 +143,32 @@ func (e *Executor) invokeAgent(
 		e.store,
 		e.events,
 		claim.ID,
-		claimantID,
+		workerID,
 		leaseDuration,
 	)
 	result, err := e.agent.Execute(
 		ctx,
-		newAgentRequest(history),
+		request,
 		recorder,
 	)
 	if err != nil {
 		if cause := context.Cause(ctx); cause != nil {
-			return cause
+			return false, cause
 		}
 		// 租约和取消是状态机信号，不能由已经失去租约的实例提交失败终态。
 		if errors.Is(err, ErrLeaseLost) || errors.Is(err, ErrCancellation) {
-			return err
+			return false, err
 		}
-		return e.finishFailure(ctx, claim, claimantID, failureCode(err), err)
+		if commitErr := e.finishFailure(ctx, claim, workerID, failureCode(err)); commitErr != nil {
+			return false, errors.Join(err, commitErr)
+		}
+		return true, err
 	}
 	message, err := e.store.CompleteExecution(
 		ctx,
 		claim.ActorID,
 		claim.ID,
-		claimantID,
+		workerID,
 		Completion{
 			Content:          result.Content,
 			ReasoningContent: result.ReasoningContent,
@@ -149,27 +176,19 @@ func (e *Executor) invokeAgent(
 	)
 	if err != nil {
 		if errors.Is(err, ErrCancellation) {
-			return ErrCancellation
+			return false, ErrCancellation
 		}
-		return fmt.Errorf("complete assistant execution: %w", err)
+		return false, fmt.Errorf("complete assistant execution: %w", err)
 	}
 	// MySQL 已提交成功终态；Redis 只负责短期通知，写入失败不能把成功任务误报为失败。
 	_, _ = e.events.Append(ctx, claim.ID, StreamEvent{Type: EventCompleted, Data: message.ID})
-	return nil
-}
-
-// executionLease 管理一条已领取任务的执行上下文和续租协程。
-// 它不是持久化租约本身；MySQL 中的 worker_id 与 lease_expires_at 才是归属事实。
-type executionLease struct {
-	ctx     context.Context
-	cancel  context.CancelCauseFunc
-	stopped chan error
+	return true, nil
 }
 
 func (e *Executor) startExecutionLease(
 	ctx context.Context,
 	claim Claim,
-	claimantID string,
+	workerID string,
 	leaseDuration time.Duration,
 ) *executionLease {
 	executionCtx, cancel := context.WithCancelCause(ctx)
@@ -183,7 +202,7 @@ func (e *Executor) startExecutionLease(
 			executionCtx,
 			cancel,
 			claim.ID,
-			claimantID,
+			workerID,
 			leaseDuration,
 		)
 	}()
@@ -203,7 +222,7 @@ func (e *Executor) watchLease(
 	ctx context.Context,
 	cancel context.CancelCauseFunc,
 	executionID string,
-	claimantID string,
+	workerID string,
 	leaseDuration time.Duration,
 ) error {
 	// 一秒上限让同一轮询同时承担续租和取消检测，避免再引入一条取消消息通道。
@@ -218,7 +237,7 @@ func (e *Executor) watchLease(
 			cancelRequested, err := e.store.RenewExecutionLease(
 				ctx,
 				executionID,
-				claimantID,
+				workerID,
 				leaseDuration,
 			)
 			if err != nil {
@@ -237,11 +256,16 @@ func (e *Executor) watchLease(
 func (e *Executor) finishCancellation(
 	ctx context.Context,
 	claim Claim,
-	claimantID string,
+	workerID string,
 ) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), completionTimeout)
 	defer cancel()
-	if err := e.store.FinishExecutionCancellation(cleanupCtx, claim.ID, claimantID); err != nil {
+	if err := e.store.FinishExecutionCancellation(
+		cleanupCtx,
+		claim.ActorID,
+		claim.ID,
+		workerID,
+	); err != nil {
 		return fmt.Errorf("finish assistant execution cancellation: %w", err)
 	}
 	// MySQL 是终态事实来源，取消事件写入失败只影响当前短期订阅。
@@ -253,9 +277,8 @@ func (e *Executor) finishCancellation(
 func (e *Executor) finishFailure(
 	ctx context.Context,
 	claim Claim,
-	claimantID string,
+	workerID string,
 	code FailureCode,
-	cause error,
 ) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), completionTimeout)
 	defer cancel()
@@ -263,17 +286,17 @@ func (e *Executor) finishFailure(
 		cleanupCtx,
 		claim.ActorID,
 		claim.ID,
-		claimantID,
+		workerID,
 		code,
 	); err != nil {
 		if errors.Is(err, ErrCancellation) {
 			return ErrCancellation
 		}
-		return errors.Join(cause, fmt.Errorf("mark assistant execution failed: %w", err))
+		return fmt.Errorf("mark assistant execution failed: %w", err)
 	}
 	// 错误码已经持久化；Redis 不可用时仍可查询最终结果。
 	_, _ = e.events.Append(cleanupCtx, claim.ID, StreamEvent{Type: EventFailed, Data: string(code)})
-	return cause
+	return nil
 }
 
 func failureCode(err error) FailureCode {

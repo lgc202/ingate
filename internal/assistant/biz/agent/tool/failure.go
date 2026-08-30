@@ -52,6 +52,11 @@ type failureInfo struct {
 	ServiceID      string  `json:"service_id,omitempty"`
 }
 
+// FailureReader 是失败请求工具实际使用的查询边界。
+type FailureReader interface {
+	ListFailures(context.Context, FailureQuery) (FailurePage, error)
+}
+
 func newFailureTool(resources FailureReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		listRecentFailuresTool,
@@ -102,7 +107,7 @@ func listRecentFailures(
 	for _, record := range result.Items {
 		items = append(items, failureInfo{
 			RecordID:       record.RecordID,
-			StartedAt:      record.StartedAt.Format(time.RFC3339),
+			StartedAt:      record.StartedAt.Format(time.RFC3339Nano),
 			Method:         record.Method,
 			Host:           record.Host,
 			Path:           record.Path,
@@ -125,8 +130,8 @@ func listRecentFailures(
 		ScopeID:   scopeID,
 		ScopeName: result.ScopeName,
 		Outcome:   outcomeName,
-		StartTime: startTime.Format(time.RFC3339),
-		EndTime:   endTime.Format(time.RFC3339),
+		StartTime: startTime.Format(time.RFC3339Nano),
+		EndTime:   endTime.Format(time.RFC3339Nano),
 		HasMore:   result.HasMore,
 		Items:     items,
 	}, nil

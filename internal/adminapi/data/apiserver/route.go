@@ -2,88 +2,92 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
-// RouteRepository 读写 Route 声明式资源
-type RouteRepository struct {
+// RouteStore 读写 Route 声明式资源。
+type RouteStore struct {
 	client clientset.Interface
 }
 
-// NewRouteRepository 创建 Route Repository
-func NewRouteRepository(client clientset.Interface) *RouteRepository {
-	return &RouteRepository{client: client}
+// NewRouteStore 创建 Route Store。
+func NewRouteStore(client clientset.Interface) *RouteStore {
+	return &RouteStore{client: client}
 }
 
-// ListPage 分页查询 Route 列表
-func (r *RouteRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.Route], error) {
-	routes, err := r.client.GatewayV1().Routes().List(ctx, listOptions(page))
+// ListPage 分页返回 Route。
+func (s *RouteStore) ListPage(
+	ctx context.Context,
+	page biz.PageRequest,
+) (biz.PageResult[resource.Route], error) {
+	routes, err := s.client.GatewayV1().Routes().List(ctx, listOptions(page))
 	if err != nil {
 		return biz.PageResult[resource.Route]{}, listError("routes", err)
 	}
 	return biz.PageResult[resource.Route]{Items: routes.Items, NextCursor: routes.Continue}, nil
 }
 
-// Get 查询单个 Route
-func (r *RouteRepository) Get(ctx context.Context, name string) (*resource.Route, error) {
-	route, err := r.client.GatewayV1().Routes().Get(ctx, name, metav1.GetOptions{})
-	return route, resourceError("get", "route", name, err)
+// Get 返回指定 Route。
+func (s *RouteStore) Get(ctx context.Context, routeID string) (*resource.Route, error) {
+	route, err := s.client.GatewayV1().Routes().Get(ctx, routeID, metav1.GetOptions{})
+	return route, resourceError("get", "route", routeID, err)
 }
 
-// Create 创建 Route
-func (r *RouteRepository) Create(ctx context.Context, name string, spec resource.RouteSpec) (*resource.Route, error) {
-	route := &resource.Route{
-		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindRoute)},
-		ObjectMeta: metav1.ObjectMeta{Name: name},
-		Spec:       spec,
-	}
-	created, err := r.client.GatewayV1().Routes().Create(ctx, route, metav1.CreateOptions{})
-	return created, resourceError("create", "route", name, err)
-}
-
-// Update 更新 Route，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
-func (r *RouteRepository) Update(
+// Create 创建 Route。
+func (s *RouteStore) Create(
 	ctx context.Context,
-	name string,
-	generation int64,
+	routeID string,
 	spec resource.RouteSpec,
 ) (*resource.Route, error) {
-	var updated *resource.Route
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().Routes().Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if current.Generation != generation {
-			return biz.ErrResourceVersionConflict
-		}
-		current.Spec = spec
-		updated, err = r.client.GatewayV1().Routes().Update(ctx, current, metav1.UpdateOptions{})
-		return err
-	})
-	return updated, resourceError("update", "route", name, err)
+	route := &resource.Route{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindRoute),
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: routeID},
+		Spec:       spec,
+	}
+	created, err := s.client.GatewayV1().Routes().Create(ctx, route, metav1.CreateOptions{})
+	return created, resourceError("create", "route", routeID, err)
 }
 
-// Delete 删除 Route
-func (r *RouteRepository) Delete(ctx context.Context, name string, generation int64) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().Routes().Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if current.Generation != generation {
-			return biz.ErrResourceVersionConflict
-		}
-		resourceVersion := current.ResourceVersion
-		return r.client.GatewayV1().Routes().Delete(ctx, name, metav1.DeleteOptions{
-			Preconditions: &metav1.Preconditions{ResourceVersion: &resourceVersion},
-		})
-	})
-	return resourceError("delete", "route", name, err)
+// ReplaceSpec 完整替换 Route 配置。
+// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
+func (s *RouteStore) ReplaceSpec(
+	ctx context.Context,
+	observed *resource.Route,
+	spec resource.RouteSpec,
+) (*resource.Route, error) {
+	routeID := observed.Name
+	updated, err := updateResource(
+		ctx,
+		s.client.GatewayV1().Routes(),
+		observed,
+		func(route *resource.Route) { route.Spec = spec },
+	)
+	if apierrors.IsConflict(err) {
+		return nil, fmt.Errorf("replace route %q after conflict retries: %w", routeID, err)
+	}
+	return updated, resourceError("replace", "route", routeID, err)
+}
+
+// Delete 删除 Route。
+// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
+func (s *RouteStore) Delete(
+	ctx context.Context,
+	observed *resource.Route,
+) error {
+	routeID := observed.Name
+	err := deleteResource(ctx, s.client.GatewayV1().Routes(), observed)
+	if apierrors.IsConflict(err) {
+		return fmt.Errorf("delete route %q after conflict retries: %w", routeID, err)
+	}
+	return resourceError("delete", "route", routeID, err)
 }

@@ -23,7 +23,7 @@ CREATE TABLE assistant_conversations (
     actor_id VARCHAR(128) NOT NULL COMMENT '会话所属用户的稳定标识',
     title VARCHAR(160) NOT NULL COMMENT '控制台展示的会话标题',
     created_at DATETIME(6) NOT NULL COMMENT '会话创建时间，统一使用 UTC',
-    updated_at DATETIME(6) NOT NULL COMMENT '最近一次消息或执行状态变化时间，用于会话排序和游标分页',
+    updated_at DATETIME(6) NOT NULL COMMENT '最近一次用户消息或执行终态时间，用于会话排序和游标分页',
     PRIMARY KEY (id),
     KEY idx_assistant_conversations_actor_updated (actor_id, updated_at DESC, id DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
@@ -61,13 +61,11 @@ CREATE TABLE assistant_agent_execution_steps (
     call_id VARCHAR(128) NOT NULL COMMENT '关联一次调用及其结果的稳定标识',
     summary VARCHAR(1024) NOT NULL DEFAULT '' COMMENT '经过脱敏且可向用户展示的执行摘要',
     error_code VARCHAR(64) NOT NULL DEFAULT '' COMMENT '失败原因的稳定代码，非失败状态为空',
-    created_at DATETIME(6) NOT NULL COMMENT '步骤创建时间，统一使用 UTC',
     started_at DATETIME(6) NOT NULL COMMENT '步骤开始执行时间',
     finished_at DATETIME(6) NULL COMMENT '步骤结束时间；未到终态时为空',
     PRIMARY KEY (id),
     UNIQUE KEY uk_assistant_agent_execution_steps_sequence (execution_id, sequence),
-    UNIQUE KEY uk_assistant_agent_execution_steps_call_kind (execution_id, call_id, kind),
-    KEY idx_assistant_agent_execution_steps_execution_created (execution_id, created_at, id)
+    UNIQUE KEY uk_assistant_agent_execution_steps_call_kind (execution_id, call_id, kind)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
   COMMENT='运维助手执行步骤';
 

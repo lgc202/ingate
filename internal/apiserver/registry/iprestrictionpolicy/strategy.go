@@ -3,7 +3,6 @@ package iprestrictionpolicy
 import (
 	"context"
 	"maps"
-	"net/netip"
 	"slices"
 	"strings"
 
@@ -15,20 +14,17 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	"github.com/lgc202/ingate/internal/pkg/iprestrictionconfig"
 )
 
-// strategy 定义 IPRestrictionPolicy 资源在 API Server 存储前后的处理规则
+// strategy 定义 IPRestrictionPolicy 资源在 API Server 存储前后的处理规则。
 type strategy struct {
 	apiregistry.Strategy
 }
 
-// statusStrategy 定义 IPRestrictionPolicy status 子资源更新规则
+// statusStrategy 定义 IPRestrictionPolicy status 子资源更新规则。
 type statusStrategy struct {
 	strategy
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -40,10 +36,6 @@ func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 
 func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validatePolicy(obj.(*resource.IPRestrictionPolicy))
-}
-
-func (strategy) Canonicalize(obj runtime.Object) {
-	canonicalizeSpec(&obj.(*resource.IPRestrictionPolicy).Spec)
 }
 
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
@@ -60,10 +52,6 @@ func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.E
 	return validatePolicy(obj.(*resource.IPRestrictionPolicy))
 }
 
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
-}
-
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return apiregistry.SpecResetFields()
 }
@@ -76,29 +64,38 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	metav1.ResetObjectMetaForStatus(&newPolicy.ObjectMeta, &oldPolicy.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
-	return nil
+func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
+	policy := obj.(*resource.IPRestrictionPolicy)
+	return apiregistry.ValidatePolicyStatus(
+		policy.Status,
+		policy.Spec.TargetRefs,
+		policy.Generation,
+	)
+}
+
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeSpec(spec *resource.IPRestrictionPolicySpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
-	for i := range spec.TargetRefs {
-		spec.TargetRefs[i].Name = strings.TrimSpace(spec.TargetRefs[i].Name)
-	}
+	apiregistry.CanonicalizePolicyTargetRefs(spec.TargetRefs)
 	spec.Allow = canonicalizeRanges(spec.Allow)
 	spec.Deny = canonicalizeRanges(spec.Deny)
 }
 
 func canonicalizeRanges(values []string) []string {
-	unique := make(map[string]struct{}, len(values))
+	unique := make(map[string]bool, len(values))
 	for _, value := range values {
 		value = strings.TrimSpace(value)
-		if address, err := netip.ParseAddr(value); err == nil {
-			value = netip.PrefixFrom(address, address.BitLen()).String()
-		} else if prefix, err := netip.ParsePrefix(value); err == nil {
-			value = prefix.Masked().String()
+		if normalized, valid := iprestrictionconfig.NormalizeRange(value); valid {
+			value = normalized
 		}
-		unique[value] = struct{}{}
+		unique[value] = true
 	}
 	return slices.Sorted(maps.Keys(unique))
 }

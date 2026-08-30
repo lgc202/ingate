@@ -28,9 +28,12 @@ const (
 type ModelConnectionMode int32
 
 const (
+	// MODEL_CONNECTION_MODE_UNSPECIFIED 表示尚未选择连接路径。
 	ModelConnectionMode_MODEL_CONNECTION_MODE_UNSPECIFIED ModelConnectionMode = 0
-	ModelConnectionMode_MODEL_CONNECTION_MODE_DIRECT      ModelConnectionMode = 1
-	ModelConnectionMode_MODEL_CONNECTION_MODE_INGATE      ModelConnectionMode = 2
+	// MODEL_CONNECTION_MODE_DIRECT 表示 Assistant 直接访问模型厂商。
+	ModelConnectionMode_MODEL_CONNECTION_MODE_DIRECT ModelConnectionMode = 1
+	// MODEL_CONNECTION_MODE_INGATE 表示 Assistant 通过 Ingate AI Route 访问模型。
+	ModelConnectionMode_MODEL_CONNECTION_MODE_INGATE ModelConnectionMode = 2
 )
 
 // Enum value maps for ModelConnectionMode.
@@ -79,9 +82,12 @@ func (ModelConnectionMode) EnumDescriptor() ([]byte, []int) {
 type ModelProtocol int32
 
 const (
-	ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED       ModelProtocol = 0
+	// MODEL_PROTOCOL_UNSPECIFIED 表示尚未选择模型协议。
+	ModelProtocol_MODEL_PROTOCOL_UNSPECIFIED ModelProtocol = 0
+	// MODEL_PROTOCOL_OPENAI_COMPATIBLE 表示 OpenAI Chat Completions 兼容协议。
 	ModelProtocol_MODEL_PROTOCOL_OPENAI_COMPATIBLE ModelProtocol = 1
-	ModelProtocol_MODEL_PROTOCOL_ANTHROPIC         ModelProtocol = 2
+	// MODEL_PROTOCOL_ANTHROPIC 表示 Anthropic Messages 原生协议。
+	ModelProtocol_MODEL_PROTOCOL_ANTHROPIC ModelProtocol = 2
 )
 
 // Enum value maps for ModelProtocol.
@@ -125,12 +131,16 @@ func (ModelProtocol) EnumDescriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{1}
 }
 
+// MessageRole 表示持久消息在一次会话中的职责。
 type MessageRole int32
 
 const (
+	// MESSAGE_ROLE_UNSPECIFIED 不用于已持久化消息。
 	MessageRole_MESSAGE_ROLE_UNSPECIFIED MessageRole = 0
-	MessageRole_MESSAGE_ROLE_USER        MessageRole = 1
-	MessageRole_MESSAGE_ROLE_ASSISTANT   MessageRole = 2
+	// MESSAGE_ROLE_USER 表示管理员输入。
+	MessageRole_MESSAGE_ROLE_USER MessageRole = 1
+	// MESSAGE_ROLE_ASSISTANT 表示 Agent 最终回答。
+	MessageRole_MESSAGE_ROLE_ASSISTANT MessageRole = 2
 )
 
 // Enum value maps for MessageRole.
@@ -174,15 +184,22 @@ func (MessageRole) EnumDescriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{2}
 }
 
+// AgentExecutionState 表示一次异步 Agent 执行的生命周期状态。
 type AgentExecutionState int32
 
 const (
+	// AGENT_EXECUTION_STATE_UNSPECIFIED 不用于已创建的执行。
 	AgentExecutionState_AGENT_EXECUTION_STATE_UNSPECIFIED AgentExecutionState = 0
-	AgentExecutionState_AGENT_EXECUTION_STATE_QUEUED      AgentExecutionState = 1
-	AgentExecutionState_AGENT_EXECUTION_STATE_RUNNING     AgentExecutionState = 2
-	AgentExecutionState_AGENT_EXECUTION_STATE_SUCCEEDED   AgentExecutionState = 3
-	AgentExecutionState_AGENT_EXECUTION_STATE_FAILED      AgentExecutionState = 4
-	AgentExecutionState_AGENT_EXECUTION_STATE_CANCELLED   AgentExecutionState = 5
+	// AGENT_EXECUTION_STATE_QUEUED 表示执行正在等待后台实例领取。
+	AgentExecutionState_AGENT_EXECUTION_STATE_QUEUED AgentExecutionState = 1
+	// AGENT_EXECUTION_STATE_RUNNING 表示后台实例持有租约并正在执行。
+	AgentExecutionState_AGENT_EXECUTION_STATE_RUNNING AgentExecutionState = 2
+	// AGENT_EXECUTION_STATE_SUCCEEDED 表示最终回答已经持久化。
+	AgentExecutionState_AGENT_EXECUTION_STATE_SUCCEEDED AgentExecutionState = 3
+	// AGENT_EXECUTION_STATE_FAILED 表示执行以稳定错误码结束。
+	AgentExecutionState_AGENT_EXECUTION_STATE_FAILED AgentExecutionState = 4
+	// AGENT_EXECUTION_STATE_CANCELLED 表示执行已经响应管理员取消请求。
+	AgentExecutionState_AGENT_EXECUTION_STATE_CANCELLED AgentExecutionState = 5
 )
 
 // Enum value maps for AgentExecutionState.
@@ -236,9 +253,12 @@ func (AgentExecutionState) EnumDescriptor() ([]byte, []int) {
 type AgentExecutionStepKind int32
 
 const (
+	// AGENT_EXECUTION_STEP_KIND_UNSPECIFIED 不用于已持久化步骤。
 	AgentExecutionStepKind_AGENT_EXECUTION_STEP_KIND_UNSPECIFIED AgentExecutionStepKind = 0
-	AgentExecutionStepKind_AGENT_EXECUTION_STEP_KIND_MODEL_CALL  AgentExecutionStepKind = 1
-	AgentExecutionStepKind_AGENT_EXECUTION_STEP_KIND_TOOL_CALL   AgentExecutionStepKind = 2
+	// AGENT_EXECUTION_STEP_KIND_MODEL_CALL 表示一次模型调用。
+	AgentExecutionStepKind_AGENT_EXECUTION_STEP_KIND_MODEL_CALL AgentExecutionStepKind = 1
+	// AGENT_EXECUTION_STEP_KIND_TOOL_CALL 表示一次工具调用。
+	AgentExecutionStepKind_AGENT_EXECUTION_STEP_KIND_TOOL_CALL AgentExecutionStepKind = 2
 )
 
 // Enum value maps for AgentExecutionStepKind.
@@ -286,11 +306,16 @@ func (AgentExecutionStepKind) EnumDescriptor() ([]byte, []int) {
 type AgentExecutionStepState int32
 
 const (
+	// AGENT_EXECUTION_STEP_STATE_UNSPECIFIED 不用于已持久化步骤。
 	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_UNSPECIFIED AgentExecutionStepState = 0
-	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_RUNNING     AgentExecutionStepState = 1
-	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_COMPLETED   AgentExecutionStepState = 2
-	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_FAILED      AgentExecutionStepState = 3
-	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_CANCELLED   AgentExecutionStepState = 4
+	// AGENT_EXECUTION_STEP_STATE_RUNNING 表示调用已经开始。
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_RUNNING AgentExecutionStepState = 1
+	// AGENT_EXECUTION_STEP_STATE_COMPLETED 表示调用已经正常结束。
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_COMPLETED AgentExecutionStepState = 2
+	// AGENT_EXECUTION_STEP_STATE_FAILED 表示调用因不可恢复错误结束。
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_FAILED AgentExecutionStepState = 3
+	// AGENT_EXECUTION_STEP_STATE_CANCELLED 表示调用随所属执行取消而结束。
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_CANCELLED AgentExecutionStepState = 4
 )
 
 // Enum value maps for AgentExecutionStepState.
@@ -338,11 +363,16 @@ func (AgentExecutionStepState) EnumDescriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{5}
 }
 
+// Conversation 是一个管理员与运维助手的持久会话。
 type Conversation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
-	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是不可变的会话标识。
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// title 是控制台展示的会话名称。
+	Title string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	// created_at 是会话创建时间。
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// updated_at 是最近一次消息或执行状态变化时间。
 	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -406,18 +436,25 @@ func (x *Conversation) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// Message 是已经持久化的用户输入或 Agent 最终回答。
 type Message struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	Id             string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ConversationId string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	ExecutionId    string                 `protobuf:"bytes,3,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
-	Role           MessageRole            `protobuf:"varint,4,opt,name=role,proto3,enum=ingate.assistant.v1.MessageRole" json:"role,omitempty"`
-	Content        string                 `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是不可变的消息标识。
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// conversation_id 是消息所属会话。
+	ConversationId string `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	// execution_id 是产生或消费该消息的执行。
+	ExecutionId string `protobuf:"bytes,3,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	// role 区分管理员输入和 Agent 回答。
+	Role MessageRole `protobuf:"varint,4,opt,name=role,proto3,enum=ingate.assistant.v1.MessageRole" json:"role,omitempty"`
+	// content 是用户输入或最终回答正文。
+	Content string `protobuf:"bytes,5,opt,name=content,proto3" json:"content,omitempty"`
 	// reasoning_content 只包含模型厂商明确返回的推理内容，不包含服务端隐藏指令。
-	ReasoningContent string                 `protobuf:"bytes,6,opt,name=reasoning_content,json=reasoningContent,proto3" json:"reasoning_content,omitempty"`
-	CreatedAt        *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	ReasoningContent string `protobuf:"bytes,6,opt,name=reasoning_content,json=reasoningContent,proto3" json:"reasoning_content,omitempty"`
+	// created_at 是消息持久化时间。
+	CreatedAt     *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Message) Reset() {
@@ -499,17 +536,27 @@ func (x *Message) GetCreatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// AgentExecution 记录一条用户输入从排队到终态的生命周期。
 type AgentExecution struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	Id                    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ConversationId        string                 `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	State                 AgentExecutionState    `protobuf:"varint,3,opt,name=state,proto3,enum=ingate.assistant.v1.AgentExecutionState" json:"state,omitempty"`
-	Model                 string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
-	ErrorCode             string                 `protobuf:"bytes,5,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	StartedAt             *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	FinishedAt            *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
-	CreatedAt             *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	CancellationRequested bool                   `protobuf:"varint,9,opt,name=cancellation_requested,json=cancellationRequested,proto3" json:"cancellation_requested,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是不可变的执行标识。
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// conversation_id 是执行所属会话。
+	ConversationId string `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	// state 是当前持久状态。
+	State AgentExecutionState `protobuf:"varint,3,opt,name=state,proto3,enum=ingate.assistant.v1.AgentExecutionState" json:"state,omitempty"`
+	// model 是本次执行实际选中的模型，领取前为空。
+	Model string `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	// error_code 仅在失败状态下返回稳定且可公开的错误码。
+	ErrorCode string `protobuf:"bytes,5,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	// started_at 在后台实例领取执行后出现。
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	// finished_at 仅在终态下出现。
+	FinishedAt *timestamppb.Timestamp `protobuf:"bytes,7,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	// created_at 是执行进入队列的时间。
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// cancellation_requested 表示运行中的执行已经收到取消请求。
+	CancellationRequested bool `protobuf:"varint,9,opt,name=cancellation_requested,json=cancellationRequested,proto3" json:"cancellation_requested,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -609,18 +656,27 @@ func (x *AgentExecution) GetCancellationRequested() bool {
 
 // AgentExecutionStep 记录一次执行中已经发生的步骤，不保存原始工具输出或敏感参数。
 type AgentExecutionStep struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
-	Id            string                  `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	ExecutionId   string                  `protobuf:"bytes,2,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
-	Sequence      uint32                  `protobuf:"varint,3,opt,name=sequence,proto3" json:"sequence,omitempty"`
-	Kind          AgentExecutionStepKind  `protobuf:"varint,4,opt,name=kind,proto3,enum=ingate.assistant.v1.AgentExecutionStepKind" json:"kind,omitempty"`
-	State         AgentExecutionStepState `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.assistant.v1.AgentExecutionStepState" json:"state,omitempty"`
-	Name          string                  `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
-	Summary       string                  `protobuf:"bytes,7,opt,name=summary,proto3" json:"summary,omitempty"`
-	ErrorCode     string                  `protobuf:"bytes,8,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
-	CreatedAt     *timestamppb.Timestamp  `protobuf:"bytes,9,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	StartedAt     *timestamppb.Timestamp  `protobuf:"bytes,10,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
-	FinishedAt    *timestamppb.Timestamp  `protobuf:"bytes,11,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是不可变的步骤标识。
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// execution_id 是步骤所属执行。
+	ExecutionId string `protobuf:"bytes,2,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	// sequence 是所属执行内从 1 开始的稳定顺序。
+	Sequence uint32 `protobuf:"varint,3,opt,name=sequence,proto3" json:"sequence,omitempty"`
+	// kind 区分模型调用和工具调用。
+	Kind AgentExecutionStepKind `protobuf:"varint,4,opt,name=kind,proto3,enum=ingate.assistant.v1.AgentExecutionStepKind" json:"kind,omitempty"`
+	// state 是该调用当前的生命周期状态。
+	State AgentExecutionStepState `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.assistant.v1.AgentExecutionStepState" json:"state,omitempty"`
+	// name 是模型名或工具稳定名称。
+	Name string `protobuf:"bytes,6,opt,name=name,proto3" json:"name,omitempty"`
+	// summary 是经过脱敏、可向管理员展示的完成摘要。
+	Summary string `protobuf:"bytes,7,opt,name=summary,proto3" json:"summary,omitempty"`
+	// error_code 仅在失败状态下返回稳定且可公开的错误码。
+	ErrorCode string `protobuf:"bytes,8,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	// started_at 是调用开始时间；步骤创建时即进入运行状态。
+	StartedAt *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=started_at,json=startedAt,proto3" json:"started_at,omitempty"`
+	// finished_at 仅在终态下出现。
+	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -711,13 +767,6 @@ func (x *AgentExecutionStep) GetErrorCode() string {
 	return ""
 }
 
-func (x *AgentExecutionStep) GetCreatedAt() *timestamppb.Timestamp {
-	if x != nil {
-		return x.CreatedAt
-	}
-	return nil
-}
-
 func (x *AgentExecutionStep) GetStartedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.StartedAt
@@ -732,10 +781,13 @@ func (x *AgentExecutionStep) GetFinishedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// ListConversationsRequest 定义会话列表的分页条件。
 type ListConversationsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Limit         int32                  `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
-	Cursor        string                 `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// limit 是期望返回的最大条目数，零使用服务端默认值。
+	Limit int32 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	// cursor 是上一页返回的不透明游标。
+	Cursor        string `protobuf:"bytes,2,opt,name=cursor,proto3" json:"cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -784,10 +836,13 @@ func (x *ListConversationsRequest) GetCursor() string {
 	return ""
 }
 
+// ListConversationsResponse 返回一页会话和后续游标。
 type ListConversationsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Conversations []*Conversation        `protobuf:"bytes,1,rep,name=conversations,proto3" json:"conversations,omitempty"`
-	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// conversations 按最近活动时间倒序排列。
+	Conversations []*Conversation `protobuf:"bytes,1,rep,name=conversations,proto3" json:"conversations,omitempty"`
+	// next_cursor 为空时表示没有下一页。
+	NextCursor    string `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -836,6 +891,7 @@ func (x *ListConversationsResponse) GetNextCursor() string {
 	return ""
 }
 
+// GetConversationRequest 指定当前管理员要读取的会话。
 type GetConversationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -880,6 +936,7 @@ func (x *GetConversationRequest) GetId() string {
 	return ""
 }
 
+// CreateConversationRequest 创建一个会话；标题为空时使用服务端默认名称。
 type CreateConversationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Title         string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
@@ -924,10 +981,13 @@ func (x *CreateConversationRequest) GetTitle() string {
 	return ""
 }
 
+// UpdateConversationRequest 完整替换会话标题。
 type UpdateConversationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Title         string                 `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是目标会话标识。
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// title 是新的非空展示名称。
+	Title         string `protobuf:"bytes,2,opt,name=title,proto3" json:"title,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -976,6 +1036,7 @@ func (x *UpdateConversationRequest) GetTitle() string {
 	return ""
 }
 
+// DeleteConversationRequest 指定要删除的会话。
 type DeleteConversationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1020,13 +1081,17 @@ func (x *DeleteConversationRequest) GetId() string {
 	return ""
 }
 
+// ListMessagesRequest 定义一段会话消息的正序分页条件。
 type ListMessagesRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	Limit          int32                  `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
-	Cursor         string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// conversation_id 是目标会话标识。
+	ConversationId string `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	// limit 是期望返回的最大条目数，零使用服务端默认值。
+	Limit int32 `protobuf:"varint,2,opt,name=limit,proto3" json:"limit,omitempty"`
+	// cursor 是上一页返回的不透明游标。
+	Cursor        string `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListMessagesRequest) Reset() {
@@ -1080,10 +1145,12 @@ func (x *ListMessagesRequest) GetCursor() string {
 	return ""
 }
 
+// ListMessagesResponse 返回一页持久消息和后续游标。
 type ListMessagesResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Messages      []*Message             `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
-	NextCursor    string                 `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
+	state    protoimpl.MessageState `protogen:"open.v1"`
+	Messages []*Message             `protobuf:"bytes,1,rep,name=messages,proto3" json:"messages,omitempty"`
+	// next_cursor 为空时表示没有下一页。
+	NextCursor    string `protobuf:"bytes,2,opt,name=next_cursor,json=nextCursor,proto3" json:"next_cursor,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1132,6 +1199,7 @@ func (x *ListMessagesResponse) GetNextCursor() string {
 	return ""
 }
 
+// GetAgentExecutionRequest 指定要查询的执行。
 type GetAgentExecutionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1176,6 +1244,7 @@ func (x *GetAgentExecutionRequest) GetId() string {
 	return ""
 }
 
+// ListAgentExecutionStepsRequest 指定要查询执行步骤的执行。
 type ListAgentExecutionStepsRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	ExecutionId   string                 `protobuf:"bytes,1,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
@@ -1220,6 +1289,7 @@ func (x *ListAgentExecutionStepsRequest) GetExecutionId() string {
 	return ""
 }
 
+// ListAgentExecutionStepsResponse 按 sequence 返回已经持久化的步骤。
 type ListAgentExecutionStepsResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Steps         []*AgentExecutionStep  `protobuf:"bytes,1,rep,name=steps,proto3" json:"steps,omitempty"`
@@ -1264,12 +1334,15 @@ func (x *ListAgentExecutionStepsResponse) GetSteps() []*AgentExecutionStep {
 	return nil
 }
 
+// CreateAgentExecutionRequest 把一条用户消息加入指定会话的执行队列。
 type CreateAgentExecutionRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	ConversationId string                 `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
-	Content        string                 `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// conversation_id 是目标会话标识。
+	ConversationId string `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	// content 是进入模型上下文的用户消息。
+	Content       string `protobuf:"bytes,2,opt,name=content,proto3" json:"content,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateAgentExecutionRequest) Reset() {
@@ -1316,6 +1389,7 @@ func (x *CreateAgentExecutionRequest) GetContent() string {
 	return ""
 }
 
+// CancelAgentExecutionRequest 指定要取消的排队中或运行中执行。
 type CancelAgentExecutionRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Id            string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -1362,20 +1436,29 @@ func (x *CancelAgentExecutionRequest) GetId() string {
 
 // ModelConnection 只返回非敏感连接信息，API Key 仅暴露是否已配置。
 type ModelConnection struct {
-	state            protoimpl.MessageState `protogen:"open.v1"`
-	Configured       bool                   `protobuf:"varint,1,opt,name=configured,proto3" json:"configured,omitempty"`
-	ConnectionMode   ModelConnectionMode    `protobuf:"varint,2,opt,name=connection_mode,json=connectionMode,proto3,enum=ingate.assistant.v1.ModelConnectionMode" json:"connection_mode,omitempty"`
-	Protocol         ModelProtocol          `protobuf:"varint,3,opt,name=protocol,proto3,enum=ingate.assistant.v1.ModelProtocol" json:"protocol,omitempty"`
-	Endpoint         string                 `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	Model            string                 `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`
-	ApiKeyConfigured bool                   `protobuf:"varint,6,opt,name=api_key_configured,json=apiKeyConfigured,proto3" json:"api_key_configured,omitempty"`
-	TimeoutSeconds   uint32                 `protobuf:"varint,7,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
-	MaxOutputTokens  uint32                 `protobuf:"varint,8,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// configured 区分首次配置默认值和已经持久化的连接。
+	Configured bool `protobuf:"varint,1,opt,name=configured,proto3" json:"configured,omitempty"`
+	// connection_mode 决定模型流量是直连还是经过 Ingate。
+	ConnectionMode ModelConnectionMode `protobuf:"varint,2,opt,name=connection_mode,json=connectionMode,proto3,enum=ingate.assistant.v1.ModelConnectionMode" json:"connection_mode,omitempty"`
+	// protocol 是 Assistant 发往端点的实际协议。
+	Protocol ModelProtocol `protobuf:"varint,3,opt,name=protocol,proto3,enum=ingate.assistant.v1.ModelProtocol" json:"protocol,omitempty"`
+	// endpoint 是模型 API 根地址。
+	Endpoint string `protobuf:"bytes,4,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	// model 是直连模型名或 Ingate AI Route 暴露的模型名。
+	Model string `protobuf:"bytes,5,opt,name=model,proto3" json:"model,omitempty"`
+	// api_key_configured 只表示凭据是否存在，不返回凭据原文。
+	ApiKeyConfigured bool `protobuf:"varint,6,opt,name=api_key_configured,json=apiKeyConfigured,proto3" json:"api_key_configured,omitempty"`
+	// timeout_seconds 是单次模型请求超时。
+	TimeoutSeconds uint32 `protobuf:"varint,7,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	// max_output_tokens 是单次回答允许生成的最大 Token 数。
+	MaxOutputTokens uint32 `protobuf:"varint,8,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
 	// reasoning_budget_tokens 仅用于主动开启 Anthropic 扩展思考，0 表示关闭。
-	ReasoningBudgetTokens uint32                 `protobuf:"varint,9,opt,name=reasoning_budget_tokens,json=reasoningBudgetTokens,proto3" json:"reasoning_budget_tokens,omitempty"`
-	UpdatedAt             *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	ReasoningBudgetTokens uint32 `protobuf:"varint,9,opt,name=reasoning_budget_tokens,json=reasoningBudgetTokens,proto3" json:"reasoning_budget_tokens,omitempty"`
+	// updated_at 只在 configured 为 true 时出现。
+	UpdatedAt     *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ModelConnection) Reset() {
@@ -1480,16 +1563,24 @@ func (x *ModelConnection) GetUpdatedAt() *timestamppb.Timestamp {
 
 // UpdateModelConnectionRequest 中未提供 api_key 表示保留原凭据，clear_api_key 表示明确删除。
 type UpdateModelConnectionRequest struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	ConnectionMode        ModelConnectionMode    `protobuf:"varint,1,opt,name=connection_mode,json=connectionMode,proto3,enum=ingate.assistant.v1.ModelConnectionMode" json:"connection_mode,omitempty"`
-	Protocol              ModelProtocol          `protobuf:"varint,2,opt,name=protocol,proto3,enum=ingate.assistant.v1.ModelProtocol" json:"protocol,omitempty"`
-	Endpoint              string                 `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
-	Model                 string                 `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
-	ApiKey                *string                `protobuf:"bytes,5,opt,name=api_key,json=apiKey,proto3,oneof" json:"api_key,omitempty"`
-	ClearApiKey           bool                   `protobuf:"varint,6,opt,name=clear_api_key,json=clearApiKey,proto3" json:"clear_api_key,omitempty"`
-	TimeoutSeconds        uint32                 `protobuf:"varint,7,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
-	MaxOutputTokens       uint32                 `protobuf:"varint,8,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
-	ReasoningBudgetTokens uint32                 `protobuf:"varint,9,opt,name=reasoning_budget_tokens,json=reasoningBudgetTokens,proto3" json:"reasoning_budget_tokens,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// connection_mode 决定模型流量的网络路径。
+	ConnectionMode ModelConnectionMode `protobuf:"varint,1,opt,name=connection_mode,json=connectionMode,proto3,enum=ingate.assistant.v1.ModelConnectionMode" json:"connection_mode,omitempty"`
+	// protocol 是 Assistant 发往端点的实际协议。
+	Protocol ModelProtocol `protobuf:"varint,2,opt,name=protocol,proto3,enum=ingate.assistant.v1.ModelProtocol" json:"protocol,omitempty"`
+	// endpoint 是不含查询参数和片段的模型 API 根地址。
+	Endpoint string `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
+	// model 是端点实际接受的模型名。
+	Model string `protobuf:"bytes,4,opt,name=model,proto3" json:"model,omitempty"`
+	// api_key 提供时替换已保存凭据；省略时保留原值。
+	ApiKey *string `protobuf:"bytes,5,opt,name=api_key,json=apiKey,proto3,oneof" json:"api_key,omitempty"`
+	// clear_api_key 明确删除已保存凭据，不能与 api_key 同时使用。
+	ClearApiKey bool `protobuf:"varint,6,opt,name=clear_api_key,json=clearApiKey,proto3" json:"clear_api_key,omitempty"`
+	// timeout_seconds 是单次模型请求超时。
+	TimeoutSeconds uint32 `protobuf:"varint,7,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	// max_output_tokens 是单次回答允许生成的最大 Token 数。
+	MaxOutputTokens       uint32 `protobuf:"varint,8,opt,name=max_output_tokens,json=maxOutputTokens,proto3" json:"max_output_tokens,omitempty"`
+	ReasoningBudgetTokens uint32 `protobuf:"varint,9,opt,name=reasoning_budget_tokens,json=reasoningBudgetTokens,proto3" json:"reasoning_budget_tokens,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -1621,7 +1712,7 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"finishedAt\x129\n" +
 	"\n" +
 	"created_at\x18\b \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x125\n" +
-	"\x16cancellation_requested\x18\t \x01(\bR\x15cancellationRequested\"\xe8\x03\n" +
+	"\x16cancellation_requested\x18\t \x01(\bR\x15cancellationRequested\"\xad\x03\n" +
 	"\x12AgentExecutionStep\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12!\n" +
 	"\fexecution_id\x18\x02 \x01(\tR\vexecutionId\x12\x1a\n" +
@@ -1633,11 +1724,9 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\n" +
 	"error_code\x18\b \x01(\tR\terrorCode\x129\n" +
 	"\n" +
-	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
-	"\n" +
-	"started_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
-	"\vfinished_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"started_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
+	"\vfinished_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"finishedAt\"Q\n" +
 	"\x18ListConversationsRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
@@ -1804,46 +1893,45 @@ var file_assistant_v1_assistant_proto_depIdxs = []int32{
 	25, // 7: ingate.assistant.v1.AgentExecution.created_at:type_name -> google.protobuf.Timestamp
 	4,  // 8: ingate.assistant.v1.AgentExecutionStep.kind:type_name -> ingate.assistant.v1.AgentExecutionStepKind
 	5,  // 9: ingate.assistant.v1.AgentExecutionStep.state:type_name -> ingate.assistant.v1.AgentExecutionStepState
-	25, // 10: ingate.assistant.v1.AgentExecutionStep.created_at:type_name -> google.protobuf.Timestamp
-	25, // 11: ingate.assistant.v1.AgentExecutionStep.started_at:type_name -> google.protobuf.Timestamp
-	25, // 12: ingate.assistant.v1.AgentExecutionStep.finished_at:type_name -> google.protobuf.Timestamp
-	6,  // 13: ingate.assistant.v1.ListConversationsResponse.conversations:type_name -> ingate.assistant.v1.Conversation
-	7,  // 14: ingate.assistant.v1.ListMessagesResponse.messages:type_name -> ingate.assistant.v1.Message
-	9,  // 15: ingate.assistant.v1.ListAgentExecutionStepsResponse.steps:type_name -> ingate.assistant.v1.AgentExecutionStep
-	0,  // 16: ingate.assistant.v1.ModelConnection.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
-	1,  // 17: ingate.assistant.v1.ModelConnection.protocol:type_name -> ingate.assistant.v1.ModelProtocol
-	25, // 18: ingate.assistant.v1.ModelConnection.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 19: ingate.assistant.v1.UpdateModelConnectionRequest.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
-	1,  // 20: ingate.assistant.v1.UpdateModelConnectionRequest.protocol:type_name -> ingate.assistant.v1.ModelProtocol
-	10, // 21: ingate.assistant.v1.ConversationService.ListConversations:input_type -> ingate.assistant.v1.ListConversationsRequest
-	12, // 22: ingate.assistant.v1.ConversationService.GetConversation:input_type -> ingate.assistant.v1.GetConversationRequest
-	13, // 23: ingate.assistant.v1.ConversationService.CreateConversation:input_type -> ingate.assistant.v1.CreateConversationRequest
-	14, // 24: ingate.assistant.v1.ConversationService.UpdateConversation:input_type -> ingate.assistant.v1.UpdateConversationRequest
-	15, // 25: ingate.assistant.v1.ConversationService.DeleteConversation:input_type -> ingate.assistant.v1.DeleteConversationRequest
-	16, // 26: ingate.assistant.v1.ConversationService.ListMessages:input_type -> ingate.assistant.v1.ListMessagesRequest
-	21, // 27: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:input_type -> ingate.assistant.v1.CreateAgentExecutionRequest
-	18, // 28: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:input_type -> ingate.assistant.v1.GetAgentExecutionRequest
-	19, // 29: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:input_type -> ingate.assistant.v1.ListAgentExecutionStepsRequest
-	22, // 30: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:input_type -> ingate.assistant.v1.CancelAgentExecutionRequest
-	26, // 31: ingate.assistant.v1.ModelConnectionService.GetModelConnection:input_type -> google.protobuf.Empty
-	24, // 32: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:input_type -> ingate.assistant.v1.UpdateModelConnectionRequest
-	11, // 33: ingate.assistant.v1.ConversationService.ListConversations:output_type -> ingate.assistant.v1.ListConversationsResponse
-	6,  // 34: ingate.assistant.v1.ConversationService.GetConversation:output_type -> ingate.assistant.v1.Conversation
-	6,  // 35: ingate.assistant.v1.ConversationService.CreateConversation:output_type -> ingate.assistant.v1.Conversation
-	6,  // 36: ingate.assistant.v1.ConversationService.UpdateConversation:output_type -> ingate.assistant.v1.Conversation
-	26, // 37: ingate.assistant.v1.ConversationService.DeleteConversation:output_type -> google.protobuf.Empty
-	17, // 38: ingate.assistant.v1.ConversationService.ListMessages:output_type -> ingate.assistant.v1.ListMessagesResponse
-	8,  // 39: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
-	8,  // 40: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
-	20, // 41: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:output_type -> ingate.assistant.v1.ListAgentExecutionStepsResponse
-	8,  // 42: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
-	23, // 43: ingate.assistant.v1.ModelConnectionService.GetModelConnection:output_type -> ingate.assistant.v1.ModelConnection
-	23, // 44: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:output_type -> ingate.assistant.v1.ModelConnection
-	33, // [33:45] is the sub-list for method output_type
-	21, // [21:33] is the sub-list for method input_type
-	21, // [21:21] is the sub-list for extension type_name
-	21, // [21:21] is the sub-list for extension extendee
-	0,  // [0:21] is the sub-list for field type_name
+	25, // 10: ingate.assistant.v1.AgentExecutionStep.started_at:type_name -> google.protobuf.Timestamp
+	25, // 11: ingate.assistant.v1.AgentExecutionStep.finished_at:type_name -> google.protobuf.Timestamp
+	6,  // 12: ingate.assistant.v1.ListConversationsResponse.conversations:type_name -> ingate.assistant.v1.Conversation
+	7,  // 13: ingate.assistant.v1.ListMessagesResponse.messages:type_name -> ingate.assistant.v1.Message
+	9,  // 14: ingate.assistant.v1.ListAgentExecutionStepsResponse.steps:type_name -> ingate.assistant.v1.AgentExecutionStep
+	0,  // 15: ingate.assistant.v1.ModelConnection.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
+	1,  // 16: ingate.assistant.v1.ModelConnection.protocol:type_name -> ingate.assistant.v1.ModelProtocol
+	25, // 17: ingate.assistant.v1.ModelConnection.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 18: ingate.assistant.v1.UpdateModelConnectionRequest.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
+	1,  // 19: ingate.assistant.v1.UpdateModelConnectionRequest.protocol:type_name -> ingate.assistant.v1.ModelProtocol
+	10, // 20: ingate.assistant.v1.ConversationService.ListConversations:input_type -> ingate.assistant.v1.ListConversationsRequest
+	12, // 21: ingate.assistant.v1.ConversationService.GetConversation:input_type -> ingate.assistant.v1.GetConversationRequest
+	13, // 22: ingate.assistant.v1.ConversationService.CreateConversation:input_type -> ingate.assistant.v1.CreateConversationRequest
+	14, // 23: ingate.assistant.v1.ConversationService.UpdateConversation:input_type -> ingate.assistant.v1.UpdateConversationRequest
+	15, // 24: ingate.assistant.v1.ConversationService.DeleteConversation:input_type -> ingate.assistant.v1.DeleteConversationRequest
+	16, // 25: ingate.assistant.v1.ConversationService.ListMessages:input_type -> ingate.assistant.v1.ListMessagesRequest
+	21, // 26: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:input_type -> ingate.assistant.v1.CreateAgentExecutionRequest
+	18, // 27: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:input_type -> ingate.assistant.v1.GetAgentExecutionRequest
+	19, // 28: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:input_type -> ingate.assistant.v1.ListAgentExecutionStepsRequest
+	22, // 29: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:input_type -> ingate.assistant.v1.CancelAgentExecutionRequest
+	26, // 30: ingate.assistant.v1.ModelConnectionService.GetModelConnection:input_type -> google.protobuf.Empty
+	24, // 31: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:input_type -> ingate.assistant.v1.UpdateModelConnectionRequest
+	11, // 32: ingate.assistant.v1.ConversationService.ListConversations:output_type -> ingate.assistant.v1.ListConversationsResponse
+	6,  // 33: ingate.assistant.v1.ConversationService.GetConversation:output_type -> ingate.assistant.v1.Conversation
+	6,  // 34: ingate.assistant.v1.ConversationService.CreateConversation:output_type -> ingate.assistant.v1.Conversation
+	6,  // 35: ingate.assistant.v1.ConversationService.UpdateConversation:output_type -> ingate.assistant.v1.Conversation
+	26, // 36: ingate.assistant.v1.ConversationService.DeleteConversation:output_type -> google.protobuf.Empty
+	17, // 37: ingate.assistant.v1.ConversationService.ListMessages:output_type -> ingate.assistant.v1.ListMessagesResponse
+	8,  // 38: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
+	8,  // 39: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
+	20, // 40: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:output_type -> ingate.assistant.v1.ListAgentExecutionStepsResponse
+	8,  // 41: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
+	23, // 42: ingate.assistant.v1.ModelConnectionService.GetModelConnection:output_type -> ingate.assistant.v1.ModelConnection
+	23, // 43: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:output_type -> ingate.assistant.v1.ModelConnection
+	32, // [32:44] is the sub-list for method output_type
+	20, // [20:32] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_assistant_v1_assistant_proto_init() }

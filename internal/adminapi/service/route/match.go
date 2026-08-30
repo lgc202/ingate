@@ -2,74 +2,114 @@ package route
 
 import (
 	"net/http"
-	"net/url"
 	"strings"
 
-	"golang.org/x/net/http/httpguts"
+	"github.com/go-kratos/kratos/v3/errors"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
-func routeMatch(input *adminv1.RouteMatch) (resource.RouteMatch, error) {
-	if input == nil || input.GetPath() == nil {
-		return resource.RouteMatch{}, adminservice.BadRequest("必须配置路由路径")
+func parseRouteMatch(config *adminv1.RouteMatch) (resource.RouteMatch, error) {
+	if config == nil || config.GetPath() == nil {
+		return resource.RouteMatch{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"必须配置路由路径",
+		)
 	}
-	pathType, err := pathMatchType(input.GetPath().GetType())
+	path := config.GetPath()
+	pathType, err := parsePathMatchType(path.GetType())
 	if err != nil {
 		return resource.RouteMatch{}, err
 	}
-	pathValue := strings.TrimSpace(input.GetPath().GetValue())
-	if !validPath(pathValue) {
-		return resource.RouteMatch{}, adminservice.BadRequest("路由路径必须是以 / 开头且不包含查询参数或片段的请求路径")
+	pathValue := strings.TrimSpace(path.GetValue())
+	if !routeconfig.IsValidPath(pathValue) {
+		return resource.RouteMatch{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"路由路径必须是以 / 开头且不包含查询参数或片段的请求路径",
+		)
+	}
+	methods := config.GetMethods()
+	if len(methods) > routeconfig.MaxHTTPMethods {
+		return resource.RouteMatch{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"路由匹配的 HTTP 方法过多",
+		)
+	}
+	headers := config.GetHeaders()
+	if len(headers) > routeconfig.MaxHeaderMatches {
+		return resource.RouteMatch{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"路由匹配的 Header 条件过多",
+		)
 	}
 
-	match := resource.RouteMatch{Path: resource.PathMatch{Type: pathType, Value: pathValue}}
-	seenMethods := make(map[string]struct{}, len(input.GetMethods()))
-	for _, inputMethod := range input.GetMethods() {
-		method, err := httpMethod(inputMethod)
+	match := resource.RouteMatch{
+		Path:    resource.PathMatch{Type: pathType, Value: pathValue},
+		Methods: make([]string, len(methods)),
+		Headers: make([]resource.HeaderMatch, len(headers)),
+	}
+	seenMethods := make(map[string]bool, len(methods))
+	for i, method := range methods {
+		httpMethod, err := parseHTTPMethod(method)
 		if err != nil {
 			return resource.RouteMatch{}, err
 		}
-		if _, exists := seenMethods[method]; exists {
-			return resource.RouteMatch{}, adminservice.BadRequest("HTTP 方法不能重复")
+		if seenMethods[httpMethod] {
+			return resource.RouteMatch{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"HTTP 方法不能重复",
+			)
 		}
-		seenMethods[method] = struct{}{}
-		match.Methods = append(match.Methods, method)
+		seenMethods[httpMethod] = true
+		match.Methods[i] = httpMethod
 	}
 
-	seenHeaders := make(map[string]struct{}, len(input.GetHeaders()))
-	for _, inputHeader := range input.GetHeaders() {
-		if inputHeader == nil {
-			return resource.RouteMatch{}, adminservice.BadRequest("Header 匹配条件不能为空")
+	seenHeaders := make(map[string]bool, len(headers))
+	for i, header := range headers {
+		if header == nil {
+			return resource.RouteMatch{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"Header 匹配条件不能为空",
+			)
 		}
-		name := strings.ToLower(strings.TrimSpace(inputHeader.GetName()))
-		value := inputHeader.GetValue()
-		if !httpguts.ValidHeaderFieldName(name) || value == "" || !httpguts.ValidHeaderFieldValue(value) {
-			return resource.RouteMatch{}, adminservice.BadRequest("Header 匹配条件的名称或值格式不正确")
+		name := httpheader.NormalizeName(header.GetName())
+		value := httpheader.NormalizeValue(header.GetValue())
+		if !httpheader.IsValidName(name) || value == "" || !httpheader.IsValidValue(value) {
+			return resource.RouteMatch{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"Header 匹配条件的名称或值格式不正确",
+			)
 		}
-		if _, exists := seenHeaders[name]; exists {
-			return resource.RouteMatch{}, adminservice.BadRequest("同一个 Header 只能匹配一次")
+		if seenHeaders[name] {
+			return resource.RouteMatch{}, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"同一个 Header 只能匹配一次",
+			)
 		}
-		seenHeaders[name] = struct{}{}
-		match.Headers = append(match.Headers, resource.HeaderMatch{Name: name, Value: value})
+		seenHeaders[name] = true
+		match.Headers[i] = resource.HeaderMatch{Name: name, Value: value}
 	}
 	return match, nil
 }
 
-func pathMatchType(matchType adminv1.RoutePathMatchType) (resource.PathMatchType, error) {
+func parsePathMatchType(matchType adminv1.RoutePathMatchType) (resource.PathMatchType, error) {
 	switch matchType {
-	case adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_PREFIX:
+	case adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_TYPE_PREFIX:
 		return resource.PathMatchPrefix, nil
-	case adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_EXACT:
+	case adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_TYPE_EXACT:
 		return resource.PathMatchExact, nil
 	default:
-		return "", adminservice.BadRequest("路由路径匹配方式不正确")
+		return "", errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"路由路径匹配方式不正确",
+		)
 	}
 }
 
-func httpMethod(method adminv1.HTTPMethod) (string, error) {
+func parseHTTPMethod(method adminv1.HTTPMethod) (string, error) {
 	switch method {
 	case adminv1.HTTPMethod_HTTP_METHOD_GET:
 		return http.MethodGet, nil
@@ -86,14 +126,62 @@ func httpMethod(method adminv1.HTTPMethod) (string, error) {
 	case adminv1.HTTPMethod_HTTP_METHOD_OPTIONS:
 		return http.MethodOptions, nil
 	default:
-		return "", adminservice.BadRequest("HTTP 方法不正确")
+		return "", errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"HTTP 方法不正确",
+		)
 	}
 }
 
-func validPath(value string) bool {
-	if !strings.HasPrefix(value, "/") || strings.ContainsAny(value, "?#") {
-		return false
+func matchResponse(match resource.RouteMatch) *adminv1.RouteMatch {
+	response := &adminv1.RouteMatch{
+		Path: &adminv1.RoutePathMatch{
+			Type:  pathMatchTypeResponse(match.Path.Type),
+			Value: match.Path.Value,
+		},
+		Methods: make([]adminv1.HTTPMethod, len(match.Methods)),
+		Headers: make([]*adminv1.HeaderMatch, len(match.Headers)),
 	}
-	_, err := url.ParseRequestURI(value)
-	return err == nil
+	for i, method := range match.Methods {
+		response.Methods[i] = httpMethodResponse(method)
+	}
+	for i, header := range match.Headers {
+		response.Headers[i] = &adminv1.HeaderMatch{
+			Name:  header.Name,
+			Value: header.Value,
+		}
+	}
+	return response
+}
+
+func pathMatchTypeResponse(matchType resource.PathMatchType) adminv1.RoutePathMatchType {
+	switch matchType {
+	case resource.PathMatchPrefix:
+		return adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_TYPE_PREFIX
+	case resource.PathMatchExact:
+		return adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_TYPE_EXACT
+	default:
+		return adminv1.RoutePathMatchType_ROUTE_PATH_MATCH_TYPE_UNSPECIFIED
+	}
+}
+
+func httpMethodResponse(method string) adminv1.HTTPMethod {
+	switch method {
+	case http.MethodGet:
+		return adminv1.HTTPMethod_HTTP_METHOD_GET
+	case http.MethodHead:
+		return adminv1.HTTPMethod_HTTP_METHOD_HEAD
+	case http.MethodPost:
+		return adminv1.HTTPMethod_HTTP_METHOD_POST
+	case http.MethodPut:
+		return adminv1.HTTPMethod_HTTP_METHOD_PUT
+	case http.MethodPatch:
+		return adminv1.HTTPMethod_HTTP_METHOD_PATCH
+	case http.MethodDelete:
+		return adminv1.HTTPMethod_HTTP_METHOD_DELETE
+	case http.MethodOptions:
+		return adminv1.HTTPMethod_HTTP_METHOD_OPTIONS
+	default:
+		return adminv1.HTTPMethod_HTTP_METHOD_UNSPECIFIED
+	}
 }

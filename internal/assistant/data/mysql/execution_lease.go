@@ -28,12 +28,10 @@ func (s *Store) ClaimExecution(
 		if err != nil {
 			return fmt.Errorf("select queued assistant execution: %w", err)
 		}
-		now := time.Now().UTC()
 		rows, err := queries.StartExecution(ctx, db.StartExecutionParams{
-			WorkerID:       workerID,
-			LeaseExpiresAt: sql.NullTime{Time: now.Add(leaseDuration), Valid: true},
-			StartedAt:      sql.NullTime{Time: now, Valid: true},
-			ID:             row.ID,
+			WorkerID:                  workerID,
+			LeaseDurationMicroseconds: leaseDuration.Microseconds(),
+			ID:                        row.ID,
 		})
 		if err != nil {
 			return fmt.Errorf("start assistant execution: %w", err)
@@ -42,14 +40,9 @@ func (s *Store) ClaimExecution(
 			return execution.ErrStateConflict
 		}
 		claim = execution.Claim{
-			Execution: execution.Execution{
-				ID:             row.ID,
-				ConversationID: row.ConversationID,
-				State:          execution.StateRunning,
-				CreatedAt:      row.CreatedAt,
-				StartedAt:      &now,
-			},
-			ActorID: row.ActorID,
+			ID:             row.ID,
+			ConversationID: row.ConversationID,
+			ActorID:        row.ActorID,
 		}
 		found = true
 		return nil
@@ -82,9 +75,9 @@ func (s *Store) RenewExecutionLease(
 	leaseDuration time.Duration,
 ) (bool, error) {
 	rows, err := s.queries.RenewExecutionLease(ctx, db.RenewExecutionLeaseParams{
-		LeaseExpiresAt: sql.NullTime{Time: time.Now().UTC().Add(leaseDuration), Valid: true},
-		ID:             executionID,
-		WorkerID:       workerID,
+		LeaseDurationMicroseconds: leaseDuration.Microseconds(),
+		ID:                        executionID,
+		WorkerID:                  workerID,
 	})
 	if err != nil {
 		return false, fmt.Errorf("renew assistant execution lease: %w", err)
@@ -94,7 +87,10 @@ func (s *Store) RenewExecutionLease(
 	}
 	cancelRequested, err := s.queries.ExecutionCancellationRequested(
 		ctx,
-		db.ExecutionCancellationRequestedParams{ID: executionID, WorkerID: workerID},
+		db.ExecutionCancellationRequestedParams{
+			ID:       executionID,
+			WorkerID: workerID,
+		},
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, execution.ErrLeaseLost
@@ -110,20 +106,15 @@ func (s *Store) RenewExecutionLease(
 func (s *Store) FailExpiredExecutions(ctx context.Context) (int64, error) {
 	var rows int64
 	err := s.withTransaction(ctx, func(queries *db.Queries) error {
-		now := time.Now().UTC()
-		if err := queries.FailExpiredExecutionSteps(ctx, db.FailExpiredExecutionStepsParams{
-			ErrorCode:      string(execution.FailureWorkerLost),
-			FinishedAt:     sql.NullTime{Time: now, Valid: true},
-			LeaseExpiresAt: sql.NullTime{Time: now, Valid: true},
-		}); err != nil {
+		// 与正常终态写入保持 conversation -> execution -> step 的锁顺序。
+		if err := queries.TouchExpiredExecutionConversations(ctx); err != nil {
+			return fmt.Errorf("update expired execution conversations: %w", err)
+		}
+		if err := queries.FailExpiredExecutionSteps(ctx, string(execution.FailureWorkerLost)); err != nil {
 			return fmt.Errorf("fail expired assistant execution steps: %w", err)
 		}
 		var err error
-		rows, err = queries.FailExpiredExecutions(ctx, db.FailExpiredExecutionsParams{
-			ErrorCode:      string(execution.FailureWorkerLost),
-			FinishedAt:     sql.NullTime{Time: now, Valid: true},
-			LeaseExpiresAt: sql.NullTime{Time: now, Valid: true},
-		})
+		rows, err = queries.FailExpiredExecutions(ctx, string(execution.FailureWorkerLost))
 		if err != nil {
 			return fmt.Errorf("fail expired assistant executions: %w", err)
 		}

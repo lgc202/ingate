@@ -1,4 +1,4 @@
-// Package data 实现 biz 层依赖的数据访问
+// Package data 实现 biz 层依赖的数据访问。
 package data
 
 import (
@@ -28,49 +28,50 @@ import (
 
 var apiserverProviderSet = wire.NewSet(
 	apiserver.NewClient,
-	apiserver.NewGatewayRepository,
-	apiserver.NewRouteRepository,
-	apiserver.NewUpstreamRepository,
-	apiserver.NewCertificateRepository,
-	apiserver.NewRateLimitPolicyRepository,
-	apiserver.NewIPRestrictionPolicyRepository,
-	apiserver.NewCallerRepository,
-	apiserver.NewTokenQuotaPolicyRepository,
-	apiserver.NewWasmPluginRepository,
-	apiserver.NewPluginSourceRepository,
-	apiserver.NewHeaderTransformationPolicyRepository,
-	apiserver.NewMockResponsePolicyRepository,
-	// 根 biz 只保留跨领域策略能力所需的只读边界
-	wire.Bind(new(biz.GatewayLister), new(*apiserver.GatewayRepository)),
-	wire.Bind(new(biz.RouteLister), new(*apiserver.RouteRepository)),
-	wire.Bind(new(biz.CallerLister), new(*apiserver.CallerRepository)),
-	wire.Bind(new(biz.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyRepository)),
-	wire.Bind(new(biz.IPRestrictionPolicyLister), new(*apiserver.IPRestrictionPolicyRepository)),
-	wire.Bind(new(biz.HeaderTransformationPolicyLister), new(*apiserver.HeaderTransformationPolicyRepository)),
-	wire.Bind(new(biz.MockResponsePolicyLister), new(*apiserver.MockResponsePolicyRepository)),
-	wire.Bind(new(biz.WasmPluginLister), new(*apiserver.WasmPluginRepository)),
-	// 每个领域声明自己真实消费的 Repository，避免 biz 子包相互依赖
-	wire.Bind(new(gateway.Repository), new(*apiserver.GatewayRepository)),
-	wire.Bind(new(gateway.RouteRepository), new(*apiserver.RouteRepository)),
-	wire.Bind(new(gateway.CertificateRepository), new(*apiserver.CertificateRepository)),
-	wire.Bind(new(route.Repository), new(*apiserver.RouteRepository)),
-	wire.Bind(new(route.GatewayRepository), new(*apiserver.GatewayRepository)),
-	wire.Bind(new(route.UpstreamRepository), new(*apiserver.UpstreamRepository)),
-	wire.Bind(new(route.CallerRepository), new(*apiserver.CallerRepository)),
-	wire.Bind(new(upstream.Repository), new(*apiserver.UpstreamRepository)),
-	wire.Bind(new(upstream.RouteRepository), new(*apiserver.RouteRepository)),
-	wire.Bind(new(certificate.Repository), new(*apiserver.CertificateRepository)),
-	wire.Bind(new(certificate.GatewayRepository), new(*apiserver.GatewayRepository)),
-	wire.Bind(new(ratelimit.Repository), new(*apiserver.RateLimitPolicyRepository)),
-	wire.Bind(new(iprestriction.Repository), new(*apiserver.IPRestrictionPolicyRepository)),
-	wire.Bind(new(headertransformation.Repository), new(*apiserver.HeaderTransformationPolicyRepository)),
-	wire.Bind(new(mockresponse.Repository), new(*apiserver.MockResponsePolicyRepository)),
-	wire.Bind(new(caller.Repository), new(*apiserver.CallerRepository)),
-	wire.Bind(new(tokenquota.Repository), new(*apiserver.TokenQuotaPolicyRepository)),
-	wire.Bind(new(tokenquota.CallerRepository), new(*apiserver.CallerRepository)),
-	wire.Bind(new(wasmplugin.Repository), new(*apiserver.WasmPluginRepository)),
-	wire.Bind(new(pluginsource.Repository), new(*apiserver.PluginSourceRepository)),
-	wire.Bind(new(caller.RouteRepository), new(*apiserver.RouteRepository)),
+	apiserver.NewGatewayStore,
+	apiserver.NewRouteStore,
+	apiserver.NewUpstreamStore,
+	apiserver.NewCertificateStore,
+	apiserver.NewRateLimitPolicyStore,
+	apiserver.NewIPRestrictionPolicyStore,
+	apiserver.NewCallerStore,
+	apiserver.NewTokenQuotaPolicyStore,
+	apiserver.NewWasmPluginStore,
+	apiserver.NewPluginSourceStore,
+	apiserver.NewHeaderTransformationPolicyStore,
+	apiserver.NewMockResponsePolicyStore,
+	// 根 biz 只保留跨领域策略能力所需的只读边界。
+	wire.Bind(new(biz.GatewayLister), new(*apiserver.GatewayStore)),
+	wire.Bind(new(biz.RouteLister), new(*apiserver.RouteStore)),
+	wire.Bind(new(biz.CallerLister), new(*apiserver.CallerStore)),
+	wire.Bind(new(biz.RateLimitPolicyLister), new(*apiserver.RateLimitPolicyStore)),
+	wire.Bind(new(biz.IPRestrictionPolicyLister), new(*apiserver.IPRestrictionPolicyStore)),
+	wire.Bind(new(biz.HeaderTransformationPolicyLister), new(*apiserver.HeaderTransformationPolicyStore)),
+	wire.Bind(new(biz.MockResponsePolicyLister), new(*apiserver.MockResponsePolicyStore)),
+	wire.Bind(new(biz.WasmPluginLister), new(*apiserver.WasmPluginStore)),
+	// 每个领域声明自己真实消费的边界，避免 biz 子包相互依赖。
+	wire.Bind(new(gateway.Store), new(*apiserver.GatewayStore)),
+	wire.Bind(new(gateway.RouteLister), new(*apiserver.RouteStore)),
+	wire.Bind(new(gateway.CertificateGetter), new(*apiserver.CertificateStore)),
+	wire.Bind(new(route.Store), new(*apiserver.RouteStore)),
+	wire.Bind(new(route.GatewayReader), new(*apiserver.GatewayStore)),
+	wire.Bind(new(route.ServiceReader), new(*apiserver.UpstreamStore)),
+	wire.Bind(new(route.CallerLister), new(*apiserver.CallerStore)),
+	wire.Bind(new(upstream.Store), new(*apiserver.UpstreamStore)),
+	wire.Bind(new(upstream.RouteLister), new(*apiserver.RouteStore)),
+	wire.Bind(new(certificate.Store), new(*apiserver.CertificateStore)),
+	wire.Bind(new(certificate.GatewayLister), new(*apiserver.GatewayStore)),
+	wire.Bind(new(ratelimit.Store), new(*apiserver.RateLimitPolicyStore)),
+	wire.Bind(new(iprestriction.Store), new(*apiserver.IPRestrictionPolicyStore)),
+	wire.Bind(new(headertransformation.Store), new(*apiserver.HeaderTransformationPolicyStore)),
+	wire.Bind(new(mockresponse.Store), new(*apiserver.MockResponsePolicyStore)),
+	wire.Bind(new(caller.Store), new(*apiserver.CallerStore)),
+	wire.Bind(new(caller.TokenQuotaPolicyLister), new(*apiserver.TokenQuotaPolicyStore)),
+	wire.Bind(new(tokenquota.Store), new(*apiserver.TokenQuotaPolicyStore)),
+	wire.Bind(new(tokenquota.CallerReader), new(*apiserver.CallerStore)),
+	wire.Bind(new(wasmplugin.Store), new(*apiserver.WasmPluginStore)),
+	wire.Bind(new(pluginsource.Store), new(*apiserver.PluginSourceStore)),
+	wire.Bind(new(caller.RouteGetter), new(*apiserver.RouteStore)),
 )
 
 var analyticsProviderSet = wire.NewSet(
@@ -78,9 +79,9 @@ var analyticsProviderSet = wire.NewSet(
 	dataanalytics.NewAIUsageRepository,
 	dataanalytics.NewRequestRepository,
 	dataanalytics.NewTrafficRepository,
-	wire.Bind(new(aiusage.Repository), new(*dataanalytics.AIUsageRepository)),
-	wire.Bind(new(requestbiz.Repository), new(*dataanalytics.RequestRepository)),
-	wire.Bind(new(trafficbiz.Repository), new(*dataanalytics.TrafficRepository)),
+	wire.Bind(new(aiusage.Analyzer), new(*dataanalytics.AIUsageRepository)),
+	wire.Bind(new(requestbiz.Reader), new(*dataanalytics.RequestRepository)),
+	wire.Bind(new(trafficbiz.Analyzer), new(*dataanalytics.TrafficRepository)),
 )
 
 var aiExtProcProviderSet = wire.NewSet(
@@ -95,5 +96,10 @@ var pluginCatalogProviderSet = wire.NewSet(
 	wire.Bind(new(pluginsource.Catalog), new(*plugincatalog.Catalog)),
 )
 
-// ProviderSet 汇总 Admin API 的数据访问实现
-var ProviderSet = wire.NewSet(apiserverProviderSet, analyticsProviderSet, aiExtProcProviderSet, pluginCatalogProviderSet)
+// ProviderSet 汇总 Admin API 的数据访问实现。
+var ProviderSet = wire.NewSet(
+	apiserverProviderSet,
+	analyticsProviderSet,
+	aiExtProcProviderSet,
+	pluginCatalogProviderSet,
+)

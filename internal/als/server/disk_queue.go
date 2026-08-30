@@ -2,28 +2,32 @@ package server
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/lgc202/ingate/internal/als/biz"
 	"github.com/lgc202/ingate/internal/als/conf"
 )
 
-// DiskQueueReplayer 周期性把 Kafka 故障期间写入磁盘队列的请求记录重新投递到 Kafka
+// DiskQueueReplayer 周期性把 Kafka 故障期间写入磁盘队列的请求记录重新投递到 Kafka。
 type DiskQueueReplayer struct {
 	recorder     *biz.Recorder
 	logger       *slog.Logger
 	interval     time.Duration
 	batchSize    int
 	done         chan struct{}
-	mu           sync.Mutex
+	running      atomic.Bool
+	lifecycleMu  sync.Mutex
 	cancel       context.CancelFunc
 	stopping     bool
 	replayFailed bool
 }
 
-// NewDiskQueueReplayer 创建磁盘队列回放任务
+// NewDiskQueueReplayer 创建磁盘队列回放任务。
 func NewDiskQueueReplayer(
 	config *conf.Data_DiskQueue,
 	recorder *biz.Recorder,
@@ -38,31 +42,56 @@ func NewDiskQueueReplayer(
 	}
 }
 
-// Start 阻塞运行回放循环，由 Kratos App 管理其生命周期
+// Start 阻塞运行回放循环，由 Kratos App 管理其生命周期。
 func (r *DiskQueueReplayer) Start(ctx context.Context) error {
-	replayContext, cancel := context.WithCancel(ctx)
+	if !r.running.CompareAndSwap(false, true) {
+		return errors.New("disk queue replayer is already running")
+	}
+	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	r.mu.Lock()
+	r.lifecycleMu.Lock()
 	r.cancel = cancel
 	stopping := r.stopping
-	r.mu.Unlock()
+	r.lifecycleMu.Unlock()
 	if stopping {
 		cancel()
 	}
 
 	defer close(r.done)
-	r.replay(replayContext)
+	if runCtx.Err() != nil {
+		return nil
+	}
+	r.replay(runCtx)
 	timer := time.NewTimer(r.interval)
 	defer timer.Stop()
 	for {
 		select {
-		case <-replayContext.Done():
+		case <-runCtx.Done():
 			return nil
 		case <-timer.C:
-			r.replay(replayContext)
+			r.replay(runCtx)
 			// 从本轮结束后重新计时，避免一次 Kafka 超时后立即消费积压的旧 tick 并连续重试
 			timer.Reset(r.interval)
 		}
+	}
+}
+
+// Stop 停止回放循环并等待当前一轮处理结束。
+func (r *DiskQueueReplayer) Stop(ctx context.Context) error {
+	r.lifecycleMu.Lock()
+	r.stopping = true
+	cancel := r.cancel
+	r.lifecycleMu.Unlock()
+	if cancel == nil {
+		return nil
+	}
+	// Kafka 写入会继承该取消信号，关闭时无需等待完整的写入超时
+	cancel()
+	select {
+	case <-r.done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("stop disk queue replayer: %w", ctx.Err())
 	}
 }
 
@@ -85,23 +114,5 @@ func (r *DiskQueueReplayer) replay(ctx context.Context) {
 		if ctx.Err() != nil {
 			return
 		}
-	}
-}
-
-// Stop 停止回放循环并等待当前一轮处理结束
-func (r *DiskQueueReplayer) Stop(ctx context.Context) error {
-	r.mu.Lock()
-	r.stopping = true
-	cancel := r.cancel
-	r.mu.Unlock()
-	if cancel != nil {
-		// Kafka 写入会继承该取消信号，关闭时无需等待完整的写入超时
-		cancel()
-	}
-	select {
-	case <-r.done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
 	}
 }

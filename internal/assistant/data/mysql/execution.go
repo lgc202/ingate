@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -45,7 +44,10 @@ func (s *Store) CreateExecution(
 			return execution.ErrConversationBusy
 		}
 
-		now := time.Now().UTC()
+		now, err := queries.CurrentTime(ctx)
+		if err != nil {
+			return fmt.Errorf("read MySQL time: %w", err)
+		}
 		created = execution.Execution{
 			ID:             uuid.NewString(),
 			ConversationID: conversationID,
@@ -53,7 +55,9 @@ func (s *Store) CreateExecution(
 			CreatedAt:      now,
 		}
 		if err := queries.CreateExecution(ctx, db.CreateExecutionParams{
-			ID: created.ID, ConversationID: created.ConversationID, CreatedAt: now,
+			ID:             created.ID,
+			ConversationID: created.ConversationID,
+			CreatedAt:      now,
 		}); err != nil {
 			return fmt.Errorf("create assistant execution: %w", err)
 		}
@@ -69,7 +73,8 @@ func (s *Store) CreateExecution(
 			return fmt.Errorf("create user message: %w", err)
 		}
 		if err := queries.TouchConversation(ctx, db.TouchConversationParams{
-			UpdatedAt: now, ID: conversationID, ActorID: actorID,
+			ID:      conversationID,
+			ActorID: actorID,
 		}); err != nil {
 			return fmt.Errorf("update conversation activity: %w", err)
 		}
@@ -81,7 +86,8 @@ func (s *Store) CreateExecution(
 	return created, nil
 }
 
-// CancelExecution 立即取消排队执行；已经开始的执行只记录请求，由持有租约的实例终止模型调用。
+// CancelExecution 立即取消排队执行；已经开始的执行只记录请求，
+// 由持有租约的实例终止模型调用。
 func (s *Store) CancelExecution(ctx context.Context, actorID, executionID string) (execution.Execution, error) {
 	stored, err := s.queries.GetExecution(ctx, db.GetExecutionParams{ID: executionID, ActorID: actorID})
 	if err != nil {
@@ -102,13 +108,17 @@ func (s *Store) CancelExecution(ctx context.Context, actorID, executionID string
 		}
 		result, err = executionFromDB(locked)
 		if err != nil {
-			return fmt.Errorf("decode assistant execution: %w", err)
+			return fmt.Errorf("restore assistant execution: %w", err)
 		}
 		switch result.State {
 		case execution.StateQueued:
-			now := time.Now().UTC()
+			now, err := queries.CurrentTime(ctx)
+			if err != nil {
+				return fmt.Errorf("read MySQL time: %w", err)
+			}
 			rows, err := queries.CancelQueuedExecution(ctx, db.CancelQueuedExecutionParams{
-				FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: executionID,
+				FinishedAt: sql.NullTime{Time: now, Valid: true},
+				ID:         executionID,
 			})
 			if err != nil {
 				return fmt.Errorf("cancel queued assistant execution: %w", err)
@@ -118,6 +128,12 @@ func (s *Store) CancelExecution(ctx context.Context, actorID, executionID string
 			}
 			result.State = execution.StateCancelled
 			result.FinishedAt = &now
+			if err := queries.TouchConversation(ctx, db.TouchConversationParams{
+				ID:      result.ConversationID,
+				ActorID: actorID,
+			}); err != nil {
+				return fmt.Errorf("update conversation activity: %w", err)
+			}
 		case execution.StateRunning:
 			if result.CancellationRequested {
 				return nil
@@ -147,12 +163,16 @@ func (s *Store) GetExecution(ctx context.Context, actorID, id string) (execution
 	}
 	result, err := executionFromDB(item)
 	if err != nil {
-		return execution.Execution{}, fmt.Errorf("decode assistant execution: %w", err)
+		return execution.Execution{}, fmt.Errorf("restore assistant execution: %w", err)
 	}
 	return result, nil
 }
 
 func executionFromDB(item db.AssistantAgentExecution) (execution.Execution, error) {
+	if uuid.Validate(item.ID) != nil || uuid.Validate(item.ConversationID) != nil ||
+		item.CreatedAt.IsZero() {
+		return execution.Execution{}, fmt.Errorf("invalid stored assistant execution %q", item.ID)
+	}
 	state, err := executionStateFromDB(item.State)
 	if err != nil {
 		return execution.Execution{}, err
@@ -171,6 +191,9 @@ func executionFromDB(item db.AssistantAgentExecution) (execution.Execution, erro
 	}
 	if item.FinishedAt.Valid {
 		result.FinishedAt = &item.FinishedAt.Time
+	}
+	if err := validateStoredExecution(item, result); err != nil {
+		return execution.Execution{}, err
 	}
 	return result, nil
 }
@@ -197,4 +220,63 @@ func executionNotFound(err error) error {
 		return execution.ErrNotFound
 	}
 	return err
+}
+
+func validateStoredExecution(
+	stored db.AssistantAgentExecution,
+	result execution.Execution,
+) error {
+	if stored.StartedAt.Valid && stored.StartedAt.Time.Before(stored.CreatedAt) {
+		return fmt.Errorf("assistant execution %s starts before it was created", stored.ID)
+	}
+	if stored.FinishedAt.Valid && stored.FinishedAt.Time.Before(stored.CreatedAt) {
+		return fmt.Errorf("assistant execution %s finishes before it was created", stored.ID)
+	}
+	if stored.StartedAt.Valid && stored.FinishedAt.Valid &&
+		stored.FinishedAt.Time.Before(stored.StartedAt.Time) {
+		return fmt.Errorf("assistant execution %s contains invalid timestamps", stored.ID)
+	}
+	switch result.State {
+	case execution.StateQueued:
+		if stored.StartedAt.Valid || stored.FinishedAt.Valid || stored.WorkerID != "" ||
+			stored.LeaseExpiresAt.Valid || result.Model != "" || result.ErrorCode != "" ||
+			result.CancellationRequested {
+			return fmt.Errorf("queued assistant execution %s contains runtime state", stored.ID)
+		}
+	case execution.StateRunning:
+		if !stored.StartedAt.Valid || stored.FinishedAt.Valid || stored.WorkerID == "" ||
+			!stored.LeaseExpiresAt.Valid || result.ErrorCode != "" {
+			return fmt.Errorf("running assistant execution %s is incomplete", stored.ID)
+		}
+	case execution.StateSucceeded:
+		if !stored.StartedAt.Valid || !stored.FinishedAt.Valid || stored.WorkerID != "" ||
+			stored.LeaseExpiresAt.Valid || result.Model == "" || result.ErrorCode != "" ||
+			result.CancellationRequested {
+			return fmt.Errorf("succeeded assistant execution %s is inconsistent", stored.ID)
+		}
+	case execution.StateFailed:
+		if !stored.StartedAt.Valid || !stored.FinishedAt.Valid || stored.WorkerID != "" ||
+			stored.LeaseExpiresAt.Valid || !validFailureCode(result.ErrorCode) {
+			return fmt.Errorf("failed assistant execution %s is inconsistent", stored.ID)
+		}
+	case execution.StateCancelled:
+		if !stored.FinishedAt.Valid || stored.WorkerID != "" || stored.LeaseExpiresAt.Valid ||
+			result.ErrorCode != "" {
+			return fmt.Errorf("cancelled assistant execution %s is inconsistent", stored.ID)
+		}
+	}
+	return nil
+}
+
+func validFailureCode(code execution.FailureCode) bool {
+	switch code {
+	case execution.FailureInternal,
+		execution.FailureModelUnavailable,
+		execution.FailureToolUnavailable,
+		execution.FailureWorkerLost,
+		execution.FailureWorkerStopped:
+		return true
+	default:
+		return false
+	}
 }

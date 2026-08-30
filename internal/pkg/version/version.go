@@ -1,4 +1,4 @@
-// Package version 提供 Ingate 二进制的构建版本信息
+// Package version 提供 Ingate 二进制的构建版本信息。
 package version
 
 import (
@@ -15,7 +15,7 @@ var (
 	buildDate    = "unknown"
 )
 
-// String 返回适合日志和服务元数据使用的简短版本号
+// String 返回适合日志和服务元数据使用的简短版本号。
 func String() string {
 	if gitTreeState == "dirty" {
 		return gitVersion + "-dirty"
@@ -23,7 +23,7 @@ func String() string {
 	return gitVersion
 }
 
-// Text 返回适合 --version 输出的完整构建信息
+// Text 返回适合 --version 输出的完整构建信息。
 func Text() string {
 	rows := [][2]string{
 		{"gitVersion:", gitVersion},

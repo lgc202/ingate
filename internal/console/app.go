@@ -1,4 +1,4 @@
-// Package console 装配 ingate-console 进程及其资源生命周期
+// Package console 装配 ingate-console 进程及其资源生命周期。
 package console
 
 import (
@@ -19,12 +19,12 @@ const name = "ingate-console"
 
 type serviceInstanceID string
 
-// App 封装 Console 的 Kratos 进程
+// App 封装 Console 的 Kratos 进程。
 type App struct {
 	kratos *kratos.App
 }
 
-// NewApp 从配置文件创建完整的 Console 进程
+// NewApp 从配置文件创建完整的 Console 进程。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
@@ -52,7 +52,7 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp}, nil
 }
 
-// Run 启动控制台静态资源和管理 API 代理
+// Run 启动控制台静态资源和管理 API 代理。
 func (a *App) Run() error {
 	return a.kratos.Run()
 }

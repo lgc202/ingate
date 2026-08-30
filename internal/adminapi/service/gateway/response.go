@@ -8,16 +8,20 @@ import (
 )
 
 func gatewayResponse(gateway *resource.Gateway) *adminv1.Gateway {
-	status := biz.EnabledResourceStatus(gateway.Generation, gateway.Spec.Enabled, gateway.Status.Conditions)
-	listeners := make([]*adminv1.GatewayListener, 0, len(gateway.Spec.Listeners))
-	for _, listener := range gateway.Spec.Listeners {
-		listeners = append(listeners, &adminv1.GatewayListener{
+	status := biz.EnabledResourceStatus(
+		gateway.Generation,
+		gateway.Spec.Enabled,
+		gateway.Status.Conditions,
+	)
+	listeners := make([]*adminv1.GatewayListener, len(gateway.Spec.Listeners))
+	for i, listener := range gateway.Spec.Listeners {
+		listeners[i] = &adminv1.GatewayListener{
 			Name:          listener.Name,
 			Protocol:      gatewayProtocolResponse(listener.Protocol),
 			Port:          uint32(listener.Port),
 			Hostname:      listener.Hostname,
 			CertificateId: listener.CertificateRef,
-		})
+		}
 	}
 
 	return &adminv1.Gateway{

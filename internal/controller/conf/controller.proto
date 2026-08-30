@@ -47,6 +47,8 @@ message Data {
     string master = 1;
     // kubeconfig 保存声明式资源 API 的连接与认证配置
     string kubeconfig = 2;
+    // bearer_token 认证 Controller 到声明式 API 的内部请求
+    string bearer_token = 3;
   }
   message Wasm {
     // cache_dir 保存 Controller 已校验的 Wasm 模块

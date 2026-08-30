@@ -12,20 +12,17 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 )
 
-// strategy 定义 Certificate 资源在 apiserver 存储前后的处理规则
+// strategy 定义 Certificate 资源在 API Server 存储前后的处理规则。
 type strategy struct {
 	apiregistry.Strategy
 }
 
-// statusStrategy 定义 Certificate status 子资源更新规则
+// statusStrategy 定义 Certificate status 子资源更新规则。
 type statusStrategy struct {
 	strategy
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -37,11 +34,6 @@ func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 
 func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validateCertificate(obj.(*resource.Certificate))
-}
-
-func (strategy) Canonicalize(obj runtime.Object) {
-	certificate := obj.(*resource.Certificate)
-	canonicalizeCertificateSpec(&certificate.Spec)
 }
 
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
@@ -58,10 +50,6 @@ func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.E
 	return validateCertificate(obj.(*resource.Certificate))
 }
 
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
-}
-
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return apiregistry.SpecResetFields()
 }
@@ -74,20 +62,21 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	metav1.ResetObjectMetaForStatus(&newCertificate.ObjectMeta, &oldCertificate.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
-	return nil
+func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
+	certificate := obj.(*resource.Certificate)
+	return apiregistry.ValidateResourceStatus(certificate.Status, certificate.Generation)
+}
+
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeCertificateSpec(spec *resource.CertificateSpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
-	spec.CertificatePEM = normalizePEM(spec.CertificatePEM)
-	spec.PrivateKeyPEM = normalizePEM(spec.PrivateKeyPEM)
-}
-
-func normalizePEM(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	return value + "\n"
+	spec.CertificatePEM = certificateutil.NormalizePEM(spec.CertificatePEM)
+	spec.PrivateKeyPEM = certificateutil.NormalizePEM(spec.PrivateKeyPEM)
 }

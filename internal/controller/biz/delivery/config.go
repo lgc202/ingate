@@ -11,7 +11,8 @@ import (
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 )
 
-// transitionTypeURLs 同时保留 Active 和 Candidate 使用的类型，确保资源删除也会产生待确认的空响应
+// transitionTypeURLs 同时保留 Active 和 Candidate 使用的类型，
+// 确保资源删除也会产生待确认的空响应。
 func transitionTypeURLs(active *publishedConfig, candidate compiler.EnvoyConfig) []string {
 	required := make(map[string]bool, len(dynamicTypeURLs()))
 	for _, typeURL := range configTypeURLs(candidate) {

@@ -39,11 +39,11 @@ const requestRecordColumns = `
     upstream_address,
     time_to_first_byte_ns`
 
-// SaveRequestBatch 保存 Kafka 本轮交付的请求事实
+// SaveRequestBatch 保存 Kafka 本轮交付的请求事实。
 //
 // Kafka Poll 的批次边界在进程重启后可能变化，因此不能拿整批数据生成幂等标识
 // 每条请求分别以稳定事件 ID 写入，ClickHouse 再通过 async insert 在服务端合批
-// 所有写入收到持久化确认后调用方才会提交 Kafka offset
+// 所有写入收到持久化确认后调用方才会提交 Kafka offset。
 func (s *Store) SaveRequestBatch(ctx context.Context, records []request.Record) error {
 	if len(records) == 0 {
 		return nil
@@ -53,7 +53,12 @@ func (s *Store) SaveRequestBatch(ctx context.Context, records []request.Record) 
 
 	group, groupCtx := errgroup.WithContext(writeCtx)
 	group.SetLimit(s.writeConcurrency)
+	var scheduleErr error
 	for i := range records {
+		if err := groupCtx.Err(); err != nil {
+			scheduleErr = err
+			break
+		}
 		record := records[i]
 		group.Go(func() error {
 			if err := groupCtx.Err(); err != nil {
@@ -62,7 +67,10 @@ func (s *Store) SaveRequestBatch(ctx context.Context, records []request.Record) 
 			return s.saveRequest(groupCtx, record)
 		})
 	}
-	return group.Wait()
+	if err := group.Wait(); err != nil {
+		return err
+	}
+	return scheduleErr
 }
 
 func (s *Store) saveRequest(ctx context.Context, record request.Record) error {

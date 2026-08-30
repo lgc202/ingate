@@ -3,6 +3,7 @@
 package adminapi
 
 import (
+	"context"
 	"log/slog"
 
 	kratos "github.com/go-kratos/kratos/v3"
@@ -45,30 +46,31 @@ import (
 	wasmpluginservice "github.com/lgc202/ingate/internal/adminapi/service/wasmplugin"
 )
 
-// bizProviderSet 汇总各资源的业务服务
+// Admin API 按资源拆成 biz 子包，而子包依赖根 biz 的共享边界；
+// 根包不能反向导入子包，因此由应用装配文件汇总各资源用例。
 var bizProviderSet = wire.NewSet(
 	biz.NewPolicyUsageFinder,
 	biz.NewPluginUsageFinder,
 	biz.NewPluginInstallationChecker,
-	wire.Bind(new(wasmpluginbiz.UsageFinder), new(*biz.PluginUsageFinder)),
-	aiusagebiz.NewService,
-	callerbiz.NewService,
-	gatewaybiz.NewService,
-	headertransformationbiz.NewService,
-	mockresponsebiz.NewService,
-	routebiz.NewService,
-	upstreambiz.NewService,
-	certificatebiz.NewService,
-	ratelimitbiz.NewService,
-	iprestrictionbiz.NewService,
-	pluginsourcebiz.NewService,
-	requestbiz.NewService,
-	trafficbiz.NewService,
-	tokenquotabiz.NewService,
-	wasmpluginbiz.NewService,
+	wire.Bind(new(wasmpluginbiz.PolicyUsageLister), new(*biz.PluginUsageFinder)),
+	aiusagebiz.NewUsecase,
+	callerbiz.NewUsecase,
+	gatewaybiz.NewUsecase,
+	headertransformationbiz.NewUsecase,
+	mockresponsebiz.NewUsecase,
+	routebiz.NewUsecase,
+	upstreambiz.NewUsecase,
+	certificatebiz.NewUsecase,
+	ratelimitbiz.NewUsecase,
+	iprestrictionbiz.NewUsecase,
+	pluginsourcebiz.NewUsecase,
+	requestbiz.NewUsecase,
+	trafficbiz.NewUsecase,
+	tokenquotabiz.NewUsecase,
+	wasmpluginbiz.NewUsecase,
 )
 
-// serviceProviderSet 汇总 Admin API 的协议服务
+// service 子包同样依赖根 service 的协议转换能力，由应用装配文件统一汇总。
 var serviceProviderSet = wire.NewSet(
 	aiusageservice.NewService,
 	callerservice.NewService,
@@ -89,6 +91,7 @@ var serviceProviderSet = wire.NewSet(
 )
 
 func wireApp(
+	context.Context,
 	*conf.Server,
 	*conf.Data,
 	*slog.Logger,

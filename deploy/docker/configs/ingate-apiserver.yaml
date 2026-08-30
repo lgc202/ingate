@@ -2,6 +2,8 @@ server:
   http:
     addr: "0.0.0.0:18443"
     cert_directory: "/opt/ingate/apiserver/certificates"
+  authentication:
+    bearer_token: "${APISERVER_BEARER_TOKEN}"
   shutdown_timeout: "30s"
 
 data:

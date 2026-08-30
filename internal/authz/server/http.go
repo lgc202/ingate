@@ -13,12 +13,12 @@ import (
 	"github.com/lgc202/ingate/internal/authz/service"
 )
 
-// Readiness 提供运维接口所需的组件就绪状态
+// Readiness 提供运维接口所需的组件就绪状态。
 type Readiness interface {
 	Ready() bool
 }
 
-// NewHTTPServer 创建健康检查和就绪检查服务
+// NewHTTPServer 创建健康检查和就绪检查服务。
 func NewHTTPServer(
 	config *conf.Server,
 	readiness Readiness,

@@ -1,4 +1,4 @@
-// Package traffic 提供控制台流量分析 API
+// Package traffic 提供控制台流量分析 API。
 package traffic
 
 import (
@@ -8,17 +8,17 @@ import (
 	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 )
 
-// Service 实现流量分析查询 API
+// Service 实现流量分析查询 API。
 type Service struct {
-	traffic *trafficbiz.Service
+	traffic *trafficbiz.Usecase
 }
 
-// NewService 创建流量分析协议服务
-func NewService(traffic *trafficbiz.Service) *Service {
+// NewService 创建流量分析协议服务。
+func NewService(traffic *trafficbiz.Usecase) *Service {
 	return &Service{traffic: traffic}
 }
 
-// GetTrafficAnalysis 查询同一范围内的汇总、趋势和资源排名
+// GetTrafficAnalysis 查询同一范围内的汇总、趋势和资源排名。
 func (s *Service) GetTrafficAnalysis(
 	ctx context.Context,
 	request *adminv1.GetTrafficAnalysisRequest,
@@ -34,7 +34,7 @@ func (s *Service) GetTrafficAnalysis(
 	return analysisResponse(analysis), nil
 }
 
-// BatchGetResourceTraffic 查询资源列表展示所需的最近流量摘要
+// BatchGetResourceTraffic 查询资源列表展示所需的最近流量摘要。
 func (s *Service) BatchGetResourceTraffic(
 	ctx context.Context,
 	request *adminv1.BatchGetResourceTrafficRequest,

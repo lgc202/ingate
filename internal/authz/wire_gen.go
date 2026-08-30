@@ -30,9 +30,12 @@ func wireApp(confServer *conf.Server, data_APIServer *conf.Data_APIServer, data_
 	readiness := data.NewReadiness(credentialCache, rateCounter)
 	authorizer := biz.NewAuthorizer(credentialCache)
 	ratelimitService := ratelimit.NewService(rateCounter)
-	authorizationService := service.NewAuthorizationService(authorizer, ratelimitService)
+	authorizationService := service.NewAuthorizationService(authorizer, ratelimitService, logger)
 	httpServer := server.NewHTTPServer(confServer, readiness, authorizationService)
-	grpcServer := server.NewGRPCServer(confServer, authorizationService)
+	grpcServer, err := server.NewGRPCServer(confServer, authorizationService)
+	if err != nil {
+		return nil, err
+	}
 	app := newKratosApp(logger, confServer, httpServer, grpcServer, credentialCache, rateCounter, authzServiceInstanceID)
 	return app, nil
 }

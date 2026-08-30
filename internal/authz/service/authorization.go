@@ -1,10 +1,10 @@
-// Package service 适配 Envoy External Authorization 协议
 package service
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -15,20 +15,24 @@ import (
 	typev3 "github.com/envoyproxy/go-control-plane/envoy/type/v3"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	statuspb "google.golang.org/genproto/googleapis/rpc/status"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	"github.com/lgc202/ingate/internal/authz/biz"
 	"github.com/lgc202/ingate/internal/authz/biz/ratelimit"
 	"github.com/lgc202/ingate/internal/pkg/extauthz"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 const bearerPrefix = "Bearer "
 
-// AuthorizationService 把 Envoy 鉴权请求转换为 Ingate Caller 授权决策
+// AuthorizationService 把 Envoy 鉴权请求转换为 Ingate Caller 授权决策。
 type AuthorizationService struct {
 	authv3.UnimplementedAuthorizationServer
 	authorizer *biz.Authorizer
 	rateLimits *ratelimit.Service
+	logger     *slog.Logger
 	counters   authorizationCounters
 }
 
@@ -40,7 +44,7 @@ type authorizationCounters struct {
 	errors      atomic.Uint64
 }
 
-// Counters 是 Authz 运维指标使用的并发安全计数快照
+// Counters 是 Authz 运维指标使用的并发安全计数快照。
 type Counters struct {
 	Checks      uint64
 	Allowed     uint64
@@ -49,40 +53,79 @@ type Counters struct {
 	Errors      uint64
 }
 
-// NewAuthorizationService 创建 External Authorization 协议服务
-func NewAuthorizationService(authorizer *biz.Authorizer, rateLimits *ratelimit.Service) *AuthorizationService {
-	return &AuthorizationService{authorizer: authorizer, rateLimits: rateLimits}
+// NewAuthorizationService 创建 External Authorization 协议服务。
+func NewAuthorizationService(
+	authorizer *biz.Authorizer,
+	rateLimits *ratelimit.Service,
+	logger *slog.Logger,
+) *AuthorizationService {
+	return &AuthorizationService{
+		authorizer: authorizer,
+		rateLimits: rateLimits,
+		logger:     logger,
+	}
 }
 
-// Check 在 Envoy 转发请求前完成 Caller 授权和共享请求限流
+// Check 在 Envoy 转发请求前完成 Caller 授权和共享请求限流。
 func (s *AuthorizationService) Check(ctx context.Context, request *authv3.CheckRequest) (*authv3.CheckResponse, error) {
 	s.counters.checks.Add(1)
-	httpRequest := request.GetAttributes().GetRequest().GetHttp()
-	contextExtensions := request.GetAttributes().GetContextExtensions()
-	callerRequired := contextExtensions[extauthz.CallerRequiredContext] == "true"
+	attributes := request.GetAttributes()
+	if attributes == nil {
+		s.counters.errors.Add(1)
+		return nil, status.Error(codes.InvalidArgument, "authorization request attributes are required")
+	}
+	httpRequest := attributes.GetRequest().GetHttp()
+	if httpRequest == nil {
+		s.counters.errors.Add(1)
+		return nil, status.Error(codes.InvalidArgument, "authorization HTTP request attributes are required")
+	}
+	contextExtensions := attributes.GetContextExtensions()
+	callerRequired, err := callerRequirement(contextExtensions)
+	if err != nil {
+		s.counters.errors.Add(1)
+		return nil, status.Error(codes.FailedPrecondition, "caller authorization context is invalid")
+	}
+	rules, err := rateLimitRules(contextExtensions[extauthz.RateLimitsContext])
+	if err != nil {
+		s.counters.errors.Add(1)
+		return nil, status.Error(codes.FailedPrecondition, "rate limit authorization context is invalid")
+	}
+	if !callerRequired && len(rules) == 0 {
+		s.counters.errors.Add(1)
+		return nil, status.Error(codes.FailedPrecondition, "authorization rule is required")
+	}
+
 	var identity biz.Identity
 	if callerRequired {
 		routeID := contextExtensions[extauthz.RouteIDContext]
+		if !resourceconfig.IsCanonicalID(routeID) {
+			s.counters.errors.Add(1)
+			return nil, status.Error(codes.FailedPrecondition, "authorization Route ID is invalid")
+		}
 		credential := bearerCredential(httpRequest.GetHeaders()["authorization"])
-		var err error
 		identity, err = s.authorizer.Authorize(credential, routeID)
 		if errors.Is(err, biz.ErrForbidden) {
 			s.counters.denied.Add(1)
-			response := denied(typev3.StatusCode_Forbidden, code.Code_PERMISSION_DENIED, "forbidden", "Caller is not authorized for this route.")
+			response := denied(
+				typev3.StatusCode_Forbidden,
+				code.Code_PERMISSION_DENIED,
+				"forbidden",
+				"Caller is not authorized for this route.",
+			)
 			response.DynamicMetadata = identityMetadata(identity)
 			return response, nil
 		}
 		if err != nil {
 			s.counters.denied.Add(1)
-			return denied(typev3.StatusCode_Unauthorized, code.Code_UNAUTHENTICATED, "unauthenticated", "Access key is missing or invalid."), nil
+			return denied(
+				typev3.StatusCode_Unauthorized,
+				code.Code_UNAUTHENTICATED,
+				"unauthenticated",
+				"Access key is missing or invalid.",
+			), nil
 		}
 	}
 
-	rules, err := rateLimitRules(contextExtensions[extauthz.RateLimitsContext])
-	if err != nil {
-		s.counters.errors.Add(1)
-		return nil, err
-	}
 	if len(rules) > 0 {
 		exceeded, err := s.rateLimits.Admit(ctx, rules, ratelimit.Request{
 			ClientIP: request.GetAttributes().GetSource().GetAddress().GetSocketAddress().GetAddress(),
@@ -90,7 +133,11 @@ func (s *AuthorizationService) Check(ctx context.Context, request *authv3.CheckR
 		})
 		if err != nil {
 			s.counters.errors.Add(1)
-			return nil, fmt.Errorf("enforce request rate limit: %w", err)
+			if ctx.Err() != nil {
+				return nil, status.FromContextError(ctx.Err()).Err()
+			}
+			s.logger.ErrorContext(ctx, "enforce request rate limit failed", "err", err)
+			return nil, status.Error(codes.Unavailable, "request rate limit is unavailable")
 		}
 		if exceeded != nil {
 			s.counters.rateLimited.Add(1)
@@ -100,9 +147,9 @@ func (s *AuthorizationService) Check(ctx context.Context, request *authv3.CheckR
 		}
 	}
 
-	headersToRemove := []string(nil)
+	var headersToRemove []string
 	if callerRequired {
-		// Caller 密钥由网关消费；公开 Route 上的 Authorization 则属于上游业务，必须原样保留
+		// Caller 密钥由网关消费；公开 Route 上的 Authorization 则属于上游业务，必须原样保留。
 		headersToRemove = []string{"authorization"}
 	}
 	s.counters.allowed.Add(1)
@@ -115,7 +162,7 @@ func (s *AuthorizationService) Check(ctx context.Context, request *authv3.CheckR
 	}, nil
 }
 
-// Counters 返回鉴权与请求限流结果的累计计数
+// Counters 返回鉴权与请求限流结果的累计计数。
 func (s *AuthorizationService) Counters() Counters {
 	return Counters{
 		Checks:      s.counters.checks.Load(),
@@ -134,6 +181,17 @@ func identityMetadata(identity biz.Identity) *structpb.Struct {
 		extauthz.CallerIDField:    structpb.NewStringValue(identity.CallerID),
 		extauthz.AccessKeyIDField: structpb.NewStringValue(identity.AccessKeyID),
 	}}
+}
+
+func callerRequirement(extensions map[string]string) (bool, error) {
+	value, exists := extensions[extauthz.CallerRequiredContext]
+	if !exists {
+		return false, nil
+	}
+	if value != "true" {
+		return false, fmt.Errorf("unsupported caller requirement %q", value)
+	}
+	return true, nil
 }
 
 func rateLimitRules(encoded string) ([]ratelimit.Rule, error) {
@@ -165,11 +223,13 @@ func bearerCredential(value string) string {
 
 func denied(httpStatus typev3.StatusCode, grpcStatus code.Code, errorCode, message string) *authv3.CheckResponse {
 	headers := []*corev3.HeaderValueOption{{
-		Header: &corev3.HeaderValue{Key: "content-type", Value: "application/json"},
+		Header:       &corev3.HeaderValue{Key: "content-type", RawValue: []byte("application/json")},
+		AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
 	}}
 	if httpStatus == typev3.StatusCode_Unauthorized {
 		headers = append(headers, &corev3.HeaderValueOption{
-			Header: &corev3.HeaderValue{Key: "www-authenticate", Value: "Bearer"},
+			Header:       &corev3.HeaderValue{Key: "www-authenticate", RawValue: []byte("Bearer")},
+			AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
 		})
 	}
 	return &authv3.CheckResponse{
@@ -177,13 +237,18 @@ func denied(httpStatus typev3.StatusCode, grpcStatus code.Code, errorCode, messa
 		HttpResponse: &authv3.CheckResponse_DeniedResponse{DeniedResponse: &authv3.DeniedHttpResponse{
 			Status:  &typev3.HttpStatus{Code: httpStatus},
 			Headers: headers,
-			Body:    `{"error":{"code":"` + errorCode + `","message":"` + message + `"}}`,
+			Body: `{"error":{"code":` + strconv.Quote(errorCode) +
+				`,"message":` + strconv.Quote(message) + `}}`,
 		}},
 	}
 }
 
 func rateLimited(retryAfter time.Duration) *authv3.CheckResponse {
-	seconds := int64((retryAfter + time.Second - 1) / time.Second)
+	seconds := int64(retryAfter / time.Second)
+	if retryAfter%time.Second != 0 {
+		seconds++
+	}
+	seconds = max(1, seconds)
 	response := denied(
 		typev3.StatusCode_TooManyRequests,
 		code.Code_RESOURCE_EXHAUSTED,
@@ -191,7 +256,11 @@ func rateLimited(retryAfter time.Duration) *authv3.CheckResponse {
 		"Request rate limit exceeded.",
 	)
 	response.GetDeniedResponse().Headers = append(response.GetDeniedResponse().Headers, &corev3.HeaderValueOption{
-		Header: &corev3.HeaderValue{Key: "retry-after", Value: strconv.FormatInt(seconds, 10)},
+		Header: &corev3.HeaderValue{
+			Key:      "retry-after",
+			RawValue: []byte(strconv.FormatInt(seconds, 10)),
+		},
+		AppendAction: corev3.HeaderValueOption_OVERWRITE_IF_EXISTS_OR_ADD,
 	})
 	return response
 }

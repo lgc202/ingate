@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -9,6 +10,8 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+	"github.com/lgc202/ingate/internal/pkg/mockresponseconfig"
 )
 
 type compiledMockResponsePolicy struct {
@@ -36,39 +39,40 @@ func (c *compilation) compileMockResponsePolicies() map[string]compiledMockRespo
 		if !policy.Spec.Enabled {
 			continue
 		}
+		configuration, valid := c.mockResponseConfiguration(policy)
+		if !valid {
+			continue
+		}
 		plugin, exists := c.wasmPluginsByPackage[gatewayv1.WasmPluginPackageMockResponse]
 		if !exists {
-			c.addDiagnostic(
-				SeverityError,
+			c.addResourceError(
 				gatewayv1.KindMockResponsePolicy,
 				policyID,
 				ReasonPluginNotInstalled,
-				fmt.Sprintf("mock response policy %q requires installed plugin package %q", policyID, gatewayv1.WasmPluginPackageMockResponse),
+				fmt.Sprintf(
+					"mock response policy %q requires installed plugin package %q",
+					policyID,
+					gatewayv1.WasmPluginPackageMockResponse,
+				),
 			)
 			continue
 		}
 		module, exists := c.wasmModules[plugin.Name]
 		if !exists {
-			c.addDiagnostic(
-				SeverityError,
+			c.addResourceError(
 				gatewayv1.KindMockResponsePolicy,
 				policyID,
 				ReasonArtifactUnavailable,
-				fmt.Sprintf("mock response policy %q cannot use plugin package %q because its module is unavailable", policyID, plugin.Spec.Package),
+				fmt.Sprintf(
+					"mock response policy %q cannot use plugin package %q because its module is unavailable",
+					policyID,
+					plugin.Spec.Package,
+				),
 			)
 			continue
 		}
-		configuration, valid := c.mockResponseConfiguration(policy)
-		if !valid {
-			continue
-		}
 		result[policyID] = compiledMockResponsePolicy{
-			source: newResourceGeneration(
-				gatewayv1.KindMockResponsePolicy,
-				policy.Name,
-				policy.UID,
-				policy.Generation,
-			),
+			source: newResourceGeneration(gatewayv1.KindMockResponsePolicy, policy),
 			filter: wasmFilter{
 				name:          policy.Name,
 				phase:         wasmFilterPhaseLocalResponse,
@@ -84,19 +88,19 @@ func (c *compilation) compileMockResponsePolicies() map[string]compiledMockRespo
 }
 
 func (c *compilation) mockResponseConfiguration(policy *gatewayv1.MockResponsePolicy) ([]byte, bool) {
-	headers := make([]mockResponseHeader, 0, len(policy.Spec.Headers)+1)
-	headers = append(headers, mockResponseHeader{Name: "content-type", Value: policy.Spec.ContentType})
-	for _, header := range policy.Spec.Headers {
-		headers = append(headers, mockResponseHeader{Name: header.Name, Value: header.Value})
-	}
-	encoded, err := json.Marshal(mockResponseConfig{
-		StatusCode: uint32(policy.Spec.StatusCode),
-		Headers:    headers,
-		Body:       policy.Spec.Body,
-	})
+	config, err := buildMockResponseConfig(policy.Spec)
 	if err != nil {
-		c.addDiagnostic(
-			SeverityError,
+		c.addResourceError(
+			gatewayv1.KindMockResponsePolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("mock response policy %q is invalid: %v", policy.Name, err),
+		)
+		return nil, false
+	}
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		c.addResourceError(
 			gatewayv1.KindMockResponsePolicy,
 			policy.Name,
 			ReasonCompileFailed,
@@ -105,6 +109,50 @@ func (c *compilation) mockResponseConfiguration(policy *gatewayv1.MockResponsePo
 		return nil, false
 	}
 	return encoded, true
+}
+
+func buildMockResponseConfig(spec gatewayv1.MockResponsePolicySpec) (mockResponseConfig, error) {
+	if !mockresponseconfig.IsValidStatusCode(spec.StatusCode) {
+		return mockResponseConfig{}, fmt.Errorf("unsupported status code %d", spec.StatusCode)
+	}
+	contentType, valid := mockresponseconfig.NormalizeContentType(spec.ContentType)
+	if !valid {
+		return mockResponseConfig{}, errors.New("invalid content type")
+	}
+	if len(spec.Body) > mockresponseconfig.MaxBodyBytes {
+		return mockResponseConfig{}, fmt.Errorf("body exceeds %d bytes", mockresponseconfig.MaxBodyBytes)
+	}
+	if len(spec.Headers) > mockresponseconfig.MaxHeaders {
+		return mockResponseConfig{}, fmt.Errorf("header count exceeds %d", mockresponseconfig.MaxHeaders)
+	}
+
+	headers := make([]mockResponseHeader, len(spec.Headers)+1)
+	headers[0] = mockResponseHeader{Name: "content-type", Value: contentType}
+	seen := make(map[string]bool, len(spec.Headers))
+	for i, header := range spec.Headers {
+		name := httpheader.NormalizeName(header.Name)
+		if !httpheader.IsValidName(name) {
+			return mockResponseConfig{}, fmt.Errorf("header %d has invalid name %q", i+1, name)
+		}
+		if mockresponseconfig.IsReservedHeaderName(name) {
+			return mockResponseConfig{}, fmt.Errorf("header %q is reserved", name)
+		}
+		if seen[name] {
+			return mockResponseConfig{}, fmt.Errorf("header %q is duplicated", name)
+		}
+		seen[name] = true
+
+		value := httpheader.NormalizeValue(header.Value)
+		if !httpheader.IsValidValue(value) {
+			return mockResponseConfig{}, fmt.Errorf("header %q has invalid value", name)
+		}
+		headers[i+1] = mockResponseHeader{Name: name, Value: value}
+	}
+	return mockResponseConfig{
+		StatusCode: uint32(spec.StatusCode),
+		Headers:    headers,
+		Body:       spec.Body,
+	}, nil
 }
 
 func matchingMockResponsePolicies(

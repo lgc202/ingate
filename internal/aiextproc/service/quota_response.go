@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc/codes"
 
 	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 )
 
 func (s *streamState) quotaExceededResponse(exceeded *tokenquota.Exceeded) *extprocv3.ProcessingResponse {
@@ -31,7 +32,7 @@ func (s *streamState) quotaExceededResponse(exceeded *tokenquota.Exceeded) *extp
 				}},
 				Body:       body,
 				GrpcStatus: &extprocv3.GrpcStatus{Status: uint32(codes.ResourceExhausted)},
-				Details:    "ingate_ai_token_quota_exceeded",
+				Details:    aiprotocol.TokenQuotaExceededResponseDetails,
 			},
 		},
 		// 保留客户端模型等已有元数据；拒绝原因通过 response_code_details 进入请求记录

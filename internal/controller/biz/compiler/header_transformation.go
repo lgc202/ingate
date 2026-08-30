@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -10,6 +11,8 @@ import (
 	routev3 "github.com/envoyproxy/go-control-plane/envoy/config/route/v3"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/headertransformationconfig"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
 )
 
 type compiledHeaderTransformationPolicy struct {
@@ -45,39 +48,40 @@ func (c *compilation) compileHeaderTransformationPolicies() map[string]compiledH
 		if !policy.Spec.Enabled {
 			continue
 		}
+		configuration, valid := c.headerTransformationConfiguration(policy)
+		if !valid {
+			continue
+		}
 		plugin, exists := c.wasmPluginsByPackage[gatewayv1.WasmPluginPackageTransformer]
 		if !exists {
-			c.addDiagnostic(
-				SeverityError,
+			c.addResourceError(
 				gatewayv1.KindHeaderTransformationPolicy,
 				policyID,
 				ReasonPluginNotInstalled,
-				fmt.Sprintf("header transformation policy %q requires installed plugin package %q", policyID, gatewayv1.WasmPluginPackageTransformer),
+				fmt.Sprintf(
+					"header transformation policy %q requires installed plugin package %q",
+					policyID,
+					gatewayv1.WasmPluginPackageTransformer,
+				),
 			)
 			continue
 		}
 		module, exists := c.wasmModules[plugin.Name]
 		if !exists {
-			c.addDiagnostic(
-				SeverityError,
+			c.addResourceError(
 				gatewayv1.KindHeaderTransformationPolicy,
 				policyID,
 				ReasonArtifactUnavailable,
-				fmt.Sprintf("header transformation policy %q cannot use plugin package %q because its module is unavailable", policyID, plugin.Spec.Package),
+				fmt.Sprintf(
+					"header transformation policy %q cannot use plugin package %q because its module is unavailable",
+					policyID,
+					plugin.Spec.Package,
+				),
 			)
 			continue
 		}
-		configuration, valid := c.headerTransformationConfiguration(policy)
-		if !valid {
-			continue
-		}
 		result[policyID] = compiledHeaderTransformationPolicy{
-			source: newResourceGeneration(
-				gatewayv1.KindHeaderTransformationPolicy,
-				policy.Name,
-				policy.UID,
-				policy.Generation,
-			),
+			source: newResourceGeneration(gatewayv1.KindHeaderTransformationPolicy, policy),
 			filter: wasmFilter{
 				name:          policy.Name,
 				phase:         wasmFilterPhaseTrafficMutation,
@@ -93,9 +97,9 @@ func (c *compilation) compileHeaderTransformationPolicies() map[string]compiledH
 }
 
 func (c *compilation) headerTransformationConfiguration(policy *gatewayv1.HeaderTransformationPolicy) ([]byte, bool) {
-	if len(policy.Spec.RequestRules)+len(policy.Spec.ResponseRules) == 0 {
-		c.addDiagnostic(
-			SeverityError,
+	ruleCount := len(policy.Spec.RequestRules) + len(policy.Spec.ResponseRules)
+	if ruleCount == 0 {
+		c.addResourceError(
 			gatewayv1.KindHeaderTransformationPolicy,
 			policy.Name,
 			ReasonInvalidSpec,
@@ -103,14 +107,43 @@ func (c *compilation) headerTransformationConfiguration(policy *gatewayv1.Header
 		)
 		return nil, false
 	}
+	if ruleCount > headertransformationconfig.MaxRules {
+		c.addResourceError(
+			gatewayv1.KindHeaderTransformationPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("header transformation policy %q contains too many rules", policy.Name),
+		)
+		return nil, false
+	}
+
+	requestRules, err := compileTransformerRules(policy.Spec.RequestRules)
+	if err != nil {
+		c.addResourceError(
+			gatewayv1.KindHeaderTransformationPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("header transformation policy %q has invalid request rules: %v", policy.Name, err),
+		)
+		return nil, false
+	}
+	responseRules, err := compileTransformerRules(policy.Spec.ResponseRules)
+	if err != nil {
+		c.addResourceError(
+			gatewayv1.KindHeaderTransformationPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("header transformation policy %q has invalid response rules: %v", policy.Name, err),
+		)
+		return nil, false
+	}
 	config := transformerConfig{
-		RequestRules:  transformerRules(policy.Spec.RequestRules),
-		ResponseRules: transformerRules(policy.Spec.ResponseRules),
+		RequestRules:  requestRules,
+		ResponseRules: responseRules,
 	}
 	encoded, err := json.Marshal(config)
 	if err != nil {
-		c.addDiagnostic(
-			SeverityError,
+		c.addResourceError(
 			gatewayv1.KindHeaderTransformationPolicy,
 			policy.Name,
 			ReasonCompileFailed,
@@ -121,31 +154,59 @@ func (c *compilation) headerTransformationConfiguration(policy *gatewayv1.Header
 	return encoded, true
 }
 
-func transformerRules(rules []gatewayv1.HeaderTransformationRule) []transformerRule {
-	result := make([]transformerRule, 0, len(rules))
-	for _, rule := range rules {
-		result = append(result, transformerRule{
+func compileTransformerRules(rules []gatewayv1.HeaderTransformationRule) ([]transformerRule, error) {
+	compiled := make([]transformerRule, len(rules))
+	for i, rule := range rules {
+		header, err := compileTransformerHeader(rule)
+		if err != nil {
+			return nil, fmt.Errorf("rule %d: %w", i+1, err)
+		}
+		compiled[i] = transformerRule{
 			Operation: strings.ToLower(string(rule.Operation)),
-			Headers:   []transformerHeader{transformerHeaderRule(rule)},
-		})
+			Headers:   []transformerHeader{header},
+		}
 	}
-	return result
+	return compiled, nil
 }
 
-func transformerHeaderRule(rule gatewayv1.HeaderTransformationRule) transformerHeader {
+func compileTransformerHeader(
+	rule gatewayv1.HeaderTransformationRule,
+) (transformerHeader, error) {
+	rule.Name = httpheader.NormalizeName(rule.Name)
+	rule.Value = httpheader.NormalizeValue(rule.Value)
+	if !httpheader.IsValidName(rule.Name) {
+		return transformerHeader{}, fmt.Errorf("invalid header name %q", rule.Name)
+	}
+
 	switch rule.Operation {
 	case gatewayv1.HeaderTransformationRemove:
-		return transformerHeader{Key: rule.Name}
+		if rule.Value != "" {
+			return transformerHeader{}, errors.New("remove operation does not accept a value")
+		}
+		return transformerHeader{Key: rule.Name}, nil
 	case gatewayv1.HeaderTransformationRename:
-		return transformerHeader{OldKey: rule.Name, NewKey: rule.Value}
+		rule.Value = httpheader.NormalizeName(rule.Value)
+		if !httpheader.IsValidName(rule.Value) {
+			return transformerHeader{}, fmt.Errorf("invalid destination header name %q", rule.Value)
+		}
+		return transformerHeader{OldKey: rule.Name, NewKey: rule.Value}, nil
 	case gatewayv1.HeaderTransformationReplace:
-		return transformerHeader{Key: rule.Name, NewValue: rule.Value}
+		if !httpheader.IsValidValue(rule.Value) {
+			return transformerHeader{}, errors.New("invalid replacement header value")
+		}
+		return transformerHeader{Key: rule.Name, NewValue: rule.Value}, nil
 	case gatewayv1.HeaderTransformationAdd:
-		return transformerHeader{Key: rule.Name, Value: rule.Value}
+		if !httpheader.IsValidValue(rule.Value) {
+			return transformerHeader{}, errors.New("invalid added header value")
+		}
+		return transformerHeader{Key: rule.Name, Value: rule.Value}, nil
 	case gatewayv1.HeaderTransformationAppend:
-		return transformerHeader{Key: rule.Name, AppendValue: rule.Value}
+		if !httpheader.IsValidValue(rule.Value) {
+			return transformerHeader{}, errors.New("invalid appended header value")
+		}
+		return transformerHeader{Key: rule.Name, AppendValue: rule.Value}, nil
 	default:
-		return transformerHeader{Key: rule.Name}
+		return transformerHeader{}, fmt.Errorf("unsupported operation %q", rule.Operation)
 	}
 }
 

@@ -1,4 +1,4 @@
-// Package aiusage 提供控制台模型调用与 Token 用量分析 API
+// Package aiusage 提供控制台模型调用与 Token 用量分析 API。
 package aiusage
 
 import (
@@ -8,17 +8,17 @@ import (
 	aiusagebiz "github.com/lgc202/ingate/internal/adminapi/biz/aiusage"
 )
 
-// Service 实现模型用量分析查询 API
+// Service 实现模型用量分析查询 API。
 type Service struct {
-	aiUsage *aiusagebiz.Service
+	aiUsage *aiusagebiz.Usecase
 }
 
-// NewService 创建模型用量分析协议服务
-func NewService(aiUsage *aiusagebiz.Service) *Service {
+// NewService 创建模型用量分析协议服务。
+func NewService(aiUsage *aiusagebiz.Usecase) *Service {
 	return &Service{aiUsage: aiUsage}
 }
 
-// GetAIUsageAnalysis 查询同一范围内的模型用量汇总、趋势与排名
+// GetAIUsageAnalysis 查询同一范围内的模型用量汇总、趋势与排名。
 func (s *Service) GetAIUsageAnalysis(
 	ctx context.Context,
 	request *adminv1.GetAIUsageAnalysisRequest,

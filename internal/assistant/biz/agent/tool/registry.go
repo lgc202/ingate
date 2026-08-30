@@ -20,6 +20,19 @@ type listResourcesInput struct {
 	Limit int32  `json:"limit,omitempty"`
 }
 
+// QuerySource 组合当前工具注册表要求的外部查询能力。
+// 每个具体工具仍只依赖与自身相邻定义的窄接口。
+type QuerySource interface {
+	GatewayReader
+	RouteReader
+	RouteConfigurationReader
+	ServiceReader
+	TrafficReader
+	FailureReader
+	RequestRecordReader
+	CallerTokenQuotaReader
+}
+
 // NewTools 创建运维 Agent 当前可以提供给模型的只读工具。
 // 返回顺序保持稳定，便于观察不同版本暴露给模型的能力变化。
 func NewTools(source QuerySource) ([]einotool.BaseTool, error) {

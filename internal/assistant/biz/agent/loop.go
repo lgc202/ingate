@@ -2,8 +2,10 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/cloudwego/eino/adk"
 	"github.com/cloudwego/eino/components/model"
@@ -55,7 +57,11 @@ func executeModelLoop(
 			return Response{}, err
 		}
 	}
-	return response.build(), nil
+	result := response.build()
+	if strings.TrimSpace(result.Content) == "" {
+		return Response{}, errors.New("agent completed without an assistant response")
+	}
+	return result, nil
 }
 
 func modelMessages(messages []Message) []adk.Message {

@@ -622,9 +622,9 @@ var File_admin_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\n" +
-	"\x16admin/v1/gateway.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd0\x01\n" +
-	"\x0fGatewayListener\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12<\n" +
+	"\x16admin/v1/gateway.proto\x12\x0fingate.admin.v1\x1a\x15admin/v1/common.proto\x1a\x1bbuf/validate/validate.proto\x1a\x1cgoogle/api/annotations.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd2\x01\n" +
+	"\x0fGatewayListener\x12\x1d\n" +
+	"\x04name\x18\x01 \x01(\tB\t\xbaH\x06r\x04 \x01(?R\x04name\x12<\n" +
 	"\bprotocol\x18\x02 \x01(\x0e2 .ingate.admin.v1.GatewayProtocolR\bprotocol\x12\x1f\n" +
 	"\x04port\x18\x03 \x01(\rB\v\xbaH\b*\x06\x18\xff\xff\x03(\x01R\x04port\x12\x1a\n" +
 	"\bhostname\x18\x04 \x01(\tR\bhostname\x12%\n" +
@@ -654,19 +654,23 @@ const file_admin_v1_gateway_proto_rawDesc = "" +
 	"\vnext_cursor\x18\x02 \x01(\tR\n" +
 	"nextCursor\"-\n" +
 	"\x11GetGatewayRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xb0\x01\n" +
-	"\x14CreateGatewayRequest\x12\x1b\n" +
-	"\x04name\x18\x01 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12%\n" +
-	"\aenabled\x18\x02 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12H\n" +
-	"\tlisteners\x18\x03 \x03(\v2 .ingate.admin.v1.GatewayListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlistenersB\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xb5\x01\n" +
+	"\x14CreateGatewayRequest\x12\x1e\n" +
+	"\x04name\x18\x01 \x01(\tB\n" +
+	"\xbaH\ar\x05 \x01(\x80\x02R\x04name\x12%\n" +
+	"\aenabled\x18\x02 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12J\n" +
+	"\tlisteners\x18\x03 \x03(\v2 .ingate.admin.v1.GatewayListenerB\n" +
+	"\xbaH\a\x92\x01\x04\b\x01\x10@R\tlistenersB\n" +
 	"\n" +
-	"\b_enabled\"\xed\x01\n" +
+	"\b_enabled\"\xf2\x01\n" +
 	"\x14UpdateGatewayRequest\x12\x18\n" +
 	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12!\n" +
-	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1b\n" +
-	"\x04name\x18\x03 \x01(\tB\a\xbaH\x04r\x02\x10\x01R\x04name\x12%\n" +
-	"\aenabled\x18\x04 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12H\n" +
-	"\tlisteners\x18\x05 \x03(\v2 .ingate.admin.v1.GatewayListenerB\b\xbaH\x05\x92\x01\x02\b\x01R\tlistenersB\n" +
+	"\aversion\x18\x02 \x01(\x03B\a\xbaH\x04\"\x02 \x00R\aversion\x12\x1e\n" +
+	"\x04name\x18\x03 \x01(\tB\n" +
+	"\xbaH\ar\x05 \x01(\x80\x02R\x04name\x12%\n" +
+	"\aenabled\x18\x04 \x01(\bB\x06\xbaH\x03\xc8\x01\x01H\x00R\aenabled\x88\x01\x01\x12J\n" +
+	"\tlisteners\x18\x05 \x03(\v2 .ingate.admin.v1.GatewayListenerB\n" +
+	"\xbaH\a\x92\x01\x04\b\x01\x10@R\tlistenersB\n" +
 	"\n" +
 	"\b_enabled\"S\n" +
 	"\x14DeleteGatewayRequest\x12\x18\n" +

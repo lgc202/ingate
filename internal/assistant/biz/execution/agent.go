@@ -2,6 +2,7 @@ package execution
 
 import (
 	"context"
+	"fmt"
 
 	agentbiz "github.com/lgc202/ingate/internal/assistant/biz/agent"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
@@ -20,7 +21,7 @@ type Completion struct {
 	ReasoningContent string
 }
 
-func newAgentRequest(messages []conversation.Message) agentbiz.Request {
+func agentRequest(messages []conversation.HistoryMessage) (agentbiz.Request, error) {
 	request := agentbiz.Request{
 		Messages: make([]agentbiz.Message, 0, len(messages)),
 	}
@@ -32,14 +33,15 @@ func newAgentRequest(messages []conversation.Message) agentbiz.Request {
 		case conversation.RoleAssistant:
 			role = agentbiz.RoleAssistant
 		default:
-			// 持久层可能在后续加入系统通知等非模型消息。执行上下文只接收 Agent
-			// 明确定义的角色，避免新存储类型未经设计就悄悄改变模型输入。
-			continue
+			return agentbiz.Request{}, fmt.Errorf(
+				"unsupported persistent message role %q",
+				message.Role,
+			)
 		}
 		request.Messages = append(request.Messages, agentbiz.Message{
 			Role:    role,
 			Content: message.Content,
 		})
 	}
-	return request
+	return request, nil
 }

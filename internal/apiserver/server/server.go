@@ -2,10 +2,12 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -22,16 +24,24 @@ import (
 
 const serverName = "ingate-apiserver"
 
-// Server 让 Kubernetes Generic API Server 接入 Kratos 生命周期
+// Server 让 Kubernetes Generic API Server 接入 Kratos 生命周期。
 type Server struct {
 	generic  *genericapiserver.GenericAPIServer
 	stop     chan struct{}
 	done     chan struct{}
 	stopOnce sync.Once
+	running  atomic.Bool
+
+	lifecycleMu sync.Mutex
+	started     bool
 }
 
-// New 根据进程配置创建 Generic API Server
-func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, error) {
+// New 根据进程配置创建 Generic API Server。
+func New(
+	httpConfig *conf.Server_HTTP,
+	authenticationConfig *conf.Server_Authentication,
+	etcdConfig *conf.Data_Etcd,
+) (*Server, error) {
 	serverRunOptions := genericoptions.NewServerRunOptions()
 	secureServing, err := newSecureServingOptions(httpConfig)
 	if err != nil {
@@ -48,15 +58,14 @@ func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, err
 	if advertiseAddress != nil && !advertiseAddress.IsUnspecified() {
 		if err := secureServing.MaybeDefaultWithSelfSignedCerts(
 			advertiseAddress.String(),
-			[]string{"localhost", "ingate.local"},
+			[]string{"localhost", "apiserver", "ingate.local"},
 			[]net.IP{netutils.ParseIPSloppy("127.0.0.1")},
 		); err != nil {
 			return nil, fmt.Errorf("create API server serving certificate: %w", err)
 		}
 	}
 
-	var optionErrors []error
-	optionErrors = append(optionErrors, serverRunOptions.Validate()...)
+	optionErrors := serverRunOptions.Validate()
 	optionErrors = append(optionErrors, secureServing.Validate()...)
 	optionErrors = append(optionErrors, etcd.Validate()...)
 	if err := utilerrors.NewAggregate(optionErrors); err != nil {
@@ -67,11 +76,17 @@ func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, err
 	if err := serverRunOptions.ApplyTo(&genericConfig.Config); err != nil {
 		return nil, fmt.Errorf("apply API server options: %w", err)
 	}
-	if err := secureServing.ApplyTo(&genericConfig.Config.SecureServing, &genericConfig.Config.LoopbackClientConfig); err != nil {
+	if err := secureServing.ApplyTo(
+		&genericConfig.Config.SecureServing,
+		&genericConfig.Config.LoopbackClientConfig,
+	); err != nil {
 		return nil, fmt.Errorf("apply API server secure serving options: %w", err)
 	}
 	if err := etcd.ApplyTo(&genericConfig.Config); err != nil {
 		return nil, fmt.Errorf("apply API server etcd options: %w", err)
+	}
+	if err := configureAccessControl(genericConfig, authenticationConfig.GetBearerToken()); err != nil {
+		return nil, err
 	}
 	configureOpenAPI(genericConfig)
 
@@ -90,6 +105,44 @@ func New(httpConfig *conf.Server_HTTP, etcdConfig *conf.Data_Etcd) (*Server, err
 		stop:    make(chan struct{}),
 		done:    make(chan struct{}),
 	}, nil
+}
+
+// Start 阻塞运行 Generic API Server，直到 Kratos 调用 Stop。
+func (s *Server) Start(ctx context.Context) error {
+	if !s.running.CompareAndSwap(false, true) {
+		return errors.New("API Server is already running")
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	defer close(s.done)
+	s.lifecycleMu.Lock()
+	s.started = true
+	s.lifecycleMu.Unlock()
+	go func() {
+		select {
+		case <-s.stop:
+			cancel()
+		case <-runCtx.Done():
+		}
+	}()
+	return s.generic.PrepareRun().RunWithContext(runCtx)
+}
+
+// Stop 通知 Generic API Server 停止并等待在途请求完成。
+func (s *Server) Stop(ctx context.Context) error {
+	s.stopOnce.Do(func() { close(s.stop) })
+	s.lifecycleMu.Lock()
+	started := s.started
+	s.lifecycleMu.Unlock()
+	if !started {
+		return nil
+	}
+	select {
+	case <-s.done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("stop API Server: %w", ctx.Err())
+	}
 }
 
 func newSecureServingOptions(config *conf.Server_HTTP) (*genericoptions.SecureServingOptionsWithLoopback, error) {
@@ -127,30 +180,4 @@ func configureOpenAPI(config *genericapiserver.RecommendedConfig) {
 	config.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(openAPIDefinitions, openAPINamer)
 	config.OpenAPIV3Config.Info.Title = "Ingate API Server"
 	config.OpenAPIV3Config.Info.Version = gatewayv1.SchemeGroupVersion.Version
-}
-
-// Start 阻塞运行 Generic API Server，直到 Kratos 调用 Stop
-func (s *Server) Start(ctx context.Context) error {
-	runCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	defer close(s.done)
-	go func() {
-		select {
-		case <-s.stop:
-			cancel()
-		case <-runCtx.Done():
-		}
-	}()
-	return s.generic.PrepareRun().RunWithContext(runCtx)
-}
-
-// Stop 通知 Generic API Server 停止并等待在途请求完成
-func (s *Server) Stop(ctx context.Context) error {
-	s.stopOnce.Do(func() { close(s.stop) })
-	select {
-	case <-s.done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
 }

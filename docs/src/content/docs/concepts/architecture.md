@@ -26,6 +26,8 @@ Ingate 使用官方 Envoy 作为唯一数据平面。控制面把声明式资源
 
 声明式资源是配置事实来源。Controller 不把派生配置或 Last Good 写入 etcd，重启后从资源重新全量编译。
 
+API Server 只允许携带内部 Bearer Token 的控制面组件访问资源、发现和监控端点；`/healthz`、`/livez` 与 `/readyz` 保持匿名可探测。客户端必须校验 API Server 的 TLS 证书，不能通过跳过证书校验来换取部署便利。
+
 ## 同步流量链路
 
 客户端只访问 Envoy，Console、Admin API、API Server 和 Controller 不参与业务请求。
@@ -83,4 +85,4 @@ Analytics 使用 At Least Once 消费语义。请求事实和模型调用都成�
 
 服务二进制、YAML 配置、健康检查、结构化日志和优雅退出保持部署方式中立。Docker Compose 只是当前正式支持的安装与联调方式。
 
-Compose 中 Controller、Envoy 与 AI ExtProc 共享网络命名空间，使未启用 mTLS 的 xDS 和 AI Processing 连接只监听 loopback。其他部署方式必须提供等价的网络隔离，或为内部 gRPC 连接配置传输安全。
+Compose 中 Controller、Envoy、Authz、AI ExtProc 与 ALS 共享网络命名空间。xDS、鉴权、AI Processing 和访问日志链路由 Envoy 通过 loopback 连接，Authz 与 ALS 也只监听 loopback；AI ExtProc 同时承载 Admin API 的额度查询，因此其端口仍在 Compose 内部网络可达。API Server 自动生成的服务端证书通过只读 Volume 提供给 Admin API、Controller、Authz 和 AI ExtProc 校验。其他部署方式必须提供等价的网络隔离和 API Server 证书信任，或为内部 gRPC 连接配置传输安全。

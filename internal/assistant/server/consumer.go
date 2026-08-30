@@ -2,9 +2,11 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,6 +29,7 @@ type ExecutionConsumer struct {
 	leaseDuration time.Duration
 	instanceID    string
 	done          chan struct{}
+	running       atomic.Bool
 	lifecycleMu   sync.Mutex
 	cancel        context.CancelFunc
 	stopping      bool
@@ -51,7 +54,11 @@ func NewExecutionConsumer(
 
 // Start 启动固定数量的执行槽和一个过期租约恢复循环，并等待进程停止。
 func (c *ExecutionConsumer) Start(ctx context.Context) error {
-	ctx, cancel := context.WithCancel(ctx)
+	if !c.running.CompareAndSwap(false, true) {
+		return errors.New("assistant execution consumer is already running")
+	}
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	c.lifecycleMu.Lock()
 	c.cancel = cancel
 	stopping := c.stopping
@@ -60,38 +67,59 @@ func (c *ExecutionConsumer) Start(ctx context.Context) error {
 		cancel()
 	}
 	defer close(c.done)
+	if runCtx.Err() != nil {
+		return nil
+	}
 
 	var group sync.WaitGroup
 	group.Add(c.concurrency + 1)
 	go func() {
 		defer group.Done()
-		c.recoverExpiredExecutions(ctx)
+		c.recoverExpiredExecutions(runCtx)
 	}()
 	for slot := 1; slot <= c.concurrency; slot++ {
-		claimantID := fmt.Sprintf("%s/%d", c.instanceID, slot)
+		workerID := fmt.Sprintf("%s/%d", c.instanceID, slot)
 		go func() {
 			defer group.Done()
-			c.serveSlot(ctx, claimantID, slot)
+			c.serveSlot(runCtx, workerID, slot)
 		}()
 	}
 	group.Wait()
 	return nil
 }
 
+// Stop 取消正在执行的模型调用，并等待执行状态完成收敛。
+func (c *ExecutionConsumer) Stop(ctx context.Context) error {
+	c.lifecycleMu.Lock()
+	c.stopping = true
+	cancel := c.cancel
+	c.lifecycleMu.Unlock()
+	if cancel == nil {
+		return nil
+	}
+	cancel()
+	select {
+	case <-c.done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("stop assistant execution consumer: %w", ctx.Err())
+	}
+}
+
 // serveSlot 串行使用一个执行槽；多个槽之间通过数据库原子领取实现并发。
-func (c *ExecutionConsumer) serveSlot(ctx context.Context, claimantID string, slot int) {
+func (c *ExecutionConsumer) serveSlot(ctx context.Context, workerID string, slot int) {
 	for {
 		if ctx.Err() != nil {
 			return
 		}
 
-		handled, err := c.executor.ExecuteNext(ctx, claimantID, c.leaseDuration)
+		handled, err := c.executor.ExecuteNext(ctx, workerID, c.leaseDuration)
 		if ctx.Err() != nil {
 			return
 		}
 		if err != nil {
 			c.logger.Error("assistant execution failed", "slot", slot, "err", err)
-			if !c.pause(ctx, executionErrorDelay) {
+			if !wait(ctx, executionErrorDelay) {
 				return
 			}
 			continue
@@ -99,7 +127,7 @@ func (c *ExecutionConsumer) serveSlot(ctx context.Context, claimantID string, sl
 		if handled {
 			continue
 		}
-		if !c.pause(ctx, c.pollInterval) {
+		if !wait(ctx, c.pollInterval) {
 			return
 		}
 	}
@@ -114,7 +142,7 @@ func (c *ExecutionConsumer) recoverExpiredExecutions(ctx context.Context) {
 		}
 		if err != nil {
 			c.logger.Error("recover expired assistant executions failed", "err", err)
-			if !c.pause(ctx, executionErrorDelay) {
+			if !wait(ctx, executionErrorDelay) {
 				return
 			}
 			continue
@@ -122,30 +150,13 @@ func (c *ExecutionConsumer) recoverExpiredExecutions(ctx context.Context) {
 		if count > 0 {
 			c.logger.Warn("expired assistant executions marked as failed", "count", count)
 		}
-		if !c.pause(ctx, c.leaseDuration) {
+		if !wait(ctx, c.leaseDuration) {
 			return
 		}
 	}
 }
 
-// Stop 取消正在执行的模型调用，并等待执行状态完成收敛。
-func (c *ExecutionConsumer) Stop(ctx context.Context) error {
-	c.lifecycleMu.Lock()
-	c.stopping = true
-	cancel := c.cancel
-	c.lifecycleMu.Unlock()
-	if cancel != nil {
-		cancel()
-	}
-	select {
-	case <-c.done:
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("stop assistant execution consumer: %w", ctx.Err())
-	}
-}
-
-func (c *ExecutionConsumer) pause(ctx context.Context, duration time.Duration) bool {
+func wait(ctx context.Context, duration time.Duration) bool {
 	timer := time.NewTimer(duration)
 	defer timer.Stop()
 	select {

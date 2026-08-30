@@ -12,20 +12,20 @@ func analysisResponse(analysis aiusagebiz.Analysis) *adminv1.GetAIUsageAnalysisR
 		Summary:            metricsResponse(analysis.Summary),
 		BreakdownDimension: dimensionResponse(analysis.Dimension),
 		BreakdownOrder:     orderResponse(analysis.Order),
-		Trend:              make([]*adminv1.AIUsageAnalysisPoint, 0, len(analysis.Trend)),
-		Breakdown:          make([]*adminv1.AIUsageBreakdownItem, 0, len(analysis.Breakdown)),
+		Trend:              make([]*adminv1.AIUsageAnalysisPoint, len(analysis.Trend)),
+		Breakdown:          make([]*adminv1.AIUsageBreakdownItem, len(analysis.Breakdown)),
 	}
-	for _, point := range analysis.Trend {
-		response.Trend = append(response.Trend, &adminv1.AIUsageAnalysisPoint{
+	for i, point := range analysis.Trend {
+		response.Trend[i] = &adminv1.AIUsageAnalysisPoint{
 			StartedAt: timestamppb.New(point.StartedAt),
 			Metrics:   metricsResponse(point.Metrics),
-		})
+		}
 	}
-	for _, item := range analysis.Breakdown {
-		response.Breakdown = append(response.Breakdown, &adminv1.AIUsageBreakdownItem{
+	for i, item := range analysis.Breakdown {
+		response.Breakdown[i] = &adminv1.AIUsageBreakdownItem{
 			DimensionValue: item.DimensionValue,
 			Metrics:        metricsResponse(item.Metrics),
-		})
+		}
 	}
 	return response
 }

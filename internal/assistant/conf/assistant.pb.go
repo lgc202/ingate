@@ -22,15 +22,21 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Bootstrap 定义 ingate-assistant 的完整进程配置
+// Bootstrap 定义 ingate-assistant 的完整进程配置。
 type Bootstrap struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Server        *Server                `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
-	Data          *Data                  `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
-	Stream        *Stream                `protobuf:"bytes,3,opt,name=stream,proto3" json:"stream,omitempty"`
-	Logging       *Logging               `protobuf:"bytes,4,opt,name=logging,proto3" json:"logging,omitempty"`
-	Worker        *Worker                `protobuf:"bytes,5,opt,name=worker,proto3" json:"worker,omitempty"`
-	AdminApi      *AdminAPI              `protobuf:"bytes,6,opt,name=admin_api,json=adminApi,proto3" json:"admin_api,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// server 定义 HTTP 入口和进程退出期限。
+	Server *Server `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	// data 定义持久存储和短期事件存储。
+	Data *Data `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
+	// stream 定义 SSE 事件的保留与读取行为。
+	Stream *Stream `protobuf:"bytes,3,opt,name=stream,proto3" json:"stream,omitempty"`
+	// logging 定义结构化日志行为。
+	Logging *Logging `protobuf:"bytes,4,opt,name=logging,proto3" json:"logging,omitempty"`
+	// worker 定义后台 Agent 执行槽和租约。
+	Worker *Worker `protobuf:"bytes,5,opt,name=worker,proto3" json:"worker,omitempty"`
+	// admin_api 定义只读工具访问的内部管理接口。
+	AdminApi      *AdminAPI `protobuf:"bytes,6,opt,name=admin_api,json=adminApi,proto3" json:"admin_api,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -107,10 +113,13 @@ func (x *Bootstrap) GetAdminApi() *AdminAPI {
 	return nil
 }
 
+// Server 定义 Assistant HTTP 服务和进程退出行为。
 type Server struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
-	Http            *Server_HTTP           `protobuf:"bytes,1,opt,name=http,proto3" json:"http,omitempty"`
-	ShutdownTimeout *durationpb.Duration   `protobuf:"bytes,2,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// http 是 Assistant HTTP 服务配置。
+	Http *Server_HTTP `protobuf:"bytes,1,opt,name=http,proto3" json:"http,omitempty"`
+	// shutdown_timeout 是等待在途请求和后台执行槽结束的最长时间。
+	ShutdownTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=shutdown_timeout,json=shutdownTimeout,proto3" json:"shutdown_timeout,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -159,10 +168,13 @@ func (x *Server) GetShutdownTimeout() *durationpb.Duration {
 	return nil
 }
 
+// Data 定义 Assistant 使用的持久化和短期事件基础设施。
 type Data struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Mysql         *Data_MySQL            `protobuf:"bytes,1,opt,name=mysql,proto3" json:"mysql,omitempty"`
-	Redis         *Data_Redis            `protobuf:"bytes,2,opt,name=redis,proto3" json:"redis,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// mysql 是 Assistant 的持久化事实来源。
+	Mysql *Data_MySQL `protobuf:"bytes,1,opt,name=mysql,proto3" json:"mysql,omitempty"`
+	// redis 只承载短期流式通知，不决定执行终态。
+	Redis         *Data_Redis `protobuf:"bytes,2,opt,name=redis,proto3" json:"redis,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -211,11 +223,15 @@ func (x *Data) GetRedis() *Data_Redis {
 	return nil
 }
 
+// Stream 定义单次执行事件流的保留和阻塞读取策略。
 type Stream struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Retention     *durationpb.Duration   `protobuf:"bytes,1,opt,name=retention,proto3" json:"retention,omitempty"`
-	MaxEvents     uint32                 `protobuf:"varint,2,opt,name=max_events,json=maxEvents,proto3" json:"max_events,omitempty"`
-	ReadBlock     *durationpb.Duration   `protobuf:"bytes,3,opt,name=read_block,json=readBlock,proto3" json:"read_block,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// retention 是一条执行事件流的保留时间。
+	Retention *durationpb.Duration `protobuf:"bytes,1,opt,name=retention,proto3" json:"retention,omitempty"`
+	// max_events 是一条执行流最多保留的近期事件数。
+	MaxEvents uint32 `protobuf:"varint,2,opt,name=max_events,json=maxEvents,proto3" json:"max_events,omitempty"`
+	// read_block 是无新事件时单次 Redis 阻塞读取的最长时间。
+	ReadBlock     *durationpb.Duration `protobuf:"bytes,3,opt,name=read_block,json=readBlock,proto3" json:"read_block,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -274,10 +290,13 @@ func (x *Stream) GetReadBlock() *durationpb.Duration {
 // Worker 定义后台 Agent 执行的进程内并发度、领取频率和实例租约。
 // 同一会话仍由业务规则保证串行；不同会话可以由多个执行槽并发处理。
 type Worker struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Concurrency   uint32                 `protobuf:"varint,1,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
-	PollInterval  *durationpb.Duration   `protobuf:"bytes,2,opt,name=poll_interval,json=pollInterval,proto3" json:"poll_interval,omitempty"`
-	LeaseDuration *durationpb.Duration   `protobuf:"bytes,3,opt,name=lease_duration,json=leaseDuration,proto3" json:"lease_duration,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// concurrency 是当前进程固定创建的执行槽数量。
+	Concurrency uint32 `protobuf:"varint,1,opt,name=concurrency,proto3" json:"concurrency,omitempty"`
+	// poll_interval 是空闲执行槽再次领取任务前的等待时间。
+	PollInterval *durationpb.Duration `protobuf:"bytes,2,opt,name=poll_interval,json=pollInterval,proto3" json:"poll_interval,omitempty"`
+	// lease_duration 是一个执行槽失联后允许恢复器收敛任务的期限。
+	LeaseDuration *durationpb.Duration `protobuf:"bytes,3,opt,name=lease_duration,json=leaseDuration,proto3" json:"lease_duration,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -335,9 +354,11 @@ func (x *Worker) GetLeaseDuration() *durationpb.Duration {
 
 // AdminAPI 定义助手读取当前 Ingate 资源时使用的内部 gRPC 地址。
 type AdminAPI struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Addr          string                 `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	Timeout       *durationpb.Duration   `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// addr 是 Admin API 内部 gRPC 地址。
+	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	// timeout 是一次只读工具查询的最长等待时间。
+	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -386,11 +407,15 @@ func (x *AdminAPI) GetTimeout() *durationpb.Duration {
 	return nil
 }
 
+// Logging 定义 Assistant 的结构化日志格式与级别。
 type Logging struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Format        string                 `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
-	Level         string                 `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
-	AddSource     bool                   `protobuf:"varint,3,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// format 支持 json 和 text。
+	Format string `protobuf:"bytes,1,opt,name=format,proto3" json:"format,omitempty"`
+	// level 支持 debug、info、warn 和 error。
+	Level string `protobuf:"bytes,2,opt,name=level,proto3" json:"level,omitempty"`
+	// add_source 控制日志是否包含调用位置。
+	AddSource     bool `protobuf:"varint,3,opt,name=add_source,json=addSource,proto3" json:"add_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -446,12 +471,15 @@ func (x *Logging) GetAddSource() bool {
 	return false
 }
 
+// HTTP 定义 Assistant 唯一的网络入口。
 type Server_HTTP struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Addr          string                 `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	Timeout       *durationpb.Duration   `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// addr 是 HTTP 监听地址。
+	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
+	// readiness_timeout 是一次依赖就绪检查的最长等待时间。
+	ReadinessTimeout *durationpb.Duration `protobuf:"bytes,2,opt,name=readiness_timeout,json=readinessTimeout,proto3" json:"readiness_timeout,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *Server_HTTP) Reset() {
@@ -491,23 +519,32 @@ func (x *Server_HTTP) GetAddr() string {
 	return ""
 }
 
-func (x *Server_HTTP) GetTimeout() *durationpb.Duration {
+func (x *Server_HTTP) GetReadinessTimeout() *durationpb.Duration {
 	if x != nil {
-		return x.Timeout
+		return x.ReadinessTimeout
 	}
 	return nil
 }
 
+// MySQL 保存会话、消息、执行、步骤和模型连接。
 type Data_MySQL struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
-	Address               string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	Database              string                 `protobuf:"bytes,2,opt,name=database,proto3" json:"database,omitempty"`
-	Username              string                 `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
-	Password              string                 `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
-	DialTimeout           *durationpb.Duration   `protobuf:"bytes,5,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
-	MaxOpenConnections    uint32                 `protobuf:"varint,6,opt,name=max_open_connections,json=maxOpenConnections,proto3" json:"max_open_connections,omitempty"`
-	MaxIdleConnections    uint32                 `protobuf:"varint,7,opt,name=max_idle_connections,json=maxIdleConnections,proto3" json:"max_idle_connections,omitempty"`
-	ConnectionMaxLifetime *durationpb.Duration   `protobuf:"bytes,8,opt,name=connection_max_lifetime,json=connectionMaxLifetime,proto3" json:"connection_max_lifetime,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// address 是 MySQL TCP 地址。
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// database 是 Assistant 使用的数据库名。
+	Database string `protobuf:"bytes,2,opt,name=database,proto3" json:"database,omitempty"`
+	// username 是数据库用户名。
+	Username string `protobuf:"bytes,3,opt,name=username,proto3" json:"username,omitempty"`
+	// password 是数据库密码，应通过环境变量注入。
+	Password string `protobuf:"bytes,4,opt,name=password,proto3" json:"password,omitempty"`
+	// dial_timeout 是建立数据库连接的最长等待时间。
+	DialTimeout *durationpb.Duration `protobuf:"bytes,5,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
+	// max_open_connections 限制连接池总连接数。
+	MaxOpenConnections uint32 `protobuf:"varint,6,opt,name=max_open_connections,json=maxOpenConnections,proto3" json:"max_open_connections,omitempty"`
+	// max_idle_connections 限制连接池保留的空闲连接数。
+	MaxIdleConnections uint32 `protobuf:"varint,7,opt,name=max_idle_connections,json=maxIdleConnections,proto3" json:"max_idle_connections,omitempty"`
+	// connection_max_lifetime 限制连接复用时长。
+	ConnectionMaxLifetime *durationpb.Duration `protobuf:"bytes,8,opt,name=connection_max_lifetime,json=connectionMaxLifetime,proto3" json:"connection_max_lifetime,omitempty"`
 	unknownFields         protoimpl.UnknownFields
 	sizeCache             protoimpl.SizeCache
 }
@@ -598,15 +635,23 @@ func (x *Data_MySQL) GetConnectionMaxLifetime() *durationpb.Duration {
 	return nil
 }
 
+// Redis 保存可过期、可重放的 SSE 增量事件。
 type Data_Redis struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Address       string                 `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
-	Password      string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
-	Database      int32                  `protobuf:"varint,3,opt,name=database,proto3" json:"database,omitempty"`
-	DialTimeout   *durationpb.Duration   `protobuf:"bytes,4,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
-	ReadTimeout   *durationpb.Duration   `protobuf:"bytes,5,opt,name=read_timeout,json=readTimeout,proto3" json:"read_timeout,omitempty"`
-	WriteTimeout  *durationpb.Duration   `protobuf:"bytes,6,opt,name=write_timeout,json=writeTimeout,proto3" json:"write_timeout,omitempty"`
-	PoolSize      uint32                 `protobuf:"varint,7,opt,name=pool_size,json=poolSize,proto3" json:"pool_size,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// address 是 Redis TCP 地址。
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// password 是 Redis 密码，应通过环境变量注入。
+	Password string `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	// database 是单机 Redis 的逻辑数据库编号。
+	Database int32 `protobuf:"varint,3,opt,name=database,proto3" json:"database,omitempty"`
+	// dial_timeout 是建立 Redis 连接的最长等待时间。
+	DialTimeout *durationpb.Duration `protobuf:"bytes,4,opt,name=dial_timeout,json=dialTimeout,proto3" json:"dial_timeout,omitempty"`
+	// read_timeout 是普通 Redis 命令的读取超时；阻塞读取使用 read_block。
+	ReadTimeout *durationpb.Duration `protobuf:"bytes,5,opt,name=read_timeout,json=readTimeout,proto3" json:"read_timeout,omitempty"`
+	// write_timeout 是 Redis 命令的写入超时。
+	WriteTimeout *durationpb.Duration `protobuf:"bytes,6,opt,name=write_timeout,json=writeTimeout,proto3" json:"write_timeout,omitempty"`
+	// pool_size 限制 Redis 连接池大小。
+	PoolSize      uint32 `protobuf:"varint,7,opt,name=pool_size,json=poolSize,proto3" json:"pool_size,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -701,13 +746,13 @@ const file_assistant_proto_rawDesc = "" +
 	"\x06stream\x18\x03 \x01(\v2\x1d.ingate.assistant.conf.StreamR\x06stream\x128\n" +
 	"\alogging\x18\x04 \x01(\v2\x1e.ingate.assistant.conf.LoggingR\alogging\x125\n" +
 	"\x06worker\x18\x05 \x01(\v2\x1d.ingate.assistant.conf.WorkerR\x06worker\x12<\n" +
-	"\tadmin_api\x18\x06 \x01(\v2\x1f.ingate.assistant.conf.AdminAPIR\badminApi\"\xd7\x01\n" +
+	"\tadmin_api\x18\x06 \x01(\v2\x1f.ingate.assistant.conf.AdminAPIR\badminApi\"\xea\x01\n" +
 	"\x06Server\x126\n" +
 	"\x04http\x18\x01 \x01(\v2\".ingate.assistant.conf.Server.HTTPR\x04http\x12D\n" +
-	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1aO\n" +
+	"\x10shutdown_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x0fshutdownTimeout\x1ab\n" +
 	"\x04HTTP\x12\x12\n" +
-	"\x04addr\x18\x01 \x01(\tR\x04addr\x123\n" +
-	"\atimeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\atimeout\"\x9a\x06\n" +
+	"\x04addr\x18\x01 \x01(\tR\x04addr\x12F\n" +
+	"\x11readiness_timeout\x18\x02 \x01(\v2\x19.google.protobuf.DurationR\x10readinessTimeout\"\x9a\x06\n" +
 	"\x04Data\x127\n" +
 	"\x05mysql\x18\x01 \x01(\v2!.ingate.assistant.conf.Data.MySQLR\x05mysql\x127\n" +
 	"\x05redis\x18\x02 \x01(\v2!.ingate.assistant.conf.Data.RedisR\x05redis\x1a\xea\x02\n" +
@@ -789,7 +834,7 @@ var file_assistant_proto_depIdxs = []int32{
 	10, // 12: ingate.assistant.conf.Worker.poll_interval:type_name -> google.protobuf.Duration
 	10, // 13: ingate.assistant.conf.Worker.lease_duration:type_name -> google.protobuf.Duration
 	10, // 14: ingate.assistant.conf.AdminAPI.timeout:type_name -> google.protobuf.Duration
-	10, // 15: ingate.assistant.conf.Server.HTTP.timeout:type_name -> google.protobuf.Duration
+	10, // 15: ingate.assistant.conf.Server.HTTP.readiness_timeout:type_name -> google.protobuf.Duration
 	10, // 16: ingate.assistant.conf.Data.MySQL.dial_timeout:type_name -> google.protobuf.Duration
 	10, // 17: ingate.assistant.conf.Data.MySQL.connection_max_lifetime:type_name -> google.protobuf.Duration
 	10, // 18: ingate.assistant.conf.Data.Redis.dial_timeout:type_name -> google.protobuf.Duration

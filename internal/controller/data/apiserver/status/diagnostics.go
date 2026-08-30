@@ -13,11 +13,14 @@ type diagnosticIndex struct {
 	global   []compiler.Diagnostic
 }
 
-// newDiagnosticIndex 按资源、资源类型和全局三个作用域关联编译诊断
-func newDiagnosticIndex(resources compiler.Resources, diagnostics []compiler.Diagnostic) diagnosticIndex {
-	knownResources := make(map[resourceKey]bool)
+// newDiagnosticIndex 按资源、资源类型和全局三个作用域关联编译诊断。
+func newDiagnosticIndex(
+	resources []compiler.ResourceGeneration,
+	diagnostics []compiler.Diagnostic,
+) diagnosticIndex {
+	knownResources := make(map[resourceKey]bool, len(resources))
 	knownKinds := make(map[gatewayv1.Kind]bool)
-	for _, resource := range resources.Generations() {
+	for _, resource := range resources {
 		knownResources[resourceKey{kind: resource.Kind, name: resource.Name}] = true
 		knownKinds[resource.Kind] = true
 	}
@@ -27,15 +30,14 @@ func newDiagnosticIndex(resources compiler.Resources, diagnostics []compiler.Dia
 		kinds:    make(map[gatewayv1.Kind][]compiler.Diagnostic),
 	}
 	for _, diagnostic := range diagnostics {
-		if diagnostic.Severity != compiler.SeverityError &&
-			!(diagnostic.Severity == compiler.SeverityWarning && isReferenceReason(diagnostic.Reason)) {
+		if diagnostic.Severity != compiler.SeverityError && diagnostic.Severity != compiler.SeverityWarning {
 			continue
 		}
-		key := resourceKey{kind: diagnostic.Kind, name: diagnostic.ID}
+		key := resourceKey{kind: diagnostic.Kind, name: diagnostic.ResourceID}
 		switch {
 		case diagnostic.Kind == "" || !knownKinds[diagnostic.Kind]:
 			index.global = append(index.global, diagnostic)
-		case diagnostic.ID == "" || !knownResources[key]:
+		case diagnostic.ResourceID == "" || !knownResources[key]:
 			index.kinds[diagnostic.Kind] = append(index.kinds[diagnostic.Kind], diagnostic)
 		default:
 			index.specific[key] = append(index.specific[key], diagnostic)
@@ -75,6 +77,12 @@ func (i diagnosticIndex) forResource(kind gatewayv1.Kind, name string) compileDe
 			}
 			continue
 		}
+		if diagnostic.Severity == compiler.SeverityWarning {
+			if decision.accepted.message == messageAccepted && diagnostic.Message != "" {
+				decision.accepted.message = diagnostic.Message
+			}
+			continue
+		}
 		if decision.accepted.status == metav1.ConditionTrue {
 			decision.accepted = decisionFromDiagnostic(diagnostic)
 		}
@@ -82,7 +90,8 @@ func (i diagnosticIndex) forResource(kind gatewayv1.Kind, name string) compileDe
 	return decision
 }
 
-// forWasmPlugin 不继承 Envoy 配置的全局诊断，插件安装只由制品自身的拉取、校验和包冲突决定
+// forWasmPlugin 不继承 Envoy 配置的全局诊断，
+// 插件安装只由制品自身的拉取、校验和包冲突决定。
 func (i diagnosticIndex) forWasmPlugin(name string) compileDecision {
 	diagnostics := make([]compiler.Diagnostic, 0,
 		len(i.kinds[gatewayv1.KindWasmPlugin])+len(i.specific[resourceKey{kind: gatewayv1.KindWasmPlugin, name: name}]),
@@ -96,6 +105,12 @@ func (i diagnosticIndex) forWasmPlugin(name string) compileDecision {
 		message: messageAccepted,
 	}}
 	for _, diagnostic := range diagnostics {
+		if diagnostic.Severity == compiler.SeverityWarning {
+			if decision.accepted.message == messageAccepted && diagnostic.Message != "" {
+				decision.accepted.message = diagnostic.Message
+			}
+			continue
+		}
 		if decision.accepted.status == metav1.ConditionTrue {
 			decision.accepted = decisionFromDiagnostic(diagnostic)
 		}

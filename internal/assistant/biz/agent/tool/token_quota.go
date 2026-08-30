@@ -41,6 +41,11 @@ type tokenQuotaUsageInfo struct {
 	ResetsAt        string `json:"resets_at"`
 }
 
+// CallerTokenQuotaReader 是调用方额度工具实际使用的查询边界。
+type CallerTokenQuotaReader interface {
+	GetCallerTokenQuota(context.Context, string) (CallerTokenQuota, error)
+}
+
 func newCallerTokenQuotaTool(quotas CallerTokenQuotaReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		getCallerTokenQuotaTool,
@@ -111,7 +116,7 @@ func quotaTime(value time.Time) string {
 	if value.IsZero() {
 		return ""
 	}
-	return value.Format(time.RFC3339)
+	return value.Format(time.RFC3339Nano)
 }
 
 func callerTokenQuotaErrorResult(err error) (callerTokenQuotaOutput, error) {

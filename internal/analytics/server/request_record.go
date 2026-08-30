@@ -9,13 +9,21 @@ import (
 
 	alsv1 "github.com/lgc202/ingate/api/als/v1"
 	requestbiz "github.com/lgc202/ingate/internal/analytics/biz/request"
+	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
-// decodeRequestRecords 解码一个 Kafka 批次，并统计无法通过协议校验的消息
+// decodeRequestRecords 解码一个 Kafka 批次，并统计无法通过协议校验的消息。
 func decodeRequestRecords(messages []*kgo.Record) ([]requestbiz.Record, int) {
 	records := make([]requestbiz.Record, 0, len(messages))
 	invalid := 0
 	for _, message := range messages {
+		if len(message.Value) > requestrecord.MaxEncodedBytes {
+			invalid++
+			continue
+		}
 		record := new(alsv1.RequestRecord)
 		if err := proto.Unmarshal(message.Value, record); err != nil || !validRecord(record) {
 			invalid++
@@ -26,7 +34,7 @@ func decodeRequestRecords(messages []*kgo.Record) ([]requestbiz.Record, int) {
 	return records, invalid
 }
 
-// domainRecord 在 Kafka 边界把传输协议转换为 Analytics 领域记录
+// domainRecord 在 Kafka 边界把传输协议转换为 Analytics 领域记录。
 func domainRecord(record *alsv1.RequestRecord) requestbiz.Record {
 	return requestbiz.Record{
 		ID:                  record.GetId(),
@@ -87,17 +95,62 @@ func cloneUint64(value *uint64) *uint64 {
 	return &cloned
 }
 
-// validRecord 校验跨进程协议边界上 ClickHouse 列类型和查询所需的最小字段
+// validRecord 校验跨进程协议边界上 ClickHouse 列类型和查询所需的最小字段。
 func validRecord(record *alsv1.RequestRecord) bool {
-	if record.GetId() == "" || record.GetStartedAt() == nil || record.GetStartedAt().CheckValid() != nil {
+	if !requestrecord.IsValidID(record.GetId()) || record.GetStartedAt() == nil ||
+		record.GetStartedAt().CheckValid() != nil {
 		return false
 	}
-	if record.GetDuration() != nil && (record.GetDuration().CheckValid() != nil || record.GetDuration().AsDuration() < 0) {
+	startedAt := record.GetStartedAt().AsTime()
+	// 查询游标使用 Unix 纳秒；超出其可表示范围会发生整数环绕，必须在 Kafka 边界拒绝。
+	if !analyticsconfig.IsSupportedTime(startedAt) {
 		return false
 	}
-	if record.GetTimeToFirstByte() != nil &&
-		(record.GetTimeToFirstByte().CheckValid() != nil || record.GetTimeToFirstByte().AsDuration() < 0) {
+	duration := record.GetDuration()
+	if duration != nil && (duration.CheckValid() != nil || duration.AsDuration() < 0) {
 		return false
 	}
-	return record.GetStatusCode() <= 65535 && record.GetUpstreamAttempts() <= 65535
+	firstByte := record.GetTimeToFirstByte()
+	if firstByte != nil && (firstByte.CheckValid() != nil || firstByte.AsDuration() < 0) {
+		return false
+	}
+	if duration != nil && firstByte != nil && firstByte.AsDuration() > duration.AsDuration() {
+		return false
+	}
+	statusCode := record.GetStatusCode()
+	if statusCode > 65535 ||
+		(statusCode > 0 && statusCode < 100) ||
+		record.GetUpstreamAttempts() > 65535 {
+		return false
+	}
+	if (record.GetGatewayId() == "") != (record.GetRouteId() == "") {
+		return false
+	}
+	for _, resourceID := range []string{
+		record.GetGatewayId(),
+		record.GetRouteId(),
+		record.GetUpstreamId(),
+		record.GetCallerId(),
+		record.GetAccessKeyId(),
+	} {
+		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+			return false
+		}
+	}
+	if (record.GetCallerId() == "") != (record.GetAccessKeyId() == "") {
+		return false
+	}
+	call := record.GetAiModelCall()
+	if call == nil {
+		return true
+	}
+	protocol := call.GetUpstreamProtocol()
+	if protocol != "" && protocol != string(aiprotocol.UpstreamProtocolOpenAI) &&
+		protocol != string(aiprotocol.UpstreamProtocolAnthropic) {
+		return false
+	}
+	if record.GetUpstreamId() != "" && (protocol == "" || call.GetUpstreamModel() == "") {
+		return false
+	}
+	return true
 }

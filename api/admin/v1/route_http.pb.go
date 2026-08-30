@@ -25,10 +25,15 @@ const OperationRouteServiceListRoutes = "/ingate.admin.v1.RouteService/ListRoute
 const OperationRouteServiceUpdateRoute = "/ingate.admin.v1.RouteService/UpdateRoute"
 
 type RouteServiceHTTPServer interface {
+	// CreateRoute CreateRoute 创建 Route。
 	CreateRoute(context.Context, *CreateRouteRequest) (*Route, error)
+	// DeleteRoute DeleteRoute 使用资源版本删除 Route。
 	DeleteRoute(context.Context, *DeleteRouteRequest) (*emptypb.Empty, error)
+	// GetRoute GetRoute 查询指定 Route。
 	GetRoute(context.Context, *GetRouteRequest) (*Route, error)
+	// ListRoutes ListRoutes 分页查询 Route。
 	ListRoutes(context.Context, *ListRoutesRequest) (*ListRoutesResponse, error)
+	// UpdateRoute UpdateRoute 使用资源版本完整替换 Route 配置。
 	UpdateRoute(context.Context, *UpdateRouteRequest) (*Route, error)
 }
 
@@ -146,10 +151,15 @@ func _RouteService_DeleteRoute0_HTTP_Handler(srv RouteServiceHTTPServer) func(ct
 }
 
 type RouteServiceHTTPClient interface {
+	// CreateRoute CreateRoute 创建 Route。
 	CreateRoute(ctx context.Context, req *CreateRouteRequest, opts ...http.CallOption) (rsp *Route, err error)
+	// DeleteRoute DeleteRoute 使用资源版本删除 Route。
 	DeleteRoute(ctx context.Context, req *DeleteRouteRequest, opts ...http.CallOption) (rsp *emptypb.Empty, err error)
+	// GetRoute GetRoute 查询指定 Route。
 	GetRoute(ctx context.Context, req *GetRouteRequest, opts ...http.CallOption) (rsp *Route, err error)
+	// ListRoutes ListRoutes 分页查询 Route。
 	ListRoutes(ctx context.Context, req *ListRoutesRequest, opts ...http.CallOption) (rsp *ListRoutesResponse, err error)
+	// UpdateRoute UpdateRoute 使用资源版本完整替换 Route 配置。
 	UpdateRoute(ctx context.Context, req *UpdateRouteRequest, opts ...http.CallOption) (rsp *Route, err error)
 }
 
@@ -161,6 +171,7 @@ func NewRouteServiceHTTPClient(client *http.Client) RouteServiceHTTPClient {
 	return &RouteServiceHTTPClientImpl{client}
 }
 
+// CreateRoute CreateRoute 创建 Route。
 func (c *RouteServiceHTTPClientImpl) CreateRoute(ctx context.Context, in *CreateRouteRequest, opts ...http.CallOption) (*Route, error) {
 	var out Route
 	pattern := "/api/v1/routes"
@@ -178,6 +189,7 @@ func (c *RouteServiceHTTPClientImpl) CreateRoute(ctx context.Context, in *Create
 	return &out, nil
 }
 
+// DeleteRoute DeleteRoute 使用资源版本删除 Route。
 func (c *RouteServiceHTTPClientImpl) DeleteRoute(ctx context.Context, in *DeleteRouteRequest, opts ...http.CallOption) (*emptypb.Empty, error) {
 	var out emptypb.Empty
 	pattern := "/api/v1/routes/{id}"
@@ -194,6 +206,7 @@ func (c *RouteServiceHTTPClientImpl) DeleteRoute(ctx context.Context, in *Delete
 	return &out, nil
 }
 
+// GetRoute GetRoute 查询指定 Route。
 func (c *RouteServiceHTTPClientImpl) GetRoute(ctx context.Context, in *GetRouteRequest, opts ...http.CallOption) (*Route, error) {
 	var out Route
 	pattern := "/api/v1/routes/{id}"
@@ -210,6 +223,7 @@ func (c *RouteServiceHTTPClientImpl) GetRoute(ctx context.Context, in *GetRouteR
 	return &out, nil
 }
 
+// ListRoutes ListRoutes 分页查询 Route。
 func (c *RouteServiceHTTPClientImpl) ListRoutes(ctx context.Context, in *ListRoutesRequest, opts ...http.CallOption) (*ListRoutesResponse, error) {
 	var out ListRoutesResponse
 	pattern := "/api/v1/routes"
@@ -226,6 +240,7 @@ func (c *RouteServiceHTTPClientImpl) ListRoutes(ctx context.Context, in *ListRou
 	return &out, nil
 }
 
+// UpdateRoute UpdateRoute 使用资源版本完整替换 Route 配置。
 func (c *RouteServiceHTTPClientImpl) UpdateRoute(ctx context.Context, in *UpdateRouteRequest, opts ...http.CallOption) (*Route, error) {
 	var out Route
 	pattern := "/api/v1/routes/{id}"

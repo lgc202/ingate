@@ -76,9 +76,9 @@ export function UpstreamPage() {
     setEditorOpen(true);
   };
 
-  const referencingRoutes = (upstreamID: string) => routes.data?.routes.filter((route) => (
-    route.upstreams.some((target) => target.upstreamID === upstreamID)
-    || route.ai?.models.some((model) => model.targets.some((target) => target.upstreamID === upstreamID))
+  const referencingRoutes = (serviceID: string) => routes.data?.routes.filter((route) => (
+    route.services.some((target) => target.serviceID === serviceID)
+    || route.ai?.models.some((model) => model.targets.some((target) => target.serviceID === serviceID))
   )) ?? [];
   const setDetail = (upstream?: Upstream) => {
     const next = new URLSearchParams(searchParams);

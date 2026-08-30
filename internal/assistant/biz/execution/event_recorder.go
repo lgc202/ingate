@@ -17,24 +17,8 @@ type eventRecorder struct {
 	store         ExecutorStore
 	events        EventStore
 	executionID   string
-	claimantID    string
+	workerID      string
 	leaseDuration time.Duration
-}
-
-func newEventRecorder(
-	store ExecutorStore,
-	events EventStore,
-	executionID string,
-	claimantID string,
-	leaseDuration time.Duration,
-) *eventRecorder {
-	return &eventRecorder{
-		store:         store,
-		events:        events,
-		executionID:   executionID,
-		claimantID:    claimantID,
-		leaseDuration: leaseDuration,
-	}
 }
 
 // Emit 是 Agent 事件协议与执行状态机之间的唯一入口。
@@ -63,11 +47,27 @@ func (r *eventRecorder) Emit(ctx context.Context, event agentbiz.Event) error {
 	}
 }
 
+func newEventRecorder(
+	store ExecutorStore,
+	events EventStore,
+	executionID string,
+	workerID string,
+	leaseDuration time.Duration,
+) *eventRecorder {
+	return &eventRecorder{
+		store:         store,
+		events:        events,
+		executionID:   executionID,
+		workerID:      workerID,
+		leaseDuration: leaseDuration,
+	}
+}
+
 func (r *eventRecorder) selectModel(
 	ctx context.Context,
 	event agentbiz.ModelSelected,
 ) error {
-	if err := r.store.SetExecutionModel(ctx, r.executionID, r.claimantID, event.Model); err != nil {
+	if err := r.store.SetExecutionModel(ctx, r.executionID, r.workerID, event.Model); err != nil {
 		return executionRecordError("set execution model", err)
 	}
 
@@ -76,7 +76,7 @@ func (r *eventRecorder) selectModel(
 	cancelRequested, err := r.store.RenewExecutionLease(
 		ctx,
 		r.executionID,
-		r.claimantID,
+		r.workerID,
 		r.leaseDuration,
 	)
 	if err != nil {
@@ -98,7 +98,7 @@ func (r *eventRecorder) startStep(
 	name string,
 	kind StepKind,
 ) error {
-	_, err := r.store.StartExecutionStep(ctx, r.executionID, r.claimantID, Step{
+	err := r.store.StartExecutionStep(ctx, r.executionID, r.workerID, Step{
 		ID:     uuid.NewString(),
 		Kind:   kind,
 		Name:   name,
@@ -119,7 +119,7 @@ func (r *eventRecorder) completeStep(
 	if err := r.store.CompleteExecutionStep(
 		ctx,
 		r.executionID,
-		r.claimantID,
+		r.workerID,
 		callID,
 		kind,
 		summary,
@@ -136,7 +136,7 @@ func (r *eventRecorder) failToolStep(
 	if err := r.store.FailExecutionStep(
 		ctx,
 		r.executionID,
-		r.claimantID,
+		r.workerID,
 		event.CallID,
 		StepKindToolCall,
 		FailureToolUnavailable,

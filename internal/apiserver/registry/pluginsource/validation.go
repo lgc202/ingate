@@ -1,26 +1,27 @@
 package pluginsource
 
 import (
-	"errors"
-	"net/url"
-
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	"github.com/lgc202/ingate/internal/pkg/httpurl"
 )
-
-var errInvalidCatalogURL = errors.New("url must identify an HTTP or HTTPS plugin catalog")
 
 func validateSource(source *resource.PluginSource) field.ErrorList {
 	specPath := field.NewPath("spec")
-	var errs field.ErrorList
+	errs := apiregistry.ValidateResourceID(source.Name, field.NewPath("metadata", "name"))
 
-	if source.Spec.DisplayName == "" {
-		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
-	}
-	parsed, err := url.ParseRequestURI(source.Spec.URL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		errs = append(errs, field.Invalid(specPath.Child("url"), source.Spec.URL, errInvalidCatalogURL.Error()))
+	errs = append(errs, apiregistry.ValidateDisplayName(
+		source.Spec.DisplayName,
+		specPath.Child("displayName"),
+	)...)
+	if !httpurl.IsValid(source.Spec.URL) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("url"),
+			source.Spec.URL,
+			"must be a valid HTTP or HTTPS catalog URL",
+		))
 	}
 	return errs
 }

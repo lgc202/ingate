@@ -1,4 +1,4 @@
-// Package wasm 拉取、校验并缓存 Envoy 执行的 Wasm 模块
+// Package wasm 拉取、校验并缓存 Envoy 执行的 Wasm 模块。
 package wasm
 
 import (
@@ -26,11 +26,15 @@ import (
 	"github.com/lgc202/ingate/internal/controller/biz/compiler"
 	"github.com/lgc202/ingate/internal/controller/conf"
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/httpurl"
+	"github.com/lgc202/ingate/internal/pkg/version"
+	"github.com/lgc202/ingate/internal/pkg/wasmconfig"
 )
 
 const (
 	wasmFileName          = "plugin.wasm"
 	wasmArtifactMediaType = "application/vnd.module.wasm.content.layer.v1+wasm"
+	maxHTTPRedirects      = 10
 )
 
 var (
@@ -39,10 +43,10 @@ var (
 	supportedProxyWasmABI = []string{"proxy_abi_version_0_2_0", "proxy_abi_version_0_2_1"}
 )
 
-// Store 把远端模块转换为 Envoy 可从共享目录读取的内容寻址文件
+// Store 把远端模块转换为 Envoy 可从共享目录读取的内容寻址文件。
 //
 // Controller 只把校验后的本地副本交给 Envoy，避免 Envoy 直接访问外部仓库，
-// 也确保 OCI manifest 摘要与最终 Wasm 二进制摘要分别按各自语义校验
+// 也确保 OCI manifest 摘要与最终 Wasm 二进制摘要分别按各自语义校验。
 type Store struct {
 	cacheDir      string
 	pullTimeout   time.Duration
@@ -54,7 +58,7 @@ type Store struct {
 	resolved map[compiler.ResourceGeneration]compiler.WasmModule
 }
 
-// NewStore 创建 Wasm 模块存储，并确保缓存目录可写
+// NewStore 创建 Wasm 模块存储，并确保缓存目录可写。
 func NewStore(config *conf.Data_Wasm) (*Store, error) {
 	cacheDir, err := filepath.Abs(config.GetCacheDir())
 	if err != nil {
@@ -68,16 +72,32 @@ func NewStore(config *conf.Data_Wasm) (*Store, error) {
 		pullTimeout:   config.GetPullTimeout().AsDuration(),
 		maxModuleSize: config.GetMaxModuleBytes(),
 		maxCacheSize:  config.GetMaxCacheBytes(),
-		httpClient:    &http.Client{},
+		httpClient:    &http.Client{CheckRedirect: checkHTTPRedirect},
 		resolved:      make(map[compiler.ResourceGeneration]compiler.WasmModule),
 	}, nil
 }
 
-// Resolve 返回已校验模块的本地文件路径和二进制 SHA256
+// Resolve 返回已校验模块的本地文件路径和二进制 SHA256。
 //
-// Store 使用同一把锁串行保护远端拉取、缓存写入和淘汰决策，确保新模块发布时不会破坏 Active 配置；
-// 首版插件数量有限，不在这一边界额外引入并发下载调度
+// Store 使用同一把锁串行保护远端拉取、缓存写入和淘汰决策，
+// 确保新模块发布时不会破坏 Active 配置；
+// 首版插件数量有限，不在这一边界额外引入并发下载调度。
 func (s *Store) Resolve(ctx context.Context, plugin *gatewayv1.WasmPlugin) (compiler.WasmModule, error) {
+	if !wasmconfig.IsValidArtifactURL(plugin.Spec.URL) {
+		return compiler.WasmModule{}, errors.New("resolve Wasm module: invalid artifact URL")
+	}
+	if !wasmconfig.IsValidSHA256Digest(plugin.Spec.SHA256) {
+		return compiler.WasmModule{}, errors.New("resolve Wasm module: invalid SHA256 digest")
+	}
+	switch plugin.Spec.PullPolicy {
+	case gatewayv1.WasmPluginPullIfNotPresent, gatewayv1.WasmPluginPullAlways:
+	default:
+		return compiler.WasmModule{}, fmt.Errorf(
+			"resolve Wasm module: unsupported pull policy %q",
+			plugin.Spec.PullPolicy,
+		)
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -93,7 +113,7 @@ func (s *Store) Resolve(ctx context.Context, plugin *gatewayv1.WasmPlugin) (comp
 	}
 
 	if plugin.Spec.PullPolicy == gatewayv1.WasmPluginPullIfNotPresent {
-		if module, ok := s.cachedSource(plugin.Spec.URL, plugin.Spec.SHA256); ok {
+		if module, ok := s.cachedSource(ctx, plugin.Spec.URL, plugin.Spec.SHA256); ok {
 			s.resolved[generation] = module
 			return module, nil
 		}
@@ -103,27 +123,27 @@ func (s *Store) Resolve(ctx context.Context, plugin *gatewayv1.WasmPlugin) (comp
 	defer cancel()
 
 	var (
-		binary []byte
-		err    error
+		moduleBytes []byte
+		err         error
 	)
 	if strings.HasPrefix(plugin.Spec.URL, "oci://") {
-		binary, err = s.pullOCI(pullCtx, plugin.Spec.URL, plugin.Spec.SHA256)
+		moduleBytes, err = s.pullOCI(pullCtx, plugin.Spec.URL, plugin.Spec.SHA256)
 	} else {
-		binary, err = s.pullHTTP(pullCtx, plugin.Spec.URL, plugin.Spec.SHA256)
+		moduleBytes, err = s.pullHTTP(pullCtx, plugin.Spec.URL, plugin.Spec.SHA256)
 	}
 	if err != nil {
 		return compiler.WasmModule{}, err
 	}
-	if err := validateWasm(pullCtx, binary); err != nil {
+	if err := validateWasm(pullCtx, moduleBytes); err != nil {
 		return compiler.WasmModule{}, err
 	}
 
-	moduleSHA := digest(binary)
+	moduleSHA := digest(moduleBytes)
 	moduleAlreadyExists := s.moduleExists(moduleSHA)
-	if err := s.reserveCache(moduleSHA, int64(len(binary))); err != nil {
+	if err := s.reserveCache(moduleSHA, int64(len(moduleBytes))); err != nil {
 		return compiler.WasmModule{}, err
 	}
-	if err := s.writeModule(moduleSHA, binary); err != nil {
+	if err := s.writeModule(moduleSHA, moduleBytes); err != nil {
 		return compiler.WasmModule{}, err
 	}
 	if err := s.writeSourcePointer(plugin.Spec.URL, plugin.Spec.SHA256, moduleSHA); err != nil {
@@ -138,9 +158,10 @@ func (s *Store) Resolve(ctx context.Context, plugin *gatewayv1.WasmPlugin) (comp
 	return module, nil
 }
 
-// Retain 只保护本轮期望配置和 Delivery Active 配置仍引用的模块
+// Retain 只保护本轮期望配置和 Delivery Active 配置仍引用的模块。
 //
-// 使用完整 generation 而不是资源 ID，确保插件升级期间新旧模块可以共存到 Candidate ACK 或 NACK
+// 使用完整 generation 而不是资源 ID，
+// 确保插件升级期间新旧模块可以共存到 Candidate ACK 或 NACK。
 func (s *Store) Retain(generations []compiler.ResourceGeneration) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -163,6 +184,8 @@ func (s *Store) pullHTTP(ctx context.Context, sourceURL, expectedSHA string) ([]
 	if err != nil {
 		return nil, fmt.Errorf("create Wasm download request: %w", err)
 	}
+	request.Header.Set("Accept", "application/wasm, application/octet-stream")
+	request.Header.Set("User-Agent", "ingate-controller/"+version.String())
 	response, err := s.httpClient.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("download Wasm module: %w", err)
@@ -171,18 +194,28 @@ func (s *Store) pullHTTP(ctx context.Context, sourceURL, expectedSHA string) ([]
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("download Wasm module: unexpected HTTP status %s", response.Status)
 	}
-	binary, err := readModule(response.Body, s.maxModuleSize)
+	if response.ContentLength > s.maxModuleSize {
+		return nil, fmt.Errorf(
+			"wasm module declares %d bytes, exceeding maximum size %d bytes",
+			response.ContentLength,
+			s.maxModuleSize,
+		)
+	}
+	moduleBytes, err := readModule(response.Body, s.maxModuleSize)
 	if err != nil {
 		return nil, err
 	}
-	if actual := digest(binary); expectedSHA != "" && actual != expectedSHA {
+	if actual := digest(moduleBytes); actual != expectedSHA {
 		return nil, fmt.Errorf("verify Wasm module SHA256: expected %s, got %s", expectedSHA, actual)
 	}
-	return binary, nil
+	return moduleBytes, nil
 }
 
 func (s *Store) pullOCI(ctx context.Context, sourceURL, expectedManifestSHA string) ([]byte, error) {
-	reference, err := name.ParseReference(strings.TrimPrefix(sourceURL, "oci://"))
+	reference, err := name.ParseReference(
+		strings.TrimPrefix(sourceURL, "oci://"),
+		name.StrictValidation,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("parse OCI image reference: %w", err)
 	}
@@ -191,7 +224,7 @@ func (s *Store) pullOCI(ctx context.Context, sourceURL, expectedManifestSHA stri
 		return nil, fmt.Errorf("fetch OCI manifest: %w", err)
 	}
 	manifestSHA := descriptor.Digest.Hex
-	if expectedManifestSHA != "" && manifestSHA != expectedManifestSHA {
+	if manifestSHA != expectedManifestSHA {
 		return nil, fmt.Errorf("verify OCI manifest SHA256: expected %s, got %s", expectedManifestSHA, manifestSHA)
 	}
 	image, err := descriptor.Image()
@@ -199,6 +232,21 @@ func (s *Store) pullOCI(ctx context.Context, sourceURL, expectedManifestSHA stri
 		return nil, fmt.Errorf("open OCI image: %w", err)
 	}
 	return s.extractModule(image)
+}
+
+func checkHTTPRedirect(request *http.Request, previous []*http.Request) error {
+	if len(previous) >= maxHTTPRedirects {
+		return fmt.Errorf("download Wasm module: exceeded %d redirects", maxHTTPRedirects)
+	}
+	if !httpurl.IsValid(request.URL.String()) {
+		return errors.New("download Wasm module: redirect URL is invalid")
+	}
+	if len(previous) > 0 &&
+		previous[len(previous)-1].URL.Scheme == "https" &&
+		request.URL.Scheme != "https" {
+		return errors.New("download Wasm module: redirect from HTTPS to HTTP is not allowed")
+	}
+	return nil
 }
 
 func (s *Store) extractModule(image containerv1.Image) ([]byte, error) {
@@ -218,7 +266,7 @@ func (s *Store) extractModule(image containerv1.Image) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("open OCI Wasm layer: %w", err)
 		}
-		binary, readErr := readModule(reader, s.maxModuleSize)
+		moduleBytes, readErr := readModule(reader, s.maxModuleSize)
 		closeErr := reader.Close()
 		if readErr != nil {
 			return nil, readErr
@@ -226,7 +274,7 @@ func (s *Store) extractModule(image containerv1.Image) ([]byte, error) {
 		if closeErr != nil {
 			return nil, fmt.Errorf("close OCI Wasm layer: %w", closeErr)
 		}
-		return binary, nil
+		return moduleBytes, nil
 	}
 	if len(layers) == 0 {
 		return nil, errors.New("OCI image does not contain a Wasm layer")
@@ -243,23 +291,23 @@ func (s *Store) extractModule(image containerv1.Image) ([]byte, error) {
 }
 
 func readModule(reader io.Reader, limit int64) ([]byte, error) {
-	binary, err := io.ReadAll(io.LimitReader(reader, limit+1))
+	moduleBytes, err := io.ReadAll(io.LimitReader(reader, limit+1))
 	if err != nil {
 		return nil, fmt.Errorf("read Wasm module: %w", err)
 	}
-	if int64(len(binary)) > limit {
+	if int64(len(moduleBytes)) > limit {
 		return nil, fmt.Errorf("wasm module exceeds maximum size %d bytes", limit)
 	}
-	return binary, nil
+	return moduleBytes, nil
 }
 
-func validateWasm(ctx context.Context, binary []byte) error {
-	if len(binary) < 8 || !slices.Equal(binary[:len(wasmMagic)], wasmMagic) {
+func validateWasm(ctx context.Context, moduleBytes []byte) error {
+	if len(moduleBytes) < 8 || !slices.Equal(moduleBytes[:len(wasmMagic)], wasmMagic) {
 		return errors.New("downloaded content is not a WebAssembly module")
 	}
-	runtime := wazero.NewRuntime(ctx)
-	defer func() { _ = runtime.Close(ctx) }()
-	module, err := runtime.CompileModule(ctx, binary)
+	wasmRuntime := wazero.NewRuntime(ctx)
+	defer func() { _ = wasmRuntime.Close(ctx) }()
+	module, err := wasmRuntime.CompileModule(ctx, moduleBytes)
 	if err != nil {
 		return fmt.Errorf("compile WebAssembly module: %w", err)
 	}

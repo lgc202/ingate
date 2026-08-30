@@ -19,8 +19,7 @@ func (c *compilation) validPolicyTargets(
 	for _, target := range targets {
 		key := string(target.Kind) + "\x00" + target.Name
 		if seen[key] {
-			c.addDiagnostic(
-				SeverityError,
+			c.addResourceError(
 				policyKind,
 				policyID,
 				ReasonConflict,
@@ -31,14 +30,18 @@ func (c *compilation) validPolicyTargets(
 		seen[key] = true
 
 		if target.Name == "" {
-			c.addDiagnostic(SeverityError, policyKind, policyID, ReasonInvalidSpec, fmt.Sprintf("policy %q has a target without a name", policyID))
+			c.addResourceError(
+				policyKind,
+				policyID,
+				ReasonInvalidSpec,
+				fmt.Sprintf("policy %q has a target without a name", policyID),
+			)
 			continue
 		}
 		switch target.Kind {
 		case gatewayv1.KindGateway:
 			if _, exists := c.gateways[target.Name]; !exists {
-				c.addDiagnostic(
-					SeverityWarning,
+				c.addResourceWarning(
 					policyKind,
 					policyID,
 					ReasonReferenceNotFound,
@@ -48,8 +51,7 @@ func (c *compilation) validPolicyTargets(
 			}
 		case gatewayv1.KindRoute:
 			if _, exists := c.routes[target.Name]; !exists {
-				c.addDiagnostic(
-					SeverityWarning,
+				c.addResourceWarning(
 					policyKind,
 					policyID,
 					ReasonReferenceNotFound,
@@ -58,8 +60,7 @@ func (c *compilation) validPolicyTargets(
 				continue
 			}
 		default:
-			c.addDiagnostic(
-				SeverityError,
+			c.addResourceError(
 				policyKind,
 				policyID,
 				ReasonUnsupported,
@@ -72,8 +73,12 @@ func (c *compilation) validPolicyTargets(
 	return validTargets
 }
 
-func matchingPolicyTargets(targets []gatewayv1.PolicyTargetRef, key policyRouteKey) (string, []gatewayv1.PolicyTargetRef) {
-	// 同一策略同时命中 Gateway 和 Route 时只执行一次，并让更精确的 Route 范围决定计数作用域
+func matchingPolicyTargets(
+	targets []gatewayv1.PolicyTargetRef,
+	key policyRouteKey,
+) (string, []gatewayv1.PolicyTargetRef) {
+	// 同一策略同时命中 Gateway 和 Route 时只执行一次，
+	// 并让更精确的 Route 范围决定计数作用域。
 	matched := make([]gatewayv1.PolicyTargetRef, 0, 2)
 	scope := ""
 	for _, target := range targets {
@@ -107,10 +112,10 @@ func (c *compilation) recordPolicyTargets(
 		var targetResource ResourceGeneration
 		if target.Kind == gatewayv1.KindGateway {
 			resource := c.gateways[target.Name]
-			targetResource = newResourceGeneration(target.Kind, resource.Name, resource.UID, resource.Generation)
+			targetResource = newResourceGeneration(target.Kind, resource)
 		} else {
 			resource := c.routes[target.Name]
-			targetResource = newResourceGeneration(target.Kind, resource.Name, resource.UID, resource.Generation)
+			targetResource = newResourceGeneration(target.Kind, resource)
 		}
 		policyTargetSet[CompiledPolicyTarget{
 			Policy: policy,

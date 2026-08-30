@@ -1,4 +1,3 @@
-// Package server 装配 Analytics 的 gRPC、HTTP 和 Kafka 请求记录消费循环
 package server
 
 import (
@@ -20,7 +19,7 @@ type pinger interface {
 	Ping(context.Context) error
 }
 
-// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务
+// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务。
 func NewHTTPServer(
 	config *conf.Server,
 	consumer *RequestConsumer,

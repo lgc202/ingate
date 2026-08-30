@@ -11,6 +11,7 @@ import (
 	"github.com/lgc202/ingate/internal/aiextproc/service/chatcompletion"
 	aiprotocol "github.com/lgc202/ingate/internal/pkg/aiextproc"
 	"github.com/lgc202/ingate/internal/pkg/extauthz"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 // handleDownstreamHeaders 为一次客户端请求建立关联标识
@@ -23,8 +24,12 @@ func (s *streamState) handleDownstreamHeaders(
 		return nil, errors.New("request headers were processed more than once")
 	}
 
-	// Header 阶段先创建关联状态，Body 阶段解析出的模型和原文随后写入同一对象
-	s.requestID, s.request = s.processor.registerRequest(identityFromMetadata(metadata))
+	identity, err := callerIdentityFromMetadata(metadata)
+	if err != nil {
+		return nil, err
+	}
+	// Header 阶段先创建关联状态，Body 阶段解析出的模型和原文随后写入同一对象。
+	s.requestID, s.request = s.processor.registerRequest(identity)
 	host := headerValue(headers, ":authority")
 	if host == "" {
 		host = headerValue(headers, "host")
@@ -83,10 +88,19 @@ func (s *streamState) handleDownstreamBody(body *extprocv3.HttpBody) (*extprocv3
 	return response, nil
 }
 
-func identityFromMetadata(metadata *corev3.Metadata) callerIdentity {
+func callerIdentityFromMetadata(metadata *corev3.Metadata) (callerIdentity, error) {
 	fields := metadata.GetFilterMetadata()[extauthz.MetadataNamespace].GetFields()
-	return callerIdentity{
+	identity := callerIdentity{
 		callerID:    fields[extauthz.CallerIDField].GetStringValue(),
 		accessKeyID: fields[extauthz.AccessKeyIDField].GetStringValue(),
 	}
+	if (identity.callerID == "") != (identity.accessKeyID == "") {
+		return callerIdentity{}, errors.New("caller identity metadata is incomplete")
+	}
+	if identity.callerID != "" &&
+		(!resourceconfig.IsCanonicalID(identity.callerID) ||
+			!resourceconfig.IsCanonicalID(identity.accessKeyID)) {
+		return callerIdentity{}, errors.New("caller identity metadata is invalid")
+	}
+	return identity, nil
 }

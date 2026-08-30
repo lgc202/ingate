@@ -1,12 +1,17 @@
-// Package conf 定义并校验 ingate-admin-api 进程配置
+// Package conf 定义并校验 ingate-admin-api 进程配置。
 package conf
 
 import (
 	"errors"
+	"fmt"
 	"strings"
+
+	"github.com/lgc202/ingate/internal/pkg/appconfig"
+	"github.com/lgc202/ingate/internal/pkg/controlplaneauth"
+	"github.com/lgc202/ingate/internal/pkg/httpurl"
 )
 
-// Validate 校验 Admin API 的进程配置
+// Validate 校验 Admin API 的进程配置。
 func (c *Bootstrap) Validate() error {
 	if c.GetServer() == nil || c.GetServer().GetHttp() == nil {
 		return errors.New("server http config is required")
@@ -31,25 +36,24 @@ func (c *Bootstrap) Validate() error {
 	if err := validateData(c.GetData()); err != nil {
 		return err
 	}
-	if c.GetLogging() == nil {
+	logging := c.GetLogging()
+	if logging == nil {
 		return errors.New("logging config is required")
 	}
-	switch strings.ToLower(c.GetLogging().GetFormat()) {
-	case "json", "text":
-	default:
-		return errors.New("logging format must be json or text")
-	}
-	switch strings.ToLower(c.GetLogging().GetLevel()) {
-	case "debug", "info", "warn", "error":
-	default:
-		return errors.New("logging level must be debug, info, warn or error")
-	}
-	return nil
+	return appconfig.ValidateLogging(logging)
 }
 
 func validateData(data *Data) error {
 	if data == nil || data.GetApiserver() == nil {
 		return errors.New("apiserver config is required")
+	}
+	apiServer := data.GetApiserver()
+	if strings.TrimSpace(apiServer.GetMaster()) == "" &&
+		strings.TrimSpace(apiServer.GetKubeconfig()) == "" {
+		return errors.New("apiserver master or kubeconfig must be configured")
+	}
+	if !controlplaneauth.IsValidBearerToken(apiServer.GetBearerToken()) {
+		return errors.New("apiserver bearer token is invalid")
 	}
 	analytics := data.GetAnalytics()
 	if analytics == nil {
@@ -62,8 +66,8 @@ func validateData(data *Data) error {
 		return errors.New("analytics timeout must be greater than zero")
 	}
 	tls := analytics.GetTls()
-	if tls.GetEnabled() && (tls.GetCertFile() == "") != (tls.GetKeyFile() == "") {
-		return errors.New("analytics TLS certificate and key must be configured together")
+	if err := validateTLS("analytics", tls); err != nil {
+		return err
 	}
 	aiExtProc := data.GetAiExtProc()
 	if aiExtProc == nil || strings.TrimSpace(aiExtProc.GetAddr()) == "" {
@@ -72,15 +76,29 @@ func validateData(data *Data) error {
 	if aiExtProc.GetTimeout() == nil || aiExtProc.GetTimeout().AsDuration() <= 0 {
 		return errors.New("AI ExtProc timeout must be greater than zero")
 	}
+	if err := validateTLS("AI ExtProc", aiExtProc.GetTls()); err != nil {
+		return err
+	}
 	pluginCatalog := data.GetPluginCatalog()
 	if pluginCatalog == nil {
 		return errors.New("plugin catalog config is required")
+	}
+	officialSourceURL := pluginCatalog.GetOfficialSourceUrl()
+	if officialSourceURL != "" && !httpurl.IsValid(officialSourceURL) {
+		return errors.New("official plugin source URL must be a valid HTTP or HTTPS URL")
 	}
 	if pluginCatalog.GetRefreshInterval() == nil || pluginCatalog.GetRefreshInterval().AsDuration() <= 0 {
 		return errors.New("plugin catalog refresh interval must be greater than zero")
 	}
 	if pluginCatalog.GetTimeout() == nil || pluginCatalog.GetTimeout().AsDuration() <= 0 {
 		return errors.New("plugin catalog timeout must be greater than zero")
+	}
+	return nil
+}
+
+func validateTLS(component string, tls *Data_TLS) error {
+	if tls.GetEnabled() && (tls.GetCertFile() == "") != (tls.GetKeyFile() == "") {
+		return fmt.Errorf("%s TLS certificate and key must be configured together", component)
 	}
 	return nil
 }

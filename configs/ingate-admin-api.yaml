@@ -11,6 +11,7 @@ data:
   apiserver:
     master: ""
     kubeconfig: "_output/kubeconfig"
+    bearer_token: "${APISERVER_BEARER_TOKEN:ingate-dev-control-plane-token-change-me}"
   analytics:
     addr: "127.0.0.1:18101"
     timeout: "5s"
@@ -23,6 +24,12 @@ data:
   ai_ext_proc:
     addr: "127.0.0.1:18081"
     timeout: "2s"
+    tls:
+      enabled: false
+      ca_file: ""
+      cert_file: ""
+      key_file: ""
+      server_name: ""
   plugin_catalog:
     official_source_url: "https://lgc202.github.io/ingate/plugins/v1/catalog.json"
     refresh_interval: "3600s"

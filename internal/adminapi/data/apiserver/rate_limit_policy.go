@@ -2,88 +2,114 @@ package apiserver
 
 import (
 	"context"
+	"fmt"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	clientset "github.com/lgc202/ingate/internal/pkg/generated/clientset/versioned"
 )
 
-// RateLimitPolicyRepository 读写 RateLimitPolicy 声明式资源
-type RateLimitPolicyRepository struct {
+// RateLimitPolicyStore 读写 RateLimitPolicy 声明式资源。
+type RateLimitPolicyStore struct {
 	client clientset.Interface
 }
 
-// NewRateLimitPolicyRepository 创建 RateLimitPolicy Repository
-func NewRateLimitPolicyRepository(client clientset.Interface) *RateLimitPolicyRepository {
-	return &RateLimitPolicyRepository{client: client}
+// NewRateLimitPolicyStore 创建 RateLimitPolicy Store。
+func NewRateLimitPolicyStore(client clientset.Interface) *RateLimitPolicyStore {
+	return &RateLimitPolicyStore{client: client}
 }
 
-// ListPage 分页查询 RateLimitPolicy 列表
-func (r *RateLimitPolicyRepository) ListPage(ctx context.Context, page biz.PageRequest) (biz.PageResult[resource.RateLimitPolicy], error) {
-	policies, err := r.client.GatewayV1().RateLimitPolicies().List(ctx, listOptions(page))
+// ListPage 分页返回 RateLimitPolicy。
+func (s *RateLimitPolicyStore) ListPage(
+	ctx context.Context,
+	page biz.PageRequest,
+) (biz.PageResult[resource.RateLimitPolicy], error) {
+	policies, err := s.client.GatewayV1().RateLimitPolicies().List(ctx, listOptions(page))
 	if err != nil {
 		return biz.PageResult[resource.RateLimitPolicy]{}, listError("rate limit policies", err)
 	}
-	return biz.PageResult[resource.RateLimitPolicy]{Items: policies.Items, NextCursor: policies.Continue}, nil
+	return biz.PageResult[resource.RateLimitPolicy]{
+		Items:      policies.Items,
+		NextCursor: policies.Continue,
+	}, nil
 }
 
-// Get 查询单个 RateLimitPolicy
-func (r *RateLimitPolicyRepository) Get(ctx context.Context, name string) (*resource.RateLimitPolicy, error) {
-	policy, err := r.client.GatewayV1().RateLimitPolicies().Get(ctx, name, metav1.GetOptions{})
-	return policy, resourceError("get", "rate limit policy", name, err)
-}
-
-// Create 创建 RateLimitPolicy
-func (r *RateLimitPolicyRepository) Create(ctx context.Context, name string, spec resource.RateLimitPolicySpec) (*resource.RateLimitPolicy, error) {
-	policy := &resource.RateLimitPolicy{
-		TypeMeta:   metav1.TypeMeta{APIVersion: resource.SchemeGroupVersion.String(), Kind: string(resource.KindRateLimitPolicy)},
-		ObjectMeta: metav1.ObjectMeta{Name: name},
-		Spec:       spec,
-	}
-	created, err := r.client.GatewayV1().RateLimitPolicies().Create(ctx, policy, metav1.CreateOptions{})
-	return created, resourceError("create", "rate limit policy", name, err)
-}
-
-// Update 更新 RateLimitPolicy，并只重试 Controller 写 status 导致的 ResourceVersion 冲突
-func (r *RateLimitPolicyRepository) Update(
+// Get 返回指定 RateLimitPolicy。
+func (s *RateLimitPolicyStore) Get(
 	ctx context.Context,
-	name string,
-	generation int64,
+	policyID string,
+) (*resource.RateLimitPolicy, error) {
+	policy, err := s.client.GatewayV1().RateLimitPolicies().Get(
+		ctx,
+		policyID,
+		metav1.GetOptions{},
+	)
+	return policy, resourceError("get", "rate limit policy", policyID, err)
+}
+
+// Create 创建 RateLimitPolicy。
+func (s *RateLimitPolicyStore) Create(
+	ctx context.Context,
+	policyID string,
 	spec resource.RateLimitPolicySpec,
 ) (*resource.RateLimitPolicy, error) {
-	var updated *resource.RateLimitPolicy
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().RateLimitPolicies().Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if current.Generation != generation {
-			return biz.ErrResourceVersionConflict
-		}
-		current.Spec = spec
-		updated, err = r.client.GatewayV1().RateLimitPolicies().Update(ctx, current, metav1.UpdateOptions{})
-		return err
-	})
-	return updated, resourceError("update", "rate limit policy", name, err)
+	policy := &resource.RateLimitPolicy{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: resource.SchemeGroupVersion.String(),
+			Kind:       string(resource.KindRateLimitPolicy),
+		},
+		ObjectMeta: metav1.ObjectMeta{Name: policyID},
+		Spec:       spec,
+	}
+	created, err := s.client.GatewayV1().RateLimitPolicies().Create(
+		ctx,
+		policy,
+		metav1.CreateOptions{},
+	)
+	return created, resourceError("create", "rate limit policy", policyID, err)
 }
 
-// Delete 删除 RateLimitPolicy
-func (r *RateLimitPolicyRepository) Delete(ctx context.Context, name string, generation int64) error {
-	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		current, err := r.client.GatewayV1().RateLimitPolicies().Get(ctx, name, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if current.Generation != generation {
-			return biz.ErrResourceVersionConflict
-		}
-		resourceVersion := current.ResourceVersion
-		return r.client.GatewayV1().RateLimitPolicies().Delete(ctx, name, metav1.DeleteOptions{
-			Preconditions: &metav1.Preconditions{ResourceVersion: &resourceVersion},
-		})
-	})
-	return resourceError("delete", "rate limit policy", name, err)
+// ReplaceSpec 完整替换 RateLimitPolicy 配置。
+// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
+func (s *RateLimitPolicyStore) ReplaceSpec(
+	ctx context.Context,
+	observed *resource.RateLimitPolicy,
+	spec resource.RateLimitPolicySpec,
+) (*resource.RateLimitPolicy, error) {
+	policyID := observed.Name
+	updated, err := updateResource(
+		ctx,
+		s.client.GatewayV1().RateLimitPolicies(),
+		observed,
+		func(policy *resource.RateLimitPolicy) { policy.Spec = spec },
+	)
+	if apierrors.IsConflict(err) {
+		return nil, fmt.Errorf(
+			"replace rate limit policy %q after conflict retries: %w",
+			policyID,
+			err,
+		)
+	}
+	return updated, resourceError("replace", "rate limit policy", policyID, err)
+}
+
+// Delete 删除 RateLimitPolicy。
+// 底层资源版本冲突时，仅当 UID 和配置版本仍与初次读取的资源一致时重试。
+func (s *RateLimitPolicyStore) Delete(
+	ctx context.Context,
+	observed *resource.RateLimitPolicy,
+) error {
+	policyID := observed.Name
+	err := deleteResource(ctx, s.client.GatewayV1().RateLimitPolicies(), observed)
+	if apierrors.IsConflict(err) {
+		return fmt.Errorf(
+			"delete rate limit policy %q after conflict retries: %w",
+			policyID,
+			err,
+		)
+	}
+	return resourceError("delete", "rate limit policy", policyID, err)
 }

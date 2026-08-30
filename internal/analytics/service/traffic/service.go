@@ -1,6 +1,6 @@
-// Package traffic 实现流量和延迟聚合查询的 gRPC 协议转换
+// Package traffic 实现流量和延迟聚合查询的 gRPC 协议转换。
 //
-// 该层把公共时间粒度和资源维度转换为 biz 类型，不拼接 ClickHouse 查询
+// 该层把公共时间粒度和资源维度转换为 biz 类型，不拼接 ClickHouse 查询。
 package traffic
 
 import (
@@ -10,17 +10,17 @@ import (
 	trafficbiz "github.com/lgc202/ingate/internal/analytics/biz/traffic"
 )
 
-// Service 实现 Analytics TrafficService gRPC API
+// Service 实现 Analytics TrafficService gRPC API。
 type Service struct {
 	query *trafficbiz.Query
 }
 
-// NewService 创建流量分析查询服务
+// NewService 创建流量分析查询服务。
 func NewService(query *trafficbiz.Query) *Service {
 	return &Service{query: query}
 }
 
-// GetTrafficTrend 查询流量和延迟趋势
+// GetTrafficTrend 查询流量和延迟趋势。
 func (s *Service) GetTrafficTrend(
 	ctx context.Context,
 	request *analyticsv1.GetTrafficTrendRequest,
@@ -36,7 +36,7 @@ func (s *Service) GetTrafficTrend(
 	return trendResponse(result), nil
 }
 
-// ListTrafficBreakdown 查询资源维度的流量和延迟分布
+// ListTrafficBreakdown 查询资源维度的流量和延迟分布。
 func (s *Service) ListTrafficBreakdown(
 	ctx context.Context,
 	request *analyticsv1.ListTrafficBreakdownRequest,
@@ -52,7 +52,7 @@ func (s *Service) ListTrafficBreakdown(
 	return breakdownResponse(items), nil
 }
 
-// BatchGetResourceTraffic 查询指定资源的列表流量摘要
+// BatchGetResourceTraffic 查询指定资源的列表流量摘要。
 func (s *Service) BatchGetResourceTraffic(
 	ctx context.Context,
 	request *analyticsv1.BatchGetResourceTrafficRequest,

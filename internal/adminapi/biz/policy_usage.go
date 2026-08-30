@@ -7,32 +7,32 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-// RateLimitPolicyLister 定义策略引用检查需要的限流策略分页能力
+// RateLimitPolicyLister 定义策略引用检查需要的限流策略分页能力。
 type RateLimitPolicyLister interface {
 	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.RateLimitPolicy], error)
 }
 
-// IPRestrictionPolicyLister 定义策略引用检查需要的 IP 访问限制策略分页能力
+// IPRestrictionPolicyLister 定义策略引用检查需要的 IP 访问限制策略分页能力。
 type IPRestrictionPolicyLister interface {
 	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.IPRestrictionPolicy], error)
 }
 
-// HeaderTransformationPolicyLister 定义策略引用检查需要的 Header 转换策略分页能力
+// HeaderTransformationPolicyLister 定义策略引用检查需要的 Header 转换策略分页能力。
 type HeaderTransformationPolicyLister interface {
 	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.HeaderTransformationPolicy], error)
 }
 
-// MockResponsePolicyLister 定义策略引用检查需要的模拟响应策略分页能力
+// MockResponsePolicyLister 定义策略引用检查需要的模拟响应策略分页能力。
 type MockResponsePolicyLister interface {
 	ListPage(ctx context.Context, page PageRequest) (PageResult[resource.MockResponsePolicy], error)
 }
 
-// PolicyUsage 表示一个目标当前被哪条策略应用
+// PolicyUsage 表示一个目标当前被哪条策略应用。
 type PolicyUsage struct {
 	DisplayName string
 }
 
-// PolicyUsageFinder 查询 Gateway 或 Route 是否仍被策略引用
+// PolicyUsageFinder 查询 Gateway 或 Route 是否仍被策略引用。
 type PolicyUsageFinder struct {
 	rateLimitPolicies     RateLimitPolicyLister
 	ipRestrictionPolicies IPRestrictionPolicyLister
@@ -40,7 +40,7 @@ type PolicyUsageFinder struct {
 	mockResponses         MockResponsePolicyLister
 }
 
-// NewPolicyUsageFinder 创建策略目标引用查询器
+// NewPolicyUsageFinder 创建策略目标引用查询器。
 func NewPolicyUsageFinder(
 	rateLimitPolicies RateLimitPolicyLister,
 	ipRestrictionPolicies IPRestrictionPolicyLister,
@@ -55,16 +55,23 @@ func NewPolicyUsageFinder(
 	}
 }
 
-// FindTarget 返回第一条仍引用目标的策略，没有引用时返回 nil
-func (f *PolicyUsageFinder) FindTarget(ctx context.Context, target resource.PolicyTargetRef) (*PolicyUsage, error) {
+// FindTarget 返回第一条仍引用目标的策略，没有引用时返回 nil。
+func (f *PolicyUsageFinder) FindTarget(
+	ctx context.Context,
+	target resource.PolicyTargetRef,
+) (*PolicyUsage, error) {
 	var usage *PolicyUsage
-	err := VisitPages(ctx, f.rateLimitPolicies.ListPage, func(policy resource.RateLimitPolicy) (bool, error) {
-		if slices.Contains(policy.Spec.TargetRefs, target) {
-			usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
-			return true, nil
-		}
-		return false, nil
-	})
+	err := VisitPages(
+		ctx,
+		f.rateLimitPolicies.ListPage,
+		func(policy resource.RateLimitPolicy) (bool, error) {
+			if slices.Contains(policy.Spec.TargetRefs, target) {
+				usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
+				return true, nil
+			}
+			return false, nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +79,17 @@ func (f *PolicyUsageFinder) FindTarget(ctx context.Context, target resource.Poli
 		return usage, nil
 	}
 
-	err = VisitPages(ctx, f.ipRestrictionPolicies.ListPage, func(policy resource.IPRestrictionPolicy) (bool, error) {
-		if slices.Contains(policy.Spec.TargetRefs, target) {
-			usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
-			return true, nil
-		}
-		return false, nil
-	})
+	err = VisitPages(
+		ctx,
+		f.ipRestrictionPolicies.ListPage,
+		func(policy resource.IPRestrictionPolicy) (bool, error) {
+			if slices.Contains(policy.Spec.TargetRefs, target) {
+				usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
+				return true, nil
+			}
+			return false, nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -86,13 +97,17 @@ func (f *PolicyUsageFinder) FindTarget(ctx context.Context, target resource.Poli
 		return usage, nil
 	}
 
-	err = VisitPages(ctx, f.headerTransformations.ListPage, func(policy resource.HeaderTransformationPolicy) (bool, error) {
-		if slices.Contains(policy.Spec.TargetRefs, target) {
-			usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
-			return true, nil
-		}
-		return false, nil
-	})
+	err = VisitPages(
+		ctx,
+		f.headerTransformations.ListPage,
+		func(policy resource.HeaderTransformationPolicy) (bool, error) {
+			if slices.Contains(policy.Spec.TargetRefs, target) {
+				usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
+				return true, nil
+			}
+			return false, nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -100,13 +115,17 @@ func (f *PolicyUsageFinder) FindTarget(ctx context.Context, target resource.Poli
 		return usage, nil
 	}
 
-	err = VisitPages(ctx, f.mockResponses.ListPage, func(policy resource.MockResponsePolicy) (bool, error) {
-		if slices.Contains(policy.Spec.TargetRefs, target) {
-			usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
-			return true, nil
-		}
-		return false, nil
-	})
+	err = VisitPages(
+		ctx,
+		f.mockResponses.ListPage,
+		func(policy resource.MockResponsePolicy) (bool, error) {
+			if slices.Contains(policy.Spec.TargetRefs, target) {
+				usage = &PolicyUsage{DisplayName: policy.Spec.DisplayName}
+				return true, nil
+			}
+			return false, nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}

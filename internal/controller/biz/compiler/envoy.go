@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"hash"
 	"slices"
 
 	corev3 "github.com/envoyproxy/go-control-plane/envoy/config/core/v3"
@@ -46,7 +47,7 @@ func (c EnvoyConfig) validate() error {
 }
 
 func (c EnvoyConfig) version() (string, error) {
-	// 版本只由排序后的资源类型、名字和确定性 protobuf bytes 决定，不依赖输入集合顺序
+	// 版本只由排序后的资源类型、名字和确定性 protobuf bytes 决定，不依赖输入集合顺序。
 	records := make([]versionRecord, 0, len(c.Listeners)+len(c.Routes)+len(c.Clusters)+len(c.Endpoints))
 	for _, listener := range c.Listeners {
 		records = append(records, versionRecord{
@@ -83,25 +84,28 @@ func (c EnvoyConfig) version() (string, error) {
 		return cmp.Compare(a.name, b.name)
 	})
 
-	data := make([]byte, 0)
+	digest := sha256.New()
 	marshal := proto.MarshalOptions{Deterministic: true}
+	var payload []byte
 	for _, record := range records {
-		payload, err := marshal.Marshal(record.message)
+		var err error
+		payload, err = marshal.MarshalAppend(payload[:0], record.message)
 		if err != nil {
 			return "", fmt.Errorf("marshal %s %q: %w", record.typeURL, record.name, err)
 		}
-		data = appendVersionField(data, []byte(record.typeURL))
-		data = appendVersionField(data, []byte(record.name))
-		data = appendVersionField(data, payload)
+		writeVersionField(digest, []byte(record.typeURL))
+		writeVersionField(digest, []byte(record.name))
+		writeVersionField(digest, payload)
 	}
 
-	sum := sha256.Sum256(data)
-	return versionPrefix + hex.EncodeToString(sum[:]), nil
+	return versionPrefix + hex.EncodeToString(digest.Sum(nil)), nil
 }
 
-func appendVersionField(data, field []byte) []byte {
-	data = binary.AppendUvarint(data, uint64(len(field)))
-	return append(data, field...)
+func writeVersionField(digest hash.Hash, field []byte) {
+	var length [binary.MaxVarintLen64]byte
+	n := binary.PutUvarint(length[:], uint64(len(field)))
+	digest.Write(length[:n])
+	digest.Write(field)
 }
 
 func adsConfigSource() *corev3.ConfigSource {

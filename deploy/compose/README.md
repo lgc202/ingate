@@ -19,9 +19,9 @@ Gateway 端口只有在 Console 中创建并成功发布对应 Gateway 后才会
 
 ## 配置
 
-`.env` 保存镜像版本、监听地址和对外端口。`docker/configs` 保存各个 Ingate 组件的 YAML 配置。修改后执行 `./bin/start.sh` 重建对应容器。
+`.env` 保存镜像版本、监听地址、对外端口和进程使用的密钥。`docker/configs` 保存各个 Ingate 组件的 YAML 配置。修改后执行 `./bin/start.sh` 重建对应容器。
 
-安装脚本会在 `.env` 中生成 Console 管理密码和会话签名密钥。管理用户名固定为 `admin`，密码只在安装结束时显示；可以直接编辑 `INGATE_ADMIN_PASSWORD` 后执行 `./bin/start.sh` 修改。即使已经启用登录认证，仍建议默认绑定 `127.0.0.1`，远程访问优先使用 HTTPS 反向代理或 SSH 端口转发。
+安装脚本会在 `.env` 中生成 Console 管理密码、会话签名密钥、API Server 内部认证令牌和数据库密码。管理用户名固定为 `admin`，密码只在安装结束时显示；可以直接编辑 `INGATE_ADMIN_PASSWORD` 后执行 `./bin/start.sh` 修改。API Server 令牌由内部组件共享，不应发送给浏览器或外部客户端。即使已经启用登录认证，仍建议默认绑定 `127.0.0.1`，远程访问优先使用 HTTPS 反向代理或 SSH 端口转发。
 
 ## 日常操作
 

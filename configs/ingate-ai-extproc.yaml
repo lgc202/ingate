@@ -1,6 +1,11 @@
 server:
   grpc:
     addr: "127.0.0.1:18081"
+    tls:
+      enabled: false
+      cert_file: ""
+      key_file: ""
+      client_ca_file: ""
   http:
     addr: "127.0.0.1:18082"
     timeout: "5s"
@@ -10,6 +15,7 @@ data:
   apiserver:
     master: ""
     kubeconfig: "_output/kubeconfig"
+    bearer_token: "${APISERVER_BEARER_TOKEN:ingate-dev-control-plane-token-change-me}"
   redis:
     address: "127.0.0.1:6379"
     password: ""

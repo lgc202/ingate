@@ -1,4 +1,4 @@
-// ingate-als 接收 Envoy 请求记录，并可靠投递到 Kafka
+// Command ingate-als 接收 Envoy 请求记录，并可靠投递到 Kafka。
 package main
 
 import (
@@ -15,20 +15,23 @@ import (
 const defaultConfigFile = "configs/ingate-als.yaml"
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	configFile := flag.String("config", defaultConfigFile, "configuration file")
 	showVersion := flag.Bool("version", false, "print version")
 	flag.Parse()
 	if *showVersion {
-		fmt.Println(version.Text())
-		return
+		_, err := fmt.Fprintln(os.Stdout, version.Text())
+		return err
 	}
 	app, err := als.NewApp(*configFile)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
-	if err := app.Run(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	return app.Run()
 }

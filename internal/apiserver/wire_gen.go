@@ -15,8 +15,8 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, server_HTTP *conf.Server_HTTP, data_Etcd *conf.Data_Etcd, logger *slog.Logger, apiserverServiceInstanceID serviceInstanceID) (*kratos.App, error) {
-	serverServer, err := server.New(server_HTTP, data_Etcd)
+func wireApp(confServer *conf.Server, server_HTTP *conf.Server_HTTP, server_Authentication *conf.Server_Authentication, data_Etcd *conf.Data_Etcd, logger *slog.Logger, apiserverServiceInstanceID serviceInstanceID) (*kratos.App, error) {
+	serverServer, err := server.New(server_HTTP, server_Authentication, data_Etcd)
 	if err != nil {
 		return nil, err
 	}

@@ -7,23 +7,36 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
+	"strings"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	kerrors "github.com/go-kratos/kratos/v3/errors"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
+	"github.com/google/uuid"
 
 	executionbiz "github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/conf"
 	"github.com/lgc202/ingate/internal/assistant/service/identity"
+	"github.com/lgc202/ingate/internal/pkg/adminidentity"
 	"github.com/lgc202/ingate/internal/pkg/requestid"
 )
 
-const failureResourceNotFound = "RESOURCE_NOT_FOUND"
+const (
+	failureResourceNotFound = "RESOURCE_NOT_FOUND"
+	streamReadLimit         = 100
+	maxStreamEventIDBytes   = 64
+)
 
 // executionStreamHandler 负责执行事件的 SSE 路由、连接生命周期和边界日志。
 type executionStreamHandler struct {
 	executions *executionbiz.Service
 	config     *conf.Stream
 	logger     *slog.Logger
+}
+
+type sseWriter struct {
+	response http.ResponseWriter
+	flusher  http.Flusher
 }
 
 // NewStreamHandler 创建 Assistant 事件流处理器，供进程装配层注入 HTTP Server。
@@ -35,29 +48,47 @@ func NewStreamHandler(
 	return &executionStreamHandler{executions: executions, config: config, logger: logger}
 }
 
+func newSSEWriter(response http.ResponseWriter) (*sseWriter, error) {
+	flusher, ok := response.(http.Flusher)
+	if !ok {
+		return nil, errors.New("response writer does not support flushing")
+	}
+	return &sseWriter{response: response, flusher: flusher}, nil
+}
+
 func (h *executionStreamHandler) register(server *kratoshttp.Server) {
 	router := server.Route("/")
 	router.GET("/assistant/v1/executions/{id}/events", h.events)
 }
 
 func (h *executionStreamHandler) events(ctx kratoshttp.Context) error {
-	actorID, err := identity.ValidateActorID(ctx.Request().Header.Get(identity.ForwardedUserHeader))
+	actorID, err := identity.ValidateActorID(ctx.Request().Header.Get(adminidentity.Header))
 	if err != nil {
 		return err
 	}
 	executionID := ctx.Vars().Get("id")
+	if uuid.Validate(executionID) != nil {
+		return kerrors.BadRequest("INVALID_ARGUMENT", "execution ID is invalid")
+	}
 	if _, err := h.executions.Get(ctx, actorID, executionID); err != nil {
-		return h.requestError(err)
+		return streamRequestError(err)
+	}
+	lastEventID := ctx.Request().Header.Get("Last-Event-ID")
+	if !validStreamEventID(lastEventID) {
+		return kerrors.BadRequest("INVALID_ARGUMENT", "Last-Event-ID is invalid")
 	}
 	stream, err := newSSEWriter(ctx.Response())
 	if err != nil {
-		return kratoserrors.InternalServer("STREAM_UNSUPPORTED", "streaming is unavailable").WithCause(err)
+		return kerrors.InternalServer("STREAM_UNSUPPORTED", "streaming is unavailable").WithCause(err)
 	}
 	stream.start()
-	lastID := ctx.Request().Header.Get("Last-Event-ID")
 	for {
 		events, err := h.executions.ReadEvents(
-			ctx, executionID, lastID, 100, h.config.GetReadBlock().AsDuration(),
+			ctx,
+			executionID,
+			lastEventID,
+			streamReadLimit,
+			h.config.GetReadBlock().AsDuration(),
 		)
 		if err != nil {
 			h.logReadFailure(ctx, ctx.Request(), executionID, err)
@@ -71,7 +102,7 @@ func (h *executionStreamHandler) events(ctx kratoshttp.Context) error {
 			if err := stream.write(event); err != nil {
 				return nil
 			}
-			lastID = event.ID
+			lastEventID = event.ID
 			if event.Type == executionbiz.EventCompleted ||
 				event.Type == executionbiz.EventFailed ||
 				event.Type == executionbiz.EventCancelled {
@@ -95,13 +126,32 @@ func (h *executionStreamHandler) events(ctx kratoshttp.Context) error {
 	}
 }
 
-func (h *executionStreamHandler) requestError(err error) error {
+func streamRequestError(err error) error {
 	switch {
 	case errors.Is(err, executionbiz.ErrNotFound):
-		return kratoserrors.NotFound(failureResourceNotFound, "resource not found")
+		return kerrors.NotFound(failureResourceNotFound, "resource not found")
 	default:
-		return kratoserrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
+		return kerrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
 	}
+}
+
+func validStreamEventID(value string) bool {
+	if value == "" {
+		return true
+	}
+	if len(value) > maxStreamEventIDBytes {
+		return false
+	}
+	millisecondsText, sequenceText, ok := strings.Cut(value, "-")
+	if !ok || strings.Contains(sequenceText, "-") {
+		return false
+	}
+	milliseconds, err := strconv.ParseUint(millisecondsText, 10, 64)
+	if err != nil || strconv.FormatUint(milliseconds, 10) != millisecondsText {
+		return false
+	}
+	sequence, err := strconv.ParseUint(sequenceText, 10, 64)
+	return err == nil && strconv.FormatUint(sequence, 10) == sequenceText
 }
 
 func terminalEvent(item executionbiz.Execution) (executionbiz.StreamEvent, bool) {
@@ -131,19 +181,6 @@ func (h *executionStreamHandler) logReadFailure(
 		"request_id", request.Header.Get(requestid.Header),
 		"err", err,
 	)
-}
-
-type sseWriter struct {
-	response http.ResponseWriter
-	flusher  http.Flusher
-}
-
-func newSSEWriter(response http.ResponseWriter) (*sseWriter, error) {
-	flusher, ok := response.(http.Flusher)
-	if !ok {
-		return nil, fmt.Errorf("response writer does not support flushing")
-	}
-	return &sseWriter{response: response, flusher: flusher}, nil
 }
 
 func (w *sseWriter) start() {

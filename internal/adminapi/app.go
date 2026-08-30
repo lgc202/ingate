@@ -1,4 +1,4 @@
-// Package adminapi 装配 ingate-admin-api 进程及其资源生命周期
+// Package adminapi 装配 ingate-admin-api 进程及其资源生命周期。
 package adminapi
 
 import (
@@ -22,14 +22,14 @@ const name = "ingate-admin-api"
 
 type serviceInstanceID string
 
-// App 封装 Admin API 的 Kratos 进程
+// App 封装 Admin API 的 Kratos 进程。
 type App struct {
 	kratos  *kratos.App
 	cleanup func()
 }
 
-// NewApp 从配置文件创建完整的 Admin API 进程
-// 配置只在启动时读取，修改后需要重启组件才会生效
+// NewApp 从配置文件创建完整的 Admin API 进程。
+// 配置只在启动时读取，修改后需要重启组件才会生效。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
@@ -44,6 +44,7 @@ func NewApp(configFile string) (*App, error) {
 	kratoslog.SetDefault(logger)
 
 	kratosApp, cleanup, err := wireApp(
+		context.Background(),
 		bootstrap.GetServer(),
 		bootstrap.GetData(),
 		logger,

@@ -1,64 +1,116 @@
 package route
 
 import (
-	"strings"
+	"slices"
 
-	"golang.org/x/net/http/httpguts"
+	"github.com/go-kratos/kratos/v3/errors"
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
-func headerModifier(input *adminv1.HeaderModifier) (*resource.HeaderModifier, error) {
-	if input == nil {
+func parseHeaderModifier(modifier *adminv1.HeaderModifier) (*resource.HeaderModifier, error) {
+	if modifier == nil {
 		return nil, nil
 	}
-	modifier := &resource.HeaderModifier{}
-	seen := make(map[string]struct{}, len(input.GetSet())+len(input.GetAdd())+len(input.GetRemove()))
-	set, err := headerValues(input.GetSet(), seen)
+	actionCount := len(modifier.GetSet()) + len(modifier.GetAdd()) + len(modifier.GetRemove())
+	if actionCount == 0 {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"至少需要配置一个 Header 修改动作",
+		)
+	}
+	if actionCount > routeconfig.MaxHeaderModifierActions {
+		return nil, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"Header 修改动作数量超过限制",
+		)
+	}
+
+	usedNames := make(map[string]bool, actionCount)
+	set, err := parseHeaderValues(modifier.GetSet(), usedNames)
 	if err != nil {
 		return nil, err
 	}
-	modifier.Set = set
-	add, err := headerValues(input.GetAdd(), seen)
+	add, err := parseHeaderValues(modifier.GetAdd(), usedNames)
 	if err != nil {
 		return nil, err
 	}
-	modifier.Add = add
-	for _, inputName := range input.GetRemove() {
-		name := strings.ToLower(strings.TrimSpace(inputName))
-		if !httpguts.ValidHeaderFieldName(name) {
-			return nil, adminservice.BadRequest("待删除的 Header 名称格式不正确")
+	remove := make([]string, len(modifier.GetRemove()))
+	for i, headerName := range modifier.GetRemove() {
+		name := httpheader.NormalizeName(headerName)
+		if !httpheader.IsValidName(name) {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"待删除的 Header 名称格式不正确",
+			)
 		}
-		if _, exists := seen[name]; exists {
-			return nil, adminservice.BadRequest("同一个 Header 只能配置一种修改动作")
+		if usedNames[name] {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"同一个 Header 只能配置一种修改动作",
+			)
 		}
-		seen[name] = struct{}{}
-		modifier.Remove = append(modifier.Remove, name)
+		usedNames[name] = true
+		remove[i] = name
 	}
-	if len(modifier.Set) == 0 && len(modifier.Add) == 0 && len(modifier.Remove) == 0 {
-		return nil, adminservice.BadRequest("至少需要配置一个 Header 修改动作")
-	}
-	return modifier, nil
+	return &resource.HeaderModifier{Set: set, Add: add, Remove: remove}, nil
 }
 
-func headerValues(inputs []*adminv1.HeaderValue, seen map[string]struct{}) ([]resource.HeaderValue, error) {
-	values := make([]resource.HeaderValue, 0, len(inputs))
-	for _, input := range inputs {
-		if input == nil {
-			return nil, adminservice.BadRequest("Header 名称和值不能为空")
+func parseHeaderValues(
+	values []*adminv1.HeaderValue,
+	usedNames map[string]bool,
+) ([]resource.HeaderValue, error) {
+	headers := make([]resource.HeaderValue, len(values))
+	for i, header := range values {
+		if header == nil {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"Header 名称和值不能为空",
+			)
 		}
-		name := strings.ToLower(strings.TrimSpace(input.GetName()))
-		value := input.GetValue()
-		if !httpguts.ValidHeaderFieldName(name) || value == "" || !httpguts.ValidHeaderFieldValue(value) {
-			return nil, adminservice.BadRequest("Header 名称或值格式不正确")
+		name := httpheader.NormalizeName(header.GetName())
+		value := httpheader.NormalizeValue(header.GetValue())
+		if !httpheader.IsValidName(name) || value == "" || !httpheader.IsValidValue(value) {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"Header 名称或值格式不正确",
+			)
 		}
-		if _, exists := seen[name]; exists {
-			return nil, adminservice.BadRequest("同一个 Header 只能配置一种修改动作")
+		if usedNames[name] {
+			return nil, errors.BadRequest(
+				adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+				"同一个 Header 只能配置一种修改动作",
+			)
 		}
-		seen[name] = struct{}{}
-		values = append(values, resource.HeaderValue{Name: name, Value: value})
+		usedNames[name] = true
+		headers[i] = resource.HeaderValue{Name: name, Value: value}
 	}
-	return values, nil
+	return headers, nil
+}
+
+func headerModifierResponse(modifier *resource.HeaderModifier) *adminv1.HeaderModifier {
+	if modifier == nil {
+		return nil
+	}
+	response := &adminv1.HeaderModifier{
+		Set:    make([]*adminv1.HeaderValue, len(modifier.Set)),
+		Add:    make([]*adminv1.HeaderValue, len(modifier.Add)),
+		Remove: slices.Clone(modifier.Remove),
+	}
+	for i, header := range modifier.Set {
+		response.Set[i] = &adminv1.HeaderValue{
+			Name:  header.Name,
+			Value: header.Value,
+		}
+	}
+	for i, header := range modifier.Add {
+		response.Add[i] = &adminv1.HeaderValue{
+			Name:  header.Name,
+			Value: header.Value,
+		}
+	}
+	return response
 }

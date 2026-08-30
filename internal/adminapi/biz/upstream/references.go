@@ -4,18 +4,26 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-kratos/kratos/v3/errors"
+
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	"github.com/lgc202/ingate/internal/adminapi/biz"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 )
 
-func (s *Service) ensureNotReferenced(ctx context.Context, upstream *resource.Upstream) error {
-	return biz.VisitPages(ctx, s.routes.ListPage, func(route resource.Route) (bool, error) {
+// checkNotReferenced 检查删除请求开始时可见的 Route 引用。
+// 并发写入产生的悬空引用由引用方的 Controller Status 表达。
+func (uc *Usecase) checkNotReferenced(ctx context.Context, upstream *resource.Upstream) error {
+	return biz.VisitPages(ctx, uc.routes.ListPage, func(route resource.Route) (bool, error) {
 		if routeReferencesUpstream(route.Spec, upstream.Name) {
-			return true, biz.NewRuleViolation(fmt.Sprintf(
-				"服务 %q 仍被路由 %q 引用",
-				upstream.Spec.DisplayName,
-				routeDisplayName(route),
-			))
+			return false, errors.Conflict(
+				adminv1.ErrorReason_RESOURCE_CONFLICT.String(),
+				fmt.Sprintf(
+					"服务 %q 仍被路由 %q 引用",
+					upstream.Spec.DisplayName,
+					routeDisplayName(route),
+				),
+			)
 		}
 		return false, nil
 	})

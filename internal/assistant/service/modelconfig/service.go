@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	kerrors "github.com/go-kratos/kratos/v3/errors"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -24,35 +24,37 @@ func NewService(connections *modelconfigbiz.Service) *Service {
 	return &Service{connections: connections}
 }
 
+// GetModelConnection 返回当前 Assistant 模型连接，且不回传已保存的凭据。
 func (s *Service) GetModelConnection(
 	ctx context.Context,
 	_ *emptypb.Empty,
 ) (*assistantv1.ModelConnection, error) {
 	connection, err := s.connections.Get(ctx)
 	if err != nil {
-		return nil, s.mapError(err)
+		return nil, mapError(err)
 	}
-	return s.modelConnectionResponse(connection), nil
+	return modelConnectionResponse(connection), nil
 }
 
+// UpdateModelConnection 校验并保存 Assistant 使用的模型连接。
 func (s *Service) UpdateModelConnection(
 	ctx context.Context,
 	request *assistantv1.UpdateModelConnectionRequest,
 ) (*assistantv1.ModelConnection, error) {
-	update, err := s.modelUpdate(request)
+	update, err := modelUpdate(request)
 	if err != nil {
 		return nil, err
 	}
 	connection, err := s.connections.Update(ctx, update)
 	if err != nil {
-		return nil, s.mapError(err)
+		return nil, mapError(err)
 	}
-	return s.modelConnectionResponse(connection), nil
+	return modelConnectionResponse(connection), nil
 }
 
-func (s *Service) modelUpdate(request *assistantv1.UpdateModelConnectionRequest) (modelconfigbiz.Update, error) {
+func modelUpdate(request *assistantv1.UpdateModelConnectionRequest) (modelconfigbiz.Update, error) {
 	if request.ApiKey != nil && request.GetClearApiKey() {
-		return modelconfigbiz.Update{}, kratoserrors.BadRequest(
+		return modelconfigbiz.Update{}, kerrors.BadRequest(
 			"INVALID_ARGUMENT", "apiKey and clearApiKey cannot be used together",
 		)
 	}
@@ -90,7 +92,7 @@ func protocolFromProto(value assistantv1.ModelProtocol) (modelconfigbiz.Protocol
 	case assistantv1.ModelProtocol_MODEL_PROTOCOL_ANTHROPIC:
 		return modelconfigbiz.ProtocolAnthropic, nil
 	default:
-		return 0, kratoserrors.BadRequest("INVALID_ARGUMENT", "protocol is required")
+		return 0, kerrors.BadRequest("INVALID_ARGUMENT", "protocol is required")
 	}
 }
 
@@ -101,11 +103,11 @@ func modeFromProto(value assistantv1.ModelConnectionMode) (modelconfigbiz.Mode, 
 	case assistantv1.ModelConnectionMode_MODEL_CONNECTION_MODE_INGATE:
 		return modelconfigbiz.ModeIngate, nil
 	default:
-		return 0, kratoserrors.BadRequest("INVALID_ARGUMENT", "connectionMode is required")
+		return 0, kerrors.BadRequest("INVALID_ARGUMENT", "connectionMode is required")
 	}
 }
 
-func (s *Service) modelConnectionResponse(connection modelconfigbiz.Connection) *assistantv1.ModelConnection {
+func modelConnectionResponse(connection modelconfigbiz.Connection) *assistantv1.ModelConnection {
 	response := &assistantv1.ModelConnection{
 		Configured:            connection.Configured,
 		ConnectionMode:        modeToProto(connection.Mode),
@@ -145,9 +147,9 @@ func modeToProto(value modelconfigbiz.Mode) assistantv1.ModelConnectionMode {
 	}
 }
 
-func (s *Service) mapError(err error) error {
+func mapError(err error) error {
 	if errors.Is(err, modelconfigbiz.ErrInvalidConnection) {
-		return kratoserrors.BadRequest("INVALID_ARGUMENT", "model connection is invalid")
+		return kerrors.BadRequest("INVALID_ARGUMENT", "model connection is invalid")
 	}
-	return kratoserrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
+	return kerrors.InternalServer("INTERNAL_ERROR", "request failed").WithCause(err)
 }

@@ -13,35 +13,35 @@ func analysisResponse(analysis trafficbiz.Analysis) *adminv1.GetTrafficAnalysisR
 		Summary:            metricsResponse(analysis.Summary),
 		BreakdownDimension: dimensionResponse(analysis.Dimension),
 		BreakdownOrder:     orderResponse(analysis.Order),
-		Trend:              make([]*adminv1.TrafficAnalysisPoint, 0, len(analysis.Trend)),
-		Breakdown:          make([]*adminv1.TrafficBreakdownItem, 0, len(analysis.Breakdown)),
+		Trend:              make([]*adminv1.TrafficAnalysisPoint, len(analysis.Trend)),
+		Breakdown:          make([]*adminv1.TrafficBreakdownItem, len(analysis.Breakdown)),
 	}
-	for _, point := range analysis.Trend {
-		response.Trend = append(response.Trend, &adminv1.TrafficAnalysisPoint{
+	for i, point := range analysis.Trend {
+		response.Trend[i] = &adminv1.TrafficAnalysisPoint{
 			StartedAt: timestamppb.New(point.StartedAt),
 			Metrics:   metricsResponse(point.Metrics),
-		})
+		}
 	}
-	for _, breakdown := range analysis.Breakdown {
-		response.Breakdown = append(response.Breakdown, &adminv1.TrafficBreakdownItem{
+	for i, breakdown := range analysis.Breakdown {
+		response.Breakdown[i] = &adminv1.TrafficBreakdownItem{
 			ResourceId: breakdown.ResourceID,
 			Metrics:    metricsResponse(breakdown.Metrics),
-		})
+		}
 	}
 	return response
 }
 
 func resourceTrafficResponse(summaries []trafficbiz.ResourceTrafficSummary) *adminv1.BatchGetResourceTrafficResponse {
 	response := &adminv1.BatchGetResourceTrafficResponse{
-		Summaries: make([]*adminv1.ResourceTrafficSummary, 0, len(summaries)),
+		Summaries: make([]*adminv1.ResourceTrafficSummary, len(summaries)),
 	}
-	for _, summary := range summaries {
-		response.Summaries = append(response.Summaries, &adminv1.ResourceTrafficSummary{
+	for i, summary := range summaries {
+		response.Summaries[i] = &adminv1.ResourceTrafficSummary{
 			ResourceId:       summary.ResourceID,
 			RequestCount:     summary.RequestCount,
-			ServerErrorCount: summary.ServerErrors,
-			NoResponseCount:  summary.NoResponses,
-		})
+			ServerErrorCount: summary.ServerErrorCount,
+			NoResponseCount:  summary.NoResponseCount,
+		}
 	}
 	return response
 }
@@ -50,9 +50,9 @@ func metricsResponse(metrics trafficbiz.Metrics) *adminv1.TrafficMetrics {
 	return &adminv1.TrafficMetrics{
 		RequestCount:     metrics.RequestCount,
 		NonErrorCount:    metrics.NonErrorCount,
-		ClientErrorCount: metrics.ClientErrors,
-		ServerErrorCount: metrics.ServerErrors,
-		NoResponseCount:  metrics.NoResponses,
+		ClientErrorCount: metrics.ClientErrorCount,
+		ServerErrorCount: metrics.ServerErrorCount,
+		NoResponseCount:  metrics.NoResponseCount,
 		AverageDuration:  durationpb.New(metrics.AverageDuration),
 		P50Duration:      durationpb.New(metrics.P50Duration),
 		P95Duration:      durationpb.New(metrics.P95Duration),

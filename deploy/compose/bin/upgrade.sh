@@ -42,6 +42,9 @@ rm -rf "$ROOT/bin" "$ROOT/docker"
 cp "$PACKAGE/VERSION" "$PACKAGE/compose.yaml" "$PACKAGE/README.md" "$ROOT/"
 cp -R "$PACKAGE/bin" "$PACKAGE/docker" "$ROOT/"
 set_env_value INGATE_VERSION "$TARGET_VERSION"
+if [[ -z "$(env_value INGATE_APISERVER_BEARER_TOKEN)" ]]; then
+  set_env_value INGATE_APISERVER_BEARER_TOKEN "$(random_hex 32)"
+fi
 if [[ -z "$(env_value INGATE_MYSQL_PASSWORD)" ]]; then
   set_env_value INGATE_MYSQL_PASSWORD "$(random_hex 24)"
 fi

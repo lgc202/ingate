@@ -8,7 +8,12 @@ import (
 )
 
 func rateLimitPolicyResponse(policy *resource.RateLimitPolicy, names biz.PolicyTargetNames) *adminv1.RateLimitPolicy {
-	status := biz.PolicyStatus(policy.Generation, policy.Spec.Enabled, len(policy.Spec.TargetRefs), policy.Status.Conditions)
+	status := biz.PolicyStatus(
+		policy.Generation,
+		policy.Spec.Enabled,
+		len(policy.Spec.TargetRefs),
+		policy.Status.Conditions,
+	)
 	disabled := status.State == biz.ResourceStateDisabled
 	return &adminv1.RateLimitPolicy{
 		Id:      policy.Name,

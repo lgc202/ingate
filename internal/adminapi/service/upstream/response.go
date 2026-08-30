@@ -8,24 +8,30 @@ import (
 )
 
 func upstreamResponse(upstream *resource.Upstream) *adminv1.Upstream {
-	status := biz.ResourceStatusFromConditions(upstream.Generation, upstream.Status.Conditions)
+	status := biz.ResourceStatusFromConditions(
+		upstream.Generation,
+		upstream.Status.Conditions,
+	)
+	endpoints := make([]*adminv1.UpstreamEndpoint, len(upstream.Spec.Endpoints))
+	for i, endpoint := range upstream.Spec.Endpoints {
+		endpoints[i] = &adminv1.UpstreamEndpoint{
+			Address: endpoint.Address,
+			Port:    uint32(endpoint.Port),
+			Weight:  uint32(endpoint.Weight),
+		}
+	}
 	response := &adminv1.Upstream{
 		Id:            upstream.Name,
 		Name:          upstream.Spec.DisplayName,
+		Endpoints:     endpoints,
 		LoadBalancing: loadBalancingResponse(upstream.Spec.LoadBalancing),
 		State:         adminservice.ResourceState(status.State),
 		Message:       adminservice.ResourceMessage(status.Reason),
 		Version:       upstream.Generation,
 		CreatedAt:     adminservice.Timestamp(upstream.CreationTimestamp.Time),
-		UpdatedAt:     adminservice.Timestamp(adminservice.ResourceUpdatedAt(upstream.Annotations)),
-		Endpoints:     make([]*adminv1.UpstreamEndpoint, 0, len(upstream.Spec.Endpoints)),
-	}
-	for _, endpoint := range upstream.Spec.Endpoints {
-		response.Endpoints = append(response.Endpoints, &adminv1.UpstreamEndpoint{
-			Address: endpoint.Address,
-			Port:    uint32(endpoint.Port),
-			Weight:  uint32(endpoint.Weight),
-		})
+		UpdatedAt: adminservice.Timestamp(
+			adminservice.ResourceUpdatedAt(upstream.Annotations),
+		),
 	}
 	if upstream.Spec.TLS != nil {
 		response.Tls = &adminv1.UpstreamTLS{ServerName: upstream.Spec.TLS.ServerName}

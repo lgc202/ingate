@@ -1,10 +1,8 @@
-// Package server 装配运维助手的 Kratos HTTP transport。
 package server
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -19,6 +17,15 @@ import (
 	executionservice "github.com/lgc202/ingate/internal/assistant/service/execution"
 	modelconfigservice "github.com/lgc202/ingate/internal/assistant/service/modelconfig"
 )
+
+type pinger interface {
+	Ping(context.Context) error
+}
+
+type readinessHandler struct {
+	timeout      time.Duration
+	dependencies []pinger
+}
 
 // NewHTTPServer 创建会话 API、SSE 事件流与健康检查服务。
 func NewHTTPServer(
@@ -36,7 +43,7 @@ func NewHTTPServer(
 		kratoshttp.Network("tcp"),
 		kratoshttp.Address(httpConfig.GetAddr()),
 		// SSE 连接由请求取消和 Stream.read_block 控制，不能套用普通 HTTP 全局超时。
-		kratoshttp.Filter(requestIDFilter(), recoveryFilter(logger)),
+		kratoshttp.Filter(requestIDFilter(), requestBodyLimitFilter(), recoveryFilter(logger)),
 		kratoshttp.Middleware(httpMiddleware(logger)...),
 		kratoshttp.RequestDecoder(requestDecoder),
 		kratoshttp.ResponseEncoder(responseEncoder),
@@ -45,45 +52,33 @@ func NewHTTPServer(
 	assistantv1.RegisterAgentExecutionServiceHTTPServer(server, executionAPI)
 	assistantv1.RegisterModelConnectionServiceHTTPServer(server, modelAPI)
 	streamHandler.register(server)
-	health := healthHandler{
-		timeout:      httpConfig.GetTimeout().AsDuration(),
+	readiness := readinessHandler{
+		timeout:      httpConfig.GetReadinessTimeout().AsDuration(),
 		dependencies: []pinger{mysqlStore, eventStore},
 	}
-	server.HandleFunc("/healthz", health.live)
-	server.HandleFunc("/readyz", health.ready)
+	server.HandleFunc("/healthz", live)
+	server.HandleFunc("/readyz", readiness.ready)
 	return server
 }
 
-type pinger interface {
-	Ping(context.Context) error
+func live(response http.ResponseWriter, _ *http.Request) {
+	writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
 }
 
-type healthHandler struct {
-	timeout      time.Duration
-	dependencies []pinger
-}
-
-func (h *healthHandler) live(response http.ResponseWriter, _ *http.Request) {
-	_ = writeJSON(response, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func (h *healthHandler) ready(response http.ResponseWriter, request *http.Request) {
+func (h *readinessHandler) ready(response http.ResponseWriter, request *http.Request) {
 	ctx, cancel := context.WithTimeout(request.Context(), h.timeout)
 	defer cancel()
 	for _, dependency := range h.dependencies {
 		if err := dependency.Ping(ctx); err != nil {
-			_ = writeJSON(response, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
+			writeJSON(response, http.StatusServiceUnavailable, map[string]string{"status": "unavailable"})
 			return
 		}
 	}
-	_ = writeJSON(response, http.StatusOK, map[string]string{"status": "ready"})
+	writeJSON(response, http.StatusOK, map[string]string{"status": "ready"})
 }
 
-func writeJSON(response http.ResponseWriter, status int, value any) error {
-	response.Header().Set("Content-Type", "application/json")
+func writeJSON(response http.ResponseWriter, status int, value any) {
+	response.Header().Set("Content-Type", "application/json; charset=utf-8")
 	response.WriteHeader(status)
-	if err := json.NewEncoder(response).Encode(value); err != nil {
-		return fmt.Errorf("encode JSON response: %w", err)
-	}
-	return nil
+	_ = json.NewEncoder(response).Encode(value)
 }

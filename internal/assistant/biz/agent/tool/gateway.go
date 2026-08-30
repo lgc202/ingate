@@ -26,6 +26,11 @@ type gatewayInfo struct {
 	Listeners []listenerInfo `json:"listeners"`
 }
 
+// GatewayReader 是网关列表工具实际使用的查询边界。
+type GatewayReader interface {
+	ListGateways(context.Context, ResourceListQuery) (GatewayPage, error)
+}
+
 type listenerInfo struct {
 	Name     string `json:"name"`
 	Protocol string `json:"protocol"`

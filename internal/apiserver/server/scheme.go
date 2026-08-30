@@ -1,4 +1,4 @@
-// Package server 提供 ingate-apiserver 的 Kubernetes generic apiserver 基础配置
+// Package server 提供 ingate-apiserver 的 Kubernetes generic apiserver 基础配置。
 package server
 
 import (
@@ -11,9 +11,9 @@ import (
 )
 
 var (
-	// Scheme 保存 ingate-apiserver 支持的 API 类型
+	// Scheme 保存 ingate-apiserver 支持的 API 类型。
 	Scheme = newScheme()
-	// Codecs 提供 Kubernetes API 编解码器
+	// Codecs 提供 Kubernetes API 编解码器。
 	Codecs = serializer.NewCodecFactory(Scheme)
 )
 

@@ -14,7 +14,7 @@ import (
 	"github.com/lgc202/ingate/internal/als/conf"
 )
 
-// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务
+// NewHTTPServer 创建健康检查、就绪检查和 Prometheus 指标服务。
 func NewHTTPServer(
 	serverConfig *conf.Server,
 	kafkaConfig *conf.Data_Kafka,

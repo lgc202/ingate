@@ -15,7 +15,7 @@ vet: ## 运行 go vet
 	@$(GO_ENV) $(GO) vet ./...
 
 .PHONY: go-lint
-go-lint: $(GOLANGCI_LINT) ## 运行 Go 静态检查
+go-lint: go-declaration-order go-docs $(GOLANGCI_LINT) ## 运行 Go 静态检查
 	@$(GO_ENV) $(GOLANGCI_LINT) run ./...
 
 .PHONY: test

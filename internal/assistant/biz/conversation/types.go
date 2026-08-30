@@ -5,18 +5,22 @@ import (
 	"time"
 )
 
+const (
+	// RoleUser 表示管理员发送的持久消息。
+	RoleUser MessageRole = "user"
+	// RoleAssistant 表示 Agent 生成的持久消息。
+	RoleAssistant MessageRole = "assistant"
+)
+
 var (
-	ErrNotFound     = errors.New("conversation resource not found")
+	// ErrNotFound 表示会话或其消息对当前管理员不可见。
+	ErrNotFound = errors.New("conversation resource not found")
+	// ErrInvalidTitle 表示会话标题为空或不符合展示文本约束。
 	ErrInvalidTitle = errors.New("conversation title is invalid")
 )
 
 // MessageRole 表示一条持久消息在对话中的职责。
 type MessageRole string
-
-const (
-	RoleUser      MessageRole = "user"
-	RoleAssistant MessageRole = "assistant"
-)
 
 // Conversation 表示一个管理员与运维助手的持久会话。
 type Conversation struct {
@@ -36,6 +40,13 @@ type Message struct {
 	Content          string
 	ReasoningContent string
 	CreatedAt        time.Time
+}
+
+// HistoryMessage 是一次新执行恢复模型上下文时需要的最小持久消息视图。
+// 推理内容、标识和时间不会重新发送给模型。
+type HistoryMessage struct {
+	Role    MessageRole
+	Content string
 }
 
 // ConversationCursor 是按更新时间倒序翻页的稳定游标。

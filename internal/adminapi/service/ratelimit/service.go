@@ -1,4 +1,4 @@
-// Package ratelimit 提供请求限流策略管理 API
+// Package ratelimit 提供请求限流策略管理 API。
 package ratelimit
 
 import (
@@ -11,16 +11,17 @@ import (
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
-// Service 实现请求限流策略管理 API
+// Service 实现请求限流策略管理 API。
 type Service struct {
-	policies *ratelimitbiz.Service
+	policies *ratelimitbiz.Usecase
 }
 
-// NewService 创建限流策略协议服务
-func NewService(policies *ratelimitbiz.Service) *Service {
+// NewService 创建请求限流策略协议服务。
+func NewService(policies *ratelimitbiz.Usecase) *Service {
 	return &Service{policies: policies}
 }
 
+// ListRateLimitPolicies 返回满足筛选条件的请求限流策略。
 func (s *Service) ListRateLimitPolicies(
 	ctx context.Context,
 	request *adminv1.ListRateLimitPoliciesRequest,
@@ -33,19 +34,17 @@ func (s *Service) ListRateLimitPolicies(
 	if err != nil {
 		return nil, err
 	}
-	response := &adminv1.ListRateLimitPoliciesResponse{
-		Policies:   make([]*adminv1.RateLimitPolicy, 0, len(page.Policies)),
+	policies := make([]*adminv1.RateLimitPolicy, len(page.Items))
+	for i := range page.Items {
+		policies[i] = rateLimitPolicyResponse(&page.Items[i], page.TargetNames)
+	}
+	return &adminv1.ListRateLimitPoliciesResponse{
+		Policies:   policies,
 		NextCursor: page.NextCursor,
-	}
-	for i := range page.Policies {
-		response.Policies = append(
-			response.Policies,
-			rateLimitPolicyResponse(&page.Policies[i], page.TargetNames),
-		)
-	}
-	return response, nil
+	}, nil
 }
 
+// GetRateLimitPolicy 返回指定请求限流策略。
 func (s *Service) GetRateLimitPolicy(
 	ctx context.Context,
 	request *adminv1.GetRateLimitPolicyRequest,
@@ -57,11 +56,18 @@ func (s *Service) GetRateLimitPolicy(
 	return rateLimitPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// CreateRateLimitPolicy 创建请求限流策略。
 func (s *Service) CreateRateLimitPolicy(
 	ctx context.Context,
 	request *adminv1.CreateRateLimitPolicyRequest,
 ) (*adminv1.RateLimitPolicy, error) {
-	spec, err := createSpec(request)
+	spec, err := parseRateLimitPolicySpec(
+		request.GetName(),
+		request.GetEnabled(),
+		request.GetTargets(),
+		request.GetSubject(),
+		request.GetLimit(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -72,21 +78,34 @@ func (s *Service) CreateRateLimitPolicy(
 	return rateLimitPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// UpdateRateLimitPolicy 完整替换请求限流策略配置。
 func (s *Service) UpdateRateLimitPolicy(
 	ctx context.Context,
 	request *adminv1.UpdateRateLimitPolicyRequest,
 ) (*adminv1.RateLimitPolicy, error) {
-	spec, err := updateSpec(request)
+	spec, err := parseRateLimitPolicySpec(
+		request.GetName(),
+		request.GetEnabled(),
+		request.GetTargets(),
+		request.GetSubject(),
+		request.GetLimit(),
+	)
 	if err != nil {
 		return nil, err
 	}
-	view, err := s.policies.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	view, err := s.policies.Replace(
+		ctx,
+		request.GetId(),
+		request.GetVersion(),
+		spec,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return rateLimitPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// DeleteRateLimitPolicy 删除请求限流策略。
 func (s *Service) DeleteRateLimitPolicy(
 	ctx context.Context,
 	request *adminv1.DeleteRateLimitPolicyRequest,

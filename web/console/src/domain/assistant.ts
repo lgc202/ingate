@@ -65,8 +65,7 @@ export interface AgentExecutionStep {
   name: string;
   summary: string;
   errorCode: string;
-  createdAt: string;
-  startedAt?: string;
+  startedAt: string;
   finishedAt?: string;
 }
 

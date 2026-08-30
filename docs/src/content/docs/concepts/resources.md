@@ -51,12 +51,12 @@ Console 使用 **Service** 作为产品名称。声明式 API 当前使用 `Upst
 
 ## ID、名称和版本
 
-- `metadata.name`：声明式资源的不可变 ID；Admin API 创建时生成 UUID
-- `spec.displayName`：用户可编辑的名称，同类资源内唯一
+- `metadata.name`：声明式资源的不可变 ID；普通资源由 Admin API 生成 UUID，WasmPlugin 按插件包名派生稳定 ID，由 API Server 的原子 Create 保证同一配置域只安装一个版本
+- `spec.displayName`：用户可编辑的展示名称，不参与引用、匹配或唯一性判断
 - `metadata.generation`：期望状态版本，Admin API 映射为 `version`
 - `status.conditions`：Controller 对当前 generation 的接收、引用解析和发布结果
 
-Admin API 面向 Console 返回平铺对象，不直接暴露 `metadata/spec/status`。声明式 API 保留这些字段，以支持 CRUD、Watch、Status 和乐观并发。
+Admin API 面向 Console 返回产品对象，可以按职责组织配置字段，但不直接暴露 `metadata/spec/status`。声明式 API 保留这些字段，以支持 CRUD、Watch、Status 和乐观并发。
 
 ## 生效状态
 

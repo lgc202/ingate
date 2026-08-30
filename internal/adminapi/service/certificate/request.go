@@ -3,68 +3,96 @@ package certificate
 import (
 	"strings"
 
+	"github.com/go-kratos/kratos/v3/errors"
+
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
-	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
 	certificateutil "github.com/lgc202/ingate/internal/pkg/certificate"
 )
 
-// createSpec 把创建请求转换为包含完整密钥对的 Certificate 配置
-func createSpec(request *adminv1.CreateCertificateRequest) (resource.CertificateSpec, error) {
-	name := strings.TrimSpace(request.GetName())
-	if name == "" {
-		return resource.CertificateSpec{}, adminservice.BadRequest("证书名称不能为空")
+func parseCertificateSpec(
+	displayName string,
+	certificatePEM string,
+	privateKeyPEM string,
+) (resource.CertificateSpec, error) {
+	displayName = strings.TrimSpace(displayName)
+	if displayName == "" {
+		return resource.CertificateSpec{}, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"证书名称不能为空",
+		)
 	}
-	certificatePEM, privateKeyPEM, err := normalizeKeyPair(request.GetCertificatePem(), request.GetPrivateKeyPem())
+	certificatePEM, privateKeyPEM, err := parseKeyPair(certificatePEM, privateKeyPEM)
 	if err != nil {
 		return resource.CertificateSpec{}, err
 	}
 	return resource.CertificateSpec{
-		DisplayName:    name,
+		DisplayName:    displayName,
 		CertificatePEM: certificatePEM,
 		PrivateKeyPEM:  privateKeyPEM,
 	}, nil
 }
 
-// updateSpec 把更新请求转换为 Certificate 配置，未提供密钥对时由 Biz 保留现有内容
-func updateSpec(request *adminv1.UpdateCertificateRequest) (resource.CertificateSpec, error) {
-	name := strings.TrimSpace(request.GetName())
-	if name == "" {
-		return resource.CertificateSpec{}, adminservice.BadRequest("证书名称不能为空")
+func parseCertificateReplacement(
+	request *adminv1.UpdateCertificateRequest,
+) (resource.CertificateSpec, bool, error) {
+	displayName := strings.TrimSpace(request.GetName())
+	if displayName == "" {
+		return resource.CertificateSpec{}, false, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"证书名称不能为空",
+		)
 	}
 	if (request.CertificatePem == nil) != (request.PrivateKeyPem == nil) {
-		return resource.CertificateSpec{}, adminservice.BadRequest("替换证书时必须同时提供证书内容和私钥")
+		return resource.CertificateSpec{}, false, errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"替换证书时必须同时提供证书内容和私钥",
+		)
+	}
+	if request.CertificatePem == nil {
+		return resource.CertificateSpec{DisplayName: displayName}, true, nil
 	}
 
-	spec := resource.CertificateSpec{DisplayName: name}
-	if request.CertificatePem == nil {
-		return spec, nil
-	}
-	certificatePEM, privateKeyPEM, err := normalizeKeyPair(request.GetCertificatePem(), request.GetPrivateKeyPem())
+	certificatePEM, privateKeyPEM, err := parseKeyPair(
+		request.GetCertificatePem(),
+		request.GetPrivateKeyPem(),
+	)
 	if err != nil {
-		return resource.CertificateSpec{}, err
+		return resource.CertificateSpec{}, false, err
 	}
-	spec.CertificatePEM = certificatePEM
-	spec.PrivateKeyPEM = privateKeyPEM
-	return spec, nil
+	return resource.CertificateSpec{
+		DisplayName:    displayName,
+		CertificatePEM: certificatePEM,
+		PrivateKeyPEM:  privateKeyPEM,
+	}, false, nil
 }
 
-func normalizeKeyPair(certificatePEM, privateKeyPEM string) (string, string, error) {
-	certificatePEM = normalizePEM(certificatePEM)
-	privateKeyPEM = normalizePEM(privateKeyPEM)
+func parseKeyPair(certificatePEM, privateKeyPEM string) (string, string, error) {
+	certificatePEM = certificateutil.NormalizePEM(certificatePEM)
+	privateKeyPEM = certificateutil.NormalizePEM(privateKeyPEM)
 	if certificatePEM == "" || privateKeyPEM == "" {
-		return "", "", adminservice.BadRequest("证书内容和私钥不能为空")
+		return "", "", errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"证书内容和私钥不能为空",
+		)
+	}
+	if len(certificatePEM) > certificateutil.MaxCertificatePEMBytes {
+		return "", "", errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"证书链大小不能超过 256 KiB",
+		)
+	}
+	if len(privateKeyPEM) > certificateutil.MaxPrivateKeyPEMBytes {
+		return "", "", errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"私钥大小不能超过 64 KiB",
+		)
 	}
 	if _, err := certificateutil.ParseKeyPair(certificatePEM, privateKeyPEM); err != nil {
-		return "", "", adminservice.BadRequest("证书内容与私钥格式不正确或不匹配")
+		return "", "", errors.BadRequest(
+			adminv1.ErrorReason_INVALID_ARGUMENT.String(),
+			"证书内容与私钥格式不正确或不匹配",
+		).WithCause(err)
 	}
 	return certificatePEM, privateKeyPEM, nil
-}
-
-func normalizePEM(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return ""
-	}
-	return value + "\n"
 }

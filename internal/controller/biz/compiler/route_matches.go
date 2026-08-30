@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 	"maps"
-	"net/http"
 	"slices"
 	"strings"
 
@@ -12,15 +11,28 @@ import (
 	matcherv3 "github.com/envoyproxy/go-control-plane/envoy/type/matcher/v3"
 
 	gatewayv1 "github.com/lgc202/ingate/internal/pkg/apis/gateway/v1"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+	"github.com/lgc202/ingate/internal/pkg/routeconfig"
 )
 
-func (c *compilation) routeMethods(route *gatewayv1.Route) ([]string, bool) {
+func (c *compilation) buildRouteMethods(route *gatewayv1.Route) ([]string, bool) {
 	methods := make(map[string]bool, len(route.Spec.Match.Methods))
-	valid := true
-	for _, value := range route.Spec.Match.Methods {
-		method := strings.ToUpper(strings.TrimSpace(value))
-		if !validRouteMethod(method) || methods[method] {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has invalid or duplicate method %q", route.Name, value))
+	valid := len(route.Spec.Match.Methods) <= routeconfig.MaxHTTPMethods
+	if !valid {
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q declares too many methods", route.Name),
+		)
+	}
+	for _, methodValue := range route.Spec.Match.Methods {
+		method := strings.ToUpper(strings.TrimSpace(methodValue))
+		if !routeconfig.IsSupportedHTTPMethod(method) || methods[method] {
+			c.addRouteError(
+				route.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("route %q has invalid or duplicate method %q", route.Name, methodValue),
+			)
 			valid = false
 			continue
 		}
@@ -29,56 +41,74 @@ func (c *compilation) routeMethods(route *gatewayv1.Route) ([]string, bool) {
 	return slices.Sorted(maps.Keys(methods)), valid
 }
 
-func (c *compilation) routeHeaderMatches(route *gatewayv1.Route) ([]*routev3.HeaderMatcher, bool) {
-	items := slices.Clone(route.Spec.Match.Headers)
-	slices.SortFunc(items, func(a, b gatewayv1.HeaderMatch) int {
-		if result := cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)); result != 0 {
+func (c *compilation) buildHeaderMatchers(route *gatewayv1.Route) ([]*routev3.HeaderMatcher, bool) {
+	headers := slices.Clone(route.Spec.Match.Headers)
+	for i := range headers {
+		headers[i].Name = httpheader.NormalizeName(headers[i].Name)
+		headers[i].Value = httpheader.NormalizeValue(headers[i].Value)
+	}
+	slices.SortFunc(headers, func(a, b gatewayv1.HeaderMatch) int {
+		if result := cmp.Compare(a.Name, b.Name); result != 0 {
 			return result
 		}
 		return cmp.Compare(a.Value, b.Value)
 	})
-	result := make([]*routev3.HeaderMatcher, 0, len(items))
-	seen := make(map[string]bool, len(items))
-	valid := true
-	for _, header := range items {
-		key := strings.ToLower(header.Name)
-		if header.Name == "" || header.Value == "" || seen[key] {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonInvalidSpec, fmt.Sprintf("route %q has an invalid or duplicate header match %q", route.Name, header.Name))
+	matchers := make([]*routev3.HeaderMatcher, 0, len(headers))
+	seenNames := make(map[string]bool, len(headers))
+	valid := len(headers) <= routeconfig.MaxHeaderMatches
+	if !valid {
+		c.addRouteError(
+			route.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("route %q declares too many header matches", route.Name),
+		)
+	}
+	for _, header := range headers {
+		if !httpheader.IsValidName(header.Name) ||
+			header.Value == "" ||
+			!httpheader.IsValidValue(header.Value) ||
+			seenNames[header.Name] {
+			c.addRouteError(
+				route.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("route %q has an invalid or duplicate header match %q", route.Name, header.Name),
+			)
 			valid = false
 			continue
 		}
-		seen[key] = true
-		result = append(result, exactHeaderMatcher(header.Name, header.Value))
+		seenNames[header.Name] = true
+		matchers = append(matchers, exactHeaderMatcher(header.Name, header.Value))
 	}
-	return result, valid
-}
-
-func validRouteMethod(method string) bool {
-	switch method {
-	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodOptions:
-		return true
-	default:
-		return false
-	}
+	return matchers, valid
 }
 
 func exactHeaderMatcher(name, value string) *routev3.HeaderMatcher {
 	return &routev3.HeaderMatcher{
 		Name: name,
 		HeaderMatchSpecifier: &routev3.HeaderMatcher_StringMatch{
-			StringMatch: &matcherv3.StringMatcher{MatchPattern: &matcherv3.StringMatcher_Exact{Exact: value}},
+			StringMatch: &matcherv3.StringMatcher{
+				MatchPattern: &matcherv3.StringMatcher_Exact{Exact: value},
+			},
 		},
 	}
 }
 
-func routeMatchKey(match *routev3.RouteMatch) string {
-	path := "prefix=" + match.GetPrefix()
-	if match.GetPath() != "" {
-		path = "exact=" + match.GetPath()
-	}
-	parts := []string{path}
+func routeMatchHeaderValues(match *routev3.RouteMatch) map[string]string {
+	values := make(map[string]string, len(match.GetHeaders()))
 	for _, header := range match.GetHeaders() {
-		parts = append(parts, strings.ToLower(header.GetName())+"="+header.GetStringMatch().GetExact())
+		values[strings.ToLower(header.GetName())] = header.GetStringMatch().GetExact()
 	}
-	return strings.Join(parts, "\x00")
+	return values
+}
+
+func routeHeaderMatchesOverlap(left, right map[string]string) bool {
+	if len(left) > len(right) {
+		left, right = right, left
+	}
+	for name, leftValue := range left {
+		if rightValue, exists := right[name]; exists && rightValue != leftValue {
+			return false
+		}
+	}
+	return true
 }

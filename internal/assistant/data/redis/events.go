@@ -30,7 +30,9 @@ func NewEventStore(
 	stream *conf.Stream,
 ) (*EventStore, error) {
 	client := redisgo.NewClient(&redisgo.Options{
-		Addr: config.GetAddress(), Password: config.GetPassword(), DB: int(config.GetDatabase()),
+		Addr:         config.GetAddress(),
+		Password:     config.GetPassword(),
+		DB:           int(config.GetDatabase()),
 		DialTimeout:  config.GetDialTimeout().AsDuration(),
 		ReadTimeout:  config.GetReadTimeout().AsDuration(),
 		WriteTimeout: config.GetWriteTimeout().AsDuration(),
@@ -41,7 +43,9 @@ func NewEventStore(
 		return nil, fmt.Errorf("connect Redis: %w", err)
 	}
 	return &EventStore{
-		client: client, retention: stream.GetRetention().AsDuration(), maxEvents: int64(stream.GetMaxEvents()),
+		client:    client,
+		retention: stream.GetRetention().AsDuration(),
+		maxEvents: int64(stream.GetMaxEvents()),
 	}, nil
 }
 
@@ -68,7 +72,10 @@ func (s *EventStore) Append(
 		MaxLen: s.maxEvents,
 		Approx: true,
 		// go-redis 只接受基础标量或显式序列化类型，领域小类型在 data 边界转为字符串。
-		Values: map[string]any{"type": string(event.Type), "data": event.Data},
+		Values: map[string]any{
+			"type": string(event.Type),
+			"data": event.Data,
+		},
 	})
 	pipeline.Expire(ctx, key, s.retention)
 	if _, err := pipeline.Exec(ctx); err != nil {
@@ -104,13 +111,33 @@ func (s *EventStore) Read(
 	}
 	events := make([]execution.StreamEvent, 0, len(streams[0].Messages))
 	for _, message := range streams[0].Messages {
-		events = append(events, execution.StreamEvent{
-			ID:   message.ID,
-			Type: execution.EventType(fmt.Sprint(message.Values["type"])),
-			Data: fmt.Sprint(message.Values["data"]),
-		})
+		event, err := streamEventFromRedis(message)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
 	}
 	return events, nil
+}
+
+func streamEventFromRedis(message redisgo.XMessage) (execution.StreamEvent, error) {
+	typeText, typeOK := message.Values["type"].(string)
+	data, dataOK := message.Values["data"].(string)
+	if !typeOK || !dataOK {
+		return execution.StreamEvent{}, errors.New("stream event fields must be strings")
+	}
+	eventType := execution.EventType(typeText)
+	switch eventType {
+	case execution.EventStarted,
+		execution.EventReasoningDelta,
+		execution.EventContentDelta,
+		execution.EventCompleted,
+		execution.EventFailed,
+		execution.EventCancelled:
+	default:
+		return execution.StreamEvent{}, fmt.Errorf("unsupported Redis stream event type %q", typeText)
+	}
+	return execution.StreamEvent{ID: message.ID, Type: eventType, Data: data}, nil
 }
 
 func eventKey(executionID string) string {

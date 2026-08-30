@@ -31,6 +31,11 @@ type routeInfo struct {
 	ExposedModels []string `json:"exposed_models,omitempty"`
 }
 
+// RouteReader 是路由列表工具实际使用的查询边界。
+type RouteReader interface {
+	ListRoutes(context.Context, ResourceListQuery) (RoutePage, error)
+}
+
 func newRouteTool(resources RouteReader) (einotool.BaseTool, error) {
 	definition, err := utils.InferTool(
 		listRoutesTool,

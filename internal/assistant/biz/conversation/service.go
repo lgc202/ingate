@@ -4,12 +4,24 @@ package conversation
 import (
 	"context"
 	"strings"
-	"time"
-
-	"github.com/google/uuid"
+	"unicode"
+	"unicode/utf8"
 )
 
-const defaultTitle = "新会话"
+const (
+	defaultTitle  = "新会话"
+	maxTitleRunes = 160
+)
+
+// Store 由会话业务定义持久化边界，MySQL 实现事务和并发约束。
+type Store interface {
+	Create(ctx context.Context, actorID, title string) (Conversation, error)
+	Get(context.Context, string, string) (Conversation, error)
+	UpdateTitle(ctx context.Context, actorID, id, title string) (Conversation, error)
+	List(context.Context, string, int, *ConversationCursor) (ConversationPage, error)
+	Delete(context.Context, string, string) error
+	ListMessages(context.Context, string, string, *MessageCursor, int) (MessagePage, error)
+}
 
 // Service 管理持久会话与消息查询。
 type Service struct {
@@ -21,33 +33,33 @@ func NewService(store Store) *Service {
 	return &Service{store: store}
 }
 
+// Create 创建属于指定管理员的会话，并为空标题生成默认名称。
 func (s *Service) Create(ctx context.Context, actorID, title string) (Conversation, error) {
 	title = strings.TrimSpace(title)
 	if title == "" {
 		title = defaultTitle
 	}
-	now := time.Now().UTC()
-	return s.store.Create(ctx, Conversation{
-		ID:        uuid.NewString(),
-		ActorID:   actorID,
-		Title:     title,
-		CreatedAt: now,
-		UpdatedAt: now,
-	})
+	if !IsValidTitle(title) {
+		return Conversation{}, ErrInvalidTitle
+	}
+	return s.store.Create(ctx, actorID, title)
 }
 
+// Get 返回指定管理员可见的单个会话。
 func (s *Service) Get(ctx context.Context, actorID, id string) (Conversation, error) {
 	return s.store.Get(ctx, actorID, id)
 }
 
+// UpdateTitle 更新指定管理员会话的非空标题。
 func (s *Service) UpdateTitle(ctx context.Context, actorID, id, title string) (Conversation, error) {
 	title = strings.TrimSpace(title)
-	if title == "" {
+	if !IsValidTitle(title) {
 		return Conversation{}, ErrInvalidTitle
 	}
-	return s.store.UpdateTitle(ctx, actorID, id, title, time.Now().UTC())
+	return s.store.UpdateTitle(ctx, actorID, id, title)
 }
 
+// List 按更新时间倒序返回指定管理员的会话。
 func (s *Service) List(
 	ctx context.Context,
 	actorID string,
@@ -57,10 +69,12 @@ func (s *Service) List(
 	return s.store.List(ctx, actorID, limit, cursor)
 }
 
+// Delete 删除指定管理员的会话及其关联记录。
 func (s *Service) Delete(ctx context.Context, actorID, id string) error {
 	return s.store.Delete(ctx, actorID, id)
 }
 
+// ListMessages 按创建时间返回指定会话中已经持久化的消息。
 func (s *Service) ListMessages(
 	ctx context.Context,
 	actorID string,
@@ -69,4 +83,17 @@ func (s *Service) ListMessages(
 	limit int,
 ) (MessagePage, error) {
 	return s.store.ListMessages(ctx, actorID, conversationID, cursor, limit)
+}
+
+// IsValidTitle 判断 title 是否可以作为会话展示标题持久化。
+func IsValidTitle(title string) bool {
+	if title == "" || !utf8.ValidString(title) || utf8.RuneCountInString(title) > maxTitleRunes {
+		return false
+	}
+	for _, character := range title {
+		if unicode.IsControl(character) {
+			return false
+		}
+	}
+	return true
 }

@@ -88,13 +88,20 @@ message GetCallerRequest {
 }
 
 message CreateCallerRequest {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
   optional bool enabled = 2 [(buf.validate.field).required = true];
   repeated string route_ids = 3 [
     json_name = "routeIDs",
+    (buf.validate.field).repeated.max_items = 256,
     (buf.validate.field).repeated.items.string.uuid = true
   ];
-  string access_key_name = 4 [(buf.validate.field).string.min_len = 1];
+  string access_key_name = 4 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+  }];
   google.protobuf.Timestamp access_key_expires_at = 5;
 }
 
@@ -106,10 +113,14 @@ message CreateCallerResponse {
 message UpdateCallerRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
-  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
   optional bool enabled = 4 [(buf.validate.field).required = true];
   repeated string route_ids = 5 [
     json_name = "routeIDs",
+    (buf.validate.field).repeated.max_items = 256,
     (buf.validate.field).repeated.items.string.uuid = true
   ];
 }
@@ -125,7 +136,10 @@ message IssueAccessKeyRequest {
     (buf.validate.field).string.uuid = true
   ];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
-  string name = 3 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 128
+  }];
   google.protobuf.Timestamp expires_at = 4;
 }
 

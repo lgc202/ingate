@@ -3,15 +3,11 @@ package identity
 
 import (
 	"context"
-	"strings"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	"github.com/go-kratos/kratos/v3/errors"
 	"github.com/go-kratos/kratos/v3/transport"
-)
 
-const (
-	ForwardedUserHeader = "X-Forwarded-User"
-	maxActorIDLength    = 128
+	"github.com/lgc202/ingate/internal/pkg/adminidentity"
 )
 
 // ActorID 读取 Admin API 在内部请求上传递的用户标识。
@@ -19,19 +15,18 @@ const (
 func ActorID(ctx context.Context) (string, error) {
 	tr, ok := transport.FromServerContext(ctx)
 	if !ok {
-		return "", kratoserrors.Unauthorized("ACTOR_REQUIRED", "authentication required")
+		return "", errors.Unauthorized("ACTOR_REQUIRED", "authentication required")
 	}
-	return ValidateActorID(tr.RequestHeader().Get(ForwardedUserHeader))
+	return ValidateActorID(tr.RequestHeader().Get(adminidentity.Header))
 }
 
 // ValidateActorID 验证从自定义 HTTP 路由读取的用户标识。
 func ValidateActorID(value string) (string, error) {
-	value = strings.TrimSpace(value)
 	if value == "" {
-		return "", kratoserrors.Unauthorized("ACTOR_REQUIRED", "authentication required")
+		return "", errors.Unauthorized("ACTOR_REQUIRED", "authentication required")
 	}
-	if len(value) > maxActorIDLength {
-		return "", kratoserrors.BadRequest("INVALID_ARGUMENT", "actor identifier is too long")
+	if !adminidentity.IsValid(value) {
+		return "", errors.BadRequest("INVALID_ARGUMENT", "actor identifier is invalid")
 	}
 	return value, nil
 }

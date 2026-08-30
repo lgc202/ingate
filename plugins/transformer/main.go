@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Transformer 使用标准 Proxy-Wasm ABI 修改请求和响应 Header
+// Package main 使用标准 Proxy-Wasm ABI 修改请求和响应 Header。
 //
 // 配置结构沿用 Higress Transformer 的 reqRules、respRules 与 Header 操作字段，
-// 但只实现 Ingate 控制台当前开放的 remove、rename、replace、add 和 append
+// 但只实现 Ingate 控制台当前开放的 remove、rename、replace、add 和 append。
 package main
 
 import (
@@ -23,13 +23,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm"
 	"github.com/proxy-wasm/proxy-wasm-go-sdk/proxywasm/types"
-)
 
-type operation string
+	"github.com/lgc202/ingate/internal/pkg/headertransformationconfig"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+)
 
 const (
 	operationRemove  operation = "remove"
@@ -38,6 +40,8 @@ const (
 	operationAdd     operation = "add"
 	operationAppend  operation = "append"
 )
+
+type operation string
 
 type pluginConfig struct {
 	RequestRules  []rule `json:"reqRules"`
@@ -78,12 +82,6 @@ type httpContext struct {
 	types.DefaultHttpContext
 	requestOperations  []headerOperation
 	responseOperations []headerOperation
-}
-
-func main() {}
-
-func init() {
-	proxywasm.SetVMContext(&vmContext{})
 }
 
 func (*vmContext) NewPluginContext(uint32) types.PluginContext {
@@ -128,7 +126,8 @@ func (p *pluginContext) NewHttpContext(uint32) types.HttpContext {
 	}
 }
 
-// OnHttpRequestHeaders 在请求转发到上游前应用 Header 规则
+// OnHttpRequestHeaders 在请求转发到上游前应用 Header 规则。
+// Host ABI 失败会主动触发 VM trap，由 Envoy 的 FAIL_CLOSED 策略拒绝请求。
 //
 //nolint:staticcheck // 方法名由 Proxy-Wasm SDK 接口定义，不能按 Go 缩写规则改名
 func (h *httpContext) OnHttpRequestHeaders(int, bool) types.Action {
@@ -137,16 +136,18 @@ func (h *httpContext) OnHttpRequestHeaders(int, bool) types.Action {
 	}
 	headers, err := proxywasm.GetHttpRequestHeaders()
 	if err != nil {
-		proxywasm.LogErrorf("read request headers: %v", err)
-		return types.ActionContinue
+		proxywasm.LogCriticalf("read request headers: %v", err)
+		panic("read request headers")
 	}
 	if err := proxywasm.ReplaceHttpRequestHeaders(applyOperations(headers, h.requestOperations)); err != nil {
-		proxywasm.LogErrorf("replace request headers: %v", err)
+		proxywasm.LogCriticalf("replace request headers: %v", err)
+		panic("replace request headers")
 	}
 	return types.ActionContinue
 }
 
-// OnHttpResponseHeaders 在响应返回客户端前应用 Header 规则
+// OnHttpResponseHeaders 在响应返回客户端前应用 Header 规则。
+// Host ABI 失败会主动触发 VM trap，由 Envoy 的 FAIL_CLOSED 策略终止响应。
 //
 //nolint:staticcheck // 方法名由 Proxy-Wasm SDK 接口定义，不能按 Go 缩写规则改名
 func (h *httpContext) OnHttpResponseHeaders(int, bool) types.Action {
@@ -155,13 +156,20 @@ func (h *httpContext) OnHttpResponseHeaders(int, bool) types.Action {
 	}
 	headers, err := proxywasm.GetHttpResponseHeaders()
 	if err != nil {
-		proxywasm.LogErrorf("read response headers: %v", err)
-		return types.ActionContinue
+		proxywasm.LogCriticalf("read response headers: %v", err)
+		panic("read response headers")
 	}
 	if err := proxywasm.ReplaceHttpResponseHeaders(applyOperations(headers, h.responseOperations)); err != nil {
-		proxywasm.LogErrorf("replace response headers: %v", err)
+		proxywasm.LogCriticalf("replace response headers: %v", err)
+		panic("replace response headers")
 	}
 	return types.ActionContinue
+}
+
+func main() {}
+
+func init() {
+	proxywasm.SetVMContext(&vmContext{})
 }
 
 func decodeConfig(raw []byte) (pluginConfig, error) {
@@ -173,6 +181,10 @@ func decodeConfig(raw []byte) (pluginConfig, error) {
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&config); err != nil {
 		return pluginConfig{}, fmt.Errorf("decode JSON: %w", err)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		return pluginConfig{}, errors.New("configuration must contain exactly one JSON value")
 	}
 	return config, nil
 }
@@ -187,6 +199,9 @@ func compileRules(rules []rule) ([]headerOperation, error) {
 			return nil, fmt.Errorf("rule %d does not contain headers", ruleIndex+1)
 		}
 		for headerIndex, header := range rule.Headers {
+			if len(operations) >= headertransformationconfig.MaxRules {
+				return nil, fmt.Errorf("header operation count exceeds %d", headertransformationconfig.MaxRules)
+			}
 			compiled, err := rule.Operation.compile(header)
 			if err != nil {
 				return nil, fmt.Errorf("rule %d header %d: %w", ruleIndex+1, headerIndex+1, err)
@@ -210,21 +225,25 @@ func (o operation) compile(rule headerRule) (headerOperation, error) {
 	var key, value string
 	switch o {
 	case operationRename:
-		key, value = strings.TrimSpace(rule.OldKey), strings.TrimSpace(rule.NewKey)
+		key, value = httpheader.NormalizeName(rule.OldKey), httpheader.NormalizeName(rule.NewKey)
 	case operationReplace:
-		key, value = strings.TrimSpace(rule.Key), rule.NewValue
+		key, value = httpheader.NormalizeName(rule.Key), httpheader.NormalizeValue(rule.NewValue)
 	case operationAdd:
-		key, value = strings.TrimSpace(rule.Key), rule.Value
+		key, value = httpheader.NormalizeName(rule.Key), httpheader.NormalizeValue(rule.Value)
 	case operationAppend:
-		key, value = strings.TrimSpace(rule.Key), rule.AppendValue
+		key, value = httpheader.NormalizeName(rule.Key), httpheader.NormalizeValue(rule.AppendValue)
 	default:
-		key = strings.TrimSpace(rule.Key)
+		key = httpheader.NormalizeName(rule.Key)
 	}
-	if key == "" {
-		return headerOperation{}, errors.New("header name is empty")
+	if !httpheader.IsValidName(key) {
+		return headerOperation{}, errors.New("header name is invalid")
 	}
-	if o == operationRename && value == "" {
-		return headerOperation{}, errors.New("new header name is empty")
+	if o == operationRename {
+		if !httpheader.IsValidName(value) {
+			return headerOperation{}, errors.New("new header name is invalid")
+		}
+	} else if o != operationRemove && !httpheader.IsValidValue(value) {
+		return headerOperation{}, errors.New("header value is invalid")
 	}
 	return headerOperation{kind: o, key: key, value: value}, nil
 }

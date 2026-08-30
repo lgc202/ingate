@@ -1,4 +1,4 @@
-// Package ratelimit 实现请求进入上游前的共享限流规则
+// Package ratelimit 实现请求进入上游前的共享限流规则。
 package ratelimit
 
 import (
@@ -11,21 +11,24 @@ import (
 	"time"
 )
 
-// Subject 表示计数器的划分方式
-type Subject string
-
 const (
-	// SubjectShared 表示同一策略作用域的请求共享计数器
+	// SubjectShared 表示同一策略作用域的请求共享计数器。
 	SubjectShared Subject = "Shared"
-	// SubjectIP 表示每个客户端 IP 使用独立计数器
+	// SubjectIP 表示每个客户端 IP 使用独立计数器。
 	SubjectIP Subject = "IP"
-	// SubjectHeader 表示每个指定 Header 值使用独立计数器
+	// SubjectHeader 表示每个指定 Header 值使用独立计数器。
 	SubjectHeader Subject = "Header"
+
+	maxWindowSeconds = math.MaxInt64 / int64(time.Second)
 )
 
+// ErrInvalidRule 表示 Controller 下发了 Authz 无法执行的限流规则。
 var ErrInvalidRule = errors.New("invalid rate limit rule")
 
-// Rule 是 Controller 已经完成目标解析后的可执行限流规则
+// Subject 表示计数器的划分方式。
+type Subject string
+
+// Rule 是 Controller 已经完成目标解析后的可执行限流规则。
 type Rule struct {
 	PolicyID      string
 	Scope         string
@@ -35,13 +38,13 @@ type Rule struct {
 	WindowSeconds int64
 }
 
-// Request 保存计算限流主体需要的最小请求信息
+// Request 保存计算限流主体需要的最小请求信息。
 type Request struct {
 	ClientIP string
 	Headers  map[string]string
 }
 
-// Limit 表示解析计数对象后的一条可执行速率限制
+// Limit 表示解析计数对象后的一条可执行速率限制。
 type Limit struct {
 	PolicyID string
 	Scope    string
@@ -50,34 +53,34 @@ type Limit struct {
 	Period   time.Duration
 }
 
-// Decision 是共享计数器返回的准入结果
+// Decision 是共享计数器返回的准入结果。
 type Decision struct {
 	Allowed    bool
 	RetryAfter time.Duration
 }
 
-// Counter 在共享存储中原子消费一次请求额度
+// Counter 在共享存储中原子消费一次请求额度。
 type Counter interface {
 	Allow(context.Context, Limit) (Decision, error)
 }
 
-// Exceeded 表示请求命中的具体限流规则已经耗尽
+// Exceeded 表示请求命中的具体限流规则已经耗尽。
 type Exceeded struct {
 	PolicyID   string
 	RetryAfter time.Duration
 }
 
-// Service 按稳定顺序执行当前 Route 命中的全部限流规则
+// Service 按稳定顺序执行当前 Route 命中的全部限流规则。
 type Service struct {
 	counter Counter
 }
 
-// NewService 创建请求限流服务
+// NewService 创建请求限流服务。
 func NewService(counter Counter) *Service {
 	return &Service{counter: counter}
 }
 
-// Admit 检查并占用一次请求额度
+// Admit 检查并占用一次请求额度。
 func (s *Service) Admit(ctx context.Context, rules []Rule, request Request) (*Exceeded, error) {
 	ordered := slices.Clone(rules)
 	slices.SortFunc(ordered, func(left, right Rule) int {
@@ -105,7 +108,12 @@ func (s *Service) Admit(ctx context.Context, rules []Rule, request Request) (*Ex
 }
 
 func (r Rule) limit(request Request) (Limit, error) {
-	if r.PolicyID == "" || r.Scope == "" || r.Requests < 1 || r.Requests > math.MaxInt || r.WindowSeconds < 1 {
+	if r.PolicyID == "" ||
+		r.Scope == "" ||
+		r.Requests < 1 ||
+		r.Requests > math.MaxInt ||
+		r.WindowSeconds < 1 ||
+		r.WindowSeconds > maxWindowSeconds {
 		return Limit{}, ErrInvalidRule
 	}
 	var subject string

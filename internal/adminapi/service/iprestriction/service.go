@@ -1,4 +1,4 @@
-// Package iprestriction 提供客户端 IP 访问限制策略管理 API
+// Package iprestriction 提供客户端 IP 访问限制策略管理 API。
 package iprestriction
 
 import (
@@ -11,16 +11,17 @@ import (
 	adminservice "github.com/lgc202/ingate/internal/adminapi/service"
 )
 
-// Service 实现客户端 IP 访问限制策略管理 API
+// Service 实现客户端 IP 访问限制策略管理 API。
 type Service struct {
-	policies *iprestrictionbiz.Service
+	policies *iprestrictionbiz.Usecase
 }
 
-// NewService 创建客户端 IP 访问限制策略协议服务
-func NewService(policies *iprestrictionbiz.Service) *Service {
+// NewService 创建客户端 IP 访问限制策略协议服务。
+func NewService(policies *iprestrictionbiz.Usecase) *Service {
 	return &Service{policies: policies}
 }
 
+// ListIPRestrictionPolicies 返回满足筛选条件的客户端 IP 访问限制策略。
 func (s *Service) ListIPRestrictionPolicies(
 	ctx context.Context,
 	request *adminv1.ListIPRestrictionPoliciesRequest,
@@ -33,19 +34,17 @@ func (s *Service) ListIPRestrictionPolicies(
 	if err != nil {
 		return nil, err
 	}
-	response := &adminv1.ListIPRestrictionPoliciesResponse{
-		Policies:   make([]*adminv1.IPRestrictionPolicy, 0, len(page.Policies)),
+	policies := make([]*adminv1.IPRestrictionPolicy, len(page.Items))
+	for i := range page.Items {
+		policies[i] = ipRestrictionPolicyResponse(&page.Items[i], page.TargetNames)
+	}
+	return &adminv1.ListIPRestrictionPoliciesResponse{
+		Policies:   policies,
 		NextCursor: page.NextCursor,
-	}
-	for i := range page.Policies {
-		response.Policies = append(
-			response.Policies,
-			ipRestrictionPolicyResponse(&page.Policies[i], page.TargetNames),
-		)
-	}
-	return response, nil
+	}, nil
 }
 
+// GetIPRestrictionPolicy 返回指定客户端 IP 访问限制策略。
 func (s *Service) GetIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.GetIPRestrictionPolicyRequest,
@@ -57,11 +56,18 @@ func (s *Service) GetIPRestrictionPolicy(
 	return ipRestrictionPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// CreateIPRestrictionPolicy 创建并启用客户端 IP 访问限制策略。
 func (s *Service) CreateIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.CreateIPRestrictionPolicyRequest,
 ) (*adminv1.IPRestrictionPolicy, error) {
-	spec, err := createSpec(request)
+	spec, err := parseIPRestrictionPolicySpec(
+		request.GetName(),
+		true,
+		request.GetTargets(),
+		request.GetAllow(),
+		request.GetDeny(),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -72,21 +78,34 @@ func (s *Service) CreateIPRestrictionPolicy(
 	return ipRestrictionPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// UpdateIPRestrictionPolicy 完整替换客户端 IP 访问限制策略配置。
 func (s *Service) UpdateIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.UpdateIPRestrictionPolicyRequest,
 ) (*adminv1.IPRestrictionPolicy, error) {
-	spec, err := updateSpec(request)
+	spec, err := parseIPRestrictionPolicySpec(
+		request.GetName(),
+		request.GetEnabled(),
+		request.GetTargets(),
+		request.GetAllow(),
+		request.GetDeny(),
+	)
 	if err != nil {
 		return nil, err
 	}
-	view, err := s.policies.Update(ctx, request.GetId(), request.GetVersion(), spec)
+	view, err := s.policies.Replace(
+		ctx,
+		request.GetId(),
+		request.GetVersion(),
+		spec,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return ipRestrictionPolicyResponse(view.Policy, view.TargetNames), nil
 }
 
+// DeleteIPRestrictionPolicy 删除客户端 IP 访问限制策略。
 func (s *Service) DeleteIPRestrictionPolicy(
 	ctx context.Context,
 	request *adminv1.DeleteIPRestrictionPolicyRequest,

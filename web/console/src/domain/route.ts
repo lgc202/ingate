@@ -1,9 +1,9 @@
 import type { ResourceStatus } from './common';
 
 export type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS';
-export type RoutePathMatchType = 'ROUTE_PATH_MATCH_PREFIX' | 'ROUTE_PATH_MATCH_EXACT';
-export type HostRewriteMode = 'HOST_REWRITE_MODE_SERVICE_ADDRESS' | 'HOST_REWRITE_MODE_PRESERVE' | 'HOST_REWRITE_MODE_CUSTOM';
-export type RouteAccessMode = 'ROUTE_ACCESS_PUBLIC' | 'ROUTE_ACCESS_CALLER';
+export type RoutePathMatchType = 'ROUTE_PATH_MATCH_TYPE_PREFIX' | 'ROUTE_PATH_MATCH_TYPE_EXACT';
+export type HostRewriteMode = 'HOST_REWRITE_MODE_SERVICE_HOST' | 'HOST_REWRITE_MODE_PRESERVE' | 'HOST_REWRITE_MODE_CUSTOM';
+export type RouteAccessMode = 'ROUTE_ACCESS_MODE_PUBLIC' | 'ROUTE_ACCESS_MODE_CALLER';
 
 export interface HeaderMatch {
   name: string;
@@ -21,13 +21,13 @@ export interface HeaderModifier {
   remove: string[];
 }
 
-export interface WeightedUpstream {
-  upstreamID: string;
+export interface WeightedService {
+  serviceID: string;
   weight: number;
 }
 
 export interface AIModelTarget {
-  upstreamID: string;
+  serviceID: string;
   model: string;
   weight: number;
 }
@@ -58,7 +58,7 @@ export interface RouteResource {
     methods: HttpMethod[];
     headers: HeaderMatch[];
   };
-  upstreams: WeightedUpstream[];
+  services: WeightedService[];
   ai?: AIRoute;
   hostRewrite: HostRewrite;
   requestHeaderModifier?: HeaderModifier;
@@ -82,7 +82,7 @@ export interface RouteGatewayOption {
   listeners: Array<{ protocol: 'GATEWAY_PROTOCOL_HTTP' | 'GATEWAY_PROTOCOL_HTTPS'; port: number; hostname: string }>;
 }
 
-export interface UpstreamOption {
+export interface ServiceOption {
   id: string;
   name: string;
   endpoint: string;
@@ -91,7 +91,7 @@ export interface UpstreamOption {
 
 export interface RouteWorkspace extends RouteListView {
   gateways: RouteGatewayOption[];
-  upstreams: UpstreamOption[];
+  services: ServiceOption[];
 }
 
 export interface RouteMutationPayload {
@@ -103,7 +103,7 @@ export interface RouteMutationPayload {
   gatewayIDs: string[];
   hostnames: string[];
   match: RouteResource['match'];
-  upstreams: WeightedUpstream[];
+  services: WeightedService[];
   ai?: AIRoute;
   hostRewrite: HostRewrite;
   requestHeaderModifier?: HeaderModifier;

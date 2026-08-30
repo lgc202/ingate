@@ -32,7 +32,7 @@ func (c *compilation) compileRateLimitPolicies() map[string]compiledRateLimitPol
 			continue
 		}
 		result[policyID] = compiledRateLimitPolicy{
-			source:  newResourceGeneration(gatewayv1.KindRateLimitPolicy, policy.Name, policy.UID, policy.Generation),
+			source:  newResourceGeneration(gatewayv1.KindRateLimitPolicy, policy),
 			rule:    rule,
 			targets: targets,
 		}
@@ -50,26 +50,58 @@ func (c *compilation) rateLimitRule(policy *gatewayv1.RateLimitPolicy) (extauthz
 	}
 	valid := true
 	if rule.Requests < 1 || rule.Requests > gatewayv1.RateLimitMaxRequests {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q has invalid request limit", policy.Name))
+		c.addResourceError(
+			gatewayv1.KindRateLimitPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("rate limit policy %q has invalid request limit", policy.Name),
+		)
 		valid = false
 	}
 	if rule.WindowSeconds < 1 || rule.WindowSeconds > gatewayv1.RateLimitMaxWindowSeconds {
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q has invalid window", policy.Name))
+		c.addResourceError(
+			gatewayv1.KindRateLimitPolicy,
+			policy.Name,
+			ReasonInvalidSpec,
+			fmt.Sprintf("rate limit policy %q has invalid window", policy.Name),
+		)
 		valid = false
 	}
 	switch rule.Subject {
 	case extauthz.RateLimitSubjectShared, extauthz.RateLimitSubjectIP:
 		if rule.HeaderName != "" {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q only accepts headerName for Header subject", policy.Name))
+			c.addResourceError(
+				gatewayv1.KindRateLimitPolicy,
+				policy.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf(
+					"rate limit policy %q only accepts headerName for Header subject",
+					policy.Name,
+				),
+			)
 			valid = false
 		}
 	case extauthz.RateLimitSubjectHeader:
 		if !httpguts.ValidHeaderFieldName(rule.HeaderName) {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonInvalidSpec, fmt.Sprintf("rate limit policy %q has invalid subject header", policy.Name))
+			c.addResourceError(
+				gatewayv1.KindRateLimitPolicy,
+				policy.Name,
+				ReasonInvalidSpec,
+				fmt.Sprintf("rate limit policy %q has invalid subject header", policy.Name),
+			)
 			valid = false
 		}
 	default:
-		c.addDiagnostic(SeverityError, gatewayv1.KindRateLimitPolicy, policy.Name, ReasonUnsupported, fmt.Sprintf("rate limit policy %q uses unsupported subject %q", policy.Name, policy.Spec.Subject.Type))
+		c.addResourceError(
+			gatewayv1.KindRateLimitPolicy,
+			policy.Name,
+			ReasonUnsupported,
+			fmt.Sprintf(
+				"rate limit policy %q uses unsupported subject %q",
+				policy.Name,
+				policy.Spec.Subject.Type,
+			),
+		)
 		valid = false
 	}
 	return rule, valid

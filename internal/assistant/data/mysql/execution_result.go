@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 
@@ -45,7 +44,10 @@ func (s *Store) CompleteExecution(
 			return execution.ErrCancellation
 		}
 
-		now := time.Now().UTC()
+		now, err := queries.CurrentTime(ctx)
+		if err != nil {
+			return fmt.Errorf("read MySQL time: %w", err)
+		}
 		message = conversation.Message{
 			ID:               uuid.NewString(),
 			ConversationID:   locked.ConversationID,
@@ -67,7 +69,9 @@ func (s *Store) CompleteExecution(
 			return fmt.Errorf("create assistant message: %w", err)
 		}
 		rows, err := queries.CompleteExecution(ctx, db.CompleteExecutionParams{
-			FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: executionID, WorkerID: workerID,
+			FinishedAt: sql.NullTime{Time: now, Valid: true},
+			ID:         executionID,
+			WorkerID:   workerID,
 		})
 		if err != nil {
 			return fmt.Errorf("complete assistant execution: %w", err)
@@ -76,7 +80,8 @@ func (s *Store) CompleteExecution(
 			return execution.ErrLeaseLost
 		}
 		if err := queries.TouchConversation(ctx, db.TouchConversationParams{
-			UpdatedAt: now, ID: locked.ConversationID, ActorID: actorID,
+			ID:      locked.ConversationID,
+			ActorID: actorID,
 		}); err != nil {
 			return fmt.Errorf("update conversation activity: %w", err)
 		}
@@ -119,17 +124,16 @@ func (s *Store) FailExecution(
 			return execution.ErrCancellation
 		}
 
-		now := time.Now().UTC()
 		if err := queries.FailRunningExecutionSteps(ctx, db.FailRunningExecutionStepsParams{
 			ErrorCode:   string(errorCode),
-			FinishedAt:  sql.NullTime{Time: now, Valid: true},
 			ExecutionID: executionID,
 		}); err != nil {
 			return fmt.Errorf("fail assistant execution steps: %w", err)
 		}
 		rows, err := queries.FailExecution(ctx, db.FailExecutionParams{
-			ErrorCode: string(errorCode), FinishedAt: sql.NullTime{Time: now, Valid: true},
-			ID: executionID, WorkerID: workerID,
+			ErrorCode: string(errorCode),
+			ID:        executionID,
+			WorkerID:  workerID,
 		})
 		if err != nil {
 			return fmt.Errorf("fail assistant execution: %w", err)
@@ -138,7 +142,8 @@ func (s *Store) FailExecution(
 			return execution.ErrLeaseLost
 		}
 		if err := queries.TouchConversation(ctx, db.TouchConversationParams{
-			UpdatedAt: now, ID: locked.ConversationID, ActorID: actorID,
+			ID:      locked.ConversationID,
+			ActorID: actorID,
 		}); err != nil {
 			return fmt.Errorf("update conversation activity: %w", err)
 		}
@@ -151,11 +156,38 @@ func (s *Store) FailExecution(
 }
 
 // FinishExecutionCancellation 由持有租约的实例确认模型调用已经停止后写入取消终态。
-func (s *Store) FinishExecutionCancellation(ctx context.Context, executionID, workerID string) error {
-	err := s.withTransaction(ctx, func(queries *db.Queries) error {
-		now := time.Now().UTC()
+func (s *Store) FinishExecutionCancellation(
+	ctx context.Context,
+	actorID string,
+	executionID string,
+	workerID string,
+) error {
+	stored, err := s.queries.GetExecution(ctx, db.GetExecutionParams{ID: executionID, ActorID: actorID})
+	if err != nil {
+		return executionNotFound(err)
+	}
+	err = s.withTransaction(ctx, func(queries *db.Queries) error {
+		if _, err := queries.GetConversationForUpdate(ctx, db.GetConversationForUpdateParams{
+			ID: stored.ConversationID, ActorID: actorID,
+		}); err != nil {
+			return executionNotFound(err)
+		}
+		locked, err := queries.GetExecutionForUpdate(ctx, db.GetExecutionForUpdateParams{
+			ID: executionID, ActorID: actorID,
+		})
+		if err != nil {
+			return executionNotFound(err)
+		}
+		if locked.State != executionStateRunning || locked.WorkerID != workerID {
+			return execution.ErrLeaseLost
+		}
+		if !locked.CancellationRequested {
+			return execution.ErrStateConflict
+		}
+
 		rows, err := queries.FinishExecutionCancellation(ctx, db.FinishExecutionCancellationParams{
-			FinishedAt: sql.NullTime{Time: now, Valid: true}, ID: executionID, WorkerID: workerID,
+			ID:       executionID,
+			WorkerID: workerID,
 		})
 		if err != nil {
 			return fmt.Errorf("finish assistant execution cancellation: %w", err)
@@ -163,11 +195,14 @@ func (s *Store) FinishExecutionCancellation(ctx context.Context, executionID, wo
 		if rows != 1 {
 			return execution.ErrLeaseLost
 		}
-		if err := queries.CancelRunningExecutionSteps(ctx, db.CancelRunningExecutionStepsParams{
-			FinishedAt:  sql.NullTime{Time: now, Valid: true},
-			ExecutionID: executionID,
-		}); err != nil {
+		if err := queries.CancelRunningExecutionSteps(ctx, executionID); err != nil {
 			return fmt.Errorf("cancel assistant execution steps: %w", err)
+		}
+		if err := queries.TouchConversation(ctx, db.TouchConversationParams{
+			ID:      locked.ConversationID,
+			ActorID: actorID,
+		}); err != nil {
+			return fmt.Errorf("update conversation activity: %w", err)
 		}
 		return nil
 	})

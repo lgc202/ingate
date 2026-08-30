@@ -1,51 +1,84 @@
 package wasmplugin
 
 import (
-	"errors"
-	"net/url"
-	"regexp"
 	"strings"
 
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
+	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
-)
-
-var (
-	sha256Pattern                 = regexp.MustCompile(`^[a-f0-9]{64}$`)
-	errInvalidPluginURL           = errors.New("url must identify a remote Wasm module or OCI image")
-	errUnsupportedPluginURLScheme = errors.New("url scheme must be http, https, or oci")
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
+	"github.com/lgc202/ingate/internal/pkg/wasmconfig"
 )
 
 func validatePlugin(plugin *resource.WasmPlugin) field.ErrorList {
+	metadataNamePath := field.NewPath("metadata", "name")
 	specPath := field.NewPath("spec")
 	spec := plugin.Spec
-	var errs field.ErrorList
+	errs := apiregistry.ValidateResourceID(plugin.Name, metadataNamePath)
 
 	if spec.SourceID == "" {
 		errs = append(errs, field.Required(specPath.Child("sourceID"), "sourceID is required"))
+	} else if !resourceconfig.IsCanonicalID(spec.SourceID) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("sourceID"),
+			spec.SourceID,
+			"sourceID must be a canonical UUID",
+		))
 	}
-	if spec.DisplayName == "" {
-		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
-	}
+	errs = append(errs, apiregistry.ValidateDisplayName(
+		spec.DisplayName,
+		specPath.Child("displayName"),
+	)...)
+	packageValid := true
 	if messages := utilvalidation.IsDNS1123Subdomain(spec.Package); len(messages) > 0 {
 		errs = append(errs, field.Invalid(specPath.Child("package"), spec.Package, strings.Join(messages, "; ")))
+		packageValid = false
 	} else if !resource.IsSupportedWasmPluginPackage(spec.Package) {
 		errs = append(errs, field.NotSupported(
 			specPath.Child("package"),
 			spec.Package,
 			resource.SupportedWasmPluginPackages(),
 		))
+		packageValid = false
 	}
-	if spec.Version == "" {
-		errs = append(errs, field.Required(specPath.Child("version"), "version is required"))
+	if packageValid && plugin.Name != wasmconfig.PluginID(spec.Package) {
+		errs = append(errs, field.Invalid(
+			metadataNamePath,
+			plugin.Name,
+			"must be the stable resource ID derived from spec.package",
+		))
 	}
-	if err := validateURL(spec.URL); err != nil {
-		errs = append(errs, field.Invalid(specPath.Child("url"), spec.URL, err.Error()))
+	if !wasmconfig.IsValidVersion(spec.Version) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("version"),
+			spec.Version,
+			"version must be a semantic version without a v prefix",
+		))
 	}
-	if spec.SHA256 != "" && !sha256Pattern.MatchString(spec.SHA256) {
-		errs = append(errs, field.Invalid(specPath.Child("sha256"), spec.SHA256, "sha256 must contain 64 lowercase hexadecimal characters"))
+	if !wasmconfig.IsValidArtifactURL(spec.URL) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("url"),
+			spec.URL,
+			"url must identify an HTTP, HTTPS, or OCI Wasm artifact",
+		))
+	}
+	if spec.SHA256 == "" {
+		errs = append(errs, field.Required(specPath.Child("sha256"), "sha256 is required"))
+	} else if !wasmconfig.IsValidSHA256Digest(spec.SHA256) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("sha256"),
+			spec.SHA256,
+			"sha256 must contain 64 lowercase hexadecimal characters",
+		))
+	}
+	if !wasmconfig.IsValidRootID(spec.RootID) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("rootID"),
+			spec.RootID,
+			"rootID must not exceed 256 bytes or contain control characters",
+		))
 	}
 	switch spec.PullPolicy {
 	case resource.WasmPluginPullIfNotPresent, resource.WasmPluginPullAlways:
@@ -56,25 +89,4 @@ func validatePlugin(plugin *resource.WasmPlugin) field.ErrorList {
 		}))
 	}
 	return errs
-}
-
-func validateURL(value string) error {
-	parsed, err := url.Parse(value)
-	if err != nil {
-		return err
-	}
-	if parsed.Host == "" {
-		return &url.Error{Op: "parse", URL: value, Err: errInvalidPluginURL}
-	}
-	switch parsed.Scheme {
-	case "http", "https":
-		return nil
-	case "oci":
-		if strings.Trim(parsed.Path, "/") == "" {
-			return &url.Error{Op: "parse", URL: value, Err: errInvalidPluginURL}
-		}
-		return nil
-	default:
-		return &url.Error{Op: "parse", URL: value, Err: errUnsupportedPluginURLScheme}
-	}
 }

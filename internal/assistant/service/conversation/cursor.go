@@ -1,67 +1,97 @@
 package conversation
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
+	"time"
+
+	"github.com/google/uuid"
 
 	conversationbiz "github.com/lgc202/ingate/internal/assistant/biz/conversation"
 )
 
-func encodeConversationCursor(cursor *conversationbiz.ConversationCursor) (string, error) {
+const maxCursorLength = 512
+
+type cursorValue struct {
+	Timestamp time.Time `json:"timestamp"`
+	ID        string    `json:"id"`
+}
+
+func formatConversationCursor(cursor *conversationbiz.ConversationCursor) (string, error) {
 	if cursor == nil {
 		return "", nil
 	}
-	value, err := json.Marshal(cursor)
-	if err != nil {
-		return "", fmt.Errorf("marshal conversation cursor: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(value), nil
+	return formatCursor(cursor.UpdatedAt, cursor.ID)
 }
 
-func decodeConversationCursor(value string) (*conversationbiz.ConversationCursor, error) {
+func parseConversationCursor(value string) (*conversationbiz.ConversationCursor, error) {
 	if value == "" {
 		return nil, nil
 	}
-	decoded, err := base64.RawURLEncoding.DecodeString(value)
+	cursor, err := parseCursor(value)
 	if err != nil {
-		return nil, fmt.Errorf("decode conversation cursor: %w", err)
+		return nil, err
 	}
-	var cursor conversationbiz.ConversationCursor
-	if err := json.Unmarshal(decoded, &cursor); err != nil {
-		return nil, fmt.Errorf("unmarshal conversation cursor: %w", err)
-	}
-	if cursor.UpdatedAt.IsZero() || cursor.ID == "" {
-		return nil, fmt.Errorf("conversation cursor is incomplete")
-	}
-	return &cursor, nil
+	return &conversationbiz.ConversationCursor{
+		UpdatedAt: cursor.Timestamp,
+		ID:        cursor.ID,
+	}, nil
 }
 
-func encodeMessageCursor(cursor *conversationbiz.MessageCursor) (string, error) {
+func formatMessageCursor(cursor *conversationbiz.MessageCursor) (string, error) {
 	if cursor == nil {
 		return "", nil
 	}
-	value, err := json.Marshal(cursor)
-	if err != nil {
-		return "", fmt.Errorf("marshal message cursor: %w", err)
-	}
-	return base64.RawURLEncoding.EncodeToString(value), nil
+	return formatCursor(cursor.CreatedAt, cursor.ID)
 }
 
-func decodeMessageCursor(value string) (*conversationbiz.MessageCursor, error) {
+func parseMessageCursor(value string) (*conversationbiz.MessageCursor, error) {
 	if value == "" {
 		return nil, nil
 	}
+	cursor, err := parseCursor(value)
+	if err != nil {
+		return nil, err
+	}
+	return &conversationbiz.MessageCursor{
+		CreatedAt: cursor.Timestamp,
+		ID:        cursor.ID,
+	}, nil
+}
+
+func formatCursor(timestamp time.Time, id string) (string, error) {
+	encoded, err := json.Marshal(cursorValue{Timestamp: timestamp, ID: id})
+	if err != nil {
+		return "", fmt.Errorf("marshal page cursor: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(encoded), nil
+}
+
+func parseCursor(value string) (cursorValue, error) {
+	if len(value) > maxCursorLength {
+		return cursorValue{}, errors.New("page cursor exceeds the size limit")
+	}
 	decoded, err := base64.RawURLEncoding.DecodeString(value)
 	if err != nil {
-		return nil, fmt.Errorf("decode message cursor: %w", err)
+		return cursorValue{}, fmt.Errorf("decode page cursor: %w", err)
 	}
-	var cursor conversationbiz.MessageCursor
-	if err := json.Unmarshal(decoded, &cursor); err != nil {
-		return nil, fmt.Errorf("unmarshal message cursor: %w", err)
+	decoder := json.NewDecoder(bytes.NewReader(decoded))
+	decoder.DisallowUnknownFields()
+	var cursor cursorValue
+	if err := decoder.Decode(&cursor); err != nil {
+		return cursorValue{}, fmt.Errorf("unmarshal page cursor: %w", err)
 	}
-	if cursor.CreatedAt.IsZero() || cursor.ID == "" {
-		return nil, fmt.Errorf("message cursor is incomplete")
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		return cursorValue{}, errors.New("page cursor contains trailing data")
 	}
-	return &cursor, nil
+	if cursor.Timestamp.IsZero() || cursor.Timestamp.Year() < 1000 ||
+		cursor.Timestamp.Year() > 9999 || uuid.Validate(cursor.ID) != nil {
+		return cursorValue{}, errors.New("page cursor contains invalid values")
+	}
+	cursor.Timestamp = cursor.Timestamp.UTC()
+	return cursor, nil
 }

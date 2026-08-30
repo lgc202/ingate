@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"golang.org/x/sync/errgroup"
@@ -12,17 +13,17 @@ import (
 	trafficbiz "github.com/lgc202/ingate/internal/adminapi/biz/traffic"
 )
 
-// TrafficRepository 通过 Analytics gRPC 查询流量聚合结果
+// TrafficRepository 通过 Analytics gRPC 查询流量聚合结果。
 type TrafficRepository struct {
 	client analyticsv1.TrafficServiceClient
 }
 
-// NewTrafficRepository 创建流量分析 Repository
+// NewTrafficRepository 创建流量分析 Repository。
 func NewTrafficRepository(connection *grpc.ClientConn) *TrafficRepository {
 	return &TrafficRepository{client: analyticsv1.NewTrafficServiceClient(connection)}
 }
 
-// Analyze 查询同一范围内的汇总、趋势和资源排名
+// Analyze 查询同一范围内的汇总、趋势和资源排名。
 func (r *TrafficRepository) Analyze(ctx context.Context, query trafficbiz.Query) (trafficbiz.Analysis, error) {
 	var (
 		trendReply     *analyticsv1.GetTrafficTrendResponse
@@ -35,7 +36,7 @@ func (r *TrafficRepository) Analyze(ctx context.Context, query trafficbiz.Query)
 			Filter: analyticsTrafficFilter(query.Filter),
 			Bucket: analyticsTimeBucket(query.Bucket),
 		})
-		return trafficQueryError("query traffic trend", err)
+		return trafficQueryError(ctx, "query traffic trend", err)
 	})
 	group.Go(func() error {
 		var err error
@@ -45,19 +46,28 @@ func (r *TrafficRepository) Analyze(ctx context.Context, query trafficbiz.Query)
 			Order:     analyticsTrafficBreakdownOrder(query.Order),
 			Limit:     uint32(query.Limit),
 		})
-		return trafficQueryError("query traffic breakdown", err)
+		return trafficQueryError(ctx, "query traffic breakdown", err)
 	})
-	// 趋势和资源排名是同一分析页面的两个独立结果。并行请求避免两次 Analytics RPC
+	// 趋势和资源排名是同一分析页面的两个独立结果。并行请求避免两次 Analytics RPC。
 	// 串行占用调用方的超时预算；任一失败时取消另一条请求，不继续制造无用查询。
 	if err := group.Wait(); err != nil {
 		return trafficbiz.Analysis{}, err
+	}
+	if trendReply == nil {
+		return trafficbiz.Analysis{}, errors.New("analytics returned an empty traffic trend response")
+	}
+	if breakdownReply == nil {
+		return trafficbiz.Analysis{}, errors.New("analytics returned an empty traffic breakdown response")
+	}
+	if len(breakdownReply.GetItems()) > query.Limit {
+		return trafficbiz.Analysis{}, errors.New("analytics returned too many traffic breakdown items")
 	}
 
 	summary, err := trafficSummary(trendReply.GetSummary())
 	if err != nil {
 		return trafficbiz.Analysis{}, fmt.Errorf("convert traffic summary: %w", err)
 	}
-	trend, err := trafficTrend(trendReply.GetPoints())
+	trend, err := trafficTrend(trendReply.GetPoints(), query.Filter)
 	if err != nil {
 		return trafficbiz.Analysis{}, err
 	}
@@ -74,17 +84,7 @@ func (r *TrafficRepository) Analyze(ctx context.Context, query trafficbiz.Query)
 	}, nil
 }
 
-func analyticsTrafficFilter(filter trafficbiz.Filter) *analyticsv1.TrafficFilter {
-	return &analyticsv1.TrafficFilter{
-		StartTime:  timestamppb.New(filter.StartTime),
-		EndTime:    timestamppb.New(filter.EndTime),
-		GatewayId:  filter.GatewayID,
-		RouteId:    filter.RouteID,
-		UpstreamId: filter.ServiceID,
-	}
-}
-
-// BatchGetResourceTraffic 查询指定资源的列表流量摘要
+// BatchGetResourceTraffic 查询指定资源的列表流量摘要。
 func (r *TrafficRepository) BatchGetResourceTraffic(
 	ctx context.Context,
 	query trafficbiz.ResourceTrafficQuery,
@@ -96,16 +96,22 @@ func (r *TrafficRepository) BatchGetResourceTraffic(
 		ResourceIds: query.ResourceIDs,
 	})
 	if err != nil {
-		return nil, trafficQueryError("query resource traffic", err)
+		return nil, trafficQueryError(ctx, "query resource traffic", err)
 	}
-	return resourceTrafficSummaries(reply.GetSummaries())
+	if reply == nil {
+		return nil, errors.New("analytics returned an empty resource traffic response")
+	}
+	return resourceTrafficSummaries(reply.GetSummaries(), query.ResourceIDs)
 }
 
-func trafficQueryError(operation string, err error) error {
+func trafficQueryError(ctx context.Context, operation string, err error) error {
 	if err == nil {
 		return nil
 	}
-	if isUnavailable(err) {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	if isUnavailable(ctx, err) {
 		return trafficbiz.Unavailable(err)
 	}
 	return fmt.Errorf("%s: %w", operation, err)

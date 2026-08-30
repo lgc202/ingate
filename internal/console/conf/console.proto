@@ -35,8 +35,6 @@ message Server {
   message HTTP {
     // addr 是控制台和管理 API 代理的监听地址
     string addr = 1;
-    // timeout 限制单次 HTTP 请求处理时间
-    google.protobuf.Duration timeout = 2;
   }
   // http 定义控制台唯一的网络入口
   HTTP http = 1;

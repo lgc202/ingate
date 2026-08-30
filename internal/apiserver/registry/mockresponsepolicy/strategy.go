@@ -2,6 +2,7 @@ package mockresponsepolicy
 
 import (
 	"context"
+	"slices"
 	"strings"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
@@ -12,6 +13,8 @@ import (
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+	"github.com/lgc202/ingate/internal/pkg/mockresponseconfig"
 )
 
 type strategy struct {
@@ -20,10 +23,6 @@ type strategy struct {
 
 type statusStrategy struct {
 	strategy
-}
-
-func newStrategy(typer runtime.ObjectTyper) strategy {
-	return strategy{Strategy: apiregistry.NewStrategy(typer)}
 }
 
 func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
@@ -35,10 +34,6 @@ func (strategy) PrepareForCreate(_ context.Context, obj runtime.Object) {
 
 func (strategy) Validate(_ context.Context, obj runtime.Object) field.ErrorList {
 	return validatePolicy(obj.(*resource.MockResponsePolicy))
-}
-
-func (strategy) Canonicalize(obj runtime.Object) {
-	canonicalizeSpec(&obj.(*resource.MockResponsePolicy).Spec)
 }
 
 func (strategy) PrepareForUpdate(_ context.Context, obj, old runtime.Object) {
@@ -55,10 +50,6 @@ func (strategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.E
 	return validatePolicy(obj.(*resource.MockResponsePolicy))
 }
 
-func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
-	return statusStrategy{strategy: newStrategy(typer)}
-}
-
 func (statusStrategy) GetResetFields() map[fieldpath.APIVersion]*fieldpath.Set {
 	return apiregistry.SpecResetFields()
 }
@@ -71,18 +62,36 @@ func (statusStrategy) PrepareForUpdate(_ context.Context, obj, old runtime.Objec
 	metav1.ResetObjectMetaForStatus(&newPolicy.ObjectMeta, &oldPolicy.ObjectMeta)
 }
 
-func (statusStrategy) ValidateUpdate(context.Context, runtime.Object, runtime.Object) field.ErrorList {
-	return nil
+func (statusStrategy) ValidateUpdate(_ context.Context, obj, _ runtime.Object) field.ErrorList {
+	policy := obj.(*resource.MockResponsePolicy)
+	return apiregistry.ValidatePolicyStatus(
+		policy.Status,
+		policy.Spec.TargetRefs,
+		policy.Generation,
+	)
+}
+
+func newStrategy(typer runtime.ObjectTyper) strategy {
+	return strategy{Strategy: apiregistry.NewStrategy(typer)}
+}
+
+func newStatusStrategy(typer runtime.ObjectTyper) statusStrategy {
+	return statusStrategy{strategy: newStrategy(typer)}
 }
 
 func canonicalizeSpec(spec *resource.MockResponsePolicySpec) {
 	spec.DisplayName = strings.TrimSpace(spec.DisplayName)
-	spec.ContentType = strings.TrimSpace(spec.ContentType)
-	for i := range spec.TargetRefs {
-		spec.TargetRefs[i].Name = strings.TrimSpace(spec.TargetRefs[i].Name)
+	if contentType, valid := mockresponseconfig.NormalizeContentType(spec.ContentType); valid {
+		spec.ContentType = contentType
+	} else {
+		spec.ContentType = strings.TrimSpace(spec.ContentType)
 	}
+	apiregistry.CanonicalizePolicyTargetRefs(spec.TargetRefs)
 	for i := range spec.Headers {
-		spec.Headers[i].Name = strings.ToLower(strings.TrimSpace(spec.Headers[i].Name))
-		spec.Headers[i].Value = strings.TrimSpace(spec.Headers[i].Value)
+		spec.Headers[i].Name = httpheader.NormalizeName(spec.Headers[i].Name)
+		spec.Headers[i].Value = httpheader.NormalizeValue(spec.Headers[i].Value)
 	}
+	slices.SortFunc(spec.Headers, func(left, right resource.HeaderValue) int {
+		return strings.Compare(left.Name, right.Name)
+	})
 }

@@ -22,8 +22,8 @@ const (
 	authzRequestTimeout = 2 * time.Second
 )
 
-// buildAuthorizationHTTPFilter 使用 Envoy 官方 ext_authz 过滤器连接同步准入服务
-// 过滤器默认关闭，只由需要 Caller 身份或限流规则的 Route 显式启用
+// buildAuthorizationHTTPFilter 使用 Envoy 官方 ext_authz 过滤器连接同步准入服务。
+// 过滤器默认关闭，只由需要 Caller 身份或限流规则的 Route 显式启用。
 func buildAuthorizationHTTPFilter() (*hcmv3.HttpFilter, error) {
 	configuration := &extauthzv3.ExtAuthz{
 		Services: &extauthzv3.ExtAuthz_GrpcService{GrpcService: &corev3.GrpcService{
@@ -36,8 +36,8 @@ func buildAuthorizationHTTPFilter() (*hcmv3.HttpFilter, error) {
 		FailureModeAllow:    false,
 		StatusOnError:       &typev3.HttpStatus{Code: typev3.StatusCode_ServiceUnavailable},
 		ValidateMutations:   true,
-		// gRPC ext_authz 未配置 AllowedHeaders 时会按 Envoy 协议传递全部请求 Header
-		// Header 主体限流依赖该标准行为，Authz 只在进程内读取这些值，不会写入日志
+		// gRPC ext_authz 未配置 AllowedHeaders 时会按 Envoy 协议传递全部请求 Header。
+		// Header 主体限流依赖该标准行为，Authz 只在进程内读取这些值，不会写入日志。
 	}
 	if err := configuration.ValidateAll(); err != nil {
 		return nil, fmt.Errorf("validate authorization filter: %w", err)
@@ -63,12 +63,20 @@ func (c *compilation) routeAccessConfig(route *gatewayv1.Route) (*anypb.Any, boo
 			extauthz.CallerRequiredContext: "true",
 		})
 		if err != nil {
-			c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonCompileFailed, fmt.Sprintf("encode Caller authorization for route %q: %v", route.Name, err))
+			c.addRouteError(
+				route.Name,
+				ReasonCompileFailed,
+				fmt.Sprintf("encode Caller authorization for route %q: %v", route.Name, err),
+			)
 			return nil, false
 		}
 		return typedConfig, true
 	default:
-		c.addDiagnostic(SeverityError, gatewayv1.KindRoute, route.Name, ReasonUnsupported, fmt.Sprintf("route %q uses unsupported access mode %q", route.Name, route.Spec.AccessMode))
+		c.addRouteError(
+			route.Name,
+			ReasonUnsupported,
+			fmt.Sprintf("route %q uses unsupported access mode %q", route.Name, route.Spec.AccessMode),
+		)
 		return nil, false
 	}
 }

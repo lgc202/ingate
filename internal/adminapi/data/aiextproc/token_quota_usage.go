@@ -4,49 +4,99 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/go-kratos/kratos/v3/errors"
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	aiextprocv1 "github.com/lgc202/ingate/api/aiextproc/v1"
 	tokenquotabiz "github.com/lgc202/ingate/internal/adminapi/biz/tokenquota"
+	"github.com/lgc202/ingate/internal/pkg/tokenquotaconfig"
 )
 
-// TokenQuotaUsageReader 从 AI ExtProc 读取实时额度计数
+// TokenQuotaUsageReader 从 AI ExtProc 读取实时额度计数。
 type TokenQuotaUsageReader struct {
-	client *Client
+	client aiextprocv1.TokenQuotaUsageServiceClient
 }
 
-// NewTokenQuotaUsageReader 创建实时额度读取器
-func NewTokenQuotaUsageReader(client *Client) *TokenQuotaUsageReader {
+// NewTokenQuotaUsageReader 创建实时额度读取器。
+func NewTokenQuotaUsageReader(
+	client aiextprocv1.TokenQuotaUsageServiceClient,
+) *TokenQuotaUsageReader {
 	return &TokenQuotaUsageReader{client: client}
 }
 
-// Current 查询调用方当前实际命中的全部额度
+// Current 查询调用方当前实际命中的全部额度。
 func (r *TokenQuotaUsageReader) Current(ctx context.Context, callerID string) ([]tokenquotabiz.Usage, error) {
-	response, err := r.client.usage.GetCallerUsage(ctx, &aiextprocv1.GetCallerUsageRequest{CallerId: callerID})
+	response, err := r.client.GetCallerUsage(ctx, &aiextprocv1.GetCallerUsageRequest{CallerId: callerID})
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
 		switch status.Code(err) {
 		case codes.Unavailable, codes.DeadlineExceeded:
-			return nil, tokenquotabiz.UsageUnavailable(err)
+			return nil, errors.ServiceUnavailable(
+				adminv1.ErrorReason_DEPENDENCY_UNAVAILABLE.String(),
+				"实时额度暂时不可用，请稍后重试",
+			).WithCause(err)
 		default:
 			return nil, fmt.Errorf("query caller token quota usage: %w", err)
 		}
 	}
-	usages := make([]tokenquotabiz.Usage, 0, len(response.GetUsages()))
-	for _, usage := range response.GetUsages() {
+	if response == nil {
+		return nil, fmt.Errorf("AI ExtProc returned an empty token quota response for caller %q", callerID)
+	}
+	items := response.GetUsages()
+	usages := make([]tokenquotabiz.Usage, len(items))
+	seen := make(map[string]bool, len(items))
+	for i, usage := range items {
+		if usage == nil {
+			return nil, fmt.Errorf("AI ExtProc returned an empty token quota usage at index %d", i)
+		}
+		policyID := usage.GetPolicyId()
+		parsedPolicyID, err := uuid.Parse(policyID)
+		if err != nil || parsedPolicyID.String() != policyID {
+			return nil, fmt.Errorf("AI ExtProc returned an invalid policy ID at index %d", i)
+		}
+		if seen[policyID] {
+			return nil, fmt.Errorf("AI ExtProc returned duplicate usage for policy %q", policyID)
+		}
+		seen[policyID] = true
 		period, err := tokenQuotaPeriod(usage.GetPeriod())
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("AI ExtProc returned an invalid period at index %d: %w", i, err)
 		}
-		usages = append(usages, tokenquotabiz.Usage{
-			PolicyID:   usage.GetPolicyId(),
+		usedTokens := usage.GetUsedTokens()
+		if usedTokens < 0 {
+			return nil, fmt.Errorf("AI ExtProc returned negative token usage at index %d", i)
+		}
+		limitTokens := usage.GetLimitTokens()
+		if !tokenquotaconfig.IsValidTokenLimit(limitTokens) {
+			return nil, fmt.Errorf("AI ExtProc returned an invalid token limit at index %d", i)
+		}
+		startedAt := usage.GetStartedAt()
+		if startedAt == nil || startedAt.CheckValid() != nil {
+			return nil, fmt.Errorf("AI ExtProc returned an invalid start time at index %d", i)
+		}
+		resetsAt := usage.GetResetsAt()
+		if resetsAt == nil || resetsAt.CheckValid() != nil {
+			return nil, fmt.Errorf("AI ExtProc returned an invalid reset time at index %d", i)
+		}
+		start := startedAt.AsTime()
+		resetAt := resetsAt.AsTime()
+		if !resetAt.After(start) {
+			return nil, fmt.Errorf("AI ExtProc returned an invalid period range at index %d", i)
+		}
+		usages[i] = tokenquotabiz.Usage{
+			PolicyID:   policyID,
 			PolicyName: usage.GetPolicyName(),
 			Period:     period,
-			Used:       usage.GetUsedTokens(),
-			Limit:      usage.GetLimitTokens(),
-			Start:      usage.GetStartedAt().AsTime(),
-			ResetAt:    usage.GetResetsAt().AsTime(),
-		})
+			Used:       usedTokens,
+			Limit:      limitTokens,
+			StartedAt:  start,
+			ResetAt:    resetAt,
+		}
 	}
 	return usages, nil
 }

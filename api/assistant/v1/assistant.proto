@@ -9,7 +9,7 @@ import "google/protobuf/timestamp.proto";
 
 option go_package = "github.com/lgc202/ingate/api/assistant/v1;v1";
 
-// ConversationService 提供运维助手的会话与消息查询接口
+// ConversationService 提供运维助手的会话与消息查询接口。
 service ConversationService {
   rpc ListConversations(ListConversationsRequest) returns (ListConversationsResponse) {
     option (google.api.http) = {get: "/assistant/v1/conversations"};
@@ -59,7 +59,7 @@ service AgentExecutionService {
   }
 }
 
-// ModelConnectionService 管理运维助手当前生效的模型连接
+// ModelConnectionService 管理运维助手当前生效的模型连接。
 service ModelConnectionService {
   rpc GetModelConnection(google.protobuf.Empty) returns (ModelConnection) {
     option (google.api.http) = {get: "/assistant/v1/model-connection"};
@@ -73,195 +73,292 @@ service ModelConnectionService {
 }
 
 enum ModelConnectionMode {
+  // MODEL_CONNECTION_MODE_UNSPECIFIED 表示尚未选择连接路径。
   MODEL_CONNECTION_MODE_UNSPECIFIED = 0;
+  // MODEL_CONNECTION_MODE_DIRECT 表示 Assistant 直接访问模型厂商。
   MODEL_CONNECTION_MODE_DIRECT = 1;
+  // MODEL_CONNECTION_MODE_INGATE 表示 Assistant 通过 Ingate AI Route 访问模型。
   MODEL_CONNECTION_MODE_INGATE = 2;
 }
 
 // ModelProtocol 表示 Assistant 与模型端点之间实际使用的协议。
 // 经过 Ingate 时始终使用 OpenAI 兼容协议，由网关负责适配具体模型厂商。
 enum ModelProtocol {
+  // MODEL_PROTOCOL_UNSPECIFIED 表示尚未选择模型协议。
   MODEL_PROTOCOL_UNSPECIFIED = 0;
+  // MODEL_PROTOCOL_OPENAI_COMPATIBLE 表示 OpenAI Chat Completions 兼容协议。
   MODEL_PROTOCOL_OPENAI_COMPATIBLE = 1;
+  // MODEL_PROTOCOL_ANTHROPIC 表示 Anthropic Messages 原生协议。
   MODEL_PROTOCOL_ANTHROPIC = 2;
 }
 
+// MessageRole 表示持久消息在一次会话中的职责。
 enum MessageRole {
+  // MESSAGE_ROLE_UNSPECIFIED 不用于已持久化消息。
   MESSAGE_ROLE_UNSPECIFIED = 0;
+  // MESSAGE_ROLE_USER 表示管理员输入。
   MESSAGE_ROLE_USER = 1;
+  // MESSAGE_ROLE_ASSISTANT 表示 Agent 最终回答。
   MESSAGE_ROLE_ASSISTANT = 2;
 }
 
+// AgentExecutionState 表示一次异步 Agent 执行的生命周期状态。
 enum AgentExecutionState {
+  // AGENT_EXECUTION_STATE_UNSPECIFIED 不用于已创建的执行。
   AGENT_EXECUTION_STATE_UNSPECIFIED = 0;
+  // AGENT_EXECUTION_STATE_QUEUED 表示执行正在等待后台实例领取。
   AGENT_EXECUTION_STATE_QUEUED = 1;
+  // AGENT_EXECUTION_STATE_RUNNING 表示后台实例持有租约并正在执行。
   AGENT_EXECUTION_STATE_RUNNING = 2;
+  // AGENT_EXECUTION_STATE_SUCCEEDED 表示最终回答已经持久化。
   AGENT_EXECUTION_STATE_SUCCEEDED = 3;
+  // AGENT_EXECUTION_STATE_FAILED 表示执行以稳定错误码结束。
   AGENT_EXECUTION_STATE_FAILED = 4;
+  // AGENT_EXECUTION_STATE_CANCELLED 表示执行已经响应管理员取消请求。
   AGENT_EXECUTION_STATE_CANCELLED = 5;
 }
 
 // AgentExecutionStepKind 表示一次 Agent 执行中可持久追踪的步骤类型。
 enum AgentExecutionStepKind {
+  // AGENT_EXECUTION_STEP_KIND_UNSPECIFIED 不用于已持久化步骤。
   AGENT_EXECUTION_STEP_KIND_UNSPECIFIED = 0;
+  // AGENT_EXECUTION_STEP_KIND_MODEL_CALL 表示一次模型调用。
   AGENT_EXECUTION_STEP_KIND_MODEL_CALL = 1;
+  // AGENT_EXECUTION_STEP_KIND_TOOL_CALL 表示一次工具调用。
   AGENT_EXECUTION_STEP_KIND_TOOL_CALL = 2;
 }
 
 // AgentExecutionStepState 表示执行步骤自身的生命周期。
 enum AgentExecutionStepState {
+  // AGENT_EXECUTION_STEP_STATE_UNSPECIFIED 不用于已持久化步骤。
   AGENT_EXECUTION_STEP_STATE_UNSPECIFIED = 0;
+  // AGENT_EXECUTION_STEP_STATE_RUNNING 表示调用已经开始。
   AGENT_EXECUTION_STEP_STATE_RUNNING = 1;
+  // AGENT_EXECUTION_STEP_STATE_COMPLETED 表示调用已经正常结束。
   AGENT_EXECUTION_STEP_STATE_COMPLETED = 2;
+  // AGENT_EXECUTION_STEP_STATE_FAILED 表示调用因不可恢复错误结束。
   AGENT_EXECUTION_STEP_STATE_FAILED = 3;
+  // AGENT_EXECUTION_STEP_STATE_CANCELLED 表示调用随所属执行取消而结束。
   AGENT_EXECUTION_STEP_STATE_CANCELLED = 4;
 }
 
+// Conversation 是一个管理员与运维助手的持久会话。
 message Conversation {
+  // id 是不可变的会话标识。
   string id = 1;
+  // title 是控制台展示的会话名称。
   string title = 2;
+  // created_at 是会话创建时间。
   google.protobuf.Timestamp created_at = 3;
+  // updated_at 是最近一次消息或执行状态变化时间。
   google.protobuf.Timestamp updated_at = 4;
 }
 
+// Message 是已经持久化的用户输入或 Agent 最终回答。
 message Message {
+  // id 是不可变的消息标识。
   string id = 1;
+  // conversation_id 是消息所属会话。
   string conversation_id = 2;
+  // execution_id 是产生或消费该消息的执行。
   string execution_id = 3;
+  // role 区分管理员输入和 Agent 回答。
   MessageRole role = 4;
+  // content 是用户输入或最终回答正文。
   string content = 5;
   // reasoning_content 只包含模型厂商明确返回的推理内容，不包含服务端隐藏指令。
   string reasoning_content = 6 [json_name = "reasoningContent"];
+  // created_at 是消息持久化时间。
   google.protobuf.Timestamp created_at = 7;
 }
 
+// AgentExecution 记录一条用户输入从排队到终态的生命周期。
 message AgentExecution {
+  // id 是不可变的执行标识。
   string id = 1;
+  // conversation_id 是执行所属会话。
   string conversation_id = 2;
+  // state 是当前持久状态。
   AgentExecutionState state = 3;
+  // model 是本次执行实际选中的模型，领取前为空。
   string model = 4;
+  // error_code 仅在失败状态下返回稳定且可公开的错误码。
   string error_code = 5;
+  // started_at 在后台实例领取执行后出现。
   google.protobuf.Timestamp started_at = 6;
+  // finished_at 仅在终态下出现。
   google.protobuf.Timestamp finished_at = 7;
+  // created_at 是执行进入队列的时间。
   google.protobuf.Timestamp created_at = 8;
+  // cancellation_requested 表示运行中的执行已经收到取消请求。
   bool cancellation_requested = 9;
 }
 
 // AgentExecutionStep 记录一次执行中已经发生的步骤，不保存原始工具输出或敏感参数。
 message AgentExecutionStep {
+  // id 是不可变的步骤标识。
   string id = 1;
+  // execution_id 是步骤所属执行。
   string execution_id = 2;
+  // sequence 是所属执行内从 1 开始的稳定顺序。
   uint32 sequence = 3;
+  // kind 区分模型调用和工具调用。
   AgentExecutionStepKind kind = 4;
+  // state 是该调用当前的生命周期状态。
   AgentExecutionStepState state = 5;
+  // name 是模型名或工具稳定名称。
   string name = 6;
+  // summary 是经过脱敏、可向管理员展示的完成摘要。
   string summary = 7;
+  // error_code 仅在失败状态下返回稳定且可公开的错误码。
   string error_code = 8;
-  google.protobuf.Timestamp created_at = 9;
-  google.protobuf.Timestamp started_at = 10;
-  google.protobuf.Timestamp finished_at = 11;
+  // started_at 是调用开始时间；步骤创建时即进入运行状态。
+  google.protobuf.Timestamp started_at = 9;
+  // finished_at 仅在终态下出现。
+  google.protobuf.Timestamp finished_at = 10;
 }
 
+// ListConversationsRequest 定义会话列表的分页条件。
 message ListConversationsRequest {
+  // limit 是期望返回的最大条目数，零使用服务端默认值。
   int32 limit = 1 [(buf.validate.field).int32.gte = 0];
+  // cursor 是上一页返回的不透明游标。
   string cursor = 2;
 }
 
+// ListConversationsResponse 返回一页会话和后续游标。
 message ListConversationsResponse {
+  // conversations 按最近活动时间倒序排列。
   repeated Conversation conversations = 1;
+  // next_cursor 为空时表示没有下一页。
   string next_cursor = 2;
 }
 
+// GetConversationRequest 指定当前管理员要读取的会话。
 message GetConversationRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
+// CreateConversationRequest 创建一个会话；标题为空时使用服务端默认名称。
 message CreateConversationRequest {
   string title = 1 [(buf.validate.field).string.max_len = 160];
 }
 
+// UpdateConversationRequest 完整替换会话标题。
 message UpdateConversationRequest {
+  // id 是目标会话标识。
   string id = 1 [(buf.validate.field).string.uuid = true];
+  // title 是新的非空展示名称。
   string title = 2 [(buf.validate.field).string = {
     min_len: 1
     max_len: 160
   }];
 }
 
+// DeleteConversationRequest 指定要删除的会话。
 message DeleteConversationRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
+// ListMessagesRequest 定义一段会话消息的正序分页条件。
 message ListMessagesRequest {
+  // conversation_id 是目标会话标识。
   string conversation_id = 1 [(buf.validate.field).string.uuid = true];
+  // limit 是期望返回的最大条目数，零使用服务端默认值。
   int32 limit = 2 [(buf.validate.field).int32.gte = 0];
+  // cursor 是上一页返回的不透明游标。
   string cursor = 3;
 }
 
+// ListMessagesResponse 返回一页持久消息和后续游标。
 message ListMessagesResponse {
   repeated Message messages = 1;
+  // next_cursor 为空时表示没有下一页。
   string next_cursor = 2;
 }
 
+// GetAgentExecutionRequest 指定要查询的执行。
 message GetAgentExecutionRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
+// ListAgentExecutionStepsRequest 指定要查询执行步骤的执行。
 message ListAgentExecutionStepsRequest {
   string execution_id = 1 [(buf.validate.field).string.uuid = true];
 }
 
+// ListAgentExecutionStepsResponse 按 sequence 返回已经持久化的步骤。
 message ListAgentExecutionStepsResponse {
   repeated AgentExecutionStep steps = 1;
 }
 
+// CreateAgentExecutionRequest 把一条用户消息加入指定会话的执行队列。
 message CreateAgentExecutionRequest {
+  // conversation_id 是目标会话标识。
   string conversation_id = 1 [(buf.validate.field).string.uuid = true];
+  // content 是进入模型上下文的用户消息。
   string content = 2 [(buf.validate.field).string = {
     min_len: 1
     max_len: 65536
   }];
 }
 
+// CancelAgentExecutionRequest 指定要取消的排队中或运行中执行。
 message CancelAgentExecutionRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
 }
 
 // ModelConnection 只返回非敏感连接信息，API Key 仅暴露是否已配置。
 message ModelConnection {
+  // configured 区分首次配置默认值和已经持久化的连接。
   bool configured = 1;
+  // connection_mode 决定模型流量是直连还是经过 Ingate。
   ModelConnectionMode connection_mode = 2 [json_name = "connectionMode"];
+  // protocol 是 Assistant 发往端点的实际协议。
   ModelProtocol protocol = 3;
+  // endpoint 是模型 API 根地址。
   string endpoint = 4;
+  // model 是直连模型名或 Ingate AI Route 暴露的模型名。
   string model = 5;
+  // api_key_configured 只表示凭据是否存在，不返回凭据原文。
   bool api_key_configured = 6 [json_name = "apiKeyConfigured"];
+  // timeout_seconds 是单次模型请求超时。
   uint32 timeout_seconds = 7 [json_name = "timeoutSeconds"];
+  // max_output_tokens 是单次回答允许生成的最大 Token 数。
   uint32 max_output_tokens = 8 [json_name = "maxOutputTokens"];
   // reasoning_budget_tokens 仅用于主动开启 Anthropic 扩展思考，0 表示关闭。
   uint32 reasoning_budget_tokens = 9 [json_name = "reasoningBudgetTokens"];
+  // updated_at 只在 configured 为 true 时出现。
   google.protobuf.Timestamp updated_at = 10 [json_name = "updatedAt"];
 }
 
 // UpdateModelConnectionRequest 中未提供 api_key 表示保留原凭据，clear_api_key 表示明确删除。
 message UpdateModelConnectionRequest {
+  // connection_mode 决定模型流量的网络路径。
   ModelConnectionMode connection_mode = 1 [
     json_name = "connectionMode",
     (buf.validate.field).enum.defined_only = true
   ];
+  // protocol 是 Assistant 发往端点的实际协议。
   ModelProtocol protocol = 2 [(buf.validate.field).enum.defined_only = true];
+  // endpoint 是不含查询参数和片段的模型 API 根地址。
   string endpoint = 3 [(buf.validate.field).string = {
     min_len: 1
     max_len: 2048
   }];
+  // model 是端点实际接受的模型名。
   string model = 4 [(buf.validate.field).string = {
     min_len: 1
     max_len: 160
   }];
+  // api_key 提供时替换已保存凭据；省略时保留原值。
   optional string api_key = 5 [
     json_name = "apiKey",
     (buf.validate.field).string.max_len = 4096
   ];
+  // clear_api_key 明确删除已保存凭据，不能与 api_key 同时使用。
   bool clear_api_key = 6 [json_name = "clearApiKey"];
+  // timeout_seconds 是单次模型请求超时。
   uint32 timeout_seconds = 7 [
     json_name = "timeoutSeconds",
     (buf.validate.field).uint32 = {
@@ -269,6 +366,7 @@ message UpdateModelConnectionRequest {
       lte: 1800
     }
   ];
+  // max_output_tokens 是单次回答允许生成的最大 Token 数。
   uint32 max_output_tokens = 8 [
     json_name = "maxOutputTokens",
     (buf.validate.field).uint32 = {

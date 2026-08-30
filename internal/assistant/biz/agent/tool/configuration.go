@@ -23,6 +23,11 @@ type routeConfigurationOutput struct {
 	Services []serviceInfo           `json:"services,omitempty"`
 }
 
+// RouteConfigurationReader 是单条路由配置工具实际使用的查询边界。
+type RouteConfigurationReader interface {
+	GetRouteConfiguration(context.Context, string) (RouteConfiguration, error)
+}
+
 type routeConfigurationInfo struct {
 	ID            string                `json:"id"`
 	Name          string                `json:"name"`

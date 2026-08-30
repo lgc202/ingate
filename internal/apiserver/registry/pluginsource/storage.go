@@ -1,4 +1,4 @@
-// Package pluginsource 提供 PluginSource 的 API Server 存储与校验
+// Package pluginsource 提供 PluginSource 的 API Server 存储与校验。
 package pluginsource
 
 import (
@@ -10,7 +10,7 @@ import (
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
 )
 
-// NewREST 创建 PluginSource 主资源与 status 子资源存储
+// NewREST 创建 PluginSource 主资源与 status 子资源存储。
 func NewREST(
 	optsGetter generic.RESTOptionsGetter,
 	typer runtime.ObjectTyper,

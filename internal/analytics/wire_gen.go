@@ -7,6 +7,7 @@
 package analytics
 
 import (
+	"context"
 	"github.com/go-kratos/kratos/v3"
 	"github.com/lgc202/ingate/internal/analytics/biz/aiusage"
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
@@ -22,8 +23,8 @@ import (
 
 // Injectors from wire.go:
 
-func wireApp(confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_ClickHouse *conf.Data_ClickHouse, logger *slog.Logger, analyticsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
-	store, cleanup, err := data.NewClickHouseStore(data_ClickHouse, logger)
+func wireApp(contextContext context.Context, confServer *conf.Server, data_Kafka *conf.Data_Kafka, data_ClickHouse *conf.Data_ClickHouse, logger *slog.Logger, analyticsServiceInstanceID serviceInstanceID) (*kratos.App, func(), error) {
+	store, cleanup, err := data.NewClickHouseStore(contextContext, data_ClickHouse, logger)
 	if err != nil {
 		return nil, nil, err
 	}

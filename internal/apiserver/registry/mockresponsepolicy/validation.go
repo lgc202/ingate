@@ -1,60 +1,75 @@
 package mockresponsepolicy
 
 import (
-	"mime"
-	"strings"
-
-	"golang.org/x/net/http/httpguts"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	apiregistry "github.com/lgc202/ingate/internal/apiserver/registry"
 	resource "github.com/lgc202/ingate/internal/pkg/apis/gateway"
+	"github.com/lgc202/ingate/internal/pkg/httpheader"
+	"github.com/lgc202/ingate/internal/pkg/mockresponseconfig"
 )
-
-const maxResponseBodyBytes = 1 << 20
 
 func validatePolicy(policy *resource.MockResponsePolicy) field.ErrorList {
 	specPath := field.NewPath("spec")
-	var errs field.ErrorList
-	if policy.Spec.DisplayName == "" {
-		errs = append(errs, field.Required(specPath.Child("displayName"), "displayName is required"))
-	}
+	errs := apiregistry.ValidateResourceID(policy.Name, field.NewPath("metadata", "name"))
+	errs = append(errs, apiregistry.ValidateDisplayName(
+		policy.Spec.DisplayName,
+		specPath.Child("displayName"),
+	)...)
 	errs = append(errs, apiregistry.ValidatePolicyTargetRefs(
 		policy.Spec.TargetRefs,
 		specPath.Child("targetRefs"),
 		resource.KindRoute,
 	)...)
-	if policy.Spec.StatusCode < 200 || policy.Spec.StatusCode > 599 {
-		errs = append(errs, field.Invalid(specPath.Child("statusCode"), policy.Spec.StatusCode, "statusCode must be between 200 and 599"))
+	if !mockresponseconfig.IsValidStatusCode(policy.Spec.StatusCode) {
+		errs = append(errs, field.Invalid(
+			specPath.Child("statusCode"),
+			policy.Spec.StatusCode,
+			"statusCode must be between 200 and 599",
+		))
 	}
-	if _, _, err := mime.ParseMediaType(policy.Spec.ContentType); err != nil {
-		errs = append(errs, field.Invalid(specPath.Child("contentType"), policy.Spec.ContentType, "contentType must be a valid media type"))
+	normalizedContentType, valid := mockresponseconfig.NormalizeContentType(policy.Spec.ContentType)
+	if !valid || normalizedContentType != policy.Spec.ContentType {
+		errs = append(errs, field.Invalid(
+			specPath.Child("contentType"),
+			policy.Spec.ContentType,
+			"contentType must be a valid media type",
+		))
 	}
-	if len(policy.Spec.Body) > maxResponseBodyBytes {
-		errs = append(errs, field.TooLong(specPath.Child("body"), policy.Spec.Body, maxResponseBodyBytes))
+	if len(policy.Spec.Body) > mockresponseconfig.MaxBodyBytes {
+		errs = append(errs, field.Invalid(
+			specPath.Child("body"),
+			len(policy.Spec.Body),
+			"body exceeds the supported byte length",
+		))
 	}
 	errs = append(errs, validateHeaders(policy.Spec.Headers, specPath.Child("headers"))...)
 	return errs
 }
 
 func validateHeaders(headers []resource.HeaderValue, path *field.Path) field.ErrorList {
-	seen := make(map[string]struct{}, len(headers))
 	var errs field.ErrorList
+	if len(headers) > mockresponseconfig.MaxHeaders {
+		errs = append(errs, field.TooMany(path, len(headers), mockresponseconfig.MaxHeaders))
+		headers = headers[:mockresponseconfig.MaxHeaders]
+	}
+
+	seen := make(map[string]bool, len(headers))
 	for i, header := range headers {
 		headerPath := path.Index(i)
-		name := strings.ToLower(header.Name)
-		if name == "" || strings.HasPrefix(name, ":") || !httpguts.ValidHeaderFieldName(name) {
+		name := httpheader.NormalizeName(header.Name)
+		if name != header.Name || !httpheader.IsValidName(name) {
 			errs = append(errs, field.Invalid(headerPath.Child("name"), header.Name, "name must be a valid HTTP header name"))
 		}
-		if name == "content-type" {
-			errs = append(errs, field.Forbidden(headerPath.Child("name"), "content-type is configured by contentType"))
+		if mockresponseconfig.IsReservedHeaderName(name) {
+			errs = append(errs, field.Forbidden(headerPath.Child("name"), "header is managed by the HTTP response writer"))
 		}
-		if _, exists := seen[name]; exists {
+		if seen[name] {
 			errs = append(errs, field.Duplicate(headerPath.Child("name"), header.Name))
 		}
-		seen[name] = struct{}{}
-		if !httpguts.ValidHeaderFieldValue(header.Value) {
-			errs = append(errs, field.Invalid(headerPath.Child("value"), header.Value, "value contains invalid bytes"))
+		seen[name] = true
+		if !httpheader.IsValidValue(header.Value) {
+			errs = append(errs, field.Invalid(headerPath.Child("value"), "<omitted>", "value contains invalid bytes"))
 		}
 	}
 	return errs

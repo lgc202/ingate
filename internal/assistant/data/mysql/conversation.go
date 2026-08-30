@@ -5,21 +5,34 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	"github.com/lgc202/ingate/internal/assistant/biz/execution"
 	"github.com/lgc202/ingate/internal/assistant/data/mysql/db"
+	"github.com/lgc202/ingate/internal/pkg/adminidentity"
 )
 
-// Create 持久化一个已由业务层完成校验和初始化的会话。
-func (s *Store) Create(ctx context.Context, item conversation.Conversation) (conversation.Conversation, error) {
-	err := s.queries.CreateConversation(ctx, db.CreateConversationParams{
+// Create 使用数据库时钟持久化一个已由业务层完成校验的会话。
+func (s *Store) Create(ctx context.Context, actorID, title string) (conversation.Conversation, error) {
+	now, err := s.queries.CurrentTime(ctx)
+	if err != nil {
+		return conversation.Conversation{}, fmt.Errorf("read MySQL time: %w", err)
+	}
+	item := conversation.Conversation{
+		ID:        uuid.NewString(),
+		ActorID:   actorID,
+		Title:     title,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.queries.CreateConversation(ctx, db.CreateConversationParams{
 		ID:        item.ID,
 		ActorID:   item.ActorID,
 		Title:     item.Title,
 		CreatedAt: item.CreatedAt,
 		UpdatedAt: item.UpdatedAt,
-	})
-	if err != nil {
+	}); err != nil {
 		return conversation.Conversation{}, fmt.Errorf("create conversation: %w", err)
 	}
 	return item, nil
@@ -31,7 +44,11 @@ func (s *Store) Get(ctx context.Context, actorID, id string) (conversation.Conve
 	if err != nil {
 		return conversation.Conversation{}, mapConversationNotFound(err)
 	}
-	return conversationFromDB(item), nil
+	result, err := conversationFromDB(item)
+	if err != nil {
+		return conversation.Conversation{}, fmt.Errorf("restore conversation: %w", err)
+	}
+	return result, nil
 }
 
 // UpdateTitle 修改属于当前调用方的会话名称，并返回数据库中的最终状态。
@@ -40,13 +57,11 @@ func (s *Store) UpdateTitle(
 	actorID string,
 	id string,
 	title string,
-	updatedAt time.Time,
 ) (conversation.Conversation, error) {
 	rows, err := s.queries.UpdateConversationTitle(ctx, db.UpdateConversationTitleParams{
-		Title:     title,
-		UpdatedAt: updatedAt,
-		ID:        id,
-		ActorID:   actorID,
+		Title:   title,
+		ID:      id,
+		ActorID: actorID,
 	})
 	if err != nil {
 		return conversation.Conversation{}, fmt.Errorf("update conversation title: %w", err)
@@ -82,7 +97,11 @@ func (s *Store) List(
 	}
 	page := conversation.ConversationPage{Items: make([]conversation.Conversation, 0, min(len(rows), limit))}
 	for _, row := range rows[:min(len(rows), limit)] {
-		page.Items = append(page.Items, conversationFromDB(row))
+		item, err := conversationFromDB(row)
+		if err != nil {
+			return conversation.ConversationPage{}, fmt.Errorf("restore conversation: %w", err)
+		}
+		page.Items = append(page.Items, item)
 	}
 	if len(rows) > limit {
 		last := page.Items[len(page.Items)-1]
@@ -132,12 +151,17 @@ func (s *Store) Delete(ctx context.Context, actorID, id string) error {
 	return nil
 }
 
-func conversationFromDB(item db.AssistantConversation) conversation.Conversation {
+func conversationFromDB(item db.AssistantConversation) (conversation.Conversation, error) {
+	if uuid.Validate(item.ID) != nil || !adminidentity.IsValid(item.ActorID) ||
+		!conversation.IsValidTitle(item.Title) || item.CreatedAt.IsZero() ||
+		item.UpdatedAt.Before(item.CreatedAt) {
+		return conversation.Conversation{}, fmt.Errorf("invalid stored conversation %q", item.ID)
+	}
 	return conversation.Conversation{
 		ID:        item.ID,
 		ActorID:   item.ActorID,
 		Title:     item.Title,
 		CreatedAt: item.CreatedAt,
 		UpdatedAt: item.UpdatedAt,
-	}
+	}, nil
 }

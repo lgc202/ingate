@@ -2,11 +2,12 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 
-	kratoserrors "github.com/go-kratos/kratos/v3/errors"
+	kerrors "github.com/go-kratos/kratos/v3/errors"
 	kratoshttp "github.com/go-kratos/kratos/v3/transport/http"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
@@ -19,14 +20,21 @@ func requestDecoder(request *http.Request, value any) error {
 	}
 	data, err := io.ReadAll(request.Body)
 	if err != nil {
-		return kratoserrors.BadRequest("INVALID_ARGUMENT", "read request body failed").WithCause(err)
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			return kerrors.New(
+				http.StatusRequestEntityTooLarge,
+				"REQUEST_BODY_TOO_LARGE",
+				"request body too large",
+			).WithCause(err)
+		}
+		return kerrors.BadRequest("INVALID_ARGUMENT", "read request body failed").WithCause(err)
 	}
 	if len(data) == 0 {
 		return nil
 	}
 	// Assistant API 使用 Proto JSON 契约，使枚举、时间和 json_name 在前后端保持一致。
 	if err := (protojson.UnmarshalOptions{DiscardUnknown: false}).Unmarshal(data, message); err != nil {
-		return kratoserrors.BadRequest("INVALID_ARGUMENT", "decode request body failed").WithCause(err)
+		return kerrors.BadRequest("INVALID_ARGUMENT", "decode request body failed").WithCause(err)
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -11,6 +12,9 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
 
 	"github.com/lgc202/ingate/internal/analytics/biz/request"
+	"github.com/lgc202/ingate/internal/pkg/analyticsconfig"
+	"github.com/lgc202/ingate/internal/pkg/requestrecord"
+	"github.com/lgc202/ingate/internal/pkg/resourceconfig"
 )
 
 // requestSummaryColumns 只读取列表展示所需列，避免翻页时扫描完整详情
@@ -29,10 +33,10 @@ const requestSummaryColumns = `
     access_key_id,
     response_code_details`
 
-// ListRequests 按时间和 ID 倒序分页查询短期保留的请求明细
+// ListRequests 按时间和 ID 倒序分页查询短期保留的请求明细。
 //
 // FINAL 保证 ReplacingMergeTree 尚未后台合并时也只返回一个请求事实；时间和 ID
-// 游标避免高页码 OFFSET 在 ClickHouse 中重复扫描旧记录
+// 游标避免高页码 OFFSET 在 ClickHouse 中重复扫描旧记录。
 func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (page request.Page, err error) {
 	queryCtx, cancel := context.WithTimeout(ctx, s.queryTimeout)
 	defer cancel()
@@ -79,9 +83,9 @@ func (s *Store) ListRequests(ctx context.Context, options request.ListOptions) (
 	return page, nil
 }
 
-// GetRequest 使用完整排序键读取单条请求记录
+// GetRequest 使用完整排序键读取单条请求记录。
 //
-// started_at 既限定保留分区，也与 id 组成查询条件，避免仅按哈希 ID 扫描全部明细
+// started_at 既限定保留分区，也与 id 组成查询条件，避免仅按哈希 ID 扫描全部明细。
 func (s *Store) GetRequest(
 	ctx context.Context,
 	id string,
@@ -215,8 +219,15 @@ func scanRequestSummary(rows driver.Rows) (request.Summary, error) {
 	); err != nil {
 		return request.Summary{}, fmt.Errorf("scan request summary: %w", err)
 	}
-	summary.Duration = durationValue(durationNS)
+	duration, err := durationFromNanoseconds(durationNS)
+	if err != nil {
+		return request.Summary{}, fmt.Errorf("restore request summary duration: %w", err)
+	}
+	summary.Duration = duration
 	summary.StatusCode = statusCode
+	if err := validateRequestSummary(summary); err != nil {
+		return request.Summary{}, err
+	}
 	return summary, nil
 }
 
@@ -275,16 +286,88 @@ func scanRequestRecord(rows driver.Rows) (*request.Record, error) {
 	); err != nil {
 		return nil, fmt.Errorf("scan request record: %w", err)
 	}
-	record.Duration = durationValue(durationNS)
+	duration, err := durationFromNanoseconds(durationNS)
+	if err != nil {
+		return nil, fmt.Errorf("restore request duration: %w", err)
+	}
+	timeToFirstByte, err := durationFromNanoseconds(timeToFirstByteNS)
+	if err != nil {
+		return nil, fmt.Errorf("restore request time to first byte: %w", err)
+	}
+	record.Duration = duration
 	record.StatusClass = request.StatusClass(statusClass)
-	record.TimeToFirstByte = durationValue(timeToFirstByteNS)
+	record.TimeToFirstByte = timeToFirstByte
+	if err := validateRequestRecord(&record); err != nil {
+		return nil, err
+	}
 	return &record, nil
 }
 
-func durationValue(nanoseconds *uint64) *time.Duration {
+func durationFromNanoseconds(nanoseconds *uint64) (*time.Duration, error) {
 	if nanoseconds == nil {
-		return nil
+		return nil, nil
 	}
-	duration := time.Duration(*nanoseconds)
-	return &duration
+	duration, err := requiredDurationFromNanoseconds(*nanoseconds)
+	if err != nil {
+		return nil, err
+	}
+	return &duration, nil
+}
+
+func requiredDurationFromNanoseconds(nanoseconds uint64) (time.Duration, error) {
+	if nanoseconds > math.MaxInt64 {
+		return 0, errors.New("duration exceeds the supported range")
+	}
+	return time.Duration(nanoseconds), nil
+}
+
+func validateRequestSummary(summary request.Summary) error {
+	if !requestrecord.IsValidID(summary.ID) || !analyticsconfig.IsSupportedTime(summary.StartedAt) {
+		return errors.New("stored request summary has an invalid identity")
+	}
+	if !validStoredResourceReferences(
+		summary.GatewayID,
+		summary.RouteID,
+		summary.UpstreamID,
+		summary.CallerID,
+		summary.AccessKeyID,
+	) {
+		return fmt.Errorf("stored request summary %q has invalid resource references", summary.ID)
+	}
+	return nil
+}
+
+func validateRequestRecord(record *request.Record) error {
+	if !requestrecord.IsValidID(record.ID) || !analyticsconfig.IsSupportedTime(record.StartedAt) {
+		return errors.New("stored request record has an invalid identity")
+	}
+	if record.StatusClass != request.ClassifyStatusCode(record.StatusCode) {
+		return fmt.Errorf("stored request record %q has an invalid status class", record.ID)
+	}
+	if record.Duration != nil && record.TimeToFirstByte != nil &&
+		*record.TimeToFirstByte > *record.Duration {
+		return fmt.Errorf("stored request record %q has an invalid time to first byte", record.ID)
+	}
+	if !validStoredResourceReferences(
+		record.GatewayID,
+		record.RouteID,
+		record.UpstreamID,
+		record.CallerID,
+		record.AccessKeyID,
+	) {
+		return fmt.Errorf("stored request record %q has invalid resource references", record.ID)
+	}
+	return nil
+}
+
+func validStoredResourceReferences(gatewayID, routeID, upstreamID, callerID, accessKeyID string) bool {
+	if (gatewayID == "") != (routeID == "") || (callerID == "") != (accessKeyID == "") {
+		return false
+	}
+	for _, resourceID := range []string{gatewayID, routeID, upstreamID, callerID, accessKeyID} {
+		if resourceID != "" && !resourceconfig.IsCanonicalID(resourceID) {
+			return false
+		}
+	}
+	return true
 }

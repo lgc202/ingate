@@ -81,16 +81,28 @@ message GetPluginSourceRequest {
 }
 
 message CreatePluginSourceRequest {
-  string name = 1 [(buf.validate.field).string.min_len = 1];
-  string url = 2 [(buf.validate.field).string.min_len = 1];
+  string name = 1 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  string url = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 4096
+  }];
   optional bool enabled = 3 [(buf.validate.field).required = true];
 }
 
 message UpdatePluginSourceRequest {
   string id = 1 [(buf.validate.field).string.uuid = true];
   int64 version = 2 [(buf.validate.field).int64.gt = 0];
-  string name = 3 [(buf.validate.field).string.min_len = 1];
-  string url = 4 [(buf.validate.field).string.min_len = 1];
+  string name = 3 [(buf.validate.field).string = {
+    min_bytes: 1
+    max_bytes: 256
+  }];
+  string url = 4 [(buf.validate.field).string = {
+    min_len: 1
+    max_bytes: 4096
+  }];
   optional bool enabled = 5 [(buf.validate.field).required = true];
 }
 

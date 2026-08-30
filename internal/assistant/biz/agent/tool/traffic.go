@@ -46,7 +46,8 @@ type trafficResourceInfo struct {
 	Metrics      trafficMetricsInfo `json:"metrics"`
 }
 
-// trafficMetricsInfo 中的错误率采用 0 到 1 之间的小数，模型在面向用户展示时可以按百分比格式化。
+// trafficMetricsInfo 中的错误率采用 0 到 1 之间的小数，
+// 模型在面向用户展示时可以按百分比格式化。
 type trafficMetricsInfo struct {
 	RequestCount     uint64  `json:"request_count"`
 	NonErrorCount    uint64  `json:"non_error_count"`
@@ -59,6 +60,11 @@ type trafficMetricsInfo struct {
 	P50Millis        float64 `json:"p50_millis"`
 	P95Millis        float64 `json:"p95_millis"`
 	P99Millis        float64 `json:"p99_millis"`
+}
+
+// TrafficReader 是流量分析工具实际使用的查询边界。
+type TrafficReader interface {
+	AnalyzeTraffic(context.Context, TrafficQuery) (TrafficAnalysis, error)
 }
 
 func newTrafficTool(resources TrafficReader) (einotool.BaseTool, error) {
@@ -135,8 +141,8 @@ func analyzeTraffic(
 		ScopeID:   scopeID,
 		GroupBy:   result.GroupBy,
 		OrderBy:   result.OrderBy,
-		StartTime: startTime.Format(time.RFC3339),
-		EndTime:   endTime.Format(time.RFC3339),
+		StartTime: startTime.Format(time.RFC3339Nano),
+		EndTime:   endTime.Format(time.RFC3339Nano),
 		Metrics:   trafficMetrics(result.Summary),
 		Ranking:   ranking,
 	}, nil

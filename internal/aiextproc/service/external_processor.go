@@ -1,7 +1,3 @@
-// Package service 实现 Envoy External Processing 协议
-//
-// 同一客户端请求会产生一条 downstream 流和至少一条 upstream 流，服务只负责关联、
-// 编排和生成 ExtProc 响应，具体 Chat Completions 协议转换位于 chatcompletion 子包
 package service
 
 import (
@@ -22,15 +18,21 @@ import (
 	"github.com/lgc202/ingate/internal/aiextproc/biz/tokenquota"
 )
 
+// ModelAPIKeySource 提供当前已同步的模型 Service API Key。
+// 接口位于消费方，具体的数据同步方式不会进入请求处理流程。
+type ModelAPIKeySource interface {
+	APIKey(serviceID string) (string, error)
+}
+
 // ExternalProcessor 接收 Envoy 发来的 downstream 和 upstream External Processing 流
-// requests 只在单次 HTTP 请求存活期间关联两类流，不承担持久化或跨实例共享
+// requests 只在单次 HTTP 请求存活期间关联两类流，不承担持久化或跨实例共享。
 type ExternalProcessor struct {
 	extprocv3.UnimplementedExternalProcessorServer
 
 	mu       sync.RWMutex
 	requests map[string]*requestState
 	apiKeys  ModelAPIKeySource
-	quotas   *tokenquota.Service
+	quotas   *tokenquota.Limiter
 	logger   *slog.Logger
 	counters processorCounters
 }
@@ -40,17 +42,17 @@ type processorCounters struct {
 	errors  atomic.Uint64
 }
 
-// Counters 是 AI ExtProc 运维指标使用的并发安全快照
+// Counters 是 AI ExtProc 运维指标使用的并发安全快照。
 type Counters struct {
 	Streams            uint64
 	Errors             uint64
 	ActiveCorrelations int
 }
 
-// NewExternalProcessor 创建 External Processing 服务
+// NewExternalProcessor 创建 External Processing 服务。
 func NewExternalProcessor(
 	apiKeys ModelAPIKeySource,
-	quotas *tokenquota.Service,
+	quotas *tokenquota.Limiter,
 	logger *slog.Logger,
 ) *ExternalProcessor {
 	return &ExternalProcessor{
@@ -62,7 +64,7 @@ func NewExternalProcessor(
 }
 
 // Process 按 Envoy External Processing 协议处理一条双向流
-// Envoy 会分别为 downstream filter 和每次 upstream 尝试创建流，二者不是同一个 gRPC stream
+// Envoy 会分别为 downstream filter 和每次 upstream 尝试创建流，二者不是同一个 gRPC stream。
 func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessServer) error {
 	p.counters.streams.Add(1)
 	state := streamState{ctx: stream.Context(), processor: p}
@@ -75,7 +77,8 @@ func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessSe
 		}
 		if err != nil {
 			p.counters.errors.Add(1)
-			return fmt.Errorf("receive ExtProc request: %w", err)
+			p.logger.ErrorContext(stream.Context(), "receive ExtProc request failed", "err", err)
+			return status.Error(codes.Unavailable, "receive ExtProc request failed")
 		}
 		if request.GetObservabilityMode() {
 			// Observability Mode 明确禁止等待响应，返回消息会被 Envoy 忽略
@@ -85,16 +88,18 @@ func (p *ExternalProcessor) Process(stream extprocv3.ExternalProcessor_ProcessSe
 		response, err := state.handle(request)
 		if err != nil {
 			p.counters.errors.Add(1)
+			p.logger.ErrorContext(stream.Context(), "process ExtProc exchange failed", "err", err)
 			return grpcStatusError(err)
 		}
 		if err := stream.Send(response); err != nil {
 			p.counters.errors.Add(1)
-			return fmt.Errorf("send ExtProc response: %w", err)
+			p.logger.ErrorContext(stream.Context(), "send ExtProc response failed", "err", err)
+			return status.Error(codes.Unavailable, "send ExtProc response failed")
 		}
 	}
 }
 
-// Counters 返回 ExtProc 流量和等待 upstream 关联的请求数
+// Counters 返回 ExtProc 流量和等待 upstream 关联的请求数。
 func (p *ExternalProcessor) Counters() Counters {
 	p.mu.RLock()
 	active := len(p.requests)
@@ -127,7 +132,8 @@ func (p *ExternalProcessor) settleQuota(ctx context.Context, request *requestSta
 		p.logger.Error("settle token quota", "err", fmt.Errorf("provider token usage %d exceeds int64", tokens))
 		return
 	}
-	if err := p.quotas.Charge(ctx, session, int64(tokens)); err != nil {
+	// 厂商已经产生实际费用；客户端断开不能撤销结算。Counter 仍会施加自己的操作超时。
+	if err := p.quotas.Charge(context.WithoutCancel(ctx), session, int64(tokens)); err != nil {
 		// 模型请求已经产生实际费用；此时改写成功响应会诱发客户端重试并造成重复消费
 		p.logger.Error("settle token quota", "err", err)
 	}
@@ -155,6 +161,6 @@ func grpcStatusError(err error) error {
 	case errors.Is(err, errRequestNotBuffered), errors.Is(err, errResponseNotBuffered):
 		return status.Error(codes.FailedPrecondition, err.Error())
 	default:
-		return status.Errorf(codes.Internal, "process HTTP exchange: %v", err)
+		return status.Error(codes.Internal, "process ExtProc exchange failed")
 	}
 }

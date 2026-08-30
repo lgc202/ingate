@@ -1,4 +1,4 @@
-// Package apiserver 装配 ingate-apiserver 进程及其资源生命周期
+// Package apiserver 装配 ingate-apiserver 进程及其资源生命周期。
 package apiserver
 
 import (
@@ -20,12 +20,12 @@ const name = "ingate-apiserver"
 
 type serviceInstanceID string
 
-// App 封装 API Server 的 Kratos 进程
+// App 封装 API Server 的 Kratos 进程。
 type App struct {
 	kratos *kratos.App
 }
 
-// NewApp 从配置文件创建完整的 API Server 进程
+// NewApp 从配置文件创建完整的 API Server 进程。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
@@ -43,6 +43,7 @@ func NewApp(configFile string) (*App, error) {
 	kratosApp, err := wireApp(
 		bootstrap.GetServer(),
 		bootstrap.GetServer().GetHttp(),
+		bootstrap.GetServer().GetAuthentication(),
 		bootstrap.GetData().GetEtcd(),
 		logger,
 		instanceID,
@@ -54,7 +55,7 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp}, nil
 }
 
-// Run 启动 API Server 并由 Kratos 统一管理服务生命周期
+// Run 启动 API Server 并由 Kratos 统一管理服务生命周期。
 func (a *App) Run() error {
 	return a.kratos.Run()
 }

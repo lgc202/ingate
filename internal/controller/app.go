@@ -1,4 +1,4 @@
-// Package controller 装配 ingate-controller 进程及其资源生命周期
+// Package controller 装配 ingate-controller 进程及其资源生命周期。
 package controller
 
 import (
@@ -22,12 +22,12 @@ const name = "ingate-controller"
 
 type serviceInstanceID string
 
-// App 封装 Controller 的 Kratos 进程
+// App 封装 Controller 的 Kratos 进程。
 type App struct {
 	kratos *kratos.App
 }
 
-// NewApp 从配置文件创建完整的 Controller 进程
+// NewApp 从配置文件创建完整的 Controller 进程。
 func NewApp(configFile string) (*App, error) {
 	var bootstrap conf.Bootstrap
 	if err := appconfig.Load(configFile, &bootstrap); err != nil {
@@ -57,7 +57,7 @@ func NewApp(configFile string) (*App, error) {
 	return &App{kratos: kratosApp}, nil
 }
 
-// Run 启动 xDS、运维 HTTP、配置发布和资源收敛服务
+// Run 启动 xDS、运维 HTTP、配置发布和资源收敛服务。
 func (a *App) Run() error {
 	return a.kratos.Run()
 }

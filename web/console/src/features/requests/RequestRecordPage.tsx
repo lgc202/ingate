@@ -305,7 +305,7 @@ function resourceNames(workspace: Awaited<ReturnType<typeof getRequestRecordWork
 function callerLabel(record: RequestRecord | RequestRecordSummary, names: ResourceNames, namesReady: boolean): string {
   if (record.callerID) return resourceName(names.callers, record.callerID, namesReady ? '已删除的调用方' : '名称加载中');
   if (!namesReady) return '名称加载中';
-  return names.routeAccessModes.get(record.routeID) === 'ROUTE_ACCESS_PUBLIC' ? '公开访问' : '未识别调用方';
+  return names.routeAccessModes.get(record.routeID) === 'ROUTE_ACCESS_MODE_PUBLIC' ? '公开访问' : '未识别调用方';
 }
 
 function resourceName(names: Map<string, string>, id: string, deletedLabel: string): string {

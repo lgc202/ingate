@@ -25,7 +25,10 @@ func wireApp(confServer *conf.Server, data_AdminAPI *conf.Data_AdminAPI, data_As
 		return nil, err
 	}
 	sessionAuth := server.NewSessionAuth(confServer)
-	httpServer := server.NewHTTPServer(confServer, adminAPIProxy, assistantProxy, sessionAuth, logger)
+	httpServer, err := server.NewHTTPServer(confServer, adminAPIProxy, assistantProxy, sessionAuth, logger)
+	if err != nil {
+		return nil, err
+	}
 	app := newKratosApp(logger, confServer, httpServer, consoleServiceInstanceID)
 	return app, nil
 }

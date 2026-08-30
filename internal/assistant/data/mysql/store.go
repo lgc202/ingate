@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
+	mysqldriver "github.com/go-sql-driver/mysql"
 
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 	"github.com/lgc202/ingate/internal/assistant/conf"
@@ -23,16 +23,7 @@ type Store struct {
 
 // NewStore 创建连接池，并在返回前确认 MySQL 可用。
 func NewStore(ctx context.Context, config *conf.Data_MySQL) (*Store, error) {
-	dsnConfig := mysql.Config{
-		User:      config.GetUsername(),
-		Passwd:    config.GetPassword(),
-		Net:       "tcp",
-		Addr:      config.GetAddress(),
-		DBName:    config.GetDatabase(),
-		ParseTime: true,
-		Loc:       time.UTC,
-		Timeout:   config.GetDialTimeout().AsDuration(),
-	}
+	dsnConfig := driverConfig(config)
 	connection, err := sql.Open("mysql", dsnConfig.FormatDSN())
 	if err != nil {
 		return nil, fmt.Errorf("open MySQL: %w", err)
@@ -55,6 +46,21 @@ func (s *Store) Close() error {
 // Ping 检查 MySQL 是否能够在当前请求期限内响应。
 func (s *Store) Ping(ctx context.Context) error {
 	return s.db.PingContext(ctx)
+}
+
+func driverConfig(config *conf.Data_MySQL) mysqldriver.Config {
+	return mysqldriver.Config{
+		User:      config.GetUsername(),
+		Passwd:    config.GetPassword(),
+		Net:       "tcp",
+		Addr:      config.GetAddress(),
+		DBName:    config.GetDatabase(),
+		ParseTime: true,
+		Loc:       time.UTC,
+		Timeout:   config.GetDialTimeout().AsDuration(),
+		// 所有数据库生成的业务时间都以 UTC 解释，避免 Assistant 实例时钟参与状态机。
+		Params: map[string]string{"time_zone": "'+00:00'"},
+	}
 }
 
 // withTransaction 统一 Store 的事务提交与回滚；具体锁顺序仍由各业务操作显式表达。
