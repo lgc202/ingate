@@ -11,6 +11,7 @@ import (
 
 	assistantv1 "github.com/lgc202/ingate/api/assistant/v1"
 	"github.com/lgc202/ingate/internal/assistant/conf"
+	changeservice "github.com/lgc202/ingate/internal/assistant/service/change"
 	conversationservice "github.com/lgc202/ingate/internal/assistant/service/conversation"
 	executionservice "github.com/lgc202/ingate/internal/assistant/service/execution"
 	modelconfigservice "github.com/lgc202/ingate/internal/assistant/service/modelconfig"
@@ -39,6 +40,7 @@ type readinessHandler struct {
 func NewHTTPServer(
 	config *conf.Server,
 	conversationAPI *conversationservice.Service,
+	changeAPI *changeservice.Service,
 	executionAPI *executionservice.Service,
 	modelAPI *modelconfigservice.Service,
 	streamHandler *StreamHandler,
@@ -51,6 +53,7 @@ func NewHTTPServer(
 		kratoshttp.Network("tcp"),
 		kratoshttp.Address(httpConfig.GetAddr()),
 		// SSE 连接由请求取消和 Stream.read_block 控制，不能套用普通 HTTP 全局超时。
+		kratoshttp.Timeout(0),
 		kratoshttp.Filter(requestIDFilter(), responseNoStoreFilter(), requestBodyLimitFilter(), recoveryFilter(logger)),
 		kratoshttp.Middleware(httpMiddleware(logger)...),
 		kratoshttp.RequestDecoder(requestDecoder),
@@ -58,6 +61,7 @@ func NewHTTPServer(
 	)
 	assistantv1.RegisterConversationServiceHTTPServer(server, conversationAPI)
 	assistantv1.RegisterAgentExecutionServiceHTTPServer(server, executionAPI)
+	assistantv1.RegisterProposedChangeServiceHTTPServer(server, changeAPI)
 	assistantv1.RegisterModelConnectionServiceHTTPServer(server, modelAPI)
 	streamHandler.register(server)
 	readiness := readinessHandler{

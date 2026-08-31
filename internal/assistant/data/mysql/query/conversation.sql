@@ -49,23 +49,39 @@ FROM assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS e ON e.id = i.execution_id
 WHERE e.conversation_id = ?;
 
+-- name: DeleteCheckpointsByConversation :exec
+DELETE p
+FROM assistant_agent_checkpoints AS p
+JOIN assistant_agent_executions AS e ON e.id = p.execution_id
+WHERE e.conversation_id = ?;
+
+-- name: DeleteProposedChangesByConversation :exec
+DELETE FROM assistant_proposed_changes
+WHERE conversation_id = ?;
+
 -- name: DeleteExecutionsByConversation :exec
 DELETE FROM assistant_agent_executions
 WHERE conversation_id = ?;
 
 -- name: CreateExecution :exec
 INSERT INTO assistant_agent_executions (
-    id, conversation_id, state, created_at
-) VALUES (?, ?, 1, ?);
+    id, conversation_id, state, resume_feedback, created_at
+) VALUES (?, ?, 1, '', ?);
 
 -- name: CountActiveExecutions :one
 SELECT COUNT(*)
 FROM assistant_agent_executions
-WHERE conversation_id = ? AND state IN (1, 2);
+WHERE conversation_id = ? AND state IN (1, 2, 6);
+
+-- name: CountExecutingProposedChanges :one
+SELECT COUNT(*)
+FROM assistant_proposed_changes
+WHERE conversation_id = ? AND state = 2;
 
 -- name: GetExecution :one
 SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
        r.cancellation_requested, r.worker_id, r.lease_expires_at,
+       r.resume_interrupt_id, r.resume_decision, r.resume_feedback,
        r.created_at, r.started_at, r.finished_at
 FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
@@ -74,6 +90,7 @@ WHERE r.id = ? AND c.actor_id = ?;
 -- name: GetExecutionForUpdate :one
 SELECT r.id, r.conversation_id, r.state, r.model, r.error_code,
        r.cancellation_requested, r.worker_id, r.lease_expires_at,
+       r.resume_interrupt_id, r.resume_decision, r.resume_feedback,
        r.created_at, r.started_at, r.finished_at
 FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
@@ -81,7 +98,8 @@ WHERE r.id = ? AND c.actor_id = ?
 FOR UPDATE;
 
 -- name: ClaimNextExecution :one
-SELECT r.id, r.conversation_id, c.actor_id
+SELECT r.id, r.conversation_id, c.actor_id,
+       r.resume_interrupt_id, r.resume_decision, r.resume_feedback
 FROM assistant_agent_executions AS r
 JOIN assistant_conversations AS c ON c.id = r.conversation_id
 WHERE r.state = 1
@@ -98,12 +116,17 @@ SET state = 2,
         CAST(sqlc.arg(lease_duration_microseconds) AS SIGNED),
         CURRENT_TIMESTAMP(6)
     ),
-    started_at = CURRENT_TIMESTAMP(6)
+    started_at = COALESCE(started_at, CURRENT_TIMESTAMP(6))
 WHERE id = ? AND state = 1;
 
--- name: SetExecutionModel :execrows
+-- name: BindExecutionModel :execrows
 UPDATE assistant_agent_executions
 SET model = ?
+WHERE id = ? AND state = 2 AND worker_id = ? AND model = '';
+
+-- name: GetBoundExecutionModel :one
+SELECT model
+FROM assistant_agent_executions
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
 -- name: GetExecutionForWorkerUpdate :one
@@ -136,7 +159,14 @@ ORDER BY i.sequence ASC;
 UPDATE assistant_agent_execution_steps AS i
 JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 SET i.state = 2, i.summary = ?, i.finished_at = CURRENT_TIMESTAMP(6)
-WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state = 1
+WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = ? AND i.state IN (1, 5)
+  AND r.state = 2 AND r.worker_id = ?;
+
+-- name: PauseExecutionStep :execrows
+UPDATE assistant_agent_execution_steps AS i
+JOIN assistant_agent_executions AS r ON r.id = i.execution_id
+SET i.state = 5, i.summary = ?
+WHERE i.execution_id = ? AND i.call_id = ? AND i.kind = 2 AND i.state = 1
   AND r.state = 2 AND r.worker_id = ?;
 
 -- name: FailExecutionStep :execrows
@@ -168,6 +198,12 @@ JOIN assistant_agent_executions AS r ON r.id = i.execution_id
 SET i.state = 3, i.error_code = ?, i.finished_at = CURRENT_TIMESTAMP(6)
 WHERE i.state = 1 AND r.state = 2 AND r.lease_expires_at < CURRENT_TIMESTAMP(6);
 
+-- name: MarkExpiredExecutingChangesOutcomeUnknown :exec
+UPDATE assistant_proposed_changes AS p
+JOIN assistant_agent_executions AS r ON r.id = p.execution_id
+SET p.state = 6, p.error_code = ?, p.finished_at = CURRENT_TIMESTAMP(6)
+WHERE p.state = 2 AND r.state = 2 AND r.lease_expires_at < CURRENT_TIMESTAMP(6);
+
 -- name: RenewExecutionLease :execrows
 UPDATE assistant_agent_executions
 SET lease_expires_at = TIMESTAMPADD(
@@ -184,19 +220,42 @@ WHERE id = ? AND state = 2 AND worker_id = ?;
 
 -- name: CompleteExecution :execrows
 UPDATE assistant_agent_executions
-SET state = 3, worker_id = '', lease_expires_at = NULL, finished_at = ?
+SET state = 3, worker_id = '', lease_expires_at = NULL, finished_at = ?,
+    resume_interrupt_id = '', resume_decision = 0, resume_feedback = ''
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
 -- name: FailExecution :execrows
 UPDATE assistant_agent_executions
 SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL,
-    finished_at = CURRENT_TIMESTAMP(6)
+    finished_at = CURRENT_TIMESTAMP(6), resume_interrupt_id = '',
+    resume_decision = 0, resume_feedback = ''
 WHERE id = ? AND state = 2 AND worker_id = ?;
 
 -- name: CancelQueuedExecution :execrows
 UPDATE assistant_agent_executions
-SET state = 5, finished_at = ?
+SET state = 5, finished_at = ?, resume_interrupt_id = '',
+    resume_decision = 0, resume_feedback = ''
 WHERE id = ? AND state = 1;
+
+-- name: CancelWaitingExecution :execrows
+UPDATE assistant_agent_executions
+SET state = 5, finished_at = CURRENT_TIMESTAMP(6)
+WHERE id = ? AND state = 6;
+
+-- name: RejectPendingExecutionChanges :exec
+UPDATE assistant_proposed_changes
+SET state = 4, decided_at = CURRENT_TIMESTAMP(6), finished_at = CURRENT_TIMESTAMP(6)
+WHERE execution_id = ? AND state = 1;
+
+-- name: RejectQueuedExecutionChange :execrows
+UPDATE assistant_proposed_changes
+SET state = 4, finished_at = CURRENT_TIMESTAMP(6)
+WHERE execution_id = ? AND state = 2;
+
+-- name: MarkExecutionChangesOutcomeUnknown :exec
+UPDATE assistant_proposed_changes
+SET state = 6, error_code = ?, finished_at = CURRENT_TIMESTAMP(6)
+WHERE execution_id = ? AND state = 2;
 
 -- name: RequestExecutionCancellation :execrows
 UPDATE assistant_agent_executions
@@ -214,6 +273,102 @@ UPDATE assistant_agent_executions
 SET state = 4, error_code = ?, worker_id = '', lease_expires_at = NULL,
     finished_at = CURRENT_TIMESTAMP(6)
 WHERE state = 2 AND lease_expires_at < CURRENT_TIMESTAMP(6);
+
+-- name: DeleteExpiredExecutionCheckpoints :exec
+DELETE p
+FROM assistant_agent_checkpoints AS p
+JOIN assistant_agent_executions AS r ON r.id = p.execution_id
+WHERE r.state = 2 AND r.lease_expires_at < CURRENT_TIMESTAMP(6);
+
+-- name: CreateProposedChange :execrows
+INSERT INTO assistant_proposed_changes (
+    id, conversation_id, execution_id, call_id, interrupt_id, kind, state, summary,
+    proposal_json, created_at
+)
+SELECT ?, r.conversation_id, r.id, ?, ?, ?, 1, ?, ?, CURRENT_TIMESTAMP(6)
+FROM assistant_agent_executions AS r
+WHERE r.id = sqlc.arg(execution_id) AND r.state = 2 AND r.worker_id = ?;
+
+-- name: ListProposedChanges :many
+SELECT p.id, p.conversation_id, p.execution_id, p.call_id, p.interrupt_id, p.kind, p.state,
+       p.summary, p.proposal_json, p.resource_id, p.error_code,
+       p.created_at, p.decided_at, p.finished_at
+FROM assistant_proposed_changes AS p
+JOIN assistant_conversations AS c ON c.id = p.conversation_id
+WHERE p.conversation_id = ? AND c.actor_id = ?
+ORDER BY p.created_at ASC, p.id ASC;
+
+-- name: GetProposedChange :one
+SELECT p.id, p.conversation_id, p.execution_id, p.call_id, p.interrupt_id, p.kind, p.state,
+       p.summary, p.proposal_json, p.resource_id, p.error_code,
+       p.created_at, p.decided_at, p.finished_at
+FROM assistant_proposed_changes AS p
+JOIN assistant_conversations AS c ON c.id = p.conversation_id
+WHERE p.id = ? AND c.actor_id = ?;
+
+-- name: GetProposedChangeForUpdate :one
+SELECT p.id, p.conversation_id, p.execution_id, p.call_id, p.interrupt_id, p.kind, p.state,
+       p.summary, p.proposal_json, p.resource_id, p.error_code,
+       p.created_at, p.decided_at, p.finished_at
+FROM assistant_proposed_changes AS p
+JOIN assistant_conversations AS c ON c.id = p.conversation_id
+WHERE p.id = ? AND c.actor_id = ?
+FOR UPDATE;
+
+-- name: GetProposedChangeForExecutionUpdate :one
+SELECT p.id, p.conversation_id, p.execution_id, p.call_id, p.interrupt_id, p.kind, p.state,
+       p.summary, p.proposal_json, p.resource_id, p.error_code,
+       p.created_at, p.decided_at, p.finished_at
+FROM assistant_proposed_changes AS p
+WHERE p.id = ? AND p.execution_id = ?
+FOR UPDATE;
+
+-- name: ApproveProposedChange :execrows
+UPDATE assistant_proposed_changes
+SET state = 2, decided_at = CURRENT_TIMESTAMP(6)
+WHERE id = ? AND state = 1;
+
+-- name: CompleteProposedChange :execrows
+UPDATE assistant_proposed_changes
+SET state = ?, resource_id = ?, error_code = ?, finished_at = CURRENT_TIMESTAMP(6)
+WHERE id = ? AND state = 2;
+
+-- name: RejectProposedChange :execrows
+UPDATE assistant_proposed_changes
+SET state = 4, decided_at = CURRENT_TIMESTAMP(6), finished_at = CURRENT_TIMESTAMP(6)
+WHERE id = ? AND state = 1;
+
+-- name: QueueExecutionResume :execrows
+UPDATE assistant_agent_executions
+SET state = 1, resume_interrupt_id = ?, resume_decision = ?, resume_feedback = '',
+    cancellation_requested = FALSE
+WHERE id = ? AND state = 6;
+
+-- name: QueueExecutionRevision :execrows
+UPDATE assistant_agent_executions
+SET state = 1, resume_interrupt_id = ?, resume_decision = 2, resume_feedback = ?,
+    cancellation_requested = FALSE
+WHERE id = ? AND state = 6;
+
+-- name: PauseExecution :execrows
+UPDATE assistant_agent_executions
+SET state = 6, worker_id = '', lease_expires_at = NULL,
+    resume_interrupt_id = '', resume_decision = 0, resume_feedback = ''
+WHERE id = ? AND state = 2 AND worker_id = ?;
+
+-- name: GetCheckpoint :one
+SELECT checkpoint
+FROM assistant_agent_checkpoints
+WHERE execution_id = ?;
+
+-- name: UpsertCheckpoint :exec
+INSERT INTO assistant_agent_checkpoints (execution_id, checkpoint, updated_at)
+VALUES (?, ?, CURRENT_TIMESTAMP(6))
+ON DUPLICATE KEY UPDATE checkpoint = VALUES(checkpoint), updated_at = VALUES(updated_at);
+
+-- name: DeleteCheckpoint :exec
+DELETE FROM assistant_agent_checkpoints
+WHERE execution_id = ?;
 
 -- name: CreateMessage :exec
 INSERT INTO assistant_messages (

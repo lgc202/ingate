@@ -1,6 +1,6 @@
 # Ingate 运维助手架构设计
 
-状态：目标设计；第一阶段只读能力已实现
+状态：目标设计；查询诊断与首批资源创建审批已实现
 
 目标读者：Ingate 维护者和后续参与实现的开发者
 
@@ -14,17 +14,19 @@ Ingate 已经具备网关、路由、服务、治理策略、插件和观测分�
 
 ### 当前实现
 
-当前已经完成第一阶段只读闭环：
+当前已经完成查询诊断和第一段可写闭环：
 
 - 独立的 `ingate-assistant` 组件和 Console 统一入口
 - OpenAI 兼容与 Anthropic 模型连接，可直连模型端点或经过 Ingate AI Route
 - 基于 Eino ADK 的单 Agent 工具调用循环
-- Gateway、Route、Service、流量分析、失败请求、请求明细和 Caller Token 额度等 8 个只读工具
-- MySQL 中的模型连接、会话、Execution、Execution Step 和消息
+- Gateway、Route、Service、流量分析、失败请求、请求明细和 Caller Token 额度等 8 个查询工具
+- 创建 Gateway 和普通 HTTP Service 的 2 个可中断工具；首次调用只生成规范化提案，批准后才从 checkpoint 恢复并写入
+- 基于 Eino `StatefulInterrupt`、checkpoint 和 `ResumeWithParams` 的人工审批闭环
+- MySQL 中的模型连接、会话、Execution、Execution Step、消息、配置提案和 Eino checkpoint
 - Redis Stream 中用于 SSE 断线重连的短期事件
-- 后台 Worker、执行租约、取消和过期执行收敛
+- 后台 Worker、Agent 执行租约、取消和过期状态收敛
 
-当前没有写工具、变更草案与审批、长期记忆、专业 Agent、MCP 工具源、定时任务或自动修复。除“当前实现”和明确描述现有表结构的段落外，本文其余章节描述目标约束，不表示对应能力已经对外提供。
+当前不支持更新、删除、Route、模型 Service、批量变更、预授权、长期记忆、专业 Agent、MCP 工具源、定时任务或自动修复。除“当前实现”和明确描述现有表结构的段落外，本文其余章节描述目标约束，不表示对应能力已经对外提供。
 
 ## 2. 设计目标
 
@@ -32,7 +34,7 @@ Ingate 已经具备网关、路由、服务、治理策略、插件和观测分�
 
 - 结合当前控制台页面和资源回答配置问题
 - 基于实时配置、请求记录和流量指标进行故障诊断
-- 生成 Gateway、Route、Service、Caller、Policy 和 Plugin 的变更草案
+- 生成 Gateway、Route、Service、Caller、Policy 和 Plugin 的变更提案
 - 对有副作用的操作执行权限检查、差异预览、审批和审计
 - 保存会话、用户明确设置的偏好和经过确认的处理结论
 - 把复杂任务委派给具有独立工具权限的专业 Agent
@@ -49,8 +51,8 @@ Ingate 已经具备网关、路由、服务、治理策略、插件和观测分�
 | Agent 框架 | Eino ADK | 提供 Go 原生 ChatModelAgent、AgentTool、中断、检查点和恢复能力 |
 | 产品入口 | Console 统一入口 | 用户不需要认识新的管理地址；Console 将助手请求代理到 Assistant |
 | 系统操作入口 | Admin API | Assistant 不访问 etcd，也不绕过现有业务校验和产品协议 |
-| 短期状态 | Redis | 当前只保存 SSE 短期流式事件；需要中断恢复时再引入 Agent 检查点 |
-| 持久化状态 | MySQL + sqlc | 当前保存模型连接、会话、Execution、Execution Step 和消息 |
+| 短期状态 | Redis | 只保存可丢失、可重建的 SSE 流式事件 |
+| 持久化状态 | MySQL + sqlc | 保存模型连接、会话、Execution、Execution Step、消息、配置提案和 Eino checkpoint |
 | 模型连接 | Eino 官方模型适配器 | 可直连 OpenAI 兼容或 Anthropic 端点，也可经过 Ingate AI Route |
 | 内部工具 | 进程内 Go Tool | 保持类型安全，避免为内部调用额外增加 MCP 网络边界 |
 | 外部工具目标 | MCP | 使用标准协议接入 GitHub、Prometheus、告警平台等系统 |
@@ -68,7 +70,7 @@ Console
    |-- /api/* ----------> Admin API
    `-- /assistant/* ----> Assistant
                              |-- model request ------> configured model endpoint
-                             |-- product query -----> Admin API
+                             |-- product operation -> Admin API
                              |-- stream events ------> Redis
                              `-- durable state ------> MySQL
 
@@ -94,7 +96,7 @@ Console、Assistant 和 Admin API 使用明确版本的产品协议。后续需�
 | 解释 | “Token 额度是怎么计算的？” | 根据正式文档回答，不查询实时状态 |
 | 查询 | “这条路由当前是否已经生效？” | 查询资源和 Status 后回答 |
 | 诊断 | “最近半小时为什么 5xx 增多？” | 规划查询步骤，收集证据后给出结论 |
-| 变更 | “把 `/orders` 转发到订单服务” | 生成变更草案，审批后执行 |
+| 变更 | “把 `/orders` 转发到订单服务” | 生成变更提案，审批后执行 |
 | 自动化 | “每天上午检查即将过期的证书” | 创建定时任务并明确作用范围和通知方式 |
 
 交互方式不是持久化资源，也不要求额外的分类模型。它只是 Assistant 在一次请求中选择执行路径的结果。
@@ -145,7 +147,7 @@ Assistant 使用三类上下文：
 
 | Agent | 职责 | 主要工具范围 |
 | --- | --- | --- |
-| 配置 Agent | 解释和调整 Gateway、Route、Service、Certificate、Caller | 声明式资源查询、引用检查、变更草案 |
+| 配置 Agent | 解释和调整 Gateway、Route、Service、Certificate、Caller | 声明式资源查询、引用检查、变更提案 |
 | 流量诊断 Agent | 分析请求失败、延迟、路由命中和服务端点 | 请求记录、趋势、资源排行、配置关联 |
 | AI 用量 Agent | 分析模型调用、Token、额度和线路表现 | AI 用量、模型调用、Caller 和额度策略 |
 | 插件 Agent | 检查插件源、安装状态、版本和依赖策略 | 插件目录、安装信息、依赖关系和策略 |
@@ -241,7 +243,7 @@ Anthropic 协议可以通过推理预算主动开启扩展思考；预算为 0 �
 | --- | --- | --- |
 | 读取 | 查询配置、指标或文档 | 权限通过后直接执行 |
 | 模拟 | 校验配置、生成差异或预测匹配结果 | 直接执行并标记为模拟结果 |
-| 准备变更 | 生成变更草案 | 保存草案并要求审批 |
+| 准备变更 | 生成变更提案 | 保存提案并要求审批 |
 | 执行变更 | 修改 Ingate 或外部系统 | 根据授权策略审批或拒绝 |
 | 高风险操作 | 删除关键资源、批量修改、改变安全边界 | 强制逐次审批，不允许自动授权 |
 
@@ -249,17 +251,16 @@ Anthropic 协议可以通过推理预算主动开启扩展思考；预算为 0 �
 
 内置工具调用 Admin API，不直接访问 API Server、etcd、ClickHouse 或数据面组件。工具应面向用户任务组织，而不是简单暴露通用 CRUD 或任意 HTTP 请求。
 
-首批工具包括但不限于：
+当前工具包括：
 
-- 查询 Gateway、Route、Service、Policy 和 Plugin 的配置与生效状态
-- 查询资源引用关系和配置冲突
+- 查询 Gateway、Route、Service 及 Route 关联配置
 - 查询请求记录、流量趋势、错误分布和 AI 用量
-- 生成 Route、Service 和 Policy 的变更草案
-- 校验变更草案是否满足当前产品规则
+- 查询 Caller Token 额度
+- 生成创建 Gateway 或普通 HTTP Service 的完整配置提案
 
 工具结果必须包含数据来源、查询时间范围、结果是否完整以及不可用的数据源。某个数据源不可用时，最终回答不能表现为已经完成全部检查。
 
-工具使用统一结果状态：`complete` 表示所需数据均已取得，`partial` 表示结论缺少已列明的数据源，`unavailable` 表示工具无法产生有效结果。状态、缺失证据和是否可重试属于结构化结果，不由模型从错误文本中猜测。
+查询工具使用结构化结果状态：`complete` 表示本次结果完整，`partial` 表示仍有下一页；参数可由模型修正时返回 `invalid_input`，精确目标已经失效时返回 `not_found`，提案生成成功时返回 `approval_required`。外部依赖不可用直接结束工具调用，不伪装成空查询结果。
 
 ### 9.5 MCP 工具源
 
@@ -276,58 +277,59 @@ MCP 工具源在运维助手中独立管理，包括：
 
 ## 10. 变更、审批与恢复
 
-### 10.1 两段式变更
+### 10.1 当前两段式变更
 
 ```text
 用户提出变更
-  -> Agent 读取当前资源和 version
-  -> 工具生成结构化草案
-  -> Console 展示修改前后差异、影响范围和风险
-  -> 用户确认或授权策略自动批准
-  -> Assistant 再次校验资源 version
-  -> 调用 Admin API 执行
-  -> 读取最终资源和 Status
-  -> 返回实际结果
+  -> Agent 查询当前同类资源
+  -> 创建工具规范化并校验完整参数
+  -> Eino StatefulInterrupt 保存 checkpoint
+  -> Assistant 原子暂停 Execution、发布待审批项并释放 Worker 租约
+  -> Console 展示完整创建参数
+  -> 批准：同一 Execution 通过 ResumeWithParams 恢复原工具并调用 Admin API
+  -> 拒绝：同一 Execution 恢复，工具返回拒绝结果，Agent 正常收尾
+  -> 文字反馈：拒绝旧项并恢复同一 Execution，Agent 生成新的不可变审批项
+  -> 持久化回答以及变更的成功、失败或结果不确定终态
 ```
 
-模型可以调用“准备变更”工具，但不能直接调用最终执行接口。执行接口由 Assistant 的审批流程调用。
+模型可以调用创建工具，但第一次调用只能触发中断，不能直接调用审批接口。工具恢复上下文中的强类型 `ApprovalResult` 是唯一写入授权；聊天中的“确认”“直接执行”等自然语言不能构造这个结果。
 
-草案一旦进入审批即不可修改，并绑定规范化内容摘要、目标资源 version、工具版本和输入 Schema 版本。任何一项发生变化都使原审批失效。Admin API 的写接口接收 `expected_version` 并在持久化写入时原子校验；Assistant 在执行前读取 version 只是提前发现冲突，不能代替这个条件写。
+提案一旦进入审批即不可修改。同一个 Execution 可以在用户反馈后顺序生成新提案，但同一时刻最多存在一个待审批项；旧项必须先进入 `rejected`。提案保存操作类型、完整规范化配置和脱敏摘要，不保存 API Key、证书私钥或模型工具原始输出。当前只创建新资源，没有待更新资源的版本；后续增加更新或删除时，必须在提案中绑定目标资源版本，并由 Admin API 在持久化写入时原子校验。
 
 ### 10.2 授权方式
 
-完整授权模型支持：
+当前只支持每次操作显式确认。完整授权模型的目标还包括：
 
-- 每次操作确认
 - 当前会话内对特定工具授权
 - 对特定资源范围预授权
 - 定时任务按固定参数和资源范围预授权
 - 高风险工具强制逐次确认
 - 管理员全局禁用某类操作
 
-授权记录必须包含发起人、授权范围、工具、参数约束、有效期和撤销状态。参数超出授权范围时重新进入审批。
+只有实现预授权后才增加独立授权记录；届时必须包含发起人、授权范围、工具、参数约束、有效期和撤销状态。当前不能把一次批准扩展为会话级或资源级授权。
 
 ### 10.3 并发与幂等
 
-变更草案保存目标资源 version。执行前如果 version 已变化，原草案失效，必须重新读取并生成差异。
+审批接口在同一事务中更新提案状态，并把带中断 ID 和强类型决定的恢复命令写回原 Execution。MySQL 条件更新保证同一个中断只会排队恢复一次；重复批准、拒绝或提交反馈只返回当前状态。后台 Worker 领取后调用 Eino `ResumeWithParams`，不创建第二个 Execution。
 
-每次执行使用稳定幂等键。网络超时后，Assistant 先查询执行结果，不能直接重复提交可能产生副作用的操作。
+Admin API 当前没有按客户端幂等键查询创建结果的协议。因此连接中断、超时、服务端错误或成功响应无法校验时，Assistant 无法证明资源是否已经创建，必须进入 `outcome_unknown` 并要求管理员先从资源列表核对。只有 Admin API 明确返回不会创建资源的校验、权限或冲突错误，才进入 `failed`。
 
-Eino 检查点只保存 Agent 的暂停位置；业务审批、资源 version 和幂等状态保存在 MySQL，不依赖框架内部序列化结构作为持久化事实。
+Eino checkpoint 只保存模型—工具循环的暂停位置，不能替代业务状态。待审批配置、审批决定、Execution 状态和最终资源 ID 仍是独立的 MySQL 事实；Assistant 只有确认 checkpoint 已持久化后才发布审批项。Execution 完成或取消时删除 checkpoint。
 
-执行状态固定为：
+当前提案状态固定为：
 
 ```text
-prepared -> pending_approval -> approved -> executing
-                                      |          |-- succeeded
-                                      |          |-- failed
-                                      |          `-- unknown
-                                      `-- expired / cancelled
+pending_review -> executing -> succeeded
+       |             |-------> failed
+       |             `-------> outcome_unknown
+       `-> rejected
 ```
 
-`unknown` 表示请求可能已经生效但结果无法确认。该状态禁止自动重试，必须先通过幂等键查询 Admin API 或外部系统；仍无法确认时交由用户核对。Redis 可以缓存幂等查询结果，但 MySQL 中的执行记录和唯一幂等键才是持久化事实。
+`executing` 从批准成功排队开始，直到恢复的工具写入结果落库。执行失败、取消或 Worker 租约丢失时，如果系统无法证明 Admin API 没有接收请求，提案保守收敛为 `outcome_unknown`。该状态禁止自动重试。
 
-多资源或跨系统变更按有依赖关系的动作列表顺序执行，不宣称跨系统原子事务。某一步失败后停止后续动作，明确展示已成功、失败和未执行的部分；只有工具明确提供补偿操作且用户批准时才执行补偿，不生成未经定义的“自动回滚”。
+稳定幂等键和按键查询执行结果仍是后续 Admin API 协议目标。实现之前不能用自动重试伪装幂等。
+
+当前一次 Execution 只允许一个待审批项；用户反馈可以拒绝旧项并生成一项替代配置。未来支持多资源或跨系统变更时，应按有依赖关系的动作列表顺序执行，不宣称跨系统原子事务。某一步失败后停止后续动作，明确展示已成功、失败和未执行的部分；只有工具明确提供补偿操作且用户批准时才执行补偿，不生成未经定义的“自动回滚”。
 
 外部 MCP 写工具也必须经过相同风险、审批和审计链路。只有声明幂等语义、结果查询方法和稳定版本的工具才能获得预授权；其他写工具只能逐次确认，超时后进入 `unknown`。
 
@@ -338,10 +340,10 @@ prepared -> pending_approval -> approved -> executing
 | 类型 | 内容 | 生命周期 | 存储 |
 | --- | --- | --- | --- |
 | 页面上下文 | 当前页面、资源和筛选条件 | 单次请求 | 不持久化 |
-| 工作记忆 | 当前步骤、工具结果摘要和未完成事项 | 一次执行 | Redis |
+| 工作记忆 | 当前步骤、工具结果和未完成事项 | 一次执行 | Eino 运行状态；中断时作为 checkpoint 写入 MySQL |
 | 会话记忆 | 消息、上下文摘要和引用资源 | 可配置保留期 | MySQL |
-| 执行检查点 | Agent 暂停位置 | 任务完成或过期 | Redis |
-| 业务恢复状态 | 待审批草案、操作状态和恢复阶段 | 按审计保留策略 | MySQL |
+| 执行检查点 | Agent 暂停位置 | Execution 完成、取消或删除 | MySQL |
+| 业务恢复状态 | 待审批配置、审批决定和操作终态 | 按审计保留策略 | MySQL |
 | 用户记忆 | 用户明确要求保存的偏好 | 直到修改或删除 | MySQL |
 | 事件记忆 | 已确认的故障、证据、处理动作和结果 | 按保留策略 | MySQL |
 | 产品知识 | 正式文档、操作手册和版本说明 | 随版本更新 | 文档检索工具 |
@@ -388,7 +390,7 @@ Gateway、Route、Service、Policy 当前配置和实时指标不是记忆。回
 
 ## 12. 持久化模型
 
-MySQL 是 Assistant 业务状态的持久化事实来源。当前建立五张表：
+MySQL 是 Assistant 业务状态和中断恢复数据的持久化来源。当前建立七张表：
 
 | 数据集合 | 主要内容 |
 | --- | --- |
@@ -396,6 +398,8 @@ MySQL 是 Assistant 业务状态的持久化事实来源。当前建立五张表
 | `assistant_conversations` | 一个用户持续使用的对话容器，保存标题和最近活动时间 |
 | `assistant_agent_executions` | 一次用户输入从接收到完成的生命周期，保存状态、模型、租约和错误分类 |
 | `assistant_agent_execution_steps` | 一次 Execution 中已经发生的模型或工具步骤，保存顺序、状态和安全摘要 |
+| `assistant_proposed_changes` | Agent 生成的不可变配置快照、审批状态、执行租约和最终资源 ID 或稳定错误码 |
+| `assistant_agent_checkpoints` | Eino 序列化的暂停位置，与 Execution 同生命周期，不作为审批事实 |
 | `assistant_messages` | 用户输入、助手最终回复及厂商显式返回的推理内容，分别关联会话及产生它的 Execution |
 
 关系固定为：
@@ -405,17 +409,19 @@ assistant_conversations    1 ── N assistant_agent_executions
 assistant_conversations    1 ── N assistant_messages
 assistant_agent_executions 1 ── N assistant_agent_execution_steps
 assistant_agent_executions 1 ── N assistant_messages
+assistant_agent_executions 1 ── N assistant_proposed_changes
+assistant_agent_executions 1 ── 0..1 assistant_agent_checkpoints
 ```
 
-Conversation 负责组织连续对话；Execution 负责表达一次执行是否仍在进行以及如何结束；Execution Step 负责表达这次执行实际经过了哪些模型和工具步骤；Message 保存可以重新展示的最终回答和显式推理内容。
+Conversation 负责组织连续对话；Execution 负责表达一次回答是否仍在进行以及如何结束；Execution Step 记录模型和工具步骤；Message 保存可以重新展示的最终回答和显式推理内容；Proposed Change 独立表达一次审批与确定性写入；Checkpoint 只让 Eino 恢复同一个模型—工具循环。
 
 Execution Step 与 Execution 在同一事务中收敛终态。Worker 成功、失败、取消或租约过期时，不会留下仍处于执行中的步骤。`summary` 只允许保存经过脱敏且可向用户展示的摘要，不保存模型请求、完整 Prompt、工具参数或原始工具输出。
 
-流式文本分片不写入 MySQL，避免把传输过程混入业务事实。已保存的推理内容只用于展示，不作为后续模型请求的历史上下文。
+流式文本分片不写入 MySQL，避免把传输过程混入业务事实。已保存的推理内容与最终回答隔离，既不作为后续模型请求的历史上下文，当前 Console 也不直接展示；界面只呈现可审计的执行步骤和最终回答。
 
 当前使用 sqlc 生成类型安全的数据访问代码，并在手写事务中明确会话锁和 Execution 状态转换。这里不引入 GORM 或 Ent：当前模型很小，关键复杂度是并发约束和事务顺序，而不是对象映射。增加 ORM 会同时维护领域模型和 ORM 模型，但不会减少这些约束。
 
-工具调用、审批和委派先复用 Execution Step 的执行序列；写操作草案、定时任务、长期记忆、工具源和反馈尚未形成产品闭环，因此当前不创建对应空表。实现相关功能时再按可验收的数据生命周期增加独立事实表，不把所有扩展字段继续堆入 Execution、Execution Step 或 Message。
+工具调用过程保存在 Execution Step；配置提案具有独立审批和执行生命周期，因此使用独立表。审批修改文字作为用户消息和一次性恢复命令保存，不建立重复的反馈模型。定时任务、长期记忆和工具源尚未形成产品闭环，当前不创建对应空表，也不把未来字段继续堆入现有表。
 
 完整 Prompt、密钥、证书私钥、请求正文和未经筛选的工具原始输出不进入这些表。
 
@@ -424,13 +430,13 @@ Redis 只保存可以重建或会过期的状态：
 - 一个 Execution 的流式事件
 - SSE 断线恢复所需的事件 ID
 
-Redis Stream 按 Execution 设置保留期，只用于短期重放。Redis 丢失不会丢失会话、最终消息或 Execution 终态；Console 可以通过普通 HTTP 重新读取 MySQL 中的结果。需要中断恢复时，再把 Eino Checkpoint 作为执行缓存接入，但检查点不能替代业务事实。
+Redis Stream 按 Execution 设置保留期，只用于短期重放。Redis 丢失不会丢失会话、最终消息、Execution 终态或等待审批的 checkpoint；Console 可以通过普通 HTTP 重新读取 MySQL 中的状态。
 
-MySQL 不保存 Gateway 等声明式资源副本。Assistant 只保存资源 ID、version 和操作摘要，资源本体继续由 API Server 管理。
+MySQL 不保存 Gateway 等声明式资源副本。Assistant 只保存审批时展示并执行的不可变配置快照，以及成功后的资源 ID；资源当前状态仍由 API Server 管理，回答实时问题时必须重新查询 Admin API。
 
 ## 13. API 与事件协议
 
-当前 Console 使用普通 HTTP 管理模型连接、会话和 Execution，并使用 SSE 接收一次 Execution 的流式事件。记忆、审批、工具源和定时任务的 API 只在对应业务能力实现后增加。
+当前 Console 使用普通 HTTP 管理模型连接、会话、Execution 和 Proposed Change，并使用 SSE 接收一次 Agent Execution 的流式事件。配置提案通过普通 HTTP 查询、批准、拒绝和提交修改反馈；三个决定都只把原 Execution 排队恢复，HTTP 请求本身不执行模型或 Admin API 调用。记忆、工具源和定时任务的 API 只在对应业务能力实现后增加。
 
 当前 SSE 事件类型：
 
@@ -442,10 +448,11 @@ MySQL 不保存 Gateway 等声明式资源副本。Assistant 只保存资源 ID�
 | `execution.completed` | 本次请求完成，携带最终消息 ID |
 | `execution.failed` | 本次请求失败，携带稳定错误代码 |
 | `execution.cancelled` | 本次请求已取消 |
+| `execution.interrupted` | checkpoint 已保存，Execution 正在等待审批 |
 
 事件协议只传递模型端点明确返回的结构化推理内容，不尝试获取模型内部隐藏思维链。未来如果增加工具执行通知，应使用独立的产品事件，例如“正在检查路由生效状态”，不能伪装成模型推理内容。
 
-模型调用和工具调用过程保存在 Execution Step 中，通过普通 HTTP 查询，不为同一事实维护第二套 SSE 事件。未来的审批或委派如果需要实时交互，应在真实功能落地时扩展事件集合。
+模型调用和工具调用过程保存在 Execution Step 中，通过普通 HTTP 查询，不为同一事实维护第二套 SSE 事件。审批状态同样以 MySQL 为事实来源；Console 提交决定后继续订阅同一个 Execution，直到出现新审批中断或最终状态。
 
 断线重连使用 Execution ID 和 SSE `Last-Event-ID` 恢复。活动 Execution 的增量事件保存在 Redis 并设置保留期，任一 Assistant 实例都可以继续发送。Redis 状态已过期时，Console 通过普通 HTTP 获取 MySQL 中的 Execution 和消息，不保证逐 Token 重放。SSE 是单向协议，不额外设计客户端 ACK。
 
@@ -571,12 +578,13 @@ Assistant 无法工作不能影响 Ingate 控制面和数据面。Console 应把
 
 实现顺序不改变目标架构和数据模型：
 
-1. 建立 Assistant 组件、模型连接、SSE 协议、会话持久化和内置只读工具
-2. 完成配置与流量诊断闭环，建立工具结果完整性和固定评测集
-3. 增加变更草案、审批、version 校验、幂等执行和任务恢复
-4. 增加专业 Agent，并把工具按领域收敛到独立白名单
-5. 增加长期记忆管理、产品知识检索和用户反馈
-6. 增加 MCP 工具源、定时巡检、预授权自动化和自动修复保护
+1. 建立 Assistant 组件、模型连接、SSE 协议、会话持久化和内置查询工具（已完成）
+2. 完成配置与流量诊断闭环，建立工具结果完整性（已完成；固定评测集待补充）
+3. 增加创建 Gateway 和普通 HTTP Service 的提案、逐次审批、唯一执行权和结果不确定恢复（已完成）
+4. 为更新与删除增加 version 校验，为 Admin API 增加稳定幂等键和执行结果查询
+5. 增加专业 Agent，并把工具按领域收敛到独立白名单
+6. 增加长期记忆管理、产品知识检索和用户反馈
+7. 增加 MCP 工具源、定时巡检、预授权自动化和自动修复保护
 
 每一步都必须形成可验收用户场景，不能添加没有调用方的接口、空实现或只为未来预留的持久化字段。
 

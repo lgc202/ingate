@@ -7,7 +7,37 @@ import (
 
 	adminv1 "github.com/lgc202/ingate/api/admin/v1"
 	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 )
+
+// CreateGateway 执行管理员已经批准的 Gateway 创建操作。
+func (c *Client) CreateGateway(
+	ctx context.Context,
+	input changebiz.CreateGateway,
+) (changebiz.CreatedResource, error) {
+	listeners := make([]*adminv1.GatewayListener, 0, len(input.Listeners))
+	for _, listener := range input.Listeners {
+		listeners = append(listeners, &adminv1.GatewayListener{
+			Name:          listener.Name,
+			Protocol:      proposedGatewayProtocol(listener.Protocol),
+			Port:          listener.Port,
+			Hostname:      listener.Hostname,
+			CertificateId: listener.CertificateID,
+		})
+	}
+	result, err := c.gateways.CreateGateway(ctx, &adminv1.CreateGatewayRequest{
+		Name:      input.Name,
+		Enabled:   &input.Enabled,
+		Listeners: listeners,
+	})
+	if err != nil {
+		return changebiz.CreatedResource{}, proposedChangeError("create gateway through Admin API", err)
+	}
+	if result == nil || !validResourceID(result.GetId()) {
+		return changebiz.CreatedResource{}, errors.New("create gateway through Admin API: invalid response")
+	}
+	return changebiz.CreatedResource{ID: result.GetId()}, nil
+}
 
 // ListGateways 查询当前配置域中的网关入口。
 func (c *Client) ListGateways(
@@ -66,6 +96,17 @@ func gatewayProtocol(protocol adminv1.GatewayProtocol) string {
 		return "https"
 	default:
 		return "unknown"
+	}
+}
+
+func proposedGatewayProtocol(protocol changebiz.GatewayProtocol) adminv1.GatewayProtocol {
+	switch protocol {
+	case changebiz.GatewayProtocolHTTP:
+		return adminv1.GatewayProtocol_GATEWAY_PROTOCOL_HTTP
+	case changebiz.GatewayProtocolHTTPS:
+		return adminv1.GatewayProtocol_GATEWAY_PROTOCOL_HTTPS
+	default:
+		return adminv1.GatewayProtocol_GATEWAY_PROTOCOL_UNSPECIFIED
 	}
 }
 

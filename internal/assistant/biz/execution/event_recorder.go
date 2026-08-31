@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	agentbiz "github.com/lgc202/ingate/internal/assistant/biz/agent"
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 )
 
 // eventRecorder 把 Agent 过程事件翻译成执行记录和短期流式通知。
@@ -16,6 +17,7 @@ import (
 type eventRecorder struct {
 	store         ExecutorStore
 	events        EventStore
+	changes       changebiz.ProposalStore
 	executionID   string
 	workerID      string
 	leaseDuration time.Duration
@@ -34,6 +36,8 @@ func (r *eventRecorder) Emit(ctx context.Context, event agentbiz.Event) error {
 		return r.startStep(ctx, event.CallID, event.Tool, StepKindToolCall)
 	case agentbiz.ToolCallCompleted:
 		return r.completeStep(ctx, event.CallID, StepKindToolCall, event.Summary)
+	case agentbiz.ChangeCompleted:
+		return r.completeChange(ctx, event)
 	case agentbiz.ToolCallFailed:
 		return r.failToolStep(ctx, event)
 	case agentbiz.ReasoningDelta:
@@ -50,6 +54,7 @@ func (r *eventRecorder) Emit(ctx context.Context, event agentbiz.Event) error {
 func newEventRecorder(
 	store ExecutorStore,
 	events EventStore,
+	changes changebiz.ProposalStore,
 	executionID string,
 	workerID string,
 	leaseDuration time.Duration,
@@ -57,18 +62,37 @@ func newEventRecorder(
 	return &eventRecorder{
 		store:         store,
 		events:        events,
+		changes:       changes,
 		executionID:   executionID,
 		workerID:      workerID,
 		leaseDuration: leaseDuration,
 	}
 }
 
+func (r *eventRecorder) completeChange(
+	ctx context.Context,
+	event agentbiz.ChangeCompleted,
+) error {
+	if err := r.changes.CompleteProposedChange(
+		ctx,
+		r.executionID,
+		r.workerID,
+		event.ID,
+		event.State,
+		changebiz.CreatedResource{ID: event.ResourceID},
+		event.ErrorCode,
+	); err != nil {
+		return executionRecordError("complete approved change", err)
+	}
+	return nil
+}
+
 func (r *eventRecorder) selectModel(
 	ctx context.Context,
 	event agentbiz.ModelSelected,
 ) error {
-	if err := r.store.SetExecutionModel(ctx, r.executionID, r.workerID, event.Model); err != nil {
-		return executionRecordError("set execution model", err)
+	if err := r.store.BindExecutionModel(ctx, r.executionID, r.workerID, event.Model); err != nil {
+		return executionRecordError("bind execution model", err)
 	}
 
 	// 选模发生在第一次远端请求之前。这里立即续租一次，既确认当前实例仍持有任务，

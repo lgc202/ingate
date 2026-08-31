@@ -7,6 +7,7 @@ import {
 } from 'react';
 import { MessageSquareText, Settings2 } from 'lucide-react';
 import {
+  approveProposedChange,
   createAssistantConversation,
   createAgentExecution,
   deleteAssistantConversation,
@@ -14,16 +15,21 @@ import {
   getModelConnection,
   listAssistantConversations,
   listAssistantMessages,
+  listProposedChanges,
+  rejectProposedChange,
+  reviseProposedChange,
   updateAssistantConversation,
 } from '@/api/assistant';
 import { errorMessage } from '@/api/errors';
 import { Badge, Button, PageFrame, Toast } from '@/components/ui';
 import type {
+  AgentExecution,
   AssistantConversation,
   AssistantMessage,
   ModelConnection,
+  ProposedChange,
 } from '@/domain/assistant';
-import { executionStateLabel, isTerminalExecution } from '@/domain/assistant';
+import { executionStateLabel, isSettledExecution } from '@/domain/assistant';
 import { AssistantConversationList } from './AssistantConversationList';
 import { AssistantComposer } from './AssistantComposer';
 import { AssistantMessageList } from './AssistantMessageList';
@@ -35,6 +41,7 @@ import {
   readActiveConversationID,
   readStoredExecution,
   storeActiveConversationID,
+  type StoredExecution,
 } from './assistant-session';
 import { useAssistantExecution } from './useAssistantExecution';
 
@@ -55,6 +62,7 @@ export function AssistantPage() {
   const [nextCursor, setNextCursor] = useState('');
   const [selectedID, setSelectedID] = useState<string | null>(null);
   const [messages, setMessages] = useState<AssistantMessage[]>([]);
+  const [proposedChanges, setProposedChanges] = useState<ProposedChange[]>([]);
   const [connection, setConnection] = useState<ModelConnection>(emptyModelConnection);
   const [loading, setLoading] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
@@ -68,6 +76,10 @@ export function AssistantPage() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [editingMessage, setEditingMessage] = useState<AssistantMessage | null>(null);
+  const [changeDecision, setChangeDecision] = useState<{
+    id: string;
+    action: 'approve' | 'reject';
+  } | null>(null);
   const [notice, setNotice] = useState<{ message: string; tone: 'success' | 'error' } | null>(null);
   const messageLoadGenerationRef = useRef(0);
   const selectedIDRef = useRef<string | null>(null);
@@ -78,12 +90,18 @@ export function AssistantPage() {
   const promptDraftRef = useRef('');
   const submitInFlightRef = useRef(false);
 
-  const loadMessages = useCallback(async (conversationID: string) => {
+  const reloadConversation = useCallback(async (conversationID: string) => {
     const generation = ++messageLoadGenerationRef.current;
     setLoadingMessages(true);
     try {
-      const loaded = await listAssistantMessages(conversationID);
-      if (generation === messageLoadGenerationRef.current) setMessages(loaded);
+      const [loadedMessages, loadedChanges] = await Promise.all([
+        listAssistantMessages(conversationID),
+        listProposedChanges(conversationID),
+      ]);
+      if (generation === messageLoadGenerationRef.current) {
+        setMessages(loadedMessages);
+        setProposedChanges(loadedChanges);
+      }
     } catch (cause) {
       if (generation === messageLoadGenerationRef.current) {
         setNotice({
@@ -115,7 +133,7 @@ export function AssistantPage() {
     cancelExecution,
   } = useAssistantExecution({
     selectedConversationIDRef: selectedIDRef,
-    loadMessages,
+    reloadConversation,
     reloadConversations,
     onNotice: setNotice,
   });
@@ -168,9 +186,12 @@ export function AssistantPage() {
             if (execution.conversationId !== resumableExecution.conversationID) {
               throw new Error('执行与会话的本地恢复信息不一致');
             }
-            if (!cancelled && !isTerminalExecution(execution.state)) {
+            if (!cancelled && !isSettledExecution(execution.state)) {
               void followExecution(execution, resumableExecution);
-            } else if (!cancelled) {
+            } else if (
+              !cancelled
+              && execution.state !== 'AGENT_EXECUTION_STATE_WAITING_APPROVAL'
+            ) {
               clearStoredExecution();
             }
           } catch {
@@ -195,16 +216,39 @@ export function AssistantPage() {
     if (!selectedID) {
       selectedIDRef.current = null;
       setMessages([]);
+      setProposedChanges([]);
       return;
     }
     selectedIDRef.current = selectedID;
     storeActiveConversationID(selectedID);
-    void loadMessages(selectedID);
-  }, [loadMessages, selectedID]);
+    void reloadConversation(selectedID);
+  }, [reloadConversation, selectedID]);
+
+  const hasExecutingChange = proposedChanges.some(
+    (change) => change.state === 'PROPOSED_CHANGE_STATE_EXECUTING',
+  );
+
+  useEffect(() => {
+    if (!selectedID || !hasExecutingChange) return undefined;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const changes = await listProposedChanges(selectedID);
+        if (!cancelled && selectedIDRef.current === selectedID) setProposedChanges(changes);
+      } catch {
+        // 审批请求本身会返回最终状态；轮询只负责恢复并发请求或进程中断后的状态。
+      }
+    };
+    const timer = window.setInterval(() => void refresh(), 1_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [hasExecutingChange, selectedID]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-  }, [liveAnswer?.content, liveAnswer?.reasoning, messages]);
+  }, [liveAnswer?.content, messages, proposedChanges]);
 
   useEffect(() => {
     promptHistoryRef.current = messages
@@ -220,6 +264,7 @@ export function AssistantPage() {
     selectedIDRef.current = null;
     setSelectedID(null);
     setMessages([]);
+    setProposedChanges([]);
     setInput('');
     resetExecutionView();
     setEditingMessage(null);
@@ -235,6 +280,7 @@ export function AssistantPage() {
     selectedIDRef.current = id;
     setSelectedID(id);
     setMessages([]);
+    setProposedChanges([]);
     resetExecutionView();
     setEditingMessage(null);
     promptHistoryRef.current = [];
@@ -276,13 +322,29 @@ export function AssistantPage() {
         selectedIDRef.current = conversation.id;
         setSelectedID(conversation.id);
       }
-      const execution = await createAgentExecution(conversationID, content);
+      const pendingChanges = proposedChanges.filter(
+        (change) => change.conversationId === conversationID
+          && change.state === 'PROPOSED_CHANGE_STATE_PENDING_REVIEW',
+      );
+      if (pendingChanges.length > 1) {
+        throw new Error('当前会话存在多个待审批变更，请先刷新页面');
+      }
+      let execution: AgentExecution;
+      let storedExecution: StoredExecution | undefined;
+      if (pendingChanges.length === 1) {
+        const change = await reviseProposedChange(pendingChanges[0].id, content);
+        execution = await getAgentExecution(change.executionId);
+        const current = readStoredExecution();
+        if (current?.executionID === execution.id) storedExecution = current;
+      } else {
+        execution = await createAgentExecution(conversationID, content);
+      }
       setEditingMessage(null);
       promptHistoryRef.current = [...promptHistoryRef.current, content];
       promptHistoryIndexRef.current = -1;
       promptDraftRef.current = '';
-      await loadMessages(conversationID);
-      void followExecution(execution);
+      await reloadConversation(conversationID);
+      void followExecution(execution, storedExecution);
     } catch (cause) {
       setInput(content);
       showExecutionError(errorMessage(cause, '发送消息失败'));
@@ -305,6 +367,7 @@ export function AssistantPage() {
         selectedIDRef.current = nextID;
         setSelectedID(nextID);
         setMessages([]);
+        setProposedChanges([]);
       }
       setDeleteCandidate(null);
     } catch (cause) {
@@ -327,6 +390,43 @@ export function AssistantPage() {
       setNotice({ message: errorMessage(cause, '更新会话名称失败'), tone: 'error' });
     } finally {
       setRenaming(false);
+    }
+  };
+
+  const decideChange = async (change: ProposedChange, action: 'approve' | 'reject') => {
+    if (changeDecision) return;
+    setChangeDecision({ id: change.id, action });
+    try {
+      const saved = action === 'approve'
+        ? await approveProposedChange(change.id)
+        : await rejectProposedChange(change.id);
+      setProposedChanges((current) => current.map((item) => (
+        item.id === saved.id ? saved : item
+      )));
+      const execution = await getAgentExecution(saved.executionId);
+      await reloadConversation(saved.conversationId);
+      const storedExecution = readStoredExecution();
+      void followExecution(
+        execution,
+        storedExecution?.executionID === execution.id ? storedExecution : undefined,
+      );
+    } catch (cause) {
+      if (selectedIDRef.current === change.conversationId) {
+        try {
+          setProposedChanges(await listProposedChanges(change.conversationId));
+        } catch {
+          // 保留当前审批卡，原始错误仍会提示用户。
+        }
+      }
+      setNotice({
+        message: errorMessage(
+          cause,
+          action === 'approve' ? '批准配置变更失败' : '拒绝配置变更失败',
+        ),
+        tone: 'error',
+      });
+    } finally {
+      setChangeDecision(null);
     }
   };
 
@@ -453,6 +553,8 @@ export function AssistantPage() {
             liveAnswer={currentLiveAnswer}
             execution={currentExecution}
             executionSteps={currentExecutionSteps}
+            proposedChanges={proposedChanges}
+            changeDecision={changeDecision}
             error={executionError}
             endRef={messagesEndRef}
             onConfigure={() => setConnectionOpen(true)}
@@ -466,6 +568,8 @@ export function AssistantPage() {
               setInput(value);
               window.requestAnimationFrame(() => editorRef.current?.focus());
             }}
+            onApproveChange={(change) => void decideChange(change, 'approve')}
+            onRejectChange={(change) => void decideChange(change, 'reject')}
           />
 
           <AssistantComposer

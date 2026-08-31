@@ -35,7 +35,7 @@ type Bootstrap struct {
 	Logging *Logging `protobuf:"bytes,4,opt,name=logging,proto3" json:"logging,omitempty"`
 	// worker 定义后台 Agent 执行槽和租约。
 	Worker *Worker `protobuf:"bytes,5,opt,name=worker,proto3" json:"worker,omitempty"`
-	// admin_api 定义只读工具访问的内部管理接口。
+	// admin_api 定义查询工具和已审批变更访问的内部管理接口。
 	AdminApi      *AdminAPI `protobuf:"bytes,6,opt,name=admin_api,json=adminApi,proto3" json:"admin_api,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -352,12 +352,12 @@ func (x *Worker) GetLeaseDuration() *durationpb.Duration {
 	return nil
 }
 
-// AdminAPI 定义助手读取当前 Ingate 资源时使用的内部 gRPC 地址。
+// AdminAPI 定义助手查询资源和执行已审批变更时使用的内部 gRPC 地址。
 type AdminAPI struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// addr 是 Admin API 内部 gRPC 地址。
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
-	// timeout 是一次只读工具查询的最长等待时间。
+	// timeout 是一次查询或已审批写操作的最长等待时间。
 	Timeout       *durationpb.Duration `protobuf:"bytes,2,opt,name=timeout,proto3" json:"timeout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache

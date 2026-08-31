@@ -1,6 +1,12 @@
 package tool
 
-import einotool "github.com/cloudwego/eino/components/tool"
+import (
+	"context"
+
+	einotool "github.com/cloudwego/eino/components/tool"
+
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
+)
 
 const (
 	listGatewaysTool        = "list_gateways"
@@ -11,6 +17,8 @@ const (
 	listRecentFailuresTool  = "list_recent_failures"
 	getRequestRecordTool    = "get_request_record"
 	getCallerTokenQuotaTool = "get_caller_token_quota"
+	createGatewayTool       = "create_gateway"
+	createServiceTool       = "create_service"
 	defaultListLimit        = 20
 	maxListLimit            = 50
 )
@@ -33,9 +41,16 @@ type QuerySource interface {
 	CallerTokenQuotaReader
 }
 
-// NewTools 创建运维 Agent 当前可以提供给模型的只读工具。
+// ChangeWriter 是有副作用工具实际调用的 Admin API 边界。
+// 工具只有在 Eino 恢复数据明确批准当前中断后才会调用这些方法。
+type ChangeWriter interface {
+	CreateGateway(context.Context, changebiz.CreateGateway) (changebiz.CreatedResource, error)
+	CreateService(context.Context, changebiz.CreateService) (changebiz.CreatedResource, error)
+}
+
+// NewTools 创建运维 Agent 当前可以提供给模型的查询和配置变更工具。
 // 返回顺序保持稳定，便于观察不同版本暴露给模型的能力变化。
-func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
+func NewTools(source QuerySource, writer ChangeWriter) ([]einotool.BaseTool, error) {
 	gateways, err := newGatewayTool(source)
 	if err != nil {
 		return nil, err
@@ -68,6 +83,14 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 	if err != nil {
 		return nil, err
 	}
+	createGateway, err := newCreateGatewayTool(writer)
+	if err != nil {
+		return nil, err
+	}
+	createService, err := newCreateServiceTool(writer)
+	if err != nil {
+		return nil, err
+	}
 	return []einotool.BaseTool{
 		gateways,
 		routes,
@@ -77,6 +100,8 @@ func NewTools(source QuerySource) ([]einotool.BaseTool, error) {
 		failures,
 		requestRecord,
 		callerTokenQuota,
+		createGateway,
+		createService,
 	}, nil
 }
 

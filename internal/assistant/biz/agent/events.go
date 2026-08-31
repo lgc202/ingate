@@ -4,7 +4,17 @@ package agent
 import (
 	"context"
 	"errors"
+
+	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 )
+
+// CheckPointStore 是 Eino 中断恢复所需的持久化边界。
+// 实现同时提供 Delete 时，Eino 会在执行正常结束后主动清理 checkpoint。
+type CheckPointStore interface {
+	Get(context.Context, string) ([]byte, bool, error)
+	Set(context.Context, string, []byte) error
+}
 
 const (
 	// RoleUser 表示来自管理员的上下文消息。
@@ -36,7 +46,15 @@ type Message struct {
 // Request 是一次 Agent 执行的不可变请求。
 // 历史消息由执行编排层一次性读取，Agent 循环只在内存中追加模型和工具消息。
 type Request struct {
-	Messages []Message
+	CheckpointID string
+	Messages     []Message
+	Resume       *Resume
+}
+
+// Resume 指定要恢复的 Eino 中断及管理员提交的结构化决定。
+type Resume struct {
+	InterruptID string
+	Result      *agenttool.ApprovalResult
 }
 
 // Response 是 Agent 自然结束后产生的用户可见响应。
@@ -44,6 +62,13 @@ type Request struct {
 type Response struct {
 	Content          string
 	ReasoningContent string
+	Interruption     *ApprovalInterruption
+}
+
+// ApprovalInterruption 是当前执行唯一允许暴露给审批流程的根中断。
+type ApprovalInterruption struct {
+	InterruptID string
+	Request     agenttool.ApprovalRequest
 }
 
 // Event 是 Agent 循环对外发布的封闭事件集合。
@@ -88,6 +113,14 @@ type ToolCallCompleted struct {
 	Summary string
 }
 
+// ChangeCompleted 表示获批的配置工具已经得到可收敛的写入结果。
+type ChangeCompleted struct {
+	ID         string
+	State      changebiz.State
+	ResourceID string
+	ErrorCode  changebiz.FailureCode
+}
+
 // ToolCallFailed 表示工具依赖不可用或执行结果无法解释。
 type ToolCallFailed struct {
 	CallID string
@@ -121,6 +154,8 @@ func (ModelCallCompleted) agentEvent() {}
 func (ToolCallStarted) agentEvent() {}
 
 func (ToolCallCompleted) agentEvent() {}
+
+func (ChangeCompleted) agentEvent() {}
 
 func (ToolCallFailed) agentEvent() {}
 

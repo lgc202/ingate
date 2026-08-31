@@ -552,6 +552,232 @@ var AgentExecutionService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
+	ProposedChangeService_ListProposedChanges_FullMethodName   = "/ingate.assistant.v1.ProposedChangeService/ListProposedChanges"
+	ProposedChangeService_ApproveProposedChange_FullMethodName = "/ingate.assistant.v1.ProposedChangeService/ApproveProposedChange"
+	ProposedChangeService_RejectProposedChange_FullMethodName  = "/ingate.assistant.v1.ProposedChangeService/RejectProposedChange"
+	ProposedChangeService_ReviseProposedChange_FullMethodName  = "/ingate.assistant.v1.ProposedChangeService/ReviseProposedChange"
+)
+
+// ProposedChangeServiceClient is the client API for ProposedChangeService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+//
+// ProposedChangeService 管理 Agent 生成、由管理员显式审批的配置变更。
+type ProposedChangeServiceClient interface {
+	// ListProposedChanges 返回会话中已经进入审批流程的配置变更。
+	ListProposedChanges(ctx context.Context, in *ListProposedChangesRequest, opts ...grpc.CallOption) (*ListProposedChangesResponse, error)
+	// ApproveProposedChange 批准并执行一项配置变更。
+	ApproveProposedChange(ctx context.Context, in *ApproveProposedChangeRequest, opts ...grpc.CallOption) (*ProposedChange, error)
+	// RejectProposedChange 拒绝一项尚未执行的配置变更。
+	RejectProposedChange(ctx context.Context, in *RejectProposedChangeRequest, opts ...grpc.CallOption) (*ProposedChange, error)
+	// ReviseProposedChange 拒绝当前配置，并把文字反馈交回原 Agent 执行。
+	ReviseProposedChange(ctx context.Context, in *ReviseProposedChangeRequest, opts ...grpc.CallOption) (*ProposedChange, error)
+}
+
+type proposedChangeServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewProposedChangeServiceClient(cc grpc.ClientConnInterface) ProposedChangeServiceClient {
+	return &proposedChangeServiceClient{cc}
+}
+
+func (c *proposedChangeServiceClient) ListProposedChanges(ctx context.Context, in *ListProposedChangesRequest, opts ...grpc.CallOption) (*ListProposedChangesResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListProposedChangesResponse)
+	err := c.cc.Invoke(ctx, ProposedChangeService_ListProposedChanges_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *proposedChangeServiceClient) ApproveProposedChange(ctx context.Context, in *ApproveProposedChangeRequest, opts ...grpc.CallOption) (*ProposedChange, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProposedChange)
+	err := c.cc.Invoke(ctx, ProposedChangeService_ApproveProposedChange_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *proposedChangeServiceClient) RejectProposedChange(ctx context.Context, in *RejectProposedChangeRequest, opts ...grpc.CallOption) (*ProposedChange, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProposedChange)
+	err := c.cc.Invoke(ctx, ProposedChangeService_RejectProposedChange_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *proposedChangeServiceClient) ReviseProposedChange(ctx context.Context, in *ReviseProposedChangeRequest, opts ...grpc.CallOption) (*ProposedChange, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ProposedChange)
+	err := c.cc.Invoke(ctx, ProposedChangeService_ReviseProposedChange_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// ProposedChangeServiceServer is the server API for ProposedChangeService service.
+// All implementations should embed UnimplementedProposedChangeServiceServer
+// for forward compatibility.
+//
+// ProposedChangeService 管理 Agent 生成、由管理员显式审批的配置变更。
+type ProposedChangeServiceServer interface {
+	// ListProposedChanges 返回会话中已经进入审批流程的配置变更。
+	ListProposedChanges(context.Context, *ListProposedChangesRequest) (*ListProposedChangesResponse, error)
+	// ApproveProposedChange 批准并执行一项配置变更。
+	ApproveProposedChange(context.Context, *ApproveProposedChangeRequest) (*ProposedChange, error)
+	// RejectProposedChange 拒绝一项尚未执行的配置变更。
+	RejectProposedChange(context.Context, *RejectProposedChangeRequest) (*ProposedChange, error)
+	// ReviseProposedChange 拒绝当前配置，并把文字反馈交回原 Agent 执行。
+	ReviseProposedChange(context.Context, *ReviseProposedChangeRequest) (*ProposedChange, error)
+}
+
+// UnimplementedProposedChangeServiceServer should be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedProposedChangeServiceServer struct{}
+
+func (UnimplementedProposedChangeServiceServer) ListProposedChanges(context.Context, *ListProposedChangesRequest) (*ListProposedChangesResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListProposedChanges not implemented")
+}
+func (UnimplementedProposedChangeServiceServer) ApproveProposedChange(context.Context, *ApproveProposedChangeRequest) (*ProposedChange, error) {
+	return nil, status.Error(codes.Unimplemented, "method ApproveProposedChange not implemented")
+}
+func (UnimplementedProposedChangeServiceServer) RejectProposedChange(context.Context, *RejectProposedChangeRequest) (*ProposedChange, error) {
+	return nil, status.Error(codes.Unimplemented, "method RejectProposedChange not implemented")
+}
+func (UnimplementedProposedChangeServiceServer) ReviseProposedChange(context.Context, *ReviseProposedChangeRequest) (*ProposedChange, error) {
+	return nil, status.Error(codes.Unimplemented, "method ReviseProposedChange not implemented")
+}
+func (UnimplementedProposedChangeServiceServer) testEmbeddedByValue() {}
+
+// UnsafeProposedChangeServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to ProposedChangeServiceServer will
+// result in compilation errors.
+type UnsafeProposedChangeServiceServer interface {
+	mustEmbedUnimplementedProposedChangeServiceServer()
+}
+
+func RegisterProposedChangeServiceServer(s grpc.ServiceRegistrar, srv ProposedChangeServiceServer) {
+	// If the following call panics, it indicates UnimplementedProposedChangeServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&ProposedChangeService_ServiceDesc, srv)
+}
+
+func _ProposedChangeService_ListProposedChanges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListProposedChangesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProposedChangeServiceServer).ListProposedChanges(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProposedChangeService_ListProposedChanges_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProposedChangeServiceServer).ListProposedChanges(ctx, req.(*ListProposedChangesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProposedChangeService_ApproveProposedChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ApproveProposedChangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProposedChangeServiceServer).ApproveProposedChange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProposedChangeService_ApproveProposedChange_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProposedChangeServiceServer).ApproveProposedChange(ctx, req.(*ApproveProposedChangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProposedChangeService_RejectProposedChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RejectProposedChangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProposedChangeServiceServer).RejectProposedChange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProposedChangeService_RejectProposedChange_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProposedChangeServiceServer).RejectProposedChange(ctx, req.(*RejectProposedChangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _ProposedChangeService_ReviseProposedChange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReviseProposedChangeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ProposedChangeServiceServer).ReviseProposedChange(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: ProposedChangeService_ReviseProposedChange_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ProposedChangeServiceServer).ReviseProposedChange(ctx, req.(*ReviseProposedChangeRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// ProposedChangeService_ServiceDesc is the grpc.ServiceDesc for ProposedChangeService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var ProposedChangeService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "ingate.assistant.v1.ProposedChangeService",
+	HandlerType: (*ProposedChangeServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "ListProposedChanges",
+			Handler:    _ProposedChangeService_ListProposedChanges_Handler,
+		},
+		{
+			MethodName: "ApproveProposedChange",
+			Handler:    _ProposedChangeService_ApproveProposedChange_Handler,
+		},
+		{
+			MethodName: "RejectProposedChange",
+			Handler:    _ProposedChangeService_RejectProposedChange_Handler,
+		},
+		{
+			MethodName: "ReviseProposedChange",
+			Handler:    _ProposedChangeService_ReviseProposedChange_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "assistant/v1/assistant.proto",
+}
+
+const (
 	ModelConnectionService_GetModelConnection_FullMethodName    = "/ingate.assistant.v1.ModelConnectionService/GetModelConnection"
 	ModelConnectionService_UpdateModelConnection_FullMethodName = "/ingate.assistant.v1.ModelConnectionService/UpdateModelConnection"
 )

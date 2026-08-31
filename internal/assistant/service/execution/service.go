@@ -128,6 +128,8 @@ func executionResponse(item executionbiz.Execution) *assistantv1.AgentExecution 
 		state = assistantv1.AgentExecutionState_AGENT_EXECUTION_STATE_FAILED
 	case executionbiz.StateCancelled:
 		state = assistantv1.AgentExecutionState_AGENT_EXECUTION_STATE_CANCELLED
+	case executionbiz.StateWaitingApproval:
+		state = assistantv1.AgentExecutionState_AGENT_EXECUTION_STATE_WAITING_APPROVAL
 	}
 	response := &assistantv1.AgentExecution{
 		Id:                    item.ID,
@@ -165,6 +167,8 @@ func stepResponse(item executionbiz.Step) *assistantv1.AgentExecutionStep {
 		state = assistantv1.AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_FAILED
 	case executionbiz.StepStateCancelled:
 		state = assistantv1.AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_CANCELLED
+	case executionbiz.StepStateWaitingApproval:
+		state = assistantv1.AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_WAITING_APPROVAL
 	}
 	response := &assistantv1.AgentExecutionStep{
 		Id:          item.ID,

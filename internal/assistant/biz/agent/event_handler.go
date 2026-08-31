@@ -10,6 +10,9 @@ import (
 	"github.com/cloudwego/eino/adk"
 	einotool "github.com/cloudwego/eino/components/tool"
 	"github.com/google/uuid"
+
+	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
+	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 )
 
 // eventHandler 把 Eino 调用生命周期转换成 Ingate 的稳定执行事件。
@@ -22,12 +25,12 @@ type eventHandler struct {
 	modelCallID string
 }
 
-func newEventHandler(modelName string, events EventSink) *eventHandler {
-	return &eventHandler{
-		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
-		modelName:                    modelName,
-		events:                       events,
-	}
+type parsedToolResult struct {
+	Summary    string                `json:"summary"`
+	Status     string                `json:"status"`
+	ChangeID   string                `json:"change_id"`
+	ResourceID string                `json:"resource_id"`
+	ErrorCode  changebiz.FailureCode `json:"error_code"`
 }
 
 func (h *eventHandler) BeforeModelRewriteState(
@@ -100,31 +103,56 @@ func (h *eventHandler) WrapInvokableToolCall(
 			// 部分兼容模型不返回工具调用 ID；内部生成关联值后，步骤仍能准确结束。
 			callID = uuid.NewString()
 		}
-		if err := h.events.Emit(ctx, ToolCallStarted{
-			CallID: callID,
-			Tool:   toolContext.Name,
-		}); err != nil {
-			return "", err
+		wasInterrupted, _, _ := einotool.GetInterruptState[any](ctx)
+		if !wasInterrupted {
+			if err := h.events.Emit(ctx, ToolCallStarted{
+				CallID: callID,
+				Tool:   toolContext.Name,
+			}); err != nil {
+				return "", err
+			}
 		}
 
 		result, err := next(ctx, arguments, options...)
 		if err != nil {
+			if agenttool.IsApprovalInterrupt(err) {
+				return "", err
+			}
 			return "", h.failTool(ctx, callID, toolContext.Name, err)
 		}
-		summary, err := toolResultSummary(result)
+		output, err := parseToolResult(result)
 		if err != nil {
 			return "", h.failTool(ctx, callID, toolContext.Name, err)
+		}
+		if output.ChangeID != "" && output.Status != "change_rejected" {
+			if err := h.events.Emit(ctx, ChangeCompleted{
+				ID:         output.ChangeID,
+				State:      changeState(output.Status),
+				ResourceID: output.ResourceID,
+				ErrorCode:  output.ErrorCode,
+			}); err != nil {
+				return "", err
+			}
 		}
 		if err := h.events.Emit(ctx, ToolCallCompleted{
 			CallID:  callID,
 			Tool:    toolContext.Name,
-			Summary: summary,
+			Summary: output.Summary,
 		}); err != nil {
 			return "", err
 		}
 		return result, nil
 	}, nil
 }
+
+func newEventHandler(modelName string, events EventSink) *eventHandler {
+	return &eventHandler{
+		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
+		modelName:                    modelName,
+		events:                       events,
+	}
+}
+
 func (h *eventHandler) failTool(
 	ctx context.Context,
 	callID string,
@@ -144,27 +172,69 @@ func (h *eventHandler) failTool(
 	return errors.Join(ErrToolUnavailable, toolErr)
 }
 
-func toolResultSummary(result string) (string, error) {
-	var output struct {
-		Summary string `json:"summary"`
-		Status  string `json:"status"`
-	}
+func parseToolResult(result string) (parsedToolResult, error) {
+	var output parsedToolResult
 	if err := json.Unmarshal([]byte(result), &output); err != nil {
-		return "", fmt.Errorf("decode assistant tool result: %w", err)
+		return parsedToolResult{}, fmt.Errorf("decode assistant tool result: %w", err)
 	}
 	output.Summary = strings.TrimSpace(output.Summary)
 	if output.Summary == "" {
-		return "", errors.New("assistant tool result summary is empty")
+		return parsedToolResult{}, errors.New("assistant tool result summary is empty")
 	}
 	switch output.Status {
 	case "complete", "partial":
-		return output.Summary, nil
+		return output, nil
+	case "change_rejected":
+		if !validChangeResultID(output.ChangeID) || output.ResourceID != "" || output.ErrorCode != "" {
+			return parsedToolResult{}, errors.New("rejected change tool result is invalid")
+		}
+		return output, nil
+	case "change_succeeded":
+		if !validChangeResultID(output.ChangeID) || !validChangeResultID(output.ResourceID) ||
+			output.ErrorCode != "" {
+			return parsedToolResult{}, errors.New("successful change tool result is invalid")
+		}
+		return output, nil
+	case "change_failed":
+		if !validChangeResultID(output.ChangeID) || output.ResourceID != "" ||
+			output.ErrorCode != changebiz.FailureAdminRejected {
+			return parsedToolResult{}, errors.New("failed change tool result is invalid")
+		}
+		return output, nil
+	case "change_outcome_unknown":
+		if !validChangeResultID(output.ChangeID) || output.ResourceID != "" ||
+			output.ErrorCode != changebiz.FailureOutcomeUnknown {
+			return parsedToolResult{}, errors.New("uncertain change tool result is invalid")
+		}
+		return output, nil
 	case "invalid_input":
 		// 执行详情只展示稳定事实；具体参数修正原因仅保留在 Eino 循环内。
-		return "工具参数无效，已将修正原因返回模型", nil
+		output.Summary = "工具参数无效，已将修正原因返回模型"
+		return output, nil
 	case "not_found":
-		return "工具查询目标已不存在，已返回模型重新定位", nil
+		output.Summary = "工具查询目标已不存在，已返回模型重新定位"
+		return output, nil
 	default:
-		return "", fmt.Errorf("assistant tool result has unsupported status %q", output.Status)
+		return parsedToolResult{}, fmt.Errorf(
+			"assistant tool result has unsupported status %q",
+			output.Status,
+		)
 	}
+}
+
+func changeState(status string) changebiz.State {
+	switch status {
+	case "change_succeeded":
+		return changebiz.StateSucceeded
+	case "change_failed":
+		return changebiz.StateFailed
+	case "change_outcome_unknown":
+		return changebiz.StateOutcomeUnknown
+	default:
+		return ""
+	}
+}
+
+func validChangeResultID(id string) bool {
+	return uuid.Validate(id) == nil
 }

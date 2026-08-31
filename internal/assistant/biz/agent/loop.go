@@ -26,13 +26,13 @@ func (a *Agent) runModelLoop(
 	// 进程级 Agent 的工具集合；工具实例本身按官方约定可并发调用。
 	chatAgent, err := adk.NewChatModelAgent(ctx, &adk.ChatModelAgentConfig{
 		Name:        "ingate_operations_assistant",
-		Description: "Inspects Ingate configuration and observability data through read-only tools",
+		Description: "Inspects Ingate and performs explicitly approved configuration changes",
 		Instruction: a.instruction,
 		Model:       chatModel,
 		ToolsConfig: adk.ToolsConfig{
 			ToolsNodeConfig: compose.ToolsNodeConfig{
-				// 当前工具都是只读查询，沿用 Eino 默认的并行调度。模型在同一轮
-				// 比较多个资源时不应被框架外的人为串行化。
+				// 一次运维请求只允许一个配置写入工具。工具本身通过 Eino interrupt
+				// 暂停，收到明确批准后才在恢复路径执行写入。
 				Tools: slices.Clone(a.tools),
 			},
 		},
@@ -43,19 +43,41 @@ func (a *Agent) runModelLoop(
 		return Response{}, fmt.Errorf("create Eino chat model agent: %w", err)
 	}
 
+	if strings.TrimSpace(request.CheckpointID) == "" {
+		return Response{}, errors.New("agent checkpoint ID is empty")
+	}
 	messages := modelMessages(request.Messages)
 	response := responseCollector{events: events}
-	iterator := adk.NewRunner(ctx, adk.RunnerConfig{
+	runner := adk.NewRunner(ctx, adk.RunnerConfig{
 		Agent:           chatAgent,
 		EnableStreaming: true,
-	}).Run(ctx, messages)
+		CheckPointStore: a.checkpoints,
+	})
+	var iterator *adk.AsyncIterator[*adk.AgentEvent]
+	if request.Resume == nil {
+		iterator = runner.Run(ctx, messages, adk.WithCheckPointID(request.CheckpointID))
+	} else {
+		if strings.TrimSpace(request.Resume.InterruptID) == "" || request.Resume.Result == nil {
+			return Response{}, errors.New("agent resume request is incomplete")
+		}
+		iterator, err = runner.ResumeWithParams(
+			ctx,
+			request.CheckpointID,
+			&adk.ResumeParams{Targets: map[string]any{
+				request.Resume.InterruptID: request.Resume.Result,
+			}},
+		)
+		if err != nil {
+			return Response{}, fmt.Errorf("resume Eino agent: %w", err)
+		}
+	}
 	for event, ok := iterator.Next(); ok; event, ok = iterator.Next() {
 		if err := response.consume(ctx, event); err != nil {
 			return Response{}, err
 		}
 	}
 	result := response.build()
-	if strings.TrimSpace(result.Content) == "" {
+	if result.Interruption == nil && strings.TrimSpace(result.Content) == "" {
 		return Response{}, errors.New("agent completed without an assistant response")
 	}
 	return result, nil

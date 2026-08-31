@@ -61,10 +61,12 @@ Analytics 使用 At Least Once 消费语义。请求事实和模型调用都成�
 1. Browser 通过 Console 访问 Assistant
 2. Assistant 从 MySQL 读取会话、执行状态和当前模型连接
 3. Assistant 调用管理员配置的模型端点生成回答
-4. 模型只能使用 Assistant 注册的只读工具；工具统一通过 Admin API 查询当前配置和观测数据
-5. 执行过程写入 MySQL，供刷新后恢复；Redis Stream 只保存 SSE 断线重连所需的短期事件
+4. 模型使用 Assistant 注册的查询工具读取当前配置和观测数据；创建工具第一次调用时通过 Eino 中断生成规范化提案
+5. Assistant 把 checkpoint、待审批配置和等待状态原子写入 MySQL，并释放 Worker 租约
+6. 管理员批准、拒绝或输入修改要求后，原 Execution 从 checkpoint 恢复；只有强类型批准结果会让工具调用 Admin API
+7. 执行、审批和 checkpoint 写入 MySQL，供刷新后恢复；Redis Stream 只保存 SSE 断线重连所需的短期事件
 
-当前工具可以查询 Gateway、Route、Service 及其关系，分析流量和失败请求，并读取单次请求明细与调用方 Token 额度。Assistant 不直接访问 API Server、etcd、Analytics、ClickHouse 或数据面组件，也不能修改系统资源。Assistant、模型端点、MySQL 或 Redis 不可用时，不影响配置管理和业务流量。
+当前工具可以查询 Gateway、Route、Service 及其关系，分析流量和失败请求，读取单次请求明细与调用方 Token 额度，并为创建 Gateway 或普通 HTTP Service 生成待审批提案。批准后的写入仍经过 Admin API 的协议校验、业务规则和声明式资源链路。Assistant 不直接访问 API Server、etcd、Analytics、ClickHouse 或数据面组件。Assistant、模型端点、MySQL 或 Redis 不可用时，不影响配置管理和业务流量。
 
 ## 组件职责
 
@@ -72,7 +74,7 @@ Analytics 使用 At Least Once 消费语义。请求事实和模型调用都成�
 | --- | --- | --- |
 | Console | Admin API、Assistant | 托管控制台并代理管理请求与运维助手请求 |
 | Admin API | API Server、Analytics | 提供面向 Console 的产品 API 和业务校验 |
-| Assistant | Admin API、MySQL、Redis、模型端点 | 管理对话和执行，通过只读工具辅助查询与诊断 |
+| Assistant | Admin API、MySQL、Redis、模型端点 | 管理对话、查询、配置提案、显式审批和确定性写入 |
 | API Server | etcd | 提供声明式资源 API，是 etcd 的唯一访问者 |
 | Controller | API Server | Watch 资源、编译 Envoy 配置、提供 xDS、回写 Status |
 | Envoy | Controller、Authz、AI ExtProc、ALS | 接收业务流量并执行数据面配置 |
@@ -90,7 +92,7 @@ Analytics 使用 At Least Once 消费语义。请求事实和模型调用都成�
 | 当前 Envoy 有效配置 | Controller 内存 | Controller |
 | 请求限流 GCRA 状态 | Redis | Authz |
 | 当前周期 Token 额度计数 | Redis | AI ExtProc |
-| Assistant 模型连接、会话、执行、步骤和消息 | MySQL | Assistant |
+| Assistant 模型连接、会话、执行、步骤、消息、配置提案和 Eino checkpoint | MySQL | Assistant |
 | Assistant 短期流式事件 | Redis | Assistant |
 | ALS 待投递记录 | ALS 本地 WAL | ALS |
 | 请求明细与模型调用 | ClickHouse | Analytics |

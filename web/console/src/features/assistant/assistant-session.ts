@@ -6,7 +6,6 @@ export interface StoredExecution {
   conversationID: string;
   lastEventID: string;
   content: string;
-  reasoning: string;
 }
 
 export function readActiveConversationID(): string {
@@ -33,14 +32,12 @@ export function readStoredExecution(): StoredExecution | null {
       && typeof stored.conversationID === 'string'
       && typeof stored.lastEventID === 'string'
       && typeof stored.content === 'string'
-      && typeof stored.reasoning === 'string'
     ) {
       return {
         executionID: stored.executionID,
         conversationID: stored.conversationID,
         lastEventID: stored.lastEventID,
         content: stored.content,
-        reasoning: stored.reasoning,
       };
     }
   } catch {
@@ -59,7 +56,6 @@ export function storeActiveExecution(execution: StoredExecution): void {
     conversationID: execution.conversationID,
     lastEventID: '',
     content: '',
-    reasoning: '',
   } satisfies StoredExecution));
 }
 

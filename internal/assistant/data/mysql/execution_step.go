@@ -23,6 +23,7 @@ const (
 	executionStepStateCompleted
 	executionStepStateFailed
 	executionStepStateCancelled
+	executionStepStateWaitingApproval
 )
 
 // StartExecutionStep 在当前 Worker 持有执行租约时追加一个运行中的执行步骤。
@@ -191,6 +192,10 @@ func executionStepFromDB(item db.AssistantAgentExecutionStep) (execution.Step, e
 		if !item.FinishedAt.Valid || result.Summary != "" || result.ErrorCode != "" {
 			return execution.Step{}, fmt.Errorf("cancelled assistant execution step %s is inconsistent", item.ID)
 		}
+	case execution.StepStateWaitingApproval:
+		if item.FinishedAt.Valid || result.Summary == "" || result.ErrorCode != "" {
+			return execution.Step{}, fmt.Errorf("waiting assistant execution step %s is inconsistent", item.ID)
+		}
 	}
 	return result, nil
 }
@@ -227,6 +232,8 @@ func executionStepStateFromDB(state uint8) (execution.StepState, error) {
 		return execution.StepStateFailed, nil
 	case executionStepStateCancelled:
 		return execution.StepStateCancelled, nil
+	case executionStepStateWaitingApproval:
+		return execution.StepStateWaitingApproval, nil
 	default:
 		return "", fmt.Errorf("invalid assistant execution step state %d", state)
 	}

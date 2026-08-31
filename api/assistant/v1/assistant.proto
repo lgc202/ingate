@@ -69,6 +69,35 @@ service AgentExecutionService {
   }
 }
 
+// ProposedChangeService 管理 Agent 生成、由管理员显式审批的配置变更。
+service ProposedChangeService {
+  // ListProposedChanges 返回会话中已经进入审批流程的配置变更。
+  rpc ListProposedChanges(ListProposedChangesRequest) returns (ListProposedChangesResponse) {
+    option (google.api.http) = {get: "/assistant/v1/conversations/{conversation_id}/proposed-changes"};
+  }
+  // ApproveProposedChange 批准并执行一项配置变更。
+  rpc ApproveProposedChange(ApproveProposedChangeRequest) returns (ProposedChange) {
+    option (google.api.http) = {
+      post: "/assistant/v1/proposed-changes/{id}:approve"
+      body: "*"
+    };
+  }
+  // RejectProposedChange 拒绝一项尚未执行的配置变更。
+  rpc RejectProposedChange(RejectProposedChangeRequest) returns (ProposedChange) {
+    option (google.api.http) = {
+      post: "/assistant/v1/proposed-changes/{id}:reject"
+      body: "*"
+    };
+  }
+  // ReviseProposedChange 拒绝当前配置，并把文字反馈交回原 Agent 执行。
+  rpc ReviseProposedChange(ReviseProposedChangeRequest) returns (ProposedChange) {
+    option (google.api.http) = {
+      post: "/assistant/v1/proposed-changes/{id}:revise"
+      body: "*"
+    };
+  }
+}
+
 // ModelConnectionService 管理运维助手当前生效的模型连接。
 service ModelConnectionService {
   // GetModelConnection 返回当前模型连接的非敏感信息。
@@ -128,6 +157,8 @@ enum AgentExecutionState {
   AGENT_EXECUTION_STATE_FAILED = 4;
   // AGENT_EXECUTION_STATE_CANCELLED 表示执行已经响应管理员取消请求。
   AGENT_EXECUTION_STATE_CANCELLED = 5;
+  // AGENT_EXECUTION_STATE_WAITING_APPROVAL 表示执行已保存并等待管理员决定。
+  AGENT_EXECUTION_STATE_WAITING_APPROVAL = 6;
 }
 
 // AgentExecutionStepKind 表示一次 Agent 执行中可持久追踪的步骤类型。
@@ -152,6 +183,56 @@ enum AgentExecutionStepState {
   AGENT_EXECUTION_STEP_STATE_FAILED = 3;
   // AGENT_EXECUTION_STEP_STATE_CANCELLED 表示调用随所属执行取消而结束。
   AGENT_EXECUTION_STEP_STATE_CANCELLED = 4;
+  // AGENT_EXECUTION_STEP_STATE_WAITING_APPROVAL 表示工具调用正在等待管理员决定。
+  AGENT_EXECUTION_STEP_STATE_WAITING_APPROVAL = 5;
+}
+
+// ProposedChangeKind 表示审批通过后要执行的确定性配置操作。
+enum ProposedChangeKind {
+  // PROPOSED_CHANGE_KIND_UNSPECIFIED 不用于已持久化变更。
+  PROPOSED_CHANGE_KIND_UNSPECIFIED = 0;
+  // PROPOSED_CHANGE_KIND_CREATE_GATEWAY 创建一个 Gateway。
+  PROPOSED_CHANGE_KIND_CREATE_GATEWAY = 1;
+  // PROPOSED_CHANGE_KIND_CREATE_SERVICE 创建一个普通 HTTP Service。
+  PROPOSED_CHANGE_KIND_CREATE_SERVICE = 2;
+}
+
+// ProposedChangeState 表示一项配置变更从待审批到执行终态的生命周期。
+enum ProposedChangeState {
+  // PROPOSED_CHANGE_STATE_UNSPECIFIED 不用于已持久化变更。
+  PROPOSED_CHANGE_STATE_UNSPECIFIED = 0;
+  // PROPOSED_CHANGE_STATE_PENDING_REVIEW 表示正在等待管理员决定。
+  PROPOSED_CHANGE_STATE_PENDING_REVIEW = 1;
+  // PROPOSED_CHANGE_STATE_EXECUTING 表示审批已提交，服务端正在执行。
+  PROPOSED_CHANGE_STATE_EXECUTING = 2;
+  // PROPOSED_CHANGE_STATE_SUCCEEDED 表示资源已经创建。
+  PROPOSED_CHANGE_STATE_SUCCEEDED = 3;
+  // PROPOSED_CHANGE_STATE_REJECTED 表示管理员拒绝了该变更。
+  PROPOSED_CHANGE_STATE_REJECTED = 4;
+  // PROPOSED_CHANGE_STATE_FAILED 表示 Admin API 明确拒绝了该变更。
+  PROPOSED_CHANGE_STATE_FAILED = 5;
+  // PROPOSED_CHANGE_STATE_OUTCOME_UNKNOWN 表示调用结果无法确认，系统不会自动重试。
+  PROPOSED_CHANGE_STATE_OUTCOME_UNKNOWN = 6;
+}
+
+// ProposedGatewayProtocol 表示待创建 Gateway 的监听协议。
+enum ProposedGatewayProtocol {
+  // PROPOSED_GATEWAY_PROTOCOL_UNSPECIFIED 不用于有效监听入口。
+  PROPOSED_GATEWAY_PROTOCOL_UNSPECIFIED = 0;
+  // PROPOSED_GATEWAY_PROTOCOL_HTTP 接收明文 HTTP 流量。
+  PROPOSED_GATEWAY_PROTOCOL_HTTP = 1;
+  // PROPOSED_GATEWAY_PROTOCOL_HTTPS 由 Gateway 终止 TLS。
+  PROPOSED_GATEWAY_PROTOCOL_HTTPS = 2;
+}
+
+// ProposedServiceLoadBalancing 表示待创建 Service 的负载均衡策略。
+enum ProposedServiceLoadBalancing {
+  // PROPOSED_SERVICE_LOAD_BALANCING_UNSPECIFIED 不用于有效配置。
+  PROPOSED_SERVICE_LOAD_BALANCING_UNSPECIFIED = 0;
+  // PROPOSED_SERVICE_LOAD_BALANCING_ROUND_ROBIN 使用轮询。
+  PROPOSED_SERVICE_LOAD_BALANCING_ROUND_ROBIN = 1;
+  // PROPOSED_SERVICE_LOAD_BALANCING_LEAST_REQUEST 优先选择活跃请求较少的地址。
+  PROPOSED_SERVICE_LOAD_BALANCING_LEAST_REQUEST = 2;
 }
 
 // Conversation 是一个管理员与运维助手的持久会话。
@@ -230,6 +311,96 @@ message AgentExecutionStep {
   google.protobuf.Timestamp finished_at = 10;
 }
 
+// ProposedChange 是 Agent 已规范化且等待管理员审批的配置变更。
+message ProposedChange {
+  // id 是变更的不可变标识。
+  string id = 1;
+  // conversation_id 是生成该变更的会话。
+  string conversation_id = 2;
+  // execution_id 是生成该变更的 Agent 执行。
+  string execution_id = 3;
+  // kind 是审批后执行的操作类型。
+  ProposedChangeKind kind = 4;
+  // state 是当前审批或执行状态。
+  ProposedChangeState state = 5;
+  // summary 是可直接展示给管理员的脱敏摘要。
+  string summary = 6;
+  oneof configuration {
+    // create_gateway 是创建 Gateway 的完整输入。
+    ProposedGateway create_gateway = 7;
+    // create_service 是创建普通 HTTP Service 的完整输入。
+    ProposedService create_service = 8;
+  }
+  // resource_id 在资源成功创建后返回其不可变标识。
+  string resource_id = 9;
+  // error_code 在失败或结果不确定时返回稳定且可公开的错误码。
+  string error_code = 10;
+  // created_at 是 Agent 生成该变更的时间。
+  google.protobuf.Timestamp created_at = 11;
+  // decided_at 是管理员批准或拒绝该变更的时间。
+  google.protobuf.Timestamp decided_at = 12;
+  // finished_at 是执行进入终态的时间。
+  google.protobuf.Timestamp finished_at = 13;
+}
+
+// ProposedGateway 是待创建 Gateway 的完整配置。
+message ProposedGateway {
+  // name 是 Gateway 的展示名称。
+  string name = 1;
+  // enabled 表示创建完成后是否立即参与配置下发。
+  bool enabled = 2;
+  // listeners 是 Gateway 的完整监听入口列表。
+  repeated ProposedGatewayListener listeners = 3;
+}
+
+// ProposedGatewayListener 是一个待创建的 Gateway 监听入口。
+message ProposedGatewayListener {
+  // name 是当前 Gateway 内唯一的监听入口标识。
+  string name = 1;
+  // protocol 是监听入口接受的应用层协议。
+  ProposedGatewayProtocol protocol = 2;
+  // port 是 Envoy 对外监听的 TCP 端口。
+  uint32 port = 3;
+  // hostname 是可选的 Host 匹配条件，空值表示任意 Host。
+  string hostname = 4;
+  // certificate_id 是 HTTPS 监听入口引用的证书资源 ID。
+  string certificate_id = 5 [json_name = "certificateID"];
+}
+
+// ProposedService 是待创建普通 HTTP Service 的完整配置。
+message ProposedService {
+  // name 是 Service 的展示名称。
+  string name = 1;
+  // endpoints 是 Service 的完整转发地址列表。
+  repeated ProposedServiceEndpoint endpoints = 2;
+  // tls_server_name 非空时启用上游 TLS，并同时作为 SNI 和证书校验名称。
+  string tls_server_name = 3 [json_name = "tlsServerName"];
+  // load_balancing 是多个端点之间的流量分配方式。
+  ProposedServiceLoadBalancing load_balancing = 4 [json_name = "loadBalancing"];
+  // health_check 是可选的主动 HTTP 健康检查配置。
+  ProposedServiceHealthCheck health_check = 5 [json_name = "healthCheck"];
+}
+
+// ProposedServiceEndpoint 是待创建 Service 的一个转发地址。
+message ProposedServiceEndpoint {
+  // address 是不含协议和端口的 DNS 主机名或 IP 地址。
+  string address = 1;
+  // port 是上游服务监听端口。
+  uint32 port = 2;
+  // weight 是该端点参与负载均衡的相对权重。
+  uint32 weight = 3;
+}
+
+// ProposedServiceHealthCheck 是待创建 Service 的主动健康检查配置。
+message ProposedServiceHealthCheck {
+  // path 是不含查询参数和片段的绝对 HTTP 路径。
+  string path = 1;
+  // interval_seconds 是相邻两次检查的间隔秒数。
+  uint32 interval_seconds = 2 [json_name = "intervalSeconds"];
+  // timeout_seconds 是单次检查的超时秒数。
+  uint32 timeout_seconds = 3 [json_name = "timeoutSeconds"];
+}
+
 // ListConversationsRequest 定义会话列表的分页条件。
 message ListConversationsRequest {
   // limit 是期望返回的最大条目数，零使用服务端默认值。
@@ -254,6 +425,7 @@ message GetConversationRequest {
 
 // CreateConversationRequest 创建一个会话；标题为空时使用服务端默认名称。
 message CreateConversationRequest {
+  // title 是可选的会话展示名称。
   string title = 1 [(buf.validate.field).string.max_len = 160];
 }
 
@@ -325,6 +497,41 @@ message CreateAgentExecutionRequest {
 message CancelAgentExecutionRequest {
   // id 是目标执行标识。
   string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+// ListProposedChangesRequest 指定要读取配置变更的会话。
+message ListProposedChangesRequest {
+  // conversation_id 是目标会话标识。
+  string conversation_id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+// ListProposedChangesResponse 按创建时间返回会话中的配置变更。
+message ListProposedChangesResponse {
+  // proposed_changes 按创建时间正序排列，不包含 Agent 执行中的草稿。
+  repeated ProposedChange proposed_changes = 1;
+}
+
+// ApproveProposedChangeRequest 指定要批准并执行的配置变更。
+message ApproveProposedChangeRequest {
+  // id 是目标配置变更标识。
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+// RejectProposedChangeRequest 指定要拒绝的配置变更。
+message RejectProposedChangeRequest {
+  // id 是目标配置变更标识。
+  string id = 1 [(buf.validate.field).string.uuid = true];
+}
+
+// ReviseProposedChangeRequest 把文字作为当前审批的拒绝原因交回 Agent。
+message ReviseProposedChangeRequest {
+  // id 是目标配置变更标识。
+  string id = 1 [(buf.validate.field).string.uuid = true];
+  // feedback 是 Agent 在原上下文中继续处理的用户反馈。
+  string feedback = 2 [(buf.validate.field).string = {
+    min_len: 1
+    max_len: 65536
+  }];
 }
 
 // ModelConnection 只返回非敏感连接信息，API Key 仅暴露是否已配置。

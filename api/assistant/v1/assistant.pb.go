@@ -200,6 +200,8 @@ const (
 	AgentExecutionState_AGENT_EXECUTION_STATE_FAILED AgentExecutionState = 4
 	// AGENT_EXECUTION_STATE_CANCELLED 表示执行已经响应管理员取消请求。
 	AgentExecutionState_AGENT_EXECUTION_STATE_CANCELLED AgentExecutionState = 5
+	// AGENT_EXECUTION_STATE_WAITING_APPROVAL 表示执行已保存并等待管理员决定。
+	AgentExecutionState_AGENT_EXECUTION_STATE_WAITING_APPROVAL AgentExecutionState = 6
 )
 
 // Enum value maps for AgentExecutionState.
@@ -211,14 +213,16 @@ var (
 		3: "AGENT_EXECUTION_STATE_SUCCEEDED",
 		4: "AGENT_EXECUTION_STATE_FAILED",
 		5: "AGENT_EXECUTION_STATE_CANCELLED",
+		6: "AGENT_EXECUTION_STATE_WAITING_APPROVAL",
 	}
 	AgentExecutionState_value = map[string]int32{
-		"AGENT_EXECUTION_STATE_UNSPECIFIED": 0,
-		"AGENT_EXECUTION_STATE_QUEUED":      1,
-		"AGENT_EXECUTION_STATE_RUNNING":     2,
-		"AGENT_EXECUTION_STATE_SUCCEEDED":   3,
-		"AGENT_EXECUTION_STATE_FAILED":      4,
-		"AGENT_EXECUTION_STATE_CANCELLED":   5,
+		"AGENT_EXECUTION_STATE_UNSPECIFIED":      0,
+		"AGENT_EXECUTION_STATE_QUEUED":           1,
+		"AGENT_EXECUTION_STATE_RUNNING":          2,
+		"AGENT_EXECUTION_STATE_SUCCEEDED":        3,
+		"AGENT_EXECUTION_STATE_FAILED":           4,
+		"AGENT_EXECUTION_STATE_CANCELLED":        5,
+		"AGENT_EXECUTION_STATE_WAITING_APPROVAL": 6,
 	}
 )
 
@@ -316,6 +320,8 @@ const (
 	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_FAILED AgentExecutionStepState = 3
 	// AGENT_EXECUTION_STEP_STATE_CANCELLED 表示调用随所属执行取消而结束。
 	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_CANCELLED AgentExecutionStepState = 4
+	// AGENT_EXECUTION_STEP_STATE_WAITING_APPROVAL 表示工具调用正在等待管理员决定。
+	AgentExecutionStepState_AGENT_EXECUTION_STEP_STATE_WAITING_APPROVAL AgentExecutionStepState = 5
 )
 
 // Enum value maps for AgentExecutionStepState.
@@ -326,13 +332,15 @@ var (
 		2: "AGENT_EXECUTION_STEP_STATE_COMPLETED",
 		3: "AGENT_EXECUTION_STEP_STATE_FAILED",
 		4: "AGENT_EXECUTION_STEP_STATE_CANCELLED",
+		5: "AGENT_EXECUTION_STEP_STATE_WAITING_APPROVAL",
 	}
 	AgentExecutionStepState_value = map[string]int32{
-		"AGENT_EXECUTION_STEP_STATE_UNSPECIFIED": 0,
-		"AGENT_EXECUTION_STEP_STATE_RUNNING":     1,
-		"AGENT_EXECUTION_STEP_STATE_COMPLETED":   2,
-		"AGENT_EXECUTION_STEP_STATE_FAILED":      3,
-		"AGENT_EXECUTION_STEP_STATE_CANCELLED":   4,
+		"AGENT_EXECUTION_STEP_STATE_UNSPECIFIED":      0,
+		"AGENT_EXECUTION_STEP_STATE_RUNNING":          1,
+		"AGENT_EXECUTION_STEP_STATE_COMPLETED":        2,
+		"AGENT_EXECUTION_STEP_STATE_FAILED":           3,
+		"AGENT_EXECUTION_STEP_STATE_CANCELLED":        4,
+		"AGENT_EXECUTION_STEP_STATE_WAITING_APPROVAL": 5,
 	}
 )
 
@@ -361,6 +369,234 @@ func (x AgentExecutionStepState) Number() protoreflect.EnumNumber {
 // Deprecated: Use AgentExecutionStepState.Descriptor instead.
 func (AgentExecutionStepState) EnumDescriptor() ([]byte, []int) {
 	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{5}
+}
+
+// ProposedChangeKind 表示审批通过后要执行的确定性配置操作。
+type ProposedChangeKind int32
+
+const (
+	// PROPOSED_CHANGE_KIND_UNSPECIFIED 不用于已持久化变更。
+	ProposedChangeKind_PROPOSED_CHANGE_KIND_UNSPECIFIED ProposedChangeKind = 0
+	// PROPOSED_CHANGE_KIND_CREATE_GATEWAY 创建一个 Gateway。
+	ProposedChangeKind_PROPOSED_CHANGE_KIND_CREATE_GATEWAY ProposedChangeKind = 1
+	// PROPOSED_CHANGE_KIND_CREATE_SERVICE 创建一个普通 HTTP Service。
+	ProposedChangeKind_PROPOSED_CHANGE_KIND_CREATE_SERVICE ProposedChangeKind = 2
+)
+
+// Enum value maps for ProposedChangeKind.
+var (
+	ProposedChangeKind_name = map[int32]string{
+		0: "PROPOSED_CHANGE_KIND_UNSPECIFIED",
+		1: "PROPOSED_CHANGE_KIND_CREATE_GATEWAY",
+		2: "PROPOSED_CHANGE_KIND_CREATE_SERVICE",
+	}
+	ProposedChangeKind_value = map[string]int32{
+		"PROPOSED_CHANGE_KIND_UNSPECIFIED":    0,
+		"PROPOSED_CHANGE_KIND_CREATE_GATEWAY": 1,
+		"PROPOSED_CHANGE_KIND_CREATE_SERVICE": 2,
+	}
+)
+
+func (x ProposedChangeKind) Enum() *ProposedChangeKind {
+	p := new(ProposedChangeKind)
+	*p = x
+	return p
+}
+
+func (x ProposedChangeKind) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ProposedChangeKind) Descriptor() protoreflect.EnumDescriptor {
+	return file_assistant_v1_assistant_proto_enumTypes[6].Descriptor()
+}
+
+func (ProposedChangeKind) Type() protoreflect.EnumType {
+	return &file_assistant_v1_assistant_proto_enumTypes[6]
+}
+
+func (x ProposedChangeKind) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ProposedChangeKind.Descriptor instead.
+func (ProposedChangeKind) EnumDescriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{6}
+}
+
+// ProposedChangeState 表示一项配置变更从待审批到执行终态的生命周期。
+type ProposedChangeState int32
+
+const (
+	// PROPOSED_CHANGE_STATE_UNSPECIFIED 不用于已持久化变更。
+	ProposedChangeState_PROPOSED_CHANGE_STATE_UNSPECIFIED ProposedChangeState = 0
+	// PROPOSED_CHANGE_STATE_PENDING_REVIEW 表示正在等待管理员决定。
+	ProposedChangeState_PROPOSED_CHANGE_STATE_PENDING_REVIEW ProposedChangeState = 1
+	// PROPOSED_CHANGE_STATE_EXECUTING 表示审批已提交，服务端正在执行。
+	ProposedChangeState_PROPOSED_CHANGE_STATE_EXECUTING ProposedChangeState = 2
+	// PROPOSED_CHANGE_STATE_SUCCEEDED 表示资源已经创建。
+	ProposedChangeState_PROPOSED_CHANGE_STATE_SUCCEEDED ProposedChangeState = 3
+	// PROPOSED_CHANGE_STATE_REJECTED 表示管理员拒绝了该变更。
+	ProposedChangeState_PROPOSED_CHANGE_STATE_REJECTED ProposedChangeState = 4
+	// PROPOSED_CHANGE_STATE_FAILED 表示 Admin API 明确拒绝了该变更。
+	ProposedChangeState_PROPOSED_CHANGE_STATE_FAILED ProposedChangeState = 5
+	// PROPOSED_CHANGE_STATE_OUTCOME_UNKNOWN 表示调用结果无法确认，系统不会自动重试。
+	ProposedChangeState_PROPOSED_CHANGE_STATE_OUTCOME_UNKNOWN ProposedChangeState = 6
+)
+
+// Enum value maps for ProposedChangeState.
+var (
+	ProposedChangeState_name = map[int32]string{
+		0: "PROPOSED_CHANGE_STATE_UNSPECIFIED",
+		1: "PROPOSED_CHANGE_STATE_PENDING_REVIEW",
+		2: "PROPOSED_CHANGE_STATE_EXECUTING",
+		3: "PROPOSED_CHANGE_STATE_SUCCEEDED",
+		4: "PROPOSED_CHANGE_STATE_REJECTED",
+		5: "PROPOSED_CHANGE_STATE_FAILED",
+		6: "PROPOSED_CHANGE_STATE_OUTCOME_UNKNOWN",
+	}
+	ProposedChangeState_value = map[string]int32{
+		"PROPOSED_CHANGE_STATE_UNSPECIFIED":     0,
+		"PROPOSED_CHANGE_STATE_PENDING_REVIEW":  1,
+		"PROPOSED_CHANGE_STATE_EXECUTING":       2,
+		"PROPOSED_CHANGE_STATE_SUCCEEDED":       3,
+		"PROPOSED_CHANGE_STATE_REJECTED":        4,
+		"PROPOSED_CHANGE_STATE_FAILED":          5,
+		"PROPOSED_CHANGE_STATE_OUTCOME_UNKNOWN": 6,
+	}
+)
+
+func (x ProposedChangeState) Enum() *ProposedChangeState {
+	p := new(ProposedChangeState)
+	*p = x
+	return p
+}
+
+func (x ProposedChangeState) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ProposedChangeState) Descriptor() protoreflect.EnumDescriptor {
+	return file_assistant_v1_assistant_proto_enumTypes[7].Descriptor()
+}
+
+func (ProposedChangeState) Type() protoreflect.EnumType {
+	return &file_assistant_v1_assistant_proto_enumTypes[7]
+}
+
+func (x ProposedChangeState) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ProposedChangeState.Descriptor instead.
+func (ProposedChangeState) EnumDescriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{7}
+}
+
+// ProposedGatewayProtocol 表示待创建 Gateway 的监听协议。
+type ProposedGatewayProtocol int32
+
+const (
+	// PROPOSED_GATEWAY_PROTOCOL_UNSPECIFIED 不用于有效监听入口。
+	ProposedGatewayProtocol_PROPOSED_GATEWAY_PROTOCOL_UNSPECIFIED ProposedGatewayProtocol = 0
+	// PROPOSED_GATEWAY_PROTOCOL_HTTP 接收明文 HTTP 流量。
+	ProposedGatewayProtocol_PROPOSED_GATEWAY_PROTOCOL_HTTP ProposedGatewayProtocol = 1
+	// PROPOSED_GATEWAY_PROTOCOL_HTTPS 由 Gateway 终止 TLS。
+	ProposedGatewayProtocol_PROPOSED_GATEWAY_PROTOCOL_HTTPS ProposedGatewayProtocol = 2
+)
+
+// Enum value maps for ProposedGatewayProtocol.
+var (
+	ProposedGatewayProtocol_name = map[int32]string{
+		0: "PROPOSED_GATEWAY_PROTOCOL_UNSPECIFIED",
+		1: "PROPOSED_GATEWAY_PROTOCOL_HTTP",
+		2: "PROPOSED_GATEWAY_PROTOCOL_HTTPS",
+	}
+	ProposedGatewayProtocol_value = map[string]int32{
+		"PROPOSED_GATEWAY_PROTOCOL_UNSPECIFIED": 0,
+		"PROPOSED_GATEWAY_PROTOCOL_HTTP":        1,
+		"PROPOSED_GATEWAY_PROTOCOL_HTTPS":       2,
+	}
+)
+
+func (x ProposedGatewayProtocol) Enum() *ProposedGatewayProtocol {
+	p := new(ProposedGatewayProtocol)
+	*p = x
+	return p
+}
+
+func (x ProposedGatewayProtocol) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ProposedGatewayProtocol) Descriptor() protoreflect.EnumDescriptor {
+	return file_assistant_v1_assistant_proto_enumTypes[8].Descriptor()
+}
+
+func (ProposedGatewayProtocol) Type() protoreflect.EnumType {
+	return &file_assistant_v1_assistant_proto_enumTypes[8]
+}
+
+func (x ProposedGatewayProtocol) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ProposedGatewayProtocol.Descriptor instead.
+func (ProposedGatewayProtocol) EnumDescriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{8}
+}
+
+// ProposedServiceLoadBalancing 表示待创建 Service 的负载均衡策略。
+type ProposedServiceLoadBalancing int32
+
+const (
+	// PROPOSED_SERVICE_LOAD_BALANCING_UNSPECIFIED 不用于有效配置。
+	ProposedServiceLoadBalancing_PROPOSED_SERVICE_LOAD_BALANCING_UNSPECIFIED ProposedServiceLoadBalancing = 0
+	// PROPOSED_SERVICE_LOAD_BALANCING_ROUND_ROBIN 使用轮询。
+	ProposedServiceLoadBalancing_PROPOSED_SERVICE_LOAD_BALANCING_ROUND_ROBIN ProposedServiceLoadBalancing = 1
+	// PROPOSED_SERVICE_LOAD_BALANCING_LEAST_REQUEST 优先选择活跃请求较少的地址。
+	ProposedServiceLoadBalancing_PROPOSED_SERVICE_LOAD_BALANCING_LEAST_REQUEST ProposedServiceLoadBalancing = 2
+)
+
+// Enum value maps for ProposedServiceLoadBalancing.
+var (
+	ProposedServiceLoadBalancing_name = map[int32]string{
+		0: "PROPOSED_SERVICE_LOAD_BALANCING_UNSPECIFIED",
+		1: "PROPOSED_SERVICE_LOAD_BALANCING_ROUND_ROBIN",
+		2: "PROPOSED_SERVICE_LOAD_BALANCING_LEAST_REQUEST",
+	}
+	ProposedServiceLoadBalancing_value = map[string]int32{
+		"PROPOSED_SERVICE_LOAD_BALANCING_UNSPECIFIED":   0,
+		"PROPOSED_SERVICE_LOAD_BALANCING_ROUND_ROBIN":   1,
+		"PROPOSED_SERVICE_LOAD_BALANCING_LEAST_REQUEST": 2,
+	}
+)
+
+func (x ProposedServiceLoadBalancing) Enum() *ProposedServiceLoadBalancing {
+	p := new(ProposedServiceLoadBalancing)
+	*p = x
+	return p
+}
+
+func (x ProposedServiceLoadBalancing) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (ProposedServiceLoadBalancing) Descriptor() protoreflect.EnumDescriptor {
+	return file_assistant_v1_assistant_proto_enumTypes[9].Descriptor()
+}
+
+func (ProposedServiceLoadBalancing) Type() protoreflect.EnumType {
+	return &file_assistant_v1_assistant_proto_enumTypes[9]
+}
+
+func (x ProposedServiceLoadBalancing) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use ProposedServiceLoadBalancing.Descriptor instead.
+func (ProposedServiceLoadBalancing) EnumDescriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{9}
 }
 
 // Conversation 是一个管理员与运维助手的持久会话。
@@ -781,6 +1017,546 @@ func (x *AgentExecutionStep) GetFinishedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+// ProposedChange 是 Agent 已规范化且等待管理员审批的配置变更。
+type ProposedChange struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是变更的不可变标识。
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// conversation_id 是生成该变更的会话。
+	ConversationId string `protobuf:"bytes,2,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	// execution_id 是生成该变更的 Agent 执行。
+	ExecutionId string `protobuf:"bytes,3,opt,name=execution_id,json=executionId,proto3" json:"execution_id,omitempty"`
+	// kind 是审批后执行的操作类型。
+	Kind ProposedChangeKind `protobuf:"varint,4,opt,name=kind,proto3,enum=ingate.assistant.v1.ProposedChangeKind" json:"kind,omitempty"`
+	// state 是当前审批或执行状态。
+	State ProposedChangeState `protobuf:"varint,5,opt,name=state,proto3,enum=ingate.assistant.v1.ProposedChangeState" json:"state,omitempty"`
+	// summary 是可直接展示给管理员的脱敏摘要。
+	Summary string `protobuf:"bytes,6,opt,name=summary,proto3" json:"summary,omitempty"`
+	// Types that are valid to be assigned to Configuration:
+	//
+	//	*ProposedChange_CreateGateway
+	//	*ProposedChange_CreateService
+	Configuration isProposedChange_Configuration `protobuf_oneof:"configuration"`
+	// resource_id 在资源成功创建后返回其不可变标识。
+	ResourceId string `protobuf:"bytes,9,opt,name=resource_id,json=resourceId,proto3" json:"resource_id,omitempty"`
+	// error_code 在失败或结果不确定时返回稳定且可公开的错误码。
+	ErrorCode string `protobuf:"bytes,10,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
+	// created_at 是 Agent 生成该变更的时间。
+	CreatedAt *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	// decided_at 是管理员批准或拒绝该变更的时间。
+	DecidedAt *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=decided_at,json=decidedAt,proto3" json:"decided_at,omitempty"`
+	// finished_at 是执行进入终态的时间。
+	FinishedAt    *timestamppb.Timestamp `protobuf:"bytes,13,opt,name=finished_at,json=finishedAt,proto3" json:"finished_at,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProposedChange) Reset() {
+	*x = ProposedChange{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProposedChange) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProposedChange) ProtoMessage() {}
+
+func (x *ProposedChange) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProposedChange.ProtoReflect.Descriptor instead.
+func (*ProposedChange) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *ProposedChange) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ProposedChange) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+func (x *ProposedChange) GetExecutionId() string {
+	if x != nil {
+		return x.ExecutionId
+	}
+	return ""
+}
+
+func (x *ProposedChange) GetKind() ProposedChangeKind {
+	if x != nil {
+		return x.Kind
+	}
+	return ProposedChangeKind_PROPOSED_CHANGE_KIND_UNSPECIFIED
+}
+
+func (x *ProposedChange) GetState() ProposedChangeState {
+	if x != nil {
+		return x.State
+	}
+	return ProposedChangeState_PROPOSED_CHANGE_STATE_UNSPECIFIED
+}
+
+func (x *ProposedChange) GetSummary() string {
+	if x != nil {
+		return x.Summary
+	}
+	return ""
+}
+
+func (x *ProposedChange) GetConfiguration() isProposedChange_Configuration {
+	if x != nil {
+		return x.Configuration
+	}
+	return nil
+}
+
+func (x *ProposedChange) GetCreateGateway() *ProposedGateway {
+	if x != nil {
+		if x, ok := x.Configuration.(*ProposedChange_CreateGateway); ok {
+			return x.CreateGateway
+		}
+	}
+	return nil
+}
+
+func (x *ProposedChange) GetCreateService() *ProposedService {
+	if x != nil {
+		if x, ok := x.Configuration.(*ProposedChange_CreateService); ok {
+			return x.CreateService
+		}
+	}
+	return nil
+}
+
+func (x *ProposedChange) GetResourceId() string {
+	if x != nil {
+		return x.ResourceId
+	}
+	return ""
+}
+
+func (x *ProposedChange) GetErrorCode() string {
+	if x != nil {
+		return x.ErrorCode
+	}
+	return ""
+}
+
+func (x *ProposedChange) GetCreatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return nil
+}
+
+func (x *ProposedChange) GetDecidedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.DecidedAt
+	}
+	return nil
+}
+
+func (x *ProposedChange) GetFinishedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.FinishedAt
+	}
+	return nil
+}
+
+type isProposedChange_Configuration interface {
+	isProposedChange_Configuration()
+}
+
+type ProposedChange_CreateGateway struct {
+	// create_gateway 是创建 Gateway 的完整输入。
+	CreateGateway *ProposedGateway `protobuf:"bytes,7,opt,name=create_gateway,json=createGateway,proto3,oneof"`
+}
+
+type ProposedChange_CreateService struct {
+	// create_service 是创建普通 HTTP Service 的完整输入。
+	CreateService *ProposedService `protobuf:"bytes,8,opt,name=create_service,json=createService,proto3,oneof"`
+}
+
+func (*ProposedChange_CreateGateway) isProposedChange_Configuration() {}
+
+func (*ProposedChange_CreateService) isProposedChange_Configuration() {}
+
+// ProposedGateway 是待创建 Gateway 的完整配置。
+type ProposedGateway struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name 是 Gateway 的展示名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// enabled 表示创建完成后是否立即参与配置下发。
+	Enabled bool `protobuf:"varint,2,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// listeners 是 Gateway 的完整监听入口列表。
+	Listeners     []*ProposedGatewayListener `protobuf:"bytes,3,rep,name=listeners,proto3" json:"listeners,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProposedGateway) Reset() {
+	*x = ProposedGateway{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProposedGateway) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProposedGateway) ProtoMessage() {}
+
+func (x *ProposedGateway) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProposedGateway.ProtoReflect.Descriptor instead.
+func (*ProposedGateway) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *ProposedGateway) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ProposedGateway) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *ProposedGateway) GetListeners() []*ProposedGatewayListener {
+	if x != nil {
+		return x.Listeners
+	}
+	return nil
+}
+
+// ProposedGatewayListener 是一个待创建的 Gateway 监听入口。
+type ProposedGatewayListener struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name 是当前 Gateway 内唯一的监听入口标识。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// protocol 是监听入口接受的应用层协议。
+	Protocol ProposedGatewayProtocol `protobuf:"varint,2,opt,name=protocol,proto3,enum=ingate.assistant.v1.ProposedGatewayProtocol" json:"protocol,omitempty"`
+	// port 是 Envoy 对外监听的 TCP 端口。
+	Port uint32 `protobuf:"varint,3,opt,name=port,proto3" json:"port,omitempty"`
+	// hostname 是可选的 Host 匹配条件，空值表示任意 Host。
+	Hostname string `protobuf:"bytes,4,opt,name=hostname,proto3" json:"hostname,omitempty"`
+	// certificate_id 是 HTTPS 监听入口引用的证书资源 ID。
+	CertificateId string `protobuf:"bytes,5,opt,name=certificate_id,json=certificateID,proto3" json:"certificate_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProposedGatewayListener) Reset() {
+	*x = ProposedGatewayListener{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProposedGatewayListener) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProposedGatewayListener) ProtoMessage() {}
+
+func (x *ProposedGatewayListener) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProposedGatewayListener.ProtoReflect.Descriptor instead.
+func (*ProposedGatewayListener) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *ProposedGatewayListener) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ProposedGatewayListener) GetProtocol() ProposedGatewayProtocol {
+	if x != nil {
+		return x.Protocol
+	}
+	return ProposedGatewayProtocol_PROPOSED_GATEWAY_PROTOCOL_UNSPECIFIED
+}
+
+func (x *ProposedGatewayListener) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *ProposedGatewayListener) GetHostname() string {
+	if x != nil {
+		return x.Hostname
+	}
+	return ""
+}
+
+func (x *ProposedGatewayListener) GetCertificateId() string {
+	if x != nil {
+		return x.CertificateId
+	}
+	return ""
+}
+
+// ProposedService 是待创建普通 HTTP Service 的完整配置。
+type ProposedService struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name 是 Service 的展示名称。
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// endpoints 是 Service 的完整转发地址列表。
+	Endpoints []*ProposedServiceEndpoint `protobuf:"bytes,2,rep,name=endpoints,proto3" json:"endpoints,omitempty"`
+	// tls_server_name 非空时启用上游 TLS，并同时作为 SNI 和证书校验名称。
+	TlsServerName string `protobuf:"bytes,3,opt,name=tls_server_name,json=tlsServerName,proto3" json:"tls_server_name,omitempty"`
+	// load_balancing 是多个端点之间的流量分配方式。
+	LoadBalancing ProposedServiceLoadBalancing `protobuf:"varint,4,opt,name=load_balancing,json=loadBalancing,proto3,enum=ingate.assistant.v1.ProposedServiceLoadBalancing" json:"load_balancing,omitempty"`
+	// health_check 是可选的主动 HTTP 健康检查配置。
+	HealthCheck   *ProposedServiceHealthCheck `protobuf:"bytes,5,opt,name=health_check,json=healthCheck,proto3" json:"health_check,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProposedService) Reset() {
+	*x = ProposedService{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProposedService) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProposedService) ProtoMessage() {}
+
+func (x *ProposedService) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProposedService.ProtoReflect.Descriptor instead.
+func (*ProposedService) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *ProposedService) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *ProposedService) GetEndpoints() []*ProposedServiceEndpoint {
+	if x != nil {
+		return x.Endpoints
+	}
+	return nil
+}
+
+func (x *ProposedService) GetTlsServerName() string {
+	if x != nil {
+		return x.TlsServerName
+	}
+	return ""
+}
+
+func (x *ProposedService) GetLoadBalancing() ProposedServiceLoadBalancing {
+	if x != nil {
+		return x.LoadBalancing
+	}
+	return ProposedServiceLoadBalancing_PROPOSED_SERVICE_LOAD_BALANCING_UNSPECIFIED
+}
+
+func (x *ProposedService) GetHealthCheck() *ProposedServiceHealthCheck {
+	if x != nil {
+		return x.HealthCheck
+	}
+	return nil
+}
+
+// ProposedServiceEndpoint 是待创建 Service 的一个转发地址。
+type ProposedServiceEndpoint struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// address 是不含协议和端口的 DNS 主机名或 IP 地址。
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// port 是上游服务监听端口。
+	Port uint32 `protobuf:"varint,2,opt,name=port,proto3" json:"port,omitempty"`
+	// weight 是该端点参与负载均衡的相对权重。
+	Weight        uint32 `protobuf:"varint,3,opt,name=weight,proto3" json:"weight,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ProposedServiceEndpoint) Reset() {
+	*x = ProposedServiceEndpoint{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProposedServiceEndpoint) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProposedServiceEndpoint) ProtoMessage() {}
+
+func (x *ProposedServiceEndpoint) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProposedServiceEndpoint.ProtoReflect.Descriptor instead.
+func (*ProposedServiceEndpoint) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ProposedServiceEndpoint) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *ProposedServiceEndpoint) GetPort() uint32 {
+	if x != nil {
+		return x.Port
+	}
+	return 0
+}
+
+func (x *ProposedServiceEndpoint) GetWeight() uint32 {
+	if x != nil {
+		return x.Weight
+	}
+	return 0
+}
+
+// ProposedServiceHealthCheck 是待创建 Service 的主动健康检查配置。
+type ProposedServiceHealthCheck struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// path 是不含查询参数和片段的绝对 HTTP 路径。
+	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
+	// interval_seconds 是相邻两次检查的间隔秒数。
+	IntervalSeconds uint32 `protobuf:"varint,2,opt,name=interval_seconds,json=intervalSeconds,proto3" json:"interval_seconds,omitempty"`
+	// timeout_seconds 是单次检查的超时秒数。
+	TimeoutSeconds uint32 `protobuf:"varint,3,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ProposedServiceHealthCheck) Reset() {
+	*x = ProposedServiceHealthCheck{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ProposedServiceHealthCheck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ProposedServiceHealthCheck) ProtoMessage() {}
+
+func (x *ProposedServiceHealthCheck) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ProposedServiceHealthCheck.ProtoReflect.Descriptor instead.
+func (*ProposedServiceHealthCheck) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *ProposedServiceHealthCheck) GetPath() string {
+	if x != nil {
+		return x.Path
+	}
+	return ""
+}
+
+func (x *ProposedServiceHealthCheck) GetIntervalSeconds() uint32 {
+	if x != nil {
+		return x.IntervalSeconds
+	}
+	return 0
+}
+
+func (x *ProposedServiceHealthCheck) GetTimeoutSeconds() uint32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
 // ListConversationsRequest 定义会话列表的分页条件。
 type ListConversationsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -794,7 +1570,7 @@ type ListConversationsRequest struct {
 
 func (x *ListConversationsRequest) Reset() {
 	*x = ListConversationsRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[4]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -806,7 +1582,7 @@ func (x *ListConversationsRequest) String() string {
 func (*ListConversationsRequest) ProtoMessage() {}
 
 func (x *ListConversationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[4]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -819,7 +1595,7 @@ func (x *ListConversationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConversationsRequest.ProtoReflect.Descriptor instead.
 func (*ListConversationsRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{4}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListConversationsRequest) GetLimit() int32 {
@@ -849,7 +1625,7 @@ type ListConversationsResponse struct {
 
 func (x *ListConversationsResponse) Reset() {
 	*x = ListConversationsResponse{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[5]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -861,7 +1637,7 @@ func (x *ListConversationsResponse) String() string {
 func (*ListConversationsResponse) ProtoMessage() {}
 
 func (x *ListConversationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[5]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -874,7 +1650,7 @@ func (x *ListConversationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListConversationsResponse.ProtoReflect.Descriptor instead.
 func (*ListConversationsResponse) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{5}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ListConversationsResponse) GetConversations() []*Conversation {
@@ -902,7 +1678,7 @@ type GetConversationRequest struct {
 
 func (x *GetConversationRequest) Reset() {
 	*x = GetConversationRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[6]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -914,7 +1690,7 @@ func (x *GetConversationRequest) String() string {
 func (*GetConversationRequest) ProtoMessage() {}
 
 func (x *GetConversationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[6]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -927,7 +1703,7 @@ func (x *GetConversationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetConversationRequest.ProtoReflect.Descriptor instead.
 func (*GetConversationRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{6}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GetConversationRequest) GetId() string {
@@ -939,15 +1715,16 @@ func (x *GetConversationRequest) GetId() string {
 
 // CreateConversationRequest 创建一个会话；标题为空时使用服务端默认名称。
 type CreateConversationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Title         string                 `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// title 是可选的会话展示名称。
+	Title         string `protobuf:"bytes,1,opt,name=title,proto3" json:"title,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateConversationRequest) Reset() {
 	*x = CreateConversationRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[7]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -959,7 +1736,7 @@ func (x *CreateConversationRequest) String() string {
 func (*CreateConversationRequest) ProtoMessage() {}
 
 func (x *CreateConversationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[7]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -972,7 +1749,7 @@ func (x *CreateConversationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateConversationRequest.ProtoReflect.Descriptor instead.
 func (*CreateConversationRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{7}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CreateConversationRequest) GetTitle() string {
@@ -995,7 +1772,7 @@ type UpdateConversationRequest struct {
 
 func (x *UpdateConversationRequest) Reset() {
 	*x = UpdateConversationRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[8]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1007,7 +1784,7 @@ func (x *UpdateConversationRequest) String() string {
 func (*UpdateConversationRequest) ProtoMessage() {}
 
 func (x *UpdateConversationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[8]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1020,7 +1797,7 @@ func (x *UpdateConversationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateConversationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateConversationRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{8}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UpdateConversationRequest) GetId() string {
@@ -1048,7 +1825,7 @@ type DeleteConversationRequest struct {
 
 func (x *DeleteConversationRequest) Reset() {
 	*x = DeleteConversationRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[9]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1060,7 +1837,7 @@ func (x *DeleteConversationRequest) String() string {
 func (*DeleteConversationRequest) ProtoMessage() {}
 
 func (x *DeleteConversationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[9]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1073,7 +1850,7 @@ func (x *DeleteConversationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteConversationRequest.ProtoReflect.Descriptor instead.
 func (*DeleteConversationRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{9}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *DeleteConversationRequest) GetId() string {
@@ -1098,7 +1875,7 @@ type ListMessagesRequest struct {
 
 func (x *ListMessagesRequest) Reset() {
 	*x = ListMessagesRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[10]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1110,7 +1887,7 @@ func (x *ListMessagesRequest) String() string {
 func (*ListMessagesRequest) ProtoMessage() {}
 
 func (x *ListMessagesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[10]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1123,7 +1900,7 @@ func (x *ListMessagesRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessagesRequest.ProtoReflect.Descriptor instead.
 func (*ListMessagesRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{10}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *ListMessagesRequest) GetConversationId() string {
@@ -1160,7 +1937,7 @@ type ListMessagesResponse struct {
 
 func (x *ListMessagesResponse) Reset() {
 	*x = ListMessagesResponse{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1172,7 +1949,7 @@ func (x *ListMessagesResponse) String() string {
 func (*ListMessagesResponse) ProtoMessage() {}
 
 func (x *ListMessagesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[11]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1185,7 +1962,7 @@ func (x *ListMessagesResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListMessagesResponse.ProtoReflect.Descriptor instead.
 func (*ListMessagesResponse) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{11}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ListMessagesResponse) GetMessages() []*Message {
@@ -1213,7 +1990,7 @@ type GetAgentExecutionRequest struct {
 
 func (x *GetAgentExecutionRequest) Reset() {
 	*x = GetAgentExecutionRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1225,7 +2002,7 @@ func (x *GetAgentExecutionRequest) String() string {
 func (*GetAgentExecutionRequest) ProtoMessage() {}
 
 func (x *GetAgentExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[12]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1238,7 +2015,7 @@ func (x *GetAgentExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetAgentExecutionRequest.ProtoReflect.Descriptor instead.
 func (*GetAgentExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{12}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *GetAgentExecutionRequest) GetId() string {
@@ -1259,7 +2036,7 @@ type ListAgentExecutionStepsRequest struct {
 
 func (x *ListAgentExecutionStepsRequest) Reset() {
 	*x = ListAgentExecutionStepsRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1271,7 +2048,7 @@ func (x *ListAgentExecutionStepsRequest) String() string {
 func (*ListAgentExecutionStepsRequest) ProtoMessage() {}
 
 func (x *ListAgentExecutionStepsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[13]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1284,7 +2061,7 @@ func (x *ListAgentExecutionStepsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAgentExecutionStepsRequest.ProtoReflect.Descriptor instead.
 func (*ListAgentExecutionStepsRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{13}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *ListAgentExecutionStepsRequest) GetExecutionId() string {
@@ -1305,7 +2082,7 @@ type ListAgentExecutionStepsResponse struct {
 
 func (x *ListAgentExecutionStepsResponse) Reset() {
 	*x = ListAgentExecutionStepsResponse{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1317,7 +2094,7 @@ func (x *ListAgentExecutionStepsResponse) String() string {
 func (*ListAgentExecutionStepsResponse) ProtoMessage() {}
 
 func (x *ListAgentExecutionStepsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[14]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1330,7 +2107,7 @@ func (x *ListAgentExecutionStepsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListAgentExecutionStepsResponse.ProtoReflect.Descriptor instead.
 func (*ListAgentExecutionStepsResponse) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{14}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ListAgentExecutionStepsResponse) GetSteps() []*AgentExecutionStep {
@@ -1353,7 +2130,7 @@ type CreateAgentExecutionRequest struct {
 
 func (x *CreateAgentExecutionRequest) Reset() {
 	*x = CreateAgentExecutionRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1365,7 +2142,7 @@ func (x *CreateAgentExecutionRequest) String() string {
 func (*CreateAgentExecutionRequest) ProtoMessage() {}
 
 func (x *CreateAgentExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[15]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1378,7 +2155,7 @@ func (x *CreateAgentExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateAgentExecutionRequest.ProtoReflect.Descriptor instead.
 func (*CreateAgentExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{15}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *CreateAgentExecutionRequest) GetConversationId() string {
@@ -1406,7 +2183,7 @@ type CancelAgentExecutionRequest struct {
 
 func (x *CancelAgentExecutionRequest) Reset() {
 	*x = CancelAgentExecutionRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1418,7 +2195,7 @@ func (x *CancelAgentExecutionRequest) String() string {
 func (*CancelAgentExecutionRequest) ProtoMessage() {}
 
 func (x *CancelAgentExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[16]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1431,12 +2208,251 @@ func (x *CancelAgentExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelAgentExecutionRequest.ProtoReflect.Descriptor instead.
 func (*CancelAgentExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{16}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *CancelAgentExecutionRequest) GetId() string {
 	if x != nil {
 		return x.Id
+	}
+	return ""
+}
+
+// ListProposedChangesRequest 指定要读取配置变更的会话。
+type ListProposedChangesRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// conversation_id 是目标会话标识。
+	ConversationId string `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *ListProposedChangesRequest) Reset() {
+	*x = ListProposedChangesRequest{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProposedChangesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProposedChangesRequest) ProtoMessage() {}
+
+func (x *ListProposedChangesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProposedChangesRequest.ProtoReflect.Descriptor instead.
+func (*ListProposedChangesRequest) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *ListProposedChangesRequest) GetConversationId() string {
+	if x != nil {
+		return x.ConversationId
+	}
+	return ""
+}
+
+// ListProposedChangesResponse 按创建时间返回会话中的配置变更。
+type ListProposedChangesResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// proposed_changes 按创建时间正序排列，不包含 Agent 执行中的草稿。
+	ProposedChanges []*ProposedChange `protobuf:"bytes,1,rep,name=proposed_changes,json=proposedChanges,proto3" json:"proposed_changes,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *ListProposedChangesResponse) Reset() {
+	*x = ListProposedChangesResponse{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProposedChangesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProposedChangesResponse) ProtoMessage() {}
+
+func (x *ListProposedChangesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProposedChangesResponse.ProtoReflect.Descriptor instead.
+func (*ListProposedChangesResponse) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *ListProposedChangesResponse) GetProposedChanges() []*ProposedChange {
+	if x != nil {
+		return x.ProposedChanges
+	}
+	return nil
+}
+
+// ApproveProposedChangeRequest 指定要批准并执行的配置变更。
+type ApproveProposedChangeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是目标配置变更标识。
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ApproveProposedChangeRequest) Reset() {
+	*x = ApproveProposedChangeRequest{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ApproveProposedChangeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ApproveProposedChangeRequest) ProtoMessage() {}
+
+func (x *ApproveProposedChangeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ApproveProposedChangeRequest.ProtoReflect.Descriptor instead.
+func (*ApproveProposedChangeRequest) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *ApproveProposedChangeRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// RejectProposedChangeRequest 指定要拒绝的配置变更。
+type RejectProposedChangeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是目标配置变更标识。
+	Id            string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RejectProposedChangeRequest) Reset() {
+	*x = RejectProposedChangeRequest{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RejectProposedChangeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RejectProposedChangeRequest) ProtoMessage() {}
+
+func (x *RejectProposedChangeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RejectProposedChangeRequest.ProtoReflect.Descriptor instead.
+func (*RejectProposedChangeRequest) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *RejectProposedChangeRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+// ReviseProposedChangeRequest 把文字作为当前审批的拒绝原因交回 Agent。
+type ReviseProposedChangeRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// id 是目标配置变更标识。
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// feedback 是 Agent 在原上下文中继续处理的用户反馈。
+	Feedback      string `protobuf:"bytes,2,opt,name=feedback,proto3" json:"feedback,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ReviseProposedChangeRequest) Reset() {
+	*x = ReviseProposedChangeRequest{}
+	mi := &file_assistant_v1_assistant_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ReviseProposedChangeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ReviseProposedChangeRequest) ProtoMessage() {}
+
+func (x *ReviseProposedChangeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_assistant_v1_assistant_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ReviseProposedChangeRequest.ProtoReflect.Descriptor instead.
+func (*ReviseProposedChangeRequest) Descriptor() ([]byte, []int) {
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *ReviseProposedChangeRequest) GetId() string {
+	if x != nil {
+		return x.Id
+	}
+	return ""
+}
+
+func (x *ReviseProposedChangeRequest) GetFeedback() string {
+	if x != nil {
+		return x.Feedback
 	}
 	return ""
 }
@@ -1470,7 +2486,7 @@ type ModelConnection struct {
 
 func (x *ModelConnection) Reset() {
 	*x = ModelConnection{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[17]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1482,7 +2498,7 @@ func (x *ModelConnection) String() string {
 func (*ModelConnection) ProtoMessage() {}
 
 func (x *ModelConnection) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[17]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1495,7 +2511,7 @@ func (x *ModelConnection) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ModelConnection.ProtoReflect.Descriptor instead.
 func (*ModelConnection) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{17}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *ModelConnection) GetConfigured() bool {
@@ -1595,7 +2611,7 @@ type UpdateModelConnectionRequest struct {
 
 func (x *UpdateModelConnectionRequest) Reset() {
 	*x = UpdateModelConnectionRequest{}
-	mi := &file_assistant_v1_assistant_proto_msgTypes[18]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1607,7 +2623,7 @@ func (x *UpdateModelConnectionRequest) String() string {
 func (*UpdateModelConnectionRequest) ProtoMessage() {}
 
 func (x *UpdateModelConnectionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_assistant_v1_assistant_proto_msgTypes[18]
+	mi := &file_assistant_v1_assistant_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1620,7 +2636,7 @@ func (x *UpdateModelConnectionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateModelConnectionRequest.ProtoReflect.Descriptor instead.
 func (*UpdateModelConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{18}
+	return file_assistant_v1_assistant_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *UpdateModelConnectionRequest) GetConnectionMode() ModelConnectionMode {
@@ -1735,7 +2751,52 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"started_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tstartedAt\x12;\n" +
 	"\vfinished_at\x18\n" +
 	" \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"finishedAt\"Q\n" +
+	"finishedAt\"\xa5\x05\n" +
+	"\x0eProposedChange\x12\x0e\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\x12'\n" +
+	"\x0fconversation_id\x18\x02 \x01(\tR\x0econversationId\x12!\n" +
+	"\fexecution_id\x18\x03 \x01(\tR\vexecutionId\x12;\n" +
+	"\x04kind\x18\x04 \x01(\x0e2'.ingate.assistant.v1.ProposedChangeKindR\x04kind\x12>\n" +
+	"\x05state\x18\x05 \x01(\x0e2(.ingate.assistant.v1.ProposedChangeStateR\x05state\x12\x18\n" +
+	"\asummary\x18\x06 \x01(\tR\asummary\x12M\n" +
+	"\x0ecreate_gateway\x18\a \x01(\v2$.ingate.assistant.v1.ProposedGatewayH\x00R\rcreateGateway\x12M\n" +
+	"\x0ecreate_service\x18\b \x01(\v2$.ingate.assistant.v1.ProposedServiceH\x00R\rcreateService\x12\x1f\n" +
+	"\vresource_id\x18\t \x01(\tR\n" +
+	"resourceId\x12\x1d\n" +
+	"\n" +
+	"error_code\x18\n" +
+	" \x01(\tR\terrorCode\x129\n" +
+	"\n" +
+	"created_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"decided_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tdecidedAt\x12;\n" +
+	"\vfinished_at\x18\r \x01(\v2\x1a.google.protobuf.TimestampR\n" +
+	"finishedAtB\x0f\n" +
+	"\rconfiguration\"\x8b\x01\n" +
+	"\x0fProposedGateway\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
+	"\aenabled\x18\x02 \x01(\bR\aenabled\x12J\n" +
+	"\tlisteners\x18\x03 \x03(\v2,.ingate.assistant.v1.ProposedGatewayListenerR\tlisteners\"\xce\x01\n" +
+	"\x17ProposedGatewayListener\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12H\n" +
+	"\bprotocol\x18\x02 \x01(\x0e2,.ingate.assistant.v1.ProposedGatewayProtocolR\bprotocol\x12\x12\n" +
+	"\x04port\x18\x03 \x01(\rR\x04port\x12\x1a\n" +
+	"\bhostname\x18\x04 \x01(\tR\bhostname\x12%\n" +
+	"\x0ecertificate_id\x18\x05 \x01(\tR\rcertificateID\"\xc7\x02\n" +
+	"\x0fProposedService\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12J\n" +
+	"\tendpoints\x18\x02 \x03(\v2,.ingate.assistant.v1.ProposedServiceEndpointR\tendpoints\x12&\n" +
+	"\x0ftls_server_name\x18\x03 \x01(\tR\rtlsServerName\x12X\n" +
+	"\x0eload_balancing\x18\x04 \x01(\x0e21.ingate.assistant.v1.ProposedServiceLoadBalancingR\rloadBalancing\x12R\n" +
+	"\fhealth_check\x18\x05 \x01(\v2/.ingate.assistant.v1.ProposedServiceHealthCheckR\vhealthCheck\"_\n" +
+	"\x17ProposedServiceEndpoint\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x12\n" +
+	"\x04port\x18\x02 \x01(\rR\x04port\x12\x16\n" +
+	"\x06weight\x18\x03 \x01(\rR\x06weight\"\x84\x01\n" +
+	"\x1aProposedServiceHealthCheck\x12\x12\n" +
+	"\x04path\x18\x01 \x01(\tR\x04path\x12)\n" +
+	"\x10interval_seconds\x18\x02 \x01(\rR\x0fintervalSeconds\x12'\n" +
+	"\x0ftimeout_seconds\x18\x03 \x01(\rR\x0etimeoutSeconds\"Q\n" +
 	"\x18ListConversationsRequest\x12\x1d\n" +
 	"\x05limit\x18\x01 \x01(\x05B\a\xbaH\x04\x1a\x02(\x00R\x05limit\x12\x16\n" +
 	"\x06cursor\x18\x02 \x01(\tR\x06cursor\"\x85\x01\n" +
@@ -1771,7 +2832,18 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\x0fconversation_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0econversationId\x12%\n" +
 	"\acontent\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\x80\x80\x04R\acontent\"7\n" +
 	"\x1bCancelAgentExecutionRequest\x12\x18\n" +
-	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"\xec\x03\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"O\n" +
+	"\x1aListProposedChangesRequest\x121\n" +
+	"\x0fconversation_id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x0econversationId\"m\n" +
+	"\x1bListProposedChangesResponse\x12N\n" +
+	"\x10proposed_changes\x18\x01 \x03(\v2#.ingate.assistant.v1.ProposedChangeR\x0fproposedChanges\"8\n" +
+	"\x1cApproveProposedChangeRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"7\n" +
+	"\x1bRejectProposedChangeRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\"`\n" +
+	"\x1bReviseProposedChangeRequest\x12\x18\n" +
+	"\x02id\x18\x01 \x01(\tB\b\xbaH\x05r\x03\xb0\x01\x01R\x02id\x12'\n" +
+	"\bfeedback\x18\x02 \x01(\tB\v\xbaH\br\x06\x10\x01\x18\x80\x80\x04R\bfeedback\"\xec\x03\n" +
 	"\x0fModelConnection\x12\x1e\n" +
 	"\n" +
 	"configured\x18\x01 \x01(\bR\n" +
@@ -1813,24 +2885,46 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\vMessageRole\x12\x1c\n" +
 	"\x18MESSAGE_ROLE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11MESSAGE_ROLE_USER\x10\x01\x12\x1a\n" +
-	"\x16MESSAGE_ROLE_ASSISTANT\x10\x02*\xed\x01\n" +
+	"\x16MESSAGE_ROLE_ASSISTANT\x10\x02*\x99\x02\n" +
 	"\x13AgentExecutionState\x12%\n" +
 	"!AGENT_EXECUTION_STATE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cAGENT_EXECUTION_STATE_QUEUED\x10\x01\x12!\n" +
 	"\x1dAGENT_EXECUTION_STATE_RUNNING\x10\x02\x12#\n" +
 	"\x1fAGENT_EXECUTION_STATE_SUCCEEDED\x10\x03\x12 \n" +
 	"\x1cAGENT_EXECUTION_STATE_FAILED\x10\x04\x12#\n" +
-	"\x1fAGENT_EXECUTION_STATE_CANCELLED\x10\x05*\x96\x01\n" +
+	"\x1fAGENT_EXECUTION_STATE_CANCELLED\x10\x05\x12*\n" +
+	"&AGENT_EXECUTION_STATE_WAITING_APPROVAL\x10\x06*\x96\x01\n" +
 	"\x16AgentExecutionStepKind\x12)\n" +
 	"%AGENT_EXECUTION_STEP_KIND_UNSPECIFIED\x10\x00\x12(\n" +
 	"$AGENT_EXECUTION_STEP_KIND_MODEL_CALL\x10\x01\x12'\n" +
-	"#AGENT_EXECUTION_STEP_KIND_TOOL_CALL\x10\x02*\xe8\x01\n" +
+	"#AGENT_EXECUTION_STEP_KIND_TOOL_CALL\x10\x02*\x99\x02\n" +
 	"\x17AgentExecutionStepState\x12*\n" +
 	"&AGENT_EXECUTION_STEP_STATE_UNSPECIFIED\x10\x00\x12&\n" +
 	"\"AGENT_EXECUTION_STEP_STATE_RUNNING\x10\x01\x12(\n" +
 	"$AGENT_EXECUTION_STEP_STATE_COMPLETED\x10\x02\x12%\n" +
 	"!AGENT_EXECUTION_STEP_STATE_FAILED\x10\x03\x12(\n" +
-	"$AGENT_EXECUTION_STEP_STATE_CANCELLED\x10\x042\x95\a\n" +
+	"$AGENT_EXECUTION_STEP_STATE_CANCELLED\x10\x04\x12/\n" +
+	"+AGENT_EXECUTION_STEP_STATE_WAITING_APPROVAL\x10\x05*\x8c\x01\n" +
+	"\x12ProposedChangeKind\x12$\n" +
+	" PROPOSED_CHANGE_KIND_UNSPECIFIED\x10\x00\x12'\n" +
+	"#PROPOSED_CHANGE_KIND_CREATE_GATEWAY\x10\x01\x12'\n" +
+	"#PROPOSED_CHANGE_KIND_CREATE_SERVICE\x10\x02*\xa1\x02\n" +
+	"\x13ProposedChangeState\x12%\n" +
+	"!PROPOSED_CHANGE_STATE_UNSPECIFIED\x10\x00\x12(\n" +
+	"$PROPOSED_CHANGE_STATE_PENDING_REVIEW\x10\x01\x12#\n" +
+	"\x1fPROPOSED_CHANGE_STATE_EXECUTING\x10\x02\x12#\n" +
+	"\x1fPROPOSED_CHANGE_STATE_SUCCEEDED\x10\x03\x12\"\n" +
+	"\x1ePROPOSED_CHANGE_STATE_REJECTED\x10\x04\x12 \n" +
+	"\x1cPROPOSED_CHANGE_STATE_FAILED\x10\x05\x12)\n" +
+	"%PROPOSED_CHANGE_STATE_OUTCOME_UNKNOWN\x10\x06*\x8d\x01\n" +
+	"\x17ProposedGatewayProtocol\x12)\n" +
+	"%PROPOSED_GATEWAY_PROTOCOL_UNSPECIFIED\x10\x00\x12\"\n" +
+	"\x1ePROPOSED_GATEWAY_PROTOCOL_HTTP\x10\x01\x12#\n" +
+	"\x1fPROPOSED_GATEWAY_PROTOCOL_HTTPS\x10\x02*\xb3\x01\n" +
+	"\x1cProposedServiceLoadBalancing\x12/\n" +
+	"+PROPOSED_SERVICE_LOAD_BALANCING_UNSPECIFIED\x10\x00\x12/\n" +
+	"+PROPOSED_SERVICE_LOAD_BALANCING_ROUND_ROBIN\x10\x01\x121\n" +
+	"-PROPOSED_SERVICE_LOAD_BALANCING_LEAST_REQUEST\x10\x022\x95\a\n" +
 	"\x13ConversationService\x12\x97\x01\n" +
 	"\x11ListConversations\x12-.ingate.assistant.v1.ListConversationsRequest\x1a..ingate.assistant.v1.ListConversationsResponse\"#\x82\xd3\xe4\x93\x02\x1d\x12\x1b/assistant/v1/conversations\x12\x8b\x01\n" +
 	"\x0fGetConversation\x12+.ingate.assistant.v1.GetConversationRequest\x1a!.ingate.assistant.v1.Conversation\"(\x82\xd3\xe4\x93\x02\"\x12 /assistant/v1/conversations/{id}\x12\x8f\x01\n" +
@@ -1842,7 +2936,12 @@ const file_assistant_v1_assistant_proto_rawDesc = "" +
 	"\x14CreateAgentExecution\x120.ingate.assistant.v1.CreateAgentExecutionRequest\x1a#.ingate.assistant.v1.AgentExecution\"C\x82\xd3\xe4\x93\x02=:\x01*\"8/assistant/v1/conversations/{conversation_id}/executions\x12\x8e\x01\n" +
 	"\x11GetAgentExecution\x12-.ingate.assistant.v1.GetAgentExecutionRequest\x1a#.ingate.assistant.v1.AgentExecution\"%\x82\xd3\xe4\x93\x02\x1f\x12\x1d/assistant/v1/executions/{id}\x12\xbb\x01\n" +
 	"\x17ListAgentExecutionSteps\x123.ingate.assistant.v1.ListAgentExecutionStepsRequest\x1a4.ingate.assistant.v1.ListAgentExecutionStepsResponse\"5\x82\xd3\xe4\x93\x02/\x12-/assistant/v1/executions/{execution_id}/steps\x12\x9e\x01\n" +
-	"\x14CancelAgentExecution\x120.ingate.assistant.v1.CancelAgentExecutionRequest\x1a#.ingate.assistant.v1.AgentExecution\"/\x82\xd3\xe4\x93\x02):\x01*\"$/assistant/v1/executions/{id}:cancel2\xb2\x02\n" +
+	"\x14CancelAgentExecution\x120.ingate.assistant.v1.CancelAgentExecutionRequest\x1a#.ingate.assistant.v1.AgentExecution\"/\x82\xd3\xe4\x93\x02):\x01*\"$/assistant/v1/executions/{id}:cancel2\xd2\x05\n" +
+	"\x15ProposedChangeService\x12\xc0\x01\n" +
+	"\x13ListProposedChanges\x12/.ingate.assistant.v1.ListProposedChangesRequest\x1a0.ingate.assistant.v1.ListProposedChangesResponse\"F\x82\xd3\xe4\x93\x02@\x12>/assistant/v1/conversations/{conversation_id}/proposed-changes\x12\xa7\x01\n" +
+	"\x15ApproveProposedChange\x121.ingate.assistant.v1.ApproveProposedChangeRequest\x1a#.ingate.assistant.v1.ProposedChange\"6\x82\xd3\xe4\x93\x020:\x01*\"+/assistant/v1/proposed-changes/{id}:approve\x12\xa4\x01\n" +
+	"\x14RejectProposedChange\x120.ingate.assistant.v1.RejectProposedChangeRequest\x1a#.ingate.assistant.v1.ProposedChange\"5\x82\xd3\xe4\x93\x02/:\x01*\"*/assistant/v1/proposed-changes/{id}:reject\x12\xa4\x01\n" +
+	"\x14ReviseProposedChange\x120.ingate.assistant.v1.ReviseProposedChangeRequest\x1a#.ingate.assistant.v1.ProposedChange\"5\x82\xd3\xe4\x93\x02/:\x01*\"*/assistant/v1/proposed-changes/{id}:revise2\xb2\x02\n" +
 	"\x16ModelConnectionService\x12z\n" +
 	"\x12GetModelConnection\x12\x16.google.protobuf.Empty\x1a$.ingate.assistant.v1.ModelConnection\"&\x82\xd3\xe4\x93\x02 \x12\x1e/assistant/v1/model-connection\x12\x9b\x01\n" +
 	"\x15UpdateModelConnection\x121.ingate.assistant.v1.UpdateModelConnectionRequest\x1a$.ingate.assistant.v1.ModelConnection\")\x82\xd3\xe4\x93\x02#:\x01*\x1a\x1e/assistant/v1/model-connectionB.Z,github.com/lgc202/ingate/api/assistant/v1;v1b\x06proto3"
@@ -1859,8 +2958,8 @@ func file_assistant_v1_assistant_proto_rawDescGZIP() []byte {
 	return file_assistant_v1_assistant_proto_rawDescData
 }
 
-var file_assistant_v1_assistant_proto_enumTypes = make([]protoimpl.EnumInfo, 6)
-var file_assistant_v1_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_assistant_v1_assistant_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
+var file_assistant_v1_assistant_proto_msgTypes = make([]protoimpl.MessageInfo, 30)
 var file_assistant_v1_assistant_proto_goTypes = []any{
 	(ModelConnectionMode)(0),                // 0: ingate.assistant.v1.ModelConnectionMode
 	(ModelProtocol)(0),                      // 1: ingate.assistant.v1.ModelProtocol
@@ -1868,78 +2967,114 @@ var file_assistant_v1_assistant_proto_goTypes = []any{
 	(AgentExecutionState)(0),                // 3: ingate.assistant.v1.AgentExecutionState
 	(AgentExecutionStepKind)(0),             // 4: ingate.assistant.v1.AgentExecutionStepKind
 	(AgentExecutionStepState)(0),            // 5: ingate.assistant.v1.AgentExecutionStepState
-	(*Conversation)(nil),                    // 6: ingate.assistant.v1.Conversation
-	(*Message)(nil),                         // 7: ingate.assistant.v1.Message
-	(*AgentExecution)(nil),                  // 8: ingate.assistant.v1.AgentExecution
-	(*AgentExecutionStep)(nil),              // 9: ingate.assistant.v1.AgentExecutionStep
-	(*ListConversationsRequest)(nil),        // 10: ingate.assistant.v1.ListConversationsRequest
-	(*ListConversationsResponse)(nil),       // 11: ingate.assistant.v1.ListConversationsResponse
-	(*GetConversationRequest)(nil),          // 12: ingate.assistant.v1.GetConversationRequest
-	(*CreateConversationRequest)(nil),       // 13: ingate.assistant.v1.CreateConversationRequest
-	(*UpdateConversationRequest)(nil),       // 14: ingate.assistant.v1.UpdateConversationRequest
-	(*DeleteConversationRequest)(nil),       // 15: ingate.assistant.v1.DeleteConversationRequest
-	(*ListMessagesRequest)(nil),             // 16: ingate.assistant.v1.ListMessagesRequest
-	(*ListMessagesResponse)(nil),            // 17: ingate.assistant.v1.ListMessagesResponse
-	(*GetAgentExecutionRequest)(nil),        // 18: ingate.assistant.v1.GetAgentExecutionRequest
-	(*ListAgentExecutionStepsRequest)(nil),  // 19: ingate.assistant.v1.ListAgentExecutionStepsRequest
-	(*ListAgentExecutionStepsResponse)(nil), // 20: ingate.assistant.v1.ListAgentExecutionStepsResponse
-	(*CreateAgentExecutionRequest)(nil),     // 21: ingate.assistant.v1.CreateAgentExecutionRequest
-	(*CancelAgentExecutionRequest)(nil),     // 22: ingate.assistant.v1.CancelAgentExecutionRequest
-	(*ModelConnection)(nil),                 // 23: ingate.assistant.v1.ModelConnection
-	(*UpdateModelConnectionRequest)(nil),    // 24: ingate.assistant.v1.UpdateModelConnectionRequest
-	(*timestamppb.Timestamp)(nil),           // 25: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                   // 26: google.protobuf.Empty
+	(ProposedChangeKind)(0),                 // 6: ingate.assistant.v1.ProposedChangeKind
+	(ProposedChangeState)(0),                // 7: ingate.assistant.v1.ProposedChangeState
+	(ProposedGatewayProtocol)(0),            // 8: ingate.assistant.v1.ProposedGatewayProtocol
+	(ProposedServiceLoadBalancing)(0),       // 9: ingate.assistant.v1.ProposedServiceLoadBalancing
+	(*Conversation)(nil),                    // 10: ingate.assistant.v1.Conversation
+	(*Message)(nil),                         // 11: ingate.assistant.v1.Message
+	(*AgentExecution)(nil),                  // 12: ingate.assistant.v1.AgentExecution
+	(*AgentExecutionStep)(nil),              // 13: ingate.assistant.v1.AgentExecutionStep
+	(*ProposedChange)(nil),                  // 14: ingate.assistant.v1.ProposedChange
+	(*ProposedGateway)(nil),                 // 15: ingate.assistant.v1.ProposedGateway
+	(*ProposedGatewayListener)(nil),         // 16: ingate.assistant.v1.ProposedGatewayListener
+	(*ProposedService)(nil),                 // 17: ingate.assistant.v1.ProposedService
+	(*ProposedServiceEndpoint)(nil),         // 18: ingate.assistant.v1.ProposedServiceEndpoint
+	(*ProposedServiceHealthCheck)(nil),      // 19: ingate.assistant.v1.ProposedServiceHealthCheck
+	(*ListConversationsRequest)(nil),        // 20: ingate.assistant.v1.ListConversationsRequest
+	(*ListConversationsResponse)(nil),       // 21: ingate.assistant.v1.ListConversationsResponse
+	(*GetConversationRequest)(nil),          // 22: ingate.assistant.v1.GetConversationRequest
+	(*CreateConversationRequest)(nil),       // 23: ingate.assistant.v1.CreateConversationRequest
+	(*UpdateConversationRequest)(nil),       // 24: ingate.assistant.v1.UpdateConversationRequest
+	(*DeleteConversationRequest)(nil),       // 25: ingate.assistant.v1.DeleteConversationRequest
+	(*ListMessagesRequest)(nil),             // 26: ingate.assistant.v1.ListMessagesRequest
+	(*ListMessagesResponse)(nil),            // 27: ingate.assistant.v1.ListMessagesResponse
+	(*GetAgentExecutionRequest)(nil),        // 28: ingate.assistant.v1.GetAgentExecutionRequest
+	(*ListAgentExecutionStepsRequest)(nil),  // 29: ingate.assistant.v1.ListAgentExecutionStepsRequest
+	(*ListAgentExecutionStepsResponse)(nil), // 30: ingate.assistant.v1.ListAgentExecutionStepsResponse
+	(*CreateAgentExecutionRequest)(nil),     // 31: ingate.assistant.v1.CreateAgentExecutionRequest
+	(*CancelAgentExecutionRequest)(nil),     // 32: ingate.assistant.v1.CancelAgentExecutionRequest
+	(*ListProposedChangesRequest)(nil),      // 33: ingate.assistant.v1.ListProposedChangesRequest
+	(*ListProposedChangesResponse)(nil),     // 34: ingate.assistant.v1.ListProposedChangesResponse
+	(*ApproveProposedChangeRequest)(nil),    // 35: ingate.assistant.v1.ApproveProposedChangeRequest
+	(*RejectProposedChangeRequest)(nil),     // 36: ingate.assistant.v1.RejectProposedChangeRequest
+	(*ReviseProposedChangeRequest)(nil),     // 37: ingate.assistant.v1.ReviseProposedChangeRequest
+	(*ModelConnection)(nil),                 // 38: ingate.assistant.v1.ModelConnection
+	(*UpdateModelConnectionRequest)(nil),    // 39: ingate.assistant.v1.UpdateModelConnectionRequest
+	(*timestamppb.Timestamp)(nil),           // 40: google.protobuf.Timestamp
+	(*emptypb.Empty)(nil),                   // 41: google.protobuf.Empty
 }
 var file_assistant_v1_assistant_proto_depIdxs = []int32{
-	25, // 0: ingate.assistant.v1.Conversation.created_at:type_name -> google.protobuf.Timestamp
-	25, // 1: ingate.assistant.v1.Conversation.updated_at:type_name -> google.protobuf.Timestamp
+	40, // 0: ingate.assistant.v1.Conversation.created_at:type_name -> google.protobuf.Timestamp
+	40, // 1: ingate.assistant.v1.Conversation.updated_at:type_name -> google.protobuf.Timestamp
 	2,  // 2: ingate.assistant.v1.Message.role:type_name -> ingate.assistant.v1.MessageRole
-	25, // 3: ingate.assistant.v1.Message.created_at:type_name -> google.protobuf.Timestamp
+	40, // 3: ingate.assistant.v1.Message.created_at:type_name -> google.protobuf.Timestamp
 	3,  // 4: ingate.assistant.v1.AgentExecution.state:type_name -> ingate.assistant.v1.AgentExecutionState
-	25, // 5: ingate.assistant.v1.AgentExecution.started_at:type_name -> google.protobuf.Timestamp
-	25, // 6: ingate.assistant.v1.AgentExecution.finished_at:type_name -> google.protobuf.Timestamp
-	25, // 7: ingate.assistant.v1.AgentExecution.created_at:type_name -> google.protobuf.Timestamp
+	40, // 5: ingate.assistant.v1.AgentExecution.started_at:type_name -> google.protobuf.Timestamp
+	40, // 6: ingate.assistant.v1.AgentExecution.finished_at:type_name -> google.protobuf.Timestamp
+	40, // 7: ingate.assistant.v1.AgentExecution.created_at:type_name -> google.protobuf.Timestamp
 	4,  // 8: ingate.assistant.v1.AgentExecutionStep.kind:type_name -> ingate.assistant.v1.AgentExecutionStepKind
 	5,  // 9: ingate.assistant.v1.AgentExecutionStep.state:type_name -> ingate.assistant.v1.AgentExecutionStepState
-	25, // 10: ingate.assistant.v1.AgentExecutionStep.started_at:type_name -> google.protobuf.Timestamp
-	25, // 11: ingate.assistant.v1.AgentExecutionStep.finished_at:type_name -> google.protobuf.Timestamp
-	6,  // 12: ingate.assistant.v1.ListConversationsResponse.conversations:type_name -> ingate.assistant.v1.Conversation
-	7,  // 13: ingate.assistant.v1.ListMessagesResponse.messages:type_name -> ingate.assistant.v1.Message
-	9,  // 14: ingate.assistant.v1.ListAgentExecutionStepsResponse.steps:type_name -> ingate.assistant.v1.AgentExecutionStep
-	0,  // 15: ingate.assistant.v1.ModelConnection.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
-	1,  // 16: ingate.assistant.v1.ModelConnection.protocol:type_name -> ingate.assistant.v1.ModelProtocol
-	25, // 17: ingate.assistant.v1.ModelConnection.updated_at:type_name -> google.protobuf.Timestamp
-	0,  // 18: ingate.assistant.v1.UpdateModelConnectionRequest.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
-	1,  // 19: ingate.assistant.v1.UpdateModelConnectionRequest.protocol:type_name -> ingate.assistant.v1.ModelProtocol
-	10, // 20: ingate.assistant.v1.ConversationService.ListConversations:input_type -> ingate.assistant.v1.ListConversationsRequest
-	12, // 21: ingate.assistant.v1.ConversationService.GetConversation:input_type -> ingate.assistant.v1.GetConversationRequest
-	13, // 22: ingate.assistant.v1.ConversationService.CreateConversation:input_type -> ingate.assistant.v1.CreateConversationRequest
-	14, // 23: ingate.assistant.v1.ConversationService.UpdateConversation:input_type -> ingate.assistant.v1.UpdateConversationRequest
-	15, // 24: ingate.assistant.v1.ConversationService.DeleteConversation:input_type -> ingate.assistant.v1.DeleteConversationRequest
-	16, // 25: ingate.assistant.v1.ConversationService.ListMessages:input_type -> ingate.assistant.v1.ListMessagesRequest
-	21, // 26: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:input_type -> ingate.assistant.v1.CreateAgentExecutionRequest
-	18, // 27: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:input_type -> ingate.assistant.v1.GetAgentExecutionRequest
-	19, // 28: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:input_type -> ingate.assistant.v1.ListAgentExecutionStepsRequest
-	22, // 29: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:input_type -> ingate.assistant.v1.CancelAgentExecutionRequest
-	26, // 30: ingate.assistant.v1.ModelConnectionService.GetModelConnection:input_type -> google.protobuf.Empty
-	24, // 31: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:input_type -> ingate.assistant.v1.UpdateModelConnectionRequest
-	11, // 32: ingate.assistant.v1.ConversationService.ListConversations:output_type -> ingate.assistant.v1.ListConversationsResponse
-	6,  // 33: ingate.assistant.v1.ConversationService.GetConversation:output_type -> ingate.assistant.v1.Conversation
-	6,  // 34: ingate.assistant.v1.ConversationService.CreateConversation:output_type -> ingate.assistant.v1.Conversation
-	6,  // 35: ingate.assistant.v1.ConversationService.UpdateConversation:output_type -> ingate.assistant.v1.Conversation
-	26, // 36: ingate.assistant.v1.ConversationService.DeleteConversation:output_type -> google.protobuf.Empty
-	17, // 37: ingate.assistant.v1.ConversationService.ListMessages:output_type -> ingate.assistant.v1.ListMessagesResponse
-	8,  // 38: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
-	8,  // 39: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
-	20, // 40: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:output_type -> ingate.assistant.v1.ListAgentExecutionStepsResponse
-	8,  // 41: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
-	23, // 42: ingate.assistant.v1.ModelConnectionService.GetModelConnection:output_type -> ingate.assistant.v1.ModelConnection
-	23, // 43: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:output_type -> ingate.assistant.v1.ModelConnection
-	32, // [32:44] is the sub-list for method output_type
-	20, // [20:32] is the sub-list for method input_type
-	20, // [20:20] is the sub-list for extension type_name
-	20, // [20:20] is the sub-list for extension extendee
-	0,  // [0:20] is the sub-list for field type_name
+	40, // 10: ingate.assistant.v1.AgentExecutionStep.started_at:type_name -> google.protobuf.Timestamp
+	40, // 11: ingate.assistant.v1.AgentExecutionStep.finished_at:type_name -> google.protobuf.Timestamp
+	6,  // 12: ingate.assistant.v1.ProposedChange.kind:type_name -> ingate.assistant.v1.ProposedChangeKind
+	7,  // 13: ingate.assistant.v1.ProposedChange.state:type_name -> ingate.assistant.v1.ProposedChangeState
+	15, // 14: ingate.assistant.v1.ProposedChange.create_gateway:type_name -> ingate.assistant.v1.ProposedGateway
+	17, // 15: ingate.assistant.v1.ProposedChange.create_service:type_name -> ingate.assistant.v1.ProposedService
+	40, // 16: ingate.assistant.v1.ProposedChange.created_at:type_name -> google.protobuf.Timestamp
+	40, // 17: ingate.assistant.v1.ProposedChange.decided_at:type_name -> google.protobuf.Timestamp
+	40, // 18: ingate.assistant.v1.ProposedChange.finished_at:type_name -> google.protobuf.Timestamp
+	16, // 19: ingate.assistant.v1.ProposedGateway.listeners:type_name -> ingate.assistant.v1.ProposedGatewayListener
+	8,  // 20: ingate.assistant.v1.ProposedGatewayListener.protocol:type_name -> ingate.assistant.v1.ProposedGatewayProtocol
+	18, // 21: ingate.assistant.v1.ProposedService.endpoints:type_name -> ingate.assistant.v1.ProposedServiceEndpoint
+	9,  // 22: ingate.assistant.v1.ProposedService.load_balancing:type_name -> ingate.assistant.v1.ProposedServiceLoadBalancing
+	19, // 23: ingate.assistant.v1.ProposedService.health_check:type_name -> ingate.assistant.v1.ProposedServiceHealthCheck
+	10, // 24: ingate.assistant.v1.ListConversationsResponse.conversations:type_name -> ingate.assistant.v1.Conversation
+	11, // 25: ingate.assistant.v1.ListMessagesResponse.messages:type_name -> ingate.assistant.v1.Message
+	13, // 26: ingate.assistant.v1.ListAgentExecutionStepsResponse.steps:type_name -> ingate.assistant.v1.AgentExecutionStep
+	14, // 27: ingate.assistant.v1.ListProposedChangesResponse.proposed_changes:type_name -> ingate.assistant.v1.ProposedChange
+	0,  // 28: ingate.assistant.v1.ModelConnection.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
+	1,  // 29: ingate.assistant.v1.ModelConnection.protocol:type_name -> ingate.assistant.v1.ModelProtocol
+	40, // 30: ingate.assistant.v1.ModelConnection.updated_at:type_name -> google.protobuf.Timestamp
+	0,  // 31: ingate.assistant.v1.UpdateModelConnectionRequest.connection_mode:type_name -> ingate.assistant.v1.ModelConnectionMode
+	1,  // 32: ingate.assistant.v1.UpdateModelConnectionRequest.protocol:type_name -> ingate.assistant.v1.ModelProtocol
+	20, // 33: ingate.assistant.v1.ConversationService.ListConversations:input_type -> ingate.assistant.v1.ListConversationsRequest
+	22, // 34: ingate.assistant.v1.ConversationService.GetConversation:input_type -> ingate.assistant.v1.GetConversationRequest
+	23, // 35: ingate.assistant.v1.ConversationService.CreateConversation:input_type -> ingate.assistant.v1.CreateConversationRequest
+	24, // 36: ingate.assistant.v1.ConversationService.UpdateConversation:input_type -> ingate.assistant.v1.UpdateConversationRequest
+	25, // 37: ingate.assistant.v1.ConversationService.DeleteConversation:input_type -> ingate.assistant.v1.DeleteConversationRequest
+	26, // 38: ingate.assistant.v1.ConversationService.ListMessages:input_type -> ingate.assistant.v1.ListMessagesRequest
+	31, // 39: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:input_type -> ingate.assistant.v1.CreateAgentExecutionRequest
+	28, // 40: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:input_type -> ingate.assistant.v1.GetAgentExecutionRequest
+	29, // 41: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:input_type -> ingate.assistant.v1.ListAgentExecutionStepsRequest
+	32, // 42: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:input_type -> ingate.assistant.v1.CancelAgentExecutionRequest
+	33, // 43: ingate.assistant.v1.ProposedChangeService.ListProposedChanges:input_type -> ingate.assistant.v1.ListProposedChangesRequest
+	35, // 44: ingate.assistant.v1.ProposedChangeService.ApproveProposedChange:input_type -> ingate.assistant.v1.ApproveProposedChangeRequest
+	36, // 45: ingate.assistant.v1.ProposedChangeService.RejectProposedChange:input_type -> ingate.assistant.v1.RejectProposedChangeRequest
+	37, // 46: ingate.assistant.v1.ProposedChangeService.ReviseProposedChange:input_type -> ingate.assistant.v1.ReviseProposedChangeRequest
+	41, // 47: ingate.assistant.v1.ModelConnectionService.GetModelConnection:input_type -> google.protobuf.Empty
+	39, // 48: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:input_type -> ingate.assistant.v1.UpdateModelConnectionRequest
+	21, // 49: ingate.assistant.v1.ConversationService.ListConversations:output_type -> ingate.assistant.v1.ListConversationsResponse
+	10, // 50: ingate.assistant.v1.ConversationService.GetConversation:output_type -> ingate.assistant.v1.Conversation
+	10, // 51: ingate.assistant.v1.ConversationService.CreateConversation:output_type -> ingate.assistant.v1.Conversation
+	10, // 52: ingate.assistant.v1.ConversationService.UpdateConversation:output_type -> ingate.assistant.v1.Conversation
+	41, // 53: ingate.assistant.v1.ConversationService.DeleteConversation:output_type -> google.protobuf.Empty
+	27, // 54: ingate.assistant.v1.ConversationService.ListMessages:output_type -> ingate.assistant.v1.ListMessagesResponse
+	12, // 55: ingate.assistant.v1.AgentExecutionService.CreateAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
+	12, // 56: ingate.assistant.v1.AgentExecutionService.GetAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
+	30, // 57: ingate.assistant.v1.AgentExecutionService.ListAgentExecutionSteps:output_type -> ingate.assistant.v1.ListAgentExecutionStepsResponse
+	12, // 58: ingate.assistant.v1.AgentExecutionService.CancelAgentExecution:output_type -> ingate.assistant.v1.AgentExecution
+	34, // 59: ingate.assistant.v1.ProposedChangeService.ListProposedChanges:output_type -> ingate.assistant.v1.ListProposedChangesResponse
+	14, // 60: ingate.assistant.v1.ProposedChangeService.ApproveProposedChange:output_type -> ingate.assistant.v1.ProposedChange
+	14, // 61: ingate.assistant.v1.ProposedChangeService.RejectProposedChange:output_type -> ingate.assistant.v1.ProposedChange
+	14, // 62: ingate.assistant.v1.ProposedChangeService.ReviseProposedChange:output_type -> ingate.assistant.v1.ProposedChange
+	38, // 63: ingate.assistant.v1.ModelConnectionService.GetModelConnection:output_type -> ingate.assistant.v1.ModelConnection
+	38, // 64: ingate.assistant.v1.ModelConnectionService.UpdateModelConnection:output_type -> ingate.assistant.v1.ModelConnection
+	49, // [49:65] is the sub-list for method output_type
+	33, // [33:49] is the sub-list for method input_type
+	33, // [33:33] is the sub-list for extension type_name
+	33, // [33:33] is the sub-list for extension extendee
+	0,  // [0:33] is the sub-list for field type_name
 }
 
 func init() { file_assistant_v1_assistant_proto_init() }
@@ -1947,16 +3082,20 @@ func file_assistant_v1_assistant_proto_init() {
 	if File_assistant_v1_assistant_proto != nil {
 		return
 	}
-	file_assistant_v1_assistant_proto_msgTypes[18].OneofWrappers = []any{}
+	file_assistant_v1_assistant_proto_msgTypes[4].OneofWrappers = []any{
+		(*ProposedChange_CreateGateway)(nil),
+		(*ProposedChange_CreateService)(nil),
+	}
+	file_assistant_v1_assistant_proto_msgTypes[29].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_assistant_v1_assistant_proto_rawDesc), len(file_assistant_v1_assistant_proto_rawDesc)),
-			NumEnums:      6,
-			NumMessages:   19,
+			NumEnums:      10,
+			NumMessages:   30,
 			NumExtensions: 0,
-			NumServices:   3,
+			NumServices:   4,
 		},
 		GoTypes:           file_assistant_v1_assistant_proto_goTypes,
 		DependencyIndexes: file_assistant_v1_assistant_proto_depIdxs,

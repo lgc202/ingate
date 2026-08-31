@@ -105,7 +105,8 @@ func (h *StreamHandler) events(ctx kratoshttp.Context) error {
 			lastEventID = event.ID
 			if event.Type == executionbiz.EventCompleted ||
 				event.Type == executionbiz.EventFailed ||
-				event.Type == executionbiz.EventCancelled {
+				event.Type == executionbiz.EventCancelled ||
+				event.Type == executionbiz.EventInterrupted {
 				return nil
 			}
 		}
@@ -166,6 +167,8 @@ func terminalEvent(item executionbiz.Execution) (executionbiz.StreamEvent, bool)
 		return executionbiz.StreamEvent{Type: executionbiz.EventFailed, Data: string(item.ErrorCode)}, true
 	case executionbiz.StateCancelled:
 		return executionbiz.StreamEvent{Type: executionbiz.EventCancelled}, true
+	case executionbiz.StateWaitingApproval:
+		return executionbiz.StreamEvent{Type: executionbiz.EventInterrupted}, true
 	default:
 		return executionbiz.StreamEvent{}, false
 	}

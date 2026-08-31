@@ -504,6 +504,208 @@ func (c *AgentExecutionServiceHTTPClientImpl) ListAgentExecutionSteps(ctx contex
 	return &out, nil
 }
 
+const OperationProposedChangeServiceApproveProposedChange = "/ingate.assistant.v1.ProposedChangeService/ApproveProposedChange"
+const OperationProposedChangeServiceListProposedChanges = "/ingate.assistant.v1.ProposedChangeService/ListProposedChanges"
+const OperationProposedChangeServiceRejectProposedChange = "/ingate.assistant.v1.ProposedChangeService/RejectProposedChange"
+const OperationProposedChangeServiceReviseProposedChange = "/ingate.assistant.v1.ProposedChangeService/ReviseProposedChange"
+
+type ProposedChangeServiceHTTPServer interface {
+	// ApproveProposedChange ApproveProposedChange 批准并执行一项配置变更。
+	ApproveProposedChange(context.Context, *ApproveProposedChangeRequest) (*ProposedChange, error)
+	// ListProposedChanges ListProposedChanges 返回会话中已经进入审批流程的配置变更。
+	ListProposedChanges(context.Context, *ListProposedChangesRequest) (*ListProposedChangesResponse, error)
+	// RejectProposedChange RejectProposedChange 拒绝一项尚未执行的配置变更。
+	RejectProposedChange(context.Context, *RejectProposedChangeRequest) (*ProposedChange, error)
+	// ReviseProposedChange ReviseProposedChange 拒绝当前配置，并把文字反馈交回原 Agent 执行。
+	ReviseProposedChange(context.Context, *ReviseProposedChangeRequest) (*ProposedChange, error)
+}
+
+func RegisterProposedChangeServiceHTTPServer(s *http.Server, srv ProposedChangeServiceHTTPServer) {
+	r := s.Route("/")
+	r.Handle("GET", "/assistant/v1/conversations/{conversation_id}/proposed-changes", _ProposedChangeService_ListProposedChanges0_HTTP_Handler(srv))
+	r.Handle("POST", "/assistant/v1/proposed-changes/{id}:approve", _ProposedChangeService_ApproveProposedChange0_HTTP_Handler(srv))
+	r.Handle("POST", "/assistant/v1/proposed-changes/{id}:reject", _ProposedChangeService_RejectProposedChange0_HTTP_Handler(srv))
+	r.Handle("POST", "/assistant/v1/proposed-changes/{id}:revise", _ProposedChangeService_ReviseProposedChange0_HTTP_Handler(srv))
+}
+
+func _ProposedChangeService_ListProposedChanges0_HTTP_Handler(srv ProposedChangeServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ListProposedChangesRequest
+		if err := ctx.BindQuery(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationProposedChangeServiceListProposedChanges)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ListProposedChanges(ctx, req.(*ListProposedChangesRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ListProposedChangesResponse)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _ProposedChangeService_ApproveProposedChange0_HTTP_Handler(srv ProposedChangeServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ApproveProposedChangeRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationProposedChangeServiceApproveProposedChange)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ApproveProposedChange(ctx, req.(*ApproveProposedChangeRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ProposedChange)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _ProposedChangeService_RejectProposedChange0_HTTP_Handler(srv ProposedChangeServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in RejectProposedChangeRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationProposedChangeServiceRejectProposedChange)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.RejectProposedChange(ctx, req.(*RejectProposedChangeRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ProposedChange)
+		return ctx.Result(200, reply)
+	}
+}
+
+func _ProposedChangeService_ReviseProposedChange0_HTTP_Handler(srv ProposedChangeServiceHTTPServer) func(ctx http.Context) error {
+	return func(ctx http.Context) error {
+		var in ReviseProposedChangeRequest
+		if err := ctx.Bind(&in); err != nil {
+			return err
+		}
+		if err := ctx.BindVars(&in); err != nil {
+			return err
+		}
+		http.SetOperation(ctx, OperationProposedChangeServiceReviseProposedChange)
+		h := ctx.Middleware(func(ctx context.Context, req interface{}) (interface{}, error) {
+			return srv.ReviseProposedChange(ctx, req.(*ReviseProposedChangeRequest))
+		})
+		out, err := h(ctx, &in)
+		if err != nil {
+			return err
+		}
+		reply := out.(*ProposedChange)
+		return ctx.Result(200, reply)
+	}
+}
+
+type ProposedChangeServiceHTTPClient interface {
+	// ApproveProposedChange ApproveProposedChange 批准并执行一项配置变更。
+	ApproveProposedChange(ctx context.Context, req *ApproveProposedChangeRequest, opts ...http.CallOption) (rsp *ProposedChange, err error)
+	// ListProposedChanges ListProposedChanges 返回会话中已经进入审批流程的配置变更。
+	ListProposedChanges(ctx context.Context, req *ListProposedChangesRequest, opts ...http.CallOption) (rsp *ListProposedChangesResponse, err error)
+	// RejectProposedChange RejectProposedChange 拒绝一项尚未执行的配置变更。
+	RejectProposedChange(ctx context.Context, req *RejectProposedChangeRequest, opts ...http.CallOption) (rsp *ProposedChange, err error)
+	// ReviseProposedChange ReviseProposedChange 拒绝当前配置，并把文字反馈交回原 Agent 执行。
+	ReviseProposedChange(ctx context.Context, req *ReviseProposedChangeRequest, opts ...http.CallOption) (rsp *ProposedChange, err error)
+}
+
+type ProposedChangeServiceHTTPClientImpl struct {
+	cc *http.Client
+}
+
+func NewProposedChangeServiceHTTPClient(client *http.Client) ProposedChangeServiceHTTPClient {
+	return &ProposedChangeServiceHTTPClientImpl{client}
+}
+
+// ApproveProposedChange ApproveProposedChange 批准并执行一项配置变更。
+func (c *ProposedChangeServiceHTTPClientImpl) ApproveProposedChange(ctx context.Context, in *ApproveProposedChangeRequest, opts ...http.CallOption) (*ProposedChange, error) {
+	var out ProposedChange
+	pattern := "/assistant/v1/proposed-changes/{id}:approve"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationProposedChangeServiceApproveProposedChange),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ListProposedChanges ListProposedChanges 返回会话中已经进入审批流程的配置变更。
+func (c *ProposedChangeServiceHTTPClientImpl) ListProposedChanges(ctx context.Context, in *ListProposedChangesRequest, opts ...http.CallOption) (*ListProposedChangesResponse, error) {
+	var out ListProposedChangesResponse
+	pattern := "/assistant/v1/conversations/{conversation_id}/proposed-changes"
+	path := http.BuildPath(pattern, in, http.WithQueryParams())
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.Operation(OperationProposedChangeServiceListProposedChanges),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "GET", path, nil, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// RejectProposedChange RejectProposedChange 拒绝一项尚未执行的配置变更。
+func (c *ProposedChangeServiceHTTPClientImpl) RejectProposedChange(ctx context.Context, in *RejectProposedChangeRequest, opts ...http.CallOption) (*ProposedChange, error) {
+	var out ProposedChange
+	pattern := "/assistant/v1/proposed-changes/{id}:reject"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationProposedChangeServiceRejectProposedChange),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+// ReviseProposedChange ReviseProposedChange 拒绝当前配置，并把文字反馈交回原 Agent 执行。
+func (c *ProposedChangeServiceHTTPClientImpl) ReviseProposedChange(ctx context.Context, in *ReviseProposedChangeRequest, opts ...http.CallOption) (*ProposedChange, error) {
+	var out ProposedChange
+	pattern := "/assistant/v1/proposed-changes/{id}:revise"
+	path := http.BuildPath(pattern, in)
+	opts = append([]http.CallOption{
+		http.Accept("application/protojson"),
+		http.ContentType("application/protojson"),
+		http.Operation(OperationProposedChangeServiceReviseProposedChange),
+		http.PathTemplate(pattern),
+	}, opts...)
+	err := c.cc.Invoke(ctx, "POST", path, in, &out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
 const OperationModelConnectionServiceGetModelConnection = "/ingate.assistant.v1.ModelConnectionService/GetModelConnection"
 const OperationModelConnectionServiceUpdateModelConnection = "/ingate.assistant.v1.ModelConnectionService/UpdateModelConnection"
 

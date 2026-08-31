@@ -11,7 +11,7 @@ import type {
   AgentExecutionStep,
   AssistantStreamEvent,
 } from '@/domain/assistant';
-import { executionErrorMessage, isTerminalExecution } from '@/domain/assistant';
+import { executionErrorMessage, isSettledExecution } from '@/domain/assistant';
 import {
   clearStoredExecution,
   storeActiveExecution,
@@ -28,14 +28,14 @@ interface ExecutionNotice {
 
 interface UseAssistantExecutionOptions {
   selectedConversationIDRef: RefObject<string | null>;
-  loadMessages: (conversationID: string) => Promise<void>;
+  reloadConversation: (conversationID: string) => Promise<void>;
   reloadConversations: () => Promise<unknown>;
   onNotice: (notice: ExecutionNotice) => void;
 }
 
 export function useAssistantExecution({
   selectedConversationIDRef,
-  loadMessages,
+  reloadConversation,
   reloadConversations,
   onNotice,
 }: UseAssistantExecutionOptions) {
@@ -44,7 +44,6 @@ export function useAssistantExecution({
   const [liveAnswer, setLiveAnswer] = useState<{
     conversationID: string;
     content: string;
-    reasoning: string;
   } | null>(null);
   const [cancelling, setCancelling] = useState(false);
   const [executionError, setExecutionError] = useState('');
@@ -70,10 +69,10 @@ export function useAssistantExecution({
 
     const reloadTasks: Promise<unknown>[] = [reloadConversations().catch(() => undefined)];
     if (selectedConversationIDRef.current === execution.conversationId) {
-      reloadTasks.push(loadMessages(execution.conversationId));
+      reloadTasks.push(reloadConversation(execution.conversationId));
     }
     await Promise.all(reloadTasks);
-  }, [loadMessages, reloadConversations, selectedConversationIDRef]);
+  }, [reloadConversation, reloadConversations, selectedConversationIDRef]);
 
   const followExecution = useCallback(async (
     initialExecution: AgentExecution,
@@ -86,24 +85,22 @@ export function useAssistantExecution({
     let execution = initialExecution;
     let lastEventID = storedExecution?.lastEventID ?? '';
     let content = storedExecution?.content ?? '';
-    let reasoning = storedExecution?.reasoning ?? '';
     let terminalFromEvent = false;
     let lastStoredAt = Date.now();
 
     setActiveExecution(execution);
     setExecutionSteps([]);
-    setLiveAnswer({ conversationID: execution.conversationId, content, reasoning });
+    setLiveAnswer({ conversationID: execution.conversationId, content });
     setExecutionError('');
     storeActiveExecution({
       executionID: execution.id,
       conversationID: execution.conversationId,
       lastEventID,
       content,
-      reasoning,
     });
 
     try {
-      while (!abortController.signal.aborted && !isTerminalExecution(execution.state)) {
+      while (!abortController.signal.aborted && !isSettledExecution(execution.state)) {
         terminalFromEvent = false;
         try {
           await streamAgentExecution(
@@ -117,13 +114,12 @@ export function useAssistantExecution({
                   ? { ...current, state: 'AGENT_EXECUTION_STATE_RUNNING' }
                   : current);
               }
-              if (event.type === 'message.reasoning.delta') reasoning += event.value;
               if (event.type === 'message.content.delta') content += event.value;
               if (event.type === 'stream.failed') {
                 onNotice({ message: '实时回答连接已中断，正在恢复', tone: 'error' });
               }
-              if (event.type === 'message.reasoning.delta' || event.type === 'message.content.delta') {
-                setLiveAnswer({ conversationID: execution.conversationId, content, reasoning });
+              if (event.type === 'message.content.delta') {
+                setLiveAnswer({ conversationID: execution.conversationId, content });
               }
 
               terminalFromEvent = isTerminalStreamEvent(event) || terminalFromEvent;
@@ -134,7 +130,6 @@ export function useAssistantExecution({
                   conversationID: execution.conversationId,
                   lastEventID,
                   content,
-                  reasoning,
                 });
                 lastStoredAt = now;
               }
@@ -150,11 +145,25 @@ export function useAssistantExecution({
 
         execution = await getAgentExecution(execution.id);
         setActiveExecution(execution);
-        if (isTerminalExecution(execution.state) || terminalFromEvent) break;
+        // 同一个 Execution 可以经历多次审批恢复。事件流中可能仍保留上一阶段的
+        // interrupted 事件，是否结束跟随必须以 MySQL 执行状态为准。
+        if (isSettledExecution(execution.state)) break;
+        if (terminalFromEvent) {
+          // 这是已恢复执行的历史阶段终点。游标已经前移，下一轮只展示当前阶段
+          // 新产生的回答，不能把审批前的未完成文本再次拼接进来。
+          content = '';
+          setLiveAnswer({ conversationID: execution.conversationId, content });
+          storeActiveExecution({
+            executionID: execution.id,
+            conversationID: execution.conversationId,
+            lastEventID,
+            content,
+          });
+        }
         await delay(executionPollIntervalMillis, abortController.signal);
       }
       if (abortController.signal.aborted || generation !== streamGenerationRef.current) return;
-      if (!isTerminalExecution(execution.state)) execution = await getAgentExecution(execution.id);
+      if (!isSettledExecution(execution.state)) execution = await getAgentExecution(execution.id);
       await finishExecution(execution);
     } catch (cause) {
       if (!abortController.signal.aborted) {
@@ -165,7 +174,18 @@ export function useAssistantExecution({
         setActiveExecution(null);
         setLiveAnswer(null);
         setCancelling(false);
-        clearStoredExecution();
+        if (execution.state === 'AGENT_EXECUTION_STATE_WAITING_APPROVAL') {
+          // 审批恢复仍沿用同一个 Execution 和 Redis Stream。保留游标但丢弃本阶段
+          // 未形成最终回答的流式文本，避免恢复后重放旧中断和旧思考内容。
+          storeActiveExecution({
+            executionID: execution.id,
+            conversationID: execution.conversationId,
+            lastEventID,
+            content: '',
+          });
+        } else {
+          clearStoredExecution();
+        }
         streamAbortRef.current = null;
       }
     }
@@ -173,7 +193,7 @@ export function useAssistantExecution({
 
   useEffect(() => {
     const executionID = activeExecution?.id;
-    if (!executionID || isTerminalExecution(activeExecution.state)) return;
+    if (!executionID || isSettledExecution(activeExecution.state)) return;
     let cancelled = false;
     const refreshSteps = async () => {
       try {
@@ -232,7 +252,8 @@ export function useAssistantExecution({
 function isTerminalStreamEvent(event: AssistantStreamEvent): boolean {
   return event.type === 'execution.completed'
     || event.type === 'execution.failed'
-    || event.type === 'execution.cancelled';
+    || event.type === 'execution.cancelled'
+    || event.type === 'execution.interrupted';
 }
 
 function delay(duration: number, signal: AbortSignal): Promise<void> {

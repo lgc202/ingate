@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
@@ -73,6 +74,11 @@ func recovery(logger *slog.Logger) kratoshttp.FilterFunc {
 			state := &responseState{ResponseWriter: response}
 			defer func() {
 				if recovered := recover(); recovered != nil {
+					if err, ok := recovered.(error); ok && errors.Is(err, http.ErrAbortHandler) {
+						// ReverseProxy 用 ErrAbortHandler 结束已经中断的流式响应。
+						// 这是连接生命周期，不是应用 panic，不能记录错误或再写响应。
+						return
+					}
 					logger.ErrorContext(request.Context(),
 						"console request panic recovered",
 						"request_id", request.Header.Get(requestid.Header),

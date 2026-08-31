@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	agentbiz "github.com/lgc202/ingate/internal/assistant/biz/agent"
 	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 )
 
@@ -23,12 +24,13 @@ type Store interface {
 type ExecutorStore interface {
 	ListRecentMessages(context.Context, string, string, int, int64) ([]conversation.HistoryMessage, error)
 	ClaimExecution(context.Context, string, time.Duration) (Claim, bool, error)
-	SetExecutionModel(context.Context, string, string, string) error
+	BindExecutionModel(context.Context, string, string, string) error
 	StartExecutionStep(context.Context, string, string, Step) error
 	CompleteExecutionStep(context.Context, string, string, string, StepKind, string) error
 	FailExecutionStep(context.Context, string, string, string, StepKind, FailureCode) error
 	RenewExecutionLease(context.Context, string, string, time.Duration) (bool, error)
 	CompleteExecution(context.Context, string, string, string, Completion) (conversation.Message, error)
+	PauseExecution(context.Context, string, string, string, agentbiz.ApprovalInterruption) error
 	FailExecution(context.Context, string, string, string, FailureCode) error
 	FinishExecutionCancellation(context.Context, string, string, string) error
 	FailExpiredExecutions(context.Context) (int64, error)
