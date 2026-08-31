@@ -16,12 +16,18 @@ import (
 	"github.com/lgc202/ingate/internal/pkg/upstreamconfig"
 )
 
+// Kind 表示审批后执行的确定性操作。
+type Kind string
+
 const (
 	// KindCreateGateway 创建一个 Gateway。
 	KindCreateGateway Kind = "create_gateway"
 	// KindCreateService 创建一个普通 HTTP Service。
 	KindCreateService Kind = "create_service"
 )
+
+// State 表示配置变更的审批和执行状态。
+type State string
 
 const (
 	// StatePendingReview 表示变更正在等待管理员决定。
@@ -38,6 +44,9 @@ const (
 	StateOutcomeUnknown State = "outcome_unknown"
 )
 
+// GatewayProtocol 表示 Gateway 监听入口使用的协议。
+type GatewayProtocol string
+
 const (
 	// GatewayProtocolHTTP 表示普通 HTTP 监听入口。
 	GatewayProtocolHTTP GatewayProtocol = "http"
@@ -45,12 +54,18 @@ const (
 	GatewayProtocolHTTPS GatewayProtocol = "https"
 )
 
+// LoadBalancing 表示 Service 多个端点之间的流量分配方式。
+type LoadBalancing string
+
 const (
 	// LoadBalancingRoundRobin 使用轮询策略。
 	LoadBalancingRoundRobin LoadBalancing = "round_robin"
 	// LoadBalancingLeastRequest 优先选择活跃请求较少的端点。
 	LoadBalancingLeastRequest LoadBalancing = "least_request"
 )
+
+// FailureCode 是可以持久化并安全返回控制台的稳定失败码。
+type FailureCode string
 
 const (
 	// FailureAdminRejected 表示 Admin API 在执行前明确拒绝了配置。
@@ -67,21 +82,6 @@ var (
 	// ErrAdminRejected 表示 Admin API 明确未执行创建操作。
 	ErrAdminRejected = errors.New("assistant proposed change rejected by Admin API")
 )
-
-// Kind 表示审批后执行的确定性操作。
-type Kind string
-
-// State 表示配置变更的审批和执行状态。
-type State string
-
-// GatewayProtocol 表示 Gateway 监听入口使用的协议。
-type GatewayProtocol string
-
-// LoadBalancing 表示 Service 多个端点之间的流量分配方式。
-type LoadBalancing string
-
-// FailureCode 是可以持久化并安全返回控制台的稳定失败码。
-type FailureCode string
 
 // ProposedChange 是一项已经进入审批流程的不可变配置变更。
 type ProposedChange struct {

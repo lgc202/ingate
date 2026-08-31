@@ -14,7 +14,7 @@ import (
 )
 
 // runModelLoop 建立并消费一次 Eino 模型—工具循环。
-// 调用方已经完成模型选择和上下文恢复，本函数只负责把明确的输入交给 Eino。
+// 首次输入和审批恢复都属于同一次持久化 Execution。
 func (a *Agent) runModelLoop(
 	ctx context.Context,
 	request Request,
@@ -43,10 +43,9 @@ func (a *Agent) runModelLoop(
 		return Response{}, fmt.Errorf("create Eino chat model agent: %w", err)
 	}
 
-	if strings.TrimSpace(request.CheckpointID) == "" {
-		return Response{}, errors.New("agent checkpoint ID is empty")
+	if strings.TrimSpace(request.ExecutionID) == "" {
+		return Response{}, errors.New("agent execution ID is empty")
 	}
-	messages := modelMessages(request.Messages)
 	response := responseCollector{events: events}
 	runner := adk.NewRunner(ctx, adk.RunnerConfig{
 		Agent:           chatAgent,
@@ -55,14 +54,18 @@ func (a *Agent) runModelLoop(
 	})
 	var iterator *adk.AsyncIterator[*adk.AgentEvent]
 	if request.Resume == nil {
-		iterator = runner.Run(ctx, messages, adk.WithCheckPointID(request.CheckpointID))
+		messages := modelMessages(request.Messages)
+		if len(messages) == 0 {
+			return Response{}, errors.New("agent execution contains no messages")
+		}
+		iterator = runner.Run(ctx, messages, adk.WithCheckPointID(request.ExecutionID))
 	} else {
 		if strings.TrimSpace(request.Resume.InterruptID) == "" || request.Resume.Result == nil {
 			return Response{}, errors.New("agent resume request is incomplete")
 		}
 		iterator, err = runner.ResumeWithParams(
 			ctx,
-			request.CheckpointID,
+			request.ExecutionID,
 			&adk.ResumeParams{Targets: map[string]any{
 				request.Resume.InterruptID: request.Resume.Result,
 			}},

@@ -8,6 +8,7 @@ import (
 
 	agentbiz "github.com/lgc202/ingate/internal/assistant/biz/agent"
 	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
+	"github.com/lgc202/ingate/internal/assistant/biz/conversation"
 )
 
 const (
@@ -121,19 +122,23 @@ func (e *Executor) invokeAgent(
 	workerID string,
 	leaseDuration time.Duration,
 ) (bool, error) {
-	history, err := e.store.ListRecentMessages(
-		ctx,
-		claim.ActorID,
-		claim.ConversationID,
-		maxModelHistoryMessages,
-		maxModelHistoryContentBytes,
-	)
-	if err != nil {
-		cause := fmt.Errorf("load conversation history: %w", err)
-		if commitErr := e.finishFailure(ctx, claim, workerID, FailureInternal); commitErr != nil {
-			return false, errors.Join(cause, commitErr)
+	var history []conversation.HistoryMessage
+	if claim.Resume == nil {
+		var err error
+		history, err = e.store.ListRecentMessages(
+			ctx,
+			claim.ActorID,
+			claim.ConversationID,
+			maxModelHistoryMessages,
+			maxModelHistoryContentBytes,
+		)
+		if err != nil {
+			cause := fmt.Errorf("load conversation history: %w", err)
+			if commitErr := e.finishFailure(ctx, claim, workerID, FailureInternal); commitErr != nil {
+				return false, errors.Join(cause, commitErr)
+			}
+			return true, cause
 		}
-		return true, cause
 	}
 	request, err := agentRequest(claim.ID, claim.Resume, history)
 	if err != nil {
@@ -332,9 +337,12 @@ func failureCode(err error) FailureCode {
 		return FailureToolUnavailable
 	case errors.Is(err, agentbiz.ErrIterationLimit):
 		return FailureIterationLimit
+	case errors.Is(err, agentbiz.ErrModelNotConfigured),
+		errors.Is(err, agentbiz.ErrModelUnavailable):
+		return FailureModelUnavailable
 	case errors.Is(err, errExecutionRecordUnavailable):
 		return FailureInternal
 	default:
-		return FailureModelUnavailable
+		return FailureInternal
 	}
 }

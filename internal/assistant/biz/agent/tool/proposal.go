@@ -49,28 +49,9 @@ type changeToolOutput struct {
 	ErrorCode  string `json:"error_code,omitempty"`
 }
 
-type approvalInterruptError struct {
-	cause error
-}
-
 func init() {
 	schema.RegisterName[*ApprovalRequest](approvalRequestSchema)
 	schema.RegisterName[*ApprovalResult](approvalResultSchema)
-}
-
-func (e *approvalInterruptError) Error() string {
-	return e.cause.Error()
-}
-
-func (e *approvalInterruptError) Unwrap() error {
-	return e.cause
-}
-
-// IsApprovalInterrupt 区分预期的 Eino 审批中断与真实工具故障。
-// 包装仍保留原始 interrupt signal，Eino 可以通过 errors.As 正常建立 checkpoint。
-func IsApprovalInterrupt(err error) bool {
-	var interrupt *approvalInterruptError
-	return errors.As(err, &interrupt)
 }
 
 func proposalInputResult(err error) (proposalToolOutput, error) {
@@ -104,9 +85,7 @@ func executeWithApproval(
 			Summary:  prepared.Summary,
 			Proposal: *prepared.Proposal,
 		}
-		return changeToolOutput{}, approvalInterrupt(
-			einotool.StatefulInterrupt(ctx, request, request),
-		)
+		return changeToolOutput{}, einotool.StatefulInterrupt(ctx, request, request)
 	}
 	if !hasState || request == nil {
 		return changeToolOutput{}, errors.New("change approval checkpoint contains no request")
@@ -117,9 +96,7 @@ func executeWithApproval(
 
 	isTarget, hasResult, result := einotool.GetResumeContext[*ApprovalResult](ctx)
 	if !isTarget {
-		return changeToolOutput{}, approvalInterrupt(
-			einotool.StatefulInterrupt(ctx, request, request),
-		)
+		return changeToolOutput{}, einotool.StatefulInterrupt(ctx, request, request)
 	}
 	if !hasResult || result == nil {
 		return changeToolOutput{}, errors.New("change approval resume contains no result")
@@ -159,10 +136,6 @@ func executeWithApproval(
 		ChangeID:  request.ChangeID,
 		ErrorCode: string(changebiz.FailureOutcomeUnknown),
 	}, nil
-}
-
-func approvalInterrupt(cause error) error {
-	return &approvalInterruptError{cause: cause}
 }
 
 func writeChange(

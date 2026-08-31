@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// State 表示一次 Agent 执行的持久状态。
+type State string
+
 const (
 	// StateQueued 表示执行已经创建，正在等待后台实例领取。
 	StateQueued State = "queued"
@@ -21,12 +24,18 @@ const (
 	StateWaitingApproval State = "waiting_approval"
 )
 
+// StepKind 表示一次执行中可持久追踪的步骤类型。
+type StepKind string
+
 const (
 	// StepKindModelCall 表示步骤调用了一次模型端点。
 	StepKindModelCall StepKind = "model_call"
 	// StepKindToolCall 表示步骤调用了一次 Agent 工具。
 	StepKindToolCall StepKind = "tool_call"
 )
+
+// StepState 表示单个执行步骤的生命周期。
+type StepState string
 
 const (
 	// StepStateRunning 表示步骤已经开始但尚未结束。
@@ -40,6 +49,9 @@ const (
 	// StepStateWaitingApproval 表示有副作用工具已中断，尚未收到审批结果。
 	StepStateWaitingApproval StepState = "waiting_approval"
 )
+
+// EventType 是浏览器可订阅和短时重放的流式事件类型。
+type EventType string
 
 const (
 	// EventStarted 表示执行已经进入运行状态。
@@ -59,6 +71,9 @@ const (
 	// EventStreamFailed 表示事件流无法继续读取，执行状态需要另行查询。
 	EventStreamFailed EventType = "stream.failed"
 )
+
+// FailureCode 是可持久化并安全返回客户端的稳定错误码。
+type FailureCode string
 
 const (
 	// FailureInternal 表示未公开内部细节的执行故障。
@@ -89,21 +104,6 @@ var (
 
 	errExecutionRecordUnavailable = errors.New("assistant execution record is unavailable")
 )
-
-// State 表示一次 Agent 执行的持久状态。
-type State string
-
-// StepKind 表示一次执行中可持久追踪的步骤类型。
-type StepKind string
-
-// StepState 表示单个执行步骤的生命周期。
-type StepState string
-
-// EventType 是浏览器可订阅和短时重放的流式事件类型。
-type EventType string
-
-// FailureCode 是可持久化并安全返回客户端的稳定错误码。
-type FailureCode string
 
 // Execution 记录一条用户输入从排队到完成的生命周期。
 // 流式分片只短期保存在 Redis，不进入该持久对象。
@@ -156,4 +156,30 @@ type StreamEvent struct {
 	ID   string
 	Type EventType
 	Data string
+}
+
+// Replayable 表示事件可以进入短期流并在 SSE 重连后重放。
+func (t EventType) Replayable() bool {
+	switch t {
+	case EventStarted,
+		EventReasoningDelta,
+		EventContentDelta,
+		EventCompleted,
+		EventFailed,
+		EventCancelled,
+		EventInterrupted:
+		return true
+	default:
+		return false
+	}
+}
+
+// EndsStream 表示浏览器收到该事件后应结束当前 SSE 连接。
+func (t EventType) EndsStream() bool {
+	switch t {
+	case EventCompleted, EventFailed, EventCancelled, EventInterrupted, EventStreamFailed:
+		return true
+	default:
+		return false
+	}
 }

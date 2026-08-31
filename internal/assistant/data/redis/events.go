@@ -127,15 +127,7 @@ func streamEventFromRedis(message redisgo.XMessage) (execution.StreamEvent, erro
 		return execution.StreamEvent{}, errors.New("stream event fields must be strings")
 	}
 	eventType := execution.EventType(typeText)
-	switch eventType {
-	case execution.EventStarted,
-		execution.EventReasoningDelta,
-		execution.EventContentDelta,
-		execution.EventCompleted,
-		execution.EventFailed,
-		execution.EventCancelled,
-		execution.EventInterrupted:
-	default:
+	if !eventType.Replayable() {
 		return execution.StreamEvent{}, fmt.Errorf("unsupported Redis stream event type %q", typeText)
 	}
 	return execution.StreamEvent{ID: message.ID, Type: eventType, Data: data}, nil

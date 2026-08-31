@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+// MessageRole 表示一条持久消息在对话中的职责。
+type MessageRole string
+
 const (
 	// RoleUser 表示管理员发送的持久消息。
 	RoleUser MessageRole = "user"
@@ -20,9 +23,6 @@ var (
 	// ErrActiveOperation 表示会话仍有正在处理的 Agent 执行或配置变更，不能删除。
 	ErrActiveOperation = errors.New("conversation has an active operation")
 )
-
-// MessageRole 表示一条持久消息在对话中的职责。
-type MessageRole string
 
 // Conversation 表示一个管理员与运维助手的持久会话。
 type Conversation struct {

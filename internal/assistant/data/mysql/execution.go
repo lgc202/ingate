@@ -332,6 +332,7 @@ func validFailureCode(code execution.FailureCode) bool {
 	case execution.FailureInternal,
 		execution.FailureModelUnavailable,
 		execution.FailureToolUnavailable,
+		execution.FailureIterationLimit,
 		execution.FailureWorkerLost,
 		execution.FailureWorkerStopped:
 		return true

@@ -103,10 +103,7 @@ func (h *StreamHandler) events(ctx kratoshttp.Context) error {
 				return nil
 			}
 			lastEventID = event.ID
-			if event.Type == executionbiz.EventCompleted ||
-				event.Type == executionbiz.EventFailed ||
-				event.Type == executionbiz.EventCancelled ||
-				event.Type == executionbiz.EventInterrupted {
+			if event.Type.EndsStream() {
 				return nil
 			}
 		}

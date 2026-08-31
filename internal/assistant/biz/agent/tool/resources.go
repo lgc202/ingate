@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+// TrafficDimension 是流量统计支持的资源分组维度。
+type TrafficDimension string
+
 const (
 	// TrafficDimensionGateway 按逻辑网关汇总流量。
 	TrafficDimensionGateway TrafficDimension = "gateway"
@@ -15,6 +18,9 @@ const (
 	TrafficDimensionService TrafficDimension = "service"
 )
 
+// TrafficOrder 是流量排名支持的排序依据。
+type TrafficOrder string
+
 const (
 	// TrafficOrderRequestCount 按请求量从高到低排序。
 	TrafficOrderRequestCount TrafficOrder = "request_count"
@@ -23,6 +29,9 @@ const (
 	// TrafficOrderP95Duration 按 P95 请求耗时从高到低排序。
 	TrafficOrderP95Duration TrafficOrder = "p95_duration"
 )
+
+// FailureOutcome 是失败请求工具支持的结果分类。
+type FailureOutcome string
 
 const (
 	// FailureOutcomeClientError 只查询客户端错误请求。
@@ -132,12 +141,6 @@ type Service struct {
 	ModelProtocol string
 }
 
-// TrafficDimension 是流量统计支持的资源分组维度。
-type TrafficDimension string
-
-// TrafficOrder 是流量排名支持的排序依据。
-type TrafficOrder string
-
 // TrafficQuery 描述一次流量分析的时间、资源范围和排名方式。
 type TrafficQuery struct {
 	StartTime time.Time
@@ -176,9 +179,6 @@ type TrafficAnalysis struct {
 	OrderBy TrafficOrder
 	Items   []ResourceTrafficMetrics
 }
-
-// FailureOutcome 是失败请求工具支持的结果分类。
-type FailureOutcome string
 
 // FailureQuery 描述近期失败请求的时间、资源和结果范围。
 type FailureQuery struct {

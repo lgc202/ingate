@@ -8,15 +8,17 @@ import (
 	"strings"
 
 	"github.com/cloudwego/eino/adk"
+	"github.com/cloudwego/eino/components/model"
 	einotool "github.com/cloudwego/eino/components/tool"
+	"github.com/cloudwego/eino/compose"
+	"github.com/cloudwego/eino/schema"
 	"github.com/google/uuid"
 
-	agenttool "github.com/lgc202/ingate/internal/assistant/biz/agent/tool"
 	changebiz "github.com/lgc202/ingate/internal/assistant/biz/change"
 )
 
-// eventHandler 把 Eino 调用生命周期转换成 Ingate 的稳定执行事件。
-// Handler 只观察调用，不修改模型消息、工具参数或工具结果。
+// eventHandler 把 Eino 调用生命周期转换成 Ingate 的稳定执行事件，
+// 并为模型和工具调用错误附加执行层可识别的分类。
 type eventHandler struct {
 	*adk.BaseChatModelAgentMiddleware
 
@@ -31,6 +33,18 @@ type parsedToolResult struct {
 	ChangeID   string                `json:"change_id"`
 	ResourceID string                `json:"resource_id"`
 	ErrorCode  changebiz.FailureCode `json:"error_code"`
+}
+
+type modelErrorWrapper struct {
+	next model.BaseChatModel
+}
+
+func newEventHandler(modelName string, events EventSink) *eventHandler {
+	return &eventHandler{
+		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
+		modelName:                    modelName,
+		events:                       events,
+	}
 }
 
 func (h *eventHandler) BeforeModelRewriteState(
@@ -84,6 +98,14 @@ func (h *eventHandler) AfterModelRewriteState(
 	return ctx, state, nil
 }
 
+func (h *eventHandler) WrapModel(
+	_ context.Context,
+	next model.BaseChatModel,
+	_ *adk.ModelContext,
+) (model.BaseChatModel, error) {
+	return &modelErrorWrapper{next: next}, nil
+}
+
 func (h *eventHandler) WrapInvokableToolCall(
 	_ context.Context,
 	next adk.InvokableToolCallEndpoint,
@@ -115,7 +137,7 @@ func (h *eventHandler) WrapInvokableToolCall(
 
 		result, err := next(ctx, arguments, options...)
 		if err != nil {
-			if agenttool.IsApprovalInterrupt(err) {
+			if _, interrupted := compose.IsInterruptRerunError(err); interrupted {
 				return "", err
 			}
 			return "", h.failTool(ctx, callID, toolContext.Name, err)
@@ -145,14 +167,6 @@ func (h *eventHandler) WrapInvokableToolCall(
 	}, nil
 }
 
-func newEventHandler(modelName string, events EventSink) *eventHandler {
-	return &eventHandler{
-		BaseChatModelAgentMiddleware: &adk.BaseChatModelAgentMiddleware{},
-		modelName:                    modelName,
-		events:                       events,
-	}
-}
-
 func (h *eventHandler) failTool(
 	ctx context.Context,
 	callID string,
@@ -170,6 +184,50 @@ func (h *eventHandler) failTool(
 		return errors.Join(toolErr, eventErr)
 	}
 	return errors.Join(ErrToolUnavailable, toolErr)
+}
+
+func (m *modelErrorWrapper) Generate(
+	ctx context.Context,
+	input []*schema.Message,
+	options ...model.Option,
+) (*schema.Message, error) {
+	message, err := m.next.Generate(ctx, input, options...)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: generate assistant model response: %w",
+			ErrModelUnavailable,
+			err,
+		)
+	}
+	return message, nil
+}
+
+func (m *modelErrorWrapper) Stream(
+	ctx context.Context,
+	input []*schema.Message,
+	options ...model.Option,
+) (*schema.StreamReader[*schema.Message], error) {
+	stream, err := m.next.Stream(ctx, input, options...)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"%w: start assistant model stream: %w",
+			ErrModelUnavailable,
+			err,
+		)
+	}
+	return schema.StreamReaderWithConvert(
+		stream,
+		func(message *schema.Message) (*schema.Message, error) {
+			return message, nil
+		},
+		schema.WithErrWrapper(func(err error) error {
+			return fmt.Errorf(
+				"%w: read assistant model stream: %w",
+				ErrModelUnavailable,
+				err,
+			)
+		}),
+	), nil
 }
 
 func parseToolResult(result string) (parsedToolResult, error) {
