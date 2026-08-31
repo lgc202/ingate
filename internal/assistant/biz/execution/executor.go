@@ -303,6 +303,8 @@ func failureCode(err error) FailureCode {
 	switch {
 	case errors.Is(err, agentbiz.ErrToolUnavailable):
 		return FailureToolUnavailable
+	case errors.Is(err, agentbiz.ErrIterationLimit):
+		return FailureIterationLimit
 	case errors.Is(err, errExecutionRecordUnavailable):
 		return FailureInternal
 	default:

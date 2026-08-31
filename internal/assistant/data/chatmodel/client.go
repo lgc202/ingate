@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/cloudwego/eino-ext/components/model/claude"
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	einomodel "github.com/cloudwego/eino/components/model"
@@ -61,10 +62,10 @@ func newAnthropicModel(
 		},
 	}
 	if connection.ReasoningBudgetTokens > 0 {
-		config.Thinking = &claude.Thinking{
-			Enable:       true,
-			BudgetTokens: connection.ReasoningBudgetTokens,
-		}
+		thinking := anthropic.ThinkingConfigParamOfEnabled(
+			int64(connection.ReasoningBudgetTokens),
+		)
+		config.ThinkingConfig = &thinking
 	}
 	model, err := claude.NewChatModel(ctx, config)
 	if err != nil {
